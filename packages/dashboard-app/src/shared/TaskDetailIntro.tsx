@@ -41,9 +41,11 @@ export function TaskDetailIntro({
       {actions !== undefined && (
         <div className="flex flex-wrap items-center gap-[9px] border-b border-border py-3" data-testid="dt8-acts">
           <div className="flex items-center gap-2">{actions}</div>
-          <span className="font-mono text-[11.5px] tabular-nums text-text-3" data-testid="dt-foot-label">
-            {footLabel}
-          </span>
+          {footLabel !== '' && (
+            <span className="font-mono text-[11.5px] tabular-nums text-text-3" data-testid="dt-foot-label">
+              {footLabel}
+            </span>
+          )}
         </div>
       )}
       {requirement !== undefined && requirement !== '' && (

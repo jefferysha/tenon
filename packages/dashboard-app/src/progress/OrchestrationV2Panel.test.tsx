@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BoardSnapshotV2 } from '@tenon/kernel'
 import { I18nProvider } from '../i18n'
 import { OrchestrationV2Panel } from './OrchestrationV2Panel'
-import { fetchOrchestrationV2Snapshot, postOrchestrationV2Command, postOrchestrationV2Control, subscribeOrchestrationV2 } from '../api/orchestrationV2Client'
+import { fetchOrchestrationV2Snapshot, OrchestrationV2ApiError, postOrchestrationV2Command, postOrchestrationV2Control, subscribeOrchestrationV2 } from '../api/orchestrationV2Client'
 
 vi.mock('../api/orchestrationV2Client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/orchestrationV2Client')>()
@@ -29,6 +29,17 @@ beforeEach(() => {
 })
 
 describe('OrchestrationV2Panel', () => {
+  it('hides legacy changes that have no V2 state and never starts their event stream', async () => {
+    vi.mocked(fetchOrchestrationV2Snapshot).mockRejectedValue(
+      new OrchestrationV2ApiError('not found', 404, 'ORCHESTRATION_V2_CHANGE_NOT_FOUND', true),
+    )
+
+    render(<I18nProvider><OrchestrationV2Panel root="/repo" change="legacy" /></I18nProvider>)
+
+    await waitFor(() => expect(screen.queryByTestId('orchestration-v2-panel')).not.toBeInTheDocument())
+    expect(subscribeOrchestrationV2).not.toHaveBeenCalled()
+  })
+
   it('paints the durable snapshot and applies only newer stream frames', async () => {
     vi.mocked(fetchOrchestrationV2Snapshot).mockResolvedValue(snapshot('executing'))
     let onFrame: Parameters<typeof subscribeOrchestrationV2>[2] | undefined

@@ -34,9 +34,12 @@ export interface TaskDetailProps {
   evidenceExtra?: ReactNode
   documentsExtra?: ReactNode
   collapseTechnical?: boolean
+  /** `all` preserves the legacy full detail for callers outside the Progress sheet. */
+  surface?: TaskDetailSurface
   onClose?: () => void
   onToast?: (msg: string) => void
 }
+export type TaskDetailSurface = 'all' | 'summary' | 'outputs' | 'terminal' | 'history'
 type StageStatus = 'done' | 'cur' | 'fail' | 'todo'
 const secCls = 'border-b border-border py-[13px] last:border-b-0'
 const secHeadCls = 'mb-2.5 flex items-baseline gap-[7px] text-[12.5px] font-bold text-text'
@@ -76,6 +79,7 @@ export function TaskDetail({
   evidenceExtra,
   documentsExtra,
   collapseTechnical = false,
+  surface = 'all',
   onClose,
   onToast,
 }: TaskDetailProps): JSX.Element {
@@ -87,6 +91,10 @@ export function TaskDetail({
   useEffect(() => {
     let cancelled = false
     setEntries(null)
+    if (surface !== 'all' && surface !== 'history') {
+      setEntries([])
+      return () => { cancelled = true }
+    }
     getHistory(change.name, root)
       .then((es) => {
         if (!cancelled) setEntries(es)
@@ -97,7 +105,7 @@ export function TaskDetail({
     return () => {
       cancelled = true
     }
-  }, [change.name, change.phase, root])
+  }, [change.name, change.phase, root, surface])
   useGSAP(
     () => {
       const stages = scopeRef.current?.querySelectorAll('[data-anim="stage"]')
@@ -282,21 +290,9 @@ export function TaskDetail({
       </div>
     )
   }
-  const historySection = <TaskHistorySection entries={entries} />
-  return (
-    <section data-testid="task-detail" ref={scopeRef}>
-      <TaskDetailIntro
-        name={change.name}
-        badge={badge}
-        actions={actions}
-        footLabel={footLabel}
-        requirement={requirement}
-        onClose={onClose}
-      />
-      <div className={secCls} data-testid="dt-stages-sec">
-        <div className={secHeadCls}>
-          {t('detail.stages_heading')} <span className={hintCls}>{t('detail.stages_hint')}</span>
-        </div>
+  function renderStagesTimeline(): JSX.Element {
+    return (
+      <>
         {showStages && (
           <div role="list" aria-label={t('detail.stages_label', { name: change.name, n: stages.length })}>
             {stages.map((st, i) => {
@@ -357,41 +353,135 @@ export function TaskDetail({
             </div>
           </div>
         )}
-      </div>
-      <OrchestrationGraphCard root={root} change={change.name} />
-      {evidenceExtra}
-      {change.documents?.governed ? (
-        <TaskDocumentsSection
-          documents={change.documents}
-          extra={documentsExtra}
-        />
-      ) : documentsExtra !== undefined ? (
-        <div
-          className="border-b border-border py-[13px] last:border-b-0"
-          data-testid="dt-verification-tools"
-        >
-          {documentsExtra}
+      </>
+    )
+  }
+  function renderCompactStage(): JSX.Element {
+    const current = stages[curIdx]
+    const currentLabel = current ? stageLabel(current.step) : stageLabel(change.phase)
+    const result = verdict()
+    const ResultIcon = result.icon
+    const compactStatusText = state === 'agent'
+      ? t('detail.verdict_agent_compact')
+      : state === 'running'
+        ? t('detail.verdict_running_compact')
+        : state === 'queued'
+          ? t('detail.verdict_queued_compact')
+          : result.text
+    return (
+      <div className="rounded-xl border border-border bg-fill/40 p-3.5" data-testid="dt-compact-stage">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-bold text-text">{currentLabel}</span>
+          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${result.bad ? 'text-red-d' : 'text-text-2'}`} data-testid="dt-compact-status">
+            <ResultIcon className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+            {compactStatusText}
+          </span>
         </div>
-      ) : null}
-      <RelatedSessionsSection key={`${root}\u0000${change.name}`} root={root} name={change.name} />
-      {collapseTechnical ? (
-        <details className="my-3 rounded-xl border border-border bg-fill/40 px-3" data-testid="detail-technical">
-          <summary className="cursor-pointer py-3 text-[12.5px] font-semibold text-text">{t('runAudit.title')}</summary>
+        <p className="mt-2 mb-0 text-xs leading-5 text-text-3">
+          {firstForward ? t('navigation.next_step', { step: stageLabel(firstForward.to) }) : t('navigation.no_next_step')}
+        </p>
+      </div>
+    )
+  }
+  const historySection = <TaskHistorySection entries={entries} />
+  return (
+    <section data-testid="task-detail" ref={scopeRef}>
+      <TaskDetailIntro
+        name={change.name}
+        badge={badge}
+        actions={actions}
+        footLabel={surface === 'all' ? footLabel : ''}
+        requirement={requirement}
+        onClose={onClose}
+      />
+      <div className={secCls} data-testid="dt-stages-sec">
+        <div className={secHeadCls}>
+          {t('detail.stages_heading')} <span className={hintCls}>{t('detail.stages_hint')}</span>
+        </div>
+        {surface === 'all' ? renderStagesTimeline() : renderCompactStage()}
+      </div>
+      {surface === 'all' && (
+        <>
+          <OrchestrationGraphCard root={root} change={change.name} />
+          {evidenceExtra}
+          {change.documents?.governed ? (
+            <TaskDocumentsSection documents={change.documents} extra={documentsExtra} />
+          ) : documentsExtra !== undefined ? (
+            <div className="border-b border-border py-[13px] last:border-b-0" data-testid="dt-verification-tools">{documentsExtra}</div>
+          ) : null}
+          <RelatedSessionsSection key={`${root}\u0000${change.name}`} root={root} name={change.name} />
+          {collapseTechnical ? (
+            <details className="my-3 rounded-xl border border-border bg-fill/40 px-3" data-testid="detail-technical">
+              <summary className="cursor-pointer py-3 text-[12.5px] font-semibold text-text">{t('runAudit.title')}</summary>
+              <RunAuditPanel root={root} change={change.name} refreshKey={`${change.phase}:${automation}`} />
+              {historySection}
+            </details>
+          ) : (
+            <RunAuditPanel root={root} change={change.name} refreshKey={`${change.phase}:${automation}`} />
+          )}
+          {(state === 'failed' || automation === 'running') && <TaskConnectionCard root={root} change={change} automation={automation} onCopy={copy} />}
+          {!collapseTechnical && historySection}
+        </>
+      )}
+      {surface === 'outputs' && (
+        <>
+          <div className={secCls} data-testid="dt-output-current">
+            <div className={secHeadCls}>{t('detail.current_stage_heading')}</div>
+            {(() => {
+              const currentOutputs = stages[curIdx]?.chips ?? artifactChips(change)
+              return currentOutputs.length > 0 ? renderBox(currentOutputs) : <p className={noneCls}>{t('detail.stage_no_outputs')}</p>
+            })()}
+          </div>
+          {curStageExtra !== undefined && (
+            <details className="group border-b border-border py-[11px] last:border-b-0" data-testid="dt-output-advanced">
+              <summary className="cursor-pointer list-none text-[12.5px] font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--ring-blue) [&::-webkit-details-marker]:hidden">
+                <span className="inline-flex items-center gap-1.5">
+                  <ChevronRight className="size-3.5 text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none" strokeWidth={1.75} aria-hidden="true" />
+                  {t('progress.output_advanced_preview')}
+                </span>
+              </summary>
+              <div className="pt-3">{curStageExtra}</div>
+            </details>
+          )}
+          <details className="group border-b border-border py-[11px] last:border-b-0" data-testid="dt-output-graph">
+            <summary className="cursor-pointer list-none text-[12.5px] font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--ring-blue) [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-1.5">
+                <ChevronRight className="size-3.5 text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none" strokeWidth={1.75} aria-hidden="true" />
+                {t('progress.output_execution_graph')}
+              </span>
+            </summary>
+            <div className="pt-3"><OrchestrationGraphCard root={root} change={change.name} /></div>
+          </details>
+          {evidenceExtra !== undefined && (
+            <details className="group border-b border-border py-[11px] last:border-b-0" data-testid="dt-output-evidence">
+              <summary className="cursor-pointer list-none text-[12.5px] font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--ring-blue) [&::-webkit-details-marker]:hidden">
+                <span className="inline-flex items-center gap-1.5">
+                  <ChevronRight className="size-3.5 text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none" strokeWidth={1.75} aria-hidden="true" />
+                  {t('progress.output_evidence')}
+                </span>
+              </summary>
+              <div className="pt-3">{evidenceExtra}</div>
+            </details>
+          )}
+          {change.documents?.governed ? (
+            <TaskDocumentsSection documents={change.documents} extra={documentsExtra} />
+          ) : documentsExtra !== undefined ? (
+            <div className="border-b border-border py-[13px] last:border-b-0" data-testid="dt-verification-tools">{documentsExtra}</div>
+          ) : null}
+        </>
+      )}
+      {surface === 'terminal' && (
+        <>
+          <RelatedSessionsSection key={`${root}\u0000${change.name}`} root={root} name={change.name} />
+          {(state === 'failed' || automation === 'running') && <TaskConnectionCard root={root} change={change} automation={automation} onCopy={copy} />}
+        </>
+      )}
+      {surface === 'history' && (
+        <>
           <RunAuditPanel root={root} change={change.name} refreshKey={`${change.phase}:${automation}`} />
           {historySection}
-        </details>
-      ) : (
-        <RunAuditPanel root={root} change={change.name} refreshKey={`${change.phase}:${automation}`} />
+        </>
       )}
-      {(state === 'failed' || automation === 'running') && (
-        <TaskConnectionCard
-          root={root}
-          change={change}
-          automation={automation}
-          onCopy={copy}
-        />
-      )}
-      {!collapseTechnical && historySection}
     </section>
   )
 }

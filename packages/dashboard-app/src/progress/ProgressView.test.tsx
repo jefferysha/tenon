@@ -246,10 +246,10 @@ beforeEach(() => {
   }) as unknown as typeof fetch
 })
 
-/** 点画布 change 小卡开抽屉并等 TaskDetail 的 history 拉取落定。 */
+/** 点画布 change 小卡开抽屉并等待紧凑详情面板挂载。 */
 async function openDrawer(name: string): Promise<void> {
   fireEvent.click(screen.getByTestId(`prg-cv-chg-${name}`))
-  await waitFor(() => expect(screen.getByTestId('dt-hist-sec').getAttribute('data-settled')).toBe('true'))
+  await waitFor(() => expect(screen.getByTestId('task-detail')).toBeInTheDocument())
 }
 
 /** 可控 matchMedia 桩（驱动 gsap.matchMedia 的 reduce / no-preference 两分支）。 */
@@ -291,9 +291,9 @@ describe('ProgressView 单项目 · 下方在制列表退役（负向钉死不�
     expect(screen.getByTestId('prg-hero')).not.toContainElement(screen.getByTestId('prg-filterbar'))
     expect(screen.getByTestId('prg-workflow-select')).toBeInTheDocument()
     expect(screen.getByTestId('progress-context')).toHaveTextContent('proj-a')
-    expect(screen.getByTestId('progress-context')).toHaveTextContent('Workflowdefault')
-    expect(screen.getByTestId('progress-context')).toHaveTextContent('Trackchat')
-    expect(screen.getByTestId('progress-context')).toHaveTextContent('Changeafk-demo')
+    expect(screen.getByTestId('progress-context')).toHaveTextContent('流程default')
+    expect(screen.getByTestId('progress-context')).toHaveTextContent('方向chat')
+    expect(screen.getByTestId('progress-context')).toHaveTextContent('任务afk-demo')
     await act(async () => {})
   })
 
@@ -540,7 +540,7 @@ describe('ProgressView 相位画布（画布 v3 WorkflowCanvas 集成）', () =>
   it('小卡点击=开抽屉（openDrawer 管线）；抽屉开着时小卡 data-on 选中', async () => {
     renderView()
     fireEvent.click(screen.getByTestId('prg-cv-chg-gate-demo'))
-    await waitFor(() => expect(screen.getByTestId('dt-hist-sec').getAttribute('data-settled')).toBe('true'))
+    await waitFor(() => expect(screen.getByTestId('task-detail')).toBeInTheDocument())
     expect(screen.getByTestId('prg9-drawer')).toBeInTheDocument()
     expect(screen.getByTestId('prg-cv-chg-gate-demo')).toHaveAttribute('data-on', 'true')
   })
@@ -739,6 +739,8 @@ describe('ProgressView 抽屉动作：放行/打回 = transition 管线', () => 
   it('2+ 条同向出边一条不落（评审 P1-1）：首选前进边带目标相位，第 2 条以事件名可点、POST 事件正确', async () => {
     renderMultiEdge()
     await openDrawer('multi-demo')
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-outputs'))
+    await waitFor(() => expect(screen.getByTestId('review-handshake-status')).toBeInTheDocument())
     expect(screen.getByTestId('review-handshake-status')).toHaveTextContent('等待明确确认')
     expect(within(screen.getByTestId('review-handshake-status')).getByText('fast-track'))
       .toBeInTheDocument()
@@ -771,6 +773,8 @@ describe('ProgressView 抽屉动作：放行/打回 = transition 管线', () => 
       rulesByKey: new Map([[rulesKey(ROOT_A, 'review-chain'), REVIEW_CHAIN_RULES]]),
     })
     await openDrawer('review-chain-demo')
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-outputs'))
+    await waitFor(() => expect(screen.getByTestId('review-handshake-status')).toBeInTheDocument())
     fireEvent.click(screen.getByTestId('prg9-dw-pass-review-chain-demo'))
 
     await waitFor(() => {
@@ -792,6 +796,8 @@ describe('ProgressView 抽屉动作：放行/打回 = transition 管线', () => 
       rulesByKey: new Map([[rulesKey(ROOT_A, 'review-chain'), REVIEW_CHAIN_RULES]]),
     })
     await openDrawer('old-runtime-review-chain')
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-outputs'))
+    await waitFor(() => expect(screen.getByTestId('review-handshake-status')).toBeInTheDocument())
     fireEvent.click(screen.getByTestId('prg9-dw-pass-old-runtime-review-chain'))
 
     await waitFor(() => {
@@ -995,8 +1001,11 @@ describe('ProgressView 详情抽屉（画布卡点开右滑）', () => {
     expect(screen.getByTestId('prg9-dw-badge').textContent).toContain('可以放行')
     expect(screen.getByTestId('prg9-dw-pass-gate-demo').textContent).toContain('放行进入 交付')
     expect(screen.getByTestId('prg9-dw-reject-gate-demo')).toBeInTheDocument()
-    expect(screen.getByTestId('detail-technical')).not.toHaveAttribute('open')
-    expect(screen.getByTestId('detail-technical')).toHaveTextContent('运行记录')
+    expect(screen.getByTestId('progress-sheet-tab-summary')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByTestId('detail-technical')).toBeNull()
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-history'))
+    expect(screen.getByTestId('progress-sheet-tab-history')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('task-detail')).toBeInTheDocument()
     expect(document.documentElement.classList.contains('prg9-lock')).toBe(true)
   })
 
@@ -1029,7 +1038,8 @@ describe('ProgressView 详情抽屉（画布卡点开右滑）', () => {
     }
     renderView({ snapshot })
     await openDrawer('gate-demo')
-    const opener = screen.getByTestId('evidence-compose-open')
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-outputs'))
+    const opener = await screen.findByTestId('evidence-compose-open')
     fireEvent.click(opener)
     expect(screen.getByTestId('evidence-compose-dialog')).toBeInTheDocument()
 
@@ -1052,6 +1062,8 @@ describe('ProgressView 详情抽屉（画布卡点开右滑）', () => {
     }
     renderView({ snapshot })
     await openDrawer('gate-demo')
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-outputs'))
+        await waitFor(() => expect(screen.getByTestId('progress-sheet-panel')).toHaveAttribute('id', 'progress-sheet-panel'))
     fireEvent.click(screen.getByTestId('evidence-compose-open'))
     const dialog = screen.getByTestId('evidence-compose-dialog')
 
@@ -1087,9 +1099,10 @@ describe('ProgressView 详情抽屉（画布卡点开右滑）', () => {
 
     renderView({ snapshot })
     await openDrawer('gate-demo')
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-outputs'))
 
     if (visible) {
-      expect(screen.getByTestId('evidence-compose-open')).toBeVisible()
+      expect(await screen.findByTestId('evidence-compose-open')).toBeVisible()
     } else {
       expect(screen.queryByTestId('evidence-compose-open')).not.toBeInTheDocument()
     }
@@ -1108,8 +1121,9 @@ describe('ProgressView 详情抽屉（画布卡点开右滑）', () => {
 
     renderView({ snapshot })
     await openDrawer('gate-demo')
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-outputs'))
 
-    expect(screen.getByTestId('evidence-compose-open')).toBeVisible()
+    expect(await screen.findByTestId('evidence-compose-open')).toBeVisible()
     expect(screen.queryByTestId('dt-documents')).not.toBeInTheDocument()
   })
 
@@ -1125,7 +1139,8 @@ describe('ProgressView 详情抽屉（画布卡点开右滑）', () => {
     }
     renderView({ snapshot })
     await openDrawer('gate-demo')
-    fireEvent.click(screen.getByTestId('evidence-compose-open'))
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-outputs'))
+    fireEvent.click(await screen.findByTestId('evidence-compose-open'))
     const dialog = screen.getByTestId('evidence-compose-dialog')
     const focusables = dialog.querySelectorAll<HTMLElement>(
       'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
@@ -1148,6 +1163,8 @@ describe('ProgressView 详情抽屉（画布卡点开右滑）', () => {
     fireEvent.click(screen.getByTestId('prg-cv-chg-afk-demo'))
     await act(async () => {})
     const drawer = screen.getByTestId('prg9-drawer')
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-terminal'))
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
     expect(within(drawer).getByTestId('prg-log-afk-demo')).toBeInTheDocument()
     expect(screen.getByTestId('prg-logtext-afk-demo').textContent).toContain('line 1')
     await act(async () => {
@@ -1167,6 +1184,7 @@ describe('ProgressView 详情抽屉（画布卡点开右滑）', () => {
   it('running 行抽屉日志区带「沙箱内阶段」行（automation_current_phase）', async () => {
     renderView()
     await openDrawer('afk-demo')
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-terminal'))
     const note = screen.getByTestId('prg-sandbox-phase-afk-demo')
     expect(note.textContent).toContain('沙箱内阶段')
     expect(note.textContent).toContain('verify')
@@ -1180,8 +1198,9 @@ describe('ProgressView 详情抽屉（画布卡点开右滑）', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     await openDrawer('triage-demo')
     const note = screen.getByTestId('prg9-note-triage-demo')
-    expect(note.textContent).toContain('plan')
-    expect(note.textContent).toContain('在终端让 agent 补齐')
+    expect(note.textContent).toContain('实施计划')
+    expect(note.textContent).toContain('请在终端继续')
+    expect(note.textContent).not.toContain('agent')
   })
 })
 
@@ -1488,6 +1507,7 @@ describe('ProgressView 空态', () => {
     fireEvent.click(screen.getByTestId('change-create'))
 
     expect(await screen.findByTestId('prg9-drawer')).toHaveAttribute('aria-label', 'new-ui')
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-history'))
     await waitFor(() => expect(screen.getByTestId('dt-hist-sec')).toHaveAttribute('data-settled', 'true'))
   })
 })

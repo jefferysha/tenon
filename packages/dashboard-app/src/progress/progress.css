@@ -581,6 +581,79 @@ html.prg9-lock {
   }
 }
 
+/* Detail drawer sheets: keep navigation visible and let each surface own one readable scroll. */
+.prg-sheet-tabs {
+  order: -1;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.prg-sheet-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.prg-sheet-tab {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 9px 9px 0 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+}
+
+.prg-sheet-tab:hover {
+  background: var(--fill);
+  color: var(--text);
+}
+
+.prg-sheet-tab:focus-visible {
+  outline: 2px solid var(--ring-blue);
+  outline-offset: -2px;
+}
+
+.prg-sheet-tab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  background: var(--accent-t);
+  color: var(--accent-d);
+}
+
+.prg-terminal-boundary {
+  margin: 14px 0 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--fill);
+  padding: 10px 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .prg-sheet-tabs {
+    margin-inline: -4px;
+    padding-inline: 4px;
+  }
+
+  .prg-sheet-tab {
+    min-height: 36px;
+    padding-inline: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prg-sheet-tab {
+    transition: none;
+  }
+}
+
 /* reduced-motion：循环动效全停——状态点脉冲/门呼吸停帧 + GSAP 单色流光藏起（gsap.matchMedia
  * reduce 分支已 autoAlpha:0，此处 CSS 兜底：无 matchMedia 的极老内核也不残留流光平移） */
 @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,5 @@
 import { createRef, type ReactNode } from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
 import { DEFAULT_WORKFLOW_RULES, makeChange } from '../testkit'
@@ -8,15 +8,21 @@ import { ProgressDrawer } from './ProgressDrawer'
 
 vi.mock('../shared/TaskDetail', () => ({
   TaskDetail: ({
+    surface,
     curStageExtra,
     documentsExtra,
   }: {
+    surface?: string
     curStageExtra?: ReactNode
     documentsExtra?: ReactNode
   }) => (
     <>
-      <section data-testid="current-stage-extra">{curStageExtra}</section>
-      <section data-testid="documents-extra">{documentsExtra}</section>
+      <section data-testid={`task-detail-surface-${surface ?? 'all'}`}>
+        {surface === 'outputs' && <>
+          <section data-testid="current-stage-extra">{curStageExtra}</section>
+          <section data-testid="documents-extra">{documentsExtra}</section>
+        </>}
+      </section>
     </>
   ),
 }))
@@ -51,19 +57,29 @@ function renderDrawer(phase: string): void {
 }
 
 describe('ProgressDrawer integration surfaces', () => {
-  it('keeps context bundle preview and verification evidence together during Verify', () => {
+  it('opens on a compact overview and defers heavy evidence until Outputs', async () => {
     renderDrawer('verify')
 
-    expect(screen.getByTestId('current-stage-extra'))
-      .toContainElement(screen.getByTestId('context-bundle-preview'))
-    expect(screen.getByTestId('documents-extra'))
-      .toContainElement(screen.getByTestId('verification-evidence-composer'))
+    expect(screen.getByTestId('progress-sheet-tab-summary')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('task-detail-surface-summary')).toBeInTheDocument()
+    expect(screen.queryByTestId('context-bundle-preview')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('verification-evidence-composer')).not.toBeInTheDocument()
+
+    screen.getByTestId('progress-sheet-tab-outputs').click()
+    await waitFor(() => expect(screen.getByTestId('progress-sheet-tab-outputs')).toHaveAttribute('aria-selected', 'true'))
+    expect(screen.getByTestId('current-stage-extra')).toContainElement(screen.getByTestId('context-bundle-preview'))
+    expect(screen.getByTestId('documents-extra')).toContainElement(screen.getByTestId('verification-evidence-composer'))
   })
 
-  it('keeps the context bundle preview without exposing the evidence composer outside Verify', () => {
+  it('keeps the evidence composer scoped to Verify Outputs and explains the terminal boundary', async () => {
     renderDrawer('build')
 
-    expect(screen.getByTestId('context-bundle-preview')).toBeInTheDocument()
+    screen.getByTestId('progress-sheet-tab-outputs').click()
+    await waitFor(() => expect(screen.getByTestId('context-bundle-preview')).toBeInTheDocument())
     expect(screen.queryByTestId('verification-evidence-composer')).not.toBeInTheDocument()
+    screen.getByTestId('progress-sheet-tab-terminal').click()
+    await waitFor(() => expect(screen.getByTestId('progress-terminal-boundary')).toBeInTheDocument())
+    expect(screen.getByTestId('progress-terminal-boundary')).toBeInTheDocument()
+    expect(screen.queryByTestId('task-detail-surface-outputs')).not.toBeInTheDocument()
   })
 })

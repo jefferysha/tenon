@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { ArrowRight, Copy, Square, Undo2 } from 'lucide-react'
 import type { PlannedTransition } from '../model/events'
 import { plannedTransition } from '../model/events'
+import { outputPresentation } from '../shared/outputPresentation'
 import {
   formatReadinessBlocker,
   missingGateArtifacts,
@@ -23,6 +24,7 @@ export interface ProgressActionsProps {
   busy: boolean
   sessionLink?: SessionLink
   t: Tr
+  lang: 'zh' | 'en'
   onTransition: (root: string, name: string, transition: PlannedTransition) => void
   onKill: (root: string, name: string) => void
   onToast?: (message: string) => void
@@ -33,6 +35,7 @@ export function ProgressActions({
   busy,
   sessionLink,
   t,
+  lang,
   onTransition,
   onKill,
   onToast,
@@ -41,6 +44,12 @@ export function ProgressActions({
   tRef.current = t
   const name = row.row.change.name
   const testId = (action: string): string => `prg9-dw-${action}-${name}`
+  const readableMissing = (fields: string[]): string => fields.map((field) => outputPresentation(field, lang).label).join(' · ')
+  const readableBlockers = (blockers: string[]): string => blockers.map((blocker) => {
+    // Readiness can return a field id or a diagnostic such as `capability:…`; only
+    // plain field ids are translated so diagnostics remain truthful and actionable.
+    return /^[a-z][a-z0-9_-]*$/.test(blocker) ? outputPresentation(blocker, lang).label : blocker
+  }).join(' · ')
   if (row.row.state === 'gate' || row.row.state === 'agent') {
     const rules = row.rules
     if (!rules) return null
@@ -71,7 +80,7 @@ export function ProgressActions({
       const missing = missingGateArtifacts(row.row.change, rules)
       return missing.length === 0 ? null : (
         <span className="text-xs text-text-3" data-testid={`prg9-note-${name}`}>
-          {t('progress.note_agent_missing', { fields: missing.join(' ') })}
+          {t('progress.note_agent_missing', { fields: readableMissing(missing) })}
         </span>
       )
     }
@@ -111,8 +120,8 @@ export function ProgressActions({
           </button>
         ))}
         {forwardBlockers.length > 0 && (
-          <span className="text-xs text-text-3" data-testid={`prg9-note-${name}`}>
-            {t('progress.note_agent_missing', { fields: forwardBlockers.map(formatReadinessBlocker).join(' · ') })}
+        <span className="text-xs text-text-3" data-testid={`prg9-note-${name}`}>
+            {t('progress.note_agent_missing', { fields: readableBlockers(forwardBlockers.map(formatReadinessBlocker)) })}
           </span>
         )}
       </>

@@ -1189,6 +1189,28 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     expect(screen.queryByTestId('project-register')).toBeNull()
     expect(screen.queryByTestId('project-register-path')).toBeNull()
   })
+
+  it('每个页面都有可操作面包屑，并能从进度返回项目', async () => {
+    render(<App />)
+    await screen.findByTestId('progress-view')
+    const breadcrumbs = screen.getByTestId('breadcrumbs')
+    expect(within(breadcrumbs).getByTestId('breadcrumb-page')).toHaveAttribute('aria-current', 'page')
+    expect(within(breadcrumbs).getByTestId('breadcrumb-page')).toHaveTextContent('进度')
+    fireEvent.click(within(breadcrumbs).getByTestId('breadcrumb-projects'))
+    expect(await screen.findByTestId('projects-view')).toBeInTheDocument()
+    expect(within(screen.getByTestId('breadcrumbs')).getByTestId('breadcrumb-page')).toHaveTextContent('项目')
+  })
+
+  it('无项目上下文时点击进度不会跳回项目页，而是显示明确的选择入口', async () => {
+    window.history.replaceState({}, '', '/?view=projects')
+    render(<App />)
+    await screen.findByTestId('projects-view')
+    fireEvent.click(screen.getByTestId('nav-progress'))
+    expect(await screen.findByTestId('project-required')).toBeInTheDocument()
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    fireEvent.click(screen.getByTestId('project-required-open'))
+    expect(await screen.findByTestId('projects-view')).toBeInTheDocument()
+  })
 })
 
 describe('App 宿主计划机器级视图', () => {
@@ -1321,7 +1343,7 @@ describe('App 初始 snapshot 错误恢复', () => {
 })
 
 describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', () => {
-  it('有已注册项目但 URL 无 root：保持未选择、进入项目总览且不调用 per-root API', async () => {
+  it('有已注册项目但 URL 无 root：保持未选择、停留在进度并显示项目引导，不调用 per-root API', async () => {
     window.history.replaceState({}, '', '/?debug=1&view=progress')
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/snapshot') {
@@ -1333,7 +1355,8 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
 
     render(<App />)
 
-    expect(await screen.findByTestId('projects-view')).toBeInTheDocument()
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(await screen.findByTestId('project-required')).toBeInTheDocument()
     const params = new URLSearchParams(window.location.search)
     expect(params.get('root')).toBeNull()
     expect(params.get('change')).toBeNull()
@@ -1341,7 +1364,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/snapshot'])
   })
 
-  it('失效 root 深链：清除 root/change 并保持无选择，不重定向首个项目', async () => {
+  it('失效 root 深链：清除 root/change 并保持无选择，显示项目引导而不重定向首个项目', async () => {
     window.history.replaceState({}, '', '/?debug=1&view=progress&root=%2Fmissing&change=ghost')
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/snapshot') {
@@ -1353,7 +1376,8 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
 
     render(<App />)
 
-    expect(await screen.findByTestId('projects-view')).toBeInTheDocument()
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(await screen.findByTestId('project-required')).toBeInTheDocument()
     const params = new URLSearchParams(window.location.search)
     expect(params.get('root')).toBeNull()
     expect(params.get('change')).toBeNull()
@@ -1429,14 +1453,14 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/snapshot'])
   })
 
-  it('浏览器返回到无 root URL：经同一选择模型回到项目总览', async () => {
+  it('浏览器返回到无 root URL：经同一选择模型回到进度项目引导', async () => {
     render(<App />)
     await screen.findByTestId('progress-view')
 
     window.history.replaceState({}, '', '/?debug=1&view=progress')
     act(() => window.dispatchEvent(new PopStateEvent('popstate')))
 
-    expect(await screen.findByTestId('projects-view')).toBeInTheDocument()
+    expect(await screen.findByTestId('project-required')).toBeInTheDocument()
     const params = new URLSearchParams(window.location.search)
     expect(params.get('root')).toBeNull()
     expect(params.get('debug')).toBe('1')
@@ -1633,11 +1657,13 @@ describe('App SSE 实时更新（真 EventSource stub → 组件真更新，非 
       es!.emit('snapshot', JSON.stringify(makeSnapshot([makeProject('/repo-b', [makeChange('b1', 'build')])])))
     })
 
-    expect(await screen.findByTestId('projects-view')).toBeInTheDocument()
+    expect(await screen.findByTestId('project-required')).toBeInTheDocument()
     const params = new URLSearchParams(window.location.search)
     expect(params.get('root')).toBeNull()
-    expect(screen.getByTestId('project-row-repo-b')).toBeInTheDocument()
+    expect(screen.queryByTestId('project-row-repo-b')).toBeNull()
     expect(screen.queryByTestId('progress-view')).toBeNull()
+    fireEvent.click(screen.getByTestId('project-required-open'))
+    expect(await screen.findByTestId('project-row-repo-b')).toBeInTheDocument()
   })
 })
 
@@ -1859,6 +1885,8 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     render(<App />)
     expect(await screen.findByTestId('canonical-state-version-notice')).toBeInTheDocument()
     fireEvent.click(await screen.findByTestId('prg-cv-chg-readable-change'))
+    fireEvent.click(screen.getByTestId('progress-sheet-tab-outputs'))
+    fireEvent.click(screen.getByTestId('dt-output-graph').querySelector('summary') as HTMLElement)
     expect(await screen.findByRole('heading', { name: '编排图' })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /readable-change · 变更/ })).toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([url]) =>
@@ -2041,9 +2069,10 @@ describe('App v10c 契约护栏（旧聚合偏好 root=\'\' + 进度视图 → �
     )
     render(<App />)
     // 契约：progress 恒单项目——旧聚合偏好被 useEffect 落到「项目」总览页（不再渲染聚合进度）。
-    expect(await screen.findByTestId('projects-view')).toBeInTheDocument()
-    expect(screen.getByTestId('project-row-repo-a')).toBeInTheDocument()
-    expect(screen.getByTestId('project-row-repo-b')).toBeInTheDocument()
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(await screen.findByTestId('project-required')).toBeInTheDocument()
+    expect(screen.queryByTestId('project-row-repo-a')).toBeNull()
+    expect(screen.queryByTestId('project-row-repo-b')).toBeNull()
     // 聚合进度行不再存在（画布/列表都归单项目进度页）
     expect(screen.queryByTestId('prg9-row-a1')).toBeNull()
   })
@@ -2090,7 +2119,8 @@ describe('App v10c 契约护栏（旧聚合偏好 root=\'\' + 进度视图 → �
       throw new Error(`unexpected fetch ${url}`)
     }))
     render(<App />)
-    expect(await screen.findByTestId('projects-view')).toBeInTheDocument()
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(await screen.findByTestId('project-required')).toBeInTheDocument()
     expect(new URLSearchParams(window.location.search).get('root')).toBeNull()
   })
 })

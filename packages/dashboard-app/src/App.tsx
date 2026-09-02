@@ -12,6 +12,7 @@ import { parseDashboardLocation } from './shell/dashboardLocation'
 import { ErrorBoundary } from './AppErrorBoundary'
 import { useProjectSelection } from './state/useProjectSelection'
 import { isProjectWritable } from './state/projectSelectionModel'
+import { isProjectNavigable } from './state/projectSelectionModel'
 import { formatApiError } from './api/transport'
 import { UnsavedDraftDialog } from './shared/UnsavedDraftDialog'
 import { DialogInteractionBoundary } from './shared/Dialog'
@@ -19,6 +20,8 @@ import type { DashboardNavigationTarget } from './state/useProjectSelection'
 import { useFlash } from './shared/useFlash'
 import { useDashboardTheme } from './shell/useDashboardTheme'
 import { SnapshotInlineError } from './progress/SnapshotInlineError'
+import { PageBreadcrumbs } from './shell/PageBreadcrumbs'
+import { ProjectRequiredState } from './shell/ProjectRequiredState'
 
 export { ErrorBoundary } from './AppErrorBoundary'
 
@@ -223,6 +226,9 @@ function AppShell(): JSX.Element {
   }, [])
   const currentProject = snapshot?.projects.find((p) => p.root === currentRoot)
   const currentProjectWritable = isProjectWritable(currentProject)
+  const currentProjectName = currentProject?.repository?.label
+    ?? (currentRoot.split('/').filter(Boolean).pop() || undefined)
+  const hasNavigableProject = snapshot?.projects.some(isProjectNavigable) ?? false
 
   // 跨项目 snapshot 已携带每个 change 冻结绑定的 workflow 摘要。项目总览与单项目视图消费同一
   // 聚合事实，无选择时不需要、也不允许发起任何 per-root workflow 请求。
@@ -274,12 +280,21 @@ function AppShell(): JSX.Element {
       return
     }
     if (snapshot.project_count === 0) return
-    if (currentRoot === '' || (view !== 'progress' && !currentProjectWritable)) setView('projects')
+    // A missing root is a valid, shareable navigation state. Keep the requested page mounted so
+    // the user sees an actionable project gate instead of being bounced back to Projects.
+    if (currentRoot === '' && !hasNavigableProject) {
+      // There is no readable project to show on a project-scoped page; the Projects view is the
+      // truthful recovery surface in this exceptional case.
+      setView('projects')
+      return
+    }
+    if (currentRoot !== '' && view !== 'progress' && !currentProjectWritable) setView('projects')
   }, [
     view,
     snapshot,
     currentRoot,
     currentProjectWritable,
+    hasNavigableProject,
     retainedWorkbenchRoot,
     workbenchAuthorityLost,
     workbenchDirty,
@@ -355,6 +370,12 @@ function AppShell(): JSX.Element {
         className="w-full flex-1 px-6 pb-6 pt-3 mobile:px-4 mobile:pb-[calc(88px+env(safe-area-inset-bottom))] mobile:pt-2"
         data-testid="app-main"
       >
+        <PageBreadcrumbs
+          view={view}
+          projectName={currentProjectName}
+          changeName={view === 'progress' ? selectedChange : null}
+          onView={setView}
+        />
         <Suspense
           fallback={(
             <p className="p-5 text-[13px] text-text-3" role="status" aria-live="polite" data-testid="route-loading">
@@ -406,6 +427,11 @@ function AppShell(): JSX.Element {
             onCreated={refresh}
             onToast={(m) => showFlash('toast', m)}
           />
+        ) : snapshot
+          && ['progress', 'afk', 'workbench'].includes(view)
+          && currentRoot === ''
+          && hasNavigableProject ? (
+          <ProjectRequiredState view={view} onOpenProjects={() => setView('projects')} />
         ) : (
           <>
         {view === 'projects' && (
@@ -439,7 +465,7 @@ function AppShell(): JSX.Element {
               readOnly={!currentProjectWritable}
             />
           ) : (
-            <p className="p-5 text-[13px] text-text-3" role="status" aria-live="polite">{t('common.loading')}</p>
+            <ProjectRequiredState view="progress" onOpenProjects={() => setView('projects')} />
           )
         )}
         {view === 'afk' && (
@@ -459,7 +485,7 @@ function AppShell(): JSX.Element {
               onToast={(m) => showFlash('toast', m)}
             />
           ) : (
-            <p className="p-5 text-[13px] text-text-3" role="status" aria-live="polite">{t('common.loading')}</p>
+            <ProjectRequiredState view="afk" onOpenProjects={() => setView('projects')} />
           )
         )}
         {view === 'workbench' && (

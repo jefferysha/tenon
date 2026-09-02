@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Pause, Play, RefreshCw, Square } from 'lucide-react'
 import type { BoardEventV2, BoardSnapshotV2 } from '@tenon/kernel'
 import { formatApiError } from '../api/transport'
-import { fetchOrchestrationV2Snapshot, postOrchestrationV2Command, postOrchestrationV2Control, sortUniqueEvents, subscribeOrchestrationV2 } from '../api/orchestrationV2Client'
+import { fetchOrchestrationV2Snapshot, OrchestrationV2ApiError, postOrchestrationV2Command, postOrchestrationV2Control, sortUniqueEvents, subscribeOrchestrationV2 } from '../api/orchestrationV2Client'
 import { useT } from '../i18n'
 
 export interface OrchestrationV2PanelProps {
@@ -22,6 +22,7 @@ export function OrchestrationV2Panel({ root, change, readOnly = false, onToast }
   const [snapshot, setSnapshot] = useState<BoardSnapshotV2 | null>(null)
   const [events, setEvents] = useState<readonly BoardEventV2[]>([])
   const [error, setError] = useState<unknown>(null)
+  const [notFound, setNotFound] = useState(false)
   const [connected, setConnected] = useState(false)
   const [busy, setBusy] = useState(false)
   const [artifactDraft, setArtifactDraft] = useState<{ readonly workItemId: string; readonly ref: string; readonly digest: string } | null>(null)
@@ -33,32 +34,41 @@ export function OrchestrationV2Panel({ root, change, readOnly = false, onToast }
     setSnapshot(null)
     setEvents([])
     setError(null)
+    setNotFound(false)
     setConnected(false)
     setWorkItemsOpen(false)
     setArtifactDraft(null)
     if (!change) return
     const controller = new AbortController()
     let disposed = false
+    let unsubscribe = (): void => {}
     void fetchOrchestrationV2Snapshot(root, change, controller.signal).then((next) => {
       if (disposed) return
       if (next.revision < revision.current) return
       revision.current = Math.max(revision.current, next.revision)
       setSnapshot(next)
       setError(null)
+      setNotFound(false)
+      unsubscribe = subscribeOrchestrationV2(root, change, (frame) => {
+        if (disposed) return
+        const frameRevision = frame.value.revision
+        if (frameRevision < revision.current) return
+        revision.current = frameRevision
+        setConnected(true)
+        setError(null)
+        if (frame.kind === 'snapshot') setSnapshot(frame.value)
+        else setEvents((previous) => sortUniqueEvents([...previous, frame.value]))
+      }, () => {
+        if (!disposed) setConnected(false)
+      })
     }).catch((reason: unknown) => {
-      if (!disposed && !(reason instanceof DOMException && reason.name === 'AbortError')) setError(reason)
-    })
-    const unsubscribe = subscribeOrchestrationV2(root, change, (frame) => {
-      if (disposed) return
-      const frameRevision = frame.value.revision
-      if (frameRevision < revision.current) return
-      revision.current = frameRevision
-      setConnected(true)
-      setError(null)
-      if (frame.kind === 'snapshot') setSnapshot(frame.value)
-      else setEvents((previous) => sortUniqueEvents([...previous, frame.value]))
-    }, () => {
-      if (!disposed) setConnected(false)
+      if (disposed || (reason instanceof DOMException && reason.name === 'AbortError')) return
+      if (reason instanceof OrchestrationV2ApiError && reason.code === 'ORCHESTRATION_V2_CHANGE_NOT_FOUND') {
+        setNotFound(true)
+        setError(null)
+        return
+      }
+      setError(reason)
     })
     return () => {
       disposed = true
@@ -88,7 +98,7 @@ export function OrchestrationV2Panel({ root, change, readOnly = false, onToast }
     }
   }
 
-  if (!change) return null
+  if (!change || notFound) return null
   const action = async (type: 'pause-change' | 'resume-change' | 'cancel-change'): Promise<void> => {
     if (!snapshot || busy || readOnly) return
     setBusy(true)

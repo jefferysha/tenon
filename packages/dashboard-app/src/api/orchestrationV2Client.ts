@@ -8,6 +8,24 @@ export interface OrchestrationV2Envelope {
   readonly error: ApiError | null
 }
 
+export type OrchestrationV2ErrorCode = 'ORCHESTRATION_V2_CHANGE_NOT_FOUND'
+
+export class OrchestrationV2ApiError extends ApiError {
+  constructor(
+    message: string,
+    status: number,
+    public readonly code?: OrchestrationV2ErrorCode,
+    hasServerDetail = false,
+  ) {
+    super(message, status, hasServerDetail)
+    this.name = 'OrchestrationV2ApiError'
+  }
+}
+
+function orchestrationV2ErrorCode(value: unknown): value is OrchestrationV2ErrorCode {
+  return value === 'ORCHESTRATION_V2_CHANGE_NOT_FOUND'
+}
+
 function validSnapshot(value: unknown): value is BoardSnapshotV2 {
   return isRecord(value)
     && value.schema_version === 'board-snapshot/v2'
@@ -43,7 +61,24 @@ export async function fetchOrchestrationV2Snapshot(root: string, change: string,
   } catch (error) {
     wrapNetwork(error)
   }
-  if (!response.ok) await throwApiError(response, 'orchestration 状态获取失败')
+  if (!response.ok) {
+    let message = `orchestration 状态获取失败（${response.status}）`
+    let code: OrchestrationV2ErrorCode | undefined
+    let hasServerDetail = false
+    try {
+      const body = await readJson(response)
+      if (isRecord(body)) {
+        if (typeof body.error === 'string' && body.error !== '') {
+          message = body.error
+          hasServerDetail = true
+        }
+        if (orchestrationV2ErrorCode(body.code)) code = body.code
+      }
+    } catch {
+      // Older servers may return a non-JSON response for an unavailable route.
+    }
+    throw new OrchestrationV2ApiError(message, response.status, code, hasServerDetail)
+  }
   const body = await readJson(response)
   if (!isRecord(body) || body.ok !== true || !validSnapshot(body.snapshot)) throw new ApiError('orchestration snapshot response is invalid')
   return body.snapshot

@@ -1,6 +1,6 @@
-import type { ReactNode, RefObject } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useT } from '../i18n'
-import { TaskDetail } from '../shared/TaskDetail'
+import { TaskDetail, type TaskDetailSurface } from '../shared/TaskDetail'
 import { VerificationEvidenceComposer } from '../verification/VerificationEvidenceComposer'
 import { TaskPlanEvidenceSection } from './TaskPlanEvidenceSection'
 import { fieldStr, type FlatRow } from './progressViewModel'
@@ -27,7 +27,21 @@ export function ProgressDrawer({
   onClose,
   onToast,
 }: ProgressDrawerProps): JSX.Element {
-  const { lang } = useT()
+  const { lang, t } = useT()
+  const [surface, setSurface] = useState<Exclude<TaskDetailSurface, 'all'>>('summary')
+  const rowIdentity = `${row.row.root}\u0000${row.row.change.name}`
+  const rowIdentityRef = useRef(rowIdentity)
+  useEffect(() => {
+    if (rowIdentityRef.current === rowIdentity) return
+    rowIdentityRef.current = rowIdentity
+    setSurface('summary')
+  }, [rowIdentity])
+  const tabs: Array<{ id: Exclude<TaskDetailSurface, 'all'>; label: string }> = [
+    { id: 'summary', label: t('navigation.sheet_summary') },
+    { id: 'outputs', label: t('navigation.sheet_outputs') },
+    { id: 'terminal', label: t('navigation.sheet_terminal') },
+    { id: 'history', label: t('navigation.sheet_history') },
+  ]
   return (
     <>
       <div className="fixed inset-0 z-40 bg-scrim" data-testid="prg9-scrim" ref={scrimRef} onClick={onClose} />
@@ -40,7 +54,13 @@ export function ProgressDrawer({
         data-testid="prg9-drawer"
         ref={drawerRef}
       >
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div
+          className="min-h-0 flex-1 overflow-y-auto p-4"
+          role="tabpanel"
+          id="progress-sheet-panel"
+          aria-labelledby={`progress-sheet-tab-${surface}`}
+          data-testid="progress-sheet-panel"
+        >
           <TaskDetail
             root={row.row.root}
             change={row.row.change}
@@ -71,10 +91,31 @@ export function ProgressDrawer({
               : undefined}
             onClose={onClose}
             onToast={onToast}
+            surface={surface}
           />
-          {row.row.state === 'running' && fieldStr(row.row.change, 'automation') === 'running' && (
+          {surface === 'terminal' && (
+            <p className="prg-terminal-boundary" data-testid="progress-terminal-boundary">{t('navigation.terminal_boundary')}</p>
+          )}
+          {surface === 'terminal' && row.row.state === 'running' && fieldStr(row.row.change, 'automation') === 'running' && (
             <RunLogPane root={row.row.root} change={row.row.change} />
           )}
+        </div>
+        <div className="prg-sheet-tabs border-b border-border px-4 pt-3" role="tablist" aria-label={t('progress.title')}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={surface === tab.id}
+              aria-controls="progress-sheet-panel"
+              id={`progress-sheet-tab-${tab.id}`}
+              data-testid={`progress-sheet-tab-${tab.id}`}
+              className="prg-sheet-tab"
+              onClick={() => setSurface(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </aside>
     </>

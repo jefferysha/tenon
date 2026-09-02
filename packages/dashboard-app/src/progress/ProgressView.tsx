@@ -510,6 +510,7 @@ export function ProgressView({
         busy={busyRows.has(row.key)}
         sessionLink={sessionLinks.get(row.key)}
         t={t}
+        lang={lang}
         onTransition={(root, name, transition) => {
           void transitionAction(root, name, transition)
         }}
@@ -556,9 +557,9 @@ export function ProgressView({
 
       <div className="prg-context-strip" data-testid="progress-context" aria-label={t('progress.title')}>
         <span className="prg-context-item prg-context-project"><span className="prg-context-mark" aria-hidden="true">T</span><strong>{contextProjectName}</strong></span>
-        <span className="prg-context-item"><span className="prg-context-label">Workflow</span><strong className="font-mono">{contextWorkflow}</strong></span>
-        <span className="prg-context-item"><span className="prg-context-label">Track</span><strong className="font-mono">{contextTrack}</strong></span>
-        <span className="prg-context-item prg-context-change"><span className="prg-context-label">Change</span><strong className="font-mono">{contextChange}</strong></span>
+        <span className="prg-context-item"><span className="prg-context-label">{t('navigation.context_workflow')}</span><strong className="font-mono">{contextWorkflow}</strong></span>
+        <span className="prg-context-item"><span className="prg-context-label">{t('navigation.context_track')}</span><strong className="font-mono">{contextTrack}</strong></span>
+        <span className="prg-context-item prg-context-change"><span className="prg-context-label">{t('navigation.context_change')}</span><strong className="font-mono">{contextChange}</strong></span>
         <span className="prg-context-live"><span className="prg-live-dot" aria-hidden="true" />{t('progress.realtime_sync')}</span>
       </div>
 
