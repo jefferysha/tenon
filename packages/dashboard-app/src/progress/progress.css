@@ -71,102 +71,6 @@ html.prg9-lock {
   text-wrap: balance;
 }
 
-.prg-command-deck [data-slot='page-description'] {
-  max-width: 58ch;
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.prg-command-deck [data-slot='page-status'] {
-  margin-top: 9px;
-}
-
-.prg-context-strip {
-  display: flex;
-  align-items: center;
-  min-height: 42px;
-  margin-bottom: 16px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--card) 94%, var(--accent) 6%);
-  box-shadow: var(--shadow);
-}
-
-.prg-context-item {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 13px;
-  border-right: 1px solid var(--border);
-  color: var(--text-2);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.prg-context-item strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text);
-  font-size: 11px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-}
-
-.prg-context-project {
-  padding-left: 11px;
-}
-
-.prg-context-mark {
-  display: inline-grid;
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 7px;
-  background: var(--ink);
-  color: var(--ink-fg);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.prg-context-label {
-  color: var(--text-3);
-  font-size: 10px;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.prg-context-change {
-  flex: 1 1 auto;
-  border-right: 0;
-}
-
-.prg-context-live {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 7px;
-  margin-left: auto;
-  padding: 0 13px;
-  color: var(--green-d);
-  font-size: 10px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.prg-live-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 0 3px var(--green-t);
-}
-
 .prg-command-deck [data-testid='prg-filterbar'] {
   margin-bottom: 14px !important;
 }
@@ -462,78 +366,19 @@ html.prg9-lock {
   gap: 10px !important;
 }
 
-.prg-command-deck .prg-canvas [data-testid^='prg-cv-group-'] > header span:first-child {
-  font-size: 15px;
+.prg-command-deck .prg-canvas [data-testid^='prg-cv-project-'] {
+  font-size: 12px;
   font-weight: 700;
 }
 
 .prg-command-deck .prg-canvas [data-testid^='prg-cv-chg-'] {
-  min-height: 136px !important;
+  min-height: 102px !important;
   border-radius: 10px !important;
-  padding: 12px !important;
+  padding: 10px !important;
   box-shadow: var(--shadow) !important;
 }
 
-.prg-command-deck .prg-canvas [data-testid^='prg-cv-chg-'] > span:nth-child(2) {
-  margin-top: 9px !important;
-}
-
-.prg-command-deck .prg-canvas [data-testid^='prg-cv-chg-'] > span:nth-child(4) {
-  margin-top: 10px !important;
-  padding-top: 8px !important;
-}
-
-.prg-command-deck .prg-canvas [data-testid^='prg-cv-chg-'] > span:last-child {
-  padding-top: 8px !important;
-}
-
-.prg-command-deck .prg-card-status {
-  display: -webkit-box;
-  max-width: 100%;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-  text-overflow: ellipsis;
-}
-
-/* Stage and workflow are already legible on the track above each card. Keep the fields in the
- * DOM for the legacy structural contract; the drawer remains the accessible detail surface. */
-.prg-command-deck .prg-card-meta {
-  display: none;
-}
-
-.prg-command-deck .prg-card-footer {
-  padding-top: 10px !important;
-}
-
 @media (max-width: 760px) {
-  .prg-context-strip {
-    align-items: stretch;
-    flex-wrap: wrap;
-    overflow: visible;
-    padding: 4px;
-  }
-
-  .prg-context-item {
-    flex: 1 1 auto;
-    border-right: 0;
-    padding: 5px 7px;
-  }
-
-  .prg-context-project {
-    flex-basis: 100%;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .prg-context-change {
-    flex-basis: 100%;
-  }
-
-  .prg-context-live {
-    display: none;
-  }
-
   .prg-orchestration-head {
     display: block;
   }
@@ -570,7 +415,7 @@ html.prg9-lock {
   }
 
   .prg-command-deck .prg-canvas [data-testid^='prg-cv-chg-'] {
-    min-height: 122px !important;
+    min-height: 96px !important;
   }
 }
 

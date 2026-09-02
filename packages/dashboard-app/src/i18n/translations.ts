@@ -2305,6 +2305,7 @@ export const zh: Dict = {
   // T10（v5 交互重建）：进度视图骨架文案。口径纪律同 workbench：可见文案一律用「阶段」（旧措辞已废）。
   progress: {
     title: '进度',
+    create_action: '新建任务',
     sheet_summary: '概览',
     sheet_outputs: '产出',
     sheet_terminal: '终端',
@@ -4856,6 +4857,7 @@ export const en: Dict = {
   },
   progress: {
     title: 'Progress',
+    create_action: 'New task',
     sheet_summary: 'Overview',
     sheet_outputs: 'Outputs',
     sheet_terminal: 'Terminal',

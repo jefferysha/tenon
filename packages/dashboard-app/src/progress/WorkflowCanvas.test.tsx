@@ -92,26 +92,32 @@ describe('WorkflowCanvas 组与站点（单项目）', () => {
     expect(screen.queryByTestId('prg-cv-group-proj-a-flow-y')).toBeNull()
   })
 
-  it('组头同时展示项目名、工作流名与进度摘要', () => {
+  it('组头只保留工作流身份，项目标识保留在可访问属性中', () => {
     renderCanvas([makeGroup()])
     const group = screen.getByTestId('prg-cv-group-proj-a-flow-x')
     expect(group.textContent).toContain('flow-x')
-    expect(group.textContent).toContain('proj-a')
-    expect(group.textContent).toContain('3 步骤 · 流程中 2')
-    expect(group.textContent).not.toContain('个项目')
+    expect(group.textContent).not.toContain('3 步骤 · 流程中 2')
     const projectName = screen.getByTestId('prg-cv-project-proj-a-flow-x')
-    expect(projectName.className).toContain('text-[18px]')
-    expect(projectName.className).toContain('font-black')
-    expect(projectName.className).not.toContain('truncate')
+    expect(projectName).toHaveAttribute('data-project', 'proj-a')
+    expect(projectName).toHaveAccessibleName('proj-a flow-x')
   })
 
-  it('移动布局把项目名提升为组头独立行，阶段轨只在自身视口横向滚动', () => {
+  it('聚合多个项目时才把项目名加入紧凑组头，避免不同项目无法区分', () => {
+    renderCanvas([
+      makeGroup(),
+      makeGroup({ key: '/tmp/proj-b::flow-x', projName: 'proj-b' }),
+    ])
+    expect(screen.getByTestId('prg-cv-project-proj-a-flow-x')).toHaveTextContent('proj-a · flow-x')
+    expect(screen.getByTestId('prg-cv-project-proj-b-flow-x')).toHaveTextContent('proj-b · flow-x')
+  })
+
+  it('移动布局保持紧凑组头，阶段轨只在自身视口横向滚动', () => {
     renderCanvas([makeGroup()])
     const group = screen.getByTestId('prg-cv-group-proj-a-flow-x')
     expect(group).toHaveAttribute('data-responsive', 'summary-track-cards')
     expect(group.className).toContain('mobile:min-h-0')
     const projectName = screen.getByTestId('prg-cv-project-proj-a-flow-x')
-    expect(projectName.className).toContain('mobile:basis-full')
+    expect(projectName.className).not.toContain('mobile:basis-full')
     const viewport = screen.getByTestId('prg-cv-scroll-proj-a-flow-x')
     expect(viewport).toHaveAttribute('data-canvas-scroll')
     expect(viewport.className).toContain('overflow-x-auto')
@@ -119,7 +125,7 @@ describe('WorkflowCanvas 组与站点（单项目）', () => {
     expect(viewport).toHaveAccessibleName('横向滚动查看后续阶段')
   })
 
-  it('按真实 scrollWidth 显示宽屏滚动提示，不依赖固定 viewport breakpoint', async () => {
+  it('阶段轨保留可访问横向滚动，不再显示额外滚动提示', async () => {
     const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth')
     const originalScrollWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollWidth')
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
@@ -139,7 +145,7 @@ describe('WorkflowCanvas 组与站点（单项目）', () => {
       })])
 
       fireEvent(window, new Event('resize'))
-      expect(await screen.findByTestId('prg-cv-scroll-hint-proj-a-flow-x')).toBeVisible()
+      expect(screen.queryByTestId('prg-cv-scroll-hint-proj-a-flow-x')).toBeNull()
     } finally {
       if (originalClientWidth) Object.defineProperty(HTMLElement.prototype, 'clientWidth', originalClientWidth)
       else Reflect.deleteProperty(HTMLElement.prototype, 'clientWidth')
@@ -159,7 +165,7 @@ describe('WorkflowCanvas 组与站点（单项目）', () => {
     expect(stage).toHaveAttribute('data-stage-state', 'current')
     expect(stage).toHaveAttribute('title', 'review 门')
     expect(stage).toHaveAttribute('aria-label', 'review 门')
-    expect(within(review).getByTitle('1 项流程中')).toBeInTheDocument()
+    expect(within(review).queryByTitle('1 项流程中')).toBeNull()
     expect(screen.queryByTestId('prg-cv-gate-proj-a-flow-x-draft')).toBeNull()
   })
 
@@ -345,7 +351,7 @@ describe('WorkflowCanvas 归档相位小站（归档不失联，只读折叠）'
 })
 
 describe('WorkflowCanvas change 小卡', () => {
-  it('任务卡使用中文状态与中文元信息标签；时间线给出 done/current 状态', () => {
+  it('任务卡只保留中文状态、名称和打开入口；时间线给出 done/current 状态', () => {
     renderCanvas([
       makeGroup({
         changes: [
@@ -363,14 +369,14 @@ describe('WorkflowCanvas change 小卡', () => {
     const card = screen.getByTestId('prg-cv-chg-a1')
     expect(card).toHaveTextContent('等待中')
     expect(card).not.toHaveTextContent('QUEUED')
-    expect(card).toHaveTextContent('阶段')
-    expect(card).toHaveTextContent('01 · 起草')
-    expect(card).toHaveTextContent('工作流')
-    expect(card).toHaveTextContent('flow-x')
+    expect(card).not.toHaveTextContent('阶段')
+    expect(card).not.toHaveTextContent('01 · 起草')
+    expect(card).not.toHaveTextContent('工作流')
+    expect(card).not.toHaveTextContent('flow-x')
     expect(card).toHaveTextContent('打开')
   })
 
-  it('英文模式完整翻译画布标题、状态、元信息和运行来源，不读取中文静态常量', () => {
+  it('英文模式只翻译画布状态和操作，不展示技术元信息', () => {
     renderCanvasInEnglish([
       makeGroup({
         changes: [
@@ -388,13 +394,14 @@ describe('WorkflowCanvas change 小卡', () => {
       }),
     ])
     const group = screen.getByTestId('prg-cv-group-proj-a-flow-x')
-    expect(group).toHaveTextContent('Project · proj-a')
-    expect(group).toHaveTextContent('Process')
+    expect(group).toHaveTextContent('flow-x')
+    expect(group).not.toHaveTextContent('Project · proj-a')
+    expect(group).not.toHaveTextContent('Process')
     const card = screen.getByTestId('prg-cv-chg-a1')
     expect(card).toHaveTextContent('Running')
-    expect(card).toHaveTextContent('Stage')
-    expect(card).toHaveTextContent('Workflow')
-    expect(card).toHaveTextContent('Terminal running')
+    expect(card).not.toHaveTextContent('Stage')
+    expect(card).not.toHaveTextContent('Workflow')
+    expect(card).not.toHaveTextContent('Terminal running')
     expect(card).toHaveTextContent('Open')
     expect(group.textContent).not.toMatch(/[项目流程运行中阶段工作流终端打开项]/)
   })
@@ -429,7 +436,7 @@ describe('WorkflowCanvas change 小卡', () => {
     expect(onOpen).toHaveBeenCalledWith('a1@/tmp/proj-a', run)
   })
 
-  it('终稿调度图标使用压缩包同款 lucide：沙箱 change → coffee；终端 change → terminal', () => {
+  it('卡片不再展示调度来源图标，来源仍保留在 data-sbx 上供逻辑使用', () => {
     renderCanvas([
       makeGroup({
         changes: [
@@ -439,14 +446,14 @@ describe('WorkflowCanvas change 小卡', () => {
       }),
     ])
     const sbx = screen.getByTestId('prg-cv-chg-a1')
-    expect(sbx.querySelector('svg.lucide-coffee')).not.toBeNull()
-    expect(sbx.textContent).not.toContain('▦')
+    expect(sbx.querySelector('svg.lucide-coffee')).toBeNull()
+    expect(sbx.textContent).not.toMatch(/AFK|终端/)
     const term = screen.getByTestId('prg-cv-chg-a2')
-    expect(term.querySelector('svg.lucide-terminal')).not.toBeNull()
-    expect(term.textContent).not.toContain('⌨')
+    expect(term.querySelector('svg.lucide-terminal')).toBeNull()
+    expect(term.textContent).not.toMatch(/AFK|终端/)
   })
 
-  it('AFK/终端角标（顶行最右）：沙箱卡带 coffee 角标与 AFK 字；终端卡带中性 terminal 角标', () => {
+  it('卡片不再展示 AFK/终端角标，避免把执行实现暴露给普通用户', () => {
     renderCanvas([
       makeGroup({
         changes: [
@@ -456,13 +463,13 @@ describe('WorkflowCanvas change 小卡', () => {
       }),
     ])
     const sbx = screen.getByTestId('prg-cv-chg-a1')
-    expect(within(sbx).getByLabelText('AFK 沙箱')).toBeInTheDocument()
-    expect(sbx.querySelector('svg.lucide-coffee')).not.toBeNull()
-    expect(sbx.textContent).toContain('AFK')
+    expect(within(sbx).queryByLabelText('AFK 沙箱')).toBeNull()
+    expect(sbx.querySelector('svg.lucide-coffee')).toBeNull()
+    expect(sbx.textContent).not.toContain('AFK')
     const term = screen.getByTestId('prg-cv-chg-a2')
     expect(within(term).queryByLabelText('AFK 沙箱')).toBeNull()
-    expect(within(term).getByLabelText('终端')).toBeInTheDocument()
-    expect(term.querySelector('svg.lucide-terminal')).not.toBeNull()
+    expect(within(term).queryByLabelText('终端')).toBeNull()
+    expect(term.querySelector('svg.lucide-terminal')).toBeNull()
   })
 
   // 反馈②硬条款：change 名称完整渲染，禁 ellipsis（break-all 折行）。textContent 钉全名，

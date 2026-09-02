@@ -394,10 +394,12 @@ export function TaskDetail({
         requirement={requirement}
         onClose={onClose}
       />
-      <div className={secCls} data-testid="dt-stages-sec">
-        <div className={secHeadCls}>
-          {t('detail.stages_heading')} <span className={hintCls}>{t('detail.stages_hint')}</span>
-        </div>
+      <div className={surface === 'all' ? secCls : 'pb-3'} data-testid="dt-stages-sec">
+        {surface === 'all' && (
+          <div className={secHeadCls}>
+            {t('detail.stages_heading')} <span className={hintCls}>{t('detail.stages_hint')}</span>
+          </div>
+        )}
         {surface === 'all' ? renderStagesTimeline() : renderCompactStage()}
       </div>
       {surface === 'all' && (

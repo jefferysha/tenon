@@ -279,21 +279,19 @@ afterEach(() => {
   gsap.ticker.wake()
 })
 
-describe('ProgressView 单项目 · 下方在制列表退役（负向钉死不回归）', () => {
-  it('页面按压缩包终稿拆成实时进度页头与独立筛选栏，创建入口仍在主视觉右侧', async () => {
+describe('ProgressView 单项目 · 默认视图保持必要信息', () => {
+  it('页面只保留标题、筛选与画布，创建入口仍在主视觉右侧', async () => {
     renderView()
     expect(screen.getByRole('heading', { name: '进度' })).toBeInTheDocument()
     expect(screen.getByTestId('progress-view')).toHaveAttribute('data-page-frame', 'standard')
-    expect(screen.getByTestId('prg-hero')).toHaveTextContent('实时同步')
-    expect(screen.getByTestId('prg-hero')).toHaveTextContent('创建')
+    expect(screen.getByTestId('prg-hero')).toHaveTextContent('新建任务')
+    expect(screen.getByTestId('prg-hero')).not.toHaveTextContent('实时同步')
     expect(screen.getByTestId('prg-hero')).not.toHaveTextContent('创建并锁定')
     expect(screen.getByTestId('prg-filterbar')).toHaveTextContent('等你动手')
     expect(screen.getByTestId('prg-hero')).not.toContainElement(screen.getByTestId('prg-filterbar'))
     expect(screen.getByTestId('prg-workflow-select')).toBeInTheDocument()
-    expect(screen.getByTestId('progress-context')).toHaveTextContent('proj-a')
-    expect(screen.getByTestId('progress-context')).toHaveTextContent('流程default')
-    expect(screen.getByTestId('progress-context')).toHaveTextContent('方向chat')
-    expect(screen.getByTestId('progress-context')).toHaveTextContent('任务afk-demo')
+    expect(screen.queryByTestId('progress-context')).toBeNull()
+    expect(screen.queryByText('运行中', { selector: '[role="tab"]' })).toBeInTheDocument()
     await act(async () => {})
   })
 
@@ -446,7 +444,7 @@ describe('ProgressView 相位画布（画布 v3 WorkflowCanvas 集成）', () =>
     // 有在制的相位=站台卡；verify 站台挂 gate-demo 小卡
     expect(verifyNode).toHaveAttribute('data-kind', 'card')
     expect(within(verifyNode).getByTestId('prg-cv-chg-gate-demo')).toBeInTheDocument()
-    expect(within(verifyNode).getByTitle('1 项流程中')).toBeInTheDocument()
+    expect(within(verifyNode).queryByTitle('1 项流程中')).toBeNull()
     // 空相位=过路小站（大空卡与「—」占位退役）
     const shipNode = screen.getByTestId('prg-cv-node-proj-a-default-ship')
     expect(shipNode).toHaveAttribute('data-kind', 'stop')
@@ -477,19 +475,19 @@ describe('ProgressView 相位画布（画布 v3 WorkflowCanvas 集成）', () =>
     expect(screen.getByTestId('prg-cv-chg-triage-demo')).toHaveAttribute('data-state', 'agent')
   })
 
-  it('AFK/沙箱区分：running/queued/failed=沙箱（data-sbx + lucide-coffee）；gate/agent=终端（lucide-terminal）', async () => {
+  it('执行来源仍保留在数据属性中，但卡片不再展示 AFK/终端图标与术语', async () => {
     renderView()
     await act(async () => {})
     for (const name of ['afk-demo', 'board-demo', 'hotfix-login']) {
       const chip = screen.getByTestId(`prg-cv-chg-${name}`)
       expect(chip).toHaveAttribute('data-sbx', 'true')
-      expect(chip.querySelector('svg.lucide-coffee')).not.toBeNull()
-      expect(chip.textContent).not.toContain('▦')
+      expect(chip.querySelector('svg.lucide-coffee')).toBeNull()
+      expect(chip.textContent).not.toMatch(/AFK|终端/)
     }
     for (const name of ['gate-demo', 'triage-demo', 'changelog-cn']) {
       const chip = screen.getByTestId(`prg-cv-chg-${name}`)
       expect(chip.getAttribute('data-sbx')).toBeNull()
-      expect(chip.querySelector('svg.lucide-terminal')).not.toBeNull()
+      expect(chip.querySelector('svg.lucide-terminal')).toBeNull()
       expect(chip.textContent).not.toContain('⌨')
     }
   })
@@ -514,8 +512,9 @@ describe('ProgressView 相位画布（画布 v3 WorkflowCanvas 集成）', () =>
     const chip = screen.getByTestId('prg-cv-chg-codex-live')
     expect(chip).toHaveAttribute('data-state', 'running')
     expect(chip.getAttribute('data-sbx')).toBeNull()
-    expect(chip.querySelector('svg.lucide-terminal')).not.toBeNull()
-    expect(chip).toHaveTextContent('终端运行中')
+    expect(chip.querySelector('svg.lucide-terminal')).toBeNull()
+    expect(chip).toHaveTextContent('运行中')
+    expect(chip).not.toHaveTextContent('终端运行中')
     expect(chip).not.toHaveTextContent('自动运行中')
 
     await openDrawer('codex-live')

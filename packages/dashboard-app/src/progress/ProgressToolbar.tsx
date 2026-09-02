@@ -29,27 +29,30 @@ export function ProgressToolbar({
   onCreate,
 }: ProgressToolbarProps): JSX.Element {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  // Only expose filters that can currently match something. Keep the selected tab mounted
+  // while its count drops to zero so a live update never silently changes the user's context.
+  const visibleTabs = DECK_TABS.filter((tab) => tab === 'all' || deckCounts[tab] > 0 || deckTab === tab)
 
   function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
     let nextIndex: number
     switch (event.key) {
       case 'ArrowRight':
-        nextIndex = (index + 1) % DECK_TABS.length
+        nextIndex = (index + 1) % visibleTabs.length
         break
       case 'ArrowLeft':
-        nextIndex = (index - 1 + DECK_TABS.length) % DECK_TABS.length
+        nextIndex = (index - 1 + visibleTabs.length) % visibleTabs.length
         break
       case 'Home':
         nextIndex = 0
         break
       case 'End':
-        nextIndex = DECK_TABS.length - 1
+        nextIndex = visibleTabs.length - 1
         break
       default:
         return
     }
     event.preventDefault()
-    const nextTab = DECK_TABS[nextIndex]
+    const nextTab = visibleTabs[nextIndex]
     onDeckTab(nextTab)
     tabRefs.current[nextIndex]?.focus()
   }
@@ -58,16 +61,9 @@ export function ProgressToolbar({
     <>
       <PageHeader
         title={t('progress.title')}
-        description={t('progress.subtitle')}
-        className="mb-6"
+        className="mb-4"
         testId="prg-hero"
         animation="prg-chrome"
-        status={(
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-green-b bg-green-t px-2.5 py-1 text-[11px] font-semibold text-green-d">
-            <span className="h-1.5 w-1.5 rounded-full bg-green" aria-hidden="true" />
-            {t('progress.realtime_sync')}
-          </span>
-        )}
         actions={onCreate === undefined ? undefined : (
           <button
             type="button"
@@ -75,7 +71,7 @@ export function ProgressToolbar({
             data-testid="progress-new-change"
             onClick={onCreate}
           >
-            <Plus className="h-4 w-4" aria-hidden="true" /> {t('change_create.create')}
+            <Plus className="h-4 w-4" aria-hidden="true" /> {t('progress.create_action')}
           </button>
         )}
       />
@@ -89,7 +85,7 @@ export function ProgressToolbar({
                 aria-label={t('progress.tabs_label')}
                 data-testid="prg9t-tabs"
               >
-                {DECK_TABS.map((tab, index) => (
+                {visibleTabs.map((tab, index) => (
                   <button
                     key={tab}
                     ref={(node) => { tabRefs.current[index] = node }}
@@ -110,7 +106,7 @@ export function ProgressToolbar({
                 ))}
               </div>
             </div>
-            {workflows.length > 0 && (
+            {workflows.length > 1 && (
               <label className="relative max-[760px]:basis-full">
                 <span className="sr-only">{t('progress.workflow_filter')}</span>
                 <select
