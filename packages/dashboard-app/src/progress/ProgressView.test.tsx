@@ -290,6 +290,10 @@ describe('ProgressView 单项目 · 下方在制列表退役（负向钉死不�
     expect(screen.getByTestId('prg-filterbar')).toHaveTextContent('等你动手')
     expect(screen.getByTestId('prg-hero')).not.toContainElement(screen.getByTestId('prg-filterbar'))
     expect(screen.getByTestId('prg-workflow-select')).toBeInTheDocument()
+    expect(screen.getByTestId('progress-context')).toHaveTextContent('proj-a')
+    expect(screen.getByTestId('progress-context')).toHaveTextContent('Workflowdefault')
+    expect(screen.getByTestId('progress-context')).toHaveTextContent('Trackchat')
+    expect(screen.getByTestId('progress-context')).toHaveTextContent('Changeafk-demo')
     await act(async () => {})
   })
 

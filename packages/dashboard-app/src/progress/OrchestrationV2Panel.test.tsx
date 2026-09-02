@@ -43,6 +43,31 @@ describe('OrchestrationV2Panel', () => {
     await waitFor(() => expect(screen.getByTestId('orchestration-v2-status')).toHaveTextContent('completed'))
   })
 
+  it('keeps work-item detail collapsed until the user asks for it', async () => {
+    vi.mocked(fetchOrchestrationV2Snapshot).mockResolvedValue(snapshot('executing'))
+    render(<I18nProvider><OrchestrationV2Panel root="/repo" change="demo" /></I18nProvider>)
+    await screen.findByTestId('orchestration-v2-panel')
+
+    expect(screen.queryByRole('list', { name: '工作项状态' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByText('工作项状态 · 1'))
+    const list = await screen.findByRole('list', { name: '工作项状态' })
+    expect(list).toHaveTextContent('Build API')
+    expect(list).toHaveTextContent('running')
+  })
+
+  it('resets expanded work-item detail when the selected change changes', async () => {
+    vi.mocked(fetchOrchestrationV2Snapshot)
+      .mockResolvedValueOnce(snapshot('executing'))
+      .mockResolvedValueOnce(snapshot('completed'))
+    const view = render(<I18nProvider><OrchestrationV2Panel root="/repo" change="demo" /></I18nProvider>)
+    await screen.findByTestId('orchestration-v2-panel')
+    await userEvent.click(screen.getByText('工作项状态 · 1'))
+    await screen.findByRole('list', { name: '工作项状态' })
+
+    view.rerender(<I18nProvider><OrchestrationV2Panel root="/repo" change="next" /></I18nProvider>)
+    await waitFor(() => expect(screen.queryByRole('list', { name: '工作项状态' })).not.toBeInTheDocument())
+  })
+
   it('sends a revision-checked pause command and hides controls when read-only', async () => {
     const current = snapshot('executing')
     vi.mocked(fetchOrchestrationV2Snapshot).mockResolvedValue(current)

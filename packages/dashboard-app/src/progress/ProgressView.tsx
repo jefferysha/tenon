@@ -31,6 +31,7 @@ import {
   patchMovedFromBase,
   rowKeyOf,
   rowSemantics,
+  rootBasename,
   stepLabel,
   toFlatRow,
   type DeckTab,
@@ -199,6 +200,22 @@ export function ProgressView({
     const shown = scopedRows.filter((row) => deckMatch(row, deckTab)).length
     return { shown, context: scopedRows.length - shown }
   }, [deckTab, effectiveWf, flatRows])
+
+  // The command deck keeps the active identity in one quiet line instead of repeating it across
+  // the toolbar, orchestration panel and every canvas card. Prefer the deep-linked change, then a
+  // running change, so the first viewport always answers “what am I looking at?” without adding a
+  // second navigation model.
+  const contextRow = useMemo(
+    () => selectedChange === undefined || selectedChange === null
+      ? flatRows.find((row) => row.row.state === 'running') ?? flatRows[0]
+      : flatRows.find((row) => row.row.change.name === selectedChange) ?? flatRows[0],
+    [flatRows, selectedChange],
+  )
+  const contextProject = snapshot?.projects.find((project) => project.root === currentRoot)
+  const contextProjectName = contextProject?.repository?.label ?? rootBasename(currentRoot)
+  const contextWorkflow = contextRow?.workflow ?? '—'
+  const contextTrack = contextRow?.row.change.track || '—'
+  const contextChange = contextRow?.row.change.name ?? '—'
 
   function setPatch(key: string, patch: RowPatch | null): void {
     setPatches((prev) => {
@@ -523,7 +540,7 @@ export function ProgressView({
   const compatibilityIssues = compatibilityProject?.compatibilityIssues ?? []
 
   return (
-    <section className="relative mx-auto w-full max-w-[1088px] pt-7 pb-5" data-testid="progress-view" data-page-frame="standard" ref={rootRef}>
+    <section className="prg-command-deck relative mx-auto w-full max-w-[1160px] pt-6 pb-5" data-testid="progress-view" data-page-frame="standard" ref={rootRef}>
       <ProgressToolbar
         t={t}
         rowCount={flatRows.length}
@@ -536,6 +553,14 @@ export function ProgressView({
         onWorkflow={setWfFilter}
         onCreate={readOnly ? undefined : () => setCreateOpen(true)}
       />
+
+      <div className="prg-context-strip" data-testid="progress-context" aria-label={t('progress.title')}>
+        <span className="prg-context-item prg-context-project"><span className="prg-context-mark" aria-hidden="true">T</span><strong>{contextProjectName}</strong></span>
+        <span className="prg-context-item"><span className="prg-context-label">Workflow</span><strong className="font-mono">{contextWorkflow}</strong></span>
+        <span className="prg-context-item"><span className="prg-context-label">Track</span><strong className="font-mono">{contextTrack}</strong></span>
+        <span className="prg-context-item prg-context-change"><span className="prg-context-label">Change</span><strong className="font-mono">{contextChange}</strong></span>
+        <span className="prg-context-live"><span className="prg-live-dot" aria-hidden="true" />{t('progress.realtime_sync')}</span>
+      </div>
 
       <CanonicalStateVersionNotice
         issues={compatibilityIssues}

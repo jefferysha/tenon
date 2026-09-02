@@ -314,15 +314,15 @@ export function WorkflowCanvas({ groups, onOpen }: WorkflowCanvasProps): JSX.Ele
                                     </span>
 
                                     <span className="mt-3 w-full font-mono text-[13px] leading-snug font-semibold break-words text-text [overflow-wrap:anywhere]">{change.name}</span>
-                                    <span className="mt-1 text-[11px] text-text-3">{change.statusLabel}</span>
+                                    <span className="prg-card-status mt-1 text-[11px] text-text-3">{change.statusLabel}</span>
 
-                                    <span className="mt-4 flex flex-col gap-2 border-t border-dashed border-border pt-3">
+                                    <span className="prg-card-meta mt-4 flex flex-col gap-2 border-t border-dashed border-border pt-3">
                                       <MetaRow label={t('progress.meta_stage')} value={`${String(i + 1).padStart(2, '0')} · ${step.label}`} />
                                       <MetaRow label={t('progress.meta_workflow')} value={group.workflow} />
                                     </span>
 
-                                    <span className="mt-auto flex items-center justify-between gap-3 pt-4">
-                                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium ${meta.attention ? 'text-amb-d' : 'text-text-3'}`}>
+                                    <span className="prg-card-footer mt-auto flex items-center justify-between gap-3 pt-4">
+                                      <span className={`prg-card-footer-status inline-flex items-center gap-1.5 text-[10px] font-medium ${meta.attention ? 'text-amb-d' : 'text-text-3'}`}>
                                         {meta.attention && <span className="h-1.5 w-1.5 rounded-full bg-amb-d" aria-hidden="true" />}
                                         {meta.attention
                                           ? t('progress.needs_attention')
@@ -330,7 +330,7 @@ export function WorkflowCanvas({ groups, onOpen }: WorkflowCanvasProps): JSX.Ele
                                             ? t('progress.automation_running')
                                             : change.executionSource === 'terminal'
                                               ? t('progress.terminal_running')
-                                              : change.statusLabel}
+                                              : null}
                                       </span>
                                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-text-3 group-hover:text-(--accent)">
                                         {t('progress.open')} <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />

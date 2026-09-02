@@ -25,6 +25,7 @@ export function OrchestrationV2Panel({ root, change, readOnly = false, onToast }
   const [connected, setConnected] = useState(false)
   const [busy, setBusy] = useState(false)
   const [artifactDraft, setArtifactDraft] = useState<{ readonly workItemId: string; readonly ref: string; readonly digest: string } | null>(null)
+  const [workItemsOpen, setWorkItemsOpen] = useState(false)
   const revision = useRef(0)
 
   useEffect(() => {
@@ -33,6 +34,8 @@ export function OrchestrationV2Panel({ root, change, readOnly = false, onToast }
     setEvents([])
     setError(null)
     setConnected(false)
+    setWorkItemsOpen(false)
+    setArtifactDraft(null)
     if (!change) return
     const controller = new AbortController()
     let disposed = false
@@ -159,50 +162,53 @@ export function OrchestrationV2Panel({ root, change, readOnly = false, onToast }
   const currentStepLabel = currentStage?.name ?? statusLabel(status)
   const nextAction = snapshot?.next_actions[0]
   return (
-    <section className="mt-5 rounded-xl border border-border-2 bg-card/80 p-4 shadow-sm" data-testid="orchestration-v2-panel" aria-label={t('progress.orchestration_title')}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-[15px] font-bold text-text">{t('progress.orchestration_title')}</h2>
-            <span className={`text-[12px] font-semibold ${statusTone[status] ?? 'text-text-3'}`} data-testid="orchestration-v2-status">{status}</span>
-            <span className="text-[12px] text-text-2">{statusLabel(status)}</span>
-            <span className="text-[11px] text-text-3" data-testid="orchestration-v2-revision">rev {snapshot?.revision ?? '—'}</span>
+    <section className="prg-orchestration mt-4 rounded-xl border border-border-2 bg-card/80 p-4 shadow-sm" data-testid="orchestration-v2-panel" aria-label={t('progress.orchestration_title')}>
+      <div className="prg-orchestration-head">
+        <div className="prg-orchestration-title">
+          <span className="prg-orchestration-pulse" aria-hidden="true" />
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-[15px] font-bold text-text">{t('progress.orchestration_title')}</h2>
+              <span className={`text-[12px] font-semibold ${statusTone[status] ?? 'text-text-3'}`} data-testid="orchestration-v2-status">{status}</span>
+              <span className="text-[12px] text-text-2">{statusLabel(status)}</span>
+              <span className="text-[11px] text-text-3" data-testid="orchestration-v2-revision">rev {snapshot?.revision ?? '—'}</span>
+            </div>
+            <p className="mt-1 text-[12px] text-text-3">{connected ? t('progress.orchestration_connected') : t('progress.orchestration_syncing')} · {t('progress.orchestration_counts', counts)}</p>
           </div>
-          <p className="mt-1 text-[12px] text-text-3">{connected ? t('progress.orchestration_connected') : t('progress.orchestration_syncing')} · {t('progress.orchestration_counts', counts)}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {!readOnly && status === 'executing' && <button type="button" aria-label={t('progress.orchestration_pause')} disabled={busy || !snapshot} onClick={() => { void action('pause-change') }} className="inline-flex items-center gap-1 rounded-md border border-border-2 px-2 py-1 text-xs hover:bg-fill disabled:opacity-50"><Pause className="h-3.5 w-3.5" /><span>{t('progress.orchestration_pause')}</span></button>}
-          {!readOnly && status === 'paused' && <button type="button" aria-label={t('progress.orchestration_resume')} disabled={busy || !snapshot} onClick={() => { void action('resume-change') }} className="inline-flex items-center gap-1 rounded-md border border-border-2 px-2 py-1 text-xs hover:bg-fill disabled:opacity-50"><Play className="h-3.5 w-3.5" /><span>{t('progress.orchestration_resume')}</span></button>}
-          {!readOnly && !['completed', 'cancelled'].includes(status) && <button type="button" aria-label={t('progress.orchestration_cancel')} disabled={busy || !snapshot} onClick={() => { void action('cancel-change') }} className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"><Square className="h-3.5 w-3.5" /><span>{t('progress.orchestration_cancel')}</span></button>}
-          {!readOnly && !['completed', 'cancelled'].includes(status) && <button type="button" aria-label={t('progress.orchestration_replan')} disabled={busy || !snapshot} onClick={() => { void dispatch('replan-change', { reason: 'dashboard-request' }) }} className="inline-flex items-center gap-1 rounded-md border border-border-2 px-2 py-1 text-xs hover:bg-fill disabled:opacity-50"><span aria-hidden="true">↻</span><span>{t('progress.orchestration_replan')}</span></button>}
-          {!readOnly && status === 'verifying' && <><button type="button" aria-label={t('progress.orchestration_approve')} disabled={busy || !snapshot} onClick={() => evaluateGate('passed')} className="inline-flex items-center gap-1 rounded-md border border-green-300 px-2 py-1 text-xs text-green-700 hover:bg-green-50 disabled:opacity-50"><span aria-hidden="true">✓</span><span>{t('progress.orchestration_approve')}</span></button><button type="button" aria-label={t('progress.orchestration_reject')} disabled={busy || !snapshot} onClick={() => evaluateGate('rejected')} className="inline-flex items-center gap-1 rounded-md border border-amber-300 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50"><span aria-hidden="true">!</span><span>{t('progress.orchestration_reject')}</span></button></>}
-          <button type="button" aria-label={t('progress.orchestration_refresh')} disabled={busy} onClick={() => { void refresh() }} className="inline-flex items-center gap-1 rounded-md border border-border-2 px-2 py-1 text-xs hover:bg-fill disabled:opacity-50"><RefreshCw className="h-3.5 w-3.5" /><span>{t('progress.orchestration_refresh')}</span></button>
+        <div className="prg-orchestration-actions">
+          {!readOnly && status === 'executing' && <button type="button" aria-label={t('progress.orchestration_pause')} disabled={busy || !snapshot} onClick={() => { void action('pause-change') }} className="prg-control"><Pause className="h-3.5 w-3.5" /><span>{t('progress.orchestration_pause')}</span></button>}
+          {!readOnly && status === 'paused' && <button type="button" aria-label={t('progress.orchestration_resume')} disabled={busy || !snapshot} onClick={() => { void action('resume-change') }} className="prg-control"><Play className="h-3.5 w-3.5" /><span>{t('progress.orchestration_resume')}</span></button>}
+          {!readOnly && !['completed', 'cancelled'].includes(status) && <button type="button" aria-label={t('progress.orchestration_cancel')} disabled={busy || !snapshot} onClick={() => { void action('cancel-change') }} className="prg-control prg-control-danger"><Square className="h-3.5 w-3.5" /><span>{t('progress.orchestration_cancel')}</span></button>}
+          {!readOnly && !['completed', 'cancelled'].includes(status) && <button type="button" aria-label={t('progress.orchestration_replan')} disabled={busy || !snapshot} onClick={() => { void dispatch('replan-change', { reason: 'dashboard-request' }) }} className="prg-control"><span aria-hidden="true">↻</span><span>{t('progress.orchestration_replan')}</span></button>}
+          {!readOnly && status === 'verifying' && <><button type="button" aria-label={t('progress.orchestration_approve')} disabled={busy || !snapshot} onClick={() => evaluateGate('passed')} className="prg-control prg-control-success"><span aria-hidden="true">✓</span><span>{t('progress.orchestration_approve')}</span></button><button type="button" aria-label={t('progress.orchestration_reject')} disabled={busy || !snapshot} onClick={() => evaluateGate('rejected')} className="prg-control prg-control-warning"><span aria-hidden="true">!</span><span>{t('progress.orchestration_reject')}</span></button></>}
+          <button type="button" aria-label={t('progress.orchestration_refresh')} disabled={busy} onClick={() => { void refresh() }} className="prg-control"><RefreshCw className="h-3.5 w-3.5" /><span>{t('progress.orchestration_refresh')}</span></button>
         </div>
       </div>
-      {snapshot && <div className="mt-3 grid gap-2 rounded-lg border border-(--accent)/30 bg-(--accent)/5 p-3 text-xs sm:grid-cols-3" role="status" aria-live="polite" data-testid="orchestration-v2-guided-summary">
-        <div><div className="text-text-3">{t('progress.orchestration_current_step')}</div><div className="mt-0.5 font-semibold text-text">{currentStepLabel}{currentStage && currentItem ? ` · ${currentItem.title}` : ''}</div></div>
-        <div><div className="text-text-3">{t('progress.orchestration_next_step')}</div><div className="mt-0.5 font-semibold text-text">{nextAction ?? t('progress.orchestration_no_next_step')}</div></div>
-        <div><div className="text-text-3">{t('progress.orchestration_counts', counts)}</div><div className="mt-0.5 font-semibold text-text">{progress}%</div></div>
+      {snapshot && <div className="prg-command-summary" role="status" aria-live="polite" data-testid="orchestration-v2-guided-summary">
+        <div className="prg-command-current"><span className="prg-command-label">{t('progress.orchestration_current_step')}</span><strong>{currentStepLabel}{currentItem && <><span aria-hidden="true"> · </span><span className="prg-command-task">{currentItem.title}</span></>}</strong></div>
+        <div className="prg-command-next"><span className="prg-command-label">{t('progress.orchestration_next_step')}</span><strong>{nextAction ?? t('progress.orchestration_no_next_step')}</strong></div>
+        <div className="prg-command-progress"><strong>{progress}%</strong><div className="prg-progress-track" aria-label={`${progress}%`}><span style={{ transform: `scaleX(${progress / 100})` }} /></div><span className="prg-command-label">{t('progress.orchestration_counts', counts)}</span></div>
       </div>}
       {error !== null && <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{formatApiError(error, t, { exposeServerDetail: false })}</p>}
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-fill" aria-label={`${progress}%`}><div className="h-full rounded-full bg-(--accent) transition-[width]" style={{ width: `${progress}%` }} /></div>
-      {snapshot?.pipeline && <section className="mt-3 rounded-lg border border-border-2 p-3 text-xs" data-testid="orchestration-v2-pipeline" aria-label={t('progress.orchestration_pipeline')}>
-        <h3 className="font-semibold text-text">{t('progress.orchestration_pipeline')}</h3>
-        <div className="mt-1 break-words text-text-3" translate="no">{t('progress.orchestration_workflow')}: {snapshot.pipeline.workflow_id}@{snapshot.pipeline.workflow_version} · {t('progress.orchestration_track')}: {snapshot.pipeline.track_id} · {snapshot.pipeline.pipeline_id}@{snapshot.pipeline.pipeline_version}</div>
-        <ol className="mt-2 space-y-1 text-text-3" aria-label={t('progress.orchestration_stage_order')}>
+      {snapshot?.pipeline && <section className="prg-pipeline mt-3" data-testid="orchestration-v2-pipeline" aria-label={t('progress.orchestration_pipeline')}>
+        <div className="prg-pipeline-head"><h3 className="font-semibold text-text">{t('progress.orchestration_pipeline')}</h3><div className="prg-pipeline-meta" translate="no"><span>{snapshot.pipeline.workflow_id}@{snapshot.pipeline.workflow_version}</span><span>{snapshot.pipeline.track_id}</span><span>{snapshot.pipeline.pipeline_id}@{snapshot.pipeline.pipeline_version}</span></div></div>
+        <ol className="prg-pipeline-stages" aria-label={t('progress.orchestration_stage_order')}>
           {snapshot.pipeline.stage_order.map((stageId, index) => {
             const stage = snapshot.pipeline?.stages.find((entry) => entry.stage_id === stageId)
             if (!stage) return <li key={stageId}>{index + 1}. {stageId}</li>
-            return <li key={stageId}><span className="font-medium text-text">{index + 1}. {stage.name}</span> · {stage.execution_mode} · {[...stage.skills].sort((left, right) => left.order - right.order).map((skill) => `${skill.skill_id}@${skill.skill_version}`).join(' → ') || '—'}</li>
+            return <li key={stageId}><span className="prg-stage-index">{index + 1}</span><span className="font-medium text-text">{stage.name}</span><span>{stage.execution_mode}</span><span className="prg-stage-skills">{[...stage.skills].sort((left, right) => left.order - right.order).map((skill) => `${skill.skill_id}@${skill.skill_version}`).join(' → ') || '—'}</span></li>
           })}
         </ol>
       </section>}
       {snapshot && snapshot.work_items.length > 0 && (
-        <ul className="mt-3 grid gap-2 sm:grid-cols-2" aria-label={t('progress.orchestration_items')}>
+        <details className="prg-work-items mt-3" onToggle={(event) => setWorkItemsOpen(event.currentTarget.open)}>
+          <summary>{t('progress.orchestration_items')} · {snapshot.work_items.length}</summary>
+          {workItemsOpen && <ul className="mt-2 grid gap-2 sm:grid-cols-2" aria-label={t('progress.orchestration_items')}>
           {snapshot.work_items.map((item) => {
             const binding = snapshot.resolution?.bindings.find((entry) => entry.work_item_id === item.work_item_id)
             const latestRun = snapshot.runs.filter((run) => run.work_item_id === item.work_item_id).at(-1)
-            return <li key={item.work_item_id} className="rounded-lg border border-border-2 px-3 py-2 text-xs">
+            return <li key={item.work_item_id} className="prg-work-item rounded-lg border border-border-2 px-3 py-2 text-xs">
               <div className="flex items-center justify-between gap-2"><span className="min-w-0 truncate font-medium text-text">{item.title}</span><span className={`shrink-0 font-semibold ${statusTone[item.status] ?? 'text-text-3'}`}>{item.status}</span></div>
               <div className="mt-1 space-y-0.5 text-text-3">
                 <div>{t('progress.orchestration_dependencies')}: {item.depends_on.length === 0 ? '—' : item.depends_on.join(', ')}</div>
@@ -214,9 +220,10 @@ export function OrchestrationV2Panel({ root, change, readOnly = false, onToast }
               {artifactDraft?.workItemId === item.work_item_id && <form className="mt-2 grid gap-2 rounded-md bg-fill/60 p-2" onSubmit={submitArtifact}><label className="grid gap-1 text-[11px] text-text-2" htmlFor={`artifact-ref-${item.work_item_id}`}>{t('progress.orchestration_artifact_ref')}<input id={`artifact-ref-${item.work_item_id}`} value={artifactDraft.ref} onChange={(event) => setArtifactDraft({ ...artifactDraft, ref: event.target.value })} className="rounded border border-border-2 bg-card px-2 py-1 text-xs text-text" required /></label><label className="grid gap-1 text-[11px] text-text-2" htmlFor={`artifact-digest-${item.work_item_id}`}>{t('progress.orchestration_artifact_digest')}<input id={`artifact-digest-${item.work_item_id}`} value={artifactDraft.digest} onChange={(event) => setArtifactDraft({ ...artifactDraft, digest: event.target.value })} className="rounded border border-border-2 bg-card px-2 py-1 text-xs text-text" placeholder="sha256:…" required /></label><div className="flex gap-2"><button type="submit" disabled={busy} className="rounded border border-(--accent) px-2 py-1 text-[11px] hover:bg-fill disabled:opacity-50">{t('progress.orchestration_artifact_submit')}</button><button type="button" onClick={() => setArtifactDraft(null)} className="rounded border border-border-2 px-2 py-1 text-[11px] hover:bg-fill">{t('progress.orchestration_artifact_cancel')}</button></div></form>}
             </li>
           })}
-        </ul>
+          </ul>}
+        </details>
       )}
-      {snapshot && <details className="mt-3"><summary className="cursor-pointer text-xs font-semibold text-text">{t('progress.orchestration_details')}</summary><div className="mt-2 grid gap-3 text-xs sm:grid-cols-2" data-testid="orchestration-v2-technical-details">
+      {snapshot && <details className="prg-technical-details mt-3"><summary>{t('progress.orchestration_details')}</summary><div className="mt-2 grid gap-3 text-xs sm:grid-cols-2" data-testid="orchestration-v2-technical-details">
         <section className="rounded-lg border border-border-2 p-3" aria-label={t('progress.orchestration_runs')}><h3 className="font-semibold text-text">{t('progress.orchestration_runs')}</h3>{snapshot.runs.length === 0 ? <p className="mt-1 text-text-3">—</p> : <ul className="mt-1 space-y-1">{snapshot.runs.map((run) => <li key={run.run_id} className="text-text-3">{run.skill_id}@{run.skill_version} · {run.status} · {run.attempt_id}{run.lease ? ` · ${run.lease.status}#${run.lease.generation}` : ''}</li>)}</ul>}</section>
         <section className="rounded-lg border border-border-2 p-3" aria-label={t('progress.orchestration_results')}><h3 className="font-semibold text-text">{t('progress.orchestration_results')}</h3>{snapshot.results.length === 0 ? <p className="mt-1 text-text-3">—</p> : <ul className="mt-1 space-y-1">{snapshot.results.map((result) => <li key={result.result_id} className="text-text-3">{result.status} · {result.contract_status}{result.output_schema_id ? ` · ${result.output_schema_id}` : ''}{result.artifacts.length ? ` · ${result.artifacts.map((artifact) => artifact.ref).join(', ')}` : ''}</li>)}</ul>}</section>
         <section className="rounded-lg border border-border-2 p-3" aria-label={t('progress.orchestration_validations')}><h3 className="font-semibold text-text">{t('progress.orchestration_validations')}</h3>{snapshot.validations.length === 0 ? <p className="mt-1 text-text-3">—</p> : <ul className="mt-1 space-y-1">{snapshot.validations.map((report) => <li key={report.report_id} className="text-text-3">{report.validator_id}@{report.validator_version} · {report.status} · {report.evidence_refs.join(', ') || '—'}</li>)}</ul>}</section>
