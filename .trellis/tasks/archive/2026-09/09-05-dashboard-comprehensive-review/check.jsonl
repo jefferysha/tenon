@@ -1,0 +1,6 @@
+{"file":".trellis/spec/dashboard-app/frontend/quality-guidelines.md","reason":"Review frontend quality and testing expectations"}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Assess component and accessibility patterns consistently"}
+{"file":".trellis/spec/dashboard-app/frontend/state-management.md","reason":"Assess state, URL, and server-data interaction behavior"}
+{"file":"docs/TEST-REALITY.md","reason":"Verify that runtime and test evidence is reported with correct scope"}
+{"file":"docs/ux/2026-07-19-full-product-journey-and-orchestration-design.md","reason":"Use the existing product journey and Dashboard information architecture as prior design evidence"}
+{"file":"docs/ux/2026-07-11-config-experience-analysis.md","reason":"Reuse prior findings about configuration producer mismatch and Workbench cognitive load"}

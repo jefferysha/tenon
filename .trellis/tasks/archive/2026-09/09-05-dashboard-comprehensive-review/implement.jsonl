@@ -1,0 +1,6 @@
+{"file":".trellis/spec/dashboard-app/frontend/index.md","reason":"Dashboard frontend guideline index and required review conventions"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Check duplicate UI and interaction patterns before recommending consolidation"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Trace Dashboard interactions across API and server boundaries"}
+{"file":"docs/TEST-REALITY.md","reason":"Use the repository's evidence and honest-skip language for validation claims"}
+{"file":"docs/ux/2026-07-19-full-product-journey-and-orchestration-design.md","reason":"Use the existing product journey and Dashboard information architecture as prior design evidence"}
+{"file":"docs/ux/2026-07-11-config-experience-analysis.md","reason":"Reuse prior findings about configuration producer mismatch and Workbench cognitive load"}
