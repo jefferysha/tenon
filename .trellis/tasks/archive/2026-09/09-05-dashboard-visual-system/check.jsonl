@@ -1,0 +1,2 @@
+{"file":"docs/usage/zh-CN/dashboard-and-local-api.md","reason":"核对视觉/交互变更没有破坏本地控制面、语言和页面验收边界。"}
+{"file":".trellis/tasks/archive/2026-09/09-05-dashboard-comprehensive-review/review.md","reason":"回归色块堆叠、横滚、状态反馈和可访问性相关问题。"}
