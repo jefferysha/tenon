@@ -1,12 +1,13 @@
 import { FolderKanban } from 'lucide-react'
 import { useT } from '../i18n'
 import type { View } from './Nav'
+import { BUTTON_SOLID, PANEL } from '../shared/uiRecipes'
 
 export function ProjectRequiredState({ onOpenProjects, view }: { onOpenProjects: () => void; view: View }): JSX.Element {
   const { t } = useT()
   return (
     <section
-      className="mx-auto mt-10 flex w-full max-w-[620px] flex-col items-start rounded-2xl border border-border bg-card p-6 shadow-sm mobile:mt-6 mobile:p-5"
+      className={`mx-auto mt-10 flex w-full max-w-[620px] flex-col items-start p-6 mobile:mt-6 mobile:p-5 ${PANEL}`}
       data-testid="project-required"
       aria-labelledby="project-required-title"
     >
@@ -18,7 +19,7 @@ export function ProjectRequiredState({ onOpenProjects, view }: { onOpenProjects:
       <p className="mt-2 max-w-[52ch] text-sm leading-6 text-text-2">{t('navigation.project_required_desc')}</p>
       <button
         type="button"
-        className="mt-5 inline-flex min-h-10 items-center justify-center rounded-xl bg-btn-bg px-4 text-sm font-bold text-btn-fg outline-none transition-colors hover:bg-btn-bg-hover focus-visible:ring-3 focus-visible:ring-(--ring-blue)"
+        className={`${BUTTON_SOLID} mt-5`}
         data-testid="project-required-open"
         onClick={onOpenProjects}
       >

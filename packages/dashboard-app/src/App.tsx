@@ -22,6 +22,7 @@ import { useDashboardTheme } from './shell/useDashboardTheme'
 import { SnapshotInlineError } from './progress/SnapshotInlineError'
 import { PageBreadcrumbs } from './shell/PageBreadcrumbs'
 import { ProjectRequiredState } from './shell/ProjectRequiredState'
+import { BUTTON_GHOST } from './shared/uiRecipes'
 
 export { ErrorBoundary } from './AppErrorBoundary'
 
@@ -45,7 +46,7 @@ const HostTargetPlanView = lazy(async () => ({
 // 视图记忆。旧值（inbox/board/settings/loops/workflows）随历次 IA 收敛退役——initialView
 // 以 KNOWN_VIEWS 白名单校验，不认识的一律兜底回 progress（收件箱退役，默认落地=进度，v9-flowdeck 口径）。
 const VIEW_KEY = 'tenon-dashboard-view'
-// 可路由的全部视图 = rail 六项（PRIMARY_VIEWS：项目/进度/AFK/工作台/机器/宿主计划）。「项目」是 rail
+// 可路由的日常视图 = PRIMARY_VIEWS（三项：项目/进度/工作台）；低频视图仍保留深链
 // 首枚入口，内容区直接承担自动发现与项目选择，视图记忆据此恢复。
 const KNOWN_VIEWS: View[] = [...PRIMARY_VIEWS]
 
@@ -391,7 +392,7 @@ function AppShell(): JSX.Element {
             （工作台不替换——它是配置面，零 change 也有事可做）。 */}
         {snapshot === null && !loading && snapshotError && view !== 'hostPlan' ? (
           <section
-            className="mx-auto mt-8 w-full max-w-[680px] rounded-2xl border border-red-b bg-red-t p-6 text-red-d mobile:mt-4 mobile:p-5"
+            className="mx-auto mt-8 w-full max-w-[680px] rounded-2xl border border-red-b bg-red-t p-6 text-red-d shadow-sm mobile:mt-4 mobile:p-5"
             role="alert"
             aria-live="assertive"
             data-testid="snapshot-error"
@@ -401,7 +402,7 @@ function AppShell(): JSX.Element {
             <p className="mt-1 text-[13px] leading-6 text-text-2">{t('common.snapshot_error_hint')}</p>
             <button
               type="button"
-              className="mt-4 cursor-pointer rounded-lg border border-red-b bg-card px-3.5 py-2 text-[13px] font-bold text-red-d transition-colors hover:bg-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+              className={`${BUTTON_GHOST} mt-4 border-red-b bg-card text-red-d hover:border-red-b hover:bg-red-t hover:text-red-d`}
               onClick={refresh}
             >
               {t('common.snapshot_retry')}
@@ -483,6 +484,7 @@ function AppShell(): JSX.Element {
                 setView('progress')
               }}
               onToast={(m) => showFlash('toast', m)}
+              onRefresh={refresh}
             />
           ) : (
             <ProjectRequiredState view="afk" onOpenProjects={() => setView('projects')} />

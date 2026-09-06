@@ -1,6 +1,7 @@
 import { useRef, type KeyboardEvent } from 'react'
 import { ChevronDown, ListFilter, Plus } from 'lucide-react'
 import { PageHeader } from '../shared/PageHeader'
+import { BUTTON_SOLID, SELECT } from '../shared/uiRecipes'
 import { DECK_TABS, type DeckTab, type Tr } from './progressViewModel'
 
 export interface ProgressToolbarProps {
@@ -67,7 +68,7 @@ export function ProgressToolbar({
         actions={onCreate === undefined ? undefined : (
           <button
             type="button"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-btn-bg px-4 text-sm font-semibold text-btn-fg shadow-sm transition-[background-color,transform,box-shadow] duration-150 hover:bg-btn-hover hover:shadow-md active:translate-y-px motion-reduce:transform-none"
+            className={`${BUTTON_SOLID} min-h-11`}
             data-testid="progress-new-change"
             onClick={onCreate}
           >
@@ -80,7 +81,7 @@ export function ProgressToolbar({
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-w-0 max-w-full overflow-x-auto pb-1 [scrollbar-width:thin]">
               <div
-                className="inline-flex w-max items-center gap-1 rounded-xl bg-fill p-1"
+                className="inline-flex w-max items-center gap-1 rounded-xl bg-fill/65 p-1 ring-1 ring-border"
                 role="tablist"
                 aria-label={t('progress.tabs_label')}
                 data-testid="prg9t-tabs"
@@ -110,7 +111,7 @@ export function ProgressToolbar({
               <label className="relative max-[760px]:basis-full">
                 <span className="sr-only">{t('progress.workflow_filter')}</span>
                 <select
-                  className="h-10 min-w-[180px] appearance-none rounded-xl border border-border bg-card py-2 pr-9 pl-3 text-[13px] font-semibold text-text outline-none transition-shadow focus:border-(--accent) focus:ring-3 focus:ring-accent-t max-[760px]:w-full"
+                  className={`${SELECT} min-w-[180px] py-2.5 text-[13px] font-semibold max-[760px]:w-full`}
                   data-testid="prg-workflow-select"
                   value={workflow}
                   onChange={(event) => onWorkflow(event.target.value)}

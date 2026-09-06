@@ -115,7 +115,7 @@ describe('AfkView 两栏自动运行工作区', () => {
     await renderAfk({ snapshot: empty })
     expect(screen.getByTestId('afk-empty')).toHaveTextContent('No automatic runs right now')
     expect(screen.getByTestId('afk-view').textContent).not.toMatch(/[\u3400-\u9fff]/u)
-    expect(screen.getByTestId('afk-tool-enqueue')).toHaveTextContent('Start automatic run')
+    expect(screen.queryByTestId('afk-new-run')).toBeNull()
     expect(screen.getByTestId('afk-tool-starter')).toHaveTextContent('New schedule')
     expect(screen.getByTestId('afk-tool-run')).toHaveTextContent('Validate schedule')
   })
@@ -240,7 +240,7 @@ describe('AfkView 两栏自动运行工作区', () => {
     }) as unknown as typeof fetch
     const props = await renderAfk()
 
-    fireEvent.click(screen.getByTestId('afk-tool-enqueue'))
+    fireEvent.click(screen.getByTestId('afk-new-run'))
     fireEvent.click(screen.getByTestId('afk-enqueue-gate-d'))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid server response.'))
@@ -258,7 +258,7 @@ describe('AfkView 两栏自动运行工作区', () => {
       return baseFetch(input, init)
     }) as unknown as typeof fetch
     const props = await renderAfk()
-    fireEvent.click(screen.getByTestId('afk-tool-enqueue'))
+    fireEvent.click(screen.getByTestId('afk-new-run'))
     const enqueue = screen.getByTestId('afk-enqueue-gate-d')
     fireEvent.click(enqueue)
     fireEvent.change(screen.getByTestId('afk-limit-input'), { target: { value: '6' } })
@@ -285,7 +285,7 @@ describe('AfkView 两栏自动运行工作区', () => {
     expect(screen.queryByTestId('afk-tool-triage')).toBeNull()
     expect(screen.queryByTestId('afk-tool-sync')).toBeNull()
     expect(screen.queryByTestId('afk-enqueue-panel')).toBeNull()
-    fireEvent.click(screen.getByTestId('afk-tool-enqueue'))
+    fireEvent.click(screen.getByTestId('afk-new-run'))
     expect(within(screen.getByTestId('afk-tool-sheet')).getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByTestId('afk-tool-sheet')).toHaveTextContent('开启自动运行')
     expect(screen.getByTestId('afk-tool-sheet')).toHaveTextContent('不创建新任务，也不改变它的工作流')
@@ -299,7 +299,7 @@ describe('AfkView 两栏自动运行工作区', () => {
 
   it('工具 Dialog 进入首个控件、困住 Tab，Escape 关闭并把焦点还给打开按钮', async () => {
     await renderAfk({ snapshot: fixtureWithOperations() })
-    const trigger = screen.getByTestId('afk-tool-enqueue')
+    const trigger = screen.getByTestId('afk-new-run')
     trigger.focus()
     fireEvent.click(trigger)
     const dialog = screen.getByRole('dialog', { name: '自动运行工具' })
@@ -319,15 +319,15 @@ describe('AfkView 两栏自动运行工作区', () => {
     const nav = screen.getByTestId('afk-tool-nav')
     expect(nav.className).toContain('flex-wrap')
     expect(nav.className).not.toContain('overflow-x-auto')
-    expect(within(nav).getAllByRole('button')).toHaveLength(3)
+    expect(within(nav).getAllByRole('button')).toHaveLength(2)
   })
 
   it('生产操作能力未接通时仍可开启现有任务的自动运行，但新建与验证定时任务明确禁用', async () => {
     await renderAfk()
     expect(screen.getByTestId('afk-new-run')).not.toBeDisabled()
-    expect(screen.getByTestId('afk-tool-enqueue')).not.toBeDisabled()
-    expect(screen.getByTestId('afk-tool-starter')).toBeDisabled()
-    expect(screen.getByTestId('afk-tool-run')).toBeDisabled()
+    expect(screen.queryByTestId('afk-tool-nav')).toBeNull()
+    expect(screen.queryByTestId('afk-tool-starter')).toBeNull()
+    expect(screen.queryByTestId('afk-tool-run')).toBeNull()
   })
 })
 
@@ -367,7 +367,7 @@ describe('AfkView 行动作（真实入队 / 重试 + 人工接管）', () => {
 
   it('未入自动化的 change 可直接挂队：POST enqueue 带当前 root，成功反馈', async () => {
     const props = await renderAfk()
-    fireEvent.click(screen.getByTestId('afk-tool-enqueue'))
+    fireEvent.click(screen.getByTestId('afk-new-run'))
     fireEvent.click(screen.getByTestId('afk-enqueue-gate-d'))
     await waitFor(() => expect(afkPosts).toHaveLength(1))
     expect(afkPosts[0]?.url).toBe('/api/afk/gate-d/enqueue')
@@ -475,7 +475,7 @@ describe('AfkView 空态', () => {
     expect(screen.queryByTestId('afk-sec-queued')).toBeNull()
     expect(screen.queryByTestId('afk-sec-failed')).toBeNull()
     expect(screen.queryByTestId('afk-new-run')).toBeNull()
-    expect(screen.getByTestId('afk-tool-nav')).toBeInTheDocument()
+    expect(screen.queryByTestId('afk-tool-nav')).toBeNull()
   })
 
   it('搜索输入声明稳定 name 并关闭浏览器自动填充', async () => {

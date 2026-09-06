@@ -1373,7 +1373,8 @@ describe('ProgressView GSAP 动效（gsap.matchMedia 全包；reduced-motion 守
         expect(el.style.visibility === '' || el.style.visibility === 'inherit').toBe(true)
       }
     }, { timeout: 40000 })
-    expect(screen.getByTestId('prg-cv-track-proj-a-default')).toHaveStyle({ minWidth: '1624px' })
+    expect(screen.getByTestId('prg-cv-track-proj-a-default')).not.toHaveStyle({ minWidth: '1624px' })
+    expect(screen.getByTestId('prg-cv-track-proj-a-default')).toHaveClass('min-w-0')
   }, 50000)
 })
 

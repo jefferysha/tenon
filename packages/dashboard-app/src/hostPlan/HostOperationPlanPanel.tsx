@@ -5,6 +5,7 @@ import type {
   HostTargetPlan,
 } from '../api/hostTargetPlanTypes'
 import { useT } from '../i18n'
+import { BUTTON_GHOST } from '../shared/uiRecipes'
 import { HostPlanPreview } from './HostPlanPreview'
 
 export type HostPlanRequestState =
@@ -36,7 +37,7 @@ export function HostOperationPlanPanel({
 
   return (
     <section
-      className="min-w-0 rounded-2xl border border-blue-b bg-blue-t/30 p-5"
+      className="min-w-0 rounded-2xl border border-blue-b bg-blue-t/30 p-5 shadow-sm"
       aria-labelledby="host-plan-operation-title"
     >
       <h2 id="host-plan-operation-title" className="text-base font-bold text-text">
@@ -74,7 +75,7 @@ export function HostOperationPlanPanel({
             key={operation}
             type="button"
             aria-pressed={selectedOperation === operation}
-            className="rounded-lg border border-border-2 bg-card px-4 py-2 text-sm font-bold text-text outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[pressed=true]:border-(--accent) aria-[pressed=true]:bg-blue-t aria-[pressed=true]:text-blue-d"
+            className="rounded-xl border border-border-2 bg-card px-4 py-2 text-sm font-bold text-text outline-none transition-[background-color,border-color,box-shadow] hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--ring-blue) aria-[pressed=true]:border-(--accent) aria-[pressed=true]:bg-blue-t aria-[pressed=true]:text-blue-d"
             onClick={() => onRequestPlan(target.id, operation)}
           >
             {t(`hostPlan.operation.${operation}`)}
@@ -96,7 +97,7 @@ export function HostOperationPlanPanel({
           <p className="break-words text-sm">{errorMessage(planState.error)}</p>
           <button
             type="button"
-            className="mt-3 rounded-lg border border-red-b bg-card px-3 py-2 text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+            className={`${BUTTON_GHOST} mt-3 border-red-b bg-card text-red-d hover:border-red-b hover:bg-red-t`}
             onClick={() => onRequestPlan(target.id, selectedOperation)}
           >
             {t('hostPlan.plan_retry', { operation: t(`hostPlan.operation.${selectedOperation}`) })}

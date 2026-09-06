@@ -524,7 +524,7 @@ export function ProgressView({
   const compatibilityIssues = compatibilityProject?.compatibilityIssues ?? []
 
   return (
-    <section className="prg-command-deck relative mx-auto w-full max-w-[1160px] pt-6 pb-5" data-testid="progress-view" data-page-frame="standard" ref={rootRef}>
+    <section className="prg-command-deck relative mx-auto w-full max-w-[1120px] pt-6 pb-5" data-testid="progress-view" data-page-frame="standard" ref={rootRef}>
       <ProgressToolbar
         t={t}
         rowCount={flatRows.length}

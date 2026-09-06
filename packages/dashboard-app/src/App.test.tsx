@@ -1142,12 +1142,11 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     expect(screen.queryByTestId('workbench-view')).toBeNull()
   })
 
-  it('主导航只保留项目 / 进度 / AFK / 工作台 / 机器 / 宿主计划；状态、主题与语言收进设置', async () => {
+  it('主导航只保留项目 / 进度 / 工作台；AFK、机器与宿主计划收进设置', async () => {
     render(<App />)
     await screen.findByTestId('progress-view')
     const nav = screen.getByTestId('primary-nav')
-    expect(within(nav).getAllByRole('button')).toHaveLength(6)
-    expect(screen.getByTestId('nav-afk')).toBeInTheDocument()
+    expect(within(nav).getAllByRole('button')).toHaveLength(3)
     // 项目上下文不再占用全局顶栏；项目入口只保留在 rail。
     expect(screen.getByTestId('nav-projects')).toBeInTheDocument()
     expect(screen.queryByTestId('app-header')).toBeNull()
@@ -1156,7 +1155,13 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     expect(screen.queryByTestId('nav-inbox')).toBeNull()
     expect(screen.queryByTestId('nav-board')).toBeNull()
     expect(screen.getByTestId('nav-settings')).toBeInTheDocument()
-    expect(screen.queryByTestId('conn-indicator')).toBeNull()
+    fireEvent.click(screen.getByTestId('nav-settings'))
+    const secondary = screen.getByTestId('secondary-nav')
+    expect(secondary).toHaveTextContent('自动运行')
+    expect(secondary).toHaveTextContent('机器')
+    expect(secondary).toHaveTextContent('宿主计划')
+    expect(within(secondary).getByTestId('nav-afk')).toBeInTheDocument()
+    expect(screen.getByTestId('conn-indicator')).toHaveAttribute('data-on', 'true')
   })
 
   it('主内容为移动底栏和 safe area 预留空间', async () => {
@@ -1807,7 +1812,8 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     expect(screen.queryByTestId('prg-empty')).toBeNull()
     expect(screen.queryByTestId('progress-new-change')).toBeNull()
 
-    fireEvent.click(screen.getByTestId('nav-afk'))
+    fireEvent.click(screen.getByTestId('nav-settings'))
+    fireEvent.click(within(screen.getByTestId('secondary-nav')).getByTestId('nav-afk'))
     expect(await screen.findByTestId('projects-view')).toBeInTheDocument()
     expect(screen.queryByTestId('afk-view')).toBeNull()
     expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith('/api/automation?root='))).toBe(false)

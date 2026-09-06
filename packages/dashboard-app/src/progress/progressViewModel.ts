@@ -2,6 +2,7 @@ import { isPhase, type ChangeSnapshot } from '../types'
 import { changeWorkflow, decisionKind } from '../model/changeModel'
 import { VERIFY_STATUS_FIELDS, type EvidenceChip } from '../model/evidence'
 import { diagnoseFailureWithCause } from '../shared/failureDiagnosis'
+import { BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
 import {
   executionProvenance,
   type ProgressRow,
@@ -170,9 +171,9 @@ export const DRAWER_FOCUSABLE_SEL =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
 
 export const BTN_GO_CLS =
-  'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg bg-btn-bg px-3 py-1.5 text-xs font-semibold text-btn-fg hover:bg-btn-hover disabled:opacity-50'
+  `${BUTTON_SOLID} min-h-9 px-3 py-1.5 text-xs`
 export const BTN_NEG_CLS =
-  'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-red-d hover:border-red-b hover:bg-red-t disabled:opacity-50'
+  `${BUTTON_GHOST} min-h-9 border-border bg-card px-3 py-1.5 text-xs text-red-d hover:border-red-b hover:bg-red-t hover:text-red-d`
 export const BADGE_TONE_CLS: Record<RowBadge['tone'], string> = {
   green: 'bg-green-t text-green-d',
   red: 'bg-red-t text-red-d',

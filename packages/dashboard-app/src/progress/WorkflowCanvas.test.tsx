@@ -360,9 +360,13 @@ describe('WorkflowCanvas change 小卡', () => {
         ],
       }),
     ])
-    expect(screen.getByTestId('prg-cv-track-proj-a-flow-x')).toHaveStyle({ minWidth: '696px' })
+    const track = screen.getByTestId('prg-cv-track-proj-a-flow-x')
+    const viewport = screen.getByTestId('prg-cv-scroll-proj-a-flow-x')
+    expect(track).toHaveClass('min-w-0')
+    expect(viewport).toHaveClass('mobile:overflow-visible')
+    expect(track).not.toHaveStyle({ minWidth: '696px' })
     expect(screen.getByTestId('prg-cv-group-proj-a-flow-x')).toContainElement(
-      screen.getByTestId('prg-cv-scroll-proj-a-flow-x'),
+      viewport,
     )
     expect(screen.getByTestId('prg-cv-stage-proj-a-flow-x-draft')).toHaveAttribute('data-stage-state', 'done')
     expect(screen.getByTestId('prg-cv-stage-proj-a-flow-x-review')).toHaveAttribute('data-stage-state', 'current')

@@ -1,0 +1,3 @@
+{"file":".trellis/spec/dashboard-app/frontend/index.md","reason":"IA 改动涉及路由、组件和质量约定。"}
+{"file":".trellis/tasks/archive/2026-09/09-05-dashboard-comprehensive-review/review.md","reason":"页面级冗余入口、状态反馈和安全边界证据。"}
+{"file":"docs/usage/zh-CN/dashboard-and-local-api.md","reason":"导航顺序、Host Plan 只读边界和 Dashboard 定位。"}

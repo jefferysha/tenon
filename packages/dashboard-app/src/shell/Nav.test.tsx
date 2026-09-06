@@ -28,9 +28,9 @@ function renderNav(over: Partial<Parameters<typeof Nav>[0]> = {}) {
   return props
 }
 
-// 2026-07-15 外壳 IA 重构：rail 放视图导航——项目 / 进度 / AFK / 工作台（lucide 图标 + 小字）。
+// Dashboard 体验重构：rail 只放日常工作导航——项目 / 进度 / 工作台；低频能力在设置二级入口。
 // 项目页承担自动发现与选择；rail 不重复展示当前项目名或项目切换器。
-describe('Nav 一级导航（rail 六视图：项目 / 进度 / AFK / 工作台 / 机器 / 宿主计划）', () => {
+describe('Nav 一级导航（日常视图：项目 / 进度 / 工作台）', () => {
   it('声明桌面 rail → 移动底栏的自适应外壳，并始终保留可见短标签', () => {
     renderNav()
     const shell = screen.getByTestId('app-navigation')
@@ -51,7 +51,7 @@ describe('Nav 一级导航（rail 六视图：项目 / 进度 / AFK / 工作台 
     }
   })
 
-  it('品牌是独立的可访问 Overview 入口，不计入六个运营导航项', () => {
+  it('品牌是独立的可访问 Overview 入口，不计入日常导航项', () => {
     const props = renderNav()
     const brand = screen.getByRole('button', { name: 'Tenon 概览' })
     expect(brand).toHaveAttribute('data-testid', 'nav-overview')
@@ -61,10 +61,10 @@ describe('Nav 一级导航（rail 六视图：项目 / 进度 / AFK / 工作台 
     expect(brand).not.toHaveAttribute('aria-current')
     fireEvent.click(brand)
     expect(props.onView).toHaveBeenCalledWith('overview')
-    expect(within(screen.getByTestId('primary-nav')).getAllByRole('button')).toHaveLength(6)
+    expect(within(screen.getByTestId('primary-nav')).getAllByRole('button')).toHaveLength(3)
   })
 
-  it('Overview 激活时只有品牌标记 aria-current=page，六个运营项仍未选中', () => {
+  it('Overview 激活时只有品牌标记 aria-current=page，日常项仍未选中', () => {
     renderNav({ view: 'overview' })
     expect(screen.getByTestId('nav-overview')).toHaveAttribute('aria-current', 'page')
     for (const operational of PRIMARY_VIEWS) {
@@ -72,25 +72,26 @@ describe('Nav 一级导航（rail 六视图：项目 / 进度 / AFK / 工作台 
     }
   })
 
-  it('一级导航恰 6 个按钮，并包含机器就绪与宿主计划入口', () => {
+  it('一级导航恰 3 个按钮，低频能力位于设置二级入口', () => {
     renderNav()
     const nav = screen.getByTestId('primary-nav')
     const buttons = within(nav).getAllByRole('button')
-    expect(buttons).toHaveLength(6)
+    expect(buttons).toHaveLength(3)
     expect(nav.textContent).toContain('项目')
     expect(nav.textContent).toContain('进度')
-    expect(nav.textContent).toContain('自动运行')
     expect(nav.textContent).toContain('工作台')
-    expect(nav.textContent).toContain('机器')
-    expect(nav.textContent).toContain('宿主计划')
     expect(nav.textContent).not.toContain('收件箱')
+    fireEvent.click(screen.getByTestId('nav-settings'))
+    const secondary = screen.getByTestId('secondary-nav')
+    expect(secondary).toHaveTextContent('自动运行')
+    expect(secondary).toHaveTextContent('机器')
+    expect(secondary).toHaveTextContent('宿主计划')
   })
 
-  it('宿主计划是机器级一级入口，点击后进入 hostPlan', () => {
+  it('宿主计划从设置二级入口进入 hostPlan', () => {
     const props = renderNav()
-    const nav = screen.getByTestId('primary-nav')
-    expect(within(nav).getAllByRole('button')).toHaveLength(6)
-    const hostPlan = screen.getByRole('button', { name: '宿主计划' })
+    fireEvent.click(screen.getByTestId('nav-settings'))
+    const hostPlan = within(screen.getByTestId('secondary-nav')).getByRole('button', { name: '宿主计划' })
     fireEvent.click(hostPlan)
     expect(props.onView).toHaveBeenCalledWith('hostPlan')
   })
@@ -106,9 +107,10 @@ describe('Nav 一级导航（rail 六视图：项目 / 进度 / AFK / 工作台 
     expect(screen.queryByTestId('project-label')).toBeNull()
   })
 
-  it('AFK 是一级视图：nav-afk 渲染，点击触发 onView(afk)', () => {
+  it('AFK 从设置二级入口进入，点击触发 onView(afk)', () => {
     const props = renderNav()
-    const btn = screen.getByTestId('nav-afk')
+    fireEvent.click(screen.getByTestId('nav-settings'))
+    const btn = within(screen.getByTestId('secondary-nav')).getByTestId('nav-afk')
     expect(btn).toBeInTheDocument()
     fireEvent.click(btn)
     expect(props.onView).toHaveBeenCalledWith('afk')
@@ -139,7 +141,8 @@ describe('Nav 一级导航（rail 六视图：项目 / 进度 / AFK / 工作台 
     renderNav({ view: 'progress' })
     expect(screen.getByTestId('nav-progress')).toHaveAttribute('aria-current', 'page')
     expect(screen.getByTestId('nav-projects')).not.toHaveAttribute('aria-current')
-    expect(screen.getByTestId('nav-afk')).not.toHaveAttribute('aria-current')
+    fireEvent.click(screen.getByTestId('nav-settings'))
+    expect(within(screen.getByTestId('secondary-nav')).getByTestId('nav-afk')).not.toHaveAttribute('aria-current')
     expect(screen.getByTestId('nav-workbench')).not.toHaveAttribute('aria-current')
   })
 
@@ -151,7 +154,8 @@ describe('Nav 一级导航（rail 六视图：项目 / 进度 / AFK / 工作台 
 
   it('view=afk 时 AFK 钮标 aria-current=page', () => {
     renderNav({ view: 'afk' })
-    expect(screen.getByTestId('nav-afk')).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(screen.getByTestId('nav-settings'))
+    expect(within(screen.getByTestId('secondary-nav')).getByTestId('nav-afk')).toHaveAttribute('aria-current', 'page')
     expect(screen.getByTestId('nav-progress')).not.toHaveAttribute('aria-current')
   })
 
@@ -220,8 +224,9 @@ describe('Nav 交互 + 徽标', () => {
     expect(screen.queryByTestId('progress-badge')).toBeNull()
   })
 
-  it('afkCount>0 徽标挂在「AFK」项内显示计数（afk-badge）', () => {
+  it('afkCount>0 徽标挂在设置中的「AFK」项内显示计数（afk-badge）', () => {
     renderNav({ afkCount: 3 })
+    fireEvent.click(screen.getByTestId('nav-settings'))
     const badge = screen.getByTestId('afk-badge')
     expect(badge.textContent).toBe('3')
     expect(badge).toHaveAttribute('aria-label', '3 个待处理自动运行')
@@ -230,6 +235,7 @@ describe('Nav 交互 + 徽标', () => {
 
   it('afkCount=0 不显示 AFK 徽标', () => {
     renderNav({ afkCount: 0 })
+    fireEvent.click(screen.getByTestId('nav-settings'))
     expect(screen.queryByTestId('afk-badge')).toBeNull()
   })
 })

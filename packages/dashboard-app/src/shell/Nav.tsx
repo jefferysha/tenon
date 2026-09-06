@@ -10,20 +10,21 @@ import { Icon } from './Icon'
  * lucide 图标 + 小字）。「项目」既是 rail 首枚入口（点入 view='projects' 总览页），也仍由内容区
  * 项目总览直接承担自动发现与项目选择；rail 不重复展示当前项目名。
  *
- * 结构（自上而下）：logo 标（品牌名收进 title 悬浮）→ 分隔线 → 六个竖排导航项
- * 项目/进度/AFK/工作台/机器/宿主计划（lucide 图标 + 小字，激活态沿 aria-current 变体，进度项挂
- * 待拍板红徽标、AFK 项挂待处置失败红徽标）→ 弹性空档 → 分隔线 → 底部单一「设置」入口；
+ * 结构（自上而下）：logo 标（品牌名收进 title 悬浮）→ 分隔线 → 三个竖排日常导航项
+ * 项目/进度/工作台（lucide 图标 + 小字，激活态沿 aria-current 变体，进度项挂待拍板红徽标）→ 弹性空档 → 分隔线 → 底部单一「设置」入口；
  * 连接、主题和语言收进锚定浮层。
  * 窄屏（≤720px）切为底部导航并保留短标签，释放横向阅读空间。
  */
 export type View = 'overview' | 'projects' | 'progress' | 'afk' | 'workbench' | 'machine' | 'hostPlan'
 export type ThemePreference = 'system' | 'light' | 'dark'
 
-/** rail 竖排渲染的六个一级导航项——显式枚举白名单，顺序=项目/进度/AFK/工作台/机器/宿主计划。 */
+/** rail 竖排渲染的三个日常导航项；低频视图由设置面板承载。 */
 export type RailView = 'projects' | 'progress' | 'afk' | 'workbench' | 'machine' | 'hostPlan'
-export const PRIMARY_VIEWS: RailView[] = ['projects', 'progress', 'afk', 'workbench', 'machine', 'hostPlan']
+export const PRIMARY_VIEWS: RailView[] = ['projects', 'progress', 'workbench']
+/** 低频能力通过设置面板进入，保留深链与明确的二级入口。 */
+export const SECONDARY_VIEWS: RailView[] = ['afk', 'machine', 'hostPlan']
 
-/** rail 导航项 lucide 图标：项目=看板文件夹、进度=流程节点、AFK=无人值守机器人、工作台=设置滑杆。 */
+/** rail 导航项 lucide 图标。 */
 const VIEW_ICONS: Record<RailView, LucideIcon> = {
   projects: FolderKanban,
   progress: GitBranch,
@@ -139,15 +140,7 @@ export function Nav({ view, onView, lang, onLang, theme, onTheme, connected, dec
                   {decisionCount}
                 </span>
               )}
-              {v === 'afk' && afkCount > 0 && (
-                <span
-                  className="absolute -top-0.5 right-1.5 inline-block h-[17px] min-w-[17px] rounded-[9px] border border-red-b bg-red-t px-[5px] text-center font-mono text-[10.5px] font-bold leading-[17px] text-red-d mobile:-right-1"
-                  data-testid="afk-badge"
-                  aria-label={t('nav.afk_badge', { count: afkCount })}
-                >
-                  {afkCount}
-                </span>
-              )}
+
             </button>
           )
         })}
@@ -164,6 +157,7 @@ export function Nav({ view, onView, lang, onLang, theme, onTheme, connected, dec
           aria-label={t('common.settings')}
           aria-expanded={settingsOpen}
           aria-haspopup="dialog"
+          aria-controls={settingsOpen ? 'nav-settings-panel' : undefined}
           className={`${RAIL_BTN_CLS} aria-[expanded=true]:border-accent-b aria-[expanded=true]:bg-accent-t aria-[expanded=true]:font-bold aria-[expanded=true]:text-accent-d mobile:w-11 mobile:flex-none`}
           onClick={() => setSettingsOpen((open) => !open)}
         >
@@ -174,6 +168,7 @@ export function Nav({ view, onView, lang, onLang, theme, onTheme, connected, dec
         {settingsOpen && (
           <section
             ref={settingsPanelRef}
+            id="nav-settings-panel"
             role="dialog"
             aria-modal="false"
             aria-label={t('common.settings')}
@@ -211,6 +206,32 @@ export function Nav({ view, onView, lang, onLang, theme, onTheme, connected, dec
               >
                 {lang === 'zh' ? t('common.switch_to_english') : t('common.switch_to_chinese')}
               </button>
+            </div>
+
+            <div className="mb-3 rounded-xl border border-border bg-bg/70 p-2" data-testid="secondary-nav">
+              <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-text-3">{t('nav.secondary_label')}</p>
+              <div className="grid gap-1">
+                {SECONDARY_VIEWS.map((v) => {
+                  const IconCmp = VIEW_ICONS[v]
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      data-testid={`nav-${v}`}
+                      aria-current={view === v ? 'page' : undefined}
+                      className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-left text-xs font-semibold text-text-2 transition-colors hover:bg-fill hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=page]:bg-accent-t aria-[current=page]:text-accent-d"
+                      onClick={() => {
+                        setSettingsOpen(false)
+                        onView(v)
+                      }}
+                    >
+                      <IconCmp size={15} strokeWidth={1.8} aria-hidden="true" />
+                      <span>{t(`nav.${v}`)}</span>
+                      {v === 'afk' && afkCount > 0 ? <span data-testid="afk-badge" aria-label={t('nav.afk_badge', { count: afkCount })} className="ml-auto rounded-full bg-red-t px-1.5 py-0.5 font-mono text-[10px] text-red-d">{afkCount}</span> : null}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </section>
         )}

@@ -74,21 +74,17 @@ Dashboard `zh/en` 存在浏览器 `localStorage`，只控制 UI。治理文档 l
 
 ## 操作视图
 
-主导航按实现顺序提供：
+日常主导航只保留三项高频入口：
 
 ```text
-projects → progress → afk → workbench → machine → hostPlan
+projects → progress → workbench
 ```
 
-- `projects`：项目与 Change 汇总；
-- `progress`：当前 phase、Todo、历史和证据；
-- `afk`：AFK 队列、worker、预算与停止原因；
-- `workbench`：Workflow、Track、hook、automation 和 loop；
-- `machine`：运行时身份、流量和高级诊断。
-- `hostPlan`：选择 Tenon 已注册宿主，预览零副作用的 setup/update
-  命令与有序步骤。适配器计划固定使用 `--target .`，复制后运行前必须先进入目标项目目录。
+- `projects`：选择项目并发现需要处理的 Change；
+- `progress`：按状态查看任务，打开详情执行下一动作；
+- `workbench`：编辑 Workflow 与阶段结构。
 
-`overview` 独立于操作视图，避免把产品介绍混进日常控制面导航。
+AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有深链。`hostPlan` 只展示检测结果和零副作用命令计划，不触发安装写操作；需要安装时从明确的项目级安装流程进入。`overview` 独立于操作视图，避免把产品介绍混进日常控制面导航。
 
 ### 自动运行
 

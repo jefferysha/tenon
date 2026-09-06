@@ -15,6 +15,7 @@ import {
 import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
 import { PageHeader } from '../shared/PageHeader'
+import { BUTTON_SOLID, PANEL, SELECT } from '../shared/uiRecipes'
 import type { ChangeSnapshot, Snapshot } from '../types'
 import type { View } from '../shell/Nav'
 import { DEFAULT_RULES, type WorkflowRules } from '../model/workflowModel'
@@ -67,6 +68,8 @@ interface AfkViewProps {
   onOpenChange?: (name: string) => void
   /** 命令 chip 拷贝反馈 toast。 */
   onToast?: (msg: string) => void
+  /** 成功写操作后刷新 canonical snapshot。 */
+  onRefresh?: () => Promise<void> | void
 }
 
 /** 沙箱谓词：行处于自动化三桶之一（同 ProgressView inSandbox / progressModel schedulerHealth 口径）。 */
@@ -86,7 +89,7 @@ interface AfkRow {
 
 type AfkTool = 'enqueue' | 'starter' | 'run'
 
-export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChange, onToast }: AfkViewProps): JSX.Element {
+export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChange, onToast, onRefresh }: AfkViewProps): JSX.Element {
   const { lang, t } = useT()
   const rootRef = useRef<HTMLElement>(null)
 
@@ -235,6 +238,7 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
       await action()
       if (generation !== actionGeneration.current || rootIdentity.current !== targetRoot) return false
       onToast?.(localeIdentity.current.t(successKey, { name }))
+      await onRefresh?.()
       return true
     } catch (error) {
       if (generation === actionGeneration.current && rootIdentity.current === targetRoot) {
@@ -309,12 +313,12 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
           <label className="relative w-full max-w-[350px]">
             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-text-3" aria-hidden="true" />
             <span className="sr-only">{t('afk.search_label')}</span>
-            <input name="afk-search" autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('afk.search_placeholder')} className="h-11 w-full rounded-xl border border-border bg-card pr-3 pl-10 text-sm text-text outline-none transition-shadow focus:border-(--accent) focus:ring-3 focus:ring-accent-t" />
+            <input name="afk-search" autoComplete="off" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('afk.search_placeholder')} className="h-11 w-full rounded-xl border border-border bg-card pr-3 pl-10 text-sm text-text outline-none transition-[border-color,box-shadow,background-color] focus:border-(--accent) focus:ring-2 focus:ring-(--ring-blue)" />
           </label>
           {rows.length > 0 && <button
             type="button"
             data-testid="afk-new-run"
-            className="inline-flex min-h-11 flex-none items-center gap-2 rounded-xl bg-btn-bg px-4 text-sm font-semibold text-btn-fg shadow-sm transition-[background-color,transform] duration-150 hover:bg-btn-hover active:scale-[.98] disabled:cursor-not-allowed disabled:bg-text-3 disabled:opacity-60 disabled:active:scale-100 motion-reduce:transform-none"
+            className={`${BUTTON_SOLID} min-h-11 flex-none`}
             disabled={enqueueCandidates.length === 0 && snapshot?.capabilities.operations !== true}
             title={enqueueCandidates.length > 0 || snapshot?.capabilities.operations === true ? undefined : t('afk.new_unavailable')}
             onClick={() => setActiveTool(enqueueCandidates.length > 0 ? 'enqueue' : 'starter')}
@@ -347,7 +351,7 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
           {t('afk.empty_runs')}
         </p>
       ) : (
-        <div className="grid min-h-[650px] min-w-0 grid-cols-[360px_minmax(0,1fr)] overflow-hidden rounded-2xl border border-border bg-card shadow-sm max-[760px]:grid-cols-1" data-anim="afk-card">
+        <div className={`grid min-h-[650px] min-w-0 grid-cols-[360px_minmax(0,1fr)] overflow-hidden max-[760px]:grid-cols-1 ${PANEL}`} data-anim="afk-card">
           <aside className="min-w-0 border-r border-border bg-card p-4 max-[760px]:border-r-0 max-[760px]:border-b" data-testid="afk-queue">
             <div className="flex items-center justify-between py-1">
               <h2 className="text-[17px] font-bold tracking-[-0.01em] text-text">{t('afk.queue_title')}</h2>
@@ -355,7 +359,7 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
                 <label className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-3">
                   {t('afk.concurrency_label')}
                   <select
-                    className="h-8 rounded-lg border border-border bg-card px-2 font-mono text-xs font-semibold text-text outline-none focus:border-(--accent)"
+                    className={`${SELECT} h-8 px-2 font-mono text-xs font-semibold`}
                     data-testid="afk-limit-input"
                     value={automationSettings.max_parallel}
                     disabled={settingsBusy}
@@ -473,16 +477,15 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
         </div>
       )}
 
-      {(enqueueCandidates.length > 0 || snapshot?.capabilities.operations === true) && (
+      {snapshot?.capabilities.operations === true && (
         <nav
           className="sticky bottom-3 z-30 mx-auto mt-4 flex w-full max-w-[680px] flex-wrap items-center justify-center gap-1 rounded-2xl border border-border bg-card/90 p-1.5 shadow-[0_10px_34px_rgba(15,23,42,.12)] backdrop-blur-2xl"
           aria-label={t('afk.tool_nav_label')}
           data-testid="afk-tool-nav"
         >
           {([
-            ['enqueue', t('afk.tool_start'), Plus, enqueueCandidates.length === 0, t('afk.tool_start_hint')],
-            ['starter', t('afk.tool_schedule'), Plus, snapshot?.capabilities.operations !== true, t('afk.tool_schedule_hint')],
-            ['run', t('afk.tool_validate'), Play, snapshot?.capabilities.operations !== true, t('afk.tool_validate_hint')],
+            ['starter', t('afk.tool_schedule'), Plus, false, t('afk.tool_schedule_hint')],
+            ['run', t('afk.tool_validate'), Play, false, t('afk.tool_validate_hint')],
           ] as const).map(([tool, label, Icon, disabled, title]) => (
             <button key={tool} type="button" title={title} aria-pressed={activeTool === tool} data-testid={`afk-tool-${tool}`} data-active={activeTool === tool} className="inline-flex min-h-10 min-w-[10.5rem] flex-1 items-center justify-center gap-2 rounded-xl px-3 text-xs font-semibold text-text-2 transition-[background-color,transform] hover:bg-fill active:scale-[.97] data-[active=true]:bg-accent-t data-[active=true]:text-accent-d disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transform-none" disabled={disabled} onClick={() => setActiveTool(tool)}><Icon className="h-4 w-4" aria-hidden="true" />{label}</button>
           ))}

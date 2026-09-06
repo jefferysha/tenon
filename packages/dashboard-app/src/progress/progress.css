@@ -157,7 +157,7 @@ html.prg9-lock {
 
 .prg-control-danger { color: var(--red-d); }
 .prg-control-success { color: var(--green-d); }
-.prg-control-warning { color: var(--amb-d); }
+.prg-control-warning { color: var(--amber-d); }
 
 .prg-command-summary {
   display: grid;
@@ -508,5 +508,43 @@ html.prg9-lock {
   }
   [data-anim='prg-flow'] {
     visibility: hidden !important;
+  }
+}
+
+/* On narrow screens the workflow becomes a readable task list. Keeping each stage full width
+ * avoids forcing users to pan across a canvas before seeing the next action. */
+@media (max-width: 720px) {
+  /* The detail surface becomes a full-width mobile sheet while retaining the
+   * same horizontal entrance animation and focus boundary. */
+  [data-testid='prg9-drawer'] {
+    width: 100%;
+    max-width: 100%;
+    border-left: 0;
+    border-top: 1px solid var(--border-2);
+  }
+
+  .prg-canvas [data-canvas-scroll] {
+    overflow: visible;
+  }
+  .prg-canvas [data-canvas-scroll] > [data-testid^='prg-cv-track-'] {
+    min-width: 0 !important;
+  }
+  .prg-canvas .prg-stage-grid,
+  .prg-canvas .prg-change-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .prg-canvas .prg-stage-grid {
+    display: flex;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+  .prg-canvas .prg-stage-grid > * {
+    flex: 1 1 auto;
+  }
+  .prg-canvas .prg-change-grid {
+    gap: 14px;
+  }
+  .prg-canvas .prg-change-grid > * {
+    padding-inline: 0;
   }
 }

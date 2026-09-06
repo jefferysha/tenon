@@ -113,8 +113,15 @@ export function buildCanvasGroups({
         statusLabel: statusOf(flat),
       }]
     })
+    const groupKey = `${group.root}::${group.workflow}`
+    const existing = groups.find((candidate) => candidate.key === groupKey)
+    if (existing) {
+      const known = new Set(existing.changes.map((change) => change.key))
+      existing.changes = [...existing.changes, ...changes.filter((change) => !known.has(change.key))]
+      continue
+    }
     groups.push({
-      key: `${group.root}::${group.workflow}`,
+      key: groupKey,
       projName: rootBasename(group.root),
       workflow: group.workflow,
       steps,

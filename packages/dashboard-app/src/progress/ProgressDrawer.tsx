@@ -46,7 +46,7 @@ export function ProgressDrawer({
     <>
       <div className="fixed inset-0 z-40 bg-scrim" data-testid="prg9-scrim" ref={scrimRef} onClick={onClose} />
       <aside
-        className="fixed top-0 right-0 bottom-0 z-50 flex w-[560px] max-w-[94vw] flex-col border-l border-border-2 bg-card shadow-lg"
+        className="fixed top-0 right-0 bottom-0 z-50 flex w-[560px] max-w-[94vw] flex-col border-l border-border-2 bg-card shadow-xl"
         data-anim="prg-drawer"
         role="dialog"
         aria-modal="true"

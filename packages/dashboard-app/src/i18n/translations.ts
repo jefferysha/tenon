@@ -224,6 +224,7 @@ export const zh: Dict = {
     // v10c 进度重构：一级导航加「项目」总览页项（rail 竖排首项，lucide FolderKanban）——
     // 进度页从此恒为单项目，「项目」页是选项目的主入口（聚合语境退役）。
     primary_label: '主导航',
+    secondary_label: '更多工具',
     progress: '进度', workbench: '工作台', projects: '项目', afk: '自动运行', machine: '机器', hostPlan: '宿主计划',
     progress_badge: '{count} 个待决策项',
     afk_badge: '{count} 个待处理自动运行',
@@ -2815,6 +2816,7 @@ export const en: Dict = {
   },
   nav: {
     primary_label: 'Primary navigation',
+    secondary_label: 'More tools',
     progress: 'Progress', workbench: 'Workbench', projects: 'Projects', afk: 'Automation', machine: 'Machine', hostPlan: 'Host plans',
     progress_badge: '{count} pending decisions',
     afk_badge: '{count} automation items need attention',

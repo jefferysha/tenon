@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef } from 'r
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useT } from '../i18n'
+import { BUTTON_ICON } from './uiRecipes'
 
 /**
  * 中立共享 Dialog 组件（评审 P0-5/P1-9 的地基，Task 3）。
@@ -247,8 +248,8 @@ export function Dialog({ title, onClose, children, actions, testid, closeLabel, 
     >
       <div
         className={variant === 'workspace'
-          ? `${panelClassName ?? 'w-[min(1480px,96vw)]'} flex max-h-[94vh] flex-col overflow-hidden rounded-[24px] border border-border bg-bg shadow-xl`
-          : `${panelClassName ?? 'w-[min(420px,92%)]'} max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-card px-[22px] py-5 shadow-md`}
+          ? `${panelClassName ?? 'w-[min(1480px,96vw)]'} flex max-h-[calc(100vh-24px)] flex-col overflow-hidden rounded-[24px] border border-border bg-bg shadow-xl`
+          : `${panelClassName ?? 'w-[min(420px,92%)]'} max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card px-[22px] py-5 shadow-lg`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -257,18 +258,20 @@ export function Dialog({ title, onClose, children, actions, testid, closeLabel, 
       >
         {variant === 'workspace' ? (
           <>
-            <header className="flex min-h-16 flex-none items-center gap-4 border-b border-border bg-card px-6 py-3">
-              <h2 className="min-w-0 flex-1 break-words whitespace-normal text-[18px] leading-tight font-bold tracking-[-0.015em] text-text">{title}</h2>
-              <button type="button" className="grid size-10 place-items-center rounded-full text-text-3 transition enabled:hover:bg-fill enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-50" data-testid={closeTestid} aria-label={resolvedCloseLabel} disabled={closeDisabled} onClick={onClose}><X className="size-4" strokeWidth={1.75} aria-hidden="true" /></button>
+            <header className="flex min-h-16 flex-none items-center gap-4 border-b border-border bg-card px-6 py-3.5">
+              <div className="min-w-0 flex-1">
+                <h2 className="break-words whitespace-normal text-[18px] font-bold leading-tight tracking-[-0.015em] text-text">{title}</h2>
+              </div>
+              <button type="button" className={BUTTON_ICON} data-testid={closeTestid} aria-label={resolvedCloseLabel} disabled={closeDisabled} onClick={onClose}><X className="size-4" strokeWidth={1.75} aria-hidden="true" /></button>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">{children}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto bg-bg p-5 sm:p-6">{children}</div>
             {actions && <footer className="flex flex-none justify-end gap-2 border-t border-border bg-card px-6 py-4">{actions}</footer>}
           </>
         ) : (
           <>
-            <h2 className="mb-1.5 text-[15px] font-bold text-text">{title}</h2>
+            <h2 className="mb-2 text-[16px] font-bold text-text">{title}</h2>
             {children}
-            {actions && <div className="mt-4 flex justify-end gap-2">{actions}</div>}
+            {actions && <div className="mt-5 flex justify-end gap-2">{actions}</div>}
           </>
         )}
       </div>

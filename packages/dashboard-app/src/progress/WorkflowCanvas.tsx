@@ -160,7 +160,7 @@ export function WorkflowCanvas({ groups, onOpen }: WorkflowCanvasProps): JSX.Ele
               data-anim="prg-card"
               data-testid={`prg-cv-group-${group.projName}-${group.workflow}`}
               data-responsive="summary-track-cards"
-              className="min-h-[420px] rounded-[22px] border border-border bg-card p-5 shadow-xs mobile:min-h-0 mobile:rounded-2xl mobile:p-4"
+              className="min-h-[360px] rounded-[22px] border border-border bg-card p-5 shadow-xs mobile:min-h-0 mobile:rounded-2xl mobile:p-4"
             >
                 <header className="mb-4 flex min-w-0 items-center justify-between gap-3 mobile:items-start">
                   <div className="flex min-w-0 items-center gap-2">
@@ -184,12 +184,11 @@ export function WorkflowCanvas({ groups, onOpen }: WorkflowCanvasProps): JSX.Ele
                   data-current-position-key={`${group.key}#${group.steps.find((step) => step.state === 'current')?.id ?? ''}`}
                   tabIndex={0}
                   aria-label={t('progress.canvas_scroll_hint')}
-                  className="overflow-x-auto pb-2 [scrollbar-width:thin]"
+                  className="overflow-x-auto pb-2 [scrollbar-width:thin] mobile:overflow-visible mobile:pb-0"
                 >
                   <div
                     data-testid={`prg-cv-track-${group.projName}-${group.workflow}`}
-                    className="relative"
-                    style={{ minWidth: `${Math.max(n * 232, 464)}px` }}
+                    className="relative min-w-0"
                   >
                   <div className="relative h-8">
                     {n >= 2 && (
@@ -204,7 +203,7 @@ export function WorkflowCanvas({ groups, onOpen }: WorkflowCanvasProps): JSX.Ele
                         )}
                       </>
                     )}
-                    <div className="relative grid" style={gridStyleOf(n)}>
+                    <div className="prg-stage-grid relative grid" style={gridStyleOf(n)}>
                       {group.steps.map((step) => {
                         const state = step.state
                         const gateLabel = step.gate
@@ -226,7 +225,7 @@ export function WorkflowCanvas({ groups, onOpen }: WorkflowCanvasProps): JSX.Ele
                     </div>
                   </div>
 
-                  <div className="mt-3 grid items-start" style={gridStyleOf(n)}>
+                  <div className="prg-change-grid mt-3 grid items-start" style={gridStyleOf(n)}>
                     {group.steps.map((step, i) => {
                       const here = byStep.get(step.id) ?? []
                       const run = here.some((change) => change.running)

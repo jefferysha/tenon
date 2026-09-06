@@ -14,11 +14,11 @@ import type {
   HostTargetPlan,
 } from '../api/hostTargetPlanTypes'
 import { useT } from '../i18n'
+import { BUTTON_GHOST } from '../shared/uiRecipes'
 import {
   HostOperationPlanPanel,
   type HostPlanRequestState,
 } from './HostOperationPlanPanel'
-import { AdapterInstallWizard } from './AdapterInstallWizard'
 
 interface HostTargetPlanViewProps {
   root?: string
@@ -89,7 +89,6 @@ function localizedError(
 }
 
 export function HostTargetPlanView({
-  root = '',
   loadTargets = fetchHostTargets,
   loadDetection = fetchHostTargetDetection,
   loadPlan = fetchHostTargetPlan,
@@ -228,14 +227,14 @@ export function HostTargetPlanView({
       {catalogState.status === 'loading' ? (
         <p className="mt-8 text-sm text-text-3" role="status">{t('hostPlan.catalog_loading')}</p>
       ) : catalogState.status === 'error' ? (
-        <div className="mt-8 rounded-2xl border border-red-b bg-red-t p-5 text-red-d" role="alert">
-          <p className="break-words text-sm">{localizedError(catalogState.error, t)}</p>
-          <button
-            type="button"
-            className="mt-4 rounded-lg border border-red-b bg-card px-3.5 py-2 text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-            onClick={refreshCatalog}
-          >
-            {t('hostPlan.catalog_retry')}
+          <div className="mt-8 rounded-2xl border border-red-b bg-red-t p-5 text-red-d" role="alert">
+            <p className="break-words text-sm">{localizedError(catalogState.error, t)}</p>
+            <button
+              type="button"
+              className={`${BUTTON_GHOST} mt-4 border-red-b bg-card text-red-d hover:border-red-b hover:bg-red-t`}
+              onClick={refreshCatalog}
+            >
+              {t('hostPlan.catalog_retry')}
           </button>
         </div>
       ) : catalogState.catalog.targets.length === 0 ? (
@@ -247,7 +246,7 @@ export function HostTargetPlanView({
           <p>{t('hostPlan.catalog_empty')}</p>
           <button
             type="button"
-            className="mt-4 rounded-lg border border-border-2 bg-bg px-3.5 py-2 text-sm font-bold text-text outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)"
+            className={`${BUTTON_GHOST} mt-4`}
             onClick={refreshCatalog}
           >
             {t('hostPlan.catalog_retry')}
@@ -369,7 +368,6 @@ export function HostTargetPlanView({
           </div>
         </>
       )}
-      <AdapterInstallWizard root={root} />
     </section>
   )
 }

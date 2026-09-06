@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { HostTargetPlan } from '../api/hostTargetPlanTypes'
 import { useT } from '../i18n'
+import { BUTTON_GHOST, PANEL } from '../shared/uiRecipes'
 
 interface HostPlanPreviewProps {
   plan: HostTargetPlan
@@ -33,7 +34,7 @@ export function HostPlanPreview({ plan, copyText }: HostPlanPreviewProps): JSX.E
 
   return (
     <section
-      className="mt-5 min-w-0 rounded-2xl border border-border bg-card p-5"
+      className={`mt-5 min-w-0 p-5 ${PANEL}`}
       data-testid="host-plan-preview"
       aria-labelledby="host-plan-preview-title"
     >
@@ -51,7 +52,7 @@ export function HostPlanPreview({ plan, copyText }: HostPlanPreviewProps): JSX.E
           <span className="text-xs font-bold text-text-2">{t('hostPlan.command')}</span>
           <button
             type="button"
-            className="rounded-md border border-border-2 bg-card px-2.5 py-1.5 text-xs font-bold text-text outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)"
+            className={`${BUTTON_GHOST} px-2.5 py-1.5 text-xs`}
             onClick={copyCommand}
           >
             {t('hostPlan.copy_command')}
@@ -73,7 +74,7 @@ export function HostPlanPreview({ plan, copyText }: HostPlanPreviewProps): JSX.E
       <h4 className="mt-5 text-sm font-bold text-text">{t('hostPlan.steps_title')}</h4>
       <ol className="mt-3 space-y-3">
         {plan.steps.map((step, index) => (
-          <li key={step.id} className="min-w-0 rounded-xl border border-border bg-bg p-3">
+          <li key={step.id} className={`min-w-0 rounded-xl border border-border bg-bg p-3`}>
             <div className="flex items-start gap-3">
               <span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-fill font-mono text-[11px] font-bold text-text-2">
                 {index + 1}
@@ -94,7 +95,7 @@ export function HostPlanPreview({ plan, copyText }: HostPlanPreviewProps): JSX.E
       </ol>
 
       {plan.notices.length > 0 && (
-        <aside className="mt-5 rounded-xl border border-amber-b bg-amber-t p-4 text-sm text-amber-d">
+        <aside className="mt-5 rounded-xl border border-amb-b bg-amb-t p-4 text-sm text-amb-d">
           <h4 className="font-bold">{t('hostPlan.notices_title')}</h4>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {plan.notices.map((notice) => (

@@ -10,6 +10,7 @@ import {
 import { formatApiError } from '../api/transport'
 import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
+import { BUTTON_GHOST, BUTTON_SOLID, INPUT, SELECT } from '../shared/uiRecipes'
 import { useDefinitionCatalogSelection } from './useDefinitionCatalogSelection'
 import { PipelineSelector } from './PipelineSelector'
 import { PipelineCatalogStatus } from './PipelineCatalogStatus'
@@ -23,8 +24,6 @@ export interface CreateChangeDialogProps {
 }
 
 const NAME_RE = /^[a-zA-Z0-9_-]+$/
-const INPUT = 'w-full rounded-lg border border-border bg-bg px-3 py-2 text-[13px] text-text outline-none focus:border-(--accent) focus:ring-2 focus:ring-accent-t'
-
 function workflowOptions(candidate: WbRouterPreviewCandidate | undefined, names: readonly string[]): string[] {
   if (!candidate) return []
   const allowed = candidate.track.workflow.allowed
@@ -252,7 +251,7 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
         <>
           <button
             type="button"
-            className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text-2 hover:bg-fill disabled:cursor-not-allowed disabled:opacity-45"
+            className={`${BUTTON_GHOST} px-3 py-2 text-xs`}
             data-testid="change-create-cancel"
             disabled={busy}
             onClick={requestClose}
@@ -261,7 +260,7 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
           </button>
           <button
             type="button"
-            className="rounded-lg bg-btn-bg px-4 py-2 text-xs font-bold text-btn-fg hover:bg-btn-hover disabled:cursor-not-allowed disabled:opacity-45"
+            className={`${BUTTON_SOLID} px-4 py-2 text-xs`}
             data-testid="change-create"
             disabled={!canCreate}
             onClick={() => void create()}
@@ -299,7 +298,7 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
           </label>
           <p className="text-[11px] leading-4 text-text-3">{t('change_create.intent_note')}</p>
         </div>
-        <section className="rounded-xl border border-border bg-bg p-3.5" aria-label={t('change_create.route_lock')}>
+        <section className="rounded-2xl border border-border bg-card p-3.5 shadow-sm" aria-label={t('change_create.route_lock')}>
           <div className="mb-3 flex items-center justify-between gap-3 border-b border-border pb-2.5">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.16em] text-accent-d">{t('change_create.route_lock')}</div>
@@ -336,7 +335,7 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
                   <button
                     type="button"
                     key={candidate.track.id}
-                    className="rounded-lg border border-border bg-card px-3 py-2 text-left transition hover:border-border-2 aria-pressed:border-(--accent) aria-pressed:bg-accent-t"
+                    className="rounded-xl border border-border bg-card px-3 py-2 text-left transition-[background-color,border-color,box-shadow] hover:border-border-2 aria-pressed:border-(--accent) aria-pressed:bg-accent-t"
                     data-testid={`route-candidate-${candidate.track.id}`}
                     aria-pressed={selectedTrack === candidate.track.id}
                     onClick={() => setSelectedTrack(candidate.track.id)}
@@ -366,7 +365,7 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-text-3">
                       {t('change_create.workflow')}
                       <select
-                        className={`${INPUT} mt-1.5 font-mono text-xs`}
+                        className={`${SELECT} mt-1.5 font-mono text-xs`}
                         data-testid="change-workflow"
                         value={selectedWorkflow}
                         onChange={(event) => setSelectedWorkflow(event.target.value)}

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { CONTEXT_BUNDLE_PHASES } from '../api/contextBundleTypes'
 import { useT } from '../i18n'
+import { BUTTON_SOLID, INPUT, SELECT, PANEL } from '../shared/uiRecipes'
 import {
   BudgetSummary,
   ContextBundleLoading,
@@ -67,7 +68,7 @@ export function ContextBundlePreview({
 
   return (
     <section
-      className="mt-4 rounded-xl border border-border-2 bg-card p-4"
+      className={`mt-4 p-4 ${PANEL}`}
       aria-labelledby="context-bundle-preview-title"
     >
       <div>
@@ -83,7 +84,7 @@ export function ContextBundlePreview({
         <label className="grid gap-1 text-xs font-medium text-text-2">
           {t('progress.bundle_target_label')}
           <select
-            className="h-9 rounded-lg border border-border bg-fill px-2 text-sm text-text outline-none transition-colors hover:border-border-2 focus-visible:border-(--accent) focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+            className={`${SELECT} h-9 px-2 text-sm`}
             value={target}
             onChange={(event) => onTargetChange(event.currentTarget.value)}
           >
@@ -95,7 +96,7 @@ export function ContextBundlePreview({
         <label className="grid gap-1 text-xs font-medium text-text-2">
           {t('progress.bundle_budget_label')}
           <input
-            className="h-9 rounded-lg border border-border bg-fill px-2 font-mono text-sm text-text outline-none transition-colors hover:border-border-2 focus-visible:border-(--accent) focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+            className={`${INPUT} h-9 px-2 font-mono text-sm`}
             type="number"
             name="budgetBytes"
             autoComplete="off"
@@ -107,7 +108,7 @@ export function ContextBundlePreview({
           />
         </label>
         <button
-          className="h-9 rounded-lg bg-btn-bg px-3 text-xs font-semibold text-btn-fg outline-none transition-[background-color,transform] hover:bg-btn-hover active:translate-y-px focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-card motion-reduce:transform-none disabled:cursor-wait disabled:opacity-50"
+          className={`${BUTTON_SOLID} h-9 px-3 text-xs`}
           type="submit"
           disabled={state.kind === 'loading'}
         >

@@ -45,7 +45,7 @@ export function BudgetSummary({
     : t('progress.bundle_remaining', { bytes: formatNumber(Math.max(0, maxBytes - usedBytes)) })
 
   return (
-    <div className={`rounded-lg border p-3 ${tone === 'error' ? 'border-amb-b bg-amb-t' : 'border-green-b bg-green-t'}`}>
+    <div className={`rounded-xl border border-border p-3 ${tone === 'error' ? 'border-amb-b bg-amb-t' : 'border-green-b bg-green-t'}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <strong className={`block text-sm font-semibold ${tone === 'error' ? 'text-amb-d' : 'text-green-d'}`}>
@@ -60,7 +60,7 @@ export function BudgetSummary({
         </span>
       </div>
       <div
-        className="mt-3 h-2 overflow-hidden rounded-full bg-fill-2"
+          className="mt-3 h-2 overflow-hidden rounded-full bg-fill-2"
         role="progressbar"
         aria-label={t('progress.bundle_progress_label', { percent: percentText })}
         aria-valuemin={0}
@@ -72,7 +72,7 @@ export function BudgetSummary({
         })}
       >
         <div
-          className={`h-full w-full origin-left rounded-full transition-transform duration-200 motion-reduce:transition-none ${tone === 'error' ? 'bg-amb-d' : 'bg-green'}`}
+            className={`h-full w-full origin-left rounded-full transition-transform duration-200 motion-reduce:transition-none ${tone === 'error' ? 'bg-amb-d' : 'bg-green'}`}
           data-testid="context-bundle-budget-fill"
           style={{ transform: `scaleX(${visualPercent / 100})` }}
         />
@@ -100,7 +100,7 @@ export function PreviewInputs({
       <ul className="space-y-2" aria-label={t('progress.bundle_inputs_label')}>
         {inputs.map((input) => (
           <li
-            className="rounded-lg border border-border bg-fill px-3 py-2.5"
+          className="rounded-xl border border-border bg-fill px-3 py-2.5"
             key={`${input.kind}:${input.path}`}
           >
             <div className="flex min-w-0 items-start gap-2.5">
@@ -139,7 +139,7 @@ export function ContextBundleLoading(): JSX.Element {
     <div role="status" className="space-y-3">
       <span className="text-xs text-text-3">{t('progress.bundle_loading')}</span>
       <div
-        className="space-y-2 rounded-lg border border-border bg-fill p-3"
+        className="space-y-2 rounded-xl border border-border bg-fill p-3"
         data-testid="context-bundle-loading-skeleton"
         aria-hidden="true"
       >

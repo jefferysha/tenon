@@ -26,7 +26,16 @@
   --green: #16a34a; --green-d: #15803d; --green-t: #e9f9ef; --green-b: #c2e9cf;
   --red: #dc2626; --red-d: #b91c1c; --red-t: #fdeded; --red-b: #f5c8c8;
   --purple: #8b5cf6; --purple-d: #6d28d9; --purple-t: #f2edfe; --purple-b: #ded2fb;
-  --amb-d: #8a4d10; --amb-t: #f8efdd; --amb-b: #eeddba;
+  --amber-d: #8a4d10; --amber-t: #f8efdd; --amber-b: #eeddba;
+  /* Legacy aliases remain available while callers migrate to amber-*. */
+  --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
+  --surface: var(--card); --surface-raised: #ffffff; --surface-muted: var(--fill);
+  --surface-page: var(--bg); --surface-panel: var(--card); --surface-panel-soft: var(--fill); --surface-panel-muted: var(--fill-2);
+  --surface-border: var(--border); --surface-border-strong: var(--border-2);
+  --control-bg: var(--card); --control-bg-soft: var(--fill); --control-bg-muted: var(--fill-2);
+  --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
+  --control-sm: 32px; --control-md: 36px; --control-lg: 40px;
+  --ease-out: cubic-bezier(.2,.8,.2,1);
   /* v8 无 ink token——取 --text 同族近黑蓝对位；hover 提亮一档（旧 v4 #0d0d0d→#2e2e2c 同款步进） */
   --ink: #1a2330; --ink-fg: #ffffff; --ink-hover: #2b3648;
   /* 主动作使用 accent；green 只保留给 success/健康状态，避免动作与结果语义混用。 */
@@ -52,7 +61,13 @@
     --green: #3ecf77; --green-d: #8fe7b1; --green-t: rgba(62,207,119,.13); --green-b: rgba(62,207,119,.38);
     --red: #ee6b6b; --red-d: #f8a8a8; --red-t: rgba(238,107,107,.14); --red-b: rgba(238,107,107,.42);
     --purple: #a78bfa; --purple-d: #c8b4fd; --purple-t: rgba(167,139,250,.15); --purple-b: rgba(167,139,250,.42);
-    --amb-d: #e8b06a; --amb-t: rgba(224,164,88,.13); --amb-b: rgba(224,164,88,.40);
+    --amber-d: #e8b06a; --amber-t: rgba(224,164,88,.13); --amber-b: rgba(224,164,88,.40);
+    --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
+    --surface: var(--card); --surface-raised: #202735; --surface-muted: var(--fill);
+    --surface-page: var(--bg); --surface-panel: var(--card); --surface-panel-soft: var(--fill); --surface-panel-muted: var(--fill-2);
+    --surface-border: var(--border); --surface-border-strong: var(--border-2);
+    --control-bg: var(--card); --control-bg-soft: var(--fill); --control-bg-muted: var(--fill-2);
+    --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
     --ink: #e8ecf3; --ink-fg: #0c111c; --ink-hover: #c9d2e0;
     --btn-bg: var(--accent); --btn-fg: #0c111c; --btn-hover: var(--accent-d);
     --solid-fg: var(--btn-fg);
@@ -72,7 +87,13 @@
   --green: #16a34a; --green-d: #15803d; --green-t: #e9f9ef; --green-b: #c2e9cf;
   --red: #dc2626; --red-d: #b91c1c; --red-t: #fdeded; --red-b: #f5c8c8;
   --purple: #8b5cf6; --purple-d: #6d28d9; --purple-t: #f2edfe; --purple-b: #ded2fb;
-  --amb-d: #8a4d10; --amb-t: #f8efdd; --amb-b: #eeddba;
+  --amber-d: #8a4d10; --amber-t: #f8efdd; --amber-b: #eeddba;
+  --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
+  --surface: var(--card); --surface-raised: #ffffff; --surface-muted: var(--fill);
+  --surface-page: var(--bg); --surface-panel: var(--card); --surface-panel-soft: var(--fill); --surface-panel-muted: var(--fill-2);
+  --surface-border: var(--border); --surface-border-strong: var(--border-2);
+  --control-bg: var(--card); --control-bg-soft: var(--fill); --control-bg-muted: var(--fill-2);
+  --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
   --ink: #1a2330; --ink-fg: #ffffff; --ink-hover: #2b3648;
   --btn-bg: var(--accent); --btn-fg: #ffffff; --btn-hover: var(--accent-d);
   --solid-fg: var(--btn-fg);
@@ -91,7 +112,9 @@
   --green: #3ecf77; --green-d: #8fe7b1; --green-t: rgba(62,207,119,.13); --green-b: rgba(62,207,119,.38);
   --red: #ee6b6b; --red-d: #f8a8a8; --red-t: rgba(238,107,107,.14); --red-b: rgba(238,107,107,.42);
   --purple: #a78bfa; --purple-d: #c8b4fd; --purple-t: rgba(167,139,250,.15); --purple-b: rgba(167,139,250,.42);
-  --amb-d: #e8b06a; --amb-t: rgba(224,164,88,.13); --amb-b: rgba(224,164,88,.40);
+  --amber-d: #e8b06a; --amber-t: rgba(224,164,88,.13); --amber-b: rgba(224,164,88,.40);
+  --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
+  --surface: var(--card); --surface-raised: #202735; --surface-muted: var(--fill);
   --ink: #e8ecf3; --ink-fg: #0c111c; --ink-hover: #c9d2e0;
   --btn-bg: var(--accent); --btn-fg: #0c111c; --btn-hover: var(--accent-d);
   --solid-fg: var(--btn-fg);
@@ -142,9 +165,27 @@
   --color-amb-d: var(--amb-d);
   --color-amb-t: var(--amb-t);
   --color-amb-b: var(--amb-b);
+  --color-amber-d: var(--amber-d);
+  --color-amber-t: var(--amber-t);
+  --color-amber-b: var(--amber-b);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-page: var(--surface-page);
+  --color-surface-panel: var(--surface-panel);
+  --color-surface-panel-soft: var(--surface-panel-soft);
+  --color-surface-panel-muted: var(--surface-panel-muted);
+  --color-surface-border: var(--surface-border);
+  --color-surface-border-strong: var(--surface-border-strong);
   --color-ink: var(--ink);
   --color-ink-fg: var(--ink-fg);
   --color-ink-hover: var(--ink-hover);
+  --color-control-bg: var(--control-bg);
+  --color-control-bg-soft: var(--control-bg-soft);
+  --color-control-bg-muted: var(--control-bg-muted);
+  --color-control-fg: var(--control-fg);
+  --color-control-border: var(--control-border);
+  --color-control-border-strong: var(--control-border-strong);
   --color-btn-bg: var(--btn-bg);
   --color-btn-fg: var(--btn-fg);
   --color-btn-hover: var(--btn-hover);
@@ -218,5 +259,74 @@
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Shared dashboard interaction contract. The data attributes are emitted by
+   * vendored primitives and keep raw callers visually aligned as they migrate. */
+  [data-slot='button'] {
+    min-height: var(--control-md);
+    border-radius: var(--radius-sm);
+  }
+
+  [data-slot='button'][data-size='xs'],
+  [data-slot='button'][data-size='icon-xs'] {
+    min-height: var(--control-sm);
+  }
+
+  [data-slot='button'][data-size='lg'],
+  [data-slot='button'][data-size='icon-lg'] {
+    min-height: var(--control-lg);
+  }
+
+  [data-slot='button'][data-variant='destructive'] {
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--red) 18%, transparent);
+  }
+
+  [data-slot='select-trigger'] {
+    min-height: var(--control-md);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+
+  [data-slot='select-trigger'][data-size='sm'] {
+    min-height: var(--control-sm);
+  }
+
+  [data-slot='select-trigger']:hover:not(:disabled) {
+    border-color: var(--border-2);
+    background: var(--surface-muted);
+  }
+
+  [data-slot='card'] {
+    border-color: var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  [data-slot='dialog-overlay'] {
+    background: var(--scrim);
+    backdrop-filter: blur(2px);
+  }
+
+  [data-slot='dialog-content'] {
+    border-color: var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-3);
+  }
+}
+
+@media (max-width: 720px) {
+  [data-slot='button'][data-size='default'],
+  [data-slot='button'][data-size='lg'],
+  [data-slot='select-trigger'] {
+    min-height: var(--control-lg);
+  }
+
+  [data-slot='dialog-content'] {
+    max-height: calc(100dvh - 1rem);
+    overflow-y: auto;
   }
 }

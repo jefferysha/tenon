@@ -14,6 +14,7 @@ import {
 import { useT } from '../i18n'
 import type { WbWorkflowDef } from './workbenchDefinition'
 import { BTN_GHOST, BTN_SOLID } from './workbenchStyles'
+import { INPUT } from '../shared/uiRecipes'
 
 export interface WorkflowPolicyEditorProps {
   definition: WbWorkflowDef | null
@@ -46,7 +47,7 @@ const DECOMPOSITION_STRATEGIES = ['balanced', 'breadth-first', 'depth-first'] as
 const INTERACTION_MODES = ['interactive', 'recommended-defaults', 'afk'] as const satisfies readonly WbInteractionMode[]
 
 const LABEL = 'grid gap-1.5 text-xs font-semibold text-text-2'
-const CONTROL = 'min-h-10 w-full rounded-lg border border-border bg-bg px-3 text-[13px] text-text outline-none transition focus-visible:border-(--accent) focus-visible:ring-2 focus-visible:ring-accent-t disabled:cursor-not-allowed disabled:opacity-60'
+const CONTROL = `${INPUT} text-[13px]`
 
 function currentDecomposition(definition: WbWorkflowDef): WbDecompositionPolicy {
   return definition.decomposition ?? {
