@@ -357,7 +357,7 @@ export const zh: Dict = {
     },
     eyebrow: '宿主控制面',
     title: '宿主目标计划',
-    subtitle: '上方计划只读预览命令与步骤；下方安装器可在你确认后执行适配器安装，并实时展示状态。',
+    subtitle: '计划页面只读预览命令与步骤；如需安装适配器，请从项目级安装入口开始，并在明确确认后执行。',
     detection_loading: '正在自动检测本机宿主与 Tenon 插件…',
     detection_unavailable: '当前服务不支持自动检测，仍可手动选择宿主并生成只读计划。',
     detection_none: '未检测到可用宿主。安装宿主后重新检测，或手动选择一个目标查看计划。',

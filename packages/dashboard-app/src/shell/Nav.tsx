@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bot, FolderKanban, GitBranch, Monitor, Moon, ScanLine, Settings, SlidersHorizontal, Sun, Target, type LucideIcon } from 'lucide-react'
+import { Bot, FolderKanban, GitBranch, Monitor, Moon, ScanLine, Settings, SlidersHorizontal, Sun, Target, X, type LucideIcon } from 'lucide-react'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n/translations'
 import { Icon } from './Icon'
@@ -67,7 +67,7 @@ export function Nav({ view, onView, lang, onLang, theme, onTheme, connected, dec
     if (!settingsOpen) return
     const panel = settingsPanelRef.current
     const firstControl = panel?.querySelector<HTMLElement>(
-      'button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+      '[data-settings-initial], button:not([data-settings-close]):not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
     )
     firstControl?.focus()
 
@@ -157,7 +157,7 @@ export function Nav({ view, onView, lang, onLang, theme, onTheme, connected, dec
           aria-label={t('common.settings')}
           aria-expanded={settingsOpen}
           aria-haspopup="dialog"
-          aria-controls={settingsOpen ? 'nav-settings-panel' : undefined}
+          aria-controls="nav-settings-panel"
           className={`${RAIL_BTN_CLS} aria-[expanded=true]:border-accent-b aria-[expanded=true]:bg-accent-t aria-[expanded=true]:font-bold aria-[expanded=true]:text-accent-d mobile:w-11 mobile:flex-none`}
           onClick={() => setSettingsOpen((open) => !open)}
         >
@@ -192,6 +192,7 @@ export function Nav({ view, onView, lang, onLang, theme, onTheme, connected, dec
                 type="button"
                 className="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border bg-bg px-3 text-xs font-semibold text-text-2 outline-none transition-colors motion-reduce:transition-none hover:bg-fill focus-visible:border-(--accent) focus-visible:ring-[3px] focus-visible:ring-(--ring-blue)"
                 data-testid="theme-toggle"
+                data-settings-initial
                 aria-label={t('common.theme_toggle_current', { theme: themeLabel })}
                 onClick={() => onTheme(nextTheme)}
               >
@@ -207,6 +208,16 @@ export function Nav({ view, onView, lang, onLang, theme, onTheme, connected, dec
                 {lang === 'zh' ? t('common.switch_to_english') : t('common.switch_to_chinese')}
               </button>
             </div>
+
+            <button
+              type="button"
+              className="absolute right-3.5 top-3.5 grid size-8 place-items-center rounded-lg text-text-3 hover:bg-fill hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+              aria-label={t('common.dialog_close')}
+              data-settings-close
+              onClick={() => setSettingsOpen(false)}
+            >
+              <X size={15} strokeWidth={1.8} aria-hidden="true" />
+            </button>
 
             <div className="mb-3 rounded-xl border border-border bg-bg/70 p-2" data-testid="secondary-nav">
               <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-text-3">{t('nav.secondary_label')}</p>
