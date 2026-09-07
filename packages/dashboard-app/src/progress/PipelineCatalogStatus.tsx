@@ -6,7 +6,7 @@ interface PipelineCatalogStatusProps {
 
 export function PipelineCatalogStatus({ state, pipelineCount, t }: PipelineCatalogStatusProps): JSX.Element | null {
   if (state === 'loading') return <p className="text-[11px] text-text-3" role="status">{t('change_create.pipeline_loading')}</p>
-  if (state === 'unavailable') return <p className="text-[11px] text-amb-d" role="status">{t('change_create.pipeline_unavailable')}</p>
+  if (state === 'unavailable') return <p className="text-[11px] text-amber-d" role="status">{t('change_create.pipeline_unavailable')}</p>
   if (pipelineCount === 0) return <p className="text-[11px] text-red-d" role="alert">{t('change_create.pipeline_empty')}</p>
   return null
 }

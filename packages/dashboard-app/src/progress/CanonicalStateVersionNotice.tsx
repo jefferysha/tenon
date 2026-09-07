@@ -25,7 +25,7 @@ export function CanonicalStateVersionNotice({
   const issueRow = (issue: CanonicalStateCompatibilityIssue): JSX.Element => (
     <li
       key={issue.change}
-      className="grid gap-1 rounded-lg border border-amb-b bg-card/75 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto]"
+      className="grid gap-1 rounded-lg border border-amber-b bg-card/75 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto]"
     >
       <code className="min-w-0 break-all text-[12px] font-semibold text-text">{issue.change}</code>
       <span className="text-[12px] font-medium">
@@ -39,7 +39,7 @@ export function CanonicalStateVersionNotice({
 
   return (
     <section
-      className="mt-5 rounded-xl border border-amb-b bg-amb-t px-5 py-4 text-amb-d"
+      className="mt-5 rounded-xl border border-amber-b bg-amber-t px-5 py-4 text-amber-d"
       data-testid="canonical-state-version-notice"
     >
       <div className="flex items-start gap-3">
@@ -54,7 +54,7 @@ export function CanonicalStateVersionNotice({
             </div>
             <button
               type="button"
-              className="cursor-pointer rounded-lg border border-amb-b bg-card px-3.5 py-2 text-[13px] font-bold text-amb-d transition-colors hover:bg-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-wait disabled:opacity-60"
+              className="cursor-pointer rounded-lg border border-amber-b bg-card px-3.5 py-2 text-[13px] font-bold text-amber-d transition-colors hover:bg-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-wait disabled:opacity-60"
               disabled={loading || onRefresh === undefined}
               onClick={() => { void onRefresh?.() }}
             >
@@ -66,7 +66,7 @@ export function CanonicalStateVersionNotice({
             {primaryIssues.map(issueRow)}
           </ol>
           {remainingIssues.length > 0 && (
-            <details className="mt-3 rounded-lg border border-amb-b bg-card/50">
+            <details className="mt-3 rounded-lg border border-amber-b bg-card/50">
               <summary className="cursor-pointer px-3 py-2.5 text-[12.5px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-(--accent)">
                 {t('progress.canonical_version_more', { count: remainingIssues.length })}
               </summary>

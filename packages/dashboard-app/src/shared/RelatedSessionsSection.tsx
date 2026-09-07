@@ -188,7 +188,7 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
           <Label htmlFor="related-session-platform">{t('detail.related_sessions.platform_label')}</Label>
           <select
             autoComplete="off"
-            className="h-9 rounded-md border border-input bg-card px-3 text-sm text-text outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-10 rounded-xl border border-border bg-card px-3.5 text-sm text-text outline-none transition-[border-color,box-shadow,background-color] hover:border-border-2 focus-visible:border-(--accent) focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-50"
             disabled={busy}
             id="related-session-platform"
             name="related-session-platform"
@@ -225,7 +225,7 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
       {state.kind === 'empty' && (
         <>
           {state.response.partial && (
-            <p className="mt-3 rounded-lg border border-amb-b bg-amb-t px-3 py-2 text-xs text-amb-d" role="status">
+            <p className="mt-3 rounded-lg border border-amber-b bg-amber-t px-3 py-2 text-xs text-amber-d" role="status">
               {t(
                 partialReason(state.response) === 'budget'
                   ? 'detail.related_sessions.partial_budget'
@@ -265,7 +265,7 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
       {state.kind === 'results' && (
         <div className="mt-3">
           {state.response.partial && (
-            <p className="mb-2 rounded-lg border border-amb-b bg-amb-t px-3 py-2 text-xs text-amb-d" role="status">
+            <p className="mb-2 rounded-lg border border-amber-b bg-amber-t px-3 py-2 text-xs text-amber-d" role="status">
               {t(
                 partialReason(state.response) === 'budget'
                   ? 'detail.related_sessions.partial_budget'

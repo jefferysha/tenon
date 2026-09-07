@@ -152,6 +152,26 @@ describe('HostTargetPlanView', () => {
     expect(await screen.findByTestId('host-plan-preview')).toHaveTextContent('tenon update --codex')
   })
 
+  it('puts the detected recommended host first and marks it for quick review', async () => {
+    renderView({
+      loadTargets: vi.fn().mockResolvedValue(catalog),
+      loadDetection: vi.fn().mockResolvedValue({
+        ...noDetection,
+        detected_hosts: ['cursor'],
+        recommended_host: 'cursor',
+        recommended_operation: 'setup',
+        reason: 'host-detected',
+      }),
+      loadPlan: vi.fn().mockResolvedValue(setupPlan),
+    })
+
+    await screen.findByTestId('host-target-cursor')
+    const cards = within(screen.getByTestId('host-target-grid')).getAllByRole('article')
+    expect(cards[0]).toHaveAttribute('data-testid', 'host-target-cursor')
+    expect(cards[0]).toHaveAttribute('data-recommended', 'true')
+    expect(cards[1]).toHaveAttribute('data-recommended', 'false')
+  })
+
   it('degrades a missing detection endpoint to complete manual selection without blocking catalog', async () => {
     const loadPlan = vi.fn().mockResolvedValue(setupPlan)
     renderView({

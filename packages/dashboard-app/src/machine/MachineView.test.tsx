@@ -85,7 +85,10 @@ describe('MachineView 统一就绪与跨项目风险', () => {
     })
     render(<I18nProvider><MachineView snapshot={snapshot} currentRoot={ROOT} onOpenProject={vi.fn()} /></I18nProvider>)
 
-    expect(await screen.findByTestId('machine-diagnostics')).toContainElement(screen.getByTestId('advanced-panel'))
+    const diagnostics = await screen.findByTestId('machine-diagnostics')
+    expect(within(diagnostics).queryByTestId('advanced-panel')).toBeNull()
+    fireEvent.click(within(diagnostics).getByText('跨项目风险队列'))
+    expect(await within(diagnostics).findByTestId('advanced-panel')).toBeInTheDocument()
     expect(screen.getByTestId('advanced-traffic')).toHaveTextContent('Trace 时间线')
     expect(await screen.findByTestId('traffic-empty')).toHaveTextContent('暂无捕获会话')
   })
@@ -202,6 +205,24 @@ describe('MachineView 统一就绪与跨项目风险', () => {
     expect(screen.getByTestId('machine-risk-layout')).toHaveClass('items-start')
     fireEvent.click(within(queue).getByTestId('machine-risk-open-broken-loop'))
     expect(onOpenProject).toHaveBeenCalledWith(ROOT)
+  })
+
+  it('有当前项目时默认只展示当前项目风险，并可展开跨项目计数', async () => {
+    const otherRoot = '/repo/other'
+    const snapshot = makeSnapshot([
+      makeProject(ROOT, [makeChange('current-failed', 'build', { fields: { automation: 'failed' } })]),
+      makeProject(otherRoot, [makeChange('other-failed', 'build', { fields: { automation: 'failed' } })]),
+    ])
+    render(<I18nProvider><MachineView snapshot={snapshot} currentRoot={ROOT} onOpenProject={vi.fn()} /></I18nProvider>)
+
+    const queue = await screen.findByTestId('machine-risk-queue')
+    expect(queue).toHaveTextContent('current-failed')
+    expect(queue).not.toHaveTextContent('other-failed')
+    const crossProject = within(queue).getByTestId('machine-cross-project-count')
+    expect(crossProject).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(crossProject)
+    expect(queue).toHaveTextContent('other-failed')
+    expect(crossProject).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('同 basename 的跨项目风险显示稳定父目录提示，打开目标不会混淆', async () => {

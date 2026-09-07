@@ -2274,3 +2274,21 @@ describe('WorkbenchView v6 T13：最近流转(真实 history 回放)', () => {
     expect(await within(side).findByTestId('wb-recent-empty')).toBeInTheDocument()
   })
 })
+
+describe('Workbench 默认信息层级', () => {
+  it('策略与运行时摘要默认折叠，打开后仍保留完整编辑与证据', async () => {
+    renderView()
+    await screen.findByTestId('wb-step-draft')
+
+    const policy = screen.getByTestId('workbench-policy-disclosure')
+    const runtime = screen.getByTestId('workbench-runtime-disclosure')
+    expect(policy).not.toHaveAttribute('open')
+    expect(runtime).not.toHaveAttribute('open')
+
+    const summary = policy.querySelector('summary')
+    if (!summary) throw new Error('policy disclosure summary missing')
+    fireEvent.click(summary)
+    expect(policy).toHaveAttribute('open')
+    expect(within(policy).getByTestId('workflow-policy-editor')).toBeInTheDocument()
+  })
+})

@@ -34,7 +34,7 @@ function sameScope(left: SkillInvocationScope, right: SkillInvocationScope): boo
 const statusTone: Record<SkillInvocationStatus, string> = {
   completed: 'border-green-b bg-green-t text-green-d',
   failed: 'border-red-b bg-red-t text-red-d',
-  interrupted: 'border-amb-b bg-amb-t text-amb-d',
+  interrupted: 'border-amber-b bg-amber-t text-amber-d',
   incomplete: 'border-border bg-fill text-text-3',
   corrupt: 'border-red-b bg-red-t text-red-d',
 }
@@ -42,7 +42,7 @@ const statusTone: Record<SkillInvocationStatus, string> = {
 const validatorTone: Record<SkillInvocationValidatorStatus, string> = {
   pass: 'text-green-d',
   fail: 'text-red-d',
-  unknown: 'text-amb-d',
+  unknown: 'text-amber-d',
 }
 
 function StatusIcon({ status }: { readonly status: SkillInvocationStatus }): JSX.Element {

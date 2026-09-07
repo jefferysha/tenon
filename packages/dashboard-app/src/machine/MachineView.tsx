@@ -14,6 +14,7 @@ import {
 } from '../api/client'
 import { useT } from '../i18n'
 import { PageHeader } from '../shared/PageHeader'
+import { PANEL } from '../shared/uiRecipes'
 import type { Snapshot } from '../types'
 import { AdvancedPanel } from '../advanced/AdvancedPanel'
 import { formatApiError, formatServerProse } from '../api/transport'
@@ -37,13 +38,13 @@ interface ReadinessCardProps {
 function ReadinessCard({ icon: Icon, label, state, detail, testId }: ReadinessCardProps): JSX.Element {
   const { t } = useT()
   const tone = state === 'ready'
-    ? 'text-green-d bg-green-t border-green-b'
+    ? 'border-green-b bg-green-t/25 text-green-d'
     : state === 'blocked'
-      ? 'text-red-d bg-red-t border-red-b'
-      : 'text-amb-d bg-amb-t border-amb-b'
+      ? 'border-red-b bg-red-t/25 text-red-d'
+      : 'border-amber-b bg-amber-t/25 text-amber-d'
   return (
-    <article className="flex min-w-0 items-start gap-3 rounded-lg border border-border bg-card px-3 py-2.5" data-state={state} data-testid={testId}>
-      <span className="grid size-8 flex-none place-items-center rounded-lg bg-fill text-text"><Icon size={16} aria-hidden={true} /></span>
+    <article className={`flex min-w-0 items-start gap-3 rounded-2xl border px-3 py-2.5 shadow-sm ${tone}`} data-state={state} data-testid={testId}>
+      <span className="grid size-8 flex-none place-items-center rounded-lg bg-card text-text shadow-sm"><Icon size={16} aria-hidden={true} /></span>
       <div className="min-w-0 flex-1">
         <h3 className="break-words font-bold leading-tight text-text [overflow-wrap:anywhere]">{label}</h3>
         <p className="truncate text-[11px] text-text-3" title={detail}>{detail}</p>
@@ -189,6 +190,8 @@ function machineRisks(snapshot: Snapshot | null, loops: readonly WbLoopRow[], t:
 export function MachineView({ snapshot, currentRoot, onOpenProject }: MachineViewProps): JSX.Element {
   const { t, lang } = useT()
   const [reloadKey, setReloadKey] = useState(0)
+  const [showAllRisks, setShowAllRisks] = useState(false)
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [readiness, setReadiness] = useState<WbAfkReadiness | null>(null)
   const [images, setImages] = useState<WbDockerImages | null>(null)
   const [secrets, setSecrets] = useState<WbSecretsKeys | null>(null)
@@ -272,6 +275,12 @@ export function MachineView({ snapshot, currentRoot, onOpenProject }: MachineVie
   const coreFactsUnknown = readinessStates.some((state) => state === 'unknown')
 
   const risks = useMemo(() => machineRisks(snapshot, loops ?? [], t, lang === 'zh'), [lang, loops, snapshot, t])
+  const hasCurrentProject = snapshot?.projects.some((project) => project.root === currentRoot) ?? false
+  const currentRisks = useMemo(
+    () => currentRoot === '' || !hasCurrentProject || showAllRisks ? risks : risks.filter((risk) => risk.root === currentRoot),
+    [currentRoot, hasCurrentProject, risks, showAllRisks],
+  )
+  const crossProjectRiskCount = !hasCurrentProject || currentRoot === '' ? 0 : risks.filter((risk) => risk.root !== currentRoot).length
   const dockerProbeError = dockerImagesError === undefined
     ? null
     : `${t('machine.source_images')}: ${formatApiError(dockerImagesError, t, { exposeServerDetail: lang === 'zh' })}`
@@ -313,7 +322,7 @@ export function MachineView({ snapshot, currentRoot, onOpenProject }: MachineVie
         </div>
       </section>
 
-      <section className="mt-4" data-testid="machine-afk-readiness">
+      <section className={`${PANEL} mt-4 p-4`} data-testid="machine-afk-readiness">
         <h2 className="text-sm font-black text-text">{t('machine.afk_readiness')}</h2>
         <p className="mt-1 mb-3 text-xs text-text-3">{t('machine.afk_optional_note')}</p>
         {probeRoot === '' && <p className="mb-3 text-xs text-text-3" role="status" data-testid="machine-project-facts-unavailable">{t('machine.project_facts_unavailable')}</p>}
@@ -324,24 +333,37 @@ export function MachineView({ snapshot, currentRoot, onOpenProject }: MachineVie
       </section>
 
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(280px,0.75fr)_minmax(520px,1.6fr)]" data-testid="machine-risk-layout">
-        <section className="rounded-xl border border-border bg-card p-4" data-testid="machine-blockers">
+        <section className={`${PANEL} p-4`} data-testid="machine-blockers">
           <div className="flex items-center gap-2 text-text"><AlertTriangle size={16} aria-hidden="true" /><h2 className="font-bold">{t('machine.blockers')}</h2></div>
           {blockersPending ? <p className="mt-3 text-xs text-text-3" role="status" aria-live="polite" data-testid="machine-blockers-loading">{t('machine.loading_signal')}</p> : blockers.length === 0 ? <p className={`mt-3 text-xs ${coreFactsUnknown ? 'text-text-3' : 'text-green-d'}`} role="status" aria-live="polite">{t(coreFactsUnknown ? 'machine.blockers_unknown' : 'machine.blockers_empty')}</p> : (
             <ul className="mt-3 space-y-2 p-0">
-              {blockers.map((blocker, index) => <li key={`${blocker}:${index}`} className="rounded-lg border border-amber-b bg-amber-t px-3 py-2 text-xs leading-relaxed text-amber-d">{blocker}</li>)}
+              {blockers.map((blocker, index) => <li key={`${blocker}:${index}`} className="rounded-xl border border-amber-b bg-amber-t/35 px-3 py-2 text-xs leading-relaxed text-amber-d">{blocker}</li>)}
             </ul>
           )}
         </section>
-        <section className="rounded-xl border border-border bg-card p-4" data-testid="machine-risk-queue">
+        <section className={`${PANEL} p-4`} data-testid="machine-risk-queue">
           <div className="flex items-center justify-between gap-3">
             <div><h2 className="font-bold text-text">{t('machine.risks')}</h2><p className="mt-0.5 text-xs text-text-3">{t('machine.risks_note')}</p></div>
-            <span className="rounded-full bg-fill px-2.5 py-1 font-mono text-xs font-bold text-text">{risks.length}</span>
+            <div className="flex items-center gap-2">
+              {crossProjectRiskCount > 0 && (
+                <button
+                  type="button"
+                  className="rounded-full bg-fill px-2.5 py-1 font-mono text-[11px] font-bold text-text-2 hover:bg-fill-2"
+                  data-testid="machine-cross-project-count"
+                  aria-pressed={showAllRisks}
+                  onClick={() => setShowAllRisks((value) => !value)}
+                >
+                  {t('machine.risks')} {crossProjectRiskCount}
+                </button>
+              )}
+              <span className="rounded-full bg-fill px-2.5 py-1 font-mono text-xs font-bold text-text">{currentRisks.length}</span>
+            </div>
           </div>
-          {loops === null ? <p className="mt-4 text-xs text-text-3" role="status" aria-live="polite">{t('machine.loading_signal')}</p> : risks.length === 0 ? <p className="mt-4 text-xs text-green-d" role="status" aria-live="polite">{t('machine.risks_empty')}</p> : (
+          {loops === null ? <p className="mt-4 text-xs text-text-3" role="status" aria-live="polite">{t('machine.loading_signal')}</p> : currentRisks.length === 0 ? <p className="mt-4 text-xs text-green-d" role="status" aria-live="polite">{t('machine.risks_empty')}</p> : (
             <ul className="mt-3 divide-y divide-border p-0">
-              {risks.map((risk) => (
+              {currentRisks.map((risk) => (
                 <li key={risk.key} data-testid={`machine-risk-row-${risk.key.startsWith('loop:') ? risk.key.split(':').at(-1) : risk.title}`} className="flex items-center gap-3 py-3 first:pt-1 last:pb-0 max-[480px]:flex-col max-[480px]:items-stretch">
-                  <span className="h-8 w-1 flex-none rounded-full bg-red" aria-hidden="true" />
+                  <span className="h-8 w-1 flex-none rounded-full bg-red-d" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
                     <div className="break-words font-bold text-text [overflow-wrap:anywhere]">{risk.title}</div>
                     <div className="break-words font-mono text-[10.5px] text-text-3 [overflow-wrap:anywhere]" data-testid="machine-risk-root-hint">{risk.rootHint}</div>
@@ -350,7 +372,7 @@ export function MachineView({ snapshot, currentRoot, onOpenProject }: MachineVie
                   <button
                     type="button"
                     data-testid={risk.testId}
-                    className="flex-none rounded-md border border-border px-2.5 py-1.5 text-xs font-bold text-text hover:bg-fill max-[480px]:w-full"
+                    className="flex-none rounded-xl border border-border px-2.5 py-1.5 text-xs font-bold text-text hover:bg-fill max-[480px]:w-full"
                     aria-label={t('machine.open_project_target', { title: risk.title, root: risk.rootHint })}
                     onClick={() => onOpenProject(risk.root)}
                   >
@@ -363,9 +385,16 @@ export function MachineView({ snapshot, currentRoot, onOpenProject }: MachineVie
         </section>
       </div>
 
-      <section className="mt-4 rounded-xl border border-border bg-card p-4" data-testid="machine-diagnostics">
-        <AdvancedPanel snapshot={snapshot} />
-      </section>
+      <details
+        className="mt-4 rounded-xl border border-border bg-card"
+        data-testid="machine-diagnostics"
+        onToggle={(event) => setDiagnosticsOpen(event.currentTarget.open)}
+      >
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) [&::-webkit-details-marker]:hidden">
+          {t('machine.risks')}
+        </summary>
+        {diagnosticsOpen && <div className="border-t border-border p-4"><AdvancedPanel snapshot={snapshot} /></div>}
+      </details>
     </section>
   )
 }

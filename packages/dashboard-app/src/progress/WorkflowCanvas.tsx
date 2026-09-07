@@ -13,7 +13,7 @@ export type CanvasDotTone = 'red' | 'blue' | 'amb' | 'gray'
 export const DOT_TONE_CLS: Record<CanvasDotTone, string> = {
   red: 'bg-red shadow-[0_0_5px_var(--red)]',
   blue: 'bg-(--accent) shadow-[0_0_6px_var(--accent)]',
-  amb: 'bg-amb-d',
+  amb: 'bg-amber-d',
   gray: 'bg-border-2',
 }
 
@@ -70,7 +70,7 @@ const STATE_META: Record<string, StateMeta> = {
   running: { labelKey: 'state_running', chip: 'bg-green-t text-green-d' },
   failed: { labelKey: 'state_failed', chip: 'bg-red-t text-red-d' },
   queued: { labelKey: 'state_waiting', chip: 'bg-accent-t text-accent-d' },
-  gatejudge: { labelKey: 'state_decision', chip: 'bg-amb-t text-amb-d' },
+  gatejudge: { labelKey: 'state_decision', chip: 'bg-amber-t text-amber-d' },
   gateok: { labelKey: 'state_approvable', chip: 'bg-green-t text-green-d' },
   cancelled: { labelKey: 'state_cancelled', chip: 'bg-red-t text-red-d' },
   agent: { labelKey: 'state_pending', chip: 'bg-fill text-text-3' },

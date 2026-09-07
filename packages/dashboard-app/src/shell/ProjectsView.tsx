@@ -12,6 +12,7 @@ import { selectFocusedProjects, type ProjectFocus, type ProjectFocusCounts } fro
 import { buildProjectRows, buildRepositoryGroups, compareProjectRows, orderRepositoryGroups, summarizeRepositoryGroup, type ProjectRow, type RepositoryGroup } from './projectsModel'
 import { ProjectsRepositoryGroup } from './ProjectsRepositoryGroup'
 import { ProjectsUnreachableSection } from './ProjectsUnreachableSection'
+import { BUTTON_GHOST, EMPTY_STATE } from '../shared/uiRecipes'
 
 gsap.registerPlugin(useGSAP)
 
@@ -136,34 +137,42 @@ export function ProjectsView({
   const { needGroups, restGroups, unreachable } = useMemo(() => {
     const searchedRoots = new Set(searchedRows.filter((row) => row.ok).map((row) => row.root))
     const groups = orderRepositoryGroups(repositoryGroups.flatMap((group) => {
-      const workspaces = group.workspaces.filter((workspace) => searchedRoots.has(workspace.root))
+      const workspaces = group.workspaces.filter((workspace) => {
+        if (!searchedRoots.has(workspace.root)) return false
+        if (focus === 'attention') return workspace.need > 0
+        if (focus === 'running') return workspace.running > 0
+        return true
+      })
       if (workspaces.length === 0) return []
       return [summarizeRepositoryGroup(group, workspaces)]
     }))
-    const focusedGroups = groups.filter((group) => focus === 'all'
-      || (focus === 'attention' && group.need > 0)
-      || (focus === 'running' && group.running > 0))
-    const need = focusedGroups.filter((group) => group.need > 0)
-    const rest = focusedGroups.filter((group) => group.need === 0)
+    const need = groups.filter((group) => group.need > 0)
+    const rest = groups.filter((group) => group.need === 0)
     const unreach = focus === 'all' || focus === 'unreachable'
       ? searchedRows.filter((row) => !row.ok)
       : []
     return { needGroups: need, restGroups: rest, unreachable: unreach }
   }, [focus, repositoryGroups, searchedRows])
   const focusCounts = useMemo((): ProjectFocusCounts => {
-    const unreadable = rows.filter((row) => !row.ok).length
+    const reachable = rows.filter((row) => row.ok)
+    const unreadable = rows.length - reachable.length
     return {
-      all: repositoryGroups.length + unreadable,
-      attention: repositoryGroups.filter((group) => group.need > 0).length,
-      running: repositoryGroups.filter((group) => group.running > 0).length,
+      all: rows.length,
+      attention: reachable.filter((row) => row.need > 0).length,
+      running: reachable.filter((row) => row.running > 0).length,
       unreachable: unreadable,
     }
-  }, [repositoryGroups, rows])
-  const shownGroups = needGroups.length + restGroups.length + unreachable.length
+  }, [rows])
+  const shownProjects = needGroups.reduce((total, group) => total + group.workspaceCount, 0)
+    + restGroups.reduce((total, group) => total + group.workspaceCount, 0)
+    + unreachable.length
   const cleanupFailureCount = useMemo(() => {
     const visibleUnreachable = new Set(unreachable.map((row) => row.root))
     return cleanupFailures.filter((root) => visibleUnreachable.has(root)).length
   }, [cleanupFailures, unreachable])
+  const refreshRegistry = (): void => {
+    onRegistryChanged?.()
+  }
 
   function groupExpanded(group: RepositoryGroup): boolean {
     if (query.trim().length > 0 || focus !== 'all') return true
@@ -260,24 +269,32 @@ export function ProjectsView({
       {snapshot === null ? (
         <p className="text-[14px] text-text-3" role="status" aria-live="polite">{t('common.loading')}</p>
       ) : rows.length === 0 ? (
-        <div
-          className="flex min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-fill/50 px-6 py-10 text-center"
-          data-testid="projects-source-empty"
-        >
-          <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-text-3">
-            <SearchX aria-hidden="true" className="h-5 w-5" />
-          </span>
-          <h2 className="text-[16px] font-bold text-text">{t('projects.empty_source_title')}</h2>
-          <p className="mt-1.5 max-w-md text-[13px] leading-5 text-text-3">{t('projects.empty_source_desc')}</p>
-        </div>
-      ) : (
+          <div
+            className={`flex min-h-48 flex-col items-center justify-center ${EMPTY_STATE} shadow-sm`}
+            data-testid="projects-source-empty"
+          >
+            <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-text-3">
+              <SearchX aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <h2 className="text-[16px] font-bold text-text">{t('projects.empty_source_title')}</h2>
+            <p className="mt-1.5 max-w-md text-[13px] leading-5 text-text-3">{t('projects.empty_source_desc')}</p>
+            <button
+              type="button"
+              onClick={refreshRegistry}
+              className={`${BUTTON_GHOST} mt-5`}
+              data-testid="projects-source-empty-retry"
+            >
+              {t('common.snapshot_retry')}
+            </button>
+          </div>
+        ) : (
         <>
           <ProjectsFocusToolbar
             t={t}
             query={query}
             focus={focus}
             counts={focusCounts}
-            shown={shownGroups}
+            shown={shownProjects}
             total={focusCounts.all}
             searchRef={searchRef}
             onQuery={setQuery}
@@ -303,9 +320,9 @@ export function ProjectsView({
             </div>
           )}
 
-          {shownGroups === 0 && (
+          {shownProjects === 0 && (
             <div
-              className="flex min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-fill/50 px-6 py-10 text-center"
+              className={`flex min-h-48 flex-col items-center justify-center ${EMPTY_STATE}`}
               data-testid="projects-filter-empty"
             >
               <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-text-3">
@@ -316,7 +333,7 @@ export function ProjectsView({
               <button
                 type="button"
                 onClick={clearConditions}
-                className="mt-5 rounded-xl bg-btn-bg px-4 py-2.5 text-[13px] font-semibold text-btn-fg transition-[background-color,transform] hover:bg-btn-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-bg active:translate-y-px motion-reduce:transform-none"
+                className={`${BUTTON_GHOST} mt-5`}
               >
                 {t('projects.clear_filters')}
               </button>

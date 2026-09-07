@@ -346,7 +346,7 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
           <p data-testid="wb-gov-ledger-last">
             {t('workbench.gov_ledger_last', { result: ledger?.last_result ?? '—' })}
           </p>
-          <p className={ledgerEnforced ? 'text-green-d' : 'text-amb-d'} data-testid="wb-gov-ledger-enforcement">
+          <p className={ledgerEnforced ? 'text-green-d' : 'text-amber-d'} data-testid="wb-gov-ledger-enforcement">
             {ledgerEnforced ? t('workbench.gov_ledger_enforced') : t('workbench.gov_ledger_unconfirmed')}
           </p>
           {ledger?.health === 'degraded' && (
@@ -369,7 +369,7 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
             <span className="rounded-md bg-fill-2 px-2 py-1 text-text-2">
               {t('workbench.gov_wiring_workflow', { workflow: row.workflow_id ?? '—' })}
             </span>
-            <span className={cn('rounded-md px-2 py-1', row.skill_bundle_id ? 'bg-green-t text-green-d' : 'bg-amb-t text-amb-d')}>
+            <span className={cn('rounded-md px-2 py-1', row.skill_bundle_id ? 'bg-green-t text-green-d' : 'bg-amber-t text-amber-d')}>
               {t('workbench.gov_wiring_bundle', {
                 bundle: row.skill_bundle_id ?? t('workbench.gov_wiring_unwired'),
               })}

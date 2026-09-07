@@ -45,10 +45,10 @@ export function BudgetSummary({
     : t('progress.bundle_remaining', { bytes: formatNumber(Math.max(0, maxBytes - usedBytes)) })
 
   return (
-    <div className={`rounded-xl border border-border p-3 ${tone === 'error' ? 'border-amb-b bg-amb-t' : 'border-green-b bg-green-t'}`}>
+    <div className={`rounded-xl border border-border p-3 ${tone === 'error' ? 'border-amber-b bg-amber-t' : 'border-green-b bg-green-t'}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <strong className={`block text-sm font-semibold ${tone === 'error' ? 'text-amb-d' : 'text-green-d'}`}>
+          <strong className={`block text-sm font-semibold ${tone === 'error' ? 'text-amber-d' : 'text-green-d'}`}>
             {percentText}
           </strong>
           <span className="mt-0.5 block font-mono text-xs tabular-nums text-text">
@@ -72,12 +72,12 @@ export function BudgetSummary({
         })}
       >
         <div
-            className={`h-full w-full origin-left rounded-full transition-transform duration-200 motion-reduce:transition-none ${tone === 'error' ? 'bg-amb-d' : 'bg-green'}`}
+            className={`h-full w-full origin-left rounded-full transition-transform duration-200 motion-reduce:transition-none ${tone === 'error' ? 'bg-amber-d' : 'bg-green'}`}
           data-testid="context-bundle-budget-fill"
           style={{ transform: `scaleX(${visualPercent / 100})` }}
         />
       </div>
-      <p className={`mt-2 text-xs font-medium ${tone === 'error' ? 'text-amb-d' : 'text-text-2'}`}>
+      <p className={`mt-2 text-xs font-medium ${tone === 'error' ? 'text-amber-d' : 'text-text-2'}`}>
         {detail}
       </p>
     </div>

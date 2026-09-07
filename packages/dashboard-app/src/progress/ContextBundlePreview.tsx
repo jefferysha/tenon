@@ -160,7 +160,7 @@ export function ContextBundlePreview({
               formatNumber={formatNumber}
               tone="error"
             />
-            <div className="rounded-lg border border-amb-b bg-amb-t px-3 py-2.5 text-xs text-amb-d" role="alert">
+            <div className="rounded-lg border border-amber-b bg-amber-t px-3 py-2.5 text-xs text-amber-d" role="alert">
               <p className="font-semibold">
                 {t('progress.bundle_budget_error', {
                   required: formatNumber(state.preview.budget.usedBytes),

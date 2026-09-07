@@ -3,7 +3,7 @@
   "name": "dashboard-experience-rework",
   "title": "Dashboard 体验重构",
   "description": "同时推进 Dashboard 功能精简与视觉交互系统提升",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -24,6 +24,6 @@
   ],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
+  "notes": "Resumed original approved scope: prior archive was premature; browser acceptance and remaining page simplification must finish before completion.",
   "meta": {}
 }

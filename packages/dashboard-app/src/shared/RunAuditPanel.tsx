@@ -146,13 +146,13 @@ export function RunAuditPanel({ root, change, refreshKey = '' }: RunAuditPanelPr
           <b className="text-[13px] text-text">{t('runAudit.title')}</b>
           <p className="mt-0.5 text-[11px] leading-5 text-text-3">{t('runAudit.subtitle')}</p>
         </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${detail.source === 'canonical' ? 'border-green-b bg-green-t text-green-d' : 'border-amb-b bg-amb-t text-amb-d'}`}>
+        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${detail.source === 'canonical' ? 'border-green-b bg-green-t text-green-d' : 'border-amber-b bg-amber-t text-amber-d'}`}>
           {t(detail.source === 'canonical' ? 'runAudit.source_canonical' : 'runAudit.source_legacy')}
         </span>
       </div>
 
       {detail.source === 'legacy' && (
-        <p className="mt-3 rounded-xl border border-amb-b bg-amb-t px-3 py-2 text-xs font-semibold text-amb-d" data-testid="run-audit-source-alert">
+        <p className="mt-3 rounded-xl border border-amber-b bg-amber-t px-3 py-2 text-xs font-semibold text-amber-d" data-testid="run-audit-source-alert">
           {t('runAudit.legacy_warning')}
         </p>
       )}

@@ -13,9 +13,9 @@ export function StageNode({ state }: { state: StageState }): JSX.Element {
   if (state === 'current') {
     return (
       <span className="relative z-10 flex h-8 w-8 items-center justify-center">
-        <span className="absolute h-10 w-10 rounded-full bg-amb-t" aria-hidden="true" />
-        <span className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-amb-b bg-card">
-          <span className="h-3 w-3 rounded-full bg-amb-d" aria-hidden="true" />
+        <span className="absolute h-10 w-10 rounded-full bg-amber-t" aria-hidden="true" />
+        <span className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-amber-b bg-card">
+          <span className="h-3 w-3 rounded-full bg-amber-d" aria-hidden="true" />
         </span>
       </span>
     )

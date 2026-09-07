@@ -172,11 +172,11 @@ export function TaskDetail({
       return (
         <>
           <div
-            className={`rounded-[11px] border px-[15px] py-[13px] ${amb ? 'border-amb-b bg-amb-t' : 'border-red-b bg-red-t'}`}
+            className={`rounded-[11px] border px-[15px] py-[13px] ${amb ? 'border-amber-b bg-amber-t' : 'border-red-b bg-red-t'}`}
             data-tone={amb ? 'amb' : 'red'}
             data-testid="dt-diag"
           >
-            <div className={`text-sm font-bold leading-[1.45] ${amb ? 'text-amb-d' : 'text-red-d'}`} data-testid="dt-diag-cause">
+            <div className={`text-sm font-bold leading-[1.45] ${amb ? 'text-amber-d' : 'text-red-d'}`} data-testid="dt-diag-cause">
               {t(`failure.cause_${diag.cause}`)}
             </div>
             <p className="mt-1.5 mb-0 max-w-[64ch] text-[13px] leading-[1.6] text-text-2" data-testid="dt8-diag-hint">

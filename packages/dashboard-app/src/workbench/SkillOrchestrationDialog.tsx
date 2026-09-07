@@ -149,7 +149,7 @@ export function SkillOrchestrationDialog({
                     <div className="min-w-0 flex-1">
                       <h3 className="font-semibold text-text">{presentation.name}</h3>
                       <p className="mt-1 text-xs leading-5 text-text-3">{presentation.description}</p>
-                      <div className="mt-2 flex items-center gap-2 text-[11px] text-text-3"><span>{t(entry.source === 'builtin' ? 'workbench.timeline_source_builtin' : entry.source === 'local-plugin' ? 'workbench.timeline_source_local' : entry.source === 'external-marketplace' ? 'workbench.timeline_source_marketplace' : 'workbench.timeline_source_user')}</span><span>·</span><span className={entry.installed ? 'text-green-d' : 'text-amb-d'}>{t(entry.installed ? 'workbench.timeline_installed' : 'workbench.timeline_uninstalled')}</span></div>
+                      <div className="mt-2 flex items-center gap-2 text-[11px] text-text-3"><span>{t(entry.source === 'builtin' ? 'workbench.timeline_source_builtin' : entry.source === 'local-plugin' ? 'workbench.timeline_source_local' : entry.source === 'external-marketplace' ? 'workbench.timeline_source_marketplace' : 'workbench.timeline_source_user')}</span><span>·</span><span className={entry.installed ? 'text-green-d' : 'text-amber-d'}>{t(entry.installed ? 'workbench.timeline_installed' : 'workbench.timeline_uninstalled')}</span></div>
                     </div>
                     {canDrag && <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-accent-d opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">{t('workbench.skill_dialog_drag')} <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></span>}
                   </div>

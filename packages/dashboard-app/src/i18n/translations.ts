@@ -2946,7 +2946,7 @@ export const en: Dict = {
     },
     eyebrow: 'Host control plane',
     title: 'Host target plans',
-    subtitle: 'The plan above is read-only. After you confirm below, the adapter installer can run setup and report each real state live.',
+    subtitle: 'This plan is read-only. To install an adapter, start from the explicit project installation flow and confirm the target and scope there.',
     detection_loading: 'Automatically detecting local hosts and the Tenon plugin…',
     detection_unavailable: 'This server does not support automatic detection. You can still choose a host and generate a read-only plan.',
     detection_none: 'No supported host was detected. Install a host and probe again, or choose a target manually to inspect its plan.',

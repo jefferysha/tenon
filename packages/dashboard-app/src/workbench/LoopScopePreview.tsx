@@ -81,7 +81,7 @@ export function LoopScopePreview({
         {policyDirty && (
           <p
             id={`lp-scope-policy-dirty-${loopId}`}
-            className="mt-1 text-xs font-semibold text-amb-d"
+            className="mt-1 text-xs font-semibold text-amber-d"
             data-testid="lp-scope-dirty-policy"
             role="status"
           >

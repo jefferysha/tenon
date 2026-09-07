@@ -1,3 +1,0 @@
-{"file":".trellis/spec/dashboard-app/frontend/index.md","reason":"视觉组件改动需遵循 Dashboard 前端组件与质量约定。"}
-{"file":".trellis/spec/guides/index.md","reason":"复用现有 token/组件并检查跨层状态反馈。"}
-{"file":".trellis/tasks/archive/2026-09/09-05-dashboard-comprehensive-review/review.md","reason":"已有响应式尺寸、重复 key、密度和画布问题证据。"}

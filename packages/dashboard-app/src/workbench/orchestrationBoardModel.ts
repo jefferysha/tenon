@@ -293,7 +293,7 @@ export const SK_POP =
  * 11.5px = 契约 §0.2 徽章下限。零截断：nowrap + flex-none。
  */
 export const SK_UNINST =
-  'inline-flex flex-none items-center rounded-full border border-amb-b bg-amb-t px-1.5 py-px text-[11.5px] font-bold whitespace-nowrap text-amb-d'
+  'inline-flex flex-none items-center rounded-full border border-amber-b bg-amber-t px-1.5 py-px text-[11.5px] font-bold whitespace-nowrap text-amber-d'
 /** 技能卡上的移除 ×（demo .ecard .rm；与产出 chip 的 OUT_X 同款词汇，尺寸随卡放大一档）。 */
 export const SK_RM =
   'inline-grid h-[22px] w-[22px] flex-none cursor-pointer place-items-center rounded-md p-0 text-[15px] leading-none text-text-3 transition-colors hover:bg-red-t hover:text-red-d'
@@ -328,7 +328,7 @@ export const HK_GROUP =
 export const HK_TNAME = 'flex-none text-[13px] font-[750] whitespace-nowrap text-text-2'
 /** 「每轮」chip（demo .timing .tname .loop，琥珀家族）。11.5px = 契约 §0.2 徽章下限。 */
 export const HK_LOOP =
-  'inline-flex flex-none items-center rounded-full border border-amb-b bg-amb-t px-1.5 py-px text-[11.5px] font-bold whitespace-nowrap text-amb-d'
+  'inline-flex flex-none items-center rounded-full border border-amber-b bg-amber-t px-1.5 py-px text-[11.5px] font-bold whitespace-nowrap text-amber-d'
 /**
  * Hook 卡（demo .ecard.hkcard）：**与技能卡同一套卡片语言**——同圆角 [11px]、同 border/bg-card、
  * 同内边距 px-2.5 py-2.5、同 shadow-sm、同 14.5px 卡名（契约 §2）。差别只在色相家族：

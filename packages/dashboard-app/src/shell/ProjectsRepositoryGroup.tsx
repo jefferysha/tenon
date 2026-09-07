@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { PhaseCell, ProjectRow, RepositoryGroup } from './projectsModel'
+import { PANEL } from '../shared/uiRecipes'
 
 type Tr = (key: string, vars?: Record<string, string | number>) => string
 
@@ -69,7 +70,7 @@ function WorkspaceButton({ rowId, row, visibleRoot, onOpen, t }: {
       data-need={need}
       aria-label={t('projects.open_aria', { name: row.basename, root: row.root })}
       onClick={() => onOpen(row.root)}
-      className={`group grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 rounded-xl border px-4 py-4 text-left shadow-sm transition-[border-color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) active:scale-[.995] motion-reduce:transform-none sm:flex sm:flex-nowrap sm:gap-4 sm:px-5 ${need ? 'border-accent-b bg-accent-t hover:border-(--accent)' : 'border-border bg-card hover:border-border-2 hover:bg-fill'}`}
+      className={`group grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 rounded-[18px] border px-4 py-4 text-left shadow-sm transition-[border-color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) active:scale-[.995] motion-reduce:transform-none sm:flex sm:flex-nowrap sm:gap-4 sm:px-5 ${need ? 'border-accent-b bg-accent-t/45 hover:border-(--accent)' : 'border-border bg-card hover:border-border-2 hover:bg-fill/60'}`}
     >
       <span aria-hidden="true" className={`col-start-1 row-start-1 h-2 w-2 flex-none rounded-full ${need ? 'bg-(--accent)' : 'border border-border-2 bg-transparent'}`} />
       <span className="col-start-2 row-start-1 flex min-w-0 flex-col sm:w-[240px] sm:flex-none">
@@ -98,17 +99,19 @@ export interface ProjectsRepositoryGroupProps {
 
 export function ProjectsRepositoryGroup({ group, expanded, visibleRoots, rowId, onExpanded, onOpen, t }: ProjectsRepositoryGroupProps): JSX.Element {
   return (
-    <div data-testid={`repository-group-${group.id}`} data-anim="pv-item" className="rounded-2xl border border-border bg-fill/40 p-2.5">
+    <div data-testid={`repository-group-${group.id}`} data-anim="pv-item" className={`${PANEL} p-2.5`}>
       <button
         type="button"
         data-testid={`repository-toggle-${group.id}`}
         aria-expanded={expanded}
         onClick={() => onExpanded(!expanded)}
-        className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+        className="flex w-full items-start gap-3 rounded-[18px] px-2.5 py-2 text-left transition-[background-color] hover:bg-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
       >
         {expanded ? <ChevronDown aria-hidden="true" className="h-4 w-4 text-text-3" /> : <ChevronRight aria-hidden="true" className="h-4 w-4 text-text-3" />}
-        <span className="min-w-0 flex-1 truncate font-mono text-[15px] font-bold text-text">{group.label}</span>
-        <span className="text-[12px] text-text-3">{t('projects.workspace_count', { n: group.workspaceCount })}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-mono text-[15px] font-bold text-text">{group.label}</span>
+          <span className="mt-0.5 block text-[12px] text-text-3">{t('projects.workspace_count', { n: group.workspaceCount })}</span>
+        </span>
         <HealthSummary rowId={`repository-${group.id}`} wip={group.wip} need={group.need} running={group.running} t={t} />
       </button>
       {expanded && <div className="mt-2 flex flex-col gap-2.5">{group.workspaces.map((row) => (

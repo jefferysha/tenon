@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef } from 'r
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useT } from '../i18n'
-import { BUTTON_ICON } from './uiRecipes'
+import { BUTTON_ICON, PANEL } from './uiRecipes'
 
 /**
  * 中立共享 Dialog 组件（评审 P0-5/P1-9 的地基，Task 3）。
@@ -223,7 +223,7 @@ export function Dialog({ title, onClose, children, actions, testid, closeLabel, 
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-scrim ${variant === 'workspace' ? 'p-4 backdrop-blur-[3px]' : ''}`}
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-scrim ${variant === 'workspace' ? 'p-4 backdrop-blur-[3px] mobile:p-3' : ''}`}
       data-testid={testid}
       ref={overlayRef}
       aria-hidden={interactionDisabled || undefined}
@@ -249,7 +249,7 @@ export function Dialog({ title, onClose, children, actions, testid, closeLabel, 
       <div
         className={variant === 'workspace'
           ? `${panelClassName ?? 'w-[min(1480px,96vw)]'} flex max-h-[calc(100vh-24px)] flex-col overflow-hidden rounded-[24px] border border-border bg-bg shadow-xl`
-          : `${panelClassName ?? 'w-[min(420px,92%)]'} max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card px-[22px] py-5 shadow-lg`}
+          : `${panelClassName ?? 'w-[min(480px,92vw)]'} max-h-[90vh] overflow-y-auto ${PANEL} px-[22px] py-5`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -258,7 +258,7 @@ export function Dialog({ title, onClose, children, actions, testid, closeLabel, 
       >
         {variant === 'workspace' ? (
           <>
-            <header className="flex min-h-16 flex-none items-center gap-4 border-b border-border bg-card px-6 py-3.5">
+            <header className="flex min-h-16 flex-none items-center gap-4 border-b border-border bg-card/95 px-6 py-3.5">
               <div className="min-w-0 flex-1">
                 <h2 className="break-words whitespace-normal text-[18px] font-bold leading-tight tracking-[-0.015em] text-text">{title}</h2>
               </div>

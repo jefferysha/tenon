@@ -84,8 +84,8 @@ describe('ProjectsView 紧凑列表（v10 重设计：按需关注排序）', ()
     const group = screen.getByTestId(`repository-group-repository:${repository.id}`)
     expect(group).toHaveTextContent('tenon')
     expect(group).toHaveTextContent('2')
-    expect(screen.getByTestId('projects-focus-all')).toHaveTextContent('1')
-    expect(screen.getByRole('status', { name: '项目筛选结果' })).toHaveTextContent('全部 · 显示 1 / 1 个项目')
+    expect(screen.getByTestId('projects-focus-all')).toHaveTextContent('2')
+    expect(screen.getByRole('status', { name: '项目筛选结果' })).toHaveTextContent('全部 · 显示 2 / 2 个项目')
     fireEvent.click(screen.getByTestId('project-row-tenon-feature'))
     expect(onOpenProject).toHaveBeenCalledWith(worktreeRoot)
   })
@@ -118,7 +118,7 @@ describe('ProjectsView 紧凑列表（v10 重设计：按需关注排序）', ()
     expect(screen.getByTestId('project-row-tenon-search-target')).toBeInTheDocument()
   })
 
-  it('applies attention focus to repository groups without hiding their healthy workspaces', () => {
+  it('applies attention focus to the actionable workspace while keeping repository context', () => {
     const primaryRoot = '/code/tenon'
     const worktreeRoot = '/worktrees/review/tenon'
     const repository = { id: 'e'.repeat(64), label: 'tenon', workspace_kind: 'primary' as const }
@@ -135,8 +135,8 @@ describe('ProjectsView 紧凑列表（v10 重设计：按需关注排序）', ()
     fireEvent.click(screen.getByTestId('projects-focus-attention'))
 
     const group = screen.getByTestId(`repository-group-repository:${repository.id}`)
-    expect(group).toHaveTextContent('2 个 workspace')
-    expect(screen.getByTitle(primaryRoot)).toBeInTheDocument()
+    expect(group).toHaveTextContent('1 个 workspace')
+    expect(screen.queryByTitle(primaryRoot)).toBeNull()
     expect(screen.getByTitle(worktreeRoot)).toBeInTheDocument()
   })
 

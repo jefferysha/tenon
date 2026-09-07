@@ -37,14 +37,14 @@ export function HostOperationPlanPanel({
 
   return (
     <section
-      className="min-w-0 rounded-2xl border border-blue-b bg-blue-t/30 p-5 shadow-sm"
+      className="min-w-0 rounded-2xl border border-border bg-card p-5 shadow-sm"
       aria-labelledby="host-plan-operation-title"
     >
       <h2 id="host-plan-operation-title" className="text-base font-bold text-text">
         {t('hostPlan.operation_title', { host: targetLabel })}
       </h2>
       <div
-        className="mt-3 rounded-xl border border-border bg-card/80 p-3"
+        className="mt-3 rounded-xl border border-border bg-fill/35 p-3"
         data-testid="host-selected-context"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -62,7 +62,7 @@ export function HostOperationPlanPanel({
           {target.capabilities.map((capability) => (
             <span
               key={capability}
-              className="rounded-full border border-blue-b bg-blue-t px-2 py-1 text-[11px] font-semibold text-blue-d"
+              className="rounded-full border border-accent-b bg-accent-t px-2 py-1 text-[11px] font-semibold text-accent-d"
             >
               {t(`hostPlan.capability.${capability}`)}
             </span>
@@ -75,7 +75,7 @@ export function HostOperationPlanPanel({
             key={operation}
             type="button"
             aria-pressed={selectedOperation === operation}
-            className="rounded-xl border border-border-2 bg-card px-4 py-2 text-sm font-bold text-text outline-none transition-[background-color,border-color,box-shadow] hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--ring-blue) aria-[pressed=true]:border-(--accent) aria-[pressed=true]:bg-blue-t aria-[pressed=true]:text-blue-d"
+            className="rounded-xl border border-border-2 bg-card px-4 py-2 text-sm font-bold text-text outline-none transition-[background-color,border-color,box-shadow] hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[pressed=true]:border-(--accent) aria-[pressed=true]:bg-accent-t aria-[pressed=true]:text-accent-d"
             onClick={() => onRequestPlan(target.id, operation)}
           >
             {t(`hostPlan.operation.${operation}`)}
@@ -93,7 +93,7 @@ export function HostOperationPlanPanel({
           })}
         </p>
       ) : planState.status === 'error' && selectedOperation ? (
-        <div className="mt-4 rounded-xl border border-red-b bg-red-t p-4 text-red-d" role="alert">
+        <div className="mt-4 rounded-xl border border-red-b bg-red-t/45 p-4 text-red-d" role="alert">
           <p className="break-words text-sm">{errorMessage(planState.error)}</p>
           <button
             type="button"

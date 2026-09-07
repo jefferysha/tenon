@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { ProjectRow } from './projectsModel'
+import { BUTTON_GHOST, PANEL } from '../shared/uiRecipes'
 
 type Tr = (key: string, vars?: Record<string, string | number>) => string
 
@@ -37,7 +38,7 @@ function UnreachableRows({
             root: row.root,
           })}
           aria-disabled="true"
-          className="flex items-center gap-3.5 rounded-md px-3.5 py-2.5"
+          className="flex items-center gap-3.5 rounded-xl px-3.5 py-2.5"
         >
           <span aria-hidden="true" className="h-2 w-2 flex-none rounded-full border border-border-2 bg-transparent" />
           <span className="flex min-w-0 flex-1 flex-col">
@@ -67,37 +68,37 @@ export function ProjectsUnreachableSection({
 }: ProjectsUnreachableSectionProps): JSX.Element {
   const open = forcedOpen || expanded
   return (
-    <div data-testid="section-unreachable" data-anim="pv-item">
+    <div data-testid="section-unreachable" data-anim="pv-item" className={`${PANEL} p-3`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-      {forcedOpen ? (
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="text-[13px] font-bold text-text-3">
-            {t('projects.unreachable_fold', { n: rows.length })}
-          </span>
-          <span className="h-px flex-1 bg-border" aria-hidden="true" />
-        </div>
-      ) : (
-        <button
-          type="button"
-          data-testid="unreachable-toggle"
-          aria-expanded={expanded}
-          onClick={() => onExpanded(!expanded)}
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] text-text-3 transition-colors hover:text-text-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-        >
-          {expanded ? (
-            <ChevronDown aria-hidden="true" className="h-4 w-4 flex-none" />
-          ) : (
-            <ChevronRight aria-hidden="true" className="h-4 w-4 flex-none" />
-          )}
-          <span>{t('projects.unreachable_fold', { n: rows.length })}</span>
-        </button>
-      )}
+        {forcedOpen ? (
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <span className="text-[13px] font-bold text-text-3">
+              {t('projects.unreachable_fold', { n: rows.length })}
+            </span>
+            <span className="h-px flex-1 bg-border" aria-hidden="true" />
+          </div>
+        ) : (
+          <button
+            type="button"
+            data-testid="unreachable-toggle"
+            aria-expanded={expanded}
+            onClick={() => onExpanded(!expanded)}
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] text-text-3 transition-colors hover:text-text-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+          >
+            {expanded ? (
+              <ChevronDown aria-hidden="true" className="h-4 w-4 flex-none" />
+            ) : (
+              <ChevronRight aria-hidden="true" className="h-4 w-4 flex-none" />
+            )}
+            <span>{t('projects.unreachable_fold', { n: rows.length })}</span>
+          </button>
+        )}
         <button
           type="button"
           data-testid="unreachable-batch-unregister"
           disabled={cleanupBusy}
           onClick={onBatchUnregister}
-          className="rounded-lg border border-border bg-card px-3 py-2 text-[12px] font-semibold text-text-2 hover:border-border-2 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+          className={`${BUTTON_GHOST} min-h-8 px-3 py-1.5 text-[12px] font-semibold`}
         >
           {cleanupBusy ? t('projects.cleanup_running') : t('projects.cleanup_action', { n: rows.length })}
         </button>

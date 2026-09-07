@@ -227,7 +227,16 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
     return null
   }
   function copyCmd(cmd: string): void {
-    void navigator.clipboard?.writeText(cmd).then(() => onToast?.(localeIdentity.current.t('detail.copied', { value: cmd })))
+    const write = navigator.clipboard?.writeText(cmd)
+    if (!write) {
+      setActionError(new Error('clipboard unavailable'))
+      return
+    }
+    void write
+      .then(() => onToast?.(localeIdentity.current.t('detail.copied', { value: cmd })))
+      .catch((error: unknown) => {
+        if (rootIdentity.current === currentRoot) setActionError(error)
+      })
   }
   async function runAction(key: string, name: string, action: () => Promise<void>, successKey: string): Promise<boolean> {
     const targetRoot = currentRoot
@@ -267,7 +276,7 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
           || row.change.phase.toLowerCase().includes(needle)
           || fieldStr(row.change, 'workflow').toLowerCase().includes(needle)
       })
-  const selected = priorityRows.find(({ row }) => row.change.name === selectedName) ?? priorityRows[0] ?? null
+  const selected = visibleRows.find(({ row }) => row.change.name === selectedName) ?? visibleRows[0] ?? null
   const selectedChange = selected?.row.change ?? null
   const selectedRules = selected?.rules
   const selectedState = selected?.row.state ?? null
@@ -319,12 +328,19 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
             type="button"
             data-testid="afk-new-run"
             className={`${BUTTON_SOLID} min-h-11 flex-none`}
-            disabled={enqueueCandidates.length === 0 && snapshot?.capabilities.operations !== true}
-            title={enqueueCandidates.length > 0 || snapshot?.capabilities.operations === true ? undefined : t('afk.new_unavailable')}
-            onClick={() => setActiveTool(enqueueCandidates.length > 0 ? 'enqueue' : 'starter')}
+            disabled={enqueueCandidates.length === 0}
+            title={enqueueCandidates.length > 0 ? undefined : t('afk.new_unavailable')}
+            onClick={() => setActiveTool('enqueue')}
           >
-            <Plus className="h-4 w-4" aria-hidden="true" />{enqueueCandidates.length > 0 ? t('afk.new_run') : t('afk.new_schedule')}
+            <Plus className="h-4 w-4" aria-hidden="true" />{t('afk.new_run')}
           </button>}
+          <button
+            type="button"
+            className="inline-flex min-h-11 flex-none items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-text-2 hover:bg-fill"
+            onClick={() => onView('progress')}
+          >
+            <Workflow className="h-4 w-4" aria-hidden="true" />{t('afk.view_pipeline')}
+          </button>
           </div>}
         />
       </div>
@@ -375,7 +391,15 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
               <span className="px-2 py-2 text-center text-text-2">{t('afk.health_running', { n: health.running })}</span>
               <span className="px-2 py-2 text-center text-text-2">{t('afk.health_queued', { n: health.queued })}</span>
             </div>
-            <ul className="mt-3 flex flex-col gap-1">
+            {visibleRows.length === 0 ? (
+              <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-6 text-center" data-testid="afk-filter-empty" role="status" aria-live="polite">
+                <p className="text-sm font-semibold text-text">{t('afk.empty_runs')}</p>
+                <p className="mt-1 text-xs text-text-3">{t('projects.no_results_desc')}</p>
+                <button type="button" className="mt-3 min-h-9 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-text-2 hover:bg-fill" onClick={() => setQuery('')}>
+                  {t('projects.clear_filters')}
+                </button>
+              </div>
+            ) : <ul className="mt-3 flex flex-col gap-1">
               {visibleRows.map(({ row, rules }) => {
                 const change = row.change
                 const active = change.name === selectedChange?.name
@@ -400,7 +424,7 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
                   </li>
                 )
               })}
-            </ul>
+            </ul>}
           </aside>
 
           {selectedChange && selectedState && (
@@ -430,8 +454,8 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
 
               <section className="mt-5" aria-label={t('afk.progress_label')}>
                 <h3 className="text-sm font-semibold text-text">{t('afk.progress_title')}</h3>
-                <div className="mt-4 min-w-0 overflow-x-auto pb-2 [scrollbar-width:thin]" data-testid="afk-stage-scroll">
-                  <div className="flex min-w-[560px] items-start" data-testid="afk-stage-track">
+                <div className="mt-4 min-w-0 pb-2" data-testid="afk-stage-scroll">
+                  <div className="flex min-w-0 items-start max-[760px]:hidden" data-testid="afk-stage-track">
                     {(selectedRules?.steps ?? DEFAULT_RULES.steps).map((step, index, all) => {
                     const current = all.indexOf(selectedChange.phase)
                     const done = current >= 0 && index < current
@@ -449,6 +473,10 @@ export function AfkView({ snapshot, currentRoot, rulesByKey, onView, onOpenChang
                       </div>
                     )
                     })}
+                  </div>
+                  <div className="hidden rounded-xl border border-border bg-fill px-4 py-3 max-[760px]:block" data-testid="afk-current-stage">
+                    <p className="text-[11px] font-semibold text-text-3">{t('afk.stage_label', { phase: phaseLabel(selectedChange.phase, selectedRules?.labelByStep, t, selectedRules?.executionModel) })}</p>
+                    <p className={`mt-1 text-sm font-bold ${selectedState === 'failed' ? 'text-red-d' : 'text-text'}`}>{stateLabel(selectedState)}</p>
                   </div>
                 </div>
               </section>

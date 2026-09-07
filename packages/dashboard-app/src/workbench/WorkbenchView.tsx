@@ -502,20 +502,39 @@ export function WorkbenchView({ root, onToggleError, snapshot = null, onDirtyCha
         onSave={() => void save()}
         trackControls={<TrackSelector state={mandatory} onDirtyChange={reportTrackDirty} />}
       />
-      <WorkflowPolicyEditor
-        definition={def}
-        readonly={readonlyWf}
-        loading={def === null && defError === null}
-        error={defErrorText}
-        dirty={policyDirty}
-        saving={saving}
-        saveStatus={saveStatus.kind === 'ok' ? 'success' : 'idle'}
-        onChange={setDef}
-        onSave={() => void save()}
-        onCancel={cancelPolicyDraft}
-        onRetry={() => setDefinitionReloadNonce((value) => value + 1)}
-      />
-      <WorkflowPolicyRuntimeSummary root={root} workflowName={wfName} snapshot={snapshot} />
+      <details
+        className="mb-4 rounded-2xl border border-border bg-card shadow-sm"
+        data-testid="workbench-policy-disclosure"
+      >
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) [&::-webkit-details-marker]:hidden">
+          {t('workbench.policy_title')}
+          <span className="ml-2 text-xs font-normal text-text-3">{t('workbench.advanced_show')}</span>
+        </summary>
+        <div className="border-t border-border p-4">
+          <WorkflowPolicyEditor
+            definition={def}
+            readonly={readonlyWf}
+            loading={def === null && defError === null}
+            error={defErrorText}
+            dirty={policyDirty}
+            saving={saving}
+            saveStatus={saveStatus.kind === 'ok' ? 'success' : 'idle'}
+            onChange={setDef}
+            onSave={() => void save()}
+            onCancel={cancelPolicyDraft}
+            onRetry={() => setDefinitionReloadNonce((value) => value + 1)}
+          />
+        </div>
+      </details>
+      <details className="mb-4 rounded-2xl border border-border bg-card shadow-sm" data-testid="workbench-runtime-disclosure">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) [&::-webkit-details-marker]:hidden">
+          {t('workbench.policy_runtime_title')}
+          <span className="ml-2 text-xs font-normal text-text-3">{t('workbench.advanced_show')}</span>
+        </summary>
+        <div className="border-t border-border p-4">
+          <WorkflowPolicyRuntimeSummary root={root} workflowName={wfName} snapshot={snapshot} />
+        </div>
+      </details>
       {def && (
         <>
           <ExecutionTimelineComposer

@@ -12,7 +12,7 @@ export const toneByKind: Record<OrchestrationNodeKind, string> = {
   change: 'border-green-b bg-green-t',
   phase: 'border-border-2 bg-card',
   task: 'border-green-b bg-green-t',
-  document: 'border-amb-b bg-amb-t',
+  document: 'border-amber-b bg-amber-t',
   review: 'border-red-b bg-red-t',
   session: 'border-blue-b bg-blue-t',
 }

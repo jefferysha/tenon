@@ -82,7 +82,7 @@ function LegacySummary({ plan }: { readonly plan: Extract<TaskPlanReadModelV1, {
   const { t } = useT()
   return (
     <>
-      <div className="mt-4 rounded-lg border border-amb-b bg-amb-t px-3 py-2.5 text-xs leading-5 text-amb-d">{t('task_plan.legacy_notice')}</div>
+      <div className="mt-4 rounded-lg border border-amber-b bg-amber-t px-3 py-2.5 text-xs leading-5 text-amber-d">{t('task_plan.legacy_notice')}</div>
       <dl className="mt-4 grid min-w-0 gap-2 sm:grid-cols-2">
         <SummaryField label={t('task_plan.source')} value={t('task_plan.source_legacy')} />
         <SummaryField label={t('task_plan.schedulable')} value={t('task_plan.no')} />
@@ -183,11 +183,11 @@ export function TaskPlanContent({
       </header>
 
       {stale && (
-        <div className="mt-4 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-amb-b bg-amb-t px-3 py-2.5 text-xs text-amb-d" role="status" aria-live="polite">
+        <div className="mt-4 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-b bg-amber-t px-3 py-2.5 text-xs text-amber-d" role="status" aria-live="polite">
           <span className="min-w-0 break-words [overflow-wrap:anywhere]">{t('task_plan.stale')}</span>
           <button
             type="button"
-            className="flex-none rounded-md border border-amb-b bg-card px-2.5 py-1.5 text-xs font-semibold text-amb-d focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:opacity-60"
+            className="flex-none rounded-md border border-amber-b bg-card px-2.5 py-1.5 text-xs font-semibold text-amber-d focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:opacity-60"
             aria-label={t('task_plan.retry_refresh')}
             disabled={refreshing}
             onClick={onRefresh}

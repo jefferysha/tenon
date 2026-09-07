@@ -17,7 +17,7 @@ export function GovernanceGraduation({
     <div
       className={cn(
         'mt-2.5 rounded-[10px] border px-3 py-2.5 text-xs',
-        graduation.canGraduate ? 'border-green-b bg-green-t' : 'border-amb-b bg-amb-t',
+        graduation.canGraduate ? 'border-green-b bg-green-t' : 'border-amber-b bg-amber-t',
       )}
       data-can-graduate={String(graduation.canGraduate)}
       data-testid="wb-gov-graduation"

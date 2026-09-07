@@ -178,6 +178,6 @@ export const BADGE_TONE_CLS: Record<RowBadge['tone'], string> = {
   green: 'bg-green-t text-green-d',
   red: 'bg-red-t text-red-d',
   blue: 'bg-accent-t text-accent-d',
-  amb: 'bg-amb-t text-amb-d',
+  amb: 'bg-amber-t text-amber-d',
   neutral: 'bg-fill-2 text-text-2',
 }

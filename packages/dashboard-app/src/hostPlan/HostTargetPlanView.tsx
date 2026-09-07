@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchHostTargetDetection,
   fetchHostTargetPlan,
@@ -213,6 +213,17 @@ export function HostTargetPlanView({
   const selectedTarget = catalogState.status === 'ready'
     ? catalogState.catalog.targets.find((target) => target.id === selectedHost) ?? null
     : null
+  const orderedTargets = useMemo(() => {
+    if (catalogState.status !== 'ready' || detectionState.status !== 'ready') {
+      return catalogState.status === 'ready' ? catalogState.catalog.targets : []
+    }
+    const detected = new Set<string>(detectionState.detection.detected_hosts)
+    const recommended = detectionState.detection.recommended_host
+    return [...catalogState.catalog.targets].sort((left, right) => {
+      const rank = (target: HostTarget): number => target.id === recommended ? 0 : detected.has(target.id) ? 1 : 2
+      return rank(left) - rank(right) || hostName(left).localeCompare(hostName(right))
+    })
+  }, [catalogState, detectionState])
 
   return (
     <section className="mx-auto w-full max-w-[1120px] py-5" data-testid="host-plan-view">
@@ -227,7 +238,7 @@ export function HostTargetPlanView({
       {catalogState.status === 'loading' ? (
         <p className="mt-8 text-sm text-text-3" role="status">{t('hostPlan.catalog_loading')}</p>
       ) : catalogState.status === 'error' ? (
-          <div className="mt-8 rounded-2xl border border-red-b bg-red-t p-5 text-red-d" role="alert">
+          <div className="mt-8 rounded-2xl border border-red-b bg-red-t/45 p-5 text-red-d" role="alert">
             <p className="break-words text-sm">{localizedError(catalogState.error, t)}</p>
             <button
               type="button"
@@ -255,7 +266,7 @@ export function HostTargetPlanView({
       ) : (
         <>
           <div
-            className="mt-6 rounded-xl border border-border bg-card px-4 py-3 text-sm text-text-2"
+            className="mt-6 rounded-xl border border-border bg-fill/35 px-4 py-3 text-sm text-text-2"
             data-testid="host-detection-status"
           >
             {detectionState.status === 'loading'
@@ -284,7 +295,7 @@ export function HostTargetPlanView({
               className="grid min-w-0 gap-3 min-[520px]:grid-cols-2 min-[900px]:max-h-[calc(100vh-11rem)] min-[900px]:grid-cols-1 min-[900px]:overflow-y-auto min-[900px]:pr-2 min-[900px]:[scrollbar-gutter:stable]"
               data-testid="host-target-grid"
             >
-            {catalogState.catalog.targets.map((target) => {
+            {orderedTargets.map((target) => {
               const name = hostName(target)
               const selected = selectedHost === target.id
               const detected = detectionState.status === 'ready'
@@ -294,12 +305,13 @@ export function HostTargetPlanView({
               return (
                 <article
                   key={target.id}
-                  className={`min-w-0 rounded-xl border bg-card p-2 ${
-                    selected ? 'border-(--accent) ring-1 ring-(--accent)' : 'border-border'
+                  className={`min-w-0 rounded-xl border bg-card p-2 shadow-sm ${
+                    selected ? 'border-(--accent) ring-1 ring-(--accent)' : recommended ? 'border-accent-b bg-accent-t/45' : 'border-border'
                   }`}
                   data-kind={target.kind}
                   data-detected={detected}
                   data-recommended={recommended}
+                  data-testid={`host-target-${target.id}`}
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
@@ -323,7 +335,7 @@ export function HostTargetPlanView({
                   <button
                     type="button"
                     aria-pressed={selected}
-                    className="mt-1.5 w-full rounded-lg border border-border-2 bg-bg px-3 py-1.5 text-xs font-bold text-text outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)"
+                    className="mt-1.5 w-full rounded-lg border border-border-2 bg-card px-3 py-1.5 text-xs font-bold text-text outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)"
                     onClick={() => selectHost(target.id)}
                   >
                     {selected

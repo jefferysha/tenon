@@ -1,4 +1,0 @@
-{"file":".trellis/spec/dashboard-app/frontend/index.md","reason":"Dashboard 前端规范索引，确认实现前需要遵循的组件、类型和质量约定。"}
-{"file":".trellis/spec/guides/index.md","reason":"共享思考指南，要求修改前搜索复用并检查跨层数据流。"}
-{"file":".trellis/tasks/archive/2026-09/09-05-dashboard-comprehensive-review/review.md","reason":"既有页面、功能、运行态证据和优先级基线。"}
-{"file":"docs/usage/zh-CN/dashboard-and-local-api.md","reason":"产品定位、Dashboard API 边界和页面验收约束。"}

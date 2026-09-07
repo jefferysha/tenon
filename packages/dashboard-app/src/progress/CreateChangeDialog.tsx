@@ -315,7 +315,7 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
           {preview && previewState === 'ready' && (
             <>
               {preview.suppressed_reason !== null ? (
-                <div className="mb-3 rounded-lg border border-amb-b bg-amb-t px-3 py-2 text-xs text-amb-d" data-testid="route-suppressed" role="status" aria-live="polite">
+                <div className="mb-3 rounded-lg border border-amber-b bg-amber-t px-3 py-2 text-xs text-amber-d" data-testid="route-suppressed" role="status" aria-live="polite">
                   {t('change_create.route_suppressed', { reason: preview.suppressed_reason })}
                 </div>
               ) : preview.winner ? (

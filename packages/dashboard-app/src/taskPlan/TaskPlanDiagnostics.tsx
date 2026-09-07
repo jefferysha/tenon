@@ -124,7 +124,7 @@ export function TaskPlanDiagnostics({ plan }: TaskPlanDiagnosticsProps): JSX.Ele
 
         <section className="min-w-0 rounded-xl border border-border bg-fill/25 p-3" aria-labelledby="task-plan-validation-title">
           <h4 id="task-plan-validation-title" className="flex items-center gap-2 text-xs font-semibold text-text">
-            <AlertTriangle className="h-3.5 w-3.5 text-amb-d" aria-hidden="true" />
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-d" aria-hidden="true" />
             {t('task_plan.validation_issues')}
           </h4>
           {plan.validation.issues.length === 0 ? <p className={`${empty} mt-3`}>{t('task_plan.none')}</p> : (

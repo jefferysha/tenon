@@ -22,7 +22,7 @@ export function sourceLabel(source: WbSkillEntry['source'], t: (key: string) => 
 
 export function statusTone(installed: boolean | undefined): string {
   if (installed === true) return 'text-green-d'
-  if (installed === false) return 'text-amb-d'
+  if (installed === false) return 'text-amber-d'
   return 'text-text-3'
 }
 

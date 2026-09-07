@@ -34,14 +34,14 @@ export function ReviewHandshakeStatus({
       icon: CircleDashed,
       title: t('progress.review_not_requested'),
       detail: t('progress.review_not_requested_next'),
-      tone: 'border-amb-b bg-amb-t text-amb-d',
+      tone: 'border-amber-b bg-amber-t text-amber-d',
     }
   } else if (handshake.status === 'pending') {
     presentation = {
       icon: Clock3,
       title: t('progress.review_pending'),
       detail: t('progress.review_pending_next'),
-      tone: 'border-amb-b bg-amb-t text-amb-d',
+      tone: 'border-amber-b bg-amber-t text-amber-d',
     }
   } else {
     presentation = {

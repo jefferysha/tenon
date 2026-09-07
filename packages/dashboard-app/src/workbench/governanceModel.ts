@@ -63,10 +63,10 @@ export const TAG_RW_TW = 'border-green-b bg-green-t text-green-d'
 export const TAG_DERIVED_TW = 'border-accent-b bg-accent-t text-accent-d'
 export const GNOTE_TW = 'mt-2.5 text-xs leading-[1.55] text-text-3'
 export const GNOTE_ERR_TW = 'mt-2.5 rounded-[9px] border border-red-b bg-red-t px-2.5 py-2 text-xs leading-[1.55] font-semibold text-red-d'
-export const GNOTE_HINT_TW = 'mt-2.5 rounded-[9px] border border-amb-b bg-amb-t px-2.5 py-2 text-xs leading-[1.55] font-semibold text-amb-d'
+export const GNOTE_HINT_TW = 'mt-2.5 rounded-[9px] border border-amber-b bg-amber-t px-2.5 py-2 text-xs leading-[1.55] font-semibold text-amber-d'
 export const BAND_TW: Record<string, string> = {
   ready: 'bg-green-t text-green-d',
-  'mostly-ready': 'bg-amb-t text-amb-d',
+  'mostly-ready': 'bg-amber-t text-amber-d',
   'not-ready': 'bg-red-t text-red-d',
 }
 export const BAND_KEY: Record<string, string> = {
@@ -76,11 +76,11 @@ export const BAND_KEY: Record<string, string> = {
 }
 export const BAR_TW: Record<string, string> = {
   ready: 'bg-green',
-  'mostly-ready': 'bg-amb-d',
+  'mostly-ready': 'bg-amber-d',
   'not-ready': 'bg-red',
 }
 export const LAMP_TW: Record<string, string> = {
   ok: 'bg-green',
-  warn: 'bg-amb-d',
+  warn: 'bg-amber-d',
   tripped: 'bg-red',
 }

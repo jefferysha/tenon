@@ -194,6 +194,17 @@ describe('AfkView 两栏自动运行工作区', () => {
     expect(screen.queryByTestId('afk-retry-preview-fail-c')).toBeNull()
   })
 
+  it('搜索无结果时清除过期详情并提供恢复入口', async () => {
+    await renderAfk()
+    const search = screen.getByPlaceholderText('搜索任务或定时任务…')
+    fireEvent.change(search, { target: { value: 'does-not-exist' } })
+
+    expect(screen.getByTestId('afk-filter-empty')).toBeInTheDocument()
+    expect(screen.queryByTestId('afk-detail')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '清除条件' }))
+    expect(screen.getByTestId('afk-detail')).toBeInTheDocument()
+  })
+
   it('行标 data-state 与相位（afk.at_phase：{phase 展示名} · 沙箱）', async () => {
     await renderAfk()
     const row = screen.getByTestId('afk-row-fail-c')

@@ -384,7 +384,7 @@ export function ExecutionTimelineComposer({
               <PreviewRow label={t('workbench.timeline_prompt_fact')} value={prompt.trim() ? t('workbench.timeline_prompt_length', { n: prompt.trim().length }) : t('workbench.timeline_prompt_missing')} ready={prompt.trim().length > 0} />
             </div>
             {missingSkills !== null && missingSkills > 0 && (
-              <p className="mt-3 flex gap-2 rounded-lg bg-amb-t px-3 py-2 text-xs leading-5 text-amb-d"><AlertTriangle className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />{t('workbench.timeline_missing_skills')}</p>
+              <p className="mt-3 flex gap-2 rounded-lg bg-amber-t px-3 py-2 text-xs leading-5 text-amber-d"><AlertTriangle className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />{t('workbench.timeline_missing_skills')}</p>
             )}
             <div className="mt-3 flex items-center gap-2 rounded-lg bg-card px-3 py-2 text-xs text-text-2">
               <LockKeyhole className="h-4 w-4 text-text-3" aria-hidden="true" />
