@@ -20,7 +20,7 @@ export type ThemePreference = 'system' | 'light' | 'dark'
 
 /** rail 竖排渲染的三个日常导航项；低频视图由设置面板承载。 */
 export type RailView = 'projects' | 'progress' | 'afk' | 'workbench' | 'machine' | 'hostPlan'
-export const PRIMARY_VIEWS: RailView[] = ['projects', 'progress', 'workbench']
+export const PRIMARY_VIEWS: RailView[] = ['projects', 'workbench']
 /** 低频能力通过设置面板进入，保留深链与明确的二级入口。 */
 export const SECONDARY_VIEWS: RailView[] = ['afk', 'machine', 'hostPlan']
 
@@ -96,20 +96,9 @@ export function Nav({ view, onView, lang, onLang, theme, onTheme, connected, dec
         Tenon
       </div>
       {/* 品牌 logo 标（demo .rail .logo 对位）：品牌名收成图标，全名走 title 悬浮。 */}
-      <button
-        type="button"
-        data-testid="nav-overview"
-        aria-label={t('solution.nav_label')}
-        aria-current={view === 'overview' ? 'page' : undefined}
-        className="mb-1.5 grid h-10 w-10 flex-none cursor-pointer place-items-center rounded-xl border border-transparent bg-ink text-ink-fg outline-none transition-colors motion-reduce:transition-none hover:bg-ink-hover focus-visible:border-(--accent) focus-visible:ring-[3px] focus-visible:ring-(--ring-blue) aria-[current=page]:border-(--accent) mobile:fixed mobile:top-1.5 mobile:left-3 mobile:z-10 mobile:mb-0 mobile:h-11 mobile:min-w-11 mobile:w-11"
-        title={t('solution.nav_label')}
-        onClick={() => {
-          setSettingsOpen(false)
-          onView('overview')
-        }}
-      >
-        <Icon name="flow" size={16} />
-      </button>
+      <div className="mb-1.5 grid h-10 w-10 flex-none place-items-center rounded-xl border border-transparent bg-ink text-ink-fg mobile:fixed mobile:top-1.5 mobile:left-3 mobile:z-10 mobile:mb-0 mobile:h-11 mobile:min-w-11 mobile:w-11" aria-label={t('solution.nav_label')} title={t('solution.nav_label')}>
+        <Icon name="flow" size={16} aria-hidden="true" />
+      </div>
 
       <div className="my-1.5 w-14 flex-none border-t border-border mobile:hidden" aria-hidden="true" />
 

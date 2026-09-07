@@ -535,7 +535,6 @@ export function ProgressView({
         workflow={effectiveWf}
         onDeckTab={setDeckTab}
         onWorkflow={setWfFilter}
-        onCreate={readOnly ? undefined : () => setCreateOpen(true)}
       />
 
       <CanonicalStateVersionNotice

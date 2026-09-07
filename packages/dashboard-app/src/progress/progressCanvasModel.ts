@@ -73,6 +73,14 @@ export function buildCanvasGroups({
     for (const row of group.archived) {
       archivedByPhase.set(row.change.phase, [...(archivedByPhase.get(row.change.phase) ?? []), row])
     }
+    // Derive every stage from the live change phase. Todo stage metadata is optional and
+    // frequently absent for older changes, so it must not collapse the whole track into
+    // "pending". A stage is current when a change is in it, done when all active changes
+    // have moved beyond it, and pending when work has not reached it yet.
+    const phaseIndex = new Map(stepIds.map((id, index) => [id, index]))
+    const activePhaseIndexes = group.rows
+      .map((row) => phaseIndex.get(row.change.phase))
+      .filter((index): index is number => index !== undefined)
     const steps: CanvasStep[] = stepIds.map((id) => {
       const archivedRows = [...(archivedByPhase.get(id) ?? [])]
         .sort((left, right) => compareArchived(left.change, right.change))
@@ -81,18 +89,19 @@ export function buildCanvasGroups({
         const dot = dotOf(flat)
         return { key: flat.key, name: row.change.name, tone: dot.tone, state: dot.state }
       })
+      const index = phaseIndex.get(id) ?? 0
+      const state: CanvasStep['state'] = activePhaseIndexes.some((phase) => phase === index)
+        ? 'current'
+        : activePhaseIndexes.length > 0 && activePhaseIndexes.every((phase) => phase > index)
+          ? 'done'
+          : 'pending'
       return {
         id,
         label: stepLabel(id, rules, t),
         gate: rules?.gateByStep[id] ?? null,
         archived: archivedChanges.length,
         archivedChanges,
-        state: group.rows.some((row) => row.change.todo?.stages.find((stage) => stage.id === id)?.status === 'current')
-          ? 'current'
-          : group.rows.length > 0
-            && group.rows.every((row) => row.change.todo?.stages.find((stage) => stage.id === id)?.status === 'done')
-            ? 'done'
-            : 'pending',
+        state,
       }
     })
     const changes: CanvasChange[] = group.rows.flatMap((row) => {

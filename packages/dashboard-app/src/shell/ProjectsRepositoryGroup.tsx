@@ -94,11 +94,10 @@ export interface ProjectsRepositoryGroupProps {
   rowId: (row: ProjectRow) => string
   onExpanded: (expanded: boolean) => void
   onOpen: (root: string) => void
-  onInstall: (root: string) => void
   t: Tr
 }
 
-export function ProjectsRepositoryGroup({ group, expanded, visibleRoots, rowId, onExpanded, onOpen, onInstall, t }: ProjectsRepositoryGroupProps): JSX.Element {
+export function ProjectsRepositoryGroup({ group, expanded, visibleRoots, rowId, onExpanded, onOpen, t }: ProjectsRepositoryGroupProps): JSX.Element {
   return (
     <div data-testid={`repository-group-${group.id}`} data-anim="pv-item" className={`${PANEL} p-2.5`}>
       <button
@@ -116,10 +115,7 @@ export function ProjectsRepositoryGroup({ group, expanded, visibleRoots, rowId, 
         <HealthSummary rowId={`repository-${group.id}`} wip={group.wip} need={group.need} running={group.running} t={t} />
       </button>
       {expanded && <div className="mt-2 flex flex-col gap-2.5">{group.workspaces.map((row) => (
-        <div key={row.root} className="flex min-w-0 items-stretch gap-2">
-          <WorkspaceButton rowId={rowId(row)} row={row} visibleRoot={visibleRoots.get(row.root) ?? row.root} onOpen={onOpen} t={t} />
-          <button type="button" className="flex-none rounded-xl border border-border bg-card px-3 text-xs font-semibold text-text-2 transition-colors hover:border-(--accent) hover:text-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" onClick={() => onInstall(row.root)} aria-label={t('hostPlan.installer.open_aria', { name: row.basename })}>{t('hostPlan.installer.open')}</button>
-        </div>
+        <WorkspaceButton key={row.root} rowId={rowId(row)} row={row} visibleRoot={visibleRoots.get(row.root) ?? row.root} onOpen={onOpen} t={t} />
       ))}</div>}
     </div>
   )

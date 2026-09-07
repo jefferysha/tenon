@@ -3,10 +3,9 @@ import { useT } from '../i18n'
 import { TaskDetail, type TaskDetailSurface } from '../shared/TaskDetail'
 import { VerificationEvidenceComposer } from '../verification/VerificationEvidenceComposer'
 import { TaskPlanEvidenceSection } from './TaskPlanEvidenceSection'
-import { fieldStr, type FlatRow } from './progressViewModel'
+import type { FlatRow } from './progressViewModel'
 import { ContextBundlePreview } from './ContextBundlePreview'
 import { ReviewHandshakeStatus } from './ReviewHandshakeStatus'
-import { RunLogPane } from './RunLogPane'
 
 export interface ProgressDrawerProps {
   row: FlatRow
@@ -36,11 +35,12 @@ export function ProgressDrawer({
     rowIdentityRef.current = rowIdentity
     setSurface('summary')
   }, [rowIdentity])
+  // The drawer answers only two questions: where is the change, and what did it produce.
+  // Terminal execution and audit history remain terminal concerns and are intentionally not
+  // promoted to peer tabs in the daily dashboard path.
   const tabs: Array<{ id: Exclude<TaskDetailSurface, 'all'>; label: string }> = [
     { id: 'summary', label: t('navigation.sheet_summary') },
     { id: 'outputs', label: t('navigation.sheet_outputs') },
-    { id: 'terminal', label: t('navigation.sheet_terminal') },
-    { id: 'history', label: t('navigation.sheet_history') },
   ]
   return (
     <>
@@ -93,12 +93,6 @@ export function ProgressDrawer({
             onToast={onToast}
             surface={surface}
           />
-          {surface === 'terminal' && (
-            <p className="prg-terminal-boundary" data-testid="progress-terminal-boundary">{t('navigation.terminal_boundary')}</p>
-          )}
-          {surface === 'terminal' && row.row.state === 'running' && fieldStr(row.row.change, 'automation') === 'running' && (
-            <RunLogPane root={row.row.root} change={row.row.change} />
-          )}
         </div>
         <div className="prg-sheet-tabs border-b border-border px-4 pt-3" role="tablist" aria-label={t('progress.title')}>
           {tabs.map((tab) => (

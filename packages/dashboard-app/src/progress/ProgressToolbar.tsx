@@ -1,7 +1,7 @@
 import { useRef, type KeyboardEvent } from 'react'
-import { ChevronDown, ListFilter, Plus } from 'lucide-react'
+import { ChevronDown, ListFilter } from 'lucide-react'
 import { PageHeader } from '../shared/PageHeader'
-import { BUTTON_SOLID, SELECT } from '../shared/uiRecipes'
+import { SELECT } from '../shared/uiRecipes'
 import { DECK_TABS, type DeckTab, type Tr } from './progressViewModel'
 
 export interface ProgressToolbarProps {
@@ -14,6 +14,7 @@ export interface ProgressToolbarProps {
   workflow: string
   onDeckTab: (tab: DeckTab) => void
   onWorkflow: (workflow: string) => void
+  /** Deprecated compatibility prop; task creation remains terminal-only. */
   onCreate?: () => void
 }
 
@@ -27,7 +28,6 @@ export function ProgressToolbar({
   workflow,
   onDeckTab,
   onWorkflow,
-  onCreate,
 }: ProgressToolbarProps): JSX.Element {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   // Only expose filters that can currently match something. Keep the selected tab mounted
@@ -65,16 +65,6 @@ export function ProgressToolbar({
         className="mb-4"
         testId="prg-hero"
         animation="prg-chrome"
-        actions={onCreate === undefined ? undefined : (
-          <button
-            type="button"
-            className={`${BUTTON_SOLID} min-h-11`}
-            data-testid="progress-new-change"
-            onClick={onCreate}
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" /> {t('progress.create_action')}
-          </button>
-        )}
       />
       {rowCount > 0 && (
         <div className="mb-5" data-anim="prg-chrome" data-testid="prg-filterbar">

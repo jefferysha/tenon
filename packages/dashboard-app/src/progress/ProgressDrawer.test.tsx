@@ -77,9 +77,10 @@ describe('ProgressDrawer integration surfaces', () => {
     screen.getByTestId('progress-sheet-tab-outputs').click()
     await waitFor(() => expect(screen.getByTestId('context-bundle-preview')).toBeInTheDocument())
     expect(screen.queryByTestId('verification-evidence-composer')).not.toBeInTheDocument()
-    screen.getByTestId('progress-sheet-tab-terminal').click()
-    await waitFor(() => expect(screen.getByTestId('progress-terminal-boundary')).toBeInTheDocument())
-    expect(screen.getByTestId('progress-terminal-boundary')).toBeInTheDocument()
-    expect(screen.queryByTestId('task-detail-surface-outputs')).not.toBeInTheDocument()
+    // Terminal execution and audit history are intentionally not dashboard tabs.
+    // They remain available in the terminal, while this drawer stays focused on status and outputs.
+    expect(screen.queryByTestId('progress-sheet-tab-terminal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('progress-sheet-tab-history')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('progress-terminal-boundary')).not.toBeInTheDocument()
   })
 })
