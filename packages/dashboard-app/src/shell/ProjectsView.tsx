@@ -13,6 +13,8 @@ import { buildProjectRows, buildRepositoryGroups, compareProjectRows, orderRepos
 import { ProjectsRepositoryGroup } from './ProjectsRepositoryGroup'
 import { ProjectsUnreachableSection } from './ProjectsUnreachableSection'
 import { BUTTON_GHOST, EMPTY_STATE } from '../shared/uiRecipes'
+import { Dialog } from '../shared/Dialog'
+import { AdapterInstallWizard } from '../hostPlan/AdapterInstallWizard'
 
 gsap.registerPlugin(useGSAP)
 
@@ -80,6 +82,7 @@ export function ProjectsView({
   const [removedUnreachable, setRemovedUnreachable] = useState<ReadonlySet<string>>(new Set())
   const [cleanupFailures, setCleanupFailures] = useState<string[]>([])
   const [cleanupBusy, setCleanupBusy] = useState(false)
+  const [installRoot, setInstallRoot] = useState<string | null>(null)
 
   const rows = useMemo(() => buildProjectRows(snapshot, rulesByKey, t), [snapshot, rulesByKey, t])
   const repositoryGroups = useMemo(() => buildRepositoryGroups(rows), [rows])
@@ -190,6 +193,7 @@ export function ProjectsView({
         rowId={rowId}
         onExpanded={(expanded) => setExpandedByGroup((current) => ({ ...current, [group.id]: expanded }))}
         onOpen={onOpenProject}
+        onInstall={setInstallRoot}
         t={t}
       />
     )
@@ -357,6 +361,9 @@ export function ProjectsView({
         </div>
         </>
       )}
+      {installRoot !== null && <Dialog title={t('hostPlan.installer.title')} onClose={() => setInstallRoot(null)} testid="project-adapter-install" panelClassName="max-w-4xl" closeLabel={t('common.dialog_close')}>
+        <AdapterInstallWizard root={installRoot} />
+      </Dialog>}
     </section>
   )
 }
