@@ -28,24 +28,24 @@ export function LoopRelationship({
         </div>
         <div className="flex flex-wrap items-center gap-2.5" data-testid="lp-rel">
           <span
-            className="max-w-[280px] overflow-hidden rounded-[7px] bg-fill-2 px-[9px] py-1 font-mono text-xs font-bold text-ellipsis whitespace-nowrap"
+            className="max-w-[280px] overflow-hidden rounded-sm bg-fill-2 px-2 py-1 font-mono text-caption font-bold text-ellipsis whitespace-nowrap"
             data-testid="lp-rel-root"
             title={row.root}
           >
             {row.root}
           </span>
-          <span className="text-[11.5px] text-text-3">{t('workbench.lp_rel_root_note')}</span>
+          <span className="text-micro text-text-3">{t('workbench.lp_rel_root_note')}</span>
           <ArrowRight className="size-3.5 flex-none text-text-3" strokeWidth={1.75} aria-hidden="true" />
           <button
             type="button"
-            className="h-[26px] cursor-pointer rounded-full border border-border bg-fill px-2.5 font-mono text-xs text-text-2 transition-colors duration-[120ms] hover:border-(--accent) hover:bg-accent-t hover:text-accent-d"
+            className="h-[26px] cursor-pointer rounded-full border border-border bg-fill px-2.5 font-mono text-caption text-text-2 transition-colors duration-[120ms] hover:border-(--accent) hover:bg-accent-t hover:text-accent-d"
             data-testid="lp-rel-prefix-btn"
             onClick={() => onOpen(true)}
           >
             {t('workbench.lp_rel_match_btn', { prefix, n: row.matched_changes.length })}
           </button>
           <span className="text-border-2" aria-hidden="true">·</span>
-          <span className="text-xs font-semibold text-text-3">{t('workbench.lp_rel_phases_label')}</span>
+          <span className="text-caption font-semibold text-text-3">{t('workbench.lp_rel_phases_label')}</span>
           {row.phases.length === 0 ? (
             <span className={WB_TW.note} role="status" aria-live="polite">{t('workbench.lp_rel_phases_empty')}</span>
           ) : (
@@ -68,9 +68,9 @@ export function LoopRelationship({
           }
         >
           {row.matched_changes.length === 0 ? (
-            <p className="mb-4 text-[12.5px] leading-[1.6] text-text-2" role="status" aria-live="polite">{t('workbench.lp_rel_dialog_empty')}</p>
+            <p className="mb-4 text-caption leading-[1.6] text-text-2" role="status" aria-live="polite">{t('workbench.lp_rel_dialog_empty')}</p>
           ) : (
-            <ul className="flex max-h-80 list-none flex-col gap-1.5 overflow-y-auto p-0 text-[12.5px]" data-testid="lp-rel-dialog-list">
+            <ul className="flex max-h-80 list-none flex-col gap-1.5 overflow-y-auto p-0 text-caption" data-testid="lp-rel-dialog-list">
               {row.matched_changes.map((change) => (
                 <li key={change} className="font-mono">{change}</li>
               ))}

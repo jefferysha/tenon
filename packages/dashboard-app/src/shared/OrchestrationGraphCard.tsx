@@ -174,40 +174,40 @@ export function OrchestrationGraphCard({ root, change }: OrchestrationGraphCardP
 
   return (
     <section
-      className="border-b border-border py-[13px] last:border-b-0"
+      className="border-b border-border py-3 last:border-b-0"
       aria-label={t('detail.orchestration_graph.region')}
       data-testid="orchestration-graph"
       data-settled={state.kind === 'loading' ? 'false' : 'true'}
     >
       <div className="mb-2.5 flex items-baseline justify-between gap-3">
         <div>
-          <h3 className="m-0 text-[12.5px] font-bold text-text">{t('detail.orchestration_graph.heading')}</h3>
-          <p className="mt-0.5 mb-0 text-[11px] text-text-3">{t('detail.orchestration_graph.read_only')}</p>
+          <h3 className="m-0 text-caption font-bold text-text">{t('detail.orchestration_graph.heading')}</h3>
+          <p className="mt-0.5 mb-0 text-micro text-text-3">{t('detail.orchestration_graph.read_only')}</p>
         </div>
         {graph !== null && (
-          <span className="text-[11px] tabular-nums text-text-3">
+          <span className="text-micro tabular-nums text-text-3">
             {t('detail.orchestration_graph.count', { nodes: visibleNodes.length, edges: visibleEdges.length })}
           </span>
         )}
       </div>
 
       {state.kind === 'loading' && (
-        <div className="flex items-center gap-2 text-xs text-text-3" role="status">
+        <div className="flex items-center gap-2 text-caption text-text-3" role="status">
           <RefreshCw className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
           {t('detail.orchestration_graph.loading')}
         </div>
       )}
       {state.kind === 'unavailable' && (
-        <p className="m-0 rounded-lg border border-border bg-fill px-3 py-2.5 text-xs text-text-3" role="status">
+        <p className="m-0 rounded-md border border-border bg-fill px-3 py-2.5 text-caption text-text-3" role="status">
           {t('detail.orchestration_graph.unavailable')}
         </p>
       )}
       {state.kind === 'error' && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-red-b bg-red-t px-3 py-2.5" role="alert">
-          <span className="text-xs text-red-d">{t('detail.orchestration_graph.error')}</span>
+        <div className="flex items-center justify-between gap-3 rounded-md border border-red-b bg-red-t px-3 py-2.5" role="alert">
+          <span className="text-caption text-red-d">{t('detail.orchestration_graph.error')}</span>
           <button
             type="button"
-            className="rounded-md border border-red-b bg-card px-2.5 py-1 text-xs font-semibold text-red-d outline-none hover:bg-red-t focus-visible:ring-2 focus-visible:ring-(--accent)"
+            className="rounded-sm border border-red-b bg-card px-2.5 py-1 text-caption font-semibold text-red-d outline-none hover:bg-red-t focus-visible:ring-2 focus-visible:ring-(--accent)"
             onClick={() => setAttempt((value) => value + 1)}
           >
             {t('detail.orchestration_graph.retry')}
@@ -221,7 +221,7 @@ export function OrchestrationGraphCard({ root, change }: OrchestrationGraphCardP
             <button
               type="button"
               aria-pressed={kinds.size === 0}
-              className={`rounded-full border px-2 py-1 text-[11px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
+              className={`rounded-full border px-2 py-1 text-micro font-semibold outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
                 kinds.size === 0
                   ? 'border-blue-b bg-blue-t text-blue-d'
                   : 'border-border bg-card text-text-3 hover:bg-fill'
@@ -236,7 +236,7 @@ export function OrchestrationGraphCard({ root, change }: OrchestrationGraphCardP
                 key={kind}
                 type="button"
                 aria-pressed={kinds.size === 0 || kinds.has(kind)}
-                className={`rounded-full border px-2 py-1 text-[11px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
+                className={`rounded-full border px-2 py-1 text-micro font-semibold outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
                   kinds.size === 0 || kinds.has(kind)
                     ? 'border-blue-b bg-blue-t text-blue-d'
                     : 'border-border bg-card text-text-3 hover:bg-fill'
@@ -247,7 +247,7 @@ export function OrchestrationGraphCard({ root, change }: OrchestrationGraphCardP
                 {t(`detail.orchestration_graph.kind_${kind}`)}
               </button>
             ))}
-            <label className="ml-auto flex min-w-[190px] flex-1 items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 focus-within:ring-2 focus-within:ring-(--accent)">
+            <label className="ml-auto flex min-w-[190px] flex-1 items-center gap-1.5 rounded-sm border border-border bg-card px-2 py-1.5 focus-within:ring-2 focus-within:ring-(--accent)">
               <Search className="size-3.5 text-text-3" aria-hidden="true" />
               <span className="sr-only">{t('detail.orchestration_graph.search_label')}</span>
               <input
@@ -263,27 +263,27 @@ export function OrchestrationGraphCard({ root, change }: OrchestrationGraphCardP
                   nodeRefs.current.get(node.id)?.focus()
                 }}
                 placeholder={t('detail.orchestration_graph.search_placeholder')}
-                className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-text outline-none placeholder:text-text-3"
+                className="min-w-0 flex-1 border-0 bg-transparent p-0 text-caption text-text outline-none placeholder:text-text-3"
               />
             </label>
           </div>
 
           {graph.nodes.length === 0 ? (
-            <p className="m-0 rounded-lg border border-dashed border-border px-3 py-5 text-center text-xs text-text-3" role="status">
+            <p className="m-0 rounded-md border border-dashed border-border px-3 py-5 text-center text-caption text-text-3" role="status">
               {t('detail.orchestration_graph.empty')}
             </p>
           ) : visibleNodes.length === 0 ? (
-            <p className="m-0 rounded-lg border border-dashed border-border px-3 py-5 text-center text-xs text-text-3" role="status">
+            <p className="m-0 rounded-md border border-dashed border-border px-3 py-5 text-center text-caption text-text-3" role="status">
               {t('detail.orchestration_graph.filtered_empty')}
             </p>
           ) : (
             <>
               {canvasNodes.length < visibleNodes.length && (
-                <p className="mb-2 rounded-lg border border-blue-b bg-blue-t px-3 py-2 text-[11px] leading-relaxed text-blue-d" data-testid="orchestration-canvas-limited">
+                <p className="mb-2 rounded-md border border-blue-b bg-blue-t px-3 py-2 text-micro leading-relaxed text-blue-d" data-testid="orchestration-canvas-limited">
                   {t('detail.orchestration_graph.canvas_limited', { shown: canvasNodes.length, total: visibleNodes.length })}
                 </p>
               )}
-              <div className="min-w-0 space-y-3 rounded-xl border border-border bg-fill/30 p-3" aria-label={t('detail.orchestration_graph.canvas')} data-testid="orchestration-canvas">
+              <div className="min-w-0 space-y-3 rounded-md border border-border bg-fill/30 p-3" aria-label={t('detail.orchestration_graph.canvas')} data-testid="orchestration-canvas">
                 {canvasSections.scope.length > 0 && (
                   <div className="grid min-w-0 gap-2 sm:grid-cols-2" data-testid="orchestration-scope">
                     {canvasSections.scope.map((node) => nodeButton(node, 'min-h-[58px] min-w-0'))}
@@ -308,7 +308,7 @@ export function OrchestrationGraphCard({ root, change }: OrchestrationGraphCardP
                                 data-phase-connector={connected ? 'transition' : 'gap'}
                                 aria-hidden="true"
                               >
-                                {connected && <span className="relative -top-[7px] left-[14px] text-[11px] text-text-3">›</span>}
+                                {connected && <span className="relative -top-[7px] left-[14px] text-micro text-text-3">›</span>}
                               </span>
                             )}
                           </div>
@@ -321,8 +321,8 @@ export function OrchestrationGraphCard({ root, change }: OrchestrationGraphCardP
                 {canvasSections.resources.size > 0 && (
                   <div className="grid gap-2 sm:grid-cols-2" data-testid="orchestration-resources">
                     {[...canvasSections.resources].map(([kind, nodes]) => (
-                      <section className="min-w-0 rounded-lg border border-border bg-card/70 p-2" data-testid={`orchestration-resource-${kind}`} key={kind}>
-                        <h4 className="mb-1.5 text-[10.5px] font-semibold text-text-3">{t(`detail.orchestration_graph.kind_${kind}`)}</h4>
+                      <section className="min-w-0 rounded-md border border-border bg-card/70 p-2" data-testid={`orchestration-resource-${kind}`} key={kind}>
+                        <h4 className="mb-1.5 text-micro font-semibold text-text-3">{t(`detail.orchestration_graph.kind_${kind}`)}</h4>
                         <div className="grid gap-1.5">
                           {nodes.map((node) => nodeButton(node, 'min-h-[54px] w-full min-w-0'))}
                         </div>
@@ -362,8 +362,8 @@ export function OrchestrationGraphCard({ root, change }: OrchestrationGraphCardP
             />
           )}
 
-          <details className="group mt-2.5 rounded-lg border border-border bg-card">
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-text-2 outline-none focus-visible:ring-2 focus-visible:ring-(--accent) [&::-webkit-details-marker]:hidden">
+          <details className="group mt-2.5 rounded-md border border-border bg-card">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-3 py-2 text-caption font-semibold text-text-2 outline-none focus-visible:ring-2 focus-visible:ring-(--accent) [&::-webkit-details-marker]:hidden">
               <ChevronRight className="size-3.5 transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
               {t('detail.orchestration_graph.accessible_list')}
             </summary>
@@ -379,7 +379,7 @@ export function OrchestrationGraphCard({ root, change }: OrchestrationGraphCardP
           </details>
 
           {graph.coverage.deferred.length > 0 && (
-            <p className="mt-2 mb-0 text-[11px] leading-[1.5] text-text-3">
+            <p className="mt-2 mb-0 text-micro leading-[1.5] text-text-3">
               {t('detail.orchestration_graph.deferred', {
                 items: graph.coverage.deferred.map((item) => deferredLabel(item, t)).join(' · '),
               })}

@@ -180,15 +180,23 @@ export function decodeHostTargetCatalog(value: unknown): HostTargetCatalog | nul
   return { schema_version: HOST_PLAN_SCHEMA_VERSION, targets }
 }
 
+/** Only a removal may be conditional; anything else always runs when the command is executed. */
+const CONDITIONAL_STEP_IDS = ['plugin-remove', 'marketplace-remove'] as const
+
 function decodeStep(value: unknown): HostPlanStep | null {
-  if (!isRecord(value)
-    || !hasExactKeys(value, ['id', 'label', 'command'])
+  if (!isRecord(value)) return null
+  const conditional = 'condition' in value
+  const keys = conditional ? ['id', 'label', 'command', 'condition'] : ['id', 'label', 'command']
+  if (!hasExactKeys(value, keys)
     || typeof value.id !== 'string'
     || value.id === ''
     || value.label !== `host-plan.step.${value.id}`) return null
   const command = value.command === null ? null : decodeCommand(value.command)
   if (value.command !== null && !command) return null
-  return { id: value.id, label: value.label, command }
+  if (!conditional) return { id: value.id, label: value.label, command }
+  if (!(CONDITIONAL_STEP_IDS as readonly string[]).includes(value.id)
+    || value.condition !== `host-plan.condition.${value.id}`) return null
+  return { id: value.id, label: value.label, command, condition: value.condition }
 }
 
 function isOperation(value: unknown): value is HostOperation {

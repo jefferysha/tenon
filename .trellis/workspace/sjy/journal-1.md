@@ -296,3 +296,23 @@ Hardened catalog and installer SSE lifecycle, replay completion, pipeline/stage/
 ### Status
 
 [OK] **Completed**
+
+
+## Session 11: Dashboard 基于工作空间模板的整体重构
+<!-- trellis-session: v=2 fp=dashboard-template-refactor -->
+
+**Date**: 2026-09-09
+**Task**: Dashboard 基于工作空间模板的整体重构（09-09-dashboard-template-refactor）
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+归档三个「视觉抛光」口径的旧任务，以用户模板为唯一基准重做 IA：顶部横条 + 三列骨架（ThreeColumns / DetailSheets），
+四个视图 工作台（逐 stage 执行状态与产出，只读）/ 工作流（workflow·track·stage·skill 顺序 CRUD，输入产出只读推导）/
+自动化 / 机器（并入宿主计划），右列一律按 sheet 切换。删除左侧 rail、ProjectsView、ProgressView/WorkflowCanvas、
+SolutionView、ExecutionTimelineComposer 一系。1301 个前端用例、typecheck、design-scale、comment-honesty、生产构建全绿；
+真实服务端验证工作流复制 / 删除写操作；375px 无横向滚动。
+
+### Status
+
+[OK] **Implemented**（待 trellis-check 复核后提交）

@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/dashboard-app/frontend/index.md", "reason": "dashboard-app 前端规范索引"}
+{"file": ".trellis/tasks/09-09-dashboard-template-refactor/prototype/README.md", "reason": "原型即视觉规范，token 与版式以此为准"}
+{"file": ".trellis/tasks/09-09-dashboard-template-refactor/prototype/styles.css", "reason": "design token 源表"}

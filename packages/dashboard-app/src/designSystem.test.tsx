@@ -18,6 +18,19 @@ describe('Dashboard 电脑端设计系统契约', () => {
     expect(css).not.toMatch(/--color-primary:\s*var\(--green\)/)
   })
 
+  it('排版与圆角刻度集中在 @theme static，并清空 Tailwind 默认档位', () => {
+    const block = /@theme\s+static\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(block).toMatch(/--text-\*:\s*initial/)
+    expect(block).toMatch(/--radius-\*:\s*initial/)
+    // 7 级字号 + 4 级圆角就是全部档位；多一档就等于刻度重新散开。
+    expect([...block.matchAll(/^\s*--text-([a-z]+):/gm)].map((match) => match[1])).toEqual([
+      'micro', 'caption', 'body', 'base', 'title', 'section', 'page',
+    ])
+    expect([...block.matchAll(/^\s*--radius-([a-z]+):/gm)].map((match) => match[1])).toEqual(['xs', 'sm', 'md', 'lg'])
+    // static 而非 inline：progress.css / workbench.css 要能直接 var() 引同一份刻度。
+    expect(css).not.toMatch(/@theme\s+inline\s+static/)
+  })
+
   it('reduced-motion 为 CSS transition、animation 和滚动提供全局终态兜底', () => {
     expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/)
     expect(css).toMatch(/transition-duration:\s*0s\s*!important/)

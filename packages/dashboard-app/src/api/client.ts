@@ -85,7 +85,7 @@ export {
 
 export { searchRelatedSessions } from './memoryClient'
 export { fetchDefinitionCatalog, postAdapterInstall, subscribeAdapterInstall, subscribeDefinitionCatalog } from './definitionCatalogClient'
-export type { AdapterInstallJob, AdapterInstallState, DefinitionCatalog, DefinitionCatalogAdapter, DefinitionCatalogPipeline, DefinitionCatalogTrack, DefinitionCatalogWorkflow } from './definitionCatalogTypes'
+export type { AdapterCapabilityId, AdapterCapabilityStatus, AdapterInstallJob, AdapterInstallState, DefinitionCatalog, DefinitionCatalogAdapter, DefinitionCatalogPipeline, DefinitionCatalogTrack, DefinitionCatalogWorkflow } from './definitionCatalogTypes'
 export {
   fetchOrchestrationV2Snapshot,
   postOrchestrationV2Control,

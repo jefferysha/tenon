@@ -19,7 +19,7 @@ export function OperationSyncCard(props: OperationSyncCardProps): JSX.Element {
   return (
     <article className={operationCard}>
       <h3 className="font-bold text-text">{t('operations.sync_title')}</h3>
-      <p className="mt-1 text-xs text-text-3">{t('operations.sync_note')}</p>
+      <p className="mt-1 text-caption text-text-3">{t('operations.sync_note')}</p>
       <div className="mt-3 flex gap-2">
         <select name="sync-mode" aria-label={t('operations.sync_mode')} className={operationInput} data-testid="ops-sync-mode" value={props.mode} onChange={(event) => {
           const mode = event.target.value
@@ -27,7 +27,7 @@ export function OperationSyncCard(props: OperationSyncCardProps): JSX.Element {
         }}>
           <option value="dry-run">dry-run</option><option value="apply">apply</option>
         </select>
-        {props.mode === 'apply' && <label className="flex items-center gap-1.5 whitespace-nowrap text-xs"><input name="confirm-sync" type="checkbox" data-testid="ops-confirm-sync" checked={props.confirmed} onChange={(event) => props.onConfirmChange(event.target.checked)} />{t('operations.confirm_apply')}</label>}
+        {props.mode === 'apply' && <label className="flex items-center gap-1.5 whitespace-nowrap text-caption"><input name="confirm-sync" type="checkbox" data-testid="ops-confirm-sync" checked={props.confirmed} onChange={(event) => props.onConfirmChange(event.target.checked)} />{t('operations.confirm_apply')}</label>}
       </div>
       <button type="button" className={`${operationButton} mt-3`} data-testid="ops-sync-submit" disabled={!props.rootReady || props.busy !== null || !props.selectorReady || !ready} onClick={props.onSubmit}>
         {props.busy === 'sync' ? t('operations.running') : props.mode === 'apply' ? t('operations.apply') : t('operations.preview')}

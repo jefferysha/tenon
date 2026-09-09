@@ -16,7 +16,7 @@ import {
   DEFAULT_WB_INTERACTION_POLICY,
   DEFAULT_WB_REVIEW_BUDGET_POLICY,
 } from '../api/governanceTypes'
-import type { LanePatch } from './orchestrationBoardModel'
+import type { LanePatch } from './boardLane'
 export type {
   WbActionConfig,
   WbArtifactConfig,

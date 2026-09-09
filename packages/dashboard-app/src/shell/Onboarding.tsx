@@ -19,14 +19,14 @@ const INIT_CMD = 'tenon init my-change --track chat'
 
 // ── tailwind 类串（v10b 迁移：.empty/.ob-* 全局类退役，样式全由原子类承载）──
 /** 教学空态卡片基底（max-width 按形态各自补：no-change 460px / no-project 小屏 620px）。 */
-const EMPTY_CLS = 'mx-auto my-[8vh] rounded-lg border border-border bg-card px-8 py-[30px] text-center'
-const EMPTY_MARK_CLS = 'mx-auto mb-3.5 grid h-[42px] w-[42px] place-items-center rounded-lg bg-ink text-ink-fg'
-const EMPTY_TITLE_CLS = 'mb-2 text-[17px] font-bold text-text'
-const EMPTY_DESC_CLS = 'mb-[18px] text-[12.5px] leading-[1.7] text-text-3'
-const STEP_LABEL_CLS = 'text-[12.5px] leading-[1.6] text-text-2'
-const STEP_N_CLS = 'h-[22px] w-[22px] flex-none rounded-full bg-ink text-center text-xs font-bold leading-[22px] text-ink-fg'
+const EMPTY_CLS = 'mx-auto my-[8vh] rounded-md border border-border bg-card px-8 py-8 text-center'
+const EMPTY_MARK_CLS = 'mx-auto mb-3.5 grid h-[42px] w-[42px] place-items-center rounded-md bg-ink text-ink-fg'
+const EMPTY_TITLE_CLS = 'mb-2 text-title font-bold text-text'
+const EMPTY_DESC_CLS = 'mb-4 text-caption leading-[1.7] text-text-3'
+const STEP_LABEL_CLS = 'text-caption leading-[1.6] text-text-2'
+const STEP_N_CLS = 'h-[22px] w-[22px] flex-none rounded-full bg-ink text-center text-caption font-bold leading-[22px] text-ink-fg'
 const STEP_CARD_CLS =
-  'flex gap-3 min-[1024px]:h-full min-[1024px]:min-w-0 min-[1024px]:rounded-xl min-[1024px]:border min-[1024px]:border-border min-[1024px]:bg-fill/55 min-[1024px]:p-3.5'
+  'flex gap-3 min-[1024px]:h-full min-[1024px]:min-w-0 min-[1024px]:rounded-md min-[1024px]:border min-[1024px]:border-border min-[1024px]:bg-fill/55 min-[1024px]:p-3.5'
 
 type CopyState = 'idle' | 'pending' | 'success' | 'error'
 
@@ -113,12 +113,12 @@ function CmdRow({
 
   return (
     <div className="min-w-0">
-      <div className="flex items-center gap-2 rounded-md border border-code-border bg-code-bg px-[11px] py-[7px] font-mono text-xs">
+      <div className="flex items-center gap-2 rounded-sm border border-code-border bg-code-bg px-3 py-2 font-mono text-caption">
         <span className="flex-none text-text-3" aria-hidden="true">$</span>
         <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-text" data-testid={testid}>{cmd}</code>
         <button
           type="button"
-          className="inline-flex min-h-6 flex-none cursor-pointer items-center gap-1 rounded-md px-2 whitespace-nowrap text-[11px] font-bold text-accent-d transition-colors motion-reduce:transition-none hover:text-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) aria-disabled:cursor-wait aria-disabled:opacity-60"
+          className="inline-flex min-h-6 flex-none cursor-pointer items-center gap-1 rounded-sm px-2 whitespace-nowrap text-micro font-bold text-accent-d transition-colors motion-reduce:transition-none hover:text-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) aria-disabled:cursor-wait aria-disabled:opacity-60"
           data-testid={copyTestid}
           aria-label={t('onboard.copy_command', { command: cmd })}
           aria-disabled={state === 'pending'}
@@ -138,7 +138,7 @@ function CmdRow({
       </div>
       {status && (
         <div
-          className={`mt-1.5 flex min-h-4 items-center gap-1.5 px-1 text-[11px] leading-4 ${statusTone}`}
+          className={`mt-1.5 flex min-h-4 items-center gap-1.5 px-1 text-micro leading-4 ${statusTone}`}
           role="status"
           aria-live="polite"
           aria-atomic="true"
@@ -183,13 +183,13 @@ export function Onboarding({ kind, root, onCreated, onToast, copyText = writeCli
         <p className={EMPTY_DESC_CLS}>{t('onboard.no_change_desc')}</p>
         <button
           type="button"
-          className="mb-4 inline-flex items-center justify-center rounded-lg bg-btn-bg px-4 py-2 text-xs font-bold text-btn-fg transition-colors motion-reduce:transition-none hover:bg-btn-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+          className="mb-4 inline-flex items-center justify-center rounded-md bg-btn-bg px-4 py-2 text-caption font-bold text-btn-fg transition-colors motion-reduce:transition-none hover:bg-btn-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
           data-testid="onboard-new-change"
           onClick={() => setCreateOpen(true)}
         >
           {t('change_create.create')}
         </button>
-        <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-text-3">{t('onboard.cli_fallback')}</div>
+        <div className="mb-2 text-micro font-bold uppercase tracking-[0.14em] text-text-3">{t('onboard.cli_fallback')}</div>
         <CmdRow key={cli} cmd={cli} testid="onboard-cli" copyTestid="onboard-copy" copyText={copyText} />
         {createOpen && root && (
           <CreateChangeDialog
@@ -213,14 +213,14 @@ export function Onboarding({ kind, root, onCreated, onToast, copyText = writeCli
       <ol className="mt-1 flex list-none flex-col gap-3.5 p-0 text-left min-[1024px]:grid min-[1024px]:grid-cols-1 min-[1100px]:grid-cols-2">
         <li className={STEP_CARD_CLS}>
           <span className={STEP_N_CLS} aria-hidden="true">1</span>
-          <div className="flex min-w-0 flex-1 flex-col gap-[7px]">
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className={STEP_LABEL_CLS}>{t('onboard.step_init')}</div>
             <CmdRow cmd={INIT_CMD} testid="onboard-cli" copyTestid="onboard-copy" copyText={copyText} />
           </div>
         </li>
         <li className={STEP_CARD_CLS}>
           <span className={STEP_N_CLS} aria-hidden="true">2</span>
-          <div className="flex min-w-0 flex-1 flex-col gap-[7px]">
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className={STEP_LABEL_CLS}>{t('onboard.step_doctor')}</div>
             <CmdRow cmd="tenon doctor" testid="onboard-cmd-doctor" copyTestid="onboard-copy-doctor" copyText={copyText} />
           </div>

@@ -10,8 +10,8 @@ interface HostPlanPreviewProps {
 
 function translatedToken(
   token: string,
-  prefix: 'host-plan.step.' | 'host-plan.notice.',
-  translationPrefix: 'hostPlan.steps.' | 'hostPlan.notices.',
+  prefix: 'host-plan.step.' | 'host-plan.notice.' | 'host-plan.condition.',
+  translationPrefix: 'hostPlan.steps.' | 'hostPlan.notices.' | 'hostPlan.conditions.',
   t: (key: string) => string,
 ): string {
   if (!token.startsWith(prefix)) return token
@@ -39,31 +39,31 @@ export function HostPlanPreview({ plan, copyText }: HostPlanPreviewProps): JSX.E
       aria-labelledby="host-plan-preview-title"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 id="host-plan-preview-title" className="text-base font-bold text-text">
+        <h3 id="host-plan-preview-title" className="text-title font-bold text-text">
           {t('hostPlan.preview_title')}
         </h3>
-        <span className="rounded-full border border-green-b bg-green-t px-2.5 py-1 text-[11px] font-bold text-green-d">
+        <span className="rounded-full border border-green-b bg-green-t px-2.5 py-1 text-micro font-bold text-green-d">
           {t('hostPlan.zero_side_effects')}
         </span>
       </div>
 
-      <div className="mt-4 min-w-0 rounded-xl border border-border bg-fill/35 p-3">
+      <div className="mt-4 min-w-0 rounded-md border border-border bg-fill/35 p-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs font-bold text-text-2">{t('hostPlan.command')}</span>
+          <span className="text-caption font-bold text-text-2">{t('hostPlan.command')}</span>
           <button
             type="button"
-            className={`${BUTTON_GHOST} px-2.5 py-1.5 text-xs`}
+            className={`${BUTTON_GHOST} px-2.5 py-1.5 text-caption`}
             onClick={copyCommand}
           >
             {t('hostPlan.copy_command')}
           </button>
         </div>
-        <pre className="mt-3 max-w-full overflow-x-auto whitespace-pre rounded-lg bg-ink p-3 font-mono text-xs text-ink-fg">
+        <pre className="mt-3 max-w-full overflow-x-auto whitespace-pre rounded-md bg-ink p-3 font-mono text-caption text-ink-fg">
           <code>{plan.command.display}</code>
         </pre>
         {copyState !== 'idle' && (
           <p
-            className={`mt-2 text-xs font-semibold ${copyState === 'success' ? 'text-green-d' : 'text-red-d'}`}
+            className={`mt-2 text-caption font-semibold ${copyState === 'success' ? 'text-green-d' : 'text-red-d'}`}
             role="status"
           >
             {copyState === 'success' ? t('hostPlan.copy_success') : t('hostPlan.copy_error')}
@@ -71,20 +71,35 @@ export function HostPlanPreview({ plan, copyText }: HostPlanPreviewProps): JSX.E
         )}
       </div>
 
-      <h4 className="mt-5 text-sm font-bold text-text">{t('hostPlan.steps_title')}</h4>
+      <h4 className="mt-5 text-base font-bold text-text">{t('hostPlan.steps_title')}</h4>
       <ol className="mt-3 space-y-3">
         {plan.steps.map((step, index) => (
-          <li key={step.id} className="min-w-0 rounded-xl border border-border bg-card p-3 shadow-sm">
+          <li key={step.id} className="min-w-0 rounded-md border border-border bg-card p-3 shadow-sm">
             <div className="flex items-start gap-3">
-              <span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-fill font-mono text-[11px] font-bold text-text-2">
+              <span className="grid h-6 w-6 flex-none place-items-center rounded-full bg-fill font-mono text-micro font-bold text-text-2">
                 {index + 1}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-text">
-                  {translatedToken(step.label, 'host-plan.step.', 'hostPlan.steps.', t)}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-base font-semibold text-text">
+                    {translatedToken(step.label, 'host-plan.step.', 'hostPlan.steps.', t)}
+                  </p>
+                  {step.condition !== undefined && (
+                    <span
+                      className="rounded-full border border-amber-b bg-amber-t/60 px-2 py-0.5 text-micro font-bold text-amber-d"
+                      data-testid={`host-plan-step-conditional-${step.id}`}
+                    >
+                      {t('hostPlan.conditional_badge')}
+                    </span>
+                  )}
+                </div>
+                {step.condition !== undefined && (
+                  <p className="mt-1 text-caption text-text-2">
+                    {translatedToken(step.condition, 'host-plan.condition.', 'hostPlan.conditions.', t)}
+                  </p>
+                )}
                 {step.command && (
-                  <pre className="mt-2 max-w-full overflow-x-auto whitespace-pre rounded-lg border border-border bg-card p-2.5 font-mono text-xs text-text-2">
+                  <pre className="mt-2 max-w-full overflow-x-auto whitespace-pre rounded-md border border-border bg-card p-2.5 font-mono text-caption text-text-2">
                     <code>{step.command.display}</code>
                   </pre>
                 )}
@@ -95,7 +110,7 @@ export function HostPlanPreview({ plan, copyText }: HostPlanPreviewProps): JSX.E
       </ol>
 
       {plan.notices.length > 0 && (
-        <aside className="mt-5 rounded-xl border border-amber-b bg-amber-t/45 p-4 text-sm text-amber-d">
+        <aside className="mt-5 rounded-md border border-amber-b bg-amber-t/45 p-4 text-base text-amber-d">
           <h4 className="font-bold">{t('hostPlan.notices_title')}</h4>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {plan.notices.map((notice) => (

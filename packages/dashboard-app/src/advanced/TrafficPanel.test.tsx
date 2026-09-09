@@ -169,7 +169,7 @@ describe('TrafficPanel metadata-only timeline', () => {
     const rail = screen.getByTestId('traffic-session-rail')
     const unselectedDetail = screen.getByTestId('traffic-detail')
     expect(rail).toHaveAccessibleName('捕获会话')
-    expect(rail.className).toContain('min-[1024px]:rounded-lg')
+    expect(rail.className).toContain('min-[1024px]:rounded-md')
     expect(screen.getByTestId('traffic-session-rail-header').className).toContain('hidden')
     expect(unselectedDetail.className).toContain('hidden')
     expect(unselectedDetail.className).toContain('min-[1024px]:flex')

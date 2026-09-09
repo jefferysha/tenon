@@ -15,8 +15,8 @@ export function OperationStarterGallery({ templates, selected, onSelect }: Opera
   return (
     <>
       <div className="flex items-center gap-2"><Sparkles size={15} aria-hidden="true" /><h3 className="font-bold text-text">{t('operations.starter_title')}</h3></div>
-      <p className="mt-1 text-xs leading-5 text-text-3">{t('operations.starter_note')}</p>
-      <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-fill p-3 text-center text-[11px] text-text-3">
+      <p className="mt-1 text-caption leading-5 text-text-3">{t('operations.starter_note')}</p>
+      <div className="mt-3 grid grid-cols-3 gap-2 rounded-md bg-fill p-3 text-center text-micro text-text-3">
         <span><b className="block text-text">{t('operations.starter_axis_type')}</b>{t('operations.starter_axis_type_note')}</span>
         <span><b className="block text-text">{t('operations.starter_axis_workflow')}</b>{t('operations.starter_axis_workflow_note')}</span>
         <span><b className="block text-text">{t('operations.starter_axis_skills')}</b>{t('operations.starter_axis_skills_note')}</span>
@@ -25,12 +25,12 @@ export function OperationStarterGallery({ templates, selected, onSelect }: Opera
         {templates.map((item, index) => {
           const copy = starterCopy(item, t)
           return (
-            <button key={item.id} type="button" role="radio" aria-checked={selected === item.id} tabIndex={selected === item.id ? 0 : -1} data-testid={`ops-starter-${item.id}`} data-selected={selected === item.id} className="rounded-xl border border-border bg-bg p-3.5 text-left data-[selected=true]:border-(--accent) data-[selected=true]:bg-accent-t" onClick={() => onSelect(item.id)} onKeyDown={(event) => handleRadioKey(event, index, templates.length, (next) => {
+            <button key={item.id} type="button" role="radio" aria-checked={selected === item.id} tabIndex={selected === item.id ? 0 : -1} data-testid={`ops-starter-${item.id}`} data-selected={selected === item.id} className="rounded-md border border-border bg-bg p-3.5 text-left data-[selected=true]:border-(--accent) data-[selected=true]:bg-accent-t" onClick={() => onSelect(item.id)} onKeyDown={(event) => handleRadioKey(event, index, templates.length, (next) => {
               const candidate = templates[next]
               if (candidate) onSelect(candidate.id)
             })}>
-              <span className="flex items-center justify-between gap-3"><b className="text-sm text-text">{copy.title}</b><span className="rounded-full bg-fill px-2 py-1 text-[10px] font-semibold text-text-3">{riskLabel(item.risk, t)}</span></span>
-              <span className="mt-1.5 block text-xs leading-5 text-text-3">{copy.description}</span>
+              <span className="flex items-center justify-between gap-3"><b className="text-base text-text">{copy.title}</b><span className="rounded-full bg-fill px-2 py-1 text-micro font-semibold text-text-3">{riskLabel(item.risk, t)}</span></span>
+              <span className="mt-1.5 block text-caption leading-5 text-text-3">{copy.description}</span>
             </button>
           )
         })}

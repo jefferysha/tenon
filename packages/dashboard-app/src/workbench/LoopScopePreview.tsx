@@ -74,14 +74,14 @@ export function LoopScopePreview({
   }
 
   return <>
-    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[10px] border border-border bg-fill/60 p-2.5">
+    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-sm border border-border bg-fill/60 p-2.5">
       <div className="min-w-0 flex-1">
-        <p className="text-[12.5px] font-bold text-text">{t('workbench.lp_scope_title')}</p>
+        <p className="text-caption font-bold text-text">{t('workbench.lp_scope_title')}</p>
         <p className={WB_TW.note}>{t('workbench.lp_scope_desc')}</p>
         {policyDirty && (
           <p
             id={`lp-scope-policy-dirty-${loopId}`}
-            className="mt-1 text-xs font-semibold text-amber-d"
+            className="mt-1 text-caption font-semibold text-amber-d"
             data-testid="lp-scope-dirty-policy"
             role="status"
           >
@@ -123,8 +123,8 @@ export function LoopScopePreview({
           </Button>
         </>}
       >
-        <p className="mb-3 text-[12.5px] leading-[1.55] text-text-2">{t('workbench.lp_scope_help')}</p>
-        <label className="mb-1.5 block text-xs font-bold text-text-2" htmlFor={`lp-scope-input-${loopId}`}>
+        <p className="mb-3 text-caption leading-[1.55] text-text-2">{t('workbench.lp_scope_help')}</p>
+        <label className="mb-1.5 block text-caption font-bold text-text-2" htmlFor={`lp-scope-input-${loopId}`}>
           {t('workbench.lp_scope_input_label')}
         </label>
         <textarea
@@ -151,7 +151,7 @@ export function LoopScopePreview({
           {raw !== '' && paths === null ? t('workbench.lp_scope_invalid') : t('workbench.lp_scope_limits')}
         </p>
         {busy && (
-          <p className="mt-3 text-[12.5px] font-semibold text-accent-d" data-testid="lp-scope-loading" role="status">
+          <p className="mt-3 text-caption font-semibold text-accent-d" data-testid="lp-scope-loading" role="status">
             {t('workbench.lp_scope_loading')}
           </p>
         )}
@@ -166,25 +166,25 @@ export function LoopScopePreview({
         )}
         {result && (
           <div className="mt-3" aria-live="polite">
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg p-2.5" data-testid="lp-scope-summary">
-              <span className="font-mono text-xs font-bold text-text">{result.summary.total}</span>
-              <span className="text-xs text-text-2">{t('workbench.lp_scope_total')}</span>
-              <span className="rounded-full border border-green-b bg-green-t px-2 py-0.5 text-xs font-bold text-green-d">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg p-2.5" data-testid="lp-scope-summary">
+              <span className="font-mono text-caption font-bold text-text">{result.summary.total}</span>
+              <span className="text-caption text-text-2">{t('workbench.lp_scope_total')}</span>
+              <span className="rounded-full border border-green-b bg-green-t px-2 py-0.5 text-caption font-bold text-green-d">
                 {t('workbench.lp_scope_allowed', { n: result.summary.allowed })}
               </span>
-              <span className="rounded-full border border-red-b bg-red-t px-2 py-0.5 text-xs font-bold text-red-d">
+              <span className="rounded-full border border-red-b bg-red-t px-2 py-0.5 text-caption font-bold text-red-d">
                 {t('workbench.lp_scope_blocked', { n: result.summary.blocked })}
               </span>
             </div>
             <ul className="mt-2 flex max-h-56 list-none flex-col gap-1.5 overflow-y-auto p-0">
               {result.items.map((item) => (
-                <li key={item.path} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 rounded-lg border border-border bg-card p-2.5">
+                <li key={item.path} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 rounded-md border border-border bg-card p-2.5">
                   {item.verdict === 'allowed'
                     ? <ShieldCheck className="mt-0.5 size-4 text-green-d" aria-hidden="true" />
                     : <ShieldX className="mt-0.5 size-4 text-red-d" aria-hidden="true" />}
                   <div className="min-w-0">
-                    <p className="break-all font-mono text-xs font-bold text-text">{item.path}</p>
-                    <p className="mt-0.5 text-[11.5px] text-text-3">
+                    <p className="break-all font-mono text-caption font-bold text-text">{item.path}</p>
+                    <p className="mt-0.5 text-micro text-text-3">
                       {t(`workbench.lp_scope_reason_${item.reason.replace(/-/g, '_')}`)}
                       {item.matched_pattern !== null && <> · <span className="font-mono">{item.matched_pattern}</span></>}
                     </p>

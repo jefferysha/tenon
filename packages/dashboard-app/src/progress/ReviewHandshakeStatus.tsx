@@ -55,7 +55,7 @@ export function ReviewHandshakeStatus({
   const Icon = presentation.icon
   return (
     <section
-      className={`mt-4 rounded-xl border p-4 ${presentation.tone}`}
+      className={`mt-4 rounded-md border p-4 ${presentation.tone}`}
       data-testid="review-handshake-status"
       role="status"
       aria-live="polite"
@@ -64,14 +64,14 @@ export function ReviewHandshakeStatus({
       <div className="flex items-start gap-3">
         <Icon className="mt-0.5 h-4 w-4 flex-none" strokeWidth={1.75} aria-hidden="true" />
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold">{t('progress.review_title')}</h2>
-          <p className="mt-1 text-sm font-semibold">{presentation.title}</p>
-          <p className="mt-1 text-xs leading-5">{presentation.detail}</p>
+          <h2 className="text-base font-semibold">{t('progress.review_title')}</h2>
+          <p className="mt-1 text-base font-semibold">{presentation.title}</p>
+          <p className="mt-1 text-caption leading-5">{presentation.detail}</p>
         </div>
       </div>
 
       {handshake !== undefined && handshake.status !== 'not-requested' && (
-        <dl className="mt-3 grid gap-2 border-t border-current/15 pt-3 text-xs">
+        <dl className="mt-3 grid gap-2 border-t border-current/15 pt-3 text-caption">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <dt>{t('progress.review_event')}</dt>
             <dd className="break-all font-mono font-semibold">{handshake.event}</dd>

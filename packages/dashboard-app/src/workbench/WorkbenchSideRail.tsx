@@ -56,22 +56,22 @@ import { cn } from '@/lib/utils'
 /** 右栏纵向节奏：与宿主 wb-side-col 的 gap-4 同拍。 */
 const RAIL_TW = 'flex w-full min-w-0 flex-col gap-4'
 /** GovernanceRail GCARD_TW 的对位（rail 家族卡壳：card 底 + border + 14px 圆角 + 卡片级 shadow-sm）。 */
-const GCARD_TW = 'rounded-[14px] border border-border bg-card shadow-sm'
+const GCARD_TW = 'rounded-md border border-border bg-card shadow-sm'
 /** demo .gcard 内边距（机器卡壳：卡自身是「无皮」件——旧 `.wb8-pane > .card` 剥皮语义，由容器补皮与内边距）。 */
-const CARD_PAD_TW = 'px-4 py-[15px]'
+const CARD_PAD_TW = 'px-4 py-4'
 /** 卡名 14.5px（GovernanceRail GH_B_TW 同口径）。 */
-const HEAD_B_TW = 'text-[14.5px] font-[750] text-text'
+const HEAD_B_TW = 'text-base font-[750] text-text'
 /** 解释性副文（GovernanceRail GNOTE_TW 同口径的 12px）。 */
-const NOTE_TW = 'text-xs leading-[1.55] text-text-3'
+const NOTE_TW = 'text-caption leading-[1.55] text-text-3'
 /**
  * 「完整治理设置」入口钮：整宽、14px（base 下限）。shadcn Button 默认 h-9，这里按 rail 的
  * 触达面加到 h-10——它是右栏唯一的「展开全量表单」入口，不该比卡内小钮还难点。
  */
 const ENTRY_BTN_TW =
-  'h-10 w-full justify-center rounded-[10px] border border-border bg-card px-4 text-sm font-bold text-text shadow-sm hover:border-text-3 hover:bg-fill'
+  'h-10 w-full justify-center rounded-sm border border-border bg-card px-4 text-base font-bold text-text shadow-sm hover:border-text-3 hover:bg-fill'
 /** summary：整行可点；原生 ▸ 标记隐掉（列表标记与 lucide ChevronRight 会双份显示）。 */
 const SUMMARY_TW =
-  'flex cursor-pointer list-none items-center gap-2 px-4 py-[13px] transition-colors hover:bg-fill [&::-webkit-details-marker]:hidden'
+  'flex cursor-pointer list-none items-center gap-2 px-4 py-3 transition-colors hover:bg-fill [&::-webkit-details-marker]:hidden'
 
 export interface WorkbenchSideRailProps {
   root: string

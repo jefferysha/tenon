@@ -23,16 +23,16 @@ export function TrackSettingsList({
         return (
           <li
             key={track.id}
-            className="rounded-2xl border border-border bg-bg p-4 text-[12.5px] text-text-2 shadow-sm transition hover:border-border-2 hover:shadow-md"
+            className="rounded-lg border border-border bg-bg p-4 text-caption text-text-2 shadow-sm transition hover:border-border-2 hover:shadow-md"
             data-testid={`wb-track-setting-${track.id}`}
           >
             <div className="mb-2 flex items-center gap-2">
               {track.builtin && <LockKeyhole className="h-3.5 w-3.5 text-text-3" aria-label={t('workbench.track_builtin_lock')} />}
-              <b className="text-[15px] text-text">{trackDisplayName(track, lang)}</b>
-              {track.builtin && <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] text-text-3">{t('workbench.track_list_system')}</span>}
+              <b className="text-base text-text">{trackDisplayName(track, lang)}</b>
+              {track.builtin && <span className="rounded-full bg-fill px-2 py-0.5 text-micro text-text-3">{t('workbench.track_list_system')}</span>}
               <button
                 type="button"
-                className="ml-auto rounded-md border border-border px-2 py-1 text-[11px] font-bold text-text-3 disabled:cursor-not-allowed disabled:opacity-55"
+                className="ml-auto rounded-sm border border-border px-2 py-1 text-micro font-bold text-text-3 disabled:cursor-not-allowed disabled:opacity-55"
                 data-testid={`wb-track-edit-${track.id}`}
                 disabled={disabled}
                 onClick={(event) => onEdit(track, event.currentTarget)}

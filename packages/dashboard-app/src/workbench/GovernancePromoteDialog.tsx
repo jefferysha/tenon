@@ -33,7 +33,7 @@ export function GovernancePromoteDialog({
         </Button>
       </>}
     >
-      <p className="mb-4 text-[12.5px] leading-[1.6] text-text-2">
+      <p className="mb-4 text-caption leading-[1.6] text-text-2">
         {t('loops.promote_confirm_desc', {
           band: bandText,
           budget: row.budget?.hasBudget

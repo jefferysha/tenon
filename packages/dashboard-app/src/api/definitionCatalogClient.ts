@@ -8,6 +8,8 @@ function isCatalog(value: unknown): value is DefinitionCatalog {
     || typeof value.project.root !== 'string' || typeof value.project.identity !== 'string'
     || !Array.isArray(value.adapters) || !Array.isArray(value.workflows)
     || !Array.isArray(value.tracks) || !Array.isArray(value.pipelines)) return false
+  const capability = (entry: unknown): entry is 'native' | 'degraded' | 'none' =>
+    entry === 'native' || entry === 'degraded' || entry === 'none'
   const strings = (entry: unknown): entry is string[] => Array.isArray(entry) && entry.every((item) => typeof item === 'string')
   const deps = (entry: unknown): entry is Record<string, string[]> => isRecord(entry)
     && Object.values(entry).every((items) => strings(items))
@@ -16,8 +18,9 @@ function isCatalog(value: unknown): value is DefinitionCatalog {
     && (entry.kind === 'native' || entry.kind === 'adapter')
     && (entry.tier === 'A' || entry.tier === 'B' || entry.tier === 'C')
     && typeof entry.cli_flag === 'string' && (entry.target_scope === 'user' || entry.target_scope === 'project')
-    && isRecord(entry.capabilities) && typeof entry.capabilities.inject === 'boolean'
-    && typeof entry.capabilities.veto === 'boolean' && typeof entry.capabilities.track === 'boolean'
+    && isRecord(entry.capabilities) && capability(entry.capabilities.inject)
+    && capability(entry.capabilities.veto) && capability(entry.capabilities.track)
+    && typeof entry.veto_fail_closed === 'boolean'
     && Array.isArray(entry.supported_operations) && entry.supported_operations.length === 2
     && entry.supported_operations[0] === 'setup' && entry.supported_operations[1] === 'update'
     && typeof entry.state === 'string')

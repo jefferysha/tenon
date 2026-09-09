@@ -16,14 +16,14 @@ export interface TaskPlanContentProps {
   readonly onSelectWorkItem: (id: string, trigger: HTMLButtonElement) => void
 }
 
-const valueClass = 'break-all font-mono text-[11px] text-text-2 [overflow-wrap:anywhere]'
-const summaryValue = 'min-w-0 rounded-lg border border-border bg-fill/35 px-2.5 py-2'
+const valueClass = 'break-all font-mono text-micro text-text-2 [overflow-wrap:anywhere]'
+const summaryValue = 'min-w-0 rounded-md border border-border bg-fill/35 px-2.5 py-2'
 
 function SummaryField({ label, value }: { readonly label: string; readonly value: ReactNode }): JSX.Element {
   return (
     <div className={summaryValue}>
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-text-3">{label}</dt>
-      <dd className="mt-1 min-w-0 text-xs font-semibold text-text">{value}</dd>
+      <dt className="text-micro font-semibold uppercase tracking-[0.08em] text-text-3">{label}</dt>
+      <dd className="mt-1 min-w-0 text-caption font-semibold text-text">{value}</dd>
     </div>
   )
 }
@@ -66,7 +66,7 @@ function CanonicalSummary({ plan }: { readonly plan: CanonicalTaskPlanReadModelV
           <span className="min-w-0">
             {projectionLabel(plan, t)}
             {(plan.projection.state === 'pending' || plan.projection.state === 'drift') && plan.projection.reason !== undefined && (
-              <span className="mt-1 block break-words text-[11px] font-normal text-text-3 [overflow-wrap:anywhere]">
+              <span className="mt-1 block break-words text-micro font-normal text-text-3 [overflow-wrap:anywhere]">
                 {t('task_plan.projection_reason', { reason: plan.projection.reason })}
               </span>
             )}
@@ -82,14 +82,14 @@ function LegacySummary({ plan }: { readonly plan: Extract<TaskPlanReadModelV1, {
   const { t } = useT()
   return (
     <>
-      <div className="mt-4 rounded-lg border border-amber-b bg-amber-t px-3 py-2.5 text-xs leading-5 text-amber-d">{t('task_plan.legacy_notice')}</div>
+      <div className="mt-4 rounded-md border border-amber-b bg-amber-t px-3 py-2.5 text-caption leading-5 text-amber-d">{t('task_plan.legacy_notice')}</div>
       <dl className="mt-4 grid min-w-0 gap-2 sm:grid-cols-2">
         <SummaryField label={t('task_plan.source')} value={t('task_plan.source_legacy')} />
         <SummaryField label={t('task_plan.schedulable')} value={t('task_plan.no')} />
         <SummaryField label={t('task_plan.completeness')} value={t('task_plan.unknown_value')} />
         <SummaryField label={t('task_plan.projection')} value={projectionLabel(plan, t)} />
       </dl>
-      <p className="mt-3 text-xs font-semibold text-text-2">{t('task_plan.relationships_unknown')}</p>
+      <p className="mt-3 text-caption font-semibold text-text-2">{t('task_plan.relationships_unknown')}</p>
     </>
   )
 }
@@ -111,14 +111,14 @@ function ItemRow({
     <li className="min-w-0">
       <button
         type="button"
-        className={`w-full min-w-0 rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${selected ? 'border-(--accent) bg-accent-t' : 'border-border bg-fill/25 hover:border-border-2 hover:bg-fill'}`}
+        className={`w-full min-w-0 rounded-md border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${selected ? 'border-(--accent) bg-accent-t' : 'border-border bg-fill/25 hover:border-border-2 hover:bg-fill'}`}
         aria-label={label}
         aria-pressed={selected}
         data-testid={`task-plan-item-${item.id}`}
         onClick={(event) => onSelect(item.id, event.currentTarget)}
       >
         <span className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1">
-          <span className="min-w-0 flex-1 break-words text-xs font-semibold text-text [overflow-wrap:anywhere]">{item.title}</span>
+          <span className="min-w-0 flex-1 break-words text-caption font-semibold text-text [overflow-wrap:anywhere]">{item.title}</span>
           <code className={`${valueClass} min-w-0 max-w-[48%] shrink`}>{item.id}</code>
         </span>
         <ItemRowMeta plan={plan} item={item} />
@@ -132,7 +132,7 @@ function ItemRowMeta({ plan, item }: { readonly plan: TaskPlanReadModelV1; reado
   if (plan.source === 'canonical' && item.identity_quality === 'canonical') {
     const group = groupTitle(plan, item.group_id)
     return (
-      <span className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[11px] text-text-3">
+      <span className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-micro text-text-3">
         <span>{t('task_plan.group')}: {item.group_id}{group === undefined ? '' : ` · ${group}`}</span>
         <span>{t('task_plan.requirement_refs')}: {item.requirement_refs.length}</span>
         <span>{t('task_plan.acceptance_refs')}: {item.acceptance_refs.length}</span>
@@ -141,14 +141,14 @@ function ItemRowMeta({ plan, item }: { readonly plan: TaskPlanReadModelV1; reado
   }
   if (plan.source === 'legacy' && item.identity_quality === 'legacy-derived') {
     return (
-      <span className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[11px] text-text-3">
+      <span className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-micro text-text-3">
         <span>{t('task_plan.stage')}: {item.stage ?? t('task_plan.unknown_value')}</span>
         <span>{t('task_plan.completed')}: {item.completed ? t('task_plan.completed_yes') : t('task_plan.completed_no')}</span>
         <span>{t('task_plan.order')}: {item.order}</span>
       </span>
     )
   }
-  return <span className="mt-1 text-[11px] text-text-3">{t('task_plan.unknown_value')}</span>
+  return <span className="mt-1 text-micro text-text-3">{t('task_plan.unknown_value')}</span>
 }
 
 export function TaskPlanContent({
@@ -167,12 +167,12 @@ export function TaskPlanContent({
     <div className="min-w-0" data-testid="task-plan-content">
       <header className="flex min-w-0 flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-3">{t('task_plan.title')}</p>
-          <h2 id="task-plan-title" className="mt-1 text-base font-semibold text-text">{t('task_plan.summary')}</h2>
+          <p className="m-0 text-micro font-semibold uppercase tracking-[0.12em] text-text-3">{t('task_plan.title')}</p>
+          <h2 id="task-plan-title" className="mt-1 text-title font-semibold text-text">{t('task_plan.summary')}</h2>
         </div>
         <button
           type="button"
-          className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-text transition-colors hover:bg-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-caption font-semibold text-text transition-colors hover:bg-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-wait disabled:opacity-60"
           aria-label={t('task_plan.refresh')}
           disabled={refreshing}
           onClick={onRefresh}
@@ -183,11 +183,11 @@ export function TaskPlanContent({
       </header>
 
       {stale && (
-        <div className="mt-4 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-b bg-amber-t px-3 py-2.5 text-xs text-amber-d" role="status" aria-live="polite">
+        <div className="mt-4 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-md border border-amber-b bg-amber-t px-3 py-2.5 text-caption text-amber-d" role="status" aria-live="polite">
           <span className="min-w-0 break-words [overflow-wrap:anywhere]">{t('task_plan.stale')}</span>
           <button
             type="button"
-            className="flex-none rounded-md border border-amber-b bg-card px-2.5 py-1.5 text-xs font-semibold text-amber-d focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:opacity-60"
+            className="flex-none rounded-sm border border-amber-b bg-card px-2.5 py-1.5 text-caption font-semibold text-amber-d focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:opacity-60"
             aria-label={t('task_plan.retry_refresh')}
             disabled={refreshing}
             onClick={onRefresh}
@@ -202,8 +202,8 @@ export function TaskPlanContent({
       <section className="mt-5 min-w-0 border-t border-border pt-4" aria-labelledby="task-plan-items-title">
         <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <h3 id="task-plan-items-title" className="text-sm font-semibold text-text">{t('task_plan.work_items')}</h3>
-            <p className="mt-1 text-[11px] text-text-3">{t('task_plan.filter_count', { shown: filteredItems.length, total: plan.items.length })}</p>
+            <h3 id="task-plan-items-title" className="text-base font-semibold text-text">{t('task_plan.work_items')}</h3>
+            <p className="mt-1 text-micro text-text-3">{t('task_plan.filter_count', { shown: filteredItems.length, total: plan.items.length })}</p>
           </div>
           <div className="min-w-0 flex-1 sm:max-w-[34rem]">
             <label htmlFor="task-plan-filter" className="sr-only">{t('task_plan.filter_label')}</label>
@@ -213,15 +213,15 @@ export function TaskPlanContent({
               value={filter}
               placeholder={t('task_plan.filter_placeholder')}
               aria-label={t('task_plan.filter_label')}
-              className="w-full min-w-0 rounded-lg border border-border bg-card px-3 py-2 text-xs text-text outline-none placeholder:text-text-3 focus-visible:ring-2 focus-visible:ring-(--accent)"
+              className="w-full min-w-0 rounded-md border border-border bg-card px-3 py-2 text-caption text-text outline-none placeholder:text-text-3 focus-visible:ring-2 focus-visible:ring-(--accent)"
               onChange={(event) => onFilterChange(event.target.value)}
             />
           </div>
         </div>
         {plan.items.length === 0 ? (
-          <p className="mt-4 rounded-lg border border-dashed border-border px-3 py-4 text-xs text-text-3" role="status">{t('task_plan.empty')}</p>
+          <p className="mt-4 rounded-md border border-dashed border-border px-3 py-4 text-caption text-text-3" role="status">{t('task_plan.empty')}</p>
         ) : filteredItems.length === 0 ? (
-          <p className="mt-4 rounded-lg border border-dashed border-border px-3 py-4 text-xs text-text-3" role="status">{t('task_plan.filtered_empty')}</p>
+          <p className="mt-4 rounded-md border border-dashed border-border px-3 py-4 text-caption text-text-3" role="status">{t('task_plan.filtered_empty')}</p>
         ) : (
           <ul className="mt-3 grid min-w-0 gap-2" aria-label={t('task_plan.list_label')}>
             {filteredItems.map((item) => (

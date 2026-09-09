@@ -185,7 +185,7 @@ export function useMandatorySkills(root: string): MandatoryState {
     }
   }, [registry, regFailed])
 
-  // ⚠️ 这条路径不是乐观更新（别照 HookTimeline 的 useHooksConfig，那是另一套乐观+回滚范式）。
+  // ⚠️ 这条路径不是乐观更新（别照 hooksConfig 的 useHooksConfig，那是另一套乐观+回滚范式）。
   // 逐字沿用 SkillChain.tsx:361-399 的既有语义：
   //   · 等响应，res.ok 后才 setCfg —— 故无需回滚（失败时 cfg/cfgCache 从未被动过，只 setSaveError）；
   //   · 成功后不重新 GET，就地 merge 并同步推进模块级 cfgCache（sheet 里的 SkillChain 重挂即读到新值）；

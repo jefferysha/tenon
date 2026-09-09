@@ -18,15 +18,15 @@ const DND_MIME = 'application/x-pipeline-skill'
 //    未安装态由 data-uninstalled 属性驱动，已选态类由调用点条件叠加）。──
 /** 原 .transfer__item（+ --uninstalled 修饰符）。 */
 const ITEM_CLS =
-  'block w-full cursor-pointer truncate rounded-[6px] border border-transparent bg-fill px-[9px] py-1.5 text-left font-mono text-xs text-text-2 transition-colors hover:border-accent-b hover:bg-accent-t hover:text-accent-d data-uninstalled:opacity-62'
+  'block w-full cursor-pointer truncate rounded-sm border border-transparent bg-fill px-2 py-1.5 text-left font-mono text-caption text-text-2 transition-colors hover:border-accent-b hover:bg-accent-t hover:text-accent-d data-uninstalled:opacity-62'
 /** 原 .transfer__item--chosen：右栏条目，hover 转红示意「点击移出」。 */
 const CHOSEN_CLS = 'bg-accent-t text-accent-d hover:border-red-b hover:bg-red-t hover:text-red-d'
 /** 原 .transfer__col。 */
 const COL_CLS =
-  'flex h-[220px] min-w-0 flex-1 flex-col gap-[5px] overflow-y-auto rounded-md border border-border bg-card p-[7px]'
+  'flex h-[220px] min-w-0 flex-1 flex-col gap-1 overflow-y-auto rounded-sm border border-border bg-card p-2'
 /** 原 .wb-chip-badge（与 SkillChain 同款未安装小徽章；纯提示 span，无点击）。 */
 const CHIP_BADGE_CLS =
-  'ml-1 flex-none whitespace-nowrap rounded-full border-0 bg-[color-mix(in_oklch,var(--red)_52%,var(--green))] px-1.5 py-px text-[10px] font-bold text-card'
+  'ml-1 flex-none whitespace-nowrap rounded-full border-0 bg-[color-mix(in_oklch,var(--red)_52%,var(--green))] px-1.5 py-px text-micro font-bold text-card'
 
 export function SkillTransferModal({ selected, onSave, onCancel }: SkillTransferModalProps): JSX.Element {
   const { t, lang } = useT()
@@ -137,14 +137,14 @@ export function SkillTransferModal({ selected, onSave, onCancel }: SkillTransfer
       {/* 搜索框仍是条目移动后的焦点归位锚（经 searchRef，见上方注释）——样式原子化不改这层契约。 */}
       <input
         ref={searchRef}
-        className="mt-1 block w-full rounded-[7px] border border-border bg-fill px-2.5 py-[7px] text-[12.5px] text-text transition placeholder:text-text-3 focus-visible:border-(--accent) focus-visible:shadow-[0_0_0_3px_var(--ring-blue)] focus-visible:outline-none"
+        className="mt-1 block w-full rounded-sm border border-border bg-fill px-2.5 py-2 text-caption text-text transition placeholder:text-text-3 focus-visible:border-(--accent) focus-visible:shadow-[0_0_0_3px_var(--ring-blue)] focus-visible:outline-none"
         placeholder={t('skill_transfer.search_placeholder')}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
       <div className="mt-2.5 flex gap-2.5">
         <div className={COL_CLS} data-testid="skill-available" onDragOver={(e) => e.preventDefault()} onDrop={onDropToAvailable}>
-          {error !== null && <div className="m-0 px-0.5 py-1.5 text-[11.5px] font-semibold text-red" data-testid="skill-error" role="alert">{t('skill_transfer.load_error', { msg: formatApiError(error, t, { exposeServerDetail: lang === 'zh' }) })}</div>}
+          {error !== null && <div className="m-0 px-0.5 py-1.5 text-micro font-semibold text-red" data-testid="skill-error" role="alert">{t('skill_transfer.load_error', { msg: formatApiError(error, t, { exposeServerDetail: lang === 'zh' }) })}</div>}
           {!error && available.map(({ name: s, installed }) => (
             <button
               key={s}

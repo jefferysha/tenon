@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { dashboardSearch, parseDashboardLocation } from '../shell/dashboardLocation'
-import type { View } from '../shell/Nav'
+import type { View } from '../shell/views'
 import type { Snapshot } from '../types'
 import { resolveProjectSelection, selectedProjectRoot } from './projectSelectionModel'
 
@@ -259,10 +259,7 @@ export function useProjectSelection(input: {
 
   useEffect(() => {
     if (!input.snapshot) return
-    if (
-      input.view === 'projects'
-      || (preferredRoot !== null && currentRoot === '' && !input.preserveUnavailableRoot)
-    ) {
+    if (preferredRoot !== null && currentRoot === '' && !input.preserveUnavailableRoot) {
       if (preferredRoot !== null) setPreferredRoot(null)
       if (input.selectedChange !== null) input.onSelectedChange(null)
     }

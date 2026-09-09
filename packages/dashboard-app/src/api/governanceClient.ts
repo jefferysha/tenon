@@ -236,6 +236,13 @@ export function postMandatorySkills(input: {
   track: string
   skills: string[]
   root: string
+  /**
+   * 调用方读到这份 cell 时的 config revision（乐观并发用）。
+   * ⚠️ 现状：server 的 /api/config/mandatory-skills 只取 phase/track/skills，本字段被忽略
+   * ——真正的 CAS 拒写要等后端补 revision 比对（见 server/src/config.ts:validateMandatorySkillsBody）。
+   * 先发出去是为了让前端不再持有版本却不发；前端已按 409 分支准备好冲突反馈与重载路径。
+   */
+  revision?: string
 }): Promise<Response> {
   return fetch('/api/config/mandatory-skills', {
     method: 'POST',

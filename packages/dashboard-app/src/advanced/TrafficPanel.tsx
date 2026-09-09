@@ -126,7 +126,7 @@ export function TrafficPanel(): JSX.Element {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-2.5" data-testid="traffic-panel" onKeyDown={handleKeyDown}>
-      <p className="m-0 font-mono text-[11px] text-text-3" data-testid="traffic-note">
+      <p className="m-0 font-mono text-micro text-text-3" data-testid="traffic-note">
         {t('advanced.traffic_local_note')}
       </p>
 
@@ -151,16 +151,16 @@ export function TrafficPanel(): JSX.Element {
 
         <section
           aria-label={t('advanced.traffic_timeline_label')}
-          className={`${hasSelectedSession ? 'mt-1 flex min-w-0 flex-col gap-2.5 border-t border-border pt-3' : 'hidden'} min-[1024px]:mt-0 min-[1024px]:flex min-[1024px]:min-h-[18rem] min-[1024px]:min-w-0 min-[1024px]:flex-col min-[1024px]:gap-0 min-[1024px]:rounded-lg min-[1024px]:border min-[1024px]:border-border min-[1024px]:bg-card min-[1024px]:p-3`}
+          className={`${hasSelectedSession ? 'mt-1 flex min-w-0 flex-col gap-2.5 border-t border-border pt-3' : 'hidden'} min-[1024px]:mt-0 min-[1024px]:flex min-[1024px]:min-h-[18rem] min-[1024px]:min-w-0 min-[1024px]:flex-col min-[1024px]:gap-0 min-[1024px]:rounded-md min-[1024px]:border min-[1024px]:border-border min-[1024px]:bg-card min-[1024px]:p-3`}
           data-testid="traffic-detail"
         >
           {!selected || !selectedSession ? (
             <div
-              className="flex min-h-[15rem] flex-1 flex-col items-center justify-center rounded-md border border-dashed border-border bg-fill/40 px-6 text-center"
+              className="flex min-h-[15rem] flex-1 flex-col items-center justify-center rounded-sm border border-dashed border-border bg-fill/40 px-6 text-center"
               data-testid="traffic-detail-unselected"
             >
-              <p className="m-0 text-sm font-bold text-text">{unselectedCopy.title}</p>
-              <p className="mt-1.5 mb-0 max-w-md text-xs leading-5 text-text-3">
+              <p className="m-0 text-base font-bold text-text">{unselectedCopy.title}</p>
+              <p className="mt-1.5 mb-0 max-w-md text-caption leading-5 text-text-3">
                 {unselectedCopy.description}
               </p>
             </div>
@@ -174,27 +174,27 @@ export function TrafficPanel(): JSX.Element {
                 data-testid="traffic-session-identity"
               >
                 <div className="min-w-0">
-                  <p className="m-0 text-[10px] font-semibold tracking-[0.12em] text-text-3 uppercase">
+                  <p className="m-0 text-micro font-semibold tracking-[0.12em] text-text-3 uppercase">
                     {t('advanced.traffic_current_session')}
                   </p>
-                  <p className="mt-1 mb-0 truncate font-mono text-sm font-bold text-text">
+                  <p className="mt-1 mb-0 truncate font-mono text-base font-bold text-text">
                     {selectedSession.client || t('advanced.traffic_unknown_client')}
                   </p>
-                  <p className="mt-1 mb-0 truncate font-mono text-[11px] text-text-3" title={selectedSession.id}>
+                  <p className="mt-1 mb-0 truncate font-mono text-micro text-text-3" title={selectedSession.id}>
                     {selectedSession.id}
                   </p>
                 </div>
                 <div className="flex min-w-0 max-w-[45%] flex-col items-end gap-1.5">
                   <SessionStatusBadge status={selectedSession.status} t={t} />
                   <span
-                    className="max-w-full truncate font-mono text-[10.5px] text-text-3"
+                    className="max-w-full truncate font-mono text-micro text-text-3"
                     data-testid="traffic-detail-proxy"
                     title={selectedSession.proxy_mode || t('advanced.traffic_unknown_proxy')}
                   >
                     {selectedSession.proxy_mode || t('advanced.traffic_unknown_proxy')}
                   </span>
                 </div>
-                <dl className="m-0 grid w-full grid-cols-2 gap-x-4 gap-y-1 text-[10.5px] text-text-3 min-[1280px]:w-auto">
+                <dl className="m-0 grid w-full grid-cols-2 gap-x-4 gap-y-1 text-micro text-text-3 min-[1280px]:w-auto">
                   <div className="flex min-w-0 gap-1.5">
                     <dt>{t('advanced.traffic_started')}</dt>
                     <dd className="m-0 truncate font-mono" title={selectedSession.started_at}>
@@ -211,8 +211,8 @@ export function TrafficPanel(): JSX.Element {
               </header>
 
               {timelineError ? (
-                <div className="rounded-md border border-red-b bg-red-t p-3">
-                  <p className="m-0 text-xs font-semibold text-red" data-testid="traffic-timeline-error" role="alert">
+                <div className="rounded-sm border border-red-b bg-red-t p-3">
+                  <p className="m-0 text-caption font-semibold text-red" data-testid="traffic-timeline-error" role="alert">
                     {t('advanced.traffic_timeline_error')}
                   </p>
                   <button className={`${buttonClass} mt-2`} type="button" onClick={() => loadTimeline(selected, false)}>
@@ -221,7 +221,7 @@ export function TrafficPanel(): JSX.Element {
                 </div>
               ) : timeline === null ? (
                 <p
-                  className="m-0 text-xs text-text-3"
+                  className="m-0 text-caption text-text-3"
                   data-testid="traffic-timeline-loading"
                   role="status"
                   aria-live="polite"
@@ -240,11 +240,11 @@ export function TrafficPanel(): JSX.Element {
                       [t('advanced.traffic_summary_duration'), formatNumber(timeline.summary.total_duration_ms)],
                       [t('advanced.traffic_summary_tokens'), formatNumber(summaryTokens)],
                     ].map(([label, value]) => (
-                      <div className="rounded-md border border-border bg-fill px-2.5 py-2" key={label}>
-                        <p className="m-0 text-[10px] font-semibold tracking-wide text-text-3 uppercase">{label}</p>
-                        <p className="mt-0.5 mb-0 font-mono text-sm font-bold text-text">{value}</p>
+                      <div className="rounded-sm border border-border bg-fill px-2.5 py-2" key={label}>
+                        <p className="m-0 text-micro font-semibold tracking-wide text-text-3 uppercase">{label}</p>
+                        <p className="mt-0.5 mb-0 font-mono text-base font-bold text-text">{value}</p>
                         {label === t('advanced.traffic_summary_calls') && (
-                          <p className="mt-0.5 mb-0 text-[10px] text-text-3">
+                          <p className="mt-0.5 mb-0 text-micro text-text-3">
                             {t('advanced.traffic_summary_unknown', {
                               n: formatNumber(timeline.summary.unknown_count),
                             })}
@@ -255,14 +255,14 @@ export function TrafficPanel(): JSX.Element {
                   </div>
 
                   {(timeline.integrity === 'partial' || timeline.truncated) && (
-                    <div className="rounded-md border border-amber-b bg-amber-t p-2.5" data-testid="traffic-integrity">
-                      <p className="m-0 text-xs font-semibold text-text">
+                    <div className="rounded-sm border border-amber-b bg-amber-t p-2.5" data-testid="traffic-integrity">
+                      <p className="m-0 text-caption font-semibold text-text">
                         {timeline.integrity === 'partial'
                           ? t('advanced.traffic_integrity_partial', { n: timeline.skipped_count })
                           : t('advanced.traffic_integrity_complete')}
                         {timeline.truncated ? ` ${t('advanced.traffic_integrity_truncated')}` : ''}
                       </p>
-                      <p className="mt-1 mb-0 text-[11px] text-text-3">
+                      <p className="mt-1 mb-0 text-micro text-text-3">
                         {t('advanced.traffic_integrity_warnings', { codes: timeline.warnings.join(', ') })}
                       </p>
                       <button className={`${buttonClass} mt-2`} type="button" onClick={() => loadTimeline(selected, false)}>
@@ -272,11 +272,11 @@ export function TrafficPanel(): JSX.Element {
                   )}
 
                   {timeline.entries.length === 0 && timeline.total_count === 0 && timeline.integrity === 'complete' ? (
-                    <p className="m-0 text-xs text-text-3" data-testid="traffic-timeline-empty" role="status">
+                    <p className="m-0 text-caption text-text-3" data-testid="traffic-timeline-empty" role="status">
                       {t('advanced.traffic_timeline_empty')}
                     </p>
                   ) : timeline.entries.length === 0 ? (
-                    <p className="m-0 text-xs text-text-3" data-testid="traffic-timeline-unavailable" role="status">
+                    <p className="m-0 text-caption text-text-3" data-testid="traffic-timeline-unavailable" role="status">
                       {t('advanced.traffic_timeline_unavailable')}
                     </p>
                   ) : (
@@ -299,15 +299,15 @@ export function TrafficPanel(): JSX.Element {
                         ))}
                       </div>
                       {filteredEntries.length === 0 ? (
-                        <div className="rounded-md border border-dashed border-border bg-fill p-3" data-testid="traffic-filter-empty">
-                          <p className="m-0 text-xs text-text-3">{t('advanced.traffic_filter_empty')}</p>
+                        <div className="rounded-sm border border-dashed border-border bg-fill p-3" data-testid="traffic-filter-empty">
+                          <p className="m-0 text-caption text-text-3">{t('advanced.traffic_filter_empty')}</p>
                           <button className={`${buttonClass} mt-2`} type="button" onClick={() => setFilter('all')}>
                             {t('advanced.traffic_filter_clear')}
                           </button>
                         </div>
                       ) : (
                         <ol
-                          className="m-0 flex list-none flex-col gap-1.5 p-0 min-[1024px]:block min-[1024px]:divide-y min-[1024px]:divide-border min-[1024px]:overflow-hidden min-[1024px]:rounded-md min-[1024px]:border min-[1024px]:border-border min-[1024px]:bg-card"
+                          className="m-0 flex list-none flex-col gap-1.5 p-0 min-[1024px]:block min-[1024px]:divide-y min-[1024px]:divide-border min-[1024px]:overflow-hidden min-[1024px]:rounded-sm min-[1024px]:border min-[1024px]:border-border min-[1024px]:bg-card"
                           data-testid="traffic-entries"
                         >
                           {filteredEntries.map((entry, index) => (

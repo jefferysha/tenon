@@ -236,27 +236,27 @@ export function OperationsPanel({ root, onToast, onOpenChange, activeTool, compa
     : t('operations.empty_loops')
 
   return (
-    <section className={compact ? 'bg-card' : 'mb-5 rounded-xl border border-border bg-card p-4'} data-testid="operations-panel" data-tool={activeTool}>
+    <section className={compact ? 'bg-card' : 'mb-5 rounded-md border border-border bg-card p-4'} data-testid="operations-panel" data-tool={activeTool}>
       {!compact && <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-text"><Activity size={17} aria-hidden="true" /><h2 className="text-[15px] font-bold">{t('operations.title')}</h2></div>
-          <p className="mt-1 text-xs text-text-3">{t('operations.subtitle')}</p>
+          <div className="flex items-center gap-2 text-text"><Activity size={17} aria-hidden="true" /><h2 className="text-base font-bold">{t('operations.title')}</h2></div>
+          <p className="mt-1 text-caption text-text-3">{t('operations.subtitle')}</p>
         </div>
         <button type="button" className={ghost} onClick={reload} disabled={loading || busy !== null} data-testid="ops-refresh">
           <RefreshCw className="mr-1.5 inline size-3.5" aria-hidden="true" />{t('operations.refresh')}
         </button>
       </header>}
 
-      {loadError !== null && <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-b bg-red-t px-3 py-2 text-xs text-red-d">
+      {loadError !== null && <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-b bg-red-t px-3 py-2 text-caption text-red-d">
         <span>{formatApiError(loadError, t, { exposeServerDetail: lang === 'zh' })}</span>
         {compact && <button type="button" className={ghost} onClick={reload} disabled={loading || busy !== null} data-testid="ops-compact-retry"><RefreshCw className="mr-1.5 inline size-3.5" aria-hidden="true" />{t('operations.refresh')}</button>}
       </div>}
-      {loading && <p role="status" aria-live="polite" data-testid="ops-loading" className="mb-3 rounded-lg border border-border bg-fill px-3 py-2 text-xs text-text-3">{t('operations.loading')}</p>}
+      {loading && <p role="status" aria-live="polite" data-testid="ops-loading" className="mb-3 rounded-md border border-border bg-fill px-3 py-2 text-caption text-text-3">{t('operations.loading')}</p>}
       {!compact && !loading && loadError === null && rootReady && templates.length === 0 && loops.length === 0 && (
-        <p role="status" aria-live="polite" data-testid="ops-empty" className="mb-3 rounded-lg border border-border bg-fill px-3 py-2 text-xs text-text-3">{t('operations.empty')}</p>
+        <p role="status" aria-live="polite" data-testid="ops-empty" className="mb-3 rounded-md border border-border bg-fill px-3 py-2 text-caption text-text-3">{t('operations.empty')}</p>
       )}
       {!loading && loadError === null && compactToolEmpty && (
-        <p role="status" aria-live="polite" data-testid="ops-tool-empty" className="mb-3 rounded-lg border border-border bg-fill px-3 py-2 text-xs text-text-3">{compactToolEmptyMessage}</p>
+        <p role="status" aria-live="polite" data-testid="ops-tool-empty" className="mb-3 rounded-md border border-border bg-fill px-3 py-2 text-caption text-text-3">{compactToolEmptyMessage}</p>
       )}
 
       <div className={`grid gap-3 ${compact ? 'grid-cols-1' : 'lg:grid-cols-2'}`}>
@@ -265,22 +265,22 @@ export function OperationsPanel({ root, onToast, onOpenChange, activeTool, compa
         {shows('starter') && !(compact && compactToolEmpty) && <article className={card}>
           <OperationStarterGallery templates={templates} selected={selectedTemplate} onSelect={(id) => { invalidateOperation(); setSelectedTemplate(id) }} />
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <label className="text-xs font-semibold text-text-2">{t('operations.loop_id')}<input className={`${input} mt-1`} data-testid="ops-loop-id" name="loop-id" autoComplete="off" value={loopId} onChange={(event) => {
+            <label className="text-caption font-semibold text-text-2">{t('operations.loop_id')}<input className={`${input} mt-1`} data-testid="ops-loop-id" name="loop-id" autoComplete="off" value={loopId} onChange={(event) => {
               invalidateOperation()
               setLoopId(event.target.value)
-            }} placeholder={t('operations.loop_id_placeholder')} /><span className="mt-1 block text-[11px] font-normal text-text-3">{t('operations.loop_id_help')}</span></label>
-            <label className="text-xs font-semibold text-text-2">{t('operations.skill_bundle')}<input className={`${input} mt-1`} data-testid="ops-skill-bundle" name="skill-bundle" autoComplete="off" value={skillBundle} onChange={(event) => {
+            }} placeholder={t('operations.loop_id_placeholder')} /><span className="mt-1 block text-micro font-normal text-text-3">{t('operations.loop_id_help')}</span></label>
+            <label className="text-caption font-semibold text-text-2">{t('operations.skill_bundle')}<input className={`${input} mt-1`} data-testid="ops-skill-bundle" name="skill-bundle" autoComplete="off" value={skillBundle} onChange={(event) => {
               invalidateOperation()
               setSkillBundle(event.target.value)
-            }} placeholder={t('operations.skill_bundle_placeholder')} /><span className="mt-1 block text-[11px] font-normal text-text-3">{t('operations.skill_bundle_help')}</span></label>
-            <label className="text-xs font-semibold text-text-2">{t('operations.workflow')}<input className={`${input} mt-1`} name="workflow" autoComplete="off" value={workflow} onChange={(event) => {
+            }} placeholder={t('operations.skill_bundle_placeholder')} /><span className="mt-1 block text-micro font-normal text-text-3">{t('operations.skill_bundle_help')}</span></label>
+            <label className="text-caption font-semibold text-text-2">{t('operations.workflow')}<input className={`${input} mt-1`} name="workflow" autoComplete="off" value={workflow} onChange={(event) => {
               invalidateOperation()
               setWorkflow(event.target.value)
-            }} /><span className="mt-1 block text-[11px] font-normal text-text-3">{t('operations.workflow_help')}</span></label>
-            <label className="text-xs font-semibold text-text-2">{t('operations.runner')}<select className={`${input} mt-1`} data-testid="ops-runner" value={runner} onChange={(event) => {
+            }} /><span className="mt-1 block text-micro font-normal text-text-3">{t('operations.workflow_help')}</span></label>
+            <label className="text-caption font-semibold text-text-2">{t('operations.runner')}<select className={`${input} mt-1`} data-testid="ops-runner" value={runner} onChange={(event) => {
               invalidateOperation()
               setRunner(event.target.value)
-            }}><option value="codex">Codex</option><option value="claude-code">Claude Code</option></select><span className="mt-1 block text-[11px] font-normal text-text-3">{t('operations.runner_help')}</span></label>
+            }}><option value="codex">Codex</option><option value="claude-code">Claude Code</option></select><span className="mt-1 block text-micro font-normal text-text-3">{t('operations.runner_help')}</span></label>
           </div>
           <button
             type="button"
@@ -300,25 +300,25 @@ export function OperationsPanel({ root, onToast, onOpenChange, activeTool, compa
 
         {shows('run') && !(compact && compactToolEmpty) && <article className={card}>
           <div className="flex items-center gap-2"><Play size={15} aria-hidden="true" /><h3 className="font-bold text-text">{t('operations.run_title')}</h3></div>
-          <p className="mt-1 text-xs leading-5 text-text-3">{t('operations.run_note')}</p>
+          <p className="mt-1 text-caption leading-5 text-text-3">{t('operations.run_note')}</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <label className="text-xs font-semibold text-text-2">{t('operations.run_loop')}<select className={`${input} mt-1`} data-testid="ops-loop-selector" value={selector} onChange={(event) => {
+            <label className="text-caption font-semibold text-text-2">{t('operations.run_loop')}<select className={`${input} mt-1`} data-testid="ops-loop-selector" value={selector} onChange={(event) => {
               invalidateOperation()
               setSelector(event.target.value)
               setConfirmedRunKey(null)
               setConfirmedL3Key(null)
               setConfirmedSyncKey(null)
-            }}>{loops.map((loop) => <option key={loop.id} value={loop.id}>{loop.id} · {loop.status}</option>)}</select><span className="mt-1 block text-[11px] font-normal text-text-3">{t('operations.run_loop_help')}</span></label>
-            <label className="text-xs font-semibold text-text-2">{t('operations.run_permission')}<select className={`${input} mt-1`} data-testid="ops-run-level" value={runLevel} onChange={(event) => {
+            }}>{loops.map((loop) => <option key={loop.id} value={loop.id}>{loop.id} · {loop.status}</option>)}</select><span className="mt-1 block text-micro font-normal text-text-3">{t('operations.run_loop_help')}</span></label>
+            <label className="text-caption font-semibold text-text-2">{t('operations.run_permission')}<select className={`${input} mt-1`} data-testid="ops-run-level" value={runLevel} onChange={(event) => {
               invalidateOperation()
               const level = event.target.value
               if (level !== 'L1' && level !== 'L2' && level !== 'L3') return
               setRunLevel(level)
               setConfirmedRunKey(null)
               setConfirmedL3Key(null)
-            }}><option value="L1">{t('operations.run_permission_l1')}</option><option value="L2">{t('operations.run_permission_l2')}</option><option value="L3">{t('operations.run_permission_l3')}</option></select><span className="mt-1 block text-[11px] font-normal text-text-3">{t('operations.run_permission_help')}</span></label>
+            }}><option value="L1">{t('operations.run_permission_l1')}</option><option value="L2">{t('operations.run_permission_l2')}</option><option value="L3">{t('operations.run_permission_l3')}</option></select><span className="mt-1 block text-micro font-normal text-text-3">{t('operations.run_permission_help')}</span></label>
           </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-xs text-text-2">
+          <div className="mt-3 flex flex-wrap gap-3 text-caption text-text-2">
             <label><input type="checkbox" data-testid="ops-run-real" checked={runReal} onChange={(event) => {
               invalidateOperation()
               setRunReal(event.target.checked)
@@ -373,7 +373,7 @@ export function OperationsPanel({ root, onToast, onOpenChange, activeTool, compa
         />}
       </div>
 
-      {operationError !== null && <p role="alert" data-testid="ops-operation-error" className="mt-3 rounded-lg border border-red-b bg-red-t px-3 py-2 text-xs text-red-d">{formatApiError(operationError, t, { exposeServerDetail: lang === 'zh' })}</p>}
+      {operationError !== null && <p role="alert" data-testid="ops-operation-error" className="mt-3 rounded-md border border-red-b bg-red-t px-3 py-2 text-caption text-red-d">{formatApiError(operationError, t, { exposeServerDetail: lang === 'zh' })}</p>}
       {result && <OperationResultView response={result} onOpenChange={onOpenChange} />}
     </section>
   )

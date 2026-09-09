@@ -1,6 +1,10 @@
 /*
  * Tailwind v4 + shadcn 基座（全量迁移的真相源入口）。
- * 配色 token 三段式与 src/styles.ts GLOBAL_CSS 保持等值——一个色值都不许改：
+ * 视觉世界：暖中性纸底 + 深绿 accent（方案3 原型对位）。语义分工——
+ *   accent（深绿）＝可交互/主动作与当前导航，用量克制；
+ *   green（低彩度鼠尾草绿）＝健康/已完成，刻意安静，不与主动作抢注意力；
+ *   amber ＝要你动手；red ＝受阻。颜色只花在例外上，常态保持安静。
+ * 配色 token 三段式（src/styles.ts GLOBAL_CSS 已退役，本文件是唯一真源）：
  *   · 默认浅色（:root）；
  *   · @media (prefers-color-scheme: dark) 跟随系统（:root:not([data-theme="light"]) 令显式亮色仍胜系统暗色）；
  *   · :root[data-theme="light"] / :root[data-theme="dark"] 用户显式切换覆盖系统（两向皆胜）。
@@ -19,14 +23,19 @@
 
 :root {
   color-scheme: light;
-  --bg: #f8f9fc; --card: #ffffff; --fill: #f5f7fa; --fill-2: #eef1f5;
-  --border: #e5e8ec; --border-2: #d6dce4;
-  --text: #1a2330; --text-2: #46536b; --text-3: #5f6b80;
-  --accent: #2563eb; --accent-d: #1d4ed8; --accent-t: #e9effd; --accent-b: #c7d7fa;
-  --green: #16a34a; --green-d: #15803d; --green-t: #e9f9ef; --green-b: #c2e9cf;
-  --red: #dc2626; --red-d: #b91c1c; --red-t: #fdeded; --red-b: #f5c8c8;
-  --purple: #8b5cf6; --purple-d: #6d28d9; --purple-t: #f2edfe; --purple-b: #ded2fb;
-  --amber-d: #8a4d10; --amber-t: #f8efdd; --amber-b: #eeddba;
+  --bg: #f5f5f1; --card: #ffffff; --fill: #f0f0eb; --fill-2: #e8e8e2;
+  --border: #e6e6e1; --border-2: #d4d4cd;
+  --text: #1a1a17; --text-2: #6b6b63; --text-3: #9a9a91;
+  --accent: #205238; --accent-d: #1a4530; --accent-t: #ebf2ec; --accent-b: #c9decf;
+  --green: #3e8c5c; --green-d: #2a6b45; --green-t: #e4f0e7; --green-b: #c5dccc;
+  --red: #c9503f; --red-d: #a33a32; --red-t: #fae5e2; --red-b: #efc9c3;
+  --purple: #6b5f9e; --purple-d: #544a80; --purple-t: #f0eef8; --purple-b: #d7d0ec;
+  --amber-d: #9a6212; --amber-t: #fbf0dc; --amber-b: #e9d5ae;
+  /* 模板专用语义（工作空间原型 styles.css :root 同源）：进行中蓝、阶段轨三段、选中任务卡、右列底。 */
+  --info: #3c7cc4; --info-d: #2b5b93; --info-t: #e4edf7; --info-b: #c3d6ee;
+  --seg-done: #2a6b45; --seg-now: #b26a18; --seg-now-t: #f7ecdc; --seg-next: #e2e6e1;
+  --sel-bg: #eef3f5; --sel-border: #d3dee3; --sel-edge: #5b7c8d;
+  --surface-detail: #fafaf8;
   /* Legacy aliases remain available while callers migrate to amber-*. */
   --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
   --surface: var(--card); --surface-raised: #ffffff; --surface-muted: var(--fill);
@@ -37,92 +46,144 @@
   --control-sm: 32px; --control-md: 36px; --control-lg: 40px;
   --ease-out: cubic-bezier(.2,.8,.2,1);
   /* v8 无 ink token——取 --text 同族近黑蓝对位；hover 提亮一档（旧 v4 #0d0d0d→#2e2e2c 同款步进） */
-  --ink: #1a2330; --ink-fg: #ffffff; --ink-hover: #2b3648;
+  --ink: #18251f; --ink-fg: #ffffff; --ink-hover: #2a3a32;
   /* 主动作使用 accent；green 只保留给 success/健康状态，避免动作与结果语义混用。 */
   --btn-bg: var(--accent); --btn-fg: #ffffff; --btn-hover: var(--accent-d);
   --solid-fg: var(--btn-fg); /* 同义引用：--btn-fg 既有=「彩色实底上的前景」，即 demo --solid-fg */
-  --code-bg: #f6f8fa; --code-border: #e5e8ec;
-  --scrim: rgba(16,24,40,.34);
-  --shadow: 0 1px 2px rgba(16,24,40,.04); --shadow-2: 0 1px 3px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
-  --shadow-3: 0 12px 32px -8px rgba(16,24,40,.16),0 2px 8px rgba(16,24,40,.06);
-  --ring: rgba(37,99,235,.12); --ring-blue: rgba(37,99,235,.12);
-  --radius: 12px; --radius-sm: 8px;
-  --nav-offset: 20px; /* v10b 外壳改左侧图标 rail 后无顶栏遮挡，仅留 20px 呼吸——WorkbenchView 右栏 sticky top 对齐用（外壳 agent 获准的唯一改动） */
+  --code-bg: #f4f7f4; --code-border: #dfe6e0;
+  --scrim: rgba(18,23,20,.34);
+  --shadow: 0 1px 2px rgba(18,23,20,.04); --shadow-2: 0 1px 3px rgba(18,23,20,.07),0 1px 2px rgba(18,23,20,.04);
+  --shadow-3: 0 12px 32px -8px rgba(18,23,20,.16),0 2px 8px rgba(18,23,20,.06);
+  --ring: rgba(31,107,79,.12); --ring-blue: rgba(31,107,79,.12);
+  --radius: 12px; /* 圆角刻度 md；其余档位见下方 @theme static */
+  --topbar-h: 68px; /* 顶部横条高度；三列页高度 = 100vh - 此值 */
+  --nav-offset: calc(var(--topbar-h) + 20px); /* sticky 元素避开顶部条的偏移 */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #12161f; --card: #1a202b; --fill: #212836; --fill-2: #273040;
-    --border: #2b3342; --border-2: #3b4557;
-    --text: #e8ecf3; --text-2: #b4bdcc; --text-3: #8f9aad;
-    --accent: #6d9bfb; --accent-d: #9db9fd; --accent-t: rgba(109,155,251,.15); --accent-b: rgba(109,155,251,.42);
-    --green: #3ecf77; --green-d: #8fe7b1; --green-t: rgba(62,207,119,.13); --green-b: rgba(62,207,119,.38);
-    --red: #ee6b6b; --red-d: #f8a8a8; --red-t: rgba(238,107,107,.14); --red-b: rgba(238,107,107,.42);
-    --purple: #a78bfa; --purple-d: #c8b4fd; --purple-t: rgba(167,139,250,.15); --purple-b: rgba(167,139,250,.42);
-    --amber-d: #e8b06a; --amber-t: rgba(224,164,88,.13); --amber-b: rgba(224,164,88,.40);
+    --bg: #121714; --card: #1a211d; --fill: #212a25; --fill-2: #29332d;
+    --border: #2c3630; --border-2: #3c483f;
+    --text: #e8ede9; --text-2: #b8c4bc; --text-3: #93a099;
+    --accent: #6cbf99; --accent-d: #97d6ba; --accent-t: rgba(108,191,153,.15); --accent-b: rgba(108,191,153,.42);
+    --green: #7fa38c; --green-d: #a8c4b4; --green-t: rgba(127,163,140,.13); --green-b: rgba(127,163,140,.38);
+    --red: #e6796b; --red-d: #f2a89c; --red-t: rgba(230,121,107,.14); --red-b: rgba(230,121,107,.42);
+    --purple: #a294dc; --purple-d: #c4baec; --purple-t: rgba(162,148,220,.15); --purple-b: rgba(162,148,220,.42);
+    --amber-d: #e0ad6a; --amber-t: rgba(224,173,106,.13); --amber-b: rgba(224,173,106,.40);
+    --info: #6ea5e6; --info-d: #9cc3f0; --info-t: rgba(110,165,230,.14); --info-b: rgba(110,165,230,.42);
+    --seg-done: #6cbf99; --seg-now: #e0ad6a; --seg-now-t: rgba(224,173,106,.16); --seg-next: #2c3630;
+    --sel-bg: #1f2a2e; --sel-border: #34474f; --sel-edge: #7fa3b4;
+    --surface-detail: #161c19;
     --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
-    --surface: var(--card); --surface-raised: #202735; --surface-muted: var(--fill);
+    --surface: var(--card); --surface-raised: #202823; --surface-muted: var(--fill);
     --surface-page: var(--bg); --surface-panel: var(--card); --surface-panel-soft: var(--fill); --surface-panel-muted: var(--fill-2);
     --surface-border: var(--border); --surface-border-strong: var(--border-2);
     --control-bg: var(--card); --control-bg-soft: var(--fill); --control-bg-muted: var(--fill-2);
     --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
-    --ink: #e8ecf3; --ink-fg: #0c111c; --ink-hover: #c9d2e0;
-    --btn-bg: var(--accent); --btn-fg: #0c111c; --btn-hover: var(--accent-d);
+    --ink: #e8ede9; --ink-fg: #0e1512; --ink-hover: #c9d5ce;
+    --btn-bg: var(--accent); --btn-fg: #0e1512; --btn-hover: var(--accent-d);
     --solid-fg: var(--btn-fg);
-    --code-bg: #10151f; --code-border: #28303f;
+    --code-bg: #101613; --code-border: #29332d;
     --scrim: rgba(0,0,0,.55);
     --shadow: 0 1px 2px rgba(0,0,0,.35); --shadow-2: 0 2px 6px rgba(0,0,0,.35);
     --shadow-3: 0 16px 40px -8px rgba(0,0,0,.55);
-    --ring: rgba(109,155,251,.16); --ring-blue: rgba(109,155,251,.16);
+    --ring: rgba(108,191,153,.16); --ring-blue: rgba(108,191,153,.16);
   }
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f8f9fc; --card: #ffffff; --fill: #f5f7fa; --fill-2: #eef1f5;
-  --border: #e5e8ec; --border-2: #d6dce4;
-  --text: #1a2330; --text-2: #46536b; --text-3: #5f6b80;
-  --accent: #2563eb; --accent-d: #1d4ed8; --accent-t: #e9effd; --accent-b: #c7d7fa;
-  --green: #16a34a; --green-d: #15803d; --green-t: #e9f9ef; --green-b: #c2e9cf;
-  --red: #dc2626; --red-d: #b91c1c; --red-t: #fdeded; --red-b: #f5c8c8;
-  --purple: #8b5cf6; --purple-d: #6d28d9; --purple-t: #f2edfe; --purple-b: #ded2fb;
-  --amber-d: #8a4d10; --amber-t: #f8efdd; --amber-b: #eeddba;
+  --bg: #f5f5f1; --card: #ffffff; --fill: #f0f0eb; --fill-2: #e8e8e2;
+  --border: #e6e6e1; --border-2: #d4d4cd;
+  --text: #1a1a17; --text-2: #6b6b63; --text-3: #9a9a91;
+  --accent: #205238; --accent-d: #1a4530; --accent-t: #ebf2ec; --accent-b: #c9decf;
+  --green: #3e8c5c; --green-d: #2a6b45; --green-t: #e4f0e7; --green-b: #c5dccc;
+  --red: #c9503f; --red-d: #a33a32; --red-t: #fae5e2; --red-b: #efc9c3;
+  --purple: #6b5f9e; --purple-d: #544a80; --purple-t: #f0eef8; --purple-b: #d7d0ec;
+  --amber-d: #9a6212; --amber-t: #fbf0dc; --amber-b: #e9d5ae;
+  /* 模板专用语义（工作空间原型 styles.css :root 同源）：进行中蓝、阶段轨三段、选中任务卡、右列底。 */
+  --info: #3c7cc4; --info-d: #2b5b93; --info-t: #e4edf7; --info-b: #c3d6ee;
+  --seg-done: #2a6b45; --seg-now: #b26a18; --seg-now-t: #f7ecdc; --seg-next: #e2e6e1;
+  --sel-bg: #eef3f5; --sel-border: #d3dee3; --sel-edge: #5b7c8d;
+  --surface-detail: #fafaf8;
   --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
   --surface: var(--card); --surface-raised: #ffffff; --surface-muted: var(--fill);
   --surface-page: var(--bg); --surface-panel: var(--card); --surface-panel-soft: var(--fill); --surface-panel-muted: var(--fill-2);
   --surface-border: var(--border); --surface-border-strong: var(--border-2);
   --control-bg: var(--card); --control-bg-soft: var(--fill); --control-bg-muted: var(--fill-2);
   --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
-  --ink: #1a2330; --ink-fg: #ffffff; --ink-hover: #2b3648;
+  --ink: #18251f; --ink-fg: #ffffff; --ink-hover: #2a3a32;
   --btn-bg: var(--accent); --btn-fg: #ffffff; --btn-hover: var(--accent-d);
   --solid-fg: var(--btn-fg);
-  --code-bg: #f6f8fa; --code-border: #e5e8ec;
-  --scrim: rgba(16,24,40,.34);
-  --shadow: 0 1px 2px rgba(16,24,40,.04); --shadow-2: 0 1px 3px rgba(16,24,40,.07),0 1px 2px rgba(16,24,40,.04);
-  --shadow-3: 0 12px 32px -8px rgba(16,24,40,.16),0 2px 8px rgba(16,24,40,.06);
-  --ring: rgba(37,99,235,.12); --ring-blue: rgba(37,99,235,.12);
+  --code-bg: #f4f7f4; --code-border: #dfe6e0;
+  --scrim: rgba(18,23,20,.34);
+  --shadow: 0 1px 2px rgba(18,23,20,.04); --shadow-2: 0 1px 3px rgba(18,23,20,.07),0 1px 2px rgba(18,23,20,.04);
+  --shadow-3: 0 12px 32px -8px rgba(18,23,20,.16),0 2px 8px rgba(18,23,20,.06);
+  --ring: rgba(31,107,79,.12); --ring-blue: rgba(31,107,79,.12);
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #12161f; --card: #1a202b; --fill: #212836; --fill-2: #273040;
-  --border: #2b3342; --border-2: #3b4557;
-  --text: #e8ecf3; --text-2: #b4bdcc; --text-3: #8f9aad;
-  --accent: #6d9bfb; --accent-d: #9db9fd; --accent-t: rgba(109,155,251,.15); --accent-b: rgba(109,155,251,.42);
-  --green: #3ecf77; --green-d: #8fe7b1; --green-t: rgba(62,207,119,.13); --green-b: rgba(62,207,119,.38);
-  --red: #ee6b6b; --red-d: #f8a8a8; --red-t: rgba(238,107,107,.14); --red-b: rgba(238,107,107,.42);
-  --purple: #a78bfa; --purple-d: #c8b4fd; --purple-t: rgba(167,139,250,.15); --purple-b: rgba(167,139,250,.42);
-  --amber-d: #e8b06a; --amber-t: rgba(224,164,88,.13); --amber-b: rgba(224,164,88,.40);
+  --bg: #121714; --card: #1a211d; --fill: #212a25; --fill-2: #29332d;
+  --border: #2c3630; --border-2: #3c483f;
+  --text: #e8ede9; --text-2: #b8c4bc; --text-3: #93a099;
+  --accent: #6cbf99; --accent-d: #97d6ba; --accent-t: rgba(108,191,153,.15); --accent-b: rgba(108,191,153,.42);
+  --green: #7fa38c; --green-d: #a8c4b4; --green-t: rgba(127,163,140,.13); --green-b: rgba(127,163,140,.38);
+  --red: #e6796b; --red-d: #f2a89c; --red-t: rgba(230,121,107,.14); --red-b: rgba(230,121,107,.42);
+  --purple: #a294dc; --purple-d: #c4baec; --purple-t: rgba(162,148,220,.15); --purple-b: rgba(162,148,220,.42);
+  --amber-d: #e0ad6a; --amber-t: rgba(224,173,106,.13); --amber-b: rgba(224,173,106,.40);
+  --info: #6ea5e6; --info-d: #9cc3f0; --info-t: rgba(110,165,230,.14); --info-b: rgba(110,165,230,.42);
+  --seg-done: #6cbf99; --seg-now: #e0ad6a; --seg-now-t: rgba(224,173,106,.16); --seg-next: #2c3630;
+  --sel-bg: #1f2a2e; --sel-border: #34474f; --sel-edge: #7fa3b4;
+  --surface-detail: #161c19;
   --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
-  --surface: var(--card); --surface-raised: #202735; --surface-muted: var(--fill);
-  --ink: #e8ecf3; --ink-fg: #0c111c; --ink-hover: #c9d2e0;
-  --btn-bg: var(--accent); --btn-fg: #0c111c; --btn-hover: var(--accent-d);
+  --surface: var(--card); --surface-raised: #202823; --surface-muted: var(--fill);
+  --ink: #e8ede9; --ink-fg: #0e1512; --ink-hover: #c9d5ce;
+  --btn-bg: var(--accent); --btn-fg: #0e1512; --btn-hover: var(--accent-d);
   --solid-fg: var(--btn-fg);
-  --code-bg: #10151f; --code-border: #28303f;
+  --code-bg: #101613; --code-border: #29332d;
   --scrim: rgba(0,0,0,.55);
   --shadow: 0 1px 2px rgba(0,0,0,.35); --shadow-2: 0 2px 6px rgba(0,0,0,.35);
   --shadow-3: 0 16px 40px -8px rgba(0,0,0,.55);
-  --ring: rgba(109,155,251,.16); --ring-blue: rgba(109,155,251,.16);
+  --ring: rgba(108,191,153,.16); --ring-blue: rgba(108,191,153,.16);
+}
+
+/*
+ * @theme static：排版与圆角刻度。
+ * 与上方配色不同，这里刻意不用 inline——static 让 --text-* / --radius-* 始终落进 :root，
+ * 于是 progress.css、workbench.css 这类裸 CSS 能 var() 引用同一份刻度，不必二次硬编码。
+ * `--text-*: initial` / `--radius-*: initial` 先清空 Tailwind 默认 xs…9xl / xs…4xl：
+ * 刻度外的字号与圆角在构建期直接不存在，避免 text-xs(12px) 与 text-caption(12px) 这类同义双写。
+ */
+@theme static {
+  /* 排版刻度（7 级，密集控制台基准 13–14px）。
+   * 行高成对声明：caption/base/title/section 与它们取代的 text-xs/sm/base/xl 行高等值，
+   * 迁移不改既有行盒；micro/body 取密集行的紧凑行高。
+   * leading-* 工具类经 --tw-leading（inherits:false）覆盖此处行高，显式排版处不受影响。
+   * 刻度外字号请改设计，不要新增 token 或 text-[Npx]——tools/check-design-scale.mjs 会拦。 */
+  --text-*: initial;
+  --text-micro: 11px;          /* 等宽标签、计数、徽章；下限——中文低于 11px 不可读 */
+  --text-micro--line-height: 14px;
+  --text-caption: 12px;        /* 次级元信息 */
+  --text-caption--line-height: 16px;
+  --text-body: 13px;           /* 密集正文 */
+  --text-body--line-height: 18px;
+  --text-base: 14px;           /* 主要阅读 */
+  --text-base--line-height: 20px;
+  --text-title: 16px;          /* 卡片 / 区块标题 */
+  --text-title--line-height: 24px;
+  --text-section: 20px;        /* 区段标题 */
+  --text-section--line-height: 28px;
+  --text-page: 28px;           /* 页面标题 */
+  --text-page--line-height: 36px;
+
+  /* 圆角刻度（4 级）。药丸继续用 rounded-full；rounded-none 是静态工具类，不属该 namespace。
+   * --radius-md 指向运行时 --radius，保持「12px 只写一次」。 */
+  --radius-*: initial;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: var(--radius);
+  --radius-lg: 16px;
 }
 
 /*
@@ -168,6 +229,18 @@
   --color-amber-d: var(--amber-d);
   --color-amber-t: var(--amber-t);
   --color-amber-b: var(--amber-b);
+  --color-info: var(--info);
+  --color-info-d: var(--info-d);
+  --color-info-t: var(--info-t);
+  --color-info-b: var(--info-b);
+  --color-seg-done: var(--seg-done);
+  --color-seg-now: var(--seg-now);
+  --color-seg-now-t: var(--seg-now-t);
+  --color-seg-next: var(--seg-next);
+  --color-sel-bg: var(--sel-bg);
+  --color-sel-border: var(--sel-border);
+  --color-sel-edge: var(--sel-edge);
+  --color-surface-detail: var(--surface-detail);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
   --color-surface-muted: var(--surface-muted);
@@ -213,12 +286,9 @@
   --color-input: var(--border-2);
   --color-ring: var(--accent);
 
-  /* ── 字体 / 圆角 / 阴影 ── */
+  /* ── 字体 / 阴影 ── */
   --font-sans: var(--font);
   --font-mono: var(--mono);
-  --radius-lg: var(--radius);
-  --radius-md: var(--radius-sm);
-  --radius-sm: 8px;
   /* 三档阴影：--shadow→sm、--shadow-2→md、--shadow-3→lg/xl。
    * 注意不能在此定义裸 --shadow（theme 名与 :root 运行时 token 同名会成 var 自引用环），
    * 请用 shadow-sm / shadow-md / shadow-lg 工具类。 */

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { WbSkillEntry } from '../api/client'
-import type { HooksConfigState } from './HookTimeline'
-import type { BoardLane, LanePatch } from './OrchestrationBoard'
+import type { HooksConfigState } from './hooksConfig'
+import type { BoardLane, LanePatch } from './boardLane'
 
 export interface TimelineSkillMove {
   skillId: string

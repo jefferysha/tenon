@@ -55,15 +55,15 @@ export function promotionDecisionKey(root: string, row: WbLoopRow | null): strin
 }
 
 export const RAIL_TW = 'flex w-full flex-col gap-3.5'
-export const GCARD_TW = 'rounded-[14px] border border-border bg-card px-4 py-[15px] shadow-sm'
-export const GH_TW = 'mb-[11px] flex items-center justify-between gap-2'
-export const GH_B_TW = 'text-[14.5px] font-[750] text-text'
-export const MINIBADGE_TW = 'inline-block rounded-full border px-2 py-0.5 text-[11.5px] font-extrabold whitespace-nowrap'
+export const GCARD_TW = 'rounded-md border border-border bg-card px-4 py-4 shadow-sm'
+export const GH_TW = 'mb-3 flex items-center justify-between gap-2'
+export const GH_B_TW = 'text-base font-[750] text-text'
+export const MINIBADGE_TW = 'inline-block rounded-full border px-2 py-0.5 text-micro font-extrabold whitespace-nowrap'
 export const TAG_RW_TW = 'border-green-b bg-green-t text-green-d'
 export const TAG_DERIVED_TW = 'border-accent-b bg-accent-t text-accent-d'
-export const GNOTE_TW = 'mt-2.5 text-xs leading-[1.55] text-text-3'
-export const GNOTE_ERR_TW = 'mt-2.5 rounded-[9px] border border-red-b bg-red-t px-2.5 py-2 text-xs leading-[1.55] font-semibold text-red-d'
-export const GNOTE_HINT_TW = 'mt-2.5 rounded-[9px] border border-amber-b bg-amber-t px-2.5 py-2 text-xs leading-[1.55] font-semibold text-amber-d'
+export const GNOTE_TW = 'mt-2.5 text-caption leading-[1.55] text-text-3'
+export const GNOTE_ERR_TW = 'mt-2.5 rounded-sm border border-red-b bg-red-t px-2.5 py-2 text-caption leading-[1.55] font-semibold text-red-d'
+export const GNOTE_HINT_TW = 'mt-2.5 rounded-sm border border-amber-b bg-amber-t px-2.5 py-2 text-caption leading-[1.55] font-semibold text-amber-d'
 export const BAND_TW: Record<string, string> = {
   ready: 'bg-green-t text-green-d',
   'mostly-ready': 'bg-amber-t text-amber-d',

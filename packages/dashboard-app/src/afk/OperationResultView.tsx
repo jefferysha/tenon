@@ -55,16 +55,16 @@ function TriageResult({ result, onOpenChange }: { result: Obj; onOpenChange?: (n
   const checkpoint = obj(result.checkpoint)
   return (
     <section data-testid="ops-result-triage">
-      <h3 className="text-sm font-bold text-text">{t('operations.result_triage')}</h3>
+      <h3 className="text-base font-bold text-text">{t('operations.result_triage')}</h3>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
           [t('operations.result_pages'), num(result.pagesProcessed)],
           [t('operations.result_observations'), num(result.observationsProcessed)],
           [t('operations.result_created'), num(runs?.created)],
           [t('operations.result_existing'), num(runs?.existing)],
-        ].map(([label, value]) => <div key={label} className="rounded-lg bg-fill px-3 py-2"><span className="block text-[10.5px] text-text-3">{label}</span><b className="font-mono text-text">{value}</b></div>)}
+        ].map(([label, value]) => <div key={label} className="rounded-md bg-fill px-3 py-2"><span className="block text-micro text-text-3">{label}</span><b className="font-mono text-text">{value}</b></div>)}
       </div>
-      <div className="mt-2 rounded-lg border border-border bg-bg px-3 py-2 text-xs">
+      <div className="mt-2 rounded-md border border-border bg-bg px-3 py-2 text-caption">
         <b className="text-text">{t('operations.result_checkpoint')} · {str(checkpoint?.commit)}</b>
         <span className="ml-2 text-text-3">{str(checkpoint?.sourceId)} · {t('operations.result_has_more')} {resultValue(checkpoint?.hasMore, t)}</span>
       </div>
@@ -73,7 +73,7 @@ function TriageResult({ result, onOpenChange }: { result: Obj; onOpenChange?: (n
           {list(runs?.runs).map((value, index) => {
             const run = obj(value) ?? {}
             const changeName = typeof run.changeName === 'string' && run.changeName !== '' ? run.changeName : null
-            return <li key={`${str(run.runId)}:${index}`} className="rounded-lg border border-border bg-bg px-3 py-2 text-xs">
+            return <li key={`${str(run.runId)}:${index}`} className="rounded-md border border-border bg-bg px-3 py-2 text-caption">
               {changeName !== null && onOpenChange ? (
                 <button type="button" className="font-mono font-bold text-accent-d underline decoration-accent-b underline-offset-2" data-testid={`ops-open-change-${changeName}`} onClick={() => onOpenChange(changeName)}>{changeName}</button>
               ) : <b className="font-mono text-text">{str(run.changeName)}</b>}
@@ -93,14 +93,14 @@ function SyncResult({ result }: { result: Obj }): JSX.Element {
   const preconditions = obj(plan?.preconditions)
   return (
     <section data-testid="ops-result-sync">
-      <h3 className="text-sm font-bold text-text">{t('operations.result_sync')} · {resultValue(result.status, t)}</h3>
-      <p className="mt-1 font-mono text-xs text-text-3">{t('operations.result_plan')} {str(plan?.plan_id)} · {resultValue(result.mode, t)} · {t('operations.result_operations')} {num(summary?.operations)} · {t('operations.result_unsupported')} {num(summary?.unsupported)}</p>
+      <h3 className="text-base font-bold text-text">{t('operations.result_sync')} · {resultValue(result.status, t)}</h3>
+      <p className="mt-1 font-mono text-caption text-text-3">{t('operations.result_plan')} {str(plan?.plan_id)} · {resultValue(result.mode, t)} · {t('operations.result_operations')} {num(summary?.operations)} · {t('operations.result_unsupported')} {num(summary?.unsupported)}</p>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <div className="rounded-lg border border-border bg-bg px-3 py-2 text-xs"><b className="text-text">{t('operations.result_registry_cas')}</b><code className="mt-1 block break-all text-text-3">{epoch(preconditions?.registry_epoch)}</code></div>
-        <div className="rounded-lg border border-border bg-bg px-3 py-2 text-xs"><b className="text-text">{t('operations.result_loop_doc_cas')}</b><code className="mt-1 block break-all text-text-3">{epoch(preconditions?.loop_doc_epoch)}</code></div>
+        <div className="rounded-md border border-border bg-bg px-3 py-2 text-caption"><b className="text-text">{t('operations.result_registry_cas')}</b><code className="mt-1 block break-all text-text-3">{epoch(preconditions?.registry_epoch)}</code></div>
+        <div className="rounded-md border border-border bg-bg px-3 py-2 text-caption"><b className="text-text">{t('operations.result_loop_doc_cas')}</b><code className="mt-1 block break-all text-text-3">{epoch(preconditions?.loop_doc_epoch)}</code></div>
       </div>
-      {list(plan?.operations).length > 0 && <ul className="mt-2 list-none space-y-1 p-0">{list(plan?.operations).map((value, index) => { const operation = obj(value) ?? {}; return <li key={index} className="rounded bg-fill px-2 py-1 text-xs"><code>{str(operation.kind)}</code> · {str(operation.loop_id)} → {str(operation.target)}</li> })}</ul>}
-      {list(plan?.blockers).length > 0 && <ul className="mt-2 list-none space-y-1 p-0">{list(plan?.blockers).map((value, index) => { const blocker = obj(value) ?? {}; return <li key={index} className="rounded border border-red-b bg-red-t px-2 py-1.5 text-xs text-red-d"><b>{resultValue(blocker.reason, t)}</b> · {formatServerProse(blocker.next_step, t, { exposeServerDetail: lang === 'zh', fallback: t('common.server_detail_unavailable') })}</li> })}</ul>}
+      {list(plan?.operations).length > 0 && <ul className="mt-2 list-none space-y-1 p-0">{list(plan?.operations).map((value, index) => { const operation = obj(value) ?? {}; return <li key={index} className="rounded-xs bg-fill px-2 py-1 text-caption"><code>{str(operation.kind)}</code> · {str(operation.loop_id)} → {str(operation.target)}</li> })}</ul>}
+      {list(plan?.blockers).length > 0 && <ul className="mt-2 list-none space-y-1 p-0">{list(plan?.blockers).map((value, index) => { const blocker = obj(value) ?? {}; return <li key={index} className="rounded-xs border border-red-b bg-red-t px-2 py-1.5 text-caption text-red-d"><b>{resultValue(blocker.reason, t)}</b> · {formatServerProse(blocker.next_step, t, { exposeServerDetail: lang === 'zh', fallback: t('common.server_detail_unavailable') })}</li> })}</ul>}
     </section>
   )
 }
@@ -111,8 +111,8 @@ function RunResult({ result, onOpenChange }: { result: Obj; onOpenChange?: (name
   const groups = list(result.groups)
   return (
     <section data-testid="ops-result-run">
-      <h3 className="text-sm font-bold text-text">{t('operations.result_run')} · {result.dry_run === true ? t('operations.result_dry_run') : t('operations.result_real_run')}</h3>
-      <p className="mt-1 text-xs text-text-3">
+      <h3 className="text-base font-bold text-text">{t('operations.result_run')} · {result.dry_run === true ? t('operations.result_dry_run') : t('operations.result_real_run')}</h3>
+      <p className="mt-1 text-caption text-text-3">
         {t('operations.result_rule')} <b className="font-mono text-text-2">{str(result.selector)}</b>
         {' · '}{t('operations.result_matched', { count: num(result.matched ?? result.selected) })}
         {result.ready !== undefined ? ` · ${t('operations.result_ready')} ${resultValue(result.ready, t)}` : ''}
@@ -121,7 +121,7 @@ function RunResult({ result, onOpenChange }: { result: Obj; onOpenChange?: (name
         const preview = obj(value) ?? {}
         const tokens = obj(preview.reserved_tokens)
         const bundle = obj(preview.skill_bundle)
-        return <article key={index} className="rounded-lg border border-border bg-bg px-3 py-2 text-xs">
+        return <article key={index} className="rounded-md border border-border bg-bg px-3 py-2 text-caption">
           <div className="flex justify-between gap-2"><b className="font-mono text-text">{str(preview.loop_id)}</b><span className="font-semibold text-text-2">{resultValue(preview.admission, t)}</span></div>
           <div className="mt-1 text-text-3">{t('operations.result_runner')} {resultValue(preview.runner, t)} · {t('operations.result_permission')} {str(preview.level)} · {t('operations.result_expected')} {resultValue(preview.settlement, t)}</div>
           <div className="mt-1 text-text-3">{t('operations.result_budget')} {str(tokens?.tokens)} {t('operations.result_token_unit')} · {t('operations.result_ledger')} {resultValue(preview.ledger_health, t)}</div>
@@ -132,13 +132,13 @@ function RunResult({ result, onOpenChange }: { result: Obj; onOpenChange?: (name
         const group = obj(value) ?? {}
         const run = obj(group.result)
         const targets = list(group.targets)
-        return <article key={index} className="rounded-lg border border-border bg-bg px-3 py-2 text-xs">
+        return <article key={index} className="rounded-md border border-border bg-bg px-3 py-2 text-caption">
           <b className="text-text">{str(group.level)}</b>
           <div className="mt-1 text-text-3">{t('operations.result_targets', { count: targets.length })} · {group.error ? `${t('operations.result_error')} ${formatServerProse(group.error, t, { exposeServerDetail: lang === 'zh', fallback: t('common.server_detail_unavailable') })}` : `${t('operations.result_status')} ${resultValue(run?.status ?? run?.ok, t)}`}</div>
           {onOpenChange && targets.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{targets.map((targetValue, targetIndex) => {
             const target = obj(targetValue)
             const changeName = typeof target?.change === 'string' && target.change !== '' ? target.change : null
-            return changeName === null ? null : <button type="button" key={`${changeName}:${targetIndex}`} className="rounded-md border border-accent-b bg-accent-t px-2 py-1 font-mono font-bold text-accent-d" data-testid={`ops-open-change-${changeName}`} onClick={() => onOpenChange(changeName)}>{changeName}</button>
+            return changeName === null ? null : <button type="button" key={`${changeName}:${targetIndex}`} className="rounded-sm border border-accent-b bg-accent-t px-2 py-1 font-mono font-bold text-accent-d" data-testid={`ops-open-change-${changeName}`} onClick={() => onOpenChange(changeName)}>{changeName}</button>
           })}</div>}
         </article>
       })}</div>}
@@ -149,7 +149,7 @@ function RunResult({ result, onOpenChange }: { result: Obj; onOpenChange?: (name
 function GenericResult({ result }: { result: Obj | null }): JSX.Element {
   const { t } = useT()
   const rows = result === null ? [] : Object.entries(result).filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value)).slice(0, 12)
-  return <section data-testid="ops-result-generic"><h3 className="text-sm font-bold text-text">{t('operations.result_summary')}</h3>{rows.length === 0 ? <p className="mt-2 text-xs text-text-3">{t('operations.result_no_structured')}</p> : <dl className="mt-2 grid gap-2 sm:grid-cols-2">{rows.map(([key, value]) => <div key={key} className="rounded bg-fill px-3 py-2 text-xs"><dt className="text-text-3">{key}</dt><dd className="mt-0.5 font-mono text-text">{str(value)}</dd></div>)}</dl>}</section>
+  return <section data-testid="ops-result-generic"><h3 className="text-base font-bold text-text">{t('operations.result_summary')}</h3>{rows.length === 0 ? <p className="mt-2 text-caption text-text-3">{t('operations.result_no_structured')}</p> : <dl className="mt-2 grid gap-2 sm:grid-cols-2">{rows.map(([key, value]) => <div key={key} className="rounded-xs bg-fill px-3 py-2 text-caption"><dt className="text-text-3">{key}</dt><dd className="mt-0.5 font-mono text-text">{str(value)}</dd></div>)}</dl>}</section>
 }
 
 export function OperationResultView({ response, onOpenChange }: { response: OperationResponse; onOpenChange?: (name: string) => void }): JSX.Element {
@@ -157,15 +157,15 @@ export function OperationResultView({ response, onOpenChange }: { response: Oper
   const result = obj(response.result)
   const kind = result?.command === 'triage' ? 'triage' : result?.command === 'loop-sync' ? 'sync' : typeof result?.dry_run === 'boolean' ? 'run' : 'generic'
   return (
-    <div className="mt-3 rounded-xl border border-border bg-code-bg p-3" data-testid="ops-result" data-ok={response.ok}>
+    <div className="mt-3 rounded-md border border-border bg-code-bg p-3" data-testid="ops-result" data-ok={response.ok}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <b className="text-xs text-text">{response.ok ? t('operations.result_success') : t('operations.result_failed')}</b>
-        <span className="text-[10.5px] text-text-3">{t('operations.result_exit_code')} {response.exit_code}</span>
+        <b className="text-caption text-text">{response.ok ? t('operations.result_success') : t('operations.result_failed')}</b>
+        <span className="text-micro text-text-3">{t('operations.result_exit_code')} {response.exit_code}</span>
       </div>
       {kind === 'triage' && result ? <TriageResult result={result} onOpenChange={onOpenChange} /> : kind === 'sync' && result ? <SyncResult result={result} /> : kind === 'run' && result ? <RunResult result={result} onOpenChange={onOpenChange} /> : <GenericResult result={result} />}
       <details className="mt-3 border-t border-border pt-2" data-testid="ops-result-raw">
-        <summary className="cursor-pointer text-xs font-semibold text-text-3">{t('operations.result_raw')}</summary>
-        <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-[11px] leading-[1.5] text-text-2">$ {response.command.join(' ')}{`\n`}{response.result === null ? response.stdout : JSON.stringify(response.result, null, 2)}{response.stderr ? `\n${response.stderr}` : ''}</pre>
+        <summary className="cursor-pointer text-caption font-semibold text-text-3">{t('operations.result_raw')}</summary>
+        <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-micro leading-[1.5] text-text-2">$ {response.command.join(' ')}{`\n`}{response.result === null ? response.stdout : JSON.stringify(response.result, null, 2)}{response.stderr ? `\n${response.stderr}` : ''}</pre>
       </details>
     </div>
   )

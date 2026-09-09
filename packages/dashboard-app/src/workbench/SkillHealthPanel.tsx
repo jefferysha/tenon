@@ -30,11 +30,11 @@ const DOCTOR_CMD = 'tenon doctor'
 
 // ── W3 tailwind 迁移：原 styles.ts 规则的等值原子类串（颜色全走 token）。──
 /** 原 .wb-note。 */
-const NOTE_CLS = 'text-xs leading-[1.55] text-text-3'
+const NOTE_CLS = 'text-caption leading-[1.55] text-text-3'
 /** 原 .side-card__row（相邻行分隔线在第二行上用 border-t 直给）。 */
-const ROW_CLS = 'flex items-center gap-[9px] py-[9px] text-[12.5px] text-text-2'
+const ROW_CLS = 'flex items-center gap-2 py-2 text-caption text-text-2'
 /** 原 .side-card__row-value（警示变体 text-red-d 由调用点条件叠加）。 */
-const ROW_VALUE_CLS = 'flex-none font-mono text-sm font-[750] text-accent-d'
+const ROW_VALUE_CLS = 'flex-none font-mono text-base font-[750] text-accent-d'
 
 export function SkillHealthPanel(): JSX.Element {
   const { t, lang } = useT()
@@ -62,12 +62,12 @@ export function SkillHealthPanel(): JSX.Element {
   const cmdButton = (cmd: string, testid: string): JSX.Element => (
     <button
       type="button"
-      className="inline-flex max-w-full cursor-pointer items-center self-start rounded-md border border-border bg-fill/55 px-2.5 py-[5px] transition-colors hover:border-text-3 hover:bg-fill"
+      className="inline-flex max-w-full cursor-pointer items-center self-start rounded-sm border border-border bg-fill/55 px-2.5 py-1 transition-colors hover:border-text-3 hover:bg-fill"
       data-testid={testid}
       title={t('workbench.skh_copy_hint')}
       onClick={() => void navigator.clipboard?.writeText(cmd)}
     >
-      <code className="truncate font-mono text-xs text-text">{cmd}</code>
+      <code className="truncate font-mono text-caption text-text">{cmd}</code>
     </button>
   )
 
@@ -79,13 +79,13 @@ export function SkillHealthPanel(): JSX.Element {
     // pane 自带外卡壳——根节点不套第二层 border/bg-card/shadow（卡内卡），head/body 左右内边距收平
     // （旧 .side-card__head/__body 在 pane 内 padding-left/right:0），与同 pane 矩阵区（wb-mx-card）统一。
     <div className="side-card" data-testid="wb-side-skillhealth">
-      <div className="side-card__head flex items-center gap-2 border-b border-border py-[11px] text-text-3">
-        <b className="text-[13px] font-bold text-text">{t('workbench.skh_title')}</b>
+      <div className="side-card__head flex items-center gap-2 border-b border-border py-3 text-text-3">
+        <b className="text-body font-bold text-text">{t('workbench.skh_title')}</b>
       </div>
       <div className="side-card__body pt-0.5 pb-1">
         {/* fail-soft：fetch 失败——行内错误，不谎报全绿。 */}
         {regError !== null && (
-          <p className="p-5 text-[13px] text-red" data-testid="skh-error" role="alert">
+          <p className="p-5 text-body text-red" data-testid="skh-error" role="alert">
             {t('workbench.skh_error', {
               msg: formatApiError(regError, t, { exposeServerDetail: lang === 'zh' }),
             })}

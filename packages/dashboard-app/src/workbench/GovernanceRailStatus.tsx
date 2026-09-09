@@ -39,7 +39,7 @@ export function GovernanceRailStatus({
       <aside className={RAIL_TW} data-testid="wb-gov-rail">
         <GovernanceRailHead />
         <div className={GCARD_TW} data-testid="wb-gov-empty" role="status" aria-live="polite">
-          <p className="mb-1 text-[14px] font-bold text-text">{t('workbench.lp_empty_title')}</p>
+          <p className="mb-1 text-base font-bold text-text">{t('workbench.lp_empty_title')}</p>
           <p className={WB_TW.note}>{t('workbench.lp_empty_go')}</p>
         </div>
       </aside>

@@ -215,7 +215,7 @@ export function VerificationEvidenceComposer({
   return (
     <>
       <button
-        className="rounded-lg border border-border bg-card px-3 py-2 text-xs font-bold text-text transition hover:border-(--accent) hover:bg-fill"
+        className="rounded-md border border-border bg-card px-3 py-2 text-caption font-bold text-text transition hover:border-(--accent) hover:bg-fill"
         data-testid="evidence-compose-open"
         ref={openerRef}
         onClick={() => setOpen(true)}
@@ -227,11 +227,11 @@ export function VerificationEvidenceComposer({
         <Dialog
           actions={(
             <>
-              <button className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text-2 hover:bg-fill" onClick={closeComposer} type="button">
+              <button className="rounded-md border border-border px-3 py-2 text-caption font-semibold text-text-2 hover:bg-fill" onClick={closeComposer} type="button">
                 {t('detail.evidence_cancel')}
               </button>
               <button
-                className="rounded-lg bg-btn-bg px-4 py-2 text-xs font-bold text-btn-fg hover:bg-btn-hover disabled:cursor-not-allowed disabled:opacity-45"
+                className="rounded-md bg-btn-bg px-4 py-2 text-caption font-bold text-btn-fg hover:bg-btn-hover disabled:cursor-not-allowed disabled:opacity-45"
                 data-testid="evidence-compose"
                 disabled={busy || entries.length === 0}
                 onClick={() => void compose()}
@@ -248,14 +248,14 @@ export function VerificationEvidenceComposer({
           title={t('detail.evidence_dialog_title')}
           variant="workspace"
         >
-          <p className="mb-2 text-[13px] leading-5 text-text-2">{t('detail.evidence_subtitle')}</p>
-          <p className="mb-4 rounded-lg border border-amber-b bg-amber-t px-3 py-2 text-xs leading-5 text-amber-d">
+          <p className="mb-2 text-body leading-5 text-text-2">{t('detail.evidence_subtitle')}</p>
+          <p className="mb-4 rounded-md border border-amber-b bg-amber-t px-3 py-2 text-caption leading-5 text-amber-d">
             {t('detail.evidence_draft_notice')}
           </p>
           {entries.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center" data-testid="evidence-empty">
-              <p className="m-0 text-sm font-semibold text-text-2">{t('detail.evidence_empty')}</p>
-              <p className="mt-1 text-xs text-text-3">{t('detail.evidence_empty_hint')}</p>
+            <div className="rounded-md border border-dashed border-border px-4 py-8 text-center" data-testid="evidence-empty">
+              <p className="m-0 text-base font-semibold text-text-2">{t('detail.evidence_empty')}</p>
+              <p className="mt-1 text-caption text-text-3">{t('detail.evidence_empty_hint')}</p>
             </div>
           ) : (
             <div className="grid gap-3">
@@ -277,7 +277,7 @@ export function VerificationEvidenceComposer({
             </div>
           )}
           <button
-            className="mt-3 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text hover:bg-fill disabled:opacity-45"
+            className="mt-3 rounded-md border border-border px-3 py-2 text-caption font-semibold text-text hover:bg-fill disabled:opacity-45"
             data-testid="evidence-add-entry"
             disabled={busy || entries.length >= 12}
             onClick={addEntry}
@@ -286,28 +286,28 @@ export function VerificationEvidenceComposer({
             + {t('detail.evidence_add')}
           </button>
           {error !== '' && (
-            <p aria-live="polite" className="mt-3 rounded-lg border border-red-b bg-red-t px-3 py-2 text-xs text-red-d" data-testid="evidence-error" id={ERROR_ID}>
+            <p aria-live="polite" className="mt-3 rounded-md border border-red-b bg-red-t px-3 py-2 text-caption text-red-d" data-testid="evidence-error" id={ERROR_ID}>
               {error}
             </p>
           )}
           {markdown !== '' && (
-            <section className="mt-4 rounded-xl border border-green-b bg-green-t/40 p-3">
+            <section className="mt-4 rounded-md border border-green-b bg-green-t/40 p-3">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <label className="text-xs font-bold text-green-d" htmlFor="verification-evidence-output">
+                <label className="text-caption font-bold text-green-d" htmlFor="verification-evidence-output">
                   {t('detail.evidence_output')}
                 </label>
-                <button className="rounded-lg border border-green-b px-3 py-1.5 text-xs font-semibold text-green-d hover:bg-green-t" data-testid="evidence-copy" onClick={() => void copy()} type="button">
+                <button className="rounded-md border border-green-b px-3 py-1.5 text-caption font-semibold text-green-d hover:bg-green-t" data-testid="evidence-copy" onClick={() => void copy()} type="button">
                   {t('detail.evidence_copy')}
                 </button>
               </div>
               <textarea
-                className="min-h-48 w-full resize-y rounded-lg border border-border bg-bg p-3 font-mono text-xs leading-5 text-text outline-none focus-visible:border-(--accent) focus-visible:ring-2 focus-visible:ring-accent-t"
+                className="min-h-48 w-full resize-y rounded-md border border-border bg-bg p-3 font-mono text-caption leading-5 text-text outline-none focus-visible:border-(--accent) focus-visible:ring-2 focus-visible:ring-accent-t"
                 data-testid="evidence-output"
                 id="verification-evidence-output"
                 readOnly
                 value={markdown}
               />
-              {copyError !== '' && <p aria-live="polite" className="mb-0 mt-2 text-xs text-red-d" data-testid="evidence-copy-error">{copyError}</p>}
+              {copyError !== '' && <p aria-live="polite" className="mb-0 mt-2 text-caption text-red-d" data-testid="evidence-copy-error">{copyError}</p>}
             </section>
           )}
         </Dialog>

@@ -189,7 +189,7 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
           <b className={GH_B_TW}>{t('workbench.gov_level_title')}</b>
           <span className={cn(MINIBADGE_TW, TAG_RW_TW, 'inline-flex items-center gap-1')}><Pencil className="size-3" aria-hidden="true" />{t('workbench.gov_tag_rw')}</span>
         </div>
-        <div className="flex gap-[7px]" role="radiogroup" aria-label={t('workbench.lp_level')}>
+        <div className="flex gap-2" role="radiogroup" aria-label={t('workbench.lp_level')}>
           {LEVELS.map((lv, index) => {
             const on = row.autonomy_level === lv
             return (
@@ -197,7 +197,7 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
                 key={lv}
                 type="button"
                 className={cn(
-                  'flex-1 cursor-pointer rounded-[10px] border px-1.5 py-2 text-center transition-[border-color,background-color] duration-[120ms] disabled:cursor-not-allowed disabled:opacity-60',
+                  'flex-1 cursor-pointer rounded-sm border px-1.5 py-2 text-center transition-[border-color,background-color] duration-[120ms] disabled:cursor-not-allowed disabled:opacity-60',
                   on ? 'border-(--accent) bg-accent-t shadow-[0_0_0_3px_var(--ring-blue)]' : 'border-border-2 bg-fill hover:border-text-3',
                 )}
                 role="radio"
@@ -212,8 +212,8 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
                   if (candidate) requestLevel(candidate)
                 })}
               >
-                <b className={cn('block font-mono text-base font-extrabold', on ? 'text-accent-d' : 'text-text-2')}>{lv}</b>
-                <small className="mt-0.5 block text-[11.5px] whitespace-nowrap text-text-3">{t(LEVEL_SHORT_KEY[lv])}</small>
+                <b className={cn('block font-mono text-title font-extrabold', on ? 'text-accent-d' : 'text-text-2')}>{lv}</b>
+                <small className="mt-0.5 block text-micro whitespace-nowrap text-text-3">{t(LEVEL_SHORT_KEY[lv])}</small>
               </button>
             )
           })}
@@ -241,12 +241,12 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
           <span className={cn(MINIBADGE_TW, TAG_DERIVED_TW, 'inline-flex items-center gap-1')}><ChartNoAxesColumn className="size-3" aria-hidden="true" />{t('workbench.gov_tag_derived')}</span>
         </div>
         <div className="flex items-baseline gap-2.5">
-          <b className="font-mono text-[32px] leading-none font-extrabold text-text" data-testid="wb-gov-readiness-score">
+          <b className="font-mono text-page leading-none font-extrabold text-text" data-testid="wb-gov-readiness-score">
             {score === null ? '—' : score}
           </b>
           <span
             className={cn(
-              'rounded-full px-2.5 py-0.5 text-[13px] font-extrabold whitespace-nowrap',
+              'rounded-full px-2.5 py-0.5 text-body font-extrabold whitespace-nowrap',
               band !== null && BAND_TW[band] ? BAND_TW[band] : 'bg-fill-2 text-text-3',
             )}
             data-band={band ?? 'unknown'}
@@ -255,9 +255,9 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
             {bandText}
           </span>
         </div>
-        <div className="mt-2.5 h-2.5 overflow-hidden rounded-md bg-fill-2" aria-hidden="true">
+        <div className="mt-2.5 h-2.5 overflow-hidden rounded-sm bg-fill-2" aria-hidden="true">
           <div
-            className={cn('h-full rounded-md transition-[width] duration-200 ease-out motion-reduce:transition-none', band !== null && BAR_TW[band] ? BAR_TW[band] : 'bg-border-2')}
+            className={cn('h-full rounded-sm transition-[width] duration-200 ease-out motion-reduce:transition-none', band !== null && BAR_TW[band] ? BAR_TW[band] : 'bg-border-2')}
             style={{ width: `${clamp(score ?? 0, 0, 100)}%` }}
           />
         </div>
@@ -288,12 +288,12 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
             <CircleAlert className="mr-1 inline size-3.5" aria-hidden="true" />{budgetError}
           </p>
         )}
-        <div className="mt-3 flex items-center gap-2.5 rounded-[10px] bg-fill px-3 py-2.5" data-testid="wb-gov-breaker" data-breaker={breaker ?? 'unknown'}>
+        <div className="mt-3 flex items-center gap-2.5 rounded-sm bg-fill px-3 py-2.5" data-testid="wb-gov-breaker" data-breaker={breaker ?? 'unknown'}>
           <span
             className={cn('size-[11px] flex-none rounded-full', breaker !== null && LAMP_TW[breaker] ? LAMP_TW[breaker] : 'bg-border-2')}
             aria-hidden="true"
           />
-          <span className="text-[13px] text-text-2">
+          <span className="text-body text-text-2">
             {t('workbench.gov_breaker_label')}{' '}
             {/* 态名是 server 枚举标识符（ok/warn/tripped），mono 原样呈现不翻译——同 runner id 的既有口径 */}
             <b className="font-mono tracking-[0.04em] uppercase" data-testid="wb-gov-breaker-state">
@@ -314,10 +314,10 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
           <span className={cn(MINIBADGE_TW, TAG_DERIVED_TW)}>{t('workbench.gov_facts_tag')}</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-[12px] leading-[1.45] text-text-2">
-          <div className="rounded-[9px] bg-fill px-2.5 py-2">
-            <span className="block text-[11px] font-semibold text-text-3">{t('workbench.gov_ledger_health')}</span>
-            <b className="mt-0.5 block text-[13px] text-text">
+        <div className="grid grid-cols-2 gap-2 text-caption leading-[1.45] text-text-2">
+          <div className="rounded-sm bg-fill px-2.5 py-2">
+            <span className="block text-micro font-semibold text-text-3">{t('workbench.gov_ledger_health')}</span>
+            <b className="mt-0.5 block text-body text-text">
               {ledgerHealth === 'ok'
                 ? t('workbench.gov_ledger_health_ok')
                 : ledgerHealth === 'degraded'
@@ -325,15 +325,15 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
                   : t('workbench.gov_ledger_health_missing')}
             </b>
           </div>
-          <div className="rounded-[9px] bg-fill px-2.5 py-2" data-testid="wb-gov-ledger-inflight">
-            <span className="block text-[11px] font-semibold text-text-3">{t('workbench.gov_ledger_inflight')}</span>
-            <b className="mt-0.5 block font-mono text-[13px] text-text">
+          <div className="rounded-sm bg-fill px-2.5 py-2" data-testid="wb-gov-ledger-inflight">
+            <span className="block text-micro font-semibold text-text-3">{t('workbench.gov_ledger_inflight')}</span>
+            <b className="mt-0.5 block font-mono text-body text-text">
               {ledger ? `${ledger.activated_in_flight} / ${ledger.in_flight}` : '—'}
             </b>
           </div>
         </div>
 
-        <div className="mt-2 space-y-1.5 rounded-[10px] border border-border bg-fill/45 px-3 py-2.5 text-[12px] leading-[1.5] text-text-2">
+        <div className="mt-2 space-y-1.5 rounded-sm border border-border bg-fill/45 px-3 py-2.5 text-caption leading-[1.5] text-text-2">
           <p data-testid="wb-gov-ledger-usage">
             {t('workbench.gov_ledger_usage', {
               actual: fmtK(ledger?.settled_tokens_actual),
@@ -357,19 +357,19 @@ export function GovernanceRail({ root, loops }: GovernanceRailProps): JSX.Elemen
         </div>
 
         <div className="mt-3 border-t border-border pt-3" data-testid="wb-gov-wiring">
-          <p className="mb-2 text-[11px] font-extrabold tracking-[0.08em] text-text-3 uppercase">
+          <p className="mb-2 text-micro font-extrabold tracking-[0.08em] text-text-3 uppercase">
             {t('workbench.gov_wiring_title')}
           </p>
-          <div className="flex flex-wrap gap-1.5 font-mono text-[11.5px]">
-            <span className="rounded-md bg-fill-2 px-2 py-1 text-text-2">
+          <div className="flex flex-wrap gap-1.5 font-mono text-micro">
+            <span className="rounded-sm bg-fill-2 px-2 py-1 text-text-2">
               {t('workbench.gov_wiring_template', {
                 template: row.template_id ? `${row.template_id}${row.template_version ? `@v${row.template_version}` : ''}` : '—',
               })}
             </span>
-            <span className="rounded-md bg-fill-2 px-2 py-1 text-text-2">
+            <span className="rounded-sm bg-fill-2 px-2 py-1 text-text-2">
               {t('workbench.gov_wiring_workflow', { workflow: row.workflow_id ?? '—' })}
             </span>
-            <span className={cn('rounded-md px-2 py-1', row.skill_bundle_id ? 'bg-green-t text-green-d' : 'bg-amber-t text-amber-d')}>
+            <span className={cn('rounded-sm px-2 py-1', row.skill_bundle_id ? 'bg-green-t text-green-d' : 'bg-amber-t text-amber-d')}>
               {t('workbench.gov_wiring_bundle', {
                 bundle: row.skill_bundle_id ?? t('workbench.gov_wiring_unwired'),
               })}

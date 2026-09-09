@@ -9,6 +9,7 @@ import {
 } from '../api/client'
 import { formatApiError, formatServerProse } from '../api/transport'
 import { useT } from '../i18n'
+import { AdapterCapabilityBadges, AdapterCapabilityLegend } from './AdapterCapabilityBadges'
 
 interface AdapterInstallWizardProps { root: string }
 const TERMINAL = new Set(['planned', 'installed', 'failed'])
@@ -107,16 +108,30 @@ export function AdapterInstallWizard({ root }: AdapterInstallWizardProps): JSX.E
   }
 
   if (root === '') {
-    return <div className="mt-6 rounded-xl border border-dashed border-border-2 bg-card p-5 text-sm text-text-2" data-testid="adapter-install-empty">{t('hostPlan.installer.select_project')}</div>
+    return <div className="mt-6 rounded-md border border-dashed border-border-2 bg-card p-5 text-base text-text-2" data-testid="adapter-install-empty">{t('hostPlan.installer.select_project')}</div>
   }
   return (
-    <section className="mt-6 rounded-2xl border border-border bg-card p-5" data-testid="adapter-install-wizard" aria-label={t('hostPlan.installer.title')}>
-      <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.16em] text-(--accent)">{t('hostPlan.installer.eyebrow')}</p><h2 className="mt-1 text-lg font-bold text-text">{t('hostPlan.installer.title')}</h2><p className="mt-1 text-xs leading-5 text-text-3">{t('hostPlan.installer.subtitle')}</p></div><span className="rounded-full border border-border bg-bg px-2 py-1 font-mono text-[10px] text-text-3">{catalog?.revision ?? 'loading'}</span></div>
-      {catalog === null ? <p className="mt-4 text-xs text-text-3" role="status">{t('hostPlan.installer.loading')}</p> : <>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{adapters.map((adapter) => <label key={adapter.id} className={`cursor-pointer rounded-lg border p-3 transition-[border-color,transform,background-color] duration-200 ${selected.includes(adapter.id) ? 'border-(--accent) bg-accent-t shadow-sm' : 'border-border bg-bg hover:border-border-2'}`}><input className="sr-only" type="checkbox" checked={selected.includes(adapter.id)} onChange={() => toggle(adapter.id)} /><span className="flex items-center justify-between gap-2 text-xs font-bold text-text"><span>{adapter.label}</span><span className="font-mono text-[10px] text-text-3">Tier {adapter.tier}</span></span><span className="mt-1 block text-[10px] text-text-3">{t(`hostPlan.kind.${adapter.kind}`)} · {t(`hostPlan.scope.${adapter.target_scope}`)} · {t(`hostPlan.installer.state.${adapter.state}`)}</span></label>)}</div>
-        <div className="mt-4 flex flex-wrap items-center gap-2"><button type="button" className="rounded-lg border border-border-2 bg-bg px-3 py-2 text-xs font-bold text-text hover:bg-fill disabled:opacity-45" disabled={busy || selected.length === 0} onClick={() => void install(true)}>{t('hostPlan.installer.preflight')}</button><button type="button" className="rounded-lg bg-btn-bg px-3 py-2 text-xs font-bold text-btn-fg hover:bg-btn-hover disabled:opacity-45" disabled={busy || selected.length === 0} onClick={() => void install(false)}>{busy ? t('hostPlan.installer.installing') : t('hostPlan.installer.install')}</button>{selected.length > 0 && <span className="text-[11px] text-text-3">{t('hostPlan.installer.selected_count', { count: selected.length })}</span>}</div>
-        {error !== null && <p className="mt-3 rounded-lg bg-red-t px-3 py-2 text-xs text-red-d" role="alert">{error}</p>}
-        {states.length > 0 && <ol className="mt-4 grid gap-2" aria-live="polite">{states.map((state, index) => { const { message: stateMessage } = state; return <li key={`${state.host}-${state.phase}-${index}`} className={`flex items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-xs ${TERMINAL.has(state.phase) ? '' : 'motion-safe:animate-pulse'}`}><span className="min-w-20 font-mono text-[10px] text-text-3">{state.host}</span><span className="font-semibold text-text">{state.phase}</span><span className="text-text-3">{formatServerProse(stateMessage, t, { exposeServerDetail: lang === 'zh', fallback: state.phase })}</span></li> })}</ol>}
+    <section className="mt-6 rounded-lg border border-border bg-card p-5" data-testid="adapter-install-wizard" aria-label={t('hostPlan.installer.title')}>
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-micro font-bold uppercase tracking-[0.16em] text-(--accent)">{t('hostPlan.installer.eyebrow')}</p><h2 className="mt-1 text-title font-bold text-text">{t('hostPlan.installer.title')}</h2><p className="mt-1 text-caption leading-5 text-text-3">{t('hostPlan.installer.subtitle')}</p></div><span className="rounded-full border border-border bg-bg px-2 py-1 font-mono text-micro text-text-3">{catalog?.revision ?? 'loading'}</span></div>
+      {catalog === null ? <p className="mt-4 text-caption text-text-3" role="status">{t('hostPlan.installer.loading')}</p> : <>
+        <AdapterCapabilityLegend t={t} />
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{adapters.map((adapter) => (
+          <label
+            key={adapter.id}
+            className={`cursor-pointer rounded-md border p-3 transition-[border-color,transform,background-color] duration-200 focus-within:ring-2 focus-within:ring-(--accent) focus-within:ring-offset-2 focus-within:ring-offset-card ${selected.includes(adapter.id) ? 'border-(--accent) bg-accent-t shadow-sm' : 'border-border bg-bg hover:border-border-2'}`}
+          >
+            <input className="sr-only" type="checkbox" checked={selected.includes(adapter.id)} onChange={() => toggle(adapter.id)} />
+            <span className="flex items-center justify-between gap-2 text-caption font-bold text-text">
+              <span>{adapter.label}</span>
+              <span className="font-mono text-micro text-text-3" title={t(`hostPlan.installer.tier_detail.${adapter.tier}`)}>{t('hostPlan.installer.tier', { tier: adapter.tier })}</span>
+            </span>
+            <span className="mt-1 block text-micro text-text-3">{t(`hostPlan.kind.${adapter.kind}`)} · {t(`hostPlan.scope.${adapter.target_scope}`)} · {t(`hostPlan.installer.state.${adapter.state}`)}</span>
+            <AdapterCapabilityBadges adapter={adapter} t={t} />
+          </label>
+        ))}</div>
+        <div className="mt-4 flex flex-wrap items-center gap-2"><button type="button" className="rounded-md border border-border-2 bg-bg px-3 py-2 text-caption font-bold text-text hover:bg-fill disabled:opacity-45" disabled={busy || selected.length === 0} onClick={() => void install(true)}>{t('hostPlan.installer.preflight')}</button><button type="button" className="rounded-md bg-btn-bg px-3 py-2 text-caption font-bold text-btn-fg hover:bg-btn-hover disabled:opacity-45" disabled={busy || selected.length === 0} onClick={() => void install(false)}>{busy ? t('hostPlan.installer.installing') : t('hostPlan.installer.install')}</button>{selected.length > 0 && <span className="text-micro text-text-3">{t('hostPlan.installer.selected_count', { count: selected.length })}</span>}</div>
+        {error !== null && <p className="mt-3 rounded-md bg-red-t px-3 py-2 text-caption text-red-d" role="alert">{error}</p>}
+        {states.length > 0 && <ol className="mt-4 grid gap-2" aria-live="polite">{states.map((state, index) => { const { message: stateMessage } = state; return <li key={`${state.host}-${state.phase}-${index}`} className={`flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-2 text-caption ${TERMINAL.has(state.phase) ? '' : 'motion-safe:animate-pulse'}`}><span className="min-w-20 font-mono text-micro text-text-3">{state.host}</span><span className="font-semibold text-text">{state.phase}</span><span className="text-text-3">{formatServerProse(stateMessage, t, { exposeServerDetail: lang === 'zh', fallback: state.phase })}</span></li> })}</ol>}
       </>}
     </section>
   )

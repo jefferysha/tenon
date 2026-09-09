@@ -50,8 +50,8 @@ function RdDot({ ok }: { ok: boolean }): JSX.Element {
 }
 
 /** 就绪灯区「独占一行」小字（旧 .afk-rd-howto / .afk-rd-caveat——文字色 color-mix 自 --text-2 派生）。 */
-const RD_HOWTO_TW = 'basis-full text-[11px] leading-[1.4] text-[color-mix(in_srgb,var(--text-2)_82%,transparent)]'
-const RD_CAVEAT_TW = 'basis-full text-[11px] leading-[1.4] text-[color-mix(in_srgb,var(--text-2)_70%,transparent)]'
+const RD_HOWTO_TW = 'basis-full text-micro leading-[1.4] text-[color-mix(in_srgb,var(--text-2)_82%,transparent)]'
+const RD_CAVEAT_TW = 'basis-full text-micro leading-[1.4] text-[color-mix(in_srgb,var(--text-2)_70%,transparent)]'
 
 export interface AutomationCardProps {
   root: string
@@ -294,7 +294,7 @@ export function AutomationCard({ root, refreshToken = 0, onDirtyChange, onBusyCh
           只留并发/重试/入队/镜像参数。readiness 拉不到就整块不渲染(连折叠钮一起),不谎报（原逻辑不变）。 */}
       {readiness && (
         <WbAdvanced testid="afk-adv">
-          <div className="mt-0.5 mb-1 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-text-2" data-testid="afk-rd">
+          <div className="mt-0.5 mb-1 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-caption text-text-2" data-testid="afk-rd">
             <RdDot ok={readiness.docker.available} />
             <span data-testid="afk-rd-docker">
               {t('workbench.afk_rd_docker')}:{readiness.docker.available ? t('workbench.afk_rd_ok') : t('workbench.afk_rd_no')}
@@ -314,7 +314,7 @@ export function AutomationCard({ root, refreshToken = 0, onDirtyChange, onBusyCh
             {!readiness.image.present && readiness.docker.available && (
               <button
                 type="button"
-                className="ml-1 flex-none cursor-pointer rounded-full border-0 bg-[color-mix(in_oklch,var(--red)_52%,var(--green))] px-1.5 py-px text-[10px] font-bold whitespace-nowrap text-card"
+                className="ml-1 flex-none cursor-pointer rounded-full border-0 bg-[color-mix(in_oklch,var(--red)_52%,var(--green))] px-1.5 py-px text-micro font-bold whitespace-nowrap text-card"
                 data-testid="afk-rd-build-copy"
                 title={readiness.image.build_hint}
                 onClick={() => void navigator.clipboard?.writeText(readiness.image.build_hint)}

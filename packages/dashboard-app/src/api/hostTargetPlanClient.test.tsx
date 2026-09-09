@@ -73,6 +73,8 @@ function nativePlan(host: 'codex' | 'claude', operation: 'setup' | 'update') {
           command('claude', ['plugin', 'list', '--json']),
         ]
   const nativeIds = ['plugin-remove', 'marketplace-remove', 'marketplace-register', 'plugin-install', 'plugin-inventory']
+  // 只读计划无法观察宿主登记，因此 CLI 把两条删除公开为条件性步骤。
+  const conditionalIds: readonly string[] = ['plugin-remove', 'marketplace-remove']
   return {
     schema_version: 'host-target-plan/v1',
     side_effects: 'none',
@@ -85,11 +87,18 @@ function nativePlan(host: 'codex' | 'claude', operation: 'setup' | 'update') {
         label: `host-plan.step.${operation === 'setup' ? 'stable-release-target' : 'stable-release-resolve'}`,
         command: null,
       },
-      ...nativeIds.map((id, index) => ({
-        id,
-        label: `host-plan.step.${id}`,
-        command: nativeCommands[index],
-      })),
+      ...nativeIds.map((id, index) => (conditionalIds.includes(id)
+        ? {
+            id,
+            label: `host-plan.step.${id}`,
+            command: nativeCommands[index],
+            condition: `host-plan.condition.${id}`,
+          }
+        : {
+            id,
+            label: `host-plan.step.${id}`,
+            command: nativeCommands[index],
+          })),
       { id: 'candidate-validation', label: 'host-plan.step.candidate-validation', command: null },
       { id: 'managed-runtime', label: 'host-plan.step.managed-runtime', command: null },
       { id: 'dashboard-readiness', label: 'host-plan.step.dashboard-readiness', command: null },
@@ -353,6 +362,54 @@ describe('host target plan read-only client', () => {
 
     await expect(fetchHostTargetPlan('codex', 'setup')).resolves.toEqual(plan)
     for (let attempt = 0; attempt < 4; attempt += 1) {
+      await expect(fetchHostTargetPlan('codex', 'setup')).rejects.toMatchObject({
+        kind: 'decoder',
+        code: 'HOST_TARGET_PLAN_RESPONSE_INVALID',
+      })
+    }
+  })
+
+  it('keeps conditional removals as conditional and rejects a promise/condition mismatch', async () => {
+    const promised = {
+      ...plan,
+      steps: plan.steps.map((step) => step.id === 'plugin-remove'
+        ? { id: step.id, label: step.label, command: step.command }
+        : step),
+    }
+    const overclaimed = {
+      ...plan,
+      steps: plan.steps.map((step) => step.id === 'marketplace-register'
+        ? { ...step, condition: 'host-plan.condition.marketplace-register' }
+        : step),
+    }
+    const crossed = {
+      ...plan,
+      steps: plan.steps.map((step) => step.id === 'plugin-remove'
+        ? { ...step, condition: 'host-plan.condition.marketplace-remove' }
+        : step),
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(plan), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(promised), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(overclaimed), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(crossed), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const decoded = await fetchHostTargetPlan('codex', 'setup')
+    expect(decoded.steps
+      .filter((step) => step.condition !== undefined)
+      .map((step) => [step.id, step.condition]))
+      .toEqual([
+        ['plugin-remove', 'host-plan.condition.plugin-remove'],
+        ['marketplace-remove', 'host-plan.condition.marketplace-remove'],
+      ])
+    // 老 CLI 不带 condition 时仍然可解码，只是不再声明条件性。
+    await expect(fetchHostTargetPlan('codex', 'setup')).resolves.toMatchObject({
+      steps: expect.arrayContaining([
+        { id: 'plugin-remove', label: 'host-plan.step.plugin-remove', command: expect.anything() },
+      ]),
+    })
+    for (const _invalid of [overclaimed, crossed]) {
       await expect(fetchHostTargetPlan('codex', 'setup')).rejects.toMatchObject({
         kind: 'decoder',
         code: 'HOST_TARGET_PLAN_RESPONSE_INVALID',

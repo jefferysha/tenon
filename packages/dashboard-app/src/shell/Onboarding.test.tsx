@@ -66,7 +66,7 @@ describe('Onboarding no-project（自动发现 + 终端初始化 checklist）', 
       expect(step).toHaveClass(
         'flex',
         'gap-3',
-        'min-[1024px]:rounded-xl',
+        'min-[1024px]:rounded-md',
         'min-[1024px]:border',
         'min-[1024px]:bg-fill/55',
         'min-[1024px]:p-3.5',

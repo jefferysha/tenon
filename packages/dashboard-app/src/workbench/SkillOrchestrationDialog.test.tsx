@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WbSkillEntry } from '../api/client'
 import { I18nProvider } from '../i18n'
-import type { BoardLane } from './OrchestrationBoard'
+import type { BoardLane } from './boardLane'
 import { SkillOrchestrationDialog } from './SkillOrchestrationDialog'
 
 const LANE: BoardLane = {

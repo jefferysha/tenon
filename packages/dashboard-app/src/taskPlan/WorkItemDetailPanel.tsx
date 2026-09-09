@@ -10,11 +10,11 @@ export interface WorkItemDetailPanelProps {
   readonly onClose: () => void
 }
 
-const valueClass = 'break-words font-mono text-[11px] leading-5 text-text-2 [overflow-wrap:anywhere]'
-const panelClass = 'min-w-0 rounded-xl border border-border bg-card p-4'
+const valueClass = 'break-words font-mono text-micro leading-5 text-text-2 [overflow-wrap:anywhere]'
+const panelClass = 'min-w-0 rounded-md border border-border bg-card p-4'
 
 function ValueList({ values, none }: { readonly values: readonly string[]; readonly none: string }): JSX.Element {
-  if (values.length === 0) return <span className="text-xs text-text-3">{none}</span>
+  if (values.length === 0) return <span className="text-caption text-text-3">{none}</span>
   return (
     <ul className="max-h-48 min-w-0 space-y-1 overflow-y-auto">
       {values.map((value, index) => <li key={`${value}:${index}`} className={valueClass}>{value}</li>)}
@@ -25,7 +25,7 @@ function ValueList({ values, none }: { readonly values: readonly string[]; reado
 function DetailField({ label, children }: { readonly label: string; readonly children: ReactNode }): JSX.Element {
   return (
     <div className="min-w-0 border-t border-border/70 pt-3 first:border-t-0 first:pt-0">
-      <dt className="text-[11px] font-semibold text-text-3">{label}</dt>
+      <dt className="text-micro font-semibold text-text-3">{label}</dt>
       <dd className="mt-1 min-w-0">{children}</dd>
     </div>
   )
@@ -94,19 +94,19 @@ function legacyDetail(
         <span className={valueClass}>{item.id}</span>
       </DetailField>
       <DetailField label={t('task_plan.description')}>
-        <span className="text-xs text-text-3">{t('task_plan.unknown_value')}</span>
+        <span className="text-caption text-text-3">{t('task_plan.unknown_value')}</span>
       </DetailField>
       <DetailField label={t('task_plan.stage')}>
         <span className={valueClass}>{item.stage ?? t('task_plan.unknown_value')}</span>
       </DetailField>
       <DetailField label={t('task_plan.completed')}>
-        <span className="text-xs text-text-2">{item.completed ? t('task_plan.completed_yes') : t('task_plan.completed_no')}</span>
+        <span className="text-caption text-text-2">{item.completed ? t('task_plan.completed_yes') : t('task_plan.completed_no')}</span>
       </DetailField>
       <DetailField label={t('task_plan.order')}>
         <span className={valueClass}>{item.order}</span>
       </DetailField>
       <DetailField label={t('task_plan.relationships_unknown')}>
-        <span className="text-xs text-text-3">{t('task_plan.unknown_value')}</span>
+        <span className="text-caption text-text-3">{t('task_plan.unknown_value')}</span>
       </DetailField>
     </dl>
   )
@@ -125,12 +125,12 @@ export function WorkItemDetailPanel({ plan, itemId, onClose }: WorkItemDetailPan
     <aside className={panelClass} data-testid="work-item-detail" aria-labelledby="work-item-detail-title">
       <header className="flex min-w-0 items-start justify-between gap-3 border-b border-border pb-3">
         <div className="min-w-0">
-          <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-3">{t('task_plan.work_items')}</p>
-          <h3 id="work-item-detail-title" className="mt-1 break-words text-sm font-semibold text-text [overflow-wrap:anywhere]">{item.title}</h3>
+          <p className="m-0 text-micro font-semibold uppercase tracking-[0.12em] text-text-3">{t('task_plan.work_items')}</p>
+          <h3 id="work-item-detail-title" className="mt-1 break-words text-base font-semibold text-text [overflow-wrap:anywhere]">{item.title}</h3>
         </div>
         <button
           type="button"
-          className="inline-flex flex-none items-center justify-center rounded-md border border-transparent p-1.5 text-text-3 transition-colors hover:border-border hover:bg-fill hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+          className="inline-flex flex-none items-center justify-center rounded-sm border border-transparent p-1.5 text-text-3 transition-colors hover:border-border hover:bg-fill hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
           aria-label={t('task_plan.close_detail')}
           onClick={onClose}
         >

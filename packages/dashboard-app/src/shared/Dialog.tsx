@@ -248,8 +248,8 @@ export function Dialog({ title, onClose, children, actions, testid, closeLabel, 
     >
       <div
         className={variant === 'workspace'
-          ? `${panelClassName ?? 'w-[min(1480px,96vw)]'} flex max-h-[calc(100vh-24px)] flex-col overflow-hidden rounded-[24px] border border-border bg-bg shadow-xl`
-          : `${panelClassName ?? 'w-[min(480px,92vw)]'} max-h-[90vh] overflow-y-auto ${PANEL} px-[22px] py-5`}
+          ? `${panelClassName ?? 'w-[min(1480px,96vw)]'} flex max-h-[calc(100vh-24px)] flex-col overflow-hidden rounded-lg border border-border bg-bg shadow-xl`
+          : `${panelClassName ?? 'w-[min(480px,92vw)]'} max-h-[90vh] overflow-y-auto ${PANEL} px-6 py-5`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -260,7 +260,7 @@ export function Dialog({ title, onClose, children, actions, testid, closeLabel, 
           <>
             <header className="flex min-h-16 flex-none items-center gap-4 border-b border-border bg-card/95 px-6 py-3.5">
               <div className="min-w-0 flex-1">
-                <h2 className="break-words whitespace-normal text-[18px] font-bold leading-tight tracking-[-0.015em] text-text">{title}</h2>
+                <h2 className="break-words whitespace-normal text-title font-bold leading-tight tracking-[-0.015em] text-text">{title}</h2>
               </div>
               <button type="button" className={BUTTON_ICON} data-testid={closeTestid} aria-label={resolvedCloseLabel} disabled={closeDisabled} onClick={onClose}><X className="size-4" strokeWidth={1.75} aria-hidden="true" /></button>
             </header>
@@ -269,7 +269,7 @@ export function Dialog({ title, onClose, children, actions, testid, closeLabel, 
           </>
         ) : (
           <>
-            <h2 className="mb-2 text-[16px] font-bold text-text">{title}</h2>
+            <h2 className="mb-2 text-title font-bold text-text">{title}</h2>
             {children}
             {actions && <div className="mt-5 flex justify-end gap-2">{actions}</div>}
           </>

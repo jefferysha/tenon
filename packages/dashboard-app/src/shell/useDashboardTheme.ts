@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { ThemePreference } from './Nav'
+import type { ThemePreference } from './views'
 
 const THEME_KEY = 'tenon-dashboard-theme'
 

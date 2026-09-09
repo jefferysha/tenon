@@ -32,11 +32,11 @@ export function AdvancedPanel({ snapshot }: AdvancedPanelProps): JSX.Element {
   const caps = snapshot?.capabilities ?? {}
   return (
     <details className="flex-1" data-testid="advanced-panel">
-      <summary className="cursor-pointer text-[12.5px] font-semibold text-text-3 hover:text-text" data-testid="advanced-summary">
+      <summary className="cursor-pointer text-caption font-semibold text-text-3 hover:text-text" data-testid="advanced-summary">
         {t('advanced.title')}
       </summary>
       <div className="pt-3">
-        <p className="mt-0 mb-2.5 text-xs text-text-3">{t('advanced.desc')}</p>
+        <p className="mt-0 mb-2.5 text-caption text-text-3">{t('advanced.desc')}</p>
         <ul className="m-0 flex list-none flex-col gap-1.5 p-0" data-testid="advanced-list">
           {TOOLS.map((tool) => {
             const wired = caps[tool.cap] === true
@@ -45,8 +45,8 @@ export function AdvancedPanel({ snapshot }: AdvancedPanelProps): JSX.Element {
               <li
                 key={tool.key}
                 className={Panel
-                  ? 'flex min-w-0 flex-col items-stretch gap-2.5 text-[12.5px]'
-                  : 'flex items-center gap-2.5 text-[12.5px] mobile:flex-col mobile:items-start mobile:gap-1.5'}
+                  ? 'flex min-w-0 flex-col items-stretch gap-2.5 text-caption'
+                  : 'flex items-center gap-2.5 text-caption mobile:flex-col mobile:items-start mobile:gap-1.5'}
                 data-testid={`advanced-${tool.key}`}
               >
                 <span className={Panel ? 'font-bold text-text-2' : 'min-w-[130px] text-text-2 mobile:min-w-0'}>
@@ -58,13 +58,13 @@ export function AdvancedPanel({ snapshot }: AdvancedPanelProps): JSX.Element {
                 ) : (
                   <>
                     <span
-                      className="inline-block rounded-full bg-fill px-2 py-0.5 text-[10.5px] font-bold whitespace-nowrap text-text-3"
+                      className="inline-block rounded-full bg-fill px-2 py-0.5 text-micro font-bold whitespace-nowrap text-text-3"
                       data-state={wired ? 'ready' : 'pending'}
                       data-testid={`advanced-status-${tool.key}`}
                     >
                       {wired ? t('advanced.ready') : t('advanced.placeholder')}
                     </span>
-                    {!wired && <span className="text-xs text-text-3">{t(`advanced.${tool.when}`)}</span>}
+                    {!wired && <span className="text-caption text-text-3">{t(`advanced.${tool.when}`)}</span>}
                   </>
                 )}
               </li>

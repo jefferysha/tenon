@@ -266,14 +266,14 @@ export function LoopCard({ root, loops, onDirtyChange, onBusyChange }: LoopCardP
       <section className={WB_TW.card} data-testid="wb-loop-card">
         <div className={WB_TW.head}><b className={WB_TW.headB}>{t('workbench.lp_title')}</b></div>
         <div className="pt-2.5 pb-1" data-testid="lp-empty" role="status" aria-live="polite">
-          <p className="mb-1 text-[13px] font-bold">{t('workbench.lp_empty_title')}</p>
+          <p className="mb-1 text-body font-bold">{t('workbench.lp_empty_title')}</p>
           <p className={WB_TW.note}>{t('workbench.lp_empty_go')}</p>
-          <div className="my-3 rounded-md border border-dashed border-border-2 bg-fill px-3.5 py-3" data-testid="lp-empty-prompt">
-            <p className="mb-2.5 text-[12.5px] leading-[1.65] text-text-2">{prompt}</p>
+          <div className="my-3 rounded-sm border border-dashed border-border-2 bg-fill px-3.5 py-3" data-testid="lp-empty-prompt">
+            <p className="mb-2.5 text-caption leading-[1.65] text-text-2">{prompt}</p>
             <Button
               variant="ghost"
               size="sm"
-              className={cn(WB_TW.btnGhost, 'h-7 px-3 text-xs')}
+              className={cn(WB_TW.btnGhost, 'h-7 px-3 text-caption')}
               data-testid="lp-empty-copy"
               aria-label={t('workbench.lp_empty_copy_aria')}
               onClick={() => {
@@ -327,7 +327,7 @@ export function LoopCard({ root, loops, onDirtyChange, onBusyChange }: LoopCardP
         )}
         {loops.rows.length > 1 && (
           <select
-            className={cn(WB_TW.input, 'h-[26px] w-auto px-2 font-mono text-xs')}
+            className={cn(WB_TW.input, 'h-[26px] w-auto px-2 font-mono text-caption')}
             aria-label={t('workbench.lp_loop_select')}
             data-testid="lp-loop-select"
             value={row.id}

@@ -32,7 +32,7 @@ interface VerificationEvidenceEntryEditorProps {
   onRemove: () => void
 }
 
-const CONTROL = 'w-full rounded-lg border border-border bg-bg px-3 py-2 text-[13px] text-text outline-none transition focus:border-(--accent) focus:ring-2 focus:ring-accent-t'
+const CONTROL = 'w-full rounded-md border border-border bg-bg px-3 py-2 text-body text-text outline-none transition focus:border-(--accent) focus:ring-2 focus:ring-accent-t'
 
 export function VerificationEvidenceEntryEditor({
   entry,
@@ -53,12 +53,12 @@ export function VerificationEvidenceEntryEditor({
     }
   }
   return (
-    <fieldset className="rounded-xl border border-border bg-card p-4" data-testid={`evidence-entry-${entry.id}`}>
-      <legend className="px-1 text-xs font-bold text-text">
+    <fieldset className="rounded-md border border-border bg-card p-4" data-testid={`evidence-entry-${entry.id}`}>
+      <legend className="px-1 text-caption font-bold text-text">
         {t('detail.evidence_entry', { n: index + 1 })}
       </legend>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="grid gap-1 text-xs font-semibold text-text-2 sm:col-span-2">
+        <label className="grid gap-1 text-caption font-semibold text-text-2 sm:col-span-2">
           {t('detail.evidence_title')}
           <input
             className={CONTROL}
@@ -71,7 +71,7 @@ export function VerificationEvidenceEntryEditor({
             {...errorProps('title')}
           />
         </label>
-        <label className="grid gap-1 text-xs font-semibold text-text-2">
+        <label className="grid gap-1 text-caption font-semibold text-text-2">
           {t('detail.evidence_kind')}
           <select
             className={CONTROL}
@@ -86,7 +86,7 @@ export function VerificationEvidenceEntryEditor({
             ))}
           </select>
         </label>
-        <label className="grid gap-1 text-xs font-semibold text-text-2">
+        <label className="grid gap-1 text-caption font-semibold text-text-2">
           {t('detail.evidence_status')}
           <select
             className={CONTROL}
@@ -106,7 +106,7 @@ export function VerificationEvidenceEntryEditor({
           </select>
         </label>
         {entry.kind === 'command' && (
-          <label className="grid gap-1 text-xs font-semibold text-text-2 sm:col-span-2">
+          <label className="grid gap-1 text-caption font-semibold text-text-2 sm:col-span-2">
             {t('detail.evidence_command')}
             <textarea
               className={`${CONTROL} min-h-20 resize-y font-mono`}
@@ -118,7 +118,7 @@ export function VerificationEvidenceEntryEditor({
             />
           </label>
         )}
-        <label className="grid gap-1 text-xs font-semibold text-text-2 sm:col-span-2">
+        <label className="grid gap-1 text-caption font-semibold text-text-2 sm:col-span-2">
           {entry.status === 'skipped' ? t('detail.evidence_skip_reason') : t('detail.evidence_result')}
           <textarea
             className={`${CONTROL} min-h-24 resize-y`}
@@ -134,7 +134,7 @@ export function VerificationEvidenceEntryEditor({
       </div>
       <button
         aria-label={t('detail.evidence_remove_entry', { n: index + 1 })}
-        className="mt-3 rounded-lg border border-red-b px-3 py-1.5 text-xs font-semibold text-red-d hover:bg-red-t"
+        className="mt-3 rounded-md border border-red-b px-3 py-1.5 text-caption font-semibold text-red-d hover:bg-red-t"
         disabled={disabled}
         onClick={onRemove}
         type="button"

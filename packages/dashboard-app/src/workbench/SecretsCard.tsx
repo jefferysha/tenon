@@ -120,13 +120,13 @@ export function SecretsCard({ onChanged, onDirtyChange, onBusyChange }: SecretsC
   }
 
   /** 旧 .sc-howto：每键「怎么拿」引导——独占一行(basis-full),沿 wb-note 次级色,无新原色。 */
-  const HOWTO_TW = cn(WB_TW.note, 'mt-[3px] basis-full text-[11.5px]')
+  const HOWTO_TW = cn(WB_TW.note, 'mt-1 basis-full text-micro')
 
   return (
     <section className={WB_TW.card} data-testid="wb-secrets-card">
       <div className={WB_TW.head}>
         <b className={WB_TW.headB}>{t('workbench.sc_title')}</b>
-        <span className="inline-block whitespace-nowrap rounded-full border border-border bg-fill px-[9px] py-0.5 font-mono text-[11px] font-semibold text-text">
+        <span className="inline-block whitespace-nowrap rounded-full border border-border bg-fill px-2 py-0.5 font-mono text-micro font-semibold text-text">
           {t('workbench.sc_scope')}
         </span>
         <span className="flex-1" />
@@ -196,7 +196,7 @@ export function SecretsCard({ onChanged, onDirtyChange, onBusyChange }: SecretsC
             {EDITABLE_KEYS.map((key) => (
               <div key={key} className={WB_TW.policyRow} data-testid={`sc-howto-row-${key}`}>
                 <span className={cn(WB_TW.flabel, 'font-mono')}>{key}</span>
-                <span className={cn(WB_TW.note, 'basis-full text-[11.5px]')} data-testid={`sc-howto-${key}`}>{t(`workbench.sc_howto_${key}`)}</span>
+                <span className={cn(WB_TW.note, 'basis-full text-micro')} data-testid={`sc-howto-${key}`}>{t(`workbench.sc_howto_${key}`)}</span>
               </div>
             ))}
             {/* CODEX_HOME:路径不是密钥,不进 secrets 存储(决策 C2b)——只读说明,不做假输入框。 */}

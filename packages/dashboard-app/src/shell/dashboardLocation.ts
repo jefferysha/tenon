@@ -1,6 +1,4 @@
-import type { View } from './Nav'
-
-const VIEWS = new Set<View>(['overview', 'projects', 'progress', 'afk', 'workbench', 'machine', 'hostPlan'])
+import { isView, type View } from './views'
 
 export interface DashboardLocation {
   view?: View
@@ -21,7 +19,7 @@ export function parseDashboardLocation(search: string): DashboardLocation {
   const view = params.get('view')
   const root = params.get('root')
   const change = params.get('change')
-  if (view !== null && VIEWS.has(view as View)) result.view = view as View
+  if (isView(view)) result.view = view
   if (root !== null && root !== '') result.root = root
   if (change !== null && change !== '') result.change = change
   return result

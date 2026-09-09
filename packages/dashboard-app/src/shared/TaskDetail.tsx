@@ -41,22 +41,22 @@ export interface TaskDetailProps {
 }
 export type TaskDetailSurface = 'all' | 'summary' | 'outputs' | 'terminal' | 'history'
 type StageStatus = 'done' | 'cur' | 'fail' | 'todo'
-const secCls = 'border-b border-border py-[13px] last:border-b-0'
-const secHeadCls = 'mb-2.5 flex items-baseline gap-[7px] text-[12.5px] font-bold text-text'
-const hintCls = 'text-xs font-normal text-text-3'
-const noneCls = 'm-0 text-xs text-text-3'
-const noteCls = 'mt-2 mb-0 text-xs leading-[1.55] text-text-3'
-const codeRowCls = 'flex items-center gap-2 rounded-md border border-code-border bg-code-bg px-[11px] py-2 font-mono text-xs'
+const secCls = 'border-b border-border py-3 last:border-b-0'
+const secHeadCls = 'mb-2.5 flex items-baseline gap-2 text-caption font-bold text-text'
+const hintCls = 'text-caption font-normal text-text-3'
+const noneCls = 'm-0 text-caption text-text-3'
+const noteCls = 'mt-2 mb-0 text-caption leading-[1.55] text-text-3'
+const codeRowCls = 'flex items-center gap-2 rounded-sm border border-code-border bg-code-bg px-3 py-2 font-mono text-caption'
 const codePromptCls = 'text-text-3'
 const codeCls = 'min-w-0 flex-1 text-text [overflow-wrap:anywhere]'
 const chipRowCls = 'flex min-h-[22px] flex-wrap items-center gap-1.5'
 const artsCls = 'grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-1.5'
 const nodeBaseCls = 'absolute left-0 top-0.5 grid size-4 place-items-center rounded-full font-bold leading-none'
 const nodeToneCls: Record<StageStatus, string> = {
-  done: 'bg-green text-[11px] text-btn-fg',
-  cur: 'bg-btn-bg text-[11px] shadow-[0_0_0_3px_var(--ring)]',
-  fail: 'bg-red text-[10px] text-btn-fg',
-  todo: 'border-2 border-border-2 bg-card text-[11px]',
+  done: 'bg-green text-micro text-btn-fg',
+  cur: 'bg-btn-bg text-micro shadow-[0_0_0_3px_var(--ring)]',
+  fail: 'bg-red text-micro text-btn-fg',
+  todo: 'border-2 border-border-2 bg-card text-micro',
 }
 const stageNameCls: Record<StageStatus, string> = {
   done: 'font-medium text-text',
@@ -172,19 +172,19 @@ export function TaskDetail({
       return (
         <>
           <div
-            className={`rounded-[11px] border px-[15px] py-[13px] ${amb ? 'border-amber-b bg-amber-t' : 'border-red-b bg-red-t'}`}
+            className={`rounded-md border px-4 py-3 ${amb ? 'border-amber-b bg-amber-t' : 'border-red-b bg-red-t'}`}
             data-tone={amb ? 'amb' : 'red'}
             data-testid="dt-diag"
           >
-            <div className={`text-sm font-bold leading-[1.45] ${amb ? 'text-amber-d' : 'text-red-d'}`} data-testid="dt-diag-cause">
+            <div className={`text-base font-bold leading-[1.45] ${amb ? 'text-amber-d' : 'text-red-d'}`} data-testid="dt-diag-cause">
               {t(`failure.cause_${diag.cause}`)}
             </div>
-            <p className="mt-1.5 mb-0 max-w-[64ch] text-[13px] leading-[1.6] text-text-2" data-testid="dt8-diag-hint">
+            <p className="mt-1.5 mb-0 max-w-[64ch] text-body leading-[1.6] text-text-2" data-testid="dt8-diag-hint">
               {t(`failure.hint_${diag.cause}`)}
             </p>
             {fix !== null && (
               <div className="mt-2.5 flex flex-col gap-1">
-                <span className="text-[11px] text-text-3">{t('failure.fix_label')}</span>
+                <span className="text-micro text-text-3">{t('failure.fix_label')}</span>
                 <div className={codeRowCls}>
                   <span className={codePromptCls} aria-hidden="true">
                     $
@@ -206,13 +206,13 @@ export function TaskDetail({
               </div>
             )}
             {lastError !== '' && (
-              <details className="group mt-[11px]" data-testid="dt8-rawfold">
-                <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-[12.5px] font-semibold text-text-2 outline-none focus-visible:shadow-[0_0_0_3px_var(--ring-blue)] [&::-webkit-details-marker]:hidden">
+              <details className="group mt-3" data-testid="dt8-rawfold">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-sm px-1 py-0.5 text-caption font-semibold text-text-2 outline-none focus-visible:shadow-[0_0_0_3px_var(--ring-blue)] [&::-webkit-details-marker]:hidden">
                   <ChevronRight className="size-3 flex-none text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none" strokeWidth={1.75} aria-hidden="true" />
                   {t('detail.raw_error_summary')}
                 </summary>
                 <pre
-                  className="mt-2 mb-0 rounded-[9px] border border-code-border bg-code-bg px-3 py-2.5 font-mono text-xs leading-[1.65] whitespace-pre-wrap text-text-2 [overflow-wrap:anywhere]"
+                  className="mt-2 mb-0 rounded-sm border border-code-border bg-code-bg px-3 py-2.5 font-mono text-caption leading-[1.65] whitespace-pre-wrap text-text-2 [overflow-wrap:anywhere]"
                   data-testid="dt8-raw-pre"
                 >
                   {lastError}
@@ -220,7 +220,7 @@ export function TaskDetail({
               </details>
             )}
             <div
-              className="mt-2.5 flex gap-3.5 font-mono text-xs tabular-nums text-text-3 [&_b]:font-bold [&_b]:text-text-2"
+              className="mt-2.5 flex gap-3.5 font-mono text-caption tabular-nums text-text-3 [&_b]:font-bold [&_b]:text-text-2"
               data-testid="dt8-diag-meta"
             >
               {attempts !== '' && (
@@ -241,12 +241,12 @@ export function TaskDetail({
               ))}
             {missing.length > 0 && (
               <div
-                className="min-w-0 rounded-[7px] border border-dashed border-border bg-transparent px-2 py-[5px]"
+                className="min-w-0 rounded-sm border border-dashed border-border bg-transparent px-2 py-1"
                 data-state="miss"
                 data-testid="dt-field-missing"
               >
-                <div className="font-mono text-[10.5px] text-text-3 [overflow-wrap:anywhere]">{missing.join(' · ')}</div>
-                <div className="text-xs text-text-3 [overflow-wrap:anywhere]">{t('evidence.unset')}</div>
+                <div className="font-mono text-micro text-text-3 [overflow-wrap:anywhere]">{missing.join(' · ')}</div>
+                <div className="text-caption text-text-3 [overflow-wrap:anywhere]">{t('evidence.unset')}</div>
               </div>
             )}
           </div>
@@ -259,7 +259,7 @@ export function TaskDetail({
     return (
       <>
         <div
-          className={`mb-2 flex items-baseline gap-1.5 text-[12.5px] leading-normal font-semibold ${v.bad ? 'text-red-d' : 'text-text'}`}
+          className={`mb-2 flex items-baseline gap-1.5 text-caption leading-normal font-semibold ${v.bad ? 'text-red-d' : 'text-text'}`}
           data-tone={v.bad ? 'bad' : 'ok'}
           data-testid="dt-verdict"
         >
@@ -282,7 +282,7 @@ export function TaskDetail({
     const bad = state === 'failed'
     return (
       <div
-        className={`mt-2 rounded-md border px-[11px] py-2.5 ${bad ? 'border-red-b bg-red-t' : 'border-accent-b bg-accent-t'}`}
+        className={`mt-2 rounded-sm border px-3 py-2.5 ${bad ? 'border-red-b bg-red-t' : 'border-accent-b bg-accent-t'}`}
         data-tone={bad ? 'bad' : 'ok'}
         data-testid="dtl-box"
       >
@@ -311,16 +311,16 @@ export function TaskDetail({
                     {status === 'done' ? <Check className="size-2.5" strokeWidth={1.75} /> : status === 'fail' ? <X className="size-2.5" strokeWidth={1.75} /> : null}
                   </span>
                   <div className={chipRowCls}>
-                    <span className={`text-[13px] ${stageNameCls[status]}`}>{stageLabel(st.step)}</span>
-                    {status === 'todo' && <span className="text-xs text-text-3">{t('detail.not_started')}</span>}
+                    <span className={`text-body ${stageNameCls[status]}`}>{stageLabel(st.step)}</span>
+                    {status === 'todo' && <span className="text-caption text-text-3">{t('detail.not_started')}</span>}
                     {status === 'done' &&
                       (st.chips.length > 0 ? (
                         st.chips.map((c) => <StageChip key={c.key} chip={c} onCopy={copy} />)
                       ) : (
-                        <span className="text-xs text-text-3">{t('detail.no_outputs')}</span>
+                        <span className="text-caption text-text-3">{t('detail.no_outputs')}</span>
                       ))}
                     {status === 'fail' && attempts !== '' && (
-                      <span className="text-xs text-text-3">{t('detail.fail_stopped_here', { n: attempts })}</span>
+                      <span className="text-caption text-text-3">{t('detail.fail_stopped_here', { n: attempts })}</span>
                     )}
                   </div>
                   {(status === 'cur' || status === 'fail') && (
@@ -369,15 +369,15 @@ export function TaskDetail({
           ? t('detail.verdict_queued_compact')
           : result.text
     return (
-      <div className="rounded-xl border border-border bg-fill/40 p-3.5" data-testid="dt-compact-stage">
+      <div className="rounded-md border border-border bg-fill/40 p-3.5" data-testid="dt-compact-stage">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-bold text-text">{currentLabel}</span>
-          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${result.bad ? 'text-red-d' : 'text-text-2'}`} data-testid="dt-compact-status">
+          <span className="text-base font-bold text-text">{currentLabel}</span>
+          <span className={`inline-flex items-center gap-1.5 text-caption font-semibold ${result.bad ? 'text-red-d' : 'text-text-2'}`} data-testid="dt-compact-status">
             <ResultIcon className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
             {compactStatusText}
           </span>
         </div>
-        <p className="mt-2 mb-0 text-xs leading-5 text-text-3">
+        <p className="mt-2 mb-0 text-caption leading-5 text-text-3">
           {firstForward ? t('navigation.next_step', { step: stageLabel(firstForward.to) }) : t('navigation.no_next_step')}
         </p>
       </div>
@@ -409,12 +409,12 @@ export function TaskDetail({
           {change.documents?.governed ? (
             <TaskDocumentsSection documents={change.documents} extra={documentsExtra} />
           ) : documentsExtra !== undefined ? (
-            <div className="border-b border-border py-[13px] last:border-b-0" data-testid="dt-verification-tools">{documentsExtra}</div>
+            <div className="border-b border-border py-3 last:border-b-0" data-testid="dt-verification-tools">{documentsExtra}</div>
           ) : null}
           <RelatedSessionsSection key={`${root}\u0000${change.name}`} root={root} name={change.name} />
           {collapseTechnical ? (
-            <details className="my-3 rounded-xl border border-border bg-fill/40 px-3" data-testid="detail-technical">
-              <summary className="cursor-pointer py-3 text-[12.5px] font-semibold text-text">{t('runAudit.title')}</summary>
+            <details className="my-3 rounded-md border border-border bg-fill/40 px-3" data-testid="detail-technical">
+              <summary className="cursor-pointer py-3 text-caption font-semibold text-text">{t('runAudit.title')}</summary>
               <RunAuditPanel root={root} change={change.name} refreshKey={`${change.phase}:${automation}`} />
               {historySection}
             </details>
@@ -435,8 +435,8 @@ export function TaskDetail({
             })()}
           </div>
           {curStageExtra !== undefined && (
-            <details className="group border-b border-border py-[11px] last:border-b-0" data-testid="dt-output-advanced">
-              <summary className="cursor-pointer list-none text-[12.5px] font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--ring-blue) [&::-webkit-details-marker]:hidden">
+            <details className="group border-b border-border py-3 last:border-b-0" data-testid="dt-output-advanced">
+              <summary className="cursor-pointer list-none text-caption font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--ring-blue) [&::-webkit-details-marker]:hidden">
                 <span className="inline-flex items-center gap-1.5">
                   <ChevronRight className="size-3.5 text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none" strokeWidth={1.75} aria-hidden="true" />
                   {t('progress.output_advanced_preview')}
@@ -445,8 +445,8 @@ export function TaskDetail({
               <div className="pt-3">{curStageExtra}</div>
             </details>
           )}
-          <details className="group border-b border-border py-[11px] last:border-b-0" data-testid="dt-output-graph">
-            <summary className="cursor-pointer list-none text-[12.5px] font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--ring-blue) [&::-webkit-details-marker]:hidden">
+          <details className="group border-b border-border py-3 last:border-b-0" data-testid="dt-output-graph">
+            <summary className="cursor-pointer list-none text-caption font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--ring-blue) [&::-webkit-details-marker]:hidden">
               <span className="inline-flex items-center gap-1.5">
                 <ChevronRight className="size-3.5 text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none" strokeWidth={1.75} aria-hidden="true" />
                 {t('progress.output_execution_graph')}
@@ -455,8 +455,8 @@ export function TaskDetail({
             <div className="pt-3"><OrchestrationGraphCard root={root} change={change.name} /></div>
           </details>
           {evidenceExtra !== undefined && (
-            <details className="group border-b border-border py-[11px] last:border-b-0" data-testid="dt-output-evidence">
-              <summary className="cursor-pointer list-none text-[12.5px] font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--ring-blue) [&::-webkit-details-marker]:hidden">
+            <details className="group border-b border-border py-3 last:border-b-0" data-testid="dt-output-evidence">
+              <summary className="cursor-pointer list-none text-caption font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--ring-blue) [&::-webkit-details-marker]:hidden">
                 <span className="inline-flex items-center gap-1.5">
                   <ChevronRight className="size-3.5 text-text-3 transition-transform group-open:rotate-90 motion-reduce:transition-none" strokeWidth={1.75} aria-hidden="true" />
                   {t('progress.output_evidence')}
@@ -468,7 +468,7 @@ export function TaskDetail({
           {change.documents?.governed ? (
             <TaskDocumentsSection documents={change.documents} extra={documentsExtra} />
           ) : documentsExtra !== undefined ? (
-            <div className="border-b border-border py-[13px] last:border-b-0" data-testid="dt-verification-tools">{documentsExtra}</div>
+            <div className="border-b border-border py-3 last:border-b-0" data-testid="dt-verification-tools">{documentsExtra}</div>
           ) : null}
         </>
       )}

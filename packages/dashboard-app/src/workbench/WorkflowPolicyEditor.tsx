@@ -13,7 +13,7 @@ import {
 } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import type { WbWorkflowDef } from './workbenchDefinition'
-import { BTN_GHOST, BTN_SOLID } from './workbenchStyles'
+import { BTN_GHOST, BTN_SOLID, MOBILE_TAP } from './workbenchStyles'
 import { INPUT } from '../shared/uiRecipes'
 
 export interface WorkflowPolicyEditorProps {
@@ -46,8 +46,8 @@ const DECOMPOSITION_TARGETS = ['work-items', 'child-pipelines'] as const satisfi
 const DECOMPOSITION_STRATEGIES = ['balanced', 'breadth-first', 'depth-first'] as const satisfies readonly WbDecompositionStrategy[]
 const INTERACTION_MODES = ['interactive', 'recommended-defaults', 'afk'] as const satisfies readonly WbInteractionMode[]
 
-const LABEL = 'grid gap-1.5 text-xs font-semibold text-text-2'
-const CONTROL = `${INPUT} text-[13px]`
+const LABEL = 'grid gap-1.5 text-caption font-semibold text-text-2'
+const CONTROL = `${INPUT} text-body ${MOBILE_TAP}`
 
 function currentDecomposition(definition: WbWorkflowDef): WbDecompositionPolicy {
   return definition.decomposition ?? {
@@ -67,16 +67,16 @@ export function WorkflowPolicyEditor(props: WorkflowPolicyEditorProps): JSX.Elem
   const disabled = props.readonly || props.saving
 
   if (props.loading) {
-    return <section className="mb-4 rounded-2xl border border-border bg-card p-4" aria-label={t('workbench.policy_title')}><p className="m-0 text-sm text-text-3" role="status" aria-live="polite">{t('workbench.policy_loading')}</p></section>
+    return <section className="mb-4 rounded-lg border border-border bg-card p-4" aria-label={t('workbench.policy_title')}><p className="m-0 text-base text-text-3" role="status" aria-live="polite">{t('workbench.policy_loading')}</p></section>
   }
   if (props.error !== null) {
-    return <section className="mb-4 rounded-2xl border border-red-b bg-red-t p-4" aria-label={t('workbench.policy_title')}>
-      <p className="mt-0 mb-3 text-sm text-red-d" role="alert">{props.error}</p>
-      <button type="button" className={BTN_GHOST} onClick={props.onRetry}>{t('workbench.policy_retry')}</button>
+    return <section className="mb-4 rounded-lg border border-red-b bg-red-t p-4" aria-label={t('workbench.policy_title')}>
+      <p className="mt-0 mb-3 text-base text-red-d" role="alert">{props.error}</p>
+      <button type="button" className={`${BTN_GHOST} ${MOBILE_TAP}`} onClick={props.onRetry}>{t('workbench.policy_retry')}</button>
     </section>
   }
   if (props.definition === null) {
-    return <section className="mb-4 rounded-2xl border border-border bg-card p-4" aria-label={t('workbench.policy_title')}><p className="m-0 text-sm text-text-3" role="status">{t('workbench.policy_empty')}</p></section>
+    return <section className="mb-4 rounded-lg border border-border bg-card p-4" aria-label={t('workbench.policy_title')}><p className="m-0 text-base text-text-3" role="status">{t('workbench.policy_empty')}</p></section>
   }
 
   const definition = props.definition
@@ -120,19 +120,19 @@ export function WorkflowPolicyEditor(props: WorkflowPolicyEditorProps): JSX.Elem
   }
 
   return (
-    <section className="mb-4 rounded-2xl border border-border bg-card p-4 shadow-sm" aria-labelledby="workflow-policy-title" data-testid="workflow-policy-editor">
+    <section className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm" aria-labelledby="workflow-policy-title" data-testid="workflow-policy-editor">
       <div className="mb-4 flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h2 id="workflow-policy-title" className="m-0 text-base font-extrabold tracking-[-0.01em] text-text">{t('workbench.policy_title')}</h2>
-          <p className="mt-1 mb-0 max-w-3xl text-[12.5px] leading-5 text-text-3">{t('workbench.policy_desc')}</p>
+          <h2 id="workflow-policy-title" className="m-0 text-title font-extrabold tracking-[-0.01em] text-text">{t('workbench.policy_title')}</h2>
+          <p className="mt-1 mb-0 max-w-3xl text-caption leading-5 text-text-3">{t('workbench.policy_desc')}</p>
         </div>
-        {props.readonly && <p className="m-0 rounded-full bg-fill-2 px-3 py-1.5 text-xs font-semibold text-text-3">{t('workbench.policy_readonly')}</p>}
+        {props.readonly && <p className="m-0 rounded-full bg-fill-2 px-3 py-1.5 text-caption font-semibold text-text-3">{t('workbench.policy_readonly')}</p>}
       </div>
       <form data-testid="workflow-policy-form" className="grid gap-4" onSubmit={submit} onKeyDown={keyDown}>
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.75fr)]">
-          <fieldset className="min-w-0 rounded-xl border border-border bg-bg/50 p-4" disabled={disabled}>
-            <legend className="px-1 text-sm font-extrabold text-text">{t('workbench.policy_decomposition')}</legend>
-            <p className="mt-0 mb-4 text-[12px] leading-5 text-text-3">{t('workbench.policy_decomposition_desc')}</p>
+          <fieldset className="min-w-0 rounded-md border border-border bg-bg/50 p-4" disabled={disabled}>
+            <legend className="px-1 text-base font-extrabold text-text">{t('workbench.policy_decomposition')}</legend>
+            <p className="mt-0 mb-4 text-caption leading-5 text-text-3">{t('workbench.policy_decomposition_desc')}</p>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <label className={LABEL}>{t('workbench.policy_decomposition_mode')}
                 <select ref={firstControlRef} className={CONTROL} value={decomposition.mode} aria-label={t('workbench.policy_decomposition_mode')} onChange={(event) => {
@@ -179,18 +179,18 @@ export function WorkflowPolicyEditor(props: WorkflowPolicyEditorProps): JSX.Elem
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div role="group" aria-label={t('workbench.policy_auto_when')}>
-                <h3 className="mt-0 mb-2 text-xs font-bold text-text-2">{t('workbench.policy_auto_when')}</h3>
-                <div className="grid gap-2">{AUTO_CONDITIONS.map(([value, key]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-xs text-text-2"><input type="checkbox" checked={decomposition.auto_when.includes(value)} onChange={(event) => changeDecomposition({ auto_when: toggleCondition(decomposition.auto_when, value, event.target.checked) })} />{t(key)}</label>)}</div>
+                <h3 className="mt-0 mb-2 text-caption font-bold text-text-2">{t('workbench.policy_auto_when')}</h3>
+                <div className="grid gap-2">{AUTO_CONDITIONS.map(([value, key]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-caption text-text-2 mobile:min-h-11"><input type="checkbox" className="mobile:size-5" checked={decomposition.auto_when.includes(value)} onChange={(event) => changeDecomposition({ auto_when: toggleCondition(decomposition.auto_when, value, event.target.checked) })} />{t(key)}</label>)}</div>
               </div>
               <div role="group" aria-label={t('workbench.policy_ask_when')}>
-                <h3 className="mt-0 mb-2 text-xs font-bold text-text-2">{t('workbench.policy_ask_when')}</h3>
-                <div className="grid gap-2">{ASK_CONDITIONS.map(([value, key]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-xs text-text-2"><input type="checkbox" checked={decomposition.ask_when.includes(value)} onChange={(event) => changeDecomposition({ ask_when: toggleCondition(decomposition.ask_when, value, event.target.checked) })} />{t(key)}</label>)}</div>
+                <h3 className="mt-0 mb-2 text-caption font-bold text-text-2">{t('workbench.policy_ask_when')}</h3>
+                <div className="grid gap-2">{ASK_CONDITIONS.map(([value, key]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-caption text-text-2 mobile:min-h-11"><input type="checkbox" className="mobile:size-5" checked={decomposition.ask_when.includes(value)} onChange={(event) => changeDecomposition({ ask_when: toggleCondition(decomposition.ask_when, value, event.target.checked) })} />{t(key)}</label>)}</div>
               </div>
             </div>
           </fieldset>
-          <fieldset className="min-w-0 rounded-xl border border-border bg-bg/50 p-4" disabled={disabled}>
-            <legend className="px-1 text-sm font-extrabold text-text">{t('workbench.policy_interaction')}</legend>
-            <p className="mt-0 mb-4 text-[12px] leading-5 text-text-3">{t('workbench.policy_interaction_desc')}</p>
+          <fieldset className="min-w-0 rounded-md border border-border bg-bg/50 p-4" disabled={disabled}>
+            <legend className="px-1 text-base font-extrabold text-text">{t('workbench.policy_interaction')}</legend>
+            <p className="mt-0 mb-4 text-caption leading-5 text-text-3">{t('workbench.policy_interaction_desc')}</p>
             <label className={LABEL}>{t('workbench.policy_interaction_mode')}
               <select className={CONTROL} value={interaction.mode} aria-label={t('workbench.policy_interaction_mode')} onChange={(event) => {
                 const mode = closedSelection(event.target.value, INTERACTION_MODES)
@@ -201,10 +201,10 @@ export function WorkflowPolicyEditor(props: WorkflowPolicyEditorProps): JSX.Elem
                 <option value="afk">{t('workbench.policy_interaction_afk')}</option>
               </select>
             </label>
-            <p className="mt-3 mb-0 rounded-lg border border-border bg-card px-3 py-2.5 text-[11.5px] leading-5 text-text-3">{t('workbench.policy_interaction_afk_note')}</p>
+            <p className="mt-3 mb-0 rounded-md border border-border bg-card px-3 py-2.5 text-micro leading-5 text-text-3">{t('workbench.policy_interaction_afk_note')}</p>
             <div className="mt-4 border-t border-border pt-4">
-              <h3 className="mt-0 mb-1 text-sm font-extrabold text-text">{t('workbench.policy_review_budget')}</h3>
-              <p className="mt-0 mb-3 text-[12px] leading-5 text-text-3">{t('workbench.policy_review_budget_desc')}</p>
+              <h3 className="mt-0 mb-1 text-base font-extrabold text-text">{t('workbench.policy_review_budget')}</h3>
+              <p className="mt-0 mb-3 text-caption leading-5 text-text-3">{t('workbench.policy_review_budget_desc')}</p>
               <label className={LABEL}>{t('workbench.policy_review_max_attempts')}
                 <input className={CONTROL} type="number" min={1} max={20} step={1} value={reviewBudget.max_attempts} aria-label={t('workbench.policy_review_max_attempts')} onChange={(event) => {
                   const value = event.currentTarget.valueAsNumber
@@ -222,10 +222,10 @@ export function WorkflowPolicyEditor(props: WorkflowPolicyEditorProps): JSX.Elem
           </fieldset>
         </div>
         {!props.readonly && <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
-          {props.saving && <span role="status" aria-live="polite" className="mr-auto text-xs font-semibold text-text-3">{t('workbench.policy_saving')}</span>}
-          {!props.saving && props.saveStatus === 'success' && !props.dirty && <span role="status" aria-live="polite" className="mr-auto text-xs font-semibold text-green-d">{t('workbench.policy_saved')}</span>}
-          <button type="button" className={BTN_GHOST} disabled={!props.dirty || props.saving} onClick={props.onCancel}>{t('workbench.policy_cancel')}</button>
-          <button type="submit" className={BTN_SOLID} disabled={!props.dirty || props.saving}>{t('workbench.policy_save')}</button>
+          {props.saving && <span role="status" aria-live="polite" className="mr-auto text-caption font-semibold text-text-3">{t('workbench.policy_saving')}</span>}
+          {!props.saving && props.saveStatus === 'success' && !props.dirty && <span role="status" aria-live="polite" className="mr-auto text-caption font-semibold text-green-d">{t('workbench.policy_saved')}</span>}
+          <button type="button" className={`${BTN_GHOST} ${MOBILE_TAP}`} disabled={!props.dirty || props.saving} onClick={props.onCancel}>{t('workbench.policy_cancel')}</button>
+          <button type="submit" className={`${BTN_SOLID} ${MOBILE_TAP}`} disabled={!props.dirty || props.saving}>{t('workbench.policy_save')}</button>
         </div>}
       </form>
     </section>

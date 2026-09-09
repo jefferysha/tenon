@@ -72,19 +72,19 @@ export function ContextBundlePreview({
       aria-labelledby="context-bundle-preview-title"
     >
       <div>
-        <h2 id="context-bundle-preview-title" className="text-sm font-semibold text-text">
+        <h2 id="context-bundle-preview-title" className="text-base font-semibold text-text">
           {t('progress.bundle_title')}
         </h2>
-        <p className="mt-1 text-xs leading-5 text-text-3">
+        <p className="mt-1 text-caption leading-5 text-text-3">
           {t('progress.bundle_description')}
         </p>
       </div>
 
       <form className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={submit}>
-        <label className="grid gap-1 text-xs font-medium text-text-2">
+        <label className="grid gap-1 text-caption font-medium text-text-2">
           {t('progress.bundle_target_label')}
           <select
-            className={`${SELECT} h-9 px-2 text-sm`}
+            className={`${SELECT} h-9 px-2 text-base`}
             value={target}
             onChange={(event) => onTargetChange(event.currentTarget.value)}
           >
@@ -93,10 +93,10 @@ export function ContextBundlePreview({
             ))}
           </select>
         </label>
-        <label className="grid gap-1 text-xs font-medium text-text-2">
+        <label className="grid gap-1 text-caption font-medium text-text-2">
           {t('progress.bundle_budget_label')}
           <input
-            className={`${INPUT} h-9 px-2 font-mono text-sm`}
+            className={`${INPUT} h-9 px-2 font-mono text-base`}
             type="number"
             name="budgetBytes"
             autoComplete="off"
@@ -108,7 +108,7 @@ export function ContextBundlePreview({
           />
         </label>
         <button
-          className={`${BUTTON_SOLID} h-9 px-3 text-xs`}
+          className={`${BUTTON_SOLID} h-9 px-3 text-caption`}
           type="submit"
           disabled={state.kind === 'loading'}
         >
@@ -123,7 +123,7 @@ export function ContextBundlePreview({
         data-testid="context-bundle-result"
       >
         {state.kind === 'idle' && (
-          <p className="text-xs text-text-3">{t('progress.bundle_idle')}</p>
+          <p className="text-caption text-text-3">{t('progress.bundle_idle')}</p>
         )}
         {state.kind === 'loading' && (
           <ContextBundleLoading />
@@ -131,7 +131,7 @@ export function ContextBundlePreview({
 
         {state.kind === 'success' && state.preview.inputs.length === 0 && (
           <div
-            className="rounded-lg border border-dashed border-border-2 px-3 py-4 text-xs text-text-3"
+            className="rounded-md border border-dashed border-border-2 px-3 py-4 text-caption text-text-3"
             role="status"
           >
             {t('progress.bundle_empty')}
@@ -160,14 +160,14 @@ export function ContextBundlePreview({
               formatNumber={formatNumber}
               tone="error"
             />
-            <div className="rounded-lg border border-amber-b bg-amber-t px-3 py-2.5 text-xs text-amber-d" role="alert">
+            <div className="rounded-md border border-amber-b bg-amber-t px-3 py-2.5 text-caption text-amber-d" role="alert">
               <p className="font-semibold">
                 {t('progress.bundle_budget_error', {
                   required: formatNumber(state.preview.budget.usedBytes),
                   available: formatNumber(state.preview.budget.maxBytes),
                 })}
               </p>
-              <code className="mt-1 block break-all text-[10px]">{state.code}</code>
+              <code className="mt-1 block break-all text-micro">{state.code}</code>
               <p className="mt-1">{t('progress.bundle_budget_repair')}</p>
             </div>
             <PreviewInputs inputs={state.preview.inputs} formatNumber={formatNumber} />
@@ -175,9 +175,9 @@ export function ContextBundlePreview({
         )}
 
         {state.kind === 'error' && (
-          <div className="rounded-lg border border-red-b bg-red-t px-3 py-2.5 text-xs text-red-d" role="alert">
+          <div className="rounded-md border border-red-b bg-red-t px-3 py-2.5 text-caption text-red-d" role="alert">
             <p className="font-semibold">{t('progress.bundle_error_title')}</p>
-            <code className="mt-1 block break-all text-[10px]">{state.code}</code>
+            <code className="mt-1 block break-all text-micro">{state.code}</code>
             <p className="mt-1">
               {t(ERROR_KEYS[state.code] ?? 'progress.bundle_error_unknown', {
                 path: state.path ?? '—',

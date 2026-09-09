@@ -51,12 +51,12 @@ export function TaskConnectionCard({
     </div>
   )
   return (
-    <div className="border-b border-border py-[13px] last:border-b-0" data-testid="dt8-conn">
-      <div className="mb-2.5 flex items-baseline gap-[7px] text-[12.5px] font-bold text-text">
-        {t('detail.selffix_title')} <span className="text-xs font-normal text-text-3">{t('detail.selffix_desc')}</span>
+    <div className="border-b border-border py-3 last:border-b-0" data-testid="dt8-conn">
+      <div className="mb-2.5 flex items-baseline gap-2 text-caption font-bold text-text">
+        {t('detail.selffix_title')} <span className="text-caption font-normal text-text-3">{t('detail.selffix_desc')}</span>
       </div>
-      <div className="rounded-[11px] border border-accent-b bg-accent-t px-[15px] py-[13px]">
-        <div className="flex flex-col gap-[7px]">
+      <div className="rounded-md border border-accent-b bg-accent-t px-4 py-3">
+        <div className="flex flex-col gap-2">
           <SessionResumeRow root={root} name={change.name} onCopy={onCopy} />
           {worktree !== '' && row('dt8-conn-worktree', t('detail.conn_worktree'), worktreeCommand)}
           {sandbox !== '' && row(
@@ -67,7 +67,7 @@ export function TaskConnectionCard({
           )}
           {row('dt8-conn-rerun', t('detail.conn_rerun'), rerunCommand)}
         </div>
-        <p className="mt-[9px] mb-0 text-[11.5px] text-text-3">{t('detail.conn_src')}</p>
+        <p className="mt-2 mb-0 text-micro text-text-3">{t('detail.conn_src')}</p>
       </div>
     </div>
   )

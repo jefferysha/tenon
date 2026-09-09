@@ -13,10 +13,10 @@ export function PipelineSelector({ pipelines, selectedPipeline, onChange, label,
   if (pipelines.length === 0) return null
   const selected = pipelines.find((pipeline) => pipeline.id === selectedPipeline)
   return (
-    <div className="block text-[10px] font-bold uppercase tracking-wider text-text-3" data-testid="change-pipeline-label">
+    <div className="block text-micro font-bold uppercase tracking-wider text-text-3" data-testid="change-pipeline-label">
       <label>
         {label}
-        <select className="w-full rounded-lg border border-border bg-bg px-3 py-2 mt-1.5 font-mono text-xs text-text outline-none focus:border-(--accent) focus:ring-2 focus:ring-accent-t" data-testid="change-pipeline" value={selectedPipeline} onChange={(event) => onChange(event.target.value)}>
+        <select className="w-full rounded-md border border-border bg-bg px-3 py-2 mt-1.5 font-mono text-caption text-text outline-none focus:border-(--accent) focus:ring-2 focus:ring-accent-t" data-testid="change-pipeline" value={selectedPipeline} onChange={(event) => onChange(event.target.value)}>
           {pipelines.map((pipeline) => <option key={pipeline.id} value={pipeline.id}>{pipeline.id}</option>)}
         </select>
       </label>
@@ -26,19 +26,19 @@ export function PipelineSelector({ pipelines, selectedPipeline, onChange, label,
           {selected.stages.map((stage) => {
             const dependencies = Object.entries(stage.skill_dependencies).filter(([, refs]) => refs.length > 0)
             return (
-              <li key={stage.id} className="rounded-md border border-border bg-card px-2 py-1.5 text-[10px] text-text-2">
+              <li key={stage.id} className="rounded-sm border border-border bg-card px-2 py-1.5 text-micro text-text-2">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span className="font-mono text-text-3">{stage.order + 1}.</span>
                   <span className="font-semibold text-text">{stage.label}</span>
-                  <span className="rounded border border-border px-1 py-0.5 font-mono text-[9px] text-text-3">
+                  <span className="rounded-xs border border-border px-1 py-0.5 font-mono text-micro text-text-3">
                     {t(stage.mode === 'parallel' ? 'change_create.pipeline_parallel' : 'change_create.pipeline_serial')}
                   </span>
                 </div>
-                <div className="mt-0.5 break-words font-mono text-[9px] text-text-3">
+                <div className="mt-0.5 break-words font-mono text-micro text-text-3">
                   {stage.skill_ids.length > 0 ? stage.skill_ids.join(' → ') : t('change_create.pipeline_no_skills')}
                 </div>
                 {dependencies.length > 0 && (
-                  <div className="mt-0.5 text-[9px] text-text-3">
+                  <div className="mt-0.5 text-micro text-text-3">
                     {t('change_create.pipeline_dependencies', { value: dependencies.map(([skill, refs]) => `${skill} ← ${refs.join(', ')}`).join('; ') })}
                   </div>
                 )}

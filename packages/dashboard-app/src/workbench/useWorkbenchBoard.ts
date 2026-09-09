@@ -2,8 +2,8 @@ import { useCallback, useMemo } from 'react'
 import type { WbHookMeta } from '../api/governanceTypes'
 import type { Snapshot } from '../types'
 import { isPhase } from '../types'
-import { LOCKED_IDS } from './HookTimeline'
-import type { BoardLane } from './OrchestrationBoard'
+import { LOCKED_IDS } from './hooksConfig'
+import type { BoardLane } from './boardLane'
 import { stageCounts, type WbStepDef, type WbWorkflowDef } from './workbenchDefinition'
 
 type Tr = (key: string, vars?: Record<string, string | number>) => string

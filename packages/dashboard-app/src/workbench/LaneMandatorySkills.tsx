@@ -5,17 +5,17 @@ import { useT } from '../i18n'
 import { resolvedSkillId, skillPresentation } from './skillPresentation'
 import { resolveMandatoryCell, type MandatoryState } from './mandatoryState'
 
-const ZONE_TITLE = 'text-[13px] font-[750] whitespace-nowrap text-text-2'
-const NOTE_CLS = 'text-[12.5px] leading-[1.55] text-text-3'
+const ZONE_TITLE = 'text-body font-[750] whitespace-nowrap text-text-2'
+const NOTE_CLS = 'text-caption leading-[1.55] text-text-3'
 /** 定稿 .setchips .sc：紫 chip，名字 nowrap 且无 overflow-hidden——列宽（max-content）负责放得下。 */
 const CHIP_CLS =
-  'inline-flex items-center gap-1.5 rounded-lg border border-purple-b bg-purple-t px-2.5 py-[5px] font-mono text-[13px] font-semibold whitespace-nowrap text-purple-d data-uninstalled:opacity-62'
+  'inline-flex items-center gap-1.5 rounded-md border border-purple-b bg-purple-t px-2.5 py-1 font-mono text-body font-semibold whitespace-nowrap text-purple-d data-uninstalled:opacity-62'
 /** 定稿 .setchips .add：虚线添加钮。 */
 const ADD_CLS =
-  'cursor-pointer rounded-lg border-[1.5px] border-dashed border-border-2 bg-transparent px-[11px] py-[5px] text-[12.5px] font-bold whitespace-nowrap text-text-3 transition-colors enabled:hover:border-purple-b enabled:hover:text-purple-d disabled:cursor-not-allowed disabled:opacity-50'
+  'cursor-pointer rounded-md border-[1.5px] border-dashed border-border-2 bg-transparent px-3 py-1 text-caption font-bold whitespace-nowrap text-text-3 transition-colors enabled:hover:border-purple-b enabled:hover:text-purple-d disabled:cursor-not-allowed disabled:opacity-50'
 /** 未装徽章（同 SkillChain/SkillTransferModal 既有琥珀小徽章：红绿 color-mix 派生，决议 #9）。 */
 const UNINST_CLS =
-  'ml-1 flex-none whitespace-nowrap rounded-full border-0 bg-[color-mix(in_oklch,var(--red)_52%,var(--green))] px-1.5 py-px text-[11.5px] font-bold text-card'
+  'ml-1 flex-none whitespace-nowrap rounded-full border-0 bg-[color-mix(in_oklch,var(--red)_52%,var(--green))] px-1.5 py-px text-micro font-bold text-card'
 
 export interface LaneMandatorySkillsProps {
   phase: string
@@ -126,13 +126,13 @@ export function LaneMandatorySkills({ phase, state, readonly = false }: LaneMand
             </div>
           )}
           <div className="relative" data-testid={`wb-mand-parallel-${phase}`} title={t('workbench.mand_parallel_title')}>
-            <div className="mb-2 inline-flex items-center gap-2 text-[11.5px] font-bold text-text-3">
+            <div className="mb-2 inline-flex items-center gap-2 text-micro font-bold text-text-3">
               <span className="h-2.5 w-2.5 rounded-full bg-(--accent) shadow-[0_0_0_4px_var(--accent-t)]" aria-hidden="true" />
               {t('workbench.mand_stage_start')}
               {skills.length > 0 && <span className="h-px w-7 bg-purple-b" aria-hidden="true" />}
             </div>
             <div className="relative flex flex-col items-start gap-2 border-l border-purple-b pl-4">
-            {skills.length === 0 && <span className="mx-0.5 text-[13px] text-text-3" role="status" aria-live="polite">{t('workbench.mand_empty')}</span>}
+            {skills.length === 0 && <span className="mx-0.5 text-body text-text-3" role="status" aria-live="polite">{t('workbench.mand_empty')}</span>}
             {skills.map((id) => {
               const presentation = skillPresentation(id, registry, lang)
               const resolvedId = resolvedSkillId(id, registry)
@@ -146,13 +146,13 @@ export function LaneMandatorySkills({ phase, state, readonly = false }: LaneMand
                   data-testid={`wb-mand-chip-${phase}-${id}`}
                   title={t('workbench.mand_skill_title', { title: presentation.technicalTitle })}
                 >
-                  <span className="-ml-[22px] h-2.5 w-2.5 flex-none rounded-full border-2 border-card bg-purple" aria-hidden="true" />
+                  <span className="-ml-6 h-2.5 w-2.5 flex-none rounded-full border-2 border-card bg-purple" aria-hidden="true" />
                   <span className="flex-none font-sans">{presentation.name}</span>
                   {uninstBadge(resolvedId)}
                   {entriesRendered && (
                     <button
                       type="button"
-                      className="-mr-1 inline-grid size-4 flex-none cursor-pointer place-items-center rounded-[5px] p-0 text-[14px] leading-none opacity-70 transition hover:opacity-100 enabled:hover:bg-red-t enabled:hover:text-red-d disabled:cursor-not-allowed disabled:opacity-40"
+                      className="-mr-1 inline-grid size-4 flex-none cursor-pointer place-items-center rounded-xs p-0 text-base leading-none opacity-70 transition hover:opacity-100 enabled:hover:bg-red-t enabled:hover:text-red-d disabled:cursor-not-allowed disabled:opacity-40"
                       data-testid={`wb-mand-rm-${phase}-${id}`}
                       aria-label={t('workbench.mand_rm', { id, phase })}
                       disabled={writeDisabled}
@@ -186,20 +186,20 @@ export function LaneMandatorySkills({ phase, state, readonly = false }: LaneMand
                 </button>
                 {popOpen && (
                   <div
-                    className="absolute top-[calc(100%+6px)] left-0 z-[6] flex max-h-[260px] w-[300px] flex-col gap-0.5 overflow-y-auto rounded-[11px] border border-border bg-card p-1.5 text-left shadow-md"
+                    className="absolute top-[calc(100%+6px)] left-0 z-[6] flex max-h-[260px] w-[300px] flex-col gap-0.5 overflow-y-auto rounded-md border border-border bg-card p-1.5 text-left shadow-md"
                     data-testid={`wb-mand-pop-${phase}`}
                     role="group"
                     aria-label={t('workbench.mand_pop_title', { key: cell.key })}
                   >
-                    <p className="px-1.5 py-1 text-[11.5px] font-bold text-text-3">{t('workbench.mand_pop_title', { key: cell.key })}</p>
-                    {candidates.length === 0 && <p className="px-1.5 py-1 text-[12.5px] text-text-3" role="status" aria-live="polite">{t('workbench.mand_pop_empty')}</p>}
+                    <p className="px-1.5 py-1 text-micro font-bold text-text-3">{t('workbench.mand_pop_title', { key: cell.key })}</p>
+                    {candidates.length === 0 && <p className="px-1.5 py-1 text-caption text-text-3" role="status" aria-live="polite">{t('workbench.mand_pop_empty')}</p>}
                     {candidates.map((id) => {
                       const presentation = skillPresentation(id, registry, lang)
                       return (
                       <button
                         key={id}
                         type="button"
-                        className="flex w-full cursor-pointer items-center gap-1.5 rounded-md border border-transparent bg-transparent px-1.5 py-1.5 text-left text-[13px] whitespace-nowrap text-text-2 transition-colors hover:border-purple-b hover:bg-purple-t hover:text-purple-d"
+                        className="flex w-full cursor-pointer items-center gap-1.5 rounded-sm border border-transparent bg-transparent px-1.5 py-1.5 text-left text-body whitespace-nowrap text-text-2 transition-colors hover:border-purple-b hover:bg-purple-t hover:text-purple-d"
                         data-testid={`wb-mand-opt-${phase}-${id}`}
                         title={presentation.technicalTitle}
                         onClick={(e) => {
@@ -218,7 +218,7 @@ export function LaneMandatorySkills({ phase, state, readonly = false }: LaneMand
             </div>
           </div>
           {cellSaveError !== null && cellSaveError !== undefined && (
-            <p className="mx-0.5 mt-2 text-[12.5px] text-red" data-testid={`wb-mand-err-${phase}`} role="alert">
+            <p className="mx-0.5 mt-2 text-caption text-red" data-testid={`wb-mand-err-${phase}`} role="alert">
               {cellSaveError}
             </p>
           )}

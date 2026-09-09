@@ -50,14 +50,14 @@ export function UnsavedDraftDialog({ open, testid, onStay, onDiscard }: {
         <>
           <button
             type="button"
-            className="rounded-lg border border-border bg-card px-3.5 py-2 text-[13px] font-bold text-text hover:bg-fill"
+            className="rounded-md border border-border bg-card px-3.5 py-2 text-body font-bold text-text hover:bg-fill"
             onClick={onStay}
           >
             {t('common.unsaved_navigation_stay')}
           </button>
           <button
             type="button"
-            className="rounded-lg bg-red px-3.5 py-2 text-[13px] font-bold text-solid-fg hover:opacity-90"
+            className="rounded-md bg-red px-3.5 py-2 text-body font-bold text-solid-fg hover:opacity-90"
             onClick={onDiscard}
           >
             {t('common.unsaved_navigation_leave')}
@@ -65,7 +65,7 @@ export function UnsavedDraftDialog({ open, testid, onStay, onDiscard }: {
         </>
       )}
     >
-      <p className="text-[13px] leading-6 text-text-2">{t('common.unsaved_navigation_body')}</p>
+      <p className="text-body leading-6 text-text-2">{t('common.unsaved_navigation_body')}</p>
     </Dialog>
   )
 }

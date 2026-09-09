@@ -129,14 +129,14 @@ export function TaskPlanPanel({ root, change, onSelectedWorkItemChange }: TaskPl
   const renderError = (kind: 'error' | 'unknown'): JSX.Element => {
     const message = kind === 'unknown' ? t('task_plan.unknown') : t('task_plan.load_error')
     return (
-      <section className="min-w-0 rounded-xl border border-red-b bg-red-t/35 px-4 py-4" role="status" aria-live="polite" data-testid="task-plan-panel" data-state={kind}>
-        <div className="flex min-w-0 items-start gap-2 text-sm font-semibold text-text">
+      <section className="min-w-0 rounded-md border border-red-b bg-red-t/35 px-4 py-4" role="status" aria-live="polite" data-testid="task-plan-panel" data-state={kind}>
+        <div className="flex min-w-0 items-start gap-2 text-base font-semibold text-text">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-none text-red" aria-hidden="true" />
           <span className="min-w-0 break-words [overflow-wrap:anywhere]">{message}</span>
         </div>
         <button
           type="button"
-          className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+          className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-caption font-semibold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
           aria-label={t('task_plan.retry_load')}
           onClick={() => load('initial')}
         >
@@ -148,16 +148,16 @@ export function TaskPlanPanel({ root, change, onSelectedWorkItemChange }: TaskPl
   }
 
   if (state.queryKey !== currentQueryKey || state.kind === 'loading') {
-    return <section className="min-w-0 rounded-xl border border-border bg-fill/40 px-4 py-5 text-sm text-text-2" role="status" aria-live="polite" data-testid="task-plan-panel" data-state="loading">{t('task_plan.loading')}</section>
+    return <section className="min-w-0 rounded-md border border-border bg-fill/40 px-4 py-5 text-base text-text-2" role="status" aria-live="polite" data-testid="task-plan-panel" data-state="loading">{t('task_plan.loading')}</section>
   }
   if (state.kind === 'empty') {
-    return <section className="min-w-0 rounded-xl border border-dashed border-border px-4 py-5 text-sm text-text-3" role="status" aria-live="polite" data-testid="task-plan-panel" data-state="empty">{t('task_plan.not_found')}</section>
+    return <section className="min-w-0 rounded-md border border-dashed border-border px-4 py-5 text-base text-text-3" role="status" aria-live="polite" data-testid="task-plan-panel" data-state="empty">{t('task_plan.not_found')}</section>
   }
   if (state.kind === 'error' || state.kind === 'unknown') return renderError(state.kind)
 
   const selectedExists = state.plan.items.some((item) => item.id === selectedItemId)
   return (
-    <section className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border bg-card px-4 py-4" data-testid="task-plan-panel" data-state={state.stale ? 'stale' : 'ready'} aria-labelledby="task-plan-title">
+    <section className="min-w-0 max-w-full overflow-hidden rounded-md border border-border bg-card px-4 py-4" data-testid="task-plan-panel" data-state={state.stale ? 'stale' : 'ready'} aria-labelledby="task-plan-title">
       <div className={selectedExists ? 'grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.62fr)]' : 'min-w-0'}>
         <TaskPlanContent
           plan={state.plan}

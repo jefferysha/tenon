@@ -1,16 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { I18nProvider } from '../i18n'
+import { GlobalSearchProvider, useGlobalSearch } from '../shell/GlobalSearch'
 import { makeChange, makeProject, makeSnapshot } from '../testkit'
 import { DEFAULT_RULES, rulesKey, type WorkflowRules } from '../model/workflowModel'
 import { AfkView } from './AfkView'
 
-vi.mock('./TaskRunPanel', () => ({ TaskRunPanel: () => null }))
+vi.mock('./TaskRunPanel', () => ({ TaskRunPanel: () => <div data-testid="task-run-panel-stub" /> }))
+vi.mock('../shared/RunAuditPanel', () => ({ RunAuditPanel: () => <div data-testid="run-audit-panel-stub" /> }))
 
 const ROOT = '/tmp/afk-proj'
 
 // 沙箱三态 fixture（automation 字段驱动 progressModel 五态判定）：running/queued/failed 各一，
-// 外加一条非沙箱（无 automation → agent/gate 态）用于负向断言「不进 AFK 面」。
+// 外加一条非沙箱（无 automation → agent/gate 态）与一条终端心跳行，用于负向断言「不进自动化页」。
 function fixture() {
   return makeSnapshot([
     makeProject(ROOT, [
@@ -49,14 +51,22 @@ function makeRules(): Map<string, WorkflowRules> {
   return new Map<string, WorkflowRules>([[rulesKey(ROOT, 'default'), DEFAULT_RULES]])
 }
 
+/** 顶部条搜索框的替身：本页只消费 GlobalSearch 的 query，用它模拟用户在顶部条输入。 */
+function GlobalQueryProbe(): JSX.Element {
+  const { setQuery } = useGlobalSearch()
+  return <button type="button" data-testid="probe-global-query" onClick={() => setQuery('q-b')}>set</button>
+}
+
 let automationSettings = { max_parallel: 4, max_retries: 1, default_opt_in: false, image: '' }
 let afkPosts: Array<{ url: string; init: RequestInit | undefined }> = []
 let settingsPosts: Array<Record<string, unknown>> = []
+let loopRows: Array<Record<string, unknown>> = []
 
 beforeEach(() => {
   localStorage.clear()
   afkPosts = []
   settingsPosts = []
+  loopRows = []
   automationSettings = { max_parallel: 4, max_retries: 1, default_opt_in: false, image: '' }
   global.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -78,7 +88,7 @@ beforeEach(() => {
         { version: 1, id: 'daily-triage', goal: 'Review the queue', trigger: [{ kind: 'schedule' }], risk: 'low', recommendedWorkflow: 'default', recommendedSkills: ['loop-triage'] },
       ], defaults: { runner: 'codex', workflow: 'default' } }), { status: 200 })
     }
-    if (url === '/api/loops/snapshot') return new Response(JSON.stringify({ generated_at: '2026-07-20T00:00:00Z', rows: [] }), { status: 200 })
+    if (url === '/api/loops/snapshot') return new Response(JSON.stringify({ generated_at: '2026-07-20T00:00:00Z', rows: loopRows }), { status: 200 })
     if (url.startsWith('/api/cadence/status')) return new Response(JSON.stringify({ enabled: true, poll_interval_ms: 30000, generated_at: '2026-07-20T00:00:00Z', running: false, errors: [], loops: [] }), { status: 200 })
     throw new Error(`unexpected fetch ${url}`)
   }) as unknown as typeof fetch
@@ -98,7 +108,10 @@ async function renderAfk(over: Partial<Parameters<typeof AfkView>[0]> = {}) {
   }
   render(
     <I18nProvider>
-      <AfkView {...props} />
+      <GlobalSearchProvider>
+        <GlobalQueryProbe />
+        <AfkView {...props} />
+      </GlobalSearchProvider>
     </I18nProvider>,
   )
   await act(async () => {
@@ -107,20 +120,27 @@ async function renderAfk(over: Partial<Parameters<typeof AfkView>[0]> = {}) {
   return props
 }
 
-describe('AfkView 两栏自动运行工作区', () => {
-  it('English empty state and automation tools contain no hard-coded Chinese product copy', async () => {
+function openSheet(id: 'overview' | 'run' | 'handle' | 'records'): void {
+  fireEvent.click(screen.getByTestId(`afk-detail-tab-${id}`))
+}
+
+describe('AfkView 三列自动运行页', () => {
+  it('English empty state and cadence settings contain no hard-coded Chinese product copy', async () => {
     localStorage.setItem('tenon-dashboard-lang', 'en')
     const empty = makeSnapshot([makeProject(ROOT, [makeChange('manual', 'build', {})])])
     empty.capabilities = { ...empty.capabilities, operations: true }
     await renderAfk({ snapshot: empty })
     expect(screen.getByTestId('afk-empty')).toHaveTextContent('No automatic runs right now')
-    expect(screen.getByTestId('afk-view').textContent).not.toMatch(/[\u3400-\u9fff]/u)
-    expect(screen.queryByTestId('afk-new-run')).toBeNull()
-    expect(screen.getByTestId('afk-tool-starter')).toHaveTextContent('New schedule')
-    expect(screen.getByTestId('afk-tool-run')).toHaveTextContent('Validate schedule')
+    expect(screen.getByTestId('afk-view').textContent).not.toMatch(/[㐀-鿿]/u)
+    // 「新建运行」常驻左列：manual 尚未进入自动化，是合法候选。
+    expect(screen.getByTestId('afk-new-run')).not.toBeDisabled()
+    fireEvent.click(screen.getByTestId('afk-rail-settings'))
+    expect(screen.getByTestId('afk-settings-tab-starter')).toHaveTextContent('New schedule')
+    expect(screen.getByTestId('afk-settings-tab-run')).toHaveTextContent('Validate schedule')
+    expect(screen.getByTestId('afk-view').textContent).not.toMatch(/[㐀-鿿]/u)
   })
 
-  it('English populated queue, facts, progress, activity, and retry preview contain no Chinese product copy', async () => {
+  it('English populated list, facts, handling, and retry preview contain no Chinese product copy', async () => {
     localStorage.setItem('tenon-dashboard-lang', 'en')
     const snapshot = makeSnapshot([
       makeProject(ROOT, [
@@ -140,82 +160,122 @@ describe('AfkView 两栏自动运行工作区', () => {
     ])
     await renderAfk({ snapshot })
     const view = screen.getByTestId('afk-view')
-    expect(view.textContent).not.toMatch(/[\u3400-\u9fff]/u)
+    expect(view.textContent).not.toMatch(/[㐀-鿿]/u)
+    openSheet('handle')
+    expect(view.textContent).not.toMatch(/[㐀-鿿]/u)
     fireEvent.click(screen.getByTestId('afk-retry-preview-failed-en'))
-    expect(screen.getByTestId('afk-retry-sheet').textContent).not.toMatch(/[\u3400-\u9fff]/u)
+    expect(screen.getByTestId('afk-retry-sheet').textContent).not.toMatch(/[㐀-鿿]/u)
   })
 
-  it('打开页面即以待处理任务为主视图，任务事实与动作合并进详情，不再重复展示下一步侧栏', async () => {
+  it('打开页面即选中最需要处置的运行；右列头部给失败原因，概览 sheet 给运行事实', async () => {
     await renderAfk()
-    expect(screen.getByTestId('afk-view')).toHaveAttribute('data-page-frame', 'standard')
-    expect(screen.getByRole('heading', { name: '自动运行' })).toBeInTheDocument()
-    expect(screen.getByTestId('afk-queue')).toHaveTextContent('需要处理')
-    expect(screen.getByTestId('afk-detail')).toHaveTextContent('fail-c')
-    expect(screen.getByTestId('afk-detail')).toHaveTextContent('覆盖率 42%，要求至少 80%')
-    expect(screen.getByTestId('afk-detail')).toHaveTextContent('工作流 default')
-    expect(screen.getByTestId('afk-detail')).toHaveTextContent('自治 L2')
-    expect(screen.getByTestId('afk-detail')).toHaveTextContent('技能 dependency-sweeper@v1.2.0')
-    expect(screen.getByTestId('afk-detail')).toHaveTextContent('容器 node:20-bullseye')
-    expect(screen.getByTestId('afk-detail')).toHaveTextContent('查看重试预览')
-    expect(screen.queryByTestId('afk-inspector')).toBeNull()
-    const queue = screen.getByTestId('afk-queue')
-    expect(queue.parentElement?.className).toContain('grid-cols-[360px_minmax(0,1fr)]')
-    expect(within(queue).getByText('fail-c').className).not.toContain('truncate')
-    for (const project of within(queue).getAllByText('项目 · afk-proj')) expect(project.className).not.toContain('truncate')
+    expect(screen.getByTestId('afk-columns')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '运行' })).toBeInTheDocument()
+    const detail = screen.getByTestId('afk-detail')
+    expect(screen.getByTestId('afk-detail-title')).toHaveTextContent('fail-c')
+    expect(screen.getByTestId('afk-detail-status')).toHaveTextContent('覆盖率 42%，要求至少 80%')
+    expect(screen.getByTestId('afk-detail-badge')).toHaveAttribute('data-tone', 'blocked')
+    const facts = screen.getByTestId('afk-run-facts')
+    expect(facts).toHaveTextContent('工作流 default')
+    expect(facts).toHaveTextContent('自治 L2')
+    expect(facts).toHaveTextContent('技能 dependency-sweeper@v1.2.0')
+    expect(facts).toHaveTextContent('容器 node:20-bullseye')
+    expect(facts).toHaveTextContent('2026年07月07日 00:00:00')
+    openSheet('handle')
+    expect(detail).toHaveTextContent('查看重试预览')
   })
 
-  it('七阶段轨道由独立横向滚动视口承载，窄窗口不会裁掉归档阶段', async () => {
+  it('右列一次只显示一个 sheet：运行 → TaskRunPanel；记录 → RunAuditPanel', async () => {
     await renderAfk()
-    const viewport = screen.getByTestId('afk-stage-scroll')
-    const track = screen.getByTestId('afk-stage-track')
-    expect(viewport).toContainElement(track)
-    expect(within(track).getAllByText(/^(立项|调研|规格|实现|验证|交付|归档)$/)).toHaveLength(7)
+    expect(screen.queryByTestId('task-run-panel-stub')).toBeNull()
+    openSheet('run')
+    expect(screen.getByTestId('task-run-panel-stub')).toBeInTheDocument()
+    expect(screen.queryByTestId('afk-run-facts')).toBeNull()
+    openSheet('records')
+    expect(screen.getByTestId('run-audit-panel-stub')).toBeInTheDocument()
+    expect(screen.queryByTestId('task-run-panel-stub')).toBeNull()
   })
 
-  it('三栏各列出对应态的 change；非沙箱 change 不进面板', async () => {
+  it('阶段轨与工作台同源：六段主流程，fail-c 停在验证段且标为受阻', async () => {
+    await renderAfk()
+    const rail = screen.getByTestId('phase-rail')
+    expect(within(rail).getAllByRole('button')).toHaveLength(6)
+    expect(screen.getByTestId('phase-rail-open')).toHaveAttribute('data-status', 'done')
+    expect(screen.getByTestId('phase-rail-build')).toHaveAttribute('data-status', 'done')
+    expect(screen.getByTestId('phase-rail-verify')).toHaveAttribute('data-status', 'failed')
+    expect(screen.getByTestId('phase-rail-ship')).toHaveAttribute('data-status', 'pending')
+    expect(screen.queryByTestId('phase-rail-archive')).toBeNull()
+  })
+
+  it('中列只列自动化三桶的 change；非沙箱 change 不进列表；左列汇总计数同源', async () => {
     await renderAfk()
     expect(within(screen.getByTestId('afk-sec-running')).getByTestId('afk-row-run-a')).toBeInTheDocument()
     expect(within(screen.getByTestId('afk-sec-queued')).getByTestId('afk-row-q-b')).toBeInTheDocument()
     expect(within(screen.getByTestId('afk-sec-failed')).getByTestId('afk-row-fail-c')).toBeInTheDocument()
-    // 非沙箱（无 automation）不出现
     expect(screen.queryByTestId('afk-row-gate-d')).toBeNull()
-    // 正常对话的终端心跳虽然在进度页属于“运行中”，但不是自动运行任务。
+    // 正常对话的终端心跳虽然在工作台属于“运行中”，但不是自动运行任务。
     expect(screen.queryByTestId('afk-row-terminal-live')).toBeNull()
-    expect(screen.getByTestId('afk-health')).toHaveTextContent('运行中 1')
-    expect(screen.getByTestId('afk-health')).toHaveTextContent('等待中 1')
-    expect(screen.getByTestId('afk-health')).toHaveTextContent('需要处理 1')
+    const health = screen.getByTestId('afk-health')
+    expect(health).toHaveAttribute('data-status', 'attention')
+    expect(health).toHaveTextContent('1 个运行中 · 1 个待处置')
+    expect(within(health).getByTestId('afk-scope-all')).toHaveTextContent('3')
+    expect(screen.getByTestId('afk-filter-need')).toHaveTextContent('1')
+    expect(screen.getByTestId('afk-filter-running')).toHaveTextContent('1')
+    expect(screen.getByTestId('afk-filter-queued')).toHaveTextContent('1')
   })
 
-  it('选择运行中的任务后详情同步切换，不残留失败任务的重试动作', async () => {
+  it('状态页签过滤列表：需要你 = 失败', async () => {
+    await renderAfk()
+    fireEvent.click(screen.getByTestId('afk-filter-need'))
+    expect(screen.getByTestId('afk-row-fail-c')).toBeInTheDocument()
+    expect(screen.queryByTestId('afk-row-run-a')).toBeNull()
+    expect(screen.queryByTestId('afk-row-q-b')).toBeNull()
+  })
+
+  it('选择运行中的任务后详情同步切换，处置 sheet 不残留失败任务的重试动作', async () => {
     await renderAfk()
     fireEvent.click(screen.getByTestId('afk-row-run-a'))
-    expect(screen.getByTestId('afk-detail')).toHaveTextContent('run-a')
-    expect(screen.getByTestId('afk-detail')).toHaveTextContent('运行中')
+    expect(screen.getByTestId('afk-detail-title')).toHaveTextContent('run-a')
+    expect(screen.getByTestId('afk-detail-badge')).toHaveTextContent('运行中')
+    openSheet('handle')
     expect(screen.queryByTestId('afk-retry-preview-fail-c')).toBeNull()
+    expect(screen.getByTestId('afk-handle-none')).toHaveTextContent('无需处置')
   })
 
   it('搜索无结果时清除过期详情并提供恢复入口', async () => {
     await renderAfk()
-    const search = screen.getByPlaceholderText('搜索任务或定时任务…')
+    const search = screen.getByPlaceholderText('搜索运行')
     fireEvent.change(search, { target: { value: 'does-not-exist' } })
 
     expect(screen.getByTestId('afk-filter-empty')).toBeInTheDocument()
     expect(screen.queryByTestId('afk-detail')).toBeNull()
+    expect(screen.getByTestId('afk-detail-empty')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '清除条件' }))
     expect(screen.getByTestId('afk-detail')).toBeInTheDocument()
   })
 
-  it('行标 data-state 与相位（afk.at_phase：{phase 展示名} · 沙箱）', async () => {
+  it('顶部条搜索词同样过滤本页列表', async () => {
+    await renderAfk()
+    fireEvent.click(screen.getByTestId('probe-global-query'))
+    expect(screen.getByTestId('afk-row-q-b')).toBeInTheDocument()
+    expect(screen.queryByTestId('afk-row-fail-c')).toBeNull()
+    expect(screen.getByTestId('afk-detail-title')).toHaveTextContent('q-b')
+  })
+
+  it('运行卡：data-state、状态 pill、workflow · track slug、阶段与下一步', async () => {
     await renderAfk()
     const row = screen.getByTestId('afk-row-fail-c')
     expect(row).toHaveAttribute('data-state', 'failed')
-    expect(row.textContent).toContain('验证 · 需要处理')
-    expect(row).toHaveTextContent('afk-proj')
-    expect(row.querySelector('i')).toBeNull()
+    expect(within(row).getByTestId('afk-badge-fail-c')).toHaveTextContent('失败')
+    expect(row).toHaveTextContent('default · backend')
+    expect(row).toHaveTextContent('验证')
+    expect(row).toHaveTextContent('下一步 · 处置失败或重试')
+    expect(screen.getByTestId('afk-row-q-b')).toHaveTextContent('下一步 · 等待空闲槽位')
   })
 
   it('并发上限是可保存的真实设置：修改后 POST 全量 automation 配置', async () => {
     await renderAfk()
+    openSheet('handle')
     await waitFor(() => expect(screen.getByTestId('afk-limit-input')).toHaveValue('4'))
     fireEvent.change(screen.getByTestId('afk-limit-input'), { target: { value: '6' } })
     await waitFor(() => expect(settingsPosts).toEqual([{ root: ROOT, max_parallel: 6, max_retries: 1, default_opt_in: false, image: '' }]))
@@ -231,6 +291,7 @@ describe('AfkView 两栏自动运行工作区', () => {
       return baseFetch(input, init)
     }) as unknown as typeof fetch
     const props = await renderAfk()
+    openSheet('handle')
     await waitFor(() => expect(screen.getByTestId('afk-limit-input')).toHaveValue('4'))
 
     fireEvent.change(screen.getByTestId('afk-limit-input'), { target: { value: '6' } })
@@ -269,6 +330,8 @@ describe('AfkView 两栏自动运行工作区', () => {
       return baseFetch(input, init)
     }) as unknown as typeof fetch
     const props = await renderAfk()
+    openSheet('handle')
+    await waitFor(() => expect(screen.getByTestId('afk-limit-input')).toHaveValue('4'))
     fireEvent.click(screen.getByTestId('afk-new-run'))
     const enqueue = screen.getByTestId('afk-enqueue-gate-d')
     fireEvent.click(enqueue)
@@ -280,32 +343,40 @@ describe('AfkView 两栏自动运行工作区', () => {
       resolveAction(new Response(JSON.stringify({ ok: true }), { status: 200 }))
       await delayedAction
     })
-    await waitFor(() => expect(screen.queryByTestId('afk-enqueue-panel')).toBeNull())
+    await waitFor(() => expect(screen.queryByTestId('afk-tool-sheet')).toBeNull())
     expect(props.onToast).toHaveBeenCalledWith(expect.stringContaining('gate-d'))
     expect(props.onToast).toHaveBeenCalledWith(expect.stringContaining('6'))
   })
 
-  it('调度汇总灯：三态齐（有 failed）→ data-status=attention', async () => {
-    await renderAfk()
-    expect(screen.getByTestId('afk-health')).toHaveAttribute('data-status', 'attention')
-  })
-
-  it('生产能力开启时只保留“开启自动运行 / 新建定时任务 / 验证定时任务”，全部在居中对话框打开', async () => {
+  it('生产能力开启时：新建运行走居中对话框；定时任务的新建 / 验证是节奏设置的两个 sheet', async () => {
     await renderAfk({ snapshot: fixtureWithOperations() })
-    expect(screen.queryByTestId('afk-tool-cadence')).toBeNull()
-    expect(screen.queryByTestId('afk-tool-triage')).toBeNull()
-    expect(screen.queryByTestId('afk-tool-sync')).toBeNull()
-    expect(screen.queryByTestId('afk-enqueue-panel')).toBeNull()
     fireEvent.click(screen.getByTestId('afk-new-run'))
     expect(within(screen.getByTestId('afk-tool-sheet')).getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByTestId('afk-tool-sheet')).toHaveTextContent('开启自动运行')
     expect(screen.getByTestId('afk-tool-sheet')).toHaveTextContent('不创建新任务，也不改变它的工作流')
     expect(screen.getByTestId('afk-enqueue-gate-d')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('afk-tool-close'))
-    fireEvent.click(screen.getByTestId('afk-tool-starter'))
+    fireEvent.click(screen.getByTestId('afk-rail-settings'))
+    expect(screen.getByTestId('afk-settings')).toBeInTheDocument()
+    expect(screen.queryByTestId('afk-detail')).toBeNull()
+    fireEvent.click(screen.getByTestId('afk-settings-tab-starter'))
     await waitFor(() => expect(screen.getByTestId('ops-starter-daily-triage')).toBeInTheDocument())
-    expect(screen.getByTestId('afk-tool-sheet')).toHaveTextContent('选择定时任务类型')
-    expect(screen.getByTestId('afk-tool-sheet')).toHaveTextContent('模板决定如何发现或生成任务')
+    expect(screen.getByTestId('afk-settings')).toHaveTextContent('选择定时任务类型')
+    expect(screen.getByTestId('afk-settings')).toHaveTextContent('模板决定如何发现或生成任务')
+  })
+
+  it('节奏设置面板：并发上限、重试上限与默认入队来自真实配置；点范围卡回到运行详情', async () => {
+    await renderAfk()
+    fireEvent.click(screen.getByTestId('afk-rail-settings'))
+    await waitFor(() => expect(screen.getByTestId('afk-limit-input')).toHaveValue('4'))
+    const stats = screen.getByTestId('afk-settings-stats')
+    expect(stats).toHaveTextContent('重试上限')
+    expect(stats).toHaveTextContent('1')
+    expect(stats).toHaveTextContent('关闭')
+    expect(screen.getByTestId('afk-settings-health')).toHaveAttribute('data-tone', 'blocked')
+    fireEvent.click(screen.getByTestId('afk-scope-all'))
+    expect(screen.getByTestId('afk-detail')).toBeInTheDocument()
+    expect(screen.queryByTestId('afk-settings')).toBeNull()
   })
 
   it('工具 Dialog 进入首个控件、困住 Tab，Escape 关闭并把焦点还给打开按钮', async () => {
@@ -324,26 +395,49 @@ describe('AfkView 两栏自动运行工作区', () => {
     expect(trigger).toHaveFocus()
   })
 
-  it('390px 动作区使用完整可见的换行布局，不以隐藏横向滚动承载 English 长标签', async () => {
-    localStorage.setItem('tenon-dashboard-lang', 'en')
-    await renderAfk({ snapshot: fixtureWithOperations() })
-    const nav = screen.getByTestId('afk-tool-nav')
-    expect(nav.className).toContain('flex-wrap')
-    expect(nav.className).not.toContain('overflow-x-auto')
-    expect(within(nav).getAllByRole('button')).toHaveLength(2)
-  })
-
-  it('生产操作能力未接通时仍可开启现有任务的自动运行，但新建与验证定时任务明确禁用', async () => {
+  it('生产操作能力未接通时仍可开启现有任务的自动运行，但节奏设置里没有定时任务 sheet 并说明原因', async () => {
     await renderAfk()
     expect(screen.getByTestId('afk-new-run')).not.toBeDisabled()
-    expect(screen.queryByTestId('afk-tool-nav')).toBeNull()
-    expect(screen.queryByTestId('afk-tool-starter')).toBeNull()
-    expect(screen.queryByTestId('afk-tool-run')).toBeNull()
+    fireEvent.click(screen.getByTestId('afk-rail-settings'))
+    expect(screen.queryByTestId('afk-settings-tab-starter')).toBeNull()
+    expect(screen.queryByTestId('afk-settings-tab-run')).toBeNull()
+    expect(screen.getByTestId('afk-ops-unavailable')).toBeInTheDocument()
+  })
+
+  it('没有可入队候选时「新建运行」禁用并说明原因', async () => {
+    const snap = makeSnapshot([makeProject(ROOT, [makeChange('run-only', 'build', { fields: { automation: 'running' } })])])
+    await renderAfk({ snapshot: snap })
+    const link = screen.getByTestId('afk-new-run')
+    expect(link).toBeDisabled()
+    expect(link).toHaveAttribute('title', '当前没有可开启自动运行的任务')
+  })
+})
+
+describe('AfkView 左列范围（循环）', () => {
+  it('循环按 change 的 loop_id 归属：选中循环只显示归属它的运行，eyebrow 标出循环名', async () => {
+    loopRows = [{ root: ROOT, id: 'dependency-update', name: 'dependency-update', autonomy_level: 'L2', status: 'active' }]
+    await renderAfk()
+    const loop = await screen.findByTestId('afk-scope-dependency-update')
+    expect(loop).toHaveTextContent('循环 · active')
+    expect(loop).toHaveTextContent('1')
+    fireEvent.click(loop)
+    expect(screen.getByTestId('afk-row-fail-c')).toBeInTheDocument()
+    expect(screen.queryByTestId('afk-row-run-a')).toBeNull()
+    expect(screen.getByTestId('afk-run-list')).toHaveTextContent('AFK-PROJ · 自动运行 · dependency-update')
+    fireEvent.click(screen.getByTestId('afk-scope-all'))
+    expect(screen.getByTestId('afk-row-run-a')).toBeInTheDocument()
+  })
+
+  it('其他项目的循环不进本页左列', async () => {
+    loopRows = [{ root: '/tmp/other', id: 'elsewhere', name: 'elsewhere', autonomy_level: 'L1', status: 'active' }]
+    await renderAfk()
+    await waitFor(() => expect(screen.getByText('当前项目没有循环')).toBeInTheDocument())
+    expect(screen.queryByTestId('afk-scope-elsewhere')).toBeNull()
   })
 })
 
 describe('AfkView 行动作（真实入队 / 重试 + 人工接管）', () => {
-  it('每行「看它的流水线」→ onView(progress)', async () => {
+  it('「看它的流水线」→ onView(progress)', async () => {
     const props = await renderAfk()
     fireEvent.click(screen.getByTestId('afk-row-run-a'))
     fireEvent.click(screen.getByTestId('afk-flow-run-a'))
@@ -359,10 +453,11 @@ describe('AfkView 行动作（真实入队 / 重试 + 人工接管）', () => {
     expect(props.onView).not.toHaveBeenCalled()
   })
 
-  it('失败行给「回终端」命令 chip（有 worktree → cd 接管），点击拷贝 + toast', async () => {
+  it('失败行在处置 sheet 给「终端接管」命令（有 worktree → cd 接管），点击拷贝 + toast', async () => {
     const writeText = vi.fn(() => Promise.resolve())
     Object.assign(navigator, { clipboard: { writeText } })
     const props = await renderAfk()
+    openSheet('handle')
     const chip = screen.getByTestId('afk-cmd-fail-c')
     expect(chip).toHaveAttribute('title', 'cd /wt/fail-c')
     fireEvent.click(chip)
@@ -370,9 +465,12 @@ describe('AfkView 行动作（真实入队 / 重试 + 人工接管）', () => {
     await waitFor(() => expect(props.onToast).toHaveBeenCalled())
   })
 
-  it('running / queued 行不给命令 chip（只读推进态）', async () => {
+  it('running / queued 行不给命令（只读推进态）', async () => {
     await renderAfk()
+    openSheet('handle')
+    fireEvent.click(screen.getByTestId('afk-row-run-a'))
     expect(screen.queryByTestId('afk-cmd-run-a')).toBeNull()
+    fireEvent.click(screen.getByTestId('afk-row-q-b'))
     expect(screen.queryByTestId('afk-cmd-q-b')).toBeNull()
   })
 
@@ -388,6 +486,7 @@ describe('AfkView 行动作（真实入队 / 重试 + 人工接管）', () => {
 
   it('失败行先展示只读重试预览，确认前不 POST；确认后才调用真实 retry', async () => {
     await renderAfk()
+    openSheet('handle')
     fireEvent.click(screen.getByTestId('afk-retry-preview-fail-c'))
     const preview = screen.getByTestId('afk-retry-sheet')
     expect(preview).toHaveTextContent('重新运行验证')
@@ -400,6 +499,7 @@ describe('AfkView 行动作（真实入队 / 重试 + 人工接管）', () => {
 
   it('重试 Dialog 进入取消动作、困住 Shift+Tab，Escape 关闭并恢复触发器焦点', async () => {
     await renderAfk()
+    openSheet('handle')
     const trigger = screen.getByTestId('afk-retry-preview-fail-c')
     trigger.focus()
     fireEvent.click(trigger)
@@ -420,78 +520,28 @@ describe('AfkView 行动作（真实入队 / 重试 + 人工接管）', () => {
       makeProject(ROOT, [makeChange('fail-x', 'build', { fields: { automation: 'failed' } })]),
     ])
     await renderAfk({ snapshot: snap })
+    openSheet('handle')
     expect(screen.getByTestId('afk-retry-preview-fail-x')).toBeInTheDocument()
     expect(screen.queryByTestId('afk-cmd-fail-x')).toBeNull()
   })
 })
 
-describe('AfkView 迷你流水线轨（MiniTrack：change 在整条流水线的位置）', () => {
-  // DEFAULT_RULES.steps 剔 archive = [open, explore, spec, build, verify, ship]（6 节）。
-  it('每行渲染迷你轨；节点数 = steps 去 archive 后长度', async () => {
-    await renderAfk()
-    const track = screen.getByTestId('afk-track-run-a')
-    expect(track).toBeInTheDocument()
-    expect(track).toHaveAttribute('data-phase', 'build')
-    expect(track.querySelectorAll('[data-state]')).toHaveLength(6)
-  })
-
-  it('change.phase 命中处 = current，之前 = done，之后 = todo', async () => {
-    await renderAfk()
-    // run-a 在 build（default 序第 4 步，idx 3）：open/explore/spec = done，build = current，verify/ship = todo
-    const track = screen.getByTestId('afk-track-run-a')
-    const state = (phase: string) => track.querySelector(`[data-phase="${phase}"]`)?.getAttribute('data-state')
-    expect(state('open')).toBe('done')
-    expect(state('explore')).toBe('done')
-    expect(state('spec')).toBe('done')
-    expect(state('build')).toBe('current')
-    expect(state('verify')).toBe('todo')
-    expect(state('ship')).toBe('todo')
-    // archive 终态不入轨
-    expect(track.querySelector('[data-phase="archive"]')).toBeNull()
-  })
-
-  it('轨纯装饰（aria-hidden）——相位语义由行内 afk.at_phase 文本承载', async () => {
-    await renderAfk()
-    expect(screen.getByTestId('afk-track-q-b')).toHaveAttribute('aria-hidden', 'true')
-  })
-
-  it('三态各自当前步命中：queued(spec)/failed(verify)', async () => {
-    await renderAfk()
-    const qCurrent = screen
-      .getByTestId('afk-track-q-b')
-      .querySelector('[data-state="current"]')
-    expect(qCurrent).toHaveAttribute('data-phase', 'spec')
-    const fCurrent = screen
-      .getByTestId('afk-track-fail-c')
-      .querySelector('[data-state="current"]')
-    expect(fCurrent).toHaveAttribute('data-phase', 'verify')
-    expect(fCurrent).toHaveAttribute('data-error', 'true')
-  })
-
-  it('详情不重复展示状态和当前阶段；时间统一为中文年月日时分秒', async () => {
-    await renderAfk()
-    const detail = screen.getByTestId('afk-detail')
-    expect(within(detail).queryByRole('heading', { name: '运行状态' })).toBeNull()
-    expect(detail).not.toHaveTextContent('当前阶段')
-    expect(detail).toHaveTextContent('2026年07月07日 00:00:00')
-  })
-})
-
 describe('AfkView 空态', () => {
-  it('无沙箱任务 → afk-empty，三栏不渲染且只保留工具栏一处创建入口', async () => {
+  it('无沙箱任务 → 中列 afk-empty、右列空态；「新建运行」仍在左列', async () => {
     const snap = makeSnapshot([makeProject(ROOT, [makeChange('gate-only', 'build', {})])])
     await renderAfk({ snapshot: snap })
     expect(screen.getByTestId('afk-empty').textContent).toContain('当前没有自动运行任务')
     expect(screen.queryByTestId('afk-sec-running')).toBeNull()
     expect(screen.queryByTestId('afk-sec-queued')).toBeNull()
     expect(screen.queryByTestId('afk-sec-failed')).toBeNull()
-    expect(screen.queryByTestId('afk-new-run')).toBeNull()
-    expect(screen.queryByTestId('afk-tool-nav')).toBeNull()
+    expect(screen.getByTestId('afk-detail-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('afk-new-run')).not.toBeDisabled()
   })
 
   it('搜索输入声明稳定 name 并关闭浏览器自动填充', async () => {
     await renderAfk()
-    expect(screen.getByRole('textbox', { name: '搜索自动运行' })).toHaveAttribute('name', 'afk-search')
-    expect(screen.getByRole('textbox', { name: '搜索自动运行' })).toHaveAttribute('autocomplete', 'off')
+    const search = screen.getByRole('searchbox', { name: '搜索自动运行' })
+    expect(search).toHaveAttribute('name', 'afk-search')
+    expect(search).toHaveAttribute('autocomplete', 'off')
   })
 })

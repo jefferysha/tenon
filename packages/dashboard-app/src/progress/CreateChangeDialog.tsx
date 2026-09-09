@@ -251,7 +251,7 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
         <>
           <button
             type="button"
-            className={`${BUTTON_GHOST} px-3 py-2 text-xs`}
+            className={`${BUTTON_GHOST} px-3 py-2 text-caption`}
             data-testid="change-create-cancel"
             disabled={busy}
             onClick={requestClose}
@@ -260,7 +260,7 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
           </button>
           <button
             type="button"
-            className={`${BUTTON_SOLID} px-4 py-2 text-xs`}
+            className={`${BUTTON_SOLID} px-4 py-2 text-caption`}
             data-testid="change-create"
             disabled={!canCreate}
             onClick={() => void create()}
@@ -270,10 +270,10 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
         </>
       )}
     >
-      <p className="mb-4 text-[12.5px] leading-5 text-text-3">{t('change_create.subtitle')}</p>
+      <p className="mb-4 text-caption leading-5 text-text-3">{t('change_create.subtitle')}</p>
       <div className="grid gap-4 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
         <div className="space-y-3">
-          <label className="block text-xs font-bold text-text-2">
+          <label className="block text-caption font-bold text-text-2">
             {t('change_create.name')}
             <input
               className={`${INPUT} mt-1.5 font-mono`}
@@ -284,9 +284,9 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
             />
           </label>
           {name !== '' && !validName && (
-            <p className="text-xs text-red-d" data-testid="change-name-error" role="alert">{t('change_create.name_error')}</p>
+            <p className="text-caption text-red-d" data-testid="change-name-error" role="alert">{t('change_create.name_error')}</p>
           )}
-          <label className="block text-xs font-bold text-text-2">
+          <label className="block text-caption font-bold text-text-2">
             {t('change_create.intent')}
             <textarea
               className={`${INPUT} mt-1.5 min-h-28 resize-y leading-5`}
@@ -296,30 +296,30 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
               onChange={(event) => setIntent(event.target.value)}
             />
           </label>
-          <p className="text-[11px] leading-4 text-text-3">{t('change_create.intent_note')}</p>
+          <p className="text-micro leading-4 text-text-3">{t('change_create.intent_note')}</p>
         </div>
-        <section className="rounded-2xl border border-border bg-card p-3.5 shadow-sm" aria-label={t('change_create.route_lock')}>
+        <section className="rounded-lg border border-border bg-card p-3.5 shadow-sm" aria-label={t('change_create.route_lock')}>
           <div className="mb-3 flex items-center justify-between gap-3 border-b border-border pb-2.5">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-accent-d">{t('change_create.route_lock')}</div>
-              <div className="mt-1 text-xs text-text-3">{t('change_create.route_truth')}</div>
+              <div className="text-micro font-black uppercase tracking-[0.16em] text-accent-d">{t('change_create.route_lock')}</div>
+              <div className="mt-1 text-caption text-text-3">{t('change_create.route_truth')}</div>
             </div>
-            <span className="rounded-full border border-border bg-card px-2 py-1 font-mono text-[10px] text-text-3">
+            <span className="rounded-full border border-border bg-card px-2 py-1 font-mono text-micro text-text-3">
               {preview?.revision ?? '—'}
             </span>
           </div>
 
-          {previewState === 'idle' && <p className="py-8 text-center text-xs text-text-3" role="status" aria-live="polite">{t('change_create.route_idle')}</p>}
-          {previewState === 'loading' && <p className="py-8 text-center text-xs text-text-3" role="status" aria-live="polite">{t('change_create.route_loading')}</p>}
-          {previewState === 'error' && <p className="py-4 text-xs text-red-d" role="alert">{formatApiError(previewError, t, { exposeServerDetail: lang === 'zh' })}</p>}
+          {previewState === 'idle' && <p className="py-8 text-center text-caption text-text-3" role="status" aria-live="polite">{t('change_create.route_idle')}</p>}
+          {previewState === 'loading' && <p className="py-8 text-center text-caption text-text-3" role="status" aria-live="polite">{t('change_create.route_loading')}</p>}
+          {previewState === 'error' && <p className="py-4 text-caption text-red-d" role="alert">{formatApiError(previewError, t, { exposeServerDetail: lang === 'zh' })}</p>}
           {preview && previewState === 'ready' && (
             <>
               {preview.suppressed_reason !== null ? (
-                <div className="mb-3 rounded-lg border border-amber-b bg-amber-t px-3 py-2 text-xs text-amber-d" data-testid="route-suppressed" role="status" aria-live="polite">
+                <div className="mb-3 rounded-md border border-amber-b bg-amber-t px-3 py-2 text-caption text-amber-d" data-testid="route-suppressed" role="status" aria-live="polite">
                   {t('change_create.route_suppressed', { reason: preview.suppressed_reason })}
                 </div>
               ) : preview.winner ? (
-                <div className="mb-3 rounded-lg border border-accent-b bg-accent-t px-3 py-2 text-xs text-accent-d" data-testid="route-winner" role="status" aria-live="polite">
+                <div className="mb-3 rounded-md border border-accent-b bg-accent-t px-3 py-2 text-caption text-accent-d" data-testid="route-winner" role="status" aria-live="polite">
                   {t('change_create.route_winner', {
                     label: preview.winner.track.label,
                     score: preview.winner.score,
@@ -327,7 +327,7 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
                   })}
                 </div>
               ) : (
-                <div className="mb-3 rounded-lg border border-border bg-card px-3 py-2 text-xs text-text-2" role="status" aria-live="polite">{t('change_create.route_no_match')}</div>
+                <div className="mb-3 rounded-md border border-border bg-card px-3 py-2 text-caption text-text-2" role="status" aria-live="polite">{t('change_create.route_no_match')}</div>
               )}
 
               <div className="flex flex-wrap gap-2" role="group" aria-label={t('change_create.track')}>
@@ -335,13 +335,13 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
                   <button
                     type="button"
                     key={candidate.track.id}
-                    className="rounded-xl border border-border bg-card px-3 py-2 text-left transition-[background-color,border-color,box-shadow] hover:border-border-2 aria-pressed:border-(--accent) aria-pressed:bg-accent-t"
+                    className="rounded-md border border-border bg-card px-3 py-2 text-left transition-[background-color,border-color,box-shadow] hover:border-border-2 aria-pressed:border-(--accent) aria-pressed:bg-accent-t"
                     data-testid={`route-candidate-${candidate.track.id}`}
                     aria-pressed={selectedTrack === candidate.track.id}
                     onClick={() => setSelectedTrack(candidate.track.id)}
                   >
-                    <span className="block text-xs font-bold text-text">{candidate.track.label}</span>
-                    <span className="mt-0.5 block font-mono text-[10px] text-text-3">
+                    <span className="block text-caption font-bold text-text">{candidate.track.label}</span>
+                    <span className="mt-0.5 block font-mono text-micro text-text-3">
                       {candidate.routable ? t('change_create.route_score', { score: candidate.score, priority: candidate.priority }) : t('change_create.route_disabled')}
                     </span>
                   </button>
@@ -350,22 +350,22 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
               {selectedCandidate && (
                 <>
                   {selectedCandidate.track.id === 'free' && (
-                    <div className="mt-3 rounded-lg border border-accent-b bg-accent-t px-3 py-2 text-xs leading-5 text-accent-d" data-testid="route-free-note">
+                    <div className="mt-3 rounded-md border border-accent-b bg-accent-t px-3 py-2 text-caption leading-5 text-accent-d" data-testid="route-free-note">
                       {t('change_create.free_note')}
                     </div>
                   )}
                   <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
-                    <div className="rounded-lg bg-card p-2.5" data-testid="route-policy">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-text-3">{t('change_create.policy')}</div>
-                      <div className="mt-1 text-xs leading-5 text-text-2">
+                    <div className="rounded-md bg-card p-2.5" data-testid="route-policy">
+                      <div className="text-micro font-bold uppercase tracking-wider text-text-3">{t('change_create.policy')}</div>
+                      <div className="mt-1 text-caption leading-5 text-text-2">
                         {selectedCandidate.track.policyProfile.coverageProfile} · {selectedCandidate.track.policyProfile.skills.profile}<br />
                         {selectedCandidate.track.policyProfile.automationEligible ? t('change_create.afk_yes') : t('change_create.afk_no')} · {t('change_create.review_seed', { value: selectedCandidate.track.policyProfile.reviewSeed })}
                       </div>
                     </div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-text-3">
+                    <label className="block text-micro font-bold uppercase tracking-wider text-text-3">
                       {t('change_create.workflow')}
                       <select
-                        className={`${SELECT} mt-1.5 font-mono text-xs`}
+                        className={`${SELECT} mt-1.5 font-mono text-caption`}
                         data-testid="change-workflow"
                         value={selectedWorkflow}
                         onChange={(event) => setSelectedWorkflow(event.target.value)}
@@ -390,7 +390,7 @@ export function CreateChangeDialog({ root, onClose, onCreated, onToast }: Create
         </section>
       </div>
 
-      {createError !== null && <p className="mt-3 rounded-lg bg-red-t px-3 py-2 text-xs text-red-d" role="alert">{formatApiError(createError, t, { exposeServerDetail: lang === 'zh' })}</p>}
+      {createError !== null && <p className="mt-3 rounded-md bg-red-t px-3 py-2 text-caption text-red-d" role="alert">{formatApiError(createError, t, { exposeServerDetail: lang === 'zh' })}</p>}
     </Dialog>
   )
 }

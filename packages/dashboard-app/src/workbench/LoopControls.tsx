@@ -68,7 +68,7 @@ interface SliderProps {
  */
 const RANGE_TW = [
   'mt-2 block h-5 w-full cursor-pointer accent-(--accent)',
-  'focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-accent-t',
+  'focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-accent-t',
 ].join(' ')
 
 /**
@@ -81,7 +81,7 @@ export function LpSlider({ id, label, value, min, max, display, recoLabel, recoF
       <div className="flex items-baseline gap-2">
         <label className={WB_TW.flabel} htmlFor={id}>{label}</label>
         {prov}
-        <span className="ml-auto font-mono text-[12.5px] font-bold text-(--accent)" data-testid={`${id}-val`}>{display}</span>
+        <span className="ml-auto font-mono text-caption font-bold text-(--accent)" data-testid={`${id}-val`}>{display}</span>
       </div>
       <input
         type="range"
@@ -97,7 +97,7 @@ export function LpSlider({ id, label, value, min, max, display, recoLabel, recoF
       />
       <div className="relative mt-0.5 h-4" aria-hidden="true">
         <span
-          className={cn('absolute top-0 whitespace-nowrap text-[10.5px] text-text-3', recoFrac !== 'edge' && '-translate-x-1/2')}
+          className={cn('absolute top-0 whitespace-nowrap text-micro text-text-3', recoFrac !== 'edge' && '-translate-x-1/2')}
           style={recoFrac === 'edge' ? { left: '2px' } : { left: recoLeft(recoFrac) }}
         >
           {recoLabel}
@@ -156,10 +156,10 @@ export function LpChipRow({ label, values, addAria, descKeys, prov, note, onChan
           {values.map((v) => (
             <span key={v} className={CHIP_TW}>
               {v}
-              {descKeys?.[v] && <span className="font-sans text-[11.5px] text-text-3">{t(descKeys[v] ?? '')}</span>}
+              {descKeys?.[v] && <span className="font-sans text-micro text-text-3">{t(descKeys[v] ?? '')}</span>}
               <button
                 type="button"
-                className="-mr-[3px] inline-grid size-4 cursor-pointer place-items-center rounded-[5px] border-0 bg-transparent p-0 text-[13px] leading-none text-text-3 transition-colors duration-[120ms] hover:bg-red-t hover:text-red-d"
+                className="-mr-1 inline-grid size-4 cursor-pointer place-items-center rounded-xs border-0 bg-transparent p-0 text-body leading-none text-text-3 transition-colors duration-[120ms] hover:bg-red-t hover:text-red-d"
                 aria-label={t('workbench.lp_chip_remove', { v })}
                 onClick={() => onChange(values.filter((x) => x !== v))}
               >
@@ -169,7 +169,7 @@ export function LpChipRow({ label, values, addAria, descKeys, prov, note, onChan
           ))}
           {adding ? (
             <input
-              className={cn(WB_TW.input, 'h-[26px] w-[180px] font-mono text-xs')}
+              className={cn(WB_TW.input, 'h-[26px] w-[180px] font-mono text-caption')}
               aria-label={addAria}
               value={draft}
               // eslint-disable-next-line jsx-a11y/no-autofocus -- 用户刚点了「+ 添加」，焦点进输入框是这次点击的直接延续
@@ -188,7 +188,7 @@ export function LpChipRow({ label, values, addAria, descKeys, prov, note, onChan
           ) : (
             <button
               type="button"
-              className="h-6 cursor-pointer rounded-[7px] border border-dashed border-border-2 bg-transparent px-[9px] text-xs font-semibold text-text-3 transition-colors duration-[120ms] hover:bg-fill hover:text-text-2"
+              className="h-6 cursor-pointer rounded-sm border border-dashed border-border-2 bg-transparent px-2 text-caption font-semibold text-text-3 transition-colors duration-[120ms] hover:bg-fill hover:text-text-2"
               aria-label={addAria}
               onClick={() => setAdding(true)}
             >

@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tenon Dashboard · 模板重构原型</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="tb-left">
+    <div class="logo">t</div>
+    <nav class="crumbs" aria-label="面包屑">
+      <span class="crumb-dim">工作空间</span>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-now" data-crumb>工作台</span>
+    </nav>
+    <button class="proj-switch" type="button">
+      <span class="dot dot-live"></span>
+      <span>tenon-local</span>
+      <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+    </button>
+  </div>
+
+  <nav class="tabs" aria-label="主导航">
+    <button class="tab is-on" data-page="workspace" type="button">工作台</button>
+    <button class="tab" data-page="workflow" type="button">工作流</button>
+    <button class="tab" data-page="automation" type="button">自动化</button>
+    <button class="tab" data-page="machines" type="button">机器</button>
+  </nav>
+
+  <div class="tb-right">
+    <label class="search search-top">
+      <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+      <input type="search" placeholder="搜索" aria-label="全局搜索" id="globalSearch">
+      <kbd>/</kbd>
+    </label>
+    <span class="pill-outline">只读视图</span>
+    <span class="conn"><span class="dot dot-live"></span>已连接</span>
+    <span class="avatar">A</span>
+  </div>
+</header>
+
+<!-- ══════════════════ 工作台 ══════════════════ -->
+<main class="page is-on" id="page-workspace">
+  <aside class="col-projects">
+    <div class="col-head">
+      <span class="col-head-label">项目选择</span>
+      <button class="icon-btn" type="button" aria-label="折叠项目列">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 4L6 8l4 4"/></svg>
+      </button>
+    </div>
+    <ul class="proj-list">
+      <li><button class="proj-card is-on" type="button">
+        <span class="proj-mark">T</span>
+        <span class="proj-body">
+          <span class="proj-name">tenon-local</span>
+          <span class="proj-meta">5 个任务 · 本地工作流引擎</span>
+        </span>
+        <span class="proj-count">5</span>
+      </button></li>
+      <li><button class="proj-card" type="button">
+        <span class="proj-mark">D</span>
+        <span class="proj-body">
+          <span class="proj-name">design-system</span>
+          <span class="proj-meta">1 个任务 · 共享组件与设计规范</span>
+        </span>
+        <span class="proj-count">1</span>
+      </button></li>
+      <li><button class="proj-card" type="button">
+        <span class="proj-mark">D</span>
+        <span class="proj-body">
+          <span class="proj-name">docs-site</span>
+          <span class="proj-meta">1 个任务 · 产品文档站点</span>
+        </span>
+        <span class="proj-count">1</span>
+      </button></li>
+    </ul>
+    <div class="col-foot">
+      <button class="foot-link" type="button">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5A1.5 1.5 0 013 3h3l1.5 2H13a1.5 1.5 0 011.5 1.5v5A1.5 1.5 0 0113 13H3a1.5 1.5 0 01-1.5-1.5z"/></svg>
+        所有项目
+      </button>
+      <button class="foot-link" type="button">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4M12.8 3.2l-1.4 1.4M4.6 11.4l-1.4 1.4"/></svg>
+        设置
+      </button>
+    </div>
+  </aside>
+
+  <section class="col-tasks">
+    <p class="eyebrow">TENON-LOCAL · 工作空间</p>
+    <h1 class="h1">任务</h1>
+
+    <div class="filter-note"><b>需要你</b> = 待决定 / 受阻</div>
+
+    <label class="search search-pane">
+      <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+      <input type="search" placeholder="搜索任务" aria-label="搜索任务">
+    </label>
+
+    <div class="chips" role="tablist" aria-label="任务状态">
+      <button class="chip is-on" role="tab" aria-selected="true" type="button">全部 <span>5</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">需要你 <span>2</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">进行中 <span>1</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">待复核 <span>1</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">已完成 <span>1</span></button>
+    </div>
+
+    <ul class="task-list">
+      <li><button class="task is-on" type="button">
+        <span class="task-top">
+          <span class="task-name">重构项目与任务阅读体验</span>
+          <span class="badge badge-pending"><i></i>待决定</span>
+        </span>
+        <span class="slug">dashboard-readonly-redesign</span>
+        <span class="task-foot">
+          <span class="tf"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="4" r="1.6"/><circle cx="4" cy="12" r="1.6"/><circle cx="12" cy="6" r="1.6"/><path d="M4 5.6v4.8M5.6 4h3.6a2.8 2.8 0 012.8 2"/></svg>规格</span>
+          <span class="tf"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9.5h-8.5z"/><path d="M9 1.5V5h3.5"/></svg>7 个文件</span>
+          <span class="tf tf-next">下一步 · 在终端确认规格，进入实现</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+
+      <li><button class="task" type="button">
+        <span class="task-top">
+          <span class="task-name">修复版本校验边界</span>
+          <span class="badge badge-run"><i></i>进行中</span>
+        </span>
+        <span class="slug">revision-guard</span>
+        <span class="task-foot">
+          <span class="tf"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="4" r="1.6"/><circle cx="4" cy="12" r="1.6"/><circle cx="12" cy="6" r="1.6"/><path d="M4 5.6v4.8M5.6 4h3.6a2.8 2.8 0 012.8 2"/></svg>实现</span>
+          <span class="tf"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9.5h-8.5z"/><path d="M9 1.5V5h3.5"/></svg>4 个文件</span>
+          <span class="tf tf-next">下一步 · 等待终端任务完成</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+
+      <li><button class="task" type="button">
+        <span class="task-top">
+          <span class="task-name">补齐交互事件统计</span>
+          <span class="badge badge-pending"><i></i>待复核</span>
+        </span>
+        <span class="slug">interaction-metrics</span>
+        <span class="task-foot">
+          <span class="tf"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="4" r="1.6"/><circle cx="4" cy="12" r="1.6"/><circle cx="12" cy="6" r="1.6"/><path d="M4 5.6v4.8M5.6 4h3.6a2.8 2.8 0 012.8 2"/></svg>验证</span>
+          <span class="tf"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9.5h-8.5z"/><path d="M9 1.5V5h3.5"/></svg>4 个文件</span>
+          <span class="tf tf-next">下一步 · 复核验证报告中的 2 个边界</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+
+      <li><button class="task" type="button">
+        <span class="task-top">
+          <span class="task-name">优化空队列反馈</span>
+          <span class="badge badge-done"><i></i>已完成</span>
+        </span>
+        <span class="slug">empty-queue</span>
+        <span class="task-foot">
+          <span class="tf"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="4" r="1.6"/><circle cx="4" cy="12" r="1.6"/><circle cx="12" cy="6" r="1.6"/><path d="M4 5.6v4.8M5.6 4h3.6a2.8 2.8 0 012.8 2"/></svg>交付</span>
+          <span class="tf"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9.5h-8.5z"/><path d="M9 1.5V5h3.5"/></svg>3 个文件</span>
+          <span class="tf tf-next">下一步 · 已完成</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+
+      <li><button class="task" type="button">
+        <span class="task-top">
+          <span class="task-name">补充终端接管说明</span>
+          <span class="badge badge-block"><i></i>受阻</span>
+        </span>
+        <span class="slug">adapter-docs</span>
+        <span class="task-foot">
+          <span class="tf"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="4" r="1.6"/><circle cx="4" cy="12" r="1.6"/><circle cx="12" cy="6" r="1.6"/><path d="M4 5.6v4.8M5.6 4h3.6a2.8 2.8 0 012.8 2"/></svg>调研</span>
+          <span class="tf"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9.5h-8.5z"/><path d="M9 1.5V5h3.5"/></svg>3 个文件</span>
+          <span class="tf tf-next">下一步 · 在终端补充运行时信息</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+    </ul>
+  </section>
+
+  <section class="col-detail">
+    <div class="detail-scroll">
+      <p class="eyebrow">规格 / 阶段执行</p>
+      <h1 class="h1 h1-detail">重构项目与任务阅读体验</h1>
+      <p class="slug slug-lg">dashboard-readonly-redesign · 轨道 frontend · 工作流 default</p>
+
+      <p class="status-line">
+        <span class="badge badge-pending"><i></i>待决定</span>
+        <span class="status-note">规格阶段产出已齐，门禁「评审」等待在终端确认后进入实现。</span>
+      </p>
+
+      <div class="phase-rail" role="img" aria-label="阶段进度：当前处于规格">
+        <div class="pr-bars">
+          <span class="pr-bar is-done"></span>
+          <span class="pr-bar is-done"></span>
+          <span class="pr-bar is-now"></span>
+          <span class="pr-bar"></span>
+          <span class="pr-bar"></span>
+          <span class="pr-bar"></span>
+        </div>
+        <div class="pr-labels">
+          <span>立项</span><span>调研</span><span class="is-now">规格</span>
+          <span>实现</span><span>验证</span><span>交付</span>
+        </div>
+      </div>
+
+      <hr class="rule">
+
+      <div class="sec-head">
+        <h2 class="h2">阶段执行</h2>
+        <span class="sec-meta">6 个阶段 · 2 已完成 · 1 进行中</span>
+      </div>
+
+      <ul class="stage-list">
+        <li class="stage-row is-done">
+          <span class="stage-dot"></span>
+          <span class="stage-body">
+            <span class="stage-name">立项 <span class="slug">open</span></span>
+            <span class="stage-meta">tenon-open · openspec-propose 已完成 · 产出 proposal.md</span>
+          </span>
+          <span class="badge badge-done"><i></i>已完成</span>
+        </li>
+        <li class="stage-row is-done">
+          <span class="stage-dot"></span>
+          <span class="stage-body">
+            <span class="stage-name">调研 <span class="slug">explore</span></span>
+            <span class="stage-meta">tenon-explore · brainstorming 已完成 · 产出 design_doc</span>
+          </span>
+          <span class="badge badge-done"><i></i>已完成</span>
+        </li>
+        <li class="stage-row is-now" aria-current="true">
+          <span class="stage-dot"></span>
+          <span class="stage-body">
+            <span class="stage-name">规格 <span class="slug">spec</span></span>
+            <span class="stage-meta">3 个技能已完成 · 产出 plan 已登记 · 门禁「评审」待确认</span>
+          </span>
+          <span class="badge badge-pending"><i></i>待决定</span>
+        </li>
+        <li class="stage-row">
+          <span class="stage-dot"></span>
+          <span class="stage-body">
+            <span class="stage-name">实现 <span class="slug">build</span></span>
+            <span class="stage-meta">tenon-build · 输入 design_doc、plan · 产出 build_sha</span>
+          </span>
+          <span class="seg-tag">待开始</span>
+        </li>
+        <li class="stage-row">
+          <span class="stage-dot"></span>
+          <span class="stage-body">
+            <span class="stage-name">验证 <span class="slug">verify</span></span>
+            <span class="stage-meta">tenon-verify · 评审通道 standards / spec / e2e · 产出 verification_report</span>
+          </span>
+          <span class="seg-tag">待开始</span>
+        </li>
+        <li class="stage-row">
+          <span class="stage-dot"></span>
+          <span class="stage-body">
+            <span class="stage-name">交付 <span class="slug">ship</span></span>
+            <span class="stage-meta">tenon-ship · openspec-apply-change</span>
+          </span>
+          <span class="seg-tag">待开始</span>
+        </li>
+      </ul>
+
+      <div class="sec-head">
+        <h2 class="h2">规格 · 技能执行</h2>
+        <span class="sec-meta">2 波 · 3 个技能</span>
+      </div>
+      <div class="waves">
+        <div class="wave">
+          <span class="wave-k">第 1 波</span>
+          <span class="skill-chip is-done"><i></i>tenon-spec<em>已完成 · 14:02</em></span>
+        </div>
+        <span class="wave-arrow" aria-hidden="true">→</span>
+        <div class="wave">
+          <span class="wave-k">第 2 波 · 并行</span>
+          <span class="skill-chip is-done"><i></i>openspec-propose<em>已完成 · 14:06</em></span>
+          <span class="skill-chip is-done"><i></i>writing-plans<em>已完成 · 14:07</em></span>
+        </div>
+      </div>
+
+      <div class="sec-head">
+        <h2 class="h2">规格 · 文件工作台</h2>
+        <span class="sec-meta">输入 3 · 产出 2 · 默认折叠</span>
+      </div>
+
+      <div class="subtabs" role="tablist" aria-label="文件方向">
+        <button class="subtab" role="tab" aria-selected="false" type="button">输入 <span>3</span></button>
+        <button class="subtab is-on" role="tab" aria-selected="true" type="button">产出 <span>2</span></button>
+      </div>
+
+      <div class="sec-head sec-head-sm">
+        <span class="sec-title">本阶段技能登记的产出</span>
+        <span class="sec-meta">1 已登记 · 1 过期</span>
+      </div>
+
+      <ul class="file-list">
+        <li class="file-row">
+          <span class="file-ico"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9.5h-8.5z"/><path d="M9 1.5V5h3.5"/></svg></span>
+          <span class="file-body">
+            <span class="file-name">plan.md <span class="field-ref">plan</span></span>
+            <span class="file-desc">由 writing-plans 产出 · 14:07 登记 · 校验 file-exists 通过</span>
+          </span>
+          <span class="ok">已登记</span>
+        </li>
+        <li class="file-row">
+          <span class="file-ico"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9.5h-8.5z"/><path d="M9 1.5V5h3.5"/></svg></span>
+          <span class="file-body">
+            <span class="file-name">design.md <span class="field-ref">openspec-design</span></span>
+            <span class="file-desc">由 openspec-propose 产出 · 登记后源文件又被修改</span>
+          </span>
+          <span class="warn">过期</span>
+        </li>
+      </ul>
+
+      <article class="preview">
+        <header class="preview-bar">
+          <span class="file-name">plan.md</span>
+          <span class="ok">已登记 · 可读</span>
+        </header>
+        <div class="preview-body">
+          <h3>实施计划</h3>
+          <p>由 writing-plans 在规格阶段登记，供实现阶段作为输入 <code class="path">plan</code> 读取。</p>
+          <p><code class="path">openspec/changes/dashboard-readonly-redesign/plan.md</code></p>
+        </div>
+      </article>
+    </div>
+
+    <footer class="detail-foot">
+      <p>创建、安装和执行留在终端；工作台负责阅读和定位。</p>
+      <button class="btn-outline" type="button">打开任务详情 <span aria-hidden="true">→</span></button>
+    </footer>
+  </section>
+</main>
+
+<!-- ══════════════════ 工作流 ══════════════════ -->
+<main class="page" id="page-workflow">
+  <aside class="col-projects">
+    <div class="col-head">
+      <span class="col-head-label">工作流</span>
+      <button class="icon-btn" type="button" aria-label="折叠列">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 4L6 8l4 4"/></svg>
+      </button>
+    </div>
+    <ul class="proj-list">
+      <li><button class="proj-card is-on" type="button" data-wf-select="stage">
+        <span class="proj-mark">D</span>
+        <span class="proj-body">
+          <span class="proj-name">default <em class="tag-draft">项目</em></span>
+          <span class="proj-meta">6 个阶段 · 3 条轨道在用</span>
+        </span>
+        <span class="proj-count">6</span>
+      </button></li>
+      <li><button class="proj-card" type="button" data-wf-select="stage">
+        <span class="proj-mark">H</span>
+        <span class="proj-body">
+          <span class="proj-name">hotfix <em class="tag-draft">项目</em></span>
+          <span class="proj-meta">3 个阶段 · 跳过调研与规格</span>
+        </span>
+        <span class="proj-count">3</span>
+      </button></li>
+      <li><button class="proj-card" type="button" data-wf-select="stage">
+        <span class="proj-mark">B</span>
+        <span class="proj-body">
+          <span class="proj-name">builtin <em class="tag-draft">内置 · 只读</em></span>
+          <span class="proj-meta">7 个阶段 · 出厂默认</span>
+        </span>
+        <span class="proj-count">7</span>
+      </button></li>
+    </ul>
+
+    <div class="col-head col-head-2">
+      <span class="col-head-label">轨道</span>
+      <span class="sec-meta">决定任务走哪条工作流</span>
+    </div>
+    <ul class="proj-list proj-list-2">
+      <li><button class="proj-card proj-card-sm" type="button" data-wf-select="track">
+        <span class="proj-body">
+          <span class="proj-name">frontend</span>
+          <span class="proj-meta">default · 匹配 packages/dashboard-app/**</span>
+        </span>
+        <span class="proj-count">→ default</span>
+      </button></li>
+      <li><button class="proj-card proj-card-sm" type="button" data-wf-select="track">
+        <span class="proj-body">
+          <span class="proj-name">backend</span>
+          <span class="proj-meta">default · 匹配 packages/server/**</span>
+        </span>
+        <span class="proj-count">→ default</span>
+      </button></li>
+      <li><button class="proj-card proj-card-sm" type="button" data-wf-select="track">
+        <span class="proj-body">
+          <span class="proj-name">pm</span>
+          <span class="proj-meta">default · 规格阶段 plan 非必需</span>
+        </span>
+        <span class="proj-count">→ default</span>
+      </button></li>
+      <li><button class="proj-card proj-card-sm" type="button" data-wf-select="track">
+        <span class="proj-body">
+          <span class="proj-name">simple</span>
+          <span class="proj-meta">hotfix · 允许 hotfix、default</span>
+        </span>
+        <span class="proj-count">→ hotfix</span>
+      </button></li>
+    </ul>
+
+    <div class="col-foot">
+      <button class="foot-link" type="button">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+        新建工作流
+      </button>
+      <button class="foot-link" type="button">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+        新建轨道
+      </button>
+    </div>
+  </aside>
+
+  <section class="col-tasks">
+    <p class="eyebrow">DEFAULT · 工作流 · 项目定义</p>
+    <h1 class="h1">阶段</h1>
+
+    <div class="filter-note"><b>阶段</b>按顺序推进；每个阶段的技能顺序由依赖决定，输入与产出由技能推导。</div>
+
+    <div class="chips" role="tablist" aria-label="阶段视图">
+      <button class="chip is-on" role="tab" aria-selected="true" type="button">全部 <span>6</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">有门禁 <span>3</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">未装技能 <span>1</span></button>
+    </div>
+
+    <ul class="task-list">
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name"><span class="ord">1</span>立项</span></span>
+        <span class="slug">open</span>
+        <span class="task-foot">
+          <span class="tf">2 技能 · 1 波</span>
+          <span class="tf tf-next">产出 proposal</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name"><span class="ord">2</span>调研</span></span>
+        <span class="slug">explore</span>
+        <span class="task-foot">
+          <span class="tf">2 技能 · 2 波</span>
+          <span class="tf tf-next">产出 design_doc</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task is-on" type="button">
+        <span class="task-top"><span class="task-name"><span class="ord">3</span>规格</span><span class="seg-tag">门禁 · 评审</span></span>
+        <span class="slug">spec</span>
+        <span class="task-foot">
+          <span class="tf">3 技能 · 2 波</span>
+          <span class="tf tf-next">输入 design_doc → 产出 plan</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name"><span class="ord">4</span>实现</span></span>
+        <span class="slug">build</span>
+        <span class="task-foot">
+          <span class="tf">1 技能 · 1 波</span>
+          <span class="tf tf-next">输入 design_doc、plan → 产出 build_sha</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name"><span class="ord">5</span>验证</span><span class="badge badge-block"><i></i>1 技能未安装</span></span>
+        <span class="slug">verify</span>
+        <span class="task-foot">
+          <span class="tf">2 技能 + 3 评审通道</span>
+          <span class="tf tf-next">输入 build_sha → 产出 verification_report</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name"><span class="ord">6</span>交付</span><span class="seg-tag">门禁 · 确认</span></span>
+        <span class="slug">ship</span>
+        <span class="task-foot">
+          <span class="tf">2 技能 · 2 波</span>
+          <span class="tf tf-next">无产出</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task task-add" type="button">
+        <span class="task-name">添加阶段</span>
+        <span class="tf tf-next">插入到「交付」之前</span>
+      </button></li>
+    </ul>
+  </section>
+
+  <!-- 右列 · 阶段编辑 -->
+  <section class="col-detail" data-wf-panel="stage">
+    <div class="detail-scroll">
+      <p class="eyebrow">工作流 / 阶段编辑</p>
+      <h1 class="h1 h1-detail">规格</h1>
+      <p class="slug slug-lg">default · spec · 第 3 / 6 阶段</p>
+
+      <p class="status-line">
+        <span class="seg-tag">门禁 · 评审</span>
+        <span class="status-note">3 个技能分 2 波执行；产出 plan 由技能登记，进入实现前需评审。</span>
+      </p>
+
+      <hr class="rule">
+
+      <div class="sec-head">
+        <h2 class="h2">技能执行顺序</h2>
+        <span class="sec-meta">同一波并行 · 波与波之间串行</span>
+      </div>
+      <div class="waves waves-edit">
+        <div class="wave">
+          <span class="wave-k">第 1 波</span>
+          <span class="skill-chip"><i></i>tenon-spec<button type="button" aria-label="移除 tenon-spec">×</button></span>
+        </div>
+        <span class="wave-arrow" aria-hidden="true">→</span>
+        <div class="wave">
+          <span class="wave-k">第 2 波 · 并行 2</span>
+          <span class="skill-chip"><i></i>openspec-propose<em>依赖 tenon-spec</em><button type="button" aria-label="移除 openspec-propose">×</button></span>
+          <span class="skill-chip"><i></i>writing-plans<em>依赖 tenon-spec</em><button type="button" aria-label="移除 writing-plans">×</button></span>
+        </div>
+        <span class="wave-arrow" aria-hidden="true">→</span>
+        <div class="wave wave-add">
+          <button class="token token-add" type="button">+ 添加技能</button>
+          <span class="wave-hint">新技能默认排在末波；拖到某一波即与该波并行</span>
+        </div>
+      </div>
+
+      <div class="sec-head">
+        <h2 class="h2">输入与产出</h2>
+        <span class="sec-meta">由技能与上游阶段推导 · 不可手填</span>
+      </div>
+      <div class="io-grid">
+        <div class="io-col">
+          <span class="io-k">输入 · 来自上游</span>
+          <ul class="io-list">
+            <li><span class="file-name">design_doc</span><span class="file-desc">file_path · 由「调研」的 brainstorming 产出</span></li>
+          </ul>
+        </div>
+        <div class="io-col">
+          <span class="io-k">产出 · 由本阶段技能登记</span>
+          <ul class="io-list">
+            <li><span class="file-name">plan</span><span class="file-desc">file_path · writing-plans 产出 · pm 轨道非必需</span></li>
+            <li><span class="file-name">openspec-design</span><span class="file-desc">document · openspec-propose 产出</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="sec-head">
+        <h2 class="h2">门禁与守卫</h2>
+      </div>
+      <div class="form-grid">
+        <label class="field"><span class="field-label">进入下一阶段前</span>
+          <select><option>无门禁</option><option selected>需要评审</option><option>需要确认</option></select>
+        </label>
+        <label class="field"><span class="field-label">守卫</span>
+          <select><option>无</option><option selected>tasks.md 至少 3 条</option><option>产出全部非空</option></select>
+        </label>
+      </div>
+    </div>
+
+    <footer class="detail-foot detail-foot-dirty">
+      <p><span class="dot dot-warn"></span>default 有 2 处未保存改动 · 保存后对新任务生效</p>
+      <span class="foot-actions">
+        <button class="btn-quiet" type="button">放弃改动</button>
+        <button class="btn-solid" type="button">保存工作流</button>
+      </span>
+    </footer>
+  </section>
+
+  <!-- 右列 · 轨道与管线（点左列轨道切换） -->
+  <section class="col-detail" data-wf-panel="track" hidden>
+    <div class="detail-scroll">
+      <p class="eyebrow">工作流 / 轨道</p>
+      <h1 class="h1 h1-detail">frontend</h1>
+      <p class="slug slug-lg">track · 项目定义 · 修订 r12</p>
+
+      <p class="status-line">
+        <span class="badge badge-done"><i></i>启用</span>
+        <span class="status-note">匹配 packages/dashboard-app/** 的任务自动走 default 工作流。</span>
+      </p>
+
+      <hr class="rule">
+
+      <div class="sec-head"><h2 class="h2">绑定</h2></div>
+      <div class="form-grid">
+        <label class="field"><span class="field-label">默认工作流</span>
+          <select><option selected>default</option><option>hotfix</option><option>builtin</option></select>
+        </label>
+        <label class="field"><span class="field-label">允许的工作流</span>
+          <select><option selected>任意</option><option>仅 default</option><option>default、hotfix</option></select>
+        </label>
+        <label class="field"><span class="field-label">路由匹配</span><input type="text" class="mono" value="packages/dashboard-app/**"></label>
+        <label class="field"><span class="field-label">覆盖档</span>
+          <select><option>none</option><option>pm</option><option selected>frontend</option><option>backend</option></select>
+        </label>
+      </div>
+
+      <div class="sec-head">
+        <h2 class="h2">管线 · 编译结果</h2>
+        <span class="sec-meta">default × frontend · 只读</span>
+      </div>
+      <ul class="stage-list">
+        <li class="stage-row">
+          <span class="ord">1</span>
+          <span class="stage-body"><span class="stage-name">立项 <span class="slug">open</span></span><span class="stage-meta">串行 · tenon-open → openspec-propose</span></span>
+        </li>
+        <li class="stage-row">
+          <span class="ord">2</span>
+          <span class="stage-body"><span class="stage-name">调研 <span class="slug">explore</span></span><span class="stage-meta">串行 · tenon-explore → brainstorming</span></span>
+        </li>
+        <li class="stage-row">
+          <span class="ord">3</span>
+          <span class="stage-body"><span class="stage-name">规格 <span class="slug">spec</span></span><span class="stage-meta">并行 · tenon-spec → [openspec-propose ‖ writing-plans]</span></span>
+          <span class="seg-tag">评审</span>
+        </li>
+        <li class="stage-row">
+          <span class="ord">4</span>
+          <span class="stage-body"><span class="stage-name">实现 <span class="slug">build</span></span><span class="stage-meta">串行 · tenon-build</span></span>
+        </li>
+        <li class="stage-row">
+          <span class="ord">5</span>
+          <span class="stage-body"><span class="stage-name">验证 <span class="slug">verify</span></span><span class="stage-meta">并行 · tenon-verify → [standards ‖ spec ‖ e2e]</span></span>
+        </li>
+        <li class="stage-row">
+          <span class="ord">6</span>
+          <span class="stage-body"><span class="stage-name">交付 <span class="slug">ship</span></span><span class="stage-meta">串行 · tenon-ship → openspec-apply-change</span></span>
+          <span class="seg-tag">确认</span>
+        </li>
+      </ul>
+    </div>
+
+    <footer class="detail-foot">
+      <p>管线由工作流与轨道编译得出；要改顺序请改工作流阶段。</p>
+      <button class="btn-solid" type="button">保存轨道</button>
+    </footer>
+  </section>
+</main>
+
+<!-- ══════════════════ 自动化 ══════════════════ -->
+<main class="page" id="page-automation">
+  <aside class="col-projects">
+    <div class="col-head">
+      <span class="col-head-label">自动化范围</span>
+      <button class="icon-btn" type="button" aria-label="折叠范围列">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 4L6 8l4 4"/></svg>
+      </button>
+    </div>
+    <ul class="proj-list">
+      <li><button class="proj-card is-on" type="button">
+        <span class="proj-mark">A</span>
+        <span class="proj-body">
+          <span class="proj-name">全部运行</span>
+          <span class="proj-meta">2 个运行中 · 1 个待处置</span>
+        </span>
+        <span class="proj-count">7</span>
+      </button></li>
+      <li><button class="proj-card" type="button">
+        <span class="proj-mark">N</span>
+        <span class="proj-body">
+          <span class="proj-name">nightly-verify</span>
+          <span class="proj-meta">循环 · 每日 02:00</span>
+        </span>
+        <span class="proj-count">4</span>
+      </button></li>
+      <li><button class="proj-card" type="button">
+        <span class="proj-mark">S</span>
+        <span class="proj-body">
+          <span class="proj-name">spec-sync</span>
+          <span class="proj-meta">循环 · 已暂停</span>
+        </span>
+        <span class="proj-count">3</span>
+      </button></li>
+    </ul>
+    <div class="col-foot">
+      <button class="foot-link" type="button">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+        新建循环
+      </button>
+      <button class="foot-link" type="button">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg>
+        节奏设置
+      </button>
+    </div>
+  </aside>
+
+  <section class="col-tasks">
+    <p class="eyebrow">TENON-LOCAL · 自动运行</p>
+    <h1 class="h1">运行</h1>
+
+    <div class="filter-note"><b>需要你</b> = 失败 / 等待确认</div>
+
+    <label class="search search-pane">
+      <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+      <input type="search" placeholder="搜索运行" aria-label="搜索运行">
+    </label>
+
+    <div class="chips" role="tablist" aria-label="运行状态">
+      <button class="chip is-on" role="tab" aria-selected="true" type="button">全部 <span>7</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">需要你 <span>1</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">运行中 <span>2</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">排队 <span>1</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">已完成 <span>3</span></button>
+    </div>
+
+    <ul class="task-list">
+      <li><button class="task is-on" type="button">
+        <span class="task-top"><span class="task-name">修复版本校验边界</span><span class="badge badge-block"><i></i>失败</span></span>
+        <span class="slug">revision-guard · run-4192</span>
+        <span class="task-foot">
+          <span class="tf">实现</span><span class="tf">用时 4 分 12 秒</span>
+          <span class="tf tf-next">下一步 · 处置失败或重试</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name">补齐交互事件统计</span><span class="badge badge-run"><i></i>运行中</span></span>
+        <span class="slug">interaction-metrics · run-4193</span>
+        <span class="task-foot">
+          <span class="tf">验证</span><span class="tf">已跑 1 分 08 秒</span>
+          <span class="tf tf-next">下一步 · 等待验证报告</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name">同步规格索引</span><span class="badge badge-run"><i></i>运行中</span></span>
+        <span class="slug">spec-sync · run-4194</span>
+        <span class="task-foot">
+          <span class="tf">调研</span><span class="tf">已跑 22 秒</span>
+          <span class="tf tf-next">下一步 · 等待索引写回</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name">补充终端接管说明</span><span class="badge badge-pending"><i></i>排队</span></span>
+        <span class="slug">adapter-docs · run-4195</span>
+        <span class="task-foot">
+          <span class="tf">调研</span><span class="tf">并发已满</span>
+          <span class="tf tf-next">下一步 · 等待空闲槽位</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name">优化空队列反馈</span><span class="badge badge-done"><i></i>已完成</span></span>
+        <span class="slug">empty-queue · run-4188</span>
+        <span class="task-foot">
+          <span class="tf">交付</span><span class="tf">用时 2 分 41 秒</span>
+          <span class="tf tf-next">下一步 · 已完成</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+    </ul>
+  </section>
+
+  <section class="col-detail">
+    <div class="detail-scroll">
+      <p class="eyebrow">自动运行 / 失败处置</p>
+      <h1 class="h1 h1-detail">修复版本校验边界</h1>
+      <p class="slug slug-lg">revision-guard · run-4192</p>
+
+      <p class="status-line">
+        <span class="badge badge-block"><i></i>失败</span>
+        <span class="status-note">实现阶段第 3 步退出码 1，已重试 1 次，等待你处置。</span>
+      </p>
+
+      <div class="phase-rail" role="img" aria-label="运行停在实现阶段">
+        <div class="pr-bars">
+          <span class="pr-bar is-done"></span><span class="pr-bar is-done"></span>
+          <span class="pr-bar is-done"></span><span class="pr-bar is-fail"></span>
+          <span class="pr-bar"></span><span class="pr-bar"></span>
+        </div>
+        <div class="pr-labels">
+          <span>立项</span><span>调研</span><span>规格</span>
+          <span class="is-fail">实现</span><span>验证</span><span>交付</span>
+        </div>
+      </div>
+
+      <hr class="rule">
+
+      <div class="sec-head"><h2 class="h2">节奏</h2><span class="sec-meta">作用于当前项目</span></div>
+      <ul class="stat-row">
+        <li><span class="stat-k">并发上限</span><span class="stat-v">2 / 3</span></li>
+        <li><span class="stat-k">重试</span><span class="stat-v">1 / 2</span></li>
+        <li><span class="stat-k">下次唤醒</span><span class="stat-v">02:00</span></li>
+      </ul>
+
+      <div class="sec-head"><h2 class="h2">处置</h2><span class="sec-meta">执行留在终端</span></div>
+      <ul class="file-list">
+        <li class="file-row">
+          <span class="file-ico"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h10v10H3z"/><path d="M5.5 6.5L7.5 8l-2 1.5"/></svg></span>
+          <span class="file-body">
+            <span class="file-name">重试当前阶段</span>
+            <span class="file-desc mono">tenon afk retry run-4192</span>
+          </span>
+          <button class="row-btn" type="button">复制</button>
+        </li>
+        <li class="file-row">
+          <span class="file-ico"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h10v10H3z"/><path d="M5.5 6.5L7.5 8l-2 1.5"/></svg></span>
+          <span class="file-body">
+            <span class="file-name">回退到规格</span>
+            <span class="file-desc mono">tenon change reset revision-guard --to spec</span>
+          </span>
+          <button class="row-btn" type="button">复制</button>
+        </li>
+      </ul>
+
+      <div class="sec-head"><h2 class="h2">运行日志</h2><span class="sec-meta">末 3 行</span></div>
+      <article class="preview">
+        <header class="preview-bar">
+          <span class="file-name">run-4192.log</span>
+          <span class="warn">退出码 1</span>
+        </header>
+        <div class="preview-body">
+          <pre class="log">14:02:11  build · step 3/5  运行 npm run test:web
+14:06:19  build · step 3/5  2 个用例失败
+14:06:19  build            退出码 1，停在实现阶段</pre>
+        </div>
+      </article>
+    </div>
+
+    <footer class="detail-foot">
+      <p>处置命令在终端执行；此处只读取运行状态与日志。</p>
+      <button class="btn-outline" type="button">打开完整日志 <span aria-hidden="true">→</span></button>
+    </footer>
+  </section>
+</main>
+
+<!-- ══════════════════ 机器 ══════════════════ -->
+<main class="page" id="page-machines">
+  <aside class="col-projects">
+    <div class="col-head">
+      <span class="col-head-label">机器</span>
+      <button class="icon-btn" type="button" aria-label="折叠机器列">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 4L6 8l4 4"/></svg>
+      </button>
+    </div>
+    <ul class="proj-list">
+      <li><button class="proj-card is-on" type="button">
+        <span class="proj-mark">M</span>
+        <span class="proj-body">
+          <span class="proj-name">本机 <em class="tag-live">在线</em></span>
+          <span class="proj-meta">4 个适配器 · darwin arm64</span>
+        </span>
+        <span class="proj-count">4</span>
+      </button></li>
+      <li><button class="proj-card" type="button">
+        <span class="proj-mark">B</span>
+        <span class="proj-body">
+          <span class="proj-name">build-box</span>
+          <span class="proj-meta">2 个适配器 · 5 分钟前离线</span>
+        </span>
+        <span class="proj-count">2</span>
+      </button></li>
+    </ul>
+    <div class="col-foot">
+      <button class="foot-link" type="button">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+        注册机器
+      </button>
+      <button class="foot-link" type="button">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h12M9 3l5 5-5 5"/></svg>
+        宿主计划
+      </button>
+    </div>
+  </aside>
+
+  <section class="col-tasks">
+    <p class="eyebrow">本机 · DARWIN ARM64</p>
+    <h1 class="h1">适配器</h1>
+
+    <div class="filter-note"><b>已安装</b>的适配器才会接收终端接管请求。</div>
+
+    <label class="search search-pane">
+      <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+      <input type="search" placeholder="搜索适配器" aria-label="搜索适配器">
+    </label>
+
+    <div class="chips" role="tablist" aria-label="适配器筛选">
+      <button class="chip is-on" role="tab" aria-selected="true" type="button">全部 <span>12</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">已安装 <span>4</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">可升级 <span>1</span></button>
+      <button class="chip" role="tab" aria-selected="false" type="button">未安装 <span>8</span></button>
+    </div>
+
+    <ul class="task-list">
+      <li><button class="task is-on" type="button">
+        <span class="task-top"><span class="task-name">Codex</span><span class="badge badge-pending"><i></i>可升级</span></span>
+        <span class="slug">codex · v1.0.8 → v1.0.9</span>
+        <span class="task-foot">
+          <span class="tf">~/.codex</span><span class="tf">3 个技能</span>
+          <span class="tf tf-next">下一步 · 在终端升级</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name">Claude Code</span><span class="badge badge-done"><i></i>已安装</span></span>
+        <span class="slug">claude · v1.0.9</span>
+        <span class="task-foot">
+          <span class="tf">~/.claude</span><span class="tf">6 个技能</span>
+          <span class="tf tf-next">下一步 · 无</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name">Cursor</span><span class="badge badge-done"><i></i>已安装</span></span>
+        <span class="slug">cursor · v1.0.9</span>
+        <span class="task-foot">
+          <span class="tf">~/.cursor</span><span class="tf">2 个技能</span>
+          <span class="tf tf-next">下一步 · 无</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+      <li><button class="task" type="button">
+        <span class="task-top"><span class="task-name">Gemini CLI</span><span class="seg-tag">未安装</span></span>
+        <span class="slug">gemini · —</span>
+        <span class="task-foot">
+          <span class="tf">未检测到</span><span class="tf">—</span>
+          <span class="tf tf-next">下一步 · 在终端安装</span>
+          <svg class="chev-r" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </button></li>
+    </ul>
+  </section>
+
+  <section class="col-detail">
+    <div class="detail-scroll">
+      <p class="eyebrow">适配器 / 安装计划</p>
+      <h1 class="h1 h1-detail">Codex</h1>
+      <p class="slug slug-lg">codex · v1.0.8 → v1.0.9</p>
+
+      <p class="status-line">
+        <span class="badge badge-pending"><i></i>可升级</span>
+        <span class="status-note">已安装 v1.0.8，仓库当前为 v1.0.9。升级会重写 3 个技能文件。</span>
+      </p>
+
+      <hr class="rule">
+
+      <div class="sec-head"><h2 class="h2">安装计划</h2><span class="sec-meta">3 写入 · 0 删除</span></div>
+      <ul class="file-list">
+        <li class="file-row">
+          <span class="file-ico"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9.5h-8.5z"/><path d="M9 1.5V5h3.5"/></svg></span>
+          <span class="file-body">
+            <span class="file-name">AGENTS.md</span>
+            <span class="file-desc mono">~/.codex/AGENTS.md</span>
+          </span>
+          <span class="warn">覆盖</span>
+        </li>
+        <li class="file-row">
+          <span class="file-ico"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9.5h-8.5z"/><path d="M9 1.5V5h3.5"/></svg></span>
+          <span class="file-body">
+            <span class="file-name">trellis-implement.md</span>
+            <span class="file-desc mono">~/.codex/skills/trellis-implement.md</span>
+          </span>
+          <span class="ok">新增</span>
+        </li>
+        <li class="file-row">
+          <span class="file-ico"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5L12.5 5v9.5h-8.5z"/><path d="M9 1.5V5h3.5"/></svg></span>
+          <span class="file-body">
+            <span class="file-name">trellis-check.md</span>
+            <span class="file-desc mono">~/.codex/skills/trellis-check.md</span>
+          </span>
+          <span class="ok">新增</span>
+        </li>
+      </ul>
+
+      <div class="sec-head"><h2 class="h2">上次收据</h2><span class="sec-meta">2026-09-02 19:33</span></div>
+      <article class="preview">
+        <header class="preview-bar">
+          <span class="file-name">install-receipt.json</span>
+          <span class="ok">可读</span>
+        </header>
+        <div class="preview-body">
+          <pre class="log">{ "adapter": "codex", "version": "1.0.8",
+  "written": 3, "skipped": 0, "host": "本机" }</pre>
+        </div>
+      </article>
+    </div>
+
+    <footer class="detail-foot">
+      <p class="mono cmd">tenon adapter install codex</p>
+      <button class="btn-outline" type="button">复制命令</button>
+    </footer>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

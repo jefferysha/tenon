@@ -1,8 +1,9 @@
+import './progress.css'
 import { useT } from '../i18n'
 import type { ChangeSnapshot } from '../types'
 import { Switch } from '@/components/ui/switch'
 import { useAfkLog } from './useAfkLog'
-import { fieldStr } from './progressViewModel'
+import { fieldStr } from '../workspace/taskRows'
 
 export interface RunLogPaneProps {
   root: string
@@ -16,8 +17,8 @@ export function RunLogPane({ root, change }: RunLogPaneProps): JSX.Element {
   return (
     <div className="mt-4 border-t border-border pt-3" data-testid={`prg-log-${change.name}`}>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="font-mono text-xs text-text-3">{t('progress.log_label')}</span>
-        <span className="flex items-center gap-2 text-xs text-text-2">
+        <span className="font-mono text-caption text-text-3">{t('progress.log_label')}</span>
+        <span className="flex items-center gap-2 text-caption text-text-2">
           {t('progress.follow_tail')}
           <Switch
             checked={follow}
@@ -29,13 +30,13 @@ export function RunLogPane({ root, change }: RunLogPaneProps): JSX.Element {
         </span>
       </div>
       <pre
-        className="max-h-[220px] overflow-auto rounded-lg border border-code-border bg-code-bg p-2.5 font-mono text-xs leading-relaxed text-text-2"
+        className="max-h-[220px] overflow-auto rounded-md border border-code-border bg-code-bg p-2.5 font-mono text-caption leading-relaxed text-text-2"
         data-testid={`prg-logtext-${change.name}`}
       >
         {log}
       </pre>
       {sandboxPhase !== '' && (
-        <p className="mt-2 text-xs text-text-3" data-testid={`prg-sandbox-phase-${change.name}`}>
+        <p className="mt-2 text-caption text-text-3" data-testid={`prg-sandbox-phase-${change.name}`}>
           {t('progress.sandbox_phase', { phase: sandboxPhase })}
         </p>
       )}

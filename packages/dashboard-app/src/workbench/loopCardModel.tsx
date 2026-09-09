@@ -18,37 +18,37 @@ export const WB_TW = {
    *  border/bg-card/shadow/圆角/外边距（卡内卡）；区块分隔由 WB_TW.sec 的 border-t 承担。 */
   card: '',
   /** 旧 .wb-editor-head + .lp-head 卡头行（row-gap 4px 是 lp-head 覆写）。 */
-  head: 'flex flex-wrap items-center gap-x-[9px] gap-y-1',
-  headB: 'text-[13px] text-text',
+  head: 'flex flex-wrap items-center gap-x-2 gap-y-1',
+  headB: 'text-body text-text',
   /** 旧 .lp-head-sub 卡头副题（basis-full 独占一行）。 */
-  headSub: 'mt-px basis-full text-xs font-normal text-text-3',
+  headSub: 'mt-px basis-full text-caption font-normal text-text-3',
   /** 旧 .wb-input（hover/focus/disabled 三态；focus 环走 --ring-blue token）。 */
   input:
-    'h-[34px] w-full rounded-[9px] border border-border bg-card px-[11px] text-[13.5px] text-text transition-[border-color,box-shadow] duration-[120ms] hover:border-border-2 focus:border-(--accent) focus:shadow-[0_0_0_3px_var(--ring-blue)] focus:outline-none disabled:cursor-not-allowed disabled:bg-fill disabled:text-text-3',
+    'h-[34px] w-full rounded-sm border border-border bg-card px-3 text-body text-text transition-[border-color,box-shadow] duration-[120ms] hover:border-border-2 focus:border-(--accent) focus:shadow-[0_0_0_3px_var(--ring-blue)] focus:outline-none disabled:cursor-not-allowed disabled:bg-fill disabled:text-text-3',
   /** 旧 .wb-note。 */
-  note: 'text-xs leading-[1.55] text-text-3',
+  note: 'text-caption leading-[1.55] text-text-3',
   /** 旧 .wb-flabel（margin 由调用点自补——旧表在不同容器里分别清零/覆写过）。 */
-  flabel: 'block text-xs font-semibold text-text-3',
+  flabel: 'block text-caption font-semibold text-text-3',
   /** 旧 .wb-ed-sec；相邻分区的顶界/间距用 [data-sec] + & 变体对位旧 `+` 组合子语义。 */
   sec: 'pt-3.5 pb-1 [[data-sec]+&]:mt-3 [[data-sec]+&]:border-t [[data-sec]+&]:border-border',
   /** 旧 .wb-ed-sec-h 与其内 .hint。 */
-  secH: 'mb-2.5 flex items-center gap-1.5 text-[13px] font-bold',
-  hint: 'text-xs font-normal text-text-3',
+  secH: 'mb-2.5 flex items-center gap-1.5 text-body font-bold',
+  hint: 'text-caption font-normal text-text-3',
   /** 旧 .wb-status--dirty / --ok 状态 pill。 */
   statusDirty:
-    'inline-flex items-center gap-1.5 rounded-full border border-dashed border-border-2 bg-fill px-2.5 py-1 text-[11px] font-bold text-text-2',
-  statusOk: 'inline-flex items-center gap-1.5 rounded-full bg-green-t px-2.5 py-1 text-[11px] font-bold text-green-d',
+    'inline-flex items-center gap-1.5 rounded-full border border-dashed border-border-2 bg-fill px-2.5 py-1 text-micro font-bold text-text-2',
+  statusOk: 'inline-flex items-center gap-1.5 rounded-full bg-green-t px-2.5 py-1 text-micro font-bold text-green-d',
   /** 旧 .wb-save-errors + .lp-errors（li 单列）。 */
-  saveErrors: 'mt-3 mb-3.5 list-none rounded-md border border-red-b bg-red-t px-3 py-2.5',
-  saveErrorsLi: 'font-mono text-[12.5px] leading-[1.6] text-red-d',
+  saveErrors: 'mt-3 mb-3.5 list-none rounded-sm border border-red-b bg-red-t px-3 py-2.5',
+  saveErrorsLi: 'font-mono text-caption leading-[1.6] text-red-d',
   /** 旧 .lp-policy 弹性参数行（SecretsCard 的 .sc-row 同族）。 */
   policyRow: 'mt-2.5 flex flex-wrap items-center gap-3 border-t border-dashed border-border pt-3',
   /** 旧 .view__note / .view__note--error（错误态另配 data-tone="error"）。 */
-  loading: 'p-5 text-[13px] text-text-3',
-  loadError: 'p-5 text-[13px] text-red',
+  loading: 'p-5 text-body text-text-3',
+  loadError: 'p-5 text-body text-red',
   /** shadcn Button 的项目微调：solid 配 <Button size="sm">、ghost 配 <Button variant="ghost" size="sm">。 */
-  btnSolid: 'px-4 text-[12.5px] font-bold',
-  btnGhost: 'border border-border px-4 text-[12.5px] font-semibold text-text-2 hover:border-text-3 hover:bg-transparent hover:text-text',
+  btnSolid: 'px-4 text-caption font-bold',
+  btnGhost: 'border border-border px-4 text-caption font-semibold text-text-2 hover:border-text-3 hover:bg-transparent hover:text-text',
   /** shadcn Switch 的项目微调：开=accent 蓝（旧 .switch[aria-checked=true] 口径，非 shadcn 默认绿）。 */
   switch: 'data-[state=checked]:bg-(--accent)',
 } as const
@@ -67,7 +67,7 @@ export function WbAdvanced({ testid, children }: { testid: string; children: Rea
     <Collapsible open={open} onOpenChange={setOpen} className="mt-3.5 border-t border-border pt-2.5">
       <CollapsibleTrigger
         data-testid={testid}
-        className="flex w-full cursor-pointer items-center gap-1 rounded-md text-xs font-semibold text-text-3 transition-colors hover:text-text-2"
+        className="flex w-full cursor-pointer items-center gap-1 rounded-sm text-caption font-semibold text-text-3 transition-colors hover:text-text-2"
       >
         <ChevronRight aria-hidden="true" className={cn('size-3.5 flex-none transition-transform duration-150', open && 'rotate-90')} />
         {open ? t('workbench.advanced_hide') : t('workbench.advanced_show')}
@@ -78,11 +78,11 @@ export function WbAdvanced({ testid, children }: { testid: string; children: Rea
 }
 
 /** 旧 .loop-reject 错误反馈块（语义=错误，由 data-tone="error" 承载，调用点自补 margin）。 */
-export const ERR_BLOCK_TW = 'rounded-[7px] bg-red-t px-[11px] py-2 text-[11.5px] font-semibold text-red'
+export const ERR_BLOCK_TW = 'rounded-sm bg-red-t px-3 py-2 text-micro font-semibold text-red'
 /** 旧 .wb-chip（mono 值 chip）。 */
-export const CHIP_TW = 'inline-flex h-6 items-center gap-1 rounded-[7px] border border-border bg-fill px-[9px] font-mono text-xs text-text-2'
+export const CHIP_TW = 'inline-flex h-6 items-center gap-1 rounded-sm border border-border bg-fill px-2 font-mono text-caption text-text-2'
 /** 旧 .badge 底座（--run/--pending/lp-draft-badge 的差异色由调用点条件类补）。 */
-export const BADGE_TW = 'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-bold'
+export const BADGE_TW = 'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-micro font-bold'
 
 // ── 草稿形状：/api/loops/update 可 patch 字段的编辑面（kernel loops/update.ts 全集，
 //    autonomy_level 除外——见头注释）──
@@ -217,7 +217,7 @@ const PROV_LABEL_KEY: Record<ProvKind, string> = {
 }
 
 /** 徽章三色直接指派既有 token（agent=accent 三件套、sys=fill-2 中性、human=ink 深底铭牌）。 */
-const PROV_BASE_TW = 'inline-flex h-[18px] flex-none items-center whitespace-nowrap rounded-[6px] px-[7px] text-[10.5px] font-bold'
+const PROV_BASE_TW = 'inline-flex h-[18px] flex-none items-center whitespace-nowrap rounded-sm px-2 text-micro font-bold'
 const PROV_KIND_TW: Record<ProvKind, string> = {
   agent: 'border border-accent-b bg-accent-t text-accent-d',
   sys: 'bg-fill-2 text-text-2',

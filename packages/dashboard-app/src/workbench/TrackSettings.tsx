@@ -28,7 +28,7 @@ import { useTrackMutationIdentity } from './useTrackMutationIdentity'
 import { useMutationFocus } from './useMutationFocus'
 
 const ADD_CLS =
-  'cursor-pointer rounded-lg border-[1.5px] border-dashed border-border-2 bg-transparent px-[11px] py-[5px] text-[12.5px] font-bold whitespace-nowrap text-text-3 transition-colors enabled:hover:border-purple-b enabled:hover:text-purple-d disabled:cursor-not-allowed disabled:opacity-50'
+  'cursor-pointer rounded-md border-[1.5px] border-dashed border-border-2 bg-transparent px-3 py-1 text-caption font-bold whitespace-nowrap text-text-3 transition-colors enabled:hover:border-purple-b enabled:hover:text-purple-d disabled:cursor-not-allowed disabled:opacity-50'
 
 interface TrackSettingsProps {
   state: MandatoryState
@@ -83,7 +83,7 @@ export function TrackSettings({ state, onDirtyChange }: TrackSettingsProps): JSX
   useEffect(() => () => {
     onDirtyChange?.(false)
   }, [onDirtyChange])
-  const fieldClass = 'rounded-md border border-border bg-bg px-2 py-1.5 text-[12px] text-text focus-visible:border-(--accent) focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-(--ring-blue) disabled:opacity-60'
+  const fieldClass = 'rounded-sm border border-border bg-bg px-2 py-1.5 text-caption text-text focus-visible:border-(--accent) focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-(--ring-blue) disabled:opacity-60'
 
   function clearEditor(): void {
     setEditor(null)
@@ -314,7 +314,7 @@ export function TrackSettings({ state, onDirtyChange }: TrackSettingsProps): JSX
     <div className="relative">
       <button
         type="button"
-        className="rounded-md border border-border bg-card px-3 py-[6px] text-[12.5px] font-bold text-text-2 transition-colors hover:bg-fill"
+        className="rounded-sm border border-border bg-card px-3 py-2 text-caption font-bold text-text-2 transition-colors hover:bg-fill"
         data-testid="wb-track-settings-toggle"
         aria-expanded={open}
         disabled={busy}
@@ -336,12 +336,12 @@ export function TrackSettings({ state, onDirtyChange }: TrackSettingsProps): JSX
           variant="workspace"
         >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-text-3">{t('workbench.track_settings_description')}</p>
+            <p className="text-base text-text-3">{t('workbench.track_settings_description')}</p>
             <button type="button" className={ADD_CLS} data-testid="wb-track-create" disabled={busy} onClick={(event) => requestEditorSwitch(openCreate, event.currentTarget)}>{t('workbench.track_settings_create')}</button>
           </div>
           {editor && (
             <form
-              className="mb-3 rounded-xl border border-accent-b bg-accent-t/35 p-3"
+              className="mb-3 rounded-md border border-accent-b bg-accent-t/35 p-3"
               data-testid="wb-track-editor"
               onSubmit={(event) => {
                 event.preventDefault()
@@ -350,8 +350,8 @@ export function TrackSettings({ state, onDirtyChange }: TrackSettingsProps): JSX
             >
               <fieldset className="contents" disabled={busy}>
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <b className="text-[13px] text-text">{editor.mode === 'create' ? t('workbench.track_create_title') : t('workbench.track_edit_title')}</b>
-                  <button type="button" className="text-xs text-text-3 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => requestDraftClose(clearEditor)}>{t('workbench.track_cancel')}</button>
+                  <b className="text-body text-text">{editor.mode === 'create' ? t('workbench.track_create_title') : t('workbench.track_edit_title')}</b>
+                  <button type="button" className="text-caption text-text-3 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => requestDraftClose(clearEditor)}>{t('workbench.track_cancel')}</button>
                 </div>
                 <TrackEditorFields
                   draft={editor.draft}
@@ -373,14 +373,14 @@ export function TrackSettings({ state, onDirtyChange }: TrackSettingsProps): JSX
                     t={t}
                   />
                 )}
-                {error && <p className="mt-3 rounded-md border border-red-b bg-red-t p-2 text-xs text-red-d" role="alert" data-testid="wb-track-editor-error">{error}</p>}
+                {error && <p className="mt-3 rounded-sm border border-red-b bg-red-t p-2 text-caption text-red-d" role="alert" data-testid="wb-track-editor-error">{error}</p>}
                 <div className="mt-3 flex flex-wrap justify-end gap-2">
                   {editor.mode === 'edit' && !editor.original?.builtin && (
                     deleteConfirm
-                      ? <button type="button" className="rounded-md border border-red-b px-3 py-1.5 text-xs font-bold text-red-d" data-testid="wb-track-delete-confirm" onClick={(event) => void removeTrack(event.currentTarget)}>{t('workbench.track_delete_confirm')}</button>
-                      : <button type="button" className="mr-auto rounded-md border border-red-b px-3 py-1.5 text-xs font-bold text-red-d" data-testid="wb-track-editor-delete" onClick={() => setDeleteConfirm(true)}>{t('workbench.track_delete')}</button>
+                      ? <button type="button" className="rounded-sm border border-red-b px-3 py-1.5 text-caption font-bold text-red-d" data-testid="wb-track-delete-confirm" onClick={(event) => void removeTrack(event.currentTarget)}>{t('workbench.track_delete_confirm')}</button>
+                      : <button type="button" className="mr-auto rounded-sm border border-red-b px-3 py-1.5 text-caption font-bold text-red-d" data-testid="wb-track-editor-delete" onClick={() => setDeleteConfirm(true)}>{t('workbench.track_delete')}</button>
                   )}
-                  <button ref={mutationFocus.saveButtonRef} type="submit" className="rounded-md bg-btn-bg px-4 py-1.5 text-xs font-bold text-btn-fg disabled:opacity-50" data-testid="wb-track-editor-save" disabled={!trackDraftHasRequiredFields(editor.draft)}>{busy ? t('workbench.track_saving') : t('workbench.track_save')}</button>
+                  <button ref={mutationFocus.saveButtonRef} type="submit" className="rounded-sm bg-btn-bg px-4 py-1.5 text-caption font-bold text-btn-fg disabled:opacity-50" data-testid="wb-track-editor-save" disabled={!trackDraftHasRequiredFields(editor.draft)}>{busy ? t('workbench.track_saving') : t('workbench.track_save')}</button>
                 </div>
               </fieldset>
             </form>

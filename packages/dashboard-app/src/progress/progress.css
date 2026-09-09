@@ -59,36 +59,36 @@ html.prg9-lock {
 }
 
 .prg-command-deck [data-slot='page-header'] {
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  gap: 12px 18px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  gap: 12px 16px;
 }
 
 .prg-command-deck [data-slot='page-header'] h1 {
-  font-size: 26px;
+  font-size: var(--text-page);
   font-weight: 700;
   letter-spacing: -0.035em;
   text-wrap: balance;
 }
 
 .prg-command-deck [data-testid='prg-filterbar'] {
-  margin-bottom: 14px !important;
+  margin-bottom: 16px !important;
 }
 
 .prg-command-deck [data-testid='prg-filterbar'] > div {
-  gap: 10px;
+  gap: 8px;
 }
 
 .prg-command-deck [data-testid='prg9t-tabs'] {
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--fill) 82%, var(--card) 18%);
 }
 
 .prg-command-deck [data-testid='prg9t-tabs'] button {
   min-height: 34px;
-  border-radius: 7px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-caption);
 }
 
 .prg-orchestration {
@@ -108,14 +108,14 @@ html.prg9-lock {
   display: flex;
   min-width: 0;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
 }
 
 .prg-orchestration-pulse {
   width: 8px;
   height: 8px;
   flex: 0 0 auto;
-  margin-top: 6px;
+  margin-top: 6px; /* scale-exempt: 8px 圆点与首行文字基线光学对齐，不是节奏间距 */
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-t);
@@ -126,20 +126,20 @@ html.prg9-lock {
   flex: 0 0 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
 }
 
 .prg-control {
   display: inline-flex;
   min-height: 30px;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 0 9px;
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
   background: transparent;
   color: var(--text-2);
-  font-size: 11px;
+  font-size: var(--text-micro);
   cursor: pointer;
   transition: background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
 }
@@ -162,11 +162,11 @@ html.prg9-lock {
 .prg-command-summary {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(180px, 0.9fr);
-  gap: 10px;
-  margin-top: 14px;
-  padding: 11px 13px;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--prg-surface-raised);
 }
 
@@ -177,7 +177,7 @@ html.prg9-lock {
   min-width: 0;
   flex-direction: column;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
 }
 
 .prg-command-next {
@@ -188,14 +188,14 @@ html.prg9-lock {
 
 .prg-command-label {
   color: var(--text-3);
-  font-size: 10px;
+  font-size: var(--text-micro);
   line-height: 1.2;
 }
 
 .prg-command-summary strong {
   overflow: hidden;
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--text-caption);
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -205,7 +205,7 @@ html.prg9-lock {
   display: grid;
   grid-template-columns: auto minmax(60px, 1fr);
   align-items: center;
-  gap: 7px 9px;
+  gap: 8px;
 }
 
 .prg-command-progress .prg-command-label {
@@ -243,7 +243,7 @@ html.prg9-lock {
 .prg-pipeline-head h3 {
   margin: 0;
   color: var(--text);
-  font-size: 11px;
+  font-size: var(--text-micro);
   letter-spacing: 0.02em;
 }
 
@@ -252,23 +252,23 @@ html.prg9-lock {
   min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 
 .prg-pipeline-meta span {
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 4px 7px;
+  padding: 4px 8px;
   background: var(--fill);
 }
 
 .prg-pipeline-stages {
   display: flex;
-  gap: 7px;
-  margin: 10px 0 0;
+  gap: 8px;
+  margin: 8px 0 0;
   padding: 0 0 2px;
   overflow-x: auto;
   list-style: none;
@@ -279,13 +279,13 @@ html.prg9-lock {
   display: inline-flex;
   min-width: max-content;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  padding: 8px;
   background: var(--fill);
   color: var(--text-3);
-  font-size: 10px;
+  font-size: var(--text-micro);
 }
 
 .prg-stage-index {
@@ -293,11 +293,11 @@ html.prg9-lock {
   width: 17px;
   height: 17px;
   place-items: center;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   background: var(--accent-t);
   color: var(--accent-d);
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: var(--text-micro);
   font-weight: 700;
 }
 
@@ -311,7 +311,7 @@ html.prg9-lock {
 .prg-work-items,
 .prg-technical-details {
   border-top: 1px solid var(--border);
-  padding-top: 10px;
+  padding-top: 8px;
 }
 
 .prg-work-items > summary,
@@ -320,7 +320,7 @@ html.prg9-lock {
   align-items: center;
   justify-content: space-between;
   color: var(--text-2);
-  font-size: 11px;
+  font-size: var(--text-micro);
   font-weight: 650;
   cursor: pointer;
   list-style: none;
@@ -335,7 +335,7 @@ html.prg9-lock {
 .prg-technical-details > summary::after {
   content: '＋';
   color: var(--text-3);
-  font-size: 13px;
+  font-size: var(--text-body);
   font-weight: 400;
 }
 
@@ -350,31 +350,31 @@ html.prg9-lock {
 }
 
 .prg-command-deck .prg-canvas {
-  gap: 22px !important;
+  gap: 24px !important;
 }
 
 .prg-command-deck .prg-canvas [data-testid^='prg-cv-group-'] {
   min-height: 0 !important;
-  border-radius: 16px !important;
+  border-radius: var(--radius-lg) !important;
   padding: 16px !important;
   background: var(--card) !important;
   box-shadow: var(--shadow-2) !important;
 }
 
 .prg-command-deck .prg-canvas [data-testid^='prg-cv-group-'] > header {
-  margin-bottom: 13px !important;
-  gap: 10px !important;
+  margin-bottom: 12px !important;
+  gap: 8px !important;
 }
 
 .prg-command-deck .prg-canvas [data-testid^='prg-cv-project-'] {
-  font-size: 12px;
+  font-size: var(--text-caption);
   font-weight: 700;
 }
 
 .prg-command-deck .prg-canvas [data-testid^='prg-cv-chg-'] {
   min-height: 102px !important;
-  border-radius: 10px !important;
-  padding: 10px !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 8px !important;
   box-shadow: var(--shadow) !important;
 }
 
@@ -390,11 +390,11 @@ html.prg9-lock {
 
   .prg-command-summary {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 8px;
   }
 
   .prg-command-next {
-    padding: 10px 0;
+    padding: 8px 0;
     border-top: 1px solid var(--border);
     border-right: 0;
     border-bottom: 1px solid var(--border);
@@ -444,10 +444,10 @@ html.prg9-lock {
   padding: 0 12px;
   border: 0;
   border-bottom: 2px solid transparent;
-  border-radius: 9px 9px 0 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   background: transparent;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--text-caption);
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
@@ -471,13 +471,13 @@ html.prg9-lock {
 }
 
 .prg-terminal-boundary {
-  margin: 14px 0 0;
+  margin: 16px 0 0;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--fill);
-  padding: 10px 12px;
+  padding: 8px 12px;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--text-caption);
   line-height: 1.55;
 }
 
@@ -489,7 +489,7 @@ html.prg9-lock {
 
   .prg-sheet-tab {
     min-height: 36px;
-    padding-inline: 10px;
+    padding-inline: 8px;
   }
 }
 
@@ -542,7 +542,7 @@ html.prg9-lock {
     flex: 1 1 auto;
   }
   .prg-canvas .prg-change-grid {
-    gap: 14px;
+    gap: 16px;
   }
   .prg-canvas .prg-change-grid > * {
     padding-inline: 0;

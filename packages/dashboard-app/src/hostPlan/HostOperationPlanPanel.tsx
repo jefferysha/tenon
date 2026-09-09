@@ -37,23 +37,23 @@ export function HostOperationPlanPanel({
 
   return (
     <section
-      className="min-w-0 rounded-2xl border border-border bg-card p-5 shadow-sm"
+      className="min-w-0 rounded-lg border border-border bg-card p-5 shadow-sm"
       aria-labelledby="host-plan-operation-title"
     >
-      <h2 id="host-plan-operation-title" className="text-base font-bold text-text">
+      <h2 id="host-plan-operation-title" className="text-title font-bold text-text">
         {t('hostPlan.operation_title', { host: targetLabel })}
       </h2>
       <div
-        className="mt-3 rounded-xl border border-border bg-fill/35 p-3"
+        className="mt-3 rounded-md border border-border bg-fill/35 p-3"
         data-testid="host-selected-context"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <code className="text-xs font-semibold text-text">{target.cli_flag}</code>
+          <code className="text-caption font-semibold text-text">{target.cli_flag}</code>
           <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-full border border-border bg-fill px-2 py-1 text-[11px] font-semibold text-text-2">
+            <span className="rounded-full border border-border bg-fill px-2 py-1 text-micro font-semibold text-text-2">
               {t(`hostPlan.kind.${target.kind}`)}
             </span>
-            <span className="rounded-full border border-border bg-bg px-2 py-1 text-[11px] font-semibold text-text-3">
+            <span className="rounded-full border border-border bg-bg px-2 py-1 text-micro font-semibold text-text-3">
               {t(`hostPlan.scope.${target.target_scope}`)}
             </span>
           </div>
@@ -62,7 +62,7 @@ export function HostOperationPlanPanel({
           {target.capabilities.map((capability) => (
             <span
               key={capability}
-              className="rounded-full border border-accent-b bg-accent-t px-2 py-1 text-[11px] font-semibold text-accent-d"
+              className="rounded-full border border-accent-b bg-accent-t px-2 py-1 text-micro font-semibold text-accent-d"
             >
               {t(`hostPlan.capability.${capability}`)}
             </span>
@@ -75,7 +75,7 @@ export function HostOperationPlanPanel({
             key={operation}
             type="button"
             aria-pressed={selectedOperation === operation}
-            className="rounded-xl border border-border-2 bg-card px-4 py-2 text-sm font-bold text-text outline-none transition-[background-color,border-color,box-shadow] hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[pressed=true]:border-(--accent) aria-[pressed=true]:bg-accent-t aria-[pressed=true]:text-accent-d"
+            className="rounded-md border border-border-2 bg-card px-4 py-2 text-base font-bold text-text outline-none transition-[background-color,border-color,box-shadow] hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[pressed=true]:border-(--accent) aria-[pressed=true]:bg-accent-t aria-[pressed=true]:text-accent-d"
             onClick={() => onRequestPlan(target.id, operation)}
           >
             {t(`hostPlan.operation.${operation}`)}
@@ -84,17 +84,17 @@ export function HostOperationPlanPanel({
       </div>
 
       {planState.status === 'idle' ? (
-        <p className="mt-4 text-sm text-text-2" role="status">{t('hostPlan.awaiting_operation')}</p>
+        <p className="mt-4 text-base text-text-2" role="status">{t('hostPlan.awaiting_operation')}</p>
       ) : planState.status === 'loading' && selectedOperation ? (
-        <p className="mt-4 text-sm text-text-2" role="status">
+        <p className="mt-4 text-base text-text-2" role="status">
           {t('hostPlan.plan_loading', {
             host: targetLabel,
             operation: t(`hostPlan.operation.${selectedOperation}`),
           })}
         </p>
       ) : planState.status === 'error' && selectedOperation ? (
-        <div className="mt-4 rounded-xl border border-red-b bg-red-t/45 p-4 text-red-d" role="alert">
-          <p className="break-words text-sm">{errorMessage(planState.error)}</p>
+        <div className="mt-4 rounded-md border border-red-b bg-red-t/45 p-4 text-red-d" role="alert">
+          <p className="break-words text-base">{errorMessage(planState.error)}</p>
           <button
             type="button"
             className={`${BUTTON_GHOST} mt-3 border-red-b bg-card text-red-d hover:border-red-b hover:bg-red-t`}

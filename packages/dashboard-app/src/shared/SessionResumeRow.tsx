@@ -19,13 +19,13 @@ import { Icon } from './Icon'
 import { shellQuote } from './shellQuote'
 
 /** conn 命令卡行族（旧 .dt8-conn-row/-k/-v/-note 对位）——TaskDetail 同源导入复用。 */
-export const connRowCls = 'flex items-center gap-2.5 rounded-[9px] border border-border bg-card px-[11px] py-2'
-export const connKeyCls = 'w-[88px] flex-none text-xs font-semibold text-text-2'
-export const connValCls = 'min-w-0 flex-1 truncate font-mono text-xs tabular-nums text-text'
-export const connNoteCls = 'flex-none text-[11px] whitespace-nowrap text-text-3'
+export const connRowCls = 'flex items-center gap-2.5 rounded-sm border border-border bg-card px-3 py-2'
+export const connKeyCls = 'w-[88px] flex-none text-caption font-semibold text-text-2'
+export const connValCls = 'min-w-0 flex-1 truncate font-mono text-caption tabular-nums text-text'
+export const connNoteCls = 'flex-none text-micro whitespace-nowrap text-text-3'
 /** 复制小钮（旧 .dt-code-copy 对位）——TaskDetail 命令区/报错卡同源复用。 */
 export const copyBtnCls =
-  'grid size-[22px] cursor-pointer place-items-center rounded-[6px] border-0 bg-transparent p-0 text-text-3 transition-colors hover:bg-fill-2 hover:text-text'
+  'grid size-[22px] cursor-pointer place-items-center rounded-sm border-0 bg-transparent p-0 text-text-3 transition-colors hover:bg-fill-2 hover:text-text'
 
 export interface SessionResumeRowProps {
   root: string

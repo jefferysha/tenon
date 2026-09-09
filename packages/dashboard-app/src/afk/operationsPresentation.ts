@@ -1,9 +1,9 @@
 import type { AutomationStarterTemplate } from '../api/client'
 
-export const operationCard = 'rounded-xl border border-border bg-card p-4'
-export const operationInput = 'h-9 w-full rounded-lg border border-border bg-bg px-3 text-[13px] text-text outline-none focus:border-(--accent)'
-export const operationButton = 'h-9 rounded-lg bg-btn-bg px-3.5 text-[12.5px] font-bold text-btn-fg transition-colors hover:bg-btn-hover disabled:cursor-not-allowed disabled:opacity-45'
-export const operationGhost = 'h-9 rounded-lg border border-border bg-card px-3.5 text-[12.5px] font-semibold text-text-2 hover:bg-fill disabled:opacity-45'
+export const operationCard = 'rounded-md border border-border bg-card p-4'
+export const operationInput = 'h-9 w-full rounded-md border border-border bg-bg px-3 text-body text-text outline-none focus:border-(--accent)'
+export const operationButton = 'h-9 rounded-md bg-btn-bg px-3.5 text-caption font-bold text-btn-fg transition-colors hover:bg-btn-hover disabled:cursor-not-allowed disabled:opacity-45'
+export const operationGhost = 'h-9 rounded-md border border-border bg-card px-3.5 text-caption font-semibold text-text-2 hover:bg-fill disabled:opacity-45'
 
 const STARTER_COPY_KEYS: Record<string, { title: string; description: string }> = {
   'pr-babysitter': { title: 'operations.starter_pr_babysitter_title', description: 'operations.starter_pr_babysitter_desc' },

@@ -22,11 +22,11 @@ type DriftStatus = Policy['drift']['status']
 type DecompositionMode = WorkflowDecompositionPolicySnapshot['mode']
 type InteractionMode = WorkflowInteractionPolicySnapshot['mode']
 
-const CARD = 'mb-4 min-w-0 rounded-2xl border border-border bg-card p-4 shadow-sm'
-const SUBSECTION = 'min-w-0 rounded-xl border border-border bg-bg/50 p-4'
-const LABEL = 'text-[11px] font-bold uppercase tracking-[.06em] text-text-3'
-const VALUE = 'min-w-0 text-[13px] text-text-2'
-const CODE = 'font-mono text-[12px] text-text [overflow-wrap:anywhere]'
+const CARD = 'mb-4 min-w-0 rounded-lg border border-border bg-card p-4 shadow-sm'
+const SUBSECTION = 'min-w-0 rounded-md border border-border bg-bg/50 p-4'
+const LABEL = 'text-micro font-bold uppercase tracking-[.06em] text-text-3'
+const VALUE = 'min-w-0 text-body text-text-2'
+const CODE = 'font-mono text-caption text-text [overflow-wrap:anywhere]'
 const DECOMPOSITION_MODE_KEYS: Record<DecompositionMode, string> = {
   off: 'workbench.policy_decomposition_mode_off',
   suggest: 'workbench.policy_decomposition_mode_suggest',
@@ -58,7 +58,7 @@ function selectRuntimeChange(
 
 function FactRow({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return (
-    <div className="min-w-0 rounded-lg border border-border bg-card px-3 py-2.5">
+    <div className="min-w-0 rounded-md border border-border bg-card px-3 py-2.5">
       <dt className={LABEL}>{label}</dt>
       <dd className={`mt-1.5 ${VALUE}`}>{children}</dd>
     </div>
@@ -70,18 +70,18 @@ function StatusValue({ testId, children }: { testId?: string; children: ReactNod
 }
 
 function StateNotice({ message }: { message: string }): JSX.Element {
-  return <p data-testid="workflow-policy-runtime-state" role="status" aria-live="polite" className="rounded-lg border border-border bg-bg/50 px-3 py-2.5 text-sm leading-6 text-text-2">{message}</p>
+  return <p data-testid="workflow-policy-runtime-state" role="status" aria-live="polite" className="rounded-md border border-border bg-bg/50 px-3 py-2.5 text-base leading-6 text-text-2">{message}</p>
 }
 
 function Fingerprint({ label, testId, value }: { label: string; testId: string; value: string }): JSX.Element {
-  return <code aria-label={label} data-testid={testId} tabIndex={0} className={`${CODE} block select-text whitespace-normal break-all rounded-lg border border-code-border bg-code-bg px-3 py-2.5 leading-6 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)`}>{value}</code>
+  return <code aria-label={label} data-testid={testId} tabIndex={0} className={`${CODE} block select-text whitespace-normal break-all rounded-md border border-code-border bg-code-bg px-3 py-2.5 leading-6 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)`}>{value}</code>
 }
 
 function ChangeIdentity({ change, root, workflowName }: { change: ChangeSnapshot; root: string; workflowName: string }): JSX.Element {
   const { t } = useT()
   return (
     <section className={`${SUBSECTION} mb-4`} aria-labelledby="workflow-policy-runtime-source-title">
-      <h3 id="workflow-policy-runtime-source-title" className="m-0 text-sm font-extrabold text-text">{t('workbench.policy_runtime_source')}</h3>
+      <h3 id="workflow-policy-runtime-source-title" className="m-0 text-base font-extrabold text-text">{t('workbench.policy_runtime_source')}</h3>
       <dl className="mt-3 grid min-w-0 gap-2 sm:grid-cols-3">
         <FactRow label={t('workbench.policy_runtime_source_change')}><code data-testid="workflow-policy-runtime-source-change" className={CODE}>{change.name}</code></FactRow>
         <FactRow label={t('workbench.policy_runtime_source_workflow')}><code className={CODE}>{workflowName}</code></FactRow>
@@ -102,7 +102,7 @@ function ConfiguredPolicy({ policy }: { policy: Policy }): JSX.Element {
   }
   return (
     <section className={SUBSECTION} aria-labelledby="workflow-policy-runtime-configured-title">
-      <h3 id="workflow-policy-runtime-configured-title" className="m-0 text-sm font-extrabold text-text">{t('workbench.policy_runtime_configured')}</h3>
+      <h3 id="workflow-policy-runtime-configured-title" className="m-0 text-base font-extrabold text-text">{t('workbench.policy_runtime_configured')}</h3>
       <dl className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2">
         <FactRow label={t('workbench.policy_runtime_status')}>
           <StatusValue testId="workflow-policy-runtime-configured-status">{t(statusKey[configured.status])}</StatusValue>
@@ -133,7 +133,7 @@ function FrozenPolicy({ policy }: { policy: Policy }): JSX.Element {
   const { t } = useT()
   return (
     <section className={SUBSECTION} aria-labelledby="workflow-policy-runtime-frozen-title">
-      <h3 id="workflow-policy-runtime-frozen-title" className="m-0 text-sm font-extrabold text-text">{t('workbench.policy_runtime_frozen')}</h3>
+      <h3 id="workflow-policy-runtime-frozen-title" className="m-0 text-base font-extrabold text-text">{t('workbench.policy_runtime_frozen')}</h3>
       <dl className="mt-3 grid min-w-0 gap-2">
         <FactRow label={t('workbench.policy_runtime_frozen_fingerprint')}>
           <Fingerprint label={t('workbench.policy_runtime_frozen_fingerprint')} testId="workflow-policy-runtime-frozen-fingerprint" value={policy.frozen.workflowFingerprint} />
@@ -147,8 +147,8 @@ function FrozenPolicy({ policy }: { policy: Policy }): JSX.Element {
         <FactRow label={t('workbench.policy_runtime_frozen_ceiling')}>
           <div data-testid="workflow-policy-runtime-frozen-ceiling">
             {policy.frozen.workflowCeiling.grants.length === 0
-              ? <p className="m-0 text-xs leading-5 text-text-3" data-testid="workflow-policy-runtime-frozen-ceiling-empty" role="status">{t('workbench.policy_runtime_frozen_ceiling_empty')}</p>
-              : <ul className="m-0 grid min-w-0 gap-1.5 pl-5 text-xs text-text-2">{policy.frozen.workflowCeiling.grants.map((action) => <li key={action}><code className={CODE}>{action}</code></li>)}</ul>}
+              ? <p className="m-0 text-caption leading-5 text-text-3" data-testid="workflow-policy-runtime-frozen-ceiling-empty" role="status">{t('workbench.policy_runtime_frozen_ceiling_empty')}</p>
+              : <ul className="m-0 grid min-w-0 gap-1.5 pl-5 text-caption text-text-2">{policy.frozen.workflowCeiling.grants.map((action) => <li key={action}><code className={CODE}>{action}</code></li>)}</ul>}
           </div>
         </FactRow>
       </dl>
@@ -172,7 +172,7 @@ function DriftPolicy({ policy }: { policy: Policy }): JSX.Element {
   }
   return (
     <section className={SUBSECTION} aria-labelledby="workflow-policy-runtime-drift-title">
-      <h3 id="workflow-policy-runtime-drift-title" className="m-0 text-sm font-extrabold text-text">{t('workbench.policy_runtime_drift')}</h3>
+      <h3 id="workflow-policy-runtime-drift-title" className="m-0 text-base font-extrabold text-text">{t('workbench.policy_runtime_drift')}</h3>
       <dl className="mt-3 grid min-w-0 gap-2 sm:grid-cols-3">
         <FactRow label={t('workbench.policy_runtime_drift_status')}>
           <StatusValue testId="workflow-policy-runtime-drift-status">{t(statusKey[policy.drift.status])}</StatusValue>
@@ -195,7 +195,7 @@ function EffectivePolicy({ policy }: { policy: Policy }): JSX.Element {
   if (effective.status === 'unavailable') {
     return (
       <section className={SUBSECTION} aria-labelledby="workflow-policy-runtime-effective-title">
-        <h3 id="workflow-policy-runtime-effective-title" className="m-0 text-sm font-extrabold text-text">{t('workbench.policy_runtime_effective')}</h3>
+        <h3 id="workflow-policy-runtime-effective-title" className="m-0 text-base font-extrabold text-text">{t('workbench.policy_runtime_effective')}</h3>
         <dl className="mt-3 grid min-w-0 gap-2">
           <FactRow label={t('workbench.policy_runtime_status')}><StatusValue testId="workflow-policy-runtime-effective-state">{t('workbench.policy_runtime_effective_unavailable')}</StatusValue></FactRow>
           <FactRow label={t('workbench.policy_runtime_effective_reason')}>
@@ -210,19 +210,19 @@ function EffectivePolicy({ policy }: { policy: Policy }): JSX.Element {
 
   return (
     <section className={SUBSECTION} aria-labelledby="workflow-policy-runtime-effective-title">
-      <h3 id="workflow-policy-runtime-effective-title" className="m-0 text-sm font-extrabold text-text">{t('workbench.policy_runtime_effective')}</h3>
+      <h3 id="workflow-policy-runtime-effective-title" className="m-0 text-base font-extrabold text-text">{t('workbench.policy_runtime_effective')}</h3>
       <div className="mt-3 grid min-w-0 gap-4 md:grid-cols-2">
         <div className="min-w-0" data-testid="workflow-policy-runtime-grants">
-          <h4 className="m-0 text-xs font-bold text-text-2">{t('workbench.policy_runtime_grants')}</h4>
+          <h4 className="m-0 text-caption font-bold text-text-2">{t('workbench.policy_runtime_grants')}</h4>
           {effective.grants.length === 0
-            ? <p className="mt-2 mb-0 text-xs leading-5 text-text-3" role="status">{t('workbench.policy_runtime_grants_empty')}</p>
-            : <ul className="mt-2 mb-0 grid min-w-0 gap-1.5 pl-5 text-xs text-text-2">{effective.grants.map((action) => <li key={action}><code className={CODE}>{action}</code></li>)}</ul>}
+            ? <p className="mt-2 mb-0 text-caption leading-5 text-text-3" role="status">{t('workbench.policy_runtime_grants_empty')}</p>
+            : <ul className="mt-2 mb-0 grid min-w-0 gap-1.5 pl-5 text-caption text-text-2">{effective.grants.map((action) => <li key={action}><code className={CODE}>{action}</code></li>)}</ul>}
         </div>
         <div className="min-w-0" data-testid="workflow-policy-runtime-denials">
-          <h4 className="m-0 text-xs font-bold text-text-2">{t('workbench.policy_runtime_denials')}</h4>
+          <h4 className="m-0 text-caption font-bold text-text-2">{t('workbench.policy_runtime_denials')}</h4>
           {effective.denials.length === 0
-            ? <p className="mt-2 mb-0 text-xs leading-5 text-text-3" role="status">{t('workbench.policy_runtime_denials_empty')}</p>
-            : <ul className="mt-2 mb-0 grid min-w-0 gap-2 pl-5 text-xs text-text-2">{effective.denials.map((denial, index) => (
+            ? <p className="mt-2 mb-0 text-caption leading-5 text-text-3" role="status">{t('workbench.policy_runtime_denials_empty')}</p>
+            : <ul className="mt-2 mb-0 grid min-w-0 gap-2 pl-5 text-caption text-text-2">{effective.denials.map((denial, index) => (
               <li key={`${denial.action}-${denial.code}-${index}`} className="min-w-0 leading-5">
                 <div><span className="font-semibold text-text-2">{t('workbench.policy_runtime_denial_action')}{labelSeparator}</span><code className={CODE}>{denial.action}</code></div>
                 {denial.layer !== undefined && <div><span className="font-semibold text-text-2">{t('workbench.policy_runtime_denial_layer')}{labelSeparator}</span><code className={CODE}>{denial.layer}</code></div>}
@@ -258,8 +258,8 @@ export function WorkflowPolicyRuntimeSummary({ root, workflowName, snapshot }: W
     <section className={CARD} aria-labelledby="workflow-policy-runtime-title" data-testid="workflow-policy-runtime-summary">
       <div className="mb-4 flex min-w-0 flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h2 id="workflow-policy-runtime-title" className="m-0 text-base font-extrabold tracking-[-0.01em] text-text">{t('workbench.policy_runtime_title')}</h2>
-          <p className="mt-1 mb-0 max-w-3xl text-[12.5px] leading-5 text-text-3">{t('workbench.policy_runtime_desc')}</p>
+          <h2 id="workflow-policy-runtime-title" className="m-0 text-title font-extrabold tracking-[-0.01em] text-text">{t('workbench.policy_runtime_title')}</h2>
+          <p className="mt-1 mb-0 max-w-3xl text-caption leading-5 text-text-3">{t('workbench.policy_runtime_desc')}</p>
         </div>
       </div>
       {workflowName === null

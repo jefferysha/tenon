@@ -76,7 +76,7 @@ function FieldEvidenceList({
     <ul className="m-0 grid list-none gap-1 p-0" aria-label={label}>
       {fields.map((field) => (
         <li
-          className={`rounded-md border border-border bg-fill/50 px-2.5 py-1.5 font-mono text-[10.5px] ${validatorTone[field.validator.status]}`}
+          className={`rounded-sm border border-border bg-fill/50 px-2.5 py-1.5 font-mono text-micro ${validatorTone[field.validator.status]}`}
           key={field.name}
         >
           {t('skillInvocation.field_evidence', {
@@ -93,19 +93,19 @@ function FieldEvidenceList({
 function InvocationDetails({ item }: { readonly item: SkillInvocationReadItem }): JSX.Element {
   const { t } = useT()
   return (
-    <details className="group rounded-lg border border-border bg-card" data-testid={`skill-invocation-${item.invocation_id}`}>
-      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-(--accent) [&::-webkit-details-marker]:hidden">
+    <details className="group rounded-md border border-border bg-card" data-testid={`skill-invocation-${item.invocation_id}`}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-(--accent) [&::-webkit-details-marker]:hidden">
         <ShieldCheck className="size-4 text-blue-d" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-text">{item.skill.id}</span>
+        <span className="min-w-0 flex-1 truncate text-caption font-semibold text-text">{item.skill.id}</span>
         {item.subject.work_item_id !== undefined && (
-          <span className="max-w-[180px] truncate font-mono text-[10.5px] text-text-3">{item.subject.work_item_id}</span>
+          <span className="max-w-[180px] truncate font-mono text-micro text-text-3">{item.subject.work_item_id}</span>
         )}
-        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${statusTone[item.status]}`}>
+        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-micro font-semibold ${statusTone[item.status]}`}>
           <StatusIcon status={item.status} />
           {t(`skillInvocation.status_${item.status}`)}
         </span>
       </summary>
-      <div className="grid gap-2 border-t border-border px-3 py-2.5 text-xs text-text-2">
+      <div className="grid gap-2 border-t border-border px-3 py-2.5 text-caption text-text-2">
         <div className="grid gap-1 sm:grid-cols-3">
           <span><b>{t('skillInvocation.step')}</b> · {item.subject.step_id}</span>
           <span><b>{t('skillInvocation.input')}</b> · {item.input.fields.length}</span>
@@ -120,16 +120,16 @@ function InvocationDetails({ item }: { readonly item: SkillInvocationReadItem })
             {item.questions.map((question) => {
               const decision = item.decisions.find((candidate) => candidate.question_id === question.id)
               return (
-                <li className="rounded-md border border-border bg-fill/50 px-2.5 py-2" key={question.id}>
+                <li className="rounded-sm border border-border bg-fill/50 px-2.5 py-2" key={question.id}>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <code className="text-[11px] text-text">{question.key}</code>
-                    <span className="text-[10.5px] text-text-3">
+                    <code className="text-micro text-text">{question.key}</code>
+                    <span className="text-micro text-text-3">
                       {question.shown ? t('skillInvocation.shown') : t('skillInvocation.not_shown')}
                     </span>
-                    <span className="text-[10.5px] text-text-3">{t(`skillInvocation.required_${question.requiredness}`)}</span>
+                    <span className="text-micro text-text-3">{t(`skillInvocation.required_${question.requiredness}`)}</span>
                   </div>
                   {decision !== undefined && (
-                    <div className="mt-1 grid gap-0.5 text-[11px] text-text-2">
+                    <div className="mt-1 grid gap-0.5 text-micro text-text-2">
                       <p className="m-0">
                         {decision.mode === 'recommended-default'
                           ? t('skillInvocation.default_decision', {
@@ -156,7 +156,7 @@ function InvocationDetails({ item }: { readonly item: SkillInvocationReadItem })
         {item.artifacts.length > 0 && (
           <ul className="m-0 grid list-none gap-1.5 p-0" aria-label={t('skillInvocation.artifacts')}>
             {item.artifacts.map((artifact) => (
-              <li className="rounded-md border border-border bg-fill px-2 py-1.5 font-mono text-[10.5px]" key={artifact.binding_id}>
+              <li className="rounded-sm border border-border bg-fill px-2 py-1.5 font-mono text-micro" key={artifact.binding_id}>
                 <div>{artifact.output_id} · {t(`skillInvocation.artifact_${artifact.state}`)}</div>
                 {artifact.validators.length > 0 && (
                   <ul className="m-0 mt-0.5 grid list-none gap-0.5 p-0" aria-label={t('skillInvocation.artifact_validators')}>
@@ -206,27 +206,27 @@ export function SkillInvocationEvidenceCard({ root, change, workItemId }: SkillI
     : t('skillInvocation.empty_work_item', { id: workItemId })
 
   return (
-    <section className="border-b border-border py-[13px] last:border-b-0" aria-label={t('skillInvocation.region')} data-testid="skill-invocation-evidence">
+    <section className="border-b border-border py-3 last:border-b-0" aria-label={t('skillInvocation.region')} data-testid="skill-invocation-evidence">
       <div className="mb-2.5">
-        <h3 className="m-0 text-[12.5px] font-bold text-text">{t('skillInvocation.heading')}</h3>
-        <p className="mt-0.5 mb-0 text-[11px] text-text-3">{t('skillInvocation.read_only')}</p>
+        <h3 className="m-0 text-caption font-bold text-text">{t('skillInvocation.heading')}</h3>
+        <p className="mt-0.5 mb-0 text-micro text-text-3">{t('skillInvocation.read_only')}</p>
       </div>
       {(!stateMatchesScope || state.kind === 'loading') && (
-        <div className="flex items-center gap-2 text-xs text-text-3" role="status">
+        <div className="flex items-center gap-2 text-caption text-text-3" role="status">
           <RefreshCw className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
           {t('skillInvocation.loading')}
         </div>
       )}
       {state.kind === 'error' && stateMatchesScope && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-red-b bg-red-t px-3 py-2.5" role="alert">
-          <span className="text-xs text-red-d">{t('skillInvocation.error')}</span>
-          <button type="button" className="rounded-md border border-red-b bg-card px-2.5 py-1 text-xs font-semibold text-red-d focus-visible:ring-2 focus-visible:ring-(--accent)" onClick={() => setAttempt((value) => value + 1)}>
+        <div className="flex items-center justify-between gap-3 rounded-md border border-red-b bg-red-t px-3 py-2.5" role="alert">
+          <span className="text-caption text-red-d">{t('skillInvocation.error')}</span>
+          <button type="button" className="rounded-sm border border-red-b bg-card px-2.5 py-1 text-caption font-semibold text-red-d focus-visible:ring-2 focus-visible:ring-(--accent)" onClick={() => setAttempt((value) => value + 1)}>
             {t('skillInvocation.retry')}
           </button>
         </div>
       )}
       {state.kind === 'ready' && stateMatchesScope && filteredItems.length === 0 && (
-        <p className="m-0 rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-text-3" role="status">
+        <p className="m-0 rounded-md border border-dashed border-border px-3 py-4 text-center text-caption text-text-3" role="status">
           {emptyText}
         </p>
       )}

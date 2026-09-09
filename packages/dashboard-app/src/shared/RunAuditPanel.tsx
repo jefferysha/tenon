@@ -83,9 +83,9 @@ function evidenceSummary(value: unknown, t: Translate): string {
   return t('runAudit.evidence_recorded')
 }
 
-const factCard = 'rounded-xl border border-border bg-card px-3 py-3'
-const factLabel = 'text-[11px] font-semibold text-text-3'
-const factValue = 'mt-1 text-[13px] font-bold leading-5 text-text [overflow-wrap:anywhere]'
+const factCard = 'rounded-md border border-border bg-card px-3 py-3'
+const factLabel = 'text-micro font-semibold text-text-3'
+const factValue = 'mt-1 text-body font-bold leading-5 text-text [overflow-wrap:anywhere]'
 
 export function RunAuditPanel({ root, change, refreshKey = '' }: RunAuditPanelProps): JSX.Element {
   const { lang, t } = useT()
@@ -114,7 +114,7 @@ export function RunAuditPanel({ root, change, refreshKey = '' }: RunAuditPanelPr
   if (error !== null) {
     return (
       <section className="border-b border-border py-3" data-testid="run-audit-error">
-        <p className="rounded-xl border border-red-b bg-red-t px-3 py-2.5 text-xs font-semibold text-red-d" role="alert">
+        <p className="rounded-md border border-red-b bg-red-t px-3 py-2.5 text-caption font-semibold text-red-d" role="alert">
           {t('runAudit.fetch_failed', { message: formatApiError(error, t, { exposeServerDetail: lang === 'zh' }) })}
         </p>
       </section>
@@ -122,7 +122,7 @@ export function RunAuditPanel({ root, change, refreshKey = '' }: RunAuditPanelPr
   }
 
   if (detail === null) {
-    return <section className="border-b border-border py-3 text-xs text-text-3" data-testid="run-audit-loading" role="status" aria-live="polite">{t('runAudit.loading')}</section>
+    return <section className="border-b border-border py-3 text-caption text-text-3" data-testid="run-audit-loading" role="status" aria-live="polite">{t('runAudit.loading')}</section>
   }
 
   const run = detail.workflow_run
@@ -143,26 +143,26 @@ export function RunAuditPanel({ root, change, refreshKey = '' }: RunAuditPanelPr
     <section className="border-b border-border py-3" data-source={detail.source} data-testid="run-audit">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <b className="text-[13px] text-text">{t('runAudit.title')}</b>
-          <p className="mt-0.5 text-[11px] leading-5 text-text-3">{t('runAudit.subtitle')}</p>
+          <b className="text-body text-text">{t('runAudit.title')}</b>
+          <p className="mt-0.5 text-micro leading-5 text-text-3">{t('runAudit.subtitle')}</p>
         </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${detail.source === 'canonical' ? 'border-green-b bg-green-t text-green-d' : 'border-amber-b bg-amber-t text-amber-d'}`}>
+        <span className={`rounded-full border px-2.5 py-1 text-micro font-semibold ${detail.source === 'canonical' ? 'border-green-b bg-green-t text-green-d' : 'border-amber-b bg-amber-t text-amber-d'}`}>
           {t(detail.source === 'canonical' ? 'runAudit.source_canonical' : 'runAudit.source_legacy')}
         </span>
       </div>
 
       {detail.source === 'legacy' && (
-        <p className="mt-3 rounded-xl border border-amber-b bg-amber-t px-3 py-2 text-xs font-semibold text-amber-d" data-testid="run-audit-source-alert">
+        <p className="mt-3 rounded-md border border-amber-b bg-amber-t px-3 py-2 text-caption font-semibold text-amber-d" data-testid="run-audit-source-alert">
           {t('runAudit.legacy_warning')}
         </p>
       )}
       {detail.projection.status === 'drift' && (
-        <p className="mt-3 rounded-xl border border-red-b bg-red-t px-3 py-2 text-xs font-semibold text-red-d" data-testid="run-audit-projection-alert">
+        <p className="mt-3 rounded-md border border-red-b bg-red-t px-3 py-2 text-caption font-semibold text-red-d" data-testid="run-audit-projection-alert">
           {t('runAudit.projection_drift')}
         </p>
       )}
       {detail.ledger.health === 'degraded' && (
-        <p className="mt-3 rounded-xl border border-red-b bg-red-t px-3 py-2 text-xs font-semibold text-red-d" data-testid="run-audit-ledger-alert">
+        <p className="mt-3 rounded-md border border-red-b bg-red-t px-3 py-2 text-caption font-semibold text-red-d" data-testid="run-audit-ledger-alert">
           {t('runAudit.ledger_degraded', { count: detail.ledger.rejected.length })}
         </p>
       )}
@@ -176,12 +176,12 @@ export function RunAuditPanel({ root, change, refreshKey = '' }: RunAuditPanelPr
 
       {detail.transitions.length > 0 && (
         <div className="mt-3" data-testid="run-audit-transitions">
-          <h3 className="text-xs font-semibold text-text">{t('runAudit.transitions')}</h3>
+          <h3 className="text-caption font-semibold text-text">{t('runAudit.transitions')}</h3>
           <ol className="mt-2 space-y-1.5">
             {detail.transitions.map((transition) => (
-              <li key={transition.id} className="flex items-center justify-between gap-3 rounded-lg bg-fill px-3 py-2 text-xs text-text-2">
+              <li key={transition.id} className="flex items-center justify-between gap-3 rounded-md bg-fill px-3 py-2 text-caption text-text-2">
                 <span><b className="text-text">{stepLabel(transition.from, t)} → {stepLabel(transition.to, t)}</b></span>
-                <time className="text-[11px] text-text-3">{shortTime(transition.observedAt, lang)}</time>
+                <time className="text-micro text-text-3">{shortTime(transition.observedAt, lang)}</time>
               </li>
             ))}
           </ol>
@@ -190,7 +190,7 @@ export function RunAuditPanel({ root, change, refreshKey = '' }: RunAuditPanelPr
 
       {terminal ? (
         <div className="mt-3" data-testid="run-audit-execution">
-          <h3 className="text-xs font-semibold text-text">{t('runAudit.execution')}</h3>
+          <h3 className="text-caption font-semibold text-text">{t('runAudit.execution')}</h3>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div className={factCard}><div className={factLabel}>{t('runAudit.result')}</div><div className={factValue}>{resultLabel(terminalResult, t)}{terminalReason ? ` · ${reasonLabel(terminalReason, t)}` : ''}</div></div>
             <div className={factCard}><div className={factLabel}>{t('runAudit.branch')}</div><div className={factValue}>{str(terminalArtifacts?.branch) || t('runAudit.branch_missing')}</div></div>
@@ -199,39 +199,39 @@ export function RunAuditPanel({ root, change, refreshKey = '' }: RunAuditPanelPr
           </div>
         </div>
       ) : (
-        <p className="mt-3 rounded-xl bg-fill px-3 py-3 text-xs text-text-3">{t('runAudit.execution_empty')}</p>
+        <p className="mt-3 rounded-md bg-fill px-3 py-3 text-caption text-text-3">{t('runAudit.execution_empty')}</p>
       )}
 
       {verification && (
         <div className="mt-3" data-testid="run-audit-verification">
-          <h3 className="text-xs font-semibold text-text">{t('runAudit.verification')}</h3>
-          <div className={`mt-2 rounded-xl border px-3 py-3 ${str(verification.verdict) === 'passed' ? 'border-green-b bg-green-t' : 'border-red-b bg-red-t'}`}>
-            <b className="text-sm text-text">{verificationLabel(str(verification.verdict), t)}</b>
-            {evidence.length > 0 && <ul className="mt-2 space-y-1 text-xs text-text-2">{evidence.map((item, index) => <li key={index}>{evidenceSummary(item, t)}</li>)}</ul>}
+          <h3 className="text-caption font-semibold text-text">{t('runAudit.verification')}</h3>
+          <div className={`mt-2 rounded-md border px-3 py-3 ${str(verification.verdict) === 'passed' ? 'border-green-b bg-green-t' : 'border-red-b bg-red-t'}`}>
+            <b className="text-base text-text">{verificationLabel(str(verification.verdict), t)}</b>
+            {evidence.length > 0 && <ul className="mt-2 space-y-1 text-caption text-text-2">{evidence.map((item, index) => <li key={index}>{evidenceSummary(item, t)}</li>)}</ul>}
           </div>
         </div>
       )}
 
       {skillSnapshot && (
         <div className="mt-3" data-testid="run-audit-skills">
-          <h3 className="text-xs font-semibold text-text">{t('runAudit.skills')}</h3>
-          <div className="mt-2 rounded-xl border border-border bg-card px-3 py-3 text-xs text-text-2">
+          <h3 className="text-caption font-semibold text-text">{t('runAudit.skills')}</h3>
+          <div className="mt-2 rounded-md border border-border bg-card px-3 py-3 text-caption text-text-2">
             <b className="text-text">{str(skillSnapshot.skill_bundle_id) || t('runAudit.skill_bundle_missing')}</b>
-            {slots.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{slots.map((slot, index) => <span key={`${str(slot.concrete_skill_id)}-${index}`} className="rounded-lg bg-fill px-2 py-1 font-semibold">{str(slot.concrete_skill_id) || str(slot.token)}</span>)}</div>}
+            {slots.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{slots.map((slot, index) => <span key={`${str(slot.concrete_skill_id)}-${index}`} className="rounded-md bg-fill px-2 py-1 font-semibold">{str(slot.concrete_skill_id) || str(slot.token)}</span>)}</div>}
           </div>
         </div>
       )}
 
       {usage && (
         <div className="mt-3" data-testid="run-audit-usage">
-          <h3 className="text-xs font-semibold text-text">{t('runAudit.usage')}</h3>
-          <div className="mt-2 rounded-xl border border-border bg-card px-3 py-3 text-xs text-text-2">
+          <h3 className="text-caption font-semibold text-text">{t('runAudit.usage')}</h3>
+          <div className="mt-2 rounded-md border border-border bg-card px-3 py-3 text-caption text-text-2">
             {t('runAudit.usage_value', { tokens: num(tokens?.total)?.toLocaleString('en-US') ?? t('runAudit.unavailable') })}
           </div>
         </div>
       )}
 
-      <p className="mt-3 rounded-xl bg-fill px-3 py-3 text-xs leading-5 text-text-3" data-testid="run-audit-artifact-note">
+      <p className="mt-3 rounded-md bg-fill px-3 py-3 text-caption leading-5 text-text-3" data-testid="run-audit-artifact-note">
         {t('runAudit.artifact_note')}
       </p>
     </section>

@@ -5,10 +5,10 @@ function ErrorFallback(): JSX.Element {
   const { t } = useT()
   return (
     <div role="alert" data-testid="app-error-boundary">
-      <p className="p-5 text-[13px] text-red">{t('common.app_error')}</p>
+      <p className="p-5 text-body text-red">{t('common.app_error')}</p>
       <button
         type="button"
-        className="cursor-pointer rounded-md bg-btn-bg px-4 py-2 text-[12.5px] font-bold text-btn-fg transition-colors hover:bg-btn-hover"
+        className="cursor-pointer rounded-sm bg-btn-bg px-4 py-2 text-caption font-bold text-btn-fg transition-colors hover:bg-btn-hover"
         onClick={() => { try { location.reload() } catch { /* ignore */ } }}
       >
         {t('common.app_error_reload')}

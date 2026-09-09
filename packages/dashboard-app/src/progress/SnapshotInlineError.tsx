@@ -1,3 +1,4 @@
+import './progress.css'
 import { useT } from '../i18n'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
 
@@ -15,7 +16,7 @@ export function SnapshotInlineError({
   const { t } = useT()
   return (
     <div
-      className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-b bg-red-t px-4 py-3 text-[13px] text-red-d"
+      className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-b bg-red-t px-4 py-3 text-body text-red-d"
       role="alert"
       data-testid="prg-error"
     >

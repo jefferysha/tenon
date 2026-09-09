@@ -214,12 +214,12 @@ describe('WorkflowPolicyRuntimeSummary', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'en' }))
-    expect(screen.getByTestId('workflow-policy-runtime-summary')).toHaveTextContent('Workflow policy runtime')
+    expect(screen.getByTestId('workflow-policy-runtime-summary')).toHaveTextContent('Policy in effect at runtime')
     expect(screen.getByTestId('workflow-policy-runtime-drift-status')).toHaveTextContent('Current')
     expect(screen.getByTestId('workflow-policy-runtime-summary')).toHaveTextContent('Action:')
     expect(screen.getByTestId('workflow-policy-runtime-summary')).not.toHaveTextContent('：')
     fireEvent.click(screen.getByRole('button', { name: 'zh' }))
-    expect(screen.getByTestId('workflow-policy-runtime-summary')).toHaveTextContent('Workflow 策略运行时摘要')
+    expect(screen.getByTestId('workflow-policy-runtime-summary')).toHaveTextContent('策略运行时生效情况')
   })
 
   it('keeps full fingerprints keyboard-readable and does not expose editing controls', () => {

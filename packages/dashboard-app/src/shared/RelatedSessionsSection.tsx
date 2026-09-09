@@ -28,7 +28,7 @@ const queryErrorLabels: Readonly<Record<Exclude<QueryError, null>, string>> = {
   'too-many-tokens': 'detail.related_sessions.query_error_too_many_tokens',
 }
 
-const sectionClass = 'border-b border-border py-[13px] last:border-b-0'
+const sectionClass = 'border-b border-border py-3 last:border-b-0'
 const platformLabels: Readonly<Record<RelatedSessionPlatform, string>> = {
   all: 'detail.related_sessions.platform_all',
   claude: 'detail.related_sessions.platform_claude',
@@ -148,10 +148,10 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
   return (
     <section className={sectionClass} aria-labelledby="related-sessions-heading" data-testid="related-sessions">
       <div>
-        <h2 className="text-[12.5px] font-bold text-text" id="related-sessions-heading">
+        <h2 className="text-caption font-bold text-text" id="related-sessions-heading">
           {t('detail.related_sessions.heading')}
         </h2>
-        <p className="mt-0.5 text-xs leading-5 text-text-3">{t('detail.related_sessions.hint')}</p>
+        <p className="mt-0.5 text-caption leading-5 text-text-3">{t('detail.related_sessions.hint')}</p>
       </div>
       <form className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]" noValidate onSubmit={submit}>
         <div className="grid gap-1.5">
@@ -179,7 +179,7 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
             value={query}
           />
           {queryError !== null && (
-            <p className="text-xs leading-5 text-red-d" id="related-session-query-error" role="alert">
+            <p className="text-caption leading-5 text-red-d" id="related-session-query-error" role="alert">
               {t(queryErrorLabels[queryError])}
             </p>
           )}
@@ -188,7 +188,7 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
           <Label htmlFor="related-session-platform">{t('detail.related_sessions.platform_label')}</Label>
           <select
             autoComplete="off"
-            className="h-10 rounded-xl border border-border bg-card px-3.5 text-sm text-text outline-none transition-[border-color,box-shadow,background-color] hover:border-border-2 focus-visible:border-(--accent) focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-10 rounded-md border border-border bg-card px-3.5 text-base text-text outline-none transition-[border-color,box-shadow,background-color] hover:border-border-2 focus-visible:border-(--accent) focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-50"
             disabled={busy}
             id="related-session-platform"
             name="related-session-platform"
@@ -213,19 +213,19 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
       </form>
 
       {state.kind === 'idle' && (
-        <p className="mt-3 rounded-lg bg-fill px-3 py-2.5 text-xs text-text-3">
+        <p className="mt-3 rounded-md bg-fill px-3 py-2.5 text-caption text-text-3">
           {t('detail.related_sessions.idle')}
         </p>
       )}
       {state.kind === 'loading' && (
-        <p className="mt-3 rounded-lg bg-fill px-3 py-2.5 text-xs text-text-2" role="status">
+        <p className="mt-3 rounded-md bg-fill px-3 py-2.5 text-caption text-text-2" role="status">
           {t('detail.related_sessions.searching')}
         </p>
       )}
       {state.kind === 'empty' && (
         <>
           {state.response.partial && (
-            <p className="mt-3 rounded-lg border border-amber-b bg-amber-t px-3 py-2 text-xs text-amber-d" role="status">
+            <p className="mt-3 rounded-md border border-amber-b bg-amber-t px-3 py-2 text-caption text-amber-d" role="status">
               {t(
                 partialReason(state.response) === 'budget'
                   ? 'detail.related_sessions.partial_budget'
@@ -236,7 +236,7 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
               )}
             </p>
           )}
-          <div className="mt-3 rounded-lg border border-border bg-fill/40 px-3 py-3 text-xs text-text-3">
+          <div className="mt-3 rounded-md border border-border bg-fill/40 px-3 py-3 text-caption text-text-3">
             <p>
               {t(
                 !state.response.partial
@@ -255,7 +255,7 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
         </>
       )}
       {state.kind === 'error' && (
-        <div className="mt-3 rounded-lg border border-red-b bg-red-t px-3 py-3 text-xs text-red-d" role="alert">
+        <div className="mt-3 rounded-md border border-red-b bg-red-t px-3 py-3 text-caption text-red-d" role="alert">
           <p>{t('detail.related_sessions.error')}</p>
           <Button className="mt-2" onClick={() => { void runSearch() }} size="sm" type="button" variant="outline">
             {t('detail.related_sessions.retry')}
@@ -265,7 +265,7 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
       {state.kind === 'results' && (
         <div className="mt-3">
           {state.response.partial && (
-            <p className="mb-2 rounded-lg border border-amber-b bg-amber-t px-3 py-2 text-xs text-amber-d" role="status">
+            <p className="mb-2 rounded-md border border-amber-b bg-amber-t px-3 py-2 text-caption text-amber-d" role="status">
               {t(
                 partialReason(state.response) === 'budget'
                   ? 'detail.related_sessions.partial_budget'
@@ -281,15 +281,15 @@ export function RelatedSessionsSection({ root, name }: RelatedSessionsSectionPro
             className="m-0 grid list-none gap-2 p-0"
           >
             {state.response.matches.map((match) => (
-              <li className="rounded-xl border border-border bg-card px-3 py-3" key={`${match.platform}:${match.session_id}`}>
+              <li className="rounded-md border border-border bg-card px-3 py-3" key={`${match.platform}:${match.session_id}`}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <b className="text-[13px] text-text">{match.title?.trim() || shortSessionId(match.session_id)}</b>
-                  <span className="text-[11px] font-semibold text-text-3">
+                  <b className="text-body text-text">{match.title?.trim() || shortSessionId(match.session_id)}</b>
+                  <span className="text-micro font-semibold text-text-3">
                     {t(platformLabels[match.platform])}
                   </span>
                 </div>
-                <p className="mt-1 text-xs leading-5 text-text-2 [overflow-wrap:anywhere]">{match.excerpt}</p>
-                <p className="mt-2 text-[11px] text-text-3">
+                <p className="mt-1 text-caption leading-5 text-text-2 [overflow-wrap:anywhere]">{match.excerpt}</p>
+                <p className="mt-2 text-micro text-text-3">
                   {t('detail.related_sessions.match_meta', {
                     n: match.hit_count,
                     score: match.score.toFixed(2),

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { subscribeAdapterInstall, subscribeDefinitionCatalog } from './definitionCatalogClient'
+import { fetchDefinitionCatalog, subscribeAdapterInstall, subscribeDefinitionCatalog } from './definitionCatalogClient'
 
 class FakeEventSource {
   static instances: FakeEventSource[] = []
@@ -38,6 +38,12 @@ const validState = {
 const validCatalog = {
   schema_version: 'definition-catalog/v1', revision: 'r1', fingerprint: 'f1', generated_at: '2026-09-02T00:00:00.000Z',
   project: { root: '/repo', identity: 'p1' }, adapters: [], workflows: [], tracks: [], pipelines: [],
+}
+
+const cursorAdapter = {
+  id: 'cursor', label: 'Cursor', kind: 'adapter', tier: 'B', cli_flag: '--cursor', target_scope: 'project',
+  capabilities: { inject: 'degraded', veto: 'native', track: 'native' }, veto_fail_closed: true,
+  supported_operations: ['setup', 'update'], state: 'unknown',
 }
 
 afterEach(() => {
@@ -105,5 +111,32 @@ describe('definition catalog adapter install stream', () => {
     const stop = subscribeAdapterInstall('/api/adapters/install/job-1/stream', vi.fn(), undefined, onError)
     expect(onError).toHaveBeenCalledTimes(1)
     expect(() => stop()).not.toThrow()
+  })
+})
+
+describe('definition catalog adapter capability decoding', () => {
+  it('passes the three capability grades and the veto failure mode through to the UI', async () => {
+    // 严格解码：三态必须**原样**到达 UI。折叠成布尔（或在解码处丢字段）会让 degraded
+    // 与 none 无法区分，UI 想诚实也无从表达。
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ ...validCatalog, adapters: [cursorAdapter] }),
+    }))
+    const catalog = await fetchDefinitionCatalog('/repo')
+    expect(catalog.adapters[0]?.capabilities).toEqual({ inject: 'degraded', veto: 'native', track: 'native' })
+    expect(catalog.adapters[0]?.veto_fail_closed).toBe(true)
+  })
+
+  it('rejects the retired boolean capability payload and an unknown grade instead of silently degrading', async () => {
+    // 阳性对照：解码器必须真的看这三个字段，否则「前后端同一次改完」无从验证。
+    for (const adapter of [
+      { ...cursorAdapter, capabilities: { inject: true, veto: true, track: true } },
+      { ...cursorAdapter, capabilities: { ...cursorAdapter.capabilities, track: 'partial' } },
+      { ...cursorAdapter, veto_fail_closed: 'true' },
+    ]) {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true, status: 200, json: async () => ({ ...validCatalog, adapters: [adapter] }),
+      }))
+      await expect(fetchDefinitionCatalog('/repo')).rejects.toThrow()
+    }
   })
 })

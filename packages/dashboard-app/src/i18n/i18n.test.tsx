@@ -226,7 +226,7 @@ describe('useT 真 render（默认 zh、变量插值、切换 en）', () => {
       </I18nProvider>,
     )
     expect(screen.getByTestId('lang').textContent).toBe('zh')
-    expect(screen.getByTestId('txt').textContent).toBe('进度')
+    expect(screen.getByTestId('txt').textContent).toBe('工作台')
     expect(screen.getByTestId('var').textContent).toBe('失败 ×3 · 等你决定')
   })
 
@@ -237,7 +237,7 @@ describe('useT 真 render（默认 zh、变量插值、切换 en）', () => {
       </I18nProvider>,
     )
     fireEvent.click(screen.getByTestId('to-en'))
-    expect(screen.getByTestId('txt').textContent).toBe('Progress')
+    expect(screen.getByTestId('txt').textContent).toBe('Workbench')
     expect(screen.getByTestId('var').textContent).toBe('Failed ×3 · your call')
   })
 })

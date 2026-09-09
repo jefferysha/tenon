@@ -16,7 +16,7 @@ export function GovernanceGraduation({
   return (
     <div
       className={cn(
-        'mt-2.5 rounded-[10px] border px-3 py-2.5 text-xs',
+        'mt-2.5 rounded-sm border px-3 py-2.5 text-caption',
         graduation.canGraduate ? 'border-green-b bg-green-t' : 'border-amber-b bg-amber-t',
       )}
       data-can-graduate={String(graduation.canGraduate)}
@@ -28,7 +28,7 @@ export function GovernanceGraduation({
         </b>
         <span className="font-mono text-text-2">{graduation.current} → {graduation.recommended}</span>
       </div>
-      <p className="mt-1 font-mono text-[11px] text-text-2">
+      <p className="mt-1 font-mono text-micro text-text-2">
         {t('workbench.gov_metric_runs')} {graduation.runs} · {t('workbench.gov_metric_drift')} {graduation.driftCount} · {t('workbench.gov_metric_fail_streak')} {graduation.failStreak} · {t('workbench.gov_metric_breaker')} {graduation.breaker}
       </p>
       {lang === 'zh' && graduation.blockers.length > 0 && (

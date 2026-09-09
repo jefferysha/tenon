@@ -45,17 +45,17 @@ export function BudgetSummary({
     : t('progress.bundle_remaining', { bytes: formatNumber(Math.max(0, maxBytes - usedBytes)) })
 
   return (
-    <div className={`rounded-xl border border-border p-3 ${tone === 'error' ? 'border-amber-b bg-amber-t' : 'border-green-b bg-green-t'}`}>
+    <div className={`rounded-md border border-border p-3 ${tone === 'error' ? 'border-amber-b bg-amber-t' : 'border-green-b bg-green-t'}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <strong className={`block text-sm font-semibold ${tone === 'error' ? 'text-amber-d' : 'text-green-d'}`}>
+          <strong className={`block text-base font-semibold ${tone === 'error' ? 'text-amber-d' : 'text-green-d'}`}>
             {percentText}
           </strong>
-          <span className="mt-0.5 block font-mono text-xs tabular-nums text-text">
+          <span className="mt-0.5 block font-mono text-caption tabular-nums text-text">
             {exactBytes}
           </span>
         </div>
-        <span className="shrink-0 rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-text-2">
+        <span className="shrink-0 rounded-sm border border-border bg-card px-2 py-1 text-caption font-medium text-text-2">
           {t('progress.bundle_document_count', { count: documentCount })}
         </span>
       </div>
@@ -77,7 +77,7 @@ export function BudgetSummary({
           style={{ transform: `scaleX(${visualPercent / 100})` }}
         />
       </div>
-      <p className={`mt-2 text-xs font-medium ${tone === 'error' ? 'text-amber-d' : 'text-text-2'}`}>
+      <p className={`mt-2 text-caption font-medium ${tone === 'error' ? 'text-amber-d' : 'text-text-2'}`}>
         {detail}
       </p>
     </div>
@@ -94,31 +94,31 @@ export function PreviewInputs({
   const { t } = useT()
   return (
     <div>
-      <h3 className="mb-2 text-xs font-semibold text-text-2">
+      <h3 className="mb-2 text-caption font-semibold text-text-2">
         {t('progress.bundle_documents_heading')}
       </h3>
       <ul className="space-y-2" aria-label={t('progress.bundle_inputs_label')}>
         {inputs.map((input) => (
           <li
-          className="rounded-xl border border-border bg-fill px-3 py-2.5"
+          className="rounded-md border border-border bg-fill px-3 py-2.5"
             key={`${input.kind}:${input.path}`}
           >
             <div className="flex min-w-0 items-start gap-2.5">
               <FileText className="mt-0.5 size-4 shrink-0 text-text-3" aria-hidden="true" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <code className="min-w-0 break-all text-xs font-semibold text-text">{input.path}</code>
-                  <span className="rounded-md bg-fill-2 px-1.5 py-0.5 font-mono text-[10px] text-text-2">
+                  <code className="min-w-0 break-all text-caption font-semibold text-text">{input.path}</code>
+                  <span className="rounded-sm bg-fill-2 px-1.5 py-0.5 font-mono text-micro text-text-2">
                     {input.kind}
                   </span>
-                  <span className="rounded-md bg-accent-t px-1.5 py-0.5 font-mono text-[10px] text-accent-d">
+                  <span className="rounded-sm bg-accent-t px-1.5 py-0.5 font-mono text-micro text-accent-d">
                     {input.mode}
                   </span>
                 </div>
-                <p className="mt-1 text-xs leading-5 text-text-3">
+                <p className="mt-1 text-caption leading-5 text-text-3">
                   {t(REASON_I18N_KEYS[input.reasonCode])}
                 </p>
-                <p className="mt-1 font-mono text-[11px] tabular-nums text-text-2">
+                <p className="mt-1 font-mono text-micro tabular-nums text-text-2">
                   {t('progress.bundle_input_bytes', {
                     source: formatNumber(input.sourceBytes),
                     materialized: formatNumber(input.materializedBytes),
@@ -137,9 +137,9 @@ export function ContextBundleLoading(): JSX.Element {
   const { t } = useT()
   return (
     <div role="status" className="space-y-3">
-      <span className="text-xs text-text-3">{t('progress.bundle_loading')}</span>
+      <span className="text-caption text-text-3">{t('progress.bundle_loading')}</span>
       <div
-        className="space-y-2 rounded-xl border border-border bg-fill p-3"
+        className="space-y-2 rounded-md border border-border bg-fill p-3"
         data-testid="context-bundle-loading-skeleton"
         aria-hidden="true"
       >

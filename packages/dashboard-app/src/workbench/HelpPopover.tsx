@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { CircleHelp } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MOBILE_HIT } from './workbenchStyles'
 
 export function HelpPopover({
   label,
@@ -41,6 +42,7 @@ export function HelpPopover({
         aria-controls={contentId}
         className={cn(
           'grid place-items-center rounded-full text-text-3 outline-none transition-colors hover:bg-fill hover:text-text-2 focus-visible:ring-3 focus-visible:ring-accent-t',
+          MOBILE_HIT,
           compact ? 'size-7' : 'size-9',
         )}
         onClick={() => setOpen((value) => !value)}
@@ -51,7 +53,7 @@ export function HelpPopover({
         <span
           id={contentId}
           data-testid="help-popover-content"
-          className="absolute top-full left-1/2 z-50 mt-2 w-72 -translate-x-1/2 rounded-xl border border-border bg-card px-3 py-2.5 text-left text-xs font-normal leading-relaxed whitespace-normal text-text-2 shadow-lg"
+          className="absolute top-full left-1/2 z-50 mt-2 w-72 -translate-x-1/2 rounded-md border border-border bg-card px-3 py-2.5 text-left text-caption font-normal leading-relaxed whitespace-normal text-text-2 shadow-lg"
         >
           {children}
         </span>

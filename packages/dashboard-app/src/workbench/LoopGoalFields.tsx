@@ -22,7 +22,7 @@ export function LoopGoalFields({ draft, onEdit }: LoopGoalFieldsProps): JSX.Elem
         {t('workbench.lp_sec_goal')}
         <span className={WB_TW.hint}>{t('workbench.lp_sec_goal_hint')}</span>
       </div>
-      <div className="mb-[5px] flex items-center gap-2">
+      <div className="mb-1 flex items-center gap-2">
         <label className={WB_TW.flabel} htmlFor="lp-goal">{t('workbench.lp_goal')}</label>
         <ProvBadge field="goal" />
       </div>
@@ -38,7 +38,7 @@ export function LoopGoalFields({ draft, onEdit }: LoopGoalFieldsProps): JSX.Elem
       />
       <div className="mt-3 grid grid-cols-3 gap-3.5 mobile:grid-cols-1">
         <div>
-          <div className="mb-[5px] flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2">
             <label className={WB_TW.flabel} htmlFor="lp-doc">{t('workbench.lp_doc')}</label>
             <ProvBadge field="design_doc" />
           </div>
@@ -54,7 +54,7 @@ export function LoopGoalFields({ draft, onEdit }: LoopGoalFieldsProps): JSX.Elem
           />
         </div>
         <div>
-          <div className="mb-[5px] flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2">
             <label className={WB_TW.flabel} htmlFor="lp-prefix">{t('workbench.lp_prefix')}</label>
             <ProvBadge field="change_prefix" />
           </div>
@@ -68,13 +68,13 @@ export function LoopGoalFields({ draft, onEdit }: LoopGoalFieldsProps): JSX.Elem
             onChange={(event) => onEdit({ change_prefix: event.target.value })}
             onKeyDown={preventSubmit}
           />
-          <p className="mt-[5px] text-[11.5px] text-text-3">
+          <p className="mt-1 text-micro text-text-3">
             {t('workbench.lp_prefix_eg')}
             <b className="font-mono font-semibold text-text-2" data-testid="lp-prefix-eg">{`${draft.change_prefix}0142-migrate-card`}</b>
           </p>
         </div>
         <div>
-          <div className="mb-[5px] flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2">
             <label className={WB_TW.flabel} htmlFor="lp-risk">{t('workbench.lp_risk')}</label>
             <ProvBadge field="risk" />
           </div>
@@ -92,7 +92,7 @@ export function LoopGoalFields({ draft, onEdit }: LoopGoalFieldsProps): JSX.Elem
           </select>
         </div>
         <div>
-          <div className="mb-[5px] flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2">
             <label className={WB_TW.flabel} htmlFor="lp-runner">{t('workbench.lp_runner')}</label>
             <ProvBadge field="runner" />
           </div>
@@ -108,7 +108,7 @@ export function LoopGoalFields({ draft, onEdit }: LoopGoalFieldsProps): JSX.Elem
             {LOOP_RUNNERS.map((runner) => <option key={runner} value={runner}>{runner}</option>)}
           </select>
           {customRunner && (
-            <p className="mt-[5px] flex items-start gap-1.5 text-xs leading-[1.55] text-[color-mix(in_srgb,var(--red)_68%,var(--text-2))]" data-testid="lp-runner-warn">
+            <p className="mt-1 flex items-start gap-1.5 text-caption leading-[1.55] text-[color-mix(in_srgb,var(--red)_68%,var(--text-2))]" data-testid="lp-runner-warn">
               <TriangleAlert className="mt-0.5 size-3.5 flex-none" aria-hidden="true" />
               {t('workbench.lp_runner_warn', { runner: draft.runner })}
             </p>

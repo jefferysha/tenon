@@ -31,9 +31,9 @@ export function OrchestrationGraphAccessibleList({
     return node === undefined ? id : nodeLabel(node, t, localizeBuiltinPhaseIds)
   }
   return (
-    <div className="grid gap-3 border-t border-border px-3 py-2.5 text-xs md:grid-cols-2" data-testid="orchestration-accessible-list">
+    <div className="grid gap-3 border-t border-border px-3 py-2.5 text-caption md:grid-cols-2" data-testid="orchestration-accessible-list">
       <div>
-        <h4 className="m-0 text-[11px] font-bold text-text-3">{t('detail.orchestration_graph.nodes')}</h4>
+        <h4 className="m-0 text-micro font-bold text-text-3">{t('detail.orchestration_graph.nodes')}</h4>
         <ul className="mt-1.5 mb-0 space-y-2 pl-4 text-text-2">
           {nodes.map((node) => {
             const adjacent = adjacencyEdges.filter(
@@ -73,7 +73,7 @@ export function OrchestrationGraphAccessibleList({
         </ul>
       </div>
       <div>
-        <h4 className="m-0 text-[11px] font-bold text-text-3">{t('detail.orchestration_graph.edges')}</h4>
+        <h4 className="m-0 text-micro font-bold text-text-3">{t('detail.orchestration_graph.edges')}</h4>
         <ul className="mt-1.5 mb-0 space-y-1 pl-4 text-text-2">
           {visibleEdges.map((edge) => (
             <li key={edge.id}>{edgeLabel(edge, t)}: {labelFor(edge.source)} → {labelFor(edge.target)}</li>

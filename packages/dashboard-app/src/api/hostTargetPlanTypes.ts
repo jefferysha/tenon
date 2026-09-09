@@ -58,6 +58,11 @@ export interface HostPlanStep {
   id: string
   label: string
   command: HostPlanCommand | null
+  /**
+   * Present only when the step depends on host state the read-only plan never observed; absence
+   * means the step runs on every execution of the previewed command.
+   */
+  condition?: string
 }
 
 export interface HostTargetPlan {
