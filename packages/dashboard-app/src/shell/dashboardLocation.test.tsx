@@ -8,14 +8,15 @@ describe('dashboard URL 深链路', () => {
     expect(parseDashboardLocation('?view=projects')).toEqual({})
   })
 
-  it('四个顶部标签视图都可深链，且 machine 无项目依赖', () => {
+  it('两个顶部标签视图都可深链；退役的 afk / machine 不再是视图', () => {
     expect(parseDashboardLocation('?view=workbench&root=%2Frepo')).toEqual({ view: 'workbench', root: '/repo' })
-    expect(parseDashboardLocation('?view=afk&root=%2Frepo')).toEqual({ view: 'afk', root: '/repo' })
+    expect(parseDashboardLocation('?view=afk&root=%2Frepo')).toEqual({ root: '/repo' })
+    expect(parseDashboardLocation('?view=machine')).toEqual({})
     expect(dashboardSearch('?debug=1&root=%2Frepo&change=old', {
-      view: 'machine',
+      view: 'workbench',
       root: '',
       change: null,
-    })).toBe('?debug=1&view=machine')
+    })).toBe('?debug=1&view=workbench')
   })
 
   it('只接受已知 view，并逐字保留 root/change', () => {
@@ -26,7 +27,7 @@ describe('dashboard URL 深链路', () => {
   })
 
   it('生成可复制链接时保留无关 query，并在离开详情时删除 change', () => {
-    expect(dashboardSearch('?debug=1', { view: 'machine', root: '', change: null })).toBe('?debug=1&view=machine')
+    expect(dashboardSearch('?debug=1', { view: 'workbench', root: '', change: null })).toBe('?debug=1&view=workbench')
     expect(dashboardSearch('?debug=1&view=progress&root=%2Frepo&change=old', { view: 'workbench', root: '/repo', change: null })).toBe('?debug=1&view=workbench&root=%2Frepo')
   })
 

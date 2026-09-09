@@ -28,8 +28,6 @@ interface TopBarProps {
   onTheme: (theme: ThemePreference) => void
   /** 挂在「工作台」标签上的待决定计数；0 不显。 */
   decisionCount: number
-  /** 挂在「自动化」标签上的待处置计数；0 不显。 */
-  afkCount: number
 }
 
 function rootBasename(root: string): string {
@@ -44,7 +42,7 @@ const MENU_BTN_CLS =
 const POPOVER_CLS = 'absolute top-[calc(100%+8px)] z-50 rounded-md border border-border bg-card p-1.5 shadow-lg'
 
 /**
- * 顶部横条（模板 1:1）：logo → 面包屑「工作空间 / 当前页」→ 项目切换器 → 四标签 → 搜索（`/`）
+ * 顶部横条（模板 1:1）：logo → 面包屑「工作空间 / 当前页」→ 项目切换器 → 两个标签 → 搜索（`/`）
  * → 只读 pill → 连接状态 → 头像（设置：主题 / 语言）。
  * 状态一律走 aria-* / data-*；testid：top-bar / nav-<view> / project-switcher / project-menu /
  * project-item-<name> / global-search / readonly-pill / conn-indicator / nav-settings / nav-settings-panel /
@@ -63,7 +61,6 @@ export function TopBar({
   theme,
   onTheme,
   decisionCount,
-  afkCount,
 }: TopBarProps): JSX.Element {
   const { t } = useT()
   const { query, setQuery, inputRef } = useGlobalSearch()
@@ -173,9 +170,6 @@ export function TopBar({
             {t(`nav.${candidate}`)}
             {candidate === 'progress' && decisionCount > 0 && (
               <span className="ml-1.5 rounded-full bg-amber-t px-1.5 font-mono text-micro font-semibold text-amber-d" data-testid="progress-badge" aria-label={t('nav.progress_badge', { count: decisionCount })}>{decisionCount}</span>
-            )}
-            {candidate === 'afk' && afkCount > 0 && (
-              <span className="ml-1.5 rounded-full bg-red-t px-1.5 font-mono text-micro font-semibold text-red-d" data-testid="afk-badge" aria-label={t('nav.afk_badge', { count: afkCount })}>{afkCount}</span>
             )}
           </button>
         ))}

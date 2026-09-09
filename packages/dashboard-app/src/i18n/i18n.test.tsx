@@ -35,8 +35,6 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
 
   it('中英文相同值仅允许品牌、命令、协议 token 与纯占位符，不把英文产品文案漏进中文词典', () => {
     const allowed = new Set([
-      'solution.setup_cmd',
-      'machine.docker',
       'common.switch_to_english',
       'inbox.act_forward',
       'inbox.act_backward',
@@ -45,8 +43,6 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
       'detail.related_sessions.platform_opencode',
       'detail.related_sessions.platform_pi',
       'detail.workflow_definition.workflow',
-      'advanced.traffic_duration_ms',
-      'operations.result_loop_doc_cas',
       'onboard.register_placeholder',
       'workbench.lp_scope_placeholder',
       'workbench.afk_rd_docker',

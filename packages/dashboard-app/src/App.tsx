@@ -3,7 +3,6 @@ import { I18nProvider, useT } from './i18n'
 import type { Lang } from './i18n/translations'
 import { selectInbox } from './inbox/inbox'
 import { workflowRulesFromSnapshot } from './model/workflowModel'
-import { schedulerHealth, selectProgress } from './model/progressModel'
 import { Onboarding } from './shell/Onboarding'
 import { useSnapshot } from './state/useSnapshot'
 import { parseDashboardLocation } from './shell/dashboardLocation'
@@ -28,12 +27,8 @@ export { ErrorBoundary } from './AppErrorBoundary'
 const WorkspaceView = lazy(async () => ({
   default: (await import('./workspace/WorkspaceView')).WorkspaceView,
 }))
-const AfkView = lazy(async () => ({ default: (await import('./afk/AfkView')).AfkView }))
 const WorkflowView = lazy(async () => ({
   default: (await import('./workflow/WorkflowView')).WorkflowView,
-}))
-const MachineView = lazy(async () => ({
-  default: (await import('./machine/MachineView')).MachineView,
 }))
 
 // 视图记忆。旧值（overview/projects/hostPlan/inbox/board/…）随 IA 收敛退役——initialView 以 isView
@@ -225,12 +220,6 @@ function AppShell(): JSX.Element {
     [snapshot, currentRoot, rulesByKey],
   )
 
-  // 顶部条「自动化」标签的待处置计数 = schedulerHealth(当前项目).failed。
-  const afkCount = useMemo(
-    () => schedulerHealth(selectProgress(snapshot, currentRoot, rulesByKey).counts).failed,
-    [snapshot, currentRoot, rulesByKey],
-  )
-
   // 顶部条 / 左列共用的项目投影：名称取仓库标签，否则 root 尾段；计数 = 未归档 change 数。
   const projects: TopBarProject[] = useMemo(
     () => (snapshot?.projects ?? []).map((project) => ({
@@ -264,7 +253,7 @@ function AppShell(): JSX.Element {
     else host.removeAttribute('inert')
   }, [workbenchAuthorityLost])
 
-  // 自动化 / 工作流含写入口，要求 project.ok=true；不可写时渲染分支直接给项目门（不静默跳页）。
+  // 工作流页含写入口，要求 project.ok=true；不可写时渲染分支直接给项目门（不静默跳页）。
   // 唯一的自动跳转：脏的工作流草稿宿主彻底失权时回到工作台（只读，恒可达），草稿由 UnsavedDraftDialog 守住。
   useEffect(() => {
     if (view !== 'workbench' || !snapshot) return
@@ -297,7 +286,6 @@ function AppShell(): JSX.Element {
         theme={theme}
         onTheme={setTheme}
         decisionCount={decisionCount}
-        afkCount={afkCount}
       />
 
       {!connected && (
@@ -370,7 +358,6 @@ function AppShell(): JSX.Element {
           </section>
         ) : snapshot
           && snapshot.project_count === 0
-          && view !== 'machine'
           && !(view === 'workbench' && workbenchDirty && retainedWorkbenchRoot !== '') ? (
           // 零项目教学态：tenon init 自动登记，无注册表单。
           <div className="px-6"><Onboarding kind="no-project" /></div>
@@ -391,29 +378,6 @@ function AppShell(): JSX.Element {
             onRefresh={refresh}
           />
         )}
-        {view === 'afk' && (
-          // AfkView 含写入口，必须在同一渲染帧确认 project.ok=true 后才能挂载；effect 只负责
-          // 把失效选择清回工作台，不能作为安全边界。
-          currentRoot !== '' && currentProjectWritable ? (
-            <div className="px-6 max-[900px]:px-4">
-              <AfkView
-                key={currentRoot}
-                snapshot={snapshot}
-                currentRoot={currentRoot}
-                rulesByKey={rulesByKey}
-                onView={setView}
-                onOpenChange={(name) => {
-                  setSelectedChange(name)
-                  setView('progress')
-                }}
-                onToast={(m) => showFlash('toast', m)}
-                onRefresh={refresh}
-              />
-            </div>
-          ) : (
-            <ProjectGate projects={snapshot?.projects ?? []} onSelectProject={(root) => selectProject(root, 'afk')} />
-          )
-        )}
         {view === 'workbench' && (
           retainedWorkbenchRoot !== '' ? (
             <>
@@ -428,7 +392,6 @@ function AppShell(): JSX.Element {
                   <WorkflowView
                     key={retainedWorkbenchRoot}
                     root={retainedWorkbenchRoot}
-                    onToggleError={(m) => showFlash('error', m)}
                     snapshot={snapshot}
                     onDirtyChange={onWorkbenchDirtyChange}
                   />
@@ -442,18 +405,6 @@ function AppShell(): JSX.Element {
           ) : (
             <p className="p-5 text-body text-text-3" role="status" aria-live="polite">{t('common.loading')}</p>
           )
-        )}
-        {view === 'machine' && (
-          <div className="px-6 max-[900px]:px-4">
-            <MachineView
-              snapshot={snapshot}
-              currentRoot={currentRoot}
-              onOpenProject={(root) => {
-                selectProject(root, 'progress')
-                setView('progress')
-              }}
-            />
-          </div>
         )}
           </>
         )}

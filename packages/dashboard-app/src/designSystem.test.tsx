@@ -43,8 +43,8 @@ describe('Dashboard 电脑端设计系统契约', () => {
       'components/ui/button.tsx',
       'components/ui/switch.tsx',
       'components/ui/tabs.tsx',
-      'workbench/TrackSelector.tsx',
-      'workbench/SkillOrchestrationDialog.tsx',
+      'shell/TopBar.tsx',
+      'shell/ThreeColumns.tsx',
     ]
     for (const relativePath of sourceFiles) {
       expect(readSource(relativePath), relativePath).not.toContain('transition-all')

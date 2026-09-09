@@ -2,14 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, CircleAlert, LoaderCircle } from 'lucide-react'
 import { useT } from '../i18n'
 import { Icon } from './Icon'
-import { CreateChangeDialog } from '../progress/CreateChangeDialog'
 
 export interface OnboardingProps {
-  kind: 'no-project' | 'no-change'
-  /** no-change 形态：当前项目 root（拼 CLI 命令用）。 */
-  root?: string
-  onCreated?: (name: string) => void | Promise<void>
-  onToast?: (message: string) => void
+  kind: 'no-project'
   /** 测试边界；production 默认使用浏览器 Clipboard API。 */
   copyText?: (text: string) => Promise<void>
 }
@@ -170,41 +165,9 @@ function CmdRow({
  * T17（决议#7 + T2）：tenon init best-effort 自动登记项目（kernel projectRegistry），注册表单
  * 与 POST /api/projects 调用退役（端点仅兼容保留），幽灵命令 `pipeline projects add` 一并清除。
  */
-export function Onboarding({ kind, root, onCreated, onToast, copyText = writeClipboard }: OnboardingProps): JSX.Element {
+export function Onboarding({ copyText = writeClipboard }: OnboardingProps): JSX.Element {
   const { t } = useT()
-  const [createOpen, setCreateOpen] = useState(false)
 
-  if (kind === 'no-change') {
-    const cli = `cd ${root || '<project>'} && ${INIT_CMD}`
-    return (
-      <div className={`${EMPTY_CLS} max-w-[460px]`} data-testid="onboard-no-change">
-        <div className={EMPTY_MARK_CLS} aria-hidden="true"><Icon name="flow" size={20} /></div>
-        <h1 className={EMPTY_TITLE_CLS}>{t('onboard.no_change_title')}</h1>
-        <p className={EMPTY_DESC_CLS}>{t('onboard.no_change_desc')}</p>
-        <button
-          type="button"
-          className="mb-4 inline-flex items-center justify-center rounded-md bg-btn-bg px-4 py-2 text-caption font-bold text-btn-fg transition-colors motion-reduce:transition-none hover:bg-btn-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-          data-testid="onboard-new-change"
-          onClick={() => setCreateOpen(true)}
-        >
-          {t('change_create.create')}
-        </button>
-        <div className="mb-2 text-micro font-bold uppercase tracking-[0.14em] text-text-3">{t('onboard.cli_fallback')}</div>
-        <CmdRow key={cli} cmd={cli} testid="onboard-cli" copyTestid="onboard-copy" copyText={copyText} />
-        {createOpen && root && (
-          <CreateChangeDialog
-            root={root}
-            onClose={() => setCreateOpen(false)}
-            onCreated={onCreated ?? (() => undefined)}
-            onToast={onToast}
-          />
-        )}
-      </div>
-    )
-  }
-
-  // no-project：tenon init 会自动登记项目；界面只保留可复制的真实终端步骤，不再要求用户
-  // 暴露本机绝对路径或理解项目注册表。
   return (
     <div className={`${EMPTY_CLS} max-w-[620px] min-[1024px]:max-w-[920px]`} data-testid="onboard-no-project">
       <div className={EMPTY_MARK_CLS} aria-hidden="true"><Icon name="folder" size={20} /></div>

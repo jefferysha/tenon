@@ -35,7 +35,6 @@ export function DerivedIoPanel({ step, steps, labelOf }: DerivedIoPanelProps): J
 
   return (
     <div className="grid gap-3" data-testid="derived-io">
-      <p className="text-caption text-text-3">{t('workflow.io_hint')}</p>
       <div className="grid grid-cols-2 gap-2.5 max-[900px]:grid-cols-1">
         <section className="grid content-start gap-2.5 rounded-md border border-border bg-card px-3.5 py-3" data-testid="derived-io-inputs">
           <h3 className="text-caption text-text-3">{t('workflow.io_inputs')}</h3>

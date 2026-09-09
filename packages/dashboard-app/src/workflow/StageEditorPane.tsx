@@ -1,66 +1,71 @@
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Plus, Trash2, X } from 'lucide-react'
 import { useT } from '../i18n'
-import { SheetTabs, useSheetState, type SheetDef } from '../shared/DetailSheets'
 import { DetailColumn, StatusPill } from '../shell/ThreeColumns'
 import type { BoardLane } from '../workbench/boardLane'
-import { LaneMandatorySkills } from '../workbench/LaneMandatorySkills'
-import type { MandatoryState } from '../workbench/mandatoryState'
-import { skillExecutionWaves } from '../workbench/SkillExecutionTopology'
-import { StepPolicyEditor } from '../workbench/StepPolicyEditor'
-import { TimelineSkillRows } from '../workbench/TimelineSkillRows'
-import { EVENT_ORDER, TimelineHookNodes } from '../workbench/TimelineHookRows'
-import { TimelineRuntimeFacts } from '../workbench/TimelineRuntimeFacts'
+import { resolveMandatoryCell, type MandatoryState } from '../workbench/mandatoryState'
+import { isParallelWithPrevious, skillExecutionWaves } from '../workbench/skillWaves'
+import { trackDisplayName } from '../workbench/trackPresentation'
 import type { WbStepDef } from '../workbench/workbenchDefinition'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
 import { DerivedIoPanel } from './DerivedIoPanel'
-
-const SHEETS = ['skills', 'io', 'gate', 'prompt', 'hooks', 'settings'] as const
-type SheetId = (typeof SHEETS)[number]
 
 export interface StageEditorPaneProps {
   editor: WorkflowEditor
   lane: BoardLane
   step: WbStepDef
   mandatory: MandatoryState
-  onOpenSkillEditor: () => void
 }
 
-const FIELD_CLS = 'min-h-10 w-full rounded-sm border border-border bg-card px-3 text-base text-text outline-none focus:border-accent-b disabled:cursor-not-allowed disabled:bg-fill disabled:text-text-3'
-const SWITCH_CLS =
-  "relative h-5 w-9 flex-none cursor-pointer rounded-full border border-border-2 bg-fill-2 transition-colors after:absolute after:top-0.5 after:left-0.5 after:size-3.5 after:rounded-full after:bg-card after:shadow-sm after:transition-transform after:content-[''] aria-checked:border-(--accent) aria-checked:bg-(--accent) aria-checked:after:translate-x-4 disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none"
+const FIELD_CLS = 'min-h-10 rounded-sm border border-border bg-card px-3 text-base text-text outline-none focus:border-accent-b disabled:cursor-not-allowed disabled:bg-fill disabled:text-text-3'
+const SMALL_BTN = 'inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-border bg-card px-3 text-body text-text-2 hover:border-text-3 hover:text-text disabled:opacity-50'
+
+function SectionHead({ title, meta }: { title: string; meta?: string }): JSX.Element {
+  return (
+    <div className="mb-3 flex items-baseline justify-between gap-4">
+      <h2 className="text-section font-bold text-text">{title}</h2>
+      {meta !== undefined && <span className="text-body text-text-3">{meta}</span>}
+    </div>
+  )
+}
 
 /**
- * 工作流页右列 · 阶段编辑：固定头部 + sheet：技能顺序 / 输入产出（只读推导）/ 门禁守卫 / 执行指令 / 阶段设置。
- * 所有写操作都落到 editor 的 def 草稿上，保存由底部动作条统一提交。
+ * 工作流页右列 · 阶段：不用页签，三段纵排——技能（顺序 + 串行/并行）/ 门禁 / 输入·输出（推导只读）。
+ * 头部带阶段名与上移 / 下移 / 删除；底部是唯一的保存 / 放弃入口。
  */
-export function StageEditorPane({ editor, lane, step, mandatory, onOpenSkillEditor }: StageEditorPaneProps): JSX.Element {
-  const { t } = useT()
+export function StageEditorPane({ editor, lane, step, mandatory }: StageEditorPaneProps): JSX.Element {
+  const { t, lang } = useT()
   const readonly = editor.readonlyWf
   const steps = editor.def?.steps ?? []
   const index = steps.findIndex((candidate) => candidate.id === step.id)
-  const skills = lane.skills ?? []
-  const waves = skillExecutionWaves(skills, lane.skillDeps ?? {})
-  const registryByName = useMemo(() => new Map((mandatory.registry ?? []).map((entry) => [entry.name, entry])), [mandatory.registry])
+  const waves = skillExecutionWaves(step.skills.map((skill) => skill.id), Object.fromEntries(step.skills.map((skill) => [skill.id, skill.depends_on ?? []])))
   const labelOf = (id: string): string => editor.boardLanes.find((candidate) => candidate.id === id)?.name ?? id
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [pendingSkill, setPendingSkill] = useState('')
+  const available = useMemo(
+    () => (mandatory.registry ?? []).filter((entry) => entry.installed && entry.available !== false && !step.skills.some((skill) => skill.id === entry.name)),
+    [mandatory.registry, step.skills],
+  )
 
-  const sheets: readonly SheetDef<SheetId>[] = useMemo(() => [
-    { id: 'skills', label: t('workflow.sheet_skills'), count: lane.skills?.length },
-    { id: 'io', label: t('workflow.sheet_io'), count: step.inputs.length + step.outputs.length },
-    { id: 'gate', label: t('workflow.sheet_gate') },
-    { id: 'prompt', label: t('workflow.sheet_prompt') },
-    { id: 'hooks', label: t('workflow.sheet_hooks'), count: lane.hooksCount },
-    { id: 'settings', label: t('workflow.sheet_settings') },
-  ], [lane.hooksCount, lane.skills?.length, step.inputs.length, step.outputs.length, t])
-  const [sheet, setSheet] = useSheetState<SheetId>('tenon-dashboard-sheet:workflow-stage', sheets, 'skills')
+  function addSkill(): void {
+    if (pendingSkill === '') return
+    const last = step.skills.at(-1)
+    editor.addSkill(lane.id, pendingSkill)
+    // 新技能默认串行：跟在上一技能之后。
+    if (last) editor.setSkillDependency(lane.id, pendingSkill, last.id, null)
+    setPendingSkill('')
+  }
+  function toggleParallel(skillIndex: number): void {
+    const current = step.skills[skillIndex]
+    const previous = step.skills[skillIndex - 1]
+    if (!current || !previous) return
+    if (isParallelWithPrevious(step.skills, skillIndex)) editor.setSkillDependency(lane.id, current.id, previous.id, null)
+    else editor.setSkillDependency(lane.id, current.id, null, previous.id)
+  }
 
-  const summary = [
-    lane.skills === undefined
-      ? t('workflow.card_skills_matrix')
-      : t('workflow.summary', { skills: skills.length, waves: waves.length }),
-    step.outputs.length > 0 ? t('workflow.summary_outputs', { fields: step.outputs.map((output) => output.field).join('、') }) : null,
-  ].filter((part): part is string => part !== null).join('；')
+  const summary = lane.skills === undefined
+    ? t('workflow.card_skills_matrix')
+    : t('workflow.summary', { skills: step.skills.length, waves: waves.length })
 
   const footer = readonly ? (
     <>
@@ -82,9 +87,7 @@ export function StageEditorPane({ editor, lane, step, mandatory, onOpenSkillEdit
       </p>
       <span className="flex items-center gap-2">
         {editor.saveStatus.kind === 'error' && (
-          <span className="max-w-[40ch] truncate text-caption text-red-d" role="alert" data-testid="wb-save-error" title={editor.saveStatus.errors.join('\n')}>
-            {editor.saveStatus.errors[0]}
-          </span>
+          <span className="max-w-[40ch] truncate text-caption text-red-d" role="alert" data-testid="wb-save-error" title={editor.saveStatus.errors.join('\n')}>{editor.saveStatus.errors[0]}</span>
         )}
         {editor.saveStatus.kind === 'error' && editor.saveStatus.conflict === true && (
           <button type="button" className="min-h-10 rounded-md border border-border bg-card px-3 text-base text-text-2 hover:bg-fill" data-testid="wb-save-conflict-reload" onClick={editor.reloadDefinition}>{t('workbench.save_conflict_reload')}</button>
@@ -99,175 +102,127 @@ export function StageEditorPane({ editor, lane, step, mandatory, onOpenSkillEdit
     <DetailColumn
       testId="stage-editor-pane"
       panelId="stage-editor-panel"
-      labelledBy={`stage-editor-tab-${sheet}`}
       header={(
         <>
           <p className="mb-2.5 text-caption font-semibold text-(--accent)">{t('workflow.rail_title')} / {t('workflow.detail_eyebrow')}</p>
           <h1 className="mb-1.5 text-page font-bold tracking-[-.01em] text-text" data-testid={`wb-lane-name-${lane.id}`}>{lane.name}</h1>
           <p className="mb-4 font-mono text-base text-text-2">{editor.wfName} · {lane.id} · {t('workflow.stage_position', { n: index + 1, total: steps.length })}</p>
-          <p className="mb-6 flex flex-wrap items-center gap-3.5">
+          <p className="mb-5 flex flex-wrap items-center gap-3.5">
             <StatusPill tone={lane.gate === null ? 'neutral' : 'pending'}>{lane.gate === null ? t('workflow.gate_none') : t(lane.gate === 'review' ? 'workflow.gate_tag_review' : 'workflow.gate_tag_confirm')}</StatusPill>
             <span className="text-base text-text-2">{summary}</span>
           </p>
-        </>
-      )}
-      sheets={<SheetTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('shell.sheet_label')} idPrefix="stage-editor" />}
-      footer={footer}
-    >
-      {sheet === 'skills' && (
-        <div className="grid gap-4" data-testid="stage-skills-sheet">
-          <div className="flex items-baseline justify-between gap-4">
-            <h2 className="text-section font-bold text-text">{t('workflow.sheet_skills')}</h2>
-            <span className="text-body text-text-3">{t('workflow.waves_hint')}</span>
-          </div>
-          {lane.skills === undefined ? (
-            <LaneMandatorySkills phase={lane.id} state={mandatory} readonly />
-          ) : (
-            <>
-              <TimelineSkillRows
-                stageId={lane.id}
-                skills={skills}
-                skillDeps={lane.skillDeps}
-                skillRegistry={mandatory.registry}
-                registryByName={registryByName}
-                readonly={readonly}
-                onSkillMove={readonly ? undefined : editor.moveSkill}
-                onSkillRemove={readonly ? undefined : editor.removeSkill}
-              />
-              {!readonly && (
-                <button type="button" data-testid={`wb-lane-sk-add-${lane.id}`} className="inline-flex min-h-10 items-center gap-2 self-start rounded-md border border-dashed border-border px-3.5 text-base font-semibold text-(--accent) hover:border-accent-b hover:bg-accent-t" onClick={onOpenSkillEditor}>
-                  <Plus className="size-4" aria-hidden="true" /> {t('workbench.timeline_add_skill')}
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      )}
-      {sheet === 'io' && (
-        <div className="grid gap-4">
-          <h2 className="text-section font-bold text-text">{t('workflow.sheet_io')}</h2>
-          <DerivedIoPanel step={step} steps={steps} labelOf={labelOf} />
-        </div>
-      )}
-      {sheet === 'gate' && (
-        <div className="grid gap-5" data-testid="stage-gate-sheet">
-          <h2 className="text-section font-bold text-text">{t('workflow.sheet_gate')}</h2>
-          <div className="grid grid-cols-2 gap-3 max-[900px]:grid-cols-1">
-            <label className="grid gap-1.5">
-              <span className="text-body text-text-2">{t('workflow.gate_label')}</span>
-              <select
-                className={FIELD_CLS}
-                value={lane.gate ?? 'none'}
-                disabled={readonly}
-                data-testid={`wb-lane-gate-${lane.id}`}
-                onChange={(event) => editor.editLane(lane.id, { gate: event.target.value === 'none' ? null : event.target.value === 'confirm' ? 'confirm' : 'review' })}
-              >
-                <option value="none">{t('workflow.gate_none')}</option>
-                <option value="review">{t('workflow.gate_review')}</option>
-                <option value="confirm">{t('workflow.gate_confirm')}</option>
-              </select>
-            </label>
-            {lane.nonemptyGuard !== undefined && (
-              <label className="flex items-center justify-between gap-3 rounded-sm border border-border bg-card px-3 py-2.5">
-                <span className="text-body text-text-2">{t('workflow.guard_nonempty')}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={lane.nonemptyGuard}
-                  className={SWITCH_CLS}
-                  disabled={readonly}
-                  data-testid={`wb-lane-guard-${lane.id}`}
-                  onClick={() => editor.setLaneGuard(lane.id, !lane.nonemptyGuard)}
-                />
-              </label>
-            )}
-          </div>
-          <StepPolicyEditor step={step} allStepIds={steps.map((candidate) => candidate.id)} readonly={readonly} onChange={editor.replaceStep} />
-        </div>
-      )}
-      {sheet === 'prompt' && (
-        <div className="grid gap-3" data-testid="stage-prompt-sheet">
-          <h2 className="text-section font-bold text-text">{t('workbench.step_prompt_title')}</h2>
-          <label htmlFor={`wb-timeline-prompt-${lane.id}`} className="text-body text-text-2">{t('workbench.step_prompt_label')}</label>
-          <textarea
-            id={`wb-timeline-prompt-${lane.id}`}
-            value={step.prompt ?? ''}
-            readOnly={readonly}
-            rows={9}
-            placeholder={t('workbench.timeline_prompt_placeholder')}
-            className="min-h-40 w-full resize-y rounded-sm border border-border bg-card px-3 py-2.5 text-base leading-6 text-text outline-none placeholder:text-text-3 focus:border-accent-b read-only:bg-fill"
-            onChange={(event) => {
-              const prompt = event.target.value
-              if (prompt === '') {
-                const { prompt: _prompt, ...withoutPrompt } = step
-                editor.replaceStep(withoutPrompt)
-              } else {
-                editor.replaceStep({ ...step, prompt })
-              }
-            }}
-          />
-          <p className="text-caption leading-5 text-text-3">{t('workbench.timeline_prompt_note')}</p>
-        </div>
-      )}
-      {sheet === 'hooks' && (
-        <div className="grid gap-4" data-testid={`wb-lane-hooks-${lane.id}`}>
-          <div className="flex items-baseline justify-between gap-4">
-            <h2 className="text-section font-bold text-text">{t('workflow.sheet_hooks')}</h2>
-            <span className="text-body text-text-3">{t('workflow.hooks_sheet_hint')}</span>
-          </div>
-          {/* Hook 节点带时间线式左侧图标（-left-[47px] 绝对定位），沿用原编排器的 pl-12 轨道留白。 */}
-          <div className="relative min-w-0 pl-12 before:absolute before:top-5 before:bottom-5 before:left-[19px] before:w-px before:bg-border-2 before:content-['']">
-            <TimelineHookNodes events={EVENT_ORDER} stageId={lane.id} config={editor.hooksConfig} />
-          </div>
-          <TimelineRuntimeFacts selected={lane} hooks={editor.hooksConfig} skillRegistry={mandatory.registry} registryByName={registryByName} prompt={step.prompt ?? ''} />
-        </div>
-      )}
-      {sheet === 'settings' && (
-        <div className="grid gap-5" data-testid="stage-settings-sheet">
-          <h2 className="text-section font-bold text-text">{t('workflow.sheet_settings')}</h2>
-          <div className="grid grid-cols-2 gap-3 max-[900px]:grid-cols-1">
-            <label className="grid gap-1.5">
-              <span className="text-body text-text-2">{t('workflow.settings_name')}</span>
-              <input
-                className={FIELD_CLS}
-                value={lane.name}
-                disabled={readonly}
-                data-testid={`wb-lane-name-input-${lane.id}`}
-                onChange={(event) => editor.editLane(lane.id, { label: event.target.value })}
-              />
-            </label>
-            <label className="grid gap-1.5">
-              <span className="text-body text-text-2">{t('workflow.settings_id')}</span>
-              <input className={`${FIELD_CLS} font-mono`} value={lane.id} disabled readOnly />
-            </label>
-          </div>
-          {lane.hooksCount !== undefined && (
-            <p className="text-body text-text-2">{t('workflow.settings_hooks', { n: lane.hooksCount })}</p>
-          )}
           {!readonly && (
-            <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-              <button type="button" className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-base text-text-2 hover:bg-fill disabled:opacity-50" disabled={index <= 0} data-testid={`wb-lane-up-${lane.id}`} onClick={() => { const previous = steps[index - 1]; if (previous) editor.reorderStages(lane.id, previous.id, false) }}>
-                <ArrowUp className="size-4" aria-hidden="true" />{t('workflow.settings_move_up')}
-              </button>
-              <button type="button" className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-base text-text-2 hover:bg-fill disabled:opacity-50" disabled={index < 0 || index >= steps.length - 1} data-testid={`wb-lane-down-${lane.id}`} onClick={() => { const next = steps[index + 1]; if (next) editor.reorderStages(lane.id, next.id, true) }}>
-                <ArrowDown className="size-4" aria-hidden="true" />{t('workflow.settings_move_down')}
-              </button>
-              <span className="flex-1" />
+            <div className="mb-6 flex flex-wrap items-center gap-2 border-b border-border pb-6" data-testid="stage-actions">
+              <label className="flex min-w-0 flex-1 items-center gap-2 text-body text-text-2">
+                <span className="flex-none">{t('workflow.settings_name')}</span>
+                <input className={`${FIELD_CLS} min-w-0 flex-1`} value={lane.name} data-testid={`wb-lane-name-input-${lane.id}`} onChange={(event) => editor.editLane(lane.id, { label: event.target.value })} />
+              </label>
+              <button type="button" className={SMALL_BTN} disabled={index <= 0} data-testid={`wb-lane-up-${lane.id}`} aria-label={t('workflow.settings_move_up')} onClick={() => { const previous = steps[index - 1]; if (previous) editor.reorderStages(lane.id, previous.id, false) }}><ArrowUp className="size-4" aria-hidden="true" /></button>
+              <button type="button" className={SMALL_BTN} disabled={index < 0 || index >= steps.length - 1} data-testid={`wb-lane-down-${lane.id}`} aria-label={t('workflow.settings_move_down')} onClick={() => { const next = steps[index + 1]; if (next) editor.reorderStages(lane.id, next.id, true) }}><ArrowDown className="size-4" aria-hidden="true" /></button>
               {confirmDelete ? (
                 <>
                   <span className="text-body text-red-d">{t('workflow.settings_delete_confirm', { name: lane.name })}</span>
-                  <button type="button" className="min-h-10 rounded-md px-3 text-base text-text-2 hover:bg-fill" onClick={() => setConfirmDelete(false)}>{t('workbench.workflow_cancel')}</button>
-                  <button type="button" className="min-h-10 rounded-md border border-red-b bg-card px-3 text-base font-semibold text-red-d hover:bg-red-t" data-testid={`wb-lane-remove-confirm-${lane.id}`} onClick={() => { setConfirmDelete(false); editor.removeStage(lane.id) }}>{t('workbench.timeline_delete_confirm')}</button>
+                  <button type="button" className={SMALL_BTN} onClick={() => setConfirmDelete(false)}>{t('workbench.workflow_cancel')}</button>
+                  <button type="button" className={`${SMALL_BTN} border-red-b text-red-d hover:bg-red-t`} data-testid={`wb-lane-remove-confirm-${lane.id}`} onClick={() => { setConfirmDelete(false); editor.removeStage(lane.id) }}>{t('workbench.timeline_delete_confirm')}</button>
                 </>
               ) : (
-                <button type="button" className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-base text-red-d hover:border-red-b hover:bg-red-t" data-testid={`wb-lane-remove-${lane.id}`} onClick={() => setConfirmDelete(true)}>
-                  <Trash2 className="size-4" aria-hidden="true" />{t('workflow.settings_delete')}
-                </button>
+                <button type="button" className={`${SMALL_BTN} text-red-d hover:border-red-b hover:bg-red-t`} data-testid={`wb-lane-remove-${lane.id}`} aria-label={t('workflow.settings_delete')} onClick={() => setConfirmDelete(true)}><Trash2 className="size-4" aria-hidden="true" /></button>
               )}
             </div>
           )}
-        </div>
+        </>
       )}
+      footer={footer}
+    >
+      <section className="mb-8" data-testid="stage-skills">
+        <SectionHead title={t('workflow.skills_title')} meta={t('workflow.waves_hint')} />
+        {lane.skills === undefined ? (
+          mandatory.table === null ? (
+            <p className="text-body text-text-3" role="status">{t('workbench.track_loading')}</p>
+          ) : (
+            <ul className="grid gap-2" data-testid="stage-skills-matrix">
+              {mandatory.matrixTracks.map((track) => {
+                const cell = resolveMandatoryCell(mandatory.table ?? {}, track, lane.id, mandatory.writableProfiles)
+                return (
+                  <li key={track.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-border bg-card px-4 py-3">
+                    <span className="min-w-0">
+                      <span className="block text-base font-semibold text-text">{trackDisplayName(track, lang)}</span>
+                      <span className="block truncate font-mono text-caption text-text-2">{cell.skills.length > 0 ? cell.skills.join(' → ') : t('workflow.card_skills_none')}</span>
+                    </span>
+                    <span className="text-caption text-text-3">{t('workflow.serial')}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          )
+        ) : (
+          <>
+            {step.skills.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border px-4 py-6 text-center text-body text-text-3" role="status">{t('workflow.card_skills_none')}</p>
+            ) : (
+              <ol className="grid gap-2" data-testid="stage-skills-list">
+                {step.skills.map((skill, skillIndex) => {
+                  const parallel = isParallelWithPrevious(step.skills, skillIndex)
+                  return (
+                    <li key={skill.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-md border border-border bg-card px-3.5 py-3" data-testid={`stage-skill-${skill.id}`} data-parallel={parallel}>
+                      <span className="grid size-6 place-items-center rounded-xs bg-fill font-mono text-caption text-text-2" aria-hidden="true">{skillIndex + 1}</span>
+                      <span className="min-w-0 truncate font-mono text-body font-semibold text-text">{skill.id}</span>
+                      {skillIndex === 0 ? (
+                        <span className="text-caption text-text-3">{t('workflow.serial_first')}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className={`${SMALL_BTN} min-h-8 px-2.5 text-caption`}
+                          disabled={readonly}
+                          aria-pressed={parallel}
+                          title={t(parallel ? 'workflow.toggle_serial' : 'workflow.toggle_parallel')}
+                          data-testid={`stage-skill-mode-${skill.id}`}
+                          onClick={() => toggleParallel(skillIndex)}
+                        >
+                          {t(parallel ? 'workflow.parallel_with_prev' : 'workflow.serial_after_prev')}
+                        </button>
+                      )}
+                      <button type="button" className="grid size-8 place-items-center rounded-sm text-text-3 hover:bg-fill hover:text-red-d disabled:opacity-40" disabled={readonly} aria-label={t('workflow.remove_skill', { id: skill.id })} data-testid={`stage-skill-remove-${skill.id}`} onClick={() => editor.removeSkill(lane.id, skill.id)}><X className="size-4" aria-hidden="true" /></button>
+                    </li>
+                  )
+                })}
+              </ol>
+            )}
+            {!readonly && (
+              <div className="mt-3 flex items-center gap-2">
+                <select className={`${FIELD_CLS} min-w-0 flex-1 font-mono`} value={pendingSkill} data-testid="stage-skill-picker" disabled={mandatory.registry === null} onChange={(event) => setPendingSkill(event.target.value)}>
+                  <option value="">{mandatory.registry === null ? t('common.loading') : t('workflow.add_skill_placeholder')}</option>
+                  {available.map((entry) => <option key={entry.name} value={entry.name}>{entry.name}</option>)}
+                </select>
+                <button type="button" className={`${SMALL_BTN} min-h-10`} disabled={pendingSkill === ''} data-testid="stage-skill-add" onClick={addSkill}><Plus className="size-4" aria-hidden="true" />{t('workflow.add_skill')}</button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      <section className="mb-8" data-testid="stage-gate">
+        <SectionHead title={t('workflow.gate_title')} />
+        <label className="grid max-w-[360px] gap-1.5">
+          <span className="text-body text-text-2">{t('workflow.gate_label')}</span>
+          <select
+            className={FIELD_CLS}
+            value={lane.gate ?? 'none'}
+            disabled={readonly}
+            data-testid={`wb-lane-gate-${lane.id}`}
+            onChange={(event) => editor.editLane(lane.id, { gate: event.target.value === 'none' ? null : event.target.value === 'confirm' ? 'confirm' : 'review' })}
+          >
+            <option value="none">{t('workflow.gate_none')}</option>
+            <option value="review">{t('workflow.gate_review')}</option>
+            <option value="confirm">{t('workflow.gate_confirm')}</option>
+          </select>
+        </label>
+      </section>
+
+      <section data-testid="stage-io">
+        <SectionHead title={t('workflow.io_title')} meta={t('workflow.io_hint')} />
+        <DerivedIoPanel step={step} steps={steps} labelOf={labelOf} />
+      </section>
     </DetailColumn>
   )
 }

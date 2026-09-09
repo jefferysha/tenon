@@ -1,9 +1,9 @@
 /**
- * 顶部条四个标签对应的视图 id。id 沿用历史值（URL `?view=` 深链与 localStorage 记忆继续有效），
- * 用户可见的标签文案走 i18n `nav.*`：progress=工作台、workbench=工作流、afk=自动化、machine=机器。
- * 已退役的 overview / projects / hostPlan 不再是视图：项目选择进了工作台左列，宿主计划进了机器页的 sheet。
+ * 顶部条两个标签对应的视图 id。id 沿用历史值（URL `?view=` 深链与 localStorage 记忆继续有效），
+ * 用户可见的标签文案走 i18n `nav.*`：progress=工作台、workbench=工作流。
+ * 其余历史视图（overview / projects / afk / machine / hostPlan）已退役，深链落回工作台。
  */
-export const VIEWS = ['progress', 'workbench', 'afk', 'machine'] as const
+export const VIEWS = ['progress', 'workbench'] as const
 export type View = (typeof VIEWS)[number]
 
 export type ThemePreference = 'system' | 'light' | 'dark'

@@ -40,6 +40,7 @@ import { handleGetSessionRoutes } from './serverGetSessionRoutes.js'
 import { handleGetTraceRoutes } from './serverGetTraceRoutes.js'
 import type { TraceStoreReader } from './traces.js'
 import { resolveHostTargetPlanRoute } from './serverGetHostTargetPlanRoutes.js'
+import { resolveDocumentReadRoute } from './serverGetDocumentRoutes.js'
 import { resolveDefinitionCatalogRoute, type DefinitionCatalogRouteDeps } from './definitionCatalogRoutes.js'
 import { resolveAdapterInstallGet } from './adapterInstallRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
@@ -158,6 +159,9 @@ export async function handleGet(
     readEvidence: readAnchoredSkillInvocationEvidence,
   })
   if (skillInvocations !== null) return sendJson(res, skillInvocations.status, skillInvocations.body)
+    // ── 工作台「文件阅读」：只读取已登记项目根内的文本文件（readTrustedFile，256KB 上限）──
+    const documentRead = resolveDocumentReadRoute(req, path, { workflowRootForRequest, errMsg })
+    if (documentRead !== null) return sendJson(res, documentRead.status, documentRead.body)
     // ── loops 治理面数据端：跨项目聚合 loops.yaml ──
     if (path === '/api/loops/snapshot') {
       try {

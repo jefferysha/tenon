@@ -1,8 +1,6 @@
 import { useCallback, useMemo } from 'react'
-import type { WbHookMeta } from '../api/governanceTypes'
 import type { Snapshot } from '../types'
 import { isPhase } from '../types'
-import { LOCKED_IDS } from './hooksConfig'
 import type { BoardLane } from './boardLane'
 import { stageCounts, type WbStepDef, type WbWorkflowDef } from './workbenchDefinition'
 
@@ -14,8 +12,6 @@ export function useWorkbenchBoard({
   root,
   snapshot,
   readonlyWorkflow,
-  hookMetas,
-  hookMatrix,
   t,
 }: {
   def: WbWorkflowDef | null
@@ -23,8 +19,6 @@ export function useWorkbenchBoard({
   root: string
   snapshot: Snapshot | null
   readonlyWorkflow: boolean
-  hookMetas: WbHookMeta[] | null
-  hookMatrix: Record<string, false>
   t: Tr
 }): {
   boardLanes: BoardLane[]
@@ -34,19 +28,9 @@ export function useWorkbenchBoard({
     (step: WbStepDef): string => (defaultWorkflow && isPhase(step.id) ? t(`phases.${step.id}`) : step.label || step.id),
     [defaultWorkflow, t],
   )
-  const hookCountOf = useCallback(
-    (stageId: string): number | undefined =>
-      hookMetas === null ? undefined : hookMetas.filter((hook) => !(`${hook.id}.${stageId}` in hookMatrix)).length,
-    [hookMetas, hookMatrix],
-  )
   const ambientByStage = useMemo(
     () => (def ? stageCounts(snapshot, root, def.name) : {}),
     [def, snapshot, root],
-  )
-  const hookLockedOf = useCallback(
-    (): number | undefined =>
-      hookMetas === null ? undefined : hookMetas.filter((hook) => !hook.configurable && LOCKED_IDS.has(hook.id)).length,
-    [hookMetas],
   )
   const boardLanes: BoardLane[] = useMemo(() => {
     if (!def) return []
@@ -69,14 +53,12 @@ export function useWorkbenchBoard({
             ),
         outputs: step.outputs.map((output) => output.field),
         nonemptyGuard: readonlyWorkflow ? undefined : step.guards.some((guard) => guard.type === 'nonempty-output'),
-        hooksCount: hookCountOf(step.id),
-        hooksLocked: hookLockedOf(),
         linkEvent: forward?.event ?? null,
         count: ambient?.count ?? 0,
         running: ambient?.running ?? false,
       }
     })
-  }, [def, stepName, hookCountOf, hookLockedOf, ambientByStage, readonlyWorkflow])
+  }, [def, stepName, ambientByStage, readonlyWorkflow])
   const summary = useMemo(() => {
     if (!def) return null
     const skillIds = new Set<string>()
@@ -87,10 +69,8 @@ export function useWorkbenchBoard({
       stages: def.steps.length,
       gates: def.steps.filter((step) => step.gate !== null).length,
       skills: skillIds.size,
-      hooks: hookMetas === null
-        ? null
-        : hookMetas.filter((hook) => def.steps.every((step) => !(`${hook.id}.${step.id}` in hookMatrix))).length,
+      hooks: null,
     }
-  }, [def, hookMetas, hookMatrix])
+  }, [def])
   return { boardLanes, summary }
 }

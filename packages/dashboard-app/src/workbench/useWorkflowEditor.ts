@@ -5,11 +5,8 @@ import { useT } from '../i18n'
 import { DEFAULT_RULES, invalidateWorkflowRules, rulesKey, useWorkflowRulesMulti } from '../model/workflowModel'
 import { PHASES, type Snapshot } from '../types'
 import type { BoardLane, LanePatch } from './boardLane'
-import { useHooksConfig, type HooksConfigState } from './hooksConfig'
-import { useLoops, type LoopsState } from './LoopCard'
 import { useMandatorySkills, type MandatoryState } from './mandatoryState'
 import { readSaveErrors, readWorkflowDeleteResponse } from './workbenchApiDecoders'
-import { useRecentWorkflowHistory } from './useRecentWorkflowHistory'
 import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
 import { useWorkbenchBoard } from './useWorkbenchBoard'
 import { useStageDraftEditor } from './useStageDraftEditor'
@@ -29,7 +26,6 @@ import {
   type WbStepDef,
   type WbWorkflowDef,
 } from './workbenchDefinition'
-import type { ChangeHistoryEntry } from '../api/client'
 
 export type SaveStatus = { kind: 'idle' | 'ok' } | { kind: 'error'; errors: string[]; conflict?: boolean }
 
@@ -42,7 +38,6 @@ export interface WorkflowDeleteError {
 export interface WorkflowEditorInput {
   root: string
   snapshot: Snapshot | null
-  onToggleError?: (message: string) => void
   onDirtyChange?: (dirty: boolean) => void
 }
 
@@ -65,11 +60,7 @@ export interface WorkflowEditor {
   selectedLane: BoardLane | undefined
   boardLanes: BoardLane[]
   summary: { stages: number; gates: number; skills: number; hooks: number | null } | null
-  hooksConfig: HooksConfigState
   mandatory: MandatoryState
-  loops: LoopsState
-  recent: Array<ChangeHistoryEntry & { change: string }> | null
-  recentSilent: number
   setDef: (updater: (previous: WbWorkflowDef | null) => WbWorkflowDef | null) => void
   editLane: (laneId: string, patch: LanePatch) => void
   replaceStep: (updated: WbStepDef) => void
@@ -112,11 +103,10 @@ export interface WorkflowEditor {
 }
 
 /**
- * 工作流定义编辑的状态机（原 WorkbenchView 的非渲染部分原样搬运）：加载 names/def、脏态与保存、
- * 新建 / 复制 / 删除、切换守卫、阶段草稿、hooks / 强制技能 / loops 三份 per-root 配置。
+ * 工作流定义编辑的状态机：加载 names/def、脏态与保存、新建 / 复制 / 删除、切换守卫、阶段草稿、强制技能矩阵。
  * 视图层（workflow/WorkflowView）只做三列装配，不再持有任何写路径。
  */
-export function useWorkflowEditor({ root, snapshot, onToggleError, onDirtyChange }: WorkflowEditorInput): WorkflowEditor {
+export function useWorkflowEditor({ root, snapshot, onDirtyChange }: WorkflowEditorInput): WorkflowEditor {
   const { t, lang } = useT()
   const defaultLabels = useMemo(() => Object.fromEntries(PHASES.map((phase) => [phase, t(`phases.${phase}`)])), [t])
   const localizedDefaultDef = useMemo(() => buildDefaultDef(defaultLabels), [defaultLabels])
@@ -149,7 +139,6 @@ export function useWorkflowEditor({ root, snapshot, onToggleError, onDirtyChange
   rootIdentity.current = root
   workflowIdentity.current = wfName
   localeIdentity.current = { t, lang }
-  const [promptSkipDirty, setPromptSkipDirty] = useState(false)
   const defSnapshotRef = useRef<string | null>(null)
   const defBaselineRef = useRef<WbWorkflowDef | null>(null)
   const setDef = useCallback((updater: (previous: WbWorkflowDef | null) => WbWorkflowDef | null): void => {
@@ -157,10 +146,7 @@ export function useWorkflowEditor({ root, snapshot, onToggleError, onDirtyChange
   }, [])
   const stageDraft = useStageDraftEditor({ def, stageId, setDef: setDefState, setStageId })
   const { setAddStageOpen } = stageDraft
-  const hooksConfig = useHooksConfig(root, onToggleError, setPromptSkipDirty)
   const mandatory = useMandatorySkills(root)
-  const { recent, recentSilent } = useRecentWorkflowHistory(snapshot, root, wfName)
-  const loops = useLoops(root)
 
   useEffect(() => {
     setSaveStatus((current) => current.kind === 'error' ? { kind: 'idle' } : current)
@@ -191,7 +177,6 @@ export function useWorkflowEditor({ root, snapshot, onToggleError, onDirtyChange
     setWorkflowDeleteTarget(null)
     setWorkflowDeleteBusy(false)
     setWorkflowDeleteError(null)
-    setPromptSkipDirty(false)
     defSnapshotRef.current = null
     defBaselineRef.current = null
     let cancelled = false
@@ -270,7 +255,7 @@ export function useWorkflowEditor({ root, snapshot, onToggleError, onDirtyChange
       || JSON.stringify(def.reviewBudget) !== JSON.stringify(defBaselineRef.current.reviewBudget))
   const workflowCreateDirty = workflowCreateMode !== null && workflowDraftName !== workflowDraftBaseline.current
   const { setSourceDirty } = useWorkbenchDirtyState({
-    localDirty: dirty || workflowCreateDirty || stageDraft.draftDirty || promptSkipDirty,
+    localDirty: dirty || workflowCreateDirty || stageDraft.draftDirty,
     onDirtyChange,
   })
   const reportTrackDirty = useCallback((value: boolean) => {
@@ -520,15 +505,12 @@ export function useWorkflowEditor({ root, snapshot, onToggleError, onDirtyChange
     }
   }
 
-  const { hooks: hookMetas, matrix: hookMatrix } = hooksConfig
   const { boardLanes, summary } = useWorkbenchBoard({
     def,
     defaultWorkflow: readonlyWf,
     root,
     snapshot,
     readonlyWorkflow: readonlyWf,
-    hookMetas,
-    hookMatrix,
     t,
   })
   const selectedStep = def?.steps.find((step) => step.id === stageId) ?? null
@@ -557,11 +539,7 @@ export function useWorkflowEditor({ root, snapshot, onToggleError, onDirtyChange
     selectedLane,
     boardLanes,
     summary,
-    hooksConfig,
     mandatory,
-    loops,
-    recent,
-    recentSilent,
     setDef,
     editLane,
     replaceStep,
