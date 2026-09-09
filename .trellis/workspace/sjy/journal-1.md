@@ -316,3 +316,25 @@ SolutionView、ExecutionTimelineComposer 一系。1301 个前端用例、typeche
 ### Status
 
 [OK] **Implemented**（待 trellis-check 复核后提交）
+
+
+## Session 12: Dashboard 基于工作空间模板的整体重构
+<!-- trellis-session: v=2 fp=429aacd8cd32a642 -->
+
+**Date**: 2026-09-09
+**Task**: Dashboard 基于工作空间模板的整体重构
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+以用户模板为唯一基准重做 dashboard IA：顶部横条 + 三列骨架（ThreeColumns / DetailSheets），四视图 工作台（逐 stage 执行状态与产出，只读）/ 工作流（workflow·track·stage·skill 顺序 CRUD，输入产出只读推导）/ 自动化 / 机器（并入宿主计划），右列按 sheet 切换；删除旧 rail、ProjectsView、ProgressView/WorkflowCanvas、SolutionView 与旧编排器死代码。typecheck、1239 前端用例、design-scale、comment-honesty、生产构建全绿；真实服务端验证工作流复制/删除；375/768/1440 无横向滚动。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `380c821` | feat(dashboard): rebuild IA on the workspace template |
+
+### Status
+
+[OK] **Completed**
