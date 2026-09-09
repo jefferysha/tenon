@@ -338,3 +338,25 @@ SolutionView、ExecutionTimelineComposer 一系。1301 个前端用例、typeche
 ### Status
 
 [OK] **Completed**
+
+
+## Session 13: Dashboard 精简重做：工作台 + 工作流
+<!-- trellis-session: v=2 fp=514e1407e05afc58 -->
+
+**Date**: 2026-09-09
+**Task**: Dashboard 精简重做：工作台 + 工作流
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+按用户要求把 dashboard 收窄为两页：工作台（项目→任务→阶段轨→所选阶段的输入/输出文件可读，点击即预览，新增只读接口 GET /api/documents/read）与工作流（阶段顺序、技能串并行切换、门禁、推导输入输出，无页签）。删除自动化/机器/宿主计划/高级面板等目录、工作流页的轨道/管线/策略/钩子/治理与技能编排 Dialog、15 个无引用 i18n 命名空间。typecheck、40 文件 590 用例、design-scale、comment-honesty、服务端路由测试全绿；1440/375 真实服务端验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b1aefaf` | feat(dashboard): cut down to workspace + workflow with readable stage files |
+
+### Status
+
+[OK] **Completed**
