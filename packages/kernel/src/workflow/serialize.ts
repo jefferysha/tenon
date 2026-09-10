@@ -24,7 +24,6 @@ function serializeSkill(s: SkillRef): string[] {
   if (s.depends_on !== undefined) {
     lines.push(`        depends_on: [${s.depends_on.join(', ')}]`)
   }
-  if (s.when !== undefined) lines.push(...serializeWhen(s.when, '        '))
   return lines
 }
 
@@ -204,6 +203,24 @@ export function serializeWorkflow(wf: WorkflowDef): string {
     ...(wf.documentContract === undefined ? [] : serializeDocumentContract(wf.documentContract)),
     'steps:',
     ...wf.steps.flatMap(serializeStep),
+    ...serializeTracks(wf.tracks),
   ]
   return lines.join('\n') + '\n'
+}
+
+/** `tracks:` 块：分支 id 两空格缩进；分支内 steps 项与顶层 steps 同构，整体再缩进四空格（YAML 统一位移，含 prompt 块）。 */
+function serializeTracks(tracks: WorkflowDef['tracks']): string[] {
+  if (tracks === undefined) return []
+  const ids = Object.keys(tracks)
+  if (ids.length === 0) return []
+  const lines = ['tracks:']
+  for (const id of ids) {
+    const branch = tracks[id]
+    if (branch === undefined) continue
+    lines.push(`  ${id}:`)
+    if (branch.label !== undefined && branch.label !== '') lines.push(`    label: ${branch.label}`)
+    lines.push('    steps:')
+    lines.push(...branch.steps.flatMap(serializeStep).map((line) => (line === '' ? line : `    ${line}`)))
+  }
+  return lines
 }

@@ -3,7 +3,6 @@ import type {
   WbFieldRef,
   WbSkillRef,
   WbStepDef,
-  WbTrackPredicate,
   WbWorkflowDef,
 } from '../api/governanceTypes'
 import { wavesOf, wavesToSkills } from './skillWaves'
@@ -46,9 +45,52 @@ function mapStep(def: WbWorkflowDef, stepId: string, update: (step: WbStepDef) =
 }
 
 /** 写回前剔除读接口附带的投影字段。 */
-export function definitionForWrite(def: WbWorkflowDef): Omit<WbWorkflowDef, 'source' | 'effectiveIo'> {
-  const { source: _source, effectiveIo: _effectiveIo, ...definition } = def
+export function definitionForWrite(def: WbWorkflowDef): Omit<WbWorkflowDef, 'source' | 'effectiveIo' | 'branches'> {
+  const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...definition } = def
   return definition
+}
+
+// ── 分支：'' = 通用分支（顶层 steps），其余 = tracks.<id> ──
+
+export const BASE_BRANCH = ''
+
+/** 分支列表：通用分支恒在首位；track 分支按声明序，名称 = label ?? id。 */
+export function branchesOf(def: WbWorkflowDef | null): Array<{ id: string; label: string | null }> {
+  return [
+    { id: BASE_BRANCH, label: null },
+    ...Object.entries(def?.tracks ?? {}).map(([id, branch]) => ({ id, label: branch.label ?? id })),
+  ]
+}
+
+/** 分支视图：把所选分支的 steps 与物化 IO 提升成一个「单条 pipeline」定义，供编辑器所有读路径使用。 */
+export function selectBranchDef(def: WbWorkflowDef, branch: string): WbWorkflowDef {
+  const { tracks: _tracks, branches, effectiveIo, ...rest } = def
+  const track = branch === BASE_BRANCH ? undefined : def.tracks?.[branch]
+  const io = branches?.[branch === BASE_BRANCH ? '_base' : branch]?.effectiveIo ?? (branch === BASE_BRANCH ? effectiveIo : undefined)
+  return {
+    ...rest,
+    ...(io === undefined ? {} : { effectiveIo: io }),
+    steps: track === undefined ? def.steps : track.steps,
+  }
+}
+
+/** 把分支视图上的编辑写回完整定义：steps 回到对应分支，其余工作流级字段（文档契约等）照抄更新后的值。 */
+export function writeBranchDef(def: WbWorkflowDef, branch: string, updated: WbWorkflowDef): WbWorkflowDef {
+  const { steps, tracks: _tracks, effectiveIo: _io, branches: _branches, ...rest } = updated
+  const base = { ...def, ...rest }
+  if (branch === BASE_BRANCH || def.tracks?.[branch] === undefined) return { ...base, steps }
+  return { ...base, steps: def.steps, tracks: { ...def.tracks, [branch]: { ...def.tracks[branch], steps } } }
+}
+
+/** 新建轨道分支 = 复制通用分支的 steps（深拷贝）。 */
+export function addTrackBranch(def: WbWorkflowDef, id: string, label: string): WbWorkflowDef {
+  const steps = cloneWorkflowDef({ ...def, tracks: undefined }, def.name).steps
+  return { ...def, tracks: { ...(def.tracks ?? {}), [id]: { ...(label === '' ? {} : { label }), steps } } }
+}
+
+export function removeTrackBranch(def: WbWorkflowDef, id: string): WbWorkflowDef {
+  const { [id]: _removed, ...rest } = def.tracks ?? {}
+  return Object.keys(rest).length === 0 ? (({ tracks: _tracks, ...withoutTracks }) => withoutTracks)(def) : { ...def, tracks: rest }
 }
 
 export function renameStepInDef(def: WbWorkflowDef, stepId: string, label: string): WbWorkflowDef {
@@ -80,17 +122,6 @@ export function removeSkillFromDef(def: WbWorkflowDef, stepId: string, skillId: 
 }
 
 /** 技能的轨道条件；undefined = 全部轨道。 */
-export function setSkillWhenInDef(def: WbWorkflowDef, stepId: string, skillId: string, when: WbTrackPredicate | undefined): WbWorkflowDef {
-  return mapStep(def, stepId, (step) => ({
-    ...step,
-    skills: step.skills.map((skill) => {
-      if (skill.id !== skillId) return skill
-      const { when: _dropped, ...rest } = skill
-      return when === undefined ? rest : { ...rest, when: { kind: when.kind, values: [...when.values] } }
-    }),
-  }))
-}
-
 export function addFieldOutputInDef(def: WbWorkflowDef, stepId: string, field: WbFieldRef): WbWorkflowDef {
   return mapStep(def, stepId, (step) => {
     if (step.outputs.some((output) => output.field === field.field)) return step
@@ -233,11 +264,28 @@ export function removeStageFromDef(def: WbWorkflowDef, stepId: string): WbWorkfl
   return contract === undefined ? base : withContract(base, contract)
 }
 
+function cloneSteps(steps: readonly WbStepDef[]): WbStepDef[] {
+  return steps.map((step) => ({
+    ...step,
+    reviewLanes: step.reviewLanes === undefined ? undefined : [...step.reviewLanes],
+    skills: step.skills.map((skill) => ({
+      ...skill,
+      depends_on: skill.depends_on ? [...skill.depends_on] : undefined,
+    })),
+    inputs: step.inputs.map((field) => ({ ...field })),
+    outputs: step.outputs.map((field) => ({ ...field })),
+    artifacts: step.artifacts === undefined ? undefined : step.artifacts.map((artifact) => ({ ...artifact })),
+    guards: step.guards.map((guard) => ({ ...guard })),
+    transitions: step.transitions.map((transition) => ({ ...transition })),
+  }))
+}
+
 export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDef {
-  const { source: _source, effectiveIo: _effectiveIo, ...rest } = def
+  const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...rest } = def
   return {
     ...rest,
     name,
+    ...(def.tracks === undefined ? {} : { tracks: Object.fromEntries(Object.entries(def.tracks).map(([id, branch]) => [id, { ...branch, steps: cloneSteps(branch.steps) }])) }),
     decomposition: def.decomposition === undefined ? undefined : {
       ...def.decomposition,
       auto_when: [...def.decomposition.auto_when],
@@ -250,19 +298,7 @@ export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDe
       slots: def.documentContract.slots.map((slot) => ({ ...slot, producers: [...slot.producers] })),
       reads: def.documentContract.reads.map((read) => ({ ...read, kinds: [...read.kinds] })),
     },
-    steps: def.steps.map((step) => ({
-      ...step,
-      reviewLanes: step.reviewLanes === undefined ? undefined : [...step.reviewLanes],
-      skills: step.skills.map((skill) => ({
-        ...skill,
-        depends_on: skill.depends_on ? [...skill.depends_on] : undefined,
-      })),
-      inputs: step.inputs.map((field) => ({ ...field })),
-      outputs: step.outputs.map((field) => ({ ...field })),
-      artifacts: step.artifacts === undefined ? undefined : step.artifacts.map((artifact) => ({ ...artifact })),
-      guards: step.guards.map((guard) => ({ ...guard })),
-      transitions: step.transitions.map((transition) => ({ ...transition })),
-    })),
+    steps: cloneSteps(def.steps),
   }
 }
 
@@ -273,13 +309,15 @@ export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDe
 export function copyWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDef {
   const cloned = cloneWorkflowDef(def, name)
   if (def.name !== 'default') return cloned
+  const customPolicy = (steps: WbStepDef[]): WbStepDef[] => steps.map((step) => step.artifacts === undefined ? step : {
+    ...step,
+    artifacts: step.artifacts.map((artifact) => ({ ...artifact, producerPolicy: 'effective-step-skills' as const })),
+  })
   return {
     ...cloned,
     openspecContract: 'required',
-    steps: cloned.steps.map((step) => step.artifacts === undefined ? step : {
-      ...step,
-      artifacts: step.artifacts.map((artifact) => ({ ...artifact, producerPolicy: 'effective-step-skills' as const })),
-    }),
+    steps: customPolicy(cloned.steps),
+    ...(cloned.tracks === undefined ? {} : { tracks: Object.fromEntries(Object.entries(cloned.tracks).map(([id, branch]) => [id, { ...branch, steps: customPolicy(branch.steps) }])) }),
   }
 }
 

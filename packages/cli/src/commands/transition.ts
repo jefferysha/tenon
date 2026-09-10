@@ -51,7 +51,7 @@
  */
 import {
   compileWorkflow, completedWorkflowSkillsSinceStepEntry, createTransitionApplication,
-  loadRegistry, loadWorkflow, nodeLoopIoStrict, requireTrack, resolveRequiredSkillSlots,
+  loadRegistry, loadWorkflow, nodeLoopIoStrict, requireTrackForRoot, resolveRequiredSkillSlots,
   readReviewGateBinding, reviewGateBindingMatches,
   TASK_PLAN_CURRENT_FILE, TASK_PLAN_LIMITS, TASK_PLAN_STATE_DIR,
   taskPlanTasksThroughPhaseForChange,
@@ -131,7 +131,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     history: deps.history,
     breadcrumb: deps.writeBreadcrumb ? { write: deps.writeBreadcrumb } : undefined,
     documentEvidence: deps.documentEvidence,
-    resolveTrack: (trackId) => requireTrack(deps.loadRegistry(), trackId),
+    resolveTrack: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd),
     missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => {
       const slots = resolveRequiredSkillSlots(deps.resolver, capability, stepId)
       const candidates = slots.flatMap((slot) => slot.alternatives.map(canonicalPipelineSkillId))
@@ -210,7 +210,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
             repoRoot: deps.cwd,
             store: deps.store,
             clock: deps.clock,
-            resolveTrackPolicy: (trackId) => requireTrack(deps.loadRegistry(), trackId).policyProfile,
+            resolveTrackPolicy: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd).policyProfile,
           }, {
             changeName: name,
             event,

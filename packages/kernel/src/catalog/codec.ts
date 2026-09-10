@@ -63,7 +63,7 @@ export function validateDefinitionCatalogV1(value: unknown): value is Definition
       || typeof entry.readonly !== 'boolean' || !Array.isArray(entry.steps)) return false
     return entry.steps.every((step) => {
       if (!isRecord(step) || !nonempty(step.id) || !nonempty(step.label)
-        || !Number.isInteger(step.order) || (step.gate !== null && step.gate !== 'review' && step.gate !== 'confirm')
+        || !Number.isInteger(step.order) || (step.gate !== null && step.gate !== 'review' && step.gate !== 'auto')
         || !stringArray(step.skill_ids) || !skillDependencies(step.skill_dependencies) || !stringArray(step.transition_events)) return false
       const skillIds = new Set(step.skill_ids)
       return Object.entries(step.skill_dependencies).every(([skillId, refs]) => skillIds.has(skillId) && refs.every((ref) => skillIds.has(ref) && ref !== skillId))
@@ -82,7 +82,7 @@ export function validateDefinitionCatalogV1(value: unknown): value is Definition
       if (!isRecord(stage) || !nonempty(stage.id) || !nonempty(stage.label)
         || !Number.isInteger(stage.order) || (stage.mode !== 'serial' && stage.mode !== 'parallel')
         || !stringArray(stage.skill_ids) || !skillDependencies(stage.skill_dependencies) || !stringArray(stage.depends_on)
-        || (stage.gate !== null && stage.gate !== 'review' && stage.gate !== 'confirm')) return false
+        || (stage.gate !== null && stage.gate !== 'review' && stage.gate !== 'auto')) return false
       const skillIds = new Set(stage.skill_ids)
       const dependencies = Object.entries(stage.skill_dependencies)
       if (dependencies.some(([skillId, refs]) => !skillIds.has(skillId) || refs.some((ref) => !skillIds.has(ref) || ref === skillId))) return false

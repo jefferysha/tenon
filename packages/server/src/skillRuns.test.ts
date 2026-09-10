@@ -41,18 +41,17 @@ describe('skillRuns projection', () => {
     expect(runs[0]!.skills.find((skill) => skill.id === 'openspec-propose')?.status).toBe('done')
   })
 
-  it('老快照未内嵌矩阵：退回 manifest mandatory 表，a|b 备选任一有证据即 done', async () => {
+  it('manifest-overlay 计划另叠加 manifest mandatory 表（去重），a|b 备选任一有证据即 done', async () => {
     const root = await makeProject()
     const changeDir = await initChange(newStore(), root, 'demo', { track: 'backend' })
-    const current = resolveSnapshotEffectivePlan(root, 'default', {})
-    const skills = { ...current.capabilities.skills, matrixEmbedded: false, steps: current.capabilities.skills.steps.map((step) => ({ ...step, conditional: [] })) }
-    const plan = { ...current, capabilities: { ...current.capabilities, skills } } as EffectiveWorkflowPlan
+    const current = resolveSnapshotEffectivePlan(root, 'default', {}, undefined, builtinTrack('backend'))
+    const plan = current as EffectiveWorkflowPlan
     const table = { open: { backend: ['openspec-propose|opsx:propose'], _all: ['fallback'] } } as unknown as SkillTable
     await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({ ts: 't', kind: 'tool', raw: 'Skill: opsx:propose' })}\n`, 'utf8')
     const runs = await projectSkillRuns(changeDir, plan, 'open', builtinTrack('backend'), table)
-    expect(runs[0]!.skills.map((skill) => [skill.id, skill.status])).toEqual([['tenon-open', 'idle'], ['openspec-propose|opsx:propose', 'done']])
+    expect(runs[0]!.skills.map((skill) => [skill.id, skill.status])).toEqual([['tenon-open', 'idle'], ['openspec-propose', 'done'], ['openspec-propose|opsx:propose', 'done']])
     const none = await projectSkillRuns(changeDir, plan, 'open', builtinTrack('backend'))
-    expect(none[0]!.skills.map((skill) => skill.id)).toEqual(['tenon-open'])
+    expect(none[0]!.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose'])
   })
 
   it('进入当前步之前的技能记录不算：只看最后一次 transition 到本步之后', async () => {

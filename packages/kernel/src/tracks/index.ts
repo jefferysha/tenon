@@ -76,3 +76,5 @@ export type {
   RouterSkillSource,
   RouterTrackProjection,
 } from './router-projection.js'
+export { BRANCH_TRACK_DEFAULT_POLICY, resolveTrackForBranch } from './branch-track.js'
+export type { BranchTrackWorkflow } from './branch-track.js'

@@ -98,6 +98,53 @@ function descriptionForSkill(name: string, repoRoot: string, claudeDir: string, 
   return undefined
 }
 
+export interface SkillReadme {
+  name: string
+  /** 来源分类（与 SkillEntry.source 同枚举）。 */
+  source: SkillSource
+  /** 来源目录（插件名 / skills 根），给页面做溯源展示；不含用户主目录之外的绝对路径。 */
+  origin: string
+  /** SKILL.md 相对来源根的路径。 */
+  path: string
+  markdown: string
+}
+
+/**
+ * 某技能的 SKILL.md 全文：按与 descriptionForSkill 相同的探测顺序找到第一份存在的文件。
+ * 只读、fail-open：任何一处读不到就继续下一处；全部没有 → undefined（调用方 404）。
+ */
+export function readSkillReadme(name: string, repoRoot: string, claudeDir: string): SkillReadme | undefined {
+  const home = dirname(claudeDir)
+  const candidates = [...new Set([name, name.includes(':') ? name.split(':').at(-1) : undefined]
+    .filter((candidate): candidate is string => typeof candidate === 'string' && candidate !== ''))]
+  const roots: Array<{ dir: string; source: SkillSource; origin: string }> = [
+    { dir: join(repoRoot, 'skills'), source: 'local-plugin', origin: 'tenon' },
+    { dir: join(claudeDir, 'skills'), source: 'user', origin: '~/.claude/skills' },
+    { dir: join(home, '.agents', 'skills'), source: 'user', origin: '~/.agents/skills' },
+    ...installedPluginRoots(claudeDir).map((root) => ({ dir: join(root, 'skills'), source: 'external-marketplace' as SkillSource, origin: root.split('/').filter(Boolean).at(-1) ?? root })),
+  ]
+  const cache = join(home, '.codex', 'plugins', 'cache')
+  for (const marketplace of childDirsIn(cache)) {
+    for (const plugin of childDirsIn(join(cache, marketplace))) {
+      for (const version of childDirsIn(join(cache, marketplace, plugin))) {
+        roots.push({ dir: join(cache, marketplace, plugin, version, 'skills'), source: 'external-marketplace', origin: `${marketplace}/${plugin}@${version}` })
+      }
+    }
+  }
+  for (const root of roots) {
+    for (const candidate of candidates) {
+      const file = join(root.dir, candidate, 'SKILL.md')
+      try {
+        const markdown = readFileSync(file, 'utf8')
+        return { name, source: root.source, origin: root.origin, path: `${candidate}/SKILL.md`, markdown }
+      } catch {
+        continue
+      }
+    }
+  }
+  return undefined
+}
+
 function skillDirsIn(dir: string): string[] {
   if (!existsSync(dir)) return []
   try {

@@ -11,7 +11,7 @@ import type {
   WbTransition,
   WbWorkflowDef,
   WbEffectiveIo,
-  WbIoSlot,
+  WbIoSlot, WbTrackBranch, WbBranchProjection, WbSkillReadme,
 } from './governanceTypes'
 import {
   DEFAULT_WB_DECOMPOSITION_POLICY,
@@ -105,21 +105,18 @@ function decodeField(value: unknown): WbFieldRef | null {
 function decodeSkill(value: unknown): WbSkillRef | null {
   const item = record(value)
   if (!item
-    || !allowedKeys(item, ['id', 'kind', 'review_lane', 'depends_on', 'when'])
+    || !allowedKeys(item, ['id', 'kind', 'review_lane', 'depends_on'])
     || typeof item.id !== 'string'
     || (item.kind !== undefined && item.kind !== 'work' && item.kind !== 'review')
     || !optionalString(item.review_lane)
     || (item.depends_on !== undefined && !strings(item.depends_on))) return null
   const kind = item.kind ?? 'work'
   if ((kind === 'review') !== (item.review_lane !== undefined)) return null
-  const when = item.when === undefined ? undefined : decodePredicate(item.when)
-  if (when === null) return null
   return {
     id: item.id,
     ...(item.kind === undefined ? {} : { kind }),
     ...(item.review_lane === undefined ? {} : { review_lane: item.review_lane }),
     ...(item.depends_on === undefined ? {} : { depends_on: item.depends_on }),
-    ...(when === undefined ? {} : { when }),
   }
 }
 
@@ -387,7 +384,7 @@ function decodeDocumentContract(value: unknown): WbDocumentContract | null {
 function decodeStep(value: unknown): WbStepDef | null {
   const step = record(value)
   if (!step || typeof step.id !== 'string' || typeof step.label !== 'string') return null
-  if (step.gate !== null && step.gate !== 'review' && step.gate !== 'confirm') return null
+  if (step.gate !== null && step.gate !== 'review' && step.gate !== 'auto') return null
   if (!optionalString(step.prompt)) return null
   if (step.reviewLanes !== undefined && !strings(step.reviewLanes)) return null
   const reviewLanes = step.reviewLanes ?? []
@@ -448,6 +445,46 @@ function decodeEffectiveIo(value: unknown): WbEffectiveIo | null {
   return out
 }
 
+const TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
+
+/** `tracks.<id>` 分支：可选 label + 自己的 steps。 */
+function decodeTracks(value: unknown): Record<string, WbTrackBranch> | null {
+  const body = record(value)
+  if (!body) return null
+  const out: Record<string, WbTrackBranch> = {}
+  for (const [id, raw] of Object.entries(body)) {
+    const branch = record(raw)
+    if (!TRACK_ID_RE.test(id) || !branch || !allowedKeys(branch, ['label', 'steps']) || !optionalString(branch.label)) return null
+    const steps = decodeArray(branch.steps, decodeStep)
+    if (steps === null) return null
+    out[id] = { ...(branch.label === undefined ? {} : { label: branch.label }), steps }
+  }
+  return out
+}
+
+/** 读接口的分支投影：`_base` + 每条 track 的物化 IO。 */
+function decodeBranches(value: unknown): Record<string, WbBranchProjection> | null {
+  const body = record(value)
+  if (!body) return null
+  const out: Record<string, WbBranchProjection> = {}
+  for (const [id, raw] of Object.entries(body)) {
+    const branch = record(raw)
+    if (!branch || !optionalString(branch.label)) return null
+    const effectiveIo = decodeEffectiveIo(branch.effectiveIo)
+    if (effectiveIo === null) return null
+    out[id] = { ...(branch.label === undefined ? {} : { label: branch.label }), effectiveIo }
+  }
+  return out
+}
+
+export function decodeSkillReadme(value: unknown): WbSkillReadme | null {
+  const body = record(value)
+  if (!body || typeof body.name !== 'string' || typeof body.origin !== 'string' || typeof body.path !== 'string' || typeof body.markdown !== 'string') return null
+  const source = decodeSkillSource(body.source)
+  if (source === null) return null
+  return { name: body.name, source, origin: body.origin, path: body.path, markdown: body.markdown }
+}
+
 export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {
   const body = record(value)
   if (!body || typeof body.name !== 'string') return null
@@ -461,11 +498,15 @@ export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {
   const interaction = decodeInteractionPolicy(body.interaction)
   const reviewBudget = decodeReviewBudgetPolicy(body.reviewBudget)
   const steps = decodeArray(body.steps, decodeStep)
-  if (documentContract === null || decomposition === null || interaction === null || reviewBudget === null || steps === null) return null
+  const tracks = body.tracks === undefined ? undefined : decodeTracks(body.tracks)
+  const branches = body.branches === undefined ? undefined : decodeBranches(body.branches)
+  if (documentContract === null || decomposition === null || interaction === null || reviewBudget === null || steps === null || tracks === null || branches === null) return null
   return {
     name: body.name,
     ...(body.source === undefined ? {} : { source: body.source }),
     ...(effectiveIo === undefined ? {} : { effectiveIo }),
+    ...(tracks === undefined ? {} : { tracks }),
+    ...(branches === undefined ? {} : { branches }),
     ...(body.openspecContract === undefined ? {} : { openspecContract: body.openspecContract }),
     ...(documentContract === undefined ? {} : { documentContract }),
     decomposition,

@@ -208,11 +208,7 @@ async function cmdAdvanceGraph(
     }
     const edge = step.transitions[0]
     if (edge === undefined) return 0
-    // step 自带人门：confirm 绝不自动跨越；review receipt 必须由 review acknowledge 产生。
-    if (step.gate === 'confirm') {
-      deps.io.out(`[STOP] ${name} @ ${current}: step gate 'confirm'（human gate）——绝不自动跨越（HITL 红线）`)
-      return 0
-    }
+    // step 自带人门：review receipt 必须由 review acknowledge 产生（auto 门是守卫，不是人门）。
     if (step.gate === 'review') {
       if (!through) {
         deps.io.out(`[STOP] ${name} @ ${current}: step gate 'review'（HITL 门），停给人复核——确认后可用 --through-gates 继续`)
@@ -281,10 +277,6 @@ async function dryRunGraphPlan(
   }
   const startEdge = startStep.transitions[0]
   if (startEdge === undefined) return 0
-  if (startStep.gate === 'confirm') {
-    deps.io.out(`  预计停在 ${start}: step gate 'confirm'（human gate，绝不自动跨越）`)
-    return 0
-  }
   if (startStep.gate === 'review') {
     if (!through) {
       deps.io.out(`  预计停在 ${start}: step gate 'review'（HITL 门，确认后可用 --through-gates 继续）`)
@@ -330,10 +322,6 @@ async function dryRunGraphPlan(
     current = edge.to
     steps += 1
     const entered = resolveStep(wf, current)
-    if (entered?.gate === 'confirm') {
-      deps.io.out(`  预计停在 ${current}: step gate 'confirm'（human gate，绝不自动跨越）`)
-      return 0
-    }
     if (entered?.gate === 'review') {
       if (!through) {
         deps.io.out(`  预计停在 ${current}: step gate 'review'（HITL 门，确认后可用 --through-gates 继续）`)

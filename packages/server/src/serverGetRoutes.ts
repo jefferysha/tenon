@@ -26,7 +26,7 @@ import { HOOK_METAS, readHooksConfig } from './hooksConfig.js'
 import { buildLoopsSnapshot } from './loops.js'
 import { buildRunDetail } from './runDetail.js'
 import { buildSecretsResponse } from './secrets.js'
-import { listAllSkillsDetailed } from './skillsRegistry.js'
+import { listAllSkillsDetailed, readSkillReadme } from './skillsRegistry.js'
 import { dedupeRoots, type SnapshotDeps } from './snapshot.js'
 import { readChangeHistory } from './transition.js'
 import type { DashboardServerOptions, ServerPaths } from './types.js'
@@ -37,6 +37,7 @@ import {
   readWorkflowForApi,
   WorkflowNotFoundError,
   type WorkflowRootAnchor,
+  workflowBranchesForApi,
 } from './workflows.js'
 import { handleGetActivityRoutes } from './serverGetActivityRoutes.js'
 import { handleGetSessionRoutes } from './serverGetSessionRoutes.js'
@@ -229,6 +230,19 @@ export async function handleGet(
     // ── skills registry 数据端：本仓 skills 目录 + EXTERNAL-SKILLS.md 合并明细（GET 只读，本机回环不鉴权）。
     //    T6：响应体从 {skills:string[]} 破坏性升级为 {skills:SkillEntry[]}（研究报告 §4.2 方案 a，
     //    仓内两个消费方同批改，无仓外第三方）；「已装」三源检测只按显式 hostHome（hermetic 可覆盖）。──
+    // ── GET /api/skills/:name/readme —— 某技能 SKILL.md 全文 + 来源（工作流页技能库预览 / 溯源）。──
+    const mSkillReadme = /^\/api\/skills\/([^/]+)\/readme$/.exec(path)
+    if (mSkillReadme) {
+      const raw = decodeURIComponent(mSkillReadme[1] ?? '')
+      if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(raw)) return sendJson(res, 400, { ok: false, error: '非法技能名' })
+      try {
+        const readme = readSkillReadme(raw, repoRootForSkills(), join(hostHome, '.claude'))
+        if (readme === undefined) return sendJson(res, 404, { ok: false, error: `技能 '${raw}' 没有 SKILL.md` })
+        return sendJson(res, 200, readme)
+      } catch (e) {
+        return sendJson(res, 500, { ok: false, error: errMsg(e) })
+      }
+    }
     if (path === '/api/skills/registry') {
       try {
         return sendJson(res, 200, { skills: listAllSkillsDetailed(repoRootForSkills(), join(hostHome, '.claude')) })
@@ -310,7 +324,7 @@ export async function handleGet(
       if (builtin !== null) {
         // Built-ins are immutable plugin assets. They are readable by the same client contract as
         // custom workflows, but never resolved from or shadowed by a project file.
-        return sendJson(res, 200, { ...builtin, source: 'builtin', effectiveIo: materializeWorkflowIo(builtin) })
+        return sendJson(res, 200, { ...builtin, source: 'builtin', effectiveIo: materializeWorkflowIo(builtin), branches: workflowBranchesForApi(builtin) })
       }
       try {
         // 先用 G6 安全读区分真 404/结构损坏；目标存在后才准备 project lock，避免 GET ghost
@@ -321,7 +335,7 @@ export async function handleGet(
         if (e instanceof WorkflowNotFoundError && wfName === 'default') {
           // default 无项目覆盖 → 内建模板源；有覆盖时走下方同自定义 workflow 的受信读 + track 引用校验。
           const template = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-          return sendJson(res, 200, { ...template, source: 'builtin', effectiveIo: materializeWorkflowIo(template) })
+          return sendJson(res, 200, { ...template, source: 'builtin', effectiveIo: materializeWorkflowIo(template), branches: workflowBranchesForApi(template) })
         }
         return sendJson(res, e instanceof WorkflowNotFoundError ? 404 : 500, { ok: false, error: errMsg(e) })
       }
@@ -343,7 +357,7 @@ export async function handleGet(
             errors: checked.errors,
           })
         }
-        return sendJson(res, 200, { ...checked.workflow, source: 'project', effectiveIo: materializeWorkflowIo(checked.workflow) })
+        return sendJson(res, 200, { ...checked.workflow, source: 'project', effectiveIo: materializeWorkflowIo(checked.workflow), branches: workflowBranchesForApi(checked.workflow) })
       } catch (e) {
         if (e instanceof WorkflowNotFoundError) return sendJson(res, 404, { ok: false, error: errMsg(e) })
         // registry 本身损坏/引用缺失同样不能把 workflow 伪装成健康 200；显式 degraded 409。

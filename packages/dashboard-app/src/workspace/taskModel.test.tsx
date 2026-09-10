@@ -51,7 +51,7 @@ describe('stagesOf', () => {
   it('按 phase 序号推 done / current / todo，todo 投影优先', () => {
     const stages = stagesOf(change(), undefined, t)
     expect(stages.map((stage) => stage.status)).toEqual(['done', 'done', 'done', 'current', 'todo', 'todo', 'todo'])
-    expect(stages[3]?.label).toBe('实现')
+    expect(stages[3]?.label).toBe('build')
     const projected = stagesOf(change({ todo: { hasTaskSource: true, stages: [{ id: 'spec', label: '规格', status: 'current', tasks: [] }] } }), undefined, t)
     expect(projected[2]?.status).toBe('current')
   })
@@ -80,8 +80,8 @@ describe('summaryOf · 四级优先级', () => {
   })
   it('summaryText 用阶段中文名与槽位中文名，不出现字段元数据', () => {
     const row: TaskRow = { key: 'k', root: '/repo', change: change(), rules: undefined, workflow: 'default', archived: false, stages: [], summary: { kind: 'missing', slot: BUILD_IO.outputs[0] as never } }
-    expect(summaryText(row, t)).toBe('实现 · 缺 构建提交')
-    expect(summaryText({ ...row, summary: { kind: 'ready', to: 'verify' } }, t)).toBe('实现 · 可进入验证')
+    expect(summaryText(row, t)).toBe('build · 缺 build_sha')
+    expect(summaryText({ ...row, summary: { kind: 'ready', to: 'verify' } }, t)).toBe('build · 可进入verify')
   })
 })
 
@@ -129,9 +129,10 @@ describe('rowsOf / filterRows / taskFacets', () => {
     expect(open.workflows.map((chip) => [chip.id, chip.count])).toEqual([['compact', 1], ['default', 2]])
     expect(open.tracks.map((chip) => [chip.id, chip.count])).toEqual([['backend', 2], ['frontend', 1]])
     expect(open.stages).toBeNull()
-    // 只有一条工作流时阶段行直接可用
+    // 只有一条工作流但多条轨道 → 阶段仍不可比；再选定一条轨道（或只剩一条）阶段行才出现
     const single = rows.filter((row) => row.workflow === 'default')
-    expect(taskFacets(single, DEFAULT_TASK_FILTER).stages?.map((chip) => chip.id)).toEqual(STEPS)
+    expect(taskFacets(single, DEFAULT_TASK_FILTER).stages).toBeNull()
+    expect(taskFacets(single, { ...DEFAULT_TASK_FILTER, track: 'backend' }).stages?.map((chip) => chip.id)).toEqual(STEPS)
     const compact = taskFacets(rows, { ...DEFAULT_TASK_FILTER, workflow: 'compact' })
     expect(compact.stages?.map((chip) => [chip.id, chip.label, chip.count])).toEqual([['draft', '起草', 1], ['done', '完成', 0]])
     const fe = taskFacets(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', track: 'frontend' })

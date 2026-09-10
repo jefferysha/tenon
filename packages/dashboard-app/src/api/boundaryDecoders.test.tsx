@@ -594,7 +594,7 @@ describe('API bounded-context response decoders', () => {
     const snapshot = validSnapshot()
     ;(snapshot.projects[0].changes[0].workflowRules.gateByStep as Record<
       string,
-      'review' | 'confirm' | null
+      'review' | 'auto' | null
     >).open = 'review'
     const change = snapshot.projects[0].changes[0] as unknown as Record<string, unknown>
     change.reviewHandshake = {
@@ -637,7 +637,7 @@ describe('API bounded-context response decoders', () => {
       const snapshot = validSnapshot()
       ;(snapshot.projects[0].changes[0].workflowRules.gateByStep as Record<
         string,
-        'review' | 'confirm' | null
+        'review' | 'auto' | null
       >).open = 'review'
       const change = snapshot.projects[0].changes[0] as unknown as Record<string, unknown>
       change.reviewHandshake = reviewHandshake
@@ -667,7 +667,7 @@ describe('API bounded-context response decoders', () => {
     const snapshot = validSnapshot()
     const gates = snapshot.projects[0].changes[0].workflowRules.gateByStep as Record<
       string,
-      'review' | 'confirm' | null
+      'review' | 'auto' | null
     >
     gates.open = 'review'
     const pm = structuredClone(snapshot.projects[0].changes[0])

@@ -22,6 +22,7 @@ export {
   deleteWorkflowDef,
   fetchConfig,
   fetchHooksConfig,
+  fetchSkillReadme,
   fetchSkillsRegistry,
   fetchWorkflow,
   fetchWorkflowIndex,

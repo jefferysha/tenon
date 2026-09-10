@@ -1,6 +1,7 @@
 import type { TrackRegistry } from '../tracks/types.js'
 import type { TrackPredicate } from './predicates.js'
 import type { WorkflowDef } from './types.js'
+import { workflowBranches } from './validate.js'
 
 /**
  * 校验 custom workflow 内所有 TrackPredicate 只引用当前 effective registry 中真实存在的 track。
@@ -15,22 +16,23 @@ export function validateWorkflowTrackReferences(wf: WorkflowDef, registry: Track
     })
   }
 
-  wf.steps.forEach((step, stepIndex) => {
-    step.skills.forEach((skill, skillIndex) => {
-      check(skill.when, `workflow.steps[${stepIndex}].skills[${skillIndex}].when`)
-    })
-    step.guards.forEach((guard, guardIndex) => {
-      check(guard.when, `workflow.steps[${stepIndex}].guards[${guardIndex}].when`)
-    })
-    step.transitions.forEach((transition, transitionIndex) => {
-      ;(transition.guards ?? []).forEach((guard, guardIndex) => {
-        check(guard.when, `workflow.steps[${stepIndex}].transitions[${transitionIndex}].guards[${guardIndex}].when`)
+  // 通用分支与每条 track 分支同样检查；分支 id 本身不要求已在 registry 登记（可只在工作流 YAML 里定义）。
+  for (const branch of workflowBranches(wf)) {
+    const base = branch.track === '' ? 'workflow.steps' : `workflow.tracks.${branch.track}.steps`
+    branch.steps.forEach((step, stepIndex) => {
+      step.guards.forEach((guard, guardIndex) => {
+        check(guard.when, `${base}[${stepIndex}].guards[${guardIndex}].when`)
+      })
+      step.transitions.forEach((transition, transitionIndex) => {
+        ;(transition.guards ?? []).forEach((guard, guardIndex) => {
+          check(guard.when, `${base}[${stepIndex}].transitions[${transitionIndex}].guards[${guardIndex}].when`)
+        })
+      })
+      ;(step.artifacts ?? []).forEach((artifact, artifactIndex) => {
+        check(artifact.requiredWhen, `${base}[${stepIndex}].artifacts[${artifactIndex}].requiredWhen`)
       })
     })
-    ;(step.artifacts ?? []).forEach((artifact, artifactIndex) => {
-      check(artifact.requiredWhen, `workflow.steps[${stepIndex}].artifacts[${artifactIndex}].requiredWhen`)
-    })
-  })
+  }
 
   return errors
 }

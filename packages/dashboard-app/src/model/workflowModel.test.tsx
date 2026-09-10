@@ -20,7 +20,7 @@ function relDef(): { name: string; steps: StepDef[] } {
     steps: [
       step('draft', null, [{ event: 'approved', to: 'review' }]),
       step('review', 'review', [{ event: 'shipped', to: 'ship' }]),
-      step('ship', 'confirm', []),
+      step('ship', 'auto', []),
     ],
   }
 }
@@ -73,7 +73,7 @@ describe('rulesFromDef —— WorkflowDef → WorkflowRules 映射', () => {
     expect(rules.transitions['ship']).toEqual([])
     expect(rules.gateByStep['draft']).toBeNull()
     expect(rules.gateByStep['review']).toBe('review')
-    expect(rules.gateByStep['ship']).toBe('confirm')
+    expect(rules.gateByStep['ship']).toBe('auto')
   })
 
   it('产出扩展面只携带不可变 outputs；按 Track 求值结果不混入 plan 规则', () => {

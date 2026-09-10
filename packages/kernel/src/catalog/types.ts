@@ -38,7 +38,7 @@ export interface WorkflowStepCatalogEntryV1 {
   readonly id: string
   readonly label: string
   readonly order: number
-  readonly gate: 'review' | 'confirm' | null
+  readonly gate: 'review' | 'auto' | null
   readonly skill_ids: readonly string[]
   readonly skill_dependencies: Readonly<Record<string, readonly string[]>>
   readonly transition_events: readonly string[]
@@ -72,7 +72,7 @@ export interface PipelineStageCatalogEntryV1 {
   /** Exact in-stage dependency graph; an empty list means the skill is eligible to run in parallel. */
   readonly skill_dependencies: Readonly<Record<string, readonly string[]>>
   readonly depends_on: readonly string[]
-  readonly gate: 'review' | 'confirm' | null
+  readonly gate: 'review' | 'auto' | null
 }
 
 export interface PipelineCatalogEntryV1 {

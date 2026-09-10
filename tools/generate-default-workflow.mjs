@@ -70,12 +70,55 @@ export function parseDefaultWorkflow(yamlText) {
   if (!nameMatch) fail('第一行必须是 "name: <name>"')
   const stepsIndex = lines.findIndex((line, index) => index > 0 && line.trim() === 'steps:' && indentOf(line) === 0)
   if (stepsIndex < 0) fail('缺顶层 "steps:"')
+  const { steps, next } = parseStepItems(lines, stepsIndex + 1, 0)
+  const tracks = {}
+  let i = next
+  if ((lines[i] ?? '').trim() === 'tracks:' && indentOf(lines[i] ?? '') === 0) {
+    i++
+    while (i < lines.length) {
+      const line = lines[i] ?? ''
+      if (line.trim() === '') { i++; continue }
+      if (indentOf(line) === 0) break
+      const idMatch = /^  ([a-z][a-z0-9_-]{0,31}):\s*$/.exec(line)
+      if (!idMatch) fail(`tracks 下每条分支须是两空格缩进的 '<track-id>:'，实际 '${line}'`)
+      const id = idMatch[1]
+      if (tracks[id] !== undefined) fail(`tracks 重复声明分支 '${id}'`)
+      i++
+      let label
+      let branchSteps
+      while (i < lines.length) {
+        const inner = lines[i] ?? ''
+        if (inner.trim() === '') { i++; continue }
+        if (indentOf(inner) <= 2) break
+        const labelMatch = /^\s*label:\s*(.+?)\s*$/.exec(inner)
+        if (labelMatch) { label = labelMatch[1]; i++; continue }
+        if (/^\s*steps:\s*$/.test(inner)) {
+          const parsedBranch = parseStepItems(lines, i + 1, indentOf(inner))
+          branchSteps = parsedBranch.steps
+          i = parsedBranch.next
+          continue
+        }
+        fail(`分支 '${id}' 出现未知字段行 '${inner.trim()}'`)
+      }
+      if (branchSteps === undefined) fail(`分支 '${id}' 缺 steps`)
+      tracks[id] = { label, steps: branchSteps }
+    }
+  }
+  while (i < lines.length) {
+    if ((lines[i] ?? '').trim() !== '') fail(`steps / tracks 之后出现无法识别的内容 '${lines[i].trim()}'`)
+    i++
+  }
+  return { name: nameMatch[1], steps, tracks }
+}
 
+/** 连续的 `- id:` 步骤项（缩进 > blockIndent）；遇到缩进 ≤ blockIndent 的非空行即停。 */
+function parseStepItems(lines, start, blockIndent) {
   const steps = []
-  let i = stepsIndex + 1
+  let i = start
   while (i < lines.length) {
     const line = lines[i] ?? ''
     if (line.trim() === '') { i++; continue }
+    if (indentOf(line) <= blockIndent) break
     const idMatch = /^\s*-\s+id:\s*(\S+)\s*$/.exec(line)
     if (!idMatch) fail(`steps 下每项须以 "- id:" 开头，实际 '${line}'`)
     const stepIndent = indentOf(line)
@@ -104,7 +147,7 @@ export function parseDefaultWorkflow(yamlText) {
     }
     steps.push({ id, label, artifacts })
   }
-  return { name: nameMatch[1], steps }
+  return { steps, next: i }
 }
 
 /** 解析 `artifacts:` 下的逐条 `- field:` 项（缩进深于 blockIndent），返回消费到的行号。 */
@@ -164,10 +207,18 @@ function parseArtifactEntries(lines, start, blockIndent, out) {
  */
 export function validateAndNormalize(parsed, fieldOrder) {
   if (parsed.name !== 'default') fail(`workflow name 必须是 'default'（实际 '${parsed.name}'）`)
+  const out = { _base: normalizeBranchSteps(parsed.steps, fieldOrder) }
+  for (const [track, branch] of Object.entries(parsed.tracks ?? {})) {
+    out[track] = normalizeBranchSteps(branch.steps, fieldOrder)
+  }
+  return out
+}
+
+function normalizeBranchSteps(steps, fieldOrder) {
   const fieldSet = new Set(fieldOrder)
   const seenStepIds = new Set()
   const table = []
-  for (const step of parsed.steps) {
+  for (const step of steps) {
     if (seenStepIds.has(step.id)) fail(`step id '${step.id}' 重复`)
     seenStepIds.add(step.id)
     if (step.artifacts.length === 0) continue
@@ -236,7 +287,7 @@ export function renderGenerated(table, steps, yamlText) {
   out.push(' * 重新生成：npm run generate:default-workflow')
   out.push(` * 来源：${SOURCE_REL}`)
   out.push(' *')
-  out.push(' * 含稳定排序的 default step 元数据与 artifact declaration 纯数据；track predicate 过滤与查询在')
+  out.push(' * 含稳定排序的 default step 元数据（通用分支）与按分支（_base + tracks.<id>）的 artifact declaration 纯数据；查询在')
   out.push(' * 手写层 default-artifacts.ts / todo-projection.ts。改 default.yaml 后须重跑生成（CI freshness')
   out.push(' * 门禁逐字节校验）。')
   out.push(' */')
@@ -249,12 +300,16 @@ export function renderGenerated(table, steps, yamlText) {
   out.push('] as const')
   out.push('')
   out.push('export const DEFAULT_ARTIFACT_DECLARATIONS = {')
-  for (const { stepId, artifacts } of table) {
-    out.push(`  ${stepId}: [`)
-    for (const a of artifacts) out.push(...renderArtifact(a, '    '))
-    out.push('  ],')
+  for (const [branch, branchTable] of Object.entries(table)) {
+    out.push(`  ${branch}: {`)
+    for (const { stepId, artifacts } of branchTable) {
+      out.push(`    ${stepId}: [`)
+      for (const a of artifacts) out.push(...renderArtifact(a, '      '))
+      out.push('    ],')
+    }
+    out.push('  },')
   }
-  out.push('} as const satisfies Readonly<Record<string, readonly DefaultArtifactDeclaration[]>>')
+  out.push('} as const satisfies Readonly<Record<string, Readonly<Record<string, readonly DefaultArtifactDeclaration[]>>>>')
   return out.join('\n') + '\n'
 }
 

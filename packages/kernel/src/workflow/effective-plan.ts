@@ -21,7 +21,6 @@ import {
   compileWorkflowReviewBudgetPolicy,
 } from './policy.js'
 import type { SkillRef, WorkflowDef } from './types.js'
-import { matchesTrackPredicate } from './predicates.js'
 import { validateWorkflow } from './validate.js'
 import type { WorkflowPlanSnapshot } from './workflow-plan-snapshot-types.js'
 import type {
@@ -87,47 +86,45 @@ function assertValid(definition: WorkflowDef, origin: 'custom' | 'default'): voi
   if (errors.length > 0) throw new Error(`effective workflow 无效：\n${errors.map((error) => `  - ${error}`).join('\n')}`)
 }
 
-/**
- * 技能的轨道条件求值：无 when → 全轨道；有 when → 命中 track.id，或 track 开启技能矩阵时命中其 skills.profile
- * （自定义轨道按 profile 继承 default 矩阵技能）。未传 track（无轨道语境的编译）不过滤。
- */
-export function skillAppliesToTrack(skill: Pick<SkillRef, 'when'>, track: TrackDefinition | undefined): boolean {
-  if (skill.when === undefined || track === undefined) return true
-  if (matchesTrackPredicate(skill.when, track.id)) return true
-  const profile = track.policyProfile.skills
-  return profile.matrix && profile.profile !== '_all' && profile.profile !== track.id && matchesTrackPredicate(skill.when, profile.profile)
+/** 按 track 选中分支 IR；结果剥离 tracks（无分支 / 未命中 → 通用分支）。 */
+export function selectTrackBranchIr(workflow: WorkflowIR, track: string | undefined): WorkflowIR {
+  const { tracks, ...rest } = workflow
+  const branch = track === undefined ? undefined : tracks?.[track]
+  return branch === undefined ? rest : { ...rest, steps: branch.steps }
 }
 
 function planFromIr(
   id: string,
   executionModel: EffectiveWorkflowPlan['executionModel'],
-  workflow: WorkflowIR,
+  compiled: WorkflowIR,
   track?: TrackDefinition,
   frozenDocumentPolicy?: DocumentGovernancePolicy | null,
   frozenWorkflowFingerprint?: string,
 ): EffectiveWorkflowPlan {
+  // track 分支：`definition` 是完整定义（含全部分支），指纹与冻结快照都以它为身份；`workflow` 是按 change 的
+  // track 选中的那条 pipeline（未命中 → 通用分支），运行时的步骤 / 技能 / 门禁 / 投影都看它。
+  // 无分支的定义两者 JSON 相同，指纹与分支化之前逐字节一致。
+  const workflow = selectTrackBranchIr(compiled, track?.id)
   const documentPolicy = frozenDocumentPolicy === undefined
-    ? documentGovernancePolicy(id, workflow)
+    ? documentGovernancePolicy(id, compiled)
     : frozenDocumentPolicy ?? undefined
   const skillPolicy = executionModel === 'phase-manifest' ? 'manifest-overlay' : 'step-declared'
-  // 技能矩阵并入 YAML：default（manifest-overlay）里带 when 的技能不进 phase 槽，而是作为 per-track 叠加层
-  // 交给 resolver 按 track / profile 求值（与旧 manifest 矩阵同位置、同门禁语义）；自定义（step-declared）
-  // 则直接按当前轨道过滑成本 step 的声明列表。
-  const matrixEmbedded = workflow.steps.some((step) => step.skills.some((skill) => skill.when !== undefined))
-  const reviewSteps = workflow.steps.filter((step) => step.gate === 'review').map((step) => step.id)
+  const reviewStepsOf = (steps: WorkflowIR['steps']): string[] => steps.filter((step) => step.gate === 'review').map((step) => step.id)
+  const projectionStepsOf = (steps: WorkflowIR['steps']): Array<{ id: string; label: string }> => steps.map((step) => ({ id: step.id, label: step.label }))
+  const reviewSteps = reviewStepsOf(workflow.steps)
   const reviewLaneScopes = workflow.steps
     .filter((step) => (step.reviewLanes?.length ?? 0) > 0)
     .map((step) => ({ stepId: step.id, lanes: step.reviewLanes ?? [] }))
-  const projectionSteps = workflow.steps.map((step) => ({ id: step.id, label: step.label }))
+  const projectionSteps = projectionStepsOf(workflow.steps)
   const stepLabelSource = executionModel === 'phase-manifest' ? 'localized-builtin' : 'workflow-defined'
   const workflowFingerprint = frozenWorkflowFingerprint ?? sha256Hex(JSON.stringify({
     schema: 'effective-workflow-plan-v3',
     id,
     executionModel,
-    workflow,
-    decomposition: workflow.decomposition,
-    interaction: workflow.interaction,
-    reviewBudget: workflow.reviewBudget,
+    workflow: compiled,
+    decomposition: compiled.decomposition,
+    interaction: compiled.interaction,
+    reviewBudget: compiled.reviewBudget,
     documentPolicy: documentPolicy === undefined
       ? null
       : {
@@ -135,14 +132,15 @@ function planFromIr(
           fingerprint: documentGovernanceFingerprint(documentPolicy),
         },
     skillPolicy,
-    reviewSteps,
-    projectionSteps,
+    reviewSteps: reviewStepsOf(compiled.steps),
+    projectionSteps: projectionStepsOf(compiled.steps),
   }))
   const trackPolicy = track?.policyProfile
   const documentProfile = profileFor(documentPolicy)
   return freeze({
     id,
     executionModel,
+    definition: compiled,
     workflow,
     decomposition: workflow.decomposition,
     interaction: workflow.interaction,
@@ -155,30 +153,20 @@ function planFromIr(
       execution: { model: executionModel },
       skills: {
         source: skillPolicy,
-        steps: workflow.steps.map((step) => {
-          const active = skillPolicy === 'manifest-overlay'
-            ? step.skills.filter((skill) => skill.when === undefined)
-            : step.skills.filter((skill) => skillAppliesToTrack(skill, track))
-          const activeIds = new Set(active.map((skill) => skill.id))
-          return {
-            stepId: step.id,
-            requiredSkillIds: active.map((skill) => skill.id),
-            declared: active.map((skill) => ({
-              id: skill.id,
-              dependsOn: (skill.depends_on ?? []).filter((dependency) => activeIds.has(dependency)),
-              kind: skill.kind ?? 'work',
-              ...(skill.review_lane === undefined ? {} : { reviewLane: skill.review_lane }),
-            })),
-            conditional: skillPolicy === 'manifest-overlay'
-              ? step.skills.flatMap((skill) => skill.when === undefined ? [] : [{ id: skill.id, when: skill.when }])
-              : [],
-          }
-        }),
+        steps: workflow.steps.map((step) => ({
+          stepId: step.id,
+          requiredSkillIds: step.skills.map((skill) => skill.id),
+          declared: step.skills.map((skill) => ({
+            id: skill.id,
+            dependsOn: [...(skill.depends_on ?? [])],
+            kind: skill.kind ?? 'work',
+            ...(skill.review_lane === undefined ? {} : { reviewLane: skill.review_lane }),
+          })),
+        })),
         trackOverlay: {
           matrix: trackPolicy?.skills.matrix ?? false,
           profile: trackPolicy?.skills.profile ?? '_all',
         },
-        matrixEmbedded,
       },
       documents: {
         governed: documentPolicy !== undefined,
@@ -204,15 +192,17 @@ function planFromIr(
 }
 
 export function workflowPlanSnapshot(plan: EffectiveWorkflowPlan): WorkflowPlanSnapshot {
+  // 冻结的是完整定义（含分支）；恢复时再按 change 的 track 选分支。
+  const definition = plan.definition ?? plan.workflow
   const current = planFromIr(
     plan.id,
     plan.executionModel,
-    plan.workflow,
+    definition,
     undefined,
     plan.documentPolicy ?? null,
   )
   if (current.workflowFingerprint !== plan.workflowFingerprint) {
-    const { reviewBudget: _reviewBudget, ...v3Workflow } = plan.workflow
+    const { reviewBudget: _reviewBudget, ...v3Workflow } = definition
     if (historicalV3WorkflowFingerprint(
       plan.id,
       plan.executionModel,
@@ -245,7 +235,7 @@ export function workflowPlanSnapshot(plan: EffectiveWorkflowPlan): WorkflowPlanS
     version: 3,
     workflowId: plan.id,
     executionModel: plan.executionModel,
-    workflow: structuredClone(plan.workflow),
+    workflow: structuredClone(definition),
     documentPolicy: structuredClone(plan.documentPolicy ?? null),
     decomposition: structuredClone(plan.decomposition),
     interaction: structuredClone(plan.interaction),

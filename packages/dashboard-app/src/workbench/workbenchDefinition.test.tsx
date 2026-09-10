@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BASE_BRANCH,
   addDocumentSlotInDef,
   addFieldOutputInDef,
   addSkillToDef,
+  addTrackBranch,
   blankWorkflow,
+  branchesOf,
   cloneWorkflowDef,
   copyWorkflowDef,
   definitionForWrite,
@@ -11,10 +14,13 @@ import {
   removeFieldOutputInDef,
   removeSkillFromDef,
   removeStageFromDef,
+  removeTrackBranch,
+  selectBranchDef,
   setDocumentReadInDef,
   setFieldInputInDef,
   setStepSkillWavesInDef,
   workflowNameFromYaml,
+  writeBranchDef,
   type WbWorkflowDef,
 } from './workbenchDefinition'
 
@@ -107,5 +113,43 @@ describe('workbenchDefinition · 新建', () => {
     expect(blankWorkflow('fresh', '阶段 1').steps).toEqual([{ id: 'stage-1', label: '阶段 1', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }])
     expect(workflowNameFromYaml('name: imported\nsteps: []\n')).toBe('imported')
     expect(workflowNameFromYaml('steps: []\n')).toBe('')
+  })
+})
+
+describe('workbenchDefinition · track 分支', () => {
+  it('branchesOf：通用分支恒在首位；selectBranchDef 提升分支 steps 与分支 IO；writeBranchDef 只写回对应分支', () => {
+    const def: WbWorkflowDef = {
+      ...twoStep(),
+      tracks: { mobile: { label: '移动端', steps: [{ id: 'm1', label: 'M1', gate: null, skills: [{ id: 'sm' }], inputs: [], outputs: [], guards: [], transitions: [] }] } },
+      branches: { _base: { effectiveIo: { a: { inputs: [], outputs: [] } } }, mobile: { label: '移动端', effectiveIo: { m1: { inputs: [], outputs: [] } } } },
+    }
+    expect(branchesOf(def)).toEqual([{ id: BASE_BRANCH, label: null }, { id: 'mobile', label: '移动端' }])
+    const mobile = selectBranchDef(def, 'mobile')
+    expect(mobile.steps.map((step) => step.id)).toEqual(['m1'])
+    expect(Object.keys(mobile.effectiveIo ?? {})).toEqual(['m1'])
+    expect(mobile).not.toHaveProperty('tracks')
+    const base = selectBranchDef(def, BASE_BRANCH)
+    expect(base.steps.map((step) => step.id)).toEqual(['a', 'b'])
+    expect(Object.keys(base.effectiveIo ?? {})).toEqual(['a'])
+
+    const edited = writeBranchDef(def, 'mobile', { ...mobile, steps: [{ ...mobile.steps[0]!, label: 'M1 改' }] })
+    expect(edited.tracks?.mobile?.steps[0]?.label).toBe('M1 改')
+    expect(edited.steps.map((step) => step.id)).toEqual(['a', 'b'])
+    expect(edited.branches).toBe(def.branches)
+    const editedBase = writeBranchDef(def, BASE_BRANCH, { ...base, steps: base.steps.slice(0, 1) })
+    expect(editedBase.steps.map((step) => step.id)).toEqual(['a'])
+    expect(editedBase.tracks?.mobile?.steps.map((step) => step.id)).toEqual(['m1'])
+  })
+
+  it('addTrackBranch 复制通用分支；removeTrackBranch 删掉分支，最后一条删除后不再带 tracks', () => {
+    const def = twoStep()
+    const withTrack = addTrackBranch(def, 'web', '网页')
+    expect(withTrack.tracks?.web?.label).toBe('网页')
+    expect(withTrack.tracks?.web?.steps.map((step) => step.id)).toEqual(['a', 'b'])
+    expect(withTrack.tracks?.web?.steps[0]).not.toBe(def.steps[0])
+    const unlabeled = addTrackBranch(def, 'api', '')
+    expect(unlabeled.tracks?.api).not.toHaveProperty('label')
+    expect(removeTrackBranch(withTrack, 'web')).not.toHaveProperty('tracks')
+    expect(definitionForWrite({ ...withTrack, branches: {} })).not.toHaveProperty('branches')
   })
 })

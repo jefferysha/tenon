@@ -1,3 +1,4 @@
+import type { TrackDefinition } from '@tenon/kernel'
 import {
   assessBuildRevisionTrust,
   builtinWorkflow,
@@ -142,11 +143,12 @@ export function resolveSnapshotEffectivePlan(
     readonly workflowPlanSnapshot?: WorkflowPlanSnapshot
   },
   loadDefinition: (name: string) => WorkflowDef | null = (name) => loadWorkflow(root, name),
+  track?: TrackDefinition,
 ): EffectiveWorkflowPlan {
   const plan = resolveBoundEffectiveWorkflowPlan(workflowName, binding, (name) => {
     const definition = builtinWorkflow(name) ?? loadDefinition(name)
     return definition === null ? null : compileWorkflow(definition)
-  }, undefined, binding.workflowPlanSnapshot)
+  }, track, binding.workflowPlanSnapshot)
   if (plan === null) throw new Error(`workflow '${workflowName}' 未找到`)
   return plan
 }

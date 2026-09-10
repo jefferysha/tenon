@@ -213,9 +213,10 @@ async function scanAnchoredProject(
   let gitHeadPromise: Promise<string> | undefined
   const workspaceFingerprints = new Map<string, Promise<string>>()
   const trackDefinitions = new Map<string, TrackDefinition | undefined>()
-  const trackDefinition = (trackId: string): TrackDefinition | undefined => {
-    if (!trackDefinitions.has(trackId)) trackDefinitions.set(trackId, resolveSnapshotTrack(readRoot, trackId))
-    return trackDefinitions.get(trackId)
+  const trackDefinition = (trackId: string, workflowName: string): TrackDefinition | undefined => {
+    const key = `${workflowName}\u0000${trackId}`
+    if (!trackDefinitions.has(key)) trackDefinitions.set(key, resolveSnapshotTrack(readRoot, trackId, workflowName))
+    return trackDefinitions.get(key)
   }
   const gitHeadSha = deps.gitHeadSha
   const workspaceFingerprint = deps.workspaceFingerprint
@@ -277,13 +278,13 @@ async function scanAnchoredProject(
         documentGovernanceFingerprint: state.runMetadata?.documentGovernanceFingerprint,
         workflowPlanFingerprint: state.runMetadata?.workflowPlanFingerprint,
         workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot,
-      })
+      }, undefined, trackDefinition(track, workflowName))
       legacyWorkflowRules[workflowName] ??= legacySnapshotWorkflowRules(plan)
       const [documents, terminalActivity, authority, skillRuns] = await Promise.all([
         documentEvidence(readRoot, changeDir, plan, phase),
         readTerminalActivity(changeDir, e.name, nowMs),
         readWorkflowSnapshotAuthority(changeDir, state, plan),
-        projectSkillRuns(changeDir, plan, phase, trackDefinition(track), deps.mandatorySkills),
+        projectSkillRuns(changeDir, plan, phase, trackDefinition(track, workflowName), deps.mandatorySkills),
       ])
       const tasksProjection = await readTasksProjection(changeDir, {}, anchor)
       const todo = projectPipelineTodo({

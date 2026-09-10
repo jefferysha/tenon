@@ -24,6 +24,7 @@ import {
 import type { ChangeSnapshot } from './types.js'
 import { projectWorkflowDefinitionStatus } from './workflowDefinitionStatus.js'
 import { projectReviewHandshake } from './reviewHandshake.js'
+import { resolveSnapshotTrack } from './skillRuns.js'
 import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'
 import {
   resolveSnapshotEffectivePlan,
@@ -328,6 +329,7 @@ export async function readChangeSnapshot(
         ? { kind: 'current', fingerprint: configuredPolicy.workflowFingerprint }
         : { kind: configuredPolicy.status === 'unavailable' ? 'invalid' : configuredPolicy.status },
     )
+    const trackId = Array.isArray(state.fields.track) ? state.fields.track.join(',') : (state.fields.track ?? '')
     const plan = resolveSnapshotEffectivePlan(rootPath, workflowName, {
       documentProfile: state.runMetadata?.documentProfile,
       documentGovernanceFingerprint: state.runMetadata?.documentGovernanceFingerprint,
@@ -340,7 +342,7 @@ export async function readChangeSnapshot(
         if (error instanceof WorkflowNotFoundError) return null
         throw error
       }
-    })
+    }, resolveSnapshotTrack(rootPath, trackId, workflowName))
     const { gitHeadSha, workspaceFingerprint } = deps
     const capabilityDeps: WorkflowSnapshotCapabilityDeps = {
       ...(deps.fileExists === undefined ? {} : { fileExists: deps.fileExists }),

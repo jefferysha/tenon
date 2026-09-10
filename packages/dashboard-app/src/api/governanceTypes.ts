@@ -45,8 +45,15 @@ export interface WbSkillRef {
   kind?: 'work' | 'review'
   review_lane?: string
   depends_on?: string[]
-  /** 轨道条件；缺省 = 全部轨道。 */
-  when?: WbTrackPredicate
+}
+
+/** 某技能 SKILL.md 全文与来源（GET /api/skills/:name/readme）。 */
+export interface WbSkillReadme {
+  name: string
+  source: WbSkillEntry['source']
+  origin: string
+  path: string
+  markdown: string
 }
 
 export interface WbTrackPredicate {
@@ -90,7 +97,7 @@ export interface WbTransition {
 export interface WbStepDef {
   id: string
   label: string
-  gate: 'review' | 'confirm' | null
+  gate: 'review' | 'auto' | null
   prompt?: string
   reviewLanes?: string[]
   skills: WbSkillRef[]
@@ -192,7 +199,22 @@ export interface WbWorkflowDef {
   interaction?: WbInteractionPolicy
   /** Omitted only by pre-policy in-memory fixtures; HTTP decoding always projects a finite v1 budget. */
   reviewBudget?: WbReviewBudgetPolicy
+  /** 通用分支：track 未命中任何 tracks.<id> 时使用的 pipeline。 */
   steps: WbStepDef[]
+  /** track 分支：每条 track 自己的完整 pipeline。 */
+  tracks?: Record<string, WbTrackBranch>
+  /** 读接口附带：每条分支（`_base` = 通用）物化后的 IO。写回前剔除。 */
+  branches?: Record<string, WbBranchProjection>
+}
+
+export interface WbTrackBranch {
+  label?: string
+  steps: WbStepDef[]
+}
+
+export interface WbBranchProjection {
+  label?: string
+  effectiveIo: WbEffectiveIo
 }
 
 export interface WbTrackDefinition {

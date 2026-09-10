@@ -75,7 +75,9 @@ export { isDefaultWorkflowName, isValidWorkflowName } from './workflow/identifie
 export { isSkillUnlocked } from './workflow/skillDag.js'
 export { parseWorkflow } from './workflow/parse.js'
 export { serializeWorkflow } from './workflow/serialize.js'
-export { validateWorkflow, validateWorkflowForStorage } from './workflow/validate.js'
+export { selectTrackBranch, validateWorkflow, validateWorkflowForStorage, workflowBranches } from './workflow/validate.js'
+// track 分支：registry 未登记但工作流 YAML 里有同名分支的 track 也可用（合成缺省策略定义）。
+export { projectWorkflowNames, requireTrackForRoot } from './workflow/branch-track-lookup.js'
 export { validateWorkflowTrackReferences } from './workflow/track-reference-validation.js'
 export type {
   StepDef, StepTransition, WorkflowActionConfig, WorkflowDecompositionAskCondition,
@@ -160,8 +162,6 @@ export type {
   EffectiveWorkflowPlan, LegacyWorkflowIR, PersistedDocumentGovernanceBinding, WorkflowPlanSnapshot,
   WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3,
 } from './workflow/effective-plan.js'
-// 技能轨道条件求值（YAML `when`）：dashboard 投影按 change 的 TrackDefinition（id 或 profile 继承）过滤矩阵技能。
-export { skillAppliesToTrack } from './workflow/effective-plan.js'
 export {
   documentSlotsLocked, materializeWorkflowIo,
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,

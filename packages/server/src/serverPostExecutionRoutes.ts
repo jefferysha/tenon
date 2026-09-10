@@ -13,7 +13,7 @@ import {
   listAutomationPolicyTemplates,
   loadTrackRegistry,
   loadWorkflow,
-  requireTrack,
+  requireTrackForRoot,
   stateStorageExistsSync,
   validateWorkflow,
   validateWorkflowTrackReferences,
@@ -227,7 +227,7 @@ export async function handlePostExecutionRoutes(
           },
           skillProfiles: trackSkillProfiles,
         }
-        track = requireTrack(loadTrackRegistry(root, trackCtx), trackId)
+        track = requireTrackForRoot(loadTrackRegistry(root, trackCtx), trackId, root)
       } catch (e) {
         return sendJson(res, 400, { ok: false, error: errMsg(e) })
       }
@@ -327,8 +327,8 @@ export async function handlePostExecutionRoutes(
         breadcrumb,
         // 这里用的正是 Dashboard 当前 root 的 effective Track Registry，而不是靠 track id
         // 写死 PM。自定义 track 也可通过 auto_enqueue_on_spec_complete 显式接入同一条后置编排。
-        resolveTrackPolicy: (trackId) => requireTrack(loadEffectiveTrackRegistry(), trackId).policyProfile,
-        resolveTrack: (trackId) => requireTrack(loadEffectiveTrackRegistry(), trackId),
+        resolveTrackPolicy: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root).policyProfile,
+        resolveTrack: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root),
         skillResolver: loadedManifest
           ? createEffectiveSkillResolver({
               registry: loadEffectiveTrackRegistry,

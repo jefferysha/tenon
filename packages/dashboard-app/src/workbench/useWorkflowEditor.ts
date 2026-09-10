@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type SetStateAction } from 'react'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
-import type { WbEffectiveIo, WbFieldRef, WbStepDef, WbTrackPredicate, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbEffectiveIo, WbFieldRef, WbStepDef, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
 import { fetchWorkflowYaml, putWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
 import { invalidateWorkflowRules } from '../model/workflowModel'
-import { isPhase } from '../types'
 import { invalidateWorkflowDefinition } from '../workspace/useWorkflowDefinition'
 import { draftEffectiveIo, lintWorkflow, type LintIssue } from '../workflow/lint'
 import type { SlotCandidate } from '../workflow/slotCatalog'
@@ -15,24 +14,29 @@ import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
 import { useStageDraftEditor } from './useStageDraftEditor'
 import { useWorkbenchDirtyState, type WorkbenchDirtySource } from './useWorkbenchDirtyState'
 import {
+  BASE_BRANCH,
   addDocumentSlotInDef,
   addFieldOutputInDef,
   addSkillToDef,
+  addTrackBranch,
   blankWorkflow,
+  branchesOf,
   copyWorkflowDef,
   definitionForWrite,
   removeDocumentSlotInDef,
   removeFieldOutputInDef,
   removeSkillFromDef,
   removeStageFromDef,
+  removeTrackBranch,
   renameStepInDef,
   reorderStagesInDef,
+  selectBranchDef,
   setDocumentReadInDef,
   setFieldInputInDef,
   setGateInDef,
-  setSkillWhenInDef,
   setStepSkillWavesInDef,
   workflowNameFromYaml,
+  writeBranchDef,
 } from './workbenchDefinition'
 
 export type SaveStatus = { kind: 'idle' | 'ok' } | { kind: 'error'; errors: string[]; conflict?: boolean }
@@ -74,11 +78,22 @@ export interface WorkflowEditor {
   namesErrorText: string | null
   defaultSource: WbWorkflowSource
   wfName: string | null
+  /** 完整定义（含全部分支）；编辑器读路径用 branchDef。 */
+  fullDef: WbWorkflowDef | null
+  /** 所选分支的单条 pipeline 视图（steps / effectiveIo 已按分支提升）。 */
   def: WbWorkflowDef | null
   defErrorText: string | null
+  /** 当前分支：'' = 通用分支，其余 = tracks.<id>。 */
+  branch: string
+  setBranch: (branch: string) => void
+  branches: Array<{ id: string; label: string | null }>
+  addTrack: (id: string, label: string) => void
+  removeTrack: (id: string) => void
   /** 草稿的物化 IO（字段槽位按草稿重算，文档槽位沿用已保存版本或草稿契约）。 */
   effectiveIo: WbEffectiveIo | undefined
   lint: LintIssue[]
+  /** 任一分支有 lint 问题 → 不能保存。 */
+  lintBlocked: boolean
   /** 页面是否持有写凭证；无则所有写入口置灰。 */
   canWrite: boolean
   dirty: boolean
@@ -95,7 +110,6 @@ export interface WorkflowEditor {
   removeStage: (stepId: string) => void
   reorderStages: (fromId: string, toId: string, after: boolean) => void
   setSkillWaves: (stepId: string, waves: readonly (readonly string[])[]) => void
-  setSkillWhen: (stepId: string, skillId: string, when: WbTrackPredicate | undefined) => void
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
   addOutput: (stepId: string, candidate: SlotCandidate) => void
@@ -133,7 +147,8 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   const [defaultSource, setDefaultSource] = useState<WbWorkflowSource>('builtin')
   const [namesError, setNamesError] = useState<unknown | null>(null)
   const [wfName, setWfName] = useState<string | null>(null)
-  const [def, setDefState] = useState<WbWorkflowDef | null>(null)
+  const [fullDef, setDefState] = useState<WbWorkflowDef | null>(null)
+  const [branch, setBranchState] = useState<string>(BASE_BRANCH)
   const [defError, setDefError] = useState<unknown | null>(null)
   const [reloadNonce, setReloadNonce] = useState(0)
   const [stageId, setStageId] = useState<string | null>(null)
@@ -159,7 +174,18 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   localeRef.current = { t, lang }
   const baselineRef = useRef<WbWorkflowDef | null>(null)
   const baselineJson = useRef<string | null>(null)
-  const stageDraft = useStageDraftEditor({ def, stageId, setDef: setDefState, setStageId })
+  // 分支视图：所有读路径看 branchDef；写路径经 setBranchDef 回写到完整定义的对应分支。
+  const effectiveBranch = fullDef === null || branch === BASE_BRANCH || fullDef.tracks?.[branch] !== undefined ? branch : BASE_BRANCH
+  const def = useMemo(() => fullDef === null ? null : selectBranchDef(fullDef, effectiveBranch), [fullDef, effectiveBranch])
+  const setBranchDef = useCallback((update: SetStateAction<WbWorkflowDef | null>): void => {
+    setDefState((previous) => {
+      if (previous === null) return previous
+      const current = selectBranchDef(previous, effectiveBranch)
+      const next = typeof update === 'function' ? update(current) : update
+      return next === null ? previous : writeBranchDef(previous, effectiveBranch, next)
+    })
+  }, [effectiveBranch])
+  const stageDraft = useStageDraftEditor({ def, stageId, setDef: setBranchDef, setStageId })
   const { setAddStageOpen } = stageDraft
   const mandatory = useMandatorySkills(root)
   const canWrite = getToken() !== ''
@@ -182,6 +208,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     setNamesError(null)
     setWfName(null)
     setDefState(null)
+    setBranchState(BASE_BRANCH)
     setDefError(null)
     setReloadNonce(0)
     setSaving(false)
@@ -248,21 +275,48 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
 
   const namesErrorText = namesError === null ? null : t('workbench.names_error', { msg: formatApiError(namesError, t) })
   const defErrorText = defError === null ? null : t('workbench.def_error', { msg: formatApiError(defError, t) })
-  const dirty = def !== null && baselineJson.current !== null && JSON.stringify(definitionForWrite(def)) !== baselineJson.current
+  const dirty = fullDef !== null && baselineJson.current !== null && JSON.stringify(definitionForWrite(fullDef)) !== baselineJson.current
   const createDirty = createOpen && (createName !== '' || createYaml !== '')
   const { setSourceDirty } = useWorkbenchDirtyState({ localDirty: dirty || createDirty || stageDraft.draftDirty, onDirtyChange })
   const reportTrackDirty = useCallback((value: boolean) => { setSourceDirty('track', value) }, [setSourceDirty])
 
-  const effectiveIo = useMemo(() => def === null ? undefined : draftEffectiveIo(def, baselineRef.current?.effectiveIo), [def])
+  const effectiveIo = useMemo(() => {
+    if (def === null) return undefined
+    const baseline = baselineRef.current === null ? undefined : selectBranchDef(baselineRef.current, effectiveBranch).effectiveIo
+    return draftEffectiveIo(def, baseline)
+  }, [def, effectiveBranch])
   const lint = useMemo(() => def === null ? [] : lintWorkflow(def, effectiveIo), [def, effectiveIo])
+  // 保存门禁看全部分支：任一分支缺输出都不能保存。
+  const lintBlocked = useMemo(() => {
+    if (fullDef === null) return false
+    return branchesOf(fullDef).some((candidate) => {
+      const view = selectBranchDef(fullDef, candidate.id)
+      const baseline = baselineRef.current === null ? undefined : selectBranchDef(baselineRef.current, candidate.id).effectiveIo
+      return lintWorkflow(view, draftEffectiveIo(view, baseline)).length > 0
+    })
+  }, [fullDef])
+  // 名称只显示一个：YAML 有 label 用 label，没有就用 id；前端不做翻译。
   const labelOf = useCallback((stepId: string): string => {
     const step = def?.steps.find((candidate) => candidate.id === stepId)
-    if (def?.name === 'default' && isPhase(stepId)) return t(`phases.${stepId}`)
     return step?.label || stepId
-  }, [def, t])
+  }, [def])
 
   const mutate = useCallback((update: (previous: WbWorkflowDef) => WbWorkflowDef): void => {
-    setDefState((previous) => previous === null ? previous : update(previous))
+    setBranchDef((previous) => previous === null ? previous : update(previous))
+  }, [setBranchDef])
+  const branches = useMemo(() => branchesOf(fullDef), [fullDef])
+  const setBranch = useCallback((next: string): void => {
+    setBranchState(next)
+    setStageId(null)
+  }, [])
+  const addTrack = useCallback((id: string, label: string): void => {
+    setDefState((previous) => previous === null || previous.tracks?.[id] !== undefined ? previous : addTrackBranch(previous, id, label))
+    setBranchState(id)
+    setStageId(null)
+  }, [])
+  const removeTrack = useCallback((id: string): void => {
+    setDefState((previous) => previous === null ? previous : removeTrackBranch(previous, id))
+    setBranchState((current) => current === id ? BASE_BRANCH : current)
   }, [])
   const renameStep = useCallback((stepId: string, label: string) => mutate((previous) => renameStepInDef(previous, stepId, label)), [mutate])
   const setGate = useCallback((stepId: string, gate: WbStepDef['gate']) => mutate((previous) => setGateInDef(previous, stepId, gate)), [mutate])
@@ -272,7 +326,6 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   }, [mutate, def, stageId])
   const reorderStages = useCallback((fromId: string, toId: string, after: boolean) => mutate((previous) => reorderStagesInDef(previous, fromId, toId, after)), [mutate])
   const setSkillWaves = useCallback((stepId: string, waves: readonly (readonly string[])[]) => mutate((previous) => setStepSkillWavesInDef(previous, stepId, waves)), [mutate])
-  const setSkillWhen = useCallback((stepId: string, skillId: string, when: WbTrackPredicate | undefined) => mutate((previous) => setSkillWhenInDef(previous, stepId, skillId, when)), [mutate])
   const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
   const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])
   const addOutput = useCallback((stepId: string, candidate: SlotCandidate) => mutate((previous) => candidate.kind === 'document'
@@ -291,7 +344,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   }
 
   async function save(): Promise<void> {
-    if (!def || !wfName || !dirty || saving || !canWrite || lint.length > 0) return
+    if (!fullDef || !wfName || !dirty || saving || !canWrite || lintBlocked) return
     const targetRoot = root
     const targetWorkflow = wfName
     const current = ++generation.current.save
@@ -299,7 +352,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     setSaving(true)
     setSaveStatus({ kind: 'idle' })
     try {
-      const response = await postWorkflowDef(targetWorkflow, { ...definitionForWrite(def), root: targetRoot })
+      const response = await postWorkflowDef(targetWorkflow, { ...definitionForWrite(fullDef), root: targetRoot })
       if (!response.ok) {
         const locale = localeRef.current
         if (response.status === 409) {
@@ -314,8 +367,8 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
       if (!stillCurrent()) return
       if (!valid) { setSaveStatus({ kind: 'error', errors: [localeRef.current.t('common.invalid_response')] }); return }
       afterWrite(targetRoot, targetWorkflow)
-      baselineRef.current = { ...def, source: targetWorkflow === 'default' ? 'project' : 'project' }
-      baselineJson.current = JSON.stringify(definitionForWrite(def))
+      baselineRef.current = { ...fullDef, source: 'project' }
+      baselineJson.current = JSON.stringify(definitionForWrite(fullDef))
       if (targetWorkflow === 'default') setDefaultSource('project')
       setSaveStatus({ kind: 'ok' })
       // 重新拉一次拿服务端物化后的 IO（文档槽位 / 消费者）。
@@ -340,6 +393,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     setSaveStatus({ kind: 'idle' })
     setWfName(name)
     setDefState(null)
+    setBranchState(BASE_BRANCH)
     setDefError(null)
     baselineRef.current = null
     baselineJson.current = null
@@ -359,7 +413,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   const nameInvalid = trimmedName.length > 0 && !NAME_RE.test(trimmedName)
   const nameDuplicate = trimmedName.length > 0 && (trimmedName === 'default' || trimmedName === 'simple' || (names ?? []).includes(trimmedName))
   const canSubmitCreate = canWrite && trimmedName.length > 0 && !nameInvalid && !nameDuplicate && !createBusy
-    && (createMode !== 'import' || createYaml.trim() !== '') && (createMode !== 'copy' || def !== null)
+    && (createMode !== 'import' || createYaml.trim() !== '') && (createMode !== 'copy' || fullDef !== null)
   function openCreate(mode: CreateMode = 'copy'): void {
     if (saving || !canWrite) return
     setCreateMode(mode)
@@ -398,7 +452,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
           return
         }
       } else {
-        const next = createMode === 'copy' && def !== null ? copyWorkflowDef(def, name) : blankWorkflow(name, localeRef.current.t('workflow.blank_stage'))
+        const next = createMode === 'copy' && fullDef !== null ? copyWorkflowDef(fullDef, name) : blankWorkflow(name, localeRef.current.t('workflow.blank_stage'))
         const response = await postWorkflowDef(name, { ...definitionForWrite(next), root: targetRoot })
         if (!response.ok) {
           const locale = localeRef.current
@@ -492,10 +546,17 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     namesErrorText,
     defaultSource,
     wfName,
+    fullDef,
     def,
     defErrorText,
+    branch: effectiveBranch,
+    setBranch,
+    branches,
+    addTrack,
+    removeTrack,
     effectiveIo,
     lint,
+    lintBlocked,
     canWrite,
     dirty,
     saving,
@@ -511,7 +572,6 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     removeStage,
     reorderStages,
     setSkillWaves,
-    setSkillWhen,
     addSkill,
     removeSkill,
     addOutput,

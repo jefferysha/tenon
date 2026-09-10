@@ -90,7 +90,7 @@ export interface WorkflowRulesSnapshot {
   executionModel: 'phase-manifest' | 'step-graph'
   steps: string[]
   transitions: Record<string, Array<{ event: string; to: string }>>
-  gateByStep: Record<string, 'review' | 'confirm' | null>
+  gateByStep: Record<string, 'review' | 'auto' | null>
   labelByStep: Record<string, string>
   outputsByStep: Record<string, string[]>
   /** Present on policy-aware servers; omitted only during the rolling compatibility window. */

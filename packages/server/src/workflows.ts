@@ -6,7 +6,7 @@ import {
   constants, fstatSync, fsyncSync, lstatSync, openSync,
   readSync, readdirSync, renameSync, unlinkSync, writeFileSync,
 } from 'node:fs'
-import { parseWorkflow, serializeWorkflow, validateWorkflowForStorage, validateWorkflowTrackReferences } from '@tenon/kernel'
+import { parseWorkflow, serializeWorkflow, validateWorkflowForStorage, validateWorkflowTrackReferences, materializeWorkflowIo, selectTrackBranch } from '@tenon/kernel'
 import type { WorkflowDef } from '@tenon/kernel'
 import {
   assertEntryMatches,
@@ -125,6 +125,23 @@ export function listWorkflowNames(root: WorkflowRoot): string[] {
 }
 
 /** 从 O_NOFOLLOW 打开的普通文件 fd 读字节，再 parse + validate；不调用会重走 pathname 的 loadWorkflow。 */
+/**
+ * GET /api/workflows/:name 的分支视图：通用分支（键 `_base`）与每条 track 分支各自的物化 IO。
+ * 分支是完整 pipeline，IO 单独物化（不与通用分支叠加）。
+ */
+export function workflowBranchesForApi(def: WorkflowDef): Record<string, { label?: string; effectiveIo: ReturnType<typeof materializeWorkflowIo> }> {
+  const out: Record<string, { label?: string; effectiveIo: ReturnType<typeof materializeWorkflowIo> }> = {
+    _base: { effectiveIo: materializeWorkflowIo(selectTrackBranch(def, undefined)) },
+  }
+  for (const [track, branch] of Object.entries(def.tracks ?? {})) {
+    out[track] = {
+      ...(branch.label === undefined ? {} : { label: branch.label }),
+      effectiveIo: materializeWorkflowIo(selectTrackBranch(def, track)),
+    }
+  }
+  return out
+}
+
 export function readWorkflowForApi(
   root: WorkflowRoot,
   name: string,

@@ -8,7 +8,7 @@ const REL_RULES = rulesFromDef({
   steps: [
     { id: 'draft', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [{ event: 'approved', to: 'review' }] },
     { id: 'review', label: '', gate: 'review', skills: [], inputs: [], outputs: [], guards: [], transitions: [{ event: 'shipped', to: 'ship' }] },
-    { id: 'ship', label: '', gate: 'confirm', skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+    { id: 'ship', label: '', gate: 'auto', skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
   ],
 })
 
@@ -27,7 +27,7 @@ const REL_RULES_GUARDED = rulesFromDef({
       guards: [{ type: 'nonempty-output' }],
       transitions: [{ event: 'shipped', to: 'ship' }],
     },
-    { id: 'ship', label: '', gate: 'confirm', skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
+    { id: 'ship', label: '', gate: 'auto', skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
   ],
 })
 const REL_EXECUTION_REQUIRED = {

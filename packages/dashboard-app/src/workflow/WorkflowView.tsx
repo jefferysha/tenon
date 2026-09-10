@@ -8,7 +8,9 @@ import { WorkbenchDialogs } from '../workbench/WorkbenchDialogs'
 import { NewWorkflowDialog } from './NewWorkflowDialog'
 import { PipelineList } from './PipelineList'
 import { StageEditorPane } from './StageEditorPane'
+import { TrackDialog } from './TrackDialog'
 import { WorkflowRail } from './WorkflowRail'
+import { Dialog } from '../shared/Dialog'
 
 export interface WorkflowViewProps {
   root: string
@@ -18,7 +20,7 @@ export interface WorkflowViewProps {
 
 const RAIL_KEY = 'tenon-dashboard-rail:workflow'
 
-/** 工作流 = 定义编辑页：左列工作流 / 中列流水线 / 右列所选阶段的技能 DAG、轨道技能、输出、输入、门禁。 */
+/** 工作流 = 定义编辑页：左列工作流与其 track 分支 / 中列所选分支的流水线 / 右列所选阶段的技能、输出、输入、门禁。 */
 export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps): JSX.Element {
   const { t } = useT()
   const { query } = useGlobalSearch()
@@ -29,6 +31,8 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
   useEffect(() => {
     try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
   }, [railCollapsed])
+  const [trackDialogOpen, setTrackDialogOpen] = useState(false)
+  const [trackDeleteOpen, setTrackDeleteOpen] = useState(false)
   const { rules: rulesByKey } = useWorkflowRulesMulti(editor.names && editor.names.length > 0 ? [{ root, names: editor.names }] : [])
   const stagesCountOf = (name: string): number | null =>
     name === editor.wfName && editor.def ? editor.def.steps.length : name === 'default' ? DEFAULT_RULES.steps.length : rulesByKey.get(rulesKey(root, name))?.steps.length ?? null
@@ -65,12 +69,16 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             current={editor.wfName}
             defaultSource={editor.defaultSource}
             stagesCountOf={stagesCountOf}
-            mandatory={editor.mandatory}
+            branches={editor.branches}
+            branch={editor.branch}
             collapsed={railCollapsed}
             canWrite={editor.canWrite}
             busy={editor.saving || editor.create.busy}
             onToggle={() => setRailCollapsed((value) => !value)}
             onSwitch={editor.requestSwitch}
+            onSwitchBranch={editor.setBranch}
+            onNewTrack={() => setTrackDialogOpen(true)}
+            onDeleteTrack={() => setTrackDeleteOpen(true)}
             onCreate={() => editor.create.openCreate('copy')}
             onImport={() => editor.create.openCreate('import')}
             onExport={() => void exportYaml()}
@@ -80,6 +88,9 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
         list={(
           <PipelineList
             def={editor.def}
+            branches={editor.branches}
+            branch={editor.branch}
+            onSwitchBranch={editor.setBranch}
             labelOf={editor.labelOf}
             selectedId={editor.stageId}
             lint={editor.lint}
@@ -96,6 +107,27 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
           : <DetailEmpty title={t('workflow.no_stage')} desc="" testId="stage-editor-empty" />}
       />
       <NewWorkflowDialog create={editor.create} currentName={editor.wfName} />
+      <TrackDialog
+        open={trackDialogOpen}
+        existing={editor.branches.map((branch) => branch.id)}
+        onClose={() => setTrackDialogOpen(false)}
+        onSubmit={(id, label) => { editor.addTrack(id, label); setTrackDialogOpen(false) }}
+      />
+      {trackDeleteOpen && (
+        <Dialog
+          title={t('workflow.delete_track')}
+          onClose={() => setTrackDeleteOpen(false)}
+          testid="track-delete-dialog"
+          actions={(
+            <>
+              <button type="button" className="min-h-10 rounded-md px-3 text-base text-text-2 hover:bg-fill" onClick={() => setTrackDeleteOpen(false)}>{t('workflow.cancel')}</button>
+              <button type="button" className="min-h-10 rounded-md bg-red-d px-4 text-base font-semibold text-btn-fg hover:opacity-90" data-testid="track-delete-confirm" onClick={() => { editor.removeTrack(editor.branch); setTrackDeleteOpen(false) }}>{t('workflow.settings_delete')}</button>
+            </>
+          )}
+        >
+          <p className="text-body text-text-2">{t('workflow.delete_track_confirm', { name: editor.branches.find((branch) => branch.id === editor.branch)?.label ?? editor.branch })}</p>
+        </Dialog>
+      )}
       <WorkbenchDialogs
         workflowName={editor.wfName}
         pendingSwitch={editor.pendingSwitch}

@@ -252,7 +252,7 @@ function decodeWorkflowRules(value: unknown): ChangeSnapshot['workflowRules'] | 
     transitions[step] = decodedEdges
   }
   if (!Object.values(value.gateByStep).every(
-    (gate) => gate === null || gate === 'review' || gate === 'confirm',
+    (gate) => gate === null || gate === 'review' || gate === 'auto',
   ) || !Object.values(value.labelByStep).every((label) => typeof label === 'string' && label !== '')) return null
   const outputsByStep: Record<string, string[]> = {}
   for (const step of steps) {
@@ -267,7 +267,7 @@ function decodeWorkflowRules(value: unknown): ChangeSnapshot['workflowRules'] | 
     executionModel: value.executionModel,
     steps,
     transitions,
-    gateByStep: value.gateByStep as Record<string, 'review' | 'confirm' | null>,
+    gateByStep: value.gateByStep as Record<string, 'review' | 'auto' | null>,
     labelByStep: value.labelByStep as Record<string, string>,
     outputsByStep,
     ...(policy === undefined ? {} : { policy }),

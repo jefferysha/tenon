@@ -13,7 +13,7 @@ import {
   loadEffectiveWorkflowPlan,
   loadTrackRegistry,
   loadWorkflow,
-  requireTrack,
+  requireTrackForRoot,
   stateStorageExistsSync,
   validateWorkflow,
   validateWorkflowTrackReferences,
@@ -182,7 +182,7 @@ export async function handlePostChangesRoutes(
             let track: TrackDefinition
             let workflowId: string
             try {
-              track = requireTrack(registry, trackId)
+              track = requireTrackForRoot(registry, trackId, rootCheck.anchor.path, workflowRaw || undefined)
               workflowId = workflowRaw || track.workflow.default
               assertWorkflowAllowed(track, workflowId)
               const expectedPipelineId = `${workflowId}:${track.id}:main`

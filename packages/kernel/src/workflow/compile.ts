@@ -44,12 +44,12 @@ const PRODUCER_POLICIES: ReadonlySet<string> = new Set<ArtifactProducerPolicy>([
 const CUSTOM_PRODUCER_POLICIES: ReadonlySet<string> = new Set<ArtifactProducerPolicy>(['effective-step-skills'])
 const DEFAULT_PRODUCER_POLICIES: ReadonlySet<string> = new Set<ArtifactProducerPolicy>(['effective-step-skills', 'effective-phase-skills'])
 const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
-  'name', 'decomposition', 'interaction', 'reviewBudget', 'openspecContract', 'documentContract', 'steps',
+  'name', 'decomposition', 'interaction', 'reviewBudget', 'openspecContract', 'documentContract', 'steps', 'tracks',
 ])
 const STEP_KEYS: ReadonlySet<string> = new Set([
   'id', 'label', 'gate', 'prompt', 'reviewLanes', 'skills', 'inputs', 'outputs', 'artifacts', 'guards', 'transitions',
 ])
-const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'kind', 'review_lane', 'depends_on', 'when'])
+const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'kind', 'review_lane', 'depends_on'])
 const FIELD_REF_KEYS: ReadonlySet<string> = new Set(['field', 'type'])
 const ARTIFACT_KEYS: ReadonlySet<string> = new Set(['field', 'type', 'kind', 'producerPolicy', 'requiredWhen'])
 const TRANSITION_KEYS: ReadonlySet<string> = new Set(['event', 'to', 'guards', 'actions'])
@@ -162,23 +162,10 @@ function compileReviewLanes(raw: unknown, path: string): readonly string[] {
   return lanes
 }
 
-function compileSkillWhen(raw: unknown, path: string): { when?: TrackPredicate } {
-  if (raw === undefined) return {}
-  const rec = asRecord(raw, path)
-  rejectExtraKeys(rec, new Set(['kind', 'values']), path)
-  if (rec.kind !== 'track-in' && rec.kind !== 'track-not-in') {
-    compileError(`${path}.kind`, `必须是 'track-in' | 'track-not-in'（实际 ${JSON.stringify(rec.kind)}）`)
-  }
-  const values = stringArray(rec.values, `${path}.values`)
-  if (values.length === 0) compileError(`${path}.values`, '轨道列表不得为空')
-  return { when: { kind: rec.kind as TrackPredicate['kind'], values } }
-}
-
 function compileSkillRef(raw: SkillRef, path: string, reviewLanes: readonly string[]): SkillRef {
   const rec = asRecord(raw, path)
   rejectExtraKeys(rec, SKILL_KEYS, path)
   const id = nonemptyString(rec.id, `${path}.id`)
-  const when = compileSkillWhen(rec.when, `${path}.when`)
   const kind = rec.kind ?? 'work'
   if (kind !== 'work' && kind !== 'review') {
     compileError(`${path}.kind`, `必须是 'work' | 'review'（实际 ${JSON.stringify(kind)}）`)
@@ -191,7 +178,6 @@ function compileSkillRef(raw: SkillRef, path: string, reviewLanes: readonly stri
     return {
       id, kind, review_lane: reviewLane,
       ...(rec.depends_on === undefined ? {} : { depends_on: stringArray(rec.depends_on, `${path}.depends_on`) }),
-      ...when,
     }
   }
   if (rec.review_lane !== undefined) {
@@ -200,7 +186,6 @@ function compileSkillRef(raw: SkillRef, path: string, reviewLanes: readonly stri
   return {
     id, kind,
     ...(rec.depends_on === undefined ? {} : { depends_on: stringArray(rec.depends_on, `${path}.depends_on`) }),
-    ...when,
   }
 }
 
@@ -289,15 +274,18 @@ function compileTransition(raw: StepTransition, path: string, outputs: readonly 
   }
 }
 
-function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<string>): StepIR {
-  const path = `steps[${index}]`
+function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<string>, pathPrefix = 'steps'): StepIR {
+  const path = `${pathPrefix}[${index}]`
   const rec = asRecord(step, path)
   rejectExtraKeys(rec, STEP_KEYS, path)
   const id = nonemptyString(rec.id, `${path}.id`)
   if (typeof rec.label !== 'string') compileError(`${path}.label`, `必须是字符串（实际 ${JSON.stringify(rec.label)}）`)
   const gate = rec.gate
-  if (gate !== null && gate !== 'review' && gate !== 'confirm') {
-    compileError(`${path}.gate`, `必须是 null | 'review' | 'confirm'（实际 ${JSON.stringify(gate)}）`)
+  if (gate === 'confirm') {
+    compileError(`${path}.gate`, `gate 'confirm' 已移除——需要人工停下用 review，输出齐全即放行用 auto`)
+  }
+  if (gate !== null && gate !== 'review' && gate !== 'auto') {
+    compileError(`${path}.gate`, `必须是 null | 'review' | 'auto'（实际 ${JSON.stringify(gate)}）`)
   }
   const prompt = rec.prompt
   if (prompt !== undefined) {
@@ -317,9 +305,13 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   // 只有 undefined（真未声明）才吃默认 []（compileGuards 自身的口径）。
   const guards = compileGuards(rec.guards, `${path}.guards`, outputs)
   const artifacts = compileArtifacts(rec.artifacts, `${path}.artifacts`, outputs, `${path}.outputs`, allowedPolicies)
-  const transitions = asArray(rec.transitions, `${path}.transitions`).map((t, j) =>
-    compileTransition(t as StepTransition, `${path}.transitions[${j}]`, outputs),
-  )
+  // gate=auto：自动评审 = 本阶段声明的全部输出齐全即放行——编译成每条出边上的 nonempty-output
+  //（展开为逐输出 field-nonempty / output-present），与显式守卫同一条评估链，不另起门类。
+  const autoGuards = gate === 'auto' ? compileGuards([{ type: 'nonempty-output' }], `${path}.gate(auto)`, outputs) : []
+  const transitions = asArray(rec.transitions, `${path}.transitions`).map((t, j) => {
+    const compiled = compileTransition(t as StepTransition, `${path}.transitions[${j}]`, outputs)
+    return autoGuards.length === 0 ? compiled : { ...compiled, guards: [...autoGuards, ...compiled.guards] }
+  })
   const transitionEvents = new Set<string>()
   transitions.forEach((transition, transitionIndex) => {
     if (transitionEvents.has(transition.event)) {
@@ -398,6 +390,7 @@ function compileWith(def: unknown, allowedPolicies: ReadonlySet<string>): Workfl
     compileError('documentContract', '不得与 openspecContract 同时声明')
   }
   const steps = asArray(rec.steps, 'steps').map((s, i) => compileStep(s, i, allowedPolicies))
+  const tracks = compileTracks(rec.tracks, allowedPolicies)
   return deepFreeze({
     name,
     decomposition,
@@ -406,7 +399,29 @@ function compileWith(def: unknown, allowedPolicies: ReadonlySet<string>): Workfl
     ...(openspecContract === undefined ? {} : { openspecContract }),
     ...(documentContract === undefined ? {} : { documentContract }),
     steps,
+    ...(tracks === undefined ? {} : { tracks }),
   })
+}
+
+const TRACK_BRANCH_KEYS: ReadonlySet<string> = new Set(['label', 'steps'])
+const TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
+
+/** `tracks.<id>` 分支：每条分支的 steps 与顶层同构编译（路径前缀 tracks.<id>.steps）。 */
+function compileTracks(raw: unknown, allowedPolicies: ReadonlySet<string>): WorkflowIR['tracks'] | undefined {
+  if (raw === undefined) return undefined
+  const rec = asRecord(raw, 'tracks')
+  const out: Record<string, { label?: string; steps: readonly StepIR[] }> = {}
+  for (const [id, branchRaw] of Object.entries(rec)) {
+    if (!TRACK_ID_RE.test(id)) compileError(`tracks.${id}`, '分支 id 须为小写字母开头的 a-z0-9_-（≤32）')
+    const branch = asRecord(branchRaw, `tracks.${id}`)
+    rejectExtraKeys(branch, TRACK_BRANCH_KEYS, `tracks.${id}`)
+    if (branch.label !== undefined && (typeof branch.label !== 'string' || branch.label === '')) {
+      compileError(`tracks.${id}.label`, `必须是非空字符串（实际 ${JSON.stringify(branch.label)}）`)
+    }
+    const steps = asArray(branch.steps, `tracks.${id}.steps`).map((s, i) => compileStep(s, i, allowedPolicies, `tracks.${id}.steps`))
+    out[id] = { ...(branch.label === undefined ? {} : { label: branch.label }), steps }
+  }
+  return out
 }
 
 /**

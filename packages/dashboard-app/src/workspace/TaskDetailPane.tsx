@@ -35,8 +35,9 @@ export function TaskDetailPane({ row, onToast, fetchDefinition = true }: TaskDet
   const identity = `${root} ${change.name}`
   useEffect(() => { setSelectedStep(current) }, [identity, current])
   const definition = useWorkflowDefinition(root, row.workflow, fetchDefinition)
+  // change 走自己 track 的分支 IO；没有对应分支 → 通用分支。
   const stepIo = definition.status === 'ready'
-    ? definition.def.effectiveIo?.[selectedStep]
+    ? (definition.def.branches?.[change.track]?.effectiveIo ?? definition.def.branches?._base?.effectiveIo ?? definition.def.effectiveIo)?.[selectedStep]
     : definition.status === 'disabled' ? fallbackStepIo(change, selectedStep) : undefined
   const definitionState = definition.status === 'disabled' ? 'ready' : definition.status
   const outputs = useMemo(() => stageOutputs(change, stepIo), [change, stepIo])

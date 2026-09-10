@@ -3,10 +3,11 @@ import { join } from 'node:path'
 import {
   BUILTIN_TRACK_IDS,
   HISTORY_FILE,
+  aliasesForSkill,
   builtinTrack,
   isBuiltinTrackId,
   loadTrackRegistry,
-  skillAppliesToTrack,
+  requireTrackForRoot,
   skillsFor,
   type EffectiveWorkflowPlan,
   type Phase,
@@ -30,11 +31,16 @@ const BUILTIN_SKILL_PROFILES: ReadonlySet<string> = new Set(
  * change 所属轨道的定义：内建直接查表；项目额外轨道读 registry（校验失败 / 未知 → undefined，
  * 投影退化为只显示无条件技能，绝不让 snapshot 因轨道配置问题整体失败）。
  */
-export function resolveSnapshotTrack(root: string, trackId: string): TrackDefinition | undefined {
+export function resolveSnapshotTrack(root: string, trackId: string, workflowName?: string): TrackDefinition | undefined {
   if (trackId === '') return undefined
   if (isBuiltinTrackId(trackId)) return builtinTrack(trackId)
   try {
-    return loadTrackRegistry(root, { workflowExists: () => true, skillProfiles: BUILTIN_SKILL_PROFILES }).byId.get(trackId)
+    return requireTrackForRoot(
+      loadTrackRegistry(root, { workflowExists: () => true, skillProfiles: BUILTIN_SKILL_PROFILES }),
+      trackId,
+      root,
+      workflowName,
+    )
   } catch {
     return undefined
   }
@@ -94,25 +100,23 @@ function waveOf(id: string, dependsOn: ReadonlyMap<string, readonly string[]>, s
   return 1 + Math.max(...deps.map((dependency) => waveOf(dependency, dependsOn, seen)))
 }
 
-/** 轨道叠加层：定义内嵌矩阵（YAML `when`）按轨道求值；老快照未内嵌时退回机器级 manifest mandatory 表（同 resolver 口径）。 */
+/**
+ * 轨道叠加层：分支后的阶段技能已是全集；manifest-overlay 计划（default）另叠加机器级 manifest mandatory 表
+ * （与 resolver 同口径——default 分支与该表由 check:default-skill-matrix 保持一致，叠加只是去重）。
+ */
 function overlaySkills(
   capability: EffectiveWorkflowPlan['capabilities']['skills'],
   stepId: string,
   track: TrackDefinition | undefined,
   mandatorySkills: SkillTable | undefined,
 ): readonly string[] {
-  const step = capability.steps.find((candidate) => candidate.stepId === stepId)
-  if (capability.matrixEmbedded) {
-    if (track === undefined) return []
-    return (step?.conditional ?? []).filter((skill) => skillAppliesToTrack(skill, track)).map((skill) => skill.id)
-  }
-  if (capability.source !== 'manifest-overlay' || mandatorySkills === undefined) return []
+  if (capability.source !== 'manifest-overlay' || mandatorySkills === undefined || !capability.trackOverlay.matrix) return []
   return skillsFor(mandatorySkills, stepId as Phase, track?.policyProfile.skills.profile ?? '_all')
 }
 
-/** manifest 的 `a|b` 备选记法：任一备选有证据即算该槽位。 */
+/** manifest 的 `a|b` 备选记法 + 技能别名（opsx:propose ≡ openspec-propose）：任一有证据即算该槽位。 */
 function alternativesOf(token: string): readonly string[] {
-  return token.split('|').map((part) => part.trim()).filter((part) => part !== '')
+  return token.split('|').map((part) => part.trim()).filter((part) => part !== '').flatMap((part) => [part, ...aliasesForSkill(part)])
 }
 
 /**

@@ -24,7 +24,7 @@ import {
   assertWorkflowAllowed,
   effectiveWorkflowPlanBinding,
   loadEffectiveWorkflowPlan,
-  requireTrack,
+  requireTrackForRoot,
   workflowPlanSnapshot,
 } from '@tenon/kernel'
 import type { TrackDefinition, TrackRegistry } from '@tenon/kernel'
@@ -166,7 +166,7 @@ export async function cmdInit(
       // track 合法性改走锁内 fresh registry（requireTrack）：未注册即拒（缺 tracks.yaml 时等价旧四轨枚举）。
       let track: TrackDefinition
       try {
-        track = requireTrack(registry, opts.track ?? '')
+        track = requireTrackForRoot(registry, opts.track ?? '', deps.cwd, opts.workflow)
       } catch (e) {
         deps.io.err(`ERROR: ${errMsg(e)}`)
         return 1

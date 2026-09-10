@@ -29,7 +29,7 @@ function isCatalog(value: unknown): value is DefinitionCatalog {
     && (entry.source === 'builtin' || entry.source === 'project' || entry.source === 'user')
     && typeof entry.readonly === 'boolean' && Array.isArray(entry.steps)
     && entry.steps.every((step) => isRecord(step) && typeof step.id === 'string' && typeof step.label === 'string'
-      && Number.isInteger(step.order) && (step.gate === null || step.gate === 'review' || step.gate === 'confirm')
+      && Number.isInteger(step.order) && (step.gate === null || step.gate === 'review' || step.gate === 'auto')
       && strings(step.skill_ids) && deps(step.skill_dependencies) && strings(step.transition_events)))
   const tracks = value.tracks.every((entry) => isRecord(entry)
     && typeof entry.id === 'string' && typeof entry.label === 'string' && typeof entry.builtin === 'boolean'
@@ -43,7 +43,7 @@ function isCatalog(value: unknown): value is DefinitionCatalog {
       && typeof stage.id === 'string' && typeof stage.label === 'string' && Number.isInteger(stage.order)
       && (stage.mode === 'serial' || stage.mode === 'parallel') && strings(stage.skill_ids)
       && deps(stage.skill_dependencies) && strings(stage.depends_on)
-      && (stage.gate === null || stage.gate === 'review' || stage.gate === 'confirm')))
+      && (stage.gate === null || stage.gate === 'review' || stage.gate === 'auto')))
   return adapters && workflows && tracks && pipelines
 }
 

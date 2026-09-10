@@ -29,6 +29,7 @@ export function legacyDefaultWorkflow(): WorkflowDef {
   const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
   return {
     ...def,
-    steps: def.steps.map((step) => ({ ...step, skills: step.skills.filter((skill) => skill.when === undefined && skill.id.startsWith('tenon-')) })),
+    tracks: undefined,
+    steps: def.steps.map((step) => ({ ...step, skills: step.skills.filter((skill) => skill.id.startsWith('tenon-')) })),
   }
 }

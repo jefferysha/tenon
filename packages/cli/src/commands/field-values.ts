@@ -1,6 +1,6 @@
 import {
   assertWorkflowAllowed,
-  requireTrack,
+  requireTrackForRoot,
   type FieldName,
   type PipelineState,
   type TrackRegistry,
@@ -53,7 +53,7 @@ export function trackWorkflowAllowed(
   workflow: string,
 ): boolean {
   try {
-    assertWorkflowAllowed(requireTrack(registry, track), workflow)
+    assertWorkflowAllowed(requireTrackForRoot(registry, track, deps.cwd, workflow), workflow)
     return true
   } catch (error) {
     deps.io.err(`ERROR: ${errMsg(error)}`)

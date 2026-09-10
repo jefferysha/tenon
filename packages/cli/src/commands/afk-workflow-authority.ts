@@ -3,7 +3,7 @@ import {
   type ExecutionContext,
 } from '@tenon/automation'
 import {
-  requireTrack,
+  requireTrackForRoot,
   resolveWorkflowName,
   type TrackRegistry,
   type WorkflowPermissionLayerInput,
@@ -35,7 +35,7 @@ export async function resolveAfkWorkflowActionAuthority(
   } | undefined
   const trackId = str(state.fields.track)
   try {
-    const track = requireTrack(registry, trackId)
+    const track = requireTrackForRoot(registry, trackId, deps.cwd)
     const allowed = track.policyProfile.automationEligible
     project = { status: 'valid', grants: allowed ? ['enter-afk'] : [] }
     projectAuthority = {

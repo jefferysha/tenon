@@ -21,7 +21,7 @@ import {
   AUTOMATION_STATES, CANCEL_MARKER_FILE, createAutomation, dockerAvailable, makeIdGen, nodeExec,
   AUTOMATION_LEVELS, type AutomationLevel,
 } from '@tenon/automation'
-import { createLoopLedgerStore, loadRegistry, requireTrack } from '@tenon/kernel'
+import { createLoopLedgerStore, loadRegistry, requireTrackForRoot } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, changesRoot, isValidChangeName } from '../paths.js'
 import { str } from '../render.js'
@@ -68,7 +68,7 @@ export async function cmdAfk(deps: CliDeps, sub: string, name: string | undefine
       try {
         const queued = await auto.enqueue(
           name,
-          (trackId) => requireTrack(deps.loadRegistry(), trackId).policyProfile,
+          (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd).policyProfile,
         )
         let bound = false
         if (opts.loop !== undefined) {

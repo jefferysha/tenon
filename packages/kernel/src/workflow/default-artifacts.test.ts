@@ -11,32 +11,36 @@ import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 const TRACKS = ['backend', 'frontend', 'chat', 'pm', 'free', 'some-unknown-track']
 
 describe('generated table exact-shape', () => {
-  it('DEFAULT_ARTIFACT_DECLARATIONS 逐字段等于 default.yaml 的三条显式 artifact（键 = 有 artifact 的 step；键序 = 声明序）', () => {
+  const design = { kind: 'file', field: 'design_doc', type: 'file_path', producerPolicy: 'effective-phase-skills' }
+  const plan = { kind: 'file', field: 'plan', type: 'file_path', producerPolicy: 'effective-phase-skills' }
+  const report = { kind: 'file', field: 'verification_report', type: 'file_path', producerPolicy: 'effective-phase-skills' }
+
+  it('DEFAULT_ARTIFACT_DECLARATIONS 按分支：通用（plan 仍带 PM 豁免谓词，保住老快照指纹）/ frontend / backend / free 三条 artifact；pm 分支不声明 spec 的 plan', () => {
     expect(DEFAULT_ARTIFACT_DECLARATIONS).toEqual({
-      explore: [{ kind: 'file', field: 'design_doc', type: 'file_path', producerPolicy: 'effective-phase-skills' }],
-      spec: [
-        {
-          kind: 'file', field: 'plan', type: 'file_path', producerPolicy: 'effective-phase-skills',
-          requiredWhen: { kind: 'track-not-in', values: ['pm'] },
-        },
-      ],
-      verify: [{ kind: 'file', field: 'verification_report', type: 'file_path', producerPolicy: 'effective-phase-skills' }],
+      _base: { explore: [design], spec: [{ ...plan, requiredWhen: { kind: 'track-not-in', values: ['pm'] } }], verify: [report] },
+      pm: { explore: [design], verify: [report] },
+      frontend: { explore: [design], spec: [plan], verify: [report] },
+      backend: { explore: [design], spec: [plan], verify: [report] },
+      free: { explore: [design], spec: [plan], verify: [report] },
     })
   })
 
-  it('键序稳定 = step 声明序 explore → spec → verify（不是字母序）', () => {
-    expect(Object.keys(DEFAULT_ARTIFACT_DECLARATIONS)).toEqual(['explore', 'spec', 'verify'])
+  it('键序稳定 = 分支声明序（_base → pm → frontend → backend → free）；分支内 = step 声明序', () => {
+    expect(Object.keys(DEFAULT_ARTIFACT_DECLARATIONS)).toEqual(['_base', 'pm', 'frontend', 'backend', 'free'])
+    expect(Object.keys(DEFAULT_ARTIFACT_DECLARATIONS._base)).toEqual(['explore', 'spec', 'verify'])
   })
 
-  it('producer policy 全部是 effective-phase-skills（default 轨 step.skills 恒空，产出者来自 phase×track manifest）', () => {
-    for (const arr of Object.values(DEFAULT_ARTIFACT_DECLARATIONS)) {
-      for (const a of arr) expect(a.producerPolicy).toBe('effective-phase-skills')
+  it('producer policy 全部是 effective-phase-skills（default 的产出者来自 phase 有效技能集）', () => {
+    for (const branch of Object.values(DEFAULT_ARTIFACT_DECLARATIONS)) {
+      for (const arr of Object.values(branch)) {
+        for (const a of arr) expect(a.producerPolicy).toBe('effective-phase-skills')
+      }
     }
   })
 })
 
-describe('defaultArtifactsForStep —— track predicate 过滤', () => {
-  it('explore：design_doc 无 requiredWhen → 所有 track 都产出', () => {
+describe('defaultArtifactsForStep —— 按分支选表', () => {
+  it('explore：每条分支与通用分支都声明 design_doc', () => {
     for (const track of TRACKS) {
       expect(defaultArtifactsForStep('explore', track).map((d) => d.field)).toEqual(['design_doc'])
     }
@@ -49,7 +53,7 @@ describe('defaultArtifactsForStep —— track predicate 过滤', () => {
     expect(defaultArtifactsForStep('spec', 'pm')).toEqual([])
   })
 
-  it('verify：verification_report 无 requiredWhen → 所有 track 都产出', () => {
+  it('verify：每条分支与通用分支都声明 verification_report', () => {
     for (const track of TRACKS) {
       expect(defaultArtifactsForStep('verify', track).map((d) => d.field)).toEqual(['verification_report'])
     }
@@ -65,12 +69,9 @@ describe('defaultArtifactsForStep —— track predicate 过滤', () => {
     expect(defaultArtifactsForStep('nonexistent-step', 'backend')).toEqual([])
   })
 
-  it('返回的声明形状 = 生成表条目（含 kind/type/producerPolicy/requiredWhen）', () => {
+  it('返回的声明形状 = 该分支生成表条目（含 kind/type/producerPolicy；分支内不再需要 requiredWhen）', () => {
     expect(defaultArtifactsForStep('spec', 'backend')).toEqual([
-      {
-        kind: 'file', field: 'plan', type: 'file_path', producerPolicy: 'effective-phase-skills',
-        requiredWhen: { kind: 'track-not-in', values: ['pm'] },
-      },
+      { kind: 'file', field: 'plan', type: 'file_path', producerPolicy: 'effective-phase-skills' },
     ])
   })
 })

@@ -14,7 +14,7 @@ import type { FieldName } from '../types.js'
 import type { TrackPredicate } from './predicates.js'
 
 export type FieldType = 'string' | 'file_path' | 'boolean'
-export type GateKind = 'review' | 'confirm' | null
+export type GateKind = 'review' | 'auto' | null
 
 export type WorkflowDecompositionMode = 'off' | 'suggest' | 'auto-safe' | 'require-review'
 export type WorkflowDecompositionTarget = 'work-items' | 'child-pipelines'
@@ -66,8 +66,6 @@ export interface SkillRef {
   readonly review_lane?: string
   /** 同 step 内其它 skill 的 id；无 = 无依赖，可立即调用。跨 step 引用是校验期错误（Task 4）。 */
   readonly depends_on?: readonly string[]
-  /** 轨道条件：缺省对全部轨道生效；有则只对命中的轨道生效（YAML `when: track_in/track_not_in`）。 */
-  readonly when?: TrackPredicate
 }
 
 /** guard/action 的 track 适用条件（定义层）：无 when 对全轨生效；有 when 且谓词不命中 → 该
@@ -188,6 +186,15 @@ export interface StepDef {
   readonly transitions: readonly StepTransition[]
 }
 
+/**
+ * track 分支：同一工作流下某条 track 自己的完整 pipeline（阶段 / 技能 / 输入输出 / 门禁 / 守卫 / 转换全部自有）。
+ * change 的有效计划 = 其 track 命中的分支；未命中任何分支的 track 用工作流顶层 `steps`（通用分支）。
+ */
+export interface TrackBranchDef {
+  readonly label?: string
+  readonly steps: readonly StepDef[]
+}
+
 export interface WorkflowDef {
   readonly name: string
   readonly decomposition?: Omit<Partial<WorkflowDecompositionPolicyV1>, 'version'> & { readonly version: 'v1' }
@@ -202,6 +209,7 @@ export interface WorkflowDef {
    */
   readonly documentContract?: WorkflowDocumentContractV1
   readonly steps: readonly StepDef[]
+  readonly tracks?: Readonly<Record<string, TrackBranchDef>>
 }
 
 export interface WorkflowDocumentSlot {

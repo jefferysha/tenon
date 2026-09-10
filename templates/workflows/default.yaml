@@ -8,9 +8,6 @@ steps:
     gate: null
     skills:
       - id: tenon-open
-      - id: openspec-propose
-        when:
-          track_in: [pm, frontend, backend, free]
     inputs: []
     outputs: []
     guards: []
@@ -22,18 +19,6 @@ steps:
     gate: review
     skills:
       - id: tenon-explore
-      - id: openspec-explore
-        when:
-          track_in: [frontend, backend]
-      - id: brainstorming
-        when:
-          track_in: [pm, frontend, backend, free]
-      - id: grill-with-docs
-        when:
-          track_in: [pm, frontend, backend]
-      - id: improve-codebase-architecture
-        when:
-          track_in: [backend]
     inputs: []
     outputs:
       - field: design_doc
@@ -51,18 +36,6 @@ steps:
     gate: review
     skills:
       - id: tenon-spec
-      - id: openspec-propose
-        when:
-          track_in: [pm, frontend, backend, free]
-      - id: brainstorming
-        when:
-          track_in: [pm]
-      - id: writing-plans
-        when:
-          track_in: [pm, frontend, backend, free]
-      - id: grill-with-docs
-        when:
-          track_in: [pm]
     inputs:
       - field: design_doc
         type: file_path
@@ -88,18 +61,6 @@ steps:
     gate: null
     skills:
       - id: tenon-build
-      - id: prototype
-        when:
-          track_in: [pm]
-      - id: frontend-design
-        when:
-          track_in: [pm, frontend]
-      - id: test-driven-development
-        when:
-          track_in: [frontend, backend, free]
-      - id: writing-plans
-        when:
-          track_in: [backend, free]
     inputs:
       - field: design_doc
         type: file_path
@@ -125,24 +86,6 @@ steps:
     review_lanes: [standards, spec, e2e]
     skills:
       - id: tenon-verify
-      - id: browser-qa
-        when:
-          track_in: [pm, frontend]
-      - id: web-design-guidelines
-        when:
-          track_in: [pm, frontend]
-      - id: design-taste-frontend
-        when:
-          track_in: [pm, frontend]
-      - id: verification-before-completion
-        when:
-          track_in: [pm, frontend, backend, free]
-      - id: handoff
-        when:
-          track_in: [pm]
-      - id: e2e-testing
-        when:
-          track_in: [frontend]
     inputs:
       - field: build_sha
         type: string
@@ -167,21 +110,6 @@ steps:
     gate: null
     skills:
       - id: tenon-ship
-      - id: openspec-apply-change
-        when:
-          track_in: [pm, frontend, backend, free]
-      - id: to-spec
-        when:
-          track_in: [pm]
-      - id: to-tickets
-        when:
-          track_in: [pm]
-      - id: openspec-archive-change
-        when:
-          track_in: [frontend]
-      - id: finishing-a-development-branch
-        when:
-          track_in: [frontend, backend, free]
     inputs:
       - field: verification_report
         type: file_path
@@ -206,3 +134,583 @@ steps:
         type: boolean
     guards: []
     transitions: []
+tracks:
+  pm:
+    label: 产品
+    steps:
+      - id: open
+        label: 立项
+        gate: null
+        skills:
+          - id: tenon-open
+          - id: openspec-propose
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: open-complete
+            to: explore
+      - id: explore
+        label: 调研
+        gate: review
+        skills:
+          - id: tenon-explore
+          - id: brainstorming
+          - id: grill-with-docs
+        inputs: []
+        outputs:
+          - field: design_doc
+            type: file_path
+        artifacts:
+          - field: design_doc
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards: []
+        transitions:
+          - event: explore-complete
+            to: spec
+      - id: spec
+        label: 规格
+        gate: review
+        skills:
+          - id: tenon-spec
+          - id: openspec-propose
+          - id: brainstorming
+          - id: writing-plans
+          - id: grill-with-docs
+        inputs:
+          - field: design_doc
+            type: file_path
+        outputs:
+          - field: plan
+            type: file_path
+        artifacts: []
+        guards:
+          - type: tasks-at-least
+            n: 3
+        transitions:
+          - event: spec-complete
+            to: build
+            actions:
+              - type: reset-pre-verify-review
+      - id: build
+        label: 实现
+        gate: null
+        skills:
+          - id: tenon-build
+          - id: prototype
+          - id: frontend-design
+        inputs:
+          - field: design_doc
+            type: file_path
+          - field: plan
+            type: file_path
+        outputs:
+          - field: build_sha
+            type: string
+        guards:
+          - type: field-equals
+            field: pre_verify_review_result
+            value: pass
+        transitions:
+          - event: build-complete
+            to: verify
+          - event: requirements-changed
+            to: spec
+            actions:
+              - type: reset-pre-verify-review
+      - id: verify
+        label: 验证
+        gate: review
+        review_lanes: [standards, spec, e2e]
+        skills:
+          - id: tenon-verify
+          - id: browser-qa
+          - id: web-design-guidelines
+          - id: design-taste-frontend
+          - id: verification-before-completion
+          - id: handoff
+        inputs:
+          - field: build_sha
+            type: string
+        outputs:
+          - field: verification_report
+            type: file_path
+        artifacts:
+          - field: verification_report
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards: []
+        transitions:
+          - event: verify-pass
+            to: ship
+          - event: verify-fail
+            to: build
+            actions:
+              - type: mark-verification-failed
+              - type: reset-pre-verify-review
+      - id: ship
+        label: 交付
+        gate: null
+        skills:
+          - id: tenon-ship
+          - id: openspec-apply-change
+          - id: to-spec
+          - id: to-tickets
+        inputs:
+          - field: verification_report
+            type: file_path
+        outputs:
+          - field: pr_url
+            type: string
+        guards:
+          - type: spec-migration-applied
+        transitions:
+          - event: ship-complete
+            to: archive
+      - id: archive
+        label: 归档
+        gate: null
+        skills:
+          - id: tenon-archive
+        inputs:
+          - field: pr_url
+            type: string
+        outputs:
+          - field: archived
+            type: boolean
+        guards: []
+        transitions: []
+  frontend:
+    label: 前端
+    steps:
+      - id: open
+        label: 立项
+        gate: null
+        skills:
+          - id: tenon-open
+          - id: openspec-propose
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: open-complete
+            to: explore
+      - id: explore
+        label: 调研
+        gate: review
+        skills:
+          - id: tenon-explore
+          - id: openspec-explore
+          - id: brainstorming
+          - id: grill-with-docs
+        inputs: []
+        outputs:
+          - field: design_doc
+            type: file_path
+        artifacts:
+          - field: design_doc
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards: []
+        transitions:
+          - event: explore-complete
+            to: spec
+      - id: spec
+        label: 规格
+        gate: review
+        skills:
+          - id: tenon-spec
+          - id: openspec-propose
+          - id: writing-plans
+        inputs:
+          - field: design_doc
+            type: file_path
+        outputs:
+          - field: plan
+            type: file_path
+        artifacts:
+          - field: plan
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards:
+          - type: tasks-at-least
+            n: 3
+        transitions:
+          - event: spec-complete
+            to: build
+            actions:
+              - type: reset-pre-verify-review
+      - id: build
+        label: 实现
+        gate: null
+        skills:
+          - id: tenon-build
+          - id: frontend-design
+          - id: test-driven-development
+        inputs:
+          - field: design_doc
+            type: file_path
+          - field: plan
+            type: file_path
+        outputs:
+          - field: build_sha
+            type: string
+        guards:
+          - type: field-equals
+            field: pre_verify_review_result
+            value: pass
+        transitions:
+          - event: build-complete
+            to: verify
+          - event: requirements-changed
+            to: spec
+            actions:
+              - type: reset-pre-verify-review
+      - id: verify
+        label: 验证
+        gate: review
+        review_lanes: [standards, spec, e2e]
+        skills:
+          - id: tenon-verify
+          - id: browser-qa
+          - id: web-design-guidelines
+          - id: design-taste-frontend
+          - id: verification-before-completion
+          - id: e2e-testing
+        inputs:
+          - field: build_sha
+            type: string
+        outputs:
+          - field: verification_report
+            type: file_path
+        artifacts:
+          - field: verification_report
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards: []
+        transitions:
+          - event: verify-pass
+            to: ship
+          - event: verify-fail
+            to: build
+            actions:
+              - type: mark-verification-failed
+              - type: reset-pre-verify-review
+      - id: ship
+        label: 交付
+        gate: null
+        skills:
+          - id: tenon-ship
+          - id: openspec-apply-change
+          - id: openspec-archive-change
+          - id: finishing-a-development-branch
+        inputs:
+          - field: verification_report
+            type: file_path
+        outputs:
+          - field: pr_url
+            type: string
+        guards:
+          - type: spec-migration-applied
+        transitions:
+          - event: ship-complete
+            to: archive
+      - id: archive
+        label: 归档
+        gate: null
+        skills:
+          - id: tenon-archive
+        inputs:
+          - field: pr_url
+            type: string
+        outputs:
+          - field: archived
+            type: boolean
+        guards: []
+        transitions: []
+  backend:
+    label: 后端
+    steps:
+      - id: open
+        label: 立项
+        gate: null
+        skills:
+          - id: tenon-open
+          - id: openspec-propose
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: open-complete
+            to: explore
+      - id: explore
+        label: 调研
+        gate: review
+        skills:
+          - id: tenon-explore
+          - id: openspec-explore
+          - id: brainstorming
+          - id: grill-with-docs
+          - id: improve-codebase-architecture
+        inputs: []
+        outputs:
+          - field: design_doc
+            type: file_path
+        artifacts:
+          - field: design_doc
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards: []
+        transitions:
+          - event: explore-complete
+            to: spec
+      - id: spec
+        label: 规格
+        gate: review
+        skills:
+          - id: tenon-spec
+          - id: openspec-propose
+          - id: writing-plans
+        inputs:
+          - field: design_doc
+            type: file_path
+        outputs:
+          - field: plan
+            type: file_path
+        artifacts:
+          - field: plan
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards:
+          - type: tasks-at-least
+            n: 3
+        transitions:
+          - event: spec-complete
+            to: build
+            actions:
+              - type: reset-pre-verify-review
+      - id: build
+        label: 实现
+        gate: null
+        skills:
+          - id: tenon-build
+          - id: test-driven-development
+          - id: writing-plans
+        inputs:
+          - field: design_doc
+            type: file_path
+          - field: plan
+            type: file_path
+        outputs:
+          - field: build_sha
+            type: string
+        guards:
+          - type: field-equals
+            field: pre_verify_review_result
+            value: pass
+        transitions:
+          - event: build-complete
+            to: verify
+          - event: requirements-changed
+            to: spec
+            actions:
+              - type: reset-pre-verify-review
+      - id: verify
+        label: 验证
+        gate: review
+        review_lanes: [standards, spec, e2e]
+        skills:
+          - id: tenon-verify
+          - id: verification-before-completion
+        inputs:
+          - field: build_sha
+            type: string
+        outputs:
+          - field: verification_report
+            type: file_path
+        artifacts:
+          - field: verification_report
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards: []
+        transitions:
+          - event: verify-pass
+            to: ship
+          - event: verify-fail
+            to: build
+            actions:
+              - type: mark-verification-failed
+              - type: reset-pre-verify-review
+      - id: ship
+        label: 交付
+        gate: null
+        skills:
+          - id: tenon-ship
+          - id: openspec-apply-change
+          - id: finishing-a-development-branch
+        inputs:
+          - field: verification_report
+            type: file_path
+        outputs:
+          - field: pr_url
+            type: string
+        guards:
+          - type: spec-migration-applied
+        transitions:
+          - event: ship-complete
+            to: archive
+      - id: archive
+        label: 归档
+        gate: null
+        skills:
+          - id: tenon-archive
+        inputs:
+          - field: pr_url
+            type: string
+        outputs:
+          - field: archived
+            type: boolean
+        guards: []
+        transitions: []
+  free:
+    label: 自由
+    steps:
+      - id: open
+        label: 立项
+        gate: null
+        skills:
+          - id: tenon-open
+          - id: openspec-propose
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: open-complete
+            to: explore
+      - id: explore
+        label: 调研
+        gate: review
+        skills:
+          - id: tenon-explore
+          - id: brainstorming
+        inputs: []
+        outputs:
+          - field: design_doc
+            type: file_path
+        artifacts:
+          - field: design_doc
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards: []
+        transitions:
+          - event: explore-complete
+            to: spec
+      - id: spec
+        label: 规格
+        gate: review
+        skills:
+          - id: tenon-spec
+          - id: openspec-propose
+          - id: writing-plans
+        inputs:
+          - field: design_doc
+            type: file_path
+        outputs:
+          - field: plan
+            type: file_path
+        artifacts:
+          - field: plan
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards:
+          - type: tasks-at-least
+            n: 3
+        transitions:
+          - event: spec-complete
+            to: build
+            actions:
+              - type: reset-pre-verify-review
+      - id: build
+        label: 实现
+        gate: null
+        skills:
+          - id: tenon-build
+          - id: test-driven-development
+          - id: writing-plans
+        inputs:
+          - field: design_doc
+            type: file_path
+          - field: plan
+            type: file_path
+        outputs:
+          - field: build_sha
+            type: string
+        guards:
+          - type: field-equals
+            field: pre_verify_review_result
+            value: pass
+        transitions:
+          - event: build-complete
+            to: verify
+          - event: requirements-changed
+            to: spec
+            actions:
+              - type: reset-pre-verify-review
+      - id: verify
+        label: 验证
+        gate: review
+        review_lanes: [standards, spec, e2e]
+        skills:
+          - id: tenon-verify
+          - id: verification-before-completion
+        inputs:
+          - field: build_sha
+            type: string
+        outputs:
+          - field: verification_report
+            type: file_path
+        artifacts:
+          - field: verification_report
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards: []
+        transitions:
+          - event: verify-pass
+            to: ship
+          - event: verify-fail
+            to: build
+            actions:
+              - type: mark-verification-failed
+              - type: reset-pre-verify-review
+      - id: ship
+        label: 交付
+        gate: null
+        skills:
+          - id: tenon-ship
+          - id: openspec-apply-change
+          - id: finishing-a-development-branch
+        inputs:
+          - field: verification_report
+            type: file_path
+        outputs:
+          - field: pr_url
+            type: string
+        guards:
+          - type: spec-migration-applied
+        transitions:
+          - event: ship-complete
+            to: archive
+      - id: archive
+        label: 归档
+        gate: null
+        skills:
+          - id: tenon-archive
+        inputs:
+          - field: pr_url
+            type: string
+        outputs:
+          - field: archived
+            type: boolean
+        guards: []
+        transitions: []

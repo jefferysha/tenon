@@ -49,7 +49,9 @@ last one. Anything that needs its own surface opens the shared right-side `share
   `change.workflowRules.outputsByStep`), `GET /api/documents/read`.
 - Task status is derived, never named abstractly (`taskModel.summaryOf`): archived → first unready
   output of the current stage (`缺 <slot>`) → review handshake pending (`评审待确认`) → any forward
-  transition ready (`可进入<stage>`) → `进行中`. Filters are stage chips + one archived toggle.
+  transition ready (`可进入<stage>`) → `进行中`. Facets: workflow → track → stage; the stage row appears only
+  when one workflow **and** one track are effective, because each track branch has its own stages.
+- Stage IO comes from `def.branches[change.track]?.effectiveIo ?? def.branches._base?.effectiveIo`.
 - `MiniPipeline` / `StageRail` colour segments with `bg-seg-done` / `bg-seg-now` / `bg-seg-next` only.
 - `StageIoPanel` rows: document slot → ledger status (`recorded/missing/stale/unread`) + file name +
   last producer + time; field slot → `set/unset`. A row with a path opens `DocumentDrawer`
@@ -59,6 +61,24 @@ last one. Anything that needs its own surface opens the shared right-side `share
   It renders nothing when the server omits `skillRuns` or the step has no skills — no placeholder text.
 
 ## 工作流 rules (`workflow/`)
+
+- **Branches.** The rail shows the current workflow expanded into `通用` (base, id `''`) plus one row per
+  `tracks.<id>` (`label ?? id`). `useWorkflowEditor` keeps `fullDef` and a `branch`; every read path uses
+  `def = selectBranchDef(fullDef, branch)` and every mutation goes through `writeBranchDef`. `addTrack` copies the
+  base steps; `removeTrack` drops the branch. Save is blocked when any branch has a lint issue (`lintBlocked`).
+- **Names.** Stages, tracks, skills, workflows render `label ?? id`. No `phases.*` / `documents.*` / `fields.*`
+  translation of ids anywhere in `workflow/` or `workspace/`.
+- **Skills.** The stage pane shows a read-only `SkillWavesView` and an 编辑 button that opens `SkillComposer`
+  (full-screen `Dialog`): left = `/api/skills/registry` palette (search, source badge, expandable origin +
+  description, eye → `Drawer` with the SKILL.md `Markdown` from `/api/skills/:name/readme`), right =
+  `SkillCanvas` (drop on a column = parallel, on a gap = new wave, back on the palette = remove) with a
+  `DragOverlay`. Only 保存 writes `steps[].skills` via `setSkillWaves`.
+- **IO.** Two entry rows (输出 / 输入 + count) open `Drawer` sheets that host `OutputsSection` / `InputsSection`
+  with a `provenance` line per slot: producing skills or `来自 <stage> · <skills>` plus the YAML path
+  (`tracks.<id>.steps[<step>].outputs[<field>]`, `document_contract.slots[<kind>]`).
+- **Gates.** Radio `无 / 评审 / 自动`; each option carries an `Info` icon with `title` + sr-only text from
+  `workflow.gate_help_*`. `confirm` no longer exists in the type.
+
 
 - Middle column is a pipeline (`PipelineList`): numbered nodes on a vertical connector, solid when the
   next stage is a direct forward edge, dashed otherwise; back edges render under the node as

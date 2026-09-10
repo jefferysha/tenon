@@ -2,7 +2,6 @@ import type { DocumentProfileId } from '../types.js'
 import type { CoverageProfile } from '../tracks/types.js'
 import type { DocumentGovernancePolicy } from './document-contract.js'
 import type { WorkflowIR } from './ir.js'
-import type { TrackPredicate } from './predicates.js'
 import type {
   WorkflowDecompositionPolicyV1,
   WorkflowInteractionPolicyV1,
@@ -13,6 +12,9 @@ export interface EffectiveWorkflowPlan {
   readonly id: string
   /** Transition/check execution capability; consumers never infer this from the workflow id. */
   readonly executionModel: 'phase-manifest' | 'step-graph'
+  /** 完整定义（含全部 track 分支）：指纹与冻结快照的身份。老计划对象可能没有该字段（等于 workflow）。 */
+  readonly definition?: WorkflowIR
+  /** 按 change 的 track 选中的那条 pipeline（未命中分支 → 通用分支）；运行时只看它。 */
   readonly workflow: WorkflowIR
   readonly decomposition: WorkflowDecompositionPolicyV1
   readonly interaction: WorkflowInteractionPolicyV1
@@ -37,21 +39,11 @@ export interface EffectiveWorkflowPlan {
           readonly kind: 'work' | 'review'
           readonly reviewLane?: string
         }[]
-        /**
-         * 带轨道条件的技能（YAML `when`），manifest-overlay 模型下作为 per-track 矩阵叠加层，
-         * 由 resolver 按 track / profile 求值；step-graph 模型下已按轨道过滑进 requiredSkillIds，此处为空。
-         */
-        readonly conditional: readonly {
-          readonly id: string
-          readonly when: TrackPredicate
-        }[]
       }[]
       readonly trackOverlay: {
         readonly matrix: boolean
         readonly profile: string
       }
-      /** 定义自带轨道矩阵（任一技能声明了 when）：resolver 忽略机器级 manifest mandatory 表，只叠加 conditional。 */
-      readonly matrixEmbedded: boolean
     }
     readonly documents: {
       readonly governed: boolean

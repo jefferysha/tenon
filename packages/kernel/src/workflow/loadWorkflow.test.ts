@@ -117,7 +117,8 @@ steps:
     await writeFile(join(tempRoot, '.pipeline', 'workflows', 'default.yaml'), edited, 'utf8')
 
     const wf = loadWorkflow(tempRoot, 'default')
-    expect(wf?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'brainstorming', 'openspec-propose'])
+    expect(wf?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'brainstorming'])
+    expect(wf?.tracks?.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose'])
   })
 
   it('default 项目覆盖破坏七阶段契约（删掉 archive）→ fail-loud', async () => {

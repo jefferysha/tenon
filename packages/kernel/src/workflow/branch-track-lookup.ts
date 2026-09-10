@@ -1,0 +1,41 @@
+import { existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { requireTrack } from '../tracks/registry.js'
+import { resolveTrackForBranch } from '../tracks/branch-track.js'
+import type { TrackDefinition, TrackRegistry } from '../tracks/types.js'
+import { loadWorkflow } from './loadWorkflow.js'
+import type { WorkflowDef } from './types.js'
+
+/** 项目里可加载的工作流名：default 恒在，其余来自 `.pipeline/workflows/*.yaml`。 */
+export function projectWorkflowNames(repoRoot: string): string[] {
+  const dir = join(repoRoot, '.pipeline', 'workflows')
+  const names = new Set<string>(['default'])
+  if (existsSync(dir)) {
+    for (const entry of readdirSync(dir)) {
+      if (entry.endsWith('.yaml')) names.add(entry.slice(0, -'.yaml'.length))
+    }
+  }
+  return [...names]
+}
+
+/**
+ * change 语境下的 track 定义：registry 已登记 → 原定义；否则在所选工作流（未指定时按 default →
+ * 项目其余工作流的顺序）里找同名分支并合成缺省定义；都没有 → 与 requireTrack 同样的未知 track 错误。
+ * 工作流读取失败（YAML 损坏）不在此吞掉：原样上抛，避免把「文件坏了」伪装成「未知 track」。
+ */
+export function requireTrackForRoot(
+  registry: TrackRegistry,
+  trackId: string,
+  repoRoot: string,
+  workflowName?: string,
+): TrackDefinition {
+  const registered = registry.byId.get(trackId)
+  if (registered !== undefined) return registered
+  const candidates = workflowName === undefined || workflowName === '' ? projectWorkflowNames(repoRoot) : [workflowName]
+  for (const name of candidates) {
+    const def: WorkflowDef | null = loadWorkflow(repoRoot, name)
+    const synthesized = resolveTrackForBranch(registry, trackId, def)
+    if (synthesized !== undefined) return synthesized
+  }
+  return requireTrack(registry, trackId)
+}

@@ -9,6 +9,10 @@ import { cn } from '@/lib/utils'
 
 export interface PipelineListProps {
   def: WbWorkflowDef | null
+  /** 当前工作流的分支（'' = 通用）；只有通用分支时不显示切换条。 */
+  branches: ReadonlyArray<{ id: string; label: string | null }>
+  branch: string
+  onSwitchBranch: (branch: string) => void
   labelOf: (stepId: string) => string
   selectedId: string | null
   lint: readonly LintIssue[]
@@ -21,13 +25,30 @@ export interface PipelineListProps {
 }
 
 /** 工作流页中列：竖向流水线——节点 + 连接线 + 门禁标 + 回流边；末尾是「添加阶段」。 */
-export function PipelineList({ def, labelOf, selectedId, lint, query, loading, error, canWrite, onSelect, onAddStage }: PipelineListProps): JSX.Element {
+export function PipelineList({ def, branches, branch, onSwitchBranch, labelOf, selectedId, lint, query, loading, error, canWrite, onSelect, onAddStage }: PipelineListProps): JSX.Element {
   const { t } = useT()
   const steps = def?.steps ?? []
   const edges = pipelineEdges(steps)
   const visible = steps.filter((step) => matchesQuery(query, labelOf(step.id), step.id, ...step.skills.map((skill) => skill.id)))
   return (
     <ListColumn eyebrow={def?.name.toUpperCase() ?? ''} title={t('workflow.stages_title')} testId="stage-list">
+      {branches.length > 1 && (
+        <div className="mb-5 flex flex-wrap gap-1" role="tablist" aria-label={t('workflow.tracks_title')} data-testid="branch-tabs">
+          {branches.map((candidate) => (
+            <button
+              key={candidate.id}
+              type="button"
+              role="tab"
+              aria-selected={candidate.id === branch}
+              className="rounded-sm px-2.5 py-1 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-selected:bg-accent-t aria-selected:font-semibold aria-selected:text-(--accent)"
+              data-testid={`branch-tab-${candidate.id === '' ? 'base' : candidate.id}`}
+              onClick={() => onSwitchBranch(candidate.id)}
+            >
+              {candidate.label ?? t('workflow.branch_base')}
+            </button>
+          ))}
+        </div>
+      )}
       {error !== null ? (
         <p className="rounded-md border border-red-b bg-red-t px-4 py-3 text-body text-red-d" role="alert">{error}</p>
       ) : loading ? (
@@ -68,13 +89,12 @@ export function PipelineList({ def, labelOf, selectedId, lint, query, loading, e
                         {step.gate !== null && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-fill px-2 py-0.5 text-caption text-text-2" data-testid={`wb-gate-${step.id}`}>
                             <ShieldCheck className="size-3" aria-hidden="true" />
-                            {t(step.gate === 'review' ? 'workflow.gate_review' : 'workflow.gate_confirm')}
+                            {t(step.gate === 'review' ? 'workflow.gate_review' : 'workflow.gate_auto')}
                           </span>
                         )}
                       </span>
                     </span>
                     <span className="flex min-w-0 items-center gap-3 font-mono text-body text-text-2">
-                      <span className="truncate">{step.id}</span>
                       <span className="flex-none">{t('workflow.card_skills', { n: skillCount })}</span>
                     </span>
                   </button>

@@ -1,7 +1,7 @@
 import {
   compileWorkflow,
   loadWorkflow,
-  requireTrack,
+  requireTrackForRoot,
   resolveBoundEffectiveWorkflowPlan,
   resolveWorkflowName,
   type EffectiveWorkflowPlan,
@@ -22,7 +22,7 @@ export function effectiveWorkflowForState(
   const trackId = Array.isArray(trackValue) ? trackValue.join(',') : (trackValue ?? '')
   const track = trackId === '' || typeof deps.loadRegistry !== 'function'
     ? undefined
-    : requireTrack(deps.loadRegistry(), trackId)
+    : requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd, workflowName)
   return resolveBoundEffectiveWorkflowPlan(workflowName, {
     documentProfile: state.runMetadata?.documentProfile,
     documentGovernanceFingerprint: state.runMetadata?.documentGovernanceFingerprint,

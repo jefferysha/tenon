@@ -8,7 +8,7 @@ import { GUARD_DATA_KEYS } from './types.js'
 import type {
   ArtifactProducerPolicy, FieldRef, FieldType, GateKind, SkillRef, StepDef, StepTransition,
   WorkflowActionConfig, WorkflowArtifactConfig, WorkflowConditional, WorkflowDef,
-  WorkflowDocumentContractV1, WorkflowGuardConfig,
+  WorkflowDocumentContractV1, WorkflowGuardConfig, TrackBranchDef,
 } from './types.js'
 import type { FieldName } from '../types.js'
 import type { TrackPredicate } from './predicates.js'
@@ -301,7 +301,10 @@ function parseStep(cur: Cursor): StepDef {
     if (indentOf(line) < baseIndent - 2) break
     const labelMatch = /^\s*label:\s*(.+)$/.exec(line)
     if (labelMatch) { label = (labelMatch[1] ?? '').trim(); cur.i++; continue }
-    const gateMatch = /^\s*gate:\s*(review|confirm|null)\s*$/.exec(line)
+    if (/^\s*gate:\s*confirm\s*$/.test(line)) {
+      throw new Error(`workflow 解析错误：step '${id}' 的 gate 'confirm' 已移除——需要人工停下用 review，输出齐全即放行用 auto`)
+    }
+    const gateMatch = /^\s*gate:\s*(review|auto|null)\s*$/.exec(line)
     if (gateMatch) {
       const v = gateMatch[1] ?? ''
       gate = v === 'null' ? null : (v as GateKind)
@@ -409,13 +412,17 @@ export function parseWorkflow(content: string): WorkflowDef {
   }
 
   const cur: Cursor = { lines, i: stepLine + 1 }
-  const steps: StepDef[] = []
+  const steps = parseStepList(cur, 'steps', 0)
+  let tracks: Record<string, TrackBranchDef> | undefined
+  if ((lines[cur.i] ?? '').trim() === 'tracks:' && indentOf(lines[cur.i] ?? '') === 0) {
+    cur.i++
+    tracks = parseTracksBlock(cur)
+  }
   while (cur.i < lines.length) {
-    if ((lines[cur.i] ?? '').trim() === '') { cur.i++; continue }
-    if (!/^\s*-\s+id:/.test(lines[cur.i] ?? '')) {
-      throw new Error(`workflow 解析错误：steps 下每项必须以 '- id:' 开头，实际 '${lines[cur.i]}'`)
+    if ((lines[cur.i] ?? '').trim() !== '') {
+      throw new Error(`workflow 解析错误：steps / tracks 之后出现无法识别的内容 '${(lines[cur.i] ?? '').trim()}'`)
     }
-    steps.push(parseStep(cur))
+    cur.i++
   }
   return {
     name: nameMatch[1] ?? '',
@@ -425,5 +432,70 @@ export function parseWorkflow(content: string): WorkflowDef {
     ...(openspecContract ? { openspecContract } : {}),
     ...(documentContract ? { documentContract } : {}),
     steps,
+    ...(tracks === undefined ? {} : { tracks }),
   }
+}
+
+/**
+ * 连续的 `- id:` 步骤项（缩进 > blockIndent）；遇到缩进 ≤ blockIndent 的非空行即停（交还上层判定）。
+ * 顶层 steps 与 tracks.<id>.steps 共用，缩进差别由调用方的 blockIndent 表达。
+ */
+function parseStepList(cur: Cursor, path: string, blockIndent: number): StepDef[] {
+  const steps: StepDef[] = []
+  while (cur.i < cur.lines.length) {
+    const line = cur.lines[cur.i] ?? ''
+    if (line.trim() === '') { cur.i++; continue }
+    if (indentOf(line) <= blockIndent) break
+    if (!/^\s*-\s+id:/.test(line)) {
+      throw new Error(`workflow 解析错误：${path} 下每项必须以 '- id:' 开头，实际 '${line}'`)
+    }
+    steps.push(parseStep(cur))
+  }
+  return steps
+}
+
+/**
+ * `tracks:` 块：每条 `  <id>:` 下可选 `label:` 与必有的 `steps:`（步骤项缩进再深一层）。
+ * 分支 id 词法与 track id 一致（小写字母开头，a-z0-9_-，≤32）。
+ */
+function parseTracksBlock(cur: Cursor): Record<string, TrackBranchDef> {
+  const tracks: Record<string, TrackBranchDef> = {}
+  while (cur.i < cur.lines.length) {
+    const line = cur.lines[cur.i] ?? ''
+    if (line.trim() === '') { cur.i++; continue }
+    if (indentOf(line) === 0) break
+    const idMatch = /^\s*([a-z][a-z0-9_-]{0,31}):\s*$/.exec(line)
+    if (!idMatch || indentOf(line) !== 2) {
+      throw new Error(`workflow 解析错误：tracks 下每条分支必须是两空格缩进的 '<track-id>:'，实际 '${line}'`)
+    }
+    const id = idMatch[1] ?? ''
+    if (tracks[id] !== undefined) throw new Error(`workflow 解析错误：tracks 重复声明分支 '${id}'`)
+    const branchIndent = indentOf(line)
+    cur.i++
+    let label: string | undefined
+    let steps: StepDef[] | undefined
+    while (cur.i < cur.lines.length) {
+      const inner = cur.lines[cur.i] ?? ''
+      if (inner.trim() === '') { cur.i++; continue }
+      if (indentOf(inner) <= branchIndent) break
+      const labelMatch = /^\s*label:\s*(.+)$/.exec(inner)
+      if (labelMatch) {
+        if (label !== undefined) throw new Error(`workflow 解析错误：分支 '${id}' 重复声明 label`)
+        label = (labelMatch[1] ?? '').trim()
+        cur.i++
+        continue
+      }
+      if (/^\s*steps:\s*$/.test(inner)) {
+        if (steps !== undefined) throw new Error(`workflow 解析错误：分支 '${id}' 重复声明 steps`)
+        const stepsIndent = indentOf(inner)
+        cur.i++
+        steps = parseStepList(cur, `tracks.${id}.steps`, stepsIndent)
+        continue
+      }
+      throw new Error(`workflow 解析错误：分支 '${id}' 出现未知字段行 '${inner.trim()}'`)
+    }
+    if (steps === undefined) throw new Error(`workflow 解析错误：分支 '${id}' 缺 steps`)
+    tracks[id] = { ...(label === undefined ? {} : { label }), steps }
+  }
+  return tracks
 }

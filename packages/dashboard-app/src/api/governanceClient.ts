@@ -4,7 +4,7 @@ import type {
   WbHooksConfig,
   WbRouterPreview,
   WbSkillEntry,
-  WbTrackDefinition,
+  WbTrackDefinition, WbSkillReadme,
 } from './governanceTypes'
 import {
   decodeCreatedChange,
@@ -15,7 +15,7 @@ import {
   decodeRouterPreview,
   isPromptSkipKeyword,
 } from './governanceDecoders'
-import { decodeSkillsRegistry, decodeWorkflowDefinition } from './governanceSchema'
+import { decodeSkillReadme, decodeSkillsRegistry, decodeWorkflowDefinition } from './governanceSchema'
 import type { WbWorkflowDef } from './governanceTypes'
 import { ApiError, getToken, readJson, throwApiError, wrapNetwork } from './transport'
 
@@ -237,8 +237,8 @@ export function fetchConfig(root: string): Promise<Response> {
 }
 
 export function postWorkflowDef(name: string, payload: Record<string, unknown>): Promise<Response> {
-  // source / effectiveIo 是读接口附带的投影，不属于定义 DTO；server 的闭合解码器会拒绝未知键。
-  const { source: _source, effectiveIo: _effectiveIo, ...definition } = payload
+  // source / effectiveIo / branches 是读接口附带的投影，不属于定义 DTO；server 的闭合解码器会拒绝未知键。
+  const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...definition } = payload
   return fetch(`/api/workflows/${encodeURIComponent(name)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
@@ -304,4 +304,16 @@ export function deleteTrackDefinition(root: string, revision: string, id: string
     `/api/tracks/${encodeURIComponent(id)}?root=${encodeURIComponent(root)}&revision=${encodeURIComponent(revision)}`,
     { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } },
   )
+}
+
+/** 某技能的 SKILL.md 全文与来源（GET /api/skills/:name/readme）。 */
+export async function fetchSkillReadme(name: string): Promise<WbSkillReadme> {
+  let response: Response
+  try {
+    response = await fetch(`/api/skills/${encodeURIComponent(name)}/readme`, { headers: { Accept: 'application/json' } })
+  } catch (error) {
+    wrapNetwork(error)
+  }
+  if (!response.ok) await throwApiError(response, '技能说明获取失败')
+  return readOrThrow(response, decodeSkillReadme, '技能说明响应形状无效')
 }

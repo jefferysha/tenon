@@ -27,7 +27,6 @@ import type { TrackRegistry } from '../tracks/types.js'
 import type { Phase } from '../types.js'
 import type { EffectiveWorkflowPlan } from './effective-plan.js'
 import type { StepIR } from './ir.js'
-import { matchesTrackPredicate } from './predicates.js'
 
 /** 一个「有效 skill 槽」：token 是原始 manifest/step 记法，alternatives 是其具体可选 skill id
  *  （default 的 `a|b` 拆分产物 / custom 的单元素 [id]）；`--producer` 须精确等于某 alternative。 */
@@ -89,20 +88,6 @@ export interface EffectiveSkillResolverOptions {
 }
 
 /**
- * 定义自带的轨道矩阵（YAML `when` 技能）按 profile / track 求值成槽：与 manifest 矩阵同位置叠加在 phase 槽之后。
- */
-export function embeddedOverlaySlots(
-  capability: EffectiveWorkflowPlan['capabilities']['skills'],
-  stepId: string,
-  profile: string,
-): readonly EffectiveSkillSlot[] {
-  const step = capability.steps.find((candidate) => candidate.stepId === stepId)
-  return (step?.conditional ?? [])
-    .filter((skill) => matchesTrackPredicate(skill.when, profile))
-    .map((skill) => ({ token: skill.id, alternatives: [skill.id] }))
-}
-
-/**
  * Compatibility bridge for injected resolvers created before EffectiveWorkflowPlan existed.
  * Capability dispatch remains centralized here; transition/check adapters never reconstruct it.
  */
@@ -117,9 +102,7 @@ export function resolveRequiredSkillSlots(
     // 宿主没接 resolver（如 dashboard server 的 transition）= 不启用矛阵叠加，只按 phase 槽——与旧行为一致。
     const overlay = !capability.trackOverlay.matrix || resolver === undefined
       ? []
-      : capability.matrixEmbedded
-        ? embeddedOverlaySlots(capability, stepId, capability.trackOverlay.profile)
-        : resolver.resolveDefaultMandatory(stepId, capability.trackOverlay.profile)
+      : resolver.resolveDefaultMandatory(stepId, capability.trackOverlay.profile)
     return dedupeStableSlots([
       ...phase.map((id) => ({ token: id, alternatives: [id] })),
       ...overlay,
@@ -138,9 +121,7 @@ export function resolveAvailableSkillSlots(
   if (capability.source === 'manifest-overlay') {
     const overlay = !capability.trackOverlay.matrix
       ? []
-      : capability.matrixEmbedded
-        ? embeddedOverlaySlots(capability, stepId, capability.trackOverlay.profile)
-        : resolver.resolveDefaultProfile?.(stepId, capability.trackOverlay.profile)
+      : resolver.resolveDefaultProfile?.(stepId, capability.trackOverlay.profile)
           ?? resolver.resolveDefault(stepId, capability.trackOverlay.profile)
     return dedupeStableSlots([
       ...phase.map((id) => ({ token: id, alternatives: [id] })),
@@ -163,9 +144,7 @@ export function resolveExplicitProfileSkillSlots(
   const phase = capability.steps.find((candidate) => candidate.stepId === stepId)?.requiredSkillIds ?? []
   const profileSlots = capability.source !== 'manifest-overlay' || resolver === undefined
     ? []
-    : capability.matrixEmbedded
-      ? embeddedOverlaySlots(capability, stepId, profile)
-      : resolver.resolveDefaultProfile?.(stepId, profile) ?? resolver.resolveDefault(stepId, profile)
+    : resolver.resolveDefaultProfile?.(stepId, profile) ?? resolver.resolveDefault(stepId, profile)
   return dedupeStableSlots([
     ...phase.map((id) => ({ token: id, alternatives: [id] })),
     ...profileSlots,
@@ -244,9 +223,7 @@ export function createEffectiveSkillResolver(
       if (capability.source === 'manifest-overlay') {
         const overlay = !capability.trackOverlay.matrix
           ? []
-          : capability.matrixEmbedded
-            ? embeddedOverlaySlots(capability, stepId, capability.trackOverlay.profile)
-            : resolveMandatory(stepId, capability.trackOverlay.profile)
+          : resolveMandatory(stepId, capability.trackOverlay.profile)
         return dedupeStableSlots([...phaseSlots(capability, stepId), ...overlay])
       }
       return phaseSlots(capability, stepId)
@@ -256,18 +233,14 @@ export function createEffectiveSkillResolver(
         // 矩阵内嵌时 mandatory 来自定义；recommended 仍是机器级 manifest 的建议表（只 WARN，不阻断）。
         const overlay = !capability.trackOverlay.matrix
           ? []
-          : capability.matrixEmbedded
-            ? [...embeddedOverlaySlots(capability, stepId, capability.trackOverlay.profile), ...resolveRecommended(stepId, capability.trackOverlay.profile)]
-            : resolveProfile(stepId, capability.trackOverlay.profile)
+          : resolveProfile(stepId, capability.trackOverlay.profile)
         return dedupeStableSlots([...phaseSlots(capability, stepId), ...overlay])
       }
       return phaseSlots(capability, stepId)
     },
     resolveExplicitProfile(capability, stepId, profile) {
       if (capability.source !== 'manifest-overlay') return phaseSlots(capability, stepId)
-      const overlay = capability.matrixEmbedded
-        ? [...embeddedOverlaySlots(capability, stepId, profile), ...resolveRecommended(stepId, profile)]
-        : resolveProfile(stepId, profile)
+      const overlay = resolveProfile(stepId, profile)
       return dedupeStableSlots([...phaseSlots(capability, stepId), ...overlay])
     },
     resolveDefaultMandatory(stepId, track) {

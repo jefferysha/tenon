@@ -146,7 +146,7 @@ function metadataValue(key: string, value: string): boolean {
   if (key === 'phase' || key === 'phase_id' || key === 'track') return SAFE_COORDINATE.test(value)
   if (key === 'preset') return boundedDisplayValue(value)
   if (key === 'order') return safeInteger(value, 1)
-  if (key === 'gate') return ['none', 'review', 'confirm'].includes(value)
+  if (key === 'gate') return ['none', 'review', 'auto'].includes(value)
   if (key === 'required_read') return value === 'true' || value === 'false'
   if (key === 'producer_count') return safeInteger(value, 0)
   if (key === 'field') return REVIEW_FIELDS.has(value)

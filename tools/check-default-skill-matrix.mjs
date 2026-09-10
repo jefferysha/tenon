@@ -27,21 +27,31 @@ const inlineList = (raw) => {
   return t.slice(1, -1).split(',').map((s) => s.trim()).filter(Boolean)
 }
 
-/** default.yaml → { phase: [{ id, when: string[] | null }] } */
+/** default.yaml → { _base: { phase: [skill ids] }, <track>: { phase: [skill ids] } }（按分支）。 */
 export function readDefaultSkills(text) {
   const lines = text.split('\n')
-  const out = {}
+  const out = { _base: {} }
+  let branch = '_base'
   let phase = null
   let inSkills = false
   let skillsIndent = -1
-  let current = null
+  let inTracks = false
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]
     if (line.trim() === '') continue
+    if (line === 'tracks:') { inTracks = true; inSkills = false; continue }
+    const trackMatch = /^  ([a-z][a-z0-9_-]{0,31}):\s*$/.exec(line)
+    if (inTracks && trackMatch) {
+      branch = trackMatch[1]
+      out[branch] = {}
+      inSkills = false
+      continue
+    }
     const idMatch = /^\s*-\s+id:\s*(\S+)\s*$/.exec(line)
-    if (idMatch && indentOf(line) === 2) {
+    const stepIndent = inTracks ? 6 : 2
+    if (idMatch && indentOf(line) === stepIndent) {
       phase = idMatch[1]
-      out[phase] = []
+      out[branch][phase] = []
       inSkills = false
       continue
     }
@@ -51,14 +61,8 @@ export function readDefaultSkills(text) {
       continue
     }
     if (!inSkills) continue
-    if (indentOf(line) <= skillsIndent) { inSkills = false; current = null; continue }
-    if (idMatch) {
-      current = { id: idMatch[1], when: null }
-      out[phase].push(current)
-      continue
-    }
-    const predicate = /^\s*track_in:\s*(\[.*\])\s*$/.exec(line)
-    if (predicate && current) current.when = inlineList(predicate[1])
+    if (indentOf(line) <= skillsIndent) { inSkills = false; continue }
+    if (idMatch) out[branch][phase].push(idMatch[1])
   }
   return out
 }
@@ -81,10 +85,11 @@ export function readManifestMatrix(text) {
 
 export function compare(defaultSkills, matrix) {
   const problems = []
-  for (const [phase, skills] of Object.entries(defaultSkills)) {
-    const nonDriver = skills.filter((skill) => !(skill.when === null && skill.id.startsWith('tenon-')))
-    for (const track of MATRIX_TRACKS) {
-      const fromYaml = nonDriver.filter((skill) => skill.when === null || skill.when.includes(track)).map((skill) => skill.id)
+  for (const track of MATRIX_TRACKS) {
+    const branch = defaultSkills[track]
+    if (branch === undefined) { problems.push(`default.yaml 缺 tracks.${track} 分支`); continue }
+    for (const [phase, skills] of Object.entries(branch)) {
+      const fromYaml = skills.filter((skill) => !skill.startsWith('tenon-'))
       const fromManifest = matrix[`${phase}.${track}`] ?? matrix[`${phase}._all`] ?? []
       const a = [...fromYaml].sort().join(',')
       const b = [...fromManifest].sort().join(',')

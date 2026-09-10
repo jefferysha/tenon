@@ -117,7 +117,7 @@ describe('v1 → IR 下沉', () => {
         v1Step({
           id: 'build',
           label: '构建',
-          gate: 'confirm',
+          gate: 'auto',
           skills: [{ id: 'writer' }, { id: 'reviewer', depends_on: ['writer'] }],
           inputs: [{ field: 'plan', type: 'file_path' }],
           outputs: [{ field: 'branch', type: 'string' }],
@@ -127,7 +127,7 @@ describe('v1 → IR 下沉', () => {
     const step = ir.steps[0]!
     expect(step.id).toBe('build')
     expect(step.label).toBe('构建')
-    expect(step.gate).toBe('confirm')
+    expect(step.gate).toBe('auto')
     expect(step.skills).toEqual([
       { id: 'writer', kind: 'work' },
       { id: 'reviewer', kind: 'work', depends_on: ['writer'] },

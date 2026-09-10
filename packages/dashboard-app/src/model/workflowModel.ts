@@ -25,7 +25,7 @@ export interface SkillRef { id: string; depends_on?: string[] }
 export type GuardConfig = WbGuardConfig
 export interface StepTransition { event: string; to: string }
 export interface StepDef {
-  id: string; label: string; gate: 'review' | 'confirm' | null
+  id: string; label: string; gate: 'review' | 'auto' | null
   skills: SkillRef[]; inputs: FieldRef[]; outputs: FieldRef[]
   guards: GuardConfig[]; transitions: StepTransition[]
 }
@@ -40,7 +40,7 @@ export interface WorkflowRules {
   steps: readonly string[]
   /** from step id → 出边列表（event 名 + 目标 step）。 */
   transitions: Record<string, readonly { event: string; to: string }[]>
-  gateByStep: Record<string, 'review' | 'confirm' | null>
+  gateByStep: Record<string, 'review' | 'auto' | null>
   /**
    * step id → 展示名（StepDef.label；未声明时规范化为 step id）。服务端 snapshot 中该表
    * 必须与 steps 精确同键，避免边界解码后再把不完整对象断言成完整 Record；本地 default
@@ -65,7 +65,7 @@ export interface StepOutputRules {
 
 function buildDefaultRules(): WorkflowRules {
   const transitions: Record<string, { event: string; to: string }[]> = {}
-  const gateByStep: Record<string, 'review' | 'confirm' | null> = {}
+  const gateByStep: Record<string, 'review' | 'auto' | null> = {}
   for (const from of PHASES) {
     transitions[from] = TRANSITIONS[from]
       .filter((to) => to !== from) // archive→archive 自环不是可操作出边
@@ -95,7 +95,7 @@ export function workflowRulesFromSnapshot(
 
 export function rulesFromDef(def: { name: string; steps: StepDef[] }): WorkflowRules & StepOutputRules {
   const transitions: Record<string, { event: string; to: string }[]> = {}
-  const gateByStep: Record<string, 'review' | 'confirm' | null> = {}
+  const gateByStep: Record<string, 'review' | 'auto' | null> = {}
   const outputsByStep: Record<string, readonly string[]> = {}
   const labelByStep: Record<string, string> = {}
   for (const s of def.steps) {

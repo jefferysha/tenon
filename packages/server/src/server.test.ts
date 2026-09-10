@@ -2172,6 +2172,20 @@ describe('GET/POST/PATCH/DELETE /api/tracks —— v3 Studio Track CRUD', () => 
   })
 })
 
+describe('GET /api/skills/:name/readme —— 技能 SKILL.md 全文与来源', () => {
+  it('本仓 skills 目录里的技能 → 200：markdown 全文 + 来源 local-plugin + 相对路径；不存在 → 404；非法名 → 400', async () => {
+    const h = await start()
+    const ok = await reqGet(h.port, '/api/skills/tenon-open/readme')
+    expect(ok.status).toBe(200)
+    const body = ok.json<{ name: string; source: string; origin: string; path: string; markdown: string }>()
+    expect(body).toMatchObject({ name: 'tenon-open', source: 'local-plugin', origin: 'tenon', path: 'tenon-open/SKILL.md' })
+    expect(body.markdown).toMatch(/^---\n/)
+    expect(body.markdown).toContain('name: tenon-open')
+    expect((await reqGet(h.port, '/api/skills/no-such-skill-xyz/readme')).status).toBe(404)
+    expect((await reqGet(h.port, `/api/skills/${encodeURIComponent('../etc')}/readme`)).status).toBe(400)
+  })
+})
+
 describe('GET /api/skills/registry —— 全部已注册 skill 明细(T6 升级为 SkillEntry[])', () => {
   it('返回本仓真实 skills 目录 + EXTERNAL-SKILLS.md 合并明细,逐字段符合 SkillEntry 形状', async () => {
     const h = await start()
@@ -3764,7 +3778,8 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     const h = await start()
     const builtin = await reqGet(h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`)
     expect(builtin.status).toBe(200)
-    const { source: builtinSource, effectiveIo: builtinIo, ...template } = builtin.json<Record<string, unknown>>()
+    const { source: builtinSource, effectiveIo: builtinIo, branches: builtinBranches, ...template } = builtin.json<Record<string, unknown>>()
+    expect(Object.keys(builtinBranches as Record<string, unknown>)).toEqual(['_base', 'pm', 'frontend', 'backend', 'free'])
     expect(builtinSource).toBe('builtin')
     expect(Object.keys(builtinIo as Record<string, unknown>)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
     const steps = template.steps as Array<{ id: string; skills: Array<{ id: string }> }>
@@ -3780,7 +3795,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(loaded.status).toBe(200)
     const override = loaded.json<{ source: string; steps: Array<{ id: string; skills: Array<{ id: string }> }> }>()
     expect(override.source).toBe('project')
-    expect(override.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose', 'brainstorming'])
+    expect(override.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'brainstorming'])
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: [], default: { source: 'project' } })
 
@@ -3872,7 +3887,8 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
 
     const loaded = await reqGet(h.port, `/api/workflows/short-governed?root=${encodeURIComponent(h.root)}`)
     expect(loaded.status).toBe(200)
-    const { source, effectiveIo, ...definition } = loaded.json<Record<string, unknown>>()
+    const { source, effectiveIo, branches, ...definition } = loaded.json<Record<string, unknown>>()
+    expect(Object.keys(branches as Record<string, unknown>)).toEqual(['_base'])
     expect(definition).toEqual({
       name: body.name,
       documentContract: body.documentContract,
@@ -3991,7 +4007,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(saved.status, saved.body).toBe(200)
     const loaded = await reqGet(h.port, `/api/workflows/full-step-ir?root=${encodeURIComponent(h.root)}`)
     expect(loaded.status).toBe(200)
-    const { source: _source, effectiveIo: _effectiveIo, ...definition } = loaded.json<Record<string, unknown>>()
+    const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...definition } = loaded.json<Record<string, unknown>>()
     expect(definition).toEqual({ name: body.name, steps: body.steps })
   })
 

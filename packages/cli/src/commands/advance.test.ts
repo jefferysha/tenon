@@ -372,12 +372,12 @@ steps:
     transitions: []
 `
 
-/** gc1 是 confirm 人门（gate: confirm）。 */
-const GATE_CONFIRM_WF = `name: gatec
+/** gc1 是自动门（gate: auto）：不是人门，输出齐全即按守卫推进。 */
+const GATE_AUTO_WF = `name: gatec
 steps:
   - id: gc1
     label: one
-    gate: confirm
+    gate: auto
     skills: []
     inputs: []
     outputs: []
@@ -432,7 +432,7 @@ describe('advance —— 非 default workflow（自定义 step 图，快速回�
     await writeFile(join(wfDir, 'chain.yaml'), CHAIN_WF, 'utf8')
     await writeFile(join(wfDir, 'fork.yaml'), FORK_WF, 'utf8')
     await writeFile(join(wfDir, 'guarded.yaml'), GUARDED_WF, 'utf8')
-    await writeFile(join(wfDir, 'gatec.yaml'), GATE_CONFIRM_WF, 'utf8')
+    await writeFile(join(wfDir, 'gatec.yaml'), GATE_AUTO_WF, 'utf8')
     await writeFile(join(wfDir, 'gater.yaml'), GATE_REVIEW_WF, 'utf8')
     // 非法 workflow（transitions.to 悬空 → validateWorkflow 拒绝 → loadWorkflow fail-loud 抛错）
     await writeFile(join(wfDir, 'broken.yaml'), 'name: broken\nsteps:\n  - id: b1\n    label: one\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions:\n      - event: go\n        to: nowhere\n', 'utf8')
@@ -545,12 +545,10 @@ describe('advance —— 非 default workflow（自定义 step 图，快速回�
     expect(a.err.join('\n')).toContain("step 'no-such-step' 不在 workflow 'chain' 里")
   })
 
-  test('step gate=confirm（human gate）→ 停，--through-gates 也绝不放行（HITL 红线）', async () => {
+  test('step gate=auto 不是人门：自动推进不因它停下', async () => {
     const a = makeCustomAdv({ phase: 'gc1', workflow: 'gatec' })
-    expect(await cmdAdvance(a.deps, 'demo', { throughGates: true })).toBe(0)
-    expect(a.store.phase()).toBe('gc1')
-    expect(a.store.write.calls).toHaveLength(0)
-    expect(a.out.some((l) => l.includes('[STOP]') && l.includes('confirm'))).toBe(true)
+    await cmdAdvance(a.deps, 'demo', {})
+    expect(a.out.some((l) => l.includes('[STOP]') && l.includes('confirm'))).toBe(false)
   })
 
   test('step gate=review → 默认停给人复核，零推进', async () => {

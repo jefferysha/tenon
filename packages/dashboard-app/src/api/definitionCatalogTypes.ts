@@ -29,7 +29,7 @@ export interface DefinitionCatalogWorkflow {
   fingerprint: string
   source: 'builtin' | 'project' | 'user'
   readonly: boolean
-  steps: Array<{ id: string; label: string; order: number; gate: 'review' | 'confirm' | null; skill_ids: string[]; skill_dependencies: Record<string, string[]>; transition_events: string[] }>
+  steps: Array<{ id: string; label: string; order: number; gate: 'review' | 'auto' | null; skill_ids: string[]; skill_dependencies: Record<string, string[]>; transition_events: string[] }>
 }
 
 export interface DefinitionCatalogTrack {
@@ -50,7 +50,7 @@ export interface DefinitionCatalogPipeline {
   workflow_id: string
   track_id: string
   stage_order: string[]
-  stages: Array<{ id: string; label: string; order: number; mode: 'serial' | 'parallel'; skill_ids: string[]; skill_dependencies: Record<string, string[]>; depends_on: string[]; gate: 'review' | 'confirm' | null }>
+  stages: Array<{ id: string; label: string; order: number; mode: 'serial' | 'parallel'; skill_ids: string[]; skill_dependencies: Record<string, string[]>; depends_on: string[]; gate: 'review' | 'auto' | null }>
 }
 
 export interface DefinitionCatalog {

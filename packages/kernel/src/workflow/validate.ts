@@ -1,7 +1,7 @@
 import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
 import { validateDefaultWorkflowStructure, validateOpenSpecContractWorkflow } from './document-contract.js'
 import { isValidWorkflowName } from './identifier.js'
-import type { WorkflowDef } from './types.js'
+import type { WorkflowDef, StepDef } from './types.js'
 
 function detectCycle(skillIds: string[], dependsOn: Map<string, string[]>): string[] {
   const WHITE = 0, GRAY = 1, BLACK = 2
@@ -39,17 +39,47 @@ const IDENT_RE = /^[a-zA-Z0-9_-]+$/
  */
 const SKILL_IDENT_RE = /^[a-zA-Z0-9_-]+(?::[a-zA-Z0-9_-]+)*$/
 
+/** 工作流的全部分支：通用分支（key ''）+ 每条 track 分支（key = track id）。 */
+export function workflowBranches(wf: WorkflowDef): ReadonlyArray<{ readonly track: string; readonly label?: string; readonly steps: readonly StepDef[] }> {
+  return [
+    { track: '', steps: wf.steps },
+    ...Object.entries(wf.tracks ?? {}).map(([track, branch]) => ({ track, ...(branch.label === undefined ? {} : { label: branch.label }), steps: branch.steps })),
+  ]
+}
+
+/** 按 change 的 track 选中分支：命中 `tracks.<id>` 用之，否则用通用分支；结果不再携带 tracks。 */
+export function selectTrackBranch(wf: WorkflowDef, track: string | undefined): WorkflowDef {
+  const { tracks, ...rest } = wf
+  const branch = track === undefined ? undefined : tracks?.[track]
+  return branch === undefined ? rest : { ...rest, steps: branch.steps }
+}
+
 export function validateWorkflow(
   wf: WorkflowDef,
   options: { readonly origin?: 'custom' | 'default' } = {},
 ): string[] {
   const errors: string[] = []
-  const producedByEarlierStep = new Set<string>()
-  const allStepIds = new Set(wf.steps.map((s) => s.id))
-
   if (!isValidWorkflowName(wf.name)) {
     errors.push(`workflow name '${wf.name}' 含非法字符（允许中文、字母、数字、- 与 _；不允许空格、点或路径符号）`)
   }
+  for (const branch of workflowBranches(wf)) {
+    const prefix = branch.track === '' ? '' : `tracks.${branch.track}: `
+    if (branch.track !== '' && !/^[a-z][a-z0-9_-]{0,31}$/.test(branch.track)) {
+      errors.push(`tracks 分支 id '${branch.track}' 非法（小写字母开头，仅 a-z0-9_-，≤32）`)
+    }
+    if (branch.track !== '' && branch.steps.length === 0) errors.push(`${prefix}分支至少要有一个阶段`)
+    errors.push(...validateBranchSteps(selectTrackBranch(wf, branch.track === '' ? undefined : branch.track), options).map((error) => `${prefix}${error}`))
+  }
+  return errors
+}
+
+function validateBranchSteps(
+  wf: WorkflowDef,
+  options: { readonly origin?: 'custom' | 'default' },
+): string[] {
+  const errors: string[] = []
+  const producedByEarlierStep = new Set<string>()
+  const allStepIds = new Set(wf.steps.map((s) => s.id))
 
   wf.steps.forEach((step) => {
     if (!IDENT_RE.test(step.id)) {
@@ -63,11 +93,6 @@ export function validateWorkflow(
     for (const skill of step.skills) {
       if (!SKILL_IDENT_RE.test(skill.id)) {
         errors.push(`step '${step.id}' 的 skill id '${skill.id}' 含非法字符（仅允许 a-zA-Z0-9_- 及命名空间冒号，如 superpowers:brainstorming）`)
-      }
-      for (const track of skill.when?.values ?? []) {
-        if (!/^[a-z][a-z0-9_-]{0,31}$/.test(track)) {
-          errors.push(`step '${step.id}' 的 skill '${skill.id}' 的 when 引用了非法 track id '${track}'`)
-        }
       }
     }
     for (const ref of [...step.inputs, ...step.outputs]) {
@@ -161,6 +186,11 @@ export function validateWorkflow(
 export function validateWorkflowForStorage(name: string, wf: WorkflowDef): string[] {
   const origin = name === 'default' ? 'default' : 'custom'
   const errors = validateWorkflow(wf, { origin })
-  if (origin === 'default') errors.push(...validateDefaultWorkflowStructure(wf))
+  if (origin === 'default') {
+    for (const branch of workflowBranches(wf)) {
+      const prefix = branch.track === '' ? '' : `tracks.${branch.track}: `
+      errors.push(...validateDefaultWorkflowStructure(selectTrackBranch(wf, branch.track === '' ? undefined : branch.track)).map((error) => `${prefix}${error}`))
+    }
+  }
   return errors
 }

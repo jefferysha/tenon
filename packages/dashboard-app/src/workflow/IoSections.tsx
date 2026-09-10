@@ -17,23 +17,40 @@ function candidateKey(candidate: SlotCandidate): string {
   return `${candidate.kind}:${candidate.id}`
 }
 
+/** 槽位溯源：产出者（阶段 / 技能）一句 + 它在 YAML 里的位置。 */
+export interface SlotProvenance {
+  text: string
+  path: string
+}
+
+function Provenance({ info, testId }: { info: SlotProvenance | undefined; testId: string }): JSX.Element | null {
+  if (info === undefined) return null
+  return (
+    <span className="block truncate font-mono text-caption text-text-3" data-testid={testId}>
+      <span className="text-text-2">{info.text}</span>
+      {info.text !== '' && info.path !== '' && ' · '}
+      {info.path}
+    </span>
+  )
+}
+
 export interface OutputsSectionProps {
   slots: readonly WbIoSlot[]
   candidates: readonly SlotCandidate[]
   editable: boolean
   labelOf: (stepId: string) => string
+  provenance?: (slot: WbIoSlot) => SlotProvenance
   onAdd: (candidate: SlotCandidate) => void
   onRemove: (candidate: SlotCandidate) => void
 }
 
-/** 输出：文档槽位（契约固定带锁）与值槽位；下拉添加、行内移除。 */
-export function OutputsSection({ slots, candidates, editable, labelOf, onAdd, onRemove }: OutputsSectionProps): JSX.Element {
+/** 输出：文档槽位（契约固定带锁）与值槽位；下拉添加、行内移除；每行可带溯源。 */
+export function OutputsSection({ slots, candidates, editable, labelOf, provenance, onAdd, onRemove }: OutputsSectionProps): JSX.Element {
   const { t } = useT()
   const [pending, setPending] = useState('')
   const pendingCandidate = candidates.find((candidate) => candidateKey(candidate) === pending)
   return (
-    <section className="mb-8" data-testid="stage-outputs">
-      <h2 className="mb-3 text-section font-bold text-text">{t('workflow.outputs_title')}</h2>
+    <section data-testid="stage-outputs">
       {slots.length === 0 ? (
         <p className="rounded-md border border-dashed border-amber-b bg-amber-t px-4 py-4 text-center text-body text-amber-d" role="status" data-testid="stage-outputs-empty">{t('workflow.lint_no_output')}</p>
       ) : (
@@ -47,6 +64,7 @@ export function OutputsSection({ slots, candidates, editable, labelOf, onAdd, on
                 <span className="min-w-0">
                   <span className="block truncate text-base font-semibold text-text">{slotLabel(slot, t)}</span>
                   {consumers !== '' && <span className="block truncate text-caption text-text-2">{t('workflow.consumed_by', { stages: consumers })}</span>}
+                  <Provenance info={provenance?.(slot)} testId={`output-provenance-${slot.kind}-${slot.id}`} />
                 </span>
                 {locked ? (
                   <Lock className="size-3.5 text-text-3" aria-label={t('workflow.locked')} data-testid={`output-lock-${slot.id}`} />
@@ -83,16 +101,16 @@ export interface InputsSectionProps {
   inputs: readonly WbIoSlot[]
   editable: boolean
   labelOf: (stepId: string) => string
+  provenance?: (slot: WbIoSlot) => SlotProvenance
   onToggle: (candidate: SlotCandidate, on: boolean) => void
 }
 
-/** 输入：上游输出的勾选清单；契约固定的文档读取不可取消。 */
-export function InputsSection({ upstream, inputs, editable, labelOf, onToggle }: InputsSectionProps): JSX.Element {
+/** 输入：上游输出的勾选清单；契约固定的文档读取不可取消；已勾选的行带溯源。 */
+export function InputsSection({ upstream, inputs, editable, labelOf, provenance, onToggle }: InputsSectionProps): JSX.Element {
   const { t } = useT()
   const active = new Map(inputs.map((slot) => [`${slot.kind}:${slot.id}`, slot]))
   return (
-    <section className="mb-8" data-testid="stage-inputs">
-      <h2 className="mb-3 text-section font-bold text-text">{t('workflow.inputs_title')}</h2>
+    <section data-testid="stage-inputs">
       {upstream.length === 0 ? (
         <p className="rounded-md border border-dashed border-border px-4 py-4 text-center text-body text-text-3" role="status">{t('workflow.no_upstream')}</p>
       ) : (
@@ -109,7 +127,8 @@ export function InputsSection({ upstream, inputs, editable, labelOf, onToggle }:
                   <input type="checkbox" className="size-4 accent-(--accent)" checked={checked} disabled={!editable || locked} data-testid={`input-check-${candidate.kind}-${candidate.id}`} onChange={(event) => onToggle(candidate, event.target.checked)} />
                   <span className="min-w-0">
                     <span className="block truncate text-base font-semibold text-text">{slotLabel(candidate, t)}</span>
-                    {producer !== '' && <span className="block truncate text-caption text-text-2">{t('workflow.produced_by', { stage: producer })}</span>}
+                    {producer !== '' && provenance === undefined && <span className="block truncate text-caption text-text-2">{t('workflow.produced_by', { stage: producer })}</span>}
+                    {slot !== undefined && <Provenance info={provenance?.(slot)} testId={`input-provenance-${slot.kind}-${slot.id}`} />}
                   </span>
                   {locked ? <Lock className="size-3.5 text-text-3" aria-label={t('workflow.locked')} /> : <SlotIcon slot={candidate} />}
                 </label>

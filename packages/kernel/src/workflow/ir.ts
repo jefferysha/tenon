@@ -188,4 +188,6 @@ export interface WorkflowIR {
   readonly openspecContract?: 'required'
   readonly documentContract?: WorkflowDocumentContractV1
   readonly steps: readonly StepIR[]
+  /** track 分支（编译后）；有效计划按 change 的 track 选中一条后即从 IR 剥离，冻结快照里不再出现。 */
+  readonly tracks?: Readonly<Record<string, { readonly label?: string; readonly steps: readonly StepIR[] }>>
 }

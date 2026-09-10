@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/kernel/backend/index.md", "reason": "kernel 纯函数与 I/O 边界"}
+{"file": ".trellis/spec/kernel/backend/skill-output-registration.md", "reason": "技能证据与文档登记的既有契约"}
+{"file": ".trellis/spec/server/backend/snapshot-skill-runs.md", "reason": "skillRuns 投影随分支变化"}
+{"file": ".trellis/spec/dashboard-app/frontend/component-guidelines.md", "reason": "三列骨架、工作流页与工作台规则、措辞规则"}
+{"file": ".trellis/spec/dashboard-app/frontend/directory-structure.md", "reason": "前端目录约定"}

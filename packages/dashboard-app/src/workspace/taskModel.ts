@@ -2,7 +2,7 @@ import type { WbIoSlot, WbStepIo } from '../api/governanceTypes'
 import { changeWorkflowName } from '../model/progressModel'
 import { snapshotRulesKey, type WorkflowRules } from '../model/workflowModel'
 import { isProjectNavigable } from '../state/projectSelectionModel'
-import { isPhase, type ChangeSnapshot, type Snapshot } from '../types'
+import type { ChangeSnapshot, Snapshot } from '../types'
 
 export type Tr = (key: string, vars?: Record<string, string | number>) => string
 
@@ -48,18 +48,16 @@ export function isUnset(value: string): boolean {
   return value === '' || value === 'null'
 }
 
-export function stageLabel(step: string, rules: WorkflowRules | undefined, t: Tr): string {
-  const custom = rules?.executionModel === 'phase-manifest' ? undefined : rules?.labelByStep?.[step]
-  if (custom) return custom
-  return isPhase(step) ? t(`phases.${step}`) : step
+/** 阶段名只显示一个：定义里的 label（服务端已投影进 labelByStep），没有就是 id；不做前端翻译。 */
+export function stageLabel(step: string, rules: WorkflowRules | undefined, _t?: Tr): string {
+  return rules?.labelByStep?.[step] || step
 }
 
-/** 槽位展示名：文档 kind 走 documents.*，字段走 fields.*；词典没有的动态 id 回落 id 本身。 */
-export function slotLabel(slot: Pick<WbIoSlot, 'kind' | 'id'>, t: Tr): string {
-  const key = slot.kind === 'document' ? `documents.${slot.id}` : `fields.${slot.id}`
-  const label = t(key)
-  return label === key ? slot.id : label
+/** 槽位展示名 = 定义里的 id 本身（文档 kind / 字段名），不做前端翻译。 */
+export function slotLabel(slot: Pick<WbIoSlot, 'kind' | 'id'>, _t?: Tr): string {
+  return slot.id
 }
+
 
 export function stagesOf(change: ChangeSnapshot, rules: WorkflowRules | undefined, t: Tr): StageState[] {
   const steps = rules?.steps ?? change.workflowRules.steps
@@ -211,10 +209,13 @@ export function taskFacets(rows: readonly TaskRow[], filter: TaskFilterState): T
     label: id,
     count: rows.filter((row) => row.change.track === id && matches(row, filter, 'track')).length,
   }))
-  // 只有一条工作流时阶段行直接可用（不必先点它）；多条时必须先选定，阶段才可比。
+  // 阶段只在「单一工作流 + 单一轨道」下可比（每条轨道分支各有自己的阶段）；只有一条时直接可用，不必先点它。
   const effectiveWorkflow = filter.workflow !== 'all' ? filter.workflow : workflowNames.length === 1 ? workflowNames[0] : undefined
   if (effectiveWorkflow === undefined) return { workflows, tracks, stages: null }
-  const sample = rows.find((row) => row.workflow === effectiveWorkflow)
+  const scopedTracks = [...new Set(rows.filter((row) => row.workflow === effectiveWorkflow).map((row) => row.change.track))]
+  const effectiveTrack = filter.track !== 'all' ? filter.track : scopedTracks.length <= 1 ? (scopedTracks[0] ?? '') : undefined
+  if (effectiveTrack === undefined) return { workflows, tracks, stages: null }
+  const sample = rows.find((row) => row.workflow === effectiveWorkflow && (effectiveTrack === '' || row.change.track === effectiveTrack))
   const stages = (sample?.stages ?? []).map((stage) => ({
     id: stage.id,
     label: stage.label,
