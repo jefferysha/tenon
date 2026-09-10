@@ -12,25 +12,32 @@ export function ThreeColumns({
   list,
   detail,
   railCollapsed,
+  listWidth = 'default',
   testId,
 }: {
   rail: ReactNode
   list: ReactNode
   detail: ReactNode
   railCollapsed: boolean
+  /** narrow = 中列 380px（工作流页：中列只是流程骨架，空间让给右列）。 */
+  listWidth?: 'default' | 'narrow'
   testId: string
 }): JSX.Element {
+  const narrow = listWidth === 'narrow'
   return (
     <div
       className={cn(
         'grid h-[calc(100vh-var(--topbar-h))] min-h-0 bg-bg',
         railCollapsed
-          ? 'grid-cols-[64px_492px_minmax(0,1fr)]'
-          : 'grid-cols-[296px_492px_minmax(0,1fr)] max-[1279px]:grid-cols-[64px_440px_minmax(0,1fr)]',
+          ? (narrow ? 'grid-cols-[64px_380px_minmax(0,1fr)]' : 'grid-cols-[64px_492px_minmax(0,1fr)]')
+          : (narrow
+            ? 'grid-cols-[296px_380px_minmax(0,1fr)] max-[1279px]:grid-cols-[64px_344px_minmax(0,1fr)]'
+            : 'grid-cols-[296px_492px_minmax(0,1fr)] max-[1279px]:grid-cols-[64px_440px_minmax(0,1fr)]'),
         'max-[900px]:h-auto max-[900px]:min-h-[calc(100vh-var(--topbar-h))] max-[900px]:grid-cols-1',
       )}
       data-testid={testId}
       data-rail-collapsed={railCollapsed}
+      data-list-width={listWidth}
     >
       {rail}
       {list}
@@ -45,6 +52,7 @@ export function RailColumn({
   onToggle,
   children,
   footer,
+  headerAction,
   testId,
 }: {
   title: string
@@ -52,6 +60,8 @@ export function RailColumn({
   onToggle: () => void
   children: ReactNode
   footer?: ReactNode
+  /** 标题行里、折叠按钮左侧的动作（如「+」）；折叠态也显示。 */
+  headerAction?: ReactNode
   testId: string
 }): JSX.Element {
   const { t } = useT()
@@ -65,8 +75,9 @@ export function RailColumn({
       data-testid={testId}
       data-collapsed={collapsed}
     >
-      <div className={cn('flex items-center pb-4', collapsed ? 'justify-center' : 'justify-between px-1.5 max-[1279px]:justify-center max-[900px]:justify-between')}>
-        {!collapsed && <span className="text-body text-text-2 max-[1279px]:hidden max-[900px]:inline">{title}</span>}
+      <div className={cn('flex items-center gap-1.5 pb-4', collapsed ? 'flex-col justify-center' : 'justify-between px-1.5 max-[1279px]:flex-col max-[1279px]:justify-center max-[900px]:flex-row max-[900px]:justify-between')}>
+        {!collapsed && <span className="mr-auto text-body text-text-2 max-[1279px]:hidden max-[900px]:inline">{title}</span>}
+        {headerAction}
         <button
           type="button"
           className="grid size-8 place-items-center rounded-sm border border-border bg-card text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"

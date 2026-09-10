@@ -32,7 +32,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
     try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
   }, [railCollapsed])
   const [trackDialogOpen, setTrackDialogOpen] = useState(false)
-  const [trackDeleteOpen, setTrackDeleteOpen] = useState(false)
+  const [trackDeleteTarget, setTrackDeleteTarget] = useState<string | null>(null)
   const { rules: rulesByKey } = useWorkflowRulesMulti(editor.names && editor.names.length > 0 ? [{ root, names: editor.names }] : [])
   const stagesCountOf = (name: string): number | null =>
     name === editor.wfName && editor.def ? editor.def.steps.length : name === 'default' ? DEFAULT_RULES.steps.length : rulesByKey.get(rulesKey(root, name))?.steps.length ?? null
@@ -63,6 +63,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
       <ThreeColumns
         testId="workbench-view"
         railCollapsed={railCollapsed}
+        listWidth="narrow"
         rail={(
           <WorkflowRail
             names={editor.menuNames}
@@ -78,9 +79,8 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             onSwitch={editor.requestSwitch}
             onSwitchBranch={editor.setBranch}
             onNewTrack={() => setTrackDialogOpen(true)}
-            onDeleteTrack={() => setTrackDeleteOpen(true)}
+            onDeleteTrack={setTrackDeleteTarget}
             onCreate={() => editor.create.openCreate('copy')}
-            onImport={() => editor.create.openCreate('import')}
             onExport={() => void exportYaml()}
             onDelete={editor.openWorkflowDelete}
           />
@@ -88,9 +88,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
         list={(
           <PipelineList
             def={editor.def}
-            branches={editor.branches}
-            branch={editor.branch}
-            onSwitchBranch={editor.setBranch}
+            branchLabel={editor.branch === '' ? null : (editor.branches.find((candidate) => candidate.id === editor.branch)?.label ?? editor.branch)}
             labelOf={editor.labelOf}
             selectedId={editor.stageId}
             lint={editor.lint}
@@ -114,19 +112,19 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
         onClose={() => setTrackDialogOpen(false)}
         onSubmit={(id, label) => { editor.addTrack(id, label); setTrackDialogOpen(false) }}
       />
-      {trackDeleteOpen && (
+      {trackDeleteTarget !== null && (
         <Dialog
           title={t('workflow.delete_track')}
-          onClose={() => setTrackDeleteOpen(false)}
+          onClose={() => setTrackDeleteTarget(null)}
           testid="track-delete-dialog"
           actions={(
             <>
-              <button type="button" className="min-h-10 rounded-md px-3 text-base text-text-2 hover:bg-fill" onClick={() => setTrackDeleteOpen(false)}>{t('workflow.cancel')}</button>
-              <button type="button" className="min-h-10 rounded-md bg-red-d px-4 text-base font-semibold text-btn-fg hover:opacity-90" data-testid="track-delete-confirm" onClick={() => { editor.removeTrack(editor.branch); setTrackDeleteOpen(false) }}>{t('workflow.settings_delete')}</button>
+              <button type="button" className="min-h-10 rounded-md px-3 text-base text-text-2 hover:bg-fill" onClick={() => setTrackDeleteTarget(null)}>{t('workflow.cancel')}</button>
+              <button type="button" className="min-h-10 rounded-md bg-red-d px-4 text-base font-semibold text-btn-fg hover:opacity-90" data-testid="track-delete-confirm" onClick={() => { editor.removeTrack(trackDeleteTarget); setTrackDeleteTarget(null) }}>{t('workflow.settings_delete')}</button>
             </>
           )}
         >
-          <p className="text-body text-text-2">{t('workflow.delete_track_confirm', { name: editor.branches.find((branch) => branch.id === editor.branch)?.label ?? editor.branch })}</p>
+          <p className="text-body text-text-2">{t('workflow.delete_track_confirm', { name: editor.branches.find((branch) => branch.id === trackDeleteTarget)?.label ?? trackDeleteTarget })}</p>
         </Dialog>
       )}
       <WorkbenchDialogs

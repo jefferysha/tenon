@@ -62,60 +62,67 @@ last one. Anything that needs its own surface opens the shared right-side `share
 
 ## 工作流 rules (`workflow/`)
 
-- **Branches.** A workflow with `tracks` shows one row per track (`label ?? id`) under the rail card and a tab
-  strip above the pipeline; a workflow without tracks is a single pipeline (branch id `''`) with neither.
-  `useWorkflowEditor` keeps `fullDef` and a `branch`; every read path uses `def = selectBranchDef(fullDef, branch)`
-  and every mutation goes through `writeBranchDef`. `addTrack` copies the current branch (a single-pipeline
-  workflow first moves its steps into `main`); removing the last track moves its steps back to `steps`. Save is
-  blocked when any branch has a lint issue (`lintBlocked`).
-- **Stage flow.** `PipelineList` is a `@dnd-kit/sortable` vertical list: the numbered circle is the drag handle,
-  the trunk line connects linked stages, review / auto gates are icon pills, back edges are listed under the
-  node, the selected node is elevated (`shadow-md`, accent border). Reorders go through `onReorder` and are
-  animated with `useFlipLayout`.
+- **Layout.** `ThreeColumns listWidth="narrow"` (middle 380px): the middle column is only the flow skeleton, the
+  right column gets the space. Every top-level control lives next to the thing it acts on — there is no footer
+  action list in the rail.
+- **Rail.** `RailColumn headerAction` = one `+` (`wb-workflow-new`) that opens `NewWorkflowDialog` (copy / blank /
+  import YAML). The selected workflow row carries inline actions: `+` (`wb-track-new-<wf>`, new track) and
+  `MenuButton` (`wb-wf-menu-<wf>`: export YAML; delete workflow, or 恢复内建 for default — enabled only when a
+  project override exists). Track rows (`wb-branch-<id>`, `label ?? id`) each have an inline `×`
+  (`wb-track-delete-<id>`) that opens the confirm dialog. Rows of non-selected workflows show no actions:
+  select first, then act in place. No branch tabs anywhere else — the rail is the only track switcher.
+- **Stage flow (`PipelineList`).** Eyebrow = workflow name, title = track label. A node is the numbered circle on the
+  spine (drag handle, `@dnd-kit/sortable`, `useFlipLayout` for the move) plus a card with **only the stage name and
+  the gate pill** (`GateMark`: review = shield / amber, auto = bolt / accent). The spine segment below a gated
+  stage carries the same mark as a small node (`wb-gate-node`), back edges are dashed pills under the card
+  (`wb-back-edge-<from>-<to>`), the trailing `+` on the spine adds a stage. No skill chips in the middle column.
+- **Stage pane (`StageEditorPane`).** Header = breadcrumb `wb-crumbs` (workflow › track › stage) and the stage name
+  as an editable title input (`wb-lane-name-input-<id>`; the crumb `wb-lane-name-<id>` shows the same text), position
+  `n / N`, delete icon with inline confirm. Body sections, in order: 技能 (`SkillWaveCards`: one row per wave, cards
+  with `SkillSourceIcon` + mono name + registry `description`, `∥ 并行 · n` when a wave has ≥2; click → `SkillDetailDrawer`;
+  编辑 → `SkillComposer`), two summary cards `wb-open-outputs` / `wb-open-inputs` (count + first slot names), 门禁
+  (three radio cards `wb-lane-gate-<id>-none|review|auto`, each with `Info` `title` + sr-only help).
+- **IO sheets are breadcrumb sheets, not drawers.** Clicking a summary card switches the pane's `view` to
+  `outputs` / `inputs`: the breadcrumb grows by one crumb (`wb-crumb-sheet`), the stage crumb becomes a button that
+  returns, the title becomes 输出 / 输入 with the count. `SlotList` rows (`slot-<kind>-<id>`) are **read-only**:
+  name + lock, then `slot-skills-<id>` (producing skills as chips with source icon) and `slot-stages-<id>`
+  (outputs: `→` stages that read it; inputs: `←` the producing stage). The YAML path is the row `title`.
+  There is no add / remove / checkbox UI and no `addOutput` / `setInput` in `useWorkflowEditor`; field IO is
+  edited in YAML (import / export).
 - **Names.** Stages, tracks, skills, workflows render `label ?? id`. No `phases.*` / `documents.*` / `fields.*`
   translation of ids anywhere in `workflow/` or `workspace/`.
-- **Skills.** Any skill chip opens `SkillDetailDrawer` (`SkillDetail`: origin, file tree from
-  `/api/skills/:name/files`, selected file from `/file?path=`; `.md` rendered with `Markdown` after
-  `splitFrontmatter`, others as `<pre>`). The 编辑 button opens `SkillComposer` (full-screen `Dialog`, three
-  columns): palette (drag handle + name + `SkillSourceIcon`, click name → detail column), `SkillCanvas`
-  (column = one step, ≥2 items = `∥ 并行`, `→` connectors between steps, `+ 新一步` drop zones, drop back on the
-  palette = remove), detail column (`SkillDetail`). Only `DragOverlay` moves; source items keep their layout and
-  fade; wave changes animate with `useFlipLayout`. Only 保存 writes `steps[].skills` via `setSkillWaves`.
-- **IO.** Two entry rows (输出 / 输入 + count) open `Drawer` sheets that host `OutputsSection` / `InputsSection`
-  with a `provenance` line per slot: producing skills or `来自 <stage> · <skills>` plus the YAML path
-  (`tracks.<id>.steps[<step>].outputs[<field>]`, `document_contract.slots[<kind>]`).
-- **Gates.** Radio `无 / 评审 / 自动`; each option carries an `Info` icon with `title` + sr-only text from
-  `workflow.gate_help_*`. `confirm` no longer exists in the type.
+- **Composer.** Unchanged from 09-10: palette / `SkillCanvas` / `SkillDetail`; only `DragOverlay` moves; wave changes
+  animate with `useFlipLayout`; only 保存 writes `steps[].skills` via `setSkillWaves`.
+- Skill order is the **column model** (`workbench/skillWaves.ts`): a column is one execution wave, skills in the same
+  column run in parallel, adjacent columns run serially. `wavesToSkills` writes `depends_on = all skills of the
+  previous column`; `wavesOf` reads it back. `applyDrop` is the pure reducer — test it, not the drag.
+- Save is blocked while `editor.lint` is non-empty or the page has no write credential (`getToken() === ''` → every
+  write control disabled, footer shows `wb-no-token`; never fire a request that will 401).
+- default is editable: saving writes the project override; the rail shows `内建 / 项目`; the menu action becomes
+  `恢复内建` and is enabled only when an override exists. The server rejects overrides that break the seven-stage
+  skeleton (`validateWorkflowForStorage`).
 
+### How stage inputs / outputs are derived (and what is *not* detected)
 
-- Middle column is a pipeline (`PipelineList`): numbered nodes on a vertical connector, solid when the
-  next stage is a direct forward edge, dashed otherwise; back edges render under the node as
-  `回到<stage>`; a stage without outputs gets the `缺输出` badge from `lint.ts`.
-- Skill order is the **column model** (`workbench/skillWaves.ts`): a column is one execution wave,
-  skills in the same column run in parallel, adjacent columns run serially. `wavesToSkills` writes
-  `depends_on = all skills of the previous column`; `wavesOf` reads it back. `SkillDag` is the only UI
-  for it: dnd-kit Pointer + Keyboard sensors; drop targets `wave:<k>` (join column), `gap:<k>`
-  (insert new column before k), `palette` (remove). `applyDrop` is the pure reducer — test it, not
-  the drag.
-- **One skill system.** Track-specific skills are not a separate list: a skill node carries an
-  optional track condition (`WbSkillRef.when = { kind: 'track-in' | 'track-not-in', values }`;
-  none = every track). The node shows a track badge (`skill-tracks-<id>`); clicking it opens a chip
-  picker (`skill-track-<id>-<track>`) that writes `when` through `editor.setSkillWhen`. The chips above
-  the canvas (`dag-track-all` / `dag-track-<track>`) only filter the view; editing is enabled in the
-  "all tracks" view. The manifest matrix (`/api/config`) is read-only data for track names — never
-  write `mandatory-skills` from the dashboard again.
-- Outputs / inputs (`IoSections`): slots from `editor.effectiveIo` (draft recomputed by
-  `lint.draftEffectiveIo`); add from `slotCatalog.availableOutputSlots`; inputs are a checklist of
-  `upstreamOutputs`. Locked document slots are shown with a lock and cannot be removed / unchecked.
-- Gate is a three-way radio group (`wb-lane-gate-<id>-none|review|confirm`).
-- Save is blocked while `editor.lint` is non-empty or the page has no write credential
-  (`getToken() === ''` → every write control disabled, footer shows `wb-no-token`; never fire a request
-  that will 401).
-- default is editable: saving writes the project override; the rail shows `内建 / 项目`; the delete
-  action becomes `恢复内建` and is enabled only when an override exists. The server rejects overrides
-  that break the seven-stage skeleton (`validateWorkflowForStorage`).
-- New workflow = one dialog with three modes (copy current / blank / import YAML). Import goes through
-  `PUT /api/workflows/:name/yaml`; export through `GET …/yaml` (download + clipboard).
+`effectiveIo` (kernel `workflow/effective-io.ts`, mirrored for drafts by `workflow/lint.ts#draftEffectiveIo`) has
+two sources and neither reads skill content:
+
+1. **Document slots** come from the kernel's fixed document contract (`workflow/document-contract.ts`). It is a table
+   keyed by **step id** (`open / explore / spec / build / verify / ship / archive`): which document kinds a step must
+   produce, which skill names may record them (`producerCandidates`, plugin aliases included, e.g.
+   `brainstorming` / `superpowers:brainstorming`), and which kinds each later step reads. The table applies to
+   `default` and to `openspec_contract: required` workflows, and only to steps whose id matches one of the seven
+   phase names. A stage named `explore` therefore lists `superpower-design` produced by `brainstorming` even on a
+   branch whose explore stage does not contain `brainstorming`. `SlotList` shows `producerCandidates ∩ stage
+   skills` (matched by bare name) and falls back to the bare candidate list when nothing matches.
+2. **Field slots** are what the YAML declares by hand: `steps[].outputs` / `inputs` (`design_doc`, `plan`,
+   `build_sha`, …). Producer = the nearest upstream stage that lists the field as an output; consumers = downstream
+   stages listing it as an input. `artifacts[].producer_policy: effective-phase-skills` does not derive anything —
+   it is a runtime check that whoever records the file is one of the stage's effective skills.
+
+`SKILL.md` frontmatter carries only `name` and `description`; the registry has no machine-readable IO per skill, so
+"the outputs of a skill / plugin" are not discoverable today. Deriving stage IO from skills would require a skill-side
+declaration (frontmatter or a kernel table keyed by skill) and a kernel change — a separate task.
 
 ## Styling patterns
 

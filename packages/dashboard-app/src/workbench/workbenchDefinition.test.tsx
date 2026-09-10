@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   BASE_BRANCH,
-  addDocumentSlotInDef,
-  addFieldOutputInDef,
   addSkillToDef,
   addTrackBranch,
   blankWorkflow,
@@ -10,14 +8,10 @@ import {
   cloneWorkflowDef,
   copyWorkflowDef,
   definitionForWrite,
-  removeDocumentSlotInDef,
-  removeFieldOutputInDef,
   removeSkillFromDef,
   removeStageFromDef,
   removeTrackBranch,
   selectBranchDef,
-  setDocumentReadInDef,
-  setFieldInputInDef,
   setStepSkillWavesInDef,
   workflowNameFromYaml,
   writeBranchDef,
@@ -61,33 +55,7 @@ describe('workbenchDefinition · 技能列模型', () => {
   })
 })
 
-describe('workbenchDefinition · 输入 / 输出槽位', () => {
-  it('addFieldOutput 文件字段同步登记 artifact；removeFieldOutput 撤掉下游对它的输入', () => {
-    const added = addFieldOutputInDef(twoStep(), 'b', { field: 'verification_report', type: 'file_path' })
-    expect(added.steps[1]?.outputs).toEqual([{ field: 'verification_report', type: 'file_path' }])
-    expect(added.steps[1]?.artifacts).toEqual([{ field: 'verification_report', type: 'file_path', producerPolicy: 'effective-step-skills' }])
-    const removed = removeFieldOutputInDef(twoStep(), 'a', 'plan')
-    expect(removed.steps[0]?.outputs).toEqual([])
-    expect(removed.steps[0]?.artifacts).toEqual([])
-    expect(removed.steps[1]?.inputs).toEqual([])
-  })
-  it('setFieldInput 幂等勾选 / 取消', () => {
-    const off = setFieldInputInDef(twoStep(), 'b', { field: 'plan', type: 'file_path' }, false)
-    expect(off.steps[1]?.inputs).toEqual([])
-    const on = setFieldInputInDef(off, 'b', { field: 'plan', type: 'file_path' }, true)
-    expect(on.steps[1]?.inputs).toEqual([{ field: 'plan', type: 'file_path' }])
-    expect(setFieldInputInDef(on, 'b', { field: 'plan', type: 'file_path' }, true)).toBe(on)
-  })
-  it('文档槽位写入 document_contract：producers 取本阶段技能；reads 勾选；移除槽位连带 reads；契约固定的工作流不可改', () => {
-    const withSlot = addDocumentSlotInDef(twoStep(), 'a', 'proposal')
-    expect(withSlot.documentContract).toEqual({ version: 'v1', slots: [{ kind: 'proposal', ownerStep: 'a', producers: ['s1', 's2'] }], reads: [] })
-    const withRead = setDocumentReadInDef(withSlot, 'b', 'proposal', true)
-    expect(withRead.documentContract?.reads).toEqual([{ step: 'b', kinds: ['proposal'] }])
-    const removed = removeDocumentSlotInDef(withRead, 'proposal')
-    expect(removed.documentContract).toBeUndefined()
-    const locked: WbWorkflowDef = { ...twoStep(), openspecContract: 'required' }
-    expect(addDocumentSlotInDef(locked, 'a', 'proposal')).toBe(locked)
-  })
+describe('workbenchDefinition · 删除阶段', () => {
   it('removeStage 连带清掉该阶段拥有的文档槽位与 reads，并重接转换边', () => {
     const three: WbWorkflowDef = {
       ...twoStep(),

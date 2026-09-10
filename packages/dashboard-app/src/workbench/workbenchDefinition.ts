@@ -1,6 +1,5 @@
 import type {
   WbDocumentContract,
-  WbFieldRef,
   WbSkillRef,
   WbStepDef,
   WbTrackBranch,
@@ -146,83 +145,12 @@ export function removeSkillFromDef(def: WbWorkflowDef, stepId: string, skillId: 
   return setStepSkillWavesInDef(def, stepId, waves)
 }
 
-/** 技能的轨道条件；undefined = 全部轨道。 */
-export function addFieldOutputInDef(def: WbWorkflowDef, stepId: string, field: WbFieldRef): WbWorkflowDef {
-  return mapStep(def, stepId, (step) => {
-    if (step.outputs.some((output) => output.field === field.field)) return step
-    const artifacts = field.type === 'file_path'
-      ? [...(step.artifacts ?? []), { field: field.field, type: 'file_path' as const, producerPolicy: 'effective-step-skills' as const }]
-      : step.artifacts
-    return { ...step, outputs: [...step.outputs, { ...field }], ...(artifacts === undefined ? {} : { artifacts }) }
-  })
-}
-
-export function removeFieldOutputInDef(def: WbWorkflowDef, stepId: string, field: string): WbWorkflowDef {
-  const next = mapStep(def, stepId, (step) => {
-    const artifacts = step.artifacts?.filter((artifact) => artifact.field !== field)
-    const rest = { ...step, outputs: step.outputs.filter((output) => output.field !== field) }
-    if (artifacts === undefined) return rest
-    return artifacts.length === 0 && (step.artifacts?.length ?? 0) > 0 ? { ...rest, artifacts: [] } : { ...rest, artifacts }
-  })
-  // 下游把它当输入的声明一并撤掉，否则 kernel 会拒「inputs 不对应更早 step 的 outputs」。
-  const index = next.steps.findIndex((step) => step.id === stepId)
-  const stillProduced = next.steps.slice(0, index).some((step) => step.outputs.some((output) => output.field === field))
-  if (stillProduced) return next
-  return {
-    ...next,
-    steps: next.steps.map((step, position) => position <= index ? step : { ...step, inputs: step.inputs.filter((input) => input.field !== field) }),
-  }
-}
-
-export function setFieldInputInDef(def: WbWorkflowDef, stepId: string, field: WbFieldRef, on: boolean): WbWorkflowDef {
-  return mapStep(def, stepId, (step) => {
-    const has = step.inputs.some((input) => input.field === field.field)
-    if (on === has) return step
-    return { ...step, inputs: on ? [...step.inputs, { ...field }] : step.inputs.filter((input) => input.field !== field.field) }
-  })
-}
-
-function contractOf(def: WbWorkflowDef): WbDocumentContract {
-  return def.documentContract ?? { version: 'v1', slots: [], reads: [] }
-}
-
 function withContract(def: WbWorkflowDef, contract: WbDocumentContract): WbWorkflowDef {
   if (contract.slots.length === 0 && contract.reads.length === 0) {
     const { documentContract: _dropped, ...rest } = def
     return rest
   }
   return { ...def, documentContract: contract }
-}
-
-/** 文档槽位归本阶段产出；producers 缺省取本阶段技能（无技能时留空，保存时 kernel 会要求非空）。 */
-export function addDocumentSlotInDef(def: WbWorkflowDef, stepId: string, kind: string): WbWorkflowDef {
-  if (def.openspecContract === 'required') return def
-  const contract = contractOf(def)
-  if (contract.slots.some((slot) => slot.kind === kind)) return def
-  const step = def.steps.find((candidate) => candidate.id === stepId)
-  const producers = step?.skills.map((skill) => skill.id) ?? []
-  return withContract(def, { ...contract, slots: [...contract.slots, { kind, ownerStep: stepId, producers }] })
-}
-
-export function removeDocumentSlotInDef(def: WbWorkflowDef, kind: string): WbWorkflowDef {
-  if (def.openspecContract === 'required') return def
-  const contract = contractOf(def)
-  return withContract(def, {
-    ...contract,
-    slots: contract.slots.filter((slot) => slot.kind !== kind),
-    reads: contract.reads.map((read) => ({ ...read, kinds: read.kinds.filter((candidate) => candidate !== kind) })).filter((read) => read.kinds.length > 0),
-  })
-}
-
-export function setDocumentReadInDef(def: WbWorkflowDef, stepId: string, kind: string, on: boolean): WbWorkflowDef {
-  if (def.openspecContract === 'required') return def
-  const contract = contractOf(def)
-  const existing = contract.reads.find((read) => read.step === stepId)
-  const kinds = new Set(existing?.kinds ?? [])
-  if (on) kinds.add(kind); else kinds.delete(kind)
-  const reads = contract.reads.filter((read) => read.step !== stepId)
-  if (kinds.size > 0) reads.push({ step: stepId, kinds: [...kinds] })
-  return withContract(def, { ...contract, reads })
 }
 
 export function reorderStagesInDef(def: WbWorkflowDef, fromId: string, toId: string, after: boolean): WbWorkflowDef {

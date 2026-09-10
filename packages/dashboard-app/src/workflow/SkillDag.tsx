@@ -22,36 +22,6 @@ export function applyDrop(waves: readonly (readonly string[])[], activeId: strin
   return null
 }
 
-/** 只读的波次视图：一列一个波次（同列并行、邻列串行），每个技能一枚芯片；点芯片看详情。 */
-export function SkillWavesView({ waves, onOpen }: { waves: readonly (readonly string[])[]; onOpen?: (id: string) => void }): JSX.Element {
-  const { t } = useT()
-  if (waves.length === 0) return <p className="rounded-md border border-dashed border-border px-4 py-3 text-body text-text-3" role="status" data-testid="skill-waves-empty">{t('workflow.dag_empty')}</p>
-  return (
-    <ol className="flex items-start gap-1 overflow-x-auto pb-1" data-testid="skill-waves">
-      {waves.map((wave, index) => (
-        <li key={index} className="flex items-start gap-1">
-          <ol className={cn('grid gap-1.5 rounded-md p-1', wave.length > 1 && 'border-l-2 border-(--accent) bg-accent-t/40')} aria-label={t('workflow.wave_label', { n: index + 1 })} data-testid={`skill-wave-${index}`} data-parallel={wave.length > 1}>
-            {wave.map((id) => (
-              <li key={id}>
-                <button
-                  type="button"
-                  className="rounded-md border border-border bg-card px-2.5 py-1.5 font-mono text-body text-text shadow-xs outline-none transition-[box-shadow,border-color] hover:border-accent-b hover:shadow-sm focus-visible:ring-2 focus-visible:ring-(--accent)"
-                  data-testid={`skill-chip-${id}`}
-                  title={t('workflow.preview_skill', { id })}
-                  onClick={() => onOpen?.(id)}
-                >
-                  {id}
-                </button>
-              </li>
-            ))}
-          </ol>
-          {index < waves.length - 1 && <ArrowRight className="mt-2.5 size-4 flex-none text-text-3" aria-hidden="true" />}
-        </li>
-      ))}
-    </ol>
-  )
-}
-
 const Node = memo(function Node({ id, onRemove, onOpen }: { id: string; onRemove: (id: string) => void; onOpen: (id: string) => void }): JSX.Element {
   const { t } = useT()
   // 拖动中的移动体只由 DragOverlay 承载：源节点不施加 transform，只留半透明占位（避免双重移动与整列重排）。

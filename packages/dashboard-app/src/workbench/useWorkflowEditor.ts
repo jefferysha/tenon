@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type SetStateAction } from 'react'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
-import type { WbEffectiveIo, WbFieldRef, WbStepDef, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbEffectiveIo, WbStepDef, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
 import { fetchWorkflowYaml, putWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
 import { invalidateWorkflowRules } from '../model/workflowModel'
 import { invalidateWorkflowDefinition } from '../workspace/useWorkflowDefinition'
 import { draftEffectiveIo, lintWorkflow, type LintIssue } from '../workflow/lint'
-import type { SlotCandidate } from '../workflow/slotCatalog'
 import { useMandatorySkills, type MandatoryState } from './mandatoryState'
 import { readSaveErrors, readWorkflowDeleteResponse } from './workbenchApiDecoders'
 import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
@@ -15,8 +14,6 @@ import { useStageDraftEditor } from './useStageDraftEditor'
 import { useWorkbenchDirtyState, type WorkbenchDirtySource } from './useWorkbenchDirtyState'
 import {
   BASE_BRANCH,
-  addDocumentSlotInDef,
-  addFieldOutputInDef,
   addSkillToDef,
   addTrackBranch,
   blankWorkflow,
@@ -24,16 +21,12 @@ import {
   copyWorkflowDef,
   definitionForWrite,
   resolveBranch,
-  removeDocumentSlotInDef,
-  removeFieldOutputInDef,
   removeSkillFromDef,
   removeStageFromDef,
   removeTrackBranch,
   renameStepInDef,
   reorderStagesInDef,
   selectBranchDef,
-  setDocumentReadInDef,
-  setFieldInputInDef,
   setGateInDef,
   setStepSkillWavesInDef,
   workflowNameFromYaml,
@@ -113,9 +106,6 @@ export interface WorkflowEditor {
   setSkillWaves: (stepId: string, waves: readonly (readonly string[])[]) => void
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
-  addOutput: (stepId: string, candidate: SlotCandidate) => void
-  removeOutput: (stepId: string, candidate: SlotCandidate) => void
-  setInput: (stepId: string, candidate: SlotCandidate, on: boolean) => void
   save: () => Promise<void>
   discardDraft: () => void
   reloadDefinition: () => void
@@ -329,15 +319,6 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   const setSkillWaves = useCallback((stepId: string, waves: readonly (readonly string[])[]) => mutate((previous) => setStepSkillWavesInDef(previous, stepId, waves)), [mutate])
   const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
   const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])
-  const addOutput = useCallback((stepId: string, candidate: SlotCandidate) => mutate((previous) => candidate.kind === 'document'
-    ? addDocumentSlotInDef(previous, stepId, candidate.id)
-    : addFieldOutputInDef(previous, stepId, { field: candidate.id, type: candidate.type })), [mutate])
-  const removeOutput = useCallback((stepId: string, candidate: SlotCandidate) => mutate((previous) => candidate.kind === 'document'
-    ? removeDocumentSlotInDef(previous, candidate.id)
-    : removeFieldOutputInDef(previous, stepId, candidate.id)), [mutate])
-  const setInput = useCallback((stepId: string, candidate: SlotCandidate, on: boolean) => mutate((previous) => candidate.kind === 'document'
-    ? setDocumentReadInDef(previous, stepId, candidate.id, on)
-    : setFieldInputInDef(previous, stepId, { field: candidate.id, type: candidate.type } as WbFieldRef, on)), [mutate])
 
   function afterWrite(targetRoot: string, name: string): void {
     invalidateWorkflowRules(targetRoot, name)
@@ -575,9 +556,6 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     setSkillWaves,
     addSkill,
     removeSkill,
-    addOutput,
-    removeOutput,
-    setInput,
     save,
     discardDraft,
     reloadDefinition: () => { setSaveStatus({ kind: 'idle' }); setReloadNonce((value) => value + 1) },

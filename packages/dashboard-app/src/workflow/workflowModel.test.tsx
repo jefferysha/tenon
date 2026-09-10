@@ -4,7 +4,6 @@ import { insertWaveBefore, placeSkillInWave, skillExecutionWaves, wavesOf, waves
 import { draftEffectiveIo, lintWorkflow } from './lint'
 import { backEdgesFrom, linkedToNext, pipelineEdges } from './pipelineModel'
 import { applyDrop } from './SkillDag'
-import { availableOutputSlots, upstreamOutputs } from './slotCatalog'
 
 const DEF: WbWorkflowDef = {
   name: 'flow',
@@ -61,17 +60,5 @@ describe('lint / draftEffectiveIo / slotCatalog', () => {
       { kind: 'step-no-output', stepId: 'c' },
       { kind: 'input-not-upstream', stepId: 'c', field: 'plan' },
     ])
-  })
-  it('候选输出排除已声明字段；契约固定的工作流不提供文档候选；上游输出去重', () => {
-    const candidates = availableOutputSlots(DEF, 'b', io)
-    expect(candidates.some((candidate) => candidate.kind === 'document' && candidate.id === 'proposal')).toBe(true)
-    expect(candidates.some((candidate) => candidate.kind === 'field' && candidate.id === 'build_sha')).toBe(false)
-    const locked: WbWorkflowDef = { ...DEF, openspecContract: 'required' }
-    expect(availableOutputSlots(locked, 'b', io).every((candidate) => candidate.kind === 'field')).toBe(true)
-    expect(upstreamOutputs(DEF, 'c', io)).toEqual([
-      { kind: 'field', id: 'design_doc', type: 'file_path' },
-      { kind: 'field', id: 'build_sha', type: 'string' },
-    ])
-    expect(upstreamOutputs(DEF, 'a', io)).toEqual([])
   })
 })
