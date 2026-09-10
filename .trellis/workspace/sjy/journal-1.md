@@ -470,3 +470,25 @@ steps ⊕ tracks（无通用分支，缺分支拒绝）；default 五条分支�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 19: 工作流页两栏定稿实现
+<!-- trellis-session: v=2 fp=8614dd6cbca4563d -->
+
+**Date**: 2026-09-11
+**Task**: 工作流页两栏定稿实现
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+两栏：左栏工作流切换 + ⋯ 菜单 + 轨道页签 + 编号流程（名称 + 门禁图标、回流虚线弧、可拖排序）；右栏 输入 → 技能 → 输出 → 门禁，等分带表头 IO 表，技能 React Flow 画布（编辑器里拉线 = depends_on）。新增 @xyflow/react；jsdom 用替身。web 628 用例、design-scale、comments、build 通过；:18765 已重启。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cba5528` | feat(dashboard): two-column workflow page — flow nav, equal-column IO tables, React Flow skills |
+
+### Status
+
+[OK] **Completed**
