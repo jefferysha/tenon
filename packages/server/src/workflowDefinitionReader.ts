@@ -12,6 +12,7 @@ import {
   type WorkflowRootAnchor,
 } from './workflows.js'
 import type { WorkflowDefinitionCurrent } from './workflowDefinitionStatus.js'
+import { readDefaultOverride } from './serverWorkflowYamlRoutes.js'
 
 function assertDefinitionRoot(anchor: WorkflowRootAnchor): void {
   try {
@@ -30,7 +31,7 @@ export function readCurrentWorkflowDefinition(
     const plan = resolveEffectiveWorkflowPlan(workflow, (name) => {
       const definition = builtinWorkflow(name) ?? readWorkflowForApi(anchor, name)
       return compileWorkflow(definition)
-    })
+    }, undefined, () => readDefaultOverride(anchor))
     if (plan === null) return { kind: 'missing' }
     assertDefinitionRoot(anchor)
     return { kind: 'current', fingerprint: plan.workflowFingerprint }

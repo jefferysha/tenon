@@ -350,7 +350,7 @@ export async function evaluateLoopExecutionWiring(
       if (definition === null) return null
       compiledCustom = (deps.compileWorkflow ?? compileWorkflow)(definition)
       return compiledCustom
-    })
+    }, undefined, () => (deps.loadWorkflow ?? loadWorkflow)(deps.repoRoot, 'default'))
   } catch (error) {
     return {
       status: 'invalid', loopId: loop.id, dimension: 'workflow',

@@ -1,22 +1,12 @@
-import { changeWorkflowName } from '../model/progressModel'
-import {
-  EVENT_BY_EDGE,
-  PHASES,
-  REVIEW_PHASES,
-  TRANSITIONS,
-  type Snapshot,
-} from '../types'
 import type {
+  WbDocumentContract,
+  WbFieldRef,
   WbSkillRef,
   WbStepDef,
+  WbTrackPredicate,
   WbWorkflowDef,
 } from '../api/governanceTypes'
-import {
-  DEFAULT_WB_DECOMPOSITION_POLICY,
-  DEFAULT_WB_INTERACTION_POLICY,
-  DEFAULT_WB_REVIEW_BUDGET_POLICY,
-} from '../api/governanceTypes'
-import type { LanePatch } from './boardLane'
+import { wavesOf, wavesToSkills } from './skillWaves'
 export type {
   WbActionConfig,
   WbArtifactConfig,
@@ -39,196 +29,147 @@ export type {
   WbReviewBudgetPolicy,
 } from '../api/governanceTypes'
 
-export function editLaneInDef(
-  def: WbWorkflowDef,
-  laneId: string,
-  patch: LanePatch,
-): WbWorkflowDef {
-  return {
-    ...def,
-    steps: def.steps.map((step) => {
-      if (step.id !== laneId) return step
-      const updated: WbStepDef = { ...step }
-      if (patch.label !== undefined) updated.label = patch.label
-      if (patch.gate !== undefined) updated.gate = patch.gate
-      if (patch.outputs !== undefined) {
-        const outputsByField = new Map(step.outputs.map((output) => [output.field, output]))
-        updated.outputs = patch.outputs.map(
-          (field) => outputsByField.get(field) ?? { field, type: 'string' as const },
-        )
-      }
-      return updated
+/**
+ * 工作流定义的纯变换：所有编辑器动作都落到这里，返回新对象，不改入参。
+ * 定义 = 服务端读回的 WbWorkflowDef（default 亦然）；前端不再持有任何内建副本。
+ */
+
+function mapStep(def: WbWorkflowDef, stepId: string, update: (step: WbStepDef) => WbStepDef): WbWorkflowDef {
+  let changed = false
+  const steps = def.steps.map((step) => {
+    if (step.id !== stepId) return step
+    const next = update(step)
+    if (next !== step) changed = true
+    return next
+  })
+  return changed ? { ...def, steps } : def
+}
+
+/** 写回前剔除读接口附带的投影字段。 */
+export function definitionForWrite(def: WbWorkflowDef): Omit<WbWorkflowDef, 'source' | 'effectiveIo'> {
+  const { source: _source, effectiveIo: _effectiveIo, ...definition } = def
+  return definition
+}
+
+export function renameStepInDef(def: WbWorkflowDef, stepId: string, label: string): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => ({ ...step, label }))
+}
+
+export function setGateInDef(def: WbWorkflowDef, stepId: string, gate: WbStepDef['gate']): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => ({ ...step, gate }))
+}
+
+/** 列模型 → depends_on：同列并行、邻列串行。 */
+export function setStepSkillWavesInDef(def: WbWorkflowDef, stepId: string, waves: readonly (readonly string[])[]): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => ({ ...step, skills: wavesToSkills(waves, step.skills) }))
+}
+
+/** 追加技能：缺省成为新的末列（串行接在最后）。 */
+export function addSkillToDef(def: WbWorkflowDef, stepId: string, skillId: string): WbWorkflowDef {
+  const step = def.steps.find((candidate) => candidate.id === stepId)
+  if (!step || step.skills.some((skill) => skill.id === skillId)) return def
+  const waves = wavesOf(step.skills)
+  return setStepSkillWavesInDef(def, stepId, [...waves, [skillId]])
+}
+
+export function removeSkillFromDef(def: WbWorkflowDef, stepId: string, skillId: string): WbWorkflowDef {
+  const step = def.steps.find((candidate) => candidate.id === stepId)
+  if (!step?.skills.some((skill) => skill.id === skillId)) return def
+  const waves = wavesOf(step.skills).map((wave) => wave.filter((id) => id !== skillId)).filter((wave) => wave.length > 0)
+  return setStepSkillWavesInDef(def, stepId, waves)
+}
+
+/** 技能的轨道条件；undefined = 全部轨道。 */
+export function setSkillWhenInDef(def: WbWorkflowDef, stepId: string, skillId: string, when: WbTrackPredicate | undefined): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => ({
+    ...step,
+    skills: step.skills.map((skill) => {
+      if (skill.id !== skillId) return skill
+      const { when: _dropped, ...rest } = skill
+      return when === undefined ? rest : { ...rest, when: { kind: when.kind, values: [...when.values] } }
     }),
-  }
+  }))
 }
 
-const GOVERNED_PHASE_SKILLS: Readonly<Record<string, readonly string[]>> = {
-  open: ['tenon-open', 'openspec-propose'],
-  explore: ['tenon-explore', 'brainstorming'],
-  spec: ['tenon-spec', 'openspec-propose', 'writing-plans'],
-  build: ['tenon-build'],
-  verify: ['tenon-verify', 'verification-before-completion'],
-  ship: ['tenon-ship', 'openspec-apply-change'],
-  archive: ['tenon-archive'],
+export function addFieldOutputInDef(def: WbWorkflowDef, stepId: string, field: WbFieldRef): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => {
+    if (step.outputs.some((output) => output.field === field.field)) return step
+    const artifacts = field.type === 'file_path'
+      ? [...(step.artifacts ?? []), { field: field.field, type: 'file_path' as const, producerPolicy: 'effective-step-skills' as const }]
+      : step.artifacts
+    return { ...step, outputs: [...step.outputs, { ...field }], ...(artifacts === undefined ? {} : { artifacts }) }
+  })
 }
 
-export function buildDefaultDef(labels: Partial<Record<(typeof PHASES)[number], string>> = {}): WbWorkflowDef {
-  const shape: Record<(typeof PHASES)[number], Pick<WbStepDef, 'label' | 'inputs' | 'outputs' | 'artifacts' | 'guards'>> = {
-    open: { label: '立项', inputs: [], outputs: [], guards: [] },
-    explore: {
-      label: '调研',
-      inputs: [],
-      outputs: [{ field: 'design_doc', type: 'file_path' }],
-      artifacts: [{ field: 'design_doc', type: 'file_path', producerPolicy: 'effective-phase-skills' }],
-      guards: [],
-    },
-    spec: {
-      label: '规格',
-      inputs: [{ field: 'design_doc', type: 'file_path' }],
-      outputs: [{ field: 'plan', type: 'file_path' }],
-      artifacts: [{
-        field: 'plan',
-        type: 'file_path',
-        producerPolicy: 'effective-phase-skills',
-        requiredWhen: { kind: 'track-not-in', values: ['pm'] },
-      }],
-      guards: [{ type: 'tasks-at-least', n: 3 }],
-    },
-    build: {
-      label: '实现',
-      inputs: [{ field: 'design_doc', type: 'file_path' }, { field: 'plan', type: 'file_path' }],
-      outputs: [{ field: 'build_sha', type: 'string' }],
-      guards: [],
-    },
-    verify: {
-      label: '验证',
-      inputs: [{ field: 'build_sha', type: 'string' }],
-      outputs: [{ field: 'verification_report', type: 'file_path' }],
-      artifacts: [{ field: 'verification_report', type: 'file_path', producerPolicy: 'effective-phase-skills' }],
-      guards: [],
-    },
-    ship: { label: '交付', inputs: [], outputs: [], guards: [] },
-    archive: { label: '归档', inputs: [], outputs: [], guards: [] },
-  }
-  for (const phase of PHASES) {
-    shape[phase] = { ...shape[phase], label: labels[phase] ?? shape[phase].label }
-  }
+export function removeFieldOutputInDef(def: WbWorkflowDef, stepId: string, field: string): WbWorkflowDef {
+  const next = mapStep(def, stepId, (step) => {
+    const artifacts = step.artifacts?.filter((artifact) => artifact.field !== field)
+    const rest = { ...step, outputs: step.outputs.filter((output) => output.field !== field) }
+    if (artifacts === undefined) return rest
+    return artifacts.length === 0 && (step.artifacts?.length ?? 0) > 0 ? { ...rest, artifacts: [] } : { ...rest, artifacts }
+  })
+  // 下游把它当输入的声明一并撤掉，否则 kernel 会拒「inputs 不对应更早 step 的 outputs」。
+  const index = next.steps.findIndex((step) => step.id === stepId)
+  const stillProduced = next.steps.slice(0, index).some((step) => step.outputs.some((output) => output.field === field))
+  if (stillProduced) return next
   return {
-    name: 'default',
-    openspecContract: 'required',
-    decomposition: {
-      ...DEFAULT_WB_DECOMPOSITION_POLICY,
-      auto_when: [],
-      ask_when: [],
-    },
-    interaction: { ...DEFAULT_WB_INTERACTION_POLICY },
-    reviewBudget: { ...DEFAULT_WB_REVIEW_BUDGET_POLICY },
-    steps: PHASES.map((phase) => ({
-      id: phase,
-      ...shape[phase],
-      gate: (REVIEW_PHASES as readonly string[]).includes(phase) ? 'review' : null,
-      ...(phase === 'verify' ? { reviewLanes: ['standards', 'spec', 'e2e'] } : {}),
-      skills: [],
-      transitions: TRANSITIONS[phase].flatMap((to) => {
-        if (to === phase) return []
-        const event = EVENT_BY_EDGE[`${phase}->${to}`]
-        return event === undefined ? [] : [{ event, to }]
-      }),
-    })),
+    ...next,
+    steps: next.steps.map((step, position) => position <= index ? step : { ...step, inputs: step.inputs.filter((input) => input.field !== field) }),
   }
 }
 
-export const DEFAULT_DEF: WbWorkflowDef = buildDefaultDef()
+export function setFieldInputInDef(def: WbWorkflowDef, stepId: string, field: WbFieldRef, on: boolean): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => {
+    const has = step.inputs.some((input) => input.field === field.field)
+    if (on === has) return step
+    return { ...step, inputs: on ? [...step.inputs, { ...field }] : step.inputs.filter((input) => input.field !== field.field) }
+  })
+}
 
-export function governedWorkflow(
-  name: string,
-  labels: Partial<Record<(typeof PHASES)[number], string>> = {},
-): WbWorkflowDef {
-  const base = buildDefaultDef(labels)
-  return {
-    ...base,
-    name,
-    steps: base.steps.map((step) => ({
-      ...step,
-      skills: (GOVERNED_PHASE_SKILLS[step.id] ?? []).map((id) => id === 'verification-before-completion'
-        ? { id, kind: 'review' as const, review_lane: 'e2e' }
-        : { id }),
-      artifacts: step.artifacts?.map(({ requiredWhen: _ignored, ...artifact }) => ({
-        ...artifact,
-        producerPolicy: 'effective-step-skills',
-      })),
-    })),
+function contractOf(def: WbWorkflowDef): WbDocumentContract {
+  return def.documentContract ?? { version: 'v1', slots: [], reads: [] }
+}
+
+function withContract(def: WbWorkflowDef, contract: WbDocumentContract): WbWorkflowDef {
+  if (contract.slots.length === 0 && contract.reads.length === 0) {
+    const { documentContract: _dropped, ...rest } = def
+    return rest
   }
+  return { ...def, documentContract: contract }
 }
 
-export function workflowForCreate(
-  mode: 'new' | 'copy',
-  currentIsDefault: boolean,
-  currentDefinition: WbWorkflowDef | null,
-  name: string,
-  labels: Partial<Record<(typeof PHASES)[number], string>>,
-): WbWorkflowDef | null {
-  if (mode === 'new' || currentIsDefault) return governedWorkflow(name, labels)
-  return currentDefinition === null ? null : cloneWorkflowDef(currentDefinition, name)
+/** 文档槽位归本阶段产出；producers 缺省取本阶段技能（无技能时留空，保存时 kernel 会要求非空）。 */
+export function addDocumentSlotInDef(def: WbWorkflowDef, stepId: string, kind: string): WbWorkflowDef {
+  if (def.openspecContract === 'required') return def
+  const contract = contractOf(def)
+  if (contract.slots.some((slot) => slot.kind === kind)) return def
+  const step = def.steps.find((candidate) => candidate.id === stepId)
+  const producers = step?.skills.map((skill) => skill.id) ?? []
+  return withContract(def, { ...contract, slots: [...contract.slots, { kind, ownerStep: stepId, producers }] })
 }
 
-export interface StageAmbient {
-  count: number
-  running: boolean
+export function removeDocumentSlotInDef(def: WbWorkflowDef, kind: string): WbWorkflowDef {
+  if (def.openspecContract === 'required') return def
+  const contract = contractOf(def)
+  return withContract(def, {
+    ...contract,
+    slots: contract.slots.filter((slot) => slot.kind !== kind),
+    reads: contract.reads.map((read) => ({ ...read, kinds: read.kinds.filter((candidate) => candidate !== kind) })).filter((read) => read.kinds.length > 0),
+  })
 }
 
-export function stageCounts(
-  snapshot: Snapshot | null | undefined,
-  root: string,
-  workflow: string,
-): Record<string, StageAmbient> {
-  const out: Record<string, StageAmbient> = {}
-  const project = snapshot?.projects.find((candidate) => candidate.root === root)
-  if (!project?.ok) return out
-  for (const change of project.changes) {
-    if (change.archived === 'true' || changeWorkflowName(change) !== workflow) continue
-    const bucket = out[change.phase] ?? { count: 0, running: false }
-    bucket.count += 1
-    if (change.fields.automation === 'running') bucket.running = true
-    out[change.phase] = bucket
-  }
-  return out
+export function setDocumentReadInDef(def: WbWorkflowDef, stepId: string, kind: string, on: boolean): WbWorkflowDef {
+  if (def.openspecContract === 'required') return def
+  const contract = contractOf(def)
+  const existing = contract.reads.find((read) => read.step === stepId)
+  const kinds = new Set(existing?.kinds ?? [])
+  if (on) kinds.add(kind); else kinds.delete(kind)
+  const reads = contract.reads.filter((read) => read.step !== stepId)
+  if (kinds.size > 0) reads.push({ step: stepId, kinds: [...kinds] })
+  return withContract(def, { ...contract, reads })
 }
 
-export interface SkillMove {
-  skillId: string
-  fromStage: string
-  toStage: string
-  refSkillId: string | null
-  after: boolean
-}
-
-function insertRef<T extends { id: string }>(
-  list: readonly T[],
-  item: T,
-  refId: string | null,
-  after: boolean,
-): T[] {
-  const out = [...list]
-  const refIndex = refId === null ? -1 : out.findIndex((candidate) => candidate.id === refId)
-  out.splice(refIndex < 0 ? out.length : refIndex + (after ? 1 : 0), 0, item)
-  return out
-}
-
-function dropDep(skill: WbSkillRef, dependency: string): WbSkillRef {
-  if (!skill.depends_on?.includes(dependency)) return skill
-  const remaining = skill.depends_on.filter((candidate) => candidate !== dependency)
-  if (remaining.length > 0) return { ...skill, depends_on: remaining }
-  const { depends_on: _dropped, ...withoutDependency } = skill
-  return withoutDependency
-}
-
-export function reorderStagesInDef(
-  def: WbWorkflowDef,
-  fromId: string,
-  toId: string,
-  after: boolean,
-): WbWorkflowDef {
+export function reorderStagesInDef(def: WbWorkflowDef, fromId: string, toId: string, after: boolean): WbWorkflowDef {
   if (fromId === toId) return def
   const fromIndex = def.steps.findIndex((step) => step.id === fromId)
   const toIndex = def.steps.findIndex((step) => step.id === toId)
@@ -268,96 +209,34 @@ export function reorderStagesInDef(
   }
 }
 
-export function moveSkillInDef(def: WbWorkflowDef, move: SkillMove): WbWorkflowDef {
-  const source = def.steps.find((step) => step.id === move.fromStage)
-  const target = def.steps.find((step) => step.id === move.toStage)
-  const moved = source?.skills.find((skill) => skill.id === move.skillId)
-  if (!source || !target || !moved) return def
-  if (source !== target && target.skills.some((skill) => skill.id === move.skillId)) return def
-  if (source === target) {
-    return {
-      ...def,
-      steps: def.steps.map((step) => step.id !== source.id ? step : {
-        ...step,
-        skills: insertRef(step.skills.filter((skill) => skill.id !== move.skillId), moved, move.refSkillId, move.after),
-      }),
-    }
+export function removeStageFromDef(def: WbWorkflowDef, stepId: string): WbWorkflowDef {
+  const index = def.steps.findIndex((step) => step.id === stepId)
+  const victim = def.steps[index]
+  if (index < 0 || !victim) return def
+  const next = def.steps[index + 1]
+  const successor = next && victim.transitions.some((transition) => transition.to === next.id) ? next.id : null
+  const contract = def.documentContract === undefined ? undefined : {
+    ...def.documentContract,
+    slots: def.documentContract.slots.filter((slot) => slot.ownerStep !== stepId),
+    reads: def.documentContract.reads.filter((read) => read.step !== stepId),
   }
-  const { depends_on: _dropped, ...dependencyFree } = moved
-  return {
+  const base = {
     ...def,
-    steps: def.steps.map((step) => {
-      if (step.id === source.id) {
-        return {
-          ...step,
-          skills: step.skills
-            .filter((skill) => skill.id !== move.skillId)
-            .map((skill) => dropDep(skill, move.skillId)),
-        }
-      }
-      return step.id === target.id
-        ? { ...step, skills: insertRef(step.skills, dependencyFree, move.refSkillId, move.after) }
-        : step
-    }),
-  }
-}
-
-export function setSkillDepInDef(
-  def: WbWorkflowDef,
-  stageId: string,
-  skillId: string,
-  dependency: string | null,
-  previous: string | null,
-): WbWorkflowDef {
-  return {
-    ...def,
-    steps: def.steps.map((step) => step.id !== stageId ? step : {
+    steps: def.steps.filter((step) => step.id !== stepId).map((step) => ({
       ...step,
-      skills: step.skills.map((skill) => {
-        if (skill.id !== skillId) return skill
-        if (dependency === null) return previous === null ? skill : dropDep(skill, previous)
-        const current = skill.depends_on ?? []
-        if (previous === null) {
-          return current.includes(dependency) ? skill : { ...skill, depends_on: [...current, dependency] }
-        }
-        if (!current.includes(previous)) return skill
-        const next = current
-          .map((candidate) => candidate === previous ? dependency : candidate)
-          .filter((candidate, index, all) => all.indexOf(candidate) === index)
-        return { ...skill, depends_on: next }
+      transitions: step.transitions.flatMap((transition) => {
+        if (transition.to !== stepId) return [transition]
+        return successor === null || successor === step.id ? [] : [{ ...transition, to: successor }]
       }),
-    }),
+    })),
   }
-}
-
-export function removeSkillFromDef(def: WbWorkflowDef, stageId: string, skillId: string): WbWorkflowDef {
-  const step = def.steps.find((candidate) => candidate.id === stageId)
-  if (!step?.skills.some((skill) => skill.id === skillId)) return def
-  return {
-    ...def,
-    steps: def.steps.map((candidate) => candidate.id !== stageId ? candidate : {
-      ...candidate,
-      skills: candidate.skills
-        .filter((skill) => skill.id !== skillId)
-        .map((skill) => dropDep(skill, skillId)),
-    }),
-  }
-}
-
-export function addSkillToDef(def: WbWorkflowDef, stageId: string, skillId: string): WbWorkflowDef {
-  const step = def.steps.find((candidate) => candidate.id === stageId)
-  if (!step || step.skills.some((skill) => skill.id === skillId)) return def
-  return {
-    ...def,
-    steps: def.steps.map((candidate) => candidate.id === stageId
-      ? { ...candidate, skills: [...candidate.skills, { id: skillId }] }
-      : candidate),
-  }
+  return contract === undefined ? base : withContract(base, contract)
 }
 
 export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDef {
+  const { source: _source, effectiveIo: _effectiveIo, ...rest } = def
   return {
-    ...def,
+    ...rest,
     name,
     decomposition: def.decomposition === undefined ? undefined : {
       ...def.decomposition,
@@ -366,6 +245,11 @@ export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDe
     },
     interaction: def.interaction === undefined ? undefined : { ...def.interaction },
     reviewBudget: def.reviewBudget === undefined ? undefined : { ...def.reviewBudget },
+    documentContract: def.documentContract === undefined ? undefined : {
+      version: 'v1',
+      slots: def.documentContract.slots.map((slot) => ({ ...slot, producers: [...slot.producers] })),
+      reads: def.documentContract.reads.map((read) => ({ ...read, kinds: [...read.kinds] })),
+    },
     steps: def.steps.map((step) => ({
       ...step,
       reviewLanes: step.reviewLanes === undefined ? undefined : [...step.reviewLanes],
@@ -375,43 +259,46 @@ export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDe
       })),
       inputs: step.inputs.map((field) => ({ ...field })),
       outputs: step.outputs.map((field) => ({ ...field })),
+      artifacts: step.artifacts === undefined ? undefined : step.artifacts.map((artifact) => ({ ...artifact })),
       guards: step.guards.map((guard) => ({ ...guard })),
       transitions: step.transitions.map((transition) => ({ ...transition })),
     })),
   }
 }
 
-export function setLaneGuardInDef(def: WbWorkflowDef, stageId: string, enabled: boolean): WbWorkflowDef {
+/**
+ * 从 default 复制成自定义工作流：保住 OpenSpec 七阶段契约（openspec_contract: required），
+ * artifact 的 producer policy 从 default 专用的 effective-phase-skills 改为 custom 契约允许的 effective-step-skills。
+ */
+export function copyWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDef {
+  const cloned = cloneWorkflowDef(def, name)
+  if (def.name !== 'default') return cloned
   return {
-    ...def,
-    steps: def.steps.map((step) => {
-      if (step.id !== stageId) return step
-      const hasGuard = step.guards.some((guard) => guard.type === 'nonempty-output')
-      if (hasGuard === enabled) return step
-      return {
-        ...step,
-        guards: enabled
-          ? [...step.guards, { type: 'nonempty-output' }]
-          : step.guards.filter((guard) => guard.type !== 'nonempty-output'),
-      }
+    ...cloned,
+    openspecContract: 'required',
+    steps: cloned.steps.map((step) => step.artifacts === undefined ? step : {
+      ...step,
+      artifacts: step.artifacts.map((artifact) => ({ ...artifact, producerPolicy: 'effective-step-skills' as const })),
     }),
   }
 }
 
-export function removeStageFromDef(def: WbWorkflowDef, laneId: string): WbWorkflowDef {
-  const index = def.steps.findIndex((step) => step.id === laneId)
-  const victim = def.steps[index]
-  if (index < 0 || !victim) return def
-  const next = def.steps[index + 1]
-  const successor = next && victim.transitions.some((transition) => transition.to === next.id) ? next.id : null
+/** 空白工作流：一个阶段、无技能、无输出（编辑器会以「缺产出」提示补齐）。 */
+export function blankWorkflow(name: string, stageLabel: string): WbWorkflowDef {
   return {
-    ...def,
-    steps: def.steps.filter((step) => step.id !== laneId).map((step) => ({
-      ...step,
-      transitions: step.transitions.flatMap((transition) => {
-        if (transition.to !== laneId) return [transition]
-        return successor === null || successor === step.id ? [] : [{ ...transition, to: successor }]
-      }),
-    })),
+    name,
+    steps: [{ id: 'stage-1', label: stageLabel, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }],
   }
 }
+
+/** 从 YAML 原文里取 `name:`（导入对话框预填名字用；服务端才是真正的解析器）。 */
+export function workflowNameFromYaml(text: string): string {
+  const match = /^name:\s*(\S+)\s*$/m.exec(text)
+  return match?.[1] ?? ''
+}
+
+export function skillIdsOf(step: Pick<WbStepDef, 'skills'>): string[] {
+  return step.skills.map((skill) => skill.id)
+}
+
+export type { WbSkillRef as SkillRefLike }

@@ -7,14 +7,14 @@ import { describe, expect, test } from 'vitest'
 import type { PipelineState } from '@tenon/kernel'
 import { cmdArtifactRegister } from './artifact.js'
 import { cmdCas, cmdSet, cmdSetMany } from './fields.js'
-import { makeDeps, mockState, spy } from '../test-support.js'
+import { makeDeps, mockLegacyDefaultState, mockState, spy } from '../test-support.js'
 
 const CH = 'demo'
 const P = 'openspec/changes/demo/design.md'
 
 describe('cmdArtifactRegister —— default 轨成功写入', () => {
   test('explore/frontend design_doc + producer opsx:explore（a|b 的一支）→ exit 0，锁内写字段', async () => {
-    const deps = makeDeps({ state: mockState({ phase: 'explore', track: 'frontend' }) })
+    const deps = makeDeps({ state: mockLegacyDefaultState({ phase: 'explore', track: 'frontend' }) })
     const code = await cmdArtifactRegister(deps, CH, 'design_doc', P, 'opsx:explore')
     expect(code).toBe(0)
     expect(deps.errLines).toEqual([])
@@ -96,7 +96,7 @@ describe('cmdArtifactRegister —— producer 校验（class 4/5/6）', () => {
   })
 
   test('producer 不在有效 skill 集 → exit 1，列出许可 producer，state 不变', async () => {
-    const deps = makeDeps({ state: mockState({ phase: 'explore', track: 'frontend' }) })
+    const deps = makeDeps({ state: mockLegacyDefaultState({ phase: 'explore', track: 'frontend' }) })
     expect(await cmdArtifactRegister(deps, CH, 'design_doc', P, 'bogus-skill')).toBe(1)
     expect(deps.store.write.calls.length).toBe(0)
     const err = deps.errLines.join('\n')
@@ -141,7 +141,7 @@ describe('cmdArtifactRegister —— 参数/锁/异常口径', () => {
   })
 
   test('store.write 抛异常 → exit 1（state 视为未变）', async () => {
-    const deps = makeDeps({ state: mockState({ phase: 'explore', track: 'frontend' }) })
+    const deps = makeDeps({ state: mockLegacyDefaultState({ phase: 'explore', track: 'frontend' }) })
     deps.store.write = spy(async (_d: string, _s: PipelineState): Promise<void> => {
       throw new Error('disk full')
     })
@@ -160,7 +160,7 @@ describe('cmdArtifactRegister —— 参数/锁/异常口径', () => {
   })
 
   test('history 写入失败只 WARN、不回滚主写（write 已成功 → exit 0）', async () => {
-    const deps = makeDeps({ state: mockState({ phase: 'explore', track: 'frontend' }) })
+    const deps = makeDeps({ state: mockLegacyDefaultState({ phase: 'explore', track: 'frontend' }) })
     deps.history = { append: async () => { throw new Error('hist boom') } }
     expect(await cmdArtifactRegister(deps, CH, 'design_doc', P, 'opsx:explore')).toBe(0)
     expect(deps.store.write.calls.length).toBe(1) // 主写成功、未回滚

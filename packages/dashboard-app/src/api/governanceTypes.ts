@@ -45,6 +45,8 @@ export interface WbSkillRef {
   kind?: 'work' | 'review'
   review_lane?: string
   depends_on?: string[]
+  /** 轨道条件；缺省 = 全部轨道。 */
+  when?: WbTrackPredicate
 }
 
 export interface WbTrackPredicate {
@@ -162,8 +164,26 @@ export const DEFAULT_WB_REVIEW_BUDGET_POLICY: WbReviewBudgetPolicy = {
   max_attempts: 2,
 }
 
+/** 服务端物化的一个输入 / 输出槽位：文档（登记台账）或值（change 字段）。 */
+export type WbIoSlot =
+  | { kind: 'document'; id: string; producers: string[]; consumers: string[]; locked: boolean }
+  | { kind: 'field'; id: string; type: 'string' | 'file_path' | 'boolean'; producer: string | null; consumers: string[] }
+
+export interface WbStepIo {
+  inputs: WbIoSlot[]
+  outputs: WbIoSlot[]
+}
+
+export type WbEffectiveIo = Record<string, WbStepIo>
+
+export type WbWorkflowSource = 'builtin' | 'project'
+
 export interface WbWorkflowDef {
   name: string
+  /** 读接口附带：内建模板 / 项目文件（default 有覆盖文件时为 project）。写回前剔除。 */
+  source?: WbWorkflowSource
+  /** 读接口附带：每步物化后的输入 / 输出（文档槽位 + 值槽位）。写回前剔除。 */
+  effectiveIo?: WbEffectiveIo
   openspecContract?: 'required'
   documentContract?: WbDocumentContract
   /** Omitted only by pre-policy in-memory fixtures; HTTP decoding always projects safe v1 defaults. */

@@ -109,7 +109,7 @@ export function resolveConfiguredWorkflowPolicy(
   const plan = resolveEffectiveWorkflowPlan(workflowName, (name) => {
     const definition = builtinWorkflow(name) ?? loadDefinition(name)
     return definition === null ? null : compileWorkflow(definition)
-  })
+  }, undefined, () => loadDefinition('default'))
   if (plan === null) return { status: 'missing' }
   return {
     status: 'available',

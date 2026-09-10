@@ -3,8 +3,11 @@ import { lstatSync } from 'node:fs'
 import { dirname, join, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  DEFAULT_WORKFLOW_SOURCE,
   builtinWorkflow,
   listAutomationPolicyTemplates,
+  materializeWorkflowIo,
+  parseWorkflow,
   loadTrackRegistry,
   validateWorkflowTrackReferences,
   withTrackRegistryLock,
@@ -41,6 +44,7 @@ import { handleGetTraceRoutes } from './serverGetTraceRoutes.js'
 import type { TraceStoreReader } from './traces.js'
 import { resolveHostTargetPlanRoute } from './serverGetHostTargetPlanRoutes.js'
 import { resolveDocumentReadRoute } from './serverGetDocumentRoutes.js'
+import { resolveWorkflowYamlGet } from './serverWorkflowYamlRoutes.js'
 import { resolveDefinitionCatalogRoute, type DefinitionCatalogRouteDeps } from './definitionCatalogRoutes.js'
 import { resolveAdapterInstallGet } from './adapterInstallRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
@@ -261,16 +265,30 @@ export async function handleGet(
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
     }
-    // ── workflow 编辑器（GOAL E8）：GET /api/workflows —— 列出自定义 workflow（排除 default）──
+    // ── workflow 编辑器（GOAL E8）：GET /api/workflows —— 列出自定义 workflow；default 恒在，标出来源 ──
     if (path === '/api/workflows') {
       const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
       const rootCheck = workflowRootForRequest(root)
       if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
       try {
-        return sendJson(res, 200, { names: listWorkflowNames(rootCheck.anchor) })
+        const files = listWorkflowNames(rootCheck.anchor)
+        return sendJson(res, 200, {
+          names: files.filter((name) => name !== 'default'),
+          default: { source: files.includes('default') ? 'project' : 'builtin' },
+        })
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
+    }
+
+    // ── GET /api/workflows/:name/yaml —— 导出原文（自定义 / default 覆盖 / 内建模板）──
+    const yamlGet = resolveWorkflowYamlGet(req, path, { workflowRootForRequest, errMsg })
+    if (yamlGet !== null) {
+      if (yamlGet.kind === 'json') return sendJson(res, yamlGet.status, yamlGet.body)
+      const bytes = Buffer.from(yamlGet.text, 'utf8')
+      res.writeHead(200, { 'Content-Type': 'text/yaml; charset=utf-8', 'Content-Length': bytes.length, 'Cache-Control': 'no-store' })
+      res.end(bytes)
+      return
     }
 
     // ── workflow 编辑器（GOAL E8）：GET /api/workflows/:name —— 读单个 workflow ──
@@ -292,7 +310,7 @@ export async function handleGet(
       if (builtin !== null) {
         // Built-ins are immutable plugin assets. They are readable by the same client contract as
         // custom workflows, but never resolved from or shadowed by a project file.
-        return sendJson(res, 200, builtin)
+        return sendJson(res, 200, { ...builtin, source: 'builtin', effectiveIo: materializeWorkflowIo(builtin) })
       }
       try {
         // 先用 G6 安全读区分真 404/结构损坏；目标存在后才准备 project lock，避免 GET ghost
@@ -300,6 +318,11 @@ export async function handleGet(
         readWorkflowForApi(rootCheck.anchor, wfName)
         ensureWorkflowProjectCoordinationPath(rootCheck.anchor)
       } catch (e) {
+        if (e instanceof WorkflowNotFoundError && wfName === 'default') {
+          // default 无项目覆盖 → 内建模板源；有覆盖时走下方同自定义 workflow 的受信读 + track 引用校验。
+          const template = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+          return sendJson(res, 200, { ...template, source: 'builtin', effectiveIo: materializeWorkflowIo(template) })
+        }
         return sendJson(res, e instanceof WorkflowNotFoundError ? 404 : 500, { ok: false, error: errMsg(e) })
       }
       try {
@@ -320,7 +343,7 @@ export async function handleGet(
             errors: checked.errors,
           })
         }
-        return sendJson(res, 200, checked.workflow)
+        return sendJson(res, 200, { ...checked.workflow, source: 'project', effectiveIo: materializeWorkflowIo(checked.workflow) })
       } catch (e) {
         if (e instanceof WorkflowNotFoundError) return sendJson(res, 404, { ok: false, error: errMsg(e) })
         // registry 本身损坏/引用缺失同样不能把 workflow 伪装成健康 200；显式 degraded 409。

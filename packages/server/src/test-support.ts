@@ -18,6 +18,7 @@ import {
   loadManifest,
   recordDocument,
   recordDocumentReads,
+  BUILTIN_TRACK_DEFINITIONS, compileEffectiveWorkflowPlan,
 } from '@tenon/kernel'
 import type { FlowEngine, InitOptions, StateStore } from '@tenon/kernel'
 import {
@@ -50,10 +51,25 @@ export function newStore(): StateStore {
 }
 
 /** Record the current Workflow-owned phase Skill through the production tracker hook. */
-export async function recordWorkflowPhaseSkill(root: string, changeDir: string): Promise<void> {
+/**
+ * 记一次（或当前阶段全部必需的）技能调用证据，让 transition 门放行。
+ * 不传 skillId 时按 default 有效计划取该阶段 × 该轨道的 requiredSkillIds（技能矩阵已并入 YAML，
+ * dashboard 与 CLI 同口径要求它们）；自定义 workflow 仍只记 tenon-<phase>。
+ */
+export async function recordWorkflowPhaseSkill(root: string, changeDir: string, skillId?: string): Promise<void> {
   const state = await createStateStore().read(changeDir)
   const phase = String(state.fields.phase)
-  const skill = `tenon-${phase}`
+  if (skillId === undefined) {
+    const workflow = typeof state.fields.workflow === 'string' && state.fields.workflow !== '' ? state.fields.workflow : 'default'
+    const track = BUILTIN_TRACK_DEFINITIONS.find((candidate) => candidate.id === String(state.fields.track))
+    const required = workflow === 'default'
+      ? compileEffectiveWorkflowPlan('default', undefined, track).capabilities.skills.steps.find((step) => step.stepId === phase)?.requiredSkillIds ?? []
+      : []
+    const skills = [...new Set([`tenon-${phase}`, ...required])]
+    for (const skill of skills) await recordWorkflowPhaseSkill(root, changeDir, skill)
+    return
+  }
+  const skill = skillId
   const pointer = join(root, '.pipeline-active')
   let previous: string | undefined
   try {

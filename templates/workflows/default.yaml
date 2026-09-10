@@ -8,6 +8,9 @@ steps:
     gate: null
     skills:
       - id: tenon-open
+      - id: openspec-propose
+        when:
+          track_in: [pm, frontend, backend, free]
     inputs: []
     outputs: []
     guards: []
@@ -19,6 +22,18 @@ steps:
     gate: review
     skills:
       - id: tenon-explore
+      - id: openspec-explore
+        when:
+          track_in: [frontend, backend]
+      - id: brainstorming
+        when:
+          track_in: [pm, frontend, backend, free]
+      - id: grill-with-docs
+        when:
+          track_in: [pm, frontend, backend]
+      - id: improve-codebase-architecture
+        when:
+          track_in: [backend]
     inputs: []
     outputs:
       - field: design_doc
@@ -36,6 +51,18 @@ steps:
     gate: review
     skills:
       - id: tenon-spec
+      - id: openspec-propose
+        when:
+          track_in: [pm, frontend, backend, free]
+      - id: brainstorming
+        when:
+          track_in: [pm]
+      - id: writing-plans
+        when:
+          track_in: [pm, frontend, backend, free]
+      - id: grill-with-docs
+        when:
+          track_in: [pm]
     inputs:
       - field: design_doc
         type: file_path
@@ -61,6 +88,18 @@ steps:
     gate: null
     skills:
       - id: tenon-build
+      - id: prototype
+        when:
+          track_in: [pm]
+      - id: frontend-design
+        when:
+          track_in: [pm, frontend]
+      - id: test-driven-development
+        when:
+          track_in: [frontend, backend, free]
+      - id: writing-plans
+        when:
+          track_in: [backend, free]
     inputs:
       - field: design_doc
         type: file_path
@@ -86,6 +125,24 @@ steps:
     review_lanes: [standards, spec, e2e]
     skills:
       - id: tenon-verify
+      - id: browser-qa
+        when:
+          track_in: [pm, frontend]
+      - id: web-design-guidelines
+        when:
+          track_in: [pm, frontend]
+      - id: design-taste-frontend
+        when:
+          track_in: [pm, frontend]
+      - id: verification-before-completion
+        when:
+          track_in: [pm, frontend, backend, free]
+      - id: handoff
+        when:
+          track_in: [pm]
+      - id: e2e-testing
+        when:
+          track_in: [frontend]
     inputs:
       - field: build_sha
         type: string
@@ -110,8 +167,27 @@ steps:
     gate: null
     skills:
       - id: tenon-ship
-    inputs: []
-    outputs: []
+      - id: openspec-apply-change
+        when:
+          track_in: [pm, frontend, backend, free]
+      - id: to-spec
+        when:
+          track_in: [pm]
+      - id: to-tickets
+        when:
+          track_in: [pm]
+      - id: openspec-archive-change
+        when:
+          track_in: [frontend]
+      - id: finishing-a-development-branch
+        when:
+          track_in: [frontend, backend, free]
+    inputs:
+      - field: verification_report
+        type: file_path
+    outputs:
+      - field: pr_url
+        type: string
     guards:
       - type: spec-migration-applied
     transitions:
@@ -122,7 +198,11 @@ steps:
     gate: null
     skills:
       - id: tenon-archive
-    inputs: []
-    outputs: []
+    inputs:
+      - field: pr_url
+        type: string
+    outputs:
+      - field: archived
+        type: boolean
     guards: []
     transitions: []

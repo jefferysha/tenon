@@ -75,7 +75,7 @@ export { isDefaultWorkflowName, isValidWorkflowName } from './workflow/identifie
 export { isSkillUnlocked } from './workflow/skillDag.js'
 export { parseWorkflow } from './workflow/parse.js'
 export { serializeWorkflow } from './workflow/serialize.js'
-export { validateWorkflow } from './workflow/validate.js'
+export { validateWorkflow, validateWorkflowForStorage } from './workflow/validate.js'
 export { validateWorkflowTrackReferences } from './workflow/track-reference-validation.js'
 export type {
   StepDef, StepTransition, WorkflowActionConfig, WorkflowDecompositionAskCondition,
@@ -139,6 +139,7 @@ export {
   readsRequiredForPhase, readsRequiredForPolicyStep, recordProducerCandidatesFor,
   recordProducerCandidatesForPolicyStep, recordsRequiredForPhase, recordsRequiredForPolicyStep,
   shouldEnforceDocumentEvidenceOnTransition, shouldEnforceDocumentPolicyOnTransition,
+  aliasesForSkill,
   validateOpenSpecContractWorkflow,
 } from './workflow/document-contract.js'
 export type {
@@ -159,6 +160,10 @@ export type {
   EffectiveWorkflowPlan, LegacyWorkflowIR, PersistedDocumentGovernanceBinding, WorkflowPlanSnapshot,
   WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3,
 } from './workflow/effective-plan.js'
+export {
+  documentSlotsLocked, materializeWorkflowIo,
+  type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,
+} from './workflow/effective-io.js'
 export type {
   ActionInput, CompiledGuardConfig, GuardDecision, GuardInput, StepIR, StepTransitionIR, WorkflowIR,
 } from './workflow/ir.js'

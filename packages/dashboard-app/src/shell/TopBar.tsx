@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Monitor, Moon, Search, Sun, X } from 'lucide-react'
+import { ChevronDown, Monitor, Moon, Search, Settings, Sun, X } from 'lucide-react'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n/translations'
 import { useGlobalSearch } from './GlobalSearch'
@@ -20,8 +20,6 @@ interface TopBarProps {
   currentRoot: string
   onRoot: (root: string) => void
   connected: boolean
-  /** 当前项目不可写时顶部 pill 从「只读视图」变为「项目不可写」并给出原因。 */
-  projectWritable: boolean
   lang: Lang
   onLang: (lang: Lang) => void
   theme: ThemePreference
@@ -43,9 +41,9 @@ const POPOVER_CLS = 'absolute top-[calc(100%+8px)] z-50 rounded-md border border
 
 /**
  * 顶部横条（模板 1:1）：logo → 面包屑「工作空间 / 当前页」→ 项目切换器 → 两个标签 → 搜索（`/`）
- * → 只读 pill → 连接状态 → 头像（设置：主题 / 语言）。
+ * → 连接状态 → 设置（主题 / 语言）。
  * 状态一律走 aria-* / data-*；testid：top-bar / nav-<view> / project-switcher / project-menu /
- * project-item-<name> / global-search / readonly-pill / conn-indicator / nav-settings / nav-settings-panel /
+ * project-item-<name> / global-search / conn-indicator / nav-settings / nav-settings-panel /
  * theme-toggle / lang-toggle / progress-badge / afk-badge。
  */
 export function TopBar({
@@ -55,7 +53,6 @@ export function TopBar({
   currentRoot,
   onRoot,
   connected,
-  projectWritable,
   lang,
   onLang,
   theme,
@@ -191,17 +188,6 @@ export function TopBar({
           <kbd className="rounded-xs border border-border px-1.5 font-mono text-micro text-text-3" aria-hidden="true">/</kbd>
         </label>
         <span
-          className={cn(
-            'rounded-full border px-3.5 py-1.5 text-base whitespace-nowrap max-[1279px]:hidden',
-            projectWritable || currentRoot === '' ? 'border-border text-text-2' : 'border-amber-b bg-amber-t text-amber-d',
-          )}
-          title={projectWritable || currentRoot === '' ? t('shell.readonly_hint') : t('shell.project_unwritable_hint')}
-          data-testid="readonly-pill"
-          data-writable={projectWritable}
-        >
-          {projectWritable || currentRoot === '' ? t('shell.readonly_pill') : t('shell.project_unwritable')}
-        </span>
-        <span
           className="flex items-center gap-1.5 whitespace-nowrap text-base text-text-2 max-[1279px]:hidden"
           data-on={connected ? 'true' : 'false'}
           title={connected ? t('common.connected') : t('common.offline')}
@@ -213,7 +199,7 @@ export function TopBar({
         <div className="relative" ref={settingsRef}>
           <button
             type="button"
-            className="grid size-8 place-items-center rounded-full bg-(--accent) text-caption font-semibold text-btn-fg outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-offset-2"
+            className="grid size-9 place-items-center rounded-sm border border-border bg-card text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"
             aria-label={t('common.settings')}
             aria-expanded={settingsOpen}
             aria-haspopup="dialog"
@@ -221,7 +207,7 @@ export function TopBar({
             data-testid="nav-settings"
             onClick={() => { setProjectOpen(false); setSettingsOpen((open) => !open) }}
           >
-            {t('shell.avatar')}
+            <Settings className="size-4" aria-hidden="true" />
           </button>
           {settingsOpen && (
             <section
@@ -263,7 +249,6 @@ export function TopBar({
                   {lang === 'zh' ? t('common.switch_to_english') : t('common.switch_to_chinese')}
                 </button>
               </div>
-              <p className="mt-3 text-caption leading-5 text-text-3">{t('shell.readonly_hint')}</p>
             </section>
           )}
         </div>

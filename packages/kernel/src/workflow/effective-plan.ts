@@ -20,7 +20,8 @@ import {
   DEFAULT_WORKFLOW_REVIEW_BUDGET_POLICY,
   compileWorkflowReviewBudgetPolicy,
 } from './policy.js'
-import type { WorkflowDef } from './types.js'
+import type { SkillRef, WorkflowDef } from './types.js'
+import { matchesTrackPredicate } from './predicates.js'
 import { validateWorkflow } from './validate.js'
 import type { WorkflowPlanSnapshot } from './workflow-plan-snapshot-types.js'
 import type {
@@ -86,6 +87,17 @@ function assertValid(definition: WorkflowDef, origin: 'custom' | 'default'): voi
   if (errors.length > 0) throw new Error(`effective workflow 无效：\n${errors.map((error) => `  - ${error}`).join('\n')}`)
 }
 
+/**
+ * 技能的轨道条件求值：无 when → 全轨道；有 when → 命中 track.id，或 track 开启技能矩阵时命中其 skills.profile
+ * （自定义轨道按 profile 继承 default 矩阵技能）。未传 track（无轨道语境的编译）不过滤。
+ */
+export function skillAppliesToTrack(skill: Pick<SkillRef, 'when'>, track: TrackDefinition | undefined): boolean {
+  if (skill.when === undefined || track === undefined) return true
+  if (matchesTrackPredicate(skill.when, track.id)) return true
+  const profile = track.policyProfile.skills
+  return profile.matrix && profile.profile !== '_all' && profile.profile !== track.id && matchesTrackPredicate(skill.when, profile.profile)
+}
+
 function planFromIr(
   id: string,
   executionModel: EffectiveWorkflowPlan['executionModel'],
@@ -98,6 +110,10 @@ function planFromIr(
     ? documentGovernancePolicy(id, workflow)
     : frozenDocumentPolicy ?? undefined
   const skillPolicy = executionModel === 'phase-manifest' ? 'manifest-overlay' : 'step-declared'
+  // 技能矩阵并入 YAML：default（manifest-overlay）里带 when 的技能不进 phase 槽，而是作为 per-track 叠加层
+  // 交给 resolver 按 track / profile 求值（与旧 manifest 矩阵同位置、同门禁语义）；自定义（step-declared）
+  // 则直接按当前轨道过滑成本 step 的声明列表。
+  const matrixEmbedded = workflow.steps.some((step) => step.skills.some((skill) => skill.when !== undefined))
   const reviewSteps = workflow.steps.filter((step) => step.gate === 'review').map((step) => step.id)
   const reviewLaneScopes = workflow.steps
     .filter((step) => (step.reviewLanes?.length ?? 0) > 0)
@@ -139,20 +155,30 @@ function planFromIr(
       execution: { model: executionModel },
       skills: {
         source: skillPolicy,
-        steps: workflow.steps.map((step) => ({
-          stepId: step.id,
-          requiredSkillIds: step.skills.map((skill) => skill.id),
-          declared: step.skills.map((skill) => ({
-            id: skill.id,
-            dependsOn: skill.depends_on ?? [],
-            kind: skill.kind ?? 'work',
-            ...(skill.review_lane === undefined ? {} : { reviewLane: skill.review_lane }),
-          })),
-        })),
+        steps: workflow.steps.map((step) => {
+          const active = skillPolicy === 'manifest-overlay'
+            ? step.skills.filter((skill) => skill.when === undefined)
+            : step.skills.filter((skill) => skillAppliesToTrack(skill, track))
+          const activeIds = new Set(active.map((skill) => skill.id))
+          return {
+            stepId: step.id,
+            requiredSkillIds: active.map((skill) => skill.id),
+            declared: active.map((skill) => ({
+              id: skill.id,
+              dependsOn: (skill.depends_on ?? []).filter((dependency) => activeIds.has(dependency)),
+              kind: skill.kind ?? 'work',
+              ...(skill.review_lane === undefined ? {} : { reviewLane: skill.review_lane }),
+            })),
+            conditional: skillPolicy === 'manifest-overlay'
+              ? step.skills.flatMap((skill) => skill.when === undefined ? [] : [{ id: skill.id, when: skill.when }])
+              : [],
+          }
+        }),
         trackOverlay: {
           matrix: trackPolicy?.skills.matrix ?? false,
           profile: trackPolicy?.skills.profile ?? '_all',
         },
+        matrixEmbedded,
       },
       documents: {
         governed: documentPolicy !== undefined,
@@ -324,7 +350,9 @@ export function loadEffectiveWorkflowPlan(
   id: string,
   track?: TrackDefinition,
 ): EffectiveWorkflowPlan {
-  const definition = id === 'default' ? undefined : loadWorkflow(repoRoot, id) ?? undefined
+  // default 也读项目覆盖文件（`.pipeline/workflows/default.yaml`，loadWorkflow 已按 default 契约校验）；
+  // 无覆盖时 compileEffectiveWorkflowPlan 回落内建模板。
+  const definition = loadWorkflow(repoRoot, id) ?? undefined
   return compileEffectiveWorkflowPlan(id, definition, track)
 }
 
@@ -340,8 +368,10 @@ export function resolveEffectiveWorkflowPlan(
   id: string,
   loadCompiled: (name: string) => WorkflowIR | null,
   track?: TrackDefinition,
+  /** default 的项目覆盖读取器（返回 null = 无覆盖 → 内建模板）。缺省保持旧行为：恒用内建。 */
+  loadDefaultOverride?: () => WorkflowDef | null,
 ): EffectiveWorkflowPlan | null {
-  if (id === 'default') return compileEffectiveWorkflowPlan(id, undefined, track)
+  if (id === 'default') return compileEffectiveWorkflowPlan(id, loadDefaultOverride?.() ?? undefined, track)
   const workflow = loadCompiled(id)
   return workflow === null ? null : effectiveWorkflowPlanFromIr(id, workflow, track)
 }

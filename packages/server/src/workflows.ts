@@ -6,7 +6,7 @@ import {
   constants, fstatSync, fsyncSync, lstatSync, openSync,
   readSync, readdirSync, renameSync, unlinkSync, writeFileSync,
 } from 'node:fs'
-import { validateWorkflow, parseWorkflow, serializeWorkflow, validateWorkflowTrackReferences } from '@tenon/kernel'
+import { parseWorkflow, serializeWorkflow, validateWorkflowForStorage, validateWorkflowTrackReferences } from '@tenon/kernel'
 import type { WorkflowDef } from '@tenon/kernel'
 import {
   assertEntryMatches,
@@ -105,12 +105,12 @@ export function captureWorkflowDeletePermit(root: WorkflowRoot, name: string): W
   })
 }
 
-/** 扫 `<root>/.pipeline/workflows/*.yaml`，排除 default；目录不存在 → 空数组。 */
+/** 扫 `<root>/.pipeline/workflows/*.yaml`（含 default 的项目覆盖文件）；目录不存在 → 空数组。 */
 export function listWorkflowNames(root: WorkflowRoot): string[] {
   return withWorkflowDirectories(root, false, () => [], (directories) => {
     assertWorkflowDirectoriesStillTrusted(directories)
     const names = readdirSync(directories.workflows.fdPath ?? directories.workflows.lexicalPath)
-      .filter((file) => file.endsWith('.yaml') && file !== 'default.yaml')
+      .filter((file) => file.endsWith('.yaml'))
     // list 也拒绝 target symlink：不能先把不安全目录项广告给客户端，再等 read 才报错。
     for (const file of names) {
       const paths = childEntry(directories.workflows, file)
@@ -130,6 +130,23 @@ export function readWorkflowForApi(
   name: string,
   readSource: WorkflowFdReader = readBoundedWorkflowSource,
 ): WorkflowDef {
+  const source = readWorkflowSourceForApi(root, name, readSource)
+  const workflow = parseWorkflow(source)
+  const errors = validateWorkflowForStorage(name, workflow)
+  if (errors.length > 0) {
+    throw new Error(
+      `ERROR: workflow '${name}' 校验失败：\n${errors.map((error) => `  - ${error}`).join('\n')}`,
+    )
+  }
+  return workflow
+}
+
+/** 同 readWorkflowForApi 的受信 fd 读边界，但返回 YAML 原文（导出用）；不解析、不校验。 */
+export function readWorkflowSourceForApi(
+  root: WorkflowRoot,
+  name: string,
+  readSource: WorkflowFdReader = readBoundedWorkflowSource,
+): string {
   assertWorkflowName(name)
   let source: string
   try {
@@ -203,14 +220,12 @@ export function readWorkflowForApi(
     }
     throw new WorkflowPathError(`workflow '${name}' 路径不可信`, error)
   }
-  const workflow = parseWorkflow(source)
-  const errors = validateWorkflow(workflow)
-  if (errors.length > 0) {
-    throw new Error(
-      `ERROR: workflow '${name}' 校验失败：\n${errors.map((error) => `  - ${error}`).join('\n')}`,
-    )
-  }
-  return workflow
+  return source
+}
+
+/** 存储键 'default' 走 default 契约（七阶段 + effective-phase-skills artifact），其余走 custom 契约。 */
+export function workflowOrigin(name: string): 'default' | 'custom' {
+  return name === 'default' ? 'default' : 'custom'
 }
 
 export type WriteWorkflowResult = { ok: true } | { ok: false; errors: string[] }
@@ -222,7 +237,7 @@ export function writeWorkflowForApi(
   wf: WorkflowDef,
 ): WriteWorkflowResult {
   assertWorkflowName(name)
-  const errors = validateWorkflow(wf)
+  const errors = validateWorkflowForStorage(name, wf)
   if (wf.name !== name) errors.unshift(`workflow name '${wf.name}' 必须与存储键 '${name}' 一致`)
   if (errors.length > 0) return { ok: false, errors }
   const content = serializeWorkflow(wf)

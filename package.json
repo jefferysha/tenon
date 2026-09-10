@@ -35,6 +35,7 @@
     "build:legacy-bridge": "node tools/build-legacy-bridge.mjs",
     "check:legacy-bridge": "node --test tools/build-legacy-bridge.node-test.mjs && bash -n migration/legacy-channel/bridge.sh",
     "check:docs": "node --test tools/check-docs.node-test.mjs && node tools/check-docs.mjs",
+    "check:design-scale": "node --test tools/check-design-scale.node-test.mjs && node tools/check-design-scale.mjs",
     "check:document-templates": "node tools/check-document-templates.mjs && npx vitest run packages/kernel/src/documents/document-template-renderer.test.ts",
     "docs:sync": "npm run sync -w @tenon/docs-site",
     "docs:check": "npm run check -w @tenon/docs-site",
@@ -48,7 +49,10 @@
     "build:web": "npm run build -w @tenon/dashboard-app",
     "oracle": "bash tools/oracle/run.sh backend-full default-effects default-guard-errors frontend-quotegate pm-history",
     "generate:default-workflow": "node tools/generate-default-workflow.mjs",
+    "generate:adapter-capabilities": "node tools/generate-adapter-capabilities.mjs",
+    "check:adapter-capabilities-freshness": "npm run generate:adapter-capabilities && git diff --exit-code -- packages/kernel/src/catalog/adapter-capabilities.generated.ts",
     "generate:document-presentation": "node tools/generate-document-presentation.mjs",
+    "check:default-skill-matrix": "node tools/check-default-skill-matrix.mjs",
     "check:default-workflow-freshness": "npm run generate:default-workflow && git diff --exit-code -- packages/kernel/src/workflow/default-workflow.generated.ts"
   },
   "devDependencies": {

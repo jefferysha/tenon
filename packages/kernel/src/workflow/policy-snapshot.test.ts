@@ -117,7 +117,13 @@ describe('workflow policy snapshot v3', () => {
     const legacyWorkflow = {
       ...currentWithoutPolicies,
       // Historical V2 bytes predate issue #43; default phase Skills were not persisted.
-      steps: currentWithoutPolicies.steps.map(({ reviewLanes: _reviewLanes, ...step }) => ({ ...step, skills: [] })),
+      steps: currentWithoutPolicies.steps.map(({ reviewLanes: _reviewLanes, ...step }) => ({
+        ...step,
+        skills: [],
+        // Historical bytes also predate the 2026-09 ship/archive inputs/outputs (pr_url / archived).
+        inputs: step.id === 'ship' || step.id === 'archive' ? [] : step.inputs,
+        outputs: step.id === 'ship' || step.id === 'archive' ? [] : step.outputs,
+      })),
     }
     const restored = effectiveWorkflowPlanFromSnapshot({
       version: 2,

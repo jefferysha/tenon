@@ -106,19 +106,43 @@ steps:
     expect(specStep?.guards[0]).toEqual({ type: 'tasks-at-least', n: 3 })
   })
 
-  it('G2 P5 · A 契约：把真实 default.yaml 放进 custom 槽用 loadWorkflow 加载 → fail-loud（custom 不许 effective-phase-skills）', async () => {
-    // default.yaml 的 artifact 声明用 effective-phase-skills（default 轨语义）。loadWorkflow 走 custom
-    // 契约（compileWorkflow），故把 default 工作流塞进 custom 槽会被 A 契约拒——default 运行时不经
-    // loadWorkflow（resolveWorkflowName==='default' 早于 loadWorkflow 分岔），本用例锚 A 契约在加载边界生效。
+  it('default 项目覆盖：`.pipeline/workflows/default.yaml` 按 default 契约加载（effective-phase-skills 合法），并可改技能', async () => {
     const __dirname = dirname(fileURLToPath(import.meta.url))
     const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
     const content = await readFile(join(repoRoot, 'templates', 'workflows', 'default.yaml'), 'utf8')
+    const edited = content.replace('      - id: tenon-open\n', '      - id: tenon-open\n      - id: brainstorming\n')
 
     const tempRoot = await mkdtemp(join(tmpdir(), 'wf-load-real-'))
     await mkdir(join(tempRoot, '.pipeline', 'workflows'), { recursive: true })
-    await writeFile(join(tempRoot, '.pipeline', 'workflows', 'default.yaml'), content, 'utf8')
+    await writeFile(join(tempRoot, '.pipeline', 'workflows', 'default.yaml'), edited, 'utf8')
 
-    expect(() => loadWorkflow(tempRoot, 'default')).toThrow(/effective-phase-skills/)
+    const wf = loadWorkflow(tempRoot, 'default')
+    expect(wf?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'brainstorming', 'openspec-propose'])
+  })
+
+  it('default 项目覆盖破坏七阶段契约（删掉 archive）→ fail-loud', async () => {
+    const __dirname = dirname(fileURLToPath(import.meta.url))
+    const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
+    const content = await readFile(join(repoRoot, 'templates', 'workflows', 'default.yaml'), 'utf8')
+    const broken = content.slice(0, content.indexOf('  - id: archive'))
+      .replace('      - event: ship-complete\n        to: archive\n', '')
+
+    const tempRoot = await mkdtemp(join(tmpdir(), 'wf-load-broken-default-'))
+    await mkdir(join(tempRoot, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(tempRoot, '.pipeline', 'workflows', 'default.yaml'), broken, 'utf8')
+
+    expect(() => loadWorkflow(tempRoot, 'default')).toThrow(/openspec_contract|7 个标准阶段|archive/)
+  })
+
+  it('custom 槽里的 effective-phase-skills artifact 仍被 custom 契约拒绝', async () => {
+    const __dirname = dirname(fileURLToPath(import.meta.url))
+    const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
+    const content = await readFile(join(repoRoot, 'templates', 'workflows', 'default.yaml'), 'utf8')
+    const tempRoot = await mkdtemp(join(tmpdir(), 'wf-load-custom-slot-'))
+    await mkdir(join(tempRoot, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(tempRoot, '.pipeline', 'workflows', 'copy.yaml'), content.replace('name: default', 'name: copy'), 'utf8')
+
+    expect(() => loadWorkflow(tempRoot, 'copy')).toThrow(/effective-phase-skills/)
   })
 
   it('G2 P2：非法新 guard（scalar guard 挂列表字段 scope）→ 加载入口经 validate→compile 深校验 fail-loud', async () => {

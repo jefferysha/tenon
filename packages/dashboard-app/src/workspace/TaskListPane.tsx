@@ -1,63 +1,58 @@
 import type { ReactNode } from 'react'
+import { Archive } from 'lucide-react'
 import { useT } from '../i18n'
 import { FilterChip, ListColumn } from '../shell/ThreeColumns'
 import { TaskCard } from './TaskCard'
-import type { FlatRow } from './taskRows'
-import { TASK_FILTERS, taskFilterMatch, type TaskFilter } from './workspaceModel'
+import { stageChips, type TaskFilterState, type TaskRow } from './taskModel'
+import { cn } from '@/lib/utils'
 
 export interface TaskListPaneProps {
   eyebrow: string
-  rows: readonly FlatRow[]
-  visibleRows: readonly FlatRow[]
-  filter: TaskFilter
-  onFilter: (next: TaskFilter) => void
+  rows: readonly TaskRow[]
+  visibleRows: readonly TaskRow[]
+  filter: TaskFilterState
+  onFilter: (next: TaskFilterState) => void
   search: string
   onSearch: (next: string) => void
   selectedKey: string | null
-  onSelect: (row: FlatRow) => void
+  onSelect: (row: TaskRow) => void
   showProject: boolean
-  /** 空列表时的教学：当前项目零任务 → 给终端命令；有任务但被筛掉 → 清筛选。 */
   emptyKind: 'no-project' | 'no-task' | 'filtered' | 'compat'
   onClearFilters: () => void
-  /** 列表上方的提示条（快照失败 / 未来版本升级提示）。 */
   notice?: ReactNode
 }
 
+/** 中列：阶段芯片（与流水线一一对应）+ 含已归档开关 + 任务卡。 */
 export function TaskListPane({
-  eyebrow,
-  rows,
-  visibleRows,
-  filter,
-  onFilter,
-  search,
-  onSearch,
-  selectedKey,
-  onSelect,
-  showProject,
-  emptyKind,
-  onClearFilters,
-  notice,
+  eyebrow, rows, visibleRows, filter, onFilter, search, onSearch, selectedKey, onSelect, showProject, emptyKind, onClearFilters, notice,
 }: TaskListPaneProps): JSX.Element {
   const { t } = useT()
-  const counts = Object.fromEntries(TASK_FILTERS.map((candidate) => [candidate, rows.filter((row) => taskFilterMatch(row, candidate)).length])) as Record<TaskFilter, number>
+  const chips = stageChips(rows, filter.includeArchived)
+  const total = rows.filter((row) => filter.includeArchived || !row.archived).length
   return (
     <ListColumn
       eyebrow={eyebrow}
       title={t('workspace.title')}
-      note={<><b className="font-semibold text-text">{t('workspace.filter_note_lead')}</b> {t('workspace.filter_note')}</>}
       search={{ value: search, onChange: onSearch, placeholder: t('workspace.search_tasks'), label: t('workspace.search_tasks') }}
       chips={(
-        <div role="tablist" aria-label={t('progress.tabs_label')} className="flex flex-wrap gap-1">
-          {TASK_FILTERS.map((candidate) => (
-            <FilterChip
-              key={candidate}
-              label={t(`workspace.filter_${candidate}`)}
-              count={counts[candidate]}
-              selected={filter === candidate}
-              testId={`task-filter-${candidate}`}
-              onClick={() => onFilter(candidate)}
-            />
+        <div className="flex w-full flex-wrap items-center gap-1" role="tablist" aria-label={t('workspace.filter_label')}>
+          <FilterChip label={t('workspace.filter_all')} count={total} selected={filter.stage === 'all'} testId="task-filter-all" onClick={() => onFilter({ ...filter, stage: 'all' })} />
+          {chips.map((chip) => (
+            <FilterChip key={chip.id} label={chip.label} count={chip.count} selected={filter.stage === chip.id} testId={`task-filter-${chip.id}`} onClick={() => onFilter({ ...filter, stage: chip.id })} />
           ))}
+          <button
+            type="button"
+            className={cn(
+              'ml-auto inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)',
+              filter.includeArchived && 'bg-accent-t font-semibold text-(--accent)',
+            )}
+            aria-pressed={filter.includeArchived}
+            data-testid="task-filter-archived"
+            onClick={() => onFilter({ ...filter, includeArchived: !filter.includeArchived })}
+          >
+            <Archive className="size-3.5" aria-hidden="true" />
+            {t('workspace.include_archived')}
+          </button>
         </div>
       )}
       testId="task-list"
@@ -65,8 +60,7 @@ export function TaskListPane({
       {notice}
       {visibleRows.length === 0 && emptyKind === 'compat' ? null : visibleRows.length === 0 ? (
         <div className="rounded-md border border-dashed border-border px-5 py-10 text-center" role="status" aria-live="polite" data-testid={`task-list-empty-${emptyKind}`}>
-          <p className="text-base font-semibold text-text">{t(`workspace.empty_${emptyKind}_title`)}</p>
-          <p className="mt-1 text-body text-text-2">{t(`workspace.empty_${emptyKind}_desc`)}</p>
+          <p className="text-base font-semibold text-text">{t(`workspace.empty_${emptyKind}`)}</p>
           {emptyKind === 'no-task' && (
             <code className="mt-3 inline-block rounded-xs bg-accent-t px-2 py-1 font-mono text-body text-(--accent)">tenon init my-change --track chat</code>
           )}

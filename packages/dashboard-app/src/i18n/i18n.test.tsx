@@ -47,6 +47,8 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
       'workbench.lp_scope_placeholder',
       'workbench.afk_rd_docker',
       'progress.act_fail_http',
+      'workflow.create_yaml',
+      'workflow.create_yaml_placeholder',
     ])
     const zhLeaves = stringLeaves(zh)
     const enLeaves = stringLeaves(en)

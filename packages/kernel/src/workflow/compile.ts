@@ -4,6 +4,7 @@
  * artifacts still require known scalar fields. Default/custom artifact policies stay separate.
  */
 import { FIELD_ORDER, type FieldName } from '../types.js'
+import type { TrackPredicate } from './predicates.js'
 import type {
   ArtifactProducerPolicy, FieldRef, GateKind, SkillRef, StepDef, StepTransition, WorkflowDef,
   WorkflowDocumentContractV1, WorkflowDocumentRead, WorkflowDocumentSlot,
@@ -48,7 +49,7 @@ const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
 const STEP_KEYS: ReadonlySet<string> = new Set([
   'id', 'label', 'gate', 'prompt', 'reviewLanes', 'skills', 'inputs', 'outputs', 'artifacts', 'guards', 'transitions',
 ])
-const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'kind', 'review_lane', 'depends_on'])
+const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'kind', 'review_lane', 'depends_on', 'when'])
 const FIELD_REF_KEYS: ReadonlySet<string> = new Set(['field', 'type'])
 const ARTIFACT_KEYS: ReadonlySet<string> = new Set(['field', 'type', 'kind', 'producerPolicy', 'requiredWhen'])
 const TRANSITION_KEYS: ReadonlySet<string> = new Set(['event', 'to', 'guards', 'actions'])
@@ -161,10 +162,23 @@ function compileReviewLanes(raw: unknown, path: string): readonly string[] {
   return lanes
 }
 
+function compileSkillWhen(raw: unknown, path: string): { when?: TrackPredicate } {
+  if (raw === undefined) return {}
+  const rec = asRecord(raw, path)
+  rejectExtraKeys(rec, new Set(['kind', 'values']), path)
+  if (rec.kind !== 'track-in' && rec.kind !== 'track-not-in') {
+    compileError(`${path}.kind`, `必须是 'track-in' | 'track-not-in'（实际 ${JSON.stringify(rec.kind)}）`)
+  }
+  const values = stringArray(rec.values, `${path}.values`)
+  if (values.length === 0) compileError(`${path}.values`, '轨道列表不得为空')
+  return { when: { kind: rec.kind as TrackPredicate['kind'], values } }
+}
+
 function compileSkillRef(raw: SkillRef, path: string, reviewLanes: readonly string[]): SkillRef {
   const rec = asRecord(raw, path)
   rejectExtraKeys(rec, SKILL_KEYS, path)
   const id = nonemptyString(rec.id, `${path}.id`)
+  const when = compileSkillWhen(rec.when, `${path}.when`)
   const kind = rec.kind ?? 'work'
   if (kind !== 'work' && kind !== 'review') {
     compileError(`${path}.kind`, `必须是 'work' | 'review'（实际 ${JSON.stringify(kind)}）`)
@@ -177,6 +191,7 @@ function compileSkillRef(raw: SkillRef, path: string, reviewLanes: readonly stri
     return {
       id, kind, review_lane: reviewLane,
       ...(rec.depends_on === undefined ? {} : { depends_on: stringArray(rec.depends_on, `${path}.depends_on`) }),
+      ...when,
     }
   }
   if (rec.review_lane !== undefined) {
@@ -185,6 +200,7 @@ function compileSkillRef(raw: SkillRef, path: string, reviewLanes: readonly stri
   return {
     id, kind,
     ...(rec.depends_on === undefined ? {} : { depends_on: stringArray(rec.depends_on, `${path}.depends_on`) }),
+    ...when,
   }
 }
 
@@ -407,8 +423,9 @@ export function compileWorkflow(def: unknown): WorkflowIR {
  * HTTP/JSON 等结构化边界的定义层 decoder。compileWorkflow 已完整校验所有必填键、嵌套
  * 变体和值域；校验成功后保留原始定义层形状，避免把编译后的 artifact IR 误当作可序列化 DTO。
  */
-export function decodeWorkflowDef(value: unknown): WorkflowDef {
-  compileWorkflow(value)
+export function decodeWorkflowDef(value: unknown, origin: 'custom' | 'default' = 'custom'): WorkflowDef {
+  if (origin === 'default') compileDefaultWorkflow(value)
+  else compileWorkflow(value)
   return value as WorkflowDef
 }
 

@@ -24,6 +24,7 @@ function serializeSkill(s: SkillRef): string[] {
   if (s.depends_on !== undefined) {
     lines.push(`        depends_on: [${s.depends_on.join(', ')}]`)
   }
+  if (s.when !== undefined) lines.push(...serializeWhen(s.when, '        '))
   return lines
 }
 

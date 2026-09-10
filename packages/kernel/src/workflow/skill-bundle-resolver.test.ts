@@ -16,6 +16,7 @@ import type { SkillTable } from '../flow/manifest.js'
 import type { StepIR } from './ir.js'
 import type { TrackRegistry } from '../tracks/types.js'
 import { compileEffectiveWorkflowPlan } from './effective-plan.js'
+import { legacyDefaultWorkflow } from './test-support.js'
 
 /** 最小 SkillTable 夹具（对齐 effective-skill-resolver.test.ts 同款写法）。 */
 function table(rows: Record<string, Record<string, readonly string[]>>): SkillTable {
@@ -28,7 +29,7 @@ function step(skills: readonly { id: string }[]): StepIR {
 }
 
 describe('resolveSkillBundle —— default 分支委托 frozen explicit profile', () => {
-  const capability = compileEffectiveWorkflowPlan('default').capabilities.skills
+  const capability = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow()).capabilities.skills
 
   it('原样转发 capability/stepId/profileId 给 resolveExplicitProfile，source 标 default，不触碰 legacy profile API/custom', () => {
     const slots: EffectiveSkillSlot[] = [{ token: 'm1', alternatives: ['m1'] }]
@@ -121,7 +122,7 @@ describe('resolveSkillBundle —— default 分支委托 frozen explicit profile
       mandatorySkills: table({ build: { free: ['writing-plans'] } }),
       recommendedSkills: table({ build: { free: ['hallmark'] } }),
     })
-    const plan = compileEffectiveWorkflowPlan('default')
+    const plan = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow())
     const result = resolveSkillBundle(resolver, {
       kind: 'default', stepId: 'build', profileId: 'free', capability: plan.capabilities.skills,
     })

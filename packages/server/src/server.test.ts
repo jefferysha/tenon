@@ -3748,13 +3748,49 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(await readFile(target, 'utf8')).toBe(before)
   })
 
-  it('name === default → 400（即便 body 合法）', async () => {
+  it('name === default：body 不满足 default 骨架（非七阶段）→ 400 并列出原因，不落盘', async () => {
     const h = await start()
     const r = await reqPost(
       h.port, '/api/workflows/default', { ...VALID_BODY, name: 'default', root: h.root },
       { headers: { Authorization: `Bearer ${h.token}` } },
     )
     expect(r.status).toBe(400)
+    const body = r.json<{ ok: false; errors: string[] }>()
+    expect(body.errors.some((error) => error.includes('7 个标准阶段'))).toBe(true)
+    expect(existsSync(join(h.root, '.pipeline', 'workflows', 'default.yaml'))).toBe(false)
+  })
+
+  it('name === default：以内建模板为底改技能 → 200 写入项目覆盖文件；GET 回读 source=project；DELETE 恢复内建', async () => {
+    const h = await start()
+    const builtin = await reqGet(h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`)
+    expect(builtin.status).toBe(200)
+    const { source: builtinSource, effectiveIo: builtinIo, ...template } = builtin.json<Record<string, unknown>>()
+    expect(builtinSource).toBe('builtin')
+    expect(Object.keys(builtinIo as Record<string, unknown>)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
+    const steps = template.steps as Array<{ id: string; skills: Array<{ id: string }> }>
+    const edited = steps.map((step) => step.id === 'open' ? { ...step, skills: [...step.skills, { id: 'brainstorming' }] } : step)
+    const saved = await reqPost(
+      h.port, '/api/workflows/default', { ...template, steps: edited, root: h.root },
+      { headers: { Authorization: `Bearer ${h.token}` } },
+    )
+    expect(saved.status, saved.body).toBe(200)
+    expect(existsSync(join(h.root, '.pipeline', 'workflows', 'default.yaml'))).toBe(true)
+
+    const loaded = await reqGet(h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`)
+    expect(loaded.status).toBe(200)
+    const override = loaded.json<{ source: string; steps: Array<{ id: string; skills: Array<{ id: string }> }> }>()
+    expect(override.source).toBe('project')
+    expect(override.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose', 'brainstorming'])
+    const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
+    expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: [], default: { source: 'project' } })
+
+    const removed = await reqDelete(
+      h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`,
+      { headers: { Authorization: `Bearer ${h.token}` } },
+    )
+    expect(removed.status, removed.body).toBe(200)
+    const restored = await reqGet(h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`)
+    expect(restored.json<{ source: string }>().source).toBe('builtin')
   })
 
   it('URL workflow name 与 body.name 不一致 → 400，两个名称都不落盘', async () => {
@@ -3836,11 +3872,14 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
 
     const loaded = await reqGet(h.port, `/api/workflows/short-governed?root=${encodeURIComponent(h.root)}`)
     expect(loaded.status).toBe(200)
-    expect(loaded.json()).toEqual({
+    const { source, effectiveIo, ...definition } = loaded.json<Record<string, unknown>>()
+    expect(definition).toEqual({
       name: body.name,
       documentContract: body.documentContract,
       steps: body.steps,
     })
+    expect(source).toBe('project')
+    expect(effectiveIo).toBeTypeOf('object')
   })
 
   it('畸形 workflow 嵌套 DTO → 400 decoder 错误，不落盘且不抛 500', async () => {
@@ -3952,7 +3991,8 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(saved.status, saved.body).toBe(200)
     const loaded = await reqGet(h.port, `/api/workflows/full-step-ir?root=${encodeURIComponent(h.root)}`)
     expect(loaded.status).toBe(200)
-    expect(loaded.json()).toEqual({ name: body.name, steps: body.steps })
+    const { source: _source, effectiveIo: _effectiveIo, ...definition } = loaded.json<Record<string, unknown>>()
+    expect(definition).toEqual({ name: body.name, steps: body.steps })
   })
 
   it('T-R6：body predicate 引用未知 dynamic track → 400 + 定位 errors，绝不先保存再运行时坏', async () => {
@@ -4189,13 +4229,13 @@ steps:
     expect(r.status).toBe(401)
   })
 
-  it('name === default → 400', async () => {
+  it('name === default 且无项目覆盖 → 404（默认模板不是文件，没有可删的覆盖）', async () => {
     const h = await start()
     const r = await reqDelete(
       h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`,
       { headers: { Authorization: `Bearer ${h.token}` } },
     )
-    expect(r.status).toBe(400)
+    expect(r.status).toBe(404)
   })
 
   it('真删存在的 workflow → 200，真从磁盘消失', async () => {
@@ -4962,12 +5002,12 @@ describe('POST /api/automation —— AFK 执行参数写回（T21）', () => {
   })
 })
 
-describe('未知 HTTP 方法（非 GET/POST/DELETE）仍 405（既有兜底不因新增 DELETE 分支而失效）', () => {
-  it('PUT → 405', async () => {
+describe('未知 HTTP 方法（非 GET/POST/PATCH/PUT/DELETE）仍 405（既有兜底不因新增分支而失效）', () => {
+  it('TRACE → 405', async () => {
     const h = await start()
     const r = await new Promise<{ status: number }>((resolve, reject) => {
       const req = (require('node:http') as typeof import('node:http')).request(
-        { host: '127.0.0.1', port: h.port, path: '/api/workflows/x', method: 'PUT' },
+        { host: '127.0.0.1', port: h.port, path: '/api/workflows/x', method: 'TRACE' },
         (res) => resolve({ status: res.statusCode ?? 0 }),
       )
       req.on('error', reject)
@@ -5865,5 +5905,92 @@ describe('Bug1：GET 只读数据端点 DNS 重绑定 Host 守卫（统一补齐
     expect((await reqGet(h.port, '/api/loops/snapshot')).status).toBe(200)
     // health 探针位于守卫之前，任意 Host 仍放行（不改其既有探针语义）
     expect((await reqGet(h.port, '/api/health', '127.0.0.1', EVIL)).status).toBe(200)
+  })
+})
+
+// ═══════════ 工作流 YAML 导入 / 导出（2026-09 dashboard 重设计）═══════════
+function reqPutText(port: number, path: string, text: string, headers: Record<string, string> = {}): Promise<{ status: number; body: string; headers: Record<string, string | string[] | undefined> }> {
+  return new Promise((resolve, reject) => {
+    const http = require('node:http') as typeof import('node:http')
+    const req = http.request(
+      { host: '127.0.0.1', port, path, method: 'PUT', headers: { 'Content-Type': 'text/yaml', 'Content-Length': String(Buffer.byteLength(text)), ...headers } },
+      (res) => {
+        let body = ''
+        res.setEncoding('utf8')
+        res.on('data', (chunk) => (body += chunk))
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body, headers: res.headers }))
+      },
+    )
+    req.on('error', reject)
+    req.write(text)
+    req.end()
+  })
+}
+
+describe('GET /api/workflows/:name/yaml —— 导出原文', () => {
+  it('default 无覆盖 → 内建模板源，text/yaml', async () => {
+    const h = await start()
+    const r = await reqGet(h.port, `/api/workflows/default/yaml?root=${encodeURIComponent(h.root)}`)
+    expect(r.status).toBe(200)
+    expect(String(r.headers['content-type'])).toContain('text/yaml')
+    expect(r.body.startsWith('name: default\n')).toBe(true)
+    expect(r.body).toContain('field: pr_url')
+  })
+
+  it('自定义 workflow → 项目文件逐字节原文；不存在 → 404；非法名 → 400', async () => {
+    const { mkdir, writeFile } = await import('node:fs/promises')
+    const h = await start()
+    const dir = join(h.root, '.pipeline', 'workflows')
+    await mkdir(dir, { recursive: true })
+    const source = 'name: onboarding\nsteps:\n  - id: s1\n    label: x\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions: []\n'
+    await writeFile(join(dir, 'onboarding.yaml'), source, 'utf8')
+    const ok = await reqGet(h.port, `/api/workflows/onboarding/yaml?root=${encodeURIComponent(h.root)}`)
+    expect(ok.status).toBe(200)
+    expect(ok.body).toBe(source)
+    expect((await reqGet(h.port, `/api/workflows/ghost/yaml?root=${encodeURIComponent(h.root)}`)).status).toBe(404)
+    expect((await reqGet(h.port, `/api/workflows/..%2Fx/yaml?root=${encodeURIComponent(h.root)}`)).status).toBe(400)
+  })
+})
+
+describe('PUT /api/workflows/:name/yaml —— 导入原文', () => {
+  const SOURCE = 'name: imported\nsteps:\n  - id: s1\n    label: x\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions: []\n'
+
+  it('无 token → 401，不落盘', async () => {
+    const h = await start()
+    const r = await reqPutText(h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`, SOURCE)
+    expect(r.status).toBe(401)
+    expect(existsSync(join(h.root, '.pipeline', 'workflows', 'imported.yaml'))).toBe(false)
+  })
+
+  it('合法 YAML → 200 落盘，GET yaml 回读规范化原文，GET json 带 effectiveIo', async () => {
+    const h = await start()
+    const r = await reqPutText(h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`, SOURCE, { Authorization: `Bearer ${h.token}` })
+    expect(r.status, r.body).toBe(200)
+    expect(JSON.parse(r.body)).toEqual({ ok: true, name: 'imported' })
+    expect(existsSync(join(h.root, '.pipeline', 'workflows', 'imported.yaml'))).toBe(true)
+    const back = await reqGet(h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`)
+    expect(back.body).toContain('name: imported')
+    const json = await reqGet(h.port, `/api/workflows/imported?root=${encodeURIComponent(h.root)}`)
+    expect(json.json<{ effectiveIo: Record<string, { outputs: unknown[] }> }>().effectiveIo.s1?.outputs).toEqual([])
+  })
+
+  it('name 与 URL 不一致 / 解析失败 / 图不合法 → 400 且不落盘', async () => {
+    const h = await start()
+    const mismatch = await reqPutText(h.port, `/api/workflows/other/yaml?root=${encodeURIComponent(h.root)}`, SOURCE, { Authorization: `Bearer ${h.token}` })
+    expect(mismatch.status).toBe(400)
+    expect(JSON.parse(mismatch.body).errors.join(' ')).toContain("'imported'")
+    const broken = await reqPutText(h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`, SOURCE.replace('transitions: []', 'transitions:\n      - event: go\n        to: nowhere'), { Authorization: `Bearer ${h.token}` })
+    expect(broken.status).toBe(400)
+    expect(existsSync(join(h.root, '.pipeline', 'workflows', 'imported.yaml'))).toBe(false)
+    expect(existsSync(join(h.root, '.pipeline', 'workflows', 'other.yaml'))).toBe(false)
+  })
+
+  it('超过 256KB → 413；内建 simple → 409', async () => {
+    const h = await start()
+    const huge = SOURCE + '# ' + 'x'.repeat(256 * 1024)
+    const tooBig = await reqPutText(h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`, huge, { Authorization: `Bearer ${h.token}` })
+    expect(tooBig.status).toBe(413)
+    const builtin = await reqPutText(h.port, `/api/workflows/simple/yaml?root=${encodeURIComponent(h.root)}`, SOURCE.replace('imported', 'simple'), { Authorization: `Bearer ${h.token}` })
+    expect(builtin.status).toBe(409)
   })
 })

@@ -38,6 +38,7 @@ import { IllegalTransitionError } from '../types.js'
 import { applyBreadcrumbTail, clearReviewGatePatch, readCurrentRunRevision, reviewGateApprovedFor, transitionRecordToHistoryEntry } from '../state/index.js'
 import { evaluateDocumentEvidence } from '../state/document-evidence.js'
 import type { DocumentEvidenceReport } from '../state/document-evidence.js'
+import { builtinTrack, isBuiltinTrackId } from '../tracks/builtins.js'
 import { eventEdge } from '../flow/index.js'
 import type { EventName, TransitionContext } from '../flow/index.js'
 import { evaluateDefaultEventPreconditions, DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
@@ -287,7 +288,9 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
         let effectivePlan: EffectiveWorkflowPlan | null
         try {
           const trackId = fieldStr(tx.state.fields.track)
-          const track = trackId === '' ? undefined : deps.resolveTrack?.(trackId)
+          // 技能的轨道条件按当前轨道求值；宿主没接 resolveTrack 时至少认内建轨道，避免把全部轨道的
+          // 条件技能都当成本轨必需。
+          const track = trackId === '' ? undefined : deps.resolveTrack?.(trackId) ?? (isBuiltinTrackId(trackId) ? builtinTrack(trackId) : undefined)
           effectivePlan = resolveBoundEffectiveWorkflowPlan(workflowName, {
             documentProfile: tx.run.documentProfile,
             documentGovernanceFingerprint: tx.run.documentGovernanceFingerprint,

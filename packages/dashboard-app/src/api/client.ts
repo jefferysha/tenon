@@ -24,6 +24,7 @@ export {
   fetchHooksConfig,
   fetchSkillsRegistry,
   fetchWorkflow,
+  fetchWorkflowIndex,
   fetchWorkflowNames,
   getHistory,
   patchTrackDefinition,
@@ -37,6 +38,7 @@ export {
   registerProject,
   unregisterProject,
 } from './governanceClient'
+export type { WorkflowIndex } from './governanceClient'
 
 export { fetchLoopsSnapshot, postLoopLevel, postLoopUpdate } from './loopsClient'
 export { postLoopScopePreview } from './loopScopePreview'

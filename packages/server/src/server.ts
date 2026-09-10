@@ -58,7 +58,7 @@ import { applyRouterDraft, parseRouterDraft, previewTrackRouting, scoreRouterPat
 import { createCadenceScheduler } from './cadence.js'
 import { handleGet as handleGetRoute } from './serverGetRoutes.js'
 import { createHostTargetPlanRuntime } from './serverGetHostTargetPlanRoutes.js'
-import { handleDeleteRoute, handlePatchRoute } from './serverMutationRoutes.js'
+import { handleDeleteRoute, handlePatchRoute, handlePutRoute } from './serverMutationRoutes.js'
 import { handlePostRoute } from './serverPostRoutes.js'
 import {
   assertDashboardTransactionId,
@@ -301,6 +301,8 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     handlePatchRoute(req, res, path, mutationRouteDeps)
   const handleDelete = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handleDeleteRoute(req, res, path, mutationRouteDeps)
+  const handlePut = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
+    handlePutRoute(req, res, path, mutationRouteDeps)
   const httpServer: Server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?', 1)[0] ?? '/'
     const method = req.method ?? 'GET'
@@ -312,7 +314,9 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
           ? handlePatch(req, res, path)
           : method === 'DELETE'
             ? handleDelete(req, res, path)
-            : Promise.resolve(sendJson(res, 405, { ok: false, error: 'method not allowed' }))
+            : method === 'PUT'
+              ? handlePut(req, res, path)
+              : Promise.resolve(sendJson(res, 405, { ok: false, error: 'method not allowed' }))
     handler.catch((e) => {
       try { sendJson(res, 500, { ok: false, error: errMsg(e) }) } catch { /* 已写头 */ }
     })

@@ -59,14 +59,14 @@ describe('listWorkflowNames', () => {
     expect(listWorkflowNames(root)).toEqual([])
   })
 
-  it('真扫 *.yaml 文件名（去扩展名），排除 default.yaml', async () => {
+  it('真扫 *.yaml 文件名（去扩展名），default 的项目覆盖文件一并列出', async () => {
     const root = await tempRoot()
     const dir = join(root, '.pipeline', 'workflows')
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, 'onboarding.yaml'), VALID_WF, 'utf8')
     await writeFile(join(dir, 'release.yaml'), VALID_WF.replace('onboarding', 'release'), 'utf8')
     await writeFile(join(dir, 'default.yaml'), VALID_WF.replace('onboarding', 'default'), 'utf8')
-    expect(listWorkflowNames(root).sort()).toEqual(['onboarding', 'release'])
+    expect(listWorkflowNames(root).sort()).toEqual(['default', 'onboarding', 'release'])
   })
 
   it('.pipeline 换成指向 root 外的 symlink → 拒绝，绝不列出外部 workflow', async () => {

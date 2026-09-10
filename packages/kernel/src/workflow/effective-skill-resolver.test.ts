@@ -9,6 +9,7 @@ import type { SkillTable } from '../flow/manifest.js'
 import type { StepIR } from './ir.js'
 import type { TrackRegistry } from '../tracks/types.js'
 import { compileEffectiveWorkflowPlan } from './effective-plan.js'
+import { legacyDefaultWorkflow } from './test-support.js'
 
 /** 最小 SkillTable 夹具（缺相位 → skillsFor 返 []，无须补全 Record<Phase,…>）。 */
 function table(rows: Record<string, Record<string, readonly string[]>>): SkillTable {
@@ -208,7 +209,7 @@ describe('issue #43 —— Workflow phase slots stay ahead of Track overlays', (
       mandatorySkills: table({ build: { free: ['writing-plans'] } }),
       recommendedSkills: table({ build: { free: ['hallmark'] } }),
     })
-    const plan = compileEffectiveWorkflowPlan('default', undefined, {
+    const plan = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), {
       id: 'free', label: 'free', builtin: true,
       workflow: { default: 'default', allowed: '*' },
       policyProfile: {
@@ -228,7 +229,7 @@ describe('issue #43 —— Workflow phase slots stay ahead of Track overlays', (
       mandatorySkills: table({ explore: { backend: ['openspec-explore', 'shared'] } }),
       recommendedSkills: table({ explore: { backend: ['shared', 'search-first'] } }),
     })
-    const plan = compileEffectiveWorkflowPlan('default', undefined, {
+    const plan = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), {
       id: 'backend', label: 'backend', builtin: true,
       workflow: { default: 'default', allowed: '*' },
       policyProfile: {

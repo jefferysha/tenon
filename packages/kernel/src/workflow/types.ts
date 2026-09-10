@@ -66,6 +66,8 @@ export interface SkillRef {
   readonly review_lane?: string
   /** 同 step 内其它 skill 的 id；无 = 无依赖，可立即调用。跨 step 引用是校验期错误（Task 4）。 */
   readonly depends_on?: readonly string[]
+  /** 轨道条件：缺省对全部轨道生效；有则只对命中的轨道生效（YAML `when: track_in/track_not_in`）。 */
+  readonly when?: TrackPredicate
 }
 
 /** guard/action 的 track 适用条件（定义层）：无 when 对全轨生效；有 when 且谓词不命中 → 该

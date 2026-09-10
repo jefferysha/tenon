@@ -1,5 +1,5 @@
 import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
-import { validateOpenSpecContractWorkflow } from './document-contract.js'
+import { validateDefaultWorkflowStructure, validateOpenSpecContractWorkflow } from './document-contract.js'
 import { isValidWorkflowName } from './identifier.js'
 import type { WorkflowDef } from './types.js'
 
@@ -63,6 +63,11 @@ export function validateWorkflow(
     for (const skill of step.skills) {
       if (!SKILL_IDENT_RE.test(skill.id)) {
         errors.push(`step '${step.id}' 的 skill id '${skill.id}' 含非法字符（仅允许 a-zA-Z0-9_- 及命名空间冒号，如 superpowers:brainstorming）`)
+      }
+      for (const track of skill.when?.values ?? []) {
+        if (!/^[a-z][a-z0-9_-]{0,31}$/.test(track)) {
+          errors.push(`step '${step.id}' 的 skill '${skill.id}' 的 when 引用了非法 track id '${track}'`)
+        }
       }
     }
     for (const ref of [...step.inputs, ...step.outputs]) {
@@ -145,5 +150,17 @@ export function validateWorkflow(
     errors.push(e instanceof Error ? e.message : String(e))
   }
 
+  return errors
+}
+
+/**
+ * 存储边界校验（文件 / HTTP 写入）：在 validateWorkflow 之上，存储键为 'default' 的定义还必须保住
+ * 七阶段骨架（顺序 / 流转 / 评审门禁 / 运行时字段）——项目覆盖文件替代内建模板参与 phase-manifest 运行，
+ * 骨架一破运行时就无所依凭。compileEffectiveWorkflowPlan 等内存入口不走本函数（测试夹具可用精简 default）。
+ */
+export function validateWorkflowForStorage(name: string, wf: WorkflowDef): string[] {
+  const origin = name === 'default' ? 'default' : 'custom'
+  const errors = validateWorkflow(wf, { origin })
+  if (origin === 'default') errors.push(...validateDefaultWorkflowStructure(wf))
   return errors
 }

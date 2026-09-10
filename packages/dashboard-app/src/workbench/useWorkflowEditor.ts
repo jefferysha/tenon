@@ -1,30 +1,38 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowNames, postWorkflowDef } from '../api/client'
-import { formatApiError } from '../api/transport'
+import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
+import type { WbEffectiveIo, WbFieldRef, WbStepDef, WbTrackPredicate, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import { formatApiError, getToken } from '../api/transport'
+import { fetchWorkflowYaml, putWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
-import { DEFAULT_RULES, invalidateWorkflowRules, rulesKey, useWorkflowRulesMulti } from '../model/workflowModel'
-import { PHASES, type Snapshot } from '../types'
-import type { BoardLane, LanePatch } from './boardLane'
+import { invalidateWorkflowRules } from '../model/workflowModel'
+import { isPhase } from '../types'
+import { invalidateWorkflowDefinition } from '../workspace/useWorkflowDefinition'
+import { draftEffectiveIo, lintWorkflow, type LintIssue } from '../workflow/lint'
+import type { SlotCandidate } from '../workflow/slotCatalog'
 import { useMandatorySkills, type MandatoryState } from './mandatoryState'
 import { readSaveErrors, readWorkflowDeleteResponse } from './workbenchApiDecoders'
 import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
-import { useWorkbenchBoard } from './useWorkbenchBoard'
 import { useStageDraftEditor } from './useStageDraftEditor'
 import { useWorkbenchDirtyState, type WorkbenchDirtySource } from './useWorkbenchDirtyState'
 import {
+  addDocumentSlotInDef,
+  addFieldOutputInDef,
   addSkillToDef,
-  buildDefaultDef,
-  editLaneInDef,
-  moveSkillInDef,
+  blankWorkflow,
+  copyWorkflowDef,
+  definitionForWrite,
+  removeDocumentSlotInDef,
+  removeFieldOutputInDef,
   removeSkillFromDef,
   removeStageFromDef,
+  renameStepInDef,
   reorderStagesInDef,
-  setLaneGuardInDef,
-  setSkillDepInDef,
-  workflowForCreate,
-  type SkillMove,
-  type WbStepDef,
-  type WbWorkflowDef,
+  setDocumentReadInDef,
+  setFieldInputInDef,
+  setGateInDef,
+  setSkillWhenInDef,
+  setStepSkillWavesInDef,
+  workflowNameFromYaml,
 } from './workbenchDefinition'
 
 export type SaveStatus = { kind: 'idle' | 'ok' } | { kind: 'error'; errors: string[]; conflict?: boolean }
@@ -35,62 +43,73 @@ export interface WorkflowDeleteError {
   blockers: Array<{ source?: string; detail?: string }>
 }
 
+export type CreateMode = 'copy' | 'blank' | 'import'
+
+export interface CreateState {
+  open: boolean
+  mode: CreateMode
+  setMode: (mode: CreateMode) => void
+  name: string
+  setName: (name: string) => void
+  yaml: string
+  setYaml: (text: string) => void
+  nameInvalid: boolean
+  nameDuplicate: boolean
+  errors: string[]
+  busy: boolean
+  canSubmit: boolean
+  nameRef: RefObject<HTMLInputElement>
+  openCreate: (mode?: CreateMode) => void
+  close: () => void
+  submit: () => Promise<void>
+}
+
 export interface WorkflowEditorInput {
   root: string
-  snapshot: Snapshot | null
   onDirtyChange?: (dirty: boolean) => void
 }
 
 export interface WorkflowEditor {
   names: string[] | null
   namesErrorText: string | null
+  defaultSource: WbWorkflowSource
   wfName: string | null
   def: WbWorkflowDef | null
   defErrorText: string | null
-  readonlyWf: boolean
+  /** 草稿的物化 IO（字段槽位按草稿重算，文档槽位沿用已保存版本或草稿契约）。 */
+  effectiveIo: WbEffectiveIo | undefined
+  lint: LintIssue[]
+  /** 页面是否持有写凭证；无则所有写入口置灰。 */
+  canWrite: boolean
   dirty: boolean
-  policyDirty: boolean
   saving: boolean
   saveStatus: SaveStatus
   menuNames: string[]
-  stagesCountOf: (name: string) => number | null
   stageId: string | null
   setStageId: (id: string | null) => void
   selectedStep: WbStepDef | null
-  selectedLane: BoardLane | undefined
-  boardLanes: BoardLane[]
-  summary: { stages: number; gates: number; skills: number; hooks: number | null } | null
+  labelOf: (stepId: string) => string
   mandatory: MandatoryState
-  setDef: (updater: (previous: WbWorkflowDef | null) => WbWorkflowDef | null) => void
-  editLane: (laneId: string, patch: LanePatch) => void
-  replaceStep: (updated: WbStepDef) => void
-  removeStage: (laneId: string) => void
+  renameStep: (stepId: string, label: string) => void
+  setGate: (stepId: string, gate: WbStepDef['gate']) => void
+  removeStage: (stepId: string) => void
   reorderStages: (fromId: string, toId: string, after: boolean) => void
-  addSkill: (stageId: string, skillId: string) => void
-  removeSkill: (stageId: string, skillId: string) => void
-  moveSkill: (move: SkillMove) => void
-  setSkillDependency: (stageId: string, skillId: string, dep: string | null, prevDep: string | null) => void
-  setLaneGuard: (laneId: string, enabled: boolean) => void
+  setSkillWaves: (stepId: string, waves: readonly (readonly string[])[]) => void
+  setSkillWhen: (stepId: string, skillId: string, when: WbTrackPredicate | undefined) => void
+  addSkill: (stepId: string, skillId: string) => void
+  removeSkill: (stepId: string, skillId: string) => void
+  addOutput: (stepId: string, candidate: SlotCandidate) => void
+  removeOutput: (stepId: string, candidate: SlotCandidate) => void
+  setInput: (stepId: string, candidate: SlotCandidate, on: boolean) => void
   save: () => Promise<void>
   discardDraft: () => void
   reloadDefinition: () => void
-  cancelPolicyDraft: () => void
   requestSwitch: (name: string) => void
   confirmSwitch: () => void
   pendingSwitch: string | null
   setPendingSwitch: (name: string | null) => void
-  workflowCreateMode: 'new' | 'copy' | null
-  workflowDraftName: string
-  setWorkflowDraftName: (name: string) => void
-  workflowNameInvalid: boolean
-  workflowNameDuplicate: boolean
-  workflowOpErrors: string[]
-  workflowOpBusy: boolean
-  canSubmitWorkflow: boolean
-  workflowNameRef: RefObject<HTMLInputElement>
-  openWorkflowCreate: (mode: 'new' | 'copy') => void
-  closeWorkflowCreate: () => void
-  confirmWorkflowCreate: () => Promise<void>
+  create: CreateState
+  exportYaml: () => Promise<string>
   workflowDeleteTarget: { root: string; name: string } | null
   workflowDeleteBusy: boolean
   workflowDeleteError: WorkflowDeleteError | null
@@ -102,278 +121,228 @@ export interface WorkflowEditor {
   reportTrackDirty: (dirty: boolean) => void
 }
 
+const NAME_RE = /^[\p{L}\p{N}\p{M}_-]+$/u
+
 /**
- * 工作流定义编辑的状态机：加载 names/def、脏态与保存、新建 / 复制 / 删除、切换守卫、阶段草稿、强制技能矩阵。
- * 视图层（workflow/WorkflowView）只做三列装配，不再持有任何写路径。
+ * 工作流定义编辑的状态机：列表 / 定义加载（default 亦从服务端读，项目覆盖优先）、草稿与保存、
+ * 新建（复制 / 空白 / 导入 YAML）、删除（default = 恢复内建）、切换守卫、阶段草稿、轨道技能矩阵。
  */
-export function useWorkflowEditor({ root, snapshot, onDirtyChange }: WorkflowEditorInput): WorkflowEditor {
+export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput): WorkflowEditor {
   const { t, lang } = useT()
-  const defaultLabels = useMemo(() => Object.fromEntries(PHASES.map((phase) => [phase, t(`phases.${phase}`)])), [t])
-  const localizedDefaultDef = useMemo(() => buildDefaultDef(defaultLabels), [defaultLabels])
   const [names, setNames] = useState<string[] | null>(null)
+  const [defaultSource, setDefaultSource] = useState<WbWorkflowSource>('builtin')
   const [namesError, setNamesError] = useState<unknown | null>(null)
   const [wfName, setWfName] = useState<string | null>(null)
   const [def, setDefState] = useState<WbWorkflowDef | null>(null)
   const [defError, setDefError] = useState<unknown | null>(null)
-  const [definitionReloadNonce, setDefinitionReloadNonce] = useState(0)
+  const [reloadNonce, setReloadNonce] = useState(0)
   const [stageId, setStageId] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: 'idle' })
   const [saving, setSaving] = useState(false)
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null)
-  const [workflowCreateMode, setWorkflowCreateMode] = useState<'new' | 'copy' | null>(null)
-  const [workflowDraftName, setWorkflowDraftName] = useState('')
-  const workflowDraftBaseline = useRef('')
-  const [workflowOpBusy, setWorkflowOpBusy] = useState(false)
-  const [workflowOpErrors, setWorkflowOpErrors] = useState<string[]>([])
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createMode, setCreateMode] = useState<CreateMode>('copy')
+  const [createName, setCreateName] = useState('')
+  const [createYaml, setCreateYaml] = useState('')
+  const [createBusy, setCreateBusy] = useState(false)
+  const [createErrors, setCreateErrors] = useState<string[]>([])
   const [workflowDeleteTarget, setWorkflowDeleteTarget] = useState<{ root: string; name: string } | null>(null)
   const [workflowDeleteBusy, setWorkflowDeleteBusy] = useState(false)
   const [workflowDeleteError, setWorkflowDeleteError] = useState<WorkflowDeleteError | null>(null)
-  const workflowNameRef = useRef<HTMLInputElement>(null)
+  const nameRef = useRef<HTMLInputElement>(null)
   const rootIdentity = useRef(root)
   const workflowIdentity = useRef<string | null>(null)
-  const saveGeneration = useRef(0)
-  const createGeneration = useRef(0)
-  const deleteGeneration = useRef(0)
-  const namesGeneration = useRef(0)
-  const localeIdentity = useRef({ t, lang })
+  const generation = useRef({ save: 0, create: 0, delete: 0, names: 0 })
+  const localeRef = useRef({ t, lang })
   rootIdentity.current = root
   workflowIdentity.current = wfName
-  localeIdentity.current = { t, lang }
-  const defSnapshotRef = useRef<string | null>(null)
-  const defBaselineRef = useRef<WbWorkflowDef | null>(null)
-  const setDef = useCallback((updater: (previous: WbWorkflowDef | null) => WbWorkflowDef | null): void => {
-    setDefState(updater)
-  }, [])
+  localeRef.current = { t, lang }
+  const baselineRef = useRef<WbWorkflowDef | null>(null)
+  const baselineJson = useRef<string | null>(null)
   const stageDraft = useStageDraftEditor({ def, stageId, setDef: setDefState, setStageId })
   const { setAddStageOpen } = stageDraft
   const mandatory = useMandatorySkills(root)
+  const canWrite = getToken() !== ''
 
   useEffect(() => {
     setSaveStatus((current) => current.kind === 'error' ? { kind: 'idle' } : current)
-    setWorkflowOpErrors([])
+    setCreateErrors([])
     setWorkflowDeleteError(null)
   }, [lang])
 
+  // root 切换：全部状态归零，重拉列表。
   useEffect(() => {
     const targetRoot = root
-    const generation = ++namesGeneration.current
-    ++saveGeneration.current
-    ++createGeneration.current
-    ++deleteGeneration.current
+    const current = ++generation.current.names
+    generation.current.save += 1
+    generation.current.create += 1
+    generation.current.delete += 1
     setNames(null)
+    setDefaultSource('builtin')
     setNamesError(null)
     setWfName(null)
     setDefState(null)
     setDefError(null)
-    setDefinitionReloadNonce(0)
+    setReloadNonce(0)
     setSaving(false)
     setPendingSwitch(null)
     setAddStageOpen(false)
-    setWorkflowCreateMode(null)
-    setWorkflowDraftName('')
-    workflowDraftBaseline.current = ''
-    setWorkflowOpBusy(false)
-    setWorkflowOpErrors([])
+    setCreateOpen(false)
+    setCreateErrors([])
     setWorkflowDeleteTarget(null)
     setWorkflowDeleteBusy(false)
     setWorkflowDeleteError(null)
-    defSnapshotRef.current = null
-    defBaselineRef.current = null
+    baselineRef.current = null
+    baselineJson.current = null
     let cancelled = false
-    fetchWorkflowNames(targetRoot)
-      .then((loaded) => {
-        if (cancelled || generation !== namesGeneration.current || rootIdentity.current !== targetRoot) return
-        setNames(loaded)
+    fetchWorkflowIndex(targetRoot)
+      .then((index: WorkflowIndex) => {
+        if (cancelled || current !== generation.current.names || rootIdentity.current !== targetRoot) return
+        setNames(index.names)
+        setDefaultSource(index.defaultSource)
         setNamesError(null)
-        setWfName(loaded[0] ?? 'default')
+        // 有自定义工作流时先落到第一个（多半是正在编辑的那份），否则 default。
+        setWfName(index.names[0] ?? 'default')
       })
-      .catch((err: unknown) => {
-        if (cancelled || generation !== namesGeneration.current || rootIdentity.current !== targetRoot) return
+      .catch((error: unknown) => {
+        if (cancelled || current !== generation.current.names || rootIdentity.current !== targetRoot) return
         setNames([])
-        setNamesError(err)
+        setNamesError(error)
         setWfName('default')
       })
     return () => {
       cancelled = true
-      ++namesGeneration.current
-      ++saveGeneration.current
-      ++createGeneration.current
-      ++deleteGeneration.current
+      generation.current.names += 1
+      generation.current.save += 1
+      generation.current.create += 1
+      generation.current.delete += 1
     }
-    // setAddStageOpen 是 useState 的 setter，身份稳定；实际只在 root 变化时重跑。
   }, [root, setAddStageOpen])
 
+  // 定义加载：default 与自定义同一条路（服务端物化 IO 一并带回）。
   useEffect(() => {
-    if (!wfName) return
-    setSaveStatus({ kind: 'idle' })
-    if (wfName === 'default') {
-      setDefState(localizedDefaultDef)
-      setDefError(null)
-      defSnapshotRef.current = null
-      defBaselineRef.current = localizedDefaultDef
-      return
-    }
+    if (!wfName || root === '') return
     let cancelled = false
+    // 保存成功后的重载不清「已保存」提示；切换工作流时由 switchTo 归零。
     setDefState(null)
     setDefError(null)
-    defSnapshotRef.current = null
-    defBaselineRef.current = null
+    baselineRef.current = null
+    baselineJson.current = null
     fetchWorkflow(wfName, root)
       .then((body) => {
         if (cancelled) return
         setDefState(body)
         setDefError(null)
-        defSnapshotRef.current = JSON.stringify(body)
-        defBaselineRef.current = body
+        baselineRef.current = body
+        baselineJson.current = JSON.stringify(definitionForWrite(body))
+        if (wfName === 'default' && body.source !== undefined) setDefaultSource(body.source)
       })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        setDefError(err)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [root, wfName, definitionReloadNonce, localizedDefaultDef])
-
-  useEffect(() => {
-    if (wfName === 'default') setDefState(localizedDefaultDef)
-  }, [localizedDefaultDef, wfName])
+      .catch((error: unknown) => { if (!cancelled) setDefError(error) })
+    return () => { cancelled = true }
+  }, [root, wfName, reloadNonce])
 
   useEffect(() => {
     if (!def) return
-    setStageId((cur) => (cur && def.steps.some((s) => s.id === cur) ? cur : def.steps[0]?.id ?? null))
+    setStageId((current) => (current && def.steps.some((step) => step.id === current) ? current : def.steps[0]?.id ?? null))
   }, [def])
 
-  const readonlyWf = wfName === 'default'
   const namesErrorText = namesError === null ? null : t('workbench.names_error', { msg: formatApiError(namesError, t) })
   const defErrorText = defError === null ? null : t('workbench.def_error', { msg: formatApiError(defError, t) })
-  const dirty = !readonlyWf && def !== null && defSnapshotRef.current !== null && JSON.stringify(def) !== defSnapshotRef.current
-  const policyDirty = !readonlyWf && def !== null
-    && defBaselineRef.current !== null
-    && (JSON.stringify(def.decomposition) !== JSON.stringify(defBaselineRef.current.decomposition)
-      || JSON.stringify(def.interaction) !== JSON.stringify(defBaselineRef.current.interaction)
-      || JSON.stringify(def.reviewBudget) !== JSON.stringify(defBaselineRef.current.reviewBudget))
-  const workflowCreateDirty = workflowCreateMode !== null && workflowDraftName !== workflowDraftBaseline.current
-  const { setSourceDirty } = useWorkbenchDirtyState({
-    localDirty: dirty || workflowCreateDirty || stageDraft.draftDirty,
-    onDirtyChange,
-  })
-  const reportTrackDirty = useCallback((value: boolean) => {
-    setSourceDirty('track', value)
-  }, [setSourceDirty])
+  const dirty = def !== null && baselineJson.current !== null && JSON.stringify(definitionForWrite(def)) !== baselineJson.current
+  const createDirty = createOpen && (createName !== '' || createYaml !== '')
+  const { setSourceDirty } = useWorkbenchDirtyState({ localDirty: dirty || createDirty || stageDraft.draftDirty, onDirtyChange })
+  const reportTrackDirty = useCallback((value: boolean) => { setSourceDirty('track', value) }, [setSourceDirty])
 
-  const editLane = useCallback((laneId: string, patch: LanePatch): void => {
-    setDefState((prev) => (prev ? editLaneInDef(prev, laneId, patch) : prev))
+  const effectiveIo = useMemo(() => def === null ? undefined : draftEffectiveIo(def, baselineRef.current?.effectiveIo), [def])
+  const lint = useMemo(() => def === null ? [] : lintWorkflow(def, effectiveIo), [def, effectiveIo])
+  const labelOf = useCallback((stepId: string): string => {
+    const step = def?.steps.find((candidate) => candidate.id === stepId)
+    if (def?.name === 'default' && isPhase(stepId)) return t(`phases.${stepId}`)
+    return step?.label || stepId
+  }, [def, t])
+
+  const mutate = useCallback((update: (previous: WbWorkflowDef) => WbWorkflowDef): void => {
+    setDefState((previous) => previous === null ? previous : update(previous))
   }, [])
-  const replaceStep = useCallback((updated: WbStepDef): void => {
-    setDefState((prev) => prev === null
-      ? prev
-      : { ...prev, steps: prev.steps.map((step) => step.id === updated.id ? updated : step) })
-  }, [])
-  const removeStage = useCallback((laneId: string): void => {
-    setDefState((prev) => (prev ? removeStageFromDef(prev, laneId) : prev))
-    setStageId((cur) => {
-      if (cur !== laneId) return cur
-      const rest = def?.steps.filter((s) => s.id !== laneId) ?? []
-      return rest[0]?.id ?? null
-    })
-  }, [def])
-  const reorderStages = useCallback((fromId: string, toId: string, after: boolean): void => {
-    setDefState((prev) => (prev ? reorderStagesInDef(prev, fromId, toId, after) : prev))
-  }, [])
-  const addSkill = useCallback((laneId: string, skillId: string): void => {
-    setDefState((prev) => (prev ? addSkillToDef(prev, laneId, skillId) : prev))
-  }, [])
-  const removeSkill = useCallback((laneId: string, skillId: string): void => {
-    setDefState((prev) => (prev ? removeSkillFromDef(prev, laneId, skillId) : prev))
-  }, [])
-  const moveSkill = useCallback((move: SkillMove): void => {
-    setDefState((prev) => (prev ? moveSkillInDef(prev, move) : prev))
-  }, [])
-  const setSkillDependency = useCallback((laneId: string, skillId: string, dep: string | null, prevDep: string | null): void => {
-    setDefState((prev) => (prev ? setSkillDepInDef(prev, laneId, skillId, dep, prevDep) : prev))
-  }, [])
-  const setLaneGuard = useCallback((laneId: string, enabled: boolean): void => {
-    setDefState((prev) => (prev ? setLaneGuardInDef(prev, laneId, enabled) : prev))
-  }, [])
+  const renameStep = useCallback((stepId: string, label: string) => mutate((previous) => renameStepInDef(previous, stepId, label)), [mutate])
+  const setGate = useCallback((stepId: string, gate: WbStepDef['gate']) => mutate((previous) => setGateInDef(previous, stepId, gate)), [mutate])
+  const removeStage = useCallback((stepId: string): void => {
+    mutate((previous) => removeStageFromDef(previous, stepId))
+    setStageId((current) => current === stageId ? (def?.steps.filter((step) => step.id !== stepId)[0]?.id ?? null) : current)
+  }, [mutate, def, stageId])
+  const reorderStages = useCallback((fromId: string, toId: string, after: boolean) => mutate((previous) => reorderStagesInDef(previous, fromId, toId, after)), [mutate])
+  const setSkillWaves = useCallback((stepId: string, waves: readonly (readonly string[])[]) => mutate((previous) => setStepSkillWavesInDef(previous, stepId, waves)), [mutate])
+  const setSkillWhen = useCallback((stepId: string, skillId: string, when: WbTrackPredicate | undefined) => mutate((previous) => setSkillWhenInDef(previous, stepId, skillId, when)), [mutate])
+  const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
+  const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])
+  const addOutput = useCallback((stepId: string, candidate: SlotCandidate) => mutate((previous) => candidate.kind === 'document'
+    ? addDocumentSlotInDef(previous, stepId, candidate.id)
+    : addFieldOutputInDef(previous, stepId, { field: candidate.id, type: candidate.type })), [mutate])
+  const removeOutput = useCallback((stepId: string, candidate: SlotCandidate) => mutate((previous) => candidate.kind === 'document'
+    ? removeDocumentSlotInDef(previous, candidate.id)
+    : removeFieldOutputInDef(previous, stepId, candidate.id)), [mutate])
+  const setInput = useCallback((stepId: string, candidate: SlotCandidate, on: boolean) => mutate((previous) => candidate.kind === 'document'
+    ? setDocumentReadInDef(previous, stepId, candidate.id, on)
+    : setFieldInputInDef(previous, stepId, { field: candidate.id, type: candidate.type } as WbFieldRef, on)), [mutate])
+
+  function afterWrite(targetRoot: string, name: string): void {
+    invalidateWorkflowRules(targetRoot, name)
+    invalidateWorkflowDefinition(targetRoot, name)
+  }
 
   async function save(): Promise<void> {
-    if (!def || !wfName || readonlyWf || !dirty || saving) return
+    if (!def || !wfName || !dirty || saving || !canWrite || lint.length > 0) return
     const targetRoot = root
     const targetWorkflow = wfName
-    const generation = ++saveGeneration.current
+    const current = ++generation.current.save
+    const stillCurrent = (): boolean => current === generation.current.save && rootIdentity.current === targetRoot && workflowIdentity.current === targetWorkflow
     setSaving(true)
     setSaveStatus({ kind: 'idle' })
     try {
-      const res = await postWorkflowDef(targetWorkflow, { ...def, root: targetRoot })
-      if (!res.ok) {
-        const locale = localeIdentity.current
-        if (res.status === 409) {
-          // 并发写冲突：草稿未落地。普通失败提示「重试」会拿旧内容再覆盖一次，
-          // 必须给「重新载入最新内容」这条独立恢复路径（reloadDefinition）。
-          if (generation !== saveGeneration.current || rootIdentity.current !== targetRoot || workflowIdentity.current !== targetWorkflow) return
-          setSaveStatus({ kind: 'error', errors: [locale.t('workbench.save_conflict')], conflict: true })
+      const response = await postWorkflowDef(targetWorkflow, { ...definitionForWrite(def), root: targetRoot })
+      if (!response.ok) {
+        const locale = localeRef.current
+        if (response.status === 409) {
+          if (stillCurrent()) setSaveStatus({ kind: 'error', errors: [locale.t('workbench.save_conflict')], conflict: true })
           return
         }
-        const errors = await readSaveErrors(
-          res,
-          locale.t('workbench.save_unauthorized'),
-          locale.t('common.request_http_error', { status: res.status }),
-          locale.lang === 'zh',
-        )
-        if (generation !== saveGeneration.current || rootIdentity.current !== targetRoot || workflowIdentity.current !== targetWorkflow) return
-        setSaveStatus({ kind: 'error', errors })
+        const errors = await readSaveErrors(response, locale.t('workbench.save_unauthorized'), locale.t('common.request_http_error', { status: response.status }), locale.lang === 'zh')
+        if (stillCurrent()) setSaveStatus({ kind: 'error', errors })
         return
       }
-      const validSuccess = await readWorkflowWriteSuccess(res)
-      if (generation !== saveGeneration.current || rootIdentity.current !== targetRoot || workflowIdentity.current !== targetWorkflow) return
-      if (!validSuccess) { setSaveStatus({ kind: 'error', errors: [localeIdentity.current.t('common.invalid_response')] }); return }
-      invalidateWorkflowRules(targetRoot, targetWorkflow)
-      defSnapshotRef.current = JSON.stringify(def)
-      defBaselineRef.current = def
+      const valid = await readWorkflowWriteSuccess(response)
+      if (!stillCurrent()) return
+      if (!valid) { setSaveStatus({ kind: 'error', errors: [localeRef.current.t('common.invalid_response')] }); return }
+      afterWrite(targetRoot, targetWorkflow)
+      baselineRef.current = { ...def, source: targetWorkflow === 'default' ? 'project' : 'project' }
+      baselineJson.current = JSON.stringify(definitionForWrite(def))
+      if (targetWorkflow === 'default') setDefaultSource('project')
       setSaveStatus({ kind: 'ok' })
-    } catch (err) {
-      if (generation === saveGeneration.current && rootIdentity.current === targetRoot && workflowIdentity.current === targetWorkflow) {
-        setSaveStatus({ kind: 'error', errors: [formatApiError(err, localeIdentity.current.t)] })
-      }
+      // 重新拉一次拿服务端物化后的 IO（文档槽位 / 消费者）。
+      setReloadNonce((value) => value + 1)
+    } catch (error) {
+      if (stillCurrent()) setSaveStatus({ kind: 'error', errors: [formatApiError(error, localeRef.current.t)] })
     } finally {
-      if (generation === saveGeneration.current && rootIdentity.current === targetRoot && workflowIdentity.current === targetWorkflow) {
-        setSaving(false)
-      }
+      if (stillCurrent()) setSaving(false)
     }
   }
 
-  /** 放弃未保存草稿：回到上次载入 / 保存的定义。 */
   function discardDraft(): void {
-    if (readonlyWf || saving || defBaselineRef.current === null) return
-    setDefState(defBaselineRef.current)
+    if (saving || baselineRef.current === null) return
+    setDefState(baselineRef.current)
     setSaveStatus({ kind: 'idle' })
   }
 
   function switchTo(name: string): void {
-    ++saveGeneration.current
+    generation.current.save += 1
     workflowIdentity.current = name
     setSaving(false)
     setSaveStatus({ kind: 'idle' })
     setWfName(name)
-    setDefState(name === 'default' ? localizedDefaultDef : null)
+    setDefState(null)
     setDefError(null)
-    defBaselineRef.current = name === 'default' ? localizedDefaultDef : null
-  }
-
-  function cancelPolicyDraft(): void {
-    if (readonlyWf || saving || !policyDirty || defBaselineRef.current === null) return
-    const baseline = defBaselineRef.current
-    setDefState((current) => {
-      if (current === null) return current
-      const next = { ...current }
-      if (baseline.decomposition === undefined) delete next.decomposition
-      else next.decomposition = baseline.decomposition
-      if (baseline.interaction === undefined) delete next.interaction
-      else next.interaction = baseline.interaction
-      return next
-    })
-    setSaveStatus({ kind: 'idle' })
+    baselineRef.current = null
+    baselineJson.current = null
   }
   function requestSwitch(name: string): void {
     if (name === wfName) return
@@ -384,69 +353,85 @@ export function useWorkflowEditor({ root, snapshot, onDirtyChange }: WorkflowEdi
     if (pendingSwitch !== null) switchTo(pendingSwitch)
     setPendingSwitch(null)
   }
-  const workflowName = workflowDraftName.trim()
-  const workflowNameInvalid = workflowName.length > 0 && !/^[\p{L}\p{N}\p{M}_-]+$/u.test(workflowName)
-  const workflowNameDuplicate = workflowName.length > 0 && (workflowName === 'default' || (names ?? []).includes(workflowName))
-  const canSubmitWorkflow = workflowName.length > 0 && !workflowNameInvalid && !workflowNameDuplicate && !workflowOpBusy
-  function openWorkflowCreate(mode: 'new' | 'copy'): void {
-    if (saving) return
-    const initialName = mode === 'copy' ? `${wfName ?? 'workflow'}-copy` : ''
-    workflowDraftBaseline.current = initialName
-    setWorkflowCreateMode(mode)
-    setWorkflowDraftName(initialName)
-    setWorkflowOpErrors([])
+
+  // ── 新建：复制当前 / 空白 / 导入 YAML ──
+  const trimmedName = createName.trim()
+  const nameInvalid = trimmedName.length > 0 && !NAME_RE.test(trimmedName)
+  const nameDuplicate = trimmedName.length > 0 && (trimmedName === 'default' || trimmedName === 'simple' || (names ?? []).includes(trimmedName))
+  const canSubmitCreate = canWrite && trimmedName.length > 0 && !nameInvalid && !nameDuplicate && !createBusy
+    && (createMode !== 'import' || createYaml.trim() !== '') && (createMode !== 'copy' || def !== null)
+  function openCreate(mode: CreateMode = 'copy'): void {
+    if (saving || !canWrite) return
+    setCreateMode(mode)
+    setCreateName(mode === 'copy' ? `${wfName ?? 'workflow'}-copy` : '')
+    setCreateYaml('')
+    setCreateErrors([])
+    setCreateOpen(true)
   }
-  function closeWorkflowCreate(): void {
-    if (workflowOpBusy) return
-    setWorkflowCreateMode(null)
-    setWorkflowDraftName('')
-    workflowDraftBaseline.current = ''
-    setWorkflowOpErrors([])
+  function closeCreate(): void {
+    if (createBusy) return
+    setCreateOpen(false)
+    setCreateName('')
+    setCreateYaml('')
+    setCreateErrors([])
   }
-  async function confirmWorkflowCreate(): Promise<void> {
-    if (!canSubmitWorkflow || !workflowCreateMode) return
-    if (workflowCreateMode === 'copy' && !def) return
+  function setYaml(text: string): void {
+    setCreateYaml(text)
+    const fromYaml = workflowNameFromYaml(text)
+    if (fromYaml !== '' && createName.trim() === '') setCreateName(fromYaml)
+  }
+  async function submitCreate(): Promise<void> {
+    if (!canSubmitCreate) return
     const targetRoot = root
-    const generation = ++createGeneration.current
-    const nextDef = workflowForCreate(workflowCreateMode, readonlyWf, def, workflowName, defaultLabels)
-    if (nextDef === null) return
-    setWorkflowOpBusy(true)
-    setWorkflowOpErrors([])
+    const name = trimmedName
+    const current = ++generation.current.create
+    const stillCurrent = (): boolean => current === generation.current.create && rootIdentity.current === targetRoot
+    setCreateBusy(true)
+    setCreateErrors([])
     try {
-      const res = await postWorkflowDef(workflowName, { root: targetRoot, ...nextDef })
-      if (!res.ok) {
-        const locale = localeIdentity.current
-        const errors = await readSaveErrors(
-          res,
-          locale.t('workbench.save_unauthorized'),
-          locale.t('common.request_http_error', { status: res.status }),
-          locale.lang === 'zh',
-        )
-        if (generation !== createGeneration.current || rootIdentity.current !== targetRoot) return
-        setWorkflowOpErrors(errors)
-        return
+      if (createMode === 'import') {
+        const text = createYaml.replace(/^name:\s*\S+\s*$/m, `name: ${name}`)
+        const result = await putWorkflowYaml(name, targetRoot, text)
+        if (!stillCurrent()) return
+        if (!result.ok) {
+          setCreateErrors(result.errors.length > 0 ? result.errors : [result.status === 401 ? localeRef.current.t('workbench.save_unauthorized') : localeRef.current.t('common.request_http_error', { status: result.status })])
+          return
+        }
+      } else {
+        const next = createMode === 'copy' && def !== null ? copyWorkflowDef(def, name) : blankWorkflow(name, localeRef.current.t('workflow.blank_stage'))
+        const response = await postWorkflowDef(name, { ...definitionForWrite(next), root: targetRoot })
+        if (!response.ok) {
+          const locale = localeRef.current
+          const errors = await readSaveErrors(response, locale.t('workbench.save_unauthorized'), locale.t('common.request_http_error', { status: response.status }), locale.lang === 'zh')
+          if (stillCurrent()) setCreateErrors(errors)
+          return
+        }
+        const valid = await readWorkflowWriteSuccess(response)
+        if (!stillCurrent()) return
+        if (!valid) { setCreateErrors([localeRef.current.t('common.invalid_response')]); return }
       }
-      const validSuccess = await readWorkflowWriteSuccess(res)
-      if (generation !== createGeneration.current || rootIdentity.current !== targetRoot) return
-      if (!validSuccess) { setWorkflowOpErrors([localeIdentity.current.t('common.invalid_response')]); return }
-      invalidateWorkflowRules(targetRoot, workflowName)
-      setNames((prev) => [...new Set([...(prev ?? []), workflowName])].sort())
-      setWorkflowCreateMode(null)
-      setWorkflowDraftName('')
-      workflowDraftBaseline.current = ''
-      switchTo(workflowName)
-    } catch (err) {
-      if (generation === createGeneration.current && rootIdentity.current === targetRoot) {
-        setWorkflowOpErrors([formatApiError(err, localeIdentity.current.t)])
-      }
+      afterWrite(targetRoot, name)
+      setNames((previous) => [...new Set([...(previous ?? []), name])].sort())
+      setCreateOpen(false)
+      setCreateName('')
+      setCreateYaml('')
+      switchTo(name)
+    } catch (error) {
+      if (stillCurrent()) setCreateErrors([formatApiError(error, localeRef.current.t)])
     } finally {
-      if (generation === createGeneration.current && rootIdentity.current === targetRoot) {
-        setWorkflowOpBusy(false)
-      }
+      if (stillCurrent()) setCreateBusy(false)
     }
   }
+
+  async function exportYaml(): Promise<string> {
+    if (!wfName) return ''
+    return fetchWorkflowYaml(wfName, root)
+  }
+
+  // ── 删除（default = 恢复内建，仅项目覆盖存在时可用）──
   function openWorkflowDelete(): void {
-    if (saving || !wfName || wfName === 'default') return
+    if (saving || !wfName || !canWrite) return
+    if (wfName === 'default' && defaultSource !== 'project') return
     setWorkflowDeleteError(null)
     setWorkflowDeleteTarget({ root, name: wfName })
   }
@@ -457,122 +442,107 @@ export function useWorkflowEditor({ root, snapshot, onDirtyChange }: WorkflowEdi
   }
   async function confirmWorkflowDelete(): Promise<void> {
     const target = workflowDeleteTarget
-    if (!target || target.root !== root || target.name !== wfName || workflowDeleteBusy) {
-      setWorkflowDeleteTarget(null)
-      return
-    }
+    if (!target || target.root !== root || target.name !== wfName || workflowDeleteBusy) { setWorkflowDeleteTarget(null); return }
     const deleting = target.name
     const targetRoot = target.root
-    const generation = ++deleteGeneration.current
+    const current = ++generation.current.delete
+    const stillCurrent = (): boolean => current === generation.current.delete && rootIdentity.current === targetRoot
     setWorkflowDeleteBusy(true)
     setWorkflowDeleteError(null)
     try {
-      const res = await deleteWorkflowDef(deleting, targetRoot)
-      const outcome = await readWorkflowDeleteResponse(res)
-      if (generation !== deleteGeneration.current || rootIdentity.current !== targetRoot) return
+      const response = await deleteWorkflowDef(deleting, targetRoot)
+      const outcome = await readWorkflowDeleteResponse(response)
+      if (!stillCurrent()) return
       if (outcome.kind !== 'success') {
-        const locale = localeIdentity.current
+        const locale = localeRef.current
         const body = outcome.kind === 'error' ? outcome.body : null
         setWorkflowDeleteError({
           summary: outcome.kind === 'invalid'
             ? locale.t('common.invalid_response')
             : (locale.lang === 'zh' ? body?.error : undefined) ?? (body?.code === 'WORKFLOW_REFERENCED'
               ? locale.t('workbench.workflow_delete_referenced')
-              : locale.t('workbench.workflow_delete_failed', { status: res.status })),
+              : locale.t('workbench.workflow_delete_failed', { status: response.status })),
           references: locale.lang === 'zh' ? body?.references ?? [] : [],
           blockers: locale.lang === 'zh' ? body?.blockers ?? [] : [],
         })
         return
       }
-      invalidateWorkflowRules(targetRoot, deleting)
-      const remaining = (names ?? []).filter((name) => name !== deleting)
-      setNames(remaining)
+      afterWrite(targetRoot, deleting)
       setWorkflowDeleteTarget(null)
       setWorkflowDeleteError(null)
-      switchTo(remaining[0] ?? 'default')
-    } catch (err) {
-      if (generation === deleteGeneration.current && rootIdentity.current === targetRoot) {
-        setWorkflowDeleteError({
-          summary: formatApiError(err, localeIdentity.current.t),
-          references: [],
-          blockers: [],
-        })
+      if (deleting === 'default') {
+        setDefaultSource('builtin')
+        switchTo('default')
+        return
       }
+      setNames((previous) => (previous ?? []).filter((name) => name !== deleting))
+      switchTo('default')
+    } catch (error) {
+      if (stillCurrent()) setWorkflowDeleteError({ summary: formatApiError(error, localeRef.current.t), references: [], blockers: [] })
     } finally {
-      if (generation === deleteGeneration.current && rootIdentity.current === targetRoot) {
-        setWorkflowDeleteBusy(false)
-      }
+      if (stillCurrent()) setWorkflowDeleteBusy(false)
     }
   }
 
-  const { boardLanes, summary } = useWorkbenchBoard({
-    def,
-    defaultWorkflow: readonlyWf,
-    root,
-    snapshot,
-    readonlyWorkflow: readonlyWf,
-    t,
-  })
   const selectedStep = def?.steps.find((step) => step.id === stageId) ?? null
-  const { rules: rulesByKey } = useWorkflowRulesMulti(names && names.length > 0 ? [{ root, names }] : [])
-  const menuNames = useMemo(() => [...(names ?? []), 'default'], [names])
-  const stagesCountOf = (name: string): number | null =>
-    name === 'default' ? DEFAULT_RULES.steps.length : rulesByKey.get(rulesKey(root, name))?.steps.length ?? null
-  const selectedLane = boardLanes.find((lane) => lane.id === stageId)
+  const menuNames = useMemo(() => ['default', ...(names ?? [])], [names])
 
   return {
     names,
     namesErrorText,
+    defaultSource,
     wfName,
     def,
     defErrorText,
-    readonlyWf,
+    effectiveIo,
+    lint,
+    canWrite,
     dirty,
-    policyDirty,
     saving,
     saveStatus,
     menuNames,
-    stagesCountOf,
     stageId,
     setStageId,
     selectedStep,
-    selectedLane,
-    boardLanes,
-    summary,
+    labelOf,
     mandatory,
-    setDef,
-    editLane,
-    replaceStep,
+    renameStep,
+    setGate,
     removeStage,
     reorderStages,
+    setSkillWaves,
+    setSkillWhen,
     addSkill,
     removeSkill,
-    moveSkill,
-    setSkillDependency,
-    setLaneGuard,
+    addOutput,
+    removeOutput,
+    setInput,
     save,
     discardDraft,
-    reloadDefinition: () => {
-      setSaveStatus({ kind: 'idle' })
-      setDefinitionReloadNonce((value) => value + 1)
-    },
-    cancelPolicyDraft,
+    reloadDefinition: () => { setSaveStatus({ kind: 'idle' }); setReloadNonce((value) => value + 1) },
     requestSwitch,
     confirmSwitch,
     pendingSwitch,
     setPendingSwitch,
-    workflowCreateMode,
-    workflowDraftName,
-    setWorkflowDraftName,
-    workflowNameInvalid,
-    workflowNameDuplicate,
-    workflowOpErrors,
-    workflowOpBusy,
-    canSubmitWorkflow,
-    workflowNameRef,
-    openWorkflowCreate,
-    closeWorkflowCreate,
-    confirmWorkflowCreate,
+    create: {
+      open: createOpen,
+      mode: createMode,
+      setMode: (mode) => { setCreateMode(mode); setCreateErrors([]); if (mode === 'copy' && createName.trim() === '') setCreateName(`${wfName ?? 'workflow'}-copy`) },
+      name: createName,
+      setName: setCreateName,
+      yaml: createYaml,
+      setYaml,
+      nameInvalid,
+      nameDuplicate,
+      errors: createErrors,
+      busy: createBusy,
+      canSubmit: canSubmitCreate,
+      nameRef,
+      openCreate,
+      close: closeCreate,
+      submit: submitCreate,
+    },
+    exportYaml,
     workflowDeleteTarget,
     workflowDeleteBusy,
     workflowDeleteError,

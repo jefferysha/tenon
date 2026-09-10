@@ -146,6 +146,8 @@ async function startRealServer(): Promise<Started> {
   })
   await seedGovernedDocumentEvidence(root, changeDir, 'demo')
   await recordWorkflowPhaseSkill(root, changeDir)
+  // default 的技能矩阵已并入 YAML：backend 轨在 open 还要求 openspec-propose，与 CLI 门禁同口径。
+  await recordWorkflowPhaseSkill(root, changeDir, 'openspec-propose')
   const srv = createDashboardServer({
     paths: resolveServerPaths({ home: root, env: {} }),
     version: 'itest',

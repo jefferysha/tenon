@@ -117,7 +117,7 @@ async function defaultCapabilitySnapshot(
   // without a snapshot fall back to the current default declaration; never rebuild a frozen phase
   // capability from a later default template when a snapshot is present.
   const plan = frozenWorkflowSnapshot === undefined
-    ? compileEffectiveWorkflowPlan('default', undefined, track)
+    ? compileEffectiveWorkflowPlan('default', loadWorkflow(repoRoot, 'default') ?? undefined, track)
     : effectiveWorkflowPlanFromSnapshot(frozenWorkflowSnapshot, track)
   return { capability: plan.capabilities.skills, manifestInput, registryRevision: registry.revision }
 }

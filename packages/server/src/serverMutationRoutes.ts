@@ -15,6 +15,7 @@ import {
 import { removeProjectFromRegistry } from './projects.js'
 import { isValidSecretKey, removeSecret, SECRET_KEY_LIST } from './secrets.js'
 import { tokenFromHeaders, tokensMatch } from './token.js'
+import { handleWorkflowYamlPut, matchWorkflowYamlRoute } from './serverWorkflowYamlRoutes.js'
 import type { ServerPaths } from './types.js'
 import {
   assertWorkflowRootAnchor,
@@ -187,9 +188,6 @@ export async function handleDeleteRoute(
       if (!isWorkflowName(wfName)) {
         return sendJson(res, 400, { ok: false, error: '非法 workflow 名（允许中文、字母、数字、- 与 _；不允许空格、点或路径符号）' })
       }
-      if (wfName === 'default') {
-        return sendJson(res, 400, { ok: false, error: 'default workflow 不可通过编辑器删除' })
-      }
       const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
       const rootCheck = workflowRootForRequest(root)
       if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
@@ -224,11 +222,14 @@ export async function handleDeleteRoute(
             async ({ registry }): Promise<DeleteWorkflowOutcome> => {
               enteredTrackSnapshot = true
               assertWorkflowRootAnchor(rootCheck.anchor)
-              const scan = scanWorkflowReferencesForApi(rootCheck.anchor, wfName, registry)
-              if (scan.blockers.length > 0) {
-                return { kind: 'scan-failed', references: scan.references, blockers: scan.blockers }
+              // default 的删除 = 撤掉项目覆盖、回到内建模板：引用它的 change 继续可用，无需引用扫描。
+              if (wfName !== 'default') {
+                const scan = scanWorkflowReferencesForApi(rootCheck.anchor, wfName, registry)
+                if (scan.blockers.length > 0) {
+                  return { kind: 'scan-failed', references: scan.references, blockers: scan.blockers }
+                }
+                if (scan.references.length > 0) return { kind: 'referenced', references: scan.references }
               }
-              if (scan.references.length > 0) return { kind: 'referenced', references: scan.references }
               if (permit === null) throw new WorkflowDeleteConflictError(`workflow '${wfName}' 删除许可缺失`)
               deleteWorkflowForApi(rootCheck.anchor, wfName, permit)
               return { kind: 'deleted' }
@@ -292,3 +293,27 @@ export async function handleDeleteRoute(
 
     return sendJson(res, 404, { ok: false, error: '未知端点' })
   }
+
+/** PUT 路由表：目前只有 PUT /api/workflows/:name/yaml（导入原文）。Host 守卫 + token 鉴权同 POST/DELETE。 */
+export async function handlePutRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  path: string,
+  deps: MutationRouteDeps,
+): Promise<void> {
+  const { isLocalHost, sendJson, token, workflowRootForRequest, trackValidationContextFor, errMsg } = deps
+  const boundPort = deps.boundPort()
+  if (!isLocalHost(req.headers.host, boundPort)) {
+    return sendJson(res, 403, { ok: false, error: 'Host header 不合法（疑似 DNS 重绑定攻击）' })
+  }
+  const provided = tokenFromHeaders(req.headers)
+  if (!provided || !tokensMatch(provided, token)) {
+    return sendJson(res, 401, { ok: false, error: '缺少或无效 token（写端点需鉴权）' })
+  }
+  const yamlName = matchWorkflowYamlRoute(path)
+  if (yamlName !== null) {
+    const result = await handleWorkflowYamlPut(req, yamlName, { workflowRootForRequest, trackValidationContextFor, errMsg })
+    return sendJson(res, result.status, result.body)
+  }
+  return sendJson(res, 404, { ok: false, error: 'not found' })
+}

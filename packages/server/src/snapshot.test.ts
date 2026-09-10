@@ -1863,7 +1863,10 @@ steps:
           ...legacyStep,
           // This fixture represents a pre-issue#43 default snapshot: phase Skills were not
           // persisted yet, so historical fingerprint validation must use empty declarations.
+          // It also predates the 2026-09 ship/archive inputs/outputs (pr_url / archived).
           skills: [],
+          inputs: step.id === 'ship' || step.id === 'archive' ? [] : step.inputs,
+          outputs: step.id === 'ship' || step.id === 'archive' ? [] : step.outputs,
           guards: step.id === 'build'
             ? step.guards.filter((guard) =>
                 !(guard.type === 'field-equals' && guard.field === 'pre_verify_review_result'))

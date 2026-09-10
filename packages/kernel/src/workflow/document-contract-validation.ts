@@ -61,7 +61,8 @@ const REQUIRED_SKILL_GROUPS: Readonly<Record<DocumentContractPhase, readonly {
   archive: [{ label: 'pipeline archive', alternatives: ['tenon-archive', 'tenon:tenon-archive'] }],
 }
 
-function aliasesForSkill(id: string): readonly string[] {
+/** 技能 id 的等价写法：tenon:/superpowers: 命名空间前缀、OpenSpec 的 opsx 别名。 */
+export function aliasesForSkill(id: string): readonly string[] {
   const aliases = new Set<string>([id])
   if (id.startsWith('tenon:')) aliases.add(id.slice('tenon:'.length))
   if (id.startsWith('superpowers:')) aliases.add(id.slice('superpowers:'.length))
@@ -212,6 +213,50 @@ function validateDeclarativeContract(workflow: WorkflowDef): readonly string[] {
         errors.push(
           `document_contract document '${rawKind}' 的 owner_step '${owner.ownerStep}' 不支配 reader step '${read.step}'`,
         )
+      }
+    }
+  }
+  return errors
+}
+
+/**
+ * default 项目覆盖文件（`.pipeline/workflows/default.yaml`）的结构契约：七阶段及顺序、规范流转边、
+ * 评审门禁、build/verify 的运行时字段引用。不检查 REQUIRED_SKILL_GROUPS——内建模板本身只声明
+ * `tenon-*` 驱动技能，技能矩阵由 manifest 叠加；覆盖文件可以自由增删技能，但不能改动 phase-manifest
+ * 运行模型赖以成立的骨架。
+ */
+export function validateDefaultWorkflowStructure(workflow: WorkflowDef): readonly string[] {
+  const errors: string[] = []
+  const actualIds = workflow.steps.map((step) => step.id)
+  if (actualIds.length !== DOCUMENT_CONTRACT_PHASES.length) {
+    errors.push(`default 必须恰好声明 ${DOCUMENT_CONTRACT_PHASES.length} 个标准阶段`)
+  }
+  for (const [index, expected] of DOCUMENT_CONTRACT_PHASES.entries()) {
+    const actual = actualIds[index]
+    if (actual !== expected) {
+      errors.push(`default 的第 ${index + 1} 阶段必须是 '${expected}'（当前 '${actual ?? '缺失'}'）`)
+    }
+  }
+  for (const phase of DOCUMENT_CONTRACT_PHASES) {
+    const step = workflow.steps.find((candidate) => candidate.id === phase)
+    if (!step) continue
+    for (const target of CANONICAL_TRANSITIONS[phase]) {
+      if (!step.transitions.some((transition) => transition.to === target)) {
+        errors.push(`default 要求 '${phase}' 可转换到 '${target}'`)
+      }
+    }
+    if (REVIEW_PHASES.has(phase) && step.gate !== 'review') {
+      errors.push(`default 要求 '${phase}' 的 gate=review`)
+    }
+    const runtime = REQUIRED_RUNTIME_REFS[phase]
+    for (const required of runtime?.inputs ?? []) {
+      if (!step.inputs.some((ref) => ref.field === required.field && ref.type === required.type)) {
+        errors.push(`default 要求 '${phase}' 声明 input ${required.field}:${required.type}`)
+      }
+    }
+    for (const required of runtime?.outputs ?? []) {
+      if (!step.outputs.some((ref) => ref.field === required.field && ref.type === required.type)) {
+        errors.push(`default 要求 '${phase}' 声明 output ${required.field}:${required.type}`)
       }
     }
   }

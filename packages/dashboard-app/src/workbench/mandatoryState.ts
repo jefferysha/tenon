@@ -58,6 +58,7 @@ export interface MandatoryState {
   saveErrorKey?: string | null
   /** 写回 POST /api/config/mandatory-skills（等响应、非乐观；失败只报错不回滚）。 */
   setSkills: (phase: string, skills: string[]) => void
+
   /** 候选池（GET /api/skills/registry）；null = 未就绪 → 添加入口禁用。 */
   registry: WbSkillEntry[] | null
   /** Track mutation 成功后的 authoritative config 重拉。 */

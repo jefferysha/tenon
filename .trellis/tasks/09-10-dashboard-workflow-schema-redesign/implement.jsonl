@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/dashboard-app/frontend/component-guidelines.md", "reason": "三列骨架契约、token/design-scale 约束、i18n 泄漏规则"}
+{"file": ".trellis/spec/dashboard-app/frontend/directory-structure.md", "reason": "两页目录结构与模块边界"}
+{"file": ".trellis/spec/server/backend/index.md", "reason": "server 路由/鉴权/受信文件读写惯例"}
+{"file": ".trellis/spec/kernel/backend/index.md", "reason": "kernel 纯函数与 workflow 校验边界"}

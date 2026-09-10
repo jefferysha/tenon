@@ -135,13 +135,16 @@ function adapterEntries(catalog: HostTargetCatalogDto, hostHome: string): Adapte
 
 function workflowDefinitions(anchor: WorkflowRootAnchor): WorkflowCatalogEntryV1[] {
   const result: WorkflowCatalogEntryV1[] = []
-  const defaultWorkflow = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-  result.push(workflowEntry(defaultWorkflow, 'builtin'))
+  const names = listWorkflowNames(anchor)
+  const defaultOverride = names.includes('default') ? readWorkflowForApi(anchor, 'default') : null
+  result.push(defaultOverride === null
+    ? workflowEntry(parseWorkflow(DEFAULT_WORKFLOW_SOURCE), 'builtin')
+    : workflowEntry(defaultOverride, 'project'))
   for (const id of BUILTIN_WORKFLOW_IDS) {
     const workflow = builtinWorkflow(id)
     if (workflow !== null) result.push(workflowEntry(workflow, 'builtin'))
   }
-  for (const name of listWorkflowNames(anchor)) {
+  for (const name of names.filter((candidate) => candidate !== 'default')) {
     const workflow = readWorkflowForApi(anchor, name)
     result.push(workflowEntry(workflow, 'project'))
   }

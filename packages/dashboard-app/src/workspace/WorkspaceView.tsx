@@ -11,48 +11,35 @@ import type { TopBarProject } from '../shell/TopBar'
 import { ProjectRail } from './ProjectRail'
 import { TaskDetailPane } from './TaskDetailPane'
 import { TaskListPane } from './TaskListPane'
-import { rootBasename, type FlatRow } from './taskRows'
-import { flatRowsOf, taskFilterMatch, type TaskFilter } from './workspaceModel'
+import { filterRows, rootBasename, rowsOf, type TaskFilterState, type TaskRow } from './taskModel'
+import { useWorkflowIoLookup } from './useWorkflowDefinition'
 
 export interface WorkspaceViewProps {
   snapshot: Snapshot | null
-  /** 当前项目 root；'' = 聚合全部可读项目（左列「所有项目」）。 */
+  /** 当前项目 root；'' = 聚合全部可读项目。 */
   currentRoot: string
   rulesByKey: ReadonlyMap<string, WorkflowRules>
   projects: readonly TopBarProject[]
   onSelectProject: (root: string) => void
-  /** URL 深链选中的 change；null = 无。 */
   selectedChange: string | null
   onSelectedChange: (name: string | null) => void
   onToast?: (message: string) => void
-  /** 快照刷新失败时的本地化文案（保留旧快照继续可读）；null = 正常。 */
   staleError?: string | null
   loading?: boolean
   onRefresh?: () => void | Promise<void>
 }
 
 const RAIL_KEY = 'tenon-dashboard-rail:workspace'
+const DEFAULT_FILTER: TaskFilterState = { stage: 'all', includeArchived: false }
 
-/**
- * 工作台 = 模板的三列阅读页：左列项目 / 中列任务 / 右列该任务逐 stage 的执行状态与产出。
- * 只读：所有写动作留在终端；这里只做阅读、定位与复制。
- */
+/** 工作台：左列项目 / 中列任务（按阶段筛选）/ 右列所选任务逐阶段的输出与输入。只读。 */
 export function WorkspaceView({
-  snapshot,
-  currentRoot,
-  rulesByKey,
-  projects,
-  onSelectProject,
-  selectedChange,
-  onSelectedChange,
-  onToast,
-  staleError = null,
-  loading = false,
-  onRefresh,
+  snapshot, currentRoot, rulesByKey, projects, onSelectProject, selectedChange, onSelectedChange, onToast,
+  staleError = null, loading = false, onRefresh,
 }: WorkspaceViewProps): JSX.Element {
   const { t } = useT()
   const { query, setQuery } = useGlobalSearch()
-  const [filter, setFilter] = useState<TaskFilter>('all')
+  const [filter, setFilter] = useState<TaskFilterState>(DEFAULT_FILTER)
   const [search, setSearch] = useState('')
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(RAIL_KEY) === '1' } catch { return false }
@@ -60,10 +47,24 @@ export function WorkspaceView({
   useEffect(() => {
     try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
   }, [railCollapsed])
-  useEffect(() => { setFilter('all'); setSearch('') }, [currentRoot])
+  useEffect(() => { setFilter(DEFAULT_FILTER); setSearch('') }, [currentRoot])
 
-  const rows = useMemo(() => flatRowsOf(snapshot, currentRoot, rulesByKey), [snapshot, currentRoot, rulesByKey])
-  // 未来 canonical 版本的 change：server 把它们收进 compatibilityIssues 并让同项目其余 change 保持可读。
+  // 聚合语境（未选项目）不发 per-root 请求：卡片状态退回「进行中」，不判缺产出。
+  const pairs = useMemo(() => {
+    const out: Array<{ root: string; workflow: string }> = []
+    if (currentRoot === '') return out
+    for (const project of snapshot?.projects ?? []) {
+      if (!isProjectNavigable(project) || project.root !== currentRoot) continue
+      for (const change of project.changes) {
+        const workflow = typeof change.fields.workflow === 'string' && change.fields.workflow !== '' ? change.fields.workflow : 'default'
+        out.push({ root: project.root, workflow })
+      }
+    }
+    return out
+  }, [snapshot, currentRoot])
+  const ioOf = useWorkflowIoLookup(pairs)
+  const rows = useMemo(() => rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }), [snapshot, currentRoot, rulesByKey, ioOf, t])
+
   const compat = useMemo(() => {
     const scoped = (snapshot?.projects ?? []).filter((project) => isProjectNavigable(project) && (currentRoot === '' || project.root === currentRoot))
     return {
@@ -77,16 +78,17 @@ export function WorkspaceView({
       {compat.issues.length > 0 && <CanonicalStateVersionNotice issues={compat.issues} truncated={compat.truncated} loading={loading} onRefresh={onRefresh} />}
     </div>
   ) : undefined
+
   const visibleRows = useMemo(
-    () => rows.filter((row) => taskFilterMatch(row, filter)
-      && matchesQuery(query, row.row.change.name, row.workflow, row.row.change.track, row.row.change.phase)
-      && matchesQuery(search, row.row.change.name, row.workflow, row.row.change.track, row.row.change.phase)),
+    () => filterRows(rows, filter).filter((row) =>
+      matchesQuery(query, row.change.name, row.workflow, row.change.track, row.change.phase)
+      && matchesQuery(search, row.change.name, row.workflow, row.change.track, row.change.phase)),
     [rows, filter, query, search],
   )
-  const selectedRow: FlatRow | null = useMemo(() => {
+  const selectedRow: TaskRow | null = useMemo(() => {
     const explicit = selectedChange === null
       ? undefined
-      : rows.find((row) => row.row.change.name === selectedChange && (currentRoot === '' || row.row.root === currentRoot))
+      : rows.find((row) => row.change.name === selectedChange && (currentRoot === '' || row.root === currentRoot))
     return explicit ?? visibleRows[0] ?? null
   }, [rows, visibleRows, selectedChange, currentRoot])
 
@@ -94,7 +96,6 @@ export function WorkspaceView({
   const eyebrow = currentRoot === ''
     ? t('workspace.eyebrow_all')
     : t('workspace.eyebrow_project', { project: (currentProject?.name ?? rootBasename(currentRoot)).toUpperCase() })
-  // 未来版本 change 被 server 收进 compatibilityIssues 后 rows 为空：提示条已经说明原因，不再叠加「零任务」教学。
   const emptyKind = rows.length === 0
     ? (currentRoot === '' && projects.length === 0 ? 'no-project' : compat.issues.length > 0 ? 'compat' : 'no-task')
     : 'filtered'
@@ -122,16 +123,16 @@ export function WorkspaceView({
           search={search}
           onSearch={setSearch}
           selectedKey={selectedRow?.key ?? null}
-          onSelect={(row) => onSelectedChange(row.row.change.name)}
+          onSelect={(row) => onSelectedChange(row.change.name)}
           showProject={currentRoot === ''}
           emptyKind={emptyKind}
-          onClearFilters={() => { setFilter('all'); setSearch(''); setQuery('') }}
+          onClearFilters={() => { setFilter(DEFAULT_FILTER); setSearch(''); setQuery('') }}
           notice={notice}
         />
       )}
       detail={selectedRow
-        ? <TaskDetailPane key={selectedRow.key} row={selectedRow} onToast={onToast} />
-        : <DetailEmpty title={t('workspace.no_selection')} desc={t('workspace.no_selection_desc')} testId="task-detail-empty" />}
+        ? <TaskDetailPane key={selectedRow.key} row={selectedRow} onToast={onToast} fetchDefinition={currentRoot !== ''} />
+        : <DetailEmpty title={t('workspace.no_selection')} desc="" testId="task-detail-empty" />}
     />
   )
 }

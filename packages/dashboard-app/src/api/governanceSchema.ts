@@ -10,6 +10,8 @@ import type {
   WbTrackPredicate,
   WbTransition,
   WbWorkflowDef,
+  WbEffectiveIo,
+  WbIoSlot,
 } from './governanceTypes'
 import {
   DEFAULT_WB_DECOMPOSITION_POLICY,
@@ -103,18 +105,21 @@ function decodeField(value: unknown): WbFieldRef | null {
 function decodeSkill(value: unknown): WbSkillRef | null {
   const item = record(value)
   if (!item
-    || !allowedKeys(item, ['id', 'kind', 'review_lane', 'depends_on'])
+    || !allowedKeys(item, ['id', 'kind', 'review_lane', 'depends_on', 'when'])
     || typeof item.id !== 'string'
     || (item.kind !== undefined && item.kind !== 'work' && item.kind !== 'review')
     || !optionalString(item.review_lane)
     || (item.depends_on !== undefined && !strings(item.depends_on))) return null
   const kind = item.kind ?? 'work'
   if ((kind === 'review') !== (item.review_lane !== undefined)) return null
+  const when = item.when === undefined ? undefined : decodePredicate(item.when)
+  if (when === null) return null
   return {
     id: item.id,
     ...(item.kind === undefined ? {} : { kind }),
     ...(item.review_lane === undefined ? {} : { review_lane: item.review_lane }),
     ...(item.depends_on === undefined ? {} : { depends_on: item.depends_on }),
+    ...(when === undefined ? {} : { when }),
   }
 }
 
@@ -410,9 +415,45 @@ function decodeStep(value: unknown): WbStepDef | null {
   }
 }
 
+function decodeIoSlot(value: unknown): WbIoSlot | null {
+  const slot = record(value)
+  if (!slot || typeof slot.id !== 'string') return null
+  const consumers = decodeArray(slot.consumers, (item) => typeof item === 'string' ? item : null)
+  if (consumers === null) return null
+  if (slot.kind === 'document') {
+    const producers = decodeArray(slot.producers, (item) => typeof item === 'string' ? item : null)
+    if (producers === null || typeof slot.locked !== 'boolean') return null
+    return { kind: 'document', id: slot.id, producers, consumers, locked: slot.locked }
+  }
+  if (slot.kind === 'field') {
+    if (slot.type !== 'string' && slot.type !== 'file_path' && slot.type !== 'boolean') return null
+    if (slot.producer !== null && typeof slot.producer !== 'string') return null
+    return { kind: 'field', id: slot.id, type: slot.type, producer: slot.producer, consumers }
+  }
+  return null
+}
+
+function decodeEffectiveIo(value: unknown): WbEffectiveIo | null {
+  const body = record(value)
+  if (!body) return null
+  const out: WbEffectiveIo = {}
+  for (const [stepId, raw] of Object.entries(body)) {
+    const step = record(raw)
+    if (!step) return null
+    const inputs = decodeArray(step.inputs, decodeIoSlot)
+    const outputs = decodeArray(step.outputs, decodeIoSlot)
+    if (inputs === null || outputs === null) return null
+    out[stepId] = { inputs, outputs }
+  }
+  return out
+}
+
 export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {
   const body = record(value)
   if (!body || typeof body.name !== 'string') return null
+  if (body.source !== undefined && body.source !== 'builtin' && body.source !== 'project') return null
+  const effectiveIo = body.effectiveIo === undefined ? undefined : decodeEffectiveIo(body.effectiveIo)
+  if (effectiveIo === null) return null
   if (body.openspecContract !== undefined && body.openspecContract !== 'required') return null
   if (body.openspecContract !== undefined && body.documentContract !== undefined) return null
   const documentContract = body.documentContract === undefined ? undefined : decodeDocumentContract(body.documentContract)
@@ -423,6 +464,8 @@ export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {
   if (documentContract === null || decomposition === null || interaction === null || reviewBudget === null || steps === null) return null
   return {
     name: body.name,
+    ...(body.source === undefined ? {} : { source: body.source }),
+    ...(effectiveIo === undefined ? {} : { effectiveIo }),
     ...(body.openspecContract === undefined ? {} : { openspecContract: body.openspecContract }),
     ...(documentContract === undefined ? {} : { documentContract }),
     decomposition,

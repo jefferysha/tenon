@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseWorkflow } from './parse.js'
-import { validateWorkflow } from './validate.js'
+import { validateWorkflow, validateWorkflowForStorage } from './validate.js'
 import type { WorkflowDef } from './types.js'
 import { builtinWorkflow } from './builtin-workflows.js'
 
@@ -27,7 +27,9 @@ export function loadWorkflow(repoRoot: string, name: string): WorkflowDef | null
   const p = join(repoRoot, '.pipeline', 'workflows', `${name}.yaml`)
   if (!existsSync(p)) return null
   const wf = parseWorkflow(readFileSync(p, 'utf8'))
-  const errors = validateWorkflow(wf)
+  // 'default' 是显式的存储键：项目覆盖文件 `.pipeline/workflows/default.yaml` 必须按 default 契约
+  // （七阶段 + effective-phase-skills artifact）校验，否则内建模板自身的声明会被 custom 契约拒绝。
+  const errors = validateWorkflowForStorage(name, wf)
   if (errors.length > 0) {
     throw new Error(`ERROR: workflow '${name}' 校验失败（${p}）：\n${errors.map((e) => `  - ${e}`).join('\n')}`)
   }

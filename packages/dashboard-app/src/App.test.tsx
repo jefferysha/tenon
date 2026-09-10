@@ -106,6 +106,8 @@ function stubEditableWorkbench(options: {
   trackSettings?: boolean
 } = {}): void {
   const roots = options.roots ?? ['/repo']
+  // 编辑器只在页面持有写凭证时开放输入；测试同生产一样由宿主注入 token。
+  ;(window as unknown as { __TENON_DASHBOARD_TOKEN__?: string }).__TENON_DASHBOARD_TOKEN__ = 'test-token'
   if (!options.preserveLocation) {
     window.history.replaceState({ page: 'workbench' }, '', '/?view=workbench&root=%2Frepo')
   }
@@ -1091,7 +1093,7 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     expect(screen.queryByTestId('secondary-nav')).toBeNull()
     expect(screen.queryByTestId('nav-inbox')).toBeNull()
     expect(screen.queryByTestId('nav-hostPlan')).toBeNull()
-    expect(screen.getByTestId('readonly-pill')).toHaveTextContent('只读视图')
+    expect(screen.queryByTestId('readonly-pill')).toBeNull()
     expect(screen.getByTestId('conn-indicator')).toHaveAttribute('data-on', 'true')
     fireEvent.click(screen.getByTestId('nav-settings'))
     expect(screen.getByTestId('nav-settings-panel')).toBeInTheDocument()
@@ -1318,12 +1320,12 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
 
     render(<App />)
 
-    // 聚合工作台：自定义 workflow 的 gate 卡按跨项目快照自带的 rules 判定，「需要你」页签计 1。
+    // 聚合工作台：自定义 workflow 的卡按跨项目快照自带的 rules 判定——阶段芯片「复核」计 1，
+    // 一行状态由 readiness 推出「可进入完成」；聚合语境不发任何 per-root 请求。
     expect(await screen.findByTestId('task-card-review-me')).toBeInTheDocument()
-    expect(screen.getByTestId('task-filter-need')).toHaveTextContent('1')
-    // 判定不依赖 per-root 请求；右列为列出该任务阶段的输入 / 输出会按任务所属 root 读一次工作流定义。
-    const perRoot = fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url !== '/api/snapshot')
-    expect(perRoot.every((url) => url.startsWith('/api/workflows/compact?root='))).toBe(true)
+    expect(screen.getByTestId('task-filter-review')).toHaveTextContent('1')
+    expect(screen.getByTestId('task-summary-review-me')).toHaveTextContent('复核 · 可进入完成')
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(['/api/snapshot'])
   })
 
   it('浏览器返回到无 root URL：经同一选择模型回到聚合工作台', async () => {
@@ -1994,30 +1996,6 @@ describe('App 项目自动发现外壳', () => {
 })
 
 // Workbench 只负责编辑工作流，不重复展示在办任务数量；运行中的阶段只保留轻量脉冲提示。
-describe('App 工作台运行态接线', () => {
-  it('snapshot 中 automation===running 的 change 所在阶段渲染脉冲，不混入任务计数', async () => {
-    ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-      if (url === '/api/snapshot') {
-        return {
-          ok: true,
-          json: async () =>
-            makeSnapshot([makeProject('/repo', [makeChange('seed-c', 'build', { fields: { automation: 'running' } })])]),
-        }
-      }
-      if (url.startsWith('/api/workflows?root=')) return { ok: true, json: async () => ({ names: [] }) }
-      if (url.startsWith('/api/hooks?root=')) return { ok: true, json: async () => ({ ok: true, hooks: [], matrix: {} }) }
-      if (url === '/api/loops/snapshot') return { ok: true, json: async () => ({ generated_at: '2026-07-11T00:00:00Z', rows: [] }) }
-      throw new Error(`unexpected fetch ${url}`)
-    })
-    render(<App />)
-    await screen.findByTestId('workspace-view')
-    fireEvent.click(screen.getByTestId('nav-workbench'))
-    await screen.findByTestId('workbench-view')
-    expect(screen.getByTestId('wb-flow-gloss-build')).toBeInTheDocument()
-    expect(screen.queryByTestId('wb-flow-count-build')).toBeNull()
-  })
-})
-
 /**
  * Bug3 配套：顶层 ErrorBoundary——任意子树 render 抛错时局部降级兜底，不再整页白屏
  * （client.ts 形状校验是第一道，ErrorBoundary 是兜底第二道：任何未预期的 render 抛错都被接住）。

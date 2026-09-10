@@ -1,0 +1,28 @@
+{
+  "id": "dashboard-workflow-schema-redesign",
+  "name": "dashboard-workflow-schema-redesign",
+  "title": "工作流定义规范化与两页重设计",
+  "description": "统一工作流 YAML 为唯一定义源（阶段输出=类型化槽位，文档契约并入），新增 YAML 导入导出接口；工作台改为按阶段的流水线状态、输入/输出登记视图与右侧抽屉 Markdown 预览；工作流页改为流水线中列、可拖拽技能 DAG、按轨道分层可编辑的附加技能，去除只读胶囊/头像与解释性文案。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "sjy",
+  "assignee": "sjy",
+  "createdAt": "2026-09-10",
+  "completedAt": null,
+  "branch": "codex/autonomous-loop-v1",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-10-skill-output-auto-registration"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -16,6 +16,9 @@ export function validateWorkflowTrackReferences(wf: WorkflowDef, registry: Track
   }
 
   wf.steps.forEach((step, stepIndex) => {
+    step.skills.forEach((skill, skillIndex) => {
+      check(skill.when, `workflow.steps[${stepIndex}].skills[${skillIndex}].when`)
+    })
     step.guards.forEach((guard, guardIndex) => {
       check(guard.when, `workflow.steps[${stepIndex}].guards[${guardIndex}].when`)
     })

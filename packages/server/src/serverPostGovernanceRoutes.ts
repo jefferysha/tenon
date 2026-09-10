@@ -28,6 +28,7 @@ import {
   type TrackValidationContext,
   type WorkflowDef,
   type WorkflowRunRepository,
+  validateWorkflowForStorage,
 } from '@tenon/kernel'
 import {
   cancelAfkRun,
@@ -72,6 +73,7 @@ import {
   WorkflowNotFoundError,
   writeWorkflowForApi,
   type WorkflowRootAnchor,
+  workflowOrigin,
 } from './workflows.js'
 
 import type { PostRouteDeps } from './serverPostRoutes.js'
@@ -247,9 +249,6 @@ export async function handlePostGovernanceRoutes(
       if (!isWorkflowName(wfName)) {
         return sendJson(res, 400, { ok: false, error: '非法 workflow 名（允许中文、字母、数字、- 与 _；不允许空格、点或路径符号）' })
       }
-      if (wfName === 'default') {
-        return sendJson(res, 400, { ok: false, error: 'default workflow 不可通过编辑器创建/覆盖（运行时不读这个文件）' })
-      }
       const rawBody = await readJsonBody(req)
       // 同 /api/change/<name>/transition 共用的 body 形状校验：空/非对象 body（如空字符串
       // JSON.parse 失败后 readJsonBody 回落的 undefined）若不提前拦，下面的属性访问会直接
@@ -274,11 +273,12 @@ export async function handlePostGovernanceRoutes(
         const workflowInput = Object.fromEntries(
           Object.entries(body).filter(([key]) => key !== 'root'),
         )
-        workflow = decodeWorkflowDef(workflowInput)
+        // 'default' 是项目覆盖文件的存储键：按 default 契约（七阶段 + effective-phase-skills）解码与校验。
+        workflow = decodeWorkflowDef(workflowInput, workflowOrigin(wfName))
       } catch (error) {
         return sendJson(res, 400, { ok: false, errors: [errMsg(error)] })
       }
-      const shapeErrors = validateWorkflow(workflow)
+      const shapeErrors = validateWorkflowForStorage(wfName, workflow)
       if (shapeErrors.length > 0) return sendJson(res, 400, { ok: false, errors: shapeErrors })
       try {
         ensureWorkflowProjectCoordinationPath(rootCheck.anchor)

@@ -23,6 +23,7 @@ import {
   matchesTrackPredicate,
   resolveExplicitProfileSkillSlots,
   resolveStep,
+  aliasesForSkill,
 } from '@tenon/kernel'
 import type { EffectiveSkillSlot, FieldName, PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
@@ -104,7 +105,9 @@ async function runRegister(
     return reject(deps, `step '${stepId}'/track '${track}' 的有效 skill 集为空——无合法 producer，拒绝登记`)
   }
   // --producer 必须精确命中某 slot 的某具体 alternative（整个 a|b token 非法）。
-  const matched = slots.some((s) => s.alternatives.includes(producer))
+  // 等价写法（tenon:/superpowers: 前缀、opsx 别名）视为同一 skill。
+  const producerAliases = new Set(aliasesForSkill(producer))
+  const matched = slots.some((s) => s.alternatives.some((alternative) => producerAliases.has(alternative) || aliasesForSkill(alternative).includes(producer)))
   if (!matched) {
     return reject(deps, `producer '${producer}' 不在有效 skill 集内（允许: ${listAllowed(slots)}）`)
   }

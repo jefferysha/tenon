@@ -13,7 +13,9 @@ import {
   PHASES,
   resolveWorkflowName,
   workflowPlanSnapshot,
+  DEFAULT_WORKFLOW_SOURCE, parseWorkflow,
 } from '@tenon/kernel'
+import type { WorkflowDef } from '@tenon/kernel'
 import type {
   CommitResult,
   DocumentContractPhase,
@@ -71,6 +73,33 @@ export function mockState(fields: Partial<Record<FieldName, string | string[]>> 
     all[f] = f === 'workflow' ? 'default' : (LIST_FIELDS as readonly string[]).includes(f) ? [] : ''
   }
   return { fields: { ...all, ...fields }, opaqueTail: '' }
+}
+
+/**
+ * 技能矩阵并入 YAML 之前的 default 定义（只保留无轨道条件的 tenon-* 驱动技能）：manifest a|b 备选、
+ * 机器级 mandatory/recommended 表这些 manifest-overlay 机制的单测，用它冻结成 run 快照后仍按旧口径求值。
+ */
+export function legacyDefaultWorkflowDef(): WorkflowDef {
+  const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+  return {
+    ...def,
+    steps: def.steps.map((step) => ({ ...step, skills: step.skills.filter((skill) => skill.when === undefined && skill.id.startsWith('tenon-')) })),
+  }
+}
+const LEGACY_DEFAULT_PLAN = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflowDef())
+const LEGACY_DEFAULT_PLAN_SNAPSHOT = workflowPlanSnapshot(LEGACY_DEFAULT_PLAN)
+
+/** mockState + 冻结的 legacy default 计划：让 artifact / manifest-overlay 单测沿用 manifest 表语义。 */
+export function mockLegacyDefaultState(fields: Partial<Record<FieldName, string | string[]>> = {}): PipelineState {
+  return {
+    ...mockState(fields),
+    runMetadata: {
+      runId: 'mock-legacy-run',
+      transitionSequence: 0,
+      workflowPlanFingerprint: LEGACY_DEFAULT_PLAN.workflowFingerprint,
+      workflowPlanSnapshot: LEGACY_DEFAULT_PLAN_SNAPSHOT,
+    },
+  }
 }
 
 // Keep the fixture on the production default Workflow identity while opting its frozen interaction

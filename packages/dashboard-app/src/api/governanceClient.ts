@@ -63,7 +63,23 @@ export async function unregisterProject(root: string): Promise<void> {
   if (!response.ok) await throwApiError(response, '注销项目失败')
 }
 
-export async function fetchWorkflowNames(root: string): Promise<string[]> {
+export interface WorkflowIndex {
+  /** 自定义工作流名（不含 default）。 */
+  names: string[]
+  /** default 当前来源：项目覆盖文件存在 → project。旧 server 不带该字段 → builtin。 */
+  defaultSource: 'builtin' | 'project'
+}
+
+function decodeWorkflowIndex(value: unknown): WorkflowIndex | null {
+  const names = decodeNames(value)
+  if (names === null) return null
+  const body = value as Record<string, unknown>
+  const source = typeof body.default === 'object' && body.default !== null ? (body.default as Record<string, unknown>).source : undefined
+  if (source !== undefined && source !== 'builtin' && source !== 'project') return null
+  return { names, defaultSource: source ?? 'builtin' }
+}
+
+export async function fetchWorkflowIndex(root: string): Promise<WorkflowIndex> {
   let response: Response
   try {
     response = await fetch(`/api/workflows?root=${encodeURIComponent(root)}`, {
@@ -73,7 +89,11 @@ export async function fetchWorkflowNames(root: string): Promise<string[]> {
     wrapNetwork(error)
   }
   if (!response.ok) await throwApiError(response, 'workflow 列表获取失败')
-  return readOrThrow(response, decodeNames, 'workflow 列表响应形状无效')
+  return readOrThrow(response, decodeWorkflowIndex, 'workflow 列表响应形状无效')
+}
+
+export async function fetchWorkflowNames(root: string): Promise<string[]> {
+  return (await fetchWorkflowIndex(root)).names
 }
 
 export async function fetchHooksConfig(root: string): Promise<WbHooksConfig> {
@@ -217,10 +237,12 @@ export function fetchConfig(root: string): Promise<Response> {
 }
 
 export function postWorkflowDef(name: string, payload: Record<string, unknown>): Promise<Response> {
+  // source / effectiveIo 是读接口附带的投影，不属于定义 DTO；server 的闭合解码器会拒绝未知键。
+  const { source: _source, effectiveIo: _effectiveIo, ...definition } = payload
   return fetch(`/api/workflows/${encodeURIComponent(name)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(definition),
   })
 }
 

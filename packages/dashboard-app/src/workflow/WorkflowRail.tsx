@@ -1,4 +1,5 @@
-import { Copy, Plus, Trash2 } from 'lucide-react'
+import { Download, FileUp, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import type { WbWorkflowSource } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { RailCard, RailColumn, RailFootLink } from '../shell/ThreeColumns'
 import type { MandatoryState } from '../workbench/mandatoryState'
@@ -7,36 +8,33 @@ import { trackDisplayName } from '../workbench/trackPresentation'
 export interface WorkflowRailProps {
   names: readonly string[]
   current: string | null
+  defaultSource: WbWorkflowSource
   stagesCountOf: (name: string) => number | null
   mandatory: MandatoryState
   collapsed: boolean
+  canWrite: boolean
+  busy: boolean
   onToggle: () => void
   onSwitch: (name: string) => void
-  onCreate: (mode: 'new' | 'copy') => void
+  onCreate: () => void
+  onImport: () => void
+  onExport: () => void
   onDelete: () => void
-  readonly: boolean
-  busy: boolean
 }
 
-/** 工作流页左列：工作流列表；每项副行列出以它为默认的轨道。底部：新建 / 复制 / 删除。 */
+/** 工作流页左列：工作流卡（default 恒在，标来源）+ 新建 / 导入 / 导出 / 删除（default 为恢复内建）。 */
 export function WorkflowRail({
-  names,
-  current,
-  stagesCountOf,
-  mandatory,
-  collapsed,
-  onToggle,
-  onSwitch,
-  onCreate,
-  onDelete,
-  readonly,
-  busy,
+  names, current, defaultSource, stagesCountOf, mandatory, collapsed, canWrite, busy, onToggle, onSwitch, onCreate, onImport, onExport, onDelete,
 }: WorkflowRailProps): JSX.Element {
   const { t, lang } = useT()
-  function usedBy(name: string): string {
+  function usedBy(name: string): string | undefined {
     const tracks = mandatory.tracks.filter((track) => track.workflow.default === name).map((track) => trackDisplayName(track, lang))
-    return tracks.length > 0 ? t('workflow.used_by', { tracks: tracks.join(' / ') }) : t('workflow.used_by_none')
+    return tracks.length > 0 ? tracks.join(' / ') : undefined
   }
+  const isDefault = current === 'default'
+  const deleteLabel = isDefault ? t('workflow.restore_default') : t('workflow.delete_workflow')
+  const deleteEnabled = canWrite && !busy && current !== null && (!isDefault || defaultSource === 'project')
+  const noToken = canWrite ? undefined : t('workflow.no_token')
   return (
     <RailColumn
       title={t('workflow.rail_title')}
@@ -45,16 +43,17 @@ export function WorkflowRail({
       testId="workflow-rail"
       footer={(
         <>
-          <RailFootLink icon={<Plus />} label={t('workflow.new_workflow')} collapsed={collapsed} testId="wb-workflow-new" onClick={() => onCreate('new')} />
-          <RailFootLink icon={<Copy />} label={t(readonly ? 'workbench.workflow_copy_readonly' : 'workbench.workflow_copy_editable')} collapsed={collapsed} testId="wb-workflow-copy" onClick={() => onCreate('copy')} />
-          {!readonly && <RailFootLink icon={<Trash2 />} label={t('workflow.delete_workflow')} collapsed={collapsed} testId="wb-workflow-delete" onClick={onDelete} />}
+          <RailFootLink icon={<Plus />} label={t('workflow.new_workflow')} collapsed={collapsed} testId="wb-workflow-new" disabled={!canWrite || busy} title={noToken} onClick={onCreate} />
+          <RailFootLink icon={<FileUp />} label={t('workflow.import_yaml')} collapsed={collapsed} testId="wb-workflow-import" disabled={!canWrite || busy} title={noToken} onClick={onImport} />
+          <RailFootLink icon={<Download />} label={t('workflow.export_yaml')} collapsed={collapsed} testId="wb-workflow-export" disabled={current === null} onClick={onExport} />
+          <RailFootLink icon={isDefault ? <RotateCcw /> : <Trash2 />} label={deleteLabel} collapsed={collapsed} testId={isDefault ? 'wb-workflow-restore-default' : 'wb-workflow-delete'} disabled={!deleteEnabled} title={noToken} onClick={onDelete} />
         </>
       )}
     >
       <ul className="grid gap-1" data-testid="workflow-rail-list">
         {names.map((name) => {
           const count = stagesCountOf(name)
-          const builtin = name === 'default'
+          const source = name === 'default' ? defaultSource : 'project'
           return (
             <li key={name}>
               <RailCard
@@ -64,7 +63,7 @@ export function WorkflowRail({
                 count={count ?? undefined}
                 selected={name === current}
                 collapsed={collapsed}
-                tag={builtin ? <span className="rounded-full bg-fill px-1.5 text-micro font-medium text-text-2">{t('workflow.builtin_readonly')}</span> : undefined}
+                tag={<span className="rounded-full bg-fill px-1.5 text-micro font-medium text-text-2" data-testid={`wb-wf-source-${name}`}>{t(`workflow.source_${source}`)}</span>}
                 testId={`wb-wf-item-${name}`}
                 onClick={() => { if (!busy) onSwitch(name) }}
               />

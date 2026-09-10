@@ -2,86 +2,115 @@
 
 > How components are built in this project. Baseline: the workspace template (2026-09) — warm paper
 > ground, deep-green accent, hairline borders instead of shadows, mono identifiers, three columns.
-> Scope rule: the dashboard does only two things — read a task's per-stage inputs / outputs, and edit
+> Scope rule: the dashboard does two things — read a task's per-stage inputs / outputs, and edit
 > workflow definitions. Do not add features because "the old version had them".
+
+## Single source of truth: the workflow definition
+
+Everything a page shows about "what a stage produces / reads / runs" comes from **one** definition
+returned by `GET /api/workflows/:name?root=` (default included — the project override file
+`.pipeline/workflows/default.yaml` wins over the built-in template; the response says `source`).
+The server materializes each step's IO into `effectiveIo[stepId] = { inputs, outputs }` where a slot is
+either `{ kind: 'document', id, producers, consumers, locked }` (governed document, ledger-backed) or
+`{ kind: 'field', id, type, producer, consumers }` (change field). The frontend never keeps a copy of
+the built-in default (`buildDefaultDef` was deleted) and never merges the document contract itself.
+
+- Document slots are `locked` on `default` and `openspec_contract: required` copies; the editor shows
+  a lock icon, never a sentence.
+- Labels: document kinds → `t('documents.<kind>')`, fields → `t('fields.<field>')`
+  (`workspace/taskModel.slotLabel`). Raw ids like `file_path` / `build_sha` never reach the screen.
 
 ## Three-column page contract (`shell/ThreeColumns.tsx`)
 
-Every top-level view renders exactly:
+Every top-level view renders exactly `ThreeColumns` with `rail` (RailColumn + RailCard[]), `list`
+(ListColumn) and `detail` (DetailColumn | DetailEmpty). Widths live in the primitive; views never pass
+widths. State is carried by `aria-current` / `aria-selected` / `aria-pressed` / `data-*`; tests assert
+those, never class names.
 
-```tsx
-<ThreeColumns
-  testId="<view>-view"
-  railCollapsed={collapsed}
-  rail={<RailColumn …>{RailCard[]}</RailColumn>}        // what you are looking at (project / workflow)
-  list={<ListColumn eyebrow title note search chips>…</ListColumn>} // the items of the selected rail object
-  detail={selected ? <DetailColumn … /> : <DetailEmpty … />}          // one selected item
-/>
-```
+### Right column
 
-- Widths are fixed in the primitive (296 / 492 / flex; rail collapses to 64 below 1280px; columns stack
-  below 900px where the rail becomes a horizontal card row). Views never pass widths.
-- `RailCard` / `FilterChip` / `StatusPill` carry state via `aria-current`, `aria-selected`, `data-tone`;
-  tests assert those attributes, never class names.
-- Selected list cards use the shared selection tokens (`bg-sel-bg border-sel-border border-l-sel-edge`).
+`DetailColumn` = fixed header (eyebrow / H1 / mono slug / one `StatusPill`) + vertically stacked
+sections with **noun headers only** + optional footer. No tab groups: the 2026-09 redesign removed the
+last one. Anything that needs its own surface opens the shared right-side `shared/Drawer.tsx`
+(portal, 560px, Esc, focus capture / restore, `aria-modal`).
 
-### Right column: header + at most one tab group
+### Wording rules (R4.3 of the 09-10 task)
 
-`DetailColumn` takes a fixed `header` (eyebrow / H1 / mono slug / `StatusPill` + one-sentence lead /
-optional `PhaseRail`) and one body. The body may contain **at most one** `SheetTabs` group (the file
-workbench's 输入 / 输出). Sections stack vertically otherwise; if a right column needs more than one tab
-group the page has too many functions — remove some.
-
-### Global search
-
-The top bar owns the query (`GlobalSearchProvider`); a view filters its own list with
-`matchesQuery(query, …fields)`. Components calling `useGlobalSearch()` must be rendered under the
-provider — tests wrap with `<I18nProvider><GlobalSearchProvider>…`.
+- One word per concept, everywhere: 阶段 / 技能 / 输入 / 输出 / 门禁 / 轨道 / 工作流. No `step`, `lane`,
+  产出物, 登记者, 来自上游, 推导 in the dictionary.
+- No sentences on the page except error text. Section titles are nouns; empty states are one noun
+  phrase plus at most one action.
+- No dictionary keys named `*_note`, `*_desc`, `*_lead`, `*_hint` in `workspace` / `workflow`.
 
 ## 工作台 rules (`workspace/`)
 
-- Read-only. No write endpoint may be imported; the only network call besides the snapshot is
-  `GET /api/documents/read` (`api/documentsClient.ts`) and, for custom workflows, `GET /api/workflows/<name>`.
-- Stage inputs / outputs come from the workflow definition (`WbStepDef.inputs/outputs` → `stageFiles.stageIo`)
-  resolved against `change.fields`: `file_path` fields become readable / missing file rows, other
-  fields become value chips. `change.documents.items` render as a separate 变更文档 group.
-- Status semantics (badge text, stage status, next step) come only from `workspace/taskRows.ts` and
-  `workspace/workspaceModel.ts`; never re-map `ProgressState` in a component.
+- Read-only. Network: snapshot, `GET /api/workflows/:name` (only when a project is selected — the
+  aggregate view must not issue per-root requests; it falls back to `fallbackStepIo` from
+  `change.workflowRules.outputsByStep`), `GET /api/documents/read`.
+- Task status is derived, never named abstractly (`taskModel.summaryOf`): archived → first unready
+  output of the current stage (`缺 <slot>`) → review handshake pending (`评审待确认`) → any forward
+  transition ready (`可进入<stage>`) → `进行中`. Filters are stage chips + one archived toggle.
+- `MiniPipeline` / `StageRail` colour segments with `bg-seg-done` / `bg-seg-now` / `bg-seg-next` only.
+- `StageIoPanel` rows: document slot → ledger status (`recorded/missing/stale/unread`) + file name +
+  last producer + time; field slot → `set/unset`. A row with a path opens `DocumentDrawer`
+  (`react-markdown` + `remark-gfm` for `.md`, `<pre>` otherwise; prev / next across the stage's files).
 
 ## 工作流 rules (`workflow/`)
 
-- The stage editor has three sections and no tabs: 技能 (order + serial / parallel), 门禁, 输入 / 输出.
-- Inputs / outputs are **derived, never typed** (`DerivedIoPanel` reads `inputs`, `outputs`,
-  `artifacts[].producerPolicy/requiredWhen` and resolves producer / consumer stages by step order).
-  Adding a text input for outputs is a regression.
-- Serial / parallel is expressed only through `depends_on`: skill *i* is "parallel" when it does not
-  depend on skill *i-1* (`skillWaves.isParallelWithPrevious`); the toggle calls
-  `useWorkflowEditor.setSkillDependency`. New skills default to serial (depend on the last one).
-- All draft mutations go through `useWorkflowEditor`; the footer bar is the only save / discard entry;
-  `default` is read-only (copy first). Tracks are shown only as "被 X 轨道默认使用" on the rail card.
+- Middle column is a pipeline (`PipelineList`): numbered nodes on a vertical connector, solid when the
+  next stage is a direct forward edge, dashed otherwise; back edges render under the node as
+  `回到<stage>`; a stage without outputs gets the `缺输出` badge from `lint.ts`.
+- Skill order is the **column model** (`workbench/skillWaves.ts`): a column is one execution wave,
+  skills in the same column run in parallel, adjacent columns run serially. `wavesToSkills` writes
+  `depends_on = all skills of the previous column`; `wavesOf` reads it back. `SkillDag` is the only UI
+  for it: dnd-kit Pointer + Keyboard sensors; drop targets `wave:<k>` (join column), `gap:<k>`
+  (insert new column before k), `palette` (remove). `applyDrop` is the pure reducer — test it, not
+  the drag.
+- **One skill system.** Track-specific skills are not a separate list: a skill node carries an
+  optional track condition (`WbSkillRef.when = { kind: 'track-in' | 'track-not-in', values }`;
+  none = every track). The node shows a track badge (`skill-tracks-<id>`); clicking it opens a chip
+  picker (`skill-track-<id>-<track>`) that writes `when` through `editor.setSkillWhen`. The chips above
+  the canvas (`dag-track-all` / `dag-track-<track>`) only filter the view; editing is enabled in the
+  "all tracks" view. The manifest matrix (`/api/config`) is read-only data for track names — never
+  write `mandatory-skills` from the dashboard again.
+- Outputs / inputs (`IoSections`): slots from `editor.effectiveIo` (draft recomputed by
+  `lint.draftEffectiveIo`); add from `slotCatalog.availableOutputSlots`; inputs are a checklist of
+  `upstreamOutputs`. Locked document slots are shown with a lock and cannot be removed / unchecked.
+- Gate is a three-way radio group (`wb-lane-gate-<id>-none|review|confirm`).
+- Save is blocked while `editor.lint` is non-empty or the page has no write credential
+  (`getToken() === ''` → every write control disabled, footer shows `wb-no-token`; never fire a request
+  that will 401).
+- default is editable: saving writes the project override; the rail shows `内建 / 项目`; the delete
+  action becomes `恢复内建` and is enabled only when an override exists. The server rejects overrides
+  that break the seven-stage skeleton (`validateWorkflowForStorage`).
+- New workflow = one dialog with three modes (copy current / blank / import YAML). Import goes through
+  `PUT /api/workflows/:name/yaml`; export through `GET …/yaml` (download + clipboard).
 
 ## Styling patterns
 
-- Tokens only: colours via semantic classes (`text-text-2`, `bg-accent-t`, `border-border`, `bg-info-t`,
-  `bg-seg-now` …) defined in `src/index.css`; no hex in components.
-- Type scale is 7 steps (`text-micro … text-page`), radius 4 steps (`rounded-xs … rounded-lg`, `rounded-full`),
-  spacing on the 4px grid; `tools/check-design-scale.mjs` blocks arbitrary values.
-- Cards separate by border and ground colour; shadows are reserved for floating layers.
-- `[hidden]` must beat a component's own `display` (index.css does this globally).
+- Tokens only (`text-text-2`, `bg-accent-t`, `border-border`, `bg-seg-now` …); no hex in components.
+- Type scale 7 steps, radius 4 steps, 4px spacing grid; `tools/check-design-scale.mjs` blocks arbitrary
+  values.
+- Cards separate by border and ground colour; shadows only on floating layers (drawer, dialogs, drag
+  overlay).
 
 ## Accessibility
 
-- Dialogs keep accessible title, `aria-modal`, Escape, focus capture / restore.
-- Tab groups are `role=tablist` with roving tabindex and arrow-key movement.
-- Status is text + tone, never colour alone; `/` focuses global search, Escape clears it.
+- Dialogs and the drawer keep accessible title, `aria-modal`, Escape, focus capture / restore.
+- Chips are `role=tab` inside a `role=tablist`; the gate switch is `role=radiogroup`.
+- Status is text + tone, never colour alone; `/` focuses global search.
 
 ## Common mistakes
 
-- **Flex child without `min-height: 0`** inside the fixed-height grid pushes the detail footer off-screen;
-  `DetailColumn` already sets it — keep it when adding wrappers.
-- **Grid card with long content** overflows its column; add `min-w-0 grid-cols-[minmax(0,1fr)]` and
-  `truncate` on the text spans (see `TaskCard`).
-- **Rendering `Error.message` or a field named `message`** in TSX trips the i18n leak gate; format through
-  `formatApiError` and store it under another name (`detail`).
-- **Bringing a feature back** (per-stage skills/hook toggles, run logs, automation, machine readiness,
-  track panels) needs a product decision first; the 2026-09 minimal rebuild deleted them deliberately.
+- **Reading IO from `WbStepDef.inputs/outputs` directly** in a page component: that skips document
+  slots. Always go through `effectiveIo` (server) or `draftEffectiveIo` (editor draft).
+- **Posting `source` / `effectiveIo` back**: the server's closed decoder rejects unknown keys;
+  `postWorkflowDef` / `definitionForWrite` strip them — keep it that way.
+- **Per-root fetch in the aggregate view** (`currentRoot === ''`): forbidden; tests assert the only
+  request is `/api/snapshot`.
+- **Rendering `Error.message` or a field named `message`** in TSX trips the i18n leak gate; format
+  through `formatApiError` and store it under `detail`.
+- **Dropping `when` in a skill transform**: every function that rebuilds `skills[]` must spread the
+  existing ref (`wavesToSkills` does); losing `when` silently widens a skill to all tracks.
+- **Adding explanatory copy**: if a label needs a sentence to be understood, the component is wrong,
+  not the copy.

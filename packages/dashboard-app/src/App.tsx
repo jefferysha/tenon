@@ -208,9 +208,6 @@ function AppShell(): JSX.Element {
     window.addEventListener('beforeunload', protectDraft)
     return () => window.removeEventListener('beforeunload', protectDraft)
   }, [])
-  const currentProject = snapshot?.projects.find((p) => p.root === currentRoot)
-  const currentProjectWritable = isProjectWritable(currentProject)
-
   // 跨项目 snapshot 已携带每个 change 冻结绑定的 workflow 摘要；所有视图消费同一聚合事实。
   const rulesByKey = useMemo(() => workflowRulesFromSnapshot(snapshot), [snapshot])
 
@@ -280,7 +277,6 @@ function AppShell(): JSX.Element {
         currentRoot={currentRoot}
         onRoot={selectRoot}
         connected={connected}
-        projectWritable={currentProjectWritable}
         lang={lang}
         onLang={(l: Lang) => setLang(l)}
         theme={theme}
@@ -392,8 +388,8 @@ function AppShell(): JSX.Element {
                   <WorkflowView
                     key={retainedWorkbenchRoot}
                     root={retainedWorkbenchRoot}
-                    snapshot={snapshot}
                     onDirtyChange={onWorkbenchDirtyChange}
+                    onToast={(m) => showFlash('toast', m)}
                   />
                 </DialogInteractionBoundary>
               </div>

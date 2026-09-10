@@ -9,6 +9,7 @@ import {
   workflowPlanSnapshot,
 } from './effective-plan.js'
 import { builtinTrack } from '../tracks/builtins.js'
+import { legacyDefaultWorkflow } from './test-support.js'
 
 function preVerifyConvergenceWorkflow() {
   const current = compileEffectiveWorkflowPlan('default').workflow
@@ -25,8 +26,11 @@ function preVerifyConvergenceWorkflow() {
       return {
         ...legacyStep,
         // This fixture intentionally models the pre-issue#43 frozen snapshot, whose
-        // default Workflow steps had no Workflow-owned phase Skills.
+        // default Workflow steps had no Workflow-owned phase Skills and whose ship/archive
+        // steps declared no inputs/outputs (pr_url / archived were added in 2026-09).
         skills: [],
+        inputs: step.id === 'ship' || step.id === 'archive' ? [] : step.inputs,
+        outputs: step.id === 'ship' || step.id === 'archive' ? [] : step.outputs,
         guards: step.id === 'build'
           ? step.guards.filter((guard) =>
               !(guard.type === 'field-equals' && guard.field === 'pre_verify_review_result'))
@@ -45,8 +49,8 @@ function preVerifyConvergenceWorkflow() {
 }
 
 describe('compileEffectiveWorkflowPlan', () => {
-  it('compiles default through the shared immutable plan surface', () => {
-    const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack('backend'))
+  it('compiles the pre-matrix default through the shared immutable plan surface (manifest-overlay)', () => {
+    const plan = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow(), builtinTrack('backend'))
     expect(plan.executionModel).toBe('phase-manifest')
     expect(plan.projection.steps.map((step) => step.id)).toEqual([
       'open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive',

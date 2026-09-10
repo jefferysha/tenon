@@ -102,7 +102,12 @@ function completedExecutor(report: RoundReport = roundReport()) {
 // ── skill bundle wiring 预览用 fake resolver/locator（H10 §6/§8任务7）──────────────────
 
 function fakeResolver(slotsByPhase: Record<string, EffectiveSkillSlot[]> = {}): EffectiveSkillResolver {
-  return { resolveDefault: (stepId: string) => slotsByPhase[stepId] ?? [], resolveCustom: () => [] }
+  return {
+    resolveDefault: (stepId: string) => slotsByPhase[stepId] ?? [],
+    // 显式 profile 投影直接给出夹具槽：default 模板的技能矩阵已内嵌进定义，桥接函数不再替它查 manifest 表。
+    resolveExplicitProfile: (_capability, stepId: string) => slotsByPhase[stepId] ?? [],
+    resolveCustom: () => [],
+  }
 }
 
 /** locator：给定「能定位」的 skill id 白名单，其余一律 `SkillContentNotFoundError`（`_tag` 语义
