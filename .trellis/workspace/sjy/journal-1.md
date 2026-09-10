@@ -404,3 +404,25 @@ kernel autoRegisterDocuments/canonicalDocumentPaths；receipt 后自动登记规
 ### Status
 
 [OK] **Completed**
+
+
+## Session 16: 工作流 track 分支、技能编排浮层、IO sheet 与门禁语义
+<!-- trellis-session: v=2 fp=eb60e49609234313 -->
+
+**Date**: 2026-09-10
+**Task**: 工作流 track 分支、技能编排浮层、IO sheet 与门禁语义
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+track 成为工作流 YAML 内分支（tracks.<id>），指纹覆盖整份定义；门禁 review/auto，confirm 移除；default 展开为 4 条分支；server 返回 branches 与 SKILL.md readme；工作流页分支树 + 技能编排浮层 + IO sheet 溯源 + 门禁 hover；名称只显示 label ?? id
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c6bda08` | feat(workflow): track branches, review/auto gates, skill composer and IO sheets |
+
+### Status
+
+[OK] **Completed**
