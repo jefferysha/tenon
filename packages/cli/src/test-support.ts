@@ -81,10 +81,18 @@ export function mockState(fields: Partial<Record<FieldName, string | string[]>> 
  */
 export function legacyDefaultWorkflowDef(): WorkflowDef {
   const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+  // 分支化之前 default 只有一条 pipeline：驱动技能 + spec 的 plan artifact 带 PM 豁免谓词。用 frontend 分支还原它。
+  const frontend = def.tracks?.frontend?.steps ?? def.steps
   return {
     ...def,
     tracks: undefined,
-    steps: def.steps.map((step) => ({ ...step, skills: step.skills.filter((skill) => skill.id.startsWith('tenon-')) })),
+    steps: frontend.map((step) => ({
+      ...step,
+      skills: step.skills.filter((skill) => skill.id.startsWith('tenon-')),
+      ...(step.id === 'spec' && step.artifacts !== undefined
+        ? { artifacts: step.artifacts.map((artifact) => artifact.field === 'plan' ? { ...artifact, requiredWhen: { kind: 'track-not-in' as const, values: ['pm'] } } : artifact) }
+        : {}),
+    })),
   }
 }
 const LEGACY_DEFAULT_PLAN = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflowDef())

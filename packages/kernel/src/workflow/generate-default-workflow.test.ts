@@ -40,20 +40,19 @@ describe('generator golden（真生产 fixture）', () => {
 })
 
 describe('parseDefaultWorkflow（窄扫器）结构等价', () => {
-  it('真 default.yaml → 通用分支 7 步，仅 explore/spec/verify 带 artifact，声明序保留；四条 track 分支', () => {
-    const parsed = parseDefaultWorkflow(REAL_YAML) as { name: string; steps: { id: string; artifacts: unknown[] }[]; tracks: Record<string, { label?: string; steps: { id: string }[] }> }
+  it('真 default.yaml → 没有顶层 steps；五条 track 分支各 7 步，frontend 仅 explore/spec/verify 带 artifact', () => {
+    const parsed = parseDefaultWorkflow(REAL_YAML) as { name: string; steps: { id: string; artifacts: unknown[] }[]; tracks: Record<string, { label?: string; steps: { id: string; artifacts: unknown[] }[] }> }
     expect(parsed.name).toBe('default')
-    expect(parsed.steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
-    const withArtifacts = parsed.steps.filter((s) => s.artifacts.length > 0).map((s) => s.id)
+    expect(parsed.steps).toEqual([])
+    const withArtifacts = parsed.tracks.frontend!.steps.filter((s) => s.artifacts.length > 0).map((s) => s.id)
     expect(withArtifacts).toEqual(['explore', 'spec', 'verify'])
-    expect(Object.keys(parsed.tracks)).toEqual(['pm', 'frontend', 'backend', 'free'])
+    expect(Object.keys(parsed.tracks)).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
     expect(parsed.tracks.pm?.label).toBe('产品')
     expect(parsed.tracks.pm?.steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
   })
 
-  it('pm 分支的 spec 不声明 plan artifact（PM 的 plan 文档由 OpenSpec ledger 约束）；其余分支声明；通用分支保留谓词', () => {
-    const parsed = parseDefaultWorkflow(REAL_YAML) as { steps: { id: string; artifacts: any[] }[]; tracks: Record<string, { steps: { id: string; artifacts: any[] }[] }> }
-    expect(parsed.steps.find((s) => s.id === 'spec')!.artifacts[0]).toMatchObject({ requiredWhen: { kind: 'track-not-in', values: ['pm'] } })
+  it('pm 分支的 spec 不声明 plan artifact（PM 的 plan 文档由 OpenSpec ledger 约束）；其余分支声明', () => {
+    const parsed = parseDefaultWorkflow(REAL_YAML) as { tracks: Record<string, { steps: { id: string; artifacts: any[] }[] }> }
     expect(parsed.tracks.pm!.steps.find((s) => s.id === 'spec')!.artifacts).toEqual([])
     expect(parsed.tracks.backend!.steps.find((s) => s.id === 'spec')!.artifacts).toEqual([
       { field: 'plan', type: 'file_path', producerPolicy: 'effective-phase-skills' },

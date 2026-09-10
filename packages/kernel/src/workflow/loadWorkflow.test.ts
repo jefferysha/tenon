@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { loadWorkflow } from './loadWorkflow.js'
 import { parseWorkflow } from './parse.js'
+import { selectTrackBranch } from './validate.js'
 
 describe('loadWorkflow', () => {
   it('simple 是不可被项目文件覆盖的内建轻量 workflow，含两个终态与 scope-expanded', async () => {
@@ -97,7 +98,8 @@ steps:
 
     // 语法层（parseWorkflow）smoke：真文件 → 7 步、step 序、spec 的 tasks-at-least guard。
     // 注意 loadWorkflow（custom 契约）会因 A 契约拒绝它（下一用例）——parse 层不受 A 契约约束。
-    const wf = parseWorkflow(content)
+    // default 只有分支：取 frontend 分支看 7 步骨架。
+    const wf = selectTrackBranch(parseWorkflow(content), 'frontend')
     expect(wf.name).toBe('default')
     expect(wf.steps).toHaveLength(7)
     expect(wf.steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
@@ -110,14 +112,15 @@ steps:
     const __dirname = dirname(fileURLToPath(import.meta.url))
     const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
     const content = await readFile(join(repoRoot, 'templates', 'workflows', 'default.yaml'), 'utf8')
-    const edited = content.replace('      - id: tenon-open\n', '      - id: tenon-open\n      - id: brainstorming\n')
+    // 第一处 tenon-open 在 chat 分支（十空格缩进）。
+    const edited = content.replace('          - id: tenon-open\n', '          - id: tenon-open\n          - id: brainstorming\n')
 
     const tempRoot = await mkdtemp(join(tmpdir(), 'wf-load-real-'))
     await mkdir(join(tempRoot, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(tempRoot, '.pipeline', 'workflows', 'default.yaml'), edited, 'utf8')
 
     const wf = loadWorkflow(tempRoot, 'default')
-    expect(wf?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'brainstorming'])
+    expect(wf?.tracks?.chat?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'brainstorming'])
     expect(wf?.tracks?.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose'])
   })
 

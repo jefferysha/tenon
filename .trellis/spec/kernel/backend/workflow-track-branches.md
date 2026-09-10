@@ -4,7 +4,9 @@
 
 - Trigger: any change to the workflow YAML schema (`WorkflowDef`), the effective plan, or gate semantics.
 - A track is a **branch inside the workflow YAML**, not a separate registry concept. Each branch is a
-  complete pipeline. The change's track selects the branch at plan time.
+  complete pipeline written from scratch. `steps` and `tracks` are mutually exclusive: a workflow either has
+  one pipeline (`steps`) or one pipeline per track (`tracks.<id>.steps`). The change's track selects the
+  branch at plan time; a track without a branch is rejected, never given a fallback pipeline.
 
 ## 2. Signatures
 
@@ -33,11 +35,14 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
 
 ## 3. Contracts
 
-- YAML: top-level `steps:` is the base branch; `tracks:` holds `<track-id>:` → optional `label:` and
-  `steps:` (same step schema, indented four more spaces). Track ids match `TRACK_ID_RE`.
+- YAML: either top-level `steps:` or `tracks:` (`<track-id>:` → optional `label:` and `steps:`, same step
+  schema indented four more spaces). Declaring both → `有 tracks 时不得再声明顶层 steps`. Track ids match
+  `TRACK_ID_RE`.
 - `compileWorkflow` compiles every branch (`tracks.<id>.steps[i]` error paths) and keeps `tracks` on the IR.
-  `planFromIr` selects `tracks[track.id]` or the base and exposes it as `plan.workflow`; the full IR stays on
-  `plan.definition`. **The fingerprint hashes the full definition**, so it is identical for every track and
+  `planFromIr` selects `tracks[track.id]` and exposes it as `plan.workflow`; the full IR stays on
+  `plan.definition`. No track given (fingerprint / document-policy / generator contexts) → the first branch;
+  a track without a branch → `WorkflowTrackBranchError('工作流 X 没有轨道 Y 的分支')`, which init and the
+  create-change route surface as exit 1 / 404. **The fingerprint hashes the full definition**, so it is identical for every track and
   byte-identical to the pre-branch fingerprint for definitions without `tracks`.
 - Frozen snapshots (`workflowPlanSnapshot`) store `plan.definition`; `effectiveWorkflowPlanFromSnapshot(snapshot, track)`
   re-selects the branch. A change's pipeline is therefore stable as long as its `track` field is stable.
@@ -51,10 +56,13 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
   outgoing transition of the step (one `field-nonempty` / `output-present` per declared output). `null` runs
   only explicit guards. `confirm` is rejected by both the parser and the compiler with a hint naming the two
   replacements.
-- `default.yaml`: base branch (drivers only, plan artifact keeps `required_when: track_not_in: [pm]` so historical
-  fingerprints stay valid) plus `tracks.pm / frontend / backend / free`. `DEFAULT_ARTIFACT_DECLARATIONS` is
-  keyed by branch (`_base` + track ids); `defaultArtifactsForStep(step, track)` reads the branch table only.
-  `check:default-skill-matrix` compares every branch's non-driver skills with `manifest.yaml`.
+- `default.yaml`: `tracks.chat / pm / frontend / backend / free`, each with its own seven stages (`chat` is the
+  drivers-only flow and comes first, so it is also the representative branch in track-less contexts; pm has no
+  plan artifact, frontend adds e2e). `DEFAULT_ARTIFACT_DECLARATIONS` is keyed by track; `defaultArtifactsForStep(step,
+  track)` reads that track's table (unknown track → no artifacts). `DEFAULT_WORKFLOW_STEPS` (todo labels) comes
+  from the first branch. `check:default-skill-matrix` compares every branch's non-driver skills with
+  `manifest.yaml`. Historical-fingerprint tests reconstruct the pre-branch default from the frontend branch
+  (`legacyDefaultWorkflow()` in `workflow/test-support.ts`).
 
 ## 4. Validation & Error Matrix
 
@@ -70,7 +78,7 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
 - Good: `init --track mobile --workflow branched` where only `branched.yaml` declares `tracks.mobile` → phase = first
   step of the mobile branch.
 - Base: `init --track backend` on default → `plan.workflow` is the backend branch, `plan.definition` has all four.
-- Bad: `gate: confirm` in a project file → the file fails to load with the replacement hint.
+- Bad: `init --track simple --workflow default` → rejected: default has no `simple` branch. `gate: confirm` → load error.
 
 ## 6. Tests Required
 
@@ -86,18 +94,20 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
 ### Wrong
 
 ```yaml
-skills:
-  - id: brainstorming
-    when:
-      track_in: [pm, frontend]     # per-skill track conditions no longer exist
+steps: [...]                       # a shared "base" pipeline the tracks inherit from
+tracks:
+  pm:
+    steps: [...]
 ```
 
 ### Correct
 
 ```yaml
-steps: [...]                       # base branch
 tracks:
   pm:
     label: 产品
-    steps: [...]                   # its own pipeline, including brainstorming where it applies
+    steps: [...]                   # every track writes its whole pipeline; nothing is preset
+  frontend:
+    label: 前端
+    steps: [...]
 ```

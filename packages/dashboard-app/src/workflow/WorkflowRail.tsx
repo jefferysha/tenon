@@ -40,7 +40,8 @@ export function WorkflowRail({
   const deleteLabel = isDefault ? t('workflow.restore_default') : t('workflow.delete_workflow')
   const deleteEnabled = canWrite && !busy && current !== null && (!isDefault || defaultSource === 'project')
   const noToken = canWrite ? undefined : t('workflow.no_token')
-  const trackCount = Math.max(branches.length - 1, 0)
+  const tracks = branches.filter((candidate) => candidate.id !== BASE_BRANCH)
+  const trackCount = tracks.length
   return (
     <RailColumn
       title={t('workflow.rail_title')}
@@ -83,9 +84,9 @@ export function WorkflowRail({
                 testId={`wb-wf-item-${name}`}
                 onClick={() => { if (!busy) onSwitch(name) }}
               />
-              {expanded && !collapsed && branches.length > 0 && (
+              {expanded && !collapsed && tracks.length > 0 && (
                 <ul className="ml-11 mt-1 grid gap-0.5 border-l border-border pl-3 max-[1279px]:hidden max-[900px]:grid" data-testid={`wb-wf-branches-${name}`} aria-label={t('workflow.tracks_title')}>
-                  {branches.map((candidate) => {
+                  {tracks.map((candidate) => {
                     const active = candidate.id === branch
                     return (
                       <li key={candidate.id}>

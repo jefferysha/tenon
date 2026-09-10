@@ -3,6 +3,7 @@ import type {
   WbFieldRef,
   WbSkillRef,
   WbStepDef,
+  WbTrackBranch,
   WbWorkflowDef,
 } from '../api/governanceTypes'
 import { wavesOf, wavesToSkills } from './skillWaves'
@@ -50,23 +51,34 @@ export function definitionForWrite(def: WbWorkflowDef): Omit<WbWorkflowDef, 'sou
   return definition
 }
 
-// ── 分支：'' = 通用分支（顶层 steps），其余 = tracks.<id> ──
+// ── 分支：有 tracks → 每条 track 一个分支（steps ⊕ tracks，顶层 steps 为空）；无 tracks → 单条 pipeline（id ''）──
 
 export const BASE_BRANCH = ''
 
-/** 分支列表：通用分支恒在首位；track 分支按声明序，名称 = label ?? id。 */
+function trackEntries(def: WbWorkflowDef | null): Array<[string, WbTrackBranch]> {
+  return Object.entries(def?.tracks ?? {})
+}
+
+/** 分支列表：有 tracks 时按声明序列出每条 track（名称 = label ?? id）；否则只有单条 pipeline。 */
 export function branchesOf(def: WbWorkflowDef | null): Array<{ id: string; label: string | null }> {
-  return [
-    { id: BASE_BRANCH, label: null },
-    ...Object.entries(def?.tracks ?? {}).map(([id, branch]) => ({ id, label: branch.label ?? id })),
-  ]
+  const tracks = trackEntries(def)
+  if (tracks.length === 0) return [{ id: BASE_BRANCH, label: null }]
+  return tracks.map(([id, branch]) => ({ id, label: branch.label ?? id }))
+}
+
+/** 有效分支 id：请求的分支不存在时退到第一条 track（无 tracks → ''）。 */
+export function resolveBranch(def: WbWorkflowDef | null, branch: string): string {
+  const tracks = trackEntries(def)
+  if (tracks.length === 0) return BASE_BRANCH
+  return def?.tracks?.[branch] !== undefined ? branch : tracks[0]![0]
 }
 
 /** 分支视图：把所选分支的 steps 与物化 IO 提升成一个「单条 pipeline」定义，供编辑器所有读路径使用。 */
 export function selectBranchDef(def: WbWorkflowDef, branch: string): WbWorkflowDef {
   const { tracks: _tracks, branches, effectiveIo, ...rest } = def
-  const track = branch === BASE_BRANCH ? undefined : def.tracks?.[branch]
-  const io = branches?.[branch === BASE_BRANCH ? '_base' : branch]?.effectiveIo ?? (branch === BASE_BRANCH ? effectiveIo : undefined)
+  const id = resolveBranch(def, branch)
+  const track = id === BASE_BRANCH ? undefined : def.tracks?.[id]
+  const io = branches?.[id === BASE_BRANCH ? '_base' : id]?.effectiveIo ?? (id === BASE_BRANCH ? effectiveIo : undefined)
   return {
     ...rest,
     ...(io === undefined ? {} : { effectiveIo: io }),
@@ -78,19 +90,32 @@ export function selectBranchDef(def: WbWorkflowDef, branch: string): WbWorkflowD
 export function writeBranchDef(def: WbWorkflowDef, branch: string, updated: WbWorkflowDef): WbWorkflowDef {
   const { steps, tracks: _tracks, effectiveIo: _io, branches: _branches, ...rest } = updated
   const base = { ...def, ...rest }
-  if (branch === BASE_BRANCH || def.tracks?.[branch] === undefined) return { ...base, steps }
-  return { ...base, steps: def.steps, tracks: { ...def.tracks, [branch]: { ...def.tracks[branch], steps } } }
+  const id = resolveBranch(def, branch)
+  if (id === BASE_BRANCH) return { ...base, steps }
+  return { ...base, steps: def.steps, tracks: { ...def.tracks, [id]: { ...def.tracks![id]!, steps } } }
 }
 
-/** 新建轨道分支 = 复制通用分支的 steps（深拷贝）。 */
-export function addTrackBranch(def: WbWorkflowDef, id: string, label: string): WbWorkflowDef {
-  const steps = cloneWorkflowDef({ ...def, tracks: undefined }, def.name).steps
-  return { ...def, tracks: { ...(def.tracks ?? {}), [id]: { ...(label === '' ? {} : { label }), steps } } }
+/**
+ * 新建轨道分支 = 复制 `from` 分支的 steps（深拷贝）。工作流原本没有 tracks 时，它的单条 pipeline 搬进第一条
+ * track（id `main`），顶层 steps 清空（steps ⊕ tracks）。
+ */
+export function addTrackBranch(def: WbWorkflowDef, id: string, label: string, from: string = BASE_BRANCH): WbWorkflowDef {
+  const branch: WbTrackBranch = { ...(label === '' ? {} : { label }), steps: cloneSteps(selectBranchDef(def, from).steps) }
+  if (trackEntries(def).length === 0) {
+    if (def.steps.length === 0) return { ...def, steps: [], tracks: { [id]: branch } }
+    const firstId = id === 'main' ? 'base' : 'main'
+    return { ...def, steps: [], tracks: { [firstId]: { steps: cloneSteps(def.steps) }, [id]: branch } }
+  }
+  return { ...def, tracks: { ...(def.tracks ?? {}), [id]: branch } }
 }
 
+/** 删除轨道分支；删到最后一条时它的 steps 回到顶层，工作流重新成为单条 pipeline。 */
 export function removeTrackBranch(def: WbWorkflowDef, id: string): WbWorkflowDef {
-  const { [id]: _removed, ...rest } = def.tracks ?? {}
-  return Object.keys(rest).length === 0 ? (({ tracks: _tracks, ...withoutTracks }) => withoutTracks)(def) : { ...def, tracks: rest }
+  const { [id]: removed, ...rest } = def.tracks ?? {}
+  if (removed === undefined) return def
+  const { tracks: _tracks, ...withoutTracks } = def
+  if (Object.keys(rest).length === 0) return { ...withoutTracks, steps: removed.steps }
+  return { ...def, tracks: rest }
 }
 
 export function renameStepInDef(def: WbWorkflowDef, stepId: string, label: string): WbWorkflowDef {

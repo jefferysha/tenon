@@ -720,9 +720,11 @@ describe('createExecutionCoordinatePort', () => {
   it('default workflow：pre-issue#43 frozen snapshot 的空 build Skill 不被当前模板 phase capability 覆盖', async () => {
     const source = await readFile(join(process.cwd(), 'templates', 'workflows', 'default.yaml'), 'utf8')
     const current = parseWorkflow(source)
+    const emptyBuild = (steps: typeof current.steps) => steps.map((step) => step.id === 'build' ? { ...step, skills: [] } : step)
     const historical = {
       ...current,
-      steps: current.steps.map((step) => step.id === 'build' ? { ...step, skills: [] } : step),
+      steps: emptyBuild(current.steps),
+      ...(current.tracks === undefined ? {} : { tracks: Object.fromEntries(Object.entries(current.tracks).map(([id, branch]) => [id, { ...branch, steps: emptyBuild(branch.steps) }])) }),
     }
     const frozen = compileEffectiveWorkflowPlan('default', historical)
     const state = {

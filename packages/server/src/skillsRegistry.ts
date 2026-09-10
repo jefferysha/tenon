@@ -5,8 +5,8 @@
 // they are never an installation prerequisite for the packaged default flow. Every probe is
 // fail-open: missing or malformed host data merely yields "not detected", never a registry 500.
 import { parseSkillSources, type SkillSourceDefinition, type SkillTier } from '@tenon/kernel'
-import { accessSync, constants, existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { delimiter, dirname, join } from 'node:path'
+import { accessSync, constants, existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { delimiter, dirname, join, sep } from 'node:path'
 
 export type SkillSource = 'local-plugin' | 'external-marketplace' | 'builtin' | 'user'
 
@@ -98,25 +98,21 @@ function descriptionForSkill(name: string, repoRoot: string, claudeDir: string, 
   return undefined
 }
 
-export interface SkillReadme {
+export interface SkillFiles {
   name: string
   /** 来源分类（与 SkillEntry.source 同枚举）。 */
   source: SkillSource
-  /** 来源目录（插件名 / skills 根），给页面做溯源展示；不含用户主目录之外的绝对路径。 */
+  /** 来源目录（插件名 / skills 根），给页面做溯源展示。 */
   origin: string
-  /** SKILL.md 相对来源根的路径。 */
-  path: string
-  markdown: string
+  /** 技能目录下全部普通文件（相对技能根、posix 分隔、稳定序）；跳过隐藏项与 >1MB 的文件。 */
+  files: Array<{ path: string; bytes: number }>
 }
 
-/**
- * 某技能的 SKILL.md 全文：按与 descriptionForSkill 相同的探测顺序找到第一份存在的文件。
- * 只读、fail-open：任何一处读不到就继续下一处；全部没有 → undefined（调用方 404）。
- */
-export function readSkillReadme(name: string, repoRoot: string, claudeDir: string): SkillReadme | undefined {
+const MAX_SKILL_FILE_BYTES = 256 * 1024
+const MAX_LISTED_FILE_BYTES = 1024 * 1024
+
+function skillRoots(repoRoot: string, claudeDir: string): Array<{ dir: string; source: SkillSource; origin: string }> {
   const home = dirname(claudeDir)
-  const candidates = [...new Set([name, name.includes(':') ? name.split(':').at(-1) : undefined]
-    .filter((candidate): candidate is string => typeof candidate === 'string' && candidate !== ''))]
   const roots: Array<{ dir: string; source: SkillSource; origin: string }> = [
     { dir: join(repoRoot, 'skills'), source: 'local-plugin', origin: 'tenon' },
     { dir: join(claudeDir, 'skills'), source: 'user', origin: '~/.claude/skills' },
@@ -131,18 +127,86 @@ export function readSkillReadme(name: string, repoRoot: string, claudeDir: strin
       }
     }
   }
-  for (const root of roots) {
+  return roots
+}
+
+/** 第一个含 SKILL.md 的技能目录（与 descriptionForSkill 同探测顺序）。 */
+function locateSkillDir(name: string, repoRoot: string, claudeDir: string): { dir: string; source: SkillSource; origin: string } | undefined {
+  const candidates = [...new Set([name, name.includes(':') ? name.split(':').at(-1) : undefined]
+    .filter((candidate): candidate is string => typeof candidate === 'string' && candidate !== ''))]
+  for (const root of skillRoots(repoRoot, claudeDir)) {
     for (const candidate of candidates) {
-      const file = join(root.dir, candidate, 'SKILL.md')
+      const dir = join(root.dir, candidate)
       try {
-        const markdown = readFileSync(file, 'utf8')
-        return { name, source: root.source, origin: root.origin, path: `${candidate}/SKILL.md`, markdown }
+        if (statSync(join(dir, 'SKILL.md')).isFile()) return { dir, source: root.source, origin: root.origin }
       } catch {
         continue
       }
     }
   }
   return undefined
+}
+
+function walkFiles(root: string, rel = ''): Array<{ path: string; bytes: number }> {
+  const out: Array<{ path: string; bytes: number }> = []
+  let entries: string[]
+  try {
+    entries = readdirSync(join(root, rel)).sort()
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    if (entry.startsWith('.')) continue
+    const relPath = rel === '' ? entry : `${rel}/${entry}`
+    let info
+    try {
+      info = statSync(join(root, relPath))
+    } catch {
+      continue
+    }
+    if (info.isDirectory()) out.push(...walkFiles(root, relPath))
+    else if (info.isFile() && info.size <= MAX_LISTED_FILE_BYTES) out.push({ path: relPath, bytes: info.size })
+  }
+  return out
+}
+
+/** 某技能目录的文件清单（SKILL.md 恒排首位）；技能不存在 → undefined。 */
+export function listSkillFiles(name: string, repoRoot: string, claudeDir: string): SkillFiles | undefined {
+  const located = locateSkillDir(name, repoRoot, claudeDir)
+  if (located === undefined) return undefined
+  const files = walkFiles(located.dir).sort((a, b) => (a.path === 'SKILL.md' ? -1 : b.path === 'SKILL.md' ? 1 : a.path.localeCompare(b.path)))
+  return { name, source: located.source, origin: located.origin, files }
+}
+
+export type SkillFileRead =
+  | { kind: 'ok'; path: string; text: string }
+  | { kind: 'not-found' }
+  | { kind: 'invalid-path' }
+  | { kind: 'too-large' }
+  | { kind: 'binary' }
+
+/** 读技能目录内一个文本文件：路径必须在清单内（拒 `..` / 绝对路径 / 越界符号链接），≤256KB，无 NUL。 */
+export function readSkillFile(name: string, relPath: string, repoRoot: string, claudeDir: string): SkillFileRead {
+  if (relPath === '' || relPath.startsWith('/') || relPath.split('/').some((segment) => segment === '' || segment === '.' || segment === '..' || segment.startsWith('.'))) {
+    return { kind: 'invalid-path' }
+  }
+  const listed = listSkillFiles(name, repoRoot, claudeDir)
+  if (listed === undefined) return { kind: 'not-found' }
+  const located = locateSkillDir(name, repoRoot, claudeDir)
+  const entry = listed.files.find((file) => file.path === relPath)
+  if (located === undefined || entry === undefined) return { kind: 'not-found' }
+  if (entry.bytes > MAX_SKILL_FILE_BYTES) return { kind: 'too-large' }
+  const absolute = join(located.dir, relPath)
+  try {
+    const realRoot = realpathSync(located.dir)
+    const realFile = realpathSync(absolute)
+    if (!realFile.startsWith(realRoot + sep) && realFile !== realRoot) return { kind: 'invalid-path' }
+    const text = readFileSync(realFile, 'utf8')
+    if (text.includes('\u0000')) return { kind: 'binary' }
+    return { kind: 'ok', path: relPath, text }
+  } catch {
+    return { kind: 'not-found' }
+  }
 }
 
 function skillDirsIn(dir: string): string[] {

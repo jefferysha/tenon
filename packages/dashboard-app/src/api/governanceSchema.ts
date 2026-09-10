@@ -11,7 +11,7 @@ import type {
   WbTransition,
   WbWorkflowDef,
   WbEffectiveIo,
-  WbIoSlot, WbTrackBranch, WbBranchProjection, WbSkillReadme,
+  WbIoSlot, WbTrackBranch, WbBranchProjection, WbSkillFiles, WbSkillFile,
 } from './governanceTypes'
 import {
   DEFAULT_WB_DECOMPOSITION_POLICY,
@@ -477,12 +477,23 @@ function decodeBranches(value: unknown): Record<string, WbBranchProjection> | nu
   return out
 }
 
-export function decodeSkillReadme(value: unknown): WbSkillReadme | null {
+export function decodeSkillFiles(value: unknown): WbSkillFiles | null {
   const body = record(value)
-  if (!body || typeof body.name !== 'string' || typeof body.origin !== 'string' || typeof body.path !== 'string' || typeof body.markdown !== 'string') return null
+  if (!body || typeof body.name !== 'string' || typeof body.origin !== 'string') return null
   const source = decodeSkillSource(body.source)
-  if (source === null) return null
-  return { name: body.name, source, origin: body.origin, path: body.path, markdown: body.markdown }
+  const files = decodeArray(body.files, (item) => {
+    const file = record(item)
+    if (!file || typeof file.path !== 'string' || file.path === '' || typeof file.bytes !== 'number' || file.bytes < 0) return null
+    return { path: file.path, bytes: file.bytes }
+  })
+  if (source === null || files === null) return null
+  return { name: body.name, source, origin: body.origin, files }
+}
+
+export function decodeSkillFile(value: unknown): WbSkillFile | null {
+  const body = record(value)
+  if (!body || typeof body.path !== 'string' || typeof body.text !== 'string') return null
+  return { path: body.path, text: body.text }
 }
 
 export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {

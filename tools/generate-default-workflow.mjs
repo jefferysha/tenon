@@ -69,10 +69,12 @@ export function parseDefaultWorkflow(yamlText) {
   const nameMatch = /^name:\s*(\S+)\s*$/.exec(lines[0] ?? '')
   if (!nameMatch) fail('第一行必须是 "name: <name>"')
   const stepsIndex = lines.findIndex((line, index) => index > 0 && line.trim() === 'steps:' && indentOf(line) === 0)
-  if (stepsIndex < 0) fail('缺顶层 "steps:"')
-  const { steps, next } = parseStepItems(lines, stepsIndex + 1, 0)
+  const tracksIndex = lines.findIndex((line, index) => index > 0 && line.trim() === 'tracks:' && indentOf(line) === 0)
+  if (stepsIndex < 0 && tracksIndex < 0) fail('缺顶层 "steps:" 或 "tracks:"')
+  const parsedSteps = stepsIndex < 0 ? { steps: [], next: tracksIndex } : parseStepItems(lines, stepsIndex + 1, 0)
+  const steps = parsedSteps.steps
   const tracks = {}
-  let i = next
+  let i = parsedSteps.next
   if ((lines[i] ?? '').trim() === 'tracks:' && indentOf(lines[i] ?? '') === 0) {
     i++
     while (i < lines.length) {
@@ -207,7 +209,8 @@ function parseArtifactEntries(lines, start, blockIndent, out) {
  */
 export function validateAndNormalize(parsed, fieldOrder) {
   if (parsed.name !== 'default') fail(`workflow name 必须是 'default'（实际 '${parsed.name}'）`)
-  const out = { _base: normalizeBranchSteps(parsed.steps, fieldOrder) }
+  const out = {}
+  if (parsed.steps.length > 0) out._base = normalizeBranchSteps(parsed.steps, fieldOrder)
   for (const [track, branch] of Object.entries(parsed.tracks ?? {})) {
     out[track] = normalizeBranchSteps(branch.steps, fieldOrder)
   }
@@ -318,7 +321,11 @@ export function generate(yamlText, typesText) {
   const fieldOrder = extractFieldOrder(typesText)
   const parsed = parseDefaultWorkflow(yamlText)
   const table = validateAndNormalize(parsed, fieldOrder)
-  return renderGenerated(table, parsed.steps, yamlText)
+  // 步骤元数据（Todo 投影的阶段标签）：有顶层 steps 用之，否则取第一条分支（default 各分支共享七阶段骨架）。
+  const firstBranch = Object.values(parsed.tracks ?? {})[0]
+  const metaSteps = parsed.steps.length > 0 ? parsed.steps : (firstBranch?.steps ?? [])
+  if (metaSteps.length === 0) fail('default.yaml 没有任何阶段（steps 或 tracks 至少一个）')
+  return renderGenerated(table, metaSteps, yamlText)
 }
 
 function main() {

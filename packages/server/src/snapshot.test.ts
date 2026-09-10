@@ -17,6 +17,8 @@ import {
   TERMINAL_ACTIVITY_TTL_MS,
   type TaskPlanRevisionV1,
   workflowPlanSnapshot,
+  parseWorkflow,
+  DEFAULT_WORKFLOW_SOURCE,
 } from '@tenon/kernel'
 import { buildSnapshot, computeFingerprint } from './snapshot.js'
 import { snapshotWorkflowRules } from './workflowSnapshot.js'
@@ -1848,7 +1850,20 @@ steps:
   it('Tenon server 继续投影身份迁移前冻结的 default v1 workflow snapshot', async () => {
     const store = newStore()
     const root = await makeProject()
-    const currentWorkflow = compileEffectiveWorkflowPlan('default').workflow
+    // 分支化之前的 default：frontend 分支 × 驱动技能 × spec plan artifact 的 PM 豁免谓词（与 kernel test-support 同口径）。
+    const branched = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+    const legacyDef = {
+      ...branched,
+      tracks: undefined,
+      steps: (branched.tracks?.frontend?.steps ?? []).map((step) => ({
+        ...step,
+        skills: step.skills.filter((skill) => skill.id.startsWith('tenon-')),
+        ...(step.id === 'spec' && step.artifacts !== undefined
+          ? { artifacts: step.artifacts.map((artifact) => artifact.field === 'plan' ? { ...artifact, requiredWhen: { kind: 'track-not-in' as const, values: ['pm'] } } : artifact) }
+          : {}),
+      })),
+    }
+    const currentWorkflow = compileEffectiveWorkflowPlan('default', legacyDef).workflow
     const {
       decomposition: _decomposition,
       interaction: _interaction,

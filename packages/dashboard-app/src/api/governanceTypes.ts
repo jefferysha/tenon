@@ -47,13 +47,18 @@ export interface WbSkillRef {
   depends_on?: string[]
 }
 
-/** 某技能 SKILL.md 全文与来源（GET /api/skills/:name/readme）。 */
-export interface WbSkillReadme {
+/** 某技能目录的文件清单（GET /api/skills/:name/files）。 */
+export interface WbSkillFiles {
   name: string
   source: WbSkillEntry['source']
   origin: string
+  files: Array<{ path: string; bytes: number }>
+}
+
+/** 技能目录内一个文本文件（GET /api/skills/:name/file?path=）。 */
+export interface WbSkillFile {
   path: string
-  markdown: string
+  text: string
 }
 
 export interface WbTrackPredicate {

@@ -3,8 +3,10 @@ import { DEFAULT_WORKFLOW_SOURCE } from './default-workflow.generated.js'
 import { materializeWorkflowIo } from './effective-io.js'
 import { parseWorkflow } from './parse.js'
 import type { WorkflowDef } from './types.js'
+import { selectTrackBranch } from './validate.js'
 
-const defaultDef = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+// default 只有分支：IO 物化针对一条 pipeline，用 frontend 分支。
+const defaultDef = selectTrackBranch(parseWorkflow(DEFAULT_WORKFLOW_SOURCE), 'frontend')
 
 describe('materializeWorkflowIo', () => {
   it('gives every default step at least one output and merges document slots with field slots', () => {

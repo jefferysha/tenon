@@ -100,6 +100,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             canWrite={editor.canWrite}
             onSelect={editor.setStageId}
             onAddStage={() => editor.stageDraft.setAddStageOpen(true)}
+            onReorder={editor.reorderStages}
           />
         )}
         detail={editor.selectedStep

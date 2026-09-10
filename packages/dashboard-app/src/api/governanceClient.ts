@@ -4,7 +4,7 @@ import type {
   WbHooksConfig,
   WbRouterPreview,
   WbSkillEntry,
-  WbTrackDefinition, WbSkillReadme,
+  WbTrackDefinition, WbSkillFiles, WbSkillFile,
 } from './governanceTypes'
 import {
   decodeCreatedChange,
@@ -15,7 +15,7 @@ import {
   decodeRouterPreview,
   isPromptSkipKeyword,
 } from './governanceDecoders'
-import { decodeSkillReadme, decodeSkillsRegistry, decodeWorkflowDefinition } from './governanceSchema'
+import { decodeSkillFile, decodeSkillFiles, decodeSkillsRegistry, decodeWorkflowDefinition } from './governanceSchema'
 import type { WbWorkflowDef } from './governanceTypes'
 import { ApiError, getToken, readJson, throwApiError, wrapNetwork } from './transport'
 
@@ -306,14 +306,26 @@ export function deleteTrackDefinition(root: string, revision: string, id: string
   )
 }
 
-/** 某技能的 SKILL.md 全文与来源（GET /api/skills/:name/readme）。 */
-export async function fetchSkillReadme(name: string): Promise<WbSkillReadme> {
+/** 某技能目录的文件清单（GET /api/skills/:name/files）。 */
+export async function fetchSkillFiles(name: string): Promise<WbSkillFiles> {
   let response: Response
   try {
-    response = await fetch(`/api/skills/${encodeURIComponent(name)}/readme`, { headers: { Accept: 'application/json' } })
+    response = await fetch(`/api/skills/${encodeURIComponent(name)}/files`, { headers: { Accept: 'application/json' } })
   } catch (error) {
     wrapNetwork(error)
   }
-  if (!response.ok) await throwApiError(response, '技能说明获取失败')
-  return readOrThrow(response, decodeSkillReadme, '技能说明响应形状无效')
+  if (!response.ok) await throwApiError(response, '技能文件清单获取失败')
+  return readOrThrow(response, decodeSkillFiles, '技能文件清单响应形状无效')
+}
+
+/** 技能目录内一个文本文件（GET /api/skills/:name/file?path=）。 */
+export async function fetchSkillFile(name: string, path: string): Promise<WbSkillFile> {
+  let response: Response
+  try {
+    response = await fetch(`/api/skills/${encodeURIComponent(name)}/file?path=${encodeURIComponent(path)}`, { headers: { Accept: 'application/json' } })
+  } catch (error) {
+    wrapNetwork(error)
+  }
+  if (!response.ok) await throwApiError(response, '技能文件获取失败')
+  return readOrThrow(response, decodeSkillFile, '技能文件响应形状无效')
 }

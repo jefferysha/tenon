@@ -2,139 +2,139 @@ name: default
 review_budget:
   version: v1
   max_attempts: 2
-steps:
-  - id: open
-    label: 立项
-    gate: null
-    skills:
-      - id: tenon-open
-    inputs: []
-    outputs: []
-    guards: []
-    transitions:
-      - event: open-complete
-        to: explore
-  - id: explore
-    label: 调研
-    gate: review
-    skills:
-      - id: tenon-explore
-    inputs: []
-    outputs:
-      - field: design_doc
-        type: file_path
-    artifacts:
-      - field: design_doc
-        type: file_path
-        producer_policy: effective-phase-skills
-    guards: []
-    transitions:
-      - event: explore-complete
-        to: spec
-  - id: spec
-    label: 规格
-    gate: review
-    skills:
-      - id: tenon-spec
-    inputs:
-      - field: design_doc
-        type: file_path
-    outputs:
-      - field: plan
-        type: file_path
-    artifacts:
-      - field: plan
-        type: file_path
-        producer_policy: effective-phase-skills
-        required_when:
-          track_not_in: [pm]
-    guards:
-      - type: tasks-at-least
-        n: 3
-    transitions:
-      - event: spec-complete
-        to: build
-        actions:
-          - type: reset-pre-verify-review
-  - id: build
-    label: 实现
-    gate: null
-    skills:
-      - id: tenon-build
-    inputs:
-      - field: design_doc
-        type: file_path
-      - field: plan
-        type: file_path
-    outputs:
-      - field: build_sha
-        type: string
-    guards:
-      - type: field-equals
-        field: pre_verify_review_result
-        value: pass
-    transitions:
-      - event: build-complete
-        to: verify
-      - event: requirements-changed
-        to: spec
-        actions:
-          - type: reset-pre-verify-review
-  - id: verify
-    label: 验证
-    gate: review
-    review_lanes: [standards, spec, e2e]
-    skills:
-      - id: tenon-verify
-    inputs:
-      - field: build_sha
-        type: string
-    outputs:
-      - field: verification_report
-        type: file_path
-    artifacts:
-      - field: verification_report
-        type: file_path
-        producer_policy: effective-phase-skills
-    guards: []
-    transitions:
-      - event: verify-pass
-        to: ship
-      - event: verify-fail
-        to: build
-        actions:
-          - type: mark-verification-failed
-          - type: reset-pre-verify-review
-  - id: ship
-    label: 交付
-    gate: null
-    skills:
-      - id: tenon-ship
-    inputs:
-      - field: verification_report
-        type: file_path
-    outputs:
-      - field: pr_url
-        type: string
-    guards:
-      - type: spec-migration-applied
-    transitions:
-      - event: ship-complete
-        to: archive
-  - id: archive
-    label: 归档
-    gate: null
-    skills:
-      - id: tenon-archive
-    inputs:
-      - field: pr_url
-        type: string
-    outputs:
-      - field: archived
-        type: boolean
-    guards: []
-    transitions: []
 tracks:
+  chat:
+    label: 对话
+    steps:
+      - id: open
+        label: 立项
+        gate: null
+        skills:
+          - id: tenon-open
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: open-complete
+            to: explore
+      - id: explore
+        label: 调研
+        gate: review
+        skills:
+          - id: tenon-explore
+        inputs: []
+        outputs:
+          - field: design_doc
+            type: file_path
+        artifacts:
+          - field: design_doc
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards: []
+        transitions:
+          - event: explore-complete
+            to: spec
+      - id: spec
+        label: 规格
+        gate: review
+        skills:
+          - id: tenon-spec
+        inputs:
+          - field: design_doc
+            type: file_path
+        outputs:
+          - field: plan
+            type: file_path
+        artifacts:
+          - field: plan
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards:
+          - type: tasks-at-least
+            n: 3
+        transitions:
+          - event: spec-complete
+            to: build
+            actions:
+              - type: reset-pre-verify-review
+      - id: build
+        label: 实现
+        gate: null
+        skills:
+          - id: tenon-build
+        inputs:
+          - field: design_doc
+            type: file_path
+          - field: plan
+            type: file_path
+        outputs:
+          - field: build_sha
+            type: string
+        guards:
+          - type: field-equals
+            field: pre_verify_review_result
+            value: pass
+        transitions:
+          - event: build-complete
+            to: verify
+          - event: requirements-changed
+            to: spec
+            actions:
+              - type: reset-pre-verify-review
+      - id: verify
+        label: 验证
+        gate: review
+        review_lanes: [standards, spec, e2e]
+        skills:
+          - id: tenon-verify
+        inputs:
+          - field: build_sha
+            type: string
+        outputs:
+          - field: verification_report
+            type: file_path
+        artifacts:
+          - field: verification_report
+            type: file_path
+            producer_policy: effective-phase-skills
+        guards: []
+        transitions:
+          - event: verify-pass
+            to: ship
+          - event: verify-fail
+            to: build
+            actions:
+              - type: mark-verification-failed
+              - type: reset-pre-verify-review
+      - id: ship
+        label: 交付
+        gate: null
+        skills:
+          - id: tenon-ship
+        inputs:
+          - field: verification_report
+            type: file_path
+        outputs:
+          - field: pr_url
+            type: string
+        guards:
+          - type: spec-migration-applied
+        transitions:
+          - event: ship-complete
+            to: archive
+      - id: archive
+        label: 归档
+        gate: null
+        skills:
+          - id: tenon-archive
+        inputs:
+          - field: pr_url
+            type: string
+        outputs:
+          - field: archived
+            type: boolean
+        guards: []
+        transitions: []
   pm:
     label: 产品
     steps:

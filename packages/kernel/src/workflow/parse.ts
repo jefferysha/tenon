@@ -362,7 +362,8 @@ export function parseWorkflow(content: string): WorkflowDef {
   let decomposition: WorkflowDef['decomposition']
   let interaction: WorkflowDef['interaction']
   let reviewBudget: WorkflowDef['reviewBudget']
-  while ((lines[stepLine] ?? '').trim() !== 'steps:') {
+  const isPipelineStart = (line: string): boolean => line.trim() === 'steps:' || line.trim() === 'tracks:'
+  while (!isPipelineStart(lines[stepLine] ?? '')) {
     const line = lines[stepLine] ?? ''
     const contractLine = /^openspec_contract:\s*(\S+)\s*$/.exec(line)
     if (contractLine) {
@@ -402,17 +403,19 @@ export function parseWorkflow(content: string): WorkflowDef {
       stepLine = cur.i
       continue
     }
-    throw new Error("workflow 解析错误：name 后必须是 'steps:'、policies、'openspec_contract: required' 或 document_contract")
+    throw new Error("workflow 解析错误：name 后必须是 'steps:' / 'tracks:'、policies、'openspec_contract: required' 或 document_contract")
   }
   if (openspecContract && documentContract) {
     throw new Error('workflow 解析错误：openspec_contract 与 document_contract 不得同时声明')
   }
-  if ((lines[stepLine] ?? '').trim() !== 'steps:') {
-    throw new Error("workflow 解析错误：name 后必须是 'steps:'、'openspec_contract: required' 或 document_contract")
+  if (!isPipelineStart(lines[stepLine] ?? '')) {
+    throw new Error("workflow 解析错误：name 后必须是 'steps:' / 'tracks:'、'openspec_contract: required' 或 document_contract")
   }
 
+  // steps ⊕ tracks：有 tracks 的工作流每条轨道各写自己的阶段，顶层 steps 缺省为空（validate 拒绝两者并存）。
   const cur: Cursor = { lines, i: stepLine + 1 }
-  const steps = parseStepList(cur, 'steps', 0)
+  const steps = (lines[stepLine] ?? '').trim() === 'steps:' ? parseStepList(cur, 'steps', 0) : []
+  if ((lines[stepLine] ?? '').trim() === 'tracks:') cur.i = stepLine
   let tracks: Record<string, TrackBranchDef> | undefined
   if ((lines[cur.i] ?? '').trim() === 'tracks:' && indentOf(lines[cur.i] ?? '') === 0) {
     cur.i++

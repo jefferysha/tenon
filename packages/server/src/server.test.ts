@@ -2156,7 +2156,8 @@ describe('GET/POST/PATCH/DELETE /api/tracks —— v3 Studio Track CRUD', () => 
     }, { headers: auth })
     const second = created.json<any>()
     const change = await reqPost(h.port, '/api/changes', {
-      root: h.root, name: 'qa-change', track: 'qa', workflow: 'default', title: 'QA change',
+      // default 没有 qa 分支：registry 自定义 track 建 change 要显式选一个不分轨道的工作流。
+      root: h.root, name: 'qa-change', track: 'qa', workflow: 'simple', title: 'QA change',
     }, { headers: auth })
     expect(change.status).toBe(200)
 
@@ -2172,17 +2173,22 @@ describe('GET/POST/PATCH/DELETE /api/tracks —— v3 Studio Track CRUD', () => 
   })
 })
 
-describe('GET /api/skills/:name/readme —— 技能 SKILL.md 全文与来源', () => {
-  it('本仓 skills 目录里的技能 → 200：markdown 全文 + 来源 local-plugin + 相对路径；不存在 → 404；非法名 → 400', async () => {
+describe('GET /api/skills/:name/files · /file —— 技能目录清单与单文件', () => {
+  it('本仓技能 → files 200（SKILL.md 首位、来源 local-plugin）；file 读 SKILL.md 200；越界 / 不存在 / 非法名分别 400 / 404 / 400', async () => {
     const h = await start()
-    const ok = await reqGet(h.port, '/api/skills/tenon-open/readme')
-    expect(ok.status).toBe(200)
-    const body = ok.json<{ name: string; source: string; origin: string; path: string; markdown: string }>()
-    expect(body).toMatchObject({ name: 'tenon-open', source: 'local-plugin', origin: 'tenon', path: 'tenon-open/SKILL.md' })
-    expect(body.markdown).toMatch(/^---\n/)
-    expect(body.markdown).toContain('name: tenon-open')
-    expect((await reqGet(h.port, '/api/skills/no-such-skill-xyz/readme')).status).toBe(404)
-    expect((await reqGet(h.port, `/api/skills/${encodeURIComponent('../etc')}/readme`)).status).toBe(400)
+    const files = await reqGet(h.port, '/api/skills/tenon-open/files')
+    expect(files.status).toBe(200)
+    const body = files.json<{ name: string; source: string; origin: string; files: Array<{ path: string; bytes: number }> }>()
+    expect(body).toMatchObject({ name: 'tenon-open', source: 'local-plugin', origin: 'tenon' })
+    expect(body.files[0]?.path).toBe('SKILL.md')
+    expect(body.files.every((file) => file.bytes > 0 && !file.path.startsWith('/'))).toBe(true)
+    const file = await reqGet(h.port, '/api/skills/tenon-open/file?path=SKILL.md')
+    expect(file.status).toBe(200)
+    expect(file.json<{ path: string; text: string }>().text).toContain('name: tenon-open')
+    expect((await reqGet(h.port, `/api/skills/tenon-open/file?path=${encodeURIComponent('../tenon-explore/SKILL.md')}`)).status).toBe(400)
+    expect((await reqGet(h.port, '/api/skills/tenon-open/file?path=nope.md')).status).toBe(404)
+    expect((await reqGet(h.port, '/api/skills/no-such-skill-xyz/files')).status).toBe(404)
+    expect((await reqGet(h.port, `/api/skills/${encodeURIComponent('../etc')}/files`)).status).toBe(400)
   })
 })
 
@@ -3779,13 +3785,13 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     const builtin = await reqGet(h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`)
     expect(builtin.status).toBe(200)
     const { source: builtinSource, effectiveIo: builtinIo, branches: builtinBranches, ...template } = builtin.json<Record<string, unknown>>()
-    expect(Object.keys(builtinBranches as Record<string, unknown>)).toEqual(['_base', 'pm', 'frontend', 'backend', 'free'])
+    expect(Object.keys(builtinBranches as Record<string, unknown>)).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
     expect(builtinSource).toBe('builtin')
     expect(Object.keys(builtinIo as Record<string, unknown>)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
-    const steps = template.steps as Array<{ id: string; skills: Array<{ id: string }> }>
-    const edited = steps.map((step) => step.id === 'open' ? { ...step, skills: [...step.skills, { id: 'brainstorming' }] } : step)
+    const tracks = template.tracks as Record<string, { steps: Array<{ id: string; skills: Array<{ id: string }> }> }>
+    const edited = { ...tracks, backend: { ...tracks.backend!, steps: tracks.backend!.steps.map((step) => step.id === 'open' ? { ...step, skills: [...step.skills, { id: 'brainstorming' }] } : step) } }
     const saved = await reqPost(
-      h.port, '/api/workflows/default', { ...template, steps: edited, root: h.root },
+      h.port, '/api/workflows/default', { ...template, tracks: edited, root: h.root },
       { headers: { Authorization: `Bearer ${h.token}` } },
     )
     expect(saved.status, saved.body).toBe(200)
@@ -3793,9 +3799,9 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
 
     const loaded = await reqGet(h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`)
     expect(loaded.status).toBe(200)
-    const override = loaded.json<{ source: string; steps: Array<{ id: string; skills: Array<{ id: string }> }> }>()
+    const override = loaded.json<{ source: string; tracks: Record<string, { steps: Array<{ id: string; skills: Array<{ id: string }> }> }> }>()
     expect(override.source).toBe('project')
-    expect(override.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'brainstorming'])
+    expect(override.tracks.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose', 'brainstorming'])
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: [], default: { source: 'project' } })
 

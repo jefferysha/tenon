@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WbSkillEntry } from '../api/governanceTypes'
@@ -11,10 +11,32 @@ const REGISTRY: WbSkillEntry[] = [
   { name: 'ghost', installed: false, source: 'user', tier: 'optional', available: true },
 ]
 
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+}
+
+/** files / file 两个接口的假服务端：任何技能都有 SKILL.md + references/notes.md。 */
+function mockSkillApi(): void {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const url = String(input)
+    const files = /\/api\/skills\/([^/]+)\/files$/.exec(url)
+    if (files) return json({ name: decodeURIComponent(files[1]!), source: 'external-marketplace', origin: 'superpowers@official', files: [{ path: 'SKILL.md', bytes: 120 }, { path: 'references/notes.md', bytes: 40 }] })
+    const file = /\/api\/skills\/([^/]+)\/file\?path=(.+)$/.exec(url)
+    if (file) {
+      const path = decodeURIComponent(file[2]!)
+      return json(path === 'SKILL.md'
+        ? { path, text: '---\nname: brainstorming\ndescription: x\n---\n\n# Brainstorming\n\nTurn ideas into designs.' }
+        : { path, text: '# Notes\n\nSecond file.' })
+    }
+    return json({ ok: false }, 404)
+  })
+}
+
 afterEach(() => { vi.restoreAllMocks() })
 
 describe('SkillComposer', () => {
-  it('左侧本机技能库：可搜索、标来源、点名展开来源与说明；右侧画布按波次显示已排技能；保存回写波次', async () => {
+  it('技能库：可搜索、来源图标、已排技能置灰；画布按波次显示；移除后保存回写', async () => {
+    mockSkillApi()
     const user = userEvent.setup()
     const onSave = vi.fn()
     render(
@@ -24,12 +46,9 @@ describe('SkillComposer', () => {
     )
     expect(screen.getByTestId('skill-composer')).toBeInTheDocument()
     expect(screen.getByTestId('skill-node-tenon-open')).toBeInTheDocument()
-    expect(screen.getByTestId('palette-source-brainstorming')).toHaveTextContent('市场')
+    expect(within(screen.getByTestId('palette-source-brainstorming')).getByRole('img', { name: '市场' })).toBeInTheDocument()
     expect(screen.getByTestId('palette-tenon-open')).toHaveAttribute('data-placed', 'true')
     expect(screen.queryByTestId('palette-ghost')).toBeNull()
-    await user.click(screen.getByTestId('palette-toggle-brainstorming'))
-    expect(screen.getByTestId('palette-detail-brainstorming')).toHaveTextContent('把想法聊成设计')
-    expect(screen.getByTestId('palette-detail-brainstorming')).toHaveTextContent('6.3.0')
     await user.type(screen.getByTestId('skill-palette-search'), 'brain')
     expect(screen.queryByTestId('palette-tenon-open')).toBeNull()
     expect(screen.getByTestId('palette-brainstorming')).toBeInTheDocument()
@@ -39,21 +58,23 @@ describe('SkillComposer', () => {
     expect(onSave).toHaveBeenCalledWith([])
   })
 
-  it('眼睛 → 抽屉里以 Markdown 展示 SKILL.md 与来源', async () => {
+  it('点技能名 → 右栏详情：来源、文件树、SKILL.md 以 Markdown 渲染（YAML 头单列）、可切到其它文件', async () => {
+    mockSkillApi()
     const user = userEvent.setup()
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
-      name: 'brainstorming', source: 'external-marketplace', origin: 'superpowers@claude-plugins-official', path: 'brainstorming/SKILL.md', markdown: '---\nname: brainstorming\ndescription: x\n---\n\n# Brainstorming\n\nTurn ideas into designs.',
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     render(
       <I18nProvider>
         <SkillComposer open stageLabel="调研" skills={[]} registry={REGISTRY} onClose={() => undefined} onSave={() => undefined} />
       </I18nProvider>,
     )
-    await user.click(screen.getByTestId('palette-preview-brainstorming'))
-    await waitFor(() => expect(screen.getByTestId('skill-preview-markdown')).toBeInTheDocument())
+    expect(screen.getByTestId('skill-composer-detail')).toHaveTextContent('选一个技能')
+    await user.click(screen.getByTestId('palette-open-brainstorming'))
+    await waitFor(() => expect(screen.getByTestId('skill-detail-markdown')).toBeInTheDocument())
     expect(screen.getByRole('heading', { name: 'Brainstorming' })).toBeInTheDocument()
-    expect(screen.getByTestId('skill-preview-markdown')).not.toHaveTextContent('name: brainstorming')
-    expect(screen.getByTestId('skill-preview-origin')).toHaveTextContent('superpowers@claude-plugins-official')
-    expect(screen.getByTestId('skill-preview-origin')).toHaveTextContent('brainstorming/SKILL.md')
+    expect(screen.getByTestId('skill-detail-meta')).toHaveTextContent('brainstorming')
+    expect(screen.getByTestId('skill-detail-markdown')).not.toHaveTextContent('name: brainstorming')
+    expect(screen.getByTestId('skill-detail-origin')).toHaveTextContent('superpowers@official')
+    expect(screen.getByTestId('skill-detail-files')).toHaveTextContent('references/notes.md')
+    await user.click(screen.getByTestId('skill-file-references/notes.md'))
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Notes' })).toBeInTheDocument())
   })
 })

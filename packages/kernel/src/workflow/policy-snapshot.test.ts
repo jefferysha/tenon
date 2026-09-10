@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { legacyDefaultWorkflow } from './test-support.js'
 import { builtinTrack } from '../tracks/builtins.js'
 import {
   compileEffectiveWorkflowPlan,
@@ -107,7 +108,7 @@ describe('workflow policy snapshot v3', () => {
   })
 
   it('validates historical V2 with its old hash before projecting safe defaults without rehashing', () => {
-    const current = compileEffectiveWorkflowPlan('default')
+    const current = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow())
     const {
       decomposition: _decomposition,
       interaction: _interaction,

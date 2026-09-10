@@ -62,17 +62,25 @@ last one. Anything that needs its own surface opens the shared right-side `share
 
 ## 工作流 rules (`workflow/`)
 
-- **Branches.** The rail shows the current workflow expanded into `通用` (base, id `''`) plus one row per
-  `tracks.<id>` (`label ?? id`). `useWorkflowEditor` keeps `fullDef` and a `branch`; every read path uses
-  `def = selectBranchDef(fullDef, branch)` and every mutation goes through `writeBranchDef`. `addTrack` copies the
-  base steps; `removeTrack` drops the branch. Save is blocked when any branch has a lint issue (`lintBlocked`).
+- **Branches.** A workflow with `tracks` shows one row per track (`label ?? id`) under the rail card and a tab
+  strip above the pipeline; a workflow without tracks is a single pipeline (branch id `''`) with neither.
+  `useWorkflowEditor` keeps `fullDef` and a `branch`; every read path uses `def = selectBranchDef(fullDef, branch)`
+  and every mutation goes through `writeBranchDef`. `addTrack` copies the current branch (a single-pipeline
+  workflow first moves its steps into `main`); removing the last track moves its steps back to `steps`. Save is
+  blocked when any branch has a lint issue (`lintBlocked`).
+- **Stage flow.** `PipelineList` is a `@dnd-kit/sortable` vertical list: the numbered circle is the drag handle,
+  the trunk line connects linked stages, review / auto gates are icon pills, back edges are listed under the
+  node, the selected node is elevated (`shadow-md`, accent border). Reorders go through `onReorder` and are
+  animated with `useFlipLayout`.
 - **Names.** Stages, tracks, skills, workflows render `label ?? id`. No `phases.*` / `documents.*` / `fields.*`
   translation of ids anywhere in `workflow/` or `workspace/`.
-- **Skills.** The stage pane shows a read-only `SkillWavesView` and an 编辑 button that opens `SkillComposer`
-  (full-screen `Dialog`): left = `/api/skills/registry` palette (search, source badge, expandable origin +
-  description, eye → `Drawer` with the SKILL.md `Markdown` from `/api/skills/:name/readme`), right =
-  `SkillCanvas` (drop on a column = parallel, on a gap = new wave, back on the palette = remove) with a
-  `DragOverlay`. Only 保存 writes `steps[].skills` via `setSkillWaves`.
+- **Skills.** Any skill chip opens `SkillDetailDrawer` (`SkillDetail`: origin, file tree from
+  `/api/skills/:name/files`, selected file from `/file?path=`; `.md` rendered with `Markdown` after
+  `splitFrontmatter`, others as `<pre>`). The 编辑 button opens `SkillComposer` (full-screen `Dialog`, three
+  columns): palette (drag handle + name + `SkillSourceIcon`, click name → detail column), `SkillCanvas`
+  (column = one step, ≥2 items = `∥ 并行`, `→` connectors between steps, `+ 新一步` drop zones, drop back on the
+  palette = remove), detail column (`SkillDetail`). Only `DragOverlay` moves; source items keep their layout and
+  fade; wave changes animate with `useFlipLayout`. Only 保存 writes `steps[].skills` via `setSkillWaves`.
 - **IO.** Two entry rows (输出 / 输入 + count) open `Drawer` sheets that host `OutputsSection` / `InputsSection`
   with a `provenance` line per slot: producing skills or `来自 <stage> · <skills>` plus the YAML path
   (`tracks.<id>.steps[<step>].outputs[<field>]`, `document_contract.slots[<kind>]`).

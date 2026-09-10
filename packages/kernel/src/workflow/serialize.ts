@@ -201,8 +201,7 @@ export function serializeWorkflow(wf: WorkflowDef): string {
     ...(wf.reviewBudget === undefined ? [] : serializeReviewBudget(wf.reviewBudget)),
     ...(wf.openspecContract === undefined ? [] : [`openspec_contract: ${wf.openspecContract}`]),
     ...(wf.documentContract === undefined ? [] : serializeDocumentContract(wf.documentContract)),
-    'steps:',
-    ...wf.steps.flatMap(serializeStep),
+    ...(wf.steps.length === 0 && Object.keys(wf.tracks ?? {}).length > 0 ? [] : ['steps:', ...wf.steps.flatMap(serializeStep)]),
     ...serializeTracks(wf.tracks),
   ]
   return lines.join('\n') + '\n'

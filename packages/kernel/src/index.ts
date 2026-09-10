@@ -75,7 +75,7 @@ export { isDefaultWorkflowName, isValidWorkflowName } from './workflow/identifie
 export { isSkillUnlocked } from './workflow/skillDag.js'
 export { parseWorkflow } from './workflow/parse.js'
 export { serializeWorkflow } from './workflow/serialize.js'
-export { selectTrackBranch, validateWorkflow, validateWorkflowForStorage, workflowBranches } from './workflow/validate.js'
+export { WorkflowTrackBranchError, selectTrackBranch, validateWorkflow, validateWorkflowForStorage, workflowBranches } from './workflow/validate.js'
 // track 分支：registry 未登记但工作流 YAML 里有同名分支的 track 也可用（合成缺省策略定义）。
 export { projectWorkflowNames, requireTrackForRoot } from './workflow/branch-track-lookup.js'
 export { validateWorkflowTrackReferences } from './workflow/track-reference-validation.js'

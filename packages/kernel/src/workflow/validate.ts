@@ -39,19 +39,33 @@ const IDENT_RE = /^[a-zA-Z0-9_-]+$/
  */
 const SKILL_IDENT_RE = /^[a-zA-Z0-9_-]+(?::[a-zA-Z0-9_-]+)*$/
 
-/** 工作流的全部分支：通用分支（key ''）+ 每条 track 分支（key = track id）。 */
+/** 有 tracks 的工作流：分支 = 每条 track（key = track id）；否则只有单条 pipeline（key ''）。 */
 export function workflowBranches(wf: WorkflowDef): ReadonlyArray<{ readonly track: string; readonly label?: string; readonly steps: readonly StepDef[] }> {
-  return [
-    { track: '', steps: wf.steps },
-    ...Object.entries(wf.tracks ?? {}).map(([track, branch]) => ({ track, ...(branch.label === undefined ? {} : { label: branch.label }), steps: branch.steps })),
-  ]
+  const tracks = Object.entries(wf.tracks ?? {})
+  if (tracks.length === 0) return [{ track: '', steps: wf.steps }]
+  return tracks.map(([track, branch]) => ({ track, ...(branch.label === undefined ? {} : { label: branch.label }), steps: branch.steps }))
 }
 
-/** 按 change 的 track 选中分支：命中 `tracks.<id>` 用之，否则用通用分支；结果不再携带 tracks。 */
+export class WorkflowTrackBranchError extends Error {
+  constructor(workflow: string, track: string) {
+    super(`工作流 '${workflow}' 没有轨道 '${track}' 的分支`)
+    this.name = 'WorkflowTrackBranchError'
+  }
+}
+
+/**
+ * 按 change 的 track 选中分支（结果不再携带 tracks）：
+ * 有 tracks → 命中该分支；未给 track（无轨道语境：指纹 / 文档策略 / 生成器）→ 第一条分支；给了却没有 → 抛错，不兜底。
+ * 无 tracks → 顶层 steps。
+ */
 export function selectTrackBranch(wf: WorkflowDef, track: string | undefined): WorkflowDef {
   const { tracks, ...rest } = wf
-  const branch = track === undefined ? undefined : tracks?.[track]
-  return branch === undefined ? rest : { ...rest, steps: branch.steps }
+  const entries = Object.entries(tracks ?? {})
+  if (entries.length === 0) return rest
+  if (track === undefined || track === '') return { ...rest, steps: entries[0]![1].steps }
+  const branch = tracks?.[track]
+  if (branch === undefined) throw new WorkflowTrackBranchError(wf.name, track)
+  return { ...rest, steps: branch.steps }
 }
 
 export function validateWorkflow(
@@ -62,13 +76,16 @@ export function validateWorkflow(
   if (!isValidWorkflowName(wf.name)) {
     errors.push(`workflow name '${wf.name}' 含非法字符（允许中文、字母、数字、- 与 _；不允许空格、点或路径符号）`)
   }
+  if (Object.keys(wf.tracks ?? {}).length > 0 && wf.steps.length > 0) {
+    errors.push('有 tracks 时不得再声明顶层 steps（每条轨道各写自己的阶段）')
+  }
   for (const branch of workflowBranches(wf)) {
     const prefix = branch.track === '' ? '' : `tracks.${branch.track}: `
     if (branch.track !== '' && !/^[a-z][a-z0-9_-]{0,31}$/.test(branch.track)) {
       errors.push(`tracks 分支 id '${branch.track}' 非法（小写字母开头，仅 a-z0-9_-，≤32）`)
     }
     if (branch.track !== '' && branch.steps.length === 0) errors.push(`${prefix}分支至少要有一个阶段`)
-    errors.push(...validateBranchSteps(selectTrackBranch(wf, branch.track === '' ? undefined : branch.track), options).map((error) => `${prefix}${error}`))
+    errors.push(...validateBranchSteps({ ...wf, tracks: undefined, steps: branch.steps }, options).map((error) => `${prefix}${error}`))
   }
   return errors
 }
@@ -189,7 +206,7 @@ export function validateWorkflowForStorage(name: string, wf: WorkflowDef): strin
   if (origin === 'default') {
     for (const branch of workflowBranches(wf)) {
       const prefix = branch.track === '' ? '' : `tracks.${branch.track}: `
-      errors.push(...validateDefaultWorkflowStructure(selectTrackBranch(wf, branch.track === '' ? undefined : branch.track)).map((error) => `${prefix}${error}`))
+      errors.push(...validateDefaultWorkflowStructure({ ...wf, tracks: undefined, steps: branch.steps }).map((error) => `${prefix}${error}`))
     }
   }
   return errors

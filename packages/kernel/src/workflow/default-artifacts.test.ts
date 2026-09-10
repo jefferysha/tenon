@@ -8,16 +8,17 @@ import { defaultArtifactDeclaredForField, defaultArtifactForField, defaultArtifa
 import { DEFAULT_ARTIFACT_DECLARATIONS } from './default-workflow.generated.js'
 import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 
-const TRACKS = ['backend', 'frontend', 'chat', 'pm', 'free', 'some-unknown-track']
+const TRACKS = ['backend', 'frontend', 'pm', 'free']
+const NO_BRANCH = ['simple', 'some-unknown-track']
 
 describe('generated table exact-shape', () => {
   const design = { kind: 'file', field: 'design_doc', type: 'file_path', producerPolicy: 'effective-phase-skills' }
   const plan = { kind: 'file', field: 'plan', type: 'file_path', producerPolicy: 'effective-phase-skills' }
   const report = { kind: 'file', field: 'verification_report', type: 'file_path', producerPolicy: 'effective-phase-skills' }
 
-  it('DEFAULT_ARTIFACT_DECLARATIONS 按分支：通用（plan 仍带 PM 豁免谓词，保住老快照指纹）/ frontend / backend / free 三条 artifact；pm 分支不声明 spec 的 plan', () => {
+  it('DEFAULT_ARTIFACT_DECLARATIONS 按分支：chat（驱动流）与 frontend / backend / free 三条 artifact；pm 分支不声明 spec 的 plan；没有通用分支', () => {
     expect(DEFAULT_ARTIFACT_DECLARATIONS).toEqual({
-      _base: { explore: [design], spec: [{ ...plan, requiredWhen: { kind: 'track-not-in', values: ['pm'] } }], verify: [report] },
+      chat: { explore: [design], spec: [plan], verify: [report] },
       pm: { explore: [design], verify: [report] },
       frontend: { explore: [design], spec: [plan], verify: [report] },
       backend: { explore: [design], spec: [plan], verify: [report] },
@@ -25,9 +26,9 @@ describe('generated table exact-shape', () => {
     })
   })
 
-  it('键序稳定 = 分支声明序（_base → pm → frontend → backend → free）；分支内 = step 声明序', () => {
-    expect(Object.keys(DEFAULT_ARTIFACT_DECLARATIONS)).toEqual(['_base', 'pm', 'frontend', 'backend', 'free'])
-    expect(Object.keys(DEFAULT_ARTIFACT_DECLARATIONS._base)).toEqual(['explore', 'spec', 'verify'])
+  it('键序稳定 = 分支声明序（chat → pm → frontend → backend → free）；分支内 = step 声明序', () => {
+    expect(Object.keys(DEFAULT_ARTIFACT_DECLARATIONS)).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
+    expect(Object.keys(DEFAULT_ARTIFACT_DECLARATIONS.frontend)).toEqual(['explore', 'spec', 'verify'])
   })
 
   it('producer policy 全部是 effective-phase-skills（default 的产出者来自 phase 有效技能集）', () => {
@@ -40,10 +41,11 @@ describe('generated table exact-shape', () => {
 })
 
 describe('defaultArtifactsForStep —— 按分支选表', () => {
-  it('explore：每条分支与通用分支都声明 design_doc', () => {
+  it('explore：每条分支都声明 design_doc；没有分支的 track 没有 pipeline，也就没有 artifact', () => {
     for (const track of TRACKS) {
       expect(defaultArtifactsForStep('explore', track).map((d) => d.field)).toEqual(['design_doc'])
     }
+    for (const track of NO_BRANCH) expect(defaultArtifactsForStep('explore', track)).toEqual([])
   })
 
   it('spec：仅非 PM track 产出 legacy plan artifact；PM 的 plan 文档仍由 OpenSpec ledger 管理', () => {
@@ -53,7 +55,7 @@ describe('defaultArtifactsForStep —— 按分支选表', () => {
     expect(defaultArtifactsForStep('spec', 'pm')).toEqual([])
   })
 
-  it('verify：每条分支与通用分支都声明 verification_report', () => {
+  it('verify：每条分支都声明 verification_report', () => {
     for (const track of TRACKS) {
       expect(defaultArtifactsForStep('verify', track).map((d) => d.field)).toEqual(['verification_report'])
     }

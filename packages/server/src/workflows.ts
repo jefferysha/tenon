@@ -130,9 +130,9 @@ export function listWorkflowNames(root: WorkflowRoot): string[] {
  * 分支是完整 pipeline，IO 单独物化（不与通用分支叠加）。
  */
 export function workflowBranchesForApi(def: WorkflowDef): Record<string, { label?: string; effectiveIo: ReturnType<typeof materializeWorkflowIo> }> {
-  const out: Record<string, { label?: string; effectiveIo: ReturnType<typeof materializeWorkflowIo> }> = {
-    _base: { effectiveIo: materializeWorkflowIo(selectTrackBranch(def, undefined)) },
-  }
+  // steps ⊕ tracks：无 tracks 的工作流只有 `_base` 这一条 pipeline；有 tracks 时只有各 track 分支。
+  const out: Record<string, { label?: string; effectiveIo: ReturnType<typeof materializeWorkflowIo> }> = {}
+  if (Object.keys(def.tracks ?? {}).length === 0) out._base = { effectiveIo: materializeWorkflowIo(selectTrackBranch(def, undefined)) }
   for (const [track, branch] of Object.entries(def.tracks ?? {})) {
     out[track] = {
       ...(branch.label === undefined ? {} : { label: branch.label }),

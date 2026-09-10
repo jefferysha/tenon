@@ -12,7 +12,7 @@ import { builtinTrack } from '../tracks/builtins.js'
 import { legacyDefaultWorkflow } from './test-support.js'
 
 function preVerifyConvergenceWorkflow() {
-  const current = compileEffectiveWorkflowPlan('default').workflow
+  const current = compileEffectiveWorkflowPlan('default', legacyDefaultWorkflow()).workflow
   const {
     decomposition: _decomposition,
     interaction: _interaction,

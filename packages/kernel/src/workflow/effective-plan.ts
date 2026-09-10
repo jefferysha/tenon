@@ -20,7 +20,8 @@ import {
   DEFAULT_WORKFLOW_REVIEW_BUDGET_POLICY,
   compileWorkflowReviewBudgetPolicy,
 } from './policy.js'
-import type { SkillRef, WorkflowDef } from './types.js'
+import type { WorkflowDef } from './types.js'
+import { WorkflowTrackBranchError } from './validate.js'
 import { validateWorkflow } from './validate.js'
 import type { WorkflowPlanSnapshot } from './workflow-plan-snapshot-types.js'
 import type {
@@ -86,11 +87,15 @@ function assertValid(definition: WorkflowDef, origin: 'custom' | 'default'): voi
   if (errors.length > 0) throw new Error(`effective workflow 无效：\n${errors.map((error) => `  - ${error}`).join('\n')}`)
 }
 
-/** 按 track 选中分支 IR；结果剥离 tracks（无分支 / 未命中 → 通用分支）。 */
+/** 按 track 选中分支 IR（同 selectTrackBranch 口径）：有 tracks 时未给 track → 第一条分支；给了却没有 → 抛错。 */
 export function selectTrackBranchIr(workflow: WorkflowIR, track: string | undefined): WorkflowIR {
   const { tracks, ...rest } = workflow
-  const branch = track === undefined ? undefined : tracks?.[track]
-  return branch === undefined ? rest : { ...rest, steps: branch.steps }
+  const entries = Object.entries(tracks ?? {})
+  if (entries.length === 0) return rest
+  if (track === undefined || track === '') return { ...rest, steps: entries[0]![1].steps }
+  const branch = tracks?.[track]
+  if (branch === undefined) throw new WorkflowTrackBranchError(workflow.name, track)
+  return { ...rest, steps: branch.steps }
 }
 
 function planFromIr(

@@ -3,30 +3,32 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
 
-/** 通用分支 + 一条 registry 未登记的 mobile 分支；通用分支的 change 阶段用 auto 门（输出 pr_url 齐全即放行）。 */
+/** backend 分支 + 一条 registry 未登记的 mobile 分支；backend 的 change 阶段用 auto 门（输出 pr_url 齐全即放行）。 */
 const BRANCHED_WF = `name: branched
-steps:
-  - id: change
-    label: 改动
-    gate: auto
-    skills: []
-    inputs: []
-    outputs:
-      - field: pr_url
-        type: string
-    guards: []
-    transitions:
-      - event: go
-        to: done
-  - id: done
-    label: 完成
-    gate: null
-    skills: []
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
 tracks:
+  backend:
+    label: 后端
+    steps:
+      - id: change
+        label: 改动
+        gate: auto
+        skills: []
+        inputs: []
+        outputs:
+          - field: pr_url
+            type: string
+        guards: []
+        transitions:
+          - event: go
+            to: done
+      - id: done
+        label: 完成
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
   mobile:
     label: 移动端
     steps:
@@ -76,7 +78,7 @@ describe('真实 e2e —— 工作流 track 分支与 auto 门', () => {
     expect(h.err.join('\n')).toMatch(/tablet/)
   })
 
-  test('backend 走通用分支；auto 门：输出缺失时 transition 被拒，补齐后放行', async () => {
+  test('backend 走自己的分支；auto 门：输出缺失时 transition 被拒，补齐后放行', async () => {
     h = await freshHarness()
     await writeBranched()
     expect(await h.run(['init', 'web', '--track', 'backend', '--workflow', 'branched', '--preset', 'full']), h.err.join('\n')).toBe(0)

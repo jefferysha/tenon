@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowRight, ArrowUp, FileText, Info, Pencil, Trash2 } from 'lucide-react'
+import { ArrowRight, FileText, Info, Pencil, Trash2 } from 'lucide-react'
 import type { WbIoSlot, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { Drawer } from '../shared/Drawer'
@@ -10,6 +10,7 @@ import { BASE_BRANCH } from '../workbench/workbenchDefinition'
 import { InputsSection, OutputsSection, type SlotProvenance } from './IoSections'
 import { SkillComposer } from './SkillComposer'
 import { SkillWavesView } from './SkillDag'
+import { SkillDetailDrawer } from './SkillDetail'
 import { availableOutputSlots, upstreamOutputs } from './slotCatalog'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +32,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const editable = editor.canWrite
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
+  const [skillDetail, setSkillDetail] = useState<string | null>(null)
   const [sheet, setSheet] = useState<'outputs' | 'inputs' | null>(null)
   const stepIo = editor.effectiveIo?.[step.id]
   const candidates = useMemo(() => def ? availableOutputSlots(def, step.id, editor.effectiveIo) : [], [def, step.id, editor.effectiveIo])
@@ -104,8 +106,6 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
                 <span className="flex-none">{t('workflow.settings_name')}</span>
                 <input className={`${FIELD_CLS} min-w-0 flex-1`} value={step.label} disabled={!editable} data-testid={`wb-lane-name-input-${step.id}`} onChange={(event) => editor.renameStep(step.id, event.target.value)} />
               </label>
-              <button type="button" className={SMALL_BTN} disabled={!editable || index <= 0} data-testid={`wb-lane-up-${step.id}`} aria-label={t('workflow.settings_move_up')} onClick={() => { const previous = steps[index - 1]; if (previous) editor.reorderStages(step.id, previous.id, false) }}><ArrowUp className="size-4" aria-hidden="true" /></button>
-              <button type="button" className={SMALL_BTN} disabled={!editable || index < 0 || index >= steps.length - 1} data-testid={`wb-lane-down-${step.id}`} aria-label={t('workflow.settings_move_down')} onClick={() => { const next = steps[index + 1]; if (next) editor.reorderStages(step.id, next.id, true) }}><ArrowDown className="size-4" aria-hidden="true" /></button>
               {confirmDelete ? (
                 <>
                   <span className="text-body text-red-d">{t('workflow.settings_delete_confirm', { name: editor.labelOf(step.id) })}</span>
@@ -130,7 +130,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
               </button>
             )}
           </div>
-          <SkillWavesView waves={waves} />
+          <SkillWavesView waves={waves} onOpen={setSkillDetail} />
         </section>
 
         <section className="mb-8 grid gap-2" data-testid="stage-io">
@@ -185,6 +185,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
         onSave={(next) => editor.setSkillWaves(step.id, next)}
       />
 
+      <SkillDetailDrawer name={skillDetail} onClose={() => setSkillDetail(null)} />
       <Drawer open={sheet === 'outputs'} onClose={() => setSheet(null)} title={t('workflow.outputs_title')} ariaLabel={t('workflow.outputs_title')} testId="outputs-sheet">
         <OutputsSection
           slots={stepIo?.outputs ?? []}

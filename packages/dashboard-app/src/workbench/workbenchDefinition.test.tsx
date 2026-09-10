@@ -117,39 +117,48 @@ describe('workbenchDefinition · 新建', () => {
 })
 
 describe('workbenchDefinition · track 分支', () => {
-  it('branchesOf：通用分支恒在首位；selectBranchDef 提升分支 steps 与分支 IO；writeBranchDef 只写回对应分支', () => {
+  it('branchesOf：有 tracks 只列 track；selectBranchDef 提升分支 steps 与分支 IO，不存在的分支退到第一条；writeBranchDef 只写回对应分支', () => {
     const def: WbWorkflowDef = {
       ...twoStep(),
-      tracks: { mobile: { label: '移动端', steps: [{ id: 'm1', label: 'M1', gate: null, skills: [{ id: 'sm' }], inputs: [], outputs: [], guards: [], transitions: [] }] } },
-      branches: { _base: { effectiveIo: { a: { inputs: [], outputs: [] } } }, mobile: { label: '移动端', effectiveIo: { m1: { inputs: [], outputs: [] } } } },
+      steps: [],
+      tracks: {
+        web: { label: '网页', steps: twoStep().steps },
+        mobile: { label: '移动端', steps: [{ id: 'm1', label: 'M1', gate: null, skills: [{ id: 'sm' }], inputs: [], outputs: [], guards: [], transitions: [] }] },
+      },
+      branches: { web: { label: '网页', effectiveIo: { a: { inputs: [], outputs: [] } } }, mobile: { label: '移动端', effectiveIo: { m1: { inputs: [], outputs: [] } } } },
     }
-    expect(branchesOf(def)).toEqual([{ id: BASE_BRANCH, label: null }, { id: 'mobile', label: '移动端' }])
+    expect(branchesOf(def)).toEqual([{ id: 'web', label: '网页' }, { id: 'mobile', label: '移动端' }])
+    expect(branchesOf(twoStep())).toEqual([{ id: BASE_BRANCH, label: null }])
     const mobile = selectBranchDef(def, 'mobile')
     expect(mobile.steps.map((step) => step.id)).toEqual(['m1'])
     expect(Object.keys(mobile.effectiveIo ?? {})).toEqual(['m1'])
     expect(mobile).not.toHaveProperty('tracks')
-    const base = selectBranchDef(def, BASE_BRANCH)
-    expect(base.steps.map((step) => step.id)).toEqual(['a', 'b'])
-    expect(Object.keys(base.effectiveIo ?? {})).toEqual(['a'])
+    expect(selectBranchDef(def, 'nope').steps.map((step) => step.id)).toEqual(['a', 'b'])
 
     const edited = writeBranchDef(def, 'mobile', { ...mobile, steps: [{ ...mobile.steps[0]!, label: 'M1 改' }] })
     expect(edited.tracks?.mobile?.steps[0]?.label).toBe('M1 改')
-    expect(edited.steps.map((step) => step.id)).toEqual(['a', 'b'])
-    expect(edited.branches).toBe(def.branches)
-    const editedBase = writeBranchDef(def, BASE_BRANCH, { ...base, steps: base.steps.slice(0, 1) })
-    expect(editedBase.steps.map((step) => step.id)).toEqual(['a'])
-    expect(editedBase.tracks?.mobile?.steps.map((step) => step.id)).toEqual(['m1'])
+    expect(edited.tracks?.web?.steps.map((step) => step.id)).toEqual(['a', 'b'])
+    expect(edited.steps).toEqual([])
+    const single = twoStep()
+    expect(writeBranchDef(single, BASE_BRANCH, { ...single, steps: single.steps.slice(0, 1) }).steps.map((step) => step.id)).toEqual(['a'])
   })
 
-  it('addTrackBranch 复制通用分支；removeTrackBranch 删掉分支，最后一条删除后不再带 tracks', () => {
+  it('addTrackBranch：单条 pipeline 的工作流搬进 main 再加新分支；已有 tracks 复制指定分支；removeTrackBranch 删到最后一条时 steps 回到顶层', () => {
     const def = twoStep()
     const withTrack = addTrackBranch(def, 'web', '网页')
+    expect(withTrack.steps).toEqual([])
+    expect(Object.keys(withTrack.tracks ?? {})).toEqual(['main', 'web'])
     expect(withTrack.tracks?.web?.label).toBe('网页')
     expect(withTrack.tracks?.web?.steps.map((step) => step.id)).toEqual(['a', 'b'])
     expect(withTrack.tracks?.web?.steps[0]).not.toBe(def.steps[0])
-    const unlabeled = addTrackBranch(def, 'api', '')
-    expect(unlabeled.tracks?.api).not.toHaveProperty('label')
-    expect(removeTrackBranch(withTrack, 'web')).not.toHaveProperty('tracks')
+    const more = addTrackBranch(withTrack, 'api', '', 'web')
+    expect(more.tracks?.api).not.toHaveProperty('label')
+    expect(more.tracks?.api?.steps.map((step) => step.id)).toEqual(['a', 'b'])
+    const one = removeTrackBranch(removeTrackBranch(more, 'api'), 'web')
+    expect(Object.keys(one.tracks ?? {})).toEqual(['main'])
+    const none = removeTrackBranch(one, 'main')
+    expect(none).not.toHaveProperty('tracks')
+    expect(none.steps.map((step) => step.id)).toEqual(['a', 'b'])
     expect(definitionForWrite({ ...withTrack, branches: {} })).not.toHaveProperty('branches')
   })
 })

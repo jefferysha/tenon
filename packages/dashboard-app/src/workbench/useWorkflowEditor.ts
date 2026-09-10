@@ -23,6 +23,7 @@ import {
   branchesOf,
   copyWorkflowDef,
   definitionForWrite,
+  resolveBranch,
   removeDocumentSlotInDef,
   removeFieldOutputInDef,
   removeSkillFromDef,
@@ -175,7 +176,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   const baselineRef = useRef<WbWorkflowDef | null>(null)
   const baselineJson = useRef<string | null>(null)
   // 分支视图：所有读路径看 branchDef；写路径经 setBranchDef 回写到完整定义的对应分支。
-  const effectiveBranch = fullDef === null || branch === BASE_BRANCH || fullDef.tracks?.[branch] !== undefined ? branch : BASE_BRANCH
+  const effectiveBranch = resolveBranch(fullDef, branch)
   const def = useMemo(() => fullDef === null ? null : selectBranchDef(fullDef, effectiveBranch), [fullDef, effectiveBranch])
   const setBranchDef = useCallback((update: SetStateAction<WbWorkflowDef | null>): void => {
     setDefState((previous) => {
@@ -310,13 +311,13 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     setStageId(null)
   }, [])
   const addTrack = useCallback((id: string, label: string): void => {
-    setDefState((previous) => previous === null || previous.tracks?.[id] !== undefined ? previous : addTrackBranch(previous, id, label))
+    setDefState((previous) => previous === null || previous.tracks?.[id] !== undefined ? previous : addTrackBranch(previous, id, label, effectiveBranch))
     setBranchState(id)
     setStageId(null)
-  }, [])
+  }, [effectiveBranch])
   const removeTrack = useCallback((id: string): void => {
     setDefState((previous) => previous === null ? previous : removeTrackBranch(previous, id))
-    setBranchState((current) => current === id ? BASE_BRANCH : current)
+    setBranchState((current) => current === id ? BASE_BRANCH : current)  // resolveBranch 会落到剩余的第一条
   }, [])
   const renameStep = useCallback((stepId: string, label: string) => mutate((previous) => renameStepInDef(previous, stepId, label)), [mutate])
   const setGate = useCallback((stepId: string, gate: WbStepDef['gate']) => mutate((previous) => setGateInDef(previous, stepId, gate)), [mutate])
