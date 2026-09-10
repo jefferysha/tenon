@@ -360,3 +360,25 @@ SolutionView、ExecutionTimelineComposer 一系。1301 个前端用例、typeche
 ### Status
 
 [OK] **Completed**
+
+
+## Session 14: 工作流定义规范化与两页重设计（技能合一 / default 可编辑 / YAML 导入导出）
+<!-- trellis-session: v=2 fp=1086db7e769cd9a6 -->
+
+**Date**: 2026-09-10
+**Task**: 工作流定义规范化与两页重设计（技能合一 / default 可编辑 / YAML 导入导出）
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+Kernel: SkillRef.when 轨道条件、materializeWorkflowIo、default 项目覆盖、validateWorkflowForStorage、tools/check-default-skill-matrix；default 模板并入技能矩阵。Server: effectiveIo/source、GET/PUT yaml、default POST/DELETE。Dashboard 两页重写：阶段流水线 + 数据推导状态 + 抽屉 Markdown；技能 DAG（dnd-kit，轨道标签/筛选）、输出输入槽位、门禁三选一、新建（复制/空白/导入）。子任务 09-10-skill-output-auto-registration 待做。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2ef85a4` | feat(dashboard): unify workflow definition and redesign workspace/workflow pages |
+
+### Status
+
+[OK] **Completed**

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
-- **Last Active**: 2026-09-09
+- **Total Sessions**: 14
+- **Last Active**: 2026-09-10
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~362 | Active |
+| `journal-1.md` | ~384 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-09-10 | 工作流定义规范化与两页重设计（技能合一 / default 可编辑 / YAML 导入导出） | `2ef85a4` | `codex/autonomous-loop-v1` |
 | 13 | 2026-09-09 | Dashboard 精简重做：工作台 + 工作流 | `b1aefaf` | `codex/autonomous-loop-v1` |
 | 12 | 2026-09-09 | Dashboard 基于工作空间模板的整体重构 | `380c821` | `codex/autonomous-loop-v1` |
 | 10 | 2026-09-05 | Dashboard 系统性 UI 与功能评审 | - | `codex/autonomous-loop-v1` |
