@@ -121,8 +121,7 @@ describe('rowsOf / filterRows / taskFacets', () => {
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default' }).map((row) => row.change.name)).toEqual(['b', 'a'])
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', track: 'frontend' }).map((row) => row.change.name)).toEqual(['b'])
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', stage: 'build' }).map((row) => row.change.name)).toEqual(['a'])
-    // 未选工作流时阶段条件不生效（不同工作流的阶段不可比）
-    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, stage: 'build' })).toHaveLength(3)
+    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, stage: 'build' }).map((row) => row.change.name)).toEqual(['a'])
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, includeArchived: true })).toHaveLength(4)
   })
   it('facet：未选工作流时无阶段行；选定后阶段序取该工作流，计数受其它层约束', () => {
@@ -130,6 +129,9 @@ describe('rowsOf / filterRows / taskFacets', () => {
     expect(open.workflows.map((chip) => [chip.id, chip.count])).toEqual([['compact', 1], ['default', 2]])
     expect(open.tracks.map((chip) => [chip.id, chip.count])).toEqual([['backend', 2], ['frontend', 1]])
     expect(open.stages).toBeNull()
+    // 只有一条工作流时阶段行直接可用
+    const single = rows.filter((row) => row.workflow === 'default')
+    expect(taskFacets(single, DEFAULT_TASK_FILTER).stages?.map((chip) => chip.id)).toEqual(STEPS)
     const compact = taskFacets(rows, { ...DEFAULT_TASK_FILTER, workflow: 'compact' })
     expect(compact.stages?.map((chip) => [chip.id, chip.label, chip.count])).toEqual([['draft', '起草', 1], ['done', '完成', 0]])
     const fe = taskFacets(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', track: 'frontend' })

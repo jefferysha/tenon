@@ -172,7 +172,7 @@ function matches(row: TaskRow, filter: TaskFilterState, ignore?: keyof TaskFilte
   if (!filter.includeArchived && row.archived) return false
   if (ignore !== 'workflow' && filter.workflow !== 'all' && row.workflow !== filter.workflow) return false
   if (ignore !== 'track' && filter.track !== 'all' && row.change.track !== filter.track) return false
-  if (ignore !== 'stage' && filter.workflow !== 'all' && filter.stage !== 'all' && row.change.phase !== filter.stage) return false
+  if (ignore !== 'stage' && filter.stage !== 'all' && row.change.phase !== filter.stage) return false
   return true
 }
 
@@ -211,8 +211,10 @@ export function taskFacets(rows: readonly TaskRow[], filter: TaskFilterState): T
     label: id,
     count: rows.filter((row) => row.change.track === id && matches(row, filter, 'track')).length,
   }))
-  if (filter.workflow === 'all') return { workflows, tracks, stages: null }
-  const sample = rows.find((row) => row.workflow === filter.workflow)
+  // 只有一条工作流时阶段行直接可用（不必先点它）；多条时必须先选定，阶段才可比。
+  const effectiveWorkflow = filter.workflow !== 'all' ? filter.workflow : workflowNames.length === 1 ? workflowNames[0] : undefined
+  if (effectiveWorkflow === undefined) return { workflows, tracks, stages: null }
+  const sample = rows.find((row) => row.workflow === effectiveWorkflow)
   const stages = (sample?.stages ?? []).map((stage) => ({
     id: stage.id,
     label: stage.label,
