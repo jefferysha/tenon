@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type SetStateAction } from 'react'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
-import type { WbEffectiveIo, WbStepDef, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbEffectiveIo, WbSkillRef, WbStepDef, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
 import { fetchWorkflowYaml, putWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
@@ -28,7 +28,7 @@ import {
   reorderStagesInDef,
   selectBranchDef,
   setGateInDef,
-  setStepSkillWavesInDef,
+  setStepSkillsInDef,
   workflowNameFromYaml,
   writeBranchDef,
 } from './workbenchDefinition'
@@ -103,7 +103,7 @@ export interface WorkflowEditor {
   setGate: (stepId: string, gate: WbStepDef['gate']) => void
   removeStage: (stepId: string) => void
   reorderStages: (fromId: string, toId: string, after: boolean) => void
-  setSkillWaves: (stepId: string, waves: readonly (readonly string[])[]) => void
+  setSkills: (stepId: string, skills: readonly WbSkillRef[]) => void
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
   save: () => Promise<void>
@@ -316,7 +316,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     setStageId((current) => current === stageId ? (def?.steps.filter((step) => step.id !== stepId)[0]?.id ?? null) : current)
   }, [mutate, def, stageId])
   const reorderStages = useCallback((fromId: string, toId: string, after: boolean) => mutate((previous) => reorderStagesInDef(previous, fromId, toId, after)), [mutate])
-  const setSkillWaves = useCallback((stepId: string, waves: readonly (readonly string[])[]) => mutate((previous) => setStepSkillWavesInDef(previous, stepId, waves)), [mutate])
+  const setSkills = useCallback((stepId: string, skills: readonly WbSkillRef[]) => mutate((previous) => setStepSkillsInDef(previous, stepId, skills)), [mutate])
   const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
   const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])
 
@@ -553,7 +553,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     setGate,
     removeStage,
     reorderStages,
-    setSkillWaves,
+    setSkills,
     addSkill,
     removeSkill,
     save,

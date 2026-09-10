@@ -77,3 +77,8 @@ export function lastEventSource(): FakeEventSource | undefined {
 export function resetEventSources(): void {
   created.length = 0
 }
+
+// ── React Flow 替身 ──
+// jsdom 没有 ResizeObserver 与布局，@xyflow/react 真渲染会触发错误边界；全包统一换成按 nodeTypes 真渲染节点的替身。
+vi.mock('@xyflow/react', () => import('./workflow/reactFlowTestDouble'))
+vi.mock('@xyflow/react/dist/style.css', () => ({}))

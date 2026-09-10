@@ -22,8 +22,8 @@ the built-in default (`buildDefaultDef` was deleted) and never merges the docume
 
 ## Three-column page contract (`shell/ThreeColumns.tsx`)
 
-Every top-level view renders exactly `ThreeColumns` with `rail` (RailColumn + RailCard[]), `list`
-(ListColumn) and `detail` (DetailColumn | DetailEmpty). Widths live in the primitive; views never pass
+Every top-level view except 工作流 renders exactly `ThreeColumns` with `rail` (RailColumn + RailCard[]), `list`
+(ListColumn) and `detail` (DetailColumn | DetailEmpty); 工作流 renders `TwoColumns` (nav + detail). Widths live in the primitive; views never pass
 widths. State is carried by `aria-current` / `aria-selected` / `aria-pressed` / `data-*`; tests assert
 those, never class names.
 
@@ -62,43 +62,49 @@ last one. Anything that needs its own surface opens the shared right-side `share
 
 ## 工作流 rules (`workflow/`)
 
-- **Layout.** `ThreeColumns listWidth="narrow"` (middle 380px): the middle column is only the flow skeleton, the
-  right column gets the space. Every top-level control lives next to the thing it acts on — there is no footer
-  action list in the rail.
-- **Rail.** `RailColumn headerAction` = one `+` (`wb-workflow-new`) that opens `NewWorkflowDialog` (copy / blank /
-  import YAML). The selected workflow row carries inline actions: `+` (`wb-track-new-<wf>`, new track) and
-  `MenuButton` (`wb-wf-menu-<wf>`: export YAML; delete workflow, or 恢复内建 for default — enabled only when a
-  project override exists). Track rows (`wb-branch-<id>`, `label ?? id`) each have an inline `×`
-  (`wb-track-delete-<id>`) that opens the confirm dialog. Rows of non-selected workflows show no actions:
-  select first, then act in place. No branch tabs anywhere else — the rail is the only track switcher.
-- **Stage flow (`PipelineList`).** Eyebrow = workflow name, title = track label. A node is the numbered circle on the
-  spine (drag handle, `@dnd-kit/sortable`, `useFlipLayout` for the move) plus a card with **only the stage name and
-  the gate pill** (`GateMark`: review = shield / amber, auto = bolt / accent). The spine segment below a gated
-  stage carries the same mark as a small node (`wb-gate-node`), back edges are dashed pills under the card
-  (`wb-back-edge-<from>-<to>`), the trailing `+` on the spine adds a stage. No skill chips in the middle column.
-- **Stage pane (`StageEditorPane`).** Header = breadcrumb `wb-crumbs` (workflow › track › stage) and the stage name
-  as an editable title input (`wb-lane-name-input-<id>`; the crumb `wb-lane-name-<id>` shows the same text), position
-  `n / N`, delete icon with inline confirm. Body sections, in order: 技能 (`SkillWaveCards`: one row per wave, cards
-  with `SkillSourceIcon` + mono name + registry `description`, `∥ 并行 · n` when a wave has ≥2; click → `SkillDetailDrawer`;
-  编辑 → `SkillComposer`), two summary cards `wb-open-outputs` / `wb-open-inputs` (count + first slot names), 门禁
-  (three radio cards `wb-lane-gate-<id>-none|review|auto`, each with `Info` `title` + sr-only help).
-- **IO sheets are breadcrumb sheets, not drawers.** Clicking a summary card switches the pane's `view` to
-  `outputs` / `inputs`: the breadcrumb grows by one crumb (`wb-crumb-sheet`), the stage crumb becomes a button that
-  returns, the title becomes 输出 / 输入 with the count. `SlotList` rows (`slot-<kind>-<id>`) are **read-only**:
-  name + lock, then `slot-skills-<id>` (producing skills as chips with source icon) and `slot-stages-<id>`
-  (outputs: `→` stages that read it; inputs: `←` the producing stage). The YAML path is the row `title`.
-  There is no add / remove / checkbox UI and no `addOutput` / `setInput` in `useWorkflowEditor`; field IO is
-  edited in YAML (import / export).
-- **Names.** Stages, tracks, skills, workflows render `label ?? id`. No `phases.*` / `documents.*` / `fields.*`
-  translation of ids anywhere in `workflow/` or `workspace/`.
-- **Composer.** Unchanged from 09-10: palette / `SkillCanvas` / `SkillDetail`; only `DragOverlay` moves; wave changes
-  animate with `useFlipLayout`; only 保存 writes `steps[].skills` via `setSkillWaves`.
-- Skill order is the **column model** (`workbench/skillWaves.ts`): a column is one execution wave, skills in the same
-  column run in parallel, adjacent columns run serially. `wavesToSkills` writes `depends_on = all skills of the
-  previous column`; `wavesOf` reads it back. `applyDrop` is the pure reducer — test it, not the drag.
+- **Layout.** The workflow page is the one view that does **not** use `ThreeColumns`: it renders `TwoColumns`
+  (`shell/ThreeColumns.tsx`, nav 300px + detail). There is no middle column and no rail collapse.
+- **Nav column (`WorkflowNav`).** Top: the workflow name is the title and a `listbox` switcher (`wb-wf-switch` →
+  `wb-wf-item-<name>`), the line under it is `<source> · <n> 轨道`, and one `MenuButton` (`wb-wf-menu`) holds every
+  workflow-level action: 新建工作流 (`NewWorkflowDialog`, copy / blank / import), 导出 YAML, 删除工作流 or 恢复内建
+  (enabled only when a project override exists), 删除轨道 <label> (only when a track is selected). Tracks are an
+  underline `tablist` (`wb-track-<id>`, `label ?? id`) with a trailing `+` (`wb-track-new`); a workflow without
+  tracks shows a single `+ 新建轨道` link instead. Below: the stage flow — numbered circle (drag handle,
+  `@dnd-kit/sortable`, `useFlipLayout`) + a 40px block (`wb-step-<id>`) that contains **only the stage name and the
+  gate icon** (`wb-gate-<id>`: review = shield, auto = bolt; no text). A stage without outputs shows an amber dot
+  (`wb-lint-<id>`). Rows are on a fixed pitch (`STEP_PITCH` 54 / `STEP_HEIGHT` 40) so back edges are drawn from
+  indices, not measured DOM: `backEdgePath(fromIndex, toIndex)` → dashed arc in a 22px SVG gutter right of the blocks
+  (`wb-back-edge-<from>-<to>`). Last row: `wb-add-stage`. No skill chips, no cards, no canvas here.
+- **Stage pane (`StageEditorPane`).** Breadcrumb `wb-crumbs` (workflow › track), then the stage name as an editable
+  title input (`wb-lane-name-input-<id>`; `wb-lane-name-<id>` is an sr-only copy so existing tests and readers keep
+  the text), position `n / N`, delete with inline confirm. Sections are full-width with a one-line head
+  (`SectionHead`: title, mono count, right-aligned action) in **data-flow order: 输入 → 技能 → 输出 → 门禁**.
+- **IO tables (`IoTable`).** Equal-column grids with a permanent header row. Inputs: 文件 · 产出阶段 · 产出技能;
+  outputs: 文件 · 产出技能. Every row has the same file icon — slots are files, the kind (document / field) is not
+  shown. Producing skills are a comma list; empty → `—`. Derivation: output document → contract `producerCandidates` ∩
+  this stage's skills (bare-name match, `producerSkills`); output field → all stage skills; input → producing stage
+  label plus that stage's matching skills. **Never show a skill that is not in the stage** — an empty cell is the
+  honest answer (see the IO section below). No 读取阶段 column: each stage lists what it reads in its own inputs. No
+  add / remove / checkbox UI; `useWorkflowEditor` has no IO mutators.
+- **Skill flow (`SkillFlow`, `@xyflow/react`).** Nodes = skills (`flow-node-<id>`: source icon + mono name + registry
+  description, left target / right source handles), edges = `depends_on` (`edgesOf`), columns = waves
+  (`layoutSkills`: x by depth, y by index in wave). Read-only in the pane (`editable=false`: no drag / connect /
+  pan; click → `SkillDetailDrawer`). Editable inside `SkillComposer`: palette items are HTML5-draggable
+  (`dataTransfer 'text/skill'`) and have a `+` (`palette-add-<name>`); `onConnect` refuses cycles (`wouldCycle`);
+  `×` on a node (`flow-remove-<id>`) removes it and its edges; Backspace deletes a selected edge. The graph is written
+  back as `graphToSkills(nodeIds, edges, existing)` → `depends_on` = incoming edge sources, other fields preserved,
+  order = waves flattened with the definition's original order inside a wave. 保存 calls `editor.setSkills(stepId,
+  skills)`. Node positions are not persisted (YAML has none); they are re-laid out from waves on open.
+- **Tests.** jsdom cannot render React Flow: `test-setup.ts` mocks `@xyflow/react` with
+  `workflow/reactFlowTestDouble.tsx`, which renders each node through `nodeTypes` (so node buttons and testids are
+  real) and exposes edge ids on `data-edges`. Connection / drag behaviour is React Flow's and is not tested here;
+  the pure functions are.
+- **Gates.** Three radio cards `wb-lane-gate-<id>-none|review|auto` with icons; each carries `title` + sr-only help
+  from `workflow.gate_help_*`.
+- **Names.** Stages, tracks, skills, workflows render `label ?? id`; no id translation anywhere.
 - Save is blocked while `editor.lint` is non-empty or the page has no write credential (`getToken() === ''` → every
-  write control disabled, footer shows `wb-no-token`; never fire a request that will 401).
-- default is editable: saving writes the project override; the rail shows `内建 / 项目`; the menu action becomes
+  write control disabled, footer shows `wb-no-token`).
+- default is editable: saving writes the project override; the nav meta shows `内建 / 项目`; the menu action becomes
   `恢复内建` and is enabled only when an override exists. The server rejects overrides that break the seven-stage
   skeleton (`validateWorkflowForStorage`).
 

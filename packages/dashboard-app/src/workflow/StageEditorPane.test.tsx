@@ -6,6 +6,9 @@ import { I18nProvider } from '../i18n'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
 import { producerSkills, StageEditorPane } from './StageEditorPane'
 
+vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
+vi.mock('@xyflow/react/dist/style.css', () => ({}))
+
 const EXPLORE: WbStepDef = {
   id: 'explore', label: '调研', gate: 'review',
   skills: [{ id: 'tenon-explore' }, { id: 'brainstorming', depends_on: ['tenon-explore'] }, { id: 'grill-with-docs', depends_on: ['tenon-explore'] }],
@@ -44,7 +47,7 @@ function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
     wfName: 'default', branch: 'pm', branches: [{ id: 'pm', label: '产品' }],
     labelOf: (id: string) => labels.get(id) ?? id,
     mandatory: { registry: REGISTRY },
-    renameStep: vi.fn(), removeStage: vi.fn(), setGate: vi.fn(), setSkillWaves: vi.fn(), save: vi.fn(), discardDraft: vi.fn(), reloadDefinition: vi.fn(),
+    renameStep: vi.fn(), removeStage: vi.fn(), setGate: vi.fn(), setSkills: vi.fn(), save: vi.fn(), discardDraft: vi.fn(), reloadDefinition: vi.fn(),
     ...overrides,
     ...(step.id === 'spec' ? {} : {}),
   } as unknown as WorkflowEditor
@@ -56,55 +59,54 @@ function renderPane(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
   return editor
 }
 
-describe('StageEditorPane · 面包屑 sheet', () => {
-  it('头部 = 工作流 / 轨道 / 阶段；标题输入直接改名；技能按波次成卡片并带 description', async () => {
+describe('StageEditorPane · 两栏定稿', () => {
+  it('面包屑 = 工作流 › 轨道；标题输入直接改名；段落顺序 输入 → 技能 → 输出 → 门禁', async () => {
     const user = userEvent.setup()
     const editor = renderPane(EXPLORE)
-    const crumbs = screen.getByTestId('wb-crumbs')
-    expect(crumbs).toHaveTextContent('default')
-    expect(crumbs).toHaveTextContent('产品')
+    expect(screen.getByTestId('wb-crumbs')).toHaveTextContent('default')
+    expect(screen.getByTestId('wb-crumbs')).toHaveTextContent('产品')
     expect(screen.getByTestId('wb-lane-name-explore')).toHaveTextContent('调研')
     expect(screen.getByTestId('wb-lane-name-input-explore')).toHaveValue('调研')
     await user.type(screen.getByTestId('wb-lane-name-input-explore'), '!')
     expect(editor.renameStep).toHaveBeenCalledWith('explore', '调研!')
-    expect(screen.getByTestId('skill-wave-0')).toHaveAttribute('data-parallel', 'false')
-    expect(screen.getByTestId('skill-wave-1')).toHaveAttribute('data-parallel', 'true')
-    expect(screen.getByTestId('skill-card-desc-brainstorming')).toHaveTextContent('把想法聊成设计')
-    expect(within(screen.getByTestId('skill-card-tenon-explore')).getByTestId('skill-source-local-plugin')).toBeInTheDocument()
-    expect(screen.queryByTestId('skill-card-desc-grill-with-docs')).toBeNull()
+    const order = ['stage-inputs', 'stage-skills', 'stage-outputs', 'stage-gate'].map((id) => screen.getByTestId(id))
+    for (let i = 1; i < order.length; i += 1) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('输出摘要卡 → 本列切成输出 sheet（面包屑追加「输出」），行只读：产出技能芯片 + 读取阶段；点阶段 crumb 返回', async () => {
+  it('输出表两列：文件 · 产出技能；文档产出者 = 契约候选 ∩ 阶段技能（裸名匹配），字段 = 阶段全部技能', () => {
+    renderPane(EXPLORE)
+    const table = screen.getByTestId('io-outputs')
+    expect(table).toHaveTextContent('文件')
+    expect(table).toHaveTextContent('产出技能')
+    expect(table).not.toHaveTextContent('产出阶段')
+    expect(within(table).getByTestId('slot-skills-superpower-design')).toHaveTextContent('brainstorming')
+    expect(within(table).getByTestId('slot-skills-superpower-design')).not.toHaveTextContent('superpowers:')
+    expect(within(table).getByTestId('slot-skills-design_doc')).toHaveTextContent('tenon-explore, brainstorming, grill-with-docs')
+    expect(screen.getByTestId('slot-field-design_doc')).toHaveAttribute('title', 'tracks.pm.steps[explore].outputs[design_doc]')
+    expect(screen.queryByTestId('output-picker')).toBeNull()
+  })
+
+  it('输入表三列：来源阶段 + 该阶段里产出它的技能；无输入显示空态', () => {
+    const { unmount } = render(<I18nProvider><StageEditorPane editor={fakeEditor(SPEC)} step={SPEC} /></I18nProvider>)
+    const table = screen.getByTestId('io-inputs')
+    expect(table).toHaveTextContent('产出阶段')
+    expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('调研')
+    expect(within(table).getByTestId('slot-skills-superpower-design')).toHaveTextContent('brainstorming')
+    expect(within(table).getByTestId('slot-stage-design_doc')).toHaveTextContent('调研')
+    expect(screen.queryByTestId('input-check-field-design_doc')).toBeNull()
+    unmount()
+    renderPane(EXPLORE)
+    expect(within(screen.getByTestId('io-inputs')).getByRole('status')).toHaveTextContent('没有输入')
+  })
+
+  it('技能画布只读：节点数 = 技能数；点节点打开详情抽屉；编辑按钮打开编辑器', async () => {
     const user = userEvent.setup()
     renderPane(EXPLORE)
-    expect(screen.getByTestId('wb-outputs-count')).toHaveTextContent('2')
-    await user.click(screen.getByTestId('wb-open-outputs'))
-    expect(screen.getByTestId('wb-sheet-title')).toHaveTextContent('输出')
-    expect(screen.getByTestId('wb-crumb-sheet')).toHaveTextContent('输出')
-    expect(screen.queryByTestId('output-picker')).toBeNull()
-    expect(screen.queryByTestId('output-add')).toBeNull()
-    const doc = screen.getByTestId('slot-document-superpower-design')
-    expect(within(doc).getByTestId('slot-lock-superpower-design')).toBeInTheDocument()
-    expect(within(doc).getByTestId('slot-skills-superpower-design')).toHaveTextContent('brainstorming')
-    expect(within(doc).getByTestId('slot-skills-superpower-design')).not.toHaveTextContent('superpowers:brainstorming')
-    expect(within(doc).getByTestId('slot-stages-superpower-design')).toHaveTextContent('规格')
-    const field = screen.getByTestId('slot-field-design_doc')
-    expect(within(field).getByTestId('slot-skills-design_doc')).toHaveTextContent('tenon-explore')
-    expect(field).toHaveAttribute('title', 'tracks.pm.steps[explore].outputs[design_doc]')
-    await user.click(screen.getByTestId('wb-lane-name-explore'))
-    expect(screen.queryByTestId('wb-sheet-title')).toBeNull()
-    expect(screen.getByTestId('wb-lane-name-input-explore')).toBeInTheDocument()
-  })
-
-  it('输入 sheet：来源 = 产出阶段与其技能；无勾选框', async () => {
-    const user = userEvent.setup()
-    renderPane(SPEC)
-    await user.click(screen.getByTestId('wb-open-inputs'))
-    const doc = screen.getByTestId('slot-document-superpower-design')
-    expect(within(doc).getByTestId('slot-stages-superpower-design')).toHaveTextContent('调研')
-    expect(within(doc).getByTestId('slot-skills-superpower-design')).toHaveTextContent('brainstorming')
-    expect(screen.queryByTestId('input-check-field-design_doc')).toBeNull()
-    expect(screen.getByTestId('slot-field-design_doc')).toHaveAttribute('title', 'tracks.pm.steps[spec].inputs[design_doc]')
+    expect(within(screen.getByTestId('stage-skills')).getByTestId('skill-flow')).toHaveAttribute('data-nodes', '3')
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-editable', 'false')
+    expect(screen.getByTestId('wb-skills-edit')).toBeInTheDocument()
+    await user.click(screen.getByTestId('wb-skills-edit'))
+    expect(screen.getByTestId('skill-composer')).toBeInTheDocument()
   })
 
   it('门禁三选：aria-checked 跟随 step.gate，点选写回', async () => {
@@ -117,9 +119,9 @@ describe('StageEditorPane · 面包屑 sheet', () => {
 })
 
 describe('producerSkills', () => {
-  it('候选与阶段技能按裸名匹配；无命中时给去前缀去重的候选', () => {
+  it('候选与阶段技能按裸名匹配；无命中为空，不编造不在阶段里的技能', () => {
     expect(producerSkills(['brainstorming', 'superpowers:brainstorming'], ['tenon-explore', 'brainstorming'])).toEqual(['brainstorming'])
-    expect(producerSkills(['openspec-propose', 'opsx:propose'], ['tenon-open'])).toEqual(['openspec-propose', 'propose'])
+    expect(producerSkills(['openspec-propose', 'opsx:propose'], ['tenon-open'])).toEqual([])
     expect(producerSkills(['tenon:tenon-verify'], ['tenon-verify'])).toEqual(['tenon-verify'])
   })
 })

@@ -130,6 +130,11 @@ export function setStepSkillWavesInDef(def: WbWorkflowDef, stepId: string, waves
   return mapStep(def, stepId, (step) => ({ ...step, skills: wavesToSkills(waves, step.skills) }))
 }
 
+/** 整体替换阶段技能（含 depends_on）；来自技能画布。 */
+export function setStepSkillsInDef(def: WbWorkflowDef, stepId: string, skills: readonly WbSkillRef[]): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => ({ ...step, skills: [...skills] }))
+}
+
 /** 追加技能：缺省成为新的末列（串行接在最后）。 */
 export function addSkillToDef(def: WbWorkflowDef, stepId: string, skillId: string): WbWorkflowDef {
   const step = def.steps.find((candidate) => candidate.id === stepId)

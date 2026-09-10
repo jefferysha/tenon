@@ -5,6 +5,9 @@ import type { WbSkillEntry } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
 import { SkillComposer } from './SkillComposer'
 
+vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
+vi.mock('@xyflow/react/dist/style.css', () => ({}))
+
 const REGISTRY: WbSkillEntry[] = [
   { name: 'tenon-open', installed: true, source: 'local-plugin', description: '立项驱动', tier: 'mandatory', available: true },
   { name: 'brainstorming', installed: true, source: 'external-marketplace', description: '把想法聊成设计', tier: 'mandatory', available: true, version: '6.3.0' },
@@ -35,7 +38,7 @@ function mockSkillApi(): void {
 afterEach(() => { vi.restoreAllMocks() })
 
 describe('SkillComposer', () => {
-  it('技能库：可搜索、来源图标、已排技能置灰；画布按波次显示；移除后保存回写', async () => {
+  it('技能库：可搜索、来源图标、已排技能置灰；「+」加入画布成节点；× 移除；保存回写技能数组', async () => {
     mockSkillApi()
     const user = userEvent.setup()
     const onSave = vi.fn()
@@ -45,17 +48,20 @@ describe('SkillComposer', () => {
       </I18nProvider>,
     )
     expect(screen.getByTestId('skill-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('skill-node-tenon-open')).toBeInTheDocument()
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-editable', 'true')
+    expect(screen.getByTestId('flow-node-tenon-open')).toBeInTheDocument()
     expect(within(screen.getByTestId('palette-source-brainstorming')).getByRole('img', { name: '市场' })).toBeInTheDocument()
     expect(screen.getByTestId('palette-tenon-open')).toHaveAttribute('data-placed', 'true')
     expect(screen.queryByTestId('palette-ghost')).toBeNull()
+    await user.click(screen.getByTestId('palette-add-brainstorming'))
+    expect(screen.getByTestId('flow-node-brainstorming')).toBeInTheDocument()
+    expect(screen.getByTestId('palette-brainstorming')).toHaveAttribute('data-placed', 'true')
     await user.type(screen.getByTestId('skill-palette-search'), 'brain')
     expect(screen.queryByTestId('palette-tenon-open')).toBeNull()
-    expect(screen.getByTestId('palette-brainstorming')).toBeInTheDocument()
-    await user.click(screen.getByTestId('skill-remove-tenon-open'))
-    expect(screen.queryByTestId('skill-node-tenon-open')).toBeNull()
+    await user.click(screen.getByTestId('flow-remove-tenon-open'))
+    expect(screen.queryByTestId('flow-node-tenon-open')).toBeNull()
     await user.click(screen.getByTestId('skill-composer-save'))
-    expect(onSave).toHaveBeenCalledWith([])
+    expect(onSave).toHaveBeenCalledWith([{ id: 'brainstorming' }])
   })
 
   it('点技能名 → 右栏详情：来源、文件树、SKILL.md 以 Markdown 渲染（YAML 头单列）、可切到其它文件', async () => {

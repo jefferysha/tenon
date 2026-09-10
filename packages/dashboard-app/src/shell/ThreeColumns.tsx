@@ -46,6 +46,19 @@ export function ThreeColumns({
   )
 }
 
+/** 两栏骨架（工作流页）：左栏导航 300px / 右栏详情弹性；≤900px 纵向堆叠。 */
+export function TwoColumns({ nav, detail, testId }: { nav: ReactNode; detail: ReactNode; testId: string }): JSX.Element {
+  return (
+    <div
+      className="grid h-[calc(100vh-var(--topbar-h))] min-h-0 grid-cols-[300px_minmax(0,1fr)] bg-bg max-[900px]:h-auto max-[900px]:min-h-[calc(100vh-var(--topbar-h))] max-[900px]:grid-cols-1"
+      data-testid={testId}
+    >
+      {nav}
+      {detail}
+    </div>
+  )
+}
+
 export function RailColumn({
   title,
   collapsed,

@@ -1,15 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useT } from '../i18n'
-import { DEFAULT_RULES, rulesKey, useWorkflowRulesMulti } from '../model/workflowModel'
 import { useGlobalSearch } from '../shell/GlobalSearch'
-import { DetailEmpty, ThreeColumns } from '../shell/ThreeColumns'
+import { DetailEmpty, TwoColumns } from '../shell/ThreeColumns'
 import { useWorkflowEditor } from '../workbench/useWorkflowEditor'
 import { WorkbenchDialogs } from '../workbench/WorkbenchDialogs'
 import { NewWorkflowDialog } from './NewWorkflowDialog'
-import { PipelineList } from './PipelineList'
 import { StageEditorPane } from './StageEditorPane'
 import { TrackDialog } from './TrackDialog'
-import { WorkflowRail } from './WorkflowRail'
+import { WorkflowNav } from './WorkflowNav'
 import { Dialog } from '../shared/Dialog'
 
 export interface WorkflowViewProps {
@@ -18,24 +16,13 @@ export interface WorkflowViewProps {
   onToast?: (message: string) => void
 }
 
-const RAIL_KEY = 'tenon-dashboard-rail:workflow'
-
-/** 工作流 = 定义编辑页：左列工作流与其 track 分支 / 中列所选分支的流水线 / 右列所选阶段的技能、输出、输入、门禁。 */
+/** 工作流 = 定义编辑页：左栏工作流 / 轨道 / 流程，右栏所选阶段的输入、技能、输出、门禁。 */
 export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps): JSX.Element {
   const { t } = useT()
   const { query } = useGlobalSearch()
   const editor = useWorkflowEditor({ root, onDirtyChange })
-  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem(RAIL_KEY) === '1' } catch { return false }
-  })
-  useEffect(() => {
-    try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
-  }, [railCollapsed])
   const [trackDialogOpen, setTrackDialogOpen] = useState(false)
   const [trackDeleteTarget, setTrackDeleteTarget] = useState<string | null>(null)
-  const { rules: rulesByKey } = useWorkflowRulesMulti(editor.names && editor.names.length > 0 ? [{ root, names: editor.names }] : [])
-  const stagesCountOf = (name: string): number | null =>
-    name === editor.wfName && editor.def ? editor.def.steps.length : name === 'default' ? DEFAULT_RULES.steps.length : rulesByKey.get(rulesKey(root, name))?.steps.length ?? null
 
   async function exportYaml(): Promise<void> {
     try {
@@ -60,35 +47,16 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
 
   return (
     <>
-      <ThreeColumns
+      <TwoColumns
         testId="workbench-view"
-        railCollapsed={railCollapsed}
-        listWidth="narrow"
-        rail={(
-          <WorkflowRail
+        nav={(
+          <WorkflowNav
             names={editor.menuNames}
             current={editor.wfName}
             defaultSource={editor.defaultSource}
-            stagesCountOf={stagesCountOf}
             branches={editor.branches}
             branch={editor.branch}
-            collapsed={railCollapsed}
-            canWrite={editor.canWrite}
-            busy={editor.saving || editor.create.busy}
-            onToggle={() => setRailCollapsed((value) => !value)}
-            onSwitch={editor.requestSwitch}
-            onSwitchBranch={editor.setBranch}
-            onNewTrack={() => setTrackDialogOpen(true)}
-            onDeleteTrack={setTrackDeleteTarget}
-            onCreate={() => editor.create.openCreate('copy')}
-            onExport={() => void exportYaml()}
-            onDelete={editor.openWorkflowDelete}
-          />
-        )}
-        list={(
-          <PipelineList
             def={editor.def}
-            branchLabel={editor.branch === '' ? null : (editor.branches.find((candidate) => candidate.id === editor.branch)?.label ?? editor.branch)}
             labelOf={editor.labelOf}
             selectedId={editor.stageId}
             lint={editor.lint}
@@ -96,6 +64,14 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             loading={editor.def === null && editor.defErrorText === null}
             error={editor.namesErrorText ?? editor.defErrorText}
             canWrite={editor.canWrite}
+            busy={editor.saving || editor.create.busy}
+            onSwitch={editor.requestSwitch}
+            onSwitchBranch={editor.setBranch}
+            onCreate={() => editor.create.openCreate('copy')}
+            onExport={() => void exportYaml()}
+            onDelete={editor.openWorkflowDelete}
+            onNewTrack={() => setTrackDialogOpen(true)}
+            onDeleteTrack={setTrackDeleteTarget}
             onSelect={editor.setStageId}
             onAddStage={() => editor.stageDraft.setAddStageOpen(true)}
             onReorder={editor.reorderStages}

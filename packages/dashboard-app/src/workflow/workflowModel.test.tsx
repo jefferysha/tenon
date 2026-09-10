@@ -3,7 +3,6 @@ import type { WbWorkflowDef } from '../api/governanceTypes'
 import { insertWaveBefore, placeSkillInWave, skillExecutionWaves, wavesOf, wavesToSkills } from '../workbench/skillWaves'
 import { draftEffectiveIo, lintWorkflow } from './lint'
 import { backEdgesFrom, linkedToNext, pipelineEdges } from './pipelineModel'
-import { applyDrop } from './SkillDag'
 
 const DEF: WbWorkflowDef = {
   name: 'flow',
@@ -28,14 +27,6 @@ describe('skillWaves · 列模型往返', () => {
     expect(placeSkillInWave(waves, 's3', -1)).toEqual([['s3'], ['s1'], ['s2']])
     expect(placeSkillInWave(waves, 'new', 2)).toEqual([['s1'], ['s2', 's3'], ['new']])
     expect(insertWaveBefore(waves, 's3', 1)).toEqual([['s1'], ['s3'], ['s2']])
-  })
-  it('applyDrop：落列 / 落间隙 / 拖回本机面板移除 / 无目标不变', () => {
-    const waves = [['s1'], ['s2']]
-    expect(applyDrop(waves, 'pal:s9', 'wave:1')).toEqual([['s1'], ['s2', 's9']])
-    expect(applyDrop(waves, 'skill:s2', 'gap:0')).toEqual([['s2'], ['s1']])
-    expect(applyDrop(waves, 'skill:s2', 'palette')).toEqual([['s1']])
-    expect(applyDrop(waves, 'pal:s9', 'palette')).toBeNull()
-    expect(applyDrop(waves, 'skill:s2', null)).toBeNull()
   })
 })
 
