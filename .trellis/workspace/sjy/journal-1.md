@@ -448,3 +448,25 @@ steps ⊕ tracks（无通用分支，缺分支拒绝）；default 五条分支�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 18: 工作流页 UI v2：行内动作、门禁流程骨架、面包屑 IO sheet
+<!-- trellis-session: v=2 fp=573d7256db1caff4 -->
+
+**Date**: 2026-09-10
+**Task**: 工作流页 UI v2：行内动作、门禁流程骨架、面包屑 IO sheet
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+左栏动作就地化（+/⋯/×），中栏只显名称与门禁，右栏面包屑切换只读输出/输入 sheet，技能波次卡片；删除 IO 增删 UI 与 hook 助手；spec 记录 effectiveIo 推导原理与技能无 IO 声明的限制。web 621 用例、design-scale、comments 通过；:18765 已重启。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9d2ba03` | feat(dashboard): workflow page v2 — inline rail actions, gate-only flow, breadcrumb IO sheets |
+
+### Status
+
+[OK] **Completed**
