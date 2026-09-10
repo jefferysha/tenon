@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
+- **Total Sessions**: 17
 - **Last Active**: 2026-09-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~428 | Active |
+| `journal-1.md` | ~450 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-09-10 | 工作流页重设计：track 独占阶段、技能详情、GSAP 拖拽 | `2fc8de6` | `codex/autonomous-loop-v1` |
 | 16 | 2026-09-10 | 工作流 track 分支、技能编排浮层、IO sheet 与门禁语义 | `c6bda08` | `codex/autonomous-loop-v1` |
 | 15 | 2026-09-10 | 技能产出自动登记与每回合技能状态（skillRuns） | `a05a1ce` | `codex/autonomous-loop-v1` |
 | 14 | 2026-09-10 | 工作流定义规范化与两页重设计（技能合一 / default 可编辑 / YAML 导入导出） | `2ef85a4` | `codex/autonomous-loop-v1` |

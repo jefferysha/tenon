@@ -426,3 +426,25 @@ track 成为工作流 YAML 内分支（tracks.<id>），指纹覆盖整份定义
 ### Status
 
 [OK] **Completed**
+
+
+## Session 17: 工作流页重设计：track 独占阶段、技能详情、GSAP 拖拽
+<!-- trellis-session: v=2 fp=e656acd4b0c64a09 -->
+
+**Date**: 2026-09-10
+**Task**: 工作流页重设计：track 独占阶段、技能详情、GSAP 拖拽
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+steps ⊕ tracks（无通用分支，缺分支拒绝）；default 五条分支各自定义阶段；技能详情抽屉读取整个技能目录（files/file 接口）；阶段流可拖拽排序；技能浮层三栏 + 连接线 + 落区；DragOverlay + GSAP Flip；:18765 已重启
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2fc8de6` | chore(task): archive 09-10-workflow-page-redesign |
+
+### Status
+
+[OK] **Completed**
