@@ -157,30 +157,71 @@ export function rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }: RowsInput
 }
 
 export interface TaskFilterState {
-  /** 'all' 或阶段 id。 */
+  /** 'all' 或工作流名。 */
+  workflow: string
+  /** 'all' 或轨道 id。 */
+  track: string
+  /** 'all' 或阶段 id；只有选定单一工作流时才有意义。 */
   stage: string
   includeArchived: boolean
 }
 
-export function filterRows(rows: readonly TaskRow[], filter: TaskFilterState): TaskRow[] {
-  return rows.filter((row) => (filter.includeArchived || !row.archived) && (filter.stage === 'all' || row.change.phase === filter.stage))
+export const DEFAULT_TASK_FILTER: TaskFilterState = { workflow: 'all', track: 'all', stage: 'all', includeArchived: false }
+
+function matches(row: TaskRow, filter: TaskFilterState, ignore?: keyof TaskFilterState): boolean {
+  if (!filter.includeArchived && row.archived) return false
+  if (ignore !== 'workflow' && filter.workflow !== 'all' && row.workflow !== filter.workflow) return false
+  if (ignore !== 'track' && filter.track !== 'all' && row.change.track !== filter.track) return false
+  if (ignore !== 'stage' && filter.workflow !== 'all' && filter.stage !== 'all' && row.change.phase !== filter.stage) return false
+  return true
 }
 
-/** 阶段芯片计数（不含已归档，除非开关打开）；阶段顺序取列表里第一条任务的阶段序。 */
-export function stageChips(rows: readonly TaskRow[], includeArchived: boolean): Array<{ id: string; label: string; count: number }> {
-  const ordered: Array<{ id: string; label: string; count: number }> = []
-  const seen = new Set<string>()
+export function filterRows(rows: readonly TaskRow[], filter: TaskFilterState): TaskRow[] {
+  return rows.filter((row) => matches(row, filter))
+}
+
+export interface FacetChip {
+  id: string
+  label: string
+  count: number
+}
+
+export interface TaskFacets {
+  workflows: FacetChip[]
+  tracks: FacetChip[]
+  /** 只在选定单一工作流时非 null：该工作流自己的阶段序。 */
+  stages: FacetChip[] | null
+}
+
+/** 三层 facet 的候选与计数：每层计数受其它两层与归档开关约束。 */
+export function taskFacets(rows: readonly TaskRow[], filter: TaskFilterState): TaskFacets {
+  const workflowNames: string[] = []
+  const trackIds: string[] = []
   for (const row of rows) {
-    for (const stage of row.stages) {
-      if (seen.has(stage.id)) continue
-      seen.add(stage.id)
-      ordered.push({ id: stage.id, label: stage.label, count: 0 })
-    }
+    if (!workflowNames.includes(row.workflow)) workflowNames.push(row.workflow)
+    if (row.change.track !== '' && !trackIds.includes(row.change.track)) trackIds.push(row.change.track)
   }
-  for (const row of rows) {
-    if (row.archived && !includeArchived) continue
-    const chip = ordered.find((candidate) => candidate.id === row.change.phase)
-    if (chip) chip.count += 1
-  }
-  return ordered
+  const workflows = workflowNames.map((name) => ({
+    id: name,
+    label: name,
+    count: rows.filter((row) => row.workflow === name && matches(row, filter, 'workflow')).length,
+  }))
+  const tracks = trackIds.map((id) => ({
+    id,
+    label: id,
+    count: rows.filter((row) => row.change.track === id && matches(row, filter, 'track')).length,
+  }))
+  if (filter.workflow === 'all') return { workflows, tracks, stages: null }
+  const sample = rows.find((row) => row.workflow === filter.workflow)
+  const stages = (sample?.stages ?? []).map((stage) => ({
+    id: stage.id,
+    label: stage.label,
+    count: rows.filter((row) => row.change.phase === stage.id && matches(row, filter, 'stage')).length,
+  }))
+  return { workflows, tracks, stages }
+}
+
+/** 某层「全部」芯片的计数 = 忽略该层后命中的任务数。 */
+export function facetTotal(rows: readonly TaskRow[], filter: TaskFilterState, facet: 'workflow' | 'track' | 'stage'): number {
+  return rows.filter((row) => matches(row, filter, facet)).length
 }

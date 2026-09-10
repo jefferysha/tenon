@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { WbStepIo } from '../api/governanceTypes'
 import type { ChangeSnapshot, Snapshot } from '../types'
 import { zh } from '../i18n/translations'
-import { filterRows, rowsOf, stageChips, stagesOf, summaryOf, summaryText, type TaskRow } from './taskModel'
+import { DEFAULT_TASK_FILTER, facetTotal, filterRows, rowsOf, stagesOf, summaryOf, summaryText, taskFacets, type TaskRow } from './taskModel'
 
 function t(key: string, vars: Record<string, string | number> = {}): string {
   let node: unknown = zh
@@ -85,38 +85,59 @@ describe('summaryOf · 四级优先级', () => {
   })
 })
 
-describe('rowsOf / filterRows / stageChips', () => {
+describe('rowsOf / filterRows / taskFacets', () => {
+  const customRules = {
+    executionModel: 'step-graph' as const,
+    steps: ['draft', 'done'],
+    transitions: { draft: [{ event: 'go', to: 'done' }], done: [] },
+    gateByStep: { draft: null, done: null },
+    labelByStep: { draft: '起草', done: '完成' },
+    outputsByStep: {},
+  }
   const snapshot: Snapshot = {
     snapshot_protocol: 'tenon-snapshot/v2',
     version: '1',
     generated_at: 'now',
     project_count: 1,
-    change_count: 3,
+    change_count: 4,
     projects: [{
       root: '/repo',
       ok: true,
       changes: [
         change({ name: 'a', phase: 'build', updated_at: '2026-09-01T00:00:00Z' }),
-        change({ name: 'b', phase: 'spec', updated_at: '2026-09-02T00:00:00Z' }),
+        change({ name: 'b', phase: 'spec', track: 'frontend', updated_at: '2026-09-02T00:00:00Z' }),
         change({ name: 'c', phase: 'archive', archived: 'true', updated_at: '2026-09-03T00:00:00Z' }),
+        change({ name: 'd', phase: 'draft', workflowRules: customRules, updated_at: '2026-09-04T00:00:00Z', fields: { workflow: 'compact' } }),
       ],
     }],
   } as unknown as Snapshot
   const rows = rowsOf({ snapshot, currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => ({ build: BUILD_IO }), t })
 
   it('活跃任务按更新时间倒序，已归档排最后', () => {
-    expect(rows.map((row) => row.change.name)).toEqual(['b', 'a', 'c'])
+    expect(rows.map((row) => row.change.name)).toEqual(['d', 'b', 'a', 'c'])
   })
-  it('阶段筛选与含已归档开关', () => {
-    expect(filterRows(rows, { stage: 'all', includeArchived: false }).map((row) => row.change.name)).toEqual(['b', 'a'])
-    expect(filterRows(rows, { stage: 'build', includeArchived: false }).map((row) => row.change.name)).toEqual(['a'])
-    expect(filterRows(rows, { stage: 'all', includeArchived: true })).toHaveLength(3)
+  it('工作流 / 轨道 / 阶段三层过滑与含已归档开关', () => {
+    expect(filterRows(rows, DEFAULT_TASK_FILTER).map((row) => row.change.name)).toEqual(['d', 'b', 'a'])
+    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default' }).map((row) => row.change.name)).toEqual(['b', 'a'])
+    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', track: 'frontend' }).map((row) => row.change.name)).toEqual(['b'])
+    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', stage: 'build' }).map((row) => row.change.name)).toEqual(['a'])
+    // 未选工作流时阶段条件不生效（不同工作流的阶段不可比）
+    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, stage: 'build' })).toHaveLength(3)
+    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, includeArchived: true })).toHaveLength(4)
   })
-  it('阶段芯片按流水线顺序、只计当前阶段', () => {
-    const chips = stageChips(rows, false)
-    expect(chips.map((chip) => chip.id)).toEqual(STEPS)
-    expect(chips.find((chip) => chip.id === 'spec')?.count).toBe(1)
-    expect(chips.find((chip) => chip.id === 'archive')?.count).toBe(0)
-    expect(stageChips(rows, true).find((chip) => chip.id === 'archive')?.count).toBe(1)
+  it('facet：未选工作流时无阶段行；选定后阶段序取该工作流，计数受其它层约束', () => {
+    const open = taskFacets(rows, DEFAULT_TASK_FILTER)
+    expect(open.workflows.map((chip) => [chip.id, chip.count])).toEqual([['compact', 1], ['default', 2]])
+    expect(open.tracks.map((chip) => [chip.id, chip.count])).toEqual([['backend', 2], ['frontend', 1]])
+    expect(open.stages).toBeNull()
+    const compact = taskFacets(rows, { ...DEFAULT_TASK_FILTER, workflow: 'compact' })
+    expect(compact.stages?.map((chip) => [chip.id, chip.label, chip.count])).toEqual([['draft', '起草', 1], ['done', '完成', 0]])
+    const fe = taskFacets(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', track: 'frontend' })
+    expect(fe.stages?.map((chip) => chip.id)).toEqual(STEPS)
+    expect(fe.stages?.find((chip) => chip.id === 'spec')?.count).toBe(1)
+    expect(fe.stages?.find((chip) => chip.id === 'build')?.count).toBe(0)
+    // 轨道计数忽略自身层：frontend 在 default 下仍计 1、backend 计 1
+    expect(fe.tracks.map((chip) => [chip.id, chip.count])).toEqual([['backend', 1], ['frontend', 1]])
+    expect(facetTotal(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default' }, 'workflow')).toBe(3)
   })
 })

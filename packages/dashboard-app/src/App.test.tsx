@@ -1323,6 +1323,9 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     // 聚合工作台：自定义 workflow 的卡按跨项目快照自带的 rules 判定——阶段芯片「复核」计 1，
     // 一行状态由 readiness 推出「可进入完成」；聚合语境不发任何 per-root 请求。
     expect(await screen.findByTestId('task-card-review-me')).toBeInTheDocument()
+    // 阶段芯片只在选定单一工作流后出现，且取该工作流自己的阶段序。
+    expect(screen.queryByTestId('task-filter-review')).toBeNull()
+    fireEvent.click(screen.getByTestId('task-facet-workflow-compact'))
     expect(screen.getByTestId('task-filter-review')).toHaveTextContent('1')
     expect(screen.getByTestId('task-summary-review-me')).toHaveTextContent('复核 · 可进入完成')
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(['/api/snapshot'])

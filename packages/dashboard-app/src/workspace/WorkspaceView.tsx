@@ -11,7 +11,7 @@ import type { TopBarProject } from '../shell/TopBar'
 import { ProjectRail } from './ProjectRail'
 import { TaskDetailPane } from './TaskDetailPane'
 import { TaskListPane } from './TaskListPane'
-import { filterRows, rootBasename, rowsOf, type TaskFilterState, type TaskRow } from './taskModel'
+import { DEFAULT_TASK_FILTER, filterRows, rootBasename, rowsOf, type TaskFilterState, type TaskRow } from './taskModel'
 import { useWorkflowIoLookup } from './useWorkflowDefinition'
 
 export interface WorkspaceViewProps {
@@ -30,7 +30,6 @@ export interface WorkspaceViewProps {
 }
 
 const RAIL_KEY = 'tenon-dashboard-rail:workspace'
-const DEFAULT_FILTER: TaskFilterState = { stage: 'all', includeArchived: false }
 
 /** 工作台：左列项目 / 中列任务（按阶段筛选）/ 右列所选任务逐阶段的输出与输入。只读。 */
 export function WorkspaceView({
@@ -39,7 +38,7 @@ export function WorkspaceView({
 }: WorkspaceViewProps): JSX.Element {
   const { t } = useT()
   const { query, setQuery } = useGlobalSearch()
-  const [filter, setFilter] = useState<TaskFilterState>(DEFAULT_FILTER)
+  const [filter, setFilter] = useState<TaskFilterState>(DEFAULT_TASK_FILTER)
   const [search, setSearch] = useState('')
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(RAIL_KEY) === '1' } catch { return false }
@@ -47,7 +46,7 @@ export function WorkspaceView({
   useEffect(() => {
     try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
   }, [railCollapsed])
-  useEffect(() => { setFilter(DEFAULT_FILTER); setSearch('') }, [currentRoot])
+  useEffect(() => { setFilter(DEFAULT_TASK_FILTER); setSearch('') }, [currentRoot])
 
   // 聚合语境（未选项目）不发 per-root 请求：卡片状态退回「进行中」，不判缺产出。
   const pairs = useMemo(() => {
@@ -126,7 +125,7 @@ export function WorkspaceView({
           onSelect={(row) => onSelectedChange(row.change.name)}
           showProject={currentRoot === ''}
           emptyKind={emptyKind}
-          onClearFilters={() => { setFilter(DEFAULT_FILTER); setSearch(''); setQuery('') }}
+          onClearFilters={() => { setFilter(DEFAULT_TASK_FILTER); setSearch(''); setQuery('') }}
           notice={notice}
         />
       )}

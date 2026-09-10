@@ -3,7 +3,7 @@ import { Archive } from 'lucide-react'
 import { useT } from '../i18n'
 import { FilterChip, ListColumn } from '../shell/ThreeColumns'
 import { TaskCard } from './TaskCard'
-import { stageChips, type TaskFilterState, type TaskRow } from './taskModel'
+import { facetTotal, taskFacets, type FacetChip, type TaskFilterState, type TaskRow } from './taskModel'
 import { cn } from '@/lib/utils'
 
 export interface TaskListPaneProps {
@@ -22,37 +22,66 @@ export interface TaskListPaneProps {
   notice?: ReactNode
 }
 
-/** 中列：阶段芯片（与流水线一一对应）+ 含已归档开关 + 任务卡。 */
+function FacetRow({ label, facet, chips, current, total, mono, onPick }: {
+  label: string
+  facet: 'workflow' | 'track' | 'stage'
+  chips: readonly FacetChip[]
+  current: string
+  total: number
+  mono?: boolean
+  onPick: (id: string) => void
+}): JSX.Element {
+  const { t } = useT()
+  return (
+    <div className="flex w-full flex-wrap items-center gap-1" role="tablist" aria-label={label} data-testid={`task-facet-${facet}`}>
+      <span className="mr-1 w-9 flex-none text-caption text-text-3">{label}</span>
+      <FilterChip label={t('workspace.filter_all')} count={total} selected={current === 'all'} testId={`task-facet-${facet}-all`} onClick={() => onPick('all')} />
+      {chips.map((chip) => (
+        <span key={chip.id} className={cn(mono && '[&>button]:font-mono')}>
+          <FilterChip label={chip.label} count={chip.count} selected={current === chip.id} testId={facet === 'stage' ? `task-filter-${chip.id}` : `task-facet-${facet}-${chip.id}`} onClick={() => onPick(chip.id)} />
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/** 中列：工作流 → 轨道 → 阶段三层芯片（阶段只在选定单一工作流时出现）+ 含已归档开关 + 任务卡。 */
 export function TaskListPane({
   eyebrow, rows, visibleRows, filter, onFilter, search, onSearch, selectedKey, onSelect, showProject, emptyKind, onClearFilters, notice,
 }: TaskListPaneProps): JSX.Element {
   const { t } = useT()
-  const chips = stageChips(rows, filter.includeArchived)
-  const total = rows.filter((row) => filter.includeArchived || !row.archived).length
+  const facets = taskFacets(rows, filter)
   return (
     <ListColumn
       eyebrow={eyebrow}
       title={t('workspace.title')}
       search={{ value: search, onChange: onSearch, placeholder: t('workspace.search_tasks'), label: t('workspace.search_tasks') }}
       chips={(
-        <div className="flex w-full flex-wrap items-center gap-1" role="tablist" aria-label={t('workspace.filter_label')}>
-          <FilterChip label={t('workspace.filter_all')} count={total} selected={filter.stage === 'all'} testId="task-filter-all" onClick={() => onFilter({ ...filter, stage: 'all' })} />
-          {chips.map((chip) => (
-            <FilterChip key={chip.id} label={chip.label} count={chip.count} selected={filter.stage === chip.id} testId={`task-filter-${chip.id}`} onClick={() => onFilter({ ...filter, stage: chip.id })} />
-          ))}
-          <button
-            type="button"
-            className={cn(
-              'ml-auto inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)',
-              filter.includeArchived && 'bg-accent-t font-semibold text-(--accent)',
-            )}
-            aria-pressed={filter.includeArchived}
-            data-testid="task-filter-archived"
-            onClick={() => onFilter({ ...filter, includeArchived: !filter.includeArchived })}
-          >
-            <Archive className="size-3.5" aria-hidden="true" />
-            {t('workspace.include_archived')}
-          </button>
+        <div className="grid w-full gap-1.5">
+          <div className="flex w-full items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <FacetRow label={t('workspace.facet_workflow')} facet="workflow" chips={facets.workflows} current={filter.workflow} total={facetTotal(rows, filter, 'workflow')} mono onPick={(id) => onFilter({ ...filter, workflow: id, stage: 'all' })} />
+            </div>
+            <button
+              type="button"
+              className={cn(
+                'inline-flex flex-none items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)',
+                filter.includeArchived && 'bg-accent-t font-semibold text-(--accent)',
+              )}
+              aria-pressed={filter.includeArchived}
+              data-testid="task-filter-archived"
+              onClick={() => onFilter({ ...filter, includeArchived: !filter.includeArchived })}
+            >
+              <Archive className="size-3.5" aria-hidden="true" />
+              {t('workspace.include_archived')}
+            </button>
+          </div>
+          {facets.tracks.length > 0 && (
+            <FacetRow label={t('workspace.facet_track')} facet="track" chips={facets.tracks} current={filter.track} total={facetTotal(rows, filter, 'track')} mono onPick={(id) => onFilter({ ...filter, track: id })} />
+          )}
+          {facets.stages !== null && (
+            <FacetRow label={t('workspace.facet_stage')} facet="stage" chips={facets.stages} current={filter.stage} total={facetTotal(rows, filter, 'stage')} onPick={(id) => onFilter({ ...filter, stage: id })} />
+          )}
         </div>
       )}
       testId="task-list"
