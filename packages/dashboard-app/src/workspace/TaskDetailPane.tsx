@@ -6,6 +6,7 @@ import { dashboardSearch } from '../shell/dashboardLocation'
 import { DocumentDrawer } from './DocumentDrawer'
 import { StageIoPanel } from './StageIoPanel'
 import { StageRail } from './StageRail'
+import { StageSkills } from './StageSkills'
 import { fallbackStepIo, readableFiles, stageInputs, stageOutputs } from './stageIo'
 import { stageLabel, summaryText, type TaskRow } from './taskModel'
 import { useWorkflowDefinition } from './useWorkflowDefinition'
@@ -83,6 +84,7 @@ export function TaskDetailPane({ row, onToast, fetchDefinition = true }: TaskDet
           </button>
         )}
       >
+        <StageSkills runs={change.skillRuns?.find((step) => step.stepId === selectedStep)} />
         <StageIoPanel
           outputs={outputs}
           inputs={inputs}

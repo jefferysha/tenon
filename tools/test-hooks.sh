@@ -1347,6 +1347,7 @@ CC="$ROOT/hooks/confirm-clear.sh"
 CP="$ROOT/hooks/confirm-clear-prompt.sh"
 DR="$ROOT/hooks/decision-recorder.sh"
 ST="$ROOT/hooks/skill-tracker.sh"
+SS="$ROOT/hooks/skill-start.sh"
 IG="$ROOT/hooks/interactive-skill-gate.sh"
 IA="$ROOT/hooks/interaction-authority.sh"
 TA="$ROOT/hooks/terminal-activity.sh"
@@ -1561,6 +1562,22 @@ assert_contains "skill-tracker: kind=tool" "$line" '"kind":"tool"'
 assert_contains "skill-tracker: raw 含 skill 名" "$line" "brainstorming"
 jsonl_valid "$JL"; vrc=$?
 case "$vrc" in 0) ok "skill-tracker: JSONL 合法 JSON" ;; 2) printf 'skip - node 不可用\n' ;; *) bad "skill-tracker: JSONL 合法 JSON" "解析失败：$line" ;; esac
+# ── 10c'. skill-start：PreToolUse Skill → append kind=tool-start（只标记开始，不是完成证据）──
+before="$(count_lines "$JL")"
+RC="$(printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"openspec-propose\"}}" | bash "$SS" >/dev/null 2>&1; echo $?)"
+assert_exit "skill-start: exit 0" 0 "$RC"
+[ "$(count_lines "$JL")" = "$((before + 1))" ] && ok "skill-start: JSONL 真 append 恰一行" || bad "skill-start: JSONL 真 append 恰一行" "行数=$(count_lines "$JL")"
+line="$(tail -1 "$JL" 2>/dev/null)"
+assert_contains "skill-start: kind=tool-start" "$line" '"kind":"tool-start"'
+assert_contains "skill-start: raw=Skill: <id>" "$line" '"raw":"Skill: openspec-propose"'
+jsonl_valid "$JL"; vrc=$?
+case "$vrc" in 0) ok "skill-start: JSONL 合法 JSON" ;; 2) printf 'skip - node 不可用\n' ;; *) bad "skill-start: JSONL 合法 JSON" "解析失败：$line" ;; esac
+before="$(count_lines "$JL")"
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"}}" | bash "$SS" >/dev/null 2>&1
+[ "$(count_lines "$JL")" = "$before" ] && ok "skill-start: 非 Skill 工具不写" || bad "skill-start: 非 Skill 工具不写" "行数=$(count_lines "$JL")"
+projss="$TMP/ptu-ss-nochange"; mkdir -p "$projss"
+RC="$(printf '%s' "{\"cwd\":\"$projss\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"x\"}}" | bash "$SS" >/dev/null 2>&1; echo $?)"
+assert_exit "skill-start: 无活跃 change → exit 0" 0 "$RC"
 # Codex 把 bundled SKILL.md 的只读 Bash 作为 PostToolUse 事件上报；必须同样留下可审计证据。
 before="$(count_lines "$JL")"
 CODEX_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sed -n '1,120p' \\\"$ROOT/skills/openspec-propose/SKILL.md\\\"\"}}"
@@ -1724,6 +1741,7 @@ assert_contains "hooks.json: 注册 confirm-clear hook id" "$hjson" "confirm-cle
 assert_contains "hooks.json: 注册 confirm-clear-prompt hook id" "$hjson" "confirm-clear-prompt"
 assert_contains "hooks.json: 注册 decision-recorder hook id" "$hjson" "decision-recorder"
 assert_contains "hooks.json: 注册 skill-tracker hook id" "$hjson" "skill-tracker"
+assert_contains "hooks.json: 注册 skill-start hook id" "$hjson" "skill-start"
 assert_contains "hooks.json: 注册 interactive-skill-gate hook id" "$hjson" "interactive-skill-gate"
 assert_contains "hooks.json: 注册 terminal-activity hook id" "$hjson" "terminal-activity"
 assert_contains "hooks.json: 含 PostToolUse 段" "$hjson" "PostToolUse"

@@ -26,6 +26,12 @@
           { "type": "command", "command": "bash \"${HOME}/.local/bin/tenon-hook\" codex-skill-receipt", "timeout": 5 },
           { "type": "command", "command": "bash \"${HOME}/.local/bin/tenon-hook\" terminal-activity", "timeout": 5 }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          { "type": "command", "command": "bash \"${HOME}/.local/bin/tenon-hook\" skill-start", "timeout": 5 }
+        ]
       }
     ],
     "PostToolUse": [

@@ -172,6 +172,18 @@ describe('API bounded-context response decoders', () => {
     }
   })
 
+  it('keeps skillRuns when well-formed and fails closed on a malformed skill entry', () => {
+    const good = validSnapshot()
+    const runs = [{ stepId: 'open', skills: [{ id: 'tenon-open', status: 'running', wave: 0 }, { id: 'openspec-propose', status: 'idle', wave: 1 }] }]
+    Object.assign(good.projects[0]!.changes[0]!, { skillRuns: runs })
+    expect(decodeSnapshot(good)?.projects[0]?.changes[0]?.skillRuns).toEqual(runs)
+    const bad = validSnapshot()
+    Object.assign(bad.projects[0]!.changes[0]!, { skillRuns: [{ stepId: 'open', skills: [{ id: 'tenon-open', status: 'failed', wave: 0 }] }] })
+    expect(decodeSnapshot(bad)).toBeNull()
+    const legacy = validSnapshot()
+    expect(decodeSnapshot(legacy)?.projects[0]?.changes[0]?.skillRuns).toBeUndefined()
+  })
+
   it('rejects a snapshot with a malformed nested todo item', () => {
     expect(decodeSnapshot({
       version: '1',

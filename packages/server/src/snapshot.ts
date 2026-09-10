@@ -17,7 +17,9 @@ import {
   UnsupportedRunStateVersionError,
   TERMINAL_ACTIVITY_FILE,
   type EffectiveWorkflowPlan,
+  type SkillTable,
   type StateStore,
+  type TrackDefinition,
 } from '@tenon/kernel'
 import type {
   ChangeSnapshot,
@@ -27,6 +29,7 @@ import type {
   TerminalActivitySnapshot,
 } from './types.js'
 import { projectReviewHandshake } from './reviewHandshake.js'
+import { projectSkillRuns, resolveSnapshotTrack } from './skillRuns.js'
 import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'
 import {
   legacySnapshotWorkflowRules,
@@ -70,6 +73,8 @@ export interface SnapshotDeps extends WorkflowSnapshotCapabilityDeps {
    * anchor is an authorization failure and must never be replaced with a new point-in-time trust.
    */
   rootAnchor?: (root: string) => WorkflowRootAnchor | undefined
+  /** Machine-level manifest mandatory table; only used for frozen plans without an embedded track matrix. */
+  mandatorySkills?: SkillTable
 }
 
 export function snapshotDepsFactory(
@@ -207,6 +212,11 @@ async function scanAnchoredProject(
   const errors: string[] = []
   let gitHeadPromise: Promise<string> | undefined
   const workspaceFingerprints = new Map<string, Promise<string>>()
+  const trackDefinitions = new Map<string, TrackDefinition | undefined>()
+  const trackDefinition = (trackId: string): TrackDefinition | undefined => {
+    if (!trackDefinitions.has(trackId)) trackDefinitions.set(trackId, resolveSnapshotTrack(readRoot, trackId))
+    return trackDefinitions.get(trackId)
+  }
   const gitHeadSha = deps.gitHeadSha
   const workspaceFingerprint = deps.workspaceFingerprint
   const capabilityDeps: WorkflowSnapshotCapabilityDeps = {
@@ -269,10 +279,11 @@ async function scanAnchoredProject(
         workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot,
       })
       legacyWorkflowRules[workflowName] ??= legacySnapshotWorkflowRules(plan)
-      const [documents, terminalActivity, authority] = await Promise.all([
+      const [documents, terminalActivity, authority, skillRuns] = await Promise.all([
         documentEvidence(readRoot, changeDir, plan, phase),
         readTerminalActivity(changeDir, e.name, nowMs),
         readWorkflowSnapshotAuthority(changeDir, state, plan),
+        projectSkillRuns(changeDir, plan, phase, trackDefinition(track), deps.mandatorySkills),
       ])
       const tasksProjection = await readTasksProjection(changeDir, {}, anchor)
       const todo = projectPipelineTodo({
@@ -305,6 +316,7 @@ async function scanAnchoredProject(
         reviewHandshake: projectReviewHandshake(state, plan, phase),
         todo,
         documents,
+        skillRuns,
         ...(terminalActivity === undefined ? {} : { terminalActivity }),
       })
     } catch (error) {

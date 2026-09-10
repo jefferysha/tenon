@@ -413,8 +413,11 @@ export interface FlowEngine {
 
 export interface HistoryEntry {
   ts: string
-  /** tool/prompt/import 为老仓历史导入扩展（BACKLOG #11，加法、不影响 .pipeline.yaml 兼容） */
-  kind: 'transition' | 'set' | 'init' | 'tool' | 'prompt' | 'import'
+  /**
+   * tool/prompt/import 为老仓历史导入扩展（BACKLOG #11，加法、不影响 .pipeline.yaml 兼容）；
+   * tool-start = PreToolUse 写下的「技能开始」标记，只供 dashboard 投影 running 态，不是完成证据。
+   */
+  kind: 'transition' | 'set' | 'init' | 'tool' | 'tool-start' | 'prompt' | 'import'
   field?: string
   from?: string
   to?: string

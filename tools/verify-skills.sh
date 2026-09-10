@@ -194,6 +194,7 @@ if [ -f "$HOOKS_JSON" ]; then
     hooks/confirm-clear.sh \
     hooks/decision-recorder.sh \
     hooks/skill-tracker.sh \
+    hooks/skill-start.sh \
     hooks/interactive-skill-gate.sh \
     hooks/terminal-activity.sh \
     hooks/interaction-authority.sh; do

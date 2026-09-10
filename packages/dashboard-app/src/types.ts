@@ -23,9 +23,18 @@ export interface ChangeSnapshot {
   todo?: PipelineTodoProjection
   /** Server-evaluated OpenSpec document contract evidence. */
   documents?: DocumentEvidenceSnapshot
+  /** Per-step skill execution state derived by the server from the history log; absent on older servers. */
+  skillRuns?: SkillRunsSnapshot
   /** Fresh, explicitly bound native terminal heartbeat; never a workflow-state field. */
   terminalActivity?: TerminalActivitySnapshot
 }
+
+export type SkillRunStatus = 'idle' | 'running' | 'done'
+
+export type SkillRunsSnapshot = ReadonlyArray<{
+  readonly stepId: string
+  readonly skills: ReadonlyArray<{ readonly id: string; readonly status: SkillRunStatus; readonly wave: number }>
+}>
 
 export type ReviewHandshakeSnapshot =
   | { status: 'not-requested' }

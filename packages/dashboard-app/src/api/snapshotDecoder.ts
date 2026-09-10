@@ -9,6 +9,7 @@ import type {
   Snapshot,
   TerminalActivitySnapshot,
   TransitionReadinessBlockerSnapshot,
+  SkillRunsSnapshot,
 } from '../types'
 import { isRecord, optionalString, recordOfBooleans, stringArray } from './transport'
 import { decodeWorkflowPolicyRules } from './workflowPolicySnapshotDecoder'
@@ -50,6 +51,24 @@ function decodeTodo(value: unknown): PipelineTodoProjection | undefined {
     stages.push(decoded)
   }
   return { hasTaskSource: value.hasTaskSource, stages }
+}
+
+/** 服务端 skillRuns 投影：形状不合即整条 change 视为不可信（与其它可选字段同策略）。 */
+function decodeSkillRuns(value: unknown): SkillRunsSnapshot | undefined {
+  if (!Array.isArray(value)) return undefined
+  const steps: Array<SkillRunsSnapshot[number]> = []
+  for (const step of value) {
+    if (!isRecord(step) || typeof step.stepId !== 'string' || !Array.isArray(step.skills)) return undefined
+    const skills: Array<SkillRunsSnapshot[number]['skills'][number]> = []
+    for (const skill of step.skills) {
+      if (!isRecord(skill) || typeof skill.id !== 'string' || skill.id === ''
+        || (skill.status !== 'idle' && skill.status !== 'running' && skill.status !== 'done')
+        || typeof skill.wave !== 'number' || !Number.isInteger(skill.wave) || skill.wave < 0) return undefined
+      skills.push({ id: skill.id, status: skill.status, wave: skill.wave })
+    }
+    steps.push({ stepId: step.stepId, skills })
+  }
+  return steps
 }
 
 function decodeDocuments(value: unknown): DocumentEvidenceSnapshot | undefined {
@@ -161,10 +180,12 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
   const todo = value.todo === undefined ? undefined : decodeTodo(value.todo)
   const documents = value.documents === undefined ? undefined : decodeDocuments(value.documents)
   const terminalActivity = value.terminalActivity === undefined ? undefined : decodeTerminalActivity(value.terminalActivity)
+  const skillRuns = value.skillRuns === undefined ? undefined : decodeSkillRuns(value.skillRuns)
   if ((value.reviewHandshake !== undefined && !reviewHandshake)
     || (value.todo !== undefined && !todo)
     || (value.documents !== undefined && !documents)
-    || (value.terminalActivity !== undefined && !terminalActivity)) return null
+    || (value.terminalActivity !== undefined && !terminalActivity)
+    || (value.skillRuns !== undefined && !skillRuns)) return null
   return {
     name: value.name,
     path: value.path,
@@ -182,6 +203,7 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     ...(todo ? { todo } : {}),
     ...(documents ? { documents } : {}),
     ...(terminalActivity ? { terminalActivity } : {}),
+    ...(skillRuns ? { skillRuns } : {}),
   }
 }
 

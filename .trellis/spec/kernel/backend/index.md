@@ -19,6 +19,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+| [Skill Output Auto-Registration](./skill-output-registration.md) | Canonical-path document registration after a Skill receipt | Current |
 | [Autonomous Orchestration](./orchestration.md) | v1 schemas, reducer and routing contracts | Current |
 
 ---

@@ -60,12 +60,21 @@ export interface ChangeSnapshot {
   todo?: PipelineTodoProjection
   /** Governed OpenSpec artifact/reader evidence, calculated from the immutable document ledger. */
   documents?: DocumentEvidenceSnapshot
+  /** Per-step skill execution state (idle / running / done, grouped by wave) derived from the history log. */
+  skillRuns?: SkillRunsSnapshot
   /**
    * Fresh host-hook heartbeat for an explicitly bound terminal session. This is dashboard-only
    * observability, not canonical workflow state; omitted as soon as its short lease expires.
    */
   terminalActivity?: TerminalActivitySnapshot
 }
+
+export type SkillRunStatus = 'idle' | 'running' | 'done'
+
+export type SkillRunsSnapshot = ReadonlyArray<{
+  readonly stepId: string
+  readonly skills: ReadonlyArray<{ readonly id: string; readonly status: SkillRunStatus; readonly wave: number }>
+}>
 
 export type ReviewHandshakeSnapshot =
   | { status: 'not-requested' }

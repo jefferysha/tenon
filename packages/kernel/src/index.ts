@@ -160,6 +160,8 @@ export type {
   EffectiveWorkflowPlan, LegacyWorkflowIR, PersistedDocumentGovernanceBinding, WorkflowPlanSnapshot,
   WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3,
 } from './workflow/effective-plan.js'
+// 技能轨道条件求值（YAML `when`）：dashboard 投影按 change 的 TrackDefinition（id 或 profile 继承）过滤矩阵技能。
+export { skillAppliesToTrack } from './workflow/effective-plan.js'
 export {
   documentSlotsLocked, materializeWorkflowIo,
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,

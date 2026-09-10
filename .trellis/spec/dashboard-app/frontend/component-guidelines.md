@@ -54,6 +54,9 @@ last one. Anything that needs its own surface opens the shared right-side `share
 - `StageIoPanel` rows: document slot → ledger status (`recorded/missing/stale/unread`) + file name +
   last producer + time; field slot → `set/unset`. A row with a path opens `DocumentDrawer`
   (`react-markdown` + `remark-gfm` for `.md`, `<pre>` otherwise; prev / next across the stage's files).
+- `StageSkills` sits above the IO panel and renders `change.skillRuns[step]`: one column per wave
+  (same column = parallel), one `StatusPill` per skill (`idle` neutral / `running` info / `done` done).
+  It renders nothing when the server omits `skillRuns` or the step has no skills — no placeholder text.
 
 ## 工作流 rules (`workflow/`)
 
