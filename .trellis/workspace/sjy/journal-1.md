@@ -382,3 +382,25 @@ Kernel: SkillRef.when 轨道条件、materializeWorkflowIo、default 项目覆�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 15: 技能产出自动登记与每回合技能状态（skillRuns）
+<!-- trellis-session: v=2 fp=ca135f29e519729b -->
+
+**Date**: 2026-09-10
+**Task**: 技能产出自动登记与每回合技能状态（skillRuns）
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+kernel autoRegisterDocuments/canonicalDocumentPaths；receipt 后自动登记规范文档；hooks/skill-start.sh tool-start 标记；server snapshot.skillRuns（YAML 矩阵按轨道 + manifest 回退）；工作台 StageSkills 按波次显示 idle/running/done；:18765 已用新构建重启
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a05a1ce` | feat(runtime): auto-register skill outputs and project per-step skill runs |
+
+### Status
+
+[OK] **Completed**
