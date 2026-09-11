@@ -558,3 +558,25 @@ steps ⊕ tracks（无通用分支，缺分支拒绝）；default 五条分支�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 23: 工作台对齐工作流页 + 技能画布 GSAP 脉冲
+<!-- trellis-session: v=2 fp=444cee54849c36f7 -->
+
+**Date**: 2026-09-11
+**Task**: 工作台对齐工作流页 + 技能画布 GSAP 脉冲
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+PulseEdge：GSAP 沿路径的脉冲点按段序从起点传到终点；工作台详情改为 SkillFlow（带运行状态）+ 输入 / 输出 sheet 页签 + 抽屉；项目卡只显示路径；筛选行与卡片全部不换行。web 632 用例、design-scale、comments、build 通过；:18765 已重启。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ef81f29` | feat(dashboard): workspace mirrors the workflow page — skill flow with run status, IO sheets, path-only rail; GSAP pulse edges |
+
+### Status
+
+[OK] **Completed**
