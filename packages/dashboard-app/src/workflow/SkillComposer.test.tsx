@@ -55,6 +55,8 @@ describe('SkillComposer', () => {
     expect(screen.queryByTestId('palette-ghost')).toBeNull()
     await user.click(screen.getByTestId('palette-add-brainstorming'))
     expect(screen.getByTestId('flow-node-brainstorming')).toBeInTheDocument()
+    expect(screen.getByTestId('flow-node-brainstorming')).toHaveAttribute('data-entering', 'true')
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-edges', '1')
     expect(screen.getByTestId('palette-brainstorming')).toHaveAttribute('data-placed', 'true')
     await user.type(screen.getByTestId('skill-palette-search'), 'brain')
     expect(screen.queryByTestId('palette-tenon-open')).toBeNull()

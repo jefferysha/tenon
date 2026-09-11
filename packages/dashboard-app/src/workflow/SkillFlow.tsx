@@ -40,13 +40,16 @@ type SkillNodeData = {
   description: string | null
   source: WbSkillEntry['source'] | null
   editable: boolean
+  /** 刚加入的节点：入场动画。 */
+  entering: boolean
   onOpen: (id: string) => void
   onRemove: (id: string) => void
 }
 type SkillNode = Node<SkillNodeData, 'skill'>
 type PortNode = Node<{ label: string }, 'port'>
 type LabelNode = Node<{ label: string }, 'label'>
-type FlowNode = SkillNode | PortNode | LabelNode
+type GhostNode = Node<{ label: string; mode: string }, 'ghost'>
+type FlowNode = SkillNode | PortNode | LabelNode | GhostNode
 
 /** 技能 → 节点坐标：列 = 波次（depends_on 深度），行 = 波次内序；首列左侧留出起点的位置。 */
 export function layoutSkills(skills: readonly WbSkillRef[]): Array<{ id: string; x: number; y: number }> {
@@ -101,6 +104,50 @@ export function graphToSkills(nodeIds: readonly string[], edges: readonly Pick<E
   return order.map((id) => draft.find((skill) => skill.id === id)!)
 }
 
+/** 落点语义：并入第 k 波（并行）/ 追加为新一步（串行）/ 插到最前（串行）。 */
+export type DropTarget = { kind: 'join'; wave: number } | { kind: 'after' } | { kind: 'before' }
+
+/** 由指针 x 与各波列的 x 判定落点：落在某列附近 = 并入该波；末列右侧 = 新一步；首列左侧 = 新首步。 */
+export function dropTargetFor(x: number, columnXs: readonly number[]): DropTarget {
+  if (columnXs.length === 0) return { kind: 'after' }
+  const first = columnXs[0]!
+  const last = columnXs[columnXs.length - 1]!
+  if (x > last + NODE_WIDTH + PORT_GAP / 2) return { kind: 'after' }
+  if (x < first - PORT_GAP / 2) return { kind: 'before' }
+  let best = 0
+  let bestDistance = Number.POSITIVE_INFINITY
+  columnXs.forEach((columnX, index) => {
+    const distance = Math.abs(x - (columnX + NODE_WIDTH / 2))
+    if (distance < bestDistance) { bestDistance = distance; best = index }
+  })
+  return { kind: 'join', wave: best }
+}
+
+/** 按落点把技能加进图：并入第 k 波 = 依赖第 k-1 波、被第 k+1 波依赖；新一步 = 依赖末波；新首步 = 首波依赖它。 */
+export function addSkillAt(skills: readonly WbSkillRef[], id: string, target: DropTarget): WbSkillRef[] {
+  if (skills.some((skill) => skill.id === id)) return [...skills]
+  const waves = wavesOf(skills)
+  const withDeps = (deps: readonly string[]): WbSkillRef => deps.length > 0 ? { id, depends_on: [...deps] } : { id }
+  const addDep = (skill: WbSkillRef, dep: string): WbSkillRef => ({ ...skill, depends_on: [...new Set([...(skill.depends_on ?? []), dep])] })
+  if (target.kind === 'after' || waves.length === 0) return [...skills, withDeps(waves[waves.length - 1] ?? [])]
+  if (target.kind === 'before') {
+    const firstWave = new Set(waves[0] ?? [])
+    return [withDeps([]), ...skills.map((skill) => firstWave.has(skill.id) ? addDep(skill, id) : skill)]
+  }
+  const wave = Math.max(0, Math.min(target.wave, waves.length - 1))
+  const nextWave = new Set(waves[wave + 1] ?? [])
+  const out = skills.map((skill) => nextWave.has(skill.id) ? addDep(skill, id) : skill)
+  const anchor = waves[wave]![waves[wave]!.length - 1]!
+  const at = out.findIndex((skill) => skill.id === anchor) + 1
+  out.splice(at, 0, withDeps(waves[wave - 1] ?? []))
+  return out
+}
+
+/** 技能库「+」：串行追加为新一步。 */
+export function appendSerial(skills: readonly WbSkillRef[], id: string): WbSkillRef[] {
+  return addSkillAt(skills, id, { kind: 'after' })
+}
+
 /** 技能数组的内容签名：id 与 depends_on；引用变了但内容没变时不重排、不回写。 */
 export function skillsSignature(skills: readonly WbSkillRef[]): string {
   return skills.map((skill) => `${skill.id}<${[...(skill.depends_on ?? [])].sort().join(',')}`).join('|')
@@ -113,9 +160,10 @@ const SkillNodeView = memo(function SkillNodeView({ id, data, selected }: NodePr
   const { t } = useT()
   return (
     <div
-      className={cn('relative rounded-sm border bg-card px-3 py-2 shadow-xs transition-[border-color,box-shadow]', selected ? 'border-(--accent) shadow-sm' : 'border-border-2')}
+      className={cn('relative rounded-sm border bg-card px-3 py-2 shadow-xs transition-[border-color,box-shadow]', selected ? 'border-(--accent) shadow-sm' : 'border-border-2', data.entering && 'animate-[flow-in_.3s_var(--ease-out)_both] motion-reduce:animate-none')}
       style={{ width: NODE_WIDTH, minHeight: NODE_HEIGHT }}
       data-testid={`flow-node-${id}`}
+      data-entering={data.entering || undefined}
     >
       <Handle type="target" position={Position.Left} className="!size-2 !border-border-2 !bg-card" isConnectable={data.editable} />
       <button type="button" className="grid w-full gap-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" data-testid={`flow-open-${id}`} onClick={() => data.onOpen(id)}>
@@ -135,13 +183,26 @@ const SkillNodeView = memo(function SkillNodeView({ id, data, selected }: NodePr
   )
 })
 
-/** 起点 / 终点：一枚实心小圆，只有一个端口方向。 */
+/** 起点 / 终点：实心小点（起点强调色、终点灰）+ 下方一字标签；只有一个端口方向。 */
 const PortNodeView = memo(function PortNodeView({ id, data }: NodeProps<PortNode>): JSX.Element {
   const start = id === 'start'
   return (
-    <div className="grid place-items-center" style={{ width: PORT_SIZE, height: PORT_SIZE }} title={data.label} data-testid={`flow-${id}`}>
-      <span className="block size-3 rounded-full border-2 border-border-2 bg-card" aria-hidden="true" />
+    <div className="relative grid place-items-center" style={{ width: PORT_SIZE, height: PORT_SIZE }} data-testid={`flow-${id}`}>
+      <span className={cn('block size-2.5 rounded-full', start ? 'bg-(--accent)' : 'bg-text-3')} aria-hidden="true" />
+      <span className="absolute top-full mt-1 whitespace-nowrap text-micro text-text-3">{data.label}</span>
       <Handle type={start ? 'source' : 'target'} position={start ? Position.Right : Position.Left} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
+    </div>
+  )
+})
+
+/** 拖放预览：半透明虚线节点 + 语义字（并行 / 串行）。 */
+const GhostNodeView = memo(function GhostNodeView({ data }: NodeProps<GhostNode>): JSX.Element {
+  return (
+    <div className="relative rounded-sm border border-dashed border-(--accent) bg-accent-t/60 px-3 py-2 opacity-90" style={{ width: NODE_WIDTH, minHeight: NODE_HEIGHT }} data-testid="flow-ghost" data-mode={data.mode}>
+      <Handle type="target" position={Position.Left} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
+      <span className="block truncate font-mono text-body font-semibold text-(--accent)">{data.label}</span>
+      <span className="block text-micro text-(--accent)">{data.mode}</span>
+      <Handle type="source" position={Position.Right} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
     </div>
   )
 })
@@ -151,7 +212,7 @@ const LabelNodeView = memo(function LabelNodeView({ data }: NodeProps<LabelNode>
   return <span className="whitespace-nowrap font-mono text-micro text-text-3" data-testid="flow-wave-label">{data.label}</span>
 })
 
-const NODE_TYPES = { skill: SkillNodeView, port: PortNodeView, label: LabelNodeView }
+const NODE_TYPES = { skill: SkillNodeView, port: PortNodeView, label: LabelNodeView, ghost: GhostNodeView }
 
 export interface SkillFlowProps {
   skills: readonly WbSkillRef[]
@@ -160,10 +221,12 @@ export interface SkillFlowProps {
   /** 可编辑时，图与传入技能的签名不同才回调完整技能数组。 */
   onChange?: (skills: WbSkillRef[]) => void
   onOpen: (id: string) => void
+  /** 正在从技能库拖过来的技能名（dragover 阶段读不到 dataTransfer 数据，由父级告知），用于幽灵节点。 */
+  dragLabel?: string | null
   className?: string
 }
 
-function SkillFlowInner({ skills, registry, editable, onChange, onOpen, className }: SkillFlowProps): JSX.Element {
+function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabel = null, className }: SkillFlowProps): JSX.Element {
   const { t } = useT()
   const flow = useReactFlow()
   const flowRef = useRef(flow)
@@ -178,6 +241,8 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
   onChangeRef.current = onChange
   const [nodes, setNodes] = useState<SkillNode[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
+  const [ghost, setGhost] = useState<{ x: number; y: number; label: string; target: DropTarget } | null>(null)
+  const enteringRef = useRef<string | null>(null)
   const signature = skillsSignature(skills)
 
   const removeNode = useCallback((id: string) => {
@@ -191,7 +256,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
       id,
       type: 'skill',
       position: { x, y },
-      data: { label: id, description: entry?.description ?? null, source: entry?.source ?? null, editable, onOpen: (target) => onOpenRef.current(target), onRemove: removeNode },
+      data: { label: id, description: entry?.description ?? null, source: entry?.source ?? null, editable, entering: enteringRef.current === id, onOpen: (target) => onOpenRef.current(target), onRemove: removeNode },
       draggable: editable,
       selectable: editable,
     }
@@ -236,14 +301,21 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
       const text = wave.length > 1 ? `${t('workflow.step_n', { n: index + 1 })} · ${t('workflow.parallel_n', { n: wave.length })}` : t('workflow.step_n', { n: index + 1 })
       return { id: `label-${index}`, type: 'label', position: { x, y }, data: { label: text }, draggable: false, selectable: false, deletable: false, connectable: false }
     })
+    const portEdge = { deletable: false, selectable: false, animated: false, style: { ...EDGE_STYLE, opacity: 0.7 } }
     const virtual: Edge[] = [
-      ...first.map((id) => ({ id: `start->${id}`, source: 'start', target: id, deletable: false, selectable: false })),
-      ...nodes.filter((node) => !hasDependent.has(node.id)).map((node) => ({ id: `${node.id}->end`, source: node.id, target: 'end', deletable: false, selectable: false })),
+      ...first.map((id) => ({ id: `start->${id}`, source: 'start', target: id, ...portEdge })),
+      ...nodes.filter((node) => !hasDependent.has(node.id)).map((node) => ({ id: `${node.id}->end`, source: node.id, target: 'end', ...portEdge, markerEnd: undefined })),
     ]
-    return { nodes: [...labels, ...ports, ...nodes], edges: [...edges, ...virtual] }
-  }, [nodes, edges, graph, t])
+    const ghostNodes: GhostNode[] = ghost === null ? [] : [{ id: 'ghost', type: 'ghost', position: { x: ghost.x, y: ghost.y }, data: { label: ghost.label, mode: ghost.target.kind === 'join' ? t('workflow.parallel_n', { n: (waves[ghost.target.wave]?.length ?? 0) + 1 }) : t('workflow.serial') }, draggable: false, selectable: false, deletable: false, connectable: false }]
+    const ghostEdges: Edge[] = ghost === null ? [] : (
+      ghost.target.kind === 'after' ? last.map((id) => ({ id: `${id}->ghost`, source: id, target: 'ghost' }))
+        : ghost.target.kind === 'before' ? first.map((id) => ({ id: `ghost->${id}`, source: 'ghost', target: id }))
+          : (waves[ghost.target.wave - 1] ?? []).map((id) => ({ id: `${id}->ghost`, source: id, target: 'ghost' }))
+    ).map((edge) => ({ ...edge, deletable: false, selectable: false, style: { stroke: 'var(--accent-b)', strokeWidth: 1.5, strokeDasharray: '4 4' } }))
+    return { nodes: [...labels, ...ports, ...nodes, ...ghostNodes], edges: [...edges, ...virtual, ...ghostEdges] }
+  }, [nodes, edges, graph, ghost, t])
 
-  const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => setNodes((current) => applyNodeChanges(changes.filter((change) => !('id' in change) || (change.id !== 'start' && change.id !== 'end' && !String(change.id).startsWith('label-'))) as NodeChange<SkillNode>[], current)), [])
+  const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => setNodes((current) => applyNodeChanges(changes.filter((change) => !('id' in change) || (change.id !== 'start' && change.id !== 'end' && change.id !== 'ghost' && !String(change.id).startsWith('label-'))) as NodeChange<SkillNode>[], current)), [])
   const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((current) => applyEdgeChanges(changes, current)), [])
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source === null || connection.target === null || connection.source === 'start' || connection.target === 'end') return
@@ -253,13 +325,62 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
       return [...current, { id: `${connection.source}->${connection.target}`, source: connection.source, target: connection.target }]
     })
   }, [])
+  /** 各波列的 x（取该波节点的最小 x），按波次顺序。 */
+  const columnXs = useMemo(() => {
+    const position = new Map(nodes.map((node) => [node.id, node.position.x]))
+    return wavesOf(graph).map((wave) => Math.min(...wave.map((id) => position.get(id) ?? 0)))
+  }, [nodes, graph])
+
+  /** 结构性变更（加节点）后整体重排，并给新节点入场动画。 */
+  const relayout = useCallback((next: WbSkillRef[], entering: string | null) => {
+    enteringRef.current = entering
+    setNodes(layoutSkills(next).map(({ id, x, y }) => makeNode(id, x, y)))
+    setEdges(edgesOf(next))
+    requestAnimationFrame(() => { void flowRef.current.fitView({ padding: 0.2, maxZoom: 1 }) })
+  }, [makeNode])
+
+  const ghostFor = useCallback((label: string, point: { x: number; y: number }) => {
+    const target = dropTargetFor(point.x, columnXs)
+    const waves = wavesOf(graph)
+    const position = new Map(nodes.map((node) => [node.id, node.position]))
+    const centerY = (ids: readonly string[]): number => ids.length === 0 ? point.y - NODE_HEIGHT / 2 : ids.reduce((sum, id) => sum + (position.get(id)?.y ?? 0), 0) / ids.length
+    if (target.kind === 'after') {
+      const lastX = columnXs[columnXs.length - 1]
+      return { x: lastX === undefined ? point.x - NODE_WIDTH / 2 : lastX + COLUMN_GAP, y: centerY(waves[waves.length - 1] ?? []), label, target }
+    }
+    if (target.kind === 'before') return { x: (columnXs[0] ?? point.x) - COLUMN_GAP, y: centerY(waves[0] ?? []), label, target }
+    const wave = waves[target.wave] ?? []
+    const bottom = Math.max(...wave.map((id) => position.get(id)?.y ?? 0))
+    return { x: columnXs[target.wave] ?? point.x, y: bottom + ROW_GAP, label, target }
+  }, [columnXs, graph, nodes])
+
+  const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    if (!event.dataTransfer.types.includes('text/skill')) return
+    setGhost(ghostFor(dragLabel ?? '…', flowRef.current.screenToFlowPosition({ x: event.clientX, y: event.clientY })))
+  }, [ghostFor, dragLabel])
   const onDrop = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
+    setGhost(null)
     const id = event.dataTransfer.getData('text/skill')
-    if (id === '') return
+    if (id === '' || nodes.some((node) => node.id === id)) return
     const point = flowRef.current.screenToFlowPosition({ x: event.clientX, y: event.clientY })
-    setNodes((current) => current.some((node) => node.id === id) ? current : [...current, makeNode(id, point.x - NODE_WIDTH / 2, point.y - NODE_HEIGHT / 2)])
-  }, [makeNode])
+    relayout(addSkillAt(graph, id, dropTargetFor(point.x, columnXs)), id)
+  }, [nodes, graph, columnXs, relayout])
+
+  // 父级通过签名变化把新技能传进来（技能库「+」）：定位新加入的那个做入场动画。
+  const previousIds = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const current = new Set(skills.map((skill) => skill.id))
+    const added = [...current].filter((id) => !previousIds.current.has(id))
+    previousIds.current = current
+    if (previousIds.current.size > 0 && added.length === 1 && editable) {
+      enteringRef.current = added[0]!
+      setNodes((now) => now.map((node) => node.id === added[0] ? { ...node, data: { ...node.data, entering: true } } : node))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature])
 
   return (
     <div
@@ -269,7 +390,8 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
       data-editable={editable}
       data-nodes={nodes.length}
       data-edges={edges.length}
-      onDragOver={editable ? (event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' } : undefined}
+      onDragOver={editable ? onDragOver : undefined}
+      onDragLeave={editable ? (event) => { if (!event.currentTarget.contains(event.relatedTarget as globalThis.Node | null)) setGhost(null) } : undefined}
       onDrop={editable ? onDrop : undefined}
     >
       {nodes.length === 0 && <p className="pointer-events-none absolute inset-0 z-10 grid place-items-center text-body text-text-3" role="status" data-testid="skill-flow-empty">{t(editable ? 'workflow.drop_skill' : 'workflow.no_skills')}</p>}

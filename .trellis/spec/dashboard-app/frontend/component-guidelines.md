@@ -95,7 +95,15 @@ last one. Anything that needs its own surface opens the shared right-side `share
   (`MarkerType.ArrowClosed`) and animated dashes on every edge. Virtual nodes / edges are derived in render, never
   stored; `data-nodes` / `data-edges` count skills and `depends_on` edges only. Effects key on
   `skillsSignature(skills)` (ids + sorted depends_on), not on array identity, and `onChange` fires only when the
-  graph's signature differs from the prop — this is what stops the reopen-after-delete render loop. Read-only in the pane (`editable=false`: no drag / connect /
+  graph's signature differs from the prop — this is what stops the reopen-after-delete render loop.
+  Adding a skill is semantic, not positional: `dropTargetFor(x, columnXs)` maps the pointer to `join` (a column →
+  parallel: depends on the previous wave, the next wave depends on it), `after` (right of the last column → serial
+  new step depending on the whole last wave) or `before` (left of the first column → new first step); `addSkillAt`
+  rewrites `depends_on` accordingly and the graph is re-laid out. The palette `+` is `appendSerial`. While dragging,
+  a dashed `flow-ghost` node with the pending mode (并行 n / 串行) and preview edges shows where it will land
+  (`dragLabel` comes from the composer because `dataTransfer` is unreadable during dragover); the new node plays
+  `flow-in` (`data-entering`), disabled under reduced motion. Ports are solid dots with a caption (起点 accent,
+  终点 grey); port edges are static, only `depends_on` edges animate. Read-only in the pane (`editable=false`: no drag / connect /
   pan; click → `SkillDetailDrawer`). Editable inside `SkillComposer`: palette items are HTML5-draggable
   (`dataTransfer 'text/skill'`) and have a `+` (`palette-add-<name>`); `onConnect` refuses cycles (`wouldCycle`);
   `×` on a node (`flow-remove-<id>`) removes it and its edges; Backspace deletes a selected edge. The graph is written
@@ -144,8 +152,9 @@ declaration (frontmatter or a kernel table keyed by skill) and a kernel change �
 ## Styling patterns
 
 - Tokens only (`text-text-2`, `bg-accent-t`, `border-border`, `bg-seg-now` …); no hex in components.
-- Type scale 7 steps, radius 4 steps, 4px spacing grid; `tools/check-design-scale.mjs` blocks arbitrary
-  values.
+- Type scale 7 steps (micro 13 / caption 14 / body 16 / base 17 / title 19 / section 24 / page 34 — scaled ×1.2
+  on 2026-09-11 at the user's request), radius 4 steps, 4px spacing grid; `tools/check-design-scale.mjs` blocks
+  arbitrary values. Narrow columns must keep labels on one line (`whitespace-nowrap` + `overflow-x-auto`) at this size.
 - Cards separate by border and ground colour; shadows only on floating layers (drawer, dialogs, drag
   overlay).
 

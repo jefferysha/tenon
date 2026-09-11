@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { WbSkillRef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
-import { edgesOf, graphToSkills, layoutSkills, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
+import { addSkillAt, appendSerial, dropTargetFor, edgesOf, graphToSkills, layoutSkills, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -40,6 +40,26 @@ describe('SkillFlow · 纯函数', () => {
   })
 })
 
+describe('SkillFlow · 落点语义', () => {
+  it('dropTargetFor：列附近 = 并入该波；末列右侧 = 新一步；首列左侧 = 新首步；无列 = 新一步', () => {
+    const columns = [96, 396]
+    expect(dropTargetFor(150, columns)).toEqual({ kind: 'join', wave: 0 })
+    expect(dropTargetFor(420, columns)).toEqual({ kind: 'join', wave: 1 })
+    expect(dropTargetFor(800, columns)).toEqual({ kind: 'after' })
+    expect(dropTargetFor(10, columns)).toEqual({ kind: 'before' })
+    expect(dropTargetFor(10, [])).toEqual({ kind: 'after' })
+  })
+  it('addSkillAt：after 依赖末波；before 被首波依赖；join 依赖上一波并被下一波依赖；重复 id 不变', () => {
+    const base = [{ id: 'a' }, { id: 'b', depends_on: ['a'] }, { id: 'c', depends_on: ['a'] }]
+    expect(appendSerial(base, 'd')).toEqual([...base, { id: 'd', depends_on: ['b', 'c'] }])
+    expect(addSkillAt(base, 'z', { kind: 'before' })).toEqual([{ id: 'z' }, { id: 'a', depends_on: ['z'] }, { id: 'b', depends_on: ['a'] }, { id: 'c', depends_on: ['a'] }])
+    expect(addSkillAt(base, 'p', { kind: 'join', wave: 0 })).toEqual([{ id: 'a' }, { id: 'p' }, { id: 'b', depends_on: ['a', 'p'] }, { id: 'c', depends_on: ['a', 'p'] }])
+    expect(addSkillAt(base, 'q', { kind: 'join', wave: 1 })).toEqual([{ id: 'a' }, { id: 'b', depends_on: ['a'] }, { id: 'c', depends_on: ['a'] }, { id: 'q', depends_on: ['a'] }])
+    expect(appendSerial([], 'solo')).toEqual([{ id: 'solo' }])
+    expect(addSkillAt(base, 'a', { kind: 'after' })).toEqual(base)
+  })
+})
+
 describe('SkillFlow · 组件', () => {
   it('skillsSignature：只看 id 与 depends_on，顺序无关的依赖列表签名相同', () => {
     expect(skillsSignature([{ id: 'a', depends_on: ['x', 'y'] }])).toBe(skillsSignature([{ id: 'a', depends_on: ['y', 'x'] }]))
@@ -51,8 +71,8 @@ describe('SkillFlow · 组件', () => {
     render(<I18nProvider><SkillFlow skills={SKILLS} registry={[{ name: 'brainstorming', installed: true, source: 'external-marketplace', description: '把想法聊成设计' }]} editable={false} onOpen={onOpen} /></I18nProvider>)
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-nodes', '3')
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-edges', '2')
-    expect(screen.getByTestId('flow-start')).toBeInTheDocument()
-    expect(screen.getByTestId('flow-end')).toBeInTheDocument()
+    expect(screen.getByTestId('flow-start')).toHaveTextContent('起点')
+    expect(screen.getByTestId('flow-end')).toHaveTextContent('终点')
     expect(screen.getAllByTestId('flow-wave-label').map((label) => label.textContent)).toEqual(['第 1 步', '第 2 步 · 并行 2'])
     expect(screen.getByTestId('react-flow').getAttribute('data-edges')).toContain('start->tenon-explore')
     expect(screen.getByTestId('react-flow').getAttribute('data-edges')).toContain('brainstorming->end')

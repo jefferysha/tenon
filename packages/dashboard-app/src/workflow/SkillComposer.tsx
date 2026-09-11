@@ -4,7 +4,7 @@ import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
 import { SkillDetail } from './SkillDetail'
-import { SkillFlow } from './SkillFlow'
+import { appendSerial, SkillFlow } from './SkillFlow'
 import { SkillSourceIcon } from './SkillSourceIcon'
 import { cn } from '@/lib/utils'
 
@@ -17,23 +17,26 @@ export interface SkillComposerProps {
   onSave: (skills: WbSkillRef[]) => void
 }
 
-const PaletteItem = memo(function PaletteItem({ entry, placed, active, onOpen, onAdd }: {
+const PaletteItem = memo(function PaletteItem({ entry, placed, active, onOpen, onAdd, onDragging }: {
   entry: WbSkillEntry
   placed: boolean
   active: boolean
   onOpen: (name: string) => void
   onAdd: (name: string) => void
+  onDragging: (name: string | null) => void
 }): JSX.Element {
   const { t } = useT()
   function onDragStart(event: DragEvent<HTMLLIElement>): void {
     event.dataTransfer.setData('text/skill', entry.name)
     event.dataTransfer.effectAllowed = 'move'
+    onDragging(entry.name)
   }
   return (
     <li
       className={cn('flex min-w-0 items-center gap-1 rounded-md border px-1 py-1 transition-[opacity,border-color,background-color] duration-150', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
       draggable={!placed}
       onDragStart={placed ? undefined : onDragStart}
+      onDragEnd={() => onDragging(null)}
       data-testid={`palette-${entry.name}`}
       data-placed={placed}
     >
@@ -58,6 +61,7 @@ export function SkillComposer({ open, stageLabel, skills, registry, onClose, onS
   const [draft, setDraft] = useState<WbSkillRef[]>(() => [...skills])
   const [search, setSearch] = useState('')
   const [detail, setDetail] = useState<string | null>(null)
+  const [dragging, setDragging] = useState<string | null>(null)
   useEffect(() => { if (open) { setDraft([...skills]); setDetail(skills[0]?.id ?? null) } }, [open, skills])
   const placed = useMemo(() => new Set(draft.map((skill) => skill.id)), [draft])
   const entries = useMemo(() => (registry ?? [])
@@ -65,8 +69,9 @@ export function SkillComposer({ open, stageLabel, skills, registry, onClose, onS
     .sort((a, b) => Number(placed.has(a.name)) - Number(placed.has(b.name)) || a.name.localeCompare(b.name)), [registry, placed, search])
   if (!open) return null
 
+  /** 技能库「+」：串行追加为新一步（依赖末波全部技能）；要并行就拖到那一列上。 */
   function add(id: string): void {
-    setDraft((current) => current.some((skill) => skill.id === id) ? current : [...current, { id }])
+    setDraft((current) => appendSerial(current, id))
   }
 
   return (
@@ -98,11 +103,11 @@ export function SkillComposer({ open, stageLabel, skills, registry, onClose, onS
             <p className="px-1 text-caption text-text-3" role="status">{t('workflow.palette_empty')}</p>
           ) : (
             <ul className="grid min-h-0 flex-1 grid-cols-1 content-start gap-0.5 overflow-y-auto pr-0.5">
-              {entries.map((entry) => <PaletteItem key={entry.name} entry={entry} placed={placed.has(entry.name)} active={detail === entry.name} onOpen={setDetail} onAdd={add} />)}
+              {entries.map((entry) => <PaletteItem key={entry.name} entry={entry} placed={placed.has(entry.name)} active={detail === entry.name} onOpen={setDetail} onAdd={add} onDragging={setDragging} />)}
             </ul>
           )}
         </section>
-        <SkillFlow skills={draft} registry={registry} editable onChange={setDraft} onOpen={setDetail} className="min-h-0" />
+        <SkillFlow skills={draft} registry={registry} editable onChange={setDraft} onOpen={setDetail} dragLabel={dragging} className="min-h-0" />
         <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card p-4 max-[1100px]:hidden" aria-label={t('workflow.preview_skill', { id: detail ?? '' })} data-testid="skill-composer-detail">
           {detail === null ? (
             <p className="text-body text-text-3" role="status">{t('workflow.pick_skill')}</p>

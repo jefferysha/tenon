@@ -222,7 +222,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
       </div>
 
       {tracks.length > 0 && (
-        <div className="flex items-end gap-4 border-b border-border" role="tablist" aria-label={t('workflow.tracks_title')} data-testid="wb-tracks">
+        <div className="flex items-end gap-3.5 overflow-x-auto border-b border-border" role="tablist" aria-label={t('workflow.tracks_title')} data-testid="wb-tracks">
           {tracks.map((candidate) => {
             const active = candidate.id === branch
             return (
@@ -231,7 +231,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
                 type="button"
                 role="tab"
                 aria-selected={active}
-                className={cn('-mb-px border-b-2 pb-2 text-body outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent)', active ? 'border-(--accent) font-semibold text-text' : 'border-transparent text-text-2 hover:text-text')}
+                className={cn('-mb-px flex-none whitespace-nowrap border-b-2 pb-2 text-body outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent)', active ? 'border-(--accent) font-semibold text-text' : 'border-transparent text-text-2 hover:text-text')}
                 data-testid={`wb-track-${candidate.id}`}
                 onClick={() => { if (!busy) props.onSwitchBranch(candidate.id) }}
               >

@@ -156,26 +156,26 @@
  * 刻度外的字号与圆角在构建期直接不存在，避免 text-xs(12px) 与 text-caption(12px) 这类同义双写。
  */
 @theme static {
-  /* 排版刻度（7 级，密集控制台基准 13–14px）。
+  /* 排版刻度（7 级，密集控制台基准 16–17px；2026-09-11 按用户要求整体放大 20%）。
    * 行高成对声明：caption/base/title/section 与它们取代的 text-xs/sm/base/xl 行高等值，
    * 迁移不改既有行盒；micro/body 取密集行的紧凑行高。
    * leading-* 工具类经 --tw-leading（inherits:false）覆盖此处行高，显式排版处不受影响。
    * 刻度外字号请改设计，不要新增 token 或 text-[Npx]——tools/check-design-scale.mjs 会拦。 */
   --text-*: initial;
-  --text-micro: 11px;          /* 等宽标签、计数、徽章；下限——中文低于 11px 不可读 */
-  --text-micro--line-height: 14px;
-  --text-caption: 12px;        /* 次级元信息 */
-  --text-caption--line-height: 16px;
-  --text-body: 13px;           /* 密集正文 */
-  --text-body--line-height: 18px;
-  --text-base: 14px;           /* 主要阅读 */
-  --text-base--line-height: 20px;
-  --text-title: 16px;          /* 卡片 / 区块标题 */
-  --text-title--line-height: 24px;
-  --text-section: 20px;        /* 区段标题 */
-  --text-section--line-height: 28px;
-  --text-page: 28px;           /* 页面标题 */
-  --text-page--line-height: 36px;
+  --text-micro: 13px;          /* 等宽标签、计数、徽章；下限——中文低于 13px 不可读 */
+  --text-micro--line-height: 17px;
+  --text-caption: 14px;        /* 次级元信息 */
+  --text-caption--line-height: 19px;
+  --text-body: 16px;           /* 密集正文 */
+  --text-body--line-height: 22px;
+  --text-base: 17px;           /* 主要阅读 */
+  --text-base--line-height: 24px;
+  --text-title: 19px;          /* 卡片 / 区块标题 */
+  --text-title--line-height: 29px;
+  --text-section: 24px;        /* 区段标题 */
+  --text-section--line-height: 34px;
+  --text-page: 34px;           /* 页面标题 */
+  --text-page--line-height: 43px;
 
   /* 圆角刻度（4 级）。药丸继续用 rounded-full；rounded-none 是静态工具类，不属该 namespace。
    * --radius-md 指向运行时 --radius，保持「12px 只写一次」。 */
@@ -399,4 +399,10 @@
     max-height: calc(100dvh - 1rem);
     overflow-y: auto;
   }
+}
+
+/* 技能画布新节点入场：缩放 + 淡入；reduced-motion 由调用方 motion-reduce:animate-none 关掉。 */
+@keyframes flow-in {
+  from { opacity: 0; transform: scale(.9); }
+  to { opacity: 1; transform: scale(1); }
 }
