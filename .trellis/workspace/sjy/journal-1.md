@@ -602,3 +602,25 @@ PulseEdge：GSAP 沿路径的脉冲点按段序从起点传到终点；工作台
 ### Status
 
 [OK] **Completed**
+
+
+## Session 25: 技能画布脉冲：MotionPathPlugin + 虚拟节点尺寸回填
+<!-- trellis-session: v=2 fp=20f15b0f4d8dcdec -->
+
+**Date**: 2026-09-11
+**Task**: 技能画布脉冲：MotionPathPlugin + 虚拟节点尺寸回填
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+脉冲圆点改由 GSAP MotionPathPlugin 沿路径移动；每条渲染边显式 type=pulse；起终点 / 标签 / 汇合点尺寸回填 measured，边不再闪烁。Playwright 采样确认圆点位移。web 632 用例、design-scale、comments、build 通过；:18765 已重启。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `943c882` | fix(dashboard): make the skill-flow pulse actually move |
+
+### Status
+
+[OK] **Completed**

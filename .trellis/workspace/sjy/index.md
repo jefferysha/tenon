@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 24
+- **Total Sessions**: 25
 - **Last Active**: 2026-09-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~604 | Active |
+| `journal-1.md` | ~626 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 25 | 2026-09-11 | 技能画布脉冲：MotionPathPlugin + 虚拟节点尺寸回填 | `943c882` | `codex/autonomous-loop-v1` |
 | 24 | 2026-09-11 | 整页滚动修复、去掉顶部搜索框 | `03d6034` | `codex/autonomous-loop-v1` |
 | 23 | 2026-09-11 | 工作台对齐工作流页 + 技能画布 GSAP 脉冲 | `ef81f29` | `codex/autonomous-loop-v1` |
 | 22 | 2026-09-11 | 技能画布连线：波次居中、起终点直连、汇合点 | `58a688c` | `codex/autonomous-loop-v1` |
