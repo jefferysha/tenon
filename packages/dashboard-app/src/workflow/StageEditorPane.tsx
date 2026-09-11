@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { ChevronRight, Circle, Info, Pencil, ShieldCheck, Trash2, Zap, type LucideIcon } from 'lucide-react'
+import { ChevronRight, Circle, Info, Pencil, Plus, ShieldCheck, Trash2, Zap, type LucideIcon } from 'lucide-react'
 import type { WbIoSlot, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
 import { BASE_BRANCH } from '../workbench/workbenchDefinition'
+import { issuesFor } from './lint'
 import { IoTable, type IoRow } from './IoTable'
+import { TransitionTable } from './TransitionTable'
 import { SkillComposer } from './SkillComposer'
 import { SkillDetailDrawer } from './SkillDetail'
 import { SkillFlow } from './SkillFlow'
@@ -62,6 +64,13 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const yamlBase = editor.branch === BASE_BRANCH ? `steps[${step.id}]` : `tracks.${editor.branch}.steps[${step.id}]`
   const stageSkills = step.skills.map((skill) => skill.id)
   const stageLabel = editor.labelOf(step.id)
+  // 本阶段的转移问题翻成文案；保存已被 editor.lintBlocked 挡住，这里只说清楚是哪一条。
+  const transitionIssues = issuesFor(editor.lint, step.id).flatMap((issue) => {
+    if (issue.kind === 'transition-empty-event') return [t('workflow.lint_transition_empty_event')]
+    if (issue.kind === 'transition-duplicate-event') return [t('workflow.lint_transition_duplicate_event', { event: issue.event })]
+    if (issue.kind === 'transition-contract-required') return [t('workflow.lint_transition_contract_required', { to: editor.labelOf(issue.to) })]
+    return []
+  })
 
   const outputRows: IoRow[] = (stepIo?.outputs ?? []).map((slot) => ({
     slot,
@@ -175,6 +184,29 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
                 )
               })}
             </div>
+          </section>
+          <section className="grid gap-3.5 py-6" data-testid="stage-transitions">
+            <SectionHead
+              title={t('workflow.transitions_title')}
+              count={step.transitions.length}
+              action={editable ? (
+                <button type="button" className="inline-flex items-center gap-1.5 text-body text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)" data-testid="wb-transition-add" onClick={() => editor.addTransition(step.id, steps[index + 1]?.id ?? steps.find((candidate) => candidate.id !== step.id)?.id ?? step.id)}>
+                  <Plus className="size-3.5" aria-hidden="true" />
+                  {t('workflow.add_transition')}
+                </button>
+              ) : undefined}
+            />
+            <TransitionTable
+              step={step}
+              targets={steps.map((candidate) => ({ id: candidate.id, label: candidate.label }))}
+              editable={editable}
+              onEvent={(at, event) => editor.setTransitionEvent(step.id, at, event)}
+              onTo={(at, to) => editor.setTransitionTo(step.id, at, to)}
+              onRemove={(at) => editor.removeTransition(step.id, at)}
+            />
+            {transitionIssues.length > 0 && (
+              <p className="text-body text-amber-d" role="status" data-testid="stage-transitions-lint">{transitionIssues[0]}</p>
+            )}
           </section>
         </div>
       </div>

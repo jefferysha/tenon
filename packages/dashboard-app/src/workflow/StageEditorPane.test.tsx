@@ -43,11 +43,12 @@ const REGISTRY: WbSkillEntry[] = [
 function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): WorkflowEditor {
   const labels = new Map(DEF.steps.map((candidate) => [candidate.id, candidate.label]))
   return {
-    def: DEF, effectiveIo: IO, canWrite: true, lintBlocked: false, dirty: false, saving: false, saveStatus: { kind: 'idle' },
+    def: DEF, effectiveIo: IO, canWrite: true, lint: [], lintBlocked: false, dirty: false, saving: false, saveStatus: { kind: 'idle' },
     wfName: 'default', branch: 'pm', branches: [{ id: 'pm', label: '产品' }],
     labelOf: (id: string) => labels.get(id) ?? id,
     mandatory: { registry: REGISTRY },
     renameStep: vi.fn(), removeStage: vi.fn(), setGate: vi.fn(), setSkills: vi.fn(), save: vi.fn(), discardDraft: vi.fn(), reloadDefinition: vi.fn(),
+    addTransition: vi.fn(), setTransitionEvent: vi.fn(), setTransitionTo: vi.fn(), removeTransition: vi.fn(),
     ...overrides,
     ...(step.id === 'spec' ? {} : {}),
   } as unknown as WorkflowEditor
@@ -124,5 +125,48 @@ describe('producerSkills', () => {
     expect(producerSkills(['brainstorming', 'superpowers:brainstorming'], ['tenon-explore', 'brainstorming'])).toEqual(['brainstorming'])
     expect(producerSkills(['openspec-propose', 'opsx:propose'], ['tenon-open'])).toEqual([])
     expect(producerSkills(['tenon:tenon-verify'], ['tenon-verify'])).toEqual(['tenon-verify'])
+  })
+})
+
+describe('StageEditorPane · 转移', () => {
+  it('渲染事件与去向；去向下拉列出全部阶段（含靠前阶段，即回流）', () => {
+    renderPane(EXPLORE)
+    const table = screen.getByTestId('transitions-table')
+    expect(table).toHaveTextContent('事件')
+    expect(table).toHaveTextContent('去向')
+    expect(screen.getByTestId('transition-event-0')).toHaveValue('explore-complete')
+    expect(screen.getByTestId('transition-to-0')).toHaveValue('spec')
+    expect(within(screen.getByTestId('transition-to-0')).getAllByRole('option').map((o) => o.textContent)).toEqual(['调研', '规格'])
+  })
+
+  it('无转移时显示空态', () => {
+    renderPane(SPEC)
+    expect(screen.getByTestId('transitions-empty')).toHaveTextContent('没有转移')
+  })
+
+  it('改事件名 / 改去向 / 删除 / 添加各自回调，添加缺省去向是下一阶段', async () => {
+    const user = userEvent.setup()
+    const editor = renderPane(EXPLORE)
+    await user.type(screen.getByTestId('transition-event-0'), '!')
+    expect(editor.setTransitionEvent).toHaveBeenCalledWith('explore', 0, 'explore-complete!')
+    await user.selectOptions(screen.getByTestId('transition-to-0'), 'explore')
+    expect(editor.setTransitionTo).toHaveBeenCalledWith('explore', 0, 'explore')
+    await user.click(screen.getByTestId('transition-remove-0'))
+    expect(editor.removeTransition).toHaveBeenCalledWith('explore', 0)
+    await user.click(screen.getByTestId('wb-transition-add'))
+    expect(editor.addTransition).toHaveBeenCalledWith('explore', 'spec')
+  })
+
+  it('无写入凭证：事件、去向、删除全部禁用，段头没有添加', () => {
+    renderPane(EXPLORE, { canWrite: false })
+    expect(screen.getByTestId('transition-event-0')).toBeDisabled()
+    expect(screen.getByTestId('transition-to-0')).toBeDisabled()
+    expect(screen.getByTestId('transition-remove-0')).toBeDisabled()
+    expect(screen.queryByTestId('wb-transition-add')).toBeNull()
+  })
+
+  it('本阶段的转移 lint 显示在段内', () => {
+    renderPane(EXPLORE, { lint: [{ kind: 'transition-contract-required', stepId: 'explore', to: 'spec' }] })
+    expect(screen.getByTestId('stage-transitions-lint')).toHaveTextContent('受治理工作流要求本阶段可转移到「规格」')
   })
 })

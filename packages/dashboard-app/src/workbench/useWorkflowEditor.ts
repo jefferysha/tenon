@@ -28,6 +28,10 @@ import {
   reorderStagesInDef,
   selectBranchDef,
   setGateInDef,
+  addTransitionInDef,
+  setTransitionEventInDef,
+  setTransitionToInDef,
+  removeTransitionInDef,
   setStepSkillsInDef,
   workflowNameFromYaml,
   writeBranchDef,
@@ -101,6 +105,10 @@ export interface WorkflowEditor {
   mandatory: MandatoryState
   renameStep: (stepId: string, label: string) => void
   setGate: (stepId: string, gate: WbStepDef['gate']) => void
+  addTransition: (stepId: string, to: string) => void
+  setTransitionEvent: (stepId: string, index: number, event: string) => void
+  setTransitionTo: (stepId: string, index: number, to: string) => void
+  removeTransition: (stepId: string, index: number) => void
   removeStage: (stepId: string) => void
   reorderStages: (fromId: string, toId: string, after: boolean) => void
   setSkills: (stepId: string, skills: readonly WbSkillRef[]) => void
@@ -311,6 +319,10 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   }, [])
   const renameStep = useCallback((stepId: string, label: string) => mutate((previous) => renameStepInDef(previous, stepId, label)), [mutate])
   const setGate = useCallback((stepId: string, gate: WbStepDef['gate']) => mutate((previous) => setGateInDef(previous, stepId, gate)), [mutate])
+  const addTransition = useCallback((stepId: string, to: string) => mutate((previous) => addTransitionInDef(previous, stepId, to)), [mutate])
+  const setTransitionEvent = useCallback((stepId: string, index: number, event: string) => mutate((previous) => setTransitionEventInDef(previous, stepId, index, event)), [mutate])
+  const setTransitionTo = useCallback((stepId: string, index: number, to: string) => mutate((previous) => setTransitionToInDef(previous, stepId, index, to)), [mutate])
+  const removeTransition = useCallback((stepId: string, index: number) => mutate((previous) => removeTransitionInDef(previous, stepId, index)), [mutate])
   const removeStage = useCallback((stepId: string): void => {
     mutate((previous) => removeStageFromDef(previous, stepId))
     setStageId((current) => current === stageId ? (def?.steps.filter((step) => step.id !== stepId)[0]?.id ?? null) : current)
@@ -554,6 +566,10 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     mandatory,
     renameStep,
     setGate,
+    addTransition,
+    setTransitionEvent,
+    setTransitionTo,
+    removeTransition,
     removeStage,
     reorderStages,
     setSkills,

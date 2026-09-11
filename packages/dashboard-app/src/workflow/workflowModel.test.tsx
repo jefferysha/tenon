@@ -52,4 +52,30 @@ describe('lint / draftEffectiveIo / slotCatalog', () => {
       { kind: 'input-not-upstream', stepId: 'c', field: 'plan' },
     ])
   })
+  it('lint 转移：事件名为空 / 本阶段内重名', () => {
+    const def: WbWorkflowDef = {
+      ...DEF,
+      steps: DEF.steps.map((step) => step.id !== 'a' ? step : {
+        ...step,
+        transitions: [{ event: '', to: 'b' }, { event: 'dup', to: 'b' }, { event: 'dup', to: 'c' }],
+      }),
+    }
+    const issues = lintWorkflow(def, draftEffectiveIo(def, undefined))
+    expect(issues).toContainEqual({ kind: 'transition-empty-event', stepId: 'a' })
+    expect(issues).toContainEqual({ kind: 'transition-duplicate-event', stepId: 'a', event: 'dup' })
+  })
+  it('lint 转移：受治理工作流缺必需去向才报，未受治理不报', () => {
+    const steps = ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'].map((id, index, all) => ({
+      id, label: id, gate: null, skills: [], inputs: [], outputs: [{ field: `${id}_out`, type: 'string' as const }], guards: [],
+      transitions: all[index + 1] ? [{ event: `${id}-done`, to: all[index + 1]! }] : [],
+    }))
+    // 线性七阶段：缺两条回流 build→spec 与 verify→build。
+    const governed: WbWorkflowDef = { name: 'default', steps }
+    const issues = lintWorkflow(governed, draftEffectiveIo(governed, undefined))
+    expect(issues).toContainEqual({ kind: 'transition-contract-required', stepId: 'build', to: 'spec' })
+    expect(issues).toContainEqual({ kind: 'transition-contract-required', stepId: 'verify', to: 'build' })
+    // 同样的形状换个名字、不带契约 → 不管
+    const free: WbWorkflowDef = { name: 'mine', steps }
+    expect(lintWorkflow(free, draftEffectiveIo(free, undefined)).filter((issue) => issue.kind === 'transition-contract-required')).toEqual([])
+  })
 })

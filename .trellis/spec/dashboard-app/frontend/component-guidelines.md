@@ -175,6 +175,33 @@ last one. Anything that needs its own surface opens the shared right-side `share
   the current workflow is already `default`, so the cleared `defState` would never be refilled and the stage rail
   would stay empty.
 
+### Transitions section
+
+- The right pane is five sections, in this order: 输入 → 技能 → 输出 → 门禁 → **转移**. The gate decides whether
+  a stage may pass; the transition decides where it goes once it passes or is sent back, so the two sit next to
+  each other.
+- `TransitionTable` mirrors `IoTable`'s header / row rhythm so the section does not read as bolted on: equal
+  columns 事件 · 去向 plus a narrow delete column, `text-caption text-text-3` header, `border-b border-border py-2.5`
+  rows, event name in mono like the IO tables' 文件 column. The 添加 action lives in the section head next to
+  技能's 编辑 — never a button list at the bottom of the table.
+- A transition whose 去向 is an earlier stage **is** the back edge; it means "this stage failed acceptance, go back
+  and fix it". Linear transitions and back edges share one row type. No separate section, no 回流 chip, no arrow
+  glyph: the nav's dashed arc on the right already carries that signal and the same thing is never said twice.
+- The 去向 `<select>` is width-fitted (`justify-self-start`, `max-w-full`) so its chevron sits against the value
+  instead of drifting to the column's right edge.
+- Editing is index-addressed, never keyed on the event name: the name is mid-edit and may be blank or duplicated.
+  `guards` / `actions` ride along untouched — `spec-complete` carries `reset-pre-verify-review`, and dropping it
+  while renaming an event would silently change runtime behaviour.
+- Three lint rules block save through the existing `editor.lint` → `lintBlocked` path, with the reason shown inside
+  the section rather than as a 400 from the server: blank event name, duplicate event name within a stage, and a
+  governed workflow missing a required target. The governed test is `openspecContract === 'required' || name ===
+  'default'`, the same predicate `draftEffectiveIo` uses for locked documents, and `CONTRACT_TRANSITIONS` in
+  `lint.ts` mirrors kernel's `CANONICAL_TRANSITIONS` entry for entry.
+- Known sharp edge: dragging stages to reorder still rewrites whichever transition points at the next stage
+  (`reorderStagesInDef`), adding a stage still appends `<id>-complete`, and deleting one still re-points inbound
+  transitions at the successor. Once a user hand-authors a non-linear graph, a reorder can rewrite an edge they
+  meant differently. Left as-is: redefining "the linear transition" carries more risk than the surprise it avoids.
+
 ### How stage inputs / outputs are derived (and what is *not* detected)
 
 `effectiveIo` (kernel `workflow/effective-io.ts`, mirrored for drafts by `workflow/lint.ts#draftEffectiveIo`) has

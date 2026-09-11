@@ -125,6 +125,33 @@ export function setGateInDef(def: WbWorkflowDef, stepId: string, gate: WbStepDef
   return mapStep(def, stepId, (step) => ({ ...step, gate }))
 }
 
+/**
+ * 转移编辑（事件名 / 去向 / 增删）。按**下标**定位而不是事件名：事件名正在被用户编辑，中途会为空或
+ * 重复，当不了键。`guards` / `actions` 原样保留——`spec-complete` 带着 reset-pre-verify-review，
+ * 改个事件名把它丢了会静默改变运行时行为。
+ */
+export function addTransitionInDef(def: WbWorkflowDef, stepId: string, to: string): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => ({ ...step, transitions: [...step.transitions, { event: '', to }] }))
+}
+
+export function setTransitionEventInDef(def: WbWorkflowDef, stepId: string, index: number, event: string): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => ({
+    ...step,
+    transitions: step.transitions.map((transition, current) => (current === index ? { ...transition, event } : transition)),
+  }))
+}
+
+export function setTransitionToInDef(def: WbWorkflowDef, stepId: string, index: number, to: string): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => ({
+    ...step,
+    transitions: step.transitions.map((transition, current) => (current === index ? { ...transition, to } : transition)),
+  }))
+}
+
+export function removeTransitionInDef(def: WbWorkflowDef, stepId: string, index: number): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => ({ ...step, transitions: step.transitions.filter((_, current) => current !== index) }))
+}
+
 /** 列模型 → depends_on：同列并行、邻列串行。 */
 export function setStepSkillWavesInDef(def: WbWorkflowDef, stepId: string, waves: readonly (readonly string[])[]): WbWorkflowDef {
   return mapStep(def, stepId, (step) => ({ ...step, skills: wavesToSkills(waves, step.skills) }))
