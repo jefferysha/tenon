@@ -536,3 +536,25 @@ steps ⊕ tracks（无通用分支，缺分支拒绝）；default 五条分支�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 22: 技能画布连线：波次居中、起终点直连、汇合点
+<!-- trellis-session: v=2 fp=5bc7090587a72285 -->
+
+**Date**: 2026-09-11
+**Task**: 技能画布连线：波次居中、起终点直连、汇合点
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+各波次围绕中线居中；端口按测量高度对齐使单连线为直线；相邻完整列依赖的两波用汇合点渲染（上一波 → 汇合点 → 下一波）；fitView 等测量完成。web 633 用例、design-scale、comments、build 通过；:18765 已重启。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `58a688c` | fix(dashboard): skill flow routing — centred waves, measured ports, junction between column-linked waves |
+
+### Status
+
+[OK] **Completed**
