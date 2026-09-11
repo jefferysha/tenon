@@ -23,6 +23,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import gsap from 'gsap'
+import { MotionPathPlugin } from 'gsap/MotionPathPlugin'
 import { Box, X } from 'lucide-react'
 import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
@@ -177,6 +178,8 @@ export function skillsSignature(skills: readonly WbSkillRef[]): string {
   return skills.map((skill) => `${skill.id}<${[...(skill.depends_on ?? [])].sort().join(',')}`).join('|')
 }
 
+gsap.registerPlugin(MotionPathPlugin)
+
 const EDGE_STYLE = { stroke: 'var(--border-2)', strokeWidth: 1.5 }
 const MARKER = { type: MarkerType.ArrowClosed, width: 16, height: 16, color: 'var(--border-2)' }
 /** 一段脉冲跑完一条边的时长（秒）；整条流程 = 段数 × 此值，然后重来。 */
@@ -189,32 +192,49 @@ function motionAllowed(): boolean {
 }
 
 /**
- * 带脉冲的边：BaseEdge 画线，一个小圆点沿路径从起点跑到终点（GSAP 驱动 offset-distance）。
- * data.order = 这条边在流程里的段序，data.total = 总段数：所有边共用一条时间轴，脉冲从起点一路传到终点再重来。
+ * 带脉冲的边：BaseEdge 画线，一个小圆点由 GSAP MotionPathPlugin 沿同一条路径字符串从起点跑到终点
+ * （SVG 元素上 CSS offset-path 不生效，所以不走 CSS）。data.order = 这条边在流程里的段序，data.total = 总段数：
+ * 所有边共用一条时间轴，脉冲从起点一路传到终点再重来。
  */
 function PulseEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, data }: EdgeProps<Edge<PulseData>>): JSX.Element {
   const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
-  const dotRef = useRef<SVGCircleElement>(null)
+  const dotRef = useRef<SVGGElement>(null)
   const order = data?.order ?? 0
   const total = data?.total ?? 1
   useEffect(() => {
     const dot = dotRef.current
     if (dot === null || !motionAllowed()) return
-    const tween = gsap.fromTo(dot,
-      { offsetDistance: '0%', opacity: 0 },
-      { offsetDistance: '100%', opacity: 1, duration: PULSE_STEP, ease: 'none', delay: order * PULSE_STEP, repeat: -1, repeatDelay: Math.max(0, total - 1) * PULSE_STEP,
-        onRepeat: () => { gsap.set(dot, { opacity: 0 }) } },
-    )
-    return () => { tween.kill() }
+    gsap.set(dot, { opacity: 0 })
+    const tween = gsap.to(dot, {
+      motionPath: { path, autoRotate: false },
+      duration: PULSE_STEP,
+      ease: 'none',
+      delay: order * PULSE_STEP,
+      repeat: -1,
+      repeatDelay: Math.max(0, total - 1) * PULSE_STEP,
+      onStart: () => { gsap.set(dot, { opacity: 1 }) },
+      onRepeat: () => { gsap.set(dot, { opacity: 1 }) },
+    })
+    // 段与段之间圆点停在终点会露出来：每段跑完立刻隐去，下一段开始时再显示。
+    const hide = gsap.delayedCall(order * PULSE_STEP + PULSE_STEP, () => { gsap.set(dot, { opacity: 0 }) }).pause()
+    tween.eventCallback('onUpdate', () => { if (tween.progress() > 0.98) gsap.set(dot, { opacity: 0 }) })
+    return () => { tween.kill(); hide.kill() }
   }, [path, order, total])
   return (
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
-      <circle ref={dotRef} r={3.5} className="fill-(--accent)" style={{ offsetPath: `path('${path}')`, offsetRotate: '0deg', opacity: 0 }} data-testid={`flow-pulse-${id}`} />
+      <g ref={dotRef} style={{ opacity: 0 }} data-testid={`flow-pulse-${id}`}>
+        <circle r={7} className="fill-(--accent)" opacity={0.18} />
+        <circle r={3.5} className="fill-(--accent)" />
+      </g>
     </>
   )
 }
 const EDGE_TYPES = { pulse: PulseEdge }
+
+function isVirtualId(id: string): boolean {
+  return id === 'start' || id === 'end' || id === 'ghost' || id.startsWith('label-') || /^j\d+$/.test(id)
+}
 
 const SkillNodeView = memo(function SkillNodeView({ id, data, selected }: NodeProps<SkillNode>): JSX.Element {
   const { t } = useT()
@@ -327,6 +347,9 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
   const [nodes, setNodes] = useState<SkillNode[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [ghost, setGhost] = useState<{ x: number; y: number; label: string; target: DropTarget } | null>(null)
+  // 起点 / 终点 / 标签 / 汇合点不在 nodes state 里，React Flow 量到的尺寸要单独记下并回填，否则它会认为这些节点
+  // 未测量：连到它们的边不渲染，且每帧重复上报尺寸。
+  const [virtualMeasured, setVirtualMeasured] = useState<Record<string, { width: number; height: number }>>({})
   const enteringRef = useRef<string | null>(null)
   const signature = skillsSignature(skills)
 
@@ -385,15 +408,16 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     waves.forEach((wave, index) => wave.forEach((id) => depth.set(id, index)))
     const total = 2 * waves.length
     const pulse = (order: number): { data: PulseData } => ({ data: { order, total } })
+    const sized = (id: string, width: number, height: number) => ({ width, height, measured: virtualMeasured[id] ?? { width, height } })
     const ports: PortNode[] = [
-      { id: 'start', type: 'port', position: { x: minX - PORT_GAP, y: centerY(first) - PORT_SIZE / 2 }, data: { label: t('workflow.flow_start') }, draggable: false, selectable: false, deletable: false, connectable: false },
-      { id: 'end', type: 'port', position: { x: maxX + NODE_WIDTH + PORT_GAP - PORT_SIZE, y: centerY(last) - PORT_SIZE / 2 }, data: { label: t('workflow.flow_end') }, draggable: false, selectable: false, deletable: false, connectable: false },
+      { id: 'start', type: 'port', position: { x: minX - PORT_GAP, y: centerY(first) - PORT_SIZE / 2 }, data: { label: t('workflow.flow_start') }, draggable: false, selectable: false, deletable: false, connectable: false, ...sized('start', PORT_SIZE, PORT_SIZE) },
+      { id: 'end', type: 'port', position: { x: maxX + NODE_WIDTH + PORT_GAP - PORT_SIZE, y: centerY(last) - PORT_SIZE / 2 }, data: { label: t('workflow.flow_end') }, draggable: false, selectable: false, deletable: false, connectable: false, ...sized('end', PORT_SIZE, PORT_SIZE) },
     ]
     const labels: LabelNode[] = waves.map((wave, index) => {
       const x = Math.min(...wave.map((id) => byId.get(id)?.position.x ?? 0))
       const y = Math.min(...wave.map((id) => byId.get(id)?.position.y ?? 0)) - 22
       const text = wave.length > 1 ? `${t('workflow.step_n', { n: index + 1 })} · ${t('workflow.parallel_n', { n: wave.length })}` : t('workflow.step_n', { n: index + 1 })
-      return { id: `label-${index}`, type: 'label', position: { x, y }, data: { label: text }, draggable: false, selectable: false, deletable: false, connectable: false }
+      return { id: `label-${index}`, type: 'label', position: { x, y }, data: { label: text }, draggable: false, selectable: false, deletable: false, connectable: false, ...sized(`label-${index}`, 120, 17) }
     })
     // 相邻两波构成完整列依赖 → 用汇合点：上一波所有节点 → 汇合点（无箭头）→ 下一波每个节点。
     const junctions: JunctionNode[] = []
@@ -405,7 +429,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       const rightEdge = Math.max(...wave.map((id) => byId.get(id)?.position.x ?? 0)) + NODE_WIDTH
       const leftEdge = Math.min(...next.map((id) => byId.get(id)?.position.x ?? 0))
       const junctionId = `j${index}`
-      junctions.push({ id: junctionId, type: 'junction', position: { x: (rightEdge + leftEdge) / 2 - 1, y: (centerY(wave) + centerY(next)) / 2 - 1 }, data: {}, draggable: false, selectable: false, deletable: false, connectable: false })
+      junctions.push({ id: junctionId, type: 'junction', position: { x: (rightEdge + leftEdge) / 2 - 1, y: (centerY(wave) + centerY(next)) / 2 - 1 }, data: {}, draggable: false, selectable: false, deletable: false, connectable: false, ...sized(junctionId, 2, 2) })
       for (const id of wave) { junctionEdges.push({ id: `${id}->${junctionId}`, source: id, target: junctionId, ...portEdge, markerEnd: undefined, ...pulse(2 * index + 1) }) }
       for (const id of next) { junctionEdges.push({ id: `${junctionId}->${id}`, source: junctionId, target: id, deletable: false, selectable: false, ...pulse(2 * index + 2) }) }
       for (const edge of edges) if (wave.includes(edge.source) && next.includes(edge.target)) replaced.add(edge.id)
@@ -416,19 +440,35 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       ...nodes.filter((node) => !hasDependent.has(node.id)).map((node) => ({ id: `${node.id}->end`, source: node.id, target: 'end', ...portEdge, markerEnd: undefined, ...pulse(2 * waves.length - 1) })),
     ]
     const direct = edges.filter((edge) => !replaced.has(edge.id)).map((edge) => ({ ...edge, ...pulse(2 * (depth.get(edge.source) ?? 0) + 1) }))
-    const ghostNodes: GhostNode[] = ghost === null ? [] : [{ id: 'ghost', type: 'ghost', position: { x: ghost.x, y: ghost.y }, data: { label: ghost.label, mode: ghost.target.kind === 'join' ? t('workflow.parallel_n', { n: (waves[ghost.target.wave]?.length ?? 0) + 1 }) : t('workflow.serial') }, draggable: false, selectable: false, deletable: false, connectable: false }]
+    const ghostNodes: GhostNode[] = ghost === null ? [] : [{ id: 'ghost', type: 'ghost', position: { x: ghost.x, y: ghost.y }, data: { label: ghost.label, mode: ghost.target.kind === 'join' ? t('workflow.parallel_n', { n: (waves[ghost.target.wave]?.length ?? 0) + 1 }) : t('workflow.serial') }, draggable: false, selectable: false, deletable: false, connectable: false, ...sized('ghost', NODE_WIDTH, NODE_HEIGHT) }]
     const ghostEdges: Edge[] = ghost === null ? [] : (
       ghost.target.kind === 'after' ? last.map((id) => ({ id: `${id}->ghost`, source: id, target: 'ghost' }))
         : ghost.target.kind === 'before' ? first.map((id) => ({ id: `ghost->${id}`, source: 'ghost', target: id }))
           : (waves[ghost.target.wave - 1] ?? []).map((id) => ({ id: `${id}->ghost`, source: id, target: 'ghost' }))
     ).map((edge) => ({ ...edge, deletable: false, selectable: false, style: { stroke: 'var(--accent-b)', strokeWidth: 1.5, strokeDasharray: '4 4' } }))
+    // defaultEdgeOptions 只作用于 onConnect 新建的边；props 传入的边要显式指定类型。
+    const typed = (list: Edge[]): Edge[] => list.map((edge) => ({ ...edge, type: 'pulse', style: edge.style ?? EDGE_STYLE, markerEnd: 'markerEnd' in edge ? edge.markerEnd : MARKER }))
     return {
       nodes: [...labels, ...ports, ...junctions, ...nodes, ...ghostNodes],
-      edges: [...direct, ...junctionEdges, ...virtual, ...ghostEdges],
+      edges: [...typed(direct), ...typed(junctionEdges), ...typed(virtual), ...typed(ghostEdges)],
     }
-  }, [nodes, edges, graph, ghost, t])
+  }, [nodes, edges, graph, ghost, virtualMeasured, t])
 
-  const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => setNodes((current) => applyNodeChanges(changes.filter((change) => !('id' in change) || (change.id !== 'start' && change.id !== 'end' && change.id !== 'ghost' && !String(change.id).startsWith('label-') && !/^j\d+$/.test(String(change.id)))) as NodeChange<SkillNode>[], current)), [])
+  const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
+    const own: NodeChange<SkillNode>[] = []
+    for (const change of changes) {
+      const id = 'id' in change ? String(change.id) : null
+      if (id !== null && isVirtualId(id)) {
+        if (change.type === 'dimensions' && change.dimensions !== undefined) {
+          const dims = change.dimensions
+          setVirtualMeasured((current) => current[id]?.width === dims.width && current[id]?.height === dims.height ? current : { ...current, [id]: { width: dims.width, height: dims.height } })
+        }
+        continue
+      }
+      own.push(change as NodeChange<SkillNode>)
+    }
+    if (own.length > 0) setNodes((current) => applyNodeChanges(own, current))
+  }, [])
   const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((current) => applyEdgeChanges(changes, current)), [])
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source === null || connection.target === null || connection.source === 'start' || connection.target === 'end') return

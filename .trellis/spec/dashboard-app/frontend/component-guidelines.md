@@ -114,10 +114,13 @@ last one. Anything that needs its own surface opens the shared right-side `share
   (`dragLabel` comes from the composer because `dataTransfer` is unreadable during dragover); the new node plays
   `flow-in` (`data-entering`), disabled under reduced motion. Ports are solid dots with a caption (起点 accent,
   终点 grey); port edges are static, only `depends_on` edges animate.
-  **Pulse.** Every edge is the custom `pulse` type: `BaseEdge` plus a dot that GSAP moves along the path
-  (`offset-distance`). Edges carry `data.order / total` (起点→首波 0, 波 k→汇合 2k+1, 汇合→波 k+1 2k+2, 末波→终点
+  **Pulse.** Every edge is the custom `pulse` type (set explicitly on each decorated edge — `defaultEdgeOptions`
+  only applies to edges created by `onConnect`): `BaseEdge` plus a dot group that GSAP `MotionPathPlugin` moves along
+  the same path string (CSS `offset-path` does not work on SVG elements). Edges carry `data.order / total` (起点→首波 0, 波 k→汇合 2k+1, 汇合→波 k+1 2k+2, 末波→终点
   2N-1) so one shared timeline sends the pulse from 起点 to 终点 and repeats; reduced motion disables it. React
-  Flow's CSS `animated` dashes are not used.
+  Flow's CSS `animated` dashes are not used. Virtual nodes (ports, labels, junctions, ghost) are not in the nodes
+  state, so their `dimensions` changes are captured into `virtualMeasured` and written back as `measured` — otherwise
+  React Flow treats them as unmeasured, hides the edges attached to them and re-reports sizes every frame.
   **Routing.** `layoutSkills` centres every wave on one midline (the tallest wave sets the height), and port /
   junction y is computed from React Flow's measured node heights (fallback `NODE_HEIGHT`), so single-node links are
   straight. When two adjacent waves form a complete column link (`isColumnLink`: every next-wave node depends on
