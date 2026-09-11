@@ -712,3 +712,25 @@ kernel 全局存储 <configRoot>/workflows + 解析顺序 项目→全局→内�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 30: 阶段退回替换转移表
+<!-- trellis-session: v=2 fp=ee6ede661ea837b5 -->
+
+**Date**: 2026-09-12
+**Task**: 阶段退回替换转移表
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+上一版把 transition 结构直接搬成「事件+去向」表，概念错了：正向去向完全由阶段顺序决定。改成阶段级属性「退回」，一个下拉（不退回 / 退回到某个靠前阶段），首阶段不渲染，界面上不再有事件名和正向去向。不绑门禁，因为实现→规格挂在无门禁的阶段上。顺带修掉「不退回再选回来」把 verify-fail 降级成 verify-back 并丢 actions 的静默数据丢失。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8546106` | fix(workflow): 阶段「退回」替换「转移」表——正向去向不该让用户配 |
+
+### Status
+
+[OK] **Completed**
