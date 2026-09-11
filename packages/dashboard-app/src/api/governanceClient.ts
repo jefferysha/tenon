@@ -16,7 +16,7 @@ import {
   isPromptSkipKeyword,
 } from './governanceDecoders'
 import { decodeSkillFile, decodeSkillFiles, decodeSkillsRegistry, decodeWorkflowDefinition } from './governanceSchema'
-import type { WbWorkflowDef } from './governanceTypes'
+import type { WbWorkflowDef, WbWorkflowSource } from './governanceTypes'
 import { ApiError, getToken, readJson, throwApiError, wrapNetwork } from './transport'
 
 async function readOrThrow<T>(
@@ -66,8 +66,8 @@ export async function unregisterProject(root: string): Promise<void> {
 export interface WorkflowIndex {
   /** 自定义工作流名（不含 default）。 */
   names: string[]
-  /** default 当前来源：项目覆盖文件存在 → project。旧 server 不带该字段 → builtin。 */
-  defaultSource: 'builtin' | 'project'
+  /** default 当前来源：全局覆盖 → global，项目覆盖 → project。旧 server 不带该字段 → builtin。 */
+  defaultSource: WbWorkflowSource
 }
 
 function decodeWorkflowIndex(value: unknown): WorkflowIndex | null {
@@ -75,7 +75,7 @@ function decodeWorkflowIndex(value: unknown): WorkflowIndex | null {
   if (names === null) return null
   const body = value as Record<string, unknown>
   const source = typeof body.default === 'object' && body.default !== null ? (body.default as Record<string, unknown>).source : undefined
-  if (source !== undefined && source !== 'builtin' && source !== 'project') return null
+  if (source !== undefined && source !== 'builtin' && source !== 'project' && source !== 'global') return null
   return { names, defaultSource: source ?? 'builtin' }
 }
 

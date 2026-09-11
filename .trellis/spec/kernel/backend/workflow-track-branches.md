@@ -69,6 +69,24 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
   `manifest.yaml`. Historical-fingerprint tests reconstruct the pre-branch default from the frontend branch
   (`legacyDefaultWorkflow()` in `workflow/test-support.ts`).
 
+### Registry is policy-only; the branch decides usability
+
+- `.pipeline/tracks.yaml` supplies **policy** for a track id (`reviewSeed`, `automationEligible`,
+  `coverageProfile`, routing, skill profile). It does **not** decide which workflow a track may be used with.
+  `track.workflow.allowed` is checked first by `assertWorkflowAllowed`, but the branch check that follows
+  (`selectTrackBranch` / `planFromIr`) is the one that decides: a workflow declaring `tracks:` accepts only the
+  branches it lists, whatever the registry says. A workflow with no `tracks:` node has no branch model and
+  accepts any registered track.
+- There is therefore **no track registration command**. `tenon tracks` is read-only (`list` / `show`);
+  `create` / `update` / `delete` were removed because they could register a track that no `tracks:`-declaring
+  workflow would ever accept — the registry said "allowed", `init` still failed with
+  `工作流 X 没有轨道 Y 的分支`. To add a track, declare the branch in the workflow YAML.
+- Hand-written `tracks.yaml` files still parse (builtin policy overrides keep working); a hand-written custom
+  entry is likewise policy-only and gains no usability.
+- Known gap: `POST /api/tracks`, `PATCH /api/tracks/:id` and `DELETE /api/tracks/:id` still expose registry
+  writes over HTTP. No dashboard component calls them (`postTrackDefinition` / `patchTrackDefinition` /
+  `deleteTrackDefinition` are unreferenced), so the same dead promise survives only on the server surface.
+
 ### Storage: workflows are global
 
 - Workflows are user-level templates, not project files. The global store is

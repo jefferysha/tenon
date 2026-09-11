@@ -139,7 +139,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
   const source = isDefault ? defaultSource : 'global'
   const tracks = branches.filter((candidate) => candidate.id !== BASE_BRANCH)
   const trackLabel = tracks.find((candidate) => candidate.id === branch)?.label ?? branch
-  const deleteEnabled = canWrite && !busy && current !== null && (!isDefault || defaultSource === 'project')
+  const deleteEnabled = canWrite && !busy && current !== null && (!isDefault || defaultSource !== 'builtin')
   const noToken = canWrite ? undefined : t('workflow.no_token')
 
   const steps = def?.steps ?? []

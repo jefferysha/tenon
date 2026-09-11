@@ -1,14 +1,20 @@
 /**
- * 动态 Track Registry 校验面切换 e2e（GOAL.md 清单 T · R2）——真 kernel + 真临时 fs，零 mock。
- * 证明 track 合法性全集由 `.pipeline/tracks.yaml` 驱动（而非写死内建 Track）：
- *  - 自定义 track（data）经 registry 注册后，init/set 放行、workflow 绑定按其 policy 生效；
- *  - workflow.allowed 白名单真拦截（不在白名单的 workflow 在落盘前被拒）；
- *  - 未注册 track 在 init/set 一律 fail-loud，不落盘。
- * 缺 tracks.yaml 的内建 Track 行为另由 init.test / fields.test 覆盖（builtin-only=旧行为逐字一致）。
+ * Track Registry × 工作流分支 e2e——真 kernel + 真临时 fs，零 mock。
+ *
+ * 单一真相是**工作流里的轨道分支**：`.pipeline/tracks.yaml` 只提供 policy（review seed、
+ * coverage profile、routing、skill profile），不决定一条轨道能否与某个工作流一起用。
+ *  - 未声明 `tracks:` 的工作流（data-flow）对任何已注册轨道开放；
+ *  - 声明了 `tracks:` 的工作流（default）只接受它自己列出的分支——注册表里的 `workflow.allowed`
+ *    含 default 也不作数，init/set 一律拒绝并指出缺哪条分支；
+ *  - 要让自定义轨走 default 的七阶段链路，必须在工作流覆盖文件里声明该分支；声明之后
+ *    tracks.yaml 的 policy 照常生效（coverage_profile=backend → 七层矩阵阻断）；
+ *  - 未注册 track、损坏 / orphan tracks.yaml 一律 fail-loud，不落盘。
+ * 缺 tracks.yaml 的内建 Track 行为另由 init.test / fields.test 覆盖。
  */
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { freshHarness, type Harness } from './integration-harness.js'
 
@@ -33,7 +39,11 @@ tracks:
         profile: backend
 `
 
-/** data-flow 自定义 workflow（首 step=draft）——init --track data 缺省应种到 draft。 */
+/**
+ * data-flow 自定义 workflow（首 step=draft）——init --track data 缺省应种到 draft。
+ * 含一个 `spec` 步骤：coverage 用例要把 change 推到 spec 出口才能触发七层矩阵，而 default 没有
+ * data 分支、不能再借用（「轨道只认工作流分支」）。
+ */
 const DATA_FLOW_YAML = `name: data-flow
 steps:
   - id: draft
@@ -45,6 +55,16 @@ steps:
     guards: []
     transitions:
       - event: complete
+        to: spec
+  - id: spec
+    label: spec
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: spec-complete
         to: done
   - id: done
     label: done
@@ -79,11 +99,10 @@ describe('动态 Track Registry 校验面（R2，e2e：真 tracks.yaml 驱动）
     expect(yaml).toContain('codex_review_result: skipped')
   })
 
-  test('init --track data --workflow default：allowed 含 default → 放行，走内建 open 首态', async () => {
-    expect(await h.run(['init', 'dc2', '--track', 'data', '--workflow', 'default', '--preset', 'full'])).toBe(0)
-    const yaml = await h.read('dc2')
-    expect(yaml).toContain('track: data')
-    expect(yaml).toContain('phase: open')
+  test('init --track data --workflow default：default 未声明 data 分支 → 拒，exit 1，不建 change（注册表的 allowed 说了不算）', async () => {
+    expect(await h.run(['init', 'dc2', '--track', 'data', '--workflow', 'default', '--preset', 'full'])).toBe(1)
+    expect(existsSync(join(h.cwd, 'openspec', 'changes', 'dc2'))).toBe(false)
+    expect(h.err.join('\n')).toContain("工作流 'default' 没有轨道 'data' 的分支")
   })
 
   test('init --track data --workflow other：other 不在 allowed → 落盘前拒，exit 1，不建 change', async () => {
@@ -105,10 +124,14 @@ describe('动态 Track Registry 校验面（R2，e2e：真 tracks.yaml 驱动）
     expect(yaml).toContain('phase: open')
   })
 
-  test('set track data：注册轨放行；set track ghost：未注册 → exit 1', async () => {
+  test('set track：default 声明了的分支放行（backend），未声明的拒（data，尽管已注册），未注册的也拒（ghost）', async () => {
     expect(await h.run(['init', 's1', '--track', 'chat', '--preset', 'full'])).toBe(0)
-    expect(await h.run(['set', 's1', 'track', 'data'])).toBe(0)
-    expect(await h.read('s1')).toContain('track: data')
+    // backend 是 default 的一条分支 → 放行，证明拒绝 data 的理由是分支而不是「一律不让改」。
+    expect(await h.run(['set', 's1', 'track', 'backend'])).toBe(0)
+    expect(await h.read('s1')).toContain('track: backend')
+    // data 在 tracks.yaml 里注册且 allowed 含 default，但 default 没有 data 分支 → 拒，不改写。
+    expect(await h.run(['set', 's1', 'track', 'data'])).toBe(1)
+    expect(await h.read('s1')).toContain('track: backend')
     expect(await h.run(['set', 's1', 'track', 'ghost'])).toBe(1)
   })
 
@@ -148,8 +171,14 @@ describe('动态 Track Registry 校验面（R2，e2e：真 tracks.yaml 驱动）
     expect(await h.read('corrupt')).toBe(before)
   })
 
-  test('check 真读动态 policy：data+coverageProfile=backend 按 backend 7 层矩阵阻断', async () => {
+  test('default 项目覆盖里声明 data 分支后 data 才可用，且 check 真读动态 policy：coverageProfile=backend 按 7 层矩阵阻断', async () => {
     const name = 'coverage-data'
+    // 方案 B 的正道：要让自定义轨走 default 的七阶段链路，必须在工作流里**声明**这条分支。
+    // 由真模板改名一条分支（free → data）得到项目覆盖，七阶段契约不变。
+    const repoRoot = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))))
+    const template = await readFile(join(repoRoot, 'templates', 'workflows', 'default.yaml'), 'utf8')
+    await writeFile(join(h.cwd, '.pipeline', 'workflows', 'default.yaml'), template.replace('\n  free:\n', '\n  data:\n'), 'utf8')
+
     expect(await h.run(['init', name, '--track', 'data', '--workflow', 'default', '--preset', 'full'])).toBe(0)
     await h.seedArtifact(name, 'phase', 'spec')
     await h.seedArtifact(name, 'design_doc', 'docs/design.md')

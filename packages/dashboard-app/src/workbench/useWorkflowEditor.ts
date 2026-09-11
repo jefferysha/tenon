@@ -464,10 +464,10 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     return fetchWorkflowYaml(wfName, root)
   }
 
-  // ── 删除（default = 恢复内建，仅项目覆盖存在时可用）──
+  // ── 删除（default = 恢复内建，项目或全局覆盖存在时可用）──
   function openWorkflowDelete(): void {
     if (saving || !wfName || !canWrite) return
-    if (wfName === 'default' && defaultSource !== 'project') return
+    if (wfName === 'default' && defaultSource === 'builtin') return
     setWorkflowDeleteError(null)
     setWorkflowDeleteTarget({ root, name: wfName })
   }
@@ -509,10 +509,13 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
       if (deleting === 'default') {
         setDefaultSource('builtin')
         switchTo('default')
+        // wfName 没变，定义 effect 不会自己重跑；推 nonce 把内建模板重新拉回来。
+        setReloadNonce((value) => value + 1)
         return
       }
       setNames((previous) => (previous ?? []).filter((name) => name !== deleting))
       switchTo('default')
+      setReloadNonce((value) => value + 1)
     } catch (error) {
       if (stillCurrent()) setWorkflowDeleteError({ summary: formatApiError(error, localeRef.current.t), references: [], blockers: [] })
     } finally {

@@ -154,9 +154,26 @@ last one. Anything that needs its own surface opens the shared right-side `share
 - **Names.** Stages, tracks, skills, workflows render `label ?? id`; no id translation anywhere.
 - Save is blocked while `editor.lint` is non-empty or the page has no write credential (`getToken() === ''` → every
   write control disabled, footer shows `wb-no-token`).
-- default is editable: saving writes the project override; the nav meta shows `内建 / 项目`; the menu action becomes
-  `恢复内建` and is enabled only when an override exists. The server rejects overrides that break the seven-stage
-  skeleton (`validateWorkflowForStorage`).
+- default is editable: saving writes the override into the **global** store; the nav meta shows `内建 / 全局 / 项目`;
+  the menu action becomes `恢复内建` and is enabled whenever the source is not `builtin` (global **or** legacy project
+  override) — gating it on `project` alone left a globally overridden default unrestorable. The server rejects
+  overrides that break the seven-stage skeleton (`validateWorkflowForStorage`).
+- `copyWorkflowDef` copies default **without** stamping `openspec_contract: required`. default is governed by
+  *name* (kernel `document-contract.ts` applies the OpenSpec document contract to `name === 'default'`), so its
+  YAML never carries that line and `validateOpenSpecContractWorkflow` never runs against it — and its `chat`
+  branch is deliberately drivers-only, so it does not satisfy the contract's skill list. Stamping the line onto
+  a copy asserted something the source cannot meet and made every 复制 default 400 with
+  `tracks.chat: … 要求 'open' 声明 OpenSpec proposal skill`. A copy is no longer named `default` and is therefore
+  no longer name-governed; a user who wants OpenSpec governance writes the line themselves and fills in the
+  skills. The copy still rewrites `producerPolicy` from `effective-phase-skills` (default-only) to
+  `effective-step-skills`.
+- `decodeWorkflowIndex` must accept every `WbWorkflowSource`. It once narrowed `defaultSource` to `builtin | project`,
+  so a `source: "global"` index response failed shape validation: `useWorkflowEditor` fell into its catch branch and
+  the whole page came up with no workflow names and an empty stage rail. Any new source value has to be added in
+  `governanceTypes.ts` **and** in this decoder.
+- Restoring built-in re-fetches the definition explicitly (`reloadNonce`). `switchTo('default')` alone is a no-op when
+  the current workflow is already `default`, so the cleared `defState` would never be refilled and the stage rail
+  would stay empty.
 
 ### How stage inputs / outputs are derived (and what is *not* detected)
 

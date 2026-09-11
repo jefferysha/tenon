@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
@@ -60,6 +60,22 @@ describe('WorkflowNav', () => {
     await user.click(screen.getByTestId('wb-wf-menu'))
     await user.click(screen.getByTestId('wb-wf-menu-delete-track'))
     expect(onDeleteTrack).toHaveBeenCalledWith('pm')
+  })
+
+  it('恢复内建：来源 global / project 可用，builtin 禁用', async () => {
+    const user = userEvent.setup()
+    for (const source of ['global', 'project'] as const) {
+      const { onDelete } = renderNav({ defaultSource: source })
+      await user.click(screen.getAllByTestId('wb-wf-menu').at(-1)!)
+      const restore = screen.getAllByTestId('wb-wf-menu-restore').at(-1)!
+      expect(restore).toBeEnabled()
+      await user.click(restore)
+      expect(onDelete).toHaveBeenCalledTimes(1)
+      cleanup()
+    }
+    renderNav({ defaultSource: 'builtin' })
+    await user.click(screen.getByTestId('wb-wf-menu'))
+    expect(screen.getByTestId('wb-wf-menu-restore')).toBeDisabled()
   })
 
   it('轨道页签 label ?? id、aria-selected；「+」新建轨道；无 tracks 时没有页签行', async () => {

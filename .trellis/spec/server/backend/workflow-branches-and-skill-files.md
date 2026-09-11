@@ -66,6 +66,12 @@ resolveSnapshotTrack(root, trackId, workflowName?): TrackDefinition | undefined
 
 - `server.test.ts`: default GET exposes the five branch keys; custom GET without tracks exposes `_base`;
   files 200 (SKILL.md first, local-plugin), file 200 / 400 / 404, unknown skill 404, invalid name 400.
+- Global-store round trip (`root` empty): GET list / GET one / project-root fallback all report `source: 'global'`,
+  and POST writes into the global directory while the project directory stays absent.
+- Write-endpoint tests must pass the token as `reqPost(port, path, body, { headers: { Authorization: \`Bearer ${token}\` } })`.
+  The fourth argument is an **options object**, not the token: passing the bare string silently sends no auth header,
+  the endpoint answers 401, and the assertions after it never execute. The global-store POST case shipped that way
+  and was red from the day it landed.
 
 ## 7. Wrong vs Correct
 

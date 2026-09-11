@@ -69,10 +69,11 @@ describe('workbenchDefinition · 删除阶段', () => {
 })
 
 describe('workbenchDefinition · 新建', () => {
-  it('copyWorkflowDef 从 default 复制：保住 openspec 契约、artifact policy 改为 custom 允许的 effective-step-skills', () => {
+  it('copyWorkflowDef 从 default 复制：不写 openspec 契约（default 的 chat 轨本就不满足它），artifact policy 改为 custom 允许的 effective-step-skills', () => {
     const fromDefault: WbWorkflowDef = { ...twoStep(), name: 'default', steps: twoStep().steps.map((step) => ({ ...step, artifacts: step.artifacts?.map((artifact) => ({ ...artifact, producerPolicy: 'effective-phase-skills' as const })) })) }
     const copied = copyWorkflowDef(fromDefault, 'mine')
-    expect(copied.openspecContract).toBe('required')
+    // 曾经在这里补盖 'required'，服务端校验第一次真跑就 400（tracks.chat 缺契约技能）。
+    expect(copied.openspecContract).toBeUndefined()
     expect(copied.steps[0]?.artifacts?.[0]?.producerPolicy).toBe('effective-step-skills')
     expect(copyWorkflowDef(twoStep(), 'other').openspecContract).toBeUndefined()
   })

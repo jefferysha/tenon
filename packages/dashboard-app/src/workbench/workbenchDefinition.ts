@@ -261,8 +261,16 @@ export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDe
 }
 
 /**
- * 从 default 复制成自定义工作流：保住 OpenSpec 七阶段契约（openspec_contract: required），
- * artifact 的 producer policy 从 default 专用的 effective-phase-skills 改为 custom 契约允许的 effective-step-skills。
+ * 从 default 复制成自定义工作流：artifact 的 producer policy 从 default 专用的 effective-phase-skills
+ * 改为 custom 契约允许的 effective-step-skills。
+ *
+ * **不写 `openspec_contract: required`。** default 受治理靠的是名字（kernel 的 document-contract 对
+ * `name === 'default'` 直接套 OpenSpec 文档契约），它的 YAML 里从来没有这一行，`validateOpenSpecContractWorkflow`
+ * 也从不对它跑。而 default 的 chat 轨是**有意**只声明 tenon-* 驱动的（见 kernel spec：chat is the
+ * drivers-only flow），并不满足该契约的技能清单。曾经在复制时补盖这一行，等于替源定义断言了一件它自己
+ * 做不到的事——校验第一次真跑就把复制挡在 400：`tracks.chat: openspec_contract: required 要求 'open'
+ * 声明 OpenSpec proposal skill`。副本不再是 default，也就不再按名字受治理；要 OpenSpec 治理就自己在
+ * YAML 里写 `openspec_contract: required` 并补齐各轨技能。
  */
 export function copyWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDef {
   const cloned = cloneWorkflowDef(def, name)
@@ -273,7 +281,6 @@ export function copyWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDef
   })
   return {
     ...cloned,
-    openspecContract: 'required',
     steps: customPolicy(cloned.steps),
     ...(cloned.tracks === undefined ? {} : { tracks: Object.fromEntries(Object.entries(cloned.tracks).map(([id, branch]) => [id, { ...branch, steps: customPolicy(branch.steps) }])) }),
   }

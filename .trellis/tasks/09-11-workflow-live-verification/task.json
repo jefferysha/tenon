@@ -1,0 +1,31 @@
+{
+  "id": "workflow-live-verification",
+  "name": "workflow-live-verification",
+  "title": "工作流实机验证与轨道模型收敛",
+  "description": "按交接文档第 4 节用 Playwright 实机验证工作流页/技能编辑器/工作台，并修复实测发现的缺陷与已知 bug 1（轨道注册表 vs 工作流分支）、bug 2（复制 default 被契约拒绝）。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "sjy",
+  "assignee": "sjy",
+  "createdAt": "2026-09-11",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-11-restore-builtin-global-default",
+    "09-11-track-branch-single-source",
+    "09-11-default-chat-contract-skills",
+    "09-11-global-workflow-post-auth-header"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -3396,7 +3396,7 @@ describe('工作流全局存储（root 为空 = 用户级 configRoot/workflows�
 
     // POST 无 root → 写到全局目录，项目目录不出现文件。
     const body = { root: '', name: 'team', steps: [{ id: 's1', label: 'x', gate: null, skills: [], inputs: [], outputs: [{ field: 'build_sha', type: 'string' }], guards: [], transitions: [] }] }
-    const posted = await reqPost(h.port, '/api/workflows/team', body, h.token)
+    const posted = await reqPost(h.port, '/api/workflows/team', body, { headers: { Authorization: `Bearer ${h.token}` } })
     expect(posted.status).toBe(200)
     expect((await readdir(globalDir)).sort()).toEqual(['shared.yaml', 'team.yaml'])
     await expect(readdir(join(h.root, '.pipeline', 'workflows'))).rejects.toThrow()

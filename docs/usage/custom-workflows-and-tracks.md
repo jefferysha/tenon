@@ -90,39 +90,53 @@ tenon init release-note-2026-07 \
 Status and Dashboard Todo now use `shape`, `implement`, and `prove`, not the
 default seven phase names.
 
-## Create a Track
+## Add a Track
 
-Tracks overlay routing/coverage/automation/Skill policy on a Workflow:
+A Track is a branch of a Workflow. Declare it under `tracks:` in the Workflow
+YAML (or add it on the Dashboard workflow page); each branch carries its own
+step list:
 
-```bash
-tenon tracks create docs \
-  --label "Documentation" \
-  --workflow-default release-note \
-  --workflow-allowed release-note \
-  --policy free \
-  --json
+```yaml
+name: release-note
+tracks:
+  docs:
+    label: Documentation
+    steps:
+      - id: shape
+        label: shape
+        gate: null
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: shape-complete
+            to: prove
 ```
 
-Allow any Workflow with `--workflow-any`:
+A Workflow that declares `tracks:` accepts only the branches it lists.
+`tenon init <change> --track docs --workflow release-note` succeeds because
+`release-note` declares `docs`; pairing it with a Workflow that does not
+declare the branch is rejected before anything is written:
 
-```bash
-tenon tracks create neutral \
-  --label "Neutral" \
-  --workflow-default default \
-  --workflow-any \
-  --policy free
+```text
+ERROR: 工作流 'default' 没有轨道 'docs' 的分支
 ```
 
-Inspect and update:
+A Workflow with no `tracks:` node has no branch model and accepts any Track.
+
+`.pipeline/tracks.yaml` remains a read-only policy overlay: it supplies review
+seed, coverage profile, routing, and Skill profile for a Track id. It does not
+decide which Workflow a Track may be used with, and there is no command to
+register a Track there. Inspect it with:
 
 ```bash
 tenon tracks list --json
 tenon tracks show docs --json
-tenon tracks update docs --set-label "Documentation delivery" --json
 ```
 
-Built-in policy identity is protected. Built-in Tracks cannot be deleted, and
-custom Tracks referenced by active Changes cannot be deleted.
+Built-in policy identity is protected: built-in Track policy cannot be
+overridden.
 
 ## Skill DAG and guards
 

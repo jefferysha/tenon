@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/dashboard-app/frontend/component-guidelines.md", "reason": "工作流页 / 左栏来源与菜单规则"}
+{"file": ".trellis/spec/server/backend/workflow-branches-and-skill-files.md", "reason": "工作流接口与全局存储路由，defaultSource 取值来源"}

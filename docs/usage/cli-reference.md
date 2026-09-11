@@ -154,12 +154,14 @@ envelope moved, causes a fail-closed error while preserving recovery evidence.
 ```text
 tenon tracks list [--json]
 tenon tracks show <id> [--json]
-tenon tracks create <id> --label <text> --workflow-default <id> \
-  (--workflow-allowed <ids...> | --workflow-any) --policy <preset>
-tenon tracks update <id> <set-options...>
-tenon tracks delete <id>
 tenon init <change> --workflow <workflow> --track <track> --preset <preset>
 ```
+
+`tenon tracks` is read-only. A Track is a branch of a Workflow: whether
+`--track <track>` may be used with `--workflow <workflow>` is decided solely by
+whether that Workflow's YAML declares the branch under `tracks:`. To add a
+Track, declare the branch in the Workflow file (or in the Dashboard workflow
+page), not through a separate registry command.
 
 Custom Workflow authoring is file/Dashboard based; there is no public
 `tenon workflow create` command in the current CLI. `tenon workflow plan`
@@ -231,7 +233,7 @@ Use the installed command as exact authority:
 ```bash
 pipeline --help
 tenon setup --help
-tenon tracks create --help
+tenon tracks --help
 tenon afk --help
 tenon loops --help
 tenon channel help
