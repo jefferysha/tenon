@@ -580,3 +580,25 @@ PulseEdge：GSAP 沿路径的脉冲点按段序从起点传到终点；工作台
 ### Status
 
 [OK] **Completed**
+
+
+## Session 24: 整页滚动修复、去掉顶部搜索框
+<!-- trellis-session: v=2 fp=954aed937aff6cda -->
+
+**Date**: 2026-09-11
+**Task**: 整页滚动修复、去掉顶部搜索框
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+滚动容器加 relative，sr-only 绝对定位后代不再撑出 html 滚动条（工作流页与工作台 scrollHeight = innerHeight）；删除顶部搜索框与全局 query 上下文。web 632 用例、design-scale、comments、build 通过；:18765 已重启。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `03d6034` | fix(dashboard): no document scroll on column pages; drop the header search box |
+
+### Status
+
+[OK] **Completed**
