@@ -492,3 +492,25 @@ steps ⊕ tracks（无通用分支，缺分支拒绝）；default 五条分支�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 20: 工作流页实测修复：技能流程起终点与箭头、IO 表对齐、技能详情排版、编辑器重开
+<!-- trellis-session: v=2 fp=a175765d659aab0d -->
+
+**Date**: 2026-09-11
+**Task**: 工作流页实测修复：技能流程起终点与箭头、IO 表对齐、技能详情排版、编辑器重开
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+技能画布加起点 / 终点、波次标签、箭头与脉冲边，effect 按技能签名触发修复重开刷屏；输入输出统一三列 文件 · 来源阶段 · 来源技能；Markdown compact 密度；web 630 用例、design-scale、comments、build 通过；:18765 已重启。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0177db8` | chore(task): archive 09-11-workflow-two-column-fixes |
+
+### Status
+
+[OK] **Completed**
