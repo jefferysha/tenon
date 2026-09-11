@@ -646,3 +646,25 @@ PulseEdge：GSAP 沿路径的脉冲点按段序从起点传到终点；工作台
 ### Status
 
 [OK] **Completed**
+
+
+## Session 27: 工作流全局化：用户级存储，工作流页不绑定项目
+<!-- trellis-session: v=2 fp=957cf4f6623c7922 -->
+
+**Date**: 2026-09-11
+**Task**: 工作流全局化：用户级存储，工作流页不绑定项目
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+kernel 全局存储 <configRoot>/workflows + 解析顺序 项目→全局→内建；server 工作流路由 root 为空即全局；dashboard 工作流页 root=''、来源 内建/全局、离开守卫只看视图。实机验证：无项目打开工作流页、新建 / 删除工作流落在全局目录。web 632 用例通过；后端全量 7046 过 / 32 失败均为既有失败（注册轨在 default 无分支被拒、gate.sh/verify-skills/afk shell）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4f1c04a` | feat(workflow): global user-level workflow store; the workflow page no longer binds to a project |
+
+### Status
+
+[OK] **Completed**
