@@ -24,7 +24,6 @@ function renderNav(overrides: Partial<Parameters<typeof WorkflowNav>[0]> = {}) {
         labelOf={(id) => DEF.steps.find((candidate) => candidate.id === id)?.label ?? id}
         selectedId="explore"
         lint={[]}
-        query=""
         loading={false}
         error={null}
         canWrite

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useT } from '../i18n'
-import { useGlobalSearch } from '../shell/GlobalSearch'
 import { DetailEmpty, TwoColumns } from '../shell/ThreeColumns'
 import { useWorkflowEditor } from '../workbench/useWorkflowEditor'
 import { WorkbenchDialogs } from '../workbench/WorkbenchDialogs'
@@ -19,7 +18,6 @@ export interface WorkflowViewProps {
 /** 工作流 = 定义编辑页：左栏工作流 / 轨道 / 流程，右栏所选阶段的输入、技能、输出、门禁。 */
 export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps): JSX.Element {
   const { t } = useT()
-  const { query } = useGlobalSearch()
   const editor = useWorkflowEditor({ root, onDirtyChange })
   const [trackDialogOpen, setTrackDialogOpen] = useState(false)
   const [trackDeleteTarget, setTrackDeleteTarget] = useState<string | null>(null)
@@ -60,7 +58,6 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             labelOf={editor.labelOf}
             selectedId={editor.stageId}
             lint={editor.lint}
-            query={query}
             loading={editor.def === null && editor.defErrorText === null}
             error={editor.namesErrorText ?? editor.defErrorText}
             canWrite={editor.canWrite}

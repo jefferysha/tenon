@@ -68,7 +68,12 @@ last one. Anything that needs its own surface opens the shared right-side `share
 ## 工作流 rules (`workflow/`)
 
 - **Layout.** The workflow page is the one view that does **not** use `ThreeColumns`: it renders `TwoColumns`
-  (`shell/ThreeColumns.tsx`, nav 300px + detail). There is no middle column and no rail collapse.
+  (`shell/ThreeColumns.tsx`, nav 300px + detail, `grid-rows-[minmax(0,1fr)]`). There is no middle column and no rail
+  collapse. Every column scroll container is `relative overflow-y-auto`: absolutely positioned descendants
+  (`sr-only` help text, handles) must take the scroll container as containing block, otherwise they escape the clip
+  and give the whole document a scrollbar.
+- **No global search.** The top bar has no search box and there is no shared query context; each view filters with
+  its own input (`TaskListPane` search). `shell/GlobalSearch.tsx` only exports `matchesQuery`.
 - **Nav column (`WorkflowNav`).** Top: the workflow name is the title and a `listbox` switcher (`wb-wf-switch` →
   `wb-wf-item-<name>`), the line under it is `<source> · <n> 轨道`, and one `MenuButton` (`wb-wf-menu`) holds every
   workflow-level action: 新建工作流 (`NewWorkflowDialog`, copy / blank / import), 导出 YAML, 删除工作流 or 恢复内建

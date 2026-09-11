@@ -5,7 +5,7 @@ import { SnapshotInlineError } from '../progress/SnapshotInlineError'
 import { isProjectNavigable } from '../state/projectSelectionModel'
 import type { WorkflowRules } from '../model/workflowModel'
 import type { Snapshot } from '../types'
-import { matchesQuery, useGlobalSearch } from '../shell/GlobalSearch'
+import { matchesQuery } from '../shell/GlobalSearch'
 import { DetailEmpty, ThreeColumns } from '../shell/ThreeColumns'
 import type { TopBarProject } from '../shell/TopBar'
 import { ProjectRail } from './ProjectRail'
@@ -37,7 +37,6 @@ export function WorkspaceView({
   staleError = null, loading = false, onRefresh,
 }: WorkspaceViewProps): JSX.Element {
   const { t } = useT()
-  const { query, setQuery } = useGlobalSearch()
   const [filter, setFilter] = useState<TaskFilterState>(DEFAULT_TASK_FILTER)
   const [search, setSearch] = useState('')
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
@@ -80,9 +79,8 @@ export function WorkspaceView({
 
   const visibleRows = useMemo(
     () => filterRows(rows, filter).filter((row) =>
-      matchesQuery(query, row.change.name, row.workflow, row.change.track, row.change.phase)
-      && matchesQuery(search, row.change.name, row.workflow, row.change.track, row.change.phase)),
-    [rows, filter, query, search],
+      matchesQuery(search, row.change.name, row.workflow, row.change.track, row.change.phase)),
+    [rows, filter, search],
   )
   const selectedRow: TaskRow | null = useMemo(() => {
     const explicit = selectedChange === null
@@ -125,7 +123,7 @@ export function WorkspaceView({
           onSelect={(row) => onSelectedChange(row.change.name)}
           showProject={currentRoot === ''}
           emptyKind={emptyKind}
-          onClearFilters={() => { setFilter(DEFAULT_TASK_FILTER); setSearch(''); setQuery('') }}
+          onClearFilters={() => { setFilter(DEFAULT_TASK_FILTER); setSearch('') }}
           notice={notice}
         />
       )}

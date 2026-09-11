@@ -93,8 +93,9 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const smallBtn = 'inline-flex min-h-8 items-center gap-1.5 rounded-sm border border-border bg-card px-2.5 text-body text-text-2 hover:border-text-3 hover:text-text disabled:opacity-50'
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-col bg-surface-detail" data-testid="stage-editor-pane">
-      <div className="min-h-0 flex-1 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4 max-[900px]:pt-5">
+    <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-surface-detail" data-testid="stage-editor-pane">
+      {/* relative：sr-only 等绝对定位后代要以本滚动容器为包含块，否则它们会越过裁切把整页撑出滚动条。 */}
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4 max-[900px]:pt-5">
         <nav className="flex min-w-0 items-center gap-1.5 text-body text-text-2" aria-label={t('workflow.crumbs')} data-testid="wb-crumbs">
           <span className="truncate">{editor.wfName ?? ''}</span>
           {branchLabel !== null && <><ChevronRight className="size-3.5 flex-none text-text-3" aria-hidden="true" /><span className="truncate">{branchLabel}</span></>}

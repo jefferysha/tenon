@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Monitor, Moon, Search, Settings, Sun, X } from 'lucide-react'
+import { ChevronDown, Monitor, Moon, Settings, Sun, X } from 'lucide-react'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n/translations'
-import { useGlobalSearch } from './GlobalSearch'
 import { VIEWS, type ThemePreference, type View } from './views'
 import { cn } from '@/lib/utils'
 
@@ -43,7 +42,7 @@ const POPOVER_CLS = 'absolute top-[calc(100%+8px)] z-50 rounded-md border border
  * 顶部横条（模板 1:1）：logo → 面包屑「工作空间 / 当前页」→ 项目切换器 → 两个标签 → 搜索（`/`）
  * → 连接状态 → 设置（主题 / 语言）。
  * 状态一律走 aria-* / data-*；testid：top-bar / nav-<view> / project-switcher / project-menu /
- * project-item-<name> / global-search / conn-indicator / nav-settings / nav-settings-panel /
+ * project-item-<name> / conn-indicator / nav-settings / nav-settings-panel /
  * theme-toggle / lang-toggle / progress-badge / afk-badge。
  */
 export function TopBar({
@@ -60,7 +59,6 @@ export function TopBar({
   decisionCount,
 }: TopBarProps): JSX.Element {
   const { t } = useT()
-  const { query, setQuery, inputRef } = useGlobalSearch()
   const [projectOpen, setProjectOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const projectRef = useRef<HTMLDivElement>(null)
@@ -173,20 +171,6 @@ export function TopBar({
       </nav>
 
       <div className="flex items-center gap-3.5 max-[900px]:ml-auto">
-        <label className="flex h-10 w-[300px] items-center gap-2 rounded-full border border-border bg-card px-3 text-text-3 focus-within:border-accent-b max-[1279px]:w-[200px] max-[900px]:hidden">
-          <Search className="size-4 flex-none" aria-hidden="true" />
-          <span className="sr-only">{t('shell.search_label')}</span>
-          <input
-            ref={inputRef}
-            type="search"
-            value={query}
-            placeholder={t('shell.search_placeholder')}
-            className="min-w-0 flex-1 bg-transparent text-base text-text outline-none placeholder:text-text-3"
-            data-testid="global-search"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <kbd className="rounded-xs border border-border px-1.5 font-mono text-micro text-text-3" aria-hidden="true">/</kbd>
-        </label>
         <span
           className="flex items-center gap-1.5 whitespace-nowrap text-base text-text-2 max-[1279px]:hidden"
           data-on={connected ? 'true' : 'false'}

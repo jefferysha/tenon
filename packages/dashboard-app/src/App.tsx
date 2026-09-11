@@ -17,7 +17,6 @@ import { useFlash } from './shared/useFlash'
 import { useDashboardTheme } from './shell/useDashboardTheme'
 import { SnapshotInlineError } from './progress/SnapshotInlineError'
 import { BUTTON_GHOST } from './shared/uiRecipes'
-import { GlobalSearchProvider } from './shell/GlobalSearch'
 import { ProjectGate } from './shell/ProjectGate'
 import { TopBar, type TopBarProject } from './shell/TopBar'
 import { isView, type View } from './shell/views'
@@ -419,11 +418,9 @@ function AppShell(): JSX.Element {
 export function App(): JSX.Element {
   return (
     <I18nProvider>
-      <GlobalSearchProvider>
-        <ErrorBoundary>
-          <AppShell />
-        </ErrorBoundary>
-      </GlobalSearchProvider>
+      <ErrorBoundary>
+        <AppShell />
+      </ErrorBoundary>
     </I18nProvider>
   )
 }

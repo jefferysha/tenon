@@ -16,7 +16,6 @@ import type { WbStepDef, WbWorkflowDef, WbWorkflowSource } from '../api/governan
 import { useT } from '../i18n'
 import { MenuButton } from '../shared/MenuButton'
 import { useFlipLayout } from '../shared/useFlip'
-import { matchesQuery } from '../shell/GlobalSearch'
 import { BASE_BRANCH } from '../workbench/workbenchDefinition'
 import type { LintIssue } from './lint'
 import { backEdgesFrom, pipelineEdges } from './pipelineModel'
@@ -32,7 +31,6 @@ export interface WorkflowNavProps {
   labelOf: (stepId: string) => string
   selectedId: string | null
   lint: readonly LintIssue[]
-  query: string
   loading: boolean
   error: string | null
   canWrite: boolean
@@ -123,7 +121,7 @@ function StepRow({ step, order, selected, missing, editable, labelOf, onSelect }
  * （圆点 = 拖柄，块 = 名称 + 门禁图标，右侧虚线 = 回流）→ 添加阶段。
  */
 export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
-  const { names, current, defaultSource, branches, branch, def, labelOf, selectedId, lint, query, loading, error, canWrite, busy } = props
+  const { names, current, defaultSource, branches, branch, def, labelOf, selectedId, lint, loading, error, canWrite, busy } = props
   const { t } = useT()
   const [switching, setSwitching] = useState(false)
   const switchRef = useRef<HTMLDivElement>(null)
@@ -145,14 +143,13 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
 
   const steps = def?.steps ?? []
   const edges = pipelineEdges(steps)
-  const visible = steps.filter((step) => matchesQuery(query, labelOf(step.id), step.id, ...step.skills.map((skill) => skill.id)))
-  const filtered = query.trim() !== ''
-  const editable = canWrite && !filtered
+  const visible = steps
+  const editable = canWrite
   const [dragging, setDragging] = useState<string | null>(null)
   const listRef = useRef<HTMLOListElement>(null)
   const captureFlip = useFlipLayout(listRef, [steps.map((step) => step.id).join('|')])
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor))
-  const backEdges = filtered ? [] : steps.flatMap((step, index) => backEdgesFrom(edges, step.id).map((edge) => ({ ...edge, fromIndex: index, toIndex: steps.findIndex((candidate) => candidate.id === edge.to) })))
+  const backEdges = steps.flatMap((step, index) => backEdgesFrom(edges, step.id).map((edge) => ({ ...edge, fromIndex: index, toIndex: steps.findIndex((candidate) => candidate.id === edge.to) })))
   const listHeight = visible.length * STEP_PITCH - (visible.length > 0 ? STEP_PITCH - STEP_HEIGHT : 0)
 
   function onDragEnd(event: DragEndEvent): void {
@@ -270,7 +267,6 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
                   {visible.map((step) => (
                     <StepRow key={step.id} step={step} order={steps.indexOf(step) + 1} selected={step.id === selectedId} missing={lint.some((issue) => issue.stepId === step.id && issue.kind === 'step-no-output')} editable={editable} labelOf={labelOf} onSelect={props.onSelect} />
                   ))}
-                  {visible.length === 0 && steps.length > 0 && <li className="text-body text-text-3" role="status">{t('workflow.empty_filtered')}</li>}
                 </ol>
               </SortableContext>
               <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}>

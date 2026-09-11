@@ -50,7 +50,7 @@ export function ThreeColumns({
 export function TwoColumns({ nav, detail, testId }: { nav: ReactNode; detail: ReactNode; testId: string }): JSX.Element {
   return (
     <div
-      className="grid h-[calc(100vh-var(--topbar-h))] min-h-0 grid-cols-[300px_minmax(0,1fr)] bg-bg max-[900px]:h-auto max-[900px]:min-h-[calc(100vh-var(--topbar-h))] max-[900px]:grid-cols-1"
+      className="grid h-[calc(100vh-var(--topbar-h))] min-h-0 grid-cols-[300px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-bg max-[900px]:h-auto max-[900px]:grid-rows-none max-[900px]:min-h-[calc(100vh-var(--topbar-h))] max-[900px]:grid-cols-1"
       data-testid={testId}
     >
       {nav}
@@ -306,7 +306,7 @@ export function DetailColumn({
 }): JSX.Element {
   return (
     <section className="flex min-h-0 min-w-0 flex-col bg-surface-detail" data-testid={testId}>
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 pt-7 pb-7 max-[900px]:px-4 max-[900px]:pt-5">
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-8 pt-7 pb-7 max-[900px]:px-4 max-[900px]:pt-5">
         {header}
         {sheets}
         <div
