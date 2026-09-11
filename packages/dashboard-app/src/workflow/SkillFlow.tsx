@@ -23,7 +23,6 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import gsap from 'gsap'
-import { MotionPathPlugin } from 'gsap/MotionPathPlugin'
 import { Box, X } from 'lucide-react'
 import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
@@ -31,7 +30,7 @@ import { wavesOf } from '../workbench/skillWaves'
 import { SkillSourceIcon } from './SkillSourceIcon'
 import { cn } from '@/lib/utils'
 
-export const NODE_WIDTH = 224
+export const NODE_WIDTH = 260
 const NODE_HEIGHT = 60
 const COLUMN_GAP = 300
 const ROW_GAP = 92
@@ -178,8 +177,6 @@ export function skillsSignature(skills: readonly WbSkillRef[]): string {
   return skills.map((skill) => `${skill.id}<${[...(skill.depends_on ?? [])].sort().join(',')}`).join('|')
 }
 
-gsap.registerPlugin(MotionPathPlugin)
-
 const EDGE_STYLE = { stroke: 'var(--border-2)', strokeWidth: 1.5 }
 const MARKER = { type: MarkerType.ArrowClosed, width: 16, height: 16, color: 'var(--border-2)' }
 /** 一段脉冲跑完一条边的时长（秒）；整条流程 = 段数 × 此值，然后重来。 */
@@ -192,41 +189,32 @@ function motionAllowed(): boolean {
 }
 
 /**
- * 带脉冲的边：BaseEdge 画线，一个小圆点由 GSAP MotionPathPlugin 沿同一条路径字符串从起点跑到终点
- * （SVG 元素上 CSS offset-path 不生效，所以不走 CSS）。data.order = 这条边在流程里的段序，data.total = 总段数：
+ * 带脉冲的边：BaseEdge 画底线，上面叠一条强调色路径，只露出一段（dasharray = 段长 + 总长），GSAP 把 dashoffset
+ * 从「段藏在起点前」补到「段跑出终点」，看起来就是一截高亮沿线流过。data.order = 段序，data.total = 总段数：
  * 所有边共用一条时间轴，脉冲从起点一路传到终点再重来。
  */
 function PulseEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, data }: EdgeProps<Edge<PulseData>>): JSX.Element {
   const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
-  const dotRef = useRef<SVGGElement>(null)
+  const glowRef = useRef<SVGPathElement>(null)
   const order = data?.order ?? 0
   const total = data?.total ?? 1
   useEffect(() => {
-    const dot = dotRef.current
-    if (dot === null || !motionAllowed()) return
-    gsap.set(dot, { opacity: 0 })
-    const tween = gsap.to(dot, {
-      motionPath: { path, autoRotate: false },
-      duration: PULSE_STEP,
-      ease: 'none',
-      delay: order * PULSE_STEP,
-      repeat: -1,
-      repeatDelay: Math.max(0, total - 1) * PULSE_STEP,
-      onStart: () => { gsap.set(dot, { opacity: 1 }) },
-      onRepeat: () => { gsap.set(dot, { opacity: 1 }) },
-    })
-    // 段与段之间圆点停在终点会露出来：每段跑完立刻隐去，下一段开始时再显示。
-    const hide = gsap.delayedCall(order * PULSE_STEP + PULSE_STEP, () => { gsap.set(dot, { opacity: 0 }) }).pause()
-    tween.eventCallback('onUpdate', () => { if (tween.progress() > 0.98) gsap.set(dot, { opacity: 0 }) })
-    return () => { tween.kill(); hide.kill() }
+    const glow = glowRef.current
+    if (glow === null || !motionAllowed()) return
+    const length = glow.getTotalLength()
+    if (!Number.isFinite(length) || length === 0) return
+    const segment = Math.max(24, Math.min(length * 0.6, 120))
+    glow.setAttribute('stroke-dasharray', `${segment} ${length + segment}`)
+    const tween = gsap.fromTo(glow,
+      { strokeDashoffset: length + segment, opacity: 0.9 },
+      { strokeDashoffset: -segment, duration: PULSE_STEP, ease: 'none', delay: order * PULSE_STEP, repeat: -1, repeatDelay: Math.max(0, total - 1) * PULSE_STEP },
+    )
+    return () => { tween.kill() }
   }, [path, order, total])
   return (
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
-      <g ref={dotRef} style={{ opacity: 0 }} data-testid={`flow-pulse-${id}`}>
-        <circle r={7} className="fill-(--accent)" opacity={0.18} />
-        <circle r={3.5} className="fill-(--accent)" />
-      </g>
+      <path ref={glowRef} d={path} fill="none" stroke="var(--accent)" strokeWidth={2.5} strokeLinecap="round" className="pointer-events-none" style={{ opacity: 0 }} data-testid={`flow-pulse-${id}`} />
     </>
   )
 }
@@ -251,8 +239,8 @@ const SkillNodeView = memo(function SkillNodeView({ id, data, selected }: NodePr
       data-status={data.status ?? undefined}
     >
       <Handle type="target" position={Position.Left} className="!size-2 !border-border-2 !bg-card" isConnectable={data.editable} />
-      <button type="button" className="grid w-full gap-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" data-testid={`flow-open-${id}`} onClick={() => data.onOpen(id)}>
-        <span className="flex items-center gap-1.5 font-mono text-body font-semibold text-text">
+      <button type="button" className="grid w-full min-w-0 gap-0.5 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" title={data.label} data-testid={`flow-open-${id}`} onClick={() => data.onOpen(id)}>
+        <span className="flex min-w-0 items-center gap-1.5 font-mono text-caption font-semibold text-text">
           {data.source === null ? <Box className="size-3 flex-none text-text-3" aria-hidden="true" /> : <SkillSourceIcon source={data.source} className="size-3" />}
           <span className="min-w-0 flex-1 truncate">{data.label}</span>
         </span>

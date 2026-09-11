@@ -115,8 +115,10 @@ last one. Anything that needs its own surface opens the shared right-side `share
   `flow-in` (`data-entering`), disabled under reduced motion. Ports are solid dots with a caption (起点 accent,
   终点 grey); port edges are static, only `depends_on` edges animate.
   **Pulse.** Every edge is the custom `pulse` type (set explicitly on each decorated edge — `defaultEdgeOptions`
-  only applies to edges created by `onConnect`): `BaseEdge` plus a dot group that GSAP `MotionPathPlugin` moves along
-  the same path string (CSS `offset-path` does not work on SVG elements). Edges carry `data.order / total` (起点→首波 0, 波 k→汇合 2k+1, 汇合→波 k+1 2k+2, 末波→终点
+  only applies to edges created by `onConnect`): `BaseEdge` plus an accent overlay path whose dash pattern shows one segment
+  (`stroke-dasharray = segment + length`); GSAP tweens `stroke-dashoffset` from `length + segment` to `-segment`, so a
+  highlighted stretch of the line itself flows from source to target — no travelling dot (rejected as choppy), no
+  CSS `offset-path` (inert on SVG). Edges carry `data.order / total` (起点→首波 0, 波 k→汇合 2k+1, 汇合→波 k+1 2k+2, 末波→终点
   2N-1) so one shared timeline sends the pulse from 起点 to 终点 and repeats; reduced motion disables it. React
   Flow's CSS `animated` dashes are not used. Virtual nodes (ports, labels, junctions, ghost) are not in the nodes
   state, so their `dimensions` changes are captured into `virtualMeasured` and written back as `measured` — otherwise
@@ -126,7 +128,8 @@ last one. Anything that needs its own surface opens the shared right-side `share
   straight. When two adjacent waves form a complete column link (`isColumnLink`: every next-wave node depends on
   exactly the whole previous wave and the previous wave has no other successors) the direct edges are hidden and
   replaced by an invisible junction node `j<k>` on the midline: previous wave → junction (no arrow) → each next-wave
-  node (arrow). Non-column DAGs keep their direct edges. `fitView` runs ~60ms after a relayout so measured sizes are in. Read-only in the pane (`editable=false`: no drag / connect /
+  node (arrow). Non-column DAGs keep their direct edges. Nodes are 260px wide; the name is caption-size mono,
+  truncated with the full name on `title` — long skill ids never overflow the box. `fitView` runs ~60ms after a relayout so measured sizes are in. Read-only in the pane (`editable=false`: no drag / connect /
   pan; click → `SkillDetailDrawer`). Editable inside `SkillComposer`: palette items are HTML5-draggable
   (`dataTransfer 'text/skill'`) and have a `+` (`palette-add-<name>`); `onConnect` refuses cycles (`wouldCycle`);
   `×` on a node (`flow-remove-<id>`) removes it and its edges; Backspace deletes a selected edge. The graph is written
