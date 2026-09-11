@@ -1,21 +1,13 @@
-import { existsSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
 import { requireTrack } from '../tracks/registry.js'
 import { resolveTrackForBranch } from '../tracks/branch-track.js'
 import type { TrackDefinition, TrackRegistry } from '../tracks/types.js'
+import { globalWorkflowRoot, workflowNamesUnder } from './global-store.js'
 import { loadWorkflow } from './loadWorkflow.js'
 import type { WorkflowDef } from './types.js'
 
-/** 项目里可加载的工作流名：default 恒在，其余来自 `.pipeline/workflows/*.yaml`。 */
+/** 项目语境可加载的工作流名：default 恒在，其余来自项目 `.pipeline/workflows/*.yaml` 与全局存储。 */
 export function projectWorkflowNames(repoRoot: string): string[] {
-  const dir = join(repoRoot, '.pipeline', 'workflows')
-  const names = new Set<string>(['default'])
-  if (existsSync(dir)) {
-    for (const entry of readdirSync(dir)) {
-      if (entry.endsWith('.yaml')) names.add(entry.slice(0, -'.yaml'.length))
-    }
-  }
-  return [...names]
+  return [...new Set<string>(['default', ...workflowNamesUnder(repoRoot), ...workflowNamesUnder(globalWorkflowRoot())])]
 }
 
 /**

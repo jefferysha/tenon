@@ -28,6 +28,9 @@ import {
   type WorkflowRootAnchor,
 } from './workflows.js'
 
+type WorkflowStoreCheck =
+  | { ok: true; anchor: WorkflowRootAnchor; global: boolean }
+  | { ok: false; code: 403 | 404; error: string }
 type WorkflowRootCheck =
   | { ok: true; anchor: WorkflowRootAnchor }
   | { ok: false; code: 403 | 404; error: string }
@@ -47,6 +50,7 @@ export interface MutationRouteDeps {
   token: string
   readJsonBody: (req: IncomingMessage) => Promise<unknown>
   workflowRootForRequest: (root: string) => WorkflowRootCheck
+  workflowStoreForRequest: (root: string) => WorkflowStoreCheck
   mutateTrackForApi: (
     anchor: WorkflowRootAnchor,
     revision: string,
@@ -71,7 +75,7 @@ export async function handlePatchRoute(
   deps: MutationRouteDeps,
 ): Promise<void> {
   const {
-    isLocalHost, sendJson, token, readJsonBody, workflowRootForRequest, mutateTrackForApi,
+    isLocalHost, sendJson, token, readJsonBody, workflowRootForRequest, workflowStoreForRequest, mutateTrackForApi,
     scanActiveTrackChanges, trackRegistryBody, sendTrackError,
   } = deps
   const boundPort = deps.boundPort()
@@ -123,7 +127,7 @@ export async function handleDeleteRoute(
   deps: MutationRouteDeps,
 ): Promise<void> {
   const {
-    isLocalHost, sendJson, token, workflowRootForRequest, mutateTrackForApi, scanActiveTrackChanges,
+    isLocalHost, sendJson, token, workflowRootForRequest, workflowStoreForRequest, mutateTrackForApi, scanActiveTrackChanges,
     trackRegistryBody, sendTrackError, paths, workflowRootAnchors, trackValidationContextFor, errMsg,
   } = deps
   const boundPort = deps.boundPort()
@@ -189,7 +193,7 @@ export async function handleDeleteRoute(
         return sendJson(res, 400, { ok: false, error: '非法 workflow 名（允许中文、字母、数字、- 与 _；不允许空格、点或路径符号）' })
       }
       const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
-      const rootCheck = workflowRootForRequest(root)
+      const rootCheck = workflowStoreForRequest(root)
       if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
       let permit: ReturnType<typeof captureWorkflowDeletePermit>
       try {
@@ -301,7 +305,7 @@ export async function handlePutRoute(
   path: string,
   deps: MutationRouteDeps,
 ): Promise<void> {
-  const { isLocalHost, sendJson, token, workflowRootForRequest, trackValidationContextFor, errMsg } = deps
+  const { isLocalHost, sendJson, token, workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, errMsg } = deps
   const boundPort = deps.boundPort()
   if (!isLocalHost(req.headers.host, boundPort)) {
     return sendJson(res, 403, { ok: false, error: 'Host header 不合法（疑似 DNS 重绑定攻击）' })
@@ -312,7 +316,7 @@ export async function handlePutRoute(
   }
   const yamlName = matchWorkflowYamlRoute(path)
   if (yamlName !== null) {
-    const result = await handleWorkflowYamlPut(req, yamlName, { workflowRootForRequest, trackValidationContextFor, errMsg })
+    const result = await handleWorkflowYamlPut(req, yamlName, { workflowRootForRequest: workflowStoreForRequest, trackValidationContextFor, errMsg })
     return sendJson(res, result.status, result.body)
   }
   return sendJson(res, 404, { ok: false, error: 'not found' })

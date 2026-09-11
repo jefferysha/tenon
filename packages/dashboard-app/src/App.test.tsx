@@ -117,10 +117,11 @@ function stubEditableWorkbench(options: {
         roots.map((root) => makeProject(root, [makeChange(`seed-${root.split('/').filter(Boolean).at(-1) ?? 'root'}`, 'build')])),
       )), { status: 200 })
     }
-    if (roots.some((root) => url === `/api/workflows?root=${encodeURIComponent(root)}`)) {
-      return new Response(JSON.stringify({ names: ['release-train'] }), { status: 200 })
+    // 工作流是全局的：工作流页不带 root 请求；带 root 的旧形状留给工作台按 change 解析。
+    if (url === '/api/workflows?root=' || roots.some((root) => url === `/api/workflows?root=${encodeURIComponent(root)}`)) {
+      return new Response(JSON.stringify({ names: ['release-train'], default: { source: 'builtin' } }), { status: 200 })
     }
-    if (roots.some((root) => url === `/api/workflows/release-train?root=${encodeURIComponent(root)}`)) {
+    if (url === '/api/workflows/release-train?root=' || roots.some((root) => url === `/api/workflows/release-train?root=${encodeURIComponent(root)}`)) {
       return new Response(JSON.stringify(EDITABLE_WORKFLOW), { status: 200 })
     }
     if (url.startsWith('/api/hooks?root=')) {
@@ -175,7 +176,7 @@ async function renderDirtyWorkbenchApp(options: {
 
 describe('App Workbench 未保存草稿离开守卫', () => {
 
-  it('Workbench 内 browser Back 切换项目时，取消保留 root A 草稿，确认才进入 root B', async () => {
+  it('工作流是全局的：Workbench 内 browser Back 切换项目不触发离开守卫，草稿原样保留', async () => {
     const rootA = '/repo-a'
     const rootB = '/repo-b'
     window.history.replaceState(
@@ -196,21 +197,10 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     await screen.findByTestId('wb-dirty')
 
     act(() => window.history.back())
-    const firstDialog = await screen.findByTestId('app-unsaved-navigation')
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('root')).toBe(rootA))
-    expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('root A 未保存草稿')
-
-    fireEvent.click(within(firstDialog).getByRole('button', { name: '继续编辑' }))
-    expect(screen.queryByTestId('app-unsaved-navigation')).toBeNull()
-    expect(new URLSearchParams(window.location.search).get('root')).toBe(rootA)
-    expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('root A 未保存草稿')
-
-    act(() => window.history.back())
-    const secondDialog = await screen.findByTestId('app-unsaved-navigation')
-    fireEvent.click(within(secondDialog).getByRole('button', { name: '丢弃并离开' }))
-
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('root')).toBe(rootB))
-    await waitFor(() => expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('起草'))
+    expect(screen.queryByTestId('app-unsaved-navigation')).toBeNull()
+    expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('root A 未保存草稿')
+    expect(screen.getByTestId('wb-dirty')).toBeInTheDocument()
   })
 
   it('取消浏览器 Back 用 forward 补偿，不 replace/corrupt 目标历史项；随后仍可确认同一次 Back', async () => {
@@ -371,7 +361,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: '继续编辑' }))
   })
 
-  it('dirty Workbench 在 SSE 移除或降级当前项目时保留草稿宿主并禁写，恢复后草稿仍在，只有显式丢弃才卸载', async () => {
+  it('dirty Workbench 不受项目降级 / 移除影响：SSE 把项目标为不可达或清空注册表，草稿与页面都原样保留', async () => {
     await renderDirtyWorkbenchApp()
     const eventSource = lastEventSource()
     expect(eventSource).toBeDefined()
@@ -381,35 +371,17 @@ describe('App Workbench 未保存草稿离开守卫', () => {
         makeProject('/repo', [makeChange('seed-c', 'build')], { ok: false }),
       ])))
     })
-
-    const firstDialog = await screen.findByTestId('app-unsaved-navigation')
-    const retainedHost = screen.getByTestId('workbench-retained-host')
-    expect(retainedHost).toHaveAttribute('inert')
-    expect(firstDialog).not.toHaveAttribute('inert')
+    expect(screen.queryByTestId('app-unsaved-navigation')).toBeNull()
     expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('未保存草稿')
-    fireEvent.click(within(firstDialog).getByRole('button', { name: '继续编辑' }))
-    expect(screen.getByTestId('workbench-retained-host')).toHaveAttribute('inert')
-    expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('未保存草稿')
-    expect(new URLSearchParams(window.location.search).get('root')).toBe('/repo')
-
-    act(() => {
-      eventSource!.emit('snapshot', JSON.stringify(makeSnapshot([
-        makeProject('/repo', [makeChange('seed-c', 'build')]),
-      ])))
-    })
-    await waitFor(() => expect(screen.getByTestId('workbench-retained-host')).not.toHaveAttribute('inert'))
-    expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('未保存草稿')
-    expect(new URLSearchParams(window.location.search).get('root')).toBe('/repo')
+    expect(screen.getByTestId('workbench-view')).toBeInTheDocument()
 
     act(() => {
       eventSource!.emit('snapshot', JSON.stringify(makeSnapshot([])))
     })
-    const secondDialog = await screen.findByTestId('app-unsaved-navigation')
+    expect(screen.queryByTestId('app-unsaved-navigation')).toBeNull()
     expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('未保存草稿')
-    fireEvent.click(within(secondDialog).getByRole('button', { name: '丢弃并离开' }))
-
-    expect(await screen.findByTestId('onboard-no-project')).toBeInTheDocument()
-    expect(screen.queryByTestId('workbench-view')).toBeNull()
+    expect(screen.getByTestId('workbench-view')).toBeInTheDocument()
+    expect(screen.queryByTestId('onboard-no-project')).toBeNull()
   })
 
   it('已阻断的 browser Back 不会被随后发生的 root 失权覆盖，丢弃后仍到达原历史目标', async () => {
@@ -434,7 +406,6 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     act(() => {
       eventSource!.emit('snapshot', JSON.stringify(makeSnapshot([])))
     })
-    expect(screen.getByTestId('workbench-retained-host')).toHaveAttribute('inert')
     expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('未保存草稿')
 
     fireEvent.click(within(dialog).getByRole('button', { name: '丢弃并离开' }))
@@ -455,7 +426,6 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     act(() => {
       eventSource!.emit('snapshot', JSON.stringify(makeSnapshot([])))
     })
-    expect(screen.getByTestId('workbench-retained-host')).toHaveAttribute('inert')
     expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('未保存草稿')
 
     fireEvent.click(within(dialog).getByRole('button', { name: '丢弃并离开' }))
@@ -996,7 +966,6 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     act(() => {
       eventSource!.emit('snapshot', JSON.stringify(makeSnapshot([])))
     })
-    expect(screen.getByTestId('workbench-retained-host')).toHaveAttribute('inert')
 
     fireEvent.click(within(dialog).getByRole('button', { name: '丢弃并离开' }))
 
@@ -1403,17 +1372,18 @@ describe('App 视图切换（v9-flowdeck 两视图接线）', () => {
     expect(screen.getByTestId('workspace-view')).toBeInTheDocument()
   })
 
-  it('项目非零但全部不可达（ok=false）：工作台渲染诚实空态，不拿不可达 root 挂 WorkbenchView（v10c：不再经聚合语境）', async () => {
-    localStorage.setItem('tenon-dashboard-view', 'workbench') // 直接落工作台，回落链此时全落空
+  it('项目非零但全部不可达（ok=false）：工作流页仍然打开——工作流是全局的，不依赖任何项目', async () => {
+    localStorage.setItem('tenon-dashboard-view', 'workbench')
     ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
       if (url === '/api/snapshot') {
         return { ok: true, json: async () => makeSnapshot([makeProject('/repo', [], { ok: false })]) }
       }
+      if (url === '/api/workflows?root=') return { ok: true, json: async () => ({ names: [], default: { source: 'builtin' } }) }
       throw new Error(`unexpected fetch ${url}`)
     })
     render(<App />)
-    expect(await screen.findByTestId('wb-no-root')).toHaveTextContent('没有可读取的项目')
-    expect(screen.queryByTestId('workbench-view')).toBeNull()
+    expect(await screen.findByTestId('workbench-view')).toBeInTheDocument()
+    expect(screen.queryByTestId('wb-no-root')).toBeNull()
   })
 
 })
@@ -1646,11 +1616,10 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     expect(await screen.findByTestId('task-card-readable-change')).toBeInTheDocument()
     expect(screen.queryByTestId('task-list-empty-no-task')).toBeNull()
 
-    // 兼容期项目只读：工作流页含写入口，不挂载；没有任何可写项目时给诚实空态。
+    // 工作流是全局的：只读兼容期项目不影响工作流页，且工作流页不发任何带项目 root 的请求。
     fireEvent.click(screen.getByTestId('nav-workbench'))
-    expect(await screen.findByTestId('wb-no-root')).toBeInTheDocument()
-    expect(screen.queryByTestId('workbench-view')).toBeNull()
-    expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith('/api/workflows?root='))).toBe(false)
+    expect(await screen.findByTestId('workbench-view')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/workflows?root=%2Frepo'))).toBe(false)
   })
 
   it('英文刷新遇到 503 时不泄漏中文 client 文案，并用通用 Retry 恢复既有 snapshot', async () => {

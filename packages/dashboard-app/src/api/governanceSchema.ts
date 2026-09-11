@@ -499,7 +499,7 @@ export function decodeSkillFile(value: unknown): WbSkillFile | null {
 export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {
   const body = record(value)
   if (!body || typeof body.name !== 'string') return null
-  if (body.source !== undefined && body.source !== 'builtin' && body.source !== 'project') return null
+  if (body.source !== undefined && body.source !== 'builtin' && body.source !== 'project' && body.source !== 'global') return null
   const effectiveIo = body.effectiveIo === undefined ? undefined : decodeEffectiveIo(body.effectiveIo)
   if (effectiveIo === null) return null
   if (body.openspecContract !== undefined && body.openspecContract !== 'required') return null

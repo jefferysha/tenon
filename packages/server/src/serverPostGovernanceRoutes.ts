@@ -85,7 +85,7 @@ export async function handlePostGovernanceRoutes(
   deps: PostRouteDeps,
 ): Promise<void> {
   const {
-    sendJson, readJsonBody, routerPatternScorer, workflowRootForRequest,
+    sendJson, readJsonBody, routerPatternScorer, workflowRootForRequest, workflowStoreForRequest,
     trackValidationContextFor, executeOperation, operationRunner, operationsAvailable,
     isRegisteredRoot, store, clock, history, workflowRootAnchors, trackSkillProfiles,
     loadedManifest, runRepo, flow, fileExists, gitHeadSha, workspaceFingerprint, breadcrumb,
@@ -263,7 +263,7 @@ export async function handlePostGovernanceRoutes(
         return sendJson(res, 400, { ok: false, error: 'URL workflow name 必须与 body.name 完全一致' })
       }
       const root = typeof body.root === 'string' ? body.root : ''
-      const rootCheck = workflowRootForRequest(root)
+      const rootCheck = workflowStoreForRequest(root)
       if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
       let workflow: WorkflowDef
       try {

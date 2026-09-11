@@ -27,7 +27,12 @@ planFromIr(id, model, compiled, track?) → { definition: compiled, workflow: se
 
 // workflow/branch-track-lookup.ts
 requireTrackForRoot(registry, trackId, repoRoot, workflowName?): TrackDefinition
-projectWorkflowNames(repoRoot): string[]
+projectWorkflowNames(repoRoot): string[]          // default ∪ project dir ∪ global dir
+
+// workflow/global-store.ts
+globalWorkflowRoot(input?: ProductPathInput): string   // <configRoot>/workflows
+workflowFileCandidates(repoRoot, name): string[]        // [project file, global file]
+workflowNamesUnder(root): string[]
 
 // tracks/branch-track.ts
 resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
@@ -63,6 +68,19 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
   from the first branch. `check:default-skill-matrix` compares every branch's non-driver skills with
   `manifest.yaml`. Historical-fingerprint tests reconstruct the pre-branch default from the frontend branch
   (`legacyDefaultWorkflow()` in `workflow/test-support.ts`).
+
+### Storage: workflows are global
+
+- Workflows are user-level templates, not project files. The global store is
+  `globalWorkflowRoot() = <resolveProductPaths().configRoot>/workflows`, laid out exactly like a project
+  (`.pipeline/workflows/<name>.yaml`) so the server's trusted-fs layer anchors on it unchanged. `TENON_RUNTIME_HOME`
+  / `TENON_RUNTIME_ROOTS` relocate it (tests, isolated installs); the root vitest config gives every worker a
+  throwaway home (`tools/vitest.isolate-runtime-home.mjs`) so a developer's global overrides never leak into tests.
+- `loadWorkflow(repoRoot, name)` resolution: built-in (`simple`) → project file `<root>/.pipeline/workflows/<name>.yaml`
+  (legacy fallback, still wins when present) → global file → `null`. `default` follows the same chain; the built-in
+  template applies when neither file exists. `projectWorkflowNames(repoRoot)` = `default` ∪ project dir ∪ global dir.
+- A change picks its pipeline with `tenon init --workflow <name> --track <id>`; nothing about the change is stored
+  in the workflow store.
 
 ## 4. Validation & Error Matrix
 

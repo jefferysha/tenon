@@ -188,7 +188,8 @@ export interface WbStepIo {
 
 export type WbEffectiveIo = Record<string, WbStepIo>
 
-export type WbWorkflowSource = 'builtin' | 'project'
+/** builtin = 内建模板；global = 用户级全局存储；project = 项目目录里的遗留覆盖文件。 */
+export type WbWorkflowSource = 'builtin' | 'project' | 'global'
 
 export interface WbWorkflowDef {
   name: string

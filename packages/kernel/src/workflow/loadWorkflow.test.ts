@@ -1,9 +1,11 @@
 import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { loadWorkflow } from './loadWorkflow.js'
+import { globalWorkflowRoot, workflowsDirUnder } from './global-store.js'
+import { projectWorkflowNames } from './branch-track-lookup.js'
 import { parseWorkflow } from './parse.js'
 import { selectTrackBranch } from './validate.js'
 
@@ -170,5 +172,51 @@ steps:
       'utf8',
     )
     expect(() => loadWorkflow(root, 'badguard')).toThrow(/列表字段/)
+  })
+})
+
+describe('loadWorkflow · 全局存储', () => {
+  const savedRoots = process.env.TENON_RUNTIME_ROOTS
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    if (savedRoots === undefined) delete process.env.TENON_RUNTIME_ROOTS
+    else process.env.TENON_RUNTIME_ROOTS = savedRoots
+  })
+
+  async function isolatedHome(): Promise<string> {
+    const home = await mkdtemp(join(tmpdir(), 'wf-global-home-'))
+    vi.stubEnv('TENON_RUNTIME_HOME', home)
+    // 空串也会被当作 JSON 解析；隔离测试要的是「没有 ROOTS 契约」。
+    delete process.env.TENON_RUNTIME_ROOTS
+    return home
+  }
+
+  it('项目无文件时读全局文件；两者都有时项目文件优先（遗留兜底）', async () => {
+    await isolatedHome()
+    const globalDir = workflowsDirUnder(globalWorkflowRoot())
+    await mkdir(globalDir, { recursive: true })
+    await writeFile(join(globalDir, 'shared.yaml'), 'name: shared\nsteps:\n', 'utf8')
+    const root = await mkdtemp(join(tmpdir(), 'wf-global-root-'))
+    expect(loadWorkflow(root, 'shared')?.name).toBe('shared')
+    await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(root, '.pipeline', 'workflows', 'shared.yaml'), 'name: shared\nsteps:\n  - id: only\n    label: Only\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions: []\n', 'utf8')
+    expect(loadWorkflow(root, 'shared')?.steps.map((step) => step.id)).toEqual(['only'])
+  })
+
+  it('projectWorkflowNames 合并项目目录与全局目录，default 恒在且去重', async () => {
+    await isolatedHome()
+    const globalDir = workflowsDirUnder(globalWorkflowRoot())
+    await mkdir(globalDir, { recursive: true })
+    await writeFile(join(globalDir, 'g1.yaml'), 'name: g1\nsteps:\n', 'utf8')
+    await writeFile(join(globalDir, 'default.yaml'), 'name: default\nsteps:\n', 'utf8')
+    const root = await mkdtemp(join(tmpdir(), 'wf-global-names-'))
+    await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(root, '.pipeline', 'workflows', 'p1.yaml'), 'name: p1\nsteps:\n', 'utf8')
+    expect(projectWorkflowNames(root).sort()).toEqual(['default', 'g1', 'p1'])
+  })
+
+  it('TENON_RUNTIME_HOME 重定向全局存储位置', async () => {
+    const home = await isolatedHome()
+    expect(globalWorkflowRoot()).toBe(join(home, 'config', 'workflows'))
   })
 })

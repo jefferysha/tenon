@@ -59,6 +59,9 @@ import {
   resolveSkillInvocationRoute,
 } from './serverSkillInvocationRoutes.js'
 
+type WorkflowStoreCheck =
+  | { ok: true; anchor: WorkflowRootAnchor; global: boolean }
+  | { ok: false; code: 403 | 404; error: string }
 type WorkflowRootCheck =
   | { ok: true; anchor: WorkflowRootAnchor }
   | { ok: false; code: 403 | 404; error: string }
@@ -87,6 +90,8 @@ export interface GetRouteDeps {
   registry: () => string[]
   traceStore?: TraceStoreReader
   workflowRootForRequest: (root: string) => WorkflowRootCheck
+  /** 工作流路由：root 为空 = 全局存储。 */
+  workflowStoreForRequest: (root: string) => WorkflowStoreCheck
   trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
   trackRegistryBody: (registry: TrackRegistry) => Record<string, unknown>
   manifestPath?: string
@@ -118,7 +123,7 @@ export async function handleGet(
   const {
     cadenceScheduler, sendJson, sendHtml, serveIndexWithToken, serveAsset, indexHtml, token,
     version, releaseId, transactionId, stateScopeId, isLocalHost, snapshotDeps, handleStream, isRegisteredRoot,
-    clock, store, recordStore, loopLedger, registry, traceStore, workflowRootForRequest,
+    clock, store, recordStore, loopLedger, registry, traceStore, workflowRootForRequest, workflowStoreForRequest,
     trackValidationContextFor, trackRegistryBody, manifestPath, paths, hostHome, operationsAvailable,
     hostTargetPlanRuntime, options, operationRunner, resolveSessionLink, errMsg, orchestrationV2, definitionCatalog, adapterInstall,
   } = deps
@@ -292,14 +297,15 @@ export async function handleGet(
     }
     // ── workflow 编辑器（GOAL E8）：GET /api/workflows —— 列出自定义 workflow；default 恒在，标出来源 ──
     if (path === '/api/workflows') {
+      // root 为空 = 全局存储（工作流页）；带 root = 项目遗留目录。
       const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
-      const rootCheck = workflowRootForRequest(root)
+      const rootCheck = workflowStoreForRequest(root)
       if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
       try {
         const files = listWorkflowNames(rootCheck.anchor)
         return sendJson(res, 200, {
           names: files.filter((name) => name !== 'default'),
-          default: { source: files.includes('default') ? 'project' : 'builtin' },
+          default: { source: files.includes('default') ? (rootCheck.global ? 'global' : 'project') : 'builtin' },
         })
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
@@ -307,7 +313,7 @@ export async function handleGet(
     }
 
     // ── GET /api/workflows/:name/yaml —— 导出原文（自定义 / default 覆盖 / 内建模板）──
-    const yamlGet = resolveWorkflowYamlGet(req, path, { workflowRootForRequest, errMsg })
+    const yamlGet = resolveWorkflowYamlGet(req, path, { workflowRootForRequest: workflowStoreForRequest, errMsg })
     if (yamlGet !== null) {
       if (yamlGet.kind === 'json') return sendJson(res, yamlGet.status, yamlGet.body)
       const bytes = Buffer.from(yamlGet.text, 'utf8')
@@ -329,7 +335,7 @@ export async function handleGet(
         return sendJson(res, 400, { ok: false, error: '非法 workflow 名（允许中文、字母、数字、- 与 _；不允许空格、点或路径符号）' })
       }
       const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
-      const rootCheck = workflowRootForRequest(root)
+      let rootCheck = workflowStoreForRequest(root)
       if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
       const builtin = builtinWorkflow(wfName)
       if (builtin !== null) {
@@ -338,9 +344,17 @@ export async function handleGet(
         return sendJson(res, 200, { ...builtin, source: 'builtin', effectiveIo: materializeWorkflowIo(selectTrackBranch(builtin, undefined)), branches: workflowBranchesForApi(builtin) })
       }
       try {
-        // 先用 G6 安全读区分真 404/结构损坏；目标存在后才准备 project lock，避免 GET ghost
-        // 为纯查询凭空创建 `.pipeline`。
-        readWorkflowForApi(rootCheck.anchor, wfName)
+        // 先用 G6 安全读区分真 404/结构损坏；目标存在后才准备 lock，避免 GET ghost 为纯查询凭空创建 `.pipeline`。
+        // 解析顺序同 kernel loadWorkflow：项目遗留文件 → 全局存储 → default 内建模板。
+        try {
+          readWorkflowForApi(rootCheck.anchor, wfName)
+        } catch (e) {
+          if (!(e instanceof WorkflowNotFoundError) || rootCheck.global) throw e
+          const globalCheck = workflowStoreForRequest('')
+          if (!globalCheck.ok) throw e
+          readWorkflowForApi(globalCheck.anchor, wfName)
+          rootCheck = globalCheck
+        }
         ensureWorkflowProjectCoordinationPath(rootCheck.anchor)
       } catch (e) {
         if (e instanceof WorkflowNotFoundError && wfName === 'default') {
@@ -368,7 +382,7 @@ export async function handleGet(
             errors: checked.errors,
           })
         }
-        return sendJson(res, 200, { ...checked.workflow, source: 'project', effectiveIo: materializeWorkflowIo(selectTrackBranch(checked.workflow, undefined)), branches: workflowBranchesForApi(checked.workflow) })
+        return sendJson(res, 200, { ...checked.workflow, source: rootCheck.global ? 'global' : 'project', effectiveIo: materializeWorkflowIo(selectTrackBranch(checked.workflow, undefined)), branches: workflowBranchesForApi(checked.workflow) })
       } catch (e) {
         if (e instanceof WorkflowNotFoundError) return sendJson(res, 404, { ok: false, error: errMsg(e) })
         // registry 本身损坏/引用缺失同样不能把 workflow 伪装成健康 200；显式 degraded 409。

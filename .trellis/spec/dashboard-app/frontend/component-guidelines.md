@@ -67,6 +67,11 @@ last one. Anything that needs its own surface opens the shared right-side `share
 
 ## 工作流 rules (`workflow/`)
 
+- **Global, not per project.** Workflows are user-level templates: `WorkflowView` is rendered with `root=""` regardless
+  of the selected project, every `/api/workflows*` call goes out with an empty `root`, and there is no project gate,
+  no per-root draft retention and no root-loss handling on this page. The unsaved-draft guard fires only when the
+  user leaves the 工作流 view. `WbWorkflowSource` is `builtin | global | project` (project = legacy file, read-only
+  from the dashboard's point of view); the nav shows 内建 / 全局.
 - **Layout.** The workflow page is the one view that does **not** use `ThreeColumns`: it renders `TwoColumns`
   (`shell/ThreeColumns.tsx`, nav 300px + detail, `grid-rows-[minmax(0,1fr)]`). There is no middle column and no rail
   collapse. Every column scroll container is `relative overflow-y-auto`: absolutely positioned descendants

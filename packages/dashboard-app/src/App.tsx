@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { I18nProvider, useT } from './i18n'
 import type { Lang } from './i18n/translations'
 import { selectInbox } from './inbox/inbox'
@@ -8,16 +8,14 @@ import { useSnapshot } from './state/useSnapshot'
 import { parseDashboardLocation } from './shell/dashboardLocation'
 import { ErrorBoundary } from './AppErrorBoundary'
 import { useProjectSelection } from './state/useProjectSelection'
-import { isProjectNavigable, isProjectWritable } from './state/projectSelectionModel'
+import { isProjectNavigable } from './state/projectSelectionModel'
 import { formatApiError } from './api/transport'
 import { UnsavedDraftDialog } from './shared/UnsavedDraftDialog'
-import { DialogInteractionBoundary } from './shared/Dialog'
 import type { DashboardNavigationTarget } from './state/useProjectSelection'
 import { useFlash } from './shared/useFlash'
 import { useDashboardTheme } from './shell/useDashboardTheme'
 import { SnapshotInlineError } from './progress/SnapshotInlineError'
 import { BUTTON_GHOST } from './shared/uiRecipes'
-import { ProjectGate } from './shell/ProjectGate'
 import { TopBar, type TopBarProject } from './shell/TopBar'
 import { isView, type View } from './shell/views'
 
@@ -69,7 +67,6 @@ function AppShell(): JSX.Element {
   const viewRef = useRef(view)
   const dirtyRef = useRef(workbenchDirty)
   const currentRootRef = useRef('')
-  const retainedWorkbenchRootRef = useRef('')
   viewRef.current = view
 
   const commitView = useCallback((v: View) => {
@@ -95,8 +92,8 @@ function AppShell(): JSX.Element {
 
   const onUninterceptablePopAttempt = useCallback((target: DashboardNavigationTarget): boolean => {
     if (pendingNavigationRef.current !== null) return false
+    // 工作流是全局的：切项目不会卸载草稿，只有离开工作流页才需要守卫。
     const leavesDirtyWorkbench = target.view !== 'workbench'
-      || target.root !== currentRootRef.current
     if (viewRef.current !== 'workbench' || !dirtyRef.current || !leavesDirtyWorkbench) return true
     const discard = window.confirm(`${t('common.unsaved_navigation_title')}\n\n${t('common.unsaved_navigation_body')}`)
     if (!discard) return false
@@ -108,7 +105,6 @@ function AppShell(): JSX.Element {
 
   const onPopAttempt = useCallback((target: DashboardNavigationTarget): boolean => {
     const leavesDirtyWorkbench = target.view !== 'workbench'
-      || target.root !== currentRootRef.current
     if (viewRef.current === 'workbench' && dirtyRef.current && leavesDirtyWorkbench) {
       capturePendingNavigation({ kind: 'pop', target })
       return false
@@ -116,12 +112,6 @@ function AppShell(): JSX.Element {
     return true
   }, [capturePendingNavigation])
   const { snapshot, loading, error, connected, refresh, reconnect } = useSnapshot()
-  const preserveUnavailableWorkbenchRoot = view === 'workbench'
-    && workbenchDirty
-    && retainedWorkbenchRootRef.current !== ''
-    && !isProjectWritable(snapshot?.projects.find(
-      (project) => project.root === retainedWorkbenchRootRef.current,
-    ))
   const snapshotError = error === null ? null : formatApiError(error, t)
   const staleSnapshotError =
     error === null
@@ -144,7 +134,7 @@ function AppShell(): JSX.Element {
     onPopAttempt,
     shouldCancelPopBeforeCommit: () => pendingNavigationRef.current?.kind === 'view',
     onUninterceptablePopAttempt,
-    preserveUnavailableRoot: preserveUnavailableWorkbenchRoot,
+    preserveUnavailableRoot: false,
   })
   currentRootRef.current = currentRoot
 
@@ -226,35 +216,6 @@ function AppShell(): JSX.Element {
     })),
     [snapshot],
   )
-
-  // 工作流页是 per-root 配置面，只能消费显式选择且仍可写的项目，绝不回落首个可达项目。
-  const workbenchRoot = useMemo(() => {
-    const okRoots = snapshot?.projects.filter(isProjectWritable).map((p) => p.root) ?? []
-    if (currentRoot !== '' && okRoots.includes(currentRoot)) return currentRoot
-    return ''
-  }, [snapshot, currentRoot])
-  if (workbenchRoot !== '') retainedWorkbenchRootRef.current = workbenchRoot
-  const retainedWorkbenchRoot = workbenchRoot !== ''
-    ? workbenchRoot
-    : view === 'workbench' && workbenchDirty
-      ? retainedWorkbenchRootRef.current
-      : ''
-  const retainedWorkbenchProject = snapshot?.projects.find((project) => project.root === retainedWorkbenchRoot)
-  const workbenchAuthorityLost = retainedWorkbenchRoot !== '' && !isProjectWritable(retainedWorkbenchProject)
-  const retainedWorkbenchHostRef = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    const host = retainedWorkbenchHostRef.current
-    if (!host) return
-    if (workbenchAuthorityLost) host.setAttribute('inert', '')
-    else host.removeAttribute('inert')
-  }, [workbenchAuthorityLost])
-
-  // 工作流页含写入口，要求 project.ok=true；不可写时渲染分支直接给项目门（不静默跳页）。
-  // 唯一的自动跳转：脏的工作流草稿宿主彻底失权时回到工作台（只读，恒可达），草稿由 UnsavedDraftDialog 守住。
-  useEffect(() => {
-    if (view !== 'workbench' || !snapshot) return
-    if (workbenchDirty && retainedWorkbenchRoot !== '' && workbenchAuthorityLost) setView('progress')
-  }, [view, snapshot, retainedWorkbenchRoot, workbenchAuthorityLost, workbenchDirty, setView])
 
   const selectRoot = useCallback((root: string): void => {
     selectProject(root, viewRef.current)
@@ -351,9 +312,7 @@ function AppShell(): JSX.Element {
               {t('common.snapshot_retry')}
             </button>
           </section>
-        ) : snapshot
-          && snapshot.project_count === 0
-          && !(view === 'workbench' && workbenchDirty && retainedWorkbenchRoot !== '') ? (
+        ) : snapshot && snapshot.project_count === 0 && view !== 'workbench' ? (
           // 零项目教学态：tenon init 自动登记，无注册表单。
           <div className="px-6"><Onboarding kind="no-project" /></div>
         ) : (
@@ -374,32 +333,12 @@ function AppShell(): JSX.Element {
           />
         )}
         {view === 'workbench' && (
-          retainedWorkbenchRoot !== '' ? (
-            <>
-              {workbenchAuthorityLost && (
-                <p className="p-5 text-body text-red-d" role="alert">{t('workbench.no_reachable_root')}</p>
-              )}
-              <div
-                data-testid="workbench-retained-host"
-                ref={retainedWorkbenchHostRef}
-              >
-                <DialogInteractionBoundary disabled={workbenchAuthorityLost}>
-                  <WorkflowView
-                    key={retainedWorkbenchRoot}
-                    root={retainedWorkbenchRoot}
-                    onDirtyChange={onWorkbenchDirtyChange}
-                    onToast={(m) => showFlash('toast', m)}
-                  />
-                </DialogInteractionBoundary>
-              </div>
-            </>
-          ) : snapshot ? (
-            snapshot.projects.some(isProjectWritable)
-              ? <ProjectGate projects={snapshot.projects.filter(isProjectWritable)} onSelectProject={(root) => selectProject(root, 'workbench')} />
-              : <p className="p-5 text-body text-red-d" role="alert" data-testid="wb-no-root">{t('workbench.no_reachable_root')}</p>
-          ) : (
-            <p className="p-5 text-body text-text-3" role="status" aria-live="polite">{t('common.loading')}</p>
-          )
+          // 工作流是全局的（用户级存储），不依赖所选项目；每个 change 自己选工作流与轨道。
+          <WorkflowView
+            root=""
+            onDirtyChange={onWorkbenchDirtyChange}
+            onToast={(m) => showFlash('toast', m)}
+          />
         )}
           </>
         )}

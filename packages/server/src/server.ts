@@ -1,4 +1,5 @@
 /** Global loopback dashboard server assembly; bounded route handlers live in sibling modules. */
+import { join as joinPath } from 'node:path'
 import { existsSync, lstatSync, readFileSync, statSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
@@ -223,9 +224,11 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     executeOperation,
     workflowRootAnchors,
     workflowRootForRequest,
+    workflowStoreForRequest,
     trackValidationContextFor,
   } = createServerGovernance({
     registry,
+    globalWorkflowRoot: joinPath(paths.configRoot, 'workflows'),
     store,
     sendJson,
     trackSkillProfiles,
@@ -254,7 +257,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       cadenceScheduler, sendJson, sendHtml, serveIndexWithToken, serveAsset, indexHtml, token,
       version, releaseId, transactionId, stateScopeId, isLocalHost, boundPort: () => boundPort, snapshotDeps,
       handleStream, isRegisteredRoot, clock, store, recordStore, loopLedger, registry, traceStore,
-      workflowRootForRequest, trackValidationContextFor, trackRegistryBody, manifestPath, paths,
+      workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, trackRegistryBody, manifestPath, paths,
       hostHome, operationsAvailable, hostTargetPlanRuntime, options, operationRunner,
       resolveSessionLink: (root, name) => resolveSessionLinkForChange(root, name, { store, memFs }), errMsg,
       orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest },
@@ -272,7 +275,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const handlePost = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePostRoute(req, res, path, {
       isLocalHost, boundPort: () => boundPort, sendJson, token, readJsonBody, routerPatternScorer,
-      workflowRootForRequest, trackValidationContextFor, executeOperation, operationRunner,
+      workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, executeOperation, operationRunner,
       operationsAvailable, isRegisteredRoot, store, clock, history, workflowRootAnchors,
       trackSkillProfiles, loadedManifest, runRepo, flow, fileExists, gitHeadSha,
       workspaceFingerprint, breadcrumb, manifestPath, paths, validateLoopActivation,
@@ -289,6 +292,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     token,
     readJsonBody,
     workflowRootForRequest,
+    workflowStoreForRequest,
     mutateTrackForApi: mutateTrackForRoutes,
     scanActiveTrackChanges,
     trackRegistryBody,

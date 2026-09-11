@@ -91,6 +91,7 @@ export interface PostRouteDeps {
   readJsonBody: (req: IncomingMessage) => Promise<unknown>
   routerPatternScorer: RouterPatternScorer
   workflowRootForRequest: (root: string) => WorkflowRootCheck
+  workflowStoreForRequest: (root: string) => { ok: true; anchor: WorkflowRootAnchor; global: boolean } | { ok: false; code: 403 | 404; error: string }
   trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
   executeOperation: (res: ServerResponse, root: string, args: readonly string[]) => Promise<void>
   operationRunner: PipelineCliRunner

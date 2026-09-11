@@ -239,7 +239,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
 
   // 定义加载：default 与自定义同一条路（服务端物化 IO 一并带回）。
   useEffect(() => {
-    if (!wfName || root === '') return
+    if (!wfName) return
     let cancelled = false
     // 保存成功后的重载不清「已保存」提示；切换工作流时由 switchTo 归零。
     setDefState(null)

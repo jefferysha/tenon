@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { parseWorkflow } from './parse.js'
 import { validateWorkflow, validateWorkflowForStorage } from './validate.js'
 import type { WorkflowDef } from './types.js'
 import { builtinWorkflow } from './builtin-workflows.js'
+import { workflowFileCandidates } from './global-store.js'
 
 /**
  * 加载并校验一个 workflow 定义文件（GOAL E5：保存时校验的第二个消费点——目前没有独立的
@@ -24,10 +24,11 @@ export function loadWorkflow(repoRoot: string, name: string): WorkflowDef | null
     }
     return builtin
   }
-  const p = join(repoRoot, '.pipeline', 'workflows', `${name}.yaml`)
-  if (!existsSync(p)) return null
+  // 解析顺序：项目文件（遗留兜底，仍可覆盖）→ 全局用户级文件 → 无。
+  const p = workflowFileCandidates(repoRoot, name).find((candidate) => existsSync(candidate))
+  if (p === undefined) return null
   const wf = parseWorkflow(readFileSync(p, 'utf8'))
-  // 'default' 是显式的存储键：项目覆盖文件 `.pipeline/workflows/default.yaml` 必须按 default 契约
+  // 'default' 是显式的存储键：覆盖文件 `.pipeline/workflows/default.yaml` 必须按 default 契约
   // （七阶段 + effective-phase-skills artifact）校验，否则内建模板自身的声明会被 custom 契约拒绝。
   const errors = validateWorkflowForStorage(name, wf)
   if (errors.length > 0) {

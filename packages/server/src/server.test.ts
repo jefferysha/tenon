@@ -3370,6 +3370,39 @@ describe('GET /api/orchestration-graph —— Change 编排图', () => {
   })
 })
 
+describe('工作流全局存储（root 为空 = 用户级 configRoot/workflows）', () => {
+  it('POST 无 root 写进全局目录；GET 列表 / 单个无 root 读全局并标 source=global；带项目 root 且项目无文件时回落到全局', async () => {
+    const { mkdir, writeFile, readdir } = await import('node:fs/promises')
+    const hostHome = await makeTempHome()
+    const paths = resolveServerPaths({ home: hostHome, env: {} })
+    const h = await start({ hostHome, paths })
+    const wf = 'name: shared\nsteps:\n  - id: s1\n    label: x\n    gate: null\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions: []\n'
+    const globalDir = join(paths.configRoot, 'workflows', '.pipeline', 'workflows')
+    await mkdir(globalDir, { recursive: true })
+    await writeFile(join(globalDir, 'shared.yaml'), wf, 'utf8')
+
+    const list = await reqGet(h.port, '/api/workflows')
+    expect(list.status).toBe(200)
+    expect(list.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['shared'], default: { source: 'builtin' } })
+
+    const one = await reqGet(h.port, '/api/workflows/shared')
+    expect(one.status).toBe(200)
+    expect(one.json<{ source: string; name: string }>()).toMatchObject({ name: 'shared', source: 'global' })
+
+    // 带项目 root：项目没有该文件 → 回落到全局文件，source 仍是 global。
+    const viaProject = await reqGet(h.port, `/api/workflows/shared?root=${encodeURIComponent(h.root)}`)
+    expect(viaProject.status).toBe(200)
+    expect(viaProject.json<{ source: string }>().source).toBe('global')
+
+    // POST 无 root → 写到全局目录，项目目录不出现文件。
+    const body = { root: '', name: 'team', steps: [{ id: 's1', label: 'x', gate: null, skills: [], inputs: [], outputs: [{ field: 'build_sha', type: 'string' }], guards: [], transitions: [] }] }
+    const posted = await reqPost(h.port, '/api/workflows/team', body, h.token)
+    expect(posted.status).toBe(200)
+    expect((await readdir(globalDir)).sort()).toEqual(['shared.yaml', 'team.yaml'])
+    await expect(readdir(join(h.root, '.pipeline', 'workflows'))).rejects.toThrow()
+  })
+})
+
 describe('GET /api/workflows —— 列出自定义 workflow（GOAL E8）', () => {
   it('root 未在注册表 → 404', async () => {
     const h = await start()

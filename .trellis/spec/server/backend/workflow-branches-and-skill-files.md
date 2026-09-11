@@ -20,6 +20,21 @@ resolveSnapshotEffectivePlan(root, name, binding, loadDefinition?, track?: Track
 resolveSnapshotTrack(root, trackId, workflowName?): TrackDefinition | undefined
 ```
 
+
+### Global workflow store (`root` may be empty)
+
+- Every `/api/workflows*` route resolves its storage anchor through `workflowStoreForRequest(root)`
+  (`serverGovernance.ts`): `root === ''` → the global store (`<paths.configRoot>/workflows`, directory created on
+  first use, anchor captured once and re-asserted like registered roots); any other root → the registered-project
+  anchor as before. The check carries `global: boolean`.
+- `GET /api/workflows` (no root) lists the global files; `default.source` is `'global'` when a global override
+  exists, `'builtin'` otherwise (`'project'` only for project-root requests with a legacy file).
+- `GET /api/workflows/:name?root=<project>` follows the kernel order: project file → global file (`source:
+  'global'`) → built-in default template. This is what the 工作台 uses to render a change's IO, so a change always
+  sees the same definition the CLI runs.
+- `POST` / `DELETE` / `PUT yaml` with empty root write to the global store; reference scans and locks are anchored on
+  the global root, so deleting a global workflow does **not** scan project changes for references (documented gap).
+
 ## 3. Contracts
 
 - `GET /api/workflows/:name` = definition (with `tracks`) + `source` + `effectiveIo` (first branch) + `branches`.

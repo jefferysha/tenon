@@ -135,7 +135,8 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
   }, [switching])
 
   const isDefault = current === 'default'
-  const source = isDefault ? defaultSource : 'project'
+  // 工作流页只编辑全局存储：自定义工作流恒为全局；default 由 API 告知是内建还是全局覆盖。
+  const source = isDefault ? defaultSource : 'global'
   const tracks = branches.filter((candidate) => candidate.id !== BASE_BRANCH)
   const trackLabel = tracks.find((candidate) => candidate.id === branch)?.label ?? branch
   const deleteEnabled = canWrite && !busy && current !== null && (!isDefault || defaultSource === 'project')
@@ -207,7 +208,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
                       onClick={() => { setSwitching(false); if (!busy && !selected) props.onSwitch(name) }}
                     >
                       <span className="min-w-0 flex-1 truncate">{name}</span>
-                      <span className="rounded-full bg-fill px-1.5 text-micro text-text-2">{t(`workflow.source_${name === 'default' ? defaultSource : 'project'}`)}</span>
+                      <span className="rounded-full bg-fill px-1.5 text-micro text-text-2">{t(`workflow.source_${name === 'default' ? defaultSource : 'global'}`)}</span>
                     </button>
                   </li>
                 )

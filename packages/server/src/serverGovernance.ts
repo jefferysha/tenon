@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import type { ServerResponse } from 'node:http'
 import { join, resolve as resolvePath } from 'node:path'
@@ -29,8 +30,15 @@ import {
 import { errMsg } from './serverSupport.js'
 import { projectFileExists } from './projectCapabilities.js'
 
+/** 工作流路由的存储锚：root 为空 = 全局存储（首次使用时建目录并捕获锚），否则 = 已注册项目。 */
+export type WorkflowStoreCheck =
+  | { ok: true; anchor: WorkflowRootAnchor; global: boolean }
+  | { ok: false; code: 403 | 404; error: string }
+
 export interface ServerGovernanceOptions {
   registry: () => string[]
+  /** 全局工作流存储根（产品 configRoot/workflows）：目录形状同项目，`.pipeline/workflows/*.yaml`。 */
+  globalWorkflowRoot: string
   store: StateStore
   sendJson: (res: ServerResponse, code: number, body: unknown) => void
   trackSkillProfiles: ReadonlySet<string>
@@ -39,7 +47,7 @@ export interface ServerGovernanceOptions {
 }
 
 export function createServerGovernance(options: ServerGovernanceOptions) {
-  const { registry, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options
+  const { registry, globalWorkflowRoot, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options
 function trackRegistryBody(trackRegistry: TrackRegistry): Record<string, unknown> {
   return {
     ok: true,
@@ -210,6 +218,26 @@ const workflowRootForRequest = (root: string): WorkflowRootCheck => {
   }
 }
 
+let globalAnchor: WorkflowRootAnchor | null = null
+const globalWorkflowStore = (): WorkflowStoreCheck => {
+  try {
+    if (globalAnchor === null) {
+      mkdirSync(join(globalWorkflowRoot, '.pipeline', 'workflows'), { recursive: true })
+      globalAnchor = captureWorkflowRootAnchor(globalWorkflowRoot)
+    } else {
+      assertWorkflowRootAnchor(globalAnchor)
+    }
+    return { ok: true, anchor: globalAnchor, global: true }
+  } catch (e) {
+    return { ok: false, code: 403, error: errMsg(e) }
+  }
+}
+const workflowStoreForRequest = (root: string): WorkflowStoreCheck => {
+  if (root === '') return globalWorkflowStore()
+  const checked = workflowRootForRequest(root)
+  return checked.ok ? { ok: true, anchor: checked.anchor, global: false } : checked
+}
+
 const trackValidationContextFor = (anchor: WorkflowRootAnchor): TrackValidationContext => ({
   workflowExists: (id) => {
     if (id === 'default') return true
@@ -236,6 +264,7 @@ let boundPort = 0
     executeOperation,
     workflowRootAnchors,
     workflowRootForRequest,
+    workflowStoreForRequest,
     trackValidationContextFor,
   }
 }
