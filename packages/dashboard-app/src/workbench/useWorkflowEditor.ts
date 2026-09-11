@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type SetStateAction } from 'react'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
-import type { WbEffectiveIo, WbSkillRef, WbStepDef, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbEffectiveIo, WbSkillRef, WbStepDef, WbTransition, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
 import { fetchWorkflowYaml, putWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
@@ -28,10 +28,8 @@ import {
   reorderStagesInDef,
   selectBranchDef,
   setGateInDef,
-  addTransitionInDef,
-  setTransitionEventInDef,
-  setTransitionToInDef,
-  removeTransitionInDef,
+  setStageBackInDef,
+  backTransitionOf,
   setStepSkillsInDef,
   workflowNameFromYaml,
   writeBranchDef,
@@ -105,10 +103,7 @@ export interface WorkflowEditor {
   mandatory: MandatoryState
   renameStep: (stepId: string, label: string) => void
   setGate: (stepId: string, gate: WbStepDef['gate']) => void
-  addTransition: (stepId: string, to: string) => void
-  setTransitionEvent: (stepId: string, index: number, event: string) => void
-  setTransitionTo: (stepId: string, index: number, to: string) => void
-  removeTransition: (stepId: string, index: number) => void
+  setStageBack: (stepId: string, to: string | null) => void
   removeStage: (stepId: string) => void
   reorderStages: (fromId: string, toId: string, after: boolean) => void
   setSkills: (stepId: string, skills: readonly WbSkillRef[]) => void
@@ -319,10 +314,25 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   }, [])
   const renameStep = useCallback((stepId: string, label: string) => mutate((previous) => renameStepInDef(previous, stepId, label)), [mutate])
   const setGate = useCallback((stepId: string, gate: WbStepDef['gate']) => mutate((previous) => setGateInDef(previous, stepId, gate)), [mutate])
-  const addTransition = useCallback((stepId: string, to: string) => mutate((previous) => addTransitionInDef(previous, stepId, to)), [mutate])
-  const setTransitionEvent = useCallback((stepId: string, index: number, event: string) => mutate((previous) => setTransitionEventInDef(previous, stepId, index, event)), [mutate])
-  const setTransitionTo = useCallback((stepId: string, index: number, to: string) => mutate((previous) => setTransitionToInDef(previous, stepId, index, to)), [mutate])
-  const removeTransition = useCallback((stepId: string, index: number) => mutate((previous) => removeTransitionInDef(previous, stepId, index)), [mutate])
+  /**
+   * 「不退回」摘掉的那条边先记住，重新选目标时整条装回来（只换 to）。否则来回切一次就把
+   * `verify-fail` 降级成 `verify-back` 并丢掉它的 actions——事件名和 actions 都是有运行时语义的。
+   * 键带上工作流与轨道，切换后不会串味；重新载入定义时清空。
+   */
+  const removedBack = useRef<Map<string, WbTransition>>(new Map())
+  const branchIdentity = useRef(effectiveBranch)
+  branchIdentity.current = effectiveBranch
+  const setStageBack = useCallback((stepId: string, to: string | null) => mutate((previous) => {
+    const key = `${previous.name}:${branchIdentity.current}:${stepId}`
+    if (to === null) {
+      const current = backTransitionOf(previous, stepId)
+      if (current !== null) removedBack.current.set(key, current)
+      return setStageBackInDef(previous, stepId, null)
+    }
+    const remembered = removedBack.current.get(key)
+    removedBack.current.delete(key)
+    return setStageBackInDef(previous, stepId, to, remembered)
+  }), [mutate])
   const removeStage = useCallback((stepId: string): void => {
     mutate((previous) => removeStageFromDef(previous, stepId))
     setStageId((current) => current === stageId ? (def?.steps.filter((step) => step.id !== stepId)[0]?.id ?? null) : current)
@@ -566,10 +576,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     mandatory,
     renameStep,
     setGate,
-    addTransition,
-    setTransitionEvent,
-    setTransitionTo,
-    removeTransition,
+    setStageBack,
     removeStage,
     reorderStages,
     setSkills,

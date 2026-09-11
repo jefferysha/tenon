@@ -3,6 +3,7 @@ import type {
   WbSkillRef,
   WbStepDef,
   WbTrackBranch,
+  WbTransition,
   WbWorkflowDef,
 } from '../api/governanceTypes'
 import { wavesOf, wavesToSkills } from './skillWaves'
@@ -126,30 +127,41 @@ export function setGateInDef(def: WbWorkflowDef, stepId: string, gate: WbStepDef
 }
 
 /**
- * 转移编辑（事件名 / 去向 / 增删）。按**下标**定位而不是事件名：事件名正在被用户编辑，中途会为空或
- * 重复，当不了键。`guards` / `actions` 原样保留——`spec-complete` 带着 reset-pre-verify-review，
- * 改个事件名把它丢了会静默改变运行时行为。
+ * 退回目标：本阶段做完之后退回到前面某一步重做。正向去向不在这里——它由阶段顺序决定，
+ * 拖拽排序时就已经定了，界面上不该再配一遍。
+ *
+ * 数据上「退回」就是一条 `to` 指向靠前阶段的 transition。改目标时保留原有 `event` / `guards` /
+ * `actions`：`verify-fail` 带着 mark-verification-failed 与 reset-pre-verify-review，换个目标把它们
+ * 丢了会静默改变运行时行为。新建时事件名合成为 `<stepId>-back`——受治理工作流的必需退回边删不掉
+ * （lint 挡住），所以 `verify-fail` / `requirements-changed` 这些既有名字不会因为改设置而丢失。
  */
-export function addTransitionInDef(def: WbWorkflowDef, stepId: string, to: string): WbWorkflowDef {
-  return mapStep(def, stepId, (step) => ({ ...step, transitions: [...step.transitions, { event: '', to }] }))
+export function backTransitionOf(def: WbWorkflowDef, stepId: string): WbTransition | null {
+  const index = def.steps.findIndex((step) => step.id === stepId)
+  const step = def.steps[index]
+  if (index < 0 || !step) return null
+  const earlier = new Set(def.steps.slice(0, index).map((candidate) => candidate.id))
+  return step.transitions.find((transition) => earlier.has(transition.to)) ?? null
 }
 
-export function setTransitionEventInDef(def: WbWorkflowDef, stepId: string, index: number, event: string): WbWorkflowDef {
-  return mapStep(def, stepId, (step) => ({
-    ...step,
-    transitions: step.transitions.map((transition, current) => (current === index ? { ...transition, event } : transition)),
-  }))
+export function backTargetOf(def: WbWorkflowDef, stepId: string): string | null {
+  return backTransitionOf(def, stepId)?.to ?? null
 }
 
-export function setTransitionToInDef(def: WbWorkflowDef, stepId: string, index: number, to: string): WbWorkflowDef {
-  return mapStep(def, stepId, (step) => ({
-    ...step,
-    transitions: step.transitions.map((transition, current) => (current === index ? { ...transition, to } : transition)),
-  }))
-}
-
-export function removeTransitionInDef(def: WbWorkflowDef, stepId: string, index: number): WbWorkflowDef {
-  return mapStep(def, stepId, (step) => ({ ...step, transitions: step.transitions.filter((_, current) => current !== index) }))
+/**
+ * `template` 是上一次被「不退回」摘掉的那条边。重新选退回目标时把它整条装回来，只换 `to`——否则
+ * 「不退回 → 再选回来」会把 `verify-fail` 变成 `verify-back`、连带丢掉 mark-verification-failed，
+ * 而事件名是有语义的（document-record-policy 按 `requirements-changed` 判定 ADR 活文档兼容面）。
+ */
+export function setStageBackInDef(def: WbWorkflowDef, stepId: string, to: string | null, template?: WbTransition): WbWorkflowDef {
+  const index = def.steps.findIndex((step) => step.id === stepId)
+  if (index < 0) return def
+  const earlier = new Set(def.steps.slice(0, index).map((candidate) => candidate.id))
+  return mapStep(def, stepId, (step) => {
+    const at = step.transitions.findIndex((transition) => earlier.has(transition.to))
+    if (to === null) return at < 0 ? step : { ...step, transitions: step.transitions.filter((_, current) => current !== at) }
+    if (at < 0) return { ...step, transitions: [...step.transitions, { ...(template ?? { event: `${stepId}-back` }), to }] }
+    return { ...step, transitions: step.transitions.map((transition, current) => (current === at ? { ...transition, to } : transition)) }
+  })
 }
 
 /** 列模型 → depends_on：同列并行、邻列串行。 */

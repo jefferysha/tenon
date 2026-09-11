@@ -175,32 +175,35 @@ last one. Anything that needs its own surface opens the shared right-side `share
   the current workflow is already `default`, so the cleared `defState` would never be refilled and the stage rail
   would stay empty.
 
-### Transitions section
+### Send-back section (退回)
 
-- The right pane is five sections, in this order: 输入 → 技能 → 输出 → 门禁 → **转移**. The gate decides whether
-  a stage may pass; the transition decides where it goes once it passes or is sent back, so the two sit next to
-  each other.
-- `TransitionTable` mirrors `IoTable`'s header / row rhythm so the section does not read as bolted on: equal
-  columns 事件 · 去向 plus a narrow delete column, `text-caption text-text-3` header, `border-b border-border py-2.5`
-  rows, event name in mono like the IO tables' 文件 column. The 添加 action lives in the section head next to
-  技能's 编辑 — never a button list at the bottom of the table.
-- A transition whose 去向 is an earlier stage **is** the back edge; it means "this stage failed acceptance, go back
-  and fix it". Linear transitions and back edges share one row type. No separate section, no 回流 chip, no arrow
-  glyph: the nav's dashed arc on the right already carries that signal and the same thing is never said twice.
-- The 去向 `<select>` is width-fitted (`justify-self-start`, `max-w-full`) so its chevron sits against the value
-  instead of drifting to the column's right edge.
-- Editing is index-addressed, never keyed on the event name: the name is mid-edit and may be blank or duplicated.
-  `guards` / `actions` ride along untouched — `spec-complete` carries `reset-pre-verify-review`, and dropping it
-  while renaming an event would silently change runtime behaviour.
-- Three lint rules block save through the existing `editor.lint` → `lintBlocked` path, with the reason shown inside
-  the section rather than as a 400 from the server: blank event name, duplicate event name within a stage, and a
-  governed workflow missing a required target. The governed test is `openspecContract === 'required' || name ===
-  'default'`, the same predicate `draftEffectiveIo` uses for locked documents, and `CONTRACT_TRANSITIONS` in
-  `lint.ts` mirrors kernel's `CANONICAL_TRANSITIONS` entry for entry.
-- Known sharp edge: dragging stages to reorder still rewrites whichever transition points at the next stage
-  (`reorderStagesInDef`), adding a stage still appends `<id>-complete`, and deleting one still re-points inbound
-  transitions at the successor. Once a user hand-authors a non-linear graph, a reorder can rewrite an edge they
-  meant differently. Left as-is: redefining "the linear transition" carries more risk than the surprise it avoids.
+- The right pane is five sections: 输入 → 技能 → 输出 → 门禁 → **退回**.
+- **Forward destinations are never configurable.** Every forward edge in `default` points at the immediately
+  following stage, in all five tracks, with no skips — so the forward chain is fully determined by stage order,
+  which the user already sets by dragging. Exposing a per-stage 去向 asked them to configure the same thing twice
+  and let them author "skip two stages ahead", which the pipeline has no notion of. An earlier revision shipped an
+  editable 事件 · 去向 table and was wrong for exactly this reason.
+- What *is* configurable is one stage-level property: **does this stage send work back, and how far back**. One
+  `<select>`: `不退回` or `退回到「<stage>」`. Options list only stages *before* this one, so a forward jump cannot
+  be expressed. The first stage has no earlier stage, so the section does not render at all.
+- Send-back is **not** bound to the gate. `实现 → 规格` (`requirements-changed`) hangs off a stage whose gate is
+  `无`; its meaning is "requirements changed, go re-do the spec", not "acceptance failed". Gating the control on
+  the gate would make that edge inexpressible.
+- The nav's dashed arc is this setting rendered: pick a target and the arc appears, pick 不退回 and it goes.
+  Configuration and drawing are two views of one fact, not two stores.
+- A send-back **is** a transition whose `to` is an earlier stage. `setStageBackInDef` keeps the existing
+  `event` / `guards` / `actions` when the target changes, and `useWorkflowEditor` remembers the transition that
+  `不退回` removed (keyed by workflow + branch + step) so toggling back restores it whole. Without that memory,
+  one round trip silently downgraded `verify-fail` to a synthesized `verify-back` and dropped
+  `mark-verification-failed` — and event names carry meaning (`document-record-policy` keys the ADR
+  living-document path on `requirements-changed`). A genuinely new edge gets `<stepId>-back`.
+- For governed workflows the kernel merges the canonical guards/actions back in by (from, to) pair
+  (`governedLifecyclePolicy`), so a governed send-back cannot lose its lifecycle effects even if the YAML omits
+  them. The required pairs (`build → spec`, `verify → build`) are still un-removable, enforced by the
+  `transition-contract-required` lint before save rather than by a 400 from the server.
+- Known sharp edge: the pane needs ~680px of scrolling on a 900px-tall window for a stage with many inputs, so
+  门禁 and 退回 sit below the fold. This predates the section (门禁 was already off-screen) and is a property of
+  putting two large derived read-only tables above the small editable controls. Not addressed here.
 
 ### How stage inputs / outputs are derived (and what is *not* detected)
 

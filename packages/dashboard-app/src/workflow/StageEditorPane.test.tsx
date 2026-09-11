@@ -16,7 +16,8 @@ const EXPLORE: WbStepDef = {
 }
 const SPEC: WbStepDef = {
   id: 'spec', label: '规格', gate: null, skills: [{ id: 'tenon-spec' }],
-  inputs: [{ field: 'design_doc', type: 'file_path' }], outputs: [{ field: 'plan', type: 'file_path' }], guards: [], transitions: [],
+  inputs: [{ field: 'design_doc', type: 'file_path' }], outputs: [{ field: 'plan', type: 'file_path' }], guards: [],
+  transitions: [{ event: 'spec-back', to: 'explore', actions: [{ type: 'reset-pre-verify-review' }] }],
 }
 const DEF: WbWorkflowDef = { name: 'default', steps: [EXPLORE, SPEC] }
 const IO: WbEffectiveIo = {
@@ -48,7 +49,7 @@ function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
     labelOf: (id: string) => labels.get(id) ?? id,
     mandatory: { registry: REGISTRY },
     renameStep: vi.fn(), removeStage: vi.fn(), setGate: vi.fn(), setSkills: vi.fn(), save: vi.fn(), discardDraft: vi.fn(), reloadDefinition: vi.fn(),
-    addTransition: vi.fn(), setTransitionEvent: vi.fn(), setTransitionTo: vi.fn(), removeTransition: vi.fn(),
+    setStageBack: vi.fn(),
     ...overrides,
     ...(step.id === 'spec' ? {} : {}),
   } as unknown as WorkflowEditor
@@ -128,45 +129,42 @@ describe('producerSkills', () => {
   })
 })
 
-describe('StageEditorPane · 转移', () => {
-  it('渲染事件与去向；去向下拉列出全部阶段（含靠前阶段，即回流）', () => {
-    renderPane(EXPLORE)
-    const table = screen.getByTestId('transitions-table')
-    expect(table).toHaveTextContent('事件')
-    expect(table).toHaveTextContent('去向')
-    expect(screen.getByTestId('transition-event-0')).toHaveValue('explore-complete')
-    expect(screen.getByTestId('transition-to-0')).toHaveValue('spec')
-    expect(within(screen.getByTestId('transition-to-0')).getAllByRole('option').map((o) => o.textContent)).toEqual(['调研', '规格'])
-  })
-
-  it('无转移时显示空态', () => {
+describe('StageEditorPane · 退回', () => {
+  it('退回下拉只列本阶段之前的阶段，加「不退回」；当前值取自指向靠前阶段的那条 transition', () => {
     renderPane(SPEC)
-    expect(screen.getByTestId('transitions-empty')).toHaveTextContent('没有转移')
+    const select = screen.getByTestId('wb-lane-back-spec')
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['不退回', '退回到「调研」'])
+    expect(select).toHaveValue('explore')
   })
 
-  it('改事件名 / 改去向 / 删除 / 添加各自回调，添加缺省去向是下一阶段', async () => {
+  it('界面上没有事件名和正向去向', () => {
+    renderPane(SPEC)
+    expect(screen.queryByText('事件')).toBeNull()
+    expect(screen.queryByText('去向')).toBeNull()
+    expect(screen.getByTestId('stage-back')).toHaveTextContent('退回')
+  })
+
+  it('第一个阶段没有可退回的目标，整段不渲染', () => {
+    renderPane(EXPLORE)
+    expect(screen.queryByTestId('stage-back')).toBeNull()
+  })
+
+  it('选目标与选「不退回」各自回调', async () => {
     const user = userEvent.setup()
-    const editor = renderPane(EXPLORE)
-    await user.type(screen.getByTestId('transition-event-0'), '!')
-    expect(editor.setTransitionEvent).toHaveBeenCalledWith('explore', 0, 'explore-complete!')
-    await user.selectOptions(screen.getByTestId('transition-to-0'), 'explore')
-    expect(editor.setTransitionTo).toHaveBeenCalledWith('explore', 0, 'explore')
-    await user.click(screen.getByTestId('transition-remove-0'))
-    expect(editor.removeTransition).toHaveBeenCalledWith('explore', 0)
-    await user.click(screen.getByTestId('wb-transition-add'))
-    expect(editor.addTransition).toHaveBeenCalledWith('explore', 'spec')
+    const editor = renderPane(SPEC)
+    await user.selectOptions(screen.getByTestId('wb-lane-back-spec'), '')
+    expect(editor.setStageBack).toHaveBeenCalledWith('spec', null)
+    await user.selectOptions(screen.getByTestId('wb-lane-back-spec'), 'explore')
+    expect(editor.setStageBack).toHaveBeenCalledWith('spec', 'explore')
   })
 
-  it('无写入凭证：事件、去向、删除全部禁用，段头没有添加', () => {
-    renderPane(EXPLORE, { canWrite: false })
-    expect(screen.getByTestId('transition-event-0')).toBeDisabled()
-    expect(screen.getByTestId('transition-to-0')).toBeDisabled()
-    expect(screen.getByTestId('transition-remove-0')).toBeDisabled()
-    expect(screen.queryByTestId('wb-transition-add')).toBeNull()
+  it('无写入凭证时下拉禁用', () => {
+    renderPane(SPEC, { canWrite: false })
+    expect(screen.getByTestId('wb-lane-back-spec')).toBeDisabled()
   })
 
-  it('本阶段的转移 lint 显示在段内', () => {
-    renderPane(EXPLORE, { lint: [{ kind: 'transition-contract-required', stepId: 'explore', to: 'spec' }] })
-    expect(screen.getByTestId('stage-transitions-lint')).toHaveTextContent('受治理工作流要求本阶段可转移到「规格」')
+  it('本阶段的退回 lint 显示在段内', () => {
+    renderPane(SPEC, { lint: [{ kind: 'transition-contract-required', stepId: 'spec', to: 'explore' }] })
+    expect(screen.getByTestId('stage-back-lint')).toHaveTextContent('受治理工作流要求本阶段可退回「调研」')
   })
 })

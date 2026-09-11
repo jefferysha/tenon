@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { WbWorkflowDef } from '../api/governanceTypes'
 import { insertWaveBefore, placeSkillInWave, skillExecutionWaves, wavesOf, wavesToSkills } from '../workbench/skillWaves'
 import { draftEffectiveIo, lintWorkflow } from './lint'
+import { backTargetOf, backTransitionOf, setStageBackInDef } from '../workbench/workbenchDefinition'
 import { backEdgesFrom, linkedToNext, pipelineEdges } from './pipelineModel'
 
 const DEF: WbWorkflowDef = {
@@ -77,5 +78,54 @@ describe('lint / draftEffectiveIo / slotCatalog', () => {
     // 同样的形状换个名字、不带契约 → 不管
     const free: WbWorkflowDef = { name: 'mine', steps }
     expect(lintWorkflow(free, draftEffectiveIo(free, undefined)).filter((issue) => issue.kind === 'transition-contract-required')).toEqual([])
+  })
+})
+
+describe('阶段退回', () => {
+  const WITH_ACTIONS: WbWorkflowDef = {
+    ...DEF,
+    steps: DEF.steps.map((step) => step.id !== 'b' ? step : {
+      ...step,
+      transitions: [{ event: 'b-done', to: 'c' }, { event: 'b-back', to: 'a', actions: [{ type: 'reset-pre-verify-review' }] }],
+    }),
+  }
+
+  it('backTargetOf 只认指向靠前阶段的边；正向边不算退回', () => {
+    expect(backTargetOf(DEF, 'b')).toBe('a')
+    expect(backTargetOf(DEF, 'a')).toBeNull()
+    expect(backTargetOf(DEF, 'c')).toBeNull()
+  })
+
+  it('改退回目标保留 event 与 actions，正向边不动', () => {
+    const next = setStageBackInDef(WITH_ACTIONS, 'b', 'a')
+    const b = next.steps.find((step) => step.id === 'b')
+    expect(b?.transitions).toEqual([
+      { event: 'b-done', to: 'c' },
+      { event: 'b-back', to: 'a', actions: [{ type: 'reset-pre-verify-review' }] },
+    ])
+  })
+
+  it('选不退回只删退回边，正向边留着', () => {
+    const next = setStageBackInDef(WITH_ACTIONS, 'b', null)
+    expect(next.steps.find((step) => step.id === 'b')?.transitions).toEqual([{ event: 'b-done', to: 'c' }])
+  })
+
+  it('本来没有退回边时新建一条，事件名合成 <id>-back', () => {
+    const next = setStageBackInDef(DEF, 'c', 'a')
+    expect(next.steps.find((step) => step.id === 'c')?.transitions).toEqual([{ event: 'c-back', to: 'a' }])
+  })
+
+  it('不退回再选回来：给了 template 就整条装回来，不把 b-back 降级成合成名、不丢 actions', () => {
+    const removed = backTransitionOf(WITH_ACTIONS, 'b')
+    expect(removed).toEqual({ event: 'b-back', to: 'a', actions: [{ type: 'reset-pre-verify-review' }] })
+    const off = setStageBackInDef(WITH_ACTIONS, 'b', null)
+    expect(backTransitionOf(off, 'b')).toBeNull()
+    const on = setStageBackInDef(off, 'b', 'a', removed ?? undefined)
+    expect(backTransitionOf(on, 'b')).toEqual({ event: 'b-back', to: 'a', actions: [{ type: 'reset-pre-verify-review' }] })
+  })
+
+  it('不给 template 的话就是新建：这正是修复前丢事件名和 actions 的路径', () => {
+    const off = setStageBackInDef(WITH_ACTIONS, 'b', null)
+    expect(backTransitionOf(setStageBackInDef(off, 'b', 'a'), 'b')).toEqual({ event: 'b-back', to: 'a' })
   })
 })
