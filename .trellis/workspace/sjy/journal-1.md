@@ -690,3 +690,25 @@ kernel 全局存储 <configRoot>/workflows + 解析顺序 项目→全局→内�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 29: 阶段转移可编辑（回流=验收不通过退回）
+<!-- trellis-session: v=2 fp=2e0eaf219741deea -->
+
+**Date**: 2026-09-12
+**Task**: 阶段转移可编辑（回流=验收不通过退回）
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+工作流页右栏新增第五段「转移」：事件名可改、去向从本轨道阶段里选，选靠前阶段即回流，语义是该阶段验收不通过退回上一轮修问题。此前 default 已有两条回流并在左栏画成虚线弧，但页面上配不了，只能手改 YAML。线性转移与回流同一种行，不分区不加标签。三条 lint 在保存前挡住：空事件名、同阶段事件重名、受治理工作流缺 CANONICAL_TRANSITIONS 必需去向。实机验收全过，四项前端门禁绿。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `88c9ed3` | feat(workflow): 阶段转移可编辑，回流表达「验收不通过退回上一轮」 |
+
+### Status
+
+[OK] **Completed**

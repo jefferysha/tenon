@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
-- **Last Active**: 2026-09-11
+- **Total Sessions**: 29
+- **Last Active**: 2026-09-12
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~692 | Active |
+| `journal-1.md` | ~714 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 29 | 2026-09-12 | 阶段转移可编辑（回流=验收不通过退回） | `88c9ed3` | `codex/autonomous-loop-v1` |
 | 28 | 2026-09-11 | 工作流页实机验证 + 全局 default / 轨道分支四修 | `0b671b5` | `codex/autonomous-loop-v1` |
 | 27 | 2026-09-11 | 工作流全局化：用户级存储，工作流页不绑定项目 | `4f1c04a` | `codex/autonomous-loop-v1` |
 | 26 | 2026-09-11 | 技能画布：线段高亮流动 + 长名截断 | `dffe5ac` | `codex/autonomous-loop-v1` |
