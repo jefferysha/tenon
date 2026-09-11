@@ -49,8 +49,7 @@ export function ProjectRail({ projects, currentRoot, collapsed, onToggle, onSele
               <RailCard
                 mark={project.name.slice(0, 1).toUpperCase()}
                 name={project.name}
-                meta={project.ok ? t('shell.project_meta', { n: project.count, root: project.root.split('/').filter(Boolean).slice(-2).join('/') }) : t('shell.project_unreachable')}
-                count={project.count}
+                meta={project.ok ? project.root.split('/').filter(Boolean).slice(-2).join('/') : t('shell.project_unreachable')}
                 selected={project.root === currentRoot}
                 collapsed={collapsed}
                 tag={project.ok ? undefined : <span className="rounded-full bg-red-t px-1.5 text-micro font-medium text-red-d">{t('shell.project_unreachable')}</span>}

@@ -41,10 +41,8 @@ export function TaskCard({ row, selected, showProject, onSelect }: TaskCardProps
       onClick={onSelect}
     >
       <span className="flex min-w-0 items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-title font-semibold text-text">{change.name}</span>
-        <span className="min-w-0 max-w-[55%] truncate">
-          <StatusPill tone={TONE[row.summary.kind]} testId={`task-summary-${change.name}`}>{summaryText(row, t)}</StatusPill>
-        </span>
+        <span className="min-w-0 flex-1 truncate text-title font-semibold text-text" title={change.name}>{change.name}</span>
+        <StatusPill tone={TONE[row.summary.kind]} testId={`task-summary-${change.name}`} className="flex-none max-w-[60%]" title={summaryText(row, t)}>{summaryText(row, t)}</StatusPill>
       </span>
       <span className="truncate font-mono text-body text-text-2">{slug}</span>
       <span className="flex min-w-0 items-center gap-3">

@@ -12,6 +12,8 @@ export const Position = { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bot
 export const BackgroundVariant = { Dots: 'dots', Lines: 'lines', Cross: 'cross' } as const
 export const MarkerType = { Arrow: 'arrow', ArrowClosed: 'arrowclosed' } as const
 export function Background(): null { return null }
+export function BaseEdge(): null { return null }
+export function getBezierPath(): [string, number, number] { return ['M0 0 L1 1', 0, 0] }
 export function Controls(): null { return null }
 export function Handle({ type }: { type: string }): JSX.Element { return <span data-handle={type} /> }
 export function ReactFlowProvider({ children }: { children: ReactNode }): JSX.Element { return <>{children}</> }

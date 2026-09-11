@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WbStepIo } from '../api/governanceTypes'
 import type { ChangeSnapshot } from '../types'
-import { readableFiles, stageInputs, stageOutputs } from './stageIo'
+import { readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
 
 const change = {
   name: 'demo',
@@ -48,5 +48,13 @@ describe('stageOutputs / stageInputs', () => {
   })
   it('无物化 IO → 空列表', () => {
     expect(stageOutputs(change, undefined)).toEqual([])
+  })
+})
+
+describe('skillsFromRuns', () => {
+  it('按波次还原列模型：第 k 波依赖第 k-1 波全部技能；无快照为空', () => {
+    expect(skillsFromRuns(undefined)).toEqual([])
+    expect(skillsFromRuns({ stepId: 'verify', skills: [{ id: 'tenon-verify', status: 'done', wave: 0 }, { id: 'browser-qa', status: 'running', wave: 1 }, { id: 'e2e-testing', status: 'idle', wave: 1 }] }))
+      .toEqual([{ id: 'tenon-verify' }, { id: 'browser-qa', depends_on: ['tenon-verify'] }, { id: 'e2e-testing', depends_on: ['tenon-verify'] }])
   })
 })

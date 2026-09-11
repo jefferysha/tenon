@@ -347,16 +347,16 @@ const PILL_TONE: Record<PillTone, string> = {
   blocked: 'bg-red-t text-red-d [&>i]:bg-red',
   neutral: 'bg-fill text-text-2 [&>i]:bg-text-3',
 }
-export function StatusPill({ tone, children, testId, title }: { tone: PillTone; children: ReactNode; testId?: string; title?: string }): JSX.Element {
+export function StatusPill({ tone, children, testId, title, className }: { tone: PillTone; children: ReactNode; testId?: string; title?: string; className?: string }): JSX.Element {
   return (
     <span
-      className={cn('inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-caption font-semibold', PILL_TONE[tone])}
+      className={cn('inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-caption font-semibold', PILL_TONE[tone], className)}
       data-tone={tone}
       data-testid={testId}
       title={title}
     >
-      <i className="size-1.5 rounded-full" aria-hidden="true" />
-      {children}
+      <i className="size-1.5 flex-none rounded-full" aria-hidden="true" />
+      <span className="truncate">{children}</span>
     </span>
   )
 }

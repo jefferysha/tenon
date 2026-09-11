@@ -56,9 +56,14 @@ last one. Anything that needs its own surface opens the shared right-side `share
 - `StageIoPanel` rows: document slot → ledger status (`recorded/missing/stale/unread`) + file name +
   last producer + time; field slot → `set/unset`. A row with a path opens `DocumentDrawer`
   (`react-markdown` + `remark-gfm` for `.md`, `<pre>` otherwise; prev / next across the stage's files).
-- `StageSkills` sits above the IO panel and renders `change.skillRuns[step]`: one column per wave
-  (same column = parallel), one `StatusPill` per skill (`idle` neutral / `running` info / `done` done).
-  It renders nothing when the server omits `skillRuns` or the step has no skills — no placeholder text.
+- The stage's skills render with the same `SkillFlow` canvas as the workflow page (read-only, `registry=null`):
+  `skillsFromRuns(change.skillRuns[step])` rebuilds the column model (wave k depends on wave k-1) and `statusOf`
+  colours each node (`data-status`: idle grey / running info ring / done green) with the run label under the name.
+  Nothing renders when the server omits `skillRuns` or the step has no skills.
+- Inputs and outputs are **sheets**, not stacked sections: `SheetTabs` (`task-io-tab-inputs` / `task-io-tab-outputs`,
+  counts in the tab) above one `StageIoPanel` that shows the active side only; a file row still opens
+  `DocumentDrawer`. The project rail card shows the project path only — task counts live in the facet chips, never
+  twice. Facet rows, chips and card pills never wrap (`whitespace-nowrap`, horizontal scroll, truncated titles).
 
 ## 工作流 rules (`workflow/`)
 
@@ -104,6 +109,10 @@ last one. Anything that needs its own surface opens the shared right-side `share
   (`dragLabel` comes from the composer because `dataTransfer` is unreadable during dragover); the new node plays
   `flow-in` (`data-entering`), disabled under reduced motion. Ports are solid dots with a caption (起点 accent,
   终点 grey); port edges are static, only `depends_on` edges animate.
+  **Pulse.** Every edge is the custom `pulse` type: `BaseEdge` plus a dot that GSAP moves along the path
+  (`offset-distance`). Edges carry `data.order / total` (起点→首波 0, 波 k→汇合 2k+1, 汇合→波 k+1 2k+2, 末波→终点
+  2N-1) so one shared timeline sends the pulse from 起点 to 终点 and repeats; reduced motion disables it. React
+  Flow's CSS `animated` dashes are not used.
   **Routing.** `layoutSkills` centres every wave on one midline (the tallest wave sets the height), and port /
   junction y is computed from React Flow's measured node heights (fallback `NODE_HEIGHT`), so single-node links are
   straight. When two adjacent waves form a complete column link (`isColumnLink`: every next-wave node depends on

@@ -15,8 +15,9 @@ const STATUS_TONE: Record<IoRowStatus, PillTone> = {
 }
 
 export interface StageIoPanelProps {
-  outputs: readonly IoRow[]
-  inputs: readonly IoRow[]
+  /** 当前 sheet 显示哪一侧。 */
+  direction: 'inputs' | 'outputs'
+  items: readonly IoRow[]
   activePath: string | null
   onOpen: (path: string) => void
   definitionState: 'loading' | 'ready' | 'error'
@@ -28,9 +29,10 @@ function formatTime(iso: string): string {
   return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-/** 所选阶段的输出与输入：每行一个槽位，文件行可点开抽屉。 */
-export function StageIoPanel({ outputs, inputs, activePath, onOpen, definitionState }: StageIoPanelProps): JSX.Element {
+/** 所选阶段的一张 IO sheet（输入或输出）：每行一个槽位，文件行可点开抽屉。标题由 sheet 页签承担。 */
+export function StageIoPanel({ direction, items, activePath, onOpen, definitionState }: StageIoPanelProps): JSX.Element {
   const { t } = useT()
+  const single = direction === 'outputs' ? 'output' : 'input'
 
   function row(item: IoRow, direction: 'output' | 'input'): JSX.Element {
     const label = slotLabel(item.slot, t)
@@ -47,7 +49,7 @@ export function StageIoPanel({ outputs, inputs, activePath, onOpen, definitionSt
           <span className="block truncate text-base font-semibold text-text">{label}</span>
           {meta !== '' && <span className="block truncate font-mono text-caption text-text-2">{meta}</span>}
         </span>
-        <StatusPill tone={STATUS_TONE[item.status]}>{t(`workspace.status_${item.status}`)}</StatusPill>
+        <StatusPill tone={STATUS_TONE[item.status]} className="flex-none">{t(`workspace.status_${item.status}`)}</StatusPill>
       </>
     )
     const cls = 'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md border px-4 py-3 text-left'
@@ -73,27 +75,17 @@ export function StageIoPanel({ outputs, inputs, activePath, onOpen, definitionSt
     )
   }
 
-  function section(title: string, items: readonly IoRow[], direction: 'output' | 'input', testId: string): JSX.Element {
-    return (
-      <section className="mb-7" data-testid={testId}>
-        <h2 className="mb-3 text-section font-bold text-text">{title}</h2>
-        {definitionState === 'loading' ? (
-          <p className="text-body text-text-3" role="status">{t('common.loading')}</p>
-        ) : definitionState === 'error' ? (
-          <p className="text-body text-red-d" role="alert">{t('workspace.definition_error')}</p>
-        ) : items.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border px-4 py-5 text-center text-body text-text-3" role="status">{t('workspace.none')}</p>
-        ) : (
-          <ul className="grid gap-2">{items.map((item) => row(item, direction))}</ul>
-        )}
-      </section>
-    )
-  }
-
   return (
-    <div data-testid="stage-io">
-      {section(t('workspace.outputs'), outputs, 'output', 'stage-outputs')}
-      {section(t('workspace.inputs'), inputs, 'input', 'stage-inputs')}
-    </div>
+    <section data-testid={`stage-${direction}`}>
+      {definitionState === 'loading' ? (
+        <p className="text-body text-text-3" role="status">{t('common.loading')}</p>
+      ) : definitionState === 'error' ? (
+        <p className="text-body text-red-d" role="alert">{t('workspace.definition_error')}</p>
+      ) : items.length === 0 ? (
+        <p className="rounded-md border border-dashed border-border px-4 py-5 text-center text-body text-text-3" role="status">{t('workspace.none')}</p>
+      ) : (
+        <ul className="grid gap-2">{items.map((item) => row(item, single))}</ul>
+      )}
+    </section>
   )
 }

@@ -33,11 +33,11 @@ function FacetRow({ label, facet, chips, current, total, mono, onPick }: {
 }): JSX.Element {
   const { t } = useT()
   return (
-    <div className="flex w-full flex-wrap items-center gap-1" role="tablist" aria-label={label} data-testid={`task-facet-${facet}`}>
-      <span className="mr-1 w-9 flex-none text-caption text-text-3">{label}</span>
+    <div className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none]" role="tablist" aria-label={label} data-testid={`task-facet-${facet}`}>
+      <span className="mr-1 min-w-12 flex-none whitespace-nowrap text-caption text-text-3">{label}</span>
       <FilterChip label={t('workspace.filter_all')} count={total} selected={current === 'all'} testId={`task-facet-${facet}-all`} onClick={() => onPick('all')} />
       {chips.map((chip) => (
-        <span key={chip.id} className={cn(mono && '[&>button]:font-mono')}>
+        <span key={chip.id} className={cn('flex-none', mono && '[&>button]:font-mono')}>
           <FilterChip label={chip.label} count={chip.count} selected={current === chip.id} testId={facet === 'stage' ? `task-filter-${chip.id}` : `task-facet-${facet}-${chip.id}`} onClick={() => onPick(chip.id)} />
         </span>
       ))}
@@ -65,7 +65,7 @@ export function TaskListPane({
             <button
               type="button"
               className={cn(
-                'inline-flex flex-none items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)',
+                'inline-flex flex-none items-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 py-1.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)',
                 filter.includeArchived && 'bg-accent-t font-semibold text-(--accent)',
               )}
               aria-pressed={filter.includeArchived}
