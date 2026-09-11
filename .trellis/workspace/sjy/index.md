@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 20
+- **Total Sessions**: 21
 - **Last Active**: 2026-09-11
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~516 | Active |
+| `journal-1.md` | ~538 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 21 | 2026-09-11 | 工作流页修复二：技能落点语义与预览、起终点样式、字号 +20% | `d7bef59` | `codex/autonomous-loop-v1` |
 | 20 | 2026-09-11 | 工作流页实测修复：技能流程起终点与箭头、IO 表对齐、技能详情排版、编辑器重开 | `3275fcd` | `codex/autonomous-loop-v1` |
 | 19 | 2026-09-11 | 工作流页两栏定稿实现 | `cba5528` | `codex/autonomous-loop-v1` |
 | 18 | 2026-09-10 | 工作流页 UI v2：行内动作、门禁流程骨架、面包屑 IO sheet | `9d2ba03` | `codex/autonomous-loop-v1` |

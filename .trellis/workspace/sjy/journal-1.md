@@ -514,3 +514,25 @@ steps ⊕ tracks（无通用分支，缺分支拒绝）；default 五条分支�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 21: 工作流页修复二：技能落点语义与预览、起终点样式、字号 +20%
+<!-- trellis-session: v=2 fp=e02aa7878821790e -->
+
+**Date**: 2026-09-11
+**Task**: 工作流页修复二：技能落点语义与预览、起终点样式、字号 +20%
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+拖放幽灵预览 + 落点决定并行 / 串行，+ 串行追加，新节点入场动画；起终点实心点带字；全站排版刻度 ×1.2；web 632 用例、design-scale、comments、build 通过；:18765 已重启。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d7bef59` | feat(dashboard): semantic skill drops with ghost preview, serial + button, solid flow ports, type scale +20% |
+
+### Status
+
+[OK] **Completed**
