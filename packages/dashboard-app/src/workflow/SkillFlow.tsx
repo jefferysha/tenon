@@ -27,9 +27,9 @@ import { SkillSourceIcon } from './SkillSourceIcon'
 import { cn } from '@/lib/utils'
 
 export const NODE_WIDTH = 224
-const NODE_HEIGHT = 52
+const NODE_HEIGHT = 60
 const COLUMN_GAP = 300
-const ROW_GAP = 84
+const ROW_GAP = 92
 const PADDING = 24
 /** 起点 / 终点小圆到首列 / 末列的水平距离。 */
 const PORT_GAP = 72
@@ -49,15 +49,31 @@ type SkillNode = Node<SkillNodeData, 'skill'>
 type PortNode = Node<{ label: string }, 'port'>
 type LabelNode = Node<{ label: string }, 'label'>
 type GhostNode = Node<{ label: string; mode: string }, 'ghost'>
-type FlowNode = SkillNode | PortNode | LabelNode | GhostNode
+type JunctionNode = Node<Record<string, never>, 'junction'>
+type FlowNode = SkillNode | PortNode | LabelNode | GhostNode | JunctionNode
 
-/** 技能 → 节点坐标：列 = 波次（depends_on 深度），行 = 波次内序；首列左侧留出起点的位置。 */
+/** 技能 → 节点坐标：列 = 波次（depends_on 深度），行 = 波次内序；各列围绕同一条中线纵向居中，首列左侧留出起点。 */
 export function layoutSkills(skills: readonly WbSkillRef[]): Array<{ id: string; x: number; y: number }> {
   const out: Array<{ id: string; x: number; y: number }> = []
-  wavesOf(skills).forEach((wave, column) => {
-    wave.forEach((id, row) => out.push({ id, x: PADDING + PORT_GAP + column * COLUMN_GAP, y: PADDING + 28 + row * ROW_GAP }))
+  const waves = wavesOf(skills)
+  const tallest = Math.max(0, ...waves.map((wave) => wave.length))
+  waves.forEach((wave, column) => {
+    const offset = ((tallest - wave.length) * ROW_GAP) / 2
+    wave.forEach((id, row) => out.push({ id, x: PADDING + PORT_GAP + column * COLUMN_GAP, y: PADDING + 28 + offset + row * ROW_GAP }))
   })
   return out
+}
+
+/** 相邻两波是否构成完整的列依赖：下一波每个节点都恰好依赖上一波全部节点，且上一波没有别的后继。 */
+export function isColumnLink(previous: readonly string[], next: readonly string[], edges: readonly Pick<Edge, 'source' | 'target'>[]): boolean {
+  if (previous.length === 0 || next.length === 0) return false
+  const previousSet = new Set(previous)
+  const nextSet = new Set(next)
+  for (const id of next) {
+    const deps = edges.filter((edge) => edge.target === id).map((edge) => edge.source)
+    if (deps.length !== previous.length || !deps.every((dep) => previousSet.has(dep))) return false
+  }
+  return edges.filter((edge) => previousSet.has(edge.source)).every((edge) => nextSet.has(edge.target))
 }
 
 /** depends_on → 边（只保留两端都在本阶段的依赖）。 */
@@ -212,7 +228,17 @@ const LabelNodeView = memo(function LabelNodeView({ data }: NodeProps<LabelNode>
   return <span className="whitespace-nowrap font-mono text-micro text-text-3" data-testid="flow-wave-label">{data.label}</span>
 })
 
-const NODE_TYPES = { skill: SkillNodeView, port: PortNodeView, label: LabelNodeView, ghost: GhostNodeView }
+/** 汇合点：并行波在中线收敛成一点再连下一步；本身不可见，只有两侧端口。 */
+const JunctionNodeView = memo(function JunctionNodeView(): JSX.Element {
+  return (
+    <div className="relative" style={{ width: 2, height: 2 }} data-testid="flow-junction">
+      <Handle type="target" position={Position.Left} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
+      <Handle type="source" position={Position.Right} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
+    </div>
+  )
+})
+
+const NODE_TYPES = { skill: SkillNodeView, port: PortNodeView, label: LabelNodeView, ghost: GhostNodeView, junction: JunctionNodeView }
 
 export interface SkillFlowProps {
   skills: readonly WbSkillRef[]
@@ -266,8 +292,9 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
   useEffect(() => {
     setNodes(layoutSkills(skillsRef.current).map(({ id, x, y }) => makeNode(id, x, y)))
     setEdges(edgesOf(skillsRef.current))
-    const frame = requestAnimationFrame(() => { void flowRef.current.fitView({ padding: 0.2, maxZoom: 1 }) })
-    return () => cancelAnimationFrame(frame)
+    // 等 React Flow 量完节点尺寸再 fitView，否则按未测量的位置取景会把末列切掉。
+    const timer = setTimeout(() => { void flowRef.current.fitView({ padding: 0.2, maxZoom: 1, duration: 200 }) }, 60)
+    return () => clearTimeout(timer)
   }, [signature, makeNode])
 
   // 可编辑：图的签名与传入技能不同才回写，回写一次后等父级把新技能传回来。
@@ -283,25 +310,43 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
   const decorated = useMemo((): { nodes: FlowNode[]; edges: Edge[] } => {
     if (nodes.length === 0) return { nodes: [], edges: [] }
     const waves = wavesOf(graph)
-    const position = new Map(nodes.map((node) => [node.id, node.position]))
+    const byId = new Map(nodes.map((node) => [node.id, node]))
+    const heightOf = (id: string): number => byId.get(id)?.measured?.height ?? NODE_HEIGHT
+    const middleOf = (id: string): number => (byId.get(id)?.position.y ?? 0) + heightOf(id) / 2
     const xs = nodes.map((node) => node.position.x)
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs)
-    const centerY = (ids: readonly string[]): number => ids.reduce((sum, id) => sum + (position.get(id)?.y ?? 0), 0) / Math.max(1, ids.length) + NODE_HEIGHT / 2 - PORT_SIZE / 2
+    /** 一波的中线 y：首末节点中心的中点。 */
+    const centerY = (ids: readonly string[]): number => ids.length === 0 ? 0 : (middleOf(ids[0]!) + middleOf(ids[ids.length - 1]!)) / 2
     const first = waves[0] ?? []
     const last = waves[waves.length - 1] ?? []
-    const hasDependent = new Set(edges.map((edge) => edge.source))
+    const portEdge = { deletable: false, selectable: false, animated: false, style: { ...EDGE_STYLE, opacity: 0.7 } }
     const ports: PortNode[] = [
-      { id: 'start', type: 'port', position: { x: minX - PORT_GAP, y: centerY(first) }, data: { label: t('workflow.flow_start') }, draggable: false, selectable: false, deletable: false, connectable: false },
-      { id: 'end', type: 'port', position: { x: maxX + NODE_WIDTH + PORT_GAP - PORT_SIZE, y: centerY(last) }, data: { label: t('workflow.flow_end') }, draggable: false, selectable: false, deletable: false, connectable: false },
+      { id: 'start', type: 'port', position: { x: minX - PORT_GAP, y: centerY(first) - PORT_SIZE / 2 }, data: { label: t('workflow.flow_start') }, draggable: false, selectable: false, deletable: false, connectable: false },
+      { id: 'end', type: 'port', position: { x: maxX + NODE_WIDTH + PORT_GAP - PORT_SIZE, y: centerY(last) - PORT_SIZE / 2 }, data: { label: t('workflow.flow_end') }, draggable: false, selectable: false, deletable: false, connectable: false },
     ]
     const labels: LabelNode[] = waves.map((wave, index) => {
-      const x = Math.min(...wave.map((id) => position.get(id)?.x ?? 0))
-      const y = Math.min(...wave.map((id) => position.get(id)?.y ?? 0)) - 22
+      const x = Math.min(...wave.map((id) => byId.get(id)?.position.x ?? 0))
+      const y = Math.min(...wave.map((id) => byId.get(id)?.position.y ?? 0)) - 22
       const text = wave.length > 1 ? `${t('workflow.step_n', { n: index + 1 })} · ${t('workflow.parallel_n', { n: wave.length })}` : t('workflow.step_n', { n: index + 1 })
       return { id: `label-${index}`, type: 'label', position: { x, y }, data: { label: text }, draggable: false, selectable: false, deletable: false, connectable: false }
     })
-    const portEdge = { deletable: false, selectable: false, animated: false, style: { ...EDGE_STYLE, opacity: 0.7 } }
+    // 相邻两波构成完整列依赖 → 用汇合点：上一波所有节点 → 汇合点（无箭头）→ 下一波每个节点。
+    const junctions: JunctionNode[] = []
+    const junctionEdges: Edge[] = []
+    const replaced = new Set<string>()
+    waves.forEach((wave, index) => {
+      const next = waves[index + 1]
+      if (next === undefined || !isColumnLink(wave, next, edges)) return
+      const rightEdge = Math.max(...wave.map((id) => byId.get(id)?.position.x ?? 0)) + NODE_WIDTH
+      const leftEdge = Math.min(...next.map((id) => byId.get(id)?.position.x ?? 0))
+      const junctionId = `j${index}`
+      junctions.push({ id: junctionId, type: 'junction', position: { x: (rightEdge + leftEdge) / 2 - 1, y: (centerY(wave) + centerY(next)) / 2 - 1 }, data: {}, draggable: false, selectable: false, deletable: false, connectable: false })
+      for (const id of wave) { junctionEdges.push({ id: `${id}->${junctionId}`, source: id, target: junctionId, ...portEdge, markerEnd: undefined, animated: true }) }
+      for (const id of next) { junctionEdges.push({ id: `${junctionId}->${id}`, source: junctionId, target: id, deletable: false, selectable: false }) }
+      for (const edge of edges) if (wave.includes(edge.source) && next.includes(edge.target)) replaced.add(edge.id)
+    })
+    const hasDependent = new Set(edges.map((edge) => edge.source))
     const virtual: Edge[] = [
       ...first.map((id) => ({ id: `start->${id}`, source: 'start', target: id, ...portEdge })),
       ...nodes.filter((node) => !hasDependent.has(node.id)).map((node) => ({ id: `${node.id}->end`, source: node.id, target: 'end', ...portEdge, markerEnd: undefined })),
@@ -312,10 +357,13 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
         : ghost.target.kind === 'before' ? first.map((id) => ({ id: `ghost->${id}`, source: 'ghost', target: id }))
           : (waves[ghost.target.wave - 1] ?? []).map((id) => ({ id: `${id}->ghost`, source: id, target: 'ghost' }))
     ).map((edge) => ({ ...edge, deletable: false, selectable: false, style: { stroke: 'var(--accent-b)', strokeWidth: 1.5, strokeDasharray: '4 4' } }))
-    return { nodes: [...labels, ...ports, ...nodes, ...ghostNodes], edges: [...edges, ...virtual, ...ghostEdges] }
+    return {
+      nodes: [...labels, ...ports, ...junctions, ...nodes, ...ghostNodes],
+      edges: [...edges.filter((edge) => !replaced.has(edge.id)), ...junctionEdges, ...virtual, ...ghostEdges],
+    }
   }, [nodes, edges, graph, ghost, t])
 
-  const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => setNodes((current) => applyNodeChanges(changes.filter((change) => !('id' in change) || (change.id !== 'start' && change.id !== 'end' && change.id !== 'ghost' && !String(change.id).startsWith('label-'))) as NodeChange<SkillNode>[], current)), [])
+  const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => setNodes((current) => applyNodeChanges(changes.filter((change) => !('id' in change) || (change.id !== 'start' && change.id !== 'end' && change.id !== 'ghost' && !String(change.id).startsWith('label-') && !/^j\d+$/.test(String(change.id)))) as NodeChange<SkillNode>[], current)), [])
   const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((current) => applyEdgeChanges(changes, current)), [])
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source === null || connection.target === null || connection.source === 'start' || connection.target === 'end') return
@@ -336,7 +384,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     enteringRef.current = entering
     setNodes(layoutSkills(next).map(({ id, x, y }) => makeNode(id, x, y)))
     setEdges(edgesOf(next))
-    requestAnimationFrame(() => { void flowRef.current.fitView({ padding: 0.2, maxZoom: 1 }) })
+    setTimeout(() => { void flowRef.current.fitView({ padding: 0.2, maxZoom: 1, duration: 200 }) }, 60)
   }, [makeNode])
 
   const ghostFor = useCallback((label: string, point: { x: number; y: number }) => {
@@ -425,8 +473,8 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
 
 /**
  * 技能流程画布（React Flow）：起点 → 第一波技能 → … → 终点。节点 = 技能（来源图标 + 名称 + description），
- * 边 = depends_on（带箭头、脉冲虚线），列 = 波次并带「第 n 步 · 并行 k」标签——一波多技能就是起点扇出，
- * 多波就是链式箭头。只读时不可拖不可连；可编辑时接受技能库拖放（dataTransfer `text/skill`）、拉线建依赖
+ * 边 = depends_on（带箭头、脉冲虚线），列 = 波次并带「第 n 步 · 并行 k」标签，各列围绕中线居中；相邻两波构成
+ * 完整列依赖时先汇合到中线一点再连下一步，一波多技能就是起点扇出。只读时不可拖不可连；可编辑时接受技能库拖放（dataTransfer `text/skill`）、拉线建依赖
  * （拒绝成环）、Backspace 删边、× 删点，并在图与传入技能签名不同时回写技能数组。
  */
 export function SkillFlow(props: SkillFlowProps): JSX.Element {

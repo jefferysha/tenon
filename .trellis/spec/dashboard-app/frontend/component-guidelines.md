@@ -103,7 +103,13 @@ last one. Anything that needs its own surface opens the shared right-side `share
   a dashed `flow-ghost` node with the pending mode (并行 n / 串行) and preview edges shows where it will land
   (`dragLabel` comes from the composer because `dataTransfer` is unreadable during dragover); the new node plays
   `flow-in` (`data-entering`), disabled under reduced motion. Ports are solid dots with a caption (起点 accent,
-  终点 grey); port edges are static, only `depends_on` edges animate. Read-only in the pane (`editable=false`: no drag / connect /
+  终点 grey); port edges are static, only `depends_on` edges animate.
+  **Routing.** `layoutSkills` centres every wave on one midline (the tallest wave sets the height), and port /
+  junction y is computed from React Flow's measured node heights (fallback `NODE_HEIGHT`), so single-node links are
+  straight. When two adjacent waves form a complete column link (`isColumnLink`: every next-wave node depends on
+  exactly the whole previous wave and the previous wave has no other successors) the direct edges are hidden and
+  replaced by an invisible junction node `j<k>` on the midline: previous wave → junction (no arrow) → each next-wave
+  node (arrow). Non-column DAGs keep their direct edges. `fitView` runs ~60ms after a relayout so measured sizes are in. Read-only in the pane (`editable=false`: no drag / connect /
   pan; click → `SkillDetailDrawer`). Editable inside `SkillComposer`: palette items are HTML5-draggable
   (`dataTransfer 'text/skill'`) and have a `+` (`palette-add-<name>`); `onConnect` refuses cycles (`wouldCycle`);
   `×` on a node (`flow-remove-<id>`) removes it and its edges; Backspace deletes a selected edge. The graph is written

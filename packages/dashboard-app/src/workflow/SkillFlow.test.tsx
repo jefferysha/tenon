@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { WbSkillRef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
-import { addSkillAt, appendSerial, dropTargetFor, edgesOf, graphToSkills, layoutSkills, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
+import { addSkillAt, appendSerial, dropTargetFor, edgesOf, graphToSkills, isColumnLink, layoutSkills, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -15,12 +15,18 @@ const SKILLS: WbSkillRef[] = [
 ]
 
 describe('SkillFlow · 纯函数', () => {
-  it('layoutSkills：列 = 波次，行 = 波内序', () => {
+  it('layoutSkills：列 = 波次，行 = 波内序；各列围绕同一条中线居中', () => {
     const layout = layoutSkills(SKILLS)
     expect(layout.map((node) => node.id)).toEqual(['tenon-explore', 'brainstorming', 'grill-with-docs'])
     expect(layout[0]!.x).toBeLessThan(layout[1]!.x)
     expect(layout[1]!.x).toBe(layout[2]!.x)
     expect(layout[1]!.y).toBeLessThan(layout[2]!.y)
+    expect(layout[0]!.y).toBe((layout[1]!.y + layout[2]!.y) / 2)
+  })
+  it('isColumnLink：下一波每个节点恰好依赖上一波全部节点才成立', () => {
+    expect(isColumnLink(['a'], ['b', 'c'], edgesOf([{ id: 'a' }, { id: 'b', depends_on: ['a'] }, { id: 'c', depends_on: ['a'] }]))).toBe(true)
+    expect(isColumnLink(['a', 'x'], ['b'], edgesOf([{ id: 'a' }, { id: 'x' }, { id: 'b', depends_on: ['a'] }]))).toBe(false)
+    expect(isColumnLink([], ['b'], [])).toBe(false)
   })
   it('edgesOf：只保留两端都在阶段内的 depends_on', () => {
     expect(edgesOf([...SKILLS, { id: 'x', depends_on: ['ghost'] }]).map((edge) => edge.id)).toEqual(['tenon-explore->brainstorming', 'tenon-explore->grill-with-docs'])
@@ -74,9 +80,14 @@ describe('SkillFlow · 组件', () => {
     expect(screen.getByTestId('flow-start')).toHaveTextContent('起点')
     expect(screen.getByTestId('flow-end')).toHaveTextContent('终点')
     expect(screen.getAllByTestId('flow-wave-label').map((label) => label.textContent)).toEqual(['第 1 步', '第 2 步 · 并行 2'])
-    expect(screen.getByTestId('react-flow').getAttribute('data-edges')).toContain('start->tenon-explore')
-    expect(screen.getByTestId('react-flow').getAttribute('data-edges')).toContain('brainstorming->end')
-    expect(screen.getByTestId('react-flow').getAttribute('data-edges')).not.toContain('tenon-explore->end')
+    const rendered = screen.getByTestId('react-flow').getAttribute('data-edges') ?? ''
+    expect(rendered).toContain('start->tenon-explore')
+    expect(rendered).toContain('brainstorming->end')
+    expect(rendered).not.toContain('tenon-explore->end')
+    expect(rendered).toContain('tenon-explore->j0')
+    expect(rendered).toContain('j0->brainstorming')
+    expect(rendered).not.toContain('tenon-explore->brainstorming,')
+    expect(screen.getByTestId('flow-junction')).toBeInTheDocument()
     expect(screen.getByTestId('flow-node-brainstorming')).toHaveTextContent('把想法聊成设计')
     expect(screen.queryByTestId('flow-remove-brainstorming')).toBeNull()
     await user.click(screen.getByTestId('flow-open-brainstorming'))
