@@ -624,3 +624,25 @@ PulseEdge：GSAP 沿路径的脉冲点按段序从起点传到终点；工作台
 ### Status
 
 [OK] **Completed**
+
+
+## Session 26: 技能画布：线段高亮流动 + 长名截断
+<!-- trellis-session: v=2 fp=984c30e69a14c98f -->
+
+**Date**: 2026-09-11
+**Task**: 技能画布：线段高亮流动 + 长名截断
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+脉冲改为叠加强调色路径的 dashoffset 流动段；节点 260px、名称截断带 title。Playwright 采样 dashoffset 连续变化。web 632 用例、design-scale、comments、build 通过；:18765 已重启。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `dffe5ac` | fix(dashboard): flowing stroke highlight instead of a travelling dot; long skill names truncate |
+
+### Status
+
+[OK] **Completed**
