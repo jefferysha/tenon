@@ -121,10 +121,10 @@ export function SkillDetail({ name, layout = 'split' }: SkillDetailProps): JSX.E
                 ))}
               </dl>
             )}
-            <Markdown text={parsed.body} testId="skill-detail-markdown" />
+            <Markdown text={parsed.body} testId="skill-detail-markdown" density="compact" />
           </>
         ) : (
-          <pre className="overflow-x-auto rounded-md border border-border bg-code-bg p-4 font-mono text-body leading-6 text-text" data-testid="skill-detail-text">{file.text}</pre>
+          <pre className="overflow-x-auto rounded-sm border border-code-border bg-code-bg p-3 font-mono text-caption leading-5 text-text" data-testid="skill-detail-text">{file.text}</pre>
         )}
       </section>
     </div>

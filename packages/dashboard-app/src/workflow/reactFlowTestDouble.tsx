@@ -10,6 +10,7 @@ type Change = { type: string; id?: string }
 
 export const Position = { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' } as const
 export const BackgroundVariant = { Dots: 'dots', Lines: 'lines', Cross: 'cross' } as const
+export const MarkerType = { Arrow: 'arrow', ArrowClosed: 'arrowclosed' } as const
 export function Background(): null { return null }
 export function Controls(): null { return null }
 export function Handle({ type }: { type: string }): JSX.Element { return <span data-handle={type} /> }

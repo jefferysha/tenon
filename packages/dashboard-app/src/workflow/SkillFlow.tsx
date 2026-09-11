@@ -4,6 +4,7 @@ import {
   BackgroundVariant,
   Controls,
   Handle,
+  MarkerType,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -26,9 +27,13 @@ import { SkillSourceIcon } from './SkillSourceIcon'
 import { cn } from '@/lib/utils'
 
 export const NODE_WIDTH = 224
-const COLUMN_GAP = 272
-const ROW_GAP = 88
+const NODE_HEIGHT = 52
+const COLUMN_GAP = 300
+const ROW_GAP = 84
 const PADDING = 24
+/** 起点 / 终点小圆到首列 / 末列的水平距离。 */
+const PORT_GAP = 72
+const PORT_SIZE = 12
 
 type SkillNodeData = {
   label: string
@@ -39,12 +44,15 @@ type SkillNodeData = {
   onRemove: (id: string) => void
 }
 type SkillNode = Node<SkillNodeData, 'skill'>
+type PortNode = Node<{ label: string }, 'port'>
+type LabelNode = Node<{ label: string }, 'label'>
+type FlowNode = SkillNode | PortNode | LabelNode
 
-/** 技能 → 节点坐标：列 = 波次（depends_on 深度），行 = 波次内序。 */
+/** 技能 → 节点坐标：列 = 波次（depends_on 深度），行 = 波次内序；首列左侧留出起点的位置。 */
 export function layoutSkills(skills: readonly WbSkillRef[]): Array<{ id: string; x: number; y: number }> {
   const out: Array<{ id: string; x: number; y: number }> = []
   wavesOf(skills).forEach((wave, column) => {
-    wave.forEach((id, row) => out.push({ id, x: PADDING + column * COLUMN_GAP, y: PADDING + row * ROW_GAP }))
+    wave.forEach((id, row) => out.push({ id, x: PADDING + PORT_GAP + column * COLUMN_GAP, y: PADDING + 28 + row * ROW_GAP }))
   })
   return out
 }
@@ -78,11 +86,10 @@ export function wouldCycle(edges: readonly Pick<Edge, 'source' | 'target'>[], so
   return false
 }
 
-/** 节点 + 边 → 技能引用：depends_on = 指向它的边的起点；其它字段从 existing 带回；顺序按波次拍平。 */
+/** 节点 + 边 → 技能引用：depends_on = 指向它的边的起点；其它字段从 existing 带回；顺序按波次拍平，同波保持原序。 */
 export function graphToSkills(nodeIds: readonly string[], edges: readonly Pick<Edge, 'source' | 'target'>[], existing: readonly WbSkillRef[]): WbSkillRef[] {
   const byId = new Map(existing.map((skill) => [skill.id, skill]))
   const ids = new Set(nodeIds)
-  // 同一波内保持定义里的原顺序，新加入的排在后面；波次顺序由 depends_on 决定。
   const rank = (id: string): number => { const index = existing.findIndex((skill) => skill.id === id); return index === -1 ? existing.length : index }
   const ordered = [...nodeIds].sort((a, b) => rank(a) - rank(b))
   const draft: WbSkillRef[] = ordered.map((id) => {
@@ -94,12 +101,20 @@ export function graphToSkills(nodeIds: readonly string[], edges: readonly Pick<E
   return order.map((id) => draft.find((skill) => skill.id === id)!)
 }
 
+/** 技能数组的内容签名：id 与 depends_on；引用变了但内容没变时不重排、不回写。 */
+export function skillsSignature(skills: readonly WbSkillRef[]): string {
+  return skills.map((skill) => `${skill.id}<${[...(skill.depends_on ?? [])].sort().join(',')}`).join('|')
+}
+
+const EDGE_STYLE = { stroke: 'var(--border-2)', strokeWidth: 1.5 }
+const MARKER = { type: MarkerType.ArrowClosed, width: 16, height: 16, color: 'var(--border-2)' }
+
 const SkillNodeView = memo(function SkillNodeView({ id, data, selected }: NodeProps<SkillNode>): JSX.Element {
   const { t } = useT()
   return (
     <div
       className={cn('relative rounded-sm border bg-card px-3 py-2 shadow-xs transition-[border-color,box-shadow]', selected ? 'border-(--accent) shadow-sm' : 'border-border-2')}
-      style={{ width: NODE_WIDTH }}
+      style={{ width: NODE_WIDTH, minHeight: NODE_HEIGHT }}
       data-testid={`flow-node-${id}`}
     >
       <Handle type="target" position={Position.Left} className="!size-2 !border-border-2 !bg-card" isConnectable={data.editable} />
@@ -120,13 +135,29 @@ const SkillNodeView = memo(function SkillNodeView({ id, data, selected }: NodePr
   )
 })
 
-const NODE_TYPES = { skill: SkillNodeView }
+/** 起点 / 终点：一枚实心小圆，只有一个端口方向。 */
+const PortNodeView = memo(function PortNodeView({ id, data }: NodeProps<PortNode>): JSX.Element {
+  const start = id === 'start'
+  return (
+    <div className="grid place-items-center" style={{ width: PORT_SIZE, height: PORT_SIZE }} title={data.label} data-testid={`flow-${id}`}>
+      <span className="block size-3 rounded-full border-2 border-border-2 bg-card" aria-hidden="true" />
+      <Handle type={start ? 'source' : 'target'} position={start ? Position.Right : Position.Left} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
+    </div>
+  )
+})
+
+/** 波次标签：第 n 步（· 并行 k）。 */
+const LabelNodeView = memo(function LabelNodeView({ data }: NodeProps<LabelNode>): JSX.Element {
+  return <span className="whitespace-nowrap font-mono text-micro text-text-3" data-testid="flow-wave-label">{data.label}</span>
+})
+
+const NODE_TYPES = { skill: SkillNodeView, port: PortNodeView, label: LabelNodeView }
 
 export interface SkillFlowProps {
   skills: readonly WbSkillRef[]
   registry: readonly WbSkillEntry[] | null
   editable: boolean
-  /** 可编辑时每次增删节点 / 连线后回调完整技能数组。 */
+  /** 可编辑时，图与传入技能的签名不同才回调完整技能数组。 */
   onChange?: (skills: WbSkillRef[]) => void
   onOpen: (id: string) => void
   className?: string
@@ -137,9 +168,17 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
   const flow = useReactFlow()
   const flowRef = useRef(flow)
   flowRef.current = flow
+  const skillsRef = useRef(skills)
+  skillsRef.current = skills
+  const registryRef = useRef(registry)
+  registryRef.current = registry
+  const onOpenRef = useRef(onOpen)
+  onOpenRef.current = onOpen
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
   const [nodes, setNodes] = useState<SkillNode[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
-  const entryOf = useCallback((id: string) => registry?.find((entry) => entry.name === id), [registry])
+  const signature = skillsSignature(skills)
 
   const removeNode = useCallback((id: string) => {
     setNodes((current) => current.filter((node) => node.id !== id))
@@ -147,40 +186,67 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
   }, [])
 
   const makeNode = useCallback((id: string, x: number, y: number): SkillNode => {
-    const entry = entryOf(id)
+    const entry = registryRef.current?.find((candidate) => candidate.name === id)
     return {
       id,
       type: 'skill',
       position: { x, y },
-      data: { label: id, description: entry?.description ?? null, source: entry?.source ?? null, editable, onOpen, onRemove: removeNode },
+      data: { label: id, description: entry?.description ?? null, source: entry?.source ?? null, editable, onOpen: (target) => onOpenRef.current(target), onRemove: removeNode },
       draggable: editable,
       selectable: editable,
     }
-  }, [entryOf, editable, onOpen, removeNode])
+  }, [editable, removeNode])
 
-  // skills 变化（切换阶段 / 打开编辑器）→ 按波次重新布局。
+  // 技能内容变了（切换阶段 / 打开编辑器 / 外部改写）→ 按波次重新布局；引用变化不触发。
   useEffect(() => {
-    setNodes(layoutSkills(skills).map(({ id, x, y }) => makeNode(id, x, y)))
-    setEdges(edgesOf(skills))
+    setNodes(layoutSkills(skillsRef.current).map(({ id, x, y }) => makeNode(id, x, y)))
+    setEdges(edgesOf(skillsRef.current))
     const frame = requestAnimationFrame(() => { void flowRef.current.fitView({ padding: 0.2, maxZoom: 1 }) })
     return () => cancelAnimationFrame(frame)
-  }, [skills, makeNode])
+  }, [signature, makeNode])
 
-  // 可编辑：图变了就回写技能数组。
-  const nodeIds = useMemo(() => nodes.map((node) => node.id).join('|'), [nodes])
-  const edgeIds = useMemo(() => edges.map((edge) => edge.id).join('|'), [edges])
+  // 可编辑：图的签名与传入技能不同才回写，回写一次后等父级把新技能传回来。
+  const graph = useMemo(() => graphToSkills(nodes.map((node) => node.id), edges, skillsRef.current), [nodes, edges])
+  const graphSignature = skillsSignature(graph)
   useEffect(() => {
-    if (!editable || onChange === undefined) return
-    const next = graphToSkills(nodes.map((node) => node.id), edges, skills)
-    const same = next.length === skills.length && next.every((skill, index) => skill.id === skills[index]?.id && (skill.depends_on ?? []).join(',') === (skills[index]?.depends_on ?? []).join(','))
-    if (!same) onChange(next)
+    if (!editable || nodes.length === 0 && skillsRef.current.length === 0) return
+    if (graphSignature !== signature) onChangeRef.current?.(graph)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeIds, edgeIds])
+  }, [graphSignature])
 
-  const onNodesChange = useCallback((changes: NodeChange<SkillNode>[]) => setNodes((current) => applyNodeChanges(changes, current)), [])
+  // 起点 / 终点 / 波次标签只是画法，从当前技能节点推出来，不进 state。
+  const decorated = useMemo((): { nodes: FlowNode[]; edges: Edge[] } => {
+    if (nodes.length === 0) return { nodes: [], edges: [] }
+    const waves = wavesOf(graph)
+    const position = new Map(nodes.map((node) => [node.id, node.position]))
+    const xs = nodes.map((node) => node.position.x)
+    const minX = Math.min(...xs)
+    const maxX = Math.max(...xs)
+    const centerY = (ids: readonly string[]): number => ids.reduce((sum, id) => sum + (position.get(id)?.y ?? 0), 0) / Math.max(1, ids.length) + NODE_HEIGHT / 2 - PORT_SIZE / 2
+    const first = waves[0] ?? []
+    const last = waves[waves.length - 1] ?? []
+    const hasDependent = new Set(edges.map((edge) => edge.source))
+    const ports: PortNode[] = [
+      { id: 'start', type: 'port', position: { x: minX - PORT_GAP, y: centerY(first) }, data: { label: t('workflow.flow_start') }, draggable: false, selectable: false, deletable: false, connectable: false },
+      { id: 'end', type: 'port', position: { x: maxX + NODE_WIDTH + PORT_GAP - PORT_SIZE, y: centerY(last) }, data: { label: t('workflow.flow_end') }, draggable: false, selectable: false, deletable: false, connectable: false },
+    ]
+    const labels: LabelNode[] = waves.map((wave, index) => {
+      const x = Math.min(...wave.map((id) => position.get(id)?.x ?? 0))
+      const y = Math.min(...wave.map((id) => position.get(id)?.y ?? 0)) - 22
+      const text = wave.length > 1 ? `${t('workflow.step_n', { n: index + 1 })} · ${t('workflow.parallel_n', { n: wave.length })}` : t('workflow.step_n', { n: index + 1 })
+      return { id: `label-${index}`, type: 'label', position: { x, y }, data: { label: text }, draggable: false, selectable: false, deletable: false, connectable: false }
+    })
+    const virtual: Edge[] = [
+      ...first.map((id) => ({ id: `start->${id}`, source: 'start', target: id, deletable: false, selectable: false })),
+      ...nodes.filter((node) => !hasDependent.has(node.id)).map((node) => ({ id: `${node.id}->end`, source: node.id, target: 'end', deletable: false, selectable: false })),
+    ]
+    return { nodes: [...labels, ...ports, ...nodes], edges: [...edges, ...virtual] }
+  }, [nodes, edges, graph, t])
+
+  const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => setNodes((current) => applyNodeChanges(changes.filter((change) => !('id' in change) || (change.id !== 'start' && change.id !== 'end' && !String(change.id).startsWith('label-'))) as NodeChange<SkillNode>[], current)), [])
   const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((current) => applyEdgeChanges(changes, current)), [])
   const onConnect = useCallback((connection: Connection) => {
-    if (connection.source === null || connection.target === null) return
+    if (connection.source === null || connection.target === null || connection.source === 'start' || connection.target === 'end') return
     setEdges((current) => {
       if (wouldCycle(current, connection.source, connection.target)) return current
       if (current.some((edge) => edge.source === connection.source && edge.target === connection.target)) return current
@@ -191,8 +257,8 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
     event.preventDefault()
     const id = event.dataTransfer.getData('text/skill')
     if (id === '') return
-    const position = flowRef.current.screenToFlowPosition({ x: event.clientX, y: event.clientY })
-    setNodes((current) => current.some((node) => node.id === id) ? current : [...current, makeNode(id, position.x - NODE_WIDTH / 2, position.y - 20)])
+    const point = flowRef.current.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+    setNodes((current) => current.some((node) => node.id === id) ? current : [...current, makeNode(id, point.x - NODE_WIDTH / 2, point.y - NODE_HEIGHT / 2)])
   }, [makeNode])
 
   return (
@@ -207,9 +273,9 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
       onDrop={editable ? onDrop : undefined}
     >
       {nodes.length === 0 && <p className="pointer-events-none absolute inset-0 z-10 grid place-items-center text-body text-text-3" role="status" data-testid="skill-flow-empty">{t(editable ? 'workflow.drop_skill' : 'workflow.no_skills')}</p>}
-      <ReactFlow<SkillNode>
-        nodes={nodes}
-        edges={edges}
+      <ReactFlow<FlowNode>
+        nodes={decorated.nodes}
+        edges={decorated.edges}
         nodeTypes={NODE_TYPES}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -225,7 +291,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
         minZoom={0.5}
         maxZoom={1.5}
         proOptions={{ hideAttribution: true }}
-        defaultEdgeOptions={{ type: 'default', style: { stroke: 'var(--border-2)', strokeWidth: 1.5 } }}
+        defaultEdgeOptions={{ type: 'default', animated: true, style: EDGE_STYLE, markerEnd: MARKER }}
         deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
       >
         <Background variant={BackgroundVariant.Dots} gap={14} size={1} color="var(--border-2)" />
@@ -236,9 +302,10 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, classNam
 }
 
 /**
- * 技能流程画布（React Flow）：节点 = 技能（来源图标 + 名称 + description），边 = depends_on，
- * 列 = 波次。只读时不可拖不可连；可编辑时接受技能库的拖放（dataTransfer `text/skill`）、拉线建依赖
- * （拒绝成环）、Backspace 删边、× 删点，并把图回写为技能数组。
+ * 技能流程画布（React Flow）：起点 → 第一波技能 → … → 终点。节点 = 技能（来源图标 + 名称 + description），
+ * 边 = depends_on（带箭头、脉冲虚线），列 = 波次并带「第 n 步 · 并行 k」标签——一波多技能就是起点扇出，
+ * 多波就是链式箭头。只读时不可拖不可连；可编辑时接受技能库拖放（dataTransfer `text/skill`）、拉线建依赖
+ * （拒绝成环）、Backspace 删边、× 删点，并在图与传入技能签名不同时回写技能数组。
  */
 export function SkillFlow(props: SkillFlowProps): JSX.Element {
   return <ReactFlowProvider><SkillFlowInner {...props} /></ReactFlowProvider>

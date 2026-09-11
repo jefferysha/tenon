@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { WbSkillRef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
-import { edgesOf, graphToSkills, layoutSkills, SkillFlow, wouldCycle } from './SkillFlow'
+import { edgesOf, graphToSkills, layoutSkills, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -41,12 +41,22 @@ describe('SkillFlow · 纯函数', () => {
 })
 
 describe('SkillFlow · 组件', () => {
-  it('只读：每个技能一个节点，边 = depends_on；点节点名打开详情；没有 × ', async () => {
+  it('skillsSignature：只看 id 与 depends_on，顺序无关的依赖列表签名相同', () => {
+    expect(skillsSignature([{ id: 'a', depends_on: ['x', 'y'] }])).toBe(skillsSignature([{ id: 'a', depends_on: ['y', 'x'] }]))
+    expect(skillsSignature([{ id: 'a' }])).not.toBe(skillsSignature([{ id: 'a', depends_on: ['b'] }]))
+  })
+  it('只读：每个技能一个节点，边 = depends_on；起点 / 终点与波次标签是画出来的；点节点名打开详情；没有 × ', async () => {
     const user = userEvent.setup()
     const onOpen = vi.fn()
     render(<I18nProvider><SkillFlow skills={SKILLS} registry={[{ name: 'brainstorming', installed: true, source: 'external-marketplace', description: '把想法聊成设计' }]} editable={false} onOpen={onOpen} /></I18nProvider>)
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-nodes', '3')
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-edges', '2')
+    expect(screen.getByTestId('flow-start')).toBeInTheDocument()
+    expect(screen.getByTestId('flow-end')).toBeInTheDocument()
+    expect(screen.getAllByTestId('flow-wave-label').map((label) => label.textContent)).toEqual(['第 1 步', '第 2 步 · 并行 2'])
+    expect(screen.getByTestId('react-flow').getAttribute('data-edges')).toContain('start->tenon-explore')
+    expect(screen.getByTestId('react-flow').getAttribute('data-edges')).toContain('brainstorming->end')
+    expect(screen.getByTestId('react-flow').getAttribute('data-edges')).not.toContain('tenon-explore->end')
     expect(screen.getByTestId('flow-node-brainstorming')).toHaveTextContent('把想法聊成设计')
     expect(screen.queryByTestId('flow-remove-brainstorming')).toBeNull()
     await user.click(screen.getByTestId('flow-open-brainstorming'))

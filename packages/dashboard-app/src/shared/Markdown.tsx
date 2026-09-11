@@ -16,10 +16,26 @@ const MD_CLS = [
   '[&_hr]:my-6 [&_hr]:border-border [&_input[type=checkbox]]:mr-2',
 ].join(' ')
 
+/** 窄栏（技能详情）密度：标题降两档、正文 13px、段距收紧，读起来像文档而不是页面。 */
+const COMPACT_CLS = [
+  'text-body leading-6 text-text [overflow-wrap:anywhere]',
+  '[&_h1]:mt-5 [&_h1]:mb-2 [&_h1]:text-section [&_h1]:font-bold [&_h1]:tracking-[-.01em] [&_h1]:[text-wrap:balance]',
+  '[&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:border-b [&_h2]:border-border [&_h2]:pb-1.5 [&_h2]:text-title [&_h2]:font-semibold',
+  '[&_h3]:mt-4 [&_h3]:mb-1.5 [&_h3]:text-base [&_h3]:font-semibold',
+  '[&_h4]:mt-3 [&_h4]:mb-1 [&_h4]:text-body [&_h4]:font-semibold [&_h4]:text-text-2',
+  '[&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_li>p]:my-1',
+  '[&_a]:text-(--accent) [&_a]:underline [&_strong]:font-semibold',
+  '[&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-accent-b [&_blockquote]:bg-accent-t/40 [&_blockquote]:px-3 [&_blockquote]:py-1.5 [&_blockquote]:text-text-2',
+  '[&_code]:rounded-xs [&_code]:bg-code-bg [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-caption',
+  '[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-code-border [&_pre]:bg-code-bg [&_pre]:p-3 [&_pre]:text-caption [&_pre]:leading-5 [&_pre_code]:bg-transparent [&_pre_code]:p-0',
+  '[&_table]:my-3 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_table]:text-caption [&_th]:border [&_th]:border-border [&_th]:bg-fill [&_th]:px-2.5 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-2.5 [&_td]:py-1',
+  '[&_hr]:my-4 [&_hr]:border-border [&_input[type=checkbox]]:mr-2 [&_input[type=checkbox]]:accent-(--accent)',
+].join(' ')
+
 /** 标准 GFM 渲染；不输出原始 HTML（react-markdown 缺省即如此），故无需额外净化。 */
-export function Markdown({ text, testId }: { text: string; testId?: string }): JSX.Element {
+export function Markdown({ text, testId, density = 'default' }: { text: string; testId?: string; density?: 'default' | 'compact' }): JSX.Element {
   return (
-    <div className={MD_CLS} data-testid={testId}>
+    <div className={density === 'compact' ? COMPACT_CLS : MD_CLS} data-testid={testId} data-density={density}>
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </div>
   )

@@ -73,12 +73,13 @@ describe('StageEditorPane · 两栏定稿', () => {
     for (let i = 1; i < order.length; i += 1) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('输出表两列：文件 · 产出技能；文档产出者 = 契约候选 ∩ 阶段技能（裸名匹配），字段 = 阶段全部技能', () => {
+  it('输出表三列与输入对齐：文件 · 来源阶段（= 本阶段）· 来源技能；文档来源 = 契约候选 ∩ 阶段技能，字段 = 阶段全部技能', () => {
     renderPane(EXPLORE)
     const table = screen.getByTestId('io-outputs')
     expect(table).toHaveTextContent('文件')
-    expect(table).toHaveTextContent('产出技能')
-    expect(table).not.toHaveTextContent('产出阶段')
+    expect(table).toHaveTextContent('来源阶段')
+    expect(table).toHaveTextContent('来源技能')
+    expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('调研')
     expect(within(table).getByTestId('slot-skills-superpower-design')).toHaveTextContent('brainstorming')
     expect(within(table).getByTestId('slot-skills-superpower-design')).not.toHaveTextContent('superpowers:')
     expect(within(table).getByTestId('slot-skills-design_doc')).toHaveTextContent('tenon-explore, brainstorming, grill-with-docs')
@@ -89,7 +90,7 @@ describe('StageEditorPane · 两栏定稿', () => {
   it('输入表三列：来源阶段 + 该阶段里产出它的技能；无输入显示空态', () => {
     const { unmount } = render(<I18nProvider><StageEditorPane editor={fakeEditor(SPEC)} step={SPEC} /></I18nProvider>)
     const table = screen.getByTestId('io-inputs')
-    expect(table).toHaveTextContent('产出阶段')
+    expect(table).toHaveTextContent('来源阶段')
     expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('调研')
     expect(within(table).getByTestId('slot-skills-superpower-design')).toHaveTextContent('brainstorming')
     expect(within(table).getByTestId('slot-stage-design_doc')).toHaveTextContent('调研')

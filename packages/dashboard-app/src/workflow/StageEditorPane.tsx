@@ -65,6 +65,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
 
   const outputRows: IoRow[] = (stepIo?.outputs ?? []).map((slot) => ({
     slot,
+    stage: stageLabel,
     skills: slot.kind === 'document' ? producerSkills(slot.producers, stageSkills) : stageSkills,
     path: slot.kind === 'document' ? `document_contract.slots[${slot.id}]` : `${yamlBase}.outputs[${slot.id}]`,
   }))

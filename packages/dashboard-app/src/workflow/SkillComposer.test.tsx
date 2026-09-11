@@ -64,6 +64,28 @@ describe('SkillComposer', () => {
     expect(onSave).toHaveBeenCalledWith([{ id: 'brainstorming' }])
   })
 
+  it('删除技能保存后重开：画布按新技能重排一次，不再回写、不再重渲染', async () => {
+    mockSkillApi()
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    const skills = [{ id: 'tenon-open' }, { id: 'brainstorming', depends_on: ['tenon-open'] }]
+    const view = render(
+      <I18nProvider>
+        <SkillComposer open stageLabel="立项" skills={skills} registry={REGISTRY} onClose={() => undefined} onSave={onSave} />
+      </I18nProvider>,
+    )
+    await user.click(screen.getByTestId('flow-remove-tenon-open'))
+    await user.click(screen.getByTestId('skill-composer-save'))
+    expect(onSave).toHaveBeenCalledWith([{ id: 'brainstorming' }])
+    const saved = onSave.mock.calls[0]![0] as typeof skills
+    view.rerender(<I18nProvider><SkillComposer open={false} stageLabel="立项" skills={saved} registry={REGISTRY} onClose={() => undefined} onSave={onSave} /></I18nProvider>)
+    view.rerender(<I18nProvider><SkillComposer open stageLabel="立项" skills={saved} registry={REGISTRY} onClose={() => undefined} onSave={onSave} /></I18nProvider>)
+    await waitFor(() => expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1'))
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-edges', '0')
+    await user.click(screen.getByTestId('skill-composer-save'))
+    expect(onSave).toHaveBeenLastCalledWith([{ id: 'brainstorming' }])
+  })
+
   it('点技能名 → 右栏详情：来源、文件树、SKILL.md 以 Markdown 渲染（YAML 头单列）、可切到其它文件', async () => {
     mockSkillApi()
     const user = userEvent.setup()

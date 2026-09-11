@@ -79,22 +79,33 @@ last one. Anything that needs its own surface opens the shared right-side `share
   title input (`wb-lane-name-input-<id>`; `wb-lane-name-<id>` is an sr-only copy so existing tests and readers keep
   the text), position `n / N`, delete with inline confirm. Sections are full-width with a one-line head
   (`SectionHead`: title, mono count, right-aligned action) in **data-flow order: 输入 → 技能 → 输出 → 门禁**.
-- **IO tables (`IoTable`).** Equal-column grids with a permanent header row. Inputs: 文件 · 产出阶段 · 产出技能;
-  outputs: 文件 · 产出技能. Every row has the same file icon — slots are files, the kind (document / field) is not
-  shown. Producing skills are a comma list; empty → `—`. Derivation: output document → contract `producerCandidates` ∩
-  this stage's skills (bare-name match, `producerSkills`); output field → all stage skills; input → producing stage
-  label plus that stage's matching skills. **Never show a skill that is not in the stage** — an empty cell is the
+- **IO tables (`IoTable`).** Both tables are the same three equal columns so they align vertically: 文件 · 来源阶段 ·
+  来源技能 (wording is 来源, never 产出). Inputs: 来源阶段 = the producing upstream stage; outputs: 来源阶段 = this stage.
+  Every row has the same file icon — slots are files, the kind (document / field) is not shown. Source skills are a
+  comma list; empty → `—`. Derivation: output document → contract `producerCandidates` ∩ this stage's skills
+  (bare-name match, `producerSkills`); output field → all stage skills; input → producing stage label plus that
+  stage's matching skills. **Never show a skill that is not in the stage** — an empty cell is the
   honest answer (see the IO section below). No 读取阶段 column: each stage lists what it reads in its own inputs. No
   add / remove / checkbox UI; `useWorkflowEditor` has no IO mutators.
 - **Skill flow (`SkillFlow`, `@xyflow/react`).** Nodes = skills (`flow-node-<id>`: source icon + mono name + registry
   description, left target / right source handles), edges = `depends_on` (`edgesOf`), columns = waves
-  (`layoutSkills`: x by depth, y by index in wave). Read-only in the pane (`editable=false`: no drag / connect /
+  (`layoutSkills`: x by depth, y by index in wave). Serial / parallel must be visible even when no `depends_on`
+  exists: the canvas adds virtual 起点 / 终点 port nodes (`flow-start` / `flow-end`) with edges start → first wave and
+  last-in-chain → end, a wave label above each column (`flow-wave-label`: 第 n 步 · 并行 k when k > 1), arrowheads
+  (`MarkerType.ArrowClosed`) and animated dashes on every edge. Virtual nodes / edges are derived in render, never
+  stored; `data-nodes` / `data-edges` count skills and `depends_on` edges only. Effects key on
+  `skillsSignature(skills)` (ids + sorted depends_on), not on array identity, and `onChange` fires only when the
+  graph's signature differs from the prop — this is what stops the reopen-after-delete render loop. Read-only in the pane (`editable=false`: no drag / connect /
   pan; click → `SkillDetailDrawer`). Editable inside `SkillComposer`: palette items are HTML5-draggable
   (`dataTransfer 'text/skill'`) and have a `+` (`palette-add-<name>`); `onConnect` refuses cycles (`wouldCycle`);
   `×` on a node (`flow-remove-<id>`) removes it and its edges; Backspace deletes a selected edge. The graph is written
   back as `graphToSkills(nodeIds, edges, existing)` → `depends_on` = incoming edge sources, other fields preserved,
   order = waves flattened with the definition's original order inside a wave. 保存 calls `editor.setSkills(stepId,
   skills)`. Node positions are not persisted (YAML has none); they are re-laid out from waves on open.
+- **Skill detail.** `SkillDetail` renders `.md` with `Markdown density="compact"` (h1 20 / h2 16 / h3 14, body 13/24,
+  bordered h2, tight lists) because it lives in a narrow column; the default density stays for full-width documents.
+  The file tree lists every file under the skill directory — first-party `tenon-*` skills really contain only
+  `SKILL.md`, so a one-file tree is correct, not a filter.
 - **Tests.** jsdom cannot render React Flow: `test-setup.ts` mocks `@xyflow/react` with
   `workflow/reactFlowTestDouble.tsx`, which renders each node through `nodeTypes` (so node buttons and testids are
   real) and exposes edge ids on `data-edges`. Connection / drag behaviour is React Flow's and is not tested here;
