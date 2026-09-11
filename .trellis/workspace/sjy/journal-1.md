@@ -668,3 +668,25 @@ kernel 全局存储 <configRoot>/workflows + 解析顺序 项目→全局→内�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 28: 工作流页实机验证 + 全局 default / 轨道分支四修
+<!-- trellis-session: v=2 fp=4a4d99b53b4d4a14 -->
+
+**Date**: 2026-09-11
+**Task**: 工作流页实机验证 + 全局 default / 轨道分支四修
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+用 Playwright 真实鼠标事件逐项验证工作流页、技能编辑器（含 HTML5 拖放、拉线成环）、工作台，交接文档第 4 节清单全部通过。修四个缺陷：(1) 全局 default 一存在工作流页刷新即失效——decodeWorkflowIndex 不认 source=global，左栏阶段清零且恢复内建永久 disabled；顺带修恢复后定义不回填。(2) 复制 default 被自己的契约 400——copyWorkflowDef 不再补盖 openspec_contract: required（先试在 chat 轨补技能，打挂 afk.test.ts 10 例后撤销，kernel spec 明确 chat 是 drivers-only）。(3) 方案 B：删 tenon tracks create/update/delete 写入面，轨道可用性只认工作流分支，保留只读 list/show。(4) 全局工作流 POST 用例把 token 当 reqPost options 传，鉴权头从未发出，自 4f1c04a 起一直红。门禁 typecheck:web/test:web/check:design-scale/check:comments 全绿；vitest 31→26，本次负责的 7 个清零，残留均非本次引入。未做：服务端 POST/PATCH/DELETE /api/tracks 三个注册写路由仍在（无 UI 消费但自带全绿用例），已记入 spec gap。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0b671b5` | fix(workflow): global default no longer breaks the workflow page; tracks are branch-only |
+
+### Status
+
+[OK] **Completed**
