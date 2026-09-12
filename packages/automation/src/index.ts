@@ -3,6 +3,7 @@
  * 5 包语义盘点 + 队列生命周期状态机见 ./types.ts 顶注。默认 L1 report-only（不自动 merge）。
  */
 export * from './types.js'
+export * from './artifacts/index.js'
 export * from './triage/index.js'
 // queue：状态机 / cas 并发闸 / 扫描 / 门联动
 export * from './queue/state-machine.js'
@@ -99,3 +100,5 @@ export {
   SealedAfkSkillInvocationContextError,
 } from './skillInvocationSealedAfkContext.js'
 export type { SealedAfkSkillInvocationContext } from './skillInvocationSealedAfkContext.js'
+// Runtime artifact observation/publication adapter for arbitrary skill executions.
+export * from './artifact-runtime/index.js'

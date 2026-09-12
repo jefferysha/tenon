@@ -1,0 +1,30 @@
+{
+  "id": "runtime-artifact-workflow",
+  "name": "runtime-artifact-workflow",
+  "title": "执行期产物管理与工作流界面",
+  "description": "按已确认研究方案实现产物发现发布、不可变版本、渐进披露、消费影响、自动检查及编排与运行界面",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": "automation",
+  "priority": "P2",
+  "creator": "sjy",
+  "assignee": "sjy",
+  "createdAt": "2026-09-12",
+  "completedAt": null,
+  "branch": "codex/autonomous-loop-v1",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-12-artifact-core",
+    "09-12-artifact-runtime",
+    "09-12-artifact-ui"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

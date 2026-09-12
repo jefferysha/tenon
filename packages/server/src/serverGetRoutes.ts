@@ -58,6 +58,8 @@ import {
   readAnchoredSkillInvocationEvidence,
   resolveSkillInvocationRoute,
 } from './serverSkillInvocationRoutes.js'
+import { resolveArtifactRoute } from './serverArtifactRoutes.js'
+import type { ArtifactService } from './serverArtifactRoutes.js'
 
 type WorkflowStoreCheck =
   | { ok: true; anchor: WorkflowRootAnchor; global: boolean }
@@ -105,6 +107,8 @@ export interface GetRouteDeps {
   /** Unified workflow/track/pipeline/adapter projection and realtime stream. */
   definitionCatalog?: Omit<DefinitionCatalogRouteDeps, 'sendJson'>
   adapterInstall?: AdapterInstallManager
+  artifactService?: ArtifactService
+  artifactServiceForRoot?: (root: string, anchor: WorkflowRootAnchor) => ArtifactService | undefined | Promise<ArtifactService | undefined>
 }
 
 function repoRootForSkills(): string {
@@ -127,6 +131,8 @@ export async function handleGet(
     trackValidationContextFor, trackRegistryBody, manifestPath, paths, hostHome, operationsAvailable,
     hostTargetPlanRuntime, options, operationRunner, resolveSessionLink, errMsg, orchestrationV2, definitionCatalog, adapterInstall,
   } = deps
+  const artifactHandled = await resolveArtifactRoute(req, res, path, { service: deps.artifactService, serviceForRoot: deps.artifactServiceForRoot, workflowRootForRequest, sendJson })
+  if (artifactHandled) return
   const boundPort = deps.boundPort()
   if (orchestrationV2) {
     const handled = await handleOrchestrationV2GetRoute(req, res, path, {

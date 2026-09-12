@@ -25,6 +25,8 @@ export interface ChangeSnapshot {
   documents?: DocumentEvidenceSnapshot
   /** Per-step skill execution state derived by the server from the history log; absent on older servers. */
   skillRuns?: SkillRunsSnapshot
+  /** Runtime artifact attempt identities; actual entries are fetched from the artifact catalog API. */
+  artifactAttempts?: ReadonlyArray<{ stageId: string; stageAttemptId: string }>
   /** Fresh, explicitly bound native terminal heartbeat; never a workflow-state field. */
   terminalActivity?: TerminalActivitySnapshot
 }

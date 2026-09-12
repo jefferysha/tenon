@@ -39,7 +39,8 @@ export function lintWorkflow(def: WbWorkflowDef, io: WbEffectiveIo | undefined):
   const isGoverned = governed(def)
   def.steps.forEach((step, index) => {
     const outputs = io?.[step.id]?.outputs.length ?? step.outputs.length
-    if (outputs === 0) issues.push({ kind: 'step-no-output', stepId: step.id })
+    // Open workflows may discover outputs at runtime; only governed contracts require a declared slot.
+    if (outputs === 0 && isGoverned) issues.push({ kind: 'step-no-output', stepId: step.id })
     for (const input of step.inputs) {
       const upstream = def.steps.slice(0, index)
       if (!upstream.some((candidate) => candidate.outputs.some((output) => output.field === input.field))) {

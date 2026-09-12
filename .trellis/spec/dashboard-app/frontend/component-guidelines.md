@@ -227,6 +227,17 @@ two sources and neither reads skill content:
 "the outputs of a skill / plugin" are not discoverable today. Deriving stage IO from skills would require a skill-side
 declaration (frontmatter or a kernel table keyed by skill) and a kernel change — a separate task.
 
+### Runtime artifacts are observed after execution
+
+Workflow authoring must not ask a model to infer skill input/output files. `StageEditorPane` configures declared
+workflow slots only; `ArtifactCatalogPanel` reads the runtime catalog for the selected stage and polls the read-only
+catalog endpoint. The panel renders actual observed versions, candidate/deliverable disposition, revision, and
+affected markers. A stage that has not run renders an empty “执行后登记” state rather than fabricated output names.
+
+The runtime catalog is bounded and versioned. Selecting an entry reads content through the UI consumer path, which must
+not create execution consumption receipts. Any new UI surface must consume this projection instead of reimplementing
+filesystem scans or deriving output contracts from skill text.
+
 ## Styling patterns
 
 - Tokens only (`text-text-2`, `bg-accent-t`, `border-border`, `bg-seg-now` …); no hex in components.

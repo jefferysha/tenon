@@ -6,6 +6,7 @@ import { dashboardSearch } from '../shell/dashboardLocation'
 import { SheetTabs } from '../shared/DetailSheets'
 import { SkillFlow } from '../workflow/SkillFlow'
 import { DocumentDrawer } from './DocumentDrawer'
+import { ArtifactCatalogPanel } from './ArtifactCatalogPanel'
 import { StageIoPanel } from './StageIoPanel'
 import { StageRail } from './StageRail'
 import { fallbackStepIo, readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
@@ -49,6 +50,7 @@ export function TaskDetailPane({ row, onToast, fetchDefinition = true }: TaskDet
   useEffect(() => { setOpenIndex(null) }, [identity, selectedStep])
   const activePath = openIndex === null ? null : files[openIndex]?.path ?? null
   const runs = change.skillRuns?.find((step) => step.stepId === selectedStep)
+  const artifactAttemptId = change.artifactAttempts?.find((attempt) => attempt.stageId === selectedStep)?.stageAttemptId
   const skills = useMemo(() => skillsFromRuns(runs), [runs])
   const statusOf = (id: string): { state: 'idle' | 'running' | 'done'; label: string } | null => {
     const hit = runs?.skills.find((skill) => skill.id === id)
@@ -99,6 +101,7 @@ export function TaskDetailPane({ row, onToast, fetchDefinition = true }: TaskDet
             <SkillFlow key={`${identity} ${selectedStep}`} skills={skills} registry={null} editable={false} onOpen={() => undefined} statusOf={statusOf} className="h-56" />
           </section>
         )}
+        <div className="mb-8"><ArtifactCatalogPanel root={root} change={change.name} stageAttemptId={artifactAttemptId} stageId={selectedStep} /></div>
         <div className="grid gap-4" data-testid="stage-io">
           <SheetTabs
             sheets={[{ id: 'inputs', label: t('workspace.inputs'), count: inputs.length }, { id: 'outputs', label: t('workspace.outputs'), count: outputs.length }]}

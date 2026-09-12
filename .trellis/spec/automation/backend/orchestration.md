@@ -37,13 +37,20 @@ canonical board snapshot. A validator is the only authority allowed to return `c
 missing, malformed, or failing validation produces an unknown/invalid result and a Kernel-defined blocked or
 failed Work Item. The adapter never treats model confidence or executor self-claims as proof of completion.
 
+For arbitrary files, `ExecutionRuntimeV2` opens a durable `StageArtifactRuntime` in `change_dir` for every stage
+(or consumes the injected `artifact_service`). It reconciles file changes before ending the attempt and passes the
+runtime publisher to the executor. Observation is automatic; publication remains explicit, so an unregistered file is
+visible as an unknown-origin candidate without being silently promoted to a deliverable. `catalog` enforces the
+attempt's dependency-chain visibility and `runChecks` executes registered checkers on demand.
+
 ## Error and recovery behavior
 
 Provider, executor, validator, abort, binding, and revision failures use stable application error codes or
 diagnostic tags and do not include raw payloads or secrets. Automatic retry is intentionally not performed;
-callers use the existing Kernel `retry-work-item` command with a fresh expected revision. This first slice is
-in-memory only. Persistence, restart recovery, Server/SSE projection, and Dashboard controls belong to later
-application adapters and must preserve the same CAS and fail-closed semantics.
+callers use the existing Kernel `retry-work-item` command with a fresh expected revision. Board state remains
+Kernel-owned; runtime artifact state is persisted under `.pipeline-artifacts/<scopeId>` with content-addressed blobs
+and an atomic lock. Server read routes and Dashboard projections are read-only and preserve the same fail-closed
+semantics.
 
 ## Executable contract
 
@@ -51,8 +58,8 @@ application adapters and must preserve the same CAS and fail-closed semantics.
 
 This contract applies whenever an Automation adapter turns an untrusted capability proposal into
 Kernel state or invokes a selected Skill. It is required for cross-layer proposal, routing, execution,
-and validation changes. The adapter is an in-memory application service in v1; it does not add a
-second state machine, persistence implementation, HTTP endpoint, or vendor SDK integration.
+and validation changes. The adapter does not add a second board state machine; its runtime artifact store is a
+separate durable projection with explicit observation/publication semantics.
 
 ### 2. Public signatures
 

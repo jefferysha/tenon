@@ -44,6 +44,7 @@ export * from './triage/index.js'
 // Autonomous development loop v1: pure orchestration contracts, capability routing and board reducer.
 export * from './orchestration/index.js'
 export * from './catalog/index.js'
+export * from './artifacts/index.js'
 // skill source registry 是 CLI setup/doctor 与 Dashboard machine readiness 的共享安装契约。
 export * from './skills/index.js'
 // workflow 自定义引擎（GOAL 清单 E）——loadWorkflow（Task 5）+ evaluateStepGuards（Task 7）+

@@ -45,6 +45,8 @@ import {
   type RuntimeInputBundleV2,
 } from './input-materialization-v2.js'
 import { bindingFor, chooseWave, pipelineSkillFor, resultInputRefs } from './runtime-v2-scheduler.js'
+import { StageArtifactRuntime, type ArtifactServicePort } from '../artifact-runtime/stage-runtime.js'
+import { openArtifactService } from '../artifacts/service.js'
 
 export interface RuntimeExecutorInputV2 {
   readonly run_id: string
@@ -55,6 +57,8 @@ export interface RuntimeExecutorInputV2 {
   readonly input_refs: readonly string[]
   readonly input_bundle: RuntimeInputBundleV2
   readonly signal: AbortSignal
+  /** Stage-scoped observer/publisher. Skills may explicitly publish actual files. */
+  readonly artifact_runtime?: StageArtifactRuntime
 }
 
 /** Provider-neutral port. The returned value is untrusted and bounded here. */
@@ -93,6 +97,8 @@ export interface ExecutionRuntimeOptionsV2 {
   readonly actor_id?: string
   /** Optional resolver for project/MCP artifact references. Files in change_dir are resolved by default. */
   readonly artifact_resolver?: RuntimeArtifactResolverV2
+  /** Durable runtime artifact service. When omitted, one is opened in change_dir. */
+  readonly artifact_service?: ArtifactServicePort
 }
 
 export interface RuntimeRecoveryV2 {
@@ -326,6 +332,27 @@ export class ExecutionRuntimeV2 {
     let issue: string | undefined
     let retryable = false
     const inputBundle = this.inputBundles.get(run.run_id) ?? emptyInputBundleV2(run.run_id, item.work_item_id)
+    let artifactRuntime: StageArtifactRuntime | undefined
+    let artifactService: ArtifactServicePort | undefined = this.options.artifact_service
+    if (artifactService === undefined) {
+      try { artifactService = await openArtifactService({ rootDir: this.options.change_dir, scopeId: 'runtime-artifacts' }) } catch (error) { this.diagnostics.push(`artifact-service-open-failed:${error instanceof Error ? redact(error.message) : 'unknown'}`) }
+    }
+    if (artifactService !== undefined) {
+      try {
+        artifactRuntime = await StageArtifactRuntime.open({
+          service: artifactService,
+          rootDir: this.options.change_dir,
+          workflowRunId: run.run_id,
+          stageId: item.work_item_id,
+          stageAttemptId: run.attempt_id,
+          // Work-item dependency ids are the stage ids used by the artifact
+          // producer records. Keep opaque input refs out of the visibility key.
+          dependencyStages: item.depends_on,
+        })
+      } catch (error) {
+        this.diagnostics.push(`artifact-runtime-open-failed:${error instanceof Error ? redact(error.message) : 'unknown'}`)
+      }
+    }
     try {
       let raw: unknown
       if (run.input_manifest?.delivery === 'rejected') {
@@ -333,7 +360,7 @@ export class ExecutionRuntimeV2 {
         retryable = true
       } else {
         try {
-          raw = await this.options.executor.execute({ run_id: run.run_id, work_item_id: item.work_item_id, skill_id: binding.skill_id, skill_version: binding.skill_version, mcp_ids: binding.mcp_ids, input_refs: run.input_refs, input_bundle: inputBundle, signal: controller.signal })
+          raw = await this.options.executor.execute({ run_id: run.run_id, work_item_id: item.work_item_id, skill_id: binding.skill_id, skill_version: binding.skill_version, mcp_ids: binding.mcp_ids, input_refs: run.input_refs, input_bundle: inputBundle, signal: controller.signal, ...(artifactRuntime === undefined ? {} : { artifact_runtime: artifactRuntime }) })
         } catch (error) {
           issue = controller.signal.aborted && this.options.signal?.aborted !== true ? 'executor-aborted' : 'executor-failed'
           retryable = issue === 'executor-failed'
@@ -377,6 +404,13 @@ export class ExecutionRuntimeV2 {
       if (heartbeatTimer !== undefined) clearInterval(heartbeatTimer)
       external?.removeEventListener('abort', abortExternal)
       this.controllers.delete(run.run_id)
+    }
+    if (artifactRuntime !== undefined) {
+      try {
+        await artifactRuntime.end(issue === undefined ? 'completed' : (controller.signal.aborted ? 'cancelled' : 'failed'))
+      } catch (error) {
+        this.diagnostics.push(`artifact-runtime-reconcile-failed:${error instanceof Error ? redact(error.message) : 'unknown'}`)
+      }
     }
     if (issue === 'executor-failed' || issue === 'observation-invalid' || issue?.startsWith('json-') === true) retryable = true
     const result = resultFor(run, observation, report, utc(this.clock), issue, pipelineSkillFor(await this.snapshot(), item)?.output_schema_id)

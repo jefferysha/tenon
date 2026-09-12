@@ -1,0 +1,545 @@
+{
+  "head": "dbb9a116bd6c989cbf8d1e8d6584083c127b10bf",
+  "files": [
+    {
+      "status": " M",
+      "path": ".gitattributes",
+      "sha256": "1ef87d8efd0bdd6d81d250c4c5bbc55671cc97fa36c4db7cf43cc2b9855ad2d4"
+    },
+    {
+      "status": " M",
+      "path": ".github/workflows/ci.yml",
+      "sha256": "996598478b36ce7251d6ff6b5219bccfbe13a2fa5fd7a92d20bee96b8030d88f"
+    },
+    {
+      "status": " M",
+      "path": ".github/workflows/release-candidate.yml",
+      "sha256": "ad21e519d42b59c63fcf7d4e84c60072021b1076ceabd5733718cd9a2be0030f"
+    },
+    {
+      "status": " M",
+      "path": ".trellis/.template-hashes.json",
+      "sha256": "6a00cb21442e52aeeddf07d4957f2613a7b484f98a17d3127adf0092bfde1a09"
+    },
+    {
+      "status": " D",
+      "path": ".trellis/tasks/09-02-dashboard-redesign-concepts/design.md",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": ".trellis/tasks/09-02-dashboard-redesign-concepts/implement.md",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": ".trellis/tasks/09-02-dashboard-redesign-concepts/prd.md",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": ".trellis/tasks/09-02-dashboard-redesign-concepts/task.json",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "AGENTS.md",
+      "sha256": null
+    },
+    {
+      "status": " M",
+      "path": "adapters/aider/install.sh",
+      "sha256": "0c387af9227d0a35b8e562d00805159c794f73029c01540ab3a001d2e155abb1"
+    },
+    {
+      "status": " M",
+      "path": "adapters/amp/install.sh",
+      "sha256": "0d41112165545a6b5d7d1ac5999547f63a2493e0bba361f543dfb3ac57d2b089"
+    },
+    {
+      "status": " M",
+      "path": "adapters/cline/install.sh",
+      "sha256": "1fc60ddae307eba91729e7e6933ce1a5ca959b8831387a4eac3dd6c2ba7f3b9a"
+    },
+    {
+      "status": " M",
+      "path": "adapters/codex/install.sh",
+      "sha256": "7916f335c56c7bc69e47e9b9655b7ca85d340c9006b51f7b942e167b0cd0cd5a"
+    },
+    {
+      "status": " M",
+      "path": "adapters/continue/install.sh",
+      "sha256": "4b53572bc73966eb6cd204763eced430faee7472e4ee332f938220baa44ec935"
+    },
+    {
+      "status": " M",
+      "path": "adapters/contract.md",
+      "sha256": "e4bfb2a4d205e912a5b5b37dd1d231db729b532aa298668e316426fee7620146"
+    },
+    {
+      "status": " M",
+      "path": "adapters/copilot/install.sh",
+      "sha256": "8791a46ddcbcaf2744d5b65f5b8df1bb60c39b82ea568dd5224dccc8440541ed"
+    },
+    {
+      "status": " M",
+      "path": "adapters/cursor/install.sh",
+      "sha256": "04d135c815968a10e4aac102c3f570d49090e57ddb26711be92c40b6eabd7c3b"
+    },
+    {
+      "status": " M",
+      "path": "adapters/devin/install.sh",
+      "sha256": "dd0db0a8a6f41ab6883ebd452c3c6597d6fbe19ff623d53209458f31cd9555bb"
+    },
+    {
+      "status": " M",
+      "path": "adapters/gemini/install.sh",
+      "sha256": "f981a72a4ec7172796945f1de9660c60ade040c1bd22b4157ad926b44f45fcbc"
+    },
+    {
+      "status": " M",
+      "path": "adapters/install.sh",
+      "sha256": "b4b26154cfe2a21b687d5edd76b73a649b62d40337c2572070dc5dfd9b671acd"
+    },
+    {
+      "status": " M",
+      "path": "adapters/pi/install.sh",
+      "sha256": "a39ecfa3ba6d93fe2ab5644e7560999dfa80a2cabcd1c78623a351320980e3e4"
+    },
+    {
+      "status": " M",
+      "path": "adapters/zed/install.sh",
+      "sha256": "5fde2db8f5cc4ec420efee89be9dc635867c0483510c4dd8b36d537450d0197b"
+    },
+    {
+      "status": " M",
+      "path": "hooks/gate.sh",
+      "sha256": "20d4e7b4270624998e780c4cf1bd47878fc905e9fdb7a0372b74e6751b662120"
+    },
+    {
+      "status": " M",
+      "path": "hooks/json-input.sh",
+      "sha256": "a515569f2511d8690d39f8649551872a07541d45bc95c7c8a7d78f2b71010b9b"
+    },
+    {
+      "status": " M",
+      "path": "packages/cli/dist/tenon.mjs",
+      "sha256": "f131e6011eeda131a96cc9df92cc76b66511abfd9b8e3e8c37ecc882bbdd7f25"
+    },
+    {
+      "status": " M",
+      "path": "packages/cli/src/codexSkillReceipt.test.ts",
+      "sha256": "7c54a199912d1ffe42b8509163e29d23934a319cb6bb123f478360a5bc0176c8"
+    },
+    {
+      "status": " M",
+      "path": "packages/cli/src/codexSkillTrust.ts",
+      "sha256": "73721d5b19ea30af928c1a072b26cf4fe504a46d3f7369f7b75206c4992ab9b2"
+    },
+    {
+      "status": " M",
+      "path": "packages/cli/src/commands/host-plugin-convergence-receipt.ts",
+      "sha256": "16e04dee1bc2ac16ed06e0994c413fe55c09fbd49aaf8e9479fc542982510006"
+    },
+    {
+      "status": " M",
+      "path": "packages/cli/src/commands/host-target-plan.test.ts",
+      "sha256": "131f8f317eed3cddb95cc2519f6491d76811f035e34cf614add4fd50d591b115"
+    },
+    {
+      "status": " M",
+      "path": "packages/cli/src/commands/host-target-plan.ts",
+      "sha256": "6766b0d2e75bbe8b1087edd7589f5f1ee664fbd32d1cc4fc97ac2a4ae604382a"
+    },
+    {
+      "status": " M",
+      "path": "packages/cli/src/commands/native-plugin-candidate.ts",
+      "sha256": "03d806db1998b1d1fe7c1a504972014b78e73f7297a453be3e8347d2058e98ee"
+    },
+    {
+      "status": " M",
+      "path": "packages/cli/src/commands/plugin-host.ts",
+      "sha256": "9a469ee1165e644f5a532f7e752873eb67913b0397de0fc9e030d2194c41ddba"
+    },
+    {
+      "status": " M",
+      "path": "packages/cli/src/commands/setup.test.ts",
+      "sha256": "6a8f890be49ffa50236ca9c6a5ee58be699b50e747fbecc29842bffb85ae82cc"
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/dist/assets/WorkflowView-B-UOz3E4.js",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/dist/assets/WorkspaceView-CSoZll4d.js",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/dist/assets/icons-vendor-BRgr8OUw.js",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/dist/assets/index-oFSZCXzy.css",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/dist/assets/index-xu6rjREk.js",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/dist/assets/motion-vendor-CzGW6FVa.js",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/dist/assets/react-vendor-C58kSzQO.js",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/dist/assets/workbenchDefinition-BXpkvbSR.js",
+      "sha256": null
+    },
+    {
+      "status": " M",
+      "path": "packages/dashboard-app/dist/index.html",
+      "sha256": "db9cd8dd0a45fa18e805b05b32c9dfc1f6fdc6911a8aa1019f3a79931180b7ee"
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/prototype/dashboard-redesign/README.md",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/prototype/dashboard-redesign/app.js",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/prototype/dashboard-redesign/index.html",
+      "sha256": null
+    },
+    {
+      "status": " D",
+      "path": "packages/dashboard-app/prototype/dashboard-redesign/styles.css",
+      "sha256": null
+    },
+    {
+      "status": " M",
+      "path": "packages/kernel/src/catalog/codec.test.ts",
+      "sha256": "bb20695b3649b1a977f9694c916a9464cf6c2c8fc0aa10853c860547e11746c0"
+    },
+    {
+      "status": " M",
+      "path": "packages/kernel/src/catalog/codec.ts",
+      "sha256": "2bbdc81eeabdaec387f052f1670681a8e65777bba9a05be2715ec18a8cca0eac"
+    },
+    {
+      "status": " M",
+      "path": "packages/kernel/src/catalog/index.ts",
+      "sha256": "84a410e498d9209a84498067c71e1430a11aaaf4d582b9e6a2d21fb84e445430"
+    },
+    {
+      "status": " M",
+      "path": "packages/kernel/src/catalog/types.ts",
+      "sha256": "848eb8d86fab4b3feecb3ab7eab575b49f1231c4b916fed7664844f7fed19bf5"
+    },
+    {
+      "status": " M",
+      "path": "packages/server/dist/dashboard.mjs",
+      "sha256": "6eafb471d80c4776616726a3cd8a2511de107de7ccd19430375c903146e9fece"
+    },
+    {
+      "status": " M",
+      "path": "packages/server/src/definitionCatalog.ts",
+      "sha256": "327b163a4a89faa71796db46c63b2a10d9bf885105b1a2821e6d661b5e464302"
+    },
+    {
+      "status": " M",
+      "path": "packages/server/src/definitionCatalogRoutes.test.ts",
+      "sha256": "c7dddab2c1da87789d7394989da364a5857ab18ad4fbe6fbafe1148dda402716"
+    },
+    {
+      "status": " M",
+      "path": "packages/server/src/hostTargetPlanProtocol.ts",
+      "sha256": "c2528af6930ba2f86a4f673b97abea51a906ab4521a44d82f3c9ecef21173dab"
+    },
+    {
+      "status": " M",
+      "path": "packages/server/src/serverGetHostTargetPlanRoutes.test.ts",
+      "sha256": "2f431ffb6138119fa2c5479484952d6bbed5969ad91b74c4899f462364de21c7"
+    },
+    {
+      "status": " M",
+      "path": "tools/check-docs.mjs",
+      "sha256": "3394171ba3e43d64eaa0c9ca59bf16b187504d216e5ba4ca94615ec39a98be8e"
+    },
+    {
+      "status": " M",
+      "path": "tools/check-docs.node-test.mjs",
+      "sha256": "398ad81799e8df62d9df50ad6a10e102dd40cd43b56ee280269c297ad43d75e5"
+    },
+    {
+      "status": " M",
+      "path": "tools/test-adapters.sh",
+      "sha256": "3cd9df8600cd621e1771105d461b5caf6ddd746101b4e4867420efbbfe6ad45d"
+    },
+    {
+      "status": " M",
+      "path": "tools/test-hooks.sh",
+      "sha256": "b7100fd2bd6636072a4b26dd9e4eb948fe51db5d77aac9136774220e33a4e34d"
+    },
+    {
+      "status": "??",
+      "path": ".claude/",
+      "sha256": null
+    },
+    {
+      "status": "??",
+      "path": ".trellis/tasks/09-12-artifact-core/",
+      "sha256": null
+    },
+    {
+      "status": "??",
+      "path": ".trellis/tasks/09-12-artifact-runtime/",
+      "sha256": null
+    },
+    {
+      "status": "??",
+      "path": ".trellis/tasks/09-12-artifact-ui/",
+      "sha256": null
+    },
+    {
+      "status": "??",
+      "path": ".trellis/tasks/09-12-runtime-artifact-workflow/",
+      "sha256": null
+    },
+    {
+      "status": "??",
+      "path": ".trellis/workspace/index.md",
+      "sha256": "9f9d685df377e8272d2341b89cd097431b284bb378b3e12b33985a4e6b9c544c"
+    },
+    {
+      "status": "??",
+      "path": "adapters/lib/",
+      "sha256": null
+    },
+    {
+      "status": "??",
+      "path": "after-capability-badges.png",
+      "sha256": "166a305538f924d4ad41b018cff80fec413cec290858acc30105d00780d800bf"
+    },
+    {
+      "status": "??",
+      "path": "after-landing-1440.png",
+      "sha256": "e2333020235bc2c9b2af2008af6181ae1e3120a03b9ba200e42105741cf0b849"
+    },
+    {
+      "status": "??",
+      "path": "after-palette-workbench-1440.png",
+      "sha256": "fd0d48351b713c1e6ddd93a1f119ae1789e409c2c35e9fc5d93186e8507917cb"
+    },
+    {
+      "status": "??",
+      "path": "after-progress-1440.png",
+      "sha256": "29c56da7ccc620e0b0f7ed72d26657e1d33d4599c848985192a8caf88ccd0eea"
+    },
+    {
+      "status": "??",
+      "path": "after-projects-1440.png",
+      "sha256": "05402ccd5fcc25919fad60a7bf9d0e28baf670afe10f24809d440eab9c6bac20"
+    },
+    {
+      "status": "??",
+      "path": "docs/research/2026-09-11-skill-io-contracts-and-live-artifacts.md",
+      "sha256": "9c6df439d029237e437f221b86547c7b25fd9741c6094f4ee88e06d54d77ecd1"
+    },
+    {
+      "status": "??",
+      "path": "docs/research/2026-09-11-skill-io-sample-audit.md",
+      "sha256": "8bee8f66753a21a64651b48686de9d33b2d12a7d38e99df1023b5c29e31caaf5"
+    },
+    {
+      "status": "??",
+      "path": "docs/research/2026-09-11-skill-workflow-contract-recommendation.md",
+      "sha256": "e3a272920e481853a315095d2aef154b0addc350fcc80377b83d000ad4428a3c"
+    },
+    {
+      "status": "??",
+      "path": "docs/research/2026-09-11-workflow-contract-design-review.md",
+      "sha256": "afdfb3fc77f1562b567ee73b096879b4ed0dd826cc23c5082c4893cf34a94b6c"
+    },
+    {
+      "status": "??",
+      "path": "docs/research/2026-09-12-runtime-artifact-code-findings.md",
+      "sha256": "ab0d481bb2f16208f16ccd5a401913c94a136a838b044a8774152930ccf161a5"
+    },
+    {
+      "status": "??",
+      "path": "docs/research/2026-09-12-runtime-artifact-lineage-and-workflow-ui.md",
+      "sha256": "f9a7394e634ea02efc3e76345086fc836b661431db56de21edd94a26fc0887dd"
+    },
+    {
+      "status": "??",
+      "path": "docs/research/2026-09-12-runtime-artifact-protocol-findings.md",
+      "sha256": "71416aa5c1af20660232d418c4af925d41710cdf1caf4b41b4fda79b216c02b5"
+    },
+    {
+      "status": "??",
+      "path": "openspec/changes/dashboard-ui-reimplementation/",
+      "sha256": null
+    },
+    {
+      "status": "??",
+      "path": "packages/cli/src/codexSkillTrust.test.ts",
+      "sha256": "856eb0522ee4632210e8615516d8f3aa713214263a553363b015c30c8233e7db"
+    },
+    {
+      "status": "??",
+      "path": "packages/cli/src/commands/native-host-convergence-sequence.test.ts",
+      "sha256": "eb82de59b67f55afd817495e5bf5c6bf9ab2d1315b7ba1b4d2177d222b6764b0"
+    },
+    {
+      "status": "??",
+      "path": "packages/cli/src/commands/native-host-convergence-sequence.ts",
+      "sha256": "4cc30160279f495537da192f1fd480a1ec42961dd4a9de08c9903365b0514094"
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/dist/assets/WorkflowView-D7nBOdvr.js",
+      "sha256": "d8e7638b1dacc4318d25b94d9a408052ca4bf1087e1ac330569314ba6a059641"
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/dist/assets/WorkspaceView-Cvr3Rdde.js",
+      "sha256": "b6130775005852ccce9628a50921c4a95d3e0b0e648b6b7f9a68dee37ab661a2"
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/dist/assets/icons-vendor-jdIwNLVn.js",
+      "sha256": "8c3546be7e07187b31fc92123174f0cb38d3a36f4938eaa64f8668cca6c903b9"
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/dist/assets/index-CM-ntRGS.css",
+      "sha256": "b7dd70854d4805acf524615cd4ed0bcf8547a5c1b60b2ef21a3d5cef94a06eb2"
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/dist/assets/index-D6RAm8z0.js",
+      "sha256": "1777830b2fc363c9070766ae7316e355921b7b0dca4d437e5cd287c04075fb6a"
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/dist/assets/motion-vendor-94-q9E2E.js",
+      "sha256": "b033d1ade851f7f724b65b357bfda78a134a3d34b31afb8967ce10da836c4899"
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/dist/assets/react-vendor-B4H6ZYpP.js",
+      "sha256": "3a7a579925ceeccfd188a7fc446dc0ca5389f66d4fcee82ea80e94188a702b4d"
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/dist/assets/useWorkflowDefinition-BChrJCBO.js",
+      "sha256": "e608400fc94ca526218cf0c20a7cc639063953206afb3d2488e07cc60fc20338"
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/dist/assets/useWorkflowDefinition-BnuhLJ6X.css",
+      "sha256": "1243b61a71923367ce620fb944427c80c9b03e863e18374fcf4f74d6d06f63fc"
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/prototype/full-workbench-v1/",
+      "sha256": null
+    },
+    {
+      "status": "??",
+      "path": "packages/dashboard-app/prototype/read-only-redesign-v2/",
+      "sha256": null
+    },
+    {
+      "status": "??",
+      "path": "packages/kernel/src/catalog/adapter-capabilities.generated.ts",
+      "sha256": "a225dd1837059fe5ef3267abd305c576fe36d9c563a77459ddb0c4a96ee80b52"
+    },
+    {
+      "status": "??",
+      "path": "packages/kernel/src/catalog/adapter-capabilities.test.ts",
+      "sha256": "9a2e9c13c20c41c925f9b39c030604f37149c626f7a6c000b71320a09757b995"
+    },
+    {
+      "status": "??",
+      "path": "prod-progress-1440.png",
+      "sha256": "6594a01fd91d28aa3ef35ac40a3858ea1419b633b9d02d9bc55f60d138137665"
+    },
+    {
+      "status": "??",
+      "path": "prod-progress-loaded-1440.png",
+      "sha256": "2c6a2772ae0b5d9a95aa071fba8834e16933edb87eea2598019424aee1e11c3e"
+    },
+    {
+      "status": "??",
+      "path": "prod-projects-1440.png",
+      "sha256": "46c2e1cb6ad225a3c2e3cc542e85fb9eaab1368d381164f6b55fe6036e9e9240"
+    },
+    {
+      "status": "??",
+      "path": "prod-workbench-1440.png",
+      "sha256": "5fc25c0665a23d4106fa6c780f2cbdc3b3e0cdf311f4abfe1de7924882e18345"
+    },
+    {
+      "status": "??",
+      "path": "prod-workbench-375.png",
+      "sha256": "bf80d3abf69ff05ef7f1485b9fd9c6c3f5508683d5c022b3be97de24d356a39a"
+    },
+    {
+      "status": "??",
+      "path": "prod-workbench-dark-1440.png",
+      "sha256": "84ff6ac6f171f00bd44496335c0c705d477bcc82d54ddcfe619253339af2ecfc"
+    },
+    {
+      "status": "??",
+      "path": "proto-progress-1440.png",
+      "sha256": "5efb100889b1d65bb476faca8e04ed1c9f295caa54b3e2c9ea93c3f956b993d0"
+    },
+    {
+      "status": "??",
+      "path": "proto-workbench-1440.png",
+      "sha256": "bf3de166da32de9a159dbcb9b7a5a982671ecc7bb54b6be54d36f1c711652d0f"
+    },
+    {
+      "status": "??",
+      "path": "tools/check-design-scale.mjs",
+      "sha256": "2a960216f222b020e0f996921fc231a5de4647c45e85c525144795f14ed36b40"
+    },
+    {
+      "status": "??",
+      "path": "tools/check-design-scale.node-test.mjs",
+      "sha256": "9fa474e5f9536a9ee0e4ce18053d9be13cfd1296b025ae0a8e8b3e282413536d"
+    },
+    {
+      "status": "??",
+      "path": "tools/generate-adapter-capabilities.mjs",
+      "sha256": "f5f0b5d06793c64ffdff55c1762bbbc1a61e7f62babb85ed2e59730f0f8bcc5a"
+    },
+    {
+      "status": "??",
+      "path": "wf-1440.png",
+      "sha256": "c3a8bf425f115f36236e6aecb9c92e60cc2192d0b27bb2bbbaed61a42248f0e9"
+    },
+    {
+      "status": "??",
+      "path": "workspace-1440.png",
+      "sha256": "1659737821fe9c6cea5f97ffb06c65020e2b79cf457306d7d6f092c57e540929"
+    }
+  ]
+}

@@ -72,3 +72,63 @@ for (const file of changedFiles) await recordDocument({ kind: guessKind(file), p
 const outcome = await autoRegisterDocuments({ repoRoot, changeDir, changeName, phase, policy, producer: skillId, recordedAt })
 deps.io.err(`[auto-register] recorded=${…} skipped=${…}`)   // WARN only; receipt exit code unaffected
 ```
+
+## Runtime artifact lineage (additive protocol)
+
+### 1. Scope / Trigger
+
+Use this protocol for arbitrary skills whose concrete files cannot be declared during workflow authoring.
+It observes actual stage changes at runtime and keeps publication explicit.
+
+### 2. Signatures
+
+```ts
+const service = await openArtifactService({ rootDir, scopeId })
+const runtime = await StageArtifactRuntime.open({ service, rootDir, workflowRunId, stageId, stageAttemptId })
+await runtime.reconcile()                 // discover created/changed/deleted files
+await runtime.publish('report.md', 'deliverable')
+await runtime.end('completed')
+```
+
+### 3. Contracts
+
+- `observe` stores immutable content-addressed versions with `candidate` disposition by default.
+- A stage may publish only a version observed by its own attempt; publishing changes disposition and records publisher.
+- `catalog` returns current deliverables by default; `includeHistory` returns bounded immutable versions.
+- `origin: unknown` is valid and must not be replaced with a guessed producer.
+- UI reads use `consumer: 'ui'` and never create execution consumption receipts.
+
+### 4. Validation & Error Matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| Path escapes the scoped root | Reject with `artifact path outside scope`. |
+| Attempt publishes an unobserved artifact | Reject with `artifact was not observed by this attempt`. |
+| Dependency-chain catalog has no matching dependency | Hide the unrelated producer; keep own-attempt artifacts visible. |
+| Same bytes observed again | Reuse the immutable version and event idempotency key. |
+
+### 5. Good / Base / Bad Cases
+
+- Good: stage observes `report.md`, explicitly publishes it, and downstream stage lists the upstream stage as a dependency.
+- Base: a skill writes an unregistered file; reconciliation exposes it as an unknown-origin candidate for review.
+- Bad: a stage claims another stage's path without an observation event; publication is rejected.
+
+### 6. Tests Required
+
+- Assert immutable v1/v2 history, content deduplication, path traversal rejection, dependency visibility, current-attempt publication, UI-read receipt exclusion, and registered checker execution.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Treat every changed file as a trusted deliverable.
+await service.publish(stageAttemptId, { path: changedPath })
+```
+
+#### Correct
+
+```ts
+await runtime.reconcile()
+await runtime.publish(changedPath, 'candidate') // explicit promotion after observation
+```

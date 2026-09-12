@@ -157,7 +157,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
 
           <section className="grid gap-3.5 py-6" data-testid="stage-outputs">
             <SectionHead title={t('workflow.outputs_title')} count={outputRows.length} />
-            <IoTable direction="outputs" rows={outputRows} empty={<span className="text-amber-d" data-testid="stage-outputs-empty">{t('workflow.lint_no_output')}</span>} />
+            <IoTable direction="outputs" rows={outputRows} empty={<span className="text-text-3" data-testid="stage-outputs-empty">{t('workflow.runtime_outputs_empty')}</span>} />
           </section>
 
           <section className="grid gap-3.5 py-6" data-testid="stage-gate">

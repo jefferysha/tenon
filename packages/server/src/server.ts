@@ -19,7 +19,7 @@ import {
   writeRegistryWithGovernance,
   createOrchestrationLedger,
 } from '@tenon/kernel'
-import { createRunnerSkillContentLocator, evaluateLoopExecutionWiring } from '@tenon/automation'
+import { createRunnerSkillContentLocator, evaluateLoopExecutionWiring, openArtifactService, type ArtifactService } from '@tenon/automation'
 import type {
   ChangeRefScan, CreateTrackSpec, ExtendedManifestData, FlowEngine, GraduationFs, StateStore, TrackDefinition,
   ProjectTrackConfig, TrackRegistry, TrackValidationContext, UpdateTrackPatch, WorkflowDef,
@@ -191,6 +191,15 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     router_preview: true, cadence: cadenceScheduler !== null, orchestration_v2: true,
   }
   let snapshotRootAnchor: ((root: string) => WorkflowRootAnchor | undefined) | undefined
+  const artifactServices = new Map<string, Promise<ArtifactService>>()
+  const artifactServiceForRoot = options.artifactServiceForRoot ?? (async (root: string, _anchor: WorkflowRootAnchor): Promise<ArtifactService> => {
+    const existing = artifactServices.get(root)
+    if (existing) return existing
+    const created = openArtifactService({ rootDir: root, scopeId: 'runtime-artifacts' })
+    artifactServices.set(root, created)
+    return created
+  })
+
   const snapshotDeps = snapshotDepsFactory({
     registry, store, version, clock, capabilities, gitHeadSha, workspaceFingerprint,
     rootAnchor: (root) => snapshotRootAnchor?.(root),
@@ -271,6 +280,8 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
         heartbeatMs,
       },
       adapterInstall,
+      artifactService: options.artifactService,
+      artifactServiceForRoot,
     })
   const handlePost = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePostRoute(req, res, path, {
