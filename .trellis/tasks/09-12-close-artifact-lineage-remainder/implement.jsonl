@@ -1,0 +1,4 @@
+
+{"file":".trellis/spec/automation/backend/orchestration.md","reason":"执行边界、runtime artifact publication、reconcile 节流和宿主归属规则的规范来源"}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"声明优先、reconcile 兜底、subject identity 与 UI 渐进式披露协议"}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"编排页组件拆分、只读面板和测试约束"}

@@ -34,6 +34,7 @@ export interface ArtifactService {
   beginAttempt(input: BeginAttemptInput): Promise<ArtifactAttempt>
   endAttempt(stageAttemptId: string, status: Exclude<ArtifactAttempt['status'], 'running'>): Promise<ArtifactAttempt>
   observe(stageAttemptId: string, input: ObserveInput): Promise<ArtifactVersion>
+  observeBatch(stageAttemptId: string, inputs: readonly ObserveInput[]): Promise<readonly ArtifactVersion[]>
   /** Host-owned boundary for turning an executor declaration into an artifact projection. */
   submitArtifactOutput(stageAttemptId: string, input: SubmitArtifactOutputInput): Promise<ArtifactVersion>
   publish(stageAttemptId: string, input: PublishInput): Promise<ArtifactVersion>
@@ -88,6 +89,10 @@ type RuntimeArtifactVersion = ArtifactVersion & {
 }
 const clone = <T>(v: T): T => structuredClone(v)
 const scopeMigrationLocks = new Map<string, Promise<void>>()
+export class ArtifactScopeMigrationError extends Error {
+  readonly code = 'legacy-scope-unmerged'
+  constructor(readonly legacyPath: string) { super(`legacy artifact scope has unmerged data: ${legacyPath}`); this.name = 'ArtifactScopeMigrationError' }
+}
 function decodeState(value: unknown): State {
   if (!value || typeof value !== 'object') throw new Error('invalid artifact state')
   const candidate = value as Record<string, unknown>
@@ -109,15 +114,51 @@ export async function openArtifactService(options: ArtifactServiceOptions): Prom
   const root = resolve(options.rootDir); const store = join(root, '.pipeline-artifacts', options.scopeId); const legacyStore = join(root, '.pipeline-artifacts', 'runtime-artifacts'); const blobs = join(store, 'blobs'); const statePath = join(store, 'state.json'); const now = options.now ?? (() => new Date().toISOString())
   let legacyScopeCopied = false
   if (options.scopeId !== 'runtime-artifacts') {
+    await mkdir(join(root, '.pipeline-artifacts'), { recursive: true })
+    await mkdir(store, { recursive: true })
     const existingMigration = scopeMigrationLocks.get(store)
     const migration = existingMigration ?? (async () => {
       try {
-        try { await stat(statePath) } catch (targetError) {
-          if ((targetError as NodeJS.ErrnoException).code !== 'ENOENT') throw targetError
-          try { await stat(join(legacyStore, 'state.json')); await cp(legacyStore, store, { recursive: true }) } catch (legacyError) {
-            if ((legacyError as NodeJS.ErrnoException).code !== 'ENOENT') throw legacyError
+        await withLock(store, async () => {
+          let targetExists = true
+          try { await stat(statePath) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') targetExists = false; else throw error }
+          let legacyExists = true
+          try { await stat(join(legacyStore, 'state.json')) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') legacyExists = false; else throw error }
+          if (!legacyExists) return
+          if (targetExists) {
+            const target = decodeState(JSON.parse(await readFile(statePath, 'utf8')))
+            const legacy = decodeState(JSON.parse(await readFile(join(legacyStore, 'state.json'), 'utf8')))
+            const known = new Set(target.artifacts.flatMap(record => record.versions.map(version => `${version.contentDigest}:${version.source?.path ?? ''}`)))
+            const knownAttempts = new Set(target.attempts.map(attempt => attempt.stageAttemptId))
+            const knownEvents = new Set(target.events.map(event => event.idempotencyKey))
+            const knownReads = new Set(target.reads.map(read => `${read.stageAttemptId}:${read.artifactId}:${read.version}`))
+            const knownChecks = new Set(target.checks.map(check => `${check.artifactId}:${check.version}:${check.checkId}`))
+            const unmerged = legacy.artifacts.some(record => record.versions.some(version => !known.has(`${version.contentDigest}:${version.source?.path ?? ''}`)))
+              || legacy.attempts.some(attempt => !knownAttempts.has(attempt.stageAttemptId))
+              || legacy.events.some(event => !knownEvents.has(event.idempotencyKey))
+              || legacy.reads.some(read => !knownReads.has(`${read.stageAttemptId}:${read.artifactId}:${read.version}`))
+              || legacy.checks.some(check => !knownChecks.has(`${check.artifactId}:${check.version}:${check.checkId}`))
+            const receiptId = `migration:scope-conflict:runtime-artifacts:${options.scopeId}`
+            if (unmerged && !target.migrationReceipts.some(receipt => receipt.receipt_id === receiptId)) {
+              target.migrationReceipts.push({ receipt_id: receiptId, legacy_artifact_id: 'scope:runtime-artifacts', subject_id: `scope:${options.scopeId}`, namespace: options.scopeId, content_digest: `sha256:${'0'.repeat(64)}`, migrated_at: now(), kind: 'legacy-scope', legacy_scope_path: relative(root, legacyStore), canonical_scope_path: relative(root, store), retention: 'preserved-awaiting-confirmation' })
+              await atomicReplaceFile(statePath, JSON.stringify(target, null, 2))
+            }
+            if (unmerged) throw new ArtifactScopeMigrationError(legacyStore)
+            const equivalentReceiptId = `migration:scope:runtime-artifacts:${options.scopeId}`
+            if (!target.migrationReceipts.some(receipt => receipt.receipt_id === equivalentReceiptId)) {
+              target.migrationReceipts.push({ receipt_id: equivalentReceiptId, legacy_artifact_id: 'scope:runtime-artifacts', subject_id: `scope:${options.scopeId}`, namespace: options.scopeId, content_digest: `sha256:${'0'.repeat(64)}`, migrated_at: now(), kind: 'legacy-scope', legacy_scope_path: relative(root, legacyStore), canonical_scope_path: relative(root, store), retention: 'preserved-awaiting-confirmation' })
+              await atomicReplaceFile(statePath, JSON.stringify(target, null, 2))
+            }
+            return
           }
-        }
+          await cp(legacyStore, store, { recursive: true })
+          const migrated = decodeState(JSON.parse(await readFile(statePath, 'utf8')))
+          const receiptId = `migration:scope:runtime-artifacts:${options.scopeId}`
+          if (!migrated.migrationReceipts.some(receipt => receipt.receipt_id === receiptId)) {
+            migrated.migrationReceipts.push({ receipt_id: receiptId, legacy_artifact_id: 'scope:runtime-artifacts', subject_id: `scope:${options.scopeId}`, namespace: options.scopeId, content_digest: `sha256:${'0'.repeat(64)}`, migrated_at: now(), kind: 'legacy-scope', legacy_scope_path: relative(root, legacyStore), canonical_scope_path: relative(root, store), retention: 'preserved-awaiting-confirmation' })
+            await atomicReplaceFile(statePath, JSON.stringify(migrated, null, 2))
+          }
+        })
       } finally { scopeMigrationLocks.delete(store) }
     })()
     if (existingMigration === undefined) scopeMigrationLocks.set(store, migration)
@@ -134,7 +175,7 @@ export async function openArtifactService(options: ArtifactServiceOptions): Prom
   async function save(state: State): Promise<void> { await mkdir(dirname(statePath), { recursive: true }); await atomicReplaceFile(statePath, JSON.stringify(state, null, 2)) }
   function migrateLegacyState(s: State): void {
     if (legacyScopeCopied && !s.migrationReceipts.some(receipt => receipt.receipt_id === `migration:scope:runtime-artifacts:${options.scopeId}`)) {
-      s.migrationReceipts.push({ receipt_id: `migration:scope:runtime-artifacts:${options.scopeId}`, legacy_artifact_id: 'scope:runtime-artifacts', subject_id: `scope:${options.scopeId}`, namespace: options.scopeId, content_digest: `sha256:${'0'.repeat(64)}`, migrated_at: now(), kind: 'legacy-scope' })
+      s.migrationReceipts.push({ receipt_id: `migration:scope:runtime-artifacts:${options.scopeId}`, legacy_artifact_id: 'scope:runtime-artifacts', subject_id: `scope:${options.scopeId}`, namespace: options.scopeId, content_digest: `sha256:${'0'.repeat(64)}`, migrated_at: now(), kind: 'legacy-scope', legacy_scope_path: relative(root, legacyStore), canonical_scope_path: relative(root, store), retention: 'preserved-awaiting-confirmation' })
     }
     for (const record of s.artifacts) {
       if (s.subjectMappings.some(mapping => mapping.artifactId === record.artifactId)) continue
@@ -255,6 +296,26 @@ export async function openArtifactService(options: ArtifactServiceOptions): Prom
     }
     return pinned
   }
+  const observeBatch = (id: string, inputs: readonly ObserveInput[]) => mutate(async s => {
+    const a = s.attempts.find(a => a.stageAttemptId === id)
+    if (!a) throw new Error('attempt not found')
+    const result: ArtifactVersion[] = []
+    for (const input of inputs) {
+      if (input.idempotencyKey) {
+        const prior = s.events.find(e => e.idempotencyKey === `observe:${input.idempotencyKey}`)
+        if (prior?.artifactId && prior.version) {
+          const pv = s.artifacts.find(r => r.artifactId === prior.artifactId)?.versions.find(v => v.version === prior.version)
+          if (pv) { result.push(clone(pv)); continue }
+        }
+      }
+      let bytes: Uint8Array
+      if (input.data !== undefined || input.content !== undefined) bytes = bytesOf(input.data ?? input.content)
+      else if (input.path) bytes = new Uint8Array(await readFile(safePath(root, input.path)))
+      else throw new Error('artifact content or path required')
+      result.push(await versionFor(s, input, bytes, a))
+    }
+    return result.map(clone)
+  })
   const service: ArtifactService = {
     attempts: async stageId => (await load()).attempts.filter(a => stageId === undefined || a.stageId === stageId).map(clone),
     beginAttempt: (input) => mutate(async s => {
@@ -267,7 +328,8 @@ export async function openArtifactService(options: ArtifactServiceOptions): Prom
       return clone(a)
     }),
     endAttempt: (id, status) => mutate(async s => { const a = s.attempts.find(a => a.stageAttemptId === id); if (!a) throw new Error('attempt not found'); if (a.status !== 'running') return clone(a); const ended = { ...a, status, endedAt: now() } as ArtifactAttempt; s.attempts = s.attempts.map(x => x.stageAttemptId === id ? ended : x); await emit(s, 'attempt.ended', `attempt-end:${id}:${status}`, { attemptId: id, payload: { status } }); return clone(ended) }),
-    observe: (id, input) => mutate(async s => { const a = s.attempts.find(a => a.stageAttemptId === id); if (!a) throw new Error('attempt not found'); if (input.idempotencyKey) { const prior = s.events.find(e => e.idempotencyKey === `observe:${input.idempotencyKey}`); if (prior?.artifactId && prior.version) { const pv = s.artifacts.find(r => r.artifactId === prior.artifactId)?.versions.find(v => v.version === prior.version); if (pv) return clone(pv) } } let bytes: Uint8Array; if (input.data !== undefined || input.content !== undefined) bytes = bytesOf(input.data ?? input.content); else if (input.path) bytes = new Uint8Array(await readFile(safePath(root, input.path))); else throw new Error('artifact content or path required'); return clone(await versionFor(s, input, bytes, a)) }),
+    observe: (id, input) => observeBatch(id, [input]).then(result => { const value = result[0]; if (!value) throw new Error('artifact observation missing'); return value }),
+    observeBatch,
     submitArtifactOutput: async (id, input) => {
       const observed = await service.observe(id, { ...input, observationSource: input.observationSource ?? 'explicit-publish', declarationStatus: input.declarationStatus ?? 'declared' })
       const result = input.publish === false || (input.disposition !== undefined && input.disposition !== 'deliverable')

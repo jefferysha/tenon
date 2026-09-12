@@ -11,12 +11,14 @@ import { Dialog } from '../shared/Dialog'
 
 export interface WorkflowViewProps {
   root: string
+  runtimeRoot?: string
+  runtimeChange?: string | null
   onDirtyChange?: (dirty: boolean) => void
   onToast?: (message: string) => void
 }
 
 /** 工作流 = 定义编辑页：左栏工作流 / 轨道 / 流程，右栏所选阶段的输入、技能、输出、门禁。 */
-export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps): JSX.Element {
+export function WorkflowView({ root, runtimeRoot, runtimeChange, onDirtyChange, onToast }: WorkflowViewProps): JSX.Element {
   const { t } = useT()
   const editor = useWorkflowEditor({ root, onDirtyChange })
   const [trackDialogOpen, setTrackDialogOpen] = useState(false)
@@ -75,7 +77,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
           />
         )}
         detail={editor.selectedStep
-          ? <StageEditorPane key={`${editor.wfName} ${editor.selectedStep.id}`} editor={editor} step={editor.selectedStep} />
+          ? <StageEditorPane key={`${editor.wfName} ${editor.selectedStep.id}`} editor={editor} step={editor.selectedStep} runtimeContext={runtimeRoot && runtimeChange ? { root: runtimeRoot, change: runtimeChange } : undefined} />
           : <DetailEmpty title={t('workflow.no_stage')} desc="" testId="stage-editor-empty" />}
       />
       <NewWorkflowDialog create={editor.create} currentName={editor.wfName} />

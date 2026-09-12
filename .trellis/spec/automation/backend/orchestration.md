@@ -149,3 +149,7 @@ const assessment = decodeCapabilityAssessmentV1(snapshot.value)
 state = applyBoardCommand(state, completeSkillRunCommand(opaqueResult)).state
 state = applyBoardCommand(state, recordValidationCommand(validatorReport)).state
 ```
+
+### Host attribution boundary
+
+A `managed-tool` attribution is valid only when the host supplies an allow-listed completion path. Codex `command_execution` events may be pathless; those events trigger at most one bounded reconcile per execution turn and remain recorded as `reconcile`/`unknown` provenance. The runtime must not infer a tool-owned path from an unstructured payload.

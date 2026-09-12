@@ -1,0 +1,4 @@
+
+{"file":".trellis/spec/automation/backend/quality-guidelines.md","reason":"automation 类型安全、测试和错误边界验收规则"}
+{"file":".trellis/spec/automation/backend/orchestration.md","reason":"runtime artifact execution、source attribution 和架构边界检查"}
+{"file":".trellis/spec/dashboard-app/frontend/quality-guidelines.md","reason":"dashboard typecheck、组件测试和可访问性验收规则"}

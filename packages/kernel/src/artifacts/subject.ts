@@ -46,6 +46,11 @@ export interface ArtifactSubjectMigrationReceipt {
   readonly content_digest: `sha256:${string}`
   readonly migrated_at: string
   readonly kind: 'legacy-path-hash' | 'legacy-scope'
+  /** Relative store path retained until an explicit cleanup decision. */
+  readonly legacy_scope_path?: string
+  /** Relative canonical store path involved in scope migration diagnostics. */
+  readonly canonical_scope_path?: string
+  readonly retention?: 'preserved-awaiting-confirmation'
 }
 
 const namespaceRe = /^[a-z0-9][a-z0-9._/-]{0,127}$/u

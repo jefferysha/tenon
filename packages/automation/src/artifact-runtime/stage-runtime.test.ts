@@ -57,4 +57,23 @@ describe('StageArtifactRuntime', () => {
       await expect(runtime.observePath('.orchestration-v2/event.json')).rejects.toThrow('ignored artifact path')
     } finally { await rm(root, { recursive: true, force: true }) }
   })
+
+  test('uses one batch observation for multiple file changes', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'tenon-artifact-runtime-'))
+    let batchCalls = 0
+    const service: ArtifactServicePort = {
+      async beginAttempt() { return {} as never },
+      async observe() { throw new Error('single observation should not be used') },
+      async observeBatch(_id, inputs) { batchCalls += 1; return inputs.map((input, index) => ({ artifactId: `a${index}`, version: 'v1', contentDigest: '0'.repeat(64), size: 1, mediaType: 'text/plain', kind: 'text', origin: 'unknown', contentUri: `artifact://a${index}/v1`, disposition: 'intermediate' as const, quality: 'unchecked' as const, createdAt: new Date().toISOString() })) },
+      async publish() { return {} as never },
+      async endAttempt() {},
+    }
+    try {
+      const runtime = await StageArtifactRuntime.open({ service, rootDir: root, workflowRunId: 'run', stageId: 'stage', stageAttemptId: 'attempt' })
+      await writeFile(path.join(root, 'a.txt'), 'a')
+      await writeFile(path.join(root, 'b.txt'), 'b')
+      await expect(runtime.reconcile()).resolves.toHaveLength(2)
+      expect(batchCalls).toBe(1)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
 })

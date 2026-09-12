@@ -10,10 +10,12 @@ import { SkillComposer } from './SkillComposer'
 import { SkillDetailDrawer } from './SkillDetail'
 import { SkillFlow } from './SkillFlow'
 import { cn } from '@/lib/utils'
+import { ArtifactCatalogPanel } from '../workspace/ArtifactCatalogPanel'
 
 export interface StageEditorPaneProps {
   editor: WorkflowEditor
   step: WbStepDef
+  runtimeContext?: { readonly root: string; readonly change: string }
 }
 
 const GATES: Array<{ gate: WbStepDef['gate']; key: 'none' | 'review' | 'auto'; icon: LucideIcon }> = [
@@ -47,7 +49,7 @@ function SectionHead({ title, count, action }: { title: string; count?: number; 
  * 工作流页右栏：面包屑 + 可编辑标题；段落顺序 输入 → 技能 → 输出 → 门禁。段头一行（标题 · 计数 · 动作），
  * 内容满宽。输入 / 输出全由定义推导，只读表格。
  */
-export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Element {
+export function StageEditorPane({ editor, step, runtimeContext }: StageEditorPaneProps): JSX.Element {
   const { t } = useT()
   const def = editor.def
   const steps = def?.steps ?? []
@@ -186,6 +188,13 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
                 )
               })}
             </div>
+          </section>
+
+          <section className="grid gap-3.5 py-6" data-testid="workflow-runtime-artifacts">
+            <SectionHead title={t('workflow.runtime_artifacts_title')} />
+            {runtimeContext
+              ? <ArtifactCatalogPanel root={runtimeContext.root} change={runtimeContext.change} stageId={step.id} includeCandidates />
+              : <p className="text-body text-text-3" data-testid="workflow-runtime-artifacts-empty">{t('workflow.runtime_artifacts_empty')}</p>}
           </section>
           {backTargets.length > 0 && (
             <section className="grid gap-3.5 py-6" data-testid="stage-back">

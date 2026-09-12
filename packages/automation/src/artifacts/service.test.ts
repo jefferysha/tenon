@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { openArtifactService } from './service.js'
+import { ArtifactScopeMigrationError, openArtifactService } from './service.js'
 import { artifactSubjectId } from '@tenon/kernel'
 import { artifactNamespaceForChange } from '../submission/namespace.js'
 import { recordArtifactSubjectProjection } from '../submission/registry.js'
@@ -243,6 +243,8 @@ describe('runtime artifact service', () => {
       await legacy.submitArtifactOutput('legacy-1', { logicalKey: 'legacy', path: 'docs/legacy.md', data: 'legacy', mediaType: 'text/plain', disposition: 'deliverable' })
       const namespace = artifactNamespaceForChange(root)
       const migrated = await openArtifactService({ rootDir: root, scopeId: namespace })
+      const migratedState = JSON.parse(await readFile(join(root, '.pipeline-artifacts', namespace, 'state.json'), 'utf8')) as { migrationReceipts: Array<{ kind: string; legacy_scope_path?: string; retention?: string }> }
+      expect(migratedState.migrationReceipts).toEqual([expect.objectContaining({ kind: 'legacy-scope', legacy_scope_path: '.pipeline-artifacts/runtime-artifacts', retention: 'preserved-awaiting-confirmation' })])
       await migrated.beginAttempt({ workflowRunId: 'run-legacy', stageId: 'build', stageAttemptId: 'legacy-1' })
       expect((await migrated.events()).length).toBeGreaterThan(0)
       const state = JSON.parse(await readFile(join(root, '.pipeline-artifacts', namespace, 'state.json'), 'utf8')) as { migrationReceipts: Array<{ kind: string }> }
@@ -252,6 +254,40 @@ describe('runtime artifact service', () => {
       const [first, second] = await Promise.all([runtime.reconcile(), runtime.reconcile()])
       expect(first).toEqual(second)
       expect((await migrated.events()).filter(event => event.type === 'artifact.observed' && event.attemptId === 'build-2')).toHaveLength(1)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('fails loudly when canonical and legacy scopes both contain unmerged data', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-conflict-'))
+    try {
+      const state = (digest: string, stageAttemptId: string) => ({
+        version: 1, revision: 0, attempts: [{ workflowRunId: 'w', stageId: 'build', stageAttemptId, status: 'running', dependencyStages: [], visibility: 'run', startedAt: '2026-01-01T00:00:00.000Z' }], events: [], reads: [], checks: [], subjectMappings: [], migrationReceipts: [],
+        artifacts: [{ artifactId: `artifact:${digest.slice(0, 24)}`, currentVersion: 'v1', displayName: 'report.md', versions: [{ artifactId: `artifact:${digest.slice(0, 24)}`, version: 'v1', contentDigest: digest, size: 1, mediaType: 'text/markdown', kind: 'text', origin: 'stage', source: { path: 'report.md' }, contentUri: `artifact://scope/${digest}`, disposition: 'deliverable', quality: 'unchecked', createdAt: '2026-01-01T00:00:00.000Z' }] }],
+      })
+      await mkdir(join(root, '.pipeline-artifacts', 'runtime-artifacts'), { recursive: true })
+      await mkdir(join(root, '.pipeline-artifacts', 'change-scope'), { recursive: true })
+      await writeFile(join(root, '.pipeline-artifacts', 'runtime-artifacts', 'state.json'), JSON.stringify(state('a'.repeat(64), 'legacy-attempt')))
+      await writeFile(join(root, '.pipeline-artifacts', 'change-scope', 'state.json'), JSON.stringify(state('a'.repeat(64), 'canonical-attempt')))
+      await expect(openArtifactService({ rootDir: root, scopeId: 'change-scope' })).rejects.toMatchObject({ code: 'legacy-scope-unmerged' } satisfies Partial<ArtifactScopeMigrationError>)
+      const canonical = JSON.parse(await readFile(join(root, '.pipeline-artifacts', 'change-scope', 'state.json'), 'utf8')) as { migrationReceipts: Array<{ receipt_id: string; legacy_scope_path?: string; canonical_scope_path?: string; retention?: string }> }
+      expect(canonical.migrationReceipts.map(receipt => receipt.receipt_id)).toContain('migration:scope-conflict:runtime-artifacts:change-scope')
+      expect(canonical.migrationReceipts).toEqual([expect.objectContaining({ legacy_scope_path: '.pipeline-artifacts/runtime-artifacts', canonical_scope_path: '.pipeline-artifacts/change-scope', retention: 'preserved-awaiting-confirmation' })])
+      await expect(readFile(join(root, '.pipeline-artifacts', 'runtime-artifacts', 'state.json'), 'utf8')).resolves.toBeTruthy()
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('records one checked receipt when canonical and legacy scopes are equivalent', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-equivalent-'))
+    try {
+      const legacy = await openArtifactService({ rootDir: root, scopeId: 'runtime-artifacts' })
+      await legacy.beginAttempt({ workflowRunId: 'w', stageId: 'build', stageAttemptId: 'same-attempt' })
+      await cp(join(root, '.pipeline-artifacts', 'runtime-artifacts'), join(root, '.pipeline-artifacts', 'change-scope'), { recursive: true })
+      const canonical = await openArtifactService({ rootDir: root, scopeId: 'change-scope' })
+      const state = JSON.parse(await readFile(join(root, '.pipeline-artifacts', 'change-scope', 'state.json'), 'utf8')) as { migrationReceipts: Array<{ receipt_id: string; retention?: string }> }
+      expect(state.migrationReceipts).toEqual([expect.objectContaining({ receipt_id: 'migration:scope:runtime-artifacts:change-scope', retention: 'preserved-awaiting-confirmation' })])
+      await canonical.beginAttempt({ workflowRunId: 'w', stageId: 'build', stageAttemptId: 'later-attempt' })
+      const after = JSON.parse(await readFile(join(root, '.pipeline-artifacts', 'change-scope', 'state.json'), 'utf8')) as { migrationReceipts: unknown[] }
+      expect(after.migrationReceipts).toHaveLength(1)
     } finally { await rm(root, { recursive: true, force: true }) }
   })
 })

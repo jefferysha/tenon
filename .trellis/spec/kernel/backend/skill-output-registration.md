@@ -164,6 +164,12 @@ await runtime.publish(changedPath, 'candidate') // explicit promotion after obse
 - Legacy path-hash ids remain readable through an `ArtifactSubjectAlias` and a
   migration receipt. The canonical record and all newly written versions use
   the subject id after migration.
+- A change-scoped migration receipt records the retained legacy store path and
+  `preserved-awaiting-confirmation` status. If canonical and legacy stores both
+  contain records that do not match by content digest and source path, opening
+  the canonical scope persists a conflict receipt and fails with the stable
+  `legacy-scope-unmerged` error; it never silently drops or deletes the legacy
+  store. Equivalent dual stores still receive one idempotent checked receipt.
 - Executor-declared outputs enter through `submitArtifactOutput`. Declaration
   and governance are the primary evidence; reconciliation is a bounded
   cross-check. Reconciled files default to `intermediate` with
@@ -181,3 +187,7 @@ await runtime.publish(changedPath, 'candidate') // explicit promotion after obse
   `.pipeline-documents.json`. Existing document policy, evidence, and lock
   checks remain authoritative; the submission adapter must call those checks
   rather than writing the ledger directly.
+
+### Host attribution boundary
+
+`managed-tool` source is reserved for a host completion event carrying an allow-listed path. Pathless Codex `command_execution` payloads remain `unknown`/`reconcile` observations and may be coalesced into one bounded reconcile per execution turn; consumers must not infer artifact ownership from command text.

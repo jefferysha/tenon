@@ -8,6 +8,7 @@ import type { ArtifactInspection } from '../artifacts/service.js'
 export interface ArtifactServicePort {
   beginAttempt(input: { workflowRunId: string; stageId: string; stageAttemptId: string; dependencyStages?: readonly string[]; visibility?: 'dependency-chain' | 'run' | 'project' }): Promise<ArtifactAttempt>
   observe(stageAttemptId: string, content: ArtifactContent & { readonly observationSource?: 'managed-tool' | 'explicit-publish' | 'reconcile' | 'external'; readonly toolCallId?: string }): Promise<unknown>
+  observeBatch?(stageAttemptId: string, content: readonly (ArtifactContent & { readonly path?: string; readonly observationSource?: 'managed-tool' | 'explicit-publish' | 'reconcile' | 'external'; readonly toolCallId?: string })[]): Promise<readonly unknown[]>
   submitArtifactOutput?(stageAttemptId: string, input: ArtifactContent & { readonly path?: string; readonly logicalKey?: string; readonly declarationStatus?: 'declared' | 'observed' | 'reconciled' | 'undeclared-candidate'; readonly publish?: boolean; readonly disposition?: 'candidate' | 'deliverable' | 'intermediate'; readonly observationSource?: 'managed-tool' | 'explicit-publish' | 'reconcile' | 'external' }): Promise<ArtifactVersion>
   publish(stageAttemptId: string, input: { artifactId?: string; version?: string; path: string; disposition?: 'candidate' | 'deliverable' | 'intermediate' }): Promise<ArtifactVersion>
   endAttempt(stageAttemptId: string, status: 'completed' | 'failed' | 'cancelled'): Promise<unknown>
@@ -92,24 +93,29 @@ export class StageArtifactRuntime {
       else if (previous !== digest) changes.push({ path: relative, kind: 'changed', digest })
     }
     for (const relative of this.baseline.keys()) if (!next.has(relative)) changes.push({ path: relative, kind: 'deleted' })
-    for (const change of changes) {
-      if (change.kind === 'deleted') {
-        const artifactId = this.artifactIdsByPath.get(change.path)
-        if (artifactId !== undefined && this.service.delete !== undefined) await this.service.delete(this.stageAttemptId, artifactId, change.path)
-        continue
-      }
-      const absolute = this.resolve(change.path)
-      const bytes = await readFile(absolute)
-      const version = await this.service.observe(this.stageAttemptId, {
-        source: { path: change.path },
-        data: bytes,
-        mediaType: mediaTypeFor(change.path),
-        origin: 'unknown',
-        observationSource: 'reconcile',
-      })
-      this.observedDigestsByPath.set(change.path, change.digest ?? digest(bytes))
+    const observed = changes.filter(change => change.kind !== 'deleted')
+    const inputs = await Promise.all(observed.map(async change => ({
+      source: { path: change.path },
+      data: await readFile(this.resolve(change.path)),
+      mediaType: mediaTypeFor(change.path),
+      origin: 'unknown' as const,
+      observationSource: 'reconcile' as const,
+    })))
+    const inputDigests = inputs.map(input => digest(input.data))
+    const versions = this.service.observeBatch !== undefined
+      ? await this.service.observeBatch(this.stageAttemptId, inputs)
+      : await Promise.all(inputs.map(input => this.service.observe(this.stageAttemptId, input)))
+    for (let index = 0; index < observed.length; index += 1) {
+      const change = observed[index]
+      const version = versions[index]
+      if (!change || !version) continue
+      this.observedDigestsByPath.set(change.path, change.digest ?? inputDigests[index] ?? '')
       if (version !== null && typeof version === 'object' && 'artifactId' in version) this.observedVersionsByPath.set(change.path, version as ArtifactVersion)
       if (version !== null && typeof version === 'object' && 'artifactId' in version) this.artifactIdsByPath.set(change.path, String((version as { artifactId: string }).artifactId))
+    }
+    for (const change of changes) if (change.kind === 'deleted') {
+      const artifactId = this.artifactIdsByPath.get(change.path)
+      if (artifactId !== undefined && this.service.delete !== undefined) await this.service.delete(this.stageAttemptId, artifactId, change.path)
     }
     this.baseline = next
     return Object.freeze(changes)

@@ -73,6 +73,7 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(editor.renameStep).toHaveBeenCalledWith('explore', '调研!')
     const order = ['stage-inputs', 'stage-skills', 'stage-outputs', 'stage-gate'].map((id) => screen.getByTestId(id))
     for (let i = 1; i < order.length; i += 1) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByTestId('workflow-runtime-artifacts-empty')).toHaveTextContent('请先在进度页选择一个变更')
   })
 
   it('输出表三列与输入对齐：文件 · 来源阶段（= 本阶段）· 来源技能；文档来源 = 契约候选 ∩ 阶段技能，字段 = 阶段全部技能', () => {
