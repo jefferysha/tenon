@@ -1,0 +1,100 @@
+{
+  "schema_version": "live-workflow-evidence/v1",
+  "started_at": "2026-09-12T06:00:59.647Z",
+  "finished_at": "2026-09-12T06:05:36.450Z",
+  "project": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u",
+  "change_dir": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service",
+  "stage_count": 7,
+  "start_index": 5,
+  "completed_stages": 2,
+  "status": "completed",
+  "stages": [
+    {
+      "id": "package",
+      "skill_id": "backend-local-release",
+      "status": "pass",
+      "attempt_id": "live:package:08906adc-3e25-4097-be85-873139f4b98e",
+      "outputs": [
+        "release/tasks-service.tgz",
+        "package-contents.log",
+        "package-source-test.log",
+        "package-packaged-test.log",
+        "package-packaged-launch.log",
+        "package-run-summary.txt",
+        "package-source-test.exit",
+        "package-packaged-test.exit",
+        "package-packaged-launch.exit",
+        "package-staging/README.md"
+      ],
+      "published": [
+        {
+          "artifactId": "artifact:db315b3c4ff4e9817420cd77",
+          "version": "v2",
+          "digest": "8d8bd49f8ea6944436557e96cf8d46fdc383e5b580c02acbb1e1cb3a16bc1a10"
+        },
+        {
+          "artifactId": "artifact:22ef4c20c2bc4d960654c98a",
+          "version": "v2",
+          "digest": "f5e5babb830d87ed2eefd54ff704cc3b9489b568daf56bd36c596985345ee3a4"
+        },
+        {
+          "artifactId": "artifact:f99d756bfa1903630693554c",
+          "version": "v2",
+          "digest": "a0643aa577d1b982950c218503873d91e189b19f88d507fc6945c54bd9205bdb"
+        },
+        {
+          "artifactId": "artifact:92ca2fe5297f8c59ad4579ba",
+          "version": "v1",
+          "digest": "a0643aa577d1b982950c218503873d91e189b19f88d507fc6945c54bd9205bdb"
+        },
+        {
+          "artifactId": "artifact:772454d3761f610e12f80f6e",
+          "version": "v1",
+          "digest": "25a981cbc21fb66a489cbcb5042003dbd1a9e34b2b0ce3b05b4039c52555b461"
+        },
+        {
+          "artifactId": "artifact:c3ce0b04d120139fdfca2092",
+          "version": "v2",
+          "digest": "61b24d191ee33ccba6207e6cfa74fd3dcadb4cd6de33c7a0b4e04a7a7dbbab42"
+        },
+        {
+          "artifactId": "artifact:c7228c97d2972f314d518828",
+          "version": "v1",
+          "digest": "6affdae3b3c1aa6aa7689e9b6a7b3225a636aa1ac0025f490cca1285ceaf1487"
+        },
+        {
+          "artifactId": "artifact:01b832509b0b7bc41c55d667",
+          "version": "v1",
+          "digest": "6affdae3b3c1aa6aa7689e9b6a7b3225a636aa1ac0025f490cca1285ceaf1487"
+        },
+        {
+          "artifactId": "artifact:4eef4c79037566a5c8805ca3",
+          "version": "v1",
+          "digest": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+        }
+      ]
+    },
+    {
+      "id": "acceptance",
+      "skill_id": "backend-release-acceptance",
+      "status": "pass",
+      "attempt_id": "live:acceptance:cad6faaf-9ba8-4b3e-a5c8-869be707afc5",
+      "outputs": [
+        "acceptance-report.md",
+        "acceptance-digests.txt"
+      ],
+      "published": [
+        {
+          "artifactId": "artifact:c2e7fee0a19e74631212cb11",
+          "version": "v2",
+          "digest": "bd0f73ec1b92a7407306e08450f7718cc2f9343ddbad1391ebe78c4e313d2e53"
+        },
+        {
+          "artifactId": "artifact:4ff3f285a62c34671ba3fe86",
+          "version": "v2",
+          "digest": "1bf7947c1deb418c5297043fbd0203628c4affe1180d5ef4c9f56b8f4c1b08d1"
+        }
+      ]
+    }
+  ]
+}

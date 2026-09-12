@@ -1,0 +1,3 @@
+Command: npm test
+Result: blocked in this sandbox because child server startup cannot bind a TCP socket (listen EPERM); test process remained pending awaiting LISTENING.
+Direct evidence: DATA_FILE=/tmp/x-task.json PORT=0 node src/server.mjs -> Error: listen EPERM: operation not permitted 0.0.0.0

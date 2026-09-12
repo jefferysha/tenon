@@ -1,0 +1,9 @@
+{
+  "declared_outputs": [
+    "verification-report.md"
+  ],
+  "valid_outputs": [
+    "verification-report.md"
+  ],
+  "status": "fail"
+}

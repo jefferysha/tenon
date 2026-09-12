@@ -1,0 +1,11 @@
+{
+  "declared_outputs": [
+    "src/server.mjs",
+    "review-report.md"
+  ],
+  "valid_outputs": [
+    "src/server.mjs",
+    "review-report.md"
+  ],
+  "status": "pass"
+}

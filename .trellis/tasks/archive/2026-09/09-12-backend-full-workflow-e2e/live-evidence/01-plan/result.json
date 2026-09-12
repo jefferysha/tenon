@@ -1,0 +1,13 @@
+{
+  "summary": "Created the initial API contract and implementation checklist for the task management service. No code was implemented.",
+  "outputs": [
+    "docs/contract.md",
+    "tasks.md"
+  ],
+  "consumed": [
+    "scenario.json",
+    "AGENTS.md",
+    ".agents/skills/requirements-analysis/SKILL.md"
+  ],
+  "status": "completed"
+}

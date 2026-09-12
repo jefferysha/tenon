@@ -1,0 +1,17 @@
+You are executing stage plan of a real backend workflow.
+Goal: Create a concise requirements and acceptance checklist for this API. Write docs/contract.md as initial contract and a tasks checklist. Do not implement code. Output discovered files.
+Scoped change directory: /private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service
+Read and follow this skill instruction:
+---
+name: requirements-analysis
+description: plan stage for real backend workflow validation
+---
+
+# requirements-analysis
+
+Plan the requested service and explicit behavior. Prefer a bounded practical spec over generic architecture prose.
+
+Act only in the current workspace. Read provided upstream artifact content before work. Final output lists actual generated files; do not invent receipts or manipulate orchestration state.
+
+Upstream artifact references (read them from the filesystem or inspect as useful): []
+Perform the work now. Write all durable outputs inside the scoped change directory. Do not claim files you did not create. End with exactly one JSON object matching the supplied output schema: {"summary": string, "outputs": string[], "consumed": string[], "status": "completed"|"blocked"}.

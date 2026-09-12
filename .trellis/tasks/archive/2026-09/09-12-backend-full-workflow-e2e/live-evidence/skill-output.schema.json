@@ -1,0 +1,1 @@
+{"type":"object","additionalProperties":false,"required":["summary","outputs","consumed","status"],"properties":{"summary":{"type":"string"},"outputs":{"type":"array","items":{"type":"string","minLength":1}},"consumed":{"type":"array","items":{"type":"string"}},"status":{"enum":["completed","blocked"]}}}

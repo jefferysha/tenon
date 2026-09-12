@@ -1,0 +1,14 @@
+{
+  "summary": "Updated the published contract with explicit JSON error shape, startup and persistence failure behavior, serialized mutation semantics, atomic file replacement, and restart guarantees. Added a concrete Node built-in design and implementation plan; no code was added.",
+  "outputs": [
+    "docs/contract.md",
+    "docs/design.md"
+  ],
+  "consumed": [
+    "docs/contract.md",
+    "tasks.md",
+    "scenario.json",
+    ".agents/skills/backend-design/SKILL.md"
+  ],
+  "status": "completed"
+}

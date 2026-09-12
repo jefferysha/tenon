@@ -1,0 +1,26 @@
+{
+  "summary": "Packaged the validated tasks service as release/tasks-service.tgz with runtime source, docs, tests, and package metadata. Source and extracted-package tests timed out because socket binding is restricted in this sandbox; packaged launch recorded the actual EPERM error.",
+  "outputs": [
+    "release/tasks-service.tgz",
+    "package-contents.log",
+    "package-source-test.log",
+    "package-packaged-test.log",
+    "package-packaged-launch.log",
+    "package-run-summary.txt",
+    "package-source-test.exit",
+    "package-packaged-test.exit",
+    "package-packaged-launch.exit",
+    "package-staging/README.md"
+  ],
+  "consumed": [
+    "README.md",
+    "docs/contract.md",
+    "docs/design.md",
+    "package.json",
+    "src/server.mjs",
+    "test/server.test.mjs",
+    "verification-report.md",
+    "review-report.md"
+  ],
+  "status": "completed"
+}

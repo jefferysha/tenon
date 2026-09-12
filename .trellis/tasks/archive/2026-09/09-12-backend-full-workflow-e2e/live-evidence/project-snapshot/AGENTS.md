@@ -1,0 +1,1 @@
+This is a disposable validation project already authorized for full execution. Complete only the assigned stage and real requested artifacts. No task creation interview is needed. No global config changes, publishing, fake runtime receipts or direct .pipeline* modifications. Use the loaded stage skill. All artifacts and reports use truthful command evidence.

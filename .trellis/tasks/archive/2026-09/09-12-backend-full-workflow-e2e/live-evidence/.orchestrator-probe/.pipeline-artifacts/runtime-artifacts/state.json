@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "revision": 2,
+  "attempts": [
+    {
+      "workflowRunId": "run:d5a10edb-1d37-4839-91d4-e5ea0571b388",
+      "stageId": "work-req-backend-api",
+      "stageAttemptId": "attempt:15878ef8-f08a-4bbc-93a0-03511cf00aa6",
+      "status": "completed",
+      "dependencyStages": [],
+      "visibility": "dependency-chain",
+      "startedAt": "2026-09-12T06:00:59.623Z",
+      "endedAt": "2026-09-12T06:00:59.629Z"
+    }
+  ],
+  "artifacts": [],
+  "events": [
+    {
+      "seq": 1,
+      "idempotencyKey": "attempt:attempt:15878ef8-f08a-4bbc-93a0-03511cf00aa6",
+      "type": "attempt.started",
+      "at": "2026-09-12T06:00:59.623Z",
+      "attemptId": "attempt:15878ef8-f08a-4bbc-93a0-03511cf00aa6"
+    },
+    {
+      "seq": 2,
+      "idempotencyKey": "attempt-end:attempt:15878ef8-f08a-4bbc-93a0-03511cf00aa6:completed",
+      "type": "attempt.ended",
+      "at": "2026-09-12T06:00:59.629Z",
+      "attemptId": "attempt:15878ef8-f08a-4bbc-93a0-03511cf00aa6",
+      "payload": {
+        "status": "completed"
+      }
+    }
+  ],
+  "reads": [],
+  "checks": []
+}

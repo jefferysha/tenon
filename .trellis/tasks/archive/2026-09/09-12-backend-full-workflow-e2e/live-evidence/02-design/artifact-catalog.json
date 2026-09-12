@@ -1,0 +1,185 @@
+{
+  "revision": 12,
+  "digest": "d1762012b43890206c5d8fe737b5232e6341b1a6ac56e6efff4cdf1e7fec3581",
+  "stageAttemptId": "live:design:487aeca6-b2e9-4520-b2f0-a7310dcb5521",
+  "entries": [
+    {
+      "artifactId": "artifact:5a060af1aa8d6f2147dcb4db",
+      "version": "v1",
+      "contentDigest": "909161307e4f9c5f43369d6cb5a0cef19eafeb9c35cbf34d2c4f9add5a9c5570",
+      "size": 1389,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/909161307e4f9c5f43369d6cb5a0cef19eafeb9c35cbf34d2c4f9add5a9c5570",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:42:43.938Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:plan:8e997883-44b0-4ec4-9ab7-98045ec866bc"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:5a060af1aa8d6f2147dcb4db",
+      "version": "v2",
+      "contentDigest": "98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "size": 2523,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:44:23.874Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:design:487aeca6-b2e9-4520-b2f0-a7310dcb5521"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:acbbc1994a54071db5867e83",
+      "version": "v1",
+      "contentDigest": "fe5d669e08d04e362fdbcf5c4bb4d853ac4eb8f461122187fbf80f9c35e6f46c",
+      "size": 692,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "tasks.md"
+      },
+      "contentUri": "artifact://live-workflow/fe5d669e08d04e362fdbcf5c4bb4d853ac4eb8f461122187fbf80f9c35e6f46c",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:42:43.943Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:plan:8e997883-44b0-4ec4-9ab7-98045ec866bc"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:b82ba09c69d4730887bb1bcb",
+      "version": "v1",
+      "contentDigest": "7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "size": 2463,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/design.md"
+      },
+      "contentUri": "artifact://live-workflow/7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:44:23.878Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:design:487aeca6-b2e9-4520-b2f0-a7310dcb5521"
+      },
+      "consumed": false,
+      "affected": false
+    }
+  ],
+  "history": [
+    {
+      "artifactId": "artifact:5a060af1aa8d6f2147dcb4db",
+      "version": "v1",
+      "contentDigest": "909161307e4f9c5f43369d6cb5a0cef19eafeb9c35cbf34d2c4f9add5a9c5570",
+      "size": 1389,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/909161307e4f9c5f43369d6cb5a0cef19eafeb9c35cbf34d2c4f9add5a9c5570",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:42:43.938Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:plan:8e997883-44b0-4ec4-9ab7-98045ec866bc"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:5a060af1aa8d6f2147dcb4db",
+      "version": "v2",
+      "contentDigest": "98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "size": 2523,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:44:23.874Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:design:487aeca6-b2e9-4520-b2f0-a7310dcb5521"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:acbbc1994a54071db5867e83",
+      "version": "v1",
+      "contentDigest": "fe5d669e08d04e362fdbcf5c4bb4d853ac4eb8f461122187fbf80f9c35e6f46c",
+      "size": 692,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "tasks.md"
+      },
+      "contentUri": "artifact://live-workflow/fe5d669e08d04e362fdbcf5c4bb4d853ac4eb8f461122187fbf80f9c35e6f46c",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:42:43.943Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:plan:8e997883-44b0-4ec4-9ab7-98045ec866bc"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:b82ba09c69d4730887bb1bcb",
+      "version": "v1",
+      "contentDigest": "7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "size": 2463,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/design.md"
+      },
+      "contentUri": "artifact://live-workflow/7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:44:23.878Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:design:487aeca6-b2e9-4520-b2f0-a7310dcb5521"
+      },
+      "consumed": false,
+      "affected": false
+    }
+  ]
+}

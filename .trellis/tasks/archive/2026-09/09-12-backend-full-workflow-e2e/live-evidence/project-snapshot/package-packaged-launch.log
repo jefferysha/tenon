@@ -1,0 +1,23 @@
+
+> start
+> node src/server.mjs
+
+node:events:487
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EPERM: operation not permitted 0.0.0.0
+    at Server.setupListenHandle [as _listen2] (node:net:1987:21)
+    at listenInCluster (node:net:2066:12)
+    at Server.listen (node:net:2171:7)
+    at main (file:///private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service/release/extract/src/server.mjs:8:1906)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:2045:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EPERM',
+  errno: -1,
+  syscall: 'listen',
+  address: '0.0.0.0'
+}
+
+Node.js v24.18.0

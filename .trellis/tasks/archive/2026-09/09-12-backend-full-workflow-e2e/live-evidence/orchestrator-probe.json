@@ -1,0 +1,758 @@
+{
+  "ok": true,
+  "plan": {
+    "ok": true,
+    "assessment": {
+      "schema_version": "capability-assessment/v2",
+      "record_id": "assessment:assessment:orchestrator-probe",
+      "project_id": "live-project",
+      "change_id": "orchestrator-probe",
+      "revision": 0,
+      "correlation_id": "probe-correlation",
+      "actor": {
+        "kind": "system",
+        "id": "planner"
+      },
+      "created_at": "2026-09-12T06:00:59.549Z",
+      "assessment_id": "assessment:orchestrator-probe",
+      "request_id": "probe-request",
+      "context_record_id": "probe-context",
+      "normalization": "complete",
+      "requirements": [
+        {
+          "id": "req-backend-api",
+          "capability": "backend.api",
+          "necessity": "required",
+          "acceptance_refs": [
+            "acceptance-backend-api"
+          ],
+          "evidence_refs": [],
+          "constraints": [],
+          "risk": "medium"
+        }
+      ],
+      "questions": [],
+      "risks": [],
+      "proposal_evidence_ref": "assessment:deterministic:v2:sha256:f962db0811d6cdf3a5e6777691b06ea3482f1f38e509a62c8da6d14cabaea3cc"
+    },
+    "graph": {
+      "schema_version": "work-graph/v2",
+      "record_id": "graph:graph:orchestrator-probe",
+      "project_id": "live-project",
+      "change_id": "orchestrator-probe",
+      "revision": 0,
+      "correlation_id": "probe-correlation",
+      "actor": {
+        "kind": "system",
+        "id": "planner"
+      },
+      "created_at": "2026-09-12T06:00:59.549Z",
+      "graph_id": "graph:orchestrator-probe",
+      "graph_revision": 1,
+      "assessment_id": "assessment:orchestrator-probe",
+      "task_plan_revision_id": "revision:orchestrator-probe",
+      "task_plan_digest": "sha256:62de3ffcd0330f6485d43d4f1857f63c23e7854247c092d6d4a8cb62b4e45a1c",
+      "pipeline_id": "default:backend:main",
+      "dependency_edges": [],
+      "execution_groups": [
+        {
+          "id": "group-serial",
+          "mode": "serial",
+          "work_item_ids": [
+            "work-req-backend-api"
+          ]
+        }
+      ],
+      "acceptance_coverage": [
+        {
+          "acceptance_id": "acceptance-acceptance-backend-api",
+          "work_item_ids": [
+            "work-req-backend-api"
+          ]
+        }
+      ],
+      "status": "frozen"
+    },
+    "task_plan": {
+      "schema_version": "task-plan/v1",
+      "plan_id": "plan-orchestrator-probe",
+      "revision_id": "revision-orchestrator-probe",
+      "revision_number": 1,
+      "status": "frozen",
+      "created_at": "2026-09-12T06:00:59.549Z",
+      "requirements": [
+        {
+          "id": "req-backend-api",
+          "title": "backend.api"
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "id": "acceptance-acceptance-backend-api",
+          "title": "acceptance-backend-api"
+        }
+      ],
+      "groups": [
+        {
+          "id": "group-serial",
+          "title": "Ordered work",
+          "parent_id": null,
+          "mode": "serial",
+          "work_item_ids": [
+            "work-req-backend-api"
+          ]
+        }
+      ],
+      "work_items": [
+        {
+          "id": "work-req-backend-api",
+          "title": "backend.api",
+          "group_id": "group-serial",
+          "requirement_refs": [
+            "req-backend-api"
+          ],
+          "acceptance_refs": [
+            "acceptance-acceptance-backend-api"
+          ],
+          "depends_on": [],
+          "resource_claims": [],
+          "expected_outputs": [
+            {
+              "id": "output-req-backend-api",
+              "kind": "value",
+              "ref": "skill-output-req-backend-api"
+            }
+          ],
+          "validators": [
+            {
+              "id": "validator-req-backend-api-probe-validator",
+              "kind": "test-report",
+              "version": 1,
+              "output_ids": [
+                "output-req-backend-api"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "resolution": {
+      "schema_version": "capability-resolution/v2",
+      "record_id": "resolution:resolution:graph:orchestrator-probe",
+      "project_id": "live-project",
+      "change_id": "orchestrator-probe",
+      "revision": 0,
+      "correlation_id": "probe-correlation",
+      "actor": {
+        "kind": "system",
+        "id": "planner"
+      },
+      "created_at": "2026-09-12T06:00:59.549Z",
+      "resolution_id": "resolution:graph:orchestrator-probe",
+      "assessment_id": "assessment:orchestrator-probe",
+      "graph_id": "graph:orchestrator-probe",
+      "policy_digest": "sha256:69a70c3e0d8912f3f1c47f97e3975ebbd87e0b5bec93d3c6a8c8b24b9c249e05",
+      "status": "resolved",
+      "bindings": [
+        {
+          "work_item_id": "work-req-backend-api",
+          "skill_id": "probe-api",
+          "skill_version": "1.0.0",
+          "mcp_ids": [],
+          "mode": "serial",
+          "source": "user",
+          "depends_on": []
+        }
+      ],
+      "candidates": [
+        {
+          "capability": "backend.api",
+          "candidate_id": "probe-api:1.0.0",
+          "kind": "skill",
+          "selected": true,
+          "rejected_reasons": [],
+          "rationale": "user selection"
+        }
+      ],
+      "blockers": [],
+      "binding_digest": "sha256:90026ba42bc17c3f65da4fdd31809dc597c350c7bbac36b2b2ad0e15cc70398c"
+    },
+    "catalog": {
+      "schema_version": "capability-catalog/v2",
+      "skills": [
+        {
+          "schema_version": "capability-descriptor/v2",
+          "id": "probe-api",
+          "version": "1.0.0",
+          "source": "user",
+          "availability": "available",
+          "capabilities": [
+            "backend.api"
+          ],
+          "supports_parallel": false,
+          "permissions": [
+            "repo.read",
+            "repo.write"
+          ],
+          "resource_claims": [],
+          "output_schema_id": "workflow/skill-output-v1",
+          "output_media_types": [
+            "application/json"
+          ],
+          "validators": [
+            "probe-validator"
+          ],
+          "depends_on": []
+        }
+      ],
+      "mcps": [],
+      "allowed_permissions": [
+        "repo.read",
+        "repo.write"
+      ],
+      "policy_digest": "sha256:69a70c3e0d8912f3f1c47f97e3975ebbd87e0b5bec93d3c6a8c8b24b9c249e05",
+      "catalog_digest": "sha256:56ecec5e0af7ea1318b06731735015c107a0178ddb8c2da73e5e687757b1f58b"
+    },
+    "pipeline": {
+      "schema_version": "workflow-pipeline/v2",
+      "record_id": "pipeline:default:backend:main",
+      "project_id": "live-project",
+      "change_id": "orchestrator-probe",
+      "revision": 0,
+      "correlation_id": "probe-correlation",
+      "actor": {
+        "kind": "system",
+        "id": "planner"
+      },
+      "created_at": "2026-09-12T06:00:59.549Z",
+      "pipeline_id": "default:backend:main",
+      "pipeline_version": "1",
+      "workflow_id": "default",
+      "workflow_version": "auto-v2",
+      "workflow_source": "builtin",
+      "workflow_fingerprint": "sha256:3ca2bb3a441db63cdd1ca845381844eed622f917ec8ae47cef1992d41c465e60",
+      "track_id": "backend",
+      "track_revision": "auto-v2",
+      "track_source": "automatic",
+      "pipeline_source": "automatic",
+      "graph_id": "graph:orchestrator-probe",
+      "assessment_id": "assessment:orchestrator-probe",
+      "status": "frozen",
+      "stage_order": [
+        "work-req-backend-api"
+      ],
+      "stages": [
+        {
+          "stage_id": "work-req-backend-api",
+          "name": "backend.api",
+          "ordinal": 0,
+          "execution_mode": "serial",
+          "depends_on": [],
+          "work_item_ids": [
+            "work-req-backend-api"
+          ],
+          "gate": "none",
+          "skills": [
+            {
+              "binding_id": "binding:work-req-backend-api:probe-api",
+              "skill_id": "probe-api",
+              "skill_version": "1.0.0",
+              "order": 0,
+              "role": "user",
+              "source": "user",
+              "mode": "serial",
+              "depends_on": [],
+              "mcp_ids": [],
+              "output_schema_id": "workflow/skill-output-v1",
+              "validator_ids": [
+                "probe-validator"
+              ],
+              "resource_claims": []
+            }
+          ],
+          "input_refs": [],
+          "output_refs": [
+            "result:work-req-backend-api"
+          ]
+        }
+      ],
+      "customizations": {
+        "custom_workflow": false,
+        "custom_track": false,
+        "custom_pipeline": false,
+        "user_skill_ids": [
+          "probe-api"
+        ],
+        "user_mcp_ids": []
+      },
+      "pipeline_digest": "sha256:f7be9f8b4660ff0dd10ffd4c6bf2e66d0e4644ed6de550e3eaa49c2d0c019e8b"
+    }
+  },
+  "runtime": {
+    "ok": true,
+    "snapshot": {
+      "schema_version": "board-snapshot/v2",
+      "record_id": "change:orchestrator-probe",
+      "project_id": "live-project",
+      "change_id": "orchestrator-probe",
+      "revision": 13,
+      "correlation_id": "probe-correlation",
+      "actor": {
+        "kind": "system",
+        "id": "kernel"
+      },
+      "created_at": "2026-09-12T06:00:59.549Z",
+      "event_head_id": "event:command:gate:verification:eee1517f-0e7c-41c0-a8bd-5411a488814d",
+      "event_head_digest": "sha256:813122ef0b714aa515818d7b5829573ead62f676041ac321721ea6c21422289c",
+      "command_head_id": "command:gate:verification:eee1517f-0e7c-41c0-a8bd-5411a488814d",
+      "status": "completed",
+      "request": {
+        "schema_version": "development-request/v2",
+        "record_id": "probe-request",
+        "project_id": "live-project",
+        "change_id": "orchestrator-probe",
+        "revision": 0,
+        "correlation_id": "probe-correlation",
+        "actor": {
+          "kind": "user",
+          "id": "live-driver"
+        },
+        "created_at": "2026-09-12T06:00:59.549Z",
+        "request_id": "probe-request",
+        "intent": "backend api probe",
+        "interaction_policy": "recommended-defaults",
+        "requested_effects": [
+          "read",
+          "write"
+        ],
+        "constraints": [],
+        "user_skills": [
+          {
+            "id": "probe-api",
+            "version": "1.0.0",
+            "mode": "serial",
+            "depends_on": []
+          }
+        ],
+        "user_mcps": [],
+        "auto_select": false
+      },
+      "context": {
+        "schema_version": "repository-context/v2",
+        "record_id": "probe-context",
+        "project_id": "live-project",
+        "change_id": "orchestrator-probe",
+        "revision": 0,
+        "correlation_id": "probe-correlation",
+        "actor": {
+          "kind": "system",
+          "id": "live-driver"
+        },
+        "created_at": "2026-09-12T06:00:59.549Z",
+        "request_id": "probe-request",
+        "repository": {
+          "ref": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u",
+          "branch": "live-e2e",
+          "base_branch": "live-e2e",
+          "head_sha": "workspace",
+          "dirty": true
+        },
+        "workspace_fingerprint": "sha256:7c470f4ef82ef5fb50bf5fc27a879330d94842a70da770e95370db3daf366df4",
+        "policy_digest": "sha256:aece236f729a9eaf3b8fbdbc73784a8f3f86b131c412d16ea4a8ee42e9adc3da",
+        "skill_catalog_digest": "sha256:f92908ea6ad1dec11060539fd6ccb3f3f84c0083a7fe942712d5113487a90b08",
+        "mcp_catalog_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "observed_facts": []
+      },
+      "assessment": {
+        "schema_version": "capability-assessment/v2",
+        "record_id": "assessment:assessment:orchestrator-probe",
+        "project_id": "live-project",
+        "change_id": "orchestrator-probe",
+        "revision": 0,
+        "correlation_id": "probe-correlation",
+        "actor": {
+          "kind": "system",
+          "id": "planner"
+        },
+        "created_at": "2026-09-12T06:00:59.549Z",
+        "assessment_id": "assessment:orchestrator-probe",
+        "request_id": "probe-request",
+        "context_record_id": "probe-context",
+        "normalization": "complete",
+        "requirements": [
+          {
+            "id": "req-backend-api",
+            "capability": "backend.api",
+            "necessity": "required",
+            "acceptance_refs": [
+              "acceptance-backend-api"
+            ],
+            "evidence_refs": [],
+            "constraints": [],
+            "risk": "medium"
+          }
+        ],
+        "questions": [],
+        "risks": [],
+        "proposal_evidence_ref": "assessment:deterministic:v2:sha256:f962db0811d6cdf3a5e6777691b06ea3482f1f38e509a62c8da6d14cabaea3cc"
+      },
+      "pipeline": {
+        "schema_version": "workflow-pipeline/v2",
+        "record_id": "pipeline:default:backend:main",
+        "project_id": "live-project",
+        "change_id": "orchestrator-probe",
+        "revision": 0,
+        "correlation_id": "probe-correlation",
+        "actor": {
+          "kind": "system",
+          "id": "planner"
+        },
+        "created_at": "2026-09-12T06:00:59.549Z",
+        "pipeline_id": "default:backend:main",
+        "pipeline_version": "1",
+        "workflow_id": "default",
+        "workflow_version": "auto-v2",
+        "workflow_source": "builtin",
+        "workflow_fingerprint": "sha256:3ca2bb3a441db63cdd1ca845381844eed622f917ec8ae47cef1992d41c465e60",
+        "track_id": "backend",
+        "track_revision": "auto-v2",
+        "track_source": "automatic",
+        "pipeline_source": "automatic",
+        "graph_id": "graph:orchestrator-probe",
+        "assessment_id": "assessment:orchestrator-probe",
+        "status": "frozen",
+        "stage_order": [
+          "work-req-backend-api"
+        ],
+        "stages": [
+          {
+            "stage_id": "work-req-backend-api",
+            "name": "backend.api",
+            "ordinal": 0,
+            "execution_mode": "serial",
+            "depends_on": [],
+            "work_item_ids": [
+              "work-req-backend-api"
+            ],
+            "gate": "none",
+            "skills": [
+              {
+                "binding_id": "binding:work-req-backend-api:probe-api",
+                "skill_id": "probe-api",
+                "skill_version": "1.0.0",
+                "order": 0,
+                "role": "user",
+                "source": "user",
+                "mode": "serial",
+                "depends_on": [],
+                "mcp_ids": [],
+                "output_schema_id": "workflow/skill-output-v1",
+                "validator_ids": [
+                  "probe-validator"
+                ],
+                "resource_claims": []
+              }
+            ],
+            "input_refs": [],
+            "output_refs": [
+              "result:work-req-backend-api"
+            ]
+          }
+        ],
+        "customizations": {
+          "custom_workflow": false,
+          "custom_track": false,
+          "custom_pipeline": false,
+          "user_skill_ids": [
+            "probe-api"
+          ],
+          "user_mcp_ids": []
+        },
+        "pipeline_digest": "sha256:f7be9f8b4660ff0dd10ffd4c6bf2e66d0e4644ed6de550e3eaa49c2d0c019e8b"
+      },
+      "graph": {
+        "schema_version": "work-graph/v2",
+        "record_id": "graph:graph:orchestrator-probe",
+        "project_id": "live-project",
+        "change_id": "orchestrator-probe",
+        "revision": 0,
+        "correlation_id": "probe-correlation",
+        "actor": {
+          "kind": "system",
+          "id": "planner"
+        },
+        "created_at": "2026-09-12T06:00:59.549Z",
+        "graph_id": "graph:orchestrator-probe",
+        "graph_revision": 1,
+        "assessment_id": "assessment:orchestrator-probe",
+        "task_plan_revision_id": "revision:orchestrator-probe",
+        "task_plan_digest": "sha256:62de3ffcd0330f6485d43d4f1857f63c23e7854247c092d6d4a8cb62b4e45a1c",
+        "pipeline_id": "default:backend:main",
+        "dependency_edges": [],
+        "execution_groups": [
+          {
+            "id": "group-serial",
+            "mode": "serial",
+            "work_item_ids": [
+              "work-req-backend-api"
+            ]
+          }
+        ],
+        "acceptance_coverage": [
+          {
+            "acceptance_id": "acceptance-acceptance-backend-api",
+            "work_item_ids": [
+              "work-req-backend-api"
+            ]
+          }
+        ],
+        "status": "frozen"
+      },
+      "resolution": {
+        "schema_version": "capability-resolution/v2",
+        "record_id": "resolution:resolution:graph:orchestrator-probe",
+        "project_id": "live-project",
+        "change_id": "orchestrator-probe",
+        "revision": 0,
+        "correlation_id": "probe-correlation",
+        "actor": {
+          "kind": "system",
+          "id": "planner"
+        },
+        "created_at": "2026-09-12T06:00:59.549Z",
+        "resolution_id": "resolution:graph:orchestrator-probe",
+        "assessment_id": "assessment:orchestrator-probe",
+        "graph_id": "graph:orchestrator-probe",
+        "policy_digest": "sha256:69a70c3e0d8912f3f1c47f97e3975ebbd87e0b5bec93d3c6a8c8b24b9c249e05",
+        "status": "resolved",
+        "bindings": [
+          {
+            "work_item_id": "work-req-backend-api",
+            "skill_id": "probe-api",
+            "skill_version": "1.0.0",
+            "mcp_ids": [],
+            "mode": "serial",
+            "source": "user",
+            "depends_on": []
+          }
+        ],
+        "candidates": [
+          {
+            "capability": "backend.api",
+            "candidate_id": "probe-api:1.0.0",
+            "kind": "skill",
+            "selected": true,
+            "rejected_reasons": [],
+            "rationale": "user selection"
+          }
+        ],
+        "blockers": [],
+        "binding_digest": "sha256:90026ba42bc17c3f65da4fdd31809dc597c350c7bbac36b2b2ad0e15cc70398c"
+      },
+      "work_items": [
+        {
+          "schema_version": "work-item/v2",
+          "record_id": "work-item:work-req-backend-api",
+          "project_id": "live-project",
+          "change_id": "orchestrator-probe",
+          "revision": 12,
+          "correlation_id": "probe-correlation",
+          "actor": {
+            "kind": "system",
+            "id": "kernel"
+          },
+          "created_at": "2026-09-12T06:00:59.549Z",
+          "work_item_id": "work-req-backend-api",
+          "title": "work-req-backend-api",
+          "status": "completed",
+          "depends_on": [],
+          "required_artifact_refs": [],
+          "validation_refs": [
+            "report:result:8891e709b13a4b9847b5eda8a9eba0bd"
+          ],
+          "mode": "serial",
+          "attempt_count": 0,
+          "blockers": []
+        }
+      ],
+      "runs": [
+        {
+          "schema_version": "skill-run/v2",
+          "record_id": "run:run:0bc43b54-9121-457d-b665-81b1c112e6f0",
+          "project_id": "live-project",
+          "change_id": "orchestrator-probe",
+          "revision": 11,
+          "correlation_id": "probe-correlation",
+          "actor": {
+            "kind": "worker",
+            "id": "live-driver-probe"
+          },
+          "created_at": "2026-09-12T06:00:59.607Z",
+          "run_id": "run:d5a10edb-1d37-4839-91d4-e5ea0571b388",
+          "attempt_id": "attempt:15878ef8-f08a-4bbc-93a0-03511cf00aa6",
+          "attempt": 1,
+          "work_item_id": "work-req-backend-api",
+          "skill_id": "probe-api",
+          "skill_version": "1.0.0",
+          "mcp_ids": [],
+          "status": "completed",
+          "lease": {
+            "lease_id": "lease:73cc5f02-fe8d-483a-aca3-b73c61606a52",
+            "owner_id": "live-driver-probe",
+            "acquired_at": "2026-09-12T06:00:59.607Z",
+            "heartbeat_at": "2026-09-12T06:00:59.607Z",
+            "expires_at": "2026-09-12T06:01:59.607Z",
+            "generation": 1,
+            "status": "released"
+          },
+          "input_refs": [],
+          "input_manifest": {
+            "schema_version": "skill-input-manifest/v2",
+            "manifest_id": "input:run:d5a10edb-1d37-4839-91d4-e5ea0571b388",
+            "run_id": "run:d5a10edb-1d37-4839-91d4-e5ea0571b388",
+            "work_item_id": "work-req-backend-api",
+            "input_refs": [],
+            "artifact_digests": [],
+            "bundle_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "byte_length": 0,
+            "delivery": "not-required",
+            "created_at": "2026-09-12T06:00:59.607Z"
+          },
+          "result_id": "result:8891e709b13a4b9847b5eda8a9eba0bd",
+          "started_at": "2026-09-12T06:00:59.613Z",
+          "finished_at": "2026-09-12T06:00:59.629Z"
+        }
+      ],
+      "results": [
+        {
+          "schema_version": "skill-result/v2",
+          "record_id": "result:8891e709b13a4b9847b5eda8a9eba0bd",
+          "project_id": "live-project",
+          "change_id": "orchestrator-probe",
+          "revision": 11,
+          "correlation_id": "probe-correlation",
+          "actor": {
+            "kind": "worker",
+            "id": "live-driver-probe"
+          },
+          "created_at": "2026-09-12T06:00:59.629Z",
+          "result_id": "result:8891e709b13a4b9847b5eda8a9eba0bd",
+          "run_id": "run:d5a10edb-1d37-4839-91d4-e5ea0571b388",
+          "status": "completed",
+          "contract_status": "validated",
+          "output_schema_id": "workflow/skill-output-v1",
+          "raw_output": {
+            "ref": "artifact://result:8891e709b13a4b9847b5eda8a9eba0bd/output.json",
+            "digest": "sha256:a5f7cfe7bfcd2a0bd114199f7aaf4ba2e82747a3e2c1b5234c6b4ce355f34b5b",
+            "media_type": "application/json",
+            "byte_length": 80
+          },
+          "artifacts": [
+            {
+              "id": "output:run:d5a10edb-1d37-4839-91d4-e5ea0571b388",
+              "kind": "json",
+              "ref": "artifact://result:8891e709b13a4b9847b5eda8a9eba0bd/output.json",
+              "digest": "sha256:a5f7cfe7bfcd2a0bd114199f7aaf4ba2e82747a3e2c1b5234c6b4ce355f34b5b",
+              "media_type": "application/json",
+              "byte_length": 80
+            }
+          ],
+          "validation_refs": [
+            "report:result:8891e709b13a4b9847b5eda8a9eba0bd"
+          ],
+          "diagnostics": [],
+          "output_digest": "sha256:a5f7cfe7bfcd2a0bd114199f7aaf4ba2e82747a3e2c1b5234c6b4ce355f34b5b",
+          "output_bytes": 80
+        }
+      ],
+      "validations": [
+        {
+          "schema_version": "validation-report/v2",
+          "record_id": "validation:result:8891e709b13a4b9847b5eda8a9eba0bd",
+          "project_id": "live-project",
+          "change_id": "orchestrator-probe",
+          "revision": 12,
+          "correlation_id": "probe-correlation",
+          "actor": {
+            "kind": "system",
+            "id": "validator"
+          },
+          "created_at": "2026-09-12T06:00:59.624Z",
+          "report_id": "report:result:8891e709b13a4b9847b5eda8a9eba0bd",
+          "work_item_id": "work-req-backend-api",
+          "result_id": "result:8891e709b13a4b9847b5eda8a9eba0bd",
+          "validator_id": "validator",
+          "validator_version": "unknown",
+          "status": "pass",
+          "target_digests": [],
+          "evidence_refs": [
+            "orchestrator-probe"
+          ],
+          "checks": [
+            {
+              "id": "probe:0",
+              "status": "pass"
+            }
+          ]
+        }
+      ],
+      "gates": [
+        {
+          "schema_version": "gate-evaluation/v2",
+          "record_id": "gate:orchestrator-probe:verification",
+          "project_id": "live-project",
+          "change_id": "orchestrator-probe",
+          "revision": 13,
+          "correlation_id": "probe-correlation",
+          "actor": {
+            "kind": "worker",
+            "id": "live-driver-probe"
+          },
+          "created_at": "2026-09-12T06:00:59.641Z",
+          "gate_id": "gate:orchestrator-probe:verification",
+          "kind": "verification",
+          "status": "passed",
+          "required_evidence_refs": [
+            "artifact://result:8891e709b13a4b9847b5eda8a9eba0bd/output.json",
+            "orchestrator-probe"
+          ],
+          "decision_revision": 12,
+          "rationale": "all work items completed with passing validation evidence"
+        }
+      ],
+      "leases": [
+        {
+          "lease_id": "lease:73cc5f02-fe8d-483a-aca3-b73c61606a52",
+          "owner_id": "live-driver-probe",
+          "acquired_at": "2026-09-12T06:00:59.607Z",
+          "heartbeat_at": "2026-09-12T06:00:59.607Z",
+          "expires_at": "2026-09-12T06:01:59.607Z",
+          "generation": 1,
+          "status": "released"
+        }
+      ],
+      "blockers": [],
+      "next_actions": [],
+      "updated_at": "2026-09-12T06:00:59.641Z"
+    },
+    "recovery": {
+      "report": {
+        "schema_version": "orchestration-recovery-report/v1",
+        "report_id": "recovery:e7ee2962b36b2ccd448ca1ddefdb3156",
+        "project_id": "live-project",
+        "change_id": "orchestrator-probe",
+        "last_valid_revision": 7,
+        "ignored_temp_files": [],
+        "orphan_event_revisions": [],
+        "lease_decisions": [],
+        "recovered_from": "current",
+        "snapshot_digest": "sha256:acbe0de7293b24a8f176df7a8788773fad1ef5aa11983b3028dba5a7dda89caa",
+        "recovered_at": "2026-09-12T06:00:59.597Z"
+      },
+      "recovered": true,
+      "expired_runs": []
+    },
+    "attempts": 1,
+    "diagnostics": []
+  }
+}

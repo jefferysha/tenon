@@ -1,0 +1,17 @@
+You are executing stage design of a real backend workflow.
+Goal: Read exact upstream published contract. Update docs/contract.md to clarify error shapes, concurrency and persistence semantics, retaining requirements. Write a concrete design and implementation plan. No code yet. This is a real revision to an existing published artifact.
+Scoped change directory: /private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service
+Read and follow this skill instruction:
+---
+name: backend-design
+description: design stage for real backend workflow validation
+---
+
+# backend-design
+
+Design a small reliable service. Choose Node builtins, JSON atomic storage, explicit errors, serialization of writes. Explain failure behavior.
+
+Act only in the current workspace. Read provided upstream artifact content before work. Final output lists actual generated files; do not invent receipts or manipulate orchestration state.
+
+Upstream artifact references (read them from the filesystem or inspect as useful): ["artifact:5a060af1aa8d6f2147dcb4db@v1","artifact:acbbc1994a54071db5867e83@v1"]
+Perform the work now. Write all durable outputs inside the scoped change directory. Do not claim files you did not create. End with exactly one JSON object matching the supplied output schema: {"summary": string, "outputs": string[], "consumed": string[], "status": "completed"|"blocked"}.

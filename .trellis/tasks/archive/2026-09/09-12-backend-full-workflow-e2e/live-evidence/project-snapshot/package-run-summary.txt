@@ -1,0 +1,11 @@
+# Local release package run
+
+Archive: release/tasks-service.tgz
+
+## Commands
+
+- `npm test` (source): exit 124 after 8 seconds; test waits for socket listener.
+- Extracted archive `npm test`: exit 124 after 8 seconds; same socket restriction.
+- Extracted archive `DATA_FILE=/tmp/tasks-service-package.json PORT=0 npm start`: exit 1 with `listen EPERM`.
+
+See `package-source-test.log`, `package-packaged-test.log`, and `package-packaged-launch.log` for command output. `package-contents.log` records the archive member list.

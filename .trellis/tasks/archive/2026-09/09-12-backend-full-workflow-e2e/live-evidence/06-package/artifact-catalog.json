@@ -1,0 +1,1869 @@
+{
+  "revision": 91,
+  "digest": "e4e8e598746ad04ede95f8bc5c8699f64aaa349135e7929810cafddfa29cb92e",
+  "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e",
+  "entries": [
+    {
+      "artifactId": "artifact:5a060af1aa8d6f2147dcb4db",
+      "version": "v1",
+      "contentDigest": "909161307e4f9c5f43369d6cb5a0cef19eafeb9c35cbf34d2c4f9add5a9c5570",
+      "size": 1389,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/909161307e4f9c5f43369d6cb5a0cef19eafeb9c35cbf34d2c4f9add5a9c5570",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:42:43.938Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:plan:8e997883-44b0-4ec4-9ab7-98045ec866bc"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:5a060af1aa8d6f2147dcb4db",
+      "version": "v2",
+      "contentDigest": "98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "size": 2523,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:44:23.874Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:design:487aeca6-b2e9-4520-b2f0-a7310dcb5521"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:acbbc1994a54071db5867e83",
+      "version": "v1",
+      "contentDigest": "fe5d669e08d04e362fdbcf5c4bb4d853ac4eb8f461122187fbf80f9c35e6f46c",
+      "size": 692,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "tasks.md"
+      },
+      "contentUri": "artifact://live-workflow/fe5d669e08d04e362fdbcf5c4bb4d853ac4eb8f461122187fbf80f9c35e6f46c",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:42:43.943Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:plan:8e997883-44b0-4ec4-9ab7-98045ec866bc"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:b82ba09c69d4730887bb1bcb",
+      "version": "v1",
+      "contentDigest": "7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "size": 2463,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/design.md"
+      },
+      "contentUri": "artifact://live-workflow/7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:44:23.878Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:design:487aeca6-b2e9-4520-b2f0-a7310dcb5521"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:f44602fde2958fd2f0429566",
+      "version": "v1",
+      "contentDigest": "cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "size": 81,
+      "mediaType": "application/json",
+      "kind": "json",
+      "origin": "unknown",
+      "source": {
+        "path": "package.json"
+      },
+      "contentUri": "artifact://live-workflow/cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:47:58.223Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:build:a22ee429-3b69-40eb-933d-4a9b404fa5ef"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:10ac7b85a3ebb52f7dc3131a",
+      "version": "v1",
+      "contentDigest": "6779647cc9bce116f9e3ec958d2f8b2581d957071f2c5d852de3951aece6c4f1",
+      "size": 3073,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "src/server.mjs"
+      },
+      "contentUri": "artifact://live-workflow/6779647cc9bce116f9e3ec958d2f8b2581d957071f2c5d852de3951aece6c4f1",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:47:58.228Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:build:a22ee429-3b69-40eb-933d-4a9b404fa5ef"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:10ac7b85a3ebb52f7dc3131a",
+      "version": "v2",
+      "contentDigest": "bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "size": 3466,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "src/server.mjs"
+      },
+      "contentUri": "artifact://live-workflow/bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:49:23.314Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:review:26168fe0-b5f6-4dd9-8305-4d3059adf0d9"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:0b88b14f6f620d9c445340cb",
+      "version": "v1",
+      "contentDigest": "a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "size": 1148,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "test/server.test.mjs"
+      },
+      "contentUri": "artifact://live-workflow/a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:47:58.233Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:build:a22ee429-3b69-40eb-933d-4a9b404fa5ef"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:5b65c972dac061da13ec0a4e",
+      "version": "v1",
+      "contentDigest": "86a79038e11d6e38a985251c10e481f1e444e0cd3ab33ecaed322393f86b0918",
+      "size": 297,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "test-results.txt"
+      },
+      "contentUri": "artifact://live-workflow/86a79038e11d6e38a985251c10e481f1e444e0cd3ab33ecaed322393f86b0918",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:47:58.237Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:build:a22ee429-3b69-40eb-933d-4a9b404fa5ef"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:88eb4051ad10b826e92ef2e5",
+      "version": "v1",
+      "contentDigest": "241384d2c87096852509f42cadf1882900bcd9f98fb4eb90e97507aa74cb2a81",
+      "size": 1642,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "review-report.md"
+      },
+      "contentUri": "artifact://live-workflow/241384d2c87096852509f42cadf1882900bcd9f98fb4eb90e97507aa74cb2a81",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:49:23.309Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:review:26168fe0-b5f6-4dd9-8305-4d3059adf0d9"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:bf6b3f1ad14165cd104c91f2",
+      "version": "v1",
+      "contentDigest": "beed8c94b5a69b9fea96a33c2c1ae57a34844c453d33536441f05258e0e8dba7",
+      "size": 1105,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "verification-report.md"
+      },
+      "contentUri": "artifact://live-workflow/beed8c94b5a69b9fea96a33c2c1ae57a34844c453d33536441f05258e0e8dba7",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:51:45.724Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:verify:14648202-db38-4ab4-93f5-70a474b34b7f"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:9f80f4b14d1b1d70c8f76f6c",
+      "version": "v1",
+      "contentDigest": "f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "size": 530,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "README.md"
+      },
+      "contentUri": "artifact://live-workflow/f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.102Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:22ef4c20c2bc4d960654c98a",
+      "version": "v1",
+      "contentDigest": "8ccfb290dba2420296a5eea20fdbf758a07607e237927eef65b55e1fdb5a5915",
+      "size": 129,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-contents.log"
+      },
+      "contentUri": "artifact://live-workflow/8ccfb290dba2420296a5eea20fdbf758a07607e237927eef65b55e1fdb5a5915",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.109Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:22ef4c20c2bc4d960654c98a",
+      "version": "v2",
+      "contentDigest": "f5e5babb830d87ed2eefd54ff704cc3b9489b568daf56bd36c596985345ee3a4",
+      "size": 108,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-contents.log"
+      },
+      "contentUri": "artifact://live-workflow/f5e5babb830d87ed2eefd54ff704cc3b9489b568daf56bd36c596985345ee3a4",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.732Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c9b0ed18a49072456bd02472",
+      "version": "v1",
+      "contentDigest": "eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "size": 34,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-packaged-acceptance.log"
+      },
+      "contentUri": "artifact://live-workflow/eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.112Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c2cbbd0485389358627d9fd9",
+      "version": "v1",
+      "contentDigest": "b98476cfc3507bed0c9d01cbbd992bb59c2d40c14c3c2554a8c15689c0d5ab22",
+      "size": 449,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-report.md"
+      },
+      "contentUri": "artifact://live-workflow/b98476cfc3507bed0c9d01cbbd992bb59c2d40c14c3c2554a8c15689c0d5ab22",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.117Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c3ce0b04d120139fdfca2092",
+      "version": "v1",
+      "contentDigest": "50099aa0cd091ce3cc55ff17a3f60424c1337c313551eb62178342ecc8d30718",
+      "size": 63,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-run-summary.txt"
+      },
+      "contentUri": "artifact://live-workflow/50099aa0cd091ce3cc55ff17a3f60424c1337c313551eb62178342ecc8d30718",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.121Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c3ce0b04d120139fdfca2092",
+      "version": "v2",
+      "contentDigest": "61b24d191ee33ccba6207e6cfa74fd3dcadb4cd6de33c7a0b4e04a7a7dbbab42",
+      "size": 523,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-run-summary.txt"
+      },
+      "contentUri": "artifact://live-workflow/61b24d191ee33ccba6207e6cfa74fd3dcadb4cd6de33c7a0b4e04a7a7dbbab42",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.749Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:b7bfa746f60b9eda7dc2c3fb",
+      "version": "v1",
+      "contentDigest": "eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "size": 34,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-source-acceptance.log"
+      },
+      "contentUri": "artifact://live-workflow/eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.125Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:f99d756bfa1903630693554c",
+      "version": "v1",
+      "contentDigest": "eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "size": 34,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-source-test.log"
+      },
+      "contentUri": "artifact://live-workflow/eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.129Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:f99d756bfa1903630693554c",
+      "version": "v2",
+      "contentDigest": "a0643aa577d1b982950c218503873d91e189b19f88d507fc6945c54bd9205bdb",
+      "size": 23,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-source-test.log"
+      },
+      "contentUri": "artifact://live-workflow/a0643aa577d1b982950c218503873d91e189b19f88d507fc6945c54bd9205bdb",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.756Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:3ac1992acd602e690f8ad737",
+      "version": "v1",
+      "contentDigest": "f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "size": 530,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/README.md"
+      },
+      "contentUri": "artifact://live-workflow/f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.132Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:b4de2fcc9d757cbf5a4957e9",
+      "version": "v1",
+      "contentDigest": "98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "size": 2523,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.136Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:b8e6109ffbe1a81de30ea75a",
+      "version": "v1",
+      "contentDigest": "7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "size": 2463,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/docs/design.md"
+      },
+      "contentUri": "artifact://live-workflow/7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.141Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:8d0dc0cc4943ee52778c33bb",
+      "version": "v1",
+      "contentDigest": "cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "size": 81,
+      "mediaType": "application/json",
+      "kind": "json",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/package.json"
+      },
+      "contentUri": "artifact://live-workflow/cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.146Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:269fdfd3be7e8d5003a2681e",
+      "version": "v1",
+      "contentDigest": "bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "size": 3466,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/src/server.mjs"
+      },
+      "contentUri": "artifact://live-workflow/bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.150Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:8f9dc658817bc53abf9c0de0",
+      "version": "v1",
+      "contentDigest": "a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "size": 1148,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/test/server.test.mjs"
+      },
+      "contentUri": "artifact://live-workflow/a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.153Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:db315b3c4ff4e9817420cd77",
+      "version": "v1",
+      "contentDigest": "63598888df9b39ae0e5db3aea25838a6fd5ed3443ec5456b856bf043a4057de6",
+      "size": 5346,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "release/tasks-service.tgz"
+      },
+      "contentUri": "artifact://live-workflow/63598888df9b39ae0e5db3aea25838a6fd5ed3443ec5456b856bf043a4057de6",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.157Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:db315b3c4ff4e9817420cd77",
+      "version": "v2",
+      "contentDigest": "8d8bd49f8ea6944436557e96cf8d46fdc383e5b580c02acbb1e1cb3a16bc1a10",
+      "size": 5259,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "release/tasks-service.tgz"
+      },
+      "contentUri": "artifact://live-workflow/8d8bd49f8ea6944436557e96cf8d46fdc383e5b580c02acbb1e1cb3a16bc1a10",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.778Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:4ff3f285a62c34671ba3fe86",
+      "version": "v1",
+      "contentDigest": "94dc22adbfc3e1f59ca02d7fc6a23857a3d0b0b8424b5fded28bfb14fecb971b",
+      "size": 249,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "acceptance-digests.txt"
+      },
+      "contentUri": "artifact://live-workflow/94dc22adbfc3e1f59ca02d7fc6a23857a3d0b0b8424b5fded28bfb14fecb971b",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:59:41.361Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:acceptance:75c00f2d-558c-4b5c-9896-3c780458ea43"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:4b0bc41793fd28914e5ef847",
+      "version": "v1",
+      "contentDigest": "eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "size": 34,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "acceptance-launch.log"
+      },
+      "contentUri": "artifact://live-workflow/eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:59:41.366Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:6d4b7f1fa1753be23dbd8c23",
+      "version": "v1",
+      "contentDigest": "eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "size": 34,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "acceptance-packaged-test.log"
+      },
+      "contentUri": "artifact://live-workflow/eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:59:41.369Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c2e7fee0a19e74631212cb11",
+      "version": "v1",
+      "contentDigest": "b7a877155110ec808e0a126575f102d52d9920f1cc92d5ab0eff441d13ff31a3",
+      "size": 1040,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "acceptance-report.md"
+      },
+      "contentUri": "artifact://live-workflow/b7a877155110ec808e0a126575f102d52d9920f1cc92d5ab0eff441d13ff31a3",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:59:41.372Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:acceptance:75c00f2d-558c-4b5c-9896-3c780458ea43"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:743513b6c68929800465a69e",
+      "version": "v1",
+      "contentDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "acceptance-source-test.log"
+      },
+      "contentUri": "artifact://live-workflow/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:59:41.375Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:4eef4c79037566a5c8805ca3",
+      "version": "v1",
+      "contentDigest": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "size": 1,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "package-packaged-launch.exit"
+      },
+      "contentUri": "artifact://live-workflow/6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.736Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:772454d3761f610e12f80f6e",
+      "version": "v1",
+      "contentDigest": "25a981cbc21fb66a489cbcb5042003dbd1a9e34b2b0ce3b05b4039c52555b461",
+      "size": 730,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-packaged-launch.log"
+      },
+      "contentUri": "artifact://live-workflow/25a981cbc21fb66a489cbcb5042003dbd1a9e34b2b0ce3b05b4039c52555b461",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.739Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:01b832509b0b7bc41c55d667",
+      "version": "v1",
+      "contentDigest": "6affdae3b3c1aa6aa7689e9b6a7b3225a636aa1ac0025f490cca1285ceaf1487",
+      "size": 3,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "package-packaged-test.exit"
+      },
+      "contentUri": "artifact://live-workflow/6affdae3b3c1aa6aa7689e9b6a7b3225a636aa1ac0025f490cca1285ceaf1487",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.743Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:92ca2fe5297f8c59ad4579ba",
+      "version": "v1",
+      "contentDigest": "a0643aa577d1b982950c218503873d91e189b19f88d507fc6945c54bd9205bdb",
+      "size": 23,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-packaged-test.log"
+      },
+      "contentUri": "artifact://live-workflow/a0643aa577d1b982950c218503873d91e189b19f88d507fc6945c54bd9205bdb",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.746Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c7228c97d2972f314d518828",
+      "version": "v1",
+      "contentDigest": "6affdae3b3c1aa6aa7689e9b6a7b3225a636aa1ac0025f490cca1285ceaf1487",
+      "size": 3,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "package-source-test.exit"
+      },
+      "contentUri": "artifact://live-workflow/6affdae3b3c1aa6aa7689e9b6a7b3225a636aa1ac0025f490cca1285ceaf1487",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.752Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:f4cad6c6918485383676ed19",
+      "version": "v1",
+      "contentDigest": "f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "size": 530,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/README.md"
+      },
+      "contentUri": "artifact://live-workflow/f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.759Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:dbb3d87bdda98e1442cb7047",
+      "version": "v1",
+      "contentDigest": "98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "size": 2523,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.762Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:4b6226e165b4931535477999",
+      "version": "v1",
+      "contentDigest": "7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "size": 2463,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/docs/design.md"
+      },
+      "contentUri": "artifact://live-workflow/7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.765Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:40969e7bd2ba89b8a961df7a",
+      "version": "v1",
+      "contentDigest": "cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "size": 81,
+      "mediaType": "application/json",
+      "kind": "json",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/package.json"
+      },
+      "contentUri": "artifact://live-workflow/cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.768Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:6beef832b8dc7c8f0312db4e",
+      "version": "v1",
+      "contentDigest": "bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "size": 3466,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/src/server.mjs"
+      },
+      "contentUri": "artifact://live-workflow/bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.772Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:f6f75a883646ce345012bc0e",
+      "version": "v1",
+      "contentDigest": "a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "size": 1148,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/test/server.test.mjs"
+      },
+      "contentUri": "artifact://live-workflow/a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.775Z",
+      "consumed": false,
+      "affected": false
+    }
+  ],
+  "history": [
+    {
+      "artifactId": "artifact:5a060af1aa8d6f2147dcb4db",
+      "version": "v1",
+      "contentDigest": "909161307e4f9c5f43369d6cb5a0cef19eafeb9c35cbf34d2c4f9add5a9c5570",
+      "size": 1389,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/909161307e4f9c5f43369d6cb5a0cef19eafeb9c35cbf34d2c4f9add5a9c5570",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:42:43.938Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:plan:8e997883-44b0-4ec4-9ab7-98045ec866bc"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:5a060af1aa8d6f2147dcb4db",
+      "version": "v2",
+      "contentDigest": "98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "size": 2523,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:44:23.874Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:design:487aeca6-b2e9-4520-b2f0-a7310dcb5521"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:acbbc1994a54071db5867e83",
+      "version": "v1",
+      "contentDigest": "fe5d669e08d04e362fdbcf5c4bb4d853ac4eb8f461122187fbf80f9c35e6f46c",
+      "size": 692,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "tasks.md"
+      },
+      "contentUri": "artifact://live-workflow/fe5d669e08d04e362fdbcf5c4bb4d853ac4eb8f461122187fbf80f9c35e6f46c",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:42:43.943Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:plan:8e997883-44b0-4ec4-9ab7-98045ec866bc"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:b82ba09c69d4730887bb1bcb",
+      "version": "v1",
+      "contentDigest": "7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "size": 2463,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "docs/design.md"
+      },
+      "contentUri": "artifact://live-workflow/7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:44:23.878Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:design:487aeca6-b2e9-4520-b2f0-a7310dcb5521"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:f44602fde2958fd2f0429566",
+      "version": "v1",
+      "contentDigest": "cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "size": 81,
+      "mediaType": "application/json",
+      "kind": "json",
+      "origin": "unknown",
+      "source": {
+        "path": "package.json"
+      },
+      "contentUri": "artifact://live-workflow/cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:47:58.223Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:build:a22ee429-3b69-40eb-933d-4a9b404fa5ef"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:10ac7b85a3ebb52f7dc3131a",
+      "version": "v1",
+      "contentDigest": "6779647cc9bce116f9e3ec958d2f8b2581d957071f2c5d852de3951aece6c4f1",
+      "size": 3073,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "src/server.mjs"
+      },
+      "contentUri": "artifact://live-workflow/6779647cc9bce116f9e3ec958d2f8b2581d957071f2c5d852de3951aece6c4f1",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:47:58.228Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:build:a22ee429-3b69-40eb-933d-4a9b404fa5ef"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:10ac7b85a3ebb52f7dc3131a",
+      "version": "v2",
+      "contentDigest": "bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "size": 3466,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "src/server.mjs"
+      },
+      "contentUri": "artifact://live-workflow/bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:49:23.314Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:review:26168fe0-b5f6-4dd9-8305-4d3059adf0d9"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:0b88b14f6f620d9c445340cb",
+      "version": "v1",
+      "contentDigest": "a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "size": 1148,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "test/server.test.mjs"
+      },
+      "contentUri": "artifact://live-workflow/a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:47:58.233Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:build:a22ee429-3b69-40eb-933d-4a9b404fa5ef"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:5b65c972dac061da13ec0a4e",
+      "version": "v1",
+      "contentDigest": "86a79038e11d6e38a985251c10e481f1e444e0cd3ab33ecaed322393f86b0918",
+      "size": 297,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "test-results.txt"
+      },
+      "contentUri": "artifact://live-workflow/86a79038e11d6e38a985251c10e481f1e444e0cd3ab33ecaed322393f86b0918",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:47:58.237Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:build:a22ee429-3b69-40eb-933d-4a9b404fa5ef"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:88eb4051ad10b826e92ef2e5",
+      "version": "v1",
+      "contentDigest": "241384d2c87096852509f42cadf1882900bcd9f98fb4eb90e97507aa74cb2a81",
+      "size": 1642,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "review-report.md"
+      },
+      "contentUri": "artifact://live-workflow/241384d2c87096852509f42cadf1882900bcd9f98fb4eb90e97507aa74cb2a81",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:49:23.309Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:review:26168fe0-b5f6-4dd9-8305-4d3059adf0d9"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:bf6b3f1ad14165cd104c91f2",
+      "version": "v1",
+      "contentDigest": "beed8c94b5a69b9fea96a33c2c1ae57a34844c453d33536441f05258e0e8dba7",
+      "size": 1105,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "verification-report.md"
+      },
+      "contentUri": "artifact://live-workflow/beed8c94b5a69b9fea96a33c2c1ae57a34844c453d33536441f05258e0e8dba7",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:51:45.724Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:verify:14648202-db38-4ab4-93f5-70a474b34b7f"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:9f80f4b14d1b1d70c8f76f6c",
+      "version": "v1",
+      "contentDigest": "f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "size": 530,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "README.md"
+      },
+      "contentUri": "artifact://live-workflow/f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.102Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:22ef4c20c2bc4d960654c98a",
+      "version": "v1",
+      "contentDigest": "8ccfb290dba2420296a5eea20fdbf758a07607e237927eef65b55e1fdb5a5915",
+      "size": 129,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-contents.log"
+      },
+      "contentUri": "artifact://live-workflow/8ccfb290dba2420296a5eea20fdbf758a07607e237927eef65b55e1fdb5a5915",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.109Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:22ef4c20c2bc4d960654c98a",
+      "version": "v2",
+      "contentDigest": "f5e5babb830d87ed2eefd54ff704cc3b9489b568daf56bd36c596985345ee3a4",
+      "size": 108,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-contents.log"
+      },
+      "contentUri": "artifact://live-workflow/f5e5babb830d87ed2eefd54ff704cc3b9489b568daf56bd36c596985345ee3a4",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.732Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c9b0ed18a49072456bd02472",
+      "version": "v1",
+      "contentDigest": "eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "size": 34,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-packaged-acceptance.log"
+      },
+      "contentUri": "artifact://live-workflow/eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.112Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c2cbbd0485389358627d9fd9",
+      "version": "v1",
+      "contentDigest": "b98476cfc3507bed0c9d01cbbd992bb59c2d40c14c3c2554a8c15689c0d5ab22",
+      "size": 449,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-report.md"
+      },
+      "contentUri": "artifact://live-workflow/b98476cfc3507bed0c9d01cbbd992bb59c2d40c14c3c2554a8c15689c0d5ab22",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.117Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c3ce0b04d120139fdfca2092",
+      "version": "v1",
+      "contentDigest": "50099aa0cd091ce3cc55ff17a3f60424c1337c313551eb62178342ecc8d30718",
+      "size": 63,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-run-summary.txt"
+      },
+      "contentUri": "artifact://live-workflow/50099aa0cd091ce3cc55ff17a3f60424c1337c313551eb62178342ecc8d30718",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.121Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c3ce0b04d120139fdfca2092",
+      "version": "v2",
+      "contentDigest": "61b24d191ee33ccba6207e6cfa74fd3dcadb4cd6de33c7a0b4e04a7a7dbbab42",
+      "size": 523,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-run-summary.txt"
+      },
+      "contentUri": "artifact://live-workflow/61b24d191ee33ccba6207e6cfa74fd3dcadb4cd6de33c7a0b4e04a7a7dbbab42",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.749Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:b7bfa746f60b9eda7dc2c3fb",
+      "version": "v1",
+      "contentDigest": "eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "size": 34,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-source-acceptance.log"
+      },
+      "contentUri": "artifact://live-workflow/eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.125Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:f99d756bfa1903630693554c",
+      "version": "v1",
+      "contentDigest": "eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "size": 34,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-source-test.log"
+      },
+      "contentUri": "artifact://live-workflow/eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.129Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:f99d756bfa1903630693554c",
+      "version": "v2",
+      "contentDigest": "a0643aa577d1b982950c218503873d91e189b19f88d507fc6945c54bd9205bdb",
+      "size": 23,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-source-test.log"
+      },
+      "contentUri": "artifact://live-workflow/a0643aa577d1b982950c218503873d91e189b19f88d507fc6945c54bd9205bdb",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.756Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:3ac1992acd602e690f8ad737",
+      "version": "v1",
+      "contentDigest": "f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "size": 530,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/README.md"
+      },
+      "contentUri": "artifact://live-workflow/f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.132Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:b4de2fcc9d757cbf5a4957e9",
+      "version": "v1",
+      "contentDigest": "98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "size": 2523,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.136Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:b8e6109ffbe1a81de30ea75a",
+      "version": "v1",
+      "contentDigest": "7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "size": 2463,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/docs/design.md"
+      },
+      "contentUri": "artifact://live-workflow/7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.141Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:8d0dc0cc4943ee52778c33bb",
+      "version": "v1",
+      "contentDigest": "cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "size": 81,
+      "mediaType": "application/json",
+      "kind": "json",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/package.json"
+      },
+      "contentUri": "artifact://live-workflow/cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.146Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:269fdfd3be7e8d5003a2681e",
+      "version": "v1",
+      "contentDigest": "bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "size": 3466,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/src/server.mjs"
+      },
+      "contentUri": "artifact://live-workflow/bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.150Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:8f9dc658817bc53abf9c0de0",
+      "version": "v1",
+      "contentDigest": "a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "size": 1148,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "package-staging/test/server.test.mjs"
+      },
+      "contentUri": "artifact://live-workflow/a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.153Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:db315b3c4ff4e9817420cd77",
+      "version": "v1",
+      "contentDigest": "63598888df9b39ae0e5db3aea25838a6fd5ed3443ec5456b856bf043a4057de6",
+      "size": 5346,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "release/tasks-service.tgz"
+      },
+      "contentUri": "artifact://live-workflow/63598888df9b39ae0e5db3aea25838a6fd5ed3443ec5456b856bf043a4057de6",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:56:56.157Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:68153780-529f-4a18-9ea0-0eed70447051"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:db315b3c4ff4e9817420cd77",
+      "version": "v2",
+      "contentDigest": "8d8bd49f8ea6944436557e96cf8d46fdc383e5b580c02acbb1e1cb3a16bc1a10",
+      "size": 5259,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "release/tasks-service.tgz"
+      },
+      "contentUri": "artifact://live-workflow/8d8bd49f8ea6944436557e96cf8d46fdc383e5b580c02acbb1e1cb3a16bc1a10",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.778Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:4ff3f285a62c34671ba3fe86",
+      "version": "v1",
+      "contentDigest": "94dc22adbfc3e1f59ca02d7fc6a23857a3d0b0b8424b5fded28bfb14fecb971b",
+      "size": 249,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "acceptance-digests.txt"
+      },
+      "contentUri": "artifact://live-workflow/94dc22adbfc3e1f59ca02d7fc6a23857a3d0b0b8424b5fded28bfb14fecb971b",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:59:41.361Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:acceptance:75c00f2d-558c-4b5c-9896-3c780458ea43"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:4b0bc41793fd28914e5ef847",
+      "version": "v1",
+      "contentDigest": "eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "size": 34,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "acceptance-launch.log"
+      },
+      "contentUri": "artifact://live-workflow/eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:59:41.366Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:6d4b7f1fa1753be23dbd8c23",
+      "version": "v1",
+      "contentDigest": "eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "size": 34,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "acceptance-packaged-test.log"
+      },
+      "contentUri": "artifact://live-workflow/eb346461f6d61257fce988834972770b3a50ab9b043de19376b1ef0dcaf4b0cd",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:59:41.369Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c2e7fee0a19e74631212cb11",
+      "version": "v1",
+      "contentDigest": "b7a877155110ec808e0a126575f102d52d9920f1cc92d5ab0eff441d13ff31a3",
+      "size": 1040,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "acceptance-report.md"
+      },
+      "contentUri": "artifact://live-workflow/b7a877155110ec808e0a126575f102d52d9920f1cc92d5ab0eff441d13ff31a3",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:59:41.372Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:acceptance:75c00f2d-558c-4b5c-9896-3c780458ea43"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:743513b6c68929800465a69e",
+      "version": "v1",
+      "contentDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "acceptance-source-test.log"
+      },
+      "contentUri": "artifact://live-workflow/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T05:59:41.375Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:4eef4c79037566a5c8805ca3",
+      "version": "v1",
+      "contentDigest": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "size": 1,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "package-packaged-launch.exit"
+      },
+      "contentUri": "artifact://live-workflow/6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.736Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:772454d3761f610e12f80f6e",
+      "version": "v1",
+      "contentDigest": "25a981cbc21fb66a489cbcb5042003dbd1a9e34b2b0ce3b05b4039c52555b461",
+      "size": 730,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-packaged-launch.log"
+      },
+      "contentUri": "artifact://live-workflow/25a981cbc21fb66a489cbcb5042003dbd1a9e34b2b0ce3b05b4039c52555b461",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.739Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:01b832509b0b7bc41c55d667",
+      "version": "v1",
+      "contentDigest": "6affdae3b3c1aa6aa7689e9b6a7b3225a636aa1ac0025f490cca1285ceaf1487",
+      "size": 3,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "package-packaged-test.exit"
+      },
+      "contentUri": "artifact://live-workflow/6affdae3b3c1aa6aa7689e9b6a7b3225a636aa1ac0025f490cca1285ceaf1487",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.743Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:92ca2fe5297f8c59ad4579ba",
+      "version": "v1",
+      "contentDigest": "a0643aa577d1b982950c218503873d91e189b19f88d507fc6945c54bd9205bdb",
+      "size": 23,
+      "mediaType": "text/plain",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "package-packaged-test.log"
+      },
+      "contentUri": "artifact://live-workflow/a0643aa577d1b982950c218503873d91e189b19f88d507fc6945c54bd9205bdb",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.746Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:c7228c97d2972f314d518828",
+      "version": "v1",
+      "contentDigest": "6affdae3b3c1aa6aa7689e9b6a7b3225a636aa1ac0025f490cca1285ceaf1487",
+      "size": 3,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "package-source-test.exit"
+      },
+      "contentUri": "artifact://live-workflow/6affdae3b3c1aa6aa7689e9b6a7b3225a636aa1ac0025f490cca1285ceaf1487",
+      "disposition": "deliverable",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.752Z",
+      "publisher": {
+        "workflowRunId": "live-workflow",
+        "stageAttemptId": "live:package:08906adc-3e25-4097-be85-873139f4b98e"
+      },
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:f4cad6c6918485383676ed19",
+      "version": "v1",
+      "contentDigest": "f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "size": 530,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/README.md"
+      },
+      "contentUri": "artifact://live-workflow/f2f46888e3d8e28eb11f0ee4f798d22a06d74255e2822a20a17f26d2518d38e4",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.759Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:dbb3d87bdda98e1442cb7047",
+      "version": "v1",
+      "contentDigest": "98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "size": 2523,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/docs/contract.md"
+      },
+      "contentUri": "artifact://live-workflow/98573693045dc3f302d9096e2a9808e12fea123bdd5c9f9f789553dc6db90f1d",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.762Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:4b6226e165b4931535477999",
+      "version": "v1",
+      "contentDigest": "7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "size": 2463,
+      "mediaType": "text/markdown",
+      "kind": "text",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/docs/design.md"
+      },
+      "contentUri": "artifact://live-workflow/7d737fc05b05f8e301289e921715a142f4cff24545ee99bd4052a897cfd14834",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.765Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:40969e7bd2ba89b8a961df7a",
+      "version": "v1",
+      "contentDigest": "cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "size": 81,
+      "mediaType": "application/json",
+      "kind": "json",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/package.json"
+      },
+      "contentUri": "artifact://live-workflow/cfffc5c3bc7b30b23d4fa1c078860365e16c94dc43d930aa057e57d179afee80",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.768Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:6beef832b8dc7c8f0312db4e",
+      "version": "v1",
+      "contentDigest": "bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "size": 3466,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/src/server.mjs"
+      },
+      "contentUri": "artifact://live-workflow/bfdee0eb0f2790d3c2223be586cb67007dfc57ea281130a775b4f7638609c398",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.772Z",
+      "consumed": false,
+      "affected": false
+    },
+    {
+      "artifactId": "artifact:f6f75a883646ce345012bc0e",
+      "version": "v1",
+      "contentDigest": "a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "size": 1148,
+      "mediaType": "application/octet-stream",
+      "kind": "file",
+      "origin": "unknown",
+      "source": {
+        "path": "release/extract/test/server.test.mjs"
+      },
+      "contentUri": "artifact://live-workflow/a718399e2f48f1a5db0c81d38c9e87876848b6b848a455fcd587f6d68327bece",
+      "disposition": "candidate",
+      "quality": "unchecked",
+      "createdAt": "2026-09-12T06:03:07.775Z",
+      "consumed": false,
+      "affected": false
+    }
+  ]
+}

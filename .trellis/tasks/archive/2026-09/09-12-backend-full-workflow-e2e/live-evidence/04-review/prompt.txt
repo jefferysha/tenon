@@ -1,0 +1,17 @@
+You are executing stage review of a real backend workflow.
+Goal: Read contract, design, every source/test file. Review HTTP correctness, body handling, persistence errors/concurrency, injection/path safety. Run tests. If you find real defects, fix them and regress them here, updating source versions and report honestly. Write a review report with concrete evidence.
+Scoped change directory: /private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service
+Read and follow this skill instruction:
+---
+name: backend-code-review
+description: review stage for real backend workflow validation
+---
+
+# backend-code-review
+
+Review implementation against contract, not just whether tests pass. Report actionable defects with file lines and verify fixes.
+
+Act only in the current workspace. Read provided upstream artifact content before work. Final output lists actual generated files; do not invent receipts or manipulate orchestration state.
+
+Upstream artifact references (read them from the filesystem or inspect as useful): ["artifact:5a060af1aa8d6f2147dcb4db@v1","artifact:acbbc1994a54071db5867e83@v1","artifact:5a060af1aa8d6f2147dcb4db@v2","artifact:b82ba09c69d4730887bb1bcb@v1","artifact:10ac7b85a3ebb52f7dc3131a@v1","artifact:f44602fde2958fd2f0429566@v1","artifact:0b88b14f6f620d9c445340cb@v1","artifact:5b65c972dac061da13ec0a4e@v1"]
+Perform the work now. Write all durable outputs inside the scoped change directory. Do not claim files you did not create. End with exactly one JSON object matching the supplied output schema: {"summary": string, "outputs": string[], "consumed": string[], "status": "completed"|"blocked"}.

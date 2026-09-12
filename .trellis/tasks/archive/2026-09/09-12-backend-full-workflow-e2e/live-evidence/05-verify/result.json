@@ -1,0 +1,17 @@
+{
+  "summary": "Verification was blocked by the sandbox denying TCP socket binds. The independent acceptance runner exited 1 with listen EPERM, and npm test could not complete within 10 seconds while waiting for the server listener. No source or external runner changes were made.",
+  "outputs": [
+    "verification-report.md"
+  ],
+  "consumed": [
+    ".agents/skills/backend-api-verification/SKILL.md",
+    "scenario.json",
+    "src/server.mjs",
+    "package.json",
+    "test-results.txt",
+    "docs/contract.md",
+    "docs/design.md",
+    "review-report.md"
+  ],
+  "status": "blocked"
+}

@@ -1,0 +1,9 @@
+{"at":"2026-09-12T05:11:01.001Z","type":"stage-start","stage":"plan","skill":"requirements-analysis","dependencies":[],"priorRefs":[]}
+{"at":"2026-09-12T05:20:56.997Z","type":"stage-start","stage":"plan","skill":"requirements-analysis","dependencies":[],"priorRefs":[]}
+{"at":"2026-09-12T05:29:37.526Z","type":"stage-start","stage":"plan","skill":"requirements-analysis","dependencies":[],"priorRefs":[]}
+{"at":"2026-09-12T05:35:29.471Z","type":"stage-start","stage":"plan","skill":"requirements-analysis","dependencies":[],"priorRefs":[]}
+{"at":"2026-09-12T05:37:17.180Z","type":"stage-start","stage":"plan","skill":"requirements-analysis","dependencies":[],"priorRefs":[]}
+{"at":"2026-09-12T05:38:55.212Z","type":"publish-failed","stage":"plan","ref":"docs/contract.md","error":"Error: artifact candidate not found"}
+{"at":"2026-09-12T05:38:55.216Z","type":"publish-failed","stage":"plan","ref":"docs/tasks.md","error":"Error: artifact candidate not found"}
+{"at":"2026-09-12T05:38:55.223Z","type":"stage-end","stage":"plan","status":"pass","changes":[],"published":[]}
+{"at":"2026-09-12T05:38:55.223Z","type":"stage-start","stage":"design","skill":"backend-design","dependencies":["plan"],"priorRefs":[]}

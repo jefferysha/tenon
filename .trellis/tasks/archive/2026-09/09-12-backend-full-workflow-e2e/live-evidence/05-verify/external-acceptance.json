@@ -1,0 +1,6 @@
+{
+  "command": "acceptance.mjs source",
+  "code": 0,
+  "stdout": "{\n  \"mode\": \"source\",\n  \"root\": \"/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service\",\n  \"package\": null,\n  \"checks\": [\n    {\n      \"name\": \"health\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"malformed-json\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"blank-title\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"create-and-list\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"get-and-invalid-status\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"update-and-delete\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"restart-persistence\",\n      \"ok\": true\n    }\n  ],\n  \"passed\": true\n}",
+  "stderr": ""
+}

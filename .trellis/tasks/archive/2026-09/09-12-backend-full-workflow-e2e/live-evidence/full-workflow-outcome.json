@@ -1,0 +1,234 @@
+{
+  "schema_version": "full-workflow-evidence/v1",
+  "project": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u",
+  "change_dir": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service",
+  "stage_count": 7,
+  "status": "completed",
+  "orchestrator_probe": {
+    "ok": true,
+    "pipeline": "default:backend:main",
+    "stage_order": [
+      "work-req-backend-api"
+    ]
+  },
+  "source_acceptance": {
+    "mode": "source",
+    "root": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service",
+    "package": null,
+    "checks": [
+      {
+        "name": "health",
+        "ok": true
+      },
+      {
+        "name": "malformed-json",
+        "ok": true
+      },
+      {
+        "name": "blank-title",
+        "ok": true
+      },
+      {
+        "name": "create-and-list",
+        "ok": true
+      },
+      {
+        "name": "get-and-invalid-status",
+        "ok": true
+      },
+      {
+        "name": "update-and-delete",
+        "ok": true
+      },
+      {
+        "name": "restart-persistence",
+        "ok": true
+      }
+    ],
+    "passed": true
+  },
+  "package_acceptance": {
+    "mode": "package",
+    "root": "/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-release-u35oXa",
+    "package": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service/release/tasks-service.tgz",
+    "checks": [
+      {
+        "name": "health",
+        "ok": true
+      },
+      {
+        "name": "malformed-json",
+        "ok": true
+      },
+      {
+        "name": "blank-title",
+        "ok": true
+      },
+      {
+        "name": "create-and-list",
+        "ok": true
+      },
+      {
+        "name": "get-and-invalid-status",
+        "ok": true
+      },
+      {
+        "name": "update-and-delete",
+        "ok": true
+      },
+      {
+        "name": "restart-persistence",
+        "ok": true
+      }
+    ],
+    "passed": true
+  },
+  "stages": [
+    {
+      "ordinal": 1,
+      "id": "plan",
+      "skill_id": null,
+      "child_status": "completed",
+      "effective_status": "pass",
+      "declared_outputs": [
+        "docs/contract.md",
+        "tasks.md"
+      ],
+      "valid_outputs": [
+        "docs/contract.md",
+        "tasks.md"
+      ],
+      "external_acceptance": null
+    },
+    {
+      "ordinal": 2,
+      "id": "design",
+      "skill_id": null,
+      "child_status": "completed",
+      "effective_status": "pass",
+      "declared_outputs": [
+        "docs/contract.md",
+        "docs/design.md"
+      ],
+      "valid_outputs": [
+        "docs/contract.md",
+        "docs/design.md"
+      ],
+      "external_acceptance": null
+    },
+    {
+      "ordinal": 3,
+      "id": "build",
+      "skill_id": null,
+      "child_status": "completed",
+      "effective_status": "pass",
+      "declared_outputs": [
+        "src/server.mjs",
+        "package.json",
+        "test/server.test.mjs",
+        "test-results.txt"
+      ],
+      "valid_outputs": [
+        "src/server.mjs",
+        "package.json",
+        "test/server.test.mjs",
+        "test-results.txt"
+      ],
+      "external_acceptance": null
+    },
+    {
+      "ordinal": 4,
+      "id": "review",
+      "skill_id": null,
+      "child_status": "completed",
+      "effective_status": "pass",
+      "declared_outputs": [
+        "src/server.mjs",
+        "review-report.md"
+      ],
+      "valid_outputs": [
+        "src/server.mjs",
+        "review-report.md"
+      ],
+      "external_acceptance": null
+    },
+    {
+      "ordinal": 5,
+      "id": "verify",
+      "skill_id": null,
+      "child_status": "blocked",
+      "effective_status": "pass",
+      "declared_outputs": [
+        "verification-report.md"
+      ],
+      "valid_outputs": [
+        "verification-report.md"
+      ],
+      "external_acceptance": {
+        "command": "acceptance.mjs source",
+        "code": 0,
+        "stdout": "{\n  \"mode\": \"source\",\n  \"root\": \"/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service\",\n  \"package\": null,\n  \"checks\": [\n    {\n      \"name\": \"health\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"malformed-json\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"blank-title\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"create-and-list\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"get-and-invalid-status\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"update-and-delete\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"restart-persistence\",\n      \"ok\": true\n    }\n  ],\n  \"passed\": true\n}",
+        "stderr": ""
+      }
+    },
+    {
+      "ordinal": 6,
+      "id": "package",
+      "skill_id": null,
+      "child_status": "completed",
+      "effective_status": "pass",
+      "declared_outputs": [
+        "release/tasks-service.tgz",
+        "package-contents.log",
+        "package-source-test.log",
+        "package-packaged-test.log",
+        "package-packaged-launch.log",
+        "package-run-summary.txt",
+        "package-source-test.exit",
+        "package-packaged-test.exit",
+        "package-packaged-launch.exit",
+        "package-staging/README.md"
+      ],
+      "valid_outputs": [
+        "release/tasks-service.tgz",
+        "package-contents.log",
+        "package-source-test.log",
+        "package-packaged-test.log",
+        "package-packaged-launch.log",
+        "package-run-summary.txt",
+        "package-source-test.exit",
+        "package-packaged-test.exit",
+        "package-packaged-launch.exit",
+        "package-staging/README.md"
+      ],
+      "external_acceptance": null
+    },
+    {
+      "ordinal": 7,
+      "id": "acceptance",
+      "skill_id": null,
+      "child_status": "blocked",
+      "effective_status": "pass",
+      "declared_outputs": [
+        "acceptance-report.md",
+        "acceptance-digests.txt"
+      ],
+      "valid_outputs": [
+        "acceptance-report.md",
+        "acceptance-digests.txt"
+      ],
+      "external_acceptance": {
+        "command": "acceptance.mjs package",
+        "code": 0,
+        "stdout": "{\n  \"mode\": \"package\",\n  \"root\": \"/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-release-ktU2I2\",\n  \"package\": \"/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service/release/tasks-service.tgz\",\n  \"checks\": [\n    {\n      \"name\": \"health\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"malformed-json\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"blank-title\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"create-and-list\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"get-and-invalid-status\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"update-and-delete\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"restart-persistence\",\n      \"ok\": true\n    }\n  ],\n  \"passed\": true\n}\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "notes": [
+    "Stages 1-4 completed through real codex exec children.",
+    "Verify child reported sandbox TCP EPERM; parent acceptance harness passed and is recorded as effective pass.",
+    "Package and acceptance child runs produced durable release artifacts; parent package acceptance passed.",
+    "The existing production CLI/server orchestration entrypoints were not changed or claimed as UI-to-model wiring; this is a task-local validation adapter using public runtime/artifact APIs."
+  ]
+}

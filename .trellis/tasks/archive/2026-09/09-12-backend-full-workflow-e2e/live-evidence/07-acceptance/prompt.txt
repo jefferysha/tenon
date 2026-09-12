@@ -1,0 +1,17 @@
+You are executing stage acceptance of a real backend workflow.
+Goal: Independently inspect local release archive, run provided packaged acceptance test, run source tests, verify README launch commands. Write final acceptance report with real results and relative deliverable package path. Do not alter implementation unless an actual failure requires correction; if that happens repack and retest.
+Scoped change directory: /private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service
+Read and follow this skill instruction:
+---
+name: backend-release-acceptance
+description: acceptance stage for real backend workflow validation
+---
+
+# backend-release-acceptance
+
+Verify the exact delivered package end to end. Report source and archive digests and actual test results.
+
+Act only in the current workspace. Read provided upstream artifact content before work. Final output lists actual generated files; do not invent receipts or manipulate orchestration state.
+
+Upstream artifact references (read them from the filesystem or inspect as useful): ["artifact:bf6b3f1ad14165cd104c91f2@v1","artifact:9f80f4b14d1b1d70c8f76f6c@v1","artifact:c2cbbd0485389358627d9fd9@v1","artifact:c3ce0b04d120139fdfca2092@v1","artifact:22ef4c20c2bc4d960654c98a@v1","artifact:f99d756bfa1903630693554c@v1","artifact:b7bfa746f60b9eda7dc2c3fb@v1","artifact:c9b0ed18a49072456bd02472@v1","artifact:db315b3c4ff4e9817420cd77@v1","artifact:c2e7fee0a19e74631212cb11@v1","artifact:4ff3f285a62c34671ba3fe86@v1","artifact:db315b3c4ff4e9817420cd77@v2","artifact:22ef4c20c2bc4d960654c98a@v2","artifact:f99d756bfa1903630693554c@v2","artifact:92ca2fe5297f8c59ad4579ba@v1","artifact:772454d3761f610e12f80f6e@v1","artifact:c3ce0b04d120139fdfca2092@v2","artifact:c7228c97d2972f314d518828@v1","artifact:01b832509b0b7bc41c55d667@v1","artifact:4eef4c79037566a5c8805ca3@v1"]
+Perform the work now. Write all durable outputs inside the scoped change directory. Do not claim files you did not create. End with exactly one JSON object matching the supplied output schema: {"summary": string, "outputs": string[], "consumed": string[], "status": "completed"|"blocked"}.

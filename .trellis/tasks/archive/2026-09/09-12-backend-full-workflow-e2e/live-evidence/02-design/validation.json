@@ -1,0 +1,11 @@
+{
+  "declared_outputs": [
+    "docs/contract.md",
+    "docs/design.md"
+  ],
+  "valid_outputs": [
+    "docs/contract.md",
+    "docs/design.md"
+  ],
+  "status": "pass"
+}

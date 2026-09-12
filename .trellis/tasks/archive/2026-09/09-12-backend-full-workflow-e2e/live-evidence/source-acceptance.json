@@ -1,0 +1,36 @@
+{
+  "mode": "source",
+  "root": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service",
+  "package": null,
+  "checks": [
+    {
+      "name": "health",
+      "ok": true
+    },
+    {
+      "name": "malformed-json",
+      "ok": true
+    },
+    {
+      "name": "blank-title",
+      "ok": true
+    },
+    {
+      "name": "create-and-list",
+      "ok": true
+    },
+    {
+      "name": "get-and-invalid-status",
+      "ok": true
+    },
+    {
+      "name": "update-and-delete",
+      "ok": true
+    },
+    {
+      "name": "restart-persistence",
+      "ok": true
+    }
+  ],
+  "passed": true
+}

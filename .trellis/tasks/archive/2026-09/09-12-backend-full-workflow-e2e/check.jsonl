@@ -1,0 +1,2 @@
+{"file":".trellis/spec/server/backend/snapshot-skill-runs.md","reason":"验证真实 skill runs 投影"}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"验证 backend track skill 文件与阶段映射"}

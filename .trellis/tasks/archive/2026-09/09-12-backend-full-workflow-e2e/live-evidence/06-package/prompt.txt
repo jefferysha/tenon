@@ -1,0 +1,17 @@
+You are executing stage package of a real backend workflow.
+Goal: Read validated implementation and report, run tests, create README with launch commands and release notes. Package ONLY service/docs/tests/package.json as release/*.tgz (src/server.mjs at archive root); exclude runtime ledgers, skills, logs, node_modules, tar itself. No PR/push/deployment. Run independent source and packaged acceptance commands, recording actual logs.
+Scoped change directory: /private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service
+Read and follow this skill instruction:
+---
+name: backend-local-release
+description: package stage for real backend workflow validation
+---
+
+# backend-local-release
+
+Deliver a runnable, minimal local archive. Validate what users receive by extracting the package and executing its entrypoint.
+
+Act only in the current workspace. Read provided upstream artifact content before work. Final output lists actual generated files; do not invent receipts or manipulate orchestration state.
+
+Upstream artifact references (read them from the filesystem or inspect as useful): ["artifact:acbbc1994a54071db5867e83@v1","artifact:5a060af1aa8d6f2147dcb4db@v2","artifact:b82ba09c69d4730887bb1bcb@v1","artifact:10ac7b85a3ebb52f7dc3131a@v1","artifact:f44602fde2958fd2f0429566@v1","artifact:0b88b14f6f620d9c445340cb@v1","artifact:5b65c972dac061da13ec0a4e@v1","artifact:10ac7b85a3ebb52f7dc3131a@v2","artifact:88eb4051ad10b826e92ef2e5@v1","artifact:bf6b3f1ad14165cd104c91f2@v1","artifact:9f80f4b14d1b1d70c8f76f6c@v1","artifact:c2cbbd0485389358627d9fd9@v1","artifact:c3ce0b04d120139fdfca2092@v1","artifact:22ef4c20c2bc4d960654c98a@v1","artifact:f99d756bfa1903630693554c@v1","artifact:b7bfa746f60b9eda7dc2c3fb@v1","artifact:c9b0ed18a49072456bd02472@v1","artifact:db315b3c4ff4e9817420cd77@v1","artifact:c2e7fee0a19e74631212cb11@v1","artifact:4ff3f285a62c34671ba3fe86@v1"]
+Perform the work now. Write all durable outputs inside the scoped change directory. Do not claim files you did not create. End with exactly one JSON object matching the supplied output schema: {"summary": string, "outputs": string[], "consumed": string[], "status": "completed"|"blocked"}.

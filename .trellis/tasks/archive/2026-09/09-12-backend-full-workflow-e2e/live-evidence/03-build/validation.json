@@ -1,0 +1,15 @@
+{
+  "declared_outputs": [
+    "src/server.mjs",
+    "package.json",
+    "test/server.test.mjs",
+    "test-results.txt"
+  ],
+  "valid_outputs": [
+    "src/server.mjs",
+    "package.json",
+    "test/server.test.mjs",
+    "test-results.txt"
+  ],
+  "status": "pass"
+}

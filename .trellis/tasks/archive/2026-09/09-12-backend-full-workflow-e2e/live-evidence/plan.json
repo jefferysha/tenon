@@ -1,0 +1,282 @@
+{
+  "stages": [
+    {
+      "id": "plan",
+      "skill_id": "requirements-analysis",
+      "depends_on": []
+    },
+    {
+      "id": "design",
+      "skill_id": "backend-design",
+      "depends_on": [
+        "plan"
+      ]
+    },
+    {
+      "id": "build",
+      "skill_id": "backend-tdd",
+      "depends_on": [
+        "design"
+      ]
+    },
+    {
+      "id": "review",
+      "skill_id": "backend-code-review",
+      "depends_on": [
+        "build"
+      ]
+    },
+    {
+      "id": "verify",
+      "skill_id": "backend-api-verification",
+      "depends_on": [
+        "review"
+      ]
+    },
+    {
+      "id": "package",
+      "skill_id": "backend-local-release",
+      "depends_on": [
+        "verify"
+      ]
+    },
+    {
+      "id": "acceptance",
+      "skill_id": "backend-release-acceptance",
+      "depends_on": [
+        "package"
+      ]
+    }
+  ],
+  "catalog": {
+    "skills": [
+      {
+        "id": "requirements-analysis",
+        "version": "1.0.0",
+        "source": "user",
+        "availability": "available",
+        "capabilities": [
+          "backend.plan"
+        ],
+        "supports_parallel": false,
+        "permissions": [
+          "repo.read",
+          "repo.write"
+        ],
+        "resource_claims": [
+          {
+            "kind": "path",
+            "key": ".",
+            "access": "write"
+          }
+        ],
+        "output_schema_id": "workflow/skill-output-v1",
+        "output_media_types": [
+          "application/json",
+          "text/markdown"
+        ],
+        "validators": [
+          "child-validator"
+        ],
+        "depends_on": []
+      },
+      {
+        "id": "backend-design",
+        "version": "1.0.0",
+        "source": "user",
+        "availability": "available",
+        "capabilities": [
+          "backend.design"
+        ],
+        "supports_parallel": false,
+        "permissions": [
+          "repo.read",
+          "repo.write"
+        ],
+        "resource_claims": [
+          {
+            "kind": "path",
+            "key": ".",
+            "access": "write"
+          }
+        ],
+        "output_schema_id": "workflow/skill-output-v1",
+        "output_media_types": [
+          "application/json",
+          "text/markdown"
+        ],
+        "validators": [
+          "child-validator"
+        ],
+        "depends_on": [
+          "requirements-analysis"
+        ]
+      },
+      {
+        "id": "backend-tdd",
+        "version": "1.0.0",
+        "source": "user",
+        "availability": "available",
+        "capabilities": [
+          "backend.build"
+        ],
+        "supports_parallel": false,
+        "permissions": [
+          "repo.read",
+          "repo.write"
+        ],
+        "resource_claims": [
+          {
+            "kind": "path",
+            "key": ".",
+            "access": "write"
+          }
+        ],
+        "output_schema_id": "workflow/skill-output-v1",
+        "output_media_types": [
+          "application/json",
+          "text/markdown"
+        ],
+        "validators": [
+          "child-validator"
+        ],
+        "depends_on": [
+          "backend-design"
+        ]
+      },
+      {
+        "id": "backend-code-review",
+        "version": "1.0.0",
+        "source": "user",
+        "availability": "available",
+        "capabilities": [
+          "backend.review"
+        ],
+        "supports_parallel": false,
+        "permissions": [
+          "repo.read",
+          "repo.write"
+        ],
+        "resource_claims": [
+          {
+            "kind": "path",
+            "key": ".",
+            "access": "write"
+          }
+        ],
+        "output_schema_id": "workflow/skill-output-v1",
+        "output_media_types": [
+          "application/json",
+          "text/markdown"
+        ],
+        "validators": [
+          "child-validator"
+        ],
+        "depends_on": [
+          "backend-tdd"
+        ]
+      },
+      {
+        "id": "backend-api-verification",
+        "version": "1.0.0",
+        "source": "user",
+        "availability": "available",
+        "capabilities": [
+          "backend.verify"
+        ],
+        "supports_parallel": false,
+        "permissions": [
+          "repo.read",
+          "repo.write"
+        ],
+        "resource_claims": [
+          {
+            "kind": "path",
+            "key": ".",
+            "access": "write"
+          }
+        ],
+        "output_schema_id": "workflow/skill-output-v1",
+        "output_media_types": [
+          "application/json",
+          "text/markdown"
+        ],
+        "validators": [
+          "child-validator"
+        ],
+        "depends_on": [
+          "backend-code-review"
+        ]
+      },
+      {
+        "id": "backend-local-release",
+        "version": "1.0.0",
+        "source": "user",
+        "availability": "available",
+        "capabilities": [
+          "backend.package"
+        ],
+        "supports_parallel": false,
+        "permissions": [
+          "repo.read",
+          "repo.write"
+        ],
+        "resource_claims": [
+          {
+            "kind": "path",
+            "key": ".",
+            "access": "write"
+          }
+        ],
+        "output_schema_id": "workflow/skill-output-v1",
+        "output_media_types": [
+          "application/json",
+          "text/markdown"
+        ],
+        "validators": [
+          "child-validator"
+        ],
+        "depends_on": [
+          "backend-api-verification"
+        ]
+      },
+      {
+        "id": "backend-release-acceptance",
+        "version": "1.0.0",
+        "source": "user",
+        "availability": "available",
+        "capabilities": [
+          "backend.acceptance"
+        ],
+        "supports_parallel": false,
+        "permissions": [
+          "repo.read",
+          "repo.write"
+        ],
+        "resource_claims": [
+          {
+            "kind": "path",
+            "key": ".",
+            "access": "write"
+          }
+        ],
+        "output_schema_id": "workflow/skill-output-v1",
+        "output_media_types": [
+          "application/json",
+          "text/markdown"
+        ],
+        "validators": [
+          "child-validator"
+        ],
+        "depends_on": [
+          "backend-local-release"
+        ]
+      }
+    ],
+    "mcps": [],
+    "allowed_permissions": [
+      "repo.read",
+      "repo.write"
+    ]
+  }
+}

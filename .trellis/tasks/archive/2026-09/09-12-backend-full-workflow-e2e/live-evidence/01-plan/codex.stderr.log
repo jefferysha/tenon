@@ -1,0 +1,5 @@
+2026-09-12T05:41:30.786745Z  WARN codex_state::runtime: failed to run startup maintenance for logs db at /Users/a1234/.codex/logs_2.sqlite: error returned from database: (code: 11) database disk image is malformed
+Reading additional input from stdin...
+2026-09-12T05:41:32.026245Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-09-12T05:41:32.028790Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back
+2026-09-12T05:41:32.057508Z  WARN codex_rollout::list: state db discrepancy during find_thread_path_by_id_str_in_subdir: falling_back

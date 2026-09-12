@@ -1,0 +1,68 @@
+{
+  "contract": "Build a real Node.js task management HTTP API, no external runtime dependencies. Entry src/server.mjs; PORT=0 allowed; print LISTENING <actual_port> on stdout; DATA_FILE environment configures persistent JSON store. GET /health => 200 {status:\"ok\"}. POST /tasks with {title} => 201 {id,title,status:\"pending\"}. GET /tasks => 200 {tasks:[...]}; GET /tasks/:id =>200 task or404. PATCH /tasks/:id with {status:\"pending\"|\"done\"} =>200 updated task; DELETE /tasks/:id =>204 or404. Reject malformed JSON, blank title and invalid status with400 and JSON error string. Preserve data after restart; support concurrent writes without lost tasks. No internet service, credentials, external publication or push. Deliver a local tar.gz/tgz package under release/ with src/server.mjs at archive root. Ignore the presence of runtime ledger directories; never edit .pipeline* or claim host-native Skill hook completion. Each stage performs actual work and discovers output paths as it goes. Produce final structured manifest only of real files.",
+  "acceptance_command": "node /Users/a1234/Documents/code-manager/projects/tenon-local/.trellis/tasks/09-12-backend-full-workflow-e2e/acceptance.mjs /private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service",
+  "package_acceptance_command": "node /Users/a1234/Documents/code-manager/projects/tenon-local/.trellis/tasks/09-12-backend-full-workflow-e2e/acceptance.mjs /private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service --package",
+  "stages": [
+    {
+      "id": "plan",
+      "skill_id": "requirements-analysis",
+      "goal": "Create a concise requirements and acceptance checklist for this API. Write docs/contract.md as initial contract and a tasks checklist. Do not implement code. Output discovered files.",
+      "skill_path": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service/.agents/skills/requirements-analysis/SKILL.md",
+      "depends_on": []
+    },
+    {
+      "id": "design",
+      "skill_id": "backend-design",
+      "goal": "Read exact upstream published contract. Update docs/contract.md to clarify error shapes, concurrency and persistence semantics, retaining requirements. Write a concrete design and implementation plan. No code yet. This is a real revision to an existing published artifact.",
+      "skill_path": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service/.agents/skills/backend-design/SKILL.md",
+      "depends_on": [
+        "plan"
+      ]
+    },
+    {
+      "id": "build",
+      "skill_id": "backend-tdd",
+      "goal": "Read exact prior contract/design. Implement src/server.mjs and any supporting modules, package.json, and node:test unit/integration tests. Actually run tests, fixing failures. Implement all API behavior including concurrent persisted writes, malformed JSON, 404, restart. Capture real test results in a file. Never claim checks not run.",
+      "skill_path": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service/.agents/skills/backend-tdd/SKILL.md",
+      "depends_on": [
+        "design"
+      ]
+    },
+    {
+      "id": "review",
+      "skill_id": "backend-code-review",
+      "goal": "Read contract, design, every source/test file. Review HTTP correctness, body handling, persistence errors/concurrency, injection/path safety. Run tests. If you find real defects, fix them and regress them here, updating source versions and report honestly. Write a review report with concrete evidence.",
+      "skill_path": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service/.agents/skills/backend-code-review/SKILL.md",
+      "depends_on": [
+        "build"
+      ]
+    },
+    {
+      "id": "verify",
+      "skill_id": "backend-api-verification",
+      "goal": "Run provided independent acceptance command. Also run project tests. If actual failures occur, diagnose and fix in workspace and rerun until passing; record failures and corrections, do not edit external acceptance runner. Produce verification report with command/exit/evidence. No fake green.",
+      "skill_path": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service/.agents/skills/backend-api-verification/SKILL.md",
+      "depends_on": [
+        "review"
+      ]
+    },
+    {
+      "id": "package",
+      "skill_id": "backend-local-release",
+      "goal": "Read validated implementation and report, run tests, create README with launch commands and release notes. Package ONLY service/docs/tests/package.json as release/*.tgz (src/server.mjs at archive root); exclude runtime ledgers, skills, logs, node_modules, tar itself. No PR/push/deployment. Run independent source and packaged acceptance commands, recording actual logs.",
+      "skill_path": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service/.agents/skills/backend-local-release/SKILL.md",
+      "depends_on": [
+        "verify"
+      ]
+    },
+    {
+      "id": "acceptance",
+      "skill_id": "backend-release-acceptance",
+      "goal": "Independently inspect local release archive, run provided packaged acceptance test, run source tests, verify README launch commands. Write final acceptance report with real results and relative deliverable package path. Do not alter implementation unless an actual failure requires correction; if that happens repack and retest.",
+      "skill_path": "/private/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-full-real-sz8e1q_u/openspec/changes/tasks-service/.agents/skills/backend-release-acceptance/SKILL.md",
+      "depends_on": [
+        "package"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "summary": "Acceptance blocked: archive inspection and digests completed, but packaged/source tests remained pending and README launch was denied by sandbox socket permissions.",
+  "outputs": [
+    "acceptance-report.md",
+    "acceptance-digests.txt"
+  ],
+  "consumed": [
+    "release/tasks-service.tgz",
+    "README.md",
+    "package.json",
+    "src/server.mjs",
+    "test/server.test.mjs"
+  ],
+  "status": "blocked"
+}

@@ -1,0 +1,27 @@
+{
+  "declared_outputs": [
+    "release/tasks-service.tgz",
+    "package-contents.log",
+    "package-source-test.log",
+    "package-packaged-test.log",
+    "package-packaged-launch.log",
+    "package-run-summary.txt",
+    "package-source-test.exit",
+    "package-packaged-test.exit",
+    "package-packaged-launch.exit",
+    "package-staging/README.md"
+  ],
+  "valid_outputs": [
+    "release/tasks-service.tgz",
+    "package-contents.log",
+    "package-source-test.log",
+    "package-packaged-test.log",
+    "package-packaged-launch.log",
+    "package-run-summary.txt",
+    "package-source-test.exit",
+    "package-packaged-test.exit",
+    "package-packaged-launch.exit",
+    "package-staging/README.md"
+  ],
+  "status": "pass"
+}
