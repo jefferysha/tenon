@@ -94,6 +94,7 @@ export type { MaterializeWorkflowPipelineInputV2, PipelineIdentityV2 } from './o
 // v2 durable executor: lease-aware, validator-bound, retryable runtime over the Kernel ledger.
 export * from './orchestration/runtime-v2.js'
 export * from './orchestration/codex-skill-executor-v2.js'
+export * from './orchestration/production-runtime-v2.js'
 export * from './orchestration/input-materialization-v2.js'
 export * from './orchestration/autonomous-orchestrator-v2.js'
 export {

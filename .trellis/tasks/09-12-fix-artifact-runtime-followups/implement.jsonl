@@ -1,0 +1,7 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Required data-flow and event-contract checks across runtime, service, API, UI and CLI."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Required shared visibility, scan policy and decoder ownership checks."}
+{"file":".trellis/spec/automation/backend/orchestration.md","reason":"Canonical runtime, executor, validator and ledger boundary contracts."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Existing artifact registration and exact-version output semantics."}
+{"file":".trellis/tasks/09-12-fix-artifact-lineage-workflow/prd.md","reason":"Prior accepted artifact lineage contract and production evidence baseline."}
+{"file":"docs/research/2026-09-12-runtime-artifact-code-findings.md","reason":"Prior code findings and known production wiring gaps."}
+{"file":"docs/research/2026-09-12-runtime-artifact-protocol-findings.md","reason":"Protocol evidence for observation, versioning, receipts and progressive disclosure."}

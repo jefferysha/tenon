@@ -2,6 +2,7 @@ import { redact } from './runtime-v2-boundary.js'
 import type { RuntimeExecutorInputV2, RuntimeExecutorV2 } from './runtime-v2.js'
 import type { ExecFn } from '../runner/exec.js'
 import { nodeExec } from '../runner/exec.js'
+import path from 'node:path'
 
 export interface CodexSkillExecutorV2Options {
   readonly change_dir: string
@@ -14,6 +15,10 @@ export interface CodexSkillExecutorV2Options {
 
 const DEFAULT_MAX_OUTPUT_CHARS = 256 * 1024
 const SAFE_LOCAL_REF = /^[A-Za-z0-9][A-Za-z0-9._/@:-]{0,511}$/u
+const MAX_MANAGED_TOOL_OBSERVATIONS = 128
+const MAX_EVENT_TYPES = 32
+const MAX_EVENT_SAMPLES = 8
+const MAX_EVENT_SAMPLE_CHARS = 180
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined
@@ -53,24 +58,77 @@ export function parseCodexSkillOutput(jsonl: string): { readonly value: unknown;
   try { return { value: JSON.parse(unwrap(last)), diagnostics } } catch { return { value: last, diagnostics: [...diagnostics, 'codex-output-not-json'] } }
 }
 
-function toolPath(event: unknown): { readonly path: string; readonly toolCallId?: string } | undefined {
+function toolCompletionKind(event: unknown): string | undefined {
   const record = asRecord(event)
-  const item = asRecord(record?.item)
-  const candidate = [record?.path, record?.file_path, item?.path, item?.file_path].find((value): value is string => typeof value === 'string')
-  if (candidate === undefined) return undefined
-  const id = [record?.id, record?.call_id, item?.id].find((value): value is string => typeof value === 'string')
-  return { path: candidate, ...(id === undefined ? {} : { toolCallId: id }) }
-}
-
-function isToolCompletion(event: unknown): boolean {
-  const record = asRecord(event)
-  if (record === undefined) return false
+  if (record === undefined) return undefined
   const type = typeof record.type === 'string' ? record.type : ''
-  if (type === 'tool.completed' || type === 'command.completed' || type === 'shell.completed' || type === 'write.completed') return true
-  if (type !== 'item.completed') return false
+  if (type === 'tool.completed' || type === 'command.completed' || type === 'shell.completed' || type === 'write.completed') return type
+  if (type !== 'item.completed') return undefined
   const item = asRecord(record.item)
   const itemType = typeof item?.type === 'string' ? item.type : ''
-  return itemType.includes('command') || itemType.includes('shell') || itemType.includes('write') || itemType.includes('tool')
+  // Codex has used these exact item names. Do not use a substring match here:
+  // `tool_result`, `command_preview`, and future item types are not proof that a
+  // managed tool completed and must fall back to the stage-end reconcile.
+  return new Set(['command_execution', 'command', 'shell_command', 'shell', 'file_change', 'write', 'file_write', 'tool_call', 'tool_use', 'mcp_tool_call']).has(itemType)
+    ? itemType
+    : undefined
+}
+
+function stringsAtKnownKeys(value: unknown, output: string[], depth = 0): void {
+  if (depth > 4 || value === null || value === undefined) return
+  if (Array.isArray(value)) {
+    for (const child of value) stringsAtKnownKeys(child, output, depth + 1)
+    return
+  }
+  const record = asRecord(value)
+  if (record === undefined) return
+  const keys = ['path', 'file_path', 'relative_path', 'output_path', 'target_path', 'source_path']
+  for (const key of keys) if (typeof record[key] === 'string') output.push(record[key] as string)
+  for (const key of ['item', 'changes', 'files', 'paths', 'result', 'output', 'arguments', 'input', 'parameters', 'tool', 'data']) {
+    if (record[key] === undefined) continue
+    if ((key === 'files' || key === 'paths') && Array.isArray(record[key])) {
+      for (const child of record[key] as unknown[]) if (typeof child === 'string') output.push(child)
+    } else stringsAtKnownKeys(record[key], output, depth + 1)
+  }
+}
+
+function normalizeScopedPath(candidate: string, changeDir: string): string | undefined {
+  const normalizedCandidate = candidate.trim().replaceAll('\\', path.sep)
+  if (normalizedCandidate.length === 0 || normalizedCandidate.includes('\u0000') || normalizedCandidate.includes('://') || /^[A-Za-z]:\//u.test(normalizedCandidate)) return undefined
+  const root = path.resolve(changeDir)
+  const absolute = path.resolve(root, normalizedCandidate)
+  const relative = path.relative(root, absolute)
+  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return undefined
+  const segments = relative.split(path.sep)
+  if (segments.some((segment) => segment === '.git' || segment === '.pipeline-artifacts' || segment === '.tenon-artifacts' || segment === '.orchestration-v2')) return undefined
+  return relative
+}
+
+interface CodexToolCompletion {
+  readonly kind: string
+  readonly paths: readonly string[]
+  readonly rejectedPathCount: number
+  readonly toolCallId?: string
+}
+
+/** Decode only known Codex completion envelopes. Exported for fixture-based tests. */
+export function decodeCodexToolCompletion(event: unknown, changeDir: string): CodexToolCompletion | undefined {
+  const kind = toolCompletionKind(event)
+  if (kind === undefined) return undefined
+  const record = asRecord(event)
+  const item = asRecord(record?.item)
+  const candidates: string[] = []
+  stringsAtKnownKeys(record, candidates)
+  const paths: string[] = []
+  let rejectedPathCount = 0
+  for (const candidate of candidates) {
+    const normalized = normalizeScopedPath(candidate, changeDir)
+    if (normalized === undefined) rejectedPathCount += 1
+    else if (!paths.includes(normalized)) paths.push(normalized)
+  }
+  const toolCallId = [record?.tool_call_id, record?.call_id, record?.id, item?.tool_call_id, item?.call_id, item?.id]
+    .find((value): value is string => typeof value === 'string' && value.length > 0)
+  return { kind, paths, rejectedPathCount, ...(toolCallId === undefined ? {} : { toolCallId }) }
 }
 
 function promptFor(input: RuntimeExecutorInputV2): string {
@@ -95,29 +153,73 @@ export function createCodexSkillExecutorV2(options: CodexSkillExecutorV2Options)
   return {
     async execute(input) {
       const prompt = options.prompt?.(input) ?? promptFor(input)
-      const events: string[] = []
       const reconciles: Promise<unknown>[] = []
+      const managedObservations: Promise<unknown>[] = []
+      const eventTypeCounts = new Map<string, number>()
+      const eventSamples: string[] = []
+      const pathDiagnostics: string[] = []
+      let managedToolCompletionCount = 0
+      let managedPathCount = 0
+      let managedObservationLimitHit = false
       const result = await exec(options.codex_executable ?? 'codex', ['exec', '--json', '-C', options.change_dir, '--sandbox', sandbox, '--ephemeral', '--skip-git-repo-check', prompt], {
         cwd: options.change_dir,
         maxTailChars: maxOutputChars,
         onLine: (line) => {
-          events.push(line)
           try {
             const event = JSON.parse(line) as unknown
-            if (isToolCompletion(event) && input.artifact_runtime !== undefined) {
-              const pathInfo = toolPath(event)
-              if (pathInfo !== undefined) reconciles.push(input.artifact_runtime.observePath(pathInfo.path, { source: 'managed-tool', ...(pathInfo.toolCallId === undefined ? {} : { toolCallId: pathInfo.toolCallId }) }))
-              else reconciles.push(input.artifact_runtime.reconcile())
+            const completion = decodeCodexToolCompletion(event, options.change_dir)
+            const type = completion?.kind ?? (typeof asRecord(event)?.type === 'string' ? asRecord(event)?.type as string : undefined)
+            if (type !== undefined) {
+              if (eventTypeCounts.size < MAX_EVENT_TYPES || eventTypeCounts.has(type)) eventTypeCounts.set(type, (eventTypeCounts.get(type) ?? 0) + 1)
+              if (eventSamples.length < MAX_EVENT_SAMPLES && completion !== undefined) {
+                eventSamples.push(`${completion.kind}:${completion.paths.join(',') || 'path-unresolved'}`.slice(0, MAX_EVENT_SAMPLE_CHARS))
+              }
+            }
+            if (completion !== undefined) {
+              managedToolCompletionCount += 1
+              managedPathCount += completion.paths.length
+              if (completion.paths.length === 0 && pathDiagnostics.length < MAX_EVENT_SAMPLES) pathDiagnostics.push(`codex-managed-path-unresolved:${completion.kind}`)
+              if (completion.rejectedPathCount > 0 && pathDiagnostics.length < MAX_EVENT_SAMPLES) pathDiagnostics.push(`codex-managed-path-rejected:${completion.kind}:${completion.rejectedPathCount}`)
+              if (completion.rejectedPathCount > 0 && eventSamples.length < MAX_EVENT_SAMPLES) eventSamples.push(`${completion.kind}:path-rejected=${completion.rejectedPathCount}`.slice(0, MAX_EVENT_SAMPLE_CHARS))
+              if (input.artifact_runtime !== undefined) {
+                for (const relativePath of completion.paths) {
+                  if (managedObservations.length >= MAX_MANAGED_TOOL_OBSERVATIONS) {
+                    managedObservationLimitHit = true
+                    break
+                  }
+                  managedObservations.push(input.artifact_runtime.observePath(relativePath, { source: 'managed-tool', ...(completion.toolCallId === undefined ? {} : { toolCallId: completion.toolCallId }) }))
+                }
+                // A recognized tool completion without a safe path is not a managed
+                // observation. Reconcile is deliberately tagged by StageRuntime as
+                // `reconcile`, preserving the durable fallback without over-claiming.
+                if (completion.paths.length === 0) reconciles.push(input.artifact_runtime.reconcile())
+              }
             }
           } catch { /* parser reports malformed JSON after the child exits */ }
         },
       })
       const parsed = parseCodexSkillOutput(result.stdout)
-      const reconciliationResults = await Promise.allSettled(reconciles)
+      const [reconciliationResults, observationResults] = await Promise.all([
+        Promise.allSettled(reconciles), Promise.allSettled(managedObservations),
+      ])
       const reconcileDiagnostics = reconciliationResults.flatMap((entry) => entry.status === 'rejected' ? [`artifact-reconcile-failed:${redact(entry.reason instanceof Error ? entry.reason.message : 'unknown', 180)}`] : [])
+      const observationDiagnostics = observationResults.flatMap((entry) => entry.status === 'rejected' ? [`artifact-managed-observe-failed:${redact(entry.reason instanceof Error ? entry.reason.message : 'unknown', 180)}`] : [])
       if (result.exitCode !== 0) throw new Error(`codex skill execution failed (${result.exitCode}): ${redact(result.stderr, 512)}`)
       const candidate = asRecord(parsed.value)
-      const diagnostics = [...parsed.diagnostics, ...reconcileDiagnostics, ...(result.stderr.length > 0 ? [`codex-stderr:${redact(result.stderr, 256)}`] : [])]
+      const streamDiagnostics = [
+        ...parsed.diagnostics,
+        ...reconcileDiagnostics,
+        ...observationDiagnostics,
+        ...pathDiagnostics,
+        ...(managedToolCompletionCount > 0 ? [`codex-managed-tool-completions:${managedToolCompletionCount}`] : []),
+        ...(managedPathCount > 0 ? [`codex-managed-tool-paths:${managedPathCount}`] : []),
+        ...(managedObservations.length > 0 ? [`codex-managed-observations:${observationResults.filter((entry) => entry.status === 'fulfilled').length}`] : []),
+        ...(managedObservationLimitHit ? ['codex-managed-observations-truncated'] : []),
+        ...(eventTypeCounts.size > 0 ? [`codex-event-types:${[...eventTypeCounts.entries()].map(([type, count]) => `${type}=${count}`).join(',').slice(0, 512)}`] : []),
+        ...(eventSamples.length > 0 ? [`codex-event-samples:${eventSamples.slice(0, MAX_EVENT_SAMPLES).join('|').slice(0, 1024)}`] : []),
+        ...(result.stderr.length > 0 ? [`codex-stderr:${redact(result.stderr, 256)}`] : []),
+      ]
+      const diagnostics = streamDiagnostics
       let observedArtifacts: unknown[] | undefined
       if (candidate !== undefined && Array.isArray(candidate.artifacts) && input.artifact_runtime !== undefined) {
         observedArtifacts = []

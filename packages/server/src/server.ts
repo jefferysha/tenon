@@ -19,7 +19,7 @@ import {
   writeRegistryWithGovernance,
   createOrchestrationLedger,
 } from '@tenon/kernel'
-import { createRunnerSkillContentLocator, evaluateLoopExecutionWiring, openArtifactService, type ArtifactService } from '@tenon/automation'
+import { createRunnerSkillContentLocator, createProductionExecutionRuntimeV2, evaluateLoopExecutionWiring, openArtifactService, type ArtifactService } from '@tenon/automation'
 import type {
   ChangeRefScan, CreateTrackSpec, ExtendedManifestData, FlowEngine, GraduationFs, StateStore, TrackDefinition,
   ProjectTrackConfig, TrackRegistry, TrackValidationContext, UpdateTrackPatch, WorkflowDef,
@@ -270,7 +270,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, trackRegistryBody, manifestPath, paths,
       hostHome, operationsAvailable, hostTargetPlanRuntime, options, operationRunner,
       resolveSessionLink: (root, name) => resolveSessionLinkForChange(root, name, { store, memFs }), errMsg,
-      orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest },
+      orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
       definitionCatalog: {
         workflowRootForRequest,
         hostHome,
@@ -294,7 +294,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       mutateTrackForApi: mutateTrackForRoutes, trackRegistryBody, sendTrackError, errMsg,
       realGraduationFs: REAL_GRADUATION_FS,
       relatedSessionSearch,
-      orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest },
+      orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
       adapterInstall,
     })
   const mutationRouteDeps = {

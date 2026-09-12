@@ -4,7 +4,15 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { atomicReplaceFile, withLock } from '@tenon/kernel'
 import type { ArtifactAttempt, ArtifactCatalog, ArtifactCatalogEntry, ArtifactCheck, ArtifactChecker, ArtifactContent, ArtifactEvent, ArtifactPolicy, ArtifactReadReceipt, ArtifactRecord, ArtifactSchemaAdapter, ArtifactSummaryProvider, ArtifactVersion, ArtifactProducer } from '@tenon/kernel'
 
-export interface ArtifactServiceOptions { readonly rootDir: string; readonly scopeId: string; readonly now?: () => string }
+export interface ArtifactServiceOptions {
+  readonly rootDir: string
+  readonly scopeId: string
+  readonly now?: () => string
+  /** Production callers can register the checks appropriate for their artifact policy at open time. */
+  readonly checkers?: readonly ArtifactChecker[]
+  readonly schemaAdapters?: readonly ArtifactSchemaAdapter[]
+  readonly summaryProviders?: readonly ArtifactSummaryProvider[]
+}
 export interface BeginAttemptInput { readonly workflowRunId: string; readonly stageId: string; readonly stageAttemptId: string; readonly dependencyStages?: readonly string[]; readonly visibility?: ArtifactAttempt['visibility'] }
 export interface ObserveInput extends ArtifactContent { readonly artifactId?: string; readonly path?: string; readonly idempotencyKey?: string; readonly disposition?: ArtifactVersion['disposition']; readonly observationSource?: 'managed-tool' | 'explicit-publish' | 'reconcile' | 'external'; readonly toolCallId?: string }
 export interface PublishInput { readonly artifactId?: string; readonly version?: string; readonly path?: string; readonly disposition?: ArtifactVersion['disposition']; readonly displayName?: string }
@@ -29,6 +37,28 @@ export interface ArtifactService {
   registerChecker(checker: ArtifactChecker): () => void
   registerSchemaAdapter(adapter: ArtifactSchemaAdapter): () => void
   registerSummaryProvider(provider: ArtifactSummaryProvider): () => void
+}
+
+/** Conservative built-ins for production entry points. They never turn an
+ * unsupported artifact into a pass; callers may add stricter checkers. */
+export function createDefaultArtifactCheckers(): readonly ArtifactChecker[] {
+  return [
+    {
+      id: 'builtin-json-structure',
+      version: '1',
+      supports: version => version.mediaType.includes('json'),
+      check: ({ bytes }) => {
+        try { JSON.parse(new TextDecoder().decode(bytes)); return { status: 'passed' as const } }
+        catch { return { status: 'failed' as const, diagnostics: ['invalid-json'] } }
+      },
+    },
+    {
+      id: 'builtin-unsupported-media',
+      version: '1',
+      supports: version => !version.mediaType.includes('json'),
+      check: () => ({ status: 'not-applicable' as const, diagnostics: ['no-default-checker'] }),
+    },
+  ]
 }
 
 interface State { version: 1; revision: number; attempts: ArtifactAttempt[]; artifacts: ArtifactRecord[]; events: ArtifactEvent[]; reads: ArtifactReadReceipt[]; checks: ArtifactCheck[] }
@@ -57,7 +87,7 @@ function decodeState(value: unknown): State {
 
 export async function openArtifactService(options: ArtifactServiceOptions): Promise<ArtifactService> {
   const root = resolve(options.rootDir); const store = join(root, '.pipeline-artifacts', options.scopeId); const blobs = join(store, 'blobs'); const statePath = join(store, 'state.json'); const now = options.now ?? (() => new Date().toISOString())
-  const checkers = new Map<string, ArtifactChecker>(); const schemas = new Map<string, ArtifactSchemaAdapter>(); const summaries = new Map<string, ArtifactSummaryProvider>()
+  const checkers = new Map<string, ArtifactChecker>([...createDefaultArtifactCheckers(), ...(options.checkers ?? [])].map(checker => [checker.id, checker])); const schemas = new Map<string, ArtifactSchemaAdapter>(options.schemaAdapters?.map(adapter => [adapter.id, adapter]) ?? []); const summaries = new Map<string, ArtifactSummaryProvider>(options.summaryProviders?.map(provider => [provider.id, provider]) ?? [])
   await mkdir(blobs, { recursive: true })
   async function load(): Promise<State> { try { return decodeState(JSON.parse(await readFile(statePath, 'utf8'))) } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return emptyState(); throw e } }
   async function save(state: State): Promise<void> { await mkdir(dirname(statePath), { recursive: true }); await atomicReplaceFile(statePath, JSON.stringify(state, null, 2)) }
@@ -108,15 +138,52 @@ export async function openArtifactService(options: ArtifactServiceOptions): Prom
       return observedAttempt !== undefined && attempt.dependencyStages.includes(observedAttempt.stageId)
     })
   }
+  function pinnedForAttempt(s: State, attempt: ArtifactAttempt): Readonly<Record<string, string>> {
+    const pinned: Record<string, string> = {}
+    for (const record of s.artifacts) {
+      // Pin the newest visible deliverable, independent of a candidate
+      // currentVersion. This makes retries deterministic when a producer has
+      // an unpublished working version in the same scope.
+      const version = [...record.versions].reverse().find(candidate => candidate.disposition === 'deliverable' && candidate.deletedAt === undefined && visibleToAttempt(s, attempt, candidate))
+      if (version) pinned[record.artifactId] = version.version
+    }
+    return pinned
+  }
   const service: ArtifactService = {
     attempts: async stageId => (await load()).attempts.filter(a => stageId === undefined || a.stageId === stageId).map(clone),
-    beginAttempt: (input) => mutate(async s => { const existing = s.attempts.find(a => a.stageAttemptId === input.stageAttemptId); if (existing) return clone(existing); const a: ArtifactAttempt = { workflowRunId: input.workflowRunId, stageId: input.stageId, stageAttemptId: input.stageAttemptId, status: 'running', dependencyStages: input.dependencyStages ?? [], visibility: input.visibility ?? 'dependency-chain', startedAt: now() }; s.attempts.push(a); await emit(s, 'attempt.started', `attempt:${a.stageAttemptId}`, { attemptId: a.stageAttemptId }); return clone(a) }),
+    beginAttempt: (input) => mutate(async s => {
+      const existing = s.attempts.find(a => a.stageAttemptId === input.stageAttemptId)
+      if (existing) return clone(existing)
+      const draft: ArtifactAttempt = { workflowRunId: input.workflowRunId, stageId: input.stageId, stageAttemptId: input.stageAttemptId, status: 'running', dependencyStages: input.dependencyStages ?? [], visibility: input.visibility ?? 'dependency-chain', startedAt: now() }
+      const a: ArtifactAttempt = { ...draft, pinnedVersions: pinnedForAttempt(s, draft) }
+      s.attempts.push(a)
+      await emit(s, 'attempt.started', `attempt:${a.stageAttemptId}`, { attemptId: a.stageAttemptId, payload: { pinnedVersions: a.pinnedVersions } })
+      return clone(a)
+    }),
     endAttempt: (id, status) => mutate(async s => { const a = s.attempts.find(a => a.stageAttemptId === id); if (!a) throw new Error('attempt not found'); if (a.status !== 'running') return clone(a); const ended = { ...a, status, endedAt: now() } as ArtifactAttempt; s.attempts = s.attempts.map(x => x.stageAttemptId === id ? ended : x); await emit(s, 'attempt.ended', `attempt-end:${id}:${status}`, { attemptId: id, payload: { status } }); return clone(ended) }),
     observe: (id, input) => mutate(async s => { const a = s.attempts.find(a => a.stageAttemptId === id); if (!a) throw new Error('attempt not found'); if (input.idempotencyKey) { const prior = s.events.find(e => e.idempotencyKey === `observe:${input.idempotencyKey}`); if (prior?.artifactId && prior.version) { const pv = s.artifacts.find(r => r.artifactId === prior.artifactId)?.versions.find(v => v.version === prior.version); if (pv) return clone(pv) } } let bytes: Uint8Array; if (input.data !== undefined || input.content !== undefined) bytes = bytesOf(input.data ?? input.content); else if (input.path) bytes = new Uint8Array(await readFile(safePath(root, input.path))); else throw new Error('artifact content or path required'); return clone(await versionFor(s, input, bytes, a)) }),
     publish: (id, input) => mutate(async s => { const a = s.attempts.find(a => a.stageAttemptId === id); if (!a) throw new Error('attempt not found'); const index = input.artifactId ? s.artifacts.findIndex(x => x.artifactId === input.artifactId) : input.path ? s.artifacts.findIndex(x => x.displayName === input.path) : -1; if (index < 0) throw new Error('artifact candidate not found'); const record = s.artifacts[index]; if (!record) throw new Error('artifact candidate not found'); const v = input.version ? record.versions.find(candidate => candidate.version === input.version) : record.versions[record.versions.length - 1]; if (!v) throw new Error('artifact version not found'); const observedHere = s.events.some(e => e.type === 'artifact.observed' && e.attemptId === id && e.artifactId === record.artifactId && e.version === v.version); if (!observedHere) throw new Error('artifact was not observed by this attempt'); const published = { ...v, disposition: input.disposition ?? 'deliverable', ...(v.publisher === undefined ? { publisher: { workflowRunId: a.workflowRunId, stageAttemptId: id } } : {}) }; s.artifacts[index] = { ...record, versions: record.versions.map(x => x.version === v.version ? published : x) }; await emit(s, 'artifact.published', `publish:${id}:${record.artifactId}:${v.version}`, { attemptId: id, artifactId: record.artifactId, version: v.version }); return clone(published) }),
     delete: (id, artifactId, path) => mutate(async s => { const a = s.attempts.find(a => a.stageAttemptId === id); if (!a) throw new Error('attempt not found'); const index = s.artifacts.findIndex(x => x.artifactId === artifactId); if (index < 0) return; const r = s.artifacts[index]; if (!r) return; const v = r.currentVersion ? r.versions.find(x => x.version === r.currentVersion) : undefined; if (v && !v.deletedAt) { s.artifacts[index] = { ...r, versions: r.versions.map(x => x.version === v.version ? { ...x, deletedAt: now() } : x) }; await emit(s, 'artifact.deleted', `delete:${id}:${artifactId}:${v.version}`, { attemptId: id, artifactId, version: v.version, payload: { path } }) } }),
     rename: (id, artifactId, path) => mutate(async s => { const a = s.attempts.find(a => a.stageAttemptId === id); if (!a) throw new Error('attempt not found'); const index = s.artifacts.findIndex(x => x.artifactId === artifactId); if (index < 0) return undefined; const r = s.artifacts[index]; if (!r) return undefined; const v = r.versions.find(x => x.version === r.currentVersion); if (!v) return undefined; const renamed = { ...v, source: { ...(v.source ?? {}), path } }; s.artifacts[index] = { ...r, versions: r.versions.map(x => x.version === v.version ? renamed : x), displayName: path }; await emit(s, 'artifact.renamed', `rename:${id}:${artifactId}:${v.version}:${path}`, { attemptId: id, artifactId, version: v.version }); return clone(renamed) }),
-    catalog: async (id, policy = {}) => { const s = await load(); const a = s.attempts.find(a => a.stageAttemptId === id); if (!a) throw new Error('attempt not found'); const allowed = new Set(policy.dependencyStages ?? a.dependencyStages); const all: ArtifactCatalogEntry[] = []; for (const r of s.artifacts) for (const [versionIndex, v] of r.versions.entries()) { const producerAttempt = v.producer ? s.attempts.find(x => x.stageAttemptId === v.producer?.stageAttemptId) : undefined; const own = producerAttempt?.stageAttemptId === id; const visible = !v.producer || own || a.visibility !== 'dependency-chain' || allowed.has(producerAttempt?.stageId ?? ''); if (!v.deletedAt && visible && (policy.includeCandidates || v.disposition === 'deliverable') && (!policy.requireQuality || v.quality === policy.requireQuality)) { const consumed = s.reads.some(read => read.stageAttemptId === id && read.artifactId === v.artifactId && read.version === v.version); const newer = r.versions.some((next, nextIndex) => nextIndex > versionIndex && next.disposition === 'deliverable' && !next.deletedAt); all.push({ ...v, consumed, affected: consumed && newer && a.status === 'completed', availableFromStage: producerAttempt?.stageId }) } } const entries = policy.includeHistory ? all : all.filter(v => s.artifacts.find(r => r.artifactId === v.artifactId)?.currentVersion === v.version); const cursor = policy.cursor === undefined ? 0 : Math.max(0, Number.isSafeInteger(Number(policy.cursor)) ? Number(policy.cursor) : 0); const pageSize = policy.maxEntries === undefined ? entries.length : Math.max(0, policy.maxEntries); const bounded = entries.slice(cursor, cursor + pageSize); const truncated = cursor + bounded.length < entries.length; const nextCursor = truncated ? String(cursor + bounded.length) : undefined; const d = digest(new TextEncoder().encode(JSON.stringify(bounded.map(x => [x.artifactId, x.version, x.contentDigest, x.disposition, x.quality, x.producer, x.publisher, x.consumed, x.affected, x.availableFromStage])))); return { revision: s.revision, digest: d, stageAttemptId: id, entries: bounded, history: policy.includeHistory ? bounded : undefined, totalEntries: entries.length, truncated, ...(nextCursor ? { nextCursor } : {}) } },
+    catalog: async (id, policy = {}) => {
+      const s = await load(); const a = s.attempts.find(a => a.stageAttemptId === id); if (!a) throw new Error('attempt not found')
+      const visibilityAttempt = policy.dependencyStages === undefined ? a : { ...a, dependencyStages: policy.dependencyStages }
+      const all: ArtifactCatalogEntry[] = []
+      for (const r of s.artifacts) for (const [versionIndex, v] of r.versions.entries()) {
+        const producerAttempt = v.producer ? s.attempts.find(x => x.stageAttemptId === v.producer?.stageAttemptId) : undefined
+        const visible = visibleToAttempt(s, visibilityAttempt, v)
+        const pinned = !policy.pinned || a.pinnedVersions === undefined || a.pinnedVersions[v.artifactId] === v.version
+        if (!v.deletedAt && visible && pinned && (policy.includeCandidates || v.disposition === 'deliverable') && (!policy.requireQuality || v.quality === policy.requireQuality)) {
+          const consumed = s.reads.some(read => read.stageAttemptId === id && read.artifactId === v.artifactId && read.version === v.version)
+          const newer = r.versions.some((next, nextIndex) => nextIndex > versionIndex && next.disposition === 'deliverable' && !next.deletedAt)
+          all.push({ ...v, consumed, pendingUpdate: consumed && newer && a.status === 'running', affected: consumed && newer && a.status !== 'running', availableFromStage: producerAttempt?.stageId })
+        }
+      }
+      const entries = policy.includeHistory ? all : all.filter(v => s.artifacts.find(r => r.artifactId === v.artifactId)?.currentVersion === v.version)
+      const cursor = policy.cursor === undefined ? 0 : Math.max(0, Number.isSafeInteger(Number(policy.cursor)) ? Number(policy.cursor) : 0); const pageSize = policy.maxEntries === undefined ? entries.length : Math.max(0, policy.maxEntries); const bounded = entries.slice(cursor, cursor + pageSize); const truncated = cursor + bounded.length < entries.length; const nextCursor = truncated ? String(cursor + bounded.length) : undefined
+      const d = digest(new TextEncoder().encode(JSON.stringify(bounded.map(x => [x.artifactId, x.version, x.contentDigest, x.disposition, x.quality, x.producer, x.publisher, x.consumed, x.pendingUpdate, x.affected, x.availableFromStage]))))
+      return { revision: s.revision, digest: d, stageAttemptId: id, entries: bounded, history: policy.includeHistory ? bounded : undefined, totalEntries: entries.length, truncated, ...(nextCursor ? { nextCursor } : {}) }
+    },
     inspect: async (artifactId, version, options = {}) => { const s = await load(); const v = s.artifacts.find(x => x.artifactId === artifactId)?.versions.find(x => x.version === version); if (!v) throw new Error('artifact version not found'); const result: ArtifactInspection = { version: clone(v) }; const needsAnalysis = schemas.size > 0 || summaries.size > 0; if (options.includeContent || needsAnalysis) { const bytes = await readBlob(v.contentDigest, options.maxBytes); if (options.includeContent) result.bytes = bytes; const adapter = [...schemas.values()].find(candidate => candidate.supports(v)); if (adapter) result.structure = adapter.inspect(bytes); const provider = [...summaries.values()].find(candidate => candidate.supports(v)); if (provider) result.summary = await provider.summarize(bytes) } return result },
     read: async (id, artifactId, version, options = {}) => {
       const s = await load(); const attempt = s.attempts.find(a => a.stageAttemptId === id); if (!attempt) throw new Error('attempt not found')
@@ -145,11 +212,15 @@ export async function openArtifactService(options: ArtifactServiceOptions): Prom
     checks: async (artifactId, version) => (await load()).checks.filter(c => (!artifactId || c.artifactId === artifactId) && (!version || c.version === version)).map(clone),
     runChecks: async (artifactId, version) => {
       const inspected = await service.inspect(artifactId, version, { includeContent: true })
-      const applicable = [...checkers.values()].filter(checker => checker.supports(inspected.version))
+      let applicable = [...checkers.values()].filter(checker => checker.supports(inspected.version))
+      // The fallback media checker only speaks when no caller-provided
+      // checker claims the version; a registered text checker must be able to
+      // replace the conservative not-applicable result.
+      if (applicable.some(checker => checker.id !== 'builtin-unsupported-media')) applicable = applicable.filter(checker => checker.id !== 'builtin-unsupported-media')
       const results: ArtifactCheck[] = []
       for (const checker of applicable) {
         const result = await checker.check({ version: inspected.version, bytes: inspected.bytes ?? new Uint8Array() })
-        const check: ArtifactCheck = { ...result, artifactId, version, checker: checker.id, checkerVersion: checker.version, checkedAt: now() }
+        const check: ArtifactCheck = { ...result, checkId: `check:${checker.id}:${artifactId}:${version}`, artifactId, version, checker: checker.id, checkerVersion: checker.version, checkedAt: now() }
         await service.recordCheck(check)
         results.push(check)
       }

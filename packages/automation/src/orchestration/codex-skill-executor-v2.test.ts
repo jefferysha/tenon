@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vitest'
 import { nodeExec } from '../runner/exec.js'
-import { parseCodexSkillOutput, createCodexSkillExecutorV2 } from './codex-skill-executor-v2.js'
+import { decodeCodexToolCompletion, parseCodexSkillOutput, createCodexSkillExecutorV2 } from './codex-skill-executor-v2.js'
 
 const now = '2026-09-12T00:00:00.000Z'
 
 describe('production Codex skill executor v2', () => {
+  it('decodes supported Codex completion shapes and enforces the workspace scope', () => {
+    expect(decodeCodexToolCompletion({
+      type: 'item.completed',
+      item: { type: 'file_change', id: 'call-file', changes: [{ path: 'artifacts/report.md' }, { path: 'artifacts/report.json' }] },
+    }, '/tmp/change')).toEqual({
+      kind: 'file_change', paths: ['artifacts/report.md', 'artifacts/report.json'], rejectedPathCount: 0, toolCallId: 'call-file',
+    })
+    expect(decodeCodexToolCompletion({
+      type: 'write.completed', item: { file_path: '/tmp/change/artifacts/summary.txt', tool_call_id: 'call-write' },
+    }, '/tmp/change')).toEqual({ kind: 'write.completed', paths: ['artifacts/summary.txt'], rejectedPathCount: 0, toolCallId: 'call-write' })
+    expect(decodeCodexToolCompletion({
+      type: 'item.completed', item: { type: 'command_execution', command: 'echo hi > artifacts/ignored.txt' },
+    }, '/tmp/change')).toMatchObject({ kind: 'command_execution', paths: [], rejectedPathCount: 0 })
+    expect(decodeCodexToolCompletion({
+      type: 'item.completed', item: { type: 'file_change', changes: [{ path: '../outside.txt' }, { path: '.orchestration-v2/ledger.json' }] },
+    }, '/tmp/change')).toMatchObject({ kind: 'file_change', paths: [], rejectedPathCount: 2 })
+    expect(decodeCodexToolCompletion({ type: 'item.completed', item: { type: 'tool_result', path: 'artifacts/not-managed.md' } }, '/tmp/change')).toBeUndefined()
+  })
+
   it('parses the latest JSON envelope and preserves consumed declarations', () => {
     const result = parseCodexSkillOutput([
       JSON.stringify({ type: 'thread.started', thread_id: 'thread-1' }),
@@ -56,5 +75,34 @@ describe('production Codex skill executor v2', () => {
     expect(reconciled).toHaveLength(1)
     expect(published).toEqual(['report.md'])
     void now
+  })
+
+  it('observes validated managed-tool paths and emits bounded event diagnostics', async () => {
+    const observed: Array<{ path: string; source?: string; toolCallId?: string }> = []
+    const reconciled: string[] = []
+    const executor = createCodexSkillExecutorV2({
+      change_dir: '/tmp/change', codex_executable: 'fake-codex',
+      exec: async (_file, _args, options) => {
+        options?.onLine?.(JSON.stringify({ type: 'item.completed', item: { type: 'file_change', id: 'call-1', changes: [{ path: 'artifacts/a.md' }] } }))
+        options?.onLine?.(JSON.stringify({ type: 'item.completed', item: { type: 'tool_result', path: 'artifacts/not-managed.md' } }))
+        options?.onLine?.(JSON.stringify({ type: 'item.completed', item: { type: 'command_execution', command: 'pwd' } }))
+        return { stdout: JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: '<output>{"output":"ok"}</output>' } }), stderr: '', exitCode: 0 }
+      },
+    })
+    const result = await executor.execute({
+      run_id: 'run-managed', work_item_id: 'item-managed', skill_id: 'skill', skill_version: '1', mcp_ids: [], input_refs: [],
+      input_bundle: { schema_version: 'skill-input-bundle/v2', bundle_id: 'bundle:managed', run_id: 'run-managed', work_item_id: 'item-managed', items: [], bundle_digest: `sha256:${'a'.repeat(64)}`, byte_length: 0 },
+      signal: new AbortController().signal,
+      artifact_runtime: {
+        async observePath(path: string, options?: { source?: 'managed-tool'; toolCallId?: string }) { observed.push({ path, source: options?.source, toolCallId: options?.toolCallId }); return {} as never },
+        async reconcile() { reconciled.push('fallback'); return [] },
+      },
+    })
+    expect(observed).toEqual([{ path: 'artifacts/a.md', source: 'managed-tool', toolCallId: 'call-1' }])
+    expect(reconciled).toEqual(['fallback'])
+    expect(result.diagnostics).toEqual(expect.arrayContaining([
+      'codex-managed-tool-completions:2', 'codex-managed-tool-paths:1', 'codex-managed-observations:1',
+    ]))
+    expect(result.diagnostics?.some((entry) => entry.includes('tool_result'))).toBe(false)
   })
 })

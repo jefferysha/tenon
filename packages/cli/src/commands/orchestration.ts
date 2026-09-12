@@ -76,6 +76,22 @@ export async function cmdOrchestrationControl(deps: CliDeps, change: string, typ
   return 0
 }
 
+export async function cmdOrchestrationRun(deps: CliDeps, change: string): Promise<number> {
+  const dir = ledgerDir(deps, change)
+  if (!dir || deps.orchestrationRuntime === undefined) {
+    deps.io.err('ERROR: production orchestration runtime 未装配')
+    return 1
+  }
+  try {
+    const result = await deps.orchestrationRuntime(dir).then(runtime => runtime.run())
+    deps.io.out(JSON.stringify({ schema_version: 'orchestration-cli-run/v2', ok: result.ok, snapshot: result.snapshot, diagnostics: result.diagnostics }))
+    return result.ok ? 0 : 1
+  } catch (error) {
+    deps.io.err(`ERROR: orchestration run 失败: ${error instanceof Error ? error.message : String(error)}`)
+    return 1
+  }
+}
+
 export async function cmdOrchestrationRetry(deps: CliDeps, change: string, workItemId: string): Promise<number> {
   const dir = ledgerDir(deps, change)
   if (!dir) return 1

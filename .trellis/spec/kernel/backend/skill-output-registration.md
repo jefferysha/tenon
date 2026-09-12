@@ -132,3 +132,15 @@ await service.publish(stageAttemptId, { path: changedPath })
 await runtime.reconcile()
 await runtime.publish(changedPath, 'candidate') // explicit promotion after observation
 ```
+
+### 8. Runtime follow-up contract
+
+- The artifact service persists `pinnedVersions` when an attempt starts; downstream catalog and reads
+  use the same visibility predicate and may request `pinned: true` for deterministic retries.
+- A consumed older version is marked `pendingUpdate` while its consumer is running and `affected` after
+  the consumer ends. These states are projections, not permission to silently switch versions.
+- Default scans exclude `.git`, `.pipeline-artifacts`, `.tenon-artifacts`, and `.orchestration-v2`.
+  Codex managed observations accept only allow-listed completion envelopes with explicit in-scope paths;
+  unknown or path-less events fall back to bounded reconciliation diagnostics.
+- Production entry points register conservative JSON and unsupported-media checkers and record exact
+  checker identity/version. CLI and server must call the shared production runtime factory.

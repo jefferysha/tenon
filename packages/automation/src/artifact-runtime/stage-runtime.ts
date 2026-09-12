@@ -11,10 +11,11 @@ export interface ArtifactServicePort {
   publish(stageAttemptId: string, input: { artifactId?: string; version?: string; path: string; disposition?: 'candidate' | 'deliverable' | 'intermediate' }): Promise<ArtifactVersion>
   endAttempt(stageAttemptId: string, status: 'completed' | 'failed' | 'cancelled'): Promise<unknown>
   delete?(stageAttemptId: string, artifactId: string, path?: string): Promise<unknown>
-  catalog?(stageAttemptId: string, policy?: { readonly includeCandidates?: boolean; readonly includeHistory?: boolean; readonly maxEntries?: number }): Promise<ArtifactCatalog>
+  catalog?(stageAttemptId: string, policy?: { readonly includeCandidates?: boolean; readonly includeHistory?: boolean; readonly maxEntries?: number; readonly pinned?: boolean; readonly cursor?: string }): Promise<ArtifactCatalog>
   inspect?(artifactId: string, version: string, options?: { readonly includeContent?: boolean; readonly maxBytes?: number }): Promise<ArtifactInspection>
   read?(stageAttemptId: string, artifactId: string, version: string, options?: { readonly representation?: 'metadata' | 'structure' | 'summary' | 'content'; readonly consumer?: 'execution' | 'ui'; readonly maxBytes?: number }): Promise<ArtifactInspection>
   events?(after?: number, limit?: number): Promise<readonly ArtifactEvent[]>
+  runChecks?(artifactId: string, version: string): Promise<unknown>
 }
 
 export interface StageRuntimeOptions {
@@ -27,6 +28,8 @@ export interface StageRuntimeOptions {
   /** Optional skill/actor identity attached to newly created versions. */
   readonly skillId?: string
   readonly actorId?: string
+  /** Directory names that are runtime/system state rather than user artifacts. */
+  readonly ignoredDirectories?: readonly string[]
 }
 
 export interface ArtifactChange { readonly path: string; readonly kind: 'created' | 'changed' | 'deleted'; readonly digest?: string }
@@ -42,6 +45,7 @@ export class StageArtifactRuntime {
   private readonly workflowRunId: string
   private readonly skillId?: string
   private readonly actorId?: string
+  private readonly ignoredDirectories: ReadonlySet<string>
   private baseline = new Map<string, string>()
   private readonly artifactIdsByPath = new Map<string, string>()
   private readonly observedDigestsByPath = new Map<string, string>()
@@ -55,6 +59,7 @@ export class StageArtifactRuntime {
     this.workflowRunId = options.workflowRunId
     this.skillId = options.skillId
     this.actorId = options.actorId
+    this.ignoredDirectories = new Set(['.git', '.pipeline-artifacts', '.tenon-artifacts', '.orchestration-v2', ...(options.ignoredDirectories ?? [])])
   }
 
   static async open(options: StageRuntimeOptions): Promise<StageArtifactRuntime> {
@@ -62,7 +67,7 @@ export class StageArtifactRuntime {
     runtime.baseline = await runtime.snapshot()
     await options.service.beginAttempt({ workflowRunId: options.workflowRunId, stageId: options.stageId, stageAttemptId: options.stageAttemptId, dependencyStages: options.dependencyStages ?? [], visibility: 'dependency-chain' })
     if (options.service.catalog) {
-      const initial = await options.service.catalog(options.stageAttemptId, { includeCandidates: false, includeHistory: false, maxEntries: 1000 })
+      const initial = await options.service.catalog(options.stageAttemptId, { includeCandidates: false, includeHistory: false, maxEntries: 1000, pinned: true })
       for (const entry of initial.entries) runtime.pinnedVersions.set(entry.artifactId, entry.version)
     }
     return runtime
@@ -153,6 +158,9 @@ export class StageArtifactRuntime {
 
   async end(status: 'completed' | 'failed' | 'cancelled'): Promise<void> {
     await this.reconcile()
+    if (this.service.runChecks !== undefined) {
+      for (const version of this.observedVersionsByPath.values()) await this.service.runChecks(version.artifactId, version.version)
+    }
     await this.service.endAttempt(this.stageAttemptId, status)
   }
 
@@ -165,7 +173,12 @@ export class StageArtifactRuntime {
   private safeRelative(relative: string): string {
     const normalized = path.relative(this.rootDir, this.resolve(relative))
     if (!normalized || normalized.startsWith('..')) throw new Error(`invalid artifact path: ${relative}`)
+    if (this.isIgnored(normalized)) throw new Error(`ignored artifact path: ${relative}`)
     return normalized
+  }
+
+  private isIgnored(relative: string): boolean {
+    return relative.split(path.sep).some(segment => this.ignoredDirectories.has(segment))
   }
 
   private async snapshot(): Promise<Map<string, string>> {
@@ -173,10 +186,10 @@ export class StageArtifactRuntime {
     const walk = async (directory: string): Promise<void> => {
       const entries = await readdir(directory, { withFileTypes: true })
       for (const entry of entries) {
-        if (entry.name === '.tenon-artifacts' || entry.name === '.pipeline-artifacts' || entry.name === '.git') continue
+        if (this.ignoredDirectories.has(entry.name)) continue
         const absolute = path.join(directory, entry.name)
         if (entry.isDirectory()) await walk(absolute)
-        else if (entry.isFile()) {
+        else if (entry.isFile() && !this.isIgnored(path.relative(this.rootDir, absolute))) {
           const bytes = await readFile(absolute)
           result.set(path.relative(this.rootDir, absolute), createHash('sha256').update(bytes).digest('hex'))
         }

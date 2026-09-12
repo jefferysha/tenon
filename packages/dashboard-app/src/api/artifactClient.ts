@@ -5,7 +5,7 @@ export type ArtifactDisposition = 'candidate' | 'deliverable' | 'intermediate'
 export interface ArtifactVersion {
   artifactId: string; version: string; contentDigest: string; size: number; mediaType: string; kind: string
   origin: string; contentUri: string; disposition: ArtifactDisposition; quality: ArtifactQuality
-  createdAt: string; deletedAt?: string; source?: { path?: string }; availableFromStage?: string; consumed?: boolean; affected?: boolean
+  createdAt: string; deletedAt?: string; source?: { path?: string }; availableFromStage?: string; consumed?: boolean; affected?: boolean; pendingUpdate?: boolean
   producer?: { workflowRunId: string; stageAttemptId: string; actorId?: string; skillId?: string }
 }
 export interface ArtifactCatalog { revision: number; digest: string; stageAttemptId: string; entries: ArtifactVersion[]; nextCursor?: string; totalEntries?: number; truncated?: boolean }
@@ -18,7 +18,7 @@ function version(v: unknown): ArtifactVersion | null {
   if (disposition !== 'candidate' && disposition !== 'deliverable' && disposition !== 'intermediate') return null
   if (quality !== 'unchecked' && quality !== 'passed' && quality !== 'failed' && quality !== 'unavailable' && quality !== 'not-applicable') return null
   const producer = isRecord(v.producer) && typeof v.producer.workflowRunId === 'string' && typeof v.producer.stageAttemptId === 'string' ? { workflowRunId: v.producer.workflowRunId, stageAttemptId: v.producer.stageAttemptId, ...(typeof v.producer.actorId === 'string' ? { actorId: v.producer.actorId } : {}), ...(typeof v.producer.skillId === 'string' ? { skillId: v.producer.skillId } : {}) } : undefined
-  return { artifactId: v.artifactId, version: v.version, contentDigest: v.contentDigest, size: v.size, mediaType: v.mediaType, kind: typeof v.kind === 'string' ? v.kind : 'unknown', origin: typeof v.origin === 'string' ? v.origin : 'unknown', contentUri: v.contentUri, disposition, quality, createdAt: v.createdAt, ...(typeof v.deletedAt === 'string' ? { deletedAt: v.deletedAt } : {}), ...(isRecord(v.source) ? { source: { ...(typeof v.source.path === 'string' ? { path: v.source.path } : {}) } } : {}), ...(typeof v.availableFromStage === 'string' ? { availableFromStage: v.availableFromStage } : {}), ...(typeof v.consumed === 'boolean' ? { consumed: v.consumed } : {}), ...(typeof v.affected === 'boolean' ? { affected: v.affected } : {}), ...(producer === undefined ? {} : { producer }) }
+  return { artifactId: v.artifactId, version: v.version, contentDigest: v.contentDigest, size: v.size, mediaType: v.mediaType, kind: typeof v.kind === 'string' ? v.kind : 'unknown', origin: typeof v.origin === 'string' ? v.origin : 'unknown', contentUri: v.contentUri, disposition, quality, createdAt: v.createdAt, ...(typeof v.deletedAt === 'string' ? { deletedAt: v.deletedAt } : {}), ...(isRecord(v.source) ? { source: { ...(typeof v.source.path === 'string' ? { path: v.source.path } : {}) } } : {}), ...(typeof v.availableFromStage === 'string' ? { availableFromStage: v.availableFromStage } : {}), ...(typeof v.consumed === 'boolean' ? { consumed: v.consumed } : {}), ...(typeof v.affected === 'boolean' ? { affected: v.affected } : {}), ...(typeof v.pendingUpdate === 'boolean' ? { pendingUpdate: v.pendingUpdate } : {}), ...(producer === undefined ? {} : { producer }) }
 }
 function catalog(v: unknown): ArtifactCatalog | null {
   if (!isRecord(v) || typeof v.revision !== 'number' || typeof v.digest !== 'string' || typeof v.stageAttemptId !== 'string' || !Array.isArray(v.entries)) return null

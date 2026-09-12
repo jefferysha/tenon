@@ -11,6 +11,7 @@ import {
 } from '@tenon/kernel'
 import { tokenFromHeaders, tokensMatch } from './token.js'
 import type { WorkflowRootAnchor } from './workflows.js'
+import type { ExecutionRuntimeResultV2 } from '@tenon/automation'
 
 type WorkflowRootCheck =
   | { readonly ok: true; readonly anchor: WorkflowRootAnchor }
@@ -27,6 +28,8 @@ export interface OrchestrationV2RouteDeps {
   readonly clock?: () => string
   readonly streamPollIntervalMs?: number
   readonly streamHeartbeatMs?: number
+  /** Shared production runtime entry; absent in read-only test harnesses. */
+  readonly runChange?: (changeDir: string) => Promise<ExecutionRuntimeResultV2>
 }
 
 export interface OrchestrationV2HttpRouteDeps extends OrchestrationV2RouteDeps {
@@ -68,8 +71,8 @@ function rootCheck(deps: OrchestrationV2RouteDeps, root: string): Extract<Workfl
   return checked
 }
 
-function parseChange(path: string): { kind: 'change' | 'events' | 'stream' | 'commands' | 'metrics'; changeId: string } | OrchestrationV2RouteResult | null {
-  const match = /^\/api\/orchestration\/changes\/([^/]+)(?:\/(events|stream|commands|metrics))?$/.exec(path)
+function parseChange(path: string): { kind: 'change' | 'events' | 'stream' | 'commands' | 'metrics' | 'run'; changeId: string } | OrchestrationV2RouteResult | null {
+  const match = /^\/api\/orchestration\/changes\/([^/]+)(?:\/(events|stream|commands|metrics|run))?$/.exec(path)
   if (!match) return null
   const encoded = match[1]
   if (encoded === undefined) return failure(400, 'ORCHESTRATION_V2_CHANGE_INVALID', '非法 change 路径')
@@ -77,7 +80,7 @@ function parseChange(path: string): { kind: 'change' | 'events' | 'stream' | 'co
   try { changeId = decodeURIComponent(encoded) } catch { return failure(400, 'ORCHESTRATION_V2_CHANGE_INVALID', '非法 change 路径') }
   if (!validChangeId(changeId)) return failure(400, 'ORCHESTRATION_V2_CHANGE_INVALID', '非法 change 名')
   const suffix = match[2]
-  return { kind: suffix === 'events' ? 'events' : suffix === 'stream' ? 'stream' : suffix === 'commands' ? 'commands' : suffix === 'metrics' ? 'metrics' : 'change', changeId }
+  return { kind: suffix === 'events' ? 'events' : suffix === 'stream' ? 'stream' : suffix === 'commands' ? 'commands' : suffix === 'metrics' ? 'metrics' : suffix === 'run' ? 'run' : 'change', changeId }
 }
 
 function parseCursor(value: string | null, label: string): number | OrchestrationV2RouteResult {
@@ -218,6 +221,18 @@ export async function resolveOrchestrationV2PostRoute(path: string, body: unknow
   const parsed = parseChange(path)
   if (parsed === null) return null
   if (typeof parsed !== 'object' || 'status' in parsed) return parsed as OrchestrationV2RouteResult
+  if (parsed.kind === 'run') {
+    if (deps.runChange === undefined) return failure(503, 'ORCHESTRATION_V2_RUNTIME_UNAVAILABLE', 'production orchestration runtime unavailable')
+    if (!isRecord(body)) return failure(400, 'ORCHESTRATION_V2_BODY_INVALID', 'run body 必须是对象')
+    const root = readRootFromBody(body)
+    if (typeof root !== 'string') return root
+    const checked = rootCheck(deps, root)
+    if ('status' in checked) return checked
+    try {
+      const result = await deps.runChange(changeDir(checked.anchor, parsed.changeId))
+      return { status: result.ok ? 200 : 422, body: { ok: result.ok, snapshot: result.snapshot, diagnostics: result.diagnostics } }
+    } catch { return failure(500, 'ORCHESTRATION_V2_RUNTIME_FAILED', 'production orchestration run failed') }
+  }
   if (parsed.kind !== 'commands') return failure(405, 'ORCHESTRATION_V2_METHOD_NOT_ALLOWED', '该 orchestration 路径仅支持 GET')
   const parsedBody = commandFromBody(body, parsed.changeId)
   if ('status' in parsedBody) return parsedBody
@@ -312,7 +327,7 @@ export async function handleOrchestrationV2GetRoute(req: IncomingMessage, res: S
 }
 
 export async function handleOrchestrationV2PostRoute(req: IncomingMessage, res: ServerResponse, path: string, deps: OrchestrationV2HttpRouteDeps): Promise<boolean> {
-  if (path !== '/api/orchestration/changes' && !/^\/api\/orchestration\/changes\/[^/]+\/commands$/.test(path)) return false
+  if (path !== '/api/orchestration/changes' && !/^\/api\/orchestration\/changes\/[^/]+\/(commands|run)$/.test(path)) return false
   if (deps.readJsonBody === undefined) { deps.sendJson(res, 500, failure(500, 'ORCHESTRATION_V2_BODY_READER_UNAVAILABLE', 'orchestration body reader unavailable').body); return true }
   const body = await deps.readJsonBody(req)
   const result = await resolveOrchestrationV2PostRoute(path, body, deps)

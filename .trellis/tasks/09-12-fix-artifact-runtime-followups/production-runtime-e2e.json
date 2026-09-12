@@ -1,0 +1,3118 @@
+{
+  "root": "/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-production-artifact-e2e-RuXCox",
+  "ok": true,
+  "status": "completed",
+  "attempts": [
+    {
+      "workflowRunId": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+      "stageId": "open",
+      "stageAttemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+      "status": "completed",
+      "dependencyStages": [],
+      "visibility": "dependency-chain",
+      "startedAt": "2026-09-12T08:57:27.280Z",
+      "pinnedVersions": {},
+      "endedAt": "2026-09-12T08:58:59.025Z"
+    },
+    {
+      "workflowRunId": "run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+      "stageId": "design",
+      "stageAttemptId": "attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824",
+      "status": "completed",
+      "dependencyStages": [
+        "open"
+      ],
+      "visibility": "dependency-chain",
+      "startedAt": "2026-09-12T08:58:59.078Z",
+      "pinnedVersions": {
+        "artifact:e6cd9e1f3a95559e7313be7a": "v1",
+        "artifact:9eaf281a48f742790e66c047": "v1"
+      },
+      "endedAt": "2026-09-12T08:59:24.703Z"
+    },
+    {
+      "workflowRunId": "run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+      "stageId": "build",
+      "stageAttemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+      "status": "completed",
+      "dependencyStages": [
+        "design",
+        "open"
+      ],
+      "visibility": "dependency-chain",
+      "startedAt": "2026-09-12T08:59:24.774Z",
+      "pinnedVersions": {
+        "artifact:e6cd9e1f3a95559e7313be7a": "v1",
+        "artifact:9eaf281a48f742790e66c047": "v1",
+        "artifact:603e7d1b67cd610b9331a232": "v1"
+      },
+      "endedAt": "2026-09-12T09:02:51.617Z"
+    },
+    {
+      "workflowRunId": "run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+      "stageId": "review",
+      "stageAttemptId": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e",
+      "status": "completed",
+      "dependencyStages": [
+        "build",
+        "design",
+        "open"
+      ],
+      "visibility": "dependency-chain",
+      "startedAt": "2026-09-12T09:02:51.682Z",
+      "pinnedVersions": {
+        "artifact:e6cd9e1f3a95559e7313be7a": "v3",
+        "artifact:9eaf281a48f742790e66c047": "v1",
+        "artifact:603e7d1b67cd610b9331a232": "v1"
+      },
+      "endedAt": "2026-09-12T09:03:52.688Z"
+    },
+    {
+      "workflowRunId": "run:996e5066-9757-45d2-92bf-5cf562d049f1",
+      "stageId": "verify",
+      "stageAttemptId": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3",
+      "status": "completed",
+      "dependencyStages": [
+        "review",
+        "build",
+        "design",
+        "open"
+      ],
+      "visibility": "dependency-chain",
+      "startedAt": "2026-09-12T09:03:52.769Z",
+      "pinnedVersions": {
+        "artifact:e6cd9e1f3a95559e7313be7a": "v3",
+        "artifact:9eaf281a48f742790e66c047": "v1",
+        "artifact:603e7d1b67cd610b9331a232": "v1",
+        "artifact:53c59d2969e8478552b4dc3a": "v1"
+      },
+      "endedAt": "2026-09-12T09:04:44.000Z"
+    },
+    {
+      "workflowRunId": "run:8b61f94b-5188-402b-b733-c686b07080a6",
+      "stageId": "package",
+      "stageAttemptId": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844",
+      "status": "completed",
+      "dependencyStages": [
+        "verify",
+        "review",
+        "build",
+        "design",
+        "open"
+      ],
+      "visibility": "dependency-chain",
+      "startedAt": "2026-09-12T09:04:44.071Z",
+      "pinnedVersions": {
+        "artifact:e6cd9e1f3a95559e7313be7a": "v3",
+        "artifact:9eaf281a48f742790e66c047": "v1",
+        "artifact:603e7d1b67cd610b9331a232": "v1",
+        "artifact:53c59d2969e8478552b4dc3a": "v1",
+        "artifact:eb0cf1a17b4de6f5dc589677": "v1"
+      },
+      "endedAt": "2026-09-12T09:05:26.093Z"
+    },
+    {
+      "workflowRunId": "run:74b127ce-c683-4221-9e52-7f04243d9669",
+      "stageId": "acceptance",
+      "stageAttemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+      "status": "completed",
+      "dependencyStages": [
+        "package",
+        "verify",
+        "review",
+        "build",
+        "design",
+        "open"
+      ],
+      "visibility": "dependency-chain",
+      "startedAt": "2026-09-12T09:05:26.172Z",
+      "pinnedVersions": {
+        "artifact:e6cd9e1f3a95559e7313be7a": "v3",
+        "artifact:9eaf281a48f742790e66c047": "v1",
+        "artifact:603e7d1b67cd610b9331a232": "v1",
+        "artifact:53c59d2969e8478552b4dc3a": "v1",
+        "artifact:eb0cf1a17b4de6f5dc589677": "v1",
+        "artifact:2b5e14a8d0df64c4faa91a4b": "v1"
+      },
+      "endedAt": "2026-09-12T09:05:59.457Z"
+    }
+  ],
+  "catalog": {
+    "revision": 36,
+    "digest": "963d63a094950ea47a60b5be7b2956cdd1796c77cb42e0d026676e769c6f12f1",
+    "stageAttemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+    "entries": [
+      {
+        "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+        "version": "v1",
+        "contentDigest": "4f60ba79cba832dbc098dc5c13aac548152b6ccb60d75ab80f7dff2d91a4cdc3",
+        "size": 11,
+        "mediaType": "text/markdown",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/contract.md"
+        },
+        "contentUri": "artifact://runtime-artifacts/4f60ba79cba832dbc098dc5c13aac548152b6ccb60d75ab80f7dff2d91a4cdc3",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T08:58:29.877Z",
+        "producer": {
+          "workflowRunId": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "stageAttemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+          "skillId": "real-open",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "stageAttemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d"
+        },
+        "consumed": true,
+        "pendingUpdate": false,
+        "affected": true,
+        "availableFromStage": "open"
+      },
+      {
+        "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+        "version": "v2",
+        "contentDigest": "08aa3de945dea052c1745e4152026d3a8e4d543ccc2dce1ca44e194470f8a3cd",
+        "size": 12,
+        "mediaType": "text/markdown",
+        "kind": "text",
+        "origin": "unknown",
+        "source": {
+          "path": "artifacts/contract.md"
+        },
+        "contentUri": "artifact://runtime-artifacts/08aa3de945dea052c1745e4152026d3a8e4d543ccc2dce1ca44e194470f8a3cd",
+        "disposition": "candidate",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T08:59:49.783Z",
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false
+      },
+      {
+        "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+        "version": "v3",
+        "contentDigest": "67b04ff392148786b76f45d3d35bbaa79081d86e465b9fbaafda6577e6b8171a",
+        "size": 11,
+        "mediaType": "text/markdown",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/contract.md"
+        },
+        "contentUri": "artifact://runtime-artifacts/67b04ff392148786b76f45d3d35bbaa79081d86e465b9fbaafda6577e6b8171a",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T09:01:20.883Z",
+        "producer": {
+          "workflowRunId": "run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+          "stageAttemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+          "skillId": "real-build",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+          "stageAttemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "build"
+      },
+      {
+        "artifactId": "artifact:9eaf281a48f742790e66c047",
+        "version": "v1",
+        "contentDigest": "2348f998744212575d85959674f9607ab26f67708a917157472832386337c904",
+        "size": 4,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/open.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/2348f998744212575d85959674f9607ab26f67708a917157472832386337c904",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T08:58:29.881Z",
+        "producer": {
+          "workflowRunId": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "stageAttemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+          "skillId": "real-open",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "stageAttemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "open"
+      },
+      {
+        "artifactId": "artifact:603e7d1b67cd610b9331a232",
+        "version": "v1",
+        "contentDigest": "a77de8a6daa1129516b14c8ca1e233a51a8414b202eac7c8acfbb9b485046ad4",
+        "size": 6,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/design.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/a77de8a6daa1129516b14c8ca1e233a51a8414b202eac7c8acfbb9b485046ad4",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T08:59:11.777Z",
+        "producer": {
+          "workflowRunId": "run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+          "stageAttemptId": "attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824",
+          "skillId": "real-design",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+          "stageAttemptId": "attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "design"
+      },
+      {
+        "artifactId": "artifact:53c59d2969e8478552b4dc3a",
+        "version": "v1",
+        "contentDigest": "c97ace4c8fef2cee8fa0f3c9f52aab18dbd4f42438afe362ffb8f75ce4c04b84",
+        "size": 6,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/review.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/c97ace4c8fef2cee8fa0f3c9f52aab18dbd4f42438afe362ffb8f75ce4c04b84",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T09:03:25.776Z",
+        "producer": {
+          "workflowRunId": "run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+          "stageAttemptId": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e",
+          "skillId": "real-review",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+          "stageAttemptId": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "review"
+      },
+      {
+        "artifactId": "artifact:eb0cf1a17b4de6f5dc589677",
+        "version": "v1",
+        "contentDigest": "a12dd3a7fd3203a452eb34d91a9be20569d5e337a3384347068895c07f3e0c5a",
+        "size": 6,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/verify.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/a12dd3a7fd3203a452eb34d91a9be20569d5e337a3384347068895c07f3e0c5a",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T09:04:18.897Z",
+        "producer": {
+          "workflowRunId": "run:996e5066-9757-45d2-92bf-5cf562d049f1",
+          "stageAttemptId": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3",
+          "skillId": "real-verify",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:996e5066-9757-45d2-92bf-5cf562d049f1",
+          "stageAttemptId": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "verify"
+      },
+      {
+        "artifactId": "artifact:2b5e14a8d0df64c4faa91a4b",
+        "version": "v1",
+        "contentDigest": "bc4a71180870f7945155fbb02f4b0a2e3faa2a62d6d31b7039013055ed19869a",
+        "size": 7,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/package.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/bc4a71180870f7945155fbb02f4b0a2e3faa2a62d6d31b7039013055ed19869a",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T09:05:01.092Z",
+        "producer": {
+          "workflowRunId": "run:8b61f94b-5188-402b-b733-c686b07080a6",
+          "stageAttemptId": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844",
+          "skillId": "real-package",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:8b61f94b-5188-402b-b733-c686b07080a6",
+          "stageAttemptId": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "package"
+      },
+      {
+        "artifactId": "artifact:00ce6d082c9ce0673366d898",
+        "version": "v1",
+        "contentDigest": "c1514c6cdad166c18aa557dc1d780ba84c0e32df7633235385023eb429377e74",
+        "size": 10,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/acceptance.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/c1514c6cdad166c18aa557dc1d780ba84c0e32df7633235385023eb429377e74",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T09:05:41.301Z",
+        "producer": {
+          "workflowRunId": "run:74b127ce-c683-4221-9e52-7f04243d9669",
+          "stageAttemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+          "skillId": "real-acceptance",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:74b127ce-c683-4221-9e52-7f04243d9669",
+          "stageAttemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "acceptance"
+      }
+    ],
+    "history": [
+      {
+        "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+        "version": "v1",
+        "contentDigest": "4f60ba79cba832dbc098dc5c13aac548152b6ccb60d75ab80f7dff2d91a4cdc3",
+        "size": 11,
+        "mediaType": "text/markdown",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/contract.md"
+        },
+        "contentUri": "artifact://runtime-artifacts/4f60ba79cba832dbc098dc5c13aac548152b6ccb60d75ab80f7dff2d91a4cdc3",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T08:58:29.877Z",
+        "producer": {
+          "workflowRunId": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "stageAttemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+          "skillId": "real-open",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "stageAttemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d"
+        },
+        "consumed": true,
+        "pendingUpdate": false,
+        "affected": true,
+        "availableFromStage": "open"
+      },
+      {
+        "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+        "version": "v2",
+        "contentDigest": "08aa3de945dea052c1745e4152026d3a8e4d543ccc2dce1ca44e194470f8a3cd",
+        "size": 12,
+        "mediaType": "text/markdown",
+        "kind": "text",
+        "origin": "unknown",
+        "source": {
+          "path": "artifacts/contract.md"
+        },
+        "contentUri": "artifact://runtime-artifacts/08aa3de945dea052c1745e4152026d3a8e4d543ccc2dce1ca44e194470f8a3cd",
+        "disposition": "candidate",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T08:59:49.783Z",
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false
+      },
+      {
+        "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+        "version": "v3",
+        "contentDigest": "67b04ff392148786b76f45d3d35bbaa79081d86e465b9fbaafda6577e6b8171a",
+        "size": 11,
+        "mediaType": "text/markdown",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/contract.md"
+        },
+        "contentUri": "artifact://runtime-artifacts/67b04ff392148786b76f45d3d35bbaa79081d86e465b9fbaafda6577e6b8171a",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T09:01:20.883Z",
+        "producer": {
+          "workflowRunId": "run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+          "stageAttemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+          "skillId": "real-build",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+          "stageAttemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "build"
+      },
+      {
+        "artifactId": "artifact:9eaf281a48f742790e66c047",
+        "version": "v1",
+        "contentDigest": "2348f998744212575d85959674f9607ab26f67708a917157472832386337c904",
+        "size": 4,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/open.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/2348f998744212575d85959674f9607ab26f67708a917157472832386337c904",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T08:58:29.881Z",
+        "producer": {
+          "workflowRunId": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "stageAttemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+          "skillId": "real-open",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "stageAttemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "open"
+      },
+      {
+        "artifactId": "artifact:603e7d1b67cd610b9331a232",
+        "version": "v1",
+        "contentDigest": "a77de8a6daa1129516b14c8ca1e233a51a8414b202eac7c8acfbb9b485046ad4",
+        "size": 6,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/design.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/a77de8a6daa1129516b14c8ca1e233a51a8414b202eac7c8acfbb9b485046ad4",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T08:59:11.777Z",
+        "producer": {
+          "workflowRunId": "run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+          "stageAttemptId": "attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824",
+          "skillId": "real-design",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+          "stageAttemptId": "attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "design"
+      },
+      {
+        "artifactId": "artifact:53c59d2969e8478552b4dc3a",
+        "version": "v1",
+        "contentDigest": "c97ace4c8fef2cee8fa0f3c9f52aab18dbd4f42438afe362ffb8f75ce4c04b84",
+        "size": 6,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/review.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/c97ace4c8fef2cee8fa0f3c9f52aab18dbd4f42438afe362ffb8f75ce4c04b84",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T09:03:25.776Z",
+        "producer": {
+          "workflowRunId": "run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+          "stageAttemptId": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e",
+          "skillId": "real-review",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+          "stageAttemptId": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "review"
+      },
+      {
+        "artifactId": "artifact:eb0cf1a17b4de6f5dc589677",
+        "version": "v1",
+        "contentDigest": "a12dd3a7fd3203a452eb34d91a9be20569d5e337a3384347068895c07f3e0c5a",
+        "size": 6,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/verify.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/a12dd3a7fd3203a452eb34d91a9be20569d5e337a3384347068895c07f3e0c5a",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T09:04:18.897Z",
+        "producer": {
+          "workflowRunId": "run:996e5066-9757-45d2-92bf-5cf562d049f1",
+          "stageAttemptId": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3",
+          "skillId": "real-verify",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:996e5066-9757-45d2-92bf-5cf562d049f1",
+          "stageAttemptId": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "verify"
+      },
+      {
+        "artifactId": "artifact:2b5e14a8d0df64c4faa91a4b",
+        "version": "v1",
+        "contentDigest": "bc4a71180870f7945155fbb02f4b0a2e3faa2a62d6d31b7039013055ed19869a",
+        "size": 7,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/package.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/bc4a71180870f7945155fbb02f4b0a2e3faa2a62d6d31b7039013055ed19869a",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T09:05:01.092Z",
+        "producer": {
+          "workflowRunId": "run:8b61f94b-5188-402b-b733-c686b07080a6",
+          "stageAttemptId": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844",
+          "skillId": "real-package",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:8b61f94b-5188-402b-b733-c686b07080a6",
+          "stageAttemptId": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "package"
+      },
+      {
+        "artifactId": "artifact:00ce6d082c9ce0673366d898",
+        "version": "v1",
+        "contentDigest": "c1514c6cdad166c18aa557dc1d780ba84c0e32df7633235385023eb429377e74",
+        "size": 10,
+        "mediaType": "text/plain",
+        "kind": "text",
+        "origin": "stage",
+        "source": {
+          "path": "artifacts/acceptance.txt"
+        },
+        "contentUri": "artifact://runtime-artifacts/c1514c6cdad166c18aa557dc1d780ba84c0e32df7633235385023eb429377e74",
+        "disposition": "deliverable",
+        "quality": "unchecked",
+        "createdAt": "2026-09-12T09:05:41.301Z",
+        "producer": {
+          "workflowRunId": "run:74b127ce-c683-4221-9e52-7f04243d9669",
+          "stageAttemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+          "skillId": "real-acceptance",
+          "actorId": "production-e2e-worker"
+        },
+        "publisher": {
+          "workflowRunId": "run:74b127ce-c683-4221-9e52-7f04243d9669",
+          "stageAttemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233"
+        },
+        "consumed": false,
+        "pendingUpdate": false,
+        "affected": false,
+        "availableFromStage": "acceptance"
+      }
+    ],
+    "totalEntries": 9,
+    "truncated": false
+  },
+  "events": [
+    {
+      "seq": 1,
+      "idempotencyKey": "attempt:attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+      "type": "attempt.started",
+      "at": "2026-09-12T08:57:27.280Z",
+      "attemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+      "payload": {
+        "pinnedVersions": {}
+      }
+    },
+    {
+      "seq": 2,
+      "idempotencyKey": "observe:attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d:artifact:e6cd9e1f3a95559e7313be7a:4f60ba79cba832dbc098dc5c13aac548152b6ccb60d75ab80f7dff2d91a4cdc3",
+      "type": "artifact.observed",
+      "at": "2026-09-12T08:58:29.877Z",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v1",
+      "attemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+      "payload": {
+        "source": "reconcile"
+      }
+    },
+    {
+      "seq": 3,
+      "idempotencyKey": "observe:attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d:artifact:9eaf281a48f742790e66c047:2348f998744212575d85959674f9607ab26f67708a917157472832386337c904",
+      "type": "artifact.observed",
+      "at": "2026-09-12T08:58:29.881Z",
+      "artifactId": "artifact:9eaf281a48f742790e66c047",
+      "version": "v1",
+      "attemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+      "payload": {
+        "source": "reconcile"
+      }
+    },
+    {
+      "seq": 4,
+      "idempotencyKey": "publish:attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d:artifact:e6cd9e1f3a95559e7313be7a:v1",
+      "type": "artifact.published",
+      "at": "2026-09-12T08:58:59.011Z",
+      "attemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v1"
+    },
+    {
+      "seq": 5,
+      "idempotencyKey": "publish:attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d:artifact:9eaf281a48f742790e66c047:v1",
+      "type": "artifact.published",
+      "at": "2026-09-12T08:58:59.019Z",
+      "attemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+      "artifactId": "artifact:9eaf281a48f742790e66c047",
+      "version": "v1"
+    },
+    {
+      "seq": 6,
+      "idempotencyKey": "attempt-end:attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d:completed",
+      "type": "attempt.ended",
+      "at": "2026-09-12T08:58:59.025Z",
+      "attemptId": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+      "payload": {
+        "status": "completed"
+      }
+    },
+    {
+      "seq": 7,
+      "idempotencyKey": "attempt:attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824",
+      "type": "attempt.started",
+      "at": "2026-09-12T08:58:59.078Z",
+      "attemptId": "attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824",
+      "payload": {
+        "pinnedVersions": {
+          "artifact:e6cd9e1f3a95559e7313be7a": "v1",
+          "artifact:9eaf281a48f742790e66c047": "v1"
+        }
+      }
+    },
+    {
+      "seq": 8,
+      "idempotencyKey": "observe:attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824:artifact:603e7d1b67cd610b9331a232:a77de8a6daa1129516b14c8ca1e233a51a8414b202eac7c8acfbb9b485046ad4",
+      "type": "artifact.observed",
+      "at": "2026-09-12T08:59:11.777Z",
+      "artifactId": "artifact:603e7d1b67cd610b9331a232",
+      "version": "v1",
+      "attemptId": "attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824",
+      "payload": {
+        "source": "reconcile"
+      }
+    },
+    {
+      "seq": 9,
+      "idempotencyKey": "publish:attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824:artifact:603e7d1b67cd610b9331a232:v1",
+      "type": "artifact.published",
+      "at": "2026-09-12T08:59:24.697Z",
+      "attemptId": "attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824",
+      "artifactId": "artifact:603e7d1b67cd610b9331a232",
+      "version": "v1"
+    },
+    {
+      "seq": 10,
+      "idempotencyKey": "attempt-end:attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824:completed",
+      "type": "attempt.ended",
+      "at": "2026-09-12T08:59:24.703Z",
+      "attemptId": "attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824",
+      "payload": {
+        "status": "completed"
+      }
+    },
+    {
+      "seq": 11,
+      "idempotencyKey": "attempt:attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+      "type": "attempt.started",
+      "at": "2026-09-12T08:59:24.774Z",
+      "attemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+      "payload": {
+        "pinnedVersions": {
+          "artifact:e6cd9e1f3a95559e7313be7a": "v1",
+          "artifact:9eaf281a48f742790e66c047": "v1",
+          "artifact:603e7d1b67cd610b9331a232": "v1"
+        }
+      }
+    },
+    {
+      "seq": 12,
+      "idempotencyKey": "observe:attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e:artifact:e6cd9e1f3a95559e7313be7a:08aa3de945dea052c1745e4152026d3a8e4d543ccc2dce1ca44e194470f8a3cd",
+      "type": "artifact.observed",
+      "at": "2026-09-12T08:59:49.783Z",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v2",
+      "attemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+      "payload": {
+        "source": "reconcile"
+      }
+    },
+    {
+      "seq": 13,
+      "idempotencyKey": "observe:attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e:artifact:e6cd9e1f3a95559e7313be7a:67b04ff392148786b76f45d3d35bbaa79081d86e465b9fbaafda6577e6b8171a",
+      "type": "artifact.observed",
+      "at": "2026-09-12T09:01:20.883Z",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v3",
+      "attemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+      "payload": {
+        "source": "reconcile"
+      }
+    },
+    {
+      "seq": 14,
+      "idempotencyKey": "publish:attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e:artifact:e6cd9e1f3a95559e7313be7a:v3",
+      "type": "artifact.published",
+      "at": "2026-09-12T09:02:51.607Z",
+      "attemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v3"
+    },
+    {
+      "seq": 15,
+      "idempotencyKey": "read:attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e:artifact:e6cd9e1f3a95559e7313be7a:v1:content",
+      "type": "artifact.consumed",
+      "at": "2026-09-12T09:02:51.611Z",
+      "attemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v1",
+      "payload": {
+        "representation": "content"
+      }
+    },
+    {
+      "seq": 16,
+      "idempotencyKey": "attempt-end:attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e:completed",
+      "type": "attempt.ended",
+      "at": "2026-09-12T09:02:51.617Z",
+      "attemptId": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+      "payload": {
+        "status": "completed"
+      }
+    },
+    {
+      "seq": 17,
+      "idempotencyKey": "attempt:attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e",
+      "type": "attempt.started",
+      "at": "2026-09-12T09:02:51.682Z",
+      "attemptId": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e",
+      "payload": {
+        "pinnedVersions": {
+          "artifact:e6cd9e1f3a95559e7313be7a": "v3",
+          "artifact:9eaf281a48f742790e66c047": "v1",
+          "artifact:603e7d1b67cd610b9331a232": "v1"
+        }
+      }
+    },
+    {
+      "seq": 18,
+      "idempotencyKey": "observe:attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e:artifact:53c59d2969e8478552b4dc3a:c97ace4c8fef2cee8fa0f3c9f52aab18dbd4f42438afe362ffb8f75ce4c04b84",
+      "type": "artifact.observed",
+      "at": "2026-09-12T09:03:25.776Z",
+      "artifactId": "artifact:53c59d2969e8478552b4dc3a",
+      "version": "v1",
+      "attemptId": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e",
+      "payload": {
+        "source": "reconcile"
+      }
+    },
+    {
+      "seq": 19,
+      "idempotencyKey": "publish:attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e:artifact:53c59d2969e8478552b4dc3a:v1",
+      "type": "artifact.published",
+      "at": "2026-09-12T09:03:52.677Z",
+      "attemptId": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e",
+      "artifactId": "artifact:53c59d2969e8478552b4dc3a",
+      "version": "v1"
+    },
+    {
+      "seq": 20,
+      "idempotencyKey": "read:attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e:artifact:e6cd9e1f3a95559e7313be7a:v1:summary",
+      "type": "artifact.consumed",
+      "at": "2026-09-12T09:03:52.682Z",
+      "attemptId": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v1",
+      "payload": {
+        "representation": "summary"
+      }
+    },
+    {
+      "seq": 21,
+      "idempotencyKey": "attempt-end:attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e:completed",
+      "type": "attempt.ended",
+      "at": "2026-09-12T09:03:52.688Z",
+      "attemptId": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e",
+      "payload": {
+        "status": "completed"
+      }
+    },
+    {
+      "seq": 22,
+      "idempotencyKey": "attempt:attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3",
+      "type": "attempt.started",
+      "at": "2026-09-12T09:03:52.769Z",
+      "attemptId": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3",
+      "payload": {
+        "pinnedVersions": {
+          "artifact:e6cd9e1f3a95559e7313be7a": "v3",
+          "artifact:9eaf281a48f742790e66c047": "v1",
+          "artifact:603e7d1b67cd610b9331a232": "v1",
+          "artifact:53c59d2969e8478552b4dc3a": "v1"
+        }
+      }
+    },
+    {
+      "seq": 23,
+      "idempotencyKey": "observe:attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3:artifact:eb0cf1a17b4de6f5dc589677:a12dd3a7fd3203a452eb34d91a9be20569d5e337a3384347068895c07f3e0c5a",
+      "type": "artifact.observed",
+      "at": "2026-09-12T09:04:18.897Z",
+      "artifactId": "artifact:eb0cf1a17b4de6f5dc589677",
+      "version": "v1",
+      "attemptId": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3",
+      "payload": {
+        "source": "reconcile"
+      }
+    },
+    {
+      "seq": 24,
+      "idempotencyKey": "publish:attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3:artifact:eb0cf1a17b4de6f5dc589677:v1",
+      "type": "artifact.published",
+      "at": "2026-09-12T09:04:43.991Z",
+      "attemptId": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3",
+      "artifactId": "artifact:eb0cf1a17b4de6f5dc589677",
+      "version": "v1"
+    },
+    {
+      "seq": 25,
+      "idempotencyKey": "read:attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3:artifact:e6cd9e1f3a95559e7313be7a:v1:summary",
+      "type": "artifact.consumed",
+      "at": "2026-09-12T09:04:43.995Z",
+      "attemptId": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v1",
+      "payload": {
+        "representation": "summary"
+      }
+    },
+    {
+      "seq": 26,
+      "idempotencyKey": "attempt-end:attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3:completed",
+      "type": "attempt.ended",
+      "at": "2026-09-12T09:04:44.000Z",
+      "attemptId": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3",
+      "payload": {
+        "status": "completed"
+      }
+    },
+    {
+      "seq": 27,
+      "idempotencyKey": "attempt:attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844",
+      "type": "attempt.started",
+      "at": "2026-09-12T09:04:44.071Z",
+      "attemptId": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844",
+      "payload": {
+        "pinnedVersions": {
+          "artifact:e6cd9e1f3a95559e7313be7a": "v3",
+          "artifact:9eaf281a48f742790e66c047": "v1",
+          "artifact:603e7d1b67cd610b9331a232": "v1",
+          "artifact:53c59d2969e8478552b4dc3a": "v1",
+          "artifact:eb0cf1a17b4de6f5dc589677": "v1"
+        }
+      }
+    },
+    {
+      "seq": 28,
+      "idempotencyKey": "observe:attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844:artifact:2b5e14a8d0df64c4faa91a4b:bc4a71180870f7945155fbb02f4b0a2e3faa2a62d6d31b7039013055ed19869a",
+      "type": "artifact.observed",
+      "at": "2026-09-12T09:05:01.092Z",
+      "artifactId": "artifact:2b5e14a8d0df64c4faa91a4b",
+      "version": "v1",
+      "attemptId": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844",
+      "payload": {
+        "source": "reconcile"
+      }
+    },
+    {
+      "seq": 29,
+      "idempotencyKey": "publish:attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844:artifact:2b5e14a8d0df64c4faa91a4b:v1",
+      "type": "artifact.published",
+      "at": "2026-09-12T09:05:26.081Z",
+      "attemptId": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844",
+      "artifactId": "artifact:2b5e14a8d0df64c4faa91a4b",
+      "version": "v1"
+    },
+    {
+      "seq": 30,
+      "idempotencyKey": "read:attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844:artifact:e6cd9e1f3a95559e7313be7a:v1:summary",
+      "type": "artifact.consumed",
+      "at": "2026-09-12T09:05:26.085Z",
+      "attemptId": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v1",
+      "payload": {
+        "representation": "summary"
+      }
+    },
+    {
+      "seq": 31,
+      "idempotencyKey": "attempt-end:attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844:completed",
+      "type": "attempt.ended",
+      "at": "2026-09-12T09:05:26.093Z",
+      "attemptId": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844",
+      "payload": {
+        "status": "completed"
+      }
+    },
+    {
+      "seq": 32,
+      "idempotencyKey": "attempt:attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+      "type": "attempt.started",
+      "at": "2026-09-12T09:05:26.172Z",
+      "attemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+      "payload": {
+        "pinnedVersions": {
+          "artifact:e6cd9e1f3a95559e7313be7a": "v3",
+          "artifact:9eaf281a48f742790e66c047": "v1",
+          "artifact:603e7d1b67cd610b9331a232": "v1",
+          "artifact:53c59d2969e8478552b4dc3a": "v1",
+          "artifact:eb0cf1a17b4de6f5dc589677": "v1",
+          "artifact:2b5e14a8d0df64c4faa91a4b": "v1"
+        }
+      }
+    },
+    {
+      "seq": 33,
+      "idempotencyKey": "observe:attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233:artifact:00ce6d082c9ce0673366d898:c1514c6cdad166c18aa557dc1d780ba84c0e32df7633235385023eb429377e74",
+      "type": "artifact.observed",
+      "at": "2026-09-12T09:05:41.301Z",
+      "artifactId": "artifact:00ce6d082c9ce0673366d898",
+      "version": "v1",
+      "attemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+      "payload": {
+        "source": "reconcile"
+      }
+    },
+    {
+      "seq": 34,
+      "idempotencyKey": "publish:attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233:artifact:00ce6d082c9ce0673366d898:v1",
+      "type": "artifact.published",
+      "at": "2026-09-12T09:05:59.448Z",
+      "attemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+      "artifactId": "artifact:00ce6d082c9ce0673366d898",
+      "version": "v1"
+    },
+    {
+      "seq": 35,
+      "idempotencyKey": "read:attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233:artifact:e6cd9e1f3a95559e7313be7a:v1:summary",
+      "type": "artifact.consumed",
+      "at": "2026-09-12T09:05:59.452Z",
+      "attemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v1",
+      "payload": {
+        "representation": "summary"
+      }
+    },
+    {
+      "seq": 36,
+      "idempotencyKey": "attempt-end:attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233:completed",
+      "type": "attempt.ended",
+      "at": "2026-09-12T09:05:59.457Z",
+      "attemptId": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+      "payload": {
+        "status": "completed"
+      }
+    },
+    {
+      "seq": 37,
+      "idempotencyKey": "check:check:builtin-unsupported-media:artifact:e6cd9e1f3a95559e7313be7a:v1",
+      "type": "artifact.checked",
+      "at": "2026-09-12T09:08:02.910Z",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v1"
+    },
+    {
+      "seq": 38,
+      "idempotencyKey": "check:check:builtin-unsupported-media:artifact:e6cd9e1f3a95559e7313be7a:v2",
+      "type": "artifact.checked",
+      "at": "2026-09-12T09:08:02.914Z",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v2"
+    },
+    {
+      "seq": 39,
+      "idempotencyKey": "check:check:builtin-unsupported-media:artifact:e6cd9e1f3a95559e7313be7a:v3",
+      "type": "artifact.checked",
+      "at": "2026-09-12T09:08:02.917Z",
+      "artifactId": "artifact:e6cd9e1f3a95559e7313be7a",
+      "version": "v3"
+    },
+    {
+      "seq": 40,
+      "idempotencyKey": "check:check:builtin-unsupported-media:artifact:9eaf281a48f742790e66c047:v1",
+      "type": "artifact.checked",
+      "at": "2026-09-12T09:08:02.921Z",
+      "artifactId": "artifact:9eaf281a48f742790e66c047",
+      "version": "v1"
+    },
+    {
+      "seq": 41,
+      "idempotencyKey": "check:check:builtin-unsupported-media:artifact:603e7d1b67cd610b9331a232:v1",
+      "type": "artifact.checked",
+      "at": "2026-09-12T09:08:02.924Z",
+      "artifactId": "artifact:603e7d1b67cd610b9331a232",
+      "version": "v1"
+    },
+    {
+      "seq": 42,
+      "idempotencyKey": "check:check:builtin-unsupported-media:artifact:53c59d2969e8478552b4dc3a:v1",
+      "type": "artifact.checked",
+      "at": "2026-09-12T09:08:02.927Z",
+      "artifactId": "artifact:53c59d2969e8478552b4dc3a",
+      "version": "v1"
+    },
+    {
+      "seq": 43,
+      "idempotencyKey": "check:check:builtin-unsupported-media:artifact:eb0cf1a17b4de6f5dc589677:v1",
+      "type": "artifact.checked",
+      "at": "2026-09-12T09:08:02.930Z",
+      "artifactId": "artifact:eb0cf1a17b4de6f5dc589677",
+      "version": "v1"
+    },
+    {
+      "seq": 44,
+      "idempotencyKey": "check:check:builtin-unsupported-media:artifact:2b5e14a8d0df64c4faa91a4b:v1",
+      "type": "artifact.checked",
+      "at": "2026-09-12T09:08:02.933Z",
+      "artifactId": "artifact:2b5e14a8d0df64c4faa91a4b",
+      "version": "v1"
+    },
+    {
+      "seq": 45,
+      "idempotencyKey": "check:check:builtin-unsupported-media:artifact:00ce6d082c9ce0673366d898:v1",
+      "type": "artifact.checked",
+      "at": "2026-09-12T09:08:02.936Z",
+      "artifactId": "artifact:00ce6d082c9ce0673366d898",
+      "version": "v1"
+    }
+  ],
+  "runtimeDiagnostics": [],
+  "output": {
+    "schema_version": "board-snapshot/v2",
+    "record_id": "change:artifact-lineage-e2e",
+    "project_id": "production-e2e",
+    "change_id": "artifact-lineage-e2e",
+    "revision": 66,
+    "correlation_id": "corr:production-e2e",
+    "actor": {
+      "kind": "system",
+      "id": "kernel"
+    },
+    "created_at": "2026-09-12T08:57:27.188Z",
+    "event_head_id": "event:command:gate:verification:8510182b-b485-4858-9cf1-1cd56218b701",
+    "event_head_digest": "sha256:926fc4c585840d8bf66082c7818d7da1dc6e8f5f424d71137a968cc29bc7c5df",
+    "command_head_id": "command:gate:verification:8510182b-b485-4858-9cf1-1cd56218b701",
+    "status": "completed",
+    "request": {
+      "schema_version": "development-request/v2",
+      "record_id": "request:production-e2e",
+      "project_id": "production-e2e",
+      "change_id": "artifact-lineage-e2e",
+      "revision": 0,
+      "correlation_id": "corr:production-e2e",
+      "actor": {
+        "kind": "user",
+        "id": "e2e"
+      },
+      "created_at": "2026-09-12T08:57:27.188Z",
+      "request_id": "request:production-e2e",
+      "intent": "Run a complete seven-stage artifact workflow",
+      "interaction_policy": "recommended-defaults",
+      "requested_effects": [
+        "read",
+        "write"
+      ],
+      "constraints": [],
+      "user_skills": [
+        {
+          "id": "real-open",
+          "version": "1.0.0",
+          "mode": "serial",
+          "depends_on": []
+        },
+        {
+          "id": "real-design",
+          "version": "1.0.0",
+          "mode": "serial",
+          "depends_on": [
+            "real-open"
+          ]
+        },
+        {
+          "id": "real-build",
+          "version": "1.0.0",
+          "mode": "serial",
+          "depends_on": [
+            "real-design"
+          ]
+        },
+        {
+          "id": "real-review",
+          "version": "1.0.0",
+          "mode": "serial",
+          "depends_on": [
+            "real-build"
+          ]
+        },
+        {
+          "id": "real-verify",
+          "version": "1.0.0",
+          "mode": "serial",
+          "depends_on": [
+            "real-review"
+          ]
+        },
+        {
+          "id": "real-package",
+          "version": "1.0.0",
+          "mode": "serial",
+          "depends_on": [
+            "real-verify"
+          ]
+        },
+        {
+          "id": "real-acceptance",
+          "version": "1.0.0",
+          "mode": "serial",
+          "depends_on": [
+            "real-package"
+          ]
+        }
+      ],
+      "user_mcps": [],
+      "auto_select": false
+    },
+    "context": {
+      "schema_version": "repository-context/v2",
+      "record_id": "context:production-e2e",
+      "project_id": "production-e2e",
+      "change_id": "artifact-lineage-e2e",
+      "revision": 1,
+      "correlation_id": "corr:production-e2e",
+      "actor": {
+        "kind": "system",
+        "id": "e2e"
+      },
+      "created_at": "2026-09-12T08:57:27.188Z",
+      "request_id": "request:production-e2e",
+      "repository": {
+        "ref": "/var/folders/1c/hyn3mfvd12ngm6sgy28_s5gm0000gn/T/tenon-production-artifact-e2e-RuXCox",
+        "branch": "e2e",
+        "base_branch": "e2e",
+        "head_sha": "workspace",
+        "dirty": true
+      },
+      "workspace_fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "policy_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "skill_catalog_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "mcp_catalog_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "observed_facts": []
+    },
+    "assessment": {
+      "schema_version": "capability-assessment/v2",
+      "record_id": "assessment:production-e2e",
+      "project_id": "production-e2e",
+      "change_id": "artifact-lineage-e2e",
+      "revision": 2,
+      "correlation_id": "corr:production-e2e",
+      "actor": {
+        "kind": "system",
+        "id": "e2e"
+      },
+      "created_at": "2026-09-12T08:57:27.188Z",
+      "assessment_id": "assessment:production-e2e",
+      "request_id": "request:production-e2e",
+      "context_record_id": "context:production-e2e",
+      "normalization": "complete",
+      "requirements": [
+        {
+          "id": "req-open",
+          "capability": "workflow.open",
+          "necessity": "required",
+          "acceptance_refs": [],
+          "evidence_refs": [],
+          "constraints": [],
+          "risk": "low"
+        },
+        {
+          "id": "req-design",
+          "capability": "workflow.design",
+          "necessity": "required",
+          "acceptance_refs": [],
+          "evidence_refs": [],
+          "constraints": [],
+          "risk": "low"
+        },
+        {
+          "id": "req-build",
+          "capability": "workflow.build",
+          "necessity": "required",
+          "acceptance_refs": [],
+          "evidence_refs": [],
+          "constraints": [],
+          "risk": "low"
+        },
+        {
+          "id": "req-review",
+          "capability": "workflow.review",
+          "necessity": "required",
+          "acceptance_refs": [],
+          "evidence_refs": [],
+          "constraints": [],
+          "risk": "low"
+        },
+        {
+          "id": "req-verify",
+          "capability": "workflow.verify",
+          "necessity": "required",
+          "acceptance_refs": [],
+          "evidence_refs": [],
+          "constraints": [],
+          "risk": "low"
+        },
+        {
+          "id": "req-package",
+          "capability": "workflow.package",
+          "necessity": "required",
+          "acceptance_refs": [],
+          "evidence_refs": [],
+          "constraints": [],
+          "risk": "low"
+        },
+        {
+          "id": "req-acceptance",
+          "capability": "workflow.acceptance",
+          "necessity": "required",
+          "acceptance_refs": [],
+          "evidence_refs": [],
+          "constraints": [],
+          "risk": "low"
+        }
+      ],
+      "questions": [],
+      "risks": [],
+      "proposal_evidence_ref": "e2e"
+    },
+    "pipeline": {
+      "schema_version": "workflow-pipeline/v2",
+      "record_id": "pipeline:production-e2e",
+      "project_id": "production-e2e",
+      "change_id": "artifact-lineage-e2e",
+      "revision": 4,
+      "correlation_id": "corr:production-e2e",
+      "actor": {
+        "kind": "system",
+        "id": "e2e"
+      },
+      "created_at": "2026-09-12T08:57:27.188Z",
+      "pipeline_id": "production-artifact-e2e:backend",
+      "pipeline_version": "1",
+      "workflow_id": "production-artifact-e2e",
+      "workflow_version": "1",
+      "workflow_source": "user",
+      "workflow_fingerprint": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "track_id": "backend",
+      "track_revision": "1",
+      "track_source": "user",
+      "pipeline_source": "user",
+      "graph_id": "graph:production-e2e",
+      "assessment_id": "assessment:production-e2e",
+      "status": "frozen",
+      "stage_order": [
+        "open",
+        "design",
+        "build",
+        "review",
+        "verify",
+        "package",
+        "acceptance"
+      ],
+      "stages": [
+        {
+          "stage_id": "open",
+          "name": "open",
+          "ordinal": 0,
+          "execution_mode": "serial",
+          "depends_on": [],
+          "work_item_ids": [
+            "work-real-open"
+          ],
+          "gate": "none",
+          "skills": [
+            {
+              "binding_id": "binding:real-open",
+              "skill_id": "real-open",
+              "skill_version": "1.0.0",
+              "order": 0,
+              "role": "user",
+              "source": "user",
+              "mode": "serial",
+              "depends_on": [],
+              "mcp_ids": [],
+              "validator_ids": [
+                "real-validator"
+              ]
+            }
+          ],
+          "input_refs": [],
+          "output_refs": [
+            "artifact:open"
+          ]
+        },
+        {
+          "stage_id": "design",
+          "name": "design",
+          "ordinal": 1,
+          "execution_mode": "serial",
+          "depends_on": [
+            "open"
+          ],
+          "work_item_ids": [
+            "work-real-design"
+          ],
+          "gate": "none",
+          "skills": [
+            {
+              "binding_id": "binding:real-design",
+              "skill_id": "real-design",
+              "skill_version": "1.0.0",
+              "order": 0,
+              "role": "user",
+              "source": "user",
+              "mode": "serial",
+              "depends_on": [
+                "real-open"
+              ],
+              "mcp_ids": [],
+              "validator_ids": [
+                "real-validator"
+              ]
+            }
+          ],
+          "input_refs": [],
+          "output_refs": [
+            "artifact:design"
+          ]
+        },
+        {
+          "stage_id": "build",
+          "name": "build",
+          "ordinal": 2,
+          "execution_mode": "serial",
+          "depends_on": [
+            "design"
+          ],
+          "work_item_ids": [
+            "work-real-build"
+          ],
+          "gate": "none",
+          "skills": [
+            {
+              "binding_id": "binding:real-build",
+              "skill_id": "real-build",
+              "skill_version": "1.0.0",
+              "order": 0,
+              "role": "user",
+              "source": "user",
+              "mode": "serial",
+              "depends_on": [
+                "real-design"
+              ],
+              "mcp_ids": [],
+              "validator_ids": [
+                "real-validator"
+              ]
+            }
+          ],
+          "input_refs": [],
+          "output_refs": [
+            "artifact:build"
+          ]
+        },
+        {
+          "stage_id": "review",
+          "name": "review",
+          "ordinal": 3,
+          "execution_mode": "serial",
+          "depends_on": [
+            "build"
+          ],
+          "work_item_ids": [
+            "work-real-review"
+          ],
+          "gate": "none",
+          "skills": [
+            {
+              "binding_id": "binding:real-review",
+              "skill_id": "real-review",
+              "skill_version": "1.0.0",
+              "order": 0,
+              "role": "user",
+              "source": "user",
+              "mode": "serial",
+              "depends_on": [
+                "real-build"
+              ],
+              "mcp_ids": [],
+              "validator_ids": [
+                "real-validator"
+              ]
+            }
+          ],
+          "input_refs": [],
+          "output_refs": [
+            "artifact:review"
+          ]
+        },
+        {
+          "stage_id": "verify",
+          "name": "verify",
+          "ordinal": 4,
+          "execution_mode": "serial",
+          "depends_on": [
+            "review"
+          ],
+          "work_item_ids": [
+            "work-real-verify"
+          ],
+          "gate": "none",
+          "skills": [
+            {
+              "binding_id": "binding:real-verify",
+              "skill_id": "real-verify",
+              "skill_version": "1.0.0",
+              "order": 0,
+              "role": "user",
+              "source": "user",
+              "mode": "serial",
+              "depends_on": [
+                "real-review"
+              ],
+              "mcp_ids": [],
+              "validator_ids": [
+                "real-validator"
+              ]
+            }
+          ],
+          "input_refs": [],
+          "output_refs": [
+            "artifact:verify"
+          ]
+        },
+        {
+          "stage_id": "package",
+          "name": "package",
+          "ordinal": 5,
+          "execution_mode": "serial",
+          "depends_on": [
+            "verify"
+          ],
+          "work_item_ids": [
+            "work-real-package"
+          ],
+          "gate": "none",
+          "skills": [
+            {
+              "binding_id": "binding:real-package",
+              "skill_id": "real-package",
+              "skill_version": "1.0.0",
+              "order": 0,
+              "role": "user",
+              "source": "user",
+              "mode": "serial",
+              "depends_on": [
+                "real-verify"
+              ],
+              "mcp_ids": [],
+              "validator_ids": [
+                "real-validator"
+              ]
+            }
+          ],
+          "input_refs": [],
+          "output_refs": [
+            "artifact:package"
+          ]
+        },
+        {
+          "stage_id": "acceptance",
+          "name": "acceptance",
+          "ordinal": 6,
+          "execution_mode": "serial",
+          "depends_on": [
+            "package"
+          ],
+          "work_item_ids": [
+            "work-real-acceptance"
+          ],
+          "gate": "none",
+          "skills": [
+            {
+              "binding_id": "binding:real-acceptance",
+              "skill_id": "real-acceptance",
+              "skill_version": "1.0.0",
+              "order": 0,
+              "role": "user",
+              "source": "user",
+              "mode": "serial",
+              "depends_on": [
+                "real-package"
+              ],
+              "mcp_ids": [],
+              "validator_ids": [
+                "real-validator"
+              ]
+            }
+          ],
+          "input_refs": [],
+          "output_refs": [
+            "artifact:acceptance"
+          ]
+        }
+      ],
+      "customizations": {
+        "custom_workflow": true,
+        "custom_track": true,
+        "custom_pipeline": true,
+        "user_skill_ids": [
+          "real-open",
+          "real-design",
+          "real-build",
+          "real-review",
+          "real-verify",
+          "real-package",
+          "real-acceptance"
+        ],
+        "user_mcp_ids": []
+      },
+      "pipeline_digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "graph": {
+      "schema_version": "work-graph/v2",
+      "record_id": "graph:production-e2e",
+      "project_id": "production-e2e",
+      "change_id": "artifact-lineage-e2e",
+      "revision": 3,
+      "correlation_id": "corr:production-e2e",
+      "actor": {
+        "kind": "system",
+        "id": "e2e"
+      },
+      "created_at": "2026-09-12T08:57:27.188Z",
+      "graph_id": "graph:production-e2e",
+      "graph_revision": 1,
+      "assessment_id": "assessment:production-e2e",
+      "task_plan_revision_id": "plan:production-e2e",
+      "task_plan_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "dependency_edges": [
+        {
+          "from": "work-real-open",
+          "to": "work-real-design",
+          "reason": "ordering"
+        },
+        {
+          "from": "work-real-design",
+          "to": "work-real-build",
+          "reason": "ordering"
+        },
+        {
+          "from": "work-real-build",
+          "to": "work-real-review",
+          "reason": "ordering"
+        },
+        {
+          "from": "work-real-review",
+          "to": "work-real-verify",
+          "reason": "ordering"
+        },
+        {
+          "from": "work-real-verify",
+          "to": "work-real-package",
+          "reason": "ordering"
+        },
+        {
+          "from": "work-real-package",
+          "to": "work-real-acceptance",
+          "reason": "ordering"
+        }
+      ],
+      "execution_groups": [
+        {
+          "id": "serial",
+          "mode": "serial",
+          "work_item_ids": [
+            "work-real-open",
+            "work-real-design",
+            "work-real-build",
+            "work-real-review",
+            "work-real-verify",
+            "work-real-package",
+            "work-real-acceptance"
+          ]
+        }
+      ],
+      "acceptance_coverage": [],
+      "status": "frozen"
+    },
+    "resolution": {
+      "schema_version": "capability-resolution/v2",
+      "record_id": "resolution:production-e2e",
+      "project_id": "production-e2e",
+      "change_id": "artifact-lineage-e2e",
+      "revision": 4,
+      "correlation_id": "corr:production-e2e",
+      "actor": {
+        "kind": "system",
+        "id": "e2e"
+      },
+      "created_at": "2026-09-12T08:57:27.188Z",
+      "resolution_id": "resolution:production-e2e",
+      "assessment_id": "assessment:production-e2e",
+      "graph_id": "graph:production-e2e",
+      "policy_digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "status": "resolved",
+      "bindings": [
+        {
+          "work_item_id": "work-real-open",
+          "skill_id": "real-open",
+          "skill_version": "1.0.0",
+          "mcp_ids": [],
+          "mode": "serial",
+          "source": "user",
+          "depends_on": []
+        },
+        {
+          "work_item_id": "work-real-design",
+          "skill_id": "real-design",
+          "skill_version": "1.0.0",
+          "mcp_ids": [],
+          "mode": "serial",
+          "source": "user",
+          "depends_on": [
+            "real-open"
+          ]
+        },
+        {
+          "work_item_id": "work-real-build",
+          "skill_id": "real-build",
+          "skill_version": "1.0.0",
+          "mcp_ids": [],
+          "mode": "serial",
+          "source": "user",
+          "depends_on": [
+            "real-design"
+          ]
+        },
+        {
+          "work_item_id": "work-real-review",
+          "skill_id": "real-review",
+          "skill_version": "1.0.0",
+          "mcp_ids": [],
+          "mode": "serial",
+          "source": "user",
+          "depends_on": [
+            "real-build"
+          ]
+        },
+        {
+          "work_item_id": "work-real-verify",
+          "skill_id": "real-verify",
+          "skill_version": "1.0.0",
+          "mcp_ids": [],
+          "mode": "serial",
+          "source": "user",
+          "depends_on": [
+            "real-review"
+          ]
+        },
+        {
+          "work_item_id": "work-real-package",
+          "skill_id": "real-package",
+          "skill_version": "1.0.0",
+          "mcp_ids": [],
+          "mode": "serial",
+          "source": "user",
+          "depends_on": [
+            "real-verify"
+          ]
+        },
+        {
+          "work_item_id": "work-real-acceptance",
+          "skill_id": "real-acceptance",
+          "skill_version": "1.0.0",
+          "mcp_ids": [],
+          "mode": "serial",
+          "source": "user",
+          "depends_on": [
+            "real-package"
+          ]
+        }
+      ],
+      "candidates": [],
+      "blockers": [],
+      "binding_digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "work_items": [
+      {
+        "schema_version": "work-item/v2",
+        "record_id": "work-item:work-real-open",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 16,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "kernel"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "work_item_id": "work-real-open",
+        "title": "work-real-open",
+        "status": "completed",
+        "depends_on": [],
+        "required_artifact_refs": [],
+        "validation_refs": [
+          "report:result:18d2aeccf53dedd5765a8b08263f6d2e"
+        ],
+        "mode": "serial",
+        "attempt_count": 0,
+        "blockers": []
+      },
+      {
+        "schema_version": "work-item/v2",
+        "record_id": "work-item:work-real-design",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 22,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "kernel"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "work_item_id": "work-real-design",
+        "title": "work-real-design",
+        "status": "completed",
+        "depends_on": [
+          "work-real-open"
+        ],
+        "required_artifact_refs": [],
+        "validation_refs": [
+          "report:result:ada9a321d5227e513227fccf74bff8bf"
+        ],
+        "mode": "serial",
+        "attempt_count": 0,
+        "blockers": []
+      },
+      {
+        "schema_version": "work-item/v2",
+        "record_id": "work-item:work-real-build",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 37,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "kernel"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "work_item_id": "work-real-build",
+        "title": "work-real-build",
+        "status": "completed",
+        "depends_on": [
+          "work-real-design"
+        ],
+        "required_artifact_refs": [],
+        "validation_refs": [
+          "report:result:d2ce1d6650aa6d8d25eeaa324abecce3"
+        ],
+        "mode": "serial",
+        "attempt_count": 0,
+        "blockers": []
+      },
+      {
+        "schema_version": "work-item/v2",
+        "record_id": "work-item:work-real-review",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 45,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "kernel"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "work_item_id": "work-real-review",
+        "title": "work-real-review",
+        "status": "completed",
+        "depends_on": [
+          "work-real-build"
+        ],
+        "required_artifact_refs": [],
+        "validation_refs": [
+          "report:result:9f0b45c0ae0a9be3cc07433008424881"
+        ],
+        "mode": "serial",
+        "attempt_count": 0,
+        "blockers": []
+      },
+      {
+        "schema_version": "work-item/v2",
+        "record_id": "work-item:work-real-verify",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 52,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "kernel"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "work_item_id": "work-real-verify",
+        "title": "work-real-verify",
+        "status": "completed",
+        "depends_on": [
+          "work-real-review"
+        ],
+        "required_artifact_refs": [],
+        "validation_refs": [
+          "report:result:d1220fed9f660ea789805115145bbd1f"
+        ],
+        "mode": "serial",
+        "attempt_count": 0,
+        "blockers": []
+      },
+      {
+        "schema_version": "work-item/v2",
+        "record_id": "work-item:work-real-package",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 59,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "kernel"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "work_item_id": "work-real-package",
+        "title": "work-real-package",
+        "status": "completed",
+        "depends_on": [
+          "work-real-verify"
+        ],
+        "required_artifact_refs": [],
+        "validation_refs": [
+          "report:result:dfe1b33b3da8e924ec4756fb1bfdd104"
+        ],
+        "mode": "serial",
+        "attempt_count": 0,
+        "blockers": []
+      },
+      {
+        "schema_version": "work-item/v2",
+        "record_id": "work-item:work-real-acceptance",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 65,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "kernel"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "work_item_id": "work-real-acceptance",
+        "title": "work-real-acceptance",
+        "status": "completed",
+        "depends_on": [
+          "work-real-package"
+        ],
+        "required_artifact_refs": [],
+        "validation_refs": [
+          "report:result:efa8af22d54c3eebba4a789491f50bb1"
+        ],
+        "mode": "serial",
+        "attempt_count": 0,
+        "blockers": []
+      }
+    ],
+    "runs": [
+      {
+        "schema_version": "skill-run/v2",
+        "record_id": "run:run:407de525-65d4-4036-a3a0-7d525bc70482",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 15,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "run_id": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+        "attempt_id": "attempt:10a7eee6-55ec-4e9f-9bed-577bd077f14d",
+        "attempt": 1,
+        "work_item_id": "work-real-open",
+        "skill_id": "real-open",
+        "skill_version": "1.0.0",
+        "mcp_ids": [],
+        "status": "completed",
+        "lease": {
+          "lease_id": "lease:8f83f9aa-66b9-4a0b-9f56-555b983d3d95",
+          "owner_id": "production-e2e-worker",
+          "acquired_at": "2026-09-12T08:57:27.188Z",
+          "heartbeat_at": "2026-09-12T08:57:27.188Z",
+          "expires_at": "2026-09-12T08:58:27.188Z",
+          "generation": 5,
+          "status": "released"
+        },
+        "input_refs": [],
+        "input_manifest": {
+          "schema_version": "skill-input-manifest/v2",
+          "manifest_id": "input:run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "run_id": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "work_item_id": "work-real-open",
+          "input_refs": [],
+          "artifact_digests": [],
+          "bundle_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "byte_length": 0,
+          "delivery": "not-required",
+          "created_at": "2026-09-12T08:57:27.188Z"
+        },
+        "result_id": "result:18d2aeccf53dedd5765a8b08263f6d2e",
+        "started_at": "2026-09-12T08:57:27.188Z",
+        "finished_at": "2026-09-12T08:57:27.188Z"
+      },
+      {
+        "schema_version": "skill-run/v2",
+        "record_id": "run:run:9010b2ab-d1a8-40da-b243-639014f0bc83",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 21,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "run_id": "run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+        "attempt_id": "attempt:c60f7c2d-42c2-4a24-869f-d8823a5d3824",
+        "attempt": 1,
+        "work_item_id": "work-real-design",
+        "skill_id": "real-design",
+        "skill_version": "1.0.0",
+        "mcp_ids": [],
+        "status": "completed",
+        "lease": {
+          "lease_id": "lease:bbb41a4a-6292-419b-91fa-e51f6b4c99fc",
+          "owner_id": "production-e2e-worker",
+          "acquired_at": "2026-09-12T08:57:27.188Z",
+          "heartbeat_at": "2026-09-12T08:57:27.188Z",
+          "expires_at": "2026-09-12T08:58:27.188Z",
+          "generation": 2,
+          "status": "released"
+        },
+        "input_refs": [
+          "skill-result:result:18d2aeccf53dedd5765a8b08263f6d2e",
+          "artifact://result:18d2aeccf53dedd5765a8b08263f6d2e/output.json",
+          "artifacts/contract.md",
+          "artifacts/open.txt"
+        ],
+        "input_manifest": {
+          "schema_version": "skill-input-manifest/v2",
+          "manifest_id": "input:run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+          "run_id": "run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+          "work_item_id": "work-real-design",
+          "input_refs": [
+            "skill-result:result:18d2aeccf53dedd5765a8b08263f6d2e",
+            "artifact://result:18d2aeccf53dedd5765a8b08263f6d2e/output.json",
+            "artifacts/contract.md",
+            "artifacts/open.txt"
+          ],
+          "artifact_digests": [
+            "sha256:464f5b3045cde317a6988842b1d796bf79d79deb4185043d050f04fdf5c98b91",
+            "sha256:6c208929d91fbf1d6ebebc91511741ee080daa98374eb86f9739587f826887a1",
+            "sha256:4f60ba79cba832dbc098dc5c13aac548152b6ccb60d75ab80f7dff2d91a4cdc3",
+            "sha256:2348f998744212575d85959674f9607ab26f67708a917157472832386337c904"
+          ],
+          "bundle_digest": "sha256:aa1edbd17d4eabd9d5b2d703e6fd01439cd2c5b7eb2495d1ffff465a2b6934a1",
+          "byte_length": 1790,
+          "delivery": "injected",
+          "created_at": "2026-09-12T08:57:27.188Z"
+        },
+        "result_id": "result:ada9a321d5227e513227fccf74bff8bf",
+        "started_at": "2026-09-12T08:57:27.188Z",
+        "finished_at": "2026-09-12T08:57:27.188Z"
+      },
+      {
+        "schema_version": "skill-run/v2",
+        "record_id": "run:run:af92db4c-1bd5-4d50-b28f-341e110c784e",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 36,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "run_id": "run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+        "attempt_id": "attempt:acf87dc8-4f2e-4595-ae32-1aac980e7d8e",
+        "attempt": 1,
+        "work_item_id": "work-real-build",
+        "skill_id": "real-build",
+        "skill_version": "1.0.0",
+        "mcp_ids": [],
+        "status": "completed",
+        "lease": {
+          "lease_id": "lease:a83f2b54-7330-4178-85ba-d19b3abb0683",
+          "owner_id": "production-e2e-worker",
+          "acquired_at": "2026-09-12T08:57:27.188Z",
+          "heartbeat_at": "2026-09-12T08:57:27.188Z",
+          "expires_at": "2026-09-12T08:58:27.188Z",
+          "generation": 11,
+          "status": "released"
+        },
+        "input_refs": [
+          "skill-result:result:ada9a321d5227e513227fccf74bff8bf",
+          "artifact://result:ada9a321d5227e513227fccf74bff8bf/output.json",
+          "artifacts/design.txt"
+        ],
+        "input_manifest": {
+          "schema_version": "skill-input-manifest/v2",
+          "manifest_id": "input:run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+          "run_id": "run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+          "work_item_id": "work-real-build",
+          "input_refs": [
+            "skill-result:result:ada9a321d5227e513227fccf74bff8bf",
+            "artifact://result:ada9a321d5227e513227fccf74bff8bf/output.json",
+            "artifacts/design.txt"
+          ],
+          "artifact_digests": [
+            "sha256:7021658446dccf8a0a829ee19a3745e36be90a534e04cb47b5cd2a5ff615a542",
+            "sha256:528784b364a2e4712426a6f229951542b9b669eaceebda59a4ce7ec426064e08",
+            "sha256:a77de8a6daa1129516b14c8ca1e233a51a8414b202eac7c8acfbb9b485046ad4"
+          ],
+          "bundle_digest": "sha256:f5e9e2afe6d73c47f9a8ee8145820f6e60c5ec94514cca04021ab40bfc838ad7",
+          "byte_length": 1388,
+          "delivery": "injected",
+          "created_at": "2026-09-12T08:57:27.188Z"
+        },
+        "result_id": "result:d2ce1d6650aa6d8d25eeaa324abecce3",
+        "started_at": "2026-09-12T08:57:27.188Z",
+        "finished_at": "2026-09-12T08:57:27.188Z"
+      },
+      {
+        "schema_version": "skill-run/v2",
+        "record_id": "run:run:6289aeb3-fefe-4eb7-b5c2-77ed3461ad3d",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 44,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "run_id": "run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+        "attempt_id": "attempt:a13b81c7-7d99-4e1e-9460-d806e3a9eb4e",
+        "attempt": 1,
+        "work_item_id": "work-real-review",
+        "skill_id": "real-review",
+        "skill_version": "1.0.0",
+        "mcp_ids": [],
+        "status": "completed",
+        "lease": {
+          "lease_id": "lease:bf016760-fa0f-4d7b-abd2-ade80c12d22d",
+          "owner_id": "production-e2e-worker",
+          "acquired_at": "2026-09-12T08:57:27.188Z",
+          "heartbeat_at": "2026-09-12T08:57:27.188Z",
+          "expires_at": "2026-09-12T08:58:27.188Z",
+          "generation": 4,
+          "status": "released"
+        },
+        "input_refs": [
+          "skill-result:result:d2ce1d6650aa6d8d25eeaa324abecce3",
+          "artifact://result:d2ce1d6650aa6d8d25eeaa324abecce3/output.json",
+          "artifacts/contract.md"
+        ],
+        "input_manifest": {
+          "schema_version": "skill-input-manifest/v2",
+          "manifest_id": "input:run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+          "run_id": "run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+          "work_item_id": "work-real-review",
+          "input_refs": [
+            "skill-result:result:d2ce1d6650aa6d8d25eeaa324abecce3",
+            "artifact://result:d2ce1d6650aa6d8d25eeaa324abecce3/output.json",
+            "artifacts/contract.md"
+          ],
+          "artifact_digests": [
+            "sha256:35deacc0ddf6ea1479458c0e4e14f64c6a7beff37dc8a706e25491591f956832",
+            "sha256:37f3abc0c51e3d01217714926e256abf6984c5f1991426858ee6b59ba670ae3b",
+            "sha256:67b04ff392148786b76f45d3d35bbaa79081d86e465b9fbaafda6577e6b8171a"
+          ],
+          "bundle_digest": "sha256:fe6c7845101f622d3b469bf67c8774c53593aa932ad88875372854ddf763b250",
+          "byte_length": 1961,
+          "delivery": "injected",
+          "created_at": "2026-09-12T08:57:27.188Z"
+        },
+        "result_id": "result:9f0b45c0ae0a9be3cc07433008424881",
+        "started_at": "2026-09-12T08:57:27.188Z",
+        "finished_at": "2026-09-12T08:57:27.188Z"
+      },
+      {
+        "schema_version": "skill-run/v2",
+        "record_id": "run:run:22005030-d041-4bd0-839e-10ab207389d0",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 51,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "run_id": "run:996e5066-9757-45d2-92bf-5cf562d049f1",
+        "attempt_id": "attempt:8b12cc1f-bfd9-4a99-a508-7ab92ebe9dc3",
+        "attempt": 1,
+        "work_item_id": "work-real-verify",
+        "skill_id": "real-verify",
+        "skill_version": "1.0.0",
+        "mcp_ids": [],
+        "status": "completed",
+        "lease": {
+          "lease_id": "lease:9b66dd27-2e11-48f7-93a3-414ae7e0bae6",
+          "owner_id": "production-e2e-worker",
+          "acquired_at": "2026-09-12T08:57:27.188Z",
+          "heartbeat_at": "2026-09-12T08:57:27.188Z",
+          "expires_at": "2026-09-12T08:58:27.188Z",
+          "generation": 3,
+          "status": "released"
+        },
+        "input_refs": [
+          "skill-result:result:9f0b45c0ae0a9be3cc07433008424881",
+          "artifact://result:9f0b45c0ae0a9be3cc07433008424881/output.json",
+          "artifacts/review.txt"
+        ],
+        "input_manifest": {
+          "schema_version": "skill-input-manifest/v2",
+          "manifest_id": "input:run:996e5066-9757-45d2-92bf-5cf562d049f1",
+          "run_id": "run:996e5066-9757-45d2-92bf-5cf562d049f1",
+          "work_item_id": "work-real-verify",
+          "input_refs": [
+            "skill-result:result:9f0b45c0ae0a9be3cc07433008424881",
+            "artifact://result:9f0b45c0ae0a9be3cc07433008424881/output.json",
+            "artifacts/review.txt"
+          ],
+          "artifact_digests": [
+            "sha256:7846ce82dd02bb7547aa739f3939eb17173ca143a00414b2233030536487461e",
+            "sha256:fe82cb229e29dfc87a309c8d1679ff9f58be239c8e6f3ff52bc431efb3709b6b",
+            "sha256:c97ace4c8fef2cee8fa0f3c9f52aab18dbd4f42438afe362ffb8f75ce4c04b84"
+          ],
+          "bundle_digest": "sha256:7ec10ab9fd5d41dbfc01c6c3d1eb5ce2958456cedb7ef04fe892cee9d4863709",
+          "byte_length": 1556,
+          "delivery": "injected",
+          "created_at": "2026-09-12T08:57:27.188Z"
+        },
+        "result_id": "result:d1220fed9f660ea789805115145bbd1f",
+        "started_at": "2026-09-12T08:57:27.188Z",
+        "finished_at": "2026-09-12T08:57:27.188Z"
+      },
+      {
+        "schema_version": "skill-run/v2",
+        "record_id": "run:run:53631ba8-062b-4952-b5dc-73f056061073",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 58,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "run_id": "run:8b61f94b-5188-402b-b733-c686b07080a6",
+        "attempt_id": "attempt:de9f33f8-7969-4d72-8ac8-f78c4edc7844",
+        "attempt": 1,
+        "work_item_id": "work-real-package",
+        "skill_id": "real-package",
+        "skill_version": "1.0.0",
+        "mcp_ids": [],
+        "status": "completed",
+        "lease": {
+          "lease_id": "lease:7b166f99-4759-4435-9ede-5dc241f9f5fa",
+          "owner_id": "production-e2e-worker",
+          "acquired_at": "2026-09-12T08:57:27.188Z",
+          "heartbeat_at": "2026-09-12T08:57:27.188Z",
+          "expires_at": "2026-09-12T08:58:27.188Z",
+          "generation": 3,
+          "status": "released"
+        },
+        "input_refs": [
+          "skill-result:result:d1220fed9f660ea789805115145bbd1f",
+          "artifact://result:d1220fed9f660ea789805115145bbd1f/output.json",
+          "artifacts/verify.txt"
+        ],
+        "input_manifest": {
+          "schema_version": "skill-input-manifest/v2",
+          "manifest_id": "input:run:8b61f94b-5188-402b-b733-c686b07080a6",
+          "run_id": "run:8b61f94b-5188-402b-b733-c686b07080a6",
+          "work_item_id": "work-real-package",
+          "input_refs": [
+            "skill-result:result:d1220fed9f660ea789805115145bbd1f",
+            "artifact://result:d1220fed9f660ea789805115145bbd1f/output.json",
+            "artifacts/verify.txt"
+          ],
+          "artifact_digests": [
+            "sha256:1fc96c9635f45e7496713c452bb48f10ce51b94a4da75d7a40c4799e22b419f0",
+            "sha256:898c74c2eed0452b1e51e567f237c37f1caa1e52f747466d56e76e15d07dc331",
+            "sha256:a12dd3a7fd3203a452eb34d91a9be20569d5e337a3384347068895c07f3e0c5a"
+          ],
+          "bundle_digest": "sha256:fdc18e7b5e5bfc1ed608e879bb995707aa8bde3cbe5f5ca01b02f734c9fd96db",
+          "byte_length": 1388,
+          "delivery": "injected",
+          "created_at": "2026-09-12T08:57:27.188Z"
+        },
+        "result_id": "result:dfe1b33b3da8e924ec4756fb1bfdd104",
+        "started_at": "2026-09-12T08:57:27.188Z",
+        "finished_at": "2026-09-12T08:57:27.188Z"
+      },
+      {
+        "schema_version": "skill-run/v2",
+        "record_id": "run:run:6926220d-f74d-464b-a570-f0f79e09f8da",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 64,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "run_id": "run:74b127ce-c683-4221-9e52-7f04243d9669",
+        "attempt_id": "attempt:e839bf25-015e-41fe-9f07-ea9e3f1d4233",
+        "attempt": 1,
+        "work_item_id": "work-real-acceptance",
+        "skill_id": "real-acceptance",
+        "skill_version": "1.0.0",
+        "mcp_ids": [],
+        "status": "completed",
+        "lease": {
+          "lease_id": "lease:2ae89352-bda1-4caa-9a7f-f5218d0d2020",
+          "owner_id": "production-e2e-worker",
+          "acquired_at": "2026-09-12T08:57:27.188Z",
+          "heartbeat_at": "2026-09-12T08:57:27.188Z",
+          "expires_at": "2026-09-12T08:58:27.188Z",
+          "generation": 2,
+          "status": "released"
+        },
+        "input_refs": [
+          "skill-result:result:dfe1b33b3da8e924ec4756fb1bfdd104",
+          "artifact://result:dfe1b33b3da8e924ec4756fb1bfdd104/output.json",
+          "artifacts/package.txt"
+        ],
+        "input_manifest": {
+          "schema_version": "skill-input-manifest/v2",
+          "manifest_id": "input:run:74b127ce-c683-4221-9e52-7f04243d9669",
+          "run_id": "run:74b127ce-c683-4221-9e52-7f04243d9669",
+          "work_item_id": "work-real-acceptance",
+          "input_refs": [
+            "skill-result:result:dfe1b33b3da8e924ec4756fb1bfdd104",
+            "artifact://result:dfe1b33b3da8e924ec4756fb1bfdd104/output.json",
+            "artifacts/package.txt"
+          ],
+          "artifact_digests": [
+            "sha256:36b0f481567d019e9636f176e1ffbe678af0a4c5cb17b56377752cce4f98256a",
+            "sha256:84598746e61014cbb57c4955b2ad02b99aedf0021c559738c26bfd79c1a2809e",
+            "sha256:bc4a71180870f7945155fbb02f4b0a2e3faa2a62d6d31b7039013055ed19869a"
+          ],
+          "bundle_digest": "sha256:0a30239961c7f8118520a8c2224901fb2c7d3a0c3611bca90beb084c824e0376",
+          "byte_length": 1391,
+          "delivery": "injected",
+          "created_at": "2026-09-12T08:57:27.188Z"
+        },
+        "result_id": "result:efa8af22d54c3eebba4a789491f50bb1",
+        "started_at": "2026-09-12T08:57:27.188Z",
+        "finished_at": "2026-09-12T08:57:27.188Z"
+      }
+    ],
+    "results": [
+      {
+        "schema_version": "skill-result/v2",
+        "record_id": "result:18d2aeccf53dedd5765a8b08263f6d2e",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 15,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "result_id": "result:18d2aeccf53dedd5765a8b08263f6d2e",
+        "run_id": "run:69065949-1188-47b0-94ce-6cab7dec447b",
+        "status": "completed",
+        "contract_status": "validated",
+        "raw_output": {
+          "ref": "artifact://result:18d2aeccf53dedd5765a8b08263f6d2e/output.json",
+          "digest": "sha256:6c208929d91fbf1d6ebebc91511741ee080daa98374eb86f9739587f826887a1",
+          "media_type": "application/json",
+          "byte_length": 13
+        },
+        "artifacts": [
+          {
+            "id": "artifact:e6cd9e1f3a95559e7313be7a:0",
+            "kind": "text",
+            "ref": "artifacts/contract.md",
+            "digest": "sha256:4f60ba79cba832dbc098dc5c13aac548152b6ccb60d75ab80f7dff2d91a4cdc3",
+            "media_type": "text/markdown",
+            "byte_length": 11
+          },
+          {
+            "id": "artifact:9eaf281a48f742790e66c047:1",
+            "kind": "text",
+            "ref": "artifacts/open.txt",
+            "digest": "sha256:2348f998744212575d85959674f9607ab26f67708a917157472832386337c904",
+            "media_type": "text/plain",
+            "byte_length": 4
+          },
+          {
+            "id": "output:run:69065949-1188-47b0-94ce-6cab7dec447b",
+            "kind": "json",
+            "ref": "artifact://result:18d2aeccf53dedd5765a8b08263f6d2e/output.json",
+            "digest": "sha256:6c208929d91fbf1d6ebebc91511741ee080daa98374eb86f9739587f826887a1",
+            "media_type": "application/json",
+            "byte_length": 13
+          }
+        ],
+        "validation_refs": [
+          "report:result:18d2aeccf53dedd5765a8b08263f6d2e"
+        ],
+        "diagnostics": [
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-tool-completions:3",
+          "codex-event-types:thread.started=1,item.completed=3,turn.started=1,item.started=3,command_execution=3,turn.completed=1",
+          "codex-event-samples:command_execution:path-unresolved|command_execution:path-unresolved|command_execution:path-unresolved",
+          "codex-stderr:2026-09-12T08:57:27.446691Z  WARN codex_state::runtime: failed to run startup maintenance for logs db at /Users/a1234/.codex/logs_2.sqlite: error returned from database: (code: 11) database disk image is malformed\nReading additional input from"
+        ],
+        "output_digest": "sha256:6c208929d91fbf1d6ebebc91511741ee080daa98374eb86f9739587f826887a1",
+        "output_bytes": 13
+      },
+      {
+        "schema_version": "skill-result/v2",
+        "record_id": "result:ada9a321d5227e513227fccf74bff8bf",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 21,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "result_id": "result:ada9a321d5227e513227fccf74bff8bf",
+        "run_id": "run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+        "status": "completed",
+        "contract_status": "validated",
+        "raw_output": {
+          "ref": "artifact://result:ada9a321d5227e513227fccf74bff8bf/output.json",
+          "digest": "sha256:528784b364a2e4712426a6f229951542b9b669eaceebda59a4ce7ec426064e08",
+          "media_type": "application/json",
+          "byte_length": 8
+        },
+        "artifacts": [
+          {
+            "id": "artifact:603e7d1b67cd610b9331a232:0",
+            "kind": "text",
+            "ref": "artifacts/design.txt",
+            "digest": "sha256:a77de8a6daa1129516b14c8ca1e233a51a8414b202eac7c8acfbb9b485046ad4",
+            "media_type": "text/plain",
+            "byte_length": 6
+          },
+          {
+            "id": "output:run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+            "kind": "json",
+            "ref": "artifact://result:ada9a321d5227e513227fccf74bff8bf/output.json",
+            "digest": "sha256:528784b364a2e4712426a6f229951542b9b669eaceebda59a4ce7ec426064e08",
+            "media_type": "application/json",
+            "byte_length": 8
+          }
+        ],
+        "validation_refs": [
+          "report:result:ada9a321d5227e513227fccf74bff8bf"
+        ],
+        "diagnostics": [
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-tool-completions:1",
+          "codex-event-types:thread.started=1,item.completed=2,turn.started=1,item.started=1,command_execution=1,turn.completed=1",
+          "codex-event-samples:command_execution:path-unresolved",
+          "codex-stderr:2026-09-12T08:58:59.102191Z  WARN codex_state::runtime: failed to run startup maintenance for logs db at /Users/a1234/.codex/logs_2.sqlite: error returned from database: (code: 11) database disk image is malformed\nReading additional input from"
+        ],
+        "output_digest": "sha256:528784b364a2e4712426a6f229951542b9b669eaceebda59a4ce7ec426064e08",
+        "output_bytes": 8
+      },
+      {
+        "schema_version": "skill-result/v2",
+        "record_id": "result:d2ce1d6650aa6d8d25eeaa324abecce3",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 36,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "result_id": "result:d2ce1d6650aa6d8d25eeaa324abecce3",
+        "run_id": "run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+        "status": "completed",
+        "contract_status": "validated",
+        "raw_output": {
+          "ref": "artifact://result:d2ce1d6650aa6d8d25eeaa324abecce3/output.json",
+          "digest": "sha256:37f3abc0c51e3d01217714926e256abf6984c5f1991426858ee6b59ba670ae3b",
+          "media_type": "application/json",
+          "byte_length": 13
+        },
+        "artifacts": [
+          {
+            "id": "artifact:e6cd9e1f3a95559e7313be7a:0",
+            "kind": "text",
+            "ref": "artifacts/contract.md",
+            "digest": "sha256:67b04ff392148786b76f45d3d35bbaa79081d86e465b9fbaafda6577e6b8171a",
+            "media_type": "text/markdown",
+            "byte_length": 11
+          },
+          {
+            "id": "output:run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+            "kind": "json",
+            "ref": "artifact://result:d2ce1d6650aa6d8d25eeaa324abecce3/output.json",
+            "digest": "sha256:37f3abc0c51e3d01217714926e256abf6984c5f1991426858ee6b59ba670ae3b",
+            "media_type": "application/json",
+            "byte_length": 13
+          }
+        ],
+        "validation_refs": [
+          "report:result:d2ce1d6650aa6d8d25eeaa324abecce3"
+        ],
+        "diagnostics": [
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-tool-completions:14",
+          "codex-event-types:thread.started=1,item.completed=4,turn.started=1,item.started=16,command_execution=14,turn.completed=1",
+          "codex-event-samples:command_execution:path-unresolved|command_execution:path-unresolved|command_execution:path-unresolved|command_execution:path-unresolved|command_execution:path-unresolved|command_execution:path-unresolved|command_execution:path-unresolve",
+          "codex-stderr:2026-09-12T08:59:24.799385Z  WARN codex_state::runtime: failed to run startup maintenance for logs db at /Users/a1234/.codex/logs_2.sqlite: error returned from database: (code: 11) database disk image is malformed\nReading additional input from"
+        ],
+        "output_digest": "sha256:37f3abc0c51e3d01217714926e256abf6984c5f1991426858ee6b59ba670ae3b",
+        "output_bytes": 13
+      },
+      {
+        "schema_version": "skill-result/v2",
+        "record_id": "result:9f0b45c0ae0a9be3cc07433008424881",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 44,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "result_id": "result:9f0b45c0ae0a9be3cc07433008424881",
+        "run_id": "run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+        "status": "completed",
+        "contract_status": "validated",
+        "raw_output": {
+          "ref": "artifact://result:9f0b45c0ae0a9be3cc07433008424881/output.json",
+          "digest": "sha256:fe82cb229e29dfc87a309c8d1679ff9f58be239c8e6f3ff52bc431efb3709b6b",
+          "media_type": "application/json",
+          "byte_length": 8
+        },
+        "artifacts": [
+          {
+            "id": "artifact:53c59d2969e8478552b4dc3a:0",
+            "kind": "text",
+            "ref": "artifacts/review.txt",
+            "digest": "sha256:c97ace4c8fef2cee8fa0f3c9f52aab18dbd4f42438afe362ffb8f75ce4c04b84",
+            "media_type": "text/plain",
+            "byte_length": 6
+          },
+          {
+            "id": "output:run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+            "kind": "json",
+            "ref": "artifact://result:9f0b45c0ae0a9be3cc07433008424881/output.json",
+            "digest": "sha256:fe82cb229e29dfc87a309c8d1679ff9f58be239c8e6f3ff52bc431efb3709b6b",
+            "media_type": "application/json",
+            "byte_length": 8
+          }
+        ],
+        "validation_refs": [
+          "report:result:9f0b45c0ae0a9be3cc07433008424881"
+        ],
+        "diagnostics": [
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-tool-completions:3",
+          "codex-event-types:thread.started=1,item.completed=3,turn.started=1,item.started=3,command_execution=3,turn.completed=1",
+          "codex-event-samples:command_execution:path-unresolved|command_execution:path-unresolved|command_execution:path-unresolved",
+          "codex-stderr:2026-09-12T09:02:51.710768Z  WARN codex_state::runtime: failed to run startup maintenance for logs db at /Users/a1234/.codex/logs_2.sqlite: error returned from database: (code: 11) database disk image is malformed\nReading additional input from"
+        ],
+        "output_digest": "sha256:fe82cb229e29dfc87a309c8d1679ff9f58be239c8e6f3ff52bc431efb3709b6b",
+        "output_bytes": 8
+      },
+      {
+        "schema_version": "skill-result/v2",
+        "record_id": "result:d1220fed9f660ea789805115145bbd1f",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 51,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "result_id": "result:d1220fed9f660ea789805115145bbd1f",
+        "run_id": "run:996e5066-9757-45d2-92bf-5cf562d049f1",
+        "status": "completed",
+        "contract_status": "validated",
+        "raw_output": {
+          "ref": "artifact://result:d1220fed9f660ea789805115145bbd1f/output.json",
+          "digest": "sha256:898c74c2eed0452b1e51e567f237c37f1caa1e52f747466d56e76e15d07dc331",
+          "media_type": "application/json",
+          "byte_length": 8
+        },
+        "artifacts": [
+          {
+            "id": "artifact:eb0cf1a17b4de6f5dc589677:0",
+            "kind": "text",
+            "ref": "artifacts/verify.txt",
+            "digest": "sha256:a12dd3a7fd3203a452eb34d91a9be20569d5e337a3384347068895c07f3e0c5a",
+            "media_type": "text/plain",
+            "byte_length": 6
+          },
+          {
+            "id": "output:run:996e5066-9757-45d2-92bf-5cf562d049f1",
+            "kind": "json",
+            "ref": "artifact://result:d1220fed9f660ea789805115145bbd1f/output.json",
+            "digest": "sha256:898c74c2eed0452b1e51e567f237c37f1caa1e52f747466d56e76e15d07dc331",
+            "media_type": "application/json",
+            "byte_length": 8
+          }
+        ],
+        "validation_refs": [
+          "report:result:d1220fed9f660ea789805115145bbd1f"
+        ],
+        "diagnostics": [
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-tool-completions:1",
+          "codex-event-types:thread.started=1,item.completed=3,turn.started=1,item.started=1,command_execution=1,turn.completed=1",
+          "codex-event-samples:command_execution:path-unresolved",
+          "codex-stderr:2026-09-12T09:03:52.793990Z  WARN codex_state::runtime: failed to run startup maintenance for logs db at /Users/a1234/.codex/logs_2.sqlite: error returned from database: (code: 11) database disk image is malformed\nReading additional input from"
+        ],
+        "output_digest": "sha256:898c74c2eed0452b1e51e567f237c37f1caa1e52f747466d56e76e15d07dc331",
+        "output_bytes": 8
+      },
+      {
+        "schema_version": "skill-result/v2",
+        "record_id": "result:dfe1b33b3da8e924ec4756fb1bfdd104",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 58,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "result_id": "result:dfe1b33b3da8e924ec4756fb1bfdd104",
+        "run_id": "run:8b61f94b-5188-402b-b733-c686b07080a6",
+        "status": "completed",
+        "contract_status": "validated",
+        "raw_output": {
+          "ref": "artifact://result:dfe1b33b3da8e924ec4756fb1bfdd104/output.json",
+          "digest": "sha256:84598746e61014cbb57c4955b2ad02b99aedf0021c559738c26bfd79c1a2809e",
+          "media_type": "application/json",
+          "byte_length": 9
+        },
+        "artifacts": [
+          {
+            "id": "artifact:2b5e14a8d0df64c4faa91a4b:0",
+            "kind": "text",
+            "ref": "artifacts/package.txt",
+            "digest": "sha256:bc4a71180870f7945155fbb02f4b0a2e3faa2a62d6d31b7039013055ed19869a",
+            "media_type": "text/plain",
+            "byte_length": 7
+          },
+          {
+            "id": "output:run:8b61f94b-5188-402b-b733-c686b07080a6",
+            "kind": "json",
+            "ref": "artifact://result:dfe1b33b3da8e924ec4756fb1bfdd104/output.json",
+            "digest": "sha256:84598746e61014cbb57c4955b2ad02b99aedf0021c559738c26bfd79c1a2809e",
+            "media_type": "application/json",
+            "byte_length": 9
+          }
+        ],
+        "validation_refs": [
+          "report:result:dfe1b33b3da8e924ec4756fb1bfdd104"
+        ],
+        "diagnostics": [
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-tool-completions:1",
+          "codex-event-types:thread.started=1,item.completed=3,turn.started=1,item.started=1,command_execution=1,turn.completed=1",
+          "codex-event-samples:command_execution:path-unresolved",
+          "codex-stderr:2026-09-12T09:04:44.095309Z  WARN codex_state::runtime: failed to run startup maintenance for logs db at /Users/a1234/.codex/logs_2.sqlite: error returned from database: (code: 11) database disk image is malformed\nReading additional input from"
+        ],
+        "output_digest": "sha256:84598746e61014cbb57c4955b2ad02b99aedf0021c559738c26bfd79c1a2809e",
+        "output_bytes": 9
+      },
+      {
+        "schema_version": "skill-result/v2",
+        "record_id": "result:efa8af22d54c3eebba4a789491f50bb1",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 64,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "result_id": "result:efa8af22d54c3eebba4a789491f50bb1",
+        "run_id": "run:74b127ce-c683-4221-9e52-7f04243d9669",
+        "status": "completed",
+        "contract_status": "validated",
+        "raw_output": {
+          "ref": "artifact://result:efa8af22d54c3eebba4a789491f50bb1/output.json",
+          "digest": "sha256:afe48377f142e60d3f795c14733fef61e00493a3d832b39caa72032d051fe8e4",
+          "media_type": "application/json",
+          "byte_length": 12
+        },
+        "artifacts": [
+          {
+            "id": "artifact:00ce6d082c9ce0673366d898:0",
+            "kind": "text",
+            "ref": "artifacts/acceptance.txt",
+            "digest": "sha256:c1514c6cdad166c18aa557dc1d780ba84c0e32df7633235385023eb429377e74",
+            "media_type": "text/plain",
+            "byte_length": 10
+          },
+          {
+            "id": "output:run:74b127ce-c683-4221-9e52-7f04243d9669",
+            "kind": "json",
+            "ref": "artifact://result:efa8af22d54c3eebba4a789491f50bb1/output.json",
+            "digest": "sha256:afe48377f142e60d3f795c14733fef61e00493a3d832b39caa72032d051fe8e4",
+            "media_type": "application/json",
+            "byte_length": 12
+          }
+        ],
+        "validation_refs": [
+          "report:result:efa8af22d54c3eebba4a789491f50bb1"
+        ],
+        "diagnostics": [
+          "codex-managed-path-unresolved:command_execution",
+          "codex-managed-tool-completions:1",
+          "codex-event-types:thread.started=1,item.completed=3,turn.started=1,item.started=1,command_execution=1,turn.completed=1",
+          "codex-event-samples:command_execution:path-unresolved",
+          "codex-stderr:2026-09-12T09:05:26.197914Z  WARN codex_state::runtime: failed to run startup maintenance for logs db at /Users/a1234/.codex/logs_2.sqlite: error returned from database: (code: 11) database disk image is malformed\nReading additional input from"
+        ],
+        "output_digest": "sha256:afe48377f142e60d3f795c14733fef61e00493a3d832b39caa72032d051fe8e4",
+        "output_bytes": 12
+      }
+    ],
+    "validations": [
+      {
+        "schema_version": "validation-report/v2",
+        "record_id": "validation:result:18d2aeccf53dedd5765a8b08263f6d2e",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 16,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "validator"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "report_id": "report:result:18d2aeccf53dedd5765a8b08263f6d2e",
+        "work_item_id": "work-real-open",
+        "result_id": "result:18d2aeccf53dedd5765a8b08263f6d2e",
+        "validator_id": "validator",
+        "validator_version": "unknown",
+        "status": "pass",
+        "target_digests": [],
+        "evidence_refs": [
+          "run:run:69065949-1188-47b0-94ce-6cab7dec447b"
+        ],
+        "checks": [
+          {
+            "id": "production-e2e:0",
+            "status": "pass"
+          }
+        ]
+      },
+      {
+        "schema_version": "validation-report/v2",
+        "record_id": "validation:result:ada9a321d5227e513227fccf74bff8bf",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 22,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "validator"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "report_id": "report:result:ada9a321d5227e513227fccf74bff8bf",
+        "work_item_id": "work-real-design",
+        "result_id": "result:ada9a321d5227e513227fccf74bff8bf",
+        "validator_id": "validator",
+        "validator_version": "unknown",
+        "status": "pass",
+        "target_digests": [],
+        "evidence_refs": [
+          "run:run:e096017a-67ab-40c4-8750-5f0bf47ce188"
+        ],
+        "checks": [
+          {
+            "id": "production-e2e:0",
+            "status": "pass"
+          }
+        ]
+      },
+      {
+        "schema_version": "validation-report/v2",
+        "record_id": "validation:result:d2ce1d6650aa6d8d25eeaa324abecce3",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 37,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "validator"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "report_id": "report:result:d2ce1d6650aa6d8d25eeaa324abecce3",
+        "work_item_id": "work-real-build",
+        "result_id": "result:d2ce1d6650aa6d8d25eeaa324abecce3",
+        "validator_id": "validator",
+        "validator_version": "unknown",
+        "status": "pass",
+        "target_digests": [],
+        "evidence_refs": [
+          "run:run:d42848f5-bad4-4196-beca-70c97a3f7e20"
+        ],
+        "checks": [
+          {
+            "id": "production-e2e:0",
+            "status": "pass"
+          }
+        ]
+      },
+      {
+        "schema_version": "validation-report/v2",
+        "record_id": "validation:result:9f0b45c0ae0a9be3cc07433008424881",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 45,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "validator"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "report_id": "report:result:9f0b45c0ae0a9be3cc07433008424881",
+        "work_item_id": "work-real-review",
+        "result_id": "result:9f0b45c0ae0a9be3cc07433008424881",
+        "validator_id": "validator",
+        "validator_version": "unknown",
+        "status": "pass",
+        "target_digests": [],
+        "evidence_refs": [
+          "run:run:49f5c240-6de8-4045-ba4d-a988d7c47a5c"
+        ],
+        "checks": [
+          {
+            "id": "production-e2e:0",
+            "status": "pass"
+          }
+        ]
+      },
+      {
+        "schema_version": "validation-report/v2",
+        "record_id": "validation:result:d1220fed9f660ea789805115145bbd1f",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 52,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "validator"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "report_id": "report:result:d1220fed9f660ea789805115145bbd1f",
+        "work_item_id": "work-real-verify",
+        "result_id": "result:d1220fed9f660ea789805115145bbd1f",
+        "validator_id": "validator",
+        "validator_version": "unknown",
+        "status": "pass",
+        "target_digests": [],
+        "evidence_refs": [
+          "run:run:996e5066-9757-45d2-92bf-5cf562d049f1"
+        ],
+        "checks": [
+          {
+            "id": "production-e2e:0",
+            "status": "pass"
+          }
+        ]
+      },
+      {
+        "schema_version": "validation-report/v2",
+        "record_id": "validation:result:dfe1b33b3da8e924ec4756fb1bfdd104",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 59,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "validator"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "report_id": "report:result:dfe1b33b3da8e924ec4756fb1bfdd104",
+        "work_item_id": "work-real-package",
+        "result_id": "result:dfe1b33b3da8e924ec4756fb1bfdd104",
+        "validator_id": "validator",
+        "validator_version": "unknown",
+        "status": "pass",
+        "target_digests": [],
+        "evidence_refs": [
+          "run:run:8b61f94b-5188-402b-b733-c686b07080a6"
+        ],
+        "checks": [
+          {
+            "id": "production-e2e:0",
+            "status": "pass"
+          }
+        ]
+      },
+      {
+        "schema_version": "validation-report/v2",
+        "record_id": "validation:result:efa8af22d54c3eebba4a789491f50bb1",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 65,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "system",
+          "id": "validator"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "report_id": "report:result:efa8af22d54c3eebba4a789491f50bb1",
+        "work_item_id": "work-real-acceptance",
+        "result_id": "result:efa8af22d54c3eebba4a789491f50bb1",
+        "validator_id": "validator",
+        "validator_version": "unknown",
+        "status": "pass",
+        "target_digests": [],
+        "evidence_refs": [
+          "run:run:74b127ce-c683-4221-9e52-7f04243d9669"
+        ],
+        "checks": [
+          {
+            "id": "production-e2e:0",
+            "status": "pass"
+          }
+        ]
+      }
+    ],
+    "gates": [
+      {
+        "schema_version": "gate-evaluation/v2",
+        "record_id": "gate:artifact-lineage-e2e:verification",
+        "project_id": "production-e2e",
+        "change_id": "artifact-lineage-e2e",
+        "revision": 66,
+        "correlation_id": "corr:production-e2e",
+        "actor": {
+          "kind": "worker",
+          "id": "production-e2e-worker"
+        },
+        "created_at": "2026-09-12T08:57:27.188Z",
+        "gate_id": "gate:artifact-lineage-e2e:verification",
+        "kind": "verification",
+        "status": "passed",
+        "required_evidence_refs": [
+          "artifacts/contract.md",
+          "artifacts/open.txt",
+          "artifact://result:18d2aeccf53dedd5765a8b08263f6d2e/output.json",
+          "artifacts/design.txt",
+          "artifact://result:ada9a321d5227e513227fccf74bff8bf/output.json",
+          "artifact://result:d2ce1d6650aa6d8d25eeaa324abecce3/output.json",
+          "artifacts/review.txt",
+          "artifact://result:9f0b45c0ae0a9be3cc07433008424881/output.json",
+          "artifacts/verify.txt",
+          "artifact://result:d1220fed9f660ea789805115145bbd1f/output.json",
+          "artifacts/package.txt",
+          "artifact://result:dfe1b33b3da8e924ec4756fb1bfdd104/output.json",
+          "artifacts/acceptance.txt",
+          "artifact://result:efa8af22d54c3eebba4a789491f50bb1/output.json",
+          "run:run:69065949-1188-47b0-94ce-6cab7dec447b",
+          "run:run:e096017a-67ab-40c4-8750-5f0bf47ce188",
+          "run:run:d42848f5-bad4-4196-beca-70c97a3f7e20",
+          "run:run:49f5c240-6de8-4045-ba4d-a988d7c47a5c",
+          "run:run:996e5066-9757-45d2-92bf-5cf562d049f1",
+          "run:run:8b61f94b-5188-402b-b733-c686b07080a6",
+          "run:run:74b127ce-c683-4221-9e52-7f04243d9669"
+        ],
+        "decision_revision": 65,
+        "rationale": "all work items completed with passing validation evidence"
+      }
+    ],
+    "leases": [
+      {
+        "lease_id": "lease:8f83f9aa-66b9-4a0b-9f56-555b983d3d95",
+        "owner_id": "production-e2e-worker",
+        "acquired_at": "2026-09-12T08:57:27.188Z",
+        "heartbeat_at": "2026-09-12T08:57:27.188Z",
+        "expires_at": "2026-09-12T08:58:27.188Z",
+        "generation": 5,
+        "status": "released"
+      },
+      {
+        "lease_id": "lease:bbb41a4a-6292-419b-91fa-e51f6b4c99fc",
+        "owner_id": "production-e2e-worker",
+        "acquired_at": "2026-09-12T08:57:27.188Z",
+        "heartbeat_at": "2026-09-12T08:57:27.188Z",
+        "expires_at": "2026-09-12T08:58:27.188Z",
+        "generation": 2,
+        "status": "released"
+      },
+      {
+        "lease_id": "lease:a83f2b54-7330-4178-85ba-d19b3abb0683",
+        "owner_id": "production-e2e-worker",
+        "acquired_at": "2026-09-12T08:57:27.188Z",
+        "heartbeat_at": "2026-09-12T08:57:27.188Z",
+        "expires_at": "2026-09-12T08:58:27.188Z",
+        "generation": 11,
+        "status": "released"
+      },
+      {
+        "lease_id": "lease:bf016760-fa0f-4d7b-abd2-ade80c12d22d",
+        "owner_id": "production-e2e-worker",
+        "acquired_at": "2026-09-12T08:57:27.188Z",
+        "heartbeat_at": "2026-09-12T08:57:27.188Z",
+        "expires_at": "2026-09-12T08:58:27.188Z",
+        "generation": 4,
+        "status": "released"
+      },
+      {
+        "lease_id": "lease:9b66dd27-2e11-48f7-93a3-414ae7e0bae6",
+        "owner_id": "production-e2e-worker",
+        "acquired_at": "2026-09-12T08:57:27.188Z",
+        "heartbeat_at": "2026-09-12T08:57:27.188Z",
+        "expires_at": "2026-09-12T08:58:27.188Z",
+        "generation": 3,
+        "status": "released"
+      },
+      {
+        "lease_id": "lease:7b166f99-4759-4435-9ede-5dc241f9f5fa",
+        "owner_id": "production-e2e-worker",
+        "acquired_at": "2026-09-12T08:57:27.188Z",
+        "heartbeat_at": "2026-09-12T08:57:27.188Z",
+        "expires_at": "2026-09-12T08:58:27.188Z",
+        "generation": 3,
+        "status": "released"
+      },
+      {
+        "lease_id": "lease:2ae89352-bda1-4caa-9a7f-f5218d0d2020",
+        "owner_id": "production-e2e-worker",
+        "acquired_at": "2026-09-12T08:57:27.188Z",
+        "heartbeat_at": "2026-09-12T08:57:27.188Z",
+        "expires_at": "2026-09-12T08:58:27.188Z",
+        "generation": 2,
+        "status": "released"
+      }
+    ],
+    "blockers": [],
+    "next_actions": [],
+    "updated_at": "2026-09-12T08:57:27.188Z"
+  },
+  "followupAssertions": {
+    "internalLedgerCatalogEntries": 0,
+    "managedToolObservedEvents": 0,
+    "reconciledObservedEvents": 9,
+    "pinnedAttempts": 6,
+    "affectedEntries": 1,
+    "pendingUpdateEntriesAfterCompletion": 0,
+    "qualityChecks": 9,
+    "note": "Real Codex run emitted no explicit path-bearing managed completion; bounded reconcile evidence is retained. Decoder fixtures cover managed-tool paths."
+  }
+}

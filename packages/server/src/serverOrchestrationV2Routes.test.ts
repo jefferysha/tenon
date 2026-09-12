@@ -109,4 +109,11 @@ describe('orchestration v2 route boundary', () => {
       '/api/orchestration/changes/change-1/commands', { ...commandBody, command: { ...commandBody.command, unexpected: true } }, deps(),
     )).resolves.toMatchObject({ status: 400, body: { ok: false, code: 'ORCHESTRATION_V2_COMMAND_INVALID' } })
   })
+
+  it('runs through the shared production runtime callback', async () => {
+    const runChange = vi.fn(async () => ({ ok: true, snapshot, recovery: { report: {}, recovered: false, expired_runs: [] }, attempts: 1, diagnostics: [] }))
+    const result = await resolveOrchestrationV2PostRoute('/api/orchestration/changes/change-1/run', { root: '/repo' }, deps({ runChange }))
+    expect(result).toMatchObject({ status: 200, body: { ok: true, snapshot } })
+    expect(runChange).toHaveBeenCalledWith('/repo/openspec/changes/change-1')
+  })
 })

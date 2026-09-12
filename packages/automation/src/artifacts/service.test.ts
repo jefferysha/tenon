@@ -114,6 +114,32 @@ describe('runtime artifact service', () => {
     await expect(svc.publish('verify-1', { artifactId: build.artifactId })).rejects.toThrow('observed by this attempt')
     await rm(root, { recursive: true, force: true })
   })
+
+  it('persists initial pins and distinguishes pending updates from affected updates', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-'))
+    try {
+      const svc = await openArtifactService({ rootDir: root, scopeId: 'scope' })
+      await svc.beginAttempt({ workflowRunId: 'w', stageId: 'build', stageAttemptId: 'build-1' })
+      const v1 = await svc.observe('build-1', { path: 'contract.txt', data: 'v1', mediaType: 'text/plain' })
+      await svc.publish('build-1', { artifactId: v1.artifactId })
+      await svc.beginAttempt({ workflowRunId: 'w', stageId: 'verify', stageAttemptId: 'verify-1', dependencyStages: ['build'] })
+      await svc.read('verify-1', v1.artifactId, v1.version, { consumer: 'execution', representation: 'metadata' })
+      await svc.beginAttempt({ workflowRunId: 'w', stageId: 'build', stageAttemptId: 'build-2' })
+      const v2 = await svc.observe('build-2', { path: 'contract.txt', data: 'v2', mediaType: 'text/plain' })
+      await svc.publish('build-2', { artifactId: v2.artifactId })
+      const pinned = await svc.catalog('verify-1', { pinned: true, includeHistory: true })
+      expect(pinned.entries.map(entry => entry.version)).toEqual(['v1'])
+      const running = await svc.catalog('verify-1', { includeHistory: true })
+      expect(running.history?.find(entry => entry.version === 'v1')?.pendingUpdate).toBe(true)
+      expect(running.history?.find(entry => entry.version === 'v1')?.affected).toBe(false)
+      await svc.endAttempt('verify-1', 'completed')
+      const finished = await svc.catalog('verify-1', { includeHistory: true })
+      expect(finished.history?.find(entry => entry.version === 'v1')?.affected).toBe(true)
+      expect(finished.history?.find(entry => entry.version === 'v1')?.pendingUpdate).toBe(false)
+      const restarted = await openArtifactService({ rootDir: root, scopeId: 'scope' })
+      expect((await restarted.catalog('verify-1', { pinned: true, includeHistory: true })).entries.map(entry => entry.version)).toEqual(['v1'])
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
 })
 
 describe('cross-attempt content reuse', () => {

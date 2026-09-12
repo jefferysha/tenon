@@ -37,4 +37,24 @@ describe('StageArtifactRuntime', () => {
       await expect(runtime.publish('../outside')).rejects.toThrow('escapes root')
     } finally { await rm(root, { recursive: true, force: true }) }
   })
+
+  test('ignores orchestration state during reconciliation and managed observation', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'tenon-artifact-runtime-'))
+    const observed: string[] = []
+    const service: ArtifactServicePort = {
+      async beginAttempt() { return {} as never },
+      async observe(_id, content) { observed.push(content.source?.path ?? ''); return { artifactId: 'a', version: 'v1', contentDigest: '0'.repeat(64), size: 1, mediaType: 'text/plain', kind: 'text', origin: 'unknown', contentUri: 'artifact://a/v1', disposition: 'candidate', quality: 'unchecked', createdAt: new Date().toISOString() } },
+      async publish() { return {} as never },
+      async endAttempt() {},
+    }
+    try {
+      const runtime = await StageArtifactRuntime.open({ service, rootDir: root, workflowRunId: 'run', stageId: 'stage', stageAttemptId: 'attempt' })
+      await mkdir(path.join(root, '.orchestration-v2'))
+      await writeFile(path.join(root, '.orchestration-v2', 'event.json'), '{}')
+      await writeFile(path.join(root, 'report.txt'), 'ok')
+      await runtime.reconcile()
+      expect(observed).toEqual(['report.txt'])
+      await expect(runtime.observePath('.orchestration-v2/event.json')).rejects.toThrow('ignored artifact path')
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
 })

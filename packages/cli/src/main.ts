@@ -18,9 +18,10 @@ import {
   BUILTIN_TRACK_DEFINITIONS, createEffectiveSkillResolver, createFlowEngine, createHistoryWriter, createStateStore,
   createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest, loadTrackRegistry, loadWorkflow,
   fingerprintWorkspace, mutateTrackRegistry, readSecrets, registerProjectRoot,
-  createBuildRevisionToken, probeBuildRevisionIdentity,
+  createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
   withTrackRegistryLock,
 } from '@tenon/kernel'
+import { createProductionExecutionRuntimeV2 } from '@tenon/automation'
 import type { ExtendedManifestData, TrackRegistry, TrackValidationContext } from '@tenon/kernel'
 import type { CliDeps, GateMarkerInfo } from './deps.js'
 import { splitPassthroughArgv } from './argv.js'
@@ -148,6 +149,7 @@ async function main(): Promise<void> {
     clock: isoNow,
   })
   const deps: CliDeps = {
+    orchestrationRuntime: async (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: createOrchestrationLedger(), worker_id: `cli:${process.pid}` }),
     // H10 §1/§8任务7：skill_bundle_id 存在性语义校验器——直接复用上面 trackCtx.skillProfiles
     // （T 线 tracks/validate.ts::profileOk 消费的同一份集合：BUILTIN_TRACK_DEFINITIONS 非 `_all`
     // policy profile ∪ manifest 两表已声明的非 `_all` track 键），零额外 manifest 解析/新正则。

@@ -30,13 +30,27 @@ export interface ArtifactRecord { readonly artifactId: string; readonly currentV
 export interface ArtifactAttempt {
   readonly workflowRunId: string; readonly stageId: string; readonly stageAttemptId: string; readonly status: 'running' | 'completed' | 'failed' | 'cancelled'
   readonly dependencyStages: readonly string[]; readonly visibility: 'dependency-chain' | 'run' | 'project'; readonly startedAt: string; readonly endedAt?: string
+  /** Exact deliverable versions visible when this attempt started. Optional for legacy state. */
+  readonly pinnedVersions?: Readonly<Record<string, string>>
 }
 export interface ArtifactEvent { readonly seq: number; readonly idempotencyKey: string; readonly type: 'attempt.started'|'attempt.ended'|'artifact.observed'|'artifact.published'|'artifact.deleted'|'artifact.renamed'|'artifact.consumed'|'artifact.checked'; readonly at: string; readonly attemptId?: string; readonly artifactId?: string; readonly version?: string; readonly payload?: Readonly<Record<string, unknown>> }
-export interface ArtifactCatalogEntry extends ArtifactVersion { readonly availableFromStage?: string; readonly consumed?: boolean; readonly affected?: boolean }
+export interface ArtifactCatalogEntry extends ArtifactVersion {
+  readonly availableFromStage?: string
+  readonly consumed?: boolean
+  /** A completed consumer read an older version and a newer deliverable exists. */
+  readonly affected?: boolean
+  /** A running consumer read an older version and a newer deliverable exists. */
+  readonly pendingUpdate?: boolean
+}
 export interface ArtifactCatalog { readonly revision: number; readonly digest: string; readonly stageAttemptId: string; readonly entries: readonly ArtifactCatalogEntry[]; readonly history?: readonly ArtifactCatalogEntry[]; readonly nextCursor?: string; readonly totalEntries?: number; readonly truncated?: boolean }
 export interface ArtifactReadReceipt { readonly receiptId: string; readonly stageAttemptId: string; readonly artifactId: string; readonly version: string; readonly representation: 'metadata'|'structure'|'summary'|'content'; readonly readAt: string; readonly consumer: 'execution'|'ui'; readonly bytes: number }
 export interface ArtifactCheck { readonly checkId: string; readonly artifactId: string; readonly version: string; readonly checker: string; readonly checkerVersion: string; readonly status: ArtifactQuality; readonly diagnostics?: readonly string[]; readonly checkedAt: string }
-export interface ArtifactChecker { readonly id: string; readonly version: string; readonly supports: (version: ArtifactVersion) => boolean; readonly check: (input: { version: ArtifactVersion; bytes: Uint8Array }) => Promise<Omit<ArtifactCheck, 'artifactId'|'version'|'checkedAt'>> | Omit<ArtifactCheck, 'artifactId'|'version'|'checkedAt'> }
+export interface ArtifactChecker {
+  readonly id: string
+  readonly version: string
+  readonly supports: (version: ArtifactVersion) => boolean
+  readonly check: (input: { version: ArtifactVersion; bytes: Uint8Array }) => Promise<Omit<ArtifactCheck, 'checkId'|'artifactId'|'version'|'checker'|'checkerVersion'|'checkedAt'>> | Omit<ArtifactCheck, 'checkId'|'artifactId'|'version'|'checker'|'checkerVersion'|'checkedAt'>
+}
 export interface ArtifactSchemaAdapter { readonly id: string; readonly version: string; readonly supports: (version: ArtifactVersion) => boolean; readonly inspect: (bytes: Uint8Array) => unknown }
 export interface ArtifactSummaryProvider { readonly id: string; readonly version: string; readonly supports: (version: ArtifactVersion) => boolean; readonly summarize: (bytes: Uint8Array) => Promise<string> | string }
 

@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Quality check must verify shared contracts across service, API, UI and CLI."}
+{"file":".trellis/spec/automation/backend/orchestration.md","reason":"Quality check must verify production runtime and ledger invariants."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Quality check must verify producer and output registration compatibility."}
+{"file":"docs/research/2026-09-12-runtime-artifact-lineage-and-workflow-ui.md","reason":"Acceptance and UI boundary evidence for catalog noise and progressive disclosure."}
+{"file":".trellis/tasks/09-12-fix-artifact-runtime-followups/design.md","reason":"Quality check must compare implementation to frozen cross-layer design."}
