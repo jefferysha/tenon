@@ -27,7 +27,32 @@ function groupFor(snapshot: BoardSnapshotV2, item: WorkItemV2): { readonly mode:
   const group = snapshot.graph?.execution_groups.find((candidate) => candidate.work_item_ids.includes(item.work_item_id))
   return group === undefined ? undefined : { mode: group.mode, ids: group.work_item_ids }
 }
-function pipelineStageFor(snapshot: BoardSnapshotV2, item: WorkItemV2) { return snapshot.pipeline?.stages.find((stage) => stage.work_item_ids.includes(item.work_item_id)) }
+export function pipelineStageFor(snapshot: BoardSnapshotV2, item: WorkItemV2) { return snapshot.pipeline?.stages.find((stage) => stage.work_item_ids.includes(item.work_item_id)) }
+
+/** Stable pipeline identity used by artifact lineage; work_item_id remains ledger identity. */
+export function pipelineStageIdFor(snapshot: BoardSnapshotV2, item: WorkItemV2): string {
+  return pipelineStageFor(snapshot, item)?.stage_id ?? item.work_item_id
+}
+
+/** Artifact visibility is keyed by stage ids, with legacy work-item fallback. */
+export function pipelineDependencyStageIds(snapshot: BoardSnapshotV2, item: WorkItemV2): readonly string[] {
+  const stage = pipelineStageFor(snapshot, item)
+  const ids = new Set(stage?.depends_on ?? [])
+  for (const dependency of item.depends_on) {
+    const dependencyItem = snapshot.work_items.find((candidate) => candidate.work_item_id === dependency)
+    ids.add(dependencyItem === undefined ? dependency : pipelineStageIdFor(snapshot, dependencyItem))
+  }
+  for (const dependency of pipelineSkillFor(snapshot, item)?.depends_on ?? []) {
+    const dependencyStage = snapshot.pipeline?.stages.find((candidate) => candidate.skills.some((skill) => skill.binding_id === dependency || skill.skill_id === dependency || `skill:${skill.skill_id}` === dependency))
+    if (dependencyStage !== undefined) ids.add(dependencyStage.stage_id)
+  }
+  // Preserve the full declared upstream chain for progressive discovery.
+  for (const id of ids) {
+    const dependencyStage = snapshot.pipeline?.stages.find((candidate) => candidate.stage_id === id)
+    for (const upstream of dependencyStage?.depends_on ?? []) ids.add(upstream)
+  }
+  return Object.freeze([...ids])
+}
 export function pipelineSkillFor(snapshot: BoardSnapshotV2, item: WorkItemV2) {
   const stage = pipelineStageFor(snapshot, item)
   const binding = bindingFor(snapshot, item)

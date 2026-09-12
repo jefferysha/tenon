@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -13,6 +13,7 @@ import {
   type WorkGraphV2,
 } from '@tenon/kernel'
 import { createExecutionRuntimeV2, type RuntimeExecutorV2 } from './runtime-v2.js'
+import { openArtifactService } from '../artifacts/service.js'
 import type { RuntimeInputBundleV2 } from './input-materialization-v2.js'
 
 const now = '2026-09-02T00:00:00.000Z'
@@ -332,4 +333,57 @@ describe('persistent execution runtime v2', () => {
     expect(result.snapshot.status).toBe('completed')
     expect(maxInFlight).toBe(2)
   })
+
+  it('uses pipeline stage lineage and records execution consumption receipts', async () => {
+    const pipeline: WorkflowPipelinePlanV2 = {
+      schema_version: 'workflow-pipeline/v2', record_id: 'pipeline:artifacts', project_id: 'project-1', change_id: 'change-1', revision: 2,
+      correlation_id: 'corr-1', actor: { kind: 'system', id: 'planner' }, created_at: now, pipeline_id: 'artifacts', pipeline_version: '1',
+      workflow_id: 'custom', workflow_version: '1', workflow_source: 'user', workflow_fingerprint: `sha256:${'a'.repeat(64)}`, track_id: 'track', track_revision: '1', track_source: 'user', pipeline_source: 'user', graph_id: 'graph-1', assessment_id: 'assessment-1', status: 'frozen', stage_order: ['produce', 'consume'],
+      stages: [
+        { stage_id: 'produce', name: 'Produce', ordinal: 0, execution_mode: 'serial', depends_on: [], work_item_ids: ['item-a'], gate: 'none', skills: [{ binding_id: 'binding:item-a:skill-a', skill_id: 'skill-a', skill_version: '1.0.0', order: 0, role: 'user', source: 'user', mode: 'serial', depends_on: [], mcp_ids: [], validator_ids: [] }], input_refs: [], output_refs: [] },
+        { stage_id: 'consume', name: 'Consume', ordinal: 1, execution_mode: 'serial', depends_on: ['produce'], work_item_ids: ['item-b'], gate: 'none', skills: [{ binding_id: 'binding:item-b:skill-b', skill_id: 'skill-b', skill_version: '1.0.0', order: 0, role: 'user', source: 'user', mode: 'serial', depends_on: [], mcp_ids: [], validator_ids: [] }], input_refs: [], output_refs: [] },
+      ],
+      customizations: { custom_workflow: true, custom_track: true, custom_pipeline: true, user_skill_ids: ['skill-a', 'skill-b'], user_mcp_ids: [] }, pipeline_digest: `sha256:${'b'.repeat(64)}`,
+    }
+    const fixtureState = await fixture([{ from: 'item-a', to: 'item-b' }], 'serial', pipeline)
+    const service = await openArtifactService({ rootDir: fixtureState.root, scopeId: 'runtime-artifacts', now: () => now })
+    let consumerCatalogEntries = 0
+    const runtime = createExecutionRuntimeV2({
+      change_dir: fixtureState.root, ledger: fixtureState.ledger, worker_id: 'worker-1', artifact_service: service, clock: () => now,
+      executor: { async execute(input) {
+        if (input.work_item_id === 'item-a') {
+          await writeFile(path.join(fixtureState.root, 'shared.txt'), 'version one', 'utf8')
+          await input.artifact_runtime?.publish('shared.txt', 'deliverable')
+          await writeFile(path.join(fixtureState.root, 'shared.txt'), 'version two', 'utf8')
+          await input.artifact_runtime?.publish('shared.txt', 'deliverable')
+          return { output: 'published', artifacts: [], diagnostics: [] }
+        }
+        consumerCatalogEntries = input.artifact_catalog?.entries.length ?? 0
+        return { output: 'consumed', consumed: [{ ref: 'shared.txt', version: 'v1', representation: 'content' }, 'shared.txt'], artifacts: [], diagnostics: [] }
+      } },
+      validator: { async validate(input) { return report(input.work_item_id, input.result_id) } },
+      id_factory: (() => { let n = 0; return (prefix: string) => `${prefix}:${++n}` })(),
+    })
+    const result = await runtime.run()
+    expect(result.snapshot.status).toBe('completed')
+    expect(consumerCatalogEntries).toBeGreaterThan(0)
+    const attempts = await service.attempts()
+    expect(attempts.map((attempt) => attempt.stageId)).toEqual(['produce', 'consume'])
+    const producerAttempt = attempts.find((attempt) => attempt.stageId === 'produce')!
+    const consumerAttempt = attempts.find((attempt) => attempt.stageId === 'consume')!
+    const catalog = await service.catalog(consumerAttempt.stageAttemptId, { includeCandidates: true, includeHistory: true })
+    const shared = catalog.entries.find((entry) => entry.source?.path === 'shared.txt')!
+    expect(shared.availableFromStage).toBe('produce')
+    expect(shared.consumed).toBe(true)
+    expect((await service.events()).some((event) => event.type === 'artifact.consumed' && event.attemptId === consumerAttempt.stageAttemptId)).toBe(true)
+    expect(shared.producer?.stageAttemptId).toBe(producerAttempt.stageAttemptId)
+    expect(shared.producer?.skillId).toBe('skill-a')
+    expect(shared.producer?.actorId).toBe('worker-1')
+    expect(shared.version).toBe('v1')
+    expect(shared.affected).toBe(true)
+    const latestShared = catalog.entries.find((entry) => entry.source?.path === 'shared.txt' && entry.version === 'v2')!
+    expect(latestShared.consumed).toBe(true)
+    expect(latestShared.affected).toBe(false)
+  })
+
 })

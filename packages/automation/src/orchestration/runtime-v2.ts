@@ -7,9 +7,8 @@
  * evidence before a complete/validation command is appended.
  */
 import { randomUUID } from 'node:crypto'
-import { mkdir, rename, writeFile } from 'node:fs/promises'
-import path from 'node:path'
 import {
+  type ArtifactCatalog,
   type BoardCommandV2,
   type BoardSnapshotV2,
   type CapabilityResolutionV2,
@@ -29,7 +28,6 @@ import {
   redact,
   resultIdentity,
   resultFor,
-  stable,
   utc,
   type NormalizedPolicyV2,
   type RuntimeObservationV2,
@@ -44,9 +42,11 @@ import {
   type RuntimeArtifactResolverV2,
   type RuntimeInputBundleV2,
 } from './input-materialization-v2.js'
-import { bindingFor, chooseWave, pipelineSkillFor, resultInputRefs } from './runtime-v2-scheduler.js'
+import { bindingFor, chooseWave, pipelineDependencyStageIds, pipelineSkillFor, pipelineStageIdFor, resultInputRefs } from './runtime-v2-scheduler.js'
 import { StageArtifactRuntime, type ArtifactServicePort } from '../artifact-runtime/stage-runtime.js'
 import { openArtifactService } from '../artifacts/service.js'
+import { consumeArtifactsV2 } from './artifact-consumption-v2.js'
+import { persistRuntimeOutputV2 } from './runtime-output-persistence-v2.js'
 
 export interface RuntimeExecutorInputV2 {
   readonly run_id: string
@@ -59,6 +59,8 @@ export interface RuntimeExecutorInputV2 {
   readonly signal: AbortSignal
   /** Stage-scoped observer/publisher. Skills may explicitly publish actual files. */
   readonly artifact_runtime?: StageArtifactRuntime
+  /** Bounded metadata exposed before execution; file bodies remain on-demand. */
+  readonly artifact_catalog?: ArtifactCatalog
 }
 
 /** Provider-neutral port. The returned value is untrusted and bounded here. */
@@ -303,7 +305,8 @@ export class ExecutionRuntimeV2 {
 
   private async executeOne(prepared: { readonly run: SkillRunV2; readonly item: WorkItemV2 }): Promise<SettledRunV2> {
     const { run, item } = prepared
-    const binding = bindingFor(await this.snapshot(), item)
+    const runSnapshot = await this.snapshot()
+    const binding = bindingFor(runSnapshot, item)
     if (binding === undefined) throw new ExecutionRuntimeErrorV2('runtime-invalid', `binding missing for ${item.work_item_id}`)
     const controller = new AbortController()
     this.controllers.set(run.run_id, controller)
@@ -333,6 +336,7 @@ export class ExecutionRuntimeV2 {
     let retryable = false
     const inputBundle = this.inputBundles.get(run.run_id) ?? emptyInputBundleV2(run.run_id, item.work_item_id)
     let artifactRuntime: StageArtifactRuntime | undefined
+    let artifactCatalog: ArtifactCatalog | undefined
     let artifactService: ArtifactServicePort | undefined = this.options.artifact_service
     if (artifactService === undefined) {
       try { artifactService = await openArtifactService({ rootDir: this.options.change_dir, scopeId: 'runtime-artifacts' }) } catch (error) { this.diagnostics.push(`artifact-service-open-failed:${error instanceof Error ? redact(error.message) : 'unknown'}`) }
@@ -343,12 +347,16 @@ export class ExecutionRuntimeV2 {
           service: artifactService,
           rootDir: this.options.change_dir,
           workflowRunId: run.run_id,
-          stageId: item.work_item_id,
+          // Artifact lineage uses the stable pipeline stage namespace. The
+          // work_item_id remains the ledger identity passed to the executor.
+          stageId: pipelineStageIdFor(runSnapshot, item),
           stageAttemptId: run.attempt_id,
-          // Work-item dependency ids are the stage ids used by the artifact
-          // producer records. Keep opaque input refs out of the visibility key.
-          dependencyStages: item.depends_on,
+          dependencyStages: pipelineDependencyStageIds(runSnapshot, item),
+          skillId: binding.skill_id,
+          actorId: this.options.actor_id ?? this.options.worker_id,
         })
+        const catalog = artifactRuntime.catalog.bind(artifactRuntime)
+        try { artifactCatalog = await catalog({ includeCandidates: false, includeHistory: false, maxEntries: 100 }) } catch (error) { this.diagnostics.push(`artifact-catalog-open-failed:${error instanceof Error ? redact(error.message) : 'unknown'}`) }
       } catch (error) {
         this.diagnostics.push(`artifact-runtime-open-failed:${error instanceof Error ? redact(error.message) : 'unknown'}`)
       }
@@ -360,7 +368,7 @@ export class ExecutionRuntimeV2 {
         retryable = true
       } else {
         try {
-          raw = await this.options.executor.execute({ run_id: run.run_id, work_item_id: item.work_item_id, skill_id: binding.skill_id, skill_version: binding.skill_version, mcp_ids: binding.mcp_ids, input_refs: run.input_refs, input_bundle: inputBundle, signal: controller.signal, ...(artifactRuntime === undefined ? {} : { artifact_runtime: artifactRuntime }) })
+          raw = await this.options.executor.execute({ run_id: run.run_id, work_item_id: item.work_item_id, skill_id: binding.skill_id, skill_version: binding.skill_version, mcp_ids: binding.mcp_ids, input_refs: run.input_refs, input_bundle: inputBundle, signal: controller.signal, ...(artifactRuntime === undefined ? {} : { artifact_runtime: artifactRuntime }), ...(artifactCatalog === undefined ? {} : { artifact_catalog: artifactCatalog }) })
         } catch (error) {
           issue = controller.signal.aborted && this.options.signal?.aborted !== true ? 'executor-aborted' : 'executor-failed'
           retryable = issue === 'executor-failed'
@@ -372,12 +380,17 @@ export class ExecutionRuntimeV2 {
         if (!normalized.ok) issue = normalized.code
         else {
           try {
-            const outputRef = await this.persistOutput(run, normalized.observation)
+            let preparedObservation = normalized.observation
+            if (artifactRuntime !== undefined && artifactService !== undefined && normalized.observation.consumed !== undefined && normalized.observation.consumed.length > 0) {
+              const consumeDiagnostics = await consumeArtifactsV2(artifactService, artifactRuntime, run.attempt_id, normalized.observation.consumed)
+              if (consumeDiagnostics.length > 0) preparedObservation = { ...preparedObservation, diagnostics: Object.freeze([...preparedObservation.diagnostics, ...consumeDiagnostics].slice(0, 64)) }
+            }
+            const outputRef = await persistRuntimeOutputV2(this.options.change_dir, run, preparedObservation)
             observation = {
-              ...normalized.observation,
+              ...preparedObservation,
               raw_output_ref: outputRef.ref,
               artifacts: Object.freeze([
-                ...normalized.observation.artifacts,
+                ...preparedObservation.artifacts,
                 { id: `output:${run.run_id}`, kind: 'json' as const, ref: outputRef.ref, digest: outputRef.digest, media_type: 'application/json', byte_length: outputRef.byte_length },
               ]),
             }
@@ -416,18 +429,6 @@ export class ExecutionRuntimeV2 {
     const result = resultFor(run, observation, report, utc(this.clock), issue, pipelineSkillFor(await this.snapshot(), item)?.output_schema_id)
     const blocking = result.contract_status !== 'validated' || report?.status !== 'pass' || report.checks.some((check) => check.status !== 'pass') || issue !== undefined
     return { run, item, result, ...(report === undefined ? {} : { report }), retryable, blocking }
-  }
-
-  private async persistOutput(run: SkillRunV2, observation: RuntimeObservationV2): Promise<{ readonly ref: string; readonly digest: `sha256:${string}`; readonly byte_length: number }> {
-    const resultId = resultIdentity(run.run_id)
-    const directory = path.join(path.resolve(this.options.change_dir), '.tenon-artifacts', resultId)
-    await mkdir(directory, { recursive: true })
-    const output = stable(observation.output)
-    const temporary = path.join(directory, `output.json.tmp-${randomUUID()}`)
-    const target = path.join(directory, 'output.json')
-    await writeFile(temporary, output, 'utf8')
-    await rename(temporary, target)
-    return { ref: `artifact://${resultId}/output.json`, digest: observation.output_digest, byte_length: observation.output_bytes }
   }
 
   private async settle(snapshot: BoardSnapshotV2, outcome: SettledRunV2): Promise<BoardSnapshotV2> {

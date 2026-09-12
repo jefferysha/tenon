@@ -12,4 +12,12 @@ describe('runtime artifact GET routes', () => {
   it('returns scoped catalog and clamps policy', async () => { const d = deps(); await resolveArtifactRoute(req('/api/artifacts/catalog?root=%2Ftmp%2Froot&stageAttemptId=attempt-1&maxEntries=9999'), {} as any, '/api/artifacts/catalog', d); expect(d.sendJson).toHaveBeenCalledWith(expect.anything(), 200, expect.objectContaining({ ok: true })); expect(d.service.catalog).toHaveBeenCalledWith('attempt-1', expect.objectContaining({ maxEntries: 256 })) })
   it('UI content read does not create execution receipt', async () => { const d = deps(); await resolveArtifactRoute(req('/api/artifacts/read?root=%2Ftmp%2Froot&stageAttemptId=attempt-1&artifactId=artifact:x&version=v1'), {} as any, '/api/artifacts/read', d); expect(d.service.read).toHaveBeenCalledWith('attempt-1', 'artifact:x', 'v1', expect.objectContaining({ consumer: 'ui' })) })
   it('rejects missing root and unsafe identifiers', async () => { const d = deps(); await resolveArtifactRoute(req('/api/artifacts/catalog?stageAttemptId=attempt-1'), {} as any, '/api/artifacts/catalog', d); expect(d.sendJson).toHaveBeenCalledWith(expect.anything(), 400, expect.anything()); const d2 = deps(); await resolveArtifactRoute(req('/api/artifacts/read?root=x&stageAttemptId=../../x&artifactId=a&version=v1'), {} as any, '/api/artifacts/read', d2); expect(d2.sendJson).toHaveBeenCalledWith(expect.anything(), 400, expect.anything()) })
+  it('bounds event replay for reconnecting clients', async () => {
+    const d = deps(); d.service.events = vi.fn(async () => Array.from({ length: 20 }, (_, index) => ({ seq: index + 1, idempotencyKey: `e:${index + 1}`, type: 'artifact.observed', at: '2026-01-01T00:00:00Z' })))
+    await resolveArtifactRoute(req('/api/artifacts/events?root=%2Ftmp%2Froot&after=3&limit=4'), {} as any, '/api/artifacts/events', d)
+    expect(d.service.events).toHaveBeenCalledWith(3, 4)
+    expect(d.sendJson).toHaveBeenCalledWith(expect.anything(), 200, expect.objectContaining({ events: expect.arrayContaining([expect.objectContaining({ seq: 4 })]) }))
+    const body = d.sendJson.mock.calls.at(-1)?.[2] as { events: readonly unknown[] }
+    expect(body.events).toHaveLength(4)
+  })
 })

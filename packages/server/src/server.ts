@@ -203,6 +203,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const snapshotDeps = snapshotDepsFactory({
     registry, store, version, clock, capabilities, gitHeadSha, workspaceFingerprint,
     rootAnchor: (root) => snapshotRootAnchor?.(root),
+    artifactServiceForRoot,
     ...(loadedManifest === undefined ? {} : { mandatorySkills: loadedManifest.mandatorySkills }),
   })
 

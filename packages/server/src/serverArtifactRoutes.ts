@@ -3,7 +3,7 @@ import type { ArtifactPolicy, ArtifactCatalog, ArtifactEvent, ArtifactReadReceip
 import { lstatSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 interface ArtifactInspection { version: ArtifactVersion; bytes?: Uint8Array; structure?: unknown }
-export interface ArtifactService { catalog(id: string, policy?: ArtifactPolicy): Promise<ArtifactCatalog>; inspect(id: string, version: string, options?: { includeContent?: boolean; maxBytes?: number }): Promise<ArtifactInspection>; read(id: string, artifactId: string, version: string, options?: { representation?: ArtifactReadReceipt['representation']; consumer?: ArtifactReadReceipt['consumer']; maxBytes?: number }): Promise<ArtifactInspection>; events(after?: number): Promise<readonly ArtifactEvent[]>; attempts?: (stageId?: string) => Promise<readonly { stageId: string; stageAttemptId: string; startedAt: string }[]>; }
+export interface ArtifactService { catalog(id: string, policy?: ArtifactPolicy): Promise<ArtifactCatalog>; inspect(id: string, version: string, options?: { includeContent?: boolean; maxBytes?: number }): Promise<ArtifactInspection>; read(id: string, artifactId: string, version: string, options?: { representation?: ArtifactReadReceipt['representation']; consumer?: ArtifactReadReceipt['consumer']; maxBytes?: number }): Promise<ArtifactInspection>; events(after?: number, limit?: number): Promise<readonly ArtifactEvent[]>; attempts?: (stageId?: string) => Promise<readonly { stageId: string; stageAttemptId: string; startedAt: string }[]>; }
 import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
 
 const MAX_ENTRIES = 256
@@ -24,7 +24,14 @@ function required(q: URLSearchParams, key: string): string | undefined {
 }
 function policy(q: URLSearchParams): ArtifactPolicy {
   const max = Number(q.get('maxEntries') ?? '')
-  return { includeCandidates: q.get('includeCandidates') === 'true', includeHistory: q.get('includeHistory') === 'true', ...(Number.isSafeInteger(max) && max > 0 ? { maxEntries: Math.min(max, MAX_ENTRIES) } : {}) }
+  const cursor = q.get('cursor')
+  return {
+    includeCandidates: q.get('includeCandidates') === 'true',
+    includeHistory: q.get('includeHistory') === 'true',
+    ...(Number.isSafeInteger(max) && max > 0 ? { maxEntries: Math.min(max, MAX_ENTRIES) } : {}),
+    ...(cursor !== null && /^\d{1,12}$/u.test(cursor) ? { cursor } : {}),
+    ...(q.get('pinned') === 'true' ? { pinned: true } : {}),
+  }
 }
 function scopedRoot(anchor: WorkflowRootAnchor, change: string | undefined): string {
   if (!change) return anchor.path
@@ -76,7 +83,9 @@ export async function resolveArtifactRoute(req: IncomingMessage, res: ServerResp
     }
     if (path === '/api/artifacts/events') {
       const after = Number(q.get('after') ?? '0')
-      const events = await service.events(Number.isSafeInteger(after) && after >= 0 ? after : 0)
+      const limit = Number(q.get('limit') ?? '')
+      const boundedLimit = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, MAX_ENTRIES) : MAX_ENTRIES
+      const events = (await service.events(Number.isSafeInteger(after) && after >= 0 ? after : 0, boundedLimit)).slice(0, boundedLimit)
       deps.sendJson(res, 200, { ok: true, events })
       return true
     }

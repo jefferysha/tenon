@@ -1,0 +1,4 @@
+{"file":"docs/research/2026-09-12-runtime-artifact-code-findings.md","reason":"Confirmed current runtime/artifact implementation boundaries and known missing production wiring."}
+{"file":"docs/research/2026-09-12-runtime-artifact-lineage-and-workflow-ui.md","reason":"Defines runtime discovery, fixed catalog protocol, progressive disclosure and UI boundary requirements."}
+{"file":"docs/research/2026-09-12-runtime-artifact-protocol-findings.md","reason":"Primary-source protocol findings for hooks, file observation, versioned artifacts, and durable event boundaries."}
+{"file":".trellis/tasks/archive/2026-09/09-12-backend-full-workflow-e2e/live-evidence/full-workflow-outcome.json","reason":"Real execution evidence exposing producer, consumption, stage mapping and runtime adapter gaps."}

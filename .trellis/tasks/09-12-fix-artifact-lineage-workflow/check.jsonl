@@ -1,0 +1,6 @@
+{"file":"packages/automation/src/artifacts/service.test.ts","reason":"Existing durable artifact, visibility, version and read receipt tests to extend."}
+{"file":"packages/automation/src/artifact-runtime/stage-runtime.test.ts","reason":"Existing stage reconciliation/publish behavior tests to extend with producer and consumption."}
+{"file":"packages/automation/src/orchestration/runtime-v2.test.ts","reason":"Existing V2 runtime execution and input materialization tests for production wiring."}
+{"file":"packages/server/src/serverArtifactRoutes.test.ts","reason":"Existing HTTP catalog/inspect/read boundary tests, including UI receipt semantics."}
+{"file":"packages/server/src/snapshot.test.ts","reason":"Snapshot projection and compatibility tests for artifactAttempts."}
+{"file":"packages/dashboard-app/src/workspace/ArtifactCatalogPanel.tsx","reason":"UI source for runtime catalog display and preview behavior."}

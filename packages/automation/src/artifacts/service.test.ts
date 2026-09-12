@@ -22,9 +22,64 @@ describe('runtime artifact service', () => {
     expect(new TextDecoder().decode(read.bytes)).toBe('one')
     expect((await svc.read('verify-1', first.artifactId, first.version, { consumer: 'ui' })).bytes).toBeDefined()
     expect((await svc.events()).filter(e => e.type === 'artifact.consumed')).toHaveLength(1)
+    await svc.beginAttempt({ workflowRunId: 'w', stageId: 'unrelated', stageAttemptId: 'unrelated-1' })
+    await expect(svc.read('unrelated-1', first.artifactId, first.version, { consumer: 'execution' })).rejects.toThrow('not visible')
+    const metadata = await svc.read('verify-1', first.artifactId, first.version, { consumer: 'execution', representation: 'metadata' })
+    expect(metadata.bytes).toBeUndefined()
     await svc.endAttempt('verify-1', 'completed')
     const impacted = await svc.catalog('verify-1', { includeHistory: true })
     expect(impacted.history?.some(entry => entry.version === 'v1' && entry.affected)).toBe(true)
+  })
+
+  it('changes the catalog digest when version metadata changes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-'))
+    try {
+      const svc = await openArtifactService({ rootDir: root, scopeId: 'scope' })
+      await svc.beginAttempt({ workflowRunId: 'w', stageId: 'build', stageAttemptId: 'build-1' })
+      const version = await svc.observe('build-1', { path: 'report.txt', data: 'same', mediaType: 'text/plain' })
+      const candidate = await svc.catalog('build-1', { includeCandidates: true })
+      await svc.publish('build-1', { artifactId: version.artifactId, disposition: 'deliverable' })
+      const deliverable = await svc.catalog('build-1')
+      expect(deliverable.digest).not.toBe(candidate.digest)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('adopts an unknown reconciliation version when an explicit stage publish follows', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-'))
+    try {
+      const svc = await openArtifactService({ rootDir: root, scopeId: 'scope' })
+      await svc.beginAttempt({ workflowRunId: 'w', stageId: 'build', stageAttemptId: 'build-1' })
+      const discovered = await svc.observe('build-1', { path: 'report.txt', data: 'same', mediaType: 'text/plain', origin: 'unknown', observationSource: 'reconcile' })
+      const adopted = await svc.observe('build-1', { path: 'report.txt', data: 'same', mediaType: 'text/plain', origin: 'stage', producer: { workflowRunId: 'w', stageAttemptId: 'build-1', skillId: 'skill-a', actorId: 'worker-1' }, observationSource: 'explicit-publish' })
+      expect(adopted.version).toBe(discovered.version)
+      expect(adopted.origin).toBe('stage')
+      expect(adopted.producer?.skillId).toBe('skill-a')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('paginates catalog entries with a stable cursor', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-'))
+    try {
+      const svc = await openArtifactService({ rootDir: root, scopeId: 'scope' })
+      await svc.beginAttempt({ workflowRunId: 'w', stageId: 'build', stageAttemptId: 'build-1' })
+      for (const name of ['a.txt', 'b.txt', 'c.txt']) {
+        const value = await svc.observe('build-1', { path: name, data: name, mediaType: 'text/plain' })
+        await svc.publish('build-1', { artifactId: value.artifactId })
+      }
+      const first = await svc.catalog('build-1', { maxEntries: 2 })
+      expect(first.entries).toHaveLength(2)
+      expect(first.totalEntries).toBe(3)
+      expect(first.truncated).toBe(true)
+      const second = await svc.catalog('build-1', { maxEntries: 2, cursor: first.nextCursor })
+      expect(second.entries).toHaveLength(1)
+      expect(second.truncated).toBe(false)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it('is durable across service instances and rejects path escape', async () => {

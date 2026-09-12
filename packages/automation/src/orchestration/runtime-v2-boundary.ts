@@ -33,10 +33,21 @@ export interface NormalizedPolicyV2 {
   readonly max_output_bytes: number
 }
 
+export interface RuntimeConsumedV2 {
+  /** Stable source path or content URI when artifact_id/version are omitted. */
+  readonly ref: string
+  readonly artifact_id?: string
+  readonly version?: string
+  readonly representation?: 'metadata' | 'structure' | 'summary' | 'content'
+  readonly max_bytes?: number
+}
+
 export interface RuntimeObservationV2 {
   readonly output: JsonBoundaryValue
   readonly raw_output_ref?: string
   readonly artifacts: readonly RuntimeArtifactV2[]
+  /** Bounded declarations of versions the stage actually consumed. */
+  readonly consumed?: readonly RuntimeConsumedV2[]
   readonly summary?: string
   readonly diagnostics: readonly string[]
   readonly output_digest: `sha256:${string}`
@@ -124,6 +135,26 @@ function onlyKeys(value: { readonly [key: string]: JsonBoundaryValue }, allowed:
   return Object.keys(value).every((key) => accepted.has(key))
 }
 
+function normalizeConsumed(value: JsonBoundaryValue): RuntimeConsumedV2 | undefined {
+  if (typeof value === 'string') {
+    if (!SAFE_REF.test(value) || value.includes('..')) return undefined
+    return { ref: value }
+  }
+  const raw = record(value)
+  if (raw === undefined || !onlyKeys(raw, ['ref', 'artifact_id', 'version', 'representation', 'max_bytes'])) return undefined
+  const ref = typeof raw.ref === 'string' && SAFE_REF.test(raw.ref) && !raw.ref.includes('..') ? raw.ref : undefined
+  if (ref === undefined) return undefined
+  const artifact_id = raw.artifact_id === undefined ? undefined : typeof raw.artifact_id === 'string' && idValid(raw.artifact_id) ? raw.artifact_id : undefined
+  if (raw.artifact_id !== undefined && artifact_id === undefined) return undefined
+  const version = raw.version === undefined ? undefined : typeof raw.version === 'string' && /^v[0-9]{1,9}$/u.test(raw.version) ? raw.version : undefined
+  if (raw.version !== undefined && version === undefined) return undefined
+  const representation = raw.representation === undefined ? undefined : raw.representation === 'metadata' || raw.representation === 'structure' || raw.representation === 'summary' || raw.representation === 'content' ? raw.representation : undefined
+  if (raw.representation !== undefined && representation === undefined) return undefined
+  const max_bytes = raw.max_bytes === undefined ? undefined : typeof raw.max_bytes === 'number' && Number.isSafeInteger(raw.max_bytes) && raw.max_bytes > 0 && raw.max_bytes <= 4 * 1024 * 1024 ? raw.max_bytes : undefined
+  if (raw.max_bytes !== undefined && max_bytes === undefined) return undefined
+  return { ref, ...(artifact_id === undefined ? {} : { artifact_id }), ...(version === undefined ? {} : { version }), ...(representation === undefined ? {} : { representation }), ...(max_bytes === undefined ? {} : { max_bytes }) }
+}
+
 function normalizeArtifact(value: JsonBoundaryValue, index: number): RuntimeArtifactV2 | undefined {
   const raw = record(value)
   if (raw === undefined) return undefined
@@ -143,21 +174,25 @@ export function normalizeObservation(raw: unknown, policy: NormalizedPolicyV2): 
   try { snapshot = snapshotJsonBoundary(raw, { maxBytes: policy.max_output_bytes, maxDepth: 40, maxNodes: 8_192 }) } catch (error) { return { ok: false, code: error instanceof JsonBoundaryError ? error.code : 'observation-invalid' } }
   const candidate = record(snapshot.value)
   const isEnvelope = candidate !== undefined && Object.prototype.hasOwnProperty.call(candidate, 'output')
-  if (isEnvelope && !onlyKeys(candidate, ['output', 'raw_output_ref', 'artifacts', 'summary', 'diagnostics'])) return { ok: false, code: 'observation-shape-invalid' }
+  if (isEnvelope && !onlyKeys(candidate, ['output', 'raw_output_ref', 'artifacts', 'consumed', 'summary', 'diagnostics'])) return { ok: false, code: 'observation-shape-invalid' }
   const output = isEnvelope ? (candidate.output ?? null) : snapshot.value
   const artifactsRaw = isEnvelope ? candidate.artifacts : []
+  const consumedRaw = isEnvelope ? candidate.consumed : []
   if (isEnvelope && !Array.isArray(artifactsRaw)) return { ok: false, code: 'artifacts-invalid' }
   if (isEnvelope && !Array.isArray(candidate.diagnostics)) return { ok: false, code: 'diagnostics-invalid' }
   if (isEnvelope && candidate.raw_output_ref !== undefined && (typeof candidate.raw_output_ref !== 'string' || !SAFE_REF.test(candidate.raw_output_ref) || candidate.raw_output_ref.includes('..'))) return { ok: false, code: 'raw-output-ref-invalid' }
   const artifacts = Array.isArray(artifactsRaw) ? artifactsRaw.map(normalizeArtifact) : []
   if (artifacts.some((item) => item === undefined)) return { ok: false, code: 'artifact-invalid' }
   const normalizedArtifacts = artifacts.filter((item): item is RuntimeArtifactV2 => item !== undefined).slice(0, 256)
+  const consumedValues = Array.isArray(consumedRaw) ? consumedRaw.slice(0, 128) : []
+  const consumed = consumedValues.map(normalizeConsumed).filter((item): item is RuntimeConsumedV2 => item !== undefined)
+  const consumedInvalid = isEnvelope && (consumedRaw !== undefined && !Array.isArray(consumedRaw) || Array.isArray(consumedRaw) && consumed.length !== Math.min(consumedRaw.length, 128))
   const artifactIssue: string[] = []
-  const diagnostics = [...artifactIssue, ...(isEnvelope ? diagnosticList(candidate.diagnostics ?? [], 'diagnostics') : [])].slice(0, 64)
+  const diagnostics = [...artifactIssue, ...(consumedInvalid ? ['consumed-invalid'] : []), ...(isEnvelope ? diagnosticList(candidate.diagnostics ?? [], 'diagnostics') : [])].slice(0, 64)
   const rawOutputRef = isEnvelope && typeof candidate.raw_output_ref === 'string' && SAFE_REF.test(candidate.raw_output_ref) && !candidate.raw_output_ref.includes('..') ? candidate.raw_output_ref : undefined
   const summary = isEnvelope && typeof candidate.summary === 'string' ? redact(candidate.summary, 512) : undefined
   const outputJson = stable(output)
-  return { ok: true, observation: { output, ...(rawOutputRef === undefined ? {} : { raw_output_ref: rawOutputRef }), artifacts: Object.freeze(normalizedArtifacts), ...(summary === undefined ? {} : { summary }), diagnostics: Object.freeze(diagnostics), output_digest: digest(output), output_bytes: new TextEncoder().encode(outputJson).byteLength } }
+  return { ok: true, observation: { output, consumed: Object.freeze(consumed), ...(rawOutputRef === undefined ? {} : { raw_output_ref: rawOutputRef }), artifacts: Object.freeze(normalizedArtifacts), ...(summary === undefined ? {} : { summary }), diagnostics: Object.freeze(diagnostics), output_digest: digest(output), output_bytes: new TextEncoder().encode(outputJson).byteLength } }
 }
 
 export function normalizeReport(raw: unknown, input: RuntimeValidationInputV2, now: string): { readonly ok: true; readonly report: ValidationReportV2 } | { readonly ok: false; readonly code: string } {

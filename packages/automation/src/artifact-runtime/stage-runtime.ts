@@ -1,15 +1,20 @@
 import { createHash } from 'node:crypto'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
-import type { ArtifactAttempt, ArtifactContent, ArtifactVersion } from '@tenon/kernel'
+import type { ArtifactAttempt, ArtifactCatalog, ArtifactContent, ArtifactEvent, ArtifactPolicy, ArtifactVersion } from '@tenon/kernel'
+import type { ArtifactInspection } from '../artifacts/service.js'
 
 /** Minimal structural port implemented by the durable artifact service. */
 export interface ArtifactServicePort {
   beginAttempt(input: { workflowRunId: string; stageId: string; stageAttemptId: string; dependencyStages?: readonly string[]; visibility?: 'dependency-chain' | 'run' | 'project' }): Promise<ArtifactAttempt>
-  observe(stageAttemptId: string, content: ArtifactContent): Promise<unknown>
-  publish(stageAttemptId: string, input: { artifactId?: string; path: string; disposition?: 'candidate' | 'deliverable' | 'intermediate' }): Promise<ArtifactVersion>
+  observe(stageAttemptId: string, content: ArtifactContent & { readonly observationSource?: 'managed-tool' | 'explicit-publish' | 'reconcile' | 'external'; readonly toolCallId?: string }): Promise<unknown>
+  publish(stageAttemptId: string, input: { artifactId?: string; version?: string; path: string; disposition?: 'candidate' | 'deliverable' | 'intermediate' }): Promise<ArtifactVersion>
   endAttempt(stageAttemptId: string, status: 'completed' | 'failed' | 'cancelled'): Promise<unknown>
   delete?(stageAttemptId: string, artifactId: string, path?: string): Promise<unknown>
+  catalog?(stageAttemptId: string, policy?: { readonly includeCandidates?: boolean; readonly includeHistory?: boolean; readonly maxEntries?: number }): Promise<ArtifactCatalog>
+  inspect?(artifactId: string, version: string, options?: { readonly includeContent?: boolean; readonly maxBytes?: number }): Promise<ArtifactInspection>
+  read?(stageAttemptId: string, artifactId: string, version: string, options?: { readonly representation?: 'metadata' | 'structure' | 'summary' | 'content'; readonly consumer?: 'execution' | 'ui'; readonly maxBytes?: number }): Promise<ArtifactInspection>
+  events?(after?: number, limit?: number): Promise<readonly ArtifactEvent[]>
 }
 
 export interface StageRuntimeOptions {
@@ -19,6 +24,9 @@ export interface StageRuntimeOptions {
   readonly stageId: string
   readonly stageAttemptId: string
   readonly dependencyStages?: readonly string[]
+  /** Optional skill/actor identity attached to newly created versions. */
+  readonly skillId?: string
+  readonly actorId?: string
 }
 
 export interface ArtifactChange { readonly path: string; readonly kind: 'created' | 'changed' | 'deleted'; readonly digest?: string }
@@ -31,19 +39,32 @@ export class StageArtifactRuntime {
   private readonly service: ArtifactServicePort
   private readonly rootDir: string
   private readonly stageAttemptId: string
+  private readonly workflowRunId: string
+  private readonly skillId?: string
+  private readonly actorId?: string
   private baseline = new Map<string, string>()
   private readonly artifactIdsByPath = new Map<string, string>()
+  private readonly observedDigestsByPath = new Map<string, string>()
+  private readonly observedVersionsByPath = new Map<string, ArtifactVersion>()
+  private readonly pinnedVersions = new Map<string, string>()
 
   private constructor(options: StageRuntimeOptions) {
     this.service = options.service
     this.rootDir = path.resolve(options.rootDir)
     this.stageAttemptId = options.stageAttemptId
+    this.workflowRunId = options.workflowRunId
+    this.skillId = options.skillId
+    this.actorId = options.actorId
   }
 
   static async open(options: StageRuntimeOptions): Promise<StageArtifactRuntime> {
     const runtime = new StageArtifactRuntime(options)
     runtime.baseline = await runtime.snapshot()
     await options.service.beginAttempt({ workflowRunId: options.workflowRunId, stageId: options.stageId, stageAttemptId: options.stageAttemptId, dependencyStages: options.dependencyStages ?? [], visibility: 'dependency-chain' })
+    if (options.service.catalog) {
+      const initial = await options.service.catalog(options.stageAttemptId, { includeCandidates: false, includeHistory: false, maxEntries: 1000 })
+      for (const entry of initial.entries) runtime.pinnedVersions.set(entry.artifactId, entry.version)
+    }
     return runtime
   }
 
@@ -65,7 +86,15 @@ export class StageArtifactRuntime {
       }
       const absolute = this.resolve(change.path)
       const bytes = await readFile(absolute)
-      const version = await this.service.observe(this.stageAttemptId, { source: { path: change.path }, data: bytes, mediaType: mediaTypeFor(change.path), origin: 'unknown' })
+      const version = await this.service.observe(this.stageAttemptId, {
+        source: { path: change.path },
+        data: bytes,
+        mediaType: mediaTypeFor(change.path),
+        origin: 'unknown',
+        observationSource: 'reconcile',
+      })
+      this.observedDigestsByPath.set(change.path, change.digest ?? digest(bytes))
+      if (version !== null && typeof version === 'object' && 'artifactId' in version) this.observedVersionsByPath.set(change.path, version as ArtifactVersion)
       if (version !== null && typeof version === 'object' && 'artifactId' in version) this.artifactIdsByPath.set(change.path, String((version as { artifactId: string }).artifactId))
     }
     this.baseline = next
@@ -74,8 +103,53 @@ export class StageArtifactRuntime {
 
   async publish(relativePath: string, disposition: 'candidate' | 'deliverable' | 'intermediate' = 'candidate'): Promise<ArtifactVersion> {
     const relative = this.safeRelative(relativePath)
-    return this.service.publish(this.stageAttemptId, { path: relative, disposition })
+    // A skill may explicitly publish a pre-existing file without modifying it
+    // during this attempt. Observe/adopt the exact bytes first so the durable
+    // service can attach an observation receipt for this attempt. The digest
+    // guard keeps repeated publish calls idempotent and avoids duplicate events.
+    const absolute = this.resolve(relative)
+    const bytes = await readFile(absolute)
+    const currentDigest = digest(bytes)
+    const prior = this.observedVersionsByPath.get(relative)
+    const needsManagedObservation = prior === undefined || prior.contentDigest !== currentDigest || prior.origin !== 'stage' || prior.producer?.stageAttemptId !== this.stageAttemptId
+    if (needsManagedObservation) {
+      const observed = await this.service.observe(this.stageAttemptId, {
+        source: { path: relative },
+        data: bytes,
+        mediaType: mediaTypeFor(relative),
+        origin: 'stage',
+        producer: {
+          workflowRunId: this.workflowRunId,
+          stageAttemptId: this.stageAttemptId,
+          ...(this.skillId ? { skillId: this.skillId } : {}),
+          ...(this.actorId ? { actorId: this.actorId } : {}),
+        },
+        observationSource: 'explicit-publish',
+      })
+      this.observedDigestsByPath.set(relative, currentDigest)
+      if (observed !== null && typeof observed === 'object' && 'artifactId' in observed) { this.artifactIdsByPath.set(relative, String((observed as { artifactId: string }).artifactId)); this.observedVersionsByPath.set(relative, observed as ArtifactVersion) }
+    }
+    const observed = this.observedVersionsByPath.get(relative)
+    return this.service.publish(this.stageAttemptId, { path: relative, ...(observed ? { artifactId: observed.artifactId, version: observed.version } : {}), disposition })
   }
+
+  async observePath(relativePath: string, options: { readonly source?: 'managed-tool' | 'explicit-publish'; readonly toolCallId?: string } = {}): Promise<ArtifactVersion> {
+    const relative = this.safeRelative(relativePath); const bytes = await readFile(this.resolve(relative))
+    const value = await this.service.observe(this.stageAttemptId, { source: { path: relative }, data: bytes, mediaType: mediaTypeFor(relative), origin: 'stage', producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...(this.skillId ? { skillId: this.skillId } : {}), ...(this.actorId ? { actorId: this.actorId } : {}) }, observationSource: options.source ?? 'managed-tool', ...(options.toolCallId ? { toolCallId: options.toolCallId } : {}) })
+    const version = value as ArtifactVersion; this.observedDigestsByPath.set(relative, digest(bytes)); this.observedVersionsByPath.set(relative, version); this.artifactIdsByPath.set(relative, version.artifactId); return version
+  }
+
+  async catalog(policy: ArtifactPolicy = {}): Promise<ArtifactCatalog> { if (!this.service.catalog) throw new Error('artifact catalog unavailable'); return this.service.catalog(this.stageAttemptId, policy.maxEntries === undefined ? { ...policy, maxEntries: 100 } : policy) }
+  async inspect(artifactId: string, version: string, options: { readonly includeContent?: boolean; readonly maxBytes?: number } = {}): Promise<ArtifactInspection> { if (!this.service.inspect) throw new Error('artifact inspect unavailable'); return this.service.inspect(artifactId, version, options) }
+  async read(artifactId: string, version: string, options: { readonly representation?: 'metadata'|'structure'|'summary'|'content'; readonly maxBytes?: number } = {}): Promise<ArtifactInspection> { if (!this.service.read) throw new Error('artifact read unavailable'); return this.service.read(this.stageAttemptId, artifactId, version, { ...options, consumer: 'execution' }) }
+  async consume(ref: string, version?: string, options: { readonly representation?: 'metadata'|'structure'|'summary'|'content'; readonly maxBytes?: number } = {}): Promise<ArtifactInspection> {
+    const catalog = await this.catalog({ includeCandidates: true, includeHistory: true, maxEntries: 1000 }); const entries = [...(catalog.history ?? catalog.entries)]
+    const match = entries.find(entry => entry.artifactId === ref || entry.contentUri === ref || entry.source?.path === ref || entry.source?.ref === ref)
+    if (!match) throw new Error(`artifact reference not found: ${ref}`)
+    const selected = version ?? this.pinnedVersions.get(match.artifactId) ?? match.version
+    return this.read(match.artifactId, selected, options)
+  }
+  async events(after = 0, limit = 100): Promise<readonly ArtifactEvent[]> { if (!this.service.events) throw new Error('artifact events unavailable'); return this.service.events(after, limit) }
 
   async end(status: 'completed' | 'failed' | 'cancelled'): Promise<void> {
     await this.reconcile()
@@ -120,4 +194,8 @@ function mediaTypeFor(file: string): string {
   if (ext === '.txt' || ext === '.log') return 'text/plain'
   if (ext === '.html' || ext === '.htm') return 'text/html'
   return 'application/octet-stream'
+}
+
+function digest(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex')
 }

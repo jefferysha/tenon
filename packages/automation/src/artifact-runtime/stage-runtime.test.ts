@@ -10,7 +10,7 @@ describe('StageArtifactRuntime', () => {
     const observed: string[] = []; const ended: string[] = []; const published: string[] = []
     const service: ArtifactServicePort = {
       async beginAttempt() { return {} as never },
-      async observe(_id, content) { observed.push(content.source?.path ?? '') },
+      async observe(_id, content) { observed.push(content.source?.path ?? ''); return { artifactId: 'a', version: 'v1', contentDigest: '0'.repeat(64), size: 5, mediaType: 'text/markdown', kind: 'text', origin: content.origin ?? 'unknown', ...(content.producer ? { producer: content.producer } : {}), contentUri: 'artifact://a/v1', disposition: 'candidate', quality: 'unchecked', createdAt: new Date().toISOString() } },
       async publish(_id, input) { published.push(input.path); return { artifactId: 'a', version: 'v1', contentDigest: '0'.repeat(64), size: 1, mediaType: 'text/plain', kind: 'text', origin: 'unknown', contentUri: 'artifact://a/v1', disposition: input.disposition ?? 'candidate', quality: 'unchecked', createdAt: new Date().toISOString() } },
       async endAttempt(_id, status) { ended.push(status) },
     }
@@ -22,6 +22,7 @@ describe('StageArtifactRuntime', () => {
       expect(changes).toEqual([{ path: path.join('nested', 'result.md'), kind: 'created', digest: expect.any(String) }])
       expect(observed).toEqual([path.join('nested', 'result.md')])
       await runtime.publish('nested/result.md', 'deliverable')
+      expect(observed).toEqual([path.join('nested', 'result.md'), path.join('nested', 'result.md')])
       expect(published).toEqual(['nested/result.md'])
       await runtime.end('completed')
       expect(ended).toEqual(['completed'])

@@ -51,6 +51,7 @@ import {
   closeWorkflowRootAnchor,
   type WorkflowRootAnchor,
 } from './workflowRootAnchor.js'
+import type { ArtifactService } from './serverArtifactRoutes.js'
 export { dedupeRoots } from './projectRoots.js'
 export { readTasksMarkdown } from './snapshotTasks.js'
 const MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100
@@ -75,6 +76,8 @@ export interface SnapshotDeps extends WorkflowSnapshotCapabilityDeps {
   rootAnchor?: (root: string) => WorkflowRootAnchor | undefined
   /** Machine-level manifest mandatory table; only used for frozen plans without an embedded track matrix. */
   mandatorySkills?: SkillTable
+  /** Resolve the durable artifact service for one change directory. */
+  artifactServiceForRoot?: (root: string, anchor: WorkflowRootAnchor) => ArtifactService | undefined | Promise<ArtifactService | undefined>
 }
 
 export function snapshotDepsFactory(
@@ -83,6 +86,25 @@ export function snapshotDepsFactory(
   return (nowMs) => ({ ...base, ...(nowMs === undefined ? {} : { now: () => nowMs }) })
 }
 function str(v: string | string[] | undefined): string { return Array.isArray(v) ? v.join(',') : v ?? '' }
+
+async function projectArtifactAttempts(
+  deps: SnapshotDeps,
+  changeDir: string,
+  anchor: WorkflowRootAnchor,
+): Promise<ReadonlyArray<{ stageId: string; stageAttemptId: string }>> {
+  if (deps.artifactServiceForRoot === undefined) return []
+  const service = await deps.artifactServiceForRoot(changeDir, anchor)
+  if (service === undefined || service.attempts === undefined) return []
+  const attempts = await service.attempts()
+  const latest = new Map<string, { stageId: string; stageAttemptId: string; startedAt: string }>()
+  for (const attempt of attempts) {
+    const prior = latest.get(attempt.stageId)
+    if (prior === undefined || prior.startedAt.localeCompare(attempt.startedAt) < 0) latest.set(attempt.stageId, attempt)
+  }
+  return [...latest.values()]
+    .sort((left, right) => left.stageId.localeCompare(right.stageId))
+    .map(({ stageId, stageAttemptId }) => ({ stageId, stageAttemptId }))
+}
 
 /**
  * Read a strictly local, hook-written liveness sidecar.  This is intentionally fail-closed for
@@ -280,11 +302,12 @@ async function scanAnchoredProject(
         workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot,
       }, undefined, trackDefinition(track, workflowName))
       legacyWorkflowRules[workflowName] ??= legacySnapshotWorkflowRules(plan)
-      const [documents, terminalActivity, authority, skillRuns] = await Promise.all([
+      const [documents, terminalActivity, authority, skillRuns, artifactAttempts] = await Promise.all([
         documentEvidence(readRoot, changeDir, plan, phase),
         readTerminalActivity(changeDir, e.name, nowMs),
         readWorkflowSnapshotAuthority(changeDir, state, plan),
         projectSkillRuns(changeDir, plan, phase, trackDefinition(track, workflowName), deps.mandatorySkills),
+        projectArtifactAttempts(deps, changeDir, anchor),
       ])
       const tasksProjection = await readTasksProjection(changeDir, {}, anchor)
       const todo = projectPipelineTodo({
@@ -318,6 +341,7 @@ async function scanAnchoredProject(
         todo,
         documents,
         skillRuns,
+        ...(artifactAttempts.length === 0 ? {} : { artifactAttempts }),
         ...(terminalActivity === undefined ? {} : { terminalActivity }),
       })
     } catch (error) {

@@ -1,4 +1,5 @@
 import { mkdir, readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { BoardSnapshotV2, SkillResultV2, SkillInputManifestV2, WorkItemV2 } from '@tenon/kernel'
 import { digest } from './runtime-v2-boundary.js'
@@ -54,6 +55,12 @@ interface InputRefV2 {
 
 function safeRef(value: string): boolean { return SAFE_REF.test(value) && !value.includes('..') }
 function byteLength(value: string): number { return new TextEncoder().encode(value).byteLength }
+function rawDigest(value: unknown): `sha256:${string}` | undefined {
+  return typeof value === 'string' ? `sha256:${createHash('sha256').update(new TextEncoder().encode(value)).digest('hex')}` : undefined
+}
+function digestMatches(value: unknown, expected: `sha256:${string}`, normalized: `sha256:${string}`): boolean {
+  return normalized === expected || rawDigest(value) === expected
+}
 
 function resultProjection(result: SkillResultV2): JsonBoundaryValue {
   return {
@@ -178,7 +185,7 @@ export async function materializeRunInputsV2(input: {
       if (entry.content !== undefined) {
       const snap = snapshotJsonBoundary(entry.content, { maxBytes, maxDepth: 40, maxNodes: 8_192 })
       const actual = digest(snap.value)
-      if (actual !== entry.expected_digest) throw new InputMaterializationErrorV2('artifact-digest-mismatch', `input digest mismatch for ${entry.ref}`)
+      if (!digestMatches(snap.value, entry.expected_digest, actual)) throw new InputMaterializationErrorV2('artifact-digest-mismatch', `input digest mismatch for ${entry.ref}`)
         total += snap.bytes
         if (total > maxBytes) throw new InputMaterializationErrorV2('bundle-too-large', `input bundle exceeds ${maxBytes} bytes`)
       items.push({ ref: entry.ref, digest: entry.expected_digest, kind: entry.kind, byte_length: snap.bytes, content: snap.value, ...(entry.source_result_id === undefined ? {} : { source_result_id: entry.source_result_id }) })
@@ -191,7 +198,7 @@ export async function materializeRunInputsV2(input: {
     }
     const snap = snapshotJsonBoundary(raw, { maxBytes, maxDepth: 40, maxNodes: 8_192 })
     const actual = digest(snap.value)
-    if (actual !== entry.expected_digest) throw new InputMaterializationErrorV2('artifact-digest-mismatch', `input digest mismatch for ${entry.ref}`)
+    if (!digestMatches(snap.value, entry.expected_digest, actual)) throw new InputMaterializationErrorV2('artifact-digest-mismatch', `input digest mismatch for ${entry.ref}`)
     total += snap.bytes
     if (total > maxBytes) throw new InputMaterializationErrorV2('bundle-too-large', `input bundle exceeds ${maxBytes} bytes`)
     items.push({ ref: entry.ref, digest: entry.expected_digest, kind: entry.kind, byte_length: snap.bytes, content: snap.value, ...(entry.source_result_id === undefined ? {} : { source_result_id: entry.source_result_id }) })
