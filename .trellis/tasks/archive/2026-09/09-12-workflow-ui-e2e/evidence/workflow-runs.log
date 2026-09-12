@@ -1,0 +1,31 @@
+=== default status ===
+change   e2e-default
+track    chat
+phase    open (pending)
+verify   pending
+updated  2026-09-12T04:19:29Z
+=== default check ===
+[CHECK] e2e-default (phase=open)
+  [FAIL] open 出口：要求截至当前阶段的 tasks.md 全部勾选（仍有 1 项未勾）
+  [FAIL] document: 缺少 document 'proposal'；执行 tenon document record <change> proposal <path> --producer <skill>
+  [FAIL] document: 缺少 document 'openspec-design'；执行 tenon document record <change> openspec-design <path> --producer <skill>
+  [FAIL] document: 缺少 document 'tasks'；执行 tenon document record <change> tasks <path> --producer <skill>
+  [FAIL] 共 4 项未通过
+=== new status ===
+change   e2e-new
+track    free
+phase    stage-1 (pending)
+verify   pending
+updated  2026-09-12T04:20:35Z
+=== new check ===
+[CHECK] e2e-new (phase=stage-1)
+  [PASS] 所有检查通过
+=== new advance ===
+[ADVANCE] e2e-new: 从 stage-1 起步（max-steps=12，through-gates）
+[STOP] e2e-new @ stage-1: 已到终态，无后继事件（推进完成）
+=== new final status ===
+change   e2e-new
+track    free
+phase    stage-1 (pending)
+verify   pending
+updated  2026-09-12T04:20:35Z

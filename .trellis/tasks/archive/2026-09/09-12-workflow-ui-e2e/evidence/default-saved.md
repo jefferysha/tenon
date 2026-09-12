@@ -1,0 +1,158 @@
+- link "跳到主要内容":
+  - /url: "#main-content"
+- banner:
+  - generic: t
+  - navigation "当前位置":
+    - generic: 工作空间
+    - generic: /
+    - generic: 工作流
+  - button "切换项目":
+    - generic: tenon-e2e-VaqPb5
+  - navigation "主导航":
+    - button "工作台"
+    - button "工作流"
+  - generic "实时已连接": 在线
+  - button "设置":
+- main:
+  - complementary "工作流":
+    - button "切换工作流":
+      - generic: default
+    - paragraph: 全局 · 5 轨道
+    - button "更多":
+    - tablist "轨道":
+      - tab "对话" [selected]
+      - tab "产品"
+      - tab "前端"
+      - tab "后端"
+      - tab "自由"
+      - button "新建轨道":
+    - list:
+      - button "拖动 立项验证": "1"
+      - button "立项验证":
+        - generic: 立项验证
+      - button "拖动 调研": "2"
+      - button "调研 评审":
+        - generic: 调研
+        - generic "评审":
+          - generic: 评审
+      - button "拖动 规格": "3"
+      - button "规格 评审":
+        - generic: 规格
+        - generic "评审":
+          - generic: 评审
+      - button "拖动 实现": "4"
+      - button "实现":
+        - generic: 实现
+      - button "拖动 验证": "5"
+      - button "验证 评审":
+        - generic: 验证
+        - generic "评审":
+          - generic: 评审
+      - button "拖动 交付": "6"
+      - button "交付":
+        - generic: 交付
+      - button "拖动 归档": "7"
+      - button "归档":
+        - generic: 归档
+    - status
+    - button "添加阶段":
+      - generic: 添加阶段
+  - navigation "位置":
+    - generic: default
+    - generic: 对话
+  - generic: 验证
+  - textbox "阶段名": 验证
+  - generic: 5 / 7
+  - button "删除阶段":
+  - heading "输入9" [level=2]
+  - row "文件 来源阶段 来源技能":
+    - generic: 文件
+    - generic: 来源阶段
+    - generic: 来源技能
+  - generic "document_contract.reads[verify]":
+    - generic: proposal
+    - generic: 立项验证
+    - generic: —
+  - generic "document_contract.reads[verify]":
+    - generic: openspec-design
+    - generic: 立项验证
+    - generic: —
+  - generic "document_contract.reads[verify]":
+    - generic: tasks
+    - generic: 立项验证
+    - generic: —
+  - generic "document_contract.reads[verify]":
+    - generic: superpower-design
+    - generic: 调研
+    - generic: —
+  - generic "document_contract.reads[verify]":
+    - generic: adr
+    - generic: 调研
+    - generic: tenon-explore
+  - generic "document_contract.reads[verify]":
+    - generic: delta-spec
+    - generic: 规格
+    - generic: —
+  - generic "document_contract.reads[verify]":
+    - generic: superpower-plan
+    - generic: 规格
+    - generic: —
+  - generic "document_contract.reads[verify]":
+    - generic: plan
+    - generic: 规格
+    - generic: —
+  - generic "tracks.chat.steps[verify].inputs[build_sha]":
+    - generic: build_sha
+    - generic: 实现
+    - generic: tenon-build
+  - heading "技能1" [level=2]
+  - button "编辑":
+    - text: 编辑
+  - generic "技能":
+    - application:
+      - group: 第 1 步
+      - generic: 起点
+      - generic: 终点
+      - 'button "本地插件 tenon-verify Pipeline Phase 5: Verify · 三轨并行验证。PM Track 做原型走查（无 review agent），frontend/backend Track 跑 reviewer agent + codex + e2e 三轨并行，同读冻结的 build_sha token。"':
+        - img "本地插件":
+        - generic: tenon-verify
+        - generic: "Pipeline Phase 5: Verify · 三轨并行验证。PM Track 做原型走查（无 review agent），frontend/backend Track 跑 reviewer agent + codex + e2e 三轨并行，同读冻结的 build_sha token。"
+      - generic "Control Panel":
+        - button "Zoom In":
+        - button "Zoom Out":
+        - button "Fit View":
+  - heading "输出2" [level=2]
+  - row "文件 来源阶段 来源技能":
+    - generic: 文件
+    - generic: 来源阶段
+    - generic: 来源技能
+  - generic "document_contract.slots[verification-report]":
+    - generic: verification-report
+    - generic: 验证
+    - generic: tenon-verify
+  - generic "tracks.chat.steps[verify].outputs[verification_report]":
+    - generic: verification_report
+    - generic: 验证
+    - generic: tenon-verify
+  - heading "门禁" [level=2]
+  - radiogroup "门禁":
+    - radio "无 只检查该阶段声明的守卫":
+      - text: 无
+      - generic: 只检查该阶段声明的守卫
+    - radio "评审 产物完成后需 tenon review request，再由人 acknowledge 才能进入下一阶段" [checked]:
+      - text: 评审
+      - generic: 产物完成后需 tenon review request，再由人 acknowledge 才能进入下一阶段
+    - radio "自动 该阶段声明的输出全部齐全即放行":
+      - text: 自动
+      - generic: 该阶段声明的输出全部齐全即放行
+  - heading "退回" [level=2]
+  - combobox "退回":
+    - option "不退回"
+    - option "退回到「立项验证」"
+    - option "退回到「调研」"
+    - option "退回到「规格」"
+    - option "退回到「实现」" [selected]
+  - paragraph:
+    - generic: default
+  - button "放弃" [disabled]
+  - button "保存" [disabled]

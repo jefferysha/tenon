@@ -184,6 +184,11 @@ export const zh: Dict = {
     drawer_next: '下一份',
     bytes: '{n} 字节',
     copy_link: '复制链接',
+    runtime_artifacts_loading: '加载运行时产物…',
+    runtime_artifacts_title: '运行时产物',
+    runtime_artifacts_empty: '执行后登记产物',
+    runtime_artifacts_affected: '需复核',
+    runtime_artifacts_reading: '读取内容…',
   },
   workflow: {
     rail_title: '工作流',
@@ -2109,6 +2114,11 @@ export const en: Dict = {
     drawer_next: 'Next file',
     bytes: '{n} bytes',
     copy_link: 'Copy link',
+    runtime_artifacts_loading: 'Loading runtime artifacts…',
+    runtime_artifacts_title: 'Runtime artifacts',
+    runtime_artifacts_empty: 'Artifacts are registered after execution',
+    runtime_artifacts_affected: 'Needs review',
+    runtime_artifacts_reading: 'Reading content…',
   },
   workflow: {
     rail_title: 'Workflows',

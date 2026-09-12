@@ -101,7 +101,7 @@ export function TaskDetailPane({ row, onToast, fetchDefinition = true }: TaskDet
             <SkillFlow key={`${identity} ${selectedStep}`} skills={skills} registry={null} editable={false} onOpen={() => undefined} statusOf={statusOf} className="h-56" />
           </section>
         )}
-        <div className="mb-8"><ArtifactCatalogPanel root={root} change={change.name} stageAttemptId={artifactAttemptId} stageId={selectedStep} /></div>
+        {fetchDefinition && <div className="mb-8"><ArtifactCatalogPanel root={root} change={change.name} stageAttemptId={artifactAttemptId} stageId={selectedStep} /></div>}
         <div className="grid gap-4" data-testid="stage-io">
           <SheetTabs
             sheets={[{ id: 'inputs', label: t('workspace.inputs'), count: inputs.length }, { id: 'outputs', label: t('workspace.outputs'), count: outputs.length }]}
