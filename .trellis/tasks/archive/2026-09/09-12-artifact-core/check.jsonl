@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer contracts and boundaries"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse state and validation patterns"}
+{"file": "docs/research/2026-09-12-runtime-artifact-lineage-and-workflow-ui.md", "reason": "Approved full feature scope"}
+{"file": "docs/research/2026-09-12-runtime-artifact-code-findings.md", "reason": "Existing integration seams"}
+{"file": ".trellis/spec/automation/backend/orchestration.md", "reason": "Preserve canonical completion and validation"}
+{"file": ".trellis/spec/dashboard-app/frontend/component-guidelines.md", "reason": "UI conventions; static-I/O premises superseded by approved PRD"}
