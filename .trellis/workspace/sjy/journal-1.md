@@ -734,3 +734,25 @@ kernel 全局存储 <configRoot>/workflows + 解析顺序 项目→全局→内�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 31: 收口产物迁移与运行时可见性
+<!-- trellis-session: v=2 fp=8b30bb83bf91faae -->
+
+**Date**: 2026-09-12
+**Task**: 收口产物迁移与运行时可见性
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+修复 change scope legacy 迁移冲突与即时审计 receipt，新增 observeBatch 收敛 reconcile 写入，接入 workflow 页运行时产物上下文与空状态，补齐 Codex pathless attribution 规范和 dashboard ErrorOptions typecheck；后端 49 个聚焦测试、前端 89 个 workflow/App 测试、双端 typecheck 通过。真实 Codex production E2E 因宿主 codex exec 长时间无输出中止，既有 evidence 保持不变。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `356b01e` | fix: close artifact lineage migration and runtime visibility |
+
+### Status
+
+[OK] **Completed**

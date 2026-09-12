@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 30
+- **Total Sessions**: 31
 - **Last Active**: 2026-09-12
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~736 | Active |
+| `journal-1.md` | ~758 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 31 | 2026-09-12 | 收口产物迁移与运行时可见性 | `356b01e` | `codex/autonomous-loop-v1` |
 | 30 | 2026-09-12 | 阶段退回替换转移表 | `8546106` | `codex/autonomous-loop-v1` |
 | 29 | 2026-09-12 | 阶段转移可编辑（回流=验收不通过退回） | `88c9ed3` | `codex/autonomous-loop-v1` |
 | 28 | 2026-09-11 | 工作流页实机验证 + 全局 default / 轨道分支四修 | `0b671b5` | `codex/autonomous-loop-v1` |
