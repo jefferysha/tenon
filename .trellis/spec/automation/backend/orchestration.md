@@ -45,6 +45,12 @@ attempt's dependency-chain visibility and `runChecks` executes registered checke
 When a managed command completion has no safe structured path, the Codex executor schedules at most one fallback
 reconcile for that execution turn; later pathless events are coalesced, while structured observations and the final
 stage-end reconcile remain immediate.
+The real executor path `StageArtifactRuntime.submit(path)` is also a governed submission boundary: it resolves an
+existing canonical subject by logical key or registered source path before writing the runtime version, then records
+the runtime projection in the change subject registry. Tests that call the submission service directly do not replace
+this production-path check. Opening a change-scoped service migrates a legacy `runtime-artifacts` store once with a
+`legacy-scope` receipt, and direct `ExecutionRuntimeV2` construction uses the same change namespace helper. A single
+`StageArtifactRuntime` serializes overlapping reconciles through one in-flight promise.
 
 ## Error and recovery behavior
 

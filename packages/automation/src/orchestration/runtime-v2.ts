@@ -47,6 +47,7 @@ import { StageArtifactRuntime, type ArtifactServicePort } from '../artifact-runt
 import { openArtifactService } from '../artifacts/service.js'
 import { consumeArtifactsV2 } from './artifact-consumption-v2.js'
 import { persistRuntimeOutputV2 } from './runtime-output-persistence-v2.js'
+import { artifactNamespaceForChange } from '../submission/namespace.js'
 
 export interface RuntimeExecutorInputV2 {
   readonly run_id: string
@@ -339,7 +340,7 @@ export class ExecutionRuntimeV2 {
     let artifactCatalog: ArtifactCatalog | undefined
     let artifactService: ArtifactServicePort | undefined = this.options.artifact_service
     if (artifactService === undefined) {
-      try { artifactService = await openArtifactService({ rootDir: this.options.change_dir, scopeId: 'runtime-artifacts' }) } catch (error) { this.diagnostics.push(`artifact-service-open-failed:${error instanceof Error ? redact(error.message) : 'unknown'}`) }
+      try { artifactService = await openArtifactService({ rootDir: this.options.change_dir, scopeId: artifactNamespaceForChange(this.options.change_dir) }) } catch (error) { this.diagnostics.push(`artifact-service-open-failed:${error instanceof Error ? redact(error.message) : 'unknown'}`) }
     }
     if (artifactService !== undefined) {
       try {

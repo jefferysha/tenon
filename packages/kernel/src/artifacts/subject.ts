@@ -45,7 +45,7 @@ export interface ArtifactSubjectMigrationReceipt {
   readonly namespace: string
   readonly content_digest: `sha256:${string}`
   readonly migrated_at: string
-  readonly kind: 'legacy-path-hash'
+  readonly kind: 'legacy-path-hash' | 'legacy-scope'
 }
 
 const namespaceRe = /^[a-z0-9][a-z0-9._/-]{0,127}$/u

@@ -52,6 +52,7 @@ export class StageArtifactRuntime {
   private readonly observedDigestsByPath = new Map<string, string>()
   private readonly observedVersionsByPath = new Map<string, ArtifactVersion>()
   private readonly pinnedVersions = new Map<string, string>()
+  private reconcileInFlight?: Promise<readonly ArtifactChange[]>
 
   private constructor(options: StageRuntimeOptions) {
     this.service = options.service
@@ -76,6 +77,13 @@ export class StageArtifactRuntime {
 
   /** Reconcile all files under the scoped root. Unknown writers remain unknown. */
   async reconcile(): Promise<readonly ArtifactChange[]> {
+    if (this.reconcileInFlight !== undefined) return this.reconcileInFlight
+    const operation = this.reconcileNow()
+    this.reconcileInFlight = operation
+    try { return await operation } finally { if (this.reconcileInFlight === operation) this.reconcileInFlight = undefined }
+  }
+
+  private async reconcileNow(): Promise<readonly ArtifactChange[]> {
     const next = await this.snapshot()
     const changes: ArtifactChange[] = []
     for (const [relative, digest] of next) {

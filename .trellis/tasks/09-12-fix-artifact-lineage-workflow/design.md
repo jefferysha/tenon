@@ -27,6 +27,15 @@ executor/skill
 3. Make publish validate visibility and allow an existing immutable version to be adopted by the current attempt when the path/artifact is in scope. Adoption emits an idempotent observation/publication event for this attempt without creating a duplicate version.
 4. Parse bounded `consumed` declarations from the executor envelope. Validate artifact URI/id/version and call `service.read(..., { consumer: 'execution', representation })` with max bytes. Invalid declarations are diagnostics and do not block unrelated valid outputs.
 5. Update V2 runtime to pass pipeline stage identity and skill identity into StageArtifactRuntime. After executor completion, process consumption declarations before terminal reconciliation; catalog/evidence is then durable without driver-specific calls.
+6. Runtime declaration submission must resolve the canonical subject registry before calling the durable
+   artifact store. The adapter passes the resolved `subject_id`/namespace (and records a runtime
+   projection receipt) so the real executor path converges with document and field projections; tests
+   must use CLI document setup plus the actual V2 executor, not three direct submission calls.
+7. Opening a change-scoped artifact service checks for the legacy `runtime-artifacts` store, migrates
+   its state/blobs through an atomic, idempotent receipt, and keeps legacy artifact aliases readable.
+   Direct `ExecutionRuntimeV2` construction uses the same namespace helper as production assembly.
+8. `StageArtifactRuntime.reconcile()` serializes overlapping calls per runtime instance and publishes
+   the shared in-flight promise, so turn-level throttling and cross-turn calls cannot race the baseline.
 
 ## Progressive disclosure
 

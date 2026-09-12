@@ -9,7 +9,7 @@ export interface DocumentProjectionAdapter {
   record(input: { readonly logicalKey: string; readonly subjectRef: ArtifactSubjectRef; readonly path: string; readonly documentKind: string; readonly producer: string; readonly recordedAt: string; readonly allowBackfill?: boolean }): Promise<{ readonly stateRevisionId?: string }>
 }
 export interface FieldProjectionAdapter {
-  record(input: { readonly logicalKey: string; readonly subjectRef: ArtifactSubjectRef; readonly field: string; readonly value: string | string[]; readonly producer: string; readonly recordedAt: string }): Promise<{ readonly stateRevisionId?: string }>
+  record(input: { readonly logicalKey: string; readonly subjectRef: ArtifactSubjectRef; readonly field: string; readonly value: string | string[]; readonly path?: string; readonly producer: string; readonly recordedAt: string }): Promise<{ readonly stateRevisionId?: string }>
 }
 export interface RuntimeProjectionAdapter {
   submitArtifactOutput(stageAttemptId: string, input: {
@@ -90,9 +90,9 @@ export async function openArtifactSubmissionService(options: ArtifactSubmissionS
           await recordArtifactSubjectProjection(options.changeDir, { subjectRef, logicalKey: input.logicalKey, projection: 'document', path: input.path, documentKind: input.documentKind, status: 'committed', receiptId: id, recordedAt, ...(result.stateRevisionId ? { stateRevisionId: result.stateRevisionId } : {}) })
         } else {
           if (!options.field || !input.field || input.value === undefined) throw new Error('field projection adapter unavailable')
-          const result = await options.field.record({ logicalKey: input.logicalKey, subjectRef, field: input.field, value: input.value, producer: input.producer, recordedAt })
+          const result = await options.field.record({ logicalKey: input.logicalKey, subjectRef, field: input.field, value: input.value, ...(input.path !== undefined ? { path: input.path } : {}), producer: input.producer, recordedAt })
           subjectRef = { ...subjectRef, version: subjectRef.version === 'pending' ? 'v1' : subjectRef.version, source: { ...(subjectRef.source ?? {}), field: input.field } }
-          await recordArtifactSubjectProjection(options.changeDir, { subjectRef, logicalKey: input.logicalKey, projection: 'field', field: input.field, status: 'committed', receiptId: id, recordedAt, ...(result.stateRevisionId ? { stateRevisionId: result.stateRevisionId } : {}) })
+          await recordArtifactSubjectProjection(options.changeDir, { subjectRef, logicalKey: input.logicalKey, projection: 'field', path: input.path, field: input.field, status: 'committed', receiptId: id, recordedAt, ...(result.stateRevisionId ? { stateRevisionId: result.stateRevisionId } : {}) })
         }
         if (input.projection === 'runtime') await recordArtifactSubjectProjection(options.changeDir, { subjectRef, logicalKey: input.logicalKey, projection: 'runtime', path: input.path, status: 'committed', receiptId: id, recordedAt })
         return { receiptId: id, subjectRef, projection: input.projection, status: 'committed', recordedAt }

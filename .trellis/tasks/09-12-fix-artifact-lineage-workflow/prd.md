@@ -13,6 +13,20 @@
 - `ExecutionRuntimeV2` 会把 `StageArtifactRuntime` 传给 executor，但没有把 executor 返回的消费声明映射为 `service.read()`，也没有提供受预算约束的产物目录/摘要/按版本读取接口给下一阶段。
 - Artifact Service 的事件和状态已具备文件持久化、幂等键和锁，但没有完成 runtime 重启/事件游标/阶段 attempt 投影的端到端验证。
 
+### Latest production-shape audit
+
+- The previous unified-submission evidence called `submission.submit()` for all three projections;
+  it did not exercise the real `CLI document -> ExecutionRuntimeV2 -> StageArtifactRuntime.submit`
+  path. In that path runtime currently creates a second subject in `ArtifactService.subjectMappings`.
+- Field projection records omit `path`, so path fallback only converges when document is submitted first;
+  field-first submission creates a different subject.
+- Changing the default scope from `runtime-artifacts` to the change namespace leaves existing
+  `.pipeline-artifacts/runtime-artifacts` state orphaned unless opening the new scope performs an
+  additive migration with a durable receipt.
+- `ExecutionRuntimeV2` still has a direct-construction fallback hard-coded to `runtime-artifacts`.
+- `StageArtifactRuntime.reconcile()` has no in-process overlap guard; concurrent turns can repeat the
+  scan and race on `baseline` even when the result is eventually equivalent.
+
 ## Requirements
 
 ### R1. 生产者与观察边界

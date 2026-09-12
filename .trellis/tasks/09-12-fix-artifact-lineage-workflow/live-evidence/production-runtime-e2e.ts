@@ -1,13 +1,16 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createExecutionRuntimeV2 } from '../../../../packages/automation/src/orchestration/runtime-v2.js'
 import { createCodexSkillExecutorV2 } from '../../../../packages/automation/src/orchestration/codex-skill-executor-v2.js'
 import { createOrchestrationLedger, type BoardCommandV2, type CapabilityAssessmentV2, type CapabilityResolutionV2, type DevelopmentRequestV2, type RepositoryContextV2, type WorkGraphV2, type WorkflowPipelinePlanV2 } from '@tenon/kernel'
 import { openArtifactService } from '../../../../packages/automation/src/artifacts/service.js'
+import { artifactNamespaceForChange, openArtifactSubmissionService } from '../../../../packages/automation/src/index.js'
+import { readArtifactSubjectRegistry } from '../../../../packages/automation/src/submission/registry.js'
 
 const now = new Date().toISOString()
 const root = await mkdtemp(path.join(os.tmpdir(), 'tenon-production-artifact-e2e-'))
+const artifactNamespace = artifactNamespaceForChange(root)
 const stages = ['open', 'design', 'build', 'review', 'verify', 'package', 'acceptance'] as const
 const skills = stages.map((id) => ({
   id: `real-${id}`, version: '1.0.0', source: 'builtin' as const, availability: 'available' as const,
@@ -53,6 +56,17 @@ const prompt = (input: { readonly work_item_id: string }): string => {
 }
 try {
   await writeFile(path.join(root, 'README.txt'), 'production e2e\n', 'utf8')
+  await mkdir(path.join(root, 'artifacts'), { recursive: true })
+  await writeFile(path.join(root, 'artifacts', 'contract.md'), 'contract-v1\n', 'utf8')
+  const projection = await openArtifactSubmissionService({
+    changeDir: root,
+    namespace: artifactNamespace,
+    document: { record: async () => ({}) },
+    field: { record: async () => ({}) },
+  })
+  const documentReceipt = await projection.submit({ projection: 'document', logicalKey: 'document:design', path: 'artifacts/contract.md', documentKind: 'design', producer: 'e2e-document', recordedAt: now })
+  const fieldReceipt = await projection.submit({ projection: 'field', logicalKey: 'field:design_doc', path: 'artifacts/contract.md', field: 'design_doc', value: 'artifacts/contract.md', producer: 'e2e-field', recordedAt: now })
+  if (documentReceipt.status !== 'committed' || fieldReceipt.status !== 'committed') throw new Error('canonical projection setup failed')
   const ledger = createOrchestrationLedger()
   await ledger.initialize(root, { project_id: request.project_id, change_id: request.change_id, correlation_id: request.correlation_id, updated_at: now })
   let snapshot = (await ledger.readSnapshot(root))!
@@ -70,18 +84,21 @@ try {
     retry: { max_attempts: 2, max_parallel: 1 },
   })
   const outcome = await runtime.run()
-  const service = await openArtifactService({ rootDir: root, scopeId: 'runtime-artifacts' })
+  const service = await openArtifactService({ rootDir: root, scopeId: artifactNamespace })
   const attempts = await service.attempts()
   const consumer = attempts.find((attempt) => attempt.stageId === 'acceptance')
   const catalog = consumer === undefined ? undefined : await service.catalog(consumer.stageAttemptId, { includeCandidates: true, includeHistory: true })
   const events = await service.events(0, 1000)
-  const evidence = { root, ok: outcome.ok, status: outcome.snapshot.status, attempts, catalog, events, runtimeDiagnostics: outcome.diagnostics, output: outcome.snapshot }
+  const registry = await readArtifactSubjectRegistry(root)
+  const runtimeDesign = registry.records.find((record) => record.projection === 'runtime' && record.path === 'artifacts/contract.md')
+  const evidence = { root, artifactNamespace, ok: outcome.ok, status: outcome.snapshot.status, attempts, catalog, events, registry, runtimeDiagnostics: outcome.diagnostics, output: outcome.snapshot }
   await writeFile(path.join(process.cwd(), '.trellis/tasks/09-12-fix-artifact-lineage-workflow/live-evidence/production-runtime-e2e.json'), JSON.stringify(evidence, null, 2), 'utf8')
   const completedStageIds = new Set(attempts.filter((attempt) => attempt.status === 'completed').map((attempt) => attempt.stageId))
   if (!outcome.ok || outcome.snapshot.status !== 'completed' || completedStageIds.size !== stages.length) throw new Error(`production workflow failed: ${JSON.stringify({ ok: outcome.ok, status: outcome.snapshot.status, attempts: attempts.length, completedStageIds: [...completedStageIds] })}`)
   if (catalog === undefined || !catalog.entries.some((entry) => entry.source?.path === 'artifacts/contract.md' && entry.availableFromStage === 'open')) throw new Error('producer stage projection missing')
   if (!events.some((event) => event.type === 'artifact.consumed')) throw new Error('execution read receipt missing')
-  const restarted = await openArtifactService({ rootDir: root, scopeId: 'runtime-artifacts' })
+  if (runtimeDesign === undefined || runtimeDesign.subjectRef.subject_id !== documentReceipt.subjectRef.subject_id || runtimeDesign.subjectRef.subject_id !== fieldReceipt.subjectRef.subject_id) throw new Error(`runtime projection did not converge: ${JSON.stringify({ document: documentReceipt.subjectRef.subject_id, field: fieldReceipt.subjectRef.subject_id, runtime: runtimeDesign?.subjectRef.subject_id })}`)
+  const restarted = await openArtifactService({ rootDir: root, scopeId: artifactNamespace })
   if ((await restarted.events(0, 1000)).length !== events.length) throw new Error('event replay changed after restart')
   console.log(JSON.stringify({ root, status: outcome.snapshot.status, attempts: attempts.map((attempt) => ({ stageId: attempt.stageId, stageAttemptId: attempt.stageAttemptId })), artifactEvents: events.length, catalogEntries: catalog.entries.length }))
 } finally {

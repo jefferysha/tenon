@@ -3,6 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { openArtifactService } from './service.js'
+import { artifactSubjectId } from '@tenon/kernel'
+import { artifactNamespaceForChange } from '../submission/namespace.js'
+import { recordArtifactSubjectProjection } from '../submission/registry.js'
+import { StageArtifactRuntime } from '../artifact-runtime/stage-runtime.js'
+import { openArtifactSubmissionService } from '../submission/service.js'
 
 describe('runtime artifact service', () => {
   it('retains immutable versions, deduplicates bytes and records execution reads', async () => {
@@ -182,6 +187,71 @@ describe('runtime artifact service', () => {
       expect(state.migrationReceipts).toHaveLength(1)
       const restarted = await openArtifactService({ rootDir: root, scopeId: 'scope' })
       expect((await restarted.inspect(legacyId, 'v1')).version.artifactId).toBe(migrated.version.artifactId)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('uses the production runtime path to converge with a field-first canonical subject', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-production-'))
+    try {
+      await mkdir(join(root, 'docs'), { recursive: true })
+      await writeFile(join(root, 'docs', 'design.md'), '# design\n')
+      const namespace = artifactNamespaceForChange(root)
+      const subjectRef = { subject_id: artifactSubjectId(namespace, 'field:design_doc'), namespace, version: 'v1', projection: 'field' as const, content_digest: `sha256:${'a'.repeat(64)}`, source: { path: 'docs/design.md', field: 'design_doc' } }
+      await recordArtifactSubjectProjection(root, { subjectRef, logicalKey: 'field:design_doc', projection: 'field', path: 'docs/design.md', field: 'design_doc', status: 'committed', receiptId: 'field-first', recordedAt: new Date().toISOString() })
+      const service = await openArtifactService({ rootDir: root, scopeId: namespace })
+      const runtime = await StageArtifactRuntime.open({ service, rootDir: root, workflowRunId: 'run-1', stageId: 'build', stageAttemptId: 'build-1' })
+      const output = await runtime.submit('docs/design.md', 'deliverable')
+      expect(output.subjectRef?.subject_id).toBe(subjectRef.subject_id)
+      const registry = JSON.parse(await readFile(join(root, '.pipeline-artifact-subjects.json'), 'utf8')) as { records: Array<{ projection: string; subjectRef: { subject_id: string }; path?: string }> }
+      expect(registry.records.some(record => record.projection === 'runtime' && record.subjectRef.subject_id === subjectRef.subject_id && record.path === 'docs/design.md')).toBe(true)
+      await runtime.end('completed')
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('converges unified document and field submissions with a real runtime submit', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-unified-'))
+    try {
+      await mkdir(join(root, 'docs'), { recursive: true })
+      await writeFile(join(root, 'docs', 'design.md'), '# design\n')
+      const namespace = artifactNamespaceForChange(root)
+      const service = await openArtifactService({ rootDir: root, scopeId: namespace })
+      const submission = await openArtifactSubmissionService({
+        changeDir: root,
+        namespace,
+        document: { record: async () => ({}) },
+        field: { record: async () => ({}) },
+      })
+      const document = await submission.submit({ projection: 'document', logicalKey: 'design', path: 'docs/design.md', documentKind: 'design', producer: 'skill.design' })
+      const field = await submission.submit({ projection: 'field', logicalKey: 'design', path: 'docs/design.md', field: 'design_doc', value: 'docs/design.md', producer: 'skill.design' })
+      await service.beginAttempt({ workflowRunId: 'run-1', stageId: 'build', stageAttemptId: 'build-1' })
+      const runtime = await StageArtifactRuntime.open({ service, rootDir: root, workflowRunId: 'run-1', stageId: 'build', stageAttemptId: 'build-1' })
+      const output = await runtime.submit('docs/design.md', 'deliverable')
+      expect(document.status).toBe('committed')
+      expect(field.status).toBe('committed')
+      expect(document.subjectRef.subject_id).toBe(field.subjectRef.subject_id)
+      expect(output.subjectRef?.subject_id).toBe(document.subjectRef.subject_id)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('serializes concurrent reconcile calls and migrates the legacy runtime scope', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-migration-'))
+    try {
+      await mkdir(join(root, 'docs'), { recursive: true })
+      await writeFile(join(root, 'docs', 'legacy.md'), 'legacy')
+      const legacy = await openArtifactService({ rootDir: root, scopeId: 'runtime-artifacts' })
+      await legacy.beginAttempt({ workflowRunId: 'run-legacy', stageId: 'build', stageAttemptId: 'legacy-1' })
+      await legacy.submitArtifactOutput('legacy-1', { logicalKey: 'legacy', path: 'docs/legacy.md', data: 'legacy', mediaType: 'text/plain', disposition: 'deliverable' })
+      const namespace = artifactNamespaceForChange(root)
+      const migrated = await openArtifactService({ rootDir: root, scopeId: namespace })
+      await migrated.beginAttempt({ workflowRunId: 'run-legacy', stageId: 'build', stageAttemptId: 'legacy-1' })
+      expect((await migrated.events()).length).toBeGreaterThan(0)
+      const state = JSON.parse(await readFile(join(root, '.pipeline-artifacts', namespace, 'state.json'), 'utf8')) as { migrationReceipts: Array<{ kind: string }> }
+      expect(state.migrationReceipts.some(receipt => receipt.kind === 'legacy-scope')).toBe(true)
+      const runtime = await StageArtifactRuntime.open({ service: migrated, rootDir: root, workflowRunId: 'run-2', stageId: 'build', stageAttemptId: 'build-2' })
+      await writeFile(join(root, 'docs', 'new.md'), 'new')
+      const [first, second] = await Promise.all([runtime.reconcile(), runtime.reconcile()])
+      expect(first).toEqual(second)
+      expect((await migrated.events()).filter(event => event.type === 'artifact.observed' && event.attemptId === 'build-2')).toHaveLength(1)
     } finally { await rm(root, { recursive: true, force: true }) }
   })
 })

@@ -20,15 +20,16 @@ describe('artifact submission service', () => {
         runtime: { submitArtifactOutput: async () => { calls.push('runtime'); return { artifactId: 'runtime-1', version: 'v1', contentDigest: 'a'.repeat(64) } } },
       })
       const document = await service.submit({ projection: 'document', logicalKey: 'design', path: 'docs/design.md', documentKind: 'design', producer: 'skill.design' })
-      const field = await service.submit({ projection: 'field', logicalKey: 'design', field: 'design_doc', value: 'docs/design.md', producer: 'skill.design' })
+      const field = await service.submit({ projection: 'field', logicalKey: 'design', path: 'docs/design.md', field: 'design_doc', value: 'docs/design.md', producer: 'skill.design' })
       const runtime = await service.submit({ projection: 'runtime', logicalKey: 'design', path: 'docs/design.md', stageAttemptId: 'stage-1', runtime: {}, producer: 'skill.design' })
       expect(calls).toEqual(['document', 'field', 'runtime'])
       expect(document.status).toBe('committed')
       expect(field.subjectRef.subject_id).toBe(document.subjectRef.subject_id)
       expect(runtime.subjectRef.subject_id).toBe(document.subjectRef.subject_id)
       expect(runtime.subjectRef.version).toBe('v1')
-      const registry = JSON.parse(await readFile(join(changeDir, '.pipeline-artifact-subjects.json'), 'utf8')) as { records: Array<{ logicalKey: string; projection: string }> }
+      const registry = JSON.parse(await readFile(join(changeDir, '.pipeline-artifact-subjects.json'), 'utf8')) as { records: Array<{ logicalKey: string; projection: string; path?: string }> }
       expect(registry.records.map((record) => record.projection)).toEqual(['document', 'field', 'runtime'])
+      expect(registry.records.find((record) => record.projection === 'field')?.path).toBe('docs/design.md')
     } finally { await rm(changeDir, { recursive: true, force: true }) }
   })
 

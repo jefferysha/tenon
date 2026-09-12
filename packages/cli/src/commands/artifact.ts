@@ -32,6 +32,7 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { recordHistory } from './fields.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { artifactNamespaceForChange } from '@tenon/automation'
 
 /** 拒绝：stderr 记 ERROR + 返回 exit 1（统一口径，state 一律不写）。 */
 function reject(deps: CliDeps, msg: string): number {
@@ -126,7 +127,7 @@ async function runRegister(
       value: path,
       sourcePath: path,
       logicalKey: `field:${f}`,
-      namespace: 'field',
+      namespace: artifactNamespaceForChange(dir),
       producer,
       recordedAt: deps.clock(),
     })
