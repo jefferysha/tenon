@@ -1,4 +1,6 @@
 /** Runtime artifact protocol. Definitions describe policy; these records describe observed facts. */
+import type { ArtifactSubjectAlias, ArtifactSubjectIdentity, ArtifactSubjectRef } from './subject.js'
+export type { ArtifactProjectionKind, ArtifactSubjectAlias, ArtifactSubjectIdentity, ArtifactSubjectMigrationReceipt, ArtifactSubjectRef } from './subject.js'
 export const ARTIFACT_PROTOCOL_VERSION = 1 as const
 
 export type ArtifactOrigin = 'stage' | 'external' | 'unknown'
@@ -25,8 +27,19 @@ export interface ArtifactVersion {
   readonly schemaRef?: string
   readonly createdAt: string
   readonly deletedAt?: string
+  /** Canonical logical identity; absent on legacy records. */
+  readonly subjectRef?: ArtifactSubjectRef
 }
-export interface ArtifactRecord { readonly artifactId: string; readonly currentVersion?: string; readonly versions: readonly ArtifactVersion[]; readonly displayName?: string }
+export interface ArtifactRecord {
+  readonly artifactId: string
+  readonly currentVersion?: string
+  readonly versions: readonly ArtifactVersion[]
+  readonly displayName?: string
+  /** Stable identity shared by document, field, and runtime projections. */
+  readonly subject?: ArtifactSubjectIdentity
+  /** Legacy path-hash IDs remain readable as aliases after migration. */
+  readonly aliases?: readonly ArtifactSubjectAlias[]
+}
 export interface ArtifactAttempt {
   readonly workflowRunId: string; readonly stageId: string; readonly stageAttemptId: string; readonly status: 'running' | 'completed' | 'failed' | 'cancelled'
   readonly dependencyStages: readonly string[]; readonly visibility: 'dependency-chain' | 'run' | 'project'; readonly startedAt: string; readonly endedAt?: string

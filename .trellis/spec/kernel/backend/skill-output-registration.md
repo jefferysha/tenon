@@ -144,3 +144,24 @@ await runtime.publish(changedPath, 'candidate') // explicit promotion after obse
   unknown or path-less events fall back to bounded reconciliation diagnostics.
 - Production entry points register conservative JSON and unsupported-media checkers and record exact
   checker identity/version. CLI and server must call the shared production runtime factory.
+
+## Canonical subject identity and declaration-first submission
+
+- A logical artifact is identified by `ArtifactSubjectRef`, whose stable key is
+  `subject_id` plus `namespace`. The `projection` (`document`, `field`, or
+  `runtime`) describes the view, while `source.path` is locator metadata only.
+- New writes must use a logical subject key or a host-issued subject id. They
+  must never derive identity from `path + mediaType`. A rename updates source
+  metadata and preserves the subject id and immutable version lineage.
+- Legacy path-hash ids remain readable through an `ArtifactSubjectAlias` and a
+  migration receipt. The canonical record and all newly written versions use
+  the subject id after migration.
+- Executor-declared outputs enter through `submitArtifactOutput`. Declaration
+  and governance are the primary evidence; reconciliation is a bounded
+  cross-check. Reconciled files default to `intermediate` with
+  `undeclared-candidate` status and are absent from the default deliverable
+  catalog until explicitly submitted.
+- Workflow stages may carry bounded `input_subject_refs` and
+  `output_subject_refs`. The UI groups runtime entries by `subject_id` and
+  progressively reveals content only when a user opens a version; it does not
+  invent an input/output contract from a path.

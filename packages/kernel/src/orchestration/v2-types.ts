@@ -126,6 +126,9 @@ export interface PipelineStageV2 {
   readonly skills: readonly PipelineSkillV2[]
   readonly input_refs: readonly string[]
   readonly output_refs: readonly string[]
+  /** Stable logical artifact subjects exposed at planning time; file paths remain runtime metadata. */
+  readonly input_subject_refs?: readonly string[]
+  readonly output_subject_refs?: readonly string[]
 }
 
 /**

@@ -184,7 +184,7 @@ function decodeSkillInputManifestV2(input: unknown, path: string, errors: V2Code
 }
 function decodePipelineStage(input: unknown, path: string, errors: V2CodecError[]): PipelineStageV2 | undefined {
   const raw = object(input, path, errors); if (!raw) return undefined
-  closed(raw, ['stage_id', 'name', 'ordinal', 'execution_mode', 'depends_on', 'work_item_ids', 'gate', 'skills', 'input_refs', 'output_refs'], path, errors)
+  closed(raw, ['stage_id', 'name', 'ordinal', 'execution_mode', 'depends_on', 'work_item_ids', 'gate', 'skills', 'input_refs', 'output_refs', 'input_subject_refs', 'output_subject_refs'], path, errors)
   const stage_id = text(raw.stage_id, `${path}.stage_id`, errors, ID)
   const name = text(raw.name, `${path}.name`, errors)
   const ordinal = integer(raw.ordinal, `${path}.ordinal`, errors)
@@ -194,7 +194,9 @@ function decodePipelineStage(input: unknown, path: string, errors: V2CodecError[
   if (!gate) errors.push({ code: 'field-invalid', path: `${path}.gate` })
   const skills = array(raw.skills, `${path}.skills`, errors).map((value, index) => decodePipelineSkill(value, `${path}.skills[${index}]`, errors)).filter((value): value is PipelineSkillV2 => value !== undefined)
   if (!stage_id || !name || ordinal === undefined || !execution_mode || !gate) return undefined
-  return { stage_id, name, ordinal, execution_mode, depends_on: strings(raw.depends_on, `${path}.depends_on`, errors), work_item_ids: strings(raw.work_item_ids, `${path}.work_item_ids`, errors), gate, skills, input_refs: strings(raw.input_refs, `${path}.input_refs`, errors), output_refs: strings(raw.output_refs, `${path}.output_refs`, errors) }
+  const input_subject_refs = raw.input_subject_refs === undefined ? undefined : strings(raw.input_subject_refs, `${path}.input_subject_refs`, errors)
+  const output_subject_refs = raw.output_subject_refs === undefined ? undefined : strings(raw.output_subject_refs, `${path}.output_subject_refs`, errors)
+  return { stage_id, name, ordinal, execution_mode, depends_on: strings(raw.depends_on, `${path}.depends_on`, errors), work_item_ids: strings(raw.work_item_ids, `${path}.work_item_ids`, errors), gate, skills, input_refs: strings(raw.input_refs, `${path}.input_refs`, errors), output_refs: strings(raw.output_refs, `${path}.output_refs`, errors), ...(input_subject_refs === undefined ? {} : { input_subject_refs }), ...(output_subject_refs === undefined ? {} : { output_subject_refs }) }
 }
 export function decodeWorkflowPipelineV2(input: unknown): V2DecodeResult<WorkflowPipelinePlanV2> {
   return genericMetaRecord(input, V2_SCHEMAS.pipeline, ['pipeline_id', 'pipeline_version', 'workflow_id', 'workflow_version', 'workflow_source', 'workflow_fingerprint', 'track_id', 'track_revision', 'track_source', 'pipeline_source', 'graph_id', 'assessment_id', 'status', 'stage_order', 'stages', 'customizations', 'pipeline_digest'], (raw, errors, m) => {

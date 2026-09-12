@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -138,6 +138,50 @@ describe('runtime artifact service', () => {
       expect(finished.history?.find(entry => entry.version === 'v1')?.pendingUpdate).toBe(false)
       const restarted = await openArtifactService({ rootDir: root, scopeId: 'scope' })
       expect((await restarted.catalog('verify-1', { pinned: true, includeHistory: true })).entries.map(entry => entry.version)).toEqual(['v1'])
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('uses stable subject identity and keeps reconcile-only files out of deliverables', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-'))
+    try {
+      const svc = await openArtifactService({ rootDir: root, scopeId: 'scope' })
+      await svc.beginAttempt({ workflowRunId: 'w', stageId: 'build', stageAttemptId: 'build-1' })
+      const declared = await svc.submitArtifactOutput('build-1', { logicalKey: 'contract', path: 'docs/contract.md', data: '# contract', mediaType: 'text/markdown', disposition: 'deliverable' })
+      expect(declared.subjectRef?.subject_id).toMatch(/^subject:scope:[a-f0-9]{32}$/)
+      expect(declared.artifactId).not.toMatch(/^artifact:[a-f0-9]{24}$/)
+      await svc.observe('build-1', { path: 'tmp/debug.log', data: 'debug', mediaType: 'text/plain', observationSource: 'reconcile', origin: 'unknown' })
+      expect((await svc.catalog('build-1')).entries.map(entry => entry.source?.path)).toEqual(['docs/contract.md'])
+      expect((await svc.catalog('build-1', { includeCandidates: true })).entries.some(entry => entry.source?.path === 'tmp/debug.log' && entry.disposition === 'intermediate')).toBe(true)
+      const renamed = await svc.rename('build-1', declared.artifactId, 'docs/renamed.md')
+      expect(renamed?.subjectRef?.subject_id).toBe(declared.subjectRef?.subject_id)
+      expect(renamed?.contentDigest).toBe(declared.contentDigest)
+      expect(renamed?.source?.path).toBe('docs/renamed.md')
+      const restarted = await openArtifactService({ rootDir: root, scopeId: 'scope' })
+      const afterRestart = await restarted.inspect(declared.artifactId, declared.version)
+      expect(afterRestart.version.subjectRef?.subject_id).toBe(declared.subjectRef?.subject_id)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('migrates a legacy path-hash record once and keeps the old id readable', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-'))
+    try {
+      const legacyId = 'artifact:' + 'a'.repeat(24)
+      const digest = 'b'.repeat(64)
+      await mkdir(join(root, '.pipeline-artifacts', 'scope'), { recursive: true })
+      await writeFile(join(root, '.pipeline-artifacts', 'scope', 'state.json'), JSON.stringify({
+        version: 1, revision: 0,
+        attempts: [], events: [], reads: [], checks: [], subjectMappings: [], migrationReceipts: [],
+        artifacts: [{ artifactId: legacyId, currentVersion: 'v1', displayName: 'docs/legacy.md', versions: [{ artifactId: legacyId, version: 'v1', contentDigest: digest, size: 1, mediaType: 'text/markdown', kind: 'text', origin: 'stage', source: { path: 'docs/legacy.md' }, contentUri: `artifact://scope/${digest}`, disposition: 'deliverable', quality: 'unchecked', createdAt: '2026-01-01T00:00:00.000Z' }] }],
+      }, null, 2))
+      const svc = await openArtifactService({ rootDir: root, scopeId: 'scope' })
+      await svc.beginAttempt({ workflowRunId: 'w', stageId: 'verify', stageAttemptId: 'verify-1' })
+      const migrated = await svc.inspect(legacyId, 'v1')
+      expect(migrated.version.artifactId).toMatch(/^subject:scope:/)
+      expect(migrated.version.subjectRef?.subject_id).toBe(migrated.version.artifactId)
+      const state = JSON.parse(await readFile(join(root, '.pipeline-artifacts', 'scope', 'state.json'), 'utf8')) as { migrationReceipts: unknown[] }
+      expect(state.migrationReceipts).toHaveLength(1)
+      const restarted = await openArtifactService({ rootDir: root, scopeId: 'scope' })
+      expect((await restarted.inspect(legacyId, 'v1')).version.artifactId).toBe(migrated.version.artifactId)
     } finally { await rm(root, { recursive: true, force: true }) }
   })
 })

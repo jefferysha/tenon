@@ -1,0 +1,5 @@
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Check canonical identity, governed registration, legacy compatibility, and rename semantics."}
+{"file":".trellis/spec/automation/backend/orchestration.md","reason":"Check declaration-first execution, bounded observations, validation, and runtime rollback."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check that subject identity and projection fields remain consistent through every API/UI boundary."}
+{"file":".trellis/tasks/09-12-unify-artifact-identity-io-projections/design.md","reason":"Check implementation against the frozen identity, submission, migration, and UI design."}
+{"file":".trellis/tasks/09-12-fix-artifact-runtime-followups/verification.md","reason":"Preserve and re-run the previous real workflow evidence while changing artifact identity and reconciliation semantics."}

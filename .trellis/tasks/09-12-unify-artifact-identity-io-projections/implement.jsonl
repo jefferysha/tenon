@@ -1,0 +1,8 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"The subject/ref contract crosses Kernel, automation, server, and Dashboard projections."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"The submission boundary must reuse existing document, field, artifact, and visibility helpers instead of creating parallel stores."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Existing governed document registration and runtime artifact semantics constrain the migration."}
+{"file":".trellis/spec/automation/backend/orchestration.md","reason":"Executor, validator, runtime artifact, and progressive disclosure contracts must remain compatible."}
+{"file":".trellis/tasks/09-12-fix-artifact-lineage-workflow/design.md","reason":"Previous task design defines current pipeline-stage and runtime lineage boundaries."}
+{"file":".trellis/tasks/09-12-fix-artifact-runtime-followups/design.md","reason":"Previous task added pinning, pending updates, checker registration, and production runtime wiring that this migration must preserve."}
+{"file":"docs/research/2026-09-12-runtime-artifact-lineage-and-workflow-ui.md","reason":"Research evidence identifies duplicate projections, catalog noise, and UI progressive disclosure constraints."}
+{"file":"docs/research/2026-09-11-skill-workflow-contract-recommendation.md","reason":"Research-backed recommendation for declaration, runtime observation, and workflow contract boundaries."}

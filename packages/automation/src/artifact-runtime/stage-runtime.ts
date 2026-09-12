@@ -8,6 +8,7 @@ import type { ArtifactInspection } from '../artifacts/service.js'
 export interface ArtifactServicePort {
   beginAttempt(input: { workflowRunId: string; stageId: string; stageAttemptId: string; dependencyStages?: readonly string[]; visibility?: 'dependency-chain' | 'run' | 'project' }): Promise<ArtifactAttempt>
   observe(stageAttemptId: string, content: ArtifactContent & { readonly observationSource?: 'managed-tool' | 'explicit-publish' | 'reconcile' | 'external'; readonly toolCallId?: string }): Promise<unknown>
+  submitArtifactOutput?(stageAttemptId: string, input: ArtifactContent & { readonly path?: string; readonly logicalKey?: string; readonly declarationStatus?: 'declared' | 'observed' | 'reconciled' | 'undeclared-candidate'; readonly publish?: boolean; readonly disposition?: 'candidate' | 'deliverable' | 'intermediate'; readonly observationSource?: 'managed-tool' | 'explicit-publish' | 'reconcile' | 'external' }): Promise<ArtifactVersion>
   publish(stageAttemptId: string, input: { artifactId?: string; version?: string; path: string; disposition?: 'candidate' | 'deliverable' | 'intermediate' }): Promise<ArtifactVersion>
   endAttempt(stageAttemptId: string, status: 'completed' | 'failed' | 'cancelled'): Promise<unknown>
   delete?(stageAttemptId: string, artifactId: string, path?: string): Promise<unknown>
@@ -136,6 +137,30 @@ export class StageArtifactRuntime {
     }
     const observed = this.observedVersionsByPath.get(relative)
     return this.service.publish(this.stageAttemptId, { path: relative, ...(observed ? { artifactId: observed.artifactId, version: observed.version } : {}), disposition })
+  }
+
+  /** Submit an executor-declared output through the host-owned boundary. */
+  async submit(relativePath: string, disposition: 'candidate' | 'deliverable' | 'intermediate' = 'deliverable', logicalKey?: string): Promise<ArtifactVersion> {
+    const relative = this.safeRelative(relativePath)
+    if (this.service.submitArtifactOutput === undefined) return this.publish(relative, disposition)
+    const bytes = await readFile(this.resolve(relative))
+    const version = await this.service.submitArtifactOutput(this.stageAttemptId, {
+      data: bytes,
+      path: relative,
+      mediaType: mediaTypeFor(relative),
+      kind: mediaTypeFor(relative).includes('json') ? 'json' : mediaTypeFor(relative).startsWith('text/') ? 'text' : 'file',
+      origin: 'stage',
+      producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...(this.skillId ? { skillId: this.skillId } : {}), ...(this.actorId ? { actorId: this.actorId } : {}) },
+      logicalKey,
+      declarationStatus: 'declared',
+      publish: disposition === 'deliverable',
+      disposition,
+      observationSource: 'explicit-publish',
+    })
+    this.observedVersionsByPath.set(relative, version)
+    this.observedDigestsByPath.set(relative, digest(bytes))
+    this.artifactIdsByPath.set(relative, version.artifactId)
+    return version
   }
 
   async observePath(relativePath: string, options: { readonly source?: 'managed-tool' | 'explicit-publish'; readonly toolCallId?: string } = {}): Promise<ArtifactVersion> {

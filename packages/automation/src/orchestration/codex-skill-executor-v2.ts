@@ -227,7 +227,12 @@ export function createCodexSkillExecutorV2(options: CodexSkillExecutorV2Options)
           const ref = asRecord(artifact)?.ref
           if (typeof ref !== 'string' || !SAFE_LOCAL_REF.test(ref) || ref.includes('..') || ref.includes('://')) continue
           try {
-            const published = await input.artifact_runtime.publish(ref, 'deliverable')
+            // The envelope currently carries a path reference, not a logical
+            // subject key. Leave identity issuance to the host so a path never
+            // becomes the canonical identity by accident.
+            const published = typeof input.artifact_runtime.submit === 'function'
+              ? await input.artifact_runtime.submit(ref, 'deliverable')
+              : await input.artifact_runtime.publish(ref, 'deliverable')
             observedArtifacts.push({ id: published.artifactId, kind: published.kind, ref, digest: `sha256:${published.contentDigest}`, media_type: published.mediaType, byte_length: published.size })
           } catch (error) { diagnostics.push(`artifact-publish-failed:${redact(error instanceof Error ? error.message : 'unknown', 180)}`) }
         }
