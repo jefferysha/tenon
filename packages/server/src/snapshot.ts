@@ -21,6 +21,7 @@ import {
   type StateStore,
   type TrackDefinition,
 } from '@tenon/kernel'
+import { ArtifactScopeMigrationError } from '@tenon/automation'
 import type {
   ChangeSnapshot,
   DocumentEvidenceSnapshot,
@@ -91,19 +92,25 @@ async function projectArtifactAttempts(
   deps: SnapshotDeps,
   changeDir: string,
   anchor: WorkflowRootAnchor,
-): Promise<ReadonlyArray<{ stageId: string; stageAttemptId: string }>> {
-  if (deps.artifactServiceForRoot === undefined) return []
-  const service = await deps.artifactServiceForRoot(changeDir, anchor)
-  if (service === undefined || service.attempts === undefined) return []
+): Promise<{ attempts: ReadonlyArray<{ stageId: string; stageAttemptId: string }>; compatibilityIssue?: { kind: 'legacy-scope-unmerged'; legacyScopePath: string } }> {
+  if (deps.artifactServiceForRoot === undefined) return { attempts: [] }
+  let service: ArtifactService | undefined
+  try {
+    service = await deps.artifactServiceForRoot(changeDir, anchor)
+  } catch (error) {
+    if (error instanceof ArtifactScopeMigrationError) return { attempts: [], compatibilityIssue: { kind: 'legacy-scope-unmerged', legacyScopePath: error.legacyPath } }
+    throw error
+  }
+  if (service === undefined || service.attempts === undefined) return { attempts: [] }
   const attempts = await service.attempts()
   const latest = new Map<string, { stageId: string; stageAttemptId: string; startedAt: string }>()
   for (const attempt of attempts) {
     const prior = latest.get(attempt.stageId)
     if (prior === undefined || prior.startedAt.localeCompare(attempt.startedAt) < 0) latest.set(attempt.stageId, attempt)
   }
-  return [...latest.values()]
+  return { attempts: [...latest.values()]
     .sort((left, right) => left.stageId.localeCompare(right.stageId))
-    .map(({ stageId, stageAttemptId }) => ({ stageId, stageAttemptId }))
+    .map(({ stageId, stageAttemptId }) => ({ stageId, stageAttemptId })) }
 }
 
 /**
@@ -302,13 +309,18 @@ async function scanAnchoredProject(
         workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot,
       }, undefined, trackDefinition(track, workflowName))
       legacyWorkflowRules[workflowName] ??= legacySnapshotWorkflowRules(plan)
-      const [documents, terminalActivity, authority, skillRuns, artifactAttempts] = await Promise.all([
+      const [documents, terminalActivity, authority, skillRuns, artifactProjection] = await Promise.all([
         documentEvidence(readRoot, changeDir, plan, phase),
         readTerminalActivity(changeDir, e.name, nowMs),
         readWorkflowSnapshotAuthority(changeDir, state, plan),
         projectSkillRuns(changeDir, plan, phase, trackDefinition(track, workflowName), deps.mandatorySkills),
         projectArtifactAttempts(deps, changeDir, anchor),
       ])
+      if (artifactProjection.compatibilityIssue !== undefined) {
+        if (compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
+          compatibilityIssues.push({ kind: 'legacy-scope-unmerged', change: e.name, legacyScopePath: artifactProjection.compatibilityIssue.legacyScopePath, action: 'merge-or-remove-legacy-scope' })
+        } else compatibilityIssueOverflow += 1
+      }
       const tasksProjection = await readTasksProjection(changeDir, {}, anchor)
       const todo = projectPipelineTodo({
         phase,
@@ -341,7 +353,7 @@ async function scanAnchoredProject(
         todo,
         documents,
         skillRuns,
-        ...(artifactAttempts.length === 0 ? {} : { artifactAttempts }),
+        ...(artifactProjection.attempts.length === 0 ? {} : { artifactAttempts: artifactProjection.attempts }),
         ...(terminalActivity === undefined ? {} : { terminalActivity }),
       })
     } catch (error) {

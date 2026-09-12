@@ -20,6 +20,7 @@ import {
   parseWorkflow,
   DEFAULT_WORKFLOW_SOURCE,
 } from '@tenon/kernel'
+import { ArtifactScopeMigrationError } from '@tenon/automation'
 import { buildSnapshot, computeFingerprint } from './snapshot.js'
 import { snapshotWorkflowRules } from './workflowSnapshot.js'
 import { readTasksMarkdown } from './snapshotTasks.js'
@@ -54,6 +55,26 @@ describe('readRegistry', () => {
 })
 
 describe('snapshotWorkflowRules policy diagnostics', () => {
+  it('artifact scope migration conflict remains a visible change with a compatibility issue', async () => {
+    const store = newStore()
+    const root = await makeProject()
+    await initChange(store, root, 'migration-conflict')
+    const snapshot = await buildSnapshot({
+      registry: () => [root], store, version: '1', clock: () => 't',
+      artifactServiceForRoot: async () => { throw new ArtifactScopeMigrationError('openspec/changes/migration-conflict/.pipeline-artifacts/runtime-artifacts') },
+    })
+    const project = snapshot.projects[0]
+    expect(project.changes.map((change) => change.name)).toEqual(['migration-conflict'])
+    expect(project.changes[0]?.artifactAttempts).toBeUndefined()
+    expect(project.compatibilityIssues).toEqual([{
+      kind: 'legacy-scope-unmerged',
+      change: 'migration-conflict',
+      legacyScopePath: 'openspec/changes/migration-conflict/.pipeline-artifacts/runtime-artifacts',
+      action: 'merge-or-remove-legacy-scope',
+    }])
+    expect(project.error).toBeUndefined()
+  })
+
   it('separates configured, frozen, and fail-closed effective authority', () => {
     const plan = compileEffectiveWorkflowPlan('default')
     const rules = snapshotWorkflowRules(plan, {

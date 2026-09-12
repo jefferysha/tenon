@@ -200,6 +200,13 @@ export interface CanonicalStateCompatibilityIssue {
   action: 'upgrade-runtime'
 }
 
+export interface LegacyScopeCompatibilityIssue {
+  kind: 'legacy-scope-unmerged'
+  change: string
+  legacyScopePath: string
+  action: 'merge-or-remove-legacy-scope'
+}
+
 export interface ProjectRepositoryIdentity {
   id: string
   label: string
@@ -211,7 +218,7 @@ export interface ProjectSnapshot {
   ok: boolean
   changes: ChangeSnapshot[]
   repository?: ProjectRepositoryIdentity
-  compatibilityIssues?: CanonicalStateCompatibilityIssue[]
+  compatibilityIssues?: (CanonicalStateCompatibilityIssue | LegacyScopeCompatibilityIssue)[]
   compatibilityIssuesTruncated?: true
   error?: string
 }

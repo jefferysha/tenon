@@ -15,7 +15,7 @@ import { ArtifactCatalogPanel } from '../workspace/ArtifactCatalogPanel'
 export interface StageEditorPaneProps {
   editor: WorkflowEditor
   step: WbStepDef
-  runtimeContext?: { readonly root: string; readonly change: string }
+  runtimeContext?: { readonly root: string; readonly change: string; readonly attempts: ReadonlyArray<{ readonly stageId: string; readonly stageAttemptId: string }> }
 }
 
 const GATES: Array<{ gate: WbStepDef['gate']; key: 'none' | 'review' | 'auto'; icon: LucideIcon }> = [
@@ -65,6 +65,7 @@ export function StageEditorPane({ editor, step, runtimeContext }: StageEditorPan
   const yamlBase = editor.branch === BASE_BRANCH ? `steps[${step.id}]` : `tracks.${editor.branch}.steps[${step.id}]`
   const stageSkills = step.skills.map((skill) => skill.id)
   const stageLabel = editor.labelOf(step.id)
+  const runtimeAttempt = runtimeContext?.attempts.find((attempt) => attempt.stageId === step.id)
   // 退回目标只能是本阶段之前的阶段：往后跳在流程里不存在，从选项里就配不出来。
   const backTargets = steps.slice(0, Math.max(index, 0)).map((candidate) => ({ id: candidate.id, label: candidate.label }))
   const backTarget = def === null ? null : backTargetOf(def, step.id)
@@ -192,8 +193,10 @@ export function StageEditorPane({ editor, step, runtimeContext }: StageEditorPan
 
           <section className="grid gap-3.5 py-6" data-testid="workflow-runtime-artifacts">
             <SectionHead title={t('workflow.runtime_artifacts_title')} />
-            {runtimeContext
-              ? <ArtifactCatalogPanel root={runtimeContext.root} change={runtimeContext.change} stageId={step.id} includeCandidates />
+            {runtimeContext && runtimeAttempt
+              ? <ArtifactCatalogPanel root={runtimeContext.root} change={runtimeContext.change} stageAttemptId={runtimeAttempt.stageAttemptId} includeCandidates historyReference={{ stageAttemptId: runtimeAttempt.stageAttemptId }} />
+              : runtimeContext
+                ? <p className="text-body text-text-3" data-testid="workflow-runtime-artifacts-unavailable">{t('workflow.runtime_artifacts_unavailable')}</p>
               : <p className="text-body text-text-3" data-testid="workflow-runtime-artifacts-empty">{t('workflow.runtime_artifacts_empty')}</p>}
           </section>
           {backTargets.length > 0 && (

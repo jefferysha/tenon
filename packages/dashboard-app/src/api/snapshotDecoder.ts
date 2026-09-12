@@ -181,11 +181,17 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
   const documents = value.documents === undefined ? undefined : decodeDocuments(value.documents)
   const terminalActivity = value.terminalActivity === undefined ? undefined : decodeTerminalActivity(value.terminalActivity)
   const skillRuns = value.skillRuns === undefined ? undefined : decodeSkillRuns(value.skillRuns)
+  const artifactAttempts: ChangeSnapshot['artifactAttempts'] | null = value.artifactAttempts === undefined ? undefined : Array.isArray(value.artifactAttempts)
+    && value.artifactAttempts.every((attempt) => isRecord(attempt) && typeof attempt.stageId === 'string' && attempt.stageId !== '' && typeof attempt.stageAttemptId === 'string' && attempt.stageAttemptId !== '')
+    ? value.artifactAttempts.map((attempt) => ({ stageId: (attempt as Record<string, unknown>).stageId as string, stageAttemptId: (attempt as Record<string, unknown>).stageAttemptId as string }))
+    : null
   if ((value.reviewHandshake !== undefined && !reviewHandshake)
     || (value.todo !== undefined && !todo)
     || (value.documents !== undefined && !documents)
     || (value.terminalActivity !== undefined && !terminalActivity)
-    || (value.skillRuns !== undefined && !skillRuns)) return null
+    || (value.skillRuns !== undefined && !skillRuns)
+    || (value.artifactAttempts !== undefined && artifactAttempts === null)) return null
+  if (artifactAttempts === null) return null
   return {
     name: value.name,
     path: value.path,
@@ -204,6 +210,7 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     ...(documents ? { documents } : {}),
     ...(terminalActivity ? { terminalActivity } : {}),
     ...(skillRuns ? { skillRuns } : {}),
+    ...(artifactAttempts === undefined ? {} : { artifactAttempts }),
   }
 }
 
@@ -481,27 +488,25 @@ function decodeCompatibilityIssues(
   const seenChanges = new Set<string>()
   const issues: NonNullable<ProjectSnapshot['compatibilityIssues']> = []
   for (const issue of value) {
-    if (!isRecord(issue)
-      || !exactKeys(issue, ['kind', 'change', 'foundVersion', 'supportedVersion', 'action'])
-      || issue.kind !== 'unsupported-canonical-version'
-      || typeof issue.change !== 'string'
-      || issue.change === ''
-      || typeof issue.foundVersion !== 'number'
-      || !Number.isSafeInteger(issue.foundVersion)
-      || typeof issue.supportedVersion !== 'number'
-      || !Number.isSafeInteger(issue.supportedVersion)
-      || issue.supportedVersion < 1
-      || issue.foundVersion <= issue.supportedVersion
-      || issue.action !== 'upgrade-runtime'
-      || seenChanges.has(issue.change)) return null
+    if (!isRecord(issue) || typeof issue.change !== 'string' || issue.change === '' || seenChanges.has(issue.change)) return null
+    if (exactKeys(issue, ['kind', 'change', 'foundVersion', 'supportedVersion', 'action'])
+      && issue.kind === 'unsupported-canonical-version'
+      && typeof issue.foundVersion === 'number'
+      && Number.isSafeInteger(issue.foundVersion)
+      && typeof issue.supportedVersion === 'number'
+      && Number.isSafeInteger(issue.supportedVersion)
+      && issue.supportedVersion >= 1
+      && issue.foundVersion > issue.supportedVersion
+      && issue.action === 'upgrade-runtime') {
+      issues.push({ kind: issue.kind, change: issue.change, foundVersion: issue.foundVersion, supportedVersion: issue.supportedVersion, action: issue.action })
+    } else if (exactKeys(issue, ['kind', 'change', 'legacyScopePath', 'action'])
+      && issue.kind === 'legacy-scope-unmerged'
+      && typeof issue.legacyScopePath === 'string'
+      && issue.legacyScopePath !== ''
+      && issue.action === 'merge-or-remove-legacy-scope') {
+      issues.push({ kind: issue.kind, change: issue.change, legacyScopePath: issue.legacyScopePath, action: issue.action })
+    } else return null
     seenChanges.add(issue.change)
-    issues.push({
-      kind: issue.kind,
-      change: issue.change,
-      foundVersion: issue.foundVersion,
-      supportedVersion: issue.supportedVersion,
-      action: issue.action,
-    })
   }
   return issues
 }

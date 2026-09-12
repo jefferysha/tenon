@@ -196,8 +196,12 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     const existing = artifactServices.get(root)
     if (existing) return existing
     const created = openArtifactService({ rootDir: root, scopeId: artifactNamespaceForChange(root) })
-    artifactServices.set(root, created)
-    return created
+    const guarded = created.catch((error: unknown) => {
+      if (artifactServices.get(root) === guarded) artifactServices.delete(root)
+      throw error
+    })
+    artifactServices.set(root, guarded)
+    return guarded
   })
 
   const snapshotDeps = snapshotDepsFactory({

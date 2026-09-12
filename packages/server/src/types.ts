@@ -172,6 +172,13 @@ export interface CanonicalStateCompatibilityIssueSnapshot {
   action: 'upgrade-runtime'
 }
 
+export interface LegacyScopeCompatibilityIssueSnapshot {
+  kind: 'legacy-scope-unmerged'
+  change: string
+  legacyScopePath: string
+  action: 'merge-or-remove-legacy-scope'
+}
+
 export interface ProjectRepositoryIdentity {
   id: string
   label: string
@@ -185,7 +192,7 @@ export interface ProjectSnapshot {
   changes: ChangeSnapshot[]
   repository?: ProjectRepositoryIdentity
   /** Canonical Changes that this runtime intentionally refuses to decode. */
-  compatibilityIssues?: CanonicalStateCompatibilityIssueSnapshot[]
+  compatibilityIssues?: (CanonicalStateCompatibilityIssueSnapshot | LegacyScopeCompatibilityIssueSnapshot)[]
   /** Literal marker: more compatibility issues exist beyond the bounded 100-item response. */
   compatibilityIssuesTruncated?: true
   /** Remove only after the declared rolling compatibility window ends. */

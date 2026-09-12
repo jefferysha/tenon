@@ -1,11 +1,11 @@
 import { AlertTriangle } from 'lucide-react'
 import { useT } from '../i18n'
-import type { CanonicalStateCompatibilityIssue } from '../types'
+import type { CanonicalStateCompatibilityIssue, LegacyScopeCompatibilityIssue } from '../types'
 
 const PRIMARY_ISSUE_LIMIT = 5
 
 export interface CanonicalStateVersionNoticeProps {
-  issues: readonly CanonicalStateCompatibilityIssue[]
+  issues: readonly (CanonicalStateCompatibilityIssue | LegacyScopeCompatibilityIssue)[]
   truncated?: boolean
   loading: boolean
   onRefresh?: () => void | Promise<void>
@@ -22,17 +22,16 @@ export function CanonicalStateVersionNotice({
   const primaryIssues = issues.slice(0, PRIMARY_ISSUE_LIMIT)
   const remainingIssues = issues.slice(PRIMARY_ISSUE_LIMIT)
 
-  const issueRow = (issue: CanonicalStateCompatibilityIssue): JSX.Element => (
+  const issueRow = (issue: CanonicalStateCompatibilityIssue | LegacyScopeCompatibilityIssue): JSX.Element => (
     <li
       key={issue.change}
       className="grid gap-1 rounded-md border border-amber-b bg-card/75 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto]"
     >
       <code className="min-w-0 break-all text-caption font-semibold text-text">{issue.change}</code>
       <span className="text-caption font-medium">
-        {t('progress.canonical_version_values', {
-          found: issue.foundVersion,
-          supported: issue.supportedVersion,
-        })}
+        {issue.kind === 'legacy-scope-unmerged'
+          ? t('progress.legacy_scope_values', { path: issue.legacyScopePath })
+          : t('progress.canonical_version_values', { found: issue.foundVersion, supported: issue.supportedVersion })}
       </span>
     </li>
   )
