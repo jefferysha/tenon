@@ -756,3 +756,25 @@ kernel 全局存储 <configRoot>/workflows + 解析顺序 项目→全局→内�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 32: 修复产物迁移集成边界与历史运行时展示
+<!-- trellis-session: v=2 fp=1d0499d177126934 -->
+
+**Date**: 2026-09-12
+**Task**: 修复产物迁移集成边界与历史运行时展示
+**Branch**: `codex/autonomous-loop-v1`
+
+### Summary
+
+隔离 ArtifactScopeMigrationError，淘汰 rejected artifact service 缓存；工作流运行时上下文改为当前项目/change 派生，使用真实 stageAttemptId，并在编排页标记历史参考与出处。server snapshot 80 项、server 全量 926 项、automation artifact 15 项和 dashboard 相关组件测试通过；dashboard 全量仍有既有 workflowModel 断言失败，未完成真实浏览器 E2E。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f3fd0a7` | fix: harden artifact lineage integration boundaries |
+
+### Status
+
+[OK] **Completed**
