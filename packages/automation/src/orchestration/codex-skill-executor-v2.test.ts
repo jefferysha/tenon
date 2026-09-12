@@ -105,4 +105,23 @@ describe('production Codex skill executor v2', () => {
     ]))
     expect(result.diagnostics?.some((entry) => entry.includes('tool_result'))).toBe(false)
   })
+
+  it('coalesces path-unresolved reconciles within one turn', async () => {
+    const reconciled: string[] = []
+    const executor = createCodexSkillExecutorV2({
+      change_dir: '/tmp/change', codex_executable: 'fake-codex',
+      exec: async (_file, _args, options) => {
+        const command = JSON.stringify({ type: 'item.completed', item: { type: 'command_execution', command: 'printf hi' } })
+        options?.onLine?.(command); options?.onLine?.(command); options?.onLine?.(JSON.stringify({ type: 'turn.completed' })); options?.onLine?.(command)
+        return { stdout: JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: '<output>{"output":"ok"}</output>' } }), stderr: '', exitCode: 0 }
+      },
+    })
+    await executor.execute({
+      run_id: 'run-throttle', work_item_id: 'item-throttle', skill_id: 'skill', skill_version: '1', mcp_ids: [], input_refs: [],
+      input_bundle: { schema_version: 'skill-input-bundle/v2', bundle_id: 'bundle:throttle', run_id: 'run-throttle', work_item_id: 'item-throttle', items: [], bundle_digest: 'sha256:' + 'a'.repeat(64), byte_length: 0 },
+      signal: new AbortController().signal,
+      artifact_runtime: { async reconcile() { reconciled.push('reconcile'); return [] } },
+    })
+    expect(reconciled).toHaveLength(2)
+  })
 })

@@ -3,7 +3,7 @@
  * store/flow 按 types.ts 契约注入；测试全 mock，绝不 import kernel 实现。
  */
 import type { DocumentContractPhase, DocumentEvidenceReport, EffectiveSkillResolver, FlowEngine, GuardContext, HistoryWriter, InteractionEventRecorder, MutationOutcome, PipelineState, ProjectTrackConfig, RegistrySnapshot, SkillTable, StateStore, TrackRegistry, WorkflowRunRepository } from '@tenon/kernel'
-import type { ExecutionRuntimeV2, SkillActionAuthorityResolver } from '@tenon/automation'
+import type { ArtifactSubmissionService, ExecutionRuntimeV2, SkillActionAuthorityResolver } from '@tenon/automation'
 import type { AfkReadiness } from './afkReadiness.js'
 import type { CodexAuthStatus } from './codexAuth.js'
 
@@ -139,6 +139,9 @@ export interface CliIO {
 export interface CliDeps {
   /** Production orchestration runner. Kept injectable so command tests never spawn Codex. */
   orchestrationRuntime?: (changeDir: string) => Promise<ExecutionRuntimeV2>
+  /** Unified document/field/runtime submission boundary. The factory is change-scoped so every
+   * projection shares one canonical subject namespace and can inject the current phase policy. */
+  artifactSubmission?: (input: { readonly changeDir: string; readonly phase?: string; readonly policy?: import('@tenon/kernel').DocumentGovernancePolicy }) => Promise<ArtifactSubmissionService>
   store: StateStore
   flow: FlowEngine
   /**

@@ -19,7 +19,7 @@ import {
   writeRegistryWithGovernance,
   createOrchestrationLedger,
 } from '@tenon/kernel'
-import { createRunnerSkillContentLocator, createProductionExecutionRuntimeV2, evaluateLoopExecutionWiring, openArtifactService, type ArtifactService } from '@tenon/automation'
+import { artifactNamespaceForChange, createRunnerSkillContentLocator, createProductionExecutionRuntimeV2, evaluateLoopExecutionWiring, openArtifactService, type ArtifactService } from '@tenon/automation'
 import type {
   ChangeRefScan, CreateTrackSpec, ExtendedManifestData, FlowEngine, GraduationFs, StateStore, TrackDefinition,
   ProjectTrackConfig, TrackRegistry, TrackValidationContext, UpdateTrackPatch, WorkflowDef,
@@ -195,7 +195,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const artifactServiceForRoot = options.artifactServiceForRoot ?? (async (root: string, _anchor: WorkflowRootAnchor): Promise<ArtifactService> => {
     const existing = artifactServices.get(root)
     if (existing) return existing
-    const created = openArtifactService({ rootDir: root, scopeId: 'runtime-artifacts' })
+    const created = openArtifactService({ rootDir: root, scopeId: artifactNamespaceForChange(root) })
     artifactServices.set(root, created)
     return created
   })

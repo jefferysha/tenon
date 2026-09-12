@@ -2,6 +2,7 @@ import { createDefaultArtifactCheckers, openArtifactService, type ArtifactServic
 import { createCodexRuntimeExecutor, type CodexRuntimeExecutorOptions } from './codex-skill-executor-v2.js'
 import { ExecutionRuntimeV2, type ExecutionRuntimeOptionsV2, type RuntimeValidatorV2 } from './runtime-v2.js'
 import type { OrchestrationLedger } from '@tenon/kernel'
+import { artifactNamespaceForChange } from '../submission/namespace.js'
 
 /** The single production assembly used by CLI, server and task-local runners. */
 export interface ProductionRuntimeV2Options {
@@ -11,6 +12,7 @@ export interface ProductionRuntimeV2Options {
   readonly codex?: Omit<CodexRuntimeExecutorOptions, 'change_dir'>
   readonly validator?: RuntimeValidatorV2
   readonly artifact_service?: ArtifactService
+  readonly artifact_namespace?: string
   readonly runtime?: Omit<ExecutionRuntimeOptionsV2, 'change_dir' | 'ledger' | 'worker_id' | 'executor' | 'validator' | 'artifact_service'>
 }
 
@@ -33,7 +35,7 @@ function defaultValidator(): RuntimeValidatorV2 {
 export async function createProductionExecutionRuntimeV2(options: ProductionRuntimeV2Options): Promise<ExecutionRuntimeV2> {
   const artifactService = options.artifact_service ?? await openArtifactService({
     rootDir: options.change_dir,
-    scopeId: 'runtime-artifacts',
+    scopeId: options.artifact_namespace ?? artifactNamespaceForChange(options.change_dir),
     checkers: createDefaultArtifactCheckers(),
   })
   const executor = createCodexRuntimeExecutor({ change_dir: options.change_dir, ...options.codex })

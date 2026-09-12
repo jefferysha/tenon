@@ -6,13 +6,23 @@ import { join, relative, resolve } from 'node:path'
 import { readArtifactSubjectRegistry, recordArtifactSubjectProjection, type ArtifactSubjectProjectionRecord } from './registry.js'
 
 export interface DocumentProjectionAdapter {
-  record(input: { readonly logicalKey: string; readonly subjectRef: ArtifactSubjectRef; readonly path: string; readonly documentKind: string; readonly producer: string; readonly recordedAt: string }): Promise<{ readonly stateRevisionId?: string }>
+  record(input: { readonly logicalKey: string; readonly subjectRef: ArtifactSubjectRef; readonly path: string; readonly documentKind: string; readonly producer: string; readonly recordedAt: string; readonly allowBackfill?: boolean }): Promise<{ readonly stateRevisionId?: string }>
 }
 export interface FieldProjectionAdapter {
   record(input: { readonly logicalKey: string; readonly subjectRef: ArtifactSubjectRef; readonly field: string; readonly value: string | string[]; readonly producer: string; readonly recordedAt: string }): Promise<{ readonly stateRevisionId?: string }>
 }
 export interface RuntimeProjectionAdapter {
-  submitArtifactOutput(stageAttemptId: string, input: Record<string, unknown>): Promise<{ readonly artifactId: string; readonly version: string; readonly contentDigest: string; readonly subjectRef?: ArtifactSubjectRef }>
+  submitArtifactOutput(stageAttemptId: string, input: {
+    readonly mediaType: string
+    readonly data?: unknown
+    readonly content?: unknown
+    readonly path?: string
+    readonly logicalKey?: string
+    readonly disposition?: 'candidate' | 'deliverable' | 'intermediate'
+    readonly publish?: boolean
+    readonly origin?: 'stage' | 'external' | 'unknown'
+    readonly kind?: string
+  }): Promise<{ readonly artifactId: string; readonly version: string; readonly contentDigest: string; readonly subjectRef?: ArtifactSubjectRef }>
 }
 export interface ArtifactSubmissionServiceOptions { readonly changeDir: string; readonly namespace: string; readonly now?: () => string; readonly document?: DocumentProjectionAdapter; readonly field?: FieldProjectionAdapter; readonly runtime?: RuntimeProjectionAdapter }
 export interface SubmitProjectionInput {
@@ -23,15 +33,19 @@ export interface SubmitProjectionInput {
   readonly field?: string
   readonly value?: string | string[]
   readonly stageAttemptId?: string
-  readonly runtime?: Record<string, unknown>
+  readonly runtime?: Omit<Parameters<RuntimeProjectionAdapter['submitArtifactOutput']>[1], 'logicalKey'>
   readonly producer: string
   readonly recordedAt?: string
+  readonly allowBackfill?: boolean
 }
 export interface ArtifactSubmissionReceipt { readonly receiptId: string; readonly subjectRef: ArtifactSubjectRef; readonly projection: ArtifactProjectionKind; readonly status: 'committed' | 'pending' | 'failed'; readonly diagnostics?: readonly string[]; readonly recordedAt: string }
+export interface ArtifactSubmissionService {
+  submit(input: SubmitProjectionInput): Promise<ArtifactSubmissionReceipt>
+}
 
 const receiptId = (namespace: string, logicalKey: string, projection: ArtifactProjectionKind): string => `submission:${namespace}:${projection}:${createHash('sha256').update(logicalKey).digest('hex').slice(0, 32)}`
 
-export async function openArtifactSubmissionService(options: ArtifactSubmissionServiceOptions) {
+export async function openArtifactSubmissionService(options: ArtifactSubmissionServiceOptions): Promise<ArtifactSubmissionService> {
   const now = options.now ?? (() => new Date().toISOString())
   async function subjectFor(input: SubmitProjectionInput): Promise<ArtifactSubjectRef> {
     if (input.path !== undefined) {
@@ -40,7 +54,11 @@ export async function openArtifactSubmissionService(options: ArtifactSubmissionS
       if (!rel || rel.startsWith('..') || rel.includes(`..${process.platform === 'win32' ? '\\' : '/'}`)) throw new Error('submission path outside change scope')
     }
     const registry = await readArtifactSubjectRegistry(options.changeDir)
+    // Prefer an explicit logical key, but reuse an already-registered projection for the same
+    // declared source path. This lets document/field/runtime projections converge regardless of
+    // which command commits first; the path is only a lookup alias, never the subject identity.
     const existing = registry.records.find((record) => record.logicalKey === input.logicalKey)
+      ?? (input.path !== undefined ? registry.records.find((record) => record.path === input.path) : undefined)
     if (existing) return { ...existing.subjectRef, projection: input.projection, ...(input.path ? { source: { ...(existing.subjectRef.source ?? {}), path: input.path } } : {}) }
     const subject_id = input.logicalKey.length > 0 ? artifactSubjectId(options.namespace, input.logicalKey) : newArtifactSubjectId(options.namespace)
     const bytes = input.projection === 'document' && input.path !== undefined
@@ -59,11 +77,15 @@ export async function openArtifactSubmissionService(options: ArtifactSubmissionS
       try {
         if (input.projection === 'runtime') {
           if (!options.runtime || !input.stageAttemptId || !input.runtime) throw new Error('runtime projection adapter unavailable')
-          const output = await options.runtime.submitArtifactOutput(input.stageAttemptId, { ...input.runtime, logicalKey: input.logicalKey })
+          const output = await options.runtime.submitArtifactOutput(input.stageAttemptId, {
+            ...input.runtime,
+            ...(input.path !== undefined && input.runtime.path === undefined ? { path: input.path } : {}),
+            logicalKey: input.logicalKey,
+          })
           subjectRef = output.subjectRef ?? { ...subjectRef, version: output.version, content_digest: `sha256:${output.contentDigest}` }
         } else if (input.projection === 'document') {
           if (!options.document || !input.path || !input.documentKind) throw new Error('document projection adapter unavailable')
-          const result = await options.document.record({ logicalKey: input.logicalKey, subjectRef, path: input.path, documentKind: input.documentKind, producer: input.producer, recordedAt })
+          const result = await options.document.record({ logicalKey: input.logicalKey, subjectRef, path: input.path, documentKind: input.documentKind, producer: input.producer, recordedAt, ...(input.allowBackfill !== undefined ? { allowBackfill: input.allowBackfill } : {}) })
           subjectRef = { ...subjectRef, version: subjectRef.version === 'pending' ? 'v1' : subjectRef.version, source: { ...(subjectRef.source ?? {}), path: input.path, document_kind: input.documentKind } }
           await recordArtifactSubjectProjection(options.changeDir, { subjectRef, logicalKey: input.logicalKey, projection: 'document', path: input.path, documentKind: input.documentKind, status: 'committed', receiptId: id, recordedAt, ...(result.stateRevisionId ? { stateRevisionId: result.stateRevisionId } : {}) })
         } else {

@@ -161,12 +161,15 @@ export function createCodexSkillExecutorV2(options: CodexSkillExecutorV2Options)
       let managedToolCompletionCount = 0
       let managedPathCount = 0
       let managedObservationLimitHit = false
+      let reconcileScheduledForTurn = false
       const result = await exec(options.codex_executable ?? 'codex', ['exec', '--json', '-C', options.change_dir, '--sandbox', sandbox, '--ephemeral', '--skip-git-repo-check', prompt], {
         cwd: options.change_dir,
         maxTailChars: maxOutputChars,
         onLine: (line) => {
           try {
             const event = JSON.parse(line) as unknown
+            const eventType = typeof asRecord(event)?.type === 'string' ? asRecord(event)?.type as string : undefined
+            if (eventType === 'turn.completed' || eventType === 'turn.started') reconcileScheduledForTurn = false
             const completion = decodeCodexToolCompletion(event, options.change_dir)
             const type = completion?.kind ?? (typeof asRecord(event)?.type === 'string' ? asRecord(event)?.type as string : undefined)
             if (type !== undefined) {
@@ -192,7 +195,10 @@ export function createCodexSkillExecutorV2(options: CodexSkillExecutorV2Options)
                 // A recognized tool completion without a safe path is not a managed
                 // observation. Reconcile is deliberately tagged by StageRuntime as
                 // `reconcile`, preserving the durable fallback without over-claiming.
-                if (completion.paths.length === 0) reconciles.push(input.artifact_runtime.reconcile())
+                if (completion.paths.length === 0 && !reconcileScheduledForTurn) {
+                  reconcileScheduledForTurn = true
+                  reconciles.push(input.artifact_runtime.reconcile())
+                }
               }
             }
           } catch { /* parser reports malformed JSON after the child exits */ }

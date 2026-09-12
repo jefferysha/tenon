@@ -27,6 +27,7 @@ import {
   recordFieldSubject,
 } from '@tenon/kernel'
 import type { EffectiveSkillSlot, FieldName, PipelineState } from '@tenon/kernel'
+import { relative, resolve } from 'node:path'
 import { errMsg, type CliDeps } from '../deps.js'
 import { recordHistory } from './fields.js'
 import { changeDir, isValidChangeName } from '../paths.js'
@@ -160,7 +161,25 @@ export async function cmdArtifactRegister(
   }
   const dir = changeDir(deps.cwd, name)
   try {
-    return await deps.store.withLock(dir, () => runRegister(deps, dir, field, path, producer))
+    const result = await deps.store.withLock(dir, () => runRegister(deps, dir, field, path, producer))
+    if (result === 0 && deps.artifactSubmission) {
+      try {
+        const submission = await deps.artifactSubmission({ changeDir: dir })
+        const submissionPath = relative(dir, resolve(deps.cwd, path))
+        const receipt = await submission.submit({
+          projection: 'field',
+          logicalKey: `field:${field}`,
+          path: submissionPath,
+          field,
+          value: path,
+          producer,
+        })
+        if (receipt.status !== 'committed') deps.io.err(`WARN: unified field submission 未提交: ${receipt.diagnostics?.join('; ') ?? 'unknown error'}`)
+      } catch (error) {
+        deps.io.err(`WARN: unified field submission 初始化失败: ${errMsg(error)}`)
+      }
+    }
+    return result
   } catch (e) {
     // change 缺失/坏 state/I-O 异常经 withLock 上抛 → 统一 exit 1（state 未写）。
     return reject(deps, errMsg(e))

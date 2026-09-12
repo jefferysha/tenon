@@ -42,6 +42,9 @@ For arbitrary files, `ExecutionRuntimeV2` opens a durable `StageArtifactRuntime`
 runtime publisher to the executor. Observation is automatic; publication remains explicit, so an unregistered file is
 visible as an unknown-origin candidate without being silently promoted to a deliverable. `catalog` enforces the
 attempt's dependency-chain visibility and `runChecks` executes registered checkers on demand.
+When a managed command completion has no safe structured path, the Codex executor schedules at most one fallback
+reconcile for that execution turn; later pathless events are coalesced, while structured observations and the final
+stage-end reconcile remain immediate.
 
 ## Error and recovery behavior
 

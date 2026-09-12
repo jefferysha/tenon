@@ -7,6 +7,7 @@ export * from './artifacts/index.js'
 export * from './submission/registry.js'
 export * from './submission/service.js'
 export * from './submission/adapters.js'
+export * from './submission/namespace.js'
 export * from './triage/index.js'
 // queue：状态机 / cas 并发闸 / 扫描 / 门联动
 export * from './queue/state-machine.js'

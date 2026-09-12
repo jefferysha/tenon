@@ -19,6 +19,7 @@ import {
   renderDocumentTemplate,
   documentPathForKind,
   documentTemplateIdForKind,
+  readDocumentLedger,
 } from '@tenon/kernel'
 import {
   recordCanonicalDocumentSkillInvocation,
@@ -244,17 +245,35 @@ export async function cmdDocumentRecord(
       if (await currentDocumentSkillConfirmation(dir, producer, phase, recordedAt) === undefined) {
         throw new Error(`current StepVisit lacks exact host confirmation for document producer '${producer}'`)
       }
-      const ledger = await recordDocument({
-        repoRoot: deps.cwd,
-        changeDir: dir,
-        phase,
-        policy,
-        kind: kind as DocumentKind,
-        path,
-        producer,
-        recordedAt,
-        allowBackfill: backfill,
-      })
+      let ledger: Awaited<ReturnType<typeof readDocumentLedger>>
+      if (deps.artifactSubmission) {
+        const submission = await deps.artifactSubmission({ changeDir: dir, phase, policy })
+        const submissionPath = relative(dir, resolve(deps.cwd, path))
+        const receipt = await submission.submit({
+          projection: 'document',
+          logicalKey: `document:${kind}`,
+          path: submissionPath,
+          documentKind: kind,
+          producer,
+          recordedAt,
+          allowBackfill: backfill,
+        })
+        if (receipt.status !== 'committed') throw new Error(receipt.diagnostics?.join('; ') ?? 'document submission failed')
+        ledger = await readDocumentLedger(dir)
+        if (ledger === undefined) throw new Error('document submission committed without a document ledger')
+      } else {
+        ledger = await recordDocument({
+          repoRoot: deps.cwd,
+          changeDir: dir,
+          phase,
+          policy,
+          kind: kind as DocumentKind,
+          path,
+          producer,
+          recordedAt,
+          allowBackfill: backfill,
+        })
+      }
       const requestedPath = relative(resolve(deps.cwd), resolve(deps.cwd, path))
       const canonicalRecords = ledger.records.filter((record) =>
         record.kind === kind

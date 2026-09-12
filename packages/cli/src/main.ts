@@ -21,7 +21,14 @@ import {
   createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
   withTrackRegistryLock,
 } from '@tenon/kernel'
-import { createProductionExecutionRuntimeV2 } from '@tenon/automation'
+import {
+  createDocumentProjectionAdapter,
+  createFieldProjectionAdapter,
+  createProductionExecutionRuntimeV2,
+  artifactNamespaceForChange,
+  openArtifactService,
+  openArtifactSubmissionService,
+} from '@tenon/automation'
 import type { ExtendedManifestData, TrackRegistry, TrackValidationContext } from '@tenon/kernel'
 import type { CliDeps, GateMarkerInfo } from './deps.js'
 import { splitPassthroughArgv } from './argv.js'
@@ -150,6 +157,28 @@ async function main(): Promise<void> {
   })
   const deps: CliDeps = {
     orchestrationRuntime: async (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: createOrchestrationLedger(), worker_id: `cli:${process.pid}` }),
+    artifactSubmission: async ({ changeDir, phase, policy }) => {
+      const namespace = artifactNamespaceForChange(changeDir)
+      return openArtifactSubmissionService({
+        changeDir,
+        namespace,
+        ...(phase !== undefined
+          ? { document: createDocumentProjectionAdapter({ repoRoot: process.cwd(), changeDir, phase, ...(policy ? { policy } : {}) }) }
+          : {}),
+        field: createFieldProjectionAdapter({ store, changeDir, persist: false }),
+        runtime: {
+          submitArtifactOutput: async (stageAttemptId, input) => {
+            const output = await (await openArtifactService({ rootDir: changeDir, scopeId: namespace })).submitArtifactOutput(stageAttemptId, input as never)
+            return {
+              artifactId: output.artifactId,
+              version: output.version,
+              contentDigest: output.contentDigest.replace(/^sha256:/u, ''),
+              ...(output.subjectRef ? { subjectRef: output.subjectRef } : {}),
+            }
+          },
+        },
+      })
+    },
     // H10 §1/§8任务7：skill_bundle_id 存在性语义校验器——直接复用上面 trackCtx.skillProfiles
     // （T 线 tracks/validate.ts::profileOk 消费的同一份集合：BUILTIN_TRACK_DEFINITIONS 非 `_all`
     // policy profile ∪ manifest 两表已声明的非 `_all` track 键），零额外 manifest 解析/新正则。

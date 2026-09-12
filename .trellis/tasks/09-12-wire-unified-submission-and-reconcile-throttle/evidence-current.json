@@ -1,0 +1,154 @@
+{
+  "workflow": "current-unified-submission-e2e",
+  "gitSha": "8397daa92732a06004c638ae22b63aeb65c8ef1f",
+  "namespace": "change-tenon-unified-submission-jvmvej-22220e85b50c",
+  "stages": [
+    {
+      "stage": "build",
+      "submissions": [
+        {
+          "receiptId": "submission:change-tenon-unified-submission-jvmvej-22220e85b50c:document:a77de8a6daa1129516b14c8ca1e233a5",
+          "subjectRef": {
+            "subject_id": "subject:change-tenon-unified-submission-jvmvej-22220e85b50c:64377a535163aba5ae51186dd03ccdf7",
+            "namespace": "change-tenon-unified-submission-jvmvej-22220e85b50c",
+            "version": "sha256:ab4b56eeb9f2f80d5d5f7ef35ba2cdc47e02f70d06ed455259c30a11f73b52ef",
+            "projection": "document",
+            "content_digest": "sha256:ab4b56eeb9f2f80d5d5f7ef35ba2cdc47e02f70d06ed455259c30a11f73b52ef",
+            "source": {
+              "path": "docs/design.md",
+              "document_kind": "design"
+            }
+          },
+          "projection": "document",
+          "status": "committed",
+          "recordedAt": "2026-09-12T18:30:00.000Z"
+        },
+        {
+          "receiptId": "submission:change-tenon-unified-submission-jvmvej-22220e85b50c:field:a77de8a6daa1129516b14c8ca1e233a5",
+          "subjectRef": {
+            "subject_id": "subject:change-tenon-unified-submission-jvmvej-22220e85b50c:64377a535163aba5ae51186dd03ccdf7",
+            "namespace": "change-tenon-unified-submission-jvmvej-22220e85b50c",
+            "version": "sha256:ab4b56eeb9f2f80d5d5f7ef35ba2cdc47e02f70d06ed455259c30a11f73b52ef",
+            "projection": "field",
+            "content_digest": "sha256:ab4b56eeb9f2f80d5d5f7ef35ba2cdc47e02f70d06ed455259c30a11f73b52ef",
+            "source": {
+              "path": "docs/design.md",
+              "document_kind": "design",
+              "field": "design_doc"
+            }
+          },
+          "projection": "field",
+          "status": "committed",
+          "recordedAt": "2026-09-12T18:30:00.000Z"
+        },
+        {
+          "receiptId": "submission:change-tenon-unified-submission-jvmvej-22220e85b50c:runtime:a77de8a6daa1129516b14c8ca1e233a5",
+          "subjectRef": {
+            "subject_id": "subject:change-tenon-unified-submission-jvmvej-22220e85b50c:64377a535163aba5ae51186dd03ccdf7",
+            "namespace": "change-tenon-unified-submission-jvmvej-22220e85b50c",
+            "projection": "runtime",
+            "version": "v1",
+            "content_digest": "sha256:ab4b56eeb9f2f80d5d5f7ef35ba2cdc47e02f70d06ed455259c30a11f73b52ef",
+            "source": {
+              "path": "docs/design.md"
+            }
+          },
+          "projection": "runtime",
+          "status": "committed",
+          "recordedAt": "2026-09-12T18:30:00.000Z"
+        }
+      ],
+      "adapterCalls": [
+        {
+          "projection": "document",
+          "logicalKey": "design",
+          "subjectId": "subject:change-tenon-unified-submission-jvmvej-22220e85b50c:64377a535163aba5ae51186dd03ccdf7"
+        },
+        {
+          "projection": "field",
+          "logicalKey": "design",
+          "subjectId": "subject:change-tenon-unified-submission-jvmvej-22220e85b50c:64377a535163aba5ae51186dd03ccdf7"
+        }
+      ]
+    },
+    {
+      "stage": "verify",
+      "reconcileChanges": [
+        {
+          "path": "tmp-debug.log",
+          "kind": "created",
+          "digest": "45e945dad8afa3de2b565e52ccc641cf90519cd1aa72b3c930b00e022e84a041"
+        }
+      ],
+      "defaultCatalog": [
+        {
+          "path": "docs/design.md",
+          "disposition": "deliverable",
+          "declarationStatus": "declared"
+        }
+      ],
+      "candidates": [
+        {
+          "path": "docs/design.md",
+          "disposition": "deliverable",
+          "declarationStatus": "declared"
+        },
+        {
+          "path": "tmp-debug.log",
+          "disposition": "intermediate",
+          "declarationStatus": "undeclared-candidate"
+        }
+      ],
+      "renamed": {
+        "subject_id": "subject:change-tenon-unified-submission-jvmvej-22220e85b50c:64377a535163aba5ae51186dd03ccdf7",
+        "namespace": "change-tenon-unified-submission-jvmvej-22220e85b50c",
+        "projection": "runtime",
+        "version": "v1",
+        "content_digest": "sha256:ab4b56eeb9f2f80d5d5f7ef35ba2cdc47e02f70d06ed455259c30a11f73b52ef",
+        "source": {
+          "path": "docs/architecture.md"
+        }
+      },
+      "restarted": {
+        "subject_id": "subject:change-tenon-unified-submission-jvmvej-22220e85b50c:64377a535163aba5ae51186dd03ccdf7",
+        "namespace": "change-tenon-unified-submission-jvmvej-22220e85b50c",
+        "projection": "runtime",
+        "version": "v1",
+        "content_digest": "sha256:ab4b56eeb9f2f80d5d5f7ef35ba2cdc47e02f70d06ed455259c30a11f73b52ef",
+        "source": {
+          "path": "docs/architecture.md"
+        }
+      }
+    }
+  ],
+  "assertions": [
+    [
+      "shared-subject-id",
+      true
+    ],
+    [
+      "shared-namespace",
+      true
+    ],
+    [
+      "runtime-declared",
+      true
+    ],
+    [
+      "reconcile-intermediate",
+      true
+    ],
+    [
+      "default-hides-reconcile",
+      true
+    ],
+    [
+      "rename-stable-subject",
+      true
+    ],
+    [
+      "restart-readable",
+      true
+    ]
+  ]
+}

@@ -144,6 +144,14 @@ await runtime.publish(changedPath, 'candidate') // explicit promotion after obse
   unknown or path-less events fall back to bounded reconciliation diagnostics.
 - Production entry points register conservative JSON and unsupported-media checkers and record exact
   checker identity/version. CLI and server must call the shared production runtime factory.
+- CLI document recording, field registration, server/runtime execution, and UI artifact reads for one
+  change must derive the same change-level namespace. They must enter through the shared submission
+  service or the production runtime adapter; projection names are views over one logical subject.
+- A workflow declaration supplies the logical key used to join projections. A source path may be used
+  only as a lookup alias for an already registered subject; it is never an identity or an implicit
+  cross-workflow merge key.
+- Path-unresolved managed-tool events are coalesced to at most one fallback reconcile per execution
+  turn. Structured path observations remain immediate, and stage end still performs the final reconcile.
 
 ## Canonical subject identity and declaration-first submission
 
