@@ -1,0 +1,45 @@
+=== register project ===
+{"ok":true,"root":"/tmp/tenon-backend-e2e"}
+=== init ===
+[INIT] /private/tmp/tenon-backend-e2e/openspec/changes/backend-task
+exit=0
+=== status after init ===
+change   backend-task
+track    free
+phase    prepare (pending)
+verify   pending
+updated  2026-09-12T04:45:40Z
+exit=0
+=== check ===
+[CHECK] backend-task (phase=prepare)
+  [PASS] 所有检查通过
+exit=0
+=== advance through gates ===
+[ADVANCE] backend-task: 从 prepare 起步（max-steps=12，through-gates）
+[ADVANCE] backend-task: prepare -> execute（prepare-complete）
+[STOP] backend-task @ execute: 已到终态，无后继事件（推进完成）
+exit=0
+=== final status ===
+change   backend-task
+track    free
+phase    execute (pending)
+verify   pending
+updated  2026-09-12T04:45:41Z
+exit=0
+=== workflow snapshot ===
+用法：tenon workflow plan <change> [--json]
+exit=1
+=== afk enqueue ===
+[AFK] backend-task 未挂队（策略未授权 / 非 spec-complete / 已在队 / 未 opt-in）
+exit=3
+=== afk status ===
+AFK 泳道:
+  off        backend-task
+exit=0
+=== afk run (real sandbox attempt) ===
+AFK run: 就绪队列空——无 queued 且依赖满足的 change
+exit=0
+=== afk status after run ===
+AFK 泳道:
+  off        backend-task
+exit=0

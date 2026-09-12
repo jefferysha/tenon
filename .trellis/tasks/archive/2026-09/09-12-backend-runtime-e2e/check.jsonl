@@ -1,0 +1,2 @@
+{"file":".trellis/spec/server/backend/index.md","reason":"核对真实 server 路由和临时项目隔离"}
+{"file":".trellis/spec/cli/frontend/index.md","reason":"核对 CLI 运行输出和门禁结果"}

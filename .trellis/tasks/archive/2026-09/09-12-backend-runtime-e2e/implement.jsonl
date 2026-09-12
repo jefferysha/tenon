@@ -1,0 +1,2 @@
+{"file":".trellis/spec/server/backend/index.md","reason":"后端启动、项目 root 锚定和 API 验证规则"}
+{"file":".trellis/spec/cli/frontend/index.md","reason":"CLI 任务初始化、状态和推进命令约定"}
