@@ -270,10 +270,11 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     expect(await h.run(['document', 'migrate-delta', 'legacy-doc', legacy, canonical])).toBe(0)
     expect(await h.run(['document', 'migrate-delta', 'legacy-doc', legacy, canonical])).toBe(0)
     const ledger = JSON.parse(await readFile(ledgerPath, 'utf8')) as {
-      records: Array<{ kind: string; path: string }>
+      records: Array<{ kind: string; path: string; subjectRef?: { projection?: string } }>
     }
-    expect(ledger.records).toEqual([{ kind: 'delta-spec', path: canonical, sha256: expect.any(String),
-      producer: 'openspec-propose', recordedAt: '2026-07-24T00:00:00Z', reads: [] }])
+    expect(ledger.records).toHaveLength(1)
+    expect(ledger.records[0]).toMatchObject({ kind: 'delta-spec', path: canonical, sha256: expect.any(String),
+      producer: 'openspec-propose', recordedAt: '2026-07-24T00:00:00Z', reads: [] })
   })
 
   test('session：activate 真落 .pipeline-active（走 buildProgram，不动 phase）', async () => {

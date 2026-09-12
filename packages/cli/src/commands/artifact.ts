@@ -24,6 +24,7 @@ import {
   resolveExplicitProfileSkillSlots,
   resolveStep,
   aliasesForSkill,
+  recordFieldSubject,
 } from '@tenon/kernel'
 import type { EffectiveSkillSlot, FieldName, PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
@@ -114,6 +115,23 @@ async function runRegister(
 
   // 同锁内写 artifact 字段 + best-effort history（同 set：history 失败仅 WARN、不回滚主写）。
   await deps.store.writeUnderLock(dir, { ...cur, fields: { ...cur.fields, [f]: path } }, { kind: 'set' })
+  // Field subject metadata is an optional projection. The canonical field state above is already
+  // committed; a missing source path or a sidecar I/O failure must never roll that commit back.
+  try {
+    await recordFieldSubject({
+      changeDir: dir,
+      repoRoot: deps.cwd,
+      field: f,
+      value: path,
+      sourcePath: path,
+      logicalKey: `field:${f}`,
+      namespace: 'field',
+      producer,
+      recordedAt: deps.clock(),
+    })
+  } catch (error) {
+    deps.io.err(`WARN: field subject projection 写入失败: ${errMsg(error)}`)
+  }
   await recordHistory(deps, dir, { ts: deps.clock(), kind: 'set', field: f, to: path })
   return 0
 }

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { appendFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
@@ -31,6 +31,7 @@ import { createTransitionRecordStore } from './transition-record-store.js'
 import type { TransitionRecord } from '../workflow/run-types.js'
 import { recordNativeDocumentSkillConfirmation } from '../skill-invocation/document-confirmation.js'
 import { recordCanonicalDocumentSkillInvocation } from '../skill-invocation/document-producer.js'
+import { artifactSubjectId, type ArtifactSubjectRef } from '../artifacts/subject.js'
 
 const NOW = '2026-07-23T00:00:00Z'
 const dirs: string[] = []
@@ -1197,5 +1198,82 @@ describe('OpenSpec document ledger', () => {
       producer: 'tenon-spec',
       recordedAt: NOW,
     })).rejects.toThrow(/requirements-changed/)
+  })
+
+  test('document record 按逻辑 kind 固化 subject；路径变更只更新 source metadata', async () => {
+    const { root, changeDir, name } = await fixture()
+    const original = `openspec/changes/${name}/proposal.md`
+    const moved = `docs/moved/${name}-proposal.md`
+    await writeDoc(root, original, '# stable proposal\n')
+    await appendSkillHistory(changeDir, 'openspec-propose')
+    const first = await recordDocument({
+      repoRoot: root,
+      changeDir,
+      phase: 'open',
+      kind: 'proposal',
+      path: original,
+      producer: 'openspec-propose',
+      recordedAt: NOW,
+    })
+    const firstRecord = first.records.find((record) => record.kind === 'proposal')
+    expect(firstRecord?.subjectRef).toMatchObject({
+      projection: 'document',
+      namespace: 'document',
+      source: { path: original, document_kind: 'proposal' },
+    })
+    await mkdir(join(root, 'docs/moved'), { recursive: true })
+    await rename(join(root, original), join(root, moved))
+    await appendSkillHistory(changeDir, 'openspec-propose')
+    const second = await recordDocument({
+      repoRoot: root,
+      changeDir,
+      phase: 'open',
+      kind: 'proposal',
+      path: moved,
+      producer: 'openspec-propose',
+      recordedAt: '2026-07-23T00:00:01Z',
+    })
+    const secondRecord = second.records.find((record) => record.kind === 'proposal')
+    expect(secondRecord?.sha256).toBe(firstRecord?.sha256)
+    expect(secondRecord?.subjectRef?.subject_id).toBe(firstRecord?.subjectRef?.subject_id)
+    expect(secondRecord?.subjectRef?.version).toBe(firstRecord?.subjectRef?.version)
+    expect(secondRecord?.subjectRef?.source?.path).toBe(moved)
+  })
+
+  test('submission boundary 可提供 document subjectRef，旧 ledger 缺少该字段仍可读取', async () => {
+    const { root, changeDir, name } = await fixture()
+    const proposal = `openspec/changes/${name}/proposal.md`
+    const content = '# explicit subject\n'
+    await writeDoc(root, proposal, content)
+    const digest = createHash('sha256').update(content).digest('hex')
+    const subjectRef: ArtifactSubjectRef = {
+      subject_id: artifactSubjectId('document', 'contract:proposal'),
+      namespace: 'document',
+      version: `sha256:${digest}`,
+      projection: 'document',
+      content_digest: `sha256:${digest}`,
+      source: { document_kind: 'proposal' },
+    }
+    await appendSkillHistory(changeDir, 'openspec-propose')
+    const ledger = await recordDocument({
+      repoRoot: root,
+      changeDir,
+      phase: 'open',
+      kind: 'proposal',
+      path: proposal,
+      producer: 'openspec-propose',
+      recordedAt: NOW,
+      subjectRef,
+    })
+    const record = ledger.records.find((item) => item.kind === 'proposal')
+    expect(record?.subjectRef?.subject_id).toBe(subjectRef.subject_id)
+    expect(record?.subjectRef?.source?.path).toBe(proposal)
+
+    await writeFile(join(changeDir, '.pipeline-documents.json'), `${JSON.stringify({
+      ...ledger,
+      records: ledger.records.map(({ subjectRef: _subjectRef, ...legacy }) => legacy),
+    }, null, 2)}\n`, 'utf8')
+    const legacy = await readDocumentLedger(changeDir)
+    expect(legacy?.records[0]?.subjectRef).toBeUndefined()
   })
 })

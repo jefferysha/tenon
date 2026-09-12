@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { ArtifactPolicy, ArtifactCatalog, ArtifactEvent, ArtifactReadReceipt, ArtifactVersion } from '@tenon/kernel'
+import { readArtifactSubjectRegistry } from '@tenon/automation'
 import { lstatSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 interface ArtifactInspection { version: ArtifactVersion; bytes?: Uint8Array; structure?: unknown }
@@ -50,6 +51,15 @@ export async function resolveArtifactRoute(req: IncomingMessage, res: ServerResp
   const checked = deps.workflowRootForRequest(root)
   if (!checked.ok) { deps.sendJson(res, checked.code, { ok: false, error: checked.error }); return true }
   const change = q.get('change') ?? undefined
+  if (path === '/api/artifacts/subjects') {
+    try {
+      const registry = await readArtifactSubjectRegistry(scopedRoot(checked.anchor, change))
+      deps.sendJson(res, 200, { ok: true, registry: { version: registry.version, records: registry.records.slice(0, MAX_ENTRIES) } })
+    } catch (error) {
+      deps.sendJson(res, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+    }
+    return true
+  }
   let service: ArtifactService | undefined
   try { service = await (deps.serviceForRoot?.(scopedRoot(checked.anchor, change), checked.anchor) ?? deps.service) } catch (error) { deps.sendJson(res, 404, { ok: false, error: error instanceof Error ? error.message : String(error) }); return true }
   if (!service) { deps.sendJson(res, 404, { ok: false, error: 'artifact runtime unavailable' }); return true }

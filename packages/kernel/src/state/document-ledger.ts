@@ -33,6 +33,11 @@ import {
   type BoundedFileHandleReader,
 } from './document-path.js'
 import { currentSpecVisitEnteredViaRequirementsChanged, requiresRequirementsChangedForSpecAdr } from './document-record-policy.js'
+import {
+  artifactSubjectId,
+  isArtifactSubjectRef,
+  type ArtifactSubjectRef,
+} from '../artifacts/subject.js'
 export { DocumentLedgerError } from './document-path.js'
 export { currentDocumentStepVisitId } from './document-step-visit.js'
 export const DOCUMENT_LEDGER_FILE = '.pipeline-documents.json'
@@ -53,6 +58,8 @@ export interface DocumentRecord {
   readonly recordedAt: string
   readonly producerInvocation?: DocumentProducerInvocationAnchor
   readonly reads: readonly DocumentReadReceipt[]
+  /** Canonical logical identity; omitted by legacy ledgers and filled on write. */
+  readonly subjectRef?: ArtifactSubjectRef
 }
 
 export interface DocumentLedger {
@@ -82,6 +89,28 @@ function string(value: unknown): string | undefined {
 
 function validDigest(value: string): boolean {
   return /^[a-f0-9]{64}$/.test(value)
+}
+
+function documentSubjectRef(
+  kind: DocumentKind,
+  path: string,
+  digest: string,
+  previous?: ArtifactSubjectRef,
+): ArtifactSubjectRef {
+  const contentDigest = `sha256:${digest}` as `sha256:${string}`
+  const sameVersion = previous?.content_digest === contentDigest
+  return {
+    subject_id: previous?.subject_id ?? artifactSubjectId('document', kind),
+    namespace: previous?.namespace ?? 'document',
+    version: sameVersion ? previous.version : contentDigest,
+    projection: 'document',
+    content_digest: contentDigest,
+    source: {
+      ...(previous?.source ?? {}),
+      path,
+      document_kind: kind,
+    },
+  }
 }
 
 function parseReceipt(value: unknown, recordIndex: number, receiptIndex: number): DocumentReadReceipt {
@@ -127,6 +156,10 @@ function parseRecord(value: unknown, index: number): DocumentRecord {
     index,
     (message) => new DocumentLedgerError(message),
   )
+  const subjectRef = item.subjectRef === undefined ? undefined : item.subjectRef
+  if (subjectRef !== undefined && (!isArtifactSubjectRef(subjectRef) || subjectRef.projection !== 'document')) {
+    throw new DocumentLedgerError(`document ledger records[${index}].subjectRef 非法`)
+  }
   if (!Array.isArray(item.reads)) throw new DocumentLedgerError(`document ledger records[${index}].reads 必须是数组`)
   const reads = item.reads.map((receipt, receiptIndex) => parseReceipt(receipt, index, receiptIndex))
   const readVisits = new Set<string>()
@@ -136,7 +169,8 @@ function parseRecord(value: unknown, index: number): DocumentRecord {
     readVisits.add(key)
   }
   return { kind, path, sha256: digest, producer, recordedAt,
-    ...(producerInvocation === undefined ? {} : { producerInvocation }), reads }
+    ...(producerInvocation === undefined ? {} : { producerInvocation }), reads,
+    ...(subjectRef === undefined ? {} : { subjectRef }) }
 }
 export function parseDocumentLedger(raw: string): DocumentLedger {
   let value: unknown
@@ -216,6 +250,8 @@ export interface RecordDocumentLedgerInput {
   readonly recordedAt: string
   readonly allowBackfill?: boolean
   readonly producerInvocation?: DocumentProducerInvocationAnchor
+  /** Optional canonical ref supplied by the submission boundary. */
+  readonly subjectRef?: ArtifactSubjectRef
   readonly validateOnly?: boolean
 }
 
@@ -232,6 +268,12 @@ export async function recordDocumentLedger(input: RecordDocumentLedgerInput): Pr
   const current = await readDocumentLedger(input.changeDir)
   if (!current) throw new DocumentLedgerError(`document ledger 缺失；先执行 tenon document init`)
   const resolved = await resolveDocument(input.repoRoot, input.path)
+  if (input.subjectRef !== undefined
+    && (!isArtifactSubjectRef(input.subjectRef)
+      || input.subjectRef.projection !== 'document'
+      || input.subjectRef.content_digest !== `sha256:${resolved.digest}`)) {
+    throw new DocumentLedgerError(`document '${input.kind}' subjectRef 与当前内容不匹配`)
+  }
   const slot = documentSlot(input.kind, resolved.relativePath, input.changeDir)
   const oldCandidates = current.records.filter((record) => {
     if (record.kind !== input.kind) return false
@@ -304,6 +346,12 @@ export async function recordDocumentLedger(input: RecordDocumentLedgerInput): Pr
     recordedAt: input.recordedAt,
     ...(input.producerInvocation === undefined ? {} : { producerInvocation: input.producerInvocation }),
     reads: old?.sha256 === resolved.digest ? old.reads : [],
+    subjectRef: documentSubjectRef(
+      input.kind,
+      resolved.relativePath,
+      resolved.digest,
+      input.subjectRef ?? old?.subjectRef,
+    ),
   }
   // Singleton kinds use one named slot. Delta specs use one slot per canonical capability.
   // Unmapped legacy records remain intact until an explicit, digest-preserving migration.
@@ -365,8 +413,21 @@ export async function migrateLegacyDeltaDocument(
     receipts.set(key, receipt)
   }
   const replacement: DocumentRecord = target
-    ? { ...target, reads: [...receipts.values()] }
-    : { ...source, path: canonical.relativePath, reads: [...receipts.values()] }
+    ? {
+      ...target,
+      reads: [...receipts.values()],
+      ...(target.subjectRef || source.subjectRef
+        ? { subjectRef: documentSubjectRef('delta-spec', canonical.relativePath, target.sha256, target.subjectRef ?? source.subjectRef) }
+        : {}),
+    }
+    : {
+      ...source,
+      path: canonical.relativePath,
+      reads: [...receipts.values()],
+      ...(source.subjectRef
+        ? { subjectRef: documentSubjectRef('delta-spec', canonical.relativePath, source.sha256, source.subjectRef) }
+        : {}),
+    }
   const records = current.records.filter((record) => record !== source && record !== target)
   records.push(replacement)
   const next: DocumentLedger = { ...current, records }

@@ -145,6 +145,24 @@ export {
 export { readSecrets, writeSecretKey, deleteSecretKey, SECRET_KEYS } from './secrets.js'
 export type { SecretKey, SecretsStore } from './secrets.js'
 export { parseLegacyHistory, stripLegacyHistory } from './legacy.js'
+export {
+  FIELD_SUBJECTS_CONTRACT,
+  FIELD_SUBJECTS_FILE,
+  FIELD_SUBJECTS_VERSION,
+  MAX_FIELD_SUBJECT_RECORDS,
+  MAX_FIELD_SUBJECTS_BYTES,
+  initialFieldSubjectLedgerContent,
+  parseFieldSubjectLedger,
+  readFieldSubjectLedger,
+  recordFieldSubject,
+} from './field-subjects.js'
+export type {
+  FieldSubjectLedger,
+  FieldSubjectMigrationReceipt,
+  FieldSubjectPathStatus,
+  FieldSubjectRecord,
+  RecordFieldSubjectInput,
+} from './field-subjects.js'
 // task lifecycle（BACKLOG #15）——依赖图 / children / cascade / canonical
 export {
   normalizeDeps, addDependency, removeDependency, taskNameMatches, directChildren,

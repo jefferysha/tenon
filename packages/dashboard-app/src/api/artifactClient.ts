@@ -10,6 +10,8 @@ export interface ArtifactVersion {
   producer?: { workflowRunId: string; stageAttemptId: string; actorId?: string; skillId?: string }
 }
 export interface ArtifactCatalog { revision: number; digest: string; stageAttemptId: string; entries: ArtifactVersion[]; nextCursor?: string; totalEntries?: number; truncated?: boolean }
+export interface ArtifactSubjectProjection { logicalKey: string; projection: 'document' | 'field' | 'runtime'; status: 'declared' | 'committed' | 'pending' | 'failed'; receiptId: string; recordedAt: string; subjectRef: { subject_id: string; namespace: string; version: string; projection: 'document' | 'field' | 'runtime'; content_digest: string; source?: { path?: string; document_kind?: string; field?: string } }; path?: string; documentKind?: string; field?: string; stateRevisionId?: string }
+export interface ArtifactSubjectRegistry { version: 1; records: ArtifactSubjectProjection[] }
 export interface ArtifactReadResult { version: ArtifactVersion; bytes?: string; encoding?: 'base64' }
 
 function isRecord(v: unknown): v is Record<string, unknown> { return typeof v === 'object' && v !== null }
@@ -53,6 +55,12 @@ export async function fetchArtifactCatalog(root: string, stageAttemptId: string 
   const params = new URLSearchParams({ root, ...(stageAttemptId ? { stageAttemptId } : {}), ...(options.stageId ? { stageId: options.stageId } : {}), ...(options.change ? { change: options.change } : {}) }); if (options.includeCandidates) params.set('includeCandidates', 'true'); if (options.includeHistory) params.set('includeHistory', 'true'); if (options.maxEntries) params.set('maxEntries', String(options.maxEntries))
   if (options.cursor) params.set('cursor', options.cursor); if (options.pinned) params.set('pinned', 'true')
   const body = await get(`/api/artifacts/catalog?${params}`); const value = isRecord(body) ? catalog(body.catalog) : null; if (!value) throw new ApiError('artifact catalog response is invalid'); return value
+}
+export async function fetchArtifactSubjectRegistry(root: string, change?: string): Promise<ArtifactSubjectRegistry> {
+  const params = new URLSearchParams({ root, ...(change ? { change } : {}) })
+  const body = await get(`/api/artifacts/subjects?${params}`)
+  if (!isRecord(body) || !isRecord(body.registry) || body.registry.version !== 1 || !Array.isArray(body.registry.records)) throw new ApiError('artifact subject registry response is invalid')
+  return { version: 1, records: body.registry.records as ArtifactSubjectProjection[] }
 }
 export async function fetchArtifactContent(root: string, stageAttemptId: string, artifactId: string, versionId: string, maxBytes = 512 * 1024, change?: string): Promise<ArtifactReadResult> {
   const params = new URLSearchParams({ root, stageAttemptId, artifactId, version: versionId, maxBytes: String(maxBytes), ...(change ? { change } : {}) }); const body = await get(`/api/artifacts/read?${params}`)

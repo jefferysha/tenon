@@ -165,3 +165,11 @@ await runtime.publish(changedPath, 'candidate') // explicit promotion after obse
   `output_subject_refs`. The UI groups runtime entries by `subject_id` and
   progressively reveals content only when a user opens a version; it does not
   invent an input/output contract from a path.
+- Field subject metadata is stored in the change-local
+  `.pipeline-field-subjects.json` sidecar. The canonical field value remains in
+  the StateStore/YAML revision; the sidecar is an additive lineage projection
+  and its failure must not roll back a successful field commit.
+- Document records may carry the same subject ref directly in
+  `.pipeline-documents.json`. Existing document policy, evidence, and lock
+  checks remain authoritative; the submission adapter must call those checks
+  rather than writing the ledger directly.

@@ -10,6 +10,7 @@ import {
 import { HISTORY_FILE } from '../state/history.js'
 import { skillsEquivalent } from '../state/document-record-policy.js'
 import type { DocumentGovernancePolicy, DocumentKind } from '../workflow/document-contract.js'
+import type { ArtifactSubjectRef } from '../artifacts/subject.js'
 
 function object(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -78,6 +79,8 @@ export interface RecordDocumentInput {
   readonly producer: string
   readonly recordedAt: string
   readonly allowBackfill?: boolean
+  /** Optional canonical ref supplied by a unified artifact submission boundary. */
+  readonly subjectRef?: ArtifactSubjectRef
 }
 
 /** Public recording use case; the producer anchor is always derived from canonical evidence. */
