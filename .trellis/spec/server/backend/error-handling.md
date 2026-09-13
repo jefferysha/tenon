@@ -73,7 +73,7 @@ The bearer token authenticates the local capability only; because the sidecar an
 
 ```ts
 // Wrong: authenticated Dashboard click bypasses the receipt
-humanReviewApproved: true
+approvalOverride: true
 
 // Correct: server injects the Kernel binding verifier
 reviewGateBinding: ({ changeDir, state, phase, event }) =>

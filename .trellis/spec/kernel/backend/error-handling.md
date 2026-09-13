@@ -72,7 +72,7 @@ interface TransitionApplicationDeps {
 
 ```ts
 // Wrong: receipt-only or caller-controlled bypass
-if (command.humanReviewApproved || receiptApproved) return apply()
+if (command.approvalOverride || receiptApproved) return apply()
 
 // Correct: exact receipt plus required binding verifier (review transitions only)
 const bindingApproved = prepared.requiresReviewApproval
