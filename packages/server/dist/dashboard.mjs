@@ -24137,6 +24137,11 @@ async function acknowledgeReview(input) {
   return { changed: true, acknowledgedAt: input.acknowledgedAt, deferred };
 }
 
+// packages/kernel/dist/decision/invocation-command.js
+async function recordDashboardInvocationDecisionUnderLock(changeDir2, lock, decision, options) {
+  return appendSkillInvocationEventUnderLock(changeDir2, lock, decision, options);
+}
+
 // packages/kernel/dist/skills/source-registry.js
 var TOOL_SET = /* @__PURE__ */ new Set([
   "claude-plugin",
@@ -39038,7 +39043,7 @@ async function applyInvocationDecision(input) {
         selected_option_ids: [...input.answer]
       }
     };
-    await appendSkillInvocationEventUnderLock(input.dir, lock, decision, started.subject.attempt === void 0 ? {} : { attempt: started.subject.attempt });
+    await recordDashboardInvocationDecisionUnderLock(input.dir, lock, decision, started.subject.attempt === void 0 ? {} : { attempt: started.subject.attempt });
     await publishRunRevision(input.dir, current, current.state, { kind: "set", observedAt: input.clock() });
     await appendDecisionIdempotency(input.dir, {
       key: input.idempotencyKey,

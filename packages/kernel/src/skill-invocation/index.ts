@@ -26,8 +26,6 @@ export type {
 export { AfkSkillInvocationProofError } from './afk-producer.js'
 export type { DurableAfkSkillInvocationHandle } from './afk-producer.js'
 export {
-  appendSkillInvocationEvent,
-  appendSkillInvocationEventUnderLock,
   readSkillInvocationEvidence,
   readSkillInvocationEventsForApplication,
   skillInvocationProjectId,

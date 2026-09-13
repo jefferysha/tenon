@@ -1,5 +1,5 @@
 import {
-  appendSkillInvocationEventUnderLock,
+  recordDashboardInvocationDecisionUnderLock,
   projectPendingDecisions,
   readCurrentRunRevision,
   publishRunRevision,
@@ -77,7 +77,7 @@ export async function applyInvocationDecision(input: {
         selected_option_ids: [...input.answer],
       },
     }
-    await appendSkillInvocationEventUnderLock(input.dir, lock, decision, started.subject.attempt === undefined ? {} : { attempt: started.subject.attempt })
+    await recordDashboardInvocationDecisionUnderLock(input.dir, lock, decision, started.subject.attempt === undefined ? {} : { attempt: started.subject.attempt })
     // Invocation evidence and the canonical Change revision share this lock. A revision bump
     // makes the decision command's CAS observable to every projection reader.
     await publishRunRevision(input.dir, current, current.state, { kind: 'set', observedAt: input.clock() })
