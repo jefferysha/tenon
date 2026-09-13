@@ -31274,9 +31274,11 @@ async function acknowledgeReview(input) {
     const error2 = new Error(`phase '${input.phase}' \u7684 review receipt \u672A\u7ED1\u5B9A\u5F53\u524D canonical decision state\uFF1B\u8BF7\u91CD\u65B0 request ${input.event}`);
     if (input.onRejected !== void 0)
       await input.onRejected(error2);
-    if (input.recordInteraction !== void 0)
+    if (input.recordInteraction !== void 0) {
       await input.recordInteraction({ state: input.state, acknowledgedAt: input.acknowledgedAt, rejected: true });
-    await reject5(input.state, input.acknowledgedAt);
+    } else {
+      await reject5(input.state, input.acknowledgedAt);
+    }
     throw error2;
   }
   if (reviewGateApprovedFor(input.state, input.phase, input.event)) {
@@ -31286,7 +31288,8 @@ async function acknowledgeReview(input) {
     const error2 = new Error(`phase '${input.phase}' \u5C1A\u672A\u4E3A event '${input.event}' request review`);
     if (input.onRejected !== void 0)
       await input.onRejected(error2);
-    await reject5(input.state, input.acknowledgedAt);
+    if (input.recordInteraction === void 0)
+      await reject5(input.state, input.acknowledgedAt);
     throw error2;
   }
   const patch = reviewGateApprovalPatch(input.acknowledgedAt, input.via ?? "terminal");

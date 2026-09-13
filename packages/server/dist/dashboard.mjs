@@ -23541,7 +23541,8 @@ function field(state, key) {
   return typeof value === "string" ? value : Array.isArray(value) ? value.join(",") : "";
 }
 function refId(kind, change, anchor, revision) {
-  const source2 = `${kind}\0${change}\0${anchor}\0${revision ?? ""}`;
+  void revision;
+  const source2 = `${kind}\0${change}\0${anchor}`;
   let hash = 0xcbf29ce484222325n;
   for (let index = 0; index < source2.length; index += 1) {
     hash ^= BigInt(source2.charCodeAt(index));
@@ -23552,51 +23553,76 @@ function refId(kind, change, anchor, revision) {
 function channel(value) {
   return value === "terminal" || value === "dashboard" || value === "automation" ? value : "unknown";
 }
-function reviewStatus(input, phase, event) {
-  const { state } = input;
-  const status2 = reviewGateStatus(state);
-  if (status2 === void 0 || status2 === null || !field(state, "review_gate_phase") || !field(state, "review_requested_at")) {
-    return { status: "superseded", evidence: ["review-receipt-cleared"] };
+function visitEqual(left, right) {
+  return left.runId === right.runId && left.transitionSequence === right.transitionSequence && (left.step === void 0 || right.step === void 0 || left.step === right.step);
+}
+function transitionChainValid(transitions, candidate) {
+  if (!Number.isInteger(candidate.sequence) || candidate.sequence < 1)
+    return false;
+  if (candidate.sequence === 1)
+    return candidate.previousRecordId === void 0;
+  return candidate.previousRecordId !== void 0 && transitions.some((record7) => record7.runId === candidate.runId && record7.id === candidate.previousRecordId && record7.sequence === candidate.sequence - 1);
+}
+function transitionClearsReviewReceipt(candidate) {
+  return candidate.effects.some((effect) => effect.kind === "state-field-change" && (effect.field === "review_gate_status" || effect.field === "review_gate_phase") && (effect.to === "" || Array.isArray(effect.to) && effect.to.length === 0));
+}
+function reviewEvidence(input, phase, event, requestedAt) {
+  const interactions = [...input.interactions ?? []].sort((left, right) => left.sequence - right.sequence);
+  const transitions = [...input.transitions ?? []].sort((left, right) => left.sequence - right.sequence);
+  for (const request of interactions) {
+    if (request.event !== "review.requested" || request.result !== "success" || request.originStepVisit.step !== void 0 && request.originStepVisit.step !== phase)
+      continue;
+    if (requestedAt !== void 0 && request.occurredAt !== requestedAt)
+      continue;
+    const acknowledged = interactions.find((candidate) => candidate.event === "review.acknowledged" && candidate.result === "success" && candidate.effectCode === "review-gate.approved" && candidate.journeyId === request.journeyId && candidate.runId === request.runId && candidate.sequence > request.sequence && visitEqual(candidate.originStepVisit, request.originStepVisit) && candidate.stateBeforeHash === request.stateAfterHash);
+    if (acknowledged === void 0)
+      continue;
+    const effect = interactions.find((candidate) => candidate.event === "review.effect-applied" && candidate.result === "success" && candidate.effectCode === "transition.applied" && candidate.journeyId === request.journeyId && candidate.runId === request.runId && candidate.sequence > acknowledged.sequence && candidate.stateBeforeHash === acknowledged.stateAfterHash && candidate.originStepVisit.runId === request.originStepVisit.runId);
+    const transition = transitions.find((candidate) => candidate.runId === request.runId && candidate.from === phase && candidate.event === event && effect !== void 0 && effect.stepVisit.runId === candidate.runId && effect.stepVisit.transitionSequence === candidate.sequence && candidate.sequence >= request.originStepVisit.transitionSequence && transitionChainValid(transitions, candidate) && transitionClearsReviewReceipt(candidate));
+    return { request, acknowledgement: acknowledged, effect, transition, complete: effect !== void 0 && transition !== void 0 };
   }
-  if (reviewGatePendingFor(state, phase, event))
+  return { complete: false };
+}
+function reviewStatus(input, phase, event, requestedAt) {
+  const status2 = reviewGateStatus(input.state);
+  if (status2 !== null && reviewGatePendingFor(input.state, phase, event))
     return { status: "pending", evidence: ["canonical-review-receipt"] };
-  if (!reviewGateApprovedFor(state, phase, event))
-    return { status: "superseded", evidence: ["receipt-anchor-mismatch"] };
-  const acknowledged = input.interactions?.some((eventRecord) => eventRecord.event === "review.acknowledged" && eventRecord.result === "success" && eventRecord.effectCode === "review-gate.approved") ?? false;
-  const transition = input.transitions?.some((record7) => record7.event === event && record7.from === phase);
-  if (transition && acknowledged)
-    return { status: "consumed", evidence: ["transition-record", "interaction-acknowledged", "interaction-effect-applied"] };
-  if (acknowledged)
-    return { status: "answered", evidence: ["canonical-review-receipt", "interaction-acknowledged"] };
-  return { status: "answered", evidence: ["canonical-review-receipt"] };
+  if (status2 !== null && reviewGateApprovedFor(input.state, phase, event)) {
+    const evidence = reviewEvidence(input, phase, event, requestedAt);
+    if (evidence.complete)
+      return { status: "consumed", evidence: ["transition-record", "interaction-acknowledged", "interaction-effect-applied"] };
+    if (evidence.acknowledgement !== void 0)
+      return { status: "answered", evidence: ["canonical-review-receipt", "interaction-acknowledged"] };
+    return { status: "answered", evidence: ["canonical-review-receipt"] };
+  }
+  return { status: "unknown", evidence: ["incomplete-review-evidence"] };
 }
 function reviewDecision(input) {
   const phase = field(input.state, "review_gate_phase");
   const event = reviewGateEvent(input.state);
   const requestedAt = field(input.state, "review_requested_at");
+  const evidence = phase !== "" && event !== "" ? reviewEvidence(input, phase, event, requestedAt) : reviewEvidenceFromClearedReceipt(input);
   if (phase === "" || event === "" || requestedAt === "") {
-    const acknowledged = input.interactions?.filter((record7) => record7.event === "review.acknowledged" && record7.result === "success") ?? [];
-    const transition = input.transitions?.find((record7) => acknowledged.some((recorded) => recorded.effectCode === "review-gate.approved") && record7.from !== "" && record7.event !== "");
-    if (transition === void 0 && acknowledged.length === 0)
+    if (evidence.request === void 0 && evidence.acknowledgement === void 0 && evidence.transition === void 0)
       return void 0;
-    const recoveredPhase = transition?.from ?? field(input.state, "phase");
-    const recoveredEvent = transition?.event ?? "unknown";
-    const consumed = transition !== void 0 && acknowledged.some((record7) => record7.effectCode === "review-gate.approved");
-    const anchor2 = `${recoveredPhase}:${recoveredEvent}:consumed`;
+    const recoveredPhase = evidence.transition?.from ?? evidence.request?.originStepVisit.step ?? field(input.state, "phase");
+    const recoveredEvent = evidence.transition?.event ?? eventFromInteraction(evidence.request) ?? "unknown";
+    const anchor2 = logicalReviewAnchor(recoveredPhase, recoveredEvent, evidence.request, evidence.transition);
+    const status2 = evidence.complete ? "consumed" : evidence.rejected === void 0 ? "unknown" : "superseded";
     return {
       ref: { id: refId("review", input.change, anchor2, input.revision ?? null), kind: "review", change: input.change, anchor: anchor2, revision: input.revision ?? null },
       type: "review",
-      status: consumed ? "consumed" : "unknown",
+      status: status2,
       anchor: { phase: recoveredPhase, event: recoveredEvent },
       revision: input.revision ?? null,
-      evidence: consumed ? ["transition-record", "interaction-acknowledged", "interaction-effect-applied"] : ["incomplete-review-evidence"],
-      source: "unknown",
-      channel: "unknown",
+      evidence: evidence.complete ? ["transition-record", "interaction-acknowledged", "interaction-effect-applied"] : evidence.rejected === void 0 ? ["incomplete-review-evidence"] : ["rejected-acknowledgement"],
+      source: reviewSource(evidence.acknowledgement),
+      channel: reviewChannel(evidence.acknowledgement),
       command: "review-acknowledge"
     };
   }
-  const anchor = `${phase}:${event}:${requestedAt}`;
-  const result2 = reviewStatus(input, phase, event);
+  const anchor = logicalReviewAnchor(phase, event, evidence.request, evidence.transition, requestedAt);
+  const result2 = reviewStatus(input, phase, event, requestedAt);
   const via = channel(field(input.state, "review_acknowledged_via"));
   return {
     ref: { id: refId("review", input.change, anchor, input.revision ?? null), kind: "review", change: input.change, anchor, revision: input.revision ?? null },
@@ -23610,6 +23636,40 @@ function reviewDecision(input) {
     command: "review-acknowledge"
   };
 }
+function eventFromInteraction(event) {
+  return event?.pipelineStage === "custom" ? event.originStepVisit.step : event?.pipelineStage;
+}
+function logicalReviewAnchor(phase, event, request, transition, requestedAt) {
+  if (request !== void 0)
+    return `${request.journeyId}:${phase}:${event}`;
+  if (transition !== void 0)
+    return `${transition.runId}:${transition.sequence}:${transition.previousRecordId ?? "root"}:${phase}:${event}`;
+  return `${phase}:${event}:${requestedAt ?? ""}`;
+}
+function reviewChannel(event) {
+  if (event?.surface === "cli")
+    return "terminal";
+  if (event?.surface === "dashboard")
+    return "dashboard";
+  if (event?.executionMode === "afk" || event?.actor === "automation")
+    return "automation";
+  return "unknown";
+}
+function reviewSource(event) {
+  const value = reviewChannel(event);
+  return value === "automation" ? "afk" : value === "unknown" ? "unknown" : "user";
+}
+function reviewEvidenceFromClearedReceipt(input) {
+  const interactions = [...input.interactions ?? []].sort((left, right) => left.sequence - right.sequence);
+  const request = interactions.find((event) => event.event === "review.requested" && event.result === "success");
+  if (request === void 0)
+    return { complete: false };
+  const acknowledgement = interactions.find((event) => event.event === "review.acknowledged" && event.result === "success" && event.effectCode === "review-gate.approved" && event.journeyId === request.journeyId && event.runId === request.runId && event.sequence > request.sequence && visitEqual(event.originStepVisit, request.originStepVisit) && event.stateBeforeHash === request.stateAfterHash);
+  const rejected = interactions.find((event) => event.event === "review.acknowledged" && event.result === "rejected" && event.effectCode === "review-gate.rejected" && event.journeyId === request.journeyId && event.runId === request.runId && event.sequence > request.sequence && visitEqual(event.originStepVisit, request.originStepVisit));
+  const effect = interactions.find((event) => event.event === "review.effect-applied" && event.result === "success" && event.effectCode === "transition.applied" && event.journeyId === request.journeyId && event.runId === request.runId && acknowledgement !== void 0 && event.sequence > acknowledgement.sequence && event.stateBeforeHash === acknowledgement.stateAfterHash);
+  const transition = input.transitions?.find((record7) => record7.runId === request.runId && record7.from === request.originStepVisit.step && record7.event !== "" && effect !== void 0 && effect.stepVisit.runId === record7.runId && effect.stepVisit.transitionSequence === record7.sequence && transitionChainValid(input.transitions ?? [], record7) && transitionClearsReviewReceipt(record7));
+  return { request, acknowledgement, rejected, effect, transition, complete: acknowledgement !== void 0 && effect !== void 0 && transition !== void 0 };
+}
 function invocationDecisions(input) {
   const events2 = input.invocations ?? [];
   const grouped2 = /* @__PURE__ */ new Map();
@@ -23620,9 +23680,9 @@ function invocationDecisions(input) {
     const started = group.find((event) => event.type === "invocation-started");
     if (started === void 0)
       continue;
-    const questions = group.filter((event) => event.type === "question-recorded");
+    const questions = group.filter((event) => event.type === "question-recorded" && event.subject.workflow_run_id === started.subject.workflow_run_id && event.subject.step_visit.run_id === started.subject.step_visit.run_id && event.subject.step_visit.transition_sequence === started.subject.step_visit.transition_sequence);
     for (const question of questions) {
-      const decision = group.find((event) => event.type === "decision-recorded" && event.payload.question_id === question.payload.question_id);
+      const decision = group.find((event) => event.type === "decision-recorded" && event.payload.question_id === question.payload.question_id && event.sequence > question.sequence && event.subject.workflow_run_id === started.subject.workflow_run_id && event.subject.step_visit.run_id === started.subject.step_visit.run_id && event.subject.step_visit.transition_sequence === started.subject.step_visit.transition_sequence);
       const isAfk = started.payload.adapter.kind === "afk";
       const kind = isAfk ? "afk" : "skill-question";
       const anchor = `${invocationId}:${question.payload.question_id}`;
