@@ -27,6 +27,7 @@ export { AfkSkillInvocationProofError } from './afk-producer.js'
 export type { DurableAfkSkillInvocationHandle } from './afk-producer.js'
 export {
   readSkillInvocationEvidence,
+  readSkillInvocationEventsForApplication,
   skillInvocationProjectId,
   SKILL_INVOCATION_LEDGER_FILE,
   SkillInvocationEvidenceBindingError,

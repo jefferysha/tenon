@@ -18,6 +18,12 @@ import {
   validateWorkflow,
   validateWorkflowTrackReferences,
   withTrackRegistryLock,
+  acknowledgeReview,
+  projectPendingDecisions,
+  readCurrentRunRevision,
+  readReviewGateBinding,
+  reviewGateBindingMatches,
+  reviewGateEvent,
   type CreateTrackSpec,
   type ExtendedManifestData,
   type FlowEngine,
@@ -69,7 +75,6 @@ import {
   writeWorkflowForApi,
   type WorkflowRootAnchor,
 } from './workflows.js'
-
 import type { PostRouteDeps } from './serverPostRoutes.js'
 import { readAnchoredChange } from './serverTaskPlanRoutes.js'
 import {
@@ -77,6 +82,9 @@ import {
   resolveTaskRunOperation,
   TaskRunOperationConflictError,
 } from './serverTaskRunOperations.js'
+
+// Idempotency is transport protection only; canonical review receipt remains the source of truth.
+const decisionIdempotency = new Map<string, { readonly ref: string; readonly acknowledgedAt: string }>()
 
 export async function handlePostExecutionRoutes(
   req: IncomingMessage,
@@ -282,6 +290,53 @@ export async function handlePostExecutionRoutes(
       }
     }
 
+    const mDecision = /^\/api\/change\/([^/]+)\/decisions$/.exec(path)
+    if (mDecision) {
+      const body = await readJsonBody(req)
+      if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+        return sendJson(res, 400, { ok: false, error: '请求体须为 JSON 对象' })
+      }
+      const b = body as Record<string, unknown>
+      const root = typeof b.root === 'string' ? b.root : ''
+      const ref = typeof b.ref === 'string' ? b.ref : ''
+      const expectedRevision = typeof b.expected_revision === 'number' ? b.expected_revision : null
+      const idempotencyKey = typeof b.idempotency_key === 'string' ? b.idempotency_key : ''
+      if (!root || !ref || expectedRevision === null || !idempotencyKey) return sendJson(res, 400, { ok: false, error: 'root / ref / expected_revision / idempotency_key 为必填' })
+      if (!isRegisteredRoot(root)) return sendJson(res, 404, { ok: false, error: 'root 非已知 Project（未注册或不可信）' })
+      const name = decodeURIComponent(mDecision[1] ?? '')
+      if (!/^[A-Za-z0-9_-]+$/.test(name) || name.includes('..')) return sendJson(res, 400, { ok: false, error: '非法 change 名' })
+      const dir = join(root, 'openspec', 'changes', name)
+      if (!stateStorageExistsSync(dir)) return sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' })
+      try {
+        const idempotencyScope = `${root}\0${name}\0${idempotencyKey}`
+        const prior = decisionIdempotency.get(idempotencyScope)
+        if (prior !== undefined) return sendJson(res, 200, { ok: true, ref: prior.ref, changed: false, idempotent: true, channel: 'dashboard' })
+        const current = await readCurrentRunRevision(dir)
+        const state = current?.state ?? await store.read(dir)
+        if ((current?.revision ?? null) !== expectedRevision) return sendJson(res, 409, { ok: false, error: 'decision revision conflict', code: 'revision-conflict' })
+        const item = projectPendingDecisions({ change: name, state, revision: current?.revision }).items.find((candidate) => candidate.ref.id === ref)
+        if (item === undefined || item.type !== 'review') return sendJson(res, 409, { ok: false, error: 'decision is no longer pending', code: 'decision-not-pending' })
+        const phase = item.anchor.phase ?? ''
+        const event = item.anchor.event ?? reviewGateEvent(state)
+        const result = await store.withLock(dir, async () => {
+          const lockedRevision = await readCurrentRunRevision(dir)
+          if ((lockedRevision?.revision ?? null) !== expectedRevision) throw new Error('decision revision conflict')
+          const locked = await store.read(dir)
+          const lockedBinding = await readReviewGateBinding(dir)
+          return acknowledgeReview({
+            state: locked, phase, event, acknowledgedAt: clock(), bindingMatches: reviewGateBindingMatches(lockedBinding, locked, phase, event),
+            writeState: async (patch) => { await store.writeUnderLock(dir, { ...locked, fields: { ...locked.fields, ...patch } }, { kind: 'set-many' }) },
+          })
+        })
+        if (decisionIdempotency.size >= 4096) decisionIdempotency.clear()
+        decisionIdempotency.set(idempotencyScope, { ref, acknowledgedAt: result.acknowledgedAt })
+        return sendJson(res, 200, { ok: true, ref, changed: result.changed, idempotent: !result.changed, channel: 'dashboard' })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return sendJson(res, 409, { ok: false, error: message, code: message === 'decision revision conflict' ? 'revision-conflict' : 'review-approval-required' })
+      }
+    }
+
     const mTr = /^\/api\/change\/([^/]+)\/transition$/.exec(path)
     if (!mTr) return sendJson(res, 404, { ok: false, error: '未知写回端点' })
 
@@ -341,5 +396,4 @@ export async function handlePostExecutionRoutes(
       event,
     )
     return sendJson(res, outcome.code, outcome.body)
-
 }

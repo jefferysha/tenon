@@ -60,6 +60,7 @@ import {
   resolveSkillInvocationRoute,
 } from './serverSkillInvocationRoutes.js'
 import { resolveArtifactRoute } from './serverArtifactRoutes.js'
+import { handleGetDecisionRoute } from './serverGetDecisionRoutes.js'
 import type { ArtifactService } from './serverArtifactRoutes.js'
 type WorkflowStoreCheck =
   | { ok: true; anchor: WorkflowRootAnchor; global: boolean }
@@ -148,6 +149,7 @@ export async function handleGet(
   }
   await handleGetActivityRoutes(req, res, path, deps)
   if (res.headersSent) return
+  if (await handleGetDecisionRoute(req, res, path, { sendJson, store, recordStore, workflowRootForRequest })) return
   if (handleGetTraceRoutes(req, res, path, { clock, sendJson, traceStore })) return
   const hostPlan = await resolveHostTargetPlanRoute(req.url ?? '/', path, { hostHome, operationsAvailable, operationRunner, runtime: hostTargetPlanRuntime })
   if (hostPlan !== null) return sendJson(res, hostPlan.status, hostPlan.body)
