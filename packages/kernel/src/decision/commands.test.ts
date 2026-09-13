@@ -23,4 +23,15 @@ describe('decision command adapter', () => {
     }).execute({ ref, expectedRevision: 2, idempotencyKey: 'k', channel: 'terminal' })
     expect(result).toMatchObject({ ok: true, idempotent: true })
   })
+
+  it('checks idempotency before the live revision so a successful approval can be retried', async () => {
+    const result = await createDecisionCommandAdapter({
+      readRevision: async () => 3,
+      isPending: async () => false,
+      apply: async () => { throw new Error('must not apply a retry') },
+      hasIdempotencyKey: async () => true,
+      rememberIdempotencyKey: async () => undefined,
+    }).execute({ ref, expectedRevision: 2, idempotencyKey: 'already-recorded', channel: 'dashboard' })
+    expect(result).toMatchObject({ ok: true, idempotent: true })
+  })
 })

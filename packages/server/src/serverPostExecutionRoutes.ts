@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { lstatSync } from 'node:fs'
+import { appendFile, readFile, unlink } from 'node:fs/promises'
 import { join, resolve as resolvePath } from 'node:path'
 import {
   applyLevelChange,
@@ -25,6 +26,8 @@ import {
   readReviewGateBinding,
   reviewGateBindingMatches,
   reviewGateEvent,
+  REVIEW_MARKER_FILE,
+  parseReviewMarker,
   type CreateTrackSpec,
   type ExtendedManifestData,
   type FlowEngine,
@@ -36,6 +39,7 @@ import {
   type TrackValidationContext,
   type WorkflowDef,
   type WorkflowRunRepository,
+  type DecisionCommandResult,
 } from '@tenon/kernel'
 import {
   cancelAfkRun,
@@ -84,8 +88,49 @@ import {
   TaskRunOperationConflictError,
 } from './serverTaskRunOperations.js'
 
-// Idempotency is transport protection only; canonical review receipt remains the source of truth.
-const decisionIdempotency = new Map<string, { readonly ref: string; readonly acknowledgedAt: string }>()
+const DECISION_IDEMPOTENCY_FILE = '.pipeline-decision-idempotency.jsonl'
+const DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024
+type DecisionIdempotencyRecord = {
+  readonly key: string
+  readonly ref: string
+  readonly expectedRevision: number | null
+  readonly channel: 'dashboard'
+  readonly acknowledgedAt: string
+}
+
+/**
+ * Idempotency belongs to the Change, not to a server process. The file is only read/appended while
+ * the caller owns the canonical Change lock, so two Dashboard/server processes cannot acknowledge
+ * the same key with different refs or revisions.
+ */
+async function readDecisionIdempotency(changeDir: string): Promise<readonly DecisionIdempotencyRecord[]> {
+  try {
+    const raw = await readFile(join(changeDir, DECISION_IDEMPOTENCY_FILE), 'utf8')
+    if (Buffer.byteLength(raw, 'utf8') > DECISION_IDEMPOTENCY_MAX_BYTES) {
+      throw new Error('decision idempotency record exceeds size limit')
+    }
+    if (raw === '') return []
+    if (!raw.endsWith('\n')) throw new Error('decision idempotency record is truncated')
+    return raw.split('\n').filter(Boolean).map((line) => {
+      const parsed: unknown = JSON.parse(line)
+      if (typeof parsed !== 'object' || parsed === null) throw new Error('decision idempotency record is invalid')
+      const record = parsed as Record<string, unknown>
+      if (typeof record.key !== 'string' || typeof record.ref !== 'string'
+        || (typeof record.expectedRevision !== 'number' && record.expectedRevision !== null)
+        || record.channel !== 'dashboard' || typeof record.acknowledgedAt !== 'string') {
+        throw new Error('decision idempotency record is invalid')
+      }
+      return record as unknown as DecisionIdempotencyRecord
+    })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw error
+  }
+}
+
+async function appendDecisionIdempotency(changeDir: string, record: DecisionIdempotencyRecord): Promise<void> {
+  await appendFile(join(changeDir, DECISION_IDEMPOTENCY_FILE), `${JSON.stringify(record)}\n`, { encoding: 'utf8', flag: 'a', mode: 0o600 })
+}
 
 export async function handlePostExecutionRoutes(
   req: IncomingMessage,
@@ -298,49 +343,85 @@ export async function handlePostExecutionRoutes(
       const dir = join(root, 'openspec', 'changes', name)
       if (!stateStorageExistsSync(dir)) return sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' })
       try {
-        const idempotencyScope = `${root}\0${name}\0${idempotencyKey}`
-        const prior = decisionIdempotency.get(idempotencyScope)
-        if (prior !== undefined) return sendJson(res, 200, { ok: true, ref: prior.ref, changed: false, idempotent: true, channel: 'dashboard' })
         let deferred: readonly string[] = []
-        const adapter = createDecisionCommandAdapter({
-          readRevision: async () => (await readCurrentRunRevision(dir))?.revision ?? null,
-          hasIdempotencyKey: async (key) => decisionIdempotency.has(idempotencyScope.replace(idempotencyKey, key)),
-          rememberIdempotencyKey: async (key) => {
-            if (decisionIdempotency.size >= 4096) decisionIdempotency.clear()
-            decisionIdempotency.set(idempotencyScope.replace(idempotencyKey, key), { ref, acknowledgedAt: clock() })
-          },
-          isPending: async (decisionRef) => {
-            const current = await readCurrentRunRevision(dir)
-            const state = current?.state ?? await store.read(dir)
-            return projectPendingDecisions({ change: name, state, revision: current?.revision }).items.some((item) => item.ref.id === decisionRef.id && item.type === 'review' && item.status === 'pending')
-          },
-          apply: async ({ ref: decisionRef }) => store.withLock(dir, async () => {
-            const lockedRevision = await readCurrentRunRevision(dir)
-            if ((lockedRevision?.revision ?? null) !== expectedRevision) throw new Error('decision revision conflict')
-            const locked = await store.read(dir)
-            const item = projectPendingDecisions({ change: name, state: locked, revision: lockedRevision?.revision }).items.find((candidate) => candidate.ref.id === decisionRef.id)
-            if (item === undefined || item.type !== 'review') throw new Error('decision is no longer pending')
-            const phase = item.anchor.phase ?? ''
-            const event = item.anchor.event ?? reviewGateEvent(locked)
-            const binding = await readReviewGateBinding(dir)
-            const acknowledged = await acknowledgeReview({
-              state: locked, phase, event, acknowledgedAt: clock(), bindingMatches: reviewGateBindingMatches(binding, locked, phase, event), via: 'dashboard',
-              writeState: async (patch) => { await store.writeUnderLock(dir, { ...locked, fields: { ...locked.fields, ...patch } }, { kind: 'set-many' }) },
-              recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent }) => history.append(dir, { ts: acknowledgedAt, kind: 'tool', raw: `review:acknowledge via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}` }),
-            })
-            deferred = acknowledged.deferred
-          }),
+        let result: DecisionCommandResult | undefined
+        await store.withLock(dir, async () => {
+          const records = await readDecisionIdempotency(dir)
+          const prior = records.find((record) => record.key === idempotencyKey)
+          if (prior !== undefined && (prior.ref !== ref || prior.expectedRevision !== expectedRevision)) {
+            throw Object.assign(new Error('idempotency key is already bound to another decision'), { code: 'decision-ref-mismatch' })
+          }
+          if (prior !== undefined) {
+            result = {
+              ok: true,
+              idempotent: true,
+              ref: { id: prior.ref, kind: 'review', change: name, anchor: '', revision: prior.expectedRevision },
+            }
+            return
+          }
+          const lockedRevision = await readCurrentRunRevision(dir)
+          const locked = lockedRevision?.state ?? await store.read(dir)
+          const view = projectPendingDecisions({ change: name, state: locked, revision: lockedRevision?.revision })
+          const item = view.items.find((candidate) => candidate.ref.id === ref)
+          if (item === undefined) throw Object.assign(new Error('decision is no longer pending'), { code: 'decision-not-pending' })
+          const adapter = createDecisionCommandAdapter({
+            readRevision: async () => (await readCurrentRunRevision(dir))?.revision ?? null,
+            hasIdempotencyKey: async () => prior !== undefined,
+            rememberIdempotencyKey: async (key) => {
+              await appendDecisionIdempotency(dir, {
+                key, ref, expectedRevision, channel: 'dashboard', acknowledgedAt: clock(),
+              })
+            },
+            isPending: async (decisionRef) => projectPendingDecisions({
+              change: name, state: await store.read(dir), revision: lockedRevision?.revision,
+            }).items.some((candidate) => candidate.ref.id === decisionRef.id && candidate.type === 'review' && candidate.status === 'pending'),
+            apply: async ({ ref: decisionRef }) => {
+              const current = await readCurrentRunRevision(dir)
+              const state = current?.state ?? await store.read(dir)
+              const currentItem = projectPendingDecisions({ change: name, state, revision: current?.revision }).items.find((candidate) => candidate.ref.id === decisionRef.id)
+              if (currentItem === undefined || currentItem.type !== 'review') throw new Error('decision is no longer pending')
+              const phase = currentItem.anchor.phase ?? ''
+              const event = currentItem.anchor.event ?? reviewGateEvent(state)
+              const binding = await readReviewGateBinding(dir)
+              const acknowledged = await acknowledgeReview({
+                state, phase, event, acknowledgedAt: clock(),
+                bindingMatches: reviewGateBindingMatches(binding, state, phase, event), via: 'dashboard',
+                writeState: async (patch) => {
+                  await store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: 'set-many' })
+                },
+                recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent }) => history.append(dir, {
+                  ts: acknowledgedAt, kind: 'tool', raw: `review:acknowledge via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}`,
+                }),
+                recordRejectedAcknowledgement: async ({ acknowledgedAt, phase: rejectedPhase, event: rejectedEvent }) => history.append(dir, {
+                  ts: acknowledgedAt, kind: 'tool', raw: `review:acknowledge-rejected via=dashboard phase=${rejectedPhase} event=${rejectedEvent}`,
+                }),
+                clearMarker: async () => {
+                  const marker = join(root, REVIEW_MARKER_FILE)
+                  try {
+                    const markerReceipt = parseReviewMarker(await readFile(marker, 'utf8'))
+                    if (markerReceipt?.changeName !== name || markerReceipt.event !== event) return false
+                    await unlink(marker)
+                    return true
+                  } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return true
+                    return false
+                  }
+                },
+              })
+              deferred = acknowledged.deferred
+            },
+          })
+          result = await adapter.execute({ ref: item.ref, expectedRevision, idempotencyKey, channel: 'dashboard' })
         })
-        const current = await readCurrentRunRevision(dir)
-        const state = current?.state ?? await store.read(dir)
-        const item = projectPendingDecisions({ change: name, state, revision: current?.revision }).items.find((candidate) => candidate.ref.id === ref)
-        if (item === undefined) return sendJson(res, 409, { ok: false, error: 'decision is no longer pending', code: 'decision-not-pending' })
-        const result = await adapter.execute({ ref: item.ref, expectedRevision, idempotencyKey, channel: 'dashboard' })
+        if (result === undefined) throw new Error('decision command did not produce a result')
         if (!result.ok) return sendJson(res, 409, { ok: false, error: result.message, code: result.code })
         return sendJson(res, 200, { ok: true, ref, changed: !result.idempotent, idempotent: result.idempotent, channel: 'dashboard', deferred })
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        return sendJson(res, 409, { ok: false, error: message, code: message === 'decision revision conflict' ? 'revision-conflict' : 'review-approval-required' })
+        const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : message === 'decision revision conflict' ? 'revision-conflict' : 'review-approval-required'
+        return sendJson(res, 409, { ok: false, error: message, code })
       }
     }
 

@@ -13177,12 +13177,33 @@ async function evaluateSpecMigrationEvidence(repoRoot, changeDir2, changeName) {
 import { writeFile as writeFile4 } from "node:fs/promises";
 import { join as join20 } from "node:path";
 var BREADCRUMB_FILE = ".breadcrumb";
+var REVIEW_MARKER_FILE = ".pipeline-pending-review";
+var REVIEW_MARKER_PROTOCOL = "pipeline-review-v2";
 function createBreadcrumbWriter() {
   return {
     async write(changeDir2, content) {
       await writeFile4(join20(changeDir2, BREADCRUMB_FILE), content, "utf8");
     }
   };
+}
+function parseReviewMarker(content) {
+  const lines = content.split("\n");
+  if (lines[0] !== REVIEW_MARKER_PROTOCOL)
+    return null;
+  const fields = /* @__PURE__ */ new Map();
+  for (const line of lines.slice(1)) {
+    const index = line.indexOf("=");
+    if (index <= 0)
+      break;
+    fields.set(line.slice(0, index), line.slice(index + 1));
+  }
+  const phase = fields.get("phase") ?? "";
+  const changeName = fields.get("change") ?? "";
+  const event = fields.get("event") ?? "";
+  const requestedAt = fields.get("requested_at") ?? "";
+  if (phase === "" || changeName === "" || requestedAt === "")
+    return null;
+  return { phase, changeName, event, requestedAt };
 }
 
 // packages/kernel/dist/state/review-gate.js
@@ -23633,11 +23654,11 @@ function createDecisionCommandAdapter(port) {
   return { execute: async (input) => {
     if (input.idempotencyKey === "")
       return { ok: false, code: "invalid-command", message: "idempotency key is required" };
+    if (await port.hasIdempotencyKey(input.idempotencyKey))
+      return { ok: true, idempotent: true, ref: input.ref };
     const current = await port.readRevision();
     if (current !== input.expectedRevision)
       return { ok: false, code: "revision-conflict", message: "decision revision conflict" };
-    if (await port.hasIdempotencyKey(input.idempotencyKey))
-      return { ok: true, idempotent: true, ref: input.ref };
     if (!await port.isPending(input.ref))
       return { ok: false, code: "decision-not-pending", message: "decision is no longer pending" };
     await port.apply(input);
@@ -23678,14 +23699,16 @@ async function acknowledgeReview(input) {
   await input.writeState(patch);
   if (input.recordInteraction !== void 0) {
     await input.recordInteraction({ state: { ...input.state, fields: { ...input.state.fields, ...patch } }, acknowledgedAt: input.acknowledgedAt });
-  }
+  } else
+    deferred.push("review-interaction");
   if (input.recordHistory !== void 0)
     await input.recordHistory({ acknowledgedAt: input.acknowledgedAt, phase: input.phase, event: input.event });
   else
     deferred.push("review-history");
-  if (input.clearMarker !== void 0)
-    await input.clearMarker();
-  else
+  if (input.clearMarker !== void 0) {
+    if (await input.clearMarker() === false)
+      deferred.push("review-marker-clear");
+  } else
     deferred.push("review-marker-clear");
   return { changed: true, acknowledgedAt: input.acknowledgedAt, deferred };
 }
@@ -38426,6 +38449,7 @@ async function handlePostChangesRoutes(req, res, path13, deps) {
 
 // packages/server/src/serverPostExecutionRoutes.ts
 import { randomUUID as randomUUID14 } from "node:crypto";
+import { appendFile as appendFile2, readFile as readFile28, unlink as unlink5 } from "node:fs/promises";
 import { join as join68 } from "node:path";
 
 // packages/server/src/serverTaskRunOperations.ts
@@ -38528,7 +38552,34 @@ async function applyTaskRunOperationForChange(changeDir2, operation) {
 }
 
 // packages/server/src/serverPostExecutionRoutes.ts
-var decisionIdempotency = /* @__PURE__ */ new Map();
+var DECISION_IDEMPOTENCY_FILE = ".pipeline-decision-idempotency.jsonl";
+var DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
+async function readDecisionIdempotency(changeDir2) {
+  try {
+    const raw = await readFile28(join68(changeDir2, DECISION_IDEMPOTENCY_FILE), "utf8");
+    if (Buffer.byteLength(raw, "utf8") > DECISION_IDEMPOTENCY_MAX_BYTES) {
+      throw new Error("decision idempotency record exceeds size limit");
+    }
+    if (raw === "") return [];
+    if (!raw.endsWith("\n")) throw new Error("decision idempotency record is truncated");
+    return raw.split("\n").filter(Boolean).map((line) => {
+      const parsed = JSON.parse(line);
+      if (typeof parsed !== "object" || parsed === null) throw new Error("decision idempotency record is invalid");
+      const record7 = parsed;
+      if (typeof record7.key !== "string" || typeof record7.ref !== "string" || typeof record7.expectedRevision !== "number" && record7.expectedRevision !== null || record7.channel !== "dashboard" || typeof record7.acknowledgedAt !== "string") {
+        throw new Error("decision idempotency record is invalid");
+      }
+      return record7;
+    });
+  } catch (error2) {
+    if (error2.code === "ENOENT") return [];
+    throw error2;
+  }
+}
+async function appendDecisionIdempotency(changeDir2, record7) {
+  await appendFile2(join68(changeDir2, DECISION_IDEMPOTENCY_FILE), `${JSON.stringify(record7)}
+`, { encoding: "utf8", flag: "a", mode: 384 });
+}
 async function handlePostExecutionRoutes(req, res, path13, deps) {
   const {
     sendJson,
@@ -38740,56 +38791,97 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
     const dir = join68(root2, "openspec", "changes", name2);
     if (!stateStorageExistsSync(dir)) return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     try {
-      const idempotencyScope = `${root2}\0${name2}\0${idempotencyKey}`;
-      const prior = decisionIdempotency.get(idempotencyScope);
-      if (prior !== void 0) return sendJson(res, 200, { ok: true, ref: prior.ref, changed: false, idempotent: true, channel: "dashboard" });
       let deferred = [];
-      const adapter2 = createDecisionCommandAdapter({
-        readRevision: async () => (await readCurrentRunRevision(dir))?.revision ?? null,
-        hasIdempotencyKey: async (key) => decisionIdempotency.has(idempotencyScope.replace(idempotencyKey, key)),
-        rememberIdempotencyKey: async (key) => {
-          if (decisionIdempotency.size >= 4096) decisionIdempotency.clear();
-          decisionIdempotency.set(idempotencyScope.replace(idempotencyKey, key), { ref, acknowledgedAt: clock() });
-        },
-        isPending: async (decisionRef) => {
-          const current2 = await readCurrentRunRevision(dir);
-          const state2 = current2?.state ?? await store.read(dir);
-          return projectPendingDecisions({ change: name2, state: state2, revision: current2?.revision }).items.some((item3) => item3.ref.id === decisionRef.id && item3.type === "review" && item3.status === "pending");
-        },
-        apply: async ({ ref: decisionRef }) => store.withLock(dir, async () => {
-          const lockedRevision = await readCurrentRunRevision(dir);
-          if ((lockedRevision?.revision ?? null) !== expectedRevision) throw new Error("decision revision conflict");
-          const locked = await store.read(dir);
-          const item3 = projectPendingDecisions({ change: name2, state: locked, revision: lockedRevision?.revision }).items.find((candidate) => candidate.ref.id === decisionRef.id);
-          if (item3 === void 0 || item3.type !== "review") throw new Error("decision is no longer pending");
-          const phase = item3.anchor.phase ?? "";
-          const event2 = item3.anchor.event ?? reviewGateEvent(locked);
-          const binding = await readReviewGateBinding(dir);
-          const acknowledged = await acknowledgeReview({
-            state: locked,
-            phase,
-            event: event2,
-            acknowledgedAt: clock(),
-            bindingMatches: reviewGateBindingMatches(binding, locked, phase, event2),
-            via: "dashboard",
-            writeState: async (patch) => {
-              await store.writeUnderLock(dir, { ...locked, fields: { ...locked.fields, ...patch } }, { kind: "set-many" });
-            },
-            recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent }) => history.append(dir, { ts: acknowledgedAt, kind: "tool", raw: `review:acknowledge via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}` })
-          });
-          deferred = acknowledged.deferred;
-        })
+      let result2;
+      await store.withLock(dir, async () => {
+        const records = await readDecisionIdempotency(dir);
+        const prior = records.find((record7) => record7.key === idempotencyKey);
+        if (prior !== void 0 && (prior.ref !== ref || prior.expectedRevision !== expectedRevision)) {
+          throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "decision-ref-mismatch" });
+        }
+        if (prior !== void 0) {
+          result2 = {
+            ok: true,
+            idempotent: true,
+            ref: { id: prior.ref, kind: "review", change: name2, anchor: "", revision: prior.expectedRevision }
+          };
+          return;
+        }
+        const lockedRevision = await readCurrentRunRevision(dir);
+        const locked = lockedRevision?.state ?? await store.read(dir);
+        const view = projectPendingDecisions({ change: name2, state: locked, revision: lockedRevision?.revision });
+        const item2 = view.items.find((candidate) => candidate.ref.id === ref);
+        if (item2 === void 0) throw Object.assign(new Error("decision is no longer pending"), { code: "decision-not-pending" });
+        const adapter2 = createDecisionCommandAdapter({
+          readRevision: async () => (await readCurrentRunRevision(dir))?.revision ?? null,
+          hasIdempotencyKey: async () => prior !== void 0,
+          rememberIdempotencyKey: async (key) => {
+            await appendDecisionIdempotency(dir, {
+              key,
+              ref,
+              expectedRevision,
+              channel: "dashboard",
+              acknowledgedAt: clock()
+            });
+          },
+          isPending: async (decisionRef) => projectPendingDecisions({
+            change: name2,
+            state: await store.read(dir),
+            revision: lockedRevision?.revision
+          }).items.some((candidate) => candidate.ref.id === decisionRef.id && candidate.type === "review" && candidate.status === "pending"),
+          apply: async ({ ref: decisionRef }) => {
+            const current = await readCurrentRunRevision(dir);
+            const state = current?.state ?? await store.read(dir);
+            const currentItem = projectPendingDecisions({ change: name2, state, revision: current?.revision }).items.find((candidate) => candidate.ref.id === decisionRef.id);
+            if (currentItem === void 0 || currentItem.type !== "review") throw new Error("decision is no longer pending");
+            const phase = currentItem.anchor.phase ?? "";
+            const event2 = currentItem.anchor.event ?? reviewGateEvent(state);
+            const binding = await readReviewGateBinding(dir);
+            const acknowledged = await acknowledgeReview({
+              state,
+              phase,
+              event: event2,
+              acknowledgedAt: clock(),
+              bindingMatches: reviewGateBindingMatches(binding, state, phase, event2),
+              via: "dashboard",
+              writeState: async (patch) => {
+                await store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });
+              },
+              recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent }) => history.append(dir, {
+                ts: acknowledgedAt,
+                kind: "tool",
+                raw: `review:acknowledge via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}`
+              }),
+              recordRejectedAcknowledgement: async ({ acknowledgedAt, phase: rejectedPhase, event: rejectedEvent }) => history.append(dir, {
+                ts: acknowledgedAt,
+                kind: "tool",
+                raw: `review:acknowledge-rejected via=dashboard phase=${rejectedPhase} event=${rejectedEvent}`
+              }),
+              clearMarker: async () => {
+                const marker = join68(root2, REVIEW_MARKER_FILE);
+                try {
+                  const markerReceipt = parseReviewMarker(await readFile28(marker, "utf8"));
+                  if (markerReceipt?.changeName !== name2 || markerReceipt.event !== event2) return false;
+                  await unlink5(marker);
+                  return true;
+                } catch (error2) {
+                  if (error2.code === "ENOENT") return true;
+                  return false;
+                }
+              }
+            });
+            deferred = acknowledged.deferred;
+          }
+        });
+        result2 = await adapter2.execute({ ref: item2.ref, expectedRevision, idempotencyKey, channel: "dashboard" });
       });
-      const current = await readCurrentRunRevision(dir);
-      const state = current?.state ?? await store.read(dir);
-      const item2 = projectPendingDecisions({ change: name2, state, revision: current?.revision }).items.find((candidate) => candidate.ref.id === ref);
-      if (item2 === void 0) return sendJson(res, 409, { ok: false, error: "decision is no longer pending", code: "decision-not-pending" });
-      const result2 = await adapter2.execute({ ref: item2.ref, expectedRevision, idempotencyKey, channel: "dashboard" });
+      if (result2 === void 0) throw new Error("decision command did not produce a result");
       if (!result2.ok) return sendJson(res, 409, { ok: false, error: result2.message, code: result2.code });
       return sendJson(res, 200, { ok: true, ref, changed: !result2.idempotent, idempotent: result2.idempotent, channel: "dashboard", deferred });
     } catch (error2) {
       const message = error2 instanceof Error ? error2.message : String(error2);
-      return sendJson(res, 409, { ok: false, error: message, code: message === "decision revision conflict" ? "revision-conflict" : "review-approval-required" });
+      const code = typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : message === "decision revision conflict" ? "revision-conflict" : "review-approval-required";
+      return sendJson(res, 409, { ok: false, error: message, code });
     }
   }
   const mTr = /^\/api\/change\/([^/]+)\/transition$/.exec(path13);
@@ -39075,7 +39167,7 @@ function registryReadError(error2) {
   const detail = error2 instanceof Error ? error2.message : String(error2);
   return new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${code}\uFF09\uFF1A${detail}`);
 }
-function readTrustedLoopRegistry(anchor, readFile28 = (fd) => readFileSync20(fd, "utf8")) {
+function readTrustedLoopRegistry(anchor, readFile29 = (fd) => readFileSync20(fd, "utf8")) {
   return readWithLoopScopeRootTrust(
     () => assertWorkflowRootAnchor(anchor),
     () => {
@@ -39123,7 +39215,7 @@ function readTrustedLoopRegistry(anchor, readFile28 = (fd) => readFileSync20(fd,
               assertDirectoryStillTrusted(pipeline, anchor);
               let text6;
               try {
-                text6 = readFile28(fd);
+                text6 = readFile29(fd);
               } catch (error2) {
                 throw registryReadError(error2);
               }

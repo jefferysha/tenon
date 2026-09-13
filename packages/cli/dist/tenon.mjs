@@ -31293,14 +31293,16 @@ async function acknowledgeReview(input) {
   await input.writeState(patch);
   if (input.recordInteraction !== void 0) {
     await input.recordInteraction({ state: { ...input.state, fields: { ...input.state.fields, ...patch } }, acknowledgedAt: input.acknowledgedAt });
-  }
+  } else
+    deferred.push("review-interaction");
   if (input.recordHistory !== void 0)
     await input.recordHistory({ acknowledgedAt: input.acknowledgedAt, phase: input.phase, event: input.event });
   else
     deferred.push("review-history");
-  if (input.clearMarker !== void 0)
-    await input.clearMarker();
-  else
+  if (input.clearMarker !== void 0) {
+    if (await input.clearMarker() === false)
+      deferred.push("review-marker-clear");
+  } else
     deferred.push("review-marker-clear");
   return { changed: true, acknowledgedAt: input.acknowledgedAt, deferred };
 }
@@ -68822,6 +68824,7 @@ async function cmdReview(deps, sub, name2, opts = {}) {
       return markerOk2 ? 0 : 2;
     }
     let acknowledged;
+    let acknowledgeDeferred = [];
     await deps.store.withLock(dir, async () => {
       const state = await deps.store.read(dir);
       const beforeRevision = interaction === void 0 ? void 0 : await readCurrentRunRevision(dir);
@@ -68878,19 +68881,24 @@ async function cmdReview(deps, sub, name2, opts = {}) {
           } catch (error2) {
             deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review acknowledgement ${rejected === true ? "\u5DF2\u62D2\u7EDD" : "\u5DF2\u63D0\u4EA4"}\uFF09: ${errMsg(error2)}`);
           }
-        }
+        },
+        recordHistory: async ({ acknowledgedAt: at, phase: acknowledgedPhase, event: acknowledgedEvent }) => {
+          await recordHistory(deps, dir, {
+            ts: at,
+            kind: "tool",
+            raw: opts.delegated === true ? `review:delegated-ack phase=${acknowledgedPhase} event=${acknowledgedEvent} authority_issued_at=${delegatedAuthority?.issuedAt ?? ""} authority_host_session=${delegatedAuthority?.hostSessionId ?? ""}` : `review:acknowledge phase=${acknowledgedPhase} event=${acknowledgedEvent}`
+          });
+        },
+        clearMarker: async () => clearReviewMarker(deps)
       });
       acknowledged = { phase: step.phase, event, acknowledgedAt: result2.acknowledgedAt, changed: result2.changed, delegatedAuthority };
+      acknowledgeDeferred = result2.deferred;
+      if (result2.deferred.includes("review-marker-clear")) {
+        deps.io.err("WARN: review marker \u6E05\u7406\u5931\u8D25\uFF08approval receipt \u5DF2\u63D0\u4EA4\uFF0C\u53EF\u91CD\u8BD5 acknowledge\uFF09");
+      }
     });
     if (!acknowledged) throw new Error("review acknowledgement \u672A\u4EA7\u751F receipt");
-    const markerOk = await clearReviewMarker(deps);
-    if (acknowledged.changed) {
-      await recordHistory(deps, dir, {
-        ts: acknowledged.acknowledgedAt,
-        kind: "tool",
-        raw: acknowledged.delegatedAuthority === null ? `review:acknowledge phase=${acknowledged.phase} event=${acknowledged.event}` : `review:delegated-ack phase=${acknowledged.phase} event=${acknowledged.event} authority_issued_at=${acknowledged.delegatedAuthority.issuedAt} authority_host_session=${acknowledged.delegatedAuthority.hostSessionId}`
-      });
-    }
+    const markerOk = !acknowledgeDeferred.includes("review-marker-clear");
     deps.io.out(
       `[REVIEW] ${name2} phase=${acknowledged.phase} event=${acknowledged.event} ${acknowledged.delegatedAuthority === null ? "\u5DF2\u786E\u8BA4" : "\u5DF2\u6309\u7528\u6237\u59D4\u6258\u7684\u6301\u7EED\u6388\u6743\u786E\u8BA4"}\uFF0C\u53EF\u91CD\u53D1 transition`
     );

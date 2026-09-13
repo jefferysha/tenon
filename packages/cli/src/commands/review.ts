@@ -303,6 +303,7 @@ export async function cmdReview(
       changed: boolean
       delegatedAuthority: ContinuousAuthority | null
     } | undefined
+    let acknowledgeDeferred: readonly string[] = []
     await deps.store.withLock(dir, async () => {
       const state = await deps.store.read(dir)
       const beforeRevision = interaction === undefined ? undefined : await readCurrentRunRevision(dir)
@@ -357,22 +358,33 @@ export async function cmdReview(
             deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection 写入失败（canonical review acknowledgement ${rejected === true ? '已拒绝' : '已提交'}）: ${errMsg(error)}`)
           }
         },
+        recordHistory: async ({ acknowledgedAt: at, phase: acknowledgedPhase, event: acknowledgedEvent }) => {
+          await recordHistory(deps, dir, {
+            ts: at,
+            kind: 'tool',
+            raw: opts.delegated === true
+              ? `review:delegated-ack phase=${acknowledgedPhase} event=${acknowledgedEvent} `
+                + `authority_issued_at=${delegatedAuthority?.issuedAt ?? ''} `
+                + `authority_host_session=${delegatedAuthority?.hostSessionId ?? ''}`
+              : `review:acknowledge phase=${acknowledgedPhase} event=${acknowledgedEvent}`,
+          })
+        },
+        clearMarker: async () => clearReviewMarker(deps),
       })
       acknowledged = { phase: step.phase, event, acknowledgedAt: result.acknowledgedAt, changed: result.changed, delegatedAuthority }
+      acknowledgeDeferred = result.deferred
+      // Keep canonical approval durable even when a compatibility marker cannot be cleared. The
+      // application reports that projection failure as a deferred side effect for the CLI's exit
+      // code instead of turning a successful acknowledgement into a transport error.
+      if (result.deferred.includes('review-marker-clear')) {
+        deps.io.err('WARN: review marker 清理失败（approval receipt 已提交，可重试 acknowledge）')
+      }
     })
     if (!acknowledged) throw new Error('review acknowledgement 未产生 receipt')
-    const markerOk = await clearReviewMarker(deps)
-    if (acknowledged.changed) {
-      await recordHistory(deps, dir, {
-        ts: acknowledged.acknowledgedAt,
-        kind: 'tool',
-        raw: acknowledged.delegatedAuthority === null
-          ? `review:acknowledge phase=${acknowledged.phase} event=${acknowledged.event}`
-          : `review:delegated-ack phase=${acknowledged.phase} event=${acknowledged.event} `
-            + `authority_issued_at=${acknowledged.delegatedAuthority.issuedAt} `
-            + `authority_host_session=${acknowledged.delegatedAuthority.hostSessionId}`,
-      })
-    }
+    // `acknowledgeReview` now owns history and marker ports. A missing interaction projection is
+    // intentionally surfaced as a warning/deferred result by the application, while the CLI keeps
+    // its historical success/exit semantics for canonical approval.
+    const markerOk = !acknowledgeDeferred.includes('review-marker-clear')
     deps.io.out(
       `[REVIEW] ${name} phase=${acknowledged.phase} event=${acknowledged.event} ` +
       `${acknowledged.delegatedAuthority === null ? '已确认' : '已按用户委托的持续授权确认'}，可重发 transition`,
