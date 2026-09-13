@@ -119,10 +119,11 @@ invocation record whose `adapter.kind` is `afk`; it must never be inferred from
 the decision payload. `decision.mode` (`user-answer` or
 `recommended-default`) and invocation adapter kind are independent dimensions.
 
-If replay must distinguish terminal, Dashboard, and automation review, the
-canonical review record adds `review_acknowledged_via`. The field is a schema
-change: update `FieldName`, codecs, `.pipeline.yaml` projection, fixtures,
-writers, and a backwards-compatible default together. It is not a view-only
+Replay must distinguish terminal, Dashboard, and automation review. The
+canonical review record therefore includes `review_acknowledged_via`. This is a
+schema change: update `FieldName`, codecs, `.pipeline.yaml` projection,
+fixtures, writers, and the backwards-compatible `unknown` default together.
+Historical records must not be guessed to be terminal. This is not a view-only
 field.
 
 The shared review-acknowledge application lives outside CLI and server. It owns

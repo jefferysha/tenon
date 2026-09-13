@@ -131,6 +131,9 @@ The application returns structured outcomes. The server owns only HTTP mapping:
 | expected revision conflict | 409, `revision-conflict` |
 | matching idempotent approval | existing 200 response |
 
-Rejected requests do not write canonical state, TransitionRecord, history, or
-projection data. Bearer-token authentication identifies a caller capability,
-not a human approver; channel attribution and binding remain separate fields.
+Rejected requests do not write canonical state, TransitionRecord, or successful
+history. The shared application must append the rejected-acknowledgement audit
+event (once, idempotently) so a late or mismatched attempt remains visible to
+the projection; that audit event is not an approval or consumption proof.
+Bearer-token authentication identifies a caller capability, not a human
+approver; channel attribution and binding remain separate fields.

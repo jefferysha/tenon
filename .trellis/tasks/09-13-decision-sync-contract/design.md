@@ -17,7 +17,7 @@
 
 决策事件本身不得猜测 `adapter.kind`；AFK 视图必须通过 decision 的 invocation id 与 `invocation-started`（或等价 durable invocation record）join。内存中的 receipt consume 不构成审计证据。
 
-如果要在回放中区分 terminal、Dashboard、automation，新增 canonical `review_acknowledged_via`。该字段必须同步 `FieldName`/codec、`.pipeline.yaml` 投影、golden fixtures、历史缺省值（旧记录映射为 `terminal` 或 `unknown`，由迁移方案冻结）及 server/CLI writer；不能只加在 view model。
+回放必须区分 terminal、Dashboard、automation，因此 canonical review 记录必须新增 `review_acknowledged_via`。该字段必须同步 `FieldName`/codec、`.pipeline.yaml` 投影、golden fixtures、历史缺省值（旧记录统一映射为 `unknown`，不得猜测为 terminal）及 server/CLI writer；不能只加在 view model。
 
 ## PendingDecisionView 推导
 
@@ -28,7 +28,7 @@ Projection 只读 canonical state 和 append-only records。无法满足证据�
 | review | exact review request receipt 为 pending，且 request/event/revision anchor 有效 | 同一 receipt 被合法 acknowledge，binding 匹配 | 必须同时找到匹配的成功 `TransitionRecord`（event/from、run/step、revision/hash anchor）和对应 interaction success/effect 链；仅因 `clearReviewGatePatch` 清空字段不能判定 | 新 request、状态 revision 或 binding 使旧回答不再匹配；追加 stale/rejected/superseded acknowledgement event | deferred；当前 marker TTL 不是 canonical 过期依据 |
 | Skill question | 有持久 question event，且没有同 question id 的合法 decision | question 有合法 decision event（含 mode、actor/source、attempt binding） | invocation reducer 接受 decision，并有 durable effect/resume/terminal 链；若 host 只在回答后写 question，则视图返回 absent/unknown，不伪造 pending | duplicate/stale decision 被拒绝并追加事件，或同一 invocation 产生显式 replacement | deferred；interaction TTL 不参与 canonical 推导 |
 | recommended-default | routine + `shown=false` + frozen policy id/version/rule id 匹配，且无 decision | `decision.mode=recommended-default` 且 policy binding 匹配 | durable producer effect/terminal 链证明应用；内存 `consumeVerified...` 不足以构成审计证据 | policy、revision 或 invocation 不匹配时追加 rejected/stale event | deferred |
-| AFK | AFK attempt/reservation 已 durable 建立，且 decision 尚未完成 | decision 通过 invocation join 产生，mode/source 记录为 afk | durable AFK effect/terminal 链证明消费，并能回到 attempt/reservation；adapter.kind 只能由 invocation join 得出 | attempt、revision 或 invocation 不匹配时追加 rejected/superseded event | 由 AFK reservation/attempt 生命周期另行定义，本任务不实现 |
+| AFK | AFK attempt/reservation 已 durable 建立，且 decision 尚未完成 | decision 通过 invocation join 产生，并在独立的 AFK source/strategy 字段中记录来源；不得伪造现有 `decision.mode` 枚举 | durable AFK effect/terminal 链证明消费，并能回到 attempt/reservation；adapter.kind 只能由 invocation join 得出 | attempt、revision 或 invocation 不匹配时追加 rejected/superseded event | 由 AFK reservation/attempt 生命周期另行定义，本任务不实现 |
 
 review 的 consumed 推导至少需要 `TransitionRecord` 的 event/from、run/step anchor、sequence/previous record chain、state/revision/hash evidence，以及 request/ack/effect interaction 的成功链；时间戳单独不足以证明消费。没有完整链条时返回 `unknown/incomplete`。
 
@@ -49,7 +49,7 @@ review 的 consumed 推导至少需要 `TransitionRecord` 的 event/from、run/s
 
 ## 并发、错误和同步
 
-所有写命令带 `expected_revision` 与 idempotency key。相同 key、相同 binding 的重复 acknowledge 返回同一成功结果且不重复追加副作用；不同 revision 返回 `revision-conflict`。receipt 缺失、迟到或 binding 不匹配统一为 `review-approval-required`：CLI 保持现有非零退出语义，server 返回 HTTP 409、稳定 `code` 和结构化 phase/event 字段；拒绝不得改变 canonical state、TransitionRecord、history 或 projection。
+所有写命令带 `expected_revision` 与 idempotency key。相同 key、相同 binding 的重复 acknowledge 返回同一成功结果且不重复追加副作用；不同 revision 返回 `revision-conflict`。receipt 缺失、迟到或 binding 不匹配统一为 `review-approval-required`：CLI 保持现有非零退出语义，server 返回 HTTP 409、稳定 `code` 和结构化 phase/event 字段；拒绝不得改变 canonical state、TransitionRecord 或成功 history，但允许且必须追加一次 rejected-acknowledgement audit event，供 projection 显示拒绝/迟到证据；该审计事件不能被当作 approved 或 consumed。
 
 提交成功后，Dashboard 通过 SSE/read refresh 获得新 projection。宿主唤醒分档为 capability：已有宿主支持唤醒时发送 resume signal；不支持时只记录 pending/approved，不能声称终端阻塞问答已经被回答。终端仍是唯一的大模型交互面。
 

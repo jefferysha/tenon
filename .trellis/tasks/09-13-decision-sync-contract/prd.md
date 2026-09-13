@@ -13,7 +13,7 @@
 - `review_gate_status` 仍为 `pending | approved`；
 - superseded/迟到回答由追加事件和 projection 推导；
 - expired 明确为 deferred，未定义 canonical 依据前不进入实现；
-- review receipt 的渠道字段是否作为 canonical state 新增字段，并同步 FieldName、`.pipeline.yaml` 投影和 golden fixtures；
+- review receipt 必须新增 canonical 渠道字段 `review_acknowledged_via`，并同步 FieldName、codec、`.pipeline.yaml` 投影、golden fixtures、历史 `unknown` 缺省值和所有 writer；
 - AFK source 通过 decision → invocation 关联取得，不能假设 decision event 自带 `adapter.kind`；
 - Dashboard review adapter 未来必须调用与 CLI `review acknowledge` 同一个 application 函数，且只能消费已有 exact pending receipt；
 - 该共享 application 层是 C 的前置设计约束，必须承载 binding、receipt、marker、interaction、history 和 rejected acknowledgement 的一致语义；CLI/server 只做适配，禁止 server→cli 依赖或复制编排；
