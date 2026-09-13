@@ -8,11 +8,12 @@
  * 复现的是同一类真实缺陷：breadcrumb/history/marker 曾经在锁外写，第一次转换的尾部被拖慢时，
  * 第二次转换可能在锁内抢先完成、随后姗姗来迟的第一次尾部写入用旧相位覆盖掉最新状态。
  */
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import {
   createBreadcrumbWriter, createTransitionRecordStore, createWorkflowRunRepository,
+  reviewGateBindingForState, writeReviewGateBindingUnderLock,
 } from '@tenon/kernel'
 import type { BreadcrumbWriter } from '@tenon/kernel'
 import { performTransition, type TransitionDeps } from './transition.js'
@@ -20,7 +21,6 @@ import {
   initChange,
   makeProject,
   newStore,
-  readGovernedDocumentsForCurrentVisit,
   recordWorkflowPhaseSkill,
   seedGovernedDocumentEvidence,
   testFlow,
@@ -32,15 +32,49 @@ describe('真实 e2e —— server 并发 transition 尾部写入严格串行（
     const store = newStore()
     const root = await makeProject()
     const name = 'demo'
-    const initializedChangeDir = await initChange(store, root, name)
+    await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(root, '.pipeline', 'workflows', 'serial.yaml'), `name: serial
+document_contract:
+  version: v1
+  slots:
+    - kind: proposal
+      owner_step: one
+      producers: [openspec-propose]
+  reads:
+    - step: two
+      kinds: [proposal]
+steps:
+  - id: one
+    label: One
+    gate: null
+    skills:
+      - id: openspec-propose
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: one-complete
+        to: two
+  - id: two
+    label: Two
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: two-complete
+        to: one
+`, 'utf8')
+    const initializedChangeDir = await initChange(store, root, name, {
+      track: 'simple',
+      initialWorkflow: { workflow: 'serial', phase: 'one', openspecContract: false },
+    })
     const changeDir = join(root, 'openspec', 'changes', name)
     await seedGovernedDocumentEvidence(root, initializedChangeDir, name)
-    await recordWorkflowPhaseSkill(root, changeDir)
-    // explore-complete 的前置（design_doc）从一开始就满足，两次 transition 之间不需要再插入
-    // 任何 set 步骤。
-    // Reuse the seeded OpenSpec design: changing it here would intentionally invalidate its
-    // digest and prevent the second transition before this concurrency assertion is reached.
-    await store.set(changeDir, 'design_doc', 'openspec/changes/demo/design.md')
+    // Use a non-review custom workflow so the lock-tail assertion does not need to
+    // write an approval receipt while the first transition still owns the Change lock.
+    await recordWorkflowPhaseSkill(root, changeDir, 'openspec-propose')
 
     const realBreadcrumb = createBreadcrumbWriter()
     let releaseFirst: () => void = () => {}
@@ -70,15 +104,10 @@ describe('真实 e2e —— server 并发 transition 尾部写入严格串行（
       breadcrumb,
     }
 
-    const p1 = performTransition(deps, root, name, 'open-complete')
+    const p1 = performTransition(deps, root, name, 'one-complete')
     await firstEntered
     expect(order).toEqual(['first-breadcrumb-blocked']) // 确认真的卡住了
-    // The first transition has committed its canonical explore visit before its breadcrumb tail.
-    // Simulate the agent reading governed inputs in that exact visit before the next exit attempt.
-    await readGovernedDocumentsForCurrentVisit(root, changeDir)
-    await recordWorkflowPhaseSkill(root, changeDir)
-
-    const p2 = performTransition(deps, root, name, 'explore-complete')
+    const p2 = performTransition(deps, root, name, 'two-complete')
     await new Promise((r) => setTimeout(r, 30))
     expect(order).toEqual(['first-breadcrumb-blocked']) // p2 仍未进入（被锁挡住，不是碰巧慢）
 
@@ -88,13 +117,13 @@ describe('真实 e2e —— server 并发 transition 尾部写入严格串行（
     expect(r2.code).toBe(200)
     expect(order).toEqual([
       'first-breadcrumb-blocked',
-      'breadcrumb:pipeline:demo phase=explore',
-      'breadcrumb:pipeline:demo phase=spec',
+      'breadcrumb:pipeline:demo phase=two',
+      'breadcrumb:pipeline:demo phase=one',
     ])
 
     const finalState = await store.read(changeDir)
-    expect(finalState.fields.phase).toBe('spec')
-    expect(await readFile(join(changeDir, '.breadcrumb'), 'utf8')).toContain('phase=spec')
+    expect(finalState.fields.phase).toBe('one')
+    expect(await readFile(join(changeDir, '.breadcrumb'), 'utf8')).toContain('phase=one')
   })
 
   test('server 生产 TaskPlan callback 不用未完成 Verify tasks 阻断 verify-fail 回退', async () => {
@@ -113,6 +142,11 @@ describe('真实 e2e —— server 并发 transition 尾部写入严格串行（
       review_requested_at: '2026-07-16T00:00:00Z',
       review_acknowledged_at: '2026-07-16T00:00:00Z',
     })
+    const approvedState = await store.read(changeDir)
+    await writeReviewGateBindingUnderLock(
+      changeDir,
+      reviewGateBindingForState(approvedState, 'verify', 'verify-fail', '2026-07-16T00:00:00Z'),
+    )
     await recordWorkflowPhaseSkill(root, changeDir)
     const deps: TransitionDeps = {
       store,
@@ -122,6 +156,20 @@ describe('真实 e2e —— server 并发 transition 尾部写入严格串行（
       flow: testFlow(),
       clock: () => '2026-07-16T00:00:00Z',
     }
+
+    await store.set(changeDir, 'build_sha', 'CHANGED_AFTER_APPROVAL')
+    const mismatched = await performTransition(deps, root, name, 'verify-fail')
+    expect(mismatched).toMatchObject({
+      code: 409,
+      body: { ok: false, code: 'review-approval-required' },
+    })
+    expect((await store.read(changeDir)).fields.phase).toBe('verify')
+
+    const reboundState = await store.read(changeDir)
+    await writeReviewGateBindingUnderLock(
+      changeDir,
+      reviewGateBindingForState(reboundState, 'verify', 'verify-fail', '2026-07-16T00:00:00Z'),
+    )
 
     const result = await performTransition(deps, root, name, 'verify-fail')
 

@@ -15,8 +15,8 @@ export interface TransitionApplicationDeps {
   runRepository: WorkflowRunRepository
   /** Best-effort interaction projection emitter; it never participates in canonical decisions. */
   interaction?: InteractionEventRecorder
-  /** Optional canonical review binding verifier; projection data is never consulted here. */
-  reviewGateBinding?: (input: {
+  /** Canonical review binding verifier; projection data is never consulted here. */
+  reviewGateBinding: (input: {
     readonly changeDir: string
     readonly state: PipelineState
     readonly phase: string
@@ -51,7 +51,6 @@ export interface TransitionCommand {
   event: string
   context: TransitionContext
   loadWorkflow: (name: string) => WorkflowIR | null
-  humanReviewApproved?: boolean
 }
 
 export type TransitionApplicationWarning =

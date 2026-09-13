@@ -32251,13 +32251,13 @@ function createTransitionApplication(deps) {
           }
         }
         const receiptApproved = reviewGateApprovedFor(tx.state, prepared.from, command2.event);
-        const bindingApproved = receiptApproved && deps.reviewGateBinding !== void 0 ? await deps.reviewGateBinding({
+        const bindingApproved = receiptApproved && await deps.reviewGateBinding({
           changeDir: command2.changeDir,
           state: tx.state,
           phase: prepared.from,
           event: command2.event
-        }) : receiptApproved;
-        if (prepared.requiresReviewApproval && command2.humanReviewApproved !== true && !bindingApproved) {
+        });
+        if (prepared.requiresReviewApproval && !bindingApproved) {
           return { kind: "review-approval-required", phase: prepared.from, event: command2.event };
         }
         const { record: record9, projection } = await tx.commit({ ...prepared.nextFields, ...clearReviewGatePatch() }, {

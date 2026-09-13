@@ -22,6 +22,7 @@ import type { FlowEngine, StateStore } from '@tenon/kernel'
 import {
   builtinTrack, createLoopLedgerStore, effectiveWorkflowPlanBinding, loadEffectiveWorkflowPlan, loadManifest,
   createTransitionRecordStore, createWorkflowRunRepository,
+  reviewGateBindingForState, writeReviewGateBindingUnderLock,
   DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS,
   machineStateScopeId,
   registerProjectRoot, TRANSITION_EVENTS as KERNEL_EVENTS, eventEdge as kernelEventEdge,
@@ -130,6 +131,26 @@ async function start(opts?: {
     worktreeDir,
     manifestPath: opts?.manifestPath,
   }
+}
+
+async function approveReviewForTransition(
+  h: Harness,
+  phase: string,
+  event: string,
+  requestedAt = '2026-07-07T00:00:00Z',
+): Promise<void> {
+  await h.store.setMany(h.changeDir, {
+    review_gate_phase: phase,
+    review_gate_status: 'approved',
+    review_gate_event: event,
+    review_requested_at: requestedAt,
+    review_acknowledged_at: requestedAt,
+  })
+  const state = await h.store.read(h.changeDir)
+  await writeReviewGateBindingUnderLock(
+    h.changeDir,
+    reviewGateBindingForState(state, phase, event, requestedAt),
+  )
 }
 
 /** 同 start()，但额外真拷贝仓库 manifest.yaml 到临时文件并注入，供 config 端点测试使用。 */
@@ -1226,6 +1247,7 @@ describe('POST /api/change/<name>/transition —— G1 default 轨收尾（bread
     })
     await readGovernedDocumentsForCurrentVisit(h.root, h.changeDir)
     await recordWorkflowPhaseSkill(h.root, h.changeDir)
+    await approveReviewForTransition(h, 'spec', 'spec-complete')
 
     const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'spec-complete' }, {
       headers: { Authorization: `Bearer ${h.token}` },
@@ -1340,6 +1362,7 @@ describe('POST /api/change/<name>/transition —— .pipeline-history.jsonl 记�
       if (event === 'open-complete') {
         await readGovernedDocumentsForCurrentVisit(h.root, h.changeDir)
         await recordWorkflowPhaseSkill(h.root, h.changeDir)
+        await approveReviewForTransition(h, 'explore', 'explore-complete')
       }
     }
     const text = await readFile(join(h.changeDir, '.pipeline-history.jsonl'), 'utf8')
@@ -1569,6 +1592,7 @@ describe('GET /api/change/:name/history —— transitionRecordId 来源判定�
     expect(w1.status).toBe(200)
     await readGovernedDocumentsForCurrentVisit(h.root, h.changeDir)
     await recordWorkflowPhaseSkill(h.root, h.changeDir)
+    await approveReviewForTransition(h, 'explore', 'explore-complete')
     const w2 = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'explore-complete' }, {
       headers: { Authorization: `Bearer ${h.token}` },
     }) // sequence 2: explore -> spec
@@ -1666,6 +1690,7 @@ describe('GET /api/change/:name/history —— transitionRecordId 来源判定�
     expect(w1.status).toBe(200)
     await readGovernedDocumentsForCurrentVisit(h.root, h.changeDir)
     await recordWorkflowPhaseSkill(h.root, h.changeDir)
+    await approveReviewForTransition(h, 'explore', 'explore-complete')
     observedAt = '2020-01-01T00:00:00Z' // 系统时钟在第二次真实 commit 前回拨
     const w2 = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'explore-complete' }, {
       headers: { Authorization: `Bearer ${h.token}` },
@@ -1693,6 +1718,7 @@ describe('GET /api/change/:name/history —— transitionRecordId 来源判定�
       if (event === 'open-complete') {
         await readGovernedDocumentsForCurrentVisit(h.root, h.changeDir)
         await recordWorkflowPhaseSkill(h.root, h.changeDir)
+        await approveReviewForTransition(h, 'explore', 'explore-complete')
       }
     }
     const recordsDir = join(h.changeDir, '.pipeline-transitions')
@@ -1724,6 +1750,7 @@ describe('GET /api/change/:name/history —— transitionRecordId 来源判定�
     expect(w1.status).toBe(200)
     await readGovernedDocumentsForCurrentVisit(h.root, h.changeDir)
     await recordWorkflowPhaseSkill(h.root, h.changeDir)
+    await approveReviewForTransition(h, 'explore', 'explore-complete')
     const w2 = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'explore-complete' }, {
       headers: { Authorization: `Bearer ${h.token}` },
     }) // sequence 2: explore -> spec，ts 同样是 fixed clock '2026-07-07T00:00:00Z'

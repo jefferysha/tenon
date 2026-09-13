@@ -65,6 +65,9 @@ function makeDeps(overrides: Partial<TransitionApplicationDeps> = {}): Transitio
     runRepository,
     flow: createFlowEngine(manifest),
     clock: FIXED_CLOCK,
+    // Test callers explicitly provide the verifier; production adapters must use
+    // the sidecar-backed binding matcher rather than this permissive test stub.
+    reviewGateBinding: async () => true,
     history: { append: async (dir, entry) => { historyEntries.push([dir, entry]) } },
     breadcrumb: { write: async (dir, content) => { breadcrumbCalls.push([dir, content]) } },
     historyEntries,

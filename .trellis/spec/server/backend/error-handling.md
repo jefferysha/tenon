@@ -18,6 +18,67 @@ Questions to answer:
 
 (To be filled by the team)
 
+## Scenario: HTTP review approval mapping
+
+### 1. Scope / Trigger
+
+The server transition adapter must preserve Kernel fail-closed review semantics while exposing a stable HTTP response.
+
+### 2. Signatures
+
+```ts
+POST /api/change/:name/transition
+// request: { root: string, event: string }
+// review failure: HTTP 409
+```
+
+### 3. Contracts
+
+For a missing, malformed, or mismatched exact receipt/binding, return:
+
+```json
+{
+  "ok": false,
+  "error": "phase '<phase>' 的产物尚未取得人工确认",
+  "code": "review-approval-required"
+}
+```
+
+The server reads the binding through Kernel exports and never imports CLI code or sets a transition approval flag. A rejected request must not write state, transition history, or projection data.
+
+### 4. Validation & Error Matrix
+
+| Condition | HTTP result |
+|---|---|
+| No exact approved receipt | 409 / `review-approval-required` |
+| Receipt binding mismatch | 409 / `review-approval-required` |
+| Non-review guard failure | Existing typed 409 mapping |
+| Matching receipt and binding | Existing 200 transition response |
+
+### 5. Good / Base / Bad Cases
+
+- Good: Dashboard/server uses the same Kernel binding matcher as CLI.
+- Base: an authenticated request is still only a bearer capability; it is not human identity proof.
+- Bad: treating a token-authenticated transition as implicit human approval.
+
+### 6. Tests Required
+
+- HTTP 409 with stable `code` for missing and mismatched binding.
+- HTTP 200 for approved receipt plus matching binding.
+- No state/history mutation after a rejected request.
+- Non-review transitions and unrelated 401/409 routes retain their existing assertions.
+
+### 7. Wrong vs Correct
+
+```ts
+// Wrong: authenticated Dashboard click bypasses the receipt
+humanReviewApproved: true
+
+// Correct: server injects the Kernel binding verifier
+reviewGateBinding: ({ changeDir, state, phase, event }) =>
+  readAndMatchKernelBinding(changeDir, state, phase, event)
+```
+
 ---
 
 ## Error Types

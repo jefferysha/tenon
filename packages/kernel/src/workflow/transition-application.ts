@@ -371,21 +371,17 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
           }
         }
         // Review 的判定点是“离开当前 review phase”，不是“刚进入就锁住”。所有自动 guards
-        // / 文档证据先通过，才允许 request/ack receipt 成为下一步的人类复核证据。CLI/agent
-        // 只能消费 `tenon review acknowledge` 写入的 exact-phase-and-event receipt；dashboard
-        // 则把真实的、已选中 event 的显式放行点击作为同一语义的 host-bound acknowledgement。
+        // / 文档证据先通过，才允许 request/ack receipt 成为下一步的人类复核证据。所有 caller
+        // 都必须提供与当前状态绑定的 verifier；receipt 本身不能作为未绑定的放行凭证。
         const receiptApproved = reviewGateApprovedFor(tx.state, prepared.from, command.event)
-        const bindingApproved = receiptApproved && deps.reviewGateBinding !== undefined
-          ? await deps.reviewGateBinding({
-            changeDir: command.changeDir,
-            state: tx.state,
-            phase: prepared.from,
-            event: command.event,
-          })
-          : receiptApproved
+        const bindingApproved = receiptApproved && await deps.reviewGateBinding({
+          changeDir: command.changeDir,
+          state: tx.state,
+          phase: prepared.from,
+          event: command.event,
+        })
         if (
           prepared.requiresReviewApproval
-          && command.humanReviewApproved !== true
           && !bindingApproved
         ) {
           return { kind: 'review-approval-required', phase: prepared.from, event: command.event }

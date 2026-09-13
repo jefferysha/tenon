@@ -1,3 +1,5 @@
+> **Deprecated historical note (2026-09-13):** The host-bound `humanReviewApproved` Dashboard exception described below was removed. This research remains historical; current runtime behavior requires an exact receipt and matching binding, and Dashboard must use the shared review application contract.
+
 # Review Handshake Dashboard UX 调研
 
 日期：2026-07-30

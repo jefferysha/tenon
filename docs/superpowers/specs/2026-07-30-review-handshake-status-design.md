@@ -1,3 +1,5 @@
+> **Deprecated historical note (2026-09-13):** This document describes the former `humanReviewApproved` Dashboard bypass and is retained only as historical design context. The field and exception were removed; current transitions require an exact receipt plus review binding. Do not use this file as the current runtime contract.
+
 # Review Handshake 状态设计
 
 ## 用户结果

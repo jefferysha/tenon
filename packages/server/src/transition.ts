@@ -34,6 +34,7 @@ import {
   stateStorageExistsSync,
   taskPlanTasksThroughPhaseForChange, assessBuildRevisionTrust, createBuildRevisionToken,
   probeBuildRevisionIdentity, readValidatedTransitionHead, safeRevisionHash,
+  readReviewGateBinding, reviewGateBindingMatches,
 } from '@tenon/kernel'
 import type {
   BreadcrumbWriter, EffectiveSkillResolver, FlowEngine, HistoryWriter, StateStore, TrackDefinition,
@@ -291,6 +292,14 @@ export async function performTransition(
     history: deps.history,
     breadcrumb: deps.breadcrumb,
     resolveTrack: deps.resolveTrack,
+    reviewGateBinding: async ({ changeDir, state, phase, event }) => {
+      try {
+        const binding = await readReviewGateBinding(changeDir)
+        return reviewGateBindingMatches(binding, state, phase, event)
+      } catch {
+        return false
+      }
+    },
     missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => {
       const slots = resolveRequiredSkillSlots(deps.skillResolver, capability, stepId)
       let historyRaw = ''
@@ -318,9 +327,6 @@ export async function performTransition(
       changeName: name,
       event,
       context: ctx,
-      // POST dashboard transition is a concrete user click in an authenticated browser flow.  It
-      // is the host-bound approval surface for a review exit; CLI/agent paths cannot set this bit.
-      humanReviewApproved: true,
       // loadWorkflow→compileWorkflow：TransitionApplication 收编译产物 WorkflowIR；编译错误
       // （= 基础设施错误）经 execute 抛出，落 performTransition 的 catch → 500（同既有非法 workflow 语义）。
       loadWorkflow: (wfName) => {
