@@ -1,6 +1,6 @@
 import { reviewGateEvent, reviewGatePendingFor, reviewGateApprovedFor, reviewGateStatus } from '../state/review-gate.js'
 import type { PipelineState } from '../types.js'
-import type { InteractionEventV1 } from '../interaction/contract.js'
+import type { InteractionEventV1, InteractionStepVisit } from '../interaction/contract.js'
 import type { SkillInvocationEventV1 } from '../skill-invocation/types.js'
 import type { TransitionRecord } from '../workflow/run-types.js'
 import type { PendingDecision, PendingDecisionProjectionInput, PendingDecisionView, DecisionChannel, DecisionStatus } from './types.js'
@@ -12,9 +12,12 @@ function field(state: PipelineState, key: string): string {
 }
 
 function refId(kind: string, change: string, anchor: string, revision: number | null): string {
-  // Keep the kernel free of node/platform imports. This stable 64-bit FNV-1a digest is an
-  // opaque reference only; canonical state and revision remain the authorization source.
-  const source = `${kind}\0${change}\0${anchor}\0${revision ?? ''}`
+  // The revision is authorization metadata, not request identity. Including the current
+  // revision here would make a still-pending request change identity on every refresh and
+  // would make a cleared receipt impossible to recover from its immutable evidence chain.
+  // Keep the kernel free of node/platform imports; this is an opaque 64-bit FNV-1a digest.
+  void revision
+  const source = `${kind}\0${change}\0${anchor}`
   let hash = 0xcbf29ce484222325n
   for (let index = 0; index < source.length; index += 1) {
     hash ^= BigInt(source.charCodeAt(index))
@@ -27,48 +30,106 @@ function channel(value: string): DecisionChannel {
   return value === 'terminal' || value === 'dashboard' || value === 'automation' ? value : 'unknown'
 }
 
-function reviewStatus(input: PendingDecisionProjectionInput, phase: string, event: string): { status: DecisionStatus; evidence: string[] } {
-  const { state } = input
-  const status = reviewGateStatus(state)
-  if (status === undefined || status === null || !field(state, 'review_gate_phase') || !field(state, 'review_requested_at')) {
-    return { status: 'superseded', evidence: ['review-receipt-cleared'] }
+function visitEqual(left: InteractionStepVisit, right: InteractionStepVisit): boolean {
+  return left.runId === right.runId
+    && left.transitionSequence === right.transitionSequence
+    && (left.step === undefined || right.step === undefined || left.step === right.step)
+}
+
+interface ReviewEvidence {
+  readonly request?: InteractionEventV1
+  readonly acknowledgement?: InteractionEventV1
+  readonly effect?: InteractionEventV1
+  readonly transition?: TransitionRecord
+  readonly rejected?: InteractionEventV1
+  readonly complete: boolean
+}
+
+function transitionChainValid(transitions: readonly TransitionRecord[], candidate: TransitionRecord): boolean {
+  if (!Number.isInteger(candidate.sequence) || candidate.sequence < 1) return false
+  if (candidate.sequence === 1) return candidate.previousRecordId === undefined
+  return candidate.previousRecordId !== undefined
+    && transitions.some((record) => record.runId === candidate.runId
+      && record.id === candidate.previousRecordId
+      && record.sequence === candidate.sequence - 1)
+}
+
+function transitionClearsReviewReceipt(candidate: TransitionRecord): boolean {
+  return candidate.effects.some((effect) => effect.kind === 'state-field-change'
+    && (effect.field === 'review_gate_status' || effect.field === 'review_gate_phase')
+    && (effect.to === '' || (Array.isArray(effect.to) && effect.to.length === 0)))
+}
+
+function reviewEvidence(input: PendingDecisionProjectionInput, phase: string, event: string, requestedAt?: string): ReviewEvidence {
+  const interactions = [...(input.interactions ?? [])].sort((left, right) => left.sequence - right.sequence)
+  const transitions = [...(input.transitions ?? [])].sort((left, right) => left.sequence - right.sequence)
+  for (const request of interactions) {
+    if (request.event !== 'review.requested' || request.result !== 'success'
+      || (request.originStepVisit.step !== undefined && request.originStepVisit.step !== phase)) continue
+    if (requestedAt !== undefined && request.occurredAt !== requestedAt) continue
+    const acknowledged = interactions.find((candidate) => candidate.event === 'review.acknowledged'
+      && candidate.result === 'success'
+      && candidate.effectCode === 'review-gate.approved'
+      && candidate.journeyId === request.journeyId
+      && candidate.runId === request.runId
+      && candidate.sequence > request.sequence
+      && visitEqual(candidate.originStepVisit, request.originStepVisit)
+      && candidate.stateBeforeHash === request.stateAfterHash)
+    if (acknowledged === undefined) continue
+    const effect = interactions.find((candidate) => candidate.event === 'review.effect-applied'
+      && candidate.result === 'success'
+      && candidate.effectCode === 'transition.applied'
+      && candidate.journeyId === request.journeyId
+      && candidate.runId === request.runId
+      && candidate.sequence > acknowledged.sequence
+      && candidate.stateBeforeHash === acknowledged.stateAfterHash
+      && candidate.originStepVisit.runId === request.originStepVisit.runId)
+    const transition = transitions.find((candidate) => candidate.runId === request.runId
+      && candidate.from === phase
+      && candidate.event === event
+      && effect !== undefined
+      && effect.stepVisit.runId === candidate.runId
+      && effect.stepVisit.transitionSequence === candidate.sequence
+      && candidate.sequence >= request.originStepVisit.transitionSequence
+      && transitionChainValid(transitions, candidate)
+      && transitionClearsReviewReceipt(candidate))
+    return { request, acknowledgement: acknowledged, effect, transition, complete: effect !== undefined && transition !== undefined }
   }
-  if (reviewGatePendingFor(state, phase, event)) return { status: 'pending', evidence: ['canonical-review-receipt'] }
-  if (!reviewGateApprovedFor(state, phase, event)) return { status: 'superseded', evidence: ['receipt-anchor-mismatch'] }
-  const acknowledged = input.interactions?.some((eventRecord) =>
-    eventRecord.event === 'review.acknowledged' && eventRecord.result === 'success' && eventRecord.effectCode === 'review-gate.approved') ?? false
-  const transition = input.transitions?.some((record) => record.event === event && record.from === phase)
-  if (transition && acknowledged) return { status: 'consumed', evidence: ['transition-record', 'interaction-acknowledged', 'interaction-effect-applied'] }
-  if (acknowledged) return { status: 'answered', evidence: ['canonical-review-receipt', 'interaction-acknowledged'] }
-  return { status: 'answered', evidence: ['canonical-review-receipt'] }
+  return { complete: false }
+}
+
+function reviewStatus(input: PendingDecisionProjectionInput, phase: string, event: string, requestedAt: string): { status: DecisionStatus; evidence: string[] } {
+  const status = reviewGateStatus(input.state)
+  if (status !== null && reviewGatePendingFor(input.state, phase, event)) return { status: 'pending', evidence: ['canonical-review-receipt'] }
+  if (status !== null && reviewGateApprovedFor(input.state, phase, event)) {
+    const evidence = reviewEvidence(input, phase, event, requestedAt)
+    if (evidence.complete) return { status: 'consumed', evidence: ['transition-record', 'interaction-acknowledged', 'interaction-effect-applied'] }
+    if (evidence.acknowledgement !== undefined) return { status: 'answered', evidence: ['canonical-review-receipt', 'interaction-acknowledged'] }
+    return { status: 'answered', evidence: ['canonical-review-receipt'] }
+  }
+  return { status: 'unknown', evidence: ['incomplete-review-evidence'] }
 }
 
 function reviewDecision(input: PendingDecisionProjectionInput): PendingDecision | undefined {
   const phase = field(input.state, 'review_gate_phase')
   const event = reviewGateEvent(input.state)
   const requestedAt = field(input.state, 'review_requested_at')
+  const evidence = phase !== '' && event !== '' ? reviewEvidence(input, phase, event, requestedAt) : reviewEvidenceFromClearedReceipt(input)
   if (phase === '' || event === '' || requestedAt === '') {
-    // Transition consumption clears the receipt fields. Recover the read-only record from the
-    // immutable transition/interaction chain, but never call it answered without both links.
-    const acknowledged = input.interactions?.filter((record) =>
-      record.event === 'review.acknowledged' && record.result === 'success') ?? []
-    const transition = input.transitions?.find((record) =>
-      acknowledged.some((recorded) => recorded.effectCode === 'review-gate.approved')
-        && record.from !== '' && record.event !== '')
-    if (transition === undefined && acknowledged.length === 0) return undefined
-    const recoveredPhase = transition?.from ?? field(input.state, 'phase')
-    const recoveredEvent = transition?.event ?? 'unknown'
-    const consumed = transition !== undefined && acknowledged.some((record) => record.effectCode === 'review-gate.approved')
-    const anchor = `${recoveredPhase}:${recoveredEvent}:consumed`
+    if (evidence.request === undefined && evidence.acknowledgement === undefined && evidence.transition === undefined) return undefined
+    const recoveredPhase = evidence.transition?.from ?? evidence.request?.originStepVisit.step ?? field(input.state, 'phase')
+    const recoveredEvent = evidence.transition?.event ?? eventFromInteraction(evidence.request) ?? 'unknown'
+    const anchor = logicalReviewAnchor(recoveredPhase, recoveredEvent, evidence.request, evidence.transition)
+    const status: DecisionStatus = evidence.complete ? 'consumed' : evidence.rejected === undefined ? 'unknown' : 'superseded'
     return {
       ref: { id: refId('review', input.change, anchor, input.revision ?? null), kind: 'review', change: input.change, anchor, revision: input.revision ?? null },
-      type: 'review', status: consumed ? 'consumed' : 'unknown', anchor: { phase: recoveredPhase, event: recoveredEvent }, revision: input.revision ?? null,
-      evidence: consumed ? ['transition-record', 'interaction-acknowledged', 'interaction-effect-applied'] : ['incomplete-review-evidence'],
-      source: 'unknown', channel: 'unknown', command: 'review-acknowledge',
+      type: 'review', status, anchor: { phase: recoveredPhase, event: recoveredEvent }, revision: input.revision ?? null,
+      evidence: evidence.complete ? ['transition-record', 'interaction-acknowledged', 'interaction-effect-applied'] : evidence.rejected === undefined ? ['incomplete-review-evidence'] : ['rejected-acknowledgement'],
+      source: reviewSource(evidence.acknowledgement), channel: reviewChannel(evidence.acknowledgement), command: 'review-acknowledge',
     }
   }
-  const anchor = `${phase}:${event}:${requestedAt}`
-  const result = reviewStatus(input, phase, event)
+  const anchor = logicalReviewAnchor(phase, event, evidence.request, evidence.transition, requestedAt)
+  const result = reviewStatus(input, phase, event, requestedAt)
   const via = channel(field(input.state, 'review_acknowledged_via'))
   return {
     ref: { id: refId('review', input.change, anchor, input.revision ?? null), kind: 'review', change: input.change, anchor, revision: input.revision ?? null },
@@ -76,6 +137,62 @@ function reviewDecision(input: PendingDecisionProjectionInput): PendingDecision 
     evidence: result.evidence, source: via === 'automation' ? 'afk' : via === 'unknown' ? 'unknown' : 'user', channel: via,
     command: 'review-acknowledge',
   }
+}
+
+function eventFromInteraction(event: InteractionEventV1 | undefined): string | undefined {
+  return event?.pipelineStage === 'custom' ? event.originStepVisit.step : event?.pipelineStage
+}
+
+function logicalReviewAnchor(
+  phase: string,
+  event: string,
+  request?: InteractionEventV1,
+  transition?: TransitionRecord,
+  requestedAt?: string,
+): string {
+  if (request !== undefined) return `${request.journeyId}:${phase}:${event}`
+  if (transition !== undefined) return `${transition.runId}:${transition.sequence}:${transition.previousRecordId ?? 'root'}:${phase}:${event}`
+  return `${phase}:${event}:${requestedAt ?? ''}`
+}
+
+function reviewChannel(event: InteractionEventV1 | undefined): DecisionChannel {
+  if (event?.surface === 'cli') return 'terminal'
+  if (event?.surface === 'dashboard') return 'dashboard'
+  if (event?.executionMode === 'afk' || event?.actor === 'automation') return 'automation'
+  return 'unknown'
+}
+
+function reviewSource(event: InteractionEventV1 | undefined): PendingDecision['source'] {
+  const value = reviewChannel(event)
+  return value === 'automation' ? 'afk' : value === 'unknown' ? 'unknown' : 'user'
+}
+
+function reviewEvidenceFromClearedReceipt(input: PendingDecisionProjectionInput): ReviewEvidence {
+  const interactions = [...(input.interactions ?? [])].sort((left, right) => left.sequence - right.sequence)
+  const request = interactions.find((event) => event.event === 'review.requested' && event.result === 'success')
+  if (request === undefined) return { complete: false }
+  const acknowledgement = interactions.find((event) => event.event === 'review.acknowledged'
+    && event.result === 'success' && event.effectCode === 'review-gate.approved' && event.journeyId === request.journeyId
+    && event.runId === request.runId && event.sequence > request.sequence
+    && visitEqual(event.originStepVisit, request.originStepVisit)
+    && event.stateBeforeHash === request.stateAfterHash)
+  const rejected = interactions.find((event) => event.event === 'review.acknowledged'
+    && event.result === 'rejected' && event.effectCode === 'review-gate.rejected' && event.journeyId === request.journeyId
+    && event.runId === request.runId && event.sequence > request.sequence
+    && visitEqual(event.originStepVisit, request.originStepVisit))
+  const effect = interactions.find((event) => event.event === 'review.effect-applied'
+    && event.result === 'success' && event.effectCode === 'transition.applied' && event.journeyId === request.journeyId
+    && event.runId === request.runId && acknowledgement !== undefined && event.sequence > acknowledgement.sequence
+    && event.stateBeforeHash === acknowledgement.stateAfterHash)
+  const transition = input.transitions?.find((record) => record.runId === request.runId
+    && record.from === request.originStepVisit.step
+    && record.event !== ''
+    && effect !== undefined
+    && effect.stepVisit.runId === record.runId
+    && effect.stepVisit.transitionSequence === record.sequence
+    && transitionChainValid(input.transitions ?? [], record)
+    && transitionClearsReviewReceipt(record))
+  return { request, acknowledgement, rejected, effect, transition, complete: acknowledgement !== undefined && effect !== undefined && transition !== undefined }
 }
 
 function invocationDecisions(input: PendingDecisionProjectionInput): PendingDecision[] {
@@ -86,9 +203,16 @@ function invocationDecisions(input: PendingDecisionProjectionInput): PendingDeci
   for (const [invocationId, group] of grouped) {
     const started = group.find((event): event is Extract<SkillInvocationEventV1, { type: 'invocation-started' }> => event.type === 'invocation-started')
     if (started === undefined) continue
-    const questions = group.filter((event): event is Extract<SkillInvocationEventV1, { type: 'question-recorded' }> => event.type === 'question-recorded')
+    const questions = group.filter((event): event is Extract<SkillInvocationEventV1, { type: 'question-recorded' }> => event.type === 'question-recorded'
+      && event.subject.workflow_run_id === started.subject.workflow_run_id
+      && event.subject.step_visit.run_id === started.subject.step_visit.run_id
+      && event.subject.step_visit.transition_sequence === started.subject.step_visit.transition_sequence)
     for (const question of questions) {
-      const decision = group.find((event): event is Extract<SkillInvocationEventV1, { type: 'decision-recorded' }> => event.type === 'decision-recorded' && event.payload.question_id === question.payload.question_id)
+      const decision = group.find((event): event is Extract<SkillInvocationEventV1, { type: 'decision-recorded' }> => event.type === 'decision-recorded'
+        && event.payload.question_id === question.payload.question_id && event.sequence > question.sequence
+        && event.subject.workflow_run_id === started.subject.workflow_run_id
+        && event.subject.step_visit.run_id === started.subject.step_visit.run_id
+        && event.subject.step_visit.transition_sequence === started.subject.step_visit.transition_sequence)
       const isAfk = started.payload.adapter.kind === 'afk'
       const kind = isAfk ? 'afk' : 'skill-question'
       const anchor = `${invocationId}:${question.payload.question_id}`
