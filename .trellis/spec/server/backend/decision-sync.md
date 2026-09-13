@@ -86,5 +86,8 @@ idempotency protocol, while this slice wires the Dashboard write path for
 review decisions only. Skill answers and AFK decisions continue to use their
 existing terminal/automation writers until a separate adapter task supplies
 the same server-side binding, interaction recording, and durable idempotency
-store. The in-memory transport map is therefore not an audit or cross-process
-deduplication guarantee.
+store. The review adapter persists its key record in
+`.pipeline-decision-idempotency.jsonl`; that record is transport
+deduplication, not a complete interaction/audit event. Skill and AFK command
+stores remain deferred and must receive the same durable treatment before
+their server adapters are enabled.

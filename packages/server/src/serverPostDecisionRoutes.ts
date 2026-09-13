@@ -25,6 +25,9 @@ type DecisionIdempotencyRecord = {
   readonly expectedRevision: number | null
   readonly channel: 'dashboard'
   readonly acknowledgedAt: string
+  readonly outcome?: 'approved' | 'rejected'
+  readonly error?: string
+  readonly code?: string
 }
 
 type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history'>
@@ -37,6 +40,9 @@ function isDecisionIdempotencyRecord(value: unknown): value is DecisionIdempoten
     && (typeof record.expectedRevision === 'number' || record.expectedRevision === null)
     && record.channel === 'dashboard'
     && typeof record.acknowledgedAt === 'string'
+    && (record.outcome === undefined || record.outcome === 'approved' || record.outcome === 'rejected')
+    && (record.error === undefined || typeof record.error === 'string')
+    && (record.code === undefined || typeof record.code === 'string')
 }
 
 async function readDecisionIdempotency(changeDir: string): Promise<readonly DecisionIdempotencyRecord[]> {
@@ -140,6 +146,9 @@ async function applyDecision(input: {
       throw Object.assign(new Error('idempotency key is already bound to another decision'), { code: 'decision-ref-mismatch' })
     }
     if (prior !== undefined) {
+      if (prior.outcome === 'rejected') {
+        throw Object.assign(new Error(prior.error ?? 'review approval was rejected'), { code: prior.code ?? 'review-approval-required' })
+      }
       result = { ok: true, idempotent: true, ref: { id: prior.ref, kind: 'review', change: input.name, anchor: '', revision: prior.expectedRevision } }
       return
     }
@@ -193,7 +202,19 @@ async function applyDecision(input: {
         deferred = acknowledged.deferred
       },
     })
-    result = await adapter.execute({ ref: item.ref, expectedRevision: input.expectedRevision, idempotencyKey: input.idempotencyKey, channel: 'dashboard' })
+    try {
+      result = await adapter.execute({ ref: item.ref, expectedRevision: input.expectedRevision, idempotencyKey: input.idempotencyKey, channel: 'dashboard' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+        ? error.code
+        : 'review-approval-required'
+      await appendDecisionIdempotency(input.dir, {
+        key: input.idempotencyKey, ref: input.ref, expectedRevision: input.expectedRevision,
+        channel: 'dashboard', acknowledgedAt: input.clock(), outcome: 'rejected', error: message, code,
+      })
+      throw error
+    }
   })
   if (result === undefined) throw new Error('decision command did not produce a result')
   return { result, deferred }
