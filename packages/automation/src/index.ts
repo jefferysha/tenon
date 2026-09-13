@@ -93,8 +93,8 @@ export * from './orchestration/execution.js'
 // v2 planner: immutable natural-language assessment, user/custom catalog
 // normalization, deterministic WorkGraph and capability resolution.
 export * from './orchestration/planner-v2.js'
-export { materializeWorkflowPipelineV2 } from './orchestration/workflow-pipeline-v2.js'
-export type { MaterializeWorkflowPipelineInputV2, PipelineIdentityV2 } from './orchestration/workflow-pipeline-v2.js'
+export { materializeWorkflowPipelineV2, pipelineBlueprintFromWorkflowDef } from './orchestration/workflow-pipeline-v2.js'
+export type { MaterializeWorkflowPipelineInputV2, PipelineIdentityV2, WorkflowDefinitionBlueprintInputV2, WorkflowTrackBlueprintInputV2, WorkflowBlueprintMappingV2, WorkflowBlueprintMappingResolverV2 } from './orchestration/workflow-pipeline-v2.js'
 // v2 durable executor: lease-aware, validator-bound, retryable runtime over the Kernel ledger.
 export * from './orchestration/runtime-v2.js'
 export * from './orchestration/codex-skill-executor-v2.js'

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/kernel/backend/orchestration.md", "reason": "V2 pipeline stage and workflow execution contracts"}
+{"file": ".trellis/spec/automation/backend/orchestration.md", "reason": "planner/materializer/runtime wiring"}
+{"file": ".trellis/spec/server/backend/snapshot-skill-runs.md", "reason": "snapshot attempt projection"}
+{"file": ".trellis/spec/dashboard-app/frontend/component-guidelines.md", "reason": "workflow editor runtime artifact boundary"}

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/kernel/backend/quality-guidelines.md", "reason": "codec and protocol regression checks"}
+{"file": ".trellis/spec/dashboard-app/frontend/quality-guidelines.md", "reason": "dashboard validation"}

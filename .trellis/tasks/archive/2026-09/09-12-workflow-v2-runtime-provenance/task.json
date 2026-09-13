@@ -1,0 +1,30 @@
+{
+  "id": "workflow-v2-runtime-provenance",
+  "name": "workflow-v2-runtime-provenance",
+  "title": "接通 workflow 到 V2 pipeline 的运行产物映射",
+  "description": "让自动派生 pipeline 使用 workflow step identity，并保留 runtime run provenance",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "sjy",
+  "assignee": "sjy",
+  "createdAt": "2026-09-12",
+  "completedAt": "2026-09-13",
+  "branch": "codex/autonomous-loop-v1",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-12-workflow-blueprint-freeze",
+    "09-12-artifact-attempt-provenance",
+    "09-12-lineage-severity-readonly-legacy"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
