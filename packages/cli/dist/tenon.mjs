@@ -3058,18 +3058,18 @@ var {
 var REVIEW_GATE_FIELDS = [
   "review_gate_phase",
   "review_gate_status",
-  // The approved decision must bind the exact outgoing edge. `verify` has both a pass and a
-  // rollback edge; phase-only approval would let one human decision authorize the other.
   "review_gate_event",
   "review_requested_at",
-  "review_acknowledged_at"
+  "review_acknowledged_at",
+  "review_acknowledged_via"
 ];
 var REVIEW_GATE_FIELD_DEFAULTS = {
   review_gate_phase: "",
   review_gate_status: "",
   review_gate_event: "",
   review_requested_at: "",
-  review_acknowledged_at: ""
+  review_acknowledged_at: "",
+  review_acknowledged_via: "unknown"
 };
 var PRE_VERIFY_REVIEW_FIELD = "pre_verify_review_result";
 var PRE_VERIFY_REVIEW_DEFAULT = "pending";
@@ -5524,8 +5524,10 @@ function canonicalState(value, opts = {}) {
   const missing3 = rawFields ? FIELD_ORDER.filter((field3) => !Object.prototype.hasOwnProperty.call(rawFields, field3)) : [];
   const missingReviewGateFields = REVIEW_GATE_FIELDS.filter((field3) => missing3.includes(field3));
   const isCompleteReviewGateOmission = missingReviewGateFields.length === REVIEW_GATE_FIELDS.length;
-  const isEmptyFourFieldReceiptWithoutEvent = missingReviewGateFields.length === 1 && missingReviewGateFields[0] === "review_gate_event" && REVIEW_GATE_FIELDS.filter((field3) => field3 !== "review_gate_event").every((field3) => rawFields?.[field3] === "");
-  const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent) ? new Set(missingReviewGateFields) : /* @__PURE__ */ new Set();
+  const isEmptyFourFieldReceiptWithoutEvent = missingReviewGateFields.length === 1 && missingReviewGateFields[0] === "review_gate_event" && REVIEW_GATE_FIELDS.filter((field3) => field3 !== "review_gate_event").every((field3) => rawFields?.[field3] === "" || field3 === "review_acknowledged_via" && rawFields?.[field3] === "unknown");
+  const missingReviewGateSet = new Set(missingReviewGateFields);
+  const isHistoricalEmptyReceiptWithoutEventOrChannel = missingReviewGateFields.length > 0 && missingReviewGateFields.every((field3) => field3 === "review_gate_event" || field3 === "review_acknowledged_via") && REVIEW_GATE_FIELDS.filter((field3) => !missingReviewGateSet.has(field3)).every((field3) => rawFields?.[field3] === "");
+  const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent || isHistoricalEmptyReceiptWithoutEventOrChannel) ? new Set(missingReviewGateFields) : /* @__PURE__ */ new Set();
   const legacyPreVerifyDefault = opts.allowLegacyFieldOmissions === true && missing3.includes(PRE_VERIFY_REVIEW_FIELD) ? /* @__PURE__ */ new Set([PRE_VERIFY_REVIEW_FIELD]) : /* @__PURE__ */ new Set();
   const allowedLegacyDefaults = /* @__PURE__ */ new Set([
     ...legacyReviewGateDefaults,
@@ -11627,7 +11629,7 @@ function unquoteScalar(s) {
 function emptyFields() {
   const fields = {};
   for (const f of FIELD_ORDER) {
-    fields[f] = f === "workflow" ? "default" : f === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : "";
+    fields[f] = f === "workflow" ? "default" : f === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : REVIEW_GATE_FIELD_SET.has(f) ? REVIEW_GATE_FIELD_DEFAULTS[f] : "";
   }
   return fields;
 }
@@ -11693,7 +11695,7 @@ function serializePipeline(state, options = {}) {
   const out = [];
   const hasReviewGateReceipt = REVIEW_GATE_FIELDS.some((field3) => {
     const value = state.fields[field3];
-    return Array.isArray(value) ? value.length > 0 : value !== "";
+    return Array.isArray(value) ? value.length > 0 : value !== "" && !(field3 === "review_acknowledged_via" && value === "unknown");
   });
   for (const field3 of FIELD_ORDER) {
     if (field3 === PRE_VERIFY_REVIEW_FIELD && options.omitPreVerifyReview === true)
@@ -14577,6 +14579,7 @@ function initialFields(opts, timestamp3, baseBranch, createdBy) {
   fields.review_gate_event = "";
   fields.review_requested_at = "";
   fields.review_acknowledged_at = "";
+  fields.review_acknowledged_via = "unknown";
   return fields;
 }
 
@@ -17720,13 +17723,15 @@ function reviewGateRequestPatch(phase, event, requestedAt) {
     review_gate_status: REVIEW_GATE_PENDING,
     review_gate_event: event,
     review_requested_at: requestedAt,
-    review_acknowledged_at: ""
+    review_acknowledged_at: "",
+    review_acknowledged_via: "unknown"
   };
 }
-function reviewGateApprovalPatch(acknowledgedAt) {
+function reviewGateApprovalPatch(acknowledgedAt, via = "terminal") {
   return {
     review_gate_status: REVIEW_GATE_APPROVED,
-    review_acknowledged_at: acknowledgedAt
+    review_acknowledged_at: acknowledgedAt,
+    review_acknowledged_via: via
   };
 }
 function clearReviewGatePatch() {
@@ -17735,7 +17740,8 @@ function clearReviewGatePatch() {
     review_gate_status: "",
     review_gate_event: "",
     review_requested_at: "",
-    review_acknowledged_at: ""
+    review_acknowledged_at: "",
+    review_acknowledged_via: "unknown"
   };
 }
 
@@ -31257,29 +31263,46 @@ var ADAPTER_CAPABILITY_BY_HOST = new Map(ADAPTER_CAPABILITY_ROWS.map((row) => [r
 
 // packages/kernel/dist/decision/review-application.js
 async function acknowledgeReview(input) {
+  const deferred = [];
+  const reject5 = async (state, acknowledgedAt) => {
+    if (input.recordRejectedAcknowledgement !== void 0) {
+      await input.recordRejectedAcknowledgement({ state, acknowledgedAt, phase: input.phase, event: input.event });
+    } else if (input.recordInteraction === void 0)
+      deferred.push("rejected-acknowledgement-interaction");
+  };
   if (!input.bindingMatches) {
     const error2 = new Error(`phase '${input.phase}' \u7684 review receipt \u672A\u7ED1\u5B9A\u5F53\u524D canonical decision state\uFF1B\u8BF7\u91CD\u65B0 request ${input.event}`);
     if (input.onRejected !== void 0)
       await input.onRejected(error2);
     if (input.recordInteraction !== void 0)
       await input.recordInteraction({ state: input.state, acknowledgedAt: input.acknowledgedAt, rejected: true });
+    await reject5(input.state, input.acknowledgedAt);
     throw error2;
   }
   if (reviewGateApprovedFor(input.state, input.phase, input.event)) {
-    return { changed: false, acknowledgedAt: input.acknowledgedAt };
+    return { changed: false, acknowledgedAt: input.acknowledgedAt, deferred };
   }
   if (!reviewGatePendingFor(input.state, input.phase, input.event)) {
     const error2 = new Error(`phase '${input.phase}' \u5C1A\u672A\u4E3A event '${input.event}' request review`);
     if (input.onRejected !== void 0)
       await input.onRejected(error2);
+    await reject5(input.state, input.acknowledgedAt);
     throw error2;
   }
-  const patch = reviewGateApprovalPatch(input.acknowledgedAt);
+  const patch = reviewGateApprovalPatch(input.acknowledgedAt, input.via ?? "terminal");
   await input.writeState(patch);
   if (input.recordInteraction !== void 0) {
     await input.recordInteraction({ state: { ...input.state, fields: { ...input.state.fields, ...patch } }, acknowledgedAt: input.acknowledgedAt });
   }
-  return { changed: true, acknowledgedAt: input.acknowledgedAt };
+  if (input.recordHistory !== void 0)
+    await input.recordHistory({ acknowledgedAt: input.acknowledgedAt, phase: input.phase, event: input.event });
+  else
+    deferred.push("review-history");
+  if (input.clearMarker !== void 0)
+    await input.clearMarker();
+  else
+    deferred.push("review-marker-clear");
+  return { changed: true, acknowledgedAt: input.acknowledgedAt, deferred };
 }
 
 // packages/kernel/dist/skills/source-registry.js
@@ -48585,7 +48608,8 @@ var REVIEW_GATE_FIELDS2 = /* @__PURE__ */ new Set([
   "review_gate_status",
   "review_gate_event",
   "review_requested_at",
-  "review_acknowledged_at"
+  "review_acknowledged_at",
+  "review_acknowledged_via"
 ]);
 var STATIC_ENUMS = {
   preset: ["full", "hotfix", "tweak"],
@@ -68828,6 +68852,7 @@ async function cmdReview(deps, sub, name2, opts = {}) {
         phase: step.phase,
         event,
         acknowledgedAt,
+        via: "terminal",
         bindingMatches,
         writeState: async (patch) => {
           await deps.store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });

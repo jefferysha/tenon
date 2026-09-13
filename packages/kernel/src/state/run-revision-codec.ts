@@ -239,11 +239,8 @@ function canonicalRunMetadata(value: unknown): RunMetadata | undefined {
  * - pre-receipt revisions omitted the complete review-gate suffix;
  * - the next release wrote the four phase/status/timestamp fields but not the later exact-event
  *   binding field.
- *
  * The first shape is semantically an empty receipt. The second is safe only when all of its old
  * receipt fields are empty: a non-empty receipt without its exact outgoing event must remain
- * unreadable rather than being allowed to approve an arbitrary transition. New writes always
- * publish the complete current shape.
  */
 function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: boolean } = {}): PipelineState {
   const raw = ownRecord(value)
@@ -261,9 +258,13 @@ function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: bool
     && missingReviewGateFields[0] === 'review_gate_event'
     && REVIEW_GATE_FIELDS
       .filter((field) => field !== 'review_gate_event')
-      .every((field) => rawFields?.[field] === '')
+      .every((field) => rawFields?.[field] === '' || (field === 'review_acknowledged_via' && rawFields?.[field] === 'unknown'))
+  const missingReviewGateSet = new Set<string>(missingReviewGateFields)
+  const isHistoricalEmptyReceiptWithoutEventOrChannel = missingReviewGateFields.length > 0
+    && missingReviewGateFields.every((field) => field === 'review_gate_event' || field === 'review_acknowledged_via')
+    && REVIEW_GATE_FIELDS.filter((field) => !missingReviewGateSet.has(field)).every((field) => rawFields?.[field] === '')
   const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true
-    && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent)
+    && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent || isHistoricalEmptyReceiptWithoutEventOrChannel)
     ? new Set<FieldName>(missingReviewGateFields)
     : new Set<FieldName>()
   const legacyPreVerifyDefault = opts.allowLegacyFieldOmissions === true

@@ -21,6 +21,13 @@ describe('pending decision projection', () => {
     expect(view.items).toHaveLength(0)
   })
 
+  it('recovers consumed only when cleared receipt has both transition and successful interaction evidence', () => {
+    const interaction = { event: 'review.acknowledged', result: 'success', effectCode: 'review-gate.approved' } as never
+    const transition = { from: 'verify', event: 'verify-pass' } as never
+    const view = projectPendingDecisions({ change: 'demo', state: state({ phase: 'verify' }), interactions: [interaction], transitions: [transition] })
+    expect(view.items[0]).toMatchObject({ status: 'consumed', anchor: { phase: 'verify', event: 'verify-pass' } })
+  })
+
   it('attributes AFK from invocation adapter, independently of decision mode', () => {
     const started = {
       schema_version: 'skill-invocation-evidence/v1' as const, event_id: 'e1', invocation_id: 'i1', sequence: 1 as const,

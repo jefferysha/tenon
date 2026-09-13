@@ -68,3 +68,23 @@ await acknowledgeReview({ state, bindingMatches, writeState, ...ports })
 
 The application validates the exact receipt and binding before writing. UI
 layers only display the resulting view and submit commands.
+
+## Deferred follow-up: security event persistence
+
+Mode-switch records and hook observations (`read-token`, `local-api-call`) are
+currently exposed as kernel-neutral event constructors/detection signals. A
+follow-up task must persist them in the interaction/audit event store, bind them
+to the pending decision ref, and add redacted hook integration tests before the
+parent task claims the security detection requirement complete. The current
+server response explicitly reports missing marker/interaction effects in
+`deferred`; it never treats a bearer token as human identity.
+
+## Deferred follow-up: non-review command persistence
+
+The shared kernel command adapter currently provides the common revision and
+idempotency protocol, while this slice wires the Dashboard write path for
+review decisions only. Skill answers and AFK decisions continue to use their
+existing terminal/automation writers until a separate adapter task supplies
+the same server-side binding, interaction recording, and durable idempotency
+store. The in-memory transport map is therefore not an audit or cross-process
+deduplication guarantee.

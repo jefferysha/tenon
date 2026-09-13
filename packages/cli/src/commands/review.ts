@@ -337,6 +337,7 @@ export async function cmdReview(
         phase: step.phase,
         event,
         acknowledgedAt,
+        via: 'terminal',
         bindingMatches,
         writeState: async (patch) => {
           await deps.store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: 'set-many' })

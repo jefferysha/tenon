@@ -91,7 +91,7 @@ export {
   clearReviewGatePatch, reviewGateApprovedFor, reviewGateApprovalPatch, reviewGateEvent, reviewGateMatches,
   reviewGatePendingFor, reviewGateRequestPatch, reviewGateStatus, REVIEW_GATE_APPROVED, REVIEW_GATE_PENDING,
 } from './review-gate.js'
-export type { ReviewGateStatus } from './review-gate.js'
+export type { ReviewGateStatus, ReviewAcknowledgedVia } from './review-gate.js'
 export {
   REVIEW_GATE_BINDING_FILE,
   readReviewGateBinding,

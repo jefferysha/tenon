@@ -54,13 +54,17 @@ export function reviewGateRequestPatch(
     review_gate_event: event,
     review_requested_at: requestedAt,
     review_acknowledged_at: '',
+    review_acknowledged_via: 'unknown',
   }
 }
 
-export function reviewGateApprovalPatch(acknowledgedAt: string): Partial<Record<FieldName, string>> {
+export type ReviewAcknowledgedVia = 'terminal' | 'dashboard' | 'automation' | 'unknown'
+
+export function reviewGateApprovalPatch(acknowledgedAt: string, via: ReviewAcknowledgedVia = 'terminal'): Partial<Record<FieldName, string>> {
   return {
     review_gate_status: REVIEW_GATE_APPROVED,
     review_acknowledged_at: acknowledgedAt,
+    review_acknowledged_via: via,
   }
 }
 
@@ -72,5 +76,6 @@ export function clearReviewGatePatch(): Partial<Record<FieldName, string>> {
     review_gate_event: '',
     review_requested_at: '',
     review_acknowledged_at: '',
+    review_acknowledged_via: 'unknown',
   }
 }

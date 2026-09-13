@@ -134,5 +134,6 @@ export function initialFields(
   fields.review_gate_event = ''
   fields.review_requested_at = ''
   fields.review_acknowledged_at = ''
+  fields.review_acknowledged_via = 'unknown'
   return fields
 }

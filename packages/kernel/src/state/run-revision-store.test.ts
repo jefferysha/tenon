@@ -264,7 +264,7 @@ describe('G1 canonical revision 对抗校验', () => {
     await writeFile(yamlPath, legacyYaml, 'utf8')
 
     const recovered = await store.read(dir)
-    for (const field of REVIEW_GATE_FIELDS) expect(recovered.fields[field]).toBe('')
+    for (const field of REVIEW_GATE_FIELDS) expect(recovered.fields[field]).toBe(field === 'review_acknowledged_via' ? 'unknown' : '')
     expect(await store.inspectProjection(dir)).toMatchObject({ status: 'current', revision: 0 })
 
     await store.set(dir, 'phase', 'explore')
@@ -273,7 +273,7 @@ describe('G1 canonical revision 对抗校验', () => {
       state: { fields: Record<string, unknown> }
     }
     expect(upgraded.revision).toBe(1)
-    for (const field of REVIEW_GATE_FIELDS) expect(upgraded.state.fields).toHaveProperty(field, '')
+    for (const field of REVIEW_GATE_FIELDS) expect(upgraded.state.fields).toHaveProperty(field, field === 'review_acknowledged_via' ? 'unknown' : '')
     // 空 receipt 保留在 canonical schema，但不扰动兼容 YAML projection；真正 request 时会整组出现。
     const upgradedYaml = await readFile(yamlPath, 'utf8')
     for (const field of REVIEW_GATE_FIELDS) expect(upgradedYaml).not.toContain(`${field}:`)

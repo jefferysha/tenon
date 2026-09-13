@@ -523,18 +523,18 @@ var CLIENT_CONFIGS = {
 var REVIEW_GATE_FIELDS = [
   "review_gate_phase",
   "review_gate_status",
-  // The approved decision must bind the exact outgoing edge. `verify` has both a pass and a
-  // rollback edge; phase-only approval would let one human decision authorize the other.
   "review_gate_event",
   "review_requested_at",
-  "review_acknowledged_at"
+  "review_acknowledged_at",
+  "review_acknowledged_via"
 ];
 var REVIEW_GATE_FIELD_DEFAULTS = {
   review_gate_phase: "",
   review_gate_status: "",
   review_gate_event: "",
   review_requested_at: "",
-  review_acknowledged_at: ""
+  review_acknowledged_at: "",
+  review_acknowledged_via: "unknown"
 };
 var PRE_VERIFY_REVIEW_FIELD = "pre_verify_review_result";
 var PRE_VERIFY_REVIEW_DEFAULT = "pending";
@@ -3307,8 +3307,10 @@ function canonicalState(value, opts = {}) {
   const missing4 = rawFields ? FIELD_ORDER.filter((field3) => !Object.prototype.hasOwnProperty.call(rawFields, field3)) : [];
   const missingReviewGateFields = REVIEW_GATE_FIELDS.filter((field3) => missing4.includes(field3));
   const isCompleteReviewGateOmission = missingReviewGateFields.length === REVIEW_GATE_FIELDS.length;
-  const isEmptyFourFieldReceiptWithoutEvent = missingReviewGateFields.length === 1 && missingReviewGateFields[0] === "review_gate_event" && REVIEW_GATE_FIELDS.filter((field3) => field3 !== "review_gate_event").every((field3) => rawFields?.[field3] === "");
-  const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent) ? new Set(missingReviewGateFields) : /* @__PURE__ */ new Set();
+  const isEmptyFourFieldReceiptWithoutEvent = missingReviewGateFields.length === 1 && missingReviewGateFields[0] === "review_gate_event" && REVIEW_GATE_FIELDS.filter((field3) => field3 !== "review_gate_event").every((field3) => rawFields?.[field3] === "" || field3 === "review_acknowledged_via" && rawFields?.[field3] === "unknown");
+  const missingReviewGateSet = new Set(missingReviewGateFields);
+  const isHistoricalEmptyReceiptWithoutEventOrChannel = missingReviewGateFields.length > 0 && missingReviewGateFields.every((field3) => field3 === "review_gate_event" || field3 === "review_acknowledged_via") && REVIEW_GATE_FIELDS.filter((field3) => !missingReviewGateSet.has(field3)).every((field3) => rawFields?.[field3] === "");
+  const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent || isHistoricalEmptyReceiptWithoutEventOrChannel) ? new Set(missingReviewGateFields) : /* @__PURE__ */ new Set();
   const legacyPreVerifyDefault = opts.allowLegacyFieldOmissions === true && missing4.includes(PRE_VERIFY_REVIEW_FIELD) ? /* @__PURE__ */ new Set([PRE_VERIFY_REVIEW_FIELD]) : /* @__PURE__ */ new Set();
   const allowedLegacyDefaults = /* @__PURE__ */ new Set([
     ...legacyReviewGateDefaults,
@@ -7988,7 +7990,7 @@ function unquoteScalar(s) {
 function emptyFields() {
   const fields = {};
   for (const f of FIELD_ORDER) {
-    fields[f] = f === "workflow" ? "default" : f === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : "";
+    fields[f] = f === "workflow" ? "default" : f === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : REVIEW_GATE_FIELD_SET.has(f) ? REVIEW_GATE_FIELD_DEFAULTS[f] : "";
   }
   return fields;
 }
@@ -8054,7 +8056,7 @@ function serializePipeline(state, options = {}) {
   const out = [];
   const hasReviewGateReceipt = REVIEW_GATE_FIELDS.some((field3) => {
     const value = state.fields[field3];
-    return Array.isArray(value) ? value.length > 0 : value !== "";
+    return Array.isArray(value) ? value.length > 0 : value !== "" && !(field3 === "review_acknowledged_via" && value === "unknown");
   });
   for (const field3 of FIELD_ORDER) {
     if (field3 === PRE_VERIFY_REVIEW_FIELD && options.omitPreVerifyReview === true)
@@ -10951,6 +10953,7 @@ function initialFields(opts, timestamp2, baseBranch, createdBy) {
   fields.review_gate_event = "";
   fields.review_requested_at = "";
   fields.review_acknowledged_at = "";
+  fields.review_acknowledged_via = "unknown";
   return fields;
 }
 
@@ -13205,10 +13208,11 @@ function reviewGateApprovedFor(state, phase, event) {
 function reviewGatePendingFor(state, phase, event) {
   return reviewGateMatches(state, phase, event) && reviewGateStatus(state) === REVIEW_GATE_PENDING;
 }
-function reviewGateApprovalPatch(acknowledgedAt) {
+function reviewGateApprovalPatch(acknowledgedAt, via = "terminal") {
   return {
     review_gate_status: REVIEW_GATE_APPROVED,
-    review_acknowledged_at: acknowledgedAt
+    review_acknowledged_at: acknowledgedAt,
+    review_acknowledged_via: via
   };
 }
 function clearReviewGatePatch() {
@@ -13217,7 +13221,8 @@ function clearReviewGatePatch() {
     review_gate_status: "",
     review_gate_event: "",
     review_requested_at: "",
-    review_acknowledged_at: ""
+    review_acknowledged_at: "",
+    review_acknowledged_via: "unknown"
   };
 }
 
@@ -23548,8 +23553,27 @@ function reviewDecision(input) {
   const phase = field(input.state, "review_gate_phase");
   const event = reviewGateEvent(input.state);
   const requestedAt = field(input.state, "review_requested_at");
-  if (phase === "" || event === "" || requestedAt === "")
-    return void 0;
+  if (phase === "" || event === "" || requestedAt === "") {
+    const acknowledged = input.interactions?.filter((record7) => record7.event === "review.acknowledged" && record7.result === "success") ?? [];
+    const transition = input.transitions?.find((record7) => acknowledged.some((recorded) => recorded.effectCode === "review-gate.approved") && record7.from !== "" && record7.event !== "");
+    if (transition === void 0 && acknowledged.length === 0)
+      return void 0;
+    const recoveredPhase = transition?.from ?? field(input.state, "phase");
+    const recoveredEvent = transition?.event ?? "unknown";
+    const consumed = transition !== void 0 && acknowledged.some((record7) => record7.effectCode === "review-gate.approved");
+    const anchor2 = `${recoveredPhase}:${recoveredEvent}:consumed`;
+    return {
+      ref: { id: refId("review", input.change, anchor2, input.revision ?? null), kind: "review", change: input.change, anchor: anchor2, revision: input.revision ?? null },
+      type: "review",
+      status: consumed ? "consumed" : "unknown",
+      anchor: { phase: recoveredPhase, event: recoveredEvent },
+      revision: input.revision ?? null,
+      evidence: consumed ? ["transition-record", "interaction-acknowledged", "interaction-effect-applied"] : ["incomplete-review-evidence"],
+      source: "unknown",
+      channel: "unknown",
+      command: "review-acknowledge"
+    };
+  }
   const anchor = `${phase}:${event}:${requestedAt}`;
   const result2 = reviewStatus(input, phase, event);
   const via = channel(field(input.state, "review_acknowledged_via"));
@@ -23604,31 +23628,66 @@ function projectPendingDecisions(input) {
   return { schemaVersion: "pending-decision-view/v1", revision: input.revision ?? null, items };
 }
 
+// packages/kernel/dist/decision/commands.js
+function createDecisionCommandAdapter(port) {
+  return { execute: async (input) => {
+    if (input.idempotencyKey === "")
+      return { ok: false, code: "invalid-command", message: "idempotency key is required" };
+    const current = await port.readRevision();
+    if (current !== input.expectedRevision)
+      return { ok: false, code: "revision-conflict", message: "decision revision conflict" };
+    if (await port.hasIdempotencyKey(input.idempotencyKey))
+      return { ok: true, idempotent: true, ref: input.ref };
+    if (!await port.isPending(input.ref))
+      return { ok: false, code: "decision-not-pending", message: "decision is no longer pending" };
+    await port.apply(input);
+    await port.rememberIdempotencyKey(input.idempotencyKey);
+    return { ok: true, idempotent: false, ref: input.ref };
+  } };
+}
+
 // packages/kernel/dist/decision/review-application.js
 async function acknowledgeReview(input) {
+  const deferred = [];
+  const reject3 = async (state, acknowledgedAt) => {
+    if (input.recordRejectedAcknowledgement !== void 0) {
+      await input.recordRejectedAcknowledgement({ state, acknowledgedAt, phase: input.phase, event: input.event });
+    } else if (input.recordInteraction === void 0)
+      deferred.push("rejected-acknowledgement-interaction");
+  };
   if (!input.bindingMatches) {
     const error2 = new Error(`phase '${input.phase}' \u7684 review receipt \u672A\u7ED1\u5B9A\u5F53\u524D canonical decision state\uFF1B\u8BF7\u91CD\u65B0 request ${input.event}`);
     if (input.onRejected !== void 0)
       await input.onRejected(error2);
     if (input.recordInteraction !== void 0)
       await input.recordInteraction({ state: input.state, acknowledgedAt: input.acknowledgedAt, rejected: true });
+    await reject3(input.state, input.acknowledgedAt);
     throw error2;
   }
   if (reviewGateApprovedFor(input.state, input.phase, input.event)) {
-    return { changed: false, acknowledgedAt: input.acknowledgedAt };
+    return { changed: false, acknowledgedAt: input.acknowledgedAt, deferred };
   }
   if (!reviewGatePendingFor(input.state, input.phase, input.event)) {
     const error2 = new Error(`phase '${input.phase}' \u5C1A\u672A\u4E3A event '${input.event}' request review`);
     if (input.onRejected !== void 0)
       await input.onRejected(error2);
+    await reject3(input.state, input.acknowledgedAt);
     throw error2;
   }
-  const patch = reviewGateApprovalPatch(input.acknowledgedAt);
+  const patch = reviewGateApprovalPatch(input.acknowledgedAt, input.via ?? "terminal");
   await input.writeState(patch);
   if (input.recordInteraction !== void 0) {
     await input.recordInteraction({ state: { ...input.state, fields: { ...input.state.fields, ...patch } }, acknowledgedAt: input.acknowledgedAt });
   }
-  return { changed: true, acknowledgedAt: input.acknowledgedAt };
+  if (input.recordHistory !== void 0)
+    await input.recordHistory({ acknowledgedAt: input.acknowledgedAt, phase: input.phase, event: input.event });
+  else
+    deferred.push("review-history");
+  if (input.clearMarker !== void 0)
+    await input.clearMarker();
+  else
+    deferred.push("review-marker-clear");
+  return { changed: true, acknowledgedAt: input.acknowledgedAt, deferred };
 }
 
 // packages/kernel/dist/skills/source-registry.js
@@ -38684,32 +38743,50 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
       const idempotencyScope = `${root2}\0${name2}\0${idempotencyKey}`;
       const prior = decisionIdempotency.get(idempotencyScope);
       if (prior !== void 0) return sendJson(res, 200, { ok: true, ref: prior.ref, changed: false, idempotent: true, channel: "dashboard" });
+      let deferred = [];
+      const adapter2 = createDecisionCommandAdapter({
+        readRevision: async () => (await readCurrentRunRevision(dir))?.revision ?? null,
+        hasIdempotencyKey: async (key) => decisionIdempotency.has(idempotencyScope.replace(idempotencyKey, key)),
+        rememberIdempotencyKey: async (key) => {
+          if (decisionIdempotency.size >= 4096) decisionIdempotency.clear();
+          decisionIdempotency.set(idempotencyScope.replace(idempotencyKey, key), { ref, acknowledgedAt: clock() });
+        },
+        isPending: async (decisionRef) => {
+          const current2 = await readCurrentRunRevision(dir);
+          const state2 = current2?.state ?? await store.read(dir);
+          return projectPendingDecisions({ change: name2, state: state2, revision: current2?.revision }).items.some((item3) => item3.ref.id === decisionRef.id && item3.type === "review" && item3.status === "pending");
+        },
+        apply: async ({ ref: decisionRef }) => store.withLock(dir, async () => {
+          const lockedRevision = await readCurrentRunRevision(dir);
+          if ((lockedRevision?.revision ?? null) !== expectedRevision) throw new Error("decision revision conflict");
+          const locked = await store.read(dir);
+          const item3 = projectPendingDecisions({ change: name2, state: locked, revision: lockedRevision?.revision }).items.find((candidate) => candidate.ref.id === decisionRef.id);
+          if (item3 === void 0 || item3.type !== "review") throw new Error("decision is no longer pending");
+          const phase = item3.anchor.phase ?? "";
+          const event2 = item3.anchor.event ?? reviewGateEvent(locked);
+          const binding = await readReviewGateBinding(dir);
+          const acknowledged = await acknowledgeReview({
+            state: locked,
+            phase,
+            event: event2,
+            acknowledgedAt: clock(),
+            bindingMatches: reviewGateBindingMatches(binding, locked, phase, event2),
+            via: "dashboard",
+            writeState: async (patch) => {
+              await store.writeUnderLock(dir, { ...locked, fields: { ...locked.fields, ...patch } }, { kind: "set-many" });
+            },
+            recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent }) => history.append(dir, { ts: acknowledgedAt, kind: "tool", raw: `review:acknowledge via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}` })
+          });
+          deferred = acknowledged.deferred;
+        })
+      });
       const current = await readCurrentRunRevision(dir);
       const state = current?.state ?? await store.read(dir);
-      if ((current?.revision ?? null) !== expectedRevision) return sendJson(res, 409, { ok: false, error: "decision revision conflict", code: "revision-conflict" });
       const item2 = projectPendingDecisions({ change: name2, state, revision: current?.revision }).items.find((candidate) => candidate.ref.id === ref);
-      if (item2 === void 0 || item2.type !== "review") return sendJson(res, 409, { ok: false, error: "decision is no longer pending", code: "decision-not-pending" });
-      const phase = item2.anchor.phase ?? "";
-      const event2 = item2.anchor.event ?? reviewGateEvent(state);
-      const result2 = await store.withLock(dir, async () => {
-        const lockedRevision = await readCurrentRunRevision(dir);
-        if ((lockedRevision?.revision ?? null) !== expectedRevision) throw new Error("decision revision conflict");
-        const locked = await store.read(dir);
-        const lockedBinding = await readReviewGateBinding(dir);
-        return acknowledgeReview({
-          state: locked,
-          phase,
-          event: event2,
-          acknowledgedAt: clock(),
-          bindingMatches: reviewGateBindingMatches(lockedBinding, locked, phase, event2),
-          writeState: async (patch) => {
-            await store.writeUnderLock(dir, { ...locked, fields: { ...locked.fields, ...patch } }, { kind: "set-many" });
-          }
-        });
-      });
-      if (decisionIdempotency.size >= 4096) decisionIdempotency.clear();
-      decisionIdempotency.set(idempotencyScope, { ref, acknowledgedAt: result2.acknowledgedAt });
-      return sendJson(res, 200, { ok: true, ref, changed: result2.changed, idempotent: !result2.changed, channel: "dashboard" });
+      if (item2 === void 0) return sendJson(res, 409, { ok: false, error: "decision is no longer pending", code: "decision-not-pending" });
+      const result2 = await adapter2.execute({ ref: item2.ref, expectedRevision, idempotencyKey, channel: "dashboard" });
+      if (!result2.ok) return sendJson(res, 409, { ok: false, error: result2.message, code: result2.code });
+      return sendJson(res, 200, { ok: true, ref, changed: !result2.idempotent, idempotent: result2.idempotent, channel: "dashboard", deferred });
     } catch (error2) {
       const message = error2 instanceof Error ? error2.message : String(error2);
       return sendJson(res, 409, { ok: false, error: message, code: message === "decision revision conflict" ? "revision-conflict" : "review-approval-required" });
@@ -38755,8 +38832,6 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
       workspaceFingerprint,
       history,
       breadcrumb,
-      // 这里用的正是 Dashboard 当前 root 的 effective Track Registry，而不是靠 track id
-      // 写死 PM。自定义 track 也可通过 auto_enqueue_on_spec_complete 显式接入同一条后置编排。
       resolveTrackPolicy: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root).policyProfile,
       resolveTrack: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root),
       skillResolver: loadedManifest ? createEffectiveSkillResolver({

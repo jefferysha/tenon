@@ -10,6 +10,7 @@ import {
   PRE_VERIFY_REVIEW_DEFAULT,
   PRE_VERIFY_REVIEW_FIELD,
   REVIEW_GATE_FIELDS,
+  REVIEW_GATE_FIELD_DEFAULTS,
   type FieldName,
   type PipelineState,
 } from '../types.js'
@@ -50,6 +51,8 @@ export function emptyFields(): Record<FieldName, string | string[]> {
       ? 'default'
       : f === PRE_VERIFY_REVIEW_FIELD
         ? PRE_VERIFY_REVIEW_DEFAULT
+        : REVIEW_GATE_FIELD_SET.has(f)
+          ? REVIEW_GATE_FIELD_DEFAULTS[f as typeof REVIEW_GATE_FIELDS[number]]
         : ''
   }
   return fields
@@ -143,7 +146,7 @@ export function serializePipeline(
   const out: string[] = []
   const hasReviewGateReceipt = REVIEW_GATE_FIELDS.some((field) => {
     const value = state.fields[field]
-    return Array.isArray(value) ? value.length > 0 : value !== ''
+    return Array.isArray(value) ? value.length > 0 : value !== '' && !(field === 'review_acknowledged_via' && value === 'unknown')
   })
   for (const field of FIELD_ORDER) {
     if (field === PRE_VERIFY_REVIEW_FIELD && options.omitPreVerifyReview === true) continue

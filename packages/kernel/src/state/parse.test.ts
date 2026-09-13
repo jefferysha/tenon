@@ -121,6 +121,7 @@ describe('serializePipeline（严格 FIELD_ORDER 全量写回）', () => {
       review_gate_event: 'spec-complete',
       review_requested_at: '2026-07-24T00:00:00Z',
       review_acknowledged_at: '',
+      review_acknowledged_via: 'unknown',
     })
   })
 

@@ -19,6 +19,7 @@ import {
   validateWorkflowTrackReferences,
   withTrackRegistryLock,
   acknowledgeReview,
+  createDecisionCommandAdapter,
   projectPendingDecisions,
   readCurrentRunRevision,
   readReviewGateBinding,
@@ -145,8 +146,6 @@ export async function handlePostExecutionRoutes(
       return sendJson(res, result.ok ? 200 : 400, result)
     }
 
-    // ── afk-workbench Task 5：POST /api/afk/:name/retry —— 重试 failed/conflict/paused 任务
-    //    （CAS automation→queued + automation_attempts 清零，见 afk.ts::retryAfkRun）──
     const retryMatch = /^\/api\/afk\/([^/]+)\/retry$/.exec(path)
     if (retryMatch) {
       const segment = retryMatch[1]
@@ -170,8 +169,6 @@ export async function handlePostExecutionRoutes(
       return sendJson(res, result.ok ? 200 : 400, result)
     }
 
-    // ── v5-T11（决议 #4）：POST /api/afk/:name/dismiss —— 放弃 failed/conflict 任务
-    //    （CAS automation→off，现场保留不清 automation_* 尸检字段，见 afk.ts::dismissAfkRun）──
     const dismissMatch = /^\/api\/afk\/([^/]+)\/dismiss$/.exec(path)
     if (dismissMatch) {
       const segment = dismissMatch[1]
@@ -246,12 +243,6 @@ export async function handlePostExecutionRoutes(
       return sendJson(res, result.ok ? 200 : 400, result)
     }
 
-    // ── v6 T1：POST /api/secrets —— 写入单个凭证键（值只进文件，不落 HTTP 响应/日志）──
-    //    body：{ key: 'CLAUDE_CODE_OAUTH_TOKEN' | 'OPENAI_API_KEY', value: string }，每次只写
-    //    一个键（不是整份表覆盖式写，见 proposal C.3）。不需要 root——机器级资源，与其余写端点
-    //    「①格式→②root 信任锚→③业务校验→④真读写」四步顺序不同：本端点压根没有 root 概念，
-    //    第②步不存在（同 POST /api/projects 是另一个没有信任锚概念的写端点，但原因不同：
-    //    projects 是信任锚本身；secrets 是机器级资源，与项目注册无关）。
     if (path === '/api/secrets') {
       const rawBody = await readJsonBody(req)
       const validated = validateSecretWriteBody(rawBody)
@@ -264,7 +255,6 @@ export async function handlePostExecutionRoutes(
       }
     }
 
-    // ── v3 Studio：POST /api/tracks 创建额外 Track。revision 在 registry 锁内比较。──
     if (path === '/api/tracks') {
       const rawBody = await readJsonBody(req)
       if (typeof rawBody !== 'object' || rawBody === null || Array.isArray(rawBody)) {
@@ -311,26 +301,43 @@ export async function handlePostExecutionRoutes(
         const idempotencyScope = `${root}\0${name}\0${idempotencyKey}`
         const prior = decisionIdempotency.get(idempotencyScope)
         if (prior !== undefined) return sendJson(res, 200, { ok: true, ref: prior.ref, changed: false, idempotent: true, channel: 'dashboard' })
+        let deferred: readonly string[] = []
+        const adapter = createDecisionCommandAdapter({
+          readRevision: async () => (await readCurrentRunRevision(dir))?.revision ?? null,
+          hasIdempotencyKey: async (key) => decisionIdempotency.has(idempotencyScope.replace(idempotencyKey, key)),
+          rememberIdempotencyKey: async (key) => {
+            if (decisionIdempotency.size >= 4096) decisionIdempotency.clear()
+            decisionIdempotency.set(idempotencyScope.replace(idempotencyKey, key), { ref, acknowledgedAt: clock() })
+          },
+          isPending: async (decisionRef) => {
+            const current = await readCurrentRunRevision(dir)
+            const state = current?.state ?? await store.read(dir)
+            return projectPendingDecisions({ change: name, state, revision: current?.revision }).items.some((item) => item.ref.id === decisionRef.id && item.type === 'review' && item.status === 'pending')
+          },
+          apply: async ({ ref: decisionRef }) => store.withLock(dir, async () => {
+            const lockedRevision = await readCurrentRunRevision(dir)
+            if ((lockedRevision?.revision ?? null) !== expectedRevision) throw new Error('decision revision conflict')
+            const locked = await store.read(dir)
+            const item = projectPendingDecisions({ change: name, state: locked, revision: lockedRevision?.revision }).items.find((candidate) => candidate.ref.id === decisionRef.id)
+            if (item === undefined || item.type !== 'review') throw new Error('decision is no longer pending')
+            const phase = item.anchor.phase ?? ''
+            const event = item.anchor.event ?? reviewGateEvent(locked)
+            const binding = await readReviewGateBinding(dir)
+            const acknowledged = await acknowledgeReview({
+              state: locked, phase, event, acknowledgedAt: clock(), bindingMatches: reviewGateBindingMatches(binding, locked, phase, event), via: 'dashboard',
+              writeState: async (patch) => { await store.writeUnderLock(dir, { ...locked, fields: { ...locked.fields, ...patch } }, { kind: 'set-many' }) },
+              recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent }) => history.append(dir, { ts: acknowledgedAt, kind: 'tool', raw: `review:acknowledge via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}` }),
+            })
+            deferred = acknowledged.deferred
+          }),
+        })
         const current = await readCurrentRunRevision(dir)
         const state = current?.state ?? await store.read(dir)
-        if ((current?.revision ?? null) !== expectedRevision) return sendJson(res, 409, { ok: false, error: 'decision revision conflict', code: 'revision-conflict' })
         const item = projectPendingDecisions({ change: name, state, revision: current?.revision }).items.find((candidate) => candidate.ref.id === ref)
-        if (item === undefined || item.type !== 'review') return sendJson(res, 409, { ok: false, error: 'decision is no longer pending', code: 'decision-not-pending' })
-        const phase = item.anchor.phase ?? ''
-        const event = item.anchor.event ?? reviewGateEvent(state)
-        const result = await store.withLock(dir, async () => {
-          const lockedRevision = await readCurrentRunRevision(dir)
-          if ((lockedRevision?.revision ?? null) !== expectedRevision) throw new Error('decision revision conflict')
-          const locked = await store.read(dir)
-          const lockedBinding = await readReviewGateBinding(dir)
-          return acknowledgeReview({
-            state: locked, phase, event, acknowledgedAt: clock(), bindingMatches: reviewGateBindingMatches(lockedBinding, locked, phase, event),
-            writeState: async (patch) => { await store.writeUnderLock(dir, { ...locked, fields: { ...locked.fields, ...patch } }, { kind: 'set-many' }) },
-          })
-        })
-        if (decisionIdempotency.size >= 4096) decisionIdempotency.clear()
-        decisionIdempotency.set(idempotencyScope, { ref, acknowledgedAt: result.acknowledgedAt })
-        return sendJson(res, 200, { ok: true, ref, changed: result.changed, idempotent: !result.changed, channel: 'dashboard' })
+        if (item === undefined) return sendJson(res, 409, { ok: false, error: 'decision is no longer pending', code: 'decision-not-pending' })
+        const result = await adapter.execute({ ref: item.ref, expectedRevision, idempotencyKey, channel: 'dashboard' })
+        if (!result.ok) return sendJson(res, 409, { ok: false, error: result.message, code: result.code })
+        return sendJson(res, 200, { ok: true, ref, changed: !result.idempotent, idempotent: result.idempotent, channel: 'dashboard', deferred })
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         return sendJson(res, 409, { ok: false, error: message, code: message === 'decision revision conflict' ? 'revision-conflict' : 'review-approval-required' })
@@ -350,11 +357,6 @@ export async function handlePostExecutionRoutes(
     if (typeof root !== 'string' || typeof event !== 'string') {
       return sendJson(res, 400, { ok: false, error: 'root / event 须为字符串' })
     }
-    // 信任锚：root 必须是已注册 Project（挡路径穿越到任意目录）——对位老仓 resolve_change_worktree。
-    // 统一用 dedupeRoots 规范化（同下面四个写端点），而不是本地重新拼一遍 Set——inline 版本
-    // 对注册表里的空字符串条目会解析成 resolvePath('')=cwd 当一个"可信"条目，dedupeRoots 已
-    // 显式过滤掉空条目（whole-branch review 抓出的真实不一致，两者对合法注册表行为等价，
-    // 仅在这个边界输入上有差异）。
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: 'root 非已知 Project（未注册或不可信）' })
     }
@@ -368,7 +370,6 @@ export async function handlePostExecutionRoutes(
       },
       skillProfiles: trackSkillProfiles,
     })
-    // history 注入（G20 / v5-T1）：转换成功 → .pipeline-history.jsonl 记账，guard 拒绝零记账。
     const outcome = await performTransition(
       {
         store,
@@ -380,8 +381,6 @@ export async function handlePostExecutionRoutes(
         workspaceFingerprint,
         history,
         breadcrumb,
-        // 这里用的正是 Dashboard 当前 root 的 effective Track Registry，而不是靠 track id
-        // 写死 PM。自定义 track 也可通过 auto_enqueue_on_spec_complete 显式接入同一条后置编排。
         resolveTrackPolicy: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root).policyProfile,
         resolveTrack: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root),
         skillResolver: loadedManifest

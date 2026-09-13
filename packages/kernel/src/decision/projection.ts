@@ -47,7 +47,26 @@ function reviewDecision(input: PendingDecisionProjectionInput): PendingDecision 
   const phase = field(input.state, 'review_gate_phase')
   const event = reviewGateEvent(input.state)
   const requestedAt = field(input.state, 'review_requested_at')
-  if (phase === '' || event === '' || requestedAt === '') return undefined
+  if (phase === '' || event === '' || requestedAt === '') {
+    // Transition consumption clears the receipt fields. Recover the read-only record from the
+    // immutable transition/interaction chain, but never call it answered without both links.
+    const acknowledged = input.interactions?.filter((record) =>
+      record.event === 'review.acknowledged' && record.result === 'success') ?? []
+    const transition = input.transitions?.find((record) =>
+      acknowledged.some((recorded) => recorded.effectCode === 'review-gate.approved')
+        && record.from !== '' && record.event !== '')
+    if (transition === undefined && acknowledged.length === 0) return undefined
+    const recoveredPhase = transition?.from ?? field(input.state, 'phase')
+    const recoveredEvent = transition?.event ?? 'unknown'
+    const consumed = transition !== undefined && acknowledged.some((record) => record.effectCode === 'review-gate.approved')
+    const anchor = `${recoveredPhase}:${recoveredEvent}:consumed`
+    return {
+      ref: { id: refId('review', input.change, anchor, input.revision ?? null), kind: 'review', change: input.change, anchor, revision: input.revision ?? null },
+      type: 'review', status: consumed ? 'consumed' : 'unknown', anchor: { phase: recoveredPhase, event: recoveredEvent }, revision: input.revision ?? null,
+      evidence: consumed ? ['transition-record', 'interaction-acknowledged', 'interaction-effect-applied'] : ['incomplete-review-evidence'],
+      source: 'unknown', channel: 'unknown', command: 'review-acknowledge',
+    }
+  }
   const anchor = `${phase}:${event}:${requestedAt}`
   const result = reviewStatus(input, phase, event)
   const via = channel(field(input.state, 'review_acknowledged_via'))
