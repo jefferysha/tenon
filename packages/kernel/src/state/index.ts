@@ -124,7 +124,7 @@ export {
   WORKFLOW_ACTION_AUTHORITY_RECORD_PREFIX,
 } from './workflow-action-authority-record.js'
 export {
-  projectionMetadataFor, readCurrentRunRevision, readCurrentRunRevisionFromSync,
+  projectionMetadataFor, publishRunRevision, readCurrentRunRevision, readCurrentRunRevisionFromSync,
   readCurrentRunRevisionSync, readImmutableRunRevision,
   RUN_STATE_SCHEMA_VERSION, RunStateCorruptError, UnsupportedRunStateVersionError,
   RUN_CURRENT_FILE, RUN_REVISIONS_DIR, RUN_STATE_DIR,

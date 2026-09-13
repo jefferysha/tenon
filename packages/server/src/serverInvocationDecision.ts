@@ -2,6 +2,7 @@ import {
   appendSkillInvocationEventUnderLock,
   projectPendingDecisions,
   readCurrentRunRevision,
+  publishRunRevision,
   readSkillInvocationEventsForApplication,
   withSkillInvocationChangeLock,
   type DecisionCommandResult,
@@ -23,7 +24,8 @@ export async function applyInvocationDecision(input: {
   await withSkillInvocationChangeLock(input.dir, async (lock) => {
     const records = await readDecisionIdempotency(input.dir)
     const prior = records.find((record) => record.key === input.idempotencyKey)
-    if (prior !== undefined && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision)) {
+    if (prior !== undefined && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision || prior.kind !== input.kind
+      || (prior.answer !== undefined && JSON.stringify(prior.answer) !== JSON.stringify(input.answer)))) {
       throw Object.assign(new Error('idempotency key is already bound to another decision'), { code: 'decision-ref-mismatch' })
     }
     if (prior !== undefined) {
@@ -76,9 +78,12 @@ export async function applyInvocationDecision(input: {
       },
     }
     await appendSkillInvocationEventUnderLock(input.dir, lock, decision, started.subject.attempt === undefined ? {} : { attempt: started.subject.attempt })
+    // Invocation evidence and the canonical Change revision share this lock. A revision bump
+    // makes the decision command's CAS observable to every projection reader.
+    await publishRunRevision(input.dir, current, current.state, { kind: 'set', observedAt: input.clock() })
     await appendDecisionIdempotency(input.dir, {
       key: input.idempotencyKey, ref: input.ref, expectedRevision: input.expectedRevision,
-      channel: 'dashboard', kind: input.kind, acknowledgedAt: input.clock(),
+      channel: 'dashboard', kind: input.kind, answer: [...input.answer], acknowledgedAt: input.clock(),
     })
     result = { ok: true, idempotent: false, ref: item.ref }
   })

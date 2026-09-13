@@ -10,6 +10,7 @@ export type DecisionIdempotencyRecord = {
   readonly expectedRevision: number | null
   readonly channel: 'dashboard'
   readonly kind?: 'review' | 'skill-question' | 'afk'
+  readonly answer?: readonly string[]
   readonly acknowledgedAt: string
   readonly outcome?: 'approved' | 'rejected'
   readonly error?: string
@@ -24,6 +25,7 @@ function isDecisionIdempotencyRecord(value: unknown): value is DecisionIdempoten
     && (typeof record.expectedRevision === 'number' || record.expectedRevision === null)
     && record.channel === 'dashboard'
     && (record.kind === undefined || record.kind === 'review' || record.kind === 'skill-question' || record.kind === 'afk')
+    && (record.answer === undefined || (Array.isArray(record.answer) && record.answer.every((value) => typeof value === 'string' && value !== '')))
     && typeof record.acknowledgedAt === 'string'
     && (record.outcome === undefined || record.outcome === 'approved' || record.outcome === 'rejected')
     && (record.error === undefined || typeof record.error === 'string')

@@ -17,12 +17,13 @@ import {
 } from '@tenon/kernel'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { PostRouteDeps } from './serverPostRoutes.js'
-import { appendDecisionAuditUnderLock, readDecisionAudit } from './decisionAudit.js'
+import { appendDecisionAuditUnderLock, readDecisionAudit, type DecisionAuditRecord } from './decisionAudit.js'
 import { appendDecisionIdempotency, readDecisionIdempotency } from './decisionIdempotency.js'
 import { applyInvocationDecision } from './serverInvocationDecision.js'
 import { reviewInteractionDraft } from './decisionInteraction.js'
 
 type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history'>
+const SAFE_DECISION_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 
 /** Handle Dashboard review decisions; returns false when the path belongs to another route. */
 export async function handlePostDecisionRoutes(
@@ -61,18 +62,26 @@ export async function handlePostDecisionRoutes(
         const actor = input.actor === 'automation' ? 'automation' : input.actor === 'user' ? 'user' : undefined
         const expectedRevision = typeof input.expected_revision === 'number' ? input.expected_revision : undefined
         const idempotencyKey = typeof input.idempotency_key === 'string' ? input.idempotency_key : ''
-        if (from === undefined || to === undefined || actor === undefined || expectedRevision === undefined || idempotencyKey === '') {
+        if (from === undefined || to === undefined || from === to || actor === undefined || expectedRevision === undefined || !SAFE_DECISION_KEY_RE.test(idempotencyKey)) {
           sendJson(res, 400, { ok: false, error: 'from / to / actor / expected_revision / idempotency_key 为必填' })
           return true
         }
         await store.withLock(dir, async () => {
+          const records = await readDecisionAudit(dir)
+          const prior = records.find((record): record is Extract<DecisionAuditRecord, { type: 'decision-mode-switched' }> => record.type === 'decision-mode-switched' && record.idempotencyKey === idempotencyKey)
+          const strategy = to === 'afk' ? 'afk' : input.recommended_defaults === true ? 'recommended-defaults' : 'interactive'
+          if (prior !== undefined) {
+            if (prior.from !== from || prior.to !== to || prior.actor !== actor || prior.expectedRevision !== expectedRevision || prior.strategy !== strategy) {
+              throw Object.assign(new Error('idempotency key is already bound to another mode switch'), { code: 'decision-ref-mismatch' })
+            }
+            return
+          }
           const current = await readCurrentRunRevision(dir)
           if (current?.revision !== expectedRevision) throw Object.assign(new Error('decision revision conflict'), { code: 'revision-conflict' })
-          const records = await readDecisionAudit(dir)
-          const prior = records.find((record) => record.type === 'decision-mode-switched' && record.idempotencyKey === idempotencyKey)
-          if (prior !== undefined) return
-          const strategy = to === 'afk' ? 'afk' : input.recommended_defaults === true ? 'recommended-defaults' : 'interactive'
-          await appendDecisionAuditUnderLock(dir, { version: 1, type: 'decision-mode-switched', from, to, strategy, actor, occurredAt: clock(), expectedRevision, idempotencyKey })
+          const latest = records.filter((record) => record.type === 'decision-mode-switched').at(-1)
+          const currentMode = latest?.type === 'decision-mode-switched' ? latest.to : 'hitl'
+          if (from !== currentMode) throw Object.assign(new Error('mode switch source does not match the current decision mode'), { code: 'decision-mode-conflict' })
+          await appendDecisionAuditUnderLock(dir, { version: 1, type: 'decision-mode-switched', from, to, strategy, actor, channel: 'dashboard', occurredAt: clock(), expectedRevision, idempotencyKey })
         })
         sendJson(res, 200, { ok: true, changed: true, channel: 'dashboard', event: 'decision-mode-switched' })
         return true
@@ -86,7 +95,7 @@ export async function handlePostDecisionRoutes(
         : typeof input.token_digest === 'string' && /^[a-f0-9]{64}$/.test(input.token_digest)
           ? input.token_digest
           : undefined
-      if (!pendingDecisionId || operation === undefined || channel === undefined || !idempotencyKey) {
+      if (!pendingDecisionId || operation === undefined || channel === undefined || !SAFE_DECISION_KEY_RE.test(idempotencyKey)) {
         sendJson(res, 400, { ok: false, error: 'pending_decision_id / operation / channel / idempotency_key 为必填' })
         return true
       }
@@ -96,8 +105,19 @@ export async function handlePostDecisionRoutes(
       }
       await store.withLock(dir, async () => {
         const records = await readDecisionAudit(dir)
-        const prior = records.find((record) => record.type === 'pending-decision-self-approval-suspected' && record.idempotencyKey === idempotencyKey)
-        if (prior !== undefined) return
+        const prior = records.find((record): record is Extract<DecisionAuditRecord, { type: 'pending-decision-self-approval-suspected' }> => record.type === 'pending-decision-self-approval-suspected' && record.idempotencyKey === idempotencyKey)
+        if (prior !== undefined) {
+          if (prior.pendingDecisionId !== pendingDecisionId || prior.channel !== channel || prior.operation !== operation || prior.tokenDigest !== tokenDigest) {
+            throw Object.assign(new Error('idempotency key is already bound to another security observation'), { code: 'decision-ref-mismatch' })
+          }
+          return
+        }
+        const current = await readCurrentRunRevision(dir)
+        const state = current?.state ?? await store.read(dir)
+        const invocations = await readSkillInvocationEventsForApplication(dir).catch(() => [])
+        const pending = projectPendingDecisions({ change: auditName, state, revision: current?.revision, now: clock(), invocations }).items
+          .find((item) => item.ref.id === pendingDecisionId && item.status === 'pending')
+        if (pending === undefined) throw Object.assign(new Error('pending_decision_id is not a current pending decision'), { code: 'decision-not-pending' })
         await appendDecisionAuditUnderLock(dir, {
           version: 1, type: 'pending-decision-self-approval-suspected', pendingDecisionId,
           channel, operation, tokenDigest, observedAt: clock(), severity: 'warning', idempotencyKey,
@@ -108,14 +128,14 @@ export async function handlePostDecisionRoutes(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string' ? error.code : 'decision-audit-failed'
-      sendJson(res, code === 'revision-conflict' ? 409 : 400, { ok: false, error: message, code })
+      sendJson(res, ['revision-conflict', 'decision-ref-mismatch', 'decision-mode-conflict', 'decision-not-pending'].includes(code) ? 409 : 400, { ok: false, error: message, code })
       return true
     }
   }
   const ref = typeof input.ref === 'string' ? input.ref : ''
   const expectedRevision = typeof input.expected_revision === 'number' ? input.expected_revision : null
   const idempotencyKey = typeof input.idempotency_key === 'string' ? input.idempotency_key : ''
-  if (!root || !ref || expectedRevision === null || !idempotencyKey) {
+  if (!root || !ref || expectedRevision === null || !SAFE_DECISION_KEY_RE.test(idempotencyKey)) {
     sendJson(res, 400, { ok: false, error: 'root / ref / expected_revision / idempotency_key 为必填' })
     return true
   }
@@ -179,7 +199,7 @@ async function applyDecision(input: {
   await input.store.withLock(input.dir, async () => {
     const records = await readDecisionIdempotency(input.dir)
     const prior = records.find((record) => record.key === input.idempotencyKey)
-    if (prior !== undefined && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision)) {
+    if (prior !== undefined && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision || (prior.kind !== undefined && prior.kind !== 'review'))) {
       throw Object.assign(new Error('idempotency key is already bound to another decision'), { code: 'decision-ref-mismatch' })
     }
     if (prior !== undefined) {
@@ -198,7 +218,7 @@ async function applyDecision(input: {
       readRevision: async () => (await readCurrentRunRevision(input.dir))?.revision ?? null,
       hasIdempotencyKey: async () => false,
       rememberIdempotencyKey: async (key) => appendDecisionIdempotency(input.dir, {
-        key, ref: input.ref, expectedRevision: input.expectedRevision, channel: 'dashboard', acknowledgedAt: input.clock(),
+        key, ref: input.ref, expectedRevision: input.expectedRevision, channel: 'dashboard', kind: 'review', acknowledgedAt: input.clock(),
       }),
         isPending: async (decisionRef) => projectPendingDecisions({
         change: input.name, state: await input.store.read(input.dir), revision: lockedRevision?.revision, now: input.clock(),
@@ -256,7 +276,7 @@ async function applyDecision(input: {
         : 'review-approval-required'
       await appendDecisionIdempotency(input.dir, {
         key: input.idempotencyKey, ref: input.ref, expectedRevision: input.expectedRevision,
-        channel: 'dashboard', acknowledgedAt: input.clock(), outcome: 'rejected', error: message, code,
+        channel: 'dashboard', kind: 'review', acknowledgedAt: input.clock(), outcome: 'rejected', error: message, code,
       })
       throw error
     }

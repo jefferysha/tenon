@@ -13,6 +13,7 @@ export type DecisionAuditRecord =
       readonly to: 'hitl' | 'afk'
       readonly strategy: 'interactive' | 'recommended-defaults' | 'afk'
       readonly actor: 'user' | 'automation'
+      readonly channel: 'dashboard'
       readonly occurredAt: string
       readonly expectedRevision: number
       readonly idempotencyKey: string
@@ -40,6 +41,7 @@ function isAuditRecord(value: unknown): value is DecisionAuditRecord {
       && (value.to === 'hitl' || value.to === 'afk')
       && (value.strategy === 'interactive' || value.strategy === 'recommended-defaults' || value.strategy === 'afk')
       && (value.actor === 'user' || value.actor === 'automation')
+      && value.channel === 'dashboard'
       && typeof value.occurredAt === 'string' && Number.isSafeInteger(value.expectedRevision)
       && typeof value.idempotencyKey === 'string' && value.idempotencyKey !== ''
   }

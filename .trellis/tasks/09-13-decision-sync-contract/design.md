@@ -65,6 +65,8 @@ review 的 consumed 推导至少需要 `TransitionRecord` 的 event/from、run/s
 
 `mode-switched` 是追加事件，不是回答事件。它包含 from/to、actor/channel、effective-at、policy revision 和 pending request ids。切换只影响后续请求；已有 pending 请求按原策略完成、显式 supersede，或产生带 replacement 链的可审计新请求，不能静默套用新策略。内部 `decision.mode`、invocation `adapter.kind`、review `channel` 是三个正交维度。
 
+本轮 C 实现使用 `.pipeline-decision-audit.jsonl` 作为只追加的审计事件投影，不把它当作 canonical 状态，也不伪造 `InteractionEventV1`。`decision-mode-switched` 必须校验当前模式（无历史事件时为 HITL），并以 expected revision 与幂等参数绑定；`pending-decision-self-approval-suspected` 必须绑定当前 PendingDecisionView 的 `pending_decision_id/ref`。该文件只由 Change lock 下的 server adapter 或 hook 的脱敏检测写入，GET 端点只读返回；hook 只能使用可解析的 change 级 pending 线索并始终写 `tokenDigest:null`。
+
 ## 自审批威胁模型和告警责任
 
 本地 bearer token 证明的是进程能力，不是人类身份。agent 与 server 同一系统用户时，agent 可能读取 token、申请 approval 或直接调用 localhost API；一次性凭证只能防重放和旧 revision，不能防自审批。门禁 pending 期间，hook 对 token 文件读取、localhost 控制 API 请求、审批前后的 actor/channel/revision 异常发出脱敏 `review-self-approval-signal` 事件，至少包含 change、phase、event、request id、channel、process/host hash、observed-at、signal kind；不得记录 token 内容或声称识别了操作者。

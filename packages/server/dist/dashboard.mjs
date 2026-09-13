@@ -37955,7 +37955,7 @@ function isRecord11(value) {
 function isAuditRecord(value) {
   if (!isRecord11(value) || value.version !== 1 || typeof value.type !== "string") return false;
   if (value.type === "decision-mode-switched") {
-    return (value.from === "hitl" || value.from === "afk") && (value.to === "hitl" || value.to === "afk") && (value.strategy === "interactive" || value.strategy === "recommended-defaults" || value.strategy === "afk") && (value.actor === "user" || value.actor === "automation") && typeof value.occurredAt === "string" && Number.isSafeInteger(value.expectedRevision) && typeof value.idempotencyKey === "string" && value.idempotencyKey !== "";
+    return (value.from === "hitl" || value.from === "afk") && (value.to === "hitl" || value.to === "afk") && (value.strategy === "interactive" || value.strategy === "recommended-defaults" || value.strategy === "afk") && (value.actor === "user" || value.actor === "automation") && value.channel === "dashboard" && typeof value.occurredAt === "string" && Number.isSafeInteger(value.expectedRevision) && typeof value.idempotencyKey === "string" && value.idempotencyKey !== "";
   }
   if (value.type === "pending-decision-self-approval-suspected") {
     return typeof value.pendingDecisionId === "string" && value.pendingDecisionId !== "" && (value.channel === "terminal" || value.channel === "dashboard" || value.channel === "hook" || value.channel === "automation") && (value.operation === "read-token" || value.operation === "local-api-call") && (value.tokenDigest === null || typeof value.tokenDigest === "string" && /^[a-f0-9]{64}$/.test(value.tokenDigest)) && typeof value.observedAt === "string" && value.severity === "warning" && typeof value.idempotencyKey === "string" && value.idempotencyKey !== "";
@@ -38957,7 +38957,7 @@ var DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
 function isDecisionIdempotencyRecord(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record7 = value;
-  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && record7.channel === "dashboard" && (record7.kind === void 0 || record7.kind === "review" || record7.kind === "skill-question" || record7.kind === "afk") && typeof record7.acknowledgedAt === "string" && (record7.outcome === void 0 || record7.outcome === "approved" || record7.outcome === "rejected") && (record7.error === void 0 || typeof record7.error === "string") && (record7.code === void 0 || typeof record7.code === "string");
+  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && record7.channel === "dashboard" && (record7.kind === void 0 || record7.kind === "review" || record7.kind === "skill-question" || record7.kind === "afk") && (record7.answer === void 0 || Array.isArray(record7.answer) && record7.answer.every((value2) => typeof value2 === "string" && value2 !== "")) && typeof record7.acknowledgedAt === "string" && (record7.outcome === void 0 || record7.outcome === "approved" || record7.outcome === "rejected") && (record7.error === void 0 || typeof record7.error === "string") && (record7.code === void 0 || typeof record7.code === "string");
 }
 async function readDecisionIdempotency(changeDir2) {
   try {
@@ -38986,7 +38986,7 @@ async function applyInvocationDecision(input) {
   await withSkillInvocationChangeLock(input.dir, async (lock) => {
     const records = await readDecisionIdempotency(input.dir);
     const prior = records.find((record7) => record7.key === input.idempotencyKey);
-    if (prior !== void 0 && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision)) {
+    if (prior !== void 0 && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision || prior.kind !== input.kind || prior.answer !== void 0 && JSON.stringify(prior.answer) !== JSON.stringify(input.answer))) {
       throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "decision-ref-mismatch" });
     }
     if (prior !== void 0) {
@@ -39039,12 +39039,14 @@ async function applyInvocationDecision(input) {
       }
     };
     await appendSkillInvocationEventUnderLock(input.dir, lock, decision, started.subject.attempt === void 0 ? {} : { attempt: started.subject.attempt });
+    await publishRunRevision(input.dir, current, current.state, { kind: "set", observedAt: input.clock() });
     await appendDecisionIdempotency(input.dir, {
       key: input.idempotencyKey,
       ref: input.ref,
       expectedRevision: input.expectedRevision,
       channel: "dashboard",
       kind: input.kind,
+      answer: [...input.answer],
       acknowledgedAt: input.clock()
     });
     result2 = { ok: true, idempotent: false, ref: item2.ref };
@@ -39096,6 +39098,7 @@ function reviewInteractionDraft(input) {
 }
 
 // packages/server/src/serverPostDecisionRoutes.ts
+var SAFE_DECISION_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 async function handlePostDecisionRoutes(req, res, path13, deps) {
   const modeMatch = /^\/api\/change\/([^/]+)\/decision-mode$/.exec(path13);
   const securityMatch = /^\/api\/change\/([^/]+)\/pending-decision-security$/.exec(path13);
@@ -39127,18 +39130,26 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
         const actor2 = input.actor === "automation" ? "automation" : input.actor === "user" ? "user" : void 0;
         const expectedRevision2 = typeof input.expected_revision === "number" ? input.expected_revision : void 0;
         const idempotencyKey3 = typeof input.idempotency_key === "string" ? input.idempotency_key : "";
-        if (from === void 0 || to === void 0 || actor2 === void 0 || expectedRevision2 === void 0 || idempotencyKey3 === "") {
+        if (from === void 0 || to === void 0 || from === to || actor2 === void 0 || expectedRevision2 === void 0 || !SAFE_DECISION_KEY_RE.test(idempotencyKey3)) {
           sendJson(res, 400, { ok: false, error: "from / to / actor / expected_revision / idempotency_key \u4E3A\u5FC5\u586B" });
           return true;
         }
         await store.withLock(dir2, async () => {
-          const current = await readCurrentRunRevision(dir2);
-          if (current?.revision !== expectedRevision2) throw Object.assign(new Error("decision revision conflict"), { code: "revision-conflict" });
           const records = await readDecisionAudit(dir2);
           const prior = records.find((record7) => record7.type === "decision-mode-switched" && record7.idempotencyKey === idempotencyKey3);
-          if (prior !== void 0) return;
           const strategy = to === "afk" ? "afk" : input.recommended_defaults === true ? "recommended-defaults" : "interactive";
-          await appendDecisionAuditUnderLock(dir2, { version: 1, type: "decision-mode-switched", from, to, strategy, actor: actor2, occurredAt: clock(), expectedRevision: expectedRevision2, idempotencyKey: idempotencyKey3 });
+          if (prior !== void 0) {
+            if (prior.from !== from || prior.to !== to || prior.actor !== actor2 || prior.expectedRevision !== expectedRevision2 || prior.strategy !== strategy) {
+              throw Object.assign(new Error("idempotency key is already bound to another mode switch"), { code: "decision-ref-mismatch" });
+            }
+            return;
+          }
+          const current = await readCurrentRunRevision(dir2);
+          if (current?.revision !== expectedRevision2) throw Object.assign(new Error("decision revision conflict"), { code: "revision-conflict" });
+          const latest = records.filter((record7) => record7.type === "decision-mode-switched").at(-1);
+          const currentMode = latest?.type === "decision-mode-switched" ? latest.to : "hitl";
+          if (from !== currentMode) throw Object.assign(new Error("mode switch source does not match the current decision mode"), { code: "decision-mode-conflict" });
+          await appendDecisionAuditUnderLock(dir2, { version: 1, type: "decision-mode-switched", from, to, strategy, actor: actor2, channel: "dashboard", occurredAt: clock(), expectedRevision: expectedRevision2, idempotencyKey: idempotencyKey3 });
         });
         sendJson(res, 200, { ok: true, changed: true, channel: "dashboard", event: "decision-mode-switched" });
         return true;
@@ -39148,7 +39159,7 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
       const channel2 = input.channel === "terminal" || input.channel === "dashboard" || input.channel === "hook" || input.channel === "automation" ? input.channel : void 0;
       const idempotencyKey2 = typeof input.idempotency_key === "string" ? input.idempotency_key : "";
       const tokenDigest = input.token_digest === null ? null : typeof input.token_digest === "string" && /^[a-f0-9]{64}$/.test(input.token_digest) ? input.token_digest : void 0;
-      if (!pendingDecisionId || operation === void 0 || channel2 === void 0 || !idempotencyKey2) {
+      if (!pendingDecisionId || operation === void 0 || channel2 === void 0 || !SAFE_DECISION_KEY_RE.test(idempotencyKey2)) {
         sendJson(res, 400, { ok: false, error: "pending_decision_id / operation / channel / idempotency_key \u4E3A\u5FC5\u586B" });
         return true;
       }
@@ -39159,7 +39170,17 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
       await store.withLock(dir2, async () => {
         const records = await readDecisionAudit(dir2);
         const prior = records.find((record7) => record7.type === "pending-decision-self-approval-suspected" && record7.idempotencyKey === idempotencyKey2);
-        if (prior !== void 0) return;
+        if (prior !== void 0) {
+          if (prior.pendingDecisionId !== pendingDecisionId || prior.channel !== channel2 || prior.operation !== operation || prior.tokenDigest !== tokenDigest) {
+            throw Object.assign(new Error("idempotency key is already bound to another security observation"), { code: "decision-ref-mismatch" });
+          }
+          return;
+        }
+        const current = await readCurrentRunRevision(dir2);
+        const state = current?.state ?? await store.read(dir2);
+        const invocations = await readSkillInvocationEventsForApplication(dir2).catch(() => []);
+        const pending = projectPendingDecisions({ change: auditName, state, revision: current?.revision, now: clock(), invocations }).items.find((item2) => item2.ref.id === pendingDecisionId && item2.status === "pending");
+        if (pending === void 0) throw Object.assign(new Error("pending_decision_id is not a current pending decision"), { code: "decision-not-pending" });
         await appendDecisionAuditUnderLock(dir2, {
           version: 1,
           type: "pending-decision-self-approval-suspected",
@@ -39177,14 +39198,14 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
     } catch (error2) {
       const message = error2 instanceof Error ? error2.message : String(error2);
       const code = typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : "decision-audit-failed";
-      sendJson(res, code === "revision-conflict" ? 409 : 400, { ok: false, error: message, code });
+      sendJson(res, ["revision-conflict", "decision-ref-mismatch", "decision-mode-conflict", "decision-not-pending"].includes(code) ? 409 : 400, { ok: false, error: message, code });
       return true;
     }
   }
   const ref = typeof input.ref === "string" ? input.ref : "";
   const expectedRevision = typeof input.expected_revision === "number" ? input.expected_revision : null;
   const idempotencyKey = typeof input.idempotency_key === "string" ? input.idempotency_key : "";
-  if (!root || !ref || expectedRevision === null || !idempotencyKey) {
+  if (!root || !ref || expectedRevision === null || !SAFE_DECISION_KEY_RE.test(idempotencyKey)) {
     sendJson(res, 400, { ok: false, error: "root / ref / expected_revision / idempotency_key \u4E3A\u5FC5\u586B" });
     return true;
   }
@@ -39242,7 +39263,7 @@ async function applyDecision(input) {
   await input.store.withLock(input.dir, async () => {
     const records = await readDecisionIdempotency(input.dir);
     const prior = records.find((record7) => record7.key === input.idempotencyKey);
-    if (prior !== void 0 && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision)) {
+    if (prior !== void 0 && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision || prior.kind !== void 0 && prior.kind !== "review")) {
       throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "decision-ref-mismatch" });
     }
     if (prior !== void 0) {
@@ -39265,6 +39286,7 @@ async function applyDecision(input) {
         ref: input.ref,
         expectedRevision: input.expectedRevision,
         channel: "dashboard",
+        kind: "review",
         acknowledgedAt: input.clock()
       }),
       isPending: async (decisionRef) => projectPendingDecisions({
@@ -39341,6 +39363,7 @@ async function applyDecision(input) {
         ref: input.ref,
         expectedRevision: input.expectedRevision,
         channel: "dashboard",
+        kind: "review",
         acknowledgedAt: input.clock(),
         outcome: "rejected",
         error: message,

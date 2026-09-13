@@ -251,13 +251,28 @@ describe('decision server adapters', () => {
         return capture.result
       }
       const currentRevision = (await readCurrentRunRevision(fixture.dir))?.revision ?? 0
+      expect(await post({ root: fixture.root, from: 'hitl', to: 'afk', actor: 'user', expected_revision: currentRevision, idempotency_key: 'bad\nkey' })).toMatchObject({ status: 400 })
       expect(await post({ root: fixture.root, from: 'hitl', to: 'afk', actor: 'user', expected_revision: currentRevision, idempotency_key: 'mode-1' })).toMatchObject({ status: 200 })
+      expect(await post({ root: fixture.root, from: 'hitl', to: 'afk', actor: 'automation', expected_revision: currentRevision, idempotency_key: 'mode-1' })).toMatchObject({ status: 409, body: { code: 'decision-ref-mismatch' } })
+      expect(await post({ root: fixture.root, from: 'hitl', to: 'afk', actor: 'user', expected_revision: currentRevision, idempotency_key: 'mode-conflict' })).toMatchObject({ status: 409, body: { code: 'decision-mode-conflict' } })
+      const pendingCapture = responseCapture()
+      await handleGetDecisionRoute(request(`/api/change/demo/pending-decisions?root=${encodeURIComponent(fixture.root)}`), pendingCapture.response, '/api/change/demo/pending-decisions', {
+        sendJson: pendingCapture.sendJson, store: fixture.store, recordStore: { readChain: async () => [] } as never,
+        workflowRootForRequest: (root) => ({ ok: true, anchor: { path: root } }) as never,
+      })
+      const pending = (pendingCapture.result.body as { items: Array<{ ref: { id: string } }> }).items[0]!
       const security = responseCapture()
       await handlePostDecisionRoutes(
         request('/api/change/demo/pending-decision-security'), security.response, '/api/change/demo/pending-decision-security',
-        { sendJson: security.sendJson, readJsonBody: async () => ({ root: fixture.root, pending_decision_id: 'decision:x', operation: 'read-token', channel: 'hook', token_digest: null, idempotency_key: 'security-1' }), isRegisteredRoot: () => true, store: fixture.store, clock: () => '2026-09-14T00:00:06.000Z', history: { append: async () => undefined } },
+        { sendJson: security.sendJson, readJsonBody: async () => ({ root: fixture.root, pending_decision_id: pending.ref.id, operation: 'read-token', channel: 'hook', token_digest: null, idempotency_key: 'security-1' }), isRegisteredRoot: () => true, store: fixture.store, clock: () => '2026-09-14T00:00:06.000Z', history: { append: async () => undefined } },
       )
       expect(security.result).toMatchObject({ status: 200 })
+      const securityConflict = responseCapture()
+      await handlePostDecisionRoutes(
+        request('/api/change/demo/pending-decision-security'), securityConflict.response, '/api/change/demo/pending-decision-security',
+        { sendJson: securityConflict.sendJson, readJsonBody: async () => ({ root: fixture.root, pending_decision_id: 'wrong-ref', operation: 'read-token', channel: 'hook', token_digest: null, idempotency_key: 'security-1' }), isRegisteredRoot: () => true, store: fixture.store, clock: () => '2026-09-14T00:00:06.000Z', history: { append: async () => undefined } },
+      )
+      expect(securityConflict.result).toMatchObject({ status: 409, body: { code: 'decision-ref-mismatch' } })
       const rawToken = responseCapture()
       await handlePostDecisionRoutes(
         request('/api/change/demo/pending-decision-security'), rawToken.response, '/api/change/demo/pending-decision-security',
@@ -298,7 +313,14 @@ describe('decision server adapters', () => {
         return capture.result
       }
       expect(await post()).toMatchObject({ status: 200, body: { ok: true, idempotent: false } })
+      expect((await readCurrentRunRevision(fixture.dir))?.revision).toBe(item.revision + 1)
       expect(await post()).toMatchObject({ status: 200, body: { ok: true, idempotent: true } })
+      const answerConflict = responseCapture()
+      await handlePostDecisionRoutes(request('/api/change/demo/decisions'), answerConflict.response, '/api/change/demo/decisions', {
+        sendJson: answerConflict.sendJson, readJsonBody: async () => ({ root: fixture.root, ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'skill-1', answer: ['no'] }),
+        isRegisteredRoot: () => true, store: fixture.store, clock: () => '2026-09-14T00:00:02.000Z', history: { append: async () => undefined },
+      })
+      expect(answerConflict.result).toMatchObject({ status: 409, body: { code: 'decision-ref-mismatch' } })
     } finally {
       await fixture.cleanup()
     }
