@@ -67,6 +67,7 @@ describe('snapshotWorkflowRules policy diagnostics', () => {
     expect(project.changes.map((change) => change.name)).toEqual(['migration-conflict'])
     expect(project.changes[0]?.artifactAttempts).toBeUndefined()
     expect(project.compatibilityIssues).toEqual([{
+      severity: 'warning',
       kind: 'legacy-scope-unmerged',
       change: 'migration-conflict',
       legacyScopePath: 'openspec/changes/migration-conflict/.pipeline-artifacts/runtime-artifacts',
@@ -687,6 +688,7 @@ describe('buildSnapshot —— 真读多项目 .pipeline.yaml', () => {
     })
     const project = snapshot.projects[0] as typeof snapshot.projects[number] & {
       compatibilityIssues?: Array<{
+        severity: 'blocking'
         kind: string
         change: string
         foundVersion: number
@@ -699,6 +701,7 @@ describe('buildSnapshot —— 真读多项目 .pipeline.yaml', () => {
     expect(project.changes.map((change) => change.name)).toEqual(['readable-state'])
     expect(snapshot.change_count).toBe(1)
     expect(project.compatibilityIssues).toEqual([{
+      severity: 'blocking',
       kind: 'unsupported-canonical-version',
       change: 'future-state',
       foundVersion: 2,

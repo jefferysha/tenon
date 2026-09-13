@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { ArtifactPolicy, ArtifactCatalog, ArtifactEvent, ArtifactReadReceipt, ArtifactVersion } from '@tenon/kernel'
-import { readArtifactSubjectRegistry } from '@tenon/automation'
+import { ArtifactScopeMigrationError, openLegacyLineageView, readArtifactSubjectRegistry } from '@tenon/automation'
 import { lstatSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 interface ArtifactInspection { version: ArtifactVersion; bytes?: Uint8Array; structure?: unknown }
-export interface ArtifactService { catalog(id: string, policy?: ArtifactPolicy): Promise<ArtifactCatalog>; inspect(id: string, version: string, options?: { includeContent?: boolean; maxBytes?: number }): Promise<ArtifactInspection>; read(id: string, artifactId: string, version: string, options?: { representation?: ArtifactReadReceipt['representation']; consumer?: ArtifactReadReceipt['consumer']; maxBytes?: number }): Promise<ArtifactInspection>; events(after?: number, limit?: number): Promise<readonly ArtifactEvent[]>; attempts?: (stageId?: string) => Promise<readonly { stageId: string; stageAttemptId: string; startedAt: string }[]>; }
+export interface ArtifactService { catalog(id: string, policy?: ArtifactPolicy): Promise<ArtifactCatalog>; inspect(id: string, version: string, options?: { includeContent?: boolean; maxBytes?: number }): Promise<ArtifactInspection>; read(id: string, artifactId: string, version: string, options?: { representation?: ArtifactReadReceipt['representation']; consumer?: ArtifactReadReceipt['consumer']; maxBytes?: number }): Promise<ArtifactInspection>; events(after?: number, limit?: number): Promise<readonly ArtifactEvent[]>; attempts?: (stageId?: string) => Promise<readonly { stageId: string; stageAttemptId: string; startedAt: string; workflowRunId?: string }[]>; }
 import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
 
 const MAX_ENTRIES = 256
@@ -61,7 +61,12 @@ export async function resolveArtifactRoute(req: IncomingMessage, res: ServerResp
     return true
   }
   let service: ArtifactService | undefined
-  try { service = await (deps.serviceForRoot?.(scopedRoot(checked.anchor, change), checked.anchor) ?? deps.service) } catch (error) { deps.sendJson(res, 404, { ok: false, error: error instanceof Error ? error.message : String(error) }); return true }
+  const artifactRoot = scopedRoot(checked.anchor, change)
+  try { service = await (deps.serviceForRoot?.(artifactRoot, checked.anchor) ?? deps.service) } catch (error) {
+    if (error instanceof ArtifactScopeMigrationError) {
+      try { service = await openLegacyLineageView(artifactRoot) } catch (legacyError) { deps.sendJson(res, 404, { ok: false, error: legacyError instanceof Error ? legacyError.message : String(legacyError) }); return true }
+    } else { deps.sendJson(res, 404, { ok: false, error: error instanceof Error ? error.message : String(error) }); return true }
+  }
   if (!service) { deps.sendJson(res, 404, { ok: false, error: 'artifact runtime unavailable' }); return true }
   try {
     if (path === '/api/artifacts/catalog') {

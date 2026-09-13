@@ -26,7 +26,7 @@ export interface ChangeSnapshot {
   /** Per-step skill execution state derived by the server from the history log; absent on older servers. */
   skillRuns?: SkillRunsSnapshot
   /** Runtime artifact attempt identities; actual entries are fetched from the artifact catalog API. */
-  artifactAttempts?: ReadonlyArray<{ stageId: string; stageAttemptId: string }>
+  artifactAttempts?: ReadonlyArray<{ stageId: string; stageAttemptId: string; workflowRunId?: string; startedAt?: string; lineageSource?: 'legacy' }>
   /** Fresh, explicitly bound native terminal heartbeat; never a workflow-state field. */
   terminalActivity?: TerminalActivitySnapshot
 }
@@ -193,6 +193,7 @@ export type TransitionReadinessBlockerSnapshot =
 
 /** 单个已注册 Project 的聚合。 */
 export interface CanonicalStateCompatibilityIssue {
+  severity?: 'blocking'
   kind: 'unsupported-canonical-version'
   change: string
   foundVersion: number
@@ -201,6 +202,7 @@ export interface CanonicalStateCompatibilityIssue {
 }
 
 export interface LegacyScopeCompatibilityIssue {
+  severity?: 'warning' | 'blocking'
   kind: 'legacy-scope-unmerged'
   change: string
   legacyScopePath: string

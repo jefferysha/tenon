@@ -11,7 +11,7 @@ import { Dialog } from '../shared/Dialog'
 
 export interface WorkflowViewProps {
   root: string
-  runtimeContext?: { readonly root: string; readonly change: string; readonly attempts: ReadonlyArray<{ readonly stageId: string; readonly stageAttemptId: string }> }
+  runtimeContext?: { readonly root: string; readonly change: string; readonly attempts: ReadonlyArray<{ readonly stageId: string; readonly stageAttemptId: string; readonly workflowRunId?: string; readonly startedAt?: string; readonly lineageSource?: 'legacy' }> }
   onDirtyChange?: (dirty: boolean) => void
   onToast?: (message: string) => void
 }

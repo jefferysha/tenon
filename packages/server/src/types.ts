@@ -64,7 +64,7 @@ export interface ChangeSnapshot {
   /** Per-step skill execution state (idle / running / done, grouped by wave) derived from the history log. */
   skillRuns?: SkillRunsSnapshot
   /** Runtime artifact attempt identities; actual entries are fetched from the artifact catalog API. */
-  artifactAttempts?: ReadonlyArray<{ stageId: string; stageAttemptId: string }>
+  artifactAttempts?: ReadonlyArray<{ stageId: string; stageAttemptId: string; workflowRunId?: string; startedAt?: string; lineageSource?: 'legacy' }>
   /**
    * Fresh host-hook heartbeat for an explicitly bound terminal session. This is dashboard-only
    * observability, not canonical workflow state; omitted as soon as its short lease expires.
@@ -165,6 +165,7 @@ export interface WorkflowExecutionSnapshot {
 }
 
 export interface CanonicalStateCompatibilityIssueSnapshot {
+  severity: 'blocking'
   kind: 'unsupported-canonical-version'
   change: string
   foundVersion: number
@@ -173,6 +174,7 @@ export interface CanonicalStateCompatibilityIssueSnapshot {
 }
 
 export interface LegacyScopeCompatibilityIssueSnapshot {
+  severity: 'warning'
   kind: 'legacy-scope-unmerged'
   change: string
   legacyScopePath: string

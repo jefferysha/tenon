@@ -21,7 +21,7 @@ import {
   type StateStore,
   type TrackDefinition,
 } from '@tenon/kernel'
-import { ArtifactScopeMigrationError } from '@tenon/automation'
+import { ArtifactScopeMigrationError, openLegacyLineageView } from '@tenon/automation'
 import type {
   ChangeSnapshot,
   DocumentEvidenceSnapshot,
@@ -92,25 +92,34 @@ async function projectArtifactAttempts(
   deps: SnapshotDeps,
   changeDir: string,
   anchor: WorkflowRootAnchor,
-): Promise<{ attempts: ReadonlyArray<{ stageId: string; stageAttemptId: string }>; compatibilityIssue?: { kind: 'legacy-scope-unmerged'; legacyScopePath: string } }> {
+): Promise<{ attempts: ReadonlyArray<{ stageId: string; stageAttemptId: string; workflowRunId?: string; startedAt?: string; lineageSource?: 'legacy' }>; compatibilityIssue?: { kind: 'legacy-scope-unmerged'; legacyScopePath: string } }> {
   if (deps.artifactServiceForRoot === undefined) return { attempts: [] }
   let service: ArtifactService | undefined
   try {
     service = await deps.artifactServiceForRoot(changeDir, anchor)
   } catch (error) {
-    if (error instanceof ArtifactScopeMigrationError) return { attempts: [], compatibilityIssue: { kind: 'legacy-scope-unmerged', legacyScopePath: error.legacyPath } }
+    if (error instanceof ArtifactScopeMigrationError || (error !== null && typeof error === 'object' && (error as { code?: unknown }).code === 'legacy-scope-unmerged')) {
+      const legacyScopePath = error instanceof ArtifactScopeMigrationError ? error.legacyPath : typeof (error as { legacyPath?: unknown }).legacyPath === 'string' ? (error as { legacyPath: string }).legacyPath : 'runtime-artifacts'
+      try {
+        const legacy = await openLegacyLineageView(changeDir)
+        const attempts = await legacy.attempts()
+        return { attempts: attempts.map((attempt) => ({ stageId: attempt.stageId, stageAttemptId: attempt.stageAttemptId, workflowRunId: attempt.workflowRunId, startedAt: attempt.startedAt, lineageSource: 'legacy' as const })), compatibilityIssue: { kind: 'legacy-scope-unmerged', legacyScopePath } }
+      } catch {
+        return { attempts: [], compatibilityIssue: { kind: 'legacy-scope-unmerged', legacyScopePath } }
+      }
+    }
     throw error
   }
   if (service === undefined || service.attempts === undefined) return { attempts: [] }
   const attempts = await service.attempts()
-  const latest = new Map<string, { stageId: string; stageAttemptId: string; startedAt: string }>()
+  const latest = new Map<string, { stageId: string; stageAttemptId: string; workflowRunId?: string; startedAt: string }>()
   for (const attempt of attempts) {
     const prior = latest.get(attempt.stageId)
-    if (prior === undefined || prior.startedAt.localeCompare(attempt.startedAt) < 0) latest.set(attempt.stageId, attempt)
+    if (prior === undefined || prior.startedAt.localeCompare(attempt.startedAt) < 0) latest.set(attempt.stageId, { stageId: attempt.stageId, stageAttemptId: attempt.stageAttemptId, workflowRunId: attempt.workflowRunId, startedAt: attempt.startedAt })
   }
   return { attempts: [...latest.values()]
     .sort((left, right) => left.stageId.localeCompare(right.stageId))
-    .map(({ stageId, stageAttemptId }) => ({ stageId, stageAttemptId })) }
+    .map(({ stageId, stageAttemptId, workflowRunId, startedAt }) => ({ stageId, stageAttemptId, ...(workflowRunId === undefined ? {} : { workflowRunId }), ...(startedAt === undefined ? {} : { startedAt }) })) }
 }
 
 /**
@@ -318,7 +327,7 @@ async function scanAnchoredProject(
       ])
       if (artifactProjection.compatibilityIssue !== undefined) {
         if (compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
-          compatibilityIssues.push({ kind: 'legacy-scope-unmerged', change: e.name, legacyScopePath: artifactProjection.compatibilityIssue.legacyScopePath, action: 'merge-or-remove-legacy-scope' })
+          compatibilityIssues.push({ severity: 'warning', kind: 'legacy-scope-unmerged', change: e.name, legacyScopePath: artifactProjection.compatibilityIssue.legacyScopePath, action: 'merge-or-remove-legacy-scope' })
         } else compatibilityIssueOverflow += 1
       }
       const tasksProjection = await readTasksProjection(changeDir, {}, anchor)
@@ -360,6 +369,7 @@ async function scanAnchoredProject(
       if (error instanceof UnsupportedRunStateVersionError) {
         if (compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
           compatibilityIssues.push({
+            severity: 'blocking',
             kind: 'unsupported-canonical-version',
             change: e.name,
             foundVersion: error.foundVersion,
@@ -382,7 +392,7 @@ async function scanAnchoredProject(
   ))
   return {
     root,
-    ok: errors.length === 0 && compatibilityIssues.length === 0,
+    ok: errors.length === 0 && compatibilityIssues.every((issue) => issue.severity === 'warning'),
     changes,
     ...(repository === undefined ? {} : { repository }),
     ...(compatibilityIssues.length === 0 ? {} : { compatibilityIssues }),

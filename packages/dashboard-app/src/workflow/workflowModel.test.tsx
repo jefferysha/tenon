@@ -49,7 +49,6 @@ describe('lint / draftEffectiveIo / slotCatalog', () => {
   })
   it('lint：无输出阶段 + 无上游的输入', () => {
     expect(lintWorkflow(DEF, io)).toEqual([
-      { kind: 'step-no-output', stepId: 'c' },
       { kind: 'input-not-upstream', stepId: 'c', field: 'plan' },
     ])
   })

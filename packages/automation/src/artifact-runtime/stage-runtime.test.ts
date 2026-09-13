@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { StageArtifactRuntime, type ArtifactServicePort } from './stage-runtime.js'
+import { ARTIFACT_SUBJECT_REGISTRY_FILE } from '../submission/registry.js'
 
 describe('StageArtifactRuntime', () => {
   test('reconciles unknown writes and publishes only when explicitly requested', async () => {
@@ -55,6 +56,28 @@ describe('StageArtifactRuntime', () => {
       await runtime.reconcile()
       expect(observed).toEqual(['report.txt'])
       await expect(runtime.observePath('.orchestration-v2/event.json')).rejects.toThrow('ignored artifact path')
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  test('ignores the subject registry file during reconciliation', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'tenon-artifact-runtime-'))
+    const observed: string[] = []
+    const service: ArtifactServicePort = {
+      async beginAttempt() { return {} as never },
+      async observe(_id, content) {
+        observed.push(content.source?.path ?? '')
+        return { artifactId: 'a', version: 'v1', contentDigest: '0'.repeat(64), size: 1, mediaType: 'text/plain', kind: 'text', origin: 'unknown', contentUri: 'artifact://a/v1', disposition: 'candidate', quality: 'unchecked', createdAt: new Date().toISOString() }
+      },
+      async publish() { return {} as never },
+      async endAttempt() {},
+    }
+    try {
+      const runtime = await StageArtifactRuntime.open({ service, rootDir: root, workflowRunId: 'run', stageId: 'stage', stageAttemptId: 'attempt' })
+      await writeFile(path.join(root, ARTIFACT_SUBJECT_REGISTRY_FILE), '{"version":1,"records":[]}')
+      await writeFile(path.join(root, 'report.txt'), 'ok')
+      await runtime.reconcile()
+      expect(observed).toEqual(['report.txt'])
+      await expect(runtime.observePath(ARTIFACT_SUBJECT_REGISTRY_FILE)).rejects.toThrow('ignored artifact path')
     } finally { await rm(root, { recursive: true, force: true }) }
   })
 

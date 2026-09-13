@@ -2,7 +2,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ArtifactScopeMigrationError, openArtifactService } from './service.js'
+import { ArtifactScopeMigrationError, openArtifactService, openLegacyLineageView } from './service.js'
 import { artifactSubjectId } from '@tenon/kernel'
 import { artifactNamespaceForChange } from '../submission/namespace.js'
 import { recordArtifactSubjectProjection } from '../submission/registry.js'
@@ -307,6 +307,21 @@ describe('cross-attempt content reuse', () => {
       expect(published.version).toBe(first.version)
       expect(published.publisher?.stageAttemptId).toBe('build-1')
       expect((await svc.events()).filter((event) => event.type === 'artifact.observed' && event.attemptId === 'build-2')).toHaveLength(1)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+})
+
+describe('legacy lineage read-only view', () => {
+  it('reads legacy attempts and refuses all mutations without creating receipts', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-artifact-legacy-readonly-'))
+    try {
+      const writable = await openArtifactService({ rootDir: root, scopeId: 'runtime-artifacts', now: () => '2026-01-01T00:00:00.000Z' })
+      await writable.beginAttempt({ workflowRunId: 'run', stageId: 'build', stageAttemptId: 'legacy-attempt' })
+      const before = await readFile(join(root, '.pipeline-artifacts', 'runtime-artifacts', 'state.json'), 'utf8')
+      const readonly = await openLegacyLineageView(root)
+      await expect(readonly.attempts()).resolves.toEqual([expect.objectContaining({ stageAttemptId: 'legacy-attempt' })])
+      await expect(readonly.beginAttempt({ workflowRunId: 'run', stageId: 'build', stageAttemptId: 'other' })).rejects.toThrow('read-only')
+      await expect(readFile(join(root, '.pipeline-artifacts', 'runtime-artifacts', 'state.json'), 'utf8')).resolves.toBe(before)
     } finally { await rm(root, { recursive: true, force: true }) }
   })
 })

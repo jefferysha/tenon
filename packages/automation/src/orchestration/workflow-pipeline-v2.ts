@@ -40,6 +40,110 @@ export interface WorkflowPipelineBlueprintV2 {
   readonly stages: readonly WorkflowPipelineStageBlueprintV2[]
 }
 
+/** Minimal structural view of the dashboard workflow definition.  Keeping this
+ * boundary structural avoids a dashboard→automation package dependency while
+ * still making the workflow→pipeline identity explicit. */
+export interface WorkflowDefinitionBlueprintInputV2 {
+  readonly name: string
+  readonly steps: readonly {
+    readonly id: string
+    readonly label: string
+    readonly gate?: 'review' | 'auto' | null
+    readonly skills?: readonly { readonly id: string }[]
+    readonly transitions?: readonly { readonly to: string }[]
+  }[]
+}
+
+export interface WorkflowTrackBlueprintInputV2 {
+  readonly id: string
+  readonly revision?: string
+  readonly source?: PipelineSourceV2
+}
+
+export interface WorkflowBlueprintMappingV2 {
+  /** Explicitly supplied because a workflow step may own multiple work items. */
+  readonly workItemIdsByStep?: Readonly<Record<string, readonly string[]>>
+  readonly skillVersions?: Readonly<Record<string, string>>
+  readonly workflowVersion?: string
+  readonly pipelineVersion?: string
+  readonly pipelineId?: string
+}
+
+/** Resolve a step mapping after intent assessment has produced requirements.
+ * Callers should use this form when work-item identities are derived by the
+ * planner; constructing the mapping before assessment cannot be correct. */
+export type WorkflowBlueprintMappingResolverV2 =
+  (assessment: CapabilityAssessmentV2) => WorkflowBlueprintMappingV2
+
+/** Build the explicit blueprint consumed by materializeWorkflowPipelineV2.
+ * The mapping is intentionally supplied by the planner that owns assessment
+ * and graph records; this helper never guesses a step↔work-item 1:1 relation. */
+export function pipelineBlueprintFromWorkflowDef(
+  def: WorkflowDefinitionBlueprintInputV2,
+  track: WorkflowTrackBlueprintInputV2,
+  mapping: WorkflowBlueprintMappingV2 = {},
+): WorkflowPipelineBlueprintV2 {
+  const workflowVersion = mapping.workflowVersion ?? '1'
+  const pipelineVersion = mapping.pipelineVersion ?? workflowVersion
+  // A workflow definition may contain terminal/gate-only steps (for example
+  // `done` or `escalated`) which have no executable work items.  Only steps
+  // with an explicit mapping become pipeline stages; absence of a mapping is
+  // therefore a deliberate non-executable step rather than an error.
+  const executableSteps = def.steps.filter((step) => {
+    const workItemIds = mapping.workItemIdsByStep?.[step.id]
+    // An empty mapping carries no executable work. Treat it like an omitted
+    // mapping so terminal/gate-only steps cannot become invalid empty stages.
+    // A gate-only step has no skills to execute; even if a stale mapping names
+    // work items for it, materializing an empty skill set would fail later (or
+    // worse, create a stage that cannot produce a governed result). Keep such
+    // control-flow-only steps out of the executable blueprint up front.
+    return workItemIds !== undefined && workItemIds.length > 0 && (step.skills?.length ?? 0) > 0
+  })
+  const stages = executableSteps.map((step, executableIndex) => {
+    const workItemIds = mapping.workItemIdsByStep![step.id]!
+    const skills = (step.skills ?? []).map((skill, skillIndex) => ({
+      skill_id: skill.id,
+      skill_version: mapping.skillVersions?.[skill.id] ?? 'unversioned',
+      role: 'user' as const,
+      source: 'user' as const,
+      mode: 'serial' as const,
+      depends_on: [],
+      mcp_ids: [],
+      validator_ids: [],
+      order: skillIndex,
+    }))
+    // `transitions` also encode rejection/rollback edges in Tenon.  Treating
+    // every incoming edge as a dependency creates cycles (e.g. verify →
+    // change), so the blueprint follows the workflow's forward linear order
+    // and links each executable stage to the preceding executable stage.
+    const dependencies = executableIndex === 0 ? [] : [executableSteps[executableIndex - 1]!.id]
+    return {
+      stage_id: step.id,
+      name: step.label,
+      ordinal: executableIndex,
+      execution_mode: 'serial' as const,
+      depends_on: dependencies,
+      work_item_ids: [...workItemIds],
+      gate: step.gate === 'review' ? 'review' as const : 'none' as const,
+      skills,
+      input_refs: [],
+      output_refs: workItemIds.map((id) => `result:${id}`),
+    }
+  })
+  return {
+    workflow_id: def.name,
+    workflow_version: workflowVersion,
+    workflow_source: 'user',
+    track_id: track.id,
+    track_revision: track.revision ?? '1',
+    track_source: track.source ?? 'project',
+    pipeline_id: mapping.pipelineId ?? `${def.name}:${track.id}:main`,
+    pipeline_version: pipelineVersion,
+    pipeline_source: 'user',
+    stages,
+  }
+}
+
 export interface PipelineIdentityV2 {
   readonly workflow_id: string
   readonly workflow_version: string

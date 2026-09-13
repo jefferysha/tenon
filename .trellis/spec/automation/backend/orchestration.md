@@ -153,3 +153,81 @@ state = applyBoardCommand(state, recordValidationCommand(validatorReport)).state
 ### Host attribution boundary
 
 A `managed-tool` attribution is valid only when the host supplies an allow-listed completion path. Codex `command_execution` events may be pathless; those events trigger at most one bounded reconcile per execution turn and remain recorded as `reconcile`/`unknown` provenance. The runtime must not infer a tool-owned path from an unstructured payload.
+
+## Workflow blueprint boundary
+
+### 1. Scope / trigger
+
+This contract applies when a dashboard or host-owned workflow definition is frozen into a V2
+pipeline blueprint. It protects the distinction between workflow control-flow transitions and
+executable work stages.
+
+### 2. Signatures
+
+`pipelineBlueprintFromWorkflowDef(def, track, mapping)` accepts a structural workflow definition,
+track identity, and an explicit `workItemIdsByStep` mapping. A step becomes a pipeline stage only
+when its entry exists and contains at least one work-item id. `AutonomousOrchestratorV2` accepts the
+same definition and track; its mapping may be a resolver `(assessment) => mapping`, which is called
+after assessment so it can use canonical requirement identities. The CLI
+`orchestration freeze-pipeline <change> --pipeline <json>` command is a durable writer for a
+planner-produced, codec-validated pipeline and does not infer missing records.
+The server endpoint `POST /api/orchestration/changes/:change/freeze-pipeline` accepts
+`root`, `request`, `context`, `catalog`, `workflow_definition`, `workflow_track`, and
+`workflow_blueprint_mapping` (`capabilitiesByStep` or `workItemIdsByStep`), then performs the same
+assessment/materialization sequence before appending prerequisite records and `freeze-pipeline`.
+
+### 3. Contracts
+
+- Stage `stage_id` is exactly the executable workflow step `id`.
+- `work_item_ids` is copied from the explicit mapping; the helper never guesses a step-to-item
+  one-to-one relationship.
+- Stage dependencies follow the preceding executable step in definition order.
+- `transitions` are workflow control-flow, including send-back/rejection edges, and are not treated
+  as dependency edges for pipeline ordering.
+- Steps with missing or empty mappings (terminal steps such as `done` or `escalated`, and gate-only
+  steps) are omitted from the executable pipeline.
+
+### 4. Validation & error matrix
+
+| Condition | Required behavior |
+| --- | --- |
+| Forward executable step with a non-empty mapping | Emit one serial stage with the preceding executable stage as its dependency. |
+| Incoming transition points to an earlier step | Ignore it for `depends_on`; the blueprint must remain acyclic. |
+| Mapping is missing or empty | Omit the step; do not emit an empty stage and do not throw solely for that omission. |
+| Mapping names a work item that cannot be resolved by the planner graph | Planner/materializer rejects the plan with its existing binding error. |
+| No planner owner supplies request/context/catalog records | Do not fabricate a blueprint; the server freeze endpoint may persist only a complete planner-produced pipeline, while workflow-to-blueprint planning remains at the automation boundary. |
+
+### 5. Good / base / bad cases
+
+- Good: `change -> verify -> done`, with mappings for `change` and `verify`, plus a `verify -> change`
+  rollback transition, produces stages `change`, `verify` and dependency `change -> verify` only.
+- Base: a workflow contains only terminal or gate-only steps without mappings; the blueprint has no
+  executable stages and the caller can report that no runnable work was selected.
+- Bad: deriving dependencies from every incoming transition makes `verify -> change` a reverse
+  dependency and causes materialization to fail with an invalid dependency order.
+
+### 6. Tests required
+
+- Unit test a rollback transition and assert no reverse dependency is emitted.
+- Unit test missing and empty terminal-step mappings and assert those steps are absent.
+- Integration test `AutonomousOrchestratorV2` with a workflow definition and explicit mapping and
+  assert the frozen pipeline uses step ids.
+- Keep a separate integration acceptance test for the server/CLI owner that supplies the planner
+  records before marking the production freeze path complete.
+
+### 7. Wrong vs correct
+
+#### Wrong
+
+```ts
+const depends_on = def.steps
+  .filter((candidate) => candidate.transitions?.some((edge) => edge.to === step.id))
+  .map((candidate) => candidate.id)
+```
+
+#### Correct
+
+```ts
+const executable = def.steps.filter((step) => (mapping.workItemIdsByStep?.[step.id]?.length ?? 0) > 0)
+const depends_on = index === 0 ? [] : [executable[index - 1]!.id]
+```

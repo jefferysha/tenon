@@ -19,6 +19,7 @@ import {
   createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest, loadTrackRegistry, loadWorkflow,
   fingerprintWorkspace, mutateTrackRegistry, readSecrets, registerProjectRoot,
   createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
+  type BoardCommandV2, type BoardSnapshotV2, type WorkflowPipelinePlanV2,
   withTrackRegistryLock,
 } from '@tenon/kernel'
 import {
@@ -157,6 +158,21 @@ async function main(): Promise<void> {
   })
   const deps: CliDeps = {
     orchestrationRuntime: async (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: createOrchestrationLedger(), worker_id: `cli:${process.pid}` }),
+    orchestrationFreezePipeline: async ({ changeDir, pipeline }: { readonly changeDir: string; readonly pipeline: WorkflowPipelinePlanV2 }): Promise<BoardSnapshotV2> => {
+      const ledger = createOrchestrationLedger()
+      const snapshot = await ledger.readSnapshot(changeDir)
+      if (snapshot === undefined) throw new Error('orchestration ledger 未初始化')
+      const commandId = `cli:freeze-pipeline:${pipeline.pipeline_id}:${pipeline.pipeline_version}`
+      const command: BoardCommandV2 = {
+        schema_version: 'board-command/v2', command_id: commandId, idempotency_key: `idem:${commandId}`,
+        expected_revision: snapshot.revision, actor: { kind: 'user', id: 'cli' }, issued_at: isoNow(),
+        correlation_id: snapshot.correlation_id, ...(snapshot.event_head_id === undefined ? {} : { causation_id: snapshot.event_head_id }),
+        change_id: snapshot.change_id, type: 'freeze-pipeline', pipeline,
+      }
+      const result = await ledger.append(changeDir, command)
+      if (result.kind === 'rejected') throw new Error(`${result.rejection.reason_code}: ${result.rejection.message}`)
+      return result.snapshot
+    },
     artifactSubmission: async ({ changeDir, phase, policy }) => {
       const namespace = artifactNamespaceForChange(changeDir)
       return openArtifactSubmissionService({

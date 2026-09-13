@@ -3,6 +3,7 @@ import { readFile, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { ArtifactAttempt, ArtifactCatalog, ArtifactContent, ArtifactEvent, ArtifactPolicy, ArtifactVersion } from '@tenon/kernel'
 import type { ArtifactInspection } from '../artifacts/service.js'
+import { ARTIFACT_SUBJECT_REGISTRY_FILE } from '../submission/registry.js'
 
 /** Minimal structural port implemented by the durable artifact service. */
 export interface ArtifactServicePort {
@@ -32,6 +33,8 @@ export interface StageRuntimeOptions {
   readonly actorId?: string
   /** Directory names that are runtime/system state rather than user artifacts. */
   readonly ignoredDirectories?: readonly string[]
+  /** File names that are runtime/system state rather than user artifacts. */
+  readonly ignoredFiles?: readonly string[]
 }
 
 export interface ArtifactChange { readonly path: string; readonly kind: 'created' | 'changed' | 'deleted'; readonly digest?: string }
@@ -48,6 +51,7 @@ export class StageArtifactRuntime {
   private readonly skillId?: string
   private readonly actorId?: string
   private readonly ignoredDirectories: ReadonlySet<string>
+  private readonly ignoredFiles: ReadonlySet<string>
   private baseline = new Map<string, string>()
   private readonly artifactIdsByPath = new Map<string, string>()
   private readonly observedDigestsByPath = new Map<string, string>()
@@ -63,6 +67,7 @@ export class StageArtifactRuntime {
     this.skillId = options.skillId
     this.actorId = options.actorId
     this.ignoredDirectories = new Set(['.git', '.pipeline-artifacts', '.tenon-artifacts', '.orchestration-v2', ...(options.ignoredDirectories ?? [])])
+    this.ignoredFiles = new Set([ARTIFACT_SUBJECT_REGISTRY_FILE, ...(options.ignoredFiles ?? [])])
   }
 
   static async open(options: StageRuntimeOptions): Promise<StageArtifactRuntime> {
@@ -217,7 +222,8 @@ export class StageArtifactRuntime {
   }
 
   private isIgnored(relative: string): boolean {
-    return relative.split(path.sep).some(segment => this.ignoredDirectories.has(segment))
+    const segments = relative.split(path.sep)
+    return segments.some(segment => this.ignoredDirectories.has(segment)) || this.ignoredFiles.has(segments[segments.length - 1] ?? '')
   }
 
   private async snapshot(): Promise<Map<string, string>> {

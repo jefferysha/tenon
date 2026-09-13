@@ -15,7 +15,7 @@ import { ArtifactCatalogPanel } from '../workspace/ArtifactCatalogPanel'
 export interface StageEditorPaneProps {
   editor: WorkflowEditor
   step: WbStepDef
-  runtimeContext?: { readonly root: string; readonly change: string; readonly attempts: ReadonlyArray<{ readonly stageId: string; readonly stageAttemptId: string }> }
+  runtimeContext?: { readonly root: string; readonly change: string; readonly attempts: ReadonlyArray<{ readonly stageId: string; readonly stageAttemptId: string; readonly workflowRunId?: string; readonly startedAt?: string; readonly lineageSource?: 'legacy' }> }
 }
 
 const GATES: Array<{ gate: WbStepDef['gate']; key: 'none' | 'review' | 'auto'; icon: LucideIcon }> = [
@@ -194,7 +194,7 @@ export function StageEditorPane({ editor, step, runtimeContext }: StageEditorPan
           <section className="grid gap-3.5 py-6" data-testid="workflow-runtime-artifacts">
             <SectionHead title={t('workflow.runtime_artifacts_title')} />
             {runtimeContext && runtimeAttempt
-              ? <ArtifactCatalogPanel root={runtimeContext.root} change={runtimeContext.change} stageAttemptId={runtimeAttempt.stageAttemptId} includeCandidates historyReference={{ stageAttemptId: runtimeAttempt.stageAttemptId }} />
+              ? <ArtifactCatalogPanel root={runtimeContext.root} change={runtimeContext.change} stageAttemptId={runtimeAttempt.stageAttemptId} includeCandidates historyReference={{ stageAttemptId: runtimeAttempt.stageAttemptId, ...(runtimeAttempt.workflowRunId ? { workflowRunId: runtimeAttempt.workflowRunId } : {}), ...(runtimeAttempt.startedAt ? { startedAt: runtimeAttempt.startedAt } : {}), ...(runtimeAttempt.lineageSource === 'legacy' ? { lineageSource: 'legacy' as const } : {}) }} />
               : runtimeContext
                 ? <p className="text-body text-text-3" data-testid="workflow-runtime-artifacts-unavailable">{t('workflow.runtime_artifacts_unavailable')}</p>
               : <p className="text-body text-text-3" data-testid="workflow-runtime-artifacts-empty">{t('workflow.runtime_artifacts_empty')}</p>}

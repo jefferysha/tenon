@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 import type { CliDeps } from './deps.js'
 import { bail } from './program-exit.js'
-import { cmdOrchestrationBindArtifact, cmdOrchestrationControl, cmdOrchestrationEvents, cmdOrchestrationGate, cmdOrchestrationInit, cmdOrchestrationRetry, cmdOrchestrationRun, cmdOrchestrationStatus, cmdOrchestrationWatch, parseOrchestrationAfter } from './commands/orchestration.js'
+import { cmdOrchestrationBindArtifact, cmdOrchestrationControl, cmdOrchestrationEvents, cmdOrchestrationFreezePipeline, cmdOrchestrationGate, cmdOrchestrationInit, cmdOrchestrationRetry, cmdOrchestrationRun, cmdOrchestrationStatus, cmdOrchestrationWatch, parseOrchestrationAfter } from './commands/orchestration.js'
 
 export function registerOrchestrationCommands(program: Command, deps: CliDeps): void {
   const orchestration = program.command('orchestration').description('V2 durable orchestration：start / status / watch / events / controls')
@@ -11,6 +11,7 @@ export function registerOrchestrationCommands(program: Command, deps: CliDeps): 
     bail(after < 0 ? 1 : await cmdOrchestrationEvents(deps, change, after, opts.json === true))
   })
   orchestration.command('init <change>').requiredOption('--project <id>').requiredOption('--correlation <id>').action(async (change: string, opts: { project: string; correlation: string }) => bail(await cmdOrchestrationInit(deps, change, opts.project, opts.correlation)))
+  orchestration.command('freeze-pipeline <change>').option('--pipeline <json>', 'planner 已生成的 WorkflowPipelinePlanV2 JSON').option('--pipeline-file <path>', '从文件读取 JSON；传 - 从 stdin 读取').action(async (change: string, opts: { pipeline?: string; pipelineFile?: string }) => bail(await cmdOrchestrationFreezePipeline(deps, change, opts.pipeline, opts.pipelineFile)))
   orchestration.command('watch <change>').option('--follow', '持续跟随直到终态').option('--json', 'JSON 输出').action(async (change: string, opts: { follow?: boolean; json?: boolean }) => bail(await cmdOrchestrationWatch(deps, change, opts.json === true, opts.follow === true)))
   orchestration.command('start <change>').action(async (change: string) => bail(await cmdOrchestrationControl(deps, change, 'start-change', 'operator-start')))
   orchestration.command('run <change>').description('使用生产 runtime 执行已初始化的 change').action(async (change: string) => bail(await cmdOrchestrationRun(deps, change)))

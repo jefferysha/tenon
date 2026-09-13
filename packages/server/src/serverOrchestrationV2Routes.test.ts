@@ -116,4 +116,48 @@ describe('orchestration v2 route boundary', () => {
     expect(result).toMatchObject({ status: 200, body: { ok: true, snapshot } })
     expect(runChange).toHaveBeenCalledWith('/repo/openspec/changes/change-1')
   })
+
+  it('freezes an explicit planner pipeline through the durable server callback', async () => {
+    const pipeline = { schema_version: 'workflow-pipeline/v2', pipeline_id: 'p-1', pipeline_version: '1', status: 'frozen' }
+    const freezePipeline = vi.fn(async (dir: string, value: unknown) => {
+      expect(dir).toBe('/repo/openspec/changes/change-1')
+      expect(value).toBe(pipeline)
+      return { ...snapshot, pipeline: value as never }
+    })
+    const result = await resolveOrchestrationV2PostRoute(
+      '/api/orchestration/changes/change-1/freeze-pipeline',
+      { root: '/repo', pipeline }, deps({ freezePipeline }),
+    )
+    expect(result).toMatchObject({ status: 200, body: { ok: true, snapshot: { pipeline } } })
+    expect(freezePipeline).toHaveBeenCalledOnce()
+    await expect(resolveOrchestrationV2PostRoute(
+      '/api/orchestration/changes/change-1/freeze-pipeline', { root: '/repo' }, deps({ freezePipeline }),
+    )).resolves.toMatchObject({ status: 400, body: { code: 'ORCHESTRATION_V2_FREEZE_BODY_INVALID' } })
+  })
+
+  it('passes planner-owned workflow inputs to the production freeze seam', async () => {
+    const freezeWorkflow = vi.fn(async (dir: string, input: { request: unknown; context: unknown; catalog: unknown; workflow_definition: unknown; workflow_track: unknown }) => {
+      expect(dir).toBe('/repo/openspec/changes/change-1')
+      expect(input.workflow_definition).toEqual({ name: 'simple', steps: [] })
+      return snapshot
+    })
+    const body = {
+      root: '/repo', request: { request_id: 'r' }, context: { record_id: 'c' }, catalog: { skills: [], mcps: [] },
+      workflow_definition: { name: 'simple', steps: [] }, workflow_track: { id: 'backend' },
+      workflow_blueprint_mapping: { capabilitiesByStep: {} },
+    }
+    const result = await resolveOrchestrationV2PostRoute('/api/orchestration/changes/change-1/freeze-pipeline', body, deps({ freezeWorkflow }))
+    expect(result).toMatchObject({ status: 200, body: { ok: true } })
+    expect(freezeWorkflow).toHaveBeenCalledOnce()
+    await expect(resolveOrchestrationV2PostRoute('/api/orchestration/changes/change-1/freeze-pipeline', { root: '/repo', request: {} }, deps({ freezeWorkflow }))).resolves.toMatchObject({ status: 400, body: { code: 'ORCHESTRATION_V2_FREEZE_BODY_INVALID' } })
+  })
+
+  it('does not call an absent explicit pipeline seam', async () => {
+    const result = await resolveOrchestrationV2PostRoute(
+      '/api/orchestration/changes/change-1/freeze-pipeline',
+      { root: '/repo', pipeline: { schema_version: 'workflow-pipeline/v2' } },
+      deps({ freezeWorkflow: vi.fn() }),
+    )
+    expect(result).toMatchObject({ status: 503, body: { code: 'ORCHESTRATION_V2_FREEZE_PIPELINE_UNAVAILABLE' } })
+  })
 })

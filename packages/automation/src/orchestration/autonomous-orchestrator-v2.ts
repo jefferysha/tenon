@@ -1,5 +1,6 @@
 import { createOrchestrationLedger, digestAggregate, type BoardCommandV2, type BoardSnapshotV2, type CapabilityResolutionV2, type DevelopmentRequestV2, type OrchestrationLedger, type RepositoryContextV2, type WorkGraphV2 } from '@tenon/kernel'
 import { assessDevelopmentIntentV2, planDevelopmentV2, type PlannerCatalogInputV2, type PlannerPlanSuccessV2, type WorkflowPipelineBlueprintV2 } from './planner-v2.js'
+import { pipelineBlueprintFromWorkflowDef, type WorkflowBlueprintMappingResolverV2, type WorkflowBlueprintMappingV2, type WorkflowDefinitionBlueprintInputV2, type WorkflowTrackBlueprintInputV2 } from './workflow-pipeline-v2.js'
 import { createExecutionRuntimeV2, type ExecutionRuntimeOptionsV2, type ExecutionRuntimeResultV2 } from './runtime-v2.js'
 
 export interface AutonomousOrchestratorV2Options extends Omit<ExecutionRuntimeOptionsV2, 'ledger' | 'change_dir'> {
@@ -12,6 +13,15 @@ export interface AutonomousOrchestratorV2Options extends Omit<ExecutionRuntimeOp
   readonly graph_id?: string
   readonly plan_revision_id?: string
   readonly pipeline_blueprint?: WorkflowPipelineBlueprintV2
+  /** Optional workflow source used by the production planner to freeze a blueprint. */
+  readonly workflow_definition?: WorkflowDefinitionBlueprintInputV2
+  readonly workflow_track?: WorkflowTrackBlueprintInputV2
+  /**
+   * Mapping may be resolved after assessment so callers can use the planner's
+   * canonical requirement/work-item identities. The object form remains for
+   * already materialized plans and backwards compatibility.
+   */
+  readonly workflow_blueprint_mapping?: WorkflowBlueprintMappingV2 | WorkflowBlueprintMappingResolverV2
 }
 
 export type AutonomousOrchestrationOutcomeV2 =
@@ -41,7 +51,16 @@ export class AutonomousOrchestratorV2 {
     if (identityIssues.length > 0) return { ok: false, stage: 'identity', snapshot, issues: identityIssues }
     const assessment = assessDevelopmentIntentV2({ request, context, assessment_id: this.options.assessment_id ?? `assessment:${request.change_id}`, assessed_at: context.created_at })
     if (assessment.normalization !== 'complete') return { ok: false, stage: 'planning', snapshot, issues: assessment.questions.filter((question) => question.blocking).map((question) => question.id) }
-    const plan = planDevelopmentV2({ request, context, assessment, catalog: this.options.catalog, graph_id: this.options.graph_id ?? `graph:${request.change_id}`, plan_revision_id: this.options.plan_revision_id ?? `revision:${request.change_id}`, now: context.created_at, pipeline_blueprint: this.options.pipeline_blueprint })
+    let pipelineBlueprint: WorkflowPipelineBlueprintV2 | undefined = this.options.pipeline_blueprint
+    if (pipelineBlueprint === undefined && this.options.workflow_definition !== undefined && this.options.workflow_track !== undefined) {
+      const mapping = typeof this.options.workflow_blueprint_mapping === 'function'
+        ? this.options.workflow_blueprint_mapping(assessment)
+        : this.options.workflow_blueprint_mapping
+      if (mapping === undefined) return { ok: false, stage: 'planning', snapshot, issues: ['workflow-blueprint-mapping-required'] }
+      pipelineBlueprint = pipelineBlueprintFromWorkflowDef(this.options.workflow_definition, this.options.workflow_track, mapping)
+      if (pipelineBlueprint.stages.length === 0) return { ok: false, stage: 'planning', snapshot, issues: ['workflow-blueprint-mapping-empty'] }
+    }
+    const plan = planDevelopmentV2({ request, context, assessment, catalog: this.options.catalog, graph_id: this.options.graph_id ?? `graph:${request.change_id}`, plan_revision_id: this.options.plan_revision_id ?? `revision:${request.change_id}`, now: context.created_at, pipeline_blueprint: pipelineBlueprint })
     if (!plan.ok) return { ok: false, stage: 'planning', snapshot, issues: plan.issues }
     const persistedPlanIssues = [
       snapshot.assessment !== undefined && digestAggregate(snapshot.assessment) !== digestAggregate(plan.assessment) ? 'persisted-assessment-mismatch' : '',

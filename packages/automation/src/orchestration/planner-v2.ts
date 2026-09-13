@@ -153,7 +153,9 @@ function taskIdentifier(value: string): string {
   const normalized = value.normalize('NFC').replace(/[^\p{L}\p{N}._-]+/gu, '-')
   return normalized.replace(/-{2,}/gu, '-').replace(/^-+|-+$/gu, '') || 'plan'
 }
-function workIdentifier(requirementId: string): string { return `work-${taskIdentifier(requirementId)}` }
+/** Stable work-item identity shared by planner consumers that bind workflow steps. */
+export function workItemIdentifierV2(requirementId: string): string { return `work-${taskIdentifier(requirementId)}` }
+const workIdentifier = workItemIdentifierV2
 function acceptanceIdentifier(acceptanceId: string): string { return `acceptance-${taskIdentifier(acceptanceId)}` }
 function text(value: unknown, label: string, pattern = ID, max = 8_192): string {
   if (typeof value !== 'string' || value.length === 0 || value.trim() !== value || value.length > max || !pattern.test(value)) {
@@ -480,17 +482,23 @@ export function resolvePlannerCapabilitiesV2(input: ResolvePlannerCapabilitiesIn
   return resolution
 }
 export function planDevelopmentV2(input: PlannerPlanInputV2): PlannerPlanOutcomeV2 {
-  const normalized = normalizeCapabilityCatalogV2(input.catalog)
+  let normalized: CatalogNormalizationOutcome
+  if (input.catalog !== null && typeof input.catalog === 'object' && 'schema_version' in input.catalog && input.catalog.schema_version === PLANNER_CATALOG_SCHEMA_V2) {
+    try { normalized = { ok: true, catalog: catalogOrThrow(input.catalog) } } catch (error) {
+      normalized = { ok: false, code: 'catalog-invalid', issues: [error instanceof Error ? error.message : 'catalog is invalid'] }
+    }
+  } else normalized = normalizeCapabilityCatalogV2(input.catalog)
   if (!normalized.ok) return normalized
+  const catalog = normalized.catalog
   try {
     const assessment = input.assessment
     const identity = defaultPipelineIdentity(input.request, assessment)
     const pipeline_id = text(input.pipeline_blueprint?.pipeline_id ?? identity.pipeline_id, 'pipeline_id')
-    const plan = buildPlan({ ...input, catalog: normalized.catalog, pipeline_id }, normalized.catalog)
-    const resolution = resolvePlannerCapabilitiesV2({ ...input, assessment, graph: plan.graph, catalog: normalized.catalog })
-    if (resolution.status !== 'resolved') return { ok: true, assessment, graph: plan.graph, task_plan: plan.task_plan, resolution, catalog: normalized.catalog }
-    const pipeline = materializeWorkflowPipelineV2({ request: input.request, assessment, graph: plan.graph, resolution, catalog: normalized.catalog, now: input.now, identity, pipeline_blueprint: input.pipeline_blueprint })
-    return { ok: true, assessment, graph: plan.graph, task_plan: plan.task_plan, resolution, catalog: normalized.catalog, pipeline }
+    const plan = buildPlan({ ...input, catalog, pipeline_id }, catalog)
+    const resolution = resolvePlannerCapabilitiesV2({ ...input, assessment, graph: plan.graph, catalog })
+    if (resolution.status !== 'resolved') return { ok: true, assessment, graph: plan.graph, task_plan: plan.task_plan, resolution, catalog }
+    const pipeline = materializeWorkflowPipelineV2({ request: input.request, assessment, graph: plan.graph, resolution, catalog, now: input.now, identity, pipeline_blueprint: input.pipeline_blueprint })
+    return { ok: true, assessment, graph: plan.graph, task_plan: plan.task_plan, resolution, catalog, pipeline }
   } catch (error) { return { ok: false, code: 'planner-invalid', issues: [error instanceof Error ? error.message : 'planner failed'] } }
 }
 export const inferCapabilityAssessmentV2 = assessDevelopmentIntentV2

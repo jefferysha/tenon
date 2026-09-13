@@ -238,6 +238,12 @@ The runtime catalog is bounded and versioned. Selecting an entry reads content t
 not create execution consumption receipts. Any new UI surface must consume this projection instead of reimplementing
 filesystem scans or deriving output contracts from skill text.
 
+When a stage has a runtime attempt, the editor resolves the attempt by the frozen blueprint's
+`stage_id` (which equals the workflow step id); it must not send a draft step id to the server and
+ask the server to guess. A missing match is rendered as an explicit “no associated run” state. Any
+historical lineage view must use translation keys for its label and show the exact run/attempt
+provenance supplied by the snapshot; artifact creation time is not a substitute for run time.
+
 ## Styling patterns
 
 - Tokens only (`text-text-2`, `bg-accent-t`, `border-border`, `bg-seg-now` …); no hex in components.

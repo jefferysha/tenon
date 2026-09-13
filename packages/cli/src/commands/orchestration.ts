@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { createOrchestrationLedger, type BoardCommandV2, type BoardSnapshotV2, type GateEvaluationV2 } from '@tenon/kernel'
+import { readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
+import { createOrchestrationLedger, decodeWorkflowPipelineV2, type BoardCommandV2, type BoardSnapshotV2, type GateEvaluationV2, type WorkflowPipelinePlanV2 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 
@@ -55,6 +57,38 @@ export async function cmdOrchestrationInit(deps: CliDeps, change: string, projec
   const snapshot = await createOrchestrationLedger().initialize(dir, { project_id: project, change_id: change, correlation_id: correlation, updated_at: deps.clock() })
   printSnapshot(deps, snapshot, true)
   return 0
+}
+
+/** Freeze a planner-produced pipeline through the durable ledger boundary. */
+export async function cmdOrchestrationFreezePipeline(deps: CliDeps, change: string, pipelineJson?: string, pipelineFile?: string): Promise<number> {
+  const dir = ledgerDir(deps, change)
+  if (!dir || deps.orchestrationFreezePipeline === undefined) {
+    deps.io.err('ERROR: orchestration freeze-pipeline 未装配')
+    return 1
+  }
+  if ((pipelineJson === undefined) === (pipelineFile === undefined)) {
+    deps.io.err('ERROR: freeze-pipeline 必须且只能指定 --pipeline 或 --pipeline-file')
+    return 1
+  }
+  let pipeline: WorkflowPipelinePlanV2
+  try {
+    const source = pipelineFile === undefined ? pipelineJson! : pipelineFile === '-' ? readFileSync(0, 'utf8') : await readFile(pipelineFile, 'utf8')
+    const parsed: unknown = JSON.parse(source)
+    const decoded = decodeWorkflowPipelineV2(parsed)
+    if (!decoded.ok) throw new Error(decoded.errors.map((entry) => `${entry.path}:${entry.code}`).join(', '))
+    pipeline = decoded.value
+  } catch (error) {
+    deps.io.err(`ERROR: pipeline JSON 无效: ${error instanceof Error ? error.message : String(error)}`)
+    return 1
+  }
+  try {
+    const snapshot = await deps.orchestrationFreezePipeline({ changeDir: dir, pipeline })
+    deps.io.out(JSON.stringify({ schema_version: 'orchestration-cli-freeze-pipeline/v2', ok: true, snapshot }))
+    return 0
+  } catch (error) {
+    deps.io.err(`ERROR: freeze-pipeline 失败: ${error instanceof Error ? error.message : String(error)}`)
+    return 1
+  }
 }
 
 export async function cmdOrchestrationControl(deps: CliDeps, change: string, type: ControlType, reason: string): Promise<number> {

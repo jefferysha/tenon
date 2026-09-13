@@ -30,6 +30,22 @@ export interface OrchestrationV2RouteDeps {
   readonly streamHeartbeatMs?: number
   /** Shared production runtime entry; absent in read-only test harnesses. */
   readonly runChange?: (changeDir: string) => Promise<ExecutionRuntimeResultV2>
+  /** Planner-owned explicit freeze seam; payload must contain a complete pipeline. */
+  readonly freezePipeline?: (changeDir: string, pipeline: unknown) => Promise<BoardSnapshotV2>
+  /** Planner-owned freeze boundary. The callback must assess and materialize before appending. */
+  readonly freezeWorkflow?: (changeDir: string, input: FreezeWorkflowInputV2) => Promise<BoardSnapshotV2>
+}
+
+export interface FreezeWorkflowInputV2 {
+  readonly request: unknown
+  readonly context: unknown
+  readonly catalog: unknown
+  readonly workflow_definition: unknown
+  readonly workflow_track: unknown
+  readonly workflow_blueprint_mapping?: unknown
+  readonly assessment_id?: unknown
+  readonly graph_id?: unknown
+  readonly plan_revision_id?: unknown
 }
 
 export interface OrchestrationV2HttpRouteDeps extends OrchestrationV2RouteDeps {
@@ -71,8 +87,8 @@ function rootCheck(deps: OrchestrationV2RouteDeps, root: string): Extract<Workfl
   return checked
 }
 
-function parseChange(path: string): { kind: 'change' | 'events' | 'stream' | 'commands' | 'metrics' | 'run'; changeId: string } | OrchestrationV2RouteResult | null {
-  const match = /^\/api\/orchestration\/changes\/([^/]+)(?:\/(events|stream|commands|metrics|run))?$/.exec(path)
+function parseChange(path: string): { kind: 'change' | 'events' | 'stream' | 'commands' | 'metrics' | 'run' | 'freeze'; changeId: string } | OrchestrationV2RouteResult | null {
+  const match = /^\/api\/orchestration\/changes\/([^/]+)(?:\/(events|stream|commands|metrics|run|freeze-pipeline))?$/.exec(path)
   if (!match) return null
   const encoded = match[1]
   if (encoded === undefined) return failure(400, 'ORCHESTRATION_V2_CHANGE_INVALID', '非法 change 路径')
@@ -80,7 +96,7 @@ function parseChange(path: string): { kind: 'change' | 'events' | 'stream' | 'co
   try { changeId = decodeURIComponent(encoded) } catch { return failure(400, 'ORCHESTRATION_V2_CHANGE_INVALID', '非法 change 路径') }
   if (!validChangeId(changeId)) return failure(400, 'ORCHESTRATION_V2_CHANGE_INVALID', '非法 change 名')
   const suffix = match[2]
-  return { kind: suffix === 'events' ? 'events' : suffix === 'stream' ? 'stream' : suffix === 'commands' ? 'commands' : suffix === 'metrics' ? 'metrics' : suffix === 'run' ? 'run' : 'change', changeId }
+  return { kind: suffix === 'events' ? 'events' : suffix === 'stream' ? 'stream' : suffix === 'commands' ? 'commands' : suffix === 'metrics' ? 'metrics' : suffix === 'run' ? 'run' : suffix === 'freeze-pipeline' ? 'freeze' : 'change', changeId }
 }
 
 function parseCursor(value: string | null, label: string): number | OrchestrationV2RouteResult {
@@ -233,6 +249,38 @@ export async function resolveOrchestrationV2PostRoute(path: string, body: unknow
       return { status: result.ok ? 200 : 422, body: { ok: result.ok, snapshot: result.snapshot, diagnostics: result.diagnostics } }
     } catch { return failure(500, 'ORCHESTRATION_V2_RUNTIME_FAILED', 'production orchestration run failed') }
   }
+  if (parsed.kind === 'freeze') {
+    if (deps.freezeWorkflow === undefined && deps.freezePipeline === undefined) return failure(503, 'ORCHESTRATION_V2_FREEZE_UNAVAILABLE', 'production pipeline freezer unavailable')
+    if (!isRecord(body) || body.root === undefined) return failure(400, 'ORCHESTRATION_V2_FREEZE_BODY_INVALID', 'freeze-pipeline body 必须包含 root')
+    const root = readRootFromBody(body)
+    if (typeof root !== 'string') return root
+    const checked = rootCheck(deps, root)
+    if ('status' in checked) return checked
+    try {
+      let snapshot: BoardSnapshotV2
+      if (deps.freezeWorkflow !== undefined && body.pipeline === undefined) {
+        const required = ['request', 'context', 'catalog', 'workflow_definition', 'workflow_track', 'workflow_blueprint_mapping'] as const
+        if (required.some((key) => body[key] === undefined)) return failure(400, 'ORCHESTRATION_V2_FREEZE_BODY_INVALID', 'freeze-pipeline body 必须包含 request、context、catalog、workflow_definition、workflow_track、workflow_blueprint_mapping')
+        const allowed = new Set(['root', 'request', 'context', 'catalog', 'workflow_definition', 'workflow_track', 'workflow_blueprint_mapping', 'assessment_id', 'graph_id', 'plan_revision_id'])
+        if (Object.keys(body).some((key) => !allowed.has(key))) return failure(400, 'ORCHESTRATION_V2_FREEZE_BODY_INVALID', 'freeze-pipeline body 含未知字段')
+        snapshot = await deps.freezeWorkflow(changeDir(checked.anchor, parsed.changeId), {
+          request: body.request, context: body.context, catalog: body.catalog,
+          workflow_definition: body.workflow_definition, workflow_track: body.workflow_track,
+          ...(body.workflow_blueprint_mapping === undefined ? {} : { workflow_blueprint_mapping: body.workflow_blueprint_mapping }),
+          ...(body.assessment_id === undefined ? {} : { assessment_id: body.assessment_id }),
+          ...(body.graph_id === undefined ? {} : { graph_id: body.graph_id }),
+          ...(body.plan_revision_id === undefined ? {} : { plan_revision_id: body.plan_revision_id }),
+        })
+      } else {
+        if (deps.freezePipeline === undefined) return failure(503, 'ORCHESTRATION_V2_FREEZE_PIPELINE_UNAVAILABLE', 'explicit pipeline freeze unavailable')
+        if (body.pipeline === undefined) return failure(400, 'ORCHESTRATION_V2_FREEZE_BODY_INVALID', 'freeze-pipeline body 必须包含完整 pipeline')
+        snapshot = await deps.freezePipeline(changeDir(checked.anchor, parsed.changeId), body.pipeline)
+      }
+      return { status: 200, body: { ok: true, snapshot } }
+    } catch (error) {
+      return failure(422, 'ORCHESTRATION_V2_FREEZE_REJECTED', error instanceof Error ? error.message : 'pipeline freeze rejected')
+    }
+  }
   if (parsed.kind !== 'commands') return failure(405, 'ORCHESTRATION_V2_METHOD_NOT_ALLOWED', '该 orchestration 路径仅支持 GET')
   const parsedBody = commandFromBody(body, parsed.changeId)
   if ('status' in parsedBody) return parsedBody
@@ -327,7 +375,7 @@ export async function handleOrchestrationV2GetRoute(req: IncomingMessage, res: S
 }
 
 export async function handleOrchestrationV2PostRoute(req: IncomingMessage, res: ServerResponse, path: string, deps: OrchestrationV2HttpRouteDeps): Promise<boolean> {
-  if (path !== '/api/orchestration/changes' && !/^\/api\/orchestration\/changes\/[^/]+\/(commands|run)$/.test(path)) return false
+  if (path !== '/api/orchestration/changes' && !/^\/api\/orchestration\/changes\/[^/]+\/(commands|run|freeze-pipeline)$/.test(path)) return false
   if (deps.readJsonBody === undefined) { deps.sendJson(res, 500, failure(500, 'ORCHESTRATION_V2_BODY_READER_UNAVAILABLE', 'orchestration body reader unavailable').body); return true }
   const body = await deps.readJsonBody(req)
   const result = await resolveOrchestrationV2PostRoute(path, body, deps)

@@ -8,6 +8,7 @@ import {
   resolvePlannerCapabilitiesV2,
   type PlannerCatalogInputV2,
 } from './planner-v2.js'
+import { pipelineBlueprintFromWorkflowDef } from './workflow-pipeline-v2.js'
 
 const now = '2026-09-02T00:00:00.000Z'
 const request: DevelopmentRequestV2 = {
@@ -80,6 +81,16 @@ describe('planner v2', () => {
     expect(first.resolution.binding_digest).toMatch(/^sha256:[a-f0-9]{64}$/u)
   })
 
+  it('accepts an already normalized catalog without decoding it as raw input again', () => {
+    const normalized = normalizeCapabilityCatalogV2(catalog)
+    expect(normalized.ok).toBe(true)
+    if (!normalized.ok) return
+    const assessment = assessDevelopmentIntentV2({ request, context, assessment_id: 'assessment:normalized', assessed_at: now })
+    const input = { request, context, assessment, graph_id: 'graph:normalized', plan_revision_id: 'plan:normalized', now }
+    expect(planDevelopmentV2({ ...input, catalog: normalized.catalog })).toEqual(planDevelopmentV2({ ...input, catalog }))
+    expect(planDevelopmentV2({ ...input, catalog: { ...normalized.catalog, catalog_digest: `sha256:${'0'.repeat(64)}` } })).toMatchObject({ ok: false, code: 'catalog-invalid' })
+  })
+
   it('materializes an auditable workflow, inferred track, pipeline and exact stage/Skill order', () => {
     const assessment = assessDevelopmentIntentV2({ request, context, assessment_id: 'assessment:1', assessed_at: now })
     const result = planDevelopmentV2({ request, context, assessment, catalog, graph_id: 'graph:1', plan_revision_id: 'plan:1', now })
@@ -145,5 +156,60 @@ describe('planner v2', () => {
     expect(resolution.bindings).toHaveLength(0)
     expect(resolution.blockers.some((blocker) => blocker.includes('unresolved-capability'))).toBe(true)
     expect(resolution.blockers.some((blocker) => blocker.includes('permission'))).toBe(false)
+  })
+
+  it('constructs workflow blueprint stages with step identities and explicit work-item mapping', () => {
+    const blueprint = pipelineBlueprintFromWorkflowDef({
+      name: 'custom-flow',
+      steps: [
+        { id: 'spec', label: 'Specification', skills: [{ id: 'spec-skill' }], transitions: [{ to: 'build' }] },
+        { id: 'build', label: 'Build', gate: 'review', skills: [{ id: 'build-skill' }], transitions: [] },
+      ],
+    }, { id: 'backend', revision: 'r2', source: 'project' }, {
+      workItemIdsByStep: { spec: ['work-a', 'work-b'], build: ['work-c'] },
+      skillVersions: { 'spec-skill': '1.0.0', 'build-skill': '2.0.0' },
+    })
+    expect(blueprint.stages.map((stage) => stage.stage_id)).toEqual(['spec', 'build'])
+    expect(blueprint.stages[0]?.work_item_ids).toEqual(['work-a', 'work-b'])
+    expect(blueprint.stages[1]?.depends_on).toEqual(['spec'])
+    expect(blueprint.stages[1]?.skills[0]?.skill_version).toBe('2.0.0')
+  })
+
+  it('ignores rollback transitions and skips terminal steps without work-item mappings', () => {
+    const blueprint = pipelineBlueprintFromWorkflowDef({
+      name: 'simple',
+      steps: [
+        // A failed verification rolls back to change; that edge must not make
+        // change depend on verify.
+        { id: 'change', label: 'Change', skills: [{ id: 'change-skill' }], transitions: [{ to: 'verify' }] },
+        { id: 'verify', label: 'Verify', gate: 'review', skills: [{ id: 'verify-skill' }], transitions: [{ to: 'change' }, { to: 'done' }] },
+        // Terminal states have no executable work and are intentionally absent
+        // from the explicit mapping.
+        { id: 'done', label: 'Done', transitions: [] },
+        { id: 'escalated', label: 'Escalated', transitions: [] },
+      ],
+    }, { id: 'default', revision: '1', source: 'builtin' }, {
+      workItemIdsByStep: { change: ['work-change'], verify: ['work-verify'], escalated: [] },
+      skillVersions: { 'change-skill': '1.0.0', 'verify-skill': '1.0.0' },
+    })
+
+    expect(blueprint.stages.map((stage) => stage.stage_id)).toEqual(['change', 'verify'])
+    expect(blueprint.stages[0]?.depends_on).toEqual([])
+    expect(blueprint.stages[1]?.depends_on).toEqual(['change'])
+    expect(blueprint.stages.some((stage) => stage.stage_id === 'done' || stage.stage_id === 'escalated')).toBe(false)
+  })
+
+  it('skips gate-only steps even when a stale mapping names work items', () => {
+    const blueprint = pipelineBlueprintFromWorkflowDef({
+      name: 'gate-only',
+      steps: [
+        { id: 'build', label: 'Build', skills: [{ id: 'build-skill' }] },
+        { id: 'approval', label: 'Approval', gate: 'review', skills: [] },
+      ],
+    }, { id: 'default' }, {
+      workItemIdsByStep: { build: ['work-build'], approval: ['work-approval'] },
+    })
+
+    expect(blueprint.stages.map((stage) => stage.stage_id)).toEqual(['build'])
   })
 })

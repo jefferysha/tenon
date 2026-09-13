@@ -150,6 +150,7 @@ describe('StageEditorPane · 退回', () => {
     expect(screen.queryByTestId('stage-back')).toBeNull()
   })
 
+
   it('选目标与选「不退回」各自回调', async () => {
     const user = userEvent.setup()
     const editor = renderPane(SPEC)

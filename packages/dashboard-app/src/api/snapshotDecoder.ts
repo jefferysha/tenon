@@ -181,10 +181,19 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
   const documents = value.documents === undefined ? undefined : decodeDocuments(value.documents)
   const terminalActivity = value.terminalActivity === undefined ? undefined : decodeTerminalActivity(value.terminalActivity)
   const skillRuns = value.skillRuns === undefined ? undefined : decodeSkillRuns(value.skillRuns)
-  const artifactAttempts: ChangeSnapshot['artifactAttempts'] | null = value.artifactAttempts === undefined ? undefined : Array.isArray(value.artifactAttempts)
-    && value.artifactAttempts.every((attempt) => isRecord(attempt) && typeof attempt.stageId === 'string' && attempt.stageId !== '' && typeof attempt.stageAttemptId === 'string' && attempt.stageAttemptId !== '')
-    ? value.artifactAttempts.map((attempt) => ({ stageId: (attempt as Record<string, unknown>).stageId as string, stageAttemptId: (attempt as Record<string, unknown>).stageAttemptId as string }))
-    : null
+  const artifactAttempts: ChangeSnapshot['artifactAttempts'] | null = value.artifactAttempts === undefined
+    ? undefined
+    : Array.isArray(value.artifactAttempts) && value.artifactAttempts.every((attempt) => {
+      if (!isRecord(attempt) || typeof attempt.stageId !== 'string' || attempt.stageId === '' || typeof attempt.stageAttemptId !== 'string' || attempt.stageAttemptId === '') return false
+      return (attempt.workflowRunId === undefined || (typeof attempt.workflowRunId === 'string' && attempt.workflowRunId !== ''))
+        && (attempt.startedAt === undefined || typeof attempt.startedAt === 'string')
+        && (attempt.lineageSource === undefined || attempt.lineageSource === 'legacy')
+    })
+      ? value.artifactAttempts.map((attempt) => {
+        const record = attempt as Record<string, unknown>
+      return { stageId: record.stageId as string, stageAttemptId: record.stageAttemptId as string, ...(record.workflowRunId === undefined ? {} : { workflowRunId: record.workflowRunId as string }), ...(record.startedAt === undefined ? {} : { startedAt: record.startedAt as string }), ...(record.lineageSource === undefined ? {} : { lineageSource: 'legacy' as const }) }
+      })
+      : null
   if ((value.reviewHandshake !== undefined && !reviewHandshake)
     || (value.todo !== undefined && !todo)
     || (value.documents !== undefined && !documents)
@@ -456,8 +465,8 @@ function decodeProject(value: unknown): ProjectSnapshot | null {
     || (compatibilityIssuesTruncated && compatibilityIssues?.length !== 100)) return null
   if (value.ok && (
     value.error !== undefined
-    || (compatibilityIssues?.length ?? 0) > 0
     || compatibilityIssuesTruncated
+    || (compatibilityIssues?.some((issue) => issue.severity !== 'warning'))
   )) return null
   const changes: ChangeSnapshot[] = []
   const rulesByFingerprint = new Map<string, string>()
@@ -487,26 +496,28 @@ function decodeCompatibilityIssues(
   if (!Array.isArray(value) || value.length > 100) return null
   const seenChanges = new Set<string>()
   const issues: NonNullable<ProjectSnapshot['compatibilityIssues']> = []
-  for (const issue of value) {
-    if (!isRecord(issue) || typeof issue.change !== 'string' || issue.change === '' || seenChanges.has(issue.change)) return null
-    if (exactKeys(issue, ['kind', 'change', 'foundVersion', 'supportedVersion', 'action'])
-      && issue.kind === 'unsupported-canonical-version'
-      && typeof issue.foundVersion === 'number'
-      && Number.isSafeInteger(issue.foundVersion)
-      && typeof issue.supportedVersion === 'number'
-      && Number.isSafeInteger(issue.supportedVersion)
-      && issue.supportedVersion >= 1
-      && issue.foundVersion > issue.supportedVersion
-      && issue.action === 'upgrade-runtime') {
-      issues.push({ kind: issue.kind, change: issue.change, foundVersion: issue.foundVersion, supportedVersion: issue.supportedVersion, action: issue.action })
-    } else if (exactKeys(issue, ['kind', 'change', 'legacyScopePath', 'action'])
-      && issue.kind === 'legacy-scope-unmerged'
-      && typeof issue.legacyScopePath === 'string'
-      && issue.legacyScopePath !== ''
-      && issue.action === 'merge-or-remove-legacy-scope') {
-      issues.push({ kind: issue.kind, change: issue.change, legacyScopePath: issue.legacyScopePath, action: issue.action })
+  for (const raw of value) {
+    if (!isRecord(raw) || typeof raw.change !== 'string' || raw.change === '' || seenChanges.has(raw.change)) return null
+    const severity = raw.severity === 'warning' ? 'warning' : 'blocking'
+    const canonicalKeys = exactKeys(raw, ['kind', 'change', 'foundVersion', 'supportedVersion', 'action'])
+      || exactKeys(raw, ['severity', 'kind', 'change', 'foundVersion', 'supportedVersion', 'action'])
+    const legacyKeys = exactKeys(raw, ['kind', 'change', 'legacyScopePath', 'action'])
+      || exactKeys(raw, ['severity', 'kind', 'change', 'legacyScopePath', 'action'])
+    if (canonicalKeys && raw.kind === 'unsupported-canonical-version'
+      && severity === 'blocking'
+      && typeof raw.foundVersion === 'number' && Number.isSafeInteger(raw.foundVersion)
+      && typeof raw.supportedVersion === 'number' && Number.isSafeInteger(raw.supportedVersion)
+      && raw.supportedVersion >= 1 && raw.foundVersion > raw.supportedVersion
+      && raw.action === 'upgrade-runtime') {
+      // Older servers omitted severity. Normalize that shape to an explicit
+      // blocking issue so callers cannot accidentally treat it as a warning.
+      issues.push({ severity: 'blocking', kind: raw.kind, change: raw.change, foundVersion: raw.foundVersion, supportedVersion: raw.supportedVersion, action: raw.action })
+    } else if (legacyKeys && raw.kind === 'legacy-scope-unmerged'
+      && typeof raw.legacyScopePath === 'string' && raw.legacyScopePath !== ''
+      && raw.action === 'merge-or-remove-legacy-scope') {
+      issues.push({ severity, kind: raw.kind, change: raw.change, legacyScopePath: raw.legacyScopePath, action: raw.action })
     } else return null
-    seenChanges.add(issue.change)
+    seenChanges.add(raw.change)
   }
   return issues
 }

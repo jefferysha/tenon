@@ -16,6 +16,8 @@ export interface ArtifactServiceOptions {
   readonly summaryProviders?: readonly ArtifactSummaryProvider[]
   /** Directory containing the canonical document/field subject registry. */
   readonly subjectRegistryDir?: string
+  /** Open an existing scope for lineage inspection without migration or writes. */
+  readonly readOnly?: boolean
 }
 export interface BeginAttemptInput { readonly workflowRunId: string; readonly stageId: string; readonly stageAttemptId: string; readonly dependencyStages?: readonly string[]; readonly visibility?: ArtifactAttempt['visibility'] }
 export interface ObserveInput extends ArtifactContent { readonly artifactId?: string; readonly path?: string; readonly idempotencyKey?: string; readonly disposition?: ArtifactVersion['disposition']; readonly observationSource?: 'managed-tool' | 'explicit-publish' | 'reconcile' | 'external'; readonly toolCallId?: string; readonly logicalKey?: string; readonly namespace?: string; readonly declarationStatus?: 'declared' | 'observed' | 'reconciled' | 'undeclared-candidate' }
@@ -113,7 +115,7 @@ function decodeState(value: unknown): State {
 export async function openArtifactService(options: ArtifactServiceOptions): Promise<ArtifactService> {
   const root = resolve(options.rootDir); const store = join(root, '.pipeline-artifacts', options.scopeId); const legacyStore = join(root, '.pipeline-artifacts', 'runtime-artifacts'); const blobs = join(store, 'blobs'); const statePath = join(store, 'state.json'); const now = options.now ?? (() => new Date().toISOString())
   let legacyScopeCopied = false
-  if (options.scopeId !== 'runtime-artifacts') {
+  if (!options.readOnly && options.scopeId !== 'runtime-artifacts') {
     await mkdir(join(root, '.pipeline-artifacts'), { recursive: true })
     await mkdir(store, { recursive: true })
     const existingMigration = scopeMigrationLocks.get(store)
@@ -170,9 +172,9 @@ export async function openArtifactService(options: ArtifactServiceOptions): Prom
     } catch { /* no legacy state */ }
   }
   const checkers = new Map<string, ArtifactChecker>([...createDefaultArtifactCheckers(), ...(options.checkers ?? [])].map(checker => [checker.id, checker])); const schemas = new Map<string, ArtifactSchemaAdapter>(options.schemaAdapters?.map(adapter => [adapter.id, adapter]) ?? []); const summaries = new Map<string, ArtifactSummaryProvider>(options.summaryProviders?.map(provider => [provider.id, provider]) ?? [])
-  await mkdir(blobs, { recursive: true })
+  if (!options.readOnly) await mkdir(blobs, { recursive: true })
   async function load(): Promise<State> { try { return decodeState(JSON.parse(await readFile(statePath, 'utf8'))) } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return emptyState(); throw e } }
-  async function save(state: State): Promise<void> { await mkdir(dirname(statePath), { recursive: true }); await atomicReplaceFile(statePath, JSON.stringify(state, null, 2)) }
+  async function save(state: State): Promise<void> { if (options.readOnly) throw new Error('artifact service is read-only'); await mkdir(dirname(statePath), { recursive: true }); await atomicReplaceFile(statePath, JSON.stringify(state, null, 2)) }
   function migrateLegacyState(s: State): void {
     if (legacyScopeCopied && !s.migrationReceipts.some(receipt => receipt.receipt_id === `migration:scope:runtime-artifacts:${options.scopeId}`)) {
       s.migrationReceipts.push({ receipt_id: `migration:scope:runtime-artifacts:${options.scopeId}`, legacy_artifact_id: 'scope:runtime-artifacts', subject_id: `scope:${options.scopeId}`, namespace: options.scopeId, content_digest: `sha256:${'0'.repeat(64)}`, migrated_at: now(), kind: 'legacy-scope', legacy_scope_path: relative(root, legacyStore), canonical_scope_path: relative(root, store), retention: 'preserved-awaiting-confirmation' })
@@ -200,9 +202,9 @@ export async function openArtifactService(options: ArtifactServiceOptions): Prom
       if (first) s.migrationReceipts.push({ receipt_id: `migration:${legacyArtifactId}:${mapping.subjectId}`, legacy_artifact_id: legacyArtifactId, subject_id: mapping.subjectId, namespace: options.scopeId, content_digest: `sha256:${first.contentDigest}`, migrated_at: now(), kind: 'legacy-path-hash' })
     }
   }
-  async function mutate<T>(fn: (s: State) => Promise<T> | T): Promise<T> { return withLock(store, async () => { const s = await load(); migrateLegacyState(s); const out = await fn(s); await save(s); return out }) }
+  async function mutate<T>(fn: (s: State) => Promise<T> | T): Promise<T> { if (options.readOnly) throw new Error('artifact service is read-only'); return withLock(store, async () => { const s = await load(); migrateLegacyState(s); const out = await fn(s); await save(s); return out }) }
   async function emit(s: State, type: ArtifactEvent['type'], key: string, payload: Partial<ArtifactEvent> = {}) { if (s.events.some(e => e.idempotencyKey === key)) return; s.revision += 1; s.events.push({ seq: s.revision, idempotencyKey: key, type, at: now(), ...payload }) }
-  async function putBlob(bytes: Uint8Array): Promise<{ sha: string; size: number }> { const sha = digest(bytes); const path = join(blobs, sha); try { await stat(path) } catch { await writeFile(path, bytes, { flag: 'wx' }).catch((error: unknown) => { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error }) } return { sha, size: bytes.byteLength } }
+  async function putBlob(bytes: Uint8Array): Promise<{ sha: string; size: number }> { if (options.readOnly) throw new Error('artifact service is read-only'); const sha = digest(bytes); const path = join(blobs, sha); try { await stat(path) } catch { await writeFile(path, bytes, { flag: 'wx' }).catch((error: unknown) => { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error }) } return { sha, size: bytes.byteLength } }
   function findRecord(s: State, id: string): ArtifactRecord | undefined {
     return s.artifacts.find(record => record.artifactId === id || record.aliases?.some(alias => alias.alias === id))
   }
@@ -420,4 +422,9 @@ export async function openArtifactService(options: ArtifactServiceOptions): Prom
   }
   async function readBlob(sha: string, max?: number): Promise<Uint8Array> { const b = new Uint8Array(await readFile(join(blobs, sha))); return max && b.byteLength > max ? b.slice(0, max) : b }
   return service
+}
+
+/** Read-only view of the pre-namespace runtime scope used during upgrades. */
+export function openLegacyLineageView(rootDir: string, options: Omit<ArtifactServiceOptions, 'rootDir' | 'scopeId' | 'readOnly'> = {}): Promise<ArtifactService> {
+  return openArtifactService({ ...options, rootDir, scopeId: 'runtime-artifacts', readOnly: true })
 }
