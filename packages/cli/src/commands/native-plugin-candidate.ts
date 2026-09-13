@@ -14,9 +14,19 @@ import type { SetupEnv } from './setupEnvironment.js'
 import { nativeHostMatchesStableTarget } from './managed-host-observation.js'
 import { resolveStableTagTarget, type StableReleaseTarget } from './stable-release.js'
 import { verifyPackagedAssets } from './packaged-assets.js'
+import {
+  hostConvergenceInterruptionReport,
+  nativeHostConvergenceSequence,
+  nativeHostRestoreCommands,
+  type NativeHostUpdateStepId,
+} from './native-host-convergence-sequence.js'
 
 function commandText(cmd: string, args: readonly string[]): string {
   return [cmd, ...args].join(' ')
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 /** Marketplace add is idempotent on some host versions but reports a non-zero duplicate on others. */
@@ -31,6 +41,12 @@ export interface NativePluginCandidate {
   /** Authoritative enabled ids from the same inventory snapshot that resolved `root`. */
   readonly inventory: ParsedHostPluginInventory
   readonly inventoryRaw: string
+}
+
+interface ExistingNativePlugin {
+  readonly candidate: NativePluginCandidate | null
+  /** Authoritative pre-mutation fact from the host-owned inventory, not a guess about the cache. */
+  readonly pluginRegistered: boolean
 }
 
 class NativePluginInventoryError extends Error {
@@ -52,9 +68,9 @@ async function verifiedInstalledNativePlugin(
   host: NativePipelineHost,
   transaction: ManagedHostPreparationContext,
   target: StableReleaseTarget,
-): Promise<NativePluginCandidate | null> {
+): Promise<ExistingNativePlugin> {
   const inventoryCommand = nativeInstallPlan(host).at(-1)
-  if (inventoryCommand === undefined) return null
+  if (inventoryCommand === undefined) throw new NativePluginInventoryError('宿主安装计划缺少 inventory 命令')
   deps.io.out(`[setup] $ ${commandText(inventoryCommand.cmd, inventoryCommand.args)}`)
   const inventory = await runManagedHostCommand(
     transaction,
@@ -70,7 +86,7 @@ async function verifiedInstalledNativePlugin(
   const parsed = parseHostPluginInventory(host, inventory.stdout)
   if (parsed === null) throw new NativePluginInventoryError('宿主 plugin inventory 响应畸形')
   const root = parsed.tenonRoot
-  if (root === null) return null
+  if (root === null) return { candidate: null, pluginRegistered: parsed.tenonRegistered }
   let exactStableTarget = false
   if (parsed.tenonVersion === target.version) {
     try {
@@ -83,19 +99,27 @@ async function verifiedInstalledNativePlugin(
     deps.io.out(
       `[setup] ${hostFlag(host)} 已登记的 tenon 未绑定 ${target.tag}；将通过宿主 CLI 重绑正式 release。`,
     )
-    return null
+    return { candidate: null, pluginRegistered: true }
   }
   if (verifyPackagedAssets(deps, env, root, false, true) !== 0) {
     deps.io.out(`[setup] ${hostFlag(host)} 已登记的 tenon 不完整或未通过校验；将重新安装正式 release。`)
-    return null
+    return { candidate: null, pluginRegistered: true }
   }
   deps.io.out(`[setup] ${hostFlag(host)} 已有完整且已验证的 tenon；复用宿主登记的安装。`)
-  return { root, verified: true, inventory: parsed, inventoryRaw: inventory.stdout }
+  return {
+    candidate: { root, verified: true, inventory: parsed, inventoryRaw: inventory.stdout },
+    pluginRegistered: true,
+  }
 }
 
 /**
  * Resolve and freeze the release target before the first host mutation, then install the single
  * release plugin into the selected native host and resolve its root from host-owned inventory.
+ *
+ * The mutation sequence is register-before-remove in the only form the host CLIs allow: a removal
+ * is emitted only when there is a registration to remove, and the network-dependent replacement is
+ * re-proved against the remote immediately before the first destructive command.  An offline or
+ * rate-limited remote therefore aborts with the host untouched instead of after the deletions.
  */
 export async function installNativePluginCandidate(
   deps: CliDeps,
@@ -107,7 +131,7 @@ export async function installNativePluginCandidate(
     async () => resolveStableTagTarget(env, TENON_RELEASE_VERSION),
     (frozen) => proveFrozenTarget(env, frozen),
   )
-  let existing: NativePluginCandidate | null
+  let existing: ExistingNativePlugin
   try {
     existing = await verifiedInstalledNativePlugin(deps, env, host, transaction, target)
   } catch (error) {
@@ -117,25 +141,65 @@ export async function installNativePluginCandidate(
     }
     throw error
   }
-  if (existing !== null) return existing
+  if (existing.candidate !== null) return existing.candidate
+
   const plan = nativeUpdatePlan(host, target)
+  const steps = nativeHostConvergenceSequence(plan, { plugin: existing.pluginRegistered })
+  const restoreCommands = nativeHostRestoreCommands(plan)
+  const resumeCommand = `tenon setup ${hostFlag(host)}`
+  const provenDestructiveStepIds: NativeHostUpdateStepId[] = []
+  let replacementRegistered = false
+  const reportInterruption = (stepId: string, reason: string): void => {
+    if (provenDestructiveStepIds.length === 0 || replacementRegistered) return
+    for (const line of hostConvergenceInterruptionReport({
+      host,
+      stepId,
+      reason,
+      target,
+      provenDestructiveStepIds,
+      hadInstalledPlugin: existing.pluginRegistered,
+      restoreCommands,
+      resumeCommand,
+    })) deps.io.err(line)
+  }
+
+  if (existing.pluginRegistered) {
+    // Removing a working installation is only safe once the replacement is proved obtainable.
+    // Proving the frozen tag/commit against the remote here keeps an offline or rate-limited run
+    // from deleting the host's only tenon and then failing at `marketplace add`.
+    try {
+      proveFrozenTarget(env, target)
+    } catch (error) {
+      deps.io.err(
+        `ERROR: ${hostFlag(host)} 升级前无法向远端证明 ${target.tag} @ ${target.commit}：`
+        + `${errorText(error)}`,
+      )
+      deps.io.err(
+        '[setup] 未执行任何宿主删除或安装；当前 tenon 登记保持不变。'
+        + `网络恢复后重新运行 \`${resumeCommand}\` 即可。`,
+      )
+      return null
+    }
+  }
+
   let inventory = ''
-  for (let index = 0; index < plan.length; index += 1) {
-    const item = plan[index]
-    if (!item) continue
+  for (let index = 0; index < steps.length; index += 1) {
+    const step = steps[index]
+    if (step === undefined) continue
+    const { id: stepId, item } = step
     deps.io.out(`[setup] $ ${commandText(item.cmd, item.args)}`)
-    const stepId = ([
-      'plugin-remove',
-      'marketplace-remove',
-      'marketplace-register',
-      'plugin-install',
-      'inventory-after',
-    ] as const).at(index)
-    if (stepId === undefined) throw new Error('宿主安装计划与受管步骤不一致')
-    const result = await runManagedHostCommand(transaction, stepId, env, item, target)
+    let result
+    try {
+      result = await runManagedHostCommand(transaction, stepId, env, item, target)
+    } catch (error) {
+      reportInterruption(stepId, errorText(error))
+      throw error
+    }
     if (result.stdout.trim() !== '') deps.io.out(result.stdout.trimEnd())
     if (result.code === 0) {
-      if (index === plan.length - 1) inventory = result.stdout
+      if (step.destructive) provenDestructiveStepIds.push(stepId)
+      if (stepId === 'plugin-install') replacementRegistered = true
+      if (index === steps.length - 1) inventory = result.stdout
       continue
     }
 
@@ -145,9 +209,10 @@ export async function installNativePluginCandidate(
     }
 
     if (stepId === 'plugin-install') {
-      const inventoryCommand = plan.at(-1)
+      const inventoryCommand = steps.at(-1)?.item
       if (!inventoryCommand) {
         deps.io.err(`[setup] ${hostFlag(host)} 安装计划缺少 inventory 命令。`)
+        reportInterruption(stepId, '安装计划缺少 inventory 命令')
         return null
       }
       const inventoryResult = await runManagedHostCommand(
@@ -161,14 +226,15 @@ export async function installNativePluginCandidate(
         : null
       if (parsed?.tenonRoot !== null && parsed?.tenonRoot !== undefined) {
         deps.io.out(`[setup] ${hostFlag(host)} 已报告 tenon；继续验证版本、tag 与 payload identity。`)
+        replacementRegistered = true
         inventory = inventoryResult.stdout
         break
       }
     }
 
-    deps.io.err(
-      `ERROR: ${commandText(item.cmd, item.args)} 失败：${result.stderr.trim() || result.stdout.trim() || `退出码 ${result.code}`}`,
-    )
+    const reason = result.stderr.trim() || result.stdout.trim() || `退出码 ${result.code}`
+    deps.io.err(`ERROR: ${commandText(item.cmd, item.args)} 失败：${reason}`)
+    reportInterruption(stepId, reason)
     return null
   }
   const parsed = parseHostPluginInventory(host, inventory)
@@ -178,6 +244,7 @@ export async function installNativePluginCandidate(
   }
   if (parsed.tenonRoot === null) {
     deps.io.err(`ERROR: ${hostFlag(host)} 插件清单中没有 tenon；未切换 launcher。`)
+    reportInterruption('inventory-after', `${hostFlag(host)} 插件清单中没有 tenon`)
     return null
   }
   if (parsed.tenonVersion !== target.version) {
@@ -193,7 +260,7 @@ export async function installNativePluginCandidate(
   } catch (error) {
     deps.io.err(
       `ERROR: ${hostFlag(host)} 安装后无法证明 marketplace/tag identity：`
-        + `${error instanceof Error ? error.message : String(error)}`,
+        + `${errorText(error)}`,
     )
     return null
   }

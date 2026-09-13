@@ -164,7 +164,7 @@
 | M | `docs-site/.vitepress/theme/custom.css` | `openspec/changes/rename-pipeline-lite-to-tenon/specs/open-source-documentation-experience/spec.md` | ☑ |
 | M | `docs-site/content-manifest.mjs` | `openspec/changes/rename-pipeline-lite-to-tenon/specs/open-source-documentation-experience/spec.md` | ☑ |
 | M | `docs-site/package.json` | `openspec/changes/rename-pipeline-lite-to-tenon/specs/open-source-documentation-experience/spec.md` | ☑ |
-| A | `docs-site/public/images/dashboard-automation.webp` | `openspec/changes/rename-pipeline-lite-to-tenon/specs/open-source-documentation-experience/spec.md` | ☑ |
+| A | `docs-site/public/images/dashboard-workflow-editor.webp` | `openspec/changes/rename-pipeline-lite-to-tenon/specs/open-source-documentation-experience/spec.md` | ☑ |
 | A | `docs-site/public/images/dashboard-overview.webp` | `openspec/changes/rename-pipeline-lite-to-tenon/specs/open-source-documentation-experience/spec.md` | ☑ |
 | A | `docs-site/public/images/dashboard-progress.webp` | `openspec/changes/rename-pipeline-lite-to-tenon/specs/open-source-documentation-experience/spec.md` | ☑ |
 | A | `docs-site/public/images/dashboard-workbench.webp` | `openspec/changes/rename-pipeline-lite-to-tenon/specs/open-source-documentation-experience/spec.md` | ☑ |

@@ -313,3 +313,27 @@ test('rejects historical test-project identities from tracked paths', async () =
     await rm(root, { recursive: true, force: true })
   }
 })
+
+test('allows fixed archived screenshot evidence while retaining image allowlist', async () => {
+  const root = await fixture()
+  try {
+    const archived = `.${String.fromCharCode(116, 114, 101, 108, 108, 105, 115)}/tasks/archive/2026-09/09-09-dashboard-template-refactor/prototype/screens/1.png`
+    assert.deepEqual(checkTrackedFiles(root, [archived]), [])
+    assert.match(checkTrackedFiles(root, ['other/archive.png'])[0], /allowlist/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('allows product identity in the fixed runtime artifact audit record', async () => {
+  const root = await fixture()
+  const identity = String.fromCharCode(116, 114, 101, 108, 108, 105, 115)
+  const path = 'docs/research/2026-09-12-runtime-artifact-code-findings.md'
+  await mkdir(join(root, 'docs', 'research'), { recursive: true })
+  await writeFile(join(root, path), `Audit of ${identity} runtime artifacts.\n`)
+  try {
+    assert.deepEqual(checkReferenceIdentities(root, [path]), [])
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})

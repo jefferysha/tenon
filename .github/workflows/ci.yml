@@ -88,10 +88,15 @@ jobs:
       - name: Build complete plugin runtime (tsc + CLI/server bundles + dashboard SPA)
         run: npm run build
 
+      - name: Install Playwright Chromium for browser runtime tests
+        run: npx playwright install --with-deps chromium
+
       # 完整插件 runtime 新鲜度门：marketplace 安装没有本机 node_modules/build 步，因此 CLI、dashboard
       # server 和 SPA 都必须与当前源码逐字节一致。后面的 smoke 只测行为，不能证明提交资产是最新构建。
       - name: 校验入库完整插件 runtime 与当前 src 一致 (release freshness)
-        run: git diff --exit-code -- packages/cli/dist/tenon.mjs packages/server/dist/dashboard.mjs packages/dashboard-app/dist
+        run: |
+          git diff --exit-code -- packages/cli/dist/tenon.mjs packages/server/dist/dashboard.mjs
+          npm run check:dashboard-dist-freshness
 
       - name: Prepare pinned Codex and Node in a trusted acceptance root
         shell: bash
@@ -107,6 +112,9 @@ jobs:
 
       - name: 治理文档模板与中英文结构门禁
         run: npm run check:document-templates
+
+      - name: Dashboard 排版 / 间距 / 圆角刻度门禁
+        run: npm run check:design-scale
 
       - name: 正式文档站双语、构建与 Pages 子路径门禁
         run: |
@@ -156,6 +164,8 @@ jobs:
       # 普通 npm test 里的 real-Codex 文件仍允许 honest-skip；配置 secret 的 canonical verify
       # 已在 main push 上方以 TENON_REQUIRE_REAL_CODEX=1 定向执行 fail-closed 验收。
       - name: vitest (kernel/cli/server/automation/tap)
+        env:
+          TENON_REQUIRE_REAL_BROWSER: '1'
         run: npm test
 
       - name: dashboard-app tests

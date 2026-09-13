@@ -98,6 +98,8 @@ const NATIVE_COMMANDS = {
   },
 } as const
 
+const CONDITIONAL_IDS: readonly string[] = ['plugin-remove', 'marketplace-remove']
+
 function planFor(host: HostId, operation: Operation) {
   const target = CATALOG.targets.find((candidate) => candidate.id === host)
   if (target === undefined) throw new Error(`missing test target ${host}`)
@@ -117,7 +119,10 @@ function planFor(host: HostId, operation: Operation) {
         ...NATIVE_COMMANDS[host][operation].map((stepCommand, index) => {
         const id = nativeIds[index]
         if (id === undefined) throw new Error('missing native test step id')
-        return { id, label: `host-plan.step.${id}`, command: stepCommand }
+        // 只读预览无法观察宿主登记，删除步骤按条件性公开；服务端必须原样转发这一事实。
+        return CONDITIONAL_IDS.includes(id)
+          ? { id, label: `host-plan.step.${id}`, command: stepCommand, condition: `host-plan.condition.${id}` }
+          : { id, label: `host-plan.step.${id}`, command: stepCommand }
         }),
       ]
     : [
@@ -740,6 +745,18 @@ describe('Host Target Plan route resolver', () => {
         ...PLAN.steps[0],
         command: planCommand('codex', ['plugin', 'marketplace', 'update', 'tenon']),
       }, ...PLAN.steps.slice(1)],
+    } },
+    { name: 'a step that always runs claims to be conditional', value: {
+      ...PLAN,
+      steps: PLAN.steps.map((step) => step.id === 'marketplace-register'
+        ? { ...step, condition: 'host-plan.condition.marketplace-register' }
+        : step),
+    } },
+    { name: 'a conditional step carries a condition token for another step', value: {
+      ...PLAN,
+      steps: PLAN.steps.map((step) => step.id === 'plugin-remove'
+        ? { ...step, condition: 'host-plan.condition.marketplace-remove' }
+        : step),
     } },
     { name: 'native commands are swapped under valid step ids', value: {
       ...PLAN,

@@ -80,6 +80,9 @@ for pid in "${SELECTED[@]}"; do
   if [ "$DRY_RUN" = 1 ]; then info "[dry-run] $pid → $conf --target $TARGET"; continue; fi
   info "派发 $pid → $conf"
   extra=(); [ "$ASSUME_YES" = 1 ] && extra+=(--yes)
-  bash "$REPO_ROOT/$conf" --target "$TARGET" "${extra[@]:-}" || rc=1
+  # 空数组展开：`"${extra[@]:-}"` 会造出一个空字符串参数（installer 立刻「未知参数」exit 2）；
+  # `"${extra[@]}"` 在 bash 3.2（macOS 自带）+ set -u 下又是 unbound variable。
+  # `${extra[@]+"${extra[@]}"}` 是两边都安全的写法：空则零个参数，非空则逐个原样透传。
+  bash "$REPO_ROOT/$conf" --target "$TARGET" ${extra[@]+"${extra[@]}"} || rc=1
 done
 exit "$rc"

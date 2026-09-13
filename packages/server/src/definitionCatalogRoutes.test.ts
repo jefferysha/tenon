@@ -59,6 +59,23 @@ describe('definition catalog routes', () => {
     expect((response as { workflows: Array<{ id: string }> }).workflows.map((item) => item.id)).toEqual(['default', 'simple'])
     expect((response as { pipelines: unknown[] }).pipelines.length).toBeGreaterThan(0)
     expect(runner).toHaveBeenCalledWith(root, ['host-target-plan', '--json'])
+    // 能力矩阵按 registry 三态原样上线：cursor 的 inject 是降级、veto 是原生且 fail-closed；
+    // pi 是 tier B 却 inject 原生 / veto 降级——档位字母不决定哪个能力降级，折叠成布尔
+    // 会把这两个宿主报成同一种「不是全绿」，UI 因此答不出「我的 veto 是不是降级的」。
+    const adapters = (response as { adapters: Array<{ id: string; tier: string; capabilities: Record<string, string>; veto_fail_closed: boolean }> }).adapters
+    const byId = new Map(adapters.map((adapter) => [adapter.id, adapter]))
+    expect(byId.get('cursor')).toMatchObject({
+      tier: 'B',
+      capabilities: { inject: 'degraded', veto: 'native', track: 'native' },
+      veto_fail_closed: true,
+    })
+    expect(byId.get('pi')).toMatchObject({
+      tier: 'B',
+      capabilities: { inject: 'native', veto: 'degraded', track: 'native' },
+      veto_fail_closed: false,
+    })
+    expect(byId.get('zed')?.capabilities).toEqual({ inject: 'degraded', veto: 'degraded', track: 'degraded' })
+    expect(byId.get('codex')?.capabilities).toEqual({ inject: 'native', veto: 'native', track: 'native' })
   })
 
   it('fails closed before reading untrusted roots', async () => {

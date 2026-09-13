@@ -326,7 +326,7 @@ describe('persistent execution runtime v2', () => {
     let maxInFlight = 0
     const runtime = createExecutionRuntimeV2({
       change_dir: fixtureState.root, ledger: fixtureState.ledger, worker_id: 'worker-1', clock: () => now,
-      executor: { async execute(input) { inFlight += 1; maxInFlight = Math.max(maxInFlight, inFlight); await new Promise((resolve) => setTimeout(resolve, 20)); inFlight -= 1; return { output: input.work_item_id, artifacts: [], diagnostics: [] } } },
+      executor: { async execute(input) { inFlight += 1; maxInFlight = Math.max(maxInFlight, inFlight); await new Promise((resolve) => setTimeout(resolve, 100)); inFlight -= 1; return { output: input.work_item_id, artifacts: [], diagnostics: [] } } },
       validator: { async validate(input) { return report(input.work_item_id, input.result_id) } }, id_factory: (() => { let n = 0; return (prefix: string) => `${prefix}:${++n}` })(),
     })
     const result = await runtime.run()

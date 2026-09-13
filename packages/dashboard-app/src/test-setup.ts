@@ -1,5 +1,11 @@
 import '@testing-library/jest-dom/vitest'
+import { configure } from '@testing-library/react'
 import { vi } from 'vitest'
+
+// The dashboard suite mounts the lazy application shell and real data adapters
+// together; under the full parallel suite one second is too short for the
+// first render even though the same assertions are deterministic in isolation.
+configure({ asyncUtilTimeout: 3_000 })
 
 // ── 内存 localStorage（jsdom/node 全局竞争隔离，对齐老仓 test-setup 教训）──
 class MemoryStorage implements Storage {

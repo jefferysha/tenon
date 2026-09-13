@@ -1,307 +1,32 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import {
   Background,
   BackgroundVariant,
-  BaseEdge,
   Controls,
-  Handle,
-  MarkerType,
-  Position,
   ReactFlow,
   ReactFlowProvider,
   applyEdgeChanges,
   applyNodeChanges,
-  getBezierPath,
   useReactFlow,
   type Connection,
   type Edge,
   type EdgeChange,
-  type EdgeProps,
-  type Node,
   type NodeChange,
-  type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import gsap from 'gsap'
-import { Box, X } from 'lucide-react'
 import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { wavesOf } from '../workbench/skillWaves'
-import { SkillSourceIcon } from './SkillSourceIcon'
+import { EDGE_STYLE, EDGE_TYPES, MARKER, NODE_HEIGHT, NODE_TYPES, NODE_WIDTH, PORT_SIZE, isVirtualId, type FlowNode, type GhostNode, type JunctionNode, type LabelNode, type PortNode, type PulseData, type SkillNode, type SkillRunState } from './skillFlowNodes'
+import { addSkillAt, appendSerial, dropTargetFor, edgesOf, graphToSkills, isColumnLink, layoutSkills, skillsSignature, wouldCycle, type DropTarget } from './skillFlowGraph'
 import { cn } from '@/lib/utils'
 
-export const NODE_WIDTH = 260
-const NODE_HEIGHT = 60
+export { addSkillAt, appendSerial, dropTargetFor, edgesOf, graphToSkills, isColumnLink, layoutSkills, skillsSignature, wouldCycle }
+export { NODE_WIDTH, SkillRunState }
+
 const COLUMN_GAP = 300
 const ROW_GAP = 92
-const PADDING = 24
-/** 起点 / 终点小圆到首列 / 末列的水平距离。 */
 const PORT_GAP = 72
-const PORT_SIZE = 12
-
-export type SkillRunState = 'idle' | 'running' | 'done'
-type SkillNodeData = {
-  label: string
-  description: string | null
-  source: WbSkillEntry['source'] | null
-  editable: boolean
-  /** 刚加入的节点：入场动画。 */
-  entering: boolean
-  /** 工作台里的运行状态；工作流页为 null。 */
-  status: SkillRunState | null
-  statusLabel: string | null
-  onOpen: (id: string) => void
-  onRemove: (id: string) => void
-}
-type SkillNode = Node<SkillNodeData, 'skill'>
-type PortNode = Node<{ label: string }, 'port'>
-type LabelNode = Node<{ label: string }, 'label'>
-type GhostNode = Node<{ label: string; mode: string }, 'ghost'>
-type JunctionNode = Node<Record<string, never>, 'junction'>
-type FlowNode = SkillNode | PortNode | LabelNode | GhostNode | JunctionNode
-
-/** 技能 → 节点坐标：列 = 波次（depends_on 深度），行 = 波次内序；各列围绕同一条中线纵向居中，首列左侧留出起点。 */
-export function layoutSkills(skills: readonly WbSkillRef[]): Array<{ id: string; x: number; y: number }> {
-  const out: Array<{ id: string; x: number; y: number }> = []
-  const waves = wavesOf(skills)
-  const tallest = Math.max(0, ...waves.map((wave) => wave.length))
-  waves.forEach((wave, column) => {
-    const offset = ((tallest - wave.length) * ROW_GAP) / 2
-    wave.forEach((id, row) => out.push({ id, x: PADDING + PORT_GAP + column * COLUMN_GAP, y: PADDING + 28 + offset + row * ROW_GAP }))
-  })
-  return out
-}
-
-/** 相邻两波是否构成完整的列依赖：下一波每个节点都恰好依赖上一波全部节点，且上一波没有别的后继。 */
-export function isColumnLink(previous: readonly string[], next: readonly string[], edges: readonly Pick<Edge, 'source' | 'target'>[]): boolean {
-  if (previous.length === 0 || next.length === 0) return false
-  const previousSet = new Set(previous)
-  const nextSet = new Set(next)
-  for (const id of next) {
-    const deps = edges.filter((edge) => edge.target === id).map((edge) => edge.source)
-    if (deps.length !== previous.length || !deps.every((dep) => previousSet.has(dep))) return false
-  }
-  return edges.filter((edge) => previousSet.has(edge.source)).every((edge) => nextSet.has(edge.target))
-}
-
-/** depends_on → 边（只保留两端都在本阶段的依赖）。 */
-export function edgesOf(skills: readonly WbSkillRef[]): Edge[] {
-  const ids = new Set(skills.map((skill) => skill.id))
-  const edges: Edge[] = []
-  for (const skill of skills) {
-    for (const dependency of skill.depends_on ?? []) {
-      if (ids.has(dependency)) edges.push({ id: `${dependency}->${skill.id}`, source: dependency, target: skill.id })
-    }
-  }
-  return edges
-}
-
-/** 加一条 source→target 是否成环（含自环）。 */
-export function wouldCycle(edges: readonly Pick<Edge, 'source' | 'target'>[], source: string, target: string): boolean {
-  if (source === target) return true
-  const next = new Map<string, string[]>()
-  for (const edge of edges) next.set(edge.source, [...(next.get(edge.source) ?? []), edge.target])
-  const seen = new Set<string>()
-  const stack = [target]
-  while (stack.length > 0) {
-    const current = stack.pop()!
-    if (current === source) return true
-    if (seen.has(current)) continue
-    seen.add(current)
-    stack.push(...(next.get(current) ?? []))
-  }
-  return false
-}
-
-/** 节点 + 边 → 技能引用：depends_on = 指向它的边的起点；其它字段从 existing 带回；顺序按波次拍平，同波保持原序。 */
-export function graphToSkills(nodeIds: readonly string[], edges: readonly Pick<Edge, 'source' | 'target'>[], existing: readonly WbSkillRef[]): WbSkillRef[] {
-  const byId = new Map(existing.map((skill) => [skill.id, skill]))
-  const ids = new Set(nodeIds)
-  const rank = (id: string): number => { const index = existing.findIndex((skill) => skill.id === id); return index === -1 ? existing.length : index }
-  const ordered = [...nodeIds].sort((a, b) => rank(a) - rank(b))
-  const draft: WbSkillRef[] = ordered.map((id) => {
-    const { depends_on: _dropped, ...rest } = byId.get(id) ?? { id }
-    const deps = edges.filter((edge) => edge.target === id && ids.has(edge.source)).map((edge) => edge.source)
-    return deps.length > 0 ? { ...rest, id, depends_on: deps } : { ...rest, id }
-  })
-  const order = wavesOf(draft).flat()
-  return order.map((id) => draft.find((skill) => skill.id === id)!)
-}
-
-/** 落点语义：并入第 k 波（并行）/ 追加为新一步（串行）/ 插到最前（串行）。 */
-export type DropTarget = { kind: 'join'; wave: number } | { kind: 'after' } | { kind: 'before' }
-
-/** 由指针 x 与各波列的 x 判定落点：落在某列附近 = 并入该波；末列右侧 = 新一步；首列左侧 = 新首步。 */
-export function dropTargetFor(x: number, columnXs: readonly number[]): DropTarget {
-  if (columnXs.length === 0) return { kind: 'after' }
-  const first = columnXs[0]!
-  const last = columnXs[columnXs.length - 1]!
-  if (x > last + NODE_WIDTH + PORT_GAP / 2) return { kind: 'after' }
-  if (x < first - PORT_GAP / 2) return { kind: 'before' }
-  let best = 0
-  let bestDistance = Number.POSITIVE_INFINITY
-  columnXs.forEach((columnX, index) => {
-    const distance = Math.abs(x - (columnX + NODE_WIDTH / 2))
-    if (distance < bestDistance) { bestDistance = distance; best = index }
-  })
-  return { kind: 'join', wave: best }
-}
-
-/** 按落点把技能加进图：并入第 k 波 = 依赖第 k-1 波、被第 k+1 波依赖；新一步 = 依赖末波；新首步 = 首波依赖它。 */
-export function addSkillAt(skills: readonly WbSkillRef[], id: string, target: DropTarget): WbSkillRef[] {
-  if (skills.some((skill) => skill.id === id)) return [...skills]
-  const waves = wavesOf(skills)
-  const withDeps = (deps: readonly string[]): WbSkillRef => deps.length > 0 ? { id, depends_on: [...deps] } : { id }
-  const addDep = (skill: WbSkillRef, dep: string): WbSkillRef => ({ ...skill, depends_on: [...new Set([...(skill.depends_on ?? []), dep])] })
-  if (target.kind === 'after' || waves.length === 0) return [...skills, withDeps(waves[waves.length - 1] ?? [])]
-  if (target.kind === 'before') {
-    const firstWave = new Set(waves[0] ?? [])
-    return [withDeps([]), ...skills.map((skill) => firstWave.has(skill.id) ? addDep(skill, id) : skill)]
-  }
-  const wave = Math.max(0, Math.min(target.wave, waves.length - 1))
-  const nextWave = new Set(waves[wave + 1] ?? [])
-  const out = skills.map((skill) => nextWave.has(skill.id) ? addDep(skill, id) : skill)
-  const anchor = waves[wave]![waves[wave]!.length - 1]!
-  const at = out.findIndex((skill) => skill.id === anchor) + 1
-  out.splice(at, 0, withDeps(waves[wave - 1] ?? []))
-  return out
-}
-
-/** 技能库「+」：串行追加为新一步。 */
-export function appendSerial(skills: readonly WbSkillRef[], id: string): WbSkillRef[] {
-  return addSkillAt(skills, id, { kind: 'after' })
-}
-
-/** 技能数组的内容签名：id 与 depends_on；引用变了但内容没变时不重排、不回写。 */
-export function skillsSignature(skills: readonly WbSkillRef[]): string {
-  return skills.map((skill) => `${skill.id}<${[...(skill.depends_on ?? [])].sort().join(',')}`).join('|')
-}
-
-const EDGE_STYLE = { stroke: 'var(--border-2)', strokeWidth: 1.5 }
-const MARKER = { type: MarkerType.ArrowClosed, width: 16, height: 16, color: 'var(--border-2)' }
-/** 一段脉冲跑完一条边的时长（秒）；整条流程 = 段数 × 此值，然后重来。 */
-const PULSE_STEP = 0.55
-
-type PulseData = { order: number; total: number }
-
-function motionAllowed(): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
-/**
- * 带脉冲的边：BaseEdge 画底线，上面叠一条强调色路径，只露出一段（dasharray = 段长 + 总长），GSAP 把 dashoffset
- * 从「段藏在起点前」补到「段跑出终点」，看起来就是一截高亮沿线流过。data.order = 段序，data.total = 总段数：
- * 所有边共用一条时间轴，脉冲从起点一路传到终点再重来。
- */
-function PulseEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, data }: EdgeProps<Edge<PulseData>>): JSX.Element {
-  const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
-  const glowRef = useRef<SVGPathElement>(null)
-  const order = data?.order ?? 0
-  const total = data?.total ?? 1
-  useEffect(() => {
-    const glow = glowRef.current
-    if (glow === null || !motionAllowed()) return
-    const length = glow.getTotalLength()
-    if (!Number.isFinite(length) || length === 0) return
-    const segment = Math.max(24, Math.min(length * 0.6, 120))
-    glow.setAttribute('stroke-dasharray', `${segment} ${length + segment}`)
-    const tween = gsap.fromTo(glow,
-      { strokeDashoffset: length + segment, opacity: 0.9 },
-      { strokeDashoffset: -segment, duration: PULSE_STEP, ease: 'none', delay: order * PULSE_STEP, repeat: -1, repeatDelay: Math.max(0, total - 1) * PULSE_STEP },
-    )
-    return () => { tween.kill() }
-  }, [path, order, total])
-  return (
-    <>
-      <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
-      <path ref={glowRef} d={path} fill="none" stroke="var(--accent)" strokeWidth={2.5} strokeLinecap="round" className="pointer-events-none" style={{ opacity: 0 }} data-testid={`flow-pulse-${id}`} />
-    </>
-  )
-}
-const EDGE_TYPES = { pulse: PulseEdge }
-
-function isVirtualId(id: string): boolean {
-  return id === 'start' || id === 'end' || id === 'ghost' || id.startsWith('label-') || /^j\d+$/.test(id)
-}
-
-const SkillNodeView = memo(function SkillNodeView({ id, data, selected }: NodeProps<SkillNode>): JSX.Element {
-  const { t } = useT()
-  return (
-    <div
-      className={cn(
-        'relative rounded-sm border bg-card px-3 py-2 shadow-xs transition-[border-color,box-shadow]',
-        selected ? 'border-(--accent) shadow-sm' : data.status === 'done' ? 'border-green-b' : data.status === 'running' ? 'border-info-b shadow-[0_0_0_3px_var(--info-t)]' : 'border-border-2',
-        data.entering && 'animate-[flow-in_.3s_var(--ease-out)_both] motion-reduce:animate-none',
-      )}
-      style={{ width: NODE_WIDTH, minHeight: NODE_HEIGHT }}
-      data-testid={`flow-node-${id}`}
-      data-entering={data.entering || undefined}
-      data-status={data.status ?? undefined}
-    >
-      <Handle type="target" position={Position.Left} className="!size-2 !border-border-2 !bg-card" isConnectable={data.editable} />
-      <button type="button" className="grid w-full min-w-0 gap-0.5 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" title={data.label} data-testid={`flow-open-${id}`} onClick={() => data.onOpen(id)}>
-        <span className="flex min-w-0 items-center gap-1.5 font-mono text-caption font-semibold text-text">
-          {data.source === null ? <Box className="size-3 flex-none text-text-3" aria-hidden="true" /> : <SkillSourceIcon source={data.source} className="size-3" />}
-          <span className="min-w-0 flex-1 truncate">{data.label}</span>
-        </span>
-        {data.description !== null && <span className="block truncate text-micro text-text-2">{data.description}</span>}
-        {data.status !== null && (
-          <span className={cn('mt-0.5 inline-flex items-center gap-1.5 text-micro', data.status === 'done' ? 'text-green-d' : data.status === 'running' ? 'text-info-d' : 'text-text-3')}>
-            <i className={cn('size-1.5 rounded-full', data.status === 'done' ? 'bg-green' : data.status === 'running' ? 'bg-info' : 'bg-text-3')} aria-hidden="true" />
-            {data.statusLabel}
-          </span>
-        )}
-      </button>
-      {data.editable && (
-        <button type="button" className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border border-border bg-card text-text-3 hover:text-red-d" aria-label={t('workflow.remove_skill', { id })} data-testid={`flow-remove-${id}`} onClick={() => data.onRemove(id)}>
-          <X className="size-3" aria-hidden="true" />
-        </button>
-      )}
-      <Handle type="source" position={Position.Right} className="!size-2 !border-border-2 !bg-card" isConnectable={data.editable} />
-    </div>
-  )
-})
-
-/** 起点 / 终点：实心小点（起点强调色、终点灰）+ 下方一字标签；只有一个端口方向。 */
-const PortNodeView = memo(function PortNodeView({ id, data }: NodeProps<PortNode>): JSX.Element {
-  const start = id === 'start'
-  return (
-    <div className="relative grid place-items-center" style={{ width: PORT_SIZE, height: PORT_SIZE }} data-testid={`flow-${id}`}>
-      <span className={cn('block size-2.5 rounded-full', start ? 'bg-(--accent)' : 'bg-text-3')} aria-hidden="true" />
-      <span className="absolute top-full mt-1 whitespace-nowrap text-micro text-text-3">{data.label}</span>
-      <Handle type={start ? 'source' : 'target'} position={start ? Position.Right : Position.Left} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
-    </div>
-  )
-})
-
-/** 拖放预览：半透明虚线节点 + 语义字（并行 / 串行）。 */
-const GhostNodeView = memo(function GhostNodeView({ data }: NodeProps<GhostNode>): JSX.Element {
-  return (
-    <div className="relative rounded-sm border border-dashed border-(--accent) bg-accent-t/60 px-3 py-2 opacity-90" style={{ width: NODE_WIDTH, minHeight: NODE_HEIGHT }} data-testid="flow-ghost" data-mode={data.mode}>
-      <Handle type="target" position={Position.Left} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
-      <span className="block truncate font-mono text-body font-semibold text-(--accent)">{data.label}</span>
-      <span className="block text-micro text-(--accent)">{data.mode}</span>
-      <Handle type="source" position={Position.Right} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
-    </div>
-  )
-})
-
-/** 波次标签：第 n 步（· 并行 k）。 */
-const LabelNodeView = memo(function LabelNodeView({ data }: NodeProps<LabelNode>): JSX.Element {
-  return <span className="whitespace-nowrap font-mono text-micro text-text-3" data-testid="flow-wave-label">{data.label}</span>
-})
-
-/** 汇合点：并行波在中线收敛成一点再连下一步；本身不可见，只有两侧端口。 */
-const JunctionNodeView = memo(function JunctionNodeView(): JSX.Element {
-  return (
-    <div className="relative" style={{ width: 2, height: 2 }} data-testid="flow-junction">
-      <Handle type="target" position={Position.Left} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
-      <Handle type="source" position={Position.Right} className="!size-1 !border-0 !bg-transparent" isConnectable={false} />
-    </div>
-  )
-})
-
-const NODE_TYPES = { skill: SkillNodeView, port: PortNodeView, label: LabelNodeView, ghost: GhostNodeView, junction: JunctionNodeView }
 
 export interface SkillFlowProps {
   skills: readonly WbSkillRef[]
@@ -387,7 +112,11 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs)
     /** 一波的中线 y：首末节点中心的中点。 */
-    const centerY = (ids: readonly string[]): number => ids.length === 0 ? 0 : (middleOf(ids[0]!) + middleOf(ids[ids.length - 1]!)) / 2
+    const centerY = (ids: readonly string[]): number => {
+      const firstId = ids[0]
+      const lastId = ids[ids.length - 1]
+      return firstId === undefined || lastId === undefined ? 0 : (middleOf(firstId) + middleOf(lastId)) / 2
+    }
     const first = waves[0] ?? []
     const last = waves[waves.length - 1] ?? []
     const portEdge = { deletable: false, selectable: false, style: { ...EDGE_STYLE, opacity: 0.7 } }

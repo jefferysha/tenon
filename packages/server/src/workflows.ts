@@ -6,7 +6,7 @@ import {
   constants, fstatSync, fsyncSync, lstatSync, openSync,
   readSync, readdirSync, renameSync, unlinkSync, writeFileSync,
 } from 'node:fs'
-import { parseWorkflow, serializeWorkflow, validateWorkflowForStorage, validateWorkflowTrackReferences, materializeWorkflowIo, selectTrackBranch } from '@tenon/kernel'
+import { isDefaultWorkflowName, parseWorkflow, serializeWorkflow, validateWorkflowForStorage, validateWorkflowTrackReferences, materializeWorkflowIo, selectTrackBranch } from '@tenon/kernel'
 import type { WorkflowDef } from '@tenon/kernel'
 import {
   assertEntryMatches,
@@ -242,7 +242,7 @@ export function readWorkflowSourceForApi(
 
 /** 存储键 'default' 走 default 契约（七阶段 + effective-phase-skills artifact），其余走 custom 契约。 */
 export function workflowOrigin(name: string): 'default' | 'custom' {
-  return name === 'default' ? 'default' : 'custom'
+  return isDefaultWorkflowName(name) ? 'default' : 'custom'
 }
 
 export type WriteWorkflowResult = { ok: true } | { ok: false; errors: string[] }

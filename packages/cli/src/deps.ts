@@ -2,7 +2,7 @@
  * cli 依赖注入面 —— 命令逻辑全部是接受 CliDeps 的纯函数（CONTRACT §4 agent:cli）。
  * store/flow 按 types.ts 契约注入；测试全 mock，绝不 import kernel 实现。
  */
-import type { DocumentContractPhase, DocumentEvidenceReport, EffectiveSkillResolver, FlowEngine, GuardContext, HistoryWriter, InteractionEventRecorder, MutationOutcome, PipelineState, ProjectTrackConfig, RegistrySnapshot, SkillTable, StateStore, TrackRegistry, WorkflowRunRepository } from '@tenon/kernel'
+import type { BoardSnapshotV2, DocumentContractPhase, DocumentEvidenceReport, EffectiveSkillResolver, FlowEngine, GuardContext, HistoryWriter, InteractionEventRecorder, MutationOutcome, PipelineState, ProjectTrackConfig, RegistrySnapshot, SkillTable, StateStore, TrackRegistry, WorkflowRunRepository, WorkflowPipelinePlanV2 } from '@tenon/kernel'
 import type { ArtifactSubmissionService, ExecutionRuntimeV2, SkillActionAuthorityResolver } from '@tenon/automation'
 import type { AfkReadiness } from './afkReadiness.js'
 import type { CodexAuthStatus } from './codexAuth.js'
@@ -139,6 +139,8 @@ export interface CliIO {
 export interface CliDeps {
   /** Production orchestration runner. Kept injectable so command tests never spawn Codex. */
   orchestrationRuntime?: (changeDir: string) => Promise<ExecutionRuntimeV2>
+  /** Freeze a fully validated pipeline supplied by the planner/UI boundary. */
+  orchestrationFreezePipeline?: (input: { readonly changeDir: string; readonly pipeline: WorkflowPipelinePlanV2 }) => Promise<BoardSnapshotV2>
   /** Unified document/field/runtime submission boundary. The factory is change-scoped so every
    * projection shares one canonical subject namespace and can inject the current phase policy. */
   artifactSubmission?: (input: { readonly changeDir: string; readonly phase?: string; readonly policy?: import('@tenon/kernel').DocumentGovernancePolicy }) => Promise<ArtifactSubmissionService>

@@ -45,6 +45,12 @@ export interface ParsedHostPluginInventory {
   readonly enabledScopes: ReadonlyMap<string, ReadonlySet<HostPluginScope>>
   readonly tenonRoot: string | null
   readonly tenonVersion: string | null
+  /**
+   * The host owns a tenon registration in this snapshot, enabled or not.  `tenonRoot` only tracks
+   * an enabled installation, so removal planning must not read absence of a root as absence of a
+   * registration: a disabled entry still has to be removed before its marketplace can be.
+   */
+  readonly tenonRegistered: boolean
 }
 
 /**
@@ -76,6 +82,7 @@ export function parseHostPluginInventory(
   const seenRegistrations = new Set<string>()
   let tenonRoot: string | null = null
   let tenonVersion: string | null = null
+  let tenonRegistered = false
   for (const entry of entries) {
     if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return null
     const item = entry as {
@@ -113,6 +120,12 @@ export function parseHostPluginInventory(
       registeredScopes.add(scope)
       scopes.set(id, registeredScopes)
     }
+    if (
+      id === `${TENON_PLUGIN_NAME}@${TENON_MARKETPLACE_NAME}`
+      || (host === 'codex'
+        && item.name === TENON_PLUGIN_NAME
+        && item.marketplaceName === TENON_MARKETPLACE_NAME)
+    ) tenonRegistered = true
     const candidateRoot = host === 'codex' ? item.source?.path : item.installPath
     if (
       candidateRoot !== undefined
@@ -146,7 +159,7 @@ export function parseHostPluginInventory(
         : null
     }
   }
-  return { enabledIds: ids, enabledScopes: scopes, tenonRoot, tenonVersion }
+  return { enabledIds: ids, enabledScopes: scopes, tenonRoot, tenonVersion, tenonRegistered }
 }
 
 /** Enabled plugin ids as reported by the host-owned inventory. Invalid inventory is not trusted. */

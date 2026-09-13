@@ -31,6 +31,9 @@ const STEP_IDS = [
   'runtime-readiness',
 ] as const
 
+/** Host steps whose execution depends on a registration the read-only plan never observed. */
+const CONDITIONAL_STEP_IDS = ['plugin-remove', 'marketplace-remove'] as const
+
 /** Release projection validated against package/plugin manifests by the product identity gate. */
 export const HOST_PLAN_RELEASE_TAG = 'v1.0.9'
 const LATEST_STABLE_TAG = '<latest-stable>'
@@ -75,6 +78,12 @@ export interface HostTargetPlanStepDto {
   readonly id: string
   readonly label: string
   readonly command: HostPlanCommandDto | null
+  /**
+   * Present only when the upstream plan reports that the step depends on host state it never
+   * observed.  Absence means the step runs on every execution, so this must be forwarded verbatim
+   * rather than dropped.
+   */
+  readonly condition?: string
 }
 
 export interface HostTargetPlanDto {
@@ -240,7 +249,10 @@ export function decodeHostTargetCatalog(value: unknown): HostTargetCatalogDto | 
 }
 
 function decodePlanStep(value: unknown): HostTargetPlanStepDto | null {
-  if (!isRecord(value) || !hasExactKeys(value, ['id', 'label', 'command'])) return null
+  if (!isRecord(value)) return null
+  const conditional = 'condition' in value
+  const keys = conditional ? ['id', 'label', 'command', 'condition'] : ['id', 'label', 'command']
+  if (!hasExactKeys(value, keys)) return null
   if (
     typeof value.id !== 'string'
     || !(STEP_IDS as readonly string[]).includes(value.id)
@@ -248,7 +260,14 @@ function decodePlanStep(value: unknown): HostTargetPlanStepDto | null {
   ) return null
   const command = value.command === null ? null : decodeCommand(value.command)
   if (value.command !== null && command === null) return null
-  return { id: value.id, label: value.label, command }
+  if (!conditional) return { id: value.id, label: value.label, command }
+  // Only a removal may be conditional. Letting any other step claim it would let an upstream tell
+  // the user a registration or install "might not happen" when execution always performs it.
+  if (
+    !(CONDITIONAL_STEP_IDS as readonly string[]).includes(value.id)
+    || value.condition !== `host-plan.condition.${value.id}`
+  ) return null
+  return { id: value.id, label: value.label, command, condition: value.condition }
 }
 
 export function decodeHostTargetPlan(

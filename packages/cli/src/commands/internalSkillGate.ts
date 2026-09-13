@@ -252,6 +252,12 @@ export async function cmdInternalSkillGate(deps: CliDeps, name: string, skillId:
           const missingRequired = phaseRequiredSlots
             .filter((slot) => !slot.alternatives.some((candidate) => completed.has(candidate)))
             .map((slot) => slot.token)
+          // Unrelated optional skills are gated only by the Workflow-owned phase entry
+          // requirement. Track overlay mandatory slots (for example openspec-propose on
+          // backend) must not turn an undeclared optional invocation into a hard dependency
+          // once the phase skill itself has completed.
+          const phaseEntry = phaseRequiredSlots[0]
+          if (phaseEntry === undefined || phaseEntry.alternatives.some((candidate) => completed.has(candidate))) return 0
           if (missingRequired.length === 0) return 0
           deps.io.err(
             `【Tenon 门】skill '${skillId}' 在 default step '${currentStepId}' 未解锁：` +

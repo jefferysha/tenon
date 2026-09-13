@@ -630,7 +630,9 @@ describe('①a 自动更新偏好 —— 只允许原生宿主，且在插件校
     expect(Reflect.get(activationScope ?? {}, 'trustedBashPath')).toBe('/trusted/bin/bash')
   })
 
-  test('Codex 没有已验证插件时才执行正式 marketplace 安装计划', async () => {
+  // 首次安装没有可删除的登记：计划里不得出现 plugin remove，否则会在 marketplace add 之前
+  // 先把宿主置空，制造断网即无法恢复的裸露窗口。
+  test('Codex 没有已登记插件时执行不含 plugin remove 的正式 marketplace 安装计划', async () => {
     const deps = makeDeps()
     let inventoryReads = 0
     const exec: ExecStub = (cmd, args) => {
@@ -662,7 +664,6 @@ describe('①a 自动更新偏好 —— 只允许原生宿主，且在插件校
         || args[1] === 'add'
         || (args[1] === 'marketplace' && (args[2] === 'remove' || args[2] === 'add'))))
       .map(([cmd, args]) => [cmd, args.join(' ')])).toEqual([
-      ['codex', 'plugin remove tenon@tenon --json'],
       ['codex', 'plugin marketplace remove tenon --json'],
       ['codex', `plugin marketplace add jefferysha/tenon --ref ${CURRENT_RELEASE_TAG} --json`],
       ['codex', 'plugin add tenon@tenon --json'],
@@ -1496,6 +1497,59 @@ describe('①a 自动更新偏好 —— 只允许原生宿主，且在插件校
     expect(deps.errLines.join('\n')).toContain('receipt')
   })
 
+  // 降级到旧 tenon 后仍然拒绝解释更新版 receipt 是对的，但不能变成砖头：必须说明这是版本问题、
+  // 可以删哪个文件、删了会失去什么。
+  test('receipt 版本高于当前 tenon 时给出文件路径、删除后果与宿主检查命令', async () => {
+    const deps = makeDeps()
+    const paths = resolveRuntimePaths({ homeDir: '/home/test', env: {} })
+    const receiptPath = join(paths.migrationsRoot, 'host-plugin-convergence', 'codex.json')
+    const { env, calls } = spyEnv({
+      pathExists: (path) => path === receiptPath || setupPathExists(path),
+      readText: (path) => path === receiptPath
+        ? JSON.stringify({
+            version: 5,
+            transactionId: 'future-transaction',
+            state: 'cleanup-pending',
+            host: 'codex',
+            conflictPluginId: 'pipeline-lite@pipeline-lite',
+            conflictScopes: ['user'],
+            releaseId: `sha256-${'a'.repeat(64)}`,
+            releaseRoot: '/runtime/releases/payload',
+            candidateRoot: '/installed/tenon',
+            createdAtEpoch: 1_770_000_000,
+            updatedAt: '2026-09-05T00:00:00Z',
+          })
+        : setupReadText(path),
+    })
+    const runtime = fakeRuntimeInstaller()
+
+    expect(await cmdSetupHost(deps, 'codex', { codex: true }, env, runtime.installer)).toBe(1)
+    expect(calls.exec).toEqual([])
+    expect(runtime.calls.activations).toEqual([])
+    const err = deps.errLines.join('\n')
+    expect(err).toContain('迁移 receipt 版本 5 高于当前 tenon 支持的最高版本 4')
+    expect(err).toContain(receiptPath)
+    expect(err).toContain(`rm ${receiptPath}`)
+    expect(err).toContain('codex plugin list')
+    expect(err).toContain('不会再被自动完成')
+  })
+
+  test('receipt 结构非法时同样给出可删除的文件路径，而不是只说非法', async () => {
+    const deps = makeDeps()
+    const paths = resolveRuntimePaths({ homeDir: '/home/test', env: {} })
+    const receiptPath = join(paths.migrationsRoot, 'host-plugin-convergence', 'codex.json')
+    const { env } = spyEnv({
+      pathExists: (path) => path === receiptPath || setupPathExists(path),
+      readText: (path) => path === receiptPath ? '{"version":4}' : setupReadText(path),
+    })
+    const runtime = fakeRuntimeInstaller()
+
+    expect(await cmdSetupHost(deps, 'codex', { codex: true }, env, runtime.installer)).toBe(1)
+    const err = deps.errLines.join('\n')
+    expect(err).toContain(`迁移 receipt 非法：${receiptPath}`)
+    expect(err).toContain(`rm ${receiptPath}`)
+  })
+
   test('Codex 冲突登记先发布并验证 Tenon，再写 cleanup-pending；同一会话绝不提前删除旧入口', async () => {
     const deps = makeDeps()
     const exec: ExecStub = (cmd, args) => {
@@ -2288,6 +2342,175 @@ describe('⑨空 sub 全流程 —— 技能段后接运行时就绪清单（dry
       expect(runtime.calls.activations).toEqual([['/installed/tenon', 'codex', '/home/test']])
     },
   )
+
+  // ── 「先删后加」裸露窗口回归 ───────────────────────────────────────────────
+  // 宿主里有一份 tenon 登记；升级需要 remove/add 收敛。第 3 步（marketplace 重登记）依赖网络，
+  // 一旦它在两次删除之后失败，用户的宿主就会彻底没有 tenon。下面两条覆盖：
+  // ①删除前先向远端证明替换品可获取，证明失败时零删除；②真的中断时报告状态并给出可执行恢复命令。
+  function statefulCodexHost(options: { failMarketplaceAdd?: boolean } = {}): {
+    readonly exec: ExecStub
+    readonly mutations: string[]
+    state(): { marketplacePresent: boolean; pluginPresent: boolean }
+    inventoryReads(): number
+    allowMarketplaceAdd(): void
+  } {
+    let marketplacePresent = true
+    let pluginPresent = true
+    let pluginEnabled = false
+    let failMarketplaceAdd = options.failMarketplaceAdd === true
+    let reads = 0
+    const mutations: string[] = []
+    const exec: ExecStub = (cmd, args) => {
+      const text = `${cmd} ${args.join(' ')}`
+      if (text === 'codex plugin marketplace list --json') {
+        return {
+          code: 0,
+          stdout: JSON.stringify({ marketplaces: marketplacePresent
+            ? [{
+                name: 'tenon',
+                root: '/installed/tenon',
+                marketplaceSource: { sourceType: 'git', source: 'jefferysha/tenon' },
+              }]
+            : [] }),
+          stderr: '',
+        }
+      }
+      if (text === 'codex plugin list --json') {
+        reads += 1
+        return {
+          code: 0,
+          stdout: JSON.stringify({ installed: pluginPresent
+            ? [{
+                pluginId: 'tenon@tenon',
+                name: 'tenon',
+                marketplaceName: 'tenon',
+                enabled: pluginEnabled,
+                version: TENON_RELEASE_VERSION,
+                source: { path: '/installed/tenon' },
+              }]
+            : [] }),
+          stderr: '',
+        }
+      }
+      if (text === 'codex plugin remove tenon@tenon --json') {
+        mutations.push(text)
+        pluginPresent = false
+        pluginEnabled = false
+      } else if (text === 'codex plugin marketplace remove tenon --json') {
+        mutations.push(text)
+        marketplacePresent = false
+      } else if (text.startsWith('codex plugin marketplace add ')) {
+        mutations.push(text)
+        if (failMarketplaceAdd) {
+          return { code: 1, stdout: '', stderr: 'fatal: unable to access github.com: network unreachable' }
+        }
+        marketplacePresent = true
+      } else if (text === 'codex plugin add tenon@tenon --json') {
+        mutations.push(text)
+        pluginPresent = true
+        pluginEnabled = true
+      }
+      return { code: 0, stdout: '', stderr: '' }
+    }
+    return {
+      exec,
+      mutations,
+      state: () => ({ marketplacePresent, pluginPresent }),
+      inventoryReads: () => reads,
+      allowMarketplaceAdd: () => { failMarketplaceAdd = false },
+    }
+  }
+
+  test('删除宿主登记前无法向远端证明目标 release 时，一个宿主登记都不删', async () => {
+    const deps = makeDeps()
+    const host = statefulCodexHost()
+    const { env: baseEnv } = spyEnv({
+      pathExists: setupPathExists,
+      readText: setupReadText,
+      managedHostReconciliation: undefined,
+    }, host.exec)
+    let tagProofs = 0
+    const env: SetupEnv = {
+      ...baseEnv,
+      runCommand: (cmd, args, options) => {
+        // 冻结目标时远端可达；读完宿主 inventory、真正要动手删除之前远端已不可达（断网 / 限流）。
+        if (cmd === 'git'
+          && args[0] === 'ls-remote'
+          && args[1]?.endsWith('/tenon.git') === true
+          && host.inventoryReads() > 0) {
+          tagProofs += 1
+          return { code: 128, stdout: '', stderr: 'fatal: unable to access github.com' }
+        }
+        return baseEnv.runCommand(cmd, args, options)
+      },
+    }
+    const runtime = fakeRuntimeInstaller()
+
+    expect(await cmdSetupHost(
+      deps,
+      'codex',
+      { codex: true, yes: true },
+      env,
+      runtime.installer,
+      fakeDashboardStarter().starter,
+    )).toBe(1)
+    expect(tagProofs).toBeGreaterThan(0)
+    expect(host.mutations).toEqual([])
+    expect(host.state()).toEqual({ marketplacePresent: true, pluginPresent: true })
+    expect(runtime.calls.activations).toEqual([])
+    const err = deps.errLines.join('\n')
+    expect(err).toContain('未执行任何宿主删除或安装')
+    expect(err).toContain('tenon setup --codex')
+  })
+
+  test('marketplace 重登记失败时报告宿主已空，并给出真的能恢复宿主的命令', async () => {
+    const deps = makeDeps()
+    const host = statefulCodexHost({ failMarketplaceAdd: true })
+    const { env } = spyEnv({
+      pathExists: setupPathExists,
+      readText: setupReadText,
+      managedHostReconciliation: undefined,
+    }, host.exec)
+    const runtime = fakeRuntimeInstaller()
+
+    expect(await cmdSetupHost(
+      deps,
+      'codex',
+      { codex: true, yes: true },
+      env,
+      runtime.installer,
+      fakeDashboardStarter().starter,
+    )).toBe(1)
+    expect(host.mutations).toEqual([
+      'codex plugin remove tenon@tenon --json',
+      'codex plugin marketplace remove tenon --json',
+      `codex plugin marketplace add jefferysha/tenon --ref ${CURRENT_RELEASE_TAG} --json`,
+    ])
+    expect(host.state()).toEqual({ marketplacePresent: false, pluginPresent: false })
+    expect(runtime.calls.activations).toEqual([])
+
+    const err = deps.errLines.join('\n')
+    expect(err).toContain('宿主收敛在 marketplace-register 中断')
+    expect(err).toContain('已被移除且未重新登记')
+    expect(err).toContain('这次收敛移除的是宿主原有的 tenon 登记')
+    expect(err).toContain('重新运行 `tenon setup --codex`')
+
+    // 报告里的手工恢复命令不是装饰：它必须真的把宿主带回可加载 Tenon 的状态。
+    const prefix = '[setup]   $ '
+    const restore = deps.errLines
+      .filter((line) => line.startsWith(prefix))
+      .map((line) => line.slice(prefix.length))
+    expect(restore).toEqual([
+      `codex plugin marketplace add jefferysha/tenon --ref ${CURRENT_RELEASE_TAG} --json`,
+      'codex plugin add tenon@tenon --json',
+    ])
+    host.allowMarketplaceAdd()
+    for (const command of restore) {
+      const [cmd, ...args] = command.split(' ')
+      host.exec(cmd ?? '', args)
+    }
+    expect(host.state()).toEqual({ marketplacePresent: true, pluginPresent: true })
+  })
 
   test('Codex CLI 缺失时在 host/journal mutation 前失败并给出安装与版本检查命令', async () => {
     const deps = makeDeps()

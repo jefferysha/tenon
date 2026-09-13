@@ -40,7 +40,7 @@ describe('cmdArtifactRegister —— default 轨成功写入', () => {
   })
 
   test('spec/pm plan 属于 required_when 排除的 legacy artifact → register 拒绝', async () => {
-    const deps = makeDeps({ state: mockState({ phase: 'spec', track: 'pm' }) })
+    const deps = makeDeps({ state: mockLegacyDefaultState({ phase: 'spec', track: 'pm' }) })
     expect(await cmdArtifactRegister(deps, CH, 'plan', 'p/plan.md', 'superpowers:writing-plans')).toBe(1)
     expect(deps.store.write.calls).toHaveLength(0)
     expect(deps.errLines.join('\n')).toContain("track 'pm' 不适用")
@@ -74,7 +74,7 @@ describe('cmdArtifactRegister —— declaration 判定拒绝（state 不变）'
   })
 
   test('spec/pm 的 plan 即使给出任意 producer 也因 required_when 排除而拒绝', async () => {
-    const deps = makeDeps({ state: mockState({ phase: 'spec', track: 'pm' }) })
+    const deps = makeDeps({ state: mockLegacyDefaultState({ phase: 'spec', track: 'pm' }) })
     expect(await cmdArtifactRegister(deps, CH, 'plan', 'p/plan.md', 'not-a-plan-producer')).toBe(1)
     expect(deps.store.write.calls.length).toBe(0)
     expect(deps.errLines.join('\n')).toContain("track 'pm' 不适用")
@@ -152,7 +152,7 @@ describe('cmdArtifactRegister —— 参数/锁/异常口径', () => {
   test('并发反向：校验依据是锁内 read 出来的 state（spec/pm required_when 排除）', async () => {
     // register 只在 withLock 内 read 一次 state，phase/track/workflow 全取自该锁内快照——
     // 本用例以 pm 轨 state 证明「锁内 state 决定 required_when 判定」（非任何锁外陈旧值）。
-    const deps = makeDeps({ state: mockState({ phase: 'spec', track: 'pm' }) })
+    const deps = makeDeps({ state: mockLegacyDefaultState({ phase: 'spec', track: 'pm' }) })
     expect(await cmdArtifactRegister(deps, CH, 'plan', 'p.md', 'not-a-plan-producer')).toBe(1)
     expect(deps.store.read.calls.length).toBe(1) // 锁内读一次
     expect(deps.store.withLock.calls.length).toBe(1)

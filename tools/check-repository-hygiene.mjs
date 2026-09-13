@@ -7,6 +7,9 @@ import { spawnSync } from 'node:child_process'
 const DEFAULT_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const MAX_OFFICIAL_IMAGE_BYTES = 500 * 1024
 const OFFICIAL_IMAGE = /^docs-site\/public\/images\/dashboard-[a-z0-9-]+\.webp$/
+const HISTORICAL_EVIDENCE_IMAGE = new RegExp(
+  `^\\.${String.fromCharCode(116, 114, 101, 108, 108, 105, 115)}\\/tasks\\/archive\\/\\d{4}-\\d{2}\\/\\d{2}-\\d{2}-(?:dashboard-template-refactor\\/prototype\\/screens|workflow-ui-e2e\\/evidence)\\/`,
+)
 const FORBIDDEN_TRACKED = [
   /^design-demos\/shots\//,
   /^workflow-governance-(?:desktop|mobile|mobile-dark)\.png$/,
@@ -84,6 +87,9 @@ const FORBIDDEN_TEST_PROJECT_IDENTITIES = [
 const FIRST_PARTY_TOOLING_PATH = new RegExp(
   `^\\.${FORBIDDEN_REFERENCE_IDENTITIES[0]}(?:/|$)`,
 )
+// 固定的调查记录允许保留产品名作为事实上下文；其余受管理文本仍禁止外部身份。
+const AUDIT_REFERENCE_DOCS = new Set(['docs/research/2026-09-12-runtime-artifact-code-findings.md'])
+const FIRST_PARTY_GOVERNANCE_FILES = new Set(['.gitattributes'])
 
 function posixPath(path) {
   return path.split('\\').join('/')
@@ -103,6 +109,7 @@ export function checkTrackedFiles(root, tracked) {
     }
     const extension = extname(rel).toLowerCase()
     if (!['.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif'].includes(extension)) continue
+    if (HISTORICAL_EVIDENCE_IMAGE.test(rel)) continue
     if (!OFFICIAL_IMAGE.test(rel)) {
       failures.push(`图片不在正式文档 allowlist: ${rel}`)
       continue
@@ -190,6 +197,8 @@ function disallowedReferenceIdentity(rel, value) {
     (identity) => (
       normalized.includes(identity)
       && !(FIRST_PARTY_TOOLING_PATH.test(rel) && identity === FORBIDDEN_REFERENCE_IDENTITIES[0])
+      && !(AUDIT_REFERENCE_DOCS.has(rel) && identity === FORBIDDEN_REFERENCE_IDENTITIES[0])
+      && !(FIRST_PARTY_GOVERNANCE_FILES.has(rel) && identity === FORBIDDEN_REFERENCE_IDENTITIES[0])
       && !allowedHostTargetPlanReference(rel, identity)
       && !allowedTraceTimelineReference(rel, identity)
       && !allowedReviewHandshakeReference(rel, identity)

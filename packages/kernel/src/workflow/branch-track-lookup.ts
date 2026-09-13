@@ -1,7 +1,8 @@
 import { requireTrack } from '../tracks/registry.js'
 import { resolveTrackForBranch } from '../tracks/branch-track.js'
 import type { TrackDefinition, TrackRegistry } from '../tracks/types.js'
-import { globalWorkflowRoot, workflowNamesUnder } from './global-store.js'
+import { globalWorkflowRoot } from './global-store.js'
+import { workflowNamesUnder } from '../infrastructure/workflow-global-store.js'
 import { loadWorkflow } from './loadWorkflow.js'
 import type { WorkflowDef } from './types.js'
 

@@ -9,10 +9,9 @@ use the local API within its security boundary.
 
 - a verified managed release
 - a supported local browser
-- at least one project for project-scoped operational views; the bundled
-  Overview and Host Plan remain readable without one
+- at least one project for project-scoped operational views
 
-<img src="../../docs-site/public/images/dashboard-overview.webp" alt="Tenon Dashboard project overview" width="1440" height="900">
+<img src="../../docs-site/public/images/dashboard-overview.webp" alt="Tenon Dashboard project overview" width="1280" height="720">
 
 The project view prioritizes work that actually needs help. Official screenshots
 use a sanitized showcase project and contain no user directory, credential, or
@@ -47,17 +46,15 @@ development port is not a second production frontend.
 
 ## Views
 
-The operational destinations are:
+The two operational destinations in the primary shell are:
 
-- Projects — registered local roots and project selection
 - Progress — Workflow graph, phase, Todo, history, and evidence
-- AFK — readiness, queue, worker state, logs, and control
 - Workbench — Workflows, Tracks, hooks, automation, loops, and configuration
-- Machine — runtime identity, traffic, and advanced diagnostics
-- Host Plan (`hostPlan`) — choose a registered host and preview a zero-side-effect
-  setup or update command and its ordered steps. Adapter previews use
-  `--target .`, so enter the intended project directory before running a copied
-  command
+
+The Settings panel contains theme and language controls. AFK, machine diagnostics,
+and Host Plan remain CLI/API capabilities; their historical dashboard deep links
+are no longer primary views. Host Plan previews are zero-side-effect and adapter
+previews use `--target .`.
 
 The product Overview at `/?view=overview` is a separate brand-level read-only
 view, not an operational destination and not the installed default.
@@ -65,23 +62,22 @@ view, not an operational destination and not the installed default.
 Optional surfaces are advertised by snapshot capability flags. A disabled
 capability is not an empty success state.
 
-<img src="../../docs-site/public/images/dashboard-progress.webp" alt="Tenon Dashboard workflow progress" width="1440" height="900" loading="lazy">
+<img src="../../docs-site/public/images/dashboard-progress.webp" alt="Tenon Dashboard workflow progress" width="1280" height="720" loading="lazy">
 
 Progress follows the effective Workflow. Display state and execution provenance
 are separate, so a task can be running in a terminal without being presented as
 unattended automation.
 
-### Unattended automation
+### Settings
 
-<img src="../../docs-site/public/images/dashboard-automation.webp" alt="Tenon Dashboard unattended automation" width="1440" height="900" loading="lazy">
+<img src="../../docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard settings" width="1280" height="720" loading="lazy">
 
-This page admits only tasks whose execution provenance is automation. A fresh
-normal-chat terminal heartbeat may still make Progress show “running,” but it
-does not leak into this queue.
+Settings exposes the current theme and language controls without changing the
+canonical Workflow state.
 
 ### Workflow workbench
 
-<img src="../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard workflow workbench" width="1440" height="900" loading="lazy">
+<img src="../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard workflow workbench" width="1280" height="720" loading="lazy">
 
 The workbench places Tracks, the seven-phase DAG, phase Skills, hooks, and
 pre-run facts on one page. The read-only default baseline, custom Workflows,

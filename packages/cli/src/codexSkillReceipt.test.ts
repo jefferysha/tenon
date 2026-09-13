@@ -578,6 +578,22 @@ const historyWriter: HistoryWriter = {
   },
 }
 
+/** Mirror the on-disk identity a host-owned Codex plugin cache always declares. */
+async function writeCodexCacheIdentity(cacheRoot: string, version: string): Promise<void> {
+  await mkdir(join(cacheRoot, '.codex-plugin'), { recursive: true })
+  await mkdir(join(cacheRoot, '.agents', 'plugins'), { recursive: true })
+  await writeFile(
+    join(cacheRoot, '.codex-plugin', 'plugin.json'),
+    `${JSON.stringify({ name: 'tenon', version })}\n`,
+    'utf8',
+  )
+  await writeFile(
+    join(cacheRoot, '.agents', 'plugins', 'marketplace.json'),
+    `${JSON.stringify({ name: 'tenon', plugins: [{ name: 'tenon' }] })}\n`,
+    'utf8',
+  )
+}
+
 describe('Codex transcript skill receipt', () => {
   beforeEach(async () => {
     root = await realpath(await mkdtemp(join(tmpdir(), 'codex-skill-receipt-')))
@@ -595,6 +611,9 @@ describe('Codex transcript skill receipt', () => {
     ])
     await writeFile(skillPath, '# OpenSpec Propose\n', 'utf8')
     await writeFile(writingPlansPath, '# Writing Plans\n', 'utf8')
+    // A real Codex cache root always carries the manifests that declare its own
+    // marketplace/plugin/version identity; trust now reconciles them against the cache path.
+    await writeCodexCacheIdentity(selectedPluginRoot, '0.2.0')
   })
 
   afterEach(async () => {

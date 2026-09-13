@@ -3,6 +3,11 @@ import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { parseManifest } from './runtime/release-store-codecs.js'
 
+/** The host cache path is `<codex home>/plugins/cache/<marketplace>/<plugin>/<version>`. */
+const TENON_CACHE_MARKETPLACE = 'tenon'
+const TENON_CACHE_PLUGIN = 'tenon'
+const SAFE_PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
 export interface CodexSkillTrustRoots {
   readonly selectedCacheRoot?: string
   readonly activeReleaseRoot?: string
@@ -75,6 +80,56 @@ async function samePhysicalDirectory(left: string | undefined, right: string): P
   }
 }
 
+async function readOrdinaryText(path: string): Promise<string | undefined> {
+  try {
+    const info = await lstat(path)
+    if (!info.isFile() || info.isSymbolicLink()) return undefined
+    return await readFile(path, 'utf8')
+  } catch {
+    return undefined
+  }
+}
+
+function safeSegment(value: unknown): string | undefined {
+  return typeof value === 'string' && SAFE_PATH_SEGMENT.test(value) ? value : undefined
+}
+
+async function readOrdinaryRecord(path: string): Promise<Record<string, unknown> | undefined> {
+  const raw = await readOrdinaryText(path)
+  if (raw === undefined) return undefined
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The cache path already encodes an identity (`<marketplace>/<plugin>/<version>`).  Trusting that
+ * path alone lets an inherited `TENON_CODEX_PLUGIN_ROOT` point at a sibling cache directory whose
+ * payload declares something else entirely.  Reconcile both directions the way `activeReleaseRoot`
+ * reconciles its release id, and use the same identity the stable bootstrap already requires: the
+ * payload's own plugin and marketplace manifests must declare exactly the marketplace, plugin and
+ * version that the selected cache path claims.
+ */
+async function cacheIdentityReconciles(logical: string, declaredVersion: string): Promise<boolean> {
+  const plugin = await readOrdinaryRecord(join(logical, '.codex-plugin', 'plugin.json'))
+  const marketplace = await readOrdinaryRecord(join(logical, '.agents', 'plugins', 'marketplace.json'))
+  if (plugin === undefined || marketplace === undefined) return false
+  if (safeSegment(plugin.name) !== TENON_CACHE_PLUGIN) return false
+  if (safeSegment(plugin.version) !== safeSegment(declaredVersion)) return false
+  if (safeSegment(marketplace.name) !== TENON_CACHE_MARKETPLACE) return false
+  return Array.isArray(marketplace.plugins)
+    && marketplace.plugins.some((entry) =>
+      typeof entry === 'object'
+      && entry !== null
+      && !Array.isArray(entry)
+      && (entry as Record<string, unknown>).name === TENON_CACHE_PLUGIN)
+}
+
 async function selectedCacheRoot(
   roots: CodexSkillTrustRoots,
   homeDir: string,
@@ -82,10 +137,17 @@ async function selectedCacheRoot(
 ): Promise<TrustedSkillRoot | undefined> {
   const logical = safeAbsolute(roots.selectedCacheRoot)
   if (!logical) return undefined
-  const cacheBase = join(codexHomeRoot(homeDir, configured), 'plugins', 'cache', 'tenon', 'tenon')
+  const cacheBase = join(
+    codexHomeRoot(homeDir, configured),
+    'plugins',
+    'cache',
+    TENON_CACHE_MARKETPLACE,
+    TENON_CACHE_PLUGIN,
+  )
   const rel = relative(cacheBase, logical)
   if (rel === '' || rel.startsWith('..') || rel.split(sep).length !== 1) return undefined
   if (!await ordinaryDirectoryChain(codexHomeRoot(homeDir, configured), logical)) return undefined
+  if (!await cacheIdentityReconciles(logical, rel)) return undefined
   try {
     return { logical, physical: await realpath(logical) }
   } catch {

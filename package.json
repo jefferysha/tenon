@@ -2,6 +2,7 @@
   "name": "tenon",
   "private": true,
   "version": "1.0.9",
+  "packageManager": "npm@11.16.0",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -14,7 +15,7 @@
     "generate:identity": "node tools/generate-product-identity.mjs",
     "generate:interaction-contract": "node tools/generate-skill-interaction-contract.mjs",
     "check:interaction-contract": "node tools/generate-skill-interaction-contract.mjs --check && node --test tools/generate-skill-interaction-contract.node-test.mjs",
-    "check:identity": "node tools/check-product-identity.mjs && npm run check:interaction-contract && node --test tools/product-identity.node-test.mjs tools/check-legacy-identity.node-test.mjs && node tools/check-legacy-identity.mjs",
+    "check:identity": "node tools/check-product-identity.mjs && npm run check:interaction-contract && node --test tools/product-identity.node-test.mjs tools/check-product-identity.node-test.mjs tools/check-legacy-identity.node-test.mjs && node tools/check-legacy-identity.mjs",
     "build": "tsc -b packages/kernel packages/channel packages/tap packages/automation packages/cli packages/server && npm run build:web && npm run build:server && npm run bundle",
     "typecheck:web": "tsc --noEmit -p packages/dashboard-app",
     "build:server": "esbuild packages/server/src/main.ts --bundle --platform=node --format=esm --target=node22 --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\" --outfile=packages/server/dist/dashboard.mjs && chmod +x packages/server/dist/dashboard.mjs",
@@ -53,7 +54,10 @@
     "check:adapter-capabilities-freshness": "npm run generate:adapter-capabilities && git diff --exit-code -- packages/kernel/src/catalog/adapter-capabilities.generated.ts",
     "generate:document-presentation": "node tools/generate-document-presentation.mjs",
     "check:default-skill-matrix": "node tools/check-default-skill-matrix.mjs",
-    "check:default-workflow-freshness": "npm run generate:default-workflow && git diff --exit-code -- packages/kernel/src/workflow/default-workflow.generated.ts"
+    "check:default-workflow-freshness": "npm run generate:default-workflow && git diff --exit-code -- packages/kernel/src/workflow/default-workflow.generated.ts",
+    "check:dashboard-dist-freshness": "node --test tools/check-dashboard-dist-freshness.node-test.mjs && node tools/check-dashboard-dist-freshness.mjs",
+    "build:packages": "tsc -b packages/kernel packages/channel packages/tap packages/automation packages/cli packages/server",
+    "pretest": "npm run build:packages"
   },
   "devDependencies": {
     "@fission-ai/openspec": "1.6.0",

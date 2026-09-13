@@ -397,7 +397,7 @@ npm run docs:smoke
 
 - 新增 `docs-site/public/images/dashboard-overview.webp`
 - 新增 `docs-site/public/images/dashboard-progress.webp`
-- 新增 `docs-site/public/images/dashboard-automation.webp`
+- 新增 `docs-site/public/images/dashboard-workflow-editor.webp`
 - 新增 `docs-site/public/images/dashboard-workbench.webp`
 - 修改 README 与中文 Dashboard/快速开始页面
 - 新增 `tools/capture-docs-dashboard.mjs` 与图片清单/检查

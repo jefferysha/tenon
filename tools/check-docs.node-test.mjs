@@ -63,10 +63,10 @@ async function fixture() {
   )
   await write(
     root,
-    'packages/dashboard-app/src/shell/Nav.tsx',
+    'packages/dashboard-app/src/shell/views.ts',
     [
-      "export type View = 'overview' | 'projects' | 'progress' | 'afk' | 'workbench' | 'machine' | 'hostPlan'",
-      "export const PRIMARY_VIEWS = ['projects', 'progress', 'afk', 'workbench', 'machine', 'hostPlan']",
+      "export const VIEWS = ['progress', 'workbench'] as const",
+      "export type View = (typeof VIEWS)[number]",
     ].join('\n'),
   )
   const defaultStepIds = ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive']
@@ -357,34 +357,33 @@ test('detects drift in the documented runtime subcommands', async (t) => {
   assert.match(checkRepository(root).join('\n'), /commands\/runtime\.ts.*status/)
 })
 
-test('keeps operational views declared in View and Overview outside PRIMARY_VIEWS', async (t) => {
+test('keeps operational views declared in VIEWS', async (t) => {
   const root = await fixture()
   t.after(() => rm(root, { recursive: true, force: true }))
   await write(
     root,
-    'packages/dashboard-app/src/shell/Nav.tsx',
+    'packages/dashboard-app/src/shell/views.ts',
     [
-      "export type View = 'overview' | 'projects' | 'progress' | 'afk' | 'workbench' | 'machine' | 'hostPlan'",
-      "export const PRIMARY_VIEWS = ['overview', 'projects', 'progress', 'afk', 'workbench', 'machine', 'hostPlan', 'missing']",
+      "export const VIEWS = ['progress', 'workbench', 'missing'] as const",
+      "export type View = (typeof VIEWS)[number]",
     ].join('\n'),
   )
   const failures = checkRepository(root).join('\n')
-  assert.match(failures, /overview.*separate/i)
-  assert.match(failures, /PRIMARY_VIEWS entry missing must be declared in View/)
+  assert.match(failures, /VIEWS must remain the exact operational set/)
 })
 
-test('rejects removing or replacing one of the six primary operational views', async (t) => {
+test('rejects removing or replacing one of the operational views', async (t) => {
   const root = await fixture()
   t.after(() => rm(root, { recursive: true, force: true }))
   await write(
     root,
-    'packages/dashboard-app/src/shell/Nav.tsx',
+    'packages/dashboard-app/src/shell/views.ts',
     [
-      "export type View = 'overview' | 'projects' | 'progress' | 'afk' | 'workbench' | 'machine' | 'hostPlan' | 'other'",
-      "export const PRIMARY_VIEWS = ['projects', 'progress', 'afk', 'workbench', 'machine', 'other']",
+      "export const VIEWS = ['progress', 'other'] as const",
+      "export type View = (typeof VIEWS)[number]",
     ].join('\n'),
   )
-  assert.match(checkRepository(root).join('\n'), /PRIMARY_VIEWS must remain the exact operational set/)
+  assert.match(checkRepository(root).join('\n'), /VIEWS must remain the exact operational set/)
 })
 
 test('requires README language and community links', async (t) => {

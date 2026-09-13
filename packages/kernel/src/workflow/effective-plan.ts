@@ -23,6 +23,7 @@ import {
 import type { WorkflowDef } from './types.js'
 import { WorkflowTrackBranchError } from './validate.js'
 import { validateWorkflow } from './validate.js'
+import { isDefaultWorkflowName } from './identifier.js'
 import type { WorkflowPlanSnapshot } from './workflow-plan-snapshot-types.js'
 import type {
   EffectiveWorkflowPlan,
@@ -33,13 +34,11 @@ export type {
   LegacyWorkflowIR, WorkflowPlanSnapshot, WorkflowPlanSnapshotV1,
   WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3,
 } from './workflow-plan-snapshot-types.js'
-
 export class DocumentGovernanceBindingError extends Error {
   readonly _tag = 'DocumentGovernanceBindingError'
 }
 function profileFor(policy: DocumentGovernancePolicy | undefined): DocumentProfileId | undefined {
-  if (policy?.id === 'openspec-v1') return 'legacy-full'
-  if (policy?.id === 'document-v1') return 'document-v1'
+  if (policy?.id === 'openspec-v1') return 'legacy-full'; if (policy?.id === 'document-v1') return 'document-v1'
   return undefined
 }
 function canonicalRequirement(requirement: {
@@ -73,7 +72,6 @@ export function documentGovernanceFingerprint(policy: DocumentGovernancePolicy):
   }
   return sha256Hex(JSON.stringify(canonical))
 }
-
 function freeze<T>(value: T): T {
   if (value !== null && typeof value === 'object') {
     for (const child of Object.values(value)) freeze(child)
@@ -81,23 +79,19 @@ function freeze<T>(value: T): T {
   }
   return value
 }
-
 function assertValid(definition: WorkflowDef, origin: 'custom' | 'default'): void {
   const errors = validateWorkflow(definition, { origin })
   if (errors.length > 0) throw new Error(`effective workflow 无效：\n${errors.map((error) => `  - ${error}`).join('\n')}`)
 }
-
 /** 按 track 选中分支 IR（同 selectTrackBranch 口径）：有 tracks 时未给 track → 第一条分支；给了却没有 → 抛错。 */
 export function selectTrackBranchIr(workflow: WorkflowIR, track: string | undefined): WorkflowIR {
   const { tracks, ...rest } = workflow
   const entries = Object.entries(tracks ?? {})
   if (entries.length === 0) return rest
-  if (track === undefined || track === '') return { ...rest, steps: entries[0]![1].steps }
+  if (track === undefined || track === '') { const first = entries[0]; if (first === undefined) throw new Error(`workflow '${workflow.name}' has no track branch`); return { ...rest, steps: first[1].steps } }
   const branch = tracks?.[track]
-  if (branch === undefined) throw new WorkflowTrackBranchError(workflow.name, track)
-  return { ...rest, steps: branch.steps }
+  if (branch === undefined) throw new WorkflowTrackBranchError(workflow.name, track); return { ...rest, steps: branch.steps }
 }
-
 function planFromIr(
   id: string,
   executionModel: EffectiveWorkflowPlan['executionModel'],
@@ -106,9 +100,6 @@ function planFromIr(
   frozenDocumentPolicy?: DocumentGovernancePolicy | null,
   frozenWorkflowFingerprint?: string,
 ): EffectiveWorkflowPlan {
-  // track 分支：`definition` 是完整定义（含全部分支），指纹与冻结快照都以它为身份；`workflow` 是按 change 的
-  // track 选中的那条 pipeline（未命中 → 通用分支），运行时的步骤 / 技能 / 门禁 / 投影都看它。
-  // 无分支的定义两者 JSON 相同，指纹与分支化之前逐字节一致。
   const workflow = selectTrackBranchIr(compiled, track?.id)
   const documentPolicy = frozenDocumentPolicy === undefined
     ? documentGovernancePolicy(id, compiled)
@@ -195,9 +186,7 @@ function planFromIr(
     },
   })
 }
-
 export function workflowPlanSnapshot(plan: EffectiveWorkflowPlan): WorkflowPlanSnapshot {
-  // 冻结的是完整定义（含分支）；恢复时再按 change 的 track 选分支。
   const definition = plan.definition ?? plan.workflow
   const current = planFromIr(
     plan.id,
@@ -248,7 +237,6 @@ export function workflowPlanSnapshot(plan: EffectiveWorkflowPlan): WorkflowPlanS
     workflowFingerprint: plan.workflowFingerprint,
   })
 }
-
 export function effectiveWorkflowPlanFromSnapshot(
   snapshot: WorkflowPlanSnapshot,
   track?: TrackDefinition,
@@ -317,19 +305,17 @@ export function effectiveWorkflowPlanFromSnapshot(
     structuredClone(snapshot.documentPolicy),
   )
   if (plan.workflowFingerprint === snapshot.workflowFingerprint) return plan
-
   throw new DocumentGovernanceBindingError(
     `workflow plan snapshot 内容与 fingerprint 不一致`
     + `（expected=${snapshot.workflowFingerprint}, current=${plan.workflowFingerprint}）`,
   )
 }
-
 export function compileEffectiveWorkflowPlan(
   id: string,
   provided?: WorkflowDef,
   track?: TrackDefinition,
 ): EffectiveWorkflowPlan {
-  if (id === 'default') {
+  if (isDefaultWorkflowName(id)) {
     const definition = provided ?? parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
     assertValid(definition, 'default')
     return planFromIr(id, 'phase-manifest', compileDefaultWorkflow(definition), track)
@@ -339,18 +325,14 @@ export function compileEffectiveWorkflowPlan(
   assertValid(definition, 'custom')
   return planFromIr(id, 'step-graph', compileWorkflow(definition), track)
 }
-
 export function loadEffectiveWorkflowPlan(
   repoRoot: string,
   id: string,
   track?: TrackDefinition,
 ): EffectiveWorkflowPlan {
-  // default 也读项目覆盖文件（`.pipeline/workflows/default.yaml`，loadWorkflow 已按 default 契约校验）；
-  // 无覆盖时 compileEffectiveWorkflowPlan 回落内建模板。
   const definition = loadWorkflow(repoRoot, id) ?? undefined
   return compileEffectiveWorkflowPlan(id, definition, track)
 }
-
 export function effectiveWorkflowPlanFromIr(
   id: string,
   workflow: WorkflowIR,
@@ -358,7 +340,6 @@ export function effectiveWorkflowPlanFromIr(
 ): EffectiveWorkflowPlan {
   return planFromIr(id, 'step-graph', workflow, track)
 }
-
 export function resolveEffectiveWorkflowPlan(
   id: string,
   loadCompiled: (name: string) => WorkflowIR | null,
@@ -366,11 +347,10 @@ export function resolveEffectiveWorkflowPlan(
   /** default 的项目覆盖读取器（返回 null = 无覆盖 → 内建模板）。缺省保持旧行为：恒用内建。 */
   loadDefaultOverride?: () => WorkflowDef | null,
 ): EffectiveWorkflowPlan | null {
-  if (id === 'default') return compileEffectiveWorkflowPlan(id, loadDefaultOverride?.() ?? undefined, track)
+  if (isDefaultWorkflowName(id)) return compileEffectiveWorkflowPlan(id, loadDefaultOverride?.() ?? undefined, track)
   const workflow = loadCompiled(id)
   return workflow === null ? null : effectiveWorkflowPlanFromIr(id, workflow, track)
 }
-
 export function effectiveWorkflowPlanBinding(
   plan: EffectiveWorkflowPlan,
 ): PersistedDocumentGovernanceBinding {
@@ -384,7 +364,6 @@ export function effectiveWorkflowPlanBinding(
     workflowPlanFingerprint: plan.workflowFingerprint,
   }
 }
-
 export function resolveBoundEffectiveWorkflowPlan(
   id: string,
   binding: PersistedDocumentGovernanceBinding,

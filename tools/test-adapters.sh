@@ -982,6 +982,249 @@ if [ -f "$p/$HIST" ]; then bad "变异/aider: 改坏的 track（不写）被抓�
 else ok "变异/aider: 改坏的 track（不写 history）被判别为红（history 未生成）"; fi
 
 # ════════════════════════════════════════════════════════════════════════════
+# ⑩ 原子落盘 + 诚实退出码（W2）
+# ════════════════════════════════════════════════════════════════════════════
+# 两个曾经静默的失效面，在这里变成机器约束：
+#   ① 裸截断写：`sed ... > "$dst"` 写到一半被打断 → 宿主读到半个 JSON → 普遍 fail-open。
+#      registry 承诺的 veto_failclosed 就这样无声消失，既无 receipt 也无报错。
+#   ② 未生效却宣称成功：目标配置已存在时只旁挂 .pipeline-adapter，却仍 exit 0 打印「完成」。
+#      叠加 ①，一次完全没生效的安装对用户零信号。
+ATOMIC_LIB="$ADAPTERS/lib/atomic-write.sh"
+assert_file "atomic: 共用原子落盘库存在（11 个适配器单一实现，加平台仍是填表）" "$ATOMIC_LIB"
+
+ALL_INSTALLERS="aider amp cline codex continue copilot cursor devin gemini pi zed"
+for id in $ALL_INSTALLERS; do
+  inst="$ADAPTERS/$id/install.sh"
+  if [ ! -f "$inst" ]; then bad "atomic/$id: install.sh 存在" "缺失：$inst"; continue; fi
+  src="$(cat "$inst")"
+  assert_contains "atomic/$id: 复用共用原子落盘库（不是第 12 份复制粘贴）" "$src" "lib/atomic-write.sh"
+  assert_contains "atomic/$id: 命令失败即中止（set -e）" "$src" "set -euo pipefail"
+  # 反漂移：模板渲染不得再直接重定向到目标（那正是 O_TRUNC 裸截断写）
+  if printf '%s\n' "$src" | grep -qE '^[^#]*sed .*__(ADAPTER_DIR|TENON_ROOT)__.*> *"'; then
+    bad "atomic/$id: 无裸截断写（sed 直接重定向到目标）" "仍存在 sed ... > \"目标\" 的截断写"
+  else
+    ok "atomic/$id: 无裸截断写（sed 直接重定向到目标）"
+  fi
+done
+
+# ⑩.1 中断不留半个文件：暂存写到一半被 SIGTERM 打断，目标必须保持完整原样、暂存文件被清掉。
+AT_DIR="$TMP/atomic-interrupt"
+mkdir -p "$AT_DIR"
+AT_ORIG='{"existing":"user hook config"}'
+printf '%s\n' "$AT_ORIG" > "$AT_DIR/hooks.json"
+cat > "$TMP/atomic-interrupt.sh" <<INTERRUPT_EOF
+set -euo pipefail
+. "$ATOMIC_LIB"
+adapter_lib_init interrupt-probe
+atomic_stage "$AT_DIR/hooks.json"
+printf '{"hooks":{"preToolUse":[{"command":"bash /x/gate' > "\$ATOMIC_TMP"
+kill -TERM \$\$
+INTERRUPT_EOF
+bash "$TMP/atomic-interrupt.sh" >/dev/null 2>&1 || true
+assert_eq "atomic 中断：目标文件保持完整原样（不是半个 JSON）" "$AT_ORIG" "$(cat "$AT_DIR/hooks.json" 2>/dev/null)"
+assert_eq "atomic 中断：暂存文件被 trap 清掉，不留残骸" "" \
+  "$(find "$AT_DIR" -name '.tenon-adapter.*' 2>/dev/null | head -1)"
+
+# ⑩.2 真 installer 路径：源模板本身是半个 JSON 时，既有目标必须零改动且非零退出
+#     （fail-closed：宁可不装，也不能把半个 hook 注册铺到宿主上）。
+BT="$TMP/broken-template"
+mkdir -p "$BT/adapters/lib" "$BT/adapters/cursor" "$BT/target/.cursor"
+cp "$ATOMIC_LIB" "$BT/adapters/lib/atomic-write.sh"
+cp -R "$ADAPTERS/cursor/." "$BT/adapters/cursor/"
+printf '%s' '{"hooks":{"preToolUse":[{"command":"bash /x/gate' > "$BT/adapters/cursor/hooks.json"
+BT_ORIG='{"pipeline 适配器 hook 注册":"v1"}'
+printf '%s\n' "$BT_ORIG" > "$BT/target/.cursor/hooks.json"
+bt_out="$(bash "$BT/adapters/cursor/install.sh" --target "$BT/target" --yes 2>&1)" && bt_rc=0 || bt_rc=$?
+assert_ne "atomic 半个模板：installer 非零退出（不宣称成功）" 0 "$bt_rc"
+assert_eq "atomic 半个模板：既有 hooks.json 零改动（未被截断覆盖）" "$BT_ORIG" \
+  "$(cat "$BT/target/.cursor/hooks.json" 2>/dev/null)"
+assert_contains "atomic 半个模板：明说拒绝落盘的原因" "$bt_out" "不是合法 JSON"
+assert_eq "atomic 半个模板：不留暂存文件残骸" "" \
+  "$(find "$BT/target/.cursor" -name '.tenon-adapter.*' 2>/dev/null | head -1)"
+
+# ⑩.3 已存在配置 → 只能旁挂 .pipeline-adapter = **未生效**：必须非零退出 + 明确说明
+INST_OUT=""
+INST_RC=0
+run_installer() { INST_OUT="$("$@" 2>&1)" && INST_RC=0 || INST_RC=$?; }
+assert_not_applied() { # <平台> <目标既有配置> <既有内容> <旁挂路径>
+  local id="$1" existing="$2" original="$3" sidecar="$4"
+  assert_ne "not-applied/$id: 未生效时非零退出（不再 exit 0 宣称完成）" 0 "$INST_RC"
+  assert_contains "not-applied/$id: 输出明说「未生效」" "$INST_OUT" "未生效"
+  assert_contains "not-applied/$id: 输出给出需人工合并的确切路径" "$INST_OUT" "需人工合并 $sidecar"
+  assert_file "not-applied/$id: 旁挂建议文件真落地" "$sidecar"
+  assert_eq "not-applied/$id: 用户既有配置零改动" "$original" "$(cat "$existing" 2>/dev/null)"
+}
+
+NA_MINE='{"mine":true}'
+
+d="$TMP/na-cursor"; mkdir -p "$d/.cursor"; printf '%s\n' "$NA_MINE" > "$d/.cursor/hooks.json"
+run_installer bash "$ADAPTERS/cursor/install.sh" --target "$d" --yes
+assert_not_applied cursor "$d/.cursor/hooks.json" "$NA_MINE" "$d/.cursor/hooks.json.pipeline-adapter"
+
+d="$TMP/na-gemini"; mkdir -p "$d/.gemini"; printf '%s\n' "$NA_MINE" > "$d/.gemini/settings.json"
+run_installer bash "$ADAPTERS/gemini/install.sh" --target "$d" --gemini-home "$d/.gemini" --yes
+assert_not_applied gemini "$d/.gemini/settings.json" "$NA_MINE" "$d/.gemini/settings.json.pipeline-adapter"
+assert_not_contains "not-applied/gemini: 未生效时不打印「档 A 全保真完成」" "$INST_OUT" "档 A 全保真完成"
+
+d="$TMP/na-continue"; mkdir -p "$d/.continue"; printf '%s\n' "$NA_MINE" > "$d/.continue/settings.json"
+run_installer bash "$ADAPTERS/continue/install.sh" --target "$d" --continue-home "$d/.continue" --yes
+assert_not_applied continue "$d/.continue/settings.json" "$NA_MINE" "$d/.continue/settings.json.pipeline-adapter"
+assert_not_contains "not-applied/continue: 未生效时不打印「档 A 全保真完成」" "$INST_OUT" "档 A 全保真完成"
+
+d="$TMP/na-pi"; mkdir -p "$d/.pi"; printf '%s\n' "$NA_MINE" > "$d/.pi/settings.json"
+run_installer bash "$ADAPTERS/pi/install.sh" --target "$d" --pi-home "$d/.pi" --yes
+assert_not_applied pi "$d/.pi/settings.json" "$NA_MINE" "$d/.pi/settings.json.pipeline-adapter"
+
+d="$TMP/na-codex"; mkdir -p "$d/target" "$d/home"; printf '%s\n' "$NA_MINE" > "$d/home/hooks.json"
+run_installer bash "$ADAPTERS/codex/install.sh" --target "$d/target" --codex-home "$d/home" --yes
+assert_not_applied codex "$d/home/hooks.json" "$NA_MINE" "$d/home/hooks.json.pipeline-adapter"
+assert_not_contains "not-applied/codex: 未生效时不打印一次性 trust 指引（还没东西可 trust）" "$INST_OUT" "还差一步（一次性 trust）"
+
+d="$TMP/na-amp"; mkdir -p "$d/.amp/plugins"; printf '%s\n' 'export default function(){}' > "$d/.amp/plugins/pipeline.js"
+run_installer bash "$ADAPTERS/amp/install.sh" --target "$d" --yes
+assert_not_applied amp "$d/.amp/plugins/pipeline.js" 'export default function(){}' "$d/.amp/plugins/pipeline.js.pipeline-adapter"
+assert_not_contains "not-applied/amp: 未生效时不打印「档 A 完成」" "$INST_OUT" "档 A 完成"
+
+d="$TMP/na-cline"; mkdir -p "$d/.clinerules/hooks"; printf '%s\n' '#!/bin/sh' > "$d/.clinerules/hooks/PreToolUse"
+run_installer bash "$ADAPTERS/cline/install.sh" --target "$d" --yes
+assert_not_applied cline "$d/.clinerules/hooks/PreToolUse" '#!/bin/sh' "$d/.clinerules/hooks/PreToolUse.pipeline-adapter"
+assert_not_contains "not-applied/cline: 未生效时不打印「档 A 完成」" "$INST_OUT" "档 A 完成"
+
+d="$TMP/na-aider"; mkdir -p "$d"; printf '%s\n' 'model: gpt-4o' > "$d/.aider.conf.yml"
+run_installer env CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ADAPTERS/aider/install.sh" --target "$d" --no-git-hooks --yes
+assert_not_applied aider "$d/.aider.conf.yml" 'model: gpt-4o' "$d/.aider.conf.yml.pipeline-adapter"
+assert_not_contains "not-applied/aider: 未生效时不打印「档 B 完成」" "$INST_OUT" "档 B 完成"
+
+# ⑩.4 copilot dual hookContainer：只写成一份时必须如实报份数（旧版无条件说「两份都已写」）
+assert_not_contains "copilot: install.sh 不再无条件宣称「两份都已写」" \
+  "$(cat "$ADAPTERS/copilot/install.sh")" "两份都已写"
+d="$TMP/na-copilot"; mkdir -p "$d/.github/copilot"; printf '%s\n' "$NA_MINE" > "$d/.github/copilot/hooks.json"
+run_installer bash "$ADAPTERS/copilot/install.sh" --target "$d" --yes
+assert_not_applied copilot "$d/.github/copilot/hooks.json" "$NA_MINE" "$d/.github/copilot/hooks.json.pipeline-adapter"
+assert_contains "not-applied/copilot: 如实报实际写入份数（1/2，不是「两份都已写」）" "$INST_OUT" "1/2"
+assert_not_contains "not-applied/copilot: 未生效时不打印「档 B 完成」" "$INST_OUT" "档 B 完成"
+assert_file "not-applied/copilot: 另一份 hookContainer 仍真写入" "$d/.github/hooks/tenon.json"
+
+# ⑩.5 干净目标：三档正常路径仍必须 exit 0 并如实打印完成（诚实是双向的，不许一律报错）
+d="$TMP/clean-cursor"; run_installer bash "$ADAPTERS/cursor/install.sh" --target "$d" --yes
+assert_eq "clean/cursor: 全部接管时 exit 0" 0 "$INST_RC"
+d="$TMP/clean-gemini"; run_installer bash "$ADAPTERS/gemini/install.sh" --target "$d" --gemini-home "$d/.gemini" --yes
+assert_eq "clean/gemini: 全部接管时 exit 0" 0 "$INST_RC"
+assert_contains "clean/gemini: 真接管时才打印「档 A 全保真完成」" "$INST_OUT" "档 A 全保真完成"
+d="$TMP/clean-continue"; run_installer bash "$ADAPTERS/continue/install.sh" --target "$d" --continue-home "$d/.continue" --yes
+assert_eq "clean/continue: 全部接管时 exit 0" 0 "$INST_RC"
+d="$TMP/clean-pi"; run_installer bash "$ADAPTERS/pi/install.sh" --target "$d" --pi-home "$d/.pi" --yes
+assert_eq "clean/pi: 全部接管时 exit 0" 0 "$INST_RC"
+d="$TMP/clean-copilot"; run_installer bash "$ADAPTERS/copilot/install.sh" --target "$d" --yes
+assert_eq "clean/copilot: 全部接管时 exit 0" 0 "$INST_RC"
+assert_contains "clean/copilot: 两份 hookContainer 齐全时如实报 2/2" "$INST_OUT" "2/2"
+d="$TMP/clean-zed"; run_installer bash "$ADAPTERS/zed/install.sh" --target "$d" --yes
+assert_eq "clean/zed: 档 C 静态层落地后 exit 0" 0 "$INST_RC"
+d="$TMP/clean-devin"; run_installer bash "$ADAPTERS/devin/install.sh" --target "$d" --yes
+assert_eq "clean/devin: 档 C 静态层落地后 exit 0" 0 "$INST_RC"
+
+# ════════════════════════════════════════════════════════════════════════════
+# ⑪ 顶层派发器 adapters/install.sh：交给 installer 的参数列表必须逐字正确
+# ════════════════════════════════════════════════════════════════════════════
+# 病灶：空数组在 `set -u` 下的经典陷阱。`"${extra[@]:-}"` 当 extra 为空时展开出的不是
+# 零个参数，而是**一个空字符串参数**——被派发的 installer 立刻 `未知参数:` 并 exit 2。
+# 后果：不带 --yes 的 `adapters/install.sh --<platform>` 全平台端到端坏掉（顶层派发器，
+# 所有平台都走它），而单跑 adapters/<id>/install.sh 却全绿，单测层看不见。
+# 这里用「录参 stub installer」把派发出去的 argv 逐字钉死：不带 --yes 必须只有两个参数。
+DP="$TMP/dispatch"
+mkdir -p "$DP/adapters" "$DP/stub"
+cp "$ADAPTERS/install.sh" "$DP/adapters/install.sh"   # 真派发器逐字副本（registry 换成 stub）
+cat > "$DP/adapters/registry.yaml" <<'DP_REG_EOF'
+platforms:
+  - id: stub
+    cliFlag: stub
+    tier: A
+    configure: stub/record.sh
+  - id: stub2
+    cliFlag: stub2
+    tier: A
+    configure: stub/record2.sh
+DP_REG_EOF
+# stub installer：逐字录下收到的 argv，并与真 installer 同样严格（空/未知参数即 exit 2）
+cat > "$DP/stub/record.sh" <<'DP_STUB_EOF'
+#!/usr/bin/env bash
+set -u
+: > "$RECORD_OUT"
+printf 'argc=%s\n' "$#" >> "$RECORD_OUT"
+for a in "$@"; do printf '[%s]\n' "$a" >> "$RECORD_OUT"; done
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --target) shift; shift ;;
+    --yes|-y) shift ;;
+    *) printf '未知参数: %s\n' "$1" >&2; exit 2 ;;
+  esac
+done
+exit 0
+DP_STUB_EOF
+sed 's/RECORD_OUT/RECORD_OUT2/g' "$DP/stub/record.sh" > "$DP/stub/record2.sh"
+
+DP_TARGET="$DP/dispatch target"   # 带空格：顺带钉死引号未被拆词
+mkdir -p "$DP_TARGET"
+dispatch() { # <RECORD_OUT> <install.sh 参数...>
+  local out="$1"; shift
+  rm -f "$out" "$out.2"
+  DP_OUT="$(RECORD_OUT="$out" RECORD_OUT2="$out.2" bash "$DP/adapters/install.sh" "$@" 2>&1)" \
+    && DP_RC=0 || DP_RC=$?
+}
+
+# ⑪.1 不带 --yes（默认交互式）：installer 必须只收到 --target <dir>，不得多出空参数
+dispatch "$DP/args" --stub --target "$DP_TARGET"
+assert_eq "dispatch/无 --yes: 派发器 exit 0（空数组没被展开成空参数）" 0 "$DP_RC"
+assert_not_contains "dispatch/无 --yes: installer 未因空参数报「未知参数」" "$DP_OUT" "未知参数"
+assert_eq "dispatch/无 --yes: installer 收到的参数逐字正确（argc=2，无空参数）" \
+  "argc=2
+[--target]
+[$DP_TARGET]" "$(cat "$DP/args" 2>/dev/null)"
+
+# ⑪.2 带 --yes：行为不变，--yes 原样透传（且仍无多余空参数）
+dispatch "$DP/args-yes" --stub --target "$DP_TARGET" --yes
+assert_eq "dispatch/带 --yes: 派发器 exit 0" 0 "$DP_RC"
+assert_eq "dispatch/带 --yes: --yes 原样透传（argc=3）" \
+  "argc=3
+[--target]
+[$DP_TARGET]
+[--yes]" "$(cat "$DP/args-yes" 2>/dev/null)"
+
+# ⑪.3 多平台一次派发：每个 installer 各自收到完整且正确的参数列表
+dispatch "$DP/args-multi" --stub --stub2 --target "$DP_TARGET"
+assert_eq "dispatch/多平台: 全部成功 exit 0" 0 "$DP_RC"
+assert_eq "dispatch/多平台: 平台 1 参数逐字正确" \
+  "argc=2
+[--target]
+[$DP_TARGET]" "$(cat "$DP/args-multi" 2>/dev/null)"
+assert_eq "dispatch/多平台: 平台 2 参数逐字正确" \
+  "argc=2
+[--target]
+[$DP_TARGET]" "$(cat "$DP/args-multi.2" 2>/dev/null)"
+
+# ⑪.4 反漂移（源码级）：代码行不得再用 `[@]:-}` 这类会凭空造出空参数的展开（注释里可解释）
+if printf '%s\n' "$(sed 's/#.*//' "$ADAPTERS/install.sh")" | grep -q '\[@\]:-}'; then
+  bad "dispatch: install.sh 代码行不再用 \${arr[@]:-}（空数组会展开成空参数）" \
+    "仍存在 [@]:-} 展开；空数组应写 \${arr[@]+\"\${arr[@]}\"}"
+else
+  ok "dispatch: install.sh 代码行不再用 \${arr[@]:-}（空数组会展开成空参数）"
+fi
+
+# ⑪.5 同类陷阱面：未选平台时必须是友好 exit 2，而不是 set -u 的 unbound variable
+dispatch "$DP/args-none" --target "$DP_TARGET"
+assert_eq "dispatch/未选平台: exit 2" 2 "$DP_RC"
+assert_contains "dispatch/未选平台: 给出可操作提示" "$DP_OUT" "未选平台"
+assert_not_contains "dispatch/未选平台: 不炸 unbound variable（空数组展开安全）" "$DP_OUT" "unbound variable"
+
+# ⑪.6 真派发器对真 installer 的端到端：不带 --yes 也必须真装上（不是只测 stub）
+DP_REAL="$TMP/dispatch-real"
+mkdir -p "$DP_REAL"
+DP_REAL_OUT="$(bash "$ADAPTERS/install.sh" --cursor --target "$DP_REAL" 2>&1)" && DP_REAL_RC=0 || DP_REAL_RC=$?
+assert_eq "dispatch/端到端 cursor 无 --yes: exit 0" 0 "$DP_REAL_RC"
+assert_not_contains "dispatch/端到端 cursor 无 --yes: 无「未知参数」" "$DP_REAL_OUT" "未知参数"
+assert_file "dispatch/端到端 cursor 无 --yes: hooks.json 真落地" "$DP_REAL/.cursor/hooks.json"
+
+# ════════════════════════════════════════════════════════════════════════════
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1
 exit 0

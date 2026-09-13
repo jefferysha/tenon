@@ -20,6 +20,7 @@ import {
   createOrchestrationLedger,
 } from '@tenon/kernel'
 import { artifactNamespaceForChange, createRunnerSkillContentLocator, createProductionExecutionRuntimeV2, evaluateLoopExecutionWiring, openArtifactService, type ArtifactService } from '@tenon/automation'
+import type { FreezeWorkflowInputV2 } from './serverOrchestrationV2Routes.js'
 import type {
   ChangeRefScan, CreateTrackSpec, ExtendedManifestData, FlowEngine, GraduationFs, StateStore, TrackDefinition,
   ProjectTrackConfig, TrackRegistry, TrackValidationContext, UpdateTrackPatch, WorkflowDef,
@@ -70,6 +71,7 @@ import {
   REAL_GRADUATION_FS,
   repoRootForSkills,
 } from './serverSupport.js'
+import { createFreezeHandlers } from './serverFreezeHandlers.js'
 import { createServerTransport } from './serverTransport.js'
 import { createServerGovernance } from './serverGovernance.js'
 import { AdapterInstallManager } from './adapterInstall.js'
@@ -99,6 +101,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const store: StateStore = options.store ?? createStateStore()
   const recordStore = createTransitionRecordStore()
   const orchestrationLedger = options.orchestrationLedger ?? createOrchestrationLedger()
+  const { freezePipeline, freezeWorkflow } = createFreezeHandlers({ ledger: orchestrationLedger, clock })
   const loopLedger = createLoopLedgerStore()
   const runRepo = createWorkflowRunRepository({ store, recordStore, clock })
   const history = createHistoryWriter()
@@ -274,7 +277,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, trackRegistryBody, manifestPath, paths,
       hostHome, operationsAvailable, hostTargetPlanRuntime, options, operationRunner,
       resolveSessionLink: (root, name) => resolveSessionLinkForChange(root, name, { store, memFs }), errMsg,
-      orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
+      orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
       definitionCatalog: {
         workflowRootForRequest,
         hostHome,
@@ -298,7 +301,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       mutateTrackForApi: mutateTrackForRoutes, trackRegistryBody, sendTrackError, errMsg,
       realGraduationFs: REAL_GRADUATION_FS,
       relatedSessionSearch,
-      orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
+      orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
       adapterInstall,
     })
   const mutationRouteDeps = {

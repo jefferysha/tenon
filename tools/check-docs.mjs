@@ -45,14 +45,18 @@ const TRUTH_SOURCES = [
   'packages/server/src/port.ts',
   'packages/cli/src/program-install.ts',
   'packages/cli/src/commands/runtime.ts',
-  'packages/dashboard-app/src/shell/Nav.tsx',
+  'packages/dashboard-app/src/shell/views.ts',
   'templates/workflows/default.yaml',
   'packages/kernel/src/workflow/default-workflow.generated.ts',
   'skills/tenon/SKILL.md',
   'templates/workflows/simple.yaml',
 ]
 
-const EXPECTED_PRIMARY_VIEWS = ['projects', 'progress', 'afk', 'workbench', 'machine', 'hostPlan']
+/**
+ * Dashboard 的可持久化视图 id 由 shell/views.ts 的 VIEWS 导出，文档门禁只校验
+ * 这份真源，避免把已退役的导航结构复制到检查器中。
+ */
+const EXPECTED_VIEWS = ['progress', 'workbench']
 
 function slash(path) {
   return path.split(sep).join('/')
@@ -89,20 +93,32 @@ export function extractMarkdownTargets(markdown) {
   return links
 }
 
-export function extractYamlStepIds(yaml) {
-  return [...yaml.matchAll(/^ {2}- id:\s*([A-Za-z0-9_-]+)\s*$/gmu)].map((match) => match[1])
+function workflowTrackSource(yaml, track = 'chat') {
+  const tracks = yaml.match(/^tracks:\s*\n([\s\S]*)$/mu)
+  if (tracks === null) return yaml
+  const trackMatch = tracks[1].match(new RegExp(`^  ${track}:\\s*\\n([\\s\\S]*?)(?=^  [A-Za-z0-9_-]+:\\s*$|(?![\\s\\S]))`, 'mu'))
+  return trackMatch?.[1] ?? ''
+}
+
+export function extractYamlStepIds(yaml, track = 'chat') {
+  const source = workflowTrackSource(yaml, track)
+  const indent = source === yaml ? 2 : 6
+  return [...source.matchAll(new RegExp(`^ {${indent}}- id:\\s*([A-Za-z0-9_-]+)\\s*$`, 'gmu'))].map((match) => match[1])
 }
 
 /** Extract only the Skill ids in each top-level workflow step's `skills` block. */
-export function extractYamlStepSkillIds(yaml) {
-  const matches = [...yaml.matchAll(/^ {2}- id:\s*([A-Za-z0-9_-]+)\s*$/gmu)]
+export function extractYamlStepSkillIds(yaml, track = 'chat') {
+  const source = workflowTrackSource(yaml, track)
+  const indent = source === yaml ? 2 : 6
+  const skillIndent = source === yaml ? 6 : 10
+  const matches = [...source.matchAll(new RegExp(`^ {${indent}}- id:\\s*([A-Za-z0-9_-]+)\\s*$`, 'gmu'))]
   return matches.map((match, index) => {
-    const blockEnd = matches[index + 1]?.index ?? yaml.length
-    const block = yaml.slice(match.index, blockEnd)
-    const skillsBlock = block.match(/^    skills:\s*\n((?:^      - id:\s*[^\n]+\n?)+)/mu)?.[1] ?? ''
+    const blockEnd = matches[index + 1]?.index ?? source.length
+    const block = source.slice(match.index, blockEnd)
+    const skillsBlock = block.match(new RegExp(`^ {${indent + 2}}skills:\\s*\\n((?:^ {${skillIndent}}- id:\\s*[^\\n]+\\n?)+)`, 'mu'))?.[1] ?? ''
     return {
       stepId: match[1],
-      skillIds: [...skillsBlock.matchAll(/^      - id:\s*([^\s#]+)\s*$/gmu)].map((skill) => skill[1]),
+      skillIds: [...skillsBlock.matchAll(new RegExp(`^ {${skillIndent}}- id:\\s*([^\\s#]+)\\s*$`, 'gmu'))].map((skill) => skill[1]),
     }
   })
 }
@@ -191,7 +207,16 @@ function checkWorkflowSkillContract(contents, failures) {
 }
 
 export function extractPrimaryViews(source) {
-  const body = source.match(/\bPRIMARY_VIEWS\b[^=]*=\s*\[([^\]]*)\]/u)?.[1]
+  return extractViewList(source, 'PRIMARY_VIEWS')
+}
+
+export function extractSecondaryViews(source) {
+  return extractViewList(source, 'SECONDARY_VIEWS')
+}
+
+/** `SECONDARY_VIEWS` 含 `PRIMARY_VIEWS` 作为子串，故锚定词首避免误配。 */
+function extractViewList(source, name) {
+  const body = source.match(new RegExp(`(?<![A-Za-z0-9_])${name}\\b[^=]*=\\s*\\[([^\\]]*)\\]`, 'u'))?.[1]
   if (body === undefined) return []
   return [...body.matchAll(/['"]([A-Za-z0-9_-]+)['"]/gu)].map((match) => match[1])
 }
@@ -514,37 +539,24 @@ function checkSourceBoundedClaims(root, contents, failures) {
     }
   }
 
-  const navSource = contents.get('packages/dashboard-app/src/shell/Nav.tsx')
-  if (navSource !== undefined) {
-    const primaryViews = extractPrimaryViews(navSource)
-    const viewUnion = extractViewUnion(navSource)
-    if (
-      primaryViews.length !== EXPECTED_PRIMARY_VIEWS.length
-      || !primaryViews.every((view, index) => view === EXPECTED_PRIMARY_VIEWS[index])
-    ) {
-      failures.push(
-        `packages/dashboard-app/src/shell/Nav.tsx: PRIMARY_VIEWS must remain the exact operational set: ${EXPECTED_PRIMARY_VIEWS.join(' -> ')}`,
-      )
+  const viewsSource = contents.get('packages/dashboard-app/src/shell/views.ts')
+  if (viewsSource !== undefined) {
+    const views = extractViewList(viewsSource, 'VIEWS')
+    const viewUnion = extractViewUnion(viewsSource)
+    if (viewUnion.length === 0 && /type\s+View\s*=\s*\(typeof\s+VIEWS\)\[number\]/u.test(viewsSource)) {
+      viewUnion.push(...views)
     }
-    if (new Set(primaryViews).size !== primaryViews.length) {
-      failures.push('packages/dashboard-app/src/shell/Nav.tsx: PRIMARY_VIEWS must not contain duplicate operational views')
+    if (views.length !== EXPECTED_VIEWS.length || !views.every((view, index) => view === EXPECTED_VIEWS[index])) {
+      failures.push(`packages/dashboard-app/src/shell/views.ts: VIEWS must remain the exact operational set: ${EXPECTED_VIEWS.join(' -> ')}`)
     }
-    if (primaryViews.includes('overview')) {
-      failures.push('packages/dashboard-app/src/shell/Nav.tsx: overview must remain separate from PRIMARY_VIEWS')
-    }
-    if (!viewUnion.includes('overview')) {
-      failures.push('packages/dashboard-app/src/shell/Nav.tsx: View must include the separate overview view')
-    }
-    for (const view of primaryViews) {
-      if (!viewUnion.includes(view)) {
-        failures.push(`packages/dashboard-app/src/shell/Nav.tsx: PRIMARY_VIEWS entry ${view} must be declared in View`)
-      }
+    for (const view of views) {
+      if (!viewUnion.includes(view)) failures.push(`packages/dashboard-app/src/shell/views.ts: VIEWS entry ${view} must be declared in View`)
     }
     for (const document of ['docs/usage/dashboard-and-local-api.md', 'docs/usage/zh-CN/dashboard-and-local-api.md']) {
       const text = contents.get(document)
       if (text !== undefined) {
-        if (!includesOrderedTokens(text, primaryViews)) {
-          failures.push(`${document}: operational views must follow PRIMARY_VIEWS source order: ${primaryViews.join(' -> ')}`)
+        if (!includesOrderedTokens(text, views)) {
+          failures.push(`${document}: operational views must follow VIEWS source order: ${views.join(' -> ')}`)
         }
         if (!/\boverview\b/iu.test(text)) failures.push(`${document}: missing separate overview view`)
       }

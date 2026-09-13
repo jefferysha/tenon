@@ -494,6 +494,7 @@ describe('API bounded-context response decoders', () => {
     }]
 
     expect(decodeSnapshot(snapshot)?.projects[0]?.compatibilityIssues).toEqual([{
+      severity: 'blocking',
       kind: 'unsupported-canonical-version',
       change: 'future-change',
       foundVersion: 3,
@@ -516,6 +517,20 @@ describe('API bounded-context response decoders', () => {
     const corrupt = validSnapshot()
     ;(corrupt.projects[0] as unknown as Record<string, unknown>).error = 'state is unreadable'
     expect(decodeSnapshot(corrupt)).toBeNull()
+  })
+
+  it('keeps warning-only projects valid and treats missing or unknown severity as blocking', () => {
+    const warning = validSnapshot()
+    ;(warning.projects[0] as unknown as Record<string, unknown>).compatibilityIssues = [{ severity: 'warning', kind: 'legacy-scope-unmerged', change: 'legacy', legacyScopePath: '.pipeline-artifacts/runtime-artifacts', action: 'merge-or-remove-legacy-scope' }]
+    expect(decodeSnapshot(warning)?.projects[0]?.ok).toBe(true)
+
+    const missing = validSnapshot()
+    ;(missing.projects[0] as unknown as Record<string, unknown>).compatibilityIssues = [{ kind: 'unsupported-canonical-version', change: 'future', foundVersion: 3, supportedVersion: 1, action: 'upgrade-runtime' }]
+    expect(decodeSnapshot(missing)).toBeNull()
+
+    const unknown = validSnapshot()
+    ;(unknown.projects[0] as unknown as Record<string, unknown>).compatibilityIssues = [{ severity: 'future', kind: 'unsupported-canonical-version', change: 'future', foundVersion: 3, supportedVersion: 1, action: 'upgrade-runtime' }]
+    expect(decodeSnapshot(unknown)).toBeNull()
   })
 
   it('rejects malformed, over-broad, or duplicate canonical compatibility issues', () => {

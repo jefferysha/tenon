@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { BUILTIN_TRACK_DEFINITIONS, QuoteGateError } from '@tenon/kernel'
 import type { FieldName, PipelineState, TrackDefinition, TrackRegistry } from '@tenon/kernel'
 import { cmdCas, cmdGet, cmdSet, cmdSetMany } from './fields.js'
-import { FIXED_CLOCK, makeDeps, mockState, spy } from '../test-support.js'
+import { FIXED_CLOCK, makeDeps, mockLegacyDefaultState, mockState, spy } from '../test-support.js'
 
 /**
  * 旁路测试用的自定义轨 registry（R2）：makeDeps 缺省 loadRegistry 只有内建 Track（allowed='*'
@@ -10,12 +10,12 @@ import { FIXED_CLOCK, makeDeps, mockState, spy } from '../test-support.js'
  * 经 deps.loadRegistry 覆写注入——registry 的消费方（requireTrack/assertWorkflowAllowed）只读
  * ordered/byId/workflow.allowed，与「从 tracks.yaml load 出来的 project-file registry」同构。
  */
-function customTrack(id: string, allowed: '*' | readonly string[]): TrackDefinition {
+function customTrack(id: string, allowed: '*' | readonly string[], defaultWorkflow = 'default'): TrackDefinition {
   return {
     id,
     label: id,
     builtin: false,
-    workflow: { default: 'default', allowed },
+    workflow: { default: defaultWorkflow, allowed },
     policyProfile: {
       reviewSeed: 'pending',
       automationEligible: true,
@@ -388,83 +388,63 @@ describe('set/cas/set-many track & workflow —— registry 驱动校验（R2；
  * 且绝不落盘（store.write 零调用）。对照内建轨 allowed='*' 的放行由上一 describe 锚定（零回归）。
  */
 describe('track/workflow 旁路关闭 —— 最终组合校验（R2；自定义轨 allowed 受限）', () => {
-  test('set track：新轨 data 已注册，但 data.allowed=[default] 不含旧 workflow=other → 拒、不落盘', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['default']))
+  test('set track：新轨 data 已注册，但 data.allowed=[other] 不含旧 workflow=other2 → 拒、不落盘', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other2' }) })
+    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
     const code = await cmdSet(deps, 'demo', 'track', 'data')
-    expect(code).toBe(1)
-    expect(deps.store.write.calls).toHaveLength(0)
-    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other'")
+    expect(code).toBe(1); expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other2'")
   })
-
-  test('set track：切到 data 且旧 workflow=default（在 allowed 内）→ 放行、落盘 track=data', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'default' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['default']))
-    const code = await cmdSet(deps, 'demo', 'track', 'data')
-    expect(code).toBe(0)
+  test('set track：切到 data 且旧 workflow=other（在 allowed 内）→ 放行、落盘 track=data', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other' }) })
+    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+    expect(await cmdSet(deps, 'demo', 'track', 'data')).toBe(0)
     expect(deps.store.write.calls[0]?.[1].fields.track).toBe('data')
   })
-
-  test('cas track：expect 命中新值 data，但最终组合 data+other 非法 → 拒、不落盘（exit 1）', async () => {
+  test('cas track：expect 命中新值 data，但最终组合 data+other2 非法 → 拒、不落盘', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other2' }) })
+    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+    expect(await cmdCas(deps, 'demo', 'track', 'chat', 'data')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other2'")
+  })
+  test('cas workflow：把 workflow 换成旧 track=data 的 allowed 外值 other2 → 拒、不落盘', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'other' }) })
+    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+    expect(await cmdCas(deps, 'demo', 'workflow', 'other', 'other2')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other2'")
+  })
+  test('cas workflow：expect 不命中→ exit 3', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'other' }) })
+    deps.loadRegistry = () => registryWith(customTrack('data', ['other', 'other2'], 'other'))
+    expect(await cmdCas(deps, 'demo', 'workflow', 'stale', 'other2')).toBe(3)
+  })
+  test('cas workflow：allowed 内值放行', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'other' }) })
+    deps.loadRegistry = () => registryWith(customTrack('data', ['other', 'other2'], 'other'))
+    expect(await cmdCas(deps, 'demo', 'workflow', 'other', 'other2')).toBe(0)
+    expect(deps.store.write.calls[0]?.[1].fields.workflow).toBe('other2')
+  })
+  test('set workflow：旧 track=data、新 workflow=other2 不在 data.allowed → 拒、不落盘', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'other' }) })
+    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+    expect(await cmdSet(deps, 'demo', 'workflow', 'other2')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other2'")
+  })
+  test('set-many：track=data + workflow=other2 最终组合非法', async () => {
     const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['default']))
-    const code = await cmdCas(deps, 'demo', 'track', 'chat', 'data')
-    expect(code).toBe(1)
-    expect(deps.store.write.calls).toHaveLength(0)
-    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other'")
-  })
-
-  test('cas workflow：把 workflow 换成旧 track=data 的 allowed 外值 other → 拒、不落盘（exit 1）', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'default' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['default']))
-    const code = await cmdCas(deps, 'demo', 'workflow', 'default', 'other')
-    expect(code).toBe(1)
-    expect(deps.store.write.calls).toHaveLength(0)
-    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other'")
-  })
-
-  test('cas workflow：expect 不命中（当前 workflow≠expect）→ exit 3、不落盘（先于组合校验短路）', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'default' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['default', 'other']))
-    const code = await cmdCas(deps, 'demo', 'workflow', 'stale', 'other')
-    expect(code).toBe(3)
+    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+    expect(await cmdSetMany(deps, 'demo', ['track=data', 'workflow=other2'])).toBe(1)
     expect(deps.store.write.calls).toHaveLength(0)
   })
-
-  test('cas workflow：allowed 内值放行 —— data.allowed=[default,other]，other 命中即锁内落盘', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'default' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['default', 'other']))
-    const code = await cmdCas(deps, 'demo', 'workflow', 'default', 'other')
-    expect(code).toBe(0)
-    expect(deps.store.write.calls[0]?.[1].fields.workflow).toBe('other')
-  })
-
-  test('set workflow：旧 track=data、新 workflow=other 不在 data.allowed → 拒、不落盘', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'data', workflow: 'default' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['default']))
-    const code = await cmdSet(deps, 'demo', 'workflow', 'other')
-    expect(code).toBe(1)
-    expect(deps.store.write.calls).toHaveLength(0)
-    expect(deps.errLines.join('\n')).toContain("不允许绑定 workflow 'other'")
-  })
-
-  test('set-many：track=data + workflow=other 最终组合非法 → 拒、不落盘、不走 setMany', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'default' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['default']))
-    const code = await cmdSetMany(deps, 'demo', ['track=data', 'workflow=other'])
-    expect(code).toBe(1)
-    expect(deps.store.write.calls).toHaveLength(0)
-    expect(deps.store.setMany.calls).toHaveLength(0)
-  })
-
-  test('set-many：旧 workflow=other 单独切 track=data 本非法，但同批显式补 workflow=default → 最终组合合法、放行', async () => {
-    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other' }) })
-    deps.loadRegistry = () => registryWith(customTrack('data', ['default']))
-    const code = await cmdSetMany(deps, 'demo', ['track=data', 'workflow=default'])
-    expect(code).toBe(0)
+  test('set-many：旧 workflow=other2 单独切 track=data，本非法但同批补 workflow=other 合法', async () => {
+    const deps = makeDeps({ state: mockState({ track: 'chat', workflow: 'other2' }) })
+    deps.loadRegistry = () => registryWith(customTrack('data', ['other'], 'other'))
+    expect(await cmdSetMany(deps, 'demo', ['track=data', 'workflow=other'])).toBe(0)
     const written = deps.store.write.calls[0]?.[1].fields
-    expect(written?.track).toBe('data')
-    expect(written?.workflow).toBe('default')
+    expect(written?.track).toBe('data'); expect(written?.workflow).toBe('other')
   })
 })
 
@@ -527,7 +507,7 @@ describe('P6 —— set/set-many/cas 对当前有效 artifact 字段 cutover', (
   })
 
   test('放行：plan（spec/pm 被 required_when 排除，不是当前有效 artifact）', async () => {
-    const deps = makeDeps({ state: mockState({ phase: 'spec', track: 'pm' }) })
+    const deps = makeDeps({ state: mockLegacyDefaultState({ phase: 'spec', track: 'pm' }) })
     expect(await cmdSet(deps, 'demo', 'plan', 'p.md')).toBe(0)
     expect(deps.store.write.calls).toHaveLength(1)
     expect(deps.store.write.calls[0]?.[1].fields.plan).toBe('p.md')

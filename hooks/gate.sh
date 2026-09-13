@@ -39,7 +39,12 @@ JSON_INPUT_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/json-input.sh"
 json_get() { pipeline_json_get_string "$INPUT" "$1"; }
 json_command() { pipeline_json_get_command "$INPUT"; }
 
-CWD="$(json_get cwd || true)"
+# Every host spells the working directory differently (flat `cwd`, Cursor `workspace_roots`,
+# Cline `workspaceRoots`, Amp `workspaceRoot`); normalise them all before falling back to $PWD.
+# The fallback is the dangerous branch: the hook process cwd is usually not the project root, so a
+# missed shape resolves no marker and this gate returns a *normal* allow — which no host-side
+# `failClosed` can catch, because nothing crashed.
+CWD="$(pipeline_json_get_cwd "$INPUT" || true)"
 [ -z "$CWD" ] && CWD="$PWD"
 [ -d "$CWD" ] || exit 0
 TOOL="$(json_get tool_name || true)"
@@ -121,12 +126,77 @@ review_marker_relevant_to_active_change() { # $1=marker → 0=blockable v2 marke
   [ -n "$active_change" ] && [ "$active_change" = "$marked_change" ]
 }
 
-is_review_control_command() {
-  local command="$1"
-  case "$command" in
-    *"tenon review acknowledge"*|*"tenon review request"*) return 0 ;;
-    *) return 1 ;;
+# Shared metacharacter rejection.  Anything in this set can turn a read or a control command into
+# a write (redirection, chaining, substitution), so both allowlists below refuse to match a segment
+# that still contains one.
+pipeline_command_has_shell_metachars() { # $1=command segment
+  case "${1:-}" in
+    *$'\n'*|*$'\r'*|*'>'*|*'<'*|*'|'*|*';'*|*'&'*|*'`'*|*'$('*) return 0 ;;
   esac
+  return 1
+}
+
+# Structural unwrapping only — nothing here is ever evaluated.  Hosts hand the same shell call over
+# in several shapes: bare (`tenon …`), wrapped by the login shell (`/bin/zsh -lc "tenon …"`), and
+# as a joined argv array (`bash -lc tenon …`, see pipeline_json_get_command).  Peel one wrapper so
+# the matcher below sees one canonical command text.
+# hooks/skill-evidence.sh has a similar helper on purpose: that one is part of the *evidence* path
+# and must stay strict about which read shapes count, so widening it here would widen skill
+# evidence acceptance as a side effect.
+pipeline_unwrap_shell_wrapper() { # $1=raw command → inner command text (unchanged when not wrapped)
+  local command="${1:-}" shell flag prefix inner
+  for shell in /bin/zsh /bin/bash /bin/sh zsh bash sh; do
+    for flag in -lc -c; do
+      prefix="$shell $flag "
+      case "$command" in
+        "$prefix"*)
+          inner="${command#"$prefix"}"
+          case "$inner" in
+            '"'*'"') inner="${inner#\"}"; inner="${inner%\"}" ;;
+            "'"*"'") inner="${inner#\'}"; inner="${inner%\'}" ;;
+          esac
+          printf '%s' "$inner"
+          return 0
+          ;;
+      esac
+    done
+  done
+  printf '%s' "$command"
+}
+
+# `tenon review acknowledge` is the contract's single writing path out of a pending review
+# (adapters/contract.md §2).  The decision is made on the command *text*, never on a host tool
+# label: Cursor's shell event carries no `tool_name` at all, Cline reports `execute_command` and
+# Amp reports its own tool ids, so requiring a baseline label here deadlocked the only sanctioned
+# unlock path on those hosts and left users with exactly the moves the contract forbids (delete the
+# marker) or defeats the gate (TTL wait, TENON_AFK=1).
+# Matching is structural rather than a substring test, so this hole cannot be widened by chaining:
+# every segment must itself be an unlock call or a `cd` hop, and a segment carrying a
+# metacharacter (`acknowledge && rm -rf`, `acknowledge > file`) is refused outright.
+is_review_control_command() { # $1=decoded command
+  local command="${1:-}" segment found=1
+  [ -n "$command" ] || return 1
+  command="$(pipeline_unwrap_shell_wrapper "$command")"
+  command="${command//&&/$'\n'}"
+  command="${command//||/$'\n'}"
+  command="${command//;/$'\n'}"
+  while IFS= read -r segment; do
+    while [ "${segment# }" != "$segment" ]; do segment="${segment# }"; done
+    while [ "${segment#	}" != "$segment" ]; do segment="${segment#	}"; done
+    while [ "${segment% }" != "$segment" ]; do segment="${segment% }"; done
+    [ -n "$segment" ] || continue
+    pipeline_command_has_shell_metachars "$segment" && return 1
+    case "$segment" in
+      tenon\ review\ acknowledge|tenon\ review\ acknowledge\ *|\
+      tenon\ review\ request|tenon\ review\ request\ *)
+        found=0 ;;
+      # A leading `cd <dir>` only positions the acknowledgement; it writes nothing and agents
+      # routinely pin the project root that way.
+      cd\ *) ;;
+      *) return 1 ;;
+    esac
+  done <<< "$command"
+  return "$found"
 }
 
 # Strict ActionEffect tracer bullet.  This is intentionally an allowlist rather than a
@@ -136,10 +206,7 @@ is_review_control_command() {
 pipeline_command_is_strict_read_only() { # $1=decoded command
   local command="${1:-}"
   [ -n "$command" ] || return 1
-  case "$command" in
-    *$'\n'*|*$'\r'*|*'>'*|*'<'*|*'|'*|*';'*|*'&'*|*'`'*|*'$('*)
-      return 1 ;;
-  esac
+  pipeline_command_has_shell_metachars "$command" && return 1
   while [ "${command# }" != "$command" ]; do command="${command# }"; done
   while [ "${command#	}" != "$command" ]; do command="${command#	}"; done
 
@@ -187,7 +254,7 @@ for kind in confirm review interaction; do
       # Acknowledgement is the only state-writing action that may pass a pending v2 gate.  The
       # command itself validates exact Change/phase/pending state under the canonical lock, so
       # allowing this narrow control surface cannot open unrelated writes.
-      if pipeline_json_is_command_tool "$TOOL" && is_review_control_command "$(json_command || true)"; then
+      if is_review_control_command "$(json_command || true)"; then
         continue
       fi
     fi

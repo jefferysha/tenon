@@ -1,0 +1,1058 @@
+<!doctype html>
+<!--
+  Tenon · 完整工作台原型（只读、示例数据）
+  Open with: python3 -m http.server 18767 --bind 127.0.0.1 --directory packages/dashboard-app/prototype/full-workbench-v1
+  Routes: ?page=workbench | projects | progress | automation | machine | settings
+  This is a throwaway interaction study. It does not create tasks, install adapters, or mutate a project.
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tenon · 工作台原型</title>
+  <style>
+    :root {
+      --bg: #f3f5f2;
+      --surface: #ffffff;
+      --surface-soft: #f8faf8;
+      --surface-muted: #eef2ef;
+      --ink: #18251f;
+      --ink-2: #304039;
+      --muted: #708078;
+      --muted-2: #9aa69f;
+      --line: #dfe6e0;
+      --line-strong: #cbd7cf;
+      --accent: #236a50;
+      --accent-strong: #17543e;
+      --accent-soft: #e7f1eb;
+      --amber: #a66b1f;
+      --amber-soft: #fff3df;
+      --red: #b45146;
+      --red-soft: #fff0ed;
+      --blue: #58738b;
+      --blue-soft: #edf3f7;
+      --shadow-sm: 0 1px 2px rgba(22, 38, 29, .05), 0 8px 22px rgba(22, 38, 29, .04);
+      --shadow-lg: 0 20px 60px rgba(16, 31, 24, .18);
+      --radius: 14px;
+      --font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--bg); }
+    body { margin: 0; min-height: 100vh; color: var(--ink); background: var(--bg); font: 14px/1.5 var(--font); }
+    button, input, select { font: inherit; }
+    button { border: 0; cursor: pointer; color: inherit; background: transparent; }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    a { color: inherit; text-decoration: none; }
+    h1, h2, h3, h4, p { margin: 0; }
+    svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    .mono { font-family: var(--mono); }
+
+    .app-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; transition: grid-template-columns .2s ease; }
+    .app-shell.rail-collapsed { grid-template-columns: 76px minmax(0, 1fr); }
+    .rail { position: sticky; top: 0; z-index: 20; height: 100vh; display: flex; flex-direction: column; gap: 20px; padding: 18px 14px; background: #edf1ee; border-right: 1px solid var(--line); transition: padding .2s ease; }
+    .rail-brand { display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 0 8px; }
+    .brand-mark { width: 32px; height: 32px; display: grid; place-items: center; flex: none; border-radius: 9px; color: #fff; background: var(--ink); font-size: 18px; font-weight: 760; letter-spacing: -.06em; }
+    .brand-copy { min-width: 0; font-weight: 760; letter-spacing: -.04em; font-size: 20px; }
+    .brand-caption { display: block; margin-top: 1px; color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: .03em; }
+    .rail-collapse { width: 29px; height: 29px; display: grid; place-items: center; margin-left: auto; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
+    .rail-collapse:hover { color: var(--accent); border-color: var(--accent); }
+    .rail-section-label { padding: 0 10px; color: var(--muted-2); font-size: 10px; font-weight: 740; letter-spacing: .12em; text-transform: uppercase; }
+    .rail-nav { display: grid; gap: 4px; }
+    .rail-link { display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 0 11px; border-radius: 10px; color: var(--muted); text-align: left; transition: background .15s, color .15s, transform .15s; }
+    .rail-link:hover { color: var(--ink); background: var(--surface); }
+    .rail-link.active { color: var(--accent-strong); background: var(--accent-soft); font-weight: 700; }
+    .rail-link .rail-icon { width: 20px; display: grid; place-items: center; flex: none; }
+    .rail-link small { margin-left: auto; min-width: 20px; padding: 1px 6px; color: var(--muted); border-radius: 99px; background: rgba(255,255,255,.76); font: 11px var(--mono); text-align: center; }
+    .rail-link.active small { color: var(--accent); background: rgba(255,255,255,.85); }
+    .rail-spacer { flex: 1; }
+    .rail-project { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.62); }
+    .project-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .rail-project strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+    .rail-project span { display: block; margin-top: 2px; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+    .rail-footer { display: grid; gap: 5px; }
+    .rail-footer button { display: flex; align-items: center; gap: 11px; min-height: 38px; padding: 0 11px; color: var(--muted); border-radius: 10px; text-align: left; }
+    .rail-footer button:hover { color: var(--ink); background: var(--surface); }
+
+    .main { min-width: 0; }
+    .topbar { position: sticky; top: 0; z-index: 15; height: 72px; display: flex; align-items: center; gap: 16px; padding: 0 32px; background: rgba(243,245,242,.92); border-bottom: 1px solid rgba(223,230,224,.8); backdrop-filter: blur(14px); }
+    .crumb { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 12px; }
+    .crumb strong { color: var(--ink); font-weight: 700; }
+    .crumb-sep { color: var(--muted-2); }
+    .project-switch-wrap { position: relative; }
+    .project-switch { display: inline-flex; align-items: center; gap: 7px; max-width: 220px; padding: 7px 9px; color: var(--ink-2); border: 1px solid transparent; border-radius: 9px; font-size: 12px; font-weight: 650; }
+    .project-switch:hover, .project-switch[aria-expanded="true"] { border-color: var(--line-strong); background: var(--surface); }
+    .project-switch .project-dot { width: 6px; height: 6px; box-shadow: none; }
+    .project-switch-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .project-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; width: 270px; padding: 7px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-lg); }
+    .project-menu[hidden] { display: none; }
+    .project-menu-head { padding: 8px 9px 7px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .project-option { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 9px; border-radius: 8px; text-align: left; }
+    .project-option:hover { background: var(--surface-muted); }
+    .project-option.active { background: var(--accent-soft); }
+    .project-option-copy { min-width: 0; flex: 1; }
+    .project-option-copy strong, .project-option-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .project-option-copy strong { font-size: 12px; }
+    .project-option-copy span { margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .project-option-count { color: var(--muted); font: 11px var(--mono); }
+    .top-search { width: min(310px, 30vw); min-width: 170px; height: 36px; display: flex; align-items: center; gap: 8px; margin-left: auto; padding: 0 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+    .top-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .top-search svg { width: 15px; height: 15px; flex: none; }
+    .top-search input { width: 100%; min-width: 0; height: 100%; padding: 0; color: var(--ink); border: 0; outline: 0; background: transparent; font-size: 12px; }
+    .top-search kbd { flex: none; padding: 1px 5px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; background: var(--surface-soft); font: 10px var(--mono); }
+    .top-actions { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+    .readonly-chip, .connection-chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 11px; }
+    .readonly-chip { padding: 5px 8px; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; background: var(--surface); }
+    .connection-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .avatar { width: 29px; height: 29px; display: grid; place-items: center; color: var(--accent-strong); border-radius: 50%; background: #d5e6db; font-size: 11px; font-weight: 750; }
+
+    .content { max-width: 1480px; margin: 0 auto; padding: 31px 40px 90px; }
+    .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; margin-bottom: 24px; }
+    .eyebrow { margin-bottom: 7px; color: var(--accent); font-size: 10px; font-weight: 760; letter-spacing: .14em; text-transform: uppercase; }
+    .page-head h1 { font-size: clamp(27px, 3vw, 36px); line-height: 1.15; letter-spacing: -.045em; }
+    .page-subtitle { max-width: 640px; margin-top: 9px; color: var(--muted); font-size: 13px; }
+    .page-actions { display: flex; align-items: center; gap: 8px; }
+    .button { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface); color: var(--ink-2); font-size: 12px; font-weight: 650; }
+    .button:hover { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+    .button.primary { color: #fff; border-color: var(--accent); background: var(--accent); }
+    .button.primary:hover { border-color: var(--accent-strong); background: var(--accent-strong); }
+    .button.ghost { border-color: transparent; background: transparent; }
+    .button.ghost:hover { border-color: var(--line); background: var(--surface); }
+    .icon-button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); }
+    .icon-button:hover { color: var(--accent); border-color: var(--accent); }
+
+    .metric-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 17px; }
+    .metric { min-height: 76px; padding: 14px 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-sm); }
+    .metric-label { color: var(--muted); font-size: 11px; }
+    .metric-value { margin-top: 5px; font: 700 22px/1 var(--mono); letter-spacing: -.06em; }
+    .metric-note { margin-top: 5px; color: var(--muted); font-size: 10px; }
+    .metric.attention .metric-value { color: var(--amber); }
+    .metric.running .metric-value { color: var(--blue); }
+    .metric.done .metric-value { color: var(--accent); }
+
+    .panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-sm); }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 18px 14px; }
+    .panel-title { font-size: 14px; font-weight: 760; letter-spacing: -.01em; }
+    .panel-meta { color: var(--muted); font-size: 11px; }
+    .section-kicker { color: var(--muted); font-size: 11px; font-weight: 700; }
+
+    .stage-panel { margin-bottom: 18px; padding: 17px 18px 16px; }
+    .stage-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+    .stage-title-wrap { display: flex; align-items: baseline; gap: 10px; }
+    .stage-title { font-size: 14px; font-weight: 760; }
+    .stage-project { color: var(--muted); font: 11px var(--mono); }
+    .stage-legend { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 10px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong); }
+    .legend-dot.current { background: var(--accent); }
+    .legend-dot.attention { background: var(--amber); }
+    .stage-track { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; }
+    .stage-step { position: relative; min-width: 0; padding-top: 10px; border-top: 3px solid var(--line); }
+    .stage-step::after { content: ''; position: absolute; top: -7px; left: 0; width: 10px; height: 10px; border: 2px solid var(--line); border-radius: 50%; background: var(--surface); }
+    .stage-step.done { border-color: var(--accent); }
+    .stage-step.done::after { border-color: var(--accent); background: var(--accent); }
+    .stage-step.current { border-color: var(--amber); }
+    .stage-step.current::after { border-color: var(--amber); background: var(--amber-soft); box-shadow: 0 0 0 3px var(--amber-soft); }
+    .stage-step strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .stage-step span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .stage-step.current strong { color: var(--amber); }
+
+    .workbench-grid { display: grid; grid-template-columns: minmax(360px, .96fr) minmax(430px, 1.04fr); gap: 18px; align-items: start; }
+    .queue-panel { min-width: 0; overflow: hidden; }
+    .queue-toolbar { padding: 0 18px 12px; }
+    .queue-toolbar-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+    .queue-toolbar-top .panel-title { font-size: 16px; }
+    .inline-search { height: 34px; display: flex; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); color: var(--muted); }
+    .inline-search:focus-within { border-color: var(--accent); background: var(--surface); }
+    .inline-search svg { width: 14px; height: 14px; }
+    .inline-search input { width: 150px; max-width: 20vw; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; font-size: 11px; }
+    .filter-row { display: flex; flex-wrap: wrap; gap: 4px; }
+    .filter-tab { min-height: 30px; padding: 0 9px; color: var(--muted); border: 1px solid transparent; border-radius: 7px; font-size: 11px; white-space: nowrap; }
+    .filter-tab:hover { color: var(--ink); background: var(--surface-muted); }
+    .filter-tab.active { color: var(--accent-strong); border-color: var(--line-strong); background: var(--accent-soft); font-weight: 750; }
+    .filter-tab .count { margin-left: 4px; color: inherit; font: 10px var(--mono); opacity: .75; }
+    .attention-hint { display: flex; align-items: center; gap: 6px; margin: 0 18px 12px; padding: 8px 9px; color: var(--muted); border: 1px solid #f1dfbe; border-radius: 8px; background: var(--amber-soft); font-size: 10px; }
+    .attention-hint strong { color: var(--amber); }
+    .task-list { border-top: 1px solid var(--line); }
+    .task-row { display: block; width: 100%; padding: 15px 18px 14px; border-bottom: 1px solid var(--line); text-align: left; transition: background .14s, padding .14s; }
+    .task-row:last-child { border-bottom: 0; }
+    .task-row:hover { background: var(--surface-soft); }
+    .task-row.selected { background: #f0f6f2; box-shadow: inset 3px 0 var(--accent); }
+    .task-row-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .task-name { min-width: 0; font-size: 13px; font-weight: 720; line-height: 1.35; }
+    .task-name span { display: block; margin-top: 4px; overflow: hidden; color: var(--muted); font: 10px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+    .status { display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 3px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+    .status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .status.decision, .status.review { color: var(--amber); background: var(--amber-soft); }
+    .status.blocked { color: var(--red); background: var(--red-soft); }
+    .status.running { color: var(--blue); background: var(--blue-soft); }
+    .status.done { color: var(--accent); background: var(--accent-soft); }
+    .task-row-bottom { display: flex; align-items: center; gap: 14px; margin-top: 12px; color: var(--muted); font-size: 10px; }
+    .task-row-bottom span { display: inline-flex; align-items: center; gap: 4px; }
+    .task-row-bottom .next { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
+    .task-row-arrow { margin-left: auto; color: var(--muted-2); }
+    .empty-state { padding: 32px 18px; color: var(--muted); text-align: center; font-size: 12px; }
+    .empty-state strong { display: block; margin-bottom: 5px; color: var(--ink-2); font-size: 13px; }
+
+    .focus-panel { min-width: 0; overflow: hidden; }
+    .focus-top { padding: 19px 20px 16px; border-bottom: 1px solid var(--line); }
+    .focus-topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+    .focus-stage { color: var(--accent); font-size: 10px; font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
+    .focus-top h2 { max-width: 560px; font-size: 22px; line-height: 1.25; letter-spacing: -.035em; }
+    .focus-id { margin-top: 6px; color: var(--muted); font: 10px var(--mono); overflow-wrap: anywhere; }
+    .focus-note { margin-top: 13px; color: var(--muted); font-size: 12px; }
+    .next-action { display: flex; align-items: flex-start; gap: 9px; margin-top: 15px; padding: 10px 11px; color: var(--ink-2); border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); font-size: 11px; }
+    .next-action svg { width: 15px; height: 15px; flex: none; color: var(--accent); margin-top: 1px; }
+    .next-action strong { display: block; margin-bottom: 2px; font-size: 10px; }
+    .focus-progress { padding: 16px 20px 14px; }
+    .focus-progress-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .focus-progress-head strong { font-size: 11px; }
+    .focus-progress-head span { color: var(--muted); font: 10px var(--mono); }
+    .mini-track { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+    .mini-stage { min-width: 0; }
+    .mini-stage-bar { height: 4px; border-radius: 99px; background: var(--line); }
+    .mini-stage.done .mini-stage-bar { background: var(--accent); }
+    .mini-stage.current .mini-stage-bar { background: var(--amber); }
+    .mini-stage span { display: block; margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+    .mini-stage.current span { color: var(--amber); font-weight: 700; }
+    .file-workbench { margin: 0 20px 18px; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); }
+    .file-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .file-head strong { font-size: 12px; }
+    .file-head span { color: var(--muted); font-size: 10px; }
+    .file-tabs { display: flex; gap: 4px; margin-top: 12px; border-bottom: 1px solid var(--line); }
+    .file-tab { min-height: 30px; padding: 0 8px; color: var(--muted); border-bottom: 2px solid transparent; font-size: 11px; }
+    .file-tab.active { color: var(--ink); border-color: var(--accent); font-weight: 750; }
+    .file-tab .count { margin-left: 4px; color: inherit; font: 10px var(--mono); }
+    .file-summary { display: flex; justify-content: space-between; gap: 10px; margin: 10px 0 7px; color: var(--muted); font-size: 10px; }
+    .files { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+    .file-row { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 42px; padding: 7px 9px; border-bottom: 1px solid var(--line); text-align: left; }
+    .file-row:last-child { border-bottom: 0; }
+    .file-row:hover { background: var(--accent-soft); }
+    .file-row svg { width: 15px; height: 15px; flex: none; color: var(--muted); }
+    .file-copy { min-width: 0; flex: 1; }
+    .file-copy strong, .file-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-copy strong { font-size: 11px; font-weight: 650; }
+    .file-copy span { margin-top: 2px; color: var(--muted); font-size: 9px; }
+    .file-state { flex: none; color: var(--accent); font-size: 10px; }
+    .file-state.missing { color: var(--red); }
+    .file-more { width: 100%; min-height: 31px; color: var(--accent); border-top: 1px solid var(--line); font-size: 10px; text-align: center; }
+    .file-more:hover { background: var(--accent-soft); }
+    .focus-footer { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 0 20px 18px; }
+    .focus-footer-note { color: var(--muted); font-size: 10px; }
+    .terminal-handoff { display: flex; align-items: center; gap: 7px; margin: 0 20px 18px; padding: 9px 10px; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: 8px; font-size: 10px; }
+    .terminal-handoff svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+    .terminal-handoff code { margin-left: auto; overflow: hidden; color: var(--ink-2); font: 10px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+
+    .lower-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 18px; margin-top: 18px; }
+    .activity-list { padding: 0 18px 8px; }
+    .activity-item { display: flex; align-items: flex-start; gap: 10px; padding: 11px 0; border-top: 1px solid var(--line); }
+    .activity-icon { width: 25px; height: 25px; display: grid; place-items: center; flex: none; color: var(--accent); border-radius: 7px; background: var(--accent-soft); }
+    .activity-icon svg { width: 13px; height: 13px; }
+    .activity-copy { min-width: 0; flex: 1; }
+    .activity-copy strong { display: block; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+    .activity-copy span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .activity-time { flex: none; color: var(--muted-2); font: 10px var(--mono); }
+    .principles { padding: 0 18px 16px; }
+    .principle { display: flex; gap: 9px; padding: 10px 0; border-top: 1px solid var(--line); }
+    .principle-number { width: 20px; height: 20px; display: grid; place-items: center; flex: none; color: var(--accent); border-radius: 6px; background: var(--accent-soft); font: 11px var(--mono); }
+    .principle strong { display: block; font-size: 11px; }
+    .principle span { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+
+    .table-panel { overflow: hidden; }
+    .table-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 18px 14px; }
+    .table-search { width: 260px; max-width: 100%; height: 35px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); color: var(--muted); }
+    .table-search svg { width: 14px; height: 14px; }
+    .table-search input { width: 100%; height: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 11px; }
+    .result-note { color: var(--muted); font-size: 10px; }
+    .project-table { border-top: 1px solid var(--line); }
+    .project-card { display: grid; grid-template-columns: minmax(180px, 1.15fr) minmax(170px, .8fr) minmax(150px, .7fr) auto; gap: 14px; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+    .project-card:last-child { border-bottom: 0; }
+    .project-card:hover { background: var(--surface-soft); }
+    .project-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .project-avatar { width: 34px; height: 34px; display: grid; place-items: center; flex: none; color: var(--accent-strong); border-radius: 9px; background: var(--accent-soft); font-size: 13px; font-weight: 760; }
+    .project-main strong, .project-main span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .project-main strong { font-size: 13px; }
+    .project-main span { margin-top: 3px; color: var(--muted); font: 10px var(--mono); }
+    .project-cell-label { display: block; margin-bottom: 3px; color: var(--muted-2); font-size: 9px; letter-spacing: .04em; text-transform: uppercase; }
+    .project-cell strong { font-size: 12px; font-weight: 650; }
+    .project-cell span { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .health { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); font-size: 10px; font-weight: 700; }
+    .health::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .health.warn { color: var(--amber); }
+    .health.error { color: var(--red); }
+
+    .progress-summary { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; align-items: start; margin-bottom: 18px; }
+    .progress-card { padding: 18px; }
+    .progress-big { display: flex; align-items: flex-end; gap: 10px; margin-top: 9px; }
+    .progress-big strong { font: 700 38px/1 var(--mono); letter-spacing: -.08em; }
+    .progress-big span { color: var(--muted); font-size: 11px; }
+    .progress-meter { height: 7px; margin-top: 16px; overflow: hidden; border-radius: 99px; background: var(--line); }
+    .progress-meter span { display: block; width: 48%; height: 100%; border-radius: inherit; background: var(--accent); }
+    .progress-note { margin-top: 8px; color: var(--muted); font-size: 10px; }
+    .progress-side { padding: 16px; }
+    .progress-side-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+    .progress-side-row:last-child { border-bottom: 0; }
+    .progress-side-row strong { color: var(--ink); font: 700 12px var(--mono); }
+    .stage-board { display: grid; grid-template-columns: repeat(6, minmax(150px,1fr)); gap: 10px; overflow-x: auto; padding-bottom: 5px; }
+    .stage-column { min-height: 280px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+    .stage-column-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 2px solid var(--line); }
+    .stage-column.current .stage-column-head { border-color: var(--amber); }
+    .stage-column-head strong { font-size: 12px; }
+    .stage-column-head span { color: var(--muted); font: 10px var(--mono); }
+    .stage-column-desc { min-height: 35px; margin-top: 8px; color: var(--muted); font-size: 9px; }
+    .board-task { display: block; width: 100%; margin-top: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); text-align: left; }
+    .board-task:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .board-task strong { display: block; margin-top: 7px; font-size: 11px; line-height: 1.35; }
+    .board-task span { display: block; margin-top: 4px; overflow: hidden; color: var(--muted); font: 9px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+    .board-empty { margin-top: 10px; padding: 16px 8px; color: var(--muted-2); border: 1px dashed var(--line-strong); border-radius: 8px; font-size: 10px; text-align: center; }
+
+    .automation-grid, .machine-grid, .settings-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr); gap: 18px; align-items: start; }
+    .health-hero { padding: 20px; }
+    .health-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .health-hero h2 { font-size: 22px; letter-spacing: -.03em; }
+    .health-hero p { margin-top: 7px; color: var(--muted); font-size: 12px; }
+    .health-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; color: var(--accent); border-radius: 99px; background: var(--accent-soft); font-size: 10px; font-weight: 750; }
+    .health-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .health-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 20px; }
+    .health-stat { padding: 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); }
+    .health-stat strong { display: block; font: 700 20px var(--mono); }
+    .health-stat span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .info-banner { display: flex; align-items: flex-start; gap: 9px; padding: 11px 12px; color: var(--ink-2); border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); font-size: 11px; }
+    .info-banner svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
+    .queue-table { padding: 0 18px 10px; }
+    .automation-row { display: grid; grid-template-columns: minmax(0,1fr) 90px 90px; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+    .automation-row strong { display: block; font-size: 11px; }
+    .automation-row span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .automation-row .status { justify-self: start; }
+    .automation-time { color: var(--muted-2); font: 10px var(--mono); text-align: right; }
+    .command-card { padding: 17px; }
+    .command-card h3 { font-size: 13px; }
+    .command-card p { margin-top: 6px; color: var(--muted); font-size: 11px; }
+    .command-code { display: block; overflow: auto; margin-top: 14px; padding: 11px; color: var(--ink-2); border-radius: 8px; background: #eef2ef; font: 10px/1.6 var(--mono); white-space: nowrap; }
+    .command-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+    .readiness-list { display: grid; gap: 8px; }
+    .readiness-card { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    .readiness-icon { width: 30px; height: 30px; display: grid; place-items: center; flex: none; border-radius: 8px; color: var(--accent); background: var(--accent-soft); }
+    .readiness-card.warn .readiness-icon { color: var(--amber); background: var(--amber-soft); }
+    .readiness-copy { min-width: 0; flex: 1; }
+    .readiness-copy strong { display: block; font-size: 11px; }
+    .readiness-copy span { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .readiness-state { color: var(--accent); font-size: 10px; font-weight: 750; }
+    .readiness-card.warn .readiness-state { color: var(--amber); }
+    .risk-list { padding: 0 18px 10px; }
+    .risk-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+    .risk-row svg { width: 15px; height: 15px; flex: none; margin-top: 1px; color: var(--amber); }
+    .risk-row strong { display: block; font-size: 11px; }
+    .risk-row span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+
+    .settings-card { padding: 18px; }
+    .settings-section + .settings-section { margin-top: 21px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .settings-section h3 { font-size: 13px; }
+    .settings-section > p { margin-top: 5px; color: var(--muted); font-size: 11px; }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .setting-row:last-child { border-bottom: 0; }
+    .setting-row strong { display: block; font-size: 11px; }
+    .setting-row span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .segmented { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+    .segmented button { min-height: 27px; padding: 0 8px; color: var(--muted); border-radius: 6px; font-size: 10px; }
+    .segmented button.active { color: var(--accent-strong); background: var(--surface); box-shadow: var(--shadow-sm); font-weight: 750; }
+    .toggle { width: 38px; height: 22px; padding: 2px; border-radius: 99px; background: var(--line-strong); }
+    .toggle::after { content: ''; display: block; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.15); transition: transform .15s; }
+    .toggle.on { background: var(--accent); }
+    .toggle.on::after { transform: translateX(16px); }
+
+    .overlay { position: fixed; inset: 0; z-index: 100; display: flex; justify-content: flex-end; background: rgba(20, 31, 25, .28); }
+    .overlay[hidden] { display: none; }
+    .sheet { width: min(650px, 100%); height: 100%; overflow: auto; padding: 24px 26px 42px; background: var(--surface); box-shadow: var(--shadow-lg); animation: sheet-in .18s ease-out; }
+    @keyframes sheet-in { from { transform: translateX(18px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; }
+    .sheet-close { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 9px; font-size: 20px; }
+    .sheet-close:hover { color: var(--accent); border-color: var(--accent); }
+    .sheet-hero { padding: 28px 0 21px; border-bottom: 1px solid var(--line); }
+    .sheet-hero h2 { max-width: 570px; font-size: 28px; line-height: 1.18; letter-spacing: -.045em; }
+    .sheet-id { margin-top: 7px; color: var(--muted); font: 10px var(--mono); overflow-wrap: anywhere; }
+    .sheet-status-line { display: flex; align-items: center; gap: 12px; margin-top: 15px; color: var(--muted); font-size: 11px; }
+    .sheet-stage { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 5px; margin-top: 20px; }
+    .sheet-stage-step { min-width: 0; }
+    .sheet-stage-step-bar { height: 4px; border-radius: 99px; background: var(--line); }
+    .sheet-stage-step.done .sheet-stage-step-bar { background: var(--accent); }
+    .sheet-stage-step.current .sheet-stage-step-bar { background: var(--amber); }
+    .sheet-stage-step span { display: block; margin-top: 6px; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+    .sheet-stage-step.current span { color: var(--amber); font-weight: 750; }
+    .sheet-context { padding: 15px 0; border-bottom: 1px solid var(--line); }
+    .sheet-context-label { color: var(--muted-2); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .sheet-context p { margin-top: 5px; color: var(--ink-2); font-size: 12px; }
+    .sheet-tabs { display: flex; gap: 5px; margin-top: 19px; border-bottom: 1px solid var(--line); }
+    .sheet-tab { min-height: 37px; padding: 0 10px; color: var(--muted); border-bottom: 2px solid transparent; font-size: 12px; }
+    .sheet-tab.active { color: var(--ink); border-color: var(--accent); font-weight: 750; }
+    .sheet-tab .count { margin-left: 4px; font: 10px var(--mono); }
+    .sheet-file-summary { display: flex; justify-content: space-between; gap: 10px; margin: 13px 0 8px; color: var(--muted); font-size: 11px; }
+    .sheet-files { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; }
+    .sheet-files .file-row { min-height: 55px; padding: 9px 11px; }
+    .sheet-files.collapsed .file-row:nth-child(n+4) { display: none; }
+    .sheet-file-more { width: 100%; min-height: 36px; color: var(--accent); border-top: 1px solid var(--line); font-size: 11px; }
+    .sheet-file-more:hover { background: var(--accent-soft); }
+    .document-preview { margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+    .document-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+    .document-body { padding: 18px 19px 20px; }
+    .document-body h3 { font-size: 18px; line-height: 1.3; }
+    .document-body p { margin-top: 9px; color: var(--muted); font-size: 11px; }
+    .document-body code { display: inline-block; margin-top: 13px; padding: 3px 5px; color: var(--ink-2); background: #e8eeea; font: 10px var(--mono); overflow-wrap: anywhere; }
+    .sheet-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); }
+    .sheet-footer small { color: var(--muted); font-size: 10px; }
+    .toast { position: fixed; left: 50%; bottom: 22px; z-index: 140; transform: translateX(-50%); padding: 9px 13px; color: #fff; border-radius: 9px; background: var(--ink); box-shadow: var(--shadow-lg); font-size: 11px; }
+
+    @media (max-width: 1160px) {
+      .content { padding-left: 26px; padding-right: 26px; }
+      .workbench-grid { grid-template-columns: minmax(330px, .9fr) minmax(380px, 1.1fr); }
+      .project-card { grid-template-columns: minmax(170px,1fr) minmax(140px,.8fr) auto; }
+      .project-card > :nth-child(3) { display: none; }
+    }
+    @media (max-width: 930px) {
+      .app-shell, .app-shell.rail-collapsed { grid-template-columns: 76px minmax(0,1fr); }
+      .rail { padding-left: 10px; padding-right: 10px; }
+      .brand-copy, .brand-caption, .rail-collapse, .rail-section-label, .rail-link .label, .rail-link small, .rail-project, .rail-footer .label { display: none; }
+      .rail-brand { justify-content: center; padding: 0; }
+      .rail-nav { gap: 7px; }
+      .rail-link { justify-content: center; padding: 0; }
+      .rail-link .rail-icon { width: auto; }
+      .rail-footer button { justify-content: center; padding: 0; }
+      .topbar { padding: 0 20px; }
+      .top-search { width: min(280px, 33vw); }
+      .workbench-grid, .lower-grid, .progress-summary, .automation-grid, .machine-grid, .settings-grid { grid-template-columns: 1fr; }
+      .lower-grid .panel:last-child { display: none; }
+      .stage-board { grid-template-columns: repeat(6, minmax(160px,1fr)); }
+    }
+    @media (max-width: 650px) {
+      .app-shell, .app-shell.rail-collapsed { display: block; }
+      .rail { position: fixed; inset: auto 0 0; width: 100%; height: 64px; display: flex; flex-direction: row; align-items: center; gap: 4px; padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); border-right: 0; background: rgba(237,241,238,.96); }
+      .rail-brand, .rail-spacer, .rail-project, .rail-footer { display: none; }
+      .rail-nav { width: 100%; display: flex; justify-content: space-around; gap: 4px; }
+      .rail-link { width: 25%; min-height: 50px; display: flex; flex-direction: column; gap: 2px; padding: 5px 3px; border-radius: 9px; }
+      .rail-link .label { display: block; font-size: 9px; }
+      .main { padding-bottom: 64px; }
+      .topbar { height: 62px; gap: 8px; padding: 0 14px; }
+      .crumb { font-size: 11px; }
+      .crumb .crumb-project { display: none; }
+      .project-switch-wrap { margin-left: auto; }
+      .project-switch { max-width: 130px; padding: 6px 7px; }
+      .top-search { order: 3; width: 34px; min-width: 34px; padding: 0 9px; margin-left: 0; }
+      .top-search input, .top-search kbd { display: none; }
+      .top-actions .readonly-chip, .top-actions .connection-chip { display: none; }
+      .content { padding: 24px 15px 76px; }
+      .page-head { display: block; margin-bottom: 19px; }
+      .page-actions { margin-top: 13px; }
+      .metric-strip { grid-template-columns: repeat(2,1fr); gap: 8px; }
+      .metric { min-height: 69px; padding: 11px; }
+      .metric-value { font-size: 19px; }
+      .stage-panel { padding: 14px 13px; }
+      .stage-head { align-items: flex-start; }
+      .stage-legend { display: none; }
+      .stage-track { grid-template-columns: repeat(6, minmax(72px,1fr)); overflow-x: auto; padding-bottom: 4px; }
+      .workbench-grid { gap: 12px; }
+      .queue-toolbar-top { align-items: flex-start; flex-direction: column; }
+      .inline-search { width: 100%; }
+      .inline-search input { width: 100%; max-width: none; }
+      .task-row { padding-left: 14px; padding-right: 14px; }
+      .focus-top h2 { font-size: 21px; }
+      .terminal-handoff code { max-width: 48%; }
+      .project-card { grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 14px; }
+      .project-card > :nth-child(2) { display: none; }
+      .table-tools { align-items: flex-start; flex-direction: column; padding-left: 14px; padding-right: 14px; }
+      .table-search { width: 100%; }
+      .sheet { width: 100%; height: 92%; align-self: flex-end; border-radius: 17px 17px 0 0; padding: 18px 17px 30px; animation-name: sheet-up; }
+      @keyframes sheet-up { from { transform: translateY(18px); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
+      .sheet-hero h2 { font-size: 24px; }
+      .sheet-stage { grid-template-columns: repeat(6, minmax(65px,1fr)); overflow-x: auto; }
+      .toast { bottom: 79px; max-width: calc(100vw - 30px); text-align: center; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="overlay" class="overlay" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+  <script>
+    const iconPaths = {
+      grid: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
+      folder: '<path d="M3 7V5h7l2 2h9v13H3z"/>',
+      flow: '<circle cx="6" cy="6" r="2.3"/><circle cx="18" cy="6" r="2.3"/><circle cx="12" cy="18" r="2.3"/><path d="M8.2 7.1 10.8 16M15.8 7.1 13.2 16"/>',
+      bot: '<rect x="4" y="7" width="16" height="13" rx="3"/><path d="M12 3v4M8 12h.01M16 12h.01M8 16h8"/>',
+      server: '<rect x="4" y="4" width="16" height="6" rx="1.5"/><rect x="4" y="14" width="16" height="6" rx="1.5"/><path d="M8 7h.01M8 17h.01M12 7h5M12 17h5"/>',
+      settings: '<path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/>',
+      search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',
+      chevron: '<path d="m9 5 7 7-7 7"/>',
+      down: '<path d="m6 9 6 6 6-6"/>',
+      up: '<path d="m6 15 6-6 6 6"/>',
+      file: '<path d="M14 3H5v18h14V8zM14 3v5h5M8 13h8M8 17h5"/>',
+      check: '<path d="m5 12 4 4L19 6"/>',
+      alert: '<path d="M12 4 3 20h18L12 4zM12 10v4M12 17h.01"/>',
+      clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      terminal: '<path d="m5 7 5 5-5 5M12 17h7"/>',
+      arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>',
+      copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+      close: '<path d="m6 6 12 12M18 6 6 18"/>',
+      info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+      spark: '<path d="m12 3 1.3 5.7L19 10l-5.7 1.3L12 17l-1.3-5.7L5 10l5.7-1.3zM19 16v5M21.5 18.5h-5"/>',
+      sliders: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+      more: '<circle cx="5" cy="12" r=".8"/><circle cx="12" cy="12" r=".8"/><circle cx="19" cy="12" r=".8"/>',
+    };
+    const ico = (name, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${iconPaths[name] || ''}</svg>`;
+    const esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+
+    const stages = [
+      { id: 'init', label: '立项', desc: '范围确认' },
+      { id: 'research', label: '调研', desc: '证据收集' },
+      { id: 'spec', label: '规格', desc: '方案确认' },
+      { id: 'build', label: '实现', desc: '代码交付' },
+      { id: 'verify', label: '验证', desc: '结果复核' },
+      { id: 'ship', label: '交付', desc: '完成归档' },
+    ];
+    const statusMeta = {
+      decision: { label: '待决定', short: '待决定', tone: 'decision', meaning: '需要你确认方案后继续' },
+      blocked: { label: '受阻', short: '受阻', tone: 'blocked', meaning: '缺少输入或前置条件' },
+      running: { label: '进行中', short: '进行中', tone: 'running', meaning: '终端任务正在执行' },
+      review: { label: '待复核', short: '待复核', tone: 'review', meaning: '产出已到，等待结果确认' },
+      done: { label: '已完成', short: '已完成', tone: 'done', meaning: '阶段已交付' },
+    };
+    const projects = [
+      { id: 'tenon-local', name: 'tenon-local', desc: '本地工作流引擎', path: '~/Documents/code-manager/projects/tenon-local', health: '正常', updated: '刚刚' },
+      { id: 'design-system', name: 'design-system', desc: '共享组件与设计规范', path: '~/Documents/code-manager/projects/design-system', health: '正常', updated: '12 分钟前' },
+      { id: 'docs-site', name: 'docs-site', desc: '产品文档站点', path: '~/Documents/code-manager/projects/docs-site', health: '注意', updated: '昨天' },
+    ];
+    const taskData = [
+      { id: 'dashboard-readonly-redesign', project: 'tenon-local', name: '重构项目与任务阅读体验', stage: 'spec', status: 'decision', note: '设计文档已就绪，等待在终端中确认方案。', next: '在终端确认规格，进入实现', updated: '刚刚', inputs: [
+        ['proposal.md', '变更需求与范围', false], ['context.md', '背景与约束', false], ['scope.md', '范围边界', false], ['acceptance.md', '验收条件', false]
+      ], outputs: [
+        ['design.md', '阶段设计文档', false], ['verification.log', '验证记录', true], ['delivery-notes.md', '交付说明', true]
+      ] },
+      { id: 'revision-guard', project: 'tenon-local', name: '修复版本校验边界', stage: 'build', status: 'running', note: '代码与测试正在执行，完成后会进入验证。', next: '等待终端任务完成', updated: '8 分钟前', inputs: [
+        ['proposal.md', '变更需求与范围', false], ['design.md', '实现方案', false]
+      ], outputs: [
+        ['implementation.md', '实现记录', false], ['test-report.md', '测试报告', true]
+      ] },
+      { id: 'interaction-metrics', project: 'tenon-local', name: '补齐交互事件统计', stage: 'verify', status: 'review', note: '验证报告已经生成，边界场景等待复核。', next: '复核验证报告中的 2 个边界场景', updated: '26 分钟前', inputs: [
+        ['proposal.md', '变更需求与范围', false], ['events.md', '事件清单', false]
+      ], outputs: [
+        ['verification.md', '验证报告', false], ['metrics.json', '样例数据', false]
+      ] },
+      { id: 'empty-queue', project: 'tenon-local', name: '优化空队列反馈', stage: 'ship', status: 'done', note: '变更已交付，相关说明可以读取。', next: '已完成', updated: '昨天', inputs: [
+        ['proposal.md', '变更需求与范围', false]
+      ], outputs: [
+        ['delivery.md', '交付说明', false], ['verification.md', '验证报告', false]
+      ] },
+      { id: 'adapter-docs', project: 'tenon-local', name: '补充终端接管说明', stage: 'research', status: 'blocked', note: '缺少当前主机的运行时信息，无法完成调研。', next: '在终端补充运行时信息', updated: '2 小时前', inputs: [
+        ['proposal.md', '变更需求与范围', false], ['runtime.md', '运行时信息', true]
+      ], outputs: [
+        ['research.md', '调研记录', true]
+      ] },
+      { id: 'button-states', project: 'design-system', name: '统一按钮反馈与焦点样式', stage: 'build', status: 'running', note: '组件状态正在对齐，验收文件尚未生成。', next: '等待组件测试完成', updated: '18 分钟前', inputs: [
+        ['proposal.md', '变更需求与范围', false]
+      ], outputs: [
+        ['review.md', '评审记录', true]
+      ] },
+      { id: 'docs-navigation', project: 'docs-site', name: '梳理文档导航结构', stage: 'spec', status: 'decision', note: '导航方案已经整理，等待确认信息架构。', next: '确认导航分组', updated: '昨天', inputs: [
+        ['proposal.md', '变更需求与范围', false]
+      ], outputs: [
+        ['design.md', '设计文档', false]
+      ] },
+    ];
+
+    const params = new URLSearchParams(location.search);
+    const allowedPages = ['workbench', 'projects', 'progress', 'automation', 'machine', 'settings'];
+    const state = {
+      page: allowedPages.includes(params.get('page')) ? params.get('page') : 'workbench',
+      project: projects.some((p) => p.id === params.get('project')) ? params.get('project') : 'tenon-local',
+      task: params.get('task') || 'dashboard-readonly-redesign',
+      railCollapsed: false,
+      query: '',
+      filter: 'all',
+      fileTab: 'input',
+      filesExpanded: false,
+      fileName: null,
+      projectMenu: false,
+      sheet: null,
+      toast: '',
+      theme: 'light',
+      compact: false,
+    };
+    if (!taskData.some((task) => task.id === state.task && task.project === state.project)) state.task = taskData.find((task) => task.project === state.project)?.id || taskData[0].id;
+
+    const currentProject = () => projects.find((project) => project.id === state.project) || projects[0];
+    const projectTasks = (projectId = state.project) => taskData.filter((task) => task.project === projectId);
+    const selectedTask = () => taskData.find((task) => task.id === state.task) || projectTasks()[0] || taskData[0];
+    const stageIndex = (id) => Math.max(0, stages.findIndex((stage) => stage.id === id));
+    const statusChip = (task, short = false) => {
+      const meta = statusMeta[task.status] || statusMeta.running;
+      return `<span class="status ${meta.tone}" title="${esc(meta.meaning)}">${short ? esc(meta.short) : esc(meta.label)}</span>`;
+    };
+    const pageLabel = { workbench: '工作台', projects: '项目', progress: '阶段进度', automation: '自动化', machine: '机器', settings: '设置' };
+    const pageIcon = { workbench: 'grid', projects: 'folder', progress: 'flow', automation: 'bot', machine: 'server', settings: 'settings' };
+
+    function syncUrl() {
+      const next = new URLSearchParams();
+      next.set('page', state.page);
+      if (state.page !== 'projects') next.set('project', state.project);
+      if (state.page === 'progress' || state.page === 'workbench') next.set('task', state.task);
+      history.replaceState({}, '', `?${next.toString()}`);
+    }
+    function navigate(page) {
+      state.page = page;
+      state.projectMenu = false;
+      state.sheet = null;
+      state.query = '';
+      state.filter = 'all';
+      syncUrl();
+      render();
+    }
+    function setProject(projectId) {
+      if (!projects.some((project) => project.id === projectId)) return;
+      state.project = projectId;
+      const first = projectTasks(projectId)[0];
+      state.task = first ? first.id : state.task;
+      state.projectMenu = false;
+      state.query = '';
+      state.filter = 'all';
+      syncUrl();
+      render();
+    }
+    function toggleRail() { state.railCollapsed = !state.railCollapsed; render(); }
+    function setFilter(filter) { state.filter = filter; render(); }
+    function setQuery(value) {
+      const cursor = document.activeElement?.selectionStart ?? value.length;
+      state.query = value;
+      render();
+      const input = document.querySelector('[data-task-search]') || document.querySelector('[data-global-search]') || document.querySelector('[data-project-search]');
+      if (input) { input.focus(); try { input.setSelectionRange(cursor, cursor); } catch {} }
+    }
+    function filteredTasks(projectId = state.project) {
+      const q = state.query.trim().toLowerCase();
+      return projectTasks(projectId).filter((task) => {
+        const matchesQuery = !q || `${task.name} ${task.id} ${task.note}`.toLowerCase().includes(q);
+        let matchesFilter = true;
+        if (state.filter === 'needs') matchesFilter = task.status === 'decision' || task.status === 'blocked';
+        else if (state.filter !== 'all') matchesFilter = task.status === state.filter;
+        return matchesQuery && matchesFilter;
+      });
+    }
+    function filterCounts(projectId = state.project) {
+      const list = projectTasks(projectId);
+      return {
+        all: list.length,
+        needs: list.filter((task) => task.status === 'decision' || task.status === 'blocked').length,
+        running: list.filter((task) => task.status === 'running').length,
+        review: list.filter((task) => task.status === 'review').length,
+        done: list.filter((task) => task.status === 'done').length,
+      };
+    }
+    function openTask(taskId) {
+      if (!taskData.some((task) => task.id === taskId)) return;
+      state.task = taskId;
+      state.project = taskData.find((task) => task.id === taskId).project;
+      state.fileTab = 'input'; state.filesExpanded = false; state.fileName = null;
+      syncUrl();
+      if (state.page === 'workbench') render(); else { state.sheet = 'task'; render(); }
+    }
+    function openTaskSheet(taskId = state.task) { state.task = taskId; state.sheet = 'task'; state.fileTab = 'input'; state.filesExpanded = false; state.fileName = null; syncUrl(); render(); }
+    function closeSheet() { state.sheet = null; state.fileName = null; render(); }
+    function setFileTab(tab) { state.fileTab = tab; state.filesExpanded = false; state.fileName = null; render(); }
+    function selectFile(name) { state.fileName = name; render(); }
+    function copyCommand() {
+      const text = `cd ${currentProject().path.replace(/^~/, '$HOME')} && tenon document record <change> ${selectedTask().id}`;
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(() => {});
+      state.toast = '接管命令已复制';
+      render();
+      window.setTimeout(() => { state.toast = ''; render(); }, 1800);
+    }
+    function toggleProjectMenu() { state.projectMenu = !state.projectMenu; render(); }
+    function toggleFiles() { state.filesExpanded = !state.filesExpanded; render(); }
+    function toggleTheme(theme) { state.theme = theme; state.toast = theme === 'light' ? '已切换为浅色' : '深色预览将在正式版启用'; render(); window.setTimeout(() => { state.toast = ''; render(); }, 1600); }
+    function toggleCompact() { state.compact = !state.compact; render(); }
+
+    function renderRail() {
+      const links = [
+        ['workbench', '工作台', 'grid'],
+        ['projects', '项目', 'folder'],
+        ['automation', '自动化', 'bot'],
+        ['machine', '机器', 'server'],
+      ];
+      return `<aside class="rail" aria-label="主导航">
+        <div class="rail-brand"><span class="brand-mark">t</span><span class="brand-copy">tenon<span class="brand-caption">只读工作空间</span></span><button class="rail-collapse" aria-label="${state.railCollapsed ? '展开' : '收缩'}导航" aria-expanded="${!state.railCollapsed}" onclick="toggleRail()">${ico(state.railCollapsed ? 'chevron' : 'chevron')}</button></div>
+        <div class="rail-section-label">Workspace</div>
+        <nav class="rail-nav">${links.map(([id, label, icon]) => `<button class="rail-link ${state.page === id ? 'active' : ''}" aria-current="${state.page === id ? 'page' : 'false'}" onclick="navigate('${id}')"><span class="rail-icon">${ico(icon)}</span><span class="label">${label}</span>${id === 'workbench' && filterCounts().needs ? `<small>${filterCounts().needs}</small>` : ''}</button>`).join('')}</nav>
+        <div class="rail-spacer"></div>
+        <div class="rail-project" title="${esc(currentProject().path)}"><span class="project-dot"></span><div class="label"><strong>${esc(currentProject().name)}</strong><span>${projectTasks().length} 个任务 · ${esc(currentProject().health)}</span></div></div>
+        <div class="rail-footer"><button onclick="navigate('settings')"><span>${ico('settings')}</span><span class="label">设置</span></button></div>
+      </aside>`;
+    }
+    function renderTopbar() {
+      return `<header class="topbar"><div class="crumb"><span class="crumb-project">工作空间</span><span class="crumb-sep">/</span><strong>${esc(pageLabel[state.page])}</strong></div><div class="project-switch-wrap"><button class="project-switch" aria-expanded="${state.projectMenu}" onclick="toggleProjectMenu()"><span class="project-dot"></span><span class="project-switch-name">${esc(currentProject().name)}</span>${ico(state.projectMenu ? 'up' : 'down')}</button><div class="project-menu" ${state.projectMenu ? '' : 'hidden'}><div class="project-menu-head">切换项目</div>${projects.map((project) => `<button class="project-option ${project.id === state.project ? 'active' : ''}" onclick="setProject('${project.id}')"><span class="project-dot"></span><span class="project-option-copy"><strong>${esc(project.name)}</strong><span>${esc(project.desc)}</span></span><span class="project-option-count">${projectTasks(project.id).length}</span></button>`).join('')}</div></div><label class="top-search" title="搜索项目或任务"><span>${ico('search')}</span><input data-global-search type="search" aria-label="搜索项目或任务" placeholder="搜索项目或任务" value="${esc(state.query)}" oninput="setQuery(this.value)"><kbd>/</kbd></label><div class="top-actions"><span class="readonly-chip">只读预览</span><span class="connection-chip"><span class="connection-dot"></span>已连接</span><span class="avatar">A</span></div></header>`;
+    }
+    function renderPageHead(eyebrow, title, subtitle, action = '') {
+      return `<div class="page-head"><div><p class="eyebrow">${esc(eyebrow)}</p><h1>${esc(title)}</h1><p class="page-subtitle">${esc(subtitle)}</p></div>${action ? `<div class="page-actions">${action}</div>` : ''}</div>`;
+    }
+    function renderMetrics(counts) {
+      return `<div class="metric-strip"><div class="metric"><span class="metric-label">全部任务</span><strong class="metric-value">${counts.all}</strong><span class="metric-note">当前项目</span></div><div class="metric attention"><span class="metric-label">需要你</span><strong class="metric-value">${counts.needs}</strong><span class="metric-note">待决定 · 受阻</span></div><div class="metric running"><span class="metric-label">进行中</span><strong class="metric-value">${counts.running}</strong><span class="metric-note">终端执行中</span></div><div class="metric done"><span class="metric-label">已完成</span><strong class="metric-value">${counts.done}</strong><span class="metric-note">已交付阶段</span></div></div>`;
+    }
+    function renderStageTrack(tasks) {
+      const current = tasks.find((task) => task.status === 'running' || task.status === 'decision' || task.status === 'blocked' || task.status === 'review') || tasks[0];
+      const currentIndex = current ? stageIndex(current.stage) : 0;
+      return `<section class="panel stage-panel"><div class="stage-head"><div class="stage-title-wrap"><span class="stage-title">流程进度</span><span class="stage-project">${esc(currentProject().name)}</span></div><div class="stage-legend"><span class="legend-item"><i class="legend-dot current"></i>已完成</span><span class="legend-item"><i class="legend-dot attention"></i>当前待处理</span></div></div><div class="stage-track">${stages.map((stage, index) => { const count = tasks.filter((task) => task.stage === stage.id).length; const cls = index < currentIndex ? 'done' : index === currentIndex ? 'current' : ''; return `<button class="stage-step ${cls}" onclick="navigate('progress')" title="查看${stage.label}阶段"><strong>${stage.label}</strong><span>${count ? `${count} 个任务` : stage.desc}</span></button>`; }).join('')}</div></section>`;
+    }
+    function renderFilterRow(counts, includeReview = true) {
+      const filters = [['all','全部'],['needs','需要你'],['running','进行中'], ...(includeReview ? [['review','待复核']] : []), ['done','已完成']];
+      return `<div class="filter-row">${filters.map(([id, label]) => `<button class="filter-tab ${state.filter === id ? 'active' : ''}" aria-pressed="${state.filter === id}" onclick="setFilter('${id}')">${label}<span class="count">${counts[id]}</span></button>`).join('')}</div>`;
+    }
+    function taskRow(task) {
+      const stage = stages.find((item) => item.id === task.stage);
+      return `<button class="task-row ${state.task === task.id ? 'selected' : ''}" onclick="openTask('${task.id}')"><div class="task-row-top"><span class="task-name">${esc(task.name)}<span>${esc(task.id)}</span></span>${statusChip(task)}</div><div class="task-row-bottom"><span>${ico('flow')} ${stage ? stage.label : ''}</span><span>${ico('file')} ${task.inputs.length + task.outputs.length} 个文件</span><span class="next">下一步 · ${esc(task.next)}</span><span class="task-row-arrow">${ico('chevron')}</span></div></button>`;
+    }
+    function renderQueue(tasks, counts) {
+      return `<section class="panel queue-panel"><div class="panel-head"><div><h2 class="panel-title">任务队列</h2><p class="panel-meta" style="margin-top:3px">按当前状态定位下一步</p></div><button class="icon-button" title="筛选设置" onclick="state.toast='筛选已按状态分组';render();window.setTimeout(()=>{state.toast='';render()},1300)">${ico('sliders')}</button></div><div class="queue-toolbar"><div class="queue-toolbar-top"><span class="section-kicker">${tasks.length} 项显示</span><label class="inline-search">${ico('search')}<input data-task-search type="search" aria-label="搜索当前项目任务" placeholder="搜索任务" value="${esc(state.query)}" oninput="setQuery(this.value)"></label></div>${renderFilterRow(counts)}</div><div class="attention-hint">${ico('info')}<span><strong>需要你</strong> 包含“待决定”和“受阻”，表示下一步需要人工处理。</span></div><div class="task-list">${tasks.length ? tasks.map(taskRow).join('') : `<div class="empty-state"><strong>没有匹配的任务</strong>清除搜索或筛选后继续</div>`}</div></section>`;
+    }
+    function activeFiles(task) { return state.fileTab === 'input' ? task.inputs : task.outputs; }
+    function fileRow(file) {
+      const [name, description, missing] = file;
+      return `<button class="file-row" onclick="selectFile('${esc(name)}')">${ico('file')}<span class="file-copy"><strong>${esc(name)}</strong><span>${esc(description)}</span></span><span class="file-state ${missing ? 'missing' : ''}">${missing ? '缺失' : '可读'}</span></button>`;
+    }
+    function renderFileWorkbench(task) {
+      const files = activeFiles(task); const readable = files.filter((file) => !file[2]).length;
+      return `<section class="file-workbench"><div class="file-head"><strong>文件工作台</strong><span>${readable} 可读 · ${files.length - readable} 缺失</span></div><div class="file-tabs"><button class="file-tab ${state.fileTab === 'input' ? 'active' : ''}" onclick="setFileTab('input')">输入 <span class="count">${task.inputs.length}</span></button><button class="file-tab ${state.fileTab === 'output' ? 'active' : ''}" onclick="setFileTab('output')">输出 <span class="count">${task.outputs.length}</span></button></div><div class="file-summary"><span>${state.fileTab === 'input' ? '任务依据' : '阶段产出'}</span><span>${files.length} 个文件</span></div><div class="files ${state.filesExpanded ? '' : 'collapsed'}">${files.map(fileRow).join('')}${files.length > 3 ? `<button class="file-more" onclick="toggleFiles()">${state.filesExpanded ? '收起文件列表' : `查看全部 ${files.length} 个文件`}</button>` : ''}</div></section>`;
+    }
+    function renderMiniTrack(task) {
+      const current = stageIndex(task.stage);
+      return `<div class="mini-track" aria-label="阶段进度">${stages.map((stage, index) => `<div class="mini-stage ${index < current ? 'done' : index === current ? 'current' : ''}"><div class="mini-stage-bar"></div><span>${stage.label}</span></div>`).join('')}</div>`;
+    }
+    function renderFocus(task) {
+      if (!task) return `<section class="panel focus-panel"><div class="empty-state"><strong>选择任务</strong>在左侧打开一个任务</div></section>`;
+      const stage = stages.find((item) => item.id === task.stage);
+      return `<section class="panel focus-panel"><div class="focus-top"><div class="focus-topline"><span class="focus-stage">${stage ? stage.label : ''} · 当前任务</span>${statusChip(task)}</div><h2>${esc(task.name)}</h2><p class="focus-id">${esc(task.id)}</p><p class="focus-note">${esc(task.note)}</p><div class="next-action">${ico('arrow')}<div><strong>下一步</strong>${esc(task.next)}</div></div></div><div class="focus-progress"><div class="focus-progress-head"><strong>阶段进度</strong><span>${stageIndex(task.stage) + 1} / ${stages.length}</span></div>${renderMiniTrack(task)}</div>${renderFileWorkbench(task)}<div class="terminal-handoff">${ico('terminal')}<span>执行与创建留在终端</span><code>tenon document record &lt;change&gt;</code></div><div class="focus-footer"><span class="focus-footer-note">文件内容按 Change 目录动态读取</span><button class="button" onclick="openTaskSheet('${task.id}')">打开任务详情 ${ico('arrow')}</button></div></section>`;
+    }
+    function renderActivity() {
+      const items = [
+        ['revision-guard', '测试任务开始执行', '实现 · 终端接管', '8 分钟前'],
+        ['interaction-metrics', '验证报告已生成', '验证 · 等待复核', '26 分钟前'],
+        ['empty-queue', '变更已交付', '交付 · 已完成', '昨天'],
+      ];
+      return `<section class="panel"><div class="panel-head"><div><h2 class="panel-title">最近更新</h2><p class="panel-meta" style="margin-top:3px">只显示可影响下一步的变化</p></div><button class="button ghost" onclick="navigate('progress')">查看阶段 ${ico('arrow')}</button></div><div class="activity-list">${items.map(([id, title, meta, time]) => `<button class="activity-item" onclick="openTaskSheet('${id}')"><span class="activity-icon">${ico(id === 'empty-queue' ? 'check' : 'clock')}</span><span class="activity-copy"><strong>${esc(title)}</strong><span>${esc(meta)}</span></span><span class="activity-time">${time}</span></button>`).join('')}</div></section>`;
+    }
+    function renderPrinciples() {
+      return `<section class="panel"><div class="panel-head"><div><h2 class="panel-title">工作台规则</h2><p class="panel-meta" style="margin-top:3px">保持页面只回答三件事</p></div></div><div class="principles"><div class="principle"><span class="principle-number">01</span><div><strong>我在哪</strong><span>项目、任务、阶段始终可见</span></div></div><div class="principle"><span class="principle-number">02</span><div><strong>现在怎样</strong><span>状态有明确含义和数量</span></div></div><div class="principle"><span class="principle-number">03</span><div><strong>下一步做什么</strong><span>执行回到终端，阅读留在工作台</span></div></div></div></section>`;
+    }
+    function renderWorkbench() {
+      const counts = filterCounts(); const tasks = filteredTasks(); const task = selectedTask();
+      return `<div class="content">${renderPageHead('WORKSPACE / OVERVIEW', '工作台', `${currentProject().name} · 只看需要决策、正在执行和已经产出的内容。`, `<button class="button" onclick="navigate('progress')">阶段视图 ${ico('arrow')}</button>`)}${renderMetrics(counts)}${renderStageTrack(projectTasks())}<div class="workbench-grid">${renderQueue(tasks, counts)}${renderFocus(task)}</div><div class="lower-grid">${renderActivity()}${renderPrinciples()}</div></div>`;
+    }
+    function projectCard(project) {
+      const counts = filterCounts(project.id); const healthTone = project.health === '正常' ? '' : 'warn';
+      return `<article class="project-card"><div class="project-main"><span class="project-avatar">${esc(project.name[0].toUpperCase())}</span><div><strong>${esc(project.name)}</strong><span title="${esc(project.path)}">${esc(project.path)}</span></div></div><div class="project-cell"><span class="project-cell-label">任务</span><strong>${counts.all} 项</strong><span>${counts.needs} 需要你 · ${counts.running} 进行中</span></div><div class="project-cell"><span class="project-cell-label">最近状态</span><span class="health ${healthTone}">${esc(project.health)}</span><span>${esc(project.updated)}</span></div><button class="button" onclick="setProject('${project.id}');navigate('workbench')">打开工作台 ${ico('arrow')}</button></article>`;
+    }
+    function renderProjects() {
+      const q = state.query.trim().toLowerCase(); const list = projects.filter((project) => !q || `${project.name} ${project.desc} ${project.path}`.toLowerCase().includes(q));
+      const totals = { all: projects.length, needs: projects.filter((p) => filterCounts(p.id).needs > 0).length, running: projects.filter((p) => filterCounts(p.id).running > 0).length, done: projects.filter((p) => filterCounts(p.id).done === filterCounts(p.id).all).length };
+      return `<div class="content">${renderPageHead('WORKSPACE / PROJECTS', '项目', '选择一个工作区，再进入任务和文件。项目本身不承担执行动作。')}${renderMetrics({ all: totals.all, needs: totals.needs, running: totals.running, done: totals.done })}<section class="panel table-panel"><div class="panel-head"><div><h2 class="panel-title">所有项目</h2><p class="panel-meta" style="margin-top:3px">${q ? `搜索结果 · ${list.length} 个` : `${list.length} 个已连接项目`}</p></div><span class="panel-meta">默认按最近更新排序</span></div><div class="table-tools"><label class="table-search">${ico('search')}<input data-project-search type="search" aria-label="搜索项目" placeholder="搜索项目" value="${esc(state.query)}" oninput="setQuery(this.value)"></label><span class="result-note">搜索只在输入后过滤结果</span></div><div class="project-table">${list.length ? list.map(projectCard).join('') : `<div class="empty-state"><strong>没有匹配的项目</strong>检查项目名或路径</div>`}</div></section></div>`;
+    }
+    function renderProgress() {
+      const list = projectTasks(); const current = list.find((task) => task.status !== 'done') || list[0]; const currentIndex = current ? stageIndex(current.stage) : 0;
+      return `<div class="content">${renderPageHead('WORKSPACE / FLOW', '阶段进度', `${currentProject().name} · 每个阶段都显示真实状态和任务数量。`, `<button class="button" onclick="navigate('workbench')">回到工作台 ${ico('arrow')}</button>`)}<div class="progress-summary"><section class="panel progress-card"><p class="section-kicker">当前流程位置</p><div class="progress-big"><strong>${current ? stages[currentIndex].label : '—'}</strong><span>阶段 ${currentIndex + 1} / ${stages.length}</span></div><div class="progress-meter"><span style="width:${Math.max(8, Math.round((currentIndex / (stages.length - 1)) * 100))}%"></span></div><p class="progress-note">${current ? `${current.name} · ${statusMeta[current.status].label}` : '暂无任务'}</p></section><section class="panel progress-side"><div class="progress-side-row"><span>任务总数</span><strong>${list.length}</strong></div><div class="progress-side-row"><span>需要你</span><strong>${filterCounts().needs}</strong></div><div class="progress-side-row"><span>产出可读</span><strong>${list.filter((task) => task.outputs.some((file) => !file[2])).length}</strong></div><div class="progress-side-row"><span>已完成</span><strong>${filterCounts().done}</strong></div></section></div><div class="stage-board">${stages.map((stage, index) => { const stageTasks = list.filter((task) => task.stage === stage.id); return `<section class="stage-column ${index === currentIndex ? 'current' : ''}"><div class="stage-column-head"><strong>0${index + 1} ${stage.label}</strong><span>${stageTasks.length}</span></div><p class="stage-column-desc">${stage.desc}</p>${stageTasks.length ? stageTasks.map((task) => `<button class="board-task" onclick="openTaskSheet('${task.id}')">${statusChip(task, true)}<strong>${esc(task.name)}</strong><span>${esc(task.id)}</span></button>`).join('') : `<div class="board-empty">暂无任务</div>`}</section>`; }).join('')}</div></div>`;
+    }
+    function renderAutomation() {
+      const list = taskData.filter((task) => task.status === 'running' || task.status === 'blocked' || task.status === 'review');
+      return `<div class="content">${renderPageHead('CONTROL / AUTOMATION', '自动化', '只查看终端发起的运行状态；创建和重试回到终端。') }<div class="automation-grid"><div><section class="panel health-hero"><div class="health-hero-top"><div><p class="section-kicker">调度器</p><h2>运行状态正常</h2><p>当前项目 · ${esc(currentProject().name)}</p></div><span class="health-badge">已连接</span></div><div class="health-stats"><div class="health-stat"><strong>1</strong><span>运行中</span></div><div class="health-stat"><strong>1</strong><span>待处置</span></div><div class="health-stat"><strong>2</strong><span>最近完成</span></div></div></section><section class="panel" style="margin-top:18px"><div class="panel-head"><div><h2 class="panel-title">运行队列</h2><p class="panel-meta" style="margin-top:3px">状态来自终端任务记录</p></div></div><div class="queue-table">${list.map((task) => `<button class="automation-row" onclick="openTaskSheet('${task.id}')"><div><strong>${esc(task.name)}</strong><span>${esc(task.id)}</span></div>${statusChip(task)}<span class="automation-time">${esc(task.updated)}</span></button>`).join('')}</div></section></div><div><div class="info-banner">${ico('info')}<span>工作台不创建任务，也不安装适配器。需要执行时，复制命令到项目终端。</span></div><section class="panel command-card" style="margin-top:12px"><h3>终端接管</h3><p>用于继续当前任务的示例命令</p><code class="command-code">cd $HOME/Documents/code-manager/projects/${esc(currentProject().name)}<br>tenon document record &lt;change&gt; ${esc(selectedTask().id)}</code><div class="command-actions"><button class="button" onclick="copyCommand()">${ico('copy')}复制命令</button></div></section></div></div></div>`;
+    }
+    function renderMachine() {
+      return `<div class="content">${renderPageHead('CONTROL / HOST', '机器', '集中查看工作台依赖的主机事实和风险。') }<div class="machine-grid"><section class="panel"><div class="panel-head"><div><h2 class="panel-title">运行准备度</h2><p class="panel-meta" style="margin-top:3px">${esc(currentProject().name)} · 最近检查刚刚完成</p></div><button class="button ghost" onclick="state.toast='已刷新检查时间';render();window.setTimeout(()=>{state.toast='';render()},1300)">刷新</button></div><div class="readiness-list" style="padding:0 18px 18px"><div class="readiness-card"><span class="readiness-icon">${ico('folder')}</span><div class="readiness-copy"><strong>项目工作区</strong><span>${esc(currentProject().path)}</span></div><span class="readiness-state">可读取</span></div><div class="readiness-card"><span class="readiness-icon">${ico('server')}</span><div class="readiness-copy"><strong>运行时</strong><span>Node 22 · Python 3.12</span></div><span class="readiness-state">就绪</span></div><div class="readiness-card warn"><span class="readiness-icon">${ico('alert')}</span><div class="readiness-copy"><strong>凭据</strong><span>1 个可选服务尚未配置</span></div><span class="readiness-state">注意</span></div></div></section><section class="panel"><div class="panel-head"><div><h2 class="panel-title">需要留意</h2><p class="panel-meta" style="margin-top:3px">只列会影响下一步的风险</p></div></div><div class="risk-list"><div class="risk-row">${ico('alert')}<div><strong>适配器状态由终端维护</strong><span>工作台不提供网页安装入口。</span></div></div><div class="risk-row">${ico('clock')}<div><strong>验证报告尚未生成</strong><span>revision-guard 完成后会自动出现。</span></div></div><div class="risk-row">${ico('check')}<div><strong>项目连接正常</strong><span>文件可从本地 Change 目录读取。</span></div></div></div></section></div></div>`;
+    }
+    function renderSettings() {
+      return `<div class="content">${renderPageHead('WORKSPACE / PREFERENCES', '设置', '调整阅读方式；执行仍由项目终端负责。') }<div class="settings-grid"><section class="panel settings-card"><div class="settings-section"><h3>显示</h3><p>让工作台保持安静，只露出需要处理的信息。</p><div class="setting-row"><div><strong>密度</strong><span>列表行距与信息量</span></div><div class="segmented"><button class="${!state.compact ? 'active' : ''}" onclick="state.compact=false;render()">舒适</button><button class="${state.compact ? 'active' : ''}" onclick="state.compact=true;render()">紧凑</button></div></div><div class="setting-row"><div><strong>减少说明文字</strong><span>隐藏辅助解释，保留状态和下一步</span></div><button class="toggle ${state.compact ? 'on' : ''}" aria-pressed="${state.compact}" onclick="toggleCompact()"></button></div></div><div class="settings-section"><h3>外观</h3><p>中性纸白与墨色，状态用少量语义色区分。</p><div class="setting-row"><div><strong>主题</strong><span>当前预览主题</span></div><div class="segmented"><button class="${state.theme === 'light' ? 'active' : ''}" onclick="toggleTheme('light')">浅色</button><button class="${state.theme === 'dark' ? 'active' : ''}" onclick="toggleTheme('dark')">深色</button></div></div></div></section><section class="panel settings-card"><div class="settings-section"><h3>状态说明</h3><p>页面内所有状态都使用以下口径。</p><div class="setting-row"><div><strong>需要你</strong><span>待决定或受阻</span></div>${statusChip({status:'decision'})}</div><div class="setting-row"><div><strong>进行中</strong><span>终端正在执行</span></div>${statusChip({status:'running'})}</div><div class="setting-row"><div><strong>待复核</strong><span>产出已到，等待确认</span></div>${statusChip({status:'review'})}</div><div class="setting-row"><div><strong>已完成</strong><span>阶段已交付</span></div>${statusChip({status:'done'})}</div></div><div class="settings-section"><div class="info-banner">${ico('terminal')}<span>任务创建、适配器安装、重试和终止都在终端完成。</span></div></div></section></div></div>`;
+    }
+    function renderTaskSheet() {
+      const task = selectedTask(); if (!task) return '';
+      const current = stageIndex(task.stage); const files = activeFiles(task); const readable = files.filter((file) => !file[2]).length; const selected = files.find((file) => file[0] === state.fileName) || files.find((file) => !file[2]) || files[0];
+      return `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"><div class="sheet-head"><span>${esc(currentProject().name)} / 任务详情</span><button class="sheet-close" aria-label="关闭任务详情" onclick="closeSheet()">${ico('close')}</button></div><div class="sheet-hero"><p class="eyebrow">${esc(stages[current]?.label || '')} · Change</p><h2 id="sheet-title">${esc(task.name)}</h2><p class="sheet-id">${esc(task.id)}</p><div class="sheet-status-line">${statusChip(task)}<span>当前阶段 · ${esc(stages[current]?.label || '')}</span></div><div class="sheet-stage" aria-label="任务阶段进度">${stages.map((stage, index) => `<div class="sheet-stage-step ${index < current ? 'done' : index === current ? 'current' : ''}"><div class="sheet-stage-step-bar"></div><span>${stage.label}</span></div>`).join('')}</div></div><div class="sheet-context"><span class="sheet-context-label">当前情况</span><p>${esc(task.note)}</p><div class="next-action">${ico('arrow')}<div><strong>下一步</strong>${esc(task.next)}</div></div></div><div class="sheet-tabs"><button class="sheet-tab ${state.fileTab === 'input' ? 'active' : ''}" onclick="setFileTab('input')">输入 <span class="count">${task.inputs.length}</span></button><button class="sheet-tab ${state.fileTab === 'output' ? 'active' : ''}" onclick="setFileTab('output')">输出 <span class="count">${task.outputs.length}</span></button></div><div class="sheet-file-summary"><span>${state.fileTab === 'input' ? '任务依据文件' : '阶段产出文件'}</span><span>${readable} 可读 · ${files.length - readable} 缺失</span></div><div class="sheet-files ${state.filesExpanded ? '' : 'collapsed'}">${files.map(fileRow).join('')}${files.length > 3 ? `<button class="sheet-file-more" onclick="toggleFiles()">${state.filesExpanded ? '收起文件列表' : `查看全部 ${files.length} 个文件`}</button>` : ''}</div>${selected ? `<div class="document-preview"><div class="document-head"><span>${esc(selected[0])}</span><span class="file-state ${selected[2] ? 'missing' : ''}">${selected[2] ? '缺失' : '可读'}</span></div><div class="document-body">${selected[2] ? `<h3>等待产出</h3><p>文件尚未生成，完成终端任务后会在这里出现。</p>` : `<h3>${esc(task.name)}</h3><p>${esc(selected[1])} · 内容由 Change 目录动态读取。</p><code>${esc(task.id)}/${esc(selected[0])}</code>`}</div></div>` : ''}<div class="sheet-footer"><small>输入和输出按 Sheet 切换，文件默认折叠。</small><button class="button" onclick="copyCommand()">${ico('terminal')}复制接管命令</button></div></div>`;
+    }
+    function renderOverlay() {
+      const overlay = document.getElementById('overlay');
+      if (!state.sheet) { overlay.hidden = true; overlay.innerHTML = ''; return; }
+      overlay.hidden = false; overlay.innerHTML = `<div class="overlay" onclick="if(event.target===this)closeSheet()">${renderTaskSheet()}</div>`;
+    }
+    function render() {
+      document.body.dataset.page = state.page;
+      const page = state.page === 'workbench' ? renderWorkbench() : state.page === 'projects' ? renderProjects() : state.page === 'progress' ? renderProgress() : state.page === 'automation' ? renderAutomation() : state.page === 'machine' ? renderMachine() : renderSettings();
+      document.getElementById('app').innerHTML = `<div class="app-shell ${state.railCollapsed ? 'rail-collapsed' : ''}">${renderRail()}<main class="main">${renderTopbar()}${page}</main></div>`;
+      renderOverlay();
+      const toast = document.getElementById('toast'); toast.hidden = !state.toast; toast.textContent = state.toast;
+      if (state.compact) document.body.classList.add('compact'); else document.body.classList.remove('compact');
+    }
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { if (state.sheet) { closeSheet(); return; } if (state.projectMenu) { state.projectMenu = false; render(); return; } }
+      if (event.key === '/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) { event.preventDefault(); document.querySelector('[data-global-search]')?.focus(); }
+    });
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('.project-switch-wrap') && state.projectMenu) { state.projectMenu = false; render(); }
+    });
+    window.addEventListener('popstate', () => { const next = new URLSearchParams(location.search); state.page = allowedPages.includes(next.get('page')) ? next.get('page') : 'workbench'; if (next.get('project')) setProject(next.get('project')); else render(); });
+    render();
+  </script>
+</body>
+</html>
+<style>
+  /* C workspace extension: the original C reading workspace remains the primary surface.
+     The additional pages use the same shell, tokens, and status vocabulary. */
+  .c-topbar { height: 68px; padding-left: 28px; padding-right: 28px; background: rgba(255,255,255,.95); }
+  .c-topbar .crumb { font-size: 12px; }
+  .c-topbar .crumb::before { content: 't'; width: 27px; height: 27px; display: grid; place-items: center; margin-right: 3px; color: #fff; border-radius: 7px; background: var(--ink); font-weight: 760; }
+  .c-topbar .top-search { width: 220px; min-width: 150px; }
+  .c-topbar .view-nav { display: flex; align-items: center; gap: 3px; margin-left: 12px; }
+  .c-topbar .view-nav button { min-height: 30px; padding: 0 8px; color: var(--muted); border-radius: 7px; font-size: 10px; }
+  .c-topbar .view-nav button:hover { color: var(--ink); background: var(--surface-muted); }
+  .c-topbar .view-nav button.active { color: var(--accent-strong); background: var(--accent-soft); font-weight: 750; }
+  .c-project-rail { background: #edf0f2; }
+  .c-project-rail .rail-brand { min-height: 36px; }
+  .c-project-rail .brand-copy { font-size: 15px; }
+  .c-project-rail .brand-caption { font-size: 9px; }
+  .c-project-rail .rail-section-label { margin-top: 2px; }
+  .c-project-rail .project-rail-list { display: grid; gap: 6px; }
+  .c-project-rail .project-rail-item { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 44px; padding: 6px 9px; border: 1px solid transparent; border-radius: 10px; color: var(--muted); text-align: left; }
+  .c-project-rail .project-rail-item:hover { color: var(--ink); background: var(--surface); }
+  .c-project-rail .project-rail-item.active { color: var(--accent-strong); border-color: #cad7cf; background: #e0e8e3; font-weight: 700; }
+  .c-project-rail .project-initial { width: 27px; height: 27px; display: grid; place-items: center; flex: none; border-radius: 7px; background: #dde5e8; font-size: 12px; font-weight: 760; }
+  .c-project-rail .project-rail-item.active .project-initial { color: var(--accent-strong); background: #fff; }
+  .c-project-rail .project-rail-copy { min-width: 0; flex: 1; }
+  .c-project-rail .project-rail-copy strong, .c-project-rail .project-rail-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .c-project-rail .project-rail-copy strong { font-size: 11px; }
+  .c-project-rail .project-rail-copy span { margin-top: 2px; color: var(--muted); font-size: 9px; font-weight: 500; }
+  .c-project-rail .project-rail-count { color: var(--muted); font: 10px var(--mono); }
+  .c-project-rail .rail-footer { gap: 3px; }
+  .c-project-rail .rail-footer button { min-height: 34px; font-size: 10px; }
+  .c-project-rail.collapsed .brand-copy, .c-project-rail.collapsed .rail-section-label, .c-project-rail.collapsed .project-rail-copy, .c-project-rail.collapsed .project-rail-count, .c-project-rail.collapsed .rail-footer .label { display: none; }
+  .c-project-rail.collapsed .rail-brand { justify-content: center; padding: 0; }
+  .c-project-rail.collapsed .rail-collapse { display: grid; margin-left: 0; }
+  .c-project-rail.collapsed .project-rail-item { justify-content: center; padding: 6px; }
+  .c-project-rail.collapsed .project-initial { width: 31px; height: 31px; }
+  .c-project-rail.collapsed .rail-footer button { justify-content: center; padding: 0; }
+  .c-workspace-shell { display: grid; grid-template-columns: minmax(300px, 390px) minmax(0, 1fr); min-height: calc(100vh - 68px); background: #f7f8f7; }
+  .c-task-pane { min-width: 0; overflow: auto; padding: 30px 22px 75px; border-right: 1px solid var(--line); background: var(--surface); }
+  .c-task-pane h1 { font-size: 25px; letter-spacing: -.04em; }
+  .c-task-pane .status-explain { margin: 15px 0 14px; padding: 8px 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); font-size: 10px; }
+  .c-task-pane .status-explain strong { color: var(--ink-2); }
+  .c-task-pane .inline-search { width: 100%; height: 37px; background: var(--surface); }
+  .c-task-pane .inline-search input { max-width: none; width: 100%; }
+  .c-task-pane .filter-row { margin-top: 10px; }
+  .c-task-pane .task-list { margin-top: 15px; border-top: 0; }
+  .c-task-pane .task-row { padding: 15px 12px 14px; border: 1px solid transparent; border-bottom-color: var(--line); border-radius: 8px; }
+  .c-task-pane .task-row.selected { border-color: transparent; background: #eef2f4; box-shadow: inset 3px 0 #526b80; }
+  .c-task-pane .task-row:hover { background: #f4f6f7; }
+  .c-task-pane .task-row-bottom { margin-top: 11px; }
+  .c-read-pane { min-width: 0; overflow: auto; padding: 38px 42px 88px; background: #f7f8f7; }
+  .c-read-head { max-width: 840px; }
+  .c-read-head h2 { margin-top: 5px; font-size: clamp(24px, 3vw, 34px); line-height: 1.2; letter-spacing: -.045em; }
+  .c-read-id { margin-top: 7px; color: var(--muted); font: 10px var(--mono); }
+  .c-read-state { display: flex; align-items: center; gap: 10px; margin-top: 14px; color: var(--muted); font-size: 11px; }
+  .c-read-stage { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; margin-top: 25px; }
+  .c-read-stage-item { min-width: 0; }
+  .c-read-stage-item .bar { height: 4px; border-radius: 99px; background: var(--line-strong); }
+  .c-read-stage-item.done .bar { background: var(--accent); }
+  .c-read-stage-item.current .bar { background: var(--amber); }
+  .c-read-stage-item span { display: block; margin-top: 7px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .c-read-stage-item.current span { color: var(--amber); font-weight: 750; }
+  .c-read-section { max-width: 840px; margin-top: 27px; padding-top: 21px; border-top: 1px solid var(--line); }
+  .c-read-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .c-read-section-head strong { font-size: 13px; }
+  .c-read-section-head span { color: var(--muted); font-size: 11px; }
+  .c-read-files { display: flex; gap: 3px; margin-top: 14px; border-bottom: 1px solid var(--line); }
+  .c-read-files button { min-height: 36px; padding: 0 11px; color: var(--muted); border-bottom: 2px solid transparent; font-size: 11px; }
+  .c-read-files button.active { color: var(--ink); border-color: var(--accent); font-weight: 750; }
+  .c-read-files .count { margin-left: 4px; font: 10px var(--mono); }
+  .c-read-file-summary { display: flex; justify-content: space-between; gap: 10px; margin: 12px 0 8px; color: var(--muted); font-size: 10px; }
+  .c-read-file-list { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .c-read-file-list.collapsed .file-row:nth-child(n+4) { display: none; }
+  .c-read-file-list .file-row { min-height: 53px; padding: 9px 12px; }
+  .c-read-file-more { width: 100%; min-height: 36px; color: var(--accent); border-top: 1px solid var(--line); font-size: 10px; }
+  .c-read-file-more:hover { background: var(--accent-soft); }
+  .c-read-preview { margin-top: 17px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .c-read-preview .document-head { padding: 10px 13px; }
+  .c-read-preview .document-body { min-height: 180px; padding: 23px 24px 25px; }
+  .c-read-preview .document-body h3 { font-size: 22px; }
+  .c-read-preview .document-body p { max-width: 630px; font-size: 12px; }
+  .c-read-preview .document-body code { margin-top: 15px; }
+  .c-read-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 840px; margin-top: 17px; }
+  .c-read-footer small { color: var(--muted); font-size: 10px; }
+  .c-empty { max-width: 840px; padding: 45px 0; color: var(--muted); font-size: 12px; }
+  body[data-page="workbench"] .content { max-width: none; padding: 0; }
+  body[data-page="progress"] .content { max-width: 1480px; }
+  @media (max-width: 980px) {
+    .c-workspace-shell { grid-template-columns: minmax(270px, 340px) minmax(0,1fr); }
+    .c-read-pane { padding-left: 27px; padding-right: 27px; }
+    .c-topbar .view-nav button:nth-child(n+4) { display: none; }
+  }
+  @media (max-width: 720px) {
+    .c-topbar { padding: 0 14px; }
+    .c-topbar .view-nav { display: none; }
+    .c-topbar .top-search { width: 34px; min-width: 34px; padding: 0 9px; }
+    .c-topbar .top-search input, .c-topbar .top-search kbd { display: none; }
+    .c-workspace-shell { display: block; min-height: calc(100vh - 62px); }
+    .c-task-pane { border-right: 0; padding: 24px 16px 75px; }
+    .c-read-pane { display: none; padding: 26px 18px 80px; }
+    .c-workspace-shell.reading .c-task-pane { display: none; }
+    .c-workspace-shell.reading .c-read-pane { display: block; }
+    .c-read-stage { grid-template-columns: repeat(6, minmax(66px,1fr)); overflow-x: auto; padding-bottom: 3px; }
+    .c-read-footer { align-items: flex-start; flex-direction: column; }
+  }
+</style>
+<script>
+  /* Extend the C workspace in place. Existing read-only-redesign-v2 remains untouched. */
+  const _originalRenderRail = renderRail;
+  const _originalRenderTopbar = renderTopbar;
+  const _originalRenderWorkbench = renderWorkbench;
+  function renderCRail() {
+    if (state.page !== 'workbench' && state.page !== 'progress') return _originalRenderRail();
+    const items = projects.map((project) => `<button class="project-rail-item ${project.id === state.project ? 'active' : ''}" onclick="setProject('${project.id}')" title="${esc(project.path)}"><span class="project-initial">${esc(project.name[0].toUpperCase())}</span><span class="project-rail-copy"><strong>${esc(project.name)}</strong><span>${projectTasks(project.id).length} 个任务 · ${esc(project.desc)}</span></span><span class="project-rail-count">${projectTasks(project.id).length}</span></button>`).join('');
+    return `<aside class="rail c-project-rail ${state.railCollapsed ? 'collapsed' : ''}" aria-label="项目选择"><div class="rail-brand"><span class="brand-mark">t</span><span class="brand-copy">tenon<span class="brand-caption">工作空间</span></span><button class="rail-collapse" aria-label="${state.railCollapsed ? '展开' : '收缩'}项目栏" aria-expanded="${!state.railCollapsed}" onclick="toggleRail()">${ico(state.railCollapsed ? 'chevron' : 'close')}</button></div><div class="rail-section-label">项目选择</div><div class="project-rail-list">${items}</div><div class="rail-spacer"></div><div class="rail-footer"><button onclick="navigate('projects')">${ico('folder')}<span class="label">所有项目</span></button><button onclick="navigate('settings')">${ico('settings')}<span class="label">设置</span></button></div></aside>`;
+  }
+  function renderCTopbar() {
+    if (state.page !== 'workbench' && state.page !== 'progress') return _originalRenderTopbar();
+    const viewItems = [['workbench','工作台'],['progress','阶段'],['automation','自动化'],['machine','机器']];
+    return `<header class="topbar c-topbar"><div class="crumb"><span class="crumb-project">工作空间</span><span class="crumb-sep">/</span><strong>${esc(pageLabel[state.page])}</strong></div><div class="project-switch-wrap"><button class="project-switch" aria-expanded="${state.projectMenu}" onclick="toggleProjectMenu()"><span class="project-dot"></span><span class="project-switch-name">${esc(currentProject().name)}</span>${ico(state.projectMenu ? 'up' : 'down')}</button><div class="project-menu" ${state.projectMenu ? '' : 'hidden'}><div class="project-menu-head">切换项目</div>${projects.map((project) => `<button class="project-option ${project.id === state.project ? 'active' : ''}" onclick="setProject('${project.id}')"><span class="project-dot"></span><span class="project-option-copy"><strong>${esc(project.name)}</strong><span>${esc(project.desc)}</span></span><span class="project-option-count">${projectTasks(project.id).length}</span></button>`).join('')}</div></div><nav class="view-nav" aria-label="工作空间页面">${viewItems.map(([id,label]) => `<button class="${state.page === id ? 'active' : ''}" onclick="navigate('${id}')">${label}</button>`).join('')}</nav><label class="top-search" title="搜索当前项目">${ico('search')}<input data-global-search type="search" aria-label="搜索项目或任务" placeholder="搜索" value="${esc(state.query)}" oninput="setQuery(this.value)"><kbd>/</kbd></label><div class="top-actions"><span class="readonly-chip">只读视图</span><span class="connection-chip"><span class="connection-dot"></span>已连接</span><span class="avatar">A</span></div></header>`;
+  }
+  function cStage(task) {
+    const index = stageIndex(task.stage);
+    return `<div class="c-read-stage" aria-label="阶段进度">${stages.map((stage, i) => `<div class="c-read-stage-item ${i < index ? 'done' : i === index ? 'current' : ''}"><div class="bar"></div><span>${stage.label}</span></div>`).join('')}</div>`;
+  }
+  function cFileRow(file) {
+    const [name, description, missing] = file;
+    return `<button class="file-row" onclick="selectFile('${esc(name)}')">${ico('file')}<span class="file-copy"><strong>${esc(name)}</strong><span>${esc(description)}</span></span><span class="file-state ${missing ? 'missing' : ''}">${missing ? '缺失' : '可读'}</span></button>`;
+  }
+  function cPreview(task, file) {
+    if (!file) return '';
+    return `<div class="c-read-preview"><div class="document-head"><span>${esc(file[0])}</span><span class="file-state ${file[2] ? 'missing' : ''}">${file[2] ? '尚未生成' : '可读'}</span></div><div class="document-body">${file[2] ? `<h3>等待产出</h3><p>这个文件尚未生成，完成终端任务后会动态出现在这里。</p>` : `<h3>${esc(task.name)}</h3><p>${esc(file[1])} · 文件内容从 Change 目录读取。</p><code>${esc(task.id)}/${esc(file[0])}</code>`}</div></div>`;
+  }
+  function renderCWorkspace() {
+    const counts = filterCounts();
+    const list = filteredTasks();
+    const task = selectedTask();
+    if (task && task.project !== state.project) state.task = projectTasks()[0]?.id || task.id;
+    const active = selectedTask();
+    if (!active) return `<div class="c-workspace-shell"><div class="c-empty">当前项目暂无任务。</div></div>`;
+    const files = state.fileTab === 'input' ? active.inputs : active.outputs;
+    const selected = files.find((file) => file[0] === state.fileName) || files.find((file) => !file[2]) || files[0];
+    const readable = files.filter((file) => !file[2]).length;
+    const currentStage = stages.find((stage) => stage.id === active.stage);
+    return `<div class="c-workspace-shell ${state.sheet === 'mobile-reading' ? 'reading' : ''}"><aside class="c-task-pane"><p class="eyebrow">${esc(currentProject().name)} · 工作空间</p><h1>任务</h1><div class="status-explain"><strong>需要你</strong> = 待决定 / 受阻</div><label class="inline-search">${ico('search')}<input data-task-search type="search" aria-label="搜索当前项目任务" placeholder="搜索任务" value="${esc(state.query)}" oninput="setQuery(this.value)"></label><div class="filter-row" aria-label="任务筛选">${renderFilterRow(counts)}</div><div class="task-list">${list.length ? list.map(taskRow).join('') : `<div class="empty-state"><strong>没有匹配的任务</strong>清除搜索或筛选后继续</div>`}</div></aside><section class="c-read-pane"><button class="button ghost c-mobile-back" onclick="state.sheet=null;render()">← 返回任务列表</button><div class="c-read-head"><p class="eyebrow">${esc(currentStage?.label || '')} / 文件阅读</p><h2>${esc(active.name)}</h2><p class="c-read-id">${esc(active.id)}</p><div class="c-read-state">${statusChip(active)}<span>${esc(active.note)}</span></div>${cStage(active)}</div><div class="c-read-section"><div class="c-read-section-head"><strong>文件工作台</strong><span>${active.inputs.length + active.outputs.length} 个文件 · 默认折叠</span></div><div class="c-read-files"><button class="${state.fileTab === 'input' ? 'active' : ''}" onclick="setFileTab('input')">输入 <span class="count">${active.inputs.length}</span></button><button class="${state.fileTab === 'output' ? 'active' : ''}" onclick="setFileTab('output')">输出 <span class="count">${active.outputs.length}</span></button></div><div class="c-read-file-summary"><span>${state.fileTab === 'input' ? '任务依据文件' : '阶段产出文件'}</span><span>${readable} 可读 · ${files.length - readable} 缺失</span></div><div class="c-read-file-list ${state.filesExpanded ? '' : 'collapsed'}">${files.map(cFileRow).join('')}${files.length > 3 ? `<button class="c-read-file-more" onclick="toggleFiles()">${state.filesExpanded ? '收起文件列表' : `查看全部 ${files.length} 个文件`}</button>` : ''}</div>${cPreview(active, selected)}</div><div class="c-read-footer"><small>创建、安装和执行留在终端；工作台负责阅读和定位。</small><button class="button" onclick="openTaskSheet('${active.id}')">打开任务详情 ${ico('arrow')}</button></div></section></div>`;
+  }
+  renderRail = renderCRail;
+  renderTopbar = renderCTopbar;
+  renderWorkbench = renderCWorkspace;
+  const _originalRender = render;
+  render = function() { _originalRender(); if (state.page === 'workbench' || state.page === 'progress') { document.querySelector('.c-mobile-back')?.classList.add('sr-only'); } };
+  render();
+</script>
+<style>
+  .c-shell { min-height: 100vh; }
+  .c-shell > .c-topbar { position: sticky; top: 0; z-index: 30; width: 100%; }
+  .c-shell-body { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: calc(100vh - 68px); transition: grid-template-columns .2s ease; }
+  .c-shell-body.rail-collapsed { grid-template-columns: 76px minmax(0, 1fr); }
+  .c-shell-body > .rail { top: 68px; height: calc(100vh - 68px); }
+  .project-rail-head { display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 0 7px; }
+  .project-rail-head strong { color: var(--muted); font-size: 10px; font-weight: 760; letter-spacing: .1em; text-transform: uppercase; }
+  .c-project-rail.collapsed .project-rail-head { justify-content: center; padding: 0; }
+  .c-project-rail.collapsed .project-rail-head strong { display: none; }
+  .c-project-rail .rail-collapse { margin-left: 0; font-size: 17px; line-height: 1; }
+  .c-mobile-back { display: none; }
+  .mobile-page-nav { display: none; }
+  .app-shell.rail-collapsed .rail { padding-left: 10px; padding-right: 10px; }
+  .app-shell.rail-collapsed .brand-copy,
+  .app-shell.rail-collapsed .brand-caption,
+  .app-shell.rail-collapsed .rail-section-label,
+  .app-shell.rail-collapsed .rail-link .label,
+  .app-shell.rail-collapsed .rail-link small,
+  .app-shell.rail-collapsed .rail-project,
+  .app-shell.rail-collapsed .rail-footer .label { display: none; }
+  .app-shell.rail-collapsed .rail-brand,
+  .app-shell.rail-collapsed .rail-link,
+  .app-shell.rail-collapsed .rail-footer button { justify-content: center; padding-left: 0; padding-right: 0; }
+  .app-shell.rail-collapsed .rail-collapse { margin-left: 0; }
+  .app-shell:not(.rail-collapsed) .rail-collapse svg { transform: rotate(180deg); }
+  @media (max-width: 930px) {
+    .c-shell-body, .c-shell-body.rail-collapsed { grid-template-columns: 76px minmax(0, 1fr); }
+    .c-project-rail .project-rail-head strong, .c-project-rail .project-rail-copy, .c-project-rail .project-rail-count, .c-project-rail .rail-footer .label { display: none; }
+    .c-project-rail .project-rail-head, .c-project-rail .project-rail-item, .c-project-rail .rail-footer button { justify-content: center; padding-left: 0; padding-right: 0; }
+    .c-project-rail .project-rail-head { display: flex; }
+    .c-project-rail .rail-collapse { display: grid; }
+    .c-project-rail .project-initial { width: 31px; height: 31px; }
+    .c-topbar .view-nav button:nth-child(n+4) { display: inline-flex; align-items: center; }
+  }
+  @media (max-width: 720px) {
+    .c-shell-body, .c-shell-body.rail-collapsed { display: block; min-height: calc(100vh - 62px); }
+    .c-shell-body > .c-project-rail { position: fixed; inset: auto 0 0; z-index: 40; width: 100%; height: 62px; display: flex; flex-direction: row; align-items: center; padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); border-right: 0; }
+    .c-project-rail .project-rail-head, .c-project-rail .rail-spacer, .c-project-rail .rail-footer { display: none; }
+    .c-project-rail .project-rail-list { display: none; }
+    .mobile-page-nav { width: 100%; display: flex; justify-content: space-around; gap: 4px; }
+    .mobile-page-nav button { width: 25%; min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px 2px; color: var(--muted); border-radius: 9px; font-size: 9px; }
+    .mobile-page-nav button.active { color: var(--accent-strong); background: var(--accent-soft); font-weight: 750; }
+    .mobile-page-nav svg { width: 16px; height: 16px; }
+    .c-shell-body > .main { padding-bottom: 62px; }
+    .c-mobile-back { display: inline-flex; margin: 0 0 18px; }
+  }
+  @media (min-width: 721px) and (max-width: 930px) {
+    .c-shell-body { grid-template-columns: 190px minmax(0, 1fr); }
+    .c-shell-body.rail-collapsed { grid-template-columns: 76px minmax(0, 1fr); }
+    .c-project-rail:not(.collapsed) .project-rail-head { justify-content: space-between; padding: 0 7px; }
+    .c-project-rail:not(.collapsed) .project-rail-head strong,
+    .c-project-rail:not(.collapsed) .project-rail-copy,
+    .c-project-rail:not(.collapsed) .project-rail-count,
+    .c-project-rail:not(.collapsed) .rail-footer .label { display: block; }
+    .c-project-rail:not(.collapsed) .project-rail-item,
+    .c-project-rail:not(.collapsed) .rail-footer button { justify-content: flex-start; padding-left: 9px; padding-right: 9px; }
+    .c-project-rail:not(.collapsed) .project-initial { width: 27px; height: 27px; }
+    .c-topbar { gap: 8px; padding-left: 15px; padding-right: 15px; }
+    .c-topbar .crumb-project { display: none; }
+    .c-topbar .crumb { white-space: nowrap; }
+    .c-topbar .view-nav { gap: 0; margin-left: 3px; }
+    .c-topbar .view-nav button { padding-left: 5px; padding-right: 5px; white-space: nowrap; font-size: 9px; }
+  }
+</style>
+<script>
+  /* Make the C header span the full browser width, exactly like the accepted workspace shell. */
+  state.mobileReading = false;
+  renderCRail = function() {
+    if (state.page !== 'workbench' && state.page !== 'progress') return _originalRenderRail();
+    const items = projects.map((project) => `<button class="project-rail-item ${project.id === state.project ? 'active' : ''}" onclick="setProject('${project.id}')" title="${esc(project.path)}"><span class="project-initial">${esc(project.name[0].toUpperCase())}</span><span class="project-rail-copy"><strong>${esc(project.name)}</strong><span>${projectTasks(project.id).length} 个任务 · ${esc(project.desc)}</span></span><span class="project-rail-count">${projectTasks(project.id).length}</span></button>`).join('');
+    const mobilePages = [['workbench','工作台','grid'],['progress','阶段','flow'],['automation','自动化','bot'],['machine','机器','server']];
+    return `<aside class="rail c-project-rail ${state.railCollapsed ? 'collapsed' : ''}" aria-label="项目选择"><div class="project-rail-head"><strong>项目选择</strong><button class="rail-collapse" aria-label="${state.railCollapsed ? '展开' : '收缩'}项目栏" aria-expanded="${!state.railCollapsed}" onclick="toggleRail()">${state.railCollapsed ? '›' : '‹'}</button></div><div class="project-rail-list">${items}</div><div class="mobile-page-nav" aria-label="页面导航">${mobilePages.map(([id,label,icon]) => `<button class="${state.page === id ? 'active' : ''}" onclick="navigate('${id}')">${ico(icon)}<span>${label}</span></button>`).join('')}</div><div class="rail-spacer"></div><div class="rail-footer"><button onclick="navigate('projects')">${ico('folder')}<span class="label">所有项目</span></button><button onclick="navigate('settings')">${ico('settings')}<span class="label">设置</span></button></div></aside>`;
+  };
+  renderRail = renderCRail;
+  const _openTaskBeforeC = openTask;
+  openTask = function(taskId) {
+    if (state.page !== 'workbench') return _openTaskBeforeC(taskId);
+    const task = taskData.find((item) => item.id === taskId);
+    if (!task) return;
+    state.task = taskId;
+    state.project = task.project;
+    state.fileTab = 'input'; state.filesExpanded = false; state.fileName = null;
+    state.mobileReading = window.matchMedia('(max-width: 720px)').matches;
+    syncUrl();
+    render();
+  };
+  const _setProjectBeforeC = setProject;
+  setProject = function(projectId) { state.mobileReading = false; _setProjectBeforeC(projectId); };
+  const _navigateBeforeC = navigate;
+  navigate = function(page) { state.mobileReading = false; _navigateBeforeC(page); };
+  const _renderBeforeWideC = render;
+  render = function() {
+    if (state.page !== 'workbench' && state.page !== 'progress') { _renderBeforeWideC(); return; }
+    document.body.dataset.page = state.page;
+    const page = state.page === 'workbench' ? renderCWorkspace().replace('c-workspace-shell ', `c-workspace-shell ${state.mobileReading ? 'reading ' : ''}`) : renderProgress();
+    document.getElementById('app').innerHTML = `<div class="c-shell">${renderTopbar()}<div class="c-shell-body ${state.railCollapsed ? 'rail-collapsed' : ''}">${renderRail()}<main class="main">${page}</main></div></div>`;
+    renderOverlay();
+    const toast = document.getElementById('toast'); toast.hidden = !state.toast; toast.textContent = state.toast;
+    if (state.compact) document.body.classList.add('compact'); else document.body.classList.remove('compact');
+    const back = document.querySelector('.c-mobile-back');
+    if (back) back.onclick = () => { state.mobileReading = false; render(); };
+  };
+  render();
+</script>

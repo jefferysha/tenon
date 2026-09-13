@@ -404,7 +404,7 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     expect(seg(idxShip, idxArchive).filter((p) => p.kind === 'prompt')).toHaveLength(0) // ship 非 review 相位，全程不该有解锁
   }, 30_000)
 
-  test('router reports a dynamic track id while resolving inherited profile skills even when matrix=false', async () => {
+  test('registry-only dynamic track without a workflow branch fails closed', async () => {
     await seed('.pipeline/tracks.yaml', `version: 1
 tracks:
   - id: designer-mobile
@@ -424,18 +424,9 @@ tracks:
         matrix: false
         profile: backend
     `)
-    expect(await h.run(['init', CHANGE, '--track', 'designer-mobile', '--preset', 'full'])).toBe(0)
-    await h.seedGovernedDocumentEvidence(CHANGE)
-    expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
-    await invokeSkillThroughGate('open', 'tenon-open')
-    expect(await h.run(['transition', CHANGE, 'open-complete'])).toBe(0)
-
-    const routed = runRouter('继续处理 mobile-route-token')
-    expect(routed.code).toBe(0)
-    expect(routed.stdout).toContain('track=designer-mobile')
-    expect(routed.stdout).toContain('phase=explore')
-    expect(routed.stdout).toContain('improve-codebase-architecture') // explore.backend；dynamic id 自身无 manifest 列
-    expect(routed.stdout).toContain('search-first')
+    const code = await h.run(['init', CHANGE, '--track', 'designer-mobile', '--preset', 'full'])
+    expect(code).toBe(1)
+    expect(h.err.join('\n')).toContain("工作流 'default' 没有轨道 'designer-mobile' 的分支")
   })
 
   test('review request 真产出的 v2 marker 陈旧超 TTL 后，gate.sh 真自愈放行（无需 AskUserQuestion）', async () => {

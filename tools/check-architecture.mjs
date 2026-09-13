@@ -19,6 +19,32 @@ const SIZE_EXCEPTIONS = new Map([
   ['packages/kernel/src/verification/validate.ts', 'BACKEND verification protocol validator'],
 ])
 
+// A cross-workspace subpath is allowed only when the providing package declares
+// that exact key in its public `exports` map. This keeps the rule strict without
+// maintaining a second, drifting allowlist in the architecture checker.
+const packageExportsCache = new Map()
+function isPublicPackageExport(specifier) {
+  const match = specifier.match(/^(@[^/]+\/[^/]+)(\/.*)$/)
+  if (!match) return false
+  const packageName = match[1]
+  let exportsMap = packageExportsCache.get(packageName)
+  if (exportsMap === undefined) {
+    const packageJson = join(root, 'packages', packageName.slice('@tenon/'.length), 'package.json')
+    if (!existsSync(packageJson)) {
+      packageExportsCache.set(packageName, null)
+      return false
+    }
+    try {
+      exportsMap = JSON.parse(readFileSync(packageJson, 'utf8')).exports
+    } catch {
+      exportsMap = null
+    }
+    packageExportsCache.set(packageName, exportsMap ?? null)
+  }
+  if (!exportsMap || typeof exportsMap !== 'object') return false
+  return Object.hasOwn(exportsMap, `.${match[2]}`)
+}
+
 const WORKFLOW_IDENTITY_COMPAT = new Map([
   ['hooks/router-gen.mjs', [
     { code: "if (id === 'default') return true", reason: 'router-data generation treats the packaged built-in workflow as present' },
@@ -336,7 +362,8 @@ for (const path of production) {
       `${rel}: ${size.kind} ${lineCount(text)} lines exceeds ${size.limit} (${size.citation})`,
     )
   }
-  if (/from ['"]@tenon\/[^/'"]+\//.test(code)) {
+  const deepImport = code.match(/from ['"](@tenon\/[^/'"]+\/[^/'"]+)['"]/)?.[1]
+  if (deepImport && !isPublicPackageExport(deepImport)) {
     failures.push(`${rel}: cross-workspace deep import bypasses public package export (.agent-rules/BACKEND.md)`)
   }
   const privateProducerBridge = /from ['"](?:\.\.\/)+kernel\/dist\/skill-invocation\/producer-internal\.js['"]/.test(code)

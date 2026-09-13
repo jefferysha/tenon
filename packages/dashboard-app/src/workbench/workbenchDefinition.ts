@@ -6,6 +6,7 @@ import type {
   WbTransition,
   WbWorkflowDef,
 } from '../api/governanceTypes'
+import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import { wavesOf, wavesToSkills } from './skillWaves'
 export type {
   WbActionConfig,
@@ -70,7 +71,8 @@ export function branchesOf(def: WbWorkflowDef | null): Array<{ id: string; label
 export function resolveBranch(def: WbWorkflowDef | null, branch: string): string {
   const tracks = trackEntries(def)
   if (tracks.length === 0) return BASE_BRANCH
-  return def?.tracks?.[branch] !== undefined ? branch : tracks[0]![0]
+  const first = tracks[0]
+  return def?.tracks?.[branch] !== undefined ? branch : first?.[0] ?? BASE_BRANCH
 }
 
 /** 分支视图：把所选分支的 steps 与物化 IO 提升成一个「单条 pipeline」定义，供编辑器所有读路径使用。 */
@@ -92,7 +94,9 @@ export function writeBranchDef(def: WbWorkflowDef, branch: string, updated: WbWo
   const base = { ...def, ...rest }
   const id = resolveBranch(def, branch)
   if (id === BASE_BRANCH) return { ...base, steps }
-  return { ...base, steps: def.steps, tracks: { ...def.tracks, [id]: { ...def.tracks![id]!, steps } } }
+  const existing = def.tracks?.[id]
+  if (existing === undefined) return def
+  return { ...base, steps: def.steps, tracks: { ...def.tracks, [id]: { ...existing, steps } } }
 }
 
 /**
@@ -313,7 +317,7 @@ export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDe
  */
 export function copyWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDef {
   const cloned = cloneWorkflowDef(def, name)
-  if (def.name !== 'default') return cloned
+  if (!isDefaultWorkflowName(def.name)) return cloned
   const customPolicy = (steps: WbStepDef[]): WbStepDef[] => steps.map((step) => step.artifacts === undefined ? step : {
     ...step,
     artifacts: step.artifacts.map((artifact) => ({ ...artifact, producerPolicy: 'effective-step-skills' as const })),

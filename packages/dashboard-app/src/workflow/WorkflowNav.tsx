@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import {
   DndContext,
   DragOverlay,
@@ -134,7 +135,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey, true) }
   }, [switching])
 
-  const isDefault = current === 'default'
+  const isDefault = current !== null && isDefaultWorkflowName(current)
   // 工作流页只编辑全局存储：自定义工作流恒为全局；default 由 API 告知是内建还是全局覆盖。
   const source = isDefault ? defaultSource : 'global'
   const tracks = branches.filter((candidate) => candidate.id !== BASE_BRANCH)
@@ -208,7 +209,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
                       onClick={() => { setSwitching(false); if (!busy && !selected) props.onSwitch(name) }}
                     >
                       <span className="min-w-0 flex-1 truncate">{name}</span>
-                      <span className="rounded-full bg-fill px-1.5 text-micro text-text-2">{t(`workflow.source_${name === 'default' ? defaultSource : 'global'}`)}</span>
+                      <span className="rounded-full bg-fill px-1.5 text-micro text-text-2">{t(`workflow.source_${isDefaultWorkflowName(name) ? defaultSource : 'global'}`)}</span>
                     </button>
                   </li>
                 )

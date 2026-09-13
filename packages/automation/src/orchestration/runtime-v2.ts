@@ -48,94 +48,12 @@ import { openArtifactService } from '../artifacts/service.js'
 import { consumeArtifactsV2 } from './artifact-consumption-v2.js'
 import { persistRuntimeOutputV2 } from './runtime-output-persistence-v2.js'
 import { artifactNamespaceForChange } from '../submission/namespace.js'
-
-export interface RuntimeExecutorInputV2 {
-  readonly run_id: string
-  readonly work_item_id: string
-  readonly skill_id: string
-  readonly skill_version: string
-  readonly mcp_ids: readonly string[]
-  readonly input_refs: readonly string[]
-  readonly input_bundle: RuntimeInputBundleV2
-  readonly signal: AbortSignal
-  /** Stage-scoped observer/publisher. Skills may explicitly publish actual files. */
-  readonly artifact_runtime?: StageArtifactRuntime
-  /** Bounded metadata exposed before execution; file bodies remain on-demand. */
-  readonly artifact_catalog?: ArtifactCatalog
-}
-
-/** Provider-neutral port. The returned value is untrusted and bounded here. */
-export interface RuntimeExecutorV2 {
-  execute(input: RuntimeExecutorInputV2): Promise<unknown>
-}
-
-export interface RuntimeValidatorInputV2 {
-  readonly run_id: string
-  readonly result_id: string
-  readonly work_item_id: string
-  readonly skill_id: string
-  readonly skill_version: string
-  readonly observation: RuntimeObservationV2
-  readonly input_bundle: RuntimeInputBundleV2
-}
-
-/** A validator may return a V2 report or an equivalent plain JSON record. */
-export interface RuntimeValidatorV2 {
-  validate(input: RuntimeValidatorInputV2): Promise<unknown>
-}
-
-export type { RuntimeObservationV2, RuntimePolicyV2 }
+import { type RuntimeExecutorInputV2, type RuntimeExecutorV2, type RuntimeValidatorInputV2, type RuntimeValidatorV2, type ExecutionRuntimeOptionsV2, type RuntimeRecoveryV2, type ExecutionRuntimeResultV2, SettledRunV2, ExecutionRuntimeErrorV2 } from './runtime-v2-contracts.js'
+export type { RuntimeExecutorInputV2, RuntimeExecutorV2, RuntimeValidatorInputV2, RuntimeValidatorV2, ExecutionRuntimeOptionsV2, RuntimeRecoveryV2, ExecutionRuntimeResultV2 } from './runtime-v2-contracts.js'
+export type { RuntimeObservationV2, RuntimePolicyV2 } from './runtime-v2-boundary.js'
+export { ExecutionRuntimeErrorV2 } from './runtime-v2-contracts.js'
 export type { RuntimeArtifactV2 } from './runtime-v2-boundary.js'
 
-export interface ExecutionRuntimeOptionsV2 {
-  readonly change_dir: string
-  readonly ledger: OrchestrationLedger
-  readonly worker_id: string
-  readonly executor: RuntimeExecutorV2
-  readonly validator?: RuntimeValidatorV2
-  readonly signal?: AbortSignal
-  readonly clock?: () => string
-  readonly id_factory?: (prefix: string) => string
-  readonly retry?: RuntimePolicyV2
-  readonly actor_id?: string
-  /** Optional resolver for project/MCP artifact references. Files in change_dir are resolved by default. */
-  readonly artifact_resolver?: RuntimeArtifactResolverV2
-  /** Durable runtime artifact service. When omitted, one is opened in change_dir. */
-  readonly artifact_service?: ArtifactServicePort
-}
-
-export interface RuntimeRecoveryV2 {
-  readonly report: Awaited<ReturnType<OrchestrationLedger['recover']>>['report']
-  readonly recovered: boolean
-  readonly expired_runs: readonly string[]
-}
-
-export interface ExecutionRuntimeResultV2 {
-  readonly ok: boolean
-  readonly snapshot: BoardSnapshotV2
-  readonly recovery: RuntimeRecoveryV2
-  readonly attempts: number
-  readonly diagnostics: readonly string[]
-}
-
-export class ExecutionRuntimeErrorV2 extends Error {
-  readonly code: 'ledger-unavailable' | 'command-rejected' | 'runtime-invalid' | 'round-budget-exceeded'
-
-  constructor(code: ExecutionRuntimeErrorV2['code'], message: string) {
-    super(message)
-    this.name = 'ExecutionRuntimeErrorV2'
-    this.code = code
-  }
-}
-
-interface SettledRunV2 {
-  readonly run: SkillRunV2
-  readonly item: WorkItemV2
-  readonly result: SkillResultV2
-  readonly report?: ValidationReportV2
-  readonly retryable: boolean
-  readonly blocking: boolean
-}
 
 export class ExecutionRuntimeV2 {
   private readonly options: ExecutionRuntimeOptionsV2
@@ -145,6 +63,14 @@ export class ExecutionRuntimeV2 {
   private readonly controllers = new Map<string, AbortController>()
   private readonly inputBundles = new Map<string, RuntimeInputBundleV2>()
   private readonly artifactResolver: RuntimeArtifactResolverV2
+  /**
+   * Opening the durable artifact scope performs a filesystem migration under a
+   * per-scope lock. Keep one promise for the runtime so a parallel wave does
+   * not make each skill wait on its own migration/open sequence. This preserves
+   * the scheduler's concurrency while still degrading to an artifact-less run
+   * when the service cannot be opened.
+   */
+  private artifactServicePromise: Promise<ArtifactServicePort | undefined> | undefined
   private stopping = false
   private attempts = 0
   private readonly diagnostics: string[] = []
@@ -226,6 +152,19 @@ export class ExecutionRuntimeV2 {
     const value = this.idFactory(prefix)
     if (!idValid(value)) throw new ExecutionRuntimeErrorV2('runtime-invalid', 'id_factory returned an unsafe id')
     return value
+  }
+
+  private artifactService(): Promise<ArtifactServicePort | undefined> {
+    if (this.options.artifact_service !== undefined) return Promise.resolve(this.options.artifact_service)
+    if (this.artifactServicePromise !== undefined) return this.artifactServicePromise
+    this.artifactServicePromise = openArtifactService({
+      rootDir: this.options.change_dir,
+      scopeId: artifactNamespaceForChange(this.options.change_dir),
+    }).catch((error: unknown) => {
+      this.diagnostics.push(`artifact-service-open-failed:${error instanceof Error ? redact(error.message) : 'unknown'}`)
+      return undefined
+    })
+    return this.artifactServicePromise
   }
 
   private async snapshot(): Promise<BoardSnapshotV2> {
@@ -338,10 +277,7 @@ export class ExecutionRuntimeV2 {
     const inputBundle = this.inputBundles.get(run.run_id) ?? emptyInputBundleV2(run.run_id, item.work_item_id)
     let artifactRuntime: StageArtifactRuntime | undefined
     let artifactCatalog: ArtifactCatalog | undefined
-    let artifactService: ArtifactServicePort | undefined = this.options.artifact_service
-    if (artifactService === undefined) {
-      try { artifactService = await openArtifactService({ rootDir: this.options.change_dir, scopeId: artifactNamespaceForChange(this.options.change_dir) }) } catch (error) { this.diagnostics.push(`artifact-service-open-failed:${error instanceof Error ? redact(error.message) : 'unknown'}`) }
-    }
+    const artifactService = await this.artifactService()
     if (artifactService !== undefined) {
       try {
         artifactRuntime = await StageArtifactRuntime.open({

@@ -6,6 +6,7 @@ import {
   serializeWorkflow,
   validateWorkflowForStorage,
   validateWorkflowTrackReferences,
+  isDefaultWorkflowName,
   withTrackRegistryLock,
   type TrackValidationContext,
   type WorkflowDef,
@@ -60,7 +61,7 @@ export function resolveWorkflowYamlGet(req: IncomingMessage, path: string, deps:
     return { kind: 'yaml', status: 200, text: readWorkflowSourceForApi(rootCheck.anchor, name) }
   } catch (error) {
     if (error instanceof WorkflowNotFoundError) {
-      if (name === 'default') return { kind: 'yaml', status: 200, text: DEFAULT_WORKFLOW_SOURCE }
+      if (isDefaultWorkflowName(name)) return { kind: 'yaml', status: 200, text: DEFAULT_WORKFLOW_SOURCE }
       return { kind: 'json', status: 404, body: { ok: false, error: deps.errMsg(error) } }
     }
     return { kind: 'json', status: 500, body: { ok: false, error: deps.errMsg(error) } }

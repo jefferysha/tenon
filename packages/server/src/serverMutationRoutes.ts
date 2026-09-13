@@ -11,6 +11,7 @@ import {
   type TrackRegistry,
   type TrackValidationContext,
   type UpdateTrackPatch,
+  isDefaultWorkflowName,
 } from '@tenon/kernel'
 import { removeProjectFromRegistry } from './projects.js'
 import { isValidSecretKey, removeSecret, SECRET_KEY_LIST } from './secrets.js'
@@ -227,7 +228,7 @@ export async function handleDeleteRoute(
               enteredTrackSnapshot = true
               assertWorkflowRootAnchor(rootCheck.anchor)
               // default 的删除 = 撤掉项目覆盖、回到内建模板：引用它的 change 继续可用，无需引用扫描。
-              if (wfName !== 'default') {
+              if (!isDefaultWorkflowName(wfName)) {
                 const scan = scanWorkflowReferencesForApi(rootCheck.anchor, wfName, registry)
                 if (scan.blockers.length > 0) {
                   return { kind: 'scan-failed', references: scan.references, blockers: scan.blockers }

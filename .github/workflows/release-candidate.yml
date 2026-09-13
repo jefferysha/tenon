@@ -123,8 +123,8 @@ jobs:
           npm run build
           git diff --exit-code -- \
             packages/cli/dist/tenon.mjs \
-            packages/server/dist/dashboard.mjs \
-            packages/dashboard-app/dist
+            packages/server/dist/dashboard.mjs
+          npm run check:dashboard-dist-freshness
           bash tools/verify-skills.sh
           n_minus="$RUNNER_TEMP/tenon-n-minus-one"
           bash tools/prepare-n-minus-one-release.sh "$n_minus"
@@ -136,6 +136,7 @@ jobs:
         run: |
           npm run check:docs
           npm run check:document-templates
+          npm run check:design-scale
           npm run docs:sync
           npm run docs:check
           npm run docs:build

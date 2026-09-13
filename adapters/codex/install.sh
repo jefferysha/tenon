@@ -12,10 +12,16 @@
 #
 # 选项：--target <dir>（默认 $PWD）/ --codex-home <dir>（默认 ${CODEX_HOME:-$HOME/.codex}）/ --yes / -h
 # 安全：默认绝不碰 /etc 或 root 路径；--managed 检测非 root 即停、只打印命令。
-set -uo pipefail
+#
+# 落盘一律走 adapters/lib/atomic-write.sh：AGENTS.md 里有用户自己的内容，hooks.json 是 hook
+# 注册的唯一载体——半个文件要么吃掉用户内容，要么让 Codex 读不到 hook 而静默放行。
+set -euo pipefail
 
 ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLATFORM_ID=codex
+
+. "$ADAPTER_DIR/../lib/atomic-write.sh"
+adapter_lib_init codex
 
 G='\033[32m'; Y='\033[33m'; R='\033[31m'; B='\033[1m'; Z='\033[0m'
 info() { printf "${G}[codex]${Z} %b\n" "$1"; }
@@ -34,7 +40,12 @@ while [ $# -gt 0 ]; do
     --target)  TARGET="${2:?--target 需要目录参数}"; shift 2 ;;
     --codex-home) CODEX_HOME_DIR="${2:?--codex-home 需要目录参数}"; shift 2 ;;
     --yes|-y)  ASSUME_YES=1; shift ;;
-    -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)
+      # --help 打印文件头注释块，止于第一行非注释。不写死行号：行号会随头部注释增删而失配，
+      # 把 `set -euo pipefail` 这类代码行当帮助文本打出来。
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "${BASH_SOURCE[0]}"
+      exit 0
+      ;;
     *) err "未知参数: $1（见 --help）"; exit 2 ;;
   esac
 done
@@ -55,7 +66,7 @@ install_static() {
   [ -f "$template" ] || { err "缺少生成的 Codex managed block: $template"; exit 1; }
   local f="$dest/AGENTS.md"
   if [ -f "$f" ]; then
-    local start_count end_count marker_order
+    local start_count end_count
     start_count="$(grep -cFx "$START" "$f" 2>/dev/null || true)"
     end_count="$(grep -cFx "$END" "$f" 2>/dev/null || true)"
     case "$start_count:$end_count" in
@@ -66,12 +77,13 @@ install_static() {
         ;;
     esac
     if [ "$start_count" = 1 ]; then
-      marker_order="$(awk -v s="$START" -v e="$END" '
+      # awk 只用退出码表达判定（无输出）。直接放进 if 条件里判，别经命令替换取 $?——
+      # set -e 下命令替换子 shell 会在 awk 非零时提前退出，$? 根本传不出来。
+      if ! awk -v s="$START" -v e="$END" '
         $0==s { if (seen_end || seen_start) exit 2; seen_start=1; next }
         $0==e { if (!seen_start || seen_end) exit 2; seen_end=1; next }
         END { if (!seen_start || !seen_end) exit 2 }
-      ' "$f" 2>/dev/null; printf '%s' "$?")"
-      if [ "$marker_order" != 0 ]; then
+      ' "$f" 2>/dev/null; then
         err "AGENTS.md 的 Tenon 哨兵块顺序非法，拒绝改写用户内容: $f"
         exit 1
       fi
@@ -81,10 +93,10 @@ install_static() {
     # 哨兵块精确替换（块内重刷、块外用户内容原样保留）
     # macOS/BSD awk 不接受带换行的 -v 值。把新块放进受控临时文件，再由 awk 逐行读取，
     # 才能既保留块外内容又保证第二次安装真幂等。
-    local tmp block_tmp
-    tmp="$(mktemp)"
+    local block_tmp
     block_tmp="$(mktemp)"
     cp "$template" "$block_tmp"
+    atomic_stage "$f"
     if awk -v s="$START" -v e="$END" -v b="$block_tmp" '
       $0==s {
         while ((getline line < b) > 0) print line
@@ -94,17 +106,21 @@ install_static() {
       }
       $0==e {skip=0; next}
       !skip {print}
-    ' "$f" > "$tmp"; then
-      mv "$tmp" "$f"
+    ' "$f" > "$ATOMIC_TMP"; then
+      atomic_commit "$f"
     else
-      rm -f "$tmp"
+      atomic_abort
       rm -f "$block_tmp"
       err "无法刷新 AGENTS.md 的 Pipeline 静态块: $f"
       exit 1
     fi
     rm -f "$block_tmp"
   else
-    { printf '\n'; cat "$template"; } >> "$f"
+    # 追加也先在暂存文件里拼完整份再原子替换：裸 `>>` 被打断会在用户 AGENTS.md 尾部留半个
+    # 哨兵块，下次安装认不出来就会再追加一份（也就不再幂等）。
+    atomic_stage "$f"
+    { if [ -f "$f" ]; then cat "$f"; fi; printf '\n'; cat "$template"; } > "$ATOMIC_TMP"
+    atomic_commit "$f"
   fi
   info "AGENTS.md 静态层 → ${f}（哨兵块幂等）"
 }
@@ -240,10 +256,12 @@ install_hooks_codex_home() {
   if [ -f "$hj" ]; then
     warn "CODEX_HOME 已存在 hooks.json: $hj —— 不自动覆盖你既有 hook。"
     warn "已替换占位的版本写到 $hj.pipeline-adapter（供你手动合并事件 group）。"
-    sed "s#__ADAPTER_DIR__#$ADAPTER_DIR#g" "$ADAPTER_DIR/hooks.json" > "$hj.pipeline-adapter"
+    atomic_render_template "$ADAPTER_DIR/hooks.json" "$hj.pipeline-adapter" __ADAPTER_DIR__ "$ADAPTER_DIR" --json
+    adapter_mark_not_applied "$hj.pipeline-adapter" \
+      "$hj 已被你既有 hook 占用，Codex 现在读的仍是旧 hooks.json——inject/route/veto/track 均未接管"
     return 0
   fi
-  sed "s#__ADAPTER_DIR__#$ADAPTER_DIR#g" "$ADAPTER_DIR/hooks.json" > "$hj"
+  atomic_render_template "$ADAPTER_DIR/hooks.json" "$hj" __ADAPTER_DIR__ "$ADAPTER_DIR" --json
   info "hooks.json → ${hj}（inject/route/veto/track wrapper 绝对路径已绑定）"
 }
 
@@ -260,10 +278,14 @@ install_managed() {
   local req="/etc/codex/requirements.toml" mdir="/etc/codex/managed_hooks"
   note ""
   warn "档 B（managed/MDM 全保真）需写系统级 root 路径 ${req} 与 ${mdir}（唯一 trust-free 的 headless 路径）。"
+  # 暂存文件是给用户 sudo 前先 `cat` 审阅的那一份，同样走原子渲染：审阅到半个 JSON
+  # 然后 sudo cp 上去，等于把 fail-open 直接铺到系统级 managed_dir。
   local staged_hooks; staged_hooks="$(mktemp "${TMPDIR:-/tmp}/codex-managed-hooks.XXXXXX.json")"
-  sed "s#__ADAPTER_DIR__#$ADAPTER_DIR#g" "$ADAPTER_DIR/hooks.json" > "$staged_hooks"
+  atomic_render_template "$ADAPTER_DIR/hooks.json" "$staged_hooks" __ADAPTER_DIR__ "$ADAPTER_DIR" --json
   local staged_req; staged_req="$(mktemp "${TMPDIR:-/tmp}/codex-requirements.XXXXXX.toml")"
-  printf '# pipeline-workflow codex adapter — managed hooks（档 B）\n[hooks]\nmanaged_dir = "%s"\n' "$mdir" > "$staged_req"
+  atomic_stage "$staged_req"
+  printf '# pipeline-workflow codex adapter — managed hooks（档 B）\n[hooks]\nmanaged_dir = "%s"\n' "$mdir" > "$ATOMIC_TMP"
+  atomic_commit "$staged_req"
   if [ "$(id -u)" -ne 0 ]; then
     err "当前非 root。${B}绝不静默 sudo${Z}——请手动执行（先审阅暂存文件）："
     note "  cat $staged_req ; cat $staged_hooks"
@@ -273,8 +295,16 @@ install_managed() {
     return 0
   fi
   confirm "确认以 root 写入 ${req} 与 ${mdir}？" || { warn "已取消，未改动系统。"; return 0; }
-  mkdir -p "$mdir"; cp "$staged_hooks" "$mdir/hooks.json"
-  [ -f "$req" ] && warn "$req 已存在——请手动并 [hooks] 段。" || { cp "$staged_req" "$req"; info "requirements.toml → $req"; }
+  mkdir -p "$mdir"
+  atomic_write "$mdir/hooks.json" --json < "$staged_hooks"
+  if [ -f "$req" ]; then
+    warn "$req 已存在——请手动合并 [hooks] 段。"
+    adapter_mark_not_applied "$staged_req" \
+      "$req 已存在，managed_dir 指向未写入——Codex 不会加载 ${mdir} 下的 managed hooks"
+  else
+    atomic_write "$req" < "$staged_req"
+    info "requirements.toml → $req"
+  fi
   info "managed hooks → $mdir/hooks.json（always-on、免 trust）"
   install_static "$TARGET"; install_or_converge_project_skills "$TARGET" || exit 1
 }
@@ -288,10 +318,12 @@ case "$MODE" in
     ;;
   full)
     install_static "$TARGET"; install_or_converge_project_skills "$TARGET" || exit 1
-    install_hooks_codex_home; print_trust_instructions
+    install_hooks_codex_home
+    # trust 指引只在 hooks.json 真接管时才有意义——旁挂建议文件时由 adapter_finish 非零退出。
+    [ "$ADAPTER_NOT_APPLIED_COUNT" -eq 0 ] && print_trust_instructions || true
     ;;
   managed)
     install_managed
     ;;
 esac
-exit 0
+adapter_finish

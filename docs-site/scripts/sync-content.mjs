@@ -10,7 +10,7 @@ const repositoryFiles = ['CONTRIBUTING', 'SECURITY', 'SUPPORT', 'CODE_OF_CONDUCT
 const publicDashboardImages = [
   'dashboard-overview.webp',
   'dashboard-progress.webp',
-  'dashboard-automation.webp',
+  'dashboard-workflow-editor.webp',
   'dashboard-workbench.webp',
 ]
 

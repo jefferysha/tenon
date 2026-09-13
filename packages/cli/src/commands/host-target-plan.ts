@@ -1,5 +1,9 @@
 import type { CliDeps } from '../deps.js'
 import {
+  nativeHostConvergenceSequence,
+  type NativeHostUpdateStepId,
+} from './native-host-convergence-sequence.js'
+import {
   TENON_HOSTS,
   TENON_RELEASE_VERSION,
   hostFlag,
@@ -44,6 +48,11 @@ export interface HostTargetPlanStep {
   readonly id: string
   readonly label: string
   readonly command: HostPlanCommand | null
+  /**
+   * Present only when execution depends on host state this read-only plan never observed; absence
+   * means the step runs on every execution of the previewed command.
+   */
+  readonly condition?: string
 }
 
 export interface HostTargetPlan {
@@ -97,13 +106,19 @@ const CODEX_AUTH_STATUS_STEP = {
   },
 } as const satisfies HostTargetPlanStep
 
-const VERSIONED_UPDATE_STEP_IDS = [
-  'plugin-remove',
-  'marketplace-remove',
-  'marketplace-register',
-  'plugin-install',
-  'plugin-inventory',
-] as const
+/**
+ * Published step ids for the shared convergence sequence.  The sequence itself is derived by
+ * `nativeHostConvergenceSequence`, so a new or reordered host command reaches the preview through
+ * this map instead of a second hand-maintained list; only the wire name of the final inventory step
+ * differs, because `host-target-plan/v1` already publishes it as `plugin-inventory`.
+ */
+const PUBLISHED_STEP_IDS: Record<NativeHostUpdateStepId, string> = {
+  'plugin-remove': 'plugin-remove',
+  'marketplace-remove': 'marketplace-remove',
+  'marketplace-register': 'marketplace-register',
+  'plugin-install': 'plugin-install',
+  'inventory-after': 'plugin-inventory',
+}
 
 function command(executable: string, args: readonly string[]): HostPlanCommand {
   return {
@@ -146,22 +161,35 @@ export function createHostTargetCatalog(): HostTargetCatalog {
   }
 }
 
+/**
+ * Generating a plan never reads host state, so the registration is `unknown`: removals stay visible
+ * as conditional steps rather than being promised.  Setup drops `plugin-remove` entirely on a host
+ * without a registered tenon plugin, and the managed runner proves-and-skips a marketplace removal
+ * whose absence already holds, so promising either here would describe an execution that will not
+ * happen.
+ */
+function hostCommandSteps(
+  plan: readonly HostCommandPlanItem[],
+): readonly HostTargetPlanStep[] {
+  return nativeHostConvergenceSequence(plan, { plugin: 'unknown' }).map((step) => {
+    const id = PUBLISHED_STEP_IDS[step.id]
+    return {
+      id,
+      label: `host-plan.step.${id}`,
+      command: command(step.item.cmd, step.item.args),
+      ...(step.conditional ? { condition: `host-plan.condition.${id}` } : {}),
+    }
+  })
+}
+
 function nativeSteps(
   host: NativePipelineHost,
   operation: HostTargetOperation,
   plan: readonly HostCommandPlanItem[],
 ): readonly HostTargetPlanStep[] {
-  const ids = VERSIONED_UPDATE_STEP_IDS
   return [
     operation === 'setup' ? SETUP_RELEASE_TARGET_STEP : UPDATE_RELEASE_RESOLVER_STEP,
-    ...plan.map((item, index) => {
-      const id = ids[index] ?? `host-command-${index + 1}`
-      return {
-        id,
-        label: `host-plan.step.${id}`,
-        command: command(item.cmd, item.args),
-      }
-    }),
+    ...hostCommandSteps(plan),
     CANDIDATE_VALIDATION_STEP,
     PRODUCT_STEPS[0],
     PRODUCT_STEPS[1],

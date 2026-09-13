@@ -4,12 +4,13 @@
  * artifacts still require known scalar fields. Default/custom artifact policies stay separate.
  */
 import { FIELD_ORDER, type FieldName } from '../types.js'
-import type { TrackPredicate } from './predicates.js'
 import type {
-  ArtifactProducerPolicy, FieldRef, GateKind, SkillRef, StepDef, StepTransition, WorkflowDef,
+  FieldRef, GateKind, SkillRef, StepDef, StepTransition, WorkflowDef,
   WorkflowDocumentContractV1, WorkflowDocumentRead, WorkflowDocumentSlot,
 } from './types.js'
-import { compileGuards, compileStepGuards, compileWhen } from './compile-guards.js'
+import { compileGuards, compileStepGuards } from './compile-guards.js'
+import { compileArtifacts } from './compile-artifacts.js'
+import { isDefaultWorkflowName } from './identifier.js'
 import {
   compileWorkflowDecompositionPolicy,
   compileWorkflowInteractionPolicy,
@@ -17,7 +18,6 @@ import {
 } from './policy.js'
 import type {
   ActionConfig,
-  ArtifactDeclaration,
   StepIR,
   StepTransitionIR,
   WorkflowIR,
@@ -34,15 +34,14 @@ const ACTION_TYPES: ReadonlySet<string> = new Set<ActionConfig['type']>([
 ])
 // artifact producer policy 全闭集（G2 P4）：语法层「是不是合法 policy token」的判定（越界如
 // effective-galaxy-skills → fail-loud）。是否**允许于当前 origin** 另由 allowedPolicies 收窄（A 契约）。
-const PRODUCER_POLICIES: ReadonlySet<string> = new Set<ArtifactProducerPolicy>(['effective-step-skills', 'effective-phase-skills'])
 // A 契约（G2 P5 · D4）：origin 相容的 producer policy 白名单。**不以 def.name 猜 origin**——由编译入口
 // 显式选定（通用 compileWorkflow=custom 契约 / compileDefaultWorkflow=default 生成校验专用）。
 //   · custom：只允 effective-step-skills；显式 effective-phase-skills 编译期 fail-loud（custom step id 不必
 //     是 default phase，manifest phase×track key 空间对它无定义，跨接 default manifest 无意义）。
 //   · default：允许两者（default.yaml 显式 artifact 用 effective-phase-skills；file_path output 派生默认仍
 //     effective-step-skills）。default 运行时 artifact 走 P4 codegen 表，本入口只服务生成校验/内部测试。
-const CUSTOM_PRODUCER_POLICIES: ReadonlySet<string> = new Set<ArtifactProducerPolicy>(['effective-step-skills'])
-const DEFAULT_PRODUCER_POLICIES: ReadonlySet<string> = new Set<ArtifactProducerPolicy>(['effective-step-skills', 'effective-phase-skills'])
+const CUSTOM_PRODUCER_POLICIES: ReadonlySet<string> = new Set(['effective-step-skills'])
+const DEFAULT_PRODUCER_POLICIES: ReadonlySet<string> = new Set(['effective-step-skills', 'effective-phase-skills'])
 const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
   'name', 'decomposition', 'interaction', 'reviewBudget', 'openspecContract', 'documentContract', 'steps', 'tracks',
 ])
@@ -51,7 +50,6 @@ const STEP_KEYS: ReadonlySet<string> = new Set([
 ])
 const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'kind', 'review_lane', 'depends_on'])
 const FIELD_REF_KEYS: ReadonlySet<string> = new Set(['field', 'type'])
-const ARTIFACT_KEYS: ReadonlySet<string> = new Set(['field', 'type', 'kind', 'producerPolicy', 'requiredWhen'])
 const TRANSITION_KEYS: ReadonlySet<string> = new Set(['event', 'to', 'guards', 'actions'])
 const ACTION_KEYS: ReadonlySet<string> = new Set(['type'])
 const DOCUMENT_CONTRACT_KEYS: ReadonlySet<string> = new Set(['version', 'slots', 'reads'])
@@ -187,80 +185,6 @@ function compileSkillRef(raw: SkillRef, path: string, reviewLanes: readonly stri
     id, kind,
     ...(rec.depends_on === undefined ? {} : { depends_on: stringArray(rec.depends_on, `${path}.depends_on`) }),
   }
-}
-
-/** 显式 artifact 声明的编译。kind 只一个合法值；producerPolicy 属 PRODUCER_POLICIES 闭集，缺省补
- *  'effective-step-skills'（custom 派生默认），给错拒绝。声明保留作者给定的 policy（default.yaml 用
- *  'effective-phase-skills'）。 */
-function compileArtifact(raw: unknown, path: string, outputs: readonly FieldRef[], allowedPolicies: ReadonlySet<string>): ArtifactDeclaration {
-  const rec = asRecord(raw, path)
-  rejectExtraKeys(rec, ARTIFACT_KEYS, path)
-  if (rec.type !== undefined && rec.type !== 'file_path') {
-    compileError(`${path}.type`, `必须是 'file_path'（实际 ${JSON.stringify(rec.type)}）`)
-  }
-  if (rec.kind !== undefined && rec.kind !== 'file') {
-    compileError(`${path}.kind`, `必须是 'file'（实际 ${JSON.stringify(rec.kind)}）`)
-  }
-  if (rec.producerPolicy !== undefined) {
-    // 先过语法层全闭集（越界 token fail-loud），再过 origin 相容白名单（A 契约 fail-loud）。
-    if (typeof rec.producerPolicy !== 'string' || !PRODUCER_POLICIES.has(rec.producerPolicy)) {
-      compileError(`${path}.producerPolicy`, `必须是 ${[...PRODUCER_POLICIES].map((p) => `'${p}'`).join(' | ')}（实际 ${JSON.stringify(rec.producerPolicy)}）`)
-    }
-    if (!allowedPolicies.has(rec.producerPolicy)) {
-      compileError(
-        `${path}.producerPolicy`,
-        `custom workflow 不允许 producerPolicy '${rec.producerPolicy}'（A 契约：custom artifact 只能 ${[...allowedPolicies].map((p) => `'${p}'`).join(' | ')}；effective-phase-skills 仅 default 轨适用）`,
-      )
-    }
-  }
-  const producerPolicy = (rec.producerPolicy ?? 'effective-step-skills') as ArtifactProducerPolicy
-  const field = knownField(rec.field, `${path}.field`)
-  const ref = outputs.find((o) => o.field === field)
-  if (!ref) {
-    compileError(`${path}.field`, `artifact 只能挂在本 step outputs 声明的字段上（'${field}' 不在 outputs 里）`)
-  }
-  if (ref.type !== 'file_path') {
-    compileError(`${path}.field`, `artifact 只许挂 type:'file_path' 的 FieldRef（'${field}' 声明为 '${ref.type}'）`)
-  }
-  const requiredWhen = compileWhen(rec.requiredWhen, `${path}.requiredWhen`)
-  const base: ArtifactDeclaration = { kind: 'file', field, producerPolicy }
-  return requiredWhen === undefined ? base : { ...base, requiredWhen }
-}
-
-/** 派生默认（file_path 输出逐条）+ 显式声明按 field 替换派生条目；顺序 = outputs 声明序。 */
-function compileArtifacts(
-  rawExplicit: unknown,
-  path: string,
-  outputs: readonly FieldRef[],
-  outputsPath: string,
-  allowedPolicies: ReadonlySet<string>,
-): ArtifactDeclaration[] {
-  const byField = new Map<FieldName, ArtifactDeclaration>()
-  outputs.forEach((o, j) => {
-    if (o.type !== 'file_path') return
-    // 阻断 1：只有「已知 file_path output」派生 artifact；未知 file_path 是惰性 ref（不派生、不参与
-    // 状态写入），与未知 string/boolean 一视同仁——不能因 artifact 派生规则倒推拒绝 pre-P2 能载的
-    // 未知 file_path output。同 field 的重复 file_path output 仍在此拦（仅对已知字段有 artifact 派生
-    // 语义，才谈得上「重复派生同一 artifact」）。
-    if (!KNOWN_FIELDS.has(o.field)) return
-    const field = o.field as FieldName
-    if (byField.has(field)) {
-      compileError(`${outputsPath}[${j}].field`, `'${field}' 重复声明（同 field 的 file_path output 已在前面出现）`)
-    }
-    byField.set(field, { kind: 'file', field, producerPolicy: 'effective-step-skills' })
-  })
-  if (rawExplicit !== undefined) {
-    const seen = new Set<FieldName>()
-    asArray(rawExplicit, path).forEach((a, j) => {
-      const artifact = compileArtifact(a, `${path}[${j}]`, outputs, allowedPolicies)
-      if (seen.has(artifact.field)) {
-        compileError(`${path}[${j}].field`, `'${artifact.field}' 重复声明`)
-      }
-      seen.add(artifact.field)
-      byField.set(artifact.field, artifact)
-    })
-  }
-  return [...byField.values()]
 }
 
 function compileTransition(raw: StepTransition, path: string, outputs: readonly FieldRef[]): StepTransitionIR {
@@ -439,7 +363,7 @@ export function compileWorkflow(def: unknown): WorkflowIR {
  * 变体和值域；校验成功后保留原始定义层形状，避免把编译后的 artifact IR 误当作可序列化 DTO。
  */
 export function decodeWorkflowDef(value: unknown, origin: 'custom' | 'default' = 'custom'): WorkflowDef {
-  if (origin === 'default') compileDefaultWorkflow(value)
+  if (isDefaultWorkflowName(origin)) compileDefaultWorkflow(value)
   else compileWorkflow(value)
   return value as WorkflowDef
 }

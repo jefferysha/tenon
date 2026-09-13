@@ -58,7 +58,9 @@ async function readHistoryLines(changeDir: string): Promise<HistoryLine[]> {
   for (const line of text.split('\n')) {
     if (line.trim() === '') continue
     try {
-      const value = JSON.parse(line) as Record<string, unknown>
+      const parsed: unknown = JSON.parse(line)
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) continue
+      const value = parsed as Record<string, unknown>
       if (typeof value.kind !== 'string') continue
       lines.push({
         kind: value.kind,

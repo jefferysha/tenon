@@ -7,6 +7,8 @@
  * allow clients to reconcile SSE updates without guessing.
  */
 
+import type { AdapterCapabilityStatus } from './adapter-capabilities.generated.js'
+
 export const DEFINITION_CATALOG_SCHEMA = 'definition-catalog/v1' as const
 export const DEFINITION_CATALOG_EVENT_SCHEMA = 'definition-catalog-event/v1' as const
 export const PIPELINE_SELECTION_SCHEMA = 'pipeline-selection/v1' as const
@@ -24,11 +26,22 @@ export interface AdapterCatalogEntryV1 {
   readonly tier: AdapterTier
   readonly cli_flag: string
   readonly target_scope: 'user' | 'project'
+  /**
+   * 每项能力的保真度档位，直接透传 adapters/registry.yaml 的三态，不折叠成布尔。
+   * 折叠成布尔会把 `degraded`（有实现但语义弱于原生，例如 aider/pi 的 veto 靠外层
+   * 命令协调而非宿主钩子）与 `none` 混为一谈，UI 因此无法如实告知用户「这个终端的
+   * veto 是不是降级的」。
+   */
   readonly capabilities: {
-    readonly inject: boolean
-    readonly veto: boolean
-    readonly track: boolean
+    readonly inject: AdapterCapabilityStatus
+    readonly veto: AdapterCapabilityStatus
+    readonly track: AdapterCapabilityStatus
   }
+  /**
+   * veto 是否 fail-closed：钩子失败时按「拦截」处理。默认 fail-open，只有显式声明
+   * 的宿主（cursor）才对用户构成硬拦承诺，因此需要与 capabilities 分开呈现。
+   */
+  readonly veto_fail_closed: boolean
   readonly supported_operations: readonly ['setup', 'update']
   readonly state: AdapterState
   readonly state_reason?: string

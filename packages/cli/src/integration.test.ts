@@ -26,6 +26,10 @@ import {
   type Harness,
 } from './integration-harness.js'
 
+// Real filesystem/document-ledger flows may exceed Vitest's 5s default. Keep the
+// timeout explicit so a slow case cannot trigger cleanup races that masquerade as
+// ENOTEMPTY failures.
+
 describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', () => {
   let h: Harness
   beforeEach(async () => {

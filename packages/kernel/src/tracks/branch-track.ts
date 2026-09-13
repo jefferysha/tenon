@@ -30,11 +30,12 @@ export function resolveTrackForBranch(
   if (registered !== undefined) return registered
   const branch = workflow?.tracks?.[id]
   if (branch === undefined) return undefined
+  if (workflow === null || workflow === undefined) return undefined
   return {
     id,
     label: branch.label ?? id,
     builtin: false,
-    workflow: { default: workflow!.name, allowed: [workflow!.name] },
+    workflow: { default: workflow.name, allowed: [workflow.name] },
     policyProfile: BRANCH_TRACK_DEFAULT_POLICY,
   }
 }

@@ -222,6 +222,38 @@ describe('artifact 面', () => {
     ])
   })
 
+  it('显式 artifacts: [] 禁用 file_path output 的默认派生（与省略字段区分）', () => {
+    const ir = compileWorkflow(
+      rawDef({
+        name: 'demo',
+        steps: [v1Step({
+          outputs: [{ field: 'design_doc', type: 'file_path' }],
+          artifacts: [],
+        } as never)],
+      }),
+    )
+    expect(ir.steps[0]!.artifacts).toEqual([])
+  })
+
+  it('显式非空 artifacts 保留派生项，并按 field 覆盖派生 policy', () => {
+    const ir = compileWorkflow(
+      rawDef({
+        name: 'demo',
+        steps: [v1Step({
+          outputs: [
+            { field: 'design_doc', type: 'file_path' },
+            { field: 'plan', type: 'file_path' },
+          ],
+          artifacts: [{ field: 'design_doc', producerPolicy: 'effective-step-skills' }],
+        } as never)],
+      }),
+    )
+    expect(ir.steps[0]!.artifacts).toEqual([
+      { kind: 'file', field: 'design_doc', producerPolicy: 'effective-step-skills' },
+      { kind: 'file', field: 'plan', producerPolicy: 'effective-step-skills' },
+    ])
+  })
+
   it('无 file_path 输出且无显式声明 → artifacts 恒 []（默认补齐）', () => {
     const ir = compileWorkflow(v1Def([v1Step({ outputs: [{ field: 'branch', type: 'string' }] })]))
     expect(ir.steps[0]!.artifacts).toEqual([])

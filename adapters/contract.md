@@ -100,9 +100,17 @@ review/interaction/confirm 三门由项目根 `.pipeline-pending-{review,interac
 - [ ] Adapter README 已说明 `tenon review request --event` → 人工确认 → `tenon review acknowledge` 的 HITL 路径
 - [ ] **进 conformance**：`tools/test-adapters.sh` 里对该平台跑同一组输入场景，断言等价/如实降级
 - [ ] 状态写一律经 `pipeline` CLI（不直接编辑 `.pipeline.yaml`）
+- [ ] **配置落盘走 `adapters/lib/atomic-write.sh`**，且 installer 顶部 `set -euo pipefail`：
+      `atomic_write` / `atomic_render_template` / `atomic_stage`+`atomic_commit` 三选一，
+      JSON 目标加 `--json`。裸 `cmd > "$目标"` 是 O_TRUNC，被打断就留半个文件；宿主解析失败普遍
+      fail-open，`veto_failclosed` 会静默失效且无 receipt。不要复制第 12 份落盘逻辑。
+- [ ] **未生效必须非零退出**：目标配置已被用户占用、只能旁挂 `<dst>.pipeline-adapter` 时，调
+      `adapter_mark_not_applied <旁挂路径> <原因>`，收尾用 `adapter_finish`（有未生效项 → exit 3，
+      并列出「需人工合并 <路径>」）。「完成 / 全保真」这类话只许在真接管时打印。
 
-**加平台 = 填表非重写（D7/D14）**：`registry.yaml` 填一行平台条目 + 写 configure + 三个 wrapper
-（薄包 baseline hook）+ 在 conformance 加该 id → lint 与 conformance 自动覆盖。矩阵铺开对标
+**加平台 = 填表非重写（D7/D14）**：`registry.yaml` 填一行平台条目 + 写 configure（落盘复用
+`adapters/lib/atomic-write.sh`）+ 三个 wrapper（薄包 baseline hook）+ 在 conformance 加该 id
+→ lint 与 conformance 自动覆盖。矩阵铺开对标
 Tenon contract 16 平台 / Tenon runtime 30 平台的策略面。后续平台（gemini/copilot/pi/devin）目标档位见 registry `planned:`。
 
 ---

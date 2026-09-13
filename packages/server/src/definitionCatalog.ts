@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import {
+  ADAPTER_CAPABILITY_BY_HOST,
   BUILTIN_WORKFLOW_IDS,
   DEFAULT_WORKFLOW_SOURCE,
   builtinWorkflow,
@@ -12,6 +13,7 @@ import {
   type WorkflowCatalogEntryV1,
   type WorkflowDef,
   validateDefinitionCatalogV1,
+  isDefaultWorkflowName,
 } from '@tenon/kernel'
 import { detectNativeHostTargets } from './hostTargetDetection.js'
 import { parsePipelineCliJson, type PipelineCliRunner } from './operations.js'
@@ -27,9 +29,24 @@ import {
 } from './workflows.js'
 import type { TrackValidationContext } from '@tenon/kernel'
 
-const ADAPTER_TIERS: Readonly<Record<string, 'A' | 'B' | 'C'>> = {
-  codex: 'A', claude: 'A', gemini: 'A', continue: 'A', cline: 'A', amp: 'A',
-  cursor: 'B', copilot: 'B', pi: 'B', aider: 'B', devin: 'C', zed: 'C',
+/**
+ * 能力矩阵一律来自 adapters/registry.yaml 的生成表（ADAPTER_CAPABILITY_BY_HOST），
+ * 不再手抄 tier 表、也不再「由 tier 推导能力」。此前的推导（inject 恒 true、
+ * veto = tier==='A'、track = tier!=='C'）同时少报了 cursor/copilot 的 native veto，
+ * 又把 4 个降级 host 的 inject 多报成 true；pi（tier B / inject native / veto degraded）
+ * 证明档位字母不决定哪个能力降级。
+ *
+ * 三态原样透出：`native` / `degraded` / `none`。此前协议折叠成布尔（true = native），
+ * 把 degraded 与 none 一起报成 false，UI 因此无法区分「没有」与「有但更弱」。
+ * 未在 registry 中登记的 host 一律按 none + fail-open 处理（fail-closed 的能力承诺
+ * 只能来自真源，不能靠缺省猜测）。
+ */
+function capabilityProjection(hostId: string): Pick<AdapterCatalogEntryV1, 'capabilities' | 'veto_fail_closed'> {
+  const row = ADAPTER_CAPABILITY_BY_HOST.get(hostId)
+  if (row === undefined) {
+    return { capabilities: { inject: 'none', veto: 'none', track: 'none' }, veto_fail_closed: false }
+  }
+  return { capabilities: row.capabilities, veto_fail_closed: row.veto_fail_closed }
 }
 
 function stableJson(value: unknown): string {
@@ -113,7 +130,9 @@ function adapterEntries(catalog: HostTargetCatalogDto, hostHome: string): Adapte
     ? detectedRaw.filter((id: unknown): id is string => typeof id === 'string')
     : [])
   return catalog.targets.map((target) => {
-    const tier = ADAPTER_TIERS[target.id] ?? 'C'
+    // registry.yaml 的连接键是 cliFlag（TS 侧 host id），不是 registry 的 id
+    // （registry 用 'claude-code'，TS 侧用 'claude'）。
+    const tier = ADAPTER_CAPABILITY_BY_HOST.get(target.id)?.tier ?? 'C'
     return {
       id: target.id,
       label: target.id[0]?.toUpperCase() + target.id.slice(1),
@@ -121,11 +140,7 @@ function adapterEntries(catalog: HostTargetCatalogDto, hostHome: string): Adapte
       tier,
       cli_flag: target.cli_flag,
       target_scope: target.target_scope,
-      capabilities: {
-        inject: true,
-        veto: tier === 'A',
-        track: tier !== 'C',
-      },
+      ...capabilityProjection(target.id),
       supported_operations: ['setup', 'update'],
       state: detected.has(target.id) ? 'detected' : target.kind === 'native' ? 'not-detected' : 'unknown',
       ...(target.kind === 'adapter' ? { state_reason: 'adapter 状态在项目目标目录安装后由安装任务回写' } : {}),
@@ -144,7 +159,7 @@ function workflowDefinitions(anchor: WorkflowRootAnchor): WorkflowCatalogEntryV1
     const workflow = builtinWorkflow(id)
     if (workflow !== null) result.push(workflowEntry(workflow, 'builtin'))
   }
-  for (const name of names.filter((candidate) => candidate !== 'default')) {
+  for (const name of names.filter((candidate) => !isDefaultWorkflowName(candidate))) {
     const workflow = readWorkflowForApi(anchor, name)
     result.push(workflowEntry(workflow, 'project'))
   }

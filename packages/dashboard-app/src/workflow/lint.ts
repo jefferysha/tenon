@@ -1,4 +1,5 @@
 import type { WbEffectiveIo, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
+import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 
 export type LintIssue =
   | { kind: 'step-no-output'; stepId: string }
@@ -24,7 +25,7 @@ const CONTRACT_TRANSITIONS: Readonly<Record<string, readonly string[]>> = {
 
 /** 与 draftEffectiveIo 的 lockedDocuments 同一判据：default 按名字受治理，自定义靠显式契约。 */
 function governed(def: WbWorkflowDef): boolean {
-  return def.openspecContract === 'required' || def.name === 'default'
+  return def.openspecContract === 'required' || isDefaultWorkflowName(def.name)
 }
 
 /**
@@ -77,7 +78,7 @@ export function issuesFor(issues: readonly LintIssue[], stepId: string): LintIss
  */
 export function draftEffectiveIo(def: WbWorkflowDef, saved: WbEffectiveIo | undefined): WbEffectiveIo {
   const out: WbEffectiveIo = {}
-  const lockedDocuments = def.openspecContract === 'required' || def.name === 'default'
+  const lockedDocuments = def.openspecContract === 'required' || isDefaultWorkflowName(def.name)
   def.steps.forEach((step, index) => {
     const upstream = def.steps.slice(0, index)
     const downstream = def.steps.slice(index + 1)

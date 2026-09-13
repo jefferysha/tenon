@@ -100,7 +100,10 @@ export function pipelineBlueprintFromWorkflowDef(
     return workItemIds !== undefined && workItemIds.length > 0 && (step.skills?.length ?? 0) > 0
   })
   const stages = executableSteps.map((step, executableIndex) => {
-    const workItemIds = mapping.workItemIdsByStep![step.id]!
+    const workItemIds = mapping.workItemIdsByStep?.[step.id]
+    if (workItemIds === undefined || workItemIds.length === 0) {
+      throw new TypeError(`workflow step ${step.id} has no executable work items`)
+    }
     const skills = (step.skills ?? []).map((skill, skillIndex) => ({
       skill_id: skill.id,
       skill_version: mapping.skillVersions?.[skill.id] ?? 'unversioned',
@@ -116,7 +119,8 @@ export function pipelineBlueprintFromWorkflowDef(
     // every incoming edge as a dependency creates cycles (e.g. verify →
     // change), so the blueprint follows the workflow's forward linear order
     // and links each executable stage to the preceding executable stage.
-    const dependencies = executableIndex === 0 ? [] : [executableSteps[executableIndex - 1]!.id]
+    const previousStep = executableIndex === 0 ? undefined : executableSteps[executableIndex - 1]
+    const dependencies = previousStep === undefined ? [] : [previousStep.id]
     return {
       stage_id: step.id,
       name: step.label,

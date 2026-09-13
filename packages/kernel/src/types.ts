@@ -5,7 +5,6 @@
 import type { CoverageProfile, ReviewSeed, TrackId } from './tracks/types.js'
 import type { AutomationPolicySnapshot } from './loops/automation-policy.js'
 import type { WorkflowPlanSnapshot } from './workflow/effective-plan.js'
-
 /**
  * Review-gate v2 fields are append-only state schema additions. Keeping the group named lets the
  * canonical reader recognise precisely one historical shape written before this feature, without
@@ -32,7 +31,6 @@ export const REVIEW_GATE_FIELD_DEFAULTS: Readonly<Record<ReviewGateField, string
 }
 export const PRE_VERIFY_REVIEW_FIELD = 'pre_verify_review_result' as const
 export const PRE_VERIFY_REVIEW_DEFAULT = 'pending'
-
 export const FIELD_ORDER = [
   'track', 'preset', 'created_by', 'assignee', 'phase', 'phase_status',
   'design_doc', 'plan', 'verification_report', 'build_mode', 'isolation', 'build_sha',
@@ -65,7 +63,6 @@ export const FIELD_ORDER = [
   // 上一候选的 pass。继续严格末尾追加，使旧窄解析器把这一行及其后的提交元数据原样保留。
   PRE_VERIFY_REVIEW_FIELD,
 ] as const
-
 export type FieldName = (typeof FIELD_ORDER)[number]
 
 export const LIST_FIELDS = ['scope', 'related_files', 'spec_scope', 'depends_on'] as const satisfies readonly FieldName[]

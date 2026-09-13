@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/index.js",
+    "./workflow/identifier": "./dist/workflow/identifier.js"
   },
   "engines": {
     "node": ">=22"

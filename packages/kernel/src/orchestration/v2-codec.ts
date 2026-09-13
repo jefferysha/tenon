@@ -21,7 +21,6 @@ import {
   type OrchestrationEffectV2,
   type V2Schema,
 } from './v2-types.js'
-
 export interface V2CodecError { readonly code: 'json-invalid' | 'object-invalid' | 'unknown-field' | 'field-invalid' | 'limit-exceeded'; readonly path: string; readonly message?: string }
 export type V2DecodeResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly errors: readonly V2CodecError[] }
 export const V2_MAX_BYTES = 512_000
@@ -32,7 +31,6 @@ const SCHEMA_ID = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,159}$/
 const RESOURCE_KEY = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,511}$/
 const DIGEST = /^sha256:[0-9a-f]{64}$/
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/
-
 function parse(input: unknown, errors: V2CodecError[]): unknown { if (typeof input === 'string') { try { return JSON.parse(input) as unknown } catch { errors.push({ code: 'json-invalid', path: '$' }); return undefined } } return input }
 function walkLimit(value: unknown, path: string, depth: number, seen: Set<object>, errors: V2CodecError[]): void {
   if (depth > V2_MAX_DEPTH) { errors.push({ code: 'limit-exceeded', path }); return }

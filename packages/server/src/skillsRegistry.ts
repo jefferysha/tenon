@@ -1,31 +1,17 @@
-// List packaged skills first, then retain best-effort detection for legacy/custom integrations.
-//
-// The default workflow must be completely runnable from this plugin's `skills/` tree. Host-wide
-// skill folders and plugin caches are observed only to describe optional legacy/custom entries;
-// they are never an installation prerequisite for the packaged default flow. Every probe is
-// fail-open: missing or malformed host data merely yields "not detected", never a registry 500.
 import { parseSkillSources, type SkillSourceDefinition, type SkillTier } from '@tenon/kernel'
 import { accessSync, constants, existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { delimiter, dirname, join, sep } from 'node:path'
-
 export type SkillSource = 'local-plugin' | 'external-marketplace' | 'builtin' | 'user'
-
 export interface SkillEntry {
   name: string
   installed: boolean
   source: SkillSource
-  /** 从真实 SKILL.md 提取的原始一句话用途；读取不到时省略，客户端保持向后兼容。 */
   description?: string
-  /** Registry readiness tier; entries outside the registry remain optional. */
   tier: SkillTier
-  /** false means the upstream was deliberately retired, not a broken local machine. */
   available: boolean
   installCmd?: string
 }
-
-/** Host builtins remain a fallback only when a package does not ship the same skill name. */
 const BUILTIN_SKILLS = new Set(['verify', 'run', 'code-review', 'security-review'])
-
 function skillDescriptionFrom(path: string): string | undefined {
   try {
     const text = readFileSync(path, 'utf8')
@@ -45,7 +31,6 @@ function skillDescriptionFrom(path: string): string | undefined {
     return undefined
   }
 }
-
 function installedPluginRoots(claudeDir: string): string[] {
   try {
     const parsed: unknown = JSON.parse(readFileSync(join(claudeDir, 'plugins', 'installed_plugins.json'), 'utf8'))
@@ -59,8 +44,7 @@ function installedPluginRoots(claudeDir: string): string[] {
     return []
   }
 }
-
-function descriptionForSkill(name: string, repoRoot: string, claudeDir: string, meta?: SkillSourceDefinition): string | undefined {
+export function descriptionForSkill(name: string, repoRoot: string, claudeDir: string, meta?: SkillSourceDefinition): string | undefined {
   const home = dirname(claudeDir)
   const candidates = [...new Set([
     meta?.contentSkill,
@@ -80,7 +64,6 @@ function descriptionForSkill(name: string, repoRoot: string, claudeDir: string, 
       if (description) return description
     }
   }
-
   if (meta?.tool === 'claude-plugin') {
     const plugin = meta.skill ?? name.split(':')[0] ?? name
     const cache = join(home, '.codex', 'plugins', 'cache')
@@ -97,20 +80,14 @@ function descriptionForSkill(name: string, repoRoot: string, claudeDir: string, 
   }
   return undefined
 }
-
 export interface SkillFiles {
   name: string
-  /** 来源分类（与 SkillEntry.source 同枚举）。 */
   source: SkillSource
-  /** 来源目录（插件名 / skills 根），给页面做溯源展示。 */
   origin: string
-  /** 技能目录下全部普通文件（相对技能根、posix 分隔、稳定序）；跳过隐藏项与 >1MB 的文件。 */
   files: Array<{ path: string; bytes: number }>
 }
-
 const MAX_SKILL_FILE_BYTES = 256 * 1024
 const MAX_LISTED_FILE_BYTES = 1024 * 1024
-
 function skillRoots(repoRoot: string, claudeDir: string): Array<{ dir: string; source: SkillSource; origin: string }> {
   const home = dirname(claudeDir)
   const roots: Array<{ dir: string; source: SkillSource; origin: string }> = [
@@ -129,8 +106,6 @@ function skillRoots(repoRoot: string, claudeDir: string): Array<{ dir: string; s
   }
   return roots
 }
-
-/** 第一个含 SKILL.md 的技能目录（与 descriptionForSkill 同探测顺序）。 */
 function locateSkillDir(name: string, repoRoot: string, claudeDir: string): { dir: string; source: SkillSource; origin: string } | undefined {
   const candidates = [...new Set([name, name.includes(':') ? name.split(':').at(-1) : undefined]
     .filter((candidate): candidate is string => typeof candidate === 'string' && candidate !== ''))]
@@ -146,7 +121,6 @@ function locateSkillDir(name: string, repoRoot: string, claudeDir: string): { di
   }
   return undefined
 }
-
 function walkFiles(root: string, rel = ''): Array<{ path: string; bytes: number }> {
   const out: Array<{ path: string; bytes: number }> = []
   let entries: string[]
@@ -169,23 +143,18 @@ function walkFiles(root: string, rel = ''): Array<{ path: string; bytes: number 
   }
   return out
 }
-
-/** 某技能目录的文件清单（SKILL.md 恒排首位）；技能不存在 → undefined。 */
 export function listSkillFiles(name: string, repoRoot: string, claudeDir: string): SkillFiles | undefined {
   const located = locateSkillDir(name, repoRoot, claudeDir)
   if (located === undefined) return undefined
   const files = walkFiles(located.dir).sort((a, b) => (a.path === 'SKILL.md' ? -1 : b.path === 'SKILL.md' ? 1 : a.path.localeCompare(b.path)))
   return { name, source: located.source, origin: located.origin, files }
 }
-
 export type SkillFileRead =
   | { kind: 'ok'; path: string; text: string }
   | { kind: 'not-found' }
   | { kind: 'invalid-path' }
   | { kind: 'too-large' }
   | { kind: 'binary' }
-
-/** 读技能目录内一个文本文件：路径必须在清单内（拒 `..` / 绝对路径 / 越界符号链接），≤256KB，无 NUL。 */
 export function readSkillFile(name: string, relPath: string, repoRoot: string, claudeDir: string): SkillFileRead {
   if (relPath === '' || relPath.startsWith('/') || relPath.split('/').some((segment) => segment === '' || segment === '.' || segment === '..' || segment.startsWith('.'))) {
     return { kind: 'invalid-path' }
@@ -208,7 +177,6 @@ export function readSkillFile(name: string, relPath: string, repoRoot: string, c
     return { kind: 'not-found' }
   }
 }
-
 function skillDirsIn(dir: string): string[] {
   if (!existsSync(dir)) return []
   try {
@@ -224,7 +192,6 @@ function skillDirsIn(dir: string): string[] {
     return []
   }
 }
-
 function childDirsIn(dir: string): string[] {
   if (!existsSync(dir)) return []
   try {
@@ -239,13 +206,10 @@ function childDirsIn(dir: string): string[] {
     return []
   }
 }
-
-function localSkillDirs(repoRoot: string): string[] {
+export function localSkillDirs(repoRoot: string): string[] {
   return skillDirsIn(join(repoRoot, 'skills'))
 }
-
-/** EXTERNAL-SKILLS.md 声明行 → { name → 所属小节标题 }(小节 = `**…**` 行,用于来源分类)。 */
-function externalSkillSections(repoRoot: string): Map<string, string> {
+export function externalSkillSections(repoRoot: string): Map<string, string> {
   const p = join(repoRoot, 'skills', 'EXTERNAL-SKILLS.md')
   const out = new Map<string, string>()
   if (!existsSync(p)) return out
@@ -262,22 +226,15 @@ function externalSkillSections(repoRoot: string): Map<string, string> {
   }
   return out
 }
-
-/** 三源探测结果:已检出技能名集合 + 已启用插件的名字前缀集合(命名空间 token 匹配用)。 */
 export function detectInstalled(claudeDir: string): { skills: Set<string>; pluginBases: Set<string>; codexPluginBases: Set<string> } {
   const skills = new Set<string>(skillDirsIn(join(claudeDir, 'skills')))
-  // `npx skills add -g -y` installs for Codex and other agents under ~/.agents/skills.
-  // Derive the home from the injected claudeDir so server tests and custom homes remain hermetic.
   for (const name of skillDirsIn(join(dirname(claudeDir), '.agents', 'skills'))) skills.add(name)
   const pluginBases = new Set<string>()
   const codexPluginBases = new Set<string>()
-
   const codexCache = join(dirname(claudeDir), '.codex', 'plugins', 'cache')
   for (const marketplace of childDirsIn(codexCache)) {
     for (const plugin of childDirsIn(join(codexCache, marketplace))) codexPluginBases.add(plugin)
   }
-
-  // 源②:installed_plugins.json(v2:{version, plugins: {"name@mkt": [{installPath,…}]}})
   try {
     const raw = readFileSync(join(claudeDir, 'plugins', 'installed_plugins.json'), 'utf8')
     const parsed: unknown = JSON.parse(raw)
@@ -291,7 +248,6 @@ export function detectInstalled(claudeDir: string): { skills: Set<string>; plugi
         }
       }
     } catch {
-      /* settings 缺失/损坏 → 视为无禁用项(fail-open) */
     }
     const plugins = typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'plugins') : undefined
     if (typeof plugins !== 'object' || plugins === null || Array.isArray(plugins)) return { skills, pluginBases, codexPluginBases }
@@ -308,13 +264,10 @@ export function detectInstalled(claudeDir: string): { skills: Set<string>; plugi
       }
     }
   } catch {
-    /* installed_plugins.json 缺失/损坏 → 无插件源(fail-open) */
   }
-
   return { skills, pluginBases, codexPluginBases }
 }
-
-function sourceRegistry(repoRoot: string): Map<string, SkillSourceDefinition> {
+export function sourceRegistry(repoRoot: string): Map<string, SkillSourceDefinition> {
   try {
     const rows = parseSkillSources(readFileSync(join(repoRoot, 'templates', 'skill-sources.yaml'), 'utf8'))
     return new Map(rows.map((row) => [row.token, row]))
@@ -322,12 +275,10 @@ function sourceRegistry(repoRoot: string): Map<string, SkillSourceDefinition> {
     return new Map()
   }
 }
-
-function metadataFor(registry: ReadonlyMap<string, SkillSourceDefinition>, name: string): SkillSourceDefinition | undefined {
+export function metadataFor(registry: ReadonlyMap<string, SkillSourceDefinition>, name: string): SkillSourceDefinition | undefined {
   const plugin = name.split(':')[0]
   return registry.get(name) ?? (name.includes(':') && plugin !== undefined ? registry.get(plugin) : undefined)
 }
-
 function executableOnPath(bin: string): boolean {
   for (const dir of (process.env.PATH ?? '').split(delimiter)) {
     if (dir === '') continue
@@ -335,14 +286,11 @@ function executableOnPath(bin: string): boolean {
       accessSync(join(dir, bin), constants.X_OK)
       return true
     } catch {
-      // Continue through PATH; one inaccessible entry does not erase later real matches.
     }
   }
   return false
 }
-
-/** installCmd 只给 registry 能证明真实可执行的命令。 */
-function installCmdFor(source: SkillSource, name: string, repoRoot: string, meta?: SkillSourceDefinition): string | undefined {
+export function installCmdFor(source: SkillSource, name: string, repoRoot: string, meta?: SkillSourceDefinition): string | undefined {
   if (meta?.unavailable) return undefined
   if (meta?.tool === 'skills-cli') {
     const select = meta.skill ? ` --skill ${meta.skill}` : ''
@@ -355,13 +303,11 @@ function installCmdFor(source: SkillSource, name: string, repoRoot: string, meta
   if (source === 'external-marketplace') return `claude plugin install ${name.split(':')[0]}`
   return undefined
 }
-
 export function listAllSkillsDetailed(repoRoot: string, claudeDir: string): SkillEntry[] {
   const detected = detectInstalled(claudeDir)
   const locals = new Set(localSkillDirs(repoRoot))
   const external = externalSkillSections(repoRoot)
   const registry = sourceRegistry(repoRoot)
-
   const names = new Set<string>([...locals, ...external.keys(), ...registry.keys()])
   const entries: SkillEntry[] = []
   for (const name of [...names].sort()) {
@@ -375,7 +321,6 @@ export function listAllSkillsDetailed(repoRoot: string, claudeDir: string): Skil
       const section = external.get(name) ?? ''
       source = /superpowers 系|commit-commands 系/.test(section) ? 'external-marketplace' : 'user'
     }
-
     const available = meta?.unavailable !== true
     let installed: boolean
     if (!available) {
@@ -393,7 +338,6 @@ export function listAllSkillsDetailed(repoRoot: string, claudeDir: string): Skil
     } else {
       installed = detected.skills.has(meta?.skill ?? name)
     }
-
     const description = descriptionForSkill(name, repoRoot, claudeDir, meta)
     entries.push({
       name,
@@ -407,7 +351,6 @@ export function listAllSkillsDetailed(repoRoot: string, claudeDir: string): Skil
   }
   return entries
 }
-
 export function listAllSkills(repoRoot: string): string[] {
   const merged = new Set([
     ...localSkillDirs(repoRoot),

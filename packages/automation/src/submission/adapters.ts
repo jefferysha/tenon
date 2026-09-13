@@ -1,5 +1,6 @@
 import { FIELD_ORDER, recordDocument, type DocumentGovernancePolicy, type DocumentKind, type FieldName, type StateStore } from '@tenon/kernel'
 import type { DocumentProjectionAdapter, FieldProjectionAdapter } from './service.js'
+import { relative, resolve } from 'node:path'
 
 export function createDocumentProjectionAdapter(input: {
   readonly repoRoot: string
@@ -9,7 +10,12 @@ export function createDocumentProjectionAdapter(input: {
 }): DocumentProjectionAdapter {
   return {
     record: async ({ subjectRef, path, documentKind, producer, recordedAt, allowBackfill }) => {
-      await recordDocument({ repoRoot: input.repoRoot, changeDir: input.changeDir, phase: input.phase, ...(input.policy ? { policy: input.policy } : {}), kind: documentKind as DocumentKind, path, producer, recordedAt, subjectRef, ...(allowBackfill !== undefined ? { allowBackfill } : {}) })
+      // Artifact submissions use a path relative to the Change scope (for example
+      // `proposal.md`), while the document ledger contract is rooted at the repository and
+      // requires `openspec/changes/<change>/...`. Convert at this boundary so the Kernel keeps
+      // owning canonical path, symlink, and `openspec/`/`docs/` validation.
+      const repoRelativePath = relative(input.repoRoot, resolve(input.changeDir, path))
+      await recordDocument({ repoRoot: input.repoRoot, changeDir: input.changeDir, phase: input.phase, ...(input.policy ? { policy: input.policy } : {}), kind: documentKind as DocumentKind, path: repoRelativePath, producer, recordedAt, subjectRef, ...(allowBackfill !== undefined ? { allowBackfill } : {}) })
       return {}
     },
   }

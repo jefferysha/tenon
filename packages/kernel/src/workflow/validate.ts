@@ -1,6 +1,6 @@
 import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
 import { validateDefaultWorkflowStructure, validateOpenSpecContractWorkflow } from './document-contract.js'
-import { isValidWorkflowName } from './identifier.js'
+import { isDefaultWorkflowName, isValidWorkflowName } from './identifier.js'
 import type { WorkflowDef, StepDef } from './types.js'
 
 function detectCycle(skillIds: string[], dependsOn: Map<string, string[]>): string[] {
@@ -62,7 +62,8 @@ export function selectTrackBranch(wf: WorkflowDef, track: string | undefined): W
   const { tracks, ...rest } = wf
   const entries = Object.entries(tracks ?? {})
   if (entries.length === 0) return rest
-  if (track === undefined || track === '') return { ...rest, steps: entries[0]![1].steps }
+  const first = entries[0]
+  if (track === undefined || track === '') return first === undefined ? rest : { ...rest, steps: first[1].steps }
   const branch = tracks?.[track]
   if (branch === undefined) throw new WorkflowTrackBranchError(wf.name, track)
   return { ...rest, steps: branch.steps }
@@ -201,9 +202,9 @@ function validateBranchSteps(
  * 骨架一破运行时就无所依凭。compileEffectiveWorkflowPlan 等内存入口不走本函数（测试夹具可用精简 default）。
  */
 export function validateWorkflowForStorage(name: string, wf: WorkflowDef): string[] {
-  const origin = name === 'default' ? 'default' : 'custom'
+  const origin = isDefaultWorkflowName(name) ? 'default' : 'custom'
   const errors = validateWorkflow(wf, { origin })
-  if (origin === 'default') {
+  if (isDefaultWorkflowName(origin)) {
     for (const branch of workflowBranches(wf)) {
       const prefix = branch.track === '' ? '' : `tracks.${branch.track}: `
       errors.push(...validateDefaultWorkflowStructure({ ...wf, tracks: undefined, steps: branch.steps }).map((error) => `${prefix}${error}`))

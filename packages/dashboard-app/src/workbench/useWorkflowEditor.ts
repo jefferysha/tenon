@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type SetStateAction } from 'react'
+import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
 import type { WbEffectiveIo, WbSkillRef, WbStepDef, WbTransition, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
@@ -256,7 +257,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
         setDefError(null)
         baselineRef.current = body
         baselineJson.current = JSON.stringify(definitionForWrite(body))
-        if (wfName === 'default' && body.source !== undefined) setDefaultSource(body.source)
+        if (isDefaultWorkflowName(wfName) && body.source !== undefined) setDefaultSource(body.source)
       })
       .catch((error: unknown) => { if (!cancelled) setDefError(error) })
     return () => { cancelled = true }
@@ -373,7 +374,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
       afterWrite(targetRoot, targetWorkflow)
       baselineRef.current = { ...fullDef, source: 'project' }
       baselineJson.current = JSON.stringify(definitionForWrite(fullDef))
-      if (targetWorkflow === 'default') setDefaultSource('project')
+      if (isDefaultWorkflowName(targetWorkflow)) setDefaultSource('project')
       setSaveStatus({ kind: 'ok' })
       // 重新拉一次拿服务端物化后的 IO（文档槽位 / 消费者）。
       setReloadNonce((value) => value + 1)
@@ -415,7 +416,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   // ── 新建：复制当前 / 空白 / 导入 YAML ──
   const trimmedName = createName.trim()
   const nameInvalid = trimmedName.length > 0 && !NAME_RE.test(trimmedName)
-  const nameDuplicate = trimmedName.length > 0 && (trimmedName === 'default' || trimmedName === 'simple' || (names ?? []).includes(trimmedName))
+  const nameDuplicate = trimmedName.length > 0 && (isDefaultWorkflowName(trimmedName) || trimmedName === 'simple' || (names ?? []).includes(trimmedName))
   const canSubmitCreate = canWrite && trimmedName.length > 0 && !nameInvalid && !nameDuplicate && !createBusy
     && (createMode !== 'import' || createYaml.trim() !== '') && (createMode !== 'copy' || fullDef !== null)
   function openCreate(mode: CreateMode = 'copy'): void {
@@ -489,7 +490,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   // ── 删除（default = 恢复内建，项目或全局覆盖存在时可用）──
   function openWorkflowDelete(): void {
     if (saving || !wfName || !canWrite) return
-    if (wfName === 'default' && defaultSource === 'builtin') return
+    if (isDefaultWorkflowName(wfName) && defaultSource === 'builtin') return
     setWorkflowDeleteError(null)
     setWorkflowDeleteTarget({ root, name: wfName })
   }
@@ -528,7 +529,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
       afterWrite(targetRoot, deleting)
       setWorkflowDeleteTarget(null)
       setWorkflowDeleteError(null)
-      if (deleting === 'default') {
+      if (isDefaultWorkflowName(deleting)) {
         setDefaultSource('builtin')
         switchTo('default')
         // wfName 没变，定义 effect 不会自己重跑；推 nonce 把内建模板重新拉回来。

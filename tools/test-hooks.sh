@@ -101,6 +101,34 @@ JSON_PROMPT="$(pipeline_json_get_string "$JSON_EVENT" prompt || true)"
   && ok "json-input: 正常对话 prompt 的转义引号完整解码" \
   || bad "json-input: 正常对话 prompt 的转义引号完整解码" "得到 <$JSON_PROMPT>"
 
+# 0a. 载荷形状归一（宿主真实形状，而非 CC 形状）。cwd 取不到 → gate.sh 回落进程 $PWD → 找不到
+# marker → 正常放行；所以「读不出 cwd」等于「门失效」，必须在解析层就把各宿主形状吃掉。
+CURSOR_EVENT='{"hook_event_name":"preToolUse","workspace_roots":["/tmp/cursor-root","/tmp/second"],"command":"tenon review acknowledge demo"}'
+CLINE_EVENT='{"hookName":"PreToolUse","workspaceRoots":["/tmp/cline-root"],"preToolUse":{"toolName":"execute_command","parameters":{"command":"tenon review acknowledge demo"}}}'
+AMP_EVENT='{"workspaceRoot":"/tmp/amp-root","tool_name":"?"}'
+ARGV_EVENT='{"cwd":"/tmp/argv-root","tool_name":"exec","cmd":["bash","-lc","tenon review acknowledge demo"]}'
+[ "$(pipeline_json_get_cwd "$CURSOR_EVENT" || true)" = "/tmp/cursor-root" ] \
+  && ok "json-input: cursor workspace_roots 数组首元素归一为 cwd" \
+  || bad "json-input: cursor workspace_roots 数组首元素归一为 cwd" "得到 <$(pipeline_json_get_cwd "$CURSOR_EVENT" || true)>"
+[ "$(pipeline_json_get_cwd "$CLINE_EVENT" || true)" = "/tmp/cline-root" ] \
+  && ok "json-input: cline workspaceRoots 数组首元素归一为 cwd" \
+  || bad "json-input: cline workspaceRoots 数组首元素归一为 cwd" "得到 <$(pipeline_json_get_cwd "$CLINE_EVENT" || true)>"
+[ "$(pipeline_json_get_cwd "$AMP_EVENT" || true)" = "/tmp/amp-root" ] \
+  && ok "json-input: 标量 workspaceRoot 归一为 cwd" \
+  || bad "json-input: 标量 workspaceRoot 归一为 cwd" "得到 <$(pipeline_json_get_cwd "$AMP_EVENT" || true)>"
+pipeline_json_get_cwd '{"tool_name":"Write"}' >/dev/null 2>&1 \
+  && bad "json-input: 无任何 cwd 形状时如实失败（由调用方决定兜底）" "不该返回成功" \
+  || ok "json-input: 无任何 cwd 形状时如实失败（由调用方决定兜底）"
+[ "$(pipeline_json_get_command "$CLINE_EVENT" || true)" = "tenon review acknowledge demo" ] \
+  && ok "json-input: 嵌套 parameters.command 可提取" \
+  || bad "json-input: 嵌套 parameters.command 可提取" "得到 <$(pipeline_json_get_command "$CLINE_EVENT" || true)>"
+[ "$(pipeline_json_get_command "$ARGV_EVENT" || true)" = "bash -lc tenon review acknowledge demo" ] \
+  && ok "json-input: argv 数组载荷回退拼接出命令体" \
+  || bad "json-input: argv 数组载荷回退拼接出命令体" "得到 <$(pipeline_json_get_command "$ARGV_EVENT" || true)>"
+pipeline_json_get_command '{"cwd":"/tmp/x","tool_name":"Write"}' >/dev/null 2>&1 \
+  && bad "json-input: 无命令体载荷不臆造命令" "不该返回成功" \
+  || ok "json-input: 无命令体载荷不臆造命令"
+
 run_gate() { # $1=stdin-json → 设 RC / ERR（stderr）
   ERR="$(printf '%s' "$1" | bash "$GATE" 2>&1 >/dev/null)"
   RC=$?
@@ -161,6 +189,71 @@ for command in \
   assert_exit "gate: interaction marker 阻断非只读/未知命令（${command}）" 2 "$RC"
 done
 rm -f "$proj/.pipeline-pending-interaction"
+
+# ── 1a'. HITL 解封路径（contract §2 唯一解封写路径）与 cwd 归一，按各宿主真实载荷形状驱动 ──
+# 回归背景：解封逃生口曾要求「工具名被识别为命令工具」**且**「能取到 command」，而 cursor/cline/amp
+# 把宿主原生工具名直传或丢弃命令体 → `tenon review acknowledge` 被自己的门拦下，用户只剩等 TTL、
+# 开 TENON_AFK 或手删 marker（后者正是契约明令禁止的）。放行判定必须只看命令内容。
+proj="$TMP/gate-hitl-unlock"
+mkdir -p "$proj"
+ACK_CMD="tenon review acknowledge unlock-demo"
+for payload_desc in \
+  "Bash|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"$ACK_CMD\"}" \
+  "cline execute_command|{\"cwd\":\"$proj\",\"tool_name\":\"execute_command\",\"command\":\"$ACK_CMD\"}" \
+  "amp 自定义工具名|{\"cwd\":\"$proj\",\"tool_name\":\"amp_bash\",\"command\":\"$ACK_CMD\"}" \
+  "cursor 无 tool_name|{\"cwd\":\"$proj\",\"command\":\"$ACK_CMD\"}" \
+  "codex 登录 shell 包裹|{\"cwd\":\"$proj\",\"tool_name\":\"command_execution\",\"command\":\"/bin/zsh -lc \\\"$ACK_CMD\\\"\"}" \
+  "exec argv 数组|{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"cmd\":[\"bash\",\"-lc\",\"$ACK_CMD\"]}" \
+  "cd 定位后 acknowledge|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"cd $proj && $ACK_CMD\"}" ; do
+  desc="${payload_desc%%|*}"
+  payload="${payload_desc#*|}"
+  write_v2_review_marker "$proj" unlock-demo explore
+  run_gate "$payload"
+  assert_exit "gate: review marker 放行 acknowledge（${desc}）" 0 "$RC"
+  [ -f "$proj/.pipeline-pending-review" ] \
+    && ok "gate: 放行 acknowledge 不自行删除 review marker（${desc}）" \
+    || bad "gate: 放行 acknowledge 不自行删除 review marker（${desc}）" "marker 被错误删除"
+done
+# 解封口是窄面，不是万能豁免：链接的写命令、重定向和其它状态写仍必须被拦。
+for command_desc in \
+  "链写|$ACK_CMD && rm -rf openspec" \
+  "重定向|$ACK_CMD > receipt.txt" \
+  "管道|$ACK_CMD | tee receipt.txt" \
+  "命令替换|$ACK_CMD \$(touch smuggled)" \
+  "其它状态写|tenon transition unlock-demo build-complete" ; do
+  desc="${command_desc%%|*}"
+  command="${command_desc#*|}"
+  write_v2_review_marker "$proj" unlock-demo explore
+  run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"$command\"}"
+  assert_exit "gate: acknowledge 解封口不放行夹带写（${desc}）" 2 "$RC"
+done
+# review 之外的门不吃这条解封口：confirm/interaction 只由宿主真实问答清除。
+rm -f "$proj/.pipeline-pending-review" "$proj/.pipeline-active"
+touch "$proj/.pipeline-pending-interaction"
+run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"$ACK_CMD\"}"
+assert_exit "gate: acknowledge 不额外解封 interaction 门" 2 "$RC"
+rm -f "$proj/.pipeline-pending-interaction"
+
+# cwd 归一：宿主不传扁平 cwd 时，门必须仍定位到项目根。取不到 cwd 会回落 hook 进程 $PWD，
+# 找不到 marker 后返回**正常放行**——宿主侧 failClosed 只覆盖崩溃，覆盖不了这种静默放行。
+proj="$TMP/gate-cwd-shapes"
+mkdir -p "$proj"
+write_v2_review_marker "$proj" cwd-demo explore
+run_gate "{\"hook_event_name\":\"preToolUse\",\"workspace_roots\":[\"$proj\"],\"tool_name\":\"Write\"}"
+assert_exit "gate: cursor workspace_roots 形状仍能定位 marker → exit 2" 2 "$RC"
+run_gate "{\"hookName\":\"PreToolUse\",\"workspaceRoots\":[\"$proj\"],\"preToolUse\":{\"toolName\":\"write_to_file\"}}"
+assert_exit "gate: cline workspaceRoots 形状仍能定位 marker → exit 2" 2 "$RC"
+run_gate "{\"workspaceRoot\":\"$proj\",\"tool_name\":\"edit_file\"}"
+assert_exit "gate: 标量 workspaceRoot 形状仍能定位 marker → exit 2" 2 "$RC"
+# 两个修复叠加：cursor 的 shell 事件既没有 tool_name 也没有扁平 cwd。
+run_gate "{\"workspace_roots\":[\"$proj\"],\"command\":\"tenon review acknowledge cwd-demo\"}"
+assert_exit "gate: cursor 真实 shell 形状放行 acknowledge → exit 0" 0 "$RC"
+run_gate "{\"workspace_roots\":[\"$proj\"],\"command\":\"printf hi > out.txt\"}"
+assert_exit "gate: cursor 真实 shell 形状仍拦普通写命令 → exit 2" 2 "$RC"
+# fail-open 总纲不变：一个既无 cwd 又无 workspace root 的载荷不得当成"某个项目"来拦。
+run_gate '{"tool_name":"Write"}'
+assert_exit "gate: 无任何 cwd 形状时仍 fail-open" 0 "$RC"
+rm -f "$proj/.pipeline-pending-review"
 
 proj="$TMP/gate-stale"
 mkdir -p "$proj"
@@ -482,6 +575,10 @@ printf '%s\n' '# duplicate projection' > "$SB/.codex-plugin/skills/duplicate/SKI
 mkdir -p "$SB/.agents/skills/installed-projection" "$SB/.pipeline/loops/skill-snapshots/example/skills/frozen"
 printf '%s\n' '# installed host projection' > "$SB/.agents/skills/installed-projection/SKILL.md"
 printf '%s\n' '# immutable loop snapshot' > "$SB/.pipeline/loops/skill-snapshots/example/skills/frozen/SKILL.md"
+# Claude Code integration Skills are repository configuration, not distributable
+# plugin content; they must not be reported as duplicate release trees.
+mkdir -p "$SB/.claude/skills/host-projection"
+printf '%s\n' '# Claude host integration projection' > "$SB/.claude/skills/host-projection/SKILL.md"
 cat > "$SB/hooks/hooks.json" <<'EOF'
 {
   "hooks": {
@@ -517,6 +614,7 @@ assert_contains "verify-skills: 列出未声明外部 skill" "$out" "superpowers
 assert_contains "verify-skills: 列出重复 Skill 内容树" "$out" ".codex-plugin/skills/duplicate/SKILL.md"
 assert_not_contains "verify-skills: 不把 host 安装投影当成插件源码" "$out" ".agents/skills/installed-projection"
 assert_not_contains "verify-skills: 不把 Loop Skill 快照当成插件源码" "$out" ".pipeline/loops/skill-snapshots"
+assert_not_contains "verify-skills: 不把 Claude 集成配置当成插件源码" "$out" ".claude/skills/host-projection"
 assert_contains "verify-skills: 给出修复指引（怎么修）" "$out" "修"
 
 # ─────────────── 6. 插件清单 JSON 语法（plan ③，测试脚本可用 node）───────────────
@@ -1347,7 +1445,7 @@ CC="$ROOT/hooks/confirm-clear.sh"
 CP="$ROOT/hooks/confirm-clear-prompt.sh"
 DR="$ROOT/hooks/decision-recorder.sh"
 ST="$ROOT/hooks/skill-tracker.sh"
-SS="$ROOT/hooks/skill-start.sh"
+SKILL_START="$ROOT/hooks/skill-start.sh"
 IG="$ROOT/hooks/interactive-skill-gate.sh"
 IA="$ROOT/hooks/interaction-authority.sh"
 TA="$ROOT/hooks/terminal-activity.sh"
@@ -1564,7 +1662,7 @@ jsonl_valid "$JL"; vrc=$?
 case "$vrc" in 0) ok "skill-tracker: JSONL 合法 JSON" ;; 2) printf 'skip - node 不可用\n' ;; *) bad "skill-tracker: JSONL 合法 JSON" "解析失败：$line" ;; esac
 # ── 10c'. skill-start：PreToolUse Skill → append kind=tool-start（只标记开始，不是完成证据）──
 before="$(count_lines "$JL")"
-RC="$(printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"openspec-propose\"}}" | bash "$SS" >/dev/null 2>&1; echo $?)"
+RC="$(printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"openspec-propose\"}}" | bash "$SKILL_START" >/dev/null 2>&1; echo $?)"
 assert_exit "skill-start: exit 0" 0 "$RC"
 [ "$(count_lines "$JL")" = "$((before + 1))" ] && ok "skill-start: JSONL 真 append 恰一行" || bad "skill-start: JSONL 真 append 恰一行" "行数=$(count_lines "$JL")"
 line="$(tail -1 "$JL" 2>/dev/null)"
@@ -1573,10 +1671,10 @@ assert_contains "skill-start: raw=Skill: <id>" "$line" '"raw":"Skill: openspec-p
 jsonl_valid "$JL"; vrc=$?
 case "$vrc" in 0) ok "skill-start: JSONL 合法 JSON" ;; 2) printf 'skip - node 不可用\n' ;; *) bad "skill-start: JSONL 合法 JSON" "解析失败：$line" ;; esac
 before="$(count_lines "$JL")"
-printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"}}" | bash "$SS" >/dev/null 2>&1
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"}}" | bash "$SKILL_START" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "$before" ] && ok "skill-start: 非 Skill 工具不写" || bad "skill-start: 非 Skill 工具不写" "行数=$(count_lines "$JL")"
 projss="$TMP/ptu-ss-nochange"; mkdir -p "$projss"
-RC="$(printf '%s' "{\"cwd\":\"$projss\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"x\"}}" | bash "$SS" >/dev/null 2>&1; echo $?)"
+RC="$(printf '%s' "{\"cwd\":\"$projss\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"x\"}}" | bash "$SKILL_START" >/dev/null 2>&1; echo $?)"
 assert_exit "skill-start: 无活跃 change → exit 0" 0 "$RC"
 # Codex 把 bundled SKILL.md 的只读 Bash 作为 PostToolUse 事件上报；必须同样留下可审计证据。
 before="$(count_lines "$JL")"

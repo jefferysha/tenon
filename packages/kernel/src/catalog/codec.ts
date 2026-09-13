@@ -19,6 +19,12 @@ function stringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
+const CAPABILITY_STATUSES: readonly string[] = ['native', 'degraded', 'none']
+
+function capabilityStatus(value: unknown): boolean {
+  return typeof value === 'string' && CAPABILITY_STATUSES.includes(value)
+}
+
 function skillDependencies(value: unknown): value is Readonly<Record<string, readonly string[]>> {
   if (!isRecord(value)) return false
   return Object.entries(value).every(([skillId, dependencies]) => nonempty(skillId) && stringArray(dependencies))
@@ -52,9 +58,10 @@ export function validateDefinitionCatalogV1(value: unknown): value is Definition
       || entry.supported_operations[0] !== 'setup'
       || entry.supported_operations[1] !== 'update'
       || !isRecord(entry.capabilities)
-      || typeof entry.capabilities.inject !== 'boolean'
-      || typeof entry.capabilities.veto !== 'boolean'
-      || typeof entry.capabilities.track !== 'boolean'
+      || !capabilityStatus(entry.capabilities.inject)
+      || !capabilityStatus(entry.capabilities.veto)
+      || !capabilityStatus(entry.capabilities.track)
+      || typeof entry.veto_fail_closed !== 'boolean'
       || !['unknown', 'detected', 'not-detected', 'installed', 'installing', 'failed'].includes(String(entry.state))) return false
     return entry.state_reason === undefined || typeof entry.state_reason === 'string'
   }) && workflows.every((entry: unknown) => {

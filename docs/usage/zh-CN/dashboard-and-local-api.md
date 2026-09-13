@@ -2,7 +2,7 @@
 
 Dashboard 是本地控制面，不是公共文档托管服务。它显示项目、Change、阶段、Todo、review、AFK、loop 和证据，但不会取代 CLI 的 canonical 状态操作。
 
-<img src="../../../docs-site/public/images/dashboard-overview.webp" alt="Tenon Dashboard 项目总览" width="1440" height="900">
+<img src="../../../docs-site/public/images/dashboard-overview.webp" alt="Tenon Dashboard 项目总览" width="1280" height="720">
 
 项目页先汇总真正需要协助的工作，再进入具体 Workflow。正式截图使用脱敏演示项目，不包含用户目录、凭据或真实业务数据。
 
@@ -68,33 +68,32 @@ Dashboard `zh/en` 存在浏览器 `localStorage`，只控制 UI。治理文档 l
 
 如果 CLI 显示 `in_progress` 而页面仍显示等待，先刷新 snapshot/SSE，再确认浏览器打开的是当前 Dashboard，而不是旧 preview。
 
-<img src="../../../docs-site/public/images/dashboard-progress.webp" alt="Tenon Dashboard 流程进度" width="1440" height="900" loading="lazy">
+<img src="../../../docs-site/public/images/dashboard-progress.webp" alt="Tenon Dashboard 流程进度" width="1280" height="720" loading="lazy">
 
 进度页沿真实 Workflow 展示阶段与 Change。`running` 是显示状态，执行来源则独立标记为终端或自动化，避免同一个任务在不同页面出现互相矛盾的身份。
 
 ## 操作视图
 
-日常主导航只保留三项高频入口：
+日常主导航只保留两项高频入口：
 
 ```text
-projects → progress → workbench
+progress → workbench
 ```
 
-- `projects`：选择项目并发现需要处理的 Change；
 - `progress`：按状态查看任务，打开详情执行下一动作；
 - `workbench`：编辑 Workflow 与阶段结构。
 
 AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有深链。`hostPlan` 只展示检测结果和零副作用命令计划，不触发安装写操作；需要安装时从明确的项目级安装流程进入。`overview` 独立于操作视图，避免把产品介绍混进日常控制面导航。
 
-### 自动运行
+### 设置
 
-<img src="../../../docs-site/public/images/dashboard-automation.webp" alt="Tenon Dashboard 自动运行" width="1440" height="900" loading="lazy">
+<img src="../../../docs-site/public/images/dashboard-workflow-editor.webp" alt="Tenon Dashboard 设置" width="1280" height="720" loading="lazy">
 
-自动运行页只接受 execution provenance 为 automation 的任务，并按需要处理、运行中和等待中组织。正常 Codex 对话产生的新鲜终端心跳仍会让进度页显示“运行中”，但不会进入这里。
+设置菜单提供主题与语言切换，不改变 canonical Workflow 状态。AFK、机器诊断和宿主计划继续通过 CLI 与本地 API 使用。
 
 ### Workflow 工作台
 
-<img src="../../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard Workflow 工作台" width="1440" height="900" loading="lazy">
+<img src="../../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard Workflow 工作台" width="1280" height="720" loading="lazy">
 
 工作台把 Track、七阶段 DAG、阶段 Skill、Hook 与运行前事实放在同一页面。Default 只读基线、自定义 Workflow 和每个 Workflow 的 Free Track 都从同一份有效计划投影。
 

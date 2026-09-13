@@ -77,18 +77,15 @@ export interface AnchoredChangeState {
   readonly state: PipelineState
   readonly changeAnchor: ChangePathAnchor
 }
-
 function missing(error: unknown): boolean {
   return typeof error === 'object' && error !== null && Reflect.get(error, 'code') === 'ENOENT'
 }
-
 function isInside(base: string, candidate: string): boolean {
   const fromBase = relative(base, candidate)
   return fromBase === ''
     || (fromBase !== '..' && !fromBase.startsWith(`..${sep}`) && !isAbsolute(fromBase))
 }
 type TasksFdReader = (fd: number, maxBytes: number) => string
-
 function readBoundedTasksSource(fd: number, maxBytes: number): string {
   const bytes = readBounded(fd, maxBytes)
   if (bytes.byteLength > maxBytes) {
@@ -96,13 +93,10 @@ function readBoundedTasksSource(fd: number, maxBytes: number): string {
   }
   return decodeUtf8Text(bytes, 'Change tasks snapshot')
 }
-
-/** @internal Exported only so the race regression can prove no bytes are read before anchor checks. */
 interface AnchoredTasksProjection {
   readonly source: string
   readonly trustedCanonicalProjection: boolean
 }
-
 export async function readAnchoredTasksProjection(
   changeAnchor: ChangePathAnchor,
   readSource: TasksFdReader = readBoundedTasksSource,
@@ -192,8 +186,6 @@ export async function readAnchoredTasksProjection(
         throw new ContextBundlePathError(403, 'Change tasks 路径在读取期间变化')
       }
     }
-    // open(2) follows parent components even with O_NOFOLLOW. Validate that the opened inode is
-    // still reached through the captured Change before reading any project-controlled bytes.
     assertOpenedTargetStillAnchored()
     assertOpenedFdStillStable()
     if (opened.size > MAX_TASKS_MARKDOWN_BYTES) {
@@ -217,8 +209,6 @@ export async function readAnchoredTasksProjection(
     closeSync(changeFd)
   }
 }
-
-/** @internal Exported only so existing callers can consume the bounded source without trust metadata. */
 export async function readAnchoredTasksMarkdown(
   changeAnchor: ChangePathAnchor,
   readSource: TasksFdReader = readBoundedTasksSource,
@@ -235,7 +225,6 @@ export async function readAnchoredTasksMarkdown(
     rootAnchor,
   ))?.source
 }
-
 export async function readAnchoredChangeState(
   root: WorkflowRootAnchor,
   changeName: string,
@@ -281,15 +270,9 @@ export async function readAnchoredChangeState(
   assertChangePathAnchor(changeAnchor)
   return { changeDir: changeAnchor.changeDir, state, changeAnchor }
 }
-
 function stringField(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value.join(',') : value ?? ''
 }
-
-/**
- * Project exactly one Change without enumerating sibling roots/Changes and without inspecting or
- * repairing the YAML projection. This is the bounded read path for scope-specific GET endpoints.
- */
 export async function readChangeSnapshot(
   deps: SnapshotDeps,
   root: string | WorkflowRootAnchor,

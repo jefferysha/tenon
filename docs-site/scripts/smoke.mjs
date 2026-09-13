@@ -23,7 +23,7 @@ const expectedTopLevel = new Set([
   'vp-icons.css',
   'images/dashboard-overview.webp',
   'images/dashboard-progress.webp',
-  'images/dashboard-automation.webp',
+  'images/dashboard-workflow-editor.webp',
   'images/dashboard-workbench.webp',
 ])
 errors.push(...await auditArtifactFileSet(dist, expectedTopLevel))

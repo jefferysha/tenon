@@ -44,7 +44,9 @@ export async function autoRegisterDocuments(input: AutoRegisterInput, deps: Auto
   try {
     ledger = await readDocumentLedger(input.changeDir)
   } catch (error) {
-    return { recorded, skipped: [{ kind: requirements[0]!.kind, path: '', reason: error instanceof Error ? error.message : String(error) }] }
+    const firstRequirement = requirements[0]
+    if (firstRequirement === undefined) return { recorded, skipped }
+    return { recorded, skipped: [{ kind: firstRequirement.kind, path: '', reason: error instanceof Error ? error.message : String(error) }] }
   }
   const seen = new Set<string>()
   for (const requirement of requirements) {

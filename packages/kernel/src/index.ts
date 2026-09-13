@@ -52,7 +52,9 @@ export * from './skills/index.js'
 // step 间转换与 skill DAG 解锁判定（Task 8/9）。仅具名导出这三个函数，不整体 re-export
 // ./workflow/types.js（其 GateKind 会与既有 barrel 导出撞名）。
 export { loadWorkflow } from './workflow/loadWorkflow.js'
-export { globalWorkflowRoot, workflowFileCandidates, workflowNamesUnder, workflowsDirUnder } from './workflow/global-store.js'
+export { globalWorkflowRoot, workflowFileCandidates, workflowsDirUnder } from './workflow/global-store.js'
+export { workflowNamesUnder } from './infrastructure/workflow-global-store.js'
+export type { WorkflowDirectoryReader } from './workflow/global-store.js'
 export { BUILTIN_WORKFLOW_IDS, builtinWorkflow } from './workflow/builtin-workflows.js'
 export type { BuiltinWorkflowId } from './workflow/builtin-workflows.js'
 export { DEFAULT_WORKFLOW_SOURCE } from './workflow/default-workflow.generated.js'

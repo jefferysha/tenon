@@ -18,10 +18,16 @@
 #
 # 选项：--target <dir>（默认 $PWD）/ --global（改装 ~/Documents/Cline/Hooks/，而非项目级）
 #       / --no-hooks（跳过 hook 安装，降级）/ --yes / -h
-set -uo pipefail
+#
+# 落盘一律走 adapters/lib/atomic-write.sh：半个 PreToolUse shim 会让 Cline 拿不到 cancel:true，
+# 硬拦静默失效；旁挂 .pipeline-adapter 则记为「未生效」并以非零码收尾。
+set -euo pipefail
 
 ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 SIGNATURE="# pipeline-adapter:cline"
+
+. "$ADAPTER_DIR/../lib/atomic-write.sh"
+adapter_lib_init cline
 
 G='\033[32m'; Y='\033[33m'; R='\033[31m'; B='\033[1m'; Z='\033[0m'
 info() { printf "${G}[cline]${Z} %b\n" "$1"; }
@@ -39,7 +45,12 @@ while [ $# -gt 0 ]; do
     --global)   GLOBAL=1; shift ;;
     --no-hooks) WITH_HOOKS=0; shift ;;
     --yes|-y)   ASSUME_YES=1; shift ;;
-    -h|--help)  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)
+      # --help 打印文件头注释块，止于第一行非注释。不写死行号：行号会随头部注释增删而失配，
+      # 把 `set -euo pipefail` 这类代码行当帮助文本打出来。
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "${BASH_SOURCE[0]}"
+      exit 0
+      ;;
     *) err "未知参数: $1（见 --help）"; exit 2 ;;
   esac
 done
@@ -61,12 +72,16 @@ install_hook_shim() { # <name>
   mkdir -p "$HOOKS_DIR"
   if [ -f "$dst" ] && ! grep -qF "$SIGNATURE" "$dst" 2>/dev/null; then
     warn "$dst 已存在（非本适配器管理，疑似你既有 hook）——不覆盖，写建议文件 ${dst}.pipeline-adapter 供手动合并。"
-    { printf '#!/usr/bin/env bash\n%s\n' "$SIGNATURE"; printf 'exec bash "%s" "$@"\n' "$src"; } > "$dst.pipeline-adapter"
-    chmod +x "$dst.pipeline-adapter" 2>/dev/null || true
+    atomic_stage "$dst.pipeline-adapter"
+    { printf '#!/usr/bin/env bash\n%s\n' "$SIGNATURE"; printf 'exec bash "%s" "$@"\n' "$src"; } > "$ATOMIC_TMP"
+    atomic_commit "$dst.pipeline-adapter" --mode 0755
+    adapter_mark_not_applied "$dst.pipeline-adapter" \
+      "$dst 已被你既有的 ${name} hook 占用，Cline 现在跑的仍是旧 hook——${name} 未接管"
     return 0
   fi
-  { printf '#!/usr/bin/env bash\n%s\n' "$SIGNATURE"; printf 'exec bash "%s" "$@"\n' "$src"; } > "$dst"
-  chmod +x "$dst"
+  atomic_stage "$dst"
+  { printf '#!/usr/bin/env bash\n%s\n' "$SIGNATURE"; printf 'exec bash "%s" "$@"\n' "$src"; } > "$ATOMIC_TMP"
+  atomic_commit "$dst" --mode 0755
   info "hook shim → ${dst}（转发到 ${src}）"
 }
 
@@ -81,8 +96,10 @@ if [ "$WITH_HOOKS" = 1 ]; then
   note "Cline 要求手动启用 Hooks 功能，未启用前钩子文件不会被执行："
   note "  VSCode → Cline 侧栏 → 设置（齿轮图标）→ Feature Settings → 勾选 ${B}\"Enable Hooks\"${Z}"
   note "${B}════════════════════════════════════════════════════${Z}"
-  info "档 A 完成：inject（TaskStart/TaskResume）/ veto（PreToolUse cancel:true）/ track（PostToolUse）全 native。"
+  # 「完成」只在四个 shim 都真接管时才打印；任何一项退化成旁挂建议文件都由 adapter_finish 非零退出。
+  [ "$ADAPTER_NOT_APPLIED_COUNT" -eq 0 ] \
+    && info "档 A 完成：inject（TaskStart/TaskResume）/ veto（PreToolUse cancel:true）/ track（PostToolUse）全 native。" || true
 else
   warn "--no-hooks：跳过 hook 安装（无自动强制/注入/留痕；review 仍须走 tenon review request/acknowledge）。"
 fi
-exit 0
+adapter_finish

@@ -243,7 +243,8 @@ export async function cmdGet(deps: CliDeps, name: string, field: string): Promis
     deps.io.out(v === undefined ? '' : Array.isArray(v) ? v.join(',') : v)
     return 0
   } catch (e) {
-    deps.io.err(`ERROR: ${errMsg(e)}`)
+    const code = typeof e === 'object' && e !== null ? Reflect.get(e, 'code') : undefined
+    deps.io.err(code === 'ENOENT' ? `ERROR: change 不存在: ${name}` : `ERROR: ${errMsg(e)}`)
     return 1
   }
 }

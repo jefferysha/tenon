@@ -93,8 +93,27 @@ tracks:
         profile: frontend
 `, 'utf8')
 
-    expect(await h.run(['init', CH, '--track', 'designer-mobile', '--preset', 'full'])).toBe(0)
-    expect(await h.run(['set', CH, 'phase', 'explore'])).toBe(0)
+    // R6：registry entry 只提供 policy；可用性必须由 workflow branch 明确声明。
+    // 使用真实 branch，避免把 registry-only track 当作 default workflow 的隐式分支。
+    await writeWorkflow('designer-mobile', `name: designer-mobile
+tracks:
+  designer-mobile:
+    label: Designer Mobile
+    steps:
+      - id: explore
+        label: Explore
+        gate: null
+        skills:
+          - id: openspec-explore
+        inputs: []
+        outputs:
+          - field: design_doc
+            type: file_path
+        guards: []
+        transitions: []
+`)
+
+    expect(await h.run(['init', CH, '--track', 'designer-mobile', '--preset', 'full', '--workflow', 'designer-mobile'])).toBe(0)
     expect(
       await h.run(['artifact', 'register', CH, 'design_doc', 'artifacts/design.md', '--producer', 'openspec-explore']),
       h.err.join('\n'),
@@ -111,11 +130,18 @@ tracks:
     expect(await h.read(CH)).not.toMatch(/^design_doc: x\.md$/m)
   })
 
-  test('default 轨：spec/pm plan 被 legacy artifact required_when 排除，不能通过 register 写入', async () => {
+  test('default 轨：spec/pm 的显式 artifacts: [] 允许通过 set 写入 plan', async () => {
     expect(await h.run(['init', CH, '--track', 'pm', '--preset', 'full'])).toBe(0)
     expect(await h.run(['set', CH, 'phase', 'spec'])).toBe(0)
-    expect(await h.run(['artifact', 'register', CH, 'plan', 'p.md', '--producer', 'writing-plans'])).toBe(1)
-    expect(h.err.join('\n')).toContain("track 'pm' 不适用")
+    expect(await h.run(['set', CH, 'plan', 'p.md'])).toBe(0)
+    expect(await h.read(CH)).toMatch(/^plan: p\.md$/m)
+  })
+
+  test('default 轨：spec/backend 的 plan 仍受 artifact 门禁约束', async () => {
+    expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.run(['set', CH, 'phase', 'spec'])).toBe(0)
+    expect(await h.run(['set', CH, 'plan', 'p.md'])).toBe(1)
+    expect(h.err.join('\n')).toContain('artifact register')
     expect(await h.read(CH)).not.toMatch(/^plan: p\.md$/m)
   })
 

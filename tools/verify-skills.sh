@@ -263,7 +263,11 @@ list_release_skill_files() {
 while IFS= read -r duplicate_skill; do
   [ -n "$duplicate_skill" ] || continue
   case "$duplicate_skill" in
-    "$ROOT/skills/"*) continue ;;
+    # Only ROOT/skills is a distributable Skill tree. Claude/Codex host
+    # integration and runtime projections are intentionally outside the
+    # release inventory, even when they are present as untracked files in a
+    # source checkout.
+    "$ROOT/skills/"*|"$ROOT/.claude/"*|"$ROOT/.agents/"*|"$ROOT/.pipeline/"*) continue ;;
   esac
   add_fail \
     "发现重复 Skill 内容树: ${duplicate_skill#"$ROOT"/}" \

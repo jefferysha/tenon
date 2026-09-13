@@ -10,10 +10,15 @@
 # （Cognition 2026-06 把 Windsurf 改名 Devin，configDir .windsurf/ → .devin/）。
 #
 # 选项：--target <dir>（默认 $PWD）/ --yes / -h
-set -uo pipefail
+#
+# 落盘一律走 adapters/lib/atomic-write.sh（原子替换；档 C 无 hook 容器，但静态层同样不该留半个文件）。
+set -euo pipefail
 
 ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CONFIG_DIR=".devin/workflows"
+
+. "$ADAPTER_DIR/../lib/atomic-write.sh"
+adapter_lib_init devin
 
 G='\033[32m'; Y='\033[33m'; R='\033[31m'; B='\033[1m'; Z='\033[0m'
 info() { printf "${G}[devin]${Z} %b\n" "$1"; }
@@ -26,7 +31,12 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --target)  TARGET="${2:?--target 需要目录}"; shift 2 ;;
     --yes|-y)  ASSUME_YES=1; shift ;;
-    -h|--help) sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)
+      # --help 打印文件头注释块，止于第一行非注释。不写死行号：行号会随头部注释增删而失配，
+      # 把 `set -euo pipefail` 这类代码行当帮助文本打出来。
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "${BASH_SOURCE[0]}"
+      exit 0
+      ;;
     *) err "未知参数: $1（见 --help）"; exit 2 ;;
   esac
 done
@@ -43,7 +53,7 @@ note_legacy() {
 install_workflow() {
   local dst="$TARGET/$CONFIG_DIR"
   mkdir -p "$dst"
-  cat > "$dst/pipeline.md" <<'EOF'
+  atomic_write "$dst/pipeline.md" <<'EOF'
 # Pipeline Workflow（Devin workflow-only 静态层，档 C）
 
 > Devin 是 workflow-only 平台，无 enforcement hook——本 workflow 是 pipeline 三能力的全静态降级层（契约 §1）。
@@ -66,5 +76,4 @@ EOF
 note "${B}Devin（前 Windsurf）pipeline 适配器安装${Z}  target=${TARGET}"
 note_legacy
 install_workflow
-info "档 C（静态降级）完成：三能力全静态，${B}未装 hook${Z}（workflow-only，不伪装强制）。"
-exit 0
+adapter_finish "${G}[devin]${Z} 档 C（静态降级）完成：三能力全静态，${B}未装 hook${Z}（workflow-only，不伪装强制）。"

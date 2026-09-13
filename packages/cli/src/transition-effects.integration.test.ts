@@ -28,6 +28,10 @@ import {
 
 let h: Harness
 
+// This suite performs several real filesystem/CLI transitions per case. Its measured
+// single-file runtime exceeds Vitest's 5s default; timing out leaves the asynchronous
+// harness cleanup racing the next case and produces misleading ENOTEMPTY failures.
+
 beforeEach(async () => {
   h = await freshHarness()
 })

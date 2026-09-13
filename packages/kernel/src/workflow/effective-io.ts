@@ -7,6 +7,7 @@
  * 纯函数、无 I/O；不改变任何运行时判定，只是展示面的单一真相。
  */
 import { documentGovernancePolicy } from './document-contract.js'
+import { isDefaultWorkflowName } from './identifier.js'
 import type { FieldType, WorkflowDef } from './types.js'
 
 export interface WorkflowDocumentSlotIo {
@@ -37,7 +38,7 @@ export interface WorkflowStepIo {
 export type WorkflowEffectiveIo = Readonly<Record<string, WorkflowStepIo>>
 
 export function documentSlotsLocked(def: Pick<WorkflowDef, 'name' | 'openspecContract'>): boolean {
-  return def.name === 'default' || def.openspecContract === 'required'
+  return isDefaultWorkflowName(def.name) || def.openspecContract === 'required'
 }
 
 export function materializeWorkflowIo(def: WorkflowDef): WorkflowEffectiveIo {

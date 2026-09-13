@@ -63,16 +63,29 @@ function parseStableTarget(value: unknown): StableReleaseTarget | null {
     : null
 }
 
-function parseReceipt(raw: string, host: NativePipelineHost): HostPluginConvergenceReceipt | null {
+export const MAX_SUPPORTED_CONVERGENCE_RECEIPT_VERSION = 4
+
+type ReceiptParse =
+  | { readonly kind: 'ok'; readonly receipt: HostPluginConvergenceReceipt }
+  | { readonly kind: 'malformed' }
+  /** Written by a newer tenon; a downgraded CLI must say so instead of looking corrupt. */
+  | { readonly kind: 'unsupported-version'; readonly version: number }
+
+function parseReceipt(raw: string, host: NativePipelineHost): ReceiptParse {
   let value: unknown
   try {
     value = JSON.parse(raw)
   } catch {
-    return null
+    return { kind: 'malformed' }
   }
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return { kind: 'malformed' }
   const receipt = value as Partial<HostPluginConvergenceReceipt>
   const receiptVersion = Reflect.get(value, 'version')
+  if (
+    typeof receiptVersion === 'number'
+    && Number.isSafeInteger(receiptVersion)
+    && receiptVersion > MAX_SUPPORTED_CONVERGENCE_RECEIPT_VERSION
+  ) return { kind: 'unsupported-version', version: receiptVersion }
   if (
     (receiptVersion !== 2 && receiptVersion !== 3 && receiptVersion !== 4)
     || (receipt.state !== 'cleanup-pending' && receipt.state !== 'completed')
@@ -96,20 +109,43 @@ function parseReceipt(raw: string, host: NativePipelineHost): HostPluginConverge
     || receipt.createdAtEpoch < 0
     || typeof receipt.updatedAt !== 'string'
     || receipt.updatedAt === ''
-  ) return null
+  ) return { kind: 'malformed' }
   const transactionId = Reflect.get(value, 'transactionId')
   const stableTarget = parseStableTarget(Reflect.get(value, 'stableTarget'))
   if ((receiptVersion === 3 || receiptVersion === 4)
-    && (typeof transactionId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(transactionId))) return null
-  if (receiptVersion === 4 && stableTarget === null) return null
-  return {
-    ...(receipt as Omit<HostPluginConvergenceReceipt, 'version' | 'transactionId' | 'stableTarget'>),
-    version: 4,
-    transactionId: receiptVersion === 3 || receiptVersion === 4
-      ? transactionId as string
-      : 'legacy-v2',
-    ...(stableTarget === null ? {} : { stableTarget }),
+    && (typeof transactionId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(transactionId))) {
+    return { kind: 'malformed' }
   }
+  if (receiptVersion === 4 && stableTarget === null) return { kind: 'malformed' }
+  return {
+    kind: 'ok',
+    receipt: {
+      ...(receipt as Omit<HostPluginConvergenceReceipt, 'version' | 'transactionId' | 'stableTarget'>),
+      version: 4,
+      transactionId: receiptVersion === 3 || receiptVersion === 4
+        ? transactionId as string
+        : 'legacy-v2',
+      ...(stableTarget === null ? {} : { stableTarget }),
+    },
+  }
+}
+
+/**
+ * A receipt only exists to finish a pending legacy-plugin cleanup.  Refusing to guess at a newer
+ * schema is correct, but a downgraded CLI must not become a brick: name the exact file, what is
+ * lost by deleting it, and how to check the host afterwards.
+ */
+function unsupportedVersionDetail(
+  receiptPath: string,
+  version: number,
+  host: NativePipelineHost,
+): string {
+  return `迁移 receipt 版本 ${version} 高于当前 tenon 支持的最高版本 `
+    + `${MAX_SUPPORTED_CONVERGENCE_RECEIPT_VERSION}，通常来自更新版本的 tenon：${receiptPath}。`
+    + '恢复方式一（推荐）：装回写入该 receipt 的更新版 tenon 并重新运行 setup/update。'
+    + `恢复方式二：先运行 \`${host} plugin list\` 确认没有待清理的旧 tenon 插件，`
+    + `再删除该文件（rm ${receiptPath}）后重新运行 setup；`
+    + '删除后本次遗留的旧插件清理事务不会再被自动完成，需要自行确认宿主里没有重复登记'
 }
 
 export function readHostPluginConvergenceReceipt(
@@ -122,10 +158,17 @@ export function readHostPluginConvergenceReceipt(
   if (read.state === 'error') {
     return { state: 'invalid', detail: `迁移 receipt 读取失败：${receiptPath}（${read.detail}）` }
   }
-  const receipt = parseReceipt(read.text, host)
-  return receipt === null
-    ? { state: 'invalid', detail: `迁移 receipt 非法：${receiptPath}` }
-    : { state: 'receipt', receipt }
+  const parsed = parseReceipt(read.text, host)
+  if (parsed.kind === 'ok') return { state: 'receipt', receipt: parsed.receipt }
+  if (parsed.kind === 'unsupported-version') {
+    return { state: 'invalid', detail: unsupportedVersionDetail(receiptPath, parsed.version, host) }
+  }
+  return {
+    state: 'invalid',
+    detail: `迁移 receipt 非法：${receiptPath}。`
+      + `确认 \`${host} plugin list\` 中没有待清理的旧 tenon 插件后，`
+      + `可删除该文件（rm ${receiptPath}）再重新运行 setup`,
+  }
 }
 
 export function parseSessionProof(raw: string | undefined): {

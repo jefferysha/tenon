@@ -16,7 +16,8 @@ const catalog = {
   project: { root: '/tmp/project', identity: 'abc' },
   adapters: [{
     id: 'codex', label: 'Codex', kind: 'native', tier: 'A', cli_flag: '--codex', target_scope: 'user',
-    capabilities: { inject: true, veto: true, track: true }, supported_operations: ['setup', 'update'], state: 'detected',
+    capabilities: { inject: 'native', veto: 'native', track: 'native' }, veto_fail_closed: false,
+    supported_operations: ['setup', 'update'], state: 'detected',
   }],
   workflows: [{
     id: 'default', version: 'v1', fingerprint: 'wf', source: 'builtin', readonly: true,
@@ -39,6 +40,35 @@ describe('definition catalog codec', () => {
       fingerprint: catalog.fingerprint,
       catalog,
     })).toBe(true)
+  })
+
+  it('carries the three-state capability grades and the veto failure mode', () => {
+    // degraded 必须与 none 分开：布尔协议会把两者一起报成 false，UI 因此答不出
+    // 「我这个终端的 veto 是不是降级的」。
+    expect(validateDefinitionCatalogV1({
+      ...catalog,
+      adapters: [{
+        ...catalog.adapters[0],
+        capabilities: { inject: 'native', veto: 'degraded', track: 'none' },
+        veto_fail_closed: true,
+      }],
+    })).toBe(true)
+  })
+
+  it('rejects the retired boolean capability shape and an unknown grade', () => {
+    // 阳性对照：旧布尔载荷必须被拒，否则「前后端同一次改完」的约束就是空话。
+    expect(validateDefinitionCatalogV1({
+      ...catalog,
+      adapters: [{ ...catalog.adapters[0], capabilities: { inject: true, veto: true, track: true } }],
+    })).toBe(false)
+    expect(validateDefinitionCatalogV1({
+      ...catalog,
+      adapters: [{ ...catalog.adapters[0], capabilities: { ...catalog.adapters[0].capabilities, veto: 'partial' } }],
+    })).toBe(false)
+    expect(validateDefinitionCatalogV1({
+      ...catalog,
+      adapters: [{ ...catalog.adapters[0], veto_fail_closed: 'yes' }],
+    })).toBe(false)
   })
 
   it('rejects missing nested stage dependency and unknown adapter state', () => {

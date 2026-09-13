@@ -5,6 +5,7 @@ import {
   createHostTargetPlan,
   cmdHostTargetPlan,
 } from './host-target-plan.js'
+import { nativeHostConvergenceSequence } from './native-host-convergence-sequence.js'
 import {
   TENON_HOSTS,
   TENON_RELEASE_VERSION,
@@ -119,6 +120,59 @@ describe('host-target-plan —— 稳定、白名单且零副作用的宿主计�
       { id: 'dashboard-readiness', label: 'host-plan.step.dashboard-readiness', command: null },
     ])
     expect(update.notices).not.toContain('host-plan.notice.codex-auth-guidance')
+  })
+
+  test.each([
+    ['codex', 'setup'],
+    ['codex', 'update'],
+    ['claude', 'setup'],
+    ['claude', 'update'],
+  ] as const)(
+    '%s %s 预览的宿主命令来自执行路径同一序列，且删除步骤按条件性公开而不是承诺执行',
+    (host, operation) => {
+      const plan = nativeUpdatePlan(host, operation === 'setup'
+        ? { version: TENON_RELEASE_VERSION, tag: `v${TENON_RELEASE_VERSION}`, commit: '0'.repeat(40) }
+        : { version: '<latest-stable>', tag: '<latest-stable>', commit: '0'.repeat(40) })
+      const preview = createHostTargetPlan(host, operation)
+      const hostCommandSteps = preview.steps.slice(1, 1 + plan.length)
+
+      // 同一真源：预览逐条等于执行路径在「未观察宿主登记」时派生的序列。
+      expect(hostCommandSteps.map((step) => step.command?.display)).toEqual(
+        nativeHostConvergenceSequence(plan, { plugin: 'unknown' })
+          .map(({ item }) => [item.cmd, ...item.args].join(' ')),
+      )
+      // 宿主没有 tenon 插件登记时执行路径根本不生成 plugin remove，
+      // 因此预览不得把它渲染成必然发生的删除。
+      expect(
+        nativeHostConvergenceSequence(plan, { plugin: false }).map(({ id }) => id),
+      ).not.toContain('plugin-remove')
+      expect(
+        hostCommandSteps
+          .filter((step) => step.condition !== undefined)
+          .map((step) => [step.id, step.condition]),
+      ).toEqual([
+        ['plugin-remove', 'host-plan.condition.plugin-remove'],
+        ['marketplace-remove', 'host-plan.condition.marketplace-remove'],
+      ])
+      // 其余步骤在命令执行时一定发生，不得被标成条件性。
+      expect(preview.steps.filter((step) => step.condition !== undefined).map((step) => step.id))
+        .toEqual(['plugin-remove', 'marketplace-remove'])
+      expect(hostCommandSteps.map((step) => step.id)).toEqual([
+        'plugin-remove',
+        'marketplace-remove',
+        'marketplace-register',
+        'plugin-install',
+        'plugin-inventory',
+      ])
+    },
+  )
+
+  test('adapter 计划没有条件性步骤：复制的命令一定会执行列出的每一步', () => {
+    for (const operation of ['setup', 'update'] as const) {
+      expect(createHostTargetPlan('cursor', operation).steps.every(
+        (step) => step.condition === undefined,
+      )).toBe(true)
+    }
   })
 
   test('adapter setup/update 分别对齐真实外层流程并生成当前目录可安全复制的命令', () => {
