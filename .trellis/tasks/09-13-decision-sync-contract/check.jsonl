@@ -1,0 +1,5 @@
+{"file":".trellis/spec/kernel/backend/orchestration.md","reason":"Verify single source of truth and expected-revision command rules."}
+{"file":".trellis/spec/kernel/backend/error-handling.md","reason":"Verify canonical error semantics are explicit."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Verify HTTP contracts are distinguishable."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Verify terminal hook boundaries and evidence."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify cross-layer design has no hidden duplicate state."}

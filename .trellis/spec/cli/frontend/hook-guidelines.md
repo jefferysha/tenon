@@ -49,3 +49,23 @@ Questions to answer:
 <!-- Hook-related mistakes your team has made -->
 
 (To be filled by the team)
+
+## Review and automation decisions
+
+The terminal is the only model-interaction surface. CLI review acknowledgement
+uses the shared review application and supplies `channel=terminal`; Dashboard
+uses the same application with `channel=dashboard` and never starts a model or
+Skill question.
+
+HITL maps to `interactive` or the narrowly scoped
+`recommended-defaults` policy (routine, hidden, frozen rule match). AFK maps to
+`afk` and writes an independent decision/source record. Invocation
+`adapter.kind`, decision mode, and review channel are orthogonal and must not be
+collapsed into one enum.
+
+During a pending review gate, hooks may emit a redacted
+`review-self-approval-signal` when the token file is read or a localhost control
+API is called. The signal contains change/phase/event/request, channel,
+process-or-host hash, timestamp, and signal kind; it never contains the token
+or claims to prove human identity. C consumes and displays the signal, or a
+separate P1 security task owns hook emission if it cannot ship with C.

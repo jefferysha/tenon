@@ -113,3 +113,24 @@ reviewGateBinding: ({ changeDir, state, phase, event }) =>
 <!-- Error handling mistakes your team has made -->
 
 (To be filled by the team)
+
+## Shared application boundary
+
+The server adapter calls the same shared review-acknowledge application as the
+CLI, in-process, with `channel=dashboard`. It may not import `@tenon/cli`,
+invoke a CLI command, or copy the receipt/binding/interaction orchestration.
+The application receives an exact pending receipt, expected revision,
+idempotency key, and Kernel binding verifier; it cannot create an approval when
+no pending receipt exists.
+
+The application returns structured outcomes. The server owns only HTTP mapping:
+
+| Application outcome | HTTP |
+|---|---|
+| missing/late/mismatched receipt or binding | 409, `review-approval-required` |
+| expected revision conflict | 409, `revision-conflict` |
+| matching idempotent approval | existing 200 response |
+
+Rejected requests do not write canonical state, TransitionRecord, history, or
+projection data. Bearer-token authentication identifies a caller capability,
+not a human approver; channel attribution and binding remain separate fields.

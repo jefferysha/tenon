@@ -103,3 +103,31 @@ applyBoardCommand(snapshot, {
 
 The reducer checks all prerequisites and emits the next immutable snapshot;
 board and future HTTP/CLI adapters must not bypass it.
+
+## Decision synchronization contract
+
+The review gate remains `pending | approved`. A cleared receipt is not evidence
+that a transition consumed an approval: a read model must join the receipt with
+the matching `TransitionRecord` (`event`, `from`, run/step anchor,
+`sequence`/`previousRecordId`, revision or state hash) and the successful
+review interaction/effect chain. Missing evidence is `unknown/incomplete`.
+`superseded` and late answers are append-only rejected/stale events projected by
+the read model. `expired` is deferred until a canonical TTL record exists.
+
+AFK provenance is obtained by joining a decision's invocation id to the durable
+invocation record whose `adapter.kind` is `afk`; it must never be inferred from
+the decision payload. `decision.mode` (`user-answer` or
+`recommended-default`) and invocation adapter kind are independent dimensions.
+
+If replay must distinguish terminal, Dashboard, and automation review, the
+canonical review record adds `review_acknowledged_via`. The field is a schema
+change: update `FieldName`, codecs, `.pipeline.yaml` projection, fixtures,
+writers, and a backwards-compatible default together. It is not a view-only
+field.
+
+The shared review-acknowledge application lives outside CLI and server. It owns
+the lock, exact pending receipt, binding verifier, receipt/state patch,
+interaction/history/marker side effects, and rejected-acknowledgement record.
+CLI and server are adapters; server must not import CLI or reimplement the
+orchestration. Every write uses expected revision and idempotency, and a
+rejected operation commits no partial canonical state.

@@ -1,0 +1,5 @@
+{"file":".trellis/spec/kernel/backend/orchestration.md","reason":"Use versioned projection and command contracts with revision CAS."}
+{"file":".trellis/spec/kernel/backend/error-handling.md","reason":"Specify typed stale, rejected, and expired decision outcomes."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Specify HTTP mapping for adapters and conflicts."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Capture terminal hook and review acknowledgement semantics."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Freeze cross-layer ownership and joins."}

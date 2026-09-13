@@ -112,3 +112,21 @@ if (!bindingApproved) return { kind: 'review-approval-required', phase, event }
 <!-- Error handling mistakes your team has made -->
 
 (To be filled by the team)
+
+## Decision projection evidence
+
+The kernel-facing projection uses these evidence rules:
+
+- `pending` requires an exact pending request/receipt and its request/event/
+  revision anchor.
+- `answered` requires a valid decision bound to that request; it does not imply
+  that the transition ran.
+- `consumed` for review requires both a successful matching `TransitionRecord`
+  chain and successful interaction/effect records. Clearing `review_gate_*`
+  fields alone is insufficient.
+- `superseded` is derived from a later request/revision or a rejected stale
+  acknowledgement event. `expired` is deferred until canonical TTL evidence
+  exists.
+
+The projection must return `unknown/incomplete` when one of these chains cannot
+be proven. It must not manufacture a second canonical status field.
