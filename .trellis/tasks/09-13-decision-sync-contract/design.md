@@ -1,8 +1,8 @@
-# B 设计工作包
+# B 设计工作包与 C 实施边界
 
 ## 目标与边界
 
-本工作包冻结跨 kernel、server、CLI、hooks 的决策契约；它不实现 Dashboard、HTTP command adapter 或新的持久化队列。Dashboard 从来不调用大模型，也不创建 Skill 问题；它只读取 projection，并在已有 exact pending receipt 上调用 review application。
+本工作包冻结跨 kernel、server、CLI、hooks 的决策契约。随后在同一契约上完成了 Dashboard 的只读 projection、review/Skill/AFK command adapter、模式切换和脱敏安全审计；这些适配器不调用大模型、不创建 prompt，也不启动 Skill。Dashboard 从来不调用大模型，也不创建 Skill 问题；它只读取 projection，并在已有 exact pending receipt 上调用共享 application。
 
 `review_gate_status` 继续只有 `pending | approved`。`superseded`、迟到回答和证据不完整都由追加事件及只读 projection 推导；`expired` 没有 canonical 依据，保持 deferred。
 
@@ -71,7 +71,7 @@ review 的 consumed 推导至少需要 `TransitionRecord` 的 event/from、run/s
 
 本地 bearer token 证明的是进程能力，不是人类身份。agent 与 server 同一系统用户时，agent 可能读取 token、申请 approval 或直接调用 localhost API；一次性凭证只能防重放和旧 revision，不能防自审批。门禁 pending 期间，hook 对 token 文件读取、localhost 控制 API 请求、审批前后的 actor/channel/revision 异常发出脱敏 `review-self-approval-signal` 事件，至少包含 change、phase、event、request id、channel、process/host hash、observed-at、signal kind；不得记录 token 内容或声称识别了操作者。
 
-C 负责消费既有 signal、在待决 projection 中展示告警并保留事件链；hook 侧检测和事件写入若无法与 C 同步交付，则登记独立 P1 安全子任务。该信号是检测与取证，不是强制身份认证；真正的 Dashboard 人工语义仍由 channel attribution、binding、审计记录共同保证。
+C 已消费既有 signal 并通过只读 `decision-audit` projection 暴露事件链；hook 侧检测写入同一 Change 的脱敏 append-only audit projection。该信号是检测与取证，不是强制身份认证；真正的 Dashboard 人工语义仍由 channel attribution、binding、审计记录共同保证。
 
 ## 后续任务
 

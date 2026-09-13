@@ -2,20 +2,25 @@
 
 ## 1. Scope / Trigger
 
-The Dashboard may read `GET /api/change/:name/pending-decisions` and submit a
-review decision through `POST /api/change/:name/decisions`. These endpoints are
-control/read adapters only: they never call a model, create a prompt, or start
-a Skill.
+The Dashboard may read `GET /api/change/:name/pending-decisions` and
+`GET /api/change/:name/decision-audit`, then submit review, Skill-question, or
+AFK decisions through `POST /api/change/:name/decisions`. It may also switch
+HITL/AFK mode and report redacted self-approval observations through dedicated
+POST endpoints. These endpoints are control/read adapters only: they never call
+a model, create a prompt, or start a Skill.
 
 ## 2. Signatures
 
 ```ts
 projectPendingDecisions(input): PendingDecisionView
 acknowledgeReview(input): ReviewAcknowledgeApplicationResult
+applyInvocationDecision(input): DecisionCommandResult
 ```
 
-The server invokes the shared review application exported by `@tenon/kernel`;
-it does not import CLI modules or duplicate receipt orchestration.
+The server invokes the shared review application exported by `@tenon/kernel`
+and the kernel invocation writer; it does not import CLI modules or duplicate
+receipt orchestration. Invocation decisions append a decision event and publish
+the canonical run revision under the same Change lock.
 
 ## 3. Contracts
 
@@ -26,6 +31,21 @@ it does not import CLI modules or duplicate receipt orchestration.
   revisions return HTTP 409 `revision-conflict`.
 - The projection joins AFK provenance from `invocation-started.adapter.kind`,
   never from the decision payload.
+
+## 3.1 Implemented command endpoints
+
+| Endpoint | Purpose | Durable record |
+|---|---|---|
+| `GET /pending-decisions` | Read-only projection | canonical state + interaction/invocation/transition evidence |
+| `POST /decisions` | Review, Skill-question, or AFK answer | review receipt or invocation decision event, plus transport idempotency |
+| `GET /decision-audit` | Read-only security/mode audit projection | append-only `.pipeline-decision-audit.jsonl` |
+| `POST /decision-mode` | HITL ↔ AFK switch | `decision-mode-switched` audit record |
+| `POST /pending-decision-security` | Redacted token/local-API observation | `pending-decision-self-approval-suspected` audit record |
+
+The audit JSONL is an append-only audit projection, not a second canonical
+decision state and not an `InteractionEventV1`. Its writes occur under the
+Change lock, are idempotent, and never contain token material; hooks always
+write `tokenDigest: null`.
 
 ## 4. Validation & Error Matrix
 
@@ -69,25 +89,14 @@ await acknowledgeReview({ state, bindingMatches, writeState, ...ports })
 The application validates the exact receipt and binding before writing. UI
 layers only display the resulting view and submit commands.
 
-## Deferred follow-up: security event persistence
+## 8. Current implementation boundary
 
-Mode-switch records and hook observations (`read-token`, `local-api-call`) are
-currently exposed as kernel-neutral event constructors/detection signals. A
-follow-up task must persist them in the interaction/audit event store, bind them
-to the pending decision ref, and add redacted hook integration tests before the
-parent task claims the security detection requirement complete. The current
-server response explicitly reports missing marker/interaction effects in
-`deferred`; it never treats a bearer token as human identity.
-
-## Deferred follow-up: non-review command persistence
-
-The shared kernel command adapter currently provides the common revision and
-idempotency protocol, while this slice wires the Dashboard write path for
-review decisions only. Skill answers and AFK decisions continue to use their
-existing terminal/automation writers until a separate adapter task supplies
-the same server-side binding, interaction recording, and durable idempotency
-store. The review adapter persists its key record in
-`.pipeline-decision-idempotency.jsonl`; that record is transport
-deduplication, not a complete interaction/audit event. Skill and AFK command
-stores remain deferred and must receive the same durable treatment before
-their server adapters are enabled.
+Review, Skill-question, and AFK Dashboard commands are implemented with
+expected-revision checks and persistent idempotency records. AFK attribution is
+still derived from the invocation-started adapter join; the decision payload's
+`mode` is never used as a substitute for that provenance. The canonical
+`review_acknowledged_via` field records terminal, dashboard, or automation
+channel, while the audit projection records mode switches and redacted
+self-approval signals. `expired` remains deferred because the existing marker
+TTL is not canonical evidence. The hard-coded `humanGateSatisfied` constraint
+remains a separately tracked follow-up.

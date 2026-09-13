@@ -33,6 +33,6 @@
 - [ ] 明确两种用户模式到三种内部策略的映射、模式切换事件和待决请求行为。
 - [ ] 明确同用户 bearer token 的自审批威胁模型、检测信号、告警事件 schema 和 C/后续任务的实现责任。
 - [ ] 将 CLI acknowledge 编排抽取为共享 application 的接口、依赖注入和迁移顺序写入 spec，禁止 server→cli 依赖或双实现。
-- [ ] 明确 C 负责共享 application 的落地、待决 projection/命令适配和告警消费；hook 侧告警写入若不能随 C 完成，登记独立 P1 安全子任务。
+- [x] 共享 application、待决 projection/命令适配和告警消费已由 C 落地；hook 侧告警写入同一 Change 的脱敏 append-only audit projection。
 - [ ] 更新 kernel、server、cli hook、cross-layer 和 error-handling 相关 spec。
-- [ ] 通过设计评审后，才允许启动 C。
+- [x] C 已在该契约评审边界内实现，并完成构建、定向测试、web、hooks、架构和 tracked dist freshness 验证。
