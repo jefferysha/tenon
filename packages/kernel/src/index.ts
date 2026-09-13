@@ -78,6 +78,7 @@ export { applyStepTransition, firstStep, planStepTransition, resolveStep, resolv
 export type { StepTransitionPlan } from './workflow/engine.js'
 export { isDefaultWorkflowName, isValidWorkflowName } from './workflow/identifier.js'
 export { isSkillUnlocked } from './workflow/skillDag.js'
+export { classifyInteractionWorkflowIdentity } from './workflow/interaction-effect.js'
 export { parseWorkflow } from './workflow/parse.js'
 export { serializeWorkflow } from './workflow/serialize.js'
 export { WorkflowTrackBranchError, selectTrackBranch, validateWorkflow, validateWorkflowForStorage, workflowBranches } from './workflow/validate.js'

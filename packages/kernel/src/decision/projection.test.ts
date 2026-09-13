@@ -101,4 +101,12 @@ describe('pending decision projection', () => {
     const view = projectPendingDecisions({ change: 'demo', state: state({ phase: 'verify' }), invocations: [started, question, decision] })
     expect(view.items[0]).toMatchObject({ type: 'afk', source: 'afk', channel: 'automation', command: 'afk-answer', status: 'answered' })
   })
+
+  it('derives expired review receipts only when an adapter supplies a wall clock', () => {
+    const view = projectPendingDecisions({
+      change: 'demo', state: state({ phase: 'verify', review_gate_phase: 'verify', review_gate_event: 'verify-pass', review_gate_status: 'pending', review_requested_at: '2026-09-14T00:00:00.000Z' }),
+      revision: 1, now: '2026-09-14T00:30:01.000Z',
+    })
+    expect(view.items[0]).toMatchObject({ type: 'review', status: 'expired', evidence: ['canonical-review-receipt', 'review-ttl-expired'] })
+  })
 })

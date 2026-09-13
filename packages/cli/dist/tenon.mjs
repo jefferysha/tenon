@@ -4314,7 +4314,7 @@ var CLASSIFICATIONS = /* @__PURE__ */ new Set(["identifier", "project-data", "co
 var VALIDATOR_STATUSES = /* @__PURE__ */ new Set(["pass", "fail", "unknown"]);
 var ADAPTERS = /* @__PURE__ */ new Set(["native", "codex", "afk"]);
 var REQUIREDNESS = /* @__PURE__ */ new Set(["routine", "advisory", "hard-gate"]);
-var DECISION_MODES = /* @__PURE__ */ new Set(["user-answer", "recommended-default"]);
+var DECISION_MODES = /* @__PURE__ */ new Set(["user-answer", "recommended-default", "afk-answer"]);
 var ARTIFACT_KINDS = /* @__PURE__ */ new Set(["document", "file", "artifact", "value"]);
 var DIGEST = /^sha256:[0-9a-f]{64}$/u;
 var ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]*$/u;
@@ -4645,7 +4645,7 @@ function assertSubject(first, event) {
 function assertCompletedQuestions(questions, decisions) {
   for (const question of questions.values()) {
     const decision = decisions.get(question.question_id);
-    if (question.requiredness === "hard-gate" && (!question.shown || decision?.mode !== "user-answer")) {
+    if (question.requiredness === "hard-gate" && (!question.shown || decision?.mode !== "user-answer" && decision?.mode !== "afk-answer")) {
       throw new SkillInvocationEvidenceConflictError("hard-gate completion requires a shown question and non-empty user answer");
     }
     if (!question.shown && decision?.mode !== "recommended-default") {
@@ -4701,7 +4701,7 @@ function projectSkillInvocationEvents(events) {
       if (event.payload.selected_option_ids.some((option) => !question.option_ids.includes(option))) {
         throw new SkillInvocationEvidenceConflictError("decision selects an unknown option");
       }
-      if (event.payload.mode === "user-answer") {
+      if (event.payload.mode === "user-answer" || event.payload.mode === "afk-answer") {
         if (!question.shown)
           throw new SkillInvocationEvidenceConflictError("user answer requires a shown question");
         if (event.payload.selected_option_ids.length === 0 && event.payload.free_text === void 0) {
@@ -31261,6 +31261,9 @@ var ADAPTER_CAPABILITY_ROWS = [
 ];
 var ADAPTER_CAPABILITY_BY_HOST = new Map(ADAPTER_CAPABILITY_ROWS.map((row) => [row.host_id, row]));
 
+// packages/kernel/dist/decision/projection.js
+var PENDING_REVIEW_TTL_MS = 30 * 60 * 1e3;
+
 // packages/kernel/dist/decision/review-application.js
 async function acknowledgeReview(input) {
   const deferred = [];
@@ -31733,6 +31736,82 @@ function isSkillUnlocked(skillId, skills, completedSinceStepEntry) {
   return (ref.depends_on ?? []).every((dep) => completedSinceStepEntry.has(dep));
 }
 
+// packages/kernel/dist/workflow/interaction-effect.js
+function field(state, name2) {
+  const value = state.fields[name2];
+  return Array.isArray(value) ? value.join(",") : value ?? "";
+}
+function trackKind(track) {
+  if (track === "free")
+    return "free";
+  if (["chat", "simple", "pm", "frontend", "backend"].includes(track))
+    return "built-in";
+  return "custom";
+}
+function pipelineStage(step) {
+  return ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(step) ? step : "custom";
+}
+function createInteractionEffectDraft(input) {
+  const workflowHash = input.workflowRun.workflowPlanFingerprint;
+  const afterMetadata = input.after.state.runMetadata;
+  if (workflowHash === void 0 || afterMetadata === void 0 || afterMetadata.runId === void 0 || afterMetadata.transitionSequence === void 0) {
+    throw new Error("interaction projection \u7F3A canonical run/workflow/state anchor");
+  }
+  const requestedAt = field(input.before.state, "review_requested_at") || input.before.mutation.observedAt;
+  const originStepVisit = {
+    runId: input.workflowRun.id,
+    transitionSequence: input.workflowRun.transitionSequence,
+    step: input.from
+  };
+  return {
+    journeyId: interactionJourneyId({
+      change: input.changeName,
+      runId: input.workflowRun.id,
+      originStepVisit,
+      reviewEvent: input.reviewEvent,
+      requestedAt
+    }),
+    occurredAt: input.after.mutation.observedAt,
+    change: input.changeName,
+    runId: input.workflowRun.id,
+    workflow: input.workflowRun.workflowId,
+    workflowHash,
+    originStepVisit,
+    stepVisit: {
+      runId: afterMetadata.runId,
+      transitionSequence: afterMetadata.transitionSequence,
+      step: input.to
+    },
+    stateBeforeHash: input.before.stateDigest,
+    stateAfterHash: input.after.stateDigest,
+    actor: "agent",
+    surface: "cli",
+    executionMode: "interactive",
+    workflowMode: isDefaultWorkflowName(input.workflowRun.workflowId) ? "default" : "custom",
+    track: input.track,
+    trackKind: trackKind(input.track),
+    pipelineStage: pipelineStage(input.from),
+    controlStage: "execution",
+    event: "review.effect-applied",
+    reasonCode: "effect.applied",
+    triggerCode: "transition.approved",
+    effectCode: "transition.applied",
+    result: "success",
+    outcomeCode: "review.effect-applied",
+    durationMs: 0
+  };
+}
+async function recordInteractionEffectUnderLock(input) {
+  await input.recorder.recordUnderLock(input.changeDir, createInteractionEffectDraft(input));
+}
+async function emitInteractionEffectUnderLock(input) {
+  const after = await input.readAfter();
+  if (input.before === void 0 || after === void 0) {
+    throw new Error("interaction projection \u7F3A canonical run/workflow/state anchor");
+  }
+  await recordInteractionEffectUnderLock({ ...input, before: input.before, after });
+}
+
 // packages/kernel/dist/workflow/branch-track-lookup.js
 function projectWorkflowNames(repoRoot) {
   return [.../* @__PURE__ */ new Set(["default", ...workflowNamesUnder(repoRoot), ...workflowNamesUnder(globalWorkflowRoot())])];
@@ -31971,82 +32050,6 @@ async function applyActions(actions, input) {
     signals.push(...outcome.signals);
   }
   return { patch, signals };
-}
-
-// packages/kernel/dist/workflow/interaction-effect.js
-function field(state, name2) {
-  const value = state.fields[name2];
-  return Array.isArray(value) ? value.join(",") : value ?? "";
-}
-function trackKind(track) {
-  if (track === "free")
-    return "free";
-  if (["chat", "simple", "pm", "frontend", "backend"].includes(track))
-    return "built-in";
-  return "custom";
-}
-function pipelineStage(step) {
-  return ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(step) ? step : "custom";
-}
-function createInteractionEffectDraft(input) {
-  const workflowHash = input.workflowRun.workflowPlanFingerprint;
-  const afterMetadata = input.after.state.runMetadata;
-  if (workflowHash === void 0 || afterMetadata === void 0 || afterMetadata.runId === void 0 || afterMetadata.transitionSequence === void 0) {
-    throw new Error("interaction projection \u7F3A canonical run/workflow/state anchor");
-  }
-  const requestedAt = field(input.before.state, "review_requested_at") || input.before.mutation.observedAt;
-  const originStepVisit = {
-    runId: input.workflowRun.id,
-    transitionSequence: input.workflowRun.transitionSequence,
-    step: input.from
-  };
-  return {
-    journeyId: interactionJourneyId({
-      change: input.changeName,
-      runId: input.workflowRun.id,
-      originStepVisit,
-      reviewEvent: input.reviewEvent,
-      requestedAt
-    }),
-    occurredAt: input.after.mutation.observedAt,
-    change: input.changeName,
-    runId: input.workflowRun.id,
-    workflow: input.workflowRun.workflowId,
-    workflowHash,
-    originStepVisit,
-    stepVisit: {
-      runId: afterMetadata.runId,
-      transitionSequence: afterMetadata.transitionSequence,
-      step: input.to
-    },
-    stateBeforeHash: input.before.stateDigest,
-    stateAfterHash: input.after.stateDigest,
-    actor: "agent",
-    surface: "cli",
-    executionMode: "interactive",
-    workflowMode: isDefaultWorkflowName(input.workflowRun.workflowId) ? "default" : "custom",
-    track: input.track,
-    trackKind: trackKind(input.track),
-    pipelineStage: pipelineStage(input.from),
-    controlStage: "execution",
-    event: "review.effect-applied",
-    reasonCode: "effect.applied",
-    triggerCode: "transition.approved",
-    effectCode: "transition.applied",
-    result: "success",
-    outcomeCode: "review.effect-applied",
-    durationMs: 0
-  };
-}
-async function recordInteractionEffectUnderLock(input) {
-  await input.recorder.recordUnderLock(input.changeDir, createInteractionEffectDraft(input));
-}
-async function emitInteractionEffectUnderLock(input) {
-  const after = await input.readAfter();
-  if (input.before === void 0 || after === void 0) {
-    throw new Error("interaction projection \u7F3A canonical run/workflow/state anchor");
-  }
-  await recordInteractionEffectUnderLock({ ...input, before: input.before, after });
 }
 
 // packages/kernel/dist/workflow/transition-application.js

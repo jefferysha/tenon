@@ -36,6 +36,23 @@ function pipelineStage(step: string): 'open' | 'explore' | 'spec' | 'build' | 'v
     : 'custom'
 }
 
+/** Canonical workflow identity classification shared by all interaction projections. */
+export function classifyInteractionWorkflowIdentity(input: {
+  readonly workflow: string
+  readonly track: string
+  readonly step: string
+}): {
+  readonly workflowMode: 'default' | 'custom'
+  readonly trackKind: 'built-in' | 'free' | 'custom'
+  readonly pipelineStage: 'open' | 'explore' | 'spec' | 'build' | 'verify' | 'ship' | 'archive' | 'custom'
+} {
+  return {
+    workflowMode: isDefaultWorkflowName(input.workflow) ? 'default' : 'custom',
+    trackKind: trackKind(input.track),
+    pipelineStage: pipelineStage(input.step),
+  }
+}
+
 /** Build the post-commit projection for an approved transition without weakening canonical anchors. */
 export function createInteractionEffectDraft(input: InteractionEffectInput): InteractionEventRecordDraft {
   const workflowHash = input.workflowRun.workflowPlanFingerprint

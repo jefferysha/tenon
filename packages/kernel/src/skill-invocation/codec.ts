@@ -23,7 +23,7 @@ const CLASSIFICATIONS: ReadonlySet<'identifier' | 'project-data' | 'configuratio
 const VALIDATOR_STATUSES: ReadonlySet<'pass' | 'fail' | 'unknown'> = new Set(['pass', 'fail', 'unknown'])
 const ADAPTERS: ReadonlySet<'native' | 'codex' | 'afk'> = new Set(['native', 'codex', 'afk'])
 const REQUIREDNESS: ReadonlySet<'routine' | 'advisory' | 'hard-gate'> = new Set(['routine', 'advisory', 'hard-gate'])
-const DECISION_MODES: ReadonlySet<'user-answer' | 'recommended-default'> = new Set(['user-answer', 'recommended-default'])
+const DECISION_MODES: ReadonlySet<'user-answer' | 'recommended-default' | 'afk-answer'> = new Set(['user-answer', 'recommended-default', 'afk-answer'])
 const ARTIFACT_KINDS: ReadonlySet<'document' | 'file' | 'artifact' | 'value'> = new Set(['document', 'file', 'artifact', 'value'])
 const DIGEST = /^sha256:[0-9a-f]{64}$/u
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]*$/u

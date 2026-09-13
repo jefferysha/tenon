@@ -39,7 +39,7 @@ function assertCompletedQuestions(
   for (const question of questions.values()) {
     const decision = decisions.get(question.question_id)
     if (question.requiredness === 'hard-gate'
-      && (!question.shown || decision?.mode !== 'user-answer')) {
+      && (!question.shown || (decision?.mode !== 'user-answer' && decision?.mode !== 'afk-answer'))) {
       throw new SkillInvocationEvidenceConflictError('hard-gate completion requires a shown question and non-empty user answer')
     }
     if (!question.shown && decision?.mode !== 'recommended-default') {
@@ -87,7 +87,7 @@ export function projectSkillInvocationEvents(events: readonly SkillInvocationEve
       if (event.payload.selected_option_ids.some((option) => !question.option_ids.includes(option))) {
         throw new SkillInvocationEvidenceConflictError('decision selects an unknown option')
       }
-      if (event.payload.mode === 'user-answer') {
+      if (event.payload.mode === 'user-answer' || event.payload.mode === 'afk-answer') {
         if (!question.shown) throw new SkillInvocationEvidenceConflictError('user answer requires a shown question')
         if (event.payload.selected_option_ids.length === 0 && event.payload.free_text === undefined) {
           throw new SkillInvocationEvidenceConflictError('user answer must be non-empty')
