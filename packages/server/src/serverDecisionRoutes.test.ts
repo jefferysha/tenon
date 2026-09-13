@@ -6,7 +6,6 @@ import {
   createStateStore,
   emptyFields,
   reviewGateBindingForState,
-  reviewGateDecisionStateDigest,
   serializePipeline,
   type PipelineState,
 } from '@tenon/kernel'
