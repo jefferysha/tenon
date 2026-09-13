@@ -4,7 +4,7 @@ import { createRequire as __cr } from 'node:module'; const require = __cr(import
 // packages/server/src/main.ts
 import { execFile as execFile8 } from "node:child_process";
 import { mkdirSync as mkdirSync6, unlinkSync as unlinkSync4, writeFileSync as writeFileSync6 } from "node:fs";
-import { dirname as dirname20, join as join77 } from "node:path";
+import { dirname as dirname20, join as join78 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // packages/tap/dist/paths.js
@@ -23680,9 +23680,11 @@ async function acknowledgeReview(input) {
     const error2 = new Error(`phase '${input.phase}' \u7684 review receipt \u672A\u7ED1\u5B9A\u5F53\u524D canonical decision state\uFF1B\u8BF7\u91CD\u65B0 request ${input.event}`);
     if (input.onRejected !== void 0)
       await input.onRejected(error2);
-    if (input.recordInteraction !== void 0)
+    if (input.recordInteraction !== void 0) {
       await input.recordInteraction({ state: input.state, acknowledgedAt: input.acknowledgedAt, rejected: true });
-    await reject3(input.state, input.acknowledgedAt);
+    } else {
+      await reject3(input.state, input.acknowledgedAt);
+    }
     throw error2;
   }
   if (reviewGateApprovedFor(input.state, input.phase, input.event)) {
@@ -23692,7 +23694,8 @@ async function acknowledgeReview(input) {
     const error2 = new Error(`phase '${input.phase}' \u5C1A\u672A\u4E3A event '${input.event}' request review`);
     if (input.onRejected !== void 0)
       await input.onRejected(error2);
-    await reject3(input.state, input.acknowledgedAt);
+    if (input.recordInteraction === void 0)
+      await reject3(input.state, input.acknowledgedAt);
     throw error2;
   }
   const patch = reviewGateApprovalPatch(input.acknowledgedAt, input.via ?? "terminal");
@@ -24961,7 +24964,7 @@ function createTransitionApplication(deps) {
 // packages/server/src/server.ts
 import { join as joinPath3 } from "node:path";
 import { createServer } from "node:http";
-import { join as join76 } from "node:path";
+import { join as join77 } from "node:path";
 
 // packages/automation/dist/types.js
 var AUTOMATION_STATES = [
@@ -38449,8 +38452,175 @@ async function handlePostChangesRoutes(req, res, path13, deps) {
 
 // packages/server/src/serverPostExecutionRoutes.ts
 import { randomUUID as randomUUID14 } from "node:crypto";
+import { join as join69 } from "node:path";
+
+// packages/server/src/serverPostDecisionRoutes.ts
 import { appendFile as appendFile2, readFile as readFile28, unlink as unlink5 } from "node:fs/promises";
 import { join as join68 } from "node:path";
+var DECISION_IDEMPOTENCY_FILE = ".pipeline-decision-idempotency.jsonl";
+var DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
+function isDecisionIdempotencyRecord(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const record7 = value;
+  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && record7.channel === "dashboard" && typeof record7.acknowledgedAt === "string";
+}
+async function readDecisionIdempotency(changeDir2) {
+  try {
+    const raw = await readFile28(join68(changeDir2, DECISION_IDEMPOTENCY_FILE), "utf8");
+    if (Buffer.byteLength(raw, "utf8") > DECISION_IDEMPOTENCY_MAX_BYTES) {
+      throw new Error("decision idempotency record exceeds size limit");
+    }
+    if (raw === "") return [];
+    if (!raw.endsWith("\n")) throw new Error("decision idempotency record is truncated");
+    return raw.split("\n").filter(Boolean).map((line) => {
+      const parsed = JSON.parse(line);
+      if (!isDecisionIdempotencyRecord(parsed)) throw new Error("decision idempotency record is invalid");
+      return parsed;
+    });
+  } catch (error2) {
+    if (error2.code === "ENOENT") return [];
+    throw error2;
+  }
+}
+async function appendDecisionIdempotency(changeDir2, record7) {
+  await appendFile2(join68(changeDir2, DECISION_IDEMPOTENCY_FILE), `${JSON.stringify(record7)}
+`, { encoding: "utf8", flag: "a", mode: 384 });
+}
+async function handlePostDecisionRoutes(req, res, path13, deps) {
+  const match = /^\/api\/change\/([^/]+)\/decisions$/.exec(path13);
+  if (!match) return false;
+  const { readJsonBody, sendJson, isRegisteredRoot, store, clock, history } = deps;
+  const body = await readJsonBody(req);
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    sendJson(res, 400, { ok: false, error: "\u8BF7\u6C42\u4F53\u987B\u4E3A JSON \u5BF9\u8C61" });
+    return true;
+  }
+  const input = body;
+  const root = typeof input.root === "string" ? input.root : "";
+  const ref = typeof input.ref === "string" ? input.ref : "";
+  const expectedRevision = typeof input.expected_revision === "number" ? input.expected_revision : null;
+  const idempotencyKey = typeof input.idempotency_key === "string" ? input.idempotency_key : "";
+  if (!root || !ref || expectedRevision === null || !idempotencyKey) {
+    sendJson(res, 400, { ok: false, error: "root / ref / expected_revision / idempotency_key \u4E3A\u5FC5\u586B" });
+    return true;
+  }
+  if (!isRegisteredRoot(root)) {
+    sendJson(res, 404, { ok: false, error: "root \u975E\u5DF2\u77E5 Project\uFF08\u672A\u6CE8\u518C\u6216\u4E0D\u53EF\u4FE1\uFF09" });
+    return true;
+  }
+  const name = decodeURIComponent(match[1] ?? "");
+  if (!/^[A-Za-z0-9_-]+$/.test(name) || name.includes("..")) {
+    sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
+    return true;
+  }
+  const dir = join68(root, "openspec", "changes", name);
+  if (!stateStorageExistsSync(dir)) {
+    sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
+    return true;
+  }
+  try {
+    const outcome = await applyDecision({ dir, root, name, ref, expectedRevision, idempotencyKey, store, clock, history });
+    if (!outcome.result.ok) {
+      sendJson(res, 409, { ok: false, error: outcome.result.message, code: outcome.result.code });
+      return true;
+    }
+    sendJson(res, 200, {
+      ok: true,
+      ref,
+      changed: !outcome.result.idempotent,
+      idempotent: outcome.result.idempotent,
+      channel: "dashboard",
+      deferred: outcome.deferred
+    });
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    const code = typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : message === "decision revision conflict" ? "revision-conflict" : "review-approval-required";
+    sendJson(res, 409, { ok: false, error: message, code });
+  }
+  return true;
+}
+async function applyDecision(input) {
+  let deferred = [];
+  let result2;
+  await input.store.withLock(input.dir, async () => {
+    const records = await readDecisionIdempotency(input.dir);
+    const prior = records.find((record7) => record7.key === input.idempotencyKey);
+    if (prior !== void 0 && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision)) {
+      throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "decision-ref-mismatch" });
+    }
+    if (prior !== void 0) {
+      result2 = { ok: true, idempotent: true, ref: { id: prior.ref, kind: "review", change: input.name, anchor: "", revision: prior.expectedRevision } };
+      return;
+    }
+    const lockedRevision = await readCurrentRunRevision(input.dir);
+    const locked = lockedRevision?.state ?? await input.store.read(input.dir);
+    const view = projectPendingDecisions({ change: input.name, state: locked, revision: lockedRevision?.revision });
+    const item2 = view.items.find((candidate) => candidate.ref.id === input.ref);
+    if (item2 === void 0) throw Object.assign(new Error("decision is no longer pending"), { code: "decision-not-pending" });
+    const adapter2 = createDecisionCommandAdapter({
+      readRevision: async () => (await readCurrentRunRevision(input.dir))?.revision ?? null,
+      hasIdempotencyKey: async () => false,
+      rememberIdempotencyKey: async (key) => appendDecisionIdempotency(input.dir, {
+        key,
+        ref: input.ref,
+        expectedRevision: input.expectedRevision,
+        channel: "dashboard",
+        acknowledgedAt: input.clock()
+      }),
+      isPending: async (decisionRef) => projectPendingDecisions({
+        change: input.name,
+        state: await input.store.read(input.dir),
+        revision: lockedRevision?.revision
+      }).items.some((candidate) => candidate.ref.id === decisionRef.id && candidate.type === "review" && candidate.status === "pending"),
+      apply: async ({ ref: decisionRef }) => {
+        const current = await readCurrentRunRevision(input.dir);
+        const state = current?.state ?? await input.store.read(input.dir);
+        const currentItem = projectPendingDecisions({ change: input.name, state, revision: current?.revision }).items.find((candidate) => candidate.ref.id === decisionRef.id);
+        if (currentItem === void 0 || currentItem.type !== "review") throw new Error("decision is no longer pending");
+        const phase = currentItem.anchor.phase ?? "";
+        const event = currentItem.anchor.event ?? reviewGateEvent(state);
+        const binding = await readReviewGateBinding(input.dir);
+        const acknowledged = await acknowledgeReview({
+          state,
+          phase,
+          event,
+          acknowledgedAt: input.clock(),
+          bindingMatches: reviewGateBindingMatches(binding, state, phase, event),
+          via: "dashboard",
+          writeState: async (patch) => {
+            await input.store.writeUnderLock(input.dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });
+          },
+          recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent }) => input.history.append(input.dir, {
+            ts: acknowledgedAt,
+            kind: "tool",
+            raw: `review:acknowledge via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}`
+          }),
+          recordRejectedAcknowledgement: async ({ acknowledgedAt, phase: rejectedPhase, event: rejectedEvent }) => input.history.append(input.dir, {
+            ts: acknowledgedAt,
+            kind: "tool",
+            raw: `review:acknowledge-rejected via=dashboard phase=${rejectedPhase} event=${rejectedEvent}`
+          }),
+          clearMarker: async () => {
+            const marker = join68(input.root, REVIEW_MARKER_FILE);
+            try {
+              const markerReceipt = parseReviewMarker(await readFile28(marker, "utf8"));
+              if (markerReceipt?.changeName !== input.name || markerReceipt.event !== event) return false;
+              await unlink5(marker);
+              return true;
+            } catch (error2) {
+              if (error2.code === "ENOENT") return true;
+              return false;
+            }
+          }
+        });
+        deferred = acknowledged.deferred;
+      }
+    });
+    result2 = await adapter2.execute({ ref: item2.ref, expectedRevision: input.expectedRevision, idempotencyKey: input.idempotencyKey, channel: "dashboard" });
+  });
+  if (result2 === void 0) throw new Error("decision command did not produce a result");
+  return { result: result2, deferred };
+}
 
 // packages/server/src/serverTaskRunOperations.ts
 var TaskRunOperationConflictError = class extends Error {
@@ -38552,34 +38722,6 @@ async function applyTaskRunOperationForChange(changeDir2, operation) {
 }
 
 // packages/server/src/serverPostExecutionRoutes.ts
-var DECISION_IDEMPOTENCY_FILE = ".pipeline-decision-idempotency.jsonl";
-var DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
-async function readDecisionIdempotency(changeDir2) {
-  try {
-    const raw = await readFile28(join68(changeDir2, DECISION_IDEMPOTENCY_FILE), "utf8");
-    if (Buffer.byteLength(raw, "utf8") > DECISION_IDEMPOTENCY_MAX_BYTES) {
-      throw new Error("decision idempotency record exceeds size limit");
-    }
-    if (raw === "") return [];
-    if (!raw.endsWith("\n")) throw new Error("decision idempotency record is truncated");
-    return raw.split("\n").filter(Boolean).map((line) => {
-      const parsed = JSON.parse(line);
-      if (typeof parsed !== "object" || parsed === null) throw new Error("decision idempotency record is invalid");
-      const record7 = parsed;
-      if (typeof record7.key !== "string" || typeof record7.ref !== "string" || typeof record7.expectedRevision !== "number" && record7.expectedRevision !== null || record7.channel !== "dashboard" || typeof record7.acknowledgedAt !== "string") {
-        throw new Error("decision idempotency record is invalid");
-      }
-      return record7;
-    });
-  } catch (error2) {
-    if (error2.code === "ENOENT") return [];
-    throw error2;
-  }
-}
-async function appendDecisionIdempotency(changeDir2, record7) {
-  await appendFile2(join68(changeDir2, DECISION_IDEMPOTENCY_FILE), `${JSON.stringify(record7)}
-`, { encoding: "utf8", flag: "a", mode: 384 });
-}
 async function handlePostExecutionRoutes(req, res, path13, deps) {
   const {
     sendJson,
@@ -38649,7 +38791,7 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join68(root2, "openspec", "changes", name2);
+    const dir = join69(root2, "openspec", "changes", name2);
     const result2 = await cancelAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -38669,7 +38811,7 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join68(root2, "openspec", "changes", name2);
+    const dir = join69(root2, "openspec", "changes", name2);
     const result2 = await retryAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -38689,7 +38831,7 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join68(root2, "openspec", "changes", name2);
+    const dir = join69(root2, "openspec", "changes", name2);
     const result2 = await dismissAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -38709,7 +38851,7 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join68(root2, "openspec", "changes", name2);
+    const dir = join69(root2, "openspec", "changes", name2);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -38773,117 +38915,8 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
       return sendTrackError(res, error2);
     }
   }
-  const mDecision = /^\/api\/change\/([^/]+)\/decisions$/.exec(path13);
-  if (mDecision) {
-    const body2 = await readJsonBody(req);
-    if (typeof body2 !== "object" || body2 === null || Array.isArray(body2)) {
-      return sendJson(res, 400, { ok: false, error: "\u8BF7\u6C42\u4F53\u987B\u4E3A JSON \u5BF9\u8C61" });
-    }
-    const b2 = body2;
-    const root2 = typeof b2.root === "string" ? b2.root : "";
-    const ref = typeof b2.ref === "string" ? b2.ref : "";
-    const expectedRevision = typeof b2.expected_revision === "number" ? b2.expected_revision : null;
-    const idempotencyKey = typeof b2.idempotency_key === "string" ? b2.idempotency_key : "";
-    if (!root2 || !ref || expectedRevision === null || !idempotencyKey) return sendJson(res, 400, { ok: false, error: "root / ref / expected_revision / idempotency_key \u4E3A\u5FC5\u586B" });
-    if (!isRegisteredRoot(root2)) return sendJson(res, 404, { ok: false, error: "root \u975E\u5DF2\u77E5 Project\uFF08\u672A\u6CE8\u518C\u6216\u4E0D\u53EF\u4FE1\uFF09" });
-    const name2 = decodeURIComponent(mDecision[1] ?? "");
-    if (!/^[A-Za-z0-9_-]+$/.test(name2) || name2.includes("..")) return sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
-    const dir = join68(root2, "openspec", "changes", name2);
-    if (!stateStorageExistsSync(dir)) return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
-    try {
-      let deferred = [];
-      let result2;
-      await store.withLock(dir, async () => {
-        const records = await readDecisionIdempotency(dir);
-        const prior = records.find((record7) => record7.key === idempotencyKey);
-        if (prior !== void 0 && (prior.ref !== ref || prior.expectedRevision !== expectedRevision)) {
-          throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "decision-ref-mismatch" });
-        }
-        if (prior !== void 0) {
-          result2 = {
-            ok: true,
-            idempotent: true,
-            ref: { id: prior.ref, kind: "review", change: name2, anchor: "", revision: prior.expectedRevision }
-          };
-          return;
-        }
-        const lockedRevision = await readCurrentRunRevision(dir);
-        const locked = lockedRevision?.state ?? await store.read(dir);
-        const view = projectPendingDecisions({ change: name2, state: locked, revision: lockedRevision?.revision });
-        const item2 = view.items.find((candidate) => candidate.ref.id === ref);
-        if (item2 === void 0) throw Object.assign(new Error("decision is no longer pending"), { code: "decision-not-pending" });
-        const adapter2 = createDecisionCommandAdapter({
-          readRevision: async () => (await readCurrentRunRevision(dir))?.revision ?? null,
-          hasIdempotencyKey: async () => prior !== void 0,
-          rememberIdempotencyKey: async (key) => {
-            await appendDecisionIdempotency(dir, {
-              key,
-              ref,
-              expectedRevision,
-              channel: "dashboard",
-              acknowledgedAt: clock()
-            });
-          },
-          isPending: async (decisionRef) => projectPendingDecisions({
-            change: name2,
-            state: await store.read(dir),
-            revision: lockedRevision?.revision
-          }).items.some((candidate) => candidate.ref.id === decisionRef.id && candidate.type === "review" && candidate.status === "pending"),
-          apply: async ({ ref: decisionRef }) => {
-            const current = await readCurrentRunRevision(dir);
-            const state = current?.state ?? await store.read(dir);
-            const currentItem = projectPendingDecisions({ change: name2, state, revision: current?.revision }).items.find((candidate) => candidate.ref.id === decisionRef.id);
-            if (currentItem === void 0 || currentItem.type !== "review") throw new Error("decision is no longer pending");
-            const phase = currentItem.anchor.phase ?? "";
-            const event2 = currentItem.anchor.event ?? reviewGateEvent(state);
-            const binding = await readReviewGateBinding(dir);
-            const acknowledged = await acknowledgeReview({
-              state,
-              phase,
-              event: event2,
-              acknowledgedAt: clock(),
-              bindingMatches: reviewGateBindingMatches(binding, state, phase, event2),
-              via: "dashboard",
-              writeState: async (patch) => {
-                await store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });
-              },
-              recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent }) => history.append(dir, {
-                ts: acknowledgedAt,
-                kind: "tool",
-                raw: `review:acknowledge via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}`
-              }),
-              recordRejectedAcknowledgement: async ({ acknowledgedAt, phase: rejectedPhase, event: rejectedEvent }) => history.append(dir, {
-                ts: acknowledgedAt,
-                kind: "tool",
-                raw: `review:acknowledge-rejected via=dashboard phase=${rejectedPhase} event=${rejectedEvent}`
-              }),
-              clearMarker: async () => {
-                const marker = join68(root2, REVIEW_MARKER_FILE);
-                try {
-                  const markerReceipt = parseReviewMarker(await readFile28(marker, "utf8"));
-                  if (markerReceipt?.changeName !== name2 || markerReceipt.event !== event2) return false;
-                  await unlink5(marker);
-                  return true;
-                } catch (error2) {
-                  if (error2.code === "ENOENT") return true;
-                  return false;
-                }
-              }
-            });
-            deferred = acknowledged.deferred;
-          }
-        });
-        result2 = await adapter2.execute({ ref: item2.ref, expectedRevision, idempotencyKey, channel: "dashboard" });
-      });
-      if (result2 === void 0) throw new Error("decision command did not produce a result");
-      if (!result2.ok) return sendJson(res, 409, { ok: false, error: result2.message, code: result2.code });
-      return sendJson(res, 200, { ok: true, ref, changed: !result2.idempotent, idempotent: result2.idempotent, channel: "dashboard", deferred });
-    } catch (error2) {
-      const message = error2 instanceof Error ? error2.message : String(error2);
-      const code = typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : message === "decision revision conflict" ? "revision-conflict" : "review-approval-required";
-      return sendJson(res, 409, { ok: false, error: message, code });
-    }
-  }
+  const decisionHandled = await handlePostDecisionRoutes(req, res, path13, { sendJson, readJsonBody, isRegisteredRoot, store, clock, history });
+  if (decisionHandled) return;
   const mTr = /^\/api\/change\/([^/]+)\/transition$/.exec(path13);
   if (!mTr) return sendJson(res, 404, { ok: false, error: "\u672A\u77E5\u5199\u56DE\u7AEF\u70B9" });
   const body = await readJsonBody(req);
@@ -39135,7 +39168,7 @@ async function handlePostGovernanceRoutes(req, res, path13, deps) {
 
 // packages/server/src/serverPostOperationsRoutes.ts
 import { lstatSync as lstatSync14 } from "node:fs";
-import { join as join69 } from "node:path";
+import { join as join70 } from "node:path";
 
 // packages/server/src/loopScopePreview.ts
 import {
@@ -39424,7 +39457,7 @@ async function handlePostOperationsRoutes(req, res, path13, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync14(join69(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync14(join70(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -39611,7 +39644,7 @@ async function handlePostOperationsRoutes(req, res, path13, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join69(root, "openspec", "changes", name);
+    const dir = join70(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -39635,7 +39668,7 @@ async function handlePostOperationsRoutes(req, res, path13, deps) {
 }
 
 // packages/server/src/serverPostMemoryRoutes.ts
-import { join as join70 } from "node:path";
+import { join as join71 } from "node:path";
 var RELATED_SEARCH_PATH = "/api/mem/related-sessions/search";
 var PLATFORM_VALUES = /* @__PURE__ */ new Set(["all", "claude", "codex", "opencode", "pi"]);
 var CHANGE_NAME_RE3 = /^[a-zA-Z0-9_-]+$/;
@@ -39674,7 +39707,7 @@ async function handlePostMemoryRoutes(req, res, path13, deps) {
   const anchoredRoot = rootCheck2.anchor.path;
   let changeExists = false;
   try {
-    changeExists = stateStorageExistsSync(join70(anchoredRoot, "openspec", "changes", name));
+    changeExists = stateStorageExistsSync(join71(anchoredRoot, "openspec", "changes", name));
   } catch {
     return missingTarget(deps, res);
   }
@@ -39849,20 +39882,20 @@ async function handlePostRoute(req, res, path13, deps) {
 
 // packages/server/src/serverSupport.ts
 import { readFileSync as readFileSync21 } from "node:fs";
-import { dirname as dirname17, join as join71 } from "node:path";
+import { dirname as dirname17, join as join72 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 var REAL_GRADUATION_FS = {
   loadRegistry: (repoRoot) => loadRegistry(repoRoot),
   readRunLog: (repoRoot) => {
     try {
-      return readFileSync21(join71(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
+      return readFileSync21(join72(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
     } catch {
       return null;
     }
   },
   readLoopDoc: (repoRoot) => {
     try {
-      return readFileSync21(join71(repoRoot, "LOOP.md"), "utf8");
+      return readFileSync21(join72(repoRoot, "LOOP.md"), "utf8");
     } catch {
       return null;
     }
@@ -39877,7 +39910,7 @@ var REAL_GRADUATION_FS = {
   }
 };
 function repoRootForSkills2() {
-  return join71(dirname17(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join72(dirname17(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -40021,7 +40054,7 @@ function createFreezeHandlers(deps) {
 
 // packages/server/src/serverTransport.ts
 import { readFileSync as readFileSync22 } from "node:fs";
-import { join as join72 } from "node:path";
+import { join as join73 } from "node:path";
 import { gzipSync } from "node:zlib";
 
 // packages/server/src/singleFlight.ts
@@ -40205,7 +40238,7 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
   function serveIndexWithToken(res) {
     if (!webRoot) return false;
     try {
-      let html = readFileSync22(join72(webRoot, "index.html"), "utf8");
+      let html = readFileSync22(join73(webRoot, "index.html"), "utf8");
       const jsToken = JSON.stringify(token).replace(/</g, "\\u003c");
       const inject = `<script>window.__TENON_DASHBOARD_TOKEN__ = ${jsToken};</script>`;
       html = html.includes("</head>") ? html.replace("</head>", `${inject}</head>`) : `${inject}${html}`;
@@ -40219,8 +40252,8 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
     if (!webRoot || !path13.startsWith("/assets/")) return false;
     const rel = path13.slice(1);
     if (rel.includes("..")) return false;
-    const abs = join72(webRoot, rel);
-    if (!abs.startsWith(join72(webRoot, "assets"))) return false;
+    const abs = join73(webRoot, rel);
+    if (!abs.startsWith(join73(webRoot, "assets"))) return false;
     try {
       const source2 = readFileSync22(abs);
       const ext = abs.slice(abs.lastIndexOf("."));
@@ -40260,7 +40293,7 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
 // packages/server/src/serverGovernance.ts
 import { mkdirSync as mkdirSync5 } from "node:fs";
 import { readdir as readdir8 } from "node:fs/promises";
-import { join as join73, resolve as resolvePath11 } from "node:path";
+import { join as join74, resolve as resolvePath11 } from "node:path";
 function createServerGovernance(options) {
   const { registry, globalWorkflowRoot: globalWorkflowRoot2, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options;
   function trackRegistryBody(trackRegistry) {
@@ -40272,7 +40305,7 @@ function createServerGovernance(options) {
     };
   }
   async function scanActiveTrackChanges(root) {
-    const changesRoot = join73(root, "openspec", "changes");
+    const changesRoot = join74(root, "openspec", "changes");
     let entries;
     try {
       entries = await readdir8(changesRoot, { withFileTypes: true });
@@ -40285,7 +40318,7 @@ function createServerGovernance(options) {
     const unreadable = [];
     for (const name of names) {
       try {
-        const state = await store.read(join73(changesRoot, name));
+        const state = await store.read(join74(changesRoot, name));
         const track = state.fields.track;
         const workflow = state.fields.workflow;
         refs.push({
@@ -40407,7 +40440,7 @@ function createServerGovernance(options) {
   const globalWorkflowStore = () => {
     try {
       if (globalAnchor === null) {
-        mkdirSync5(join73(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
+        mkdirSync5(join74(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
         globalAnchor = captureWorkflowRootAnchor(globalWorkflowRoot2);
       } else {
         assertWorkflowRootAnchor(globalAnchor);
@@ -40499,9 +40532,9 @@ function createRelatedSessionSearchExecutor(runner) {
 }
 
 // packages/server/src/sessionLinkResolver.ts
-import { join as join74 } from "node:path";
+import { join as join75 } from "node:path";
 async function resolveSessionLink(root, name, deps) {
-  const changeDir2 = join74(root, "openspec", "changes", name);
+  const changeDir2 = join75(root, "openspec", "changes", name);
   try {
     const wtRaw = await deps.store.get(changeDir2, "automation_worktree");
     const wt = Array.isArray(wtRaw) ? wtRaw.join(",") : wtRaw ?? "";
@@ -40527,7 +40560,7 @@ async function resolveSessionLink(root, name, deps) {
 
 // packages/server/src/version.ts
 import { readFileSync as readFileSync23 } from "node:fs";
-import { basename as basename7, dirname as dirname18, join as join75 } from "node:path";
+import { basename as basename7, dirname as dirname18, join as join76 } from "node:path";
 var SERVER_VERSION = "0.1.0";
 var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
 function isPluginManifestVersion(value) {
@@ -40536,7 +40569,7 @@ function isPluginManifestVersion(value) {
 function resolveReleaseVersion(pluginRoot2) {
   for (const relative12 of [".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
     try {
-      const parsed = JSON.parse(readFileSync23(join75(pluginRoot2, relative12), "utf8"));
+      const parsed = JSON.parse(readFileSync23(join76(pluginRoot2, relative12), "utf8"));
       if (isPluginManifestVersion(parsed) && typeof parsed.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed.version)) {
         return parsed.version;
       }
@@ -40606,7 +40639,7 @@ function createDashboardServer(options) {
       locator: createRunnerSkillContentLocator({
         runner,
         home: hostHome,
-        bundledRoot: join76(repoRootForSkills2(), "skills")
+        bundledRoot: join77(repoRootForSkills2(), "skills")
       }),
       isSkillProfileKnown: (profileId) => profileId === "_all" || trackSkillProfiles.has(profileId)
     });
@@ -41109,10 +41142,10 @@ function managedTransactionId() {
   return value;
 }
 function pluginRoot() {
-  return join77(dirname20(fileURLToPath4(import.meta.url)), "..", "..", "..");
+  return join78(dirname20(fileURLToPath4(import.meta.url)), "..", "..", "..");
 }
 function manifestPath() {
-  return join77(pluginRoot(), "templates", "manifest.yaml");
+  return join78(pluginRoot(), "templates", "manifest.yaml");
 }
 function gitHeadSha(cwd) {
   return new Promise((resolve18) => {
@@ -41175,7 +41208,7 @@ async function main() {
     gitHeadSha,
     workspaceFingerprint: (cwd) => fingerprintWorkspace(cwd),
     // dashboard-app 构建产物（BACKLOG #26c）：存在则服务真 SPA，否则回退最小落地页
-    webRoot: join77(dirname20(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
+    webRoot: join78(dirname20(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
     // tap 流量查看器数据源：只读 sessions/records/timeline；完整 reader 才声明 traffic=true。
     // tap capture 默认 OFF，无捕获时返回空会话——数据端仍在线（#34e：只读本地、不外发）
     traceStore: createTraceStore(),
