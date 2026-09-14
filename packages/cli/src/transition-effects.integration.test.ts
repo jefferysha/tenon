@@ -50,6 +50,18 @@ async function seed(rel: string, content = '# doc\n'): Promise<void> {
 /** 直改 YAML adapter 后显式导入 canonical（绕过 set 闸，构造 transition 防线的脏输入）。 */
 async function corruptField(name: string, field: string, value: string): Promise<void> {
   const dir = join(h.cwd, 'openspec', 'changes', name)
+  // Protected transition fields cannot be imported from the legacy projection anymore. For
+  // this barrier test, mutate the canonical fixture under its repository lock to model a
+  // corrupted persisted revision without reopening the import-legacy bypass.
+  if (field === 'build_sha') {
+    const deps = realDeps(h.cwd, [], [])
+    await deps.store.withLock(dir, async () => {
+      const state = await deps.store.read(dir)
+      state.fields.build_sha = value
+      await deps.store.writeUnderLock(dir, state, { kind: 'set-many' })
+    })
+    return
+  }
   const p = join(dir, '.pipeline.yaml')
   const yaml = await readFile(p, 'utf8')
   const next = yaml.replace(new RegExp(`^${field}: .*$`, 'm'), `${field}: ${value}`)
@@ -258,6 +270,7 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await h.run(['set', 'demo', 'branch_status', 'handled'])
     await h.run(['set', 'demo', 'agent_review_result', 'pass'])
     await h.run(['set', 'demo', 'codex_review_result', 'pass'])
+    await approveReviewExit('demo', 'verify-pass')
     await corruptField('demo', 'build_sha', 'CAFEBABE') // 模拟 build 后偷改未复验
     const before = await h.read('demo')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
