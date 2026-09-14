@@ -313,7 +313,6 @@ export async function handlePostExecutionRoutes(
         breadcrumb,
         resolveTrackPolicy: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root).policyProfile,
         resolveTrack: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root),
-        env: (name) => process.env[name],
         skillResolver: loadedManifest
           ? createEffectiveSkillResolver({
               registry: loadEffectiveTrackRegistry,

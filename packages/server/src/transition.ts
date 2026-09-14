@@ -88,8 +88,6 @@ export interface TransitionDeps {
   resolveTrackPolicy?: (trackId: string) => TrackPolicyProfile
   resolveTrack?: (trackId: string) => TrackDefinition
   skillResolver?: EffectiveSkillResolver
-  /** Runtime mode source used by loop human-gate constraints; injected for deterministic tests. */
-  env?: (name: string) => string | undefined
 }
 
 export interface TransitionOutcome {
@@ -215,7 +213,15 @@ function mapTransitionResult(name: string, event: string, result: TransitionAppl
         },
       }
     case 'constraint-denied':
-      return { code: 409, body: { ok: false, error: `automation constraint denied transition: ${result.reason}` } }
+      return {
+        code: 409,
+        body: {
+          ok: false,
+          error: `automation constraint denied transition: ${result.reason}`,
+          code: 'constraint-denied',
+          reason: result.reason,
+        },
+      }
   }
 }
 
@@ -319,10 +325,10 @@ export async function performTransition(
       const registry = loadRegistry(root, nodeLoopIoStrict)
       if (registry.data === null) throw new Error(`loops registry 无法校验：${registry.errors.join('；')}`)
       const loop = registry.data.loops.find((candidate) => candidate.id === policy.loop_id)
-      // Keep server semantics aligned with the CLI: AFK explicitly disables human-gate
-      // satisfaction; the default HITL path remains available without inventing identity.
-      const env = deps.env ?? ((name: string) => process.env[name])
-      return { active: loop?.status === 'active', humanGateSatisfied: env('TENON_AFK') !== '1' }
+      // Human gate rule: the Dashboard/local HTTP entry can never satisfy a loop human gate.
+      // Holding the bearer token is not human evidence (an AFK agent can read it), and this
+      // long-running server process env does not describe the caller's mode.
+      return { active: loop?.status === 'active', humanGateSatisfied: false }
     },
   })
   try {

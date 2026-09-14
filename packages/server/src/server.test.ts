@@ -20,7 +20,8 @@ import {
 } from './test-support.js'
 import type { FlowEngine, StateStore } from '@tenon/kernel'
 import {
-  builtinTrack, createLoopLedgerStore, effectiveWorkflowPlanBinding, loadEffectiveWorkflowPlan, loadManifest,
+  builtinTrack, compileAutomationPolicySnapshot, createLoopLedgerStore, effectiveWorkflowPlanBinding,
+  loadEffectiveWorkflowPlan, loadManifest, loadRegistry,
   createTransitionRecordStore, createWorkflowRunRepository,
   reviewGateBindingForState, writeReviewGateBindingUnderLock,
   DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS,
@@ -1117,6 +1118,104 @@ describe('POST /api/change/<name>/transition —— B5 token 鉴权', () => {
       code: 'step-skills-incomplete',
       detail: expect.arrayContaining([expect.stringContaining('tenon-open')]),
     })
+  })
+})
+
+describe('POST /api/change/<name>/transition —— loop human gate', () => {
+  const loopsYaml = (gate: string): string => `version: 1
+loops:
+  - id: gate-loop
+    name: gate loop
+    kind: executor
+    goal: advance governed changes behind human gates
+    cadence: 1h
+    risk: low
+    runner: codex
+    change_prefix: gate-
+    phases:
+      - decide
+      - record
+    human_gates:
+      - ${gate}
+    design_doc: docs/loops/gate-loop.md
+    status: active
+    budget:
+      max_runs_per_day: 1
+      max_in_flight: 1
+      on_exceed: skip
+    kill_criteria:
+      - never
+    skill_bundle_id: backend
+`
+
+  async function governedHarness(gate: string): Promise<Harness> {
+    const h = await start({ seedPhaseSkill: true })
+    await mkdir(join(h.root, '.pipeline'), { recursive: true })
+    await writeFile(join(h.root, '.pipeline', 'loops.yaml'), loopsYaml(gate), 'utf8')
+    const loop = loadRegistry(h.root).data?.loops.find((candidate) => candidate.id === 'gate-loop')
+    if (loop === undefined) throw new Error('gate-loop fixture failed to load')
+    const policy = compileAutomationPolicySnapshot(loop, { capturedAt: '2026-07-07T00:00:00Z' })
+    await createWorkflowRunRepository({
+      store: h.store, recordStore: createTransitionRecordStore(), clock: () => '2026-07-07T00:00:00Z',
+    }).bindAutomationPolicy(h.changeDir, policy, { loopId: policy.loop_id, iterationId: 'iteration-gate' })
+    return h
+  }
+
+  async function countEntries(dir: string): Promise<number> {
+    try {
+      return (await readdir(dir)).length
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0
+      throw error
+    }
+  }
+
+  async function readOptional(path: string): Promise<string | null> {
+    try {
+      return await readFile(path, 'utf8')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('gated target → 409 constraint-denied with zero writes, even when the server process is not AFK', async () => {
+    // The server process env must not decide: a non-AFK server once let any token holder through.
+    vi.stubEnv('TENON_AFK', '0')
+    const h = await governedHarness('explore')
+    const before = await h.store.read(h.changeDir)
+    expect(before.runMetadata?.automationPolicy?.constraints.transition.human_gates).toEqual(['explore'])
+    const historyBefore = await readOptional(join(h.changeDir, '.pipeline-history.jsonl'))
+    const recordsBefore = await countEntries(join(h.changeDir, '.pipeline-transitions'))
+
+    const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'open-complete' }, {
+      headers: { Authorization: `Bearer ${h.token}` },
+    })
+
+    expect(r.status).toBe(409)
+    expect(r.json<Record<string, unknown>>()).toMatchObject({
+      ok: false, code: 'constraint-denied', reason: 'human-gate-required',
+      error: 'automation constraint denied transition: human-gate-required',
+    })
+    const after = await h.store.read(h.changeDir)
+    expect(after.fields).toEqual(before.fields)
+    expect(after.runMetadata?.transitionSequence).toBe(before.runMetadata?.transitionSequence)
+    expect(await readOptional(join(h.changeDir, '.pipeline-history.jsonl'))).toBe(historyBefore)
+    expect(await countEntries(join(h.changeDir, '.pipeline-transitions'))).toBe(recordsBefore)
+  })
+
+  it('non-gated target on the same governed loop still transitions', async () => {
+    const h = await governedHarness('build')
+    const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'open-complete' }, {
+      headers: { Authorization: `Bearer ${h.token}` },
+    })
+    expect(r.status).toBe(200)
+    expect(r.json<{ from: string; to: string }>()).toMatchObject({ from: 'open', to: 'explore' })
+    expect((await h.store.read(h.changeDir)).fields.phase).toBe('explore')
   })
 })
 
