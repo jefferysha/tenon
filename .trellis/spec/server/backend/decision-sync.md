@@ -112,9 +112,25 @@ questions only. AFK maps to `afk` and records an independent AFK decision. A
 mode switch affects only later requests; existing pending requests retain their
 frozen strategy or are explicitly superseded.
 
-During a pending review, hooks may append a redacted
-`pending-decision-self-approval-suspected` observation for exact token-file
-reads or localhost control writes. It contains change, anchor, channel,
-signal-kind, observed-at and process/host hash, never token text or raw command.
-The observation detects a capability risk; it cannot approve or reject a
-review by itself.
+During a pending review, a redacted `pending-decision-self-approval-suspected`
+observation is appended for dashboard token-file reads (`token-file-read`) and
+any loopback `/api/` call (`local-control-api-call`). Detection is split:
+`hooks/gate.sh` recalls broad candidates (Read/Grep/Glob inputs or command text
+naming the token file, or a loopback host plus `/api/`) **before** the
+`TENON_AFK=1` exit, and `internal-self-approval` classifies the candidate
+against the product-resolved token path, then re-reads the canonical pending
+receipt and binding under each Change lock. The hook marker is never the
+condition; no pending receipt means zero writes. Records carry change, phase,
+event, anchor, `channel=terminal`, kind, `observation_key` (sha256 of change +
+anchor + kind + tool_use_id or candidate digest, deduped under the lock),
+observed-at and an `hmac-sha256` identity digest keyed by the per-install 0600
+`decisionObservationKeyPath`; never token text, Authorization values, raw
+command or tool ids. The file is capped at 1 MiB: one overflow marker is
+appended and later observations are dropped. AFK only skips blocking, never
+recording. The observation detects a capability risk; it cannot approve or
+reject a review by itself. Detection is text-based recall, not containment:
+paths or hosts that never appear literally (encoded or assembled strings, globs
+such as `dashboard-tok*`, other loopback spellings like `0.0.0.0`, `127.1` or
+the machine hostname, or a script file that reads the token internally) are
+accepted misses. HITL blocking of token reads still follows the review marker
+TTL; recording does not.

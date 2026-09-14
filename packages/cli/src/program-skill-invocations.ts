@@ -38,8 +38,8 @@ export function registerSkillInvocationInternalCommands(program: Command, deps: 
       bail(await cmdInternalHostInteraction(deps, changeName, payloadPath)))
 
   program
-    .command('internal-self-approval <changeName> <payloadPath>')
+    .command('internal-self-approval <payloadPath> [changeName]')
     .description('[内部] 记录 pending review 的脱敏自审批检测信号')
-    .action(async (changeName: string, payloadPath: string) =>
-      bail(await cmdInternalSelfApproval(deps, changeName, payloadPath)))
+    .action(async (payloadPath: string, changeName: string | undefined) =>
+      bail(await cmdInternalSelfApproval(deps, payloadPath, changeName)))
 }

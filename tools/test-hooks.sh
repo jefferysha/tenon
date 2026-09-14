@@ -267,6 +267,96 @@ mkdir -p "$proj"
 run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\"}"
 assert_exit "gate: 无 marker → exit 0" 0 "$RC"
 
+# ── 1b. 自审批检测：hook 宽召回候选先于 AFK 放行，精确判定交给 CLI ──
+# node 以 PATH shim 替身：只记录「是否被 spawn、参数、临时 payload 内容与权限」。canonical
+# pending receipt 判定、去重、上限与脱敏由 self-approval-hook.integration.test.ts 用真实 bundle 覆盖。
+SA_SHIM="$TMP/self-approval-shim"
+SA_LOG="$TMP/self-approval-shim.log"
+mkdir -p "$SA_SHIM"
+cat > "$SA_SHIM/node" <<'SHIM'
+#!/usr/bin/env bash
+{
+  printf 'args=%s\n' "$*"
+  for arg in "$@"; do
+    case "$arg" in
+      */tenon-self-approval.*)
+        printf 'path=%s\n' "$arg"
+        printf 'mode=%s\n' "$(stat -c %a "$arg" 2>/dev/null || stat -f %Lp "$arg" 2>/dev/null)"
+        printf 'payload=%s\n' "$(cat "$arg")"
+        ;;
+    esac
+  done
+} >> "$SELF_APPROVAL_SHIM_LOG"
+exit 0
+SHIM
+chmod +x "$SA_SHIM/node"
+run_gate_self_approval() { # $1=stdin-json $2=AFK value → 设 RC / ERR；日志写 SA_LOG
+  rm -f "$SA_LOG"
+  ERR="$(printf '%s' "$1" | env -u TENON_RUNTIME_STATE_ROOT -u PLUGIN_ROOT \
+    PATH="$SA_SHIM:$PATH" TENON_AFK="$2" SELF_APPROVAL_SHIM_LOG="$SA_LOG" CLAUDE_PLUGIN_ROOT="$ROOT" \
+    bash "$GATE" 2>&1 >/dev/null)"
+  RC=$?
+}
+proj="$TMP/gate-self-approval"
+mkdir -p "$proj/openspec/changes"
+SA_TOKEN="$proj/state home/tenon/dashboard-token.json"
+for desc_payload in \
+  "Bash ls|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"ls -la\"}" \
+  "Read 普通文件|{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$proj/README.md\"}}" \
+  "远端 /api/|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl https://example.test/api/change/x/decisions\"}" \
+  "loopback 非 api|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl http://127.0.0.1:18765/health\"}" \
+  "Read src/api 路径|{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$proj/src/api/users.ts\"}}" \
+  "Edit 内容含 /api/|{\"cwd\":\"$proj\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$proj/a.ts\",\"new_string\":\"fetch('/api/users')\"}}"; do
+  desc="${desc_payload%%|*}"
+  for afk in 1 0; do
+    run_gate_self_approval "${desc_payload#*|}" "$afk"
+    assert_exit "self-approval: 非候选放行（${desc}，AFK=${afk}）" 0 "$RC"
+    [ ! -f "$SA_LOG" ] && ok "self-approval: 非候选不 spawn node（${desc}，AFK=${afk}）" \
+      || bad "self-approval: 非候选不 spawn node（${desc}，AFK=${afk}）" "$(cat "$SA_LOG")"
+  done
+done
+for desc_payload in \
+  "Bash cat token|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_use_id\":\"toolu_1\",\"command\":\"cat \\\"$SA_TOKEN\\\"\"}" \
+  "Read 工具|{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$SA_TOKEN\"}}" \
+  "Grep path|{\"cwd\":\"$proj\",\"tool_name\":\"Grep\",\"tool_input\":{\"pattern\":\"token\",\"path\":\"$SA_TOKEN\"}}" \
+  "Glob pattern|{\"cwd\":\"$proj\",\"tool_name\":\"Glob\",\"tool_input\":{\"pattern\":\"**/dashboard-token.json\"}}" \
+  "Grep glob|{\"cwd\":\"$proj\",\"tool_name\":\"Grep\",\"tool_input\":{\"pattern\":\"token\",\"path\":\"$proj\",\"glob\":\"dashboard-token.json\"}}" \
+  "curl -XPOST|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl -XPOST http://127.0.0.1:18765/api/change/x/decisions\"}" \
+  "curl --json|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl --json '{}' http://localhost:18765/api/change/x/decisions\"}" \
+  "curl -d @f|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl -d @body.json http://[::1]:18765/api/change/x/transition\"}" \
+  "命令替换 Authorization|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"curl -H \\\"Authorization: Bearer \$(cat ~/s/dashboard-token.json)\\\" http://127.0.0.1:1/api/x\"}" \
+  "管道|{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"cat ~/s/dashboard-token.json | jq -r .token\"}" \
+  "codex exec argv|{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"cmd\":[\"bash\",\"-lc\",\"wget -qO- localhost:18765/api/snapshot\"]}"; do
+  desc="${desc_payload%%|*}"
+  run_gate_self_approval "${desc_payload#*|}" 1
+  assert_exit "self-approval: AFK 候选仍放行（${desc}）" 0 "$RC"
+  SA_OUT="$(cat "$SA_LOG" 2>/dev/null || true)"
+  assert_contains "self-approval: AFK 候选在放行前调用记录器（${desc}）" "$SA_OUT" "internal-self-approval"
+  assert_contains "self-approval: payload 权限 0600（${desc}）" "$SA_OUT" "mode=600"
+  SA_PAYLOAD_PATH="$(printf '%s\n' "$SA_OUT" | sed -n 's/^path=//p' | head -1)"
+  [ -n "$SA_PAYLOAD_PATH" ] && [ ! -e "$SA_PAYLOAD_PATH" ] && ok "self-approval: payload 调用后删除（${desc}）" \
+    || bad "self-approval: payload 调用后删除（${desc}）" "path=<$SA_PAYLOAD_PATH>"
+  if [ -n "$TENON_NODE_PATH" ]; then
+    printf '%s\n' "$SA_OUT" | sed -n 's/^payload=//p' | "$TENON_NODE_PATH" -e '
+      const p = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      const keys = Object.keys(p).sort().join(",");
+      if (keys !== "candidate,process_or_host_identity,tool_name,tool_use_id" || p.candidate === "") process.exit(1);
+    ' 2>/dev/null
+    assert_exit "self-approval: payload 是封闭 JSON 且带候选文本（${desc}）" 0 "$?"
+  fi
+done
+run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"cat ~/s/dashboard-token.json\"}" 0
+assert_exit "self-approval: 无 pending marker 的非 AFK 只读 token 不拦截（CLI 负责判定是否记录）" 0 "$RC"
+assert_contains "self-approval: 非 AFK 同样调用记录器" "$(cat "$SA_LOG" 2>/dev/null || true)" "internal-self-approval"
+write_v2_review_marker "$proj" sa-demo explore
+run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$SA_TOKEN\"}}" 0
+assert_exit "self-approval: HITL pending review 下读取 token 仍拦截" 2 "$RC"
+assert_contains "self-approval: HITL 拦截保留原提示" "$ERR" "禁止读取 dashboard token"
+assert_contains "self-approval: HITL 拦截前已调用记录器" "$(cat "$SA_LOG" 2>/dev/null || true)" "internal-self-approval"
+run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$SA_TOKEN\"}}" 1
+assert_exit "self-approval: AFK 下 pending review 读取 token 不拦截" 0 "$RC"
+rm -f "$proj/.pipeline-pending-review" "$proj/.pipeline-active"
+
 # ───── 1a. 门 TTL 分级（BACKLOG #13，对齐老内核 pipeline-gate.sh：confirm 300s / review·interaction 1800s） ─────
 touch_age() { # $1=文件 $2=秒龄：把 mtime 设为 now-$2（BSD/GNU date 双兼容）
   local ts

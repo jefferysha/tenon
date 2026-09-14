@@ -73,6 +73,7 @@ describe('resolveProductPaths —— Tenon 自有机器状态的唯一平台路�
       secretsPath: '/tmp/tenon-runtime/config/secrets.json',
       dashboardTokenPath: '/tmp/tenon-runtime/state/dashboard-token.json',
       dashboardPidfilePath: '/tmp/tenon-runtime/state/dashboard-server.json',
+      decisionObservationKeyPath: '/tmp/tenon-runtime/state/decision-observation-identity.key',
       managedTransactionRoot: '/tmp/tenon-runtime/state/managed-release-transaction',
       migrationsRoot: '/tmp/tenon-runtime/state/migrations',
       channelsRoot: '/tmp/tenon-runtime/state/channels',
