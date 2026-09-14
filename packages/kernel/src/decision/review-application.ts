@@ -144,8 +144,10 @@ export interface ReviewAcknowledgeCommandPort {
   readonly readRevision?: () => Promise<number | null>
   readonly expectedRevision?: number | null
   readonly idempotencyKey?: string
-  /** Returns replay/conflict/missing for the complete command payload. */
-  readonly checkIdempotency?: (key: string) => Promise<'missing' | 'replay' | 'conflict'>
+  /** Returns replay/rejected/conflict/missing for the complete command payload. */
+  readonly checkIdempotency?: (key: string) => Promise<'missing' | 'replay' | 'rejected' | 'conflict'>
+  /** Stable failure code for a previously rejected command with the same payload. */
+  readonly rejectedCode?: 'review-approval-required' | 'revision-conflict'
   readonly hasIdempotencyKey?: (key: string) => Promise<boolean>
   readonly rememberIdempotencyKey?: (key: string) => Promise<void>
   readonly phase: string
@@ -175,6 +177,10 @@ export async function executeReviewAcknowledgeCommand(
       : key !== undefined && port.hasIdempotencyKey !== undefined && await port.hasIdempotencyKey(key)
         ? 'replay' : 'missing'
     if (idempotency === 'conflict') return { ok: false, code: 'idempotency-conflict', message: 'idempotency key is already bound to another decision' }
+    if (idempotency === 'rejected') {
+      const code = port.rejectedCode ?? 'review-approval-required'
+      return { ok: false, code, message: 'the same decision command was previously rejected' }
+    }
     if (idempotency === 'replay') {
       return { ok: true, code: 'idempotent-replay', changed: false, idempotent: true, deferred: [] }
     }
@@ -184,6 +190,13 @@ export async function executeReviewAcknowledgeCommand(
       await port.recordRejected?.(state, 'review receipt binding mismatch')
       return { ok: false, code: 'review-approval-required', message: `phase '${port.phase}' 的 review receipt 未绑定当前 canonical decision state；请重新 request ${port.event}` }
     }
+    if (port.expectedRevision !== undefined && port.readRevision !== undefined) {
+      const current = await port.readRevision()
+      if (current !== port.expectedRevision) {
+        await port.recordRejected?.(state, 'decision revision conflict')
+        return { ok: false, code: 'revision-conflict', message: 'decision revision conflict' }
+      }
+    }
     if (!reviewGatePendingFor(state, port.phase, port.event) && !reviewGateApprovedFor(state, port.phase, port.event)) {
       await port.recordRejected?.(state, 'review decision is no longer pending')
       return { ok: false, code: 'review-approval-required', message: `phase '${port.phase}' 尚未为 event '${port.event}' request review` }
@@ -191,13 +204,6 @@ export async function executeReviewAcknowledgeCommand(
     if (reviewGateApprovedFor(state, port.phase, port.event)) {
       if (key !== undefined) await port.rememberIdempotencyKey?.(key)
       return { ok: true, code: 'idempotent-replay', changed: false, idempotent: true, deferred: [] }
-    }
-    if (port.expectedRevision !== undefined && port.readRevision !== undefined) {
-      const current = await port.readRevision()
-      if (current !== port.expectedRevision) {
-        await port.recordRejected?.(state, 'decision revision conflict')
-        return { ok: false, code: 'revision-conflict', message: 'decision revision conflict' }
-      }
     }
     const committed = await port.commit(state, port.acknowledgedAt)
     if (key !== undefined) await port.rememberIdempotencyKey?.(key)

@@ -23841,24 +23841,6 @@ function projectPendingDecisions(input) {
   return { schemaVersion: "pending-decision-view/v1", revision: input.revision ?? null, items };
 }
 
-// packages/kernel/dist/decision/commands.js
-function createDecisionCommandAdapter(port) {
-  return { execute: async (input) => {
-    if (input.idempotencyKey === "")
-      return { ok: false, code: "invalid-command", message: "idempotency key is required" };
-    if (await port.hasIdempotencyKey(input.idempotencyKey))
-      return { ok: true, idempotent: true, ref: input.ref };
-    const current = await port.readRevision();
-    if (current !== input.expectedRevision)
-      return { ok: false, code: "revision-conflict", message: "decision revision conflict" };
-    if (!await port.isPending(input.ref))
-      return { ok: false, code: "decision-not-pending", message: "decision is no longer pending" };
-    await port.apply(input);
-    await port.rememberIdempotencyKey(input.idempotencyKey);
-    return { ok: true, idempotent: false, ref: input.ref };
-  } };
-}
-
 // packages/kernel/dist/decision/review-application.js
 function reviewAcknowledgedInteractionDraft(input) {
   const origin = input.beforeRevision.state.runMetadata;
@@ -23948,6 +23930,55 @@ async function acknowledgeReview(input) {
     code: deferred.includes("review-marker-clear") ? "marker-warning" : "approved",
     idempotent: false
   };
+}
+async function executeReviewAcknowledgeCommand(port) {
+  if (!port.phase || !port.event)
+    return { ok: false, code: "invalid-input", message: "review phase and event are required" };
+  if (port.expectedRevision !== void 0 && port.expectedRevision === null) {
+    return { ok: false, code: "invalid-input", message: "expected revision is required" };
+  }
+  return port.withLock(async () => {
+    const key = port.idempotencyKey;
+    if (key !== void 0 && key === "")
+      return { ok: false, code: "invalid-input", message: "idempotency key is required" };
+    const idempotency = key !== void 0 && port.checkIdempotency !== void 0 ? await port.checkIdempotency(key) : key !== void 0 && port.hasIdempotencyKey !== void 0 && await port.hasIdempotencyKey(key) ? "replay" : "missing";
+    if (idempotency === "conflict")
+      return { ok: false, code: "idempotency-conflict", message: "idempotency key is already bound to another decision" };
+    if (idempotency === "rejected") {
+      const code = port.rejectedCode ?? "review-approval-required";
+      return { ok: false, code, message: "the same decision command was previously rejected" };
+    }
+    if (idempotency === "replay") {
+      return { ok: true, code: "idempotent-replay", changed: false, idempotent: true, deferred: [] };
+    }
+    const state = await port.readState();
+    const bindingMatches = await port.bindingMatches(state);
+    if (!bindingMatches) {
+      await port.recordRejected?.(state, "review receipt binding mismatch");
+      return { ok: false, code: "review-approval-required", message: `phase '${port.phase}' \u7684 review receipt \u672A\u7ED1\u5B9A\u5F53\u524D canonical decision state\uFF1B\u8BF7\u91CD\u65B0 request ${port.event}` };
+    }
+    if (port.expectedRevision !== void 0 && port.readRevision !== void 0) {
+      const current = await port.readRevision();
+      if (current !== port.expectedRevision) {
+        await port.recordRejected?.(state, "decision revision conflict");
+        return { ok: false, code: "revision-conflict", message: "decision revision conflict" };
+      }
+    }
+    if (!reviewGatePendingFor(state, port.phase, port.event) && !reviewGateApprovedFor(state, port.phase, port.event)) {
+      await port.recordRejected?.(state, "review decision is no longer pending");
+      return { ok: false, code: "review-approval-required", message: `phase '${port.phase}' \u5C1A\u672A\u4E3A event '${port.event}' request review` };
+    }
+    if (reviewGateApprovedFor(state, port.phase, port.event)) {
+      if (key !== void 0)
+        await port.rememberIdempotencyKey?.(key);
+      return { ok: true, code: "idempotent-replay", changed: false, idempotent: true, deferred: [] };
+    }
+    const committed = await port.commit(state, port.acknowledgedAt);
+    if (key !== void 0)
+      await port.rememberIdempotencyKey?.(key);
+    const deferred = committed.deferred ?? [];
+    return { ok: true, code: deferred.includes("review-marker-clear") ? "marker-warning" : "approved", changed: true, idempotent: false, deferred };
+  });
 }
 
 // packages/kernel/dist/skills/source-registry.js
@@ -38778,173 +38809,130 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
   return true;
 }
 async function applyDecision(input) {
+  const preflight = await input.store.read(input.dir);
+  const view = projectPendingDecisions({ change: input.name, state: preflight });
+  const item2 = view.items.find((candidate) => candidate.ref.id === input.ref);
+  const priorForKey = item2 === void 0 ? (await readDecisionIdempotency(input.dir)).find((record7) => record7.key === input.idempotencyKey) : void 0;
+  if ((item2 === void 0 || item2.type !== "review") && priorForKey === void 0) {
+    return { result: { ok: false, code: "decision-not-pending", message: "decision is no longer pending" }, deferred: [] };
+  }
+  const phase = item2?.anchor.phase ?? String(preflight.fields.review_gate_phase ?? "");
+  const event = item2?.anchor.event ?? reviewGateEvent(preflight);
   let deferred = [];
-  let result2;
-  await input.store.withLock(input.dir, async () => {
-    const records = await readDecisionIdempotency(input.dir);
-    const prior = records.find((record7) => record7.key === input.idempotencyKey);
-    const payloadDigest = commandPayloadDigest(input.ref, input.expectedRevision, "dashboard");
-    if (prior !== void 0 && (prior.payloadDigest ?? commandPayloadDigest(prior.ref, prior.expectedRevision, prior.channel)) !== payloadDigest) {
-      throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "idempotency-conflict" });
-    }
-    if (prior !== void 0) {
-      if (prior.outcome === "rejected") {
-        throw Object.assign(new Error(prior.error ?? "review approval was rejected"), { code: prior.code ?? "review-approval-required" });
+  const payloadDigest = commandPayloadDigest(input.ref, input.expectedRevision, "dashboard");
+  const command = await executeReviewAcknowledgeCommand({
+    withLock: (fn) => input.store.withLock(input.dir, fn),
+    readState: () => input.store.read(input.dir),
+    readRevision: async () => (await readCurrentRunRevision(input.dir))?.revision ?? null,
+    expectedRevision: input.expectedRevision,
+    idempotencyKey: input.idempotencyKey,
+    checkIdempotency: async (key) => {
+      const prior = (await readDecisionIdempotency(input.dir)).find((record7) => record7.key === key);
+      if (prior === void 0) return "missing";
+      const priorDigest = prior.payloadDigest ?? commandPayloadDigest(prior.ref, prior.expectedRevision, prior.channel);
+      if (priorDigest !== payloadDigest) return "conflict";
+      return prior.outcome === "rejected" ? "rejected" : "replay";
+    },
+    rememberIdempotencyKey: async (key) => appendDecisionIdempotency(input.dir, {
+      key,
+      ref: input.ref,
+      expectedRevision: input.expectedRevision,
+      channel: "dashboard",
+      payloadDigest,
+      acknowledgedAt: input.clock()
+    }),
+    phase,
+    event,
+    acknowledgedAt: input.clock(),
+    via: "dashboard",
+    rejectedCode: "review-approval-required",
+    bindingMatches: async (state) => reviewGateBindingMatches(await readReviewGateBinding(input.dir), state, phase, event),
+    recordRejected: async (state, reason) => {
+      await appendDecisionIdempotency(input.dir, { key: input.idempotencyKey, ref: input.ref, expectedRevision: input.expectedRevision, channel: "dashboard", payloadDigest, acknowledgedAt: input.clock(), outcome: "rejected", error: reason, code: reason.includes("revision") ? "revision-conflict" : "review-approval-required" });
+      const current = await readCurrentRunRevision(input.dir);
+      if (current !== void 0) {
+        try {
+          await createInteractionEventRecorder().recordUnderLock(input.dir, reviewAcknowledgedInteractionDraft({
+            change: input.name,
+            state,
+            revision: current,
+            beforeRevision: current,
+            phase,
+            event,
+            requestedAt: String(state.fields.review_requested_at ?? ""),
+            acknowledgedAt: input.clock(),
+            rejected: true,
+            surface: "dashboard",
+            actor: "system",
+            workflow: String(state.fields.workflow || "default"),
+            workflowHash: current.state.runMetadata?.workflowPlanFingerprint ?? "0".repeat(64),
+            track: String(state.fields.track || "backend"),
+            trackKind: "built-in",
+            workflowMode: "default",
+            pipelineStage: phase
+          }));
+        } catch {
+        }
       }
-      result2 = { ok: true, idempotent: true, ref: { id: prior.ref, kind: "review", change: input.name, anchor: "", revision: prior.expectedRevision } };
-      return;
-    }
-    const lockedRevision = await readCurrentRunRevision(input.dir);
-    const locked = lockedRevision?.state ?? await input.store.read(input.dir);
-    const view = projectPendingDecisions({ change: input.name, state: locked, revision: lockedRevision?.revision });
-    const item2 = view.items.find((candidate) => candidate.ref.id === input.ref);
-    if (item2 === void 0) throw Object.assign(new Error("decision is no longer pending"), { code: "decision-not-pending" });
-    if (item2.type === "review") {
-      const phase = item2.anchor.phase ?? "";
-      const event = item2.anchor.event ?? reviewGateEvent(locked);
-      const binding = await readReviewGateBinding(input.dir);
-      if (!reviewGateBindingMatches(binding, locked, phase, event)) {
-        const current = await readCurrentRunRevision(input.dir);
-        if (current !== void 0 && lockedRevision !== void 0) {
+    },
+    commit: async (state, acknowledgedAt) => {
+      const before = await readCurrentRunRevision(input.dir);
+      const acknowledged = await acknowledgeReview({
+        state,
+        phase,
+        event,
+        acknowledgedAt,
+        bindingMatches: true,
+        via: "dashboard",
+        writeState: async (patch) => {
+          await input.store.writeUnderLock(input.dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });
+        },
+        recordInteraction: async ({ state: interactionState, acknowledgedAt: at, rejected }) => {
+          const after = await readCurrentRunRevision(input.dir);
+          if (before !== void 0 && after !== void 0) await createInteractionEventRecorder().recordUnderLock(input.dir, reviewAcknowledgedInteractionDraft({
+            change: input.name,
+            state: interactionState,
+            revision: after,
+            beforeRevision: before,
+            phase,
+            event,
+            requestedAt: String(state.fields.review_requested_at ?? ""),
+            acknowledgedAt: at,
+            rejected,
+            surface: "dashboard",
+            actor: "system",
+            workflow: String(interactionState.fields.workflow || "default"),
+            workflowHash: after.state.runMetadata?.workflowPlanFingerprint ?? "0".repeat(64),
+            track: String(interactionState.fields.track || "backend"),
+            trackKind: "built-in",
+            workflowMode: "default",
+            pipelineStage: phase
+          }));
+        },
+        recordHistory: async ({ acknowledgedAt: at }) => input.history.append(input.dir, { ts: at, kind: "tool", raw: `review:acknowledge via=dashboard phase=${phase} event=${event}` }),
+        recordRejectedAcknowledgement: async ({ acknowledgedAt: at }) => input.history.append(input.dir, { ts: at, kind: "tool", raw: `review:acknowledge-rejected via=dashboard phase=${phase} event=${event}` }),
+        clearMarker: async () => {
+          const marker = join68(input.root, REVIEW_MARKER_FILE);
           try {
-            await createInteractionEventRecorder().recordUnderLock(input.dir, reviewAcknowledgedInteractionDraft({
-              change: input.name,
-              state: locked,
-              revision: current,
-              beforeRevision: lockedRevision,
-              phase,
-              event,
-              requestedAt: String(locked.fields.review_requested_at ?? ""),
-              acknowledgedAt: input.clock(),
-              rejected: true,
-              workflow: String(locked.fields.workflow || "default"),
-              workflowHash: current.state.runMetadata?.workflowPlanFingerprint ?? "0".repeat(64),
-              track: String(locked.fields.track || "backend"),
-              trackKind: ["chat", "simple", "pm", "frontend", "backend"].includes(String(locked.fields.track)) ? "built-in" : "custom",
-              workflowMode: "default",
-              pipelineStage: ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(phase) ? phase : "custom",
-              surface: "dashboard"
-            }));
-          } catch {
+            const receipt = parseReviewMarker(await readFile28(marker, "utf8"));
+            if (receipt?.changeName !== input.name || receipt.event !== event) return false;
+            await unlink5(marker);
+            return true;
+          } catch (error2) {
+            return error2.code === "ENOENT";
           }
         }
-        await appendDecisionIdempotency(input.dir, {
-          key: input.idempotencyKey,
-          ref: input.ref,
-          expectedRevision: input.expectedRevision,
-          channel: "dashboard",
-          payloadDigest: commandPayloadDigest(input.ref, input.expectedRevision, "dashboard"),
-          acknowledgedAt: input.clock(),
-          outcome: "rejected",
-          error: "review receipt binding mismatch",
-          code: "review-approval-required"
-        });
-        throw Object.assign(new Error(`phase '${phase}' \u7684 review receipt \u672A\u7ED1\u5B9A\u5F53\u524D canonical decision state\uFF1B\u8BF7\u91CD\u65B0 request ${event}`), { code: "review-approval-required" });
-      }
-    }
-    const adapter2 = createDecisionCommandAdapter({
-      readRevision: async () => (await readCurrentRunRevision(input.dir))?.revision ?? null,
-      hasIdempotencyKey: async () => false,
-      rememberIdempotencyKey: async (key) => appendDecisionIdempotency(input.dir, {
-        key,
-        ref: input.ref,
-        expectedRevision: input.expectedRevision,
-        channel: "dashboard",
-        payloadDigest,
-        acknowledgedAt: input.clock()
-      }),
-      isPending: async (decisionRef) => projectPendingDecisions({
-        change: input.name,
-        state: await input.store.read(input.dir),
-        revision: lockedRevision?.revision
-      }).items.some((candidate) => candidate.ref.id === decisionRef.id && candidate.type === "review" && candidate.status === "pending"),
-      apply: async ({ ref: decisionRef }) => {
-        const current = await readCurrentRunRevision(input.dir);
-        const state = current?.state ?? await input.store.read(input.dir);
-        const currentItem = projectPendingDecisions({ change: input.name, state, revision: current?.revision }).items.find((candidate) => candidate.ref.id === decisionRef.id);
-        if (currentItem === void 0 || currentItem.type !== "review") throw new Error("decision is no longer pending");
-        const phase = currentItem.anchor.phase ?? "";
-        const event = currentItem.anchor.event ?? reviewGateEvent(state);
-        const binding = await readReviewGateBinding(input.dir);
-        const acknowledged = await acknowledgeReview({
-          state,
-          phase,
-          event,
-          acknowledgedAt: input.clock(),
-          bindingMatches: reviewGateBindingMatches(binding, state, phase, event),
-          via: "dashboard",
-          writeState: async (patch) => {
-            await input.store.writeUnderLock(input.dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });
-          },
-          recordInteraction: async ({ state: interactionState, acknowledgedAt, rejected }) => {
-            const after = await readCurrentRunRevision(input.dir);
-            if (lockedRevision !== void 0 && after !== void 0) {
-              const modeValue = String(interactionState.fields.workflow || "default").startsWith("default") ? "default" : "custom";
-              await createInteractionEventRecorder().recordUnderLock(input.dir, reviewAcknowledgedInteractionDraft({
-                change: input.name,
-                state: interactionState,
-                revision: after,
-                beforeRevision: lockedRevision,
-                phase,
-                event,
-                requestedAt: String(locked.fields.review_requested_at ?? ""),
-                acknowledgedAt,
-                rejected,
-                surface: "dashboard",
-                workflow: String(interactionState.fields.workflow || "default"),
-                workflowHash: after.state.runMetadata?.workflowPlanFingerprint ?? "0".repeat(64),
-                track: String(interactionState.fields.track || "backend"),
-                trackKind: ["chat", "simple", "pm", "frontend", "backend"].includes(String(interactionState.fields.track)) ? "built-in" : "custom",
-                ...Object.fromEntries([["workflowMode", modeValue]]),
-                pipelineStage: ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(phase) ? phase : "custom"
-              }));
-            }
-          },
-          recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent }) => input.history.append(input.dir, {
-            ts: acknowledgedAt,
-            kind: "tool",
-            raw: `review:acknowledge via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}`
-          }),
-          recordRejectedAcknowledgement: async ({ acknowledgedAt, phase: rejectedPhase, event: rejectedEvent }) => input.history.append(input.dir, {
-            ts: acknowledgedAt,
-            kind: "tool",
-            raw: `review:acknowledge-rejected via=dashboard phase=${rejectedPhase} event=${rejectedEvent}`
-          }),
-          clearMarker: async () => {
-            const marker = join68(input.root, REVIEW_MARKER_FILE);
-            try {
-              const markerReceipt = parseReviewMarker(await readFile28(marker, "utf8"));
-              if (markerReceipt?.changeName !== input.name || markerReceipt.event !== event) return false;
-              await unlink5(marker);
-              return true;
-            } catch (error2) {
-              if (error2.code === "ENOENT") return true;
-              return false;
-            }
-          }
-        });
-        deferred = acknowledged.deferred;
-      }
-    });
-    try {
-      result2 = await adapter2.execute({ ref: item2.ref, expectedRevision: input.expectedRevision, idempotencyKey: input.idempotencyKey, channel: "dashboard" });
-    } catch (error2) {
-      await appendDecisionIdempotency(input.dir, {
-        key: input.idempotencyKey,
-        ref: input.ref,
-        expectedRevision: input.expectedRevision,
-        channel: "dashboard",
-        payloadDigest,
-        acknowledgedAt: input.clock(),
-        outcome: "rejected",
-        error: error2 instanceof Error ? error2.message : String(error2),
-        code: typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : "review-approval-required"
       });
-      throw error2;
+      deferred = acknowledged.deferred;
+      return { deferred };
     }
   });
-  if (result2 === void 0) throw new Error("decision command did not produce a result");
-  return { result: result2, deferred };
+  if (!command.ok) {
+    const code = command.code === "invalid-input" ? "invalid-command" : command.code;
+    return { result: { ok: false, code, message: command.message }, deferred };
+  }
+  const ref = item2?.ref ?? { id: input.ref, kind: "review", change: input.name, anchor: `${phase}:${event}`, revision: input.expectedRevision };
+  return { result: { ok: true, idempotent: command.idempotent, ref }, deferred };
 }
 
 // packages/server/src/serverTaskRunOperations.ts

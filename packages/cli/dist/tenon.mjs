@@ -26388,7 +26388,7 @@ function updateLoopInYaml(text7, loopId, patch) {
 }
 function renderLoopEntryLines(entry) {
   const lines = [`  - id: ${formatScalar(entry.id, "id")}`];
-  const scalar18 = (field3, v) => {
+  const scalar19 = (field3, v) => {
     lines.push(`    ${field3}: ${formatScalar(v, field3)}`);
   };
   const seq2 = (field3, values) => {
@@ -26400,25 +26400,25 @@ function renderLoopEntryLines(entry) {
     for (const v of values)
       lines.push(`      - ${formatString(v, field3, true)}`);
   };
-  scalar18("name", entry.name);
-  scalar18("kind", entry.kind);
-  scalar18("goal", entry.goal);
-  scalar18("cadence", entry.cadence);
-  scalar18("risk", entry.risk);
-  scalar18("runner", entry.runner);
-  scalar18("change_prefix", entry.change_prefix);
+  scalar19("name", entry.name);
+  scalar19("kind", entry.kind);
+  scalar19("goal", entry.goal);
+  scalar19("cadence", entry.cadence);
+  scalar19("risk", entry.risk);
+  scalar19("runner", entry.runner);
+  scalar19("change_prefix", entry.change_prefix);
   seq2("phases", entry.phases);
   seq2("human_gates", entry.human_gates);
-  scalar18("design_doc", entry.design_doc);
-  scalar18("status", entry.status);
+  scalar19("design_doc", entry.design_doc);
+  scalar19("status", entry.status);
   if (entry.template_id !== void 0)
-    scalar18("template_id", entry.template_id);
+    scalar19("template_id", entry.template_id);
   if (entry.template_version !== void 0)
-    scalar18("template_version", entry.template_version);
+    scalar19("template_version", entry.template_version);
   if (entry.workflow_id !== void 0)
-    scalar18("workflow_id", entry.workflow_id);
+    scalar19("workflow_id", entry.workflow_id);
   if (entry.skill_bundle_id !== void 0)
-    scalar18("skill_bundle_id", entry.skill_bundle_id);
+    scalar19("skill_bundle_id", entry.skill_bundle_id);
   lines.push("    budget:");
   const budgetScalar = (field3, v) => {
     lines.push(`      ${field3}: ${formatScalar(v, field3)}`);
@@ -31351,6 +31351,55 @@ async function acknowledgeReview(input) {
     code: deferred.includes("review-marker-clear") ? "marker-warning" : "approved",
     idempotent: false
   };
+}
+async function executeReviewAcknowledgeCommand(port) {
+  if (!port.phase || !port.event)
+    return { ok: false, code: "invalid-input", message: "review phase and event are required" };
+  if (port.expectedRevision !== void 0 && port.expectedRevision === null) {
+    return { ok: false, code: "invalid-input", message: "expected revision is required" };
+  }
+  return port.withLock(async () => {
+    const key = port.idempotencyKey;
+    if (key !== void 0 && key === "")
+      return { ok: false, code: "invalid-input", message: "idempotency key is required" };
+    const idempotency = key !== void 0 && port.checkIdempotency !== void 0 ? await port.checkIdempotency(key) : key !== void 0 && port.hasIdempotencyKey !== void 0 && await port.hasIdempotencyKey(key) ? "replay" : "missing";
+    if (idempotency === "conflict")
+      return { ok: false, code: "idempotency-conflict", message: "idempotency key is already bound to another decision" };
+    if (idempotency === "rejected") {
+      const code = port.rejectedCode ?? "review-approval-required";
+      return { ok: false, code, message: "the same decision command was previously rejected" };
+    }
+    if (idempotency === "replay") {
+      return { ok: true, code: "idempotent-replay", changed: false, idempotent: true, deferred: [] };
+    }
+    const state = await port.readState();
+    const bindingMatches = await port.bindingMatches(state);
+    if (!bindingMatches) {
+      await port.recordRejected?.(state, "review receipt binding mismatch");
+      return { ok: false, code: "review-approval-required", message: `phase '${port.phase}' \u7684 review receipt \u672A\u7ED1\u5B9A\u5F53\u524D canonical decision state\uFF1B\u8BF7\u91CD\u65B0 request ${port.event}` };
+    }
+    if (port.expectedRevision !== void 0 && port.readRevision !== void 0) {
+      const current = await port.readRevision();
+      if (current !== port.expectedRevision) {
+        await port.recordRejected?.(state, "decision revision conflict");
+        return { ok: false, code: "revision-conflict", message: "decision revision conflict" };
+      }
+    }
+    if (!reviewGatePendingFor(state, port.phase, port.event) && !reviewGateApprovedFor(state, port.phase, port.event)) {
+      await port.recordRejected?.(state, "review decision is no longer pending");
+      return { ok: false, code: "review-approval-required", message: `phase '${port.phase}' \u5C1A\u672A\u4E3A event '${port.event}' request review` };
+    }
+    if (reviewGateApprovedFor(state, port.phase, port.event)) {
+      if (key !== void 0)
+        await port.rememberIdempotencyKey?.(key);
+      return { ok: true, code: "idempotent-replay", changed: false, idempotent: true, deferred: [] };
+    }
+    const committed = await port.commit(state, port.acknowledgedAt);
+    if (key !== void 0)
+      await port.rememberIdempotencyKey?.(key);
+    const deferred = committed.deferred ?? [];
+    return { ok: true, code: deferred.includes("review-marker-clear") ? "marker-warning" : "approved", changed: true, idempotent: false, deferred };
+  });
 }
 
 // packages/kernel/dist/skills/source-registry.js
@@ -68683,14 +68732,41 @@ async function writeReviewMarker(deps, phase, event, name2, requestedAt) {
     return false;
   }
 }
-
-// packages/cli/src/commands/review.ts
+async function recordRejectedAcknowledgement(deps, interaction, changeDir2, changeName, state, revision, event) {
+  if (interaction === void 0 || revision === void 0) {
+    if (interaction !== void 0) {
+      deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u672A\u5199\u5165\uFF08\u7F3A canonical run/workflow/state anchor\uFF1Bcanonical review acknowledgement \u5DF2\u62D2\u7EDD\uFF09`);
+    }
+    return;
+  }
+  try {
+    await interaction.recordReviewAcknowledged({
+      changeDir: changeDir2,
+      changeName,
+      state,
+      revision,
+      beforeRevision: revision,
+      event,
+      requestedAt: scalar17(state, "review_requested_at"),
+      rejected: true,
+      clock: freshReviewRequestedAt(scalar17(state, "review_requested_at"), deps.clock)
+    });
+  } catch (error2) {
+    deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review acknowledgement \u5DF2\u62D2\u7EDD\uFF09: ${errMsg(error2)}`);
+  }
+}
 function scalar17(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
+
+// packages/cli/src/commands/review.ts
+function scalar18(state, field3) {
+  const value = state.fields[field3];
+  return Array.isArray(value) ? value.join(",") : value ?? "";
+}
 function resolveReviewStep(deps, state) {
-  const phase = scalar17(state, "phase");
+  const phase = scalar18(state, "phase");
   const plan = effectiveWorkflowForState(deps, state);
   if (!plan) throw new Error(`workflow '${String(state.fields.workflow ?? "")}' \u672A\u627E\u5230\u6216\u4E0D\u53EF\u7F16\u8BD1`);
   const step = resolveStep(plan.workflow, phase);
@@ -68723,7 +68799,7 @@ function resolveReviewEvent(step, requestedEvent) {
 }
 async function checkVerifyFailReadiness(deps, name2, dir, state) {
   const blockers = [];
-  const report = scalar17(state, "verification_report");
+  const report = scalar18(state, "verification_report");
   const fileExists2 = deps.guardCtx?.(name2)?.fileExists;
   if (report === "" || report === "null") {
     blockers.push(`verify-fail \u51B3\u7B56\u8981\u6C42 verification_report \u975E\u7A7A\uFF08\u5F53\u524D='${report || "null"}'\uFF09`);
@@ -68733,7 +68809,7 @@ async function checkVerifyFailReadiness(deps, name2, dir, state) {
   const plan = effectiveWorkflowForState(deps, state);
   const documentPolicy = plan?.capabilities.documents.policy;
   if (documentPolicy) {
-    const phase = scalar17(state, "phase");
+    const phase = scalar18(state, "phase");
     if (!isDocumentPolicyStep(documentPolicy, phase) || !isDocumentContractPhase(phase)) {
       blockers.push(`\u53D7 OpenSpec \u6587\u6863\u5951\u7EA6\u6CBB\u7406\u7684 workflow \u5F53\u524D phase \u975E\u6CD5\uFF08\u5F53\u524D='${phase || "\u7A7A"}'\uFF09`);
     } else {
@@ -68780,10 +68856,10 @@ async function cmdReview(deps, sub, name2, opts = {}) {
         deps.io.err("ERROR: --delegated \u53EA\u53EF\u7528\u4E8E review acknowledge\uFF1Brequest \u4ECD\u5FC5\u987B\u5148\u5B8C\u6210\u771F\u5B9E review \u8BC1\u636E");
         return 1;
       }
-      const preflight = await deps.store.read(dir);
-      const preflightStep = resolveReviewStep(deps, preflight);
-      const event = resolveReviewEvent(preflightStep, opts.event);
-      const check = await checkReviewRequestReadiness(deps, name2, dir, preflight, preflightStep, event);
+      const preflight2 = await deps.store.read(dir);
+      const preflightStep2 = resolveReviewStep(deps, preflight2);
+      const event = resolveReviewEvent(preflightStep2, opts.event);
+      const check = await checkReviewRequestReadiness(deps, name2, dir, preflight2, preflightStep2, event);
       if (check !== 0) return check;
       let requested;
       await deps.store.withLock(dir, async () => {
@@ -68791,19 +68867,19 @@ async function cmdReview(deps, sub, name2, opts = {}) {
         const beforeRevision = interaction === void 0 ? void 0 : await readCurrentRunRevision(dir);
         const step = resolveReviewStep(deps, state);
         const lockedEvent = resolveReviewEvent(step, opts.event);
-        if (step.phase !== preflightStep.phase || lockedEvent !== event) {
+        if (step.phase !== preflightStep2.phase || lockedEvent !== event) {
           throw new Error("review request \u671F\u95F4\u5F53\u524D phase \u6216\u53EF\u9009 event \u5DF2\u53D8\u5316\uFF1B\u8BF7\u91CD\u65B0\u8FD0\u884C\u8BE5\u547D\u4EE4");
         }
         const existingStatus = reviewGateStatus(state);
         if (existingStatus !== null && !reviewGateMatches(state, step.phase)) {
-          throw new Error(`\u68C0\u6D4B\u5230\u5C5E\u4E8E phase '${scalar17(state, "review_gate_phase")}' \u7684\u6B8B\u7559 review receipt\uFF1B\u8BF7\u5148\u8BCA\u65AD state \u540E\u91CD\u8BD5`);
+          throw new Error(`\u68C0\u6D4B\u5230\u5C5E\u4E8E phase '${scalar18(state, "review_gate_phase")}' \u7684\u6B8B\u7559 review receipt\uFF1B\u8BF7\u5148\u8BCA\u65AD state \u540E\u91CD\u8BD5`);
         }
         const existingBinding = await readReviewGateBindingForRequest(dir);
         const bindingMatches = reviewGateBindingMatches(existingBinding, state, step.phase, event);
         if (reviewGateApprovedFor(state, step.phase, event) && bindingMatches) {
           throw new Error(`phase '${step.phase}' \u7684 event '${event}' \u5DF2\u83B7\u786E\u8BA4\uFF1B\u8BF7\u76F4\u63A5\u6267\u884C\u8BE5 transition\uFF0C\u4E0D\u80FD\u91CD\u590D request`);
         }
-        const existingAt = scalar17(state, "review_requested_at");
+        const existingAt = scalar18(state, "review_requested_at");
         if (reviewGatePendingFor(state, step.phase, event) && bindingMatches) {
           await refreshReviewGateBinding(dir, state, step.phase, event, existingAt || deps.clock());
           requested = {
@@ -68884,81 +68960,100 @@ async function cmdReview(deps, sub, name2, opts = {}) {
       );
       return markerOk2 ? 0 : 2;
     }
-    let acknowledged;
     let acknowledgeDeferred = [];
-    await deps.store.withLock(dir, async () => {
-      const state = await deps.store.read(dir);
-      const beforeRevision = interaction === void 0 ? void 0 : await readCurrentRunRevision(dir);
-      const step = resolveReviewStep(deps, state);
-      const event = reviewGateEvent(state);
-      if (event === "") {
-        throw new Error(`phase '${step.phase}' \u7684\u65E7 review receipt \u672A\u7ED1\u5B9A event\uFF1B\u8BF7\u91CD\u65B0\u8FD0\u884C tenon review request ${name2} --event <event>`);
-      }
-      if (!step.events.includes(event)) {
-        throw new Error(`phase '${step.phase}' \u7684 receipt event '${event}' \u5DF2\u4E0D\u5728\u5F53\u524D workflow \u51FA\u53E3\u4E2D\uFF1B\u8BF7\u91CD\u65B0 request`);
-      }
-      if (opts.event !== void 0 && opts.event !== event) {
-        throw new Error(`acknowledge \u7684 event '${opts.event}' \u4E0E\u5F85\u786E\u8BA4 receipt '${event}' \u4E0D\u4E00\u81F4`);
-      }
-      const binding = await readReviewGateBindingForRequest(dir);
-      const bindingMatches = reviewGateBindingMatches(binding, state, step.phase, event);
-      const delegatedAuthority = opts.delegated === true ? await readDelegatedReviewAuthority(
-        deps.cwd,
-        name2,
-        deps.env?.("TENON_HOST_SESSION_ID") ?? deps.env?.("CODEX_THREAD_ID")
-      ) : null;
-      if (opts.delegated === true && delegatedAuthority === null) {
-        throw new Error(`\u5F53\u524D Change '${name2}' \u6CA1\u6709\u6709\u6548\u7684\u7528\u6237\u59D4\u6258 review \u6388\u6743\uFF1B\u8BF7\u7B49\u5F85\u6B63\u5E38\u786E\u8BA4\uFF0C\u6216\u5148\u7531\u7528\u6237\u660E\u786E\u6388\u6743\u540E\u7EED\u81EA\u4E3B\u6267\u884C`);
-      }
-      const acknowledgedAt = reviewGateApprovedFor(state, step.phase, event) ? scalar17(state, "review_acknowledged_at") || deps.clock() : freshReviewRequestedAt(scalar17(state, "review_requested_at"), deps.clock);
-      const result2 = await acknowledgeReview({
+    const preflight = await deps.store.read(dir);
+    const preflightStep = resolveReviewStep(deps, preflight);
+    const preflightEvent = reviewGateEvent(preflight);
+    if (preflightEvent === "") {
+      throw new Error(`phase '${preflightStep.phase}' \u7684\u65E7 review receipt \u672A\u7ED1\u5B9A event\uFF1B\u8BF7\u91CD\u65B0\u8FD0\u884C tenon review request ${name2} --event <event>`);
+    }
+    if (!preflightStep.events.includes(preflightEvent)) {
+      throw new Error(`phase '${preflightStep.phase}' \u7684 receipt event '${preflightEvent}' \u5DF2\u4E0D\u5728\u5F53\u524D workflow \u51FA\u53E3\u4E2D\uFF1B\u8BF7\u91CD\u65B0 request`);
+    }
+    if (opts.event !== void 0 && opts.event !== preflightEvent) {
+      throw new Error(`acknowledge \u7684 event '${opts.event}' \u4E0E\u5F85\u786E\u8BA4 receipt '${preflightEvent}' \u4E0D\u4E00\u81F4`);
+    }
+    const delegatedAuthority = opts.delegated === true ? await readDelegatedReviewAuthority(
+      deps.cwd,
+      name2,
+      deps.env?.("TENON_HOST_SESSION_ID") ?? deps.env?.("CODEX_THREAD_ID")
+    ) : null;
+    if (opts.delegated === true && delegatedAuthority === null) {
+      throw new Error(`\u5F53\u524D Change '${name2}' \u6CA1\u6709\u6709\u6548\u7684\u7528\u6237\u59D4\u6258 review \u6388\u6743\uFF1B\u8BF7\u7B49\u5F85\u6B63\u5E38\u786E\u8BA4\uFF0C\u6216\u5148\u7531\u7528\u6237\u660E\u786E\u6388\u6743\u540E\u7EED\u81EA\u4E3B\u6267\u884C`);
+    }
+    const result2 = await executeReviewAcknowledgeCommand({
+      withLock: (fn) => deps.store.withLock(dir, fn),
+      readState: () => deps.store.read(dir),
+      phase: preflightStep.phase,
+      event: preflightEvent,
+      acknowledgedAt: reviewGateApprovedFor(preflight, preflightStep.phase, preflightEvent) ? scalar18(preflight, "review_acknowledged_at") || deps.clock() : freshReviewRequestedAt(scalar18(preflight, "review_requested_at"), deps.clock),
+      via: delegatedAuthority === null ? "terminal" : "delegated",
+      bindingMatches: async (state) => reviewGateBindingMatches(
+        await readReviewGateBindingForRequest(dir),
         state,
-        phase: step.phase,
-        event,
-        acknowledgedAt,
-        via: delegatedAuthority === null ? "terminal" : "delegated",
-        bindingMatches,
-        writeState: async (patch) => {
-          await deps.store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });
-        },
-        recordInteraction: interaction === void 0 ? void 0 : async ({ state: recordedState, acknowledgedAt: at, rejected }) => {
-          const afterRevision = await readCurrentRunRevision(dir);
-          if (beforeRevision === void 0 || afterRevision === void 0) {
-            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u672A\u5199\u5165\uFF08\u7F3A canonical run/workflow/state anchor\uFF1Bcanonical review acknowledgement ${rejected === true ? "\u5DF2\u62D2\u7EDD" : "\u5DF2\u63D0\u4EA4"}\uFF09`);
-            return;
-          }
-          try {
-            await interaction.recordReviewAcknowledged({
-              changeDir: dir,
-              changeName: name2,
-              state: recordedState,
-              revision: afterRevision,
-              beforeRevision,
-              event,
-              requestedAt: scalar17(state, "review_requested_at"),
-              rejected,
-              clock: at
+        preflightStep.phase,
+        preflightEvent
+      ),
+      recordRejected: async (state) => {
+        await recordRejectedAcknowledgement(
+          deps,
+          interaction,
+          dir,
+          name2,
+          state,
+          await readCurrentRunRevision(dir),
+          preflightEvent
+        );
+      },
+      commit: async (state, acknowledgedAt) => {
+        const beforeRevision = interaction === void 0 ? void 0 : await readCurrentRunRevision(dir);
+        const acknowledged2 = await acknowledgeReview({
+          state,
+          phase: preflightStep.phase,
+          event: preflightEvent,
+          acknowledgedAt,
+          via: delegatedAuthority === null ? "terminal" : "delegated",
+          bindingMatches: true,
+          writeState: async (patch) => {
+            await deps.store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });
+          },
+          recordInteraction: interaction === void 0 ? void 0 : async ({ state: recordedState, acknowledgedAt: at, rejected }) => {
+            const afterRevision = await readCurrentRunRevision(dir);
+            if (beforeRevision === void 0 || afterRevision === void 0) {
+              deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u672A\u5199\u5165\uFF08\u7F3A canonical run/workflow/state anchor\uFF1Bcanonical review acknowledgement ${rejected === true ? "\u5DF2\u62D2\u7EDD" : "\u5DF2\u63D0\u4EA4"}\uFF09`);
+              return;
+            }
+            try {
+              await interaction.recordReviewAcknowledged({
+                changeDir: dir,
+                changeName: name2,
+                state: recordedState,
+                revision: afterRevision,
+                beforeRevision,
+                event: preflightEvent,
+                requestedAt: scalar18(state, "review_requested_at"),
+                rejected,
+                clock: at
+              });
+            } catch (error2) {
+              deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review acknowledgement ${rejected === true ? "\u5DF2\u62D2\u7EDD" : "\u5DF2\u63D0\u4EA4"}\uFF09: ${errMsg(error2)}`);
+            }
+          },
+          recordHistory: async ({ acknowledgedAt: at, phase: acknowledgedPhase, event: acknowledgedEvent }) => {
+            await recordHistory(deps, dir, {
+              ts: at,
+              kind: "tool",
+              raw: opts.delegated === true ? `review:delegated-ack phase=${acknowledgedPhase} event=${acknowledgedEvent} authority_issued_at=${delegatedAuthority?.issuedAt ?? ""} authority_host_session=${delegatedAuthority?.hostSessionId ?? ""}` : `review:acknowledge phase=${acknowledgedPhase} event=${acknowledgedEvent}`
             });
-          } catch (error2) {
-            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review acknowledgement ${rejected === true ? "\u5DF2\u62D2\u7EDD" : "\u5DF2\u63D0\u4EA4"}\uFF09: ${errMsg(error2)}`);
-          }
-        },
-        recordHistory: async ({ acknowledgedAt: at, phase: acknowledgedPhase, event: acknowledgedEvent }) => {
-          await recordHistory(deps, dir, {
-            ts: at,
-            kind: "tool",
-            raw: opts.delegated === true ? `review:delegated-ack phase=${acknowledgedPhase} event=${acknowledgedEvent} authority_issued_at=${delegatedAuthority?.issuedAt ?? ""} authority_host_session=${delegatedAuthority?.hostSessionId ?? ""}` : `review:acknowledge phase=${acknowledgedPhase} event=${acknowledgedEvent}`
-          });
-        },
-        clearMarker: async () => clearReviewMarker(deps)
-      });
-      acknowledged = { phase: step.phase, event, acknowledgedAt: result2.acknowledgedAt, changed: result2.changed, delegatedAuthority };
-      acknowledgeDeferred = result2.deferred;
-      if (result2.deferred.includes("review-marker-clear")) {
-        deps.io.err("WARN: review marker \u6E05\u7406\u5931\u8D25\uFF08approval receipt \u5DF2\u63D0\u4EA4\uFF0C\u53EF\u91CD\u8BD5 acknowledge\uFF09");
+          },
+          clearMarker: async () => clearReviewMarker(deps)
+        });
+        return { deferred: acknowledged2.deferred };
       }
     });
-    if (!acknowledged) throw new Error("review acknowledgement \u672A\u4EA7\u751F receipt");
+    if (!result2.ok) throw new Error(result2.message);
+    acknowledgeDeferred = result2.deferred;
+    const acknowledged = { phase: preflightStep.phase, event: preflightEvent, delegatedAuthority };
     const markerOk = !acknowledgeDeferred.includes("review-marker-clear");
     deps.io.out(
       `[REVIEW] ${name2} phase=${acknowledged.phase} event=${acknowledged.event} ${acknowledged.delegatedAuthority === null ? "\u5DF2\u786E\u8BA4" : "\u5DF2\u6309\u7528\u6237\u59D4\u6258\u7684\u6301\u7EED\u6388\u6743\u786E\u8BA4"}\uFF0C\u53EF\u91CD\u53D1 transition`

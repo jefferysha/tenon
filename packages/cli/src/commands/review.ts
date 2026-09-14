@@ -20,6 +20,7 @@ import {
   reviewGateStatus,
   reviewGateBindingMatches,
   acknowledgeReview,
+  executeReviewAcknowledgeCommand,
   readCurrentRunRevision,
 } from '@tenon/kernel'
 import type { PipelineState } from '@tenon/kernel'
@@ -296,91 +297,90 @@ export async function cmdReview(
       )
       return markerOk ? 0 : 2
     }
-    let acknowledged: {
-      phase: string
-      event: string
-      acknowledgedAt: string
-      changed: boolean
-      delegatedAuthority: ContinuousAuthority | null
-    } | undefined
     let acknowledgeDeferred: readonly string[] = []
-    await deps.store.withLock(dir, async () => {
-      const state = await deps.store.read(dir)
-      const beforeRevision = interaction === undefined ? undefined : await readCurrentRunRevision(dir)
-      const step = resolveReviewStep(deps, state)
-      const event = reviewGateEvent(state)
-      if (event === '') {
-        throw new Error(`phase '${step.phase}' 的旧 review receipt 未绑定 event；请重新运行 tenon review request ${name} --event <event>`)
-      }
-      if (!step.events.includes(event)) {
-        throw new Error(`phase '${step.phase}' 的 receipt event '${event}' 已不在当前 workflow 出口中；请重新 request`)
-      }
-      if (opts.event !== undefined && opts.event !== event) {
-        throw new Error(`acknowledge 的 event '${opts.event}' 与待确认 receipt '${event}' 不一致`)
-      }
-      const binding = await readReviewGateBindingForRequest(dir)
-      const bindingMatches = reviewGateBindingMatches(binding, state, step.phase, event)
-      const delegatedAuthority = opts.delegated === true
-        ? await readDelegatedReviewAuthority(
-            deps.cwd,
-            name,
-            deps.env?.('TENON_HOST_SESSION_ID') ?? deps.env?.('CODEX_THREAD_ID'),
-          )
-        : null
-      if (opts.delegated === true && delegatedAuthority === null) {
-        throw new Error(`当前 Change '${name}' 没有有效的用户委托 review 授权；请等待正常确认，或先由用户明确授权后续自主执行`)
-      }
-      const acknowledgedAt = reviewGateApprovedFor(state, step.phase, event)
-        ? scalar(state, 'review_acknowledged_at') || deps.clock()
-        : freshReviewRequestedAt(scalar(state, 'review_requested_at'), deps.clock)
-      const result = await acknowledgeReview({
-        state,
-        phase: step.phase,
-        event,
-        acknowledgedAt,
-        via: delegatedAuthority === null ? 'terminal' : 'delegated',
-        bindingMatches,
-        writeState: async (patch) => {
-          await deps.store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: 'set-many' })
-        },
-        recordInteraction: interaction === undefined ? undefined : async ({ state: recordedState, acknowledgedAt: at, rejected }) => {
-          const afterRevision = await readCurrentRunRevision(dir)
-          if (beforeRevision === undefined || afterRevision === undefined) {
-            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection 未写入（缺 canonical run/workflow/state anchor；canonical review acknowledgement ${rejected === true ? '已拒绝' : '已提交'}）`)
-            return
-          }
-          try {
-            await interaction.recordReviewAcknowledged({
-              changeDir: dir, changeName: name, state: recordedState, revision: afterRevision,
-              beforeRevision, event, requestedAt: scalar(state, 'review_requested_at'), rejected, clock: at,
+    const preflight = await deps.store.read(dir)
+    const preflightStep = resolveReviewStep(deps, preflight)
+    const preflightEvent = reviewGateEvent(preflight)
+    if (preflightEvent === '') {
+      throw new Error(`phase '${preflightStep.phase}' 的旧 review receipt 未绑定 event；请重新运行 tenon review request ${name} --event <event>`)
+    }
+    if (!preflightStep.events.includes(preflightEvent)) {
+      throw new Error(`phase '${preflightStep.phase}' 的 receipt event '${preflightEvent}' 已不在当前 workflow 出口中；请重新 request`)
+    }
+    if (opts.event !== undefined && opts.event !== preflightEvent) {
+      throw new Error(`acknowledge 的 event '${opts.event}' 与待确认 receipt '${preflightEvent}' 不一致`)
+    }
+    const delegatedAuthority = opts.delegated === true
+      ? await readDelegatedReviewAuthority(
+          deps.cwd,
+          name,
+          deps.env?.('TENON_HOST_SESSION_ID') ?? deps.env?.('CODEX_THREAD_ID'),
+        )
+      : null
+    if (opts.delegated === true && delegatedAuthority === null) {
+      throw new Error(`当前 Change '${name}' 没有有效的用户委托 review 授权；请等待正常确认，或先由用户明确授权后续自主执行`)
+    }
+    const result = await executeReviewAcknowledgeCommand({
+      withLock: (fn) => deps.store.withLock(dir, fn),
+      readState: () => deps.store.read(dir),
+      phase: preflightStep.phase,
+      event: preflightEvent,
+      acknowledgedAt: reviewGateApprovedFor(preflight, preflightStep.phase, preflightEvent)
+        ? scalar(preflight, 'review_acknowledged_at') || deps.clock()
+        : freshReviewRequestedAt(scalar(preflight, 'review_requested_at'), deps.clock),
+      via: delegatedAuthority === null ? 'terminal' : 'delegated',
+      bindingMatches: async (state) => reviewGateBindingMatches(
+        await readReviewGateBindingForRequest(dir), state, preflightStep.phase, preflightEvent,
+      ),
+      recordRejected: async (state) => {
+        await recordRejectedAcknowledgement(
+          deps, interaction, dir, name, state, await readCurrentRunRevision(dir), preflightEvent,
+        )
+      },
+      commit: async (state, acknowledgedAt) => {
+        const beforeRevision = interaction === undefined ? undefined : await readCurrentRunRevision(dir)
+        const acknowledged = await acknowledgeReview({
+          state,
+          phase: preflightStep.phase,
+          event: preflightEvent,
+          acknowledgedAt,
+          via: delegatedAuthority === null ? 'terminal' : 'delegated',
+          bindingMatches: true,
+          writeState: async (patch) => {
+            await deps.store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: 'set-many' })
+          },
+          recordInteraction: interaction === undefined ? undefined : async ({ state: recordedState, acknowledgedAt: at, rejected }) => {
+            const afterRevision = await readCurrentRunRevision(dir)
+            if (beforeRevision === undefined || afterRevision === undefined) {
+              deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection 未写入（缺 canonical run/workflow/state anchor；canonical review acknowledgement ${rejected === true ? '已拒绝' : '已提交'}）`)
+              return
+            }
+            try {
+              await interaction.recordReviewAcknowledged({
+                changeDir: dir, changeName: name, state: recordedState, revision: afterRevision,
+                beforeRevision, event: preflightEvent, requestedAt: scalar(state, 'review_requested_at'), rejected, clock: at,
+              })
+            } catch (error) {
+              deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection 写入失败（canonical review acknowledgement ${rejected === true ? '已拒绝' : '已提交'}）: ${errMsg(error)}`)
+            }
+          },
+          recordHistory: async ({ acknowledgedAt: at, phase: acknowledgedPhase, event: acknowledgedEvent }) => {
+            await recordHistory(deps, dir, {
+              ts: at,
+              kind: 'tool',
+              raw: opts.delegated === true
+                ? `review:delegated-ack phase=${acknowledgedPhase} event=${acknowledgedEvent} authority_issued_at=${delegatedAuthority?.issuedAt ?? ''} authority_host_session=${delegatedAuthority?.hostSessionId ?? ''}`
+                : `review:acknowledge phase=${acknowledgedPhase} event=${acknowledgedEvent}`,
             })
-          } catch (error) {
-            deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection 写入失败（canonical review acknowledgement ${rejected === true ? '已拒绝' : '已提交'}）: ${errMsg(error)}`)
-          }
-        },
-        recordHistory: async ({ acknowledgedAt: at, phase: acknowledgedPhase, event: acknowledgedEvent }) => {
-          await recordHistory(deps, dir, {
-            ts: at,
-            kind: 'tool',
-            raw: opts.delegated === true
-              ? `review:delegated-ack phase=${acknowledgedPhase} event=${acknowledgedEvent} `
-                + `authority_issued_at=${delegatedAuthority?.issuedAt ?? ''} `
-                + `authority_host_session=${delegatedAuthority?.hostSessionId ?? ''}`
-              : `review:acknowledge phase=${acknowledgedPhase} event=${acknowledgedEvent}`,
-          })
-        },
-        clearMarker: async () => clearReviewMarker(deps),
-      })
-      acknowledged = { phase: step.phase, event, acknowledgedAt: result.acknowledgedAt, changed: result.changed, delegatedAuthority }
-      acknowledgeDeferred = result.deferred
-      // Keep canonical approval durable even when a compatibility marker cannot be cleared. The
-      // application reports that projection failure as a deferred side effect for the CLI's exit
-      // code instead of turning a successful acknowledgement into a transport error.
-      if (result.deferred.includes('review-marker-clear')) {
-        deps.io.err('WARN: review marker 清理失败（approval receipt 已提交，可重试 acknowledge）')
-      }
+          },
+          clearMarker: async () => clearReviewMarker(deps),
+        })
+        return { deferred: acknowledged.deferred }
+      },
     })
-    if (!acknowledged) throw new Error('review acknowledgement 未产生 receipt')
+    if (!result.ok) throw new Error(result.message)
+    acknowledgeDeferred = result.deferred
+    const acknowledged = { phase: preflightStep.phase, event: preflightEvent, delegatedAuthority }
     // `acknowledgeReview` now owns history and marker ports. A missing interaction projection is
     // intentionally surfaced as a warning/deferred result by the application, while the CLI keeps
     // its historical success/exit semantics for canonical approval.

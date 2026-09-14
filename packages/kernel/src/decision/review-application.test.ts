@@ -83,4 +83,24 @@ describe('review acknowledge application', () => {
     expect(result).toEqual({ ok: false, code: 'idempotency-conflict', message: 'idempotency key is already bound to another decision' })
     expect(writes).toBe(0)
   })
+
+  it('checks revision before treating an approved receipt as a replay', async () => {
+    const result = await executeReviewAcknowledgeCommand({
+      withLock: async (fn) => fn(), readState: async () => state('approved'),
+      phase: 'verify', event: 'verify-pass', acknowledgedAt: '2026-09-13T00:01:00Z',
+      expectedRevision: 2, readRevision: async () => 3,
+      bindingMatches: () => true, commit: async () => ({}),
+    })
+    expect(result).toMatchObject({ ok: false, code: 'revision-conflict' })
+  })
+
+  it('does not turn a previously rejected command into a successful replay', async () => {
+    const result = await executeReviewAcknowledgeCommand({
+      withLock: async (fn) => fn(), readState: async () => state(),
+      phase: 'verify', event: 'verify-pass', acknowledgedAt: '2026-09-13T00:01:00Z',
+      idempotencyKey: 'same', checkIdempotency: async () => 'rejected', rejectedCode: 'revision-conflict',
+      bindingMatches: () => true, commit: async () => { throw new Error('must not commit') },
+    })
+    expect(result).toMatchObject({ ok: false, code: 'revision-conflict' })
+  })
 })
