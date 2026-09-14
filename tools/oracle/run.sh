@@ -20,6 +20,10 @@
 #     移到回滚兼容 sidecar。Oracle 仍剥除这些历史字段，以验证旧 fixture 的迁移读路径。
 #   · `.pipeline-document-locale.json` 固定新 Change 的人读文档语言；老内核没有文档呈现层。
 #     中文默认、显式英文和回滚兼容由模板、init 和 bundle 测试独立验证，不修改严格 YAML 投影。
+#   · build_sha 的 Build revision token（packages/kernel/src/workflow/build-revision.ts）：当前运行时
+#     写 `build:v1:git:<revision>:<repository>:<worktree>`，老内核写裸 Git SHA。仅当 token 的 revision
+#     段能由老侧 SHA 按同一 domain 重新算出（同一 commit）时，YAML 面与 `get build_sha` 的 stdout 面
+#     记 KNOWN；repository/worktree 段绑定各自 checkout，双跑两侧天然不同。验证不过一律逐字比。
 #
 # 用法:
 #   bash tools/oracle/run.sh [fixture ...]      # 缺省跑基础兼容 fixtures；npm run oracle 跑全量
@@ -149,7 +153,7 @@ is_ts_field() { case "${1:-}" in *_at) return 0 ;; *) return 1 ;; esac; }
 #     验证 old=`off`、new=`queued` 和 new 的入队时间戳，再仅从该单步的 YAML 比较中剥除这两个字段。
 #     这不是泛化豁免；没有 fixture sidecar 的任何 automation 差异仍会失败。
 normalize_yaml() {
-  local omit_declared_automation="${2:-0}"
+  local omit_declared_automation="${2:-0}" build_sha_value="${3:-}"
   local strip_transition_head=0 anchor_validation_rc=0
   node "$ORACLE_DIR/validate-transition-head-anchor.mjs" "$1" >/dev/null 2>&1 \
     || anchor_validation_rc=$?
@@ -159,6 +163,7 @@ normalize_yaml() {
     *) return 2 ;;
   esac
   awk -v omit_declared_automation="$omit_declared_automation" \
+      -v build_sha_value="$build_sha_value" \
       -v strip_transition_head="$strip_transition_head" '
     /^(tools_history|prompts_history|transitions_history):/ { inhist = 1; next }
     {
@@ -170,6 +175,7 @@ normalize_yaml() {
       if (strip_transition_head == "1" && $0 ~ /^# tenon-internal-transition-head-v1: [A-Za-z0-9_-]+$/) next
       if ($0 ~ /^(workflow|pipeline_document_profile|pipeline_document_locale|pipeline_document_governance_fingerprint|pipeline_workflow_plan_fingerprint|pipeline_run_id|pipeline_transition_sequence|pipeline_transition_head|pipeline_state_revision|pipeline_state_revision_id|pipeline_state_digest|automation_current_phase|automation_cause|review_gate_phase|review_gate_status|review_gate_event|review_requested_at|review_acknowledged_at|review_acknowledged_via|pre_verify_review_result):/) next
       if (omit_declared_automation == "1" && $0 ~ /^(automation|automation_queued_at):/) next
+      if (build_sha_value != "" && $0 ~ /^build_sha:/) { print "build_sha: " build_sha_value; next }
       if ($0 ~ /^[a-z_]+_at:/) { sub(/:.*$/, ": <WHITELISTED>"); print; next }
       print
     }
@@ -187,6 +193,22 @@ yaml_scalar() {
       exit
     }
   ' "$file"
+}
+
+# Build → Verify revision token（packages/kernel/src/workflow/build-revision.ts）。当前运行时写
+# `build:v1:git:<revisionHash>:<repositoryHash>:<worktreeHash>`，老内核写裸 Git SHA。只有 revisionHash
+# 恰好等于按内核同一 domain 对老侧 SHA 重新计算的结果时，才判定两侧冻结的是同一 commit；
+# repository/worktree 两段绑定各自物理 checkout，不参与比较。返回 0=已验证等价，1=不等价或格式不符。
+build_revision_token_matches_sha() {
+  node -e '
+    const [sha, token] = process.argv.slice(1)
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(sha)) process.exit(1)
+    const match = /^build:v1:git:([a-f0-9]{64}):[a-f0-9]{64}:[a-f0-9]{64}$/.exec(token)
+    if (match === null) process.exit(1)
+    const expected = require("node:crypto").createHash("sha256")
+      .update(`tenon/build-revision/revision/git/v1\0${sha.toLowerCase()}`).digest("hex")
+    process.exit(match[1] === expected ? 0 : 1)
+  ' "$1" "$2"
 }
 
 # 仅允许 fixture 明确声明的一条产品演进跨越老 oracle 的状态投影。该 helper 在归一前
@@ -393,16 +415,41 @@ track_oracle_skill() {
 }
 
 # Default transitions now enforce every mandatory Skill on the current phase visit. Oracle fixtures
-# compare the legacy state machine rather than agent execution, so derive the exact current
-# phase/Track slots from the production router projection and record them through the real hook.
+# compare the legacy state machine rather than agent execution, so derive the exact slots the gate
+# checks and record them through the real hook:
+#   · the frozen workflow step's declared skills (`requiredSkillIds`), read from the public
+#     `tenon workflow plan --json` projection.  Track-branch workflows declare phase drivers such as
+#     `tenon-open` there, and the manifest router below never lists them;
+#   · the manifest Track overlay (`M` slots of the production router projection).
 # This is evidence construction, not a transition bypass: stale previous-visit rows still cannot
 # satisfy a later visit because the product gate reads history after the latest transition record.
 bootstrap_new_phase_skills() {
-  local dir="$1" change="$2" phase track phase_hex track_hex cache skill_hex skill
+  local dir="$1" change="$2" phase track phase_hex track_hex cache plan_json plan_skills skill_hex skill
+  local tracked=$'\n'
   phase="$(run_new_cli "$dir" get "$change" phase)" || return 1
   track="$(run_new_cli "$dir" get "$change" track)" || return 1
   phase="$(printf '%s' "$phase" | tr -d '[:space:]')"
   track="$(printf '%s' "$track" | tr -d '[:space:]')"
+  plan_json="$dir/.oracle-workflow-plan.json"
+  plan_skills="$dir/.oracle-plan-step-skills"
+  run_new_cli "$dir" workflow plan "$change" --json > "$plan_json" || return 1
+  node -e '
+    const [file] = process.argv.slice(1)
+    const projection = JSON.parse(require("node:fs").readFileSync(file, "utf8"))
+    const step = projection.plan?.capabilities?.skills?.steps?.find(
+      (candidate) => candidate.stepId === projection.current_step)
+    if (step === undefined) {
+      console.error(`workflow plan 缺少当前 step 的 skill 声明: ${projection.current_step}`)
+      process.exit(1)
+    }
+    for (const id of step.requiredSkillIds) console.log(id)
+  ' "$plan_json" > "$plan_skills" || return 1
+  while IFS= read -r skill; do
+    [ -n "$skill" ] || continue
+    case "$tracked" in *$'\n'"$skill"$'\n'*) continue ;; esac
+    track_oracle_skill "$dir" "$skill" || return 1
+    tracked="$tracked$skill"$'\n'
+  done < "$plan_skills"
   phase_hex="$(printf '%s' "$phase" | xxd -p -c 999)"
   track_hex="$(printf '%s' "$track" | xxd -p -c 999)"
   cache="$dir/.oracle-router-data"
@@ -410,7 +457,9 @@ bootstrap_new_phase_skills() {
   while IFS= read -r skill_hex; do
     [ -n "$skill_hex" ] || continue
     skill="$(printf '%s' "$skill_hex" | xxd -r -p)" || return 1
+    case "$tracked" in *$'\n'"$skill"$'\n'*) continue ;; esac
     track_oracle_skill "$dir" "$skill" || return 1
+    tracked="$tracked$skill"$'\n'
   done < <(
     awk -F '|' -v phase="$phase_hex" -v track="$track_hex" \
       '$1 == "S" && $2 == phase && $3 == track && $4 == "M" { print $6 }' "$cache"
@@ -420,11 +469,24 @@ bootstrap_new_phase_skills() {
 # Bootstrap runs before every oracle transition/check against the same evolving fixture.  A
 # historical document needs `--backfill` only once; attempting it again is correctly rejected by
 # the product ledger because a backfill must never overwrite an established record.  This harness
-# only creates immutable fixture documents, so an existing kind is exactly the idempotent case.
+# only creates immutable fixture documents, so a kind it has already recorded is exactly the
+# idempotent case.
+#
+# Idempotency is keyed on this harness's own successful `document record`, never on the mere
+# presence of a ledger row.  The native Skill PostToolUse hook auto-registers every document the
+# Skill may produce in the current phase (`autoRegisterDocuments`), but only an explicit
+# `document record` also binds the document application (artifact-binding-intent/artifact-bound)
+# that `evaluateDocumentEvidence` demands.  Counting an auto-registered row as done left
+# openspec-design/tasks unbound, so `check` and `open-complete` failed with “producer
+# invocation/artifact 尚未原子完成” before the legacy guard the fixture compares was reached.
+oracle_document_receipts() {
+  printf '%s/.oracle-document-records/%s' "$1" "$2"
+}
+
 oracle_document_recorded() {
-  local dir="$1" change="$2" kind="$3" ledger
-  ledger="$dir/openspec/changes/$change/.pipeline-documents.json"
-  [ -f "$ledger" ] && grep -Fq "\"kind\": \"$kind\"" "$ledger"
+  local receipts
+  receipts="$(oracle_document_receipts "$1" "$2")"
+  [ -f "$receipts" ] && grep -Fxq "$3" "$receipts"
 }
 
 record_oracle_document() {
@@ -438,10 +500,12 @@ record_oracle_document() {
   ensure_oracle_document "$dir" "$rel" "$kind" || return 1
   track_oracle_skill "$dir" "$producer" || return 1
   if [ "$owner_rank" -lt "$current_rank" ]; then
-    run_new_cli "$dir" document record "$change" "$kind" "$rel" --producer "$producer" --backfill
+    run_new_cli "$dir" document record "$change" "$kind" "$rel" --producer "$producer" --backfill || return 1
   else
-    run_new_cli "$dir" document record "$change" "$kind" "$rel" --producer "$producer"
+    run_new_cli "$dir" document record "$change" "$kind" "$rel" --producer "$producer" || return 1
   fi
+  mkdir -p "$dir/.oracle-document-records" || return 1
+  printf '%s\n' "$kind" >> "$(oracle_document_receipts "$dir" "$change")"
 }
 
 bootstrap_new_document_contract() {
@@ -531,6 +595,7 @@ run_step_dual() {
   local args=("$@")
   local change="${args[0]}"
   local old_rc new_rc bootstrap_rc review_bootstrap_rc convergence_bootstrap_rc f_out f_exit f_yaml label
+  local build_sha_override=""
 
   bootstrap_rc=0
   # `check` shares transition's exact document-evidence predicate, so bootstrap it too.  Otherwise
@@ -548,7 +613,11 @@ run_step_dual() {
     > "$step_dir/old.out" 2> "$step_dir/old.err"
   old_rc=$?
   convergence_bootstrap_rc=0
-  if [ "$bootstrap_rc" -eq 0 ] && [ "$old_rc" -eq 0 ] && [ "$cmd" = transition ]; then
+  # The convergence bootstrap drives `document record` and the product-only
+  # `pre_verify_review_result` field, so it follows the document bootstrap switch: an injected stub
+  # CLI implements neither and must keep comparing only the legacy state machine.
+  if [ "$bootstrap_rc" -eq 0 ] && [ "$old_rc" -eq 0 ] && [ "$cmd" = transition ] \
+    && [ "$DOCUMENT_CONTRACT_BOOTSTRAP" = 1 ]; then
     bootstrap_new_pre_verify_review "$base/new" "$change" "${args[1]:-}" \
       > "$step_dir/new.convergence-bootstrap.out" 2> "$step_dir/new.convergence-bootstrap.err" \
       || convergence_bootstrap_rc=$?
@@ -602,6 +671,10 @@ run_step_dual() {
     fi
   elif cmp -s "$step_dir/old.out" "$step_dir/new.out"; then
     f_out=PASS
+  elif [ "$cmd" = get ] && [ "${args[1]:-}" = build_sha ] \
+    && build_revision_token_matches_sha "$(tr -d '[:space:]' < "$step_dir/old.out")" \
+      "$(tr -d '[:space:]' < "$step_dir/new.out")"; then
+    f_out=KNOWN
   else
     f_out=FAIL
   fi
@@ -624,10 +697,16 @@ run_step_dual() {
         printf '已声明状态演进验证失败：%s\n' "$state_extension" > "$step_dir/yaml.diff"
         ;;
     esac
-    local old_normalize_rc=0 new_normalize_rc=0
+    local old_normalize_rc=0 new_normalize_rc=0 old_build_sha new_build_sha
+    old_build_sha="$(yaml_scalar "$oy" build_sha)"
+    new_build_sha="$(yaml_scalar "$ny" build_sha)"
+    if [ "$old_build_sha" != "$new_build_sha" ] \
+      && build_revision_token_matches_sha "$old_build_sha" "$new_build_sha"; then
+      build_sha_override="$old_build_sha"
+    fi
     normalize_yaml "$oy" "$omit_declared_automation" > "$step_dir/old.norm" \
       || old_normalize_rc=$?
-    normalize_yaml "$ny" "$omit_declared_automation" > "$step_dir/new.norm" \
+    normalize_yaml "$ny" "$omit_declared_automation" "$build_sha_override" > "$step_dir/new.norm" \
       || new_normalize_rc=$?
     if [ "$old_normalize_rc" -ne 0 ] || [ "$new_normalize_rc" -ne 0 ]; then
       f_yaml=FAIL
@@ -635,7 +714,7 @@ run_step_dual() {
         "$old_normalize_rc" "$new_normalize_rc" > "$step_dir/yaml.diff"
     elif [ "$state_extension_rc" -ne 2 ]; then
       if diff -u "$step_dir/old.norm" "$step_dir/new.norm" > "$step_dir/yaml.diff" 2>&1; then
-        if [ "$state_extension_rc" -eq 0 ]; then f_yaml=KNOWN; else f_yaml=PASS; fi
+        if [ "$state_extension_rc" -eq 0 ] || [ -n "$build_sha_override" ]; then f_yaml=KNOWN; else f_yaml=PASS; fi
       else
         f_yaml=FAIL
       fi
@@ -692,8 +771,14 @@ run_step_dual() {
     say "  x [$fx #$idx $label] .pipeline.yaml 不一致（白名单归一后）："
     head -40 "$step_dir/yaml.diff" | sed 's/^/      /' | tee -a "$REPORT"
   fi
-  if [ "$f_yaml" = KNOWN ]; then
+  if [ "$f_out" = KNOWN ]; then
+    say "  i [$fx #$idx $label] stdout build_sha 已验证为同一 commit 的 build:v1:git token"
+  fi
+  if [ "$f_yaml" = KNOWN ] && [ "$state_extension_rc" -eq 0 ]; then
     say "  i [$fx #$idx $label] YAML 已验证的产品演进: $state_extension"
+  fi
+  if [ "$f_yaml" = KNOWN ] && [ -n "$build_sha_override" ]; then
+    say "  i [$fx #$idx $label] YAML build_sha 已验证为同一 commit 的 build:v1:git token"
   fi
   if [ "$f_err" = FAIL ]; then
     say "  x [$fx #$idx $label] stderr 不一致（剥 ANSI 后逐字）："

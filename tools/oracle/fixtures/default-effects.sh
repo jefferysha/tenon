@@ -59,6 +59,11 @@ printf '# verification report\n' > "$target/docs/verify.md"
 
 # 声明本 fixture 走 stderr 逐字口径（run.sh 据此在 transition 拒绝路径逐字比 stderr——barrier 双行）。
 : > "$target/.oracle-stderr-check"
+# 场景 E（第 23 步）的 barrier 仍须双侧同样拒绝、YAML 不变；新 CLI 的拒绝文案是 Build revision 的
+# 类型化 blocker（packages/kernel/src/workflow/build-revision.ts：verify-build-revision-untrusted
+# reason=revision-stale），不再回显裸 SHA。exit/stdout/YAML 照比，只把过期的人读文案列为已知差异。
+printf '23\tbarrier 拒绝改为类型化 verify-build-revision-untrusted(revision-stale) blocker；旧 oracle 回显裸 SHA 文案\n' \
+  > "$target/.oracle-stderr-divergences"
 
 # P6 起 set/cas 对「当前有效 artifact 相位」的 artifact 字段拒写（改走 tenon artifact register）：
 # plan（spec 相位）、verification_report（verify 相位）改用 seed 双侧直接注同值，隔离 legacy
