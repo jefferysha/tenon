@@ -89,3 +89,7 @@ C 只消费 signal 并在待决 projection 展示事件链；hook 侧检测和�
 ## 后续任务
 
 `humanGateSatisfied: true` 的硬编码约束单列为 automation-constraint 任务；本 B/C 不恢复它，也不以告警契约替代修复。
+
+## 2026-09-14 复核注记
+
+本归档任务保留为历史产物；其“契约已冻结”结论不再作为实现前置依据。后续父任务 `09-14-decision-control-completion` 继承并重新裁决未完成的 A-K 项，尤其是终端 revision/key 矛盾、幂等单一存储、错误/审计顺序、refId 锚点、AFK/mode-switched 归因、宿主唤醒和 principal actor。未完成裁决前，F2、S、C 保持 planning。
