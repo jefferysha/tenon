@@ -205,6 +205,28 @@ describe('canonical document SkillInvocation producer', () => {
     })
   })
 
+  it('keeps the gate open when unchanged bytes are recorded again at a later time', async () => {
+    const { root, changeDir } = await fixture()
+    const path = 'openspec/changes/demo/specs/cap-rerecord/spec.md'
+    await mkdir(join(root, 'openspec/changes/demo/specs/cap-rerecord'), { recursive: true })
+    await writeFile(join(root, path), '# cap-rerecord\n')
+    const confirmedAt = '2026-08-04T00:00:59.000Z'
+    await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({
+      ts: confirmedAt, kind: 'tool', raw: `Skill: ${producer}`,
+    })}\n`)
+    await recordNativeDocumentSkillConfirmation(changeDir, producer, 'spec', {
+      sessionId: 'native-session-rerecord', toolUseId: 'native-tool-rerecord', observedAt: confirmedAt,
+    })
+
+    for (const recordedAt of ['2026-08-04T00:01:00.000Z', '2026-08-04T00:02:00.000Z']) {
+      await recordDocument({ repoRoot: root, changeDir, phase: 'spec', kind: 'delta-spec', path, producer, recordedAt })
+      await expect(recordCanonicalDocumentSkillInvocation(changeDir, 'delta-spec', recordedAt)).resolves.toBeDefined()
+      await expect(evaluateDocumentEvidence(root, changeDir, 'spec', {
+        recordKinds: ['delta-spec'], readKinds: [],
+      })).resolves.toMatchObject({ pass: true, blockers: [] })
+    }
+  })
+
   it('binds multiple native documents without reusing one declared output', async () => {
     const { root, changeDir } = await fixture()
     const confirmedAt = '2026-08-04T00:01:00.000Z'

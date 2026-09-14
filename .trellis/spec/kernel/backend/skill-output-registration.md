@@ -1,76 +1,78 @@
-# Skill Output Auto-Registration (`documents/auto-register.ts`)
+# Document Recording Boundary
 
 ## 1. Scope / Trigger
 
-- Trigger: a native host `Skill` PostToolUse hook has sealed its receipt (`internal-native-skill-receipt`).
-- Purpose: register the canonical documents that skill just wrote into the change's document ledger
-  without a manual `tenon document record`, so the next stage's inputs become `recorded` on their own.
-- Out of scope: guessing at files outside the canonical path templates; value (field) slots; new guards.
+- Trigger: a skill has written a governed document (`openspec/...` or `docs/...`) and runs
+  `tenon document record <change> <kind> <path> --producer <skill>`.
+- The native Skill PostToolUse receipt (`internal-native-skill-receipt`) only seals the host
+  confirmation. It never writes the document ledger.
+- Out of scope: guessing documents from changed files; field slots; new guards.
 
 ## 2. Signatures
 
 ```ts
-// documents/document-paths.ts
-documentPathTemplates(kind: DocumentKind | string): readonly string[]
-canonicalDocumentPaths(repoRoot: string, changeName: string, kind: DocumentKind | string): Promise<string[]>
-
-// documents/auto-register.ts
-autoRegisterDocuments(
-  input: { repoRoot; changeDir; changeName; phase; policy: DocumentGovernancePolicy; producer: string; recordedAt: string },
-  deps: { record: typeof recordDocument } = { record: recordDocument },
-): Promise<{ recorded: { kind; path }[]; skipped: { kind; path; reason }[] }>
+// packages/cli/src/commands/document.ts — the only document recorder
+cmdDocumentRecord(deps, change, kind, path, producer, backfill?)
+// packages/automation/src/submission/service.ts
+openArtifactSubmissionService({ changeDir, namespace, repoRoot?, document?, field?, runtime? })
+// packages/kernel/src/skill-invocation/document-producer.ts (private producer bridge)
+recordCanonicalDocumentSkillInvocation(changeDir, kind, recordedAt, { lock?, record? })
 ```
 
 ## 3. Contracts
 
-- Path templates come only from `DOCUMENT_PRESENTATION_REGISTRY.templates[*].path`. `{change}` is
-  replaced by the change name; `{capability}` expands to every directory under its parent
-  (`openspec/changes/<change>/specs/*/spec.md`). Only existing regular files are returned, repo-relative,
-  posix separators, de-duplicated, stable order.
-- Candidate kinds = `policy.outputsByStep[phase] ∪ policy.mutableByStep[phase]` whose
-  `producerCandidates` contain the producer under `skillsEquivalent` (alias table, e.g. `opsx:propose`).
-- Per canonical path: no ledger record, or the last record's `sha256` differs from the file digest →
-  `deps.record(...)`; identical digest → `skipped(reason: 'up-to-date')`.
-- `recordDocument` still enforces Skill evidence (`kind:'tool', raw:'Skill: <id>'`) and StepVisit
-  confirmation. Auto-registration never bypasses that; it only saves the manual command.
-- History line kinds: `tool` = completion evidence (PostToolUse `skill-tracker.sh`); `tool-start` =
+- Skill PostToolUse fires when the host loads the skill, before it produces anything. Recording at
+  that moment would claim `tenon init` scaffolds as the skill's output and close the invocation before
+  its questions and answers, so the receipt never records documents (auto-registration was removed).
+- `cmdDocumentRecord` runs under one `withSkillInvocationChangeLock`: current-StepVisit host
+  confirmation → unified submission (`document` projection) → `recordDocument` → binding of that exact
+  row via `recordCanonicalDocumentSkillInvocation`. A row without the binding fails
+  `evaluateDocumentEvidence` with `producer invocation/artifact 尚未原子完成；执行 tenon document record …`.
+- A binding is idempotent only for the exact row: path, digest, kind **and** `recorded_at`. Recording
+  unchanged bytes again at a later time mints a new application binding for the new row.
+- History line kinds: `tool` = confirmation evidence (PostToolUse `skill-tracker.sh`); `tool-start` =
   PreToolUse `skill-start.sh` marker. `tool-start` is never completion evidence.
 
 ## 4. Validation & Error Matrix
 
-- Ledger unreadable → one `skipped` entry carrying the error text, nothing recorded, no throw.
-- Any `record` failure (missing evidence, wrong phase, locked slot) → `skipped(reason=error message)`;
-  the loop continues with the next path. The function never throws (hook fail-open contract).
-- Producer not a candidate for the phase → `{ recorded: [], skipped: [] }`.
+| Condition | Required behavior |
+| --- | --- |
+| No host confirmation for the producer in the current StepVisit | Reject `current StepVisit lacks exact host confirmation …` |
+| Document path escapes the repository | Reject `submission path outside repository` |
+| Path outside `openspec/` or `docs/` | Kernel rejects `document path 只能位于 openspec/ 或 docs/` |
+| Edited document recorded again | Commit; the subject keeps `subject_id` and carries the new digest |
 
 ## 5. Good / Base / Bad Cases
 
-- Good: `open` phase, producer `openspec-propose`, `proposal.md` + `tasks.md` exist → both recorded.
-- Base: same file re-confirmed with unchanged content → `up-to-date`, ledger untouched.
-- Bad: `brainstorming` confirmed in `open` → not a candidate → nothing recorded, nothing skipped.
+- Good: Explore writes `docs/superpowers/specs/<change>-design.md`, then records it with
+  `--producer brainstorming` → gate clean.
+- Base: the same unchanged document recorded twice → still gate clean.
+- Bad: relying on the Skill receipt to register documents → ledger stays empty, gate reports missing.
 
 ## 6. Tests Required
 
-- `documents/auto-register.test.ts`: template substitution + capability glob; register / re-register on
-  digest change / skip up-to-date / alias producer / failure → skipped / `mutableByStep` living document.
-- `packages/cli/src/document-record.integration.test.ts`: receipt after writing `proposal.md` → ledger has
-  `proposal(producer=openspec-propose)`; stderr carries one `[auto-register] recorded=… skipped=…` line.
+- `packages/cli/src/document-record.integration.test.ts`: the receipt leaves the ledger empty; a `docs/`
+  design stays gate-clean after record, identical re-record, and re-record of edited content.
+- `skill-invocation/document-producer.test.ts`: unchanged bytes recorded again later still pass the gate.
+- `automation/src/submission/service.test.ts`: repository-scoped document/field paths, change-scoped
+  runtime paths, digest refresh on subject reuse.
+- The CLI integration harness wires `artifactSubmission` exactly like `main.ts`; a harness without it
+  silently skips the production submission path.
 
 ## 7. Wrong vs Correct
 
 ### Wrong
 
 ```ts
-// Scanning the worktree for "anything that changed" and recording whatever matches a *.md glob.
-for (const file of changedFiles) await recordDocument({ kind: guessKind(file), path: file, ... })
+// Skill PostToolUse receipt: register whatever canonical files already exist.
+await recordDocument({ kind: 'proposal', path: scaffoldPath, producer: skillId, recordedAt })
 ```
 
 ### Correct
 
-```ts
-// Only canonical paths of the slots the current phase owns and this skill is allowed to produce.
-const outcome = await autoRegisterDocuments({ repoRoot, changeDir, changeName, phase, policy, producer: skillId, recordedAt })
-deps.io.err(`[auto-register] recorded=${…} skipped=${…}`)   // WARN only; receipt exit code unaffected
+```sh
+# In the skill, after the document is written:
+tenon document record "$TENON_CHANGE_NAME" superpower-design "$DESIGN_DOC" --producer brainstorming
 ```
 
 ## Runtime artifact lineage (additive protocol)
@@ -187,6 +189,15 @@ await runtime.publish(changedPath, 'candidate') // explicit promotion after obse
   `.pipeline-documents.json`. Existing document policy, evidence, and lock
   checks remain authoritative; the submission adapter must call those checks
   rather than writing the ledger directly.
+- Submission path scope: `document` and `field` locators are repository paths,
+  checked against `repoRoot` (a design lives at
+  `docs/superpowers/specs/<change>-design.md`; the Kernel ledger still owns the
+  `openspec/`/`docs/` rule). `runtime` locators stay inside the Change. Escapes
+  fail with `submission path outside repository` / `... outside change scope`.
+- Reusing a registered subject keeps `subject_id` but always carries the digest
+  of the bytes or value being committed now. Returning the stale registered
+  digest made every re-record of an edited document fail with
+  `subjectRef 与当前内容不匹配`.
 
 ### Host attribution boundary
 

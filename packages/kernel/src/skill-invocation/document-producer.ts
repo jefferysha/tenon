@@ -53,6 +53,19 @@ async function matchingConfirmation(
     : undefined
 }
 
+// The document gate accepts a binding only for this exact row, recording time included. Matching on
+// path + digest alone treated a second `document record` of unchanged bytes as already bound while
+// the ledger row carried the new `recordedAt`, leaving the gate blocked.
+function intentMatchesRecord(
+  event: Extract<SkillInvocationEventV1, { type: 'artifact-binding-intent' }>,
+  record: DocumentRecord,
+): boolean {
+  return event.payload.artifact.ref === record.path
+    && event.payload.artifact.digest === `sha256:${record.sha256}`
+    && event.payload.artifact.document?.kind === record.kind
+    && event.payload.artifact.document.recorded_at === record.recordedAt
+}
+
 /**
  * Records the one canonical document output that has a current-phase transcript confirmation.
  * Producer, time, path, digest, subject, validators and adapter proof are all derived in-kernel.
@@ -97,9 +110,7 @@ export async function recordCanonicalDocumentSkillInvocation(
   const existingIntent = invocationEvents.find((event): event is Extract<
     SkillInvocationEventV1, { type: 'artifact-binding-intent' }
   > =>
-    event.type === 'artifact-binding-intent'
-    && event.payload.artifact.ref === record.path
-    && event.payload.artifact.digest === `sha256:${record.sha256}`)
+    event.type === 'artifact-binding-intent' && intentMatchesRecord(event, record))
   if (existingIntent !== undefined && invocationEvents.some((event) =>
     event.type === 'artifact-bound' && event.payload.binding_id === existingIntent.payload.binding_id)) {
     return { invocation_id: invocationId }
@@ -117,9 +128,7 @@ export async function recordCanonicalDocumentSkillInvocation(
     const childIntent = invocationEvents.find((event): event is Extract<
       SkillInvocationEventV1, { type: 'artifact-binding-intent' }
     > =>
-      event.type === 'artifact-binding-intent'
-      && event.payload.artifact.ref === record.path
-      && event.payload.artifact.digest === `sha256:${record.sha256}`)
+      event.type === 'artifact-binding-intent' && intentMatchesRecord(event, record))
     if (childIntent !== undefined && invocationEvents.some((event) =>
       event.type === 'artifact-bound' && event.payload.binding_id === childIntent.payload.binding_id)) {
       return { invocation_id: invocationId }

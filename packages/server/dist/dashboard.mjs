@@ -13334,7 +13334,7 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope = {},
       return !applicableConfirmations.some((confirmation) => hasExactDocumentApplication(invocationEvents, confirmation, record7));
     });
     if (incompleteProducer !== void 0) {
-      blockers.push(`document '${kind}' \u7684 producer invocation/artifact \u5C1A\u672A\u539F\u5B50\u5B8C\u6210: ${incompleteProducer.path}`);
+      blockers.push(`document '${kind}' \u7684 producer invocation/artifact \u5C1A\u672A\u539F\u5B50\u5B8C\u6210: ${incompleteProducer.path}\uFF1B\u6267\u884C tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`);
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId));
       continue;
     }

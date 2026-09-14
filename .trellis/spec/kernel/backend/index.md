@@ -20,7 +20,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
 | [Workflow Track Branches and Gates](./workflow-track-branches.md) | tracks.<id> branches, review / auto gates, definition fingerprint | Current |
-| [Skill Output Auto-Registration](./skill-output-registration.md) | Canonical-path document registration after a Skill receipt | Current |
+| [Document Recording Boundary](./skill-output-registration.md) | Explicit `document record`, submission scope, Skill receipt never records | Current |
 | [Autonomous Orchestration](./orchestration.md) | v1 schemas, reducer and routing contracts | Current |
 
 ---

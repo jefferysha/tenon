@@ -179,6 +179,7 @@ async function main(): Promise<void> {
       return openArtifactSubmissionService({
         changeDir,
         namespace,
+        repoRoot: process.cwd(),
         ...(phase !== undefined
           ? { document: createDocumentProjectionAdapter({ repoRoot: process.cwd(), changeDir, phase, ...(policy ? { policy } : {}) }) }
           : {}),

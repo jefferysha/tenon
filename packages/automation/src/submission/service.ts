@@ -2,7 +2,7 @@ import { artifactSubjectId, newArtifactSubjectId } from '@tenon/kernel'
 import type { ArtifactProjectionKind, ArtifactSubjectRef } from '@tenon/kernel'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { join, relative, resolve } from 'node:path'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { readArtifactSubjectRegistry, recordArtifactSubjectProjection, type ArtifactSubjectProjectionRecord } from './registry.js'
 
 export interface DocumentProjectionAdapter {
@@ -24,7 +24,7 @@ export interface RuntimeProjectionAdapter {
     readonly kind?: string
   }): Promise<{ readonly artifactId: string; readonly version: string; readonly contentDigest: string; readonly subjectRef?: ArtifactSubjectRef }>
 }
-export interface ArtifactSubmissionServiceOptions { readonly changeDir: string; readonly namespace: string; readonly now?: () => string; readonly document?: DocumentProjectionAdapter; readonly field?: FieldProjectionAdapter; readonly runtime?: RuntimeProjectionAdapter }
+export interface ArtifactSubmissionServiceOptions { readonly changeDir: string; readonly namespace: string; readonly repoRoot?: string; readonly now?: () => string; readonly document?: DocumentProjectionAdapter; readonly field?: FieldProjectionAdapter; readonly runtime?: RuntimeProjectionAdapter }
 export interface SubmitProjectionInput {
   readonly projection: ArtifactProjectionKind
   readonly logicalKey: string
@@ -49,24 +49,34 @@ export async function openArtifactSubmissionService(options: ArtifactSubmissionS
   const now = options.now ?? (() => new Date().toISOString())
   async function subjectFor(input: SubmitProjectionInput): Promise<ArtifactSubjectRef> {
     if (input.path !== undefined) {
-      const absolute = resolve(options.changeDir, input.path)
-      const rel = relative(options.changeDir, absolute)
-      if (!rel || rel.startsWith('..') || rel.includes(`..${process.platform === 'win32' ? '\\' : '/'}`)) throw new Error('submission path outside change scope')
+      // Document and field locators are repository paths (a design lives under `docs/superpowers/`;
+      // the Kernel ledger owns the `openspec/`/`docs/` rule). Runtime artifacts are read from the
+      // Change and stay inside it.
+      const repoScoped = input.projection !== 'runtime' && options.repoRoot !== undefined
+      const rel = relative(repoScoped ? options.repoRoot! : options.changeDir, resolve(options.changeDir, input.path))
+      if (!rel || isAbsolute(rel) || rel === '..' || rel.startsWith(`..${sep}`)) {
+        throw new Error(repoScoped ? 'submission path outside repository' : 'submission path outside change scope')
+      }
     }
-    const registry = await readArtifactSubjectRegistry(options.changeDir)
-    // Prefer an explicit logical key, but reuse an already-registered projection for the same
-    // declared source path. This lets document/field/runtime projections converge regardless of
-    // which command commits first; the path is only a lookup alias, never the subject identity.
-    const existing = registry.records.find((record) => record.logicalKey === input.logicalKey)
-      ?? (input.path !== undefined ? registry.records.find((record) => record.path === input.path) : undefined)
-    if (existing) return { ...existing.subjectRef, projection: input.projection, ...(input.path ? { source: { ...(existing.subjectRef.source ?? {}), path: input.path } } : {}) }
-    const subject_id = input.logicalKey.length > 0 ? artifactSubjectId(options.namespace, input.logicalKey) : newArtifactSubjectId(options.namespace)
     const bytes = input.projection === 'document' && input.path !== undefined
       ? await readFile(join(options.changeDir, input.path))
       : input.projection === 'field' && input.value !== undefined
         ? Buffer.from(typeof input.value === 'string' ? input.value : JSON.stringify(input.value))
         : undefined
     const content_digest = bytes === undefined ? `sha256:${'0'.repeat(64)}` as `sha256:${string}` : `sha256:${createHash('sha256').update(bytes).digest('hex')}` as `sha256:${string}`
+    const registry = await readArtifactSubjectRegistry(options.changeDir)
+    // Prefer an explicit logical key, but reuse an already-registered projection for the same
+    // declared source path. This lets document/field/runtime projections converge regardless of
+    // which command commits first; the path is only a lookup alias, never the subject identity.
+    const existing = registry.records.find((record) => record.logicalKey === input.logicalKey)
+      ?? (input.path !== undefined ? registry.records.find((record) => record.path === input.path) : undefined)
+    if (existing) {
+      // Reuse the identity, never the old content: re-recording an edited document (tasks.md in
+      // Build) must present the digest of the bytes being committed now.
+      const current = bytes === undefined || existing.subjectRef.content_digest === content_digest ? {} : { version: content_digest, content_digest }
+      return { ...existing.subjectRef, ...current, projection: input.projection, ...(input.path ? { source: { ...(existing.subjectRef.source ?? {}), path: input.path } } : {}) }
+    }
+    const subject_id = input.logicalKey.length > 0 ? artifactSubjectId(options.namespace, input.logicalKey) : newArtifactSubjectId(options.namespace)
     return { subject_id, namespace: options.namespace, version: bytes === undefined ? 'pending' : content_digest, projection: input.projection, content_digest, ...(input.path || input.documentKind || input.field ? { source: { ...(input.path ? { path: input.path } : {}), ...(input.documentKind ? { document_kind: input.documentKind } : {}), ...(input.field ? { field: input.field } : {}) } } : {}) }
   }
   return {

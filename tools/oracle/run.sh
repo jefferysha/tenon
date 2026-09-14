@@ -473,12 +473,10 @@ bootstrap_new_phase_skills() {
 # idempotent case.
 #
 # Idempotency is keyed on this harness's own successful `document record`, never on the mere
-# presence of a ledger row.  The native Skill PostToolUse hook auto-registers every document the
-# Skill may produce in the current phase (`autoRegisterDocuments`), but only an explicit
-# `document record` also binds the document application (artifact-binding-intent/artifact-bound)
-# that `evaluateDocumentEvidence` demands.  Counting an auto-registered row as done left
-# openspec-design/tasks unbound, so `check` and `open-complete` failed with “producer
-# invocation/artifact 尚未原子完成” before the legacy guard the fixture compares was reached.
+# presence of a ledger row: only an explicit `document record` binds the document application
+# (artifact-binding-intent/artifact-bound) that `evaluateDocumentEvidence` demands.  A row this
+# harness did not bind would fail `check` and `open-complete` with “producer invocation/artifact
+# 尚未原子完成” before the legacy guard the fixture compares was reached.
 oracle_document_receipts() {
   printf '%s/.oracle-document-records/%s' "$1" "$2"
 }

@@ -292,7 +292,7 @@ export async function evaluateDocumentEvidence(
     })
     if (incompleteProducer !== undefined) {
       blockers.push(
-        `document '${kind}' 的 producer invocation/artifact 尚未原子完成: ${incompleteProducer.path}`,
+        `document '${kind}' 的 producer invocation/artifact 尚未原子完成: ${incompleteProducer.path}；执行 tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`,
       )
       items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId))
       continue

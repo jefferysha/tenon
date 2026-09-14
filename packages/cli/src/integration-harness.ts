@@ -43,6 +43,7 @@ import {
   type TrackValidationContext,
 } from '@tenon/kernel'
 import type { CliDeps, GuardFileContext } from './deps.js'
+import { harnessArtifactSubmission } from './integration-submission-test-support.js'
 import { buildProgram, CliExit } from './program.js'
 import { readBoundedRegularFileSync } from './guardContext.js'
 import {
@@ -311,6 +312,7 @@ export function realDeps(cwd: string, out: string[], err: string[]): CliDeps {
       (profile) => trackCtx.skillProfiles.has(profile),
     ),
     store,
+    artifactSubmission: harnessArtifactSubmission(cwd, store),
     runRepo: createWorkflowRunRepository({ store, recordStore: createTransitionRecordStore(), clock: () => FIXED_CLOCK }),
     loadRegistry: () => loadTrackRegistry(cwd, trackCtx),
     withRegistryLock: (cb) => withTrackRegistryLock(cwd, trackCtx, cb),
