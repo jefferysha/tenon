@@ -114,9 +114,14 @@ function stateWithoutProjection(state: PipelineState): PipelineState {
 
 const FIELD_SET = new Set<string>(FIELD_ORDER)
 const REVIEW_GATE_FIELD_SET = new Set<string>(REVIEW_GATE_FIELDS)
+/** Legacy YAML is an adapter, so importing it must never edit transition-controlled state. */
+const LEGACY_IMPORT_PROTECTED_FIELDS: ReadonlySet<FieldName> = new Set([
+  'phase', 'phase_status', 'branch_status', 'build_sha', 'pre_verify_review_result',
+  ...REVIEW_GATE_FIELDS,
+])
 
 /**
- * Older releases can omit the complete five-field review receipt, the later pre-Verify tail field,
+ * Older releases can omit the complete review receipt, the later pre-Verify tail field,
  * or both. Accept only those exact omission shapes when projection metadata still pins the YAML to
  * the current canonical revision and parsing recreates the same semantic state. This is
  * deliberately narrower than generic "missing YAML field = default" compatibility.
@@ -382,8 +387,10 @@ class FsStateStore implements StateStore {
         throw new StateProjectionDriftError('import-legacy: canonical current 不存在；无需解决双主 drift')
       }
       const legacy = parsePipeline(await readFile(stateFilePath(changeDir), 'utf8'))
+      const importedFields = structuredClone(legacy.fields)
+      for (const field of LEGACY_IMPORT_PROTECTED_FIELDS) importedFields[field] = structuredClone(current.state.fields[field])
       const imported: PipelineState = {
-        fields: legacy.fields,
+        fields: importedFields,
         ...(current.state.runMetadata === undefined
           ? {}
           : { runMetadata: structuredClone(current.state.runMetadata) }),

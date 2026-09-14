@@ -125,6 +125,22 @@ describe('serializePipeline（严格 FIELD_ORDER 全量写回）', () => {
     })
   })
 
+  it('新字段在 FIELD_ORDER 尾部时，旧窄解析器回写不会重复生成字段', () => {
+    const state = parsePipeline(fixture('zz-container-e2e.pipeline.yaml'))
+    state.fields.review_gate_phase = 'verify'
+    state.fields.review_gate_status = 'approved'
+    state.fields.review_gate_event = 'verify-pass'
+    state.fields.review_requested_at = '2026-09-14T00:00:00Z'
+    state.fields.review_acknowledged_at = '2026-09-14T00:00:01Z'
+    state.fields.review_acknowledged_via = 'dashboard'
+    const keys = serializePipeline(parsePipeline(serializePipeline(state)))
+      .split('\n')
+      .filter((line) => /^[a-z_]+:/.test(line))
+      .map((line) => line.split(':', 1)[0])
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys.filter((key) => key === 'review_acknowledged_via')).toHaveLength(1)
+  })
+
   it('空串标量写为 ""，空列表写为 []', () => {
     const state = parsePipeline(fixture('synthetic-lists.pipeline.yaml'))
     const out = serializePipeline(state)

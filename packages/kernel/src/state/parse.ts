@@ -133,7 +133,7 @@ export function parsePipeline(content: string): PipelineState {
 
 /**
  * 严格按 FIELD_ORDER 写回；每个值过四闸。review-gate 是一组可选的出口收据：内存/canonical
- * state 始终拥有五个字段，但五个值全空时不污染既有 YAML projection；任一值存在时整组写出，
+ * state 始终拥有完整 receipt 字段，但这些值全空时不污染既有 YAML projection；任一值存在时整组写出，
  * 防止 pending/approved receipt 被拆成不完整的半组。FIELD_ORDER 之后写内部提交元数据三行块
  * （runMetadata 存在时；不进 FIELD_ORDER，不受四闸约束——值恒为 repository 生成的 UUID/整数，
  * 不含用户输入）；再拼回 opaqueTail。空串标量写 `""`（对齐老内核 heredoc 的 automation_* 空值

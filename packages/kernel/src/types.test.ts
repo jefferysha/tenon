@@ -36,8 +36,9 @@ describe('automation_cause 字段（F-b 失败成因结构化落盘）', () => {
 })
 
 describe('review-gate v2 字段（出口收据）', () => {
-  it('六字段整体追加在既有尾字段之后，保持旧窄解析器的末尾兼容性', () => {
-    expect(FIELD_ORDER.slice(-7, -1)).toEqual(REVIEW_GATE_FIELDS)
+  it('review_acknowledged_via 追加在 FIELD_ORDER 末尾，保持旧窄解析器的末尾兼容性', () => {
+    expect(FIELD_ORDER.at(-1)).toBe('review_acknowledged_via')
+    expect(FIELD_ORDER.slice(-7, -1)).toEqual([...REVIEW_GATE_FIELDS.slice(0, -1), 'pre_verify_review_result'])
   })
   it('emptyFields() 给出完整的 canonical 空收据', () => {
     const fields = emptyFields()
@@ -47,7 +48,7 @@ describe('review-gate v2 字段（出口收据）', () => {
 
 describe('pre-Verify 全量收敛字段', () => {
   it('新字段位于 FIELD_ORDER 最末尾，旧窄解析器只把这一行保留为 opaque tail', () => {
-    expect(FIELD_ORDER.at(-1)).toBe('pre_verify_review_result')
+    expect(FIELD_ORDER.at(-2)).toBe('pre_verify_review_result')
   })
   it('emptyFields() 缺省 pending，Build 不得继承不存在的 pass', () => {
     expect(emptyFields().pre_verify_review_result).toBe('pending')

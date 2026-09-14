@@ -153,7 +153,7 @@ describe('set / setMany / cas', () => {
     await expect(injected.repairProjection(dir)).resolves.toMatchObject({ status: 'current' })
   })
 
-  it('G1 双主处置：未知 YAML drift 默认拒修；显式 legacy import 产生审计 revision 并成为新 canonical', async () => {
+  it('G1 双主处置：未知 YAML drift 默认拒修；legacy import 保留 transition-controlled fields', async () => {
     const dir = await store.init({
       repoRoot, name: 'projection-import', track: 'backend', reviewSeed: 'pending', preset: 'full',
       clock: CLOCK,
@@ -167,7 +167,7 @@ describe('set / setMany / cas', () => {
     const imported = await store.importLegacyProjection(dir)
 
     expect(imported.projection).toMatchObject({ status: 'updated' })
-    expect(await store.get(dir, 'phase')).toBe('explore')
+    expect(await store.get(dir, 'phase')).toBe('open')
     const current = JSON.parse(await readFile(path.join(dir, '.pipeline-run', 'current.json'), 'utf8')) as {
       revision: number
       mutation: { kind: string }
