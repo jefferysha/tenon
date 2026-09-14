@@ -593,8 +593,7 @@ var FIELD_ORDER = [
   // explore/spec/verify 时就阻断相位工作。字段一起记录确切 phase、event、状态和两次时间，令
   // transition 能拒绝无确认的离开，同时让 UserPromptSubmit 的确认留在 canonical state 中。event
   // 必须是待离开 phase 的确切出边，不能让 verify-fail 的确认误授权给 verify-pass（反之亦然）。
-  // 其中 review_acknowledged_via 是后续追加字段，必须放在整个 FIELD_ORDER 最末尾；否则旧窄解析器
-  // 会把它后面的真字段误收进 opaqueTail，混版本回写时可能制造重复 key。
+  // 其中 review_acknowledged_via 是后续追加字段，必须放在整个 FIELD_ORDER 最末尾；否则旧窄解析器会把它后面的真字段误收进 opaqueTail，混版本回写时可能制造重复 key。
   "review_gate_phase",
   "review_gate_status",
   "review_gate_event",
@@ -11399,14 +11398,7 @@ function stateWithoutProjection(state) {
 }
 var FIELD_SET2 = new Set(FIELD_ORDER);
 var REVIEW_GATE_FIELD_SET2 = new Set(REVIEW_GATE_FIELDS);
-var LEGACY_IMPORT_PROTECTED_FIELDS = /* @__PURE__ */ new Set([
-  "phase",
-  "phase_status",
-  "branch_status",
-  "build_sha",
-  "pre_verify_review_result",
-  ...REVIEW_GATE_FIELDS
-]);
+var LEGACY_IMPORT_PROTECTED_FIELDS = /* @__PURE__ */ new Set(["phase", "phase_status", "branch_status", "build_sha", "pre_verify_review_result", ...REVIEW_GATE_FIELDS]);
 function isPreciseLegacyFieldProjection(raw, parsed, current) {
   const expected = projectionMetadataFor(current);
   const metadata = parsed.projectionMetadata;
@@ -23948,6 +23940,27 @@ async function acknowledgeReview(input) {
     idempotent: false
   };
 }
+async function executeReviewAcknowledgeApplication(port) {
+  return executeReviewAcknowledgeCommand({
+    ...port,
+    commit: async (state, acknowledgedAt) => {
+      const effects = await port.prepareCommit(state, acknowledgedAt);
+      const acknowledged = await acknowledgeReview({
+        state,
+        phase: port.phase,
+        event: port.event,
+        acknowledgedAt,
+        via: port.via,
+        bindingMatches: true,
+        writeState: effects.writeState,
+        recordInteraction: effects.recordInteraction,
+        recordHistory: effects.recordHistory,
+        clearMarker: effects.clearMarker
+      });
+      return { deferred: acknowledged.deferred };
+    }
+  });
+}
 async function executeReviewAcknowledgeCommand(port) {
   if (!port.phase || !port.event)
     return { ok: false, code: "invalid-input", message: "review phase and event are required" };
@@ -23955,10 +23968,16 @@ async function executeReviewAcknowledgeCommand(port) {
     return { ok: false, code: "invalid-input", message: "expected revision is required" };
   }
   return port.withLock(async () => {
-    const key = port.idempotencyKey;
+    let state;
+    const key = typeof port.idempotencyKey === "function" ? void 0 : port.idempotencyKey;
     if (key !== void 0 && key === "")
       return { ok: false, code: "invalid-input", message: "idempotency key is required" };
-    const idempotency = key !== void 0 && port.checkIdempotency !== void 0 ? await port.checkIdempotency(key) : key !== void 0 && port.hasIdempotencyKey !== void 0 && await port.hasIdempotencyKey(key) ? "replay" : "missing";
+    if (typeof port.idempotencyKey === "function")
+      state = await port.readState();
+    const resolvedKey = typeof port.idempotencyKey === "function" ? await port.idempotencyKey(state) : key;
+    if (resolvedKey !== void 0 && resolvedKey === "")
+      return { ok: false, code: "invalid-input", message: "idempotency key is required" };
+    const idempotency = resolvedKey !== void 0 && port.checkIdempotency !== void 0 ? await port.checkIdempotency(resolvedKey) : resolvedKey !== void 0 && port.hasIdempotencyKey !== void 0 && await port.hasIdempotencyKey(resolvedKey) ? "replay" : "missing";
     if (idempotency === "conflict")
       return { ok: false, code: "idempotency-conflict", message: "idempotency key is already bound to another decision" };
     if (idempotency === "rejected") {
@@ -23968,7 +23987,7 @@ async function executeReviewAcknowledgeCommand(port) {
     if (idempotency === "replay") {
       return { ok: true, code: "idempotent-replay", changed: false, idempotent: true, deferred: [] };
     }
-    const state = await port.readState();
+    state ??= await port.readState();
     const bindingMatches = await port.bindingMatches(state);
     if (!bindingMatches) {
       await port.recordRejected?.(state, "review receipt binding mismatch");
@@ -23986,16 +24005,29 @@ async function executeReviewAcknowledgeCommand(port) {
       return { ok: false, code: "review-approval-required", message: `phase '${port.phase}' \u5C1A\u672A\u4E3A event '${port.event}' request review` };
     }
     if (reviewGateApprovedFor(state, port.phase, port.event)) {
-      if (key !== void 0)
-        await port.rememberIdempotencyKey?.(key);
+      if (resolvedKey !== void 0)
+        await port.rememberIdempotencyKey?.(resolvedKey);
       return { ok: true, code: "idempotent-replay", changed: false, idempotent: true, deferred: [] };
     }
     const committed = await port.commit(state, port.acknowledgedAt);
-    if (key !== void 0)
-      await port.rememberIdempotencyKey?.(key);
+    if (resolvedKey !== void 0)
+      await port.rememberIdempotencyKey?.(resolvedKey);
     const deferred = committed.deferred ?? [];
     return { ok: true, code: deferred.includes("review-marker-clear") ? "marker-warning" : "approved", changed: true, idempotent: false, deferred };
   });
+}
+
+// packages/kernel/dist/decision/idempotency.js
+var REVIEW_DECISION_IDEMPOTENCY_FILE = ".pipeline-decision-idempotency.jsonl";
+var REVIEW_DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
+function isReviewDecisionIdempotencyRecord(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return false;
+  const record7 = value;
+  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && (record7.channel === "terminal" || record7.channel === "dashboard" || record7.channel === "automation" || record7.channel === "delegated" || record7.channel === "unknown") && (record7.payloadDigest === void 0 || typeof record7.payloadDigest === "string") && typeof record7.acknowledgedAt === "string" && (record7.outcome === void 0 || record7.outcome === "rejected") && (record7.error === void 0 || typeof record7.error === "string") && (record7.code === void 0 || typeof record7.code === "string");
+}
+function reviewDecisionPayloadDigest(ref, expectedRevision, channel2) {
+  return `${channel2}\0${ref}\0${expectedRevision === null ? "null" : expectedRevision}`;
 }
 
 // packages/kernel/dist/skills/source-registry.js
@@ -38766,27 +38798,17 @@ import { join as join69 } from "node:path";
 // packages/server/src/serverPostDecisionRoutes.ts
 import { appendFile as appendFile2, readFile as readFile28, unlink as unlink5 } from "node:fs/promises";
 import { join as join68 } from "node:path";
-var DECISION_IDEMPOTENCY_FILE = ".pipeline-decision-idempotency.jsonl";
-var DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
-function isDecisionIdempotencyRecord(value) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const record7 = value;
-  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && record7.channel === "dashboard" && (record7.payloadDigest === void 0 || typeof record7.payloadDigest === "string") && typeof record7.acknowledgedAt === "string" && (record7.outcome === void 0 || record7.outcome === "rejected") && (record7.error === void 0 || typeof record7.error === "string") && (record7.code === void 0 || typeof record7.code === "string");
-}
-function commandPayloadDigest(ref, expectedRevision, channel2) {
-  return `${channel2}\0${ref}\0${expectedRevision === null ? "null" : expectedRevision}`;
-}
 async function readDecisionIdempotency(changeDir2) {
   try {
-    const raw = await readFile28(join68(changeDir2, DECISION_IDEMPOTENCY_FILE), "utf8");
-    if (Buffer.byteLength(raw, "utf8") > DECISION_IDEMPOTENCY_MAX_BYTES) {
+    const raw = await readFile28(join68(changeDir2, REVIEW_DECISION_IDEMPOTENCY_FILE), "utf8");
+    if (Buffer.byteLength(raw, "utf8") > REVIEW_DECISION_IDEMPOTENCY_MAX_BYTES) {
       throw new Error("decision idempotency record exceeds size limit");
     }
     if (raw === "") return [];
     if (!raw.endsWith("\n")) throw new Error("decision idempotency record is truncated");
     return raw.split("\n").filter(Boolean).map((line) => {
       const parsed = JSON.parse(line);
-      if (!isDecisionIdempotencyRecord(parsed)) throw new Error("decision idempotency record is invalid");
+      if (!isReviewDecisionIdempotencyRecord(parsed)) throw new Error("decision idempotency record is invalid");
       return parsed;
     });
   } catch (error2) {
@@ -38795,7 +38817,7 @@ async function readDecisionIdempotency(changeDir2) {
   }
 }
 async function appendDecisionIdempotency(changeDir2, record7) {
-  await appendFile2(join68(changeDir2, DECISION_IDEMPOTENCY_FILE), `${JSON.stringify(record7)}
+  await appendFile2(join68(changeDir2, REVIEW_DECISION_IDEMPOTENCY_FILE), `${JSON.stringify(record7)}
 `, { encoding: "utf8", flag: "a", mode: 384 });
 }
 async function handlePostDecisionRoutes(req, res, path13, deps) {
@@ -38868,8 +38890,8 @@ async function applyDecision(input) {
   const phase = item2?.anchor.phase ?? String(preflight.fields.review_gate_phase ?? "");
   const event = item2?.anchor.event ?? reviewGateEvent(preflight);
   let deferred = [];
-  const payloadDigest = commandPayloadDigest(input.ref, input.expectedRevision, "dashboard");
-  const command = await executeReviewAcknowledgeCommand({
+  const payloadDigest = reviewDecisionPayloadDigest(input.ref, input.expectedRevision, "dashboard");
+  const command = await executeReviewAcknowledgeApplication({
     withLock: (fn) => input.store.withLock(input.dir, fn),
     readState: () => input.store.read(input.dir),
     readRevision: async () => (await readCurrentRunRevision(input.dir))?.revision ?? null,
@@ -38878,7 +38900,7 @@ async function applyDecision(input) {
     checkIdempotency: async (key) => {
       const prior = (await readDecisionIdempotency(input.dir)).find((record7) => record7.key === key);
       if (prior === void 0) return "missing";
-      const priorDigest = prior.payloadDigest ?? commandPayloadDigest(prior.ref, prior.expectedRevision, prior.channel);
+      const priorDigest = prior.payloadDigest ?? reviewDecisionPayloadDigest(prior.ref, prior.expectedRevision, prior.channel);
       if (priorDigest !== payloadDigest) return "conflict";
       return prior.outcome === "rejected" ? "rejected" : "replay";
     },
@@ -38926,7 +38948,7 @@ async function applyDecision(input) {
         }
       }
     },
-    commit: async (state, acknowledgedAt) => {
+    prepareCommit: async (state, acknowledgedAt) => {
       const before = await readCurrentRunRevision(input.dir);
       if (before === void 0) throw new Error("interaction projection \u7F3A canonical run/workflow/state anchor");
       const workflow = String(state.fields.workflow || "default");
@@ -38951,13 +38973,7 @@ async function applyDecision(input) {
         sequence: 1,
         previousEventHash: null
       });
-      const acknowledged = await acknowledgeReview({
-        state,
-        phase,
-        event,
-        acknowledgedAt,
-        bindingMatches: true,
-        via: "dashboard",
+      return {
         writeState: async (patch) => {
           await input.store.writeUnderLock(input.dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });
         },
@@ -38986,7 +39002,6 @@ async function applyDecision(input) {
           }));
         },
         recordHistory: async ({ acknowledgedAt: at }) => input.history.append(input.dir, { ts: at, kind: "tool", raw: `review:acknowledge via=dashboard phase=${phase} event=${event}` }),
-        recordRejectedAcknowledgement: async ({ acknowledgedAt: at }) => input.history.append(input.dir, { ts: at, kind: "tool", raw: `review:acknowledge-rejected via=dashboard phase=${phase} event=${event}` }),
         clearMarker: async () => {
           const marker = join68(input.root, REVIEW_MARKER_FILE);
           try {
@@ -38998,15 +39013,14 @@ async function applyDecision(input) {
             return error2.code === "ENOENT";
           }
         }
-      });
-      deferred = acknowledged.deferred;
-      return { deferred };
+      };
     }
   });
   if (!command.ok) {
     const code = command.code === "invalid-input" ? "invalid-command" : command.code;
     return { result: { ok: false, code, message: command.message }, deferred };
   }
+  deferred = command.deferred;
   const ref = item2?.ref ?? { id: input.ref, kind: "review", change: input.name, anchor: `${phase}:${event}`, revision: input.expectedRevision };
   return { result: { ok: true, idempotent: command.idempotent, ref }, deferred };
 }
