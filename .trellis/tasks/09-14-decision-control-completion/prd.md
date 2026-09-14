@@ -19,8 +19,12 @@ Change 回放、产物 diff、工作流试运行、流程体检和 npm 发布移
 
 ## Acceptance Criteria
 
-- [ ] P 完成 A-K 契约裁决、子任务 PRD/设计/实施清单，并通过 `task.py validate` 与 `npm run check:docs`。
-- [ ] F1 每个阻塞项有回归测试；CLI/server dist 与源码新鲜；`npm run build`、相关 Vitest、架构、hooks、web 和全量测试结果可对比。
-- [ ] H 产出只读审计，列出 policy、证据可伪造性、迁移影响和 fail-closed 推荐，不修改业务代码。
-- [ ] F2、S、C 只能在前置任务和契约裁决完成后启动；其验收标准必须覆盖两种用户模式、模式切换、渠道归因、自审批信号和 Dashboard 无模型交互。
-- [ ] 父任务不得在回放、diff、试运行或流程体检尚未实现时宣称这些能力完成。
+- [x] P 完成 A-K 契约裁决、子任务 PRD/设计/实施清单，并通过 `task.py validate` 与 `npm run check:docs`。
+- [x] F1 每个阻塞项有回归测试；CLI/server dist 与源码新鲜；`npm run build`、相关 Vitest、架构、hooks、web 和全量测试结果可对比。
+- [x] H 产出只读审计，列出 policy、证据可伪造性、迁移影响和 fail-closed 推荐，不修改业务代码。
+- [x] F2、S、C 只能在前置任务和契约裁决完成后启动；其验收标准必须覆盖两种用户模式、模式切换、渠道归因、自审批信号和 Dashboard 无模型交互（模式切换事件按契约 G 标记 deferred，未宣称完成）。
+- [x] 父任务不得在回放、diff、试运行或流程体检尚未实现时宣称这些能力完成。
+
+## 验收记录
+
+子任务全部归档；遗留缺陷由 `09-14-decision-control-hardening` 收尾，最终验证见该任务 prd.md。回放、diff、试运行、流程体检与 npm 发布仍属后续父任务。

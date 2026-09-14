@@ -25,14 +25,21 @@
 
 ## Acceptance Criteria
 
-- [ ] server：loop active 且命中 human gate 时 transition 返回 409 `constraint-denied` 且零写入；CLI `TENON_AFK=1` 拒绝、未设置通过（测试）。
-- [ ] hook：AFK 下 token 读取与本地控制 API 调用产生一条观测；Read 工具读 token 产生观测；非 pending 零观测；重复触发不重复；观测文件无 token/Authorization/原始命令（`bash tools/test-hooks.sh` + kernel/CLI 测试）。
-- [ ] server/CLI：missing、late、not-pending、binding-mismatch、revision-conflict 均 409（CLI 对应退出码）且 canonical/interaction/idempotency/history 零写入；意外异常 500 无 code 且零写入（测试）。
-- [ ] 真实 `TransitionRecordStore` 端到端：GET ref → POST 200 → transition → consumed，ref 全程不变（测试）。
-- [ ] 同一 fixture 下 CLI 与 Dashboard 批准的 canonical fields、interaction 事件与 history 等价（via 除外）（测试）。
-- [ ] 重复 acknowledge 清 marker；marker 清理失败返回 `marker-warning`（测试）。
-- [ ] 仓库内幂等账本读写与 payload digest 只有一处实现（代码检查）。
-- [ ] Dashboard：三种错误码有对应文案；重试复用 key；409 后刷新且错误保留（`npm run test:web`）；`npm run check:design-scale` 通过。
-- [ ] `npm run build` 后两个 dist 与源码一致并已提交；CI 同等门禁全部通过，`npm test` 失败仅限已记录的基线/flaky 项（与 `f1635aa` 对比表）。
-- [ ] oracle 实跑结果记录，shim 处理有依据。
-- [ ] spec 与任务记录已更新；被取代任务归档。
+- [x] server：loop active 且命中 human gate 时 transition 返回 409 `constraint-denied` 且零写入；CLI `TENON_AFK=1` 拒绝、未设置通过（测试）。
+- [x] hook：AFK 下 token 读取与本地控制 API 调用产生一条观测；Read 工具读 token 产生观测；非 pending 零观测；重复触发不重复；观测文件无 token/Authorization/原始命令（`bash tools/test-hooks.sh` + kernel/CLI 测试）。
+- [x] server/CLI：missing、late、not-pending、binding-mismatch、revision-conflict 均 409（CLI 对应退出码）且 canonical/interaction/idempotency/history 零写入；意外异常 500 无 code 且零写入（测试）。
+- [x] 真实 `TransitionRecordStore` 端到端：GET ref → POST 200 → transition → consumed，ref 全程不变（测试）。
+- [x] 同一 fixture 下 CLI 与 Dashboard 批准的 canonical fields、interaction 事件与 history 等价（via 除外）（测试）。
+- [x] 重复 acknowledge 清 marker；marker 清理失败返回 `marker-warning`（测试）。
+- [x] 仓库内幂等账本读写与 payload digest 只有一处实现（代码检查）。
+- [x] Dashboard：三种错误码有对应文案；重试复用 key；409 后刷新且错误保留（`npm run test:web`）；`npm run check:design-scale` 通过。
+- [x] `npm run build` 后两个 dist 与源码一致并已提交；CI 同等门禁全部通过，`npm test` 失败仅限已记录的基线/flaky 项（与 `f1635aa` 对比表）。
+- [x] oracle 实跑结果记录，shim 处理有依据。
+- [x] spec 与任务记录已更新；被取代任务归档。
+
+## 验收记录
+
+- 最终验证提交 `a96f80f`（其后仅 `db2ebc0` 文档对齐）：CI 同等门禁全部通过；`npm test` 446 文件 / 7229 通过 / 0 失败 / 15 跳过；test:web 664、hooks 644、adapters 391、migration-cas 13、docs:* 全绿；两个 dist 与 dashboard 资产新鲜。
+- 基线已有、与本任务无关：`check:repository-hygiene` 2 条研究文档身份命中；golden oracle 130 处不一致（新 CLI init 停在 `open`），与 `f1635aa` 逐字节一致。WIP 中的 oracle open→explore shim 实跑新增 4 处失败，未采用。
+- 接受的 P3：Dashboard 在“账本追加丢失后重试”时收到 409 `revision-conflict`（批准已提交，安全）；200 响应的 `code/deferred` 未在面板单独提示；少量超长 Tailwind 类名行。
+- 未做（契约 G 标 deferred）：`afk-decision-recorded` 与 `mode-switched` 事件。
