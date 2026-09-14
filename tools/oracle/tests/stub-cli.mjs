@@ -21,6 +21,7 @@
  *   transition 成功 stdout 空（消息在 stderr）、非法/未知事件 exit 1
  *   check stdout「[CHECK] …」人读、exit 0/1
  */
+import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -262,10 +263,11 @@ function cmdTransition() {
       const bm = unquote(getRaw(doc.lines, 'build_mode'))
       const ovr = unquote(getRaw(doc.lines, 'direct_override'))
       if (preset === 'full' && bm === 'direct' && ovr !== 'true') errExit('ERROR: direct_override 必须为 true')
-      // 老内核实测怪癖（T6 发现）：无 commit 仓库上 `git rev-parse HEAD` 把字面 "HEAD"
-      // 打到 stdout（unborn branch），`$(... 2>/dev/null || echo "")` 捕获后非空 →
-      // build_sha 被写成字面 HEAD。fixture 仓恒无 commit，此处逐字对齐。
-      setLine(doc, 'build_sha', 'HEAD')
+      // 老内核口径：build_sha = `$(git rev-parse HEAD 2>/dev/null || echo "")` 的捕获值。有 commit
+      // 的 fixture 仓得到真实 SHA；无 commit 仓（unborn branch）上 rev-parse 仍把字面 "HEAD" 打到
+      // stdout，捕获后非空 → 写成字面 HEAD。两种情况都按同一命令逐字对齐。
+      const head = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout?.trim() ?? ''
+      if (head !== '') setLine(doc, 'build_sha', head)
       break
     }
     case 'verify-pass': {

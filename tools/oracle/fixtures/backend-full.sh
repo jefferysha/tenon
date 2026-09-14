@@ -15,10 +15,6 @@ target="${1:?usage: backend-full.sh <target-dir>}"
 fixture_change="$target/.oracle-post-init/t6-be"
 mkdir -p "$fixture_change" "$target/docs"
 
-# 独立 git 仓（无 commit）：老 init 的 base_branch 探测走 `git branch --show-current` → main，
-# 且 build-complete 的 `git rev-parse HEAD` 失败 → build_sha 保持 null。双侧确定性。
-(cd "$target" && git init -q -b main 2>/dev/null || git init -q 2>/dev/null || true)
-
 printf '# proposal\n\nT6 oracle fixture: backend 全生命周期。\n' > "$fixture_change/proposal.md"
 printf '# design\n\nfixture design doc.\n' > "$fixture_change/design.md"
 # check explore 要求存在未勾任务；check build 要求任务数 >= 3
@@ -44,6 +40,21 @@ L10_terms: filled
 DESIGN
 printf '# plan\n' > "$target/docs/plan.md"
 printf '# verification report\n' > "$target/docs/verify.md"
+
+# 确定性 git 仓 + 初始 commit（固定身份+日期 → 双侧同 SHA）。老 init 的 base_branch 探测走
+# `git branch --show-current` → main。build-complete 的 `freeze-build-sha` 只接受可信 capture
+# 取得的真实 HEAD（packages/kernel/src/workflow/action-handlers.ts，缺能力/非法 revision 一律
+# fail-closed）；无 commit 仓里老内核写字面 `HEAD`、新 CLI 拒绝，二者不可比，故与 default-effects /
+# default-guard-errors 一样使用真实基线 commit，build_sha 由 run.sh 的已验证 token 等价比较。
+(
+  cd "$target"
+  git init -q -b main 2>/dev/null || git init -q 2>/dev/null || true
+  export GIT_AUTHOR_NAME=oracle GIT_AUTHOR_EMAIL=oracle@pipeline.test \
+         GIT_COMMITTER_NAME=oracle GIT_COMMITTER_EMAIL=oracle@pipeline.test \
+         GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' GIT_COMMITTER_DATE='2026-01-01T00:00:00Z'
+  git add -A
+  git commit -q -m 'oracle fixture initial commit'
+)
 
 # P6 起 set/cas 对「当前有效 artifact 相位」的 artifact 字段拒写（改走 tenon artifact register）：
 # plan（spec 相位）、verification_report（verify 相位）改用 seed 在双侧直接注同值，隔离 legacy

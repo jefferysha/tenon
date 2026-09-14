@@ -55,8 +55,10 @@ printf '# verification report\n' > "$target/docs/verify.md"
 
 # 独立 git 仓并提交一个真实基线：Build revision capture 必须取得可验证 HEAD；该 fixture 不再依赖
 # 空/null build_sha 的旧 fail-open 路径。后续 Verify 失败只由计划中指定的 guard 分支触发。
+# 提交日期固定：老/新两侧必须是同一 commit SHA，run.sh 才能验证 build_sha token 绑定的是同一 commit。
 (cd "$target" && git init -q -b main 2>/dev/null || git init -q 2>/dev/null || true)
-(cd "$target" && git config user.email tenon-oracle@example.invalid && git config user.name tenon-oracle && git add .oracle-post-init docs && git commit -qm 'oracle fixture baseline')
+(cd "$target" && git config user.email tenon-oracle@example.invalid && git config user.name tenon-oracle && git add .oracle-post-init docs \
+  && GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' git commit -qm 'oracle fixture baseline')
 
 # 声明本 fixture 走 stderr 逐字口径（run.sh 据此在 transition 拒绝路径逐字比 stderr）。
 : > "$target/.oracle-stderr-check"
