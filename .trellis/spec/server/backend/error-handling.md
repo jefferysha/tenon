@@ -44,7 +44,7 @@ For a missing, malformed, or mismatched exact receipt/binding, return:
 }
 ```
 
-The server reads the binding through Kernel exports (`readReviewGateBinding` + `reviewGateBindingMatches`) and never imports CLI code or sets a transition approval flag. Binding read/parse errors are caught and treated as `false`. A rejected request must not write state, transition history, or projection data.
+The server reads the binding through Kernel exports (`readReviewGateBinding` + `reviewGateBindingMatches`) and never imports CLI code or sets a transition approval flag. Binding read/parse errors are caught and treated as `false`. A rejected request must not write state, transition history, or projection data. Missing, late, not-pending and binding-mismatch outcomes intentionally do not append a rejected receipt; characterization tests lock this zero-write behavior.
 The bearer token authenticates local capability only; because the sidecar and
 token are readable by the same OS user as the agent, this is not human identity
 proof. Channel attribution (`terminal`, `dashboard`, `automation`, or
@@ -136,8 +136,9 @@ The application returns structured outcomes. The server owns only HTTP mapping:
 | matching idempotent approval | existing 200 response |
 
 Rejected requests do not write canonical state, TransitionRecord, or successful
-history. The shared application must append the rejected-acknowledgement audit
-event (once, idempotently) so a late or mismatched attempt remains visible to
-the projection; that audit event is not an approval or consumption proof.
+history. The shared application may append a redacted rejected audit only for explicitly
+covered security observations; missing, late, not-pending and binding-mismatch
+review attempts remain zero-write outcomes. Such an audit event is never approval
+or consumption proof.
 Bearer-token authentication identifies a caller capability, not a human
 approver; channel attribution and binding remain separate fields.

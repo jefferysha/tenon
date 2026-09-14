@@ -1,70 +1,120 @@
 # Decision Synchronization Adapter Contract
 
-## Scope
+## Scope and boundary
 
-The local server exposes read/control adapters for the Dashboard. It never
-calls a model, creates a prompt, starts a Skill, or invents a review receipt.
-The terminal remains the only model interaction surface.
+The terminal is the only model-interaction surface. Dashboard reads pending
+projections and may acknowledge an existing review receipt through the shared
+application; it never calls a model, creates a prompt, starts a Skill, answers
+a Skill question, or writes an AFK decision.
 
-## Read and write surfaces
+## A. Terminal acknowledgement
 
-`GET /api/change/:name/pending-decisions` is a read-only projection over
-canonical state and append-only evidence. `POST /api/change/:name/decisions`
-accepts review, Skill-question, and AFK commands only when their exact pending
-request and binding are valid. Dashboard review calls the shared review
-application with `channel=dashboard`; it does not import CLI or duplicate its
-orchestration. A review command without an existing pending receipt is
-rejected.
+The terminal command keeps its user-facing syntax without revision/key flags.
+Inside the Change lock the CLI reads the current canonical revision and derives
+an idempotency key from `change + phase + event + requestedAt +
+decisionStateDigest + runId + channel`. The derived key is persisted before
+the acknowledgement side effects are exposed. This is the sole terminal
+exception to explicit request fields; hooks without a Change lock may write an
+observation only. Replay is prevented by the durable key and exact receipt
+binding, not by the hook marker.
 
-## Synchronization order
+## B. Accepted HTTP command
 
-Under the Change lock, adapters process commands in this order:
+`POST /api/change/:name/decisions` accepts **review acknowledge only**. Skill
+questions and AFK decisions use their existing terminal/automation producers.
+The server calls the shared review-acknowledge application in-process with
+`channel=dashboard` and never imports CLI code.
 
-1. Look up the durable idempotency record.
-2. Return its stored result for the same full payload, or
-   `idempotency-conflict` for a different payload using the same key.
-3. For a new key, read the exact pending receipt and verify its binding.
-4. Compare `expected_revision` with canonical state.
-5. Commit canonical evidence and idempotency in one transaction.
+## C. Durable idempotency
 
-The idempotency record is Change-owned durable data, not process memory. Hook
-observations without a revision or idempotency key cannot acknowledge a
-decision. Legacy requests without an id are anchored by
-`requestedAt + decisionStateDigest + runId`.
+There is one store: the Change-owned `.pipeline-decision-idempotency.jsonl`.
+The server and shared application are its only writers/readers. The former
+`packages/server/src/decisionIdempotency.ts` and any process-local or second
+ledger store are forbidden.
 
-## Errors and audit
+## D. Locked ordering and replay
 
-Missing, late, not-pending, or binding-mismatched review commands return HTTP
-409 with `code=review-approval-required`; stale `expected_revision` returns
-409 with `code=revision-conflict`; key reuse with a different payload returns
-409 with `code=idempotency-conflict`. CLI maps the same outcomes to stable
-non-zero exits. Every rejected attempt appends one redacted rejected-audit
-event idempotently and writes no canonical approval, transition, or successful
-history.
+Within the Change lock, processing is always: (1) read idempotency; (2) return
+the stored result for the same full payload or `idempotency-conflict` for a
+different payload; (3) for a new key, read the exact pending receipt and verify
+binding; (4) compare expected revision; (5) commit canonical fields, records,
+interaction and idempotency atomically. A replay after consumption or rejection
+returns the original stored code and does not re-run side effects.
 
-The `channel` field describes the entry route (`terminal`, `dashboard`,
-`automation`, or `delegated`), not the operator. A bearer token is only local
-capability proof; `actor` must not be set to `human` without an independent
-trusted identity provider. Host resume is capability-gated. If the host API is
-unverified or unavailable, the adapter records durable state and the next
-reconciliation/read refresh observes it instead of claiming a wake-up.
+## E. Rejection and errors
 
-## Mode and AFK boundaries
+`review-approval-required`, `revision-conflict`, and `idempotency-conflict` are
+intentional client outcomes. Missing, late, not-pending, or binding-mismatched
+requests do not create a new rejected receipt; characterization tests preserve
+zero canonical writes and stable 409 responses. An unexpected exception is
+HTTP 500 with no `code` field and zero writes. `marker-warning` is a successful
+acknowledgement with a non-fatal deferred cleanup warning, never a failure.
 
-HITL maps to `interactive` or frozen `recommended-defaults`; AFK maps to the
-separate `afk` strategy and is attributed by joining decision invocation id to
-the durable invocation's `adapter.kind`. `SkillInvocationDecisionMode` does
-not gain an `afk-answer` value, and Dashboard cannot answer hard-gate Skill
-questions. `mode-switched` is an append-only event affecting future requests;
-it is not a decision and cannot silently rewrite existing pending requests.
+## F. Anchors and projection identity
 
-## Terminal answer evidence
+The request anchor is exactly `requestedAt + decisionStateDigest + runId`.
+`ref.id` is derived from `change + kind + phase/event or invocation/question +
+that anchor`; it does not independently embed a revision. `expected_revision`
+remains a separate CAS check. GET and POST build the same projection input and
+therefore the same ref.
 
-`confirm-clear-prompt.sh` invokes `review-ack.sh manual` or `delegated`.
-`decision-recorder.sh` records `host-skill-interaction-receipt/v1` via
-`hostInteraction.ts`, including `host_session_id` and an HMAC-derived host
-identity. The receipt joins the question/invocation projection with
-`channel=terminal` or `delegated` and `source=host`; HMAC proves session
-continuity, not a human operator. Hosts that write a question only after an
-answer provide no earlier pending visibility; the projection returns
-`absent/unknown` rather than fabricating one.
+## G. AFK and mode-switch provenance
+
+AFK attribution is stored as an independent durable `afk-decision-recorded`
+event written by `afk-producer.ts`; its `invocationId` joins to
+`invocation-started.adapter.kind=afk`. `mode-switched` is an append-only event
+written by the mode command with `from`, `to`, principal, channel, effective-at,
+policy revision, and pending anchors. These are separate from review channel
+and Skill decision mode.
+
+## H. Result union
+
+The shared application returns:
+
+```ts
+type DecisionCommandResult =
+  | { ok: true; code: 'approved' | 'idempotent-replay' | 'marker-warning'; changed: boolean; idempotent: boolean; ref: DecisionRef }
+  | { ok: false; code: 'review-approval-required' | 'revision-conflict' | 'idempotency-conflict' | 'invalid-command'; message: string; ref?: DecisionRef }
+```
+
+The server owns HTTP mapping: all listed failures are 409 except unexpected
+exceptions, which are 500. `marker-warning` remains HTTP 200.
+
+## I. Source and status vocabulary
+
+`source` uses `terminal | dashboard | automation | delegated | unknown`;
+`source=host` is not a valid value. `DecisionStatus.expired` is retained for
+backward codec compatibility but this system never produces it; TTL remains
+deferred until canonical expiry evidence exists. `actor` is an opaque
+principal, never the strings `human` or `user`.
+
+## J. Host resume
+
+Host resume/new-turn capability is `unverified` until each adapter declares a
+concrete API. A capable host receives a resume signal after durable commit; an
+incapable host observes the result at the next hook, tool call, or transition
+boundary. No adapter may claim wake-up success without that capability.
+
+## K. Canonical fields and attribution
+
+`review_acknowledged_via` is a canonical field appended at the end of
+`FIELD_ORDER`, with `terminal | dashboard | automation | delegated | unknown`.
+It must be synchronized across codecs, `.pipeline.yaml`, fixtures and writers.
+It identifies the route, not a human. Receipt consumption is derived by joining
+the exact receipt to a successful TransitionRecord and review interaction;
+clearing receipt fields alone never proves `consumed`. `superseded` and late
+answers are derived from appended stale/rejected events. `expired` is deferred.
+
+## Modes and security observation
+
+HITL maps to `interactive` or frozen `recommended-defaults` for routine hidden
+questions only. AFK maps to `afk` and records an independent AFK decision. A
+mode switch affects only later requests; existing pending requests retain their
+frozen strategy or are explicitly superseded.
+
+During a pending review, hooks may append a redacted
+`pending-decision-self-approval-suspected` observation for exact token-file
+reads or localhost control writes. It contains change, anchor, channel,
+signal-kind, observed-at and process/host hash, never token text or raw command.
+The observation detects a capability risk; it cannot approve or reject a
+review by itself.
