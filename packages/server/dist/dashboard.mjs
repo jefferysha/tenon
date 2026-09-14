@@ -24560,6 +24560,47 @@ function completedWorkflowSkillsSinceStepEntry(historyRaw, currentStepId) {
   return completed;
 }
 
+// packages/kernel/dist/workflow/implicit-completion.js
+var IMPLICIT_COMPLETION_EVENT = "archived";
+function runArchived(state) {
+  const value = state.fields.archived;
+  return (Array.isArray(value) ? value.join(",") : value ?? "") === "true";
+}
+function enteredOnlyByArchivingEdges(steps, step) {
+  const incoming = steps.filter((candidate) => candidate.id !== step.id).flatMap((candidate) => candidate.transitions.filter((transition) => transition.to === step.id));
+  return incoming.length > 0 && incoming.every((transition) => transition.actions.some((action) => action.type === "archive-run"));
+}
+function implicitCompletionTransition(plan, stepId, state) {
+  if (plan.capabilities.execution.model !== "step-graph")
+    return void 0;
+  if (state !== void 0 && runArchived(state))
+    return void 0;
+  const steps = plan.workflow.steps;
+  const index = steps.findIndex((candidate) => candidate.id === stepId);
+  const step = steps[index];
+  if (step === void 0)
+    return void 0;
+  if (step.transitions.some((transition) => transition.event === IMPLICIT_COMPLETION_EVENT))
+    return void 0;
+  const hasForwardEdge = step.transitions.some((transition) => steps.findIndex((candidate) => candidate.id === transition.to) > index);
+  if (hasForwardEdge || enteredOnlyByArchivingEdges(steps, step))
+    return void 0;
+  return {
+    event: IMPLICIT_COMPLETION_EVENT,
+    to: step.id,
+    // gate=auto compiles to output guards on every declared exit; the derived exit gets the same.
+    guards: step.gate === "auto" ? compileGuards([{ type: "nonempty-output" }], `steps.${step.id}.gate(auto)`, step.outputs) : [],
+    actions: [{ type: "archive-run" }]
+  };
+}
+function stepExitTransitions(plan, stepId, state) {
+  const step = plan.workflow.steps.find((candidate) => candidate.id === stepId);
+  if (step === void 0)
+    return [];
+  const completion = implicitCompletionTransition(plan, stepId, state);
+  return completion === void 0 ? step.transitions : [...step.transitions, completion];
+}
+
 // packages/kernel/dist/workflow/serialize.js
 function serializeSkill(s) {
   const lines = [`      - id: ${s.id}`];
@@ -24918,7 +24959,8 @@ async function readinessByTransition(plan, state, context) {
   const step = plan.workflow.steps.find((candidate) => candidate.id === currentStepId);
   if (step === void 0)
     return {};
-  const transitions = await Promise.all(step.transitions.map(async (transition) => {
+  const exits = plan.executionModel === "phase-manifest" ? step.transitions : stepExitTransitions(plan, step.id);
+  const transitions = await Promise.all(exits.map(async (transition) => {
     const guards = plan.executionModel === "phase-manifest" ? defaultEventGuards(transition.event) : effectiveLifecyclePolicy(plan.capabilities.documents.policy !== void 0, step, transition, plan.workflow.steps.find((candidate) => candidate.id === transition.to)).guards;
     const evaluations = [];
     const errors = [];
@@ -25243,20 +25285,12 @@ async function planCustomTransition(state, effectivePlan, command, clock) {
   const ir = effectivePlan.workflow;
   const workflowName = effectivePlan.id;
   const currentBeforePlan = resolveStep(ir, fieldStr4(state.fields.phase));
-  const terminalArchive = currentBeforePlan?.id === "archive" && currentBeforePlan.transitions.length === 0 && command.event === "archived";
-  const planningIr = terminalArchive ? {
+  const completion = currentBeforePlan === null ? void 0 : implicitCompletionTransition(effectivePlan, currentBeforePlan.id, state);
+  const planningIr = completion === void 0 ? ir : {
     ...ir,
-    steps: ir.steps.map((step) => step.id === "archive" ? {
-      ...step,
-      transitions: [{
-        event: "archived",
-        to: "archive",
-        guards: [],
-        actions: [{ type: "archive-run" }]
-      }]
-    } : step)
-  } : ir;
-  const edgeBeforePlan = terminalArchive ? planningIr.steps.find((step) => step.id === "archive")?.transitions[0] : currentBeforePlan?.transitions.find((candidate) => candidate.event === command.event);
+    steps: ir.steps.map((step) => step.id === completion.to ? { ...step, transitions: [...step.transitions, completion] } : step)
+  };
+  const edgeBeforePlan = resolveStep(planningIr, fieldStr4(state.fields.phase))?.transitions.find((candidate) => candidate.event === command.event);
   const documentPolicy = effectivePlan.capabilities.documents.policy;
   const governed = documentPolicy !== void 0;
   const targetStep = edgeBeforePlan === void 0 ? void 0 : resolveStep(planningIr, edgeBeforePlan.to);
@@ -25292,7 +25326,7 @@ async function planCustomTransition(state, effectivePlan, command, clock) {
     throw new Error(`workflow '${workflowName}' \u5728\u5DF2\u89C4\u5212 step '${plan.from}' \u540E\u65E0\u6CD5\u91CD\u53D6\u5F53\u524D step`);
   const nextState = applyStepTransition(state, plan.to, clock);
   const actions = plan.actions;
-  const closesRun = terminalArchive || actions.some((action) => action.type === "archive-run");
+  const closesRun = actions.some((action) => action.type === "archive-run");
   const warnings = [];
   let nextFields = closesRun ? { ...nextState.fields, phase_status: "done" } : nextState.fields;
   if (actions.length > 0) {
@@ -31799,9 +31833,11 @@ function snapshotWorkflowRules(plan, configured = { status: "unavailable" }, aut
   return {
     executionModel: plan.capabilities.execution.model,
     steps: plan.workflow.steps.map((step) => step.id),
+    // Structural exits: a step without a forward edge also lists its implicit `archived` edge, so
+    // readiness and a pending `archived` review handshake decode against the same rules.
     transitions: Object.fromEntries(plan.workflow.steps.map((step) => [
       step.id,
-      step.transitions.map((transition) => ({ event: transition.event, to: transition.to }))
+      stepExitTransitions(plan, step.id).map((transition) => ({ event: transition.event, to: transition.to }))
     ])),
     gateByStep: Object.fromEntries(plan.workflow.steps.map((step) => [step.id, step.gate])),
     labelByStep: Object.fromEntries(
@@ -31905,7 +31941,7 @@ function projectReviewHandshake(state, plan, phase) {
     return { status: "not-requested" };
   }
   const step = plan.workflow.steps.find((candidate) => candidate.id === phase);
-  const eventExists = step?.transitions.some((transition) => transition.event === receipt.event) ?? false;
+  const eventExists = stepExitTransitions(plan, phase).some((transition) => transition.event === receipt.event);
   const pending = receipt.status === "pending" && receipt.acknowledgedAt === "";
   const approved = receipt.status === "approved" && receipt.acknowledgedAt !== "";
   if (step?.gate !== "review" || receipt.phase !== phase || receipt.event === "" || !eventExists || receipt.requestedAt === "" || !pending && !approved) {
@@ -39032,7 +39068,7 @@ function reviewExitsFor(root, state, phase) {
   }, void 0, resolveSnapshotTrack(root, scalar8(state, "track"), workflowName));
   const step = resolveStep(plan.workflow, phase);
   if (!step || step.gate !== "review") return null;
-  return step.transitions.map((transition) => transition.event);
+  return stepExitTransitions(plan, phase, state).map((transition) => transition.event);
 }
 async function handlePostDecisionRoutes(req, res, path13, deps) {
   const match = /^\/api\/change\/([^/]+)\/decisions$/.exec(path13);

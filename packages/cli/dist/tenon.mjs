@@ -32247,6 +32247,47 @@ function completedWorkflowSkillsSinceStepEntry(historyRaw, currentStepId) {
   return completed;
 }
 
+// packages/kernel/dist/workflow/implicit-completion.js
+var IMPLICIT_COMPLETION_EVENT = "archived";
+function runArchived(state) {
+  const value = state.fields.archived;
+  return (Array.isArray(value) ? value.join(",") : value ?? "") === "true";
+}
+function enteredOnlyByArchivingEdges(steps, step) {
+  const incoming = steps.filter((candidate) => candidate.id !== step.id).flatMap((candidate) => candidate.transitions.filter((transition) => transition.to === step.id));
+  return incoming.length > 0 && incoming.every((transition) => transition.actions.some((action) => action.type === "archive-run"));
+}
+function implicitCompletionTransition(plan, stepId, state) {
+  if (plan.capabilities.execution.model !== "step-graph")
+    return void 0;
+  if (state !== void 0 && runArchived(state))
+    return void 0;
+  const steps = plan.workflow.steps;
+  const index = steps.findIndex((candidate) => candidate.id === stepId);
+  const step = steps[index];
+  if (step === void 0)
+    return void 0;
+  if (step.transitions.some((transition) => transition.event === IMPLICIT_COMPLETION_EVENT))
+    return void 0;
+  const hasForwardEdge = step.transitions.some((transition) => steps.findIndex((candidate) => candidate.id === transition.to) > index);
+  if (hasForwardEdge || enteredOnlyByArchivingEdges(steps, step))
+    return void 0;
+  return {
+    event: IMPLICIT_COMPLETION_EVENT,
+    to: step.id,
+    // gate=auto compiles to output guards on every declared exit; the derived exit gets the same.
+    guards: step.gate === "auto" ? compileGuards([{ type: "nonempty-output" }], `steps.${step.id}.gate(auto)`, step.outputs) : [],
+    actions: [{ type: "archive-run" }]
+  };
+}
+function stepExitTransitions(plan, stepId, state) {
+  const step = plan.workflow.steps.find((candidate) => candidate.id === stepId);
+  if (step === void 0)
+    return [];
+  const completion = implicitCompletionTransition(plan, stepId, state);
+  return completion === void 0 ? step.transitions : [...step.transitions, completion];
+}
+
 // packages/kernel/dist/workflow/skillDag.js
 function isSkillUnlocked(skillId, skills, completedSinceStepEntry) {
   if (skills.length === 0)
@@ -32579,20 +32620,12 @@ async function planCustomTransition(state, effectivePlan, command2, clock) {
   const ir = effectivePlan.workflow;
   const workflowName = effectivePlan.id;
   const currentBeforePlan = resolveStep(ir, fieldStr4(state.fields.phase));
-  const terminalArchive = currentBeforePlan?.id === "archive" && currentBeforePlan.transitions.length === 0 && command2.event === "archived";
-  const planningIr = terminalArchive ? {
+  const completion = currentBeforePlan === null ? void 0 : implicitCompletionTransition(effectivePlan, currentBeforePlan.id, state);
+  const planningIr = completion === void 0 ? ir : {
     ...ir,
-    steps: ir.steps.map((step) => step.id === "archive" ? {
-      ...step,
-      transitions: [{
-        event: "archived",
-        to: "archive",
-        guards: [],
-        actions: [{ type: "archive-run" }]
-      }]
-    } : step)
-  } : ir;
-  const edgeBeforePlan = terminalArchive ? planningIr.steps.find((step) => step.id === "archive")?.transitions[0] : currentBeforePlan?.transitions.find((candidate) => candidate.event === command2.event);
+    steps: ir.steps.map((step) => step.id === completion.to ? { ...step, transitions: [...step.transitions, completion] } : step)
+  };
+  const edgeBeforePlan = resolveStep(planningIr, fieldStr4(state.fields.phase))?.transitions.find((candidate) => candidate.event === command2.event);
   const documentPolicy = effectivePlan.capabilities.documents.policy;
   const governed = documentPolicy !== void 0;
   const targetStep = edgeBeforePlan === void 0 ? void 0 : resolveStep(planningIr, edgeBeforePlan.to);
@@ -32628,7 +32661,7 @@ async function planCustomTransition(state, effectivePlan, command2, clock) {
     throw new Error(`workflow '${workflowName}' \u5728\u5DF2\u89C4\u5212 step '${plan.from}' \u540E\u65E0\u6CD5\u91CD\u53D6\u5F53\u524D step`);
   const nextState = applyStepTransition(state, plan.to, clock);
   const actions = plan.actions;
-  const closesRun = terminalArchive || actions.some((action) => action.type === "archive-run");
+  const closesRun = actions.some((action) => action.type === "archive-run");
   const warnings = [];
   let nextFields = closesRun ? { ...nextState.fields, phase_status: "done" } : nextState.fields;
   if (actions.length > 0) {
@@ -44233,14 +44266,15 @@ async function checkGraphWorkflow(deps, name2, dir, state, plan, event) {
     deps.io.err(`ERROR: step '${currentStepId}' \u4E0D\u5728 workflow '${plan.id}' \u91CC`);
     return 1;
   }
+  const exits = stepExitTransitions(plan, step.id, state);
   let guards;
   if (event === void 0) {
-    guards = plainGraphCheckGuards(plan, step);
+    guards = plainGraphCheckGuards(plan, step, exits);
   } else {
-    const selectedEdge = step.transitions.find((transition) => transition.event === event);
+    const selectedEdge = exits.find((transition) => transition.event === event);
     if (selectedEdge === void 0) {
       deps.io.err(
-        `ERROR: step '${currentStepId}' \u4E0D\u652F\u6301 event '${event}'\uFF1B\u53EF\u9009\uFF1A${step.transitions.map((transition) => transition.event).join(", ") || "(\u65E0)"}`
+        `ERROR: step '${currentStepId}' \u4E0D\u652F\u6301 event '${event}'\uFF1B\u53EF\u9009\uFF1A${exits.map((transition) => transition.event).join(", ") || "(\u65E0)"}`
       );
       return 1;
     }
@@ -44288,8 +44322,8 @@ async function checkGraphWorkflow(deps, name2, dir, state, plan, event) {
   deps.io.out(`  [FAIL] \u5171 ${total} \u9879\u672A\u901A\u8FC7`);
   return 2;
 }
-function plainGraphCheckGuards(plan, step) {
-  const policies = step.transitions.map((transition) => effectiveLifecyclePolicy(
+function plainGraphCheckGuards(plan, step, exits) {
+  const policies = exits.map((transition) => effectiveLifecyclePolicy(
     plan.capabilities.documents.governed,
     step,
     transition,
@@ -51795,10 +51829,11 @@ async function cmdAdvance(deps, name2, opts = {}) {
   }
   const maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
   const through = opts.throughGates ?? false;
+  let state;
   let startPhase;
   let plan;
   try {
-    const state = await deps.store.read(changeDir(deps.cwd, name2));
+    state = await deps.store.read(changeDir(deps.cwd, name2));
     startPhase = str(state.fields.phase);
     plan = effectiveWorkflowForState(deps, state);
     if (!plan) {
@@ -51811,7 +51846,8 @@ async function cmdAdvance(deps, name2, opts = {}) {
     return 1;
   }
   if (plan.capabilities.execution.model === "step-graph") {
-    return cmdAdvanceGraph(deps, name2, plan, startPhase, through, maxSteps, opts.dryRun ?? false);
+    const archived = str(state.fields.archived) === "true";
+    return cmdAdvanceGraph(deps, name2, plan, startPhase, archived, through, maxSteps, opts.dryRun ?? false);
   }
   if (opts.dryRun) {
     return dryRunDefaultPlan(
@@ -51870,13 +51906,21 @@ async function cmdAdvance(deps, name2, opts = {}) {
     steps += 1;
   }
 }
-async function cmdAdvanceGraph(deps, name2, plan, startPhase, through, maxSteps, dryRun) {
+function graphExits(plan, step) {
+  const completion = implicitCompletionTransition(plan, step.id);
+  return completion === void 0 ? { exits: step.transitions } : { exits: [completion], completion };
+}
+async function cmdAdvanceGraph(deps, name2, plan, startPhase, archived, through, maxSteps, dryRun) {
   const wf = plan.workflow;
   if (!resolveStep(wf, startPhase)) {
     deps.io.err(`ERROR: step '${startPhase}' \u4E0D\u5728 workflow '${plan.id}' \u91CC`);
     return 1;
   }
-  if (dryRun) return dryRunGraphPlan(deps, name2, wf, plan.id, startPhase, through, maxSteps);
+  if (dryRun) return dryRunGraphPlan(deps, name2, plan, startPhase, archived, through, maxSteps);
+  if (archived) {
+    deps.io.out(`[STOP] ${name2} @ ${startPhase}: \u8FD0\u884C\u5DF2\u5F52\u6863\uFF0C\u5DF2\u5230\u7EC8\u6001\uFF08\u63A8\u8FDB\u5B8C\u6210\uFF09`);
+    return 0;
+  }
   deps.io.out(`[ADVANCE] ${name2}: \u4ECE ${startPhase} \u8D77\u6B65\uFF08max-steps=${maxSteps}${through ? "\uFF0Cthrough-gates" : ""}\uFF09`);
   let current = startPhase;
   let steps = 0;
@@ -51886,7 +51930,8 @@ async function cmdAdvanceGraph(deps, name2, plan, startPhase, through, maxSteps,
       deps.io.err(`ERROR: step '${current}' \u4E0D\u5728 workflow '${plan.id}' \u91CC`);
       return 1;
     }
-    if (step.transitions.length === 0) {
+    const { exits, completion } = graphExits(plan, step);
+    if (exits.length === 0) {
       deps.io.out(`[STOP] ${name2} @ ${current}: \u5DF2\u5230\u7EC8\u6001\uFF0C\u65E0\u540E\u7EE7\u4E8B\u4EF6\uFF08\u63A8\u8FDB\u5B8C\u6210\uFF09`);
       return 0;
     }
@@ -51895,12 +51940,12 @@ async function cmdAdvanceGraph(deps, name2, plan, startPhase, through, maxSteps,
       deps.io.out(`[STOP] ${name2} @ ${current}: \u786C\u95E8 .pipeline-pending-${hard} \u65B0\u9C9C\u5B58\u5728\u2014\u2014\u4E09\u95E8\u7EDD\u4E0D\u81EA\u52A8\u8DE8\u8D8A\uFF08HITL \u7EA2\u7EBF\uFF09`);
       return 0;
     }
-    if (step.transitions.length > 1) {
-      const events = step.transitions.map((transition) => transition.event).join(", ");
+    if (exits.length > 1) {
+      const events = exits.map((transition) => transition.event).join(", ");
       deps.io.out(`[STOP] ${name2} @ ${current}: \u591A\u6761\u51FA\u8FB9\u9700\u4EBA\u9009 event\uFF08HITL\uFF09\uFF0C\u624B\u52A8 transition \u5176\u4E00\uFF1A${events}`);
       return 0;
     }
-    const edge = step.transitions[0];
+    const edge = exits[0];
     if (edge === void 0) return 0;
     if (step.gate === "review") {
       if (!through) {
@@ -51930,12 +51975,18 @@ async function cmdAdvanceGraph(deps, name2, plan, startPhase, through, maxSteps,
       for (const l of t.lines) deps.io.out(`  ${l.trim()}`);
       return 1;
     }
+    if (edge === completion) {
+      deps.io.out(`[ADVANCE] ${name2}: ${current} \u5B8C\u6210\uFF08${edge.event}\uFF09`);
+      deps.io.out(`[STOP] ${name2} @ ${current}: \u8FD0\u884C\u5DF2\u5F52\u6863\uFF0C\u5DF2\u5230\u7EC8\u6001\uFF08\u63A8\u8FDB\u5B8C\u6210\uFF09`);
+      return 0;
+    }
     deps.io.out(`[ADVANCE] ${name2}: ${current} -> ${edge.to}\uFF08${edge.event}\uFF09`);
     current = edge.to;
     steps += 1;
   }
 }
-async function dryRunGraphPlan(deps, name2, wf, workflowName, start, through, maxSteps) {
+async function dryRunGraphPlan(deps, name2, plan, start, archived, through, maxSteps) {
+  const wf = plan.workflow;
   deps.io.out(`[DRY-RUN] ${name2}: \u8BA1\u5212\u9884\u89C8\uFF08\u4E0D\u6539\u76D8\uFF09\u4ECE ${start} \u8D77\uFF08max-steps=${maxSteps}${through ? "\uFF0Cthrough-gates" : ""}\uFF09`);
   const hard = await freshHardGate(deps);
   if (hard) {
@@ -51944,18 +51995,23 @@ async function dryRunGraphPlan(deps, name2, wf, workflowName, start, through, ma
   }
   const startStep = resolveStep(wf, start);
   if (!startStep) {
-    deps.io.err(`ERROR: step '${start}' \u4E0D\u5728 workflow '${workflowName}' \u91CC`);
+    deps.io.err(`ERROR: step '${start}' \u4E0D\u5728 workflow '${plan.id}' \u91CC`);
     return 1;
   }
-  if (startStep.transitions.length === 0) {
+  if (archived) {
+    deps.io.out(`  \u9884\u8BA1\u505C\u5728 ${start}: \u8FD0\u884C\u5DF2\u5F52\u6863\uFF0C\u5DF2\u5230\u7EC8\u6001`);
+    return 0;
+  }
+  const { exits: startExits } = graphExits(plan, startStep);
+  if (startExits.length === 0) {
     deps.io.out(`  \u9884\u8BA1\u505C\u5728 ${start}: \u5DF2\u5230\u7EC8\u6001`);
     return 0;
   }
-  if (startStep.transitions.length > 1) {
-    deps.io.out(`  \u9884\u8BA1\u505C\u5728 ${start}: \u591A\u6761\u51FA\u8FB9\u9700\u4EBA\u9009 event\uFF08\u53EF\u9009: ${startStep.transitions.map((t) => t.event).join(", ")}\uFF09`);
+  if (startExits.length > 1) {
+    deps.io.out(`  \u9884\u8BA1\u505C\u5728 ${start}: \u591A\u6761\u51FA\u8FB9\u9700\u4EBA\u9009 event\uFF08\u53EF\u9009: ${startExits.map((t) => t.event).join(", ")}\uFF09`);
     return 0;
   }
-  const startEdge = startStep.transitions[0];
+  const startEdge = startExits[0];
   if (startEdge === void 0) return 0;
   if (startStep.gate === "review") {
     if (!through) {
@@ -51982,29 +52038,37 @@ async function dryRunGraphPlan(deps, name2, wf, workflowName, start, through, ma
   while (steps < maxSteps) {
     const step = resolveStep(wf, current);
     if (!step) {
-      deps.io.err(`ERROR: step '${current}' \u4E0D\u5728 workflow '${workflowName}' \u91CC`);
+      deps.io.err(`ERROR: step '${current}' \u4E0D\u5728 workflow '${plan.id}' \u91CC`);
       return 1;
     }
-    if (step.transitions.length === 0) {
+    const { exits, completion } = graphExits(plan, step);
+    if (exits.length === 0) {
       deps.io.out(`  \u9884\u8BA1\u505C\u5728 ${current}: \u5DF2\u5230\u7EC8\u6001`);
       return 0;
     }
-    if (step.transitions.length > 1) {
-      deps.io.out(`  \u9884\u8BA1\u505C\u5728 ${current}: \u591A\u6761\u51FA\u8FB9\u9700\u4EBA\u9009 event\uFF08\u53EF\u9009: ${step.transitions.map((t) => t.event).join(", ")}\uFF09`);
+    if (exits.length > 1) {
+      deps.io.out(`  \u9884\u8BA1\u505C\u5728 ${current}: \u591A\u6761\u51FA\u8FB9\u9700\u4EBA\u9009 event\uFF08\u53EF\u9009: ${exits.map((t) => t.event).join(", ")}\uFF09`);
       return 0;
     }
-    const edge = step.transitions[0];
+    const edge = exits[0];
     if (edge === void 0) return 0;
-    deps.io.out(`  \u8BA1\u5212 ${steps + 1}: ${current} -> ${edge.to}\uFF08${edge.event}\uFF09${steps === 0 ? "" : "  [live-guard]"}`);
+    const liveGuard = steps === 0 ? "" : "  [live-guard]";
+    if (edge === completion) {
+      deps.io.out(`  \u8BA1\u5212 ${steps + 1}: ${current} \u5B8C\u6210\uFF08${edge.event}\uFF09${liveGuard}`);
+      deps.io.out(`  \u9884\u8BA1\u505C\u5728 ${current}: \u8FD0\u884C\u5F52\u6863\uFF0C\u5DF2\u5230\u7EC8\u6001`);
+      return 0;
+    }
+    deps.io.out(`  \u8BA1\u5212 ${steps + 1}: ${current} -> ${edge.to}\uFF08${edge.event}\uFF09${liveGuard}`);
     visited.add(current);
     current = edge.to;
     steps += 1;
     const entered = resolveStep(wf, current);
     if (entered?.gate === "review") {
+      const reviewExits2 = graphExits(plan, entered).exits;
       if (!through) {
         deps.io.out(`  \u9884\u8BA1\u505C\u5728 ${current}: step gate 'review'\uFF08HITL \u95E8\uFF0C\u786E\u8BA4\u540E\u53EF\u7528 --through-gates \u7EE7\u7EED\uFF09`);
-      } else if (entered.transitions.length === 1) {
-        const reviewEdge = entered.transitions[0];
+      } else if (reviewExits2.length === 1) {
+        const reviewEdge = reviewExits2[0];
         if (reviewEdge) reviewReceiptStop(deps, name2, current, reviewEdge.event, true);
       } else {
         deps.io.out(`  \u9884\u8BA1\u505C\u5728 ${current}: review step \u6709\u591A\u6761\u51FA\u8FB9\uFF0C\u987B\u7531\u4EBA\u9009\u62E9 event \u540E request`);
@@ -68410,8 +68474,18 @@ function renderHuman(deps, name2, state, plan) {
   deps.io.out(`current  ${scalar17(state.fields.phase)}`);
   for (const [index, step] of plan.workflow.steps.entries()) {
     const skills = step.skills.map((skill) => skill.id).join(", ") || "-";
-    deps.io.out(`${String(index + 1).padStart(2, "0")} ${step.id} | ${step.label} | skills: ${skills}`);
+    const completion = implicitCompletionTransition(plan, step.id, state);
+    deps.io.out(
+      `${String(index + 1).padStart(2, "0")} ${step.id} | ${step.label} | skills: ${skills}` + (completion === void 0 ? "" : ` | completion: ${completion.event}`)
+    );
   }
+}
+function planWithCompletionEvents(plan, state) {
+  const steps = plan.workflow.steps.map((step) => {
+    const completion = implicitCompletionTransition(plan, step.id, state);
+    return completion === void 0 ? step : { ...step, completion_event: completion.event };
+  });
+  return { ...plan, workflow: { ...plan.workflow, steps } };
 }
 async function cmdWorkflowPlan(deps, name2, opts) {
   if (!isValidChangeName(name2)) {
@@ -68442,7 +68516,7 @@ async function cmdWorkflowPlan(deps, name2, opts) {
       change: name2,
       source,
       current_step: scalar17(state.fields.phase),
-      plan
+      plan: planWithCompletionEvents(plan, state)
     }));
   } else {
     renderHuman(deps, name2, state, plan);
@@ -69320,7 +69394,7 @@ function reviewExits(deps, state, phase) {
   if (!plan) throw new Error(`workflow '${String(state.fields.workflow ?? "")}' \u672A\u627E\u5230\u6216\u4E0D\u53EF\u7F16\u8BD1`);
   const step = resolveStep(plan.workflow, phase);
   if (!step || step.gate !== "review") return null;
-  return step.transitions.map((transition) => transition.event);
+  return stepExitTransitions(plan, phase, state).map((transition) => transition.event);
 }
 async function cmdReviewAcknowledge(deps, name2, dir, opts) {
   const delegatedAuthority = opts.delegated === true ? await readDelegatedReviewAuthority(
@@ -69405,7 +69479,7 @@ function resolveReviewStep(deps, state) {
     phase,
     workflow: plan.id,
     executionModel: plan.capabilities.execution.model,
-    events: step.transitions.map((transition) => transition.event)
+    events: stepExitTransitions(plan, phase, state).map((transition) => transition.event)
   };
 }
 async function checkVerifyFailReadiness(deps, name2, dir, state) {
