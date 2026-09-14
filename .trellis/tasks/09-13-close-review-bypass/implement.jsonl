@@ -1,0 +1,4 @@
+{"file":".trellis/spec/kernel/backend/error-handling.md","reason":"Remove the bypass while preserving typed fail-closed review results."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Preserve HTTP 409 review-approval-required mapping."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Keep terminal review acknowledgement and hook evidence behavior intact."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Delete the unsafe command flag without introducing a second transition path."}

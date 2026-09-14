@@ -1,0 +1,32 @@
+{
+  "id": "decision-sync-hitl-afk",
+  "name": "decision-sync-hitl-afk",
+  "title": "统一终端与 Dashboard 决策同步并收敛 HITL AFK",
+  "description": "关闭 review transition 自审批旁路，统一待决策投影、HITL/AFK 事件与 Dashboard 控制台契约",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P0",
+  "creator": "sjy",
+  "assignee": "sjy",
+  "createdAt": "2026-09-13",
+  "completedAt": "2026-09-15",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-13-close-review-bypass",
+    "09-13-decision-sync-contract",
+    "09-13-pending-decision-adapter"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "已合入：A/B/C 与 09-14 决策控制父任务全部归档。",
+  "meta": {
+    "priority": "P0"
+  }
+}

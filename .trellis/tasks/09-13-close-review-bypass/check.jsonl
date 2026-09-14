@@ -1,0 +1,4 @@
+{"file":".trellis/spec/kernel/backend/error-handling.md","reason":"Check fail-closed kernel behavior and typed rejection."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Check stable HTTP status and body contract."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Check hooks and CLI receipt behavior after flag removal."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Check architecture and reducer-only transition behavior."}

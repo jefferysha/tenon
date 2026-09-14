@@ -1,0 +1,9 @@
+{"file":".trellis/spec/kernel/backend/orchestration.md","reason":"Verify commands increment revision once, reject stale revisions, and do not bypass kernel validation."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Review import boundaries, immutable records, and required reducer/contract tests."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Verify no Dashboard model interaction is introduced and read-only/control surfaces remain within the component contract."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"Verify route/root compatibility and project/global workflow boundaries."}
+{"file":".trellis/spec/server/backend/snapshot-skill-runs.md","reason":"Verify replay/projection data uses canonical run and skill snapshots rather than filesystem scans."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Check hook evidence and terminal-side synchronization behavior."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Review cross-layer consistency and single-source-of-truth boundaries."}
+{"file":".trellis/spec/kernel/backend/error-handling.md","reason":"Verify kernel errors remain typed and fail closed."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Verify HTTP error mapping remains stable and distinguishable."}

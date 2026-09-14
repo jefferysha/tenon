@@ -1,0 +1,32 @@
+{
+  "id": "runtime-quality-hardening",
+  "name": "runtime-quality-hardening",
+  "title": "修复实跑暴露的质量门禁与测试发布问题",
+  "description": "基于实跑结论修复技能误报、身份门禁、文档契约、发布资产、测试与 CI 覆盖等问题",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "sjy",
+  "assignee": "sjy",
+  "createdAt": "2026-09-13",
+  "completedAt": null,
+  "branch": "codex/autonomous-loop-v1",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-13-skill-identity-gates",
+    "09-13-docs-assets-hygiene",
+    "09-13-workflow-failure-set",
+    "09-13-ci-test-bootstrap",
+    "09-13-architecture-cli-debt"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

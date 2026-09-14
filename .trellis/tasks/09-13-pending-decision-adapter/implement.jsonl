@@ -1,0 +1,5 @@
+{"file":".trellis/spec/kernel/backend/orchestration.md","reason":"Implement versioned read projection and CAS command adapters."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Keep canonical writers and reducer-only state changes."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Map adapter conflicts and stale decisions to stable HTTP responses."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Keep Dashboard model-free and within read/control boundaries."}
+{"file":".trellis/spec/server/backend/snapshot-skill-runs.md","reason":"Join invocation/run snapshots for AFK attribution."}

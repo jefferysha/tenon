@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"质量检查需覆盖跨层数据流和 decoder 单一真相源"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"质量检查需发现重复校验和生成文件漂移"}
+{"file":".trellis/spec/server/backend/index.md","reason":"后端架构门禁与错误处理复核"}
+{"file":".trellis/spec/cli/frontend/index.md","reason":"CLI 错误契约和测试复核"}
+{"file":".trellis/spec/dashboard-app/frontend/index.md","reason":"dashboard 文档、视图和 E2E 复核"}

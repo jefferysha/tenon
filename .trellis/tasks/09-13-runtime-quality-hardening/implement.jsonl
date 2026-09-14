@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"跨 shell、kernel、CLI、dashboard、CI 的边界与契约检查清单"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"门禁/解析器/生成文件修改前的复用与同步约束"}
+{"file":".trellis/spec/server/backend/index.md","reason":"server 后端架构与 workflow 分支契约索引"}
+{"file":".trellis/spec/cli/frontend/index.md","reason":"CLI 命令与测试边界约定"}
+{"file":".trellis/spec/dashboard-app/frontend/index.md","reason":"dashboard 视图与前端契约约定"}

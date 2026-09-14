@@ -1,0 +1,2 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"跨层契约与验证"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"复用公共身份 helper 与既有 codec/port"}

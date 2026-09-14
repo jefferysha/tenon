@@ -1,0 +1,5 @@
+{"file":".trellis/spec/kernel/backend/orchestration.md","reason":"Verify projection and commands do not create a second source of truth."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Verify reducer and schema boundaries."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Verify HTTP error and idempotency behavior."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Verify no model interaction or forbidden workspace mutation is introduced."}
+{"file":".trellis/spec/server/backend/snapshot-skill-runs.md","reason":"Verify canonical run/skill data joins."}

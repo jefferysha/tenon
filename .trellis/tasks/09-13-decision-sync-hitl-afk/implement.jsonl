@@ -1,0 +1,9 @@
+{"file":".trellis/spec/kernel/backend/orchestration.md","reason":"Use versioned records, expected-revision CAS, and reducer-only state changes for decision adapters."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Keep kernel contracts pure and prevent a second source of truth or direct snapshot mutation."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Enforce Dashboard read/control boundary, read-only workspace behavior, and existing server projections."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"Preserve server workflow root and branch contract while adding decision projection routes."}
+{"file":".trellis/spec/server/backend/snapshot-skill-runs.md","reason":"Reuse existing run and skill projections for pending decision and AFK attribution."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Review terminal hooks, review-ack evidence, and channel observability boundaries."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Trace the kernel to server, CLI, hooks, automation, and Dashboard contract without duplicating state."}
+{"file":".trellis/spec/kernel/backend/error-handling.md","reason":"Define fail-closed kernel result mapping for missing review receipts and stale decisions."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Define stable HTTP status/body mapping for review-approval-required and conflicts."}
