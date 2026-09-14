@@ -21,8 +21,6 @@
   "children": [],
   "parent": "09-14-decision-control-completion",
   "relatedFiles": [],
-  "notes": "",
-  "meta": {
-    "meta_status": "paused"
-  }
+  "notes": "错误码映射、确定性幂等 key、刷新与 409 错误保留由 09-14-decision-control-hardening 包 C 收尾。",
+  "meta": {}
 }

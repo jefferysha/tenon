@@ -1,3 +1,4 @@
-{"file":"hooks/review-ack.sh","reason":"pending review 期间观察 token/local API 风险操作。"}
-{"file":"packages/cli/src/program-review.ts","reason":"在 Change lock 内追加脱敏 observation 的 CLI 装配入口。"}
-{"file":"packages/kernel/src/decision/mode.ts","reason":"统一自审批事件与渠道判别联合。"}
+{"file": "hooks/gate.sh", "reason": "PreToolUse 宽召回候选：token 文件与 loopback /api 调用，AFK 前执行。"}
+{"file": "packages/cli/src/commands/internalSelfApproval.ts", "reason": "Change lock 内按 canonical pending receipt 精确判定并追加脱敏观测。"}
+{"file": "packages/kernel/src/decision/self-approval.ts", "reason": "观测事件 schema、observation key 与脱敏规则。"}
+{"file": ".trellis/spec/cli/frontend/hook-guidelines.md", "reason": "hook 热路径与 AFK 放行前观测规则。"}

@@ -1,2 +1,4 @@
-{"file":"hooks/review-ack.sh","reason":"验证 exact match、负例和敏感信息不泄露。"}
-{"file":"packages/kernel/src/decision/mode.test.ts","reason":"验证事件 schema 和 observation key。"}
+{"file": "hooks/gate.sh", "reason": "PreToolUse 宽召回候选：token 文件与 loopback /api 调用，AFK 前执行。"}
+{"file": "packages/cli/src/commands/internalSelfApproval.ts", "reason": "Change lock 内按 canonical pending receipt 精确判定并追加脱敏观测。"}
+{"file": "packages/kernel/src/decision/self-approval.ts", "reason": "观测事件 schema、observation key 与脱敏规则。"}
+{"file": ".trellis/spec/cli/frontend/hook-guidelines.md", "reason": "hook 热路径与 AFK 放行前观测规则。"}
