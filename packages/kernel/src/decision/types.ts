@@ -5,7 +5,7 @@ import type { TransitionRecord } from '../workflow/run-types.js'
 
 export type DecisionKind = 'review' | 'skill-question' | 'afk'
 export type DecisionStatus = 'pending' | 'answered' | 'consumed' | 'superseded' | 'expired' | 'unknown'
-export type DecisionCommandKind = 'review-acknowledge' | 'skill-answer' | 'afk-answer'
+export type DecisionCommandKind = 'review-acknowledge' | 'skill-answer'
 export type DecisionChannel = 'terminal' | 'dashboard' | 'automation' | 'unknown'
 
 export interface DecisionRef {
@@ -41,8 +41,6 @@ export interface PendingDecisionProjectionInput {
   readonly transitions?: readonly TransitionRecord[]
   readonly interactions?: readonly InteractionEventV1[]
   readonly invocations?: readonly SkillInvocationEventV1[]
-  /** Optional wall clock used by adapters to derive TTL expiry; omitted keeps pure historical replay. */
-  readonly now?: string
 }
 
 export interface DecisionCommandInput {

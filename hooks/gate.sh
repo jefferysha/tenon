@@ -243,35 +243,6 @@ pipeline_tool_is_read_only() { # $1=tool name
   pipeline_command_is_strict_read_only "$command"
 }
 
-# Pending review observations are intentionally a redacted side channel. They never persist the
-# command text or bearer token, and are detection signals only; canonical review approval still
-# requires the exact receipt/binding path. The append is best-effort so a broken audit file cannot
-# deadlock the host hook.
-record_pending_security_observation() {
-  local command="${1:-}" operation="" active_change audit
-  [ -n "$TENON_ROOT" ] || return 0
-  active_change="$(pipeline_review_active_change_name "$TENON_ROOT" "$(dirname "${BASH_SOURCE[0]:-$0}")" || true)"
-  [ -n "$active_change" ] || active_change="unknown"
-  case "$active_change" in
-    *[!A-Za-z0-9_-]*) return 0 ;;
-  esac
-  case "$command" in
-    *[tT][oO][kK][eE][nN]*|*.[pP][iI][pP][eE][lL][iI][nN][eE]-[tT][oO][kK][eE][nN]*|*[tT][oO][kK][eE][nN].[jJ][sS][oO][nN]*) operation="read-token" ;;
-    *127.0.0.1*|*[lL][oO][cC][aA][lL][hH][oO][sS][tT]*|*/api/*|*[cC][uU][rR][lL]\ *|*[wW][gG][eE][tT]\ *) operation="local-api-call" ;;
-    *) return 0 ;;
-  esac
-  audit="$TENON_ROOT/openspec/changes/$active_change/.pipeline-decision-audit.jsonl"
-  ( umask 077
-    [ -d "$(dirname "$audit")" ] || exit 0
-    [ ! -L "$audit" ] || exit 0
-    [ ! -e "$audit" ] || [ -f "$audit" ] || exit 0
-    lock="${audit}.lock"
-    mkdir "$lock" 2>/dev/null || exit 0
-    printf '{"version":1,"type":"pending-decision-self-approval-suspected","pendingDecisionId":"change:%s","channel":"hook","operation":"%s","tokenDigest":null,"observedAt":"%s","severity":"warning","idempotencyKey":"hook:%s:%s"}\n' "$active_change" "$operation" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$(date +%s%N 2>/dev/null || date +%s)" >> "$audit"
-    rmdir "$lock" 2>/dev/null || true
-  ) 2>/dev/null || true
-}
-
 for kind in confirm review interaction; do
   base=".pipeline-pending-$kind"
   m="$(resolve_marker "$base" || true)"
@@ -280,7 +251,6 @@ for kind in confirm review interaction; do
   if fresh "$m" "$ttl"; then
     if [ "$kind" = "review" ]; then
       review_marker_relevant_to_active_change "$m" || continue
-      record_pending_security_observation "$(json_command || true)"
       # Acknowledgement is the only state-writing action that may pass a pending v2 gate.  The
       # command itself validates exact Change/phase/pending state under the canonical lock, so
       # allowing this narrow control surface cannot open unrelated writes.

@@ -33,9 +33,7 @@ export type SkillInvocationValidatorStatus = 'pass' | 'fail' | 'unknown'
 export type SkillInvocationAdapterKind = 'native' | 'codex' | 'afk'
 export type SkillInvocationArtifactKind = 'document' | 'file' | 'artifact' | 'value'
 export type SkillInvocationQuestionRequiredness = 'routine' | 'advisory' | 'hard-gate'
-/** User-visible modes are HITL and AFK; this event-level mode keeps AFK answers distinct from
- * a frozen recommended default so audit/projection can attribute the decision without guessing. */
-export type SkillInvocationDecisionMode = 'user-answer' | 'recommended-default' | 'afk-answer'
+export type SkillInvocationDecisionMode = 'user-answer' | 'recommended-default'
 
 export interface StepVisitIdV1 {
   readonly run_id: string

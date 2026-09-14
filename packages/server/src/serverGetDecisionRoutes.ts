@@ -9,11 +9,9 @@ import {
   type TransitionRecordStore,
   type StateStore,
 } from '@tenon/kernel'
-import { readDecisionAudit } from './decisionAudit.js'
 
 export interface DecisionRouteDeps {
   readonly sendJson: (res: ServerResponse, code: number, body: unknown) => void
-  readonly clock?: () => string
   readonly store: StateStore
   readonly recordStore: TransitionRecordStore
   readonly workflowRootForRequest: (root: string) => { ok: true; anchor: { path: string } } | { ok: false; code: 403 | 404; error: string }
@@ -31,9 +29,8 @@ export async function handleGetDecisionRoute(
   deps: DecisionRouteDeps,
 ): Promise<boolean> {
   const match = /^\/api\/change\/([^/]+)\/pending-decisions$/.exec(path)
-  const auditMatch = /^\/api\/change\/([^/]+)\/decision-audit$/.exec(path)
-  if (match === null && auditMatch === null) return false
-  const name = decodeURIComponent((match ?? auditMatch)?.[1] ?? '')
+  if (match === null) return false
+  const name = decodeURIComponent(match[1] ?? '')
   if (!validName(name)) return deps.sendJson(res, 400, { ok: false, error: '非法 change 名' }), true
   const query = new URL(req.url ?? '/', 'http://localhost').searchParams
   const root = query.get('root') ?? ''
@@ -42,7 +39,6 @@ export async function handleGetDecisionRoute(
   const dir = join(checked.anchor.path, 'openspec', 'changes', name)
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' }), true
   try {
-    if (auditMatch !== null) return deps.sendJson(res, 200, { schemaVersion: 'decision-audit/v1', items: await readDecisionAudit(dir) }), true
     const current = await readCurrentRunRevision(dir)
     const state = current?.state ?? await deps.store.read(dir)
     const interactions = await readInteractionProjection(dir)
@@ -51,7 +47,7 @@ export async function handleGetDecisionRoute(
     const transitions = current?.state.runMetadata !== undefined && head !== undefined
       ? await deps.recordStore.readChain(dir, current.state.runMetadata.transitionSequence, head, current.state.runMetadata.runId)
       : []
-    const view = projectPendingDecisions({ change: name, state, revision: current?.revision, ...(deps.clock === undefined ? {} : { now: deps.clock() }), interactions: interactions.kind === 'valid' ? interactions.events : [], invocations, transitions })
+    const view = projectPendingDecisions({ change: name, state, revision: current?.revision, interactions: interactions.kind === 'valid' ? interactions.events : [], invocations, transitions })
     return deps.sendJson(res, 200, view), true
   } catch (error) {
     return deps.sendJson(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) }), true

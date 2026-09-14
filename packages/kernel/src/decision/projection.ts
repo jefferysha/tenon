@@ -5,8 +5,6 @@ import type { SkillInvocationEventV1 } from '../skill-invocation/types.js'
 import type { TransitionRecord } from '../workflow/run-types.js'
 import type { PendingDecision, PendingDecisionProjectionInput, PendingDecisionView, DecisionChannel, DecisionStatus } from './types.js'
 
-export const PENDING_REVIEW_TTL_MS = 30 * 60 * 1000
-
 function field(state: PipelineState, key: string): string {
   const fields: Record<string, unknown> = state.fields
   const value = fields[key]
@@ -100,20 +98,13 @@ function reviewEvidence(input: PendingDecisionProjectionInput, phase: string, ev
   return { complete: false }
 }
 
-function reviewStatus(input: PendingDecisionProjectionInput, phase: string, event: string, requestedAt: string): { status: DecisionStatus; evidence: string[] } {
+function reviewStatus(input: PendingDecisionProjectionInput, phase: string, event: string, _requestedAt: string): { status: DecisionStatus; evidence: string[] } {
   const status = reviewGateStatus(input.state)
   if (status !== null && reviewGatePendingFor(input.state, phase, event)) {
-    if (input.now !== undefined) {
-      const requested = Date.parse(requestedAt)
-      const now = Date.parse(input.now)
-      if (Number.isFinite(requested) && Number.isFinite(now) && now - requested > PENDING_REVIEW_TTL_MS) {
-        return { status: 'expired', evidence: ['canonical-review-receipt', 'review-ttl-expired'] }
-      }
-    }
     return { status: 'pending', evidence: ['canonical-review-receipt'] }
   }
   if (status !== null && reviewGateApprovedFor(input.state, phase, event)) {
-    const evidence = reviewEvidence(input, phase, event, requestedAt)
+    const evidence = reviewEvidence(input, phase, event, _requestedAt)
     if (evidence.complete) return { status: 'consumed', evidence: ['transition-record', 'interaction-acknowledged', 'interaction-effect-applied'] }
     if (evidence.acknowledgement !== undefined) return { status: 'answered', evidence: ['canonical-review-receipt', 'interaction-acknowledged'] }
     return { status: 'answered', evidence: ['canonical-review-receipt'] }
@@ -233,7 +224,7 @@ function invocationDecisions(input: PendingDecisionProjectionInput): PendingDeci
         ref: { id: refId(kind, input.change, anchor, input.revision ?? null), kind, change: input.change, anchor, revision: input.revision ?? null },
         type: kind, status, anchor: { invocationId, questionId: question.payload.question_id }, revision: input.revision ?? null,
         evidence: decision === undefined ? ['invocation-question'] : ['invocation-question', 'decision-recorded'], source,
-        channel: isAfk ? 'automation' : 'terminal', command: isAfk ? 'afk-answer' : 'skill-answer',
+        channel: isAfk ? 'automation' : 'terminal', command: 'skill-answer',
       })
     }
   }
