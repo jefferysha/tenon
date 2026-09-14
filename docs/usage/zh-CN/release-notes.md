@@ -12,6 +12,39 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v1.1.1 · 2026-09-15
+
+在 Claude Code 与 Codex 中用已发布的 v1.1.0 真实执行任务时发现并修复的问题。
+
+### 宿主兼容
+
+- Claude Code 能重新加载插件。Claude Code 2.1 会自动加载标准 `hooks/hooks.json`，清单再次引用同一文件
+  会被拒绝，导致 Tenon 的技能与 hook 全部不可用。Claude 清单不再声明 `hooks`。
+- Claude Code 中可以登记文档。Claude Code 以 `tenon:<skill>` 报告插件技能，Skill 回执拒绝了这种名字，
+  所有 `tenon document record` 都报 `current StepVisit lacks exact host confirmation`，default 工作流
+  无法离开 `open`。
+- Tenon 可以在 Codex 沙箱内运行。Codex 的 `workspace-write` 沙箱禁止执行 `/bin/ps`；状态锁改为只记录
+  pid 的持有者，不再报 `withLock: current process start identity is unavailable`。
+- 宿主报告 Tenon 插件加载失败时，`tenon doctor` 显示红灯。
+
+### 工作流与 Dashboard
+
+- Dashboard 新建的轨道可以完整执行。技能不再用只认识项目轨道注册表的 `tenon tracks show` 校验工作流
+  分支轨道；轨道 id 未注册时，`tenon tracks show` 会说明分支轨道的查看方式。
+- 已归档的运行不再显示进行中的阶段。
+- 没有运行时产物的阶段返回空目录，不再在每次刷新时请求失败。
+
+### 升级动作
+
+为使用的每个宿主安装新版本，然后新开宿主会话：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --codex
+```
+
+用 `claude plugin list`（Tenon 已启用且无错误）与 `tenon doctor` 验证。
+
 ## v1.1.0 · 2026-09-15
 
 ### 工作流编辑器与工作台

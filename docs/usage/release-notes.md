@@ -4,6 +4,43 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v1.1.1 · 2026-09-15
+
+Fixes found by running real tasks on the published v1.1.0 in Claude Code and Codex.
+
+### Host compatibility
+
+- Claude Code loads the plugin again. Claude Code 2.1 loads the standard `hooks/hooks.json`
+  automatically and refused a manifest that referenced it a second time, so no Tenon skill or hook
+  was available. The Claude manifest no longer declares `hooks`.
+- Documents can be recorded from Claude Code. Claude Code reports plugin skills as
+  `tenon:<skill>`; the Skill receipt rejected that name, so every `tenon document record` failed with
+  `current StepVisit lacks exact host confirmation` and the default workflow could not leave `open`.
+- Tenon runs inside the Codex sandbox. Codex's `workspace-write` sandbox denies `/bin/ps`; the state
+  lock now records a pid-only owner instead of failing with
+  `withLock: current process start identity is unavailable`.
+- `tenon doctor` turns red when the host reports that the Tenon plugin failed to load.
+
+### Workflows and Dashboard
+
+- Tracks created in the Dashboard work end to end. Skills no longer check a workflow branch track
+  with `tenon tracks show`, which only knows the project Track registry; `tenon tracks show` explains
+  branch tracks when an id is not registered.
+- An archived run shows no current stage.
+- A stage without runtime artifacts returns an empty catalog instead of a failed request on every
+  refresh.
+
+### Upgrade
+
+Install the new release for each host you use, then open a new host session:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --codex
+```
+
+Verify with `claude plugin list` (Tenon enabled, no errors) and `tenon doctor`.
+
 ## v1.1.0 · 2026-09-15
 
 ### Workflow editor and workspace

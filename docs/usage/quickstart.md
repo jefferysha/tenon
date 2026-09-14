@@ -3,11 +3,11 @@
 Install the immutable prebuilt Codex release once before starting this tutorial:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.0/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --codex
 ```
 
 This command does not clone the repository or compile source code. It installs
-the packaged `v1.1.0` release, starts and verifies the Dashboard, and prints the
+the packaged `v1.1.1` release, starts and verifies the Dashboard, and prints the
 local URL plus `tenon dashboard --open`; piped installation does not open a
 browser automatically. Afterward, routine upgrades are one
 `tenon update --codex` command and remain bound to stable release tags.

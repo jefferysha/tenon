@@ -20,24 +20,24 @@ Tenon does not require users to install mandatory Skills one by one.
 New users install the complete Codex plugin without cloning the repository:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.0/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --codex
 ```
 
 For Claude:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.0/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --claude
 ```
 
 Preview the complete Codex Marketplace and packaged setup plan without invoking
 the host or writing user/project state:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.0/install.sh | /bin/bash -s -- --codex --dry-run
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --codex --dry-run
 ```
 
 The versioned script installs only prebuilt assets from the immutable stable
-`v1.1.0` release. It never clones or compiles the source repository.
+`v1.1.1` release. It never clones or compiles the source repository.
 The bootstrap adds the selected native marketplace plugin, resolves the install
 root from the host's own inventory, and invokes the same
 `tenon setup --<host>` operation. Tenon does not guess private host
