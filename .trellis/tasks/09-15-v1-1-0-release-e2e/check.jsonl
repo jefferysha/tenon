@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"CLI/server/kernel/hooks ownership when fixing E2E defects across layers."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Hook hot path, AFK and self-approval rules that real host sessions exercise."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Workflow editor and workspace UI constraints for UI-driven configuration fixes."}
+{"file":".trellis/spec/server/backend/decision-sync.md","reason":"Review decision contract exercised by default-workflow review gates."}
+{"file":".trellis/spec/kernel/backend/workflow-track-branches.md","reason":"Custom workflow track branch semantics exercised by the custom workflow E2E."}
