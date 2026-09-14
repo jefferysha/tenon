@@ -4,6 +4,45 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v1.1.0 · 2026-09-15
+
+### Workflow editor and workspace
+
+- The Dashboard is reduced to two views: the workspace (projects, Changes, stage rail, per-stage
+  Skill flow with run status, input/output files, runtime artifacts) and the workflow editor.
+- Workflows are stored per user and are not bound to a project. Each workflow owns Track branches;
+  stages are reordered by drag, gates are `review` or `auto`, and a stage may declare where it
+  returns to. Skills are composed on a canvas where dropping on a column runs them in parallel and
+  dropping to the right runs them serially.
+- Runtime artifacts keep producer, version and lineage; document and field outputs share one
+  submission path.
+
+### Review decisions and gate safety
+
+- A pending review can be approved from the terminal or from the workspace right column. Both use
+  one shared acknowledgement application, so the canonical state, interaction record and history
+  line are identical apart from the entry channel (`review_acknowledged_via`).
+- Every rejected acknowledgement writes nothing. Dashboard requests carry an expected revision and
+  an idempotency key; stale or conflicting requests return 409 with a stable code, and unexpected
+  errors return 500 without internal details. `tenon review acknowledge` exits `2`, `3`, `4` or `1`
+  for review-required, revision, idempotency and invalid-command failures.
+- Transitions out of a review step require an exact receipt plus a matching binding on every entry
+  point. `tenon set/set-many/cas` can no longer move `phase`, and `tenon state import-legacy` keeps
+  transition-controlled fields and reports any it ignored.
+- The local HTTP transition route can never satisfy a loop human gate. While a review is pending,
+  reads of the Dashboard token and loopback API calls are recorded as redacted self-approval
+  observations, including in AFK mode.
+
+### Security
+
+- `fast-uri` is updated to a release without the high-severity advisories.
+
+### Upgrade
+
+Install the immutable `v1.1.0` entrypoint, or run `tenon update --codex` (or `--claude`). Open a
+new host session afterwards so the updated Skills and hooks are loaded. `v1.0.9` remains immutable
+for rollback.
+
 ## v1.0.9 · 2026-09-02
 
 ### Dashboard reliability and Pipeline clarity

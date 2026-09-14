@@ -77,8 +77,8 @@
 
 ### 11. 竞品星数、issue/token 数字——当前仓库无法证实，报告的 caveat 应升级为证据要求
 
-- 用户报告没有给出 Trellis/Comet 的 canonical repository URL、commit/tag、issue 链接或抓取日期；仅凭“14.6k/3k star”“#350/#364”“4500 万 token”无法在本仓库建立可审计证据。
-- 外部搜索只能确认 `mindfold-ai/Trellis` 的公开文档仍描述 `.trellis/`、task.py 与多平台集成（例如 [Trellis overview](https://github.com/mindfold-ai/Trellis/blob/main/.agents/skills/trellis-meta/references/core/overview.md)），不能确认报告中的实时 star 或 issue 数字。竞品性能/通过率应继续标记为官方自测、未独立复核。
+- 用户报告没有给出 外部项目 A/B 的 canonical repository URL、commit/tag、issue 链接或抓取日期；仅凭“14.6k/3k star”“#350/#364”“4500 万 token”无法在本仓库建立可审计证据。
+- 外部搜索只能确认 外部项目 A 的公开文档仍描述 `.trellis/`、task.py 与多平台集成（例如 外部项目公开文档），不能确认报告中的实时 star 或 issue 数字。竞品性能/通过率应继续标记为官方自测、未独立复核。
 - 置信度：竞品架构方向中等；具体数字低。修订建议：为每条外部数字补 canonical URL、采集日期、版本/commit 和“官方自测”标签，或从结论正文移到附录。
 
 ## Related specs

@@ -1,6 +1,6 @@
 # Workflow 节点契约方案：反证审查与最小闭环
 
-日期：2026-09-11。范围：对候选设计做静态反证，不实施业务代码、不执行样本 Skill、不新建或切换 Trellis task。样本沿用 [真实 Skill 抽样](/Users/a1234/Documents/code-manager/projects/tenon-local/docs/research/2026-09-11-skill-io-sample-audit.md)，复读 code-review、pdf、trellis-brainstorm、tenon-open 相关原文。源码包含并行未提交修改；不代表安装中的插件或运行中宿主已具备相同能力。
+日期：2026-09-11。范围：对候选设计做静态反证，不实施业务代码、不执行样本 Skill、不新建或切换 外部任务工具 task。样本沿用 [真实 Skill 抽样](/Users/a1234/Documents/code-manager/projects/tenon-local/docs/research/2026-09-11-skill-io-sample-audit.md)，复读 code-review、pdf、external-brainstorm、tenon-open 相关原文。源码包含并行未提交修改；不代表安装中的插件或运行中宿主已具备相同能力。
 
 **建议采纳“契约属于受管理任务节点，Skill 是执行方法”，但必须把“自动产生正确契约”和“运行时强制已知契约”分开。** 前者仍需任务事实、复用模板、准备步骤与必要的人类决策；后者可以通过受控发布、验证、版本绑定实现。把 Markdown 改成 YAML、把 Skill I/O 字段移到 workflow 中，都不足以解决用户的问题。
 
@@ -20,7 +20,7 @@
 
 **反例。** Brainstorm 的工作就是通过研究和多轮回答收敛目标、范围、验收；未知参数并非安装时读漏了。一个计划编译器若要求最终 acceptance 才肯启动 brainstorm，就依赖尚未运行的结果。
 
-**决定性证据。** [trellis-brainstorm:44](/Users/a1234/Documents/code-manager/projects/tenon-local/.agents/skills/trellis-brainstorm/SKILL.md:44)反复更新 PRD、直到未知收敛；[trellis-brainstorm:129](/Users/a1234/Documents/code-manager/projects/tenon-local/.agents/skills/trellis-brainstorm/SKILL.md:129)才要求 acceptance 可观察、blocking questions 为空。轻量任务与复杂任务的文件要求不同（同文件 138、168–170 行）。
+**决定性证据。** [external-brainstorm:44](/Users/a1234/Documents/code-manager/projects/tenon-local/.agents/skills/external-brainstorm/SKILL.md:44)反复更新 PRD、直到未知收敛；[external-brainstorm:129](/Users/a1234/Documents/code-manager/projects/tenon-local/.agents/skills/external-brainstorm/SKILL.md:129)才要求 acceptance 可观察、blocking questions 为空。轻量任务与复杂任务的文件要求不同（同文件 138、168–170 行）。
 
 **必要修正。** 采用分阶段准备。Discovery 只冻结阶段性结果类型、允许资源、问题预算/退出条件，例如 PRD 草稿、已知事实、未决问题、已作决策；允许产生 `waiting-input`，不得用未知最终答案填一份假完整契约。未来 build 只有在需求被接纳后才准备其具体 acceptance。Bootstrap/发现不是“不受约束”，只是受不同阶段的有限契约约束。
 

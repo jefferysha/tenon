@@ -12,6 +12,37 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v1.1.0 · 2026-09-15
+
+### 工作流编辑器与工作台
+
+- Dashboard 收敛为两个视图：工作台（项目、Change、阶段轨、带运行状态的阶段技能流、输入/输出文件、
+  运行时产物）与工作流编辑器。
+- 工作流按用户全局存储，不再绑定项目。每个工作流包含自己的轨道分支；阶段可拖拽排序，门禁只有
+  `review` 与 `auto`，并可声明退回到哪个阶段。技能在画布上编排：落在同一列为并行，落在右侧为串行。
+- 运行时产物保留产出者、版本与血缘；文档与字段产出走同一提交路径。
+
+### 评审决策与门禁安全
+
+- 待决 review 可以在终端或工作台右栏批准。两端共用同一个确认应用，除入口渠道
+  （`review_acknowledged_via`）外，canonical 状态、交互记录与 history 完全一致。
+- 所有被拒绝的确认都不写入任何数据。Dashboard 请求携带 expected revision 与幂等 key；过期或冲突
+  请求返回带稳定 code 的 409，意外错误返回不含内部细节的 500。`tenon review acknowledge` 对缺少复核
+  请求、revision 冲突、幂等冲突、无效命令分别以 `2`、`3`、`4`、`1` 退出。
+- 所有入口离开 review 阶段都必须具备精确 receipt 与匹配 binding。`tenon set/set-many/cas` 不能再修改
+  `phase`；`tenon state import-legacy` 保留受 transition 控制的字段并报告被忽略的字段。
+- 本地 HTTP transition 入口永远不能满足 loop human gate。review 待决期间，读取 Dashboard token 与调用
+  本机 API 会被记录为脱敏的自审批观测，AFK 模式下同样记录。
+
+### 安全
+
+- `fast-uri` 升级到不含高危公告的版本。
+
+### 升级动作
+
+安装不可变的 `v1.1.0` 入口，或运行 `tenon update --codex`（或 `--claude`）。完成后新开宿主会话以加载
+更新后的 Skills 与 hooks。`v1.0.9` 保持不可变，可用于回滚。
+
 ## v1.0.9 · 2026-09-02
 
 ### Dashboard 稳定性与 Pipeline 可见性

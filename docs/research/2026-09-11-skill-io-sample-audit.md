@@ -11,7 +11,7 @@
 | [research](/Users/a1234/.agents/skills/research/SKILL.md:6) | 研究问题；使用一手来源；结果写为单个 Markdown 文件并附来源 | 文件名没有规定；位置优先沿用仓库惯例，否则自行选择。还要求后台代理，实际作者未必是加载 skill 的主代理 |
 | [code-review](/Users/a1234/.agents/skills/code-review/SKILL.md:17) | 比较基点、HEAD、diff、规则和规格；最后回复 Standards / Spec 两部分结果 | 没有要求生成报告文件；规格来源按上下文查找，用户确认没有规格时可跳过 Spec 审查 |
 | [frontend-design](/Users/a1234/.codex/plugins/cache/claude-plugins-official/frontend-design/local/skills/frontend-design/SKILL.md:36) | 需求、受众和项目上下文；先设计计划、自评修订，再写代码 | 没有固定源码路径、文件数量或框架；截图检查取决于环境。不能把计划或 QA 截图擅自定义成必交文件 |
-| [trellis-brainstorm](/Users/a1234/Documents/code-manager/projects/tenon-local/.agents/skills/trellis-brainstorm/SKILL.md:44) | 初始需求、仓库事实、用户多轮回答；持续更新任务目录内的 prd.md | 目录由任务创建结果决定；轻量任务可省略 design.md / implement.md；是否准备 JSONL 上下文还取决于后续是否走子代理派发 |
+| [external-brainstorm](/Users/a1234/Documents/code-manager/projects/tenon-local/.agents/skills/external-brainstorm/SKILL.md:44) | 初始需求、仓库事实、用户多轮回答；持续更新任务目录内的 prd.md | 目录由任务创建结果决定；轻量任务可省略 design.md / implement.md；是否准备 JSONL 上下文还取决于后续是否走子代理派发 |
 | [pdf](/Users/a1234/.codex/plugins/cache/openai-primary-runtime/pdf/26.909.12148/skills/pdf/SKILL.md:8) | 支持阅读、创建、编辑、表单填写、验证；创建或编辑交付最终 PDF | 问答或无需修改的任务明确不重导出；生成数量、文件名、表单是否保留交互取决于请求。渲染 PNG 默认是 QA 中间文件 |
 | [tenon-open](/Users/a1234/Documents/code-manager/projects/tenon-local/skills/tenon-open/SKILL.md:195) | 需求、change、track、workflow 等上下文；按流程初始化、调度产文和登记证据 | 默认文档依赖 openspec-propose；自定义 workflow 按 document contract 决定文档要求，无文档契约的自由 workflow 跳过该登记段 |
 | [openspec-propose](/Users/a1234/Documents/code-manager/projects/tenon-local/skills/openspec-propose/SKILL.md:37) | 明确 request / change / track / preset；指定 proposal.md、design.md、tasks.md 及登记命令 | 绝对位置仍需绑定 change；既有文件必须先读取、保留用户内容。输出可能是同一文件的新版本，不一定是创建新文件 |
@@ -66,7 +66,7 @@
 | 样本 | 行数 | SHA-256 |
 | --- | ---: | --- |
 | tenon-open | 245 | `05a5e0322edc9a942c971c8a3287de2e652fbff50c16c05d3eaed943a1fb527b` |
-| trellis-brainstorm | 200 | `17d9bf209730c14f584eb97f38198d0683ad3f8da982d9a6e6d4e84c853f9a94` |
+| external-brainstorm | 200 | `17d9bf209730c14f584eb97f38198d0683ad3f8da982d9a6e6d4e84c853f9a94` |
 | research | 12 | `af378829f015775a3bcd65ff466826722e99359017ae6bae227ca4c9bd14049c` |
 | code-review | 89 | `6a65cc61114f96db07ec41e3920e67c9c5bf70dd6e0901eb9460ebcb2bdc209f` |
 | frontend-design | 71 | `d91970639e9f5c37682ac7ab60094d35f1c7c1f38d731bd56396563aee10c1d3` |
