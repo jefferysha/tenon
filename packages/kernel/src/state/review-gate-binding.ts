@@ -22,11 +22,6 @@ export interface ReviewGateBinding {
   readonly runId?: string
 }
 
-/** Stable join key used by security observations and pending decision projections. */
-export function reviewGateRequestAnchor(binding: ReviewGateBinding): string {
-  return `${binding.requestedAt}|${binding.decisionStateDigest}|${binding.runId ?? ''}`
-}
-
 async function readReviewGateBindingSource(
   handle: Parameters<BoundedFileHandleReader>[0],
   maxBytes: number,

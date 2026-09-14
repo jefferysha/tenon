@@ -44,7 +44,7 @@ export const DECISION_REF_ID_MAX_LENGTH = 128
 function isRefId(value: unknown): value is string { return isString(value) && value.length > 0 && value.length <= DECISION_REF_ID_MAX_LENGTH }
 function decodeItem(value: unknown): PendingDecision | null {
   if (!isRecord(value) || !isRecord(value.ref) || !isRecord(value.anchor)) return null
-  if (!isRefId(value.ref.id) ||!isDecisionKind(value.ref.kind) || !isString(value.ref.change) || !isString(value.ref.anchor) || !isNullableRevision(value.ref.revision)) return null
+  if (!isRefId(value.ref.id) || !isDecisionKind(value.ref.kind) || !isString(value.ref.change) || !isString(value.ref.anchor) || !isNullableRevision(value.ref.revision)) return null
   if (!isDecisionKind(value.type) || !isStatus(value.status) || !isNullableRevision(value.revision) || !Array.isArray(value.evidence) || !value.evidence.every(isString)) return null
   if (!isChannel(value.source) || !isChannel(value.channel)) return null
   if (value.command !== 'review-acknowledge' && value.command !== 'skill-answer') return null

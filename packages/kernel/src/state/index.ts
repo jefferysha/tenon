@@ -98,7 +98,6 @@ export {
   reviewGateBindingForState,
   reviewGateBindingMatches,
   reviewGateDecisionStateDigest,
-  reviewGateRequestAnchor,
   writeReviewGateBindingUnderLock,
 } from './review-gate-binding.js'
 export type { ReviewGateBinding } from './review-gate-binding.js'

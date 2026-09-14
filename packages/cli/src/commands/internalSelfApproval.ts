@@ -7,8 +7,8 @@ import {
   createSelfApprovalSignal,
   readReviewGateBinding,
   resolveProductPaths,
+  reviewDecisionAnchor,
   reviewGatePendingFor,
-  reviewGateRequestAnchor,
   type PipelineState,
   type ProductPathInput,
   type SelfApprovalSignalKind,
@@ -117,7 +117,8 @@ async function recordForChange(
     if (binding.phase !== pending.phase || binding.event !== pending.event || binding.requestedAt !== pending.requestedAt) {
       throw new Error('review gate binding does not match pending receipt')
     }
-    const anchor = reviewGateRequestAnchor(binding)
+    // Same contract F anchor as the pending-decision projection, so observations join to its ref.
+    const anchor = reviewDecisionAnchor(binding)
     const processOrHostHash = observationIdentityDigest(await identityKey(), payload.identity)
     const observedAt = deps.clock()
     for (const kind of kinds) {

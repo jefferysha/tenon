@@ -151,6 +151,26 @@ describe('executeReviewAcknowledge', () => {
     expect(f.writes).toEqual(['state', 'marker'])
   })
 
+  it('retries after a lost ledger append without a second approval effect', async () => {
+    const terminal = fixture({ fail: new Set(['ledger-append']) })
+    expect(await executeReviewAcknowledge(terminal.ports)).toMatchObject({ ok: true, code: 'approved', deferred: ['idempotency-ledger'] })
+    terminal.writes.length = 0
+    const approved = structuredClone(terminal.getState())
+    const retry = await executeReviewAcknowledge(terminal.ports)
+    expect(retry).toMatchObject({ ok: true, code: 'idempotent-replay', changed: false, idempotent: true })
+    expect(terminal.writes).toEqual(['marker'])
+    expect(terminal.getState()).toEqual(approved)
+
+    const state = pendingState()
+    const command: ReviewAcknowledgeCommand = { channel: 'dashboard', ref: liveRef(state), expectedRevision: 4, idempotencyKey: 'tab-1' }
+    const dashboard = fixture({ state, command, fail: new Set(['ledger-append']) })
+    expect(await executeReviewAcknowledge(dashboard.ports)).toMatchObject({ ok: true, code: 'approved' })
+    dashboard.writes.length = 0
+    // The committed revision moved, so the unrecorded key re-evaluates as a zero-write CAS conflict.
+    expect(await executeReviewAcknowledge(dashboard.ports)).toMatchObject({ ok: false, code: 'revision-conflict', deferred: [] })
+    expect(dashboard.writes).toEqual([])
+  })
+
   it('propagates a canonical write failure without any later effect', async () => {
     const f = fixture({ fail: new Set(['state']) })
     await expect(executeReviewAcknowledge(f.ports)).rejects.toThrow('state write failed')
