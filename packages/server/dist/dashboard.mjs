@@ -38181,6 +38181,10 @@ async function resolveArtifactRoute(req, res, path13, deps) {
           const rows = await service.attempts(stageId);
           attempt2 = [...rows].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0]?.stageAttemptId;
         }
+        if (!attempt2 && stageId) {
+          deps.sendJson(res, 200, { ok: true, catalog: { revision: 0, digest: "", stageAttemptId: "", entries: [] } });
+          return true;
+        }
       }
       if (!attempt2) {
         deps.sendJson(res, 400, { ok: false, error: "\u7F3A\u5C11\u5408\u6CD5 stageAttemptId/stageId" });

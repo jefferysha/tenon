@@ -44651,6 +44651,14 @@ async function checkCodexProjectSkills(p, inventory) {
         `\u8FD0\u884C tenon setup --${host} -y\uFF0C\u5E76\u65B0\u5F00\u4F1A\u8BDD\u52A0\u8F7D\u5F53\u524D Tenon skills/hooks`
       );
     }
+    const loadErrors = inventory.tenonLoadErrors ?? [];
+    if (loadErrors.length > 0) {
+      return red(
+        "integration:codex-project-skills",
+        `${host === "codex" ? "Codex" : "Claude"} \u62A5\u544A Tenon \u63D2\u4EF6\u52A0\u8F7D\u5931\u8D25\uFF1A${loadErrors.join("\uFF1B")}`,
+        `\u8FD0\u884C tenon setup --${host} -y \u5B89\u88C5\u5F53\u524D\u6B63\u5F0F\u7248\u672C\u5E76\u65B0\u5F00\u4F1A\u8BDD\uFF1B\u4ECD\u5931\u8D25\u65F6\u9644\u4E0A ${host} plugin list --json \u8F93\u51FA\u53CD\u9988`
+      );
+    }
   }
   if (p.codexSkillDiscovery !== void 0) {
     const discovery = await p.codexSkillDiscovery();
@@ -45835,6 +45843,7 @@ function parseHostPluginInventory(host, stdout) {
   let tenonRoot = null;
   let tenonVersion = null;
   let tenonRegistered = false;
+  const tenonLoadErrors = [];
   for (const entry of entries) {
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return null;
     const item2 = entry;
@@ -45854,6 +45863,9 @@ function parseHostPluginInventory(host, stdout) {
       scopes.set(id2, registeredScopes);
     }
     if (id2 === `${TENON_PLUGIN_NAME}@${TENON_MARKETPLACE_NAME}` || host === "codex" && item2.name === TENON_PLUGIN_NAME && item2.marketplaceName === TENON_MARKETPLACE_NAME) tenonRegistered = true;
+    if (id2 === `${TENON_PLUGIN_NAME}@${TENON_MARKETPLACE_NAME}` && Array.isArray(item2.errors)) {
+      tenonLoadErrors.push(...item2.errors.filter((error2) => typeof error2 === "string"));
+    }
     const candidateRoot = host === "codex" ? item2.source?.path : item2.installPath;
     if (candidateRoot !== void 0 && (typeof candidateRoot !== "string" || !isAbsolute16(candidateRoot) || normalize(candidateRoot) !== candidateRoot)) return null;
     if (enabled && host === "codex" && item2.name === TENON_PLUGIN_NAME && item2.marketplaceName === TENON_MARKETPLACE_NAME && typeof item2.source?.path === "string") {
@@ -45867,10 +45879,7 @@ function parseHostPluginInventory(host, stdout) {
       tenonVersion = typeof entry.version === "string" ? entry.version : null;
     }
   }
-  return { enabledIds: ids2, enabledScopes: scopes, tenonRoot, tenonVersion, tenonRegistered };
-}
-function enabledHostPluginIds(host, stdout) {
-  return parseHostPluginInventory(host, stdout)?.enabledIds ?? null;
+  return { enabledIds: ids2, enabledScopes: scopes, tenonRoot, tenonVersion, tenonRegistered, tenonLoadErrors };
 }
 function nativePluginRemovalPlan(host, pluginId, scope = "user") {
   return host === "codex" ? [{ cmd: "codex", args: ["plugin", "remove", pluginId, "--json"] }] : [{ cmd: "claude", args: ["plugin", "uninstall", pluginId, "--scope", scope] }];
@@ -68402,6 +68411,7 @@ async function cmdTracksShow(deps, id2, opts) {
   const def = registry.byId.get(id2);
   if (!def) {
     deps.io.err(`ERROR: \u672A\u6CE8\u518C\u7684 track '${id2}'\uFF08\u5DF2\u6CE8\u518C\uFF1A${registry.ordered.map((t) => t.id).join(", ")}\uFF09`);
+    deps.io.err("  workflow \u5185\u58F0\u660E\u7684\u5206\u652F\u8F68\u9053\uFF08\u4F8B\u5982 Dashboard \u65B0\u5EFA\u7684\u8F68\u9053\uFF09\u4E0D\u5728\u6CE8\u518C\u8868\u4E2D\uFF1A\u5DF2\u521B\u5EFA\u7684 Change \u7528 tenon workflow plan <change> --json \u67E5\u770B\uFF0C\u65B0\u5EFA\u65F6\u7531 tenon init <name> --workflow <workflow> --track <track> \u6821\u9A8C");
     return 1;
   }
   const source = sourceOf(def);
@@ -70445,8 +70455,8 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
           stdio: ["ignore", "pipe", "pipe"],
           timeout: 5e3
         });
-        const enabledIds = enabledHostPluginIds(host, stdout);
-        return enabledIds === null ? { kind: "unavailable", host, detail: "\u5BBF\u4E3B\u8FD4\u56DE\u7578\u5F62 JSON" } : { kind: "native", host, enabledIds };
+        const inventory = parseHostPluginInventory(host, stdout);
+        return inventory === null ? { kind: "unavailable", host, detail: "\u5BBF\u4E3B\u8FD4\u56DE\u7578\u5F62 JSON" } : { kind: "native", host, enabledIds: inventory.enabledIds, tenonLoadErrors: inventory.tenonLoadErrors };
       } catch (error2) {
         return { kind: "unavailable", host, detail: error2 instanceof Error ? error2.message : String(error2) };
       }

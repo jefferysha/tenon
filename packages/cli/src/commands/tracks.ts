@@ -138,6 +138,7 @@ export async function cmdTracksShow(deps: CliDeps, id: string, opts: TracksCommo
   const def = registry.byId.get(id)
   if (!def) {
     deps.io.err(`ERROR: 未注册的 track '${id}'（已注册：${registry.ordered.map((t) => t.id).join(', ')}）`)
+    deps.io.err('  workflow 内声明的分支轨道（例如 Dashboard 新建的轨道）不在注册表中：已创建的 Change 用 tenon workflow plan <change> --json 查看，新建时由 tenon init <name> --workflow <workflow> --track <track> 校验')
     return 1
   }
   const source = sourceOf(def)

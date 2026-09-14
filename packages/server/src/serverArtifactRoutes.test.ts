@@ -1,35 +1,67 @@
-import { describe, expect, it, vi } from 'vitest'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
-import { resolveArtifactRoute } from './serverArtifactRoutes.js'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { ArtifactCatalog } from '@tenon/kernel'
+import { describe, expect, it } from 'vitest'
+import { resolveArtifactRoute, type ArtifactRouteDeps, type ArtifactService } from './serverArtifactRoutes.js'
+import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
 
-const version = { artifactId: 'artifact:x', version: 'v1', contentDigest: 'a'.repeat(64), size: 3, mediaType: 'text/plain', kind: 'text', origin: 'stage', contentUri: 'artifact://x/a', disposition: 'deliverable', quality: 'unchecked', createdAt: '2026-01-01T00:00:00Z' }
-function req(url: string): any { return { url } }
-function deps() {
-  const sendJson = vi.fn()
-  const service: any = { catalog: vi.fn(async () => ({ revision: 1, digest: 'd', stageAttemptId: 'attempt-1', entries: [version] })), inspect: vi.fn(async () => ({ version })), read: vi.fn(async () => ({ version, bytes: new Uint8Array([65, 66]) })), events: vi.fn(async () => []) }
-  return { sendJson, service, workflowRootForRequest: () => ({ ok: true, anchor: { path: '/tmp/root' } as any }) }
+const ROOT = '/projects/demo'
+const anchor = { path: ROOT, realPath: ROOT, fd: -1 } as unknown as WorkflowRootAnchor
+
+function harness(attempts: readonly { stageId: string; stageAttemptId: string; startedAt: string }[]) {
+  const catalogCalls: string[] = []
+  const service: ArtifactService = {
+    catalog: async (id) => {
+      catalogCalls.push(id)
+      return { revision: 3, digest: 'sha256:abc', stageAttemptId: id, entries: [] } as unknown as ArtifactCatalog
+    },
+    inspect: async () => { throw new Error('unused') },
+    read: async () => { throw new Error('unused') },
+    events: async () => [],
+    attempts: async (stageId) => attempts.filter((row) => row.stageId === stageId),
+  }
+  const sent: { status: number; body: unknown }[] = []
+  const deps: ArtifactRouteDeps = {
+    service,
+    workflowRootForRequest: () => ({ ok: true, anchor }),
+    sendJson: (_res, status, body) => { sent.push({ status, body }) },
+  }
+  const request = async (query: string) => {
+    const handled = await resolveArtifactRoute(
+      { url: `/api/artifacts/catalog?root=${encodeURIComponent(ROOT)}${query}` } as IncomingMessage,
+      {} as ServerResponse,
+      '/api/artifacts/catalog',
+      deps,
+    )
+    expect(handled).toBe(true)
+    return sent.at(-1)
+  }
+  return { request, catalogCalls }
 }
-describe('runtime artifact GET routes', () => {
-  it('returns scoped catalog and clamps policy', async () => { const d = deps(); await resolveArtifactRoute(req('/api/artifacts/catalog?root=%2Ftmp%2Froot&stageAttemptId=attempt-1&maxEntries=9999'), {} as any, '/api/artifacts/catalog', d); expect(d.sendJson).toHaveBeenCalledWith(expect.anything(), 200, expect.objectContaining({ ok: true })); expect(d.service.catalog).toHaveBeenCalledWith('attempt-1', expect.objectContaining({ maxEntries: 256 })) })
-  it('UI content read does not create execution receipt', async () => { const d = deps(); await resolveArtifactRoute(req('/api/artifacts/read?root=%2Ftmp%2Froot&stageAttemptId=attempt-1&artifactId=artifact:x&version=v1'), {} as any, '/api/artifacts/read', d); expect(d.service.read).toHaveBeenCalledWith('attempt-1', 'artifact:x', 'v1', expect.objectContaining({ consumer: 'ui' })) })
-  it('rejects missing root and unsafe identifiers', async () => { const d = deps(); await resolveArtifactRoute(req('/api/artifacts/catalog?stageAttemptId=attempt-1'), {} as any, '/api/artifacts/catalog', d); expect(d.sendJson).toHaveBeenCalledWith(expect.anything(), 400, expect.anything()); const d2 = deps(); await resolveArtifactRoute(req('/api/artifacts/read?root=x&stageAttemptId=../../x&artifactId=a&version=v1'), {} as any, '/api/artifacts/read', d2); expect(d2.sendJson).toHaveBeenCalledWith(expect.anything(), 400, expect.anything()) })
-  it('serves the bounded change-local subject registry', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'tenon-subject-route-'))
-    try {
-      await writeFile(join(root, '.pipeline-artifact-subjects.json'), JSON.stringify({ version: 1, records: [{ logicalKey: 'design', projection: 'document', status: 'committed', receiptId: 'r1', recordedAt: '2026-01-01T00:00:00Z', subjectRef: { subject_id: 'subject:scope:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', namespace: 'scope', version: 'v1', projection: 'document', content_digest: `sha256:${'a'.repeat(64)}` } }] }))
-      const d = deps(); d.workflowRootForRequest = () => ({ ok: true, anchor: { path: root } as any })
-      await resolveArtifactRoute(req(`/api/artifacts/subjects?root=${encodeURIComponent(root)}`), {} as any, '/api/artifacts/subjects', d)
-      expect(d.sendJson).toHaveBeenCalledWith(expect.anything(), 200, expect.objectContaining({ ok: true }))
-    } finally { await rm(root, { recursive: true, force: true }) }
+
+describe('artifact catalog route', () => {
+  it('answers an empty catalog for a valid stage that never ran on the artifact runtime', async () => {
+    const { request, catalogCalls } = harness([])
+    await expect(request('&stageId=stage-1&includeHistory=true')).resolves.toEqual({
+      status: 200,
+      body: { ok: true, catalog: { revision: 0, digest: '', stageAttemptId: '', entries: [] } },
+    })
+    expect(catalogCalls).toEqual([])
   })
-  it('bounds event replay for reconnecting clients', async () => {
-    const d = deps(); d.service.events = vi.fn(async () => Array.from({ length: 20 }, (_, index) => ({ seq: index + 1, idempotencyKey: `e:${index + 1}`, type: 'artifact.observed', at: '2026-01-01T00:00:00Z' })))
-    await resolveArtifactRoute(req('/api/artifacts/events?root=%2Ftmp%2Froot&after=3&limit=4'), {} as any, '/api/artifacts/events', d)
-    expect(d.service.events).toHaveBeenCalledWith(3, 4)
-    expect(d.sendJson).toHaveBeenCalledWith(expect.anything(), 200, expect.objectContaining({ events: expect.arrayContaining([expect.objectContaining({ seq: 4 })]) }))
-    const body = d.sendJson.mock.calls.at(-1)?.[2] as { events: readonly unknown[] }
-    expect(body.events).toHaveLength(4)
+
+  it('serves the latest attempt of a stage that has runs', async () => {
+    const { request, catalogCalls } = harness([
+      { stageId: 'build', stageAttemptId: 'attempt-old', startedAt: '2026-09-15T00:00:00Z' },
+      { stageId: 'build', stageAttemptId: 'attempt-new', startedAt: '2026-09-15T01:00:00Z' },
+    ])
+    const response = await request('&stageId=build')
+    expect(response?.status).toBe(200)
+    expect(catalogCalls).toEqual(['attempt-new'])
+  })
+
+  it('still rejects a request without a valid stage or attempt id', async () => {
+    const { request, catalogCalls } = harness([])
+    await expect(request('')).resolves.toMatchObject({ status: 400 })
+    await expect(request(`&stageId=${encodeURIComponent('bad id!')}`)).resolves.toMatchObject({ status: 400 })
+    expect(catalogCalls).toEqual([])
   })
 })

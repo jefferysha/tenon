@@ -90,8 +90,10 @@ text(result);
      不得合成跨 Track/workflow 的非法组合。
    - Codex 等没有 `AskUserQuestion` 工具的宿主，直接用一条普通对话询问同一个问题并**停止本轮**；
      用户回答后才继续。不得把“未回答”当成默认同意。
-   - 用户点名的 pair 仍须用 `tenon tracks show <track> --json`（或创建 API）复核 workflow
-     allowed 关系；复核失败则重新询问，绝不猜测回退。
+   - 用户点名的 pair 仍须复核：注册表 Track 用 `tenon tracks show <track> --json`（或创建 API）核对
+     workflow allowed 关系；workflow 内声明的分支轨道（例如 Dashboard 新建的轨道）不在注册表中，由
+     `tenon init <name> --workflow <workflow> --track <track>` 校验该 workflow 确有此分支。
+     复核失败则重新询问，绝不猜测回退。
    - 选择完成后，以该 Track 与 workflow 创建**新的** Change；即使 `.pipeline-active` 指向其他
      Change，也不能把新目标绑回旧状态。
 4. 无 selection 契约时，按注入的 workflow 身份分支：
@@ -109,8 +111,9 @@ text(result);
      `verification-before-completion`。边界扩大时必须走 `scope-expanded`，再创建新的 default
      Change，并立刻用 `tenon set <new-change> depends_on <simple-change>` 保留机器可读审计链；
      不得把 simple Change 原地改 workflow/track。
-   - `intent: resume` 且 `workflow` 非 `default` 时，Change 的 workflow 是不可变身份。先用
-     `tenon status <change> --json` 与 `tenon tracks show <track> --json` 复核；再运行
+   - `intent: resume` 且 `workflow` 非 `default` 时，Change 的 workflow 与 track 都是不可变身份。先用
+     `tenon status <change> --json` 复核（不再调用 `tenon tracks show`：workflow 内声明的分支轨道不在
+     项目 Track 注册表中，track 已冻结在运行计划里）；再运行
      `tenon workflow plan <change> --json` 读取该 WorkflowRun 初始化时冻结的完整运行计划，并从
      `plan.workflow.steps` 确认当前 step、Skill DAG、门禁与转换。**不得**直接读取后来可能被修改或删除的
      `.pipeline/workflows/<workflow>.yaml` 来编排在途 Change，也不得把 default 的 breadcrumb、

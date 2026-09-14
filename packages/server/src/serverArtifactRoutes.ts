@@ -74,6 +74,9 @@ export async function resolveArtifactRoute(req: IncomingMessage, res: ServerResp
       if (!attempt) {
         const stageId = required(q, 'stageId')
         if (stageId && service.attempts) { const rows = await service.attempts(stageId); attempt = [...rows].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0]?.stageAttemptId }
+        // A valid stage that never ran on the artifact runtime (every host-driven Change) has an empty
+        // catalog, not a malformed request; answering 400 made the Dashboard log a failure every poll.
+        if (!attempt && stageId) { deps.sendJson(res, 200, { ok: true, catalog: { revision: 0, digest: '', stageAttemptId: '', entries: [] } }); return true }
       }
       if (!attempt) { deps.sendJson(res, 400, { ok: false, error: '缺少合法 stageAttemptId/stageId' }); return true }
       const catalog = await service.catalog(attempt, policy(q))

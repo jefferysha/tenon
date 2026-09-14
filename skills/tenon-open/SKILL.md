@@ -146,8 +146,10 @@ else
 fi
 ```
 
-创建前必须先用 `tenon tracks show "$TENON_TRACK" --json` 复核 Workflow allowed 关系；
+注册表 Track 创建前必须先用 `tenon tracks show "$TENON_TRACK" --json` 复核 Workflow allowed 关系；
 `free` 的 `allowed: '*'` 只代表可绑定任意存在的 Workflow，不代表可以跳过该 Workflow。
+Workflow 内声明的分支轨道（例如 Dashboard 新建的轨道）不在注册表中，`tracks show` 会报未注册；
+此时由上面的 `tenon init --workflow` 校验该 Workflow 确有此分支，失败即停下重新确认。
 
 ### Step 2.1: 明确激活本次选中的 Change（强制）
 
