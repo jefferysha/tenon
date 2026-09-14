@@ -290,7 +290,11 @@ describe('G1 canonical revision 对抗校验', () => {
       state: { fields: Record<string, unknown> }
     }
     expect(upgraded.revision).toBe(1)
-    for (const field of REVIEW_GATE_FIELDS) expect(upgraded.state.fields).toHaveProperty(field, field === 'review_acknowledged_via' ? 'unknown' : '')
+    for (const field of REVIEW_GATE_FIELDS) {
+      if (field === 'review_acknowledged_via') expect(upgraded.state.fields).not.toHaveProperty(field)
+      else expect(upgraded.state.fields).toHaveProperty(field, '')
+    }
+    expect((await store.read(dir)).fields.review_acknowledged_via).toBe('unknown')
     // 空 receipt 保留在 canonical schema，但不扰动兼容 YAML projection；真正 request 时会整组出现。
     const upgradedYaml = await readFile(yamlPath, 'utf8')
     for (const field of REVIEW_GATE_FIELDS) expect(upgradedYaml).not.toContain(`${field}:`)

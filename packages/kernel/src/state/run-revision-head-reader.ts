@@ -1,7 +1,6 @@
 import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { TransitionRecord } from '../workflow/run-types.js'
-import { hydratePreVerifyReviewFromSync } from './pre-verify-review-store.js'
 import {
   parseRunRevision,
   type RunRevision,
@@ -12,6 +11,7 @@ import {
   assertMutationEffects,
   assertTransitionRevisionLink,
 } from './run-revision-continuity.js'
+import { hydrateCompanionsFromSync } from './revision-companions.js'
 import {
   readCurrentRunRevision,
   readCurrentRunRevisionFromSync,
@@ -157,7 +157,7 @@ export function readValidatedTransitionHeadFromSync(
       cursor,
       previousRaw === undefined
         ? undefined
-        : hydratePreVerifyReviewFromSync(
+        : hydrateCompanionsFromSync(
             boundedRead,
             parseRunRevision(previousRaw, join(sourceRoot, previousRel)),
             sourceRoot,

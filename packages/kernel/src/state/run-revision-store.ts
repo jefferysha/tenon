@@ -30,11 +30,7 @@ import {
   UnsupportedRunStateVersionError,
 } from './run-revision-validation.js'
 import { TRANSITION_RECORDS_DIR } from './transition-record-store.js'
-import {
-  hydratePreVerifyReview,
-  hydratePreVerifyReviewFromSync,
-  publishPreVerifyReviewRecord,
-} from './pre-verify-review-store.js'
+import { hydrateCompanions, hydrateCompanionsFromSync, publishCompanions } from './revision-companions.js'
 import {
   assertDirectPredecessor,
   assertMutationEffects,
@@ -181,7 +177,7 @@ export async function publishInitialRunRevision(
     revision: 0,
     mutation: { kind, observedAt, effects: [] },
   })
-  await publishPreVerifyReviewRecord(changeDir, revision, state)
+  await publishCompanions(changeDir, revision, state)
   const raw = serializeRunRevision(revision)
   await atomicLinkPublish(
     revisionsDir,
@@ -254,7 +250,7 @@ export async function publishRunRevision(
   if (transitionRaw !== undefined) {
     assertTransitionRevisionLink(revision, transition, transitionRaw, current)
   }
-  await publishPreVerifyReviewRecord(changeDir, revision, revisionState)
+  await publishCompanions(changeDir, revision, revisionState)
   const raw = serializeRunRevision(revision)
   await atomicLinkPublish(
     revisionsDir,
@@ -270,7 +266,7 @@ export async function readCurrentRunRevision(changeDir: string): Promise<RunRevi
   const currentPath = join(changeDir, RUN_STATE_DIR, RUN_CURRENT_FILE)
   const raw = await readRegularTextIfExists(currentPath)
   if (raw === undefined) return undefined
-  const current = await hydratePreVerifyReview(changeDir, parseRunRevision(raw, currentPath))
+  const current = await hydrateCompanions(changeDir, parseRunRevision(raw, currentPath))
   const immutablePath = join(
     changeDir,
     RUN_STATE_DIR,
@@ -281,7 +277,7 @@ export async function readCurrentRunRevision(changeDir: string): Promise<RunRevi
   if (immutableRaw === undefined) {
     throw new RunStateCorruptError(`current 引用的 immutable revision 缺失: ${immutablePath}`)
   }
-  await hydratePreVerifyReview(changeDir, parseRunRevision(immutableRaw, immutablePath))
+  await hydrateCompanions(changeDir, parseRunRevision(immutableRaw, immutablePath))
   if (immutableRaw !== raw) throw new RunStateCorruptError('current 与 immutable revision 字节不一致')
   let previous: RunRevision | undefined
   if (current.revision > 0) {
@@ -406,14 +402,14 @@ export function readCurrentRunRevisionFromSync(
   const raw = readText(currentRel)
   if (raw === undefined) return undefined
   const currentSource = join(sourceRoot, currentRel)
-  const current = hydratePreVerifyReviewFromSync(readText, parseRunRevision(raw, currentSource), sourceRoot)
+  const current = hydrateCompanionsFromSync(readText, parseRunRevision(raw, currentSource), sourceRoot)
   const revisionsRel = join(RUN_STATE_DIR, RUN_REVISIONS_DIR)
   const immutableRel = join(revisionsRel, revisionFileName(current.revision, current.revisionId))
   const immutableRaw = readText(immutableRel)
   if (immutableRaw === undefined) {
     throw new RunStateCorruptError(`current 引用的 immutable revision 缺失: ${join(sourceRoot, immutableRel)}`)
   }
-  hydratePreVerifyReviewFromSync(
+  hydrateCompanionsFromSync(
     readText,
     parseRunRevision(immutableRaw, join(sourceRoot, immutableRel)),
     sourceRoot,
@@ -428,7 +424,7 @@ export function readCurrentRunRevisionFromSync(
     )
     const previousRaw = readText(previousRel)
     if (previousRaw === undefined) throw new RunStateCorruptError('current 引用的 previous revision 缺失')
-    previous = hydratePreVerifyReviewFromSync(
+    previous = hydrateCompanionsFromSync(
       readText,
       parseRunRevision(previousRaw, join(sourceRoot, previousRel)),
       sourceRoot,
@@ -452,7 +448,7 @@ export function readCurrentRunRevisionFromSync(
       previous,
       predecessorRaw === undefined
         ? undefined
-        : hydratePreVerifyReviewFromSync(
+        : hydrateCompanionsFromSync(
             readText,
             parseRunRevision(predecessorRaw, join(sourceRoot, predecessorRel)),
             sourceRoot,
@@ -480,5 +476,5 @@ export async function readImmutableRunRevision(
   const raw = await readRegularTextIfExists(pathname)
   return raw === undefined
     ? undefined
-    : hydratePreVerifyReview(changeDir, parseRunRevision(raw, pathname))
+    : hydrateCompanions(changeDir, parseRunRevision(raw, pathname))
 }

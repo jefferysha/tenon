@@ -8,6 +8,7 @@
  * rollback-compatible sidecar。损坏的可选尾部不获授权语义，仍交给 opaqueTail 保留。
  */
 import {
+  COMPANION_BACKED_FIELDS,
   PRE_VERIFY_REVIEW_FIELD,
   type FieldName,
   type RunMetadata,
@@ -199,14 +200,28 @@ export function diffFieldsToEffects(
   return effects
 }
 
+const COMPANION_FIELD_SET: ReadonlySet<string> = new Set(COMPANION_BACKED_FIELDS)
+
 /**
  * Canonical revision / TransitionRecord 的 wire effects 必须保持 N-1 字段闭包。
  *
- * `pre_verify_review_result` 是新版逻辑 canonical 状态，但物理值由 revision-bound companion
- * record 承载；旧 runtime 不认识这个字段。它的变化由 companion revision 链审计，不能再重复
- * 写入旧版会拒绝的 mutation/transition effects。
+ * `pre_verify_review_result` 与 `review_acknowledged_via` 是新版逻辑 canonical 状态，但物理值由
+ * revision-bound companion record 承载；旧 runtime 不认识这两个字段。它们的变化由 companion
+ * revision 链审计，不能再重复写入旧版会拒绝的 mutation/transition effects。
  */
 export function diffWireFieldsToEffects(
+  before: Record<FieldName, string | string[]>,
+  after: Record<FieldName, string | string[]>,
+): Array<{ kind: 'state-field-change'; field: FieldName; from: string | readonly string[]; to: string | readonly string[] }> {
+  return diffFieldsToEffects(before, after).filter(({ field }) => !COMPANION_FIELD_SET.has(field))
+}
+
+/**
+ * 未发布开发构建写出的 effects 形状：`review_acknowledged_via` 仍在 wire 闭集内，因此它的真实
+ * 变化出现在 mutation/TransitionRecord effects 中。只供读取端作为同一对 previous→current 逻辑
+ * 状态的另一份精确 diff 接受；新写入一律使用 `diffWireFieldsToEffects`。
+ */
+export function diffLegacyChannelWireFieldsToEffects(
   before: Record<FieldName, string | string[]>,
   after: Record<FieldName, string | string[]>,
 ): Array<{ kind: 'state-field-change'; field: FieldName; from: string | readonly string[]; to: string | readonly string[] }> {

@@ -7,11 +7,14 @@
 - **唯一真相/唯一提交点**：`openspec/changes/<name>/.pipeline-run/current.json`。它保存当前
   N-1-compatible wire state、hook 热路径五字段快照、mutation reason/effects 与 state digest；
   同字节 immutable twin 位于 `.pipeline-run/revisions/<revision>-<revisionId>.json`。需要在旧 wire
-  闭集之外表达的逻辑字段使用 digest-anchored immutable companion；当前
-  `pre_verify_review_result` 位于
-  `.pipeline-run/pre-verify-review/<revision>-<revisionId>.json`。读取端只有在验证
+  闭集之外表达的逻辑字段使用 immutable companion；当前
+  `pre_verify_review_result` 位于 digest-anchored
+  `.pipeline-run/pre-verify-review/<revision>-<revisionId>.json`，`review_acknowledged_via` 位于
+  `.pipeline-run/review-acknowledged-via/<revision>-<revisionId>.json`（仅非 `unknown` 时发布，
+  以 revision/revisionId/stateDigest 绑定；缺失读作 `unknown`）。两者都不进入 wire
+  `state.fields`、mutation/TransitionRecord effects 或 `.pipeline.yaml`。读取端只有在验证
   current/twin、anchor 与 companion 身份/摘要一致后，才 hydrate 为完整逻辑 `PipelineState`；
-  因此物理 revision 本身不宣称自包含该逻辑字段。
+  因此物理 revision 本身不宣称自包含这些逻辑字段。
 - **发布顺序**：所有公开 `StateStore.write()` 自行取得同一把 change 锁；transition 先独占发布
   `TransitionRecord`，普通 mutation 直接构造下一 revision；随后按
   `digest-anchored companion → immutable revision → current.json` 发布，`current.json` 的

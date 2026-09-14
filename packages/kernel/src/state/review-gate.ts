@@ -5,6 +5,7 @@
  * marker 只是 hook 的短时投影；这里的 canonical receipt 才是 transition 的硬前置条件。
  */
 import type { FieldName, PipelineState } from '../types.js'
+import type { REVIEW_ACKNOWLEDGED_VIA_VALUES } from '../review-gate-fields.js'
 
 export const REVIEW_GATE_PENDING = 'pending'
 export const REVIEW_GATE_APPROVED = 'approved'
@@ -59,7 +60,7 @@ export function reviewGateRequestPatch(
 }
 
 /** Entry route for an acknowledgement. This is provenance, not operator identity. */
-export type ReviewAcknowledgedVia = 'terminal' | 'dashboard' | 'automation' | 'delegated' | 'unknown'
+export type ReviewAcknowledgedVia = (typeof REVIEW_ACKNOWLEDGED_VIA_VALUES)[number]
 
 export function reviewGateApprovalPatch(acknowledgedAt: string, via: ReviewAcknowledgedVia = 'terminal'): Partial<Record<FieldName, string>> {
   return {

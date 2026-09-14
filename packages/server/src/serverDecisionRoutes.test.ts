@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   createHistoryWriter,
   createStateStore,
@@ -18,6 +20,11 @@ import { handleGetDecisionRoute } from './serverGetDecisionRoutes.js'
 import { DECISION_COMMAND_FAILED, handlePostDecisionRoutes } from './serverPostDecisionRoutes.js'
 import { handlePostOperationsRoutes } from './serverPostOperationsRoutes.js'
 import { buildSnapshot } from './snapshot.js'
+
+/** Frozen closed-schema reader of the previous release; the release bundle gate runs the same file. */
+const N_MINUS_ONE_READER = fileURLToPath(
+  new URL('../../../tools/fixtures/n-minus-one-canonical-reader.mjs', import.meta.url),
+)
 
 type Captured = { status?: number; body?: unknown }
 type ViewItem = { ref: { id: string }; revision: number; status: string; type: string; channel: string }
@@ -150,6 +157,16 @@ describe('decision server adapters', () => {
     const right = await durableSnapshot(dashboard)
     expect(left.fields?.review_acknowledged_via).toBe('terminal')
     expect(right.fields?.review_acknowledged_via).toBe('dashboard')
+    // The channel is a companion-backed logical field: neither acknowledgement route may widen the
+    // wire or projection closure that the previous release reads.
+    for (const h of [terminal, dashboard]) {
+      const currentJson = join(changeDir(h), '.pipeline-run', 'current.json')
+      const wire = JSON.parse(await readFile(currentJson, 'utf8')) as { state: { fields: Record<string, unknown> } }
+      expect(wire.state.fields).not.toHaveProperty('review_acknowledged_via')
+      expect(await readFile(join(changeDir(h), '.pipeline.yaml'), 'utf8')).not.toContain('review_acknowledged_via')
+      expect(execFileSync(process.execPath, [N_MINUS_ONE_READER, currentJson], { encoding: 'utf8' }).trim())
+        .toBe('explore')
+    }
     expect({ ...left.fields, review_acknowledged_via: '' }).toEqual({ ...right.fields, review_acknowledged_via: '' })
     expect(left.revision).toBe(right.revision)
     expect(left.transitionSequence).toBe(right.transitionSequence)

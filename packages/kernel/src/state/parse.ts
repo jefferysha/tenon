@@ -141,15 +141,19 @@ export function parsePipeline(content: string): PipelineState {
  */
 export function serializePipeline(
   state: PipelineState,
-  options: { readonly omitPreVerifyReview?: boolean } = {},
+  options: { readonly omitFields?: readonly FieldName[] } = {},
 ): string {
   const out: string[] = []
+  // Omitted fields (the companion-backed logical fields of an N-1 projection) are absent from the
+  // wire state; they neither produce a line nor count as a live receipt value.
+  const omitted: ReadonlySet<string> = new Set(options.omitFields ?? [])
   const hasReviewGateReceipt = REVIEW_GATE_FIELDS.some((field) => {
+    if (omitted.has(field)) return false
     const value = state.fields[field]
     return Array.isArray(value) ? value.length > 0 : value !== '' && !(field === 'review_acknowledged_via' && value === 'unknown')
   })
   for (const field of FIELD_ORDER) {
-    if (field === PRE_VERIFY_REVIEW_FIELD && options.omitPreVerifyReview === true) continue
+    if (omitted.has(field)) continue
     if (REVIEW_GATE_FIELD_SET.has(field) && !hasReviewGateReceipt) continue
     const value = state.fields[field] ?? ''
     if (Array.isArray(value)) {

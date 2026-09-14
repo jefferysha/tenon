@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { diffWireFieldsToEffects } from './run-metadata.js'
+import { diffLegacyChannelWireFieldsToEffects, diffWireFieldsToEffects } from './run-metadata.js'
 import type { RunRevision } from './run-revision-codec.js'
 import { RunStateCorruptError } from './run-revision-validation.js'
 import { parseTransitionRecord } from './transition-record-store.js'
@@ -71,8 +71,14 @@ export function assertRunMetadataContinuity(
 }
 
 export function assertMutationEffects(current: RunRevision, previous: RunRevision): void {
-  const expected = diffWireFieldsToEffects(previous.state.fields, current.state.fields)
-  if (JSON.stringify(current.mutation.effects) !== JSON.stringify(expected)) {
+  const observed = JSON.stringify(current.mutation.effects)
+  const expected = JSON.stringify(diffWireFieldsToEffects(previous.state.fields, current.state.fields))
+  // Unreleased development builds kept the channel in the wire and therefore in effects. Both
+  // shapes are exact diffs of the same hydrated logical states; they differ only in that entry.
+  if (observed !== expected
+    && observed !== JSON.stringify(
+      diffLegacyChannelWireFieldsToEffects(previous.state.fields, current.state.fields),
+    )) {
     throw new RunStateCorruptError('canonical mutation.effects 与 previous→current 真实 diff 不一致')
   }
   assertRunMetadataContinuity(current, previous)

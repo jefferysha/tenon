@@ -146,10 +146,28 @@ boundary. No adapter may claim wake-up success without that capability.
 
 ## K. Canonical fields and attribution
 
-`review_acknowledged_via` is a canonical field appended at the end of
+`review_acknowledged_via` is a logical canonical field appended at the end of
 `FIELD_ORDER`, with `terminal | dashboard | automation | delegated | unknown`.
-It must be synchronized across codecs, `.pipeline.yaml`, fixtures and writers.
-It identifies the route, not a human. Receipt consumption is derived by joining
+It identifies the route, not a human. Like `pre_verify_review_result` it is
+companion-backed: the schemaVersion=1 wire (`current.json` and immutable
+revisions), mutation and TransitionRecord effects, and the `.pipeline.yaml`
+projection never contain it, so earlier runtimes keep their closed field set
+(the frozen N-1 reader, and the v1.0.7–v1.0.9 pre-Verify companion reader).
+The value lives in `.pipeline-run/review-acknowledged-via/<revision>-<revisionId>.json`
+(`schemaVersion`, `revision`, `revisionId`, `stateDigest`, `via`), published
+before the revision only when it is not `unknown`, and restored by every
+canonical reader; identity/digest mismatch fails loud. A missing record reads
+as `unknown`, including revisions an earlier runtime writes after an
+acknowledgement. Revisions from unreleased development builds that still carry
+the field inside wire `state.fields` (and its effect entry) decode with that
+value and are rewritten in the companion shape on the next write.
+
+Attribution sources: a live receipt uses the restored logical field; a consumed
+receipt, whose fields are cleared, uses the linked `review.acknowledged`
+interaction event (`surface`) and the `review:acknowledge via=<channel>` history
+line. No consumer derives the channel from TransitionRecord effects.
+
+Receipt consumption is derived by joining
 the exact receipt to a successful TransitionRecord and review interaction;
 clearing receipt fields alone never proves `consumed`. New code never appends
 rejected acknowledgement events. `superseded` is derived only from rejected

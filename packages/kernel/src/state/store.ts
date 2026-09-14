@@ -32,7 +32,7 @@ import {
 } from './run-revision-store.js'
 import { splitPreVerifyReviewAnchor } from './run-revision-codec.js'
 import {
-  priorLogicalProjectionContent,
+  matchesKnownProjection,
   projectionContent,
 } from './state-projection-codec.js'
 import {
@@ -118,10 +118,10 @@ const FIELD_SET = new Set<string>(FIELD_ORDER)
 const REVIEW_GATE_FIELD_SET = new Set<string>(REVIEW_GATE_FIELDS)
 
 /**
- * Older releases can omit the complete review receipt, the later pre-Verify tail field,
- * or both. Accept only those exact omission shapes when projection metadata still pins the YAML to
- * the current canonical revision and parsing recreates the same semantic state. This is
- * deliberately narrower than generic "missing YAML field = default" compatibility.
+ * Older releases can omit the complete review receipt, the later pre-Verify tail field, the review
+ * channel tail field, or a combination. Accept only those exact omission shapes when projection
+ * metadata still pins the YAML to the current canonical revision and parsing recreates the same
+ * semantic state. This is deliberately narrower than generic "missing YAML field = default".
  */
 function isPreciseLegacyFieldProjection(
   raw: string,
@@ -152,11 +152,13 @@ function isPreciseLegacyFieldProjection(
   }
   const omitsCompleteReviewGate = REVIEW_GATE_FIELDS.every((field) => !seen.has(field))
   const omitsPreVerifyReview = !seen.has(PRE_VERIFY_REVIEW_FIELD)
-  if (!omitsCompleteReviewGate && !omitsPreVerifyReview) return false
+  const omitsReviewChannel = !seen.has('review_acknowledged_via')
+  if (!omitsCompleteReviewGate && !omitsPreVerifyReview && !omitsReviewChannel) return false
   return FIELD_ORDER.every((field) =>
     seen.has(field)
     || (omitsCompleteReviewGate && REVIEW_GATE_FIELD_SET.has(field))
-    || (omitsPreVerifyReview && field === PRE_VERIFY_REVIEW_FIELD))
+    || (omitsPreVerifyReview && field === PRE_VERIFY_REVIEW_FIELD)
+    || (omitsReviewChannel && field === 'review_acknowledged_via'))
 }
 
 async function inspectProjectionAgainst(
@@ -172,9 +174,7 @@ async function inspectProjectionAgainst(
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { status: 'missing', ...identity }
     throw error
   }
-  if (raw === projectionContent(current) || raw === priorLogicalProjectionContent(current)) {
-    return { status: 'current', ...identity }
-  }
+  if (matchesKnownProjection(raw, current)) return { status: 'current', ...identity }
   let parsed: PipelineState
   try {
     parsed = parsePipeline(raw)
@@ -203,8 +203,7 @@ async function inspectProjectionAgainst(
   const referenced = await readImmutableRunRevision(changeDir, metadata.stateRevision, metadata.stateRevisionId)
   if (referenced !== undefined && referenced.stateDigest === metadata.stateDigest
     && (
-      raw === projectionContent(referenced)
-      || raw === priorLogicalProjectionContent(referenced)
+      matchesKnownProjection(raw, referenced)
       || isPreciseLegacyFieldProjection(raw, parsed, referenced)
     )) return { status: 'stale', ...identity }
   return {

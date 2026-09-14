@@ -7,8 +7,12 @@ import type { AutomationPolicySnapshot } from './loops/automation-policy.js'
 import type { WorkflowPlanSnapshot } from './workflow/effective-plan.js'
 import { PRE_VERIFY_REVIEW_FIELD } from './review-gate-fields.js'
 export {
+  COMPANION_BACKED_FIELDS,
   PRE_VERIFY_REVIEW_DEFAULT,
   PRE_VERIFY_REVIEW_FIELD,
+  REVIEW_ACKNOWLEDGED_VIA_DEFAULT,
+  REVIEW_ACKNOWLEDGED_VIA_FIELD,
+  REVIEW_ACKNOWLEDGED_VIA_VALUES,
   REVIEW_GATE_FIELD_DEFAULTS,
   REVIEW_GATE_FIELDS,
 } from './review-gate-fields.js'

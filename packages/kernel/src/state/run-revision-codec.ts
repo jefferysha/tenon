@@ -4,6 +4,7 @@ import {
   LIST_FIELDS,
   PRE_VERIFY_REVIEW_DEFAULT,
   PRE_VERIFY_REVIEW_FIELD,
+  REVIEW_ACKNOWLEDGED_VIA_DEFAULT, REVIEW_ACKNOWLEDGED_VIA_FIELD,
   REVIEW_GATE_FIELD_DEFAULTS,
   REVIEW_GATE_FIELDS,
   type FieldName,
@@ -58,8 +59,8 @@ export interface RunRevision {
 }
 
 /**
- * N-1 wire revisions deliberately omit the post-v1 logical field. The current runtime restores it
- * from a revision-bound companion record; an older runtime safely observes the legacy default.
+ * N-1 wire revisions deliberately omit the post-v1 logical fields. The current runtime restores
+ * them from revision-bound companion records; an older runtime safely observes the legacy defaults.
  */
 function preVerifyReviewResult(state: PipelineState): string {
   const result = state.fields[PRE_VERIFY_REVIEW_FIELD]
@@ -133,7 +134,7 @@ export function splitPreVerifyReviewAnchor(state: PipelineState): {
   }
 }
 
-function withoutPreVerifyReviewField(
+function withoutCompanionFields(
   state: PipelineState,
   revision: number,
   revisionId: string,
@@ -141,6 +142,8 @@ function withoutPreVerifyReviewField(
   const logical = splitPreVerifyReviewAnchor(state).state
   const fields = structuredClone(state.fields) as Record<string, string | string[]>
   delete fields[PRE_VERIFY_REVIEW_FIELD]
+  delete fields[REVIEW_ACKNOWLEDGED_VIA_FIELD]
+  // Released v1 anchor payload (result only): runtimes v1.0.7–v1.0.9 verify this exact digest.
   const anchor: PreVerifyReviewAnchor = {
     schemaVersion: 1,
     revision,
@@ -161,7 +164,7 @@ function withoutPreVerifyReviewField(
 
 /** Exact rollback-compatible state body used by the schemaVersion=1 wire and YAML projection. */
 export function rollbackCompatibleState(revision: RunRevision): PipelineState {
-  return withoutPreVerifyReviewField(revision.state, revision.revision, revision.revisionId)
+  return withoutCompanionFields(revision.state, revision.revision, revision.revisionId)
 }
 
 function stringField(fields: Record<FieldName, string | string[]>, field: FieldName): string {
@@ -260,14 +263,12 @@ function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: bool
   const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true
     ? legacyReviewGateOmissions(rawFields, missing)
     : new Set<FieldName>()
-  const legacyPreVerifyDefault = opts.allowLegacyFieldOmissions === true
-    && missing.includes(PRE_VERIFY_REVIEW_FIELD)
-    ? new Set<FieldName>([PRE_VERIFY_REVIEW_FIELD])
-    : new Set<FieldName>()
-  const allowedLegacyDefaults = new Set<FieldName>([
-    ...legacyReviewGateDefaults,
-    ...legacyPreVerifyDefault,
-  ])
+  // Companion-backed fields are absent from the current wire. A development-build wire that still
+  // carries the channel keeps its value; hydration overrides it only with a bound companion.
+  const companionDefaults = new Set<FieldName>(opts.allowLegacyFieldOmissions === true
+    ? missing.filter((field) => field === PRE_VERIFY_REVIEW_FIELD || field === REVIEW_ACKNOWLEDGED_VIA_FIELD)
+    : [])
+  const allowedLegacyDefaults = new Set<FieldName>([...legacyReviewGateDefaults, ...companionDefaults])
   if (!rawFields || rawKeys.some((key) => !FIELD_SET.has(key))
     || missing.some((field) => !allowedLegacyDefaults.has(field))) {
     throw new RunStateCorruptError('canonical state.fields 不是 FIELD_ORDER 闭集')
@@ -278,8 +279,8 @@ function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: bool
       fields[field] = REVIEW_GATE_FIELD_DEFAULTS[field as typeof REVIEW_GATE_FIELDS[number]]
       continue
     }
-    if (legacyPreVerifyDefault.has(field)) {
-      fields[field] = PRE_VERIFY_REVIEW_DEFAULT
+    if (companionDefaults.has(field)) {
+      fields[field] = field === PRE_VERIFY_REVIEW_FIELD ? PRE_VERIFY_REVIEW_DEFAULT : REVIEW_ACKNOWLEDGED_VIA_DEFAULT
       continue
     }
     const fieldValue = rawFields[field]
@@ -368,7 +369,7 @@ export function createRunRevision(input: {
   })
   const wireBody = revisionBody({
     ...body,
-    state: withoutPreVerifyReviewField(state, input.revision, revisionId),
+    state: withoutCompanionFields(state, input.revision, revisionId),
   })
   return { ...body, stateDigest: digestBody(wireBody) }
 }
@@ -376,7 +377,7 @@ export function createRunRevision(input: {
 /**
  * Serialize a logical revision into the rollback-compatible wire shape. Callers must not use bare
  * JSON.stringify: the public RunRevision keeps a complete logical PipelineState while the v1 wire
- * body intentionally omits the companion-backed field.
+ * body intentionally omits the companion-backed fields.
  */
 export function serializeRunRevision(revision: RunRevision): string {
   const { stateDigest, ...logicalBody } = revision

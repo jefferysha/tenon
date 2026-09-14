@@ -129,10 +129,13 @@ with from/to, opaque principal, channel, effective-at, policy revision and
 pending anchors; it applies only to later requests. HITL maps to `interactive`
 or frozen `recommended-defaults`; AFK maps to `afk`.
 
-`review_acknowledged_via` is a canonical field appended at the end of
-`FIELD_ORDER` and synchronized across codecs, pipeline projection, fixtures and
-writers. Its values are `terminal | dashboard | automation | delegated |
-unknown`; it records route attribution, not human identity. `actor` is an opaque
+`review_acknowledged_via` is a logical canonical field appended at the end of
+`FIELD_ORDER`. It is companion-backed (`state/review-acknowledged-via-store.ts`):
+the schemaVersion=1 wire, mutation/TransitionRecord effects and the pipeline
+projection omit it, and canonical readers restore it from the revision-bound
+companion (missing → `unknown`); see `server/backend/decision-sync.md` K. Its
+values are `terminal | dashboard | automation | delegated | unknown`; it records
+route attribution, not human identity. `actor` is an opaque
 principal and must not use `human` or `user`; bearer tokens, localhost and
 markers are capability evidence only.
 

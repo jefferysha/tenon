@@ -26,3 +26,13 @@ export const REVIEW_GATE_FIELD_DEFAULTS: Readonly<Record<ReviewGateField, string
 }
 export const PRE_VERIFY_REVIEW_FIELD = 'pre_verify_review_result' as const
 export const PRE_VERIFY_REVIEW_DEFAULT = 'pending'
+export const REVIEW_ACKNOWLEDGED_VIA_FIELD = 'review_acknowledged_via' as const
+export const REVIEW_ACKNOWLEDGED_VIA_DEFAULT = 'unknown'
+/** Entry route of an acknowledgement. This is provenance, not operator identity. */
+export const REVIEW_ACKNOWLEDGED_VIA_VALUES = ['terminal', 'dashboard', 'automation', 'delegated', 'unknown'] as const
+/**
+ * Logical canonical fields that the schemaVersion=1 wire, mutation/TransitionRecord effects and the
+ * YAML projection omit so earlier runtimes keep reading their closed field set. Each value is
+ * restored from its own revision-bound companion record.
+ */
+export const COMPANION_BACKED_FIELDS = [PRE_VERIFY_REVIEW_FIELD, REVIEW_ACKNOWLEDGED_VIA_FIELD] as const
