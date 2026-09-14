@@ -8,8 +8,9 @@ import { freshHarness, realDeps, REPO_ROOT, type Harness } from './integration-h
 interface HookResult { code: number; stdout: string; stderr: string }
 
 function runGate(root: string, payload: unknown, runtimeHome: string): HookResult {
-  const env = { ...process.env, CLAUDE_PLUGIN_ROOT: REPO_ROOT, TENON_RUNTIME_HOME: runtimeHome }
+  const env = { ...process.env, CLAUDE_PLUGIN_ROOT: REPO_ROOT, TENON_RUNTIME_STATE_ROOT: join(runtimeHome, 'state') }
   delete env.TENON_AFK
+  delete env.TENON_RUNTIME_HOME
   delete env.TENON_RUNTIME_ROOTS
   const result = spawnSync('bash', [join(REPO_ROOT, 'hooks', 'gate.sh')], {
     input: JSON.stringify(payload), encoding: 'utf8', cwd: REPO_ROOT, env,

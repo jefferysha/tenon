@@ -42,6 +42,7 @@ import {
   writeReviewMarker,
 } from './review-binding.js'
 import { createReviewIdempotencyAdapter } from './review-idempotency.js'
+import { resolveReviewEvent as resolveReviewEventFromStep } from './review-event.js'
 
 type ReviewStep = {
   readonly phase: string
@@ -74,25 +75,6 @@ function resolveReviewStep(deps: CliDeps, state: PipelineState): ReviewStep {
     executionModel: plan.capabilities.execution.model,
     events: step.transitions.map((transition) => transition.event),
   }
-}
-
-function resolveReviewEvent(step: ReviewStep, requestedEvent: string | undefined): string {
-  if (requestedEvent !== undefined) {
-    if (!step.events.includes(requestedEvent)) {
-      throw new Error(
-        `phase '${step.phase}' 不支持 review event '${requestedEvent}'；可选：${step.events.join(', ') || '(无)'}`,
-      )
-    }
-    return requestedEvent
-  }
-  if (step.events.length !== 1) {
-    throw new Error(
-      `phase '${step.phase}' 有多个 review 出口；必须指定 --event ${step.events.join('|')}`,
-    )
-  }
-  const event = step.events[0]
-  if (event === undefined) throw new Error(`phase '${step.phase}' 没有 review 出口`)
-  return event
 }
 
 /**
@@ -193,7 +175,7 @@ export async function cmdReview(
       }
       const preflight = await deps.store.read(dir)
       const preflightStep = resolveReviewStep(deps, preflight)
-      const event = resolveReviewEvent(preflightStep, opts.event)
+      const event = resolveReviewEventFromStep(preflightStep, opts.event)
       const check = await checkReviewRequestReadiness(deps, name, dir, preflight, preflightStep, event)
       if (check !== 0) return check
       let requested: {
@@ -207,7 +189,7 @@ export async function cmdReview(
         const state = await deps.store.read(dir)
         const beforeRevision = interaction === undefined ? undefined : await readCurrentRunRevision(dir)
         const step = resolveReviewStep(deps, state)
-        const lockedEvent = resolveReviewEvent(step, opts.event)
+        const lockedEvent = resolveReviewEventFromStep(step, opts.event)
         if (step.phase !== preflightStep.phase || lockedEvent !== event) {
           throw new Error('review request 期间当前 phase 或可选 event 已变化；请重新运行该命令')
         }

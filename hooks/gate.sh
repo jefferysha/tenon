@@ -126,25 +126,13 @@ review_marker_relevant_to_active_change() { # $1=marker → 0=blockable v2 marke
   [ -n "$active_change" ] && [ "$active_change" = "$marked_change" ]
 }
 
-# Resolve the one product-owned dashboard token path used by the server.  This mirrors
-# resolveProductPaths() without asking the hot hook to execute an interpreter.  The inherited
-# root contract is checked first because it is the installer-selected source of truth.
+# Resolve the one product-owned dashboard token path used by the server. The managed bootstrap
+# exports this already-resolved state root; the hot hook must consume that projection rather than
+# rebuilding platform paths itself.
 pipeline_dashboard_token_path() {
-  local state_root=''
-  if [ -n "${TENON_RUNTIME_ROOTS:-}" ]; then
-    state_root="$(pipeline_json_get_string "$TENON_RUNTIME_ROOTS" stateRoot || true)"
-    [ -n "$state_root" ] && { printf '%s/dashboard-token.json' "${state_root%/}"; return 0; }
-  fi
-  if [ -n "${TENON_RUNTIME_HOME:-}" ]; then
-    case "$TENON_RUNTIME_HOME" in /*) printf '%s/state/dashboard-token.json' "${TENON_RUNTIME_HOME%/}"; return 0 ;; esac
-  fi
-  case "$(uname -s 2>/dev/null || true)" in
-    Darwin) [ -n "${HOME:-}" ] && printf '%s/Library/Application Support/tenon/state/dashboard-token.json' "${HOME%/}" ;;
-    *)
-      state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}/tenon"
-      [ -n "$state_root" ] && printf '%s/dashboard-token.json' "${state_root%/}"
-      ;;
-  esac
+  local state_root="${TENON_RUNTIME_STATE_ROOT:-}"
+  case "$state_root" in /*) printf '%s/dashboard-token.json' "${state_root%/}"; return 0 ;; esac
+  return 1
 }
 
 pipeline_command_reads_dashboard_token() { # $1=decoded command

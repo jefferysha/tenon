@@ -285,6 +285,7 @@ const LEGACY_ROOT_PROJECTION_SITES = new Set([
   'packages/cli/src/codexSkillTrust.ts',
   'hooks/auto-update.sh',
   'hooks/session-start.sh',
+  'hooks/gate.sh',
 ])
 
 function walk(dir) {
