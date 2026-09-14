@@ -13,7 +13,7 @@ import type { DoctorProbes } from '../deps.js'
 import { probeAfkReadiness } from '../afkReadiness.js'
 import { probeCodexAuth } from '../codexAuth.js'
 import { createDoctorProductIdentityProbe } from './doctor-product-identity.js'
-import { enabledHostPluginIds } from './plugin-host.js'
+import { parseHostPluginInventory } from './plugin-host.js'
 import { resolveCommandOnPath } from './commandExists.js'
 import { REAL_RUNTIME_INSTALLER } from '../runtime/installer.js'
 import type { RuntimeScopeSnapshot } from '../runtime/scope.js'
@@ -227,10 +227,10 @@ export function makeDoctorProbes(
           stdio: ['ignore', 'pipe', 'pipe'],
           timeout: 5_000,
         })
-        const enabledIds = enabledHostPluginIds(host, stdout)
-        return enabledIds === null
+        const inventory = parseHostPluginInventory(host, stdout)
+        return inventory === null
           ? { kind: 'unavailable' as const, host, detail: '宿主返回畸形 JSON' }
-          : { kind: 'native' as const, host, enabledIds }
+          : { kind: 'native' as const, host, enabledIds: inventory.enabledIds, tenonLoadErrors: inventory.tenonLoadErrors }
       } catch (error) {
         return { kind: 'unavailable' as const, host, detail: error instanceof Error ? error.message : String(error) }
       }

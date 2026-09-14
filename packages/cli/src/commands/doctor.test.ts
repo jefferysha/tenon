@@ -483,6 +483,26 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
     expect(c.hint).not.toContain('setup --codex')
   })
 
+  test('Claude inventory 登记了 Tenon 但报告加载失败时红灯，不以已启用登记误报 green', async () => {
+    const loadError = 'Hook load failed: Duplicate hooks file detected: ./hooks/hooks.json resolves to already-loaded file'
+    const deps = makeDeps({ doctor: {
+      nativeRuntimeHost: async () => 'claude',
+      hostPluginInventory: async () => ({
+        kind: 'native',
+        host: 'claude',
+        enabledIds: new Set(['tenon@tenon']),
+        tenonLoadErrors: [loadError],
+      }),
+    } })
+    const { code, payload } = await runJson(deps)
+    expect(code).toBe(1)
+    const c = byId(payload, 'integration:codex-project-skills')
+    expect(c.status).toBe('red')
+    expect(c.detail).toContain('加载失败')
+    expect(c.detail).toContain('Duplicate hooks file')
+    expect(c.hint).toContain('tenon setup --claude')
+  })
+
   test('Codex 同摘要多根报告 duplicate-projection，不误称 healthy', async () => {
     const contract = mockDoctorProbes().codexProjectSkillNames?.() ?? new Set<string>()
     const selected = new Map([...contract].map((id) => [id, `digest-${id}`]))

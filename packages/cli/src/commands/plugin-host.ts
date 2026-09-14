@@ -51,6 +51,8 @@ export interface ParsedHostPluginInventory {
    * registration: a disabled entry still has to be removed before its marketplace can be.
    */
   readonly tenonRegistered: boolean
+  /** Load errors the host reports for the tenon registration (for example a rejected hooks manifest). */
+  readonly tenonLoadErrors: readonly string[]
 }
 
 /**
@@ -83,6 +85,7 @@ export function parseHostPluginInventory(
   let tenonRoot: string | null = null
   let tenonVersion: string | null = null
   let tenonRegistered = false
+  const tenonLoadErrors: string[] = []
   for (const entry of entries) {
     if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return null
     const item = entry as {
@@ -94,6 +97,7 @@ export function parseHostPluginInventory(
       scope?: unknown
       source?: { path?: unknown }
       installPath?: unknown
+      errors?: unknown
     }
     const id = host === 'codex'
       ? (typeof item.pluginId === 'string'
@@ -126,6 +130,11 @@ export function parseHostPluginInventory(
         && item.name === TENON_PLUGIN_NAME
         && item.marketplaceName === TENON_MARKETPLACE_NAME)
     ) tenonRegistered = true
+    // A plugin that fails to load (rejected manifest, duplicate hooks) stays enabled in the inventory;
+    // only `errors` tells it apart from a healthy install.
+    if (id === `${TENON_PLUGIN_NAME}@${TENON_MARKETPLACE_NAME}` && Array.isArray(item.errors)) {
+      tenonLoadErrors.push(...item.errors.filter((error): error is string => typeof error === 'string'))
+    }
     const candidateRoot = host === 'codex' ? item.source?.path : item.installPath
     if (
       candidateRoot !== undefined
@@ -159,7 +168,7 @@ export function parseHostPluginInventory(
         : null
     }
   }
-  return { enabledIds: ids, enabledScopes: scopes, tenonRoot, tenonVersion, tenonRegistered }
+  return { enabledIds: ids, enabledScopes: scopes, tenonRoot, tenonVersion, tenonRegistered, tenonLoadErrors }
 }
 
 /** Enabled plugin ids as reported by the host-owned inventory. Invalid inventory is not trusted. */

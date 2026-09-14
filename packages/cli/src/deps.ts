@@ -40,7 +40,7 @@ export interface CodexSkillDiscovery {
 }
 
 export type HostPluginInventorySource =
-  | { readonly kind: 'native'; readonly host: 'codex' | 'claude'; readonly enabledIds: ReadonlySet<string> }
+  | { readonly kind: 'native'; readonly host: 'codex' | 'claude'; readonly enabledIds: ReadonlySet<string>; readonly tenonLoadErrors?: readonly string[] }
   | { readonly kind: 'static' }
   | { readonly kind: 'unavailable'; readonly host: 'codex' | 'claude'; readonly detail: string }
 

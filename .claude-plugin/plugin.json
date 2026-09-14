@@ -5,6 +5,5 @@
   "author": { "name": "bigdata_storage_compute_engine" },
   "license": "MIT",
   "keywords": ["workflow", "pipeline", "state-machine", "openspec", "hooks", "lite"],
-  "skills": "./skills/",
-  "hooks": "./hooks/hooks.json"
+  "skills": "./skills/"
 }

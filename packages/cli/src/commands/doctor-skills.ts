@@ -203,6 +203,14 @@ export async function checkCodexProjectSkills(
         `运行 tenon setup --${host} -y，并新开会话加载当前 Tenon skills/hooks`,
       )
     }
+    const loadErrors = inventory.tenonLoadErrors ?? []
+    if (loadErrors.length > 0) {
+      return red(
+        'integration:codex-project-skills',
+        `${host === 'codex' ? 'Codex' : 'Claude'} 报告 Tenon 插件加载失败：${loadErrors.join('；')}`,
+        `运行 tenon setup --${host} -y 安装当前正式版本并新开会话；仍失败时附上 ${host} plugin list --json 输出反馈`,
+      )
+    }
   }
   if (p.codexSkillDiscovery !== undefined) {
     const discovery = await p.codexSkillDiscovery()

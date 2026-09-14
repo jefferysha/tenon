@@ -462,6 +462,28 @@ describe('native plugin update plans', () => {
     expect(parsed?.enabledScopes.get('pipeline-lite@pipeline-lite')).toEqual(new Set(['managed']))
   })
 
+  test('Claude inventory 保留 Tenon 自身的加载错误，其它插件的错误不混入', () => {
+    const loadError = 'Hook load failed: Duplicate hooks file detected: ./hooks/hooks.json resolves to already-loaded file'
+    const broken = parseHostPluginInventory('claude', JSON.stringify([
+      { id: 'other@market', enabled: true, errors: ['other plugin error'] },
+      {
+        id: 'tenon@tenon',
+        version: '1.1.0',
+        scope: 'user',
+        enabled: true,
+        installPath: '/installed/tenon',
+        errors: [loadError],
+        errorDetails: [{ type: 'hook-load-failed', plugin: 'tenon', path: '/installed/tenon/hooks/hooks.json' }],
+      },
+    ]))
+    expect(broken?.enabledIds.has('tenon@tenon')).toBe(true)
+    expect(broken?.tenonLoadErrors).toEqual([loadError])
+    const healthy = parseHostPluginInventory('claude', JSON.stringify([
+      { id: 'tenon@tenon', enabled: true, installPath: '/installed/tenon', errors: [] },
+    ]))
+    expect(healthy?.tenonLoadErrors).toEqual([])
+  })
+
   test('inventory decoder 对禁用根、畸形 enabled、重复登记和非绝对路径全部失败关闭', () => {
     expect(parseHostPluginInventory('codex', JSON.stringify({
       installed: [{

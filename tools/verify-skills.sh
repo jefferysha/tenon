@@ -95,6 +95,9 @@ else
     || add_fail "plugin.json 缺少 name 字段" ".claude-plugin/plugin.json" "补充 \"name\": \"<插件名>\""
   grep -q '"skills"[[:space:]]*:[[:space:]]*"\./skills/"' "$PLUGIN_JSON" \
     || add_fail "Claude plugin.json 未声明 canonical skills 根" ".claude-plugin/plugin.json" "把 skills 设为 ./skills/，与 Codex 共用同一份 Skill"
+  # Claude Code 自动加载标准 hooks/hooks.json；清单再引用同一文件会被判为重复，整个插件加载失败。
+  ! grep -q '"hooks"[[:space:]]*:' "$PLUGIN_JSON" \
+    || add_fail "Claude plugin.json 声明了 hooks（标准 hooks/hooks.json 已自动加载，重复引用导致插件加载失败）" ".claude-plugin/plugin.json" "删除 hooks 字段；只有 Codex 清单需要 hooks"
 fi
 [ -f "$CLAUDE_MARKETPLACE_JSON" ] \
   || add_fail "缺失 Claude marketplace .claude-plugin/marketplace.json" "Claude marketplace 规范（远程安装必需）" "创建 marketplace.json 并登记 tenon"
