@@ -1,0 +1,11 @@
+{"file":".trellis/spec/server/backend/decision-sync.md","reason":"Decision sync contract A-K: ordering, zero-write rejections, result union, anchors, channels, security observation."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"HTTP mapping: 409 stable codes, 500 without code or path, zero partial writes."}
+{"file":".trellis/spec/kernel/backend/error-handling.md","reason":"Kernel fail-closed transition and review receipt/binding semantics."}
+{"file":".trellis/spec/kernel/backend/orchestration.md","reason":"Idempotency and expected-revision command conventions reused by the shared review application."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Kernel purity, ports, no second source of truth, architecture size rules."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"gate.sh hot-path rules, AFK escape hatch, hook-to-CLI internal command boundary."}
+{"file":".trellis/spec/cli/frontend/quality-guidelines.md","reason":"CLI command structure, exit codes and dist bundle rules."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Dashboard read/control boundary, no model interaction, minimal UI wording and no wrapping."}
+{"file":".trellis/spec/dashboard-app/frontend/quality-guidelines.md","reason":"Dashboard testing, i18n and design-scale rules."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"CLI/server/kernel/hooks ownership and joins for decisions and observations."}
+{"file":".trellis/tasks/archive/2026-09/09-14-audit-human-gate-constraint/research/audit.md","reason":"Human gate audit: semantics, forgeability and fail-closed recommendations."}

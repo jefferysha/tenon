@@ -1,0 +1,7 @@
+{"file":".trellis/spec/server/backend/decision-sync.md","reason":"Verify code matches contract A-K and the revised D/E/G/K rulings."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Verify 409/500 mapping and zero writes on every failure path."}
+{"file":".trellis/spec/kernel/backend/error-handling.md","reason":"Verify fail-closed review and human gate behavior."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Verify single implementation, no dead code, no squashed lines to dodge size checks."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Verify observation runs before AFK exit, broad recall in hook and precision in CLI, redaction."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Verify Dashboard stays model-free and UI wording constraints."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify no duplicated orchestration across CLI and server."}

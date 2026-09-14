@@ -25,7 +25,8 @@
     "09-14-review-pending-self-approval-recovery",
     "09-14-import-legacy-phase-review-bypass",
     "09-14-dashboard-review-console",
-    "09-14-shared-review-ack-application"
+    "09-14-shared-review-ack-application",
+    "09-14-decision-control-hardening"
   ],
   "parent": null,
   "relatedFiles": [],
