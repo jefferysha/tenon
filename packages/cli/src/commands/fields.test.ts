@@ -99,6 +99,21 @@ describe('get —— stdout 裸值 / exit 契约（CONTRACT §3）', () => {
 })
 
 describe('set —— 无输出 / 四闸拒写 exit 1', () => {
+  test.each([
+    ['无 receipt', mockState({ phase: 'explore' })],
+    ['pending receipt', mockState({
+      phase: 'explore',
+      review_gate_phase: 'explore',
+      review_gate_status: 'pending',
+      review_gate_event: 'explore-complete',
+    })],
+  ])('phase 只能由 transition 修改（$0）', async (_label, state) => {
+    const deps = makeDeps({ state })
+    expect(await cmdSet(deps, 'demo', 'phase', 'build')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.errLines.join('\\n')).toContain('phase')
+  })
+
   test('成功：无 stdout，exit 0，值透传（P6 锁内 write，plan 在空 phase 非 artifact → 放行）', async () => {
     const deps = makeDeps()
     const code = await cmdSet(deps, 'demo', 'plan', 'docs/plans/p.md')
@@ -142,6 +157,18 @@ describe('set —— 无输出 / 四闸拒写 exit 1', () => {
 })
 
 describe('set-many —— k=v 批量原子写', () => {
+  test('包含 phase 的批量写入始终拒绝，不能借 set-many 绕过 transition', async () => {
+    const deps = makeDeps({ state: mockState({
+      phase: 'explore',
+      review_gate_phase: 'explore',
+      review_gate_status: 'pending',
+      review_gate_event: 'explore-complete',
+    }) })
+    expect(await cmdSetMany(deps, 'demo', ['phase=build', 'plan=p.md'])).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.errLines.join('\\n')).toContain('phase')
+  })
+
   test('成功：解析 k=v 并锁内 write，无 stdout，exit 0（P6：非 track/workflow 不走 store.setMany）', async () => {
     const deps = makeDeps()
     const code = await cmdSetMany(deps, 'demo', ['build_mode=direct', 'isolation=branch'])
@@ -183,7 +210,7 @@ describe('set-many —— k=v 批量原子写', () => {
 
   test('重复字段 exit 1，setMany 不被调用（不静默 last-wins）', async () => {
     const deps = makeDeps()
-    const code = await cmdSetMany(deps, 'demo', ['phase=build', 'phase=spec'])
+    const code = await cmdSetMany(deps, 'demo', ['build_mode=direct', 'build_mode=prototype'])
     expect(code).toBe(1)
     expect(deps.store.setMany.calls).toHaveLength(0)
     expect(deps.errLines.join('\n')).toContain('重复字段')
@@ -257,6 +284,18 @@ describe('history 记账 —— set/set-many/cas 成功后 best-effort 记 JSONL
 })
 
 describe('cas —— 0 成功 / 3 不匹配 / 1 错误', () => {
+  test('phase 只能由 transition 修改，cas 命中也拒绝', async () => {
+    const deps = makeDeps({ state: mockState({
+      phase: 'explore',
+      review_gate_phase: 'explore',
+      review_gate_status: 'pending',
+      review_gate_event: 'explore-complete',
+    }) })
+    expect(await cmdCas(deps, 'demo', 'phase', 'explore', 'build')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.errLines.join('\\n')).toContain('phase')
+  })
+
   test('匹配写入：无输出，exit 0（P6：锁内比对+write，不走 store.cas）', async () => {
     const deps = makeDeps({ state: mockState({ automation: 'queued' }) })
     const code = await cmdCas(deps, 'demo', 'automation', 'queued', 'scheduled')

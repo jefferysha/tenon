@@ -48803,6 +48803,13 @@ function rejectReviewGateField(deps, field3) {
   deps.io.err(`ERROR: \u5B57\u6BB5 '${field3}' \u7531 tenon review request|acknowledge \u7BA1\u7406\uFF0C\u7981\u6B62\u901A\u8FC7 set/set-many/cas \u5199\u5165`);
   return true;
 }
+function rejectProtectedField(deps, field3) {
+  if (field3 === "phase") {
+    deps.io.err(`ERROR: \u5B57\u6BB5 'phase' \u7531 tenon transition \u7BA1\u7406\uFF0C\u7981\u6B62\u901A\u8FC7 set/set-many/cas \u5199\u5165`);
+    return true;
+  }
+  return rejectReviewGateField(deps, field3);
+}
 function checkName(deps, name2) {
   if (isValidChangeName(name2)) return true;
   deps.io.err(`ERROR: change-name \u975E\u6CD5: '${name2}' (\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _)`);
@@ -48835,7 +48842,7 @@ async function cmdSet(deps, name2, field3, value) {
   if (!checkName(deps, name2)) return 1;
   const f = asField(deps, field3);
   if (!f) return 1;
-  if (rejectReviewGateField(deps, f)) return 1;
+  if (rejectProtectedField(deps, f)) return 1;
   const v = coerceValue(f, value);
   if (!enumValueAllowed(deps, f, v)) return 1;
   const dir = changeDir(deps.cwd, name2);
@@ -48871,7 +48878,7 @@ async function cmdSetMany(deps, name2, pairs) {
     }
     const f = asField(deps, pair.slice(0, i));
     if (!f) return 1;
-    if (rejectReviewGateField(deps, f)) return 1;
+    if (rejectProtectedField(deps, f)) return 1;
     if (Object.hasOwn(kv, f)) {
       deps.io.err(`ERROR: set-many \u91CD\u590D\u5B57\u6BB5 '${f}'\uFF08\u540C\u952E\u591A\u6B21\u8D4B\u503C\uFF0C\u62D2\u5199\u4EE5\u514D\u9759\u9ED8 last-wins\uFF09`);
       return 1;
@@ -48911,7 +48918,7 @@ async function cmdCas(deps, name2, field3, expect, next) {
   if (!checkName(deps, name2)) return 1;
   const f = asField(deps, field3);
   if (!f) return 1;
-  if (rejectReviewGateField(deps, f)) return 1;
+  if (rejectProtectedField(deps, f)) return 1;
   if (f === "automation" && !enumValueAllowed(deps, f, next)) return 1;
   const dir = changeDir(deps.cwd, name2);
   if (f === "track" || f === "workflow") {

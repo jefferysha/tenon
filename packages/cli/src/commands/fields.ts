@@ -210,6 +210,21 @@ function rejectReviewGateField(deps: CliDeps, field: FieldName): boolean {
   return true
 }
 
+/**
+ * `phase` is the state-machine cursor.  It must only change as part of a
+ * validated transition (which also appends history and applies phase guards),
+ * never through the generic field writers.  Keeping this check beside the
+ * review-receipt guard ensures set, set-many and cas share one protected-field
+ * boundary.
+ */
+function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
+  if (field === 'phase') {
+    deps.io.err(`ERROR: 字段 'phase' 由 tenon transition 管理，禁止通过 set/set-many/cas 写入`)
+    return true
+  }
+  return rejectReviewGateField(deps, field)
+}
+
 function checkName(deps: CliDeps, name: string): boolean {
   if (isValidChangeName(name)) return true
   deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
@@ -253,7 +268,7 @@ export async function cmdSet(deps: CliDeps, name: string, field: string, value: 
   if (!checkName(deps, name)) return 1
   const f = asField(deps, field)
   if (!f) return 1
-  if (rejectReviewGateField(deps, f)) return 1
+  if (rejectProtectedField(deps, f)) return 1
   const v = coerceValue(f, value)
   if (!enumValueAllowed(deps, f, v)) return 1
   const dir = changeDir(deps.cwd, name)
@@ -297,7 +312,7 @@ export async function cmdSetMany(deps: CliDeps, name: string, pairs: string[]): 
     }
     const f = asField(deps, pair.slice(0, i))
     if (!f) return 1
-    if (rejectReviewGateField(deps, f)) return 1
+    if (rejectProtectedField(deps, f)) return 1
     if (Object.hasOwn(kv, f)) {
       // 同字段重复 key：拒写（旧行为静默 last-wins，如 `phase=build phase=spec` 只留后者）
       deps.io.err(`ERROR: set-many 重复字段 '${f}'（同键多次赋值，拒写以免静默 last-wins）`)
@@ -351,7 +366,7 @@ export async function cmdCas(
   if (!checkName(deps, name)) return 1
   const f = asField(deps, field)
   if (!f) return 1
-  if (rejectReviewGateField(deps, f)) return 1
+  if (rejectProtectedField(deps, f)) return 1
   // 老内核 cmd_cas 仅对 automation 复用枚举校验（state-fields.sh）
   if (f === 'automation' && !enumValueAllowed(deps, f, next)) return 1
   const dir = changeDir(deps.cwd, name)
