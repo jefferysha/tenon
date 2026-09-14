@@ -11,12 +11,15 @@ import {
   reviewGateEvent,
   createInteractionEventRecorder,
   reviewAcknowledgedInteractionDraft,
+  classifyInteractionWorkflowIdentity,
+  createInteractionEvent,
   REVIEW_MARKER_FILE,
   stateStorageExistsSync,
   type DecisionCommandResult,
 } from '@tenon/kernel'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { PostRouteDeps } from './serverPostRoutes.js'
+import { readPendingDecisionProjection } from './decisionProjection.js'
 
 const DECISION_IDEMPOTENCY_FILE = '.pipeline-decision-idempotency.jsonl'
 const DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024
@@ -34,7 +37,7 @@ type DecisionIdempotencyRecord = {
   readonly code?: string
 }
 
-type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history'>
+type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history' | 'recordStore'>
 
 function isDecisionIdempotencyRecord(value: unknown): value is DecisionIdempotencyRecord {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
@@ -118,7 +121,7 @@ export async function handlePostDecisionRoutes(
     return true
   }
   try {
-    const outcome = await applyDecision({ dir, root, name, ref, expectedRevision, idempotencyKey, store, clock, history })
+    const outcome = await applyDecision({ dir, root, name, ref, expectedRevision, idempotencyKey, store, recordStore: deps.recordStore, clock, history })
     if (!outcome.result.ok) {
       sendJson(res, 409, { ok: false, error: outcome.result.message, code: outcome.result.code })
       return true
@@ -130,10 +133,9 @@ export async function handlePostDecisionRoutes(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
-      ? error.code
-      : message === 'decision revision conflict' ? 'revision-conflict' : 'review-approval-required'
-    const status = ['revision-conflict', 'decision-ref-mismatch', 'idempotency-conflict', 'decision-not-pending', 'review-approval-required'].includes(code) ? 409 : 500
-    sendJson(res, status, { ok: false, error: message, code })
+      ? error.code : undefined
+    const status = code !== undefined && ['revision-conflict', 'decision-ref-mismatch', 'idempotency-conflict', 'decision-not-pending', 'review-approval-required'].includes(code) ? 409 : 500
+    sendJson(res, status, { ok: false, error: message, ...(code === undefined ? {} : { code }) })
   }
   return true
 }
@@ -146,11 +148,14 @@ async function applyDecision(input: {
   readonly expectedRevision: number
   readonly idempotencyKey: string
   readonly store: PostRouteDeps['store']
+  readonly recordStore?: import('@tenon/kernel').TransitionRecordStore
   readonly clock: () => string
   readonly history: PostRouteDeps['history']
 }): Promise<{ readonly result: DecisionCommandResult; readonly deferred: readonly string[] }> {
   const preflight = await input.store.read(input.dir)
-  const view = projectPendingDecisions({ change: input.name, state: preflight })
+  const view = await readPendingDecisionProjection({
+    change: input.name, dir: input.dir, store: input.store, recordStore: input.recordStore,
+  })
   const item = view.items.find((candidate) => candidate.ref.id === input.ref)
   const priorForKey = item === undefined
     ? (await readDecisionIdempotency(input.dir)).find((record) => record.key === input.idempotencyKey)
@@ -192,9 +197,11 @@ async function applyDecision(input: {
             surface: 'dashboard', actor: 'system', workflow: String(state.fields.workflow || 'default'),
             workflowHash: current.state.runMetadata?.workflowPlanFingerprint ?? '0'.repeat(64),
             track: String(state.fields.track || 'backend'),
-            trackKind: ['chat', 'simple', 'pm', 'frontend', 'backend'].includes(String(state.fields.track)) ? 'built-in' : 'custom',
-            workflowMode: 'default',
-            pipelineStage: ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'].includes(phase) ? phase as never : 'custom',
+            ...classifyInteractionWorkflowIdentity({
+              workflow: String(state.fields.workflow || 'default'),
+              track: String(state.fields.track || 'backend'),
+              step: phase,
+            }),
           }))
         } catch {
           // Canonical rejection and durable idempotency remain authoritative if projection fails.
@@ -203,6 +210,20 @@ async function applyDecision(input: {
     },
     commit: async (state, acknowledgedAt) => {
       const before = await readCurrentRunRevision(input.dir)
+      if (before === undefined) throw new Error('interaction projection 缺 canonical run/workflow/state anchor')
+      const workflow = String(state.fields.workflow || 'default')
+      const track = String(state.fields.track || 'backend')
+      // Validate the exact custom/default identity while the Change lock is held and before
+      // writeState. The actual event is encoded again after the canonical revision advances.
+      createInteractionEvent({
+        ...reviewAcknowledgedInteractionDraft({
+          change: input.name, state, revision: before, beforeRevision: before,
+          phase, event, requestedAt: String(state.fields.review_requested_at || ''),
+          acknowledgedAt, surface: 'dashboard', actor: 'system', workflow,
+          workflowHash: before.state.runMetadata?.workflowPlanFingerprint ?? '0'.repeat(64),
+          track, ...classifyInteractionWorkflowIdentity({ workflow, track, step: phase }),
+        }), sequence: 1, previousEventHash: null,
+      })
       const acknowledged = await acknowledgeReview({
         state, phase, event, acknowledgedAt, bindingMatches: true, via: 'dashboard',
         writeState: async (patch) => { await input.store.writeUnderLock(input.dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: 'set-many' }) },
@@ -212,7 +233,12 @@ async function applyDecision(input: {
             change: input.name, state: interactionState, revision: after, beforeRevision: before, phase, event,
             requestedAt: String(state.fields.review_requested_at ?? ''), acknowledgedAt: at, rejected, surface: 'dashboard', actor: 'system',
             workflow: String(interactionState.fields.workflow || 'default'), workflowHash: after.state.runMetadata?.workflowPlanFingerprint ?? '0'.repeat(64),
-            track: String(interactionState.fields.track || 'backend'), trackKind: 'built-in', workflowMode: 'default', pipelineStage: phase as never,
+            track: String(interactionState.fields.track || 'backend'),
+            ...classifyInteractionWorkflowIdentity({
+              workflow: String(interactionState.fields.workflow || 'default'),
+              track: String(interactionState.fields.track || 'backend'),
+              step: phase,
+            }),
           }))
         },
         recordHistory: async ({ acknowledgedAt: at }) => input.history.append(input.dir, { ts: at, kind: 'tool', raw: `review:acknowledge via=dashboard phase=${phase} event=${event}` }),

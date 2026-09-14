@@ -295,7 +295,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     handlePostRoute(req, res, path, {
       isLocalHost, boundPort: () => boundPort, sendJson, token, readJsonBody, routerPatternScorer,
       workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, executeOperation, operationRunner,
-      operationsAvailable, isRegisteredRoot, store, clock, history, workflowRootAnchors,
+      operationsAvailable, isRegisteredRoot, store, recordStore, clock, history, workflowRootAnchors,
       trackSkillProfiles, loadedManifest, runRepo, flow, fileExists, gitHeadSha,
       workspaceFingerprint, breadcrumb, manifestPath, paths, validateLoopActivation,
       mutateTrackForApi: mutateTrackForRoutes, trackRegistryBody, sendTrackError, errMsg,

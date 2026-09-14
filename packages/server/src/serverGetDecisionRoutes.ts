@@ -1,14 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join } from 'node:path'
-import {
-  projectPendingDecisions,
-  readCurrentRunRevision,
-  readInteractionProjection,
-  readSkillInvocationEventsForApplication,
-  stateStorageExistsSync,
-  type TransitionRecordStore,
-  type StateStore,
-} from '@tenon/kernel'
+import { stateStorageExistsSync, type TransitionRecordStore, type StateStore } from '@tenon/kernel'
+import { readPendingDecisionProjection } from './decisionProjection.js'
 
 export interface DecisionRouteDeps {
   readonly sendJson: (res: ServerResponse, code: number, body: unknown) => void
@@ -39,15 +32,9 @@ export async function handleGetDecisionRoute(
   const dir = join(checked.anchor.path, 'openspec', 'changes', name)
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' }), true
   try {
-    const current = await readCurrentRunRevision(dir)
-    const state = current?.state ?? await deps.store.read(dir)
-    const interactions = await readInteractionProjection(dir)
-    const invocations = await readSkillInvocationEventsForApplication(dir)
-    const head = current?.state.runMetadata?.transitionHead
-    const transitions = current?.state.runMetadata !== undefined && head !== undefined
-      ? await deps.recordStore.readChain(dir, current.state.runMetadata.transitionSequence, head, current.state.runMetadata.runId)
-      : []
-    const view = projectPendingDecisions({ change: name, state, revision: current?.revision, interactions: interactions.kind === 'valid' ? interactions.events : [], invocations, transitions })
+    const view = await readPendingDecisionProjection({
+      change: name, dir, store: deps.store, recordStore: deps.recordStore,
+    })
     return deps.sendJson(res, 200, view), true
   } catch (error) {
     return deps.sendJson(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) }), true

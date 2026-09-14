@@ -28,6 +28,7 @@ import {
   type TrackValidationContext,
   type WorkflowDef,
   type WorkflowRunRepository,
+  type TransitionRecordStore,
 } from '@tenon/kernel'
 import {
   cancelAfkRun,
@@ -104,6 +105,8 @@ export interface PostRouteDeps {
   trackSkillProfiles: ReadonlySet<string>
   loadedManifest?: ExtendedManifestData
   runRepo: WorkflowRunRepository
+  /** Transition chain reader used by the decision projection preflight. */
+  recordStore?: TransitionRecordStore
   flow: FlowEngine
   fileExists: (root: string, relPath: string) => boolean
   gitHeadSha?: (cwd: string) => Promise<string>
