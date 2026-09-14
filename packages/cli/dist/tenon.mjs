@@ -69005,6 +69005,26 @@ function createReviewIdempotencyAdapter(input) {
   };
 }
 
+// packages/cli/src/commands/review-event.ts
+function resolveReviewEvent(step, requestedEvent) {
+  if (requestedEvent !== void 0) {
+    if (!step.events.includes(requestedEvent)) {
+      throw new Error(
+        `phase '${step.phase}' \u4E0D\u652F\u6301 review event '${requestedEvent}'\uFF1B\u53EF\u9009\uFF1A${step.events.join(", ") || "(\u65E0)"}`
+      );
+    }
+    return requestedEvent;
+  }
+  if (step.events.length !== 1) {
+    throw new Error(
+      `phase '${step.phase}' \u6709\u591A\u4E2A review \u51FA\u53E3\uFF1B\u5FC5\u987B\u6307\u5B9A --event ${step.events.join("|")}`
+    );
+  }
+  const event = step.events[0];
+  if (event === void 0) throw new Error(`phase '${step.phase}' \u6CA1\u6709 review \u51FA\u53E3`);
+  return event;
+}
+
 // packages/cli/src/commands/review.ts
 function scalar19(state, field3) {
   const value = state.fields[field3];
@@ -69023,24 +69043,6 @@ function resolveReviewStep(deps, state) {
     executionModel: plan.capabilities.execution.model,
     events: step.transitions.map((transition) => transition.event)
   };
-}
-function resolveReviewEvent(step, requestedEvent) {
-  if (requestedEvent !== void 0) {
-    if (!step.events.includes(requestedEvent)) {
-      throw new Error(
-        `phase '${step.phase}' \u4E0D\u652F\u6301 review event '${requestedEvent}'\uFF1B\u53EF\u9009\uFF1A${step.events.join(", ") || "(\u65E0)"}`
-      );
-    }
-    return requestedEvent;
-  }
-  if (step.events.length !== 1) {
-    throw new Error(
-      `phase '${step.phase}' \u6709\u591A\u4E2A review \u51FA\u53E3\uFF1B\u5FC5\u987B\u6307\u5B9A --event ${step.events.join("|")}`
-    );
-  }
-  const event = step.events[0];
-  if (event === void 0) throw new Error(`phase '${step.phase}' \u6CA1\u6709 review \u51FA\u53E3`);
-  return event;
 }
 async function checkVerifyFailReadiness(deps, name2, dir, state) {
   const blockers = [];
