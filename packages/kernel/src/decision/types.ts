@@ -43,18 +43,6 @@ export interface PendingDecisionProjectionInput {
   readonly invocations?: readonly SkillInvocationEventV1[]
 }
 
-export interface DecisionCommandInput {
-  readonly ref: DecisionRef
-  readonly expectedRevision: number | null
-  readonly idempotencyKey: string
-  readonly answer?: readonly string[]
-  readonly channel: DecisionChannel
-}
-
 export type DecisionCommandResult =
   | { readonly ok: true; readonly idempotent: boolean; readonly ref: DecisionRef }
   | { readonly ok: false; readonly code: 'revision-conflict' | 'review-approval-required' | 'decision-not-pending' | 'decision-ref-mismatch' | 'idempotency-conflict' | 'invalid-command'; readonly message: string }
-
-export interface DecisionCommandAdapter {
-  readonly execute: (input: DecisionCommandInput) => Promise<DecisionCommandResult>
-}
