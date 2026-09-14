@@ -21,6 +21,7 @@ import {
   initChange,
   makeProject,
   newStore,
+  readGovernedDocumentsForCurrentVisit,
   recordWorkflowPhaseSkill,
   seedGovernedDocumentEvidence,
   testFlow,
@@ -124,6 +125,58 @@ steps:
     const finalState = await store.read(changeDir)
     expect(finalState.fields.phase).toBe('one')
     expect(await readFile(join(changeDir, '.breadcrumb'), 'utf8')).toContain('phase=one')
+  })
+
+  test('default workflow 的 review 出口也在同一 Change 锁内串行读取 receipt', async () => {
+    const store = newStore()
+    const root = await makeProject()
+    const name = 'review-serial'
+    const initialized = await initChange(store, root, name, { track: 'backend' })
+    const changeDir = join(root, 'openspec', 'changes', name)
+    await seedGovernedDocumentEvidence(root, initialized, name)
+    const depsBase = {
+      store,
+      runRepo: createWorkflowRunRepository({ store, recordStore: createTransitionRecordStore(), clock: () => '2026-07-16T00:00:00Z' }),
+      flow: testFlow(), clock: () => '2026-07-16T00:00:00Z',
+    }
+    await recordWorkflowPhaseSkill(root, changeDir)
+    const entered = await performTransition({ ...depsBase }, root, name, 'open-complete')
+    expect(entered.code).toBe(200)
+    await store.set(changeDir, 'design_doc', `openspec/changes/${name}/design.md`)
+    await readGovernedDocumentsForCurrentVisit(root, changeDir)
+    await recordWorkflowPhaseSkill(root, changeDir)
+    await store.setMany(changeDir, {
+      review_gate_phase: 'explore', review_gate_status: 'approved', review_gate_event: 'explore-complete',
+      review_requested_at: '2026-07-16T00:00:00Z', review_acknowledged_at: '2026-07-16T00:00:00Z',
+    })
+    const approved = await store.read(changeDir)
+    await writeReviewGateBindingUnderLock(changeDir, reviewGateBindingForState(approved, 'explore', 'explore-complete', '2026-07-16T00:00:00Z'))
+
+    const realBreadcrumb = createBreadcrumbWriter()
+    let release: () => void = () => {}
+    const blocked = new Promise<void>((resolve) => { release = resolve })
+    let enteredBreadcrumb: () => void = () => {}
+    const enteredBreadcrumbPromise = new Promise<void>((resolve) => { enteredBreadcrumb = resolve })
+    let blockedOnce = false
+    const breadcrumb: BreadcrumbWriter = {
+      write: async (dir, content) => {
+        if (!blockedOnce) {
+          blockedOnce = true
+          enteredBreadcrumb()
+          await blocked
+        }
+        await realBreadcrumb.write(dir, content)
+      },
+    }
+    const deps: TransitionDeps = { ...depsBase, breadcrumb }
+    const first = performTransition(deps, root, name, 'explore-complete')
+    await enteredBreadcrumbPromise
+    const second = performTransition(deps, root, name, 'explore-complete')
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    release()
+    const [firstResult, secondResult] = await Promise.all([first, second])
+    expect(firstResult.code).toBe(200)
+    expect(secondResult).toMatchObject({ code: 409, body: { ok: false } })
   })
 
   test('server 生产 TaskPlan callback 不用未完成 Verify tasks 阻断 verify-fail 回退', async () => {

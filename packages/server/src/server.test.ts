@@ -1223,7 +1223,10 @@ describe('POST /api/change/<name>/transition —— G1 default 轨收尾（bread
       try { return await readFile(path, 'utf8') } catch { return '' }
     }
     const beforeHistory = await readOptional(join(h.changeDir, '.pipeline-history.jsonl'))
-    const beforeTransitions = await readOptional(join(h.changeDir, '.pipeline-transitions'))
+    const readTransitionFiles = async (): Promise<string> => {
+      try { return (await readdir(join(h.changeDir, '.pipeline-transitions'))).sort().join('\n') } catch { return '' }
+    }
+    const beforeTransitions = await readTransitionFiles()
     const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'explore-complete' }, {
       headers: { Authorization: `Bearer ${h.token}` },
     })
@@ -1235,7 +1238,7 @@ describe('POST /api/change/<name>/transition —— G1 default 轨收尾（bread
     expect(afterState.fields).toEqual(beforeState.fields)
     expect(afterState.runMetadata?.transitionSequence).toBe(beforeState.runMetadata?.transitionSequence)
     expect(await readOptional(join(h.changeDir, '.pipeline-history.jsonl'))).toBe(beforeHistory)
-    expect(await readOptional(join(h.changeDir, '.pipeline-transitions'))).toBe(beforeTransitions)
+    expect(await readTransitionFiles()).toBe(beforeTransitions)
   })
 
   it('approved receipt 但 binding 不匹配 → 409 review-approval-required，且不产生任何转换副作用', async () => {
@@ -1254,7 +1257,10 @@ describe('POST /api/change/<name>/transition —— G1 default 轨收尾（bread
       try { return await readFile(path, 'utf8') } catch { return '' }
     }
     const beforeHistory = await readOptional(join(h.changeDir, '.pipeline-history.jsonl'))
-    const beforeTransitions = await readOptional(join(h.changeDir, '.pipeline-transitions'))
+    const readTransitionFiles = async (): Promise<string> => {
+      try { return (await readdir(join(h.changeDir, '.pipeline-transitions'))).sort().join('\n') } catch { return '' }
+    }
+    const beforeTransitions = await readTransitionFiles()
     const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'explore-complete' }, {
       headers: { Authorization: `Bearer ${h.token}` },
     })
@@ -1266,7 +1272,7 @@ describe('POST /api/change/<name>/transition —— G1 default 轨收尾（bread
     expect(afterState.fields).toEqual(beforeState.fields)
     expect(afterState.runMetadata?.transitionSequence).toBe(beforeState.runMetadata?.transitionSequence)
     expect(await readOptional(join(h.changeDir, '.pipeline-history.jsonl'))).toBe(beforeHistory)
-    expect(await readOptional(join(h.changeDir, '.pipeline-transitions'))).toBe(beforeTransitions)
+    expect(await readTransitionFiles()).toBe(beforeTransitions)
   })
 
   it('进入 review 相位（explore）→ 真写 changeDir/.breadcrumb，但不在进入时自锁 review marker', async () => {
