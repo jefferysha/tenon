@@ -21,9 +21,11 @@ export HOME=/tmp
 
 # 任意 host uid 对齐（--user host-uid:host-gid）在 alpine 里大概率没有 /etc/passwd 条目——Claude
 # Code Bash 工具/login shell 按 uid 查 passwd 找不到条目同样可能异常初始化。自助注册一条，幂等
-# （已有条目——如 root——则跳过）。
+# （已有条目——如 root——则跳过）。只在容器内执行：宿主机（例如直接跑脚本的测试）上 /etc/passwd
+# 属于系统账户数据库，不得修改；macOS 上对它追加写甚至会阻塞，而不是立即失败。
 current_uid="$(id -u)"
-if ! grep -q "^[^:]*:[^:]*:${current_uid}:" /etc/passwd 2>/dev/null; then
+if { [ -f /.dockerenv ] || [ -f /run/.containerenv ]; } \
+  && ! grep -q "^[^:]*:[^:]*:${current_uid}:" /etc/passwd 2>/dev/null; then
   echo "sandbox:x:${current_uid}:$(id -g)::${HOME}:/bin/sh" >> /etc/passwd 2>/dev/null || true
 fi
 

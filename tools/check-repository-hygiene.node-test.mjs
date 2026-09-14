@@ -32,6 +32,23 @@ test('rejects old QA images and accepts bounded official dashboard WebP assets',
   }
 })
 
+test('rejects tracked paths that Windows cannot check out', async () => {
+  const root = await fixture()
+  try {
+    for (const rel of [
+      'evidence/events/000001-event:accept.json',
+      'evidence/result:abc/output.json',
+      'notes/trailing-dot./file.md',
+      'notes/aux.txt',
+    ]) {
+      assert.match(checkTrackedFiles(root, [rel])[0] ?? '', /Windows/, rel)
+    }
+    assert.deepEqual(checkTrackedFiles(root, ['evidence/events/000001-event-accept.json']), [])
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('resolves README and Pages-style image links and rejects dangling links', async () => {
   const root = await fixture()
   try {

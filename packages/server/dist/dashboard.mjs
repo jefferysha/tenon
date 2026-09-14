@@ -26579,7 +26579,7 @@ async function buildCanonicalManifest(skillId, sourceDir, hooks = {}) {
 }
 
 // packages/automation/dist/runner/runner.js
-var AFK_RUN_SCRIPT_SHA256 = "993067db8ccb4c3b48c54ff2410907fd4dc72a5df3d0dc8946f6913594a0a619";
+var AFK_RUN_SCRIPT_SHA256 = "baaa2b93afb4526579f71cdb7bda9240b6d93cb9af8f56eb75e80646bc194ed2";
 var AFK_RUN_DRIFT_EXIT_CODE = 95;
 var IMAGE_AFK_RUN_PATH = "/usr/local/bin/tenon-afk-run";
 var IMAGE_ATTESTATION_PATH = "/opt/pipeline/image-attestation.env";

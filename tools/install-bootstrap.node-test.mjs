@@ -15,11 +15,24 @@ const { version: CURRENT_RELEASE_VERSION } = JSON.parse(
 const CURRENT_RELEASE_TAG = `v${CURRENT_RELEASE_VERSION}`
 const CURRENT_RELEASE_VERSION_PATTERN = CURRENT_RELEASE_VERSION.replaceAll('.', '\\.')
 const CURRENT_RELEASE_TAG_PATTERN = CURRENT_RELEASE_TAG.replaceAll('.', '\\.')
-const PRIOR_RELEASE_VERSION = CURRENT_RELEASE_VERSION.replace(/\.(\d+)$/u, (_, patch) => `.${Number(patch) - 1}`)
+// Neighbouring stable versions for WAL fixtures. A patch underflow borrows from the minor (and
+// then the major) version so `1.1.0` yields `1.0.99`/`1.0.98` instead of an invalid `1.1.-1`.
+function offsetReleaseVersion(version, delta) {
+  let [major, minor, patch] = version.split('.').map(Number)
+  patch += delta
+  while (patch < 0) {
+    if (minor > 0) minor -= 1
+    else { major -= 1; minor = 99 }
+    patch += 100
+  }
+  if (major < 0) throw new Error(`no stable version precedes ${version} by ${-delta}`)
+  return `${major}.${minor}.${patch}`
+}
+const PRIOR_RELEASE_VERSION = offsetReleaseVersion(CURRENT_RELEASE_VERSION, -1)
 const PRIOR_RELEASE_TAG = `v${PRIOR_RELEASE_VERSION}`
-const TWO_BACK_RELEASE_VERSION = CURRENT_RELEASE_VERSION.replace(/\.(\d+)$/u, (_, patch) => `.${Number(patch) - 2}`)
+const TWO_BACK_RELEASE_VERSION = offsetReleaseVersion(CURRENT_RELEASE_VERSION, -2)
 const TWO_BACK_RELEASE_TAG = `v${TWO_BACK_RELEASE_VERSION}`
-const NEXT_RELEASE_VERSION = CURRENT_RELEASE_VERSION.replace(/\.(\d+)$/u, (_, patch) => `.${Number(patch) + 1}`)
+const NEXT_RELEASE_VERSION = offsetReleaseVersion(CURRENT_RELEASE_VERSION, 1)
 const NEXT_RELEASE_TAG = `v${NEXT_RELEASE_VERSION}`
 const AUTH_COMMANDS = [
   'codex login',

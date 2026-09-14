@@ -95,10 +95,23 @@ function posixPath(path) {
   return path.split('\\').join('/')
 }
 
+// Windows cannot check out these names, which breaks the Windows CI job and any Windows clone.
+const WINDOWS_RESERVED_SEGMENT = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.[^.]*)?$/iu
+
+function windowsUnportableSegment(rel) {
+  return rel.split('/').find((segment) => /[<>:"|?*\u0000-\u001f]/u.test(segment)
+    || /[. ]$/u.test(segment)
+    || WINDOWS_RESERVED_SEGMENT.test(segment))
+}
+
 export function checkTrackedFiles(root, tracked) {
   const failures = []
   for (const file of tracked) {
     const rel = posixPath(file)
+    if (windowsUnportableSegment(rel) !== undefined) {
+      failures.push(`受管理路径无法在 Windows 检出: ${rel}`)
+      continue
+    }
     if (matchingIdentity(rel, FORBIDDEN_TEST_PROJECT_IDENTITIES)) {
       failures.push(`受管理路径包含历史测试项目身份: ${redactIdentities(rel, FORBIDDEN_TEST_PROJECT_IDENTITIES)}`)
       continue

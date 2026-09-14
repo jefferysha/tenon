@@ -221,7 +221,7 @@ export const parseSandboxReport = (stdout: string): SandboxReport => {
  * bump 方式：shasum -a 256 tools/sandcastle/tenon-afk-run.sh。bump 后旧镜像自动 fail-loud，
  * 重建入口 tools/sandcastle/build.sh（构建完自验镜像内 sha，见该脚本）。
  */
-export const AFK_RUN_SCRIPT_SHA256 = '993067db8ccb4c3b48c54ff2410907fd4dc72a5df3d0dc8946f6913594a0a619'
+export const AFK_RUN_SCRIPT_SHA256 = 'baaa2b93afb4526579f71cdb7bda9240b6d93cb9af8f56eb75e80646bc194ed2'
 
 /** 对账失败的沙箱退出码（与脚本内 96=codex CLI 缺失、97=tap proxy 未起同段的硬错误码位）。 */
 export const AFK_RUN_DRIFT_EXIT_CODE = 95
