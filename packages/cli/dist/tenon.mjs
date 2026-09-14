@@ -32257,6 +32257,29 @@ function enteredOnlyByArchivingEdges(steps, step) {
   const incoming = steps.filter((candidate) => candidate.id !== step.id).flatMap((candidate) => candidate.transitions.filter((transition) => transition.to === step.id));
   return incoming.length > 0 && incoming.every((transition) => transition.actions.some((action) => action.type === "archive-run"));
 }
+function reachableFrom(steps, startId) {
+  const byId = new Map(steps.map((candidate) => [candidate.id, candidate]));
+  const seen = /* @__PURE__ */ new Set();
+  const queue = [startId];
+  while (queue.length > 0) {
+    const id2 = queue.shift();
+    if (id2 === void 0 || seen.has(id2))
+      continue;
+    seen.add(id2);
+    for (const transition of byId.get(id2)?.transitions ?? []) {
+      if (byId.has(transition.to) && !seen.has(transition.to))
+        queue.push(transition.to);
+    }
+  }
+  return seen;
+}
+function loopHasAnotherExit(steps, step) {
+  for (const id2 of reachableFrom(steps, step.id)) {
+    if (id2 !== step.id && !reachableFrom(steps, id2).has(step.id))
+      return true;
+  }
+  return false;
+}
 function implicitCompletionTransition(plan, stepId, state) {
   if (plan.capabilities.execution.model !== "step-graph")
     return void 0;
@@ -32270,7 +32293,7 @@ function implicitCompletionTransition(plan, stepId, state) {
   if (step.transitions.some((transition) => transition.event === IMPLICIT_COMPLETION_EVENT))
     return void 0;
   const hasForwardEdge = step.transitions.some((transition) => steps.findIndex((candidate) => candidate.id === transition.to) > index);
-  if (hasForwardEdge || enteredOnlyByArchivingEdges(steps, step))
+  if (hasForwardEdge || enteredOnlyByArchivingEdges(steps, step) || loopHasAnotherExit(steps, step))
     return void 0;
   return {
     event: IMPLICIT_COMPLETION_EVENT,
