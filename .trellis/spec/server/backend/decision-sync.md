@@ -105,6 +105,19 @@ the exact receipt to a successful TransitionRecord and review interaction;
 clearing receipt fields alone never proves `consumed`. `superseded` and late
 answers are derived from appended stale/rejected events. `expired` is deferred.
 
+## Human gate
+
+A loop `human_gates` entry denies any transition whose target it names unless
+the caller supplies `humanGateSatisfied=true`. The Dashboard/local HTTP entry
+(`POST /api/change/:name/transition`) always supplies `false`: a bearer token
+is not human evidence, and the long-running server process env does not
+describe the caller. A gated target therefore returns 409
+`{ code: 'constraint-denied', reason: 'human-gate-required' }` with zero writes
+(fields, transition sequence, history, TransitionRecords); non-gated targets
+are unaffected. The CLI treats `TENON_AFK=1` as a mode signal that must deny;
+an unset variable allows, which is a same-OS-user limitation, not proof of a
+human.
+
 ## Modes and security observation
 
 HITL maps to `interactive` or frozen `recommended-defaults` for routine hidden

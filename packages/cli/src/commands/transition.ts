@@ -162,6 +162,9 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
       const registry = loadRegistry(deps.cwd, nodeLoopIoStrict)
       if (registry.data === null) throw new Error(`loops registry 无法校验：${registry.errors.join('；')}`)
       const loop = registry.data.loops.find((candidate) => candidate.id === policy.loop_id)
+      // TENON_AFK is a mode signal, not human evidence: AFK must deny the human gate. Its absence
+      // does not prove a human is at the terminal — any process running as the same OS user can
+      // unset it. Only the Dashboard/HTTP entry is categorically denied (see server transition.ts).
       return { active: loop?.status === 'active', humanGateSatisfied: deps.env?.('TENON_AFK') !== '1' }
     },
   })

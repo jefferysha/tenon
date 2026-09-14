@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import {
+  compileAutomationPolicySnapshot,
   createEffectiveSkillResolver,
+  loadRegistry,
   IllegalTransitionError,
   loadManifest,
   TRANSITION_EVENTS,
@@ -588,6 +590,72 @@ steps:
           },
         ],
       ])
+    } finally {
+      await rm(cwd, { recursive: true, force: true })
+    }
+  })
+})
+
+/** Loop human gate: TENON_AFK is a mode signal that must deny; unset allows (same-OS-user limitation). */
+describe('transition —— loop human gate（TENON_AFK 模式信号）', () => {
+  const LOOPS_YAML = `version: 1
+loops:
+  - id: gate-loop
+    name: gate loop
+    kind: executor
+    goal: advance governed changes behind human gates
+    cadence: 1h
+    risk: low
+    runner: codex
+    change_prefix: gate-
+    phases:
+      - decide
+      - record
+    human_gates:
+      - explore
+    design_doc: docs/loops/gate-loop.md
+    status: active
+    budget:
+      max_runs_per_day: 1
+      max_in_flight: 1
+      on_exceed: skip
+    kill_criteria:
+      - never
+    skill_bundle_id: backend
+`
+
+  async function governedDeps(cwd: string, afk: string | undefined) {
+    await mkdir(join(cwd, '.pipeline'), { recursive: true })
+    await writeFile(join(cwd, '.pipeline', 'loops.yaml'), LOOPS_YAML, 'utf8')
+    const loop = loadRegistry(cwd).data?.loops.find((candidate) => candidate.id === 'gate-loop')
+    if (loop === undefined) throw new Error('gate-loop fixture failed to load')
+    const policy = compileAutomationPolicySnapshot(loop, { capturedAt: FIXED_CLOCK })
+    const deps = makeDeps({ cwd, state: mockState({ phase: 'open' }) })
+    deps.env = (name) => (name === 'TENON_AFK' ? afk : undefined)
+    await deps.runRepo.bindAutomationPolicy(join(cwd, 'openspec', 'changes', 'demo'), policy)
+    return deps
+  }
+
+  test('TENON_AFK=1 → gated target denied, exit 1, zero writes', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'transition-human-gate-afk-'))
+    try {
+      const deps = await governedDeps(cwd, '1')
+      expect(await cmdTransition(deps, 'demo', 'open-complete')).toBe(1)
+      expect(deps.errLines).toContain('ERROR: automation constraint denied transition: human-gate-required')
+      expect(deps.store.write.calls).toHaveLength(0)
+      expect(deps.historyEntries).toEqual([])
+    } finally {
+      await rm(cwd, { recursive: true, force: true })
+    }
+  })
+
+  test('TENON_AFK unset → gated target allowed', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'transition-human-gate-hitl-'))
+    try {
+      const deps = await governedDeps(cwd, undefined)
+      expect(await cmdTransition(deps, 'demo', 'open-complete')).toBe(0)
+      expect(deps.errLines).toContain('[TRANSITION] demo: open -> explore')
+      expect(deps.store.write.calls).toHaveLength(1)
     } finally {
       await rm(cwd, { recursive: true, force: true })
     }
