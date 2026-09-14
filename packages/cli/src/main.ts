@@ -9,12 +9,13 @@
  */
 import { execFile } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { readFile, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CommanderError } from 'commander'
 import {
+  clearReviewMarkerFor,
   BUILTIN_TRACK_DEFINITIONS, createEffectiveSkillResolver, createFlowEngine, createHistoryWriter, createStateStore,
   createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest, loadTrackRegistry, loadWorkflow,
   fingerprintWorkspace, mutateTrackRegistry, readSecrets, registerProjectRoot,
@@ -258,7 +259,7 @@ async function main(): Promise<void> {
       return createBuildRevisionToken(kind, revision, identity).value
     },
     writeReviewMarker: (content) => writeFile(join(process.cwd(), '.pipeline-pending-review'), content, 'utf8'),
-    clearReviewMarker: () => rm(join(process.cwd(), '.pipeline-pending-review'), { force: true }),
+    clearReviewMarker: (change, event) => clearReviewMarkerFor(process.cwd(), change, event),
     pluginVersion: readPluginVersion(),
     readInstalledPlugins: async () => {
       for (const p of [join(pluginRoot(), '..', 'installed_plugins.json'), join(process.env.HOME ?? '', '.claude', 'installed_plugins.json')]) {

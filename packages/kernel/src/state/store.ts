@@ -13,6 +13,7 @@ import {
   REVIEW_GATE_FIELDS,
   type FieldName,
   type InitOptions,
+  type LegacyImportResult,
   type PipelineState,
   type RepairProjectionOptions,
   type StateMutationKind,
@@ -21,6 +22,7 @@ import {
   type StateWriteIntent,
   type StateWriteResult,
 } from '../types.js'
+import { mergeLegacyImportFields } from './legacy-import.js'
 import { withLock } from './lock.js'
 import { parsePipeline, quoteGate, serializePipeline } from './parse.js'
 import {
@@ -114,8 +116,6 @@ function stateWithoutProjection(state: PipelineState): PipelineState {
 
 const FIELD_SET = new Set<string>(FIELD_ORDER)
 const REVIEW_GATE_FIELD_SET = new Set<string>(REVIEW_GATE_FIELDS)
-/** Legacy YAML is an adapter, so importing it must never edit transition-controlled state. */
-const LEGACY_IMPORT_PROTECTED_FIELDS: ReadonlySet<FieldName> = new Set(['phase', 'phase_status', 'branch_status', 'build_sha', 'pre_verify_review_result', ...REVIEW_GATE_FIELDS])
 
 /**
  * Older releases can omit the complete review receipt, the later pre-Verify tail field,
@@ -377,17 +377,16 @@ class FsStateStore implements StateStore {
     })
   }
 
-  async importLegacyProjection(changeDir: string): Promise<StateWriteResult> {
+  async importLegacyProjection(changeDir: string): Promise<LegacyImportResult> {
     return withLock(changeDir, async () => {
       const current = await readCurrentRunRevision(changeDir)
       if (current === undefined) {
         throw new StateProjectionDriftError('import-legacy: canonical current 不存在；无需解决双主 drift')
       }
       const legacy = parsePipeline(await readFile(stateFilePath(changeDir), 'utf8'))
-      const importedFields = structuredClone(legacy.fields)
-      for (const field of LEGACY_IMPORT_PROTECTED_FIELDS) importedFields[field] = structuredClone(current.state.fields[field])
+      const merged = mergeLegacyImportFields(legacy.fields, current.state.fields)
       const imported: PipelineState = {
-        fields: importedFields,
+        fields: merged.fields,
         ...(current.state.runMetadata === undefined
           ? {}
           : { runMetadata: structuredClone(current.state.runMetadata) }),
@@ -400,9 +399,9 @@ class FsStateStore implements StateStore {
       })
       try {
         await this.writeProjection(stateFilePath(changeDir), projectionContent(next))
-        return { projection: { status: 'updated' } }
+        return { projection: { status: 'updated' }, ignoredProtectedFields: merged.ignoredProtectedFields }
       } catch (error) {
-        return { projection: { status: 'pending', error } }
+        return { projection: { status: 'pending', error }, ignoredProtectedFields: merged.ignoredProtectedFields }
       }
     })
   }

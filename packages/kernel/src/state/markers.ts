@@ -11,7 +11,7 @@
  * `REVIEW_MARKER_FILE` remains a stable hook ABI.  Its identity fields are deliberately parsed by
  * shell hooks as well as TypeScript readers, so do not change the v2 first line without a migration.
  */
-import { writeFile } from 'node:fs/promises'
+import { readFile, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 export const BREADCRUMB_FILE = '.breadcrumb'
 export const REVIEW_MARKER_FILE = '.pipeline-pending-review'
@@ -84,4 +84,32 @@ export function parseReviewMarker(content: string): ReviewMarkerReceipt | null {
   const requestedAt = fields.get('requested_at') ?? ''
   if (phase === '' || changeName === '' || requestedAt === '') return null
   return { phase, changeName, event, requestedAt }
+}
+
+/**
+ * The single review marker cleanup used by terminal and Dashboard acknowledgements. A marker that
+ * belongs to another Change or event is left alone: it is not this decision's projection. Unlink
+ * errors other than ENOENT propagate so the caller can report a non-fatal marker warning.
+ */
+export async function clearReviewMarkerFor(root: string, change: string, event: string): Promise<void> {
+  const marker = join(root, REVIEW_MARKER_FILE)
+  let content: string
+  try {
+    content = await readFile(marker, 'utf8')
+  } catch (error) {
+    if (isMissing(error)) return
+    throw error
+  }
+  const receipt = parseReviewMarker(content)
+  if (receipt === null || receipt.changeName !== change) return
+  if (receipt.event !== '' && receipt.event !== event) return
+  try {
+    await unlink(marker)
+  } catch (error) {
+    if (!isMissing(error)) throw error
+  }
+}
+
+function isMissing(error: unknown): boolean {
+  return error !== null && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }

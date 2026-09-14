@@ -348,7 +348,12 @@ export async function handlePostOperationsRoutes(
             return sendJson(res, 400, { ok: false, error: 'import-legacy 须显式 confirm_import=true' })
           }
           const imported = await store.importLegacyProjection(dir)
-          return sendJson(res, 200, { ok: true, action: body.action, projection: imported.projection })
+          return sendJson(res, 200, {
+            ok: true,
+            action: body.action,
+            projection: imported.projection,
+            ignored_protected_fields: imported.ignoredProtectedFields,
+          })
         }
         return sendJson(res, 400, { ok: false, error: 'action 仅允许 repair-projection/import-legacy' })
       } catch (error) {

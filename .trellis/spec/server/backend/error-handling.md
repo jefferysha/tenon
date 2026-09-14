@@ -131,14 +131,13 @@ The application returns structured outcomes. The server owns only HTTP mapping:
 
 | Application outcome | HTTP |
 |---|---|
-| missing/late/mismatched receipt or binding | 409, `review-approval-required` |
+| missing/late/mismatched receipt, binding or ref | 409, `review-approval-required` |
 | expected revision conflict | 409, `revision-conflict` |
-| matching idempotent approval | existing 200 response |
+| same key, different payload | 409, `idempotency-conflict` |
+| approval, replay, or approval with marker cleanup warning | 200 (`approved` / `idempotent-replay` / `marker-warning`) |
+| unexpected exception | 500, fixed message, no `code`, no path |
 
-Rejected requests do not write canonical state, TransitionRecord, or successful
-history. The shared application may append a redacted rejected audit only for explicitly
-covered security observations; missing, late, not-pending and binding-mismatch
-review attempts remain zero-write outcomes. Such an audit event is never approval
-or consumption proof.
+Rejected requests write nothing: no canonical state, TransitionRecord, history,
+interaction event or idempotency record (see `decision-sync.md` D/E).
 Bearer-token authentication identifies a caller capability, not a human
 approver; channel attribution and binding remain separate fields.

@@ -2,16 +2,28 @@ import {
   projectPendingDecisions,
   readCurrentRunRevision,
   readInteractionProjection,
+  readReviewGateBinding,
   readSkillInvocationEventsForApplication,
+  reviewGateDecisionStateDigest,
+  type ReviewGateBinding,
   type StateStore,
   type TransitionRecordStore,
   type PendingDecisionView,
 } from '@tenon/kernel'
 
+/** A malformed or unreadable binding sidecar is treated as absent (fail closed). */
+export async function readReviewBindingSafely(dir: string): Promise<ReviewGateBinding | undefined> {
+  try {
+    return await readReviewGateBinding(dir)
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * Read the complete, immutable input set used by the pending-decision projection.
- * GET and POST must resolve the same revision, interactions, invocations and transition chain;
- * otherwise a ref produced by GET can become unresolvable at the POST preflight.
+ * GET and POST must resolve the same revision, interactions, invocations, binding and transition
+ * chain; otherwise a ref produced by GET can become unresolvable inside the POST lock.
  */
 export async function readPendingDecisionProjection(input: {
   readonly change: string
@@ -34,5 +46,7 @@ export async function readPendingDecisionProjection(input: {
     interactions: interactions.kind === 'valid' ? interactions.events : [],
     invocations,
     transitions,
+    reviewBinding: await readReviewBindingSafely(input.dir),
+    reviewDecisionStateDigest: reviewGateDecisionStateDigest(state),
   })
 }

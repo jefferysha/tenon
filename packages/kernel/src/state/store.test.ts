@@ -167,6 +167,7 @@ describe('set / setMany / cas', () => {
     const imported = await store.importLegacyProjection(dir)
 
     expect(imported.projection).toMatchObject({ status: 'updated' })
+    expect(imported.ignoredProtectedFields).toEqual(['phase'])
     expect(await store.get(dir, 'phase')).toBe('open')
     const current = JSON.parse(await readFile(path.join(dir, '.pipeline-run', 'current.json'), 'utf8')) as {
       revision: number

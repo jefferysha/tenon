@@ -276,7 +276,7 @@ export interface CliDeps {
   /** `tenon review request` 成功后写 versioned <cwd>/.pipeline-pending-review hook 投影。 */
   writeReviewMarker?: (content: string) => Promise<void>
   /** `tenon review acknowledge` 在 canonical approval receipt 成功后移除 hook 投影。 */
-  clearReviewMarker?: () => Promise<void>
+  clearReviewMarker?: (change: string, event: string) => Promise<void>
   /**
    * check 命令的 guard 文件面注入（BACKLOG #12 guard 全量校验面）：按 change 名构造
    * GuardFileContext——fileExists/fileNonempty/readFile/dirExists/changeArchived 相对 cwd 解析，

@@ -190,8 +190,8 @@ export function mockStore(states: StateInput = mockState()) {
     repairProjection: spy(async (_changeDir: string, _opts?: { forceCanonical?: boolean }) => ({
       status: 'current' as const, revision: 0, revisionId: 'mock-revision',
     })),
-    importLegacyProjection: spy(async (_changeDir: string): Promise<StateWriteResult> => ({
-      projection: { status: 'updated' },
+    importLegacyProjection: spy(async (_changeDir: string): Promise<LegacyImportResult> => ({
+      projection: { status: 'updated' }, ignoredProtectedFields: [],
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     withLock: spy(async (_changeDir: string, fn: () => Promise<any>): Promise<any> => fn()),

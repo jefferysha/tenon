@@ -5,32 +5,14 @@
 import type { CoverageProfile, ReviewSeed, TrackId } from './tracks/types.js'
 import type { AutomationPolicySnapshot } from './loops/automation-policy.js'
 import type { WorkflowPlanSnapshot } from './workflow/effective-plan.js'
-/**
- * Review-gate v2 fields are append-only state schema additions. Keeping the group named lets the
- * canonical reader recognise precisely one historical shape written before this feature, without
- * weakening the closed schema for arbitrary missing fields. The YAML compatibility projection
- * omits the entire group while every value is blank, then writes all receipt fields together for a live
- * receipt; canonical state always retains the complete group.
- */
-export const REVIEW_GATE_FIELDS = [
-  'review_gate_phase',
-  'review_gate_status',
-  'review_gate_event',
-  'review_requested_at',
-  'review_acknowledged_at',
-  'review_acknowledged_via',
-] as const
-export type ReviewGateField = (typeof REVIEW_GATE_FIELDS)[number]
-export const REVIEW_GATE_FIELD_DEFAULTS: Readonly<Record<ReviewGateField, string>> = {
-  review_gate_phase: '',
-  review_gate_status: '',
-  review_gate_event: '',
-  review_requested_at: '',
-  review_acknowledged_at: '',
-  review_acknowledged_via: 'unknown',
-}
-export const PRE_VERIFY_REVIEW_FIELD = 'pre_verify_review_result' as const
-export const PRE_VERIFY_REVIEW_DEFAULT = 'pending'
+import { PRE_VERIFY_REVIEW_FIELD } from './review-gate-fields.js'
+export {
+  PRE_VERIFY_REVIEW_DEFAULT,
+  PRE_VERIFY_REVIEW_FIELD,
+  REVIEW_GATE_FIELD_DEFAULTS,
+  REVIEW_GATE_FIELDS,
+} from './review-gate-fields.js'
+export type { ReviewGateField } from './review-gate-fields.js'
 export const FIELD_ORDER = [
   'track', 'preset', 'created_by', 'assignee', 'phase', 'phase_status',
   'design_doc', 'plan', 'verification_report', 'build_mode', 'isolation', 'build_sha',
@@ -57,7 +39,8 @@ export const FIELD_ORDER = [
   // explore/spec/verify 时就阻断相位工作。字段一起记录确切 phase、event、状态和两次时间，令
   // transition 能拒绝无确认的离开，同时让 UserPromptSubmit 的确认留在 canonical state 中。event
   // 必须是待离开 phase 的确切出边，不能让 verify-fail 的确认误授权给 verify-pass（反之亦然）。
-  // 其中 review_acknowledged_via 是后续追加字段，必须放在整个 FIELD_ORDER 最末尾；否则旧窄解析器会把它后面的真字段误收进 opaqueTail，混版本回写时可能制造重复 key。
+  // 其中 review_acknowledged_via 是后续追加字段，必须放在整个 FIELD_ORDER 最末尾；否则旧窄解析器
+  // 会把它后面的真字段误收进 opaqueTail，混版本回写时可能制造重复 key。
   'review_gate_phase', 'review_gate_status', 'review_gate_event', 'review_requested_at', 'review_acknowledged_at',
   // Build→Verify 全量收敛门：新实现 visit 必须重新完成完整 diff/契约/发行门禁审查，不能继承
   // 上一候选的 pass。继续严格末尾追加，使旧窄解析器把这一行及其后的提交元数据原样保留。
@@ -65,6 +48,7 @@ export const FIELD_ORDER = [
   'review_acknowledged_via',
 ] as const
 export type FieldName = (typeof FIELD_ORDER)[number]
+
 export const LIST_FIELDS = ['scope', 'related_files', 'spec_scope', 'depends_on'] as const satisfies readonly FieldName[]
 
 export const PHASES = ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'] as const
@@ -296,6 +280,11 @@ export interface StateWriteResult {
     | { readonly status: 'pending'; readonly error: unknown }
 }
 
+/** A legacy import also reports protected fields whose YAML edits were ignored. */
+export interface LegacyImportResult extends StateWriteResult {
+  readonly ignoredProtectedFields: readonly FieldName[]
+}
+
 export interface RepairProjectionOptions {
   /** 只有用户明确选择 canonical 覆盖未知 drift 时才传 true。 */
   readonly forceCanonical?: boolean
@@ -335,7 +324,7 @@ export interface StateStore {
   /** 修复缺失/已知滞后 adapter；未知 drift 默认拒绝，显式 forceCanonical 才覆盖。 */
   repairProjection(changeDir: string, opts?: RepairProjectionOptions): Promise<StateProjectionStatus>
   /** 用户显式选择把 drifted legacy YAML 导入为一条新的 canonical mutation。 */
-  importLegacyProjection(changeDir: string): Promise<StateWriteResult>
+  importLegacyProjection(changeDir: string): Promise<LegacyImportResult>
   /** mkdir 原子锁（含陈锁回收），锁内串行执行 fn */
   withLock<T>(changeDir: string, fn: () => Promise<T>): Promise<T>
 }

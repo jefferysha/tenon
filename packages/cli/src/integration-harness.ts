@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   BUILTIN_TRACK_DEFINITIONS,
+  clearReviewMarkerFor,
   createBuildRevisionToken,
   createEffectiveSkillResolver,
   completedWorkflowSkillsSinceStepEntry,
@@ -366,7 +367,7 @@ export function realDeps(cwd: string, out: string[], err: string[]): CliDeps {
       TEST_BUILD_REVISION_IDENTITY,
     ).value,
     writeReviewMarker: (content) => writeFile(join(cwd, '.pipeline-pending-review'), content, 'utf8'),
-    clearReviewMarker: () => rm(join(cwd, '.pipeline-pending-review'), { force: true }),
+    clearReviewMarker: (change, event) => clearReviewMarkerFor(cwd, change, event),
     pluginVersion: '0.1.0',
     readInstalledPlugins: async () => undefined,
     doctor: {
