@@ -146,7 +146,8 @@ export interface ReviewAcknowledgeCommandPort {
   readonly readRevision?: () => Promise<number | null>
   readonly expectedRevision?: number | null
   /** A fixed key is used by HTTP; the terminal adapter may derive it from the locked state. */
-  readonly idempotencyKey?: string | ((state: PipelineState) => string | Promise<string>)
+  /** A derived adapter key may be omitted when its trusted binding cannot be verified. */
+  readonly idempotencyKey?: string | ((state: PipelineState) => string | undefined | Promise<string | undefined>)
   /** Returns replay/rejected/conflict/missing for the complete command payload. */
   readonly checkIdempotency?: (key: string) => Promise<'missing' | 'replay' | 'rejected' | 'conflict'>
   /** Stable failure code for a previously rejected command with the same payload. */

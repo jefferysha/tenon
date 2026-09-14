@@ -338,14 +338,22 @@ export async function cmdReview(
         ? scalar(preflight, 'review_acknowledged_at') || deps.clock()
         : freshReviewRequestedAt(scalar(preflight, 'review_requested_at'), deps.clock),
       via: delegatedAuthority === null ? 'terminal' : 'delegated',
-      idempotencyKey: (state) => deriveReviewAcknowledgeIdempotencyKey({
-        change: name,
-        phase: preflightStep.phase,
-        event: preflightEvent,
-        requestedAt: scalar(state, 'review_requested_at'),
-        state,
-        channel: acknowledgementChannel,
-      }),
+      idempotencyKey: async (state) => {
+        // A terminal key is derived only from a still-trusted request anchor. If the
+        // sidecar is missing or corrupt, skip replay lookup so a damaged approval
+        // cannot be treated as a successful retry; the binding check below returns
+        // the stable fail-closed result instead.
+        const binding = await readReviewGateBindingForRequest(dir)
+        if (!reviewGateBindingMatches(binding, state, preflightStep.phase, preflightEvent)) return undefined
+        return deriveReviewAcknowledgeIdempotencyKey({
+          change: name,
+          phase: preflightStep.phase,
+          event: preflightEvent,
+          requestedAt: scalar(state, 'review_requested_at'),
+          state,
+          channel: acknowledgementChannel,
+        })
+      },
       checkIdempotency: idempotency.check,
       rememberIdempotencyKey: idempotency.remember,
       bindingMatches: async (state) => reviewGateBindingMatches(
