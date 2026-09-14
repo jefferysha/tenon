@@ -1,0 +1,2 @@
+{"file":".trellis/spec/server/backend/decision-sync.md","reason":"遵循已裁决的 shared application、错误和幂等契约。"}
+{"file":".trellis/spec/kernel/backend/orchestration.md","reason":"遵循 kernel application 与记录域边界。"}

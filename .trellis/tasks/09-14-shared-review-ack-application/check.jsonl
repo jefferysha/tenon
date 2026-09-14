@@ -1,0 +1,2 @@
+{"file":".trellis/spec/server/backend/decision-sync.md","reason":"复核 CLI/server 结果一致与无反向依赖。"}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"复核 HTTP 映射和零写入语义。"}
