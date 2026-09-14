@@ -1,8 +1,7 @@
 import { appendFile, readFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  acknowledgeReview,
-  executeReviewAcknowledgeCommand,
+  executeReviewAcknowledgeApplication,
   parseReviewMarker,
   projectPendingDecisions,
   readCurrentRunRevision,
@@ -136,7 +135,7 @@ async function applyDecision(input: {
   const event = item?.anchor.event ?? reviewGateEvent(preflight)
   let deferred: readonly string[] = []
   const payloadDigest = reviewDecisionPayloadDigest(input.ref, input.expectedRevision, 'dashboard')
-  const command = await executeReviewAcknowledgeCommand({
+  const command = await executeReviewAcknowledgeApplication({
     withLock: (fn) => input.store.withLock(input.dir, fn),
     readState: () => input.store.read(input.dir),
     readRevision: async () => (await readCurrentRunRevision(input.dir))?.revision ?? null,
@@ -177,7 +176,7 @@ async function applyDecision(input: {
         }
       }
     },
-    commit: async (state, acknowledgedAt) => {
+    prepareCommit: async (state, acknowledgedAt) => {
       const before = await readCurrentRunRevision(input.dir)
       if (before === undefined) throw new Error('interaction projection 缺 canonical run/workflow/state anchor')
       const workflow = String(state.fields.workflow || 'default')
@@ -193,9 +192,8 @@ async function applyDecision(input: {
           track, ...classifyInteractionWorkflowIdentity({ workflow, track, step: phase }),
         }), sequence: 1, previousEventHash: null,
       })
-      const acknowledged = await acknowledgeReview({
-        state, phase, event, acknowledgedAt, bindingMatches: true, via: 'dashboard',
-        writeState: async (patch) => { await input.store.writeUnderLock(input.dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: 'set-many' }) },
+      return {
+        writeState: async (patch: Partial<Record<string, string>>) => { await input.store.writeUnderLock(input.dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: 'set-many' }) },
         recordInteraction: async ({ state: interactionState, acknowledgedAt: at, rejected }) => {
           const after = await readCurrentRunRevision(input.dir)
           if (before !== undefined && after !== undefined) await createInteractionEventRecorder().recordUnderLock(input.dir, reviewAcknowledgedInteractionDraft({
@@ -211,20 +209,18 @@ async function applyDecision(input: {
           }))
         },
         recordHistory: async ({ acknowledgedAt: at }) => input.history.append(input.dir, { ts: at, kind: 'tool', raw: `review:acknowledge via=dashboard phase=${phase} event=${event}` }),
-        recordRejectedAcknowledgement: async ({ acknowledgedAt: at }) => input.history.append(input.dir, { ts: at, kind: 'tool', raw: `review:acknowledge-rejected via=dashboard phase=${phase} event=${event}` }),
         clearMarker: async () => {
           const marker = join(input.root, REVIEW_MARKER_FILE)
           try { const receipt = parseReviewMarker(await readFile(marker, 'utf8')); if (receipt?.changeName !== input.name || receipt.event !== event) return false; await unlink(marker); return true } catch (error) { return (error as NodeJS.ErrnoException).code === 'ENOENT' }
         },
-      })
-      deferred = acknowledged.deferred
-      return { deferred }
+      }
     },
   })
   if (!command.ok) {
     const code = command.code === 'invalid-input' ? 'invalid-command' : command.code
     return { result: { ok: false, code, message: command.message }, deferred }
   }
+  deferred = command.deferred
   const ref = item?.ref ?? { id: input.ref, kind: 'review' as const, change: input.name, anchor: `${phase}:${event}`, revision: input.expectedRevision }
   return { result: { ok: true, idempotent: command.idempotent, ref }, deferred }
 }

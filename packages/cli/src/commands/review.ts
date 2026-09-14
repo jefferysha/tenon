@@ -19,8 +19,7 @@ import {
   reviewGateRequestPatch,
   reviewGateStatus,
   reviewGateBindingMatches,
-  acknowledgeReview,
-  executeReviewAcknowledgeCommand,
+  executeReviewAcknowledgeApplication,
   deriveReviewAcknowledgeIdempotencyKey,
   readCurrentRunRevision,
 } from '@tenon/kernel'
@@ -329,7 +328,7 @@ export async function cmdReview(
       channel: acknowledgementChannel,
       acknowledgedAt: deps.clock(),
     })
-    const result = await executeReviewAcknowledgeCommand({
+    const result = await executeReviewAcknowledgeApplication({
       withLock: (fn) => deps.store.withLock(dir, fn),
       readState: () => deps.store.read(dir),
       phase: preflightStep.phase,
@@ -364,16 +363,10 @@ export async function cmdReview(
           deps, interaction, dir, name, state, await readCurrentRunRevision(dir), preflightEvent,
         )
       },
-      commit: async (state, acknowledgedAt) => {
+      prepareCommit: async (state, _acknowledgedAt) => {
         const beforeRevision = interaction === undefined ? undefined : await readCurrentRunRevision(dir)
-        const acknowledged = await acknowledgeReview({
-          state,
-          phase: preflightStep.phase,
-          event: preflightEvent,
-          acknowledgedAt,
-          via: delegatedAuthority === null ? 'terminal' : 'delegated',
-          bindingMatches: true,
-          writeState: async (patch) => {
+        return {
+          writeState: async (patch: Partial<Record<string, string>>) => {
             await deps.store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: 'set-many' })
           },
           recordInteraction: interaction === undefined ? undefined : async ({ state: recordedState, acknowledgedAt: at, rejected }) => {
@@ -401,8 +394,7 @@ export async function cmdReview(
             })
           },
           clearMarker: async () => clearReviewMarker(deps),
-        })
-        return { deferred: acknowledged.deferred }
+        }
       },
     })
     if (!result.ok) throw new Error(result.message)

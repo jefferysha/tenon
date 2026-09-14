@@ -165,6 +165,47 @@ export interface ReviewAcknowledgeCommandPort {
   readonly recordRejected?: (state: PipelineState, reason: string) => Promise<void>
 }
 
+/** IO effects assembled by an inbound adapter after the shared preflight succeeds. */
+export interface ReviewAcknowledgeCommitEffects {
+  readonly writeState: (patch: Partial<Record<string, string>>) => Promise<void>
+  readonly recordInteraction?: ReviewAcknowledgeApplicationInput['recordInteraction']
+  readonly recordHistory?: ReviewAcknowledgeApplicationInput['recordHistory']
+  readonly clearMarker?: ReviewAcknowledgeApplicationInput['clearMarker']
+}
+
+export type ReviewAcknowledgeApplicationPort = Omit<ReviewAcknowledgeCommandPort, 'commit'> & {
+  /** Build adapter-owned projection effects only after receipt, binding and revision checks. */
+  readonly prepareCommit: (state: PipelineState, acknowledgedAt: string) => Promise<ReviewAcknowledgeCommitEffects>
+}
+
+/**
+ * Full review acknowledgement application. Adapters provide storage and projection effects;
+ * this function owns the one canonical acknowledge implementation and its result semantics.
+ */
+export async function executeReviewAcknowledgeApplication(
+  port: ReviewAcknowledgeApplicationPort,
+): Promise<ReviewAcknowledgeCommandResult> {
+  return executeReviewAcknowledgeCommand({
+    ...port,
+    commit: async (state, acknowledgedAt) => {
+      const effects = await port.prepareCommit(state, acknowledgedAt)
+      const acknowledged = await acknowledgeReview({
+        state,
+        phase: port.phase,
+        event: port.event,
+        acknowledgedAt,
+        via: port.via,
+        bindingMatches: true,
+        writeState: effects.writeState,
+        recordInteraction: effects.recordInteraction,
+        recordHistory: effects.recordHistory,
+        clearMarker: effects.clearMarker,
+      })
+      return { deferred: acknowledged.deferred }
+    },
+  })
+}
+
 /** Stable terminal key derivation. The receipt fields are excluded from the state digest. */
 export function deriveReviewAcknowledgeIdempotencyKey(input: {
   readonly change: string
