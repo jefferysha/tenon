@@ -38867,9 +38867,9 @@ async function applyDecision(input) {
             workflow: String(state.fields.workflow || "default"),
             workflowHash: current.state.runMetadata?.workflowPlanFingerprint ?? "0".repeat(64),
             track: String(state.fields.track || "backend"),
-            trackKind: "built-in",
+            trackKind: ["chat", "simple", "pm", "frontend", "backend"].includes(String(state.fields.track)) ? "built-in" : "custom",
             workflowMode: "default",
-            pipelineStage: phase
+            pipelineStage: ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(phase) ? phase : "custom"
           }));
         } catch {
         }

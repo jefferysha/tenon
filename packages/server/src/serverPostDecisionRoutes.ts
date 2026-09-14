@@ -191,7 +191,10 @@ async function applyDecision(input: {
             requestedAt: String(state.fields.review_requested_at ?? ''), acknowledgedAt: input.clock(), rejected: true,
             surface: 'dashboard', actor: 'system', workflow: String(state.fields.workflow || 'default'),
             workflowHash: current.state.runMetadata?.workflowPlanFingerprint ?? '0'.repeat(64),
-            track: String(state.fields.track || 'backend'), trackKind: 'built-in', workflowMode: 'default', pipelineStage: phase as never,
+            track: String(state.fields.track || 'backend'),
+            trackKind: ['chat', 'simple', 'pm', 'frontend', 'backend'].includes(String(state.fields.track)) ? 'built-in' : 'custom',
+            workflowMode: 'default',
+            pipelineStage: ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'].includes(phase) ? phase as never : 'custom',
           }))
         } catch {
           // Canonical rejection and durable idempotency remain authoritative if projection fails.
