@@ -186,9 +186,14 @@ async function applyDecision(input: {
           recordInteraction: async ({ state: interactionState, acknowledgedAt, rejected }) => {
             const after = await readCurrentRunRevision(input.dir)
             if (lockedRevision !== undefined && after !== undefined) {
+              const modeValue = String(interactionState.fields.workflow || 'default').startsWith('default') ? 'default' : 'custom'
               await createInteractionEventRecorder().recordUnderLock(input.dir, reviewAcknowledgedInteractionDraft({
                 change: input.name, state: interactionState, revision: after, beforeRevision: lockedRevision,
                 phase, event, requestedAt: String(locked.fields.review_requested_at ?? ''), acknowledgedAt, rejected, surface: 'dashboard',
+                workflow: String(interactionState.fields.workflow || 'default'), workflowHash: after.state.runMetadata?.workflowPlanFingerprint ?? '0'.repeat(64),
+                track: String(interactionState.fields.track || 'backend'), trackKind: ['chat', 'simple', 'pm', 'frontend', 'backend'].includes(String(interactionState.fields.track)) ? 'built-in' : 'custom',
+                ...Object.fromEntries([['workflowMode', modeValue]]) as { workflowMode: 'default' | 'custom' },
+                pipelineStage: ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'].includes(phase) ? phase as never : 'custom',
               }))
             }
           },

@@ -254,22 +254,14 @@ function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: bool
     : []
   const missingReviewGateFields = REVIEW_GATE_FIELDS.filter((field) => missing.includes(field))
   const isCompleteReviewGateOmission = missingReviewGateFields.length === REVIEW_GATE_FIELDS.length
-  const isEmptyFourFieldReceiptWithoutEvent = missingReviewGateFields.length === 1
-    && missingReviewGateFields[0] === 'review_gate_event'
-    && REVIEW_GATE_FIELDS
-      .filter((field) => field !== 'review_gate_event')
-      .every((field) => rawFields?.[field] === '' || (field === 'review_acknowledged_via' && rawFields?.[field] === 'unknown'))
+  const isEmptyFourFieldReceiptWithoutEvent = missingReviewGateFields.length === 1 && missingReviewGateFields[0] === 'review_gate_event'
+    && REVIEW_GATE_FIELDS.filter((field) => field !== 'review_gate_event').every((field) => rawFields?.[field] === '' || (field === 'review_acknowledged_via' && rawFields?.[field] === 'unknown'))
   const missingReviewGateSet = new Set<string>(missingReviewGateFields)
   const isHistoricalEmptyReceiptWithoutEventOrChannel = missingReviewGateFields.length > 0
     && missingReviewGateFields.every((field) => field === 'review_gate_event' || field === 'review_acknowledged_via')
     && REVIEW_GATE_FIELDS.filter((field) => !missingReviewGateSet.has(field)).every((field) => rawFields?.[field] === '')
-  // The first exact-event receipt release predated the via attribution field. Preserve those
-  // historical non-empty receipts as unknown-channel records instead of rejecting the revision;
-  // callers must still require a fresh binding before acknowledging.
-  const isHistoricalReceiptWithoutChannel = missingReviewGateFields.length === 1
-    && missingReviewGateFields[0] === 'review_acknowledged_via'
-    && REVIEW_GATE_FIELDS.filter((field) => field !== 'review_acknowledged_via')
-      .every((field) => Object.prototype.hasOwnProperty.call(rawFields ?? {}, field))
+  const isHistoricalReceiptWithoutChannel = missingReviewGateFields.length === 1 && missingReviewGateFields[0] === 'review_acknowledged_via'
+    && REVIEW_GATE_FIELDS.filter((field) => field !== 'review_acknowledged_via').every((field) => Object.prototype.hasOwnProperty.call(rawFields ?? {}, field))
   const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true
     && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent || isHistoricalEmptyReceiptWithoutEventOrChannel || isHistoricalReceiptWithoutChannel)
     ? new Set<FieldName>(missingReviewGateFields)

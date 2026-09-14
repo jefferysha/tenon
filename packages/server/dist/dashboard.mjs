@@ -12195,10 +12195,10 @@ function validateWire(value) {
   const actor2 = enumField(raw.actor, INTERACTION_ACTORS, "actor");
   const surface = enumField(raw.surface, INTERACTION_SURFACES, "surface");
   const executionMode = enumField(raw.execution_mode, INTERACTION_EXECUTION_MODES, "execution_mode");
-  const workflowMode2 = enumField(raw.workflow_mode, INTERACTION_WORKFLOW_MODES, "workflow_mode");
+  const workflowMode = enumField(raw.workflow_mode, INTERACTION_WORKFLOW_MODES, "workflow_mode");
   const track = stringField2(raw.track, "track");
-  const trackKind3 = enumField(raw.track_kind, INTERACTION_TRACK_KINDS, "track_kind");
-  const pipelineStage3 = enumField(raw.pipeline_stage, INTERACTION_PIPELINE_STAGES, "pipeline_stage");
+  const trackKind2 = enumField(raw.track_kind, INTERACTION_TRACK_KINDS, "track_kind");
+  const pipelineStage2 = enumField(raw.pipeline_stage, INTERACTION_PIPELINE_STAGES, "pipeline_stage");
   const controlStage = enumField(raw.control_stage, INTERACTION_CONTROL_STAGES, "control_stage");
   const event = enumField(raw.event, INTERACTION_EVENTS, "event");
   const reasonCode = validateCode(raw.reason_code, "reason_code");
@@ -12229,10 +12229,10 @@ function validateWire(value) {
     actor: actor2,
     surface,
     execution_mode: executionMode,
-    workflow_mode: workflowMode2,
+    workflow_mode: workflowMode,
     track,
-    track_kind: trackKind3,
-    pipeline_stage: pipelineStage3,
+    track_kind: trackKind2,
+    pipeline_stage: pipelineStage2,
     control_stage: controlStage,
     event,
     reason_code: reasonCode,
@@ -23860,24 +23860,7 @@ function createDecisionCommandAdapter(port) {
 }
 
 // packages/kernel/dist/decision/review-application.js
-function scalar4(state, key) {
-  const value = state.fields[key];
-  return Array.isArray(value) ? value.join(",") : value ?? "";
-}
-function workflowMode(workflow) {
-  return workflow === "default" ? "default" : "custom";
-}
-function trackKind(track) {
-  if (track === "free")
-    return "free";
-  return ["chat", "simple", "pm", "frontend", "backend"].includes(track) ? "built-in" : "custom";
-}
-function pipelineStage(step) {
-  return ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(step) ? step : "custom";
-}
 function reviewAcknowledgedInteractionDraft(input) {
-  const workflow = scalar4(input.state, "workflow") || "default";
-  const track = scalar4(input.state, "track") || "backend";
   const origin = input.beforeRevision.state.runMetadata;
   const current = input.revision.state.runMetadata;
   if (origin === void 0 || current === void 0)
@@ -23888,8 +23871,8 @@ function reviewAcknowledgedInteractionDraft(input) {
   return {
     change: input.change,
     runId: current.runId,
-    workflow,
-    workflowHash: current.workflowPlanFingerprint ?? "0".repeat(64),
+    workflow: input.workflow,
+    workflowHash: input.workflowHash,
     originStepVisit,
     stepVisit,
     stateBeforeHash: input.beforeRevision.stateDigest,
@@ -23897,10 +23880,10 @@ function reviewAcknowledgedInteractionDraft(input) {
     actor: input.actor ?? "system",
     surface: input.surface,
     executionMode: "interactive",
-    workflowMode: workflowMode(workflow),
-    track,
-    trackKind: trackKind(track),
-    pipelineStage: pipelineStage(input.phase),
+    workflowMode: input.workflowMode,
+    track: input.track,
+    trackKind: input.trackKind,
+    pipelineStage: input.pipelineStage,
     journeyId: interactionJourneyId({ change: input.change, runId: origin.runId, originStepVisit, reviewEvent: input.event, requestedAt: input.requestedAt }),
     controlStage: "verification",
     event: "review.acknowledged",
@@ -24210,14 +24193,14 @@ function field2(state, name) {
   const value = state.fields[name];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
-function trackKind2(track) {
+function trackKind(track) {
   if (track === "free")
     return "free";
   if (["chat", "simple", "pm", "frontend", "backend"].includes(track))
     return "built-in";
   return "custom";
 }
-function pipelineStage2(step) {
+function pipelineStage(step) {
   return ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(step) ? step : "custom";
 }
 function createInteractionEffectDraft(input) {
@@ -24258,8 +24241,8 @@ function createInteractionEffectDraft(input) {
     executionMode: "interactive",
     workflowMode: isDefaultWorkflowName(input.workflowRun.workflowId) ? "default" : "custom",
     track: input.track,
-    trackKind: trackKind2(input.track),
-    pipelineStage: pipelineStage2(input.from),
+    trackKind: trackKind(input.track),
+    pipelineStage: pipelineStage(input.from),
     controlStage: "execution",
     event: "review.effect-applied",
     reasonCode: "effect.applied",
@@ -24648,7 +24631,7 @@ async function readinessByTransition(plan, state, context) {
         evaluations.push(...await evaluateGuards([guard], input, { stopOnFirstFailure: false }));
       } catch {
         const fieldValue = guard.type === "build-head-unchanged" ? state.fields[guard.field] : void 0;
-        const scalar7 = Array.isArray(fieldValue) ? fieldValue.join(",") : fieldValue ?? "";
+        const scalar6 = Array.isArray(fieldValue) ? fieldValue.join(",") : fieldValue ?? "";
         if (guard.type === "build-head-unchanged") {
           errors.push({
             kind: "verify-build-revision-untrusted",
@@ -26402,7 +26385,7 @@ function resolveAutomationConfig(deps, entrypointDefaults = {}) {
 }
 
 // packages/automation/dist/lifecycle/spec-complete.js
-var scalar5 = (value) => typeof value === "string" ? value : "";
+var scalar4 = (value) => typeof value === "string" ? value : "";
 async function enqueueAfterSpecComplete(deps, transition) {
   if (transition.event !== "spec-complete" || transition.from !== "spec" || transition.to !== "build") {
     return { kind: "not-applicable" };
@@ -26411,12 +26394,12 @@ async function enqueueAfterSpecComplete(deps, transition) {
   const changeDir2 = join35(deps.repoRoot, "openspec", "changes", transition.changeName);
   return deps.store.withLock(changeDir2, async () => {
     const state = await deps.store.read(changeDir2);
-    if (scalar5(state.fields.phase) !== "build")
+    if (scalar4(state.fields.phase) !== "build")
       return { kind: "phase-changed" };
-    const policy3 = deps.resolveTrackPolicy(scalar5(state.fields.track));
+    const policy3 = deps.resolveTrackPolicy(scalar4(state.fields.track));
     if (policy3.autoEnqueueOnSpecComplete !== true)
       return { kind: "track-disabled" };
-    const automation = scalar5(state.fields.automation);
+    const automation = scalar4(state.fields.automation);
     if (automation === "queued")
       return { kind: "already-queued" };
     if (automation !== "off")
@@ -30274,10 +30257,10 @@ function validateStateWorkflowText(text6, change) {
     const match = /^([A-Za-z0-9_]+):(.*)$/.exec(line);
     if (!match) continue;
     const field3 = match[1];
-    const scalar7 = match[2];
-    if (field3 === void 0 || scalar7 === void 0) continue;
+    const scalar6 = match[2];
+    if (field3 === void 0 || scalar6 === void 0) continue;
     counts.set(field3, (counts.get(field3) ?? 0) + 1);
-    if (field3 === "workflow") workflowValues.push(unquoteScalar(scalar7.trim()));
+    if (field3 === "workflow") workflowValues.push(unquoteScalar(scalar6.trim()));
   }
   for (const required3 of ["track", "phase"]) {
     if (counts.get(required3) !== 1) {
@@ -34286,7 +34269,7 @@ async function handleContextBundlePreview(req, res, deps) {
 }
 
 // packages/server/src/runDetail.ts
-function scalar6(value) {
+function scalar5(value) {
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 async function revisionChain(changeDir2, current) {
@@ -34406,13 +34389,13 @@ async function buildRunDetail(repoRoot, changeDir2, changeName, deps) {
     projection,
     workflow_run: metadata ? {
       id: metadata.runId,
-      workflow_id: scalar6(fields.workflow) || "default",
-      current_step: scalar6(fields.phase),
-      lifecycle: scalar6(fields.archived) === "true" ? "archived" : "active",
+      workflow_id: scalar5(fields.workflow) || "default",
+      current_step: scalar5(fields.phase),
+      lifecycle: scalar5(fields.archived) === "true" ? "archived" : "active",
       transition_sequence: metadata.transitionSequence,
       ...metadata.transitionHead ? { transition_head: metadata.transitionHead } : {},
-      created_at: scalar6(fields.created_at),
-      updated_at: scalar6(fields.updated_at),
+      created_at: scalar5(fields.created_at),
+      updated_at: scalar5(fields.updated_at),
       ...automationPolicy ? {
         policy_id: automationPolicy.policy_id,
         policy_version: automationPolicy.policy_version,
@@ -38842,6 +38825,7 @@ async function applyDecision(input) {
           recordInteraction: async ({ state: interactionState, acknowledgedAt, rejected }) => {
             const after = await readCurrentRunRevision(input.dir);
             if (lockedRevision !== void 0 && after !== void 0) {
+              const modeValue = String(interactionState.fields.workflow || "default").startsWith("default") ? "default" : "custom";
               await createInteractionEventRecorder().recordUnderLock(input.dir, reviewAcknowledgedInteractionDraft({
                 change: input.name,
                 state: interactionState,
@@ -38852,7 +38836,13 @@ async function applyDecision(input) {
                 requestedAt: String(locked.fields.review_requested_at ?? ""),
                 acknowledgedAt,
                 rejected,
-                surface: "dashboard"
+                surface: "dashboard",
+                workflow: String(interactionState.fields.workflow || "default"),
+                workflowHash: after.state.runMetadata?.workflowPlanFingerprint ?? "0".repeat(64),
+                track: String(interactionState.fields.track || "backend"),
+                trackKind: ["chat", "simple", "pm", "frontend", "backend"].includes(String(interactionState.fields.track)) ? "built-in" : "custom",
+                ...Object.fromEntries([["workflowMode", modeValue]]),
+                pipelineStage: ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(phase) ? phase : "custom"
               }));
             }
           },
