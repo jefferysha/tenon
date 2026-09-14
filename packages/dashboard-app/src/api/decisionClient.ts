@@ -39,9 +39,12 @@ function isChannel(value: unknown): value is DecisionChannel {
   return value === 'terminal' || value === 'dashboard' || value === 'automation' || value === 'delegated' || value === 'unknown'
 }
 function isNullableRevision(value: unknown): value is number | null { return value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) }
+/** Kernel ref ids are `decision:<16 hex>`; the cap keeps the derived idempotency key bounded. */
+export const DECISION_REF_ID_MAX_LENGTH = 128
+function isRefId(value: unknown): value is string { return isString(value) && value.length > 0 && value.length <= DECISION_REF_ID_MAX_LENGTH }
 function decodeItem(value: unknown): PendingDecision | null {
   if (!isRecord(value) || !isRecord(value.ref) || !isRecord(value.anchor)) return null
-  if (!isString(value.ref.id) || !isDecisionKind(value.ref.kind) || !isString(value.ref.change) || !isString(value.ref.anchor) || !isNullableRevision(value.ref.revision)) return null
+  if (!isRefId(value.ref.id) ||!isDecisionKind(value.ref.kind) || !isString(value.ref.change) || !isString(value.ref.anchor) || !isNullableRevision(value.ref.revision)) return null
   if (!isDecisionKind(value.type) || !isStatus(value.status) || !isNullableRevision(value.revision) || !Array.isArray(value.evidence) || !value.evidence.every(isString)) return null
   if (!isChannel(value.source) || !isChannel(value.channel)) return null
   if (value.command !== 'review-acknowledge' && value.command !== 'skill-answer') return null
@@ -87,12 +90,23 @@ export async function fetchPendingDecisions(root: string, change: string, signal
   return value
 }
 
-export async function postReviewAcknowledge(input: { root: string; change: string; ref: string; expectedRevision: number; idempotencyKey?: string }): Promise<ReviewAcknowledgeResponse> {
+/**
+ * The key is a lossless base64url encoding of ref + revision, so a retry of the same decision at the
+ * same revision replays the stored result, while a refreshed revision is a distinct command. The
+ * alphabet stays within `[A-Za-z0-9_-]`.
+ */
+export function reviewIdempotencyKey(ref: string, expectedRevision: number): string {
+  let binary = ''
+  for (const byte of new TextEncoder().encode(`${ref}\n${expectedRevision}`)) binary += String.fromCharCode(byte)
+  return `dashboard-review-${btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
+}
+
+export async function postReviewAcknowledge(input: { root: string; change: string; ref: string; expectedRevision: number }): Promise<ReviewAcknowledgeResponse> {
   let response: Response
   try {
     response = await fetch(`/api/change/${encodeURIComponent(input.change)}/decisions`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify({ root: input.root, ref: input.ref, expected_revision: input.expectedRevision, idempotency_key: input.idempotencyKey ?? globalThis.crypto?.randomUUID?.() ?? `dashboard-${Date.now()}-${Math.random().toString(36).slice(2)}` }),
+      body: JSON.stringify({ root: input.root, ref: input.ref, expected_revision: input.expectedRevision, idempotency_key: reviewIdempotencyKey(input.ref, input.expectedRevision) }),
     })
   } catch (error) { wrapNetwork(error) }
   if (!response.ok) await throwApiError(response, '复核确认失败')

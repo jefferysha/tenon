@@ -192,7 +192,6 @@ export const zh: Dict = {
   },
   review_console: {
     title: '复核决策台',
-    description: '终端已提交一个精确的复核请求。确认后服务端会继续校验门禁。',
     event: '精确事件',
     evidence: '证据',
     approve: '批准并继续',
@@ -201,7 +200,9 @@ export const zh: Dict = {
     retry: '重试',
     approved: '已批准，正在刷新状态',
     approved_idempotent: '该请求已处理，状态已刷新',
-    boundary: '驳回和退回暂由终端命令处理',
+    error_review_required: '缺少复核请求',
+    error_revision_conflict: '状态已变化',
+    error_idempotency_conflict: '重复请求冲突',
   },
   workflow: {
     rail_title: '工作流',
@@ -2143,7 +2144,6 @@ export const en: Dict = {
   },
   review_console: {
     title: 'Review console',
-    description: 'The terminal submitted an exact review request. The server will recheck the gate before continuing.',
     event: 'Exact event',
     evidence: 'Evidence',
     approve: 'Approve and continue',
@@ -2152,7 +2152,9 @@ export const en: Dict = {
     retry: 'Retry',
     approved: 'Approved; refreshing state',
     approved_idempotent: 'Request was already handled; state refreshed',
-    boundary: 'Reject and return remain terminal commands for now',
+    error_review_required: 'Review request missing',
+    error_revision_conflict: 'State changed',
+    error_idempotency_conflict: 'Duplicate request conflict',
   },
   workflow: {
     rail_title: 'Workflows',
