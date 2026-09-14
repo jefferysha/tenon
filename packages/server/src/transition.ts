@@ -88,6 +88,8 @@ export interface TransitionDeps {
   resolveTrackPolicy?: (trackId: string) => TrackPolicyProfile
   resolveTrack?: (trackId: string) => TrackDefinition
   skillResolver?: EffectiveSkillResolver
+  /** Runtime mode source used by loop human-gate constraints; injected for deterministic tests. */
+  env?: (name: string) => string | undefined
 }
 
 export interface TransitionOutcome {
@@ -317,7 +319,10 @@ export async function performTransition(
       const registry = loadRegistry(root, nodeLoopIoStrict)
       if (registry.data === null) throw new Error(`loops registry 无法校验：${registry.errors.join('；')}`)
       const loop = registry.data.loops.find((candidate) => candidate.id === policy.loop_id)
-      return { active: loop?.status === 'active', humanGateSatisfied: true }
+      // Keep server semantics aligned with the CLI: AFK explicitly disables human-gate
+      // satisfaction; the default HITL path remains available without inventing identity.
+      const env = deps.env ?? ((name: string) => process.env[name])
+      return { active: loop?.status === 'active', humanGateSatisfied: env('TENON_AFK') !== '1' }
     },
   })
   try {

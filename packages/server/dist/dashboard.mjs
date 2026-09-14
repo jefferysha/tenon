@@ -34733,7 +34733,8 @@ async function performTransition(deps, root, name, event) {
       const registry = loadRegistry(root, nodeLoopIoStrict);
       if (registry.data === null) throw new Error(`loops registry \u65E0\u6CD5\u6821\u9A8C\uFF1A${registry.errors.join("\uFF1B")}`);
       const loop = registry.data.loops.find((candidate) => candidate.id === policy3.loop_id);
-      return { active: loop?.status === "active", humanGateSatisfied: true };
+      const env = deps.env ?? ((name2) => process.env[name2]);
+      return { active: loop?.status === "active", humanGateSatisfied: env("TENON_AFK") !== "1" };
     }
   });
   try {
@@ -39272,6 +39273,7 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
       breadcrumb,
       resolveTrackPolicy: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root).policyProfile,
       resolveTrack: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root),
+      env: (name2) => process.env[name2],
       skillResolver: loadedManifest ? createEffectiveSkillResolver({
         registry: loadEffectiveTrackRegistry,
         manifest: loadedManifest
