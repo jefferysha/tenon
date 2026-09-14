@@ -177,7 +177,7 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     const bindingPath = join(h.cwd, 'openspec/changes/demo', REVIEW_GATE_BINDING_FILE)
     await writeFile(bindingPath, '{"decisionStateDigest":"attacker-secret"}\n', 'utf8')
     expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(1)
-    expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(1)
+    expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(2)
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     const rebuilt = JSON.parse(await readFile(bindingPath, 'utf8')) as Record<string, unknown>
     expect(rebuilt.version).toBe(1)
@@ -210,7 +210,7 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
     await rm(bindingPath)
     await symlink(outside, bindingPath)
-    expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(1)
+    expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(2)
   })
 
   test('missing interaction projection does not change canonical acknowledgement', async () => {

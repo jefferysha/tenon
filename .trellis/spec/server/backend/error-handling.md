@@ -22,7 +22,7 @@ Questions to answer:
 
 ### 1. Scope / Trigger
 
-The server transition adapter must preserve Kernel fail-closed review semantics while exposing a stable HTTP response.
+The server transition adapter must preserve Kernel fail-closed review semantics while exposing a stable HTTP response. The Dashboard has no model or Skill interaction surface.
 
 ### 2. Signatures
 
@@ -44,7 +44,8 @@ For a missing, malformed, or mismatched exact receipt/binding, return:
 }
 ```
 
-The server reads the binding through Kernel exports and never imports CLI code or sets a transition approval flag. A rejected request must not write state, transition history, or projection data.
+The server reads the binding through Kernel exports (`readReviewGateBinding` + `reviewGateBindingMatches`) and never imports CLI code or sets a transition approval flag. Binding read/parse errors are caught and treated as `false`. A rejected request must not write state, transition history, or projection data.
+The bearer token authenticates the local capability only; because the sidecar and token are readable by the same OS user as the agent, this is not strong human identity proof. Channel attribution (`dashboard` versus `cli` versus automation) is deferred to the decision-sync contract.
 
 ### 4. Validation & Error Matrix
 
@@ -76,7 +77,9 @@ humanReviewApproved: true
 
 // Correct: server injects the Kernel binding verifier
 reviewGateBinding: ({ changeDir, state, phase, event }) =>
-  readAndMatchKernelBinding(changeDir, state, phase, event)
+  readReviewGateBinding(changeDir)
+    .then((binding) => reviewGateBindingMatches(binding, state, phase, event))
+    .catch(() => false)
 ```
 
 ---

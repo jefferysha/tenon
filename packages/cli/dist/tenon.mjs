@@ -32251,12 +32251,15 @@ function createTransitionApplication(deps) {
           }
         }
         const receiptApproved = reviewGateApprovedFor(tx.state, prepared.from, command2.event);
-        const bindingApproved = receiptApproved && await deps.reviewGateBinding({
-          changeDir: command2.changeDir,
-          state: tx.state,
-          phase: prepared.from,
-          event: command2.event
-        });
+        let bindingApproved = false;
+        if (prepared.requiresReviewApproval && receiptApproved) {
+          bindingApproved = await deps.reviewGateBinding({
+            changeDir: command2.changeDir,
+            state: tx.state,
+            phase: prepared.from,
+            event: command2.event
+          });
+        }
         if (prepared.requiresReviewApproval && !bindingApproved) {
           return { kind: "review-approval-required", phase: prepared.from, event: command2.event };
         }
@@ -50978,8 +50981,12 @@ async function cmdTransition(deps, name2, event) {
     // Canonical review authorization is always bound to the sidecar digest. The interaction
     // projection remains optional and must never decide whether a transition is allowed.
     reviewGateBinding: deps.reviewGateBinding ?? (async ({ changeDir: changeDir2, state, phase, event: event2 }) => {
-      const binding = await readReviewGateBinding(changeDir2);
-      return reviewGateBindingMatches(binding, state, phase, event2);
+      try {
+        const binding = await readReviewGateBinding(changeDir2);
+        return reviewGateBindingMatches(binding, state, phase, event2);
+      } catch {
+        return false;
+      }
     }),
     flow: deps.flow,
     clock: deps.clock,

@@ -302,6 +302,55 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       expect(state.fields.review_gate_phase).toBe('')
     })
 
+    test('review binding verifier=false → review-approval-required，且不写 history/interaction、不消费 receipt', async () => {
+      const root = await freshRepoRoot()
+      let interactionCalls = 0
+      const deps = makeDeps({
+        reviewGateBinding: async () => false,
+        interaction: { recordUnderLock: async () => { interactionCalls += 1 } },
+      })
+      const dir = await initChange(deps, root, 'demo')
+      const store = createStateStore()
+      await store.setMany(dir, {
+        phase: 'explore',
+        design_doc: 'openspec/changes/demo/design.md',
+        review_gate_phase: 'explore',
+        review_gate_status: 'approved',
+        review_gate_event: 'explore-complete',
+        review_requested_at: FIXED_CLOCK(),
+        review_acknowledged_at: FIXED_CLOCK(),
+      })
+      const before = await store.read(dir)
+      const result = await createTransitionApplication(deps).execute({
+        root, changeDir: dir, changeName: 'demo', event: 'explore-complete',
+        context: { fileExists: () => true }, loadWorkflow: NEVER_FOUND_WORKFLOW,
+      })
+      expect(result).toEqual({ kind: 'review-approval-required', phase: 'explore', event: 'explore-complete' })
+      const after = await store.read(dir)
+      expect(after.fields).toEqual(before.fields)
+      expect(after.runMetadata?.transitionSequence).toBe(before.runMetadata?.transitionSequence)
+      expect(deps.historyEntries).toEqual([])
+      expect(interactionCalls).toBe(0)
+    })
+
+    test('非 review transition 不调用 review binding verifier', async () => {
+      const root = await freshRepoRoot()
+      let verifierCalls = 0
+      const deps = makeDeps({
+        reviewGateBinding: async () => {
+          verifierCalls += 1
+          throw new Error('corrupt sidecar')
+        },
+      })
+      const dir = await initChange(deps, root, 'demo')
+      const result = await createTransitionApplication(deps).execute({
+        root, changeDir: dir, changeName: 'demo', event: 'open-complete',
+        context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
+      })
+      expect(result.kind).toBe('applied')
+      expect(verifierCalls).toBe(0)
+    })
+
     test('review receipt 绑定 exact event：verify-fail 的确认不能授权 verify-pass', async () => {
       const root = await freshRepoRoot()
       const deps = makeDeps()

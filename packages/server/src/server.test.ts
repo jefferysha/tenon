@@ -1209,6 +1209,66 @@ describe('POST /api/change/<name>/transition —— Verify revision rejection co
 })
 
 describe('POST /api/change/<name>/transition —— G1 default 轨收尾（breadcrumb + 显式 review receipt）', () => {
+  it('review 出口无 receipt → 409 review-approval-required，且 phase/history/transition 全部不变', async () => {
+    const h = await start({ seedPhaseSkill: true })
+    const entered = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'open-complete' }, {
+      headers: { Authorization: `Bearer ${h.token}` },
+    })
+    expect(entered.status).toBe(200)
+    await h.store.set(h.changeDir, 'design_doc', `openspec/changes/${h.name}/design.md`)
+    await readGovernedDocumentsForCurrentVisit(h.root, h.changeDir)
+    await recordWorkflowPhaseSkill(h.root, h.changeDir)
+    const beforeState = await h.store.read(h.changeDir)
+    const readOptional = async (path: string): Promise<string> => {
+      try { return await readFile(path, 'utf8') } catch { return '' }
+    }
+    const beforeHistory = await readOptional(join(h.changeDir, '.pipeline-history.jsonl'))
+    const beforeTransitions = await readOptional(join(h.changeDir, '.pipeline-transitions'))
+    const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'explore-complete' }, {
+      headers: { Authorization: `Bearer ${h.token}` },
+    })
+    expect(r.status).toBe(409)
+    const body = r.json<Record<string, unknown>>()
+    expect(body).toMatchObject({ ok: false, code: 'review-approval-required' })
+    expect(body.auto_enqueue).toBeUndefined()
+    const afterState = await h.store.read(h.changeDir)
+    expect(afterState.fields).toEqual(beforeState.fields)
+    expect(afterState.runMetadata?.transitionSequence).toBe(beforeState.runMetadata?.transitionSequence)
+    expect(await readOptional(join(h.changeDir, '.pipeline-history.jsonl'))).toBe(beforeHistory)
+    expect(await readOptional(join(h.changeDir, '.pipeline-transitions'))).toBe(beforeTransitions)
+  })
+
+  it('approved receipt 但 binding 不匹配 → 409 review-approval-required，且不产生任何转换副作用', async () => {
+    const h = await start({ seedPhaseSkill: true })
+    const entered = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'open-complete' }, {
+      headers: { Authorization: `Bearer ${h.token}` },
+    })
+    expect(entered.status).toBe(200)
+    await h.store.set(h.changeDir, 'design_doc', `openspec/changes/${h.name}/design.md`)
+    await readGovernedDocumentsForCurrentVisit(h.root, h.changeDir)
+    await recordWorkflowPhaseSkill(h.root, h.changeDir)
+    await approveReviewForTransition(h, 'explore', 'explore-complete')
+    await h.store.set(h.changeDir, 'review_requested_at', '2026-07-07T01:00:00Z')
+    const beforeState = await h.store.read(h.changeDir)
+    const readOptional = async (path: string): Promise<string> => {
+      try { return await readFile(path, 'utf8') } catch { return '' }
+    }
+    const beforeHistory = await readOptional(join(h.changeDir, '.pipeline-history.jsonl'))
+    const beforeTransitions = await readOptional(join(h.changeDir, '.pipeline-transitions'))
+    const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'explore-complete' }, {
+      headers: { Authorization: `Bearer ${h.token}` },
+    })
+    expect(r.status).toBe(409)
+    const body = r.json<Record<string, unknown>>()
+    expect(body).toMatchObject({ ok: false, code: 'review-approval-required' })
+    expect(body.auto_enqueue).toBeUndefined()
+    const afterState = await h.store.read(h.changeDir)
+    expect(afterState.fields).toEqual(beforeState.fields)
+    expect(afterState.runMetadata?.transitionSequence).toBe(beforeState.runMetadata?.transitionSequence)
+    expect(await readOptional(join(h.changeDir, '.pipeline-history.jsonl'))).toBe(beforeHistory)
+    expect(await readOptional(join(h.changeDir, '.pipeline-transitions'))).toBe(beforeTransitions)
+  })
+
   it('进入 review 相位（explore）→ 真写 changeDir/.breadcrumb，但不在进入时自锁 review marker', async () => {
     const h = await start({ seedPhaseSkill: true })
     const r = await reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'open-complete' }, {

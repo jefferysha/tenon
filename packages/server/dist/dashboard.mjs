@@ -24222,12 +24222,15 @@ function createTransitionApplication(deps) {
           }
         }
         const receiptApproved = reviewGateApprovedFor(tx.state, prepared.from, command.event);
-        const bindingApproved = receiptApproved && await deps.reviewGateBinding({
-          changeDir: command.changeDir,
-          state: tx.state,
-          phase: prepared.from,
-          event: command.event
-        });
+        let bindingApproved = false;
+        if (prepared.requiresReviewApproval && receiptApproved) {
+          bindingApproved = await deps.reviewGateBinding({
+            changeDir: command.changeDir,
+            state: tx.state,
+            phase: prepared.from,
+            event: command.event
+          });
+        }
         if (prepared.requiresReviewApproval && !bindingApproved) {
           return { kind: "review-approval-required", phase: prepared.from, event: command.event };
         }

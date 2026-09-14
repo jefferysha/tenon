@@ -123,8 +123,15 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     // Canonical review authorization is always bound to the sidecar digest. The interaction
     // projection remains optional and must never decide whether a transition is allowed.
     reviewGateBinding: deps.reviewGateBinding ?? (async ({ changeDir, state, phase, event }) => {
-      const binding = await readReviewGateBinding(changeDir)
-      return reviewGateBindingMatches(binding, state, phase, event)
+      try {
+        const binding = await readReviewGateBinding(changeDir)
+        return reviewGateBindingMatches(binding, state, phase, event)
+      } catch {
+        // A corrupt or unreadable binding must fail closed as a review rejection. The
+        // transition adapter maps the false result to the stable review-approval-required
+        // exit contract instead of surfacing a verifier I/O error as a generic failure.
+        return false
+      }
     }),
     flow: deps.flow,
     clock: deps.clock,

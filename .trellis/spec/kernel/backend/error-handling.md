@@ -22,7 +22,7 @@ Questions to answer:
 
 ### 1. Scope / Trigger
 
-Every transition leaving a review-gated phase must prove both the canonical exact-event receipt and its state binding. A receipt without a verifier is never sufficient.
+Every transition leaving a review-gated phase must validate both the canonical exact-event receipt and its state binding. A receipt without a matching binding is never sufficient. Non-review transitions do not read the review binding sidecar.
 
 ### 2. Signatures
 
@@ -41,23 +41,24 @@ interface TransitionApplicationDeps {
 
 ### 3. Contracts
 
-- `reviewGateBinding` is required at the Kernel application boundary.
-- The verifier checks phase, event, requested-at value, state digest, and run identity.
+- `reviewGateBinding` is required at the Kernel application boundary for review-gated transitions.
+- Production adapters implement it with `readReviewGateBinding` followed by `reviewGateBindingMatches`; the verifier checks phase, event, requested-at value, state digest, and run identity.
 - The application consumes the receipt only after the verifier returns `true`.
 - Rejected approval returns `{ kind: 'review-approval-required', phase, event }` and does not commit state, transition history, or interaction effects.
+- A malformed or unreadable sidecar is treated as verifier `false` by CLI and server adapters (fail closed). The sidecar and receipt are local files owned by the same OS user as the agent, so they do not provide strong identity or prevent same-user forgery; channel attribution is a later contract.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Result |
 |---|---|
 | No approved exact receipt | `review-approval-required`; zero commit |
-| Approved receipt but missing verifier | Type-level caller error; no valid production construction |
+| Approved receipt but missing verifier | `review-approval-required`; no valid production construction |
 | Binding missing, malformed, or mismatched | `review-approval-required`; zero commit |
 | Receipt and binding match | Transition may commit after normal guards pass |
 
 ### 5. Good / Base / Bad Cases
 
-- Good: server and CLI pass the same sidecar-backed binding matcher.
+- Good: server and CLI pass the same `readReviewGateBinding` + `reviewGateBindingMatches` verifier.
 - Base: a test injects a deterministic verifier while testing unrelated transition mechanics.
 - Bad: a caller sets a boolean approval flag or treats an approved receipt as self-authenticating.
 
@@ -73,8 +74,10 @@ interface TransitionApplicationDeps {
 // Wrong: receipt-only or caller-controlled bypass
 if (command.humanReviewApproved || receiptApproved) return apply()
 
-// Correct: exact receipt plus required binding verifier
-const bindingApproved = receiptApproved && await deps.reviewGateBinding(input)
+// Correct: exact receipt plus required binding verifier (review transitions only)
+const bindingApproved = prepared.requiresReviewApproval
+  && receiptApproved
+  && await deps.reviewGateBinding(input)
 if (!bindingApproved) return { kind: 'review-approval-required', phase, event }
 ```
 

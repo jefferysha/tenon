@@ -374,16 +374,19 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
         // / 文档证据先通过，才允许 request/ack receipt 成为下一步的人类复核证据。所有 caller
         // 都必须提供与当前状态绑定的 verifier；receipt 本身不能作为未绑定的放行凭证。
         const receiptApproved = reviewGateApprovedFor(tx.state, prepared.from, command.event)
-        const bindingApproved = receiptApproved && await deps.reviewGateBinding({
-          changeDir: command.changeDir,
-          state: tx.state,
-          phase: prepared.from,
-          event: command.event,
-        })
-        if (
-          prepared.requiresReviewApproval
-          && !bindingApproved
-        ) {
+        // Non-review transitions must not consult the review sidecar at all. A malformed or
+        // unreadable verifier projection is a fail-closed review rejection only when this exact
+        // transition leaves a governed review phase; otherwise it must not block unrelated edges.
+        let bindingApproved = false
+        if (prepared.requiresReviewApproval && receiptApproved) {
+          bindingApproved = await deps.reviewGateBinding({
+            changeDir: command.changeDir,
+            state: tx.state,
+            phase: prepared.from,
+            event: command.event,
+          })
+        }
+        if (prepared.requiresReviewApproval && !bindingApproved) {
           return { kind: 'review-approval-required', phase: prepared.from, event: command.event }
         }
         // Receipt 在任一成功 transition 后立即消费，避免一次旧批准在回退/重入同一 phase 后被复用。
