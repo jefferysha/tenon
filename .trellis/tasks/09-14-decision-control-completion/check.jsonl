@@ -1,3 +1,6 @@
 {"file":".trellis/tasks/archive/2026-09/09-14-decision-sync-fix/check.jsonl","reason":"F1 完成后由主线程复核。"}
 {"file":".trellis/tasks/archive/2026-09/09-14-audit-human-gate-constraint/check.jsonl","reason":"H 完成后由主线程复核。"}
 {"file":".trellis/tasks/archive/2026-09/09-14-decision-sync-contract-revision/check.jsonl","reason":"P 完成后由主线程复核。"}
+{"file": ".trellis/spec/server/backend/decision-sync.md", "reason": "决策同步共享契约检查"}
+{"file": "packages/server/src/serverDecisionRoutes.test.ts", "reason": "Dashboard GET/POST 回归与错误映射测试"}
+{"file": "packages/cli/src/self-approval-hook.integration.test.ts", "reason": "自审批 hook 跨层测试"}
