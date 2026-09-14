@@ -137,6 +137,8 @@ export async function handlePostExecutionRoutes(
       return sendJson(res, result.ok ? 200 : 400, result)
     }
 
+    // ── afk-workbench Task 5：POST /api/afk/:name/retry —— 重试 failed/conflict/paused 任务
+    //    （CAS automation→queued + automation_attempts 清零，见 afk.ts::retryAfkRun）──
     const retryMatch = /^\/api\/afk\/([^/]+)\/retry$/.exec(path)
     if (retryMatch) {
       const segment = retryMatch[1]
@@ -160,6 +162,8 @@ export async function handlePostExecutionRoutes(
       return sendJson(res, result.ok ? 200 : 400, result)
     }
 
+    // ── v5-T11（决议 #4）：POST /api/afk/:name/dismiss —— 放弃 failed/conflict 任务
+    //    （CAS automation→off，现场保留不清 automation_* 尸检字段，见 afk.ts::dismissAfkRun）──
     const dismissMatch = /^\/api\/afk\/([^/]+)\/dismiss$/.exec(path)
     if (dismissMatch) {
       const segment = dismissMatch[1]
@@ -234,6 +238,12 @@ export async function handlePostExecutionRoutes(
       return sendJson(res, result.ok ? 200 : 400, result)
     }
 
+    // ── v6 T1：POST /api/secrets —— 写入单个凭证键（值只进文件，不落 HTTP 响应/日志）──
+    //    body：{ key: 'CLAUDE_CODE_OAUTH_TOKEN' | 'OPENAI_API_KEY', value: string }，每次只写
+    //    一个键（不是整份表覆盖式写，见 proposal C.3）。不需要 root——机器级资源，与其余写端点
+    //    「①格式→②root 信任锚→③业务校验→④真读写」四步顺序不同：本端点压根没有 root 概念，
+    //    第②步不存在（同 POST /api/projects 是另一个没有信任锚概念的写端点，但原因不同：
+    //    projects 是信任锚本身；secrets 是机器级资源，与项目注册无关）。
     if (path === '/api/secrets') {
       const rawBody = await readJsonBody(req)
       const validated = validateSecretWriteBody(rawBody)
@@ -246,6 +256,7 @@ export async function handlePostExecutionRoutes(
       }
     }
 
+    // ── v3 Studio：POST /api/tracks 创建额外 Track。revision 在 registry 锁内比较。──
     if (path === '/api/tracks') {
       const rawBody = await readJsonBody(req)
       if (typeof rawBody !== 'object' || rawBody === null || Array.isArray(rawBody)) {
@@ -287,6 +298,11 @@ export async function handlePostExecutionRoutes(
     if (typeof root !== 'string' || typeof event !== 'string') {
       return sendJson(res, 400, { ok: false, error: 'root / event 须为字符串' })
     }
+    // 信任锚：root 必须是已注册 Project（挡路径穿越到任意目录）——对位老仓 resolve_change_worktree。
+    // 统一用 dedupeRoots 规范化（同下面四个写端点），而不是本地重新拼一遍 Set——inline 版本
+    // 对注册表里的空字符串条目会解析成 resolvePath('')=cwd 当一个"可信"条目，dedupeRoots 已
+    // 显式过滤掉空条目（whole-branch review 抓出的真实不一致，两者对合法注册表行为等价，
+    // 仅在这个边界输入上有差异）。
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: 'root 非已知 Project（未注册或不可信）' })
     }
@@ -300,6 +316,7 @@ export async function handlePostExecutionRoutes(
       },
       skillProfiles: trackSkillProfiles,
     })
+    // history 注入（G20 / v5-T1）：转换成功 → .pipeline-history.jsonl 记账，guard 拒绝零记账。
     const outcome = await performTransition(
       {
         store,
@@ -311,6 +328,8 @@ export async function handlePostExecutionRoutes(
         workspaceFingerprint,
         history,
         breadcrumb,
+        // 这里用的正是 Dashboard 当前 root 的 effective Track Registry，而不是靠 track id
+        // 写死 PM。自定义 track 也可通过 auto_enqueue_on_spec_complete 显式接入同一条后置编排。
         resolveTrackPolicy: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root).policyProfile,
         resolveTrack: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root),
         env: (name) => process.env[name],

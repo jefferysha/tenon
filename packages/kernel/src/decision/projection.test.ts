@@ -20,7 +20,7 @@ function interaction(overrides: Partial<InteractionEventV1> & Pick<InteractionEv
     schema: 'tenon-interaction-event/v1', eventId: `event-${overrides.sequence}`, sequence: overrides.sequence,
     previousEventHash: null, journeyId: 'journey-1', occurredAt: requestedAt, change: 'demo', runId: 'run-1',
     workflow: 'default', workflowHash: 'workflow-hash', originStepVisit, stepVisit,
-    stateBeforeHash: beforeHash, stateAfterHash: beforeHash, actor: 'human', surface: 'cli',
+    stateBeforeHash: beforeHash, stateAfterHash: beforeHash, actor: 'system', surface: 'cli',
     executionMode: 'interactive', workflowMode: 'default', track: 'backend', trackKind: 'built-in',
     pipelineStage: 'verify', controlStage: 'verification', reasonCode: 'review.required', triggerCode: 'review.exit-requested',
     effectCode: 'review-gate.pending', result: 'success', outcomeCode: 'review.requested', durationMs: 0,
@@ -52,6 +52,29 @@ describe('pending decision projection', () => {
     const second = projectPendingDecisions({ ...input, revision: 4 })
     expect(first.items[0]).toMatchObject({ type: 'review', status: 'pending', command: 'review-acknowledge', revision: 3 })
     expect(first.items[0]?.ref.id).toBe(second.items[0]?.ref.id)
+  })
+
+  it('keeps one ref id from pending through answered to consumed (contract F anchor)', () => {
+    const binding = { version: 1 as const, phase: 'verify', event: 'verify-pass', requestedAt, decisionStateDigest: 'e'.repeat(64), runId: 'run-1' }
+    const receipt = { phase: 'verify', review_gate_phase: 'verify', review_gate_event: 'verify-pass', review_requested_at: requestedAt }
+    const pending = projectPendingDecisions({ change: 'demo', state: state({ ...receipt, review_gate_status: 'pending' }), reviewBinding: binding, revision: 3 })
+    const answered = projectPendingDecisions({ change: 'demo', state: state({ ...receipt, review_gate_status: 'approved', review_acknowledged_via: 'dashboard' }), reviewBinding: binding, revision: 4 })
+    const consumed = projectPendingDecisions({ change: 'demo', state: state({ phase: 'build' }), ...reviewChain(), reviewBinding: binding, revision: 5 })
+    expect([pending.items[0]?.status, answered.items[0]?.status, consumed.items[0]?.status]).toEqual(['pending', 'answered', 'consumed'])
+    expect(answered.items[0]?.ref.id).toBe(pending.items[0]?.ref.id)
+    expect(consumed.items[0]?.ref.id).toBe(pending.items[0]?.ref.id)
+    expect(pending.items[0]?.ref.anchor).toBe(`${requestedAt}|${'e'.repeat(64)}|run-1`)
+    expect(answered.items[0]).toMatchObject({ source: 'dashboard', channel: 'dashboard' })
+    expect(consumed.items[0]).toMatchObject({ source: 'terminal', channel: 'terminal' })
+  })
+
+  it('derives the anchor from the current decision digest when no sidecar names the request', () => {
+    const receipt = { phase: 'verify', review_gate_phase: 'verify', review_gate_event: 'verify-pass', review_requested_at: requestedAt }
+    const pending = projectPendingDecisions({ change: 'demo', state: state({ ...receipt, review_gate_status: 'pending' }), reviewDecisionStateDigest: 'f'.repeat(64) })
+    const approved = projectPendingDecisions({ change: 'demo', state: state({ ...receipt, review_gate_status: 'approved' }), reviewDecisionStateDigest: 'f'.repeat(64) })
+    const refreshed = projectPendingDecisions({ change: 'demo', state: state({ ...receipt, review_requested_at: '2026-09-13T00:05:00Z', review_gate_status: 'pending' }), reviewDecisionStateDigest: 'f'.repeat(64) })
+    expect(approved.items[0]?.ref.id).toBe(pending.items[0]?.ref.id)
+    expect(refreshed.items[0]?.ref.id).not.toBe(pending.items[0]?.ref.id)
   })
 
   it('does not infer consumed from a cleared receipt', () => {

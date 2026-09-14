@@ -98,6 +98,10 @@ tenon review-budget set <change> --max-attempts <1..20> --json
 
 delegated 需要 Change 绑定的持续授权，且不能跳过 check。
 
+`review acknowledge` 退出码：`0` 已确认、重复确认或确认成功但 review marker 清理告警；`2` 没有匹配的待确认
+review（缺失、已被消费、binding 失效或 event 已不是 workflow 出口）；`3` revision 冲突（仅 Dashboard CAS
+路径）；`4` 幂等键冲突；`1` 非法命令（例如 `--event` 与待确认 receipt 不一致）或意外错误。失败时不写入任何内容。
+
 自动 Review 与人工确认是两套不同边界。一次冻结候选只消耗一次 attempt，代码、规格、安全、
 E2E、浏览器和视觉验收都是该 attempt 的 lane；lane 分片、重跑和恢复不会重复计数。
 `review-budget set` 绑定当前 Run、Workflow 指纹和 step，active attempt 存在时不能改上限，

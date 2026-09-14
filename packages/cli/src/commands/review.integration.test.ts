@@ -1,8 +1,12 @@
-import { mkdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
+  createStateStore,
+  deriveReviewAcknowledgeIdempotencyKey,
   isVerifiedInteractionJourney,
+  readCurrentRunRevision,
+  REVIEW_DECISION_IDEMPOTENCY_FILE,
   readInteractionProjection,
   replayInteractionEvents,
   REVIEW_GATE_BINDING_FILE,
@@ -123,17 +127,17 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
   test('canonical decision drift rejects acknowledgement until a fresh request rebinds it', async () => {
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     expect(await h.run(['set', 'demo', 'scope', 'changed-before-ack.ts'])).toBe(0)
-    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(1)
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(2)
     expect(await h.read('demo')).toMatch(/^review_gate_status: pending$/m)
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
     expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(0)
   })
 
-  test('state-drift re-request is fresh, then replay keeps stale rejection separate from completion', async () => {
+  test('state-drift rejection writes no interaction; the fresh request completes one verified journey', async () => {
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     expect(await h.run(['set', 'demo', 'scope', 'changed-before-ack.ts'])).toBe(0)
-    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(1)
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(2)
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
     expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(0)
@@ -144,19 +148,13 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     if (projection.kind !== 'valid') return
     expect(projection.events.map((event) => `${event.event}/${event.result}`)).toEqual([
       'review.requested/success',
-      'review.acknowledged/rejected',
       'review.requested/success',
       'review.acknowledged/success',
       'review.effect-applied/success',
       'resume.validated/success',
     ])
-    expect(projection.events[1]?.reasonCode).toBe('decision.state-stale')
-    expect(projection.events[1]?.effectCode).toBe('review-gate.rejected')
-    expect(projection.events[0]?.journeyId).not.toBe(projection.events[2]?.journeyId)
+    expect(projection.events[0]?.journeyId).not.toBe(projection.events[1]?.journeyId)
     const replay = replayInteractionEvents(projection.events)
-    const stale = replay.journeys.find((journey) => journey.staleRejected)
-    expect(stale).toBeDefined()
-    expect(stale?.validResume).toBe(false)
     const completed = replay.journeys.filter((journey) => isVerifiedInteractionJourney(journey, replay))
     expect(completed).toHaveLength(1)
   })
@@ -176,7 +174,7 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
     const bindingPath = join(h.cwd, 'openspec/changes/demo', REVIEW_GATE_BINDING_FILE)
     await writeFile(bindingPath, '{"decisionStateDigest":"attacker-secret"}\n', 'utf8')
-    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(1)
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(2)
     expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(2)
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     const rebuilt = JSON.parse(await readFile(bindingPath, 'utf8')) as Record<string, unknown>
@@ -191,7 +189,7 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     const bindingPath = join(h.cwd, 'openspec/changes/demo', REVIEW_GATE_BINDING_FILE)
     const canonical = await readFile(bindingPath, 'utf8')
     await writeFile(bindingPath, `${canonical}${' '.repeat(16 * 1024)}`, 'utf8')
-    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(1)
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(2)
     expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(2)
     expect(await h.read('demo')).toMatch(/^review_gate_status: pending$/m)
   })
@@ -204,7 +202,7 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     await writeFile(outside, canonical, 'utf8')
     await rm(bindingPath)
     await symlink(outside, bindingPath)
-    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(1)
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(2)
 
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
@@ -223,7 +221,7 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
   test('legacy approved receipt without a canonical decision binding fails closed', async () => {
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     await rm(join(h.cwd, 'openspec/changes/demo', REVIEW_GATE_BINDING_FILE), { force: true })
-    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(1)
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(2)
     expect(await h.read('demo')).toMatch(/^review_gate_status: pending$/m)
   })
 
@@ -302,12 +300,80 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
       expect(await h.run(['review', 'acknowledge', 'demo', '--delegated'])).toBe(0)
       await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' })
       const history = await readFile(join(h.cwd, 'openspec/changes/demo/.pipeline-history.jsonl'), 'utf8')
-      expect(history).toContain('review:delegated-ack phase=explore event=explore-complete')
+      expect(history).toContain('review:acknowledge via=delegated phase=explore event=explore-complete authority_issued_at=2026-07-24T00:00:00Z')
       expect(history).toContain(`authority_host_session=${sessionId}`)
     } finally {
       if (previousSession === undefined) delete process.env.TENON_HOST_SESSION_ID
       else process.env.TENON_HOST_SESSION_ID = previousSession
     }
+  })
+
+  test('acknowledge exit codes: 0 success, 2 review-approval-required, 4 idempotency-conflict, 1 invalid-command; failures write nothing', async () => {
+    const dir = join(h.cwd, 'openspec/changes/demo')
+    const snapshot = async () => ({
+      revision: (await readCurrentRunRevision(dir))?.revision,
+      state: await h.read('demo'),
+      history: await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8').catch(() => '<missing>'),
+      interactions: await readFile(join(dir, '.pipeline-interactions.jsonl'), 'utf8').catch(() => '<missing>'),
+      idempotency: await readFile(join(dir, REVIEW_DECISION_IDEMPOTENCY_FILE), 'utf8').catch(() => '<missing>'),
+      entries: (await readdir(dir)).sort(),
+      revisions: (await readdir(join(dir, '.pipeline-run', 'revisions'))).sort(),
+    })
+    const expectZeroWrite = async (args: string[], code: number) => {
+      const before = await snapshot()
+      expect(await h.run(args)).toBe(code)
+      expect(await snapshot()).toEqual(before)
+    }
+
+    expect(await h.run(['check', 'demo'])).toBe(0)
+    await expectZeroWrite(['review', 'acknowledge', 'demo'], 2)
+
+    expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
+    await expectZeroWrite(['review', 'acknowledge', 'demo', '--event', 'explore-other'], 1)
+
+    const state = await createStateStore().read(dir)
+    const key = deriveReviewAcknowledgeIdempotencyKey({
+      change: 'demo', phase: 'explore', event: 'explore-complete',
+      requestedAt: String(state.fields.review_requested_at), state, channel: 'terminal',
+    })
+    await writeFile(join(dir, REVIEW_DECISION_IDEMPOTENCY_FILE), `${JSON.stringify({
+      key, ref: 'decision:other', expectedRevision: null, channel: 'terminal', payloadDigest: 'other', acknowledgedAt: '2026-07-07T00:00:00Z', code: 'approved',
+    })}\n`, 'utf8')
+    await expectZeroWrite(['review', 'acknowledge', 'demo'], 4)
+    await rm(join(dir, REVIEW_DECISION_IDEMPOTENCY_FILE))
+
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
+    expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(0)
+    // The harness records the new visit's phase Skill on its first command; settle it before measuring.
+    await h.run(['check', 'demo'])
+    await expectZeroWrite(['review', 'acknowledge', 'demo'], 2)
+  })
+
+  test('repeated acknowledge replays without new writes and clears a re-created marker', async () => {
+    const marker = join(h.cwd, '.pipeline-pending-review')
+    const dir = join(h.cwd, 'openspec/changes/demo')
+    expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
+    const content = await readFile(marker, 'utf8')
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
+    const history = await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8')
+    expect(history).toContain('review:acknowledge via=terminal phase=explore event=explore-complete')
+    const revision = (await readCurrentRunRevision(dir))?.revision
+    await writeFile(marker, content, 'utf8')
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
+    await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await readCurrentRunRevision(dir))?.revision).toBe(revision)
+    expect(await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8')).toBe(history)
+    expect((await readFile(join(dir, REVIEW_DECISION_IDEMPOTENCY_FILE), 'utf8')).split('\n').filter(Boolean)).toHaveLength(1)
+  })
+
+  test('marker cleanup failure keeps the approval, warns and exits 0 (marker-warning)', async () => {
+    const marker = join(h.cwd, '.pipeline-pending-review')
+    expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
+    await rm(marker)
+    await mkdir(marker)
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
+    expect(h.err.join('\n')).toContain('review marker 清理失败')
+    expect(await h.read('demo')).toMatch(/^review_gate_status: approved$/m)
   })
 
   test('custom review request passes the exact event: success is revision-blocked while rollback remains requestable', async () => {

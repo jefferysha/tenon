@@ -83,7 +83,7 @@ export { publishTaskPlanRevision } from '../task-plan/publication.js'
 export type { PublishTaskPlanOptions } from '../task-plan/publication.js'
 export { createHistoryWriter, HISTORY_FILE, transitionRecordToHistoryEntry } from './history.js'
 export {
-  createBreadcrumbWriter, formatReviewMarker, parseReviewMarker, reviewHint,
+  clearReviewMarkerFor, createBreadcrumbWriter, formatReviewMarker, parseReviewMarker, reviewHint,
   BREADCRUMB_FILE, REVIEW_MARKER_FILE, REVIEW_MARKER_PROTOCOL,
 } from './markers.js'
 export type { BreadcrumbWriter, ReviewMarkerReceipt } from './markers.js'
@@ -102,6 +102,7 @@ export {
   writeReviewGateBindingUnderLock,
 } from './review-gate-binding.js'
 export type { ReviewGateBinding } from './review-gate-binding.js'
+export { nodeReviewDecisionLedgerFs } from './review-decision-ledger-fs.js'
 export { applyBreadcrumbTail } from './transitionTail.js'
 export type { BreadcrumbTailArgs, TailWriteOutcome } from './transitionTail.js'
 // WorkflowRun 持久化提交接缝（W1 第二增量，2026-07-16 codex 范围评估）

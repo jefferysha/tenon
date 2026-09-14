@@ -132,6 +132,13 @@ step-scoped; it cannot rewrite an active attempt or lower the ceiling below the
 number already used. Human `review request/acknowledge` remains a separate
 exact-event confirmation boundary.
 
+`review acknowledge` exit codes: `0` approved, replayed, or approved with a
+review-marker cleanup warning; `2` no matching pending review (missing, already
+consumed, stale binding, or the event is no longer a workflow exit); `3`
+revision conflict (Dashboard CAS path only); `4` idempotency conflict; `1`
+invalid command (for example an `--event` that differs from the pending
+receipt) or unexpected error. A failed acknowledgement writes nothing.
+
 Document structures and project-level spec scaffolds default to Chinese. English
 is explicit:
 

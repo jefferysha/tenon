@@ -27,45 +27,81 @@ The server calls the shared review-acknowledge application in-process with
 
 ## C. Durable idempotency
 
-There is one store: the Change-owned `.pipeline-decision-idempotency.jsonl`.
-The server and shared application are its only writers/readers. The former
-`packages/server/src/decisionIdempotency.ts` and any process-local or second
-ledger store are forbidden.
+There is one store: the Change-owned `.pipeline-decision-idempotency.jsonl`,
+with one implementation in the kernel shared application
+(`createReviewDecisionLedger` + `reviewDecisionPayloadDigest`). CLI and server
+inject only the filesystem port (`nodeReviewDecisionLedgerFs`). The former
+`packages/server/src/decisionIdempotency.ts`, the server-local ledger reader,
+the CLI `review-idempotency.ts`, and any process-local or second ledger store
+are forbidden. The ledger stores successful outcomes only; records written
+earlier with `outcome: "rejected"` stay decodable and are ignored by lookups.
 
 ## D. Locked ordering and replay
 
-Within the Change lock, processing is always: (1) read idempotency; (2) return
-the stored result for the same full payload or `idempotency-conflict` for a
-different payload; (3) for a new key, read the exact pending receipt and verify
-binding; (4) compare expected revision; (5) commit canonical fields, records,
-interaction and idempotency atomically. A replay after consumption or rejection
-returns the original stored code and does not re-run side effects.
+`executeReviewAcknowledge` runs entirely inside the Change lock:
+
+1. read the ledger for the command key (Dashboard sends it; the terminal
+   derives it from the locked state and a matching binding);
+2. for a stored key, return the stored success code with `idempotent: true`
+   when the payload digest matches, or `idempotency-conflict` when it differs;
+3. for a new key, read the exact receipt and verify `phase == review_gate_phase`,
+   that the event is still an outgoing edge of the review-gated step in the
+   effective workflow (the server resolves the Change's bound workflow and
+   passes it in), the binding, and for Dashboard that the ref is live in the
+   shared projection;
+4. compare the expected revision (Dashboard CAS);
+5. write canonical state, then the ledger record.
+
+Only successes are persisted. A failure is never stored: retrying the same
+command re-evaluates the current state deterministically. Interaction, history
+and marker cleanup follow the canonical write as best-effort effects; a failure
+(including a ledger append failure) is returned in `deferred` and the command
+still succeeds, so an approval is never reported as an error. Replay and
+already-approved paths also clear the marker. Marker cleanup has one
+implementation, `clearReviewMarkerFor`, used by both channels; its failure
+yields `marker-warning`. CLI and server write the same history line,
+`review:acknowledge via=<channel> phase=<phase> event=<event>` (delegated
+acknowledgements append the authority reference).
 
 ## E. Rejection and errors
 
-`review-approval-required`, `revision-conflict`, and `idempotency-conflict` are
-intentional client outcomes. Missing, late, not-pending, or binding-mismatched
-requests do not create a new rejected receipt; characterization tests preserve
-zero canonical writes and stable 409 responses. An unexpected exception is
-HTTP 500 with no `code` field and zero writes. `marker-warning` is a successful
-acknowledgement with a non-fatal deferred cleanup warning, never a failure.
+`review-approval-required`, `revision-conflict`, `idempotency-conflict` and
+`invalid-command` are intentional client outcomes with zero writes: missing,
+late, not-pending, binding-mismatched, stale-revision and invalid commands write
+no canonical field, revision, TransitionRecord, history line, interaction event
+or ledger record, in both the server and the CLI. An unknown or missing ref
+returns `review-approval-required`; the server emits no other 409 code
+(`decision-not-pending` and `decision-ref-mismatch` no longer exist). An
+unexpected exception before commit is HTTP 500 with a fixed generic message, no
+`code` field and no filesystem path, and zero writes. `marker-warning` is a
+successful acknowledgement with a non-fatal deferred cleanup warning, never a
+failure.
 
 ## F. Anchors and projection identity
 
-The request anchor is exactly `requestedAt + decisionStateDigest + runId`.
-`ref.id` is derived from `change + kind + phase/event or invocation/question +
-that anchor`; it does not independently embed a revision. `expected_revision`
-remains a separate CAS check. GET and POST build the same projection input and
-therefore the same ref.
+The request anchor is exactly `requestedAt|decisionStateDigest|runId`. The
+digest comes from the review binding sidecar when it names the same phase,
+event and requestedAt; otherwise it is the digest of the current canonical
+decision state, which excludes receipt fields, so pending and approved share
+the anchor. The sidecar survives the transition, so a consumed receipt keeps
+its anchor. `ref.id` is derived from `change + kind + phase/event + anchor`
+(`reviewDecisionRef`) or `change + kind + invocation/question`; it never
+embeds a revision and is unchanged across pending, answered and consumed.
+`expected_revision` remains a separate CAS check. GET and POST read projection
+input through `readPendingDecisionProjection`, and the application derives the
+ref with the same kernel functions.
 
-## G. AFK and mode-switch provenance
+## G. AFK and mode-switch provenance (deferred, not implemented)
 
-AFK attribution is stored as an independent durable `afk-decision-recorded`
-event written by `afk-producer.ts`; its `invocationId` joins to
-`invocation-started.adapter.kind=afk`. `mode-switched` is an append-only event
-written by the mode command with `from`, `to`, principal, channel, effective-at,
-policy revision, and pending anchors. These are separate from review channel
-and Skill decision mode.
+The durable `afk-decision-recorded` event (written by `afk-producer.ts`, joined
+by `invocationId` to `invocation-started.adapter.kind=afk`) and the append-only
+`mode-switched` event (`from`, `to`, principal, channel, effective-at, policy
+revision, pending anchors) are deferred. No producer exists and the kernel
+carries no builder for either; the unused `modeSwitchEvent` and
+`pendingAccessAlert` helpers were removed. Until they exist, AFK attribution is
+derived only from `invocation-started.adapter.kind=afk`, and projections must
+not present either event as recorded. Review channel and Skill decision mode
+remain separate.
 
 ## H. Result union
 
@@ -77,16 +113,29 @@ type DecisionCommandResult =
   | { ok: false; code: 'review-approval-required' | 'revision-conflict' | 'idempotency-conflict' | 'invalid-command'; message: string; ref?: DecisionRef }
 ```
 
-The server owns HTTP mapping: all listed failures are 409 except unexpected
-exceptions, which are 500. `marker-warning` remains HTTP 200.
+`executeReviewAcknowledge` adds `deferred`, `phase` and `event` for adapters.
+Adapters own only the transport mapping:
+
+| Result | HTTP | CLI exit |
+|---|---|---|
+| `approved`, `idempotent-replay`, `marker-warning` | 200 | 0 |
+| `review-approval-required` | 409 | 2 |
+| `revision-conflict` | 409 | 3 (Dashboard CAS; the terminal sends no revision) |
+| `idempotency-conflict` | 409 | 4 |
+| `invalid-command` | 409 | 1 |
+| unexpected exception | 500, no `code` | 1 |
 
 ## I. Source and status vocabulary
 
-`source` uses `terminal | dashboard | automation | delegated | unknown`;
-`source=host` is not a valid value. `DecisionStatus.expired` is retained for
-backward codec compatibility but this system never produces it; TTL remains
-deferred until canonical expiry evidence exists. `actor` is an opaque
-principal, never the strings `human` or `user`.
+`source` and `channel` use `terminal | dashboard | automation | delegated |
+unknown`; `source=host`, `user` and `afk` are not valid values. Decision
+strategy (AFK, recommended defaults) stays in invocation evidence.
+`DecisionStatus.expired` is retained for backward codec compatibility but this
+system never produces it; TTL remains deferred until canonical expiry evidence
+exists. `actor` is an opaque principal, never the strings `human` or `user`:
+review request, acknowledgement and resume interaction events use `system`.
+`human` remains in the interaction codec enum only so older events stay
+decodable.
 
 ## J. Host resume
 
@@ -102,8 +151,16 @@ boundary. No adapter may claim wake-up success without that capability.
 It must be synchronized across codecs, `.pipeline.yaml`, fixtures and writers.
 It identifies the route, not a human. Receipt consumption is derived by joining
 the exact receipt to a successful TransitionRecord and review interaction;
-clearing receipt fields alone never proves `consumed`. `superseded` and late
-answers are derived from appended stale/rejected events. `expired` is deferred.
+clearing receipt fields alone never proves `consumed`. New code never appends
+rejected acknowledgement events. `superseded` is derived only from rejected
+acknowledgement events that already exist in historical interaction logs, or
+from an unconsumed request replaced by a newer request. `expired` is deferred.
+
+`tenon state import-legacy` never changes transition-controlled fields
+(`phase`, `phase_status`, `branch_status`, `build_sha`,
+`pre_verify_review_result`, review receipt fields). Protected fields whose YAML
+value differed are reported: the CLI prints a warning listing them and the
+server operations response returns `ignored_protected_fields`.
 
 ## Modes and security observation
 

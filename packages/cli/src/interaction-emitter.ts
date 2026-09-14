@@ -7,12 +7,10 @@ import {
   type InteractionStepVisit,
   type PipelineState,
   type RunRevision,
-  reviewAcknowledgedInteractionDraft,
 } from '@tenon/kernel'
 
 export interface InteractionCapture {
   readonly recordReviewRequested: (input: ReviewCaptureInput) => Promise<InteractionEventV1>
-  readonly recordReviewAcknowledged: (input: ReviewCaptureInput & { readonly rejected?: boolean }) => Promise<InteractionEventV1>
   readonly recordResume: (input: ResumeCaptureInput) => Promise<InteractionEventV1>
 }
 
@@ -29,7 +27,6 @@ interface ReviewCaptureInput extends CommonCaptureInput {
   readonly event: string
   readonly requestedAt?: string
   readonly beforeRevision?: RunRevision
-  readonly rejected?: boolean
   readonly suppressed?: boolean
 }
 
@@ -97,7 +94,8 @@ function common(input: CommonCaptureInput, revision: RunRevision): Pick<Interact
     stepVisit: currentVisit,
     stateBeforeHash: revision.stateDigest,
     stateAfterHash: revision.stateDigest,
-    actor: 'human',
+    // The terminal route is capability evidence, not operator identity; the actor is never human.
+    actor: 'system',
     surface: 'cli',
     executionMode: 'interactive',
     workflowMode: workflowMode(workflow),
@@ -146,20 +144,6 @@ export function createInteractionCapture(recorder: InteractionEventRecorder, clo
         occurredAt: input.clock ?? requestedAt,
       })
     },
-    recordReviewAcknowledged: async (input) => {
-      const origin = input.beforeRevision ?? input.revision
-      const requestedAt = input.requestedAt ?? (scalar(input.state, 'review_requested_at') || input.clock || clock())
-      const base = common(input, input.revision)
-      return write(input.changeDir, reviewAcknowledgedInteractionDraft({
-        change: input.changeName, state: input.state, revision: input.revision, beforeRevision: origin,
-        phase: scalar(input.state, 'phase'), event: input.event, requestedAt, acknowledgedAt: input.clock ?? clock(),
-        // The terminal route identifies the trusted host surface, not a human operator.
-        // A bearer token/session is capability evidence only; keep actor non-human.
-        rejected: input.rejected, surface: 'cli', actor: 'system', workflow: base.workflow, workflowHash: base.workflowHash,
-        track: base.track, trackKind: base.trackKind, workflowMode: base.workflowMode, pipelineStage: base.pipelineStage,
-        originStepVisit: base.originStepVisit, stepVisit: base.stepVisit,
-      }))
-    },
     recordResume: async (input) => {
       const effect = input.effectRevision
       const requestedAt = scalar(effect.state, 'review_requested_at') || input.clock || clock()
@@ -172,7 +156,7 @@ export function createInteractionCapture(recorder: InteractionEventRecorder, clo
         stepVisit: visit(input.revision, input.state),
         stateBeforeHash: input.revision.stateDigest,
         stateAfterHash: input.revision.stateDigest,
-        actor: 'human',
+        actor: 'system',
         controlStage: 'exact-resume',
         event: 'resume.validated',
         reasonCode: input.result === 'success' ? 'resume.valid' : 'resume.state-mismatch',

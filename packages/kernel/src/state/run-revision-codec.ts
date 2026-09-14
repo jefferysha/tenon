@@ -20,6 +20,7 @@ import {
   UnsupportedRunStateVersionError,
 } from './run-revision-validation.js'
 import { withoutWorkflowGovernanceBinding } from './workflow-governance-binding.js'
+import { legacyReviewGateOmissions } from './review-gate-legacy-shape.js'
 
 const SAFE_ID_RE = /^[A-Za-z0-9_-]+$/
 const FIELD_SET = new Set<string>(FIELD_ORDER)
@@ -239,8 +240,12 @@ function canonicalRunMetadata(value: unknown): RunMetadata | undefined {
  * - pre-receipt revisions omitted the complete review-gate suffix;
  * - the next release wrote the four phase/status/timestamp fields but not the later exact-event
  *   binding field.
+ *
  * The first shape is semantically an empty receipt. The second is safe only when all of its old
  * receipt fields are empty: a non-empty receipt without its exact outgoing event must remain
+ * unreadable rather than being allowed to approve an arbitrary transition. New writes always
+ * publish the complete current shape. The accepted omission set lives in
+ * `legacyReviewGateOmissions`.
  */
 function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: boolean } = {}): PipelineState {
   const raw = ownRecord(value)
@@ -252,19 +257,8 @@ function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: bool
   const missing = rawFields
     ? FIELD_ORDER.filter((field) => !Object.prototype.hasOwnProperty.call(rawFields, field))
     : []
-  const missingReviewGateFields = REVIEW_GATE_FIELDS.filter((field) => missing.includes(field))
-  const isCompleteReviewGateOmission = missingReviewGateFields.length === REVIEW_GATE_FIELDS.length
-  const isEmptyFourFieldReceiptWithoutEvent = missingReviewGateFields.length === 1 && missingReviewGateFields[0] === 'review_gate_event'
-    && REVIEW_GATE_FIELDS.filter((field) => field !== 'review_gate_event').every((field) => rawFields?.[field] === '' || (field === 'review_acknowledged_via' && rawFields?.[field] === 'unknown'))
-  const missingReviewGateSet = new Set<string>(missingReviewGateFields)
-  const isHistoricalEmptyReceiptWithoutEventOrChannel = missingReviewGateFields.length > 0
-    && missingReviewGateFields.every((field) => field === 'review_gate_event' || field === 'review_acknowledged_via')
-    && REVIEW_GATE_FIELDS.filter((field) => !missingReviewGateSet.has(field)).every((field) => rawFields?.[field] === '')
-  const isHistoricalReceiptWithoutChannel = missingReviewGateFields.length === 1 && missingReviewGateFields[0] === 'review_acknowledged_via'
-    && REVIEW_GATE_FIELDS.filter((field) => field !== 'review_acknowledged_via').every((field) => Object.prototype.hasOwnProperty.call(rawFields ?? {}, field))
   const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true
-    && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent || isHistoricalEmptyReceiptWithoutEventOrChannel || isHistoricalReceiptWithoutChannel)
-    ? new Set<FieldName>(missingReviewGateFields)
+    ? legacyReviewGateOmissions(rawFields, missing)
     : new Set<FieldName>()
   const legacyPreVerifyDefault = opts.allowLegacyFieldOmissions === true
     && missing.includes(PRE_VERIFY_REVIEW_FIELD)

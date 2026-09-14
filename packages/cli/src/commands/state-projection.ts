@@ -43,7 +43,14 @@ export async function cmdStateProjection(
       }
       case 'import-legacy': {
         const result = await deps.store.importLegacyProjection(changeDir)
-        const body = { status: 'imported', projection: result.projection.status }
+        if (result.ignoredProtectedFields.length > 0) {
+          deps.io.err(`WARN: import-legacy 已忽略受保护字段（保留 canonical 值）：${result.ignoredProtectedFields.join(', ')}`)
+        }
+        const body = {
+          status: 'imported',
+          projection: result.projection.status,
+          ignored_protected_fields: result.ignoredProtectedFields,
+        }
         deps.io.out(opts.json ? JSON.stringify(body) : `${name}: imported (${result.projection.status})`)
         return result.projection.status === 'updated' ? 0 : 2
       }
