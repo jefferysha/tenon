@@ -8026,15 +8026,13 @@ function startHeartbeat(lockDir) {
 }
 async function acquire(lockDir) {
   const processStart = await processStartIdentity(process.pid);
-  if (processStart === null)
-    throw new Error("withLock: current process start identity is unavailable");
   const owner = randomUUID4();
   const claim2 = `${lockDir}.claim-${owner}`;
   const record9 = {
     version: 1,
     owner,
     pid: process.pid,
-    pidStart: processStart,
+    ...processStart === null ? {} : { pidStart: processStart },
     createdAt: Date.now()
   };
   await mkdir5(claim2, { mode: 448 });
@@ -68740,7 +68738,10 @@ async function cmdInternalHostInteraction(deps, changeName, payloadPath) {
 }
 
 // packages/cli/src/nativeSkillReceipt.ts
-var SAFE_SKILL_ID = /^[A-Za-z0-9_-]{1,160}$/u;
+var SAFE_SKILL_ID = /^(?:[A-Za-z0-9_-]{1,64}:)?[A-Za-z0-9_-]{1,160}$/u;
+function canonicalReceiptSkillId(skillId) {
+  return skillId.startsWith("tenon:") ? skillId.slice("tenon:".length) : skillId;
+}
 async function cmdInternalNativeSkillReceipt(deps, changeName, skillId, sessionId, toolUseId, observedAt) {
   if (!isValidChangeName(changeName) || !SAFE_SKILL_ID.test(skillId)) {
     deps.io.err("internal-native-skill-receipt: invalid change or skill identity");
@@ -68753,7 +68754,7 @@ async function cmdInternalNativeSkillReceipt(deps, changeName, skillId, sessionI
     if (state.runMetadata === void 0 || typeof phase !== "string") {
       throw new Error("canonical WorkflowRun StepVisit identity is missing");
     }
-    const recorded = await recordNativeDocumentSkillConfirmation(dir, skillId, phase, {
+    const recorded = await recordNativeDocumentSkillConfirmation(dir, canonicalReceiptSkillId(skillId), phase, {
       sessionId,
       toolUseId,
       observedAt

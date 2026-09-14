@@ -92,4 +92,27 @@ describe('document record canonical invocation binding', () => {
     expect(await record(), h.err.join('\n')).toBe(0)
     expect(await gateBlockers()).toEqual([])
   })
+
+  test('Claude Code 报告的带命名空间技能 tenon:openspec-propose 能封存回执并登记文档', async () => {
+    h = await freshHarness()
+    const name = 'namespaced-skill'
+    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    const changeDir = join(h.cwd, 'openspec', 'changes', name)
+    const path = `openspec/changes/${name}/proposal.md`
+    await writeFile(join(h.cwd, path), '# proposal\n', 'utf8')
+    await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({
+      ts: FIXED_CLOCK, kind: 'tool', raw: 'Skill: tenon:openspec-propose',
+    })}\n`, 'utf8')
+    expect(await h.run([
+      'internal-native-skill-receipt', name, 'tenon:openspec-propose', 'namespaced-session', 'tool-ns', FIXED_CLOCK,
+    ]), h.err.join('\n')).toBe(0)
+    expect(await h.run([
+      'document', 'record', name, 'proposal', path, '--producer', 'openspec-propose',
+    ]), h.err.join('\n')).toBe(0)
+    const report = await evaluateDocumentEvidence(h.cwd, changeDir, 'open', { recordKinds: ['proposal'], readKinds: [] })
+    expect(report.blockers).toEqual([])
+    expect(await h.run([
+      'internal-native-skill-receipt', name, 'tenon:bad id', 'namespaced-session', 'tool-bad', FIXED_CLOCK,
+    ])).toBe(1)
+  })
 })

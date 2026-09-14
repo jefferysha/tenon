@@ -220,15 +220,17 @@ function startHeartbeat(lockDir: string): ReturnType<typeof setInterval> {
 }
 
 async function acquire(lockDir: string): Promise<Held> {
+  // Codex's workspace-write sandbox denies /bin/ps, so the start identity can be unreadable. The
+  // owner record then carries only the pid, like records written before start identities existed:
+  // observers keep it while that pid exists and never reclaim it before it is stale.
   const processStart = await processStartIdentity(process.pid)
-  if (processStart === null) throw new Error('withLock: current process start identity is unavailable')
   const owner = randomUUID()
   const claim = `${lockDir}.claim-${owner}`
   const record: LockOwnerRecord = {
     version: 1,
     owner,
     pid: process.pid,
-    pidStart: processStart,
+    ...(processStart === null ? {} : { pidStart: processStart }),
     createdAt: Date.now(),
   }
   await mkdir(claim, { mode: 0o700 })

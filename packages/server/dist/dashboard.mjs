@@ -5558,15 +5558,13 @@ function startHeartbeat(lockDir) {
 }
 async function acquire(lockDir) {
   const processStart = await processStartIdentity(process.pid);
-  if (processStart === null)
-    throw new Error("withLock: current process start identity is unavailable");
   const owner = randomUUID5();
   const claim2 = `${lockDir}.claim-${owner}`;
   const record7 = {
     version: 1,
     owner,
     pid: process.pid,
-    pidStart: processStart,
+    ...processStart === null ? {} : { pidStart: processStart },
     createdAt: Date.now()
   };
   await mkdir5(claim2, { mode: 448 });

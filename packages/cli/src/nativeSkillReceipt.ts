@@ -2,7 +2,14 @@ import { recordNativeDocumentSkillConfirmation } from '../../kernel/dist/skill-i
 import { errMsg, type CliDeps } from './deps.js'
 import { changeDir, isValidChangeName } from './paths.js'
 
-const SAFE_SKILL_ID = /^[A-Za-z0-9_-]{1,160}$/u
+// Hosts report plugin skills with their namespace (Claude Code sends `tenon:openspec-propose`), so
+// one `namespace:` segment is part of a real skill identity, not an injection.
+const SAFE_SKILL_ID = /^(?:[A-Za-z0-9_-]{1,64}:)?[A-Za-z0-9_-]{1,160}$/u
+
+/** Tenon's own namespace is canonicalized like workflow skill evidence; other namespaces stay verbatim. */
+function canonicalReceiptSkillId(skillId: string): string {
+  return skillId.startsWith('tenon:') ? skillId.slice('tenon:'.length) : skillId
+}
 
 /** Hidden native-host adapter target. Only a real Skill PostToolUse hook calls this command. */
 export async function cmdInternalNativeSkillReceipt(
@@ -27,7 +34,7 @@ export async function cmdInternalNativeSkillReceipt(
     // The kernel repository acquires the canonical Change lock while appending the started event
     // and rejects any StepVisit drift. Do not take the same non-reentrant lock here: doing so would
     // deadlock the real PostToolUse hook before it can seal its receipt.
-    const recorded = await recordNativeDocumentSkillConfirmation(dir, skillId, phase, {
+    const recorded = await recordNativeDocumentSkillConfirmation(dir, canonicalReceiptSkillId(skillId), phase, {
       sessionId, toolUseId, observedAt,
     })
     if (!recorded) throw new Error('native Skill receipt does not match the canonical current StepVisit')

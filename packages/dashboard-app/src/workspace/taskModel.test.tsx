@@ -55,6 +55,11 @@ describe('stagesOf', () => {
     const projected = stagesOf(change({ todo: { hasTaskSource: true, stages: [{ id: 'spec', label: '规格', status: 'current', tasks: [] }] } }), undefined, t)
     expect(projected[2]?.status).toBe('current')
   })
+
+  it('已归档的运行没有进行中的阶段：收尾阶段算完成，从未进入的阶段仍是 todo', () => {
+    const stages = stagesOf(change({ phase: 'verify', archived: 'true' }), undefined, t)
+    expect(stages.map((stage) => stage.status)).toEqual(['done', 'done', 'done', 'done', 'done', 'todo', 'todo'])
+  })
 })
 
 describe('summaryOf · 四级优先级', () => {

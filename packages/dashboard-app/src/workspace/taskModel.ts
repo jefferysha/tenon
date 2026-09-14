@@ -63,6 +63,8 @@ export function stagesOf(change: ChangeSnapshot, rules: WorkflowRules | undefine
   const steps = rules?.steps ?? change.workflowRules.steps
   const projected = new Map((change.todo?.stages ?? []).map((stage) => [stage.id, stage.status]))
   const current = steps.indexOf(change.phase)
+  // A closed run keeps its last phase, but nothing is in progress: the stage it completed from is done.
+  const archived = change.archived === 'true'
   return steps.map((id, index) => {
     const fromTodo = projected.get(id)
     const status: StageStatus = fromTodo === 'done' ? 'done'
@@ -70,7 +72,7 @@ export function stagesOf(change: ChangeSnapshot, rules: WorkflowRules | undefine
         : fromTodo === 'current' ? 'current'
           : current === -1 ? 'todo'
             : index < current ? 'done' : index > current ? 'todo' : 'current'
-    return { id, label: stageLabel(id, rules, t), status }
+    return { id, label: stageLabel(id, rules, t), status: archived && status === 'current' ? 'done' : status }
   })
 }
 
