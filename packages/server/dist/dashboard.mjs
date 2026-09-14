@@ -23865,8 +23865,8 @@ function reviewAcknowledgedInteractionDraft(input) {
   const current = input.revision.state.runMetadata;
   if (origin === void 0 || current === void 0)
     throw new Error("interaction projection \u7F3A run identity");
-  const originStepVisit = { runId: origin.runId, transitionSequence: origin.transitionSequence, step: input.phase };
-  const stepVisit = { runId: current.runId, transitionSequence: current.transitionSequence, step: input.phase };
+  const originStepVisit = input.originStepVisit ?? { runId: origin.runId, transitionSequence: origin.transitionSequence, step: input.phase };
+  const stepVisit = input.stepVisit ?? { runId: current.runId, transitionSequence: current.transitionSequence, step: input.phase };
   const rejected = input.rejected === true;
   return {
     change: input.change,

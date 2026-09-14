@@ -31263,6 +31263,42 @@ var ADAPTER_CAPABILITY_ROWS = [
 var ADAPTER_CAPABILITY_BY_HOST = new Map(ADAPTER_CAPABILITY_ROWS.map((row) => [row.host_id, row]));
 
 // packages/kernel/dist/decision/review-application.js
+function reviewAcknowledgedInteractionDraft(input) {
+  const origin = input.beforeRevision.state.runMetadata;
+  const current = input.revision.state.runMetadata;
+  if (origin === void 0 || current === void 0)
+    throw new Error("interaction projection \u7F3A run identity");
+  const originStepVisit = input.originStepVisit ?? { runId: origin.runId, transitionSequence: origin.transitionSequence, step: input.phase };
+  const stepVisit = input.stepVisit ?? { runId: current.runId, transitionSequence: current.transitionSequence, step: input.phase };
+  const rejected = input.rejected === true;
+  return {
+    change: input.change,
+    runId: current.runId,
+    workflow: input.workflow,
+    workflowHash: input.workflowHash,
+    originStepVisit,
+    stepVisit,
+    stateBeforeHash: input.beforeRevision.stateDigest,
+    stateAfterHash: input.revision.stateDigest,
+    actor: input.actor ?? "system",
+    surface: input.surface,
+    executionMode: "interactive",
+    workflowMode: input.workflowMode,
+    track: input.track,
+    trackKind: input.trackKind,
+    pipelineStage: input.pipelineStage,
+    journeyId: interactionJourneyId({ change: input.change, runId: origin.runId, originStepVisit, reviewEvent: input.event, requestedAt: input.requestedAt }),
+    controlStage: "verification",
+    event: "review.acknowledged",
+    reasonCode: rejected ? "decision.state-stale" : "decision.accepted",
+    triggerCode: "review.acknowledge",
+    effectCode: rejected ? "review-gate.rejected" : "review-gate.approved",
+    result: rejected ? "rejected" : "success",
+    outcomeCode: "review.acknowledged",
+    occurredAt: input.acknowledgedAt,
+    durationMs: 0
+  };
+}
 async function acknowledgeReview(input) {
   const deferred = [];
   const reject5 = async (state, acknowledgedAt) => {
@@ -58504,21 +58540,27 @@ function createInteractionCapture(recorder, clock) {
       const origin = input.beforeRevision ?? input.revision;
       const requestedAt = input.requestedAt ?? (scalar12(input.state, "review_requested_at") || input.clock || clock());
       const base = common(input, input.revision);
-      const rejected = input.rejected === true;
-      return write(input.changeDir, {
-        ...base,
-        journeyId: journey(input, origin, input.event, requestedAt),
-        originStepVisit: visit(origin, input.state),
-        event: "review.acknowledged",
-        stateBeforeHash: input.beforeRevision?.stateDigest ?? input.revision.stateDigest,
-        stateAfterHash: input.revision.stateDigest,
-        reasonCode: rejected ? "decision.state-stale" : "decision.accepted",
-        triggerCode: "review.acknowledge",
-        effectCode: rejected ? "review-gate.rejected" : "review-gate.approved",
-        result: rejected ? "rejected" : "success",
-        outcomeCode: "review.acknowledged",
-        occurredAt: input.clock ?? clock()
-      });
+      return write(input.changeDir, reviewAcknowledgedInteractionDraft({
+        change: input.changeName,
+        state: input.state,
+        revision: input.revision,
+        beforeRevision: origin,
+        phase: scalar12(input.state, "phase"),
+        event: input.event,
+        requestedAt,
+        acknowledgedAt: input.clock ?? clock(),
+        rejected: input.rejected,
+        surface: "cli",
+        actor: "human",
+        workflow: base.workflow,
+        workflowHash: base.workflowHash,
+        track: base.track,
+        trackKind: base.trackKind,
+        workflowMode: base.workflowMode,
+        pipelineStage: base.pipelineStage,
+        originStepVisit: base.originStepVisit,
+        stepVisit: base.stepVisit
+      }));
     },
     recordResume: async (input) => {
       const effect = input.effectRevision;

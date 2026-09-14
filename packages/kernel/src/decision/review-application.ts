@@ -23,12 +23,14 @@ export function reviewAcknowledgedInteractionDraft(input: {
   readonly trackKind: InteractionEventRecordDraft['trackKind']
   readonly workflowMode: InteractionEventRecordDraft['workflowMode']
   readonly pipelineStage: InteractionEventRecordDraft['pipelineStage']
+  readonly originStepVisit?: InteractionEventRecordDraft['originStepVisit']
+  readonly stepVisit?: InteractionEventRecordDraft['stepVisit']
 }): InteractionEventRecordDraft {
   const origin = input.beforeRevision.state.runMetadata
   const current = input.revision.state.runMetadata
   if (origin === undefined || current === undefined) throw new Error('interaction projection 缺 run identity')
-  const originStepVisit = { runId: origin.runId, transitionSequence: origin.transitionSequence, step: input.phase }
-  const stepVisit = { runId: current.runId, transitionSequence: current.transitionSequence, step: input.phase }
+  const originStepVisit = input.originStepVisit ?? { runId: origin.runId, transitionSequence: origin.transitionSequence, step: input.phase }
+  const stepVisit = input.stepVisit ?? { runId: current.runId, transitionSequence: current.transitionSequence, step: input.phase }
   const rejected = input.rejected === true
   return {
     change: input.change, runId: current.runId, workflow: input.workflow,

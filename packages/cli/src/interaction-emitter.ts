@@ -7,6 +7,7 @@ import {
   type InteractionStepVisit,
   type PipelineState,
   type RunRevision,
+  reviewAcknowledgedInteractionDraft,
 } from '@tenon/kernel'
 
 export interface InteractionCapture {
@@ -149,21 +150,13 @@ export function createInteractionCapture(recorder: InteractionEventRecorder, clo
       const origin = input.beforeRevision ?? input.revision
       const requestedAt = input.requestedAt ?? (scalar(input.state, 'review_requested_at') || input.clock || clock())
       const base = common(input, input.revision)
-      const rejected = input.rejected === true
-      return write(input.changeDir, {
-        ...base,
-        journeyId: journey(input, origin, input.event, requestedAt),
-        originStepVisit: visit(origin, input.state),
-        event: 'review.acknowledged',
-        stateBeforeHash: input.beforeRevision?.stateDigest ?? input.revision.stateDigest,
-        stateAfterHash: input.revision.stateDigest,
-        reasonCode: rejected ? 'decision.state-stale' : 'decision.accepted',
-        triggerCode: 'review.acknowledge',
-        effectCode: rejected ? 'review-gate.rejected' : 'review-gate.approved',
-        result: rejected ? 'rejected' : 'success',
-        outcomeCode: 'review.acknowledged',
-        occurredAt: input.clock ?? clock(),
-      })
+      return write(input.changeDir, reviewAcknowledgedInteractionDraft({
+        change: input.changeName, state: input.state, revision: input.revision, beforeRevision: origin,
+        phase: scalar(input.state, 'phase'), event: input.event, requestedAt, acknowledgedAt: input.clock ?? clock(),
+        rejected: input.rejected, surface: 'cli', actor: 'human', workflow: base.workflow, workflowHash: base.workflowHash,
+        track: base.track, trackKind: base.trackKind, workflowMode: base.workflowMode, pipelineStage: base.pipelineStage,
+        originStepVisit: base.originStepVisit, stepVisit: base.stepVisit,
+      }))
     },
     recordResume: async (input) => {
       const effect = input.effectRevision
