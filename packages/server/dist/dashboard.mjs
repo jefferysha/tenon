@@ -4,7 +4,7 @@ import { createRequire as __cr } from 'node:module'; const require = __cr(import
 // packages/server/src/main.ts
 import { execFile as execFile8 } from "node:child_process";
 import { mkdirSync as mkdirSync6, unlinkSync as unlinkSync4, writeFileSync as writeFileSync6 } from "node:fs";
-import { dirname as dirname20, join as join80 } from "node:path";
+import { dirname as dirname20, join as join78 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // packages/tap/dist/paths.js
@@ -2143,7 +2143,7 @@ var CLASSIFICATIONS = /* @__PURE__ */ new Set(["identifier", "project-data", "co
 var VALIDATOR_STATUSES = /* @__PURE__ */ new Set(["pass", "fail", "unknown"]);
 var ADAPTERS = /* @__PURE__ */ new Set(["native", "codex", "afk"]);
 var REQUIREDNESS = /* @__PURE__ */ new Set(["routine", "advisory", "hard-gate"]);
-var DECISION_MODES = /* @__PURE__ */ new Set(["user-answer", "recommended-default", "afk-answer"]);
+var DECISION_MODES = /* @__PURE__ */ new Set(["user-answer", "recommended-default"]);
 var ARTIFACT_KINDS = /* @__PURE__ */ new Set(["document", "file", "artifact", "value"]);
 var DIGEST = /^sha256:[0-9a-f]{64}$/u;
 var ID = /^[A-Za-z0-9][A-Za-z0-9._:@/-]*$/u;
@@ -2445,12 +2445,6 @@ function decodeSkillInvocationEventV1(input) {
     return { ok: false, code: "field-invalid", path: "$" };
   }
 }
-function encodeSkillInvocationEventV1(event) {
-  const decoded = decodeSkillInvocationEventV1(event);
-  if (!decoded.ok)
-    throw new Error(`SkillInvocation event invalid: ${decoded.code} ${decoded.path}`);
-  return JSON.stringify(decoded.value);
-}
 
 // packages/kernel/dist/skill-invocation/domain.js
 var SkillInvocationEvidenceConflictError = class extends Error {
@@ -2474,7 +2468,7 @@ function assertSubject(first, event) {
 function assertCompletedQuestions(questions, decisions) {
   for (const question of questions.values()) {
     const decision = decisions.get(question.question_id);
-    if (question.requiredness === "hard-gate" && (!question.shown || decision?.mode !== "user-answer" && decision?.mode !== "afk-answer")) {
+    if (question.requiredness === "hard-gate" && (!question.shown || decision?.mode !== "user-answer")) {
       throw new SkillInvocationEvidenceConflictError("hard-gate completion requires a shown question and non-empty user answer");
     }
     if (!question.shown && decision?.mode !== "recommended-default") {
@@ -2530,7 +2524,7 @@ function projectSkillInvocationEvents(events2) {
       if (event.payload.selected_option_ids.some((option) => !question.option_ids.includes(option))) {
         throw new SkillInvocationEvidenceConflictError("decision selects an unknown option");
       }
-      if (event.payload.mode === "user-answer" || event.payload.mode === "afk-answer") {
+      if (event.payload.mode === "user-answer") {
         if (!question.shown)
           throw new SkillInvocationEvidenceConflictError("user answer requires a shown question");
         if (event.payload.selected_option_ids.length === 0 && event.payload.free_text === void 0) {
@@ -3316,7 +3310,8 @@ function canonicalState(value, opts = {}) {
   const isEmptyFourFieldReceiptWithoutEvent = missingReviewGateFields.length === 1 && missingReviewGateFields[0] === "review_gate_event" && REVIEW_GATE_FIELDS.filter((field3) => field3 !== "review_gate_event").every((field3) => rawFields?.[field3] === "" || field3 === "review_acknowledged_via" && rawFields?.[field3] === "unknown");
   const missingReviewGateSet = new Set(missingReviewGateFields);
   const isHistoricalEmptyReceiptWithoutEventOrChannel = missingReviewGateFields.length > 0 && missingReviewGateFields.every((field3) => field3 === "review_gate_event" || field3 === "review_acknowledged_via") && REVIEW_GATE_FIELDS.filter((field3) => !missingReviewGateSet.has(field3)).every((field3) => rawFields?.[field3] === "");
-  const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent || isHistoricalEmptyReceiptWithoutEventOrChannel) ? new Set(missingReviewGateFields) : /* @__PURE__ */ new Set();
+  const isHistoricalReceiptWithoutChannel = missingReviewGateFields.length === 1 && missingReviewGateFields[0] === "review_acknowledged_via" && REVIEW_GATE_FIELDS.filter((field3) => field3 !== "review_acknowledged_via").every((field3) => Object.prototype.hasOwnProperty.call(rawFields ?? {}, field3));
+  const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent || isHistoricalEmptyReceiptWithoutEventOrChannel || isHistoricalReceiptWithoutChannel) ? new Set(missingReviewGateFields) : /* @__PURE__ */ new Set();
   const legacyPreVerifyDefault = opts.allowLegacyFieldOmissions === true && missing4.includes(PRE_VERIFY_REVIEW_FIELD) ? /* @__PURE__ */ new Set([PRE_VERIFY_REVIEW_FIELD]) : /* @__PURE__ */ new Set();
   const allowedLegacyDefaults = /* @__PURE__ */ new Set([
     ...legacyReviewGateDefaults,
@@ -4551,8 +4546,6 @@ function skillsEquivalent(left, right) {
 }
 
 // packages/kernel/dist/skill-invocation/repository.js
-import { createHash as createHash9 } from "node:crypto";
-import { constants as constants3 } from "node:fs";
 import { lstat as lstat8, open as open2, realpath as realpath3 } from "node:fs/promises";
 import { isAbsolute as isAbsolute3, join as join13, relative as relative3, resolve as resolve3, sep as sep4 } from "node:path";
 
@@ -5843,56 +5836,6 @@ var SKILL_INVOCATION_LEDGER_FILE = ".pipeline-skill-invocations.jsonl";
 var SkillInvocationEvidenceCorruptError = class extends Error {
   name = "SkillInvocationEvidenceCorruptError";
 };
-var SkillInvocationEvidenceBindingError = class extends Error {
-  name = "SkillInvocationEvidenceBindingError";
-};
-function stringField2(value, fallback) {
-  return typeof value === "string" && value !== "" ? value : fallback;
-}
-async function skillInvocationProjectId(repoRoot) {
-  const canonicalRoot = await realpath3(repoRoot);
-  return `project:${createHash9("sha256").update(canonicalRoot).digest("hex")}`;
-}
-async function canonicalBinding(changeDir2, attempt) {
-  const current = await readCurrentRunRevision(changeDir2);
-  const metadata = current?.state.runMetadata;
-  if (current === void 0 || metadata === void 0) {
-    throw new SkillInvocationEvidenceBindingError("canonical WorkflowRun identity is missing");
-  }
-  const workflowDefinitionId = stringField2(current.state.fields.workflow, "");
-  const stepId = stringField2(current.state.fields.phase, "");
-  if (workflowDefinitionId === "" || stepId === "") {
-    throw new SkillInvocationEvidenceBindingError("canonical WorkflowDefinition or Step identity is missing");
-  }
-  const repoRoot = resolve3(changeDir2, "..", "..", "..");
-  const plan = await readTaskPlanForChange(changeDir2);
-  return {
-    project_id: await skillInvocationProjectId(repoRoot),
-    workflow_definition_id: workflowDefinitionId,
-    workflow_run_id: metadata.runId,
-    step_id: stepId,
-    transition_sequence: metadata.transitionSequence,
-    ...plan?.source === "canonical" ? { task_plan_revision_id: plan.revision_id } : {},
-    work_item_ids: plan?.source === "canonical" ? plan.items.map((item2) => item2.id) : [],
-    ...attempt === void 0 ? {} : { attempt: { ...attempt } }
-  };
-}
-function assertBinding(event, expected) {
-  const subject2 = event.subject;
-  if (subject2.project_id !== expected.project_id || subject2.workflow_definition_id !== expected.workflow_definition_id || subject2.workflow_run_id !== expected.workflow_run_id || subject2.step_id !== expected.step_id || subject2.step_visit.run_id !== expected.workflow_run_id || subject2.step_visit.transition_sequence !== expected.transition_sequence)
-    throw new SkillInvocationEvidenceBindingError("event subject does not match the canonical StepVisit");
-  if (subject2.work_item_id !== void 0) {
-    if (subject2.task_plan_revision_id !== expected.task_plan_revision_id || !expected.work_item_ids.includes(subject2.work_item_id))
-      throw new SkillInvocationEvidenceBindingError("event subject does not match the canonical TaskPlan WorkItem");
-  }
-  if (subject2.attempt !== void 0) {
-    if (expected.attempt === void 0 || subject2.attempt.attempt_id !== expected.attempt.attempt_id || subject2.attempt.reservation_id !== expected.attempt.reservation_id)
-      throw new SkillInvocationEvidenceBindingError("event subject does not match the execution attempt");
-  }
-  if (event.type === "invocation-started" && event.payload.adapter.kind === "afk" && subject2.attempt === void 0) {
-    throw new SkillInvocationEvidenceBindingError("AFK invocation requires exact attempt and reservation binding");
-  }
-}
 function ledgerPath(changeDir2) {
   return join13(changeDir2, SKILL_INVOCATION_LEDGER_FILE);
 }
@@ -5953,64 +5896,6 @@ function grouped(events2) {
     throw new SkillInvocationEvidenceCorruptError("SkillInvocation ledger exceeds invocation budget");
   return result2;
 }
-async function appendFsync(path13, line, expected) {
-  const flags = expected === void 0 ? constants3.O_WRONLY | constants3.O_APPEND | constants3.O_CREAT | constants3.O_EXCL | constants3.O_NOFOLLOW : constants3.O_WRONLY | constants3.O_APPEND | constants3.O_NOFOLLOW;
-  let handle;
-  try {
-    handle = await open2(path13, flags, 384);
-  } catch (cause) {
-    throw new SkillInvocationEvidenceCorruptError(`SkillInvocation ledger changed before append: ${String(cause)}`);
-  }
-  try {
-    const info = await handle.stat();
-    if (!info.isFile())
-      throw new SkillInvocationEvidenceCorruptError("SkillInvocation ledger must be a regular file");
-    const openedIdentity = { dev: info.dev, ino: info.ino, size: info.size };
-    if (expected === void 0 && info.size !== 0 || expected !== void 0 && !sameLedgerIdentity(openedIdentity, expected)) {
-      throw new SkillInvocationEvidenceCorruptError("SkillInvocation ledger identity changed before append");
-    }
-    await handle.writeFile(line, "utf8");
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-}
-function inside2(base, candidate) {
-  const fromBase = relative3(base, candidate);
-  return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep4}`) && !isAbsolute3(fromBase);
-}
-async function verifyFileArtifact(changeDir2, intent) {
-  const repoRoot = resolve3(changeDir2, "..", "..", "..");
-  const target = resolve3(repoRoot, intent.artifact.ref);
-  if (!inside2(repoRoot, target))
-    return false;
-  const [rootReal, targetReal, info] = await Promise.all([realpath3(repoRoot), realpath3(target), lstat8(target)]);
-  if (!info.isFile() || info.isSymbolicLink() || !inside2(rootReal, targetReal))
-    return false;
-  const bytes = await readBoundedRegularFile(target, SKILL_INVOCATION_LIMITS.maxLedgerBytes, "SkillInvocation artifact");
-  return `sha256:${createHash9("sha256").update(bytes).digest("hex")}` === intent.artifact.digest;
-}
-async function verifyDocumentArtifact(changeDir2, intent) {
-  const document = intent.artifact.document;
-  if (document === void 0)
-    return false;
-  const ledger = await readDocumentLedger(changeDir2);
-  return ledger?.records.some((record7) => record7.kind === document.kind && record7.path === intent.artifact.ref && record7.recordedAt === document.recorded_at && `sha256:${record7.sha256}` === intent.artifact.digest) ?? false;
-}
-async function verifyArtifact(changeDir2, intent, binding, options) {
-  if (intent.artifact.kind === "document") {
-    if (!await verifyDocumentArtifact(changeDir2, intent))
-      return false;
-    if (intent.validator_ids.every((id2) => id2 === "document-ledger"))
-      return true;
-  } else if (intent.artifact.kind === "file") {
-    if (!await verifyFileArtifact(changeDir2, intent))
-      return false;
-    if (intent.validator_ids.every((id2) => id2 === "digest"))
-      return true;
-  }
-  return options.verify_artifact?.(structuredClone(intent), structuredClone(binding)) ?? Promise.resolve(false);
-}
 function validateExistingLedger(events2) {
   try {
     for (const invocationEvents of grouped(events2).values())
@@ -6027,112 +5912,6 @@ async function readSkillInvocationEventsForApplication(changeDir2) {
   await assertLedgerIdentity(ledgerPath(changeDir2), identity);
   validateExistingLedger(events2);
   return structuredClone(events2);
-}
-function validateResultingLedger(events2) {
-  if (events2.length > SKILL_INVOCATION_LIMITS.maxEvents) {
-    throw new SkillInvocationEvidenceBindingError("SkillInvocation ledger would exceed the event budget");
-  }
-  try {
-    for (const invocationEvents of grouped(events2).values())
-      projectSkillInvocationEvents(invocationEvents);
-  } catch (cause) {
-    if (cause instanceof SkillInvocationEvidenceBindingError)
-      throw cause;
-    throw new SkillInvocationEvidenceBindingError(`SkillInvocation event violates aggregate invariants: ${String(cause)}`);
-  }
-}
-function startedEvent(events2) {
-  const started = events2.find((event) => event.type === "invocation-started");
-  if (started === void 0)
-    throw new SkillInvocationEvidenceBindingError("invocation started event is missing");
-  return started;
-}
-function intentFor(events2, event) {
-  const intent = events2.find((candidate) => candidate.invocation_id === event.invocation_id && candidate.type === "artifact-binding-intent" && candidate.payload.binding_id === event.payload.binding_id);
-  return intent?.payload;
-}
-var activeChangeLocks = /* @__PURE__ */ new WeakMap();
-async function withSkillInvocationChangeLock(changeDir2, operation) {
-  return withLock(changeDir2, async () => {
-    const lock = Object.freeze({ kind: "skill-invocation-change-lock" });
-    activeChangeLocks.set(lock, changeDir2);
-    try {
-      return await operation(lock);
-    } finally {
-      activeChangeLocks.delete(lock);
-    }
-  });
-}
-async function appendSkillInvocationEventWithLockHeld(changeDir2, input, options) {
-  const identity = await captureLedgerIdentity(ledgerPath(changeDir2));
-  const events2 = await readLedgerEvents(changeDir2);
-  await assertLedgerIdentity(ledgerPath(changeDir2), identity);
-  validateExistingLedger(events2);
-  const replay = events2.find((event) => event.event_id === input.event_id);
-  if (replay !== void 0) {
-    if (encodeSkillInvocationEventV1(replay) === encodeSkillInvocationEventV1(input)) {
-      await assertLedgerIdentity(ledgerPath(changeDir2), identity);
-      return { appended: false };
-    }
-    throw new SkillInvocationEvidenceCorruptError("event id conflicts with an existing fact");
-  }
-  const expected = await canonicalBinding(changeDir2, options.attempt);
-  assertBinding(input, expected);
-  const invocationEvents = events2.filter((event) => event.invocation_id === input.invocation_id);
-  const resultingEvents = [...events2, input];
-  const encodedLine = `${encodeSkillInvocationEventV1(input)}
-`;
-  if ((identity?.size ?? 0) + Buffer.byteLength(encodedLine) > SKILL_INVOCATION_LIMITS.maxLedgerBytes) {
-    throw new SkillInvocationEvidenceBindingError("SkillInvocation ledger would exceed the byte budget");
-  }
-  validateResultingLedger(resultingEvents);
-  const invocationStarted = startedEvent(input.type === "invocation-started" ? [input] : invocationEvents);
-  if (input.type === "decision-recorded" && input.payload.mode === "recommended-default") {
-    const decisionEvent = input;
-    const question = invocationEvents.find((event) => event.type === "question-recorded" && event.payload.question_id === decisionEvent.payload.question_id);
-    if (question === void 0 || !await (options.verify_recommended_default?.({
-      decision: structuredClone(decisionEvent.payload),
-      question: structuredClone(question.payload),
-      started: structuredClone(invocationStarted),
-      subject: structuredClone(decisionEvent.subject),
-      events: structuredClone(invocationEvents)
-    }) ?? Promise.resolve(false))) {
-      throw new SkillInvocationEvidenceBindingError("recommended default is not allowed by the exact frozen policy");
-    }
-  }
-  if (input.type === "invocation-completed" && !await (options.verify_completed_adapter?.({
-    completion: structuredClone(input),
-    started: structuredClone(invocationStarted),
-    subject: structuredClone(input.subject),
-    events: structuredClone(invocationEvents)
-  }) ?? Promise.resolve(false))) {
-    throw new SkillInvocationEvidenceBindingError("completed invocation lacks a trusted adapter verdict");
-  }
-  if (input.type === "invocation-interrupted" && !await (options.verify_interruption_recovery?.(structuredClone(input)) ?? Promise.resolve(false))) {
-    throw new SkillInvocationEvidenceBindingError("interrupted invocation lacks exact ownership recovery");
-  }
-  if (input.type === "artifact-bound") {
-    const intent = intentFor(events2, input);
-    if (intent === void 0 || !await verifyArtifact(changeDir2, intent, input.payload, options)) {
-      throw new SkillInvocationEvidenceBindingError("artifact binding does not match the current artifact or canonical document record");
-    }
-  }
-  await appendFsync(ledgerPath(changeDir2), encodedLine, identity);
-  return { appended: true };
-}
-function decodeApplicationEvent(input) {
-  const decoded = decodeSkillInvocationEventV1(input);
-  if (!decoded.ok) {
-    throw new SkillInvocationEvidenceBindingError(`event codec rejected input: ${decoded.code} ${decoded.path}`);
-  }
-  return decoded.value;
-}
-async function appendSkillInvocationEventUnderLock(changeDir2, lock, input, options) {
-  if (activeChangeLocks.get(lock) !== changeDir2) {
-    throw new SkillInvocationEvidenceBindingError("SkillInvocation Change lock capability is invalid");
-  }
-  const decoded = decodeApplicationEvent(input);
-  return appendSkillInvocationEventWithLockHeld(changeDir2, decoded, options);
 }
 async function readSkillInvocationEvidence(changeDir2, options = {}) {
   const identity = await captureLedgerIdentity(ledgerPath(changeDir2));
@@ -6210,7 +5989,7 @@ var MAX_HISTORY_BYTES = 2 * 1024 * 1024;
 
 // packages/kernel/dist/loops/ledger-store.js
 import { AsyncLocalStorage as AsyncLocalStorage2 } from "node:async_hooks";
-import { createHash as createHash10 } from "node:crypto";
+import { createHash as createHash9 } from "node:crypto";
 import { mkdir as mkdir6, open as open3, readFile as readFile7 } from "node:fs/promises";
 import { join as join16, resolve as resolve4 } from "node:path";
 
@@ -8032,7 +7811,7 @@ var ReservationAppendError = class extends Error {
 };
 var heldLedgerDirs = new AsyncLocalStorage2();
 function shortHash(raw) {
-  return createHash10("sha256").update(raw, "utf8").digest("hex").slice(0, 12);
+  return createHash9("sha256").update(raw, "utf8").digest("hex").slice(0, 12);
 }
 function createLoopLedgerStore() {
   function withLedgerLock(repoRoot, fn) {
@@ -11899,7 +11678,7 @@ function createStateStore(options = {}) {
 }
 
 // packages/kernel/dist/state/interaction-event-store.js
-import { constants as constants4 } from "node:fs";
+import { constants as constants3 } from "node:fs";
 import { lstat as lstat13, open as open4 } from "node:fs/promises";
 import { join as join19 } from "node:path";
 
@@ -12020,7 +11799,7 @@ function sha256Hex2(value) {
     528734635,
     1541459225
   ]);
-  const constants22 = [
+  const constants20 = [
     1116352408,
     1899447441,
     3049323471,
@@ -12125,7 +11904,7 @@ function sha256Hex2(value) {
     for (let index = 0; index < 64; index += 1) {
       const sum1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
       const choose = e & f ^ ~e & g;
-      const temp1 = h + sum1 + choose + (constants22[index] ?? 0) + (words[index] ?? 0) >>> 0;
+      const temp1 = h + sum1 + choose + (constants20[index] ?? 0) + (words[index] ?? 0) >>> 0;
       const sum0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
       const majority = a & b ^ a & c ^ b & c;
       const temp2 = sum0 + majority >>> 0;
@@ -12225,7 +12004,7 @@ function closedRecord(value, keys2, label) {
       fail(`${label} \u5305\u542B\u672A\u77E5\u5B57\u6BB5 '${key}'`);
   return output;
 }
-function stringField3(value, label, pattern = IDENTIFIER_RE) {
+function stringField2(value, label, pattern = IDENTIFIER_RE) {
   if (typeof value !== "string" || !pattern.test(value))
     fail(`${label} \u975E\u6CD5`);
   return value;
@@ -12248,11 +12027,11 @@ function hashField(value, label) {
 }
 function visitField(value, label) {
   const raw = closedRecord(value, VISIT_KEY_SET, label);
-  const runId = stringField3(raw.run_id, `${label}.run_id`);
+  const runId = stringField2(raw.run_id, `${label}.run_id`);
   const transitionSequence = raw.transition_sequence;
   if (typeof transitionSequence !== "number" || !Number.isSafeInteger(transitionSequence) || transitionSequence < 0)
     fail(`${label}.transition_sequence \u975E\u6CD5`);
-  const step = raw.step === void 0 ? void 0 : stringField3(raw.step, `${label}.step`);
+  const step = raw.step === void 0 ? void 0 : stringField2(raw.step, `${label}.step`);
   return step === void 0 ? { runId, transitionSequence } : { runId, transitionSequence, step };
 }
 function validateCode(value, label) {
@@ -12393,7 +12172,7 @@ function validateWire(value) {
     fail("interaction event \u5B57\u6BB5\u4E0D\u5B8C\u6574");
   if (raw.schema !== "tenon-interaction-event/v1")
     fail("schema \u975E\u6CD5");
-  const eventId = stringField3(raw.event_id, "event_id", /^sha256:[0-9a-f]{64}$/);
+  const eventId = stringField2(raw.event_id, "event_id", /^sha256:[0-9a-f]{64}$/);
   const sequence = raw.sequence;
   if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 1)
     fail("sequence \u975E\u6CD5");
@@ -12401,10 +12180,10 @@ function validateWire(value) {
   if (previousEventHash !== null && (typeof previousEventHash !== "string" || !isInteractionHash(previousEventHash))) {
     fail("previous_event_hash \u975E\u6CD5");
   }
-  const journeyId = stringField3(raw.journey_id, "journey_id", /^sha256:[0-9a-f]{64}$/);
+  const journeyId = stringField2(raw.journey_id, "journey_id", /^sha256:[0-9a-f]{64}$/);
   const occurredAt = validateTime(raw.occurred_at, "occurred_at");
-  const change = stringField3(raw.change, "change");
-  const runId = stringField3(raw.run_id, "run_id");
+  const change = stringField2(raw.change, "change");
+  const runId = stringField2(raw.run_id, "run_id");
   const workflow = workflowField(raw.workflow);
   const workflowHash = hashField(raw.workflow_hash, "workflow_hash");
   const originStepVisit = visitField(raw.origin_step_visit, "origin_step_visit");
@@ -12416,10 +12195,10 @@ function validateWire(value) {
   const actor2 = enumField(raw.actor, INTERACTION_ACTORS, "actor");
   const surface = enumField(raw.surface, INTERACTION_SURFACES, "surface");
   const executionMode = enumField(raw.execution_mode, INTERACTION_EXECUTION_MODES, "execution_mode");
-  const workflowMode = enumField(raw.workflow_mode, INTERACTION_WORKFLOW_MODES, "workflow_mode");
-  const track = stringField3(raw.track, "track");
-  const trackKind2 = enumField(raw.track_kind, INTERACTION_TRACK_KINDS, "track_kind");
-  const pipelineStage2 = enumField(raw.pipeline_stage, INTERACTION_PIPELINE_STAGES, "pipeline_stage");
+  const workflowMode2 = enumField(raw.workflow_mode, INTERACTION_WORKFLOW_MODES, "workflow_mode");
+  const track = stringField2(raw.track, "track");
+  const trackKind3 = enumField(raw.track_kind, INTERACTION_TRACK_KINDS, "track_kind");
+  const pipelineStage3 = enumField(raw.pipeline_stage, INTERACTION_PIPELINE_STAGES, "pipeline_stage");
   const controlStage = enumField(raw.control_stage, INTERACTION_CONTROL_STAGES, "control_stage");
   const event = enumField(raw.event, INTERACTION_EVENTS, "event");
   const reasonCode = validateCode(raw.reason_code, "reason_code");
@@ -12450,10 +12229,10 @@ function validateWire(value) {
     actor: actor2,
     surface,
     execution_mode: executionMode,
-    workflow_mode: workflowMode,
+    workflow_mode: workflowMode2,
     track,
-    track_kind: trackKind2,
-    pipeline_stage: pipelineStage2,
+    track_kind: trackKind3,
+    pipeline_stage: pipelineStage3,
     control_stage: controlStage,
     event,
     reason_code: reasonCode,
@@ -12646,7 +12425,7 @@ async function appendInteractionEventUnderLock(changeDir2, event) {
     throw new InteractionProjectionError("projection-size-exceeded", "interaction projection \u8D85\u8FC7\u5927\u5C0F\u4E0A\u9650");
   }
   try {
-    const handle = await open4(path13, constants4.O_WRONLY | constants4.O_APPEND | constants4.O_CREAT | constants4.O_NOFOLLOW, 384);
+    const handle = await open4(path13, constants3.O_WRONLY | constants3.O_APPEND | constants3.O_CREAT | constants3.O_NOFOLLOW, 384);
     try {
       const opened = await handle.stat();
       if (!opened.isFile())
@@ -13218,15 +12997,15 @@ function defaultOpenSpecScaffoldFiles(change, locale = "zh-CN", workflowSteps, w
 }
 
 // packages/kernel/dist/state/document-evidence.js
-import { createHash as createHash11 } from "node:crypto";
+import { createHash as createHash10 } from "node:crypto";
 function digest3(...values) {
-  const hash = createHash11("sha256");
+  const hash = createHash10("sha256");
   for (const value of values)
     hash.update(value).update("\0");
   return hash.digest("hex");
 }
 function confirmationDigest(...values) {
-  const hash = createHash11("sha256");
+  const hash = createHash10("sha256");
   values.forEach((value, index) => {
     hash.update(value);
     if (index < values.length - 1)
@@ -13407,11 +13186,11 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope = {},
 }
 
 // packages/kernel/dist/state/spec-migration-evidence.js
-import { createHash as createHash12 } from "node:crypto";
+import { createHash as createHash11 } from "node:crypto";
 import { lstat as lstat14, readFile as readFile12, realpath as realpath5 } from "node:fs/promises";
 import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve6, sep as sep6 } from "node:path";
 function digest4(content) {
-  return createHash12("sha256").update(content).digest("hex");
+  return createHash11("sha256").update(content).digest("hex");
 }
 function escaped2(root, target) {
   const rel = relative5(root, target);
@@ -13600,7 +13379,7 @@ function clearReviewGatePatch() {
 }
 
 // packages/kernel/dist/state/review-gate-binding.js
-import { createHash as createHash13 } from "node:crypto";
+import { createHash as createHash12 } from "node:crypto";
 import { join as join21 } from "node:path";
 var REVIEW_GATE_BINDING_FILE = ".pipeline-review-gate-binding.json";
 var MAX_REVIEW_GATE_BINDING_BYTES = 16 * 1024;
@@ -13624,7 +13403,7 @@ function reviewGateDecisionStateDigest(state) {
     ...state.runMetadata === void 0 ? {} : { runMetadata: state.runMetadata },
     opaqueTail: state.opaqueTail
   };
-  return createHash13("sha256").update(serializePipeline(canonical), "utf8").digest("hex");
+  return createHash12("sha256").update(serializePipeline(canonical), "utf8").digest("hex");
 }
 function parseBinding(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -14753,12 +14532,12 @@ function applyStepTransition(state, to, clock) {
 }
 
 // packages/kernel/dist/state/workflow-action-authority-record.js
-import { createHash as createHash15 } from "node:crypto";
+import { createHash as createHash14 } from "node:crypto";
 import { lstat as lstat15, readFile as readFile13 } from "node:fs/promises";
 import { join as join22 } from "node:path";
 
 // packages/kernel/dist/state/workflow-action-authority-snapshot.js
-import { createHash as createHash14 } from "node:crypto";
+import { createHash as createHash13 } from "node:crypto";
 var LAYERS2 = Object.freeze([
   "platform",
   "skill",
@@ -14831,7 +14610,7 @@ function normalizedGrants(value, label) {
   return Object.freeze(WORKFLOW_ACTIONS.filter((action) => present.has(action)));
 }
 function fingerprintFor(core) {
-  return createHash14("sha256").update(JSON.stringify(core)).digest("hex");
+  return createHash13("sha256").update(JSON.stringify(core)).digest("hex");
 }
 function freezeSnapshot(core, fingerprint) {
   const layers = core.layers.map((layer) => Object.freeze({
@@ -14947,7 +14726,7 @@ function errorCode7(error2) {
   return typeof code === "string" ? code : void 0;
 }
 function workflowActionAuthorityRecordPath(changeDir2, iterationId) {
-  const identity = createHash15("sha256").update(iterationId).digest("hex");
+  const identity = createHash14("sha256").update(iterationId).digest("hex");
   return join22(changeDir2, `${WORKFLOW_ACTION_AUTHORITY_RECORD_PREFIX}${identity}.json`);
 }
 async function readWorkflowActionAuthorityRecord(changeDir2, iterationId) {
@@ -15965,19 +15744,19 @@ function eventEdge(event) {
 }
 
 // packages/kernel/dist/machine-state-scope.js
-import { createHash as createHash16 } from "node:crypto";
+import { createHash as createHash15 } from "node:crypto";
 import { resolve as resolve7 } from "node:path";
 var STATE_SCOPE_NAMESPACE = "tenon:machine-state-scope:v1\0";
 function canonicalMachineStateRoot(stateRoot) {
   return resolve7(stateRoot);
 }
 function machineStateScopeId(stateRoot) {
-  const digest13 = createHash16("sha256").update(STATE_SCOPE_NAMESPACE).update(canonicalMachineStateRoot(stateRoot)).digest("hex");
+  const digest13 = createHash15("sha256").update(STATE_SCOPE_NAMESPACE).update(canonicalMachineStateRoot(stateRoot)).digest("hex");
   return `sha256-v1-${digest13}`;
 }
 
 // packages/kernel/dist/workspace/fingerprint.js
-import { createHash as createHash17 } from "node:crypto";
+import { createHash as createHash16 } from "node:crypto";
 import { lstat as lstat16, readdir as readdir2, readFile as readFile14, readlink } from "node:fs/promises";
 import { join as join23 } from "node:path";
 var WORKSPACE_BASELINE_PREFIX = "workspace:sha256:";
@@ -16072,7 +15851,7 @@ async function fingerprintWorkspace(root) {
   const rootStat = await lstat16(root);
   if (!rootStat.isDirectory())
     throw new Error(`workspace root is not a directory: ${root}`);
-  const hash = createHash17("sha256");
+  const hash = createHash16("sha256");
   writeRecord(hash, "D", ".", modeOf(rootStat));
   const names = sortNames(await readdir2(root));
   for (const name of names)
@@ -17053,7 +16832,7 @@ function serializeTrackRegistry(config) {
 }
 
 // packages/kernel/dist/tracks/registry.js
-import { createHash as createHash18 } from "node:crypto";
+import { createHash as createHash17 } from "node:crypto";
 import { readFileSync as readFileSync9 } from "node:fs";
 import { mkdir as mkdir11, readFile as readFile15 } from "node:fs/promises";
 import path6 from "node:path";
@@ -17064,7 +16843,7 @@ function trackRegistryPath(repoRoot) {
   return path6.join(repoRoot, TENON_DIR, TRACKS_FILE);
 }
 function registryRevision(config) {
-  return createHash18("sha256").update(serializeTrackRegistry(config), "utf8").digest("hex").slice(0, 16);
+  return createHash17("sha256").update(serializeTrackRegistry(config), "utf8").digest("hex").slice(0, 16);
 }
 var RegistryRevisionConflictError = class extends Error {
   expected;
@@ -20568,7 +20347,7 @@ function updateLoopInYaml(text6, loopId, patch) {
 }
 
 // packages/kernel/dist/loops/governance.js
-import { createHash as createHash19, randomBytes } from "node:crypto";
+import { createHash as createHash18, randomBytes } from "node:crypto";
 import { mkdir as mkdir13, open as open5, readFile as readFile16, rename as rename6 } from "node:fs/promises";
 import { join as join29, resolve as resolve13 } from "node:path";
 var LOOPS_REL = [".pipeline", "loops.yaml"];
@@ -20595,7 +20374,7 @@ async function readRegistrySnapshot(repoRoot) {
     }
     throw new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${e.code ?? "IO"}\uFF09\uFF1A${e instanceof Error ? e.message : String(e)}`);
   }
-  const epoch = createHash19("sha256").update(text6, "utf8").digest("hex");
+  const epoch = createHash18("sha256").update(text6, "utf8").digest("hex");
   const { data, errors } = loadRegistry(repoRoot, { readText: () => text6 });
   return { text: text6, epoch, registry: data, errors };
 }
@@ -21132,7 +20911,7 @@ function renderHandoffSummary(doc, label, locale = "zh-CN") {
 }
 
 // packages/kernel/dist/compress/context-bundle.js
-import { createHash as createHash20 } from "node:crypto";
+import { createHash as createHash19 } from "node:crypto";
 import { isAbsolute as isAbsolute7 } from "node:path";
 var ContextBundleError = class extends Error {
   constructor(message) {
@@ -21155,7 +20934,7 @@ function unsignedPayload(input) {
   return input;
 }
 function contextBundleAggregateDigest(bundle) {
-  return `sha256:${createHash20("sha256").update(JSON.stringify(unsignedPayload(bundle)), "utf8").digest("hex")}`;
+  return `sha256:${createHash19("sha256").update(JSON.stringify(unsignedPayload(bundle)), "utf8").digest("hex")}`;
 }
 function compileContextBundle(input) {
   if (!SAFE_ID.test(input.change))
@@ -21463,12 +21242,12 @@ async function compileLedgerContextBundleWithPorts(input) {
 }
 
 // packages/kernel/dist/compress/ledger-context-bundle-node-adapter.js
-import { createHash as createHash21 } from "node:crypto";
+import { createHash as createHash20 } from "node:crypto";
 import { isAbsolute as isAbsolute8, join as join30, posix as posix2 } from "node:path";
 var nodeLedgerContextBundlePrimitives = {
   isAbsoluteRoot: isAbsolute8,
   ledgerPath: (change) => posix2.join("openspec", "changes", change, ".pipeline-documents.json"),
-  sha256: (text6) => createHash21("sha256").update(text6, "utf8").digest("hex"),
+  sha256: (text6) => createHash20("sha256").update(text6, "utf8").digest("hex"),
   utf8ByteLength: (text6) => Buffer.byteLength(text6, "utf8")
 };
 
@@ -23887,7 +23666,6 @@ var ADAPTER_CAPABILITY_ROWS = [
 var ADAPTER_CAPABILITY_BY_HOST = new Map(ADAPTER_CAPABILITY_ROWS.map((row) => [row.host_id, row]));
 
 // packages/kernel/dist/decision/projection.js
-var PENDING_REVIEW_TTL_MS = 30 * 60 * 1e3;
 function field(state, key) {
   const fields = state.fields;
   const value = fields[key];
@@ -23936,20 +23714,13 @@ function reviewEvidence(input, phase, event, requestedAt) {
   }
   return { complete: false };
 }
-function reviewStatus(input, phase, event, requestedAt) {
+function reviewStatus(input, phase, event, _requestedAt) {
   const status2 = reviewGateStatus(input.state);
   if (status2 !== null && reviewGatePendingFor(input.state, phase, event)) {
-    if (input.now !== void 0) {
-      const requested = Date.parse(requestedAt);
-      const now = Date.parse(input.now);
-      if (Number.isFinite(requested) && Number.isFinite(now) && now - requested > PENDING_REVIEW_TTL_MS) {
-        return { status: "expired", evidence: ["canonical-review-receipt", "review-ttl-expired"] };
-      }
-    }
     return { status: "pending", evidence: ["canonical-review-receipt"] };
   }
   if (status2 !== null && reviewGateApprovedFor(input.state, phase, event)) {
-    const evidence = reviewEvidence(input, phase, event, requestedAt);
+    const evidence = reviewEvidence(input, phase, event, _requestedAt);
     if (evidence.complete)
       return { status: "consumed", evidence: ["transition-record", "interaction-acknowledged", "interaction-effect-applied"] };
     if (evidence.acknowledgement !== void 0)
@@ -24058,7 +23829,7 @@ function invocationDecisions(input) {
         evidence: decision === void 0 ? ["invocation-question"] : ["invocation-question", "decision-recorded"],
         source: source2,
         channel: isAfk ? "automation" : "terminal",
-        command: isAfk ? "afk-answer" : "skill-answer"
+        command: "skill-answer"
       });
     }
   }
@@ -24089,6 +23860,59 @@ function createDecisionCommandAdapter(port) {
 }
 
 // packages/kernel/dist/decision/review-application.js
+function scalar4(state, key) {
+  const value = state.fields[key];
+  return Array.isArray(value) ? value.join(",") : value ?? "";
+}
+function workflowMode(workflow) {
+  return workflow === "default" ? "default" : "custom";
+}
+function trackKind(track) {
+  if (track === "free")
+    return "free";
+  return ["chat", "simple", "pm", "frontend", "backend"].includes(track) ? "built-in" : "custom";
+}
+function pipelineStage(step) {
+  return ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(step) ? step : "custom";
+}
+function reviewAcknowledgedInteractionDraft(input) {
+  const workflow = scalar4(input.state, "workflow") || "default";
+  const track = scalar4(input.state, "track") || "backend";
+  const origin = input.beforeRevision.state.runMetadata;
+  const current = input.revision.state.runMetadata;
+  if (origin === void 0 || current === void 0)
+    throw new Error("interaction projection \u7F3A run identity");
+  const originStepVisit = { runId: origin.runId, transitionSequence: origin.transitionSequence, step: input.phase };
+  const stepVisit = { runId: current.runId, transitionSequence: current.transitionSequence, step: input.phase };
+  const rejected = input.rejected === true;
+  return {
+    change: input.change,
+    runId: current.runId,
+    workflow,
+    workflowHash: current.workflowPlanFingerprint ?? "0".repeat(64),
+    originStepVisit,
+    stepVisit,
+    stateBeforeHash: input.beforeRevision.stateDigest,
+    stateAfterHash: input.revision.stateDigest,
+    actor: input.actor ?? "system",
+    surface: input.surface,
+    executionMode: "interactive",
+    workflowMode: workflowMode(workflow),
+    track,
+    trackKind: trackKind(track),
+    pipelineStage: pipelineStage(input.phase),
+    journeyId: interactionJourneyId({ change: input.change, runId: origin.runId, originStepVisit, reviewEvent: input.event, requestedAt: input.requestedAt }),
+    controlStage: "verification",
+    event: "review.acknowledged",
+    reasonCode: rejected ? "decision.state-stale" : "decision.accepted",
+    triggerCode: "review.acknowledge",
+    effectCode: rejected ? "review-gate.rejected" : "review-gate.approved",
+    result: rejected ? "rejected" : "success",
+    outcomeCode: "review.acknowledged",
+    occurredAt: input.acknowledgedAt,
+    durationMs: 0
+  };
+}
 async function acknowledgeReview(input) {
   const deferred = [];
   const reject3 = async (state, acknowledgedAt) => {
@@ -24135,11 +23959,6 @@ async function acknowledgeReview(input) {
   } else
     deferred.push("review-marker-clear");
   return { changed: true, acknowledgedAt: input.acknowledgedAt, deferred };
-}
-
-// packages/kernel/dist/decision/invocation-command.js
-async function recordDashboardInvocationDecisionUnderLock(changeDir2, lock, decision, options) {
-  return appendSkillInvocationEventUnderLock(changeDir2, lock, decision, options);
 }
 
 // packages/kernel/dist/skills/source-registry.js
@@ -24391,22 +24210,15 @@ function field2(state, name) {
   const value = state.fields[name];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
-function trackKind(track) {
+function trackKind2(track) {
   if (track === "free")
     return "free";
   if (["chat", "simple", "pm", "frontend", "backend"].includes(track))
     return "built-in";
   return "custom";
 }
-function pipelineStage(step) {
+function pipelineStage2(step) {
   return ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(step) ? step : "custom";
-}
-function classifyInteractionWorkflowIdentity(input) {
-  return {
-    workflowMode: isDefaultWorkflowName(input.workflow) ? "default" : "custom",
-    trackKind: trackKind(input.track),
-    pipelineStage: pipelineStage(input.step)
-  };
 }
 function createInteractionEffectDraft(input) {
   const workflowHash = input.workflowRun.workflowPlanFingerprint;
@@ -24446,8 +24258,8 @@ function createInteractionEffectDraft(input) {
     executionMode: "interactive",
     workflowMode: isDefaultWorkflowName(input.workflowRun.workflowId) ? "default" : "custom",
     track: input.track,
-    trackKind: trackKind(input.track),
-    pipelineStage: pipelineStage(input.from),
+    trackKind: trackKind2(input.track),
+    pipelineStage: pipelineStage2(input.from),
     controlStage: "execution",
     event: "review.effect-applied",
     reasonCode: "effect.applied",
@@ -25397,7 +25209,7 @@ function createTransitionApplication(deps) {
 // packages/server/src/server.ts
 import { join as joinPath3 } from "node:path";
 import { createServer } from "node:http";
-import { join as join79 } from "node:path";
+import { join as join77 } from "node:path";
 
 // packages/automation/dist/types.js
 var AUTOMATION_STATES = [
@@ -25419,7 +25231,7 @@ var DEFAULT_CONFIG = {
 };
 
 // packages/automation/dist/artifacts/service.js
-import { createHash as createHash22 } from "node:crypto";
+import { createHash as createHash21 } from "node:crypto";
 import { cp, mkdir as mkdir16, readFile as readFile19, stat as stat2, writeFile as writeFile8 } from "node:fs/promises";
 import { dirname as dirname8, join as join32, relative as relative6, resolve as resolve14 } from "node:path";
 
@@ -25501,7 +25313,7 @@ function createDefaultArtifactCheckers() {
   ];
 }
 var emptyState = () => ({ version: 1, revision: 0, attempts: [], artifacts: [], events: [], reads: [], checks: [], subjectMappings: [], migrationReceipts: [] });
-var digest7 = (bytes) => createHash22("sha256").update(bytes).digest("hex");
+var digest7 = (bytes) => createHash21("sha256").update(bytes).digest("hex");
 var jsonBytes = (value) => new TextEncoder().encode(JSON.stringify(value));
 function bytesOf(value) {
   if (value instanceof Uint8Array)
@@ -26085,12 +25897,12 @@ function openLegacyLineageView(rootDir, options = {}) {
 
 // packages/automation/dist/submission/namespace.js
 import path8 from "node:path";
-import { createHash as createHash23 } from "node:crypto";
+import { createHash as createHash22 } from "node:crypto";
 function artifactNamespaceForChange(changeDir2) {
   const normalized2 = path8.resolve(changeDir2);
   const changeName = normalized2.split(path8.sep).at(-1) ?? "change";
   const safe = changeName.toLowerCase().replace(/[^a-z0-9._/-]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 80) || "change";
-  const identity = createHash23("sha256").update(normalized2).digest("hex").slice(0, 12);
+  const identity = createHash22("sha256").update(normalized2).digest("hex").slice(0, 12);
   return `change-${safe}-${identity}`;
 }
 
@@ -26268,8 +26080,8 @@ var CONTRACT_KEYS = Object.freeze([
 var ACTIONS2 = new Set(WORKFLOW_ACTIONS);
 
 // packages/automation/dist/skills/snapshot-manifest.js
-import { createHash as createHash24 } from "node:crypto";
-import { constants as constants5 } from "node:fs";
+import { createHash as createHash23 } from "node:crypto";
+import { constants as constants4 } from "node:fs";
 import { chmod, lstat as lstat19, mkdir as mkdir17, open as open6, readdir as readdir4, realpath as realpath7, stat as stat3, writeFile as writeFile9 } from "node:fs/promises";
 import { dirname as dirname9, join as join33, relative as relative7, sep as sep8 } from "node:path";
 
@@ -26285,7 +26097,7 @@ var SkillContentInvalidError = class extends Error {
 };
 var EXEC_BITS = 73;
 function sha256Hex3(data) {
-  return createHash24("sha256").update(data).digest("hex");
+  return createHash23("sha256").update(data).digest("hex");
 }
 var EMPTY_FILE_SHA256 = sha256Hex3(Buffer.alloc(0));
 function byRelativePath(a, b) {
@@ -26353,7 +26165,7 @@ async function readRegularFileStrict(absPath, onFailure, opts) {
     await assertDirectoryIdentities(opts.ancestors, onFailure);
   let handle;
   try {
-    handle = await open6(absPath, opts.noFollow ? constants5.O_RDONLY | constants5.O_NOFOLLOW : constants5.O_RDONLY);
+    handle = await open6(absPath, opts.noFollow ? constants4.O_RDONLY | constants4.O_NOFOLLOW : constants4.O_RDONLY);
   } catch (e) {
     throw onFailure(`\u6253\u5F00\u5931\u8D25\uFF08${e.message}\uFF09`);
   }
@@ -26590,7 +26402,7 @@ function resolveAutomationConfig(deps, entrypointDefaults = {}) {
 }
 
 // packages/automation/dist/lifecycle/spec-complete.js
-var scalar4 = (value) => typeof value === "string" ? value : "";
+var scalar5 = (value) => typeof value === "string" ? value : "";
 async function enqueueAfterSpecComplete(deps, transition) {
   if (transition.event !== "spec-complete" || transition.from !== "spec" || transition.to !== "build") {
     return { kind: "not-applicable" };
@@ -26599,12 +26411,12 @@ async function enqueueAfterSpecComplete(deps, transition) {
   const changeDir2 = join35(deps.repoRoot, "openspec", "changes", transition.changeName);
   return deps.store.withLock(changeDir2, async () => {
     const state = await deps.store.read(changeDir2);
-    if (scalar4(state.fields.phase) !== "build")
+    if (scalar5(state.fields.phase) !== "build")
       return { kind: "phase-changed" };
-    const policy3 = deps.resolveTrackPolicy(scalar4(state.fields.track));
+    const policy3 = deps.resolveTrackPolicy(scalar5(state.fields.track));
     if (policy3.autoEnqueueOnSpecComplete !== true)
       return { kind: "track-disabled" };
-    const automation = scalar4(state.fields.automation);
+    const automation = scalar5(state.fields.automation);
     if (automation === "queued")
       return { kind: "already-queued" };
     if (automation !== "off")
@@ -27253,7 +27065,7 @@ async function evaluateLoopExecutionWiring(loop, loops, deps) {
 }
 
 // packages/automation/dist/task-plan-run/journal.js
-import { constants as constants6 } from "node:fs";
+import { constants as constants5 } from "node:fs";
 import { lstat as lstat21, mkdir as mkdir18, open as open7 } from "node:fs/promises";
 import { join as join38 } from "node:path";
 var JOURNAL_SCHEMA_VERSION = "task-run-event/v1";
@@ -27445,7 +27257,7 @@ async function events(changeDir2, revisionId) {
   if (directory === null)
     return [];
   const path13 = join38(directory, "events.jsonl");
-  const handle = await openJournalFile(path13, constants6.O_RDONLY | constants6.O_NONBLOCK | constants6.O_NOFOLLOW);
+  const handle = await openJournalFile(path13, constants5.O_RDONLY | constants5.O_NONBLOCK | constants5.O_NOFOLLOW);
   if (handle === null)
     return [];
   try {
@@ -27500,7 +27312,7 @@ async function appendEvent(changeDir2, revisionId, expectedRunRevision, event) {
     if (directory === null)
       throw new TaskRunJournalCorruptError("Task run journal directory is missing");
     const path13 = join38(directory, "events.jsonl");
-    const handle = await openJournalFile(path13, constants6.O_RDWR | constants6.O_APPEND | constants6.O_CREAT | constants6.O_NONBLOCK | constants6.O_NOFOLLOW, 384);
+    const handle = await openJournalFile(path13, constants5.O_RDWR | constants5.O_APPEND | constants5.O_CREAT | constants5.O_NONBLOCK | constants5.O_NOFOLLOW, 384);
     if (handle === null)
       throw new TaskRunJournalCorruptError("Task run journal leaf disappeared");
     try {
@@ -27707,7 +27519,7 @@ var DEFAULT_SKILL_OUTPUT_MAX_BYTES = 256 * 1024;
 var DECISION_MAX_BYTES = 64 * 1024;
 
 // packages/automation/dist/orchestration/workflow-pipeline-v2.js
-import { createHash as createHash25 } from "node:crypto";
+import { createHash as createHash24 } from "node:crypto";
 var ID3 = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 var RESOURCE_KEY2 = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,511}$/u;
 var UTC3 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u;
@@ -27781,7 +27593,7 @@ function stable3(value) {
   return `{${Object.keys(record7).sort().map((key) => `${JSON.stringify(key)}:${stable3(record7[key])}`).join(",")}}`;
 }
 function digest8(value) {
-  return `sha256:${createHash25("sha256").update(stable3(value), "utf8").digest("hex")}`;
+  return `sha256:${createHash24("sha256").update(stable3(value), "utf8").digest("hex")}`;
 }
 function text4(value, label) {
   if (typeof value !== "string" || value.length === 0 || value.trim() !== value || value.length > 8192 || !ID3.test(value))
@@ -27970,7 +27782,7 @@ function materializeWorkflowPipelineV2(input) {
 }
 
 // packages/automation/dist/orchestration/planner-v2-catalog.js
-import { createHash as createHash26 } from "node:crypto";
+import { createHash as createHash25 } from "node:crypto";
 var PLANNER_CATALOG_SCHEMA_V2 = "capability-catalog/v2";
 var PLANNER_DESCRIPTOR_SCHEMA_V2 = "capability-descriptor/v2";
 var PLANNER_ASSESSMENT_EVIDENCE_V2 = "assessment:deterministic:v2";
@@ -28000,7 +27812,7 @@ function stable4(value) {
   return `{${Object.keys(record7).sort().map((key) => `${JSON.stringify(key)}:${stable4(record7[key])}`).join(",")}}`;
 }
 function digest9(value) {
-  return `sha256:${createHash26("sha256").update(stable4(value), "utf8").digest("hex")}`;
+  return `sha256:${createHash25("sha256").update(stable4(value), "utf8").digest("hex")}`;
 }
 function taskIdentifier(value) {
   const normalized2 = value.normalize("NFC").replace(/[^\p{L}\p{N}._-]+/gu, "-");
@@ -28417,7 +28229,7 @@ function planDevelopmentV2(input) {
 import { randomUUID as randomUUID9 } from "node:crypto";
 
 // packages/automation/dist/orchestration/runtime-v2-boundary.js
-import { createHash as createHash27 } from "node:crypto";
+import { createHash as createHash26 } from "node:crypto";
 var DEFAULT_MAX_OUTPUT_BYTES = 256 * 1024;
 var DEFAULT_MAX_ROUNDS = 256;
 var DEFAULT_MAX_ATTEMPTS = 3;
@@ -28441,7 +28253,7 @@ function stable5(value) {
   return `{${Object.keys(record7).sort().map((key) => `${JSON.stringify(key)}:${stable5(record7[key])}`).join(",")}}`;
 }
 function digest10(value) {
-  return `sha256:${createHash27("sha256").update(stable5(value), "utf8").digest("hex")}`;
+  return `sha256:${createHash26("sha256").update(stable5(value), "utf8").digest("hex")}`;
 }
 function resultIdentity(runId) {
   return `result:${digest10(runId).slice(7, 39)}`;
@@ -28620,7 +28432,7 @@ function resultFor3(run, observation, report, now, issue2, outputSchemaId) {
 
 // packages/automation/dist/orchestration/input-materialization-v2.js
 import { readFile as readFile20 } from "node:fs/promises";
-import { createHash as createHash28 } from "node:crypto";
+import { createHash as createHash27 } from "node:crypto";
 import path9 from "node:path";
 var MAX_INPUT_BYTES = 1024 * 1024;
 var SAFE_REF2 = /^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,511}$/u;
@@ -28639,7 +28451,7 @@ function byteLength(value) {
   return new TextEncoder().encode(value).byteLength;
 }
 function rawDigest(value) {
-  return typeof value === "string" ? `sha256:${createHash28("sha256").update(new TextEncoder().encode(value)).digest("hex")}` : void 0;
+  return typeof value === "string" ? `sha256:${createHash27("sha256").update(new TextEncoder().encode(value)).digest("hex")}` : void 0;
 }
 function digestMatches(value, expected, normalized2) {
   return normalized2 === expected || rawDigest(value) === expected;
@@ -28961,7 +28773,7 @@ function chooseWave(snapshot, policy3) {
 }
 
 // packages/automation/dist/artifact-runtime/stage-runtime.js
-import { createHash as createHash29 } from "node:crypto";
+import { createHash as createHash28 } from "node:crypto";
 import { readFile as readFile21, readdir as readdir5, stat as stat5 } from "node:fs/promises";
 import path10 from "node:path";
 var StageArtifactRuntime = class _StageArtifactRuntime {
@@ -29187,7 +28999,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
           await walk(absolute);
         else if (entry.isFile() && !this.isIgnored(path10.relative(this.rootDir, absolute))) {
           const bytes = await readFile21(absolute);
-          result2.set(path10.relative(this.rootDir, absolute), createHash29("sha256").update(bytes).digest("hex"));
+          result2.set(path10.relative(this.rootDir, absolute), createHash28("sha256").update(bytes).digest("hex"));
         }
       }
     };
@@ -29212,7 +29024,7 @@ function mediaTypeFor(file) {
   return "application/octet-stream";
 }
 function digest11(bytes) {
-  return createHash29("sha256").update(bytes).digest("hex");
+  return createHash28("sha256").update(bytes).digest("hex");
 }
 
 // packages/automation/dist/orchestration/artifact-consumption-v2.js
@@ -30011,7 +29823,7 @@ async function createProductionExecutionRuntimeV2(options) {
 // packages/server/src/workflows.ts
 import { randomUUID as randomUUID10 } from "node:crypto";
 import {
-  constants as constants10,
+  constants as constants9,
   fstatSync as fstatSync5,
   fsyncSync as fsyncSync2,
   lstatSync as lstatSync5,
@@ -30025,7 +29837,7 @@ import {
 
 // packages/server/src/workflowTrustedFs.ts
 import {
-  constants as constants8,
+  constants as constants7,
   fstatSync as fstatSync3,
   lstatSync as lstatSync4,
   mkdirSync as mkdirSync3,
@@ -30038,7 +29850,7 @@ import { isAbsolute as isAbsolute10, join as join39, relative as relative8, sep 
 // packages/server/src/workflowRootAnchor.ts
 import {
   closeSync as closeSync3,
-  constants as constants7,
+  constants as constants6,
   fstatSync as fstatSync2,
   lstatSync as lstatSync3,
   openSync as openSync3,
@@ -30082,7 +29894,7 @@ function captureWorkflowRootAnchor(root) {
   if (lexical.isSymbolicLink() || !lexical.isDirectory()) {
     throw new Error(`registered root \u5FC5\u987B\u662F\u975E symlink \u7684\u771F\u5B9E\u76EE\u5F55: ${path13}`);
   }
-  const fd = openSync3(path13, constants7.O_RDONLY | constants7.O_DIRECTORY | constants7.O_NOFOLLOW);
+  const fd = openSync3(path13, constants6.O_RDONLY | constants6.O_DIRECTORY | constants6.O_NOFOLLOW);
   try {
     const opened = fstatSync2(fd);
     if (!opened.isDirectory() || !sameIdentity(opened, lexical)) {
@@ -30199,7 +30011,7 @@ function openTrustedChildDirectory(root, parent, name, create) {
   if (before.isSymbolicLink() || !before.isDirectory()) {
     throw new Error(`workflow \u8DEF\u5F84\u4E0D\u5B89\u5168\uFF08\u987B\u4E3A\u771F\u5B9E\u76EE\u5F55\uFF09: ${lexicalPath}`);
   }
-  const fd = openSync4(operationPath, constants8.O_RDONLY | constants8.O_DIRECTORY | constants8.O_NOFOLLOW);
+  const fd = openSync4(operationPath, constants7.O_RDONLY | constants7.O_DIRECTORY | constants7.O_NOFOLLOW);
   try {
     const opened = fstatSync3(fd);
     if (!opened.isDirectory() || !sameIdentity(opened, before)) {
@@ -30360,7 +30172,7 @@ function errText3(error2) {
 }
 
 // packages/server/src/workflowReferenceScan.ts
-import { constants as constants9, fstatSync as fstatSync4, openSync as openSync5, readFileSync as readFileSync15, readdirSync as readdirSync6 } from "node:fs";
+import { constants as constants8, fstatSync as fstatSync4, openSync as openSync5, readFileSync as readFileSync15, readdirSync as readdirSync6 } from "node:fs";
 function decodeUtf8Strict(bytes, label) {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -30373,7 +30185,7 @@ function readTrustedRegularFile(directory, root, name, label, missing4) {
   assertDirectoryStillTrusted(directory, root);
   let fd;
   try {
-    fd = openSync5(paths.operation, constants9.O_RDONLY | constants9.O_NOFOLLOW);
+    fd = openSync5(paths.operation, constants8.O_RDONLY | constants8.O_NOFOLLOW);
   } catch (error2) {
     if (error2.code === "ENOENT" && missing4 === "null") return null;
     if (error2.code === "ENOENT") throw new Error(`${label} \u7F3A\u5931: ${paths.lexical}`);
@@ -30655,7 +30467,7 @@ function captureWorkflowDeletePermit(root, name) {
     assertWorkflowDirectoriesStillTrusted(directories);
     let fd;
     try {
-      fd = openSync6(target.operation, constants10.O_RDONLY | constants10.O_NOFOLLOW);
+      fd = openSync6(target.operation, constants9.O_RDONLY | constants9.O_NOFOLLOW);
     } catch (error2) {
       if (error2.code === "ENOENT") return null;
       throw error2;
@@ -30727,7 +30539,7 @@ function readWorkflowSourceForApi(root, name, readSource = readBoundedWorkflowSo
         try {
           fd = openSync6(
             paths.operation,
-            constants10.O_RDONLY | constants10.O_NOFOLLOW | constants10.O_NONBLOCK
+            constants9.O_RDONLY | constants9.O_NOFOLLOW | constants9.O_NONBLOCK
           );
         } catch (e) {
           if (e.code === "ENOENT") {
@@ -30809,7 +30621,7 @@ function writeWorkflowForApi(root, name, wf) {
       assertWorkflowDirectoriesStillTrusted(directories);
       tempFd = openSync6(
         temp.operation,
-        constants10.O_WRONLY | constants10.O_CREAT | constants10.O_EXCL | constants10.O_NOFOLLOW,
+        constants9.O_WRONLY | constants9.O_CREAT | constants9.O_EXCL | constants9.O_NOFOLLOW,
         384
       );
       writeFileSync3(tempFd, content, "utf8");
@@ -30847,7 +30659,7 @@ function deleteWorkflowForApi(root, name, permit) {
     assertWorkflowDirectoriesStillTrusted(directories);
     let fd;
     try {
-      fd = openSync6(target.operation, constants10.O_RDONLY | constants10.O_NOFOLLOW);
+      fd = openSync6(target.operation, constants9.O_RDONLY | constants9.O_NOFOLLOW);
     } catch (e) {
       if (e.code === "ENOENT") {
         if (permit) throw new WorkflowDeleteConflictError(`workflow '${name}' \u5728\u5F15\u7528\u626B\u63CF\u671F\u95F4\u6D88\u5931`);
@@ -30874,11 +30686,11 @@ function deleteWorkflowForApi(root, name, permit) {
 }
 
 // packages/server/src/snapshot.ts
-import { closeSync as closeSync5, constants as constants13, fstatSync as fstatSync8, lstatSync as lstatSync7, openSync as openSync9 } from "node:fs";
+import { closeSync as closeSync5, constants as constants12, fstatSync as fstatSync8, lstatSync as lstatSync7, openSync as openSync9 } from "node:fs";
 import { join as join47 } from "node:path";
 
 // packages/server/src/contextBundleTrustedReader.ts
-import { constants as constants11, fstatSync as fstatSync6, openSync as openSync7, readSync as readSync4 } from "node:fs";
+import { constants as constants10, fstatSync as fstatSync6, openSync as openSync7, readSync as readSync4 } from "node:fs";
 import { dirname as dirname10, posix as posix3 } from "node:path";
 function safeParts(path13) {
   if (path13 === "" || path13.startsWith("/") || path13.includes("\\")) throw new Error("unsafe relative path");
@@ -30939,7 +30751,7 @@ function readTrustedFile(root, relativePath, maxBytes, readLimit, changeIdentity
       try {
         fd = openSync7(
           paths.operation,
-          constants11.O_RDONLY | constants11.O_NOFOLLOW | constants11.O_NONBLOCK
+          constants10.O_RDONLY | constants10.O_NOFOLLOW | constants10.O_NONBLOCK
         );
       } catch (error2) {
         if (isMissing(error2)) {
@@ -31152,7 +30964,7 @@ async function mapWithConcurrency(items, limit, mapper) {
 
 // packages/server/src/repositoryIdentity.ts
 import { execFile as execFile3 } from "node:child_process";
-import { createHash as createHash30 } from "node:crypto";
+import { createHash as createHash29 } from "node:crypto";
 import { basename as basename5, dirname as dirname11, isAbsolute as isAbsolute11, join as join40, normalize, resolve as resolve16 } from "node:path";
 var REPOSITORY_IDENTITY_TIMEOUT_MS = 1500;
 var REPOSITORY_IDENTITY_MAX_OUTPUT_BYTES = 4096;
@@ -31232,7 +31044,7 @@ async function probeRepositoryIdentity(root, deps = {}) {
   const label = conventionalDotGit ? basename5(dirname11(commonDirectory)) : commonName.endsWith(".git") && commonName.length > ".git".length ? commonName.slice(0, -".git".length) : basename5(topLevel);
   if (!label) return void 0;
   return {
-    id: createHash30("sha256").update(commonDirectory).digest("hex"),
+    id: createHash29("sha256").update(commonDirectory).digest("hex"),
     label,
     workspace_kind: gitDirectory === commonDirectory ? "primary" : "worktree"
   };
@@ -31339,7 +31151,7 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
 // packages/server/src/snapshotTasks.ts
 import {
   closeSync as closeSync4,
-  constants as constants12,
+  constants as constants11,
   fstatSync as fstatSync7,
   lstatSync as lstatSync6,
   openSync as openSync8,
@@ -31414,7 +31226,7 @@ async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
     const ancestorVersions = [dirname12(openspecDir), openspecDir, changesDir].map(captureDirectoryMutationVersion);
     changeFd = openSync8(
       changeDir2,
-      constants12.O_RDONLY | constants12.O_DIRECTORY | constants12.O_NOFOLLOW
+      constants11.O_RDONLY | constants11.O_DIRECTORY | constants11.O_NOFOLLOW
     );
     const openedChangeDir = fstatSync7(changeFd);
     const anchoredChangeDir = traversableDirectoryFdPath(changeFd, openedDir) ?? changeDir2;
@@ -31422,7 +31234,7 @@ async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
     assertTrustContext();
     const target = join43(anchoredChangeDir, "tasks.md");
     hooks.beforeOpen?.();
-    fd = openSync8(target, constants12.O_RDONLY | constants12.O_NOFOLLOW | constants12.O_NONBLOCK);
+    fd = openSync8(target, constants11.O_RDONLY | constants11.O_NOFOLLOW | constants11.O_NONBLOCK);
     const opened = fstatSync7(fd, { bigint: true });
     if (!opened.isFile() || opened.size > BigInt(MAX_TASKS_MARKDOWN_BYTES)) return void 0;
     const openedVersion = captureStableFileVersion(opened);
@@ -31799,16 +31611,16 @@ async function snapshotWorkflowExecution(plan, state, root, changeDir2, changeNa
 }
 
 // packages/server/src/reviewHandshake.ts
-function stringField4(value) {
+function stringField3(value) {
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 function projectReviewHandshake(state, plan, phase) {
   const receipt = {
-    phase: stringField4(state.fields.review_gate_phase),
-    status: stringField4(state.fields.review_gate_status),
-    event: stringField4(state.fields.review_gate_event),
-    requestedAt: stringField4(state.fields.review_requested_at),
-    acknowledgedAt: stringField4(state.fields.review_acknowledged_at)
+    phase: stringField3(state.fields.review_gate_phase),
+    status: stringField3(state.fields.review_gate_status),
+    event: stringField3(state.fields.review_gate_event),
+    requestedAt: stringField3(state.fields.review_requested_at),
+    acknowledgedAt: stringField3(state.fields.review_acknowledged_at)
   };
   if (Object.values(receipt).every((value) => value === "")) {
     return { status: "not-requested" };
@@ -32031,7 +31843,7 @@ async function readTerminalActivity(changeDir2, changeName, nowMs) {
   const target = join47(changeDir2, TERMINAL_ACTIVITY_FILE);
   let fd;
   try {
-    fd = openSync9(target, constants13.O_RDONLY | constants13.O_NOFOLLOW | constants13.O_NONBLOCK);
+    fd = openSync9(target, constants12.O_RDONLY | constants12.O_NOFOLLOW | constants12.O_NONBLOCK);
     const opened = fstatSync8(fd);
     if (!opened.isFile() || opened.size > 4096) return void 0;
     const assertStable = () => {
@@ -32727,7 +32539,7 @@ function createCadenceScheduler(options) {
 
 // packages/server/src/serverGetRoutes.ts
 import { lstatSync as lstatSync12 } from "node:fs";
-import { dirname as dirname16, join as join66 } from "node:path";
+import { dirname as dirname16, join as join65 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // packages/server/src/afkReadiness.ts
@@ -33096,7 +32908,7 @@ async function writeMandatorySkills(manifestPath2, phase, track, skills) {
 // packages/server/src/hooksConfig.ts
 import { randomUUID as randomUUID11 } from "node:crypto";
 import {
-  constants as constants14,
+  constants as constants13,
   fstatSync as fstatSync9,
   fsyncSync as fsyncSync3,
   openSync as openSync10,
@@ -33129,7 +32941,7 @@ function readBoundedHooksConfig(root, pipeline) {
   try {
     fd = openSync10(
       file.operation,
-      constants14.O_RDONLY | constants14.O_NONBLOCK | constants14.O_NOFOLLOW
+      constants13.O_RDONLY | constants13.O_NONBLOCK | constants13.O_NOFOLLOW
     );
     const stat6 = fstatSync9(fd);
     if (!stat6.isFile() || stat6.size > HOOKS_CONFIG_MAX_BYTES) return null;
@@ -33272,7 +33084,7 @@ function writeHooksConfig(root, pipeline, config) {
   try {
     fd = openSync10(
       tmp.operation,
-      constants14.O_WRONLY | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW,
+      constants13.O_WRONLY | constants13.O_CREAT | constants13.O_EXCL | constants13.O_NOFOLLOW,
       384
     );
     writeFileSync5(fd, `${JSON.stringify({
@@ -33580,7 +33392,7 @@ async function removeSecret(path13, key) {
 }
 
 // packages/server/src/skillsRegistry.ts
-import { accessSync as accessSync2, constants as constants15, existsSync as existsSync8, readdirSync as readdirSync9, readFileSync as readFileSync19, realpathSync as realpathSync6, statSync as statSync5 } from "node:fs";
+import { accessSync as accessSync2, constants as constants14, existsSync as existsSync8, readdirSync as readdirSync9, readFileSync as readFileSync19, realpathSync as realpathSync6, statSync as statSync5 } from "node:fs";
 import { delimiter, dirname as dirname15, join as join53, sep as sep13 } from "node:path";
 var BUILTIN_SKILLS = /* @__PURE__ */ new Set(["verify", "run", "code-review", "security-review"]);
 function skillDescriptionFrom(path13) {
@@ -33834,7 +33646,7 @@ function executableOnPath(bin) {
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     if (dir === "") continue;
     try {
-      accessSync2(join53(dir, bin), constants15.X_OK);
+      accessSync2(join53(dir, bin), constants14.X_OK);
       return true;
     } catch {
     }
@@ -34108,7 +33920,7 @@ var ContextBundlePathError = class extends Error {
 function missingCode(error2) {
   return typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT";
 }
-function inside3(base, candidate) {
+function inside2(base, candidate) {
   const fromBase = relative10(base, candidate);
   return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep14}`) && !isAbsolute13(fromBase);
 }
@@ -34168,7 +33980,7 @@ function captureChangePathAnchor(root, change) {
       cause
     );
   }
-  if (!inside3(root.realPath, realPath)) {
+  if (!inside2(root.realPath, realPath)) {
     throw new ContextBundlePathError(403, `Context Bundle Change \u8DEF\u5F84\u9003\u9038 registered root: ${realPath}`);
   }
   return { changeDir: changeDir2, realPath, chain };
@@ -34474,7 +34286,7 @@ async function handleContextBundlePreview(req, res, deps) {
 }
 
 // packages/server/src/runDetail.ts
-function scalar5(value) {
+function scalar6(value) {
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 async function revisionChain(changeDir2, current) {
@@ -34594,13 +34406,13 @@ async function buildRunDetail(repoRoot, changeDir2, changeName, deps) {
     projection,
     workflow_run: metadata ? {
       id: metadata.runId,
-      workflow_id: scalar5(fields.workflow) || "default",
-      current_step: scalar5(fields.phase),
-      lifecycle: scalar5(fields.archived) === "true" ? "archived" : "active",
+      workflow_id: scalar6(fields.workflow) || "default",
+      current_step: scalar6(fields.phase),
+      lifecycle: scalar6(fields.archived) === "true" ? "archived" : "active",
       transition_sequence: metadata.transitionSequence,
       ...metadata.transitionHead ? { transition_head: metadata.transitionHead } : {},
-      created_at: scalar5(fields.created_at),
-      updated_at: scalar5(fields.updated_at),
+      created_at: scalar6(fields.created_at),
+      updated_at: scalar6(fields.updated_at),
       ...automationPolicy ? {
         policy_id: automationPolicy.policy_id,
         policy_version: automationPolicy.policy_version,
@@ -35216,7 +35028,7 @@ function handleGetTraceRoutes(req, res, path13, deps) {
 }
 
 // packages/server/src/hostTargetDetection.ts
-import { closeSync as closeSync6, constants as constants16, fstatSync as fstatSync10, lstatSync as lstatSync9, openSync as openSync11, readSync as readSync6, readdirSync as readdirSync10 } from "node:fs";
+import { closeSync as closeSync6, constants as constants15, fstatSync as fstatSync10, lstatSync as lstatSync9, openSync as openSync11, readSync as readSync6, readdirSync as readdirSync10 } from "node:fs";
 import { join as join60 } from "node:path";
 var MAX_HOST_INVENTORY_BYTES = 256 * 1024;
 function captureDirectoryChain(hostHome, segments) {
@@ -35227,7 +35039,7 @@ function captureDirectoryChain(hostHome, segments) {
     try {
       const descriptor = openSync11(
         candidate,
-        constants16.O_RDONLY | constants16.O_DIRECTORY | constants16.O_NOFOLLOW | constants16.O_NONBLOCK
+        constants15.O_RDONLY | constants15.O_DIRECTORY | constants15.O_NOFOLLOW | constants15.O_NONBLOCK
       );
       const metadata = fstatSync10(descriptor);
       if (!metadata.isDirectory()) {
@@ -35290,7 +35102,7 @@ function hasInstalledPlugin(hostHome, namespaceSegments, markerSegments, options
           if (!directoryChainIsStable(namespace) || !directoryChainIsStable(directories)) return false;
           const expected = lstatSync9(marker);
           if (!expected.isFile() || expected.isSymbolicLink()) return false;
-          const flags = constants16.O_RDONLY | constants16.O_NOFOLLOW | constants16.O_NONBLOCK;
+          const flags = constants15.O_RDONLY | constants15.O_NOFOLLOW | constants15.O_NONBLOCK;
           descriptor = options.openPluginMarker?.(marker, flags) ?? openSync11(marker, flags);
           const anchored = fstatSync10(descriptor);
           const current = lstatSync9(marker);
@@ -35318,7 +35130,7 @@ function readBoundedHostFile(hostHome, segments) {
   try {
     descriptor = openSync11(
       path13,
-      constants16.O_RDONLY | constants16.O_NOFOLLOW | constants16.O_NONBLOCK
+      constants15.O_RDONLY | constants15.O_NOFOLLOW | constants15.O_NONBLOCK
     );
     const metadata = fstatSync10(descriptor);
     if (!metadata.isFile() || metadata.size > MAX_HOST_INVENTORY_BYTES) return null;
@@ -35997,7 +35809,7 @@ function readDefaultOverride(anchor) {
 }
 
 // packages/server/src/definitionCatalog.ts
-import { createHash as createHash31 } from "node:crypto";
+import { createHash as createHash30 } from "node:crypto";
 function capabilityProjection(hostId) {
   const row = ADAPTER_CAPABILITY_BY_HOST.get(hostId);
   if (row === void 0) {
@@ -36014,7 +35826,7 @@ function stableJson(value) {
   return JSON.stringify(value);
 }
 function digest12(value) {
-  return createHash31("sha256").update(stableJson(value), "utf8").digest("hex").slice(0, 32);
+  return createHash30("sha256").update(stableJson(value), "utf8").digest("hex").slice(0, 32);
 }
 function workflowEntry(workflow, source2) {
   const steps = workflow.steps.map((step, order) => ({
@@ -36461,7 +36273,7 @@ data: ${JSON.stringify({ schema_version: "adapter-install-event/v1", kind: "comp
 // packages/server/src/changeSnapshot.ts
 import {
   closeSync as closeSync7,
-  constants as constants17,
+  constants as constants16,
   fstatSync as fstatSync11,
   lstatSync as lstatSync10,
   openSync as openSync12,
@@ -36535,7 +36347,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
   try {
     changeFd = openSync12(
       changeAnchor.changeDir,
-      constants17.O_RDONLY | constants17.O_DIRECTORY | constants17.O_NOFOLLOW
+      constants16.O_RDONLY | constants16.O_DIRECTORY | constants16.O_NOFOLLOW
     );
   } catch (cause) {
     throw new ContextBundlePathError(403, "Change tasks directory cannot be anchored", cause);
@@ -36552,7 +36364,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
   try {
     fd = openSync12(
       target,
-      constants17.O_RDONLY | constants17.O_NOFOLLOW | constants17.O_NONBLOCK
+      constants16.O_RDONLY | constants16.O_NOFOLLOW | constants16.O_NONBLOCK
     );
   } catch (error2) {
     if (missing3(error2)) {
@@ -36650,7 +36462,7 @@ async function readAnchoredChangeState(root, changeName) {
   assertChangePathAnchor(changeAnchor);
   return { changeDir: changeAnchor.changeDir, state, changeAnchor };
 }
-function stringField5(value) {
+function stringField4(value) {
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 async function readChangeSnapshot(deps, root, changeName, nowMs = deps.now?.() ?? Date.now()) {
@@ -36662,8 +36474,8 @@ async function readChangeSnapshot(deps, root, changeName, nowMs = deps.now?.() ?
     const { changeDir: changeDir2, state } = anchored;
     const rootPath = anchor.path;
     const fields = state.fields;
-    const phase = stringField5(fields.phase);
-    const workflowName = stringField5(fields.workflow) || "default";
+    const phase = stringField4(fields.phase);
+    const workflowName = stringField4(fields.workflow) || "default";
     const frozenPlan = state.runMetadata?.workflowPlanSnapshot;
     const definitionWorkflow = frozenPlan?.workflowId ?? workflowName;
     const configuredPolicy = resolveConfiguredWorkflowPolicySafely(
@@ -36732,11 +36544,11 @@ async function readChangeSnapshot(deps, root, changeName, nowMs = deps.now?.() ?
       name: changeName,
       path: changeDir2,
       phase,
-      phase_status: stringField5(fields.phase_status),
-      track: stringField5(fields.track),
-      preset: stringField5(fields.preset),
-      archived: stringField5(fields.archived),
-      updated_at: stringField5(fields.updated_at),
+      phase_status: stringField4(fields.phase_status),
+      track: stringField4(fields.track),
+      preset: stringField4(fields.preset),
+      archived: stringField4(fields.archived),
+      updated_at: stringField4(fields.updated_at),
       fields,
       workflowPlanFingerprint: plan.workflowFingerprint,
       workflowDefinition,
@@ -37461,7 +37273,7 @@ async function handleOrchestrationV2PostRoute(req, res, path13, deps) {
 }
 
 // packages/server/src/serverTaskPlanRoutes.ts
-import { closeSync as closeSync8, constants as constants18, fstatSync as fstatSync12, openSync as openSync13 } from "node:fs";
+import { closeSync as closeSync8, constants as constants17, fstatSync as fstatSync12, openSync as openSync13 } from "node:fs";
 var defaultAnchoredReaderDeps = {
   assertRoot: assertWorkflowRootAnchor,
   captureChangeParent: captureChangeParentPathAnchor,
@@ -37527,7 +37339,7 @@ async function readAnchoredChangeWithDeps(anchor, change, reader, overrides = {}
   try {
     changeFd = openSync13(
       changeAnchor.changeDir,
-      constants18.O_RDONLY | constants18.O_DIRECTORY | constants18.O_NOFOLLOW
+      constants17.O_RDONLY | constants17.O_DIRECTORY | constants17.O_NOFOLLOW
     );
   } catch (cause) {
     throw new ContextBundlePathError(403, "TaskPlan Change directory cannot be anchored", cause);
@@ -37684,7 +37496,7 @@ async function readTaskRunForChange(changeDir2, admission = missingAdmission) {
 }
 
 // packages/server/src/serverSkillInvocationRoutes.ts
-import { closeSync as closeSync9, constants as constants19, fstatSync as fstatSync13, openSync as openSync14 } from "node:fs";
+import { closeSync as closeSync9, constants as constants18, fstatSync as fstatSync13, openSync as openSync14 } from "node:fs";
 var anchoredDeps = {
   assertRoot: assertWorkflowRootAnchor,
   captureChangeParent: captureChangeParentPathAnchor,
@@ -37744,7 +37556,7 @@ async function readAnchoredSkillInvocationEvidence(anchor, change, overrides = {
   deps.assertChange(changeAnchor);
   const identity = changeAnchor.chain.at(-1);
   if (identity === void 0) throw new ContextBundlePathError(403, "Skill invocation Change identity is missing");
-  const fd = openSync14(changeAnchor.changeDir, constants19.O_RDONLY | constants19.O_DIRECTORY | constants19.O_NOFOLLOW);
+  const fd = openSync14(changeAnchor.changeDir, constants18.O_RDONLY | constants18.O_DIRECTORY | constants18.O_NOFOLLOW);
   try {
     const opened = fstatSync13(fd);
     if (!opened.isDirectory() || !sameIdentity(opened, identity)) {
@@ -37946,92 +37758,29 @@ async function resolveArtifactRoute(req, res, path13, deps) {
 }
 
 // packages/server/src/serverGetDecisionRoutes.ts
-import { join as join65 } from "node:path";
-
-// packages/server/src/decisionAudit.ts
-import { constants as constants20 } from "node:fs";
-import { lstat as lstat24, open as open8, readFile as readFile27 } from "node:fs/promises";
 import { join as join64 } from "node:path";
-var DECISION_AUDIT_FILE = ".pipeline-decision-audit.jsonl";
-var DECISION_AUDIT_MAX_BYTES = 1024 * 1024;
-function isRecord11(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function isAuditRecord(value) {
-  if (!isRecord11(value) || value.version !== 1 || typeof value.type !== "string") return false;
-  if (value.type === "decision-mode-switched") {
-    return (value.from === "hitl" || value.from === "afk") && (value.to === "hitl" || value.to === "afk") && (value.strategy === "interactive" || value.strategy === "recommended-defaults" || value.strategy === "afk") && (value.actor === "user" || value.actor === "automation") && value.channel === "dashboard" && typeof value.occurredAt === "string" && Number.isSafeInteger(value.expectedRevision) && typeof value.idempotencyKey === "string" && value.idempotencyKey !== "";
-  }
-  if (value.type === "pending-decision-self-approval-suspected") {
-    return typeof value.pendingDecisionId === "string" && value.pendingDecisionId !== "" && (value.channel === "terminal" || value.channel === "dashboard" || value.channel === "hook" || value.channel === "automation") && (value.operation === "read-token" || value.operation === "local-api-call") && (value.tokenDigest === null || typeof value.tokenDigest === "string" && /^[a-f0-9]{64}$/.test(value.tokenDigest)) && typeof value.observedAt === "string" && value.severity === "warning" && typeof value.idempotencyKey === "string" && value.idempotencyKey !== "";
-  }
-  return false;
-}
-function pathFor(changeDir2) {
-  return join64(changeDir2, DECISION_AUDIT_FILE);
-}
-async function readDecisionAudit(changeDir2) {
-  const path13 = pathFor(changeDir2);
-  try {
-    const info = await lstat24(path13);
-    if (info.isSymbolicLink() || !info.isFile()) throw new Error("decision audit must be a regular file");
-    const raw = await readFile27(path13, "utf8");
-    if (Buffer.byteLength(raw) > DECISION_AUDIT_MAX_BYTES || raw !== "" && !raw.endsWith("\n")) throw new Error("decision audit is invalid");
-    return raw.split("\n").filter(Boolean).map((line) => {
-      const parsed = JSON.parse(line);
-      if (!isAuditRecord(parsed)) throw new Error("decision audit record is invalid");
-      return parsed;
-    });
-  } catch (error2) {
-    if (error2.code === "ENOENT") return [];
-    throw error2;
-  }
-}
-async function appendDecisionAuditUnderLock(changeDir2, record7) {
-  const path13 = pathFor(changeDir2);
-  const current = await readDecisionAudit(changeDir2);
-  if (current.some((item2) => item2.type === record7.type && item2.idempotencyKey === record7.idempotencyKey)) return;
-  const line = `${JSON.stringify(record7)}
-`;
-  const existing = current.reduce((size, item2) => size + Buffer.byteLength(`${JSON.stringify(item2)}
-`), 0);
-  if (existing + Buffer.byteLength(line) > DECISION_AUDIT_MAX_BYTES) throw new Error("decision audit exceeds size limit");
-  const handle = await open8(path13, constants20.O_WRONLY | constants20.O_APPEND | constants20.O_CREAT | constants20.O_NOFOLLOW, 384);
-  try {
-    const info = await handle.stat();
-    if (!info.isFile()) throw new Error("decision audit must be a regular file");
-    await handle.write(line, void 0, "utf8");
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-}
-
-// packages/server/src/serverGetDecisionRoutes.ts
 function validName2(name) {
   return name !== "" && /^[A-Za-z0-9_-]+$/.test(name) && !name.includes("..");
 }
 async function handleGetDecisionRoute(req, res, path13, deps) {
   const match = /^\/api\/change\/([^/]+)\/pending-decisions$/.exec(path13);
-  const auditMatch = /^\/api\/change\/([^/]+)\/decision-audit$/.exec(path13);
-  if (match === null && auditMatch === null) return false;
-  const name = decodeURIComponent((match ?? auditMatch)?.[1] ?? "");
+  if (match === null) return false;
+  const name = decodeURIComponent(match[1] ?? "");
   if (!validName2(name)) return deps.sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" }), true;
   const query2 = new URL(req.url ?? "/", "http://localhost").searchParams;
   const root = query2.get("root") ?? "";
   const checked = deps.workflowRootForRequest(root);
   if (!checked.ok) return deps.sendJson(res, checked.code, { ok: false, error: checked.error }), true;
-  const dir = join65(checked.anchor.path, "openspec", "changes", name);
+  const dir = join64(checked.anchor.path, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" }), true;
   try {
-    if (auditMatch !== null) return deps.sendJson(res, 200, { schemaVersion: "decision-audit/v1", items: await readDecisionAudit(dir) }), true;
     const current = await readCurrentRunRevision(dir);
     const state = current?.state ?? await deps.store.read(dir);
     const interactions = await readInteractionProjection(dir);
     const invocations = await readSkillInvocationEventsForApplication(dir);
     const head = current?.state.runMetadata?.transitionHead;
     const transitions = current?.state.runMetadata !== void 0 && head !== void 0 ? await deps.recordStore.readChain(dir, current.state.runMetadata.transitionSequence, head, current.state.runMetadata.runId) : [];
-    const view = projectPendingDecisions({ change: name, state, revision: current?.revision, ...deps.clock === void 0 ? {} : { now: deps.clock() }, interactions: interactions.kind === "valid" ? interactions.events : [], invocations, transitions });
+    const view = projectPendingDecisions({ change: name, state, revision: current?.revision, interactions: interactions.kind === "valid" ? interactions.events : [], invocations, transitions });
     return deps.sendJson(res, 200, view), true;
   } catch (error2) {
     return deps.sendJson(res, 500, { ok: false, error: error2 instanceof Error ? error2.message : String(error2) }), true;
@@ -38040,7 +37789,7 @@ async function handleGetDecisionRoute(req, res, path13, deps) {
 
 // packages/server/src/serverGetRoutes.ts
 function repoRootForSkills() {
-  return join66(dirname16(fileURLToPath2(import.meta.url)), "..", "..", "..");
+  return join65(dirname16(fileURLToPath2(import.meta.url)), "..", "..", "..");
 }
 function isWorkflowName2(name) {
   return name !== "" && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name);
@@ -38108,7 +37857,7 @@ async function handleGet(req, res, path13, deps) {
   }
   await handleGetActivityRoutes(req, res, path13, deps);
   if (res.headersSent) return;
-  if (await handleGetDecisionRoute(req, res, path13, { sendJson, store, recordStore, workflowRootForRequest, clock: deps.clock })) return;
+  if (await handleGetDecisionRoute(req, res, path13, { sendJson, store, recordStore, workflowRootForRequest })) return;
   if (handleGetTraceRoutes(req, res, path13, { clock, sendJson, traceStore })) return;
   const hostPlan = await resolveHostTargetPlanRoute(req.url ?? "/", path13, { hostHome, operationsAvailable, operationRunner, runtime: hostTargetPlanRuntime });
   if (hostPlan !== null) return sendJson(res, hostPlan.status, hostPlan.body);
@@ -38151,7 +37900,7 @@ async function handleGet(req, res, path13, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync12(join66(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync12(join65(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -38174,7 +37923,7 @@ async function handleGet(req, res, path13, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync12(join66(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync12(join65(rootCheck2.anchor.path, ".pipeline"));
       } catch (e) {
         if (e.code === "ENOENT") pipelineExists = false;
         else throw e;
@@ -38198,12 +37947,12 @@ async function handleGet(req, res, path13, deps) {
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(raw)) return sendJson(res, 400, { ok: false, error: "\u975E\u6CD5\u6280\u80FD\u540D" });
     try {
       if (mSkillFiles[2] === "files") {
-        const files = listSkillFiles(raw, repoRootForSkills(), join66(hostHome, ".claude"));
+        const files = listSkillFiles(raw, repoRootForSkills(), join65(hostHome, ".claude"));
         if (files === void 0) return sendJson(res, 404, { ok: false, error: `\u6280\u80FD '${raw}' \u4E0D\u5B58\u5728` });
         return sendJson(res, 200, files);
       }
       const relPath = new URL(req.url ?? "/", "http://localhost").searchParams.get("path") ?? "";
-      const file = readSkillFile(raw, relPath, repoRootForSkills(), join66(hostHome, ".claude"));
+      const file = readSkillFile(raw, relPath, repoRootForSkills(), join65(hostHome, ".claude"));
       if (file.kind === "ok") return sendJson(res, 200, { path: file.path, text: file.text });
       if (file.kind === "invalid-path") return sendJson(res, 400, { ok: false, error: "\u975E\u6CD5\u6587\u4EF6\u8DEF\u5F84" });
       if (file.kind === "too-large") return sendJson(res, 413, { ok: false, error: "\u6587\u4EF6\u8D85\u8FC7 256KB" });
@@ -38215,7 +37964,7 @@ async function handleGet(req, res, path13, deps) {
   }
   if (path13 === "/api/skills/registry") {
     try {
-      return sendJson(res, 200, { skills: listAllSkillsDetailed(repoRootForSkills(), join66(hostHome, ".claude")) });
+      return sendJson(res, 200, { skills: listAllSkillsDetailed(repoRootForSkills(), join65(hostHome, ".claude")) });
     } catch (e) {
       return sendJson(res, 500, { ok: false, error: errMsg2(e) });
     }
@@ -38348,7 +38097,7 @@ async function handleGet(req, res, path13, deps) {
       image,
       secretsPath: paths.secretsPath,
       exec: options.execDocker,
-      defaultCodexHome: join66(hostHome, ".codex")
+      defaultCodexHome: join65(hostHome, ".codex")
     });
     return sendJson(res, 200, r);
   }
@@ -38634,8 +38383,8 @@ import { resolve as resolvePath8 } from "node:path";
 
 // packages/server/src/changeLaunch.ts
 import { randomUUID as randomUUID13 } from "node:crypto";
-import { lstat as lstat25, readFile as readFile28, rename as rename9, unlink as unlink4, writeFile as writeFile14 } from "node:fs/promises";
-import { join as join67 } from "node:path";
+import { lstat as lstat24, readFile as readFile27, rename as rename9, unlink as unlink4, writeFile as writeFile14 } from "node:fs/promises";
+import { join as join66 } from "node:path";
 var CHANGE_TASK_FILE = "REAL_AGENT_TASK.md";
 var MAX_TASK_PROMPT_CHARS = 24e3;
 function errorCode8(error2) {
@@ -38662,20 +38411,20 @@ function parseChangeSessionActivation(value, hasTaskPrompt) {
   return { ok: true, value };
 }
 async function writeChangeTaskPrompt(changeDir2, prompt) {
-  const dirStat = await lstat25(changeDir2);
+  const dirStat = await lstat24(changeDir2);
   if (!dirStat.isDirectory() || dirStat.isSymbolicLink()) {
     throw new Error("Change \u76EE\u5F55\u4E0D\u662F\u53EF\u4FE1\u666E\u901A\u76EE\u5F55\uFF0C\u62D2\u7EDD\u4FDD\u5B58\u4EFB\u52A1\u63D0\u793A\u8BCD");
   }
-  const target = join67(changeDir2, CHANGE_TASK_FILE);
+  const target = join66(changeDir2, CHANGE_TASK_FILE);
   let targetExists = false;
   try {
-    await lstat25(target);
+    await lstat24(target);
     targetExists = true;
   } catch (error2) {
     if (errorCode8(error2) !== "ENOENT") throw error2;
   }
   if (targetExists) throw new Error("\u4EFB\u52A1\u63D0\u793A\u8BCD\u5DF2\u5B58\u5728\uFF0C\u62D2\u7EDD\u8986\u76D6");
-  const temporary = join67(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID13()}.tmp`);
+  const temporary = join66(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID13()}.tmp`);
   try {
     await writeFile14(temporary, `${prompt}
 `, { encoding: "utf8", flag: "wx", mode: 384 });
@@ -38707,13 +38456,13 @@ async function activateChangeSession(input) {
   if (result2.exitCode !== 0) {
     return { requested: true, active: false, status: "failed", exit_code: result2.exitCode };
   }
-  const pointer = join67(input.repoRoot, ".pipeline-active");
+  const pointer = join66(input.repoRoot, ".pipeline-active");
   try {
-    const pointerStat = await lstat25(pointer);
+    const pointerStat = await lstat24(pointer);
     if (!pointerStat.isFile() || pointerStat.isSymbolicLink()) {
       return { requested: true, active: false, status: "degraded", exit_code: result2.exitCode };
     }
-    const activeName = (await readFile28(pointer, "utf8")).trim();
+    const activeName = (await readFile27(pointer, "utf8")).trim();
     return activeName === input.changeName ? { requested: true, active: true, status: "active", exit_code: result2.exitCode } : { requested: true, active: false, status: "degraded", exit_code: result2.exitCode };
   } catch {
     return { requested: true, active: false, status: "degraded", exit_code: result2.exitCode };
@@ -38948,26 +38697,24 @@ async function handlePostChangesRoutes(req, res, path13, deps) {
 
 // packages/server/src/serverPostExecutionRoutes.ts
 import { randomUUID as randomUUID14 } from "node:crypto";
-import { join as join71 } from "node:path";
+import { join as join69 } from "node:path";
 
 // packages/server/src/serverPostDecisionRoutes.ts
-import { readFile as readFile30, unlink as unlink5 } from "node:fs/promises";
-import { join as join70 } from "node:path";
-
-// packages/server/src/decisionIdempotency.ts
-import { appendFile as appendFile2, readFile as readFile29 } from "node:fs/promises";
-import { join as join69 } from "node:path";
+import { appendFile as appendFile2, readFile as readFile28, unlink as unlink5 } from "node:fs/promises";
+import { join as join68 } from "node:path";
 var DECISION_IDEMPOTENCY_FILE = ".pipeline-decision-idempotency.jsonl";
 var DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
 function isDecisionIdempotencyRecord(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record7 = value;
-  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && record7.channel === "dashboard" && (record7.kind === void 0 || record7.kind === "review" || record7.kind === "skill-question" || record7.kind === "afk") && (record7.answer === void 0 || Array.isArray(record7.answer) && record7.answer.every((value2) => typeof value2 === "string" && value2 !== "")) && typeof record7.acknowledgedAt === "string" && (record7.outcome === void 0 || record7.outcome === "approved" || record7.outcome === "rejected") && (record7.error === void 0 || typeof record7.error === "string") && (record7.code === void 0 || typeof record7.code === "string");
+  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && record7.channel === "dashboard" && typeof record7.acknowledgedAt === "string";
 }
 async function readDecisionIdempotency(changeDir2) {
   try {
-    const raw = await readFile29(join69(changeDir2, DECISION_IDEMPOTENCY_FILE), "utf8");
-    if (Buffer.byteLength(raw, "utf8") > DECISION_IDEMPOTENCY_MAX_BYTES) throw new Error("decision idempotency record exceeds size limit");
+    const raw = await readFile28(join68(changeDir2, DECISION_IDEMPOTENCY_FILE), "utf8");
+    if (Buffer.byteLength(raw, "utf8") > DECISION_IDEMPOTENCY_MAX_BYTES) {
+      throw new Error("decision idempotency record exceeds size limit");
+    }
     if (raw === "") return [];
     if (!raw.endsWith("\n")) throw new Error("decision idempotency record is truncated");
     return raw.split("\n").filter(Boolean).map((line) => {
@@ -38981,134 +38728,12 @@ async function readDecisionIdempotency(changeDir2) {
   }
 }
 async function appendDecisionIdempotency(changeDir2, record7) {
-  await appendFile2(join69(changeDir2, DECISION_IDEMPOTENCY_FILE), `${JSON.stringify(record7)}
+  await appendFile2(join68(changeDir2, DECISION_IDEMPOTENCY_FILE), `${JSON.stringify(record7)}
 `, { encoding: "utf8", flag: "a", mode: 384 });
 }
-
-// packages/server/src/serverInvocationDecision.ts
-async function applyInvocationDecision(input) {
-  let result2;
-  await withSkillInvocationChangeLock(input.dir, async (lock) => {
-    const records = await readDecisionIdempotency(input.dir);
-    const prior = records.find((record7) => record7.key === input.idempotencyKey);
-    if (prior !== void 0 && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision || prior.kind !== input.kind || prior.answer !== void 0 && JSON.stringify(prior.answer) !== JSON.stringify(input.answer))) {
-      throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "decision-ref-mismatch" });
-    }
-    if (prior !== void 0) {
-      if (prior.outcome === "rejected") {
-        throw Object.assign(new Error(prior.error ?? "decision was rejected"), { code: prior.code ?? "decision-not-pending" });
-      }
-      result2 = { ok: true, idempotent: true, ref: { id: prior.ref, kind: prior.kind ?? input.kind, change: input.name, anchor: "", revision: prior.expectedRevision } };
-      return;
-    }
-    const current = await readCurrentRunRevision(input.dir);
-    const events2 = await readSkillInvocationEventsForApplication(input.dir);
-    if (current === void 0 || current.revision !== input.expectedRevision) {
-      result2 = { ok: false, code: "revision-conflict", message: "decision revision conflict" };
-      return;
-    }
-    const view = projectPendingDecisions({ change: input.name, state: current.state, revision: current.revision, now: input.clock(), invocations: events2 });
-    const item2 = view.items.find((candidate) => candidate.ref.id === input.ref && candidate.type === input.kind);
-    if (item2 === void 0 || item2.status !== "pending") {
-      result2 = { ok: false, code: "decision-not-pending", message: "decision is no longer pending" };
-      return;
-    }
-    if (input.answer.length === 0 || input.answer.some((value) => typeof value !== "string" || value === "")) {
-      result2 = { ok: false, code: "invalid-command", message: "answer must contain at least one option" };
-      return;
-    }
-    const [invocationId, questionId] = item2.ref.anchor.split(":", 2);
-    if (invocationId === void 0 || questionId === void 0) {
-      result2 = { ok: false, code: "invalid-command", message: "decision reference is malformed" };
-      return;
-    }
-    const invocation = events2.filter((event) => event.invocation_id === invocationId);
-    const started = invocation.find((event) => event.type === "invocation-started");
-    const question = invocation.find((event) => event.type === "question-recorded" && event.payload.question_id === questionId);
-    if (started === void 0 || question === void 0 || input.answer.some((option) => !question.payload.option_ids.includes(option))) {
-      result2 = { ok: false, code: "invalid-command", message: "answer does not match the pending question" };
-      return;
-    }
-    const nextSequence = Math.max(...invocation.map((event) => event.sequence)) + 1;
-    const decision = {
-      ...started,
-      event_id: `${invocationId}-dashboard-decision-${input.idempotencyKey}`,
-      sequence: nextSequence,
-      type: "decision-recorded",
-      recorded_at: input.clock(),
-      payload: {
-        decision_id: `${invocationId}-dashboard-${input.idempotencyKey}`,
-        question_id: questionId,
-        mode: input.kind === "afk" ? "afk-answer" : "user-answer",
-        selected_option_ids: [...input.answer]
-      }
-    };
-    await recordDashboardInvocationDecisionUnderLock(input.dir, lock, decision, started.subject.attempt === void 0 ? {} : { attempt: started.subject.attempt });
-    await publishRunRevision(input.dir, current, current.state, { kind: "set", observedAt: input.clock() });
-    await appendDecisionIdempotency(input.dir, {
-      key: input.idempotencyKey,
-      ref: input.ref,
-      expectedRevision: input.expectedRevision,
-      channel: "dashboard",
-      kind: input.kind,
-      answer: [...input.answer],
-      acknowledgedAt: input.clock()
-    });
-    result2 = { ok: true, idempotent: false, ref: item2.ref };
-  });
-  if (result2 === void 0) throw new Error("decision command did not produce a result");
-  return { result: result2, deferred: [] };
-}
-
-// packages/server/src/decisionInteraction.ts
-function scalar6(state, key) {
-  const value = state.fields[key];
-  return Array.isArray(value) ? value.join(",") : value ?? "";
-}
-function reviewInteractionDraft(input) {
-  const metadata = input.revision?.state.runMetadata ?? input.state.runMetadata;
-  const before = input.beforeRevision ?? input.revision;
-  if (metadata === void 0 || before === void 0) return void 0;
-  const workflow = scalar6(input.state, "workflow") || "default";
-  const track = scalar6(input.state, "track") || "backend";
-  const step = scalar6(input.state, "phase") || input.phase;
-  const visit = { runId: metadata.runId, transitionSequence: metadata.transitionSequence, step };
-  const rejected = input.rejected === true;
-  const identity = classifyInteractionWorkflowIdentity({ workflow, track, step });
-  return {
-    change: input.change,
-    runId: metadata.runId,
-    workflow,
-    // Legacy snapshots may not carry the fingerprint; zero is an explicit unknown sentinel.
-    workflowHash: metadata.workflowPlanFingerprint ?? "0".repeat(64),
-    originStepVisit: visit,
-    stepVisit: visit,
-    stateBeforeHash: before.stateDigest,
-    stateAfterHash: input.revision?.stateDigest ?? before.stateDigest,
-    actor: "human",
-    surface: "dashboard",
-    executionMode: "interactive",
-    ...identity,
-    track,
-    controlStage: "verification",
-    event: "review.acknowledged",
-    reasonCode: rejected ? "decision.state-stale" : "decision.accepted",
-    triggerCode: "review.acknowledge",
-    effectCode: rejected ? "review-gate.rejected" : "review-gate.approved",
-    result: rejected ? "rejected" : "success",
-    outcomeCode: "review.acknowledged",
-    occurredAt: input.acknowledgedAt,
-    durationMs: 0
-  };
-}
-
-// packages/server/src/serverPostDecisionRoutes.ts
-var SAFE_DECISION_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 async function handlePostDecisionRoutes(req, res, path13, deps) {
-  const modeMatch = /^\/api\/change\/([^/]+)\/decision-mode$/.exec(path13);
-  const securityMatch = /^\/api\/change\/([^/]+)\/pending-decision-security$/.exec(path13);
   const match = /^\/api\/change\/([^/]+)\/decisions$/.exec(path13);
-  if (!match && !modeMatch && !securityMatch) return false;
+  if (!match) return false;
   const { readJsonBody, sendJson, isRegisteredRoot, store, clock, history } = deps;
   const body = await readJsonBody(req);
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
@@ -39117,100 +38742,10 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
   }
   const input = body;
   const root = typeof input.root === "string" ? input.root : "";
-  const auditName = decodeURIComponent((modeMatch ?? securityMatch)?.[1] ?? "");
-  if (modeMatch || securityMatch) {
-    if (!root || !isRegisteredRoot(root) || !/^[A-Za-z0-9_-]+$/.test(auditName)) {
-      sendJson(res, 400, { ok: false, error: "root \u6216 change \u540D\u975E\u6CD5" });
-      return true;
-    }
-    const dir2 = join70(root, "openspec", "changes", auditName);
-    if (!stateStorageExistsSync(dir2)) {
-      sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
-      return true;
-    }
-    try {
-      if (modeMatch) {
-        const from = input.from === "hitl" || input.from === "afk" ? input.from : void 0;
-        const to = input.to === "hitl" || input.to === "afk" ? input.to : void 0;
-        const actor2 = input.actor === "automation" ? "automation" : input.actor === "user" ? "user" : void 0;
-        const expectedRevision2 = typeof input.expected_revision === "number" ? input.expected_revision : void 0;
-        const idempotencyKey3 = typeof input.idempotency_key === "string" ? input.idempotency_key : "";
-        if (from === void 0 || to === void 0 || from === to || actor2 === void 0 || expectedRevision2 === void 0 || !SAFE_DECISION_KEY_RE.test(idempotencyKey3)) {
-          sendJson(res, 400, { ok: false, error: "from / to / actor / expected_revision / idempotency_key \u4E3A\u5FC5\u586B" });
-          return true;
-        }
-        await store.withLock(dir2, async () => {
-          const records = await readDecisionAudit(dir2);
-          const prior = records.find((record7) => record7.type === "decision-mode-switched" && record7.idempotencyKey === idempotencyKey3);
-          const strategy = to === "afk" ? "afk" : input.recommended_defaults === true ? "recommended-defaults" : "interactive";
-          if (prior !== void 0) {
-            if (prior.from !== from || prior.to !== to || prior.actor !== actor2 || prior.expectedRevision !== expectedRevision2 || prior.strategy !== strategy) {
-              throw Object.assign(new Error("idempotency key is already bound to another mode switch"), { code: "decision-ref-mismatch" });
-            }
-            return;
-          }
-          const current = await readCurrentRunRevision(dir2);
-          if (current?.revision !== expectedRevision2) throw Object.assign(new Error("decision revision conflict"), { code: "revision-conflict" });
-          const latest = records.filter((record7) => record7.type === "decision-mode-switched").at(-1);
-          const currentMode = latest?.type === "decision-mode-switched" ? latest.to : "hitl";
-          if (from !== currentMode) throw Object.assign(new Error("mode switch source does not match the current decision mode"), { code: "decision-mode-conflict" });
-          await appendDecisionAuditUnderLock(dir2, { version: 1, type: "decision-mode-switched", from, to, strategy, actor: actor2, channel: "dashboard", occurredAt: clock(), expectedRevision: expectedRevision2, idempotencyKey: idempotencyKey3 });
-        });
-        sendJson(res, 200, { ok: true, changed: true, channel: "dashboard", event: "decision-mode-switched" });
-        return true;
-      }
-      const pendingDecisionId = typeof input.pending_decision_id === "string" ? input.pending_decision_id : "";
-      const operation = input.operation === "read-token" || input.operation === "local-api-call" ? input.operation : void 0;
-      const channel2 = input.channel === "terminal" || input.channel === "dashboard" || input.channel === "hook" || input.channel === "automation" ? input.channel : void 0;
-      const idempotencyKey2 = typeof input.idempotency_key === "string" ? input.idempotency_key : "";
-      const tokenDigest = input.token_digest === null ? null : typeof input.token_digest === "string" && /^[a-f0-9]{64}$/.test(input.token_digest) ? input.token_digest : void 0;
-      if (!pendingDecisionId || operation === void 0 || channel2 === void 0 || !SAFE_DECISION_KEY_RE.test(idempotencyKey2)) {
-        sendJson(res, 400, { ok: false, error: "pending_decision_id / operation / channel / idempotency_key \u4E3A\u5FC5\u586B" });
-        return true;
-      }
-      if (tokenDigest === void 0) {
-        sendJson(res, 400, { ok: false, error: "token_digest \u5FC5\u987B\u4E3A null \u6216 64 \u4F4D\u5C0F\u5199\u5341\u516D\u8FDB\u5236\u6458\u8981" });
-        return true;
-      }
-      await store.withLock(dir2, async () => {
-        const records = await readDecisionAudit(dir2);
-        const prior = records.find((record7) => record7.type === "pending-decision-self-approval-suspected" && record7.idempotencyKey === idempotencyKey2);
-        if (prior !== void 0) {
-          if (prior.pendingDecisionId !== pendingDecisionId || prior.channel !== channel2 || prior.operation !== operation || prior.tokenDigest !== tokenDigest) {
-            throw Object.assign(new Error("idempotency key is already bound to another security observation"), { code: "decision-ref-mismatch" });
-          }
-          return;
-        }
-        const current = await readCurrentRunRevision(dir2);
-        const state = current?.state ?? await store.read(dir2);
-        const invocations = await readSkillInvocationEventsForApplication(dir2).catch(() => []);
-        const pending = projectPendingDecisions({ change: auditName, state, revision: current?.revision, now: clock(), invocations }).items.find((item2) => item2.ref.id === pendingDecisionId && item2.status === "pending");
-        if (pending === void 0) throw Object.assign(new Error("pending_decision_id is not a current pending decision"), { code: "decision-not-pending" });
-        await appendDecisionAuditUnderLock(dir2, {
-          version: 1,
-          type: "pending-decision-self-approval-suspected",
-          pendingDecisionId,
-          channel: channel2,
-          operation,
-          tokenDigest,
-          observedAt: clock(),
-          severity: "warning",
-          idempotencyKey: idempotencyKey2
-        });
-      });
-      sendJson(res, 200, { ok: true, changed: true, channel: "dashboard", event: "pending-decision-self-approval-suspected" });
-      return true;
-    } catch (error2) {
-      const message = error2 instanceof Error ? error2.message : String(error2);
-      const code = typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : "decision-audit-failed";
-      sendJson(res, ["revision-conflict", "decision-ref-mismatch", "decision-mode-conflict", "decision-not-pending"].includes(code) ? 409 : 400, { ok: false, error: message, code });
-      return true;
-    }
-  }
   const ref = typeof input.ref === "string" ? input.ref : "";
   const expectedRevision = typeof input.expected_revision === "number" ? input.expected_revision : null;
   const idempotencyKey = typeof input.idempotency_key === "string" ? input.idempotency_key : "";
-  if (!root || !ref || expectedRevision === null || !SAFE_DECISION_KEY_RE.test(idempotencyKey)) {
+  if (!root || !ref || expectedRevision === null || !idempotencyKey) {
     sendJson(res, 400, { ok: false, error: "root / ref / expected_revision / idempotency_key \u4E3A\u5FC5\u586B" });
     return true;
   }
@@ -39218,31 +38753,18 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
     sendJson(res, 404, { ok: false, error: "root \u975E\u5DF2\u77E5 Project\uFF08\u672A\u6CE8\u518C\u6216\u4E0D\u53EF\u4FE1\uFF09" });
     return true;
   }
-  const name = decodeURIComponent(match?.[1] ?? "");
+  const name = decodeURIComponent(match[1] ?? "");
   if (!/^[A-Za-z0-9_-]+$/.test(name) || name.includes("..")) {
     sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
     return true;
   }
-  const dir = join70(root, "openspec", "changes", name);
+  const dir = join68(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) {
     sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     return true;
   }
   try {
-    const current = await readCurrentRunRevision(dir);
-    const state = current?.state ?? await store.read(dir);
-    const invocations = await readSkillInvocationEventsForApplication(dir).catch(() => []);
-    const item2 = projectPendingDecisions({ change: name, state, revision: current?.revision, invocations }).items.find((candidate) => candidate.ref.id === ref);
-    const outcome = item2?.type === "skill-question" || item2?.type === "afk" ? await applyInvocationDecision({
-      dir,
-      name,
-      ref,
-      expectedRevision,
-      idempotencyKey,
-      answer: Array.isArray(input.answer) ? input.answer.filter((value) => typeof value === "string") : [],
-      clock,
-      kind: item2.type
-    }) : await applyDecision({ dir, root, name, ref, expectedRevision, idempotencyKey, store, clock, history });
+    const outcome = await applyDecision({ dir, root, name, ref, expectedRevision, idempotencyKey, store, clock, history });
     if (!outcome.result.ok) {
       sendJson(res, 409, { ok: false, error: outcome.result.message, code: outcome.result.code });
       return true;
@@ -39258,7 +38780,8 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
   } catch (error2) {
     const message = error2 instanceof Error ? error2.message : String(error2);
     const code = typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : message === "decision revision conflict" ? "revision-conflict" : "review-approval-required";
-    sendJson(res, 409, { ok: false, error: message, code });
+    const status2 = ["revision-conflict", "decision-ref-mismatch", "decision-not-pending", "review-approval-required"].includes(code) ? 409 : 500;
+    sendJson(res, status2, { ok: false, error: message, code });
   }
   return true;
 }
@@ -39268,19 +38791,16 @@ async function applyDecision(input) {
   await input.store.withLock(input.dir, async () => {
     const records = await readDecisionIdempotency(input.dir);
     const prior = records.find((record7) => record7.key === input.idempotencyKey);
-    if (prior !== void 0 && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision || prior.kind !== void 0 && prior.kind !== "review")) {
+    if (prior !== void 0 && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision)) {
       throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "decision-ref-mismatch" });
     }
     if (prior !== void 0) {
-      if (prior.outcome === "rejected") {
-        throw Object.assign(new Error(prior.error ?? "review approval was rejected"), { code: prior.code ?? "review-approval-required" });
-      }
       result2 = { ok: true, idempotent: true, ref: { id: prior.ref, kind: "review", change: input.name, anchor: "", revision: prior.expectedRevision } };
       return;
     }
     const lockedRevision = await readCurrentRunRevision(input.dir);
     const locked = lockedRevision?.state ?? await input.store.read(input.dir);
-    const view = projectPendingDecisions({ change: input.name, state: locked, revision: lockedRevision?.revision, now: input.clock() });
+    const view = projectPendingDecisions({ change: input.name, state: locked, revision: lockedRevision?.revision });
     const item2 = view.items.find((candidate) => candidate.ref.id === input.ref);
     if (item2 === void 0) throw Object.assign(new Error("decision is no longer pending"), { code: "decision-not-pending" });
     const adapter2 = createDecisionCommandAdapter({
@@ -39291,14 +38811,12 @@ async function applyDecision(input) {
         ref: input.ref,
         expectedRevision: input.expectedRevision,
         channel: "dashboard",
-        kind: "review",
         acknowledgedAt: input.clock()
       }),
       isPending: async (decisionRef) => projectPendingDecisions({
         change: input.name,
         state: await input.store.read(input.dir),
-        revision: lockedRevision?.revision,
-        now: input.clock()
+        revision: lockedRevision?.revision
       }).items.some((candidate) => candidate.ref.id === decisionRef.id && candidate.type === "review" && candidate.status === "pending"),
       apply: async ({ ref: decisionRef }) => {
         const current = await readCurrentRunRevision(input.dir);
@@ -39318,24 +38836,27 @@ async function applyDecision(input) {
           writeState: async (patch) => {
             await input.store.writeUnderLock(input.dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });
           },
-          recordInteraction: lockedRevision === void 0 ? void 0 : async ({ state: interactionState, acknowledgedAt, rejected }) => {
+          recordInteraction: async ({ state: interactionState, acknowledgedAt, rejected }) => {
             const after = await readCurrentRunRevision(input.dir);
-            const draft = reviewInteractionDraft({
-              change: input.name,
-              state: interactionState,
-              revision: after ?? lockedRevision,
-              beforeRevision: lockedRevision,
-              phase,
-              event,
-              acknowledgedAt,
-              rejected
-            });
-            if (draft !== void 0) await createInteractionEventRecorder().recordUnderLock(input.dir, draft);
+            if (lockedRevision !== void 0 && after !== void 0) {
+              await createInteractionEventRecorder().recordUnderLock(input.dir, reviewAcknowledgedInteractionDraft({
+                change: input.name,
+                state: interactionState,
+                revision: after,
+                beforeRevision: lockedRevision,
+                phase,
+                event,
+                requestedAt: String(locked.fields.review_requested_at ?? ""),
+                acknowledgedAt,
+                rejected,
+                surface: "dashboard"
+              }));
+            }
           },
-          recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent, rejected }) => input.history.append(input.dir, {
+          recordHistory: async ({ acknowledgedAt, phase: acknowledgedPhase, event: acknowledgedEvent }) => input.history.append(input.dir, {
             ts: acknowledgedAt,
             kind: "tool",
-            raw: `review:${rejected ? "acknowledge-rejected" : "acknowledge"} via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}`
+            raw: `review:acknowledge via=dashboard phase=${acknowledgedPhase} event=${acknowledgedEvent}`
           }),
           recordRejectedAcknowledgement: async ({ acknowledgedAt, phase: rejectedPhase, event: rejectedEvent }) => input.history.append(input.dir, {
             ts: acknowledgedAt,
@@ -39343,9 +38864,9 @@ async function applyDecision(input) {
             raw: `review:acknowledge-rejected via=dashboard phase=${rejectedPhase} event=${rejectedEvent}`
           }),
           clearMarker: async () => {
-            const marker = join70(input.root, REVIEW_MARKER_FILE);
+            const marker = join68(input.root, REVIEW_MARKER_FILE);
             try {
-              const markerReceipt = parseReviewMarker(await readFile30(marker, "utf8"));
+              const markerReceipt = parseReviewMarker(await readFile28(marker, "utf8"));
               if (markerReceipt?.changeName !== input.name || markerReceipt.event !== event) return false;
               await unlink5(marker);
               return true;
@@ -39358,24 +38879,7 @@ async function applyDecision(input) {
         deferred = acknowledged.deferred;
       }
     });
-    try {
-      result2 = await adapter2.execute({ ref: item2.ref, expectedRevision: input.expectedRevision, idempotencyKey: input.idempotencyKey, channel: "dashboard" });
-    } catch (error2) {
-      const message = error2 instanceof Error ? error2.message : String(error2);
-      const code = typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : "review-approval-required";
-      await appendDecisionIdempotency(input.dir, {
-        key: input.idempotencyKey,
-        ref: input.ref,
-        expectedRevision: input.expectedRevision,
-        channel: "dashboard",
-        kind: "review",
-        acknowledgedAt: input.clock(),
-        outcome: "rejected",
-        error: message,
-        code
-      });
-      throw error2;
-    }
+    result2 = await adapter2.execute({ ref: item2.ref, expectedRevision: input.expectedRevision, idempotencyKey: input.idempotencyKey, channel: "dashboard" });
   });
   if (result2 === void 0) throw new Error("decision command did not produce a result");
   return { result: result2, deferred };
@@ -39389,7 +38893,7 @@ var TaskRunOperationConflictError = class extends Error {
 function failure6(status2, code, error2) {
   return { status: status2, body: { ok: false, code, error: error2 } };
 }
-function isRecord12(value) {
+function isRecord11(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function safeIdentity(value) {
@@ -39399,7 +38903,7 @@ function safeChange(value) {
   return /^[A-Za-z0-9][A-Za-z0-9_-]{0,159}$/.test(value);
 }
 function parseBody(value) {
-  if (!isRecord12(value)) return null;
+  if (!isRecord11(value)) return null;
   const keys2 = Object.keys(value).sort();
   const allowed = ["expected_run_revision", "expected_state", "operation", "root", "work_item_id"];
   if (keys2.some((key) => !allowed.includes(key))) return null;
@@ -39550,7 +39054,7 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join71(root2, "openspec", "changes", name2);
+    const dir = join69(root2, "openspec", "changes", name2);
     const result2 = await cancelAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -39570,7 +39074,7 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join71(root2, "openspec", "changes", name2);
+    const dir = join69(root2, "openspec", "changes", name2);
     const result2 = await retryAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -39590,7 +39094,7 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join71(root2, "openspec", "changes", name2);
+    const dir = join69(root2, "openspec", "changes", name2);
     const result2 = await dismissAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -39610,7 +39114,7 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join71(root2, "openspec", "changes", name2);
+    const dir = join69(root2, "openspec", "changes", name2);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -39927,11 +39431,11 @@ async function handlePostGovernanceRoutes(req, res, path13, deps) {
 
 // packages/server/src/serverPostOperationsRoutes.ts
 import { lstatSync as lstatSync14 } from "node:fs";
-import { join as join72 } from "node:path";
+import { join as join70 } from "node:path";
 
 // packages/server/src/loopScopePreview.ts
 import {
-  constants as constants21,
+  constants as constants19,
   fstatSync as fstatSync14,
   openSync as openSync15,
   readFileSync as readFileSync20
@@ -39959,7 +39463,7 @@ function registryReadError(error2) {
   const detail = error2 instanceof Error ? error2.message : String(error2);
   return new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${code}\uFF09\uFF1A${detail}`);
 }
-function readTrustedLoopRegistry(anchor, readFile31 = (fd) => readFileSync20(fd, "utf8")) {
+function readTrustedLoopRegistry(anchor, readFile29 = (fd) => readFileSync20(fd, "utf8")) {
   return readWithLoopScopeRootTrust(
     () => assertWorkflowRootAnchor(anchor),
     () => {
@@ -39986,7 +39490,7 @@ function readTrustedLoopRegistry(anchor, readFile31 = (fd) => readFileSync20(fd,
             if (!before.isFile()) throw registryReadError(new Error(`loops registry \u4E0D\u662F\u666E\u901A\u6587\u4EF6: ${paths.lexical}`));
             let fd;
             try {
-              fd = openSync15(paths.operation, constants21.O_RDONLY | constants21.O_NOFOLLOW);
+              fd = openSync15(paths.operation, constants19.O_RDONLY | constants19.O_NOFOLLOW);
             } catch (error2) {
               const code = error2.code;
               if (code === "ELOOP" || code === "ENOENT") {
@@ -40007,7 +39511,7 @@ function readTrustedLoopRegistry(anchor, readFile31 = (fd) => readFileSync20(fd,
               assertDirectoryStillTrusted(pipeline, anchor);
               let text6;
               try {
-                text6 = readFile31(fd);
+                text6 = readFile29(fd);
               } catch (error2) {
                 throw registryReadError(error2);
               }
@@ -40216,7 +39720,7 @@ async function handlePostOperationsRoutes(req, res, path13, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync14(join72(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync14(join70(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -40403,7 +39907,7 @@ async function handlePostOperationsRoutes(req, res, path13, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join72(root, "openspec", "changes", name);
+    const dir = join70(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -40427,7 +39931,7 @@ async function handlePostOperationsRoutes(req, res, path13, deps) {
 }
 
 // packages/server/src/serverPostMemoryRoutes.ts
-import { join as join73 } from "node:path";
+import { join as join71 } from "node:path";
 var RELATED_SEARCH_PATH = "/api/mem/related-sessions/search";
 var PLATFORM_VALUES = /* @__PURE__ */ new Set(["all", "claude", "codex", "opencode", "pi"]);
 var CHANGE_NAME_RE3 = /^[a-zA-Z0-9_-]+$/;
@@ -40466,7 +39970,7 @@ async function handlePostMemoryRoutes(req, res, path13, deps) {
   const anchoredRoot = rootCheck2.anchor.path;
   let changeExists = false;
   try {
-    changeExists = stateStorageExistsSync(join73(anchoredRoot, "openspec", "changes", name));
+    changeExists = stateStorageExistsSync(join71(anchoredRoot, "openspec", "changes", name));
   } catch {
     return missingTarget(deps, res);
   }
@@ -40641,20 +40145,20 @@ async function handlePostRoute(req, res, path13, deps) {
 
 // packages/server/src/serverSupport.ts
 import { readFileSync as readFileSync21 } from "node:fs";
-import { dirname as dirname17, join as join74 } from "node:path";
+import { dirname as dirname17, join as join72 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 var REAL_GRADUATION_FS = {
   loadRegistry: (repoRoot) => loadRegistry(repoRoot),
   readRunLog: (repoRoot) => {
     try {
-      return readFileSync21(join74(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
+      return readFileSync21(join72(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
     } catch {
       return null;
     }
   },
   readLoopDoc: (repoRoot) => {
     try {
-      return readFileSync21(join74(repoRoot, "LOOP.md"), "utf8");
+      return readFileSync21(join72(repoRoot, "LOOP.md"), "utf8");
     } catch {
       return null;
     }
@@ -40669,7 +40173,7 @@ var REAL_GRADUATION_FS = {
   }
 };
 function repoRootForSkills2() {
-  return join74(dirname17(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join72(dirname17(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -40813,7 +40317,7 @@ function createFreezeHandlers(deps) {
 
 // packages/server/src/serverTransport.ts
 import { readFileSync as readFileSync22 } from "node:fs";
-import { join as join75 } from "node:path";
+import { join as join73 } from "node:path";
 import { gzipSync } from "node:zlib";
 
 // packages/server/src/singleFlight.ts
@@ -40997,7 +40501,7 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
   function serveIndexWithToken(res) {
     if (!webRoot) return false;
     try {
-      let html = readFileSync22(join75(webRoot, "index.html"), "utf8");
+      let html = readFileSync22(join73(webRoot, "index.html"), "utf8");
       const jsToken = JSON.stringify(token).replace(/</g, "\\u003c");
       const inject = `<script>window.__TENON_DASHBOARD_TOKEN__ = ${jsToken};</script>`;
       html = html.includes("</head>") ? html.replace("</head>", `${inject}</head>`) : `${inject}${html}`;
@@ -41011,8 +40515,8 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
     if (!webRoot || !path13.startsWith("/assets/")) return false;
     const rel = path13.slice(1);
     if (rel.includes("..")) return false;
-    const abs = join75(webRoot, rel);
-    if (!abs.startsWith(join75(webRoot, "assets"))) return false;
+    const abs = join73(webRoot, rel);
+    if (!abs.startsWith(join73(webRoot, "assets"))) return false;
     try {
       const source2 = readFileSync22(abs);
       const ext = abs.slice(abs.lastIndexOf("."));
@@ -41052,7 +40556,7 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
 // packages/server/src/serverGovernance.ts
 import { mkdirSync as mkdirSync5 } from "node:fs";
 import { readdir as readdir8 } from "node:fs/promises";
-import { join as join76, resolve as resolvePath11 } from "node:path";
+import { join as join74, resolve as resolvePath11 } from "node:path";
 function createServerGovernance(options) {
   const { registry, globalWorkflowRoot: globalWorkflowRoot2, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options;
   function trackRegistryBody(trackRegistry) {
@@ -41064,7 +40568,7 @@ function createServerGovernance(options) {
     };
   }
   async function scanActiveTrackChanges(root) {
-    const changesRoot = join76(root, "openspec", "changes");
+    const changesRoot = join74(root, "openspec", "changes");
     let entries;
     try {
       entries = await readdir8(changesRoot, { withFileTypes: true });
@@ -41077,7 +40581,7 @@ function createServerGovernance(options) {
     const unreadable = [];
     for (const name of names) {
       try {
-        const state = await store.read(join76(changesRoot, name));
+        const state = await store.read(join74(changesRoot, name));
         const track = state.fields.track;
         const workflow = state.fields.workflow;
         refs.push({
@@ -41199,7 +40703,7 @@ function createServerGovernance(options) {
   const globalWorkflowStore = () => {
     try {
       if (globalAnchor === null) {
-        mkdirSync5(join76(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
+        mkdirSync5(join74(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
         globalAnchor = captureWorkflowRootAnchor(globalWorkflowRoot2);
       } else {
         assertWorkflowRootAnchor(globalAnchor);
@@ -41291,9 +40795,9 @@ function createRelatedSessionSearchExecutor(runner) {
 }
 
 // packages/server/src/sessionLinkResolver.ts
-import { join as join77 } from "node:path";
+import { join as join75 } from "node:path";
 async function resolveSessionLink(root, name, deps) {
-  const changeDir2 = join77(root, "openspec", "changes", name);
+  const changeDir2 = join75(root, "openspec", "changes", name);
   try {
     const wtRaw = await deps.store.get(changeDir2, "automation_worktree");
     const wt = Array.isArray(wtRaw) ? wtRaw.join(",") : wtRaw ?? "";
@@ -41319,7 +40823,7 @@ async function resolveSessionLink(root, name, deps) {
 
 // packages/server/src/version.ts
 import { readFileSync as readFileSync23 } from "node:fs";
-import { basename as basename7, dirname as dirname18, join as join78 } from "node:path";
+import { basename as basename7, dirname as dirname18, join as join76 } from "node:path";
 var SERVER_VERSION = "0.1.0";
 var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
 function isPluginManifestVersion(value) {
@@ -41328,7 +40832,7 @@ function isPluginManifestVersion(value) {
 function resolveReleaseVersion(pluginRoot2) {
   for (const relative12 of [".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
     try {
-      const parsed = JSON.parse(readFileSync23(join78(pluginRoot2, relative12), "utf8"));
+      const parsed = JSON.parse(readFileSync23(join76(pluginRoot2, relative12), "utf8"));
       if (isPluginManifestVersion(parsed) && typeof parsed.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed.version)) {
         return parsed.version;
       }
@@ -41398,7 +40902,7 @@ function createDashboardServer(options) {
       locator: createRunnerSkillContentLocator({
         runner,
         home: hostHome,
-        bundledRoot: join79(repoRootForSkills2(), "skills")
+        bundledRoot: join77(repoRootForSkills2(), "skills")
       }),
       isSkillProfileKnown: (profileId) => profileId === "_all" || trackSkillProfiles.has(profileId)
     });
@@ -41822,10 +41326,10 @@ function listenerPids(port) {
 function probePortOpen(port, host = "127.0.0.1", timeoutMs = 250) {
   return new Promise((resolve18) => {
     let done = false;
-    const finish = (open9) => {
+    const finish = (open8) => {
       if (done) return;
       done = true;
-      resolve18(open9);
+      resolve18(open8);
     };
     const socket = createConnection({ host, port });
     socket.setTimeout(timeoutMs);
@@ -41901,10 +41405,10 @@ function managedTransactionId() {
   return value;
 }
 function pluginRoot() {
-  return join80(dirname20(fileURLToPath4(import.meta.url)), "..", "..", "..");
+  return join78(dirname20(fileURLToPath4(import.meta.url)), "..", "..", "..");
 }
 function manifestPath() {
-  return join80(pluginRoot(), "templates", "manifest.yaml");
+  return join78(pluginRoot(), "templates", "manifest.yaml");
 }
 function gitHeadSha(cwd) {
   return new Promise((resolve18) => {
@@ -41967,7 +41471,7 @@ async function main() {
     gitHeadSha,
     workspaceFingerprint: (cwd) => fingerprintWorkspace(cwd),
     // dashboard-app 构建产物（BACKLOG #26c）：存在则服务真 SPA，否则回退最小落地页
-    webRoot: join80(dirname20(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
+    webRoot: join78(dirname20(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
     // tap 流量查看器数据源：只读 sessions/records/timeline；完整 reader 才声明 traffic=true。
     // tap capture 默认 OFF，无捕获时返回空会话——数据端仍在线（#34e：只读本地、不外发）
     traceStore: createTraceStore(),
