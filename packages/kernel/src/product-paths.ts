@@ -27,6 +27,8 @@ export interface ProductPaths {
   readonly secretsPath: string
   readonly dashboardTokenPath: string
   readonly dashboardPidfilePath: string
+  /** Per-install 0600 random key for HMAC identity digests in pending-decision security observations. */
+  readonly decisionObservationKeyPath: string
   /** Outer lock root for the complete managed release transaction. */
   readonly managedTransactionRoot: string
 }
@@ -153,6 +155,7 @@ export function resolveProductPaths(input: ProductPathInput = {}): ProductPaths 
     secretsPath: paths.join(configRoot, 'secrets.json'),
     dashboardTokenPath: paths.join(stateRoot, 'dashboard-token.json'),
     dashboardPidfilePath: paths.join(stateRoot, 'dashboard-server.json'),
+    decisionObservationKeyPath: paths.join(stateRoot, 'decision-observation-identity.key'),
     managedTransactionRoot: paths.join(stateRoot, 'managed-release-transaction'),
   }
 }

@@ -14,8 +14,11 @@
 #   stdin JSON 只用 bash 字符串提取所需两键（cwd / tool_name）。
 # 例外（Task 9，GOAL 清单 E）：非 default workflow 的 change 调用 Claude Skill 工具，或 Codex
 #   读取当前插件内 SKILL.md 时，文件尾段委托 `node .../tenon.mjs internal-skill-gate` 做 skill DAG
-#   解锁判定——这是本文件唯一会 spawn 解释器的分支。默认 workflow / 无活跃 change / 非技能读取
-#   三者任一成立就直接跳过 node；Codex 读取证据与 Claude Skill 事件保持语义等价但记账类型不同。
+#   解锁判定。默认 workflow / 无活跃 change / 非技能读取三者任一成立就直接跳过 node；Codex 读取
+#   证据与 Claude Skill 事件保持语义等价但记账类型不同。
+# 例外二（自审批检测）：工具输入命中宽召回候选（dashboard token 文件名，或 loopback 主机 + /api/）
+#   时委托 `node .../tenon.mjs internal-self-approval` 做精确判定与记录。非候选只做 bash 字符串
+#   匹配，不 spawn node。
 # fail-open（绝不死锁）：stdin 解析失败 / cwd 不存在 / 任何异常 → 放行 exit 0。
 # 强制常开（v5 T5 / 决议#2）：本交互门与 interactive-skill-gate.sh 安全门**不读**
 #   .pipeline/hooks.json 阶段×hook 开关矩阵——配置里手写 "gate.<阶段>": false 一律无效
@@ -23,12 +26,19 @@
 #   接线见 router.sh / breadcrumb.sh / skill-tracker.sh / session-start.sh 的 hook_disabled。
 set -uo pipefail
 
-# AFK 逃生门（BACKLOG #7b，对齐老内核沙箱放行语义）：headless 自动化（Docker/CI）里
-# 无人应答 AskUserQuestion，三门必死锁——显式 TENON_AFK=1 时整门放行；
-# 不清 marker（人回来时门还在）。仅字面 "1" 生效，其它值一律不放行。
-[ "${TENON_AFK:-}" = "1" ] && exit 0
-
 INPUT="$(cat 2>/dev/null || printf '{}')"
+
+# 自审批宽召回预筛（纯 bash、零 fork）：原始输入含 token 文件名，或同时含 loopback 主机与 /api/。
+# 非候选在 AFK 下于此直接放行，热路径与原先「开头即 exit」只多一次 cat 与 case 匹配；
+# 普通 `src/api/` 路径或远端 /api/ 不命中，HITL 下也不进入候选解析。
+SELF_APPROVAL_RAW=0
+case "$INPUT" in
+  *dashboard-token.json*) SELF_APPROVAL_RAW=1 ;;
+  *localhost*|*127.0.0.1*|*'[::1]'*)
+    case "$INPUT" in *'/api/'*|*'\/api\/'*) SELF_APPROVAL_RAW=1 ;; esac
+    ;;
+esac
+[ "${TENON_AFK:-}" = "1" ] && [ "$SELF_APPROVAL_RAW" = 0 ] && exit 0
 
 # All realtime hooks use the same escape-aware parser. This keeps Codex's quoted
 # `command_execution.command` and `exec.cmd` payloads on the exact same path as regular events.
@@ -59,6 +69,76 @@ if [ -r "$ROOT_HELPER" ]; then
   . "$ROOT_HELPER"
   TENON_ROOT="$(pipeline_project_root "$CWD" bootstrap changes || true)"
 fi
+
+# ── 自审批检测：宽召回候选（纯 bash）→ CLI 精确判定 ──
+# hook 只回答「这次工具输入是否可能触碰 dashboard token 或本机控制 API」，不解析 curl 参数、
+# 不跳过含 `$(` / `|` 的命令、不读 hook marker，也不自行推导 product state root：命令变体、
+# token 真实路径与 canonical pending receipt 都由 `internal-self-approval` 在 Change 锁内判定，
+# 没有 pending receipt 就零写入。候选文本只经 0600 临时文件传递，调用后立即删除；落盘记录只含
+# 摘要与类别。
+pipeline_self_approval_candidate() { # $1=tool name → candidate text（非候选输出空）
+  local tool="${1:-}" key value text=''
+  case "$tool" in
+    Read|Grep|Glob|Search)
+      for key in file_path path pattern glob; do
+        value="$(pipeline_json_get_string "$INPUT" "$key" || true)"
+        case "$value" in *dashboard-token.json*) text="$text $value" ;; esac
+      done
+      ;;
+    *)
+      value="$(json_command || true)"
+      case "$value" in
+        *dashboard-token.json*) text="$value" ;;
+        *localhost*|*127.0.0.1*|*'[::1]'*)
+          case "$value" in *'/api/'*) text="$value" ;; esac
+          ;;
+      esac
+      ;;
+  esac
+  printf '%s' "${text# }"
+}
+
+pipeline_record_self_approval_candidate() { # $1=candidate text
+  local candidate="${1:-}" hook_root bundle tool_use_id session identity
+  [ -n "$candidate" ] && [ -n "$TENON_ROOT" ] || return 0
+  hook_root="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." 2>/dev/null && pwd)}}"
+  bundle="$hook_root/packages/cli/dist/tenon.mjs"
+  [ -f "$bundle" ] && command -v node >/dev/null 2>&1 || return 0
+  # JSON 只允许 escape 过的控制字符；其余控制字符替换为空格，候选匹配语义不受影响。
+  candidate="${candidate//[[:cntrl:]]/ }"
+  tool_use_id="$(json_get tool_use_id || true)"
+  case "$tool_use_id" in *[!A-Za-z0-9_.:-]*) tool_use_id='' ;; esac
+  session="$(json_get session_id || true)"
+  identity="hook-parent:${PPID:-unknown};host:${HOSTNAME:-unknown};session:${session:-${TENON_HOST_SESSION_ID:-${CODEX_THREAD_ID:-unknown}}}"
+  identity="${identity//[[:cntrl:]]/ }"
+  SELF_APPROVAL_PAYLOAD="$(umask 077 && mktemp "${TMPDIR:-/tmp}/tenon-self-approval.XXXXXX" 2>/dev/null || true)"
+  [ -n "$SELF_APPROVAL_PAYLOAD" ] || return 0
+  # 候选可能含明文 bearer token。宿主超时发 HUP/INT/TERM 时，bash 会把 trap 推迟到前台子进程
+  # 结束（CLI 可能在 Change 锁上等 10s），所以 node 放后台并 wait：信号立即打断 wait、删除 payload。
+  trap 'rm -f "$SELF_APPROVAL_PAYLOAD" 2>/dev/null; exit 0' HUP INT TERM
+  if chmod 600 "$SELF_APPROVAL_PAYLOAD" 2>/dev/null \
+    && printf '{"candidate":"%s","tool_name":"%s","tool_use_id":"%s","process_or_host_identity":"%s"}\n' \
+      "$(pipeline_json_escape "$candidate")" "$(pipeline_json_escape "$TOOL")" \
+      "$tool_use_id" "$(pipeline_json_escape "$identity")" > "$SELF_APPROVAL_PAYLOAD" 2>/dev/null; then
+    ( cd "$TENON_ROOT" && exec node "$bundle" internal-self-approval "$SELF_APPROVAL_PAYLOAD" ) >/dev/null 2>&1 &
+    wait "$!" 2>/dev/null || true
+  fi
+  rm -f "$SELF_APPROVAL_PAYLOAD" 2>/dev/null || true
+  trap - HUP INT TERM
+  SELF_APPROVAL_PAYLOAD=""
+}
+
+SELF_APPROVAL_CANDIDATE=""
+if [ "$SELF_APPROVAL_RAW" = 1 ]; then
+  SELF_APPROVAL_CANDIDATE="$(pipeline_self_approval_candidate "$TOOL")"
+  pipeline_record_self_approval_candidate "$SELF_APPROVAL_CANDIDATE"
+fi
+
+# AFK 逃生门（BACKLOG #7b，对齐老内核沙箱放行语义）：headless 自动化（Docker/CI）里
+# 无人应答 AskUserQuestion，三门必死锁——显式 TENON_AFK=1 时整门放行；
+# 不清 marker（人回来时门还在）。仅字面 "1" 生效，其它值一律不放行。
+# 放行位于自审批检测之后：AFK 只免除拦截，不免除安全观测。
+[ "${TENON_AFK:-}" = "1" ] && exit 0
 
 # yget：读 canonical hookState；current 从未出现时才兼容 YAML 顶层 key——逐字复用
 # hooks/router.sh / hooks/skill-tracker.sh 同名函数，本文件之前不需要读状态字段，
@@ -124,67 +204,6 @@ review_marker_relevant_to_active_change() { # $1=marker → 0=blockable v2 marke
   fi
   active_change="$(pipeline_review_active_change_name "$TENON_ROOT" "$HOOK_DIR" || true)"
   [ -n "$active_change" ] && [ "$active_change" = "$marked_change" ]
-}
-
-# Resolve the one product-owned dashboard token path used by the server. The managed bootstrap
-# exports this already-resolved state root; the hot hook must consume that projection rather than
-# rebuilding platform paths itself.
-pipeline_dashboard_token_path() {
-  local state_root="${TENON_RUNTIME_STATE_ROOT:-}"
-  case "$state_root" in /*) printf '%s/dashboard-token.json' "${state_root%/}"; return 0 ;; esac
-  return 1
-}
-
-pipeline_command_reads_dashboard_token() { # $1=decoded command
-  local command="${1:-}" token_path="" command_name=""
-  [ -n "$command" ] || return 1
-  command="$(pipeline_unwrap_shell_wrapper "$command")"
-  pipeline_command_has_shell_metachars "$command" && return 1
-  token_path="$(pipeline_dashboard_token_path || true)"
-  [ -n "$token_path" ] || return 1
-  command_name="${command%% *}"
-  case "$command_name" in cat|head|tail|less|more|stat|file|sed|grep|rg) ;; *) return 1 ;; esac
-  # The token must be an exact final argument. Quoted paths are required when the product path
-  # contains spaces; the unquoted form is accepted only when it is itself one argument.
-  case "$command" in
-    *"\"$token_path\""|*"'$token_path'"|*" $token_path") return 0 ;;
-  esac
-  return 1
-}
-
-pipeline_command_writes_review_api() { # $1=decoded command
-  local command="${1:-}"
-  [ -n "$command" ] || return 1
-  command="$(pipeline_unwrap_shell_wrapper "$command")"
-  pipeline_command_has_shell_metachars "$command" && return 1
-  case "$command" in curl\ *|wget\ *) ;; *) return 1 ;; esac
-  # GET is deliberately excluded. Explicit mutating method or body flags are required; the
-  # endpoint and Change name are then checked as one exact localhost allowlist.
-  if [[ "$command" != *' -X POST '* && "$command" != *' --request POST '* \
-    && "$command" != *' -X PUT '* && "$command" != *' --request PUT '* \
-    && "$command" != *' -X PATCH '* && "$command" != *' --request PATCH '* \
-    && "$command" != *' -X DELETE '* && "$command" != *' --request DELETE '* \
-    && "$command" != *' --data '* && "$command" != *' --data-raw '* \
-    && "$command" != *' --data-binary '* && "$command" != *' -d '* \
-    && "$command" != *' --post-data '* && "$command" != *' --post-file '* ]]; then
-    return 1
-  fi
-  [[ "$command" =~ (^|[[:space:]\'\"])(https?://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?/api/change/[A-Za-z0-9_-]+/(decisions|transition)(\?[^[:space:]\'\"]*)?)([[:space:]\'\"]|$) ]]
-}
-
-pipeline_record_pending_review_observation() { # $1=change $2=signal kind
-  local change="${1:-}" kind="${2:-}" bundle payload identity hook_root
-  [ -n "$change" ] && [ -n "$kind" ] || return 0
-  hook_root="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." 2>/dev/null && pwd)}}"
-  bundle="$hook_root/packages/cli/dist/tenon.mjs"
-  [ -f "$bundle" ] && command -v node >/dev/null 2>&1 || return 0
-  payload="$(mktemp "${TMPDIR:-/tmp}/tenon-self-approval.XXXXXX" 2>/dev/null || true)"
-  [ -n "$payload" ] || return 0
-  identity="hook-parent:${PPID:-unknown};host:${HOSTNAME:-unknown};session:${TENON_HOST_SESSION_ID:-${CODEX_THREAD_ID:-unknown}}"
-  printf '{"kind":"%s","process_or_host_identity":"%s"}\n' \
-    "$(pipeline_json_escape "$kind")" "$(pipeline_json_escape "$identity")" > "$payload" 2>/dev/null || return 0
-  ( cd "$TENON_ROOT" && node "$bundle" internal-self-approval "$change" "$payload" ) >/dev/null 2>&1 || true
-  rm -f "$payload" 2>/dev/null || true
 }
 
 # Shared metacharacter rejection.  Anything in this set can turn a read or a control command into
@@ -312,13 +331,14 @@ for kind in confirm review interaction; do
   if fresh "$m" "$ttl"; then
     if [ "$kind" = "review" ]; then
       review_marker_relevant_to_active_change "$m" || continue
-      if pipeline_command_reads_dashboard_token "$(json_command || true)"; then
-        pipeline_record_pending_review_observation "$(pipeline_review_marker_change "$m" || true)" "token-file-read"
-        printf '【Tenon 门】pending review 期间禁止读取 dashboard token；该行为已记录为安全信号。\n' >&2
-        exit 2
-      elif pipeline_command_writes_review_api "$(json_command || true)"; then
-        pipeline_record_pending_review_observation "$(pipeline_review_marker_change "$m" || true)" "localhost-control-write"
-      fi
+      # 观测已在 AFK 放行前按 canonical receipt 记录；这里只保留 HITL 下的拦截体验。
+      # loopback 控制 API 调用不是严格只读命令，会落到下方通用拦截。
+      case "$SELF_APPROVAL_CANDIDATE" in
+        *dashboard-token.json*)
+          printf '【Tenon 门】pending review 期间禁止读取 dashboard token；该行为已记录为安全信号。\n' >&2
+          exit 2
+          ;;
+      esac
       # Acknowledgement is the only state-writing action that may pass a pending v2 gate.  The
       # command itself validates exact Change/phase/pending state under the canonical lock, so
       # allowing this narrow control surface cannot open unrelated writes.
