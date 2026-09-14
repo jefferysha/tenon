@@ -62,7 +62,8 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
   only explicit guards. `confirm` is rejected by both the parser and the compiler with a hint naming the two
   replacements.
 - Completion: a step-graph step with no forward edge (no transition whose target comes later in the selected
-  branch's step order) and no declared `archived` edge exposes an implicit `archived` self-edge
+  branch's step order), no declared `archived` edge and no other way out of its loop (every step reachable from it
+  can reach it back) exposes an implicit `archived` self-edge
   (`workflow/implicit-completion.ts`: `implicitCompletionTransition(plan, stepId, state?)`,
   `stepExitTransitions(plan, stepId, state?)`). Its guards are the step's auto-gate output guards (`gate: auto`) or
   none; its action is `archive-run`. Step guards, required step skills, document policy and, for `gate: review`, an

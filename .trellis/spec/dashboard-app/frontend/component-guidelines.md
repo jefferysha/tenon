@@ -190,7 +190,9 @@ last one. Anything that needs its own surface opens the shared right-side `share
 - Reordering and removing stages relink edges through one helper (`relinkTransitions`): the edge to the next
   stage keeps its event/guards/actions and follows the new order, a step without one gets `<id>-complete`, and
   any other edge survives only while its target is still earlier. An old send-back can therefore never turn into
-  a second forward edge. `transition-not-next-or-back` blocks saving any edge that is neither the single edge to
+  a second forward edge. A send-back dropped this way goes into the same `不退回` memory
+  (`displacedBackTransitions`), so dragging a stage away and back and re-picking the target restores
+  `verify-fail` with its guards/actions instead of a synthesized `verify-back`. `transition-not-next-or-back` blocks saving any edge that is neither the single edge to
   the next stage nor a send-back (skip, self, missing target, or a second edge to the next stage); `default`
   produces no such issue.
 - Send-back is **not** bound to the gate. `实现 → 规格` (`requirements-changed`) hangs off a stage whose gate is

@@ -21,6 +21,7 @@ import {
   branchesOf,
   copyWorkflowDef,
   definitionForWrite,
+  displacedBackTransitions,
   resolveBranch,
   removeSkillFromDef,
   removeStageFromDef,
@@ -334,11 +335,23 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     removedBack.current.delete(key)
     return setStageBackInDef(previous, stepId, to, remembered)
   }), [mutate])
+  // 排序 / 删阶段丢掉的退回边进同一份记忆，重新选退回目标时整条装回。
+  const rememberDisplaced = useCallback((previous: WbWorkflowDef, next: WbWorkflowDef): WbWorkflowDef => {
+    for (const [stepId, transition] of displacedBackTransitions(previous, next)) {
+      removedBack.current.set(`${previous.name}:${branchIdentity.current}:${stepId}`, transition)
+    }
+    return next
+  }, [])
   const removeStage = useCallback((stepId: string): void => {
-    mutate((previous) => removeStageFromDef(previous, stepId))
+    mutate((previous) => {
+      removedBack.current.delete(`${previous.name}:${branchIdentity.current}:${stepId}`)
+      return rememberDisplaced(previous, removeStageFromDef(previous, stepId))
+    })
     setStageId((current) => current === stageId ? (def?.steps.filter((step) => step.id !== stepId)[0]?.id ?? null) : current)
-  }, [mutate, def, stageId])
-  const reorderStages = useCallback((fromId: string, toId: string, after: boolean) => mutate((previous) => reorderStagesInDef(previous, fromId, toId, after)), [mutate])
+  }, [mutate, rememberDisplaced, def, stageId])
+  const reorderStages = useCallback((fromId: string, toId: string, after: boolean) => mutate((previous) => (
+    rememberDisplaced(previous, reorderStagesInDef(previous, fromId, toId, after))
+  )), [mutate, rememberDisplaced])
   const setSkills = useCallback((stepId: string, skills: readonly WbSkillRef[]) => mutate((previous) => setStepSkillsInDef(previous, stepId, skills)), [mutate])
   const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
   const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])

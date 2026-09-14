@@ -69,6 +69,8 @@ export function lintWorkflow(def: WbWorkflowDef, io: WbEffectiveIo | undefined):
         continue
       }
       if (earlier.has(transition.to)) continue
+      // An explicit `archived` self-edge is the kernel's completion edge written out in YAML.
+      if (transition.event === 'archived' && transition.to === step.id) continue
       issues.push({ kind: 'transition-not-next-or-back', stepId: step.id, event: transition.event, to: transition.to })
     }
     if (isGoverned) {

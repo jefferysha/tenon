@@ -33,11 +33,42 @@ function enteredOnlyByArchivingEdges(steps: readonly StepIR[], step: StepIR): bo
     && incoming.every((transition) => transition.actions.some((action) => action.type === 'archive-run'))
 }
 
+/** Step ids reachable from `startId` through declared edges, `startId` included. */
+function reachableFrom(steps: readonly StepIR[], startId: string): ReadonlySet<string> {
+  const byId = new Map(steps.map((candidate) => [candidate.id, candidate]))
+  const seen = new Set<string>()
+  const queue = [startId]
+  while (queue.length > 0) {
+    const id = queue.shift()
+    if (id === undefined || seen.has(id)) continue
+    seen.add(id)
+    for (const transition of byId.get(id)?.transitions ?? []) {
+      if (byId.has(transition.to) && !seen.has(transition.to)) queue.push(transition.to)
+    }
+  }
+  return seen
+}
+
+/**
+ * A step whose loop still has another way out is not an end. A hand-written `fix` step that only
+ * returns to `verify`, while `verify` moves on to `ship`, has no forward edge, but completing the run
+ * there would skip `ship`. The step therefore qualifies only when every step it can reach can reach
+ * it back. Editor-built branches always satisfy this for their last stage, because every earlier
+ * stage reaches it through the forward chain.
+ */
+function loopHasAnotherExit(steps: readonly StepIR[], step: StepIR): boolean {
+  for (const id of reachableFrom(steps, step.id)) {
+    if (id !== step.id && !reachableFrom(steps, id).has(step.id)) return true
+  }
+  return false
+}
+
 /**
  * The implicit `archived` edge of `stepId`, or undefined when the step has a forward edge, declares
- * `archived` itself, or the workflow is phase-manifest. Pass `state` whenever the caller acts on
- * the edge: an archived run has nothing left to complete. Plan-level projections that must agree
- * across Changes (snapshot rules, readiness, review handshake) omit it.
+ * `archived` itself, can still leave its loop through another step, or the workflow is
+ * phase-manifest. Pass `state` whenever the caller acts on the edge: an archived run has nothing
+ * left to complete. Plan-level projections that must agree across Changes (snapshot rules,
+ * readiness, review handshake) omit it.
  */
 export function implicitCompletionTransition(
   plan: ImplicitCompletionPlan,
@@ -53,7 +84,7 @@ export function implicitCompletionTransition(
   if (step.transitions.some((transition) => transition.event === IMPLICIT_COMPLETION_EVENT)) return undefined
   const hasForwardEdge = step.transitions.some((transition) =>
     steps.findIndex((candidate) => candidate.id === transition.to) > index)
-  if (hasForwardEdge || enteredOnlyByArchivingEdges(steps, step)) return undefined
+  if (hasForwardEdge || enteredOnlyByArchivingEdges(steps, step) || loopHasAnotherExit(steps, step)) return undefined
   return {
     event: IMPLICIT_COMPLETION_EVENT,
     to: step.id,

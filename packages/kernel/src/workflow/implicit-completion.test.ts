@@ -82,6 +82,48 @@ describe('implicitCompletionTransition', () => {
     expect(stepExitTransitions(plan, 'verify', stateWith('true')).map((transition) => transition.event)).toEqual(['verify-back'])
   })
 
+  test('a loop step that can still move on through another step gets no completion edge', () => {
+    // verify moves on to ship; fix only returns to verify. Completing at fix would skip ship.
+    const loop = compileEffectiveWorkflowPlan('loop', {
+      name: 'loop',
+      steps: [
+        step('build', { transitions: [{ event: 'build-complete', to: 'verify' }] }),
+        step('verify', { transitions: [{ event: 'verify-fail', to: 'fix' }, { event: 'verify-pass', to: 'ship' }] }),
+        step('fix', { transitions: [{ event: 'fixed', to: 'verify' }] }),
+        step('ship'),
+      ],
+    })
+    expect(implicitCompletionTransition(loop, 'fix')).toBeUndefined()
+    expect(stepExitTransitions(loop, 'fix').map((transition) => transition.event)).toEqual(['fixed'])
+    expect(implicitCompletionTransition(loop, 'ship')?.event).toBe('archived')
+
+    // Array order does not decide it: the loop step sits last and the real terminal earlier.
+    const reordered = compileEffectiveWorkflowPlan('reordered', {
+      name: 'reordered',
+      steps: [
+        step('build', { transitions: [{ event: 'build-pass', to: 'ship' }, { event: 'build-fail', to: 'fix' }] }),
+        step('ship'),
+        step('fix', { transitions: [{ event: 'fixed', to: 'build' }] }),
+      ],
+    })
+    expect(implicitCompletionTransition(reordered, 'fix')).toBeUndefined()
+    expect(implicitCompletionTransition(reordered, 'ship')?.event).toBe('archived')
+  })
+
+  test('an editor branch with several send-backs completes at its last stage only', () => {
+    const plan = compileEffectiveWorkflowPlan('ui-backs', {
+      name: 'ui-backs',
+      steps: [
+        step('a', { transitions: [{ event: 'a-complete', to: 'b' }] }),
+        step('b', { transitions: [{ event: 'b-complete', to: 'c' }] }),
+        step('c', { transitions: [{ event: 'c-complete', to: 'd' }, { event: 'c-back', to: 'a' }] }),
+        step('d', { transitions: [{ event: 'd-back', to: 'b' }] }),
+      ],
+    })
+    expect(plan.workflow.steps.map((candidate) => implicitCompletionTransition(plan, candidate.id)?.event ?? null))
+      .toEqual([null, null, null, 'archived'])
+  })
+
   test('bundled default and simple plans are unchanged', () => {
     const defaultPlan = compileEffectiveWorkflowPlan('default')
     for (const candidate of defaultPlan.workflow.steps) {

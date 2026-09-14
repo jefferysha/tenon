@@ -425,12 +425,12 @@ phase **内部**步骤可连续做（产物靠 Edit/Write 落盘）；常规模�
 仍等待人类。不得因 default 的 Explore/Spec/Verify 文本而给 custom Build 或 Ship 凭空补 review，也不得因
 持续授权把 `confirm` 或外部发布动作自动化。
 
-**Custom step 没有前进出口时**（例如 Dashboard 编辑器生成的末阶段只有退回边或零出边；计划 JSON 中该 step 带
-`completion_event: "archived"`）：进入该 step 不等于任务完成。先完成该 step 声明的 Skill 与 guard，再用保留事件
-`archived` 完成运行——`gate: review` 走 `tenon check` → `tenon review request <change> --event archived` → 展示产物并
-等待用户确认（`tenon review acknowledge`）→ `tenon transition <change> archived`；`gate: null` 或 `gate: auto` 走
-`tenon check` → `tenon transition <change> archived`。成功后 `archived: true`、WorkflowRun 关闭；有前进出边的 step
-不接受 `archived`。
+**Custom step 在计划 JSON 中带 `completion_event: "archived"` 时**（例如 Dashboard 编辑器生成的末阶段，只有退回边或
+零出边）：进入该 step 不等于任务完成。先完成该 step 声明的 Skill 与 guard，再用保留事件 `archived` 完成运行——
+`gate: review` 走 `tenon check` → `tenon review request <change> --event archived` → 展示产物并等待用户确认
+（`tenon review acknowledge`）→ `tenon transition <change> archived`；`gate: null` 或 `gate: auto` 走 `tenon check` →
+`tenon transition <change> archived`。成功后 `archived: true`、WorkflowRun 关闭。没有 `completion_event` 的 step
+（有前进出边，或只在循环中退回的中间步骤）不接受 `archived`，按计划中的出边继续。
 
 ### Preset 升级条件
 

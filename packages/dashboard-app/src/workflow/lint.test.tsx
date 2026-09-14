@@ -62,6 +62,17 @@ describe('lint · 转移只能去下一阶段或退回', () => {
     ])
   })
 
+  it('显式写出的 archived 自环是完成边，不报；其它自环照报', () => {
+    const def: WbWorkflowDef = {
+      name: 'mine',
+      steps: [
+        stage('a', [{ event: 'a-complete', to: 'b' }]),
+        stage('b', [{ event: 'archived', to: 'b', actions: [{ type: 'archive-run' }] }, { event: 'b-loop', to: 'b' }]),
+      ],
+    }
+    expect(notNextOrBack(def)).toEqual([{ kind: 'transition-not-next-or-back', stepId: 'b', event: 'b-loop', to: 'b' }])
+  })
+
   it('末阶段不能有正向边：它没有下一阶段', () => {
     const def: WbWorkflowDef = { name: 'mine', steps: [stage('a', [{ event: 'a-complete', to: 'b' }]), stage('b', [{ event: 'b-complete', to: 'a' }])] }
     expect(notNextOrBack(def)).toEqual([])

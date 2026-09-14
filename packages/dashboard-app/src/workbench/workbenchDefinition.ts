@@ -282,6 +282,19 @@ export function removeStageFromDef(def: WbWorkflowDef, stepId: string): WbWorkfl
   return contract === undefined ? base : withContract(base, contract)
 }
 
+/**
+ * 排序 / 删阶段丢掉的退回边：变动前有退回边、变动后没有的阶段 → 变动前那条。编辑器把它记进「不退回」的同一份
+ * 记忆，重新选退回目标时整条装回来——拖走再拖回不会把 `verify-fail` 降成合成的 `verify-back`、丢掉 actions。
+ */
+export function displacedBackTransitions(before: WbWorkflowDef, after: WbWorkflowDef): Map<string, WbTransition> {
+  const displaced = new Map<string, WbTransition>()
+  for (const step of after.steps) {
+    const previous = backTransitionOf(before, step.id)
+    if (previous !== null && backTransitionOf(after, step.id) === null) displaced.set(step.id, previous)
+  }
+  return displaced
+}
+
 function cloneSteps(steps: readonly WbStepDef[]): WbStepDef[] {
   return steps.map((step) => ({
     ...step,

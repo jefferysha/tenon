@@ -3,6 +3,9 @@ import { draftEffectiveIo, lintWorkflow } from '../workflow/lint'
 import {
   BASE_BRANCH,
   addSkillToDef,
+  backTransitionOf,
+  displacedBackTransitions,
+  setStageBackInDef,
   addTrackBranch,
   blankWorkflow,
   branchesOf,
@@ -222,6 +225,37 @@ describe('workbenchDefinition · 排序', () => {
     const moved = reorderStagesInDef(def, 'b', 'c', true)
     expect(edgesOf(moved)).toEqual({ a: [{ event: 'a-done', to: 'c' }], c: [{ event: 'c-complete', to: 'b' }], b: [] })
     expectRelinked(moved)
+  })
+})
+
+describe('workbenchDefinition · 排序与删阶段丢掉的退回边', () => {
+  const governedLike = (): WbWorkflowDef => pipeline(
+    stage('spec', [{ event: 'spec-complete', to: 'build' }]),
+    stage('build', [{ event: 'build-complete', to: 'verify' }, REQUIREMENTS_CHANGED]),
+    stage('verify', [VERIFY_FAIL]),
+  )
+
+  it('拖走再拖回：丢掉的 verify-fail 被报出来，作为模板重新选回时整条装回', () => {
+    const def = governedLike()
+    const moved = reorderStagesInDef(def, 'verify', 'build', false)
+    const displaced = displacedBackTransitions(def, moved)
+    expect([...displaced]).toEqual([['verify', VERIFY_FAIL]])
+    const back = reorderStagesInDef(moved, 'verify', 'build', true)
+    expect(back.steps.map((step) => step.id)).toEqual(['spec', 'build', 'verify'])
+    expect(backTransitionOf(back, 'verify')).toBeNull()
+    const restored = setStageBackInDef(back, 'verify', 'build', displaced.get('verify'))
+    expect(backTransitionOf(restored, 'verify')).toEqual(VERIFY_FAIL)
+    expectRelinked(restored)
+  })
+
+  it('删掉退回目标、改指后成了自指：丢掉的边被报出来；退回边还在的阶段与被删阶段不报', () => {
+    const def = governedLike()
+    const removed = removeStageFromDef(def, 'build')
+    expect([...displacedBackTransitions(def, removed)]).toEqual([['verify', VERIFY_FAIL]])
+    // 删 spec：build 的 requirements-changed 改指自己被删；verify-fail 仍指向更早的 build，不报。
+    const withoutSpec = removeStageFromDef(def, 'spec')
+    expect([...displacedBackTransitions(def, withoutSpec)]).toEqual([['build', REQUIREMENTS_CHANGED]])
+    expect(backTransitionOf(withoutSpec, 'verify')).toEqual(VERIFY_FAIL)
   })
 })
 
