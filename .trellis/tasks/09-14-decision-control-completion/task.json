@@ -1,0 +1,30 @@
+{
+  "id": "decision-control-completion",
+  "name": "decision-control-completion",
+  "title": "完成决策控制与运行复盘",
+  "description": "在已集成 A/B/C 基础上完成约束校验、自审批检测、Dashboard 控制、复盘和改进流程，隔离并发实施并最终统一验证",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": "kernel",
+  "priority": "P0",
+  "creator": "sjy",
+  "assignee": "sjy",
+  "createdAt": "2026-09-14",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "codex/autonomous-loop-v1",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-14-human-gate-server",
+    "09-14-review-self-approval-detection",
+    "09-14-dashboard-review-console"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
