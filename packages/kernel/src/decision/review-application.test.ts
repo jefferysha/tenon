@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyFields, type PipelineState } from '../index.js'
-import { acknowledgeReview } from './review-application.js'
+import { acknowledgeReview, executeReviewAcknowledgeCommand } from './review-application.js'
 
 function state(status: 'pending' | 'approved' = 'pending'): PipelineState {
   return {
@@ -49,6 +49,38 @@ describe('review acknowledge application', () => {
       writeState: async () => { writes += 1 },
     })
     expect(result).toMatchObject({ changed: false })
+    expect(writes).toBe(0)
+  })
+
+  it('uses one ordered command journey and commits only after binding and revision checks', async () => {
+    const order: string[] = []
+    let writes = 0
+    const result = await executeReviewAcknowledgeCommand({
+      withLock: async (fn) => { order.push('lock'); return fn() },
+      readState: async () => { order.push('receipt'); return state() },
+      readRevision: async () => { order.push('revision'); return 4 },
+      expectedRevision: 4,
+      idempotencyKey: 'k1',
+      checkIdempotency: async () => { order.push('idempotency'); return 'missing' },
+      phase: 'verify', event: 'verify-pass', acknowledgedAt: '2026-09-13T00:01:00Z',
+      bindingMatches: async () => { order.push('binding'); return true },
+      commit: async () => { order.push('commit'); writes += 1; return { deferred: [] } },
+      rememberIdempotencyKey: async () => { order.push('remember') },
+    })
+    expect(result).toMatchObject({ ok: true, code: 'approved', changed: true })
+    expect(writes).toBe(1)
+    expect(order).toEqual(['lock', 'idempotency', 'receipt', 'binding', 'revision', 'commit', 'remember'])
+  })
+
+  it('returns idempotency conflict with zero canonical side effects', async () => {
+    let writes = 0
+    const result = await executeReviewAcknowledgeCommand({
+      withLock: async (fn) => fn(), readState: async () => state(), phase: 'verify', event: 'verify-pass',
+      acknowledgedAt: '2026-09-13T00:01:00Z', expectedRevision: 1, idempotencyKey: 'same',
+      checkIdempotency: async () => 'conflict', bindingMatches: () => true,
+      commit: async () => { writes += 1; return {} },
+    })
+    expect(result).toEqual({ ok: false, code: 'idempotency-conflict', message: 'idempotency key is already bound to another decision' })
     expect(writes).toBe(0)
   })
 })

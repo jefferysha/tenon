@@ -120,3 +120,88 @@ export async function acknowledgeReview(input: ReviewAcknowledgeApplicationInput
     idempotent: false,
   }
 }
+
+/**
+ * Shared command boundary for review acknowledgements. Adapters provide only storage and
+ * projection ports; ordering and result codes stay identical for terminal and Dashboard.
+ */
+export type ReviewAcknowledgeCommandCode =
+  | 'approved'
+  | 'idempotent-replay'
+  | 'review-approval-required'
+  | 'revision-conflict'
+  | 'idempotency-conflict'
+  | 'invalid-input'
+  | 'marker-warning'
+
+export type ReviewAcknowledgeCommandResult =
+  | { readonly ok: true; readonly code: 'approved' | 'idempotent-replay' | 'marker-warning'; readonly changed: boolean; readonly idempotent: boolean; readonly deferred: readonly string[] }
+  | { readonly ok: false; readonly code: 'review-approval-required' | 'revision-conflict' | 'idempotency-conflict' | 'invalid-input'; readonly message: string }
+
+export interface ReviewAcknowledgeCommandPort {
+  readonly withLock: <T>(fn: () => Promise<T>) => Promise<T>
+  readonly readState: () => Promise<PipelineState>
+  readonly readRevision?: () => Promise<number | null>
+  readonly expectedRevision?: number | null
+  readonly idempotencyKey?: string
+  /** Returns replay/conflict/missing for the complete command payload. */
+  readonly checkIdempotency?: (key: string) => Promise<'missing' | 'replay' | 'conflict'>
+  readonly hasIdempotencyKey?: (key: string) => Promise<boolean>
+  readonly rememberIdempotencyKey?: (key: string) => Promise<void>
+  readonly phase: string
+  readonly event: string
+  readonly acknowledgedAt: string
+  readonly via?: ReviewAcknowledgedVia
+  readonly bindingMatches: (state: PipelineState) => Promise<boolean> | boolean
+  /** Performs the canonical patch and all append-only projections while the Change lock is held. */
+  readonly commit: (state: PipelineState, acknowledgedAt: string) => Promise<{ readonly deferred?: readonly string[] }>
+  /** Best-effort append-only evidence for a rejected command. Must never mutate canonical state. */
+  readonly recordRejected?: (state: PipelineState, reason: string) => Promise<void>
+}
+
+/** Execute the common idempotency → receipt/binding → revision → commit journey under one lock. */
+export async function executeReviewAcknowledgeCommand(
+  port: ReviewAcknowledgeCommandPort,
+): Promise<ReviewAcknowledgeCommandResult> {
+  if (!port.phase || !port.event) return { ok: false, code: 'invalid-input', message: 'review phase and event are required' }
+  if (port.expectedRevision !== undefined && port.expectedRevision === null) {
+    return { ok: false, code: 'invalid-input', message: 'expected revision is required' }
+  }
+  return port.withLock(async () => {
+    const key = port.idempotencyKey
+    if (key !== undefined && key === '') return { ok: false, code: 'invalid-input', message: 'idempotency key is required' }
+    const idempotency = key !== undefined && port.checkIdempotency !== undefined
+      ? await port.checkIdempotency(key)
+      : key !== undefined && port.hasIdempotencyKey !== undefined && await port.hasIdempotencyKey(key)
+        ? 'replay' : 'missing'
+    if (idempotency === 'conflict') return { ok: false, code: 'idempotency-conflict', message: 'idempotency key is already bound to another decision' }
+    if (idempotency === 'replay') {
+      return { ok: true, code: 'idempotent-replay', changed: false, idempotent: true, deferred: [] }
+    }
+    const state = await port.readState()
+    const bindingMatches = await port.bindingMatches(state)
+    if (!bindingMatches) {
+      await port.recordRejected?.(state, 'review receipt binding mismatch')
+      return { ok: false, code: 'review-approval-required', message: `phase '${port.phase}' 的 review receipt 未绑定当前 canonical decision state；请重新 request ${port.event}` }
+    }
+    if (!reviewGatePendingFor(state, port.phase, port.event) && !reviewGateApprovedFor(state, port.phase, port.event)) {
+      await port.recordRejected?.(state, 'review decision is no longer pending')
+      return { ok: false, code: 'review-approval-required', message: `phase '${port.phase}' 尚未为 event '${port.event}' request review` }
+    }
+    if (reviewGateApprovedFor(state, port.phase, port.event)) {
+      if (key !== undefined) await port.rememberIdempotencyKey?.(key)
+      return { ok: true, code: 'idempotent-replay', changed: false, idempotent: true, deferred: [] }
+    }
+    if (port.expectedRevision !== undefined && port.readRevision !== undefined) {
+      const current = await port.readRevision()
+      if (current !== port.expectedRevision) {
+        await port.recordRejected?.(state, 'decision revision conflict')
+        return { ok: false, code: 'revision-conflict', message: 'decision revision conflict' }
+      }
+    }
+    const committed = await port.commit(state, port.acknowledgedAt)
+    if (key !== undefined) await port.rememberIdempotencyKey?.(key)
+    const deferred = committed.deferred ?? []
+    return { ok: true, code: deferred.includes('review-marker-clear') ? 'marker-warning' : 'approved', changed: true, idempotent: false, deferred }
+  })
+}
