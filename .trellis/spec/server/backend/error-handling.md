@@ -77,7 +77,7 @@ proof. Channel attribution (`terminal`, `dashboard`, `automation`, or
 
 ```ts
 // Wrong: authenticated Dashboard click bypasses the receipt
-humanReviewApproved: true
+// (never pass a caller-controlled approval flag)
 
 // Correct: server injects the Kernel binding verifier
 reviewGateBinding: ({ changeDir, state, phase, event }) =>

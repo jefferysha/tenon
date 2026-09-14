@@ -71,8 +71,8 @@ interface TransitionApplicationDeps {
 ### 7. Wrong vs Correct
 
 ```ts
-// Wrong: receipt-only or caller-controlled bypass
-if (command.humanReviewApproved || receiptApproved) return apply()
+// Wrong: receipt-only or caller-controlled bypass (the legacy boolean was removed)
+if (receiptApproved) return apply()
 
 // Correct: exact receipt plus required binding verifier (review transitions only)
 const bindingApproved = prepared.requiresReviewApproval
