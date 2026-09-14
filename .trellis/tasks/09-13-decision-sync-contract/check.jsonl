@@ -3,3 +3,4 @@
 {"file":".trellis/spec/server/backend/error-handling.md","reason":"Verify HTTP contracts are distinguishable."}
 {"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Verify terminal hook boundaries and evidence."}
 {"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Verify cross-layer design has no hidden duplicate state."}
+{"file":".trellis/spec/server/backend/decision-sync.md","reason":"Verify server adapter boundaries and synchronization semantics."}

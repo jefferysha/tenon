@@ -1,7 +1,7 @@
-# B/C 实施记录
+# B 实施计划（设计/spec only）
 
 1. 以 A 提交 `9f38926` 为基线，确认 receipt + binding、HTTP 409 和 CLI/server fail-closed 边界未漂移。
-2. 更新本任务 PRD、设计和相关 `.trellis/spec`，冻结 canonical channel 字段影响面、AFK join、状态推导证据、HTTP/CLI 错误语义、共享 acknowledge application 抽取边界、模式切换事件和自审批告警契约。
-3. C 已落地共享 review application、待决 projection、review/Skill/AFK command adapter、HITL/AFK 模式切换、持久化幂等和脱敏自审批审计；Dashboard 仍无任何大模型交互。
-4. 运行 `python3 .trellis/scripts/task.py validate .trellis/tasks/09-13-decision-sync-contract`，检查 context 清单与 spec 路径；执行构建、定向测试、web、hooks、架构和 tracked dist freshness 验证。
-5. 保留两个明确后续边界：`expired` 尚无 canonical 依据；`humanGateSatisfied` 硬编码约束另立任务处理。
+2. 更新本任务 PRD、设计和相关 `.trellis/spec`，冻结 B1-B5：canonical channel 字段顺序与迁移、投影判定与 AFK join、幂等/错误/唤醒同步、终端回答采集、模式和身份边界。
+3. 使用 `task.py create` 登记 B6 的两个独立子任务：P1 review pending 自审批检测、P0 `tenon set phase` review bypass。共享 application 抽取、C 的 projection/adapter 属于后续任务；本任务不改业务 TypeScript、hooks、Dashboard 或 A 文件。
+4. 运行 `python3 ./.trellis/scripts/task.py validate .trellis/tasks/09-13-decision-sync-contract` 和 `npm run check:docs`，检查 context 清单与 Markdown 链接；明确 `expired` 与 `humanGateSatisfied` 仍未实现。
+5. 只有设计评审通过且上述契约已被接受后，才允许启动 C。

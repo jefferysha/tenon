@@ -45,7 +45,11 @@ For a missing, malformed, or mismatched exact receipt/binding, return:
 ```
 
 The server reads the binding through Kernel exports (`readReviewGateBinding` + `reviewGateBindingMatches`) and never imports CLI code or sets a transition approval flag. Binding read/parse errors are caught and treated as `false`. A rejected request must not write state, transition history, or projection data.
-The bearer token authenticates the local capability only; because the sidecar and token are readable by the same OS user as the agent, this is not strong human identity proof. Channel attribution (`dashboard` versus `cli` versus automation) is deferred to the decision-sync contract.
+The bearer token authenticates local capability only; because the sidecar and
+token are readable by the same OS user as the agent, this is not human identity
+proof. Channel attribution (`terminal`, `dashboard`, `automation`, or
+`delegated`) identifies the entry route, not the operator. See
+`server/backend/decision-sync.md` for the ordering and audit contract.
 
 ### 4. Validation & Error Matrix
 
@@ -73,7 +77,7 @@ The bearer token authenticates the local capability only; because the sidecar an
 
 ```ts
 // Wrong: authenticated Dashboard click bypasses the receipt
-approvalOverride: true
+humanReviewApproved: true
 
 // Correct: server injects the Kernel binding verifier
 reviewGateBinding: ({ changeDir, state, phase, event }) =>

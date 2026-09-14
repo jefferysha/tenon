@@ -28,11 +28,15 @@
 - [ ] 完成记录域责任矩阵和 PendingDecisionView 推导表。
 - [ ] 完成 pending/answered/consumed/superseded 的类型化判定；review consumed 必须引用 TransitionRecord 与 interaction 链，不能因 receipt 字段清空就判定 consumed；expired 为 deferred。
 - [ ] 完成 expected revision、幂等、HTTP/CLI 错误语义和宿主唤醒分档。
+- [ ] 冻结同步顺序为幂等 → receipt/binding → revision；同 key 不同 payload 使用 `idempotency-conflict`，并定义 durable 存储和无 revision/key hook 行为。
+- [ ] 迟到、revision 冲突和 not-pending 均追加 rejected audit event，并登记 characterization test 责任。
 - [ ] 明确 `review_acknowledged_via` 等 canonical 字段的影响面和迁移策略。
+- [ ] 明确字段追加顺序、旧记录缺 via 的 `unknown` 缺省、空值非法、完整枚举及回放来源；`delegated` 不代表人类身份。
 - [ ] 明确 AFK invocation 关联到 decision projection 的 join anchor。
-- [ ] 明确两种用户模式到三种内部策略的映射、模式切换事件和待决请求行为。
+- [ ] 明确两种用户模式到三种内部策略的映射、模式切换事件和待决请求行为；AFK 不扩展 `SkillInvocationDecisionMode`，Dashboard 不回答 hard-gate。
 - [ ] 明确同用户 bearer token 的自审批威胁模型、检测信号、告警事件 schema 和 C/后续任务的实现责任。
+- [ ] 明确终端回答采集（`confirm-clear-prompt.sh`、`review-ack.sh`、`decision-recorder.sh`、`hostInteraction.ts`）及 host identity 能力边界。
 - [ ] 将 CLI acknowledge 编排抽取为共享 application 的接口、依赖注入和迁移顺序写入 spec，禁止 server→cli 依赖或双实现。
-- [x] 共享 application、待决 projection/命令适配和告警消费已由 C 落地；hook 侧告警写入同一 Change 的脱敏 append-only audit projection。
+- [ ] 明确 C 负责共享 application 的落地、待决 projection/命令适配和告警消费；hook 侧告警检测/写入由独立 P1 子任务负责。
 - [ ] 更新 kernel、server、cli hook、cross-layer 和 error-handling 相关 spec。
-- [x] C 已在该契约评审边界内实现，并完成构建、定向测试、web、hooks、架构和 tracked dist freshness 验证。
+- [ ] 通过设计评审后，才允许启动 C。

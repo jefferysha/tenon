@@ -336,11 +336,12 @@ mutation, interaction/history/marker side effects, and rejected acknowledgement
 recording. CLI owns text/exit codes; server owns HTTP mapping. A server→CLI
 import or a second orchestration implementation is a contract violation.
 
-The cross-layer join keys are explicit: review uses change/phase/event/request
-and state revision/hash; Skill uses invocation/question/attempt; AFK resolves
-`adapter.kind=afk` by joining decision invocation id to the durable invocation
-record. Decision mode, invocation adapter kind, and review channel remain
-orthogonal fields.
+The cross-layer join keys are explicit: review uses change/phase/event and the
+receipt's revision binding; when a legacy request has no id, its anchor is
+`requestedAt + decisionStateDigest + runId`. Skill uses
+invocation/question/attempt; AFK resolves `adapter.kind=afk` by joining the
+decision invocation id to the durable invocation record. Decision mode,
+invocation adapter kind, and review channel remain orthogonal fields.
 
 HITL (`interactive` or `recommended-defaults`) and AFK (`afk`) are user modes
 mapped to internal strategies. A `mode-switched` event records actor, channel,

@@ -1,8 +1,8 @@
-# B 设计工作包与 C 实施边界
+# B 设计工作包
 
 ## 目标与边界
 
-本工作包冻结跨 kernel、server、CLI、hooks 的决策契约。随后在同一契约上完成了 Dashboard 的只读 projection、review/Skill/AFK command adapter、模式切换和脱敏安全审计；这些适配器不调用大模型、不创建 prompt，也不启动 Skill。Dashboard 从来不调用大模型，也不创建 Skill 问题；它只读取 projection，并在已有 exact pending receipt 上调用共享 application。
+本工作包冻结跨 kernel、server、CLI、hooks 的决策契约；它不实现 Dashboard、HTTP command adapter 或新的持久化队列。Dashboard 从来不调用大模型，也不创建 Skill 问题；它只读取 projection，并在已有 exact pending receipt 上调用 review application。
 
 `review_gate_status` 继续只有 `pending | approved`。`superseded`、迟到回答和证据不完整都由追加事件及只读 projection 推导；`expired` 没有 canonical 依据，保持 deferred。
 
@@ -10,14 +10,14 @@
 
 | 决策 | canonical 记录 | 关联锚点 | 允许的来源维度 |
 |---|---|---|---|
-| review | `review_gate_*`、review interaction、`TransitionRecord` | change、phase、event、request id、state/revision binding | `review_acknowledged_via = terminal \| dashboard \| automation` |
+| review | `review_gate_*`、review interaction、`TransitionRecord` | change、phase、event、revision binding；无 request id 时用 `requestedAt + decisionStateDigest + runId` | `review_acknowledged_via = terminal \| dashboard \| automation \| delegated \| unknown` |
 | Skill question | question/decision interaction、invocation receipt | invocation id、question id、attempt/step visit | `decision.mode` 与 invocation adapter 分开记录 |
 | recommended-default | invocation policy/decision interaction | frozen policy id/version/rule id、invocation id | `decision.mode=recommended-default` |
 | AFK | invocation adapter、attempt/reservation、decision/effect events | decision → invocation id、attempt id、step visit | `adapter.kind=afk` 由 invocation join 得出 |
 
 决策事件本身不得猜测 `adapter.kind`；AFK 视图必须通过 decision 的 invocation id 与 `invocation-started`（或等价 durable invocation record）join。内存中的 receipt consume 不构成审计证据。
 
-回放必须区分 terminal、Dashboard、automation，因此 canonical review 记录必须新增 `review_acknowledged_via`。该字段必须同步 `FieldName`/codec、`.pipeline.yaml` 投影、golden fixtures、历史缺省值（旧记录统一映射为 `unknown`，不得猜测为 terminal）及 server/CLI writer；不能只加在 view model。
+回放必须区分 terminal、Dashboard、automation，因此 canonical review 记录必须新增 `review_acknowledged_via`。该字段必须进入 `REVIEW_GATE_FIELDS`，并在既有字段之后追加；同步 `FieldName`/codec、`.pipeline.yaml` 投影、golden fixtures、历史缺省值（旧记录统一映射为 `unknown`，不得猜测为 terminal）及 server/CLI writer。新记录禁止 `''`，完整枚举为 `terminal | dashboard | automation | delegated | unknown`；`delegated` 只表示显式委托入口，不能证明人类身份。TransitionRecord effect 的 `from` 或关联 interaction 的 channel 是回放来源；不能只加在 view model。
 
 ## PendingDecisionView 推导
 
@@ -43,15 +43,24 @@ review 的 consumed 推导至少需要 `TransitionRecord` 的 event/from、run/s
 - rejected acknowledgement recorder，且参数不再绑定 `CliDeps`；
 - delegated authority/session scope verifier（若当前 CLI 语义要求）。
 
-输出为结构化结果（approved/idempotent/rejected/conflict/marker-warning 等）以及 before/after revision；它不得格式化文本或决定 HTTP status。CLI 只负责命令行参数、输出和退出码；server 在进程内调用同一个 application，传 `channel=dashboard`，不得导入 `@tenon/cli` 或复制这段编排。没有 exact pending receipt 时，Dashboard 得到稳定 conflict，不能主动创建 approval。迟到、binding 不匹配和 revision 冲突都经共享 rejected recorder 留痕；任何失败不能产生部分 canonical commit。
+输出为结构化结果，结果枚举冻结为 `approved | idempotent-replay | review-approval-required | revision-conflict | idempotency-conflict | invalid-input | marker-warning`，并带 before/after revision（无提交时相同）；它不得格式化文本或决定 HTTP status。CLI 只负责命令行参数、输出和退出码；server 在进程内调用同一个 application，传 `channel=dashboard`，不得导入 `@tenon/cli` 或复制这段编排。没有 exact pending receipt 时，Dashboard 得到稳定 `review-approval-required`，不能主动创建 approval。迟到、binding 不匹配和 revision 冲突都经共享 rejected recorder 留痕；任何失败不能产生部分 canonical commit。
 
 抽取顺序：先把 CLI 的 characterization tests 固定下来 → 把 `recordRejectedAcknowledgement` 和 acknowledge orchestration 移入共享 application → CLI 改为薄适配并保持现有语义 → server adapter 接入同一 application → 再添加 dashboard projection。C 的验收必须包含 CLI/server 结果一致性和无 server→cli 依赖。
 
 ## 并发、错误和同步
 
-所有写命令带 `expected_revision` 与 idempotency key。相同 key、相同 binding 的重复 acknowledge 返回同一成功结果且不重复追加副作用；不同 revision 返回 `revision-conflict`。receipt 缺失、迟到或 binding 不匹配统一为 `review-approval-required`：CLI 保持现有非零退出语义，server 返回 HTTP 409、稳定 `code` 和结构化 phase/event 字段；拒绝不得改变 canonical state、TransitionRecord 或成功 history，但允许且必须追加一次 rejected-acknowledgement audit event，供 projection 显示拒绝/迟到证据；该审计事件不能被当作 approved 或 consumed。
+所有写命令带 `expected_revision` 与 idempotency key。Change lock 内先查幂等记录，再校验 exact receipt/binding，最后比较 revision。相同 key、相同完整 payload 的重复 acknowledge 返回已存结果且不重复追加副作用；同 key 不同 payload 必须返回 board-command v2 的 `idempotency-conflict`，不能先报 revision conflict。幂等记录存放在 Change-owned durable store，不能只存在内存。CLI hook 没有 revision/key 时只能写 observation，不能 acknowledge。receipt 缺失、迟到、not-pending 或 binding 不匹配统一为 `review-approval-required`：CLI 保持现有非零退出语义并输出稳定 machine code，server 返回 HTTP 409、稳定 `code` 和结构化 phase/event 字段；revision 冲突为 `revision-conflict`。上述每种拒绝都必须追加一次 rejected audit event（幂等），不得改变 canonical state、TransitionRecord 或成功 history；该审计事件不能被当作 approved 或 consumed。
 
-提交成功后，Dashboard 通过 SSE/read refresh 获得新 projection。宿主唤醒分档为 capability：已有宿主支持唤醒时发送 resume signal；不支持时只记录 pending/approved，不能声称终端阻塞问答已经被回答。终端仍是唯一的大模型交互面。
+提交成功后，Dashboard 通过 SSE/read refresh 获得新 projection。宿主唤醒按 capability 分档：只有宿主显式声明 resume API 时才发送 resume signal；无 API 时在下一次 reconciliation/read refresh 对账，不能声称终端阻塞问答已经被回答。未核实的宿主能力标记 `unverified`，不能当作唤醒成功。终端仍是唯一的大模型交互面。
+
+终端回答采集由宿主 hook 明确编排：`confirm-clear-prompt.sh` 调用
+`review-ack.sh manual` 或 `review-ack.sh delegated`；
+`decision-recorder.sh` 通过 `hostInteraction.ts` 写入
+`host-skill-interaction-receipt/v1`，包含 `host_session_id` 和 HMAC host
+identity。该 identity 只能证明受信宿主会话连续性，不能证明回答者是人；
+projection 通过 invocation/question join 暴露 `source=host` 与
+`channel=terminal|delegated`。若宿主在回答后才写 question 事件，回答前
+不得显示 pending，projection 返回 `absent/unknown`。
 
 ## 用户模式与切换
 
@@ -61,17 +70,21 @@ review 的 consumed 推导至少需要 `TransitionRecord` 的 event/from、run/s
 |---|---|---|
 | HITL | `interactive` | 每个需人工回答的问题在终端等待；review 可由 terminal 或 Dashboard 决策台放行，但都走共享 application |
 | HITL | `recommended-defaults` | 只对 frozen policy 明确标记的 routine、`shown=false` 问题采用默认值；不等于 AFK |
-| AFK | `afk` | 自动回答/自动放行必须追加独立 AFK decision/source 记录，并通过 invocation join 归因 |
+| AFK | `afk` | 自动回答/自动放行必须追加独立 AFK decision/source 记录，并通过 invocation join 归因；不扩展 `SkillInvocationDecisionMode` |
 
 `mode-switched` 是追加事件，不是回答事件。它包含 from/to、actor/channel、effective-at、policy revision 和 pending request ids。切换只影响后续请求；已有 pending 请求按原策略完成、显式 supersede，或产生带 replacement 链的可审计新请求，不能静默套用新策略。内部 `decision.mode`、invocation `adapter.kind`、review `channel` 是三个正交维度。
 
-本轮 C 实现使用 `.pipeline-decision-audit.jsonl` 作为只追加的审计事件投影，不把它当作 canonical 状态，也不伪造 `InteractionEventV1`。`decision-mode-switched` 必须校验当前模式（无历史事件时为 HITL），并以 expected revision 与幂等参数绑定；`pending-decision-self-approval-suspected` 必须绑定当前 PendingDecisionView 的 `pending_decision_id/ref`。该文件只由 Change lock 下的 server adapter 或 hook 的脱敏检测写入，GET 端点只读返回；hook 只能使用可解析的 change 级 pending 线索并始终写 `tokenDigest:null`。
-
 ## 自审批威胁模型和告警责任
 
-本地 bearer token 证明的是进程能力，不是人类身份。agent 与 server 同一系统用户时，agent 可能读取 token、申请 approval 或直接调用 localhost API；一次性凭证只能防重放和旧 revision，不能防自审批。门禁 pending 期间，hook 对 token 文件读取、localhost 控制 API 请求、审批前后的 actor/channel/revision 异常发出脱敏 `review-self-approval-signal` 事件，至少包含 change、phase、event、request id、channel、process/host hash、observed-at、signal kind；不得记录 token 内容或声称识别了操作者。
+本地 bearer token 证明的是进程能力，不是人类身份。agent 与 server 同一系统用户时，agent 可能读取 token、申请 approval 或直接调用 localhost API；一次性凭证只能防重放和旧 revision，不能防自审批。门禁 pending 期间，hook 对 token 文件读取、localhost 控制 API 请求、审批前后的 actor/channel/revision 异常发出脱敏 `review-self-approval-signal` 事件，至少包含 change、phase、event、request anchor、channel、process/host hash、observed-at、signal kind；不得记录 token 内容或声称识别了操作者。检测由独立 P1 任务负责，PreToolUse 必须精确匹配并在 Change lock 内写入。
 
-C 已消费既有 signal 并通过只读 `decision-audit` projection 暴露事件链；hook 侧检测写入同一 Change 的脱敏 append-only audit projection。该信号是检测与取证，不是强制身份认证；真正的 Dashboard 人工语义仍由 channel attribution、binding、审计记录共同保证。
+C 只消费 signal 并在待决 projection 展示事件链；hook 侧检测和写入由独立 P1 任务实现。该信号是检测与取证，不是强制身份认证；真正的 Dashboard 人工语义仍由 channel attribution、binding、审计记录共同保证。
+
+## 对 C 分支改写的审查结论
+
+接受：保留 Dashboard 只读边界、review/Skill/AFK 适配器的共享 application 前置条件、AFK invocation join、幂等和 `expired` deferred 的方向。
+
+拒绝：把 C 的实现状态回写为本 B 任务已完成、把 `afk-answer` 扩展进 `SkillInvocationDecisionMode`、让 Dashboard 回答 hard-gate、以 `actor=human` 表示 bearer-token 操作者、以及把 hook audit projection 当作 canonical 或 `InteractionEventV1`。这些均超出 B 的设计冻结范围，必须按本契约和独立子任务重新实现/验收。
 
 ## 后续任务
 

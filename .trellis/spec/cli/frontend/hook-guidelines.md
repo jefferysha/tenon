@@ -63,6 +63,16 @@ HITL maps to `interactive` or the narrowly scoped
 `adapter.kind`, decision mode, and review channel are orthogonal and must not be
 collapsed into one enum.
 
+A channel identifies the entry route, not the operator's identity. Bearer-token
+requests and `actor` values must never be labelled `human` without an
+independently trusted identity provider.
+
+| User mode | Internal strategy | Adapter boundary |
+|---|---|---|
+| HITL | `interactive` | Terminal asks and records the answer; Dashboard may only invoke the review adapter for an existing exact pending receipt. |
+| HITL | `recommended-defaults` | Frozen routine/hidden policy only; it cannot satisfy a hard gate. |
+| AFK | `afk` | Automation records an independent decision/source and is attributed through the invocation join. |
+
 During a pending review gate, hooks may emit a redacted
 `review-self-approval-signal` when the token file is read or a localhost control
 API is called. The signal contains change/phase/event/request, channel,

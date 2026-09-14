@@ -1,102 +1,70 @@
-# Pending decision read/command adapter
+# Decision Synchronization Adapter Contract
 
-## 1. Scope / Trigger
+## Scope
 
-The Dashboard may read `GET /api/change/:name/pending-decisions` and
-`GET /api/change/:name/decision-audit`, then submit review, Skill-question, or
-AFK decisions through `POST /api/change/:name/decisions`. It may also switch
-HITL/AFK mode and report redacted self-approval observations through dedicated
-POST endpoints. These endpoints are control/read adapters only: they never call
-a model, create a prompt, or start a Skill.
+The local server exposes read/control adapters for the Dashboard. It never
+calls a model, creates a prompt, starts a Skill, or invents a review receipt.
+The terminal remains the only model interaction surface.
 
-## 2. Signatures
+## Read and write surfaces
 
-```ts
-projectPendingDecisions(input): PendingDecisionView
-acknowledgeReview(input): ReviewAcknowledgeApplicationResult
-applyInvocationDecision(input): DecisionCommandResult
-```
+`GET /api/change/:name/pending-decisions` is a read-only projection over
+canonical state and append-only evidence. `POST /api/change/:name/decisions`
+accepts review, Skill-question, and AFK commands only when their exact pending
+request and binding are valid. Dashboard review calls the shared review
+application with `channel=dashboard`; it does not import CLI or duplicate its
+orchestration. A review command without an existing pending receipt is
+rejected.
 
-The server invokes the shared review application exported by `@tenon/kernel`
-and the kernel invocation writer; it does not import CLI modules or duplicate
-receipt orchestration. Invocation decisions append a decision event and publish
-the canonical run revision under the same Change lock.
+## Synchronization order
 
-## 3. Contracts
+Under the Change lock, adapters process commands in this order:
 
-- A decision reference is stable for `(kind, change, anchor, revision)`.
-- Review approval requires an exact pending receipt and a matching review
-  binding. A stale or mismatched binding returns a conflict.
-- Every command supplies `expected_revision` and `idempotency_key`; stale
-  revisions return HTTP 409 `revision-conflict`.
-- The projection joins AFK provenance from `invocation-started.adapter.kind`,
-  never from the decision payload.
+1. Look up the durable idempotency record.
+2. Return its stored result for the same full payload, or
+   `idempotency-conflict` for a different payload using the same key.
+3. For a new key, read the exact pending receipt and verify its binding.
+4. Compare `expected_revision` with canonical state.
+5. Commit canonical evidence and idempotency in one transaction.
 
-## 3.1 Implemented command endpoints
+The idempotency record is Change-owned durable data, not process memory. Hook
+observations without a revision or idempotency key cannot acknowledge a
+decision. Legacy requests without an id are anchored by
+`requestedAt + decisionStateDigest + runId`.
 
-| Endpoint | Purpose | Durable record |
-|---|---|---|
-| `GET /pending-decisions` | Read-only projection | canonical state + interaction/invocation/transition evidence |
-| `POST /decisions` | Review, Skill-question, or AFK answer | review receipt or invocation decision event, plus transport idempotency |
-| `GET /decision-audit` | Read-only security/mode audit projection | append-only `.pipeline-decision-audit.jsonl` |
-| `POST /decision-mode` | HITL ↔ AFK switch | `decision-mode-switched` audit record |
-| `POST /pending-decision-security` | Redacted token/local-API observation | `pending-decision-self-approval-suspected` audit record |
+## Errors and audit
 
-The audit JSONL is an append-only audit projection, not a second canonical
-decision state and not an `InteractionEventV1`. Its writes occur under the
-Change lock, are idempotent, and never contain token material; hooks always
-write `tokenDigest: null`.
+Missing, late, not-pending, or binding-mismatched review commands return HTTP
+409 with `code=review-approval-required`; stale `expected_revision` returns
+409 with `code=revision-conflict`; key reuse with a different payload returns
+409 with `code=idempotency-conflict`. CLI maps the same outcomes to stable
+non-zero exits. Every rejected attempt appends one redacted rejected-audit
+event idempotently and writes no canonical approval, transition, or successful
+history.
 
-## 4. Validation & Error Matrix
+The `channel` field describes the entry route (`terminal`, `dashboard`,
+`automation`, or `delegated`), not the operator. A bearer token is only local
+capability proof; `actor` must not be set to `human` without an independent
+trusted identity provider. Host resume is capability-gated. If the host API is
+unverified or unavailable, the adapter records durable state and the next
+reconciliation/read refresh observes it instead of claiming a wake-up.
 
-| Condition | Result |
-|---|---|
-| Missing/invalid change or root | 400/404; no write |
-| Stale expected revision | 409 `revision-conflict`; no write |
-| Unknown/stale decision ref | 409 `decision-not-pending`; no write |
-| Binding mismatch or no pending receipt | 409 `review-approval-required`; no partial write |
-| Repeated idempotency key | 200 with `idempotent=true` |
+## Mode and AFK boundaries
 
-## 5. Good / Base / Bad Cases
+HITL maps to `interactive` or frozen `recommended-defaults`; AFK maps to the
+separate `afk` strategy and is attributed by joining decision invocation id to
+the durable invocation's `adapter.kind`. `SkillInvocationDecisionMode` does
+not gain an `afk-answer` value, and Dashboard cannot answer hard-gate Skill
+questions. `mode-switched` is an append-only event affecting future requests;
+it is not a decision and cannot silently rewrite existing pending requests.
 
-- Good: Dashboard reads a pending review ref, then posts the same ref and
-  revision once; the shared application patches the canonical receipt.
-- Base: an invocation question has no decision yet; it remains pending and is
-  safe to refresh through the read endpoint.
-- Bad: a caller supplies a ref from a different revision or attempts to infer
-  AFK from `decision.mode`; the adapter rejects or reports the canonical join.
+## Terminal answer evidence
 
-## 6. Tests Required
-
-- Projection stable refs, review consumed evidence, and AFK invocation join.
-- Command adapter revision conflicts and idempotent retries.
-- CLI review acknowledge characterization tests and server build/typecheck.
-
-## 7. Wrong vs Correct
-
-### Wrong
-
-```ts
-state.fields.review_gate_status = 'approved'
-```
-
-### Correct
-
-```ts
-await acknowledgeReview({ state, bindingMatches, writeState, ...ports })
-```
-
-The application validates the exact receipt and binding before writing. UI
-layers only display the resulting view and submit commands.
-
-## 8. Current implementation boundary
-
-Review, Skill-question, and AFK Dashboard commands are implemented with
-expected-revision checks and persistent idempotency records. AFK attribution is
-still derived from the invocation-started adapter join; the decision payload's
-`mode` is never used as a substitute for that provenance. The canonical
-`review_acknowledged_via` field records terminal, dashboard, or automation
-channel, while the audit projection records mode switches and redacted
-self-approval signals. `expired` remains deferred because the existing marker
-TTL is not canonical evidence. The hard-coded `humanGateSatisfied` constraint
-remains a separately tracked follow-up.
+`confirm-clear-prompt.sh` invokes `review-ack.sh manual` or `delegated`.
+`decision-recorder.sh` records `host-skill-interaction-receipt/v1` via
+`hostInteraction.ts`, including `host_session_id` and an HMAC-derived host
+identity. The receipt joins the question/invocation projection with
+`channel=terminal` or `delegated` and `source=host`; HMAC proves session
+continuity, not a human operator. Hosts that write a question only after an
+answer provide no earlier pending visibility; the projection returns
+`absent/unknown` rather than fabricating one.
