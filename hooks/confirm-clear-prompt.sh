@@ -32,13 +32,31 @@ INTENT_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/prompt-intent.sh"
 # shellcheck source=prompt-intent.sh
 . "$INTENT_HELPER"
 INTENT="$(pipeline_prompt_approval_intent "$PROMPT" || true)"
-[ -n "$INTENT" ] || exit 0
+
+# A reply that is not an approval never unlocks anything, but it must not be silent either: while an
+# interaction/confirm marker is pending, tell the agent this reply was not taken as approval and which
+# reply unlocks it, so the user is never left guessing the phrase.
+pending_unlock_hint_and_exit() {
+  local hint_cwd hint_root hint_helper
+  hint_cwd="$(json_get cwd || true)"
+  [ -n "$hint_cwd" ] || hint_cwd="$PWD"
+  hint_helper="$(dirname "${BASH_SOURCE[0]:-$0}")/project-root.sh"
+  [ -d "$hint_cwd" ] && [ -r "$hint_helper" ] || exit 0
+  # shellcheck source=project-root.sh
+  . "$hint_helper"
+  hint_root="$(pipeline_project_root "$hint_cwd" bootstrap changes || true)"
+  [ -n "$hint_root" ] || exit 0
+  [ -f "$hint_root/.pipeline-pending-interaction" ] || [ -f "$hint_root/.pipeline-pending-confirm" ] || exit 0
+  printf '<tenon-pending-confirmation>\n本条回复未被识别为确认，待确认的交互保持锁定。用户回复「确认继续」即解封；带条件的回复请先说明条件并重新提问。\n</tenon-pending-confirmation>\n'
+  exit 0
+}
+[ -n "$INTENT" ] || pending_unlock_hint_and_exit
 
 # 拒绝或带约束的混合表达不是一次无条件 unlock。当前 v1 marker 还不能持久化细粒度
 # constraints，因此安全行为是保留 exact pending target，让调用方展示约束后的下一动作；
 # 绝不能因为文本里同时出现“继续/可以”就清掉整道门。
 case "$INTENT" in
-  reject|modify) exit 0 ;;
+  reject|modify) pending_unlock_hint_and_exit ;;
 esac
 
 CWD="$(json_get cwd || true)"
@@ -105,6 +123,28 @@ fi
 # idempotent clear-on-explicit-approval semantics.  The review marker is intentionally excluded:
 # the CLI owns both its removal and the durable approval state, preventing a hook-only deletion
 # from bypassing the exit gate.
+# Remember which interactive skill the user just approved in this step visit, so reading the same
+# skill again (Codex re-reads a producer skill to record its document) does not ask again.
+if [ -f "$ROOT/.pipeline-pending-interaction" ] \
+  && [ -r "$HOOK_DIR/canonical-state.sh" ] && [ -r "$HOOK_DIR/active-change.sh" ]; then
+  # shellcheck source=canonical-state.sh
+  . "$HOOK_DIR/canonical-state.sh"
+  # shellcheck source=active-change.sh
+  . "$HOOK_DIR/active-change.sh"
+  CONFIRMED_DIR="$(pipeline_active_change_dir "$ROOT" || true)"
+  if [ -n "$CONFIRMED_DIR" ]; then
+    CONFIRMED_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
+    CONFIRMED_SKILLS="$(<"$ROOT/.pipeline-pending-interaction")"
+    CONFIRMED_SKILLS="${CONFIRMED_SKILLS//、/$'\n'}"
+    while IFS= read -r CONFIRMED_SKILL; do
+      case "$CONFIRMED_SKILL" in ''|*[!A-Za-z0-9_:-]*) continue ;; esac
+      printf '{"ts":"%s","kind":"tool","raw":"%s"}\n' "$CONFIRMED_TS" \
+        "$(pipeline_json_escape "InteractionConfirmed: $CONFIRMED_SKILL")" \
+        >> "$CONFIRMED_DIR/.pipeline-history.jsonl" 2>/dev/null || true
+    done <<< "$CONFIRMED_SKILLS"
+  fi
+fi
+
 rm -f "$ROOT/.pipeline-pending-confirm" \
       "$ROOT/.pipeline-pending-interaction" 2>/dev/null || true
 

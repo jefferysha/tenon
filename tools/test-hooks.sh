@@ -1637,6 +1637,44 @@ for prompt in 不可以 不同意 '继续，但先别改代码'; do
   rm -f "$proj/.pipeline-pending-interaction"
 done
 
+# ── 10a'''. 交互式技能每个 step visit 只问一次：确认留痕后同一 visit 再读同一技能不重落门
+# （Codex 为登记文档重读 producer SKILL.md 时曾反复要求确认）；未识别的回复要提示解封短语。──
+proj="$TMP/ptu-interaction-once"; mkdir -p "$proj/openspec/changes/once-live"
+printf 'track: backend\nphase: explore\nworkflow: default\narchived: false\n' > "$proj/openspec/changes/once-live/.pipeline.yaml"
+printf 'once-live\n' > "$proj/.pipeline-active"
+ONCE_HIST="$proj/openspec/changes/once-live/.pipeline-history.jsonl"
+printf '{"ts":"2026-09-15T00:00:00Z","kind":"transition","from":"open","to":"explore","raw":"open-complete"}\n' > "$ONCE_HIST"
+printf 'tenon:brainstorming\n' > "$proj/.pipeline-pending-interaction"
+OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"确认以上决策并写入产物\"}" | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" 2>/dev/null)"
+[ -f "$proj/.pipeline-pending-interaction" ] \
+  && ok "confirm-clear-prompt: 未识别为确认的回复保留 pending interaction" \
+  || bad "confirm-clear-prompt: 未识别为确认的回复保留 pending interaction" "marker 被错误清除"
+assert_contains "confirm-clear-prompt: 未识别的回复提示解封短语" "$OUT" "确认继续"
+printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"确认继续\"}" | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" >/dev/null 2>&1
+[ ! -f "$proj/.pipeline-pending-interaction" ] \
+  && ok "confirm-clear-prompt: 确认继续清 pending interaction" \
+  || bad "confirm-clear-prompt: 确认继续清 pending interaction" "marker 仍在"
+grep -Fq '"raw":"InteractionConfirmed: tenon:brainstorming"' "$ONCE_HIST" \
+  && ok "confirm-clear-prompt: 确认留下 InteractionConfirmed 历史行" \
+  || bad "confirm-clear-prompt: 确认留下 InteractionConfirmed 历史行" "history 缺少确认行"
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"brainstorming\"}}" | bash "$IG" >/dev/null 2>&1
+[ ! -f "$proj/.pipeline-pending-interaction" ] \
+  && ok "interactive-skill-gate: 同一 step visit 已确认的技能再读不重落门" \
+  || bad "interactive-skill-gate: 同一 step visit 已确认的技能再读不重落门" "interaction marker 被重新写入"
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"grill-with-docs\"}}" | bash "$IG" >/dev/null 2>&1
+[ -f "$proj/.pipeline-pending-interaction" ] \
+  && ok "interactive-skill-gate: 未确认的另一交互式技能照常落门" \
+  || bad "interactive-skill-gate: 未确认的另一交互式技能照常落门" "marker 未落"
+rm -f "$proj/.pipeline-pending-interaction"
+printf '{"ts":"2026-09-15T00:10:00Z","kind":"transition","from":"spec","to":"explore","raw":"requirements-changed"}\n' >> "$ONCE_HIST"
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"brainstorming\"}}" | bash "$IG" >/dev/null 2>&1
+[ -f "$proj/.pipeline-pending-interaction" ] \
+  && ok "interactive-skill-gate: 重新进入 step 后再读同一技能重新落门" \
+  || bad "interactive-skill-gate: 重新进入 step 后再读同一技能重新落门" "marker 未落"
+rm -f "$proj/.pipeline-pending-interaction"
+OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"这个方案怎么样\"}" | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" 2>/dev/null)"
+assert_not_contains "confirm-clear-prompt: 无待确认时不输出解封提示" "$OUT" "tenon-pending-confirmation"
+
 # ── 10a''. 持续自主执行：明确授权只绑定当前 live Change，并可审计地委托已完成证据后的 review 确认。──
 # 这覆盖真实 Codex 正常对话的自锁回归：UserPromptSubmit 已清一次 interaction marker，随后读取
 # brainstorming 又由 PostToolUse 重新落 marker，导致用户已说“后续不用问我”仍无法连续执行。

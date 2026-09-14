@@ -114,6 +114,38 @@ if [ -n "$ROOT" ] && [ -d "$ROOT" ] && [ -r "$AUTHORITY_HELPER" ] && [ -r "$STAT
   fi
 fi
 
+# An interactive skill asks the user once per step visit. A later read of a skill the user already
+# confirmed since entering this step (Codex re-reads a producer skill to record its document) must
+# not lock the same decision again; a new visit to the step asks again. Pure bash on this hot path;
+# missing state keeps the gate.
+if [ "$AUTONOMOUS" -eq 0 ] && [ -n "${ACTIVE_DIR:-}" ] && [ -f "$ACTIVE_DIR/.pipeline-history.jsonl" ]; then
+  ACTIVE_PHASE="$(pipeline_state_get "$(pipeline_state_source "$ACTIVE_DIR" || true)" phase 2>/dev/null || true)"
+  if [ -n "$ACTIVE_PHASE" ]; then
+    CONFIRMED_IN_VISIT=$'\n'
+    while IFS= read -r HISTORY_LINE; do
+      case "$HISTORY_LINE" in
+        *'"kind":"transition"'*)
+          case "$HISTORY_LINE" in *"\"to\":\"$ACTIVE_PHASE\""*) CONFIRMED_IN_VISIT=$'\n' ;; esac
+          ;;
+        *'"raw":"InteractionConfirmed: '*)
+          CONFIRMED_SKILL="${HISTORY_LINE#*\"raw\":\"InteractionConfirmed: }"
+          CONFIRMED_SKILL="${CONFIRMED_SKILL%%\"*}"
+          CONFIRMED_IN_VISIT="${CONFIRMED_IN_VISIT}${CONFIRMED_SKILL##*:}"$'\n'
+          ;;
+      esac
+    done < "$ACTIVE_DIR/.pipeline-history.jsonl"
+    UNCONFIRMED=''
+    while IFS= read -r SKILL; do
+      [ -n "$SKILL" ] || continue
+      case "$CONFIRMED_IN_VISIT" in *$'\n'"${SKILL##*:}"$'\n'*) continue ;; esac
+      UNCONFIRMED="${UNCONFIRMED:+$UNCONFIRMED$'\n'}$SKILL"
+    done <<< "$MATCHED"
+    MATCHED="$UNCONFIRMED"
+    MATCHED_DISPLAY="${MATCHED//$'\n'/、}"
+    [ -n "$MATCHED" ] || exit 0
+  fi
+fi
+
 if [ "$AUTONOMOUS" -eq 0 ]; then
   [ -n "$ROOT" ] && [ -d "$ROOT" ] && printf '%s\n' "$MATCHED_DISPLAY" > "$ROOT/.pipeline-pending-interaction" 2>/dev/null || true
 fi

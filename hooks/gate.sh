@@ -356,7 +356,7 @@ for kind in confirm review interaction; do
     # 读取不会扩大权限，也不清 marker。允许它能让 Agent 在等待决定时继续核对事实，
     # 同时 state transition、外部副作用和任何未知动作仍 fail closed。
     pipeline_tool_is_read_only "$TOOL" && continue
-    printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认。支持 AskUserQuestion 的宿主可在该交互后解封；Codex 用户可用自然语言明确同意当前问题，系统会绑定当前待办并解封，再重发本次操作。\n' "$base" "$TOOL" >&2
+    printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认。支持 AskUserQuestion 的宿主可在该交互后解封；没有提问工具时，用户回复「确认继续」（或「继续执行」「同意继续」）即解封，带条件或不含这些词的回复不会解封，再重发本次操作。\n' "$base" "$TOOL" >&2
     exit 2
   fi
 done
