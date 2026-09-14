@@ -2938,7 +2938,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
        * @param {(string | Function)} text - string to add, or a function returning a string
        * @return {Command} `this` command for chaining
        */
-      addHelpText(position, text7) {
+      addHelpText(position, text8) {
         const allowedValues = ["beforeAll", "before", "after", "afterAll"];
         if (!allowedValues.includes(position)) {
           throw new Error(`Unexpected value for position to addHelpText.
@@ -2947,10 +2947,10 @@ Expecting one of '${allowedValues.join("', '")}'`);
         const helpEvent = `${position}Help`;
         this.on(helpEvent, (context2) => {
           let helpStr;
-          if (typeof text7 === "function") {
-            helpStr = text7({ error: context2.error, command: context2.command });
+          if (typeof text8 === "function") {
+            helpStr = text8({ error: context2.error, command: context2.command });
           } else {
-            helpStr = text7;
+            helpStr = text8;
           }
           if (helpStr) {
             context2.write(`${helpStr}
@@ -3032,9 +3032,9 @@ var require_commander = __commonJS({
 // packages/cli/src/main.ts
 import { execFile as execFile7 } from "node:child_process";
 import { readFileSync as readFileSync33 } from "node:fs";
-import { readFile as readFile54, rm as rm16, stat as stat15, writeFile as writeFile18 } from "node:fs/promises";
+import { readFile as readFile55, rm as rm16, stat as stat15, writeFile as writeFile18 } from "node:fs/promises";
 import { homedir as homedir21 } from "node:os";
-import { dirname as dirname33, join as join116 } from "node:path";
+import { dirname as dirname33, join as join117 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -7795,9 +7795,9 @@ async function processStartIdentity(pid) {
     return null;
   }
 }
-function parseOwnerRecord(text7) {
+function parseOwnerRecord(text8) {
   try {
-    const value = ownRecord3(JSON.parse(text7));
+    const value = ownRecord3(JSON.parse(text8));
     if (value === null)
       return null;
     const keys = Object.keys(value).sort().join(",");
@@ -7822,8 +7822,8 @@ function parseOwnerRecord(text7) {
     return null;
   }
 }
-function parseLegacyOwner(text7) {
-  const owner = text7.trim();
+function parseLegacyOwner(text8) {
+  const owner = text8.trim();
   const pidText = owner.split(".", 1)[0] ?? "";
   if (!/^[1-9][0-9]*$/.test(pidText))
     return null;
@@ -8054,11 +8054,11 @@ function parseTasks(markdown, currentStage, stages, trustedCanonicalProjection =
     if (!task || target === void 0)
       continue;
     const rawText = (task[2] ?? "").trim();
-    const text7 = trustedCanonicalProjection ? rawText.replace(/\s+<!-- work-item:[^>\s]+ -->\s*$/u, "").trim() : rawText;
-    if (text7 === "")
+    const text8 = trustedCanonicalProjection ? rawText.replace(/\s+<!-- work-item:[^>\s]+ -->\s*$/u, "").trim() : rawText;
+    if (text8 === "")
       continue;
     const items = byStage.get(target) ?? [];
-    items.push({ text: text7, completed: (task[1] ?? "").toLowerCase() === "x" });
+    items.push({ text: text8, completed: (task[1] ?? "").toLowerCase() === "x" });
     byStage.set(target, items);
   }
   return { byStage, structured };
@@ -9576,9 +9576,9 @@ var TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/;
 
 // packages/kernel/dist/loops/registry.js
 var KEY_RE = /^([A-Za-z_][\w.-]*):(?:\s+(.*)|\s*)$/;
-function tokenize(text7) {
+function tokenize(text8) {
   const tokens = [];
-  for (const rawLine of text7.split("\n")) {
+  for (const rawLine of text8.split("\n")) {
     const line = rawLine.replace(/\r$/, "");
     if (line.trim() === "")
       continue;
@@ -9684,9 +9684,9 @@ function parseValue(tokens, i, indent) {
     return parseMapping(tokens, i, indent);
   return { value: parseScalar(required(t.raw)), next: i + 1 };
 }
-function parseLoopsYaml(text7) {
+function parseLoopsYaml(text8) {
   try {
-    const tokens = tokenize(text7);
+    const tokens = tokenize(text8);
     if (tokens.length === 0)
       return { data: null, error: "\u7A7A\u6587\u6863\uFF08\u65E0\u5185\u5BB9\uFF09" };
     const first = required(tokens[0]);
@@ -9939,10 +9939,10 @@ function isValidatedLoopRegistry(value, errors) {
   return errors.length === 0;
 }
 function loadRegistry(repoRoot, io2 = nodeLoopIo) {
-  const text7 = io2.readText(join14(repoRoot, ...LOOPS_REL_PATH));
-  if (text7 === null)
+  const text8 = io2.readText(join14(repoRoot, ...LOOPS_REL_PATH));
+  if (text8 === null)
     return { data: null, errors: [] };
-  const { data, error: error2 } = parseLoopsYaml(text7);
+  const { data, error: error2 } = parseLoopsYaml(text8);
   if (error2 !== null)
     return { data: null, errors: [`loops.yaml: ${error2}`] };
   if (data === null || typeof data !== "object" || Array.isArray(data)) {
@@ -10527,17 +10527,17 @@ function parseTimestamp(raw, now) {
 function sameUTCDate(a, b) {
   return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
 }
-function parseProgress(text7, loopIds, now) {
+function parseProgress(text8, loopIds, now) {
   const result2 = /* @__PURE__ */ new Map();
   for (const id2 of loopIds)
     result2.set(id2, emptyParsed());
-  if (text7 === null)
+  if (text8 === null)
     return result2;
   const known = new Set(loopIds);
   const rowsByLoop = /* @__PURE__ */ new Map();
   for (const id2 of loopIds)
     rowsByLoop.set(id2, []);
-  for (const rawLine of text7.split("\n")) {
+  for (const rawLine of text8.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -10785,12 +10785,12 @@ function parseTimestamp2(raw, now) {
 function sameUTCDate2(a, b) {
   return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
 }
-function sumRunLogTokens(text7, loopId, now) {
-  if (text7 === null)
+function sumRunLogTokens(text8, loopId, now) {
+  if (text8 === null)
     return { spentToday: 0, runsToday: 0 };
   let spentToday = 0;
   let runsToday = 0;
-  for (const rawLine of text7.split("\n")) {
+  for (const rawLine of text8.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -11327,9 +11327,9 @@ function createLoopLedgerStore() {
     });
   }
   async function read(repoRoot) {
-    let text7;
+    let text8;
     try {
-      text7 = await readFile7(ledgerFilePath(repoRoot), "utf8");
+      text8 = await readFile7(ledgerFilePath(repoRoot), "utf8");
     } catch (e) {
       if (e.code === "ENOENT")
         return { records: [], rejected: [] };
@@ -11337,7 +11337,7 @@ function createLoopLedgerStore() {
     }
     const records = [];
     const rejected = [];
-    const lines = text7.split("\n");
+    const lines = text8.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const raw = required(lines[i]);
       if (raw.trim() === "") {
@@ -15458,7 +15458,7 @@ function sha256Hex2(value) {
     528734635,
     1541459225
   ]);
-  const constants13 = [
+  const constants14 = [
     1116352408,
     1899447441,
     3049323471,
@@ -15563,7 +15563,7 @@ function sha256Hex2(value) {
     for (let index = 0; index < 64; index += 1) {
       const sum1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
       const choose = e & f ^ ~e & g;
-      const temp1 = h + sum1 + choose + (constants13[index] ?? 0) + (words[index] ?? 0) >>> 0;
+      const temp1 = h + sum1 + choose + (constants14[index] ?? 0) + (words[index] ?? 0) >>> 0;
       const sum0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
       const majority = a & b ^ a & c ^ b & c;
       const temp2 = sum0 + majority >>> 0;
@@ -17188,16 +17188,16 @@ function string3(value) {
   return typeof value === "string" ? value : void 0;
 }
 async function hasSkillEvidence(changeDir2, producer, phase, allowEarlierPhaseEvidence) {
-  let text7;
+  let text8;
   try {
-    text7 = await readFile13(join20(changeDir2, HISTORY_FILE), "utf8");
+    text8 = await readFile13(join20(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT")
       return false;
     throw error2;
   }
   const entries = [];
-  for (const line of text7.split("\n")) {
+  for (const line of text8.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed)
       continue;
@@ -17768,6 +17768,9 @@ import { createHash as createHash16 } from "node:crypto";
 import { join as join22 } from "node:path";
 var REVIEW_GATE_BINDING_FILE = ".pipeline-review-gate-binding.json";
 var MAX_REVIEW_GATE_BINDING_BYTES = 16 * 1024;
+function reviewGateRequestAnchor(binding) {
+  return `${binding.requestedAt}|${binding.decisionStateDigest}|${binding.runId ?? ""}`;
+}
 async function readReviewGateBindingSource(handle, maxBytes) {
   const content = await readBoundedFileHandle(handle, maxBytes);
   if (content.length >= 3 && content[0] === 239 && content[1] === 187 && content[2] === 191) {
@@ -18992,10 +18995,10 @@ function nonEmpty(value, label) {
   return value;
 }
 function digest7(value, label) {
-  const text7 = nonEmpty(value, label);
-  if (!/^[0-9a-f]{64}$/.test(text7))
+  const text8 = nonEmpty(value, label);
+  if (!/^[0-9a-f]{64}$/.test(text8))
     throw new Error(`${label} must be a sha256 digest`);
-  return text7;
+  return text8;
 }
 function normalizedGrants(value, label) {
   if (!Array.isArray(value) || value.some((item2) => typeof item2 !== "string" || !ACTIONS.has(item2)) || new Set(value).size !== value.length) {
@@ -20057,16 +20060,16 @@ async function injectJsonl(cwd, name2, agent) {
   if (!await isFileAbs(abs)) {
     return { kind: "missing", jsonlPath: rel, chunks: [], warnings: [], sawReal: false };
   }
-  let text7;
+  let text8;
   try {
-    text7 = await readFile17(abs, "utf8");
+    text8 = await readFile17(abs, "utf8");
   } catch {
     return { kind: "missing", jsonlPath: rel, chunks: [], warnings: [], sawReal: false };
   }
   const chunks = [];
   const warnings = [];
   let sawReal = false;
-  for (const line of text7.split("\n")) {
+  for (const line of text8.split("\n")) {
     if (line === "")
       continue;
     const entry = parseJsonlLine(line);
@@ -20294,10 +20297,10 @@ function normalizeOwnedKey(rel) {
     return void 0;
   return out.join("/");
 }
-function parseOwnedManifest(text7) {
+function parseOwnedManifest(text8) {
   let parsed;
   try {
-    parsed = JSON.parse(text7);
+    parsed = JSON.parse(text8);
   } catch {
     return {};
   }
@@ -20677,15 +20680,15 @@ function readOwnedManifestText(fs, cwd) {
   return fs.readText(ownedManifestPath(cwd));
 }
 async function loadOwnedManifest(fs, cwd) {
-  const text7 = await readOwnedManifestText(fs, cwd);
-  return text7 === void 0 ? {} : parseOwnedManifest(text7);
+  const text8 = await readOwnedManifestText(fs, cwd);
+  return text8 === void 0 ? {} : parseOwnedManifest(text8);
 }
 function saveOwnedManifest(fs, cwd, map) {
   return fs.writeText(ownedManifestPath(cwd), serializeOwnedManifest(map));
 }
 async function readVersionFile(fs, cwd) {
-  const text7 = await fs.readText(join25(cwd, VERSION_FILE));
-  return text7 === void 0 ? UNKNOWN_VERSION : text7.trim() || UNKNOWN_VERSION;
+  const text8 = await fs.readText(join25(cwd, VERSION_FILE));
+  return text8 === void 0 ? UNKNOWN_VERSION : text8.trim() || UNKNOWN_VERSION;
 }
 function createOwnedFs() {
   return {
@@ -21489,8 +21492,8 @@ function parseBreadcrumbBlock(lines, start, path15) {
   }
   return { map, next: i };
 }
-function scanSections(text7, path15) {
-  const lines = text7.split("\n");
+function scanSections(text8, path15) {
+  const lines = text8.split("\n");
   const out = {};
   let i = 0;
   while (i < lines.length) {
@@ -21642,8 +21645,8 @@ function deriveSkillActionAuthority(raw) {
   return { version: "v1", grants };
 }
 function loadManifest(path15) {
-  const text7 = readFileSync7(path15, "utf8");
-  const raw = scanSections(text7, path15);
+  const text8 = readFileSync7(path15, "utf8");
+  const raw = scanSections(text8, path15);
   if (!raw.phases || raw.phases.length === 0)
     throw new ManifestError(`${path15} \u7F3A phases \u5C0F\u8282`);
   if (!raw.transitions)
@@ -22062,9 +22065,9 @@ var TrackConfigParseError = class extends Error {
 
 // packages/kernel/dist/tracks/parse.js
 var KEY_RE3 = /^([A-Za-z_][\w.-]*):(?:\s+([\s\S]*)|\s*)$/;
-function tokenize2(text7) {
+function tokenize2(text8) {
   const tokens = [];
-  const lines = text7.split("\n");
+  const lines = text8.split("\n");
   for (let n = 0; n < lines.length; n++) {
     const lineNo = n + 1;
     const line = lines[n].replace(/\r$/, "");
@@ -22198,8 +22201,8 @@ function parseNode(tokens, i, indent) {
     return parseMapping2(tokens, i, indent);
   return { node: parseScalarText(t.raw, t.line), next: i + 1 };
 }
-function parseDocumentRoot(text7) {
-  const tokens = tokenize2(text7);
+function parseDocumentRoot(text8) {
+  const tokens = tokenize2(text8);
   if (tokens.length === 0)
     throw new TrackConfigParseError(null, "\u7A7A\u6587\u6863\uFF08\u7F3A\u5C11\u5FC5\u586B\u9876\u5C42\u952E version\uFF09");
   const first = tokens[0];
@@ -22390,8 +22393,8 @@ function walkTrackEntry(n, at) {
     out.policyProfile = walkPolicy(p.node, at);
   return out;
 }
-function parseTrackRegistry(text7) {
-  const root = parseDocumentRoot(text7);
+function parseTrackRegistry(text8) {
+  const root = parseDocumentRoot(text8);
   checkKeys(root, ["version", "builtins", "tracks"], "\u9876\u5C42");
   const versionEntry = getEntry(root, "version");
   if (!versionEntry)
@@ -22678,11 +22681,11 @@ function emitString(s) {
 function emitInteger(n) {
   if (!Number.isInteger(n))
     throw new Error(`serializeTrackRegistry: \u671F\u671B\u6574\u6570\uFF0C\u5F97\u5230 ${n}`);
-  const text7 = String(n);
-  if (!/^-?\d+$/.test(text7) || Number(text7) !== n) {
-    throw new Error(`serializeTrackRegistry: \u6574\u6570 ${n} \u7684\u5199\u51FA\u6587\u672C ${JSON.stringify(text7)} \u4E0D\u662F parse \u53EF\u8BFB\u56DE\u7684\u7EAF\u5341\u8FDB\u5236\uFF0C\u62D2\u5199`);
+  const text8 = String(n);
+  if (!/^-?\d+$/.test(text8) || Number(text8) !== n) {
+    throw new Error(`serializeTrackRegistry: \u6574\u6570 ${n} \u7684\u5199\u51FA\u6587\u672C ${JSON.stringify(text8)} \u4E0D\u662F parse \u53EF\u8BFB\u56DE\u7684\u7EAF\u5341\u8FDB\u5236\uFF0C\u62D2\u5199`);
   }
-  return text7;
+  return text8;
 }
 function emitMapKey(key) {
   if (!/^[A-Za-z_][\w.-]*$/.test(key)) {
@@ -22875,11 +22878,11 @@ function composeRegistry(config, source) {
   }
   return { ordered, byId, revision: registryRevision(config), source };
 }
-function synthesize(text7, context2) {
-  if (text7 === null) {
+function synthesize(text8, context2) {
+  if (text8 === null) {
     return { config: EMPTY_PROJECT_CONFIG, registry: composeRegistry(EMPTY_PROJECT_CONFIG, "builtin-only") };
   }
-  const config = parseTrackRegistry(text7);
+  const config = parseTrackRegistry(text8);
   const errors = validateTrackRegistry(config, context2);
   if (errors.length > 0) {
     throw new Error(`.pipeline/tracks.yaml \u6821\u9A8C\u5931\u8D25\uFF08${errors.length} \u6761\uFF09\uFF1A
@@ -22888,14 +22891,14 @@ function synthesize(text7, context2) {
   return { config, registry: composeRegistry(config, "project-file") };
 }
 function loadTrackRegistry(repoRoot, context2) {
-  let text7 = null;
+  let text8 = null;
   try {
-    text7 = readFileSync8(trackRegistryPath(repoRoot), "utf8");
+    text8 = readFileSync8(trackRegistryPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
   }
-  return synthesize(text7, context2).registry;
+  return synthesize(text8, context2).registry;
 }
 function requireTrack(registry, id2) {
   const def = registry.byId.get(id2);
@@ -22912,14 +22915,14 @@ function assertWorkflowAllowed(track, workflowId) {
   throw new Error(`track '${track.id}' \u4E0D\u5141\u8BB8\u7ED1\u5B9A workflow '${workflowId}'\uFF08\u5141\u8BB8\uFF1A${track.workflow.allowed.join(", ")}\uFF09`);
 }
 async function freshReadUnderLock(file, context2) {
-  let text7 = null;
+  let text8 = null;
   try {
-    text7 = await readFile20(file, "utf8");
+    text8 = await readFile20(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
   }
-  return synthesize(text7, context2);
+  return synthesize(text8, context2);
 }
 async function withTrackRegistryLock(repoRoot, context2, callback) {
   const file = trackRegistryPath(repoRoot);
@@ -22955,8 +22958,8 @@ function routerContractRevision(manifest) {
   }, manifest);
   return sha256Hex(JSON.stringify(projection));
 }
-function own(object7, key) {
-  return Object.prototype.hasOwnProperty.call(object7, key);
+function own(object8, key) {
+  return Object.prototype.hasOwnProperty.call(object8, key);
 }
 function skillsWithSource(table, phase, profile) {
   const row = table[phase];
@@ -23274,16 +23277,16 @@ function isBootstrapTurn(cleaned, originalLength) {
     return true;
   return false;
 }
-function stripInjectionTags(text7) {
-  let out = text7;
+function stripInjectionTags(text8) {
+  let out = text8;
   for (const re of TAG_RES)
     out = out.replace(re, "");
   out = out.replace(AGENTS_RE, "");
   out = out.replace(COLLAPSE_RE, "\n\n");
   return out.trim();
 }
-function hostSummaryTurn(text7) {
-  const turn = { role: "user", text: text7 };
+function hostSummaryTurn(text8) {
+  const turn = { role: "user", text: text8 };
   Object.defineProperty(turn, HOST_SUMMARY_TURN, { value: true });
   return turn;
 }
@@ -23415,8 +23418,8 @@ function searchInDialogue(turns, kw, maxExcerpts = 3, chunkChars = 400, options 
 function compareRankedChunks(a, b) {
   return b.coverage - a.coverage || b.rarity - a.rarity || a.start - b.start;
 }
-function selectExcerptCandidates(text7, hay, tokens, tokenFreq, chunkChars, limit) {
-  const locateChunk = createChunkLocator(text7, chunkChars);
+function selectExcerptCandidates(text8, hay, tokens, tokenFreq, chunkChars, limit) {
+  const locateChunk = createChunkLocator(text8, chunkChars);
   const cursors = Array.from(tokenFreq.keys(), (tok) => ({ tok, idx: hay.indexOf(tok) }));
   const selected = [];
   let lastStart = null;
@@ -23452,11 +23455,11 @@ function selectExcerptCandidates(text7, hay, tokens, tokenFreq, chunkChars, limi
   }
   return selected;
 }
-function createChunkLocator(text7, maxChars) {
+function createChunkLocator(text8, maxChars) {
   const paragraphBreaks = [];
   let from = 0;
   for (; ; ) {
-    const idx = text7.indexOf("\n\n", from);
+    const idx = text8.indexOf("\n\n", from);
     if (idx === -1)
       break;
     paragraphBreaks.push(idx);
@@ -23478,11 +23481,11 @@ function createChunkLocator(text7, maxChars) {
     const nextIdx = lowerBound(hitIdx);
     const previousIdx = lowerBound(hitIdx - 1) - 1;
     let start = previousIdx >= 0 ? (paragraphBreaks[previousIdx] ?? -2) + 2 : 0;
-    let end = nextIdx < paragraphBreaks.length ? paragraphBreaks[nextIdx] ?? text7.length : text7.length;
+    let end = nextIdx < paragraphBreaks.length ? paragraphBreaks[nextIdx] ?? text8.length : text8.length;
     let truncated = false;
     if (end - start > maxChars) {
       start = Math.max(0, hitIdx - Math.floor(maxChars / 2));
-      end = Math.min(text7.length, hitIdx + Math.ceil(maxChars / 2));
+      end = Math.min(text8.length, hitIdx + Math.ceil(maxChars / 2));
       truncated = true;
     }
     return { start, end, truncated };
@@ -23779,16 +23782,16 @@ function hasBoundedQueryPlan(db, sql, params) {
   const cached = cache2.get(sql);
   if (cached !== void 0)
     return cached;
-  let bounded = false;
+  let bounded2 = false;
   try {
     const rows = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...params);
     const details = rows.map((row) => String(row.detail ?? "").toUpperCase());
-    bounded = details.some((detail) => detail.includes("SEARCH ")) && details.every((detail) => !detail.includes("SCAN ") && !detail.includes("USE TEMP B-TREE"));
+    bounded2 = details.some((detail) => detail.includes("SEARCH ")) && details.every((detail) => !detail.includes("SCAN ") && !detail.includes("USE TEMP B-TREE"));
   } catch {
-    bounded = false;
+    bounded2 = false;
   }
-  cache2.set(sql, bounded);
-  return bounded;
+  cache2.set(sql, bounded2);
+  return bounded2;
 }
 
 // packages/kernel/dist/mem/adapters/opencode-dialogue-budget.js
@@ -23805,16 +23808,16 @@ function hasBoundedQueryPlan2(db, sql, params) {
   const cached = cache2.get(sql);
   if (cached !== void 0)
     return cached;
-  let bounded = false;
+  let bounded2 = false;
   try {
     const rows = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...params);
     const details = rows.map((row) => String(row.detail ?? "").toUpperCase());
-    bounded = details.some((detail) => detail.includes("SEARCH ")) && details.every((detail) => !detail.includes("SCAN ") && !detail.includes("USE TEMP B-TREE"));
+    bounded2 = details.some((detail) => detail.includes("SEARCH ")) && details.every((detail) => !detail.includes("SCAN ") && !detail.includes("USE TEMP B-TREE"));
   } catch {
-    bounded = false;
+    bounded2 = false;
   }
-  cache2.set(sql, bounded);
-  return bounded;
+  cache2.set(sql, bounded2);
+  return bounded2;
 }
 function hasMoreRows(db, query, offset) {
   return db.prepare(query.hasMoreSql).get(query.scopeId, offset) !== void 0;
@@ -24339,11 +24342,11 @@ var OPEN_BRACE = 123;
 function isJsonlLine(line) {
   return line.length > 0 && line.charCodeAt(0) === OPEN_BRACE;
 }
-function parseJsonlLines(text7) {
+function parseJsonlLines(text8) {
   const out = [];
-  if (!text7)
+  if (!text8)
     return out;
-  for (const line of text7.split("\n")) {
+  for (const line of text8.split("\n")) {
     if (!isJsonlLine(line))
       continue;
     try {
@@ -24353,10 +24356,10 @@ function parseJsonlLines(text7) {
   }
   return out;
 }
-function readJsonlFirst(text7) {
-  if (!text7)
+function readJsonlFirst(text8) {
+  if (!text8)
     return void 0;
-  for (const line of text7.split("\n")) {
+  for (const line of text8.split("\n")) {
     if (!isJsonlLine(line))
       continue;
     try {
@@ -24366,11 +24369,11 @@ function readJsonlFirst(text7) {
   }
   return void 0;
 }
-function findInJsonl(text7, predicate, maxLines = 200) {
-  if (!text7)
+function findInJsonl(text8, predicate, maxLines = 200) {
+  if (!text8)
     return void 0;
   let count = 0;
-  for (const line of text7.split("\n")) {
+  for (const line of text8.split("\n")) {
     if (!isJsonlLine(line))
       continue;
     let obj;
@@ -24518,16 +24521,16 @@ function walkDirForRelatedSearch(fs, root, accept, fileLimit, source, shouldDesc
       budget.noteDiscoveryTruncated();
       break;
     }
-    const bounded = fs.readDirBounded?.(current.path, remaining, () => budget.shouldContinueDiscovery?.(source) === true);
-    const checked = bounded ?? fs.readDirChecked?.(current.path);
+    const bounded2 = fs.readDirBounded?.(current.path, remaining, () => budget.shouldContinueDiscovery?.(source) === true);
+    const checked = bounded2 ?? fs.readDirChecked?.(current.path);
     const sourceEntries = checked?.entries ?? fs.readDir(current.path);
     const entries = sourceEntries.slice(0, remaining);
-    if (bounded?.truncated || !bounded && sourceEntries.length > remaining) {
+    if (bounded2?.truncated || !bounded2 && sourceEntries.length > remaining) {
       budget.noteDiscoveryTruncated();
     }
     const ranked = [];
     for (const entry of entries) {
-      if (!bounded && !budget.shouldContinueDiscovery(source)) {
+      if (!bounded2 && !budget.shouldContinueDiscovery(source)) {
         budget.noteDiscoveryTruncated();
         break;
       }
@@ -24626,11 +24629,11 @@ function claudeListSessions(fs, f) {
     const title = idx?.title ?? null;
     if (!cwd || !created) {
       const metadata = readMemSessionMetadataChecked(fs, filePath);
-      const text7 = metadata.text;
-      const evt = findInJsonl(text7, (o) => typeof o?.cwd === "string", 100);
+      const text8 = metadata.text;
+      const evt = findInJsonl(text8, (o) => typeof o?.cwd === "string", 100);
       cwd = cwd || (evt?.cwd ?? null);
       if (!created) {
-        const first = readJsonlFirst(text7);
+        const first = readJsonlFirst(text8);
         created = (evt?.timestamp ?? null) || (first?.timestamp ?? null);
       }
       if (f.cwd && !cwd && metadata.truncated)
@@ -24683,9 +24686,9 @@ ${summary}`)] : [];
     const content = msg.content;
     if (t === "user" && msg.role === "user") {
       if (typeof content === "string") {
-        const text7 = stripInjectionTags(content);
-        if (text7 && !isBootstrapTurn(text7, content.length))
-          turns.push({ role: "user", text: text7 });
+        const text8 = stripInjectionTags(content);
+        if (text8 && !isBootstrapTurn(text8, content.length))
+          turns.push({ role: "user", text: text8 });
       }
     } else if (t === "assistant" && msg.role === "assistant" && Array.isArray(content)) {
       const parts = [];
@@ -24726,9 +24729,9 @@ ${summary}`)] : [];
     const content = msg.content;
     if (t === "user" && msg.role === "user") {
       if (typeof content === "string") {
-        const text7 = stripInjectionTags(content);
-        if (text7 && !isBootstrapTurn(text7, content.length))
-          state.turns.push({ role: "user", text: text7 });
+        const text8 = stripInjectionTags(content);
+        if (text8 && !isBootstrapTurn(text8, content.length))
+          state.turns.push({ role: "user", text: text8 });
       }
       continue;
     }
@@ -24887,9 +24890,9 @@ function compactedReplacementTurns(replacementHistory) {
     const turn = buildTurnFromMessage(role, item2?.content);
     if (!turn)
       continue;
-    const text7 = `[compact]
+    const text8 = `[compact]
 ${turn.text}`;
-    turns.push(index === summaryIndex ? hostSummaryTurn(text7) : { role: turn.role, text: text7 });
+    turns.push(index === summaryIndex ? hostSummaryTurn(text8) : { role: turn.role, text: text8 });
   }
   return turns;
 }
@@ -25172,11 +25175,11 @@ function turnFromEntry(entry) {
 function syntheticTurn(prefix, raw) {
   if (typeof raw !== "string")
     return null;
-  const text7 = stripInjectionTags(raw);
-  if (!text7)
+  const text8 = stripInjectionTags(raw);
+  if (!text8)
     return null;
   return hostSummaryTurn(`${prefix}
-${text7}`);
+${text8}`);
 }
 function buildTurn(role, content) {
   const parts = [];
@@ -25564,8 +25567,8 @@ function selectContextTurns(turns, grep, nTurns, around, maxChars) {
   let totalHitTurns = 0;
   if (grep) {
     const tokens = grep.toLowerCase().split(/\s+/).filter(Boolean);
-    const matchCount = (text7) => {
-      const hay = text7.toLowerCase();
+    const matchCount = (text8) => {
+      const hay = text8.toLowerCase();
       if (!tokens.every((tok) => hay.includes(tok)))
         return 0;
       let n = 0;
@@ -25611,15 +25614,15 @@ function selectContextTurns(turns, grep, nTurns, around, maxChars) {
     const t = turns[i];
     if (t == null)
       continue;
-    let text7 = t.text;
+    let text8 = t.text;
     const cap = Math.floor(maxChars / 2);
-    if (text7.length > cap)
-      text7 = text7.slice(0, cap) + `
+    if (text8.length > cap)
+      text8 = text8.slice(0, cap) + `
 \u2026[+${t.text.length - cap} chars]`;
-    if (used + text7.length > maxChars && out.length > 0)
+    if (used + text8.length > maxChars && out.length > 0)
       break;
-    out.push({ idx: i, role: t.role, text: text7, isHit: hitSet.has(i) });
-    used += text7.length;
+    out.push({ idx: i, role: t.role, text: text8, isHit: hitSet.has(i) });
+    used += text8.length;
   }
   return { turns: out, totalHitTurns, budgetUsed: used };
 }
@@ -25743,11 +25746,11 @@ function extractDocLoopIds(docText) {
   }
   return out;
 }
-function parseRunLog(text7, now) {
+function parseRunLog(text8, now) {
   const map = /* @__PURE__ */ new Map();
-  if (text7 === null)
+  if (text8 === null)
     return map;
-  for (const rawLine of text7.split("\n")) {
+  for (const rawLine of text8.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -26009,11 +26012,11 @@ function nextDown(level) {
 }
 var HIST_TS_RE = /^(?:\d{4}-)?\d{2}-\d{2}T\d{2}:\d{2}$/;
 var HIST_RESULT_RE = /result=(ok|fail|dry|skip)/;
-function parseRunHistory(text7, loopId) {
-  if (text7 === null)
+function parseRunHistory(text8, loopId) {
+  if (text8 === null)
     return { runs: 0, failStreak: 0, lastResult: null };
   const results = [];
-  for (const rawLine of text7.split("\n")) {
+  for (const rawLine of text8.split("\n")) {
     const line = rawLine.trim();
     if (!line.startsWith("|"))
       continue;
@@ -26129,8 +26132,8 @@ function planLevelChange(current, target, verdict) {
   }
   return { ...base, to, kind: "promote", allowed: true, reason: `\u9010\u7EA7\u6BD5\u4E1A ${current} \u2192 ${to}`, blockers: [] };
 }
-function setAutonomyLevelInYaml(text7, loopId, level) {
-  const lines = text7.split("\n");
+function setAutonomyLevelInYaml(text8, loopId, level) {
+  const lines = text8.split("\n");
   const block = locateLoop(lines, loopId);
   if (block === null)
     return { text: null, error: `loop '${loopId}' \u672A\u5728 loops.yaml \u627E\u5230\uFF08\u65E0\u6CD5\u6539\u6863\uFF09` };
@@ -26369,7 +26372,7 @@ function checkedValue(field3, value) {
     throw new PatchError(`\u5B57\u6BB5 '${field3}' \u987B\u4E3A\u5B57\u7B26\u4E32`);
   return value;
 }
-function updateLoopInYaml(text7, loopId, patch) {
+function updateLoopInYaml(text8, loopId, patch) {
   try {
     const fields = Object.keys(patch);
     if (fields.length === 0)
@@ -26382,7 +26385,7 @@ function updateLoopInYaml(text7, loopId, patch) {
         throw new PatchError(`\u5B57\u6BB5 '${field3}' \u4E0D\u53EF patch\uFF08\u53EF\u6539\uFF1A${ALL_PATCHABLE.join(" / ")}\uFF09`);
       }
     }
-    const lines = text7.split("\n");
+    const lines = text8.split("\n");
     for (const field3 of fields) {
       const block = locateLoop(lines, loopId);
       if (block === null)
@@ -26405,7 +26408,7 @@ function updateLoopInYaml(text7, loopId, patch) {
 }
 function renderLoopEntryLines(entry) {
   const lines = [`  - id: ${formatScalar(entry.id, "id")}`];
-  const scalar19 = (field3, v) => {
+  const scalar20 = (field3, v) => {
     lines.push(`    ${field3}: ${formatScalar(v, field3)}`);
   };
   const seq2 = (field3, values) => {
@@ -26417,25 +26420,25 @@ function renderLoopEntryLines(entry) {
     for (const v of values)
       lines.push(`      - ${formatString(v, field3, true)}`);
   };
-  scalar19("name", entry.name);
-  scalar19("kind", entry.kind);
-  scalar19("goal", entry.goal);
-  scalar19("cadence", entry.cadence);
-  scalar19("risk", entry.risk);
-  scalar19("runner", entry.runner);
-  scalar19("change_prefix", entry.change_prefix);
+  scalar20("name", entry.name);
+  scalar20("kind", entry.kind);
+  scalar20("goal", entry.goal);
+  scalar20("cadence", entry.cadence);
+  scalar20("risk", entry.risk);
+  scalar20("runner", entry.runner);
+  scalar20("change_prefix", entry.change_prefix);
   seq2("phases", entry.phases);
   seq2("human_gates", entry.human_gates);
-  scalar19("design_doc", entry.design_doc);
-  scalar19("status", entry.status);
+  scalar20("design_doc", entry.design_doc);
+  scalar20("status", entry.status);
   if (entry.template_id !== void 0)
-    scalar19("template_id", entry.template_id);
+    scalar20("template_id", entry.template_id);
   if (entry.template_version !== void 0)
-    scalar19("template_version", entry.template_version);
+    scalar20("template_version", entry.template_version);
   if (entry.workflow_id !== void 0)
-    scalar19("workflow_id", entry.workflow_id);
+    scalar20("workflow_id", entry.workflow_id);
   if (entry.skill_bundle_id !== void 0)
-    scalar19("skill_bundle_id", entry.skill_bundle_id);
+    scalar20("skill_bundle_id", entry.skill_bundle_id);
   lines.push("    budget:");
   const budgetScalar = (field3, v) => {
     lines.push(`      ${field3}: ${formatScalar(v, field3)}`);
@@ -26450,8 +26453,8 @@ function renderLoopEntryLines(entry) {
   seq2("kill_criteria", entry.kill_criteria);
   return lines;
 }
-function selfCheckYamlText(text7) {
-  const { data, error: error2 } = parseLoopsYaml(text7);
+function selfCheckYamlText(text8) {
+  const { data, error: error2 } = parseLoopsYaml(text8);
   if (error2 !== null)
     return `\u4EA7\u51FA\u6587\u672C\u672A\u8FC7\u7A84\u89E3\u6790\u5668\uFF1A${error2}`;
   const errors = validateSchema(data, LOOPS_SCHEMA);
@@ -26461,12 +26464,12 @@ function selfCheckYamlText(text7) {
 }
 function createLoopsYamlText(entry) {
   try {
-    const text7 = `${["version: 1", "loops:", ...renderLoopEntryLines(entry)].join("\n")}
+    const text8 = `${["version: 1", "loops:", ...renderLoopEntryLines(entry)].join("\n")}
 `;
-    const bad = selfCheckYamlText(text7);
+    const bad = selfCheckYamlText(text8);
     if (bad !== null)
       throw new PatchError(bad);
-    return { text: text7, error: null };
+    return { text: text8, error: null };
   } catch (e) {
     if (e instanceof PatchError)
       return { text: null, error: e.message };
@@ -26486,12 +26489,12 @@ function appendLoopToYamlText(before, entry) {
     }
     const base = before.endsWith("\n") ? before : `${before}
 `;
-    const text7 = `${base}${renderLoopEntryLines(entry).join("\n")}
+    const text8 = `${base}${renderLoopEntryLines(entry).join("\n")}
 `;
-    const bad = selfCheckYamlText(text7);
+    const bad = selfCheckYamlText(text8);
     if (bad !== null)
       throw new PatchError(bad);
-    return { text: text7, error: null };
+    return { text: text8, error: null };
   } catch (e) {
     if (e instanceof PatchError)
       return { text: null, error: e.message };
@@ -26546,18 +26549,18 @@ async function withRegistryGovernanceLock(repoRoot, fn) {
   return withLock(base, fn);
 }
 async function readRegistrySnapshot(repoRoot) {
-  let text7;
+  let text8;
   try {
-    text7 = await readFile21(loopsYamlPath(repoRoot), "utf8");
+    text8 = await readFile21(loopsYamlPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code === "ENOENT") {
       return { text: "", epoch: ABSENT_REGISTRY_EPOCH, registry: null, errors: [] };
     }
     throw new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${e.code ?? "IO"}\uFF09\uFF1A${e instanceof Error ? e.message : String(e)}`);
   }
-  const epoch = createHash24("sha256").update(text7, "utf8").digest("hex");
-  const { data, errors } = loadRegistry(repoRoot, { readText: () => text7 });
-  return { text: text7, epoch, registry: data, errors };
+  const epoch = createHash24("sha256").update(text8, "utf8").digest("hex");
+  const { data, errors } = loadRegistry(repoRoot, { readText: () => text8 });
+  return { text: text8, epoch, registry: data, errors };
 }
 function assertActiveAtEpoch(snapshot2, loopId) {
   const loop = snapshot2.registry?.loops.find((l) => l.id === loopId);
@@ -26569,14 +26572,14 @@ function assertActiveAtEpoch(snapshot2, loopId) {
   }
   return loop;
 }
-async function writeRegistryTextAtomic(repoRoot, text7) {
+async function writeRegistryTextAtomic(repoRoot, text8) {
   const dir = join32(repoRoot, ".pipeline");
   await mkdir14(dir, { recursive: true });
   const finalPath = loopsYamlPath(repoRoot);
   const tmp = join32(dir, `.loops.yaml.tmp.${process.pid}.${randomBytes(6).toString("hex")}`);
   const fh = await open6(tmp, "w");
   try {
-    await fh.writeFile(text7, "utf8");
+    await fh.writeFile(text8, "utf8");
     await fh.sync();
   } finally {
     await fh.close();
@@ -26598,10 +26601,10 @@ async function writeRegistryWithGovernance(repoRoot, expectedEpoch, produce) {
     if (current.epoch !== expectedEpoch) {
       return { ok: false, error: `CAS \u5931\u8D25\uFF1Aloops.yaml \u5728\u6B64\u671F\u95F4\u88AB\u5E76\u53D1\u4FEE\u6539\uFF08epoch ${expectedEpoch.slice(0, 12)} \u2192 ${current.epoch.slice(0, 12)}\uFF09` };
     }
-    const { text: text7, error: error2 } = await produce(current.text, current);
-    if (error2 !== null || text7 === null)
+    const { text: text8, error: error2 } = await produce(current.text, current);
+    if (error2 !== null || text8 === null)
       return { ok: false, error: error2 ?? "\u751F\u6210\u5199\u56DE\u6587\u672C\u5931\u8D25" };
-    await writeRegistryTextAtomic(repoRoot, text7);
+    await writeRegistryTextAtomic(repoRoot, text8);
     return { ok: true };
   });
 }
@@ -26749,8 +26752,8 @@ function asRecord4(input, path15) {
   }
   return input;
 }
-function ownDataValue(object7, key, path15) {
-  const descriptor = Object.getOwnPropertyDescriptor(object7, key);
+function ownDataValue(object8, key, path15) {
+  const descriptor = Object.getOwnPropertyDescriptor(object8, key);
   if (descriptor === void 0 || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
     throw new Error(`AutomationPolicyTemplate: ${path15} must be an own data property`);
   }
@@ -27220,15 +27223,15 @@ function isValidatedReconciliationPlan(value, errors) {
   return errors.length === 0;
 }
 function decodeReconciliationPlan(input) {
-  let text7;
+  let text8;
   try {
-    text7 = typeof input === "string" ? input : new TextDecoder("utf-8", { fatal: true }).decode(input);
+    text8 = typeof input === "string" ? input : new TextDecoder("utf-8", { fatal: true }).decode(input);
   } catch {
     return { ok: false, errors: ["$: plan bytes are not valid UTF-8"] };
   }
   let parsed;
   try {
-    parsed = JSON.parse(text7);
+    parsed = JSON.parse(text8);
   } catch (error2) {
     return { ok: false, errors: [`$: invalid JSON: ${error2 instanceof Error ? error2.message : String(error2)}`] };
   }
@@ -27288,7 +27291,7 @@ function appendSection(current, section2) {
 }
 function scanManagedSections(bytes) {
   const sections = /* @__PURE__ */ new Map();
-  let open13 = null;
+  let open14 = null;
   let lineStart = 0;
   while (lineStart < bytes.byteLength) {
     let lineEnd = lineStart;
@@ -27308,27 +27311,27 @@ function scanManagedSections(bytes) {
         return { ok: false, detail: `malformed managed marker at byte ${lineStart}` };
       }
       if (kind === "START") {
-        if (open13 !== null) {
-          return { ok: false, detail: `nested managed sections ${open13.loop_id} and ${loopId}` };
+        if (open14 !== null) {
+          return { ok: false, detail: `nested managed sections ${open14.loop_id} and ${loopId}` };
         }
-        open13 = { loop_id: loopId, start: lineStart };
+        open14 = { loop_id: loopId, start: lineStart };
       } else {
-        if (open13 === null)
+        if (open14 === null)
           return { ok: false, detail: `managed END marker for ${loopId} has no START` };
-        if (open13.loop_id !== loopId) {
-          return { ok: false, detail: `managed marker ids do not match: ${open13.loop_id} and ${loopId}` };
+        if (open14.loop_id !== loopId) {
+          return { ok: false, detail: `managed marker ids do not match: ${open14.loop_id} and ${loopId}` };
         }
         if (sections.has(loopId)) {
           return { ok: false, detail: `duplicate managed section for ${loopId}` };
         }
-        sections.set(loopId, { start: open13.start, end: nextLine });
-        open13 = null;
+        sections.set(loopId, { start: open14.start, end: nextLine });
+        open14 = null;
       }
     }
     lineStart = nextLine;
   }
-  if (open13 !== null)
-    return { ok: false, detail: `managed START marker for ${open13.loop_id} has no END` };
+  if (open14 !== null)
+    return { ok: false, detail: `managed START marker for ${open14.loop_id} has no END` };
   return { ok: true, sections };
 }
 function applyReconciliationOperations(input) {
@@ -27610,13 +27613,13 @@ function bytesEqual2(left, right) {
 function parseRegistryBytes(repoRoot, bytes) {
   if (bytes === null)
     return [];
-  let text7;
+  let text8;
   try {
-    text7 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    text8 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
     throw new ReconciliationSourceError("registry", "bytes are not valid UTF-8");
   }
-  const loaded = loadRegistry(repoRoot, { readText: () => text7 });
+  const loaded = loadRegistry(repoRoot, { readText: () => text8 });
   if (loaded.data === null || loaded.errors.length > 0) {
     throw new ReconciliationSourceError("registry", loaded.errors.length > 0 ? loaded.errors.join("; ") : "registry is absent after decoding present bytes");
   }
@@ -27827,9 +27830,9 @@ function dedup(items) {
   }
   return out;
 }
-function compressDocument(text7, opts = {}) {
+function compressDocument(text8, opts = {}) {
   const maxDepth = opts.maxHeadingDepth ?? 6;
-  const rawLines = text7.split("\n");
+  const rawLines = text8.split("\n");
   const fm = parseFrontMatter(rawLines);
   let title = null;
   const headings = [];
@@ -27882,7 +27885,7 @@ function compressDocument(text7, opts = {}) {
     keyFields: fm.keyFields,
     stats: emptyStats()
   };
-  doc.stats = statsFor(text7, rawLines.length, renderHandoffSummary(doc, void 0, opts.documentLocale ?? "zh-CN"), doc);
+  doc.stats = statsFor(text8, rawLines.length, renderHandoffSummary(doc, void 0, opts.documentLocale ?? "zh-CN"), doc);
   return doc;
 }
 function emptyStats() {
@@ -27912,7 +27915,7 @@ function statsFor(originalText, originalLines, rendered, doc) {
   };
 }
 function renderHandoffSummary(doc, label, locale = "zh-CN") {
-  const text7 = locale === "zh-CN" ? {
+  const text8 = locale === "zh-CN" ? {
     handoff: "\u4EA4\u63A5\u6458\u8981",
     summary: "\u6458\u8981",
     structure: "\u7ED3\u6784",
@@ -27930,29 +27933,29 @@ function renderHandoffSummary(doc, label, locale = "zh-CN") {
     fields: "Key Fields"
   };
   const out = [];
-  out.push(`# ${text7.handoff}: ${label ?? doc.title ?? text7.summary}`);
+  out.push(`# ${text8.handoff}: ${label ?? doc.title ?? text8.summary}`);
   if (doc.headings.length > 0) {
-    out.push("", `## ${text7.structure}`);
+    out.push("", `## ${text8.structure}`);
     for (const h of doc.headings)
       out.push(`- ${h}`);
   }
   if (doc.decisions.length > 0) {
-    out.push("", `## ${text7.decisions} (${doc.decisions.length})`);
+    out.push("", `## ${text8.decisions} (${doc.decisions.length})`);
     for (const d of doc.decisions)
       out.push(`- ${d}`);
   }
   if (doc.constraints.length > 0) {
-    out.push("", `## ${text7.constraints} (${doc.constraints.length})`);
+    out.push("", `## ${text8.constraints} (${doc.constraints.length})`);
     for (const c of doc.constraints)
       out.push(`- ${c}`);
   }
   if (doc.openTodos.length > 0) {
-    out.push("", `## ${text7.todos} (${doc.openTodos.length})`);
+    out.push("", `## ${text8.todos} (${doc.openTodos.length})`);
     for (const t of doc.openTodos)
       out.push(`- [ ] ${t}`);
   }
   if (doc.keyFields.length > 0) {
-    out.push("", `## ${text7.fields}`);
+    out.push("", `## ${text8.fields}`);
     for (const k of doc.keyFields)
       out.push(`- ${k.key}: ${k.value}`);
   }
@@ -28287,7 +28290,7 @@ async function compileLedgerContextBundleWithPorts(input) {
         if (!validRelativePath2(record9.path)) {
           throw invalidRequest(`Context Bundle ledger path \u975E\u6CD5: ${record9.path}`);
         }
-        let text7;
+        let text8;
         let sourceBytes;
         const remainingTotalBytes = limits ? Math.max(0, limits.maxTotalSourceBytes - totalSourceBytes) : void 0;
         const sourceReadLimit = limits && remainingTotalBytes !== void 0 ? {
@@ -28298,7 +28301,7 @@ async function compileLedgerContextBundleWithPorts(input) {
         } : void 0;
         try {
           const source = await input.sourceReader.read(record9.path, sourceReadLimit);
-          text7 = source.text;
+          text8 = source.text;
           sourceBytes = source.sourceBytes;
         } catch (error2) {
           if (error2 instanceof LedgerContextBundleError) {
@@ -28324,7 +28327,7 @@ async function compileLedgerContextBundleWithPorts(input) {
             repairAction: `\u6062\u590D root \u5185\u7A33\u5B9A\u7684\u975E symlink \u666E\u901A\u6587\u4EF6 ${record9.path}\uFF0C\u5E76\u91CD\u65B0 record/read`
           });
         }
-        if (text7 === void 0) {
+        if (text8 === void 0) {
           throw new LedgerContextBundleError("CONTEXT_BUNDLE_DOCUMENT_MISSING", `Context Bundle missing document '${kind}': ${record9.path}; restore or re-record it`, {
             kind,
             path: record9.path,
@@ -28338,7 +28341,7 @@ async function compileLedgerContextBundleWithPorts(input) {
         if (limits && totalSourceBytes > limits.maxTotalSourceBytes) {
           throw resourceLimitError("totalSourceBytes", limits.maxTotalSourceBytes, totalSourceBytes, { kind, path: record9.path });
         }
-        const actual = input.primitives.sha256(text7);
+        const actual = input.primitives.sha256(text8);
         if (actual !== record9.sha256) {
           throw new LedgerContextBundleError("CONTEXT_BUNDLE_DOCUMENT_STALE", `Context Bundle stale document '${kind}': ${record9.path}; run tenon document record ${input.change} ${kind} ${record9.path} --producer <skill>, then tenon document read ${input.change} all`, {
             kind,
@@ -28350,7 +28353,7 @@ async function compileLedgerContextBundleWithPorts(input) {
         const mode = duplicatePath ? "reference" : materializationMode(kind);
         if (!duplicatePath)
           materializedPaths.add(record9.path);
-        const content = mode === "reference" ? void 0 : mode === "full" ? text7 : renderHandoffSummary(compressDocument(text7), `${input.change}/${kind}`);
+        const content = mode === "reference" ? void 0 : mode === "full" ? text8 : renderHandoffSummary(compressDocument(text8), `${input.change}/${kind}`);
         const digestValue = `sha256:${record9.sha256}`;
         bundleInputs.push({
           kind,
@@ -28489,12 +28492,12 @@ function buildHandoff(input, fs) {
     if (r === null || seen.has(r.abs))
       continue;
     seen.add(r.abs);
-    const text7 = fs.readText(r.abs);
-    if (text7 === void 0 || text7.trim() === "")
+    const text8 = fs.readText(r.abs);
+    if (text8 === void 0 || text8.trim() === "")
       continue;
-    const doc = compressDocument(text7, { documentLocale });
+    const doc = compressDocument(text8, { documentLocale });
     const summary = renderHandoffSummary(doc, `${input.name}/${spec.label}`, documentLocale);
-    doc.stats = statsFor(text7, doc.stats.originalLines, summary, doc);
+    doc.stats = statsFor(text8, doc.stats.originalLines, summary, doc);
     docs.push({ label: spec.label, path: r.display, doc, summary });
   }
   if (docs.length === 0) {
@@ -28548,8 +28551,8 @@ function sameLedgerContextBundleSourceAnchor(left, right) {
 var nodeLedgerContextBundlePrimitives = {
   isAbsoluteRoot: isAbsolute11,
   ledgerPath: (change) => posix3.join("openspec", "changes", change, ".pipeline-documents.json"),
-  sha256: (text7) => createHash28("sha256").update(text7, "utf8").digest("hex"),
-  utf8ByteLength: (text7) => Buffer.byteLength(text7, "utf8")
+  sha256: (text8) => createHash28("sha256").update(text8, "utf8").digest("hex"),
+  utf8ByteLength: (text8) => Buffer.byteLength(text8, "utf8")
 };
 async function compileLedgerContextBundle(input) {
   const fs = input.fs ?? nodeHandoffFs();
@@ -28579,8 +28582,8 @@ async function compileLedgerContextBundle(input) {
             repairAction: "\u51CF\u5C11\u5DF2\u767B\u8BB0\u8F93\u5165\u6216\u62C6\u5206\u8FC7\u5927\u7684\u6CBB\u7406\u6587\u6863\u540E\u91CD\u8BD5"
           });
         }
-        const text7 = fs.readText(absolute);
-        if (text7 === void 0)
+        const text8 = fs.readText(absolute);
+        if (text8 === void 0)
           throw new Error(`source is missing: ${path15}`);
         if (guarded2 && before !== void 0) {
           const after = await anchorLedgerContextBundleSource(input.root, absolute, path15);
@@ -28588,7 +28591,7 @@ async function compileLedgerContextBundle(input) {
             throw new Error(`source anchor changed: ${path15}`);
           }
         }
-        return { text: text7, sourceBytes: Buffer.byteLength(text7, "utf8") };
+        return { text: text8, sourceBytes: Buffer.byteLength(text8, "utf8") };
       }
     },
     primitives: nodeLedgerContextBundlePrimitives
@@ -31419,6 +31422,42 @@ async function executeReviewAcknowledgeCommand(port) {
   });
 }
 
+// packages/kernel/dist/decision/self-approval.js
+var SELF_APPROVAL_SIGNAL_FILE = ".pipeline-decision-security.jsonl";
+var SELF_APPROVAL_SIGNAL_TYPE = "pending-decision-self-approval-suspected";
+var SELF_APPROVAL_SCHEMA_VERSION = "pending-decision-security/v1";
+var NAME_RE = /^[A-Za-z0-9_-]+$/u;
+var HASH_RE2 = /^sha256:[0-9a-f]{64}$/u;
+var CHANNELS = /* @__PURE__ */ new Set(["terminal", "dashboard", "automation", "hook", "unknown"]);
+var KINDS = /* @__PURE__ */ new Set(["token-file-read", "localhost-control-write"]);
+function bounded(value, field3, max = 512) {
+  if (value === "" || value.length > max || /[\r\n]/u.test(value))
+    throw new Error(`${field3} is invalid`);
+  return value;
+}
+function createSelfApprovalSignal(input) {
+  if (!NAME_RE.test(input.change))
+    throw new Error("change is invalid");
+  if (!KINDS.has(input.kind))
+    throw new Error("kind is invalid");
+  if (!CHANNELS.has(input.channel))
+    throw new Error("channel is invalid");
+  if (!HASH_RE2.test(input.processOrHostHash))
+    throw new Error("process_or_host_hash is invalid");
+  return {
+    schema_version: SELF_APPROVAL_SCHEMA_VERSION,
+    signal_kind: SELF_APPROVAL_SIGNAL_TYPE,
+    kind: input.kind,
+    change: input.change,
+    phase: bounded(input.phase, "phase"),
+    event: bounded(input.event, "event"),
+    request_anchor: bounded(input.requestAnchor, "request_anchor"),
+    channel: input.channel,
+    process_or_host_hash: input.processOrHostHash,
+    observed_at: bounded(input.observedAt, "observed_at")
+  };
+}
+
 // packages/kernel/dist/skills/source-registry.js
 var TOOL_SET = /* @__PURE__ */ new Set([
   "claude-plugin",
@@ -31577,8 +31616,8 @@ function parseEntry(line, lineNo) {
     entry.note = note;
   return entry;
 }
-function parseSkillSources(text7) {
-  const lines = text7.split("\n");
+function parseSkillSources(text8) {
+  const lines = text8.split("\n");
   const out = [];
   const seen = /* @__PURE__ */ new Set();
   let inSkills = false;
@@ -31663,8 +31702,8 @@ function strictPhysicalId(sourceRef) {
 function isSafeProvenanceId(id2) {
   return id2.length > 0 && id2 !== "." && id2 !== ".." && !id2.includes("/") && !id2.includes("\\") && !id2.includes("\0");
 }
-function parseSkillProvenanceRegistry(text7) {
-  const lines = text7.split("\n");
+function parseSkillProvenanceRegistry(text8) {
+  const lines = text8.split("\n");
   let version;
   let hashAlgorithm;
   let inSkills = false;
@@ -33037,11 +33076,11 @@ async function openArtifactService(options) {
       const entries = policy2.includeHistory ? all : all.filter((v) => s.artifacts.find((r) => r.artifactId === v.artifactId)?.currentVersion === v.version);
       const cursor = policy2.cursor === void 0 ? 0 : Math.max(0, Number.isSafeInteger(Number(policy2.cursor)) ? Number(policy2.cursor) : 0);
       const pageSize = policy2.maxEntries === void 0 ? entries.length : Math.max(0, policy2.maxEntries);
-      const bounded = entries.slice(cursor, cursor + pageSize);
-      const truncated = cursor + bounded.length < entries.length;
-      const nextCursor = truncated ? String(cursor + bounded.length) : void 0;
-      const d = digest10(new TextEncoder().encode(JSON.stringify(bounded.map((x) => [x.artifactId, x.version, x.contentDigest, x.disposition, x.quality, x.producer, x.publisher, x.consumed, x.pendingUpdate, x.affected, x.availableFromStage]))));
-      return { revision: s.revision, digest: d, stageAttemptId: id2, entries: bounded, history: policy2.includeHistory ? bounded : void 0, totalEntries: entries.length, truncated, ...nextCursor ? { nextCursor } : {} };
+      const bounded2 = entries.slice(cursor, cursor + pageSize);
+      const truncated = cursor + bounded2.length < entries.length;
+      const nextCursor = truncated ? String(cursor + bounded2.length) : void 0;
+      const d = digest10(new TextEncoder().encode(JSON.stringify(bounded2.map((x) => [x.artifactId, x.version, x.contentDigest, x.disposition, x.quality, x.producer, x.publisher, x.consumed, x.pendingUpdate, x.affected, x.availableFromStage]))));
+      return { revision: s.revision, digest: d, stageAttemptId: id2, entries: bounded2, history: policy2.includeHistory ? bounded2 : void 0, totalEntries: entries.length, truncated, ...nextCursor ? { nextCursor } : {} };
     },
     inspect: async (artifactId, version, options2 = {}) => {
       const s = await load();
@@ -33285,9 +33324,9 @@ var BoundedTail = class {
     this.separator = separator;
   }
   push(item2) {
-    const bounded = item2.length > this.maxChars ? item2.slice(item2.length - this.maxChars) : item2;
-    this.totalChars += bounded.length + (this.items.length > 0 ? this.separator.length : 0);
-    this.items.push(bounded);
+    const bounded2 = item2.length > this.maxChars ? item2.slice(item2.length - this.maxChars) : item2;
+    this.totalChars += bounded2.length + (this.items.length > 0 ? this.separator.length : 0);
+    this.items.push(bounded2);
     while (this.totalChars > this.maxChars && this.items.length > 1) {
       const dropped = this.items.shift();
       if (dropped === void 0)
@@ -34136,8 +34175,8 @@ function isRecord8(value) {
 }
 var SAFE_ID_RE6 = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 var CHANGE_NAME_RE3 = /^[A-Za-z0-9_-]+$/;
-function requiredString(object7, key, path15, issues, kind = "text") {
-  const value = object7[key];
+function requiredString(object8, key, path15, issues, kind = "text") {
+  const value = object8[key];
   if (typeof value !== "string" || value.trim() === "" || value.includes("\0")) {
     issues.push(`${path15}.${key}: expected a non-empty string`);
     return null;
@@ -34720,10 +34759,10 @@ async function withAbortableWait(slot, signal, work) {
     void lock.then((value) => settle("resolve", value), (error2) => settle("reject", error2));
   });
 }
-function parseDurableRecord(text7, key) {
+function parseDurableRecord(text8, key) {
   let input;
   try {
-    input = JSON.parse(text7);
+    input = JSON.parse(text8);
   } catch (error2) {
     throw new TriageCheckpointStoreError("corrupt", `triage checkpoint file is not valid JSON: ${safeErrorText3(error2)}`, { cause: error2 });
   }
@@ -34751,15 +34790,15 @@ function parseDurableRecord(text7, key) {
   });
 }
 async function readPath(file, key) {
-  let text7;
+  let text8;
   try {
-    text7 = await readFile27(file, "utf8");
+    text8 = await readFile27(file, "utf8");
   } catch (error2) {
     if (isEnoent(error2))
       return emptySnapshot(key);
     throw new TriageCheckpointStoreError("io", `triage checkpoint read failed: ${safeErrorText3(error2)}`, { cause: error2 });
   }
-  return parseDurableRecord(text7, key);
+  return parseDurableRecord(text8, key);
 }
 var encodeRecord = (key, revision, checkpoint) => `${JSON.stringify({
   schemaVersion: 1,
@@ -40579,12 +40618,12 @@ import { readFile as fsReadFile, stat as fsStat } from "node:fs/promises";
 import { resolve as resolve22 } from "node:path";
 var resolveGitMounts = async (gitPath, deps) => {
   const stat16 = deps?.stat ?? ((p) => fsStat(p));
-  const readFile55 = deps?.readFile ?? ((p) => fsReadFile(p, "utf-8"));
+  const readFile56 = deps?.readFile ?? ((p) => fsReadFile(p, "utf-8"));
   const s = await stat16(gitPath);
   if (s.isDirectory()) {
     return [{ hostPath: gitPath, sandboxPath: gitPath }];
   }
-  const content = (await readFile55(gitPath)).trim();
+  const content = (await readFile56(gitPath)).trim();
   const match = content.match(/^gitdir:\s*(.+)$/);
   if (!match) {
     return [{ hostPath: gitPath, sandboxPath: gitPath }];
@@ -43378,8 +43417,8 @@ var MAX_EVENT_SAMPLE_CHARS = 180;
 function asRecord5(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function unwrap(text7) {
-  const tagged = /<output>\s*([\s\S]*?)\s*<\/output>/u.exec(text7)?.[1] ?? text7;
+function unwrap(text8) {
+  const tagged = /<output>\s*([\s\S]*?)\s*<\/output>/u.exec(text8)?.[1] ?? text8;
   const fenced = tagged.trim().match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/u);
   return (fenced?.[1] ?? tagged).trim();
 }
@@ -44034,14 +44073,14 @@ function defaultRegistryPath() {
   return join57(dirname12(fileURLToPath(import.meta.url)), "..", "..", "..", "templates", "skill-sources.yaml");
 }
 function loadCanonicalSkillSources(path15) {
-  let text7;
+  let text8;
   try {
-    text7 = readFileSync14(path15 ?? defaultRegistryPath(), "utf8");
+    text8 = readFileSync14(path15 ?? defaultRegistryPath(), "utf8");
   } catch (e) {
     return { ok: false, error: `\u8BFB\u53D6 canonical registry \u5931\u8D25: ${e instanceof Error ? e.message : String(e)}` };
   }
   try {
-    const registry = parseSkillProvenanceRegistry(text7);
+    const registry = parseSkillProvenanceRegistry(text8);
     return { ok: true, sources: [...registry.skills] };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -44626,7 +44665,7 @@ function probeHealthyDashboard(port, expectedReleaseId, expectedStateScopeId, op
     const request = httpGet(
       { host: "127.0.0.1", port, path: "/api/health", timeout: socketTimeoutMs },
       (response) => {
-        let text7 = "";
+        let text8 = "";
         let receivedBytes = 0;
         const failResponse = () => {
           response.destroy();
@@ -44639,7 +44678,7 @@ function probeHealthyDashboard(port, expectedReleaseId, expectedStateScopeId, op
             failResponse();
             return;
           }
-          text7 += chunk;
+          text8 += chunk;
         });
         response.once("aborted", () => finish(null));
         response.once("error", () => finish(null));
@@ -44650,7 +44689,7 @@ function probeHealthyDashboard(port, expectedReleaseId, expectedStateScopeId, op
           }
           try {
             finish(healthyDashboardIdentity(
-              JSON.parse(text7),
+              JSON.parse(text8),
               port,
               expectedReleaseId,
               expectedStateScopeId,
@@ -47651,10 +47690,10 @@ function decodeMarketplaceIdentity(value) {
     clean: value.clean
   };
 }
-function decodeDesiredIdentity(text7) {
+function decodeDesiredIdentity(text8) {
   let value;
   try {
-    value = JSON.parse(text7);
+    value = JSON.parse(text8);
   } catch {
     return null;
   }
@@ -47752,12 +47791,12 @@ function explicitCodexMarketplaceRef(item2, sourceRecord) {
   }
   return value;
 }
-function parseCodexMarketplaceConfigRef(text7) {
+function parseCodexMarketplaceConfigRef(text8) {
   let inTenonSection = false;
   let sectionCount = 0;
   let ref = null;
   let refSeen = false;
-  for (const line of text7.split(/\r?\n/u)) {
+  for (const line of text8.split(/\r?\n/u)) {
     const section2 = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/u.exec(line);
     if (section2 !== null) {
       inTenonSection = section2[1]?.trim() === "marketplaces.tenon";
@@ -47803,9 +47842,9 @@ function codexConfiguredMarketplaceRef(env, item2, sourceRecord, root) {
   }
   return metadata.ref_name;
 }
-function parseManagedHostJson(text7, label) {
+function parseManagedHostJson(text8, label) {
   try {
-    return JSON.parse(text7);
+    return JSON.parse(text8);
   } catch {
     throw new ManagedRuntimeIndeterminateError(`${label} \u4E0D\u662F\u5408\u6CD5 JSON`);
   }
@@ -49561,23 +49600,23 @@ function outputStrings(value) {
 }
 function hostEnvelopeStrings(value) {
   const marker = "\nOutput:\n";
-  return outputStrings(value).map((text7) => {
-    const boundary = text7.indexOf(marker);
-    return boundary === -1 ? text7 : text7.slice(0, boundary);
+  return outputStrings(value).map((text8) => {
+    const boundary = text8.indexOf(marker);
+    return boundary === -1 ? text8 : text8.slice(0, boundary);
   });
 }
 function scriptStates(value) {
   return hostEnvelopeStrings(value).flatMap(
-    (text7) => [...text7.matchAll(/(?:^|\n)Script (completed|failed)(?=\n|$)/g)].map((match) => match[1] ?? "")
+    (text8) => [...text8.matchAll(/(?:^|\n)Script (completed|failed)(?=\n|$)/g)].map((match) => match[1] ?? "")
   );
 }
 function customHostHeaderState(item2) {
-  const text7 = typeof item2 === "string" ? item2 : isRecord17(item2) && item2.type === "input_text" ? asString(item2.text) : void 0;
-  if (text7 === void 0) return void 0;
+  const text8 = typeof item2 === "string" ? item2 : isRecord17(item2) && item2.type === "input_text" ? asString(item2.text) : void 0;
+  if (text8 === void 0) return void 0;
   const marker = "\nOutput:\n";
-  const boundary = text7.indexOf(marker);
-  if (boundary === -1 || boundary !== text7.length - marker.length) return void 0;
-  const header = text7.slice(0, boundary);
+  const boundary = text8.indexOf(marker);
+  if (boundary === -1 || boundary !== text8.length - marker.length) return void 0;
+  const header = text8.slice(0, boundary);
   const firstState = /^Script (completed|failed)(?:\n|$)/.exec(header)?.[1];
   const states = [...header.matchAll(
     /(?:^|\n)Script (completed|failed)(?=\n|$)/g
@@ -49588,7 +49627,7 @@ function customHostHeaderState(item2) {
 function successfulFunctionOutput(value) {
   if (scriptStates(value).includes("failed")) return false;
   const textExitCodes = hostEnvelopeStrings(value).flatMap(
-    (text7) => [...text7.matchAll(
+    (text8) => [...text8.matchAll(
       /(?:Process exited with code|exit_code["']?\s*:)\s*(\d+)\b/g
     )].map((match) => Number(match[1]))
   );
@@ -49605,23 +49644,23 @@ function completeResultEnvelopeExitCode(value) {
   if (!isRecord17(value) || typeof value.chunk_id !== "string" || value.chunk_id.length === 0 || typeof value.output !== "string" || typeof value.wall_time_seconds !== "number" || !Number.isFinite(value.wall_time_seconds) || value.wall_time_seconds < 0 || typeof value.original_token_count !== "number" || !Number.isInteger(value.original_token_count) || value.original_token_count < 0) return void 0;
   return topLevelExitCode(value);
 }
-function topLevelObjectKeys(text7) {
+function topLevelObjectKeys(text8) {
   const keys = [];
   let depth = 0;
   let expectKey = false;
-  for (let index = 0; index < text7.length; index += 1) {
-    const character = text7[index];
+  for (let index = 0; index < text8.length; index += 1) {
+    const character = text8[index];
     if (character === '"') {
       const start = index;
-      for (index += 1; index < text7.length; index += 1) {
-        if (text7[index] === "\\") {
+      for (index += 1; index < text8.length; index += 1) {
+        if (text8[index] === "\\") {
           index += 1;
           continue;
         }
-        if (text7[index] === '"') break;
+        if (text8[index] === '"') break;
       }
       if (depth === 1 && expectKey) {
-        keys.push(JSON.parse(text7.slice(start, index + 1)));
+        keys.push(JSON.parse(text8.slice(start, index + 1)));
         expectKey = false;
       }
       continue;
@@ -49637,10 +49676,10 @@ function topLevelObjectKeys(text7) {
   }
   return keys;
 }
-function parsedCompleteResultEnvelope(text7) {
+function parsedCompleteResultEnvelope(text8) {
   try {
-    const value = JSON.parse(text7);
-    const keys = topLevelObjectKeys(text7);
+    const value = JSON.parse(text8);
+    const keys = topLevelObjectKeys(text8);
     const requiredKeys = [
       "chunk_id",
       "wall_time_seconds",
@@ -49678,9 +49717,9 @@ function parsedCustomCompletion(value) {
   }
   if (value.length !== 2) return void 0;
   const payload = value[1];
-  const text7 = typeof payload === "string" ? payload : isRecord17(payload) && payload.type === "input_text" ? asString(payload.text) : void 0;
-  if (text7 === void 0) return void 0;
-  const envelope2 = parsedCompleteResultEnvelope(text7);
+  const text8 = typeof payload === "string" ? payload : isRecord17(payload) && payload.type === "input_text" ? asString(payload.text) : void 0;
+  if (text8 === void 0) return void 0;
+  const envelope2 = parsedCompleteResultEnvelope(text8);
   return envelope2 === void 0 ? void 0 : { exitCode: envelope2.exitCode, stdout: envelope2.output };
 }
 function successfulFunctionStdout(value) {
@@ -50336,14 +50375,14 @@ async function appendReceipt(repoRoot, receipt) {
 async function loadReceipts(repoRoot) {
   const path15 = join76(resolve32(repoRoot), CODEX_SKILL_RECEIPTS_FILE);
   if (!await regularFile(path15)) return [];
-  let text7;
+  let text8;
   try {
-    text7 = await readFile41(path15, "utf8");
+    text8 = await readFile41(path15, "utf8");
   } catch {
     return [];
   }
   const receipts = [];
-  for (const line of text7.split(/\r?\n/)) {
+  for (const line of text8.split(/\r?\n/)) {
     if (line.trim() === "") continue;
     try {
       const receipt = parseReceipt3(JSON.parse(line));
@@ -51136,14 +51175,14 @@ async function cmdTransition(deps, name2, event) {
     assessBuildRevision: resolveBuildRevisionAssessor(deps, name2, dir),
     specMigrationStatus: () => evaluateSpecMigrationEvidence(deps.cwd, dir, name2),
     ...guardContext === void 0 ? {} : { tasksThroughPhase: async (phase) => {
-      const bounded = tasksPath === void 0 ? void 0 : guardContext.readFileBounded?.(tasksPath, tasksByteLimit);
-      if (bounded?.kind === "invalid") {
+      const bounded2 = tasksPath === void 0 ? void 0 : guardContext.readFileBounded?.(tasksPath, tasksByteLimit);
+      if (bounded2?.kind === "invalid") {
         return { pass: false, failure: `${phase} \u51FA\u53E3\uFF1Atasks.md \u4E0D\u53EF\u4FE1\u6216\u8D85\u51FA\u9884\u7B97` };
       }
       return taskPlanTasksThroughPhaseForChange(
         dir,
         phase,
-        bounded === void 0 ? void 0 : bounded.kind === "ok" ? bounded.text : null
+        bounded2 === void 0 ? void 0 : bounded2.kind === "ok" ? bounded2.text : null
       );
     } }
   };
@@ -51780,15 +51819,15 @@ function assertSafeSkillRoot(root, skillId) {
 function loadSkillAliases(pluginRoot2) {
   if (pluginRoot2 === void 0) return /* @__PURE__ */ new Map();
   const path15 = join78(pluginRoot2, "templates", "skill-sources.yaml");
-  let text7;
+  let text8;
   try {
-    text7 = readFileSync17(path15, "utf8");
+    text8 = readFileSync17(path15, "utf8");
   } catch (error2) {
     if (errnoCode5(error2) === "ENOENT") return /* @__PURE__ */ new Map();
     throw new SkillProvenanceLocatorError("registry-read-error", `\u8BFB\u53D6 skill source registry \u5931\u8D25: ${path15}\uFF08${String(error2)}\uFF09`);
   }
   const aliases = /* @__PURE__ */ new Map();
-  for (const row of parseSkillSources(text7)) {
+  for (const row of parseSkillSources(text8)) {
     const physical = row.contentSkill ?? (row.tool === "skills-cli" || row.tool === "claude-plugin" ? row.skill : void 0);
     if (!row.token.includes(":") && physical !== void 0 && physical !== row.token) aliases.set(row.token, physical);
   }
@@ -53080,11 +53119,11 @@ function validateEventBase(partial) {
     throw new Error("meta \u5FC5\u987B\u662F plain object\uFF08dict\uFF09");
   }
 }
-function parseEventsText(text7) {
+function parseEventsText(text8) {
   const out = [];
-  if (!text7)
+  if (!text8)
     return out;
-  for (const line of text7.split("\n")) {
+  for (const line of text8.split("\n")) {
     const s = line.trim();
     if (!s)
       continue;
@@ -53100,10 +53139,10 @@ function parseEventsText(text7) {
   }
   return out;
 }
-function findIdempotentEvent(text7, key, kind) {
-  if (!text7)
+function findIdempotentEvent(text8, key, kind) {
+  if (!text8)
     return void 0;
-  for (const line of text7.split("\n")) {
+  for (const line of text8.split("\n")) {
     const s = line.trim();
     if (!s)
       continue;
@@ -53125,8 +53164,8 @@ function findIdempotentEvent(text7, key, kind) {
 
 // packages/channel/dist/seq.js
 var SIDECAR_RE = /^[0-9]+$/;
-function parseSidecar(text7) {
-  const t = text7.replace(/\n$/, "");
+function parseSidecar(text8) {
+  const t = text8.replace(/\n$/, "");
   if (!SIDECAR_RE.test(t))
     return void 0;
   const n = Number(t);
@@ -53153,10 +53192,10 @@ function lastSeqInLines(lines) {
   }
   return void 0;
 }
-function readLastJsonlSeqFromText(text7) {
-  if (text7.length === 0)
+function readLastJsonlSeqFromText(text8) {
+  if (text8.length === 0)
     return 0;
-  const lines = text7.split("\n");
+  const lines = text8.split("\n");
   const found = lastSeqInLines(lines);
   if (found !== void 0)
     return found;
@@ -54211,8 +54250,8 @@ function readNewEvents(fs, path15, state) {
   if (chunk === void 0)
     return [];
   state.byteOffset = size;
-  const text7 = state.carry + chunk;
-  const lines = text7.split("\n");
+  const text8 = state.carry + chunk;
+  const lines = text8.split("\n");
   state.carry = lines.pop() ?? "";
   return parseEventsText(lines.join("\n"));
 }
@@ -54585,11 +54624,11 @@ var EchoAdapter = class {
   isReady() {
     return true;
   }
-  encodeUserMessage(text7) {
-    return text7 + "\n";
+  encodeUserMessage(text8) {
+    return text8 + "\n";
   }
-  encodeInterruptMessage(text7) {
-    return text7 + "\n";
+  encodeInterruptMessage(text8) {
+    return text8 + "\n";
   }
   parseLine(line) {
     return { events: [{ kind: "done", payload: { text: line.trim() } }], side: null };
@@ -54841,9 +54880,9 @@ async function runInboxWatcher(a) {
       return;
     const kind = ev.kind;
     const isInterrupt = kind === "interrupt_requested";
-    const text7 = String(ev.text ?? "").trim();
+    const text8 = String(ev.text ?? "").trim();
     const interruptText = String(ev.message ?? "").trim();
-    if (!text7 && (!isInterrupt || !interruptText))
+    if (!text8 && (!isInterrupt || !interruptText))
       continue;
     const seq2 = typeof ev.seq === "number" ? ev.seq : cursor;
     if (!adapter2.isReady(ctx)) {
@@ -54882,7 +54921,7 @@ async function runInboxWatcher(a) {
     const turn = turnTracker.begin(seq2);
     try {
       append2({ kind: "turn_started", by: worker, worker, inputSeq: seq2, turnId: turn.turnId });
-      const encoded = isInterrupt ? adapter2.encodeInterruptMessage(interruptText, ctx) : adapter2.encodeUserMessage(text7, ctx);
+      const encoded = isInterrupt ? adapter2.encodeInterruptMessage(interruptText, ctx) : adapter2.encodeUserMessage(text8, ctx);
       child.write(encoded);
       cursor = seq2;
       writeInboxCursor(fs, env, channel, worker, cursor, scope);
@@ -55092,12 +55131,12 @@ function cmdSend(deps, host, p) {
   if (!name2) die("[channel send] \u7F3A channel \u540D");
   const by = strFlag(p.flags, "as");
   if (!by) die("[channel send] \u9700 --as <by>");
-  const text7 = p.positional[1] ?? "";
-  if (!text7) die("[channel send] \u7A7A\u6587\u672C\uFF08\u9700 arg / --to \u5B9A\u5411\u6587\u672C\uFF09");
+  const text8 = p.positional[1] ?? "";
+  if (!text8) die("[channel send] \u7A7A\u6587\u672C\uFF08\u9700 arg / --to \u5B9A\u5411\u6587\u672C\uFF09");
   const scope = scopeOf(p.flags);
   const targets2 = csv(strFlag(p.flags, "to"));
   const mode = strFlag(p.flags, "delivery-mode") ?? "appendOnly";
-  const partial = { kind: "message", by, origin: "cli", text: text7 };
+  const partial = { kind: "message", by, origin: "cli", text: text8 };
   if (targets2.length === 1) partial.to = targets2[0];
   else if (targets2.length > 1) partial.to = targets2;
   const msg = host.store.append(name2, partial, scope);
@@ -55195,13 +55234,13 @@ function cmdInterrupt(deps, host, p) {
   if (!by) die("[channel interrupt] \u9700 --as <by>");
   const to = strFlag(p.flags, "to");
   if (!to) die("[channel interrupt] \u9700 --to <worker>");
-  const text7 = p.positional[1] ?? "";
-  if (!text7) die("[channel interrupt] \u7A7A\u6587\u672C\uFF08\u9700 arg\uFF09");
+  const text8 = p.positional[1] ?? "";
+  if (!text8) die("[channel interrupt] \u7A7A\u6587\u672C\uFF08\u9700 arg\uFF09");
   emit(
     deps,
     host.store.append(
       name2,
-      { kind: "interrupt_requested", by, origin: "cli", worker: to, message: text7, reason: "user" },
+      { kind: "interrupt_requested", by, origin: "cli", worker: to, message: text8, reason: "user" },
       scopeOf(p.flags)
     )
   );
@@ -56410,9 +56449,9 @@ function decode(bytes, label) {
   }
 }
 function loadSnapshotRegistry(repoRoot, snapshot2) {
-  const text7 = decode(snapshot2.registry_bytes, ".pipeline/loops.yaml");
-  if (text7 === null) throw new Error(`loops.yaml \u672A\u627E\u5230\u4E8E ${repoRoot}/.pipeline/loops.yaml`);
-  const loaded = loadRegistry(repoRoot, { readText: () => text7 });
+  const text8 = decode(snapshot2.registry_bytes, ".pipeline/loops.yaml");
+  if (text8 === null) throw new Error(`loops.yaml \u672A\u627E\u5230\u4E8E ${repoRoot}/.pipeline/loops.yaml`);
+  const loaded = loadRegistry(repoRoot, { readText: () => text8 });
   if (loaded.data === null || loaded.errors.length > 0) {
     throw new Error(loaded.errors.join("; ") || "loops.yaml \u65E0\u6CD5\u89E3\u6790");
   }
@@ -58455,12 +58494,12 @@ async function cmdResolveWorkflow(deps, args, fs) {
   let available = [];
   const sourceIdx = typeof flags["source-index"] === "string" ? flags["source-index"] : void 0;
   if (sourceIdx) {
-    const text7 = await fs.readText(abs(sourceIdx));
-    if (text7 === void 0) {
+    const text8 = await fs.readText(abs(sourceIdx));
+    if (text8 === void 0) {
       deps.io.err(`ERROR: source index \u4E0D\u5B58\u5728: ${sourceIdx}`);
       return 1;
     }
-    available = parseWorkflowIds(text7);
+    available = parseWorkflowIds(text8);
   }
   let res = resolveWorkflow(requested, available);
   if (!res.ok) {
@@ -58492,8 +58531,8 @@ async function cmdResolveWorkflow(deps, args, fs) {
   if ("apply-hash" in flags) {
     try {
       const manifestAbs = abs(OWNED_MANIFEST);
-      const text7 = await fs.readText(manifestAbs);
-      const map = text7 === void 0 ? {} : parseOwnedManifest(text7);
+      const text8 = await fs.readText(manifestAbs);
+      const map = text8 === void 0 ? {} : parseOwnedManifest(text8);
       const workflowContent = res.isNative ? await fs.readText(abs(WORKFLOW_MD_REL)) : void 0;
       const next = applyWorkflowHashContract(map, WORKFLOW_MD_REL, res.isNative, workflowContent);
       await fs.writeText(manifestAbs, serializeOwnedManifest(next));
@@ -58828,14 +58867,14 @@ async function writeAuthorityProjection(cwd, name2, sessionId) {
 }
 var REAL_FS2 = {
   loadPackages: async (cwd) => {
-    let text7;
+    let text8;
     try {
-      text7 = await readFile49(join89(cwd, PROJECT_CONFIG_FILE), "utf8");
+      text8 = await readFile49(join89(cwd, PROJECT_CONFIG_FILE), "utf8");
     } catch {
       return null;
     }
     try {
-      return parseProjectPackages(text7);
+      return parseProjectPackages(text8);
     } catch {
       return null;
     }
@@ -60260,15 +60299,15 @@ function assembleBedrockConverseBody(events) {
       const delta = typeof data.delta === "object" && data.delta !== null && !Array.isArray(data.delta) ? data.delta : {};
       if (!blockKind.has(idx))
         blockOrder.push(idx);
-      const text7 = delta.text;
+      const text8 = delta.text;
       const toolDelta = delta.toolUse;
       const reasoningDelta = delta.reasoningContent;
-      if (typeof text7 === "string") {
+      if (typeof text8 === "string") {
         if (blockKind.get(idx) !== "tool_use") {
           if (!blockKind.has(idx))
             blockKind.set(idx, "text");
           const parts = blockTextParts.get(idx) ?? [];
-          parts.push(text7);
+          parts.push(text8);
           blockTextParts.set(idx, parts);
         }
       } else if (typeof toolDelta === "object" && toolDelta !== null && !Array.isArray(toolDelta)) {
@@ -60435,9 +60474,9 @@ function mergeJsonLists(existing, incoming) {
   return merged;
 }
 function parseMessage(msg) {
-  const text7 = Buffer.isBuffer(msg) ? msg.toString("utf8") : String(msg);
+  const text8 = Buffer.isBuffer(msg) ? msg.toString("utf8") : String(msg);
   try {
-    return JSON.parse(text7);
+    return JSON.parse(text8);
   } catch {
     return void 0;
   }
@@ -62821,8 +62860,8 @@ async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
         throw new Error(`Codex JSONL line ${index + 1} is invalid: ${String(error2)}`);
       }
       if (mode === "transitions") {
-        visitStrings(event, (text7) => {
-          for (const embeddedLine of text7.split(/\r?\n/)) {
+        visitStrings(event, (text8) => {
+          for (const embeddedLine of text8.split(/\r?\n/)) {
             if (embeddedLine.startsWith("[TRANSITION] ")) deps.io.out(embeddedLine);
           }
         });
@@ -62947,15 +62986,15 @@ function validateLegacySyncEntry(line, lineNo) {
     }
   }
 }
-function parseSyncSources(text7) {
-  if (/^\s*version:\s*3\s*$/m.test(text7) || /^\s*hash_algorithm\s*:/m.test(text7)) {
-    return [...parseSkillProvenanceRegistry(text7).skills];
+function parseSyncSources(text8) {
+  if (/^\s*version:\s*3\s*$/m.test(text8) || /^\s*hash_algorithm\s*:/m.test(text8)) {
+    return [...parseSkillProvenanceRegistry(text8).skills];
   }
   let inSkills = false;
   let version;
   let seenVersion = false;
   let seenSkills = false;
-  for (const [index, raw] of text7.split("\n").entries()) {
+  for (const [index, raw] of text8.split("\n").entries()) {
     const line = raw.replace(/\s+#.*$/, "").trimEnd();
     const trimmed = line.trim();
     if (trimmed === "" || trimmed.startsWith("#")) continue;
@@ -62985,7 +63024,7 @@ function parseSyncSources(text7) {
   if (version === void 0) throw new Error("strict sync input \u7F3A\u5C11\u660E\u786E\u7684 version: 1/2");
   if (version !== 1 && version !== 2) throw new Error(`strict sync input \u4E0D\u652F\u6301 legacy version: ${version}`);
   if (!seenSkills) throw new Error("strict sync input \u7F3A\u5C11 skills: \u6761\u76EE\u5757");
-  return parseSkillSources(text7);
+  return parseSkillSources(text8);
 }
 async function capturePath(path15, label) {
   const stat16 = await lstat43(path15);
@@ -64015,16 +64054,16 @@ var REAL_SETUP_ENV = {
       return [];
     }
   },
-  writeText: (path15, text7) => {
-    writeFileSync5(path15, text7, "utf8");
+  writeText: (path15, text8) => {
+    writeFileSync5(path15, text8, "utf8");
   },
-  writeTextAtomic: (path15, text7) => {
+  writeTextAtomic: (path15, text8) => {
     const lockPath2 = `${path15}.lock`;
     const tempPath = `${path15}.tmp-${process.pid}-${randomUUID19()}`;
     let lockFd;
     try {
       lockFd = openSync6(lockPath2, "wx", 384);
-      writeFileSync5(tempPath, text7, { encoding: "utf8", mode: 384, flag: "wx" });
+      writeFileSync5(tempPath, text8, { encoding: "utf8", mode: 384, flag: "wx" });
       renameSync5(tempPath, path15);
     } finally {
       try {
@@ -65562,16 +65601,16 @@ function nonNegativeInteger(value) {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 async function readMigrationReceipt(path15) {
-  let text7;
+  let text8;
   try {
-    text7 = await readFile52(path15, "utf8");
+    text8 = await readFile52(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
   }
   let value;
   try {
-    value = JSON.parse(text7);
+    value = JSON.parse(text8);
   } catch {
     throw new Error(`host project registry migration receipt \u975E\u6CD5\uFF1A${path15}`);
   }
@@ -65594,16 +65633,16 @@ async function readMigrationReceipt(path15) {
   };
 }
 async function readPendingMigration(path15) {
-  let text7;
+  let text8;
   try {
-    text7 = await readFile52(path15, "utf8");
+    text8 = await readFile52(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
   }
   let value;
   try {
-    value = JSON.parse(text7);
+    value = JSON.parse(text8);
   } catch {
     throw new Error(`host project registry migration pending snapshot \u975E\u6CD5\uFF1A${path15}`);
   }
@@ -65654,15 +65693,15 @@ async function migrateLegacyProjectRegistry(input) {
       const discovered = /* @__PURE__ */ new Set();
       let rejected = 0;
       for (const path15 of resolveHostProjectRegistryCandidates(input)) {
-        const text7 = input.readText(path15);
-        if (text7 === void 0) continue;
-        if (Buffer.byteLength(text7) > MAX_LEGACY_REGISTRY_BYTES) {
+        const text8 = input.readText(path15);
+        if (text8 === void 0) continue;
+        if (Buffer.byteLength(text8) > MAX_LEGACY_REGISTRY_BYTES) {
           rejected += 1;
           continue;
         }
         let value;
         try {
-          value = JSON.parse(text7);
+          value = JSON.parse(text8);
         } catch {
           rejected += 1;
           continue;
@@ -68315,6 +68354,101 @@ async function cmdInternalNativeSkillReceipt(deps, changeName, skillId, sessionI
   }
 }
 
+// packages/cli/src/commands/internalSelfApproval.ts
+import { createHash as createHash55 } from "node:crypto";
+import { constants as constants12 } from "node:fs";
+import { open as open13, readFile as readFile53 } from "node:fs/promises";
+import { join as join113 } from "node:path";
+var MAX_PAYLOAD_BYTES2 = 16 * 1024;
+var IDENTITY_MAX_BYTES = 1024;
+function object6(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("payload must be an object");
+  return value;
+}
+async function readPayload(payloadPath) {
+  const handle = await open13(payloadPath, constants12.O_RDONLY | constants12.O_NOFOLLOW);
+  try {
+    const before = await handle.stat();
+    if (!before.isFile() || before.size > MAX_PAYLOAD_BYTES2) throw new Error("payload must be a bounded regular file");
+    const raw = await readFile53(handle, "utf8");
+    const after = await handle.stat();
+    if (after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size) {
+      throw new Error("payload changed during verified read");
+    }
+    return object6(JSON.parse(raw));
+  } finally {
+    await handle.close();
+  }
+}
+function text7(payload, key) {
+  const value = payload[key];
+  if (typeof value !== "string" || value === "" || value.length > IDENTITY_MAX_BYTES || /[\r\n]/u.test(value)) {
+    throw new Error(`${key} is invalid`);
+  }
+  return value;
+}
+function signalKind(payload) {
+  const value = text7(payload, "kind");
+  if (value !== "token-file-read" && value !== "localhost-control-write") throw new Error("kind is invalid");
+  return value;
+}
+function scalar16(state, field3) {
+  const value = state.fields[field3];
+  return Array.isArray(value) ? value.join(",") : value ?? "";
+}
+async function appendSignalUnderLock(changeDirPath, signal) {
+  const target = join113(changeDirPath, SELF_APPROVAL_SIGNAL_FILE);
+  const handle = await open13(
+    target,
+    constants12.O_WRONLY | constants12.O_APPEND | constants12.O_CREAT | constants12.O_NOFOLLOW,
+    384
+  );
+  try {
+    const stat16 = await handle.stat();
+    if (!stat16.isFile()) throw new Error("self-approval signal file must be a regular file");
+    await handle.write(`${JSON.stringify(signal)}
+`, void 0, "utf8");
+  } finally {
+    await handle.close();
+  }
+}
+async function cmdInternalSelfApproval(deps, changeName, payloadPath) {
+  try {
+    if (!isValidChangeName(changeName)) throw new Error("change name is invalid");
+    const payload = await readPayload(payloadPath);
+    const kind = signalKind(payload);
+    const identity2 = text7(payload, "process_or_host_identity");
+    const dir = changeDir(deps.cwd, changeName);
+    await deps.store.withLock(dir, async () => {
+      const state = await deps.store.read(dir);
+      const phase = scalar16(state, "review_gate_phase");
+      const event = scalar16(state, "review_gate_event");
+      if (phase === "" || event === "" || !reviewGatePendingFor(state, phase, event)) return;
+      const binding = await readReviewGateBinding(dir);
+      if (binding === void 0) throw new Error("review gate binding is missing");
+      if (binding.phase !== phase || binding.event !== event || binding.requestedAt !== scalar16(state, "review_requested_at")) {
+        throw new Error("review gate binding does not match pending receipt");
+      }
+      const processOrHostHash = `sha256:${createHash55("sha256").update(identity2, "utf8").digest("hex")}`;
+      const signal = createSelfApprovalSignal({
+        change: changeName,
+        phase,
+        event,
+        requestAnchor: reviewGateRequestAnchor(binding),
+        channel: "hook",
+        processOrHostHash,
+        observedAt: deps.clock(),
+        kind
+      });
+      await appendSignalUnderLock(dir, signal);
+    });
+    return 0;
+  } catch (error2) {
+    deps.io.err(`internal-self-approval: ${error2 instanceof Error ? error2.message : String(error2)}`);
+    return 1;
+  }
+}
+
 // packages/cli/src/program-skill-invocations.ts
 function registerSkillInvocationInternalCommands(program2, deps) {
   program2.command("internal-codex-skill-receipt <changeName> <skillId> <skillPath> <transcriptPath> <sessionId> <turnId> <toolUseId>").description("[\u5185\u90E8] \u4EC5\u767B\u8BB0 Codex PreToolUse \u7684\u5F85\u6838\u9A8C skill receipt\uFF1B\u4E0D\u4F1A\u76F4\u63A5\u5199\u5B8C\u6210\u8BC1\u636E").action(async (changeName, skillId, skillPath, transcriptPath, sessionId, turnId, toolUseId) => bail(await cmdInternalCodexSkillReceipt(
@@ -68336,17 +68470,18 @@ function registerSkillInvocationInternalCommands(program2, deps) {
     observedAt
   )));
   program2.command("internal-host-interaction <changeName> <payloadPath>").description("[\u5185\u90E8] \u5C06 native host \u7684\u7ED3\u6784\u5316\u95EE\u7B54\u7ED1\u5B9A\u5230\u540C session \u7684 canonical active invocation").action(async (changeName, payloadPath) => bail(await cmdInternalHostInteraction(deps, changeName, payloadPath)));
+  program2.command("internal-self-approval <changeName> <payloadPath>").description("[\u5185\u90E8] \u8BB0\u5F55 pending review \u7684\u8131\u654F\u81EA\u5BA1\u6279\u68C0\u6D4B\u4FE1\u53F7").action(async (changeName, payloadPath) => bail(await cmdInternalSelfApproval(deps, changeName, payloadPath)));
 }
 
 // packages/cli/src/commands/interaction.ts
 import { lstat as lstat45 } from "node:fs/promises";
-import { isAbsolute as isAbsolute37, join as join113, relative as relative29, resolve as resolve51 } from "node:path";
+import { isAbsolute as isAbsolute37, join as join114, relative as relative29, resolve as resolve51 } from "node:path";
 var MAX_FIXTURE_BYTES = 1024 * 1024;
 var MAX_EVENT_FILE_BYTES = 1024 * 1024;
 var MAX_FIXTURES = 256;
 var SAFE_RELATIVE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json$/;
 var SAFE_FIXTURE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
-function object6(value, label) {
+function object7(value, label) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} invalid`);
   return value;
 }
@@ -68402,10 +68537,10 @@ function assertFixturePath(root, file) {
   return target;
 }
 function parseManifest2(value) {
-  const raw = object6(value, "manifest");
+  const raw = object7(value, "manifest");
   exactKeys5(raw, ["schema", "dimensions", "fixtures"], "manifest");
   if (raw.schema !== INTERACTION_EVENT_SCHEMA) throw new Error("manifest schema invalid");
-  const dimensions = object6(raw.dimensions, "manifest dimensions");
+  const dimensions = object7(raw.dimensions, "manifest dimensions");
   const dimensionsKeys = ["executionMode", "workflowMode", "trackKind", "pipelineStage", "controlStage", "surface"];
   exactKeys5(dimensions, dimensionsKeys, "manifest dimensions");
   const executionMode = exactDimension(dimensions.executionMode, INTERACTION_EXECUTION_MODES, "manifest dimensions.executionMode");
@@ -68429,9 +68564,9 @@ function parseManifest2(value) {
       surface
     },
     fixtures: fixtures.map((entry) => {
-      const item2 = object6(entry, "manifest fixture");
+      const item2 = object7(entry, "manifest fixture");
       exactKeys5(item2, ["id", "mode", "file", "expected"], "manifest fixture");
-      const expected = object6(item2.expected, "manifest expected");
+      const expected = object7(item2.expected, "manifest expected");
       exactKeys5(expected, ["valid", "diagnostics"], "manifest expected");
       const diagnostics = arrayValue(expected.diagnostics, "manifest expected diagnostics").map((code) => stringValue3(code, "diagnostic"));
       if (diagnostics.some((code) => !INTERACTION_DIAGNOSTICS.includes(code))) {
@@ -68457,7 +68592,7 @@ function parseManifest2(value) {
 }
 async function readFixture(root, entry) {
   const value = await readRegularJson(assertFixturePath(root, entry.file), MAX_EVENT_FILE_BYTES, "fixture");
-  const raw = object6(value, "fixture");
+  const raw = object7(value, "fixture");
   exactKeys5(raw, ["schema", "fixture_id", "events"], "fixture");
   if (raw.schema !== INTERACTION_EVENT_SCHEMA || raw.fixture_id !== entry.id) throw new Error("fixture schema invalid");
   const events = arrayValue(raw.events, "fixture events").map((event) => {
@@ -68485,7 +68620,7 @@ async function cmdInteraction(deps, sub, args, opts = {}) {
       throw new Error("fixture directory unavailable");
     }
     if (directory.isSymbolicLink() || !directory.isDirectory()) throw new Error("fixture directory unavailable");
-    const manifest = parseManifest2(await readRegularJson(join113(fixtureDir, "manifest.json"), MAX_FIXTURE_BYTES, "manifest"));
+    const manifest = parseManifest2(await readRegularJson(join114(fixtureDir, "manifest.json"), MAX_FIXTURE_BYTES, "manifest"));
     const orderedEntries = [...manifest.fixtures].sort((left, right) => left.id.localeCompare(right.id));
     const physicalFiles = /* @__PURE__ */ new Set();
     for (const entry of orderedEntries) {
@@ -68519,7 +68654,7 @@ async function cmdInteraction(deps, sub, args, opts = {}) {
 }
 
 // packages/cli/src/commands/review-attempt.ts
-function scalar16(state, field3) {
+function scalar17(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -68530,12 +68665,12 @@ async function context(deps, name2) {
   const dir = changeDir(deps.cwd, name2);
   const state = await deps.store.read(dir);
   const plan = effectiveWorkflowForState(deps, state);
-  if (plan === null) throw new Error(`workflow '${scalar16(state, "workflow")}' \u672A\u627E\u5230\u6216\u4E0D\u53EF\u7F16\u8BD1`);
+  if (plan === null) throw new Error(`workflow '${scalar17(state, "workflow")}' \u672A\u627E\u5230\u6216\u4E0D\u53EF\u7F16\u8BD1`);
   const runId = state.runMetadata?.runId;
   if (runId === void 0 || runId === "") {
     throw new Error("\u5F53\u524D Pipeline \u7F3A\u5C11 durable run identity\uFF1B\u8BF7\u5148\u8FD0\u884C\u53D7\u652F\u6301\u7684\u72B6\u6001\u8FC1\u79FB\u5B8C\u6210\u5347\u7EA7");
   }
-  const scope = scalar16(state, "phase");
+  const scope = scalar17(state, "phase");
   if (scope === "") throw new Error("\u5F53\u524D Pipeline step \u4E3A\u7A7A\uFF0C\u65E0\u6CD5\u7ED1\u5B9A Review scope");
   const requiredLanes = plan.capabilities.review.laneScopes.find((entry) => entry.stepId === scope)?.lanes ?? [];
   const candidateFingerprint = await frozenReviewCandidate(deps, name2, state, plan, scope);
@@ -68764,26 +68899,26 @@ async function recordRejectedAcknowledgement(deps, interaction, changeDir2, chan
       revision,
       beforeRevision: revision,
       event,
-      requestedAt: scalar17(state, "review_requested_at"),
+      requestedAt: scalar18(state, "review_requested_at"),
       rejected: true,
-      clock: freshReviewRequestedAt(scalar17(state, "review_requested_at"), deps.clock)
+      clock: freshReviewRequestedAt(scalar18(state, "review_requested_at"), deps.clock)
     });
   } catch (error2) {
     deps.io.err(`WARN: ${INTERACTION_PROJECTION_WRITE_FAILED} interaction projection \u5199\u5165\u5931\u8D25\uFF08canonical review acknowledgement \u5DF2\u62D2\u7EDD\uFF09: ${errMsg(error2)}`);
   }
 }
-function scalar17(state, field3) {
+function scalar18(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 
 // packages/cli/src/commands/review.ts
-function scalar18(state, field3) {
+function scalar19(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 function resolveReviewStep(deps, state) {
-  const phase = scalar18(state, "phase");
+  const phase = scalar19(state, "phase");
   const plan = effectiveWorkflowForState(deps, state);
   if (!plan) throw new Error(`workflow '${String(state.fields.workflow ?? "")}' \u672A\u627E\u5230\u6216\u4E0D\u53EF\u7F16\u8BD1`);
   const step = resolveStep(plan.workflow, phase);
@@ -68816,7 +68951,7 @@ function resolveReviewEvent(step, requestedEvent) {
 }
 async function checkVerifyFailReadiness(deps, name2, dir, state) {
   const blockers = [];
-  const report = scalar18(state, "verification_report");
+  const report = scalar19(state, "verification_report");
   const fileExists2 = deps.guardCtx?.(name2)?.fileExists;
   if (report === "" || report === "null") {
     blockers.push(`verify-fail \u51B3\u7B56\u8981\u6C42 verification_report \u975E\u7A7A\uFF08\u5F53\u524D='${report || "null"}'\uFF09`);
@@ -68826,7 +68961,7 @@ async function checkVerifyFailReadiness(deps, name2, dir, state) {
   const plan = effectiveWorkflowForState(deps, state);
   const documentPolicy = plan?.capabilities.documents.policy;
   if (documentPolicy) {
-    const phase = scalar18(state, "phase");
+    const phase = scalar19(state, "phase");
     if (!isDocumentPolicyStep(documentPolicy, phase) || !isDocumentContractPhase(phase)) {
       blockers.push(`\u53D7 OpenSpec \u6587\u6863\u5951\u7EA6\u6CBB\u7406\u7684 workflow \u5F53\u524D phase \u975E\u6CD5\uFF08\u5F53\u524D='${phase || "\u7A7A"}'\uFF09`);
     } else {
@@ -68889,14 +69024,14 @@ async function cmdReview(deps, sub, name2, opts = {}) {
         }
         const existingStatus = reviewGateStatus(state);
         if (existingStatus !== null && !reviewGateMatches(state, step.phase)) {
-          throw new Error(`\u68C0\u6D4B\u5230\u5C5E\u4E8E phase '${scalar18(state, "review_gate_phase")}' \u7684\u6B8B\u7559 review receipt\uFF1B\u8BF7\u5148\u8BCA\u65AD state \u540E\u91CD\u8BD5`);
+          throw new Error(`\u68C0\u6D4B\u5230\u5C5E\u4E8E phase '${scalar19(state, "review_gate_phase")}' \u7684\u6B8B\u7559 review receipt\uFF1B\u8BF7\u5148\u8BCA\u65AD state \u540E\u91CD\u8BD5`);
         }
         const existingBinding = await readReviewGateBindingForRequest(dir);
         const bindingMatches = reviewGateBindingMatches(existingBinding, state, step.phase, event);
         if (reviewGateApprovedFor(state, step.phase, event) && bindingMatches) {
           throw new Error(`phase '${step.phase}' \u7684 event '${event}' \u5DF2\u83B7\u786E\u8BA4\uFF1B\u8BF7\u76F4\u63A5\u6267\u884C\u8BE5 transition\uFF0C\u4E0D\u80FD\u91CD\u590D request`);
         }
-        const existingAt = scalar18(state, "review_requested_at");
+        const existingAt = scalar19(state, "review_requested_at");
         if (reviewGatePendingFor(state, step.phase, event) && bindingMatches) {
           await refreshReviewGateBinding(dir, state, step.phase, event, existingAt || deps.clock());
           requested = {
@@ -69003,7 +69138,7 @@ async function cmdReview(deps, sub, name2, opts = {}) {
       readState: () => deps.store.read(dir),
       phase: preflightStep.phase,
       event: preflightEvent,
-      acknowledgedAt: reviewGateApprovedFor(preflight, preflightStep.phase, preflightEvent) ? scalar18(preflight, "review_acknowledged_at") || deps.clock() : freshReviewRequestedAt(scalar18(preflight, "review_requested_at"), deps.clock),
+      acknowledgedAt: reviewGateApprovedFor(preflight, preflightStep.phase, preflightEvent) ? scalar19(preflight, "review_acknowledged_at") || deps.clock() : freshReviewRequestedAt(scalar19(preflight, "review_requested_at"), deps.clock),
       via: delegatedAuthority === null ? "terminal" : "delegated",
       bindingMatches: async (state) => reviewGateBindingMatches(
         await readReviewGateBindingForRequest(dir),
@@ -69048,7 +69183,7 @@ async function cmdReview(deps, sub, name2, opts = {}) {
                 revision: afterRevision,
                 beforeRevision,
                 event: preflightEvent,
-                requestedAt: scalar18(state, "review_requested_at"),
+                requestedAt: scalar19(state, "review_requested_at"),
                 rejected,
                 clock: at
               });
@@ -69124,7 +69259,7 @@ starter:
 // packages/cli/src/commands/orchestration.ts
 import { randomUUID as randomUUID20 } from "node:crypto";
 import { readFileSync as readFileSync30 } from "node:fs";
-import { readFile as readFile53 } from "node:fs/promises";
+import { readFile as readFile54 } from "node:fs/promises";
 function ledgerDir(deps, change) {
   if (!isValidChangeName(change)) {
     deps.io.err(`ERROR: change-name \u975E\u6CD5: '${change}'`);
@@ -69184,7 +69319,7 @@ async function cmdOrchestrationFreezePipeline(deps, change, pipelineJson, pipeli
   }
   let pipeline;
   try {
-    const source = pipelineFile === void 0 ? pipelineJson : pipelineFile === "-" ? readFileSync30(0, "utf8") : await readFile53(pipelineFile, "utf8");
+    const source = pipelineFile === void 0 ? pipelineJson : pipelineFile === "-" ? readFileSync30(0, "utf8") : await readFile54(pipelineFile, "utf8");
     const parsed = JSON.parse(source);
     const decoded = decodeWorkflowPipelineV2(parsed);
     if (!decoded.ok) throw new Error(decoded.errors.map((entry) => `${entry.path}:${entry.code}`).join(", "));
@@ -69452,7 +69587,7 @@ function buildProgram(deps, runtimes = {}) {
 // packages/cli/src/guardContext.ts
 import {
   closeSync as closeSync8,
-  constants as constants12,
+  constants as constants13,
   fstatSync as fstatSync3,
   lstatSync as lstatSync6,
   openSync as openSync8,
@@ -69463,7 +69598,7 @@ import {
   statSync as statSync10
 } from "node:fs";
 import { readdir as readdir19 } from "node:fs/promises";
-import { dirname as dirname32, isAbsolute as isAbsolute38, join as join114, relative as relative30, sep as sep24 } from "node:path";
+import { dirname as dirname32, isAbsolute as isAbsolute38, join as join115, relative as relative30, sep as sep24 } from "node:path";
 function sameBoundedFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
 }
@@ -69478,7 +69613,7 @@ function boundedAncestors(root, path15) {
   const ancestors = [{ path: root, info: rootInfo, real: rootReal }];
   let candidate = root;
   for (const segment of segments) {
-    candidate = join114(candidate, segment);
+    candidate = join115(candidate, segment);
     const info = lstatSync6(candidate, { bigint: true });
     if (!info.isDirectory() || info.isSymbolicLink()) return void 0;
     ancestors.push({ path: candidate, info, real: realpathSync8(candidate) });
@@ -69506,7 +69641,7 @@ function readBoundedRegularFileSync(path15, maxBytes, root, hooks = {}) {
     if (!lexical.isFile() || lexical.size > BigInt(maxBytes)) return { kind: "invalid" };
     fd = (hooks.openFile ?? openSync8)(
       path15,
-      constants12.O_RDONLY | constants12.O_NOFOLLOW | constants12.O_NONBLOCK
+      constants13.O_RDONLY | constants13.O_NOFOLLOW | constants13.O_NONBLOCK
     );
     const opened = fstatSync3(fd, { bigint: true });
     if (!opened.isFile() || !sameBoundedFile(lexical, opened)) return { kind: "invalid" };
@@ -69543,7 +69678,7 @@ async function listChanges(changesRoot2) {
   } catch {
     return [];
   }
-  return entries.filter((entry) => entry.isDirectory() && entry.name !== "archive").filter((entry) => stateStorageExistsSync(join114(changesRoot2, entry.name))).map((entry) => entry.name).sort();
+  return entries.filter((entry) => entry.isDirectory() && entry.name !== "archive").filter((entry) => stateStorageExistsSync(join115(changesRoot2, entry.name))).map((entry) => entry.name).sort();
 }
 async function listChangeDirs(changesRoot2) {
   let entries;
@@ -69556,7 +69691,7 @@ async function listChangeDirs(changesRoot2) {
 }
 function activeCanonicalArchived(cwd, dep) {
   try {
-    const current = readCurrentRunRevisionSync(join114(cwd, "openspec", "changes", dep));
+    const current = readCurrentRunRevisionSync(join115(cwd, "openspec", "changes", dep));
     return current?.state.fields.archived === "true";
   } catch {
     return false;
@@ -69564,13 +69699,13 @@ function activeCanonicalArchived(cwd, dep) {
 }
 function physicallyArchived(cwd, dep) {
   try {
-    return readdirSync9(join114(cwd, "openspec", "changes", "archive"), { withFileTypes: true }).some((entry) => entry.isDirectory() && entry.name.endsWith(`-${dep}`));
+    return readdirSync9(join115(cwd, "openspec", "changes", "archive"), { withFileTypes: true }).some((entry) => entry.isDirectory() && entry.name.endsWith(`-${dep}`));
   } catch {
     return false;
   }
 }
 function makeGuardCtx(cwd) {
-  const abs = (relativePath) => join114(cwd, relativePath);
+  const abs = (relativePath) => join115(cwd, relativePath);
   return (name2) => ({
     changeDirRel: `openspec/changes/${name2}`,
     stateExists: (changeDirRel) => stateStorageExistsSync(abs(changeDirRel)),
@@ -69640,10 +69775,10 @@ function createManifestSkillActionAuthorityResolver(manifest, isKnownProfile) {
 
 // packages/cli/src/commands/doctor-probes.ts
 import { execFile as execFile6, execFileSync as execFileSync3 } from "node:child_process";
-import { createHash as createHash55 } from "node:crypto";
+import { createHash as createHash56 } from "node:crypto";
 import { accessSync as accessSync6, constants as fsConstants6, readdirSync as readdirSync10, readFileSync as readFileSync32, statSync as statSync11 } from "node:fs";
 import { homedir as homedir20 } from "node:os";
-import { join as join115 } from "node:path";
+import { join as join116 } from "node:path";
 function safeReaddirDirs(dir) {
   try {
     return readdirSync10(dir, { withFileTypes: true }).filter((e) => e.isDirectory() || e.isSymbolicLink()).map((e) => e.name);
@@ -69654,7 +69789,7 @@ function safeReaddirDirs(dir) {
 function readDisabledPluginKeys() {
   const disabled = /* @__PURE__ */ new Set();
   try {
-    const raw = readFileSync32(join115(homedir20(), ".claude", "settings.json"), "utf8");
+    const raw = readFileSync32(join116(homedir20(), ".claude", "settings.json"), "utf8");
     const parsed = JSON.parse(raw);
     const ep = typeof parsed === "object" && parsed !== null && "enabledPlugins" in parsed ? parsed.enabledPlugins : void 0;
     if (ep !== null && typeof ep === "object") {
@@ -69667,26 +69802,26 @@ function readDisabledPluginKeys() {
 function scanInstalledSkillNames() {
   const home = homedir20();
   const names = /* @__PURE__ */ new Set();
-  for (const n of safeReaddirDirs(join115(home, ".claude", "skills"))) names.add(n);
-  for (const n of safeReaddirDirs(join115(home, ".agents", "skills"))) names.add(n);
-  const cache2 = join115(home, ".claude", "plugins", "cache");
+  for (const n of safeReaddirDirs(join116(home, ".claude", "skills"))) names.add(n);
+  for (const n of safeReaddirDirs(join116(home, ".agents", "skills"))) names.add(n);
+  const cache2 = join116(home, ".claude", "plugins", "cache");
   const disabledPlugins = readDisabledPluginKeys();
   for (const marketplace of safeReaddirDirs(cache2)) {
-    const mktDir = join115(cache2, marketplace);
+    const mktDir = join116(cache2, marketplace);
     for (const plugin of safeReaddirDirs(mktDir)) {
       if (disabledPlugins.has(`${plugin}@${marketplace}`)) continue;
       names.add(plugin);
-      for (const skill of safeReaddirDirs(join115(mktDir, plugin, "skills"))) names.add(skill);
+      for (const skill of safeReaddirDirs(join116(mktDir, plugin, "skills"))) names.add(skill);
     }
   }
   return names;
 }
 function scanCodexProjectSkillNames(cwd, root) {
   const names = /* @__PURE__ */ new Set();
-  for (const skillsRoot of [join115(root, "skills"), join115(cwd, ".agents", "skills")]) {
+  for (const skillsRoot of [join116(root, "skills"), join116(cwd, ".agents", "skills")]) {
     for (const name2 of safeReaddirDirs(skillsRoot)) {
       try {
-        if (statSync11(join115(skillsRoot, name2, "SKILL.md")).isFile()) names.add(name2);
+        if (statSync11(join116(skillsRoot, name2, "SKILL.md")).isFile()) names.add(name2);
       } catch {
       }
     }
@@ -69697,9 +69832,9 @@ function scanSkillDigests(skillsRoot) {
   const digests = /* @__PURE__ */ new Map();
   for (const name2 of safeReaddirDirs(skillsRoot)) {
     try {
-      const skillPath = join115(skillsRoot, name2, "SKILL.md");
+      const skillPath = join116(skillsRoot, name2, "SKILL.md");
       if (!statSync11(skillPath).isFile()) continue;
-      digests.set(name2, createHash55("sha256").update(readFileSync32(skillPath)).digest("hex"));
+      digests.set(name2, createHash56("sha256").update(readFileSync32(skillPath)).digest("hex"));
     } catch {
     }
   }
@@ -69730,7 +69865,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     if (bash === void 0 || node === void 0) {
       return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u4E0D\u53EF\u6267\u884C" });
     }
-    const args = [join115(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", node.executable];
+    const args = [join116(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", node.executable];
     try {
       if (!bash.verify() || !node.verify()) {
         return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u8EAB\u4EFD\u5DF2\u6F02\u79FB" });
@@ -69764,7 +69899,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     pluginRoot: root,
     manifestError: () => {
       try {
-        loadManifest(join115(root, "templates", "manifest.yaml"));
+        loadManifest(join116(root, "templates", "manifest.yaml"));
         return null;
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
@@ -69795,7 +69930,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     env: (name2) => process.env[name2],
     statuslineConfigured: () => {
       try {
-        return readFileSync32(join115(homedir20(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
+        return readFileSync32(join116(homedir20(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
       } catch {
         return false;
       }
@@ -69838,14 +69973,14 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
       const native = active === "codex" || active === "claude";
       return {
         ...native ? { selectedRoot: root } : {},
-        projectRoot: join115(process.cwd(), ".agents", "skills"),
-        selected: native ? scanSkillDigests(join115(root, "skills")) : /* @__PURE__ */ new Map(),
-        project: scanSkillDigests(join115(process.cwd(), ".agents", "skills"))
+        projectRoot: join116(process.cwd(), ".agents", "skills"),
+        selected: native ? scanSkillDigests(join116(root, "skills")) : /* @__PURE__ */ new Map(),
+        project: scanSkillDigests(join116(process.cwd(), ".agents", "skills"))
       };
     },
     manifestSkills: () => {
       try {
-        const m = loadManifest(join115(root, "templates", "manifest.yaml"));
+        const m = loadManifest(join116(root, "templates", "manifest.yaml"));
         return { mandatory: m.mandatorySkills, recommended: m.recommendedSkills };
       } catch {
         return null;
@@ -69857,7 +69992,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         image: readAutomationJson(process.cwd()).image ?? "sandcastle:local",
         secretsEnv: readSecrets(scope.paths.secretsPath).keys,
         hostEnv: scope.env,
-        defaultCodexHome: join115(scope.homeDir, ".codex")
+        defaultCodexHome: join116(scope.homeDir, ".codex")
       });
     }
   };
@@ -69878,19 +70013,19 @@ async function readGateMarkers(cwd) {
   const out = [];
   for (const kind of ["confirm", "review", "interaction"]) {
     try {
-      const p = join116(cwd, `.pipeline-pending-${kind}`);
+      const p = join117(cwd, `.pipeline-pending-${kind}`);
       const st = await stat15(p);
-      out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile54(p, "utf8") });
+      out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile55(p, "utf8") });
     } catch {
     }
   }
   return out;
 }
 function pluginRoot() {
-  return join116(dirname33(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join117(dirname33(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function manifestPath() {
-  return join116(pluginRoot(), "templates", "manifest.yaml");
+  return join117(pluginRoot(), "templates", "manifest.yaml");
 }
 function trackValidationContext(repoRoot, manifest) {
   const skillProfiles = /* @__PURE__ */ new Set();
@@ -69920,7 +70055,7 @@ function readPluginVersion() {
     [".claude-plugin", "plugin.json"]
   ]) {
     try {
-      const raw = readFileSync33(join116(pluginRoot(), ...rel), "utf8");
+      const raw = readFileSync33(join117(pluginRoot(), ...rel), "utf8");
       const parsed = JSON.parse(raw);
       const version = typeof parsed === "object" && parsed !== null && "version" in parsed ? parsed.version : void 0;
       if (typeof version === "string" && version.trim() !== "") return version;
@@ -70025,7 +70160,7 @@ async function main() {
     guardCtx: makeGuardCtx(process.cwd()),
     doctor: makeDoctorProbes(runtimeScope2, pluginRoot()),
     readGateMarkers: () => readGateMarkers(process.cwd()),
-    writeBreadcrumb: (dir, content) => writeFile18(join116(dir, ".breadcrumb"), content, "utf8"),
+    writeBreadcrumb: (dir, content) => writeFile18(join117(dir, ".breadcrumb"), content, "utf8"),
     history: createHistoryWriter(),
     // init 成功后 best-effort 登记项目根到 Tenon config root 的 projects.json
     registerProject: async (repoRoot) => {
@@ -70036,7 +70171,7 @@ async function main() {
     readSecretsEnv: async () => readSecrets(runtimePaths().secretsPath).keys,
     readHistoryRaw: async (dir) => {
       try {
-        return await readFile54(join116(dir, ".pipeline-history.jsonl"), "utf8");
+        return await readFile55(join117(dir, ".pipeline-history.jsonl"), "utf8");
       } catch {
         return "";
       }
@@ -70050,13 +70185,13 @@ async function main() {
       const revision = kind === "workspace" ? await fingerprintWorkspace(process.cwd()) : await gitHeadSha(process.cwd());
       return createBuildRevisionToken(kind, revision, identity2).value;
     },
-    writeReviewMarker: (content) => writeFile18(join116(process.cwd(), ".pipeline-pending-review"), content, "utf8"),
-    clearReviewMarker: () => rm16(join116(process.cwd(), ".pipeline-pending-review"), { force: true }),
+    writeReviewMarker: (content) => writeFile18(join117(process.cwd(), ".pipeline-pending-review"), content, "utf8"),
+    clearReviewMarker: () => rm16(join117(process.cwd(), ".pipeline-pending-review"), { force: true }),
     pluginVersion: readPluginVersion(),
     readInstalledPlugins: async () => {
-      for (const p of [join116(pluginRoot(), "..", "installed_plugins.json"), join116(process.env.HOME ?? "", ".claude", "installed_plugins.json")]) {
+      for (const p of [join117(pluginRoot(), "..", "installed_plugins.json"), join117(process.env.HOME ?? "", ".claude", "installed_plugins.json")]) {
         try {
-          return await readFile54(p, "utf8");
+          return await readFile55(p, "utf8");
         } catch {
         }
       }

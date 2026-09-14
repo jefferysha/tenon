@@ -3,6 +3,7 @@ import type { CliDeps } from './deps.js'
 import { cmdInternalCodexSkillReceipt } from './codexSkillReceipt.js'
 import { cmdInternalHostInteraction } from './commands/hostInteraction.js'
 import { cmdInternalNativeSkillReceipt } from './nativeSkillReceipt.js'
+import { cmdInternalSelfApproval } from './commands/internalSelfApproval.js'
 import { bail } from './program-exit.js'
 
 export function registerSkillInvocationInternalCommands(program: Command, deps: CliDeps): void {
@@ -35,4 +36,10 @@ export function registerSkillInvocationInternalCommands(program: Command, deps: 
     .description('[内部] 将 native host 的结构化问答绑定到同 session 的 canonical active invocation')
     .action(async (changeName: string, payloadPath: string) =>
       bail(await cmdInternalHostInteraction(deps, changeName, payloadPath)))
+
+  program
+    .command('internal-self-approval <changeName> <payloadPath>')
+    .description('[内部] 记录 pending review 的脱敏自审批检测信号')
+    .action(async (changeName: string, payloadPath: string) =>
+      bail(await cmdInternalSelfApproval(deps, changeName, payloadPath)))
 }

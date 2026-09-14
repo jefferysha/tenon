@@ -126,6 +126,79 @@ review_marker_relevant_to_active_change() { # $1=marker → 0=blockable v2 marke
   [ -n "$active_change" ] && [ "$active_change" = "$marked_change" ]
 }
 
+# Resolve the one product-owned dashboard token path used by the server.  This mirrors
+# resolveProductPaths() without asking the hot hook to execute an interpreter.  The inherited
+# root contract is checked first because it is the installer-selected source of truth.
+pipeline_dashboard_token_path() {
+  local state_root=''
+  if [ -n "${TENON_RUNTIME_ROOTS:-}" ]; then
+    state_root="$(pipeline_json_get_string "$TENON_RUNTIME_ROOTS" stateRoot || true)"
+    [ -n "$state_root" ] && { printf '%s/dashboard-token.json' "${state_root%/}"; return 0; }
+  fi
+  if [ -n "${TENON_RUNTIME_HOME:-}" ]; then
+    case "$TENON_RUNTIME_HOME" in /*) printf '%s/state/dashboard-token.json' "${TENON_RUNTIME_HOME%/}"; return 0 ;; esac
+  fi
+  case "$(uname -s 2>/dev/null || true)" in
+    Darwin) [ -n "${HOME:-}" ] && printf '%s/Library/Application Support/tenon/state/dashboard-token.json' "${HOME%/}" ;;
+    *)
+      state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}/tenon"
+      [ -n "$state_root" ] && printf '%s/dashboard-token.json' "${state_root%/}"
+      ;;
+  esac
+}
+
+pipeline_command_reads_dashboard_token() { # $1=decoded command
+  local command="${1:-}" token_path="" command_name=""
+  [ -n "$command" ] || return 1
+  command="$(pipeline_unwrap_shell_wrapper "$command")"
+  pipeline_command_has_shell_metachars "$command" && return 1
+  token_path="$(pipeline_dashboard_token_path || true)"
+  [ -n "$token_path" ] || return 1
+  command_name="${command%% *}"
+  case "$command_name" in cat|head|tail|less|more|stat|file|sed|grep|rg) ;; *) return 1 ;; esac
+  # The token must be an exact final argument. Quoted paths are required when the product path
+  # contains spaces; the unquoted form is accepted only when it is itself one argument.
+  case "$command" in
+    *"\"$token_path\""|*"'$token_path'"|*" $token_path") return 0 ;;
+  esac
+  return 1
+}
+
+pipeline_command_writes_review_api() { # $1=decoded command
+  local command="${1:-}"
+  [ -n "$command" ] || return 1
+  command="$(pipeline_unwrap_shell_wrapper "$command")"
+  pipeline_command_has_shell_metachars "$command" && return 1
+  case "$command" in curl\ *|wget\ *) ;; *) return 1 ;; esac
+  # GET is deliberately excluded. Explicit mutating method or body flags are required; the
+  # endpoint and Change name are then checked as one exact localhost allowlist.
+  if [[ "$command" != *' -X POST '* && "$command" != *' --request POST '* \
+    && "$command" != *' -X PUT '* && "$command" != *' --request PUT '* \
+    && "$command" != *' -X PATCH '* && "$command" != *' --request PATCH '* \
+    && "$command" != *' -X DELETE '* && "$command" != *' --request DELETE '* \
+    && "$command" != *' --data '* && "$command" != *' --data-raw '* \
+    && "$command" != *' --data-binary '* && "$command" != *' -d '* \
+    && "$command" != *' --post-data '* && "$command" != *' --post-file '* ]]; then
+    return 1
+  fi
+  [[ "$command" =~ (^|[[:space:]\'\"])(https?://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?/api/change/[A-Za-z0-9_-]+/(decisions|transition)(\?[^[:space:]\'\"]*)?)([[:space:]\'\"]|$) ]]
+}
+
+pipeline_record_pending_review_observation() { # $1=change $2=signal kind
+  local change="${1:-}" kind="${2:-}" bundle payload identity hook_root
+  [ -n "$change" ] && [ -n "$kind" ] || return 0
+  hook_root="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." 2>/dev/null && pwd)}}"
+  bundle="$hook_root/packages/cli/dist/tenon.mjs"
+  [ -f "$bundle" ] && command -v node >/dev/null 2>&1 || return 0
+  payload="$(mktemp "${TMPDIR:-/tmp}/tenon-self-approval.XXXXXX" 2>/dev/null || true)"
+  [ -n "$payload" ] || return 0
+  identity="hook-parent:${PPID:-unknown};host:${HOSTNAME:-unknown};session:${TENON_HOST_SESSION_ID:-${CODEX_THREAD_ID:-unknown}}"
+  printf '{"kind":"%s","process_or_host_identity":"%s"}\n' \
+    "$(pipeline_json_escape "$kind")" "$(pipeline_json_escape "$identity")" > "$payload" 2>/dev/null || return 0
+  ( cd "$TENON_ROOT" && node "$bundle" internal-self-approval "$change" "$payload" ) >/dev/null 2>&1 || true
+  rm -f "$payload" 2>/dev/null || true
+}
+
 # Shared metacharacter rejection.  Anything in this set can turn a read or a control command into
 # a write (redirection, chaining, substitution), so both allowlists below refuse to match a segment
 # that still contains one.
@@ -251,6 +324,13 @@ for kind in confirm review interaction; do
   if fresh "$m" "$ttl"; then
     if [ "$kind" = "review" ]; then
       review_marker_relevant_to_active_change "$m" || continue
+      if pipeline_command_reads_dashboard_token "$(json_command || true)"; then
+        pipeline_record_pending_review_observation "$(pipeline_review_marker_change "$m" || true)" "token-file-read"
+        printf '【Tenon 门】pending review 期间禁止读取 dashboard token；该行为已记录为安全信号。\n' >&2
+        exit 2
+      elif pipeline_command_writes_review_api "$(json_command || true)"; then
+        pipeline_record_pending_review_observation "$(pipeline_review_marker_change "$m" || true)" "localhost-control-write"
+      fi
       # Acknowledgement is the only state-writing action that may pass a pending v2 gate.  The
       # command itself validates exact Change/phase/pending state under the canonical lock, so
       # allowing this narrow control surface cannot open unrelated writes.
