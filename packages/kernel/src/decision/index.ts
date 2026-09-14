@@ -1,5 +1,6 @@
 export * from './types.js'
 export * from './projection.js'
 export * from './review-application.js'
+export * from './idempotency.js'
 export * from './mode.js'
 export * from './self-approval.js'

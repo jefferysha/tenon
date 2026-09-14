@@ -16,60 +16,29 @@ import {
   REVIEW_MARKER_FILE,
   stateStorageExistsSync,
   type DecisionCommandResult,
+  isReviewDecisionIdempotencyRecord,
+  REVIEW_DECISION_IDEMPOTENCY_FILE,
+  REVIEW_DECISION_IDEMPOTENCY_MAX_BYTES,
+  reviewDecisionPayloadDigest,
+  type ReviewDecisionIdempotencyRecord,
 } from '@tenon/kernel'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { PostRouteDeps } from './serverPostRoutes.js'
 import { readPendingDecisionProjection } from './decisionProjection.js'
 
-const DECISION_IDEMPOTENCY_FILE = '.pipeline-decision-idempotency.jsonl'
-const DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024
-
-type DecisionIdempotencyRecord = {
-  readonly key: string
-  readonly ref: string
-  readonly expectedRevision: number | null
-  readonly channel: 'dashboard'
-  /** Stable digest of the complete command payload (legacy records may omit it). */
-  readonly payloadDigest?: string
-  readonly acknowledgedAt: string
-  readonly outcome?: 'rejected'
-  readonly error?: string
-  readonly code?: string
-}
-
 type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history' | 'recordStore'>
 
-function isDecisionIdempotencyRecord(value: unknown): value is DecisionIdempotencyRecord {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const record = value as Record<string, unknown>
-  return typeof record.key === 'string'
-    && typeof record.ref === 'string'
-    && (typeof record.expectedRevision === 'number' || record.expectedRevision === null)
-    && record.channel === 'dashboard'
-    && (record.payloadDigest === undefined || typeof record.payloadDigest === 'string')
-    && typeof record.acknowledgedAt === 'string'
-    && (record.outcome === undefined || record.outcome === 'rejected')
-    && (record.error === undefined || typeof record.error === 'string')
-    && (record.code === undefined || typeof record.code === 'string')
-}
-
-function commandPayloadDigest(ref: string, expectedRevision: number | null, channel: 'dashboard'): string {
-  // The route accepts only review/dashboard commands today; keep the digest explicit so future
-  // command kinds/channels cannot accidentally replay under the same idempotency key.
-  return `${channel}\0${ref}\0${expectedRevision === null ? 'null' : expectedRevision}`
-}
-
-async function readDecisionIdempotency(changeDir: string): Promise<readonly DecisionIdempotencyRecord[]> {
+async function readDecisionIdempotency(changeDir: string): Promise<readonly ReviewDecisionIdempotencyRecord[]> {
   try {
-    const raw = await readFile(join(changeDir, DECISION_IDEMPOTENCY_FILE), 'utf8')
-    if (Buffer.byteLength(raw, 'utf8') > DECISION_IDEMPOTENCY_MAX_BYTES) {
+    const raw = await readFile(join(changeDir, REVIEW_DECISION_IDEMPOTENCY_FILE), 'utf8')
+    if (Buffer.byteLength(raw, 'utf8') > REVIEW_DECISION_IDEMPOTENCY_MAX_BYTES) {
       throw new Error('decision idempotency record exceeds size limit')
     }
     if (raw === '') return []
     if (!raw.endsWith('\n')) throw new Error('decision idempotency record is truncated')
     return raw.split('\n').filter(Boolean).map((line) => {
       const parsed: unknown = JSON.parse(line)
-      if (!isDecisionIdempotencyRecord(parsed)) throw new Error('decision idempotency record is invalid')
+      if (!isReviewDecisionIdempotencyRecord(parsed)) throw new Error('decision idempotency record is invalid')
       return parsed
     })
   } catch (error) {
@@ -78,8 +47,8 @@ async function readDecisionIdempotency(changeDir: string): Promise<readonly Deci
   }
 }
 
-async function appendDecisionIdempotency(changeDir: string, record: DecisionIdempotencyRecord): Promise<void> {
-  await appendFile(join(changeDir, DECISION_IDEMPOTENCY_FILE), `${JSON.stringify(record)}\n`, { encoding: 'utf8', flag: 'a', mode: 0o600 })
+async function appendDecisionIdempotency(changeDir: string, record: ReviewDecisionIdempotencyRecord): Promise<void> {
+  await appendFile(join(changeDir, REVIEW_DECISION_IDEMPOTENCY_FILE), `${JSON.stringify(record)}\n`, { encoding: 'utf8', flag: 'a', mode: 0o600 })
 }
 
 /** Handle Dashboard review decisions; returns false when the path belongs to another route. */
@@ -166,7 +135,7 @@ async function applyDecision(input: {
   const phase = item?.anchor.phase ?? String(preflight.fields.review_gate_phase ?? '')
   const event = item?.anchor.event ?? reviewGateEvent(preflight)
   let deferred: readonly string[] = []
-  const payloadDigest = commandPayloadDigest(input.ref, input.expectedRevision, 'dashboard')
+  const payloadDigest = reviewDecisionPayloadDigest(input.ref, input.expectedRevision, 'dashboard')
   const command = await executeReviewAcknowledgeCommand({
     withLock: (fn) => input.store.withLock(input.dir, fn),
     readState: () => input.store.read(input.dir),
@@ -176,7 +145,7 @@ async function applyDecision(input: {
     checkIdempotency: async (key) => {
       const prior = (await readDecisionIdempotency(input.dir)).find((record) => record.key === key)
       if (prior === undefined) return 'missing'
-      const priorDigest = prior.payloadDigest ?? commandPayloadDigest(prior.ref, prior.expectedRevision, prior.channel)
+      const priorDigest = prior.payloadDigest ?? reviewDecisionPayloadDigest(prior.ref, prior.expectedRevision, prior.channel)
       if (priorDigest !== payloadDigest) return 'conflict'
       return prior.outcome === 'rejected' ? 'rejected' : 'replay'
     },

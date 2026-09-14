@@ -3,6 +3,8 @@ import type { PipelineState } from '../types.js'
 import { interactionJourneyId } from '../interaction/contract.js'
 import type { InteractionEventRecordDraft } from '../interaction/ports.js'
 import type { RunRevision } from '../state/run-revision-codec.js'
+import { reviewGateDecisionStateDigest } from '../state/review-gate-binding.js'
+import { createHash } from 'node:crypto'
 
 /** Shared, model-free interaction draft used by CLI and Dashboard review acknowledgements. */
 export function reviewAcknowledgedInteractionDraft(input: {
@@ -143,7 +145,8 @@ export interface ReviewAcknowledgeCommandPort {
   readonly readState: () => Promise<PipelineState>
   readonly readRevision?: () => Promise<number | null>
   readonly expectedRevision?: number | null
-  readonly idempotencyKey?: string
+  /** A fixed key is used by HTTP; the terminal adapter may derive it from the locked state. */
+  readonly idempotencyKey?: string | ((state: PipelineState) => string | Promise<string>)
   /** Returns replay/rejected/conflict/missing for the complete command payload. */
   readonly checkIdempotency?: (key: string) => Promise<'missing' | 'replay' | 'rejected' | 'conflict'>
   /** Stable failure code for a previously rejected command with the same payload. */
@@ -161,6 +164,20 @@ export interface ReviewAcknowledgeCommandPort {
   readonly recordRejected?: (state: PipelineState, reason: string) => Promise<void>
 }
 
+/** Stable terminal key derivation. The receipt fields are excluded from the state digest. */
+export function deriveReviewAcknowledgeIdempotencyKey(input: {
+  readonly change: string
+  readonly phase: string
+  readonly event: string
+  readonly requestedAt: string
+  readonly state: PipelineState
+  readonly channel: ReviewAcknowledgedVia
+}): string {
+  const runId = input.state.runMetadata?.runId ?? ''
+  const anchor = `${input.change}\0${input.phase}\0${input.event}\0${input.requestedAt}\0${reviewGateDecisionStateDigest(input.state)}\0${runId}\0${input.channel}`
+  return `review-ack:${createHash('sha256').update(anchor, 'utf8').digest('hex')}`
+}
+
 /** Execute the common idempotency → receipt/binding → revision → commit journey under one lock. */
 export async function executeReviewAcknowledgeCommand(
   port: ReviewAcknowledgeCommandPort,
@@ -170,11 +187,19 @@ export async function executeReviewAcknowledgeCommand(
     return { ok: false, code: 'invalid-input', message: 'expected revision is required' }
   }
   return port.withLock(async () => {
-    const key = port.idempotencyKey
+    let state: PipelineState | undefined
+    const key = typeof port.idempotencyKey === 'function'
+      ? undefined
+      : port.idempotencyKey
     if (key !== undefined && key === '') return { ok: false, code: 'invalid-input', message: 'idempotency key is required' }
-    const idempotency = key !== undefined && port.checkIdempotency !== undefined
-      ? await port.checkIdempotency(key)
-      : key !== undefined && port.hasIdempotencyKey !== undefined && await port.hasIdempotencyKey(key)
+    if (typeof port.idempotencyKey === 'function') state = await port.readState()
+    const resolvedKey = typeof port.idempotencyKey === 'function'
+      ? await port.idempotencyKey(state as PipelineState)
+      : key
+    if (resolvedKey !== undefined && resolvedKey === '') return { ok: false, code: 'invalid-input', message: 'idempotency key is required' }
+    const idempotency = resolvedKey !== undefined && port.checkIdempotency !== undefined
+      ? await port.checkIdempotency(resolvedKey)
+      : resolvedKey !== undefined && port.hasIdempotencyKey !== undefined && await port.hasIdempotencyKey(resolvedKey)
         ? 'replay' : 'missing'
     if (idempotency === 'conflict') return { ok: false, code: 'idempotency-conflict', message: 'idempotency key is already bound to another decision' }
     if (idempotency === 'rejected') {
@@ -184,7 +209,7 @@ export async function executeReviewAcknowledgeCommand(
     if (idempotency === 'replay') {
       return { ok: true, code: 'idempotent-replay', changed: false, idempotent: true, deferred: [] }
     }
-    const state = await port.readState()
+    state ??= await port.readState()
     const bindingMatches = await port.bindingMatches(state)
     if (!bindingMatches) {
       await port.recordRejected?.(state, 'review receipt binding mismatch')
@@ -202,11 +227,11 @@ export async function executeReviewAcknowledgeCommand(
       return { ok: false, code: 'review-approval-required', message: `phase '${port.phase}' 尚未为 event '${port.event}' request review` }
     }
     if (reviewGateApprovedFor(state, port.phase, port.event)) {
-      if (key !== undefined) await port.rememberIdempotencyKey?.(key)
+      if (resolvedKey !== undefined) await port.rememberIdempotencyKey?.(resolvedKey)
       return { ok: true, code: 'idempotent-replay', changed: false, idempotent: true, deferred: [] }
     }
     const committed = await port.commit(state, port.acknowledgedAt)
-    if (key !== undefined) await port.rememberIdempotencyKey?.(key)
+    if (resolvedKey !== undefined) await port.rememberIdempotencyKey?.(resolvedKey)
     const deferred = committed.deferred ?? []
     return { ok: true, code: deferred.includes('review-marker-clear') ? 'marker-warning' : 'approved', changed: true, idempotent: false, deferred }
   })

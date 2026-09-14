@@ -21,6 +21,7 @@ import {
   reviewGateBindingMatches,
   acknowledgeReview,
   executeReviewAcknowledgeCommand,
+  deriveReviewAcknowledgeIdempotencyKey,
   readCurrentRunRevision,
 } from '@tenon/kernel'
 import type { PipelineState } from '@tenon/kernel'
@@ -41,6 +42,7 @@ import {
   refreshReviewGateBinding,
   writeReviewMarker,
 } from './review-binding.js'
+import { createReviewIdempotencyAdapter } from './review-idempotency.js'
 
 type ReviewStep = {
   readonly phase: string
@@ -320,6 +322,13 @@ export async function cmdReview(
     if (opts.delegated === true && delegatedAuthority === null) {
       throw new Error(`当前 Change '${name}' 没有有效的用户委托 review 授权；请等待正常确认，或先由用户明确授权后续自主执行`)
     }
+    const acknowledgementChannel = delegatedAuthority === null ? 'terminal' as const : 'delegated' as const
+    const idempotency = createReviewIdempotencyAdapter({
+      changeDir: dir,
+      ref: `${preflightStep.phase}:${preflightEvent}`,
+      channel: acknowledgementChannel,
+      acknowledgedAt: deps.clock(),
+    })
     const result = await executeReviewAcknowledgeCommand({
       withLock: (fn) => deps.store.withLock(dir, fn),
       readState: () => deps.store.read(dir),
@@ -329,6 +338,16 @@ export async function cmdReview(
         ? scalar(preflight, 'review_acknowledged_at') || deps.clock()
         : freshReviewRequestedAt(scalar(preflight, 'review_requested_at'), deps.clock),
       via: delegatedAuthority === null ? 'terminal' : 'delegated',
+      idempotencyKey: (state) => deriveReviewAcknowledgeIdempotencyKey({
+        change: name,
+        phase: preflightStep.phase,
+        event: preflightEvent,
+        requestedAt: scalar(state, 'review_requested_at'),
+        state,
+        channel: acknowledgementChannel,
+      }),
+      checkIdempotency: idempotency.check,
+      rememberIdempotencyKey: idempotency.remember,
       bindingMatches: async (state) => reviewGateBindingMatches(
         await readReviewGateBindingForRequest(dir), state, preflightStep.phase, preflightEvent,
       ),
