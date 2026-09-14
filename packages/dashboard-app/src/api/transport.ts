@@ -14,6 +14,7 @@ export class ApiError extends Error {
     message: string,
     public readonly status?: number,
     public readonly hasServerDetail = false,
+    public readonly code?: string,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -79,14 +80,18 @@ export async function readJson(response: Response): Promise<unknown> {
 
 export async function throwApiError(response: Response, fallback: string): Promise<never> {
   let detail = ''
+  let code: string | undefined
   try {
     const body = await readJson(response)
-    if (isRecord(body) && typeof body.error === 'string') detail = body.error
+    if (isRecord(body)) {
+      if (typeof body.error === 'string') detail = body.error
+      if (typeof body.code === 'string') code = body.code
+    }
   } catch (error) {
     if (isAbortError(error)) throw error
     // A response without a JSON envelope falls back to the endpoint-specific message.
   }
-  throw new ApiError(detail || `${fallback}（${response.status}）`, response.status, detail !== '')
+  throw new ApiError(detail || `${fallback}（${response.status}）`, response.status, detail !== '', code)
 }
 
 export async function throwDetailedApiError(response: Response, fallback: string): Promise<never> {

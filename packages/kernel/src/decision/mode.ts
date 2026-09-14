@@ -1,5 +1,6 @@
 export type UserDecisionMode = 'hitl' | 'afk'
 export type DecisionStrategy = 'interactive' | 'recommended-defaults' | 'afk'
+export type DecisionPrincipal = string
 
 export interface DecisionModeSwitchEvent {
   readonly type: 'decision-mode-switched'
@@ -7,7 +8,7 @@ export interface DecisionModeSwitchEvent {
   readonly to: UserDecisionMode
   readonly strategy: DecisionStrategy
   readonly occurredAt: string
-  readonly actor: 'user' | 'automation'
+  readonly actor: DecisionPrincipal
 }
 
 export function strategyForDecisionMode(mode: UserDecisionMode, recommendedDefaults = false): DecisionStrategy {
@@ -20,8 +21,11 @@ export function modeSwitchEvent(input: {
   readonly to: UserDecisionMode
   readonly recommendedDefaults?: boolean
   readonly occurredAt: string
-  readonly actor: 'user' | 'automation'
+  readonly actor: DecisionPrincipal
 }): DecisionModeSwitchEvent {
+  if (input.actor === 'user' || input.actor === 'human' || input.actor.trim() === '') {
+    throw new Error('mode switch requires an opaque principal')
+  }
   return { type: 'decision-mode-switched', from: input.from, to: input.to, strategy: strategyForDecisionMode(input.to, input.recommendedDefaults), occurredAt: input.occurredAt, actor: input.actor }
 }
 

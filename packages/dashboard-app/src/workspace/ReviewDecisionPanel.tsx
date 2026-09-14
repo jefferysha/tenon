@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, RefreshCw } from 'lucide-react'
 import { fetchPendingDecisions, postReviewAcknowledge, type PendingDecision } from '../api/decisionClient'
-import { formatApiError } from '../api/transport'
+import { ApiError, formatApiError } from '../api/transport'
 import { useT } from '../i18n'
 
 export interface ReviewDecisionPanelProps {
@@ -21,11 +21,14 @@ export function ReviewDecisionPanel({ root, change, onRefresh, onToast }: Review
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const loadGeneration = useRef(0)
 
   const load = useCallback(async (signal?: AbortSignal) => {
+    const generation = ++loadGeneration.current
     setLoading(true)
     try {
       const next = await fetchPendingDecisions(root, change, signal)
+      if (generation !== loadGeneration.current || signal?.aborted) return
       setView(next)
       setError(null)
     } catch (reason) {
@@ -52,7 +55,16 @@ export function ReviewDecisionPanel({ root, change, onRefresh, onToast }: Review
       onToast?.(result.idempotent ? t('review_console.approved_idempotent') : t('review_console.approved'))
       await load()
       await onRefresh?.()
-    } catch (reason) { setError(reason) } finally { setSubmitting(false) }
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 409) {
+        // A stale decision must never be retried against the old ref. Refresh the
+        // projection first; the new revision is the only value that can re-enable approval.
+        setView(null)
+        setLoading(true)
+        await load()
+      }
+      setError(reason)
+    } finally { setSubmitting(false) }
   }
 
   if (loading && view === null) return <section className="mb-6 rounded-md border border-border bg-card p-4" data-testid="review-console-loading" role="status">{t('review_console.loading')}</section>
@@ -71,7 +83,6 @@ export function ReviewDecisionPanel({ root, change, onRefresh, onToast }: Review
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 id="review-console-title" className="flex items-center gap-2 text-title font-semibold text-text"><CheckCircle2 className="size-4 text-amber-d" aria-hidden="true" />{t('review_console.title')}</h2>
-          <p className="mt-1 text-body text-text-2">{t('review_console.description')}</p>
         </div>
         <span className="shrink-0 rounded-full bg-card px-2 py-1 font-mono text-micro text-text-2">{review.anchor.phase ?? review.ref.anchor}</span>
       </div>
@@ -83,7 +94,6 @@ export function ReviewDecisionPanel({ root, change, onRefresh, onToast }: Review
         <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-ink px-4 text-base font-semibold text-ink-fg hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-wait disabled:opacity-60" disabled={submitting || view?.revision === null} onClick={() => void approve()} data-testid="review-console-approve">
           <CheckCircle2 className="size-4" aria-hidden="true" />{submitting ? t('review_console.submitting') : t('review_console.approve')}
         </button>
-        <span className="text-caption text-text-3" data-testid="review-console-boundary">{t('review_console.boundary')}</span>
       </div>
       {error !== null && <p className="mt-3 text-caption font-semibold text-red-d" role="alert" data-testid="review-console-submit-error">{formatApiError(error, t)}</p>}
     </section>

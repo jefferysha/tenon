@@ -136,7 +136,7 @@ function reviewDecision(input: PendingDecisionProjectionInput): PendingDecision 
   return {
     ref: { id: refId('review', input.change, anchor, input.revision ?? null), kind: 'review', change: input.change, anchor, revision: input.revision ?? null },
     type: 'review', status: result.status, anchor: { phase, event }, revision: input.revision ?? null,
-    evidence: result.evidence, source: via === 'automation' ? 'afk' : via === 'unknown' ? 'unknown' : 'user', channel: via,
+    evidence: result.evidence, source: via, channel: via,
     command: 'review-acknowledge',
   }
 }
@@ -219,12 +219,13 @@ function invocationDecisions(input: PendingDecisionProjectionInput): PendingDeci
       const kind = isAfk ? 'afk' : 'skill-question'
       const anchor = `${invocationId}:${question.payload.question_id}`
       const status: DecisionStatus = decision === undefined ? 'pending' : 'answered'
-      const source = isAfk ? 'afk' : decision?.payload.mode === 'recommended-default' ? 'recommended-default' : 'user'
+      const channel = isAfk ? 'automation' as const : 'terminal' as const
+      const source = channel
       result.push({
         ref: { id: refId(kind, input.change, anchor, input.revision ?? null), kind, change: input.change, anchor, revision: input.revision ?? null },
         type: kind, status, anchor: { invocationId, questionId: question.payload.question_id }, revision: input.revision ?? null,
         evidence: decision === undefined ? ['invocation-question'] : ['invocation-question', 'decision-recorded'], source,
-        channel: isAfk ? 'automation' : 'terminal', command: 'skill-answer',
+        channel, command: 'skill-answer',
       })
     }
   }

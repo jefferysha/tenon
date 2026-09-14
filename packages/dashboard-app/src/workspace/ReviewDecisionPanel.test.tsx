@@ -13,7 +13,6 @@ describe('ReviewDecisionPanel', () => {
     const onRefresh = vi.fn()
     render(<I18nProvider><ReviewDecisionPanel root="/repo" change="demo" onRefresh={onRefresh} /></I18nProvider>)
     expect(await screen.findByTestId('review-console-approve')).toBeEnabled()
-    expect(screen.getByTestId('review-console-boundary')).toHaveTextContent('驳回和退回')
     await userEvent.click(screen.getByTestId('review-console-approve'))
     await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1))
     expect(fetchMock.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ method: 'POST' }))

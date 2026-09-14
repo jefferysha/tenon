@@ -11,7 +11,7 @@ export interface PendingDecision {
   readonly anchor: { readonly phase?: string; readonly event?: string; readonly invocationId?: string; readonly questionId?: string }
   readonly revision: number | null
   readonly evidence: readonly string[]
-  readonly source: 'user' | 'recommended-default' | 'afk' | 'unknown'
+  readonly source: DecisionChannel
   readonly channel: DecisionChannel
   readonly command: 'review-acknowledge' | 'skill-answer'
 }
@@ -43,7 +43,7 @@ function decodeItem(value: unknown): PendingDecision | null {
   if (!isRecord(value) || !isRecord(value.ref) || !isRecord(value.anchor)) return null
   if (!isString(value.ref.id) || !isDecisionKind(value.ref.kind) || !isString(value.ref.change) || !isString(value.ref.anchor) || !isNullableRevision(value.ref.revision)) return null
   if (!isDecisionKind(value.type) || !isStatus(value.status) || !isNullableRevision(value.revision) || !Array.isArray(value.evidence) || !value.evidence.every(isString)) return null
-  if (!['user', 'recommended-default', 'afk', 'unknown'].includes(String(value.source)) || !isChannel(value.channel)) return null
+  if (!isChannel(value.source) || !isChannel(value.channel)) return null
   if (value.command !== 'review-acknowledge' && value.command !== 'skill-answer') return null
   const anchor: { phase?: string; event?: string; invocationId?: string; questionId?: string } = {}
   for (const key of ['phase', 'event', 'invocationId', 'questionId'] as const) if (value.anchor[key] !== undefined) {

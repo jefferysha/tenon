@@ -23,7 +23,8 @@ export interface PendingDecision {
   readonly anchor: { readonly phase?: string; readonly event?: string; readonly invocationId?: string; readonly questionId?: string }
   readonly revision: number | null
   readonly evidence: readonly string[]
-  readonly source: 'user' | 'recommended-default' | 'afk' | 'unknown'
+  /** Route provenance; decision strategy is carried by Skill invocation evidence. */
+  readonly source: DecisionChannel
   readonly channel: DecisionChannel
   readonly command: DecisionCommandKind
 }

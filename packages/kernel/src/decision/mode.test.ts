@@ -6,7 +6,11 @@ describe('decision mode contract', () => {
     expect(strategyForDecisionMode('hitl')).toBe('interactive')
     expect(strategyForDecisionMode('hitl', true)).toBe('recommended-defaults')
     expect(strategyForDecisionMode('afk')).toBe('afk')
-    expect(modeSwitchEvent({ from: 'hitl', to: 'afk', occurredAt: '2026-09-13T00:00:00Z', actor: 'user' })).toMatchObject({ type: 'decision-mode-switched', strategy: 'afk' })
+    expect(modeSwitchEvent({ from: 'hitl', to: 'afk', occurredAt: '2026-09-13T00:00:00Z', actor: 'principal-1' })).toMatchObject({ type: 'decision-mode-switched', strategy: 'afk' })
+  })
+
+  it('rejects reserved human/user actors', () => {
+    expect(() => modeSwitchEvent({ from: 'hitl', to: 'afk', occurredAt: '2026-09-13T00:00:00Z', actor: 'user' })).toThrow(/opaque principal/)
   })
 
   it('returns a redacted detection signal for pending token access', () => {

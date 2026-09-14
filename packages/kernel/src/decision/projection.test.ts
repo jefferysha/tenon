@@ -99,6 +99,6 @@ describe('pending decision projection', () => {
     const question = { ...started, event_id: 'e2', sequence: 2, type: 'question-recorded' as const, payload: { question_id: 'q1', key: 'confirm', schema_id: 'q', option_ids: ['yes'], requiredness: 'hard-gate' as const, shown: true } } satisfies SkillInvocationEventV1
     const decision = { ...started, event_id: 'e3', sequence: 3, type: 'decision-recorded' as const, payload: { decision_id: 'd1', question_id: 'q1', mode: 'user-answer' as const, selected_option_ids: ['yes'] } } satisfies SkillInvocationEventV1
     const view = projectPendingDecisions({ change: 'demo', state: state({ phase: 'verify' }), invocations: [started, question, decision] })
-    expect(view.items[0]).toMatchObject({ type: 'afk', source: 'afk', channel: 'automation', command: 'skill-answer', status: 'answered' })
+    expect(view.items[0]).toMatchObject({ type: 'afk', source: 'automation', channel: 'automation', command: 'skill-answer', status: 'answered' })
   })
 })
