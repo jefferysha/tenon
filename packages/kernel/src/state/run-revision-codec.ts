@@ -263,8 +263,15 @@ function canonicalState(value: unknown, opts: { allowLegacyFieldOmissions?: bool
   const isHistoricalEmptyReceiptWithoutEventOrChannel = missingReviewGateFields.length > 0
     && missingReviewGateFields.every((field) => field === 'review_gate_event' || field === 'review_acknowledged_via')
     && REVIEW_GATE_FIELDS.filter((field) => !missingReviewGateSet.has(field)).every((field) => rawFields?.[field] === '')
+  // The first exact-event receipt release predated the via attribution field. Preserve those
+  // historical non-empty receipts as unknown-channel records instead of rejecting the revision;
+  // callers must still require a fresh binding before acknowledging.
+  const isHistoricalReceiptWithoutChannel = missingReviewGateFields.length === 1
+    && missingReviewGateFields[0] === 'review_acknowledged_via'
+    && REVIEW_GATE_FIELDS.filter((field) => field !== 'review_acknowledged_via')
+      .every((field) => Object.prototype.hasOwnProperty.call(rawFields ?? {}, field))
   const legacyReviewGateDefaults = opts.allowLegacyFieldOmissions === true
-    && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent || isHistoricalEmptyReceiptWithoutEventOrChannel)
+    && (isCompleteReviewGateOmission || isEmptyFourFieldReceiptWithoutEvent || isHistoricalEmptyReceiptWithoutEventOrChannel || isHistoricalReceiptWithoutChannel)
     ? new Set<FieldName>(missingReviewGateFields)
     : new Set<FieldName>()
   const legacyPreVerifyDefault = opts.allowLegacyFieldOmissions === true

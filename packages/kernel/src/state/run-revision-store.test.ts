@@ -195,6 +195,23 @@ describe('G1 canonical revision 对抗校验', () => {
     expect(hydrated.state.opaqueTail).not.toContain('tenon-internal-pre-verify-review-v1')
   })
 
+  test('读取缺少 review_acknowledged_via 的历史 receipt 时补 unknown 并保持 fail-closed', async () => {
+    const { dir } = await fresh()
+    const currentPath = join(dir, '.pipeline-run', 'current.json')
+    const current = JSON.parse(await readFile(currentPath, 'utf8')) as Record<string, unknown>
+    const state = current.state as { fields: Record<string, unknown> }
+    state.fields.review_gate_phase = 'verify'
+    state.fields.review_gate_event = 'verify-pass'
+    state.fields.review_gate_status = 'approved'
+    state.fields.review_requested_at = clock()
+    state.fields.review_acknowledged_at = clock()
+    delete state.fields.review_acknowledged_via
+    rehash(current)
+    await writeFile(currentPath, `${JSON.stringify(current)}\n`, 'utf8')
+    const parsed = parseRunRevision(await readFile(currentPath, 'utf8'), 'current')
+    expect(parsed.state.fields.review_acknowledged_via).toBe('unknown')
+  })
+
   test('publish 在落任何新 canonical bytes 前拒绝非 transition 改写 head/sequence', async () => {
     const { dir } = await fresh()
     const currentPath = join(dir, '.pipeline-run', 'current.json')
