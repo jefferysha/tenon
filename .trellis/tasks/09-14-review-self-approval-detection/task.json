@@ -3,7 +3,7 @@
   "name": "review-self-approval-detection",
   "title": "实现 pending review 自审批检测",
   "description": "实现 token/local API pending review 检测、脱敏审计信号和 hook 测试",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": "kernel",
@@ -11,7 +11,7 @@
   "creator": "sjy",
   "assignee": "sjy",
   "createdAt": "2026-09-14",
-  "completedAt": null,
+  "completedAt": "2026-09-14",
   "branch": null,
   "base_branch": "codex/tenon-decision-sync-integrated",
   "worktree_path": null,
@@ -19,11 +19,10 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": null,
+  "parent": "09-14-decision-control-completion",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "已被取代：首版实现见 09-14-review-pending-self-approval-recovery，漏洞修复见 09-14-decision-control-hardening 包 S。本任务自身未实施。",
   "meta": {
-    "package": "cli",
-    "meta_status": "paused"
+    "package": "cli"
   }
 }

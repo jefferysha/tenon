@@ -3,7 +3,7 @@
   "name": "human-gate-server",
   "title": "修复 server human gate 语义",
   "description": "移除 server transition 的 humanGateSatisfied 硬编码，与 CLI 统一并补回归测试",
-  "status": "planning",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": "server",
@@ -11,7 +11,7 @@
   "creator": "sjy",
   "assignee": "sjy",
   "createdAt": "2026-09-14",
-  "completedAt": null,
+  "completedAt": "2026-09-14",
   "branch": null,
   "base_branch": "codex/tenon-decision-sync-integrated",
   "worktree_path": null,
@@ -19,10 +19,8 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": null,
+  "parent": "09-14-decision-control-completion",
   "relatedFiles": [],
-  "notes": "",
-  "meta": {
-    "meta_status": "paused"
-  }
+  "notes": "已被取代：审计见 09-14-audit-human-gate-constraint；server 不再读取进程环境、Dashboard 入口不能满足 loop human gate 的修复见 09-14-decision-control-hardening 包 G。本任务自身未实施。",
+  "meta": {}
 }
