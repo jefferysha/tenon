@@ -593,11 +593,17 @@ var FIELD_ORDER = [
   // explore/spec/verify 时就阻断相位工作。字段一起记录确切 phase、event、状态和两次时间，令
   // transition 能拒绝无确认的离开，同时让 UserPromptSubmit 的确认留在 canonical state 中。event
   // 必须是待离开 phase 的确切出边，不能让 verify-fail 的确认误授权给 verify-pass（反之亦然）。
-  // 必须继续只追加在末尾，原因同上面的 automation_*：旧窄解析器会把未知尾字段原样保留。
-  ...REVIEW_GATE_FIELDS,
+  // 其中 review_acknowledged_via 是后续追加字段，必须放在整个 FIELD_ORDER 最末尾；否则旧窄解析器
+  // 会把它后面的真字段误收进 opaqueTail，混版本回写时可能制造重复 key。
+  "review_gate_phase",
+  "review_gate_status",
+  "review_gate_event",
+  "review_requested_at",
+  "review_acknowledged_at",
   // Build→Verify 全量收敛门：新实现 visit 必须重新完成完整 diff/契约/发行门禁审查，不能继承
   // 上一候选的 pass。继续严格末尾追加，使旧窄解析器把这一行及其后的提交元数据原样保留。
-  PRE_VERIFY_REVIEW_FIELD
+  PRE_VERIFY_REVIEW_FIELD,
+  "review_acknowledged_via"
 ];
 var LIST_FIELDS = ["scope", "related_files", "spec_scope", "depends_on"];
 var PHASES = ["open", "explore", "spec", "build", "verify", "ship", "archive"];
@@ -11393,6 +11399,14 @@ function stateWithoutProjection(state) {
 }
 var FIELD_SET2 = new Set(FIELD_ORDER);
 var REVIEW_GATE_FIELD_SET2 = new Set(REVIEW_GATE_FIELDS);
+var LEGACY_IMPORT_PROTECTED_FIELDS = /* @__PURE__ */ new Set([
+  "phase",
+  "phase_status",
+  "branch_status",
+  "build_sha",
+  "pre_verify_review_result",
+  ...REVIEW_GATE_FIELDS
+]);
 function isPreciseLegacyFieldProjection(raw, parsed, current) {
   const expected = projectionMetadataFor(current);
   const metadata = parsed.projectionMetadata;
@@ -11598,8 +11612,11 @@ var FsStateStore = class {
         throw new StateProjectionDriftError("import-legacy: canonical current \u4E0D\u5B58\u5728\uFF1B\u65E0\u9700\u89E3\u51B3\u53CC\u4E3B drift");
       }
       const legacy = parsePipeline(await readFile11(stateFilePath(changeDir2), "utf8"));
+      const importedFields = structuredClone(legacy.fields);
+      for (const field3 of LEGACY_IMPORT_PROTECTED_FIELDS)
+        importedFields[field3] = structuredClone(current.state.fields[field3]);
       const imported = {
-        fields: legacy.fields,
+        fields: importedFields,
         ...current.state.runMetadata === void 0 ? {} : { runMetadata: structuredClone(current.state.runMetadata) },
         opaqueTail: legacy.opaqueTail
       };
@@ -24239,6 +24256,13 @@ function trackKind(track) {
 }
 function pipelineStage(step) {
   return ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(step) ? step : "custom";
+}
+function classifyInteractionWorkflowIdentity(input) {
+  return {
+    workflowMode: isDefaultWorkflowName(input.workflow) ? "default" : "custom",
+    trackKind: trackKind(input.track),
+    pipelineStage: pipelineStage(input.step)
+  };
 }
 function createInteractionEffectDraft(input) {
   const workflowHash = input.workflowRun.workflowPlanFingerprint;
@@ -37780,6 +37804,26 @@ async function resolveArtifactRoute(req, res, path13, deps) {
 
 // packages/server/src/serverGetDecisionRoutes.ts
 import { join as join64 } from "node:path";
+
+// packages/server/src/decisionProjection.ts
+async function readPendingDecisionProjection(input) {
+  const current = await readCurrentRunRevision(input.dir);
+  const state = current?.state ?? await input.store.read(input.dir);
+  const interactions = await readInteractionProjection(input.dir);
+  const invocations = await readSkillInvocationEventsForApplication(input.dir);
+  const metadata = current?.state.runMetadata;
+  const transitions = metadata?.transitionHead !== void 0 && input.recordStore !== void 0 ? await input.recordStore.readChain(input.dir, metadata.transitionSequence, metadata.transitionHead, metadata.runId) : [];
+  return projectPendingDecisions({
+    change: input.change,
+    state,
+    revision: current?.revision,
+    interactions: interactions.kind === "valid" ? interactions.events : [],
+    invocations,
+    transitions
+  });
+}
+
+// packages/server/src/serverGetDecisionRoutes.ts
 function validName2(name) {
   return name !== "" && /^[A-Za-z0-9_-]+$/.test(name) && !name.includes("..");
 }
@@ -37795,13 +37839,12 @@ async function handleGetDecisionRoute(req, res, path13, deps) {
   const dir = join64(checked.anchor.path, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" }), true;
   try {
-    const current = await readCurrentRunRevision(dir);
-    const state = current?.state ?? await deps.store.read(dir);
-    const interactions = await readInteractionProjection(dir);
-    const invocations = await readSkillInvocationEventsForApplication(dir);
-    const head = current?.state.runMetadata?.transitionHead;
-    const transitions = current?.state.runMetadata !== void 0 && head !== void 0 ? await deps.recordStore.readChain(dir, current.state.runMetadata.transitionSequence, head, current.state.runMetadata.runId) : [];
-    const view = projectPendingDecisions({ change: name, state, revision: current?.revision, interactions: interactions.kind === "valid" ? interactions.events : [], invocations, transitions });
+    const view = await readPendingDecisionProjection({
+      change: name,
+      dir,
+      store: deps.store,
+      recordStore: deps.recordStore
+    });
     return deps.sendJson(res, 200, view), true;
   } catch (error2) {
     return deps.sendJson(res, 500, { ok: false, error: error2 instanceof Error ? error2.message : String(error2) }), true;
@@ -38788,7 +38831,7 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
     return true;
   }
   try {
-    const outcome = await applyDecision({ dir, root, name, ref, expectedRevision, idempotencyKey, store, clock, history });
+    const outcome = await applyDecision({ dir, root, name, ref, expectedRevision, idempotencyKey, store, recordStore: deps.recordStore, clock, history });
     if (!outcome.result.ok) {
       sendJson(res, 409, { ok: false, error: outcome.result.message, code: outcome.result.code });
       return true;
@@ -38803,15 +38846,20 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
     });
   } catch (error2) {
     const message = error2 instanceof Error ? error2.message : String(error2);
-    const code = typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : message === "decision revision conflict" ? "revision-conflict" : "review-approval-required";
-    const status2 = ["revision-conflict", "decision-ref-mismatch", "idempotency-conflict", "decision-not-pending", "review-approval-required"].includes(code) ? 409 : 500;
-    sendJson(res, status2, { ok: false, error: message, code });
+    const code = typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : void 0;
+    const status2 = code !== void 0 && ["revision-conflict", "decision-ref-mismatch", "idempotency-conflict", "decision-not-pending", "review-approval-required"].includes(code) ? 409 : 500;
+    sendJson(res, status2, { ok: false, error: message, ...code === void 0 ? {} : { code } });
   }
   return true;
 }
 async function applyDecision(input) {
   const preflight = await input.store.read(input.dir);
-  const view = projectPendingDecisions({ change: input.name, state: preflight });
+  const view = await readPendingDecisionProjection({
+    change: input.name,
+    dir: input.dir,
+    store: input.store,
+    recordStore: input.recordStore
+  });
   const item2 = view.items.find((candidate) => candidate.ref.id === input.ref);
   const priorForKey = item2 === void 0 ? (await readDecisionIdempotency(input.dir)).find((record7) => record7.key === input.idempotencyKey) : void 0;
   if ((item2 === void 0 || item2.type !== "review") && priorForKey === void 0) {
@@ -38868,9 +38916,11 @@ async function applyDecision(input) {
             workflow: String(state.fields.workflow || "default"),
             workflowHash: current.state.runMetadata?.workflowPlanFingerprint ?? "0".repeat(64),
             track: String(state.fields.track || "backend"),
-            trackKind: ["chat", "simple", "pm", "frontend", "backend"].includes(String(state.fields.track)) ? "built-in" : "custom",
-            workflowMode: "default",
-            pipelineStage: ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(phase) ? phase : "custom"
+            ...classifyInteractionWorkflowIdentity({
+              workflow: String(state.fields.workflow || "default"),
+              track: String(state.fields.track || "backend"),
+              step: phase
+            })
           }));
         } catch {
         }
@@ -38878,6 +38928,29 @@ async function applyDecision(input) {
     },
     commit: async (state, acknowledgedAt) => {
       const before = await readCurrentRunRevision(input.dir);
+      if (before === void 0) throw new Error("interaction projection \u7F3A canonical run/workflow/state anchor");
+      const workflow = String(state.fields.workflow || "default");
+      const track = String(state.fields.track || "backend");
+      createInteractionEvent({
+        ...reviewAcknowledgedInteractionDraft({
+          change: input.name,
+          state,
+          revision: before,
+          beforeRevision: before,
+          phase,
+          event,
+          requestedAt: String(state.fields.review_requested_at || ""),
+          acknowledgedAt,
+          surface: "dashboard",
+          actor: "system",
+          workflow,
+          workflowHash: before.state.runMetadata?.workflowPlanFingerprint ?? "0".repeat(64),
+          track,
+          ...classifyInteractionWorkflowIdentity({ workflow, track, step: phase })
+        }),
+        sequence: 1,
+        previousEventHash: null
+      });
       const acknowledged = await acknowledgeReview({
         state,
         phase,
@@ -38905,9 +38978,11 @@ async function applyDecision(input) {
             workflow: String(interactionState.fields.workflow || "default"),
             workflowHash: after.state.runMetadata?.workflowPlanFingerprint ?? "0".repeat(64),
             track: String(interactionState.fields.track || "backend"),
-            trackKind: "built-in",
-            workflowMode: "default",
-            pipelineStage: phase
+            ...classifyInteractionWorkflowIdentity({
+              workflow: String(interactionState.fields.workflow || "default"),
+              track: String(interactionState.fields.track || "backend"),
+              step: phase
+            })
           }));
         },
         recordHistory: async ({ acknowledgedAt: at }) => input.history.append(input.dir, { ts: at, kind: "tool", raw: `review:acknowledge via=dashboard phase=${phase} event=${event}` }),
@@ -39229,7 +39304,7 @@ async function handlePostExecutionRoutes(req, res, path13, deps) {
       return sendTrackError(res, error2);
     }
   }
-  const decisionHandled = await handlePostDecisionRoutes(req, res, path13, { sendJson, readJsonBody, isRegisteredRoot, store, clock, history });
+  const decisionHandled = await handlePostDecisionRoutes(req, res, path13, { sendJson, readJsonBody, isRegisteredRoot, store, recordStore: deps.recordStore, clock, history });
   if (decisionHandled) return;
   const mTr = /^\/api\/change\/([^/]+)\/transition$/.exec(path13);
   if (!mTr) return sendJson(res, 404, { ok: false, error: "\u672A\u77E5\u5199\u56DE\u7AEF\u70B9" });
@@ -41127,6 +41202,7 @@ function createDashboardServer(options) {
     operationsAvailable,
     isRegisteredRoot,
     store,
+    recordStore,
     clock,
     history,
     workflowRootAnchors,

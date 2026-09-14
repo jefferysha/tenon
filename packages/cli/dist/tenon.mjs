@@ -3128,11 +3128,17 @@ var FIELD_ORDER = [
   // explore/spec/verify 时就阻断相位工作。字段一起记录确切 phase、event、状态和两次时间，令
   // transition 能拒绝无确认的离开，同时让 UserPromptSubmit 的确认留在 canonical state 中。event
   // 必须是待离开 phase 的确切出边，不能让 verify-fail 的确认误授权给 verify-pass（反之亦然）。
-  // 必须继续只追加在末尾，原因同上面的 automation_*：旧窄解析器会把未知尾字段原样保留。
-  ...REVIEW_GATE_FIELDS,
+  // 其中 review_acknowledged_via 是后续追加字段，必须放在整个 FIELD_ORDER 最末尾；否则旧窄解析器
+  // 会把它后面的真字段误收进 opaqueTail，混版本回写时可能制造重复 key。
+  "review_gate_phase",
+  "review_gate_status",
+  "review_gate_event",
+  "review_requested_at",
+  "review_acknowledged_at",
   // Build→Verify 全量收敛门：新实现 visit 必须重新完成完整 diff/契约/发行门禁审查，不能继承
   // 上一候选的 pass。继续严格末尾追加，使旧窄解析器把这一行及其后的提交元数据原样保留。
-  PRE_VERIFY_REVIEW_FIELD
+  PRE_VERIFY_REVIEW_FIELD,
+  "review_acknowledged_via"
 ];
 var LIST_FIELDS = ["scope", "related_files", "spec_scope", "depends_on"];
 var PHASES = ["open", "explore", "spec", "build", "verify", "ship", "archive"];
@@ -15019,6 +15025,14 @@ function stateWithoutProjection(state) {
 }
 var FIELD_SET2 = new Set(FIELD_ORDER);
 var REVIEW_GATE_FIELD_SET2 = new Set(REVIEW_GATE_FIELDS);
+var LEGACY_IMPORT_PROTECTED_FIELDS = /* @__PURE__ */ new Set([
+  "phase",
+  "phase_status",
+  "branch_status",
+  "build_sha",
+  "pre_verify_review_result",
+  ...REVIEW_GATE_FIELDS
+]);
 function isPreciseLegacyFieldProjection(raw, parsed, current) {
   const expected = projectionMetadataFor(current);
   const metadata = parsed.projectionMetadata;
@@ -15224,8 +15238,11 @@ var FsStateStore = class {
         throw new StateProjectionDriftError("import-legacy: canonical current \u4E0D\u5B58\u5728\uFF1B\u65E0\u9700\u89E3\u51B3\u53CC\u4E3B drift");
       }
       const legacy = parsePipeline(await readFile11(stateFilePath(changeDir2), "utf8"));
+      const importedFields = structuredClone(legacy.fields);
+      for (const field3 of LEGACY_IMPORT_PROTECTED_FIELDS)
+        importedFields[field3] = structuredClone(current.state.fields[field3]);
       const imported = {
-        fields: legacy.fields,
+        fields: importedFields,
         ...current.state.runMetadata === void 0 ? {} : { runMetadata: structuredClone(current.state.runMetadata) },
         opaqueTail: legacy.opaqueTail
       };
