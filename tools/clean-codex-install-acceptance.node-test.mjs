@@ -78,15 +78,20 @@ function portAcceptsConnections(port) {
 async function assertProcessReapedWithClosedPort(pid, port, timeoutMs = 2_000) {
   const deadline = Date.now() + timeoutMs
   for (;;) {
-    assert.equal(await portAcceptsConnections(port), false)
+    // SIGKILL is asynchronous: on a loaded runner the killed descendant can still hold its listener
+    // for a few milliseconds after the owned group was signalled. Both the listener and the pid must
+    // be gone before the deadline; neither is asserted on the first observation.
+    const listening = await portAcceptsConnections(port)
+    let alive = true
     try {
       process.kill(pid, 0)
     } catch (error) {
       assert.equal(error.code, 'ESRCH')
-      return
+      alive = false
     }
+    if (!listening && !alive) return
     if (Date.now() >= deadline) {
-      assert.fail(`process ${pid} remained observable after ${timeoutMs}ms`)
+      assert.fail(`process ${pid} remained observable after ${timeoutMs}ms (listening=${listening}, alive=${alive})`)
     }
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
