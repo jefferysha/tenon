@@ -6,7 +6,7 @@ import type { TransitionRecord } from '../workflow/run-types.js'
 export type DecisionKind = 'review' | 'skill-question' | 'afk'
 export type DecisionStatus = 'pending' | 'answered' | 'consumed' | 'superseded' | 'expired' | 'unknown'
 export type DecisionCommandKind = 'review-acknowledge' | 'skill-answer'
-export type DecisionChannel = 'terminal' | 'dashboard' | 'automation' | 'unknown'
+export type DecisionChannel = 'terminal' | 'dashboard' | 'automation' | 'delegated' | 'unknown'
 
 export interface DecisionRef {
   readonly id: string
@@ -53,7 +53,7 @@ export interface DecisionCommandInput {
 
 export type DecisionCommandResult =
   | { readonly ok: true; readonly idempotent: boolean; readonly ref: DecisionRef }
-  | { readonly ok: false; readonly code: 'revision-conflict' | 'decision-not-pending' | 'decision-ref-mismatch' | 'invalid-command'; readonly message: string }
+  | { readonly ok: false; readonly code: 'revision-conflict' | 'decision-not-pending' | 'decision-ref-mismatch' | 'idempotency-conflict' | 'invalid-command'; readonly message: string }
 
 export interface DecisionCommandAdapter {
   readonly execute: (input: DecisionCommandInput) => Promise<DecisionCommandResult>

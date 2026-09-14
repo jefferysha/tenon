@@ -58,7 +58,8 @@ export function reviewGateRequestPatch(
   }
 }
 
-export type ReviewAcknowledgedVia = 'terminal' | 'dashboard' | 'automation' | 'unknown'
+/** Entry route for an acknowledgement. This is provenance, not operator identity. */
+export type ReviewAcknowledgedVia = 'terminal' | 'dashboard' | 'automation' | 'delegated' | 'unknown'
 
 export function reviewGateApprovalPatch(acknowledgedAt: string, via: ReviewAcknowledgedVia = 'terminal'): Partial<Record<FieldName, string>> {
   return {

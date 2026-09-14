@@ -71,6 +71,9 @@ export interface ReviewAcknowledgeApplicationResult {
   readonly changed: boolean
   readonly acknowledgedAt: string
   readonly deferred: readonly string[]
+  /** Stable machine result for adapters; canonical failures remain thrown with no write. */
+  readonly code: 'approved' | 'idempotent-replay' | 'marker-warning'
+  readonly idempotent: boolean
 }
 
 export async function acknowledgeReview(input: ReviewAcknowledgeApplicationInput): Promise<ReviewAcknowledgeApplicationResult> {
@@ -91,7 +94,7 @@ export async function acknowledgeReview(input: ReviewAcknowledgeApplicationInput
     throw error
   }
   if (reviewGateApprovedFor(input.state, input.phase, input.event)) {
-    return { changed: false, acknowledgedAt: input.acknowledgedAt, deferred }
+    return { changed: false, acknowledgedAt: input.acknowledgedAt, deferred, code: 'idempotent-replay', idempotent: true }
   }
   if (!reviewGatePendingFor(input.state, input.phase, input.event)) {
     const error = new Error(`phase '${input.phase}' 尚未为 event '${input.event}' request review`)
@@ -109,5 +112,11 @@ export async function acknowledgeReview(input: ReviewAcknowledgeApplicationInput
   if (input.clearMarker !== undefined) {
     if ((await input.clearMarker()) === false) deferred.push('review-marker-clear')
   } else deferred.push('review-marker-clear')
-  return { changed: true, acknowledgedAt: input.acknowledgedAt, deferred }
+  return {
+    changed: true,
+    acknowledgedAt: input.acknowledgedAt,
+    deferred,
+    code: deferred.includes('review-marker-clear') ? 'marker-warning' : 'approved',
+    idempotent: false,
+  }
 }

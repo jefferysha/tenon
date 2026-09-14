@@ -23682,7 +23682,7 @@ function refId(kind, change, anchor, revision) {
   return `decision:${hash.toString(16).padStart(16, "0")}`;
 }
 function channel(value) {
-  return value === "terminal" || value === "dashboard" || value === "automation" ? value : "unknown";
+  return value === "terminal" || value === "dashboard" || value === "automation" || value === "delegated" ? value : "unknown";
 }
 function visitEqual(left, right) {
   return left.runId === right.runId && left.transitionSequence === right.transitionSequence && (left.step === void 0 || right.step === void 0 || left.step === right.step);
@@ -23916,7 +23916,7 @@ async function acknowledgeReview(input) {
     throw error2;
   }
   if (reviewGateApprovedFor(input.state, input.phase, input.event)) {
-    return { changed: false, acknowledgedAt: input.acknowledgedAt, deferred };
+    return { changed: false, acknowledgedAt: input.acknowledgedAt, deferred, code: "idempotent-replay", idempotent: true };
   }
   if (!reviewGatePendingFor(input.state, input.phase, input.event)) {
     const error2 = new Error(`phase '${input.phase}' \u5C1A\u672A\u4E3A event '${input.event}' request review`);
@@ -23941,7 +23941,13 @@ async function acknowledgeReview(input) {
       deferred.push("review-marker-clear");
   } else
     deferred.push("review-marker-clear");
-  return { changed: true, acknowledgedAt: input.acknowledgedAt, deferred };
+  return {
+    changed: true,
+    acknowledgedAt: input.acknowledgedAt,
+    deferred,
+    code: deferred.includes("review-marker-clear") ? "marker-warning" : "approved",
+    idempotent: false
+  };
 }
 
 // packages/kernel/dist/skills/source-registry.js
@@ -38690,7 +38696,10 @@ var DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
 function isDecisionIdempotencyRecord(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record7 = value;
-  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && record7.channel === "dashboard" && typeof record7.acknowledgedAt === "string" && (record7.outcome === void 0 || record7.outcome === "rejected") && (record7.error === void 0 || typeof record7.error === "string") && (record7.code === void 0 || typeof record7.code === "string");
+  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && record7.channel === "dashboard" && (record7.payloadDigest === void 0 || typeof record7.payloadDigest === "string") && typeof record7.acknowledgedAt === "string" && (record7.outcome === void 0 || record7.outcome === "rejected") && (record7.error === void 0 || typeof record7.error === "string") && (record7.code === void 0 || typeof record7.code === "string");
+}
+function commandPayloadDigest(ref, expectedRevision, channel2) {
+  return `${channel2}\0${ref}\0${expectedRevision === null ? "null" : expectedRevision}`;
 }
 async function readDecisionIdempotency(changeDir2) {
   try {
@@ -38763,7 +38772,7 @@ async function handlePostDecisionRoutes(req, res, path13, deps) {
   } catch (error2) {
     const message = error2 instanceof Error ? error2.message : String(error2);
     const code = typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : message === "decision revision conflict" ? "revision-conflict" : "review-approval-required";
-    const status2 = ["revision-conflict", "decision-ref-mismatch", "decision-not-pending", "review-approval-required"].includes(code) ? 409 : 500;
+    const status2 = ["revision-conflict", "decision-ref-mismatch", "idempotency-conflict", "decision-not-pending", "review-approval-required"].includes(code) ? 409 : 500;
     sendJson(res, status2, { ok: false, error: message, code });
   }
   return true;
@@ -38774,8 +38783,9 @@ async function applyDecision(input) {
   await input.store.withLock(input.dir, async () => {
     const records = await readDecisionIdempotency(input.dir);
     const prior = records.find((record7) => record7.key === input.idempotencyKey);
-    if (prior !== void 0 && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision)) {
-      throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "decision-ref-mismatch" });
+    const payloadDigest = commandPayloadDigest(input.ref, input.expectedRevision, "dashboard");
+    if (prior !== void 0 && (prior.payloadDigest ?? commandPayloadDigest(prior.ref, prior.expectedRevision, prior.channel)) !== payloadDigest) {
+      throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "idempotency-conflict" });
     }
     if (prior !== void 0) {
       if (prior.outcome === "rejected") {
@@ -38789,6 +38799,49 @@ async function applyDecision(input) {
     const view = projectPendingDecisions({ change: input.name, state: locked, revision: lockedRevision?.revision });
     const item2 = view.items.find((candidate) => candidate.ref.id === input.ref);
     if (item2 === void 0) throw Object.assign(new Error("decision is no longer pending"), { code: "decision-not-pending" });
+    if (item2.type === "review") {
+      const phase = item2.anchor.phase ?? "";
+      const event = item2.anchor.event ?? reviewGateEvent(locked);
+      const binding = await readReviewGateBinding(input.dir);
+      if (!reviewGateBindingMatches(binding, locked, phase, event)) {
+        const current = await readCurrentRunRevision(input.dir);
+        if (current !== void 0 && lockedRevision !== void 0) {
+          try {
+            await createInteractionEventRecorder().recordUnderLock(input.dir, reviewAcknowledgedInteractionDraft({
+              change: input.name,
+              state: locked,
+              revision: current,
+              beforeRevision: lockedRevision,
+              phase,
+              event,
+              requestedAt: String(locked.fields.review_requested_at ?? ""),
+              acknowledgedAt: input.clock(),
+              rejected: true,
+              workflow: String(locked.fields.workflow || "default"),
+              workflowHash: current.state.runMetadata?.workflowPlanFingerprint ?? "0".repeat(64),
+              track: String(locked.fields.track || "backend"),
+              trackKind: ["chat", "simple", "pm", "frontend", "backend"].includes(String(locked.fields.track)) ? "built-in" : "custom",
+              workflowMode: "default",
+              pipelineStage: ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(phase) ? phase : "custom",
+              surface: "dashboard"
+            }));
+          } catch {
+          }
+        }
+        await appendDecisionIdempotency(input.dir, {
+          key: input.idempotencyKey,
+          ref: input.ref,
+          expectedRevision: input.expectedRevision,
+          channel: "dashboard",
+          payloadDigest: commandPayloadDigest(input.ref, input.expectedRevision, "dashboard"),
+          acknowledgedAt: input.clock(),
+          outcome: "rejected",
+          error: "review receipt binding mismatch",
+          code: "review-approval-required"
+        });
+        throw Object.assign(new Error(`phase '${phase}' \u7684 review receipt \u672A\u7ED1\u5B9A\u5F53\u524D canonical decision state\uFF1B\u8BF7\u91CD\u65B0 request ${event}`), { code: "review-approval-required" });
+      }
+    }
     const adapter2 = createDecisionCommandAdapter({
       readRevision: async () => (await readCurrentRunRevision(input.dir))?.revision ?? null,
       hasIdempotencyKey: async () => false,
@@ -38797,6 +38850,7 @@ async function applyDecision(input) {
         ref: input.ref,
         expectedRevision: input.expectedRevision,
         channel: "dashboard",
+        payloadDigest,
         acknowledgedAt: input.clock()
       }),
       isPending: async (decisionRef) => projectPendingDecisions({
@@ -38880,6 +38934,7 @@ async function applyDecision(input) {
         ref: input.ref,
         expectedRevision: input.expectedRevision,
         channel: "dashboard",
+        payloadDigest,
         acknowledgedAt: input.clock(),
         outcome: "rejected",
         error: error2 instanceof Error ? error2.message : String(error2),

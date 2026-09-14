@@ -109,6 +109,20 @@ describe('decision server adapters', () => {
       )
       expect(retryCapture.result).toMatchObject({ status: 200, body: { ok: true, idempotent: true } })
       expect((await readFile(join(fixture.dir, '.pipeline-decision-idempotency.jsonl'), 'utf8')).split('\n').filter(Boolean)).toHaveLength(1)
+
+      const conflictCapture = responseCapture()
+      await handlePostDecisionRoutes(
+        request('/api/change/demo/decisions'), conflictCapture.response, '/api/change/demo/decisions',
+        {
+          sendJson: conflictCapture.sendJson,
+          readJsonBody: async () => ({ ...body, expected_revision: item.revision + 1 }),
+          isRegisteredRoot: (root) => root === fixture.root,
+          store: fixture.store,
+          clock: () => '2026-09-14T00:00:03.000Z',
+          history: { append: async () => undefined },
+        },
+      )
+      expect(conflictCapture.result).toMatchObject({ status: 409, body: { ok: false, code: 'idempotency-conflict' } })
     } finally {
       await fixture.cleanup()
     }

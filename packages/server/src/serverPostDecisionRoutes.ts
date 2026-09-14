@@ -26,6 +26,8 @@ type DecisionIdempotencyRecord = {
   readonly ref: string
   readonly expectedRevision: number | null
   readonly channel: 'dashboard'
+  /** Stable digest of the complete command payload (legacy records may omit it). */
+  readonly payloadDigest?: string
   readonly acknowledgedAt: string
   readonly outcome?: 'rejected'
   readonly error?: string
@@ -41,10 +43,17 @@ function isDecisionIdempotencyRecord(value: unknown): value is DecisionIdempoten
     && typeof record.ref === 'string'
     && (typeof record.expectedRevision === 'number' || record.expectedRevision === null)
     && record.channel === 'dashboard'
+    && (record.payloadDigest === undefined || typeof record.payloadDigest === 'string')
     && typeof record.acknowledgedAt === 'string'
     && (record.outcome === undefined || record.outcome === 'rejected')
     && (record.error === undefined || typeof record.error === 'string')
     && (record.code === undefined || typeof record.code === 'string')
+}
+
+function commandPayloadDigest(ref: string, expectedRevision: number | null, channel: 'dashboard'): string {
+  // The route accepts only review/dashboard commands today; keep the digest explicit so future
+  // command kinds/channels cannot accidentally replay under the same idempotency key.
+  return `${channel}\0${ref}\0${expectedRevision === null ? 'null' : expectedRevision}`
 }
 
 async function readDecisionIdempotency(changeDir: string): Promise<readonly DecisionIdempotencyRecord[]> {
@@ -123,7 +132,7 @@ export async function handlePostDecisionRoutes(
     const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
       ? error.code
       : message === 'decision revision conflict' ? 'revision-conflict' : 'review-approval-required'
-    const status = ['revision-conflict', 'decision-ref-mismatch', 'decision-not-pending', 'review-approval-required'].includes(code) ? 409 : 500
+    const status = ['revision-conflict', 'decision-ref-mismatch', 'idempotency-conflict', 'decision-not-pending', 'review-approval-required'].includes(code) ? 409 : 500
     sendJson(res, status, { ok: false, error: message, code })
   }
   return true
@@ -145,8 +154,9 @@ async function applyDecision(input: {
   await input.store.withLock(input.dir, async () => {
     const records = await readDecisionIdempotency(input.dir)
     const prior = records.find((record) => record.key === input.idempotencyKey)
-    if (prior !== undefined && (prior.ref !== input.ref || prior.expectedRevision !== input.expectedRevision)) {
-      throw Object.assign(new Error('idempotency key is already bound to another decision'), { code: 'decision-ref-mismatch' })
+    const payloadDigest = commandPayloadDigest(input.ref, input.expectedRevision, 'dashboard')
+    if (prior !== undefined && (prior.payloadDigest ?? commandPayloadDigest(prior.ref, prior.expectedRevision, prior.channel)) !== payloadDigest) {
+      throw Object.assign(new Error('idempotency key is already bound to another decision'), { code: 'idempotency-conflict' })
     }
     if (prior !== undefined) {
       if (prior.outcome === 'rejected') {
@@ -160,11 +170,43 @@ async function applyDecision(input: {
     const view = projectPendingDecisions({ change: input.name, state: locked, revision: lockedRevision?.revision })
     const item = view.items.find((candidate) => candidate.ref.id === input.ref)
     if (item === undefined) throw Object.assign(new Error('decision is no longer pending'), { code: 'decision-not-pending' })
+    // Contract ordering: for review commands verify the exact receipt/binding before comparing
+    // expected_revision. This prevents a stale caller from learning or bypassing approval state.
+    if (item.type === 'review') {
+      const phase = item.anchor.phase ?? ''
+      const event = item.anchor.event ?? reviewGateEvent(locked)
+      const binding = await readReviewGateBinding(input.dir)
+      if (!reviewGateBindingMatches(binding, locked, phase, event)) {
+        // Keep the rejection observable while preserving the contract's no-canonical-write rule.
+        const current = await readCurrentRunRevision(input.dir)
+        if (current !== undefined && lockedRevision !== undefined) {
+          try {
+            await createInteractionEventRecorder().recordUnderLock(input.dir, reviewAcknowledgedInteractionDraft({
+              change: input.name, state: locked, revision: current, beforeRevision: lockedRevision,
+              phase, event, requestedAt: String(locked.fields.review_requested_at ?? ''),
+              acknowledgedAt: input.clock(), rejected: true,
+              workflow: String(locked.fields.workflow || 'default'), workflowHash: current.state.runMetadata?.workflowPlanFingerprint ?? '0'.repeat(64),
+              track: String(locked.fields.track || 'backend'), trackKind: ['chat', 'simple', 'pm', 'frontend', 'backend'].includes(String(locked.fields.track)) ? 'built-in' : 'custom',
+              workflowMode: 'default', pipelineStage: ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'].includes(phase) ? phase as never : 'custom',
+              surface: 'dashboard',
+            }))
+          } catch {
+            // Rejection evidence is best effort; the canonical receipt remains untouched.
+          }
+        }
+        await appendDecisionIdempotency(input.dir, {
+          key: input.idempotencyKey, ref: input.ref, expectedRevision: input.expectedRevision, channel: 'dashboard',
+          payloadDigest: commandPayloadDigest(input.ref, input.expectedRevision, 'dashboard'), acknowledgedAt: input.clock(),
+          outcome: 'rejected', error: 'review receipt binding mismatch', code: 'review-approval-required',
+        })
+        throw Object.assign(new Error(`phase '${phase}' 的 review receipt 未绑定当前 canonical decision state；请重新 request ${event}`), { code: 'review-approval-required' })
+      }
+    }
     const adapter = createDecisionCommandAdapter({
       readRevision: async () => (await readCurrentRunRevision(input.dir))?.revision ?? null,
       hasIdempotencyKey: async () => false,
       rememberIdempotencyKey: async (key) => appendDecisionIdempotency(input.dir, {
-        key, ref: input.ref, expectedRevision: input.expectedRevision, channel: 'dashboard', acknowledgedAt: input.clock(),
+        key, ref: input.ref, expectedRevision: input.expectedRevision, channel: 'dashboard', payloadDigest, acknowledgedAt: input.clock(),
       }),
       isPending: async (decisionRef) => projectPendingDecisions({
         change: input.name, state: await input.store.read(input.dir), revision: lockedRevision?.revision,
@@ -223,7 +265,7 @@ async function applyDecision(input: {
       result = await adapter.execute({ ref: item.ref, expectedRevision: input.expectedRevision, idempotencyKey: input.idempotencyKey, channel: 'dashboard' })
     } catch (error) {
       await appendDecisionIdempotency(input.dir, {
-        key: input.idempotencyKey, ref: input.ref, expectedRevision: input.expectedRevision, channel: 'dashboard',
+        key: input.idempotencyKey, ref: input.ref, expectedRevision: input.expectedRevision, channel: 'dashboard', payloadDigest,
         acknowledgedAt: input.clock(), outcome: 'rejected', error: error instanceof Error ? error.message : String(error),
         code: typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string' ? error.code : 'review-approval-required',
       })

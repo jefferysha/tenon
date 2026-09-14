@@ -153,7 +153,9 @@ export function createInteractionCapture(recorder: InteractionEventRecorder, clo
       return write(input.changeDir, reviewAcknowledgedInteractionDraft({
         change: input.changeName, state: input.state, revision: input.revision, beforeRevision: origin,
         phase: scalar(input.state, 'phase'), event: input.event, requestedAt, acknowledgedAt: input.clock ?? clock(),
-        rejected: input.rejected, surface: 'cli', actor: 'human', workflow: base.workflow, workflowHash: base.workflowHash,
+        // The terminal route identifies the trusted host surface, not a human operator.
+        // A bearer token/session is capability evidence only; keep actor non-human.
+        rejected: input.rejected, surface: 'cli', actor: 'system', workflow: base.workflow, workflowHash: base.workflowHash,
         track: base.track, trackKind: base.trackKind, workflowMode: base.workflowMode, pipelineStage: base.pipelineStage,
         originStepVisit: base.originStepVisit, stepVisit: base.stepVisit,
       }))

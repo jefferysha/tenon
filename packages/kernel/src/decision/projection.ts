@@ -27,7 +27,7 @@ function refId(kind: string, change: string, anchor: string, revision: number | 
 }
 
 function channel(value: string): DecisionChannel {
-  return value === 'terminal' || value === 'dashboard' || value === 'automation' ? value : 'unknown'
+  return value === 'terminal' || value === 'dashboard' || value === 'automation' || value === 'delegated' ? value : 'unknown'
 }
 
 function visitEqual(left: InteractionStepVisit, right: InteractionStepVisit): boolean {

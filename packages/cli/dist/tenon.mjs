@@ -31319,7 +31319,7 @@ async function acknowledgeReview(input) {
     throw error2;
   }
   if (reviewGateApprovedFor(input.state, input.phase, input.event)) {
-    return { changed: false, acknowledgedAt: input.acknowledgedAt, deferred };
+    return { changed: false, acknowledgedAt: input.acknowledgedAt, deferred, code: "idempotent-replay", idempotent: true };
   }
   if (!reviewGatePendingFor(input.state, input.phase, input.event)) {
     const error2 = new Error(`phase '${input.phase}' \u5C1A\u672A\u4E3A event '${input.event}' request review`);
@@ -31344,7 +31344,13 @@ async function acknowledgeReview(input) {
       deferred.push("review-marker-clear");
   } else
     deferred.push("review-marker-clear");
-  return { changed: true, acknowledgedAt: input.acknowledgedAt, deferred };
+  return {
+    changed: true,
+    acknowledgedAt: input.acknowledgedAt,
+    deferred,
+    code: deferred.includes("review-marker-clear") ? "marker-warning" : "approved",
+    idempotent: false
+  };
 }
 
 // packages/kernel/dist/skills/source-registry.js
@@ -58549,9 +58555,11 @@ function createInteractionCapture(recorder, clock) {
         event: input.event,
         requestedAt,
         acknowledgedAt: input.clock ?? clock(),
+        // The terminal route identifies the trusted host surface, not a human operator.
+        // A bearer token/session is capability evidence only; keep actor non-human.
         rejected: input.rejected,
         surface: "cli",
-        actor: "human",
+        actor: "system",
         workflow: base.workflow,
         workflowHash: base.workflowHash,
         track: base.track,
@@ -68901,7 +68909,7 @@ async function cmdReview(deps, sub, name2, opts = {}) {
         phase: step.phase,
         event,
         acknowledgedAt,
-        via: "terminal",
+        via: delegatedAuthority === null ? "terminal" : "delegated",
         bindingMatches,
         writeState: async (patch) => {
           await deps.store.writeUnderLock(dir, { ...state, fields: { ...state.fields, ...patch } }, { kind: "set-many" });
