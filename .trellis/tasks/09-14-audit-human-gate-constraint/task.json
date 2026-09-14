@@ -1,13 +1,13 @@
 {
-  "id": "dashboard-review-console",
-  "name": "dashboard-review-console",
-  "title": "实现 Dashboard review 决策台",
-  "description": "接入 pending decisions 与 review adapter；不调用大模型、不回答 Skill 问题",
+  "id": "audit-human-gate-constraint",
+  "name": "audit-human-gate-constraint",
+  "title": "审计 human gate 约束",
+  "description": "只读审计 loop policy、review receipt 与 server human gate 语义，提出 fail-closed 修复建议及证据。",
   "status": "planning",
   "dev_type": null,
   "scope": null,
-  "package": "dashboard-app",
-  "priority": "P1",
+  "package": "server",
+  "priority": "P0",
   "creator": "sjy",
   "assignee": "sjy",
   "createdAt": "2026-09-14",
@@ -19,10 +19,8 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": null,
+  "parent": "09-14-decision-control-completion",
   "relatedFiles": [],
   "notes": "",
-  "meta": {
-    "meta_status": "paused"
-  }
+  "meta": {}
 }

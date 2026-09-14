@@ -1,0 +1,5 @@
+{"file":"packages/server/src/serverPostDecisionRoutes.ts","reason":"修复 GET/POST 投影输入、校验顺序和错误映射。"}
+{"file":"packages/kernel/src/state/store.ts","reason":"关闭 import-legacy 对 phase/review/transition 字段的旁路。"}
+{"file":"packages/kernel/src/types.ts","reason":"保持 review_acknowledged_via 追加字段顺序。"}
+{"file":"packages/server/src/serverDecisionRoutes.test.ts","reason":"覆盖 Dashboard review 提交与零写入错误路径。"}
+{"file":"packages/server/src/transition-concurrency.test.ts","reason":"恢复带 review binding 的并发回归。"}

@@ -1,0 +1,2 @@
+{"file":".trellis/tasks/09-14-decision-control-completion/task.json","reason":"验证父子任务依赖、验收和 base_branch 一致。"}
+{"file":".trellis/spec/server/backend/decision-sync.md","reason":"逐项核对 A-K 裁决是否无矛盾。"}

@@ -1,23 +1,19 @@
-# 实现 Dashboard review 决策台
+# C：Dashboard review 决策台（暂停）
 
-## Goal
+## 当前状态
 
-接入 pending decisions 与 review adapter；不调用大模型、不回答 Skill 问题
+暂缓启动。现有集成版存在真实流程阻塞：GET/POST pending projection 输入不一致，且 server acknowledge 编排存在提交顺序、错误映射和 binding 缺口。必须等待 F1、F2、H 完成并通过主线程验收后恢复。
 
-## Requirements
+## 范围
 
-- 使用现有 `pending-decisions` GET 和 `/decisions` POST；请求必须携带 expected revision 与幂等 key。
-- 只允许 review acknowledge；Skill question/AFK answer 不提供 Dashboard 写入口。
-- 操作完成后刷新 projection，明确展示 loading、错误、冲突和已处理状态。
+- pending review 列表与批准按钮；显示 `review-approval-required`、`revision-conflict`、`idempotency-conflict`。
+- Dashboard 只调用 review adapter，不调用模型、不回答 Skill 问题、不写 AFK 决策。
+- 驳回语义待用户裁决：终端专用，或新增只追加 rejected 记录的 decline 命令；未裁决前不得设计 UI。
+- 位置待用户裁决：工作台右栏或独立视图；未裁决前不写 design。
 
-## Acceptance Criteria
+## 验收
 
-- [ ] Dashboard 有可访问的 review 操作控件并覆盖成功、409、重复提交和空态。
-- [ ] 前端 API 只走统一 client，不出现模型调用或 token 读取。
-- [ ] `npm run test:web`、`npm run typecheck:web`、`npm run build:web` 通过。
-
-## Notes
-
-- Keep `prd.md` focused on requirements, constraints, and acceptance criteria.
-- Lightweight tasks can remain PRD-only.
-- For complex tasks, add `design.md` for technical design and `implement.md` for execution planning before `task.py start`.
+- [ ] F1/F2/H 前置任务已合入并由主线程复核。
+- [ ] 真实 receipt + revision 流程可从列表批准并刷新为 consumed。
+- [ ] 冲突、重复、过期 revision 强制刷新且不产生部分写入。
+- [ ] 前端测试、类型检查、构建和真实浏览器 smoke 通过。

@@ -1,12 +1,12 @@
 {
-  "id": "dashboard-review-console",
-  "name": "dashboard-review-console",
-  "title": "实现 Dashboard review 决策台",
-  "description": "接入 pending decisions 与 review adapter；不调用大模型、不回答 Skill 问题",
+  "id": "review-pending-self-approval-recovery",
+  "name": "review-pending-self-approval-recovery",
+  "title": "恢复并实现 pending review 自审批检测",
+  "description": "在契约裁决后恢复完整 PRD，完成精确 hook 检测、脱敏 observation 写入和测试。",
   "status": "planning",
   "dev_type": null,
   "scope": null,
-  "package": "dashboard-app",
+  "package": "cli",
   "priority": "P1",
   "creator": "sjy",
   "assignee": "sjy",
@@ -19,10 +19,8 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": null,
+  "parent": "09-14-decision-control-completion",
   "relatedFiles": [],
   "notes": "",
-  "meta": {
-    "meta_status": "paused"
-  }
+  "meta": {}
 }

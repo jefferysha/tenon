@@ -1,13 +1,13 @@
 {
-  "id": "review-self-approval-detection",
-  "name": "review-self-approval-detection",
-  "title": "实现 pending review 自审批检测",
-  "description": "实现 token/local API pending review 检测、脱敏审计信号和 hook 测试",
+  "id": "decision-sync-fix",
+  "name": "decision-sync-fix",
+  "title": "修复决策同步集成缺口",
+  "description": "修复不依赖契约裁决的 Dashboard review 投影、提交顺序、import-legacy phase/review 旁路、字段顺序、死代码与回归测试。",
   "status": "planning",
   "dev_type": null,
   "scope": null,
   "package": "kernel",
-  "priority": "P1",
+  "priority": "P0",
   "creator": "sjy",
   "assignee": "sjy",
   "createdAt": "2026-09-14",
@@ -19,11 +19,8 @@
   "pr_url": null,
   "subtasks": [],
   "children": [],
-  "parent": null,
+  "parent": "09-14-decision-control-completion",
   "relatedFiles": [],
   "notes": "",
-  "meta": {
-    "package": "cli",
-    "meta_status": "paused"
-  }
+  "meta": {}
 }

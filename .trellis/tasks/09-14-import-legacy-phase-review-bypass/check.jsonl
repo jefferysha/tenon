@@ -1,0 +1,2 @@
+{"file":"packages/kernel/src/state/store.ts","reason":"验证 phase/review/transition 保护字段。"}
+{"file":"packages/server/src/serverPostOperationsRoutes.ts","reason":"验证 operations 入口 fail-closed。"}

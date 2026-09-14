@@ -1,0 +1,3 @@
+{"file":"hooks/review-ack.sh","reason":"pending review 期间观察 token/local API 风险操作。"}
+{"file":"packages/cli/src/program-review.ts","reason":"在 Change lock 内追加脱敏 observation 的 CLI 装配入口。"}
+{"file":"packages/kernel/src/decision/mode.ts","reason":"统一自审批事件与渠道判别联合。"}

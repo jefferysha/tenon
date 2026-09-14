@@ -1,0 +1,2 @@
+{"file":"hooks/review-ack.sh","reason":"验证 exact match、负例和敏感信息不泄露。"}
+{"file":"packages/kernel/src/decision/mode.test.ts","reason":"验证事件 schema 和 observation key。"}

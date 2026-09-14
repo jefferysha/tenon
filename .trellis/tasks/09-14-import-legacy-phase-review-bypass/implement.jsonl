@@ -1,0 +1,3 @@
+{"file":"packages/kernel/src/state/store.ts","reason":"保护 import-legacy 字段。"}
+{"file":"packages/cli/src/commands/state-projection.ts","reason":"覆盖 CLI state import-legacy 入口。"}
+{"file":"packages/server/src/serverPostOperationsRoutes.ts","reason":"覆盖 server operations 入口。"}

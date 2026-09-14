@@ -1,0 +1,3 @@
+{"file":"packages/kernel/src/loops/automation-policy.ts","reason":"核对 humanGateApplies 与拒绝条件。"}
+{"file":"packages/server/src/transition.ts","reason":"核对 server 上下文与硬编码语义。"}
+{"file":"packages/cli/src/commands/transition.ts","reason":"核对 CLI 取值及其自声明风险。"}

@@ -1,0 +1,4 @@
+{"file":"packages/kernel/src/decision/index.ts","reason":"验证决策与幂等行为未被 F1 改变。"}
+{"file":"packages/kernel/src/state/store.ts","reason":"验证 import-legacy fail-closed。"}
+{"file":"packages/server/src/serverDecisionRoutes.test.ts","reason":"验证 HTTP 409/500、零写入和真实 projection。"}
+{"file":"packages/cli/src/commands/review.integration.test.ts","reason":"验证 CLI receipt 与 server 结果等价。"}

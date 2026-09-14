@@ -13,15 +13,17 @@
   "createdAt": "2026-09-14",
   "completedAt": null,
   "branch": "codex/tenon-decision-sync-integrated",
-  "base_branch": "codex/autonomous-loop-v1",
+  "base_branch": "codex/tenon-decision-sync-integrated",
   "worktree_path": null,
   "commit": null,
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "09-14-human-gate-server",
-    "09-14-review-self-approval-detection",
-    "09-14-dashboard-review-console"
+    "09-14-decision-sync-fix",
+    "09-14-audit-human-gate-constraint",
+    "09-14-decision-sync-contract-revision",
+    "09-14-review-pending-self-approval-recovery",
+    "09-14-import-legacy-phase-review-bypass"
   ],
   "parent": null,
   "relatedFiles": [],
