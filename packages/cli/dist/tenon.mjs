@@ -15837,10 +15837,10 @@ function validateWire(value) {
   const actor2 = enumField(raw.actor, INTERACTION_ACTORS, "actor");
   const surface = enumField(raw.surface, INTERACTION_SURFACES, "surface");
   const executionMode = enumField(raw.execution_mode, INTERACTION_EXECUTION_MODES, "execution_mode");
-  const workflowMode3 = enumField(raw.workflow_mode, INTERACTION_WORKFLOW_MODES, "workflow_mode");
+  const workflowMode2 = enumField(raw.workflow_mode, INTERACTION_WORKFLOW_MODES, "workflow_mode");
   const track = stringField3(raw.track, "track");
-  const trackKind4 = enumField(raw.track_kind, INTERACTION_TRACK_KINDS, "track_kind");
-  const pipelineStage4 = enumField(raw.pipeline_stage, INTERACTION_PIPELINE_STAGES, "pipeline_stage");
+  const trackKind3 = enumField(raw.track_kind, INTERACTION_TRACK_KINDS, "track_kind");
+  const pipelineStage3 = enumField(raw.pipeline_stage, INTERACTION_PIPELINE_STAGES, "pipeline_stage");
   const controlStage = enumField(raw.control_stage, INTERACTION_CONTROL_STAGES, "control_stage");
   const event = enumField(raw.event, INTERACTION_EVENTS, "event");
   const reasonCode = validateCode(raw.reason_code, "reason_code");
@@ -15871,10 +15871,10 @@ function validateWire(value) {
     actor: actor2,
     surface,
     execution_mode: executionMode,
-    workflow_mode: workflowMode3,
+    workflow_mode: workflowMode2,
     track,
-    track_kind: trackKind4,
-    pipeline_stage: pipelineStage4,
+    track_kind: trackKind3,
+    pipeline_stage: pipelineStage3,
     control_stage: controlStage,
     event,
     reason_code: reasonCode,
@@ -26388,7 +26388,7 @@ function updateLoopInYaml(text7, loopId, patch) {
 }
 function renderLoopEntryLines(entry) {
   const lines = [`  - id: ${formatScalar(entry.id, "id")}`];
-  const scalar19 = (field3, v) => {
+  const scalar18 = (field3, v) => {
     lines.push(`    ${field3}: ${formatScalar(v, field3)}`);
   };
   const seq2 = (field3, values) => {
@@ -26400,25 +26400,25 @@ function renderLoopEntryLines(entry) {
     for (const v of values)
       lines.push(`      - ${formatString(v, field3, true)}`);
   };
-  scalar19("name", entry.name);
-  scalar19("kind", entry.kind);
-  scalar19("goal", entry.goal);
-  scalar19("cadence", entry.cadence);
-  scalar19("risk", entry.risk);
-  scalar19("runner", entry.runner);
-  scalar19("change_prefix", entry.change_prefix);
+  scalar18("name", entry.name);
+  scalar18("kind", entry.kind);
+  scalar18("goal", entry.goal);
+  scalar18("cadence", entry.cadence);
+  scalar18("risk", entry.risk);
+  scalar18("runner", entry.runner);
+  scalar18("change_prefix", entry.change_prefix);
   seq2("phases", entry.phases);
   seq2("human_gates", entry.human_gates);
-  scalar19("design_doc", entry.design_doc);
-  scalar19("status", entry.status);
+  scalar18("design_doc", entry.design_doc);
+  scalar18("status", entry.status);
   if (entry.template_id !== void 0)
-    scalar19("template_id", entry.template_id);
+    scalar18("template_id", entry.template_id);
   if (entry.template_version !== void 0)
-    scalar19("template_version", entry.template_version);
+    scalar18("template_version", entry.template_version);
   if (entry.workflow_id !== void 0)
-    scalar19("workflow_id", entry.workflow_id);
+    scalar18("workflow_id", entry.workflow_id);
   if (entry.skill_bundle_id !== void 0)
-    scalar19("skill_bundle_id", entry.skill_bundle_id);
+    scalar18("skill_bundle_id", entry.skill_bundle_id);
   lines.push("    budget:");
   const budgetScalar = (field3, v) => {
     lines.push(`      ${field3}: ${formatScalar(v, field3)}`);
@@ -31263,59 +31263,6 @@ var ADAPTER_CAPABILITY_ROWS = [
 var ADAPTER_CAPABILITY_BY_HOST = new Map(ADAPTER_CAPABILITY_ROWS.map((row) => [row.host_id, row]));
 
 // packages/kernel/dist/decision/review-application.js
-function scalar6(state, key) {
-  const value = state.fields[key];
-  return Array.isArray(value) ? value.join(",") : value ?? "";
-}
-function workflowMode(workflow) {
-  return workflow === "default" ? "default" : "custom";
-}
-function trackKind(track) {
-  if (track === "free")
-    return "free";
-  return ["chat", "simple", "pm", "frontend", "backend"].includes(track) ? "built-in" : "custom";
-}
-function pipelineStage(step) {
-  return ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(step) ? step : "custom";
-}
-function reviewAcknowledgedInteractionDraft(input) {
-  const workflow = scalar6(input.state, "workflow") || "default";
-  const track = scalar6(input.state, "track") || "backend";
-  const origin = input.beforeRevision.state.runMetadata;
-  const current = input.revision.state.runMetadata;
-  if (origin === void 0 || current === void 0)
-    throw new Error("interaction projection \u7F3A run identity");
-  const originStepVisit = { runId: origin.runId, transitionSequence: origin.transitionSequence, step: input.phase };
-  const stepVisit = { runId: current.runId, transitionSequence: current.transitionSequence, step: input.phase };
-  const rejected = input.rejected === true;
-  return {
-    change: input.change,
-    runId: current.runId,
-    workflow,
-    workflowHash: current.workflowPlanFingerprint ?? "0".repeat(64),
-    originStepVisit,
-    stepVisit,
-    stateBeforeHash: input.beforeRevision.stateDigest,
-    stateAfterHash: input.revision.stateDigest,
-    actor: input.actor ?? "system",
-    surface: input.surface,
-    executionMode: "interactive",
-    workflowMode: workflowMode(workflow),
-    track,
-    trackKind: trackKind(track),
-    pipelineStage: pipelineStage(input.phase),
-    journeyId: interactionJourneyId({ change: input.change, runId: origin.runId, originStepVisit, reviewEvent: input.event, requestedAt: input.requestedAt }),
-    controlStage: "verification",
-    event: "review.acknowledged",
-    reasonCode: rejected ? "decision.state-stale" : "decision.accepted",
-    triggerCode: "review.acknowledge",
-    effectCode: rejected ? "review-gate.rejected" : "review-gate.approved",
-    result: rejected ? "rejected" : "success",
-    outcomeCode: "review.acknowledged",
-    occurredAt: input.acknowledgedAt,
-    durationMs: 0
-  };
-}
 async function acknowledgeReview(input) {
   const deferred = [];
   const reject5 = async (state, acknowledgedAt) => {
@@ -31792,14 +31739,14 @@ function field(state, name2) {
   const value = state.fields[name2];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
-function trackKind2(track) {
+function trackKind(track) {
   if (track === "free")
     return "free";
   if (["chat", "simple", "pm", "frontend", "backend"].includes(track))
     return "built-in";
   return "custom";
 }
-function pipelineStage2(step) {
+function pipelineStage(step) {
   return ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(step) ? step : "custom";
 }
 function createInteractionEffectDraft(input) {
@@ -31840,8 +31787,8 @@ function createInteractionEffectDraft(input) {
     executionMode: "interactive",
     workflowMode: isDefaultWorkflowName(input.workflowRun.workflowId) ? "default" : "custom",
     track: input.track,
-    trackKind: trackKind2(input.track),
-    pipelineStage: pipelineStage2(input.from),
+    trackKind: trackKind(input.track),
+    pipelineStage: pipelineStage(input.from),
     controlStage: "execution",
     event: "review.effect-applied",
     reasonCode: "effect.applied",
@@ -35283,7 +35230,7 @@ function readyCandidates(entries, resolver) {
     return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
   }).map((e) => e.name);
 }
-var scalar7 = (v) => typeof v === "string" ? v : "";
+var scalar6 = (v) => typeof v === "string" ? v : "";
 var nodeErrorCode = (error2) => typeof error2 === "object" && error2 !== null && "code" in error2 ? String(error2.code) : void 0;
 async function scanReadyFromFs(changesDir, store2) {
   let dirents;
@@ -35300,14 +35247,14 @@ async function scanReadyFromFs(changesDir, store2) {
   for (const name2 of activeNames) {
     const changeDir2 = join42(changesDir, name2);
     const state = await store2.read(changeDir2);
-    const automation = scalar7(state.fields.automation);
+    const automation = scalar6(state.fields.automation);
     automationByName.set(name2, automation);
     entries.push({
       name: name2,
-      phase: scalar7(state.fields.phase),
+      phase: scalar6(state.fields.phase),
       automation,
-      archived: scalar7(state.fields.archived),
-      automationQueuedAt: scalar7(state.fields.automation_queued_at),
+      archived: scalar6(state.fields.archived),
+      automationQueuedAt: scalar6(state.fields.automation_queued_at),
       dependsOn: normalizeDeps(state.fields.depends_on)
     });
   }
@@ -40231,7 +40178,7 @@ function resolveAutomationConfig(deps, entrypointDefaults = {}) {
   const { image: _image, ...fileCfg } = readAutomationJson(deps.repoRoot, deps.configFs);
   return { ...DEFAULT_CONFIG, ...entrypointDefaults, ...fileCfg, ...deps.config };
 }
-var scalar8 = (v) => typeof v === "string" ? v : "";
+var scalar7 = (v) => typeof v === "string" ? v : "";
 var storeWriter = (store2, changeDir2) => ({
   claim: (name2, expectedTrackId, expectedRun) => claim(store2, changeDir2(name2), expectedTrackId, expectedRun),
   setAutomation: (name2, s) => store2.set(changeDir2(name2), "automation", s),
@@ -40280,11 +40227,11 @@ function createAutomation(deps) {
     config,
     async enqueue(name2, resolveTrackPolicy) {
       const state = await store2.read(changeDir2(name2));
-      const policy2 = resolveTrackPolicy(scalar8(state.fields.track));
+      const policy2 = resolveTrackPolicy(scalar7(state.fields.track));
       const eligible = shouldEnqueueOnSpecComplete({
         enabled: config.enabled,
         automationEligible: policy2.automationEligible,
-        automation: scalar8(state.fields.automation),
+        automation: scalar7(state.fields.automation),
         defaultOptIn: config.defaultOptIn
       });
       if (!eligible)
@@ -40325,7 +40272,7 @@ function createAutomation(deps) {
 }
 
 // packages/automation/dist/lifecycle/spec-complete.js
-var scalar9 = (value) => typeof value === "string" ? value : "";
+var scalar8 = (value) => typeof value === "string" ? value : "";
 async function enqueueAfterSpecComplete(deps, transition) {
   if (transition.event !== "spec-complete" || transition.from !== "spec" || transition.to !== "build") {
     return { kind: "not-applicable" };
@@ -40334,12 +40281,12 @@ async function enqueueAfterSpecComplete(deps, transition) {
   const changeDir2 = join50(deps.repoRoot, "openspec", "changes", transition.changeName);
   return deps.store.withLock(changeDir2, async () => {
     const state = await deps.store.read(changeDir2);
-    if (scalar9(state.fields.phase) !== "build")
+    if (scalar8(state.fields.phase) !== "build")
       return { kind: "phase-changed" };
-    const policy2 = deps.resolveTrackPolicy(scalar9(state.fields.track));
+    const policy2 = deps.resolveTrackPolicy(scalar8(state.fields.track));
     if (policy2.autoEnqueueOnSpecComplete !== true)
       return { kind: "track-disabled" };
-    const automation = scalar9(state.fields.automation);
+    const automation = scalar8(state.fields.automation);
     if (automation === "queued")
       return { kind: "already-queued" };
     if (automation !== "off")
@@ -48638,14 +48585,14 @@ async function cmdDoctor(deps, opts) {
 }
 
 // packages/cli/src/commands/effective-artifacts.ts
-function scalar10(state, f) {
+function scalar9(state, f) {
   const v = state.fields[f];
   return Array.isArray(v) ? v.join(",") : v ?? "";
 }
 function effectiveArtifactFields(deps, state) {
   const workflow = effectiveWorkflowForState(deps, state);
-  const stepId = scalar10(state, "phase");
-  const track = scalar10(state, "track");
+  const stepId = scalar9(state, "phase");
+  const track = scalar9(state, "track");
   if (!workflow) {
     return /* @__PURE__ */ new Set();
   }
@@ -48953,7 +48900,7 @@ function reject3(deps, msg) {
   deps.io.err(`ERROR: ${msg}`);
   return 1;
 }
-function scalar11(state, f) {
+function scalar10(state, f) {
   const v = state.fields[f];
   return Array.isArray(v) ? v.join(",") : v ?? "";
 }
@@ -48963,8 +48910,8 @@ function listAllowed(slots) {
 async function runRegister(deps, dir, field3, path15, producer) {
   const cur = await deps.store.read(dir);
   const plan = effectiveWorkflowForState(deps, cur);
-  const stepId = scalar11(cur, "phase");
-  const track = scalar11(cur, "track");
+  const stepId = scalar10(cur, "phase");
+  const track = scalar10(cur, "track");
   const f = field3;
   if (!plan) {
     return reject3(deps, `workflow '${String(cur.fields.workflow ?? "")}' \u4E0D\u5B58\u5728\u6216\u4E0D\u53EF\u7F16\u8BD1`);
@@ -50608,7 +50555,7 @@ function reject4(deps, message2) {
   deps.io.err(`ERROR: ${message2}`);
   return 1;
 }
-function scalar12(state, field3) {
+function scalar11(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -50649,7 +50596,7 @@ async function cmdDocumentScaffold(deps, name2, kind, requestedLocale, requested
     }
     const plan = effectiveWorkflowForState(deps, state);
     const workflowSteps = plan?.workflow.steps.map((step) => ({ id: step.id, label: step.label }));
-    const designDoc = scalar12(state, "phase") === "open" ? void 0 : String(state.fields.design_doc ?? "");
+    const designDoc = scalar11(state, "phase") === "open" ? void 0 : String(state.fields.design_doc ?? "");
     const content = renderDocumentTemplate(documentTemplateIdForKind(kind), locale, {
       change: name2,
       workflowStepLabelSource: plan?.projection.stepLabelSource,
@@ -50680,7 +50627,7 @@ function governedDocumentContext(deps, state) {
   const workflowName = plan.id;
   const policy2 = plan.capabilities.documents.policy;
   const governed = policy2 !== void 0;
-  const phase = scalar12(state, "phase");
+  const phase = scalar11(state, "phase");
   if (!governed) {
     return { workflowName, phase: "open", governed: false };
   }
@@ -58460,19 +58407,19 @@ import { appendFile as appendFile5, lstat as lstat42, mkdir as mkdir34, readFile
 import { join as join89 } from "node:path";
 
 // packages/cli/src/interaction-emitter.ts
-function scalar13(state, field3) {
+function scalar12(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
-function workflowMode2(workflow) {
+function workflowMode(workflow) {
   return isDefaultWorkflowName(workflow) ? "default" : "custom";
 }
-function trackKind3(track) {
+function trackKind2(track) {
   if (track === "free") return "free";
   if (["chat", "simple", "pm", "frontend", "backend"].includes(track)) return "built-in";
   return "custom";
 }
-function pipelineStage3(step) {
+function pipelineStage2(step) {
   return ["open", "explore", "spec", "build", "verify", "ship", "archive"].includes(step) ? step : "custom";
 }
 function visit(revision, state) {
@@ -58483,7 +58430,7 @@ function visit(revision, state) {
   if (runId === void 0 || transitionSequence === void 0) {
     throw new Error("interaction projection \u7F3A run identity");
   }
-  const step = scalar13(state, "phase");
+  const step = scalar12(state, "phase");
   return { runId, transitionSequence, step };
 }
 function common(input, revision) {
@@ -58494,8 +58441,8 @@ function common(input, revision) {
   if (runId === void 0 || workflowPlanFingerprint === void 0) {
     throw new Error("interaction projection \u7F3A workflow/run anchor");
   }
-  const workflow = scalar13(input.state, "workflow") || "default";
-  const track = scalar13(input.state, "track");
+  const workflow = scalar12(input.state, "workflow") || "default";
+  const track = scalar12(input.state, "track");
   const currentVisit = visit(revision, input.state);
   return {
     change: input.changeName,
@@ -58509,10 +58456,10 @@ function common(input, revision) {
     actor: "human",
     surface: "cli",
     executionMode: "interactive",
-    workflowMode: workflowMode2(workflow),
+    workflowMode: workflowMode(workflow),
     track,
-    trackKind: trackKind3(track),
-    pipelineStage: pipelineStage3(scalar13(input.state, "phase")),
+    trackKind: trackKind2(track),
+    pipelineStage: pipelineStage2(scalar12(input.state, "phase")),
     controlStage: "verification",
     occurredAt: input.clock ?? (/* @__PURE__ */ new Date()).toISOString(),
     durationMs: input.durationMs ?? 0
@@ -58555,29 +58502,32 @@ function createInteractionCapture(recorder, clock) {
     },
     recordReviewAcknowledged: async (input) => {
       const origin = input.beforeRevision ?? input.revision;
-      const requestedAt = input.requestedAt ?? (scalar13(input.state, "review_requested_at") || input.clock || clock());
-      return write(input.changeDir, reviewAcknowledgedInteractionDraft({
-        change: input.changeName,
-        state: input.state,
-        revision: input.revision,
-        beforeRevision: origin,
-        phase: scalar13(input.state, "phase"),
-        event: input.event,
-        requestedAt,
-        acknowledgedAt: input.clock ?? clock(),
-        rejected: input.rejected,
-        surface: "cli",
-        actor: "human"
-      }));
+      const requestedAt = input.requestedAt ?? (scalar12(input.state, "review_requested_at") || input.clock || clock());
+      const base = common(input, input.revision);
+      const rejected = input.rejected === true;
+      return write(input.changeDir, {
+        ...base,
+        journeyId: journey(input, origin, input.event, requestedAt),
+        originStepVisit: visit(origin, input.state),
+        event: "review.acknowledged",
+        stateBeforeHash: input.beforeRevision?.stateDigest ?? input.revision.stateDigest,
+        stateAfterHash: input.revision.stateDigest,
+        reasonCode: rejected ? "decision.state-stale" : "decision.accepted",
+        triggerCode: "review.acknowledge",
+        effectCode: rejected ? "review-gate.rejected" : "review-gate.approved",
+        result: rejected ? "rejected" : "success",
+        outcomeCode: "review.acknowledged",
+        occurredAt: input.clock ?? clock()
+      });
     },
     recordResume: async (input) => {
       const effect = input.effectRevision;
-      const requestedAt = scalar13(effect.state, "review_requested_at") || input.clock || clock();
+      const requestedAt = scalar12(effect.state, "review_requested_at") || input.clock || clock();
       const base = common(input, input.revision);
       const origin = effect;
       return write(input.changeDir, {
         ...base,
-        journeyId: input.journeyId ?? journey(input, origin, scalar13(effect.state, "review_gate_event") || "review", requestedAt),
+        journeyId: input.journeyId ?? journey(input, origin, scalar12(effect.state, "review_gate_event") || "review", requestedAt),
         originStepVisit: input.originStepVisit ?? visit(origin, effect.state),
         stepVisit: visit(input.revision, input.state),
         stateBeforeHash: input.revision.stateDigest,
@@ -62437,7 +62387,7 @@ function normalizeReviewCandidate(value) {
   if (typeof value === "string" && REVIEW_CANDIDATE2.test(value)) return value;
   return void 0;
 }
-function scalar14(value) {
+function scalar13(value) {
   if (typeof value === "string") return value;
   if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) return value.join(",");
   return null;
@@ -62446,7 +62396,7 @@ async function frozenReviewCandidate(deps, change, state, plan, scope) {
   const step = plan.workflow.steps.find((entry) => entry.id === scope);
   if (step === void 0) throw new Error(`\u5F53\u524D Review step '${scope}' \u4E0D\u5728 frozen workflow \u4E2D`);
   const declared = [...new Set(step.inputs.flatMap((input) => {
-    const value = scalar14(Reflect.get(state.fields, input.field));
+    const value = scalar13(Reflect.get(state.fields, input.field));
     const candidate2 = value === null ? void 0 : normalizeReviewCandidate(value);
     return candidate2 === void 0 ? [] : [candidate2];
   }))];
@@ -62496,7 +62446,7 @@ function canonicalTenonSkillId(skillId) {
 function isTenonOrchestratorSkill(skillId) {
   return canonicalTenonSkillId(skillId) === "tenon";
 }
-function scalar15(state, field3) {
+function scalar14(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -62508,7 +62458,7 @@ function explicitReviewLane(deps, plan, stepId, skillId) {
   return step?.declared.find((skill) => skill.id === skillId && skill.kind === "review")?.reviewLane;
 }
 async function requireActiveReviewAttempt(deps, change, dir, state, plan, skillId) {
-  const stepId = scalar15(state, "phase");
+  const stepId = scalar14(state, "phase");
   const lane = explicitReviewLane(deps, plan, stepId, skillId);
   if (lane === void 0) return true;
   const requiredLanes = plan.capabilities.review.laneScopes.find((scope) => scope.stepId === stepId)?.lanes;
@@ -68007,7 +67957,7 @@ async function cmdHandoff(deps, name2, opts, fs = void 0, localeResolver = resol
 }
 
 // packages/cli/src/commands/workflow-plan.ts
-function scalar16(value) {
+function scalar15(value) {
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 function renderHuman(deps, name2, state, plan) {
@@ -68015,7 +67965,7 @@ function renderHuman(deps, name2, state, plan) {
   deps.io.out(`change   ${name2}`);
   deps.io.out(`workflow ${plan.id}`);
   deps.io.out(`source   ${source}`);
-  deps.io.out(`current  ${scalar16(state.fields.phase)}`);
+  deps.io.out(`current  ${scalar15(state.fields.phase)}`);
   for (const [index, step] of plan.workflow.steps.entries()) {
     const skills = step.skills.map((skill) => skill.id).join(", ") || "-";
     deps.io.out(`${String(index + 1).padStart(2, "0")} ${step.id} | ${step.label} | skills: ${skills}`);
@@ -68041,7 +67991,7 @@ async function cmdWorkflowPlan(deps, name2, opts) {
     return 1;
   }
   if (plan === null) {
-    deps.io.err(`ERROR: workflow '${scalar16(state.fields.workflow)}' \u672A\u627E\u5230`);
+    deps.io.err(`ERROR: workflow '${scalar15(state.fields.workflow)}' \u672A\u627E\u5230`);
     return 1;
   }
   const source = state.runMetadata?.workflowPlanSnapshot === void 0 ? "current-definition" : "frozen-snapshot";
@@ -68049,7 +67999,7 @@ async function cmdWorkflowPlan(deps, name2, opts) {
     deps.io.out(JSON.stringify({
       change: name2,
       source,
-      current_step: scalar16(state.fields.phase),
+      current_step: scalar15(state.fields.phase),
       plan
     }));
   } else {
@@ -68336,9 +68286,9 @@ function parseManifest2(value) {
   const dimensionsKeys = ["executionMode", "workflowMode", "trackKind", "pipelineStage", "controlStage", "surface"];
   exactKeys5(dimensions, dimensionsKeys, "manifest dimensions");
   const executionMode = exactDimension(dimensions.executionMode, INTERACTION_EXECUTION_MODES, "manifest dimensions.executionMode");
-  const workflowMode3 = exactDimension(dimensions.workflowMode, INTERACTION_WORKFLOW_MODES, "manifest dimensions.workflowMode");
-  const trackKind4 = exactDimension(dimensions.trackKind, INTERACTION_TRACK_KINDS, "manifest dimensions.trackKind");
-  const pipelineStage4 = exactDimension(dimensions.pipelineStage, INTERACTION_PIPELINE_STAGES, "manifest dimensions.pipelineStage");
+  const workflowMode2 = exactDimension(dimensions.workflowMode, INTERACTION_WORKFLOW_MODES, "manifest dimensions.workflowMode");
+  const trackKind3 = exactDimension(dimensions.trackKind, INTERACTION_TRACK_KINDS, "manifest dimensions.trackKind");
+  const pipelineStage3 = exactDimension(dimensions.pipelineStage, INTERACTION_PIPELINE_STAGES, "manifest dimensions.pipelineStage");
   const controlStage = exactDimension(dimensions.controlStage, INTERACTION_CONTROL_STAGES, "manifest dimensions.controlStage");
   const surface = exactDimension(dimensions.surface, INTERACTION_SURFACES, "manifest dimensions.surface");
   const fixtures = arrayValue(raw.fixtures, "manifest fixtures");
@@ -68349,9 +68299,9 @@ function parseManifest2(value) {
     schema: INTERACTION_EVENT_SCHEMA,
     dimensions: {
       executionMode,
-      workflowMode: workflowMode3,
-      trackKind: trackKind4,
-      pipelineStage: pipelineStage4,
+      workflowMode: workflowMode2,
+      trackKind: trackKind3,
+      pipelineStage: pipelineStage3,
       controlStage,
       surface
     },
@@ -68446,7 +68396,7 @@ async function cmdInteraction(deps, sub, args, opts = {}) {
 }
 
 // packages/cli/src/commands/review-attempt.ts
-function scalar17(state, field3) {
+function scalar16(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -68457,12 +68407,12 @@ async function context(deps, name2) {
   const dir = changeDir(deps.cwd, name2);
   const state = await deps.store.read(dir);
   const plan = effectiveWorkflowForState(deps, state);
-  if (plan === null) throw new Error(`workflow '${scalar17(state, "workflow")}' \u672A\u627E\u5230\u6216\u4E0D\u53EF\u7F16\u8BD1`);
+  if (plan === null) throw new Error(`workflow '${scalar16(state, "workflow")}' \u672A\u627E\u5230\u6216\u4E0D\u53EF\u7F16\u8BD1`);
   const runId = state.runMetadata?.runId;
   if (runId === void 0 || runId === "") {
     throw new Error("\u5F53\u524D Pipeline \u7F3A\u5C11 durable run identity\uFF1B\u8BF7\u5148\u8FD0\u884C\u53D7\u652F\u6301\u7684\u72B6\u6001\u8FC1\u79FB\u5B8C\u6210\u5347\u7EA7");
   }
-  const scope = scalar17(state, "phase");
+  const scope = scalar16(state, "phase");
   if (scope === "") throw new Error("\u5F53\u524D Pipeline step \u4E3A\u7A7A\uFF0C\u65E0\u6CD5\u7ED1\u5B9A Review scope");
   const requiredLanes = plan.capabilities.review.laneScopes.find((entry) => entry.stepId === scope)?.lanes ?? [];
   const candidateFingerprint = await frozenReviewCandidate(deps, name2, state, plan, scope);
@@ -68678,12 +68628,12 @@ async function writeReviewMarker(deps, phase, event, name2, requestedAt) {
 }
 
 // packages/cli/src/commands/review.ts
-function scalar18(state, field3) {
+function scalar17(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 function resolveReviewStep(deps, state) {
-  const phase = scalar18(state, "phase");
+  const phase = scalar17(state, "phase");
   const plan = effectiveWorkflowForState(deps, state);
   if (!plan) throw new Error(`workflow '${String(state.fields.workflow ?? "")}' \u672A\u627E\u5230\u6216\u4E0D\u53EF\u7F16\u8BD1`);
   const step = resolveStep(plan.workflow, phase);
@@ -68716,7 +68666,7 @@ function resolveReviewEvent(step, requestedEvent) {
 }
 async function checkVerifyFailReadiness(deps, name2, dir, state) {
   const blockers = [];
-  const report = scalar18(state, "verification_report");
+  const report = scalar17(state, "verification_report");
   const fileExists2 = deps.guardCtx?.(name2)?.fileExists;
   if (report === "" || report === "null") {
     blockers.push(`verify-fail \u51B3\u7B56\u8981\u6C42 verification_report \u975E\u7A7A\uFF08\u5F53\u524D='${report || "null"}'\uFF09`);
@@ -68726,7 +68676,7 @@ async function checkVerifyFailReadiness(deps, name2, dir, state) {
   const plan = effectiveWorkflowForState(deps, state);
   const documentPolicy = plan?.capabilities.documents.policy;
   if (documentPolicy) {
-    const phase = scalar18(state, "phase");
+    const phase = scalar17(state, "phase");
     if (!isDocumentPolicyStep(documentPolicy, phase) || !isDocumentContractPhase(phase)) {
       blockers.push(`\u53D7 OpenSpec \u6587\u6863\u5951\u7EA6\u6CBB\u7406\u7684 workflow \u5F53\u524D phase \u975E\u6CD5\uFF08\u5F53\u524D='${phase || "\u7A7A"}'\uFF09`);
     } else {
@@ -68789,14 +68739,14 @@ async function cmdReview(deps, sub, name2, opts = {}) {
         }
         const existingStatus = reviewGateStatus(state);
         if (existingStatus !== null && !reviewGateMatches(state, step.phase)) {
-          throw new Error(`\u68C0\u6D4B\u5230\u5C5E\u4E8E phase '${scalar18(state, "review_gate_phase")}' \u7684\u6B8B\u7559 review receipt\uFF1B\u8BF7\u5148\u8BCA\u65AD state \u540E\u91CD\u8BD5`);
+          throw new Error(`\u68C0\u6D4B\u5230\u5C5E\u4E8E phase '${scalar17(state, "review_gate_phase")}' \u7684\u6B8B\u7559 review receipt\uFF1B\u8BF7\u5148\u8BCA\u65AD state \u540E\u91CD\u8BD5`);
         }
         const existingBinding = await readReviewGateBindingForRequest(dir);
         const bindingMatches = reviewGateBindingMatches(existingBinding, state, step.phase, event);
         if (reviewGateApprovedFor(state, step.phase, event) && bindingMatches) {
           throw new Error(`phase '${step.phase}' \u7684 event '${event}' \u5DF2\u83B7\u786E\u8BA4\uFF1B\u8BF7\u76F4\u63A5\u6267\u884C\u8BE5 transition\uFF0C\u4E0D\u80FD\u91CD\u590D request`);
         }
-        const existingAt = scalar18(state, "review_requested_at");
+        const existingAt = scalar17(state, "review_requested_at");
         if (reviewGatePendingFor(state, step.phase, event) && bindingMatches) {
           await refreshReviewGateBinding(dir, state, step.phase, event, existingAt || deps.clock());
           requested = {
@@ -68903,7 +68853,7 @@ async function cmdReview(deps, sub, name2, opts = {}) {
       if (opts.delegated === true && delegatedAuthority === null) {
         throw new Error(`\u5F53\u524D Change '${name2}' \u6CA1\u6709\u6709\u6548\u7684\u7528\u6237\u59D4\u6258 review \u6388\u6743\uFF1B\u8BF7\u7B49\u5F85\u6B63\u5E38\u786E\u8BA4\uFF0C\u6216\u5148\u7531\u7528\u6237\u660E\u786E\u6388\u6743\u540E\u7EED\u81EA\u4E3B\u6267\u884C`);
       }
-      const acknowledgedAt = reviewGateApprovedFor(state, step.phase, event) ? scalar18(state, "review_acknowledged_at") || deps.clock() : freshReviewRequestedAt(scalar18(state, "review_requested_at"), deps.clock);
+      const acknowledgedAt = reviewGateApprovedFor(state, step.phase, event) ? scalar17(state, "review_acknowledged_at") || deps.clock() : freshReviewRequestedAt(scalar17(state, "review_requested_at"), deps.clock);
       const result2 = await acknowledgeReview({
         state,
         phase: step.phase,
@@ -68928,7 +68878,7 @@ async function cmdReview(deps, sub, name2, opts = {}) {
               revision: afterRevision,
               beforeRevision,
               event,
-              requestedAt: scalar18(state, "review_requested_at"),
+              requestedAt: scalar17(state, "review_requested_at"),
               rejected,
               clock: at
             });

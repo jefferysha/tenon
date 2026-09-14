@@ -38707,7 +38707,7 @@ var DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
 function isDecisionIdempotencyRecord(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record7 = value;
-  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && record7.channel === "dashboard" && typeof record7.acknowledgedAt === "string";
+  return typeof record7.key === "string" && typeof record7.ref === "string" && (typeof record7.expectedRevision === "number" || record7.expectedRevision === null) && record7.channel === "dashboard" && typeof record7.acknowledgedAt === "string" && (record7.outcome === void 0 || record7.outcome === "rejected") && (record7.error === void 0 || typeof record7.error === "string") && (record7.code === void 0 || typeof record7.code === "string");
 }
 async function readDecisionIdempotency(changeDir2) {
   try {
@@ -38795,6 +38795,9 @@ async function applyDecision(input) {
       throw Object.assign(new Error("idempotency key is already bound to another decision"), { code: "decision-ref-mismatch" });
     }
     if (prior !== void 0) {
+      if (prior.outcome === "rejected") {
+        throw Object.assign(new Error(prior.error ?? "review approval was rejected"), { code: prior.code ?? "review-approval-required" });
+      }
       result2 = { ok: true, idempotent: true, ref: { id: prior.ref, kind: "review", change: input.name, anchor: "", revision: prior.expectedRevision } };
       return;
     }
@@ -38879,7 +38882,21 @@ async function applyDecision(input) {
         deferred = acknowledged.deferred;
       }
     });
-    result2 = await adapter2.execute({ ref: item2.ref, expectedRevision: input.expectedRevision, idempotencyKey: input.idempotencyKey, channel: "dashboard" });
+    try {
+      result2 = await adapter2.execute({ ref: item2.ref, expectedRevision: input.expectedRevision, idempotencyKey: input.idempotencyKey, channel: "dashboard" });
+    } catch (error2) {
+      await appendDecisionIdempotency(input.dir, {
+        key: input.idempotencyKey,
+        ref: input.ref,
+        expectedRevision: input.expectedRevision,
+        channel: "dashboard",
+        acknowledgedAt: input.clock(),
+        outcome: "rejected",
+        error: error2 instanceof Error ? error2.message : String(error2),
+        code: typeof error2 === "object" && error2 !== null && "code" in error2 && typeof error2.code === "string" ? error2.code : "review-approval-required"
+      });
+      throw error2;
+    }
   });
   if (result2 === void 0) throw new Error("decision command did not produce a result");
   return { result: result2, deferred };
