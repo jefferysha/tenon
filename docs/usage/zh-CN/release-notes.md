@@ -12,6 +12,28 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v1.1.2 · 2026-09-15
+
+在 v1.1.1 上继续用 Claude Code 与 Codex 执行真实任务时发现并修复的问题。
+
+### 交互门
+
+- 交互式技能（`brainstorming`、`grill-with-docs`、`prototype`、`huashu-design`）在每次进入阶段后只向用户
+  确认一次。Codex 需要重新读取产出技能才能登记文档；对交互式产出技能，这次重读会再次锁住同一个问题，
+  导致 Codex 中 explore 无法登记设计文档与 ADR。现在用户确认后会写入 `InteractionConfirmed` 历史行，
+  在重新进入该阶段之前，门禁不再为同一技能加锁。
+- 门禁提示会写明可解封的回复（「确认继续」「继续执行」或「同意继续」）。有待确认的问题时，未被识别为确认的
+  回复会明确告知 agent，不再被静默忽略。
+
+### 升级动作
+
+为使用的每个宿主安装新版本，然后新开宿主会话：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.2/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.2/install.sh | /bin/bash -s -- --codex
+```
+
 ## v1.1.1 · 2026-09-15
 
 在 Claude Code 与 Codex 中用已发布的 v1.1.0 真实执行任务时发现并修复的问题。

@@ -67,22 +67,22 @@ Dashboard 顶部只保留流程进度与工作流两个高频入口；主题和�
 新用户无需 clone 仓库。一次安装完整 Codex 插件：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.2/install.sh | /bin/bash -s -- --codex
 ```
 
 Claude Code 用户只替换宿主参数：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.2/install.sh | /bin/bash -s -- --claude
 ```
 
 先预览 Codex 的完整 Marketplace 与包内 setup 计划、且不调用宿主或写入用户目录：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.1/install.sh | /bin/bash -s -- --codex --dry-run
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.2/install.sh | /bin/bash -s -- --codex --dry-run
 ```
 
-该命令始终从不可变稳定版本 `v1.1.1` 安装预构建发行资产，不 clone 仓库、不运行源码编译。
+该命令始终从不可变稳定版本 `v1.1.2` 安装预构建发行资产，不 clone 仓库、不运行源码编译。
 Bootstrap 注册 Tenon Marketplace、安装同一个完整插件、校验发行 payload，并执行
 `tenon setup --<host>`。已经安装后的维护入口仍是 `tenon setup --codex`、`tenon update --codex`
 与 `tenon runtime status`。

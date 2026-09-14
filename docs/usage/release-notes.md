@@ -4,6 +4,29 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v1.1.2 · 2026-09-15
+
+Fixes found by continuing real Claude Code and Codex tasks on v1.1.1.
+
+### Interaction gate
+
+- An interactive skill (`brainstorming`, `grill-with-docs`, `prototype`, `huashu-design`) asks the user
+  once per step visit. Codex records a document only after re-reading its producer skill; for an
+  interactive producer that re-read locked the same question again, so Explore could not record its
+  design or ADR in Codex. An approval now leaves an `InteractionConfirmed` history row, and the gate
+  does not lock that skill again until the step is entered again.
+- The gate names the reply that unlocks it (「确认继续」, 「继续执行」 or 「同意继续」). A reply that is not
+  recognized as approval while a question is pending now tells the agent so instead of being ignored.
+
+### Upgrade
+
+Install the new release for each host you use, then open a new host session:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.2/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.2/install.sh | /bin/bash -s -- --codex
+```
+
 ## v1.1.1 · 2026-09-15
 
 Fixes found by running real tasks on the published v1.1.0 in Claude Code and Codex.
