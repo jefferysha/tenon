@@ -63,7 +63,7 @@ describe('真实 e2e —— artifact register', () => {
   // ── default 轨（真 manifest resolver）──
   test('default 轨：explore/frontend design_doc + 打包的 openspec-explore producer → 真写字段', async () => {
     expect(await h.run(['init', CH, '--track', 'frontend', '--preset', 'full'])).toBe(0)
-    expect(await h.run(['set', CH, 'phase', 'explore'])).toBe(0)
+    await h.seedPhase(CH, 'explore')
 
     expect(
       await h.run(['artifact', 'register', CH, 'design_doc', 'artifacts/design.md', '--producer', 'openspec-explore']),
@@ -124,7 +124,7 @@ tracks:
 
   test('default 轨：整个 a|b token 作 producer → 拒（exit 1），字段不写', async () => {
     expect(await h.run(['init', CH, '--track', 'frontend', '--preset', 'full'])).toBe(0)
-    expect(await h.run(['set', CH, 'phase', 'explore'])).toBe(0)
+    await h.seedPhase(CH, 'explore')
 
     expect(await h.run(['artifact', 'register', CH, 'design_doc', 'x.md', '--producer', 'opsx:explore|openspec-explore'])).toBe(1)
     expect(await h.read(CH)).not.toMatch(/^design_doc: x\.md$/m)
@@ -132,14 +132,14 @@ tracks:
 
   test('default 轨：spec/pm 的显式 artifacts: [] 允许通过 set 写入 plan', async () => {
     expect(await h.run(['init', CH, '--track', 'pm', '--preset', 'full'])).toBe(0)
-    expect(await h.run(['set', CH, 'phase', 'spec'])).toBe(0)
+    await h.seedPhase(CH, 'spec')
     expect(await h.run(['set', CH, 'plan', 'p.md'])).toBe(0)
     expect(await h.read(CH)).toMatch(/^plan: p\.md$/m)
   })
 
   test('default 轨：spec/backend 的 plan 仍受 artifact 门禁约束', async () => {
     expect(await h.run(['init', CH, '--track', 'backend', '--preset', 'full'])).toBe(0)
-    expect(await h.run(['set', CH, 'phase', 'spec'])).toBe(0)
+    await h.seedPhase(CH, 'spec')
     expect(await h.run(['set', CH, 'plan', 'p.md'])).toBe(1)
     expect(h.err.join('\n')).toContain('artifact register')
     expect(await h.read(CH)).not.toMatch(/^plan: p\.md$/m)
@@ -147,7 +147,7 @@ tracks:
 
   test('default free：matrix=false 只关闭自动编排，不抹掉 verification_report producer allowlist', async () => {
     expect(await h.run(['init', CH, '--track', 'free', '--preset', 'full'])).toBe(0)
-    expect(await h.run(['set', CH, 'phase', 'verify'])).toBe(0)
+    await h.seedPhase(CH, 'verify')
 
     expect(
       await h.run([

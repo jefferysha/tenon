@@ -407,7 +407,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     // record/effect is created for this token. The report is a real governed artifact, but review
     // request must now reject the unproven token before creating any receipt.
     expect(await h.run(['transition', 'backfill', 'open-complete'])).toBe(0)
-    await h.run(['set', 'backfill', 'phase', 'verify'])
+    await h.seedPhase('backfill', 'verify')
     await h.seedArtifact('backfill', 'verification_report', 'docs/superpowers/reports/backfill.md')
     await h.run(['set-many', 'backfill',
       'branch_status=handled', 'agent_review_result=pass', 'codex_review_result=pass',

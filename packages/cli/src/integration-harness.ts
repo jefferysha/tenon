@@ -105,6 +105,11 @@ export interface Harness {
    */
   seedArtifact: (name: string, field: string, value: string) => Promise<void>
   /**
+   * White-box phase setup for tests whose subject is unrelated to transition guards. This uses
+   * the kernel store directly; production callers must use the protected transition application.
+   */
+  seedPhase: (name: string, phase: string) => Promise<void>
+  /**
    * Seed a complete, hash-bound document ledger for a default change without retaining synthetic
    * Skill history. Transition-centric tests call this explicitly when their subject is unrelated
    * to document production; ledger-specific tests deliberately do not use it.
@@ -461,6 +466,8 @@ export function makeHarness(cwd: string): Harness {
     readIn: (name, rel) => readFile(join(cwd, 'openspec', 'changes', name, rel), 'utf8'),
     seedArtifact: (name, field, value) =>
       createStateStore().set(join(cwd, 'openspec', 'changes', name), field as FieldName, value),
+    seedPhase: (name, phase) =>
+      createStateStore().set(join(cwd, 'openspec', 'changes', name), 'phase', phase),
     seedGovernedDocumentEvidence: async (name, overrides) => {
       await seedGovernedDocumentEvidence(
         cwd,
