@@ -185,7 +185,14 @@ last one. Anything that needs its own surface opens the shared right-side `share
   editable 事件 · 去向 table and was wrong for exactly this reason.
 - What *is* configurable is one stage-level property: **does this stage send work back, and how far back**. One
   `<select>`: `不退回` or `退回到「<stage>」`. Options list only stages *before* this one, so a forward jump cannot
-  be expressed. The first stage has no earlier stage, so the section does not render at all.
+  be expressed. The first stage has no earlier stage, so the section renders no `<select>`; it appears there only
+  to show a `transition-not-next-or-back` lint message for an imported or hand-edited edge.
+- Reordering and removing stages relink edges through one helper (`relinkTransitions`): the edge to the next
+  stage keeps its event/guards/actions and follows the new order, a step without one gets `<id>-complete`, and
+  any other edge survives only while its target is still earlier. An old send-back can therefore never turn into
+  a second forward edge. `transition-not-next-or-back` blocks saving any edge that is neither the single edge to
+  the next stage nor a send-back (skip, self, missing target, or a second edge to the next stage); `default`
+  produces no such issue.
 - Send-back is **not** bound to the gate. `实现 → 规格` (`requirements-changed`) hangs off a stage whose gate is
   `无`; its meaning is "requirements changed, go re-do the spec", not "acceptance failed". Gating the control on
   the gate would make that edge inexpressible.

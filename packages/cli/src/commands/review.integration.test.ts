@@ -436,4 +436,75 @@ steps:
       await rm(local.cwd, { recursive: true, force: true })
     }
   })
+
+  test('custom step without a forward exit: request --event archived → acknowledge → transition archived closes the run', async () => {
+    const local = await freshHarness()
+    try {
+      await mkdir(join(local.cwd, '.pipeline', 'workflows'), { recursive: true })
+      // Dashboard editor output: the last review stage only has a send-back edge.
+      await writeFile(join(local.cwd, '.pipeline', 'workflows', 'ui-built.yaml'), `name: ui-built
+tracks:
+  main:
+    steps:
+      - id: stage-1
+        label: stage-1
+        gate: review
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: stage-1-complete
+            to: build
+      - id: build
+        label: build
+        gate: auto
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: build-complete
+            to: verify
+      - id: verify
+        label: verify
+        gate: review
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: verify-back
+            to: build
+`, 'utf8')
+      expect(await local.run(['init', 'demo', '--track', 'main', '--preset', 'full', '--workflow', 'ui-built'])).toBe(0)
+
+      // A step with a forward edge does not accept the completion event.
+      expect(await local.run(['review', 'request', 'demo', '--event', 'archived'])).toBe(1)
+      expect(local.err.join('\n')).toContain("不支持 review event 'archived'")
+      expect(await local.read('demo')).not.toMatch(/^review_gate_status: pending$/m)
+
+      await local.seedArtifact('demo', 'phase', 'verify')
+      // Send-back and completion are two exits, so the decision must name one.
+      expect(await local.run(['review', 'request', 'demo'])).toBe(1)
+      expect(local.err.join('\n')).toContain('verify-back|archived')
+      expect(await local.run(['review', 'request', 'demo', '--event', 'archived'])).toBe(0)
+      expect(await local.read('demo')).toMatch(/^review_gate_event: archived$/m)
+      expect(await local.run(['transition', 'demo', 'archived'])).toBe(2)
+      expect(await local.read('demo')).toMatch(/^archived: false$/m)
+
+      expect(await local.run(['review', 'acknowledge', 'demo'])).toBe(0)
+      expect(await local.run(['transition', 'demo', 'archived'])).toBe(0)
+      const closed = await local.read('demo')
+      expect(closed).toMatch(/^phase: verify$/m)
+      expect(closed).toMatch(/^phase_status: done$/m)
+      expect(closed).toMatch(/^archived: true$/m)
+      expect(closed).not.toMatch(/^review_gate_status:/m)
+
+      // Nothing is left to complete once the run is archived.
+      expect(await local.run(['review', 'request', 'demo', '--event', 'archived'])).toBe(1)
+    } finally {
+      await rm(local.cwd, { recursive: true, force: true })
+    }
+  })
 })

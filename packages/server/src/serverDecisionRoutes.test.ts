@@ -17,6 +17,7 @@ import { FIXED_CLOCK, freshHarness, makeHarness, type Harness } from '../../cli/
 import { handleGetDecisionRoute } from './serverGetDecisionRoutes.js'
 import { DECISION_COMMAND_FAILED, handlePostDecisionRoutes } from './serverPostDecisionRoutes.js'
 import { handlePostOperationsRoutes } from './serverPostOperationsRoutes.js'
+import { buildSnapshot } from './snapshot.js'
 
 type Captured = { status?: number; body?: unknown }
 type ViewItem = { ref: { id: string }; revision: number; status: string; type: string; channel: string }
@@ -301,6 +302,59 @@ steps:
     expect(parseInteractionEventLine(lines.at(-1)!)).toMatchObject({
       event: 'review.acknowledged', workflow: 'custom-review', workflowMode: 'custom', pipelineStage: 'custom', actor: 'system', surface: 'dashboard',
     })
+  })
+
+  it('acknowledges the implicit archived completion of a custom step without a forward exit', async () => {
+    const h = await freshHarness()
+    cleanups.push(h.cwd)
+    await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
+    // Dashboard editor output: the last review stage only has a send-back edge.
+    await writeFile(join(h.cwd, '.pipeline', 'workflows', 'ui-built.yaml'), `name: ui-built
+tracks:
+  main:
+    steps:
+      - id: build
+        label: build
+        gate: auto
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: build-complete
+            to: verify
+      - id: verify
+        label: verify
+        gate: review
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: verify-back
+            to: build
+`, 'utf8')
+    expect(await h.run(['init', 'demo', '--track', 'main', '--preset', 'full', '--workflow', 'ui-built'])).toBe(0)
+    await h.seedArtifact('demo', 'phase', 'verify')
+    expect(await h.run(['review', 'request', 'demo', '--event', 'archived'])).toBe(0)
+
+    // Rules, readiness and the handshake list the same exits: the Dashboard decoder requires it.
+    const snapshot = await buildSnapshot({
+      registry: () => [h.cwd], store: createStateStore(), version: '1', clock: () => FIXED_CLOCK,
+    })
+    const change = snapshot.projects[0]?.changes.find((candidate) => candidate.name === 'demo')
+    expect(change?.workflowRules.transitions.verify).toEqual([
+      { event: 'verify-back', to: 'build' },
+      { event: 'archived', to: 'verify' },
+    ])
+    expect(Object.keys(change?.workflowExecution.readinessByTransition.verify ?? {})).toEqual(['verify-back', 'archived'])
+    expect(change?.reviewHandshake).toMatchObject({ status: 'pending', event: 'archived' })
+
+    const item = await pendingItem(h)
+    expect(await post(h.cwd, { ref: item.ref.id, expected_revision: item.revision, idempotency_key: 'archived-1' }))
+      .toMatchObject({ status: 200, body: { ok: true, code: 'approved' } })
+    expect(await h.run(['transition', 'demo', 'archived'])).toBe(0)
+    expect(await h.read('demo')).toMatch(/^archived: true$/m)
   })
 
   it('preserves transition-controlled phase when importing a changed YAML projection and reports it', async () => {

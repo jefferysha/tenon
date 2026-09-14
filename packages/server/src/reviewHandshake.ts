@@ -1,3 +1,4 @@
+import { stepExitTransitions } from '@tenon/kernel'
 import type { EffectiveWorkflowPlan, PipelineState } from '@tenon/kernel'
 import type { ReviewHandshakeSnapshot } from './types.js'
 
@@ -22,7 +23,7 @@ export function projectReviewHandshake(
   }
 
   const step = plan.workflow.steps.find((candidate) => candidate.id === phase)
-  const eventExists = step?.transitions.some((transition) => transition.event === receipt.event) ?? false
+  const eventExists = stepExitTransitions(plan, phase).some((transition) => transition.event === receipt.event)
   const pending = receipt.status === 'pending' && receipt.acknowledgedAt === ''
   const approved = receipt.status === 'approved' && receipt.acknowledgedAt !== ''
   if (

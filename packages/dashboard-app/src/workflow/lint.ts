@@ -7,6 +7,7 @@ export type LintIssue =
   | { kind: 'transition-empty-event'; stepId: string }
   | { kind: 'transition-duplicate-event'; stepId: string; event: string }
   | { kind: 'transition-contract-required'; stepId: string; to: string }
+  | { kind: 'transition-not-next-or-back'; stepId: string; event: string; to: string }
 
 /**
  * 受治理工作流必须保留的转移（与 kernel 的 CANONICAL_TRANSITIONS 逐条对齐）。包含两条回流：
@@ -33,12 +34,16 @@ function governed(def: WbWorkflowDef): boolean {
  *   · 每个阶段至少一个输出（文档或值）；
  *   · 字段输入必须由更早阶段声明为输出；
  *   · 转移的事件名非空且在本阶段内唯一——引擎按事件名分派，重名无法判定走哪条；
+ *   · 每条转移要么是去下一阶段的唯一一条，要么退回更早的阶段（编辑器的正向边由顺序决定、退回只能往回；
+ *     往后跳、指向自己、指向不存在的阶段、第二条去下一阶段的边都是导入或手改 YAML 才会有的形状）；
  *   · 受治理工作流保留 CONTRACT_TRANSITIONS 要求的去向。
  */
 export function lintWorkflow(def: WbWorkflowDef, io: WbEffectiveIo | undefined): LintIssue[] {
   const issues: LintIssue[] = []
   const isGoverned = governed(def)
   def.steps.forEach((step, index) => {
+    const next = def.steps[index + 1]
+    const earlier = new Set(def.steps.slice(0, index).map((candidate) => candidate.id))
     const outputs = io?.[step.id]?.outputs.length ?? step.outputs.length
     // Open workflows may discover outputs at runtime; only governed contracts require a declared slot.
     if (outputs === 0 && isGoverned) issues.push({ kind: 'step-no-output', stepId: step.id })
@@ -56,6 +61,15 @@ export function lintWorkflow(def: WbWorkflowDef, io: WbEffectiveIo | undefined):
       }
       if (seen.has(transition.event)) issues.push({ kind: 'transition-duplicate-event', stepId: step.id, event: transition.event })
       seen.add(transition.event)
+    }
+    let forwardSeen = false
+    for (const transition of step.transitions) {
+      if (!forwardSeen && next !== undefined && transition.to === next.id) {
+        forwardSeen = true
+        continue
+      }
+      if (earlier.has(transition.to)) continue
+      issues.push({ kind: 'transition-not-next-or-back', stepId: step.id, event: transition.event, to: transition.to })
     }
     if (isGoverned) {
       for (const to of CONTRACT_TRANSITIONS[step.id] ?? []) {

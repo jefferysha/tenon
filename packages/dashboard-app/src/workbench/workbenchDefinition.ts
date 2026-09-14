@@ -201,67 +201,84 @@ function withContract(def: WbWorkflowDef, contract: WbDocumentContract): WbWorkf
   return { ...def, documentContract: contract }
 }
 
+/** 变动前每个阶段「去下一阶段」的那条边（同一目标有多条时取第一条）。 */
+function forwardTransitions(steps: readonly WbStepDef[]): Map<string, WbTransition> {
+  const forward = new Map<string, WbTransition>()
+  steps.forEach((step, index) => {
+    const next = steps[index + 1]
+    const transition = next === undefined ? undefined : step.transitions.find((candidate) => candidate.to === next.id)
+    if (transition !== undefined) forward.set(step.id, transition)
+  })
+  return forward
+}
+
+/**
+ * 顺序变了之后按新顺序重接转移（排序与删阶段共用），产出与 lint 的 `transition-not-next-or-back` 同一个不变式：
+ *   · 正向边只有一条，由顺序决定：变动前那条去下一阶段的边改指新的下一阶段，event / guards / actions 不动；
+ *     没有就合成 `<id>-complete`；末阶段没有正向边。
+ *   · 其余边只能退回：`retarget` 之后目标仍在本阶段之前才保留（原样带着 event / guards / actions），
+ *     变成往后跳、指向自己或指向不存在的阶段一律删掉——否则旧的退回边会悄悄变成第二条正向边。
+ *   · 被 `retarget` 改了目标的边若与本阶段已有的边同目标，丢掉改出来的那条；原本就有的边不合并。
+ */
+function relinkTransitions(
+  steps: readonly WbStepDef[],
+  forward: ReadonlyMap<string, WbTransition>,
+  retarget: (to: string) => string | null = (to) => to,
+): WbStepDef[] {
+  return steps.map((step, index) => {
+    const next = steps[index + 1]
+    const earlier = new Set(steps.slice(0, index).map((candidate) => candidate.id))
+    const linear = forward.get(step.id)
+    const untouched = new Set(step.transitions.filter((transition) => transition !== linear && retarget(transition.to) === transition.to).map((transition) => transition.to))
+    const retargeted = new Set<string>()
+    const transitions = step.transitions.flatMap((transition): WbTransition[] => {
+      if (transition === linear) return next === undefined ? [] : [{ ...transition, to: next.id }]
+      const to = retarget(transition.to)
+      if (to === null || !earlier.has(to)) return []
+      if (to === transition.to) return [transition]
+      if (untouched.has(to) || retargeted.has(to)) return []
+      retargeted.add(to)
+      return [{ ...transition, to }]
+    })
+    if (next !== undefined && linear === undefined) transitions.push({ event: `${step.id}-complete`, to: next.id })
+    return { ...step, transitions }
+  })
+}
+
 export function reorderStagesInDef(def: WbWorkflowDef, fromId: string, toId: string, after: boolean): WbWorkflowDef {
   if (fromId === toId) return def
   const fromIndex = def.steps.findIndex((step) => step.id === fromId)
   const toIndex = def.steps.findIndex((step) => step.id === toId)
   if (fromIndex < 0 || toIndex < 0) return def
 
-  const linearTransitionIndex = new Map<string, number>()
-  def.steps.forEach((step, index) => {
-    const next = def.steps[index + 1]
-    if (!next) return
-    const transitionIndex = step.transitions.findIndex((transition) => transition.to === next.id)
-    if (transitionIndex >= 0) linearTransitionIndex.set(step.id, transitionIndex)
-  })
   const steps = [...def.steps]
   const moved = steps[fromIndex]
   if (!moved) return def
   steps.splice(fromIndex, 1)
   const anchor = steps.findIndex((step) => step.id === toId)
   steps.splice(after ? anchor + 1 : anchor, 0, moved)
-  return {
-    ...def,
-    steps: steps.map((step, index) => {
-      const next = steps[index + 1]
-      const transitionIndex = linearTransitionIndex.get(step.id)
-      if (transitionIndex === undefined) {
-        return next
-          ? { ...step, transitions: [...step.transitions, { event: `${step.id}-complete`, to: next.id }] }
-          : step
-      }
-      if (!next) return { ...step, transitions: step.transitions.filter((_, current) => current !== transitionIndex) }
-      return {
-        ...step,
-        transitions: step.transitions.map((transition, current) => (
-          current === transitionIndex ? { ...transition, to: next.id } : transition
-        )),
-      }
-    }),
-  }
+  return { ...def, steps: relinkTransitions(steps, forwardTransitions(def.steps)) }
 }
 
+/**
+ * 删阶段：指向它的退回边改指它原来的下一阶段（仍在来源阶段之前才留下），其余按 relinkTransitions 重接——
+ * 它前一个阶段的正向边接到新的下一阶段。
+ */
 export function removeStageFromDef(def: WbWorkflowDef, stepId: string): WbWorkflowDef {
   const index = def.steps.findIndex((step) => step.id === stepId)
-  const victim = def.steps[index]
-  if (index < 0 || !victim) return def
-  const next = def.steps[index + 1]
-  const successor = next && victim.transitions.some((transition) => transition.to === next.id) ? next.id : null
+  if (index < 0) return def
+  const successor = def.steps[index + 1]?.id ?? null
   const contract = def.documentContract === undefined ? undefined : {
     ...def.documentContract,
     slots: def.documentContract.slots.filter((slot) => slot.ownerStep !== stepId),
     reads: def.documentContract.reads.filter((read) => read.step !== stepId),
   }
-  const base = {
-    ...def,
-    steps: def.steps.filter((step) => step.id !== stepId).map((step) => ({
-      ...step,
-      transitions: step.transitions.flatMap((transition) => {
-        if (transition.to !== stepId) return [transition]
-        return successor === null || successor === step.id ? [] : [{ ...transition, to: successor }]
-      }),
-    })),
-  }
+  const steps = relinkTransitions(
+    def.steps.filter((step) => step.id !== stepId),
+    forwardTransitions(def.steps),
+    (to) => (to === stepId ? successor : to),
+  )
+  const base = { ...def, steps }
   return contract === undefined ? base : withContract(base, contract)
 }
 

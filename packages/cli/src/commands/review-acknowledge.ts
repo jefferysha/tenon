@@ -11,6 +11,7 @@ import {
   readCurrentRunRevision,
   resolveStep,
   reviewAcknowledgeExitCode,
+  stepExitTransitions,
   type PipelineState,
   type ReviewAcknowledgeDeferred,
 } from '@tenon/kernel'
@@ -31,7 +32,7 @@ function reviewExits(deps: CliDeps, state: PipelineState, phase: string): readon
   if (!plan) throw new Error(`workflow '${String(state.fields.workflow ?? '')}' 未找到或不可编译`)
   const step = resolveStep(plan.workflow, phase)
   if (!step || step.gate !== 'review') return null
-  return step.transitions.map((transition) => transition.event)
+  return stepExitTransitions(plan, phase, state).map((transition) => transition.event)
 }
 
 export async function cmdReviewAcknowledge(

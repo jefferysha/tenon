@@ -116,4 +116,43 @@ describe('workflow plan —— Agent 使用冻结的运行计划而非可变项�
       },
     })
   })
+
+  test('没有前进出口的 step 暴露 completion_event；有前进出边或运行已归档时不暴露', async () => {
+    const plan = compileEffectiveWorkflowPlan('ui-built', {
+      name: 'ui-built',
+      steps: [
+        {
+          id: 'build', label: '实现', gate: 'auto', skills: [], inputs: [], outputs: [], guards: [],
+          transitions: [{ event: 'build-complete', to: 'verify' }],
+        },
+        {
+          id: 'verify', label: '验证', gate: 'review', skills: [], inputs: [], outputs: [], guards: [],
+          transitions: [{ event: 'verify-back', to: 'build' }],
+        },
+      ],
+    })
+    const snapshot = workflowPlanSnapshot(plan)
+    const open = makeDeps({ state: stateWithSnapshot('ui-built', 'verify', snapshot) })
+    expect(await cmdWorkflowPlan(open, 'demo', { json: true })).toBe(0)
+    const steps = (JSON.parse(open.outLines[0]!) as {
+      plan: { workflow: { steps: Array<{ id: string; completion_event?: string; transitions: unknown[] }> } }
+    }).plan.workflow.steps
+    expect(steps.map((candidate) => [candidate.id, candidate.completion_event])).toEqual([
+      ['build', undefined],
+      ['verify', 'archived'],
+    ])
+    // The declared edges stay exactly as frozen; completion is exposed beside them, not inside them.
+    expect(steps[1]?.transitions).toEqual([{ event: 'verify-back', to: 'build', guards: [], actions: [] }])
+
+    const human = makeDeps({ state: stateWithSnapshot('ui-built', 'verify', snapshot) })
+    expect(await cmdWorkflowPlan(human, 'demo', {})).toBe(0)
+    expect(human.outLines.find((line) => line.includes(' verify '))).toContain('completion: archived')
+
+    const archivedState = stateWithSnapshot('ui-built', 'verify', snapshot)
+    const archived = makeDeps({
+      state: { ...archivedState, fields: { ...archivedState.fields, archived: 'true' } },
+    })
+    expect(await cmdWorkflowPlan(archived, 'demo', { json: true })).toBe(0)
+    expect(JSON.stringify(JSON.parse(archived.outLines[0]!))).not.toContain('completion_event')
+  })
 })

@@ -7,6 +7,7 @@ import {
   evaluateSpecMigrationEvidence,
   loadWorkflow,
   readinessByTransition,
+  stepExitTransitions,
   resolveBoundEffectiveWorkflowPlan,
   resolveEffectiveWorkflowPlan,
   WORKFLOW_ACTIONS,
@@ -180,9 +181,11 @@ export function snapshotWorkflowRules(
   return {
     executionModel: plan.capabilities.execution.model,
     steps: plan.workflow.steps.map((step) => step.id),
+    // Structural exits: a step without a forward edge also lists its implicit `archived` edge, so
+    // readiness and a pending `archived` review handshake decode against the same rules.
     transitions: Object.fromEntries(plan.workflow.steps.map((step) => [
       step.id,
-      step.transitions.map((transition) => ({ event: transition.event, to: transition.to })),
+      stepExitTransitions(plan, step.id).map((transition) => ({ event: transition.event, to: transition.to })),
     ])),
     gateByStep: Object.fromEntries(plan.workflow.steps.map((step) => [step.id, step.gate])),
     labelByStep: Object.fromEntries(

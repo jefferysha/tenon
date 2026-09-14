@@ -8,6 +8,7 @@ import {
   effectiveLifecyclePolicy,
 } from './governed-lifecycle-policy.js'
 import type { CompiledGuardConfig, GuardCapability, GuardDecision } from './ir.js'
+import { stepExitTransitions } from './implicit-completion.js'
 import {
   buildDefaultGuardInput,
   buildStepGuardInput,
@@ -99,7 +100,9 @@ export async function readinessByTransition(
   const currentStepId = Array.isArray(phase) ? phase.join(',') : (phase ?? '')
   const step = plan.workflow.steps.find((candidate) => candidate.id === currentStepId)
   if (step === undefined) return {}
-  const transitions = await Promise.all(step.transitions.map(async (transition) => {
+  // Structural exits (no run-state filter) so readiness keys always match the projected rules.
+  const exits = plan.executionModel === 'phase-manifest' ? step.transitions : stepExitTransitions(plan, step.id)
+  const transitions = await Promise.all(exits.map(async (transition) => {
       const guards = plan.executionModel === 'phase-manifest'
         ? defaultEventGuards(transition.event)
         : effectiveLifecyclePolicy(

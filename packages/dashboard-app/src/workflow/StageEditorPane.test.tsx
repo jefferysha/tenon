@@ -169,4 +169,15 @@ describe('StageEditorPane · 退回', () => {
     renderPane(SPEC, { lint: [{ kind: 'transition-contract-required', stepId: 'spec', to: 'explore' }] })
     expect(screen.getByTestId('stage-back-lint')).toHaveTextContent('受治理工作流要求本阶段可退回「调研」')
   })
+
+  it('既不去下一阶段也不退回的转移：段内说出事件与目标', () => {
+    renderPane(SPEC, { lint: [{ kind: 'transition-not-next-or-back', stepId: 'spec', event: 'spec-complete', to: 'spec' }] })
+    expect(screen.getByTestId('stage-back-lint')).toHaveTextContent('「spec-complete」→「规格」：只能是去下一阶段的唯一一条，或退回更早的阶段')
+  })
+
+  it('第一个阶段带着往后跳的边：段落只为说出问题而出现，没有下拉', () => {
+    renderPane(EXPLORE, { lint: [{ kind: 'transition-not-next-or-back', stepId: 'explore', event: 'explore-skip', to: 'ship' }] })
+    expect(screen.getByTestId('stage-back-lint')).toHaveTextContent('「explore-skip」→「ship」')
+    expect(screen.queryByTestId('wb-lane-back-explore')).toBeNull()
+  })
 })

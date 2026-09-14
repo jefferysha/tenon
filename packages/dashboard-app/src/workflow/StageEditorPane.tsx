@@ -74,6 +74,7 @@ export function StageEditorPane({ editor, step, runtimeContext }: StageEditorPan
     if (issue.kind === 'transition-empty-event') return [t('workflow.lint_transition_empty_event')]
     if (issue.kind === 'transition-duplicate-event') return [t('workflow.lint_transition_duplicate_event', { event: issue.event })]
     if (issue.kind === 'transition-contract-required') return [t('workflow.lint_transition_contract_required', { to: editor.labelOf(issue.to) })]
+    if (issue.kind === 'transition-not-next-or-back') return [t('workflow.lint_transition_not_next_or_back', { event: issue.event, to: editor.labelOf(issue.to) })]
     return []
   })
 
@@ -199,10 +200,11 @@ export function StageEditorPane({ editor, step, runtimeContext }: StageEditorPan
                 ? <p className="text-body text-text-3" data-testid="workflow-runtime-artifacts-unavailable">{t('workflow.runtime_artifacts_unavailable')}</p>
               : <p className="text-body text-text-3" data-testid="workflow-runtime-artifacts-empty">{t('workflow.runtime_artifacts_empty')}</p>}
           </section>
-          {backTargets.length > 0 && (
+          {/* 第一个阶段没有退回目标、不出下拉；但导入的 YAML 可能让它带着往后跳的边，问题仍要在这里说出来。 */}
+          {(backTargets.length > 0 || backIssues.length > 0) && (
             <section className="grid gap-3.5 py-6" data-testid="stage-back">
               <SectionHead title={t('workflow.back_title')} />
-              <select
+              {backTargets.length > 0 && <select
                 className="max-w-[24rem] min-h-10 rounded-sm border border-border bg-card px-3 text-body text-text outline-none transition-colors hover:border-border-2 focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50"
                 value={backTarget ?? ''}
                 disabled={!editable}
@@ -214,7 +216,7 @@ export function StageEditorPane({ editor, step, runtimeContext }: StageEditorPan
                 {backTargets.map((target) => (
                   <option key={target.id} value={target.id}>{t('workflow.back_to', { stage: target.label })}</option>
                 ))}
-              </select>
+              </select>}
               {backIssues.length > 0 && (
                 <p className="text-body text-amber-d" role="status" data-testid="stage-back-lint">{backIssues[0]}</p>
               )}

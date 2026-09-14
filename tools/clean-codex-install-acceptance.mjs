@@ -705,10 +705,12 @@ export async function assertInstalledRuntime(
     5_000,
     `Dashboard product module on port ${port}`,
   )
+  // Identity markers that the product module owns: its persisted theme key and the injected
+  // Dashboard token global. Onboarding copy is not identity and changes with the UI.
   if (
     !moduleResponse.ok
     || !moduleBody.includes('tenon-dashboard-theme')
-    || !moduleBody.includes('tenon setup --codex')
+    || !moduleBody.includes('__TENON_DASHBOARD_TOKEN__')
   ) {
     throw new Error('Dashboard rendered content does not identify the Tenon product')
   }

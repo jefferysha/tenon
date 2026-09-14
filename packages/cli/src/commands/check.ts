@@ -21,6 +21,7 @@ import {
   isRevisionGuard,
   resolveStep,
   resolveWorkflowName,
+  stepExitTransitions,
   TASK_PLAN_CURRENT_FILE,
   TASK_PLAN_LIMITS,
   TASK_PLAN_STATE_DIR,
@@ -256,14 +257,16 @@ async function checkGraphWorkflow(
     deps.io.err(`ERROR: step '${currentStepId}' 不在 workflow '${plan.id}' 里`)
     return 1
   }
+  // Declared exits plus the implicit `archived` completion edge of a step without a forward exit.
+  const exits = stepExitTransitions(plan, step.id, state)
   let guards: StepIR['guards']
   if (event === undefined) {
-    guards = plainGraphCheckGuards(plan, step)
+    guards = plainGraphCheckGuards(plan, step, exits)
   } else {
-    const selectedEdge = step.transitions.find((transition) => transition.event === event)
+    const selectedEdge = exits.find((transition) => transition.event === event)
     if (selectedEdge === undefined) {
       deps.io.err(
-        `ERROR: step '${currentStepId}' 不支持 event '${event}'；可选：${step.transitions.map((transition) => transition.event).join(', ') || '(无)'}`,
+        `ERROR: step '${currentStepId}' 不支持 event '${event}'；可选：${exits.map((transition) => transition.event).join(', ') || '(无)'}`,
       )
       return 1
     }
@@ -328,8 +331,12 @@ async function checkGraphWorkflow(
  * without an exact event.  A single revision guard is retained for all non-rollback exits,
  * while rollback-only steps do not require a forward proof.
  */
-function plainGraphCheckGuards(plan: EffectiveWorkflowPlan, step: StepIR): StepIR['guards'] {
-  const policies = step.transitions.map((transition) => effectiveLifecyclePolicy(
+function plainGraphCheckGuards(
+  plan: EffectiveWorkflowPlan,
+  step: StepIR,
+  exits: readonly StepIR['transitions'][number][],
+): StepIR['guards'] {
+  const policies = exits.map((transition) => effectiveLifecyclePolicy(
     plan.capabilities.documents.governed,
     step,
     transition,

@@ -61,6 +61,19 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
   outgoing transition of the step (one `field-nonempty` / `output-present` per declared output). `null` runs
   only explicit guards. `confirm` is rejected by both the parser and the compiler with a hint naming the two
   replacements.
+- Completion: a step-graph step with no forward edge (no transition whose target comes later in the selected
+  branch's step order) and no declared `archived` edge exposes an implicit `archived` self-edge
+  (`workflow/implicit-completion.ts`: `implicitCompletionTransition(plan, stepId, state?)`,
+  `stepExitTransitions(plan, stepId, state?)`). Its guards are the step's auto-gate output guards (`gate: auto`) or
+  none; its action is `archive-run`. Step guards, required step skills, document policy and, for `gate: review`, an
+  exact receipt for `archived` apply as on any exit, so `tenon review request <c> --event archived` is valid there.
+  The edge is derived at consumption time and never enters compiled IR, fingerprints or snapshots. Excluded:
+  phase-manifest plans, archived runs (when `state` is passed) and steps entered only through `archive-run` edges
+  (`simple`'s `done` / `escalated`). Callers acting on the edge (transition, review request/acknowledge, check,
+  advance, `workflow plan`) pass `state`; plan-level projections (snapshot `workflowRules.transitions`,
+  `readinessByTransition`, review handshake) omit it, because the Dashboard decoder requires readiness events and a
+  pending handshake event to match `workflowRules.transitions` exactly. Entering such a step is never run completion;
+  only `archived=true` is.
 - `default.yaml`: `tracks.chat / pm / frontend / backend / free`, each with its own seven stages (`chat` is the
   drivers-only flow and comes first, so it is also the representative branch in track-less contexts; pm has no
   plan artifact, frontend adds e2e). `DEFAULT_ARTIFACT_DECLARATIONS` is keyed by track; `defaultArtifactsForStep(step,

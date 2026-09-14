@@ -76,6 +76,10 @@ export type {
 // cli transition/check 与 server transition 塌成 adapter（消息模板与错误分类学留 adapter）。
 export { applyStepTransition, firstStep, planStepTransition, resolveStep, resolveWorkflowName } from './workflow/engine.js'
 export type { StepTransitionPlan } from './workflow/engine.js'
+export {
+  IMPLICIT_COMPLETION_EVENT, implicitCompletionTransition, stepExitTransitions,
+} from './workflow/implicit-completion.js'
+export type { ImplicitCompletionPlan } from './workflow/implicit-completion.js'
 export { isDefaultWorkflowName, isValidWorkflowName } from './workflow/identifier.js'
 export { isSkillUnlocked } from './workflow/skillDag.js'
 export { classifyInteractionWorkflowIdentity } from './workflow/interaction-effect.js'

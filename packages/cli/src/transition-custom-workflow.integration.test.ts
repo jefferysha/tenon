@@ -21,9 +21,70 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { freshHarness, rm, type Harness } from './integration-harness.js'
+import { freshHarness, recordWorkflowPhaseSkill, rm, type Harness } from './integration-harness.js'
 
 const CHANGE = 'cwf'
+
+/**
+ * Shape saved by the Dashboard editor (E2E evidence): forward `<id>-complete` between consecutive
+ * stages, send-back `<id>-back`, and no exit on the last stage of either track.
+ */
+const UI_BUILT_WF = `name: ui-built
+tracks:
+  main:
+    steps:
+      - id: stage-1
+        label: stage-1
+        gate: review
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: stage-1-complete
+            to: build
+      - id: build
+        label: build
+        gate: auto
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: build-complete
+            to: verify
+      - id: verify
+        label: verify
+        gate: review
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: verify-back
+            to: build
+  docs:
+    steps:
+      - id: stage-1
+        label: stage-1
+        gate: review
+        skills: []
+        inputs: []
+        outputs: []
+        guards: []
+        transitions:
+          - event: stage-1-complete
+            to: build
+      - id: build
+        label: build
+        gate: null
+        skills:
+          - id: tenon-build
+        inputs: []
+        outputs: []
+        guards: []
+        transitions: []
+`
 
 /** 一个最小两 step workflow：s1 --complete--> s2（s2 为终态，无出边）。 */
 const TWO_STEP_WF = `name: twostep
@@ -171,7 +232,42 @@ describe('真实 e2e —— transition 非 default workflow 的真实 step 间�
     expect(err).toContain('complete')
   })
 
-  test('archive 终点以保留 archived 事件完成 canonical 归档，普通零出边仍不伪造转换', async () => {
+  test('Dashboard 编辑器的零出边末阶段：进入不等于完成，声明的 skill 完成后才以 archived 归档；有前进出边的 step 拒绝 archived', async () => {
+    const wfDir = join(h.cwd, '.pipeline', 'workflows')
+    await mkdir(wfDir, { recursive: true })
+    await writeFile(join(wfDir, 'ui-built.yaml'), UI_BUILT_WF, 'utf8')
+    expect(await h.run(['init', CHANGE, '--track', 'docs', '--preset', 'full', '--workflow', 'ui-built'])).toBe(0)
+    expect(await h.read(CHANGE)).toMatch(/^phase: stage-1$/m)
+
+    expect(await h.run(['transition', CHANGE, 'archived'])).toBe(1)
+    expect(h.err.join('\n')).toContain("不支持 event 'archived'")
+
+    expect(await h.run(['review', 'request', CHANGE, '--event', 'stage-1-complete'])).toBe(0)
+    expect(await h.run(['review', 'acknowledge', CHANGE])).toBe(0)
+    expect(await h.run(['transition', CHANGE, 'stage-1-complete'])).toBe(0)
+    const entered = await h.read(CHANGE)
+    expect(entered).toMatch(/^phase: build$/m)
+    expect(entered).toMatch(/^archived: false$/m)
+
+    expect(await h.run(['transition', CHANGE, 'archived'])).toBe(2)
+    expect(h.err.join('\n')).toContain('tenon-build')
+    expect(await h.read(CHANGE)).toMatch(/^archived: false$/m)
+
+    await recordWorkflowPhaseSkill(h.cwd, join(h.cwd, 'openspec', 'changes', CHANGE))
+    expect(await h.run(['transition', CHANGE, 'archived'])).toBe(0)
+    const closed = await h.read(CHANGE)
+    expect(closed).toMatch(/^phase: build$/m)
+    expect(closed).toMatch(/^phase_status: done$/m)
+    expect(closed).toMatch(/^archived: true$/m)
+    const hist = await historyLines()
+    expect(hist.some((line) => (
+      line.kind === 'transition' && line.from === 'build' && line.to === 'build' && line.raw === 'archived'
+    ))).toBe(true)
+
+    expect(await h.run(['transition', CHANGE, 'archived'])).toBe(1)
+  })
+
+  test('archive 终点以保留 archived 事件完成 canonical 归档', async () => {
     await setupCustomChange('archive-terminal', ARCHIVE_TERMINAL_WF)
     expect(await h.run(['transition', CHANGE, 'complete'])).toBe(0)
     expect(await h.read(CHANGE)).toMatch(/^phase: archive$/m)

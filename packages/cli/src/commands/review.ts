@@ -11,6 +11,7 @@ import {
   isDocumentContractPhase,
   isDocumentPolicyStep,
   resolveStep,
+  stepExitTransitions,
   reviewGateApprovedFor,
   reviewGateMatches,
   reviewGatePendingFor,
@@ -65,7 +66,7 @@ function resolveReviewStep(deps: CliDeps, state: PipelineState): ReviewStep {
     phase,
     workflow: plan.id,
     executionModel: plan.capabilities.execution.model,
-    events: step.transitions.map((transition) => transition.event),
+    events: stepExitTransitions(plan, phase, state).map((transition) => transition.event),
   }
 }
 

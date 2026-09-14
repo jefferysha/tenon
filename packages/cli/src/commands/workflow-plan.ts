@@ -1,3 +1,4 @@
+import { implicitCompletionTransition } from '@tenon/kernel'
 import type { EffectiveWorkflowPlan, PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
@@ -21,8 +22,25 @@ function renderHuman(deps: CliDeps, name: string, state: PipelineState, plan: Ef
   deps.io.out(`current  ${scalar(state.fields.phase)}`)
   for (const [index, step] of plan.workflow.steps.entries()) {
     const skills = step.skills.map((skill) => skill.id).join(', ') || '-'
-    deps.io.out(`${String(index + 1).padStart(2, '0')} ${step.id} | ${step.label} | skills: ${skills}`)
+    const completion = implicitCompletionTransition(plan, step.id, state)
+    deps.io.out(
+      `${String(index + 1).padStart(2, '0')} ${step.id} | ${step.label} | skills: ${skills}` +
+      (completion === undefined ? '' : ` | completion: ${completion.event}`),
+    )
   }
+}
+
+/**
+ * A step without a forward exit finishes the run through an implicit event that the frozen plan
+ * does not declare. Expose it per step as `completion_event` so agents never read such a step as
+ * already complete.
+ */
+function planWithCompletionEvents(plan: EffectiveWorkflowPlan, state: PipelineState): EffectiveWorkflowPlan {
+  const steps = plan.workflow.steps.map((step) => {
+    const completion = implicitCompletionTransition(plan, step.id, state)
+    return completion === undefined ? step : { ...step, completion_event: completion.event }
+  })
+  return { ...plan, workflow: { ...plan.workflow, steps } }
 }
 
 /**
@@ -64,7 +82,7 @@ export async function cmdWorkflowPlan(
       change: name,
       source,
       current_step: scalar(state.fields.phase),
-      plan,
+      plan: planWithCompletionEvents(plan, state),
     }))
   } else {
     renderHuman(deps, name, state, plan)

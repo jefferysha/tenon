@@ -469,24 +469,35 @@ describe('advance —— 非 default workflow（自定义 step 图，快速回�
     return { deps, out, err, store, historyEntries }
   }
 
-  test('单边推进多步到终态：c1→c2→c3 两步真写盘 + history 落账，终态 [STOP] exit 0', async () => {
+  test('单边推进到末 step 后以隐式 archived 归档：c1→c2→c3→archived 三步真写盘 + history 落账，终态 [STOP] exit 0', async () => {
     const a = makeCustomAdv({ phase: 'c1', workflow: 'chain' })
     expect(await cmdAdvance(a.deps, 'demo', {})).toBe(0)
     expect(a.store.phase()).toBe('c3')
-    expect(a.store.write.calls).toHaveLength(2)
+    expect(a.store.write.calls).toHaveLength(3)
     expect(a.out.some((l) => l.startsWith('[ADVANCE]') && l.includes('c1') && l.includes('c2') && l.includes('go'))).toBe(true)
     expect(a.out.some((l) => l.startsWith('[ADVANCE]') && l.includes('c2') && l.includes('c3') && l.includes('go2'))).toBe(true)
+    expect(a.out.some((l) => l.startsWith('[ADVANCE]') && l.includes('c3') && l.includes('archived'))).toBe(true)
     expect(a.out.some((l) => l.includes('[STOP]') && l.includes('终态'))).toBe(true)
     // history 落账（经 cmdTransition 自定义分支：kind=transition, raw=event 名）
     const trans = a.historyEntries.filter((e) => e.kind === 'transition')
-    expect(trans.map((e) => e.raw)).toEqual(['go', 'go2'])
+    expect(trans.map((e) => e.raw)).toEqual(['go', 'go2', 'archived'])
+    expect((await a.store.read('')).fields.archived).toBe('true')
   })
 
-  test('起步就在终态 step（零出边）→ 立即停，零推进，exit 0', async () => {
+  test('起步就在零出边 step：进入它不等于完成——走 archived 归档后停，exit 0', async () => {
     const a = makeCustomAdv({ phase: 'c3', workflow: 'chain' })
     expect(await cmdAdvance(a.deps, 'demo', {})).toBe(0)
-    expect(a.store.write.calls).toHaveLength(0)
+    expect(a.store.write.calls).toHaveLength(1)
+    expect((await a.store.read('')).fields).toMatchObject({ phase: 'c3', archived: 'true', phase_status: 'done' })
+    expect(a.historyEntries.filter((e) => e.kind === 'transition').map((e) => e.raw)).toEqual(['archived'])
     expect(a.out.some((l) => l.includes('[STOP]') && l.includes('终态'))).toBe(true)
+  })
+
+  test('运行已归档（archived=true）→ 立即停，零推进，exit 0', async () => {
+    const a = makeCustomAdv({ phase: 'c3', workflow: 'chain', fields: { archived: 'true' } })
+    expect(await cmdAdvance(a.deps, 'demo', {})).toBe(0)
+    expect(a.store.write.calls).toHaveLength(0)
+    expect(a.out.some((l) => l.includes('[STOP]') && l.includes('已归档'))).toBe(true)
   })
 
   test('多条出边 → 停（需人选 event，HITL），列出可选 events，零推进，exit 0', async () => {
@@ -509,11 +520,12 @@ describe('advance —— 非 default workflow（自定义 step 图，快速回�
     expect(a.out.some((l) => l.includes('design_doc'))).toBe(true)
   })
 
-  test('guard 过（必须产出字段已设）→ 正常推进到终态', async () => {
+  test('guard 过（必须产出字段已设）→ 推进到 g2 并以 archived 归档', async () => {
     const a = makeCustomAdv({ phase: 'g1', workflow: 'guarded', fields: { design_doc: 'x.md' } })
     expect(await cmdAdvance(a.deps, 'demo', {})).toBe(0)
     expect(a.store.phase()).toBe('g2')
-    expect(a.store.write.calls).toHaveLength(1)
+    expect(a.store.write.calls).toHaveLength(2)
+    expect((await a.store.read('')).fields.archived).toBe('true')
   })
 
   test('--max-steps 截停：chain 只推进 1 步就停在 c2', async () => {
@@ -567,11 +579,12 @@ describe('advance —— 非 default workflow（自定义 step 图，快速回�
     expect(a.out.some((l) => l.includes('确认回执'))).toBe(true)
   })
 
-  test('step gate=review + --through-gates 只消费对应 step 的 approved receipt', async () => {
+  test('step gate=review + --through-gates 只消费对应 step 的 approved receipt（进入 gate=null 的 gr2 后归档）', async () => {
     const a = makeCustomAdv({ phase: 'gr1', workflow: 'gater', fields: approvedReview('gr1', 'go') })
     expect(await cmdAdvance(a.deps, 'demo', { throughGates: true })).toBe(0)
     expect(a.store.phase()).toBe('gr2')
-    expect(a.store.write.calls).toHaveLength(1)
+    expect(a.store.write.calls).toHaveLength(2)
+    expect(a.historyEntries.filter((e) => e.kind === 'transition').map((e) => e.raw)).toEqual(['go', 'archived'])
   })
 
   test('硬门 marker（confirm 新鲜）→ 自定义轨同样绝不自动跨越，零推进', async () => {
@@ -590,5 +603,52 @@ describe('advance —— 非 default workflow（自定义 step 图，快速回�
     expect(a.out.some((l) => l.includes('[DRY-RUN]'))).toBe(true)
     expect(a.out.some((l) => l.includes('计划') && l.includes('c1') && l.includes('c2'))).toBe(true)
     expect(a.out.some((l) => l.includes('终态'))).toBe(true)
+  })
+
+  const customStep = (id: string, gate: string, transitions: string): string => `  - id: ${id}
+    label: ${id}
+    gate: ${gate}
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:${transitions}
+`
+
+  test('末 step 只有退回边（gate=null）：自动推进走隐式 archived，不走退回边', async () => {
+    await writeFile(join(root, '.pipeline', 'workflows', 'backedge.yaml'), `name: backedge
+steps:
+${customStep('b1', 'null', '\n      - event: b1-complete\n        to: b2')}${customStep('b2', 'null', '\n      - event: b2-back\n        to: b1')}`, 'utf8')
+    const a = makeCustomAdv({ phase: 'b1', workflow: 'backedge' })
+    expect(await cmdAdvance(a.deps, 'demo', {})).toBe(0)
+    expect(a.store.phase()).toBe('b2')
+    expect(a.historyEntries.filter((e) => e.kind === 'transition').map((e) => e.raw)).toEqual(['b1-complete', 'archived'])
+    expect((await a.store.read('')).fields.archived).toBe('true')
+
+    const preview = makeCustomAdv({ phase: 'b1', workflow: 'backedge' })
+    expect(await cmdAdvance(preview.deps, 'demo', { dryRun: true })).toBe(0)
+    expect(preview.store.write.calls).toHaveLength(0)
+    expect(preview.out.some((l) => l.includes('计划') && l.includes('b2') && l.includes('archived'))).toBe(true)
+  })
+
+  test('末 step gate=review 且只有退回边：进入后停在 review；--through-gates 只消费 archived receipt', async () => {
+    await writeFile(join(root, '.pipeline', 'workflows', 'reviewend.yaml'), `name: reviewend
+steps:
+${customStep('r1', 'null', '\n      - event: r1-complete\n        to: r2')}${customStep('r2', 'review', '\n      - event: r2-back\n        to: r1')}`, 'utf8')
+    const entering = makeCustomAdv({ phase: 'r1', workflow: 'reviewend' })
+    expect(await cmdAdvance(entering.deps, 'demo', { throughGates: true })).toBe(0)
+    expect(entering.store.phase()).toBe('r2')
+    expect(entering.store.write.calls).toHaveLength(1)
+    expect((await entering.store.read('')).fields.archived).not.toBe('true')
+    expect(entering.out.some((l) => l.includes('archived'))).toBe(true)
+
+    const sendBackReceipt = makeCustomAdv({ phase: 'r2', workflow: 'reviewend', fields: approvedReview('r2', 'r2-back') })
+    expect(await cmdAdvance(sendBackReceipt.deps, 'demo', { throughGates: true })).toBe(0)
+    expect(sendBackReceipt.store.write.calls).toHaveLength(0)
+
+    const approved = makeCustomAdv({ phase: 'r2', workflow: 'reviewend', fields: approvedReview('r2', 'archived') })
+    expect(await cmdAdvance(approved.deps, 'demo', { throughGates: true })).toBe(0)
+    expect(approved.store.write.calls).toHaveLength(1)
+    expect((await approved.store.read('')).fields).toMatchObject({ phase: 'r2', archived: 'true' })
   })
 })

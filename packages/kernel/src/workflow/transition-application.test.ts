@@ -18,6 +18,7 @@ import { createTransitionApplication } from './transition-application.js'
 import type { TransitionApplicationDeps } from './transition-application.js'
 import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
 import { compileWorkflow } from './compile.js'
+import { builtinWorkflow } from './builtin-workflows.js'
 import { compileEffectiveWorkflowPlan, documentGovernanceFingerprint } from './effective-plan.js'
 import type { WorkflowDef } from './types.js'
 import type { WorkflowIR } from './ir.js'
@@ -926,6 +927,186 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       expect(result.workflowName).toBe('guarded')
       expect(result.stepId).toBe('intake')
       expect(result.failures.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('隐式完成边：没有前进出边的 custom step 以保留事件 archived 完成运行', () => {
+    type Step = WorkflowDef['steps'][number]
+    const step = (id: string, overrides: Partial<Step> = {}): Step => ({
+      id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [], ...overrides,
+    })
+    // Shapes saved by the Dashboard editor: forward `<id>-complete`, send-back `<id>-back`, no exit on the last stage.
+    const MAIN: WorkflowDef = {
+      name: 'ui-main',
+      steps: [
+        step('stage-1', { gate: 'review', transitions: [{ event: 'stage-1-complete', to: 'build' }] }),
+        step('build', { gate: 'auto', transitions: [{ event: 'build-complete', to: 'verify' }] }),
+        step('verify', {
+          gate: 'review',
+          skills: [{ id: 'verification-before-completion' }],
+          transitions: [{ event: 'verify-back', to: 'build' }],
+        }),
+      ],
+    }
+    const DOCS: WorkflowDef = {
+      name: 'ui-docs',
+      steps: [
+        step('stage-1', { gate: 'review', transitions: [{ event: 'stage-1-complete', to: 'build' }] }),
+        step('build', {
+          gate: 'auto',
+          skills: [{ id: 'test-driven-development' }],
+          outputs: [{ field: 'design_doc', type: 'file_path' }],
+        }),
+      ],
+    }
+    const loaderFor = (def: WorkflowDef) => (name: string): WorkflowIR | null =>
+      name === def.name ? compileWorkflow(def) : null
+    const approved = (phase: string, event: string) => ({
+      review_gate_phase: phase,
+      review_gate_status: 'approved',
+      review_gate_event: event,
+      review_requested_at: FIXED_CLOCK(),
+      review_acknowledged_at: FIXED_CLOCK(),
+    })
+    const missingSkills = (completed: () => ReadonlySet<string>): TransitionApplicationDeps['missingStepSkills'] =>
+      async ({ capability, stepId }) =>
+        (capability.steps.find((candidate) => candidate.stepId === stepId)?.requiredSkillIds ?? [])
+          .filter((skillId) => !completed().has(skillId))
+    async function initAt(
+      deps: ReturnType<typeof makeDeps>, root: string, workflow: string, phase: string,
+    ): Promise<string> {
+      const { changeDir } = await deps.runRepository.initChange({
+        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+        initialWorkflow: { workflow, phase },
+      })
+      return changeDir
+    }
+
+    test('末阶段只有退回边（gate=review）：skill 与 exact archived receipt 齐才归档，run 关闭且不可重复归档', async () => {
+      const root = await freshRepoRoot()
+      let completed: ReadonlySet<string> = new Set()
+      const deps = makeDeps({ missingStepSkills: missingSkills(() => completed) })
+      const dir = await initAt(deps, root, 'ui-main', 'verify')
+      const store = createStateStore()
+      const command = {
+        root, changeDir: dir, changeName: 'demo', event: 'archived', context: {}, loadWorkflow: loaderFor(MAIN),
+      }
+
+      await expect(createTransitionApplication(deps).execute(command)).resolves.toEqual({
+        kind: 'step-skills-incomplete', workflowName: 'ui-main', stepId: 'verify', missing: ['verification-before-completion'],
+      })
+      completed = new Set(['verification-before-completion'])
+      await expect(createTransitionApplication(deps).execute(command)).resolves.toEqual({
+        kind: 'review-approval-required', phase: 'verify', event: 'archived',
+      })
+      // An approval of the send-back edge never authorizes completion.
+      await store.setMany(dir, approved('verify', 'verify-back'))
+      await expect(createTransitionApplication(deps).execute(command)).resolves.toEqual({
+        kind: 'review-approval-required', phase: 'verify', event: 'archived',
+      })
+      expect((await store.read(dir)).fields.archived).not.toBe('true')
+
+      await store.setMany(dir, approved('verify', 'archived'))
+      await expect(createTransitionApplication(deps).execute(command)).resolves.toMatchObject({
+        kind: 'applied', from: 'verify', to: 'verify', record: { event: 'archived', from: 'verify', to: 'verify' },
+      })
+      const closed = await store.read(dir)
+      expect(closed.fields).toMatchObject({
+        phase: 'verify', phase_status: 'done', archived: 'true', archived_at: FIXED_CLOCK(),
+      })
+      expect(closed.fields.review_gate_status).not.toBe('approved')
+      expect(await deps.runRepository.transact(dir, async (tx) => tx.run.lifecycle)).toBe('archived')
+
+      await expect(createTransitionApplication(deps).execute(command)).resolves.toEqual({
+        kind: 'event-unsupported', workflowName: 'ui-main', stepId: 'verify', event: 'archived', available: ['verify-back'],
+      })
+    })
+
+    test('零出边 step（gate=auto）：进入不等于完成；输出守卫与 skill 都通过后 archived 归档', async () => {
+      const root = await freshRepoRoot()
+      let completed: ReadonlySet<string> = new Set()
+      const deps = makeDeps({ missingStepSkills: missingSkills(() => completed) })
+      const dir = await initAt(deps, root, 'ui-docs', 'stage-1')
+      const store = createStateStore()
+      const base = { root, changeDir: dir, changeName: 'demo', context: {}, loadWorkflow: loaderFor(DOCS) }
+
+      await store.setMany(dir, approved('stage-1', 'stage-1-complete'))
+      await expect(createTransitionApplication(deps).execute({ ...base, event: 'stage-1-complete' }))
+        .resolves.toMatchObject({ kind: 'applied', from: 'stage-1', to: 'build' })
+      const entered = await store.read(dir)
+      expect(entered.fields.phase).toBe('build')
+      expect(entered.fields.archived).not.toBe('true')
+      expect(entered.fields.phase_status).not.toBe('done')
+      expect(await deps.runRepository.transact(dir, async (tx) => tx.run.lifecycle)).toBe('active')
+
+      const missingOutput = await createTransitionApplication(deps).execute({ ...base, event: 'archived' })
+      expect(missingOutput).toMatchObject({ kind: 'step-guard-failed', workflowName: 'ui-docs', stepId: 'build' })
+      if (missingOutput.kind !== 'step-guard-failed') throw new Error('expected step-guard-failed')
+      expect(missingOutput.failures.join('\n')).toContain('design_doc')
+
+      await store.set(dir, 'design_doc', 'docs/design.md')
+      await expect(createTransitionApplication(deps).execute({ ...base, event: 'archived' })).resolves.toEqual({
+        kind: 'step-skills-incomplete', workflowName: 'ui-docs', stepId: 'build', missing: ['test-driven-development'],
+      })
+      expect((await store.read(dir)).fields.archived).not.toBe('true')
+
+      completed = new Set(['test-driven-development'])
+      await expect(createTransitionApplication(deps).execute({ ...base, event: 'archived' }))
+        .resolves.toMatchObject({ kind: 'applied', from: 'build', to: 'build' })
+      expect((await store.read(dir)).fields).toMatchObject({ phase: 'build', phase_status: 'done', archived: 'true' })
+    })
+
+    test('有前进出边的 step 不接受 archived，也不把它列为可选 event', async () => {
+      const root = await freshRepoRoot()
+      const deps = makeDeps()
+      const dir = await initAt(deps, root, 'ui-main', 'stage-1')
+      await expect(createTransitionApplication(deps).execute({
+        root, changeDir: dir, changeName: 'demo', event: 'archived', context: {}, loadWorkflow: loaderFor(MAIN),
+      })).resolves.toEqual({
+        kind: 'event-unsupported', workflowName: 'ui-main', stepId: 'stage-1', event: 'archived', available: ['stage-1-complete'],
+      })
+      expect((await createStateStore().read(dir)).runMetadata?.transitionSequence).toBe(0)
+    })
+
+    test('archive 终点保持原行为：archived 归档一次，已归档后拒绝', async () => {
+      const root = await freshRepoRoot()
+      const deps = makeDeps()
+      const ARCHIVE: WorkflowDef = {
+        name: 'archive-terminal',
+        steps: [step('ship', { transitions: [{ event: 'ship-complete', to: 'archive' }] }), step('archive')],
+      }
+      const dir = await initAt(deps, root, 'archive-terminal', 'archive')
+      const command = {
+        root, changeDir: dir, changeName: 'demo', event: 'archived', context: {}, loadWorkflow: loaderFor(ARCHIVE),
+      }
+      await expect(createTransitionApplication(deps).execute(command))
+        .resolves.toMatchObject({ kind: 'applied', from: 'archive', to: 'archive' })
+      expect((await createStateStore().read(dir)).fields).toMatchObject({ phase_status: 'done', archived: 'true' })
+      await expect(createTransitionApplication(deps).execute(command)).resolves.toEqual({
+        kind: 'event-unsupported', workflowName: 'archive-terminal', stepId: 'archive', event: 'archived', available: [],
+      })
+    })
+
+    test('simple 保持原行为：verify-pass 的显式 archive-run 进入 done，change/done 都不接受 archived', async () => {
+      const root = await freshRepoRoot()
+      const deps = makeDeps()
+      const simple = builtinWorkflow('simple')
+      if (simple === null) throw new Error('simple workflow missing')
+      const dir = await initAt(deps, root, 'simple', 'change')
+      const base = { root, changeDir: dir, changeName: 'demo', context: {}, loadWorkflow: loaderFor(simple) }
+
+      await expect(createTransitionApplication(deps).execute({ ...base, event: 'archived' })).resolves.toEqual({
+        kind: 'event-unsupported', workflowName: 'simple', stepId: 'change', event: 'archived',
+        available: ['change-complete', 'scope-expanded'],
+      })
+      await expect(createTransitionApplication(deps).execute({ ...base, event: 'change-complete' }))
+        .resolves.toMatchObject({ kind: 'applied', to: 'verify' })
+      await expect(createTransitionApplication(deps).execute({ ...base, event: 'verify-pass' }))
+        .resolves.toMatchObject({ kind: 'applied', to: 'done' })
+      expect((await createStateStore().read(dir)).fields).toMatchObject({ phase: 'done', archived: 'true' })
+      await expect(createTransitionApplication(deps).execute({ ...base, event: 'archived' })).resolves.toEqual({
+        kind: 'event-unsupported', workflowName: 'simple', stepId: 'done', event: 'archived', available: [],
+      })
     })
   })
 

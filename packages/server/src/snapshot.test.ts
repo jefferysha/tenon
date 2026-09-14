@@ -1321,18 +1321,19 @@ steps:
     })
     const byName = new Map(snapshot.projects[0]?.changes.map((change) => [change.name, change]))
 
+    // `shape` only loops back to itself, so it also exposes the implicit `archived` completion exit,
+    // which is gated by the same conditional step guard.
+    const backendBlockers = [
+      { kind: 'guard-failed', guardType: 'field-nonempty', field: 'plan', actual: 'null' },
+      { kind: 'guard-failed', guardType: 'output-present', field: 'scope', actual: 'null' },
+    ]
     expect(byName.get('conditional-backend')?.workflowExecution.readinessByTransition.shape)
       .toEqual({
-        continue: {
-          ready: false,
-          blockers: [
-            { kind: 'guard-failed', guardType: 'field-nonempty', field: 'plan', actual: 'null' },
-            { kind: 'guard-failed', guardType: 'output-present', field: 'scope', actual: 'null' },
-          ],
-        },
+        continue: { ready: false, blockers: backendBlockers },
+        archived: { ready: false, blockers: backendBlockers },
       })
     expect(byName.get('conditional-pm')?.workflowExecution.readinessByTransition.shape)
-      .toEqual({ continue: { ready: true, blockers: [] } })
+      .toEqual({ continue: { ready: true, blockers: [] }, archived: { ready: true, blockers: [] } })
     expect(byName.get('conditional-backend')?.workflowRules)
       .toEqual(byName.get('conditional-pm')?.workflowRules)
   })

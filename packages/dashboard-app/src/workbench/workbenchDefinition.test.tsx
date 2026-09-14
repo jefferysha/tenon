@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { draftEffectiveIo, lintWorkflow } from '../workflow/lint'
 import {
   BASE_BRANCH,
   addSkillToDef,
@@ -11,12 +12,49 @@ import {
   removeSkillFromDef,
   removeStageFromDef,
   removeTrackBranch,
+  reorderStagesInDef,
   selectBranchDef,
   setStepSkillWavesInDef,
   workflowNameFromYaml,
   writeBranchDef,
+  type WbStepDef,
+  type WbTransition,
   type WbWorkflowDef,
 } from './workbenchDefinition'
+
+function stage(id: string, transitions: WbTransition[] = []): WbStepDef {
+  return { id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions }
+}
+
+function pipeline(...steps: WbStepDef[]): WbWorkflowDef {
+  return { name: 'custom', steps }
+}
+
+function edgesOf(def: WbWorkflowDef): Record<string, WbTransition[]> {
+  return Object.fromEntries(def.steps.map((step) => [step.id, step.transitions]))
+}
+
+/** 重接后的不变式：没有同目标的两条边，也没有既不去下一阶段又不退回的边。 */
+function expectRelinked(def: WbWorkflowDef): void {
+  for (const step of def.steps) {
+    const targets = step.transitions.map((transition) => transition.to)
+    expect(new Set(targets).size, step.id).toBe(targets.length)
+  }
+  expect(lintWorkflow(def, draftEffectiveIo(def, undefined)).filter((issue) => issue.kind === 'transition-not-next-or-back')).toEqual([])
+}
+
+const VERIFY_FAIL: WbTransition = {
+  event: 'verify-fail',
+  to: 'build',
+  guards: [{ type: 'field-nonempty', field: 'build_sha' }],
+  actions: [{ type: 'mark-verification-failed' }, { type: 'reset-pre-verify-review' }],
+}
+const REQUIREMENTS_CHANGED: WbTransition = {
+  event: 'requirements-changed',
+  to: 'spec',
+  guards: [{ type: 'field-nonempty', field: 'plan' }],
+  actions: [{ type: 'reset-pre-verify-review' }],
+}
 
 function twoStep(): WbWorkflowDef {
   return {
@@ -65,6 +103,125 @@ describe('workbenchDefinition · 删除阶段', () => {
     expect(removed.steps.map((step) => step.id)).toEqual(['a'])
     expect(removed.steps[0]?.transitions).toEqual([])
     expect(removed.documentContract?.reads).toEqual([])
+  })
+
+  it('删中间阶段：前一阶段的正向边接到新的下一阶段；指向它的退回边改指它的下一阶段，变成自指就删，与已有同目标边冲突就丢改出来的那条', () => {
+    const def = pipeline(
+      stage('a', [{ event: 'a-done', to: 'b' }]),
+      stage('b', [{ event: 'b-done', to: 'c' }]),
+      stage('c', [{ event: 'c-done', to: 'd' }, { event: 'c-back', to: 'b' }]),
+      stage('d', [{ event: 'd-back', to: 'b' }, { event: 'd-fail', to: 'c', actions: [{ type: 'mark-verification-failed' }] }]),
+    )
+    const removed = removeStageFromDef(def, 'b')
+    expect(removed.steps.map((step) => step.id)).toEqual(['a', 'c', 'd'])
+    expect(edgesOf(removed)).toEqual({
+      a: [{ event: 'a-done', to: 'c' }],
+      c: [{ event: 'c-done', to: 'd' }],
+      d: [{ event: 'd-fail', to: 'c', actions: [{ type: 'mark-verification-failed' }] }],
+    })
+    expectRelinked(removed)
+  })
+
+  it('删阶段：退回边改指它的下一阶段后仍在来源之前 → 保留 event / guards / actions', () => {
+    const def = pipeline(
+      stage('a', [{ event: 'a-done', to: 'b' }]),
+      stage('b', [{ event: 'b-done', to: 'c' }]),
+      stage('c', [{ event: 'c-done', to: 'd' }]),
+      stage('d', [{ ...VERIFY_FAIL, to: 'b' }]),
+    )
+    const removed = removeStageFromDef(def, 'b')
+    expect(edgesOf(removed).d).toEqual([{ ...VERIFY_FAIL, to: 'c' }])
+    expectRelinked(removed)
+  })
+
+  it('删阶段：前一阶段另有往后跳到新下一阶段的边 → 不留两条同目标边', () => {
+    const def = pipeline(
+      stage('a', [{ event: 'a-done', to: 'b' }, { event: 'a-skip', to: 'c' }]),
+      stage('b', [{ event: 'b-done', to: 'c' }]),
+      stage('c'),
+    )
+    const removed = removeStageFromDef(def, 'b')
+    expect(edgesOf(removed)).toEqual({ a: [{ event: 'a-done', to: 'c' }], c: [] })
+    expectRelinked(removed)
+  })
+})
+
+describe('workbenchDefinition · 排序', () => {
+  it('E2E 复现：把末阶段 verify 拖到它的退回目标 build 之前 → 旧退回边删掉，不再变成第二条去 build 的边', () => {
+    const def = pipeline(
+      stage('stage-1', [{ event: 'stage-1-complete', to: 'build' }]),
+      stage('build', [{ event: 'build-complete', to: 'verify' }]),
+      stage('verify', [{ event: 'verify-back', to: 'build' }]),
+    )
+    const moved = reorderStagesInDef(def, 'verify', 'build', false)
+    expect(moved.steps.map((step) => step.id)).toEqual(['stage-1', 'verify', 'build'])
+    expect(edgesOf(moved)).toEqual({
+      'stage-1': [{ event: 'stage-1-complete', to: 'verify' }],
+      verify: [{ event: 'verify-complete', to: 'build' }],
+      build: [],
+    })
+    expectRelinked(moved)
+  })
+
+  it('仍然指向更早阶段的退回边原样保留（同一个对象，guards / actions 不动）；失效的退回边删掉', () => {
+    const def = pipeline(
+      stage('spec', [{ event: 'spec-complete', to: 'build' }]),
+      stage('build', [{ event: 'build-complete', to: 'verify' }, REQUIREMENTS_CHANGED]),
+      stage('verify', [VERIFY_FAIL]),
+    )
+    const moved = reorderStagesInDef(def, 'verify', 'build', false)
+    expect(edgesOf(moved)).toEqual({
+      spec: [{ event: 'spec-complete', to: 'verify' }],
+      verify: [{ event: 'verify-complete', to: 'build' }],
+      build: [REQUIREMENTS_CHANGED],
+    })
+    expect(edgesOf(moved).build?.[0]).toBe(REQUIREMENTS_CHANGED)
+    expectRelinked(moved)
+  })
+
+  it('移动中间阶段：正向边保留事件名改指新的下一阶段；变成往后指的退回边删掉，别的退回边保留', () => {
+    const def = pipeline(
+      stage('a', [{ event: 'a-done', to: 'b' }]),
+      stage('b', [{ event: 'b-done', to: 'c' }]),
+      stage('c', [{ event: 'c-done', to: 'd' }, { event: 'c-back', to: 'b' }]),
+      stage('d', [{ ...VERIFY_FAIL, to: 'c' }, { ...REQUIREMENTS_CHANGED, to: 'a' }]),
+    )
+    const moved = reorderStagesInDef(def, 'b', 'c', true)
+    expect(moved.steps.map((step) => step.id)).toEqual(['a', 'c', 'b', 'd'])
+    expect(edgesOf(moved)).toEqual({
+      a: [{ event: 'a-done', to: 'c' }],
+      c: [{ event: 'c-done', to: 'b' }],
+      b: [{ event: 'b-done', to: 'd' }],
+      d: [{ ...VERIFY_FAIL, to: 'c' }, { ...REQUIREMENTS_CHANGED, to: 'a' }],
+    })
+    expectRelinked(moved)
+  })
+
+  it('移动第一个阶段到末尾：指向它的退回边全部失效；原末阶段合成正向边，不与旧退回边同目标', () => {
+    const def = pipeline(
+      stage('a', [{ event: 'a-done', to: 'b' }]),
+      stage('b', [{ event: 'b-done', to: 'c' }, { event: 'b-back', to: 'a' }]),
+      stage('c', [{ event: 'c-back', to: 'a' }]),
+    )
+    const moved = reorderStagesInDef(def, 'a', 'c', true)
+    expect(moved.steps.map((step) => step.id)).toEqual(['b', 'c', 'a'])
+    expect(edgesOf(moved)).toEqual({
+      b: [{ event: 'b-done', to: 'c' }],
+      c: [{ event: 'c-complete', to: 'a' }],
+      a: [],
+    })
+    expectRelinked(moved)
+  })
+
+  it('往后跳的边在排序后成了去下一阶段的边也不留：正向边只有一条', () => {
+    const def = pipeline(
+      stage('a', [{ event: 'a-done', to: 'b' }, { event: 'a-skip', to: 'c' }]),
+      stage('b', [{ event: 'b-done', to: 'c' }]),
+      stage('c'),
+    )
+    const moved = reorderStagesInDef(def, 'b', 'c', true)
+    expect(edgesOf(moved)).toEqual({ a: [{ event: 'a-done', to: 'c' }], c: [{ event: 'c-complete', to: 'b' }], b: [] })
+    expectRelinked(moved)
   })
 })
 

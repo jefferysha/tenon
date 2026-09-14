@@ -10,6 +10,7 @@ import {
   resolveStep,
   resolveWorkflowName,
   stateStorageExistsSync,
+  stepExitTransitions,
   type PipelineState,
   type ReviewAcknowledgeResult,
 } from '@tenon/kernel'
@@ -40,7 +41,7 @@ function reviewExitsFor(root: string, state: PipelineState, phase: string): read
   }, undefined, resolveSnapshotTrack(root, scalar(state, 'track'), workflowName))
   const step = resolveStep(plan.workflow, phase)
   if (!step || step.gate !== 'review') return null
-  return step.transitions.map((transition) => transition.event)
+  return stepExitTransitions(plan, phase, state).map((transition) => transition.event)
 }
 
 /** Handle Dashboard review decisions; returns false when the path belongs to another route. */

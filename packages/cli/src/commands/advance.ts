@@ -29,8 +29,8 @@
  * 的 step-transitions 图推进（cmdAdvanceCustom，停点规则见该函数头）——此前 advance 只认 default
  * manifest，自定义 workflow 的 change 会被 forwardStep 误判成"终态"而永远无法 auto-advance。
  */
-import { resolveStep, resolveWorkflowName } from '@tenon/kernel'
-import type { EffectiveWorkflowPlan, WorkflowIR } from '@tenon/kernel'
+import { implicitCompletionTransition, resolveStep, resolveWorkflowName } from '@tenon/kernel'
+import type { EffectiveWorkflowPlan, PipelineState, StepIR, StepTransitionIR } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { str } from '../render.js'
@@ -58,10 +58,11 @@ export async function cmdAdvance(deps: CliDeps, name: string, opts: AdvanceOpts 
   const maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS
   const through = opts.throughGates ?? false
 
+  let state: PipelineState
   let startPhase: string
   let plan: EffectiveWorkflowPlan | null
   try {
-    const state = await deps.store.read(changeDir(deps.cwd, name))
+    state = await deps.store.read(changeDir(deps.cwd, name))
     startPhase = str(state.fields.phase)
     plan = effectiveWorkflowForState(deps, state)
     if (!plan) {
@@ -79,7 +80,8 @@ export async function cmdAdvance(deps: CliDeps, name: string, opts: AdvanceOpts 
   // step-transitions 图的自定义推进链路（此前 advance 只认 default manifest——自定义 workflow
   // 的 change 会被 forwardStep 误判成"终态"，功能缺口在此补上）。
   if (plan.capabilities.execution.model === 'step-graph') {
-    return cmdAdvanceGraph(deps, name, plan, startPhase, through, maxSteps, opts.dryRun ?? false)
+    const archived = str(state.fields.archived) === 'true'
+    return cmdAdvanceGraph(deps, name, plan, startPhase, archived, through, maxSteps, opts.dryRun ?? false)
   }
 
   if (opts.dryRun) {
@@ -148,14 +150,29 @@ export async function cmdAdvance(deps: CliDeps, name: string, opts: AdvanceOpts 
 // ════ 非 default workflow：按 step-transitions 图自动推进（功能缺口补完）════
 
 /**
+ * 自动推进可走的出口。没有前进出边的 step 只走 kernel 推导的隐式完成边 `archived`——它的退回边
+ * 是人工决定；进入这类 step 不等于运行完成。返回的 completion 与 exits 中的同一对象，调用方据此
+ * 判断「这一步完成并归档了运行」。
+ */
+function graphExits(
+  plan: EffectiveWorkflowPlan,
+  step: StepIR,
+): { readonly exits: readonly StepTransitionIR[]; readonly completion?: StepTransitionIR } {
+  const completion = implicitCompletionTransition(plan, step.id)
+  return completion === undefined ? { exits: step.transitions } : { exits: [completion], completion }
+}
+
+/**
  * 自定义 workflow 的停点规则（优先级自上而下，每轮重判；与 default 档同构）：
- *   1. 终态：当前 step 零出边 → 停（推进完成）。
+ *   0. 运行已归档（archived=true）→ 停（推进完成）。
+ *   1. 终态：当前 step 没有可自动走的出口（零出边且无隐式完成边）→ 停（推进完成）。
+ *      没有前进出边的 step 的出口是隐式完成边 `archived`，走完即归档并停。
  *   2. 硬门 marker：.pipeline-pending-confirm/-interaction 新鲜 → 停——HITL 红线跨轨统一，
  *      --through-gates 也绝不放行（marker 是 hooks 落的"人正被询问"项目级信号，与 workflow 无关）。
- *   3. step.gate 人门（推进前检查，管的是"自动离开"）：gate=confirm 绝不放行（对位 default 轨的
- *      confirm 硬门语义）；gate=review 默认停给人复核、--through-gates 仅可消费已存在的 exact-phase
- *      approval receipt（对位 default 轨的 reviewPhases）。transition 本身也会重验 receipt，gate
- *      是同一 canonical approval 协议在 automation 面的提前停点，不是可绕过 transition 的旁路。
+ *   3. step.gate 人门（推进前检查，管的是"自动离开"）：gate=review 默认停给人复核、--through-gates
+ *      仅可消费已存在的 exact-phase-and-event approval receipt（对位 default 轨的 reviewPhases）。
+ *      transition 本身也会重验 receipt，gate 是同一 canonical approval 协议在 automation 面的提前
+ *      停点，不是可绕过 transition 的旁路。
  *   4. 多条出边：走向分岔，事件选择权在人（HITL）——自动推进只吃"恰 1 条出边"的确定形，停并列出
  *      可选 events。
  *   5. --max-steps 封顶（防失控保险丝，自定义图允许环，这条保险丝更要紧）。
@@ -169,6 +186,7 @@ async function cmdAdvanceGraph(
   name: string,
   plan: EffectiveWorkflowPlan,
   startPhase: string,
+  archived: boolean,
   through: boolean,
   maxSteps: number,
   dryRun: boolean,
@@ -179,8 +197,12 @@ async function cmdAdvanceGraph(
     return 1
   }
 
-  if (dryRun) return dryRunGraphPlan(deps, name, wf, plan.id, startPhase, through, maxSteps)
+  if (dryRun) return dryRunGraphPlan(deps, name, plan, startPhase, archived, through, maxSteps)
 
+  if (archived) {
+    deps.io.out(`[STOP] ${name} @ ${startPhase}: 运行已归档，已到终态（推进完成）`)
+    return 0
+  }
   deps.io.out(`[ADVANCE] ${name}: 从 ${startPhase} 起步（max-steps=${maxSteps}${through ? '，through-gates' : ''}）`)
   let current = startPhase
   let steps = 0
@@ -190,7 +212,8 @@ async function cmdAdvanceGraph(
       deps.io.err(`ERROR: step '${current}' 不在 workflow '${plan.id}' 里`)
       return 1
     }
-    if (step.transitions.length === 0) {
+    const { exits, completion } = graphExits(plan, step)
+    if (exits.length === 0) {
       deps.io.out(`[STOP] ${name} @ ${current}: 已到终态，无后继事件（推进完成）`)
       return 0
     }
@@ -201,12 +224,12 @@ async function cmdAdvanceGraph(
       return 0
     }
     // 分岔先停，让人选择确切 event；没有选中的边就不该尝试消费任何 event-bound receipt。
-    if (step.transitions.length > 1) {
-      const events = step.transitions.map((transition) => transition.event).join(', ')
+    if (exits.length > 1) {
+      const events = exits.map((transition) => transition.event).join(', ')
       deps.io.out(`[STOP] ${name} @ ${current}: 多条出边需人选 event（HITL），手动 transition 其一：${events}`)
       return 0
     }
-    const edge = step.transitions[0]
+    const edge = exits[0]
     if (edge === undefined) return 0
     // step 自带人门：review receipt 必须由 review acknowledge 产生（auto 门是守卫，不是人门）。
     if (step.gate === 'review') {
@@ -239,6 +262,11 @@ async function cmdAdvanceGraph(
       for (const l of t.lines) deps.io.out(`  ${l.trim()}`)
       return 1
     }
+    if (edge === completion) {
+      deps.io.out(`[ADVANCE] ${name}: ${current} 完成（${edge.event}）`)
+      deps.io.out(`[STOP] ${name} @ ${current}: 运行已归档，已到终态（推进完成）`)
+      return 0
+    }
     deps.io.out(`[ADVANCE] ${name}: ${current} -> ${edge.to}（${edge.event}）`)
     current = edge.to
     steps += 1
@@ -249,12 +277,13 @@ async function cmdAdvanceGraph(
 async function dryRunGraphPlan(
   deps: CliDeps,
   name: string,
-  wf: WorkflowIR,
-  workflowName: string,
+  plan: EffectiveWorkflowPlan,
   start: string,
+  archived: boolean,
   through: boolean,
   maxSteps: number,
 ): Promise<number> {
+  const wf = plan.workflow
   deps.io.out(`[DRY-RUN] ${name}: 计划预览（不改盘）从 ${start} 起（max-steps=${maxSteps}${through ? '，through-gates' : ''}）`)
   const hard = await freshHardGate(deps)
   if (hard) {
@@ -264,18 +293,23 @@ async function dryRunGraphPlan(
   const startStep = resolveStep(wf, start)
   if (!startStep) {
     // 防御：调用侧已校验；措辞同 transition/check
-    deps.io.err(`ERROR: step '${start}' 不在 workflow '${workflowName}' 里`)
+    deps.io.err(`ERROR: step '${start}' 不在 workflow '${plan.id}' 里`)
     return 1
   }
-  if (startStep.transitions.length === 0) {
+  if (archived) {
+    deps.io.out(`  预计停在 ${start}: 运行已归档，已到终态`)
+    return 0
+  }
+  const { exits: startExits } = graphExits(plan, startStep)
+  if (startExits.length === 0) {
     deps.io.out(`  预计停在 ${start}: 已到终态`)
     return 0
   }
-  if (startStep.transitions.length > 1) {
-    deps.io.out(`  预计停在 ${start}: 多条出边需人选 event（可选: ${startStep.transitions.map((t) => t.event).join(', ')}）`)
+  if (startExits.length > 1) {
+    deps.io.out(`  预计停在 ${start}: 多条出边需人选 event（可选: ${startExits.map((t) => t.event).join(', ')}）`)
     return 0
   }
-  const startEdge = startStep.transitions[0]
+  const startEdge = startExits[0]
   if (startEdge === undefined) return 0
   if (startStep.gate === 'review') {
     if (!through) {
@@ -304,29 +338,37 @@ async function dryRunGraphPlan(
   while (steps < maxSteps) {
     const step = resolveStep(wf, current)
     if (!step) {
-      deps.io.err(`ERROR: step '${current}' 不在 workflow '${workflowName}' 里`)
+      deps.io.err(`ERROR: step '${current}' 不在 workflow '${plan.id}' 里`)
       return 1
     }
-    if (step.transitions.length === 0) {
+    const { exits, completion } = graphExits(plan, step)
+    if (exits.length === 0) {
       deps.io.out(`  预计停在 ${current}: 已到终态`)
       return 0
     }
-    if (step.transitions.length > 1) {
-      deps.io.out(`  预计停在 ${current}: 多条出边需人选 event（可选: ${step.transitions.map((t) => t.event).join(', ')}）`)
+    if (exits.length > 1) {
+      deps.io.out(`  预计停在 ${current}: 多条出边需人选 event（可选: ${exits.map((t) => t.event).join(', ')}）`)
       return 0
     }
-    const edge = step.transitions[0]
+    const edge = exits[0]
     if (edge === undefined) return 0
-    deps.io.out(`  计划 ${steps + 1}: ${current} -> ${edge.to}（${edge.event}）${steps === 0 ? '' : '  [live-guard]'}`)
+    const liveGuard = steps === 0 ? '' : '  [live-guard]'
+    if (edge === completion) {
+      deps.io.out(`  计划 ${steps + 1}: ${current} 完成（${edge.event}）${liveGuard}`)
+      deps.io.out(`  预计停在 ${current}: 运行归档，已到终态`)
+      return 0
+    }
+    deps.io.out(`  计划 ${steps + 1}: ${current} -> ${edge.to}（${edge.event}）${liveGuard}`)
     visited.add(current)
     current = edge.to
     steps += 1
     const entered = resolveStep(wf, current)
     if (entered?.gate === 'review') {
+      const reviewExits = graphExits(plan, entered).exits
       if (!through) {
         deps.io.out(`  预计停在 ${current}: step gate 'review'（HITL 门，确认后可用 --through-gates 继续）`)
-      } else if (entered.transitions.length === 1) {
-        const reviewEdge = entered.transitions[0]
+      } else if (reviewExits.length === 1) {
+        const reviewEdge = reviewExits[0]
         if (reviewEdge) reviewReceiptStop(deps, name, current, reviewEdge.event, true)
       } else {
         deps.io.out(`  预计停在 ${current}: review step 有多条出边，须由人选择 event 后 request`)

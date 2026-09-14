@@ -43,6 +43,7 @@ import { eventEdge } from '../flow/index.js'
 import type { EventName, TransitionContext } from '../flow/index.js'
 import { evaluateDefaultEventPreconditions, DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 import { applyStepTransition, planStepTransition, resolveStep } from './engine.js'
+import { implicitCompletionTransition } from './implicit-completion.js'
 import { applyActions } from './action-handlers.js'
 import { evaluateConstraintPolicy, type ConstraintDecision } from '../loops/automation-policy.js'
 import type { ActionOutcome, WorkflowIR } from './ir.js'
@@ -169,33 +170,22 @@ async function planCustomTransition(
   const ir = effectivePlan.workflow
   const workflowName = effectivePlan.id
   const currentBeforePlan = resolveStep(ir, fieldStr(state.fields.phase))
-  // `archive` is the governed terminal used by the bundled archive skill. Custom workflow files
-  // correctly model terminal nodes with `transitions: []`, but they still need one canonical
-  // completion operation after the terminal step's skills/guards/documents have run. Treat the
-  // reserved `archived` event as an implicit archive self-edge only for that exact terminal id;
-  // ordinary terminal nodes and arbitrary unsupported events remain closed.
-  const terminalArchive = currentBeforePlan?.id === 'archive'
-    && currentBeforePlan.transitions.length === 0
-    && command.event === 'archived'
-  const planningIr: WorkflowIR = terminalArchive
-    ? {
+  // A step without a forward exit completes the run through the derived `archived` self-edge.
+  // It is added to a planning copy only, so the frozen IR and its fingerprint stay untouched, and
+  // it flows through the same guards, skills, documents and review receipt as a declared exit.
+  const completion = currentBeforePlan === null
+    ? undefined
+    : implicitCompletionTransition(effectivePlan, currentBeforePlan.id, state)
+  const planningIr: WorkflowIR = completion === undefined
+    ? ir
+    : {
         ...ir,
-        steps: ir.steps.map((step) => step.id === 'archive'
-          ? {
-              ...step,
-              transitions: [{
-                event: 'archived',
-                to: 'archive',
-                guards: [],
-                actions: [{ type: 'archive-run' }],
-              }],
-            }
+        steps: ir.steps.map((step) => step.id === completion.to
+          ? { ...step, transitions: [...step.transitions, completion] }
           : step),
       }
-    : ir
-  const edgeBeforePlan = terminalArchive
-    ? planningIr.steps.find((step) => step.id === 'archive')?.transitions[0]
-    : currentBeforePlan?.transitions.find((candidate) => candidate.event === command.event)
+  const edgeBeforePlan = resolveStep(planningIr, fieldStr(state.fields.phase))
+    ?.transitions.find((candidate) => candidate.event === command.event)
   const documentPolicy = effectivePlan.capabilities.documents.policy
   const governed = documentPolicy !== undefined
   const targetStep = edgeBeforePlan === undefined
@@ -235,7 +225,7 @@ async function planCustomTransition(
   // 「选一条边、执行另查一条」的语义漂移面。
   const nextState = applyStepTransition(state, plan.to, clock)
   const actions = plan.actions
-  const closesRun = terminalArchive || actions.some((action) => action.type === 'archive-run')
+  const closesRun = actions.some((action) => action.type === 'archive-run')
   const warnings: TransitionApplicationWarning[] = []
   let nextFields = closesRun
     ? { ...nextState.fields, phase_status: 'done' as const }
