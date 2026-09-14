@@ -32,14 +32,14 @@ function responseCapture() {
   }
 }
 
-async function createPendingChange() {
+async function createPendingChange(phase: 'verify' | 'open' = 'verify') {
   const root = await mkdtemp(join(tmpdir(), 'tenon-decision-route-'))
   const dir = join(root, 'openspec', 'changes', 'demo')
   await mkdir(dir, { recursive: true })
   const state: PipelineState = {
     fields: {
       ...emptyFields(),
-      phase: 'verify',
+      phase,
       review_gate_phase: 'verify',
       review_gate_event: 'verify-pass',
       review_gate_status: 'pending',
@@ -316,16 +316,16 @@ describe('decision server adapters', () => {
   })
 
   it('preserves transition-controlled phase when importing a changed YAML projection', async () => {
-    const fixture = await createPendingChange()
+    const fixture = await createPendingChange('open')
     try {
       const yamlPath = join(fixture.dir, '.pipeline.yaml')
       const yaml = serializePipeline(await fixture.store.read(fixture.dir))
       await writeFile(yamlPath, yaml, 'utf8')
-      await writeFile(yamlPath, yaml.replace('phase: verify\n', 'phase: open\n'), 'utf8')
+      await writeFile(yamlPath, yaml.replace('phase: open\n', 'phase: verify\n'), 'utf8')
       const response = responseCapture()
       await handlePostOperationsImport(fixture, response)
       expect(response.result.status).toBe(200)
-      expect((await fixture.store.read(fixture.dir)).fields.phase).toBe('verify')
+      expect((await fixture.store.read(fixture.dir)).fields.phase).toBe('open')
     } finally {
       await fixture.cleanup()
     }
