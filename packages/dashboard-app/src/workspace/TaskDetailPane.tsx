@@ -38,6 +38,8 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
   const current = row.stages.find((stage) => stage.status === 'current')?.id ?? change.phase
   const [selectedStep, setSelectedStep] = useState<string>(current)
   const identity = `${root} ${change.name}`
+  // SSE replaces the whole snapshot object; only this change's own state should reload its decisions.
+  const decisionSignature = [change.phase, change.phase_status, change.updated_at, JSON.stringify(change.reviewHandshake ?? null)].join('\n')
   useEffect(() => { setSelectedStep(current) }, [identity, current])
   const definition = useWorkflowDefinition(root, row.workflow, fetchDefinition)
   // change 走自己 track 的分支 IO；没有对应分支 → 通用分支。
@@ -79,7 +81,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
             <p className="mb-6" data-testid="task-detail-status">
               <StatusPill tone={TONE[row.summary.kind]} testId="task-detail-badge">{summaryText(row, t)}</StatusPill>
             </p>
-            {showReviewConsole && <ReviewDecisionPanel root={root} change={change.name} onRefresh={onRefresh} onToast={onToast} />}
+            {showReviewConsole && <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} onRefresh={onRefresh} onToast={onToast} />}
             {row.stages.length > 0 && (
               <div className="mb-6 border-b border-border pb-6">
                 <StageRail stages={row.stages} selected={selectedStep} onSelect={setSelectedStep} />
