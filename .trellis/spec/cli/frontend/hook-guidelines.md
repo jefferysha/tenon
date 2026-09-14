@@ -71,7 +71,7 @@ independently trusted identity provider.
 |---|---|---|
 | HITL | `interactive` | Terminal asks and records the answer; Dashboard may only invoke the review adapter for an existing exact pending receipt. |
 | HITL | `recommended-defaults` | Frozen routine/hidden policy only; it cannot satisfy a hard gate. |
-| AFK | `afk` | Automation records an independent decision/source and is attributed through the invocation join. |
+| AFK | `afk` | Attributed only through `invocation-started.adapter.kind=afk`; the independent AFK decision event is deferred (`decision-sync.md` G). |
 
 ### Self-approval detection (`gate.sh` → `internal-self-approval`)
 

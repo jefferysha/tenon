@@ -12,8 +12,8 @@ a Skill question, or writes an AFK decision.
 The terminal command keeps its user-facing syntax without revision/key flags.
 Inside the Change lock the CLI reads the current canonical revision and derives
 an idempotency key from `change + phase + event + requestedAt +
-decisionStateDigest + runId + channel`. The derived key is persisted before
-the acknowledgement side effects are exposed. This is the sole terminal
+decisionStateDigest + runId + channel`. The derived key is recorded in the
+ledger inside the same locked command, after the canonical write (see D). This is the sole terminal
 exception to explicit request fields; hooks without a Change lock may write an
 observation only. Replay is prevented by the durable key and exact receipt
 binding, not by the hook marker.
@@ -178,9 +178,9 @@ human.
 ## Modes and security observation
 
 HITL maps to `interactive` or frozen `recommended-defaults` for routine hidden
-questions only. AFK maps to `afk` and records an independent AFK decision. A
-mode switch affects only later requests; existing pending requests retain their
-frozen strategy or are explicitly superseded.
+questions only. AFK maps to `afk`; its attribution currently comes only from
+`invocation-started.adapter.kind=afk`, and the independent AFK decision event
+and mode-switch semantics are deferred (see G).
 
 During a pending review, a redacted `pending-decision-self-approval-suspected`
 observation is appended for dashboard token-file reads (`token-file-read`) and
