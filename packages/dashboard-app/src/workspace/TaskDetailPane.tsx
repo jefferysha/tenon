@@ -12,6 +12,7 @@ import { StageRail } from './StageRail'
 import { fallbackStepIo, readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
 import { stageLabel, summaryText, type TaskRow } from './taskModel'
 import { useWorkflowDefinition } from './useWorkflowDefinition'
+import { ReviewDecisionPanel } from './ReviewDecisionPanel'
 
 const TONE: Record<TaskRow['summary']['kind'], PillTone> = {
   missing: 'pending',
@@ -24,12 +25,14 @@ const TONE: Record<TaskRow['summary']['kind'], PillTone> = {
 export interface TaskDetailPaneProps {
   row: TaskRow
   onToast?: (message: string) => void
+  onRefresh?: () => void | Promise<void>
+  showReviewConsole?: boolean
   /** 聚合语境为 false：不发 per-root 请求，IO 退化为快照里的输出字段名。 */
   fetchDefinition?: boolean
 }
 
 /** 工作台右列：任务名 / 一行状态 / 阶段轨 → 所选阶段的输出与输入 → 点文件开抽屉。 */
-export function TaskDetailPane({ row, onToast, fetchDefinition = true }: TaskDetailPaneProps): JSX.Element {
+export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = false, fetchDefinition = true }: TaskDetailPaneProps): JSX.Element {
   const { t } = useT()
   const { change, root } = row
   const current = row.stages.find((stage) => stage.status === 'current')?.id ?? change.phase
@@ -76,6 +79,7 @@ export function TaskDetailPane({ row, onToast, fetchDefinition = true }: TaskDet
             <p className="mb-6" data-testid="task-detail-status">
               <StatusPill tone={TONE[row.summary.kind]} testId="task-detail-badge">{summaryText(row, t)}</StatusPill>
             </p>
+            {showReviewConsole && <ReviewDecisionPanel root={root} change={change.name} onRefresh={onRefresh} onToast={onToast} />}
             {row.stages.length > 0 && (
               <div className="mb-6 border-b border-border pb-6">
                 <StageRail stages={row.stages} selected={selectedStep} onSelect={setSelectedStep} />

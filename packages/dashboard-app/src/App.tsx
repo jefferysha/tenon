@@ -334,9 +334,9 @@ function AppShell(): JSX.Element {
             selectedChange={selectedChange}
             onSelectedChange={setSelectedChange}
             onToast={(m) => showFlash('toast', m)}
+            onRefresh={refresh}
             staleError={snapshot !== null ? staleSnapshotError : null}
             loading={loading}
-            onRefresh={refresh}
           />
         )}
         {view === 'workbench' && (

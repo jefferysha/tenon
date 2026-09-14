@@ -16,6 +16,8 @@ export {
 } from './orchestrationGraphClient'
 
 export { fetchSnapshot, postTransition, subscribeSnapshot } from './snapshotClient'
+export { fetchPendingDecisions, postReviewAcknowledge } from './decisionClient'
+export type { PendingDecision, PendingDecisionView, ReviewAcknowledgeResponse } from './decisionClient'
 
 export {
   deleteTrackDefinition,

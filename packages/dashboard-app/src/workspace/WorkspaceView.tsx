@@ -24,9 +24,9 @@ export interface WorkspaceViewProps {
   selectedChange: string | null
   onSelectedChange: (name: string | null) => void
   onToast?: (message: string) => void
+  onRefresh?: () => void | Promise<void>
   staleError?: string | null
   loading?: boolean
-  onRefresh?: () => void | Promise<void>
 }
 
 const RAIL_KEY = 'tenon-dashboard-rail:workspace'
@@ -128,7 +128,7 @@ export function WorkspaceView({
         />
       )}
       detail={selectedRow
-        ? <TaskDetailPane key={selectedRow.key} row={selectedRow} onToast={onToast} fetchDefinition={currentRoot !== ''} />
+        ? <TaskDetailPane key={selectedRow.key} row={selectedRow} onToast={onToast} onRefresh={onRefresh} showReviewConsole={selectedChange !== null && currentRoot !== ''} fetchDefinition={currentRoot !== ''} />
         : <DetailEmpty title={t('workspace.no_selection')} desc="" testId="task-detail-empty" />}
     />
   )
