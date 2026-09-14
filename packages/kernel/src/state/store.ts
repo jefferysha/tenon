@@ -115,10 +115,7 @@ function stateWithoutProjection(state: PipelineState): PipelineState {
 const FIELD_SET = new Set<string>(FIELD_ORDER)
 const REVIEW_GATE_FIELD_SET = new Set<string>(REVIEW_GATE_FIELDS)
 /** Legacy YAML is an adapter, so importing it must never edit transition-controlled state. */
-const LEGACY_IMPORT_PROTECTED_FIELDS: ReadonlySet<FieldName> = new Set([
-  'phase', 'phase_status', 'branch_status', 'build_sha', 'pre_verify_review_result',
-  ...REVIEW_GATE_FIELDS,
-])
+const LEGACY_IMPORT_PROTECTED_FIELDS: ReadonlySet<FieldName> = new Set(['phase', 'phase_status', 'branch_status', 'build_sha', 'pre_verify_review_result', ...REVIEW_GATE_FIELDS])
 
 /**
  * Older releases can omit the complete review receipt, the later pre-Verify tail field,
