@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { createDashboardServer, resolveServerPaths } from '@tenon/server'
 import { recordWorkflowPhaseSkill } from '../../../server/src/test-support.js'
 import {
+  compileEffectiveWorkflowPlan,
   createFlowEngine,
   createStateStore,
   createTransitionRecordStore,
@@ -28,6 +29,13 @@ import {
   recordNativeDocumentSkillConfirmation,
 } from '../../../kernel/dist/skill-invocation/producer-internal.js'
 import { selectInbox } from '../inbox/inbox'
+
+/** Fixtures record the built-in default document table (identical in every default branch). */
+function defaultDocumentPolicy() {
+  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
+  if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
+  return policy
+}
 import { DEFAULT_RULES, rulesKey } from '../model/workflowModel'
 import type { Snapshot } from '../types'
 
@@ -102,7 +110,7 @@ async function seedGovernedDocumentEvidence(root: string, changeDir: string, nam
       observedAt: recordedAt,
     })
     if (!confirmed) throw new Error(`fixture native confirmation rejected for ${producer}`)
-    const ledger = await recordDocument({ repoRoot: root, changeDir, phase, kind, path, producer, recordedAt })
+    const ledger = await recordDocument({ repoRoot: root, changeDir, phase, policy: defaultDocumentPolicy(), kind, path, producer, recordedAt })
     const canonicalRecord = [...ledger.records].reverse().find((candidate) =>
       candidate.kind === kind && candidate.path === path && candidate.recordedAt === recordedAt)
     if (canonicalRecord === undefined) throw new Error(`fixture canonical record missing for ${path}`)
@@ -122,7 +130,7 @@ async function seedGovernedDocumentEvidence(root: string, changeDir: string, nam
     await record('verify', 'verification-report', report, 'verification-before-completion')
     await record('ship', 'applied-spec', applied, 'openspec-apply-change')
     await store.set(changeDir, 'phase', originalPhase)
-    await recordDocumentReads({ repoRoot: root, changeDir, phase: originalPhase, kind: 'all', readAt: recordedAt })
+    await recordDocumentReads({ repoRoot: root, changeDir, phase: originalPhase, policy: defaultDocumentPolicy(), kind: 'all', readAt: recordedAt })
   } finally {
     if (originalHistory === undefined) await rm(historyPath, { force: true })
     else await writeFile(historyPath, originalHistory, 'utf8')

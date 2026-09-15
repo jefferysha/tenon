@@ -264,9 +264,9 @@ describe('workbenchDefinition · 新建', () => {
     const fromDefault: WbWorkflowDef = { ...twoStep(), name: 'default', steps: twoStep().steps.map((step) => ({ ...step, artifacts: step.artifacts?.map((artifact) => ({ ...artifact, producerPolicy: 'effective-phase-skills' as const })) })) }
     const copied = copyWorkflowDef(fromDefault, 'mine')
     // 曾经在这里补盖 'required'，服务端校验第一次真跑就 400（tracks.chat 缺契约技能）。
-    expect(copied.openspecContract).toBeUndefined()
+    expect(copied).not.toHaveProperty('openspecContract')
     expect(copied.steps[0]?.artifacts?.[0]?.producerPolicy).toBe('effective-step-skills')
-    expect(copyWorkflowDef(twoStep(), 'other').openspecContract).toBeUndefined()
+    expect(copyWorkflowDef(twoStep(), 'other')).not.toHaveProperty('openspecContract')
   })
 
   it('blankWorkflow 一个阶段、无输出；workflowNameFromYaml 取 name 行', () => {

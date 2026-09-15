@@ -24,13 +24,13 @@ const IO: WbEffectiveIo = {
   explore: {
     inputs: [],
     outputs: [
-      { kind: 'document', id: 'superpower-design', producers: ['brainstorming', 'superpowers:brainstorming'], consumers: ['spec'], locked: true },
+      { kind: 'document', id: 'superpower-design', producers: ['brainstorming', 'superpowers:brainstorming'], consumers: ['spec'], role: 'produce', scope: 'change' },
       { kind: 'field', id: 'design_doc', type: 'file_path', producer: null, consumers: ['spec'] },
     ],
   },
   spec: {
     inputs: [
-      { kind: 'document', id: 'superpower-design', producers: ['explore'], consumers: [], locked: true },
+      { kind: 'document', id: 'superpower-design', producers: ['explore'], consumers: [], role: 'read', scope: 'change' },
       { kind: 'field', id: 'design_doc', type: 'file_path', producer: 'explore', consumers: [] },
     ],
     outputs: [{ kind: 'field', id: 'plan', type: 'file_path', producer: null, consumers: [] }],

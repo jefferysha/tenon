@@ -6,7 +6,8 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
-    "./workflow/identifier": "./dist/workflow/identifier.js"
+    "./workflow/identifier": "./dist/workflow/identifier.js",
+    "./workflow/document-contract-model": "./dist/workflow/document-contract-model.js"
   },
   "engines": {
     "node": ">=22"

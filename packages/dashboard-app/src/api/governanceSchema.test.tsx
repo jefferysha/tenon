@@ -162,32 +162,42 @@ describe('decodeWorkflowDefinition', () => {
     }
   })
 
-  it('accepts each supported document contract mode independently', () => {
+  it('decodes the openspec switch, branch contracts and slot roles; rejects the removed openspecContract key', () => {
+    const contract = {
+      version: 'v1',
+      slots: [
+        { kind: 'tasks', ownerStep: 'one', producers: ['writer'] },
+        { kind: 'design-md', ownerStep: 'one', role: 'require', producers: [] },
+      ],
+      reads: [],
+    }
+    expect(decodeWorkflowDefinition({ name: 'governed', openspec: true, documentContract: contract, steps: [step] }))
+      .toMatchObject({ openspec: true, documentContract: { slots: [{ kind: 'tasks' }, { kind: 'design-md', role: 'require' }] } })
     expect(decodeWorkflowDefinition({
-      name: 'openspec',
-      openspecContract: 'required',
-      steps: [step],
-    })?.name).toBe('openspec')
+      name: 'branched', openspec: true, steps: [], tracks: { web: { label: '前端', documentContract: contract, steps: [step] } },
+    })?.tracks?.web?.documentContract?.slots).toHaveLength(2)
+    expect(decodeWorkflowDefinition({ name: 'old', openspecContract: 'required', steps: [step] })).toBeNull()
+    expect(decodeWorkflowDefinition({ name: 'switch', openspec: 'yes', steps: [step] })).toBeNull()
     expect(decodeWorkflowDefinition({
-      name: 'document-v1',
-      documentContract: { version: 'v1', slots: [], reads: [] },
-      steps: [step],
-    })?.name).toBe('document-v1')
+      name: 'bad-role', openspec: true, steps: [step],
+      documentContract: { ...contract, slots: [{ kind: 'tasks', ownerStep: 'one', role: 'read', producers: [] }] },
+    })).toBeNull()
   })
 
-  it('rejects a malformed 200 definition that enables both mutually exclusive contracts', () => {
-    expect(decodeWorkflowDefinition({
-      name: 'conflicted',
-      openspecContract: 'required',
-      documentContract: { version: 'v1', slots: [], reads: [] },
-      steps: [step],
-    })).toBeNull()
+  it('effectiveIo document slots carry role and scope; the legacy locked-only shape is rejected', () => {
+    const io = (slot: Record<string, unknown>) => decodeWorkflowDefinition({
+      name: 'io', steps: [step], effectiveIo: { one: { inputs: [], outputs: [slot] } },
+    })
+    const slot = { kind: 'document', id: 'tasks', role: 'update', scope: 'change', producers: ['writer'], consumers: [] }
+    expect(io(slot)?.effectiveIo?.one?.outputs).toEqual([slot])
+    expect(io({ kind: 'document', id: 'tasks', producers: ['writer'], consumers: [], locked: true })).toBeNull()
+    expect(io({ ...slot, scope: 'repo' })).toBeNull()
   })
 
   it('accepts every canonical default-workflow guard and action used by the kernel', () => {
     const decoded = decodeWorkflowDefinition({
       name: 'default',
-      openspecContract: 'required',
+      openspec: true,
       steps: [{
         ...step,
         transitions: [{

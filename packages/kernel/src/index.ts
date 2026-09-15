@@ -171,7 +171,7 @@ export type {
   WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3,
 } from './workflow/effective-plan.js'
 export {
-  documentSlotsLocked, materializeWorkflowIo,
+  materializeWorkflowIo,
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,
 } from './workflow/effective-io.js'
 export type {

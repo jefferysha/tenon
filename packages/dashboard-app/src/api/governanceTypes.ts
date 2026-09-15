@@ -115,7 +115,8 @@ export interface WbStepDef {
 
 export interface WbDocumentContract {
   version: 'v1'
-  slots: Array<{ kind: string; ownerStep: string; producers: string[] }>
+  /** role 缺省 = produce；require 没有 producers（空数组）。 */
+  slots: Array<{ kind: string; ownerStep: string; role?: 'update' | 'require'; producers: string[] }>
   reads: Array<{ step: string; kinds: string[] }>
 }
 
@@ -178,7 +179,7 @@ export const DEFAULT_WB_REVIEW_BUDGET_POLICY: WbReviewBudgetPolicy = {
 
 /** 服务端物化的一个输入 / 输出槽位：文档（登记台账）或值（change 字段）。 */
 export type WbIoSlot =
-  | { kind: 'document'; id: string; producers: string[]; consumers: string[]; locked: boolean }
+  | { kind: 'document'; id: string; role: 'produce' | 'update' | 'read' | 'require'; scope: 'change' | 'project'; producers: string[]; consumers: string[] }
   | { kind: 'field'; id: string; type: 'string' | 'file_path' | 'boolean'; producer: string | null; consumers: string[] }
 
 export interface WbStepIo {
@@ -197,7 +198,9 @@ export interface WbWorkflowDef {
   source?: WbWorkflowSource
   /** 读接口附带：每步物化后的输入 / 输出（文档槽位 + 值槽位）。写回前剔除。 */
   effectiveIo?: WbEffectiveIo
-  openspecContract?: 'required'
+  /** OpenSpec 开关；default 恒为 true。 */
+  openspec?: boolean
+  /** 只与顶层 steps 同在；有 tracks 时写在 tracks.<id>.documentContract。 */
   documentContract?: WbDocumentContract
   /** Omitted only by pre-policy in-memory fixtures; HTTP decoding always projects safe v1 defaults. */
   decomposition?: WbDecompositionPolicy
@@ -215,6 +218,7 @@ export interface WbWorkflowDef {
 
 export interface WbTrackBranch {
   label?: string
+  documentContract?: WbDocumentContract
   steps: WbStepDef[]
 }
 

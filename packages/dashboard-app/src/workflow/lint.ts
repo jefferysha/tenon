@@ -1,5 +1,6 @@
-import type { WbEffectiveIo, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
+import type { WbEffectiveIo, WbIoSlot, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
+import { DOCUMENT_KIND_CATALOG, isDocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 
 export type LintIssue =
   | { kind: 'step-no-output'; stepId: string }
@@ -24,9 +25,13 @@ const CONTRACT_TRANSITIONS: Readonly<Record<string, readonly string[]>> = {
   archive: [],
 }
 
-/** 与 draftEffectiveIo 的 lockedDocuments 同一判据：default 按名字受治理，自定义靠显式契约。 */
+/** OpenSpec 开启即受治理；default 恒开启。 */
 function governed(def: WbWorkflowDef): boolean {
-  return def.openspecContract === 'required' || isDefaultWorkflowName(def.name)
+  return def.openspec === true || isDefaultWorkflowName(def.name)
+}
+
+function documentScope(kind: string): 'change' | 'project' {
+  return isDocumentKind(kind) ? DOCUMENT_KIND_CATALOG[kind].scope : 'change'
 }
 
 /**
@@ -94,28 +99,41 @@ export function issuesFor(issues: readonly LintIssue[], stepId: string): LintIss
  */
 export function draftEffectiveIo(def: WbWorkflowDef, saved: WbEffectiveIo | undefined): WbEffectiveIo {
   const out: WbEffectiveIo = {}
-  const lockedDocuments = def.openspecContract === 'required' || isDefaultWorkflowName(def.name)
+  const savedDocuments = isDefaultWorkflowName(def.name)
   def.steps.forEach((step, index) => {
     const upstream = def.steps.slice(0, index)
     const downstream = def.steps.slice(index + 1)
-    const documentsOut = lockedDocuments
+    const slots = (def.documentContract?.slots ?? []).filter((slot) => slot.ownerStep === step.id)
+    const documentsOut: WbIoSlot[] = savedDocuments
       ? (saved?.[step.id]?.outputs ?? []).filter((slot) => slot.kind === 'document')
-      : (def.documentContract?.slots ?? []).filter((slot) => slot.ownerStep === step.id).map((slot) => ({
+      : slots.filter((slot) => slot.role !== 'require').map((slot) => ({
           kind: 'document' as const,
           id: slot.kind,
+          role: slot.role ?? 'produce',
+          scope: documentScope(slot.kind),
           producers: slot.producers,
           consumers: (def.documentContract?.reads ?? []).filter((read) => read.kinds.includes(slot.kind)).map((read) => read.step),
-          locked: false,
         }))
-    const documentsIn = lockedDocuments
+    const documentsIn: WbIoSlot[] = savedDocuments
       ? (saved?.[step.id]?.inputs ?? []).filter((slot) => slot.kind === 'document')
-      : ((def.documentContract?.reads ?? []).find((read) => read.step === step.id)?.kinds ?? []).map((kind) => ({
-          kind: 'document' as const,
-          id: kind,
-          producers: [def.documentContract?.slots.find((slot) => slot.kind === kind)?.ownerStep ?? ''].filter(Boolean),
-          consumers: [],
-          locked: false,
-        }))
+      : [
+          ...((def.documentContract?.reads ?? []).find((read) => read.step === step.id)?.kinds ?? []).map((kind) => ({
+            kind: 'document' as const,
+            id: kind,
+            role: 'read' as const,
+            scope: documentScope(kind),
+            producers: [def.documentContract?.slots.find((slot) => slot.kind === kind && slot.role === undefined)?.ownerStep ?? ''].filter(Boolean),
+            consumers: [],
+          })),
+          ...slots.filter((slot) => slot.role === 'require').map((slot) => ({
+            kind: 'document' as const,
+            id: slot.kind,
+            role: 'require' as const,
+            scope: documentScope(slot.kind),
+            producers: [],
+            consumers: [],
+          })),
+        ]
     out[step.id] = {
       outputs: [
         ...documentsOut,

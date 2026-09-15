@@ -4017,7 +4017,13 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(Object.keys(builtinBranches as Record<string, unknown>)).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
     expect(builtinSource).toBe('builtin')
     expect(Object.keys(builtinIo as Record<string, unknown>)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
-    const tracks = template.tracks as Record<string, { steps: Array<{ id: string; skills: Array<{ id: string }> }> }>
+    expect(template.openspec).toBe(true)
+    const documentSlots = Object.values(builtinBranches as Record<string, { effectiveIo: Record<string, { inputs: Array<Record<string, unknown>>; outputs: Array<Record<string, unknown>> }> }>)
+      .flatMap((branch) => Object.values(branch.effectiveIo).flatMap((io) => [...io.inputs, ...io.outputs]))
+      .filter((slot) => slot.kind === 'document')
+    expect(documentSlots.length).toBeGreaterThan(0)
+    expect(documentSlots.every((slot) => typeof slot.role === 'string' && slot.scope === 'change' && !('locked' in slot))).toBe(true)
+    const tracks = template.tracks as Record<string, { documentContract?: unknown; steps: Array<{ id: string; skills: Array<{ id: string }> }> }>
     const edited = { ...tracks, backend: { ...tracks.backend!, steps: tracks.backend!.steps.map((step) => step.id === 'open' ? { ...step, skills: [...step.skills, { id: 'brainstorming' }] } : step) } }
     const saved = await reqPost(
       h.port, '/api/workflows/default', { ...template, tracks: edited, root: h.root },
@@ -4028,8 +4034,9 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
 
     const loaded = await reqGet(h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`)
     expect(loaded.status).toBe(200)
-    const override = loaded.json<{ source: string; tracks: Record<string, { steps: Array<{ id: string; skills: Array<{ id: string }> }> }> }>()
+    const override = loaded.json<{ source: string; tracks: Record<string, { documentContract?: unknown; steps: Array<{ id: string; skills: Array<{ id: string }> }> }> }>()
     expect(override.source).toBe('project')
+    expect(override.tracks.backend?.documentContract).toEqual(tracks.backend?.documentContract)
     expect(override.tracks.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose', 'brainstorming'])
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: [], default: { source: 'project' } })
@@ -4247,6 +4254,16 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(loaded.status).toBe(200)
     const { source: _source, effectiveIo: _effectiveIo, branches: _branches, ...definition } = loaded.json<Record<string, unknown>>()
     expect(definition).toEqual({ name: body.name, steps: body.steps })
+  })
+
+  it('POST 仍带 openspecContract → 400（E2），不落盘', async () => {
+    const h = await start()
+    const r = await reqPost(
+      h.port, '/api/workflows/onboarding', { ...VALID_BODY, openspecContract: 'required', root: h.root },
+      { headers: { Authorization: `Bearer ${h.token}` } },
+    )
+    expect(r.status).toBe(400)
+    expect(existsSync(join(h.root, '.pipeline', 'workflows', 'onboarding.yaml'))).toBe(false)
   })
 
   it('T-R6：body predicate 引用未知 dynamic track → 400 + 定位 errors，绝不先保存再运行时坏', async () => {

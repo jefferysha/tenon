@@ -22,8 +22,8 @@ const change = {
 
 const io: WbStepIo = {
   outputs: [
-    { kind: 'document', id: 'proposal', producers: [], consumers: [], locked: true },
-    { kind: 'document', id: 'tasks', producers: [], consumers: [], locked: true },
+    { kind: 'document', id: 'proposal', role: 'produce', scope: 'change', producers: [], consumers: [] },
+    { kind: 'document', id: 'tasks', role: 'produce', scope: 'change', producers: [], consumers: [] },
     { kind: 'field', id: 'plan', type: 'file_path', producer: null, consumers: [] },
     { kind: 'field', id: 'build_sha', type: 'string', producer: null, consumers: [] },
   ],
