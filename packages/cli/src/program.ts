@@ -197,7 +197,8 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .command('doctor')
     .description('统一健康面：哪些保障此刻真的在生效/已静默降级（exit 1=有红灯）')
     .option('--json', 'JSON 输出（schema 稳定）')
-    .action(async (opts: { json?: boolean }) => bail(await cmdDoctor(deps, opts)))
+    .option('--skills', '附加每个技能的来源、提交、许可证与更新时间')
+    .action(async (opts: { json?: boolean; skills?: boolean }) => bail(await cmdDoctor(deps, opts)))
 
   program
     .command('task <sub> [args...]')

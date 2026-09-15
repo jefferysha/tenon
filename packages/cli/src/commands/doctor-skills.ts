@@ -7,6 +7,7 @@ import {
 } from '../migration/legacy-tenon-migration.js'
 import { loadCanonicalSkillSources, type SkillSource } from '../skillSources.js'
 import { green, yellow, red, type DoctorCheck } from './doctor-check.js'
+import { lockedUpstreamSkillIds } from './doctor-upstream-skills.js'
 
 function skillInPlace(
   entry: string,
@@ -125,7 +126,11 @@ export function checkSkills(p: DoctorProbes): [DoctorCheck, DoctorCheck] {
     ]
   }
 
-  return evaluateSkillChecks(tables, registry, p.installedSkillNames())
+  // Upstream skills in skills.lock.json ship inside the same plugin root, so they count as bundled.
+  const locked: SkillSource[] = lockedUpstreamSkillIds(p)
+    .filter((id) => !registry.some((source) => source.token === id))
+    .map((token) => ({ token, tool: 'bundled', source: 'upstream', tier: 'optional', official: false }))
+  return evaluateSkillChecks(tables, [...registry, ...locked], p.installedSkillNames())
 }
 
 /** Verify the Workflow-owned phase Skill layer independently from Track matrix tables. */

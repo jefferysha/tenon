@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { GATE_TTL_MS } from '@tenon/kernel'
 import { cmdDoctor, type DoctorCheck } from './doctor.js'
 import { buildProgram, CliExit } from '../program.js'
+import type { UpstreamSkillView, UpstreamSkillViewRow } from '@tenon/kernel'
 import { makeDeps, mockDoctorProbes, mockState, type TestDeps } from '../test-support.js'
 
 /** --json 稳定 schema（BACKLOG #26b）：{checks:[{id,status,detail,hint}],summary:{green,yellow,red}} */
@@ -33,6 +34,7 @@ const EXPECTED_IDS = [
   'afk:image',
   'afk:credential-claude-code',
   'afk:credential-codex',
+  'skills:upstream',
 ] as const
 
 async function runJson(deps: TestDeps): Promise<{ code: number; payload: DoctorJson }> {
@@ -46,14 +48,71 @@ function byId(payload: DoctorJson, id: string): DoctorCheck {
   return c
 }
 
+function upstreamRow(id: string, status: UpstreamSkillViewRow['status'] = 'unchanged', reason?: UpstreamSkillViewRow['reason']): UpstreamSkillViewRow {
+  return {
+    id, origin: 'upstream', status, repo: 'obra/superpowers', path: `skills/${id}`, commit: '1'.repeat(40),
+    previousCommit: null, license: 'MIT', fetchedAt: '2026-09-15T08:00:00.000Z', ...(reason === undefined ? {} : { reason }),
+  }
+}
+
+function upstreamView(rows: readonly UpstreamSkillViewRow[]): UpstreamSkillView {
+  return {
+    updatedAt: '2026-09-15T08:00:00.000Z',
+    lastRunAt: '2026-09-15T08:00:00.000Z',
+    rows: [{ id: 'tenon', origin: 'tenon', status: 'bundled' }, ...rows],
+  }
+}
+
+describe('doctor skills:upstream', () => {
+  const missingRow: UpstreamSkillViewRow = { id: 'web-design-guidelines', origin: 'upstream', status: 'failed', repo: 'vercel-labs/agent-skills', path: 'skills/web-design-guidelines', reason: 'license-missing' }
+  test.each([
+    ['no source list', () => ({ updatedAt: null, lastRunAt: null, rows: [] }), 'green', '无上游技能来源清单', ''],
+    ['invalid list', () => ({ error: "skills/sources.yaml: 技能 'hue' ref 'main' 只能是 default-branch" }), 'red', '上游技能清单无效：skills/sources.yaml', 'tools/verify-skills.sh'],
+    ['source not in lock', () => upstreamView([upstreamRow('hue'), missingRow]), 'red', '缺 1 个上游技能：web-design-guidelines(license-missing)', 'tenon update --claude'],
+    ['kept after a failed run', () => upstreamView([upstreamRow('hue', 'failed', 'unreachable')]), 'yellow', '1 个上游技能获取失败，保留旧版本：hue(unreachable)', '网络恢复后运行 tenon update --claude'],
+    ['installed', () => upstreamView([upstreamRow('hue', 'changed'), upstreamRow('brainstorming')]), 'green', '2 个上游技能已安装，自上次更新变化 1 个', ''],
+  ] as const)('%s', async (_label, probe, status, detail, hint) => {
+    const deps = makeDeps({ doctor: { upstreamSkillView: probe } })
+    const { code, payload } = await runJson(deps)
+    expect(payload.checks.at(-1)?.id).toBe('skills:upstream')
+    const check = byId(payload, 'skills:upstream')
+    expect(check.status).toBe(status)
+    expect(check.detail).toContain(detail)
+    expect(check.hint).toContain(hint)
+    expect(code).toBe(status === 'red' ? 1 : 0)
+  })
+
+  test('--json --skills adds the view next to checks and summary', async () => {
+    const view = upstreamView([upstreamRow('hue', 'changed')])
+    const deps = makeDeps({ doctor: { upstreamSkillView: () => view } })
+    expect(await cmdDoctor(deps, { json: true, skills: true })).toBe(0)
+    const payload = JSON.parse(deps.outLines.join('\n')) as DoctorJson & { skills: UpstreamSkillView }
+    expect(Object.keys(payload).sort()).toEqual(['checks', 'skills', 'summary'])
+    expect(payload.skills.rows.map((row) => row.id)).toEqual(['tenon', 'hue'])
+  })
+
+  test('--skills prints one padded row per skill after the checks', async () => {
+    const deps = makeDeps({ doctor: { upstreamSkillView: () => upstreamView([upstreamRow('hue', 'failed', 'unreachable')]) } })
+    await cmdDoctor(deps, { skills: true })
+    const header = deps.outLines.findIndex((line) => line.startsWith('技能'))
+    expect(header).toBeGreaterThan(0)
+    expect(deps.outLines[header]).toMatch(/^技能\s+来源\s+提交\s+许可证\s+更新\s+状态$/u)
+    expect(deps.outLines[header + 1]).toMatch(/^tenon\s+tenon\s+—\s+—\s+—\s+—$/u)
+    expect(deps.outLines[header + 2]).toMatch(/^hue\s+obra\/superpowers:skills\/hue\s+1111111\s+MIT\s+2026-09-15 08:00\s+失败 unreachable$/u)
+    const plain = makeDeps({ doctor: { upstreamSkillView: () => upstreamView([upstreamRow('hue')]) } })
+    await cmdDoctor(plain, {})
+    expect(plain.outLines.some((line) => line.startsWith('技能'))).toBe(false)
+  })
+})
+
 describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / D10 > tenon doctor）', () => {
-  test('全绿基线：21 项检查全 green，exit 0，人读输出含汇总行、无 WARN/FAIL', async () => {
+  test('全绿基线：22 项检查全 green，exit 0，人读输出含汇总行、无 WARN/FAIL', async () => {
     const deps = makeDeps()
     const code = await cmdDoctor(deps, {})
     expect(code).toBe(0)
     const text = deps.outLines.join('\n')
     expect(text).toContain('[DOCTOR]')
-    expect(text).toContain('绿 21')
+    expect(text).toContain('绿 22')
     expect(text).not.toContain('[WARN]')
     expect(text).not.toContain('[FAIL]')
     expect(text).not.toContain('fix:')
@@ -82,7 +141,7 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
       expect(typeof c.detail).toBe('string')
       expect(typeof c.hint).toBe('string')
     }
-    expect(payload.summary).toEqual({ green: 21, yellow: 0, red: 0 })
+    expect(payload.summary).toEqual({ green: 22, yellow: 0, red: 0 })
   })
 
   test('native host/runtime/Dashboard 任一版本漂移时 identity:release red', async () => {
@@ -590,7 +649,7 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
     }
     expect(code).toBe(0)
     const payload = JSON.parse(deps.outLines.join('\n')) as DoctorJson
-    expect(payload.summary).toEqual({ green: 21, yellow: 0, red: 0 })
+    expect(payload.summary).toEqual({ green: 22, yellow: 0, red: 0 })
   })
 })
 
@@ -834,6 +893,18 @@ describe('doctor 缺技能检测（full-install 批2 A1：skills:mandatory / ski
     const { payload } = await runJson(deps)
     expect(byId(payload, 'skills:mandatory').status).toBe('yellow')
     expect(byId(payload, 'skills:recommended').status).toBe('yellow')
+  })
+
+  test('⑧ 只在 skills.lock.json 中的强制技能算在位；锁里缺失则 red', async () => {
+    const manifestSkills = () => ({ mandatory: { build: { frontend: ['shadcn'] } } as never, recommended: {} as never })
+    const locked = makeDeps({ doctor: { manifestSkills, installedSkillNames: () => new Set(), upstreamSkillView: () => upstreamView([upstreamRow('shadcn')]) } })
+    expect(byId((await runJson(locked)).payload, 'skills:mandatory').status).toBe('green')
+    const missing = makeDeps({ doctor: {
+      manifestSkills,
+      installedSkillNames: () => new Set(),
+      upstreamSkillView: () => upstreamView([{ id: 'shadcn', origin: 'upstream', status: 'failed', repo: 'shadcn-ui/ui', path: 'skills/shadcn' }]),
+    } })
+    expect(byId((await runJson(missing)).payload, 'skills:mandatory').status).toBe('red')
   })
 
   test('人读输出：缺自定义强制技能 → [FAIL] skills:mandatory + fix: 行含打包指引', async () => {

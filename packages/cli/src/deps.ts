@@ -127,6 +127,8 @@ export interface DoctorProbes {
    * 值永不回显（只 set+source）。缺省 undefined = 未装配 → afk:* 四检自身折算 red（探针缺口可见）。
    */
   afkReadiness?: () => Promise<AfkReadiness>
+  /** skills/sources.yaml + skills/skills.lock.json + last-update.json 的只读视图；清单或锁无效时返回 error。 */
+  upstreamSkillView?: () => import('@tenon/kernel').UpstreamSkillView | { error: string }
 }
 
 export interface CliIO {

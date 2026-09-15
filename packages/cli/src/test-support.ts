@@ -464,6 +464,8 @@ export function mockDoctorProbes(overrides: Partial<DoctorProbes> = {}): DoctorP
     ]),
     hostPluginInventory: async () => ({ kind: 'native', host: 'claude', enabledIds: new Set(['tenon@tenon']) }),
     manifestSkills: () => DEFAULT_MANIFEST_SKILLS,
+    // 缺省无 skills/sources.yaml：skills:upstream 绿，--skills 表只有表头。
+    upstreamSkillView: () => ({ updatedAt: null, lastRunAt: null, rows: [] }),
     // AFK 就绪四检（R1）：缺省全就绪（docker 可用 / 镜像在位 / 两 runner 凭证已配）→ afk:* 四绿基线；
     // 单测按需覆写 afkReadiness 制造 docker 缺 / 镜像缺 / 凭证缺 各态。
     afkReadiness: async () => ({

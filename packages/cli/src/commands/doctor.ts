@@ -25,6 +25,7 @@ import {
 import { checkCodexProjectSkills, checkSkills, checkWorkflowPhaseSkills } from './doctor-skills.js'
 import { renderCodexAuthLines } from '../codexAuth.js'
 import { checkProductIdentity } from './doctor-product-identity.js'
+import { checkUpstreamSkills, renderUpstreamSkillTable, upstreamSkillViewOf } from './doctor-upstream-skills.js'
 
 export type { DoctorCheck, DoctorStatus } from './doctor-check.js'
 
@@ -281,7 +282,7 @@ async function checkAfk(p: DoctorProbes): Promise<[DoctorCheck, DoctorCheck, Doc
 
 const STATUS_TAG: Record<DoctorStatus, string> = { green: '[PASS]', yellow: '[WARN]', red: '[FAIL]' }
 
-export async function cmdDoctor(deps: CliDeps, opts: { json?: boolean }): Promise<number> {
+export async function cmdDoctor(deps: CliDeps, opts: { json?: boolean; skills?: boolean }): Promise<number> {
   const p = deps.doctor
   if (!p) {
     deps.io.err('ERROR: doctor 探针未装配（main.ts 集成缺口，无法评估保障生效性）')
@@ -359,6 +360,12 @@ export async function cmdDoctor(deps: CliDeps, opts: { json?: boolean }): Promis
     }
   }
 
+  try {
+    checks.push(await checkUpstreamSkills(p))
+  } catch (e) {
+    checks.push(red('skills:upstream', `检查自身异常: ${errMsg(e)}`, '排除探针环境问题后重跑 tenon doctor'))
+  }
+
   const summary = {
     green: checks.filter((c) => c.status === 'green').length,
     yellow: checks.filter((c) => c.status === 'yellow').length,
@@ -367,7 +374,7 @@ export async function cmdDoctor(deps: CliDeps, opts: { json?: boolean }): Promis
   const exit = summary.red > 0 ? 1 : 0
 
   if (opts.json) {
-    deps.io.out(JSON.stringify({ checks, summary }))
+    deps.io.out(JSON.stringify({ checks, summary, ...(opts.skills === true ? { skills: upstreamSkillViewOf(p) } : {}) }))
     return exit
   }
 
@@ -378,5 +385,7 @@ export async function cmdDoctor(deps: CliDeps, opts: { json?: boolean }): Promis
     // 非绿灯必带一句修复指引，缩进对齐 detail 列
     if (c.status !== 'green' && c.hint !== '') deps.io.out(`${' '.repeat(9 + idW + 2)}fix: ${c.hint}`)
   }
+  const view = opts.skills === true ? upstreamSkillViewOf(p) : null
+  if (view !== null) for (const line of renderUpstreamSkillTable(view)) deps.io.out(line)
   return exit
 }
