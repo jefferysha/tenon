@@ -34,6 +34,7 @@ export type LedgerContextBundleReasonCode =
   | 'context-bundle.reason.plan'
   | 'context-bundle.reason.verification-report'
   | 'context-bundle.reason.applied-spec'
+  | 'context-bundle.reason.design-md'
 
 export interface LedgerContextBundleInputSummary {
   readonly kind: DocumentKind

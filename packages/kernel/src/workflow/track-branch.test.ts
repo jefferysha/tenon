@@ -96,6 +96,37 @@ describe('track 分支 · 解析 / 序列化 / 选择', () => {
     expect(Object.keys(mobile.definition?.tracks ?? {})).toEqual(['backend', 'mobile'])
   })
 
+  it('分支文档契约：selectTrackBranch / 有效计划按 track 取各自契约；契约相同的分支共享指纹，不同则各自不同', () => {
+    const contract = (kind: string, owner: string, producer: string) => [
+      '    document_contract:',
+      '      version: v1',
+      '      slots:',
+      `        - kind: ${kind}`,
+      `          owner_step: ${owner}`,
+      `          producers: [${producer}]`,
+      '      reads: []',
+    ].join('\n')
+    const def = parseWorkflow(BRANCHED
+      .replace('name: demo\n', 'name: demo\nopenspec: true\n')
+      .replace('    label: 后端\n', `    label: 后端\n${contract('proposal', 'change', 'simple-task')}\n`)
+      .replace('    label: 移动端\n', `    label: 移动端\n${contract('design-md', 'design', 'frontend-design')}\n`))
+    expect(selectTrackBranch(def, 'mobile').documentContract?.slots[0]?.kind).toBe('design-md')
+    expect(selectTrackBranch(def, undefined).documentContract?.slots[0]?.kind).toBe('proposal')
+    const registry = loadTrackRegistry(tmpdir(), { workflowExists: () => true, skillProfiles: new Set() })
+    const mobile = compileEffectiveWorkflowPlan('demo', def, resolveTrackForBranch(registry, 'mobile', def))
+    const backend = compileEffectiveWorkflowPlan('demo', def, builtinTrack('backend'))
+    expect(mobile.documentPolicy?.outputsByStep).toEqual({ design: [{ kind: 'design-md', producerCandidates: ['frontend-design'] }], done: [] })
+    expect(backend.documentPolicy?.outputsByStep).toEqual({ change: [{ kind: 'proposal', producerCandidates: ['simple-task'] }], done: [] })
+    expect(mobile.workflow.documentContract?.slots[0]?.kind).toBe('design-md')
+    expect(backend.workflowFingerprint).not.toBe(mobile.workflowFingerprint)
+    const twin = { ...def, tracks: { backend: def.tracks!.backend!, mobile: def.tracks!.backend! } }
+    const twinMobile = compileEffectiveWorkflowPlan('demo', twin, resolveTrackForBranch(registry, 'mobile', twin))
+    const twinBackend = compileEffectiveWorkflowPlan('demo', twin, builtinTrack('backend'))
+    expect(twinMobile.documentPolicy).toEqual(twinBackend.documentPolicy)
+    expect(twinMobile.workflowFingerprint).toBe(twinBackend.workflowFingerprint)
+    expect(compileEffectiveWorkflowPlan('demo', parseWorkflow(BRANCHED), builtinTrack('backend')).documentPolicy).toBeUndefined()
+  })
+
   it('每条分支各自校验；错误带 tracks.<id> 前缀', () => {
     const def = parseWorkflow(BRANCHED.replace('            to: done\n      - id: done', '            to: nowhere\n      - id: done'))
     const errors = validateWorkflow(def)

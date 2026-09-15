@@ -823,6 +823,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const deps = makeDeps()
       const governed: WorkflowDef = {
         name: 'governed',
+        openspec: true,
         documentContract: {
           version: 'v1',
           slots: [{ kind: 'proposal', ownerStep: 'intake', producers: ['writer'] }],
@@ -1191,7 +1192,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       expect(state.fields.verified_at).toBe('2026-07-17T00:00:00Z')
     })
 
-    test('openspec_contract required 的 custom build/verify 自动继承基线与验证不变量，YAML 漏写 action/guard 也不能降级', async () => {
+    test('openspec: true 的 custom build/verify 自动继承基线与验证不变量，YAML 漏写 action/guard 也不能降级', async () => {
       const root = await freshRepoRoot()
       const deps = makeDeps({
         documentEvidence: async (_repoRoot, _changeDir, phase) => ({
@@ -1200,7 +1201,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       const wf: WorkflowDef = {
         name: 'governed',
-        openspecContract: 'required',
+        openspec: true,
         steps: [
           {
             id: 'build', label: '', gate: null, skills: [], inputs: [],
@@ -1218,7 +1219,15 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
           { id: 'ship', label: '', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] },
         ],
       }
-      const dir = await initCustom(deps, root, 'governed', 'build')
+      const policy = compileEffectiveWorkflowPlan('governed', wf).documentPolicy
+      if (!policy) throw new Error('expected document policy')
+      const { changeDir: dir } = await deps.runRepository.initChange({
+        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+        initialWorkflow: {
+          workflow: 'governed', phase: 'build', documentProfile: 'document-v1',
+          documentGovernanceFingerprint: documentGovernanceFingerprint(policy),
+        },
+      })
       await createStateStore().setMany(dir, {
         build_mode: 'direct', isolation: 'in-place', direct_override: 'true',
         pre_verify_review_result: 'pass',
@@ -1331,7 +1340,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const deps = makeDeps()
       const wf: WorkflowDef = {
         name: 'governed-rollback',
-        openspecContract: 'required',
+        openspec: true,
         steps: [
           {
             id: 'build', label: '', gate: null, skills: [], inputs: [],

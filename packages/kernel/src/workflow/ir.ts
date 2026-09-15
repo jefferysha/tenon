@@ -184,10 +184,14 @@ export interface WorkflowIR {
   readonly decomposition: WorkflowDecompositionPolicyV1
   readonly interaction: WorkflowInteractionPolicyV1
   readonly reviewBudget: WorkflowReviewBudgetPolicyV1
-  /** Preserved from WorkflowDef after compile-time validation; absent means an ordinary custom workflow. */
-  readonly openspecContract?: 'required'
+  /** OpenSpec 开关；compile 把 false 归一为缺省。 */
+  readonly openspec?: true
   readonly documentContract?: WorkflowDocumentContractV1
   readonly steps: readonly StepIR[]
   /** track 分支（编译后）；有效计划按 change 的 track 选中一条后即从 IR 剥离，冻结快照里不再出现。 */
-  readonly tracks?: Readonly<Record<string, { readonly label?: string; readonly steps: readonly StepIR[] }>>
+  readonly tracks?: Readonly<Record<string, {
+    readonly label?: string
+    readonly documentContract?: WorkflowDocumentContractV1
+    readonly steps: readonly StepIR[]
+  }>>
 }

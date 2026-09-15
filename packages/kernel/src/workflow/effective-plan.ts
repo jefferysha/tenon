@@ -38,8 +38,7 @@ export class DocumentGovernanceBindingError extends Error {
   readonly _tag = 'DocumentGovernanceBindingError'
 }
 function profileFor(policy: DocumentGovernancePolicy | undefined): DocumentProfileId | undefined {
-  if (policy?.id === 'openspec-v1') return 'legacy-full'; if (policy?.id === 'document-v1') return 'document-v1'
-  return undefined
+  return policy?.id === 'openspec-v1' ? 'legacy-full' : policy?.id === 'document-v1' ? 'document-v1' : undefined
 }
 function canonicalRequirement(requirement: {
   readonly kind: string; readonly producerCandidates: readonly string[]
@@ -69,6 +68,7 @@ export function documentGovernanceFingerprint(policy: DocumentGovernancePolicy):
       step,
       [...new Set(policy.readsByStep[step] ?? [])].sort(),
     ])),
+    ...(policy.requiresByStep === undefined ? {} : { requiresByStep: Object.fromEntries(policy.steps.map((step) => [step, [...new Set(policy.requiresByStep?.[step] ?? [])].sort()])) }),
   }
   return sha256Hex(JSON.stringify(canonical))
 }
@@ -83,14 +83,14 @@ function assertValid(definition: WorkflowDef, origin: 'custom' | 'default'): voi
   const errors = validateWorkflow(definition, { origin })
   if (errors.length > 0) throw new Error(`effective workflow 无效：\n${errors.map((error) => `  - ${error}`).join('\n')}`)
 }
-/** 按 track 选中分支 IR（同 selectTrackBranch 口径）：有 tracks 时未给 track → 第一条分支；给了却没有 → 抛错。 */
+/** 按 track 选中分支 IR（同 selectTrackBranch 口径）：有 tracks 时未给 track → 第一条分支；给了却没有 → 抛错。分支契约提到顶层。 */
 export function selectTrackBranchIr(workflow: WorkflowIR, track: string | undefined): WorkflowIR {
   const { tracks, ...rest } = workflow
   const entries = Object.entries(tracks ?? {})
   if (entries.length === 0) return rest
-  if (track === undefined || track === '') { const first = entries[0]; if (first === undefined) throw new Error(`workflow '${workflow.name}' has no track branch`); return { ...rest, steps: first[1].steps } }
-  const branch = tracks?.[track]
-  if (branch === undefined) throw new WorkflowTrackBranchError(workflow.name, track); return { ...rest, steps: branch.steps }
+  const branch = track === undefined || track === '' ? entries[0]?.[1] : tracks?.[track]
+  if (branch === undefined) throw new WorkflowTrackBranchError(workflow.name, track ?? ''); const { documentContract: _documentContract, ...single } = rest
+  return { ...single, ...(branch.documentContract === undefined ? {} : { documentContract: branch.documentContract }), steps: branch.steps }
 }
 function planFromIr(
   id: string,
@@ -102,7 +102,7 @@ function planFromIr(
 ): EffectiveWorkflowPlan {
   const workflow = selectTrackBranchIr(compiled, track?.id)
   const documentPolicy = frozenDocumentPolicy === undefined
-    ? documentGovernancePolicy(id, compiled)
+    ? documentGovernancePolicy(id, compiled, track?.id)
     : frozenDocumentPolicy ?? undefined
   const skillPolicy = executionModel === 'phase-manifest' ? 'manifest-overlay' : 'step-declared'
   const reviewStepsOf = (steps: WorkflowIR['steps']): string[] => steps.filter((step) => step.gate === 'review').map((step) => step.id)

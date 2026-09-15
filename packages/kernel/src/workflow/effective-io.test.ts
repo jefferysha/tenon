@@ -39,6 +39,7 @@ describe('materializeWorkflowIo', () => {
     expect(materializeWorkflowIo(defaultDef).open?.outputs[0]).toMatchObject({ locked: true })
     const custom: WorkflowDef = {
       name: 'short',
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'draft', producers: ['openspec-propose'] }],

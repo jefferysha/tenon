@@ -48,6 +48,58 @@ describe('v1 → IR 下沉', () => {
     }))).toThrow(/documentContract.version/)
   })
 
+  it('openspecContract 已移除：给出替代写法；openspec 只接受布尔，false 归一为缺省', () => {
+    expect(() => compileWorkflow(rawDef({ name: 'old', openspecContract: 'required', steps: [v1Step()] })))
+      .toThrow('compileWorkflow: openspecContract: 已移除——改为 openspec: true')
+    expect(compileWorkflow(rawDef({ name: 'on', openspec: true, steps: [v1Step()] })).openspec).toBe(true)
+    expect(compileWorkflow(rawDef({ name: 'off', openspec: false, steps: [v1Step()] }))).not.toHaveProperty('openspec')
+    expect(() => compileWorkflow(rawDef({ name: 'bad', openspec: 'true', steps: [v1Step()] }))).toThrow(/openspec/)
+  })
+
+  it('slot role 归一：produce 去掉、update 保留、require 可省 producers；非法 role 拒绝', () => {
+    const ir = compileWorkflow(rawDef({
+      name: 'roles',
+      openspec: true,
+      documentContract: {
+        version: 'v1',
+        slots: [
+          { kind: 'tasks', ownerStep: 'shape', role: 'produce', producers: ['writer'] },
+          { kind: 'tasks', ownerStep: 'build', role: 'update', producers: ['writer'] },
+          { kind: 'design-md', ownerStep: 'build', role: 'require' },
+        ],
+        reads: [],
+      },
+      steps: [v1Step({ id: 'shape' }), v1Step({ id: 'build' })],
+    }))
+    expect(ir.documentContract?.slots).toEqual([
+      { kind: 'tasks', ownerStep: 'shape', producers: ['writer'] },
+      { kind: 'tasks', ownerStep: 'build', role: 'update', producers: ['writer'] },
+      { kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] },
+    ])
+    expect(() => compileWorkflow(rawDef({
+      name: 'bad',
+      documentContract: { version: 'v1', slots: [{ kind: 'tasks', ownerStep: 'shape', role: 'read', producers: ['w'] }], reads: [] },
+      steps: [v1Step({ id: 'shape' })],
+    }))).toThrow("document slot 'tasks' 的 role 只支持 produce | update | require")
+  })
+
+  it('tracks.<id>.documentContract 随分支编译、深冻结，闭集键校验带分支路径', () => {
+    const branch = {
+      documentContract: {
+        version: 'v1',
+        slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
+        reads: [],
+      } as Record<string, unknown>,
+      steps: [v1Step({ id: 'shape' })],
+    }
+    const ir = compileWorkflow(rawDef({ name: 'branched', openspec: true, steps: [], tracks: { web: branch } }))
+    expect(ir.tracks?.web?.documentContract?.slots[0]?.kind).toBe('proposal')
+    expect(Object.isFrozen(ir.tracks?.web?.documentContract?.slots[0])).toBe(true)
+    branch.documentContract.extra = true
+    expect(() => compileWorkflow(rawDef({ name: 'branched', steps: [], tracks: { web: branch } })))
+      .toThrow(/tracks\.web\.documentContract.*附加键 'extra'/)
+  })
+
   it('nonempty-output 按 outputs 逐字段展开为 field-nonempty（顺序=outputs 声明序）；tasks-at-least 原样保留', () => {
     const ir = compileWorkflow(
       v1Def([

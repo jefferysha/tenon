@@ -37,8 +37,8 @@ export interface WorkflowStepIo {
 
 export type WorkflowEffectiveIo = Readonly<Record<string, WorkflowStepIo>>
 
-export function documentSlotsLocked(def: Pick<WorkflowDef, 'name' | 'openspecContract'>): boolean {
-  return isDefaultWorkflowName(def.name) || def.openspecContract === 'required'
+export function documentSlotsLocked(def: Pick<WorkflowDef, 'name'>): boolean {
+  return isDefaultWorkflowName(def.name)
 }
 
 export function materializeWorkflowIo(def: WorkflowDef): WorkflowEffectiveIo {

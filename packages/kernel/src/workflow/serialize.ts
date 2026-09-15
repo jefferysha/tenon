@@ -168,15 +168,17 @@ function serializeStep(step: StepDef): string[] {
   return lines
 }
 
-function serializeDocumentContract(contract: WorkflowDocumentContractV1): string[] {
-  return [
+/** 文档契约块（block style）；slot 行序固定 kind / owner_step / role（produce 不写）/ producers（require 不写）。 */
+function serializeDocumentContract(contract: WorkflowDocumentContractV1, indent = ''): string[] {
+  const lines = [
     'document_contract:',
     `  version: ${contract.version}`,
     '  slots:',
     ...contract.slots.flatMap((slot) => [
       `    - kind: ${slot.kind}`,
       `      owner_step: ${slot.ownerStep}`,
-      `      producers: [${slot.producers.join(', ')}]`,
+      ...(slot.role === undefined ? [] : [`      role: ${slot.role}`]),
+      ...(slot.role === 'require' ? [] : [`      producers: [${slot.producers.join(', ')}]`]),
     ]),
     ...(contract.reads.length === 0
       ? ['  reads: []']
@@ -188,18 +190,16 @@ function serializeDocumentContract(contract: WorkflowDocumentContractV1): string
           ]),
         ]),
   ]
+  return lines.map((line) => `${indent}${line}`)
 }
 
 export function serializeWorkflow(wf: WorkflowDef): string {
-  if (wf.openspecContract !== undefined && wf.documentContract !== undefined) {
-    throw new Error('serializeWorkflow: openspecContract 与 documentContract 不得同时声明')
-  }
   const lines = [
     `name: ${wf.name}`,
     ...(wf.decomposition === undefined ? [] : serializeDecomposition(wf.decomposition)),
     ...(wf.interaction === undefined ? [] : serializeInteraction(wf.interaction)),
     ...(wf.reviewBudget === undefined ? [] : serializeReviewBudget(wf.reviewBudget)),
-    ...(wf.openspecContract === undefined ? [] : [`openspec_contract: ${wf.openspecContract}`]),
+    ...(wf.openspec === true ? ['openspec: true'] : []),
     ...(wf.documentContract === undefined ? [] : serializeDocumentContract(wf.documentContract)),
     ...(wf.steps.length === 0 && Object.keys(wf.tracks ?? {}).length > 0 ? [] : ['steps:', ...wf.steps.flatMap(serializeStep)]),
     ...serializeTracks(wf.tracks),
@@ -218,6 +218,7 @@ function serializeTracks(tracks: WorkflowDef['tracks']): string[] {
     if (branch === undefined) continue
     lines.push(`  ${id}:`)
     if (branch.label !== undefined && branch.label !== '') lines.push(`    label: ${branch.label}`)
+    if (branch.documentContract !== undefined) lines.push(...serializeDocumentContract(branch.documentContract, '    '))
     lines.push('    steps:')
     lines.push(...branch.steps.flatMap(serializeStep).map((line) => (line === '' ? line : `    ${line}`)))
   }

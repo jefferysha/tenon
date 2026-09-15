@@ -141,6 +141,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   it('keeps a three-step declarative contract three steps wide', () => {
     const plan = compileEffectiveWorkflowPlan('compact', {
       name: 'compact',
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
@@ -169,6 +170,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   it('bound document governance cannot be removed or replaced by a mutable workflow definition', () => {
     const original = compileEffectiveWorkflowPlan('compact', {
       name: 'compact',
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
@@ -204,6 +206,7 @@ describe('compileEffectiveWorkflowPlan', () => {
 
     const changed = compileEffectiveWorkflowPlan('compact', {
       name: 'compact',
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'tasks', ownerStep: 'shape', producers: ['writer'] }],
@@ -218,6 +221,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   it('a bound workflow plan rejects graph, skill, or review drift even when documents are unchanged', () => {
     const definition = {
       name: 'compact',
+      openspec: true,
       documentContract: {
         version: 'v1' as const,
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
@@ -264,6 +268,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   it('profile-only old runs retain compatibility but still cannot downgrade to ungoverned', () => {
     const governed = compileEffectiveWorkflowPlan('compact', {
       name: 'compact',
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],

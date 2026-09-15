@@ -155,7 +155,7 @@ export {
   validateOpenSpecContractWorkflow,
 } from './workflow/document-contract.js'
 export type {
-  DocumentContractPhase, DocumentGovernancePolicy, DocumentKind, DocumentOutputRequirement, OpenSpecContract,
+  DocumentContractPhase, DocumentGovernancePolicy, DocumentKind, DocumentOutputRequirement,
 } from './workflow/document-contract.js'
 // Workflow IR 编译（G2）：v1 WorkflowDef → 归一化 WorkflowIR（含默认值/深冻结/字段闭集校验）。
 // custom 轨 transition adapter 在 loadWorkflow 后柯里化调用它拿运行层 IR；类型供 adapter/测试引用。

@@ -29,38 +29,6 @@ const REQUIRED_RUNTIME_REFS: Readonly<Partial<Record<DocumentContractPhase, {
   },
 }
 
-const REQUIRED_SKILL_GROUPS: Readonly<Record<DocumentContractPhase, readonly {
-  readonly label: string
-  readonly alternatives: readonly string[]
-}[]>> = {
-  open: [
-    { label: 'OpenSpec proposal', alternatives: ['openspec-propose', 'opsx:propose'] },
-    { label: 'pipeline open', alternatives: ['tenon-open', 'tenon:tenon-open'] },
-  ],
-  explore: [
-    { label: 'pipeline explore', alternatives: ['tenon-explore', 'tenon:tenon-explore'] },
-    { label: 'Superpower brainstorming', alternatives: ['brainstorming', 'superpowers:brainstorming'] },
-  ],
-  spec: [
-    { label: 'tenon spec', alternatives: ['tenon-spec', 'tenon:tenon-spec'] },
-    { label: 'OpenSpec delta proposal', alternatives: ['openspec-propose', 'opsx:propose'] },
-    { label: 'Superpower plan', alternatives: ['writing-plans', 'superpowers:writing-plans'] },
-  ],
-  build: [{ label: 'pipeline build', alternatives: ['tenon-build', 'tenon:tenon-build'] }],
-  verify: [
-    { label: 'pipeline verify', alternatives: ['tenon-verify', 'tenon:tenon-verify'] },
-    {
-      label: 'Superpower verification',
-      alternatives: ['verification-before-completion', 'superpowers:verification-before-completion'],
-    },
-  ],
-  ship: [
-    { label: 'pipeline ship', alternatives: ['tenon-ship', 'tenon:tenon-ship'] },
-    { label: 'OpenSpec apply', alternatives: ['openspec-apply-change', 'opsx:apply'] },
-  ],
-  archive: [{ label: 'pipeline archive', alternatives: ['tenon-archive', 'tenon:tenon-archive'] }],
-}
-
 /** 技能 id 的等价写法：tenon:/superpowers: 命名空间前缀、OpenSpec 的 opsx 别名。 */
 export function aliasesForSkill(id: string): readonly string[] {
   const aliases = new Set<string>([id])
@@ -71,13 +39,6 @@ export function aliasesForSkill(id: string): readonly string[] {
   if (id === 'opsx:apply') aliases.add('openspec-apply-change')
   if (id === 'openspec-apply-change') aliases.add('opsx:apply')
   return [...aliases]
-}
-
-function hasFieldRef(
-  refs: readonly { readonly field: string; readonly type: string }[],
-  required: { readonly field: string; readonly type: string },
-): boolean {
-  return refs.some((ref) => ref.field === required.field && ref.type === required.type)
 }
 
 function readerReachableWithoutOwner(
@@ -102,66 +63,10 @@ function readerReachableWithoutOwner(
   return false
 }
 
-function validateLegacyContract(workflow: WorkflowDef): readonly string[] {
-  const errors: string[] = []
-  const actualIds = workflow.steps.map((step) => step.id)
-  if (actualIds.length !== DOCUMENT_CONTRACT_PHASES.length) {
-    errors.push(`openspec_contract: required 必须恰好声明 ${DOCUMENT_CONTRACT_PHASES.length} 个标准阶段`)
-  }
-  for (const [index, expected] of DOCUMENT_CONTRACT_PHASES.entries()) {
-    const actual = actualIds[index]
-    if (actual !== expected) {
-      errors.push(`openspec_contract: required 的第 ${index + 1} 阶段必须是 '${expected}'（当前 '${actual ?? '缺失'}'）`)
-    }
-  }
-  for (const phase of DOCUMENT_CONTRACT_PHASES) {
-    const step = workflow.steps.find((candidate) => candidate.id === phase)
-    if (!step) continue
-    for (const target of CANONICAL_TRANSITIONS[phase]) {
-      if (!step.transitions.some((transition) => transition.to === target)) {
-        errors.push(`openspec_contract: required 要求 '${phase}' 可转换到 '${target}'`)
-      }
-    }
-    if (REVIEW_PHASES.has(phase) && step.gate !== 'review') {
-      errors.push(`openspec_contract: required 要求 '${phase}' 的 gate=review`)
-    }
-    for (const group of REQUIRED_SKILL_GROUPS[phase]) {
-      const satisfied = step.skills.some((skill) => {
-        const aliases = new Set(aliasesForSkill(skill.id))
-        return group.alternatives.some((candidate) => aliasesForSkill(candidate).some((alias) => aliases.has(alias)))
-      })
-      if (!satisfied) {
-        errors.push(
-          `openspec_contract: required 要求 '${phase}' 声明 ${group.label} skill（允许: ${group.alternatives.join(' | ')}）`,
-        )
-      }
-    }
-    const runtimeRefs = REQUIRED_RUNTIME_REFS[phase]
-    for (const required of runtimeRefs?.inputs ?? []) {
-      if (!hasFieldRef(step.inputs, required)) {
-        errors.push(
-          `openspec_contract: required 要求 '${phase}' 声明 input '${required.field}'（type=${required.type}）以读取构建基线`,
-        )
-      }
-    }
-    for (const required of runtimeRefs?.outputs ?? []) {
-      if (!hasFieldRef(step.outputs, required)) {
-        errors.push(
-          `openspec_contract: required 要求 '${phase}' 声明 output '${required.field}'（type=${required.type}）以留下可验证证据`,
-        )
-      }
-    }
-  }
-  return errors
-}
-
 function validateDeclarativeContract(workflow: WorkflowDef): readonly string[] {
   const contract = workflow.documentContract
   if (!contract) return []
   const errors: string[] = []
-  if (workflow.openspecContract !== undefined) {
-    errors.push('openspec_contract 与 document_contract 不得同时声明')
-  }
   const stepIds = new Set(workflow.steps.map((step) => step.id))
   const kinds = new Set<DocumentKind>()
   for (const [index, slot] of contract.slots.entries()) {
@@ -263,9 +168,7 @@ export function validateDefaultWorkflowStructure(workflow: WorkflowDef): readonl
   return errors
 }
 
-/** Strict structural validation for a custom workflow declaring either governance profile. */
+/** Strict structural validation for a workflow declaring a document contract. */
 export function validateOpenSpecContractWorkflow(workflow: WorkflowDef): readonly string[] {
-  return workflow.openspecContract === 'required'
-    ? validateLegacyContract(workflow)
-    : validateDeclarativeContract(workflow)
+  return validateDeclarativeContract(workflow)
 }

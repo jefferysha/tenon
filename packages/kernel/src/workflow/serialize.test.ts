@@ -57,6 +57,55 @@ describe('serializeWorkflow —— parse 的反向操作，往返等价是唯一
     expect(parseWorkflow(yaml)).toEqual(wf)
   })
 
+  it('openspec + 顶层文档契约：字节稳定往返；produce 不写 role，require 不写 producers；openspec 只在 true 时写', () => {
+    const yaml = [
+      'name: governed',
+      'openspec: true',
+      'document_contract:',
+      '  version: v1',
+      '  slots:',
+      '    - kind: tasks',
+      '      owner_step: intake',
+      '      producers: [openspec-propose]',
+      '    - kind: tasks',
+      '      owner_step: done',
+      '      role: update',
+      '      producers: [openspec-propose]',
+      '    - kind: design-md',
+      '      owner_step: done',
+      '      role: require',
+      '  reads:',
+      '    - step: done',
+      '      kinds: [tasks]',
+      'steps:',
+      ...serializeWorkflow(MINIMAL).split('\n').slice(2),
+    ].join('\n')
+    const parsed = parseWorkflow(yaml)
+    expect(serializeWorkflow(parsed)).toBe(yaml)
+    expect(serializeWorkflow({ ...MINIMAL, openspec: false })).not.toContain('openspec')
+  })
+
+  it('分支文档契约写在 label 与 steps 之间，字节稳定往返', () => {
+    const branchSteps = serializeWorkflow(MINIMAL).split('\n').slice(2).map((line) => (line === '' ? line : `    ${line}`))
+    const yaml = [
+      'name: branched',
+      'openspec: true',
+      'tracks:',
+      '  web:',
+      '    label: 前端',
+      '    document_contract:',
+      '      version: v1',
+      '      slots:',
+      '        - kind: proposal',
+      '          owner_step: intake',
+      '          producers: [openspec-propose]',
+      '      reads: []',
+      '    steps:',
+      ...branchSteps,
+    ].join('\n')
+    expect(serializeWorkflow(parseWorkflow(yaml))).toBe(yaml)
+  })
+
   it('MINIMAL：serialize→parse 深度等于原始 WorkflowDef', () => {
     const round = parseWorkflow(serializeWorkflow(MINIMAL))
     expect(round).toEqual(MINIMAL)

@@ -33,6 +33,7 @@ const DOCUMENT_REASONS: Readonly<Record<DocumentKind, string>> = {
   plan: '提供当前 Build 执行计划入口',
   'verification-report': '提供冻结基线上的验证结果和失败分类',
   'applied-spec': '证明 delta spec 已应用到主规格',
+  'design-md': '提供项目设计体系',
 }
 
 const DOCUMENT_REASON_CODES: Readonly<Record<DocumentKind, LedgerContextBundleReasonCode>> = {
@@ -46,6 +47,7 @@ const DOCUMENT_REASON_CODES: Readonly<Record<DocumentKind, LedgerContextBundleRe
   plan: 'context-bundle.reason.plan',
   'verification-report': 'context-bundle.reason.verification-report',
   'applied-spec': 'context-bundle.reason.applied-spec',
+  'design-md': 'context-bundle.reason.design-md',
 }
 
 function materializationMode(kind: DocumentKind): Exclude<ContextBundleMode, 'reference'> {

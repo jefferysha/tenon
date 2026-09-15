@@ -136,9 +136,99 @@ steps:
     })
   })
 
-  it('document contract 未知 version 与 legacy+v1 双声明均 fail-loud', () => {
+  it('document contract 未知 version fail-loud；openspec_contract 已移除并提示替代写法', () => {
     expect(() => parseWorkflow('name: bad\ndocument_contract:\n  version: v2\n  slots:\n    - kind: proposal\n      owner_step: one\n      producers: [writer]\n  reads: []\nsteps:\n')).toThrow(/version/)
-    expect(() => parseWorkflow('name: bad\nopenspec_contract: required\ndocument_contract:\n  version: v1\n  slots:\n    - kind: proposal\n      owner_step: one\n      producers: [writer]\n  reads: []\nsteps:\n')).toThrow(/不得同时声明/)
+    expect(() => parseWorkflow('name: bad\nopenspec_contract: required\nsteps:\n')).toThrow('workflow 解析错误：openspec_contract 已移除——改为 openspec: true 并声明 document_contract')
+  })
+
+  it('openspec: true 解析为 true；false 归一为缺省；其它值与重复声明 fail-loud', () => {
+    expect(parseWorkflow('name: on\nopenspec: true\nsteps:\n').openspec).toBe(true)
+    expect(parseWorkflow('name: off\nopenspec: false\nsteps:\n')).not.toHaveProperty('openspec')
+    expect(() => parseWorkflow('name: bad\nopenspec: yes\nsteps:\n')).toThrow('workflow 解析错误：openspec 只支持 true 或 false')
+    expect(() => parseWorkflow('name: bad\nopenspec: true\nopenspec: true\nsteps:\n')).toThrow('workflow 解析错误：openspec 重复声明')
+  })
+
+  it('slot role：produce 归一为缺省，update 保留，require 无 producers；非法 role 与 require 带 producers fail-loud', () => {
+    const contract = (slots: string) => `name: roles\nopenspec: true\ndocument_contract:\n  version: v1\n  slots:\n${slots}  reads: []\nsteps:\n`
+    const wf = parseWorkflow(contract([
+      '    - kind: tasks',
+      '      owner_step: shape',
+      '      role: produce',
+      '      producers: [openspec-propose]',
+      '    - kind: tasks',
+      '      owner_step: build',
+      '      role: update',
+      '      producers: [openspec-propose]',
+      '    - kind: design-md',
+      '      owner_step: build',
+      '      role: require',
+      '',
+    ].join('\n')))
+    expect(wf.documentContract?.slots).toEqual([
+      { kind: 'tasks', ownerStep: 'shape', producers: ['openspec-propose'] },
+      { kind: 'tasks', ownerStep: 'build', role: 'update', producers: ['openspec-propose'] },
+      { kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] },
+    ])
+    expect(() => parseWorkflow(contract('    - kind: tasks\n      owner_step: shape\n      role: consume\n      producers: [a]\n')))
+      .toThrow("document slot 'tasks' 的 role 只支持 produce | update | require")
+    expect(() => parseWorkflow(contract('    - kind: design-md\n      owner_step: shape\n      role: require\n      producers: [hue]\n')))
+      .toThrow("document slot 'design-md' 的 role require 不声明 producers")
+    expect(() => parseWorkflow(contract('    - kind: tasks\n      owner_step: shape\n      role: update\n')))
+      .toThrow("document slot 'tasks' 缺非空 producers")
+  })
+
+  it('slot 与 read 接受单行 flow map', () => {
+    const wf = parseWorkflow([
+      'name: flow',
+      'openspec: true',
+      'document_contract:',
+      '  version: v1',
+      '  slots:',
+      '    - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose], role: produce }',
+      '    - { kind: design-md, owner_step: build, role: require }',
+      '  reads:',
+      '    - { step: build, kinds: [proposal] }',
+      'steps:',
+      '',
+    ].join('\n'))
+    expect(wf.documentContract).toEqual({
+      version: 'v1',
+      slots: [
+        { kind: 'proposal', ownerStep: 'open', producers: ['openspec-propose', 'opsx:propose'] },
+        { kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] },
+      ],
+      reads: [{ step: 'build', kinds: ['proposal'] }],
+    })
+  })
+
+  it('tracks 分支可声明自己的 document_contract；有 tracks 时顶层 document_contract fail-loud', () => {
+    const branch = [
+      'tracks:',
+      '  web:',
+      '    label: 前端',
+      '    document_contract:',
+      '      version: v1',
+      '      slots:',
+      '        - kind: design-md',
+      '          owner_step: build',
+      '          role: require',
+      '      reads: []',
+      '    steps:',
+      '      - id: build',
+      '        label: 实现',
+      '        gate: null',
+      '        skills: []',
+      '        inputs: []',
+      '        outputs: []',
+      '        guards: []',
+      '        transitions: []',
+      '',
+    ].join('\n')
+    const wf = parseWorkflow(`name: branched\nopenspec: true\n${branch}`)
+    expect(wf.tracks?.web?.documentContract?.slots).toEqual([{ kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] }])
+    expect(wf.documentContract).toBeUndefined()
+    expect(() => parseWorkflow(`name: branched\nopenspec: true\ndocument_contract:\n  version: v1\n  slots:\n    - kind: proposal\n      owner_step: build\n      producers: [a]\n  reads: []\n${branch}`))
+      .toThrow('workflow 解析错误：有 tracks 时 document_contract 写在 tracks.<id> 下')
   })
 
   it('Step prompt 使用 YAML literal block，保留多行、引号与模板字符', () => {
