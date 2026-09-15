@@ -218,8 +218,8 @@ function rejectReviewGateField(deps: CliDeps, field: FieldName): boolean {
  * boundary.
  */
 function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
-  if (field === 'phase') {
-    deps.io.err(`ERROR: 字段 'phase' 由 tenon transition 管理，禁止通过 set/set-many/cas 写入`)
+  if (field === 'phase' || field === 'created_by' || field === 'assignee') {
+    deps.io.err(`ERROR: 字段 '${field}' 由 ${field === 'phase' ? 'tenon transition' : 'tenon owner'} 管理，禁止通过 set/set-many/cas 写入`)
     return true
   }
   return rejectReviewGateField(deps, field)

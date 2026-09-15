@@ -92,6 +92,7 @@ async function start(opts?: {
   initialWorkflow?: { workflow: string; phase: string }
   seedGovernedEvidence?: boolean
   seedPhaseSkill?: boolean
+  resolveUser?: DashboardServerOptions['resolveUser']
 }): Promise<Harness> {
   const store = opts?.store ?? newStore()
   const root = await makeProject()
@@ -125,6 +126,7 @@ async function start(opts?: {
     runPipelineCli: opts?.runPipelineCli,
     scoreRouterPattern: opts?.scoreRouterPattern,
     cadence: opts?.cadence,
+    ...(opts?.resolveUser === undefined ? {} : { resolveUser: opts.resolveUser }),
   })
   openServers.push(srv)
   const { port } = await srv.listen(0, '127.0.0.1')
@@ -1500,6 +1502,7 @@ describe('POST /api/change/<name>/transition —— .pipeline-history.jsonl 记�
       // W1 第二增量收尾：写侧统一走 transitionRecordToHistoryEntry，打上来源标记（唯一构造点，
       // 见 kernel state/history.ts）——不再是手填的裸对象。
       transitionRecordId: expect.any(String),
+      actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' },
     })
   })
 
@@ -1585,7 +1588,7 @@ describe('GET /api/change/:name/history —— 阶段时间线读端点（G21 / 
     expect(entries).toEqual([
       // 这次转换首次建立 canonical 链（懒生成兜底），history 端点走 canonical 分支返回，条目带
       // transitionRecordId（chain.map(transitionRecordToHistoryEntry) 的标配字段）。
-      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: expect.any(String) },
+      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: expect.any(String), actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } },
     ])
   })
 
@@ -1618,7 +1621,7 @@ describe('GET /api/change/:name/history —— 阶段时间线读端点（G21 / 
     const entries = r.json<{ entries: Array<{ kind: string; from: string; to: string; raw: string; transitionRecordId?: string }> }>()
       .entries
     expect(entries).toEqual([
-      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: real.transitionRecordId },
+      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: real.transitionRecordId, actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } },
     ])
   })
 
@@ -1646,7 +1649,7 @@ describe('GET /api/change/:name/history —— 阶段时间线读端点（G21 / 
     // 老记录（链建立前，无标记）与新记录（canonical 链，带标记）都在，按时间排好序，互不重复
     expect(entries).toEqual([
       { ts: '2026-07-06T00:00:00Z', kind: 'transition', from: 'archive', to: 'archive', raw: 'archived' },
-      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: expect.any(String) },
+      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: expect.any(String), actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } },
     ])
   })
 
@@ -5269,6 +5272,30 @@ describe('未知 HTTP 方法（非 GET/POST/PATCH/PUT/DELETE）仍 405（既有�
 // ═══════════ G18：项目注册端点（spec §3.1，dashboard 闭环第一环）═══════════
 
 /** G18 端点专用 harness：不注入 registry，走 Tenon 平台配置域的真实文件读写。 */
+describe('POST /api/change/<name>/transition —— 负责人规则', () => {
+  const post = (h: Harness) => reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'open-complete' }, {
+    headers: { Authorization: `Bearer ${h.token}` },
+  })
+
+  it('非负责人推进 → 403 owner-required 并返回负责人，零写入', async () => {
+    const h = await start({ resolveUser: () => ({ id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }) })
+    const before = await readFile(join(h.changeDir, '.pipeline.yaml'), 'utf8')
+    const r = await post(h)
+    expect(r.status).toBe(403)
+    expect(r.json()).toMatchObject({
+      ok: false, code: 'owner-required', owner: { id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test' },
+    })
+    expect(await readFile(join(h.changeDir, '.pipeline.yaml'), 'utf8')).toBe(before)
+  })
+
+  it('身份缺失 → 412 user-missing', async () => {
+    const h = await start({ resolveUser: () => ({ missing: true }) })
+    const r = await post(h)
+    expect(r.status).toBe(412)
+    expect(r.json()).toMatchObject({ ok: false, code: 'user-missing' })
+  })
+})
+
 async function startWithHome(opts?: { runPipelineCli?: PipelineCliRunner; resolveUser?: DashboardServerOptions['resolveUser'] }): Promise<{
   srv: DashboardServer
   port: number

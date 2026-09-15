@@ -328,6 +328,7 @@ export async function handlePostExecutionRoutes(
         workspaceFingerprint,
         history,
         breadcrumb,
+        resolveUser: deps.resolveUser,
         // 这里用的正是 Dashboard 当前 root 的 effective Track Registry，而不是靠 track id
         // 写死 PM。自定义 track 也可通过 auto_enqueue_on_spec_complete 显式接入同一条后置编排。
         resolveTrackPolicy: (trackId) => requireTrackForRoot(loadEffectiveTrackRegistry(), trackId, root).policyProfile,

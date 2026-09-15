@@ -181,7 +181,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const dir = await initChange(deps, root, 'demo')
       await deps.runRepository.bindAutomationPolicy(dir, policyFor())
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'open-complete', context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete', context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result).toEqual({ kind: 'constraint-denied', reason: 'loop-inactive' })
       expect((await createStateStore().read(dir)).fields.phase).toBe('open')
@@ -196,7 +196,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const dir = await initChange(deps, root, 'demo')
       await deps.runRepository.bindAutomationPolicy(dir, policyFor(['explore']))
       const app = createTransitionApplication(deps)
-      const command = { root, changeDir: dir, changeName: 'demo', event: 'open-complete', context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW }
+      const command = { root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete', context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW }
       expect(await app.execute(command)).toEqual({ kind: 'constraint-denied', reason: 'human-gate-required' })
       human = true
       expect((await app.execute(command)).kind).toBe('applied')
@@ -208,7 +208,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const dir = await initChange(deps, root, 'demo')
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'open-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result.kind).toBe('applied')
@@ -224,7 +224,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const deps = makeDeps()
       const dir = await initChange(deps, root, 'demo')
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'open-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete',
         context: { tasksThroughPhase: async () => ({ pass: false, failure: 'open 出口：canonical TaskPlan tasks.md 投影认证失败' }) },
         loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
@@ -245,7 +245,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
           repoRoot: root, name: `missing-evidence-${track}`, track, reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
         })
         const result = await createTransitionApplication(deps).execute({
-          root, changeDir, changeName: `missing-evidence-${track}`, event: 'open-complete', context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
+          root, changeDir, changeName: `missing-evidence-${track}`, actor: TEST_CREATOR, event: 'open-complete', context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
         })
         expect(result.kind).toBe('document-evidence-failed')
         if (result.kind !== 'document-evidence-failed') throw new Error('expected document-evidence-failed')
@@ -266,7 +266,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       deps.history = { append: async () => { order.push('history') } }
       const app = createTransitionApplication(deps)
       await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'open-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(order).toEqual(['breadcrumb', 'history'])
@@ -283,7 +283,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       const app = createTransitionApplication(deps)
       const command = {
-        root, changeDir: dir, changeName: 'demo', event: 'explore-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'explore-complete',
         context: { fileExists: () => true }, loadWorkflow: NEVER_FOUND_WORKFLOW,
       }
       expect(await app.execute(command)).toEqual({
@@ -325,7 +325,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       const before = await store.read(dir)
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'explore-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'explore-complete',
         context: { fileExists: () => true }, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result).toEqual({ kind: 'review-approval-required', phase: 'explore', event: 'explore-complete' })
@@ -347,7 +347,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       const dir = await initChange(deps, root, 'demo')
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'open-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result.kind).toBe('applied')
@@ -375,7 +375,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       const app = createTransitionApplication(deps)
       const blocked = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'verify-pass',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'verify-pass',
         context: {
           fileExists: () => true,
           assessBuildRevision: TRUSTED_GIT_ASSESSMENT,
@@ -385,7 +385,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       expect((await store.read(dir)).fields.phase).toBe('verify')
 
       const rollback = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'verify-fail',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'verify-fail',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(rollback.kind).toBe('applied')
@@ -399,7 +399,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const dir = await initChange(deps, root, 'demo')
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'no-such-event',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'no-such-event',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result).toEqual({ kind: 'unknown-event', event: 'no-such-event' })
@@ -415,7 +415,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const app = createTransitionApplication(deps)
       // demo 当前 phase=open；explore-complete 期望 from=explore，不匹配
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'explore-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'explore-complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result).toEqual({
@@ -439,7 +439,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       }
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'open-complete', // 前置全过，走到 flow.transition 才抛
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete', // 前置全过，走到 flow.transition 才抛
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result).toEqual({ kind: 'illegal-transition', from: 'open', to: 'archive' })
@@ -457,7 +457,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       await createStateStore().set(dir, 'phase', 'explore')
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'explore-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'explore-complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result.kind).toBe('precondition-violated')
@@ -473,14 +473,14 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const app = createTransitionApplication(deps)
 
       const missing = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'ship-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'ship-complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(missing.kind).toBe('precondition-violated')
       expect((await createStateStore().read(dir)).fields.phase).toBe('ship')
 
       const invalid = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'ship-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'ship-complete',
         context: { specMigrationStatus: async () => ({ kind: 'invalid', reason: 'receipt-mismatch' }) },
         loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
@@ -488,7 +488,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       expect((await createStateStore().read(dir)).fields.phase).toBe('ship')
 
       const applied = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'ship-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'ship-complete',
         context: { specMigrationStatus: async () => ({ kind: 'not-required' }) },
         loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
@@ -512,7 +512,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const canonicalBeforeHash = safeRevisionHash(canonicalBefore.fields)
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'build-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'build-complete',
         context: {}, // 无 capture capability → fail-closed
         loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
@@ -547,7 +547,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         root,
         changeDir: dir,
         changeName: 'demo',
-        event: 'explore-complete',
+        actor: TEST_CREATOR, event: 'explore-complete',
         context: { fileExists: () => true },
         loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
@@ -574,7 +574,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
 
       let taskGateCalled = false
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'requirements-changed',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'requirements-changed',
         context: { tasksThroughPhase: async () => {
           taskGateCalled = true
           return { pass: false, failure: 'build 出口：tasks.md 仍有 1 项未勾' }
@@ -598,7 +598,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       deps.breadcrumb = { write: async () => { throw new Error('disk full') } }
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'open-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result.kind).toBe('applied')
@@ -617,7 +617,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const dir = await initChange(deps, root, 'demo')
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'open-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result.kind).toBe('applied')
@@ -636,7 +636,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       let captureCalls = 0
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'build-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'build-complete',
         context: { captureBuildRevision: async () => { captureCalls++; return GIT_BUILD_TOKEN } },
         loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
@@ -661,7 +661,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       let assessCalls = 0
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'verify-pass',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'verify-pass',
         context: {
           fileExists: () => true,
           assessBuildRevision: async (request) => { assessCalls++; return TRUSTED_GIT_ASSESSMENT(request) },
@@ -685,7 +685,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'verify-pass',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'verify-pass',
         context: {
           fileExists: () => true,
           assessBuildRevision: async () => ({ trusted: false as const, blocker: makeBuildRevisionBlocker('revision-stale') }),
@@ -716,7 +716,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const app = createTransitionApplication(deps)
       let taskGateCalled = false
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'verify-fail',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'verify-fail',
         context: { tasksThroughPhase: async () => {
           taskGateCalled = true
           return { pass: false, failure: 'verify 出口：tasks.md 仍有 2 项未勾' }
@@ -757,7 +757,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const dir = await initCustomChange(deps, root, 'demo')
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete',
         context: {}, loadWorkflow: (name) => (name === 'onboarding' ? compileWorkflow(TWO_STEP_WF) : null),
       })
       expect(result.kind).toBe('applied')
@@ -789,7 +789,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         root,
         changeDir: dir,
         changeName: 'demo',
-        event: 'complete',
+        actor: TEST_CREATOR, event: 'complete',
         context: {},
         loadWorkflow: (name: string) => name === 'onboarding' ? compileWorkflow(withSkill) : null,
       }
@@ -814,7 +814,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const dir = await initCustomChange(deps, root, 'demo')
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result).toEqual({ kind: 'workflow-not-found', workflowName: 'onboarding' })
@@ -857,7 +857,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         root,
         changeDir,
         changeName: 'demo',
-        event: 'complete',
+        actor: TEST_CREATOR, event: 'complete',
         context: {},
         loadWorkflow: (name) => name === 'governed'
           ? compileWorkflow({ name: 'governed', steps: governed.steps })
@@ -879,7 +879,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const dir = await initCustomChange(deps, root, 'demo')
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'no-such-event',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'no-such-event',
         context: {}, loadWorkflow: (name) => (name === 'onboarding' ? compileWorkflow(TWO_STEP_WF) : null),
       })
       expect(result).toEqual({
@@ -894,7 +894,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       await createStateStore().set(dir, 'phase', 'ghost-step')
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete',
         context: {}, loadWorkflow: (name) => (name === 'onboarding' ? compileWorkflow(TWO_STEP_WF) : null),
       })
       expect(result).toEqual({ kind: 'step-not-in-graph', workflowName: 'onboarding', stepId: 'ghost-step' })
@@ -921,7 +921,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete',
         context: {}, loadWorkflow: (name) => (name === 'guarded' ? compileWorkflow(guardedWf) : null),
       })
       expect(result.kind).toBe('step-guard-failed')
@@ -991,7 +991,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const dir = await initAt(deps, root, 'ui-main', 'verify')
       const store = createStateStore()
       const command = {
-        root, changeDir: dir, changeName: 'demo', event: 'archived', context: {}, loadWorkflow: loaderFor(MAIN),
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'archived', context: {}, loadWorkflow: loaderFor(MAIN),
       }
 
       await expect(createTransitionApplication(deps).execute(command)).resolves.toEqual({
@@ -1030,7 +1030,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const deps = makeDeps({ missingStepSkills: missingSkills(() => completed) })
       const dir = await initAt(deps, root, 'ui-docs', 'stage-1')
       const store = createStateStore()
-      const base = { root, changeDir: dir, changeName: 'demo', context: {}, loadWorkflow: loaderFor(DOCS) }
+      const base = { root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, context: {}, loadWorkflow: loaderFor(DOCS) }
 
       await store.setMany(dir, approved('stage-1', 'stage-1-complete'))
       await expect(createTransitionApplication(deps).execute({ ...base, event: 'stage-1-complete' }))
@@ -1063,7 +1063,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const deps = makeDeps()
       const dir = await initAt(deps, root, 'ui-main', 'stage-1')
       await expect(createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'archived', context: {}, loadWorkflow: loaderFor(MAIN),
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'archived', context: {}, loadWorkflow: loaderFor(MAIN),
       })).resolves.toEqual({
         kind: 'event-unsupported', workflowName: 'ui-main', stepId: 'stage-1', event: 'archived', available: ['stage-1-complete'],
       })
@@ -1079,7 +1079,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       }
       const dir = await initAt(deps, root, 'archive-terminal', 'archive')
       const command = {
-        root, changeDir: dir, changeName: 'demo', event: 'archived', context: {}, loadWorkflow: loaderFor(ARCHIVE),
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'archived', context: {}, loadWorkflow: loaderFor(ARCHIVE),
       }
       await expect(createTransitionApplication(deps).execute(command))
         .resolves.toMatchObject({ kind: 'applied', from: 'archive', to: 'archive' })
@@ -1095,7 +1095,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const simple = builtinWorkflow('simple')
       if (simple === null) throw new Error('simple workflow missing')
       const dir = await initAt(deps, root, 'simple', 'change')
-      const base = { root, changeDir: dir, changeName: 'demo', context: {}, loadWorkflow: loaderFor(simple) }
+      const base = { root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, context: {}, loadWorkflow: loaderFor(simple) }
 
       await expect(createTransitionApplication(deps).execute({ ...base, event: 'archived' })).resolves.toEqual({
         kind: 'event-unsupported', workflowName: 'simple', stepId: 'change', event: 'archived',
@@ -1130,7 +1130,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       failProjection = true
 
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'open-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
 
@@ -1150,7 +1150,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       deps.history = { append: async () => { throw new Error('disk full') } }
       const app = createTransitionApplication(deps)
       const result = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'open-complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'open-complete',
         context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
       })
       expect(result.kind).toBe('applied')
@@ -1183,7 +1183,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       }
       const dir = await initCustom(deps, root, 'vf', 'verify')
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'pass',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'pass',
         context: {}, loadWorkflow: (n) => (n === 'vf' ? compileWorkflow(wf) : null),
       })
       expect(result.kind).toBe('applied')
@@ -1232,7 +1232,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const app = createTransitionApplication(deps)
       const load = (name: string) => (name === 'governed' ? compileWorkflow(wf) : null)
       expect((await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'complete',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete',
         context: {
           captureBuildRevision: async () => { captureCalls += 1; return baseline },
           assessBuildRevision: async () => {
@@ -1253,7 +1253,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       current = WORKSPACE_BUILD_TOKEN_DRIFT
       const drifted = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'accept',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'accept',
         context: {
           fileExists: () => true,
           assessBuildRevision: async () => ({ trusted: false as const, blocker: makeBuildRevisionBlocker('revision-stale') }),
@@ -1266,7 +1266,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
 
       current = baseline
       const passed = await app.execute({
-        root, changeDir: dir, changeName: 'demo', event: 'accept',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'accept',
         context: {
           fileExists: () => true,
           assessBuildRevision: async () => ({ trusted: true as const, token: createBuildRevisionToken('workspace', `workspace:sha256:${'b'.repeat(64)}`, REVISION_IDENTITY) }),
@@ -1314,7 +1314,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       let assessorCalls = 0
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'rollback',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'rollback',
         context: {
           assessBuildRevision: async () => {
             assessorCalls += 1
@@ -1359,7 +1359,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       })
       let assessorCalls = 0
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'reject',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'reject',
         context: {
           assessBuildRevision: async () => {
             assessorCalls += 1
@@ -1394,12 +1394,12 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const load = (n: string) => (n === 'gf' ? compileWorkflow(wf) : null)
       const dir = await initCustom(deps, root, 'gf', 'verify')
       const app = createTransitionApplication(deps)
-      const blocked = await app.execute({ root, changeDir: dir, changeName: 'demo', event: 'pass', context: {}, loadWorkflow: load })
+      const blocked = await app.execute({ root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'pass', context: {}, loadWorkflow: load })
       expect(blocked.kind).toBe('step-guard-failed')
       expect((await createStateStore().read(dir)).fields.phase).toBe('verify') // 零写盘
 
       await createStateStore().set(dir, 'branch_status', 'handled')
-      const ok = await app.execute({ root, changeDir: dir, changeName: 'demo', event: 'pass', context: {}, loadWorkflow: load })
+      const ok = await app.execute({ root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'pass', context: {}, loadWorkflow: load })
       expect(ok.kind).toBe('applied')
       expect((await createStateStore().read(dir)).fields.phase).toBe('done')
     })
@@ -1422,7 +1422,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const rootA = await freshRepoRoot()
       const depsA = makeDeps()
       const dirA = await initCustom(depsA, rootA, 'wnf', 'verify')
-      const blocked = await createTransitionApplication(depsA).execute({ root: rootA, changeDir: dirA, changeName: 'demo', event: 'go', context: {}, loadWorkflow: load })
+      const blocked = await createTransitionApplication(depsA).execute({ root: rootA, changeDir: dirA, changeName: 'demo', actor: TEST_CREATOR, event: 'go', context: {}, loadWorkflow: load })
       expect(blocked.kind).toBe('step-guard-failed')
 
       // pm 轨：同一 guard 的 when 不命中 → 豁免（即便字段未设也放行）
@@ -1430,7 +1430,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const depsB = makeDeps()
       const dirB = await initCustom(depsB, rootB, 'wnf', 'verify')
       await createStateStore().set(dirB, 'track', 'pm')
-      const passed = await createTransitionApplication(depsB).execute({ root: rootB, changeDir: dirB, changeName: 'demo', event: 'go', context: {}, loadWorkflow: load })
+      const passed = await createTransitionApplication(depsB).execute({ root: rootB, changeDir: dirB, changeName: 'demo', actor: TEST_CREATOR, event: 'go', context: {}, loadWorkflow: load })
       expect(passed.kind).toBe('applied')
     })
 
@@ -1452,7 +1452,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const canonicalBefore = await createStateStore().read(dir)
       const canonicalBeforeHash = safeRevisionHash(canonicalBefore.fields)
       await expect(createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'go',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'go',
         context: {},
         loadWorkflow: (n) => (n === 'bf' ? compileWorkflow(wf) : null),
       })).resolves.toMatchObject({ kind: 'revision-untrusted', blocker: {
@@ -1484,7 +1484,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const dir = await initCustom(deps, root, 'vfb', 'verify')
       await createStateStore().set(dir, 'build_sha', 'abc123') // 先冻结一个 SHA，证明 fail 复位它
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'fail',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'fail',
         context: {}, loadWorkflow: (n) => (n === 'vfb' ? compileWorkflow(wf) : null),
       })
       expect(result.kind).toBe('applied')
@@ -1514,7 +1514,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       }
       const dir = await initCustom(deps, root, 'lazy', 'draft')
       const result = await createTransitionApplication(deps).execute({
-        root, changeDir: dir, changeName: 'demo', event: 'done',
+        root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'done',
         context: {}, loadWorkflow: (n) => (n === 'lazy' ? compileWorkflow(wf) : null),
       })
       expect(result.kind).toBe('applied')

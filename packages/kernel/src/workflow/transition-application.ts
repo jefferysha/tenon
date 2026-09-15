@@ -37,6 +37,8 @@ import type { FieldName, FlowEngine, Phase, PipelineState } from '../types.js'
 import { IllegalTransitionError } from '../types.js'
 import { applyBreadcrumbTail, clearReviewGatePatch, readCurrentRunRevision, reviewGateApprovedFor, transitionRecordToHistoryEntry } from '../state/index.js'
 import { evaluateDocumentEvidence } from '../state/document-evidence.js'
+import { ownerDecision } from '../users/owner.js'
+import { formatUserRef } from '../users/user.js'
 import type { DocumentEvidenceReport } from '../state/document-evidence.js'
 import { builtinTrack, isBuiltinTrackId } from '../tracks/builtins.js'
 import { eventEdge } from '../flow/index.js'
@@ -268,6 +270,8 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
   return {
     async execute(command: TransitionCommand): Promise<TransitionApplicationResult> {
       return deps.runRepository.transact(command.changeDir, async (tx): Promise<TransitionApplicationResult> => {
+        const owner = ownerDecision(tx.state.fields, command.actor)
+        if (!owner.allowed) return { kind: 'owner-required', owner: owner.owner }
         const beforeInteractionRevision = deps.interaction === undefined
           ? undefined
           : await readCurrentRunRevision(command.changeDir)
@@ -381,7 +385,7 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
         }
         // Receipt 在任一成功 transition 后立即消费，避免一次旧批准在回退/重入同一 phase 后被复用。
         const { record, projection } = await tx.commit({ ...prepared.nextFields, ...clearReviewGatePatch() }, {
-          event: command.event, from: prepared.from, to: prepared.to,
+          event: command.event, from: prepared.from, to: prepared.to, actor: formatUserRef(command.actor),
         })
         const warnings = [...prepared.warnings]
         if (projection.status === 'pending') {

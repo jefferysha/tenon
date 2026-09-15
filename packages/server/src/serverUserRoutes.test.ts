@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { resolveTenonUser, type TenonUserResolution } from '@tenon/kernel'
 import { resolveServerPaths } from './paths.js'
 import { createDashboardServer } from './server.js'
-import { makeProject, makeTempHome, reqGet, reqPost, testFlow } from './test-support.js'
+import { initChange, makeProject, makeTempHome, newStore, reqGet, reqPost, testFlow } from './test-support.js'
 import type { DashboardServer, ServerPaths } from './types.js'
 
 const servers: DashboardServer[] = []
@@ -82,5 +82,35 @@ describe('POST /api/user', () => {
       user: { id: 'jeff@x.io', name: 'Jeff Sha', slug: 'jeff-at-x.io', source: 'config', trust: 'declared' },
     })
     expect(await readFile(h.paths.userConfigPath, 'utf8')).toBe('{"id":"jeff@x.io","name":"Jeff Sha"}\n')
+  })
+})
+
+describe('POST /api/change/:name/owner', () => {
+  const B: TenonUserResolution = { id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }
+
+  it('takes over as the server user with a history row; taking again is unchanged', async () => {
+    const h = await start(() => () => B)
+    await initChange(newStore(), h.root, 'x')
+    const taken = await reqPost(h.port, '/api/change/x/owner', { root: h.root }, { headers: AUTH })
+    expect(taken.status).toBe(200)
+    expect(taken.json()).toEqual({ ok: true, owner: { id: 'b@x.io', name: 'B', slug: 'b-at-x.io' }, changed: true })
+    const dir = join(h.root, 'openspec', 'changes', 'x')
+    const history = await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8')
+    expect(history).toContain('"field":"assignee"')
+    expect(history).toContain('"actor":{"id":"b@x.io","name":"B","trust":"declared"}')
+    expect((await reqPost(h.port, '/api/change/x/owner', { root: h.root }, { headers: AUTH })).json())
+      .toEqual({ ok: true, owner: { id: 'b@x.io', name: 'B', slug: 'b-at-x.io' }, changed: false })
+  })
+
+  it('412 when identity is missing; 404 for unknown root or change; 400 on extra keys; 401 without token', async () => {
+    const h = await start(() => () => ({ missing: true }))
+    await initChange(newStore(), h.root, 'x')
+    const missing = await reqPost(h.port, '/api/change/x/owner', { root: h.root }, { headers: AUTH })
+    expect(missing.status).toBe(412)
+    expect(missing.json()).toMatchObject({ ok: false, code: 'user-missing' })
+    expect((await reqPost(h.port, '/api/change/x/owner', { root: '/not-registered' }, { headers: AUTH })).status).toBe(404)
+    expect((await reqPost(h.port, '/api/change/ghost/owner', { root: h.root }, { headers: AUTH })).status).toBe(404)
+    expect((await reqPost(h.port, '/api/change/x/owner', { root: h.root, to: 'c@x.io' }, { headers: AUTH })).status).toBe(400)
+    expect((await reqPost(h.port, '/api/change/x/owner', { root: h.root })).status).toBe(401)
   })
 })

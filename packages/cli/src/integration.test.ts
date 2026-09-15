@@ -101,7 +101,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
   test('set 四闸真拒写（": " 注入）exit 1，文件不被破坏', async () => {
     await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full'])
     const before = await h.read('demo')
-    expect(await h.run(['set', 'demo', 'assignee', 'a: b'])).toBe(1)
+    expect(await h.run(['set', 'demo', 'prd_path', 'a: b'])).toBe(1)
     expect(await h.read('demo')).toBe(before) // 字节不变
   })
 

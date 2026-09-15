@@ -10,4 +10,7 @@ export {
 } from './user-paths.js'
 export type { UserProjectPaths } from './user-paths.js'
 export { readActiveChange, writeActiveChange } from './active-change.js'
-export { creatorOf, ownerOf } from './owner.js'
+export { assertOwner, creatorOf, OwnerRequiredError, ownerDecision, ownerOf, ownerRequiredMessage } from './owner.js'
+export type { OwnerDecision } from './owner.js'
+export { transferOwner } from './owner-transfer.js'
+export type { OwnerTransferResult } from './owner-transfer.js'

@@ -70,7 +70,8 @@ export function mockState(fields: Partial<Record<FieldName, string | string[]>> 
   for (const f of FIELD_ORDER) {
     // workflow 缺省 'default'——镜像 kernel emptyFields()（Task 4）；否则 mockState 会产出
     // workflow==='' 让每个默认路径单测误入自定义 workflow 分支（'' !== 'default'）。
-    all[f] = f === 'workflow' ? 'default' : (LIST_FIELDS as readonly string[]).includes(f) ? [] : ''
+    // assignee 缺省为 makeDeps 的默认用户，负责人规则下 mock 转换照常放行。
+    all[f] = f === 'workflow' ? 'default' : f === 'assignee' ? 'Tester <tester@tenon.test>' : (LIST_FIELDS as readonly string[]).includes(f) ? [] : ''
   }
   return { fields: { ...all, ...fields }, opaqueTail: '' }
 }

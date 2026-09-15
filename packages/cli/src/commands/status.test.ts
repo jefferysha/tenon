@@ -15,6 +15,7 @@ const stateB = mockState({
   track: 'pm',
   phase: 'explore',
   phase_status: 'pending',
+  assignee: 'null',
   updated_at: '2026-07-05T00:00:00Z',
 })
 const stateArchived = mockState({

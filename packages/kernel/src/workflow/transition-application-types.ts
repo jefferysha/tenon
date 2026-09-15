@@ -10,6 +10,7 @@ import type { TrackDefinition } from '../tracks/types.js'
 import type { BuildRevisionBlocker } from './build-revision.js'
 import type { InteractionEventRecorder } from '../interaction/ports.js'
 import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
+import type { RecordActor, UserRef } from '../users/user.js'
 
 export interface TransitionApplicationDeps {
   runRepository: WorkflowRunRepository
@@ -51,6 +52,8 @@ export interface TransitionCommand {
   event: string
   context: TransitionContext
   loadWorkflow: (name: string) => WorkflowIR | null
+  /** Declared operator; only the task owner may advance, and the record stores its user ref. */
+  actor: RecordActor
 }
 
 export type TransitionApplicationWarning =
@@ -75,6 +78,7 @@ export type TransitionApplicationResult =
       readonly record: TransitionRecord
       readonly warnings: readonly TransitionApplicationWarning[]
     }
+  | { readonly kind: 'owner-required'; readonly owner: UserRef | null }
   | { readonly kind: 'unknown-event'; readonly event: string }
   | {
       readonly kind: 'event-source-mismatch'

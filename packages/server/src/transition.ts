@@ -35,12 +35,14 @@ import {
   taskPlanTasksThroughPhaseForChange, assessBuildRevisionTrust, createBuildRevisionToken,
   probeBuildRevisionIdentity, readValidatedTransitionHead, safeRevisionHash,
   readReviewGateBinding, reviewGateBindingMatches,
+  actorOf, isTenonUser, ownerRequiredMessage, USER_MISSING_HINT,
 } from '@tenon/kernel'
 import type {
   BreadcrumbWriter, EffectiveSkillResolver, FlowEngine, HistoryWriter, StateStore, TrackDefinition,
   TrackPolicyProfile, TransitionApplicationResult, TransitionContext, TransitionRecordStore, WorkflowRunRepository,
 } from '@tenon/kernel'
 import { enqueueAfterSpecComplete } from '@tenon/automation'
+import { defaultResolveUser, type ResolveUser } from './serverUserRoutes.js'
 
 // 事件 → 转移边表：re-export kernel 单一真相源（server/index.ts 对外沿用同名）。
 export { TRANSITION_EVENTS, eventEdge } from '@tenon/kernel'
@@ -88,6 +90,8 @@ export interface TransitionDeps {
   resolveTrackPolicy?: (trackId: string) => TrackPolicyProfile
   resolveTrack?: (trackId: string) => TrackDefinition
   skillResolver?: EffectiveSkillResolver
+  /** Declared identity for the root; defaults to the server resolver. Only the owner may advance. */
+  resolveUser?: ResolveUser
 }
 
 export interface TransitionOutcome {
@@ -203,6 +207,11 @@ function mapTransitionResult(name: string, event: string, result: TransitionAppl
       const lines = [`OpenSpec 文档证据未通过（phase=${result.phase}）`, ...result.blockers]
       return { code: 409, body: { ok: false, error: lines[0], detail: lines, code: 'document-evidence-failed' } }
     }
+    case 'owner-required':
+      return {
+        code: 403,
+        body: { ok: false, code: 'owner-required', owner: result.owner, error: ownerRequiredMessage(name, result.owner) },
+      }
     case 'review-approval-required':
       return {
         code: 409,
@@ -238,6 +247,8 @@ export async function performTransition(
   if (!stateStorageExistsSync(dir)) {
     return { code: 404, body: { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' } }
   }
+  const user = (deps.resolveUser ?? defaultResolveUser)(root)
+  if (!isTenonUser(user)) return { code: 412, body: { ok: false, code: 'user-missing', error: USER_MISSING_HINT } }
   // kernel 单源注入面：把 server 的 (root,path)/(cwd) 签名绑成已锚定项目根的 TransitionContext。
   const fileExists = deps.fileExists
   const gitHeadSha = deps.gitHeadSha
@@ -337,6 +348,7 @@ export async function performTransition(
       changeDir: dir,
       changeName: name,
       event,
+      actor: actorOf(user),
       context: ctx,
       // loadWorkflow→compileWorkflow：TransitionApplication 收编译产物 WorkflowIR；编译错误
       // （= 基础设施错误）经 execute 抛出，落 performTransition 的 catch → 500（同既有非法 workflow 语义）。

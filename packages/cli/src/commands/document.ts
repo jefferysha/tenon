@@ -19,7 +19,7 @@ import {
   renderDocumentTemplate,
   documentPathForKind,
   documentTemplateIdForKind,
-  readDocumentLedger,
+  readDocumentLedger, assertOwner,
 } from '@tenon/kernel'
 import {
   recordCanonicalDocumentSkillInvocation,
@@ -223,6 +223,7 @@ export async function cmdDocumentRecord(
     const recordedAt = deps.clock()
     await withSkillInvocationChangeLock(dir, async (lock) => {
       const state = await deps.store.read(dir)
+      assertOwner(name, state.fields, actor)
       const context = governedDocumentContext(deps, state)
       const { phase, policy } = assertGoverned(context)
       const runMetadata = state.runMetadata
@@ -261,8 +262,7 @@ export async function cmdDocumentRecord(
           documentKind: kind,
           producer,
           recordedAt,
-          allowBackfill: backfill,
-          actor,
+          allowBackfill: backfill, actor,
         })
         if (receipt.status !== 'committed') throw new Error(receipt.diagnostics?.join('; ') ?? 'document submission failed')
         ledger = await readDocumentLedger(dir)
@@ -277,8 +277,7 @@ export async function cmdDocumentRecord(
           path,
           producer,
           recordedAt,
-          allowBackfill: backfill,
-          actor,
+          allowBackfill: backfill, actor,
         })
       }
       const requestedPath = relative(resolve(deps.cwd), resolve(deps.cwd, path))
