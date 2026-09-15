@@ -14,6 +14,11 @@ common directory 相同才接受。只转发 stdout 会丢失 nested `exit_code`
 `text(result.output)` 明确拒绝，规范 wrapper 为 `text(result)`。JSON 旁路字段作为纯数据
 忽略，只验证 `cmd`/`command`/`workdir`。
 
+Codex 也会生成等价的单表达式 `text(await tools.exec_command({...}));`：同样是单个 awaited
+exec、完整 result 直接转发，整段程序锚定匹配，因此一并接受（v1.1.3 真实 Codex 任务中，
+这种写法的完整 SKILL.md 读取曾被判为无证据，首次 `document record` 必然失败）。
+`.output`、未 await、包裹转换和任何附加语句仍拒绝。
+
 Verify 后进一步固定：当前 custom ABI 的成功 output 必须是包含 `chunk_id`、
 `wall_time_seconds`、`exit_code`、`original_token_count` 与 `output` 的完整结果信封；
 任意未标型对象和形似结果的 stdout JSON 都拒绝。旧 ABI 仅保留明确标型的

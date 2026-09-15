@@ -238,11 +238,16 @@ function eventLines(
     readonly command?: string
     readonly execArgs?: Readonly<Record<string, unknown>>
     readonly pragma?: string
+    readonly inlineText?: boolean
   } = {},
 ): string {
   const callId = options.callId ?? toolUseId
   const command = options.command
     ?? skillPaths.map((path) => `cat ${path}`).join(' && ')
+  const execArgs = JSON.stringify({ cmd: command, ...options.execArgs })
+  const program = options.inlineText
+    ? `text(await tools.exec_command(${execArgs}));`
+    : `const r = await tools.exec_command(${execArgs}); text(r);`
   const events: unknown[] = [
     {
       type: 'session_meta',
@@ -266,10 +271,7 @@ function eventLines(
         status: 'completed',
         call_id: callId,
         name: 'exec',
-        input: `${options.pragma === undefined ? '' : `${options.pragma}\n`}const r = await tools.exec_command(${JSON.stringify({
-          cmd: command,
-          ...options.execArgs,
-        })}); text(r);`,
+        input: `${options.pragma === undefined ? '' : `${options.pragma}\n`}${program}`,
         internal_chat_message_metadata_passthrough: { turn_id: turnId },
       },
     },
@@ -981,6 +983,29 @@ describe('Codex transcript skill receipt', () => {
       transcript,
       eventLines(customResultOutput(), turnId, [skillPath], '2026-07-24T00:02:00Z', {
         pragma: '// @exec: {"max_output_tokens":20000}',
+      }),
+      'utf8',
+    )
+    await recordPendingReceipt()
+
+    const result = await reconcileCodexSkillEvidence({
+      repoRoot: root,
+      changeDir,
+      producer: 'openspec-propose',
+      recordedAt: '2026-07-24T00:03:00Z',
+      history: historyWriter,
+      homeDir: home,
+      codexHomeDir: join(home, '.codex'),
+    })
+    expect(result.confirmedSkillIds).toEqual(['openspec-propose'])
+  })
+
+  it('accepts the single-expression text(await exec) program when it forwards the complete Skill', async () => {
+    await writeFile(
+      transcript,
+      eventLines(customResultOutput(), turnId, [skillPath], '2026-07-24T00:02:00Z', {
+        execArgs: { max_output_tokens: 6500 },
+        inlineText: true,
       }),
       'utf8',
     )

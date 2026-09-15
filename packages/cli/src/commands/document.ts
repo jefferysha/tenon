@@ -243,7 +243,10 @@ export async function cmdDocumentRecord(
         applicationKey: `${kind}\0${path}`,
       })
       if (await currentDocumentSkillConfirmation(dir, producer, phase, recordedAt) === undefined) {
-        throw new Error(`current StepVisit lacks exact host confirmation for document producer '${producer}'`)
+        throw new Error(
+          `current StepVisit lacks exact host confirmation for document producer '${producer}'`
+          + `；在当前阶段重新调用该技能后重试登记（Claude Code 用 Skill 工具；Codex 用单独一条 cat 读取其 SKILL.md，max_output_tokens 要足够大，输出被截断不算读取）`,
+        )
       }
       let ledger: Awaited<ReturnType<typeof readDocumentLedger>>
       if (deps.artifactSubmission) {

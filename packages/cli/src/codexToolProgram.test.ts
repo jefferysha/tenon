@@ -40,6 +40,29 @@ const r = await tools.exec_command({cmd:"cat /trusted/SKILL.md",max_output_token
 `)).toEqual([{ command: 'cat /trusted/SKILL.md' }])
   })
 
+  it('accepts the single-expression wrapper that forwards the complete awaited result', () => {
+    expect(transcriptExecInvocations(
+      'text(await tools.exec_command({cmd:"cat /trusted/SKILL.md",max_output_tokens:6500}));\n',
+    )).toEqual([{ command: 'cat /trusted/SKILL.md' }])
+    expect(transcriptExecInvocations(`// @exec: {"max_output_tokens":6500}
+text(await tools.exec_command({
+  cmd: "cat /trusted/SKILL.md",
+  workdir: "/repo"
+}))
+`)).toEqual([{ command: 'cat /trusted/SKILL.md', workdir: '/repo' }])
+  })
+
+  it.each([
+    ['stdout only', 'text(await tools.exec_command({cmd:"cat /trusted/SKILL.md"}).output);'],
+    ['not awaited', 'text(tools.exec_command({cmd:"cat /trusted/SKILL.md"}));'],
+    ['extra statement', 'text(await tools.exec_command({cmd:"cat /trusted/SKILL.md"})); text("Script completed");'],
+    ['leading statement', 'text("ok"); text(await tools.exec_command({cmd:"cat /trusted/SKILL.md"}));'],
+    ['wrapped result', 'text(JSON.stringify(await tools.exec_command({cmd:"cat /trusted/SKILL.md"})));'],
+    ['bound but stdout only', 'const r = await tools.exec_command({cmd:"cat /trusted/SKILL.md"}); text(r.output);'],
+  ])('rejects a program that does not forward exactly one complete result: %s', (_label, program) => {
+    expect(transcriptExecInvocations(program)).toEqual([])
+  })
+
   it.each([
     '0',
     '-1',

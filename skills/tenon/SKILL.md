@@ -54,6 +54,10 @@ const result = await tools.exec_command({ cmd: "<读取 SKILL.md 的命令>", wo
 text(result);
 ```
 
+等价的单表达式 `text(await tools.exec_command({ ... }));` 同样接受。读取必须拿到整个 SKILL.md：
+`max_output_tokens` 要足够容纳全文（phase skill 可达 20 KB，约 5000 token）；输出被截断的读取不算
+证据，随后的 `tenon document record` 会报 `lacks exact host confirmation`，需要用足够的上限重新读取。
+
 不得使用 `text(result.output)`：它会丢失内部退出码，即使外层 custom tool 显示完成，也不能
 证明 Skill 读取成功，Tenon 会按失败关闭拒绝 receipt。原生 `function_call(exec_command)` ABI
 继续由其结构化 output 提供退出码。

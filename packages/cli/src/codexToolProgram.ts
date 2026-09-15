@@ -143,8 +143,9 @@ function invocationFromObjectLiteral(source: string): TranscriptExecInvocation |
 }
 
 /**
- * Decode only Codex's canonical completed exec wrapper:
- * `const result = await tools.exec_command({ ... }); text(result);`.
+ * Decode only Codex's canonical completed exec wrappers:
+ * `const result = await tools.exec_command({ ... }); text(result);` or the single-expression
+ * `text(await tools.exec_command({ ... }));` that Codex also emits.
  * Anchoring the entire program proves the call is awaited and its complete result is forwarded;
  * comments, strings, dead code, extra statements, and self-authored success text fail closed.
  */
@@ -158,11 +159,15 @@ export function transcriptExecInvocations(input: string): readonly TranscriptExe
       return []
     }
   }
-  const prefix = /^\s*(?:(?:\/\/ @exec:[^\r\n]*\r?\n)\s*)?(?:const|let|var)\s+([$A-Z_a-z][$\w]*)\s*=\s*await\s+tools\.exec_command\s*\(/
+  const bound = /^\s*(?:(?:\/\/ @exec:[^\r\n]*\r?\n)\s*)?(?:const|let|var)\s+([$A-Z_a-z][$\w]*)\s*=\s*await\s+tools\.exec_command\s*\(/
     .exec(input)
+  const inline = bound === null
+    ? /^\s*(?:(?:\/\/ @exec:[^\r\n]*\r?\n)\s*)?text\s*\(\s*await\s+tools\.exec_command\s*\(/.exec(input)
+    : null
+  const prefix = bound ?? inline
   if (!prefix) return []
-  const resultName = prefix[1]
-  if (!resultName) return []
+  const resultName = bound?.[1]
+  if (bound && !resultName) return []
   let objectStart = prefix[0].length
   while (/\s/.test(input[objectStart] ?? '')) objectStart += 1
   if (input[objectStart] !== '{') return []
@@ -194,10 +199,11 @@ export function transcriptExecInvocations(input: string): readonly TranscriptExe
 
   const invocation = invocationFromObjectLiteral(input.slice(objectStart, objectEnd))
   if (!invocation) return []
-  const escapedResultName = resultName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const suffix = new RegExp(
-    `^\\s*\\)\\s*;\\s*text\\s*\\(\\s*${escapedResultName}\\s*\\)\\s*;?\\s*$`,
-  )
+  const suffix = resultName === undefined
+    ? /^\s*\)\s*\)\s*;?\s*$/
+    : new RegExp(
+      `^\\s*\\)\\s*;\\s*text\\s*\\(\\s*${resultName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\)\\s*;?\\s*$`,
+    )
   return suffix.test(input.slice(objectEnd)) ? [invocation] : []
 }
 

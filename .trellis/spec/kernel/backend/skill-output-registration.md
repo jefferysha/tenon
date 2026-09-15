@@ -258,6 +258,84 @@ const SAFE_SKILL_ID = /^(?:[A-Za-z0-9_-]{1,64}:)?[A-Za-z0-9_-]{1,160}$/u
 await recordNativeDocumentSkillConfirmation(dir, skillId.startsWith('tenon:') ? skillId.slice(6) : skillId, phase, receipt)
 ```
 
+## Codex transcript skill read proof
+
+### 1. Scope / Trigger
+
+- Codex has no Skill tool. A producer confirmation is reconciled at `tenon document record` time from a completed
+  `SKILL.md` read in the host transcript (`packages/cli/src/codexTranscriptEvidence.ts`).
+- Trigger (v1.1.3 real Codex task): two reads never became evidence, so the following record failed and the agent
+  searched the bundled source for the cause: a complete read written as `text(await tools.exec_command({...}));`
+  (the parser accepted only the bound form), and reads of the 20 KB `tenon-explore` skill with
+  `max_output_tokens` 1000/2000 (correctly rejected as truncated, but the error did not say so).
+
+### 2. Signatures
+
+```ts
+// packages/cli/src/codexToolProgram.ts
+transcriptExecInvocations(input: string): readonly TranscriptExecInvocation[]   // [] or exactly one
+// packages/cli/src/codexTrustedSkillRead.ts
+transcriptInputTrustedSkillInvocation(input: string, skillPath: string): TranscriptExecInvocation | undefined
+outputMatchesTrustedSkillReads(output: unknown, abi: 'custom' | 'function', readPaths: readonly string[]): Promise<boolean>
+```
+
+### 3. Contracts
+
+- Accepted `custom_tool_call(exec)` programs (whole input anchored, optional leading `// @exec: {json}` pragma):
+  - `const|let|var <name> = await tools.exec_command({literal}); text(<name>);`
+  - `text(await tools.exec_command({literal}));`
+- The literal object may contain only `cmd|command, justification, login, max_output_tokens (positive safe integer
+  literal), prefix_rule, sandbox_permissions, tty, workdir, yield_time_ms`.
+- The command must be `cat [--] <absolute path>` segments (joined by `&&` or newlines) of trusted
+  `skills/<id>/SKILL.md` files, including the receipt's path.
+- The matching `custom_tool_call_output` must be a complete result envelope with `exit_code` 0 whose `output`
+  equals the concatenated file bytes exactly. Truncated output is never evidence.
+- Failure message (CLI and kernel): `current StepVisit lacks exact host confirmation for document producer '<p>'；在当前阶段重新调用该技能后重试登记（Claude Code 用 Skill 工具；Codex 用单独一条 cat 读取其 SKILL.md，max_output_tokens 要足够大，输出被截断不算读取）`.
+- `skills/tenon/SKILL.md` (Codex hard rule) states both program forms and the output-budget rule.
+
+### 4. Validation & Error Matrix
+
+| Program / output | Result |
+| --- | --- |
+| Bound form, complete output | confirmed |
+| `text(await …)` form, complete output | confirmed |
+| `text(await …).output)`, `text(r.output)` | rejected (exit code not forwarded) |
+| `text(tools.exec_command(…))` (not awaited), wrapped `text(JSON.stringify(await …))`, extra statements, `Promise.allSettled` batches | rejected |
+| Output shorter than the file (budget too small) | rejected; record fails with the hint |
+
+### 5. Good / Base / Bad Cases
+
+- Good: `text(await tools.exec_command({cmd:"cat '<cache>/skills/openspec-propose/SKILL.md'",max_output_tokens:6500}));`
+  → first record succeeds.
+- Base: bound form with `max_output_tokens:8000` on the 20 KB skill → confirmed.
+- Bad: `max_output_tokens:1000` on the same skill → output truncated → record fails; re-read with a larger budget.
+
+### 6. Tests Required
+
+- `codexToolProgram.test.ts`: the single-expression form is accepted (compact, and pretty-printed with pragma and
+  workdir); stdout-only, unawaited, extra/leading statement, wrapped result and bound `.output` programs return `[]`.
+- `codexSkillReceipt.test.ts`: `eventLines(..., { inlineText: true, execArgs: { max_output_tokens: 6500 } })` with a
+  complete result envelope → `confirmedSkillIds` `['openspec-propose']`; existing truncated-output cases still reject.
+- `runtime/stable-hook.integration.test.ts` keeps matching the error by prefix (`toContain`).
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+const prefix = /^\s*(?:const|let|var)\s+(\w+)\s*=\s*await\s+tools\.exec_command\s*\(/.exec(input)
+if (!prefix) return []   // Codex's text(await …) reads silently produce no evidence
+```
+
+#### Correct
+
+```ts
+const bound = /^…(?:const|let|var)\s+([$A-Z_a-z][$\w]*)\s*=\s*await\s+tools\.exec_command\s*\(/.exec(input)
+const inline = bound === null ? /^…text\s*\(\s*await\s+tools\.exec_command\s*\(/.exec(input) : null
+// …same literal-object decoding…
+const suffix = resultName === undefined ? /^\s*\)\s*\)\s*;?\s*$/ : /* ); text(<name>); */ boundSuffix
+```
+
 ### Host attribution boundary
 
 `managed-tool` source is reserved for a host completion event carrying an allow-listed path. Pathless Codex `command_execution` payloads remain `unknown`/`reconcile` observations and may be coalesced into one bounded reconcile per execution turn; consumers must not infer artifact ownership from command text.
