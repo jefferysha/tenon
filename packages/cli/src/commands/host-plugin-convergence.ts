@@ -14,7 +14,7 @@ import {
   type ParsedHostPluginInventory,
   type RemovableHostPluginScope,
 } from './plugin-host.js'
-import { compareStableVersions, type StableReleaseTarget } from './stable-release.js'
+import { compareReleaseOrder, type StableReleaseTarget } from './stable-release.js'
 import {
   hostPluginConvergencePaths,
   parseSessionProof,
@@ -62,7 +62,7 @@ export function recordPendingHostPluginConflict(
       && previous.releaseRoot === join(activation.releaseRoot, 'payload')
       && previous.candidateRoot === candidateRoot
     const newerRelease = previous.stableTarget === undefined
-      || compareStableVersions(stableTarget.version, previous.stableTarget.version) > 0
+      || compareReleaseOrder(stableTarget.version, previous.stableTarget.version) > 0
     if (!sameRelease && !newerRelease) {
       deps.io.err('ERROR: 已缺席的 legacy plugin 对应另一个未被当前稳定版本超越的 receipt；拒绝覆盖。')
       return false
@@ -111,7 +111,7 @@ export function recordPendingHostPluginConflict(
       }
       const supersedesOlderRelease = receipt.releaseId !== activation.release.releaseId
         && (receipt.stableTarget === undefined
-          || compareStableVersions(stableTarget.version, receipt.stableTarget.version) > 0)
+          || compareReleaseOrder(stableTarget.version, receipt.stableTarget.version) > 0)
       if (!supersedesOlderRelease) {
         deps.io.err('ERROR: 冲突清理 receipt 归属于另一个 managed transaction；拒绝覆盖。')
         return false

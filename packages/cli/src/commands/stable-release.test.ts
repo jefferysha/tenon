@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import type { SetupEnv } from './setup.js'
 import {
-  compareStableVersions,
+  compareReleaseOrder,
   decodeStableReleaseMetadata,
+  isRetiredReleaseVersion,
   REAL_STABLE_RELEASE_HTTP,
   resolveStableReleaseTarget,
   resolveStableTagTarget,
@@ -87,10 +88,38 @@ describe('stable Release identity', () => {
     for (const invalid of ['v1.2.3', '1.2', '01.2.3', '1.2.3-rc.1', '1.2.3+build', 'main']) {
       expect(() => stableTagForVersion(invalid)).toThrow(/stable SemVer/i)
     }
-    expect(compareStableVersions('1.10.0', '1.9.9')).toBeGreaterThan(0)
-    expect(compareStableVersions('2.0.0', '2.0.0')).toBe(0)
-    expect(compareStableVersions('0.9.9', '1.0.0')).toBeLessThan(0)
-    expect(compareStableVersions('9007199254740993.0.0', '9007199254740992.999999999999999999.999999999999999999')).toBeGreaterThan(0)
+    expect(compareReleaseOrder('1.10.0', '1.9.9')).toBeGreaterThan(0)
+    expect(compareReleaseOrder('2.0.0', '2.0.0')).toBe(0)
+    expect(compareReleaseOrder('9007199254740993.0.0', '9007199254740992.999999999999999999.999999999999999999')).toBeGreaterThan(0)
+  })
+
+  test.each([
+    ['0.1.0', '1.1.5', 1],
+    ['1.0.0', '0.0.1', -1],
+    ['1.1.5', '1.0.9', 1],
+    ['0.1.1', '0.1.0', 1],
+    ['0.2.0', '0.1.9', 1],
+    ['0.1.0', '0.1.0', 0],
+    ['1.2.0', '0.9.9', 1],
+    ['2.0.0', '1.2.3', 1],
+  ] as const)('release order of %s against %s is %i', (left, right, expected) => {
+    expect(compareReleaseOrder(left, right)).toBe(expected)
+    expect(compareReleaseOrder(right, left)).toBe(expected === 0 ? 0 : -expected)
+  })
+
+  test('the retired release line is exactly the 16 published 1.x numbers', () => {
+    const published = [
+      ...Array.from({ length: 10 }, (_, patch) => `1.0.${patch}`),
+      ...Array.from({ length: 6 }, (_, patch) => `1.1.${patch}`),
+    ]
+    for (const version of published) expect(isRetiredReleaseVersion(version)).toBe(true)
+    for (const version of ['1.0.10', '1.1.6', '1.2.0', '0.1.0', '0.0.1']) {
+      expect(isRetiredReleaseVersion(version)).toBe(false)
+    }
+    for (const invalid of ['1.1', 'v1.1.5', '01.1.5']) {
+      expect(() => isRetiredReleaseVersion(invalid)).toThrow(/not complete stable SemVer/u)
+      expect(() => compareReleaseOrder(invalid, '0.1.0')).toThrow(/not complete stable SemVer/u)
+    }
   })
 
   test('decodes only the official non-draft non-prerelease stable Release', () => {

@@ -54,9 +54,20 @@ export function stableTagForVersion(version: string): `v${string}` {
   return `v${version}`
 }
 
-export function compareStableVersions(left: string, right: string): number {
+/** Stable versions published before the 2026-09-15 reset (v1.0.0–v1.0.9, v1.1.0–v1.1.5); never reused. */
+export const RETIRED_RELEASE_VERSION = /^1\.(0\.[0-9]|1\.[0-5])$/
+
+export function isRetiredReleaseVersion(version: string): boolean {
+  parseVersion(version)
+  return RETIRED_RELEASE_VERSION.test(version)
+}
+
+/** Install order: every retired version ranks below every other stable version; same rank compares numerically. */
+export function compareReleaseOrder(left: string, right: string): number {
   const a = parseVersion(left)
   const b = parseVersion(right)
+  const leftRetired = RETIRED_RELEASE_VERSION.test(left)
+  if (leftRetired !== RETIRED_RELEASE_VERSION.test(right)) return leftRetired ? -1 : 1
   for (let index = 0; index < a.length; index += 1) {
     const leftPart = a[index] ?? 0n
     const rightPart = b[index] ?? 0n

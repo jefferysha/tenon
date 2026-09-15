@@ -16,7 +16,8 @@ import {
 } from './plugin-host.js'
 import { publishManagedRelease } from './release-coordinator.js'
 import {
-  compareStableVersions,
+  compareReleaseOrder,
+  isRetiredReleaseVersion,
   resolveStableTagTarget,
   type StableReleaseTarget,
 } from './stable-release.js'
@@ -101,7 +102,7 @@ export async function runNativeUpdate(input: NativeUpdateInput): Promise<number>
     let comparison: number | undefined
     if (target !== undefined && receiptVersion !== undefined) {
       try {
-        comparison = compareStableVersions(target.version, receiptVersion)
+        comparison = compareReleaseOrder(target.version, receiptVersion)
       } catch (error) {
         deps.io.err(
           `ERROR: cleanup-pending runtime 版本 ${receiptVersion} 无法比较；`
@@ -194,11 +195,14 @@ export async function runNativeUpdate(input: NativeUpdateInput): Promise<number>
           if (version === null) continue
           let comparison: number
           try {
-            comparison = compareStableVersions(version, target.version)
+            comparison = compareReleaseOrder(version, target.version)
           } catch (error) {
             throw new Error(`${label} 版本无法参与稳定版本比较：${error instanceof Error ? error.message : String(error)}`)
           }
           if (comparison > 0) throw new Error(`拒绝从${label} ${version} 降级到 ${target.version}`)
+          if (isRetiredReleaseVersion(version) && !isRetiredReleaseVersion(target.version)) {
+            deps.io.out(`[update] ${label} ${version} 属于已退役的 1.x 版本线；迁移到 ${target.version}`)
+          }
         }
         const hostExact = beforeInventory.tenonRoot !== null
           && beforeInventory.tenonVersion === target.version
