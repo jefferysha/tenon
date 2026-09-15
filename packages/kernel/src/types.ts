@@ -6,6 +6,7 @@ import type { CoverageProfile, ReviewSeed, TrackId } from './tracks/types.js'
 import type { AutomationPolicySnapshot } from './loops/automation-policy.js'
 import type { WorkflowPlanSnapshot } from './workflow/effective-plan.js'
 import { PRE_VERIFY_REVIEW_FIELD } from './review-gate-fields.js'
+import type { RecordActor } from './users/user.js'
 export {
   COMPANION_BACKED_FIELDS,
   PRE_VERIFY_REVIEW_DEFAULT,
@@ -412,6 +413,8 @@ export interface HistoryEntry {
   from?: string
   to?: string
   by?: string
+  /** Declared operator of a CLI/server write; hook-written host evidence rows carry none. */
+  actor?: RecordActor
   /** 导入的原始载荷（工具名+详情 / Q|A / 事件名） */
   raw?: string
   /**

@@ -18,6 +18,7 @@ import { reviewDecisionPayloadDigest, type ReviewDecisionLedger, type ReviewDeci
 import { reviewDecisionRef, selectReviewAnchor } from './projection.js'
 import { reviewAcknowledgeHistoryEntry, reviewAcknowledgedInteractionFor } from './review-interaction.js'
 import type { DecisionCommandFailureCode, DecisionCommandResult, DecisionRef } from './types.js'
+import type { RecordActor } from '../users/user.js'
 
 export {
   reviewAcknowledgedInteractionDraft,
@@ -63,6 +64,8 @@ export interface ReviewAcknowledgePorts {
   readonly recordInteraction?: (draft: InteractionEventRecordDraft) => Promise<void>
   readonly appendHistory?: (entry: HistoryEntry) => Promise<void>
   readonly clearMarker: (event: string) => Promise<void>
+  /** Declared operator recorded on the acknowledgement history row. */
+  readonly actor?: RecordActor
 }
 
 export type ReviewAcknowledgeDeferred = 'idempotency-ledger' | 'review-interaction' | 'review-history' | 'review-marker-clear'
@@ -257,6 +260,7 @@ export async function executeReviewAcknowledge(ports: ReviewAcknowledgePorts): P
       await attempt(deferred, 'review-history', () => appendHistory(reviewAcknowledgeHistoryEntry({
         acknowledgedAt, phase, event, channel: command.channel,
         detail: command.channel === 'dashboard' ? undefined : command.historyDetail,
+        ...(ports.actor === undefined ? {} : { actor: ports.actor }),
       })))
     }
     await attempt(deferred, 'review-marker-clear', () => ports.clearMarker(event))

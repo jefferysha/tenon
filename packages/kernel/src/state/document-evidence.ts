@@ -111,7 +111,12 @@ export interface DocumentEvidenceItem {
   readonly requiredRead: boolean
   readonly paths: readonly string[]
   readonly producers: readonly string[]
-  readonly timeline: readonly { readonly producer: string; readonly recordedAt: string; readonly readAt?: string }[]
+  readonly timeline: readonly {
+    readonly producer: string
+    readonly recordedAt: string
+    readonly readAt?: string
+    readonly actor?: { readonly id: string; readonly name: string }
+  }[]
 }
 
 export interface DocumentEvidenceReport {
@@ -152,6 +157,7 @@ function item(
     timeline: records.map((record) => ({
       producer: record.producer,
       recordedAt: record.recordedAt,
+      ...(record.actor === undefined ? {} : { actor: { id: record.actor.id, name: record.actor.name } }),
       ...(status === 'recorded' && requiredRead
         ? (() => {
             const receipt = record.reads.find((candidate) => currentVisitId !== undefined && receiptMatchesVisit(candidate, phase, record.sha256, currentVisitId))

@@ -446,6 +446,28 @@ describe('OpenSpec document ledger', () => {
     })).rejects.toBeInstanceOf(DocumentLedgerError)
   })
 
+  test('record actor round-trips through the ledger and the evidence timeline; an invalid actor is rejected', async () => {
+    const { root, changeDir, name } = await fixture()
+    const path = `openspec/changes/${name}/proposal.md`
+    await writeDoc(root, path)
+    await appendSkillHistory(changeDir, 'openspec-propose')
+    const actor = { id: 'jeff@x.io', name: 'Jeff Sha', trust: 'declared' as const }
+    await recordDocument({
+      repoRoot: root, changeDir, phase: 'open', kind: 'proposal', path, producer: 'openspec-propose', recordedAt: NOW, actor,
+    })
+    const ledger = await readDocumentLedger(changeDir)
+    expect(ledger?.records.find((record) => record.kind === 'proposal')?.actor).toEqual(actor)
+    const report = await evaluateDocumentEvidence(root, changeDir, 'open')
+    expect(report.items.find((entry) => entry.kind === 'proposal')?.timeline[0]?.actor).toEqual({ id: 'jeff@x.io', name: 'Jeff Sha' })
+    const raw = JSON.parse(await readFile(join(changeDir, '.pipeline-documents.json'), 'utf8')) as { records: Array<Record<string, unknown>> }
+    for (const bad of [{ id: 'jeff', name: 'Jeff', trust: 'declared' }, { ...actor, trust: 'human' }]) {
+      const tampered = { ...raw, records: raw.records.map((record) => ({ ...record, actor: bad })) }
+      expect(() => parseDocumentLedger(JSON.stringify(tampered))).toThrow(/actor 非法/)
+    }
+    const legacy = { ...raw, records: raw.records.map(({ actor: _drop, ...record }) => record) }
+    expect(parseDocumentLedger(JSON.stringify(legacy)).records[0]).not.toHaveProperty('actor')
+  })
+
   test('同一种 document 移动后重新登记会替换旧路径，不留下永久 stale 记录', async () => {
     const { root, changeDir, name } = await fixture()
     const first = `openspec/changes/${name}/proposal.md`

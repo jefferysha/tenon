@@ -217,6 +217,15 @@ describe('executeReviewAcknowledge', () => {
     expect(reviewAcknowledgeExitCode({ ok: false, code: 'invalid-command', message: '' })).toBe(1)
   })
 
+  it('stamps the declared operator on the acknowledgement history row', async () => {
+    const actor = { id: 'b@x.io', name: 'B', trust: 'declared' as const }
+    const rows: unknown[] = []
+    const f = fixture()
+    const result = await executeReviewAcknowledge({ ...f.ports, actor, appendHistory: async (entry) => { rows.push(entry) } })
+    expect(result).toMatchObject({ ok: true, code: 'approved' })
+    expect(rows).toEqual([expect.objectContaining({ kind: 'tool', actor })])
+  })
+
   it('uses one history line format with the channel', () => {
     expect(reviewAcknowledgeHistoryEntry({ acknowledgedAt: NOW, phase: 'verify', event: 'verify-pass', channel: 'dashboard' }))
       .toEqual({ ts: NOW, kind: 'tool', raw: 'review:acknowledge via=dashboard phase=verify event=verify-pass' })

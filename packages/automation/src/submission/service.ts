@@ -1,12 +1,12 @@
 import { artifactSubjectId, newArtifactSubjectId } from '@tenon/kernel'
-import type { ArtifactProjectionKind, ArtifactSubjectRef } from '@tenon/kernel'
+import type { ArtifactProjectionKind, ArtifactSubjectRef, RecordActor } from '@tenon/kernel'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { readArtifactSubjectRegistry, recordArtifactSubjectProjection, type ArtifactSubjectProjectionRecord } from './registry.js'
 
 export interface DocumentProjectionAdapter {
-  record(input: { readonly logicalKey: string; readonly subjectRef: ArtifactSubjectRef; readonly path: string; readonly documentKind: string; readonly producer: string; readonly recordedAt: string; readonly allowBackfill?: boolean }): Promise<{ readonly stateRevisionId?: string }>
+  record(input: { readonly logicalKey: string; readonly subjectRef: ArtifactSubjectRef; readonly path: string; readonly documentKind: string; readonly producer: string; readonly recordedAt: string; readonly allowBackfill?: boolean; readonly actor?: RecordActor }): Promise<{ readonly stateRevisionId?: string }>
 }
 export interface FieldProjectionAdapter {
   record(input: { readonly logicalKey: string; readonly subjectRef: ArtifactSubjectRef; readonly field: string; readonly value: string | string[]; readonly path?: string; readonly producer: string; readonly recordedAt: string }): Promise<{ readonly stateRevisionId?: string }>
@@ -37,6 +37,8 @@ export interface SubmitProjectionInput {
   readonly producer: string
   readonly recordedAt?: string
   readonly allowBackfill?: boolean
+  /** Declared operator; the document projection stores it on the ledger record. */
+  readonly actor?: RecordActor
 }
 export interface ArtifactSubmissionReceipt { readonly receiptId: string; readonly subjectRef: ArtifactSubjectRef; readonly projection: ArtifactProjectionKind; readonly status: 'committed' | 'pending' | 'failed'; readonly diagnostics?: readonly string[]; readonly recordedAt: string }
 export interface ArtifactSubmissionService {
@@ -95,7 +97,7 @@ export async function openArtifactSubmissionService(options: ArtifactSubmissionS
           subjectRef = output.subjectRef ?? { ...subjectRef, version: output.version, content_digest: `sha256:${output.contentDigest}` }
         } else if (input.projection === 'document') {
           if (!options.document || !input.path || !input.documentKind) throw new Error('document projection adapter unavailable')
-          const result = await options.document.record({ logicalKey: input.logicalKey, subjectRef, path: input.path, documentKind: input.documentKind, producer: input.producer, recordedAt, ...(input.allowBackfill !== undefined ? { allowBackfill: input.allowBackfill } : {}) })
+          const result = await options.document.record({ logicalKey: input.logicalKey, subjectRef, path: input.path, documentKind: input.documentKind, producer: input.producer, recordedAt, ...(input.allowBackfill !== undefined ? { allowBackfill: input.allowBackfill } : {}), ...(input.actor !== undefined ? { actor: input.actor } : {}) })
           subjectRef = { ...subjectRef, version: subjectRef.version === 'pending' ? 'v1' : subjectRef.version, source: { ...(subjectRef.source ?? {}), path: input.path, document_kind: input.documentKind } }
           await recordArtifactSubjectProjection(options.changeDir, { subjectRef, logicalKey: input.logicalKey, projection: 'document', path: input.path, documentKind: input.documentKind, status: 'committed', receiptId: id, recordedAt, ...(result.stateRevisionId ? { stateRevisionId: result.stateRevisionId } : {}) })
         } else {
