@@ -250,3 +250,21 @@ gh run rerun "$(gh run list --repo "$REPO" --workflow ci.yml --branch main --lim
 - W5-1: 29 mechanical version positions, ~120 lines docs, 2 tests.
 - Ops: W5-2..W5-5 are half a day including real-host acceptance.
 - Overall: medium.
+
+## Deviations
+
+Wave 1 (`feat/version-reset`):
+
+- Retired regex literal is `^1\.(0\.[0-9]|1\.[0-5])$` with a capturing group everywhere, not `(?:…)` in TypeScript and
+  `install.sh` (design §3.1). Bash ERE has no `(?:`, so only the capturing form can be byte-identical across
+  `stable-release.ts`, `install.sh`, `release-candidate.yml` and `tools/prepare-n-minus-one-release.sh`. `install.sh`
+  uses it without the `u` flag. The prepare script is a fourth holder, covered by the same identity test.
+- The candidate retired-tag guard is `if [[ … ]]; then … exit 1; fi` instead of `[[ … ]] && { … }`: same behavior, and it
+  cannot turn a false match into the step's exit status.
+- `prepare-n-minus-one-release.sh` also reports `N-1 fixture 结构非法` when a pinned fixture's `pluginVersion` is not stable
+  SemVer or `tag` is not `v<pluginVersion>`, so the latest-tag comparison never parses garbage. The skip line goes to
+  stdout; failures go to stderr.
+- `update.test.ts` helpers gained explicit version parameters (`updateEnv(…, target)`, `requireVersionedHostRebind(…, target)`,
+  `fakeDashboardStarter(…, startedServerVersion)`), because the existing harness hard-codes 1.2.3; defaults keep every
+  existing test unchanged. The `hostConvergenceHasNewerStableCandidate` order-gate test lives in `setup.test.ts` next to the
+  receipt tests (§8 item 4 names no file).
