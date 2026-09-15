@@ -64,6 +64,7 @@ export function SkillsView(): JSX.Element {
   const visible = filter === 'all' ? rows : rows.filter((row) => row.status === filter)
 
   const statusTitle = (row: SkillSourceRow): string => {
+    if (row.status === 'bundled') return '—'
     if (row.status !== 'failed') return t(`skills.status_${row.status}`)
     const reason = row.reason === undefined ? t('skills.status_failed') : t(`skills.reason_${row.reason}`)
     return row.detail === undefined ? reason : `${reason} ${row.detail}`

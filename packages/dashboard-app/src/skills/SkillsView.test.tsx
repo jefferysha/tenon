@@ -54,7 +54,9 @@ describe('SkillsView', () => {
     renderView()
     await screen.findByTestId('skills-row-hue')
     for (const row of FIXTURE.rows) {
-      expect(screen.getByTestId(`skills-status-${row.id}`).textContent).toMatch(/^\S+$/u)
+      const status = screen.getByTestId(`skills-status-${row.id}`)
+      expect(status.textContent).toMatch(/^\S+$/u)
+      expect(status.getAttribute('title')).not.toMatch(/^skills\./u)
     }
     expect(screen.getByTestId('skills-filter-tab-failed')).toHaveTextContent('失败')
     await userEvent.click(screen.getByTestId('skills-filter-tab-failed'))
