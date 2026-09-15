@@ -225,6 +225,7 @@ export function validateWorkflowForStorage(name: string, wf: WorkflowDef): strin
   const origin = isDefaultWorkflowName(name) ? 'default' : 'custom'
   const errors = validateWorkflow(wf, { origin })
   if (isDefaultWorkflowName(origin)) {
+    if (wf.openspec !== true) errors.push('default 必须保持 openspec: true')
     for (const branch of workflowBranches(wf)) {
       const prefix = branch.track === '' ? '' : `tracks.${branch.track}: `
       errors.push(...validateDefaultWorkflowStructure(branchDefinition(wf, branch)).map((error) => `${prefix}${error}`))

@@ -51,6 +51,20 @@ describe('parseDefaultWorkflow（窄扫器）结构等价', () => {
     expect(parsed.tracks.pm?.steps.map((s) => s.id)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
   })
 
+  it('分支 document_contract 块被跳过；每条分支最后一步标签是完结', () => {
+    const parsed = parseDefaultWorkflow(REAL_YAML) as { tracks: Record<string, { steps: { id: string; label: string }[] }> }
+    for (const branch of Object.values(parsed.tracks)) {
+      expect(branch.steps[0]?.id).toBe('open')
+      expect(branch.steps.at(-1)?.label).toBe('完结')
+    }
+    const yaml = [
+      'name: default', 'tracks:', '  web:', '    label: 前端', '    document_contract:', '      version: v1', '      slots:',
+      '        - { kind: proposal, owner_step: explore, producers: [a] }', '      reads: []', '    steps:', '      - id: explore', '        label: 调研', '',
+    ].join('\n')
+    const branched = parseDefaultWorkflow(yaml) as { tracks: Record<string, { steps: { id: string }[] }> }
+    expect(branched.tracks.web?.steps.map((step) => step.id)).toEqual(['explore'])
+  })
+
   it('pm 分支的 spec 不声明 plan artifact（PM 的 plan 文档由 OpenSpec ledger 约束）；其余分支声明', () => {
     const parsed = parseDefaultWorkflow(REAL_YAML) as { tracks: Record<string, { steps: { id: string; artifacts: any[] }[] }> }
     expect(parsed.tracks.pm!.steps.find((s) => s.id === 'spec')!.artifacts).toEqual([])

@@ -52,7 +52,7 @@ describe('projectPipelineTodo', () => {
     expect(DEFAULT_WORKFLOW_TODO_STAGES.map((stage) => stage.id)).toEqual(
       ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'],
     )
-    expect(todo.stages.map((stage) => stage.label)).toEqual(['立项', '调研', '规格', '实现', '验证', '交付', '归档'])
+    expect(todo.stages.map((stage) => stage.label)).toEqual(['立项', '调研', '规格', '实现', '验证', '交付', '完结'])
     expect(todo.stages.map((stage) => stage.status)).toEqual(['done', 'done', 'done', 'current', 'pending', 'pending', 'pending'])
     expect(todo.stages[0]?.tasks).toEqual([{ text: 'Confirm the scope', completed: true }])
     expect(todo.stages[3]?.tasks).toEqual([{ text: 'Implement the API', completed: false }])

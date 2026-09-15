@@ -17,6 +17,9 @@ function preVerifyConvergenceWorkflow() {
     decomposition: _decomposition,
     interaction: _interaction,
     reviewBudget: _reviewBudget,
+    // Historical bytes predate the openspec key and YAML-declared document contracts.
+    openspec: _openspec,
+    documentContract: _documentContract,
     ...legacy
   } = current
   return {
@@ -25,6 +28,8 @@ function preVerifyConvergenceWorkflow() {
       const { reviewLanes: _reviewLanes, ...legacyStep } = step
       return {
         ...legacyStep,
+        // The last step was labelled 归档 before the 完结 wording.
+        label: step.id === 'archive' ? '归档' : step.label,
         // This fixture intentionally models the pre-issue#43 frozen snapshot, whose
         // default Workflow steps had no Workflow-owned phase Skills and whose ship/archive
         // steps declared no inputs/outputs (pr_url / archived were added in 2026-09).

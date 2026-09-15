@@ -100,9 +100,10 @@ export function documentGovernancePolicy(
   },
   track?: string,
 ): DocumentGovernancePolicy | undefined {
-  if (isDefaultWorkflowName(workflowId)) return LEGACY_DOCUMENT_GOVERNANCE_POLICY
   if (workflow.openspec !== true) return undefined
-  return policyFromBranch('document-v1', governedBranch(workflowId, workflow, track))
+  // The id is the persisted document profile (default → legacy-full); content always comes from YAML.
+  const id = isDefaultWorkflowName(workflowId) ? 'openspec-v1' : 'document-v1'
+  return policyFromBranch(id, governedBranch(workflowId, workflow, track))
 }
 
 export function isDocumentPolicyStep(policy: DocumentGovernancePolicy, value: string): boolean {

@@ -62,10 +62,6 @@ const WORKFLOW_IDENTITY_COMPAT = new Map([
   ['packages/kernel/src/workflow/migrations/pre-tenon-v1-document-policy.ts', [
     { code: "workflowId !== 'default'", reason: 'exact immutable v1 persistence compatibility fingerprint reader' },
   ]],
-  ['packages/kernel/src/workflow/document-contract.ts', [
-    { code: "workflowName === 'default' || workflow?.openspecContract === 'required'", reason: 'legacy OpenSpec profile compatibility alias' },
-    { code: "if (workflowName === 'default') return true", reason: 'legacy OpenSpec profile compatibility alias' },
-  ]],
   ['packages/kernel/src/tracks/validate.ts', [
     { code: "workflowName === 'default'", reason: 'track registry permits the built-in workflow without a project file' },
     { code: "id === 'default'", reason: 'track registry permits the built-in workflow without a project file' },

@@ -94,6 +94,13 @@ export function parseDefaultWorkflow(yamlText) {
         if (indentOf(inner) <= 2) break
         const labelMatch = /^\s*label:\s*(.+?)\s*$/.exec(inner)
         if (labelMatch) { label = labelMatch[1]; i++; continue }
+        // 分支文档契约由 kernel parse 负责；生成器只跳过该块（缩进深于键行的全部行）。
+        if (/^\s*document_contract:\s*$/.test(inner)) {
+          const blockIndent = indentOf(inner)
+          i++
+          while (i < lines.length && ((lines[i] ?? '').trim() === '' || indentOf(lines[i] ?? '') > blockIndent)) i++
+          continue
+        }
         if (/^\s*steps:\s*$/.test(inner)) {
           const parsedBranch = parseStepItems(lines, i + 1, indentOf(inner))
           branchSteps = parsedBranch.steps
