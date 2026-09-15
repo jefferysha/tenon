@@ -1,6 +1,5 @@
 /**
- * 各宿主的项目级 / 用户级指令文件与两级加载关系（官方文档，2026-09-15 核对；
- * 见 .trellis/tasks/09-15-instruction-templates/research/harness-instructions.md）。
+ * 各宿主的项目级 / 用户级指令文件与两级加载关系（按各宿主官方文档，2026-09-15 核对）。
  *
  * - joined：两级同时加载叠加（Claude Code、Codex、Gemini、Cline、Continue、Amp、Devin、Pi）。
  * - project-wins：Zed 两级都读，项目级覆盖个人级。

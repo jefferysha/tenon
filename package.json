@@ -38,6 +38,7 @@
     "check:docs": "node --test tools/check-docs.node-test.mjs && node tools/check-docs.mjs",
     "check:design-scale": "node --test tools/check-design-scale.node-test.mjs && node tools/check-design-scale.mjs",
     "check:document-templates": "node tools/check-document-templates.mjs && npx vitest run packages/kernel/src/documents/document-template-renderer.test.ts",
+    "check:instruction-templates": "node --test tools/check-instruction-templates.node-test.mjs && node tools/check-instruction-templates.mjs",
     "docs:sync": "npm run sync -w @tenon/docs-site",
     "docs:check": "npm run check -w @tenon/docs-site",
     "docs:build": "npm run build -w @tenon/docs-site",
