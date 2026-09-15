@@ -48,6 +48,7 @@ import type { TraceStoreReader } from './traces.js'
 import { resolveHostTargetPlanRoute } from './serverGetHostTargetPlanRoutes.js'
 import { resolveDocumentReadRoute } from './serverGetDocumentRoutes.js'
 import { resolveWorkflowYamlGet } from './serverWorkflowYamlRoutes.js'
+import { resolveInstructionGet } from './instructionRoutes.js'
 import { resolveDefinitionCatalogRoute, type DefinitionCatalogRouteDeps } from './definitionCatalogRoutes.js'
 import { resolveAdapterInstallGet } from './adapterInstallRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
@@ -279,6 +280,7 @@ export async function handleGet(
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
     }
+    const instructionGet = resolveInstructionGet(req, path, deps); if (instructionGet) { const result = await instructionGet; return sendJson(res, result.status, result.body) }
     if (path === '/api/workflows') {
       const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
       const rootCheck = workflowStoreForRequest(root)
