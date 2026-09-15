@@ -944,17 +944,22 @@ assert_eq "tier/zed: inject degraded" degraded "$(reg_field zed inject_status)"
 assert_eq "tier/zed: veto degraded"   degraded "$(reg_field zed veto_status)"
 assert_eq "tier/zed: track degraded"  degraded "$(reg_field zed track_status)"
 # Zed 只读工作区根目录下第一个存在的指令文件（zed.dev/docs/ai/instructions）；块必须落在该文件里。
-ZED_ORDER_LITERAL=".rules .cursorrules .windsurfrules .clinerules .github/copilot-instructions.md AGENT.md AGENTS.md CLAUDE.md GEMINI.md"
+# 顺序的单一来源是 kernel ZED_PROJECT_ORDER（Dashboard 用它显示生效文件），脚本里的副本必须逐项相等。
+zed_script_order="$(sed -n 's/^ZED_ORDER=(\(.*\))$/\1/p' "$ADAPTERS/zed/install.sh")"
+if command -v node >/dev/null 2>&1; then
+  zed_kernel_order="$(node --input-type=module -e "const m = await import('$ROOT/packages/kernel/dist/index.js'); console.log(m.ZED_PROJECT_ORDER.join(' '))" 2>&1)"
+  assert_eq "zed install: 脚本读取顺序与 kernel ZED_PROJECT_ORDER 一致" "$zed_kernel_order" "$zed_script_order"
+else
+  printf 'SKIP - zed 读取顺序与 kernel 对账（无 node）\n'
+fi
 zed_blocks_in() { # <dir> <rel> → 该文件 ZED START 标记数
   if [ -f "$1/$2" ]; then grep -cxF '<!-- PIPELINE:ZED:START -->' "$1/$2" || true; else printf '0'; fi
 }
 zed_block_total() { # <dir> → 全部候选文件合计
   local n=0 rel
-  for rel in $ZED_ORDER_LITERAL; do n=$((n + $(zed_blocks_in "$1" "$rel"))); done
+  for rel in $zed_script_order; do n=$((n + $(zed_blocks_in "$1" "$rel"))); done
   printf '%s' "$n"
 }
-zed_script_order="$(sed -n 's/^ZED_ORDER=(\(.*\))$/\1/p' "$ADAPTERS/zed/install.sh")"
-assert_eq "zed install: 脚本读取顺序与 Zed 文档顺序一致" "$ZED_ORDER_LITERAL" "$zed_script_order"
 
 ZED_IT="$TMP/zed-it"; mkdir -p "$ZED_IT"
 bash "$ADAPTERS/zed/install.sh" --target "$ZED_IT" --yes >/dev/null 2>&1
