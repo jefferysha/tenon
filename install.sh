@@ -736,12 +736,14 @@ complete_installer_transaction() {
   ' "$INSTALL_JOURNAL" "$INSTALL_TRANSACTION"
 }
 
+# Release order (same rule as compareReleaseOrder): the retired 1.0.0–1.1.5 line ranks below every other stable version.
 stable_version_is_less() {
   run_node -e '
     const [older, current] = process.argv.slice(1);
+    const retired = /^1\.(0\.[0-9]|1\.[0-5])$/;
     const parse = value => {
       const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
-      return match?.slice(1).map(BigInt) ?? null;
+      return match ? [retired.test(value) ? 0n : 1n, ...match.slice(1).map(BigInt)] : null;
     };
     const left = parse(older); const right = parse(current);
     if (!left || !right) process.exit(1);
