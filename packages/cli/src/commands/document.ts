@@ -380,7 +380,7 @@ export async function cmdDocumentStatus(deps: CliDeps, name: string, json: boole
       }
       return 0
     }
-    const report = await evaluateDocumentEvidence(deps.cwd, dir, context.phase, {}, context.policy)
+    const report = await evaluateDocumentEvidence(deps.cwd, dir, context.phase, {}, assertGoverned(context).policy)
     if (json) {
       deps.io.out(JSON.stringify({ change: name, workflow: context.workflowName, governed: true, ...report }))
     } else {

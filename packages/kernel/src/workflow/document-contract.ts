@@ -3,19 +3,18 @@
  *
  * This module deliberately contains only deterministic workflow rules. Filesystem persistence,
  * digests, and receipts live in state/document-ledger.ts so CLI, server, and Dashboard consume one
- * matrix without making the workflow domain depend on Node I/O.
+ * matrix without making the workflow domain depend on Node I/O. Every rule reads a
+ * DocumentGovernancePolicy built from the workflow YAML; there is no phase-keyed fallback.
  */
 import type { WorkflowDocumentContractV1 } from './types.js'
 import {
-  DOCUMENT_CONTRACT_PHASES,
   isDocumentKind,
-  type DocumentContractPhase,
   type DocumentGovernancePolicy,
   type DocumentKind,
   type DocumentOutputRequirement,
 } from './document-contract-model.js'
+import { aliasesForSkill } from './document-contract-validation.js'
 import { isDefaultWorkflowName } from './identifier.js'
-import { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from './migrations/openspec-v1-document-policy.js'
 import { WorkflowTrackBranchError } from './track-branch-error.js'
 export {
   DOCUMENT_CHAIN_PAIRS,
@@ -33,11 +32,6 @@ export {
   type DocumentScope,
   type DocumentSlotRole,
 } from './document-contract-model.js'
-export { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from './migrations/openspec-v1-document-policy.js'
-
-const OUTPUTS_BY_PHASE = LEGACY_DOCUMENT_GOVERNANCE_POLICY.outputsByStep
-const MUTABLE_RECORDS_BY_PHASE = LEGACY_DOCUMENT_GOVERNANCE_POLICY.mutableByStep
-const READS_BY_PHASE = LEGACY_DOCUMENT_GOVERNANCE_POLICY.readsByStep
 
 const SPEC_ADR_LIVING_DOCUMENT: DocumentOutputRequirement = {
   kind: 'adr',
@@ -122,6 +116,14 @@ export function readsRequiredForPolicyStep(
   step: string,
 ): readonly DocumentKind[] {
   return policy.readsByStep[step] ?? []
+}
+
+/** Documents that must exist before leaving this step (role require; project documents may pre-exist). */
+export function requiresForPolicyStep(
+  policy: DocumentGovernancePolicy,
+  step: string,
+): readonly DocumentKind[] {
+  return policy.requiresByStep?.[step] ?? []
 }
 
 export function recordsRequiredForPolicyStep(
@@ -217,116 +219,7 @@ export function recordProducerCandidatesForPolicyStep(
   return recordRequirementForPolicy(policy, kind, step)?.producerCandidates ?? []
 }
 
-export function outputsRequiredForPhase(phase: DocumentContractPhase): readonly DocumentOutputRequirement[] {
-  return OUTPUTS_BY_PHASE[phase] ?? []
-}
-
-export function readsRequiredForPhase(phase: DocumentContractPhase): readonly DocumentKind[] {
-  return READS_BY_PHASE[phase] ?? []
-}
-
-/** All outputs that must exist before a governed phase can complete. */
-export function recordsRequiredForPhase(phase: DocumentContractPhase): readonly DocumentOutputRequirement[] {
-  const required: DocumentOutputRequirement[] = []
-  for (const candidate of DOCUMENT_CONTRACT_PHASES) {
-    required.push(...(OUTPUTS_BY_PHASE[candidate] ?? []))
-    if (candidate === phase) break
-  }
-  return required
-}
-
-function outputRequirementFor(kind: DocumentKind): DocumentOutputRequirement | undefined {
-  for (const phase of DOCUMENT_CONTRACT_PHASES) {
-    const requirement = (OUTPUTS_BY_PHASE[phase] ?? []).find((candidate) => candidate.kind === kind)
-    if (requirement) return requirement
-  }
-  return undefined
-}
-
-function recordRequirementFor(kind: DocumentKind, phase: DocumentContractPhase): DocumentOutputRequirement | undefined {
-  return [...(OUTPUTS_BY_PHASE[phase] ?? []), ...(MUTABLE_RECORDS_BY_PHASE[phase] ?? [])]
-    .find((candidate) => candidate.kind === kind)
-}
-
-function aliasesForSkill(id: string): readonly string[] {
-  const aliases = new Set<string>([id])
-  if (id.startsWith('tenon:')) aliases.add(id.slice('tenon:'.length))
-  if (id.startsWith('superpowers:')) aliases.add(id.slice('superpowers:'.length))
-  if (id === 'opsx:propose') aliases.add('openspec-propose')
-  if (id === 'openspec-propose') aliases.add('opsx:propose')
-  if (id === 'opsx:apply') aliases.add('openspec-apply-change')
-  if (id === 'openspec-apply-change') aliases.add('opsx:apply')
-  return [...aliases]
-}
-
-/** Host aliases are allowed, but a record cannot claim an unrelated phase skill as its producer. */
-export function isAcceptedDocumentProducer(kind: DocumentKind, producer: string): boolean {
-  const supplied = new Set(aliasesForSkill(producer))
-  return producerCandidatesFor(kind).some((candidate) => aliasesForSkill(candidate).some((alias) => supplied.has(alias)))
-}
-
-export function producerCandidatesFor(kind: DocumentKind): readonly string[] {
-  const candidates = new Set<string>()
-  const origin = outputRequirementFor(kind)
-  for (const candidate of origin?.producerCandidates ?? []) candidates.add(candidate)
-  for (const phase of DOCUMENT_CONTRACT_PHASES) {
-    for (const requirement of MUTABLE_RECORDS_BY_PHASE[phase] ?? []) {
-      if (requirement.kind !== kind) continue
-      for (const candidate of requirement.producerCandidates) candidates.add(candidate)
-    }
-  }
-  return [...candidates]
-}
-
-/** The phase that first creates a governed document kind. */
-export function documentOwnerPhase(kind: DocumentKind): DocumentContractPhase | undefined {
-  return DOCUMENT_CONTRACT_PHASES.find((phase) =>
-    (OUTPUTS_BY_PHASE[phase] ?? []).some((requirement) => requirement.kind === kind),
-  )
-}
-
-/** Whether this phase may write a fresh digest for this document kind. */
-export function isDocumentRecordAllowedInPhase(kind: DocumentKind, phase: DocumentContractPhase): boolean {
-  return recordRequirementFor(kind, phase) !== undefined
-}
-
-/** Exact phase-local producer authorization for a newly written digest. */
-export function isDocumentProducerAllowedInPhase(
-  kind: DocumentKind,
-  phase: DocumentContractPhase,
-  producer: string,
-): boolean {
-  const requirement = recordRequirementFor(kind, phase)
-  if (!requirement) return false
-  const supplied = new Set(aliasesForSkill(producer))
-  return requirement.producerCandidates.some((candidate) => aliasesForSkill(candidate).some((alias) => supplied.has(alias)))
-}
-
-export function recordProducerCandidatesFor(kind: DocumentKind, phase: DocumentContractPhase): readonly string[] {
-  return recordRequirementFor(kind, phase)?.producerCandidates ?? []
-}
-
-/** The document kind may only be newly produced by the phase that owns it. */
-export function isOutputAllowedInPhase(kind: DocumentKind, phase: DocumentContractPhase): boolean {
-  return (OUTPUTS_BY_PHASE[phase] ?? []).some((item) => item.kind === kind)
-}
-
-/** Whether a workflow is document-governed: default, or an explicit `openspec: true`. */
-export function isOpenSpecDocumentContractRequired(
-  workflowName: string,
-  _track: string,
-  workflow?: { readonly openspec?: boolean },
-): boolean {
-  return isDefaultWorkflowName(workflowName) || workflow?.openspec === true
-}
-
 /** A rollback remains available even when forward evidence is stale or incomplete. */
-export function shouldEnforceDocumentEvidenceOnTransition(from: string, to: string): boolean {
-  const fromIndex = DOCUMENT_CONTRACT_PHASES.indexOf(from as DocumentContractPhase)
-  const toIndex = DOCUMENT_CONTRACT_PHASES.indexOf(to as DocumentContractPhase)
-  return !(fromIndex >= 0 && toIndex >= 0 && toIndex < fromIndex)
-}
-
 export function shouldEnforceDocumentPolicyOnTransition(
   policy: DocumentGovernancePolicy,
   from: string,

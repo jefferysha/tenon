@@ -14,6 +14,7 @@ import {
   buildHandoff,
   compileLedgerContextBundle,
   nodeHandoffFs,
+  resolveWorkflowName,
   type CompileLedgerContextBundleInput,
   type CompiledLedgerContextBundle,
   type HandoffFs,
@@ -24,6 +25,7 @@ import type { DocumentLocale } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { resolveChangeDocumentLocale } from '../documentLocale.js'
 import { changeDir, isValidChangeName } from '../paths.js'
+import { effectiveWorkflowForState } from './effective-workflow.js'
 
 export type { HandoffFs } from '@tenon/kernel'
 
@@ -126,11 +128,18 @@ export async function cmdHandoff(
   const phase = opts.phase ?? scalarField(state.fields.phase)
   if (opts.bundle) {
     try {
+      const plan = effectiveWorkflowForState(deps, state)
+      const policy = plan?.capabilities.documents.policy
+      if (policy === undefined) {
+        deps.io.err(`ERROR: workflow '${plan?.id ?? resolveWorkflowName(state)}' 未开启 openspec，--bundle 不适用`)
+        return 1
+      }
       const { bundle } = await bundleCompiler({
         root: deps.cwd,
         change: name,
         from: phase,
         target: opts.target ?? '',
+        policy,
         ...(opts.budgetBytes === undefined ? {} : { budgetBytes: opts.budgetBytes }),
         ...(fs === undefined ? {} : { fs }),
       })

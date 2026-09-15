@@ -4,8 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ensureDocumentLedger, readDocumentLedger } from '../state/document-ledger.js'
-import { recordDocument } from '../documents/document-recording.js'
-import { evaluateDocumentEvidence } from '../state/document-evidence.js'
+import { recordDocument as recordDocumentWithPolicy } from '../documents/document-recording.js'
+import { evaluateDocumentEvidence as evaluateDocumentEvidenceWithPolicy } from '../state/document-evidence.js'
+import { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from '../workflow/migrations/openspec-v1-document-policy.js'
 import { emptyFields } from '../state/parse.js'
 import { publishInitialRunRevision } from '../state/run-revision-store.js'
 import { readSkillInvocationEvidence } from './repository.js'
@@ -15,6 +16,16 @@ import { readDocumentSkillConfirmations } from './document-confirmation-store.js
 
 const roots: string[] = []
 const producer = 'openspec-propose'
+
+/** Fixtures use the openspec-v1 table that default declares in YAML. */
+const recordDocument = (input: Omit<Parameters<typeof recordDocumentWithPolicy>[0], 'policy'>) =>
+  recordDocumentWithPolicy({ ...input, policy: LEGACY_DOCUMENT_GOVERNANCE_POLICY })
+const evaluateDocumentEvidence = (
+  repoRoot: string,
+  changeDir: string,
+  phase: string,
+  scope: Parameters<typeof evaluateDocumentEvidenceWithPolicy>[3],
+) => evaluateDocumentEvidenceWithPolicy(repoRoot, changeDir, phase, scope, LEGACY_DOCUMENT_GOVERNANCE_POLICY)
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))

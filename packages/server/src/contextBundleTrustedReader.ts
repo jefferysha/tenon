@@ -9,6 +9,7 @@ import {
   type LedgerContextBundleResourceLimits,
   type LedgerContextBundleSourceReadLimit,
   type LedgerContextBundleSourceReader,
+  type PipelineState,
 } from '@tenon/kernel'
 import {
   assertDirectoryStillTrusted,
@@ -177,6 +178,8 @@ export interface TrustedContextBundleStateSnapshot {
   readonly phase: string
   readonly revisionId: string
   readonly stateDigest: string
+  /** Canonical state the plan (and its document policy) is resolved from. */
+  readonly state: PipelineState
 }
 
 export function trustedContextBundleCurrentSnapshot(
@@ -237,6 +240,7 @@ export function trustedContextBundleCurrentSnapshot(
     phase,
     revisionId: current.revisionId,
     stateDigest: current.stateDigest,
+    state: current.state,
   }
 }
 

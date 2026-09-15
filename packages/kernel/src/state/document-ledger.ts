@@ -1,20 +1,12 @@
 /** OpenSpec document evidence sidecar; callers hold the Change lock while mutating it. */
 import { join } from 'node:path'
 import {
-  DOCUMENT_CONTRACT_PHASES,
-  documentOwnerPhase,
   documentOwnerPolicyStep,
-  isDocumentContractPhase,
   isDocumentKind,
-  isDocumentProducerAllowedInPhase,
   isDocumentProducerAllowedInPolicyStep,
-  isDocumentRecordAllowedInPhase,
   isDocumentRecordAllowedInPolicyStep,
   recordProducerCandidatesForPolicyStep,
-  recordProducerCandidatesFor,
   readsRequiredForPolicyStep,
-  readsRequiredForPhase,
-  type DocumentContractPhase,
   type DocumentGovernancePolicy,
   type DocumentKind,
 } from '../workflow/document-contract.js'
@@ -243,7 +235,7 @@ export interface RecordDocumentLedgerInput {
   readonly repoRoot: string
   readonly changeDir: string
   readonly phase: string
-  readonly policy?: DocumentGovernancePolicy
+  readonly policy: DocumentGovernancePolicy
   readonly kind: DocumentKind
   readonly path: string
   readonly producer: string
@@ -257,9 +249,7 @@ export interface RecordDocumentLedgerInput {
 
 /** Internal core: only the document recording service may supply a verified producer anchor. */
 export async function recordDocumentLedger(input: RecordDocumentLedgerInput): Promise<DocumentLedger> {
-  const ownerPhase = input.policy
-    ? documentOwnerPolicyStep(input.policy, input.kind)
-    : documentOwnerPhase(input.kind)
+  const ownerPhase = documentOwnerPolicyStep(input.policy, input.kind)
   if (!ownerPhase) {
     // `DocumentKind` and the matrix live together, but fail closed if a future edit accidentally
     // adds a kind without assigning its owning phase.
@@ -281,7 +271,7 @@ export async function recordDocumentLedger(input: RecordDocumentLedgerInput): Pr
     return deltaSpecSlot(record.path, input.changeDir) === slot
   })
   const old = oldCandidates.find((record) => record.sha256 === resolved.digest) ?? oldCandidates[0]
-  const policySteps = input.policy?.steps ?? DOCUMENT_CONTRACT_PHASES
+  const policySteps = input.policy.steps
   const ownerIndex = policySteps.indexOf(ownerPhase)
   const currentIndex = policySteps.indexOf(input.phase)
   if (currentIndex < 0) {
@@ -300,12 +290,8 @@ export async function recordDocumentLedger(input: RecordDocumentLedgerInput): Pr
       }
       throw new DocumentLedgerError(`'${input.kind}' 当前正处于所属 phase '${ownerPhase}'；不得使用 --backfill`)
     }
-    const producerAllowed = input.policy
-      ? isDocumentProducerAllowedInPolicyStep(input.policy, input.kind, ownerPhase, input.producer)
-      : isDocumentProducerAllowedInPhase(input.kind, ownerPhase as DocumentContractPhase, input.producer)
-    const producerCandidates = input.policy
-      ? recordProducerCandidatesForPolicyStep(input.policy, input.kind, ownerPhase)
-      : recordProducerCandidatesFor(input.kind, ownerPhase as DocumentContractPhase)
+    const producerAllowed = isDocumentProducerAllowedInPolicyStep(input.policy, input.kind, ownerPhase, input.producer)
+    const producerCandidates = recordProducerCandidatesForPolicyStep(input.policy, input.kind, ownerPhase)
     if (!producerAllowed) {
       throw new DocumentLedgerError(
         `document '${input.kind}' 的历史 producer '${input.producer}' 不合法（允许: ${producerCandidates.join(' ')})`,
@@ -318,20 +304,14 @@ export async function recordDocumentLedger(input: RecordDocumentLedgerInput): Pr
         "ADR living-document 兼容面只允许当前 requirements-changed 回到 spec 的 visit",
       )
     }
-    const recordAllowed = input.policy
-      ? isDocumentRecordAllowedInPolicyStep(input.policy, input.kind, input.phase)
-      : isDocumentContractPhase(input.phase) && isDocumentRecordAllowedInPhase(input.kind, input.phase)
+    const recordAllowed = isDocumentRecordAllowedInPolicyStep(input.policy, input.kind, input.phase)
     if (!recordAllowed) {
       throw new DocumentLedgerError(
         `'${input.kind}' 只能在其所属 phase 或允许的后续更新 phase 登记（当前 ${input.phase}）`,
       )
     }
-    const producerAllowed = input.policy
-      ? isDocumentProducerAllowedInPolicyStep(input.policy, input.kind, input.phase, input.producer)
-      : isDocumentContractPhase(input.phase) && isDocumentProducerAllowedInPhase(input.kind, input.phase, input.producer)
-    const candidates = input.policy
-      ? recordProducerCandidatesForPolicyStep(input.policy, input.kind, input.phase)
-      : isDocumentContractPhase(input.phase) ? recordProducerCandidatesFor(input.kind, input.phase) : []
+    const producerAllowed = isDocumentProducerAllowedInPolicyStep(input.policy, input.kind, input.phase, input.producer)
+    const candidates = recordProducerCandidatesForPolicyStep(input.policy, input.kind, input.phase)
     if (!producerAllowed) {
       throw new DocumentLedgerError(
         `document '${input.kind}' 的 producer '${input.producer}' 不合法（当前 ${input.phase} 允许: ${candidates.join(' ')})`,
@@ -439,7 +419,7 @@ export interface ReadDocumentsInput {
   readonly repoRoot: string
   readonly changeDir: string
   readonly phase: string
-  readonly policy?: DocumentGovernancePolicy
+  readonly policy: DocumentGovernancePolicy
   readonly kind: DocumentKind | 'all'
   readonly readAt: string
 }
@@ -448,9 +428,7 @@ export async function recordDocumentReads(input: ReadDocumentsInput): Promise<Do
   const current = await readDocumentLedger(input.changeDir)
   if (!current) throw new DocumentLedgerError(`document ledger 缺失；先执行 tenon document init`)
   const visitId = await currentDocumentStepVisitId(input.changeDir)
-  const requiredKinds = input.policy
-    ? readsRequiredForPolicyStep(input.policy, input.phase)
-    : isDocumentContractPhase(input.phase) ? readsRequiredForPhase(input.phase) : []
+  const requiredKinds = readsRequiredForPolicyStep(input.policy, input.phase)
   const kinds = input.kind === 'all' ? [...requiredKinds] : [input.kind]
   for (const kind of kinds) {
     if (!requiredKinds.includes(kind)) {

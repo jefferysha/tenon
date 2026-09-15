@@ -1,8 +1,15 @@
 import { appendFile, mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { evaluateDocumentEvidence, readSkillInvocationEvidence } from '@tenon/kernel'
+import { compileEffectiveWorkflowPlan, evaluateDocumentEvidence, readSkillInvocationEvidence } from '@tenon/kernel'
 import { FIXED_CLOCK, freshHarness, type Harness } from './integration-harness.js'
+
+/** Changes in this file run the built-in default workflow. */
+function defaultDocumentPolicy() {
+  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
+  if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
+  return policy
+}
 
 describe('document record canonical invocation binding', () => {
   let h: Harness
@@ -57,7 +64,7 @@ describe('document record canonical invocation binding', () => {
     ]), h.err.join('\n')).toBe(0)
     const ledger = JSON.parse(await h.readIn(name, '.pipeline-documents.json')) as { records: unknown[] }
     expect(ledger.records).toEqual([])
-    const report = await evaluateDocumentEvidence(h.cwd, changeDir, 'open', { recordKinds: ['proposal'], readKinds: [] })
+    const report = await evaluateDocumentEvidence(h.cwd, changeDir, 'open', { recordKinds: ['proposal'], readKinds: [] }, defaultDocumentPolicy())
     expect(report.pass).toBe(false)
   })
 
@@ -70,7 +77,7 @@ describe('document record canonical invocation binding', () => {
     const path = `docs/superpowers/specs/${name}-design.md`
     const gateBlockers = async () => (await evaluateDocumentEvidence(h.cwd, changeDir, 'explore', {
       recordKinds: ['superpower-design'], readKinds: [],
-    })).blockers
+    }, defaultDocumentPolicy())).blockers
     const skillReceipt = async (toolUse: string) => {
       await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({
         ts: FIXED_CLOCK, kind: 'tool', raw: 'Skill: brainstorming',
@@ -109,7 +116,7 @@ describe('document record canonical invocation binding', () => {
     expect(await h.run([
       'document', 'record', name, 'proposal', path, '--producer', 'openspec-propose',
     ]), h.err.join('\n')).toBe(0)
-    const report = await evaluateDocumentEvidence(h.cwd, changeDir, 'open', { recordKinds: ['proposal'], readKinds: [] })
+    const report = await evaluateDocumentEvidence(h.cwd, changeDir, 'open', { recordKinds: ['proposal'], readKinds: [] }, defaultDocumentPolicy())
     expect(report.blockers).toEqual([])
     expect(await h.run([
       'internal-native-skill-receipt', name, 'tenon:bad id', 'namespaced-session', 'tool-bad', FIXED_CLOCK,

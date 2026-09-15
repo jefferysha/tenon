@@ -1,13 +1,8 @@
 import { createHash } from 'node:crypto'
 import {
-  isAcceptedDocumentProducer,
   isRecordedDocumentProducerAllowedThroughPolicyStep,
-  isDocumentContractPhase,
   recordsRequiredForPolicyStep,
   readsRequiredForPolicyStep,
-  readsRequiredForPhase,
-  recordsRequiredForPhase,
-  type DocumentContractPhase,
   type DocumentGovernancePolicy,
   type DocumentKind,
 } from '../workflow/document-contract.js'
@@ -177,8 +172,8 @@ export async function evaluateDocumentEvidence(
   repoRoot: string,
   changeDir: string,
   phase: string,
-  scope: DocumentEvidenceScope = {},
-  policy?: DocumentGovernancePolicy,
+  scope: DocumentEvidenceScope,
+  policy: DocumentGovernancePolicy,
 ): Promise<DocumentEvidenceReport> {
   let ledger
   try {
@@ -202,15 +197,9 @@ export async function evaluateDocumentEvidence(
     }
   }
 
-  const recordRequirements = policy
-    ? recordsRequiredForPolicyStep(policy, phase)
-    : isDocumentContractPhase(phase) ? recordsRequiredForPhase(phase) : []
+  const recordRequirements = recordsRequiredForPolicyStep(policy, phase)
   const recordKinds = scope.recordKinds ?? recordRequirements.map((requirement) => requirement.kind)
-  const readRequirements = new Set(scope.readKinds ?? (
-    policy
-      ? readsRequiredForPolicyStep(policy, phase)
-      : isDocumentContractPhase(phase) ? readsRequiredForPhase(phase) : []
-  ))
+  const readRequirements = new Set(scope.readKinds ?? readsRequiredForPolicyStep(policy, phase))
   const kinds = new Set<DocumentKind>([...recordKinds, ...readRequirements])
   const blockers: string[] = []
   const items: DocumentEvidenceItem[] = []
@@ -243,11 +232,7 @@ export async function evaluateDocumentEvidence(
       items.push(item(kind, 'missing', requiredRead, records, phase, currentVisitId))
       continue
     }
-    if (records.some((record) => {
-      return policy
-        ? !isRecordedDocumentProducerAllowedThroughPolicyStep(policy, kind, phase, record.producer)
-        : !isAcceptedDocumentProducer(kind, record.producer)
-    })) {
+    if (records.some((record) => !isRecordedDocumentProducerAllowedThroughPolicyStep(policy, kind, phase, record.producer))) {
       blockers.push(`document '${kind}' 的 producer 不符合当前 document contract`)
       items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId))
       continue

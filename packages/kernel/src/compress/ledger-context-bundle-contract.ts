@@ -1,5 +1,5 @@
 import type { DocumentLedger } from '../state/document-ledger.js'
-import type { DocumentKind } from '../workflow/document-contract.js'
+import type { DocumentGovernancePolicy, DocumentKind } from '../workflow/document-contract.js'
 import type {
   ContextBundleMode,
   ContextBundleTier,
@@ -70,6 +70,8 @@ export interface CompileLedgerContextBundleInput {
   readonly change: string
   readonly from: string
   readonly target: string
+  /** The change's document policy; target must be one of its steps. */
+  readonly policy: DocumentGovernancePolicy
   readonly budgetBytes?: number
   readonly fs?: HandoffFs
   readonly resourceLimits?: LedgerContextBundleResourceLimits
@@ -84,6 +86,7 @@ export interface CompileLedgerContextBundleWithPortsInput {
   readonly change: string
   readonly from: string
   readonly target: string
+  readonly policy: DocumentGovernancePolicy
   readonly budgetBytes?: number
   readonly ledgerRepository: LedgerContextBundleLedgerRepository
   readonly sourceReader: LedgerContextBundleSourceReader

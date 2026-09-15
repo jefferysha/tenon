@@ -134,7 +134,7 @@ async function seedGovernedDocumentEvidence(root: string, changeDir: string, nam
       observedAt: recordedAt,
     })
     if (!confirmed) throw new Error(`fixture native confirmation rejected for ${producer}`)
-    const ledger = await recordDocument({ repoRoot: root, changeDir, phase, kind, path, producer, recordedAt })
+    const ledger = await recordDocument({ repoRoot: root, changeDir, phase, policy: defaultDocumentPolicy(), kind, path, producer, recordedAt })
     const canonicalRecord = [...ledger.records].reverse().find((candidate) =>
       candidate.kind === kind && candidate.path === path && candidate.recordedAt === recordedAt)
     if (canonicalRecord === undefined) throw new Error(`fixture canonical record missing for ${path}`)
@@ -154,8 +154,15 @@ async function seedGovernedDocumentEvidence(root: string, changeDir: string, nam
   await record('ship', 'applied-spec', docs.applied, 'openspec-apply-change')
   await store.set(changeDir, 'phase', originalPhase)
   for (const phase of ['explore', 'spec', 'build', 'verify', 'ship', 'archive'] as const) {
-    await recordDocumentReads({ repoRoot: root, changeDir, phase, kind: 'all', readAt: FIXED_CLOCK() })
+    await recordDocumentReads({ repoRoot: root, changeDir, phase, policy: defaultDocumentPolicy(), kind: 'all', readAt: FIXED_CLOCK() })
   }
+}
+
+/** Fixtures record the built-in default document table (identical in every default branch). */
+function defaultDocumentPolicy() {
+  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
+  if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
+  return policy
 }
 
 // TransitionCommand.loadWorkflow 现返回编译产物 WorkflowIR（adapter loadWorkflow→compileWorkflow）；

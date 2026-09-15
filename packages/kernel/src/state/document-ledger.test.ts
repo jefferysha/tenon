@@ -11,17 +11,18 @@ import {
   migrateLegacyDeltaDocument,
   parseDocumentLedger,
   readDocumentLedger,
-  recordDocumentReads,
+  recordDocumentReads as recordDocumentReadsWithPolicy,
 } from './document-ledger.js'
 import { recordDocument as recordDocumentState } from '../documents/document-recording.js'
-import { evaluateDocumentEvidence } from './document-evidence.js'
+import { evaluateDocumentEvidence as evaluateDocumentEvidenceWithPolicy } from './document-evidence.js'
 import {
   MAX_DOCUMENT_SOURCE_BYTES,
   readBoundedFileHandle,
   resolveDocument,
 } from './document-path.js'
 import { emptyFields } from './parse.js'
-import { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from '../workflow/document-contract.js'
+import type { DocumentGovernancePolicy } from '../workflow/document-contract.js'
+import { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from '../workflow/migrations/openspec-v1-document-policy.js'
 import {
   publishInitialRunRevision,
   publishRunRevision,
@@ -38,11 +39,25 @@ const dirs: string[] = []
 let nativeReceiptSequence = 0
 const declaredSkills = new Map<string, Set<string>>()
 
-const recordDocument: typeof recordDocumentState = async (input) => {
+type WithDefaultPolicy<T> = Omit<T, 'policy'> & { readonly policy?: DocumentGovernancePolicy }
+
+/** Fixtures default to the openspec-v1 table that default declares in YAML. */
+const recordDocumentReads = (input: WithDefaultPolicy<Parameters<typeof recordDocumentReadsWithPolicy>[0]>) =>
+  recordDocumentReadsWithPolicy({ ...input, policy: input.policy ?? LEGACY_DOCUMENT_GOVERNANCE_POLICY })
+
+const evaluateDocumentEvidence = (
+  repoRoot: string,
+  changeDir: string,
+  phase: string,
+  scope: Parameters<typeof evaluateDocumentEvidenceWithPolicy>[3] = {},
+  policy: DocumentGovernancePolicy = LEGACY_DOCUMENT_GOVERNANCE_POLICY,
+) => evaluateDocumentEvidenceWithPolicy(repoRoot, changeDir, phase, scope, policy)
+
+const recordDocument = async (input: WithDefaultPolicy<Parameters<typeof recordDocumentState>[0]>) => {
   if (input.allowBackfill !== true && declaredSkills.get(input.changeDir)?.has(input.producer)) {
     await confirmFixtureSkill(input.changeDir, input.phase, input.producer)
   }
-  const ledger = await recordDocumentState(input)
+  const ledger = await recordDocumentState({ ...input, policy: input.policy ?? LEGACY_DOCUMENT_GOVERNANCE_POLICY })
   if (input.allowBackfill !== true) {
     const canonicalRecord = [...ledger.records].reverse().find((record) =>
       record.kind === input.kind
@@ -115,7 +130,7 @@ test('document record 在 digest 前拒绝超过单文档硬上限的来源', as
   const { root, changeDir } = await fixture()
   const relativePath = 'docs/oversized.md'
   await writeDoc(root, relativePath, 'x'.repeat(MAX_DOCUMENT_SOURCE_BYTES + 1))
-  await expect(recordDocumentState({
+  await expect(recordDocumentState({ policy: LEGACY_DOCUMENT_GOVERNANCE_POLICY,
     repoRoot: root,
     changeDir,
     phase: 'open',
@@ -153,7 +168,7 @@ test('normal document record rejects bare current-visit Skill history when confi
   await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({
     ts: NOW, kind: 'tool', raw: 'Skill: openspec-propose',
   })}\n`)
-  await expect(recordDocumentState({
+  await expect(recordDocumentState({ policy: LEGACY_DOCUMENT_GOVERNANCE_POLICY,
     repoRoot: root, changeDir, phase: 'open', kind: 'proposal', path: proposal,
     producer: 'openspec-propose', recordedAt: NOW,
   })).rejects.toThrow(/exact host confirmation/u)
@@ -514,7 +529,7 @@ describe('OpenSpec document ledger', () => {
       repoRoot: root, changeDir, phase: 'spec', kind: 'delta-spec', path: alpha,
       producer: 'openspec-propose', recordedAt: NOW,
     })
-    await expect(recordDocumentState({
+    await expect(recordDocumentState({ policy: LEGACY_DOCUMENT_GOVERNANCE_POLICY,
       repoRoot: root, changeDir, phase: 'spec', kind: 'delta-spec', path: invalid,
       producer: 'openspec-propose', recordedAt: NOW,
     })).rejects.toThrow(/canonical capability 路径/)
@@ -710,7 +725,7 @@ describe('OpenSpec document ledger', () => {
       'utf8',
     )
 
-    await expect(recordDocumentState({
+    await expect(recordDocumentState({ policy: LEGACY_DOCUMENT_GOVERNANCE_POLICY,
       repoRoot: root, changeDir, phase: 'open', kind: 'proposal', path: proposal,
       producer: 'openspec-propose', recordedAt: NOW,
     })).rejects.toThrow(/exact host confirmation/u)
@@ -758,7 +773,7 @@ describe('OpenSpec document ledger', () => {
 
     await writeDoc(root, tasks, '# spec tasks\n')
     await writeDoc(root, design, '# spec design with coverage\n')
-    await expect(recordDocumentState({
+    await expect(recordDocumentState({ policy: LEGACY_DOCUMENT_GOVERNANCE_POLICY,
       repoRoot: root, changeDir, phase: 'spec', kind: 'tasks', path: tasks,
       producer: 'openspec-propose', recordedAt: NOW, allowBackfill: true,
     })).rejects.toThrow(/--backfill 只能首次登记历史 document/)
@@ -852,7 +867,7 @@ describe('OpenSpec document ledger', () => {
       `${JSON.stringify({ kind: 'transition', from: 'explore', to: 'spec' })}\n`,
       'utf8',
     )
-    await expect(recordDocumentState({
+    await expect(recordDocumentState({ policy: LEGACY_DOCUMENT_GOVERNANCE_POLICY,
       repoRoot: root, changeDir, phase: 'spec', kind: 'tasks', path: tasks,
       producer: 'tenon-spec', recordedAt: NOW,
     })).rejects.toThrow(/缺少 Skill 调用证据（当前 phase）/)
@@ -1134,7 +1149,6 @@ describe('OpenSpec document ledger', () => {
 
   test.each([
     ['当前冻结 policy', LEGACY_DOCUMENT_GOVERNANCE_POLICY],
-    ['无 policy 调用', undefined],
   ])('首次 explore→spec visit 在%s下也不得重登记 ADR', async (_label, policy) => {
     const { root, changeDir, name } = await fixture()
     const adr = `docs/adr/${name}.md`

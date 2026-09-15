@@ -34,6 +34,9 @@ vi.mock('./contextBundlePreviewSupport.js', async (importOriginal) => ({
 import { LedgerContextBundleError } from '@tenon/kernel'
 import { handleContextBundlePreview } from './contextBundlePreview.js'
 
+/** Built-in default change: the preview resolves its document policy from this state. */
+const STATE = { fields: { workflow: 'default', phase: 'build', track: '' }, opaqueTail: '' } as never
+
 const preview = {
   change: 'demo',
   from: 'build',
@@ -84,8 +87,8 @@ beforeEach(() => {
 describe('Context Bundle preview canonical snapshot barrier', () => {
   it('compiler 成功但 revision 改变时返回 409，不返回旧 success preview', async () => {
     mocks.snapshot
-      .mockReturnValueOnce({ phase: 'build', revisionId: 'rev-before', stateDigest: 'a'.repeat(64) })
-      .mockReturnValueOnce({ phase: 'verify', revisionId: 'rev-after', stateDigest: 'b'.repeat(64) })
+      .mockReturnValueOnce({ phase: 'build', revisionId: 'rev-before', stateDigest: 'a'.repeat(64), state: STATE })
+      .mockReturnValueOnce({ phase: 'verify', revisionId: 'rev-after', stateDigest: 'b'.repeat(64), state: STATE })
     mocks.compile.mockResolvedValue({
       preview,
       bundle: { aggregateDigest: `sha256:${'c'.repeat(64)}` },
@@ -104,8 +107,8 @@ describe('Context Bundle preview canonical snapshot barrier', () => {
 
   it('compiler 产生 422 preview 但 revision 改变时仍由 409 barrier 覆盖', async () => {
     mocks.snapshot
-      .mockReturnValueOnce({ phase: 'build', revisionId: 'rev-before', stateDigest: 'a'.repeat(64) })
-      .mockReturnValueOnce({ phase: 'verify', revisionId: 'rev-after', stateDigest: 'b'.repeat(64) })
+      .mockReturnValueOnce({ phase: 'build', revisionId: 'rev-before', stateDigest: 'a'.repeat(64), state: STATE })
+      .mockReturnValueOnce({ phase: 'verify', revisionId: 'rev-after', stateDigest: 'b'.repeat(64), state: STATE })
     mocks.compile.mockRejectedValue(new LedgerContextBundleError(
       'CONTEXT_BUNDLE_BUDGET_EXCEEDED',
       'budget exceeded',

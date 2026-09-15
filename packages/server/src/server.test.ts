@@ -266,6 +266,10 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     expect(JSON.stringify(body)).not.toContain('"content"')
     expect(JSON.stringify(body)).not.toContain('# proposal')
 
+    const notAStep = await reqGet(h.port, previewPath(h.root, h.name, 'not-a-step'))
+    expect(notAStep.status).toBe(400)
+    expect(notAStep.json()).toMatchObject({ ok: false, code: 'CONTEXT_BUNDLE_INVALID_REQUEST' })
+
     const empty = await reqGet(h.port, previewPath(h.root, h.name, 'open'))
     expect(empty.status).toBe(200)
     expect(empty.json()).toMatchObject({
@@ -311,7 +315,7 @@ describe('GET /api/context-bundle/preview —— ledger-bound 只读预算预览
     const invalidPaths = [
       '/api/context-bundle/preview',
       previewPath(h.root, '../escape'),
-      previewPath(h.root, h.name, 'not-a-canonical-phase'),
+      previewPath(h.root, h.name, 'bad target!'),
       previewPath(h.root, h.name, 'explore', '0'),
       previewPath(h.root, h.name, 'explore', '1.5'),
       previewPath(h.root, h.name, 'explore', String(Number.MAX_SAFE_INTEGER + 1)),

@@ -1,6 +1,6 @@
 import {
-  isDocumentContractPhase,
-  readsRequiredForPhase,
+  isDocumentPolicyStep,
+  readsRequiredForPolicyStep,
   type DocumentKind,
 } from '../workflow/document-contract.js'
 import {
@@ -116,14 +116,14 @@ export async function compileLedgerContextBundleWithPorts(
   if (!input.primitives.isAbsoluteRoot(input.root) || !SAFE_ID.test(input.change) || !SAFE_ID.test(input.from)) {
     throw invalidRequest('Context Bundle root/change/from 非法')
   }
-  if (!isDocumentContractPhase(input.target)) {
-    throw invalidRequest(`Context Bundle target 必须是 canonical phase: ${input.target}`)
+  if (!isDocumentPolicyStep(input.policy, input.target)) {
+    throw invalidRequest(`Context Bundle target 必须是 workflow step: ${input.target}`)
   }
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
     throw invalidRequest(`Context Bundle budgetBytes 必须是正安全整数: ${maxBytes}`)
   }
 
-  const requiredKinds = readsRequiredForPhase(input.target)
+  const requiredKinds = readsRequiredForPolicyStep(input.policy, input.target)
   const bundleInputs: Array<{
     kind: DocumentKind
     path: string
