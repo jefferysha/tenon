@@ -145,8 +145,15 @@ if [ -f "$ROOT/.pipeline-pending-interaction" ] \
   fi
 fi
 
+RELEASED_LOCK=0
+if [ -f "$ROOT/.pipeline-pending-interaction" ] || [ -f "$ROOT/.pipeline-pending-confirm" ]; then RELEASED_LOCK=1; fi
 rm -f "$ROOT/.pipeline-pending-confirm" \
       "$ROOT/.pipeline-pending-interaction" 2>/dev/null || true
+# Announce a released lock: an agent that was blocked earlier otherwise assumes the gate still holds
+# and stops without retrying the blocked action.
+if [ "$RELEASED_LOCK" -eq 1 ]; then
+  printf '<tenon-interaction-confirmed>\n用户已确认，待确认的交互已解封；请重试刚才被拦截的操作。\n</tenon-interaction-confirmed>\n'
+fi
 
 REVIEW_HELPER="$HOOK_DIR/review-ack.sh"
 if [ -r "$REVIEW_HELPER" ]; then

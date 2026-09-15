@@ -1650,7 +1650,8 @@ OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"确认以上决策并写入�
   && ok "confirm-clear-prompt: 未识别为确认的回复保留 pending interaction" \
   || bad "confirm-clear-prompt: 未识别为确认的回复保留 pending interaction" "marker 被错误清除"
 assert_contains "confirm-clear-prompt: 未识别的回复提示解封短语" "$OUT" "确认继续"
-printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"确认继续\"}" | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" >/dev/null 2>&1
+OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"确认继续\"}" | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" 2>/dev/null)"
+assert_contains "confirm-clear-prompt: 解封后告知 agent 重试被拦截的操作" "$OUT" "tenon-interaction-confirmed"
 [ ! -f "$proj/.pipeline-pending-interaction" ] \
   && ok "confirm-clear-prompt: 确认继续清 pending interaction" \
   || bad "confirm-clear-prompt: 确认继续清 pending interaction" "marker 仍在"

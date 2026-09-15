@@ -4,6 +4,33 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v1.1.3 · 2026-09-15
+
+Found while installing v1.1.2 for Codex on a slow proxy connection.
+
+### Installer
+
+- A dropped or slow connection to GitHub no longer aborts the install. The stable release proof ran
+  `git ls-remote` and a shallow `git fetch` once, so a single `ETIMEDOUT` or TLS reset
+  (`SSL_ERROR_SYSCALL`) failed `install.sh`. Both calls now retry transport failures up to three times
+  with a short backoff. A missing tag or ref still fails immediately, and every result is validated
+  exactly as before.
+
+### Interaction gate
+
+- An approval that releases a pending interaction now says so in the conversation. A Codex agent that
+  had been blocked earlier assumed the gate still held after the user replied 「确认继续」 and stopped
+  without retrying the blocked action.
+
+### Upgrade
+
+Install the new release for each host you use, then open a new host session:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.3/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.3/install.sh | /bin/bash -s -- --codex
+```
+
 ## v1.1.2 · 2026-09-15
 
 Fixes found by continuing real Claude Code and Codex tasks on v1.1.1.

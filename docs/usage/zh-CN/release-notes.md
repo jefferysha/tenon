@@ -12,6 +12,30 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v1.1.3 · 2026-09-15
+
+在慢速代理网络上为 Codex 安装 v1.1.2 时发现并修复的问题。
+
+### 安装器
+
+- 与 GitHub 的连接中断或变慢不再导致安装失败。稳定版本证明原本只执行一次 `git ls-remote` 与浅克隆
+  `git fetch`，一次 `ETIMEDOUT` 或 TLS 重置（`SSL_ERROR_SYSCALL`）就会让 `install.sh` 失败。现在两个调用在
+  传输失败时最多重试三次并短暂退避；标签或引用不存在时仍立即失败，每个结果的校验与之前完全相同。
+
+### 交互门
+
+- 用户确认解封待确认的交互后，会在对话中明确告知。此前在 Codex 中，先被拦截过的 agent 在用户回复「确认继续」
+  后仍以为门禁未解，没有重试被拦截的操作就停下。
+
+### 升级动作
+
+为使用的每个宿主安装新版本，然后新开宿主会话：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.3/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.3/install.sh | /bin/bash -s -- --codex
+```
+
 ## v1.1.2 · 2026-09-15
 
 在 v1.1.1 上继续用 Claude Code 与 Codex 执行真实任务时发现并修复的问题。
