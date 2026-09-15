@@ -52,6 +52,19 @@ tracks:
         transitions: []
 `
 
+/** 同一工作流开启 OpenSpec：只有 mobile 分支声明文档契约（设计阶段要求项目文档 DESIGN.md）。 */
+const GOVERNED_BRANCHED_WF = BRANCHED_WF
+  .replace('name: branched\n', 'name: branched\nopenspec: true\n')
+  .replace('    label: 移动端\n', [
+    '    label: 移动端',
+    '    document_contract:',
+    '      version: v1',
+    '      slots:',
+    '        - { kind: design-md, owner_step: design, role: require }',
+    '      reads: []',
+    '',
+  ].join('\n'))
+
 describe('真实 e2e —— 工作流 track 分支与 auto 门', () => {
   let h: Harness
   afterEach(async () => { if (h) await rm(h.cwd, { recursive: true, force: true }) })
@@ -69,6 +82,27 @@ describe('真实 e2e —— 工作流 track 分支与 auto 门', () => {
     expect(yaml).toMatch(/^phase: design$/m)
     expect(yaml).toMatch(/^track: mobile$/m)
     expect(yaml).toMatch(/^workflow: branched$/m)
+  })
+
+  test('分支文档契约：mobile 要求 DESIGN.md、backend 不要求；handoff --bundle 按分支契约取文档', async () => {
+    h = await freshHarness()
+    await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(h.cwd, '.pipeline', 'workflows', 'branched.yaml'), GOVERNED_BRANCHED_WF, 'utf8')
+    expect(await h.run(['init', 'mob', '--track', 'mobile', '--workflow', 'branched', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['init', 'web', '--track', 'backend', '--workflow', 'branched', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['document', 'status', 'web']), h.out.join('\n')).toBe(0)
+    expect(await h.run(['document', 'status', 'mob'])).toBe(2)
+    expect(h.out.join('\n')).toContain("缺少项目文档 'design-md'（DESIGN.md）")
+    expect(await h.run(['transition', 'mob', 'design-complete'])).not.toBe(0)
+    expect(await h.read('mob')).toMatch(/^phase: design$/m)
+
+    await writeFile(join(h.cwd, 'DESIGN.md'), '# Design system\n', 'utf8')
+    expect(await h.run(['handoff', 'mob', '--bundle', '--target', 'design', '--json']), h.err.join('\n')).toBe(0)
+    const bundle = JSON.parse(h.out.at(-1) ?? '{}') as { inputs: Array<{ kind: string; path: string }> }
+    expect(bundle.inputs.map((input) => [input.kind, input.path])).toEqual([['design-md', 'DESIGN.md']])
+    expect(await h.run(['document', 'status', 'mob']), h.out.join('\n')).toBe(0)
+    expect(await h.run(['transition', 'mob', 'design-complete']), h.err.join('\n')).toBe(0)
+    expect(await h.read('mob')).toMatch(/^phase: done$/m)
   })
 
   test('既无登记也无分支的 track → init 拒绝', async () => {

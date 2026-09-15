@@ -4,7 +4,7 @@
  * 文档经注入 fake HandoffFs（避免 fs——真 fs 面在 integration）。
  */
 import { describe, expect, test, vi } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -181,7 +181,7 @@ describe('--bundle —— 共享 ledger compiler 适配', () => {
     },
   }
 
-  test('只透传 root/change/from/target/budget/fs，并保持 context-bundle/v1 输出', async () => {
+  test('只透传 root/change/from/target/policy/budget/fs（policy = change 的文档策略），并保持 context-bundle/v1 输出', async () => {
     const d = makeDeps({ state: mockState({ phase: 'spec' }) })
     const fs = fakeFs({})
     const calls: CompileLedgerContextBundleInput[] = []
@@ -203,6 +203,7 @@ describe('--bundle —— 共享 ledger compiler 适配', () => {
       change: 'chg',
       from: 'spec',
       target: 'build',
+      policy: expect.objectContaining({ id: 'openspec-v1', steps: ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'] }),
       budgetBytes: 4096,
       fs,
     }])
@@ -233,5 +234,23 @@ describe('--bundle —— 共享 ledger compiler 适配', () => {
     const compiler = vi.fn<typeof compileLedgerContextBundle>()
     expect(await cmdHandoff(d, 'chg', {}, fakeFs({}), zhLocale, compiler)).toBe(0)
     expect(compiler).not.toHaveBeenCalled()
+  })
+
+  test('workflow 未开启 openspec：--bundle exit 1 并说明原因，不调用编译器（E18）', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tenon-cli-bundle-ungoverned-'))
+    try {
+      await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
+      await writeFile(join(root, '.pipeline', 'workflows', 'plain.yaml'), [
+        'name: plain', 'steps:', '  - id: one', '    label: 一', '    gate: null', '    skills: []',
+        '    inputs: []', '    outputs: []', '    guards: []', '    transitions: []', '',
+      ].join('\n'), 'utf8')
+      const d = makeDeps({ cwd: root, state: mockState({ workflow: 'plain', phase: 'one' }) })
+      const compiler = vi.fn<typeof compileLedgerContextBundle>()
+      expect(await cmdHandoff(d, 'chg', { bundle: true, target: 'one', json: true }, undefined, zhLocale, compiler)).toBe(1)
+      expect(d.errLines).toEqual(["ERROR: workflow 'plain' 未开启 openspec，--bundle 不适用"])
+      expect(compiler).not.toHaveBeenCalled()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })
