@@ -102,5 +102,7 @@ describe('browser workflow runtime provenance', () => {
     } finally {
       await browser.close()
     }
-  }, 30_000)
+    // Every browser step keeps its own 10 s bound; the whole-test budget also covers launching
+    // Chromium, which exceeded 30 s while the full local suite saturated the machine.
+  }, 90_000)
 })
