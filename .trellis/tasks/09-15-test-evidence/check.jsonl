@@ -1,0 +1,11 @@
+{"file": ".trellis/tasks/09-15-tenon-next-capabilities/design.md", "reason": "Shared contracts; §9 cross-child resolutions override the child design."}
+{"file":".trellis/tasks/09-15-test-evidence/prd.md","reason":"Acceptance criteria R1-R13 to verify: Tenon-executed tests, per-user records, stale blocking, Playwright trace, benchmark baseline, generated report."}
+{"file":".trellis/tasks/09-15-test-evidence/design.md","reason":"Exact schemas, CLI/HTTP contracts, error matrix and required assertion points to check the implementation against."}
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/implement.md","reason":"Shared gates after merge and hot overlap files that need careful review."}
+{"file":".trellis/spec/kernel/backend/workflow-track-branches.md","reason":"Check fingerprints stay byte-identical for workflows without tests and branch validation prefixes are kept."}
+{"file":".trellis/spec/kernel/backend/state-lock.md","reason":"Check the runner never relies on /bin/ps or cross-pid probing that Codex workspace-write denies."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Check test-nudge.sh and gate.sh changes stay pure bash, fail open and print actionable messages."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"Check route validation, containment, status codes and authenticated write tests use the options-object token form."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Check one word per concept, no sentences, no wrapping, sheet and drawer contracts, save blocked on lint or missing token."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check consumers use the shared record decoder and snapshot projection instead of casting JSON fields locally."}
+{"file":".trellis/spec/guides/index.md","reason":"Check host-integration items: real runs on installed release in Claude Code and Codex, sandbox denials handled."}

@@ -1,0 +1,10 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Verify terms, directory layout and page surfaces match the shared contracts (and any accepted change requests)."}
+{"file":".trellis/tasks/09-15-instruction-templates/research/harness-instructions.md","reason":"Check host table paths, target files and level labels against the researched loading rules."}
+{"file":".trellis/tasks/09-15-instruction-templates/research/draft-template-react-java.md","reason":"Check builtin blocks keep the baseline's sections, rules and length thresholds."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Review one-word labels, no sentences, no wrapping, ThreeColumns usage and testid/aria state assertions."}
+{"file":".trellis/spec/dashboard-app/frontend/quality-guidelines.md","reason":"Review pending/error/retry states, disabled writes without token, and 375/768/1440 browser evidence."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Review HTTP codes, stable error codes and that rejected writes leave files untouched."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"Review trusted path handling and write-route tests passing the token correctly."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Review kernel instructions module purity and required failure-path tests."}
+{"file":".trellis/spec/cli/frontend/host-install-and-inventory.md","reason":"Review that the activation hook never turns a committed activation into a failure."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Confirm the dashboard does not re-implement composition or managed-block merging and decoders are shared."}

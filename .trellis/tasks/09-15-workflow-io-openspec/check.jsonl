@@ -1,0 +1,10 @@
+{"file": ".trellis/tasks/09-15-tenon-next-capabilities/design.md", "reason": "Shared contracts; §9 cross-child resolutions override the child design."}
+{"file":".trellis/tasks/09-15-workflow-io-openspec/prd.md","reason":"Acceptance criteria R1-R10 and real-host scenarios to verify."}
+{"file":".trellis/tasks/09-15-workflow-io-openspec/design.md","reason":"Error matrix §8, tests §9 and removals §7 to check against the diff."}
+{"file":".trellis/spec/kernel/backend/workflow-track-branches.md","reason":"Branch selection, fingerprint and snapshot restore invariants must still hold."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Recording boundary and producer confirmation must not regress for any document kind."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"Read-only projections stripped before POST; global store round trip."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"One word per concept, no sentences, nowrap, test ids and editor/workspace contracts."}
+{"file":".trellis/spec/dashboard-app/frontend/quality-guidelines.md","reason":"Dashboard code standards and forbidden patterns."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Kernel code standards for pure policy modules and fail-loud validation."}
+{"file":".trellis/spec/guides/index.md","reason":"Pre-modification grep rule and host-integration checklist for real Claude Code and Codex runs."}

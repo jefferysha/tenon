@@ -1,0 +1,10 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Verify records, YAML, directories, terms and execution boundary match the shared contracts (or an accepted change request)."}
+{"file":".trellis/spec/kernel/backend/workflow-track-branches.md","reason":"Check parse/serialize round trip, per-branch validation prefixes and historical snapshot fingerprints after removing review lanes and budget."}
+{"file":".trellis/spec/kernel/backend/state-lock.md","reason":"Check agent run appends and freezes use the change lock without nested-lock deadlocks in the skill gate."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Check hooks/gate.sh hot path is unchanged and agent skill blocks name the unlocking command."}
+{"file":".trellis/spec/server/backend/decision-sync.md","reason":"Check review request refusal on unpassed required reviewers does not alter the review receipt and acknowledge contract."}
+{"file":".trellis/spec/server/backend/snapshot-skill-runs.md","reason":"Check agentRuns projection and readiness blockers stay consistent with the strict snapshot decoder."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Check one word per concept, no sentences, nowrap, section order, token-gated writes and SkillFlow reuse."}
+{"file":".trellis/spec/guides/index.md","reason":"Host integration checklist: real runs in both hosts, namespaced skill ids, unlock messages."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check every layer reads the agent run record through one typed decoder instead of local casts."}
+{"file":".trellis/tasks/09-15-review-agents/research/current-review.md","reason":"Confirm every removed review lane, budget and field reference listed there is gone or intentionally retained."}

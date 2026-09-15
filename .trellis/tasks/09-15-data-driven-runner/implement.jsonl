@@ -1,0 +1,19 @@
+{"file": ".trellis/tasks/09-15-tenon-next-capabilities/design.md", "reason": "Binding shared contracts: terms, per-user layout, workflow YAML extensions for agents/tests/documents, execution boundary."}
+{"file": ".trellis/tasks/09-15-data-driven-runner/design.md", "reason": "This child's CLI shapes (status step, spec apply), default data per track, removals and decisions."}
+{"file": ".trellis/spec/kernel/backend/skill-output-registration.md", "reason": "Per-StepVisit host confirmation and explicit document record; basis for reloading tenon as producer."}
+{"file": ".trellis/spec/kernel/backend/workflow-track-branches.md", "reason": "Track branch, gate and fingerprint rules the default.yaml migration must keep."}
+{"file": ".trellis/spec/cli/frontend/hook-guidelines.md", "reason": "Review acknowledgement channels, HITL/AFK strategy and interactive confirmation the skill relies on."}
+{"file": ".trellis/spec/cli/frontend/host-install-and-inventory.md", "reason": "Doctor host inventory conventions for the derived skill checks."}
+{"file": ".trellis/spec/server/backend/snapshot-skill-runs.md", "reason": "Skill node projection from requiredSkillIds plus overlay after phase drivers disappear."}
+{"file": ".trellis/spec/server/backend/workflow-branches-and-skill-files.md", "reason": "Workflow branches API and skill files API affected by the shrunken skills directory."}
+{"file": ".trellis/spec/dashboard-app/frontend/component-guidelines.md", "reason": "Workflow definition as single source of truth and wording rules for step labels such as 完结."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "status step JSON crosses kernel, CLI, skill and Dashboard layers."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Build the step block from check, review and ledger evaluators instead of duplicating guard logic."}
+{"file": ".trellis/tasks/archive/2026-09/09-15-v1-1-0-release-e2e/research/e2e-default-workflow-and-codex.md", "reason": "Real-host behaviors and defects (namespaced receipts, Codex reads, pr_url stops, SHALL/MUST) the runner must preserve."}
+{"file": ".trellis/tasks/archive/2026-09/09-15-v1-1-0-release-e2e/research/e2e-custom-workflow.md", "reason": "Dashboard-built workflow evidence without phase skills; completion_event handling."}
+{"file": ".trellis/tasks/archive/2026-09/09-15-v1-1-0-release-e2e/research/document-recording-defects.md", "reason": "Document record idempotency and repository-scoped paths used by record-document actions."}
+{"file": ".trellis/tasks/09-15-upstream-skills/research/current-skill-bundle.md", "reason": "Upstream ids, renames and removed skills that default data may reference."}
+{"file": ".trellis/tasks/09-15-review-agents/research/current-review.md", "reason": "Review lanes and hand-filled review fields being replaced by agent runs."}
+{"file": ".trellis/tasks/09-15-test-evidence/research/current-test-evidence.md", "reason": "Current test evidence gaps and the extension points the step block reads."}
+{"file": ".trellis/tasks/09-15-workflow-io-openspec/research/io-and-runtime-artifacts.md", "reason": "Document contract selection by workflow name and per-step IO derivation."}
+{"file": ".trellis/tasks/09-15-design-resources/research/default-frontend-track.md", "reason": "Frontend track skills and document kinds before migration; DESIGN.md placement."}

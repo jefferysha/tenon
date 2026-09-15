@@ -1,0 +1,7 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Binding shared contracts; section 8 fixes the release sequence: v0.1.0 through the existing pipeline, then delete all 1.x."}
+{"file":".trellis/spec/cli/frontend/host-install-and-inventory.md","reason":"Installer, stable release proof and doctor contracts that the retired-line release order and install.sh journal adoption must preserve; gains the new scenario."}
+{"file":".trellis/spec/guides/index.md","reason":"Pre-modification search rule for every version position and the host-integration checklist requiring real installs in Claude Code and Codex."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"One version-order rule crosses install.sh (shell), CLI TypeScript and GitHub release workflows."}
+{"file":"docs/DIST-RELEASE.md","reason":"Release pipeline and N-1 compatibility gate description to update with fixture status none/pinned, exit 78 and --latest."}
+{"file":"openspec/specs/plugin-distribution/spec.md","reason":"Requirement 'Release 门禁 SHALL 使用精确公开 N-1 产物' (lines 863-874) gains the one-time v0.1.0 exception and latest-baseline rule."}
+{"file":"openspec/specs/open-source-documentation-experience/spec.md","reason":"One-time migration boundary requirement (lines 805-816) moves from v1.0.1->v1.0.2 to 1.x->v0.1.0."}

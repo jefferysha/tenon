@@ -1,0 +1,11 @@
+{"file":".trellis/tasks/09-15-workflow-io-openspec/design.md","reason":"Binding schema, types, route changes, removals, error matrix and tests for this child."}
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Shared contracts: terms (完结/已完结), workflow YAML extensions §4, Dashboard surfaces §7."}
+{"file":".trellis/tasks/09-15-workflow-io-openspec/research/io-and-runtime-artifacts.md","reason":"Evidence for document slot declaration, runtime artifacts panel and handoff gaps."}
+{"file":".trellis/tasks/09-15-workflow-io-openspec/research/reference-patterns.md","reason":"Approved IO display patterns: checklist rows, reasons, gate counts, hide empty slots."}
+{"file":".trellis/spec/kernel/backend/workflow-track-branches.md","reason":"steps ⊕ tracks, branch selection, fingerprint and gate contracts that per-branch document_contract extends."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Document recording boundary, path rules and producer confirmation reused by design-md and roles."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"GET /api/workflows branches/effectiveIo projection and global store write rules."}
+{"file":".trellis/spec/server/backend/artifact-catalog-route.md","reason":"Route being deleted; lists its tests and consumers."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Workflow editor and workspace rules (wording, IO tables, SkillFlow, lint, copy default pitfalls) to change consistently."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Change spans YAML, kernel policy, CLI, server projections and Dashboard decoders."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Moving producerSkills and replacing phase-keyed helpers with one policy path."}

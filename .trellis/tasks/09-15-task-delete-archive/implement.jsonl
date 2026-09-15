@@ -1,0 +1,11 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Binding terms (归档/删除/完结), identity contract and per-user .tenon/users/<slug>/local layout used by archived.json."}
+{"file":".trellis/tasks/09-15-task-delete-archive/research/current-lifecycle.md","reason":"Evidence of today's archive/delete gaps and the manual Change removal steps delete must automate."}
+{"file":".trellis/tasks/09-15-multi-user/prd.md","reason":"Identity resolution, per-user state isolation and owner rules the lifecycle actor and filters depend on."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"One kernel application shared by CLI and server; reasons and archive store decoded in one place."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse terminal-activity parsers, review marker parser, loadTaskTree and existing route guards instead of copies."}
+{"file":".trellis/spec/kernel/backend/state-lock.md","reason":"Delete renames the Change while holding withLock inside it; release and waiter behaviour must stay correct."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Shared application boundary and fixed HTTP mapping / zero-write rejection pattern for the new routes."}
+{"file":".trellis/spec/server/backend/snapshot-skill-runs.md","reason":"Snapshot projection conventions for adding optional archived[] and uncommittedDeletions fields."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Pure-bash hot path, no node/jq, and test-hooks.sh assertions for the archived-for-user hook check."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Three-column 工作台 rules, wording rules, test-id conventions; the read-only rule is amended by this task."}
+{"file":".trellis/spec/dashboard-app/frontend/directory-structure.md","reason":"Where workspace components, api clients, taskModel and i18n keys live."}

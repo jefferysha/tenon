@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/09-15-tenon-next-capabilities/design.md", "reason": "Shared contracts; §9 cross-child resolutions override the child design."}
+{"file":".trellis/tasks/09-15-version-reset/prd.md","reason":"R1-R6 and acceptance criteria, including GitHub Release/tag state and 1.1.5 machine migration."}
+{"file":".trellis/spec/cli/frontend/host-install-and-inventory.md","reason":"Check update, install and doctor behavior against host contracts and the retired-line ordering scenario."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"The retired-version regex lives in stable-release.ts, install.sh and release-candidate.yml; verify tests keep the literals identical."}
+{"file":"openspec/specs/plugin-distribution/spec.md","reason":"N-1 gate must skip only when the fixture names the candidate version and otherwise pin the latest non-retired release."}
+{"file":"docs/DIST-RELEASE.md","reason":"Documented release and N-1 procedure must match workflows and scripts after the change."}

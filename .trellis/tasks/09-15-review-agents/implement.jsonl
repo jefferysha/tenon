@@ -1,0 +1,14 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Binding shared contracts: terms, identity actor, global agent dirs, step agents YAML, agent run record, host execution boundary, Dashboard surfaces."}
+{"file":".trellis/tasks/09-15-review-agents/research/current-review.md","reason":"Evidence for the review attempt ledger, lanes, verify-pass field guards and skill gate hook point being replaced."}
+{"file":".trellis/tasks/09-15-review-agents/research/harness-agents.md","reason":"Host subagent capabilities that decide Claude Code, Codex and sequential fallback delivery."}
+{"file":".trellis/spec/kernel/backend/workflow-track-branches.md","reason":"Step schema, track branch selection, fingerprint and frozen snapshot rules that the agents block and snapshot v4 must respect."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Skill id namespace comparison rules reused when unlocking agent skills in the internal skill gate."}
+{"file":".trellis/spec/kernel/backend/state-lock.md","reason":"Change lock semantics for appending agent run rows and freezing agents at change creation."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Gate hot path limits and the rule that every block names the exact command that unlocks it."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Workflow page section order, SkillFlow canvas, sheets, wording rules, token gating and strict decoders for executors, reviewers, library and workspace."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"Workflow GET/save and skill file API patterns reused by agent library routes and save-time agent validation."}
+{"file":".trellis/spec/server/backend/snapshot-skill-runs.md","reason":"Per-step skillRuns projection pattern mirrored by the agentRuns snapshot field."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"New JSONL record and YAML block flow through kernel, CLI, server, hooks and Dashboard."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse candidate resolution, step visit id, skill DAG waves and SkillFlow instead of new parallel implementations."}
+{"file":".trellis/tasks/09-15-test-evidence/research/current-test-evidence.md","reason":"Test record and candidate binding consumed by reads_tests and reviewer readiness."}
+{"file":".trellis/tasks/09-15-multi-user/research/identity.md","reason":"Self-declared identity used as actor on agent runs and owner checks."}

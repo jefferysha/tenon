@@ -1,0 +1,20 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Binding shared contracts: terms, TenonUser identity, per-user .tenon layout, step tests YAML, record fields, execution boundary, Dashboard surfaces."}
+{"file":".trellis/tasks/09-15-test-evidence/research/current-test-evidence.md","reason":"Confirmed gaps (no exit codes recorded, ledger unsuitable) and extension points for step tests, runner, guard and snapshot."}
+{"file":".trellis/spec/kernel/backend/workflow-track-branches.md","reason":"Step schema per track branch, per-branch validation prefixes, fingerprint byte-identity and frozen snapshot rules that step tests must preserve."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Document evidence enforcement pattern mirrored by test evidence, submission path scoping, and Codex exec_command literal keys (sandbox_permissions, justification, prefix_rule) used for escalation."}
+{"file":".trellis/spec/kernel/backend/state-lock.md","reason":"Codex workspace-write denials (/bin/ps, cross-pid probing) that shape the running marker and forbid pid-based liveness checks."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Additive versioned snake_case wire records and Vitest coverage expectations for new kernel records and reducers."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Hook hot-path rules (pure bash, no node), unlock message conventions and test-hooks assertions for test-nudge.sh and the gate.sh record write guard."}
+{"file":".trellis/spec/cli/frontend/host-install-and-inventory.md","reason":"Installer activation and stable launcher constraints for syncing builtin test directions on setup/update."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"Global store anchoring, root validation, path containment and status codes reused by test run, artifact and direction routes; token passing pitfall in server tests."}
+{"file":".trellis/spec/server/backend/snapshot-skill-runs.md","reason":"Per-step snapshot projection pattern (optional field, degrade on errors) followed by the tests projection."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Wording rules, SheetTabs sheets, Drawer, StageEditorPane section order, editor save/lint rules and test doubles for the 测试 UI."}
+{"file":".trellis/spec/dashboard-app/frontend/directory-structure.md","reason":"Placement of workspace, workflow, workbench, api and i18n modules for the new components and clients."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Single owner for the record codec across CLI writer, kernel evaluator, server projection and dashboard decoder."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse atomic publish, trusted reader, detached spawn and bounded tail patterns instead of new variants."}
+{"file":".trellis/spec/guides/index.md","reason":"Host integration checklist: real runs in both hosts and Codex sandbox denials (.git, ps, network)."}
+{"file":".trellis/tasks/archive/2026-09/09-15-v1-1-0-release-e2e/research/e2e-default-workflow-and-codex.md","reason":"Real Codex run evidence: spawn and repo writes allowed, .git writes and nested codex denied inside workspace-write."}
+{"file":"docs/CONTRACT.md","reason":"Hook shim contract §5 hard rule 4: PreToolUse/UserPromptSubmit shims must not spawn node."}
+{"file":".trellis/tasks/09-15-multi-user/prd.md","reason":"Identity, owner-only advancing (R3a) and per-user isolation that tenon test run depends on."}
+{"file":".trellis/tasks/09-15-review-agents/prd.md","reason":"Consumer of test records: code-size reviewer reads Tenon-run results; reviewers run after required tests."}
+{"file":".trellis/tasks/09-15-workflow-io-openspec/research/io-and-runtime-artifacts.md","reason":"Where document evidence blocks transition, check and review request; workspace IO sheet and runtime artifact removal overlapping TaskDetailPane."}

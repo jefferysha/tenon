@@ -1,0 +1,17 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Binding shared contracts: §3 upstream skills formats and plugin payload placement, §7 skills view, UI wording rules."}
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/implement.md","reason":"Wave order, hot overlap files, shared gates to run after every merge."}
+{"file":".trellis/tasks/09-15-upstream-skills/prd.md","reason":"Requirements R1-R8, user decisions on deletions, renames, no npx skills, no confirmation on update."}
+{"file":".trellis/tasks/09-15-upstream-skills/research/current-skill-bundle.md","reason":"Verified upstream repo/path/license mapping and history of the first-party rewrites."}
+{"file":".trellis/tasks/09-15-upstream-skills/design.md","reason":"Exact sources.yaml, lock, run report formats, install algorithm, host flow insertion points, error matrix, tests."}
+{"file":".trellis/spec/cli/frontend/host-install-and-inventory.md","reason":"Stable release proof retry contract reused by remote-git, Claude manifest rules, doctor host load errors."}
+{"file":".trellis/spec/cli/frontend/quality-guidelines.md","reason":"CLI forbidden/required patterns and testing requirements for setup, update, doctor changes."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Hook hot path and test-hooks.sh conventions touched by the skill-read evidence test update."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Kernel purity (no fs) and file size limits for upstream-sources.ts and flow-yaml.ts."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Skill id namespace comparisons (tenon:/superpowers:) that upstream skills loaded under the tenon plugin must keep satisfying."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"Existing skills registry and skill files API shapes next to the new /api/skills/sources route."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Wording rules, no wrapping, read-only boundaries for the new skills view."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"One view builder in kernel shared by doctor and server; lock data flows CLI to payload to server to dashboard."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse buildCanonicalManifest, runRemoteGit, flow-yaml helpers instead of duplicating hash, retry, parsing."}
+{"file":"docs/superpowers/specs/2026-08-10-issue-44-skill-provenance-design.md","reason":"Provenance registry, verifier categories and fail-closed rules extended by the lock."}
+{"file":"docs/superpowers/specs/2026-07-24-single-plugin-host-install-updates-design.md","reason":"Managed release staging, candidate verification and rollback invariants the fetch step must not break."}
+{"file":".trellis/tasks/09-15-data-driven-runner/prd.md","reason":"Owner of Tenon-owned skill deletion and of moving Tenon OpenSpec procedure into skills/tenon; avoid duplicate work."}

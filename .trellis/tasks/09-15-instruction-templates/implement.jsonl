@@ -1,0 +1,14 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Binding shared contracts: terms, identity, global config layout for templates, Library and Projects page surfaces."}
+{"file":".trellis/tasks/09-15-instruction-templates/research/harness-instructions.md","reason":"Per-host project and user instruction file locations and loading rules behind the host table and level labels."}
+{"file":".trellis/tasks/09-15-instruction-templates/research/draft-template-react-java.md","reason":"The user's 15-rule baseline that sets the depth and wording of every builtin block."}
+{"file":".trellis/tasks/09-15-instruction-templates/research/current-instructions.md","reason":"Existing managed-block writers, ownership defect and reusable template/scaffold code."}
+{"file":".trellis/tasks/09-15-design-resources/research/design-resources.md","reason":"Catalog categories and state/styling options the frontend, state and styling blocks reference."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Three-column page contract, wording rules, no-wrap rule, drawer/dialog and test conventions for the new pages."}
+{"file":".trellis/spec/dashboard-app/frontend/directory-structure.md","reason":"Where new views, API clients and shared helpers live; adding a View id and nav label."}
+{"file":".trellis/spec/dashboard-app/frontend/quality-guidelines.md","reason":"Async write states, token-gated writes, responsive browser checks required for the editors and dialog."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"Global store with empty root, trusted file reads, and the token-in-options test pitfall for write routes."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Stable error codes and zero-write-on-rejection behaviour for the new routes."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Kernel purity: no Node APIs in the instructions domain module, versioned contracts, test coverage expectations."}
+{"file":".trellis/spec/cli/frontend/host-install-and-inventory.md","reason":"Install/update path constraints when hooking the builtin library sync into release activation."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Single owner for parsing, composing and managed-block merging across kernel, server and dashboard."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse trusted directory chain, registration anchor and Markdown component instead of new copies."}

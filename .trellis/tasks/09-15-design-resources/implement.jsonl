@@ -1,0 +1,13 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Binding shared contracts: terms, global catalog directory, document_contract scope/role, execution boundary, Library page ownership."}
+{"file":".trellis/tasks/09-15-design-resources/research/design-resources.md","reason":"Catalog field list, license findings and never-bundle list used for the entry schema and builtin inventory."}
+{"file":".trellis/tasks/09-15-design-resources/research/animation-and-popular-components.md","reason":"GSAP skills and library license, React Bits Commons Clause, animated component libraries and install commands."}
+{"file":".trellis/tasks/09-15-design-resources/research/hue-output.md","reason":"What a hue-level design system contains; basis for DESIGN.md sections and the design/ folder."}
+{"file":".trellis/tasks/09-15-design-resources/research/default-frontend-track.md","reason":"Closed document kind list and frontend track steps that the DESIGN.md slots and prompts extend."}
+{"file":".trellis/spec/kernel/backend/workflow-track-branches.md","reason":"Track branches, implicit completion edge and global workflow store rules for the design-system template workflow and default frontend branch."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"document record boundary, namespaced skill id equality and Codex skill-read evidence used by design-md records and the motion gate."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"gate.sh hot-path, fail-open and unlock-message rules for the GSAP motion gate."}
+{"file":".trellis/spec/server/backend/workflow-branches-and-skill-files.md","reason":"Workflow GET/branch API conventions touched by the template workflow fallback."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"ThreeColumns contract, noun-only wording, no-wrap and token-only styling for the 资源目录 section."}
+{"file":".trellis/spec/dashboard-app/frontend/directory-structure.md","reason":"Where new api clients and library components live in dashboard-app."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Catalog and design-system data cross kernel, CLI, server, Dashboard and hooks."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Single filterResources predicate for CLI and Dashboard; extracting step skill evidence from internalSkillGate."}

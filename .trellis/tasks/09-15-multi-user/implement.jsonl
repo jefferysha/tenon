@@ -1,0 +1,9 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Binding shared contracts: TenonUser/resolveTenonUser, .tenon/users/<slug>/ layout, actor on records, Dashboard surfaces."}
+{"file":".trellis/tasks/09-15-multi-user/research/identity.md","reason":"Trellis identity lookup order and Tenon's current no-actor evidence that the design replaces."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Hook hot-path rules (pure bash, no node/jq) and the active-change consumers moved to the per-user pointer."}
+{"file":".trellis/spec/kernel/backend/state-lock.md","reason":"Owner transfer and owner checks run under withLock; must keep working in the Codex sandbox."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Document record boundary where the owner check and the ledger actor are added."}
+{"file":".trellis/spec/server/backend/decision-sync.md","reason":"Shared review-acknowledge application; channel stays provenance, actor is an opaque declared principal."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Decode actor/owner once at kernel/server boundaries; history rows are a cross-layer JSONL contract."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"One resolver and one owner guard shared by CLI, server, hooks and later children; no per-caller copies."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Facet rows, wording (one word, no sentences, no wrap), testid/data-* conventions for top bar, card, filter, detail."}

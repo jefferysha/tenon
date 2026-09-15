@@ -1,0 +1,10 @@
+{"file":".trellis/tasks/09-15-upstream-skills/design.md","reason":"Check implementation against formats, algorithm steps, error matrix and every assertion listed in Tests required."}
+{"file":".trellis/tasks/09-15-upstream-skills/prd.md","reason":"Acceptance criteria: full upstream content, update follows new commits, unreachable upstream keeps old version, no rewrites left, doctor shows source/version/license."}
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Contract conformance for §3 upstream skills and §7 skills view; UI one word per concept, no sentences, no wrapping."}
+{"file":".trellis/spec/cli/frontend/host-install-and-inventory.md","reason":"Stable proof budgets unchanged after remote-git extraction; new scenario for upstream skills added with tests."}
+{"file":"docs/superpowers/specs/2026-08-10-issue-44-skill-provenance-design.md","reason":"Verifier stays fail-closed: missing, extra, drifted, invalid lock or sources all produce stable categories."}
+{"file":"docs/superpowers/specs/2026-07-24-single-plugin-host-install-updates-design.md","reason":"Failed fetch or invalid sources never changes the active release or launchers; no half-published candidate."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Skills view wording and layout rules."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Doctor and server consume the same kernel view builder; no casts of raw lock JSON in UI or commands."}
+{"file":".trellis/spec/kernel/backend/quality-guidelines.md","reason":"Kernel has no fs or network; files under the 500-line limit enforced by check:architecture."}
+{"file":".trellis/spec/cli/frontend/quality-guidelines.md","reason":"CLI tests use injected runCommand and local git fixtures; no live network in unit tests."}

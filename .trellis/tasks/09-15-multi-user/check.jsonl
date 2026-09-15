@@ -1,0 +1,8 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Verify identity order, slug rule, per-user layout and actor shape match the shared contract (or an accepted change request)."}
+{"file":".trellis/tasks/09-15-multi-user/research/identity.md","reason":"Confirm every legacy no-actor site listed there now records a declared actor or is an explicit decision."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Check hooks stay pure bash on the hot path and every active-change reader uses the per-user pointer."}
+{"file":".trellis/spec/kernel/backend/state-lock.md","reason":"Check owner checks happen inside the Change lock before any write (zero writes on rejection)."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Check document record still runs confirmation then submission then ledger, now with owner check and actor."}
+{"file":".trellis/spec/server/backend/decision-sync.md","reason":"Check review channel and actor stay orthogonal and no actor is labelled human."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check snapshot/history consumers use decoded owner/actor projections, not local casts."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Check UI wording, no sentences, no wrapping, aggregate view issues no per-root requests."}

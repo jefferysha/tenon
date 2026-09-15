@@ -1,0 +1,8 @@
+{"file":".trellis/tasks/09-15-design-resources/prd.md","reason":"Acceptance criteria R1-R8: filter, new project block and DESIGN.md, agent lookup, link-only payload check, custom entry CRUD."}
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Verify terms, catalog store path, document_contract scope/role usage and Dashboard-never-calls-models boundary."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Check one word per concept, no sentences except errors, nothing wraps, tokens only in the 资源目录 UI."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Check gate.sh changes keep the pure-bash fast path, fail-open semantics and name the exact unlock action."}
+{"file":".trellis/spec/kernel/backend/skill-output-registration.md","reason":"Check design-md records go through document record and skill id comparisons accept host namespaces."}
+{"file":".trellis/spec/kernel/backend/workflow-track-branches.md","reason":"Check design-system template workflow validation, implicit completion and default frontend branch edits."}
+{"file":".trellis/spec/guides/index.md","reason":"Host integration checklist: real Claude Code and Codex runs on the installed release, namespaced skill ids, Codex sandbox limits."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check DTO decoders and kernel types stay aligned across server and Dashboard."}

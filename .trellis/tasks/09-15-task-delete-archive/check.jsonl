@@ -1,0 +1,6 @@
+{"file":".trellis/tasks/09-15-tenon-next-capabilities/design.md","reason":"Verify one word per concept (归档/取消归档/删除/已完结) and per-user layout compliance."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check CLI and server call the same kernel lifecycle application and no layer re-derives reasons."}
+{"file":".trellis/spec/kernel/backend/state-lock.md","reason":"Check delete-under-lock tests cover release after rename and a waiting writer failing cleanly."}
+{"file":".trellis/spec/server/backend/error-handling.md","reason":"Check 401/409/500 mapping and that rejected lifecycle requests write nothing."}
+{"file":".trellis/spec/cli/frontend/hook-guidelines.md","reason":"Check hooks stay pure bash and test-hooks.sh section 13 asserts archived tasks are not resumed."}
+{"file":".trellis/spec/dashboard-app/frontend/component-guidelines.md","reason":"Check no sentences, nothing wraps, test ids via data-testid/aria, and the 已完结 rename in 工作台."}

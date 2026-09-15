@@ -1,0 +1,11 @@
+{"file": ".trellis/tasks/09-15-tenon-next-capabilities/design.md", "reason": "Shared contracts; §9 cross-child resolutions override the child design."}
+{"file": ".trellis/tasks/09-15-data-driven-runner/design.md", "reason": "Check next-action ordering, JSON shapes, error matrix and decisions against the implementation."}
+{"file": ".trellis/spec/kernel/backend/skill-output-registration.md", "reason": "Producer tenon must still require current-StepVisit host confirmation; no auto-registration."}
+{"file": ".trellis/spec/kernel/backend/workflow-track-branches.md", "reason": "Default branches keep gates, transitions and fingerprint semantics."}
+{"file": ".trellis/spec/kernel/backend/quality-guidelines.md", "reason": "Kernel code standards for retired-skills and document contract edits."}
+{"file": ".trellis/spec/cli/frontend/quality-guidelines.md", "reason": "CLI command standards for status step and spec apply."}
+{"file": ".trellis/spec/cli/frontend/hook-guidelines.md", "reason": "Router wording and review confirmation behavior unchanged in hosts."}
+{"file": ".trellis/spec/server/backend/snapshot-skill-runs.md", "reason": "Workbench skill nodes stay correct without phase driver skills."}
+{"file": ".trellis/spec/dashboard-app/frontend/component-guidelines.md", "reason": "One word per concept and definition-derived IO after data migration."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify status step fields match kernel records and Dashboard projections."}
+{"file": ".trellis/tasks/archive/2026-09/09-15-v1-1-0-release-e2e/research/e2e-default-workflow-and-codex.md", "reason": "Compare new real-host runs against previous gate behavior (no regression in skill order, documents, review, build token)."}
