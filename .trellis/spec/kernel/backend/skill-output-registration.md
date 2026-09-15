@@ -199,6 +199,65 @@ await runtime.publish(changedPath, 'candidate') // explicit promotion after obse
   digest made every re-record of an edited document fail with
   `subjectRef 与当前内容不匹配`.
 
+## Native Skill receipt identity
+
+### 1. Scope / Trigger
+
+- Claude Code reports plugin skills with their namespace (`Skill: tenon:openspec-propose`). The v1.1.0 receipt
+  command rejected `:`, sealed no host confirmation, and every later `tenon document record` failed with
+  `current StepVisit lacks exact host confirmation for document producer '<skill>'` — the default workflow could not
+  leave `open` in Claude Code.
+
+### 2. Signatures
+
+```bash
+# hidden; called only by the Skill PostToolUse hook (skill-tracker.sh)
+tenon internal-native-skill-receipt <change> <skillId> <sessionId> <toolUseId> <observedAt>
+```
+
+### 3. Contracts
+
+- `skillId` must match `^(?:[A-Za-z0-9_-]{1,64}:)?[A-Za-z0-9_-]{1,160}$` (one optional host namespace).
+- `tenon:` is stripped before `recordNativeDocumentSkillConfirmation`; other namespaces
+  (`superpowers:brainstorming`) stay verbatim — producer matching aliases them through `skillsEquivalent`.
+- The receipt only seals the confirmation; it never records documents (see Contracts above).
+- Codex has no Skill tool: its confirmation is reconciled from a completed read of the producer's `SKILL.md`, so the
+  first `document record` after writing a document fails until the agent reads that skill again.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+| --- | --- |
+| Invalid change name or skill id (`tenon:bad id`) | exit 1 `internal-native-skill-receipt: invalid change or skill identity` |
+| Missing WorkflowRun StepVisit identity | exit 1 `canonical WorkflowRun StepVisit identity is missing` |
+| No matching `Skill:` history row for the current visit | exit 1 `native Skill receipt does not match the canonical current StepVisit` |
+
+### 5. Good / Base / Bad Cases
+
+- Good: `tenon:openspec-propose` receipt → `document record … --producer openspec-propose` exit 0, gate clean.
+- Base: bare `openspec-propose` receipt behaves the same.
+- Bad: rejecting namespaced ids — no host confirmation, documents unrecordable.
+
+### 6. Tests Required
+
+- `cli/src/document-record.integration.test.ts`: history `Skill: tenon:openspec-propose` + receipt with the
+  namespaced id → record exit 0 and `evaluateDocumentEvidence` blockers `[]`; receipt `tenon:bad id` → exit 1.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+const SAFE_SKILL_ID = /^[A-Za-z0-9_-]{1,160}$/u
+```
+
+#### Correct
+
+```ts
+const SAFE_SKILL_ID = /^(?:[A-Za-z0-9_-]{1,64}:)?[A-Za-z0-9_-]{1,160}$/u
+await recordNativeDocumentSkillConfirmation(dir, skillId.startsWith('tenon:') ? skillId.slice(6) : skillId, phase, receipt)
+```
+
 ### Host attribution boundary
 
 `managed-tool` source is reserved for a host completion event carrying an allow-listed path. Pathless Codex `command_execution` payloads remain `unknown`/`reconcile` observations and may be coalesced into one bounded reconcile per execution turn; consumers must not infer artifact ownership from command text.

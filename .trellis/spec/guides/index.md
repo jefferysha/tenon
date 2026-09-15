@@ -51,6 +51,18 @@ These guides help you **ask the right questions before coding**.
 
 → Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
 
+### When Changing Host Integration (hooks, manifests, receipts, installer)
+
+- [ ] Did a real task run on the **officially installed** release in both Claude Code and Codex? Unit tests passed
+      while v1.1.0 could not load in Claude Code and could not write state in Codex.
+- [ ] Does every skill id comparison accept host namespaces (`tenon:<skill>`, `superpowers:<skill>`)?
+      → [Document Recording Boundary](../kernel/backend/skill-output-registration.md)
+- [ ] Does the code need anything Codex's `workspace-write` sandbox denies (`/bin/ps`, writes under `.git`, probing
+      other pids)? → [State Lock Owner Identity](../kernel/backend/state-lock.md)
+- [ ] Does a network step survive one dropped connection? → [Host Install and Inventory](../cli/frontend/host-install-and-inventory.md)
+- [ ] Does every block an agent hits name the exact reply that unlocks it, and does the unlock announce itself?
+      → [Hook Guidelines](../cli/frontend/hook-guidelines.md)
+
 ### When Verifying AI Cross-Review Results
 
 - [ ] Reviewer claims "user input can be malicious" → Check the actual data source (internal manifest? user config? external API?)

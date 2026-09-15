@@ -53,6 +53,10 @@ last one. Anything that needs its own surface opens the shared right-side `share
   when one workflow **and** one track are effective, because each track branch has its own stages.
 - Stage IO comes from `def.branches[change.track]?.effectiveIo ?? def.branches._base?.effectiveIo`.
 - `MiniPipeline` / `StageRail` colour segments with `bg-seg-done` / `bg-seg-now` / `bg-seg-next` only.
+- `taskModel.stagesOf` maps a snapshot `current` segment to `done` when `change.archived === 'true'`: archiving
+  leaves the phase on the last visited step, and the rail must not show a finished task as still running there.
+  Stages the run never entered stay `todo` (test: `taskModel.test.tsx`
+  「已归档的运行没有进行中的阶段：收尾阶段算完成，从未进入的阶段仍是 todo」).
 - `StageIoPanel` rows: document slot → ledger status (`recorded/missing/stale/unread`) + file name +
   last producer + time; field slot → `set/unset`. A row with a path opens `DocumentDrawer`
   (`react-markdown` + `remark-gfm` for `.md`, `<pre>` otherwise; prev / next across the stage's files).

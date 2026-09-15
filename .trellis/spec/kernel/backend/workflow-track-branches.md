@@ -97,6 +97,10 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
   `工作流 X 没有轨道 Y 的分支`. To add a track, declare the branch in the workflow YAML.
 - Hand-written `tracks.yaml` files still parse (builtin policy overrides keep working); a hand-written custom
   entry is likewise policy-only and gains no usability.
+- `tenon tracks show <id>` reads the **registry only**. A branch declared in a workflow (for example one created in
+  the Dashboard) exits 1 with `未注册的 track` plus the hint line
+  `workflow 内声明的分支轨道（例如 Dashboard 新建的轨道）不在注册表中：已创建的 Change 用 tenon workflow plan <change> --json 查看，新建时由 tenon init <name> --workflow <workflow> --track <track> 校验`.
+  Skills (`tenon`, `tenon-open`) must not validate a branch track with `tracks show`; `tenon init` is the check.
 - Known gap: `POST /api/tracks`, `PATCH /api/tracks/:id` and `DELETE /api/tracks/:id` still expose registry
   writes over HTTP. No dashboard component calls them (`postTrackDefinition` / `patchTrackDefinition` /
   `deleteTrackDefinition` are unreferenced), so the same dead promise survives only on the server surface.

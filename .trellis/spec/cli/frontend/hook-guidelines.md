@@ -106,3 +106,87 @@ independently trusted identity provider.
   1 MiB cap with a single overflow marker. Never token text, Authorization
   values, raw command, tool ids or raw identity. The record is a detection
   signal and never proof of human identity.
+
+## Scenario: Interactive Skill confirmation in hosts without a question tool
+
+### 1. Scope / Trigger
+
+- Hooks: `interactive-skill-gate.sh` (PostToolUse after a Skill / `SKILL.md` read), `gate.sh` (PreToolUse block while
+  `.pipeline-pending-interaction` exists), `confirm-clear-prompt.sh` (UserPromptSubmit).
+- Trigger: headless Claude Code (`claude -p`) and Codex `exec` have no AskUserQuestion. In v1.1.1 Codex re-read a
+  confirmed producer skill to record its document, the gate re-armed on every read, and a user reply that was not a
+  recognised approval changed nothing silently — the task could not leave the step.
+
+### 2. Signatures
+
+```text
+<root>/.pipeline-pending-interaction          # skill display names joined by 、
+<change>/.pipeline-history.jsonl row          {"ts":"<utc>","kind":"tool","raw":"InteractionConfirmed: <skill>"}
+pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | contextual-confirm | reject | modify | authorize | revoke | ''
+```
+
+### 3. Contracts
+
+- Approval phrases are the classifier's confirm set (「确认继续」「继续执行」「同意继续」…). A bare 「继续」 is
+  `contextual-confirm` and counts only while a pending marker exists in this project.
+- **Unrecognised reply** (empty intent, `reject`, `modify`) while an interaction or confirm marker is pending: no
+  mutation; stdout
+  `<tenon-pending-confirmation>…用户回复「确认继续」即解封；带条件的回复请先说明条件并重新提问。</tenon-pending-confirmation>`.
+  Nothing pending → no output.
+- **Approval** with `.pipeline-pending-interaction` present: append one `InteractionConfirmed: <skill>` row per
+  marker entry (split on `、`; entries outside `[A-Za-z0-9_:-]` skipped) to the active Change history, then remove the
+  interaction and confirm markers and print
+  `<tenon-interaction-confirmed>…请重试刚才被拦截的操作。</tenon-interaction-confirmed>`. The review marker is never
+  removed here (the CLI owns it).
+- **Once per step visit** (`interactive-skill-gate.sh`, non-autonomous only): scan history in order; a `transition`
+  row whose `"to"` equals the current phase resets the confirmed set; `InteractionConfirmed` rows add the base name
+  (namespace after the last `:` stripped). Matched skills already confirmed are dropped; if none remain the hook
+  exits 0 without writing the marker. A new visit to the step (another transition into it) asks again.
+- Pure bash on this hot path: no node, no jq. Missing state/phase keeps the gate (fail closed).
+- `gate.sh` block message names the unlock reply: `没有提问工具时，用户回复「确认继续」（或「继续执行」「同意继续」）即解封，
+  带条件或不含这些词的回复不会解封`.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+| --- | --- |
+| Pending interaction, reply 「好的」 | Marker kept, `<tenon-pending-confirmation>` hint |
+| Pending interaction, reply 「确认继续，但先改标题」 (`modify`) | Marker kept, hint |
+| Pending interaction, reply 「确认继续」 | History rows written, markers removed, `<tenon-interaction-confirmed>` |
+| No pending marker, reply 「继续」 | No output, no mutation |
+| Confirmed skill read again in the same visit | No marker |
+| Another skill read in the same visit | Marker for that skill only |
+| Step re-entered after a transition | Marker again for the confirmed skill |
+| Active phase unreadable | Gate armed as before |
+
+### 5. Good / Base / Bad Cases
+
+- Good: Codex reads `openspec-propose/SKILL.md` → blocked → user 「确认继续」 → agent retries, re-reads the skill to record
+  the document → no second block.
+- Base: Claude Code with AskUserQuestion — the interaction clears through the normal question flow.
+- Bad: clearing the marker for any reply containing 「继续」 when nothing is pending; or keeping the confirmation
+  across step visits.
+
+### 6. Tests Required
+
+- `tools/test-hooks.sh` section 10a''': unrecognised reply prints the hint and keeps the marker; 「确认继续」 prints the
+  announcement, clears the marker and writes `InteractionConfirmed`; re-read in the same visit writes no marker; an
+  unconfirmed skill still gets one; re-entry after a transition re-arms; no hint when nothing is pending.
+- Hot-path red line: the gate hook must not spawn node (existing performance assertions in the same script).
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```bash
+[ -n "$INTENT" ] || exit 0          # silent: the user never learns which reply unlocks
+rm -f "$ROOT/.pipeline-pending-interaction"   # unlocked, but the blocked agent is never told to retry
+```
+
+#### Correct
+
+```bash
+[ -n "$INTENT" ] || pending_unlock_hint_and_exit
+# … record InteractionConfirmed rows, remove markers …
+[ "$RELEASED_LOCK" -eq 1 ] && printf '<tenon-interaction-confirmed>\n用户已确认，待确认的交互已解封；请重试刚才被拦截的操作。\n</tenon-interaction-confirmed>\n'
+```
