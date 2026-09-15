@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { chmod, lstat, mkdir, open, readFile, readdir, realpath, rename, rm } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import { parseSkillProvenanceRegistry, parseSkillSources } from '@tenon/kernel'
+import { parseSkillProvenanceRegistry, parseSkillSources, parseUpstreamSkillLock, parseUpstreamSkillSources } from '@tenon/kernel'
 import { buildCanonicalManifest, verifySkillProvenance } from '@tenon/automation'
 import type { CliDeps } from '../deps.js'
 
@@ -237,6 +237,25 @@ async function assertRegistrySnapshot(snapshot: RegistryPathSnapshot, registryPa
   await assertPathIdentity(snapshot.registry, 'canonical registry')
 }
 
+async function readOptionalText(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  }
+}
+
+/** Upstream skills are declared by skills/sources.yaml and skills/skills.lock.json, never by this registry. */
+async function upstreamSkillIds(skillsRoot: string): Promise<ReadonlySet<string>> {
+  const ids = new Set<string>()
+  const sources = await readOptionalText(join(skillsRoot, 'sources.yaml'))
+  if (sources !== null) for (const source of parseUpstreamSkillSources(sources).skills) ids.add(source.id)
+  const lock = await readOptionalText(join(skillsRoot, 'skills.lock.json'))
+  if (lock !== null) for (const entry of parseUpstreamSkillLock(lock).skills) ids.add(entry.id)
+  return ids
+}
+
 async function syncRegistry(
   root: string,
   hooks: SkillProvenanceSyncHooks = {},
@@ -248,11 +267,13 @@ async function syncRegistry(
   const entries = parseSyncSources(sourceText)
   const skillsRoot = join(root, 'skills')
   const physicalEntries = await readdir(skillsRoot, { withFileTypes: true })
+  const upstreamIds = await upstreamSkillIds(skillsRoot)
   const physicalIds = new Set<string>()
   for (const entry of physicalEntries) {
-    // skills/EXTERNAL-SKILLS.md is a tracked dependency note, not a Skill root; only
-    // directory-shaped top-level entries participate in the canonical physical set.
+    // Files such as sources.yaml and skills.lock.json are not Skill roots; only directory-shaped
+    // top-level entries that are not upstream skills participate in the canonical physical set.
     if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
+    if (upstreamIds.has(entry.name)) continue
     if (entry.isSymbolicLink()) throw new Error(`physical bundled Skill '${entry.name}' 必须是 skillsRoot 内的普通目录`)
     if (entry.name === '' || entry.name === '.' || entry.name === '..'
       || entry.name.includes('/') || entry.name.includes('\\') || entry.name.includes('\0')) {

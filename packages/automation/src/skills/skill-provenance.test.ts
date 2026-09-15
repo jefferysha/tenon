@@ -33,6 +33,80 @@ async function makeRoot(): Promise<{ root: string; digest: string }> {
   return { root, digest }
 }
 
+const SOURCES = [
+  'version: 1',
+  'skills:',
+  '  hue: { repo: dominikmartn/hue, path: ., ref: default-branch, license_expected: MIT }',
+  '',
+].join('\n')
+
+async function addUpstream(root: string, options: { readonly dir?: boolean; readonly sources?: boolean } = {}): Promise<void> {
+  const dir = join(root, 'skills', 'hue')
+  await mkdir(dir, { recursive: true })
+  await writeFile(join(dir, 'SKILL.md'), '---\nname: hue\n---\n# hue\n', 'utf8')
+  const tree = `sha256:${(await buildCanonicalManifest('hue', dir)).treeSha256}`
+  if (options.dir === false) await rm(dir, { recursive: true, force: true })
+  if (options.sources !== false) await writeFile(join(root, 'skills', 'sources.yaml'), SOURCES, 'utf8')
+  await writeFile(join(root, 'skills', 'skills.lock.json'), `${JSON.stringify({
+    version: 1,
+    updated_at: '2026-09-15T08:00:00.000Z',
+    skills: [{
+      id: 'hue', repo: 'dominikmartn/hue', path: '.', commit: 'a'.repeat(40), tree_sha256: tree,
+      license: 'MIT', fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null,
+    }],
+  }, null, 2)}\n`, 'utf8')
+}
+
+describe('verifySkillProvenance with upstream skills', () => {
+  it('accepts locked upstream directories whose hashes match', async () => {
+    const { root } = await makeRoot()
+    await addUpstream(root)
+    const result = await verifySkillProvenance(root)
+    expect(result.findings).toEqual([])
+    expect(result.ok).toBe(true)
+  })
+
+  it('accepts sources.yaml without a lock and without upstream directories', async () => {
+    const { root } = await makeRoot()
+    await writeFile(join(root, 'skills', 'sources.yaml'), SOURCES, 'utf8')
+    expect((await verifySkillProvenance(root)).ok).toBe(true)
+  })
+
+  it('reports a tampered upstream file for that id', async () => {
+    const { root } = await makeRoot()
+    await addUpstream(root)
+    await writeFile(join(root, 'skills', 'hue', 'SKILL.md'), '---\nname: hue\n---\n# tampered\n', 'utf8')
+    const result = await verifySkillProvenance(root)
+    expect(result.findings).toEqual([expect.objectContaining({ category: 'content-hash-mismatch', skill: 'hue' })])
+  })
+
+  it('reports a lock entry without its directory', async () => {
+    const { root } = await makeRoot()
+    await addUpstream(root, { dir: false })
+    expect((await verifySkillProvenance(root)).findings).toEqual([
+      expect.objectContaining({ category: 'missing-distributed-skill', skill: 'hue' }),
+    ])
+  })
+
+  it('reports an extra directory next to a lock', async () => {
+    const { root } = await makeRoot()
+    await addUpstream(root)
+    await mkdir(join(root, 'skills', 'extra'), { recursive: true })
+    expect((await verifySkillProvenance(root)).findings).toEqual([
+      expect.objectContaining({ category: 'unregistered-distributed-skill', skill: 'extra' }),
+    ])
+  })
+
+  it('reports a lock without sources.yaml and a source id that collides with a bundled token', async () => {
+    const { root } = await makeRoot()
+    await addUpstream(root, { sources: false })
+    expect((await verifySkillProvenance(root)).findings).toEqual([expect.objectContaining({ category: 'invalid-skill-lock' })])
+    const collision = await makeRoot()
+    await writeFile(join(collision.root, 'skills', 'sources.yaml'), SOURCES.replace('  hue:', '  demo:'), 'utf8')
+    expect((await verifySkillProvenance(collision.root)).findings).toEqual([expect.objectContaining({ category: 'invalid-skill-sources' })])
+  })
+})
+
 describe('verifySkillProvenance', () => {
   it('accepts a clean root and detects content drift', async () => {
     const { root } = await makeRoot()
@@ -194,6 +268,17 @@ describe('verifySkillProvenance', () => {
       'legacy-provenance-source': async () => {
         const { root } = await makeRoot()
         await writeFile(join(root, 'skills-lock.json'), '{}', 'utf8')
+        return root
+      },
+      'invalid-skill-sources': async () => {
+        const { root } = await makeRoot()
+        await writeFile(join(root, 'skills', 'sources.yaml'), SOURCES.replace('ref: default-branch', 'ref: main'), 'utf8')
+        return root
+      },
+      'invalid-skill-lock': async () => {
+        const { root } = await makeRoot()
+        await addUpstream(root)
+        await writeFile(join(root, 'skills', 'skills.lock.json'), '{"version":2}', 'utf8')
         return root
       },
     }

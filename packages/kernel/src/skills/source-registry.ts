@@ -57,6 +57,8 @@ export const SKILL_PROVENANCE_ERROR_CATEGORIES = [
   'content-hash-mismatch',
   'coordinate-mismatch',
   'legacy-provenance-source',
+  'invalid-skill-sources',
+  'invalid-skill-lock',
 ] as const
 export type SkillProvenanceErrorCategory = typeof SKILL_PROVENANCE_ERROR_CATEGORIES[number]
 

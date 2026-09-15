@@ -11,8 +11,11 @@ import {
 import {
   parseSkillProvenanceRegistry,
   parseSkillSources,
+  parseUpstreamSkillLock,
+  parseUpstreamSkillSources,
   SkillProvenanceRegistryError,
   type SkillProvenanceRegistry,
+  type UpstreamSkillLockEntry,
 } from '@tenon/kernel'
 import { buildCanonicalManifest } from '@tenon/automation'
 
@@ -139,14 +142,76 @@ function physicalId(sourceRef: string): string {
   return sourceRef.slice('skills/'.length)
 }
 
+/** Upstream skills declared by `skills/skills.lock.json`; any read or parse failure is `invalid-skill-lock`. */
+function readUpstreamLockEntries(bundledRoot: string): ReadonlyMap<string, UpstreamSkillLockEntry> {
+  let lockText: string
+  try {
+    lockText = readFileSync(join(bundledRoot, 'skills.lock.json'), 'utf8')
+  } catch (error) {
+    if (errnoCode(error) === 'ENOENT') return new Map()
+    throw new SkillProvenanceLocatorError('invalid-skill-lock', `读取 skills.lock.json 失败（${String(error)}）`)
+  }
+  try {
+    const sources = parseUpstreamSkillSources(readFileSync(join(bundledRoot, 'sources.yaml'), 'utf8'))
+    return new Map(parseUpstreamSkillLock(lockText, sources).skills.map((entry) => [entry.id, entry]))
+  } catch (error) {
+    throw new SkillProvenanceLocatorError('invalid-skill-lock', error instanceof Error ? error.message : String(error))
+  }
+}
+
+async function verifiedContentDir(
+  base: SkillContentLocator,
+  bundledRoot: string,
+  physical: string,
+  expectedHash: string,
+): Promise<string> {
+  const physicalRealPath = assertSafeSkillRoot(bundledRoot, physical)
+  let located
+  try {
+    located = await base.locate(physical)
+  } catch (error) {
+    if (error instanceof SkillContentNotFoundError) {
+      throw new SkillProvenanceLocatorError('missing-distributed-skill', error.message)
+    }
+    if (error instanceof SkillContentInvalidError || error instanceof SkillContentAccessError) {
+      throw new SkillProvenanceLocatorError('filesystem-safety-error', error.message)
+    }
+    throw error
+  }
+  if (located.contentDir !== physicalRealPath) {
+    throw new SkillProvenanceLocatorError(
+      'filesystem-safety-error',
+      `bundled Skill '${physical}' 定位结果未绑定到受信 realpath`,
+    )
+  }
+  let manifest
+  try {
+    manifest = await buildCanonicalManifest(physical, located.contentDir)
+  } catch (error) {
+    throw new SkillProvenanceLocatorError(
+      'filesystem-safety-error',
+      `bundled Skill '${physical}' 内容树无法安全读取: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  const actual = `sha256:${manifest.treeSha256}`
+  if (actual !== expectedHash) {
+    throw new SkillProvenanceLocatorError(
+      'content-hash-mismatch',
+      `bundled Skill '${physical}' hash drift: expected ${expectedHash}, actual ${actual}`,
+    )
+  }
+  return located.contentDir
+}
+
 /**
- * Bundled-only locator that binds every returned tree to the strict v3 registry.
- * It deliberately returns SkillContentNotFoundError only when no bundled path exists;
- * an existing undeclared/drifted path is a higher-tier provenance failure.
+ * Bundled-only locator that binds every returned tree to the strict v3 registry, or for upstream
+ * skills to `skills/skills.lock.json`. It deliberately returns SkillContentNotFoundError only when no
+ * bundled path exists; an existing undeclared/drifted path is a higher-tier provenance failure.
  */
 export function createProvenanceAwareBundledLocator(pluginRoot: string): SkillContentLocator {
   const bundledRoot = join(pluginRoot, 'skills')
   const base = createFsSkillContentLocator([bundledRoot])
+  let upstream: ReadonlyMap<string, UpstreamSkillLockEntry> | undefined
   let registry: SkillProvenanceRegistry | undefined
   const load = (): SkillProvenanceRegistry | undefined => {
     if (registry !== undefined) return registry
@@ -175,6 +240,11 @@ export function createProvenanceAwareBundledLocator(pluginRoot: string): SkillCo
       const byPhysical = new Map(current.skills.map((entry) => [physicalId(entry.sourceRef), entry]))
       const entry = byToken.get(skillId) ?? byPhysical.get(skillId)
       if (entry === undefined) {
+        upstream ??= readUpstreamLockEntries(bundledRoot)
+        const locked = upstream.get(skillId)
+        if (locked !== undefined) {
+          return { skillId, contentDir: await verifiedContentDir(base, bundledRoot, locked.id, locked.treeSha256) }
+        }
         const directPath = join(bundledRoot, skillId)
         let exists = false
         try {
@@ -190,41 +260,7 @@ export function createProvenanceAwareBundledLocator(pluginRoot: string): SkillCo
         )
       }
       const physical = physicalId(entry.sourceRef)
-      const physicalRealPath = assertSafeSkillRoot(bundledRoot, physical)
-      let located
-      try {
-        located = await base.locate(physical)
-      } catch (error) {
-        if (error instanceof SkillContentNotFoundError) {
-          throw new SkillProvenanceLocatorError('missing-distributed-skill', error.message)
-        }
-        if (error instanceof SkillContentInvalidError || error instanceof SkillContentAccessError) {
-          throw new SkillProvenanceLocatorError('filesystem-safety-error', error.message)
-        }
-        throw error
-      }
-      if (located.contentDir !== physicalRealPath) {
-        throw new SkillProvenanceLocatorError(
-          'filesystem-safety-error',
-          `bundled Skill '${physical}' 定位结果未绑定到受信 realpath`,
-        )
-      }
-      let manifest
-      try {
-        manifest = await buildCanonicalManifest(physical, located.contentDir)
-      } catch (error) {
-        throw new SkillProvenanceLocatorError(
-          'filesystem-safety-error',
-          `bundled Skill '${physical}' 内容树无法安全读取: ${error instanceof Error ? error.message : String(error)}`,
-        )
-      }
-      const actual = `sha256:${manifest.treeSha256}`
-      if (actual !== entry.contentHash) {
-        throw new SkillProvenanceLocatorError(
-          'content-hash-mismatch',
-          `bundled Skill '${physical}' hash drift: expected ${entry.contentHash}, actual ${actual}`,
-        )
-      }
+      const contentDir = await verifiedContentDir(base, bundledRoot, physical, entry.contentHash)
       const expectedCoordinate = `tenon:${entry.sourceRef}@${entry.contentHash}`
       if (entry.coordinate !== expectedCoordinate) {
         throw new SkillProvenanceLocatorError(
@@ -232,7 +268,7 @@ export function createProvenanceAwareBundledLocator(pluginRoot: string): SkillCo
           `bundled Skill '${physical}' coordinate drift: expected ${expectedCoordinate}, actual ${entry.coordinate}`,
         )
       }
-      return { skillId, contentDir: located.contentDir }
+      return { skillId, contentDir }
     },
   }
 }
