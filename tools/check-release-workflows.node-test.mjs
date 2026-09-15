@@ -922,3 +922,57 @@ test('N-1 prepare pins the latest non-retired stable release once the current ve
   )
   await assertPrepare(run, '0.2.0', pinned('0.1.1', { cliSha256: '0'.repeat(64) }), 1, 'N-1 CLI 摘要不匹配')
 })
+
+test('the retired 1.x version-number literal is identical in the CLI, installer, candidate and N-1 prepare', async () => {
+  const literal = '^1\\.(0\\.[0-9]|1\\.[0-5])$'
+  const [cli, installer, candidate, prepare] = await Promise.all([
+    text('packages/cli/src/commands/stable-release.ts'),
+    text('install.sh'),
+    text('.github/workflows/release-candidate.yml'),
+    text('tools/prepare-n-minus-one-release.sh'),
+  ])
+
+  assert.ok(cli.includes(`RETIRED_RELEASE_VERSION = /${literal}/\n`))
+  assert.ok(installer.includes(`const retired = /${literal}/;`))
+  assert.ok(candidate.includes(`[[ "\${RELEASE_TAG#v}" =~ ${literal} ]]`))
+  assert.ok(prepare.includes(`RETIRED_RELEASE_VERSION='${literal}'`))
+  for (const source of [cli, installer, candidate, prepare]) {
+    assert.equal(source.split('1\\.(0\\.[0-9]|').length - 1, 1)
+  }
+})
+
+test('release candidate rejects a retired 1.x tag before any git or gate work', async (t) => {
+  const candidate = await text('.github/workflows/release-candidate.yml')
+  const script = workflowRunScript(candidate, 'Prove exact current main candidate and compatible tag')
+  assert.ok(script.indexOf('uses a retired 1.x version number') < script.indexOf('version mismatch'))
+  const directory = await fixtureDir(t)
+  const bin = join(directory, 'bin')
+  const gitLog = join(directory, 'git.log')
+  await mkdir(bin)
+  await writeExecutable(join(bin, 'git'), `#!/bin/sh\necho "$*" >> "${gitLog}"\nexit 97\n`)
+  const runCandidate = (tag) => runBash(script, directory, {
+    PATH: `${bin}:${process.env.PATH}`,
+    CANDIDATE_SHA: candidateSha,
+    RELEASE_TAG: tag,
+  })
+
+  for (const tag of ['v1.0.0', 'v1.0.3', 'v1.0.9', 'v1.1.0', 'v1.1.5']) {
+    const retired = runCandidate(tag)
+    assert.equal(retired.status, 1, retired.stderr)
+    assert.match(retired.stderr, new RegExp(`tag ${tag.replaceAll('.', '\\.')} uses a retired 1\\.x version number`))
+  }
+  await assert.rejects(readFile(gitLog, 'utf8'), { code: 'ENOENT' })
+  for (const tag of ['v0.1.0', 'v1.0.10', 'v1.1.6', 'v1.2.0']) {
+    const allowed = runCandidate(tag)
+    assert.equal(allowed.status, 97, allowed.stderr)
+    assert.doesNotMatch(allowed.stderr, /retired/)
+  }
+})
+
+test('release publication creates every new GitHub Release as Latest', async () => {
+  const release = await text('.github/workflows/release.yml')
+  const start = release.indexOf('gh release create "$RELEASE_TAG"')
+  assert.notEqual(start, -1)
+  const create = release.slice(start, release.indexOf('\n', release.indexOf('--title', start)))
+  assert.match(create, /\n\s+--latest \\\n/)
+})

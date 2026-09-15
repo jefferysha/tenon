@@ -53,6 +53,10 @@ jobs:
             echo "tag must be a complete stable v-prefixed SemVer" >&2
             exit 1
           }
+          if [[ "${RELEASE_TAG#v}" =~ ^1\.(0\.[0-9]|1\.[0-5])$ ]]; then
+            echo "tag $RELEASE_TAG uses a retired 1.x version number" >&2
+            exit 1
+          fi
           git fetch --force --no-tags origin main
           head="$(git rev-parse HEAD)"
           main="$(git rev-parse origin/main)"

@@ -204,6 +204,7 @@ jobs:
             gh release create "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
+              --latest \
               --generate-notes \
               --title "Tenon $RELEASE_VERSION"
             release_json='{"assets":[]}'
