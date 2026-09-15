@@ -41,6 +41,7 @@ import { cmdInternalSkillGate } from './commands/internalSkillGate.js'
 import { cmdInternalConstraintGate } from './commands/internalConstraintGate.js'
 import { cmdInternalCodexJsonl } from './commands/internalCodexJsonl.js'
 import { cmdInternalSkillProvenance } from './commands/internal-skill-provenance.js'
+import { cmdInternalSkillUpstream } from './commands/internal-skill-upstream.js'
 import { cmdMigrateWorkflow } from './commands/migrateWorkflow.js'
 import { cmdStateProjection } from './commands/state-projection.js'
 import { cmdTriage, type TriageCommandRuntime } from './commands/triage.js'
@@ -361,6 +362,14 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .option('--quiet', '成功时不输出')
     .action(async (mode: string, opts: { root?: string; json?: boolean; quiet?: boolean }) =>
       bail(await cmdInternalSkillProvenance(deps, mode, opts)))
+
+  program
+    .command('internal-skill-upstream <mode>', { hidden: true })
+    .description('[内部] 开发 checkout 获取上游技能 fetch（npm run skills:fetch）')
+    .option('--root <path>', '开发 checkout 根目录')
+    .option('--json', '输出获取报告 JSON')
+    .action(async (mode: string, opts: { root?: string; json?: boolean }) =>
+      bail(await cmdInternalSkillUpstream(deps, mode, opts)))
 
   registerSkillInvocationInternalCommands(program, deps)
 

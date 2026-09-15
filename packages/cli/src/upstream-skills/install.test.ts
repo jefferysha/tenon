@@ -4,17 +4,15 @@ import { buildCanonicalManifest } from '@tenon/automation'
 import { parseUpstreamSkillLock, UpstreamSkillError, type UpstreamSkillLock } from '@tenon/kernel'
 import { afterEach, describe, expect, it } from 'vitest'
 import { installUpstreamSkills, type UpstreamSkillInstallInput } from './install.js'
-import { createFixtureHub, snapshotTree, type FixtureHub } from './test-support.js'
+import {
+  createFixtureHub,
+  fixtureSkillMd as skillMd,
+  MIT_LICENSE_TEXT as MIT,
+  snapshotTree,
+  writePluginRoot,
+  type FixtureHub,
+} from './test-support.js'
 
-const MIT = 'MIT License\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\n'
-const DIGEST = `sha256:${'a'.repeat(64)}`
-const REGISTRY = [
-  'version: 3',
-  'hash_algorithm: tree-sha256-v1',
-  'skills:',
-  `  tenon: { tool: bundled, source: tenon, content_skill: tenon, tier: mandatory, official: true, source_kind: bundled, source_ref: skills/tenon, content_hash: ${DIGEST}, coordinate: tenon:skills/tenon@${DIGEST} }`,
-  '',
-].join('\n')
 const ALPHA = '  alpha: { repo: owner-a/skills, path: skills/alpha, ref: default-branch, license_expected: MIT }'
 const BETA = '  beta: { repo: owner-a/skills, path: skills/beta, ref: default-branch, license_expected: MIT }'
 const SOLO = '  solo: { repo: owner-b/solo, path: ., ref: default-branch, license_expected: MIT }'
@@ -26,7 +24,6 @@ afterEach(() => {
 
 let tick = 0
 const clock = (): string => new Date(Date.UTC(2026, 8, 15, 8, 0, tick++)).toISOString()
-const skillMd = (name: string, body = 'body'): string => `---\nname: ${name}\ndescription: fixture\n---\n# ${name}\n${body}\n`
 
 function seededHub(): { hub: FixtureHub; alphaCommit: string; soloCommit: string } {
   const hub = createFixtureHub()
@@ -48,13 +45,7 @@ function seededHub(): { hub: FixtureHub; alphaCommit: string; soloCommit: string
 }
 
 function pluginRoot(hub: FixtureHub, name: string, lines: readonly string[] | null): string {
-  const root = join(hub.root, name)
-  mkdirSync(join(root, 'skills', 'tenon'), { recursive: true })
-  writeFileSync(join(root, 'skills', 'tenon', 'SKILL.md'), skillMd('tenon'), 'utf8')
-  mkdirSync(join(root, 'templates'), { recursive: true })
-  writeFileSync(join(root, 'templates', 'skill-sources.yaml'), REGISTRY, 'utf8')
-  if (lines !== null) writeFileSync(join(root, 'skills', 'sources.yaml'), ['version: 1', 'skills:', ...lines, ''].join('\n'), 'utf8')
-  return root
+  return writePluginRoot(join(hub.root, name), lines)
 }
 
 function install(hub: FixtureHub, plugin: string, overrides: Partial<UpstreamSkillInstallInput> = {}): ReturnType<typeof installUpstreamSkills> {

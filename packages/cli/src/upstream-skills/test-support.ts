@@ -106,6 +106,31 @@ export function createFixtureHub(): FixtureHub {
   }
 }
 
+export const MIT_LICENSE_TEXT = 'MIT License\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\n'
+const REGISTRY_DIGEST = `sha256:${'a'.repeat(64)}`
+
+export function fixtureSkillMd(name: string, body = 'body'): string {
+  return `---\nname: ${name}\ndescription: fixture\n---\n# ${name}\n${body}\n`
+}
+
+/** A plugin root with the bundled `tenon` skill, its strict registry and an optional `skills/sources.yaml`. */
+export function writePluginRoot(root: string, sourceLines: readonly string[] | null): string {
+  mkdirSync(join(root, 'skills', 'tenon'), { recursive: true })
+  writeFileSync(join(root, 'skills', 'tenon', 'SKILL.md'), fixtureSkillMd('tenon'), 'utf8')
+  mkdirSync(join(root, 'templates'), { recursive: true })
+  writeFileSync(join(root, 'templates', 'skill-sources.yaml'), [
+    'version: 3',
+    'hash_algorithm: tree-sha256-v1',
+    'skills:',
+    `  tenon: { tool: bundled, source: tenon, content_skill: tenon, tier: mandatory, official: true, source_kind: bundled, source_ref: skills/tenon, content_hash: ${REGISTRY_DIGEST}, coordinate: tenon:skills/tenon@${REGISTRY_DIGEST} }`,
+    '',
+  ].join('\n'), 'utf8')
+  if (sourceLines !== null) {
+    writeFileSync(join(root, 'skills', 'sources.yaml'), ['version: 1', 'skills:', ...sourceLines, ''].join('\n'), 'utf8')
+  }
+  return root
+}
+
 /** Relative path → mode + bytes of every entry below `dir`, for byte-identical comparisons. */
 export function snapshotTree(dir: string): Record<string, string> {
   const out: Record<string, string> = {}
