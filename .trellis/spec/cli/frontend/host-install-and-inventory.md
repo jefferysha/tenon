@@ -182,3 +182,90 @@ if (!hostPluginIds.has(TENON_PLUGIN_IDENTITY)) return red(…)   // enabled ⇒ 
 const loadErrors = inventory.tenonLoadErrors ?? []
 if (loadErrors.length > 0) return red('integration:codex-project-skills', `… 报告 Tenon 插件加载失败：${loadErrors.join('；')}`, …)
 ```
+
+## Scenario: Retired 1.x release line ranks below 0.x
+
+### 1. Scope / Trigger
+
+- Numbering restarted at 0.1.0 after v1.0.0–v1.1.5 were published. Plain SemVer ranks 0.1.0 below 1.1.5, so update,
+  convergence receipts and installer journal adoption would refuse the migration as a downgrade.
+- Trigger: any code that decides whether one Tenon release is newer than another, or which release is the N-1 baseline.
+
+### 2. Signatures
+
+```ts
+// packages/cli/src/commands/stable-release.ts
+export const RETIRED_RELEASE_VERSION = /^1\.(0\.[0-9]|1\.[0-5])$/
+export function isRetiredReleaseVersion(version: string): boolean       // throws on non-stable SemVer
+export function compareReleaseOrder(left: string, right: string): number // -1 | 0 | 1; throws on non-stable SemVer
+```
+
+```bash
+stable_version_is_less "$older" "$current"          # install.sh: exit 0 iff release order older < current
+bash tools/prepare-n-minus-one-release.sh <out>      # fixture schemaVersion 3, status none | pinned; exit 78 = documented skip
+```
+
+### 3. Contracts
+
+- Order: a retired version (exactly the 16 published numbers) ranks below every other stable version; the same rank
+  compares numerically. `1.0.10`, `1.1.6` and `1.2.0` are not retired.
+- One literal: `^1\.(0\.[0-9]|1\.[0-5])$` appears byte-identical in `stable-release.ts`, `install.sh`,
+  `release-candidate.yml` and `prepare-n-minus-one-release.sh` (`check:release-workflows` enforces it). Bash ERE has no
+  `(?:`, so the group is capturing everywhere.
+- Users: `update-native.ts` (cleanup-pending receipt vs latest, host plugin / active runtime vs target),
+  `host-plugin-convergence.ts` (receipt supersession), `host-convergence-recovery.ts` (host ahead of runtime),
+  `install.sh` journal adoption. The kernel `.pipeline-version` guard is not a release order and is unchanged.
+- `tenon update` prints `[update] <label> <v> 属于已退役的 1.x 版本线；迁移到 <target>` for each replaced retired version.
+- 1.x code on an installed machine cannot change: 1.x `tenon update` still refuses 0.x; the v0.1.0 one-line installer
+  runs the packaged 0.x CLI and is the migration path.
+- Release: the candidate rejects retired tags; `release.yml` creates Releases with `--latest`. N-1 fixture `none` exits 78
+  only when `release == v<package.json version>`; once the current version is not retired, a pinned baseline must be the
+  latest non-retired stable tag below it.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+| --- | --- |
+| 0.x update, host plugin or runtime 1.1.5, target 0.1.0 | proceeds with the retired-line notice |
+| 0.x update, installed 0.1.1, target 0.1.0 | `拒绝从宿主 plugin 0.1.1 降级到 0.1.0`, exit 1, no mutation |
+| cleanup-pending receipt 1.1.5, target 0.1.0 | `检测到旧 1.1.5 cleanup-pending；继续发布更高 stable 0.1.0` |
+| Convergence receipt 0.1.1, target 0.1.0 | `未被当前稳定版本超越；拒绝覆盖` |
+| install.sh journal target 1.1.5, installer 0.1.0 | adopted |
+| Candidate tag `v1.0.3` | `tag v1.0.3 uses a retired 1.x version number` |
+| N-1 `none`, release ≠ current | `N-1 一次性跳过只适用于 <release>；当前 v<ver> 必须固定最近的正式版本`, exit 1 |
+| N-1 pinned retired baseline, current not retired | `N-1 基线不能是已退役版本 <tag>`, exit 1 |
+| N-1 pinned older than the latest non-retired tag below current | `N-1 基线 <tag> 不是低于 v<ver> 的最近正式版本 <latest>`, exit 1 |
+
+### 5. Good / Base / Bad Cases
+
+- Good: a v1.1.5 host runs the v0.1.0 installer; journal adoption and receipts accept 0.1.0 as newer.
+- Base: 0.1.0 → 0.1.1 and 2.0.0 vs 1.2.3 compare as plain SemVer.
+- Bad: publishing a new `v1.0.x` or `v1.1.0`–`v1.1.5`; it would rank below every 0.x release.
+
+### 6. Tests Required
+
+- `commands/stable-release.test.ts`: the order table both ways; `isRetiredReleaseVersion` for the 16 numbers and the
+  non-retired neighbours; invalid input throws `not complete stable SemVer`.
+- `commands/update.test.ts`: retired host + runtime migrate to 0.1.0 with the notice; 0.1.1 → 0.1.0 is rejected with no
+  mutation; a retired cleanup-pending receipt does not block the migration.
+- `commands/setup.test.ts`: a 1.1.5 receipt is superseded by 0.1.0, a 0.1.1 receipt is not;
+  `hostConvergenceHasNewerStableCandidate` only proves a tag when the host ranks above the runtime.
+- `tools/install-bootstrap.node-test.mjs`: `stable_version_is_less` over the same table.
+- `tools/check-release-workflows.node-test.mjs`: identical literal, candidate guard, `--latest`, exit 78 acceptance, and
+  executable prepare-script fixtures for every N-1 row.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+if (compareStableVersions(version, target.version) > 0) throw new Error(`拒绝从${label} ${version} 降级到 ${target.version}`)
+// 1.1.5 > 0.1.0 numerically: every 1.x machine is refused
+```
+
+#### Correct
+
+```ts
+if (compareReleaseOrder(version, target.version) > 0) throw new Error(`拒绝从${label} ${version} 降级到 ${target.version}`)
+if (isRetiredReleaseVersion(version) && !isRetiredReleaseVersion(target.version)) deps.io.out(`[update] ${label} ${version} 属于已退役的 1.x 版本线；迁移到 ${target.version}`)
+```

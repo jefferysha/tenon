@@ -865,6 +865,9 @@ package、update-candidate、release-store、standalone/full setup 与 doctor �
 每个稳定 Release 候选 SHALL 以固定版本、commit 和 digest 的完整公开 N-1 payload
 执行兼容测试。缺少 N-1、使用任意本机 previous release、fixture 版本不匹配，或
 N-1 `status`/`set`/bundle contract 无法读写当前候选 Change 时 SHALL 阻止发布。
+版本号重置后的首个发行版 v0.1.0 没有更早的 0.x 正式版本：只有 fixture 以 `status: none`
+明确点名当前候选版本时，gate SHALL 以专用退出码报告一次显式跳过；此后每个候选 SHALL 固定
+低于当前版本的最近非退役正式版本，已退役的 1.0.0–1.1.5 版本 SHALL NOT 作为基线。
 
 #### Scenario: v1.0.2 验证真实 v1.0.1
 
@@ -872,3 +875,11 @@ N-1 `status`/`set`/bundle contract 无法读写当前候选 Change 时 SHALL 阻
 - **THEN** gate 校验完整 v1.0.1 payload 的固定 commit 与 CLI SHA-256
 - **AND** v1.0.1 的 `status`、`set` 与 bundle 兼容断言全部通过
 - **AND** 不得在 N-1 缺失时静默 skip 并报告成功
+
+#### Scenario: v0.1.0 没有更早的 0.x 正式版本
+
+- **WHEN** N-1 fixture 为 `status: none` 且 `release` 等于候选版本 `v0.1.0`
+- **THEN** gate 以退出码 78 报告 `N-1 skipped` 与原因，CI 与 release candidate 只把该退出码当作跳过
+- **AND** bundle smoke 打印 `[HONEST SKIP]`，不计为通过
+- **AND** `release` 与候选版本不一致时 gate 失败，v0.1.1 及以后的候选 MUST 固定最近的非退役正式版本
+- **AND** 候选版本不属于退役版本线时，固定基线是退役版本或不是最近的非退役正式 tag 都使 gate 失败

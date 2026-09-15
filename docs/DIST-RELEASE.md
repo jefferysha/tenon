@@ -144,10 +144,21 @@ npm run check:default-workflow-freshness
 ```
 
 `bash tools/test-bundle.sh` 还必须用不依赖本机缓存的冻结 N-1 严格读取器读取当前 bundle 新建的
-canonical Change。CI 另外根据 `tools/fixtures/n-minus-one-release.json` 的固定 commit 和 payload
-闭集，通过 `tools/prepare-n-minus-one-release.sh` 重建完整上一发行版（CLI、templates、skills、
-hooks、adapters、server/SPA 与 bootstrap），校验 CLI digest 后从该真实 payload 路径运行读取。
+canonical Change。CI 另外读取 `tools/fixtures/n-minus-one-release.json`（`schemaVersion: 3`）：
+`status: "pinned"` 时按固定 tag、commit 和 payload 闭集，通过 `tools/prepare-n-minus-one-release.sh`
+重建完整上一发行版（CLI、templates、skills、hooks、adapters、server/SPA 与 bootstrap），校验 CLI
+digest 后从该真实 payload 路径运行读取。当前版本不属于已退役的 1.0.0–1.1.5 版本线时，固定基线不得是
+退役版本，并且必须是 checkout 中低于当前版本的最近非退役正式 tag，否则脚本失败。
+`status: "none"` 只用于版本号重置后的首个发行版 v0.1.0：fixture 的 `release` 必须等于
+`v<package.json version>`，脚本以退出码 78 输出 `N-1 skipped: <release> <reason>`；CI 与 release
+candidate 只把 78 当作已声明的跳过，`test-bundle.sh` 打印 `[HONEST SKIP] bundle: 真实 N-1 兼容：<reason>`
+（不计通过也不计失败）。`release` 与当前版本不同时脚本失败；从 v0.1.1 起 fixture 固定 v0.1.0。
 开发机存在 managed `previousRelease` 时可再交叉验证，但不能代替 CI 的完整固定 payload。
+
+`release.yml` 以 `gh release create --latest` 创建 Release：`tenon update` 与公开安装验收都解析
+`releases/latest`，新发布的版本必须成为 Latest。release candidate 拒绝已退役的 1.0.0–1.1.5 版本号
+（`tag vX uses a retired 1.x version number`），退役号永不复用；安装与更新的版本顺序把退役版本线
+排在其他所有正式版本之下。
 
 ## CI 新鲜度门（2026-07-17 补）
 
