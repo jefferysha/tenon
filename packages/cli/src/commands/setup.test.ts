@@ -32,6 +32,7 @@ import { resolveCommandOnPath } from './commandExists.js'
 import { nativeHostCommandBinding } from './native-host-command-binding.js'
 import type { ExecDockerFn } from '../afkReadiness.js'
 import type { RuntimeInstaller } from '../runtime/installer.js'
+import type { UpstreamSkillInstallInput } from '../upstream-skills/install.js'
 import { resolveRuntimePaths } from '../runtime/paths.js'
 import type { ReleasedDashboardStarter } from './dashboard.js'
 import { createHostTargetPlan } from './host-target-plan.js'
@@ -2045,6 +2046,42 @@ describe('①b Codex 旧 hook 迁移 —— 插件是唯一 hook 所有者', () 
     expect(migrated.hooks?.PreToolUse).toBeDefined()
     expect(runtime.calls.activations).toEqual([['/installed/tenon', 'codex', '/home/test']])
     expect(deps.outLines.join('\n')).toContain('已迁移 1 个旧版 Codex hook')
+  })
+})
+
+describe('upstream skills in native setup', () => {
+  test('fetches into the host root after candidate resolution and re-verifies assets even for a reused verified root', async () => {
+    const deps = makeDeps()
+    const exactExec: ExecStub = (cmd, args) => {
+      const text = `${cmd} ${args.join(' ')}`
+      if (text === 'git -C /installed/tenon rev-parse HEAD') return { code: 0, stdout: `${'a'.repeat(40)}\n`, stderr: '' }
+      if (text === 'git -C /installed/tenon remote get-url origin') {
+        return { code: 0, stdout: 'https://github.com/jefferysha/tenon.git\n', stderr: '' }
+      }
+      return codexInstallExec(cmd, args)
+    }
+    const { env, calls } = spyEnv({ pathExists: setupPathExists, readText: setupReadText }, exactExec)
+    const marks: number[] = []
+    const inputs: UpstreamSkillInstallInput[] = []
+    env.installUpstreamSkills = async (input) => {
+      marks.push(calls.exec.length)
+      inputs.push(input)
+      return { report: { version: 1, at: '2026-09-15T08:00:00.000Z', host: 'codex', results: [] }, lockWritten: false }
+    }
+    const runtime = fakeRuntimeInstaller(true)
+
+    expect(await cmdSetupHost(deps, 'codex', { codex: true }, env, runtime.installer)).toBe(1)
+    expect(deps.outLines.join('\n')).toContain('复用宿主登记的安装')
+    expect(inputs.map((input) => [input.pluginRoot, input.previousRoot, input.host])).toEqual([['/installed/tenon', null, 'codex']])
+    const mark = marks[0] ?? -1
+    const indexes = (match: (cmd: string, args: readonly string[]) => boolean): number[] =>
+      calls.exec.flatMap(([cmd, args], index) => (match(cmd, args) ? [index] : []))
+    const verifications = indexes((cmd, args) => cmd === 'bash' && args[0] === '/installed/tenon/tools/verify-skills.sh')
+    const inventories = indexes((cmd, args) => cmd.endsWith('codex') && args.join(' ') === 'plugin list --json')
+    expect(inventories.some((index) => index < mark)).toBe(true)
+    expect(verifications.some((index) => index < mark)).toBe(true)
+    expect(verifications.some((index) => index >= mark)).toBe(true)
+    expect(runtime.calls.activations).toEqual([['/installed/tenon', 'codex', '/home/test']])
   })
 })
 

@@ -1026,9 +1026,15 @@ else
 fi
 
 if [ "$MARKETPLACE_ROOT" != "$ROOT" ]; then
+  # Only tracked skills/* children are compared; upstream skills fetched into the plugin root are proven by verify-skills.
+  TRACKED_SKILL_ENTRIES="$(run_git -C "$MARKETPLACE_ROOT" ls-tree --name-only HEAD skills/)" || {
+    echo "install.sh: tracked skills of the ${MARKETPLACE_REF} marketplace could not be listed." >&2
+    exit 1
+  }
+  # shellcheck disable=SC2086 # tracked skills/* names contain no whitespace
   for entry in ".claude-plugin/plugin.json" ".codex-plugin/plugin.json" "adapters" "hooks" \
     "packages/cli/dist/tenon.mjs" "packages/dashboard-app/dist" "packages/server/dist/dashboard.mjs" \
-    "runtime/tenon-bootstrap.mjs" "skills" "templates" "tools/verify-skills.sh"; do
+    "runtime/tenon-bootstrap.mjs" "templates" "tools/verify-skills.sh" $TRACKED_SKILL_ENTRIES; do
     run_git diff --no-index --quiet -- "$MARKETPLACE_ROOT/$entry" "$ROOT/$entry" || {
       echo "install.sh: installed plugin payload differs from the ${MARKETPLACE_REF} marketplace at $entry." >&2
       exit 1

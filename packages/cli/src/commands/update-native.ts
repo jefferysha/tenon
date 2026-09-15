@@ -24,6 +24,7 @@ import { boundaryDetail, reportHostBoundary, type HostBoundaryState } from './up
 import { verifyUpdatedRoot } from './update-candidate-verification.js'
 import { rejectUpdate } from './update-failure.js'
 import { reportSuccessfulNativeUpdate } from './update-success-report.js'
+import { runUpstreamSkillInstall } from './upstream-skill-step.js'
 import { isAlreadyInstalledResult, renderNativeUpdatePlan } from './update-native-plan.js'
 import type { NativeUpdateInput } from './update-native-contract.js'
 export { renderNativeUpdatePlan } from './update-native-plan.js'
@@ -203,6 +204,8 @@ export async function runNativeUpdate(input: NativeUpdateInput): Promise<number>
         const hostExact = beforeInventory.tenonRoot !== null
           && beforeInventory.tenonVersion === target.version
           && nativeHostMatchesStableTarget(env, host, target)
+        // An unchanged lock keeps the payload digest, so the exact-runtime check below still reports current.
+        if (hostExact) await runUpstreamSkillInstall(deps, env, installer, runtimeScope, host, beforeInventory.tenonRoot)
         if (hostExact && verifyUpdatedRoot(deps, env, beforeInventory.tenonRoot, target.version)) {
           const candidateIdentity = await inspectCandidate(beforeInventory.tenonRoot)
           if (candidateIdentity.pluginVersion === target.version
@@ -307,6 +310,7 @@ export async function runNativeUpdate(input: NativeUpdateInput): Promise<number>
         if (!observeNativeStableTarget(env, host, target, '更新后宿主目标 identity 无法验证')) {
           throw new Error('更新后 marketplace/tag commit 与插件 inventory 未收敛到同一冻结稳定版本')
         }
+        await runUpstreamSkillInstall(deps, env, installer, runtimeScope, host, root)
         if (!verifyUpdatedRoot(deps, env, root, target.version)) {
           throw new Error('宿主刷新后的 tenon 候选未通过打包资产校验')
         }
