@@ -10,7 +10,7 @@ tags: [workflow, pipeline, uninstall, cleanup]
 把当前项目里 pipeline 装入的资产安全移除：**只删所有权清单（`.pipeline-owned.json`）里登记、且
 未被用户改动的文件**，**绝不盲扫** `.codex/` `.claude/` `.opencode/` 等用户运行时数据目录。
 对标 Tenon contract `tenon uninstall`（命名对齐：`.template-hashes.json` ↔ `.pipeline-owned.json`、
-`TENON:START/END` ↔ `PIPELINE:START/END`）。
+`TENON:START/END` ↔ `PIPELINE:<TAG>:START/END`，如 `PIPELINE:CODEX:START`）。
 
 实现真相源（已落地 · BACKLOG #24）：所有权 hash 追踪纯逻辑在
 `packages/kernel/src/state/ownership.ts`；卸载命令在 `packages/cli/src/commands/uninstall.ts`
@@ -30,7 +30,7 @@ tags: [workflow, pipeline, uninstall, cleanup]
 2. **前置 2（损坏硬失败）**：清单存在但为空对象 `{}` / 无有效键 / 损坏 → exit 1（拒绝盲删，
    与前置 1 的 exit 0 明确区分）。
 3. **prune 去毒**：`known = 清单自身`（清单由有纪律的写记录构建、本身即权威所有权列表），退化为
-   根 `AGENTS.md` 仅含 `PIPELINE:START`+`PIPELINE:END` 双哨兵才剥离 + `.pipeline/*` 恒留；
+   根 `AGENTS.md` 仅含成对合法的 `PIPELINE:<TAG>:START`+`PIPELINE:<TAG>:END` 受管块才剥离 + `.pipeline/*` 恒留；
    persist 仅在 `pruned>0` 且非 dry-run 时落盘。
 4. **所有权 hash 升格删除决策（对老仓的改进承诺）**：
    - **不透明文件**（`.md`/`.sh`/`.py`/…）：磁盘内容 hash **== 清单记录 hash → 删**（是我装的、没被动过）；

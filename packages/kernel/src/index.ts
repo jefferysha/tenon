@@ -8,6 +8,8 @@ export * from './state/index.js'
 export * from './interaction/index.js'
 export * from './documents/index.js'
 export * from './flow/index.js'
+// 指令文件（AGENTS.md / CLAUDE.md …）受管块、模板块与宿主表的纯逻辑。
+export * from './instructions/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
 export {
   resolveProductPaths,

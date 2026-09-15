@@ -259,6 +259,7 @@ const DOMAIN_DIRS = [
   'packages/kernel/src/triage/',
   'packages/kernel/src/verification/',
   'packages/kernel/src/interaction/',
+  'packages/kernel/src/instructions/',
 ]
 
 const DOMAIN_INFRASTRUCTURE = new Set([
