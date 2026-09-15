@@ -45689,9 +45689,16 @@ function stableTagForVersion(version) {
   parseVersion(version);
   return `v${version}`;
 }
-function compareStableVersions(left, right) {
+var RETIRED_RELEASE_VERSION = /^1\.(0\.[0-9]|1\.[0-5])$/;
+function isRetiredReleaseVersion(version) {
+  parseVersion(version);
+  return RETIRED_RELEASE_VERSION.test(version);
+}
+function compareReleaseOrder(left, right) {
   const a = parseVersion(left);
   const b = parseVersion(right);
+  const leftRetired = RETIRED_RELEASE_VERSION.test(left);
+  if (leftRetired !== RETIRED_RELEASE_VERSION.test(right)) return leftRetired ? -1 : 1;
   for (let index = 0; index < a.length; index += 1) {
     const leftPart = a[index] ?? 0n;
     const rightPart = b[index] ?? 0n;
@@ -66333,7 +66340,7 @@ function recordPendingHostPluginConflict(deps, env, host, inventory, activation,
     if (existing.state === "none") return true;
     const previous = existing.receipt;
     const sameRelease = previous.releaseId === activation.release.releaseId && previous.releaseRoot === join105(activation.releaseRoot, "payload") && previous.candidateRoot === candidateRoot;
-    const newerRelease = previous.stableTarget === void 0 || compareStableVersions(stableTarget.version, previous.stableTarget.version) > 0;
+    const newerRelease = previous.stableTarget === void 0 || compareReleaseOrder(stableTarget.version, previous.stableTarget.version) > 0;
     if (!sameRelease && !newerRelease) {
       deps.io.err("ERROR: \u5DF2\u7F3A\u5E2D\u7684 legacy plugin \u5BF9\u5E94\u53E6\u4E00\u4E2A\u672A\u88AB\u5F53\u524D\u7A33\u5B9A\u7248\u672C\u8D85\u8D8A\u7684 receipt\uFF1B\u62D2\u7EDD\u8986\u76D6\u3002");
       return false;
@@ -66374,7 +66381,7 @@ function recordPendingHostPluginConflict(deps, env, host, inventory, activation,
         if (receipt2.stableTarget !== void 0) return true;
         return writeHostPluginConvergenceReceipt(deps, env, { ...receipt2, stableTarget });
       }
-      const supersedesOlderRelease = receipt2.releaseId !== activation.release.releaseId && (receipt2.stableTarget === void 0 || compareStableVersions(stableTarget.version, receipt2.stableTarget.version) > 0);
+      const supersedesOlderRelease = receipt2.releaseId !== activation.release.releaseId && (receipt2.stableTarget === void 0 || compareReleaseOrder(stableTarget.version, receipt2.stableTarget.version) > 0);
       if (!supersedesOlderRelease) {
         deps.io.err("ERROR: \u51B2\u7A81\u6E05\u7406 receipt \u5F52\u5C5E\u4E8E\u53E6\u4E00\u4E2A managed transaction\uFF1B\u62D2\u7EDD\u8986\u76D6\u3002");
         return false;
@@ -66869,7 +66876,7 @@ async function hostConvergenceHasNewerStableCandidate(env, installer, host, rece
     const active = runtime.active;
     if (!runtime.activeValid || active === null || runtime.selection.activeRelease !== receipt.releaseId || active.releaseId !== receipt.releaseId || active.source.host !== host) return false;
     const observation = decodeNativeHostObservation(observeNativeHost(env, host));
-    if (observation.plugin === null || compareStableVersions(observation.plugin.version, active.source.pluginVersion) <= 0) return false;
+    if (observation.plugin === null || compareReleaseOrder(observation.plugin.version, active.source.pluginVersion) <= 0) return false;
     const target = resolveStableTagTarget(env, observation.plugin.version);
     if (!nativeHostMatchesStableTarget(env, host, target)) return false;
     const candidate = await candidateInspector(
@@ -67985,7 +67992,7 @@ async function runNativeUpdate(input) {
     let comparison;
     if (target !== void 0 && receiptVersion !== void 0) {
       try {
-        comparison = compareStableVersions(target.version, receiptVersion);
+        comparison = compareReleaseOrder(target.version, receiptVersion);
       } catch (error2) {
         deps.io.err(
           `ERROR: cleanup-pending runtime \u7248\u672C ${receiptVersion} \u65E0\u6CD5\u6BD4\u8F83\uFF1B\u672A\u6267\u884C\u5BBF\u4E3B\u6216 runtime mutation\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`
@@ -68067,11 +68074,14 @@ async function runNativeUpdate(input) {
           if (version === null) continue;
           let comparison;
           try {
-            comparison = compareStableVersions(version, target.version);
+            comparison = compareReleaseOrder(version, target.version);
           } catch (error2) {
             throw new Error(`${label} \u7248\u672C\u65E0\u6CD5\u53C2\u4E0E\u7A33\u5B9A\u7248\u672C\u6BD4\u8F83\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`);
           }
           if (comparison > 0) throw new Error(`\u62D2\u7EDD\u4ECE${label} ${version} \u964D\u7EA7\u5230 ${target.version}`);
+          if (isRetiredReleaseVersion(version) && !isRetiredReleaseVersion(target.version)) {
+            deps.io.out(`[update] ${label} ${version} \u5C5E\u4E8E\u5DF2\u9000\u5F79\u7684 1.x \u7248\u672C\u7EBF\uFF1B\u8FC1\u79FB\u5230 ${target.version}`);
+          }
         }
         const hostExact = beforeInventory.tenonRoot !== null && beforeInventory.tenonVersion === target.version && nativeHostMatchesStableTarget(env, host, target);
         if (hostExact && verifyUpdatedRoot(deps, env, beforeInventory.tenonRoot, target.version)) {
