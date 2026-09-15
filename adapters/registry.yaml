@@ -72,7 +72,8 @@ platforms:
     track_format: history-append
 
   # cursor：veto/track native（beforeShellExecution/preToolUse 硬拦、postToolUse 留痕），
-  #   inject 无 SessionStart 级原语 → 降级 .cursor/rules 静态层 + postToolUse.additional_context 动态补。
+  #   inject 无 SessionStart 级原语 → 降级 .cursor/rules/tenon.mdc 静态层（alwaysApply；Cursor 忽略 .md 规则）
+  #   + postToolUse.additional_context 动态补。
   #   veto 默认 fail-open，hooks.json 必 failClosed:true（否则 hook 崩了放行，与硬拦冲突）。无 trust 机制。
   - id: cursor
     tier: B
@@ -194,7 +195,8 @@ platforms:
   # ─── #41 长尾铺量批次 1/5：zed（研究结论，档 C，与 longtail 原目标档一致）───
   # zed：Zed Agent Panel 无自定义 enforcement hook（官方 rules 文档只是静态 system-prompt 拼接；
   #   zed-industries/zed#57890/#57943「lifecycle hooks」提案尚未实现，2026-07-07 spike 实证）。
-  #   三能力全静态降级（同 devin 形），本目录无 hooks/（不伪装强制）。
+  #   三能力全静态降级（同 devin 形），本目录无 hooks/（不伪装强制）。静态层写入 Zed 生效的项目指令文件
+  #   （.rules → … → GEMINI.md 第一个存在的，否则 AGENTS.md），不再新建会遮住 AGENTS.md / CLAUDE.md 的 .rules。
   - id: zed
     tier: C
     configDir: .rules

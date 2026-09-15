@@ -4,7 +4,8 @@
 # 投影产物：
 #   .cursor/hooks.json          veto(failClosed:true) + track（__ADAPTER_DIR__ 定死为仓库内适配器绝对路径，
 #                               wrapper 从仓库跑，自定位 lite baseline hooks/gate.sh · skill-tracker.sh · session-start.sh）
-#   .cursor/rules/pipeline.md   inject 降级静态层（Cursor 无 SessionStart 级 inject，contract §1）
+#   .cursor/rules/tenon.mdc     inject 降级静态层（Cursor 无 SessionStart 级 inject，contract §1）；
+#                               Cursor 项目规则只认 .mdc，alwaysApply:true 让每次会话都带上
 #
 # 选项：--target <dir>（默认 $PWD）/ --no-hooks（只装静态层，降级）/ --yes / -h
 # 无 trust 机制——落盘即生效（部署优势 vs Codex）。
@@ -42,11 +43,35 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# ── inject 降级静态层 .cursor/rules/pipeline.md ──
+# 旧版安装器写的 .cursor/rules/pipeline.md 的 sha256。Cursor 忽略 .cursor/rules 里的 .md，
+# 该文件从未生效；字节与旧版生成内容一致才删，用户改过的保留并提示。
+LEGACY_RULES_SHA256=20a009543a56ebcc71842de57236f6fff04d79ef86f48ce5241e9b067a10d133
+
+sha256_of() { # <file>
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
+  else sha256sum "$1" | cut -d' ' -f1; fi
+}
+
+remove_legacy_rules() {
+  local legacy="$TARGET/$CONFIG_DIR/rules/pipeline.md"
+  [ -f "$legacy" ] || return 0
+  if [ "$(sha256_of "$legacy")" = "$LEGACY_RULES_SHA256" ]; then
+    rm -f "$legacy"
+    info "已删除旧版生成的 $legacy（Cursor 不读取 .md 规则）"
+  else
+    warn "$legacy 与旧版生成内容不同，保留不删；Cursor 不读取 .cursor/rules 下的 .md 文件。"
+  fi
+}
+
+# ── inject 降级静态层 .cursor/rules/tenon.mdc ──
 install_rules() {
   local rdir="$TARGET/$CONFIG_DIR/rules"
   mkdir -p "$rdir"
-  atomic_write "$rdir/pipeline.md" <<'EOF'
+  atomic_write "$rdir/tenon.mdc" <<'EOF'
+---
+description: Tenon workflow
+alwaysApply: true
+---
 # Pipeline Workflow（Cursor 静态注入层）
 
 > Cursor 无 SessionStart 级 inject 原语，本规则文件是 pipeline 上下文的降级静态层（契约 §1）。
@@ -63,7 +88,8 @@ install_rules() {
 
 不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀为 /pipeline-（如 /tenon-explore）。
 EOF
-  info "rules/pipeline.md → $rdir/pipeline.md（inject 降级静态层）"
+  info "rules/tenon.mdc → $rdir/tenon.mdc（inject 降级静态层）"
+  remove_legacy_rules
 }
 
 # ── hooks.json（__ADAPTER_DIR__ → 仓库内适配器绝对路径；wrapper 从仓库跑，自定位 baseline hooks）──

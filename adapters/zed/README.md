@@ -22,10 +22,20 @@
 
 ## 三能力（全静态降级，档 C）
 
+## 静态层写到哪个文件
+
+Zed 只读工作区根目录下**第一个存在**的指令文件，顺序为 `.rules`、`.cursorrules`、`.windsurfrules`、`.clinerules`、
+`.github/copilot-instructions.md`、`AGENT.md`、`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`（zed.dev/docs/ai/instructions），
+其余全部忽略。安装器把 ZED 哨兵块写进这个生效的指令文件，都不存在时写 `AGENTS.md`：
+
+- 旧版安装器新建的、只含 ZED 块的 `.rules` 会被删除（它会遮住 `AGENTS.md` / `CLAUDE.md`），块移到生效文件；
+- 其它候选文件里残留的 ZED 块移走，全部候选文件合计恰一份；
+- 用户自己的 `.rules` 等文件保留，块合并进去，不覆盖用户内容。
+
 ```yaml
 inject:
   status: degraded
-  fallback: static-rules            # .rules（项目根，哨兵块幂等合并，不覆盖用户已有内容）
+  fallback: static-rules            # 生效的项目指令文件（哨兵块幂等合并，不覆盖用户已有内容）
 veto:
   status: degraded
   fallback: cli-review-receipt      # 无硬拦；仍以 CLI 记录 review 的人工确认
