@@ -12,6 +12,30 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v1.1.4 · 2026-09-15
+
+在 v1.1.3 上用 Codex 执行真实任务时发现并修复的问题。
+
+### Codex 技能证据
+
+- Codex 生成的两种 exec 程序写法中，完整读取 `SKILL.md` 都会被认作技能证据。此前 Tenon 只识别
+  `const r = await tools.exec_command({...}); text(r);`，写成 `text(await tools.exec_command({...}));` 的读取
+  不产生证据：之后第一次 `tenon document record` 必然报 `current StepVisit lacks exact host confirmation`，
+  agent 只能重新读取技能。两种写法都必须完整转发恰好一个 awaited 调用的结果；`.output`、未 await、
+  包裹转换和附加语句仍然拒绝。
+- 该错误现在会说明恢复方法：在当前阶段重新调用产出技能（Claude Code 用 Skill 工具；Codex 用单独一条
+  `cat` 读取其 `SKILL.md`，`max_output_tokens` 要足够容纳整个文件，被截断的读取不算证据），再重试登记。
+  此前 Codex agent 两次用 1000–2000 token 的输出上限读取 20 KB 的 `tenon-explore` 技能，之后才猜到要调大。
+
+### 升级动作
+
+为使用的每个宿主安装新版本，然后新开宿主会话：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.4/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.4/install.sh | /bin/bash -s -- --codex
+```
+
 ## v1.1.3 · 2026-09-15
 
 在慢速代理网络上为 Codex 安装 v1.1.2 时发现并修复的问题。

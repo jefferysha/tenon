@@ -4,6 +4,32 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v1.1.4 · 2026-09-15
+
+Found while running a real Codex task on v1.1.3.
+
+### Codex skill evidence
+
+- A complete `SKILL.md` read now counts as skill evidence in both exec program forms Codex writes.
+  Tenon recognised only `const r = await tools.exec_command({...}); text(r);`, so a read written as
+  `text(await tools.exec_command({...}));` produced no evidence: the first `tenon document record` after
+  it failed with `current StepVisit lacks exact host confirmation`, and the agent had to read the skill
+  again. Both forms must still forward the complete result of exactly one awaited call; `.output`,
+  unawaited calls, wrapped results and extra statements are rejected as before.
+- That error now says how to recover: invoke the producer skill again in the current step (Claude Code:
+  the Skill tool; Codex: one standalone `cat` of its `SKILL.md` with a `max_output_tokens` large enough
+  for the whole file, because a truncated read is not evidence), then retry the record. A Codex agent
+  read the 20 KB `tenon-explore` skill with a 1,000–2,000 token budget twice before guessing a larger one.
+
+### Upgrade
+
+Install the new release for each host you use, then open a new host session:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.4/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.4/install.sh | /bin/bash -s -- --codex
+```
+
 ## v1.1.3 · 2026-09-15
 
 Found while installing v1.1.2 for Codex on a slow proxy connection.

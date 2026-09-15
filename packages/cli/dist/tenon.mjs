@@ -17322,7 +17322,7 @@ async function currentDocumentProducerInvocation(changeDir2, producer, phase, re
 async function requiredDocumentProducerInvocation(changeDir2, producer, phase, recordedAt, allowBackfill) {
   const invocation = await currentDocumentProducerInvocation(changeDir2, producer, phase, recordedAt);
   if (invocation === void 0 && !allowBackfill)
-    throw new DocumentLedgerError(`current StepVisit lacks exact host confirmation for document producer '${producer}'`);
+    throw new DocumentLedgerError(`current StepVisit lacks exact host confirmation for document producer '${producer}'\uFF1B\u5728\u5F53\u524D\u9636\u6BB5\u91CD\u65B0\u8C03\u7528\u8BE5\u6280\u80FD\u540E\u91CD\u8BD5\u767B\u8BB0\uFF08Claude Code \u7528 Skill \u5DE5\u5177\uFF1BCodex \u7528\u5355\u72EC\u4E00\u6761 cat \u8BFB\u53D6\u5176 SKILL.md\uFF0Cmax_output_tokens \u8981\u8DB3\u591F\u5927\uFF0C\u8F93\u51FA\u88AB\u622A\u65AD\u4E0D\u7B97\u8BFB\u53D6\uFF09`);
   return invocation;
 }
 
@@ -45831,7 +45831,7 @@ var TENON_HOSTS = [
 var TENON_MARKETPLACE_SOURCE = "jefferysha/tenon";
 var TENON_MARKETPLACE_NAME = "tenon";
 var TENON_PLUGIN_NAME = "tenon";
-var TENON_RELEASE_VERSION = "1.1.3";
+var TENON_RELEASE_VERSION = "1.1.4";
 function parseHostPluginInventory(host, stdout) {
   let parsed;
   try {
@@ -49879,10 +49879,12 @@ function transcriptExecInvocations(input) {
       return [];
     }
   }
-  const prefix = /^\s*(?:(?:\/\/ @exec:[^\r\n]*\r?\n)\s*)?(?:const|let|var)\s+([$A-Z_a-z][$\w]*)\s*=\s*await\s+tools\.exec_command\s*\(/.exec(input);
+  const bound = /^\s*(?:(?:\/\/ @exec:[^\r\n]*\r?\n)\s*)?(?:const|let|var)\s+([$A-Z_a-z][$\w]*)\s*=\s*await\s+tools\.exec_command\s*\(/.exec(input);
+  const inline = bound === null ? /^\s*(?:(?:\/\/ @exec:[^\r\n]*\r?\n)\s*)?text\s*\(\s*await\s+tools\.exec_command\s*\(/.exec(input) : null;
+  const prefix = bound ?? inline;
   if (!prefix) return [];
-  const resultName = prefix[1];
-  if (!resultName) return [];
+  const resultName = bound?.[1];
+  if (bound && !resultName) return [];
   let objectStart = prefix[0].length;
   while (/\s/.test(input[objectStart] ?? "")) objectStart += 1;
   if (input[objectStart] !== "{") return [];
@@ -49912,9 +49914,8 @@ function transcriptExecInvocations(input) {
   if (objectEnd === void 0) return [];
   const invocation = invocationFromObjectLiteral(input.slice(objectStart, objectEnd));
   if (!invocation) return [];
-  const escapedResultName = resultName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const suffix = new RegExp(
-    `^\\s*\\)\\s*;\\s*text\\s*\\(\\s*${escapedResultName}\\s*\\)\\s*;?\\s*$`
+  const suffix = resultName === void 0 ? /^\s*\)\s*\)\s*;?\s*$/ : new RegExp(
+    `^\\s*\\)\\s*;\\s*text\\s*\\(\\s*${resultName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\)\\s*;?\\s*$`
   );
   return suffix.test(input.slice(objectEnd)) ? [invocation] : [];
 }
@@ -51257,7 +51258,9 @@ async function cmdDocumentRecord(deps, name2, kind, path15, producer, backfill =
         applicationKey: `${kind}\0${path15}`
       });
       if (await currentDocumentSkillConfirmation(dir, producer, phase, recordedAt) === void 0) {
-        throw new Error(`current StepVisit lacks exact host confirmation for document producer '${producer}'`);
+        throw new Error(
+          `current StepVisit lacks exact host confirmation for document producer '${producer}'\uFF1B\u5728\u5F53\u524D\u9636\u6BB5\u91CD\u65B0\u8C03\u7528\u8BE5\u6280\u80FD\u540E\u91CD\u8BD5\u767B\u8BB0\uFF08Claude Code \u7528 Skill \u5DE5\u5177\uFF1BCodex \u7528\u5355\u72EC\u4E00\u6761 cat \u8BFB\u53D6\u5176 SKILL.md\uFF0Cmax_output_tokens \u8981\u8DB3\u591F\u5927\uFF0C\u8F93\u51FA\u88AB\u622A\u65AD\u4E0D\u7B97\u8BFB\u53D6\uFF09`
+        );
       }
       let ledger;
       if (deps.artifactSubmission) {
