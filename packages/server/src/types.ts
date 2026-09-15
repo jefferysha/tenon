@@ -5,6 +5,7 @@
 import type { ArtifactService } from './serverArtifactRoutes.js'
 import type {
   DocumentEvidenceItemStatus,
+  DocumentStaleReason,
   FieldName,
   FlowEngine,
   MemFs,
@@ -105,6 +106,7 @@ export interface DocumentEvidenceSnapshot {
   items: Array<{
     kind: string
     status: DocumentEvidenceItemStatus
+    reason?: DocumentStaleReason
     requiredRead: boolean
     paths: string[]
     producers: string[]

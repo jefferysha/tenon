@@ -1,6 +1,8 @@
 import {
+  DOCUMENT_KIND_CATALOG,
   isDocumentPolicyStep,
   readsRequiredForPolicyStep,
+  requiresForPolicyStep,
   type DocumentKind,
 } from '../workflow/document-contract.js'
 import {
@@ -123,7 +125,8 @@ export async function compileLedgerContextBundleWithPorts(
     throw invalidRequest(`Context Bundle budgetBytes 必须是正安全整数: ${maxBytes}`)
   }
 
-  const requiredKinds = readsRequiredForPolicyStep(input.policy, input.target)
+  const requires = requiresForPolicyStep(input.policy, input.target)
+  const requiredKinds = [...new Set([...readsRequiredForPolicyStep(input.policy, input.target), ...requires])]
   const bundleInputs: Array<{
     kind: DocumentKind
     path: string
@@ -168,9 +171,14 @@ export async function compileLedgerContextBundleWithPorts(
     let totalSourceBytes = 0
     const materializedPaths = new Set<string>()
     for (const kind of requiredKinds) {
-      const records = ledger.records
+      const recorded: ReadonlyArray<{ readonly path: string; readonly sha256?: string }> = ledger.records
         .filter((record) => record.kind === kind)
         .sort((left, right) => left.path.localeCompare(right.path, 'en'))
+      // A required project document produced outside this change is materialized from its fixed path.
+      const projectPath = DOCUMENT_KIND_CATALOG[kind].projectPath
+      const records = recorded.length === 0 && projectPath !== undefined && requires.includes(kind)
+        ? [{ path: projectPath }]
+        : recorded
       if (records.length === 0) {
         throw new LedgerContextBundleError(
           'CONTEXT_BUNDLE_DOCUMENT_MISSING',
@@ -266,7 +274,7 @@ export async function compileLedgerContextBundleWithPorts(
           )
         }
         const actual = input.primitives.sha256(text)
-        if (actual !== record.sha256) {
+        if (record.sha256 !== undefined && actual !== record.sha256) {
           throw new LedgerContextBundleError(
             'CONTEXT_BUNDLE_DOCUMENT_STALE',
             `Context Bundle stale document '${kind}': ${record.path}; run tenon document record ${input.change} ${kind} ${record.path} --producer <skill>, then tenon document read ${input.change} all`,
@@ -286,7 +294,7 @@ export async function compileLedgerContextBundleWithPorts(
           : mode === 'full'
             ? text
             : renderHandoffSummary(compressDocument(text), `${input.change}/${kind}`)
-        const digestValue = `sha256:${record.sha256}` as const
+        const digestValue = `sha256:${record.sha256 ?? actual}` as const
         bundleInputs.push({
           kind,
           path: record.path,

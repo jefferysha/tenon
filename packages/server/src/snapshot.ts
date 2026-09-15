@@ -194,6 +194,7 @@ export async function documentEvidence(
     items: report.items.map((item) => ({
       kind: item.kind,
       status: item.status,
+      ...(item.reason === undefined ? {} : { reason: item.reason }),
       requiredRead: item.requiredRead,
       paths: [...item.paths],
       producers: [...item.producers],

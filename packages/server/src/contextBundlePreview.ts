@@ -6,6 +6,7 @@ import {
   LedgerContextBundleError,
   nodeLedgerContextBundlePrimitives,
   readsRequiredForPolicyStep,
+  requiresForPolicyStep,
   resolveWorkflowName,
   validateChangeName,
   type DocumentGovernancePolicy,
@@ -155,7 +156,7 @@ export async function handleContextBundlePreview(
     }
     assertChangePathAnchor(changeAnchor)
     assertWorkflowRootAnchor(anchor)
-    const trustedInputs = readsRequiredForPolicyStep(policy, target).length === 0
+    const trustedInputs = [...readsRequiredForPolicyStep(policy, target), ...requiresForPolicyStep(policy, target)].length === 0
       ? {
           ledger: undefined,
           sourceReader: {

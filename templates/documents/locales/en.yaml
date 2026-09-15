@@ -7,7 +7,7 @@
     "build": "Build",
     "verify": "Verify",
     "ship": "Ship",
-    "archive": "Archive"
+    "archive": "Done"
   },
   "templates": {
     "openspec-proposal": {
@@ -81,6 +81,9 @@
       "summary": "Change summary",
       "requirements": "Applied requirements",
       "evidence": "Delivery evidence"
+    },
+    "design-md": {
+      "title": "Design system"
     }
   }
 }

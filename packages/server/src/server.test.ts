@@ -4090,6 +4090,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     const body = {
       name: 'short-governed',
       root: h.root,
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
@@ -4126,6 +4127,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(Object.keys(branches as Record<string, unknown>)).toEqual(['_base'])
     expect(definition).toEqual({
       name: body.name,
+      openspec: true,
       documentContract: body.documentContract,
       steps: body.steps,
     })
@@ -4150,6 +4152,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     const governed = {
       name: 'closed-dto',
       root: h.root,
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],

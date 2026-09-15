@@ -10,6 +10,11 @@ import {
 } from './document-template-renderer.js'
 
 describe('Document Presentation Registry', () => {
+  test('项目文档 design-md 的路径是仓库根 DESIGN.md', () => {
+    expect(documentPathForKind('design-md', { change: 'demo' })).toBe('DESIGN.md')
+    expect(documentTemplateIdForKind('design-md')).toBe('design-md')
+  })
+
   test('默认 locale 是中文，且中文与英文模板结构完全等价', () => {
     expect(DEFAULT_DOCUMENT_LOCALE).toBe('zh-CN')
     expect(() => validateDocumentPresentationRegistry()).not.toThrow()

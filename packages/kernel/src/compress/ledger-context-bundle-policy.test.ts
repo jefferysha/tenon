@@ -70,4 +70,23 @@ describe('Context Bundle follows the change document policy', () => {
     expect((error as LedgerContextBundleError).code).toBe('CONTEXT_BUNDLE_INVALID_REQUEST')
     expect((error as LedgerContextBundleError).message).toBe('Context Bundle target 必须是 workflow step: explore')
   })
+
+  test('role require 的项目文档没有登记时从 DESIGN.md 物化，digest 按文件计算', async () => {
+    const policy = documentGovernancePolicy('design', {
+      openspec: true,
+      documentContract: { version: 'v1', slots: [{ kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] }], reads: [] },
+      steps: [{ id: 'shape' }, { id: 'build' }],
+    })
+    if (policy === undefined) throw new Error('expected document-v1 policy')
+    const root = await fixture(false)
+    const design = '# Design system\n'
+    await writeFile(join(root, 'DESIGN.md'), design, 'utf8')
+    const result = await compileLedgerContextBundle({ root, change: 'demo', from: 'shape', target: 'build', policy })
+    expect(result.preview.inputs).toMatchObject([{
+      kind: 'design-md',
+      path: 'DESIGN.md',
+      digest: `sha256:${createHash('sha256').update(design, 'utf8').digest('hex')}`,
+      reasonCode: 'context-bundle.reason.design-md',
+    }])
+  })
 })

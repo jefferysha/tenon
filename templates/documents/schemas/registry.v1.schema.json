@@ -32,7 +32,7 @@
           "kind": {"type": "string", "pattern": "^[a-z0-9-]+$"},
           "path": {
             "type": "string",
-            "pattern": "^(openspec/changes/\\{change\\}/|docs/(superpowers/(specs|plans|reports)|adr)/)"
+            "pattern": "^(openspec/changes/\\{change\\}/|docs/(superpowers/(specs|plans|reports)|adr)/|DESIGN\\.md$)"
           },
           "sections": {
             "type": "array",

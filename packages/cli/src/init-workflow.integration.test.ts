@@ -39,6 +39,7 @@ steps:
 `
 
 const THREE_STEP_GOVERNED_WF = `name: compact-governed
+openspec: true
 document_contract:
   version: v1
   slots:

@@ -1,12 +1,37 @@
-import { lstat, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  documentPathAllowed,
   readBoundedRegularFile,
   readOptionalBoundedRegularTextFile,
   readOptionalBoundedRegularTextFileFromAnchoredDirectory,
+  resolveDocument,
 } from './document-path.js'
+
+describe('document path rules', () => {
+  it('DESIGN.md 只属于 design-md；design-md 只能在 DESIGN.md（E14 / E15）', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tenon-document-path-'))
+    try {
+      await writeFile(join(dir, 'DESIGN.md'), '# Design\n')
+      await mkdir(join(dir, 'docs'), { recursive: true })
+      await writeFile(join(dir, 'docs', 'DESIGN.md'), '# Design\n')
+      await expect(resolveDocument(dir, 'DESIGN.md', undefined, 'design-md')).resolves.toMatchObject({ relativePath: 'DESIGN.md' })
+      await expect(resolveDocument(dir, 'docs/DESIGN.md', undefined, 'design-md'))
+        .rejects.toThrow("document 'design-md' 的路径必须是 DESIGN.md")
+      await expect(resolveDocument(dir, 'DESIGN.md', undefined, 'proposal'))
+        .rejects.toThrow('document path 只能位于 openspec/ 或 docs/: DESIGN.md')
+      await expect(resolveDocument(dir, 'DESIGN.md')).rejects.toThrow('document path 只能位于 openspec/ 或 docs/: DESIGN.md')
+      expect(documentPathAllowed('design-md', 'DESIGN.md')).toBe(true)
+      expect(documentPathAllowed('design-md', 'docs/DESIGN.md')).toBe(false)
+      expect(documentPathAllowed('adr', 'docs/adr/demo.md')).toBe(true)
+      expect(documentPathAllowed(undefined, 'README.md')).toBe(false)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('bounded regular file identity fence', () => {
   it('rejects a same-inode same-size mutation during the read window', async () => {

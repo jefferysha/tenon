@@ -1749,6 +1749,7 @@ steps:
     const root = await makeProject()
     await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(root, '.pipeline', 'workflows', 'compact-governed.yaml'), `name: compact-governed
+openspec: true
 document_contract:
   version: v1
   slots:
@@ -1826,6 +1827,7 @@ steps:
     await mkdir(workflows, { recursive: true })
     const target = join(workflows, 'bound.yaml')
     const governed = `name: bound
+openspec: true
 document_contract:
   version: v1
   slots:
@@ -1893,6 +1895,9 @@ steps:
       decomposition: _decomposition,
       interaction: _interaction,
       reviewBudget: _reviewBudget,
+      // Historical bytes predate the openspec key and YAML-declared document contracts.
+      openspec: _openspec,
+      documentContract: _documentContract,
       ...legacyBase
     } = currentWorkflow
     const legacyWorkflow = {
@@ -1901,6 +1906,8 @@ steps:
         const { reviewLanes: _reviewLanes, ...legacyStep } = step
         return {
           ...legacyStep,
+          // The last step was labelled 归档 before the 完结 wording.
+          label: step.id === 'archive' ? '归档' : step.label,
           // This fixture represents a pre-issue#43 default snapshot: phase Skills were not
           // persisted yet, so historical fingerprint validation must use empty declarations.
           // It also predates the 2026-09 ship/archive inputs/outputs (pr_url / archived).

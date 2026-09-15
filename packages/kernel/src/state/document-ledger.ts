@@ -1,6 +1,7 @@
 /** OpenSpec document evidence sidecar; callers hold the Change lock while mutating it. */
 import { join } from 'node:path'
 import {
+  DOCUMENT_KIND_CATALOG,
   documentOwnerPolicyStep,
   isDocumentKind,
   isDocumentProducerAllowedInPolicyStep,
@@ -247,9 +248,15 @@ export interface RecordDocumentLedgerInput {
   readonly validateOnly?: boolean
 }
 
+/** A project document (DESIGN.md) may be refreshed by a branch whose steps never produce it. */
+function projectDocumentUpdateStep(policy: DocumentGovernancePolicy, kind: DocumentKind): string | undefined {
+  if (DOCUMENT_KIND_CATALOG[kind].scope !== 'project') return undefined
+  return policy.steps.find((step) => (policy.mutableByStep[step] ?? []).some((requirement) => requirement.kind === kind))
+}
+
 /** Internal core: only the document recording service may supply a verified producer anchor. */
 export async function recordDocumentLedger(input: RecordDocumentLedgerInput): Promise<DocumentLedger> {
-  const ownerPhase = documentOwnerPolicyStep(input.policy, input.kind)
+  const ownerPhase = documentOwnerPolicyStep(input.policy, input.kind) ?? projectDocumentUpdateStep(input.policy, input.kind)
   if (!ownerPhase) {
     // `DocumentKind` and the matrix live together, but fail closed if a future edit accidentally
     // adds a kind without assigning its owning phase.
@@ -257,7 +264,7 @@ export async function recordDocumentLedger(input: RecordDocumentLedgerInput): Pr
   }
   const current = await readDocumentLedger(input.changeDir)
   if (!current) throw new DocumentLedgerError(`document ledger 缺失；先执行 tenon document init`)
-  const resolved = await resolveDocument(input.repoRoot, input.path)
+  const resolved = await resolveDocument(input.repoRoot, input.path, undefined, input.kind)
   if (input.subjectRef !== undefined
     && (!isArtifactSubjectRef(input.subjectRef)
       || input.subjectRef.projection !== 'document'
@@ -454,7 +461,7 @@ export async function recordDocumentReads(input: ReadDocumentsInput): Promise<Do
       updated.push(record)
       continue
     }
-    const resolved = await resolveDocument(input.repoRoot, record.path)
+    const resolved = await resolveDocument(input.repoRoot, record.path, undefined, record.kind)
     if (resolved.digest !== record.sha256) {
       throw new DocumentLedgerError(`document '${record.kind}' 已变更: ${record.path}；先重新 record 后再 read`)
     }

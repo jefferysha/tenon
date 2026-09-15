@@ -2,6 +2,9 @@ import Ajv2020 from 'ajv/dist/2020.js'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
+/** Project-scope document kinds and their fixed repository paths (mirrors kernel DOCUMENT_KIND_CATALOG). */
+const PROJECT_DOCUMENT_PATHS = { 'design-md': 'DESIGN.md' }
+
 export async function validateDocumentPresentationAssets(root, registry, catalogs) {
   const schema = JSON.parse(await readFile(
     resolve(root, 'templates/documents/schemas/registry.v1.schema.json'),
@@ -26,7 +29,13 @@ export async function validateDocumentPresentationAssets(root, registry, catalog
   if (new Set(documentKinds).size !== documentKinds.length) errors.push('document kind 重复')
   for (const definition of registry.templates) {
     const placeholders = [...definition.path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1])
-    if (!placeholders.includes('change')) {
+    const projectPath = Object.hasOwn(PROJECT_DOCUMENT_PATHS, definition.kind)
+      ? PROJECT_DOCUMENT_PATHS[definition.kind]
+      : undefined
+    if (projectPath !== undefined && definition.path !== projectPath) {
+      errors.push(`${definition.id}: 项目文档 path 必须是 ${projectPath}`)
+    }
+    if (projectPath === undefined && !placeholders.includes('change')) {
       errors.push(`${definition.id}: path 必须包含 {change}`)
     }
     const allowed = definition.kind === 'delta-spec' ? ['capability', 'change'] : ['change']
