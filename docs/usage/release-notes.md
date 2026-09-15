@@ -4,6 +4,33 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v1.1.5 · 2026-09-15
+
+Found while continuing the same real Codex task on v1.1.4.
+
+### Specs
+
+- A Chinese delta spec no longer reaches Verify before learning that OpenSpec strict validation needs the
+  English `SHALL` or `MUST` in every requirement. The scaffold prompt (both locales) and the `tenon-spec` skill
+  now state the rule, and the skill runs `openspec validate <change> --strict` before requesting the spec
+  review when the official CLI is available. The Codex task wrote requirements with 「必须」, passed the spec
+  review, and was sent back from Verify.
+
+### Review gate
+
+- A reply that does not confirm a pending review now says which reply does, the same as for interactions.
+  At `verify-fail` the agent offered 「修复」 as an answer; the gate ignored it silently.
+- `tenon-verify` tells the agent to name 「确认继续」 when it pauses at `verify-fail`.
+
+### Upgrade
+
+Install the new release for each host you use, then open a new host session:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex
+```
+
 ## v1.1.4 · 2026-09-15
 
 Found while running a real Codex task on v1.1.3.

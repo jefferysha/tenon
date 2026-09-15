@@ -13,7 +13,7 @@ npm 的公共包。
 在 publisher scope 与 npm 凭据尚未配置前，请使用已公开的 Marketplace bootstrap：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.4/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex
 ```
 
 Codex CLI 缺失时先运行 `npm install -g @openai/codex`，再用 `codex --version` 验证。插件安装后，

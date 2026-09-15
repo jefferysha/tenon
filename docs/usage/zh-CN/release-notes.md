@@ -12,6 +12,31 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v1.1.5 · 2026-09-15
+
+在 v1.1.4 上继续同一个真实 Codex 任务时发现并修复的问题。
+
+### 规格
+
+- 中文 delta spec 不再拖到 Verify 才发现 OpenSpec strict validate 要求每条 requirement 含英文 `SHALL` 或 `MUST`。
+  两种语言的 scaffold 提示与 `tenon-spec` 技能现在都写明这条规则；官方 CLI 可用时，技能在请求 spec 评审前先运行
+  `openspec validate <change> --strict`。此前 Codex 任务用「必须」写 requirement，通过了 spec 评审，却在 Verify 被退回。
+
+### 评审门
+
+- 待确认评审时，未被识别为确认的回复会提示应当如何回复，与交互门一致。此前在 `verify-fail`，agent 给出的选项
+  「修复」被门静默忽略。
+- `tenon-verify` 要求 agent 在 `verify-fail` 暂停时写明回复「确认继续」。
+
+### 升级动作
+
+为使用的每个宿主安装新版本，然后新开宿主会话：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex
+```
+
 ## v1.1.4 · 2026-09-15
 
 在 v1.1.3 上用 Codex 执行真实任务时发现并修复的问题。

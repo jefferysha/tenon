@@ -12932,7 +12932,7 @@ var DOCUMENT_LOCALE_CATALOGS = {
       "operations": "ADDED Requirements",
       "requirement": "Requirement",
       "scenario": "Scenario",
-      "prompt": "[\u5F85\u586B\u5199:spec] \u4F7F\u7528\u4E2D\u6587\u7F16\u5199\u9700\u6C42\u4E0E\u573A\u666F\uFF1B\u4FDD\u7559 OpenSpec \u673A\u5668\u64CD\u4F5C\u8BCD\u3002"
+      "prompt": "[\u5F85\u586B\u5199:spec] \u4F7F\u7528\u4E2D\u6587\u7F16\u5199\u9700\u6C42\u4E0E\u573A\u666F\uFF1B\u6BCF\u6761 requirement \u6B63\u6587\u987B\u542B\u82F1\u6587 SHALL \u6216 MUST\uFF08\u5982\u300C\u7CFB\u7EDF SHALL \u2026\u300D\uFF0C\u4E2D\u6587\u300C\u5FC5\u987B\u300D\u4E0D\u88AB OpenSpec strict validate \u63A5\u53D7\uFF09\uFF1B\u4FDD\u7559 OpenSpec \u673A\u5668\u64CD\u4F5C\u8BCD\u3002"
     },
     "superpower-plan": {
       "title": "\u5B9E\u65BD\u8BA1\u5212",
@@ -13006,7 +13006,7 @@ var DOCUMENT_LOCALE_CATALOGS = {
       "operations": "ADDED Requirements",
       "requirement": "Requirement",
       "scenario": "Scenario",
-      "prompt": "[pending:spec] Write the requirement and scenarios while preserving OpenSpec machine tokens."
+      "prompt": "[pending:spec] Write the requirement and scenarios; every requirement body needs SHALL or MUST (OpenSpec strict validation rejects it otherwise), and keep OpenSpec machine tokens."
     },
     "superpower-plan": {
       "title": "Implementation plan",
@@ -35762,7 +35762,7 @@ var STEP_IDS = [
   "runtime-readiness"
 ];
 var CONDITIONAL_STEP_IDS = ["plugin-remove", "marketplace-remove"];
-var HOST_PLAN_RELEASE_TAG = "v1.1.4";
+var HOST_PLAN_RELEASE_TAG = "v1.1.5";
 var LATEST_STABLE_TAG = "<latest-stable>";
 var NOTICE_IDS = [
   "host-plan.notice.read-only-generation",

@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "7 阶段开发流水线的轻量重建（open→explore→spec→build⇄verify→ship→archive）",
-    "version": "1.1.4"
+    "version": "1.1.5"
   },
   "plugins": [
     {

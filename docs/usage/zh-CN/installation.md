@@ -30,23 +30,23 @@ git --version
 新用户无需 clone、安装 monorepo 依赖或本地 build。安装 Codex：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.4/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex
 ```
 
 安装 Claude Code：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.4/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --claude
 ```
 
 首次安装前可执行零写入预览。它会列出完整的宿主 Marketplace 命令和包内 setup 计划，但不会调用
 Codex/Claude，也不会写 Tenon、宿主或项目状态：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.4/install.sh | /bin/bash -s -- --codex --dry-run
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex --dry-run
 ```
 
-版本化脚本只使用不可变稳定版本 `v1.1.4` 的预构建资产，不 clone 仓库、不执行源码编译。
+版本化脚本只使用不可变稳定版本 `v1.1.5` 的预构建资产，不 clone 仓库、不执行源码编译。
 脚本只负责注册 Tenon Marketplace、安装并验证完整 payload，然后调用包内
 `tenon setup --<host>`。已经安装的用户可以直接再次运行 `tenon setup --codex`
 修复宿主接线；更新时运行 `tenon update --codex`（或 `--claude`）。手动更新和显式启用的

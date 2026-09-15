@@ -3,10 +3,10 @@
 开始本教程前，先一次安装不可变的 Codex 预构建发布包：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.4/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex
 ```
 
-该命令不 clone 仓库，也不从源码编译；它会安装打包好的 `v1.1.4`、启动并验证 Dashboard，
+该命令不 clone 仓库，也不从源码编译；它会安装打包好的 `v1.1.5`、启动并验证 Dashboard，
 然后打印本机 URL 和 `tenon dashboard --open`。管道安装不会自动打开浏览器。安装完成后，
 日常更新只需一条 `tenon update --codex`，并始终绑定稳定 release tag。
 
