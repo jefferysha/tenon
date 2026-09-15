@@ -22,6 +22,8 @@ export const WORKSPACE_BASELINE_PREFIX = 'workspace:sha256:'
 const EXCLUDED_TOP_LEVEL = new Set([
   '.git',
   '.pipeline',
+  // Per-user selection, authority, test records and local artifacts; never part of a candidate.
+  '.tenon',
   '.agents',
   '.codex',
   '.impeccable',
