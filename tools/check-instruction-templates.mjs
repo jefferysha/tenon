@@ -21,6 +21,10 @@ export const INVENTORY = {
   frontend: ['typescript-angular', 'typescript-react', 'typescript-vue3'],
   state: ['angular-signals', 'jotai', 'ngrx-signals', 'pinia', 'redux-toolkit', 'tanstack-query', 'zustand'],
   styling: ['css-modules', 'scss', 'tailwind'],
+  backend: [
+    'csharp-aspnet-core', 'go', 'java-spring-boot-ddd', 'kotlin-spring-boot', 'node-nestjs',
+    'php-laravel', 'python-django', 'python-fastapi', 'ruby-rails', 'rust-axum',
+  ],
 }
 
 const LANGUAGE_SECTIONS = ['### 技术栈', '### 分层结构', '### 编码规范', '### 文件长度', '### 测试要求']
