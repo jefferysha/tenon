@@ -152,7 +152,7 @@ export {
   recordProducerCandidatesForPolicyStep, recordsRequiredForPhase, recordsRequiredForPolicyStep,
   shouldEnforceDocumentEvidenceOnTransition, shouldEnforceDocumentPolicyOnTransition,
   aliasesForSkill,
-  validateOpenSpecContractWorkflow,
+  validateDocumentContract,
 } from './workflow/document-contract.js'
 export type {
   DocumentContractPhase, DocumentGovernancePolicy, DocumentKind, DocumentOutputRequirement,

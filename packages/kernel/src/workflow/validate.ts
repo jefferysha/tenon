@@ -1,5 +1,5 @@
 import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
-import { validateDefaultWorkflowStructure, validateOpenSpecContractWorkflow } from './document-contract.js'
+import { validateDefaultWorkflowStructure, validateDocumentContract } from './document-contract.js'
 import { isDefaultWorkflowName, isValidWorkflowName } from './identifier.js'
 import { WorkflowTrackBranchError } from './track-branch-error.js'
 import type { WorkflowDef, StepDef, WorkflowDocumentContractV1 } from './types.js'
@@ -96,6 +96,9 @@ export function validateWorkflow(
   }
   if (Object.keys(wf.tracks ?? {}).length > 0 && wf.steps.length > 0) {
     errors.push('有 tracks 时不得再声明顶层 steps（每条轨道各写自己的阶段）')
+  }
+  if (Object.keys(wf.tracks ?? {}).length > 0 && wf.documentContract !== undefined) {
+    errors.push('有 tracks 时 document_contract 写在 tracks.<id> 下')
   }
   for (const branch of workflowBranches(wf)) {
     const prefix = branch.track === '' ? '' : `tracks.${branch.track}: `
@@ -196,7 +199,7 @@ function validateBranchSteps(
     }
   }
 
-  errors.push(...validateOpenSpecContractWorkflow(wf))
+  errors.push(...validateDocumentContract(wf, options))
 
   // 深校验（G2 P2）：复用 compileWorkflow 做新 guard/action 变体 + FIELD_ORDER 字段闭集 + 列表
   // 字段互斥 + artifact 形状的结构校验——不在本文件再抄一份闭集判定，避免与编译器漂移。

@@ -336,4 +336,4 @@ export function shouldEnforceDocumentPolicyOnTransition(
   return !(fromIndex >= 0 && toIndex >= 0 && toIndex < fromIndex)
 }
 
-export { aliasesForSkill, validateDefaultWorkflowStructure, validateOpenSpecContractWorkflow } from './document-contract-validation.js'
+export { aliasesForSkill, validateDefaultWorkflowStructure, validateDocumentContract } from './document-contract-validation.js'
