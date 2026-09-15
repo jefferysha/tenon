@@ -137,9 +137,9 @@ export async function cmdSetupRuntime(
 
 /**
  * `tenon setup [sub]` —— 安装后全功能就绪引导。
- *   空 sub:必须显式指定一个 host（如 `--codex`）。先验证/部署该 host（绝不双装）→ PATH/adapter →
- *          内置技能完整性 → 运行时就绪清单。`setup skills`/`setup runtime` 仍保留为兼容诊断子命令。
- *   sub=skills:仅技能安装段;sub=runtime:仅运行时就绪清单（真 docker/镜像/凭证探测）。
+ *   空 sub:必须显式指定一个 host（如 `--codex`）。先验证/部署该 host（绝不双装；上游技能随宿主安装获取）→
+ *          PATH/adapter → 运行时就绪清单。
+ *   sub=runtime:仅运行时就绪清单（真 docker/镜像/凭证探测）。
  *   未知 sub:stderr + exit 1（对齐 loops 未知子命令口径）。
  * --dry-run:零副作用（不软链/不写文件/不起 docker）——空 sub 的运行时段**只提示不真探测**（R1 concern#1:
  *   避免 buildProgram 单测经空 sub 起真 docker 子进程）;非 dry-run 才经注入 rt 真探测（单测注入 fakeRt 仍零真 docker）。
