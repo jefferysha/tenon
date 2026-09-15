@@ -170,6 +170,59 @@ describe('stable Release identity', () => {
     await expect(resolveStableReleaseTarget(envFor('', 1), http)).rejects.toThrow(/tag proof/i)
   })
 
+  test('retries a transient GitHub transport failure and still validates the fetched commit', () => {
+    const commit = 'e'.repeat(40)
+    const base = envFor(`${commit}\trefs/tags/v1.2.3\n`)
+    const commands: string[] = []
+    let fetchFailures = 1
+    const env: SetupEnv = {
+      ...base,
+      runCommand: (cmd, args, options) => {
+        const command = args[0] === 'ls-remote' || args[0] === 'init' ? args[0] : args[2] ?? 'unknown'
+        commands.push(command)
+        if (command === 'fetch' && fetchFailures > 0) {
+          fetchFailures -= 1
+          return { code: 128, stdout: '', stderr: "fatal: unable to access 'https://github.com/jefferysha/tenon.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL" }
+        }
+        return base.runCommand(cmd, args, options)
+      },
+    }
+    expect(resolveStableTagTarget(env, '1.2.3')).toEqual({ version: '1.2.3', tag: 'v1.2.3', commit })
+    expect(commands).toEqual(['ls-remote', 'init', 'fetch', 'fetch', 'rev-parse', 'cat-file'])
+  })
+
+  test('gives up after bounded attempts on a persistent timeout and never retries a missing ref', () => {
+    const commit = 'e'.repeat(40)
+    const base = envFor(`${commit}\trefs/tags/v1.2.3\n`)
+    const listCalls: string[] = []
+    const timingOut: SetupEnv = {
+      ...base,
+      runCommand: (cmd, args, options) => {
+        if (args[0] === 'ls-remote') {
+          listCalls.push('ls-remote')
+          return { code: 1, stdout: '', stderr: 'spawnSync /usr/bin/git ETIMEDOUT' }
+        }
+        return base.runCommand(cmd, args, options)
+      },
+    }
+    expect(() => resolveStableTagTarget(timingOut, '1.2.3')).toThrow(/tag proof failed after 3 attempts: spawnSync \/usr\/bin\/git ETIMEDOUT/)
+    expect(listCalls).toHaveLength(3)
+
+    const fetchCalls: string[] = []
+    const missingRef: SetupEnv = {
+      ...base,
+      runCommand: (cmd, args, options) => {
+        if (args[2] === 'fetch') {
+          fetchCalls.push('fetch')
+          return { code: 128, stdout: '', stderr: "fatal: couldn't find remote ref refs/tags/v1.2.3" }
+        }
+        return base.runCommand(cmd, args, options)
+      },
+    }
+    expect(() => resolveStableTagTarget(missingRef, '1.2.3')).toThrow(/^stable Release object proof failed: fatal: couldn't find remote ref/)
+    expect(fetchCalls).toHaveLength(1)
+  })
+
   test.each(['tree', 'blob'] as const)('rejects a tag whose final object is %s', (objectType) => {
     const oid = 'f'.repeat(40)
     expect(() => resolveStableTagTarget(

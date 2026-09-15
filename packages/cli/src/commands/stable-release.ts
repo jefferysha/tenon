@@ -91,17 +91,34 @@ export function decodeStableReleaseMetadata(
   return { version, tag: item.tag_name }
 }
 
+// A dropped or slow connection to GitHub is transient; a missing tag or ref is not. Retrying keeps the
+// proof unchanged because every successful result is still validated below.
+const STABLE_RELEASE_REMOTE_ATTEMPTS = 3
+const STABLE_RELEASE_REMOTE_RETRY_DELAY_MS = 500
+const TRANSIENT_REMOTE_FAILURE = /ETIMEDOUT|timed out|SSL_ERROR|SSL_connect|unable to access|Could not resolve host|Connection (?:reset|refused|timed out)|Failed to connect|early EOF|RPC failed|remote end hung up/iu
+
+function runRemoteGit(env: SetupEnv, args: readonly string[]): { readonly result: ReturnType<SetupEnv['runCommand']>; readonly attempts: number } {
+  let result = env.runCommand('git', [...args], { timeoutMs: STABLE_RELEASE_GIT_REMOTE_TIMEOUT_MS })
+  let attempts = 1
+  while (result.code !== 0 && attempts < STABLE_RELEASE_REMOTE_ATTEMPTS && TRANSIENT_REMOTE_FAILURE.test(result.stderr)) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, STABLE_RELEASE_REMOTE_RETRY_DELAY_MS * attempts)
+    result = env.runCommand('git', [...args], { timeoutMs: STABLE_RELEASE_GIT_REMOTE_TIMEOUT_MS })
+    attempts += 1
+  }
+  return { result, attempts }
+}
+
+function remoteFailure(label: string, run: ReturnType<typeof runRemoteGit>): Error {
+  const detail = run.result.stderr.trim() || `exit ${run.result.code}`
+  return new Error(`${label} failed${run.attempts > 1 ? ` after ${run.attempts} attempts` : ''}: ${detail}`)
+}
+
 function tagCommit(env: SetupEnv, tag: string): string {
   const directRef = `refs/tags/${tag}`
   const peeledRef = `${directRef}^{}`
-  const result = env.runCommand(
-    'git',
-    ['ls-remote', RELEASE_REPOSITORY, directRef, peeledRef],
-    { timeoutMs: STABLE_RELEASE_GIT_REMOTE_TIMEOUT_MS },
-  )
-  if (result.code !== 0) {
-    throw new Error(`stable Release tag proof failed: ${result.stderr.trim() || `exit ${result.code}`}`)
-  }
+  const listed = runRemoteGit(env, ['ls-remote', RELEASE_REPOSITORY, directRef, peeledRef])
+  const result = listed.result
+  if (result.code !== 0) throw remoteFailure('stable Release tag proof', listed)
   const refs = new Map<string, string>()
   for (const line of result.stdout.trim().split('\n')) {
     if (line === '') continue
@@ -124,14 +141,8 @@ function tagCommit(env: SetupEnv, tag: string): string {
     if (initialized.code !== 0) {
       throw new Error(`stable Release object proof could not initialize: ${initialized.stderr.trim() || `exit ${initialized.code}`}`)
     }
-    const fetched = env.runCommand(
-      'git',
-      ['-C', proofRoot, 'fetch', '--no-tags', '--depth=1', RELEASE_REPOSITORY, directRef],
-      { timeoutMs: STABLE_RELEASE_GIT_REMOTE_TIMEOUT_MS },
-    )
-    if (fetched.code !== 0) {
-      throw new Error(`stable Release object proof failed: ${fetched.stderr.trim() || `exit ${fetched.code}`}`)
-    }
+    const fetched = runRemoteGit(env, ['-C', proofRoot, 'fetch', '--no-tags', '--depth=1', RELEASE_REPOSITORY, directRef])
+    if (fetched.result.code !== 0) throw remoteFailure('stable Release object proof', fetched)
     const resolved = env.runCommand('git', ['-C', proofRoot, 'rev-parse', 'FETCH_HEAD^{commit}'], { timeoutMs: STABLE_RELEASE_LOCAL_TIMEOUT_MS })
     const commit = resolved.stdout.trim()
     if (resolved.code !== 0 || !GIT_OID.test(commit)) {
