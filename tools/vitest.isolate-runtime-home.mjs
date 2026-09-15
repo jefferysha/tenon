@@ -7,3 +7,9 @@ import { join } from 'node:path'
 if (process.env.TENON_RUNTIME_HOME === undefined && process.env.TENON_RUNTIME_ROOTS === undefined) {
   process.env.TENON_RUNTIME_HOME = mkdtempSync(join(tmpdir(), 'tenon-vitest-home-'))
 }
+
+// 声明身份默认给每个 worker 一个测试用户；用例需要第二个用户或缺失身份时自行覆盖 env。
+if (process.env.TENON_USER === undefined) {
+  process.env.TENON_USER = 'tester@tenon.test'
+  process.env.TENON_USER_NAME ??= 'Tester'
+}

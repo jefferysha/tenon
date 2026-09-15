@@ -52,6 +52,7 @@ import { registerSkillInvocationInternalCommands } from './program-skill-invocat
 import { registerReviewCommands } from './program-review.js'
 import { LOOPS_HELP } from './program-help.js'
 import { registerOrchestrationCommands } from './program-orchestration.js'
+import { registerUserCommands } from './program-users.js'
 export { CliExit } from './program-exit.js'
 
 export interface ProgramRuntimes {
@@ -382,6 +383,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     ) => bail(await cmdStateProjection(deps, sub, name, opts)))
 
   registerTrackCommands(program, deps)
+  registerUserCommands(program, deps)
 
   program.addHelpText(
     'after',

@@ -21,7 +21,7 @@ import {
   fingerprintWorkspace, mutateTrackRegistry, readSecrets, registerProjectRoot,
   createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
   type BoardCommandV2, type BoardSnapshotV2, type WorkflowPipelinePlanV2,
-  withTrackRegistryLock,
+  withTrackRegistryLock, resolveTenonUser, type TenonUserResolution,
 } from '@tenon/kernel'
 import {
   createDocumentProjectionAdapter,
@@ -157,6 +157,7 @@ async function main(): Promise<void> {
     recordStore: createTransitionRecordStore(),
     clock: isoNow,
   })
+  let resolvedUser: TenonUserResolution | undefined
   const deps: CliDeps = {
     orchestrationRuntime: async (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: createOrchestrationLedger(), worker_id: `cli:${process.pid}` }),
     orchestrationFreezePipeline: async ({ changeDir, pipeline }: { readonly changeDir: string; readonly pipeline: WorkflowPipelinePlanV2 }): Promise<BoardSnapshotV2> => {
@@ -222,6 +223,8 @@ async function main(): Promise<void> {
     }),
     cwd: process.cwd(),
     env: (name) => process.env[name],
+    user: () => (resolvedUser ??= resolveTenonUser(process.cwd(), process.env)),
+    userConfigPath: () => runtimePaths().userConfigPath,
     io: {
       out: (line: string) => process.stdout.write(`${line}\n`),
       err: (line: string) => process.stderr.write(`${line}\n`),

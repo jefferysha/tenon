@@ -79,6 +79,7 @@ import type { DashboardServer, DashboardServerOptions } from './types.js'
 import { createRelatedSessionMemoryServices } from './relatedSessionMemory.js'
 import { resolveSessionLink as resolveSessionLinkForChange } from './sessionLinkResolver.js'
 import { SERVER_VERSION } from './version.js'
+import { defaultResolveUser } from './serverUserRoutes.js'
 const MAX_POST_BODY = 64 * 1024
 const WORKFLOW_NAME_RE = /^[\p{L}\p{N}\p{M}_-]+$/u
 
@@ -166,6 +167,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const heartbeatMs = options.heartbeatMs ?? 15000
   const gitHeadSha = options.gitHeadSha
   const workspaceFingerprint = options.workspaceFingerprint
+  const resolveUser = options.resolveUser ?? defaultResolveUser
   const traceStore = options.traceStore
   const { memFs, executor: relatedSessionSearch } =
     createRelatedSessionMemoryServices({ hostHome, memFs: options.memFs, runner: options.relatedSessionSearch })
@@ -290,6 +292,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       adapterInstall,
       artifactService: options.artifactService,
       artifactServiceForRoot,
+      resolveUser,
     })
   const handlePost = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePostRoute(req, res, path, {
@@ -301,6 +304,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       mutateTrackForApi: mutateTrackForRoutes, trackRegistryBody, sendTrackError, errMsg,
       realGraduationFs: REAL_GRADUATION_FS,
       relatedSessionSearch,
+      resolveUser,
       orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
       adapterInstall,
     })

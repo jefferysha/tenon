@@ -78,6 +78,7 @@ import type { RelatedSessionSearchExecutor } from './relatedSessionMemory.js'
 import { handlePostVerificationRoutes } from './serverPostVerificationRoutes.js'
 import { handleOrchestrationV2PostRoute, type OrchestrationV2RouteDeps } from './serverOrchestrationV2Routes.js'
 import { resolveAdapterInstallPost } from './adapterInstallRoutes.js'
+import { handlePostUserRoutes } from './serverUserRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
 
 type WorkflowRootCheck =
@@ -131,6 +132,8 @@ export interface PostRouteDeps {
   /** Canonical v2 orchestration ledger; omitted by legacy embedders. */
   orchestrationV2?: OrchestrationV2RouteDeps
   adapterInstall?: AdapterInstallManager
+  /** Declared identity for a request root (`''` = aggregate view). */
+  resolveUser: import('./serverUserRoutes.js').ResolveUser
 }
 
 export async function handlePostRoute(
@@ -200,6 +203,8 @@ export async function handlePostRoute(
   await handlePostGovernanceRoutes(req, res, path, deps)
   if (res.writableEnded) return
   await handlePostMemoryRoutes(req, res, path, deps)
+  if (res.writableEnded) return
+  await handlePostUserRoutes(req, res, path, deps)
   if (res.writableEnded) return
   await handlePostExecutionRoutes(req, res, path, deps)
   if (res.writableEnded) return

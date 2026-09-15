@@ -6,6 +6,7 @@ import { handleContextBundlePreview } from './contextBundlePreview.js'
 import { buildRunDetail } from './runDetail.js'
 import { buildSnapshot } from './snapshot.js'
 import { readChangeHistory } from './transition.js'
+import { handleGetUserRoute } from './serverUserRoutes.js'
 import type { GetRouteDeps } from './serverGetRoutes.js'
 
 export async function handleGetActivityRoutes(
@@ -42,6 +43,7 @@ export async function handleGetActivityRoutes(
     if (!isLocalHost(req.headers.host, boundPort)) {
       return sendJson(res, 403, { ok: false, error: 'Host header 不合法（疑似 DNS 重绑定攻击）' })
     }
+    if (handleGetUserRoute(req, res, path, deps)) return
     if (path === '/api/cadence/status') {
       if (cadenceScheduler === null) {
         return sendJson(res, 404, { ok: false, error: 'cadence scheduler 未启用（capabilities.cadence=false）' })

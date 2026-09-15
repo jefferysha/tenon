@@ -211,6 +211,10 @@ export interface CliDeps {
   cwd: string
   /** Process environment read boundary; automation transition gates consume TENON_AFK without global reads. */
   env?: (name: string) => string | undefined
+  /** Declared identity (`TENON_USER` → user.json → git). Lazy; main.ts resolves once per process. */
+  user: () => import('@tenon/kernel').TenonUserResolution
+  /** `<configRoot>/user.json`, written by `tenon user set`. */
+  userConfigPath: () => string
   io: CliIO
   /** ISO8601 UTC 注入时钟（CONTRACT §5.6：业务码禁止散落 new Date()） */
   clock: () => string

@@ -81,6 +81,12 @@ export function parseUserRef(value: string | readonly string[] | undefined): Use
   return { id, name: normalizeUserName(match[1], id), slug: userSlug(id) }
 }
 
+/** Wire view shared by `tenon user --json` and `GET /api/user`. */
+export function userResolutionView(value: TenonUserResolution): { user: TenonUser | null; invalid?: UserSource } {
+  if (!isTenonUser(value)) return { user: null, ...(value.invalid === undefined ? {} : { invalid: value.invalid }) }
+  return { user: { id: value.id, name: value.name, slug: value.slug, source: value.source, trust: value.trust } }
+}
+
 /** `undefined` when absent, `null` when present but not an exact declared actor. */
 export function decodeRecordActor(value: unknown): RecordActor | undefined | null {
   if (value === undefined) return undefined

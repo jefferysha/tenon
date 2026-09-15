@@ -316,6 +316,8 @@ export interface DashboardServerOptions {
   artifactService?: ArtifactService
   /** Resolve a repository-scoped artifact service after root-anchor validation. */
   artifactServiceForRoot?: (root: string, anchor: import('./workflowRootAnchor.js').WorkflowRootAnchor) => ArtifactService | undefined | Promise<ArtifactService | undefined>
+  /** Declared identity for a request root (`''` = aggregate view); defaults to kernel resolveTenonUser with the server env. */
+  resolveUser?: (root: string) => import('@tenon/kernel').TenonUserResolution
 }
 
 export interface DashboardServer {

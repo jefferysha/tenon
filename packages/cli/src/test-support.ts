@@ -522,6 +522,8 @@ export interface MakeDepsOpts {
   /** Git HEAD / in-place 工作区基线能力覆写；供 transition/check 的真实 barrier 单测使用。 */
   gitHeadSha?: CliDeps['gitHeadSha']
   workspaceFingerprint?: CliDeps['workspaceFingerprint']
+  /** Declared identity; defaults to Tester <tester@tenon.test>. */
+  user?: CliDeps['user']
 }
 
 export const FIXED_CLOCK = '2026-07-06T00:00:00Z'
@@ -576,6 +578,8 @@ export function makeDeps(o: MakeDepsOpts = {}): TestDeps {
     })),
     cwd: o.cwd ?? '/repo',
     env: () => undefined,
+    user: o.user ?? (() => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' })),
+    userConfigPath: () => '/repo/.tenon-test/user.json',
     io: {
       out: (line: string) => outLines.push(line),
       err: (line: string) => errLines.push(line),
