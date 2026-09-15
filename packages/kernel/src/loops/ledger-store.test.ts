@@ -400,6 +400,8 @@ describe('loops/ledger-store —— 仓级锁 append + 宽容读 + run 窗口投
     test('已直通(令牌 active 时获准)但 body 未落地的后代:外层 promise 必须等它结算才 resolve,不放锁', async () => {
       let openGate!: () => void
       const gate = new Promise<void>((r) => { openGate = r })
+      let markCallbackReturned!: () => void
+      const callbackReturned = new Promise<void>((r) => { markCallbackReturned = r })
       const order: string[] = []
       let outerResolved = false
 
@@ -411,11 +413,14 @@ describe('loops/ledger-store —— 仓级锁 append + 宽容读 + run 窗口投
           order.push('child-body')
         })
         order.push('outer-cb-return')
+        markCallbackReturned()
       })
       void outer.then(() => { outerResolved = true })
 
       // 外层 callback 已返回,但(修复后)finally 正 allSettled 等被 gate 挡住的后代 → outer 未 resolve。
       // 旧实现:finally 只置 active=false 立即返回 → outer 已 resolve,此断言变红。
+      // 先等外层真正拿到物理锁并返回:全量并行跑时取锁本身就可能超过固定等待,不能用它代替。
+      await callbackReturned
       await sleep(30)
       expect(order).toEqual(['outer-cb-return']) // 后代 body 还没跑
       expect(outerResolved).toBe(false) // 物理锁还没交接:外层在等已获准的后代落地
