@@ -129,8 +129,8 @@ pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | c
 
 - Approval phrases are the classifier's confirm set (「确认继续」「继续执行」「同意继续」…). A bare 「继续」 is
   `contextual-confirm` and counts only while a pending marker exists in this project.
-- **Unrecognised reply** (empty intent, `reject`, `modify`) while an interaction or confirm marker is pending: no
-  mutation; stdout
+- **Unrecognised reply** (empty intent, `reject`, `modify`) while an interaction, confirm or review marker is
+  pending: no mutation, no `tenon review acknowledge`; stdout
   `<tenon-pending-confirmation>…用户回复「确认继续」即解封；带条件的回复请先说明条件并重新提问。</tenon-pending-confirmation>`.
   Nothing pending → no output.
 - **Approval** with `.pipeline-pending-interaction` present: append one `InteractionConfirmed: <skill>` row per

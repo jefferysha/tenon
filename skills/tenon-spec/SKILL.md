@@ -30,7 +30,9 @@ description: "Pipeline Phase 3: Spec · 规格 + 实施计划。所有 Track 产
 > frontmatter key、coverage key、路径、kind、producer 和命令保持英文协议 token。缺失文档先用
 > `tenon document scaffold` 建立结构，scaffold 本身不登记 producer。delta spec 必须使用
 > `tenon document scaffold <change> delta-spec --capability <capability>`，真实 capability
-> 不得用 Change 名或默认 scope 猜测。
+> 不得用 Change 名或默认 scope 猜测。每条 requirement 正文必须含英文 `SHALL` 或 `MUST`（例如
+> 「系统 SHALL 从 `board.tasks` 移除该任务」）：OpenSpec strict validate 不接受中文「必须」，Verify 会因此失败并退回
+> Spec。请求 `spec-complete` review 前，官方 `openspec` CLI 可用时先运行 `openspec validate <change> --strict`。
 
 > 移植来源：老仓 `skills/tenon-spec/SKILL.md`；脚本面已改写为 `pipeline` CLI。
 

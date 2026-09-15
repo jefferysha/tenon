@@ -54,7 +54,7 @@
       "operations": "ADDED Requirements",
       "requirement": "Requirement",
       "scenario": "Scenario",
-      "prompt": "[pending:spec] Write the requirement and scenarios while preserving OpenSpec machine tokens."
+      "prompt": "[pending:spec] Write the requirement and scenarios; every requirement body needs SHALL or MUST (OpenSpec strict validation rejects it otherwise), and keep OpenSpec machine tokens."
     },
     "superpower-plan": {
       "title": "Implementation plan",

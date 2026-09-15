@@ -455,6 +455,9 @@ verify-fail 时**必须暂停**询问用户：
 - 修复（回到 build）
 - 接受偏差并强制通过（需说明原因，写入 verification_report）
 
+提问时写明可解锁的回复：用户回复「确认继续」即确认已请求的 `verify-fail` 评审并回到 build 修复；
+「修复」「好的」这类回复不会确认评审。用户要接受偏差时须说明理由，不能用「确认继续」代替。
+
 ## 打包 skill 依赖（随 tenon 插件安装）
 
 - bundled-skill: verification-before-completion · 强制

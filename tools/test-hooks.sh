@@ -1675,6 +1675,18 @@ printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\
 rm -f "$proj/.pipeline-pending-interaction"
 OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"这个方案怎么样\"}" | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" 2>/dev/null)"
 assert_not_contains "confirm-clear-prompt: 无待确认时不输出解封提示" "$OUT" "tenon-pending-confirmation"
+# 待确认的评审同样要提示：Codex verify-fail 时 agent 让用户回「修复」，门没有识别也没有任何提示。
+write_v2_review_marker "$proj" once-live verify
+: > "$FAKE_TENON_LOG"
+OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"修复\"}" | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" 2>/dev/null)"
+assert_contains "confirm-clear-prompt: 待确认评审时未识别的回复提示解封短语" "$OUT" "确认继续"
+[ -f "$proj/.pipeline-pending-review" ] \
+  && ok "confirm-clear-prompt: 未识别的回复保留 pending review" \
+  || bad "confirm-clear-prompt: 未识别的回复保留 pending review" "review marker 被错误清除"
+grep -Fq 'review acknowledge' "$FAKE_TENON_LOG" 2>/dev/null \
+  && bad "confirm-clear-prompt: 未识别的回复不确认评审" "错误调用了 review acknowledge" \
+  || ok "confirm-clear-prompt: 未识别的回复不确认评审"
+rm -f "$proj/.pipeline-pending-review"
 
 # ── 10a''. 持续自主执行：明确授权只绑定当前 live Change，并可审计地委托已完成证据后的 review 确认。──
 # 这覆盖真实 Codex 正常对话的自锁回归：UserPromptSubmit 已清一次 interaction marker，随后读取

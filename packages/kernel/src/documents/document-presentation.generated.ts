@@ -307,7 +307,7 @@ export const DOCUMENT_LOCALE_CATALOGS = {
       "operations": "ADDED Requirements",
       "requirement": "Requirement",
       "scenario": "Scenario",
-      "prompt": "[待填写:spec] 使用中文编写需求与场景；保留 OpenSpec 机器操作词。"
+      "prompt": "[待填写:spec] 使用中文编写需求与场景；每条 requirement 正文须含英文 SHALL 或 MUST（如「系统 SHALL …」，中文「必须」不被 OpenSpec strict validate 接受）；保留 OpenSpec 机器操作词。"
     },
     "superpower-plan": {
       "title": "实施计划",
@@ -381,7 +381,7 @@ export const DOCUMENT_LOCALE_CATALOGS = {
       "operations": "ADDED Requirements",
       "requirement": "Requirement",
       "scenario": "Scenario",
-      "prompt": "[pending:spec] Write the requirement and scenarios while preserving OpenSpec machine tokens."
+      "prompt": "[pending:spec] Write the requirement and scenarios; every requirement body needs SHALL or MUST (OpenSpec strict validation rejects it otherwise), and keep OpenSpec machine tokens."
     },
     "superpower-plan": {
       "title": "Implementation plan",
