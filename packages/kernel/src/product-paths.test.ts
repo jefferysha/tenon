@@ -20,6 +20,7 @@ describe('resolveProductPaths —— Tenon 自有机器状态的唯一平台路�
       configRoot: '/var/demo/config/tenon',
       registryPath: '/var/demo/config/tenon/projects.json',
       secretsPath: '/var/demo/config/tenon/secrets.json',
+      userConfigPath: '/var/demo/config/tenon/user.json',
       dashboardTokenPath: '/var/demo/state/tenon/dashboard-token.json',
       dashboardPidfilePath: '/var/demo/state/tenon/dashboard-server.json',
       managedTransactionRoot: '/var/demo/state/tenon/managed-release-transaction',
@@ -39,6 +40,7 @@ describe('resolveProductPaths —— Tenon 自有机器状态的唯一平台路�
       configRoot: '/Users/demo/Library/Application Support/tenon/config',
       registryPath: '/Users/demo/Library/Application Support/tenon/config/projects.json',
       secretsPath: '/Users/demo/Library/Application Support/tenon/config/secrets.json',
+      userConfigPath: '/Users/demo/Library/Application Support/tenon/config/user.json',
     })
   })
 
@@ -54,6 +56,7 @@ describe('resolveProductPaths —— Tenon 自有机器状态的唯一平台路�
       dataRoot: 'C:\\Users\\demo\\AppData\\Local\\tenon',
       stateRoot: 'C:\\Users\\demo\\AppData\\Local\\tenon\\state',
       configRoot: 'C:\\Users\\demo\\AppData\\Roaming\\tenon',
+      userConfigPath: 'C:\\Users\\demo\\AppData\\Roaming\\tenon\\user.json',
     })
   })
 
@@ -73,6 +76,7 @@ describe('resolveProductPaths —— Tenon 自有机器状态的唯一平台路�
       secretsPath: '/tmp/tenon-runtime/config/secrets.json',
       dashboardTokenPath: '/tmp/tenon-runtime/state/dashboard-token.json',
       dashboardPidfilePath: '/tmp/tenon-runtime/state/dashboard-server.json',
+      userConfigPath: '/tmp/tenon-runtime/config/user.json',
       decisionObservationKeyPath: '/tmp/tenon-runtime/state/decision-observation-identity.key',
       managedTransactionRoot: '/tmp/tenon-runtime/state/managed-release-transaction',
       migrationsRoot: '/tmp/tenon-runtime/state/migrations',

@@ -27,6 +27,8 @@ export interface ProductPaths {
   readonly secretsPath: string
   readonly dashboardTokenPath: string
   readonly dashboardPidfilePath: string
+  /** Machine-local declared identity override `{ id, name }` (below `TENON_USER`, above git config). */
+  readonly userConfigPath: string
   /** Per-install 0600 random key for HMAC identity digests in pending-decision security observations. */
   readonly decisionObservationKeyPath: string
   /** Outer lock root for the complete managed release transaction. */
@@ -155,6 +157,7 @@ export function resolveProductPaths(input: ProductPathInput = {}): ProductPaths 
     secretsPath: paths.join(configRoot, 'secrets.json'),
     dashboardTokenPath: paths.join(stateRoot, 'dashboard-token.json'),
     dashboardPidfilePath: paths.join(stateRoot, 'dashboard-server.json'),
+    userConfigPath: paths.join(configRoot, 'user.json'),
     decisionObservationKeyPath: paths.join(stateRoot, 'decision-observation-identity.key'),
     managedTransactionRoot: paths.join(stateRoot, 'managed-release-transaction'),
   }
