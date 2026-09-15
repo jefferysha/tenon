@@ -20,17 +20,23 @@ afterEach(async () => {
   await Promise.all(homes.splice(0).map((home) => rm(home, { recursive: true, force: true })))
 })
 
-async function start(): Promise<{ port: number; paths: ServerPaths; library: string }> {
+async function start(roots: readonly string[] = []): Promise<{ port: number; paths: ServerPaths; library: string; home: string }> {
   const home = await mkdtemp(join(tmpdir(), 'tenon-instruction-routes-'))
   homes.push(home)
   const paths = resolveServerPaths({ home, env: {} })
   const srv = createDashboardServer({
-    version: '9.9.9', hostHome: home, paths, token: TOKEN, registry: () => [], pollIntervalMs: 1000, cadence: false,
+    version: '9.9.9', hostHome: home, paths, token: TOKEN, registry: () => [...roots], pollIntervalMs: 1000, cadence: false,
     manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)),
   })
   servers.push(srv)
   const { port } = await srv.listen(0, '127.0.0.1')
-  return { port, paths, library: join(paths.configRoot, 'templates', 'instructions') }
+  return { port, paths, library: join(paths.configRoot, 'templates', 'instructions'), home }
+}
+
+async function tempProject(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'tenon-instruction-project-'))
+  homes.push(root)
+  return root
 }
 
 function reqPut(port: number, path: string, text: string, headers: Record<string, string>) {
@@ -136,6 +142,52 @@ describe('instruction template routes', () => {
     expect((await reqDelete(port, `/api/instruction-templates/custom/backend/mine?digest=${encodeURIComponent(digest)}`, { headers: AUTH })).status).toBe(200)
     expect(existsSync(join(library, 'custom', 'backend', 'mine.md'))).toBe(false)
     expect((await reqDelete(port, `/api/instruction-templates/custom/backend/mine?digest=${encodeURIComponent(digest)}`, { headers: AUTH })).status).toBe(404)
+  })
+
+  it('指令文件路由：写端点错误 Host 403、缺 token 401；未注册 root 404', async () => {
+    const project = await tempProject()
+    const { port } = await start([project])
+    const body = { root: project, text: '# x\n', targets: [{ id: 'CLAUDE.md', base_digest: 'absent' }] }
+    expect((await reqPost(port, '/api/instructions/apply', body, { headers: { ...AUTH, Host: 'evil.example' } })).status).toBe(403)
+    expect((await reqPost(port, '/api/instructions/apply', body)).status).toBe(401)
+    expect((await reqDelete(port, `/api/instructions?root=${encodeURIComponent(project)}&target=CLAUDE.md&digest=absent`)).status).toBe(401)
+    expect((await reqGet(port, `/api/instructions?root=${encodeURIComponent(project)}`, '127.0.0.1', { Host: 'evil.example' })).status).toBe(403)
+    const other = await tempProject()
+    expect((await reqGet(port, `/api/instructions?root=${encodeURIComponent(other)}`)).status).toBe(404)
+    expect((await reqPost(port, '/api/instructions/apply', { ...body, root: other }, { headers: AUTH })).status).toBe(404)
+  })
+
+  it('指令文件路由：项目级读取、预览、应用、删除', async () => {
+    const project = await tempProject()
+    const { port } = await start([project])
+    const root = encodeURIComponent(project)
+    const listed = (await reqGet(port, `/api/instructions?root=${root}`)).json<{ level: string; targets: { id: string; digest: string }[] }>()
+    expect(listed.level).toBe('project')
+    expect(listed.targets.map((target) => target.id)).toEqual(['AGENTS.md', 'CLAUDE.md', 'GEMINI.md'])
+
+    const preview = await reqPost(port, '/api/instructions/preview', { root: project, text: '# 规则\n', targets: ['CLAUDE.md', 'AGENTS.md'] }, { headers: AUTH })
+    expect(preview.status).toBe(200)
+    const files = preview.json<{ files: { id: string; base_digest: string; next: string }[] }>().files
+    const applied = await reqPost(port, '/api/instructions/apply', {
+      root: project, text: '# 规则\n', targets: files.map((file) => ({ id: file.id, base_digest: file.base_digest })),
+    }, { headers: AUTH })
+    expect(applied.status).toBe(200)
+    expect(await readFile(join(project, 'CLAUDE.md'), 'utf8')).toBe('# 规则\n')
+    expect(await readFile(join(project, 'AGENTS.md'), 'utf8')).toBe('# 规则\n')
+
+    const digest = applied.json<{ files: { id: string; digest: string }[] }>().files.find((file) => file.id === 'CLAUDE.md')?.digest ?? ''
+    const removed = await reqDelete(port, `/api/instructions?root=${root}&target=CLAUDE.md&digest=${encodeURIComponent(digest)}`, { headers: AUTH })
+    expect(removed.json<{ result: string }>().result).toBe('removed')
+    expect(existsSync(join(project, 'CLAUDE.md'))).toBe(false)
+  })
+
+  it('指令文件路由：root 为空是用户级，写入宿主 home 下的文件', async () => {
+    const { port, home } = await start()
+    const listed = (await reqGet(port, '/api/instructions')).json<{ level: string; root: string }>()
+    expect(listed).toMatchObject({ level: 'user', root: '' })
+    const applied = await reqPost(port, '/api/instructions/apply', { root: '', text: '# 个人\n', targets: [{ id: 'claude', base_digest: 'absent' }] }, { headers: AUTH })
+    expect(applied.status).toBe(200)
+    expect(await readFile(join(home, '.claude', 'CLAUDE.md'), 'utf8')).toBe('# 个人\n')
   })
 
   it('拼合：React + Java DDD + PostgreSQL + REST 返回合成文件；框架不匹配 400', async () => {
