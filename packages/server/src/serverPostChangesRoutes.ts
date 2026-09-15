@@ -1,6 +1,4 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { lstatSync } from 'node:fs'
-import { join, resolve as resolvePath } from 'node:path'
 import {
   applyLevelChange,
   assertWorkflowAllowed,
@@ -50,7 +48,7 @@ import { validateMandatorySkillsBody, writeMandatorySkills } from './config.js'
 import { validateHookToggleBody, writeHookToggle } from './hooksConfig.js'
 import { applyLoopsUpdate, type LoopActivationValidator } from './loops.js'
 import { parsePipelineCliJson, type PipelineCliRunner } from './operations.js'
-import { addProjectToRegistry, removeProjectFromRegistry } from './projects.js'
+import { registerProjectAnchored } from './projects.js'
 import {
   applyRouterDraft,
   parseRouterDraft,
@@ -63,13 +61,10 @@ import { performTransition } from './transition.js'
 import type { ServerPaths } from './types.js'
 import {
   assertWorkflowRootAnchor,
-  captureWorkflowRootAnchor,
-  closeWorkflowRootAnchor,
   ensureWorkflowProjectCoordinationPath,
   readWorkflowForApi,
   WorkflowNotFoundError,
   writeWorkflowForApi,
-  type WorkflowRootAnchor,
 } from './workflows.js'
 
 import type { PostRouteDeps } from './serverPostRoutes.js'
@@ -95,42 +90,8 @@ export async function handlePostChangesRoutes(
     if (path === '/api/projects') {
       const body = await readJsonBody(req)
       const rawRoot = typeof body === 'object' && body !== null ? (body as Record<string, unknown>).root : undefined
-      let pendingAnchor: WorkflowRootAnchor | undefined
-      if (typeof rawRoot === 'string' && rawRoot) {
-        try {
-          pendingAnchor = captureWorkflowRootAnchor(rawRoot)
-        } catch (e) {
-          // projects.ts 历来用 stat 跟随 symlink；workflow 能力锚必须更严：最终词法段本身若是
-          // symlink，不能先把它写进注册表再在业务请求上学习其目标 inode。
-          try {
-            if (lstatSync(resolvePath(rawRoot)).isSymbolicLink()) {
-              return sendJson(res, 400, { ok: false, error: `registered root 不得是 symlink：${resolvePath(rawRoot)}` })
-            }
-          } catch {
-            // 不存在/不可访问/非目录继续交给 projects.ts，以保持既有 404 文案与状态码。
-          }
-        }
-      }
-      const result = await addProjectToRegistry(paths.registryPath, rawRoot)
-      if (!result.ok) {
-        if (pendingAnchor) closeWorkflowRootAnchor(pendingAnchor)
-        return sendJson(res, result.code, { ok: false, error: result.error })
-      }
-      if (!pendingAnchor || pendingAnchor.path !== result.root) {
-        if (pendingAnchor) closeWorkflowRootAnchor(pendingAnchor)
-        await removeProjectFromRegistry(paths.registryPath, result.root).catch(() => undefined)
-        return sendJson(res, 400, { ok: false, error: 'registered root 在注册期间未能建立稳定 inode 锚' })
-      }
-      try {
-        assertWorkflowRootAnchor(pendingAnchor)
-      } catch (e) {
-        closeWorkflowRootAnchor(pendingAnchor)
-        await removeProjectFromRegistry(paths.registryPath, result.root).catch(() => undefined)
-        return sendJson(res, 400, { ok: false, error: errMsg(e) })
-      }
-      const previous = workflowRootAnchors.get(result.root)
-      if (previous) closeWorkflowRootAnchor(previous)
-      workflowRootAnchors.set(result.root, pendingAnchor)
+      const result = await registerProjectAnchored(paths, workflowRootAnchors, rawRoot)
+      if (!result.ok) return sendJson(res, result.code, { ok: false, error: result.error })
       return sendJson(res, 200, { ok: true, root: result.root })
     }
 

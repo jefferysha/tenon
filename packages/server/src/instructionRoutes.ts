@@ -12,6 +12,7 @@ import {
   applyInstructions, deleteInstructionTarget, previewInstructionApply, readInstructionTargets, type InstructionScope,
 } from './instructionFiles.js'
 import { trustedFsFailure } from './instructionTrustedFs.js'
+import { handleProjectCreate, runGitCommand, type GitRunner } from './projectCreate.js'
 import { repoRootForSkills } from './serverSupport.js'
 import { readTextBody } from './serverWorkflowYamlRoutes.js'
 import type { ServerPaths } from './types.js'
@@ -27,6 +28,9 @@ export interface InstructionRouteDeps {
   readonly workflowRootForRequest?: (root: string) => { ok: true; anchor: WorkflowRootAnchor } | { ok: false; code: number; error: string }
   /** 用户级指令文件所在的宿主 home；缺省为产品路径的 homeDir。 */
   readonly hostHome?: string
+  /** 注册项目时写入的 inode 锚表（POST 路由表提供）。 */
+  readonly workflowRootAnchors?: Map<string, WorkflowRootAnchor>
+  readonly runGit?: GitRunner
   /** 内建库的 payload 根；缺省为本 server 所在插件根目录。 */
   readonly payloadRoot?: string
 }
@@ -171,6 +175,13 @@ export function resolveInstructionMutation(
   path: string,
   deps: InstructionRouteDeps,
 ): Promise<RouteResult> | null {
+  if (method === 'POST' && path === '/api/projects/create') {
+    return (async () => {
+      if (!deps.workflowRootAnchors) return failure(404, 'not-found', '未知端点')
+      const body = deps.readJsonBody ? await deps.readJsonBody(req) : undefined
+      return handleProjectCreate(body, { paths: deps.paths, workflowRootAnchors: deps.workflowRootAnchors, runGit: deps.runGit ?? runGitCommand })
+    })()
+  }
   if (method === 'POST' && path === `${INSTRUCTIONS}/preview`) return postInstructions(req, 'preview', deps)
   if (method === 'POST' && path === `${INSTRUCTIONS}/apply`) return postInstructions(req, 'apply', deps)
   if (method === 'DELETE' && path === INSTRUCTIONS) return Promise.resolve(deleteInstructions(req, deps))
