@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import { parseInstructionBlock, type InstructionBlock } from './block.js'
 import type { InstructionCategory } from './categories.js'
@@ -92,6 +95,36 @@ describe('composeInstructions', () => {
   test('选择块未声明的资源目录分类 → catalog-category', () => {
     const result = composeInstructions({ projectName: 'p', selections: [select(react, {}, { icons: ['lucide'] })], catalog: NO_CATALOG })
     expect(result.ok ? [] : result.errors.map((error) => error.code)).toEqual(['catalog-category'])
+  })
+
+  test('仓库内建块组合：前端 React + 后端 Java DDD + PostgreSQL + REST', () => {
+    const builtin = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'templates', 'instructions', 'builtin')
+    const pick = (category: InstructionCategory, id: string): ComposeSelection => {
+      const parsed = parseInstructionBlock(readFileSync(join(builtin, category, `${id}.md`), 'utf8'), { category, id })
+      if (!parsed.ok) throw new Error(JSON.stringify(parsed.errors))
+      return select(parsed.block)
+    }
+    const result = composeInstructions({
+      projectName: 'shop',
+      selections: [
+        pick('database', 'postgresql'), pick('backend', 'java-spring-boot-ddd'), pick('api', 'rest-v1-unified-response'),
+        pick('styling', 'tailwind'), pick('state', 'zustand'), pick('frontend', 'typescript-react'), pick('common', 'base'),
+      ],
+      catalog: NO_CATALOG,
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const at = (text: string) => result.markdown.indexOf(text)
+    expect(result.markdown.startsWith('# shop\n\n## 最终回复格式')).toBe(true)
+    expect(result.markdown).toContain('| `frontend/` | 前端工程根目录 |\n| `backend/` | 后端工程根目录（Gradle 多模块） |\n| `sql/` | 全部数据库初始化脚本 |')
+    expect(at('## 前端')).toBeLessThan(at('### 状态管理（Zustand）'))
+    expect(at('### 状态管理（Zustand）')).toBeLessThan(at('### 样式（Tailwind CSS）'))
+    expect(at('### 样式（Tailwind CSS）')).toBeLessThan(at('## 后端'))
+    expect(at('## 后端')).toBeLessThan(at('## 接口约定'))
+    expect(at('## 接口约定')).toBeLessThan(at('## 数据库'))
+    expect(result.markdown).toContain('/api/v1')
+    expect(result.markdown).toContain('app-domain/')
+    expect(result.markdown).not.toMatch(/\{\{/)
   })
 
   test('没有块时只有项目标题；没有目录时目录占位符整行省略', () => {

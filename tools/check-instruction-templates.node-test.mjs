@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 
-import { BUILTIN_DIR, checkInstructionTemplates, headingsOf } from './check-instruction-templates.mjs'
+import { BUILTIN_DIR, checkGoldenComposition, checkInstructionTemplates, headingsOf } from './check-instruction-templates.mjs'
 
 const kernel = await import(pathToFileURL(join(import.meta.dirname, '..', 'packages/kernel/dist/index.js')).href)
 
@@ -78,6 +78,16 @@ test('解析错误与小节顺序错误', () => {
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+test('组合样例缺块时报出，不抛异常', () => {
+  assert.deepEqual(checkGoldenComposition(kernel, []), ['组合样例缺少 common/base'])
+})
+
+test('仓库内建模板清单与组合样例通过', () => {
+  const { failures, blocks } = checkInstructionTemplates({ kernel })
+  assert.deepEqual(failures, [])
+  assert.deepEqual(checkGoldenComposition(kernel, blocks), [])
 })
 
 test('headingsOf 跳过围栏代码', () => {

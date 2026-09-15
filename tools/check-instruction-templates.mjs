@@ -25,6 +25,32 @@ export const INVENTORY = {
     'csharp-aspnet-core', 'go', 'java-spring-boot-ddd', 'kotlin-spring-boot', 'node-nestjs',
     'php-laravel', 'python-django', 'python-fastapi', 'ruby-rails', 'rust-axum',
   ],
+  mobile: ['dart-flutter', 'kotlin-android-compose', 'swift-swiftui'],
+  system: ['c', 'cpp'],
+  api: ['rest-v1-unified-response'],
+  database: ['mysql', 'postgresql'],
+}
+
+/** 组合样例：前端 React + 后端 Java DDD + PostgreSQL + REST，拼出来的文件必须含下列片段。 */
+export const GOLDEN_SELECTION = [
+  ['common', 'base'], ['frontend', 'typescript-react'], ['state', 'zustand'], ['styling', 'tailwind'],
+  ['backend', 'java-spring-boot-ddd'], ['api', 'rest-v1-unified-response'], ['database', 'postgresql'],
+]
+const GOLDEN_MARKERS = [
+  '## 前端', '### 状态管理', '### 样式', '## 后端', '## 接口约定', '## 数据库', '/api/v1',
+  '| `frontend/` |', '| `backend/` |', '| `sql/` |',
+]
+
+export function checkGoldenComposition(kernel, blocks) {
+  const selections = []
+  for (const [category, id] of GOLDEN_SELECTION) {
+    const found = blocks.find((entry) => entry.category === category && entry.id === id)
+    if (!found) return [`组合样例缺少 ${category}/${id}`]
+    selections.push({ ref: { source: 'builtin', category, id }, block: found.block, values: {} })
+  }
+  const result = kernel.composeInstructions({ projectName: 'shop', selections, catalog: kernel.NO_CATALOG })
+  if (!result.ok) return result.errors.map((error) => `组合样例失败：${error.ref.category}/${error.ref.id} ${error.code} ${error.detail}`)
+  return GOLDEN_MARKERS.filter((marker) => !result.markdown.includes(marker)).map((marker) => `组合样例缺少片段 ${marker}`)
 }
 
 const LANGUAGE_SECTIONS = ['### 技术栈', '### 分层结构', '### 编码规范', '### 文件长度', '### 测试要求']
@@ -108,6 +134,7 @@ async function main() {
   }
   const kernel = await import(pathToFileURL(distEntry).href)
   const { failures, blocks } = checkInstructionTemplates({ kernel })
+  if (failures.length === 0) failures.push(...checkGoldenComposition(kernel, blocks))
   if (failures.length > 0) {
     for (const failure of failures) console.error(`[instruction-templates] ${failure}`)
     process.exitCode = 1
