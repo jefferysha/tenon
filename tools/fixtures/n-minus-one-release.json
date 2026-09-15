@@ -1,5 +1,6 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
+  "status": "pinned",
   "tag": "v1.0.1",
   "pluginVersion": "1.0.1",
   "gitCommit": "8f716852952d34fcffbaad30628a249fd1d3f143",

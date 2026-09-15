@@ -7,8 +7,9 @@
 #   4. 端到端上手路径：临时目录 init → .pipeline.yaml 落盘 → get phase = open
 #      → 登记随 init 生成的 OpenSpec proposal/design/tasks 的真实 skill 证据
 #      → transition open-complete → get phase = explore → history JSONL 有 init+transition
-#   5. 冻结 N-1 reader 保持旧写入协议；真实 v1.0.1 创建 V1/V2 state，再由当前 CLI 读取和继续
-#      mutation。兼容方向是 current reads N-1，不要求 immutable N-1 理解未来 V3。
+#   5. 冻结 N-1 reader 保持旧写入协议；fixture 固定的真实上一正式版本创建 V1/V2 state，再由当前 CLI
+#      读取和继续 mutation（fixture status=none 时只报告 [HONEST SKIP]）。兼容方向是 current reads N-1，
+#      不要求 immutable N-1 理解未来 V3。
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUNDLE="$ROOT/packages/cli/dist/tenon.mjs"
@@ -191,79 +192,97 @@ if [ -f "$BUNDLE" ]; then
     && ok "bundle: 冻结 N-1 严格读取器可读当前 canonical Change" \
     || bad "bundle: 冻结 N-1 严格读取器可读当前 canonical Change" "$n_minus_phase"
 
+  n_minus_meta="$ROOT/tools/fixtures/n-minus-one-release.json"
+  n_minus_status="$(node -p "require('$n_minus_meta').status" 2>/dev/null || true)"
   explicit_n_minus_cli="${TENON_N_MINUS_ONE_CLI:-}"
   explicit_n_minus_payload="${TENON_N_MINUS_ONE_PAYLOAD:-}"
-  if [ -n "$explicit_n_minus_cli" ] && [ -n "$explicit_n_minus_payload" ]; then
-    bad "bundle: N-1 显式入口唯一" "TENON_N_MINUS_ONE_CLI 与 TENON_N_MINUS_ONE_PAYLOAD 不得同时设置"
-  elif [ -n "$explicit_n_minus_payload" ]; then
-    n_minus_cli_entry="$(node -e '
-      const value = require(process.argv[1])
-      const entry = value.cliEntry
-      if (
-        typeof entry !== "string" ||
-        entry === "" ||
-        entry.startsWith("/") ||
-        entry.split("/").includes("..")
-      ) process.exit(2)
-      process.stdout.write(entry)
-    ' "$ROOT/tools/fixtures/n-minus-one-release.json" 2>/dev/null || true)"
-    if [ -z "$n_minus_cli_entry" ]; then
-      bad "bundle: N-1 fixture CLI 入口合法" "$ROOT/tools/fixtures/n-minus-one-release.json"
+  if [ "$n_minus_status" = none ]; then
+    # 只有 fixture 声明的一次性跳过（prepare 退出 78）不计通过也不计失败；显式 N-1 入口与之矛盾。
+    if [ -n "$explicit_n_minus_cli" ] || [ -n "$explicit_n_minus_payload" ]; then
+      bad "bundle: N-1 fixture 与显式入口一致" "fixture status=none 却设置了 TENON_N_MINUS_ONE_CLI/PAYLOAD"
     else
-      explicit_n_minus_cli="$explicit_n_minus_payload/$n_minus_cli_entry"
+      n_minus_skip="$(bash "$ROOT/tools/prepare-n-minus-one-release.sh" "$TMP/n-minus-one-release" 2>&1)"
+      n_minus_skip_code="$?"
+      if [ "$n_minus_skip_code" -eq 78 ]; then
+        printf '[HONEST SKIP] bundle: 真实 N-1 兼容：%s\n' "$(node -p "require('$n_minus_meta').reason")"
+      else
+        bad "bundle: N-1 一次性跳过有效" "exit=$n_minus_skip_code $n_minus_skip"
+      fi
     fi
-  fi
-  if [ -z "$explicit_n_minus_cli" ]; then
-    prepared_n_minus="$TMP/n-minus-one-release"
-    if bash "$ROOT/tools/prepare-n-minus-one-release.sh" "$prepared_n_minus" >/dev/null; then
-      n_minus_cli_entry="$(node -p "require('$ROOT/tools/fixtures/n-minus-one-release.json').cliEntry")"
-      explicit_n_minus_cli="$prepared_n_minus/payload/$n_minus_cli_entry"
-    else
-      bad "bundle: 固定公开 N-1 payload 可准备" "v1.0.1 tag/commit/完整 payload 缺失"
-    fi
-  fi
-  N_MINUS_CLI="$explicit_n_minus_cli"
-  expected_n_minus_digest="$(node -p "require('$ROOT/tools/fixtures/n-minus-one-release.json').cliSha256")"
-  actual_n_minus_digest="$(node -e '
-    const { createHash } = require("node:crypto")
-    const { readFileSync } = require("node:fs")
-    try { process.stdout.write(createHash("sha256").update(readFileSync(process.argv[1])).digest("hex")) }
-    catch { process.exit(2) }
-  ' "$N_MINUS_CLI" 2>/dev/null || true)"
-  [ "$actual_n_minus_digest" = "$expected_n_minus_digest" ] \
-    && ok "bundle: 固定公开 N-1 CLI digest 精确" \
-    || bad "bundle: 固定公开 N-1 CLI digest 精确" \
-      "expected=$expected_n_minus_digest actual=${actual_n_minus_digest:-missing}"
-  if [ -n "$explicit_n_minus_cli" ] && [ ! -f "$explicit_n_minus_cli" ]; then
-    bad "bundle: 显式 N-1 bundle 存在" "$explicit_n_minus_cli"
-  elif [ -n "$N_MINUS_CLI" ] && [ -f "$N_MINUS_CLI" ]; then
-    n_minus_release="${TENON_N_MINUS_ONE_RELEASE:-v1.0.1}"
-    n_minus_change="n1-created"
-    n_minus_init="$(cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" \
-      node "$N_MINUS_CLI" init "$n_minus_change" --track backend --preset full --user n1-smoke 2>&1)"
-    n_minus_init_code="$?"
-    n_minus_real="$(cd "$TMP" && node "$N_MINUS_CLI" status "$n_minus_change" --json 2>&1)"
-    n_minus_status_code="$?"
-    [ "$n_minus_init_code" -eq 0 ] && [ "$n_minus_status_code" -eq 0 ] \
-      && printf '%s' "$n_minus_real" | grep -q '"phase":"open"' \
-      && ok "bundle: 真实上一发行版 CLI（${n_minus_release}）创建并读取 legacy Change" \
-      || bad "bundle: 真实上一发行版 CLI（${n_minus_release}）创建并读取 legacy Change" \
-        "init=$n_minus_init_code $n_minus_init status=$n_minus_real"
-    n_minus_write="$(cd "$TMP" && node "$N_MINUS_CLI" set "$n_minus_change" scope n1-compatible 2>&1)"
-    n_minus_write_code="$?"
-    n_minus_scope="$(cd "$TMP" && node "$BUNDLE" get "$n_minus_change" scope 2>/dev/null)"
-    [ "$n_minus_write_code" -eq 0 ] && [ "$n_minus_scope" = "n1-compatible" ] \
-      && ok "bundle: 当前 runtime 可读真实 N-1 mutation" \
-      || bad "bundle: 当前 runtime 可读真实 N-1 mutation" \
-        "exit=$n_minus_write_code scope=$n_minus_scope $n_minus_write"
-    ( cd "$TMP" && node "$BUNDLE" set "$n_minus_change" related_files current-after-n1 ) >/dev/null 2>&1
-    after_n_minus_current="$(cd "$TMP" && node "$BUNDLE" get "$n_minus_change" related_files 2>/dev/null)"
-    [ "$after_n_minus_current" = "current-after-n1" ] \
-      && ok "bundle: 当前 runtime 可接续 N-1 V1/V2 snapshot 后 mutation" \
-      || bad "bundle: 当前 runtime 可接续 N-1 stale anchor 后 mutation" \
-        "得到 '$after_n_minus_current'"
   else
-    bad "bundle: 固定公开 N-1 CLI 存在" "$N_MINUS_CLI"
+    if [ -n "$explicit_n_minus_cli" ] && [ -n "$explicit_n_minus_payload" ]; then
+      bad "bundle: N-1 显式入口唯一" "TENON_N_MINUS_ONE_CLI 与 TENON_N_MINUS_ONE_PAYLOAD 不得同时设置"
+    elif [ -n "$explicit_n_minus_payload" ]; then
+      n_minus_cli_entry="$(node -e '
+        const value = require(process.argv[1])
+        const entry = value.cliEntry
+        if (
+          typeof entry !== "string" ||
+          entry === "" ||
+          entry.startsWith("/") ||
+          entry.split("/").includes("..")
+        ) process.exit(2)
+        process.stdout.write(entry)
+      ' "$n_minus_meta" 2>/dev/null || true)"
+      if [ -z "$n_minus_cli_entry" ]; then
+        bad "bundle: N-1 fixture CLI 入口合法" "$n_minus_meta"
+      else
+        explicit_n_minus_cli="$explicit_n_minus_payload/$n_minus_cli_entry"
+      fi
+    fi
+    n_minus_tag="$(node -p "require('$n_minus_meta').tag" 2>/dev/null || true)"
+    if [ -z "$explicit_n_minus_cli" ]; then
+      prepared_n_minus="$TMP/n-minus-one-release"
+      if bash "$ROOT/tools/prepare-n-minus-one-release.sh" "$prepared_n_minus" >/dev/null; then
+        n_minus_cli_entry="$(node -p "require('$n_minus_meta').cliEntry")"
+        explicit_n_minus_cli="$prepared_n_minus/payload/$n_minus_cli_entry"
+      else
+        bad "bundle: 固定公开 N-1 payload 可准备" "${n_minus_tag:-N-1} tag/commit/完整 payload 缺失"
+      fi
+    fi
+    N_MINUS_CLI="$explicit_n_minus_cli"
+    expected_n_minus_digest="$(node -p "require('$n_minus_meta').cliSha256")"
+    actual_n_minus_digest="$(node -e '
+      const { createHash } = require("node:crypto")
+      const { readFileSync } = require("node:fs")
+      try { process.stdout.write(createHash("sha256").update(readFileSync(process.argv[1])).digest("hex")) }
+      catch { process.exit(2) }
+    ' "$N_MINUS_CLI" 2>/dev/null || true)"
+    [ "$actual_n_minus_digest" = "$expected_n_minus_digest" ] \
+      && ok "bundle: 固定公开 N-1 CLI digest 精确" \
+      || bad "bundle: 固定公开 N-1 CLI digest 精确" \
+        "expected=$expected_n_minus_digest actual=${actual_n_minus_digest:-missing}"
+    if [ -n "$explicit_n_minus_cli" ] && [ ! -f "$explicit_n_minus_cli" ]; then
+      bad "bundle: 显式 N-1 bundle 存在" "$explicit_n_minus_cli"
+    elif [ -n "$N_MINUS_CLI" ] && [ -f "$N_MINUS_CLI" ]; then
+      n_minus_release="${TENON_N_MINUS_ONE_RELEASE:-$n_minus_tag}"
+      n_minus_change="n1-created"
+      n_minus_init="$(cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" \
+        node "$N_MINUS_CLI" init "$n_minus_change" --track backend --preset full --user n1-smoke 2>&1)"
+      n_minus_init_code="$?"
+      n_minus_real="$(cd "$TMP" && node "$N_MINUS_CLI" status "$n_minus_change" --json 2>&1)"
+      n_minus_status_code="$?"
+      [ "$n_minus_init_code" -eq 0 ] && [ "$n_minus_status_code" -eq 0 ] \
+        && printf '%s' "$n_minus_real" | grep -q '"phase":"open"' \
+        && ok "bundle: 真实上一发行版 CLI（${n_minus_release}）创建并读取 legacy Change" \
+        || bad "bundle: 真实上一发行版 CLI（${n_minus_release}）创建并读取 legacy Change" \
+          "init=$n_minus_init_code $n_minus_init status=$n_minus_real"
+      n_minus_write="$(cd "$TMP" && node "$N_MINUS_CLI" set "$n_minus_change" scope n1-compatible 2>&1)"
+      n_minus_write_code="$?"
+      n_minus_scope="$(cd "$TMP" && node "$BUNDLE" get "$n_minus_change" scope 2>/dev/null)"
+      [ "$n_minus_write_code" -eq 0 ] && [ "$n_minus_scope" = "n1-compatible" ] \
+        && ok "bundle: 当前 runtime 可读真实 N-1 mutation" \
+        || bad "bundle: 当前 runtime 可读真实 N-1 mutation" \
+          "exit=$n_minus_write_code scope=$n_minus_scope $n_minus_write"
+      ( cd "$TMP" && node "$BUNDLE" set "$n_minus_change" related_files current-after-n1 ) >/dev/null 2>&1
+      after_n_minus_current="$(cd "$TMP" && node "$BUNDLE" get "$n_minus_change" related_files 2>/dev/null)"
+      [ "$after_n_minus_current" = "current-after-n1" ] \
+        && ok "bundle: 当前 runtime 可接续 N-1 V1/V2 snapshot 后 mutation" \
+        || bad "bundle: 当前 runtime 可接续 N-1 stale anchor 后 mutation" \
+          "得到 '$after_n_minus_current'"
+    else
+      bad "bundle: 固定公开 N-1 CLI 存在" "$N_MINUS_CLI"
+    fi
   fi
 fi
 

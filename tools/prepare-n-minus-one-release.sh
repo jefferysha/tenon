@@ -1,13 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Exit 78 (EX_CONFIG) is the documented one-time skip: fixture status none names the current release.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 META="$ROOT/tools/fixtures/n-minus-one-release.json"
 OUTPUT_ROOT="${1:?usage: prepare-n-minus-one-release.sh <empty-output-root>}"
 PAYLOAD="$OUTPUT_ROOT/payload"
+RETIRED_RELEASE_VERSION='^1\.(0\.[0-9]|1\.[0-5])$'
 
 if [ -e "$PAYLOAD" ]; then
   printf 'N-1 payload 目标已存在，拒绝混入旧文件: %s\n' "$PAYLOAD" >&2
+  exit 1
+fi
+
+current="$(node -p "require('$ROOT/package.json').version")"
+fixture="$(node -e '
+  const value = require(process.argv[1])
+  const text = (key) => typeof value[key] === "string" && value[key] !== ""
+  const stable = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/
+  if (value.schemaVersion === 3 && value.status === "none" && text("release") && text("reason")) {
+    process.stdout.write(["none", value.release, value.reason].join("\t"))
+  } else if (value.schemaVersion === 3 && value.status === "pinned"
+    && ["tag", "pluginVersion", "gitCommit", "cliEntry", "cliSha256"].every(text)
+    && stable.test(value.pluginVersion) && value.tag === "v" + value.pluginVersion) {
+    process.stdout.write("pinned")
+  } else {
+    process.exit(2)
+  }
+' "$META")" || {
+  printf 'N-1 fixture 结构非法: %s\n' "$META" >&2
+  exit 1
+}
+
+if [ "${fixture%%$'\t'*}" = none ]; then
+  IFS=$'\t' read -r _ skip_release skip_reason <<< "$fixture"
+  if [ "$skip_release" = "v$current" ]; then
+    printf 'N-1 skipped: %s %s\n' "$skip_release" "$skip_reason"
+    exit 78
+  fi
+  printf 'N-1 一次性跳过只适用于 %s；当前 v%s 必须固定最近的正式版本\n' "$skip_release" "$current" >&2
   exit 1
 fi
 
@@ -17,6 +48,36 @@ cli_entry="$(node -p "require('$META').cliEntry")"
 tag="$(node -p "require('$META').tag")"
 version="$(node -p "require('$META').pluginVersion")"
 release="$tag plugin@$version commit@$commit"
+
+# A retired current version (the 1.x line before the reset) keeps its historical pin unchecked.
+if [[ ! "$current" =~ $RETIRED_RELEASE_VERSION ]]; then
+  if [[ "$version" =~ $RETIRED_RELEASE_VERSION ]]; then
+    printf 'N-1 基线不能是已退役版本 %s\n' "$tag" >&2
+    exit 1
+  fi
+  latest="$(git -C "$ROOT" tag -l 'v*' | node -e '
+    const [current, pinned, retired] = process.argv.slice(1)
+    const stable = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/
+    const greater = (left, right) => {
+      const a = left.split(".").map(BigInt)
+      const b = right.split(".").map(BigInt)
+      for (let index = 0; index < 3; index += 1) if (a[index] !== b[index]) return a[index] > b[index]
+      return false
+    }
+    let latest = pinned
+    for (const candidate of require("node:fs").readFileSync(0, "utf8").split("\n")) {
+      const candidateVersion = candidate.slice(1)
+      if (stable.test(candidate) && !new RegExp(retired).test(candidateVersion)
+        && greater(current, candidateVersion) && greater(candidateVersion, latest)) latest = candidateVersion
+    }
+    process.stdout.write(latest)
+  ' "$current" "$version" "$RETIRED_RELEASE_VERSION")"
+  [ "$latest" = "$version" ] || {
+    printf 'N-1 基线 %s 不是低于 v%s 的最近正式版本 v%s\n' "$tag" "$current" "$latest" >&2
+    exit 1
+  }
+fi
+
 entries=()
 while IFS= read -r entry; do
   [ -n "$entry" ] && entries+=("$entry")

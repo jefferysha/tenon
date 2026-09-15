@@ -188,11 +188,15 @@ jobs:
         run: |
           set -euo pipefail
           meta=tools/fixtures/n-minus-one-release.json
-          release="$(node -p "require('./$meta').tag + ' plugin@' + require('./$meta').pluginVersion + ' commit@' + require('./$meta').gitCommit")"
           output="$RUNNER_TEMP/pipeline-n-minus-one"
-          bash tools/prepare-n-minus-one-release.sh "$output"
-          echo "TENON_N_MINUS_ONE_PAYLOAD=$output/payload" >> "$GITHUB_ENV"
-          echo "TENON_N_MINUS_ONE_RELEASE=$release" >> "$GITHUB_ENV"
+          if bash tools/prepare-n-minus-one-release.sh "$output"; then
+            release="$(node -p "require('./$meta').tag + ' plugin@' + require('./$meta').pluginVersion + ' commit@' + require('./$meta').gitCommit")"
+            echo "TENON_N_MINUS_ONE_PAYLOAD=$output/payload" >> "$GITHUB_ENV"
+            echo "TENON_N_MINUS_ONE_RELEASE=$release" >> "$GITHUB_ENV"
+          else
+            code=$?
+            [ "$code" -eq 78 ] || exit "$code"
+          fi
 
       - name: bundle smoke test
         run: bash tools/test-bundle.sh

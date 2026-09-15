@@ -127,10 +127,15 @@ jobs:
           npm run check:dashboard-dist-freshness
           bash tools/verify-skills.sh
           n_minus="$RUNNER_TEMP/tenon-n-minus-one"
-          bash tools/prepare-n-minus-one-release.sh "$n_minus"
-          TENON_N_MINUS_ONE_PAYLOAD="$n_minus/payload" \
-            TENON_N_MINUS_ONE_RELEASE="v1.0.1" \
+          if bash tools/prepare-n-minus-one-release.sh "$n_minus"; then
+            TENON_N_MINUS_ONE_PAYLOAD="$n_minus/payload" \
+              TENON_N_MINUS_ONE_RELEASE="$(node -p "require('./tools/fixtures/n-minus-one-release.json').tag")" \
+              bash tools/test-bundle.sh
+          else
+            code=$?
+            [ "$code" -eq 78 ] || exit "$code"
             bash tools/test-bundle.sh
+          fi
 
       - name: Documentation and governance-document gates
         run: |
