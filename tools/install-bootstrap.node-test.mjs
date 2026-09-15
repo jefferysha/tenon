@@ -469,6 +469,42 @@ test('public Release API requests use one bounded 30 second network budget', asy
   assert.doesNotMatch(helper, /--(?:connect-timeout|max-time|speed-time)\s+(?:5|10)\b/u)
 })
 
+test('installer journal adoption ranks the retired 1.x release line below every other stable version', async () => {
+  const installer = await readFile(join(root, 'install.sh'), 'utf8')
+  const start = installer.indexOf('stable_version_is_less() {')
+  assert.notEqual(start, -1)
+  const end = installer.indexOf('\n}\n', start)
+  assert.notEqual(end, -1)
+  const script = `run_node() { node "$@"; }\n${installer.slice(start, end + 3)}stable_version_is_less "$1" "$2"\n`
+  const isLess = async (left, right) => {
+    try {
+      await exec('bash', ['-c', script, 'stable-order', left, right])
+      return true
+    } catch (error) {
+      if (error.code === 1) return false
+      throw error
+    }
+  }
+  for (const [left, right, order] of [
+    ['0.1.0', '1.1.5', 1],
+    ['1.0.0', '0.0.1', -1],
+    ['1.1.5', '1.0.9', 1],
+    ['0.1.1', '0.1.0', 1],
+    ['0.2.0', '0.1.9', 1],
+    ['0.1.0', '0.1.0', 0],
+    ['1.2.0', '0.9.9', 1],
+    ['2.0.0', '1.2.3', 1],
+    ['1.0.10', '0.9.9', 1],
+    ['1.1.6', '1.1.5', 1],
+  ]) {
+    assert.equal(await isLess(left, right), order < 0, `${left} < ${right}`)
+    assert.equal(await isLess(right, left), order > 0, `${right} < ${left}`)
+  }
+  for (const [left, right] of [['1.1', '0.1.0'], ['v1.1.5', '0.1.0'], ['0.1.0', '01.1.5']]) {
+    assert.equal(await isLess(left, right), false, `${left} < ${right} must reject invalid input`)
+  }
+})
+
 test('one-line dry-run prints the complete host and packaged setup plan without invoking the host or writing HOME', async () => {
   const fixture = await mkdtemp(join(tmpdir(), 'tenon-install-bootstrap-dry-run-'))
   try {

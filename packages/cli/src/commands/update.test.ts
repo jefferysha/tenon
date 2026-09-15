@@ -17,6 +17,7 @@ import { expectedStableLaunchers } from '../runtime/launchers.js'
 import type { RuntimeInstaller } from '../runtime/installer.js'
 import type { ReleasedDashboardStarter } from './dashboard.js'
 import type { TrustedExecutable } from './trusted-executable.js'
+import type { StableReleaseTarget } from './stable-release.js'
 
 interface Calls {
   readonly exec: Array<readonly [string, readonly string[]]>
@@ -158,6 +159,7 @@ function fakeDashboardStarter(
   initialRelease: string | null = null,
   initialServerVersion = '1.2.3',
   initialTransactionId?: string,
+  startedServerVersion = '1.2.3',
 ): { starter: ReleasedDashboardStarter; calls: DashboardCalls } {
   const calls: DashboardCalls = { starts: [] }
   let running: Awaited<ReturnType<ReleasedDashboardStarter['inspect']>> = initialRelease === null
@@ -183,7 +185,7 @@ function fakeDashboardStarter(
         }
         running = {
           version: 1,
-          serverVersion: '1.2.3',
+          serverVersion: startedServerVersion,
           port: opts.port ?? 18_765,
           pid: 321,
           releaseId,
@@ -209,6 +211,7 @@ function fakeDashboardStarter(
 function updateEnv(
   run: (cmd: string, args: string[]) => { code: number; stdout: string; stderr: string },
   runtimeEnv: NodeJS.ProcessEnv = {},
+  target: StableReleaseTarget = STABLE_TARGET,
 ): { env: SetupEnv; calls: Calls } {
   const calls: Calls = { exec: [], writes: [] }
   const mutationBaselines = new Map<string, number>()
@@ -222,11 +225,11 @@ function updateEnv(
     readText: (path) => {
       if (path === '/new/marketplace/.codex-marketplace-install.json'
         || path === '/new/tenon/.codex-marketplace-install.json') {
-        return JSON.stringify({ ref_name: STABLE_TARGET.tag })
+        return JSON.stringify({ ref_name: target.tag })
       }
       if (path === '/new/tenon/.codex-plugin/plugin.json'
         || path === '/new/tenon/.claude-plugin/plugin.json') {
-        return JSON.stringify({ version: STABLE_TARGET.version })
+        return JSON.stringify({ version: target.version })
       }
       return undefined
     },
@@ -241,7 +244,7 @@ function updateEnv(
     writeText: (path, text) => { calls.writes.push([path, text]) },
     writeTextAtomic: (path, text) => { calls.writes.push([path, text]) },
     inspectCandidatePayload: async () => ({
-      pluginVersion: STABLE_TARGET.version,
+      pluginVersion: target.version,
       payloadDigest: 'b'.repeat(64),
     }),
     runCommand: (cmd, args) => {
@@ -249,19 +252,19 @@ function updateEnv(
       if (cmd === 'git' && args.join(' ') === [
         'ls-remote',
         'https://github.com/jefferysha/tenon.git',
-        `refs/tags/${STABLE_TARGET.tag}`,
-        `refs/tags/${STABLE_TARGET.tag}^{}`,
+        `refs/tags/${target.tag}`,
+        `refs/tags/${target.tag}^{}`,
       ].join(' ')) {
         return {
           code: 0,
-          stdout: `${STABLE_TARGET.commit}\trefs/tags/${STABLE_TARGET.tag}\n`,
+          stdout: `${target.commit}\trefs/tags/${target.tag}\n`,
           stderr: '',
         }
       }
       if (cmd === 'git' && args[0] === 'init') return { code: 0, stdout: '', stderr: '' }
       if (cmd === 'git' && args[2] === 'fetch') return { code: 0, stdout: '', stderr: '' }
       if (cmd === 'git' && args[2] === 'rev-parse' && args[3] === 'FETCH_HEAD^{commit}') {
-        return { code: 0, stdout: `${STABLE_TARGET.commit}\n`, stderr: '' }
+        return { code: 0, stdout: `${target.commit}\n`, stderr: '' }
       }
       if (cmd === 'git' && args[2] === 'cat-file') {
         return { code: 0, stdout: 'commit\n', stderr: '' }
@@ -294,7 +297,7 @@ function updateEnv(
             }
       }
       if (/git -C \/new\/(?:marketplace|tenon) rev-parse HEAD$/.test(text)) {
-        return { code: 0, stdout: `${STABLE_TARGET.commit}\n`, stderr: '' }
+        return { code: 0, stdout: `${target.commit}\n`, stderr: '' }
       }
       if (/git -C \/new\/(?:marketplace|tenon) remote get-url origin$/.test(text)) {
         return { code: 0, stdout: 'https://github.com/jefferysha/tenon.git\n', stderr: '' }
@@ -305,7 +308,7 @@ function updateEnv(
         return { code: 0, stdout: '', stderr: '' }
       }
       if (text === 'git -C /new/marketplace describe --tags --exact-match HEAD') {
-        return { code: 0, stdout: `${STABLE_TARGET.tag}\n`, stderr: '' }
+        return { code: 0, stdout: `${target.tag}\n`, stderr: '' }
       }
       return result
     },
@@ -374,6 +377,7 @@ function requireVersionedHostRebind(
   env: SetupEnv,
   calls: Calls,
   host: 'codex' | 'claude',
+  target: StableReleaseTarget = STABLE_TARGET,
 ): void {
   const registered = () => calls.exec.some(([, args]) => args[0] === 'plugin'
     && args[1] === 'marketplace'
@@ -381,7 +385,7 @@ function requireVersionedHostRebind(
   const readText = env.readText
   env.readText = (path) => host === 'codex'
     && path.endsWith('/.codex-marketplace-install.json')
-    ? JSON.stringify({ ref_name: registered() ? STABLE_TARGET.tag : 'main' })
+    ? JSON.stringify({ ref_name: registered() ? target.tag : 'main' })
     : readText(path)
   const runCommand = env.runCommand
   env.runCommand = (command, args) => {
@@ -706,6 +710,111 @@ describe('tenon update', () => {
     ])
     expect(runtime.calls.activations).toEqual([])
     expect(deps.errLines.join('\n')).toContain('拒绝从active managed runtime 2.0.0 降级到 1.2.3')
+  })
+
+  const RESET_TARGET = { version: '0.1.0', tag: 'v0.1.0', commit: 'a'.repeat(40) }
+  const codexInventory = (version: string) => JSON.stringify({
+    installed: [{
+      pluginId: 'tenon@tenon',
+      name: 'tenon',
+      marketplaceName: 'tenon',
+      version,
+      source: { path: '/new/tenon' },
+    }],
+  })
+
+  test('a retired 1.x host plugin and runtime migrate to 0.x instead of being rejected as downgrade', async () => {
+    const deps = makeDeps()
+    const releaseId = `sha256-${'b'.repeat(64)}`
+    const { env, calls } = updateEnv((cmd, args) => {
+      if (cmd !== 'codex' || args.join(' ') !== 'plugin list --json') return { code: 0, stdout: '', stderr: '' }
+      const installed = calls.exec.some(([command, called]) => command === 'codex'
+        && called.join(' ') === 'plugin add tenon@tenon --json')
+      return { code: 0, stdout: codexInventory(installed ? RESET_TARGET.version : '1.1.5'), stderr: '' }
+    }, {}, RESET_TARGET)
+    requireVersionedHostRebind(env, calls, 'codex', RESET_TARGET)
+    const runtime = fakeRuntimeInstaller(false, null, releaseId, '1.1.5')
+
+    const result = await cmdUpdate(
+      deps,
+      { codex: true, auto: true },
+      env,
+      runtime.installer,
+      fakeDashboardStarter([], null, '1.2.3', undefined, RESET_TARGET.version).starter,
+      { resolve: async () => RESET_TARGET },
+      async () => ({ pluginVersion: RESET_TARGET.version, payloadDigest: 'b'.repeat(64) }),
+    )
+    expect(result, deps.errLines.join('\n')).toBe(0)
+    expect(runtime.calls.activations).toHaveLength(1)
+    expect(calls.exec.some(([cmd, args]) => cmd === 'codex'
+      && args.join(' ') === 'plugin marketplace add jefferysha/tenon --ref v0.1.0 --json')).toBe(true)
+    expect(deps.outLines.join('\n')).toContain('宿主 plugin 1.1.5 属于已退役的 1.x 版本线；迁移到 0.1.0')
+    expect(deps.errLines.join('\n')).not.toContain('拒绝从')
+  })
+
+  test('a newer 0.x host plugin still rejects update to an older 0.x', async () => {
+    const deps = makeDeps()
+    const { env, calls } = updateEnv((cmd, args) =>
+      cmd === 'codex' && args.join(' ') === 'plugin list --json'
+        ? { code: 0, stdout: codexInventory('0.1.1'), stderr: '' }
+        : { code: 0, stdout: '', stderr: '' }, {}, RESET_TARGET)
+    const runtime = fakeRuntimeInstaller()
+
+    expect(await cmdUpdate(
+      deps,
+      { codex: true },
+      env,
+      runtime.installer,
+      fakeDashboardStarter().starter,
+      { resolve: async () => RESET_TARGET },
+    )).toBe(1)
+    expect(calls.exec.filter(([cmd]) => cmd !== 'git').map(([cmd, args]) => [cmd, args.join(' ')])).toEqual([
+      ['codex', 'plugin list --json'],
+    ])
+    expect(runtime.calls.activations).toEqual([])
+    expect(deps.errLines.join('\n')).toContain('拒绝从宿主 plugin 0.1.1 降级到 0.1.0')
+  })
+
+  test('cleanup-pending for a retired 1.x runtime does not block the 0.x migration', async () => {
+    const deps = makeDeps()
+    const releaseId = `sha256-${'b'.repeat(64)}`
+    const paths = resolveRuntimePaths({ homeDir: '/home/update-test', env: {} })
+    const receiptPath = join(paths.migrationsRoot, 'host-plugin-convergence', 'codex.json')
+    const { env, calls } = updateEnv((cmd, args) => cmd === 'codex' && args.join(' ') === 'plugin list --json'
+      ? { code: 0, stdout: codexInventory(RESET_TARGET.version), stderr: '' }
+      : { code: 0, stdout: '', stderr: '' }, {}, RESET_TARGET)
+    requireVersionedHostRebind(env, calls, 'codex', RESET_TARGET)
+    const baseReadText = env.readText
+    env.readText = (path) => path === receiptPath
+      ? JSON.stringify({
+          version: 4,
+          transactionId: 'retired-cleanup-transaction',
+          state: 'cleanup-pending',
+          host: 'codex',
+          conflictPluginId: 'pipeline-lite@pipeline-lite',
+          conflictScopes: ['user'],
+          releaseId,
+          releaseRoot: `/runtime/releases/${releaseId}/payload`,
+          candidateRoot: '/old/tenon',
+          stableTarget: { version: '1.1.5', tag: 'v1.1.5', commit: 'c'.repeat(40) },
+          createdAtEpoch: 1_700_000_000,
+          updatedAt: '2026-09-15T00:00:00Z',
+        })
+      : baseReadText(path)
+    const runtime = fakeRuntimeInstaller(false, null, releaseId, '1.1.5')
+
+    const result = await cmdUpdate(
+      deps,
+      { codex: true, auto: true },
+      env,
+      runtime.installer,
+      fakeDashboardStarter([], null, '1.2.3', undefined, RESET_TARGET.version).starter,
+      { resolve: async () => RESET_TARGET },
+      async () => ({ pluginVersion: RESET_TARGET.version, payloadDigest: 'b'.repeat(64) }),
+    )
+    expect(result, deps.errLines.join('\n')).toBe(0)
+    expect(runtime.calls.activations).toHaveLength(1)
+    expect(deps.outLines.join('\n')).toContain('检测到旧 1.1.5 cleanup-pending；继续发布更高 stable 0.1.0')
   })
 
   test('an exact stable host, managed runtime, and Dashboard is a zero-mutation no-op', async () => {

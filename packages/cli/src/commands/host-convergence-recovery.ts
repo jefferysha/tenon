@@ -15,7 +15,7 @@ import { nativeHostMatchesStableTarget } from './managed-host-observation.js'
 import { decodeNativeHostObservation, observeNativeHost } from './managed-host-state.js'
 import type { NativePipelineHost } from './plugin-host.js'
 import type { SetupEnv } from './setupEnvironment.js'
-import { compareStableVersions, resolveStableTagTarget, type StableReleaseTarget } from './stable-release.js'
+import { compareReleaseOrder, resolveStableTagTarget, type StableReleaseTarget } from './stable-release.js'
 import {
   nativeCandidateValidationOptions,
   nativeRuntimeInstallerScope,
@@ -103,7 +103,7 @@ export async function hostConvergenceHasNewerStableCandidate(
       || active.source.host !== host) return false
     const observation = decodeNativeHostObservation(observeNativeHost(env, host))
     if (observation.plugin === null
-      || compareStableVersions(observation.plugin.version, active.source.pluginVersion) <= 0) return false
+      || compareReleaseOrder(observation.plugin.version, active.source.pluginVersion) <= 0) return false
     const target = resolveStableTagTarget(env, observation.plugin.version)
     if (!nativeHostMatchesStableTarget(env, host, target)) return false
     const candidate = await candidateInspector(

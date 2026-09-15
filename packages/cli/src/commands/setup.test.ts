@@ -36,9 +36,11 @@ import { resolveRuntimePaths } from '../runtime/paths.js'
 import type { ReleasedDashboardStarter } from './dashboard.js'
 import { createHostTargetPlan } from './host-target-plan.js'
 import { cmdUpdate } from './update.js'
+import { hostConvergenceHasNewerStableCandidate } from './host-convergence-recovery.js'
 import {
   readHostPluginConvergenceReceipt,
   recordPendingHostPluginConflict,
+  type HostPluginConvergenceReceipt,
 } from './host-plugin-convergence.js'
 import { parseHostPluginInventory, TENON_RELEASE_VERSION } from './plugin-host.js'
 import { freezeTrustedExecutable, type TrustedExecutable } from './trusted-executable.js'
@@ -1354,6 +1356,153 @@ describe('①a 自动更新偏好 —— 只允许原生宿主，且在插件校
       stableTarget: { version: TENON_RELEASE_VERSION, tag: CURRENT_RELEASE_TAG },
     })
   })
+
+  function recordAbsentLegacyReceiptAgainstResetTarget(receiptVersion: string) {
+    const deps = makeDeps()
+    const oldReleaseId = `sha256-${'c'.repeat(64)}`
+    const newReleaseId = `sha256-${'a'.repeat(64)}`
+    const target = { version: '0.1.0', tag: 'v0.1.0', commit: 'a'.repeat(40) }
+    const paths = resolveRuntimePaths({ homeDir: '/home/test', env: {} })
+    const receiptPath = join(paths.migrationsRoot, 'host-plugin-convergence', 'codex.json')
+    const oldReceipt = `${JSON.stringify({
+      version: 4,
+      transactionId: 'old-transaction',
+      state: 'cleanup-pending',
+      host: 'codex',
+      conflictPluginId: 'pipeline-lite@pipeline-lite',
+      conflictScopes: ['user'],
+      releaseId: oldReleaseId,
+      releaseRoot: `/runtime/releases/${oldReleaseId}/payload`,
+      candidateRoot: '/legacy/previous',
+      stableTarget: { version: receiptVersion, tag: `v${receiptVersion}`, commit: 'c'.repeat(40) },
+      createdAtEpoch: 1_700_000_000,
+      updatedAt: '2026-09-15T00:00:00Z',
+    })}\n`
+    const { env, calls } = spyEnv({
+      pathExists: (path) => path === receiptPath,
+      readText: (path) => path === receiptPath ? oldReceipt : undefined,
+    })
+    const inventory = parseHostPluginInventory('codex', JSON.stringify({
+      installed: [{
+        pluginId: 'tenon@tenon',
+        name: 'tenon',
+        marketplaceName: 'tenon',
+        enabled: true,
+        version: target.version,
+        source: { path: '/installed/tenon' },
+      }],
+    }))
+    expect(inventory).not.toBeNull()
+    const activation = {
+      release: {
+        version: 1 as const,
+        releaseId: newReleaseId,
+        payloadDigest: 'a'.repeat(64),
+        createdAt: '2026-09-16T00:00:00Z',
+        source: { host: 'codex' as const, pluginVersion: target.version },
+      },
+      selection: {
+        version: 1 as const,
+        revision: 2,
+        activeRelease: newReleaseId,
+        previousRelease: oldReleaseId,
+        updatedAt: '2026-09-16T00:00:00Z',
+      },
+      releaseRoot: `/runtime/releases/${newReleaseId}`,
+    }
+    const result = recordPendingHostPluginConflict(
+      deps,
+      env,
+      'codex',
+      inventory!,
+      activation,
+      '/installed/tenon',
+      'new-transaction',
+      target,
+    )
+    const written = calls.writeText
+      .filter(([path]) => path === receiptPath)
+      .map(([, text]) => JSON.parse(text))
+    return { deps, result, written }
+  }
+
+  test('legacy plugin already absent lets 0.1.0 supersede a retired 1.1.5 receipt', () => {
+    const { result, written } = recordAbsentLegacyReceiptAgainstResetTarget('1.1.5')
+    expect(result).toBe(true)
+    expect(written.at(-1)).toMatchObject({
+      state: 'completed',
+      transactionId: 'new-transaction',
+      stableTarget: { version: '0.1.0', tag: 'v0.1.0' },
+    })
+  })
+
+  test('legacy plugin already absent keeps a newer 0.1.1 receipt against 0.1.0', () => {
+    const { deps, result, written } = recordAbsentLegacyReceiptAgainstResetTarget('0.1.1')
+    expect(result).toBe(false)
+    expect(written).toEqual([])
+    expect(deps.errLines.join('\n')).toContain('未被当前稳定版本超越')
+  })
+
+  test.each([
+    ['0.1.0', '1.1.5', false],
+    ['1.1.5', '0.1.0', true],
+  ] as const)(
+    'a pending receipt on runtime %s treats host %s as newer candidate: %s',
+    async (runtimeVersion, hostVersion, orderGatePasses) => {
+      const releaseId = `sha256-${'d'.repeat(64)}`
+      const receipt: HostPluginConvergenceReceipt = {
+        version: 4,
+        transactionId: 'pending-transaction',
+        state: 'cleanup-pending',
+        host: 'codex',
+        conflictPluginId: 'pipeline-lite@pipeline-lite',
+        conflictScopes: ['user'],
+        releaseId,
+        releaseRoot: `/runtime/releases/${releaseId}/payload`,
+        candidateRoot: '/installed/tenon',
+        createdAtEpoch: 1_700_000_000,
+        updatedAt: '2026-09-15T00:00:00Z',
+      }
+      const installer = {
+        inspect: async () => ({
+          selection: { version: 1, revision: 1, activeRelease: releaseId, previousRelease: null, updatedAt: '2026-09-15T00:00:00Z' },
+          active: {
+            version: 1,
+            releaseId,
+            payloadDigest: 'd'.repeat(64),
+            createdAt: '2026-09-15T00:00:00Z',
+            source: { host: 'codex', pluginVersion: runtimeVersion },
+          },
+          previous: null,
+          activeValid: true,
+          previousValid: false,
+          lastAudit: null,
+        }),
+      } as unknown as RuntimeInstaller
+      const { env, calls } = spyEnv({}, (cmd, args) => cmd === 'codex' && args.join(' ') === 'plugin list --json'
+        ? {
+            code: 0,
+            stdout: JSON.stringify({
+              installed: [{
+                pluginId: 'tenon@tenon',
+                name: 'tenon',
+                marketplaceName: 'tenon',
+                enabled: true,
+                version: hostVersion,
+                source: { path: '/installed/tenon' },
+              }],
+            }),
+            stderr: '',
+          }
+        : { code: 0, stdout: '', stderr: '' })
+
+      expect(await hostConvergenceHasNewerStableCandidate(env, installer, 'codex', receipt)).toBe(false)
+      expect(calls.exec.some(([cmd, args]) => cmd === 'codex' && args.join(' ') === 'plugin list --json')).toBe(true)
+      const tagProofs = calls.exec.filter(([cmd, args]) => cmd === 'git' && args[0] === 'ls-remote')
+      expect(tagProofs.length > 0).toBe(orderGatePasses)
+      if (orderGatePasses) expect(tagProofs[0]![1]).toContain(`refs/tags/v${hostVersion}`)
+    },
+  )
 
   test.each([
     ['the same transaction and release', 'current-transaction', true],

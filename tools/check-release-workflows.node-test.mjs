@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { chmod, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -781,4 +782,197 @@ test('published stable releases trigger an isolated public install, repeat, upda
   assert.match(writer, /gh workflow run release-public-acceptance\.yml/)
   assert.match(writer, /--ref main/)
   assert.match(writer, /-f tag="\$RELEASE_TAG"/)
+})
+
+test('CI and release candidate accept only the documented N-1 skip exit and never hard-code the pinned release', async () => {
+  const [ci, candidate, fixture] = await Promise.all([
+    text('.github/workflows/ci.yml'),
+    text('.github/workflows/release-candidate.yml'),
+    text('tools/fixtures/n-minus-one-release.json'),
+  ])
+  const meta = JSON.parse(fixture)
+  assert.equal(meta.schemaVersion, 3)
+  assert.ok(['none', 'pinned'].includes(meta.status))
+  for (const script of [
+    workflowRunScript(ci, '准备真实 N-1 已发布 bundle'),
+    workflowRunScript(candidate, 'Build complete release payload and prove committed freshness'),
+  ]) {
+    assert.match(script, /if bash tools\/prepare-n-minus-one-release\.sh "\$[a-z_]+"; then/)
+    assert.match(script, /code=\$\?\n\s*\[ "\$code" -eq 78 \] \|\| exit "\$code"/)
+    assert.doesNotMatch(script, /v1\.0\.1/)
+  }
+})
+
+const N_MINUS_ONE_ENTRIES = ['.claude-plugin/plugin.json', '.codex-plugin/plugin.json', 'packages/cli/dist/tenon.mjs']
+
+function fixtureGit(cwd, ...args) {
+  const result = spawnSync('git', [
+    '-c', 'user.name=Tenon Test',
+    '-c', 'user.email=test@example.invalid',
+    '-c', 'commit.gpgsign=false',
+    '-c', 'tag.gpgsign=false',
+    '-c', 'core.hooksPath=/dev/null',
+    ...args,
+  ], { cwd, encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr)
+  return result.stdout.trim()
+}
+
+async function nMinusOneReleaseRoot(t, versions) {
+  const directory = await fixtureDir(t)
+  await mkdir(join(directory, 'tools', 'fixtures'), { recursive: true })
+  await cp(
+    join(root, 'tools/prepare-n-minus-one-release.sh'),
+    join(directory, 'tools/prepare-n-minus-one-release.sh'),
+  )
+  fixtureGit(directory, 'init', '-q')
+  const releases = {}
+  for (const version of versions) {
+    const cli = `// tenon ${version}\n`
+    for (const manifestDir of ['.claude-plugin', '.codex-plugin']) {
+      await mkdir(join(directory, manifestDir), { recursive: true })
+      await writeFile(join(directory, manifestDir, 'plugin.json'), JSON.stringify({ version }))
+    }
+    await mkdir(join(directory, 'packages/cli/dist'), { recursive: true })
+    await writeFile(join(directory, 'packages/cli/dist/tenon.mjs'), cli)
+    fixtureGit(directory, 'add', ...N_MINUS_ONE_ENTRIES)
+    fixtureGit(directory, 'commit', '-q', '-m', `release ${version}`)
+    fixtureGit(directory, 'tag', `v${version}`)
+    releases[version] = {
+      gitCommit: fixtureGit(directory, 'rev-parse', 'HEAD'),
+      cliSha256: createHash('sha256').update(cli).digest('hex'),
+    }
+  }
+  let runs = 0
+  const run = async (current, fixture) => {
+    await writeFile(join(directory, 'package.json'), JSON.stringify({ version: current }))
+    await writeFile(join(directory, 'tools/fixtures/n-minus-one-release.json'), JSON.stringify(fixture))
+    runs += 1
+    const result = spawnSync(
+      'bash',
+      [join(directory, 'tools/prepare-n-minus-one-release.sh'), join(directory, `out-${runs}`)],
+      { encoding: 'utf8' },
+    )
+    return { status: result.status, output: `${result.stdout}${result.stderr}` }
+  }
+  const pinned = (version, overrides = {}) => ({
+    schemaVersion: 3,
+    status: 'pinned',
+    tag: `v${version}`,
+    pluginVersion: version,
+    gitCommit: releases[version].gitCommit,
+    cliEntry: 'packages/cli/dist/tenon.mjs',
+    cliSha256: releases[version].cliSha256,
+    payloadEntries: N_MINUS_ONE_ENTRIES,
+    ...overrides,
+  })
+  return { run, pinned, releases }
+}
+
+async function assertPrepare(run, current, fixture, status, message) {
+  const result = await run(current, fixture)
+  assert.equal(result.status, status, result.output)
+  assert.ok(result.output.includes(message), result.output)
+}
+
+test('N-1 prepare accepts only fixture schema 3 and skips exactly once for the release it names', async (t) => {
+  const { run, pinned } = await nMinusOneReleaseRoot(t, ['0.1.0'])
+  const none = {
+    schemaVersion: 3,
+    status: 'none',
+    release: 'v0.1.0',
+    reason: 'first release after the version reset; no earlier 0.x release exists',
+  }
+
+  await assertPrepare(run, '0.1.1', { ...pinned('0.1.0'), schemaVersion: 2 }, 1, 'N-1 fixture 结构非法')
+  await assertPrepare(run, '0.1.0', { ...none, status: 'skipped' }, 1, 'N-1 fixture 结构非法')
+  await assertPrepare(run, '0.1.0', { ...none, reason: '' }, 1, 'N-1 fixture 结构非法')
+  await assertPrepare(
+    run,
+    '0.1.0',
+    none,
+    78,
+    'N-1 skipped: v0.1.0 first release after the version reset; no earlier 0.x release exists',
+  )
+  await assertPrepare(run, '0.1.1', none, 1, 'N-1 一次性跳过只适用于 v0.1.0；当前 v0.1.1 必须固定最近的正式版本')
+})
+
+test('N-1 prepare pins the latest non-retired stable release once the current version leaves the retired line', async (t) => {
+  const { run, pinned, releases } = await nMinusOneReleaseRoot(t, ['1.0.1', '1.0.9', '0.1.0', '0.1.1', '1.1.5'])
+
+  await assertPrepare(run, '1.1.5', pinned('1.0.1'), 0, 'N-1 release ready: v1.0.1 plugin@1.0.1')
+  await assertPrepare(run, '0.1.1', pinned('1.0.1'), 1, 'N-1 基线不能是已退役版本 v1.0.1')
+  await assertPrepare(run, '0.1.1', pinned('0.1.0'), 0, 'N-1 release ready: v0.1.0 plugin@0.1.0')
+  await assertPrepare(run, '0.2.0', pinned('0.1.0'), 1, 'N-1 基线 v0.1.0 不是低于 v0.2.0 的最近正式版本 v0.1.1')
+  await assertPrepare(run, '0.2.0', pinned('0.1.1'), 0, 'N-1 release ready: v0.1.1 plugin@0.1.1')
+  await assertPrepare(run, '1.2.0', pinned('0.1.1'), 0, 'N-1 release ready: v0.1.1 plugin@0.1.1')
+  await assertPrepare(
+    run,
+    '0.2.0',
+    pinned('0.1.1', { gitCommit: releases['0.1.0'].gitCommit }),
+    1,
+    'N-1 tag 未绑定固定 commit',
+  )
+  await assertPrepare(
+    run,
+    '0.2.0',
+    pinned('0.1.1', { tag: 'v0.1.5', pluginVersion: '0.1.5' }),
+    1,
+    'N-1 tag 未绑定固定 commit',
+  )
+  await assertPrepare(run, '0.2.0', pinned('0.1.1', { cliSha256: '0'.repeat(64) }), 1, 'N-1 CLI 摘要不匹配')
+})
+
+test('the retired 1.x version-number literal is identical in the CLI, installer, candidate and N-1 prepare', async () => {
+  const literal = '^1\\.(0\\.[0-9]|1\\.[0-5])$'
+  const [cli, installer, candidate, prepare] = await Promise.all([
+    text('packages/cli/src/commands/stable-release.ts'),
+    text('install.sh'),
+    text('.github/workflows/release-candidate.yml'),
+    text('tools/prepare-n-minus-one-release.sh'),
+  ])
+
+  assert.ok(cli.includes(`RETIRED_RELEASE_VERSION = /${literal}/\n`))
+  assert.ok(installer.includes(`const retired = /${literal}/;`))
+  assert.ok(candidate.includes(`[[ "\${RELEASE_TAG#v}" =~ ${literal} ]]`))
+  assert.ok(prepare.includes(`RETIRED_RELEASE_VERSION='${literal}'`))
+  for (const source of [cli, installer, candidate, prepare]) {
+    assert.equal(source.split('1\\.(0\\.[0-9]|').length - 1, 1)
+  }
+})
+
+test('release candidate rejects a retired 1.x tag before any git or gate work', async (t) => {
+  const candidate = await text('.github/workflows/release-candidate.yml')
+  const script = workflowRunScript(candidate, 'Prove exact current main candidate and compatible tag')
+  assert.ok(script.indexOf('uses a retired 1.x version number') < script.indexOf('version mismatch'))
+  const directory = await fixtureDir(t)
+  const bin = join(directory, 'bin')
+  const gitLog = join(directory, 'git.log')
+  await mkdir(bin)
+  await writeExecutable(join(bin, 'git'), `#!/bin/sh\necho "$*" >> "${gitLog}"\nexit 97\n`)
+  const runCandidate = (tag) => runBash(script, directory, {
+    PATH: `${bin}:${process.env.PATH}`,
+    CANDIDATE_SHA: candidateSha,
+    RELEASE_TAG: tag,
+  })
+
+  for (const tag of ['v1.0.0', 'v1.0.3', 'v1.0.9', 'v1.1.0', 'v1.1.5']) {
+    const retired = runCandidate(tag)
+    assert.equal(retired.status, 1, retired.stderr)
+    assert.match(retired.stderr, new RegExp(`tag ${tag.replaceAll('.', '\\.')} uses a retired 1\\.x version number`))
+  }
+  await assert.rejects(readFile(gitLog, 'utf8'), { code: 'ENOENT' })
+  for (const tag of ['v0.1.0', 'v1.0.10', 'v1.1.6', 'v1.2.0']) {
+    const allowed = runCandidate(tag)
+    assert.equal(allowed.status, 97, allowed.stderr)
+    assert.doesNotMatch(allowed.stderr, /retired/)
+  }
+})
+
+test('release publication creates every new GitHub Release as Latest', async () => {
+  const release = await text('.github/workflows/release.yml')
+  const start = release.indexOf('gh release create "$RELEASE_TAG"')
+  assert.notEqual(start, -1)
+  const create = release.slice(start, release.indexOf('\n', release.indexOf('--title', start)))
+  assert.match(create, /\n\s+--latest \\\n/)
 })
