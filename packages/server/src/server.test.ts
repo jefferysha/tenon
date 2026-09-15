@@ -18,7 +18,8 @@ import {
   recordWorkflowPhaseSkill,
   seedGovernedDocumentEvidence,
 } from './test-support.js'
-import type { FlowEngine, StateStore } from '@tenon/kernel'
+import type { FlowEngine, StateStore, UpstreamSkillView } from '@tenon/kernel'
+import { readUpstreamSkillView } from '@tenon/automation'
 import {
   builtinTrack, compileAutomationPolicySnapshot, createLoopLedgerStore, effectiveWorkflowPlanBinding,
   loadEffectiveWorkflowPlan, loadManifest, loadRegistry,
@@ -2385,14 +2386,13 @@ describe('GET /api/skills/:name/files · /file —— 技能目录清单与单�
 })
 
 describe('GET /api/skills/registry —— 全部已注册 skill 明细(T6 升级为 SkillEntry[])', () => {
-  it('返回本仓真实 skills 目录 + EXTERNAL-SKILLS.md 合并明细,逐字段符合 SkillEntry 形状', async () => {
+  it('返回本仓真实 skills 目录与 registry 合并明细,逐字段符合 SkillEntry 形状', async () => {
     const h = await start()
     const r = await reqGet(h.port, '/api/skills/registry')
     expect(r.status).toBe(200)
     const body = r.json<{ skills: Array<{ name: string; installed: boolean; source: string; tier: string; available: boolean; description?: string; installCmd?: string }> }>()
     const names = body.skills.map((s) => s.name)
     expect(names).toContain('tenon-open') // 本仓真实存在的本地 skill 目录
-    expect(names.length).toBeGreaterThan(14) // 必须包含外部登记，不能只有本地 14 个
     for (const e of body.skills) {
       expect(typeof e.name).toBe('string')
       expect(typeof e.installed).toBe('boolean')
@@ -2403,11 +2403,20 @@ describe('GET /api/skills/registry —— 全部已注册 skill 明细(T6 升级
     expect(body.skills.some((entry) => typeof entry.description === 'string' && entry.description.length > 0)).toBe(true)
     const local = body.skills.find((s) => s.name === 'tenon-open')!
     expect(local.source).toBe('local-plugin')
-    // builtin 四件套恒已装(写死短名单,不依赖测试机环境)
-    for (const b of ['verify', 'run', 'code-review', 'security-review']) {
-      const e = body.skills.find((s) => s.name === b)
-      if (e) expect(e.installed).toBe(true)
-    }
+    expect(body.skills.some((entry) => entry.source === 'builtin')).toBe(false)
+  })
+})
+
+describe('GET /api/skills/sources —— 上游技能来源视图（只读，不联网）', () => {
+  it('返回与 doctor 同一 reader 对本仓 payload 根与 stateRoot 构建的视图', async () => {
+    const hostHome = await makeTempHome()
+    const paths = resolveServerPaths({ home: hostHome, env: {} })
+    const h = await start({ hostHome, paths })
+    const r = await reqGet(h.port, '/api/skills/sources')
+    expect(r.status).toBe(200)
+    const body = r.json<UpstreamSkillView>()
+    expect(body).toEqual(readUpstreamSkillView(process.cwd(), paths.stateRoot))
+    expect(body.rows.some((row) => row.id === 'tenon' && row.origin === 'tenon' && row.status === 'bundled')).toBe(true)
   })
 })
 
@@ -6134,6 +6143,7 @@ describe('Bug1：GET 只读数据端点 DNS 重绑定 Host 守卫（统一补齐
       '/api/traces/timeline?session=x',
       '/api/config',
       '/api/skills/registry',
+      '/api/skills/sources',
       `/api/hooks?${rootQ}`,
       `/api/automation?${rootQ}`,
       `/api/workflows?${rootQ}`,
