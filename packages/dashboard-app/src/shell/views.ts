@@ -1,9 +1,9 @@
 /**
- * 顶部条两个标签对应的视图 id。id 沿用历史值（URL `?view=` 深链与 localStorage 记忆继续有效），
- * 用户可见的标签文案走 i18n `nav.*`：progress=工作台、workbench=工作流。
+ * 顶部条标签对应的视图 id。id 沿用历史值（URL `?view=` 深链与 localStorage 记忆继续有效），
+ * 用户可见的标签文案走 i18n `nav.*`：progress=工作台、workbench=工作流、skills=技能（全局，不依赖所选项目）。
  * 其余历史视图（overview / projects / afk / machine / hostPlan）已退役，深链落回工作台。
  */
-export const VIEWS = ['progress', 'workbench'] as const
+export const VIEWS = ['progress', 'workbench', 'skills'] as const
 export type View = (typeof VIEWS)[number]
 
 export type ThemePreference = 'system' | 'light' | 'dark'

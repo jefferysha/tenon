@@ -70,6 +70,9 @@ beforeEach(() => {
       if (url === '/api/loops/snapshot') {
         return { ok: true, json: async () => ({ generated_at: '2026-07-11T00:00:00Z', rows: [] }) }
       }
+      if (url === '/api/skills/sources') {
+        return { ok: true, json: async () => ({ updatedAt: null, lastRunAt: null, rows: [{ id: 'tenon', origin: 'tenon', status: 'bundled' }] }) }
+      }
       throw new Error(`unexpected fetch ${url}`)
     }),
   )
@@ -81,6 +84,22 @@ afterEach(() => {
   } else {
     Reflect.deleteProperty(window, 'navigation')
   }
+})
+
+describe('技能视图（nav 技能 / ?view=skills）', () => {
+  it('顶部条 nav-skills 切到技能视图，?view=skills 深链直达', async () => {
+    render(<I18nProvider><App /></I18nProvider>)
+    fireEvent.click(await screen.findByTestId('nav-skills'))
+    expect(await screen.findByTestId('skills-view', {}, { timeout: 5_000 })).toBeInTheDocument()
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('skills'))
+    expect(screen.getByTestId('nav-skills')).toHaveTextContent('技能')
+  })
+
+  it('?view=skills 深链加载即渲染技能视图', async () => {
+    window.history.replaceState({}, '', '/?view=skills')
+    render(<I18nProvider><App /></I18nProvider>)
+    expect(await screen.findByTestId('skills-row-tenon', {}, { timeout: 5_000 })).toBeInTheDocument()
+  })
 })
 
 const EDITABLE_WORKFLOW = {
@@ -1052,11 +1071,11 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     expect(screen.queryByTestId('workbench-view')).toBeNull()
   })
 
-  it('顶部条两个标签：工作台 / 工作流；项目切换器与设置都在顶部条', async () => {
+  it('顶部条三个标签：工作台 / 工作流 / 技能；项目切换器与设置都在顶部条', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
     const nav = screen.getByTestId('primary-nav')
-    expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['工作台', '工作流'])
+    expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['工作台', '工作流', '技能'])
     expect(screen.getByTestId('project-switcher')).toBeInTheDocument()
     expect(screen.queryByTestId('app-navigation')).toBeNull()
     expect(screen.queryByTestId('secondary-nav')).toBeNull()

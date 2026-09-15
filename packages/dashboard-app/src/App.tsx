@@ -27,6 +27,9 @@ const WorkspaceView = lazy(async () => ({
 const WorkflowView = lazy(async () => ({
   default: (await import('./workflow/WorkflowView')).WorkflowView,
 }))
+const SkillsView = lazy(async () => ({
+  default: (await import('./skills/SkillsView')).SkillsView,
+}))
 
 // 视图记忆。旧值（overview/projects/hostPlan/inbox/board/…）随 IA 收敛退役——initialView 以 isView
 // 白名单校验，不认识的一律兜底回 progress（工作台，默认落地页）。
@@ -319,7 +322,7 @@ function AppShell(): JSX.Element {
               {t('common.snapshot_retry')}
             </button>
           </section>
-        ) : snapshot && snapshot.project_count === 0 && view !== 'workbench' ? (
+        ) : snapshot && snapshot.project_count === 0 && view !== 'workbench' && view !== 'skills' ? (
           // 零项目教学态：tenon init 自动登记，无注册表单。
           <div className="px-6"><Onboarding kind="no-project" /></div>
         ) : (
@@ -348,6 +351,7 @@ function AppShell(): JSX.Element {
             onToast={(m) => showFlash('toast', m)}
           />
         )}
+        {view === 'skills' && <SkillsView />}
           </>
         )}
         </Suspense>
