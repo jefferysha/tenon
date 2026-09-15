@@ -2,8 +2,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { lstatSync } from 'node:fs'
 import { join, resolve as resolvePath } from 'node:path'
 import {
+  actorOf,
   applyLevelChange,
   assertWorkflowAllowed,
+  isTenonUser,
+  USER_MISSING_HINT,
   builtinWorkflow,
   createEffectiveSkillResolver,
   createTrack,
@@ -157,6 +160,9 @@ export async function handlePostChangesRoutes(
       if (!taskPrompt.ok) return sendJson(res, 400, { ok: false, error: taskPrompt.error })
       const activation = parseChangeSessionActivation(b.activate_session, taskPrompt.value !== null)
       if (!activation.ok) return sendJson(res, 400, { ok: false, error: activation.error })
+      const user = deps.resolveUser(rootCheck.anchor.path)
+      if (!isTenonUser(user)) return sendJson(res, 412, { ok: false, code: 'user-missing', error: USER_MISSING_HINT })
+      const creator = actorOf(user)
       // track/workflow 绑定改走 Track Registry（GOAL.md 清单 T · R2）：缺省仍是不可删内建轨 'chat'；
       // 按 root 现载 registry（缺 tracks.yaml → 内建 Track，requireTrack 与旧 TRACKS 枚举校验等价），
       // 再校验「该 track 是否允许该 workflow」（assertWorkflowAllowed）。全部先于任何落盘。
@@ -242,7 +248,7 @@ export async function handlePostChangesRoutes(
               // “workflow 已校验但引用尚未落盘”的窗口。
               const initResult = await runRepo.initChange({
                 repoRoot: root, name, track: track.id, reviewSeed: track.policyProfile.reviewSeed,
-                preset: 'full', clock, initialWorkflow,
+                preset: 'full', clock, initialWorkflow, creator,
                 initialFiles: [{
                   relativePath: '.pipeline-selection.json',
                   content: `${JSON.stringify({
@@ -288,7 +294,7 @@ export async function handlePostChangesRoutes(
       // best-effort（CONTRACT §1 语义同 CLI recordHistory）：server 全源无 console，WARN 走
       // stderr——daemon 日志可见且不污染任何 HTTP 响应。
       try {
-        await history.append(created, { ts: clock(), kind: 'init' })
+        await history.append(created, { ts: clock(), kind: 'init', actor: creator })
       } catch (e) {
         process.stderr.write(`WARN: history 写入失败: ${errMsg(e)}\n`)
       }

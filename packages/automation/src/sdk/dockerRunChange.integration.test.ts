@@ -13,6 +13,8 @@ import type { VerifierPort } from '../verifier/verifier.js'
 import { createAutomation } from './sdk.js'
 import { createDockerRunChange } from './dockerRunChange.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const TEST_VERIFIER_IDENTITY = {
   kind: 'host-verifier', verifier: 'it-echo-verifier', version: '1',
 } as const
@@ -155,7 +157,7 @@ describe('createDockerRunChange · 真 docker 全链执行（#29-wire）', () =>
 
   const seedChange = async (name: string): Promise<string> => {
     const dir = await store.init({
-      repoRoot: repo, name, track: 'backend', reviewSeed: 'pending', preset: 'full', clock,
+      repoRoot: repo, name, track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock,
     })
     await store.set(dir, 'phase', 'build')
     await git(repo, ['add', '-A'])

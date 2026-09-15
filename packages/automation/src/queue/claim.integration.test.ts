@@ -11,6 +11,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { claim, commitFailureOwned, incrAttempts, markQueued, setAutomationOwned } from './claim.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 /**
  * 真 fs + 真 kernel StateStore：驱动 automation 字段的 cas 并发闸（无 mock）。
  * 每例真起临时 repo → init change → 真读写 .pipeline.yaml → 断言真实落盘。
@@ -23,7 +25,7 @@ describe('cas 并发闸（真 kernel cas 写 automation 字段）', () => {
   const initChange = async (name: string, track: 'backend' | 'pm' = 'backend') =>
     store.init({
       repoRoot: root, name, track, reviewSeed: track === 'pm' ? 'skipped' : 'pending',
-      preset: 'full', clock: fixedClock,
+      creator: TEST_CREATOR, preset: 'full', clock: fixedClock,
     })
 
   beforeEach(async () => {

@@ -35,6 +35,8 @@ import type { PipelineCliRunner } from './operations.js'
 import type { RouterPatternScorer } from './routerPreview.js'
 import type { CadenceSchedulerOptions } from './cadence.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 /** 接线级：server 真消费 kernel 单一真相源（BACKLOG #25b / GOAL B2）——transition.ts 已删本地镜像，
  * TRANSITION_EVENTS/eventEdge 只是 kernel 的 re-export（引用同一对象=同一真相源）。 */
 describe('接线 —— server 事件表 = kernel 单源（无本地镜像）', () => {
@@ -1777,7 +1779,7 @@ describe('GET /api/change/:name/history —— transitionRecordId 来源判定�
     const { writeFile } = await import('node:fs/promises')
     const rows = [
       { ts: '2026-07-01T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete' },
-      { ts: '2026-07-02T00:00:00Z', kind: 'set', field: 'design_doc', by: 'user' },
+      { ts: '2026-07-02T00:00:00Z', kind: 'set', field: 'design_doc', actor: { id: 'user@x.io', name: 'User', trust: 'declared' } },
     ]
     await writeFile(join(h.changeDir, '.pipeline-history.jsonl'), rows.map((row) => JSON.stringify(row)).join('\n') + '\n', 'utf8')
     // sanity：确认这个 change 真的没有 runMetadata（从未经历过 runRepo.transact）
@@ -1815,7 +1817,7 @@ describe('GET /api/change/:name/history —— transitionRecordId 来源判定�
     const { writeFile } = await import('node:fs/promises')
     const nonTransitionRows = [
       { ts: '2026-07-06T00:00:00Z', kind: 'init' },
-      { ts: '2026-07-06T01:00:00Z', kind: 'set', field: 'design_doc', by: 'alice' },
+      { ts: '2026-07-06T01:00:00Z', kind: 'set', field: 'design_doc', actor: { id: 'alice@x.io', name: 'Alice', trust: 'declared' } },
       { ts: '2026-07-06T02:00:00Z', kind: 'tool', raw: 'ran-lint' },
       { ts: '2026-07-06T03:00:00Z', kind: 'prompt', raw: 'Q|A' },
       { ts: '2026-07-06T04:00:00Z', kind: 'import', raw: 'legacy-note' },
@@ -3528,7 +3530,7 @@ describe('GET /api/orchestration-graph —— Change 编排图', () => {
       name: 'modern-change',
       track: 'backend',
       reviewSeed: builtinTrack('backend').policyProfile.reviewSeed,
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       initialWorkflow: {
         workflow: 'modern',
         phase: 'external',
@@ -5267,7 +5269,7 @@ describe('未知 HTTP 方法（非 GET/POST/PATCH/PUT/DELETE）仍 405（既有�
 // ═══════════ G18：项目注册端点（spec §3.1，dashboard 闭环第一环）═══════════
 
 /** G18 端点专用 harness：不注入 registry，走 Tenon 平台配置域的真实文件读写。 */
-async function startWithHome(opts?: { runPipelineCli?: PipelineCliRunner }): Promise<{
+async function startWithHome(opts?: { runPipelineCli?: PipelineCliRunner; resolveUser?: DashboardServerOptions['resolveUser'] }): Promise<{
   srv: DashboardServer
   port: number
   token: string
@@ -5289,6 +5291,7 @@ async function startWithHome(opts?: { runPipelineCli?: PipelineCliRunner }): Pro
     clock: () => '2026-07-09T00:00:00Z',
     pollIntervalMs: 20,
     runPipelineCli: opts?.runPipelineCli,
+    ...(opts?.resolveUser === undefined ? {} : { resolveUser: opts.resolveUser }),
   })
   openServers.push(srv)
   const { port } = await srv.listen(0, '127.0.0.1')
@@ -5586,6 +5589,40 @@ describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
     expect(lines).toHaveLength(1)
     expect(lines[0]!.kind).toBe('init')
     expect(typeof lines[0]!.ts).toBe('string')
+  })
+
+  it('creator 与负责人 = 服务端解析的声明身份；init 历史带 actor；snapshot 投影 owner/creator', async () => {
+    const h = await startWithHome()
+    const proj = await withRegisteredProject(h)
+    const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'owned-a' }, { headers: { Authorization: `Bearer ${h.token}` } })
+    expect(r.status).toBe(200)
+    const dir = join(proj, 'openspec', 'changes', 'owned-a')
+    expect(await h.store.get(dir, 'created_by')).toBe('Tester <tester@tenon.test>')
+    expect(await h.store.get(dir, 'assignee')).toBe('Tester <tester@tenon.test>')
+    const history = JSON.parse((await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8')).trim()) as Record<string, unknown>
+    expect(history.actor).toEqual({ id: 'tester@tenon.test', name: 'Tester', trust: 'declared' })
+    const snapshot = (await reqGet(h.port, '/api/snapshot')).json<any>()
+    const change = snapshot.projects[0].changes.find((entry: { name: string }) => entry.name === 'owned-a')
+    expect(change.owner).toEqual({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test' })
+    expect(change.creator).toEqual({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test' })
+  })
+
+  it('身份缺失 → 412 user-missing，零写入', async () => {
+    const h = await startWithHome({ resolveUser: () => ({ missing: true }) })
+    const proj = await withRegisteredProject(h)
+    const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'nobody-a' }, { headers: { Authorization: `Bearer ${h.token}` } })
+    expect(r.status).toBe(412)
+    expect(r.json()).toMatchObject({ ok: false, code: 'user-missing' })
+    expect(existsSync(join(proj, 'openspec', 'changes', 'nobody-a'))).toBe(false)
+  })
+
+  it('legacy assignee/created_by（unknown、null）投影为 null', async () => {
+    const h = await start()
+    await h.store.setMany(h.changeDir, { assignee: 'null', created_by: 'unknown' })
+    const snapshot = (await reqGet(h.port, '/api/snapshot')).json<any>()
+    const change = snapshot.projects[0].changes[0]
+    expect(change.owner).toBeNull()
+    expect(change.creator).toBeNull()
   })
 
   it('200 显式 track=frontend', async () => {

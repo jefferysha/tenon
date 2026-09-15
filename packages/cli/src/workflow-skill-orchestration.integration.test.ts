@@ -262,7 +262,7 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     expect(r.stdout).toContain('phase: open')
 
     // ── phase=open：init 落地，尚无任何 marker，mandatory skill 应直接放行（无需解锁）──
-    expect(await h.run(['init', CHANGE, '--track', TRACK, '--preset', 'full', '--user', 'e2e'])).toBe(0)
+    expect(await h.run(['init', CHANGE, '--track', TRACK, '--preset', 'full'])).toBe(0)
     // 所有 hook 侧写入都绑定入口明确选择的 Change；不再由最近修改时间猜测。
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     await h.seedGovernedDocumentEvidence(CHANGE)

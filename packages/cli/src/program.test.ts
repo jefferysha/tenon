@@ -215,7 +215,7 @@ describe('program —— commander 装配与 exit code 逐格对齐', () => {
 
   test('init 全参：stdout 空、[INIT] 走 stderr', async () => {
     const deps = makeDeps()
-    const code = await run(deps, ['init', 'demo', '--track', 'backend', '--preset', 'full', '--user', 'jeff'])
+    const code = await run(deps, ['init', 'demo', '--track', 'backend', '--preset', 'full'])
     expect(code).toBe(0)
     expect(deps.outLines).toEqual([])
     expect(deps.errLines).toContain('[INIT] /repo/openspec/changes/demo')

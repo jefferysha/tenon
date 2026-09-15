@@ -32,6 +32,8 @@ import { materializeSkillSnapshot } from '../skills/snapshot-store.js'
 import type { VerifierInput } from '../verifier/verifier.js'
 import { createAutomation, storeWriter } from './sdk.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const SHA = 'a'.repeat(40)
 const BASE_SHA = 'b'.repeat(40)
 const TEST_VERIFIER_IDENTITY = {
@@ -192,7 +194,7 @@ describe('createAutomation SDK', () => {
 
   const initBuild = async (name: string) => {
     const dir = await store.init({
-      repoRoot: root, name, track: 'backend', reviewSeed: 'pending', preset: 'full', clock,
+      repoRoot: root, name, track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock,
     })
     await store.set(dir, 'phase', 'build')
     return dir
@@ -268,10 +270,10 @@ loops:
 
   it('enqueue 按调用者解析的 effective policy 判定，动态 track id 本身不参与能力判断', async () => {
     const blocked = await store.init({
-      repoRoot: root, name: 'blocked', track: 'data-no-auto', reviewSeed: 'pending', preset: 'full', clock,
+      repoRoot: root, name: 'blocked', track: 'data-no-auto', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock,
     })
     const allowed = await store.init({
-      repoRoot: root, name: 'allowed', track: 'data-auto', reviewSeed: 'pending', preset: 'full', clock,
+      repoRoot: root, name: 'allowed', track: 'data-auto', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock,
     })
     await store.setMany(blocked, { phase: 'build', automation: 'queued' })
     await store.set(allowed, 'phase', 'build')
@@ -376,7 +378,7 @@ loops:
       name: 'sdk-authorized',
       track: 'backend',
       reviewSeed: 'pending',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       clock,
       runId: 'workflow-run-sdk',
       initialWorkflow: {
@@ -414,7 +416,7 @@ loops:
       name: 'sdk-ineligible-canonical-track',
       track: 'backend',
       reviewSeed: 'pending',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       clock,
       runId: 'workflow-run-sdk',
       initialWorkflow: {
@@ -465,7 +467,7 @@ loops:
       name: 'sdk-no-preparation',
       track: 'backend',
       reviewSeed: 'pending',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       clock,
       runId: 'workflow-run-sdk',
       initialWorkflow: {

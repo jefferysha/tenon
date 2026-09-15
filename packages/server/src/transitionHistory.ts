@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  decodeRecordActor,
   HISTORY_FILE,
   transitionRecordToHistoryEntry,
   validateCanonicalRevisionHistory,
@@ -23,13 +24,15 @@ function decodeHistoryEntry(value: unknown): HistoryEntry | null {
   if (typeof record.ts !== 'string' || typeof record.kind !== 'string'
     || !kinds.has(record.kind as HistoryEntry['kind'])) return null
   const kind = record.kind as HistoryEntry['kind']
+  // An invalid actor is dropped from the row rather than hiding the whole history line.
+  const actor = decodeRecordActor(record.actor)
   return {
     ts: record.ts,
     kind,
     ...(typeof record.field === 'string' ? { field: record.field } : {}),
     ...(typeof record.from === 'string' ? { from: record.from } : {}),
     ...(typeof record.to === 'string' ? { to: record.to } : {}),
-    ...(typeof record.by === 'string' ? { by: record.by } : {}),
+    ...(actor === undefined || actor === null ? {} : { actor }),
     ...(typeof record.raw === 'string' ? { raw: record.raw } : {}),
     ...(typeof record.phase === 'string' ? { phase: record.phase } : {}),
     ...(typeof record.transitionRecordId === 'string'

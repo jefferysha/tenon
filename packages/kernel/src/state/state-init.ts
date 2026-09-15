@@ -91,7 +91,7 @@ export function initialFields(
   fields.track = opts.track
   fields.preset = opts.preset
   fields.created_by = createdBy
-  fields.assignee = 'null'
+  fields.assignee = createdBy
   fields.phase = opts.initialWorkflow?.phase ?? 'open'
   fields.phase_status = 'pending'
   fields.design_doc = 'null'

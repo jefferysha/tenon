@@ -13,6 +13,8 @@ import {
   ensureDocumentLocalePin,
 } from './index.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const FIXTURES = fileURLToPath(new URL('./fixtures', import.meta.url))
 const CLOCK = () => '2026-07-06T00:00:00Z'
 
@@ -62,7 +64,7 @@ describe('read / write / get', () => {
       name: 'empty-directory-race',
       track: 'backend',
       reviewSeed: 'pending',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       clock: CLOCK,
       initialFiles: [{ relativePath: 'proposal.md', content: '# 不得发布\n' }],
     })).rejects.toThrow(/已存在|拒绝覆盖/)
@@ -85,7 +87,7 @@ describe('read / write / get', () => {
       name: 'atomic-envelope',
       track: 'backend',
       reviewSeed: 'pending',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       clock: CLOCK,
       initialFiles: [
         { relativePath: 'proposal.md', content: '# 提案\n' },
@@ -131,7 +133,7 @@ describe('set / setMany / cas', () => {
       },
     })
     const dir = await injected.init({
-      repoRoot, name: 'projection-failure', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot, name: 'projection-failure', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       clock: CLOCK,
     })
     const yamlPath = path.join(dir, '.pipeline.yaml')
@@ -155,7 +157,7 @@ describe('set / setMany / cas', () => {
 
   it('G1 双主处置：未知 YAML drift 默认拒修；legacy import 保留 transition-controlled fields', async () => {
     const dir = await store.init({
-      repoRoot, name: 'projection-import', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot, name: 'projection-import', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       clock: CLOCK,
     })
     const yamlPath = path.join(dir, '.pipeline.yaml')
@@ -205,7 +207,7 @@ describe('set / setMany / cas', () => {
 
   it('G1 写兼容断代：YAML projection 带 revision/id/digest；旧 writer 篡改后下一次官方写 fail-loud 且 canonical 零推进', async () => {
     const dir = await store.init({
-      repoRoot, name: 'projection-drift', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot, name: 'projection-drift', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       clock: CLOCK, runId: 'run-projection-drift',
     })
     const currentPath = path.join(dir, '.pipeline-run', 'current.json')
@@ -299,8 +301,8 @@ describe('set / setMany / cas', () => {
 describe('init（heredoc 语义）', () => {
   const HEREDOC = `track: backend
 preset: full
-created_by: unknown
-assignee: null
+created_by: Tester <tester@tenon.test>
+assignee: Tester <tester@tenon.test>
 phase: open
 phase_status: pending
 design_doc: null
@@ -341,7 +343,7 @@ pre_verify_review_result: pending
 `
 
   it('建 change 骨架：目录 + .pipeline.yaml 与老仓 heredoc 逐字节一致（注入时钟）', async () => {
-    const dir = await store.init({ repoRoot, name: 'my-change', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })
+    const dir = await store.init({ repoRoot, name: 'my-change', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })
     expect(dir).toBe(path.join(repoRoot, 'openspec', 'changes', 'my-change'))
     expect(stripRollbackProjectionEnvelope(
       await readFile(path.join(dir, '.pipeline.yaml'), 'utf8'),
@@ -350,7 +352,7 @@ pre_verify_review_result: pending
 
   it('运行时缺 reviewSeed 不得发布一份下一次读必坏的 canonical current', async () => {
     const malformed = {
-      repoRoot, name: 'missing-review-seed', track: 'backend', preset: 'full', clock: CLOCK,
+      repoRoot, name: 'missing-review-seed', track: 'backend', creator: TEST_CREATOR, preset: 'full', clock: CLOCK,
     } as unknown as Parameters<StateStore['init']>[0]
     await expect(store.init(malformed)).rejects.toThrow('canonical state.fields.agent_review_result 类型非法')
     await expect(readFile(path.join(
@@ -360,7 +362,7 @@ pre_verify_review_result: pending
 
   it('G1 canonical cutover：init 同时发布 revision 0/current；YAML 后续被旧 writer 篡改也不反向覆盖官方读', async () => {
     const dir = await store.init({
-      repoRoot, name: 'canonical-init', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot, name: 'canonical-init', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       clock: CLOCK, runId: 'run-canonical-init',
     })
     const currentPath = path.join(dir, '.pipeline-run', 'current.json')
@@ -387,7 +389,7 @@ pre_verify_review_result: pending
   })
 
   it('pm track → agent/codex review 种为 skipped', async () => {
-    const dir = await store.init({ repoRoot, name: 'pm-change', track: 'pm', reviewSeed: 'skipped', preset: 'full', clock: CLOCK })
+    const dir = await store.init({ repoRoot, name: 'pm-change', track: 'pm', reviewSeed: 'skipped', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })
     expect(await store.get(dir, 'agent_review_result')).toBe('skipped')
     expect(await store.get(dir, 'codex_review_result')).toBe('skipped')
   })
@@ -397,7 +399,7 @@ pre_verify_review_result: pending
       repoRoot,
       name: 'policy-skipped',
       track: 'data',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       reviewSeed: 'skipped',
       clock: CLOCK,
     })
@@ -405,21 +407,21 @@ pre_verify_review_result: pending
     expect(await store.get(dir, 'codex_review_result')).toBe('skipped')
   })
 
-  it('user 真值经四闸校验（quoteGate 纯内存判定，随单次原子发布一并写入 created_by，不再是' +
-    '"先落盘 unknown 占位再补一次写"两步——第 7 轮 codex review P1 修复的同一类两步写问题）', async () => {
-    const dir = await store.init({ repoRoot, name: 'u1', track: 'backend', reviewSeed: 'pending', preset: 'full', user: 'Host Dev', clock: CLOCK })
-    expect(await store.get(dir, 'created_by')).toBe('Host Dev')
+  it('creator 同时写入 created_by 与 assignee（Name <id> 用户引用，随单次原子发布落盘）', async () => {
+    const dir = await store.init({ repoRoot, name: 'u1', track: 'backend', reviewSeed: 'pending', preset: 'full', creator: { id: 'host@x.io', name: 'Host Dev', trust: 'declared' }, clock: CLOCK })
+    expect(await store.get(dir, 'created_by')).toBe('Host Dev <host@x.io>')
+    expect(await store.get(dir, 'assignee')).toBe('Host Dev <host@x.io>')
   })
 
-  it('user 含破坏字符 → 触闸保留 unknown，不阻断 init', async () => {
-    const dir = await store.init({ repoRoot, name: 'u2', track: 'backend', reviewSeed: 'pending', preset: 'full', user: 'Evil: Dev', clock: CLOCK })
-    expect(await store.get(dir, 'created_by')).toBe('unknown')
+  it('creator 引用触发 YAML 四闸 → init 失败且不留下 change', async () => {
+    await expect(store.init({ repoRoot, name: 'u2', track: 'backend', reviewSeed: 'pending', preset: 'full', creator: { id: 'evil@x.io', name: 'Evil: Dev', trust: 'declared' }, clock: CLOCK })).rejects.toThrow(QuoteGateError)
+    await expect(store.get(path.join(repoRoot, 'openspec', 'changes', 'u2'), 'created_by')).rejects.toThrow()
   })
 
   it('base_branch 读 .git/HEAD 的当前分支；无 git 回退 main', async () => {
     await mkdir(path.join(repoRoot, '.git'), { recursive: true })
     await writeFile(path.join(repoRoot, '.git', 'HEAD'), 'ref: refs/heads/feat/wave1\n')
-    const dir = await store.init({ repoRoot, name: 'b1', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })
+    const dir = await store.init({ repoRoot, name: 'b1', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })
     expect(await store.get(dir, 'base_branch')).toBe('feat/wave1')
   })
 
@@ -429,7 +431,7 @@ pre_verify_review_result: pending
     await writeFile(path.join(gitdir, 'HEAD'), 'ref: refs/heads/afk/wave2\n')
     // worktree 根的 .git 是文件，内容是 `gitdir: <path>` 指针
     await writeFile(path.join(repoRoot, '.git'), `gitdir: ${gitdir}\n`)
-    const dir = await store.init({ repoRoot, name: 'wtc', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })
+    const dir = await store.init({ repoRoot, name: 'wtc', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })
     expect(await store.get(dir, 'base_branch')).toBe('afk/wave2')
   })
 
@@ -438,23 +440,23 @@ pre_verify_review_result: pending
     await mkdir(gitdir, { recursive: true })
     await writeFile(path.join(gitdir, 'HEAD'), 'a1b2c3d4e5f6\n') // detached：裸 sha
     await writeFile(path.join(repoRoot, '.git'), `gitdir: ${gitdir}\n`)
-    const dir = await store.init({ repoRoot, name: 'wtd', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })
+    const dir = await store.init({ repoRoot, name: 'wtd', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })
     expect(await store.get(dir, 'base_branch')).toBe('main')
   })
 
   it('非法 change 名（空/怪字符/..）→ 拒绝', async () => {
-    await expect(store.init({ repoRoot, name: '', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })).rejects.toThrow()
-    await expect(store.init({ repoRoot, name: 'a/b', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })).rejects.toThrow()
-    await expect(store.init({ repoRoot, name: '..', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })).rejects.toThrow()
+    await expect(store.init({ repoRoot, name: '', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })).rejects.toThrow()
+    await expect(store.init({ repoRoot, name: 'a/b', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })).rejects.toThrow()
+    await expect(store.init({ repoRoot, name: '..', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })).rejects.toThrow()
   })
 
   it('已初始化的 change → fail-loud 拒绝（不覆盖既有状态）', async () => {
-    await store.init({ repoRoot, name: 'dup', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })
-    await expect(store.init({ repoRoot, name: 'dup', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })).rejects.toThrow()
+    await store.init({ repoRoot, name: 'dup', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })
+    await expect(store.init({ repoRoot, name: 'dup', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })).rejects.toThrow()
   })
 
   it('G1 独占创建：成功后只有 canonical 目录与 YAML projection，current/revision 均无临时文件残留', async () => {
-    const dir = await store.init({ repoRoot, name: 'clean-tmp', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })
+    const dir = await store.init({ repoRoot, name: 'clean-tmp', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })
     const files = await readdir(dir)
     expect(files.sort()).toEqual(['.pipeline-document-locale.json', '.pipeline-run', '.pipeline.yaml'])
     expect((await readdir(path.join(dir, '.pipeline-run'))).sort())
@@ -463,9 +465,9 @@ pre_verify_review_result: pending
   })
 
   it('重复 init 撞名失败时不发布第二份孤儿 revision，也没有本次失败请求的临时文件残留', async () => {
-    await store.init({ repoRoot, name: 'dup-tmp', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })
+    await store.init({ repoRoot, name: 'dup-tmp', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })
     await expect(
-      store.init({ repoRoot, name: 'dup-tmp', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK }),
+      store.init({ repoRoot, name: 'dup-tmp', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK }),
     ).rejects.toThrow()
     const dir = path.join(repoRoot, 'openspec', 'changes', 'dup-tmp')
     const files = await readdir(dir)
@@ -477,7 +479,7 @@ pre_verify_review_result: pending
     '目标值，不是先落 default/open 再改（第 7 轮 codex review P1：旧两步之间的窗口会让并发' +
     'transition 对 provisional default/open 提交 canonical record）', async () => {
     const dir = await store.init({
-      repoRoot, name: 'wf-once', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK,
+      repoRoot, name: 'wf-once', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK,
       initialWorkflow: { workflow: 'onboarding', phase: 'intake' },
     })
     expect(await store.get(dir, 'workflow')).toBe('onboarding')
@@ -485,7 +487,7 @@ pre_verify_review_result: pending
   })
 
   it('不提供 initialWorkflow → workflow/phase 仍是老默认值 default/open（回归防护）', async () => {
-    const dir = await store.init({ repoRoot, name: 'wf-default', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK })
+    const dir = await store.init({ repoRoot, name: 'wf-default', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK })
     expect(await store.get(dir, 'workflow')).toBe('default')
     expect(await store.get(dir, 'phase')).toBe('open')
   })
@@ -499,7 +501,7 @@ pre_verify_review_result: pending
       name: 'reserved-en',
       track: 'backend',
       reviewSeed: 'pending',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       documentLocale: 'en',
       clock: CLOCK,
     })).rejects.toMatchObject({ code: 'EEXIST' })
@@ -514,7 +516,7 @@ pre_verify_review_result: pending
       name: 'reserved-mismatch',
       track: 'backend',
       reviewSeed: 'pending',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       documentLocale: 'zh-CN',
       clock: CLOCK,
     })).rejects.toMatchObject({ code: 'EEXIST' })
@@ -525,12 +527,12 @@ pre_verify_review_result: pending
   it('document booleans 生成回滚兼容 sidecar；运行时合并身份但 canonical 保持 N-1 闭集', async () => {
     const fingerprint = 'b'.repeat(64)
     const legacy = await store.init({
-      repoRoot, name: 'wf-legacy-profile', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot, name: 'wf-legacy-profile', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       runId: 'run-legacy-profile', clock: CLOCK,
       initialWorkflow: { workflow: 'legacy-governed', phase: 'open', openspecContract: true },
     })
     const declarative = await store.init({
-      repoRoot, name: 'wf-document-profile', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot, name: 'wf-document-profile', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       runId: 'run-document-profile', clock: CLOCK,
       initialWorkflow: {
         workflow: 'compact-governed',
@@ -566,7 +568,7 @@ pre_verify_review_result: pending
 describe('并发（20 写锁零丢失）', () => {
   it('G1：20 个公开 write 并发也必须由 store 自己串成单一 revision 链，不产生同代分叉', async () => {
     const dir = await store.init({
-      repoRoot, name: 'cc-public-write', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: CLOCK,
+      repoRoot, name: 'cc-public-write', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: CLOCK,
     })
     const initial = await store.read(dir)
 

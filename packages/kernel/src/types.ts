@@ -205,7 +205,8 @@ export interface InitOptions {
   /** requireTrack 得到的 effective policy 值；StateStore 不按 track id 猜测能力。 */
   reviewSeed: ReviewSeed
   preset: string
-  user?: string
+  /** Declared identity; `created_by` and the first `assignee` are its user ref `Name <id>`. */
+  creator: RecordActor
   /** 测试注入时钟；业务码禁止散落 new Date() */
   clock?: () => string
   /**
@@ -412,7 +413,6 @@ export interface HistoryEntry {
   field?: string
   from?: string
   to?: string
-  by?: string
   /** Declared operator of a CLI/server write; hook-written host evidence rows carry none. */
   actor?: RecordActor
   /** 导入的原始载荷（工具名+详情 / Q|A / 事件名） */

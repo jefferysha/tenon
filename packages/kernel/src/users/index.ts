@@ -10,3 +10,4 @@ export {
 } from './user-paths.js'
 export type { UserProjectPaths } from './user-paths.js'
 export { readActiveChange, writeActiveChange } from './active-change.js'
+export { creatorOf, ownerOf } from './owner.js'

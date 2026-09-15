@@ -23,7 +23,7 @@
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { assertLoopRunner } from '@tenon/kernel'
+import { assertLoopRunner, isTenonUser, resolveTenonUser, type TenonUserResolution } from '@tenon/kernel'
 import type { PreparedSkillBundle } from '../admission/execution-context.js'
 import { BoundedTail, MAX_TAIL_CHARS } from '../runner/boundedTail.js'
 import {
@@ -301,6 +301,8 @@ export interface LifecyclePortsDeps {
    * StateStore，无状态写回需求的调用方（如注入 fake exec 的单测）直接不传。
    */
   readonly setStateField?: (name: string, field: string, value: string) => Promise<void>
+  /** Host identity forwarded as `TENON_USER` / `TENON_USER_NAME`; defaults to resolveTenonUser(hostRepoDir). */
+  readonly hostUser?: () => TenonUserResolution
   /**
    * H7 verifier Phase 2：host 侧核验产生面（可选注入真实核验能力）。缺省
    * createDefaultVerifierPort()——未接线真实核验时诚实回 inconclusive，绝不冒充 trusted pass
@@ -332,7 +334,12 @@ export const createLifecyclePorts = (deps: LifecyclePortsDeps): LifecyclePorts =
       // 公共 port 自身也是 Docker 创建边界：不能假设调用方必经 SDK/lifecycle。先校验 runner，再按
       // 同一纯函数剔除对侧凭证；两步都早于 git mount 探测和任何 docker 调用。
       const runner = assertLoopRunner(untrustedRunner ?? 'codex')
-      const env = filterRunnerEnvironment(runner, untrustedEnv)
+      // In-sandbox `tenon` records attribute to the host user who runs the loop, not the sandbox git identity.
+      const hostUser = (deps.hostUser ?? (() => resolveTenonUser(hostRepoDir, process.env)))()
+      const env: Record<string, string> = {
+        ...filterRunnerEnvironment(runner, untrustedEnv),
+        ...(isTenonUser(hostUser) ? { TENON_USER: hostUser.id, TENON_USER_NAME: hostUser.name } : {}),
+      }
       // git 双挂载：worktree 的 .git 是 gitdir: 指针 → 需父 .git 目录在同一绝对路径可解析。
       const gitMounts = await resolveGitMounts(join(worktreePath, '.git')).catch(() => [])
       // 沙箱内工具（tenon-afk-run 的 git commit / tenon get）要看得见 worktree 的**工作文件**，

@@ -37,6 +37,8 @@ import {
   recordDocumentReads,
   resolveProductPaths,
   resolveTenonUser,
+  actorOf,
+  isTenonUser,
   stateStorageExistsSync,
   withTrackRegistryLock,
   type ExtendedManifestData,
@@ -96,10 +98,7 @@ export interface Harness {
   cwd: string
   out: string[]
   err: string[]
-  /**
-   * 跑一条 CLI（argv 风格，无 node/script 前缀）；返回 exit code，每次清空 out/err。
-   * `env` 覆盖本次命令看到的进程环境（例如 `TENON_USER` 切换第二个用户）。
-   */
+  /** 跑一条 CLI（argv 风格）；返回 exit code，每次清空 out/err；`env` 覆盖本次命令的进程环境（如切换 TENON_USER） */
   run: (args: string[], options?: { readonly env?: Readonly<Record<string, string | undefined>> }) => Promise<number>
   /** 读某 change 的 .pipeline.yaml 原文 */
   read: (name: string) => Promise<string>
@@ -366,7 +365,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     },
     readHistoryRaw: async (dir) => { try { return await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8') } catch { return '' } },
     writeBreadcrumb: (dir, content) => writeFile(join(dir, '.breadcrumb'), content, 'utf8'),
-    history: createHistoryWriter(),
+    history: createHistoryWriter({ actor: () => { const user = resolveTenonUser(cwd, env); return isTenonUser(user) ? actorOf(user) : undefined } }),
     gitHeadSha: async () => TEST_GIT_HEAD,
     workspaceFingerprint: () => fingerprintWorkspace(cwd),
     buildRevisionIdentity: async () => TEST_BUILD_REVISION_IDENTITY,

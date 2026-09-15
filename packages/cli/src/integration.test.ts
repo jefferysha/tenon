@@ -40,10 +40,11 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
   })
 
   test('init 真落盘 .pipeline.yaml：字段序 + created_by + phase=open', async () => {
-    expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--user', 'jeff'])).toBe(0)
+    expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full'])).toBe(0)
     const yaml = await h.read('demo')
     expect(yaml).toMatch(/^track: backend$/m)
-    expect(yaml).toMatch(/^created_by: jeff$/m)
+    expect(yaml).toMatch(/^created_by: Tester <tester@tenon.test>$/m)
+    expect(yaml).toMatch(/^assignee: Tester <tester@tenon.test>$/m)
     expect(yaml).toMatch(/^phase: open$/m)
     // 字段序：track 必在 phase 之前（FIELD_ORDER 落盘真相）
     expect(yaml.indexOf('\ntrack:')).toBeLessThan(yaml.indexOf('\nphase:'))
@@ -341,7 +342,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
 
   test('全程 init→archive 七相位真跑通（喂足每相位真实前置，忠实老内核）', async () => {
     const cd = join(h.cwd, 'openspec/changes/e2e')
-    await h.run(['init', 'e2e', '--track', 'backend', '--preset', 'full', '--user', 'conv'])
+    await h.run(['init', 'e2e', '--track', 'backend', '--preset', 'full'])
     await h.seedGovernedDocumentEvidence('e2e')
     const clearGates = async () => {
       // review projection must only be consumed by `tenon review acknowledge`, never deleted by a test bypass.

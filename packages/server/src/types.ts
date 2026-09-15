@@ -44,6 +44,9 @@ export interface ChangeSnapshot {
   archived: string
   updated_at: string
   fields: Record<FieldName, string | string[]>
+  /** `assignee` / `created_by` projected as user refs; legacy values are null. */
+  owner: import('@tenon/kernel').UserRef | null
+  creator: import('@tenon/kernel').UserRef | null
   /** Exact immutable workflow plan used by this Change. */
   workflowPlanFingerprint: string
   /**
@@ -108,7 +111,7 @@ export interface DocumentEvidenceSnapshot {
     requiredRead: boolean
     paths: string[]
     producers: string[]
-    timeline: Array<{ producer: string; recordedAt: string; readAt?: string }>
+    timeline: Array<{ producer: string; recordedAt: string; readAt?: string; actor?: { id: string; name: string } }>
   }>
 }
 

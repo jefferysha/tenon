@@ -140,6 +140,7 @@ export async function initChange(
     track,
     reviewSeed: builtinTrack(track).policyProfile.reviewSeed,
     preset: opts?.preset ?? 'full',
+    creator: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' as const },
     clock: () => '2026-07-07T00:00:00Z',
     ...(opts?.initialWorkflow !== undefined
       ? { initialWorkflow: opts.initialWorkflow }

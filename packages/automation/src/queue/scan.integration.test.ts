@@ -5,6 +5,8 @@ import { createStateStore } from '@tenon/kernel'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { scanReadyFromFs } from './scan.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 /**
  * 真 fs 扫描：真建 openspec/changes/*，真读回 automation 字段，真判 dep 满足（merged ∪ archived）。
  */
@@ -16,7 +18,7 @@ describe('scanReadyFromFs（真 fs 枚举 + 真读 automation 字段）', () => 
 
   const initQueued = async (name: string, queuedAt: string, depends: string[] = []) => {
     const dir = await store.init({
-      repoRoot: root, name, track: 'backend', reviewSeed: 'pending', preset: 'full', clock,
+      repoRoot: root, name, track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock,
     })
     await store.setMany(dir, {
       phase: 'build',
@@ -60,7 +62,7 @@ describe('scanReadyFromFs（真 fs 枚举 + 真读 automation 字段）', () => 
     await initQueued('earlier', '2026-07-07T08:00:00Z')
     // 一个 spec 相位的 change 不该入选
     const dir = await store.init({
-      repoRoot: root, name: 'notbuild', track: 'backend', reviewSeed: 'pending', preset: 'full', clock,
+      repoRoot: root, name: 'notbuild', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock,
     })
     await store.setMany(dir, { phase: 'spec', automation: 'queued' })
 

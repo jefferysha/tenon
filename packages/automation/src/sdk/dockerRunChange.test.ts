@@ -9,6 +9,8 @@ import type { ExecFn, ExecResult } from '../runner/exec.js'
 import { materializeSkillSnapshot } from '../skills/snapshot-store.js'
 import { createDockerRunChange } from './dockerRunChange.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 /**
  * createDockerRunChange 装配面（fake exec，无需真 docker）。GOAL H · Stage B 后 RunChange 吃
  * ExecutionContext：runner/change/loop_id 由 context 权威携带（不再 resolveRunner 前缀猜）。
@@ -173,7 +175,7 @@ describe('createDockerRunChange · opts.store 真接线（Task 1 收尾缺口）
   it('注入真 StateStore 后，runChange 结束前把 automation_sandbox/automation_worktree 真写回该 store（非空）', async () => {
     const { exec } = makeFakeExec()
     const store = createStateStore()
-    const dir = await store.init({ repoRoot: repo, name: 'w', track: 'backend', reviewSeed: 'pending', preset: 'full' })
+    const dir = await store.init({ repoRoot: repo, name: 'w', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full' })
     expect(await store.get(dir, 'automation_sandbox')).toBe('')
     expect(await store.get(dir, 'automation_worktree')).toBe('')
 
@@ -300,7 +302,7 @@ describe('createDockerRunChange · automation_worktree 写回前 sanitize（四�
   it('hostRepoDir 含 " #" 时，真 StateStore 写 automation_worktree 不炸、且已消毒（不再含 " #"）', async () => {
     const { exec } = makeFakeExec()
     const store = createStateStore()
-    const dir = await store.init({ repoRoot: repo, name: 'w', track: 'backend', reviewSeed: 'pending', preset: 'full' })
+    const dir = await store.init({ repoRoot: repo, name: 'w', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full' })
     const runChange = createDockerRunChange({ hostRepoDir: repo, base: 'main', level: 'L1', image: 'sandcastle:local', exec, store })
     await expect(runChange(mkCtx('w'), new AbortController().signal)).resolves.toBeDefined()
     const worktree = await store.get(dir, 'automation_worktree')
@@ -320,7 +322,7 @@ describe('createDockerRunChange · automation_worktree 深路径不截断（真�
     await mkdir(repo, { recursive: true })
     const { exec } = makeFakeExec()
     const store = createStateStore()
-    const dir = await store.init({ repoRoot: repo, name: 'deep', track: 'backend', reviewSeed: 'pending', preset: 'full' })
+    const dir = await store.init({ repoRoot: repo, name: 'deep', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full' })
     const runChange = createDockerRunChange({ hostRepoDir: repo, base: 'main', level: 'L1', image: 'sandcastle:local', exec, store })
     await expect(runChange(mkCtx('deep'), new AbortController().signal)).resolves.toBeDefined()
     const expected = worktreePathFor(repo, 'sandcastle-pipeline/deep')
@@ -517,7 +519,7 @@ describe('createDockerRunChange · H7-S3：workflowKind 生产装配（现读 st
   it('已注入 store 且 change 的 workflow 字段非空/非 default → cfg.workflowKind=custom（RunOutcome.requireWorkflowBinding=true）', async () => {
     const { exec } = makeFakeExec()
     const store = createStateStore()
-    const dir = await store.init({ repoRoot: repo, name: 'w', track: 'backend', reviewSeed: 'pending', preset: 'full' })
+    const dir = await store.init({ repoRoot: repo, name: 'w', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full' })
     await store.set(dir, 'workflow', 'h7s3-custom-wf')
     const runChange = createDockerRunChange({ hostRepoDir: repo, base: 'main', level: 'L1', image: 'sandcastle:local', exec, store })
     const outcome = await runChange(mkCtx('w'), new AbortController().signal)
@@ -527,7 +529,7 @@ describe('createDockerRunChange · H7-S3：workflowKind 生产装配（现读 st
   it('已注入 store 且 change 的 workflow 字段空（默认）→ cfg.workflowKind=default（requireWorkflowBinding=false，零回归）', async () => {
     const { exec } = makeFakeExec()
     const store = createStateStore()
-    await store.init({ repoRoot: repo, name: 'w', track: 'backend', reviewSeed: 'pending', preset: 'full' })
+    await store.init({ repoRoot: repo, name: 'w', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full' })
     const runChange = createDockerRunChange({ hostRepoDir: repo, base: 'main', level: 'L1', image: 'sandcastle:local', exec, store })
     const outcome = await runChange(mkCtx('w'), new AbortController().signal)
     expect(outcome.requireWorkflowBinding).toBe(false)
@@ -608,7 +610,7 @@ describe('createDockerRunChange · H10 r5：context.skillBundle 端到端流到 
     const manifest = publish.manifests[0]!
 
     const store = createStateStore()
-    const changeDir = await store.init({ repoRoot: repo, name: 'x', track: 'backend', reviewSeed: 'pending', preset: 'full' })
+    const changeDir = await store.init({ repoRoot: repo, name: 'x', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full' })
     await store.set(changeDir, 'workflow', 'release-flow')
     const bindings: unknown[] = []
     const verifier = {

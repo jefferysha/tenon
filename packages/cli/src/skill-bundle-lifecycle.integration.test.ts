@@ -52,6 +52,8 @@ import {
 import { changeDir } from './paths.js'
 import { createExecutionCoordinatePort } from './skillBundleAssembly.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const PROFILE = 'backend' // 具名 profile（词法与存在性都合法，见 registry.ts::SKILL_BUNDLE_ID_RE + 下方 isSkillProfileKnown）
 const SKILL_ID = 'demo-skill'
 const FIXED_CLOCK = '2026-07-18T00:00:00.000Z'
@@ -197,7 +199,7 @@ interface Rig {
 
 async function initAfkChange(store: StateStore, repoRoot: string, name: string): Promise<string> {
   return store.init({
-    repoRoot, name, track: 'backend', reviewSeed: 'pending', preset: 'full',
+    repoRoot, name, track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
     clock: () => FIXED_CLOCK,
     runId: `run-${name}`,
     initialWorkflow: {
@@ -639,7 +641,7 @@ loops:
 
     store = createStateStore()
     change = `${LEGACY_PREFIX}x`
-    await store.init({ repoRoot, name: change, track: 'backend', reviewSeed: 'pending', preset: 'full', clock: () => FIXED_CLOCK })
+    await store.init({ repoRoot, name: change, track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: () => FIXED_CLOCK })
     changeDirPath = changeDir(repoRoot, change)
     await store.set(changeDirPath, 'phase', 'build')
     await markQueued(store, changeDirPath, () => FIXED_CLOCK)

@@ -25,6 +25,8 @@ import type { WorkflowIR } from './ir.js'
 import type { HistoryEntry } from '../types.js'
 import { createBuildRevisionToken, makeBuildRevisionBlocker, safeRevisionHash } from './build-revision.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const FIXED_CLOCK = () => '2026-07-17T00:00:00Z'
 const REVISION_IDENTITY = { repository: '/repo.git', worktree: '/repo\\0/repo.git/worktrees/change' } as const
 const GIT_BUILD_TOKEN = createBuildRevisionToken('git', 'a'.repeat(40), REVISION_IDENTITY).value
@@ -79,7 +81,7 @@ function makeDeps(overrides: Partial<TransitionApplicationDeps> = {}): Transitio
 
 async function initChange(deps: ReturnType<typeof makeDeps>, root: string, name: string): Promise<string> {
   const { changeDir } = await deps.runRepository.initChange({
-    repoRoot: root, name, track: 'backend', reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+    repoRoot: root, name, track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
   })
   await seedGovernedDocumentEvidence(root, changeDir, name)
   return changeDir
@@ -240,7 +242,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         // Deliberately bypass the fixture helper: initChange creates the empty ledger for a new default
         // change, so this is the real first-phase failure a normal workflow must surface.
         const { changeDir } = await deps.runRepository.initChange({
-          repoRoot: root, name: `missing-evidence-${track}`, track, reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+          repoRoot: root, name: `missing-evidence-${track}`, track, reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
         })
         const result = await createTransitionApplication(deps).execute({
           root, changeDir, changeName: `missing-evidence-${track}`, event: 'open-complete', context: {}, loadWorkflow: NEVER_FOUND_WORKFLOW,
@@ -743,7 +745,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
 
     async function initCustomChange(deps: ReturnType<typeof makeDeps>, root: string, name: string): Promise<string> {
       const { changeDir } = await deps.runRepository.initChange({
-        repoRoot: root, name, track: 'backend', reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+        repoRoot: root, name, track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
         initialWorkflow: { workflow: 'onboarding', phase: 'intake' },
       })
       return changeDir
@@ -842,7 +844,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const policy = compileEffectiveWorkflowPlan('governed', governed).documentPolicy
       if (!policy) throw new Error('expected document policy')
       const { changeDir } = await deps.runRepository.initChange({
-        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
         initialWorkflow: {
           workflow: 'governed',
           phase: 'intake',
@@ -914,7 +916,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         ],
       }
       const { changeDir: dir } = await deps.runRepository.initChange({
-        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
         initialWorkflow: { workflow: 'guarded', phase: 'intake' },
       })
       const app = createTransitionApplication(deps)
@@ -976,7 +978,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       deps: ReturnType<typeof makeDeps>, root: string, workflow: string, phase: string,
     ): Promise<string> {
       const { changeDir } = await deps.runRepository.initChange({
-        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
         initialWorkflow: { workflow, phase },
       })
       return changeDir
@@ -1160,7 +1162,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
   describe('G2 P2 custom 轨 typed handler 接线（edge action/guard、when 按 track、handler 异常中止事务）', () => {
     async function initCustom(deps: ReturnType<typeof makeDeps>, root: string, workflow: string, phase: string): Promise<string> {
       const { changeDir } = await deps.runRepository.initChange({
-        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
         initialWorkflow: { workflow, phase },
       })
       return changeDir
@@ -1347,7 +1349,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         ],
       }
       const { changeDir: dir } = await deps.runRepository.initChange({
-        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
         initialWorkflow: { workflow: 'governed-rollback', phase: 'verify' },
       })
       await createStateStore().setMany(dir, {

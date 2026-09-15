@@ -19,6 +19,8 @@ import {
   workflowActionAuthorityRecordPath,
 } from './workflow-action-authority-record.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const governedPolicy = compileAutomationPolicySnapshot({
   id: 'loop-a', name: 'Loop A', kind: 'executor', goal: 'Keep green', cadence: 'manual', risk: 'low',
   runner: 'codex', change_prefix: 'a-', phases: [], human_gates: [], state: 'legacy', design_doc: 'x',
@@ -95,7 +97,7 @@ function makeRepo(clockValue = '2026-07-16T00:00:00Z') {
 
 async function initChange(store: ReturnType<typeof createStateStore>, repoRoot: string, name = 'demo'): Promise<string> {
   const opts: InitOptions = {
-    repoRoot, name, track: 'backend', reviewSeed: 'pending', preset: 'full',
+    repoRoot, name, track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
     clock: () => '2026-07-16T00:00:00Z',
   }
   return store.init(opts)
@@ -147,7 +149,7 @@ describe('WorkflowRunRepository.initChange —— 新 change 的唯一创建入�
     const root = await freshRepoRoot()
     const { repo, store } = makeRepo()
     const opts: InitOptions = {
-      repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       clock: () => '2026-07-16T00:00:00Z',
     }
     const { changeDir, run } = await repo.initChange(opts)
@@ -176,7 +178,7 @@ describe('WorkflowRunRepository.initChange —— 新 change 的唯一创建入�
     const root = await freshRepoRoot()
     const { repo } = makeRepo()
     const base: InitOptions = {
-      repoRoot: root, name: 'default-change', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot: root, name: 'default-change', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       clock: () => '2026-07-16T00:00:00Z',
     }
     const created = await repo.initChange(base)
@@ -202,7 +204,7 @@ describe('WorkflowRunRepository.initChange —— 新 change 的唯一创建入�
     const root = await freshRepoRoot()
     const { repo } = makeRepo()
     const opts: InitOptions = {
-      repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       clock: () => '2026-07-16T00:00:00Z',
     }
     await repo.initChange(opts)
@@ -214,7 +216,7 @@ describe('WorkflowRunRepository.initChange —— 新 change 的唯一创建入�
     const root = await freshRepoRoot()
     const { repo, store } = makeRepo()
     const opts: InitOptions = {
-      repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       clock: () => '2026-07-16T00:00:00Z',
     }
     const { changeDir, run } = await repo.initChange(opts)
@@ -284,7 +286,7 @@ describe('WorkflowRunRepository.establishRun —— 新 change 在 init 时钉�
       name: 'legacy-governed',
       track: 'backend',
       reviewSeed: 'pending',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       clock: () => '2026-07-16T00:00:00Z',
       initialWorkflow: {
         workflow: 'default',
@@ -593,7 +595,7 @@ describe('WorkflowRunRepository.transact —— commit() 真提交', () => {
       name: 'bound-docs',
       track: 'backend',
       reviewSeed: 'pending',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       clock: () => '2026-07-16T00:00:00Z',
       initialWorkflow: {
         workflow: 'compact',
@@ -621,7 +623,7 @@ describe('WorkflowRunRepository.transact —— commit() 真提交', () => {
       name: 'bound-plan',
       track: 'backend',
       reviewSeed: 'pending',
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       clock: () => '2026-07-16T00:00:00Z',
       initialWorkflow: {
         workflow: 'default',

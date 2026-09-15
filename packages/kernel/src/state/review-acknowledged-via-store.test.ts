@@ -16,6 +16,8 @@ import { createStateStore } from './store.js'
 import { createTransitionRecordStore } from './transition-record-store.js'
 import { createWorkflowRunRepository } from './workflow-run-repository.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 /** Frozen closed-schema reader of the previous release; the release bundle gate runs the same file. */
 const N_MINUS_ONE_READER = fileURLToPath(
   new URL('../../../../tools/fixtures/n-minus-one-canonical-reader.mjs', import.meta.url),
@@ -43,7 +45,7 @@ async function fresh(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'pl-review-channel-'))
   roots.push(root)
   return createStateStore().init({
-    repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock,
+    repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock,
     runId: 'run-1',
   })
 }

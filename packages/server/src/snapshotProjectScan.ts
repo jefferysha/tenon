@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
+import { creatorOf, ownerOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
 import { ArtifactScopeMigrationError, openLegacyLineageView } from '@tenon/automation'
 import type { ProjectSnapshot, ChangeSnapshot } from './types.js'
 import { readRepositoryIdentity } from './repositoryIdentity.js'
@@ -145,6 +145,8 @@ export async function scanAnchoredProject(
         archived: str(f.archived),
         updated_at: str(f.updated_at),
         fields: f,
+        owner: ownerOf(f),
+        creator: creatorOf(f),
         workflowPlanFingerprint: plan.workflowFingerprint,
         workflowRules: snapshotWorkflowRulesAtRoot(plan, readRoot, workflowName, authority),
         workflowExecution: await snapshotWorkflowExecution(

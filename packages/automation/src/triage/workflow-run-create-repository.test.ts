@@ -19,6 +19,8 @@ import {
   WorkflowRunCreateRequestError,
 } from './workflow-run-create-repository.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const FIXED_CLOCK = () => '2026-07-19T10:00:00Z'
 const roots: string[] = []
 
@@ -67,8 +69,7 @@ function trustedInit(): Omit<InitOptions, 'repoRoot' | 'name' | 'runId' | 'initi
   return {
     track: 'backend',
     reviewSeed: 'pending',
-    preset: 'full',
-    user: 'triage-host',
+    creator: TEST_CREATOR, preset: 'full',
     clock: FIXED_CLOCK,
   }
 }
@@ -171,7 +172,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
     expect(state.fields).toMatchObject({
       track: 'backend',
       preset: 'full',
-      created_by: 'triage-host',
+      created_by: 'Tester <tester@tenon.test>',
       workflow: 'incident-response',
       phase: 'assess',
     })

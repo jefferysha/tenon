@@ -5,6 +5,8 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { builtinTrack, createStateStore } from '@tenon/kernel'
 import { enqueueAfterSpecComplete } from './spec-complete.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const CLOCK = '2026-07-24T06:30:00Z'
 const roots: string[] = []
 
@@ -22,7 +24,7 @@ async function project(track: string): Promise<{ root: string; dir: string; stor
     name: 'demo',
     track,
     reviewSeed: track === 'pm' ? 'skipped' : 'pending',
-    preset: 'full',
+    creator: TEST_CREATOR, preset: 'full',
     clock: () => CLOCK,
   })
   await store.set(dir, 'phase', 'build')

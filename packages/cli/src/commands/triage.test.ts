@@ -305,6 +305,7 @@ describe('cmdTriage', () => {
         store,
         runRepository: runRepo,
         clock: () => '2026-07-19T00:01:00Z',
+        creator: () => ({ id: 'tester@tenon.test', name: 'Tester', trust: 'declared' }),
         providerFactory: () => provider,
         signal: new AbortController().signal,
       })
@@ -415,6 +416,7 @@ describe('cmdTriage', () => {
       store,
       runRepository: runRepo,
       clock: () => '2026-07-19T00:01:00Z',
+      creator: () => ({ id: 'tester@tenon.test', name: 'Tester', trust: 'declared' }),
       providerFactory: () => provider,
       processSignals,
     })

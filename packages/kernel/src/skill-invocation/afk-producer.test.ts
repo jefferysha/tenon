@@ -15,6 +15,8 @@ import {
 } from './afk-producer.js'
 import { issueVerifiedAfkInteractionReceipt } from './afk-interaction-receipt.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const roots: string[] = []
 const now = '2026-08-04T00:00:00.000Z'
 const snapshotSha = 'd'.repeat(64)
@@ -28,7 +30,7 @@ async function fixture() {
   roots.push(root)
   const store = createStateStore()
   const changeDir = await store.init({
-    repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full',
+    repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
     clock: () => now, runId: 'run-1',
   })
   await createWorkflowRunRepository({

@@ -18,6 +18,8 @@ import { hydratePreVerifyReviewFromSync } from './pre-verify-review-store.js'
 import { parseRunRevision } from './run-revision-codec.js'
 import { REVIEW_GATE_FIELDS } from '../types.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const roots: string[] = []
 const clock = () => '2026-07-19T00:00:00Z'
 
@@ -25,7 +27,7 @@ async function fresh(): Promise<{ root: string; dir: string }> {
   const root = await mkdtemp(join(tmpdir(), 'pl-run-revision-'))
   roots.push(root)
   const dir = await createStateStore().init({
-    repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock,
+    repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock,
     runId: 'run-1',
   })
   return { root, dir }
