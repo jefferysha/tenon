@@ -143,7 +143,6 @@ tenon document read "$TENON_CHANGE_NAME" all
 
 **推荐**：
 - 使用 Skill 工具加载 `deep-research` — 复杂决策时多源调研
-- 使用 Skill 工具加载 `zoom-out` — 若 brainstorming 中跑偏
 
 **可选**：
 - 使用 Skill 工具加载 `find-skills` — 找可复用 skill
@@ -167,7 +166,6 @@ tenon document read "$TENON_CHANGE_NAME" all
 **可选**：
 - 使用 Skill 工具加载 `find-skills`
 - OpenSpec 目录结构由本插件创建和维护，不需要外部 CLI。
-- 使用 Skill 工具加载 `zoom-out`
 
 #### 🕊️ Track = free（中性探索）
 
@@ -296,5 +294,4 @@ guard **只校验、不自动 transition**。校验通过后：
 - bundled-skill: search-first · 推荐
 - bundled-skill: deep-research · 推荐
 - bundled-skill: market-research · 推荐（researcher 子 agent 内按需加载）
-- bundled-skill: zoom-out · 可选
 - bundled-skill: find-skills · 可选

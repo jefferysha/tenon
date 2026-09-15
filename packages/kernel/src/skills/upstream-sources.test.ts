@@ -12,7 +12,7 @@ import {
   type UpstreamSkillRunReport,
 } from './upstream-sources.js'
 
-const SOURCES_TEXT = readFileSync(new URL('./upstream-sources.fixture.yaml', import.meta.url), 'utf8')
+const SOURCES_TEXT = readFileSync(new URL('../../../../skills/sources.yaml', import.meta.url), 'utf8')
 const C1 = '1'.repeat(40)
 const C2 = '2'.repeat(40)
 const T1 = `sha256:${'a'.repeat(64)}`
@@ -47,13 +47,13 @@ function entry(id: string, repo: string, path: string, extra: Record<string, unk
 }
 
 describe('parseUpstreamSkillSources', () => {
-  it('parses the source list with renamed ids and root-path skills', () => {
+  it('parses the real skills/sources.yaml with renamed ids and root-path skills', () => {
     const sources = parseUpstreamSkillSources(SOURCES_TEXT)
     const ids = sources.skills.map((skill) => skill.id)
     expect(sources.skills).toHaveLength(45)
     expect(new Set(sources.skills.map((skill) => skill.repo)).size).toBe(12)
-    expect(ids).toEqual(expect.arrayContaining(['vercel-react-best-practices', 'shadcn', 'design-taste-frontend']))
-    for (const removed of ['zoom-out', 'verify', 'run', 'uiuxdesign-pro', 'tailwind-css-patterns', 'code-review', 'react-best-practices', 'shadcn-ui']) {
+    expect(ids).toEqual(expect.arrayContaining(['vercel-react-best-practices', 'shadcn', 'design-taste-frontend', 'browser-qa', 'to-spec', 'to-tickets']))
+    for (const removed of ['zoom-out', 'verify', 'run', 'uiuxdesign-pro', 'tailwind-css-patterns', 'code-review', 'react-best-practices', 'shadcn-ui', 'to-prd', 'to-issues', 'uiforge']) {
       expect(ids).not.toContain(removed)
     }
     expect(sources.skills.find((skill) => skill.id === 'design-taste-frontend')?.path).toBe('skills/taste-skill')

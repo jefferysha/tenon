@@ -686,11 +686,8 @@ cat > "$SB/hooks/hooks.json" <<'EOF'
 EOF
 printf '#!/usr/bin/env bash\nexit 0\n' > "$SB/hooks/noexec.sh"   # 重定向落盘默认无 x 位
 chmod -x "$SB/hooks/noexec.sh" 2>/dev/null || true
-{
-  printf -- '---\nname: ok-skill\ndescription: t\n---\n\n'
-  printf 'external-skill: superpowers:nonexistent-thing\n'
-} > "$SB/skills/ok-skill/SKILL.md"
-# broken-skill 目录故意不放 SKILL.md；EXTERNAL-SKILLS.md 故意不建
+printf -- '---\nname: ok-skill\ndescription: t\n---\n\n' > "$SB/skills/ok-skill/SKILL.md"
+# broken-skill 目录故意不放 SKILL.md
 
 out="$(bash "$VS" --root "$SB" 2>&1)"
 rc=$?
@@ -700,7 +697,6 @@ assert_contains "verify-skills: 列出缺失 canonical state helper" "$out" "can
 assert_contains "verify-skills: 列出缺失共享 JSON helper" "$out" "json-input.sh"
 assert_contains "verify-skills: 列出不可执行 noexec.sh" "$out" "noexec.sh"
 assert_contains "verify-skills: 列出缺 SKILL.md 的 broken-skill" "$out" "broken-skill"
-assert_contains "verify-skills: 列出未声明外部 skill" "$out" "superpowers:nonexistent-thing"
 assert_contains "verify-skills: 列出重复 Skill 内容树" "$out" ".codex-plugin/skills/duplicate/SKILL.md"
 assert_contains "verify-skills: Claude 清单重复声明标准 hooks 会被拒" "$out" "Claude plugin.json 声明了 hooks"
 assert_not_contains "verify-skills: 不把 host 安装投影当成插件源码" "$out" ".agents/skills/installed-projection"
@@ -1820,63 +1816,63 @@ RC="$(printf '%s' "{\"cwd\":\"$projss\",\"tool_name\":\"Skill\",\"tool_input\":{
 assert_exit "skill-start: 无活跃 change → exit 0" 0 "$RC"
 # Codex 把 bundled SKILL.md 的只读 Bash 作为 PostToolUse 事件上报；必须同样留下可审计证据。
 before="$(count_lines "$JL")"
-CODEX_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sed -n '1,120p' \\\"$ROOT/skills/openspec-propose/SKILL.md\\\"\"}}"
+CODEX_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sed -n '1,120p' \\\"$ROOT/skills/tenon/SKILL.md\\\"\"}}"
 printf '%s' "$CODEX_SKILL_READ" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "$((before + 1))" ] && ok "skill-tracker: Codex bundled SKILL.md 读取 → 留一条证据" || bad "skill-tracker: Codex bundled SKILL.md 读取 → 留一条证据" "行数=$(count_lines "$JL")"
 line="$(tail -1 "$JL" 2>/dev/null)"
 assert_contains "skill-tracker: Codex 证据显式标识来源" "$line" "CodexSkillRead"
-assert_contains "skill-tracker: Codex 证据含 skill id" "$line" "openspec-propose"
+assert_contains "skill-tracker: Codex 证据含 skill id" "$line" 'CodexSkillRead: tenon"'
 # 当前 Codex 把同一读取包装为 `/bin/zsh -lc "sed …"`；这不是另一种能力，而是实际宿主
 # 上报格式。若只匹配直接 sed，真实会话会静默丢失 Skill 证据并让 document ledger 拒绝登记。
 before="$(count_lines "$JL")"
-CODEX_WRAPPED_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"command_execution\",\"tool_input\":{\"command\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/openspec-propose/SKILL.md\\\"\"}}"
+CODEX_WRAPPED_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"command_execution\",\"tool_input\":{\"command\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/tenon/SKILL.md\\\"\"}}"
 printf '%s' "$CODEX_WRAPPED_SKILL_READ" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "$((before + 1))" ] && ok "skill-tracker: Codex zsh 包装的 bundled SKILL.md 读取 → 留一条证据" || bad "skill-tracker: Codex zsh 包装的 bundled SKILL.md 读取 → 留一条证据" "行数=$(count_lines "$JL")"
 line="$(tail -1 "$JL" 2>/dev/null)"
 assert_contains "skill-tracker: Codex zsh 包装证据显式标识来源" "$line" "CodexSkillRead"
-assert_contains "skill-tracker: Codex zsh 包装证据含 skill id" "$line" "openspec-propose"
+assert_contains "skill-tracker: Codex zsh 包装证据含 skill id" "$line" 'CodexSkillRead: tenon"'
 # 正常 Codex 对话目前以 `exec` + `tool_input.cmd` 上报同一读取。这个真实 ABI 必须和旧
 # command_execution 兼容路径一样留下证据，避免文档账本在普通对话中拒绝登记。
 before="$(count_lines "$JL")"
-CODEX_EXEC_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/openspec-propose/SKILL.md\\\"\"}}"
+CODEX_EXEC_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/tenon/SKILL.md\\\"\"}}"
 printf '%s' "$CODEX_EXEC_SKILL_READ" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "$((before + 1))" ] && ok "skill-tracker: Codex exec/cmd bundled SKILL.md 读取 → 留一条证据" || bad "skill-tracker: Codex exec/cmd bundled SKILL.md 读取 → 留一条证据" "行数=$(count_lines "$JL")"
 line="$(tail -1 "$JL" 2>/dev/null)"
 assert_contains "skill-tracker: Codex exec/cmd 证据显式标识来源" "$line" "CodexSkillRead"
-assert_contains "skill-tracker: Codex exec/cmd 证据含 skill id" "$line" "openspec-propose"
+assert_contains "skill-tracker: Codex exec/cmd 证据含 skill id" "$line" 'CodexSkillRead: tenon"'
 # Codex 通常把同一 phase 的多份 SKILL.md 合并为一条 `exec`。每一个受信任的最终读取都必须
 # 记账，不能只保留第一个并在后续 document/DAG check 时误报缺少 skill 证据。
 before="$(count_lines "$JL")"
-CODEX_MULTI_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/tenon-spec/SKILL.md && sed -n '1,120p' $ROOT/skills/openspec-propose/SKILL.md && sed -n '1,120p' $ROOT/skills/writing-plans/SKILL.md\\\"\"}}"
+CODEX_MULTI_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/tenon-spec/SKILL.md && sed -n '1,120p' $ROOT/skills/tenon/SKILL.md && sed -n '1,120p' $ROOT/skills/tenon-open/SKILL.md\\\"\"}}"
 printf '%s' "$CODEX_MULTI_SKILL_READ" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "$((before + 3))" ] && ok "skill-tracker: Codex 同一 exec 的多个 bundled SKILL.md → 全部留证" || bad "skill-tracker: Codex 同一 exec 的多个 bundled SKILL.md → 全部留证" "行数=$(count_lines "$JL")"
 multi_lines="$(tail -3 "$JL" 2>/dev/null)"
 assert_contains "skill-tracker: 多 skill 证据含 tenon-spec" "$multi_lines" "tenon-spec"
-assert_contains "skill-tracker: 多 skill 证据含 openspec-propose" "$multi_lines" "openspec-propose"
-assert_contains "skill-tracker: 多 skill 证据含 writing-plans" "$multi_lines" "writing-plans"
+assert_contains "skill-tracker: 多 skill 证据含 tenon" "$multi_lines" 'CodexSkillRead: tenon"'
+assert_contains "skill-tracker: 多 skill 证据含 tenon-open" "$multi_lines" "tenon-open"
 # 只有每段的最终 read 参数才可形成证据。后续 printf 提到另一个路径不能伪造第二个 skill 调用。
 before="$(count_lines "$JL")"
-CODEX_READ_WITH_PATH_MENTION="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/tenon-spec/SKILL.md && printf $ROOT/skills/openspec-propose/SKILL.md\\\"\"}}"
+CODEX_READ_WITH_PATH_MENTION="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/tenon-spec/SKILL.md && printf $ROOT/skills/tenon-open/SKILL.md\\\"\"}}"
 printf '%s' "$CODEX_READ_WITH_PATH_MENTION" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "$((before + 1))" ] && ok "skill-tracker: 非 read 段提及 SKILL.md 不伪造证据" || bad "skill-tracker: 非 read 段提及 SKILL.md 不伪造证据" "行数=$(count_lines "$JL")"
 line="$(tail -1 "$JL" 2>/dev/null)"
 assert_contains "skill-tracker: 最终 read 段仍保留真实 skill" "$line" "tenon-spec"
-assert_not_contains "skill-tracker: 非 read 路径不被误记" "$line" "openspec-propose"
+assert_not_contains "skill-tracker: 非 read 路径不被误记" "$line" "tenon-open"
 # Codex command hook 未传 exact selected plugin root 时，不得枚举历史 cache 猜当前版本。
 # 同一 host-owned cache 只有被 bootstrap 明确传为 TENON_HOST_PLUGIN_ROOT 后才可留证。
 codex_home="$TMP/ptu-codex-home"
-codex_skill="$codex_home/.codex/plugins/cache/tenon/tenon/0.2.0/skills/openspec-propose"
+codex_skill="$codex_home/.codex/plugins/cache/tenon/tenon/0.2.0/skills/tenon"
 mkdir -p "$codex_skill"
-cp "$ROOT/skills/openspec-propose/SKILL.md" "$codex_skill/SKILL.md"
+cp "$ROOT/skills/tenon/SKILL.md" "$codex_skill/SKILL.md"
 CODEX_CACHE_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $codex_skill/SKILL.md\\\"\"}}"
 before="$(count_lines "$JL")"
 printf '%s' "$CODEX_CACHE_SKILL_READ" | HOME="$codex_home" CODEX_HOME='' TENON_HOST_PLUGIN_ROOT='' TENON_CODEX_PLUGIN_ROOT='' PLUGIN_ROOT='' CLAUDE_PLUGIN_ROOT='' bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "$before" ] && ok "skill-tracker: 缺 selected root 时拒绝历史 cache" || bad "skill-tracker: 缺 selected root 时拒绝历史 cache" "错误写入了未选择 cache 的 Skill 证据"
-printf '%s' "$CODEX_CACHE_SKILL_READ" | HOME="$codex_home" CODEX_HOME='' TENON_HOST_PLUGIN_ROOT="${codex_skill%/skills/openspec-propose}" TENON_CODEX_PLUGIN_ROOT='' PLUGIN_ROOT='' CLAUDE_PLUGIN_ROOT='' bash "$ST" >/dev/null 2>&1
+printf '%s' "$CODEX_CACHE_SKILL_READ" | HOME="$codex_home" CODEX_HOME='' TENON_HOST_PLUGIN_ROOT="${codex_skill%/skills/tenon}" TENON_CODEX_PLUGIN_ROOT='' PLUGIN_ROOT='' CLAUDE_PLUGIN_ROOT='' bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "$((before + 1))" ] && ok "skill-tracker: exact selected Codex root 可留证" || bad "skill-tracker: exact selected Codex root 可留证" "没有写入 selected-root Skill 证据"
 line="$(tail -1 "$JL" 2>/dev/null)"
-assert_contains "skill-tracker: selected cache 证据含 skill id" "$line" "openspec-propose"
-GATE_ERR="$(printf '%s' "$CODEX_CACHE_SKILL_READ" | HOME="$codex_home" CODEX_HOME='' TENON_HOST_PLUGIN_ROOT="${codex_skill%/skills/openspec-propose}" TENON_CODEX_PLUGIN_ROOT='' PLUGIN_ROOT='' CLAUDE_PLUGIN_ROOT='' bash "$GATE" 2>&1 >/dev/null)"
+assert_contains "skill-tracker: selected cache 证据含 skill id" "$line" 'CodexSkillRead: tenon"'
+GATE_ERR="$(printf '%s' "$CODEX_CACHE_SKILL_READ" | HOME="$codex_home" CODEX_HOME='' TENON_HOST_PLUGIN_ROOT="${codex_skill%/skills/tenon}" TENON_CODEX_PLUGIN_ROOT='' PLUGIN_ROOT='' CLAUDE_PLUGIN_ROOT='' bash "$GATE" 2>&1 >/dev/null)"
 GATE_RC=$?
 assert_exit "gate: exact selected Codex root 不误判为 shadowed" 0 "$GATE_RC"
 assert_not_contains "gate: selected cache 读取不报 shadowed" "$GATE_ERR" "同名非插件 SKILL.md"
@@ -1924,19 +1920,23 @@ proj2="$TMP/ptu-ig-bare"; mkdir -p "$proj2"
 OUT="$(printf '%s' "{\"cwd\":\"$proj2\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"brainstorming\"}}" | bash "$IG" 2>/dev/null)"
 assert_contains "interactive-skill-gate: 裸名 brainstorming 也命中" "$OUT" "AskUserQuestion"
 # Codex bundled-skill read 也必须触发同一交互硬门；否则真实 Codex 会话会绕开交互治理。
+# 交互式 skill 由 setup/update 从上游获取，源码 checkout 里没有；用一个最小插件根承载被读的 SKILL.md。
+IG_ROOT="$TMP/ptu-ig-plugin"; mkdir -p "$IG_ROOT/skills/brainstorming" "$IG_ROOT/skills/tenon-spec"
+printf -- '---\nname: brainstorming\ndescription: fixture\n---\n' > "$IG_ROOT/skills/brainstorming/SKILL.md"
+cp "$ROOT/skills/tenon-spec/SKILL.md" "$IG_ROOT/skills/tenon-spec/SKILL.md"
 proj_codex="$TMP/ptu-ig-codex"; mkdir -p "$proj_codex"
-OUT="$(printf '%s' "{\"cwd\":\"$proj_codex\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sed -n '1,120p' \\\"$ROOT/skills/brainstorming/SKILL.md\\\"\"}}" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$IG" 2>/dev/null)"
+OUT="$(printf '%s' "{\"cwd\":\"$proj_codex\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sed -n '1,120p' \\\"$IG_ROOT/skills/brainstorming/SKILL.md\\\"\"}}" | CLAUDE_PLUGIN_ROOT="$IG_ROOT" bash "$IG" 2>/dev/null)"
 assert_contains "interactive-skill-gate: Codex bundled interaction skill 也注入 AskUserQuestion" "$OUT" "AskUserQuestion"
 [ -f "$proj_codex/.pipeline-pending-interaction" ] && ok "interactive-skill-gate: Codex bundled interaction skill 落硬门" || bad "interactive-skill-gate: Codex bundled interaction skill 未落硬门" "marker 未落"
 # Codex 当前真实 shell 上报格式：/bin/zsh -lc 包装。该路径必须与上面的直接 sed 一样落门。
 proj_codex_wrapped="$TMP/ptu-ig-codex-wrapped"; mkdir -p "$proj_codex_wrapped"
-OUT="$(printf '%s' "{\"cwd\":\"$proj_codex_wrapped\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/brainstorming/SKILL.md\\\"\"}}" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$IG" 2>/dev/null)"
+OUT="$(printf '%s' "{\"cwd\":\"$proj_codex_wrapped\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $IG_ROOT/skills/brainstorming/SKILL.md\\\"\"}}" | CLAUDE_PLUGIN_ROOT="$IG_ROOT" bash "$IG" 2>/dev/null)"
 assert_contains "interactive-skill-gate: Codex exec/cmd 包装的 interaction skill 也注入 AskUserQuestion" "$OUT" "AskUserQuestion"
 [ -f "$proj_codex_wrapped/.pipeline-pending-interaction" ] && ok "interactive-skill-gate: Codex exec/cmd 包装的 interaction skill 落硬门" || bad "interactive-skill-gate: Codex exec/cmd 包装的 interaction skill 未落硬门" "marker 未落"
 # 同一个 Codex exec 先读普通 phase skill 再读交互式 skill 时，也必须落 interaction 门；此前
 # 只取第一个 id 会让 brainstorming 被静默忽略。
 proj_codex_multi="$TMP/ptu-ig-codex-multi"; mkdir -p "$proj_codex_multi"
-OUT="$(printf '%s' "{\"cwd\":\"$proj_codex_multi\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/tenon-spec/SKILL.md && sed -n '1,120p' $ROOT/skills/brainstorming/SKILL.md\\\"\"}}" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$IG" 2>/dev/null)"
+OUT="$(printf '%s' "{\"cwd\":\"$proj_codex_multi\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $IG_ROOT/skills/tenon-spec/SKILL.md && sed -n '1,120p' $IG_ROOT/skills/brainstorming/SKILL.md\\\"\"}}" | CLAUDE_PLUGIN_ROOT="$IG_ROOT" bash "$IG" 2>/dev/null)"
 assert_contains "interactive-skill-gate: 多 skill 读取仍识别后置 interaction skill" "$OUT" "AskUserQuestion"
 assert_contains "interactive-skill-gate: 多 skill 姿态点名 brainstorming" "$OUT" "brainstorming"
 [ -f "$proj_codex_multi/.pipeline-pending-interaction" ] && ok "interactive-skill-gate: 多 skill 读取也落 interaction 硬门" || bad "interactive-skill-gate: 多 skill 读取未落硬门" "marker 未落"

@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { parseUpstreamSkillSources } from '@tenon/kernel'
 import { buildCanonicalManifest } from './snapshot-manifest.js'
 import {
   SKILL_PROVENANCE_ERROR_CATEGORIES,
@@ -186,7 +187,7 @@ describe('verifySkillProvenance', () => {
     expect(result.findings.some((item) => item.category === 'coordinate-mismatch')).toBe(false)
   })
 
-  it('measures the real repository provenance inventory exactly (62 physical roots = entries = verified hashes)', async () => {
+  it('measures the real repository provenance inventory (tracked skill roots = registry entries, no tracked lock, no rewrites)', async () => {
     const root = process.cwd()
     const tracked = execFileSync('git', ['ls-files', '--cached', '-z'], {
       cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
@@ -197,16 +198,26 @@ describe('verifySkillProvenance', () => {
     const provenanceSources = tracked.filter((path) =>
       machineDataRoots.test(path) && /\.(?:yaml|yml|json)$/iu.test(path) && provenanceLike.test(path))
     expect(provenanceSources).toEqual(['templates/skill-sources.yaml'])
+    expect(tracked).not.toContain('skills/skills.lock.json')
     expect(execFileSync('git', ['check-attr', 'eol', '--', 'skills/tenon/SKILL.md'], { cwd: root, encoding: 'utf8' })).toContain('eol: lf')
     await expect(lstat(join(root, 'skills-lock.json'))).rejects.toMatchObject({ code: 'ENOENT' })
-    const physical = (await readdir(join(root, 'skills'), { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
-    expect(physical).toHaveLength(62)
+    const trackedSkillIds = [...new Set(tracked
+      .filter((path) => /^skills\/[^/]+\/SKILL\.md$/u.test(path))
+      .map((path) => path.split('/')[1] ?? ''))].sort()
+    // A development checkout may hold fetched upstream directories plus their lock; the verifier accepts both.
     const result = await verifySkillProvenance(root)
-    expect(result.ok).toBe(true)
-    expect(result.registry?.skills).toHaveLength(62)
-    expect(result.registry?.skills.every((entry) => entry.contentHash.startsWith('sha256:'))).toBe(true)
     expect(result.findings).toHaveLength(0)
+    expect(result.ok).toBe(true)
+    const registryIds = (result.registry?.skills ?? []).map((entry) => entry.sourceRef.slice('skills/'.length)).sort()
+    expect(registryIds).toEqual(trackedSkillIds)
+    expect(result.registry?.skills.every((entry) => entry.contentHash.startsWith('sha256:'))).toBe(true)
+    const sources = parseUpstreamSkillSources(await readFile(join(root, 'skills', 'sources.yaml'), 'utf8'))
+    expect(trackedSkillIds.filter((id) => sources.skills.some((source) => source.id === id))).toEqual([])
+    const rewrites = []
+    for (const id of trackedSkillIds.filter((candidate) => !registryIds.includes(candidate))) {
+      if ((await readFile(join(root, 'skills', id, 'SKILL.md'), 'utf8')).includes('description: First-party')) rewrites.push(id)
+    }
+    expect(rewrites).toEqual([])
   })
 
   it('has a deterministic failing fixture for every declared drift category', async () => {

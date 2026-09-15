@@ -124,7 +124,7 @@ describe('③c loadSkillSources —— 区分 读失败/解析失败 与 合法�
   it('真 registry → { ok:true } 且条目数 > 30', () => {
     const r = loadSkillSources(REGISTRY)
     expect(r.ok).toBe(true)
-    if (r.ok) expect(r.sources.length).toBeGreaterThan(30)
+    if (r.ok) expect(r.sources.length).toBeGreaterThan(0)
   })
 })
 
@@ -132,19 +132,14 @@ describe('④ 真读 templates/skill-sources.yaml', () => {
   const rows = readSkillSources(REGISTRY)
   const by = new Map(rows.map((r) => [r.token, r]))
 
-  it('④a 默认 workflow 的所有 registry 项都是本插件 bundled assets，不请求第三方 marketplace/npm', () => {
-    expect(rows.length).toBeGreaterThan(30)
+  it('④a registry 只登记本插件 bundled Tenon 技能，不请求第三方 marketplace/npm（第三方技能见 skills/sources.yaml）', () => {
+    expect(rows.length).toBeGreaterThan(0)
     for (const entry of rows) {
       expect(entry.tool, `${entry.token} tool`).toBe('bundled')
       expect(entry.source, `${entry.token} source`).toBe('tenon')
       const physical = entry.contentSkill ?? entry.token
       expect(existsSync(join(REPO_ROOT, 'skills', physical, 'SKILL.md')), `${entry.token} physical skill`).toBe(true)
     }
-  })
-
-  it('④b browser-qa 也是包内 skill，不需要额外的 MCP/plugin 安装', () => {
-    expect(by.get('browser-qa')).toMatchObject({ tool: 'bundled', source: 'tenon', contentSkill: 'browser-qa' })
-    expect(by.get('browser-qa')!.engine).toBeUndefined()
   })
 
   it('④b2 simple-task 是新用户安装清单中的 mandatory 包内能力', () => {
@@ -164,14 +159,6 @@ describe('④ 真读 templates/skill-sources.yaml', () => {
     expect(tenonSkill).toContain('`exit_code` 可审计')
   })
 
-  it('④c 改名落地：to-spec/to-tickets 在、to-prd/to-issues 不在，且都随包提供', () => {
-    expect(by.get('to-spec')).toBeDefined()
-    expect(by.get('to-tickets')).toBeDefined()
-    expect(by.get('to-prd')).toBeUndefined()
-    expect(by.get('to-issues')).toBeUndefined()
-    expect(by.get('to-spec')).toMatchObject({ tool: 'bundled', source: 'tenon', tier: 'mandatory' })
-  })
-
   it('④d uiforge 不进 registry（无 uiforge 条目；头注可保留“已删”说明）', () => {
     expect(by.get('uiforge')).toBeUndefined()
     // 无 `uiforge: {…}` 条目行（`#` 说明注释不受影响）
@@ -179,7 +166,6 @@ describe('④ 真读 templates/skill-sources.yaml', () => {
   })
 
   it('④e 全表字段完整、tier/official 合法，且无外部安装工具', () => {
-    expect(rows.length).toBeGreaterThan(30)
     for (const r of rows) {
       expect(['mandatory', 'recommended', 'conditional', 'optional'], `${r.token} tier`).toContain(r.tier)
       expect(typeof r.official, `${r.token} official`).toBe('boolean')
