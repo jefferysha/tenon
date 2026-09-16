@@ -162,7 +162,8 @@ function parsePass(cur: Cursor, keyIndent: number, id: string): StepTestPassDef 
   }
 }
 
-function parseTest(id: string, cur: Cursor, itemIndent: number): StepTestDef {
+/** 一个测试项除 `id` 外的全部字段；itemIndent 是项首行缩进，-1 表示字段从缩进 0 开始（方向文件）。 */
+export function parseTestBody(id: string, cur: Cursor, itemIndent: number): StepTestDef {
   const seen = new Set<string>()
   const once = (key: string): void => {
     if (seen.has(key)) fail(`测试 '${id}' 重复声明 ${key}`)
@@ -216,5 +217,5 @@ function parseTest(id: string, cur: Cursor, itemIndent: number): StepTestDef {
 }
 
 export function parseStepTests(cur: Cursor, baseIndent: number): StepTestDef[] {
-  return parseItems(cur, baseIndent, 'id', parseTest)
+  return parseItems(cur, baseIndent, 'id', parseTestBody)
 }

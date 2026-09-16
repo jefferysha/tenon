@@ -17,6 +17,8 @@ export {
   syncBuiltinLibraries, syncBuiltinLibrary,
 } from './infrastructure/builtin-library-sync.js'
 export type { BuiltinLibrary, BuiltinLibraryMarker, BuiltinSyncResult } from './infrastructure/builtin-library-sync.js'
+// 每步测试登记：测试方向、运行记录、基准与门禁判定。
+export * from './test-evidence/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
 export {
   resolveProductPaths,
@@ -101,7 +103,8 @@ export { WorkflowTrackBranchError, selectTrackBranch, validateWorkflow, validate
 export { projectWorkflowNames, requireTrackForRoot } from './workflow/branch-track-lookup.js'
 export { validateWorkflowTrackReferences } from './workflow/track-reference-validation.js'
 export type {
-  StepDef, StepTransition, WorkflowActionConfig, WorkflowDecompositionAskCondition,
+  StepDef, StepTestDef, StepTestPassDef, StepTransition, TestInputDef, TestMetricCriterion,
+  TestOutputDef, TestOutputKind, WorkflowActionConfig, WorkflowDecompositionAskCondition,
   WorkflowDecompositionAutoCondition, WorkflowDecompositionMode, WorkflowDecompositionPolicyV1,
   WorkflowDecompositionStrategy, WorkflowDecompositionTarget, WorkflowDef, WorkflowDocumentContractV1,
   WorkflowDocumentRead, WorkflowDocumentSlot, WorkflowGuardConfig, WorkflowInteractionMode,
@@ -186,7 +189,7 @@ export {
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,
 } from './workflow/effective-io.js'
 export type {
-  ActionInput, CompiledGuardConfig, GuardDecision, GuardInput, StepIR, StepTransitionIR, WorkflowIR,
+  ActionInput, CompiledGuardConfig, GuardDecision, GuardInput, StepIR, StepTestIR, StepTransitionIR, WorkflowIR,
 } from './workflow/ir.js'
 export { readinessByTransition } from './workflow/transition-readiness.js'
 export type {

@@ -1,0 +1,5 @@
+id: regression
+command: npm test
+label: 回归
+timeout_s: 1800
+scope: full
