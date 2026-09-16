@@ -194,3 +194,56 @@ describe('tenon task archive / unarchive', () => {
     expect(h.err.join('\n')).toContain('delete archive unarchive')
   })
 })
+
+describe('已归档任务拒绝推进', () => {
+  test('transition / advance / review request / document record / artifact register 全部 exit 1 并提示取消归档', async () => {
+    await init('feat')
+    const before = await h.read('feat')
+    expect(await h.run(['task', 'archive', 'feat'])).toBe(0)
+
+    for (const argv of [
+      ['transition', 'feat', 'open-complete'],
+      ['advance', 'feat'],
+      ['review', 'request', 'feat'],
+      ['document', 'record', 'feat', 'proposal', 'openspec/changes/feat/proposal.md', '--producer', 'tenon-open'],
+      ['artifact', 'register', 'feat', 'design_doc', 'docs/x.md', '--producer', 'tenon-explore'],
+    ]) {
+      expect(await h.run(argv)).toBe(1)
+      expect(h.err.join('\n')).toContain("任务 'feat' 已归档")
+      expect(h.err.join('\n')).toContain('tenon task unarchive feat')
+    }
+    expect(await h.read('feat')).toBe(before)
+  })
+
+  test('取消归档后不再被归档拒绝；另一个用户始终不受归档影响', async () => {
+    await init('feat')
+    expect(await h.run(['task', 'archive', 'feat'])).toBe(0)
+    expect(await h.run(['transition', 'feat', 'open-complete'])).toBe(1)
+    expect(h.err.join('\n')).toContain('已归档')
+
+    // Another identity keeps reading, owning and advancing the task; its transition can only fail on
+    // the ordinary workflow guard, never on this user's archive.
+    const other = { TENON_USER: 'b@x.io', TENON_USER_NAME: 'B' }
+    expect(await h.run(['get', 'feat', 'phase'], { env: other })).toBe(0)
+    expect(h.out.join('')).toBe('open')
+    expect(await h.run(['owner', 'take', 'feat'], { env: other })).toBe(0)
+    await h.run(['transition', 'feat', 'open-complete'], { env: other })
+    expect(h.err.join('\n')).not.toContain('已归档')
+
+    expect(await h.run(['task', 'unarchive', 'feat'])).toBe(0)
+    await h.run(['transition', 'feat', 'open-complete'])
+    expect(h.err.join('\n')).not.toContain('已归档')
+    expect(await h.run(['list', '--json'])).toBe(0)
+    expect(JSON.stringify(lastJson())).toContain('feat')
+  })
+
+  test('归档不阻断修复路径 get / set / cas', async () => {
+    await init('feat')
+    expect(await h.run(['task', 'archive', 'feat'])).toBe(0)
+    expect(await h.run(['get', 'feat', 'phase'])).toBe(0)
+    expect(await h.run(['set', 'feat', 'branch', 'feat/x'])).toBe(0)
+    expect(await h.run(['cas', 'feat', 'branch', 'feat/x', 'feat/y'])).toBe(0)
+    expect(await h.run(['get', 'feat', 'branch'])).toBe(0)
+    expect(h.out.join('')).toBe('feat/y')
+  })
+})

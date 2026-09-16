@@ -28,6 +28,7 @@ import {
 } from '@tenon/kernel'
 import type { EffectiveSkillSlot, FieldName, PipelineState } from '@tenon/kernel'
 import { relative, resolve } from 'node:path'
+import { refuseArchived } from '../archivedGuard.js'
 import { errMsg, type CliDeps } from '../deps.js'
 import { recordHistory } from './fields.js'
 import { changeDir, isValidChangeName } from '../paths.js'
@@ -148,6 +149,7 @@ export async function cmdArtifactRegister(
   if (!isValidChangeName(name)) {
     return reject(deps, `change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
   }
+  if (await refuseArchived(deps, name)) return 1
   // path 非空（D2：保持旧 file_path 值语义，不额外要求存在/canonicalize）。
   if (path === '') {
     return reject(deps, 'artifact path 不得为空')

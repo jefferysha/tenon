@@ -27,6 +27,7 @@ import type { PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
+import { refuseArchived } from '../archivedGuard.js'
 import { cmdCheck } from './check.js'
 import { recordHistory } from './fields.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
@@ -158,6 +159,7 @@ export async function cmdReview(
     deps.io.err(`ERROR: change-name 非法: '${name ?? ''}' (仅允许 a-z A-Z 0-9 - _)`)
     return 1
   }
+  if (await refuseArchived(deps, name)) return 1
   const dir = changeDir(deps.cwd, name)
   const interaction = deps.interaction === undefined
     ? undefined
