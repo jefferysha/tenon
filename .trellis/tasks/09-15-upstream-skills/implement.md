@@ -322,3 +322,22 @@ and inert.
    dashboard usage documents document the view; the checker pins the operational view set and order.
 10. **Deferred:** the real isolated Codex / Claude installs of step 14 (parent X18 keeps real-host runs in
     wave 5) and the PRD acceptance task in both hosts (needs data-driven-runner's `skills/tenon`).
+11. **Commit 12 (clean-install acceptance) is deferred, not shipped.** `tools/clean-codex-install-acceptance.mjs`
+    and its node test are back at their committed state. Four local runs were attempted; the evidence:
+    - Run A (fixture without `.gitignore`, one rewritten `sources.yaml` row): install and activation
+      succeeded, the fixture skill reached the host root, `skills:upstream` reported
+      `1 个上游技能已安装`, and the run failed only at `doctor --json`, whose `skills:mandatory` is red
+      because a single-row source list drops the 20 mandatory upstream ids.
+    - Runs B/C (add `.gitignore` to `LOCAL_RELEASE_ENTRIES`; force-add everything, then ignore-respecting
+      add plus a forced `.agents/plugins/marketplace.json`): install.sh aborts earlier at
+      `prove_marketplace_target` — "marketplace state is neither the frozen target nor an adoptable
+      bridge postcondition".
+    - Run D (no `.gitignore`, every declared row served from its own local bare repository): the same
+      `prove_marketplace_target` abort, so `.gitignore` is not the trigger.
+    Two leads for whoever finishes it: the Codex plugin root *is* the marketplace clone
+    (`…/codex/.tmp/marketplaces/tenon`), so fetched skills make that clone untracked-dirty on the repeat
+    install unless the tag tree's `.gitignore` is present; and `prove_marketplace_target` returns 1
+    without naming the failing field, while the harness deletes its fixture on this path — capture the
+    `read_marketplace_state` row (presence/source/source_type/head/ref/clean/origin) with the fixture
+    retained before changing anything else. `npm run check:npx-package` and `npm run test:clean-install`
+    therefore still exercise the pre-upstream harness on this branch.
