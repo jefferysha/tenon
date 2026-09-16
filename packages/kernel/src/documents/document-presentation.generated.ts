@@ -11,7 +11,8 @@ export const DOCUMENT_TEMPLATE_IDS = [
   "superpower-plan",
   "implementation-plan",
   "verification-report",
-  "applied-spec"
+  "applied-spec",
+  "design-md"
 ] as const
 export type DocumentTemplateId = (typeof DOCUMENT_TEMPLATE_IDS)[number]
 
@@ -251,6 +252,17 @@ export const DOCUMENT_PRESENTATION_REGISTRY = {
         "prompt-placeholder:evidence"
       ],
       "creation": "missing-only"
+    },
+    "design-md": {
+      "kind": "design-md",
+      "path": "DESIGN.md",
+      "sections": [
+        "title"
+      ],
+      "layout": [
+        "h1:title"
+      ],
+      "creation": "missing-only"
     }
   }
 } as const satisfies {
@@ -334,6 +346,9 @@ export const DOCUMENT_LOCALE_CATALOGS = {
       "summary": "变更摘要",
       "requirements": "已应用需求",
       "evidence": "交付证据"
+    },
+    "design-md": {
+      "title": "设计体系"
     }
   },
   "en": {
@@ -408,6 +423,9 @@ export const DOCUMENT_LOCALE_CATALOGS = {
       "summary": "Change summary",
       "requirements": "Applied requirements",
       "evidence": "Delivery evidence"
+    },
+    "design-md": {
+      "title": "Design system"
     }
   }
 } as const satisfies Readonly<
@@ -422,7 +440,7 @@ export const DOCUMENT_WORKFLOW_STEP_LABELS = {
     "build": "实现",
     "verify": "验证",
     "ship": "交付",
-    "archive": "归档"
+    "archive": "完结"
   },
   "en": {
     "open": "Open",
@@ -431,7 +449,7 @@ export const DOCUMENT_WORKFLOW_STEP_LABELS = {
     "build": "Build",
     "verify": "Verify",
     "ship": "Ship",
-    "archive": "Archive"
+    "archive": "Done"
   }
 } as const satisfies Readonly<
   Record<DocumentLocale, Readonly<Record<DocumentWorkflowStepId, string>>>

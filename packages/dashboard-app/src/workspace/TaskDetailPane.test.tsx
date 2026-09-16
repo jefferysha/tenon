@@ -78,6 +78,7 @@ function snapshotRow(snapshot: ChangeSnapshot): TaskRow {
     rules: snapshot.workflowRules,
     workflow: 'mine',
     archived: false,
+    owner: null,
     stages: stagesOf(snapshot, undefined, (key: string) => key),
     summary: { kind: 'running' },
   }
