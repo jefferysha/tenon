@@ -258,4 +258,48 @@ describe('serializeWorkflow —— parse 的反向操作，往返等价是唯一
     expect(round.steps[0]!.artifacts).toEqual([])
     expect(Object.prototype.hasOwnProperty.call(round.steps[1]!, 'artifacts')).toBe(false)
   })
+
+  it('分支工作流的测试项：块式往返、键序固定、tests: [] 与缺省两态保真', () => {
+    const wf: WorkflowDef = {
+      name: 'tested',
+      tracks: {
+        frontend: {
+          label: '前端',
+          steps: [
+            {
+              id: 'build', label: '实现', gate: 'auto', skills: [], inputs: [],
+              outputs: [{ field: 'build_notes', type: 'string' }],
+              tests: [
+                {
+                  id: 'unit', direction: 'unit', command: 'npm test', cwd: 'frontend', label: '单测',
+                  timeout_s: 900, required: true, keep_runs: 5,
+                  pass: { exit_code: 0 },
+                  inputs: [{ kind: 'document', ref: 'delta-spec' }],
+                  outputs: [{ path: 'frontend/test-results/junit.xml', kind: 'report', required: true }],
+                },
+                {
+                  id: 'bench', direction: 'benchmark', command: 'npm run bench', scope: 'known',
+                  metrics_path: 'test-results/benchmark.json',
+                  pass: { metrics: [{ name: 'p95_ms', max: 250, better: 'lower' }] },
+                  inputs: [], outputs: [],
+                },
+              ],
+              guards: [], transitions: [{ event: 'done', to: 'verify' }],
+            },
+            { id: 'verify', label: '验证', gate: null, skills: [], inputs: [], outputs: [], tests: [], guards: [], transitions: [] },
+          ],
+        },
+      },
+      steps: [],
+    }
+    const yaml = serializeWorkflow(wf)
+    const keys = [...yaml.matchAll(/^ +(?:- )?(id|direction|command|cwd|label|timeout_s|required|keep_runs|pass|inputs|outputs): /gmu)]
+      .map((match) => match[1])
+    expect(keys.slice(keys.indexOf('direction') - 1, keys.indexOf('direction') + 7))
+      .toEqual(['id', 'direction', 'command', 'cwd', 'label', 'timeout_s', 'required', 'keep_runs'])
+    expect(yaml).toContain('        tests: []')
+    const round = parseWorkflow(yaml)
+    expect(round).toEqual(wf)
+    expect(Object.prototype.hasOwnProperty.call(round.tracks!.frontend!.steps[0]!, 'tests')).toBe(true)
+  })
 })
