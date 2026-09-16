@@ -852,8 +852,8 @@ describe('doctor 缺技能检测（full-install 批2 A1：skills:mandatory / ski
     const { payload } = await runJson(deps)
     const c = byId(payload, 'skills:mandatory')
     expect(c.status).toBe('green')
-    expect(c.detail).not.toContain('test-driven-development')
-    expect(c.detail).not.toContain('openspec-propose')
+    expect(c.detail).not.toContain('tenon-build')
+    expect(c.detail).not.toContain('tenon-spec')
   })
 
   test('⑤ registry 缺失（fileExists 报无 skill-sources.yaml）→ 两项 yellow 不 green，exit 0（S1 concern #3 回归）', async () => {

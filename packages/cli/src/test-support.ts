@@ -412,8 +412,8 @@ export const testEffectiveSkillResolver: EffectiveSkillResolver = {
  * 缺失态测试应显式注入不在 registry 的自定义 workflow skill，确保 setup 不会掩盖扩展缺口。
  */
 const DEFAULT_MANIFEST_SKILLS: { mandatory: SkillTable; recommended: SkillTable } = {
-  mandatory: { build: { frontend: ['test-driven-development', 'openspec-propose'] } } as unknown as SkillTable,
-  recommended: { build: { frontend: ['search-first'] } } as unknown as SkillTable,
+  mandatory: { build: { frontend: ['tenon-build', 'tenon-spec'] } } as unknown as SkillTable,
+  recommended: { build: { frontend: ['tenon-researcher'] } } as unknown as SkillTable,
 }
 
 export function mockDoctorProbes(overrides: Partial<DoctorProbes> = {}): DoctorProbes {
