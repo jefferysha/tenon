@@ -23,8 +23,9 @@ export interface TestCommandContext {
 }
 
 /**
- * 归档（每用户「隐藏这个任务」）的任务不接受测试命令。判定属于 task-delete-archive；它合并前这里
- * 只有一个占位调用点，合并后把读取 `local/archived.json` 的判定接进来即可。
+ * 归档（每用户「隐藏这个任务」）的任务不接受测试命令（父设计 §7）。判定归 task-delete-archive：
+ * 合并后把本函数整体换成它的 `refuseArchived(deps, name)`（`packages/cli/src/archivedGuard.ts`），
+ * 这是本命令族唯一的归档调用点。该分支基于 task-delete-archive 合并前的 main，所以这里先恒为 false。
  */
 async function archivedForUser(_deps: CliDeps, _slug: string, _name: string): Promise<boolean> {
   return false

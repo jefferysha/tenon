@@ -167,7 +167,11 @@ describe('真实 e2e —— 每步测试登记', () => {
     expect(await h.run(['test', 'run', 'demo', 'unit'], { env: USER_B })).toBe(1)
     expect(h.err.join('\n')).toContain('先接手：tenon owner take demo')
     expect(await h.run(['test', 'run', 'demo', 'unit'], {
-      env: { TENON_USER: undefined, TENON_USER_NAME: undefined, HOME: h.cwd, GIT_CONFIG_GLOBAL: '/dev/null' },
+      // CI 上开发者身份不存在，本机上存在；三条来源全部中和，两边都走「身份缺失」这条路。
+      env: {
+        TENON_USER: undefined, TENON_USER_NAME: undefined, HOME: h.cwd,
+        GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+      },
     })).toBe(1)
     expect(await runIds(SLUG_A)).toEqual([])
   })
