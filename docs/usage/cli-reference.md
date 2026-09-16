@@ -105,6 +105,22 @@ derived handoff artifact, not a replacement canonical document; repair stale
 inputs with `tenon document record` under an allowed producer and then
 re-run the handoff.
 
+## Tests
+
+```text
+tenon test run <change> <test-id> [--json]
+```
+
+A step declares the tests it needs in the workflow YAML. Only a run through
+`tenon test run` produces a record, so an agent's own test run never satisfies a
+required test. Tenon executes the declared command in its own process group,
+records the exit code, duration, actor, input digests and output files under
+`.tenon/users/<slug>/tests/<change>/<run-id>.json`, and keeps the log plus copies
+of the declared outputs in the gitignored per-user local directory. Exit codes:
+`0` pass, `2` fail (the record is written), `1` usage or environment error (no
+record). The command receives `TENON_CHANGE_NAME`, `TENON_TEST_ID`,
+`TENON_TEST_RUN_ID`, `TENON_TEST_ARTIFACTS` and `TENON_BASE_BRANCH`.
+
 ## Documents, artifacts, and review
 
 ```text

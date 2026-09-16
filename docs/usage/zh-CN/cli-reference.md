@@ -132,6 +132,19 @@ steps:
 一律是普通工作，不消耗 Review 次数。Dashboard 策略编辑器可以直接配置 `max_attempts`，
 并会保留 lane 与 Skill 分类字段。
 
+## 测试
+
+```bash
+tenon test run <change> <test-id> [--json]
+```
+
+工作流的每一步在 YAML 里声明需要跑的测试。只有经 `tenon test run` 的执行会产生记录，
+agent 自己跑的结果满足不了必需测试。Tenon 在独立进程组里执行声明的命令，把退出码、耗时、
+执行人、输入摘要与输出文件登记到 `.tenon/users/<slug>/tests/<change>/<run-id>.json`，
+完整日志与输出副本留在该用户 gitignored 的本机目录。退出码：`0` 通过、`2` 失败（记录已落盘）、
+`1` 用法或环境错误（不落记录）。命令可读到 `TENON_CHANGE_NAME`、`TENON_TEST_ID`、
+`TENON_TEST_RUN_ID`、`TENON_TEST_ARTIFACTS` 与 `TENON_BASE_BRANCH`。
+
 ## Session 与恢复
 
 ```bash
