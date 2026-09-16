@@ -207,6 +207,10 @@ function mapTransitionResult(name: string, event: string, result: TransitionAppl
       const lines = [`OpenSpec 文档证据未通过（phase=${result.phase}）`, ...result.blockers]
       return { code: 409, body: { ok: false, error: lines[0], detail: lines, code: 'document-evidence-failed' } }
     }
+    case 'test-evidence-failed': {
+      const lines = [`测试证据未通过（step=${result.stepId}）`, ...result.blockers]
+      return { code: 409, body: { ok: false, error: lines[0], detail: lines, code: 'test-evidence-failed' } }
+    }
     case 'owner-required':
       return {
         code: 403,

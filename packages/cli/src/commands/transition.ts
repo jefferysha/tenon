@@ -289,6 +289,10 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         deps.io.err(`ERROR: OpenSpec 文档证据未通过（phase=${result.phase}）：`)
         for (const blocker of result.blockers) deps.io.err(`  - ${blocker}`)
         return 1
+      case 'test-evidence-failed':
+        deps.io.err(`ERROR: 测试证据未通过（step=${result.stepId}）：`)
+        for (const blocker of result.blockers) deps.io.err(`  - ${blocker}`)
+        return 1
       case 'review-approval-required':
         deps.io.err(
           `ERROR: phase '${result.phase}' 的 event '${result.event}' 尚未取得人工确认；先运行 ` +
