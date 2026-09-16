@@ -595,6 +595,44 @@ bootstrap_new_pre_verify_review() {
   run_new_cli "$dir" set "$change" pre_verify_review_result pass
 }
 
+# Legacy oracle predates per-step test evidence. default 的 frontend/backend 轨在 build/verify 声明了
+# 必需测试，而声明过的测试只认 `tenon test run` 落下的记录——自跑同一条命令不算。所以在老侧已经证明
+# 该出口成功之后，于新侧照真实用户的做法补齐：项目声明自己的 npm 脚本，读一遍状态，逐项真跑。
+# 这不是给 oracle 开后门：跑的是工作流声明的那条命令，落的是真记录，门禁本身分毫未动。
+oracle_fixture_package_json() { # $1=项目目录 —— 真实项目自带的脚本声明；夹具项目声明等价的空脚本
+  local dir="$1"
+  [ -f "$dir/package.json" ] && return 0
+  cat > "$dir/package.json" <<'PKG'
+{
+  "name": "tenon-oracle-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "test": "exit 0",
+    "typecheck": "exit 0",
+    "test:integration": "exit 0",
+    "bench": "exit 0"
+  }
+}
+PKG
+}
+
+bootstrap_new_test_evidence() {
+  local dir="$1" change="$2" phase ids id
+  phase="$(run_new_cli "$dir" get "$change" phase)" || return 1
+  phase="$(printf '%s' "$phase" | tr -d '[:space:]')"
+  [ -n "$phase" ] || return 0
+  # 该步没有声明测试（pm/chat/free 各步，以及 build/verify 之外的步）→ items 为空，天然无操作。
+  ids="$(run_new_cli "$dir" test status "$change" --step "$phase" --json 2>/dev/null \
+    | grep -o '"id": "[A-Za-z0-9_-]*"' | sed 's/.*"id": "//; s/"$//')" || true
+  [ -n "$ids" ] || return 0
+  oracle_fixture_package_json "$dir" || return 1
+  while IFS= read -r id; do
+    [ -n "$id" ] || continue
+    run_new_cli "$dir" test run "$change" "$id" || return 1
+  done <<< "$ids"
+}
+
 # ---------- 双跑单步 ----------
 stderr_divergence_reason() {
   local base="$1" idx="$2" file
@@ -613,7 +651,7 @@ run_step_dual() {
   shift 5
   local args=("$@")
   local change="${args[0]}"
-  local old_rc new_rc bootstrap_rc review_bootstrap_rc convergence_bootstrap_rc f_out f_exit f_yaml label
+  local old_rc new_rc bootstrap_rc review_bootstrap_rc convergence_bootstrap_rc test_bootstrap_rc f_out f_exit f_yaml label
   local build_sha_override=""
 
   bootstrap_rc=0
@@ -641,14 +679,24 @@ run_step_dual() {
       > "$step_dir/new.convergence-bootstrap.out" 2> "$step_dir/new.convergence-bootstrap.err" \
       || convergence_bootstrap_rc=$?
   fi
-  review_bootstrap_rc=0
+  test_bootstrap_rc=0
+  # 与 review receipt 同一条口径：只在老侧已证明该出口成功之后补，绝不在老侧拒绝时跑——那会把一次
+  # guard 比较变成人为的测试登记。必须排在 review request 之前：`review request` 的预检就是整份
+  # check（含测试证据），真实用户同样是先跑测试再请求评审。
   if [ "$bootstrap_rc" -eq 0 ] && [ "$convergence_bootstrap_rc" -eq 0 ] && [ "$old_rc" -eq 0 ] \
+    && { [ "$cmd" = transition ] || [ "$cmd" = check ]; } && [ "$DOCUMENT_CONTRACT_BOOTSTRAP" = 1 ]; then
+    bootstrap_new_test_evidence "$base/new" "$change" \
+      > "$step_dir/new.test-bootstrap.out" 2> "$step_dir/new.test-bootstrap.err" || test_bootstrap_rc=$?
+  fi
+  review_bootstrap_rc=0
+  if [ "$bootstrap_rc" -eq 0 ] && [ "$convergence_bootstrap_rc" -eq 0 ] \
+    && [ "$test_bootstrap_rc" -eq 0 ] && [ "$old_rc" -eq 0 ] \
     && [ "$cmd" = transition ] && [ "$REVIEW_RECEIPT_BOOTSTRAP" = 1 ]; then
     bootstrap_new_review_receipt "$base/new" "$change" "${args[1]:-}" \
       > "$step_dir/new.review-bootstrap.out" 2> "$step_dir/new.review-bootstrap.err" || review_bootstrap_rc=$?
   fi
   if [ "$bootstrap_rc" -eq 0 ] && [ "$convergence_bootstrap_rc" -eq 0 ] \
-    && [ "$review_bootstrap_rc" -eq 0 ]; then
+    && [ "$review_bootstrap_rc" -eq 0 ] && [ "$test_bootstrap_rc" -eq 0 ]; then
     run_new_cli "$base/new" "${NEW_ARGS[@]}" > "$step_dir/new.out" 2> "$step_dir/new.err"
     new_rc=$?
   else
@@ -660,6 +708,9 @@ run_step_dual() {
       elif [ "$convergence_bootstrap_rc" -ne 0 ]; then
         printf 'ERROR: oracle Build convergence bootstrap 失败（exit=%s）\n' "$convergence_bootstrap_rc"
         cat "$step_dir/new.convergence-bootstrap.err"
+      elif [ "$test_bootstrap_rc" -ne 0 ]; then
+        printf 'ERROR: oracle test evidence bootstrap 失败（exit=%s）\n' "$test_bootstrap_rc"
+        cat "$step_dir/new.test-bootstrap.err"
       else
         printf 'ERROR: oracle review receipt bootstrap 失败（exit=%s）\n' "$review_bootstrap_rc"
         cat "$step_dir/new.review-bootstrap.err"
