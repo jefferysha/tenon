@@ -13,6 +13,8 @@ export * from './users/index.js'
 export * from './instructions/index.js'
 // 资源目录（组件库 / 图标 / 动画 / DESIGN.md / 状态管理 / 样式）条目的解析、校验与筛选。
 export * from './resources/index.js'
+// 任务级 agent（工作流步骤的执行者 / 评审者）定义文件的解析与校验。
+export * from './agents/index.js'
 // 项目设计体系（根目录 DESIGN.md + design/）的结构检查与变更提案。
 export * from './design-system/index.js'
 export { createDesignFileReader } from './infrastructure/design-system-fs.js'
@@ -29,6 +31,11 @@ export {
   readResourceFile, resourceStoreRoot, writeCustomResource,
 } from './infrastructure/resource-store.js'
 export type { ResourceCatalog, ResourceFile, ResourceStoreOptions } from './infrastructure/resource-store.js'
+export {
+  AgentStoreError, agentStoreRoot, deleteCustomAgent, ensureBuiltinAgents, loadAgentLibrary, resolveAgent,
+  writeCustomAgent,
+} from './infrastructure/agent-store.js'
+export type { AgentEntry, AgentLibrary, AgentStoreOptions } from './infrastructure/agent-store.js'
 // 每步测试登记：测试方向、运行记录、基准与门禁判定。
 export * from './test-evidence/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
