@@ -18,6 +18,7 @@ import { isValidSecretKey, removeSecret, SECRET_KEY_LIST } from './secrets.js'
 import { tokenFromHeaders, tokensMatch } from './token.js'
 import { handleWorkflowYamlPut, matchWorkflowYamlRoute } from './serverWorkflowYamlRoutes.js'
 import { resolveInstructionMutation } from './instructionRoutes.js'
+import { resolveResourceMutation } from './serverResourceRoutes.js'
 import { handleTaskLifecycleDelete, type TaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 import type { ServerPaths } from './types.js'
 import {
@@ -148,6 +149,8 @@ export async function handleDeleteRoute(
 
     const instructionDelete = resolveInstructionMutation(req, 'DELETE', path, deps)
     if (instructionDelete) { const result = await instructionDelete; return sendJson(res, result.status, result.body) }
+    const resourceDelete = resolveResourceMutation(req, 'DELETE', path, deps)
+    if (resourceDelete) { const result = await resourceDelete; return sendJson(res, result.status, result.body) }
     if (await handleTaskLifecycleDelete(req, res, path, deps)) return
 
     // ── G18：DELETE /api/projects?root= —— 注销项目（注册的对称操作）──
@@ -326,6 +329,8 @@ export async function handlePutRoute(
   }
   const instructionPut = resolveInstructionMutation(req, 'PUT', path, deps)
   if (instructionPut) { const result = await instructionPut; return sendJson(res, result.status, result.body) }
+  const resourcePut = resolveResourceMutation(req, 'PUT', path, deps)
+  if (resourcePut) { const result = await resourcePut; return sendJson(res, result.status, result.body) }
   const yamlName = matchWorkflowYamlRoute(path)
   if (yamlName !== null) {
     const result = await handleWorkflowYamlPut(req, yamlName, { workflowRootForRequest: workflowStoreForRequest, trackValidationContextFor, errMsg })
