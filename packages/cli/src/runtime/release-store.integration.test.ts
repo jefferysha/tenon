@@ -219,7 +219,11 @@ describe('RuntimeReleaseStore', () => {
       await firstGate
       events.push('first:end')
     })
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    const firstStarted = Date.now() + 10_000
+    while (!events.includes('first:start')) {
+      if (Date.now() > firstStarted) throw new Error('first transaction never acquired the lock')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
     const second = REAL_RUNTIME_INSTALLER.withManagedTransaction(isolatedScope(home), async () => {
       events.push('second:start')
       events.push('second:end')

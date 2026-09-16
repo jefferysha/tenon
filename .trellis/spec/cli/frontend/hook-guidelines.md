@@ -48,7 +48,23 @@ Questions to answer:
 
 <!-- Hook-related mistakes your team has made -->
 
-(To be filled by the team)
+### Common Mistake: asserting shell structure through a fixed line window
+
+**Symptom**: `tools/test-hooks.sh` fails with `assert_contains` on text that is still present in the file. Adding or
+removing unrelated lines earlier in `install.sh` (or any asserted shell script) moves the asserted block out of the
+window, so CI fails while the behaviour is unchanged.
+
+**Cause**: the assertion sliced the script by line numbers, e.g. `sed -n '955,972p' "$ROOT/install.sh"`.
+
+**Fix**: extract the block by its own name and fail loudly when the anchor is gone:
+
+```bash
+install_text="$(awk '/^run_release_verification\(\) \{/{inside=1} inside{print} inside && /^\}/{exit}' "$ROOT/install.sh")"
+[ -n "$install_text" ] || bad "install.sh: run_release_verification 可定位" "未找到该函数"
+```
+
+**Prevention**: every structural assertion anchors on a function name, marker comment or unique literal, never on a line
+number; when the anchor itself must exist, assert that first so a rename fails with the reason instead of an empty slice.
 
 ## Review and automation decisions
 
