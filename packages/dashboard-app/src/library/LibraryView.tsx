@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useT } from '../i18n'
 import { getToken } from '../api/transport'
 import { TEMPLATE_CATEGORIES, type TemplateCategory, type TemplateRef, type TemplateSource } from '../api/instructionsDecoders'
-import { DetailEmpty, FilterChip, ListColumn, RailCard, RailColumn, ThreeColumns } from '../shell/ThreeColumns'
+import { DetailEmpty, FilterChip, ListColumn, ThreeColumns } from '../shell/ThreeColumns'
 import { matchesQuery } from '../shell/GlobalSearch'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
+import { LibraryRail, type LibrarySection } from './LibraryRail'
 import { NewTemplateDialog } from './NewTemplateDialog'
+import { ResourceCatalog } from './resources/ResourceCatalog'
 import { TemplateDetail } from './TemplateDetail'
 import { useTemplateLibrary } from './useTemplateLibrary'
 
@@ -30,6 +32,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
   useEffect(() => {
     try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
   }, [railCollapsed])
+  const [section, setSection] = useState<LibrarySection>('templates')
   const [category, setCategory] = useState<CategoryFilter>('all')
   const [source, setSource] = useState<SourceFilter>('all')
   const [search, setSearch] = useState('')
@@ -62,33 +65,32 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
     })()
   }
 
+  const rail = (
+    <LibraryRail
+      section={section}
+      templates={library.templates.length}
+      collapsed={railCollapsed}
+      onSection={setSection}
+      onToggle={() => setRailCollapsed((value) => !value)}
+    />
+  )
+  if (section === 'resources') {
+    return (
+      <ResourceCatalog
+        rail={rail}
+        railCollapsed={railCollapsed}
+        today={new Date().toISOString().slice(0, 10)}
+        onToast={onToast}
+      />
+    )
+  }
+
   return (
     <>
       <ThreeColumns
         testId="library-view"
         railCollapsed={railCollapsed}
-        rail={(
-          <RailColumn
-            title={t('library.title')}
-            collapsed={railCollapsed}
-            onToggle={() => setRailCollapsed((value) => !value)}
-            testId="library-rail"
-          >
-            <ul className="grid gap-1">
-              <li>
-                <RailCard
-                  mark="T"
-                  name={t('library.templates')}
-                  count={library.templates.length}
-                  selected
-                  collapsed={railCollapsed}
-                  onClick={() => undefined}
-                  testId="lib-section-templates"
-                />
-              </li>
-            </ul>
-          </RailColumn>
-        )}
+        rail={rail}
         list={(
           <ListColumn
             testId="library-list"

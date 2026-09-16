@@ -9,6 +9,15 @@ import {
   type ResourceCategory, type ResourceEntry, type ResourceFramework, type ResourceLicenseMode, type ResourceStyling,
 } from './types.js'
 
+// Dashboard 只 import 本子路径，枚举与条目类型从这里转出（types.js 是无依赖叶子，浏览器可安全打包）。
+export {
+  RESOURCE_CATEGORIES, RESOURCE_COMMERCIAL, RESOURCE_FRAMEWORKS, RESOURCE_LINK_KEYS, RESOURCE_STYLING,
+} from './types.js'
+export type {
+  ResourceCategory, ResourceCommercial, ResourceEntry, ResourceFramework, ResourceLicense, ResourceLicenseMode,
+  ResourceLinkKey, ResourceStyling,
+} from './types.js'
+
 export interface ResourceQuery {
   category?: ResourceCategory
   framework?: ResourceFramework
