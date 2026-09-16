@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link2, ShieldCheck, UserCheck, Zap } from 'lucide-react'
+import { Archive, ArchiveRestore, Link2, ShieldCheck, Trash2, UserCheck, Zap } from 'lucide-react'
 import { useT } from '../i18n'
 import { ApiError, formatApiError, getToken } from '../api/transport'
 import { takeOwner } from '../api/userClient'
@@ -36,10 +36,14 @@ export interface TaskDetailPaneProps {
   me?: UserRefView | null
   /** Opens the identity dialog when the server reports a missing identity. */
   onUserMissing?: () => void
+  /** 缺省 = 只读详情（聚合语境）：不渲染 归档 / 删除。 */
+  onAction?: (action: 'archive' | 'delete') => void
+  /** 只在 已归档 视图给出：唯一动作是 取消归档。 */
+  onUnarchive?: () => void
 }
 
 /** 工作台右列：任务名 / 一行状态 / 阶段轨 → 所选阶段的输出与输入 → 点文件开抽屉。 */
-export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = false, fetchDefinition = true, me = null, onUserMissing }: TaskDetailPaneProps): JSX.Element {
+export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = false, fetchDefinition = true, me = null, onUserMissing, onAction, onUnarchive }: TaskDetailPaneProps): JSX.Element {
   const { t } = useT()
   const [taking, setTaking] = useState(false)
   // 接手 and 记录 need a selected project, like the definition fetch: the aggregate view issues only /api/snapshot.
@@ -115,7 +119,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
             <p className="mb-6" data-testid="task-detail-status">
               <StatusPill tone={TONE[row.summary.kind]} testId="task-detail-badge">{summaryText(row, t)}</StatusPill>
             </p>
-            {showReviewConsole && <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} onRefresh={onRefresh} onToast={onToast} />}
+            {showReviewConsole && onUnarchive === undefined && <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} onRefresh={onRefresh} onToast={onToast} />}
             {row.stages.length > 0 && (
               <div className="mb-6 border-b border-border pb-6">
                 <StageRail stages={row.stages} selected={selectedStep} onSelect={setSelectedStep} />
@@ -125,7 +129,40 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
         )}
         footer={(
           <>
-            {canTake && (
+            {onUnarchive !== undefined && (
+              <button
+                type="button"
+                className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-base font-semibold text-text hover:border-text-3"
+                data-testid="task-detail-unarchive"
+                onClick={onUnarchive}
+              >
+                <ArchiveRestore className="size-4" aria-hidden="true" />
+                {t('workspace.unarchive')}
+              </button>
+            )}
+            {onAction !== undefined && (
+              <>
+                <button
+                  type="button"
+                  className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-base font-semibold text-text hover:border-text-3"
+                  data-testid="task-detail-archive"
+                  onClick={() => onAction('archive')}
+                >
+                  <Archive className="size-4" aria-hidden="true" />
+                  {t('workspace.archive')}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-base font-semibold text-red-d hover:border-red-b"
+                  data-testid="task-detail-delete"
+                  onClick={() => onAction('delete')}
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                  {t('workspace.delete')}
+                </button>
+              </>
+            )}
+            {canTake && onUnarchive === undefined && (
               <button
                 type="button"
                 className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-base font-semibold text-text hover:border-text-3 disabled:opacity-60"

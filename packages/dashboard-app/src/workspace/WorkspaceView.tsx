@@ -9,9 +9,12 @@ import { matchesQuery } from '../shell/GlobalSearch'
 import { DetailEmpty, ThreeColumns } from '../shell/ThreeColumns'
 import type { TopBarProject } from '../shell/TopBar'
 import { ProjectRail } from './ProjectRail'
+import { TaskActionDialog } from './TaskActionDialog'
 import { TaskDetailPane } from './TaskDetailPane'
 import { TaskListPane } from './TaskListPane'
-import { DEFAULT_TASK_FILTER, filterRows, rootBasename, rowsOf, type TaskFilterState, type TaskRow } from './taskModel'
+import { archivedRowsOf, DEFAULT_TASK_FILTER, filterRows, rootBasename, rowsOf, uncommittedDeletionsOf, type TaskFilterState, type TaskRow } from './taskModel'
+import { unarchiveTask } from '../api/taskLifecycleClient'
+import { formatApiError } from '../api/transport'
 import { useWorkflowIoLookup } from './useWorkflowDefinition'
 
 export interface WorkspaceViewProps {
@@ -42,13 +45,15 @@ export function WorkspaceView({
   const { t } = useT()
   const [filter, setFilter] = useState<TaskFilterState>(DEFAULT_TASK_FILTER)
   const [search, setSearch] = useState('')
+  const [listMode, setListMode] = useState<'active' | 'archived'>('active')
+  const [pending, setPending] = useState<{ change: string; action: 'archive' | 'delete' } | null>(null)
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(RAIL_KEY) === '1' } catch { return false }
   })
   useEffect(() => {
     try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
   }, [railCollapsed])
-  useEffect(() => { setFilter(DEFAULT_TASK_FILTER); setSearch('') }, [currentRoot])
+  useEffect(() => { setFilter(DEFAULT_TASK_FILTER); setSearch(''); setListMode('active'); setPending(null) }, [currentRoot])
 
   // 聚合语境（未选项目）不发 per-root 请求：卡片状态退回「进行中」，不判缺产出。
   const pairs = useMemo(() => {
@@ -64,7 +69,24 @@ export function WorkspaceView({
     return out
   }, [snapshot, currentRoot])
   const ioOf = useWorkflowIoLookup(pairs)
-  const rows = useMemo(() => rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }), [snapshot, currentRoot, rulesByKey, ioOf, t])
+  const activeRows = useMemo(() => rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }), [snapshot, currentRoot, rulesByKey, ioOf, t])
+  const archivedRows = useMemo(() => archivedRowsOf({ snapshot, currentRoot, rulesByKey, t }), [snapshot, currentRoot, rulesByKey, t])
+  const archivedView = listMode === 'archived'
+  const rows = archivedView ? archivedRows : activeRows
+  const deletions = uncommittedDeletionsOf(snapshot, currentRoot)
+  // 归档 / 删除 need a selected project: the aggregate view issues only /api/snapshot.
+  const canAct = currentRoot !== ''
+
+  async function unarchive(row: TaskRow): Promise<void> {
+    try {
+      await unarchiveTask({ root: row.root, change: row.change.name })
+      onToast?.(t('workspace.done_unarchived', { name: row.change.name }))
+      onSelectedChange(null)
+      await onRefresh?.()
+    } catch (error) {
+      onToast?.(formatApiError(error, t, { exposeServerDetail: true }))
+    }
+  }
 
   const compat = useMemo(() => {
     const scoped = (snapshot?.projects ?? []).filter((project) => isProjectNavigable(project) && (currentRoot === '' || project.root === currentRoot))
@@ -81,9 +103,9 @@ export function WorkspaceView({
   ) : undefined
 
   const visibleRows = useMemo(
-    () => filterRows(rows, filter).filter((row) =>
+    () => (archivedView ? rows : filterRows(rows, filter)).filter((row) =>
       matchesQuery(search, row.change.name, row.workflow, row.change.track, row.change.phase)),
-    [rows, filter, search],
+    [archivedView, rows, filter, search],
   )
   const selectedRow: TaskRow | null = useMemo(() => {
     const explicit = selectedChange === null
@@ -101,6 +123,7 @@ export function WorkspaceView({
     : 'filtered'
 
   return (
+    <>
     <ThreeColumns
       testId="workspace-view"
       railCollapsed={railCollapsed}
@@ -129,11 +152,40 @@ export function WorkspaceView({
           onClearFilters={() => { setFilter(DEFAULT_TASK_FILTER); setSearch('') }}
           notice={notice}
           me={me}
+          listMode={listMode}
+          onListMode={(next) => { setListMode(next); setSearch(''); onSelectedChange(null) }}
+          archivedCount={archivedRows.length}
+          uncommittedDeletions={deletions}
+          {...(canAct ? { onAction: (row: TaskRow, action: 'archive' | 'delete') => setPending({ change: row.change.name, action }) } : {})}
+          {...(canAct && archivedView ? { onUnarchive: (row: TaskRow) => { void unarchive(row) } } : {})}
         />
       )}
       detail={selectedRow
-        ? <TaskDetailPane key={selectedRow.key} row={selectedRow} onToast={onToast} onRefresh={onRefresh} showReviewConsole={selectedChange !== null && currentRoot !== ''} fetchDefinition={currentRoot !== ''} me={me} onUserMissing={onUserMissing} />
+        ? (
+          <TaskDetailPane
+            key={selectedRow.key}
+            row={selectedRow}
+            onToast={onToast}
+            onRefresh={onRefresh}
+            showReviewConsole={selectedChange !== null && currentRoot !== ''}
+            fetchDefinition={currentRoot !== ''}
+            me={me}
+            onUserMissing={onUserMissing}
+            {...(canAct && !archivedView ? { onAction: (action: 'archive' | 'delete') => setPending({ change: selectedRow.change.name, action }) } : {})}
+            {...(canAct && archivedView ? { onUnarchive: () => { void unarchive(selectedRow) } } : {})}
+          />
+        )
         : <DetailEmpty title={t('workspace.no_selection')} desc="" testId="task-detail-empty" />}
     />
+    {pending !== null && (
+      <TaskActionDialog
+        root={currentRoot}
+        change={pending.change}
+        action={pending.action}
+        onClose={() => setPending(null)}
+        onDone={(message) => { onToast?.(message); onSelectedChange(null); void onRefresh?.() }}
+      />
+    )}
+    </>
   )
 }

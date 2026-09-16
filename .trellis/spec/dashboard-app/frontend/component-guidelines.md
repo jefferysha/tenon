@@ -46,10 +46,21 @@ last one. Anything that needs its own surface opens the shared right-side `share
 
 ## 工作台 rules (`workspace/`)
 
-- Read-only. Network: snapshot, `GET /api/workflows/:name` (only when a project is selected — the
-  aggregate view must not issue per-root requests; it falls back to `fallbackStepIo` from
-  `change.workflowRules.outputsByStep`), `GET /api/documents/read`.
-- Task status is derived, never named abstractly (`taskModel.summaryOf`): archived → first unready
+- Writes are limited to the three task-lifecycle actions: 归档 / 取消归档 / 删除 (plus the existing 接手 and
+  review acknowledgement). Everything else is read-only, and all three need a selected project: the
+  aggregate view issues only `/api/snapshot` and therefore renders no action menu at all.
+- Network: snapshot, `GET /api/workflows/:name` (only when a project is selected — the aggregate view must
+  not issue per-root requests; it falls back to `fallbackStepIo` from `change.workflowRules.outputsByStep`),
+  `GET /api/documents/read`, `GET /api/change/:name/lifecycle`, `POST …/archive`, `POST …/unarchive`,
+  `DELETE /api/change/:name`.
+- 归档 hides a task for the acting user only; 完结 / 已完结 is the workflow's last step. Never mix the words:
+  the toggle reads 含已完结 (`includeCompleted`, summary kind `completed`), the view reads 已归档.
+- `TaskActionDialog` shows only reasons the server returned, disables 确认 while a blocker is present, and
+  echoes back exactly the codes it displayed. A 409 replaces the list with the reasons the server re-checked
+  under the lock; the dialog never computes a reason itself.
+- The card's 归档 / 删除 menu is a **sibling** of the card button, never nested inside it (no interactive
+  element inside another). The 已归档 view drops every facet and the action menu: search plus 取消归档 only.
+- Task status is derived, never named abstractly (`taskModel.summaryOf`): completed → first unready
   output of the current stage (`缺 <slot>`) → review handshake pending (`评审待确认`) → any forward
   transition ready (`可进入<stage>`) → `进行中`. Facets: workflow → track → stage; the stage row appears only
   when one workflow **and** one track are effective, because each track branch has its own stages.
@@ -58,7 +69,7 @@ last one. Anything that needs its own surface opens the shared right-side `share
 - `taskModel.stagesOf` maps a snapshot `current` segment to `done` when `change.archived === 'true'`: archiving
   leaves the phase on the last visited step, and the rail must not show a finished task as still running there.
   Stages the run never entered stay `todo` (test: `taskModel.test.tsx`
-  「已归档的运行没有进行中的阶段：收尾阶段算完成，从未进入的阶段仍是 todo」).
+  「已完结的运行没有进行中的阶段：收尾阶段算完成，从未进入的阶段仍是 todo」).
 - `StageIoPanel` rows: document slot → ledger status (`recorded/missing/stale/unread`) + file name +
   last producer + time; field slot → `set/unset`. A row with a path opens `DocumentDrawer`
   (`react-markdown` + `remark-gfm` for `.md`, `<pre>` otherwise; prev / next across the stage's files).

@@ -58,7 +58,7 @@ describe('stagesOf', () => {
     expect(projected[2]?.status).toBe('current')
   })
 
-  it('已归档的运行没有进行中的阶段：收尾阶段算完成，从未进入的阶段仍是 todo', () => {
+  it('已完结的运行没有进行中的阶段：收尾阶段算完成，从未进入的阶段仍是 todo', () => {
     const stages = stagesOf(change({ phase: 'verify', archived: 'true' }), undefined, t)
     expect(stages.map((stage) => stage.status)).toEqual(['done', 'done', 'done', 'done', 'done', 'todo', 'todo'])
   })
