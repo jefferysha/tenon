@@ -3443,7 +3443,7 @@ describe('工作流全局存储（root 为空 = 用户级 configRoot/workflows�
 
     const list = await reqGet(h.port, '/api/workflows')
     expect(list.status).toBe(200)
-    expect(list.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['shared'], default: { source: 'builtin' } })
+    expect(list.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['shared', 'design-system'], default: { source: 'builtin' } })
 
     const one = await reqGet(h.port, '/api/workflows/shared')
     expect(one.status).toBe(200)
@@ -3487,7 +3487,8 @@ describe('GET /api/workflows —— 列出自定义 workflow（GOAL E8）', () =
 
     const r = await reqGet(port, `/api/workflows?root=${encodeURIComponent(root)}`)
     expect(r.status).toBe(200)
-    expect(r.json<{ names: string[] }>().names).toEqual([])
+    // 模板工作流恒在列表里（default 例外：它由 default 字段表达来源）。
+    expect(r.json<{ names: string[] }>().names).toEqual(['design-system'])
   })
 
   it('真扫 .pipeline/workflows/*.yaml，排除 default，200 返回 names', async () => {
@@ -3500,14 +3501,14 @@ describe('GET /api/workflows —— 列出自定义 workflow（GOAL E8）', () =
     await writeFile(join(dir, 'default.yaml'), wf.replace('onboarding', 'default'), 'utf8')
     const r = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(r.status).toBe(200)
-    expect(r.json<{ names: string[] }>().names).toEqual(['onboarding'])
+    expect(r.json<{ names: string[] }>().names).toEqual(['onboarding', 'design-system'])
   })
 
-  it('无 .pipeline/workflows 目录 → 200 + 空数组（不是错误）', async () => {
+  it('无 .pipeline/workflows 目录 → 200 + 只有模板名（不是错误）', async () => {
     const h = await start()
     const r = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(r.status).toBe(200)
-    expect(r.json<{ names: string[] }>().names).toEqual([])
+    expect(r.json<{ names: string[] }>().names).toEqual(['design-system'])
   })
 
   it('server 启动后 registered root 被改名并在原路径换成外部 symlink → 403，绝不读取外部 workflow', async () => {
@@ -3886,7 +3887,10 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
       .flatMap((branch) => Object.values(branch.effectiveIo).flatMap((io) => [...io.inputs, ...io.outputs]))
       .filter((slot) => slot.kind === 'document')
     expect(documentSlots.length).toBeGreaterThan(0)
-    expect(documentSlots.every((slot) => typeof slot.role === 'string' && slot.scope === 'change' && !('locked' in slot))).toBe(true)
+    // 前端分支的 design-md 是项目级文档（scope: project），其余仍是 change 级。
+    expect(documentSlots.every((slot) => typeof slot.role === 'string' && !('locked' in slot))).toBe(true)
+    expect(new Set(documentSlots.map((slot) => slot.scope))).toEqual(new Set(['change', 'project']))
+    expect(documentSlots.filter((slot) => slot.scope === 'project').every((slot) => slot.id === 'design-md')).toBe(true)
     const tracks = template.tracks as Record<string, { documentContract?: unknown; steps: Array<{ id: string; skills: Array<{ id: string }> }> }>
     const edited = { ...tracks, backend: { ...tracks.backend!, steps: tracks.backend!.steps.map((step) => step.id === 'open' ? { ...step, skills: [...step.skills, { id: 'brainstorming' }] } : step) } }
     const saved = await reqPost(
@@ -3903,7 +3907,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     expect(override.tracks.backend?.documentContract).toEqual(tracks.backend?.documentContract)
     expect(override.tracks.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose', 'brainstorming'])
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
-    expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: [], default: { source: 'project' } })
+    expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['design-system'], default: { source: 'project' } })
 
     const removed = await reqDelete(
       h.port, `/api/workflows/default?root=${encodeURIComponent(h.root)}`,
@@ -5256,7 +5260,7 @@ describe('POST /api/projects —— 注册项目进机器级注册表（G18）',
     expect(await registerProjectRoot(h.registryPath, proj)).toBe(true)
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(proj)}`)
     expect(listed.status).toBe(200)
-    expect(listed.json<{ names: string[] }>().names).toEqual([])
+    expect(listed.json<{ names: string[] }>().names).toEqual(['design-system'])
 
     const created = await reqPost(h.port, '/api/workflows/dynamic', {
       root: proj,

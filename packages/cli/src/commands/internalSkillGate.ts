@@ -21,59 +21,8 @@ import { changeDir, isValidChangeName } from '../paths.js'
 import { str } from '../render.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { canonicalTenonSkillId, completedSkillsSinceStepEntry, parseHistoryLines } from './stepSkillEvidence.js'
 import { frozenReviewCandidate } from './review-candidate.js'
-
-interface HistLine {
-  readonly kind: string
-  readonly to?: string
-  readonly raw?: string
-}
-
-function decodeHistoryLine(value: unknown): HistLine | null {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
-  const record = value as Record<string, unknown>
-  if (typeof record.kind !== 'string') return null
-  if (record.to !== undefined && typeof record.to !== 'string') return null
-  if (record.raw !== undefined && typeof record.raw !== 'string') return null
-  return {
-    kind: record.kind,
-    ...(typeof record.to === 'string' ? { to: record.to } : {}),
-    ...(typeof record.raw === 'string' ? { raw: record.raw } : {}),
-  }
-}
-
-/** 容错解析 .pipeline-history.jsonl 原文——单行损坏不该拖垮整条 gate 判定，跳过即可（fail-open 精神）。 */
-function parseHistoryLines(raw: string): HistLine[] {
-  const out: HistLine[] = []
-  for (const line of raw.split('\n')) {
-    if (!line) continue
-    try {
-      const decoded = decodeHistoryLine(JSON.parse(line))
-      if (decoded) out.push(decoded)
-    } catch {
-      // 损坏行跳过，不拖垮整体判定
-    }
-  }
-  return out
-}
-
-/** hooks/skill-tracker.sh 落的 skill 完成记录有两种可信宿主形态：Claude 的
- * "Skill: <skill-id>" 与 Codex 对当前插件已打包 SKILL.md 的受控读取
- * "CodexSkillRead: <skill-id>"。二者都由同一 hook 写入，且后者已通过
- * skill-evidence.sh 限制为插件根内实际存在的 skill；因此它们都可以满足 DAG 依赖。
- * Agent/Task 等其它 tool kind 仍不属于 skill DAG 命名空间，不能误算为已完成。 */
-function skillIdFromToolRaw(raw: string): string | null {
-  const m = /^(?:Skill|CodexSkillRead): (.+)$/.exec(raw)
-  return m?.[1] ?? null
-}
-
-/** Pipeline-owned skills are presented by Codex as `tenon:<id>`, while workflow YAML and
- * immutable cache receipts use their bare id. Canonicalize this one plugin namespace before DAG
- * membership and prior-completion comparisons; leave third-party namespaces intact so custom
- * workflows can still model them explicitly. */
-function canonicalTenonSkillId(skillId: string): string {
-  return skillId.startsWith('tenon:') ? skillId.slice('tenon:'.length) : skillId
-}
 
 /** `tenon` is the normal-chat orchestration entrypoint, not a phase work item. Every custom
  * workflow reaches it before the selected step's own DAG can run, so enforcing per-step membership
@@ -150,33 +99,6 @@ async function requireActiveReviewAttempt(
     deps.io.err(`【Tenon Review 门】无法证明 active attempt，拒绝派发: ${errMsg(error)}`)
     return false
   }
-}
-
-/**
- * 找最近一次进入 currentStepId 的 transition 记录，只统计其后的 skill 完成记录——同一 step
- * 可能被回环重新进入多次（自定义 workflow 允许任意 event 图，不像 default workflow 只有
- * build⇄verify 这一条回边），只有"这一次"进入之后的完成记录才该算数，否则上一轮的旧完成
- * 记录会让重新进入的 step 误判为"已解锁"。
- *
- * 复用 workflow-skill-orchestration.integration.test.ts 的 index-based 分段扫描写法（先定位
- * 分段起点索引，再 slice 之后的区间），只是这里要找"最近一次"（倒序扫描取第一个命中）而非
- * 该测试里固定线性顺序的"第一次"（正序 findIndex）——需求不同，扫描 shape 相同。
- */
-function completedSkillsSinceStepEntry(lines: readonly HistLine[], currentStepId: string): ReadonlySet<string> {
-  let enteredAt = -1
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i]?.kind === 'transition' && lines[i]?.to === currentStepId) {
-      enteredAt = i
-      break
-    }
-  }
-  const completed = new Set<string>()
-  for (const line of lines.slice(enteredAt + 1)) {
-    if (line.kind !== 'tool') continue
-    const id = skillIdFromToolRaw(line.raw ?? '')
-    if (id) completed.add(canonicalTenonSkillId(id))
-  }
-  return completed
 }
 
 export async function cmdInternalSkillGate(deps: CliDeps, name: string, skillId: string): Promise<number> {

@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: swift-observation
+name: Swift Observation
+category: state
+frameworks: [swiftui]
+styling: []
+use: 可观察模型
+baseline: false
+license:
+  spdx: Apache-2.0
+  url: https://raw.githubusercontent.com/swiftlang/swift/HEAD/LICENSE.txt
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://developer.apple.com/documentation/observation
+  source: https://github.com/swiftlang/swift
+verified_at: 2026-09-16

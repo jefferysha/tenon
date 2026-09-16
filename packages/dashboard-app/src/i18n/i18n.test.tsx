@@ -51,6 +51,12 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
       'workflow.openspec',
       // 纯占位符行（阶段 · 时间 · 归档人），两种语言逐字相同。
       'workspace.archived_meta',
+      // 协议 / 文件名 token：DESIGN.md、SPDX、MCP、llms.txt 两种语言逐字相同。
+      'resources.category.design-md',
+      'resources.field.spdx',
+      'resources.link.design_md',
+      'resources.link.llms_txt',
+      'resources.link.mcp',
     ])
     const zhLeaves = stringLeaves(zh)
     const enLeaves = stringLeaves(en)

@@ -8,6 +8,7 @@ import { appendFile, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'n
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { writeReadyDesignSystem } from '@tenon/kernel/design-system/test-support'
 import {
   builtinTrack,
   createFlowEngine,
@@ -119,9 +120,15 @@ export async function makeTempHome(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'pl-dash-home-'))
 }
 
-/** 真建一个临时项目根（含 .git/HEAD 让 base_branch 探测有稳定值）。 */
+/**
+ * 真建一个临时项目根（含 .git/HEAD 让 base_branch 探测有稳定值）。
+ *
+ * 同时放一套就绪的设计体系：default 的前端分支首步要求项目 DESIGN.md 就绪，没有它建不了前端任务。
+ */
 export async function makeProject(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'pl-dash-proj-'))
+  const root = await mkdtemp(join(tmpdir(), 'pl-dash-proj-'))
+  writeReadyDesignSystem(root)
+  return root
 }
 
 /**

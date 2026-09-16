@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: headless-ui
+name: Headless UI
+category: component-lib
+frameworks: [react, vue]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/tailwindlabs/headlessui/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @headlessui/react
+skills: []
+links:
+  home: https://headlessui.com
+  source: https://github.com/tailwindlabs/headlessui
+verified_at: 2026-09-16

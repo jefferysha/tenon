@@ -57,11 +57,12 @@ afterEach(() => {
 })
 
 describe('库页 · 模板', () => {
-  it('左列只有模板一种；列表按分类与来源过滤；内建行带来源标记', async () => {
+  it('左列是模板与资源目录两种；列表按分类与来源过滤；内建行带来源标记', async () => {
     const user = userEvent.setup()
     stubFetch()
     renderLibrary()
     expect(await screen.findByTestId('lib-section-templates')).toBeInTheDocument()
+    expect(screen.getByTestId('lib-section-resources')).toBeInTheDocument()
     expect(screen.getByTestId('lib-tpl-builtin-backend-go')).toBeInTheDocument()
     expect(screen.getByTestId('lib-tpl-custom-backend-mine')).toBeInTheDocument()
 

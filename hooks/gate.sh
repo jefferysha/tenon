@@ -437,6 +437,33 @@ pipeline_enforce_skill_gate() {
   return 0
 }
 
+# ── GSAP 动画门：写入含 GSAP 标记的代码前必须先读过对应官方技能 ──
+# 与 skill DAG 门的区别：这条规则不属于某条工作流，default 同样适用。候选判定是纯 bash 子串匹配，
+# 非候选工具输入一次 node 都不 spawn；判定本身委托 CLI（与 skill 门共用同一份步骤内技能证据）。
+pipeline_enforce_motion_gate() {
+  local mg_proot mg_change_dir mg_plugin_root mg_bundle mg_change_name mg_rc active_helper
+  mg_proot="$TENON_ROOT"
+  [ -n "$mg_proot" ] || return 0
+  active_helper="$(dirname "${BASH_SOURCE[0]:-$0}")/active-change.sh"
+  if [ -r "$active_helper" ]; then
+    # shellcheck source=active-change.sh
+    . "$active_helper"
+    mg_change_dir="$(pipeline_active_change_dir "$mg_proot" || true)"
+  else
+    mg_change_dir=""
+  fi
+  [ -n "$mg_change_dir" ] || return 0
+  mg_plugin_root="${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." 2>/dev/null && pwd)}}"
+  mg_bundle="$mg_plugin_root/packages/cli/dist/tenon.mjs"
+  [ -f "$mg_bundle" ] && command -v node >/dev/null 2>&1 || return 0
+  mg_change_name="$(basename "$mg_change_dir")"
+  # 同 skill 门：子 shell 里先 cd 到项目根再 spawn，否则 change 定位会落到调用方 cwd。
+  ( cd "$mg_proot" && printf '%s' "$INPUT" | node "$mg_bundle" internal-motion-gate "$mg_change_name" )
+  mg_rc=$?
+  [ "$mg_rc" -eq 2 ] && return 2
+  return 0
+}
+
 pipeline_list_has_skill_id() {
   local list="${1:-}" wanted="${2:-}" item
   [ -n "$wanted" ] || return 1
@@ -445,6 +472,19 @@ pipeline_list_has_skill_id() {
   done <<< "$list"
   return 1
 }
+
+# 文件编辑类工具：输入里出现 GSAP 标记才进动画门（纯 bash 判定，不命中就一次 fork 都没有）。
+case "$TOOL" in
+  Write|Edit|MultiEdit|NotebookEdit|apply_patch)
+    case "$INPUT" in
+      *gsap*|*GSAP*|*ScrollTrigger*|*useGSAP*)
+        pipeline_enforce_motion_gate
+        mg_rc=$?
+        [ "$mg_rc" -eq 2 ] && exit 2
+        ;;
+    esac
+    ;;
+esac
 
 TRUSTED_SKILL_IDS=""
 SHADOW_SKILL_IDS=""

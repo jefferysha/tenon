@@ -1,0 +1,5 @@
+# 品牌 DESIGN.md 索引的上游坐标。tools/generate-design-md-catalog.mjs 读这里，
+# 仓库其余受管理文本因此不出现外部项目身份（check:repository-hygiene 只放行 templates/resources/）。
+repo: VoltAgent/awesome-design-md
+directory: design-md
+install: npx getdesign@latest add

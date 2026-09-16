@@ -186,3 +186,86 @@ session after merge, not merged by hand.
 About 3.8k lines of TS/TSX and tests (kernel ≈ 1.1k + 0.9k tests, CLI ≈ 0.5k + 0.4k, server ≈ 0.3k + 0.3k,
 Dashboard ≈ 0.7k + 0.35k), ≈ 0.15k YAML workflow/hook changes, ≈ 100 hand-authored catalog files plus generated brand
 files. 14 commits. Size L.
+
+## Deviations
+
+Written while implementing; each line is a place where the design met the code and the code won.
+
+### Names and shapes
+
+1. **Catalog categories follow instruction-templates, not `design.md` §2.2.** Wave 1 had already shipped
+   `CATALOG_CATEGORIES = [component-lib, blocks, template, icons, design-md, state, styling]` and
+   `{{catalog.<category>}}` placeholders in the builtin frontend blocks. The design's `components` is therefore
+   `component-lib`, `template` stays a separate category from `blocks`, and the set gained `animation` and
+   `motion-components` so a block can reference GSAP and the motion collections. `resources/types.ts` now owns the
+   list and `instructions/categories.ts` re-exports it, so the two can never drift.
+2. **No `renderFrontendResourceBlock`.** instruction-templates had already defined the consumer port
+   (`CatalogLookup` / `CatalogEntrySummary` in `instructions/compose.ts`), so this child provides
+   `resourceCatalogLookup(entries)` and wires `POST /api/instruction-templates/compose` to it instead of rendering
+   a second Markdown block. `compose.ts` gained one line: a 仅链接 rule for non-redistributable entries (the
+   summary already carried `redistributable` but never rendered it).
+   `validateFrontendSelection` was not implemented: nothing calls it — compose already rejects a category
+   mismatch, and the 选资源 step that would check framework/styling compatibility belongs to instruction-templates.
+3. **`design-md-spec` → `google-design-md`.** The `design-md-` prefix belongs to the brand generator, which deletes
+   unknown files under it; a hand-written entry may not use that prefix.
+4. **Store API is `{ payloadRoot, configRoot }`, not `{ payloadDir, storeRoot }`,** so the shared builtin sync
+   helper can be called without reconstructing the config root from a string.
+
+### Workflow schema realities
+
+5. **Project documents are read through `require` slots, not `reads`.** The wave-1 validator rejects a `reads`
+   entry whose kind has no earlier non-require slot (`… 读取了未声明的 document 'design-md'，项目文档用 role: require`).
+   `design.md` §9.2's `reads: build/verify: [design-md]` is therefore three `require` slots (open / build / verify).
+6. **A `document_contract` requires `openspec: true`.** CR-1's "project-scope slots are governed either way" did not
+   land, so `design-system.yaml` sets `openspec: true`.
+7. **`design_doc`, not a new `design_direction` field.** Artifact fields are a closed set (`FIELD_ORDER`); adding one
+   is a state-wire change that this child has no reason to make. The 方向 step registers its direction document as
+   `design_doc`.
+8. **The default frontend branch's document policy now differs from the legacy migration table.** Wave 1's test
+   asserted every branch reproduces `LEGACY_DOCUMENT_GOVERNANCE_POLICY` byte for byte. The four other branches still
+   do, and the assertion was split so they keep proving it; the frontend branch is asserted separately (its
+   `requiresByStep` and the ship `update` slot). Existing changes carry their own frozen snapshot, so they keep
+   binding; a change created before this release is unaffected.
+9. **Historical snapshot fixtures strip `prompt`** exactly as wave 1 stripped `openspec` / `documentContract` and
+   test-evidence stripped `tests`: historical bytes predate the key.
+
+### Surfaces
+
+10. **413 is decided from `content-length`.** The server transport drops bodies over 64 KiB before a handler runs,
+    so a post-hoc size check could never fire.
+11. **The DESIGN.md seed route is not yet called by anything.** `POST /api/design/seed` and `designSeed.ts` are
+    implemented and tested, but instruction-templates' apply does not know about a selected `design-md` entry;
+    wiring it is a post-merge item (below).
+12. **`tenon design validate` runs hue through an injected runner** (`CliDeps.designValidator`), so no test ever
+    spawns a real validator or `npx`.
+13. **Test fixtures seed a design system.** Any frontend task on `default` now needs a ready `DESIGN.md`, so
+    `freshHarness()` (CLI) and `makeProject()` (server) write one; tests that exercise the precondition remove it.
+    The fixture lives in `@tenon/kernel/design-system/test-support`, exported as its own subpath so both packages
+    share one definition of "ready".
+14. **The hidden `internal-motion-gate` command registers from `program-resources.ts`,** not `program.ts`: that file
+    was at its 400-line cap, so this child also moved `migrate-workflow` and `state` into `program-state.ts`.
+
+### Catalog content
+
+15. **89 curated entries, not the design's ~96.** Every license was read from its `license.url` before the entry was
+    written. Dropped because no license text could be read: `gluestack-ui`, `coss-ui`, `css-modules` (no license file
+    in the repository), `skiper-ui` (site states none), `v0-templates`, `sf-symbols`, `swiftui` (no quotable terms on
+    the pages). Corrected against the design: HeroUI is Apache-2.0, Animate UI carries a Commons Clause (so it is
+    link-only), Preline is MIT + a Fair Use clause requiring attribution, Iconify's framework packages are MIT while
+    each icon set keeps its own license.
+16. **74 brand `DESIGN.md` entries, not ≥ 100.** The upstream index currently has 74 brand directories (the research
+    note's ~117 is stale), so the builtin test asserts ≥ 70.
+17. **`magic-ui` declares no skills.** CR-4 asked upstream-skills to add a `magic-ui` source and it did not land; the
+    builtin catalog test requires every declared skill id to exist in `skills/sources.yaml`, so the entry links only.
+
+## Deferred and post-merge wiring
+
+- **Real-host acceptance** (parent X18): the six scenarios in §2 of this file run in wave 5 on `main`, in both hosts,
+  from an installed release. Nothing in this branch runs Claude Code or Codex.
+- **DESIGN.md seed in the new-project flow**: instruction-templates' 选资源 step must pass the chosen `design-md`
+  entry id and its apply must call `POST /api/design/seed` so the file appears in the diff (CR-5).
+- **`magic-ui` upstream skill**: add the source, then set `skills: [magic-ui]` on that entry.
+- **frontend-quality reviewer** (CR-3, review-agents, wave 3): the motion checklist and the 设计体系 section, plus
+  declaring the gsap skills for progressive loading.
+- **`tenon` runner skill** (CR-6, data-driven-runner, wave 4): keep the frontend spec / ship prompts and the ship
+  `design-system` test when default migrates, and pass step `prompt` to the agent.

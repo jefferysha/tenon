@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
+import { removeDesignSystem } from '@tenon/kernel/design-system/test-support'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
 
 /** backend 分支 + 一条 registry 未登记的 mobile 分支；backend 的 change 阶段用 auto 门（输出 pr_url 齐全即放行）。 */
@@ -88,7 +89,9 @@ describe('真实 e2e —— 工作流 track 分支与 auto 门', () => {
     h = await freshHarness()
     await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(h.cwd, '.pipeline', 'workflows', 'branched.yaml'), GOVERNED_BRANCHED_WF, 'utf8')
+    // 首步的 require 槽位也是立项前置条件（夹具仓库自带就绪的设计体系），立项后删掉它跑运行时证据缺口。
     expect(await h.run(['init', 'mob', '--track', 'mobile', '--workflow', 'branched', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    removeDesignSystem(h.cwd)
     expect(await h.run(['init', 'web', '--track', 'backend', '--workflow', 'branched', '--preset', 'full']), h.err.join('\n')).toBe(0)
     expect(await h.run(['document', 'status', 'web']), h.out.join('\n')).toBe(0)
     expect(await h.run(['document', 'status', 'mob'])).toBe(2)

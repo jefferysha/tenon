@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: heroui
+name: HeroUI
+category: component-lib
+frameworks: [react, next]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: Apache-2.0
+  url: https://raw.githubusercontent.com/heroui-inc/heroui/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @heroui/react
+skills: []
+links:
+  home: https://www.heroui.com
+  source: https://github.com/heroui-inc/heroui
+verified_at: 2026-09-16

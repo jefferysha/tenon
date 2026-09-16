@@ -1,0 +1,22 @@
+schema: tenon-resource/v1
+id: gsap
+name: GSAP
+category: animation
+frameworks: [web, react, next, vue, nuxt, svelte, angular]
+styling: []
+baseline: true
+license:
+  spdx: LicenseRef-GSAP-Standard
+  url: https://gsap.com/community/standard-license/
+  redistributable: false
+  attribution: false
+  commercial: free
+  notice: 免费商用；不得用于与 Webflow 可视化动画构建竞争的工具，也不再分发其源码
+install:
+  - pnpm add gsap @gsap/react
+skills: [gsap-core, gsap-timeline, gsap-scrolltrigger, gsap-plugins, gsap-utils, gsap-react, gsap-performance, gsap-frameworks]
+links:
+  home: https://gsap.com
+  docs: https://gsap.com/docs/v3/
+  source: https://github.com/greensock/GSAP
+verified_at: 2026-09-16

@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: tca
+name: Composable Architecture
+category: state
+frameworks: [swiftui]
+styling: []
+use: 单向数据流
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/pointfreeco/swift-composable-architecture/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://www.pointfree.co/collections/composable-architecture
+  source: https://github.com/pointfreeco/swift-composable-architecture
+verified_at: 2026-09-16

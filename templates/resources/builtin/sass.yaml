@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: sass
+name: Sass
+category: styling
+frameworks: []
+styling: [sass]
+use: 预处理
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/sass/dart-sass/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add -D sass
+skills: []
+links:
+  home: https://sass-lang.com
+  source: https://github.com/sass/dart-sass
+verified_at: 2026-09-16

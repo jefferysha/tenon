@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: unocss
+name: UnoCSS
+category: styling
+frameworks: [web, vue, react, svelte]
+styling: [unocss]
+use: 按需原子类
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/unocss/unocss/HEAD/packages-integrations/vscode/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add -D unocss
+skills: []
+links:
+  home: https://unocss.dev
+  source: https://github.com/unocss/unocss
+verified_at: 2026-09-16

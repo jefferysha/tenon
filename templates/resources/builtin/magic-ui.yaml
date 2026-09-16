@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: magic-ui
+name: Magic UI
+category: motion-components
+frameworks: [react, next]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/magicuidesign/magicui/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://magicui.design
+  source: https://github.com/magicuidesign/magicui
+verified_at: 2026-09-16

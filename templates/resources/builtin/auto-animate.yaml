@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: auto-animate
+name: AutoAnimate
+category: animation
+frameworks: [web, react, vue, svelte, angular]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/formkit/auto-animate/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @formkit/auto-animate
+skills: []
+links:
+  home: https://auto-animate.formkit.com
+  source: https://github.com/formkit/auto-animate
+verified_at: 2026-09-16

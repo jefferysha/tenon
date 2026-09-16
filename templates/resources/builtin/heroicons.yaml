@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: heroicons
+name: Heroicons
+category: icons
+frameworks: [web, react, vue]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/tailwindlabs/heroicons/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @heroicons/react
+skills: []
+links:
+  home: https://heroicons.com
+  source: https://github.com/tailwindlabs/heroicons
+verified_at: 2026-09-16

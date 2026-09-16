@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: ng-zorro-antd
+name: NG-ZORRO
+category: component-lib
+frameworks: [angular]
+styling: [less]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/NG-ZORRO/ng-zorro-antd/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm dlx ng add ng-zorro-antd
+skills: []
+links:
+  home: https://ng.ant.design
+  source: https://github.com/NG-ZORRO/ng-zorro-antd
+verified_at: 2026-09-16

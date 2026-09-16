@@ -256,6 +256,8 @@ const DOMAIN_DIRS = [
   'packages/kernel/src/verification/',
   'packages/kernel/src/interaction/',
   'packages/kernel/src/instructions/',
+  'packages/kernel/src/resources/',
+  'packages/kernel/src/design-system/',
 ]
 
 const DOMAIN_INFRASTRUCTURE = new Set([

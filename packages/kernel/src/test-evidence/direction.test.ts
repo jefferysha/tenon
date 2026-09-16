@@ -10,7 +10,7 @@ describe('测试方向文件', () => {
   test('内建方向逐个解析成功、id 等于文件名主干、序列化往返保真', async () => {
     const names = (await readdir(TEMPLATES)).filter((name) => name.endsWith('.yaml')).sort()
     expect(names).toEqual([
-      'benchmark.yaml', 'code-size.yaml', 'e2e.yaml', 'integration.yaml', 'playwright.yaml',
+      'benchmark.yaml', 'code-size.yaml', 'design-system.yaml', 'e2e.yaml', 'integration.yaml', 'playwright.yaml',
       'regression.yaml', 'typecheck.yaml', 'unit.yaml',
     ])
     for (const name of names) {

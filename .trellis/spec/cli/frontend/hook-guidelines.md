@@ -345,3 +345,38 @@ node -e "…JSON.parse(require('fs').readFileSync(store))…"   # spawns a runti
 store="$(pipeline_task_archive_store "$root" || true)"       # once per hook run
 pipeline_change_archived_for_user "$store" "$change" && continue
 ```
+
+## Scenario: GSAP motion gate (`gate.sh` → `internal-motion-gate`)
+
+### 1. Scope / Trigger
+
+- Trigger: any change to the animation rule, its markers, or the file-edit tools it watches.
+- Writing GSAP code without having loaded the matching official GSAP skill is refused. Unlike the skill DAG gate
+  this rule is not workflow-specific: `default` is covered too.
+
+### 2. Signatures
+
+```bash
+pipeline_enforce_motion_gate()            # hooks/gate.sh; 0 = allow, 2 = block
+```
+```ts
+requiredGsapSkills(toolInput: string): readonly string[]
+cmdInternalMotionGate(deps, change, stdin): Promise<0 | 2>
+```
+
+### 3. Contracts
+
+- Candidate detection is pure bash on the already-read `$INPUT`: only `Write|Edit|MultiEdit|NotebookEdit|apply_patch`
+  whose input contains `gsap`, `GSAP`, `ScrollTrigger` or `useGSAP` reaches the CLI. A non-candidate call forks
+  nothing, which keeps the hot path's zero-spawn promise intact (`tools/test-hooks.sh` asserts it with a fake
+  `node` that would exit 2 if it were ever spawned).
+- No project root or no active Change → allow. The delegation runs `node <bundle> internal-motion-gate <change>`
+  from the project root with the tool input on stdin, exactly like the skill gate, and only exit 2 blocks.
+- Required skills: every candidate needs `gsap-core`; `@gsap/react` / `useGSAP` add `gsap-react`; `ScrollTrigger` /
+  `ScrollSmoother` add `gsap-scrolltrigger`; `.timeline(` adds `gsap-timeline`; the plugin names add `gsap-plugins`;
+  a `.vue` / `.svelte` path adds `gsap-frameworks`.
+- Evidence is the shared step-scoped scan (`commands/stepSkillEvidence.ts`): skills completed since the latest
+  entry into the current step, from `Skill:` and `CodexSkillRead:` rows, compared namespace-insensitively.
+- Any internal error is a `WARN` and an allow. The gate never blocks because of its own failure.
+- Codex hook coverage of file edits is host-defined; whether `apply_patch` reaches `gate.sh` is verified in the
+  wave-5 real-host acceptance. Where it does not, the reviewer's motion checklist is the enforcement.

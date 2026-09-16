@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: svelte-runes
+name: Svelte Runes
+category: state
+frameworks: [svelte]
+styling: []
+use: 组件与共享状态
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/sveltejs/svelte/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://svelte.dev/docs/svelte/what-are-runes
+  source: https://github.com/sveltejs/svelte
+verified_at: 2026-09-16

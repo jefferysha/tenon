@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: react-native-paper
+name: React Native Paper
+category: component-lib
+frameworks: [react-native]
+styling: [native]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/callstack/react-native-paper/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add react-native-paper
+skills: []
+links:
+  home: https://reactnativepaper.com
+  source: https://github.com/callstack/react-native-paper
+verified_at: 2026-09-16

@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: dotlottie
+name: dotLottie
+category: animation
+frameworks: [web, react, vue]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/LottieFiles/dotlottie-web/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @lottiefiles/dotlottie-react
+skills: []
+links:
+  home: https://dotlottie.io
+  source: https://github.com/LottieFiles/dotlottie-web
+verified_at: 2026-09-16

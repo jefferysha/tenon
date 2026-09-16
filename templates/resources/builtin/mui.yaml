@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: mui
+name: MUI
+category: component-lib
+frameworks: [react, next]
+styling: [css-in-js]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/mui/material-ui/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: freemium
+install:
+  - pnpm add @mui/material @emotion/react @emotion/styled
+skills: []
+links:
+  home: https://mui.com
+  docs: https://mui.com/material-ui/getting-started/
+  source: https://github.com/mui/material-ui
+verified_at: 2026-09-16

@@ -214,6 +214,17 @@ export async function cmdInit(
         deps.io.err(`ERROR: workflow '${workflowId}' 未声明任何 step`)
         return 1
       }
+      // 项目级文档的立项前置条件（如前端轨道要求 DESIGN.md 就绪）：先于任何落盘。
+      const refused = await deps.creationPrecondition?.({
+        workflow: workflowId,
+        track: track.id,
+        firstStep: first.id,
+        ...(plan.capabilities.documents.policy === undefined ? {} : { policy: plan.capabilities.documents.policy }),
+      })
+      if (refused !== undefined && refused !== null) {
+        deps.io.err(`ERROR: ${refused}`)
+        return 1
+      }
       const binding = effectiveWorkflowPlanBinding(plan)
       initialWorkflow = {
         workflow: workflowId,

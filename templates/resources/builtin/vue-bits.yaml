@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: vue-bits
+name: Vue Bits
+category: motion-components
+frameworks: [vue]
+styling: [tailwind, css]
+baseline: false
+license:
+  spdx: MIT AND LicenseRef-Commons-Clause
+  url: https://raw.githubusercontent.com/DavidHDev/vue-bits/HEAD/LICENSE.md
+  redistributable: false
+  attribution: false
+  commercial: freemium
+  notice: 可在应用中使用；不得出售或再分发组件本身
+install: []
+skills: []
+links:
+  home: https://vue-bits.dev
+  source: https://github.com/DavidHDev/vue-bits
+verified_at: 2026-09-16

@@ -11,6 +11,8 @@ import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/
 import { basename, dirname, join } from 'node:path'
 import { isInstructionCategory } from '../instructions/categories.js'
 import { parseInstructionBlock } from '../instructions/block.js'
+import { parseResourceEntry } from '../resources/parse.js'
+import { validateResourceEntry } from '../resources/validate.js'
 import { parseTestDirection } from '../test-evidence/direction.js'
 import { sha256Hex } from '../sha256.js'
 import { withLock } from '../state/lock.js'
@@ -40,6 +42,15 @@ function validateInstructionTemplate(relativePath: string, text: string): readon
   return parsed.ok ? [] : parsed.errors.map((error) => `${error.line === undefined ? '' : `${error.line}: `}${error.detail}`)
 }
 
+function validateResourceEntryFile(relativePath: string, text: string): readonly string[] {
+  if (relativePath.includes('/')) return ['条目必须直接放在 builtin/ 下']
+  try {
+    return validateResourceEntry(parseResourceEntry(text), relativePath)
+  } catch (error) {
+    return [error instanceof Error ? error.message : String(error)]
+  }
+}
+
 function validateTestDirection(relativePath: string, text: string): readonly string[] {
   if (relativePath.includes('/')) return ['路径必须是 <id>.yaml']
   try {
@@ -59,6 +70,13 @@ export const BUILTIN_LIBRARIES: readonly BuiltinLibrary[] = [
     validate: validateInstructionTemplate,
   },
   {
+    id: 'resources',
+    source: 'templates/resources/builtin',
+    target: 'resources/builtin',
+    extensions: ['.yaml'],
+    validate: validateResourceEntryFile,
+  },
+  {
     id: 'test-directions',
     source: 'templates/test-directions',
     target: 'test-directions/builtin',
@@ -66,6 +84,13 @@ export const BUILTIN_LIBRARIES: readonly BuiltinLibrary[] = [
     validate: validateTestDirection,
   },
 ]
+
+/** 按 id 取库定义；调用方只同步自己那一个库时用。 */
+export function builtinLibrary(id: string): BuiltinLibrary {
+  const library = BUILTIN_LIBRARIES.find((item) => item.id === id)
+  if (!library) throw new Error(`未知内建库：${id}`)
+  return library
+}
 
 export type BuiltinSyncResult =
   | { id: string; state: 'updated' | 'unchanged' }

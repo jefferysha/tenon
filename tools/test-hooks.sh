@@ -521,6 +521,50 @@ touch "$proj/.pipeline-pending-confirm"
 run_gate "{\"cwd\":\"$proj/sub/deep\",\"tool_name\":\"Write\"}"
 assert_exit "gate: Git 项目子目录读取项目根 marker → exit 2" 2 "$RC"
 
+# ───────────────────── 2b. gate.sh GSAP 动画门（候选判定是纯 bash） ─────────────────────
+# 没有活跃 change 时动画门一次 node 都不 spawn：把一个「一被调用就 exit 2」的假 node 放在 PATH 最前，
+# 真去 spawn 的话本用例会看到 exit 2 而不是 0。
+motion_proj="$TMP/gate-motion-nochange"
+mkdir -p "$motion_proj/.git" "$motion_proj/fakebin"
+printf '#!/bin/sh\nexit 2\n' > "$motion_proj/fakebin/node"
+chmod +x "$motion_proj/fakebin/node"
+motion_rc=0
+( cd "$motion_proj" \
+  && printf '{"cwd":"%s","tool_name":"Write","tool_input":{"file_path":"a.ts","content":"import gsap from gsap"}}' "$motion_proj" \
+  | PATH="$motion_proj/fakebin:$PATH" PLUGIN_ROOT="$ROOT" bash "$GATE" >/dev/null 2>&1 ) || motion_rc=$?
+assert_exit "gate: 含 gsap 的写入但无活跃 change → exit 0（不 spawn node）" 0 "$motion_rc"
+
+# 非文件编辑工具（Read）即使输入含 gsap 也不进动画门。
+motion_read_proj="$TMP/gate-motion-read"
+mkdir -p "$motion_read_proj/.git"
+run_gate "{\"cwd\":\"$motion_read_proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"gsap.ts\"}}"
+assert_exit "gate: Read 工具含 gsap → exit 0（不进动画门）" 0 "$RC"
+
+# 有活跃 change、本步骤没有 GSAP 技能证据 → exit 2（真跑打包后的 CLI，与 skill 门同款黑盒）。
+if [ -f "$ROOT/packages/cli/dist/tenon.mjs" ] && [ -n "$TENON_NODE_PATH" ]; then
+  motion_block="$TMP/gate-motion-block"
+  mkdir -p "$motion_block/.git" "$motion_block/openspec/changes/ui-work"
+  printf 'track: frontend\nphase: build\narchived: \nworkflow: default\n' > "$motion_block/openspec/changes/ui-work/.pipeline.yaml"
+  printf '{"kind":"transition","to":"build"}\n' > "$motion_block/openspec/changes/ui-work/.pipeline-history.jsonl"
+  set_active "$motion_block" ui-work
+  motion_block_rc=0
+  ( cd "$motion_block" \
+    && printf '{"cwd":"%s","tool_name":"Write","tool_input":{"file_path":"a.ts","content":"gsap.to(box)"}}' "$motion_block" \
+    | PLUGIN_ROOT="$ROOT" bash "$GATE" >/dev/null 2>&1 ) || motion_block_rc=$?
+  assert_exit "gate: 有活跃 change 且无 GSAP 技能证据 → exit 2" 2 "$motion_block_rc"
+
+  # 同一步骤内读过 gsap-core 之后放行。
+  printf '{"kind":"tool","raw":"Skill: gsap-core"}\n' >> "$motion_block/openspec/changes/ui-work/.pipeline-history.jsonl"
+  motion_pass_rc=0
+  ( cd "$motion_block" \
+    && printf '{"cwd":"%s","tool_name":"Write","tool_input":{"file_path":"a.ts","content":"gsap.to(box)"}}' "$motion_block" \
+    | PLUGIN_ROOT="$ROOT" bash "$GATE" >/dev/null 2>&1 ) || motion_pass_rc=$?
+  assert_exit "gate: 本步骤已读 gsap-core → exit 0" 0 "$motion_pass_rc"
+  clear_active "$motion_block"
+else
+  ok "gate: GSAP 动画门黑盒用例（缺 dist/tenon.mjs 或 node，按约定跳过）"
+fi
+
 # ───────────────────────── 3. 红线自证：热路径纯 bash ─────────────────────────
 # gate.sh 例外（Task 9，GOAL 清单 E）：所有 workflow 的 skill DAG 判定合法委托 CLI（spawn
 # node），但**只**在该分支——workflow==='default' 这条最高频路径的零 spawn 承诺不变。文本 grep

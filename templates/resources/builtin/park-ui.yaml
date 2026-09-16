@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: park-ui
+name: Park UI
+category: blocks
+frameworks: [react, vue, svelte]
+styling: [panda, tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/cschroeter/park-ui/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://park-ui.com
+  source: https://github.com/cschroeter/park-ui
+verified_at: 2026-09-16

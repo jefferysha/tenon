@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: react-spring
+name: React Spring
+category: animation
+frameworks: [react, react-native]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/pmndrs/react-spring/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @react-spring/web
+skills: []
+links:
+  home: https://www.react-spring.dev
+  source: https://github.com/pmndrs/react-spring
+verified_at: 2026-09-16

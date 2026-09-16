@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: nuxt-ui
+name: Nuxt UI
+category: component-lib
+frameworks: [nuxt, vue]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/nuxt/ui/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @nuxt/ui
+skills: []
+links:
+  home: https://ui.nuxt.com
+  source: https://github.com/nuxt/ui
+verified_at: 2026-09-16

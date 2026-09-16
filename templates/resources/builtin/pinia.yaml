@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: pinia
+name: Pinia
+category: state
+frameworks: [vue, nuxt]
+styling: []
+use: 全局状态
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/vuejs/pinia/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add pinia
+skills: []
+links:
+  home: https://pinia.vuejs.org
+  source: https://github.com/vuejs/pinia
+verified_at: 2026-09-16

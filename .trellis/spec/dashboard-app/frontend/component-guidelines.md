@@ -309,6 +309,18 @@ row names the skills that should produce it, and a stale row carries its one-wor
 - Chips are `role=tab` inside a `role=tablist`; the gate switch is `role=radiogroup`.
 - Status is text + tone, never colour alone; `/` focuses global search.
 
+## Library page sections
+
+- The Library page's rail (`LibraryRail`) lists 模板 / 资源目录 / 测试方向; a section owns the middle and right
+  columns and nothing else. 资源目录 renders its own `ThreeColumns` with the shared rail passed in, so the rail's
+  collapsed state and selection stay with `LibraryView`.
+- 资源目录 filtering is client-side through `filterResources` from `@tenon/kernel/resources/query` — the same
+  predicate `tenon resources list` uses. Switching a facet chip must not issue a request; the list is fetched once.
+- The four facet rows are single-select `role=tablist` rows with a leading 全部 chip, `whitespace-nowrap` and
+  `overflow-x-auto`: enum values are nouns and must never wrap.
+- Builtin entries are read-only: only 复制 is offered. Custom entries add 编辑 (a YAML drawer validated by the
+  server, errors listed verbatim) and 删除 (a `Dialog`). A 409 offers 重新载入 rather than silently overwriting.
+
 ## Common mistakes
 
 - **Reading IO from `WbStepDef.inputs/outputs` directly** in a page component: that skips document

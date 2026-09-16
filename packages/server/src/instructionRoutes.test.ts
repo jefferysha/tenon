@@ -201,6 +201,13 @@ describe('instruction template routes', () => {
   it('拼合：React + Java DDD + PostgreSQL + REST 返回合成文件；框架不匹配 400', async () => {
     const { port } = await start()
     const pick = (category: string, id: string) => ({ source: 'builtin', category, id, values: {} })
+    const withCatalog = await reqPost(port, '/api/instruction-templates/compose', {
+      project_name: 'shop',
+      selections: [{ ...pick('frontend', 'typescript-react'), catalog: { 'component-lib': ['shadcn-ui'], icons: ['lucide'] } }],
+    }, { headers: AUTH })
+    expect(withCatalog.status).toBe(200)
+    expect(withCatalog.json<{ markdown: string }>().markdown)
+      .toContain('- shadcn/ui（MIT）· 安装 `pnpm dlx shadcn@latest init` · 文档 https://ui.shadcn.com/docs')
     const composed = await reqPost(port, '/api/instruction-templates/compose', {
       project_name: 'shop',
       selections: [

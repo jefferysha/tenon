@@ -25,6 +25,8 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [State Lock Owner Identity](./state-lock.md) | Owner record, pid-only fallback in sandboxes, reclaim rules | Current |
 | [Per-step Test Evidence](./test-evidence.md) | Step `tests[]`, run records per user, freshness, transition gate | Current |
 | [User Identity and Owner Rule](./user-identity.md) | Declared identity order, slug, `.tenon/users/<slug>/` layout, owner rule, 接手, error matrix | Current |
+| [Resource Catalog](./resource-catalog.md) | Entry schema and license gate, global store with builtin sync, one filter predicate for CLI and Dashboard | Current |
+| [Project Design System](./design-system.md) | `DESIGN.md` contract and status, `tenon design`, creation precondition, design-system template workflow | Current |
 | [Task Delete and Archive](./task-lifecycle.md) | Per-user 归档 store and bash ABI, reasons assessed twice, rename-then-remove 删除, audit split, 未提交删除 | Current |
 
 ---

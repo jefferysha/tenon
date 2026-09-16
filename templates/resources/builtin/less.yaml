@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: less
+name: Less
+category: styling
+frameworks: [web, react, vue, angular]
+styling: [less]
+use: 旧版 Ant Design 主题
+baseline: false
+license:
+  spdx: Apache-2.0
+  url: https://raw.githubusercontent.com/less/less.js/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add -D less
+skills: []
+links:
+  home: https://lesscss.org
+  source: https://github.com/less/less.js
+verified_at: 2026-09-16

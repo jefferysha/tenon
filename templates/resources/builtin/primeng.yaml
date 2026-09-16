@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: primeng
+name: PrimeNG
+category: component-lib
+frameworks: [angular]
+styling: [css, tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/primefaces/primeng/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add primeng
+skills: []
+links:
+  home: https://primeng.org
+  source: https://github.com/primefaces/primeng
+verified_at: 2026-09-16

@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: preline
+name: Preline UI
+category: blocks
+frameworks: [web, react, vue, angular]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT AND LicenseRef-Preline-Fair-Use
+  url: https://raw.githubusercontent.com/htmlstreamofficial/preline/HEAD/LICENSE
+  redistributable: true
+  attribution: true
+  commercial: free
+  notice: 署名 Preline UI 并链接原仓库；不得用于竞品
+install:
+  - pnpm add preline
+skills: []
+links:
+  home: https://preline.co
+  source: https://github.com/htmlstreamofficial/preline
+verified_at: 2026-09-16

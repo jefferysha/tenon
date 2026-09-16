@@ -20,6 +20,7 @@ const readReal = (rel: string): string => readFileSync(join(REPO_ROOT, rel), 'ut
 const REAL_YAML = readReal('templates/workflows/default.yaml')
 const REAL_TYPES = readReal('packages/kernel/src/types.ts')
 const REAL_GENERATED = readReal('packages/kernel/src/workflow/default-workflow.generated.ts')
+const REAL_DESIGN_SYSTEM = readReal('templates/workflows/design-system.yaml')
 
 /** 可控 fieldOrder（malformed 用例隔离 FIELD_ORDER 变量）。 */
 const FIELDS = ['design_doc', 'plan', 'verification_report']
@@ -31,11 +32,11 @@ const wrap = (stepBody: string): string => `name: default\nsteps:\n${stepBody}`
 
 describe('generator golden（真生产 fixture）', () => {
   it('generate(真 default.yaml, 真 types.ts) 逐字节等于入库 default-workflow.generated.ts（freshness 的单测镜像）', () => {
-    expect(generate(REAL_YAML, REAL_TYPES)).toBe(REAL_GENERATED)
+    expect(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM)).toBe(REAL_GENERATED)
   })
 
   it('generate 幂等：同输入两跑逐字节一致', () => {
-    expect(generate(REAL_YAML, REAL_TYPES)).toBe(generate(REAL_YAML, REAL_TYPES))
+    expect(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM)).toBe(generate(REAL_YAML, REAL_TYPES, REAL_DESIGN_SYSTEM))
   })
 })
 

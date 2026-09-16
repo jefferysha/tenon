@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: animate-ui
+name: Animate UI
+category: motion-components
+frameworks: [react]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT AND LicenseRef-Commons-Clause
+  url: https://raw.githubusercontent.com/imskyleen/animate-ui/HEAD/LICENSE.md
+  redistributable: false
+  attribution: false
+  commercial: free
+  notice: 不得出售或再分发组件本身
+install: []
+skills: []
+links:
+  home: https://animate-ui.com
+  source: https://github.com/imskyleen/animate-ui
+verified_at: 2026-09-16

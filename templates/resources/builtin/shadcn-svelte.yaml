@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: shadcn-svelte
+name: shadcn-svelte
+category: component-lib
+frameworks: [svelte]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/huntabyte/shadcn-svelte/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm dlx shadcn-svelte@latest init
+skills: []
+links:
+  home: https://shadcn-svelte.com
+  source: https://github.com/huntabyte/shadcn-svelte
+verified_at: 2026-09-16

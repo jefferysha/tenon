@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: animejs
+name: Anime.js
+category: animation
+frameworks: [web]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/juliangarnier/anime/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add animejs
+skills: []
+links:
+  home: https://animejs.com
+  source: https://github.com/juliangarnier/anime
+verified_at: 2026-09-16

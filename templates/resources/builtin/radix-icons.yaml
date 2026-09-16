@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: radix-icons
+name: Radix Icons
+category: icons
+frameworks: [web, react]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/radix-ui/icons/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @radix-ui/react-icons
+skills: []
+links:
+  home: https://www.radix-ui.com/icons
+  source: https://github.com/radix-ui/icons
+verified_at: 2026-09-16

@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
+import { isTemplateWorkflowName } from '@tenon/kernel/workflow/identifier'
 import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
 import { BTN_DANGER, BTN_GHOST, BTN_SOLID, FIELD_INPUT } from './workbenchStyles'
@@ -37,7 +37,8 @@ export function WorkbenchDialogs(props: {
   onConfirmAddStage: () => void
 }): JSX.Element {
   const { t } = useT()
-  const isDefault = props.workflowName !== null && isDefaultWorkflowName(props.workflowName)
+  // 模板工作流（default、design-system）删除即「恢复内建」：文件删掉后回落到打包模板。
+  const isDefault = props.workflowName !== null && isTemplateWorkflowName(props.workflowName)
   return <>
     {props.pendingSwitch !== null && <Dialog title={t('workbench.switch_confirm_title')} onClose={() => props.onPendingSwitch(null)} testid="wb-switch-confirm" actions={<><button className={BTN_GHOST} onClick={() => props.onPendingSwitch(null)}>{t('workbench.switch_cancel')}</button><button className={BTN_DANGER} onClick={props.onConfirmSwitch}>{t('workbench.switch_discard')}</button></>}><p className="mb-4 text-caption leading-[1.6] text-text-2">{t('workbench.switch_confirm_body', { name: props.workflowName ?? '' })}</p></Dialog>}
     {props.deleteOpen && props.workflowName && (

@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: ngrx
+name: NgRx
+category: state
+frameworks: [angular]
+styling: []
+use: 大型应用集中状态
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/ngrx/platform/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @ngrx/store
+skills: []
+links:
+  home: https://ngrx.io
+  source: https://github.com/ngrx/platform
+verified_at: 2026-09-16

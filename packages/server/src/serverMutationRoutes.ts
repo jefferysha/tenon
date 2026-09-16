@@ -18,6 +18,7 @@ import { isValidSecretKey, removeSecret, SECRET_KEY_LIST } from './secrets.js'
 import { tokenFromHeaders, tokensMatch } from './token.js'
 import { handleWorkflowYamlPut, matchWorkflowYamlRoute } from './serverWorkflowYamlRoutes.js'
 import { resolveInstructionMutation } from './instructionRoutes.js'
+import { resolveResourceMutation } from './serverResourceRoutes.js'
 import { handleTaskLifecycleDelete, type TaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 import { handleTestDirectionMutation, TEST_DIRECTION_MAX_BYTES } from './serverTestDirectionRoutes.js'
 import { readTextBody } from './serverWorkflowYamlRoutes.js'
@@ -150,6 +151,8 @@ export async function handleDeleteRoute(
 
     const instructionDelete = resolveInstructionMutation(req, 'DELETE', path, deps)
     if (instructionDelete) { const result = await instructionDelete; return sendJson(res, result.status, result.body) }
+    const resourceDelete = resolveResourceMutation(req, 'DELETE', path, deps)
+    if (resourceDelete) { const result = await resourceDelete; return sendJson(res, result.status, result.body) }
     if (await handleTaskLifecycleDelete(req, res, path, deps)) return
 
     if (path.startsWith('/api/test-directions/')) {
@@ -335,6 +338,8 @@ export async function handlePutRoute(
   }
   const instructionPut = resolveInstructionMutation(req, 'PUT', path, deps)
   if (instructionPut) { const result = await instructionPut; return sendJson(res, result.status, result.body) }
+  const resourcePut = resolveResourceMutation(req, 'PUT', path, deps)
+  if (resourcePut) { const result = await resourcePut; return sendJson(res, result.status, result.body) }
   if (path.startsWith('/api/test-directions/')) {
     const body = await readTextBody(req, TEST_DIRECTION_MAX_BYTES)
     if (body === null) return sendJson(res, 400, { ok: false, error: `方向文件超过 ${TEST_DIRECTION_MAX_BYTES} 字节` })

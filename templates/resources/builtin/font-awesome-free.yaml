@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: font-awesome-free
+name: Font Awesome Free
+category: icons
+frameworks: [web, react, vue, angular]
+styling: []
+baseline: false
+license:
+  spdx: CC-BY-4.0 AND OFL-1.1 AND MIT
+  url: https://raw.githubusercontent.com/FortAwesome/Font-Awesome/HEAD/LICENSE.txt
+  redistributable: true
+  attribution: true
+  commercial: free
+  notice: 图标按 CC BY 4.0 署名
+install:
+  - pnpm add @fortawesome/fontawesome-free
+skills: []
+links:
+  home: https://fontawesome.com
+  source: https://github.com/FortAwesome/Font-Awesome
+verified_at: 2026-09-16

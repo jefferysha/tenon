@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: compose-material3
+name: Compose Material 3
+category: component-lib
+frameworks: [compose]
+styling: [native]
+baseline: false
+license:
+  spdx: Apache-2.0
+  url: https://raw.githubusercontent.com/androidx/androidx/HEAD/LICENSE.txt
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://developer.android.com/develop/ui/compose/designsystems/material3
+  source: https://github.com/androidx/androidx
+verified_at: 2026-09-16

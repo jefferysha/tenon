@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: rive
+name: Rive
+category: animation
+frameworks: [web, react, flutter]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/rive-app/rive-wasm/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: freemium
+install:
+  - pnpm add @rive-app/react-canvas
+skills: []
+links:
+  home: https://rive.app
+  source: https://github.com/rive-app/rive-wasm
+verified_at: 2026-09-16

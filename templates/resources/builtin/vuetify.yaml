@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: vuetify
+name: Vuetify
+category: component-lib
+frameworks: [vue, nuxt]
+styling: [sass]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/vuetifyjs/vuetify/HEAD/packages/vuetify/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add vuetify
+skills: []
+links:
+  home: https://vuetifyjs.com
+  source: https://github.com/vuetifyjs/vuetify
+verified_at: 2026-09-16

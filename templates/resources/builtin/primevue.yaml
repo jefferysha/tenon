@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: primevue
+name: PrimeVue
+category: component-lib
+frameworks: [vue, nuxt]
+styling: [tailwind, css]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/primefaces/primevue/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add primevue
+skills: []
+links:
+  home: https://primevue.org
+  source: https://github.com/primefaces/primevue
+verified_at: 2026-09-16

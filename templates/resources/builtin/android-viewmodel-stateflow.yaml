@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: android-viewmodel-stateflow
+name: ViewModel + StateFlow
+category: state
+frameworks: [compose]
+styling: []
+use: 界面状态
+baseline: false
+license:
+  spdx: Apache-2.0
+  url: https://raw.githubusercontent.com/androidx/androidx/HEAD/LICENSE.txt
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://developer.android.com/topic/libraries/architecture/viewmodel
+  source: https://github.com/androidx/androidx
+verified_at: 2026-09-16

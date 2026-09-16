@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: redux-toolkit
+name: Redux Toolkit
+category: state
+frameworks: [react, next]
+styling: []
+use: 大型团队严格数据流
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/reduxjs/redux-toolkit/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @reduxjs/toolkit react-redux
+skills: []
+links:
+  home: https://redux-toolkit.js.org
+  source: https://github.com/reduxjs/redux-toolkit
+verified_at: 2026-09-16

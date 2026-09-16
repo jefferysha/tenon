@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: phosphor
+name: Phosphor Icons
+category: icons
+frameworks: [web, react, vue, flutter]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/phosphor-icons/core/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @phosphor-icons/react
+skills: []
+links:
+  home: https://phosphoricons.com
+  source: https://github.com/phosphor-icons/core
+verified_at: 2026-09-16

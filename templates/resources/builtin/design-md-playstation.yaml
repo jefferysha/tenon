@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: design-md-playstation
+name: PlayStation
+category: design-md
+frameworks: []
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/VoltAgent/awesome-design-md/HEAD/LICENSE
+  redistributable: false
+  attribution: false
+  commercial: free
+  notice: 品牌视觉归各公司所有，仅作参考起步
+install:
+  - npx getdesign@latest add playstation
+skills: []
+links:
+  source: https://github.com/VoltAgent/awesome-design-md/tree/HEAD/design-md/playstation
+  design_md: https://raw.githubusercontent.com/VoltAgent/awesome-design-md/HEAD/design-md/playstation/DESIGN.md
+verified_at: 2026-09-16

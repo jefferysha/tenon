@@ -12,6 +12,8 @@ import {
   loadTrackRegistry,
   validateWorkflowTrackReferences,
   isDefaultWorkflowName,
+  TEMPLATE_WORKFLOW_NAMES,
+  templateWorkflowSource,
   withTrackRegistryLock,
   type StateStore,
   type TrackRegistry,
@@ -50,6 +52,7 @@ import { resolveDocumentReadRoute } from './serverGetDocumentRoutes.js'
 import { handleTestGetRoutes } from './serverGetTestRoutes.js'
 import { resolveWorkflowYamlGet } from './serverWorkflowYamlRoutes.js'
 import { resolveInstructionGet } from './instructionRoutes.js'
+import { resolveResourceGet } from './serverResourceRoutes.js'
 import { resolveDefinitionCatalogRoute, type DefinitionCatalogRouteDeps } from './definitionCatalogRoutes.js'
 import { resolveAdapterInstallGet } from './adapterInstallRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
@@ -257,14 +260,17 @@ export async function handleGet(
       }
     }
     const instructionGet = resolveInstructionGet(req, path, deps); if (instructionGet) { const result = await instructionGet; return sendJson(res, result.status, result.body) }
+    const resourceGet = resolveResourceGet(req, path, deps); if (resourceGet) { const result = await resourceGet; return sendJson(res, result.status, result.body) }
     if (path === '/api/workflows') {
       const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
       const rootCheck = workflowStoreForRequest(root)
       if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
       try {
         const files = listWorkflowNames(rootCheck.anchor)
+        // 模板工作流即使没有覆盖文件也要出现在列表里（default 另有 default 字段表达来源）。
+        const templates = TEMPLATE_WORKFLOW_NAMES.filter((name) => !isDefaultWorkflowName(name))
         return sendJson(res, 200, {
-          names: files.filter((name) => !isDefaultWorkflowName(name)),
+          names: [...new Set([...files.filter((name) => !isDefaultWorkflowName(name)), ...templates])],
           default: { source: files.includes('default') ? (rootCheck.global ? 'global' : 'project') : 'builtin' },
         })
       } catch (e) {
@@ -306,8 +312,9 @@ export async function handleGet(
         }
         ensureWorkflowProjectCoordinationPath(rootCheck.anchor)
       } catch (e) {
-        if (e instanceof WorkflowNotFoundError && isDefaultWorkflowName(wfName)) {
-          const template = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+        const templateSource = e instanceof WorkflowNotFoundError ? templateWorkflowSource(wfName) : undefined
+        if (templateSource !== undefined) {
+          const template = parseWorkflow(templateSource)
           return sendJson(res, 200, { ...template, source: 'builtin', effectiveIo: materializeWorkflowIo(selectTrackBranch(template, undefined)), branches: workflowBranchesForApi(template) })
         }
         return sendJson(res, e instanceof WorkflowNotFoundError ? 404 : 500, { ok: false, error: errMsg(e) })

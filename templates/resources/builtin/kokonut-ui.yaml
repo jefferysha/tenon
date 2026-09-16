@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: kokonut-ui
+name: KokonutUI
+category: motion-components
+frameworks: [react]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/kokonut-labs/kokonutui/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://kokonutui.com
+  source: https://github.com/kokonut-labs/kokonutui
+verified_at: 2026-09-16

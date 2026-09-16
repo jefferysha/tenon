@@ -1904,9 +1904,10 @@ steps:
     } = currentWorkflow
     const legacyWorkflow = {
       ...legacyBase,
+      // Historical bytes also predate step prompts (the frontend branch gained them with DESIGN.md).
       steps: legacyBase.steps.map((step) => {
-        // Historical bytes also predate step tests (2026-09 per-step test evidence).
-        const { reviewLanes: _reviewLanes, tests: _tests, ...legacyStep } = step
+        // Historical bytes also predate step tests (2026-09 per-step test evidence) and step prompts.
+        const { reviewLanes: _reviewLanes, tests: _tests, prompt: _prompt, ...legacyStep } = step
         return {
           ...legacyStep,
           // The last step was labelled 归档 before the 完结 wording.

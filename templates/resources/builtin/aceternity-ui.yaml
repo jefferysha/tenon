@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: aceternity-ui
+name: Aceternity UI
+category: motion-components
+frameworks: [react, next]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: LicenseRef-Aceternity-UI
+  url: https://ui.aceternity.com/licence
+  redistributable: false
+  attribution: false
+  commercial: freemium
+  notice: 不得再分发源码或在市场上转售
+install: []
+skills: []
+links:
+  home: https://ui.aceternity.com
+verified_at: 2026-09-16

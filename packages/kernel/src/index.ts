@@ -11,12 +11,24 @@ export * from './flow/index.js'
 export * from './users/index.js'
 // 指令文件（AGENTS.md / CLAUDE.md …）受管块、模板块与宿主表的纯逻辑。
 export * from './instructions/index.js'
+// 资源目录（组件库 / 图标 / 动画 / DESIGN.md / 状态管理 / 样式）条目的解析、校验与筛选。
+export * from './resources/index.js'
+// 项目设计体系（根目录 DESIGN.md + design/）的结构检查与变更提案。
+export * from './design-system/index.js'
+export { createDesignFileReader } from './infrastructure/design-system-fs.js'
+export { designSystemPrecondition } from './infrastructure/design-precondition.js'
+export type { DesignPreconditionInput } from './infrastructure/design-precondition.js'
 // 内建库（模板、agent、资源目录、测试方向）从 payload 同步到全局 config/<kind>/builtin。
 export {
-  BUILTIN_LIBRARIES, BUILTIN_LIBRARY_MARKER, builtinSourceDigest, parseBuiltinLibraryMarker,
+  BUILTIN_LIBRARIES, BUILTIN_LIBRARY_MARKER, builtinLibrary, builtinSourceDigest, parseBuiltinLibraryMarker,
   syncBuiltinLibraries, syncBuiltinLibrary,
 } from './infrastructure/builtin-library-sync.js'
 export type { BuiltinLibrary, BuiltinLibraryMarker, BuiltinSyncResult } from './infrastructure/builtin-library-sync.js'
+export {
+  ResourceStoreError, copyResource, deleteCustomResource, ensureBuiltinResources, loadResourceCatalog,
+  readResourceFile, resourceStoreRoot, writeCustomResource,
+} from './infrastructure/resource-store.js'
+export type { ResourceCatalog, ResourceFile, ResourceStoreOptions } from './infrastructure/resource-store.js'
 // 每步测试登记：测试方向、运行记录、基准与门禁判定。
 export * from './test-evidence/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
@@ -110,7 +122,11 @@ export {
   IMPLICIT_COMPLETION_EVENT, implicitCompletionTransition, stepExitTransitions,
 } from './workflow/implicit-completion.js'
 export type { ImplicitCompletionPlan } from './workflow/implicit-completion.js'
-export { isDefaultWorkflowName, isValidWorkflowName } from './workflow/identifier.js'
+export {
+  TEMPLATE_WORKFLOW_NAMES, isDefaultWorkflowName, isTemplateWorkflowName, isValidWorkflowName,
+} from './workflow/identifier.js'
+export type { TemplateWorkflowName } from './workflow/identifier.js'
+export { templateWorkflowSource } from './workflow/template-workflows.js'
 export { isSkillUnlocked } from './workflow/skillDag.js'
 export { classifyInteractionWorkflowIdentity } from './workflow/interaction-effect.js'
 export { parseWorkflow } from './workflow/parse.js'

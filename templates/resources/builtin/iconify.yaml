@@ -1,0 +1,22 @@
+schema: tenon-resource/v1
+id: iconify
+name: Iconify
+category: icons
+frameworks: [web, react, vue, svelte]
+styling: []
+baseline: false
+license:
+  spdx: MIT AND LicenseRef-Iconify-Per-Set
+  url: https://raw.githubusercontent.com/iconify/iconify/HEAD/license.txt
+  redistributable: false
+  attribution: false
+  commercial: free
+  notice: 图标集各自持有许可，逐集核对
+install:
+  - pnpm add @iconify/react
+skills: []
+links:
+  home: https://iconify.design
+  docs: https://icon-sets.iconify.design
+  source: https://github.com/iconify/iconify
+verified_at: 2026-09-16

@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: panda-css
+name: Panda CSS
+category: styling
+frameworks: [react, vue, svelte]
+styling: [panda]
+use: 零运行时 CSS-in-JS
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/chakra-ui/panda/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add -D @pandacss/dev
+skills: []
+links:
+  home: https://panda-css.com
+  source: https://github.com/chakra-ui/panda
+verified_at: 2026-09-16

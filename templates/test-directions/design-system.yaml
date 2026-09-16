@@ -1,0 +1,4 @@
+id: design-system
+command: tenon design validate
+label: 设计体系
+timeout_s: 300

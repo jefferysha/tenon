@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: animata
+name: Animata
+category: motion-components
+frameworks: [react]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/codse/animata/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://animata.design
+  source: https://github.com/codse/animata
+verified_at: 2026-09-16

@@ -229,6 +229,31 @@ export interface CliDeps {
   taskLifecycle?: import('@tenon/kernel').TaskLifecycleApplication
   /** `<configRoot>/user.json`, written by `tenon user set`. */
   userConfigPath: () => string
+  /**
+   * 资源目录读取面（`tenon resources`）：main.ts 用 kernel loadResourceCatalog 落地，
+   * 内建条目在这里按 payload 摘要同步。缺省 undefined = 未装配，命令 exit 1。
+   */
+  resourceCatalog?: () => Promise<import('@tenon/kernel').ResourceCatalog>
+  /**
+   * 上游 hue 的 `scripts/validate.mjs`（`tenon design validate` 用）：path() 返回脚本绝对路径，
+   * 技能没装时返回空串；run() 以仓库根为 cwd 执行并返回退出码。缺省 undefined = 未装配，命令 exit 1；
+   * 用例注入假实现，永不真的 spawn。
+   */
+  designValidator?: {
+    path: () => string
+    run: (script: string, folder: string, cwd: string) => Promise<number>
+  }
+  /**
+   * 立项前置条件：所选分支第一个步骤声明了项目级文档 `role: require` 时，该文档必须先就绪。
+   * 返回拒绝原因，null = 可以立项。main.ts 用 kernel designSystemPrecondition 落地；
+   * 缺省 undefined = 未装配，立项不做该检查（行为与接线前逐字一致）。
+   */
+  creationPrecondition?: (input: {
+    readonly workflow: string
+    readonly track: string
+    readonly firstStep: string
+    readonly policy?: import('@tenon/kernel').DocumentGovernancePolicy
+  }) => Promise<string | null>
   io: CliIO
   /** ISO8601 UTC 注入时钟（CONTRACT §5.6：业务码禁止散落 new Date()） */
   clock: () => string

@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: zustand
+name: Zustand
+category: state
+frameworks: [react, next]
+styling: []
+use: 小型全局状态
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/pmndrs/zustand/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add zustand
+skills: []
+links:
+  home: https://zustand.docs.pmnd.rs
+  source: https://github.com/pmndrs/zustand
+verified_at: 2026-09-16

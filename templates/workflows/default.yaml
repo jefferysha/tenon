@@ -373,6 +373,10 @@ tracks:
         - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }
         - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }
         - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }
+        - { kind: design-md, owner_step: open, role: require }
+        - { kind: design-md, owner_step: build, role: require }
+        - { kind: design-md, owner_step: verify, role: require }
+        - { kind: design-md, owner_step: ship, role: update, producers: [hue] }
       reads:
         - { step: explore, kinds: [proposal, openspec-design, tasks] }
         - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
@@ -416,6 +420,8 @@ tracks:
       - id: spec
         label: 规格
         gate: review
+        prompt: |-
+          需要新增或调整设计时运行 tenon design propose "$TENON_CHANGE_NAME"，在 openspec/changes/<change>/design-system.md 写清修改、理由、影响，随规格评审。
         skills:
           - id: tenon-spec
           - id: openspec-propose
@@ -524,6 +530,8 @@ tracks:
       - id: ship
         label: 交付
         gate: null
+        prompt: |-
+          存在 openspec/changes/<change>/design-system.md 时：加载 hue，先改 design/design-model.yaml，再只重新生成 DESIGN.md 受影响章节与预览，跑 tenon design validate 到通过，登记 tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue。
         skills:
           - id: tenon-ship
           - id: openspec-apply-change
@@ -535,6 +543,13 @@ tracks:
         outputs:
           - field: pr_url
             type: string
+        tests:
+          - id: design-system
+            direction: design-system
+            command: tenon design validate
+            label: 设计体系
+            timeout_s: 300
+            required: true
         guards:
           - type: spec-migration-applied
         transitions:

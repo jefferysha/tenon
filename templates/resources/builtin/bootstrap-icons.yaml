@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: bootstrap-icons
+name: Bootstrap Icons
+category: icons
+frameworks: [web]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/twbs/icons/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add bootstrap-icons
+skills: []
+links:
+  home: https://icons.getbootstrap.com
+  source: https://github.com/twbs/icons
+verified_at: 2026-09-16
