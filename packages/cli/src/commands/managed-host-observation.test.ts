@@ -4,6 +4,7 @@ import type { SetupEnv } from './setupEnvironment.js'
 import {
   desiredNativeHostPostcondition,
   nativeHostMatchesStableTarget,
+  nativeHostStableTargetMismatch,
   observeNativeHost,
 } from './managed-host-observation.js'
 import { equivalentNativeHostDesired } from './managed-host-desired-identity.js'
@@ -90,6 +91,13 @@ function observationEnv(state: {
       if (text === `git -C ${root} diff --quiet HEAD --`) {
         return { code: state.marketplaceClean === false ? 1 : 0, stdout: '', stderr: '' }
       }
+      if (text === `git -C ${root} status --porcelain`) {
+        return {
+          code: 0,
+          stdout: state.marketplaceClean === false ? '?? skills/brainstorming/SKILL.md\n' : '',
+          stderr: '',
+        }
+      }
       if (text === `git -C ${root} ls-files --others --exclude-standard`) {
         return { code: 0, stdout: '', stderr: '' }
       }
@@ -132,6 +140,29 @@ describe('managed native-host observation', () => {
     expect(nativeHostMatchesStableTarget(env, 'codex', target)).toBe(false)
     state.codexConfig = '[marketplaces.tenon]\nsource_type = "git"\nref = "v1.2.3"\n'
     expect(nativeHostMatchesStableTarget(env, 'codex', target)).toBe(true)
+  })
+
+  test('冻结目标不匹配时点名漂移字段，而不是只给一个拒绝', () => {
+    const target = { version: '1.2.3', tag: 'v1.2.3', commit: 'b'.repeat(40) }
+    const state = {
+      head: target.commit,
+      remoteHead: target.commit,
+      pluginVersion: target.version,
+      marketplacePluginVersion: target.version,
+      omitLegacyRefMetadata: true,
+      codexConfig: '[marketplaces.tenon]\nsource_type = "git"\nref = "v1.2.3"\n',
+      marketplaceClean: false,
+    }
+    // 脏克隆是 upstream skill 安装后最容易踩的一条，拒绝必须自己说出是 clean 这一项。
+    const dirty = nativeHostStableTargetMismatch(observationEnv(state), 'codex', target) ?? ''
+    expect(dirty).toContain('marketplace.clean=false')
+    expect(dirty).toContain('skills/brainstorming/SKILL.md')
+    state.marketplaceClean = true
+    expect(nativeHostStableTargetMismatch(observationEnv(state), 'codex', target)).toBe(null)
+    state.head = 'c'.repeat(40)
+    const drifted = nativeHostStableTargetMismatch(observationEnv(state), 'codex', target) ?? ''
+    expect(drifted).toContain(`marketplace.head=${'c'.repeat(40)}`)
+    expect(drifted).toContain(target.commit)
   })
 
   test('Codex configured ref rejects duplicate and malformed config values', () => {
