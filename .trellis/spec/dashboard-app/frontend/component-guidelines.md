@@ -11,12 +11,14 @@ Everything a page shows about "what a stage produces / reads / runs" comes from 
 returned by `GET /api/workflows/:name?root=` (default included — the project override file
 `.pipeline/workflows/default.yaml` wins over the built-in template; the response says `source`).
 The server materializes each step's IO into `effectiveIo[stepId] = { inputs, outputs }` where a slot is
-either `{ kind: 'document', id, producers, consumers, locked }` (governed document, ledger-backed) or
+either `{ kind: 'document', id, role, scope, producers, consumers }` (governed document, ledger-backed) or
 `{ kind: 'field', id, type, producer, consumers }` (change field). The frontend never keeps a copy of
 the built-in default (`buildDefaultDef` was deleted) and never merges the document contract itself.
 
-- Document slots are `locked` on `default` and `openspec_contract: required` copies; the editor shows
-  a lock icon, never a sentence.
+- Document slots carry no `locked` flag. Document IO is editable wherever the workflow declares a
+  `document_contract`: `+ 输出` adds a slot (its `role` derived from whether an earlier step already produces the
+  kind), `+ 输入` is a checklist over upstream document outputs and project documents, and `×` removes a row.
+  Field IO stays YAML-derived and read-only.
 - Labels: document kinds → `t('documents.<kind>')`, fields → `t('fields.<field>')`
   (`workspace/taskModel.slotLabel`). Raw ids like `file_path` / `build_sha` never reach the screen.
 
@@ -98,14 +100,17 @@ last one. Anything that needs its own surface opens the shared right-side `share
   title input (`wb-lane-name-input-<id>`; `wb-lane-name-<id>` is an sr-only copy so existing tests and readers keep
   the text), position `n / N`, delete with inline confirm. Sections are full-width with a one-line head
   (`SectionHead`: title, mono count, right-aligned action) in **data-flow order: 输入 → 技能 → 输出 → 门禁**.
+  Document lint issues render once under 输出 (`stage-document-lint`): structural contract problems mirroring the
+  kernel are errors that block saving; chain gaps and stages without outputs are warnings that do not.
 - **IO tables (`IoTable`).** Both tables are the same three equal columns so they align vertically: 文件 · 来源阶段 ·
   来源技能 (wording is 来源, never 产出). Inputs: 来源阶段 = the producing upstream stage; outputs: 来源阶段 = this stage.
   Every row has the same file icon — slots are files, the kind (document / field) is not shown. Source skills are a
   comma list; empty → `—`. Derivation: output document → contract `producerCandidates` ∩ this stage's skills
   (bare-name match, `producerSkills`); output field → all stage skills; input → producing stage label plus that
   stage's matching skills. **Never show a skill that is not in the stage** — an empty cell is the
-  honest answer (see the IO section below). No 读取阶段 column: each stage lists what it reads in its own inputs. No
-  add / remove / checkbox UI; `useWorkflowEditor` has no IO mutators.
+  honest answer (see the IO section below). No 读取阶段 column: each stage lists what it reads in its own inputs.
+  Document rows are editable through `useWorkflowEditor`'s contract mutators (`workbench/documentContractEdits.ts`);
+  field rows are not.
 - **Skill flow (`SkillFlow`, `@xyflow/react`).** Nodes = skills (`flow-node-<id>`: source icon + mono name + registry
   description, left target / right source handles), edges = `depends_on` (`edgesOf`), columns = waves
   (`layoutSkills`: x by depth, y by index in wave). Serial / parallel must be visible even when no `depends_on`
@@ -162,15 +167,14 @@ last one. Anything that needs its own surface opens the shared right-side `share
   the menu action becomes `恢复内建` and is enabled whenever the source is not `builtin` (global **or** legacy project
   override) — gating it on `project` alone left a globally overridden default unrestorable. The server rejects
   overrides that break the seven-stage skeleton (`validateWorkflowForStorage`).
-- `copyWorkflowDef` copies default **without** stamping `openspec_contract: required`. default is governed by
-  *name* (kernel `document-contract.ts` applies the OpenSpec document contract to `name === 'default'`), so its
-  YAML never carries that line and `validateOpenSpecContractWorkflow` never runs against it — and its `chat`
-  branch is deliberately drivers-only, so it does not satisfy the contract's skill list. Stamping the line onto
-  a copy asserted something the source cannot meet and made every 复制 default 400 with
-  `tracks.chat: … 要求 'open' 声明 OpenSpec proposal skill`. A copy is no longer named `default` and is therefore
-  no longer name-governed; a user who wants OpenSpec governance writes the line themselves and fills in the
-  skills. The copy still rewrites `producerPolicy` from `effective-phase-skills` (default-only) to
-  `effective-step-skills`.
+- `copyWorkflowDef` keeps `openspec: true` and each branch's `document_contract`, but **prunes every slot and
+  read down to the skills the copied stages actually declare**. default's contract names producers its own `chat`
+  branch deliberately does not contain (drivers only), so copying it verbatim asserted something the copy cannot
+  meet and made every 复制 default 400 with `tracks.chat: … 要求 'open' 声明 OpenSpec proposal skill`. Pruning is
+  what keeps a copy valid under the same kernel validation the original passes. The copy still rewrites
+  `producerPolicy` from `effective-phase-skills` (default-only) to `effective-step-skills`.
+- The OpenSpec switch itself is `wb-wf-menu-openspec` in the workflow menu. Turning it off deletes the top-level
+  and every branch `document_contract` with it; it is disabled for `default`, which must stay governed.
 - `decodeWorkflowIndex` must accept every `WbWorkflowSource`. It once narrowed `defaultSource` to `builtin | project`,
   so a `source: "global"` index response failed shape validation: `useWorkflowEditor` fell into its catch branch and
   the whole page came up with no workflow names and an empty stage rail. Any new source value has to be added in
@@ -223,14 +227,13 @@ last one. Anything that needs its own surface opens the shared right-side `share
 `effectiveIo` (kernel `workflow/effective-io.ts`, mirrored for drafts by `workflow/lint.ts#draftEffectiveIo`) has
 two sources and neither reads skill content:
 
-1. **Document slots** come from the kernel's fixed document contract (`workflow/document-contract.ts`). It is a table
-   keyed by **step id** (`open / explore / spec / build / verify / ship / archive`): which document kinds a step must
-   produce, which skill names may record them (`producerCandidates`, plugin aliases included, e.g.
-   `brainstorming` / `superpowers:brainstorming`), and which kinds each later step reads. The table applies to
-   `default` and to `openspec_contract: required` workflows, and only to steps whose id matches one of the seven
-   phase names. A stage named `explore` therefore lists `superpower-design` produced by `brainstorming` even on a
-   branch whose explore stage does not contain `brainstorming`. `SlotList` shows `producerCandidates ∩ stage
-   skills` (matched by bare name) and falls back to the bare candidate list when nothing matches.
+1. **Document slots** come from the workflow's own `document_contract` (kernel `workflow/document-contract.ts`),
+   written beside the steps it references — per branch under `tracks.<id>` when the workflow has tracks. Each slot
+   names the kind, its `owner_step`, its allowed producers (plugin aliases included, e.g. `brainstorming` /
+   `superpowers:brainstorming`) and a `role` (`produce | update | require`); `reads` say which kinds each later
+   step consumes. Nothing is keyed by phase name any more: a stage named `explore` lists `superpower-design` only
+   if that branch's contract says so. `SlotList` shows `producers ∩ stage skills` (matched by bare name) and falls
+   back to the bare producer list when nothing matches.
 2. **Field slots** are what the YAML declares by hand: `steps[].outputs` / `inputs` (`design_doc`, `plan`,
    `build_sha`, …). Producer = the nearest upstream stage that lists the field as an output; consumers = downstream
    stages listing it as an input. `artifacts[].producer_policy: effective-phase-skills` does not derive anything —
@@ -240,22 +243,16 @@ two sources and neither reads skill content:
 "the outputs of a skill / plugin" are not discoverable today. Deriving stage IO from skills would require a skill-side
 declaration (frontmatter or a kernel table keyed by skill) and a kernel change — a separate task.
 
-### Runtime artifacts are observed after execution
+### Runtime artifacts are not a dashboard surface
 
-Workflow authoring must not ask a model to infer skill input/output files. `StageEditorPane` configures declared
-workflow slots only; `ArtifactCatalogPanel` reads the runtime catalog for the selected stage and polls the read-only
-catalog endpoint. The panel renders actual observed versions, candidate/deliverable disposition, revision, and
-affected markers. A stage that has not run renders an empty “执行后登记” state rather than fabricated output names.
+Workflow authoring must not ask a model to infer skill input/output files, and the dashboard does not display
+runtime artifacts at all: 运行时产物 is gone from both the workflow page and the workspace, together with its
+client, the `/api/artifacts/*` routes and the snapshot's `artifactAttempts`. `StageEditorPane` configures declared
+workflow slots only. The artifact service itself stays for `tenon orchestration run`, and its unmerged-legacy-scope
+compatibility issue still reaches the snapshot.
 
-The runtime catalog is bounded and versioned. Selecting an entry reads content through the UI consumer path, which must
-not create execution consumption receipts. Any new UI surface must consume this projection instead of reimplementing
-filesystem scans or deriving output contracts from skill text.
-
-When a stage has a runtime attempt, the editor resolves the attempt by the frozen blueprint's
-`stage_id` (which equals the workflow step id); it must not send a draft step id to the server and
-ask the server to guess. A missing match is rendered as an explicit “no associated run” state. Any
-historical lineage view must use translation keys for its label and show the exact run/attempt
-provenance supplied by the snapshot; artifact creation time is not a substitute for run time.
+What a stage produced is read from the document ledger instead: the workspace 输出 sheet counts 已齐/总数, a missing
+row names the skills that should produce it, and a stale row carries its one-word reason as hover text.
 
 ## Styling patterns
 

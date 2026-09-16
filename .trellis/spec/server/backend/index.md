@@ -21,7 +21,6 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
 | [Workflow branches + skill files](./workflow-branches-and-skill-files.md) | Per-branch effective IO on GET, skill directory files API | Current |
 | [Snapshot skillRuns](./snapshot-skill-runs.md) | Per-step skill idle / running / done projection | Current |
-| [Artifact Catalog Route](./artifact-catalog-route.md) | Catalog by attempt or stage, empty catalog for stages without runtime attempts | Current |
 
 ---
 
