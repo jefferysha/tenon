@@ -148,6 +148,29 @@ function validateBranchSteps(
       }
       testOwner.set(test.id, step.id)
     }
+    // agent 的 depends_on 只在同一身份列表内成立（执行者依赖执行者、评审者依赖评审者），
+    // reads_tests 只能引用本步骤声明的测试——跨步骤引用在运行期才发现就太晚了。
+    const stepTestIds = (step.tests ?? []).map((test) => test.id)
+    for (const [role, refs] of [
+      ['executors', step.agents?.executors ?? []],
+      ['reviewers', step.agents?.reviewers ?? []],
+    ] as const) {
+      const names = refs.map((ref) => ref.agent)
+      const dependsOn = new Map(refs.map((ref) => [ref.agent, [...(ref.depends_on ?? [])]]))
+      for (const ref of refs) {
+        for (const dep of ref.depends_on ?? []) {
+          if (!names.includes(dep)) {
+            errors.push(`step '${step.id}' 的 agent '${ref.agent}' 依赖了同一身份列表内不存在的 '${dep}'`)
+          }
+        }
+        for (const testId of 'reads_tests' in ref ? ref.reads_tests ?? [] : []) {
+          if (!stepTestIds.includes(testId)) {
+            errors.push(`step '${step.id}' 的评审者 '${ref.agent}' 读取的测试 '${testId}' 未在本步骤声明`)
+          }
+        }
+      }
+      errors.push(...detectCycle(names, dependsOn).map((e) => `step '${step.id}' ${role}: ${e}`))
+    }
     const transitionEvents = new Set<string>()
     for (const t of step.transitions) {
       if (!IDENT_RE.test(t.event)) {

@@ -3,10 +3,24 @@ import type { CoverageProfile } from '../tracks/types.js'
 import type { DocumentGovernancePolicy } from './document-contract.js'
 import type { WorkflowIR } from './ir.js'
 import type {
+  AgentSeverity,
   WorkflowDecompositionPolicyV1,
   WorkflowInteractionPolicyV1,
   WorkflowReviewBudgetPolicyV1,
 } from './types.js'
+
+/** 步骤 agent 的投影：`tenon workflow plan --json` 与 CLI / server 都只读它，不再回头翻 IR。 */
+export interface StepAgentsCapability {
+  readonly stepId: string
+  readonly executors: readonly { readonly agent: string; readonly dependsOn: readonly string[] }[]
+  readonly reviewers: readonly {
+    readonly agent: string
+    readonly required: boolean
+    readonly blockAt: AgentSeverity
+    readonly dependsOn: readonly string[]
+    readonly readsTests: readonly string[]
+  }[]
+}
 
 export interface EffectiveWorkflowPlan {
   readonly id: string
@@ -57,6 +71,9 @@ export interface EffectiveWorkflowPlan {
         readonly stepId: string
         readonly lanes: readonly string[]
       }[]
+    }
+    readonly agents: {
+      readonly steps: readonly StepAgentsCapability[]
     }
     readonly automation: {
       readonly eligible: boolean

@@ -7,7 +7,7 @@
 import { GUARD_DATA_KEYS } from './types.js'
 import type {
   FieldRef, GateKind, SkillRef, StepDef, StepTransition,
-  StepTestDef, WorkflowActionConfig, WorkflowArtifactConfig, WorkflowConditional, WorkflowDef,
+  StepAgentsDef, StepTestDef, WorkflowActionConfig, WorkflowArtifactConfig, WorkflowConditional, WorkflowDef,
   WorkflowDocumentContractV1, WorkflowGuardConfig, TrackBranchDef,
 } from './types.js'
 import type { FieldName } from '../types.js'
@@ -15,6 +15,7 @@ import type { TrackPredicate } from './predicates.js'
 import { parseDocumentContract, type WorkflowParseCursor as Cursor } from './parse-document-contract.js'
 import { parseDecompositionPolicy, parseInteractionPolicy, parseReviewBudgetPolicy } from './parse-policy.js'
 import { parseSkillRefs } from './parse-skill-refs.js'
+import { parseStepAgents } from './parse-agents.js'
 import { parseStepTests } from './parse-tests.js'
 import { indentOf, parseInlineList, parsePromptBlock, parseFieldRefBlock, parseWhenBlock } from './parse-primitives.js'
 import { parseArtifactsBlock } from './parse-artifacts.js'
@@ -198,6 +199,7 @@ function parseStep(cur: Cursor): StepDef {
   let outputs: FieldRef[] = []
   let artifacts: WorkflowArtifactConfig[] | undefined
   let tests: StepTestDef[] | undefined
+  let agents: StepAgentsDef | undefined
   let guards: WorkflowGuardConfig[] = []
   let transitions: StepTransition[] = []
 
@@ -245,6 +247,13 @@ function parseStep(cur: Cursor): StepDef {
     if (/^\s*artifacts:\s*$/.test(line)) { cur.i++; artifacts = parseArtifactsBlock(cur, baseIndent); continue }
     if (/^\s*tests:\s*\[\]\s*$/.test(line)) { tests = []; cur.i++; continue }
     if (/^\s*tests:\s*$/.test(line)) { cur.i++; tests = parseStepTests(cur, baseIndent); continue }
+    if (/^\s*agents:\s*$/.test(line)) {
+      if (agents !== undefined) throw new Error(`workflow 解析错误：step '${id}' 重复声明 agents`)
+      const keyIndent = indentOf(line)
+      cur.i++
+      agents = parseStepAgents(cur, keyIndent, id)
+      continue
+    }
     if (/^\s*guards:\s*\[\]\s*$/.test(line)) { cur.i++; continue }
     if (/^\s*guards:\s*$/.test(line)) { cur.i++; guards = parseGuardsBlock(cur, baseIndent); continue }
     if (/^\s*transitions:\s*\[\]\s*$/.test(line)) { transitions = []; cur.i++; continue }
@@ -258,6 +267,7 @@ function parseStep(cur: Cursor): StepDef {
     ...(reviewLanes !== undefined ? { reviewLanes } : {}),
     ...(artifacts !== undefined ? { artifacts } : {}),
     ...(tests !== undefined ? { tests } : {}),
+    ...(agents !== undefined ? { agents } : {}),
   }
 }
 

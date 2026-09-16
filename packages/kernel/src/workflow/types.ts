@@ -205,6 +205,34 @@ export interface StepTestDef {
   readonly outputs?: readonly TestOutputDef[]
 }
 
+/** 问题级别，由高到低 critical / high / medium / low；评审者的阻断级别取本闭集。 */
+export type AgentSeverity = 'critical' | 'high' | 'medium' | 'low'
+
+/** 步骤执行者：完成本步工作；depends_on 指同一步骤 executors 列表内的其它 agent。 */
+export interface StepExecutorRef {
+  readonly agent: string
+  readonly depends_on?: readonly string[]
+}
+
+/**
+ * 步骤评审者：在产出与必需测试就绪后、离开本步骤前检查。
+ * `required` 决定它是否参与放行判定，`block_at` 决定多高级别的问题算不通过，
+ * `reads_tests` 引用同一步骤 `tests[].id`（结果由 Tenon 执行后交给它，评审者自己不跑测试）。
+ */
+export interface StepReviewerRef {
+  readonly agent: string
+  readonly required: boolean
+  readonly block_at: AgentSeverity
+  readonly depends_on?: readonly string[]
+  readonly reads_tests?: readonly string[]
+}
+
+/** 步骤 agent 块；两个列表都空时归一为「无 agents 键」，往返保真。 */
+export interface StepAgentsDef {
+  readonly executors: readonly StepExecutorRef[]
+  readonly reviewers: readonly StepReviewerRef[]
+}
+
 /** step 间转换边——每个 step 自己声明"按哪个 event 名走向哪个下一个 step"，取代
  *  default workflow 依赖的全局 TRANSITION_EVENTS 表（那张表是 Record<Phase,...>，天然
  *  不适用任意自定义 step）。同一个 step 可以有多条边（不同 event 名指向不同下一个 step，
@@ -234,6 +262,8 @@ export interface StepDef {
   readonly artifacts?: readonly WorkflowArtifactConfig[]
   /** 本步声明的测试项；缺省 = 无测试（编译后不出现 tests 键，指纹逐字不变）。 */
   readonly tests?: readonly StepTestDef[]
+  /** 本步的执行者与评审者；两个列表都空时等同缺省。 */
+  readonly agents?: StepAgentsDef
   readonly guards: readonly WorkflowGuardConfig[]
   readonly transitions: readonly StepTransition[]
 }

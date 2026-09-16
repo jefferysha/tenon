@@ -10,6 +10,7 @@ import type {
 } from './types.js'
 import { compileGuards, compileStepGuards } from './compile-guards.js'
 import { compileArtifacts } from './compile-artifacts.js'
+import { compileStepAgents } from './compile-agents.js'
 import { compileStepTests } from './compile-tests.js'
 import { isDefaultWorkflowName } from './identifier.js'
 import {
@@ -48,7 +49,7 @@ const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
 ])
 const STEP_KEYS: ReadonlySet<string> = new Set([
   'id', 'label', 'gate', 'prompt', 'reviewLanes', 'skills', 'inputs', 'outputs', 'artifacts', 'tests',
-  'guards', 'transitions',
+  'agents', 'guards', 'transitions',
 ])
 const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'kind', 'review_lane', 'depends_on'])
 const FIELD_REF_KEYS: ReadonlySet<string> = new Set(['field', 'type'])
@@ -233,6 +234,8 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   const artifacts = compileArtifacts(rec.artifacts, `${path}.artifacts`, outputs, `${path}.outputs`, allowedPolicies)
   // 空数组与缺省同归一为「无 tests 键」：未声明测试的工作流编译成与本特性之前逐字相同的 IR，指纹不变。
   const tests = compileStepTests(rec.tests, `${path}.tests`)
+  // 同 tests：两个身份列表都空归一为「无 agents 键」，未声明 agent 的工作流指纹逐字不变。
+  const agents = compileStepAgents(rec.agents, `${path}.agents`)
   // gate=auto：自动评审 = 本阶段声明的全部输出齐全即放行——编译成每条出边上的 nonempty-output
   //（展开为逐输出 field-nonempty / output-present），与显式守卫同一条评估链，不另起门类。
   const autoGuards = gate === 'auto' ? compileGuards([{ type: 'nonempty-output' }], `${path}.gate(auto)`, outputs) : []
@@ -255,6 +258,7 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
     ...(prompt === undefined ? {} : { prompt }),
     reviewLanes, skills, inputs, outputs, guards, artifacts,
     ...(tests === undefined ? {} : { tests }),
+    ...(agents === undefined ? {} : { agents }),
     transitions,
   }
 }

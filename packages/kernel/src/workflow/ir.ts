@@ -20,7 +20,7 @@
  */
 import type { FieldName } from '../types.js'
 import type {
-  ArtifactProducerPolicy, FieldRef, GateKind, SkillRef, TestInputDef, TestMetricCriterion,
+  ArtifactProducerPolicy, FieldRef, GateKind, SkillRef, StepAgentsDef, TestInputDef, TestMetricCriterion,
   TestOutputDef, TestOutputKind, WorkflowActionConfig, WorkflowConditional,
   WorkflowDecompositionPolicyV1, WorkflowDocumentContractV1, WorkflowGuardConfig,
   WorkflowInteractionPolicyV1, WorkflowReviewBudgetPolicyV1,
@@ -201,6 +201,8 @@ export interface StepIR {
   readonly artifacts: readonly ArtifactDeclaration[]
   /** 只在本步声明了测试时出现，使无测试的工作流编译成与本特性之前逐字相同的 IR。 */
   readonly tests?: readonly StepTestIR[]
+  /** 本步的执行者与评审者；只在声明了任一身份时出现。agent 内容冻结在 Change 的边车里，不进指纹。 */
+  readonly agents?: StepAgentsDef
   readonly transitions: readonly StepTransitionIR[]
 }
 

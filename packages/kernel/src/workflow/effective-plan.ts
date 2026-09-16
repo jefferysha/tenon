@@ -111,6 +111,20 @@ function planFromIr(
   const reviewLaneScopes = workflow.steps
     .filter((step) => (step.reviewLanes?.length ?? 0) > 0)
     .map((step) => ({ stepId: step.id, lanes: step.reviewLanes ?? [] }))
+  // agent 内容冻结在 Change 边车里，不进指纹；这里只投影声明本身。
+  const agentSteps = workflow.steps
+    .filter((step) => step.agents !== undefined)
+    .map((step) => ({
+      stepId: step.id,
+      executors: (step.agents?.executors ?? []).map((ref) => ({ agent: ref.agent, dependsOn: [...(ref.depends_on ?? [])] })),
+      reviewers: (step.agents?.reviewers ?? []).map((ref) => ({
+        agent: ref.agent,
+        required: ref.required,
+        blockAt: ref.block_at,
+        dependsOn: [...(ref.depends_on ?? [])],
+        readsTests: [...(ref.reads_tests ?? [])],
+      })),
+    }))
   const projectionSteps = projectionStepsOf(workflow.steps)
   const stepLabelSource = executionModel === 'phase-manifest' ? 'localized-builtin' : 'workflow-defined'
   const workflowFingerprint = frozenWorkflowFingerprint ?? sha256Hex(JSON.stringify({
@@ -170,6 +184,7 @@ function planFromIr(
         ...(documentPolicy === undefined ? {} : { policy: documentPolicy }),
       },
       review: { steps: reviewSteps, budget: workflow.reviewBudget, laneScopes: reviewLaneScopes },
+      agents: { steps: agentSteps },
       automation: {
         eligible: trackPolicy?.automationEligible ?? false,
         autoEnqueueOnSpecComplete: trackPolicy?.autoEnqueueOnSpecComplete ?? false,
