@@ -6,7 +6,7 @@
  */
 import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { createTaskLifecycleApplication, USER_MISSING_HINT } from '@tenon/kernel'
+import { createTaskLifecycleApplication, probeUncommittedTaskDeletions, USER_MISSING_HINT } from '@tenon/kernel'
 import type {
   StateStore, TaskLifecycleApplication, TaskLifecycleAssessOutcome, TaskLifecycleOutcome,
   TaskLifecycleReasonCode, TenonUserResolution,
@@ -39,6 +39,27 @@ export interface TaskLifecycleHandlerDeps {
 /** The archive / unarchive writes are the only handler that reads a body. */
 export interface TaskLifecycleBodyDeps extends TaskLifecycleHandlerDeps {
   readonly readJsonBody: (req: IncomingMessage) => Promise<unknown>
+}
+
+/** Reported once per root and reason, so a real gap is visible without a line on every snapshot poll. */
+const reportedDeletionProbes = new Set<string>()
+
+/**
+ * 未提交删除 for one project. A directory with no repository has nothing to count and says nothing; a
+ * repository whose probe fails is a real gap and names itself once. Silence here is what let a Linux-only
+ * regression (`git -C /proc/self/fd/<n>` from a child process) reach CI as a missing field.
+ */
+export async function countProjectDeletions(repoRoot: string): Promise<number | null> {
+  const probe = await probeUncommittedTaskDeletions(repoRoot)
+  if (probe.kind === 'ok') return probe.count
+  if (probe.kind === 'unavailable') {
+    const line = `[tenon] 未提交删除计数不可用（${repoRoot}）：${probe.reason}`
+    if (!reportedDeletionProbes.has(line)) {
+      reportedDeletionProbes.add(line)
+      process.stderr.write(`${line}\n`)
+    }
+  }
+  return null
 }
 
 /**
