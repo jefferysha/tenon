@@ -88,13 +88,13 @@ export function runTestProcess(request: TestProcessRequest): Promise<TestProcess
   const hash = createHash('sha256')
   const stream = createWriteStream(request.logPath, { flags: 'w', mode: 0o600 })
   const omittedTail = new ByteTail(request.tailBytes)
-  const outcomeTail = new ByteTail(OUTCOME_TAIL_BYTES)
+  const finalTail = new ByteTail(OUTCOME_TAIL_BYTES)
   let bytesTotal = 0
   let bytesKept = 0
 
   const write = (chunk: Buffer): void => {
     bytesTotal += chunk.length
-    outcomeTail.push(chunk)
+    finalTail.push(chunk)
     const room = request.maxLogBytes - bytesKept
     if (room > 0) {
       const head = chunk.length <= room ? chunk : chunk.subarray(0, room)
@@ -144,7 +144,7 @@ export function runTestProcess(request: TestProcessRequest): Promise<TestProcess
           finishedAt: new Date(finishedAtMs).toISOString(),
           durationMs: finishedAtMs - startedAtMs,
           log: { bytesTotal, bytesKept, truncated, sha256: `sha256:${hash.digest('hex')}` },
-          tail: outcomeTail.toBuffer().toString('utf8'),
+          tail: finalTail.toBuffer().toString('utf8'),
         })
       })
     }
