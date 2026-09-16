@@ -1202,7 +1202,8 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     expect(params.get('root')).toBeNull()
     expect(params.get('change')).toBeNull()
     expect(params.get('debug')).toBe('1')
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/snapshot'])
+    // Only the aggregate snapshot and the machine-level identity (top bar user); no per-root request.
+    expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user']))
   })
 
   it('失效 root 深链：清除 root/change 并保持无选择，聚合展示而不重定向首个项目', async () => {
@@ -1224,7 +1225,8 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     expect(params.get('root')).toBeNull()
     expect(params.get('change')).toBeNull()
     expect(params.get('debug')).toBe('1')
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/snapshot'])
+    // Only the aggregate snapshot and the machine-level identity (top bar user); no per-root request.
+    expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user']))
   })
 
   it('已登记但不可达的 root 深链也必须清除，不能挂载 per-root 视图', async () => {
@@ -1251,7 +1253,8 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     const params = new URLSearchParams(window.location.search)
     expect(params.get('root')).toBeNull()
     expect(params.get('change')).toBeNull()
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/snapshot'])
+    // Only the aggregate snapshot and the machine-level identity (top bar user); no per-root request.
+    expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user']))
   })
 
   it('无项目选择时从跨项目 snapshot 读取自定义 workflow gate，不发 per-root 请求也不误报', async () => {
@@ -1297,7 +1300,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     expect(screen.getByTestId('task-filter-review')).toHaveTextContent('1')
     expect(screen.getByTestId('task-filter-done')).toHaveTextContent('0')
     expect(screen.getByTestId('task-summary-review-me')).toHaveTextContent('复核 · 可进入完成')
-    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(['/api/snapshot'])
+    expect(new Set(fetchMock.mock.calls.map(([url]) => String(url)))).toEqual(new Set(['/api/snapshot', '/api/user']))
   })
 
   it('浏览器返回到无 root URL：经同一选择模型回到聚合工作台', async () => {

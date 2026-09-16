@@ -143,6 +143,7 @@ async function startRealServer(): Promise<Started> {
   const flow = createFlowEngine(loadManifest(manifestPath))
   const changeDir = await store.init({
     repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock,
+    creator: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' },
   })
   await seedGovernedDocumentEvidence(root, changeDir, 'demo')
   await recordWorkflowPhaseSkill(root, changeDir)
@@ -156,6 +157,8 @@ async function startRealServer(): Promise<Started> {
     store,
     flow,
     clock,
+    // The dashboard test process has no TENON_USER; pin the server identity to the task creator.
+    resolveUser: () => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' }),
   })
   const { port } = await srv.listen(0, '127.0.0.1')
   return { port, root, token: srv.token, store, close: () => srv.close() }

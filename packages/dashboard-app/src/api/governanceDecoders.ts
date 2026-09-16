@@ -61,6 +61,11 @@ export function decodeHooksConfig(value: unknown): WbHooksConfig | null {
   return { hooks, matrix, promptSkipKeyword }
 }
 
+function decodeHistoryActor(value: unknown): ChangeHistoryEntry['actor'] | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string' || value.trust !== 'declared') return null
+  return { id: value.id, name: value.name, trust: 'declared' }
+}
+
 export function decodeHistory(value: unknown): ChangeHistoryEntry[] | null {
   if (!isRecord(value) || !Array.isArray(value.entries)) return null
   const entries: ChangeHistoryEntry[] = []
@@ -71,15 +76,16 @@ export function decodeHistory(value: unknown): ChangeHistoryEntry[] | null {
       || !optionalString(entry.field)
       || !optionalString(entry.from)
       || !optionalString(entry.to)
-      || !optionalString(entry.by)
+      || (entry.actor !== undefined && decodeHistoryActor(entry.actor) === null)
       || !optionalString(entry.raw)) return null
+    const actor = entry.actor === undefined ? null : decodeHistoryActor(entry.actor)
     entries.push({
       ts: entry.ts,
       kind: entry.kind,
       ...(entry.field === undefined ? {} : { field: entry.field }),
       ...(entry.from === undefined ? {} : { from: entry.from }),
       ...(entry.to === undefined ? {} : { to: entry.to }),
-      ...(entry.by === undefined ? {} : { by: entry.by }),
+      ...(actor === null || actor === undefined ? {} : { actor }),
       ...(entry.raw === undefined ? {} : { raw: entry.raw }),
     })
   }

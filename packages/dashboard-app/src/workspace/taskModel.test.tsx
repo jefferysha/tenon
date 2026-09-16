@@ -33,6 +33,8 @@ function change(over: Partial<ChangeSnapshot> & { fields?: Record<string, string
       outputsByStep: {},
     },
     workflowExecution: { readinessByTransition: {} },
+    owner: null,
+    creator: null,
     ...over,
     fields: { workflow: 'default', build_sha: '', ...(over.fields ?? {}) },
   }
@@ -84,7 +86,7 @@ describe('summaryOf · 四级优先级', () => {
     expect(summaryOf(change(), undefined, undefined)).toEqual({ kind: 'running' })
   })
   it('summaryText 用阶段中文名与槽位中文名，不出现字段元数据', () => {
-    const row: TaskRow = { key: 'k', root: '/repo', change: change(), rules: undefined, workflow: 'default', archived: false, stages: [], summary: { kind: 'missing', slot: BUILD_IO.outputs[0] as never } }
+    const row: TaskRow = { key: 'k', root: '/repo', change: change(), rules: undefined, workflow: 'default', archived: false, owner: null, stages: [], summary: { kind: 'missing', slot: BUILD_IO.outputs[0] as never } }
     expect(summaryText(row, t)).toBe('build · 缺 build_sha')
     expect(summaryText({ ...row, summary: { kind: 'ready', to: 'verify' } }, t)).toBe('build · 可进入verify')
   })

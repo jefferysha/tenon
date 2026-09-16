@@ -103,6 +103,8 @@ describe('API bounded-context response decoders', () => {
         archived: 'false',
         updated_at: 'now',
         fields: {},
+        owner: null,
+        creator: null,
         workflowPlanFingerprint: 'a'.repeat(64),
         workflowRules: structuredClone(validRules),
         workflowExecution: {

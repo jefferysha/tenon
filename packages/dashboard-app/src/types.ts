@@ -4,6 +4,13 @@
  */
 
 /** snapshot 里单个 change 的投影（.pipeline.yaml 全字段 + 常读字段提升到顶层）。 */
+/** Declared user reference projected by the server (`Name <id>` fields); legacy values are null. */
+export interface UserRefView {
+  id: string
+  name: string
+  slug: string
+}
+
 export interface ChangeSnapshot {
   name: string
   path: string
@@ -14,6 +21,8 @@ export interface ChangeSnapshot {
   archived: string
   updated_at: string
   fields: Record<string, string | string[]>
+  owner: UserRefView | null
+  creator: UserRefView | null
   workflowPlanFingerprint: string
   workflowRules: WorkflowRulesSnapshot
   workflowExecution: WorkflowExecutionSnapshot
@@ -67,7 +76,7 @@ export interface DocumentEvidenceSnapshot {
     requiredRead: boolean
     paths: string[]
     producers: string[]
-    timeline?: Array<{ producer: string; recordedAt: string; readAt?: string }>
+    timeline?: Array<{ producer: string; recordedAt: string; readAt?: string; actor?: { id: string; name: string } }>
   }>
 }
 

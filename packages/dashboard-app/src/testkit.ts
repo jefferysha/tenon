@@ -85,6 +85,8 @@ export function makeChange(name: string, phase: string, over: Partial<ChangeSnap
     workflowPlanFingerprint: customWorkflow ? CUSTOM_WORKFLOW_FINGERPRINT : DEFAULT_WORKFLOW_FINGERPRINT,
     workflowRules: DEFAULT_WORKFLOW_RULES,
     workflowExecution: defaultWorkflowExecution(fields, track),
+    owner: null,
+    creator: null,
     ...over,
   }
 }

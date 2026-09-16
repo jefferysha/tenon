@@ -83,8 +83,11 @@ function decodeDocuments(value: unknown): DocumentEvidenceSnapshot | undefined {
       || typeof item.requiredRead !== 'boolean'
       || !stringArray(item.paths)
       || !stringArray(item.producers)) return undefined
-    const timeline = item.timeline === undefined ? undefined : Array.isArray(item.timeline) && item.timeline.every((entry) => isRecord(entry) && typeof entry.producer === 'string' && typeof entry.recordedAt === 'string' && optionalString(entry.readAt))
-      ? item.timeline.map((entry) => ({ producer: entry.producer as string, recordedAt: entry.recordedAt as string, ...(typeof entry.readAt === 'string' ? { readAt: entry.readAt } : {}) }))
+    const timeline = item.timeline === undefined ? undefined : Array.isArray(item.timeline) && item.timeline.every((entry) => isRecord(entry) && typeof entry.producer === 'string' && typeof entry.recordedAt === 'string' && optionalString(entry.readAt) && (entry.actor === undefined || decodeActorName(entry.actor) !== null))
+      ? item.timeline.map((entry) => {
+        const actor = decodeActorName(entry.actor)
+        return { producer: entry.producer as string, recordedAt: entry.recordedAt as string, ...(typeof entry.readAt === 'string' ? { readAt: entry.readAt } : {}), ...(actor === null ? {} : { actor }) }
+      })
       : undefined
     if (item.timeline !== undefined && timeline === undefined) return undefined
     const status = item.status
@@ -155,11 +158,26 @@ function decodeReviewHandshake(
   }
 }
 
+function decodeActorName(value: unknown): { id: string; name: string } | null {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string' ? { id: value.id, name: value.name } : null
+}
+
+/** `owner` / `creator` are required keys: null for legacy values, otherwise an exact `{id,name,slug}`. */
+function decodeUserRefKey(value: Record<string, unknown>, key: 'owner' | 'creator'): import('../types').UserRefView | null | undefined {
+  if (!(key in value)) return undefined
+  const ref = value[key]
+  if (ref === null) return null
+  if (!isRecord(ref) || Object.keys(ref).length !== 3 || typeof ref.id !== 'string' || typeof ref.name !== 'string' || typeof ref.slug !== 'string') return undefined
+  return { id: ref.id, name: ref.name, slug: ref.slug }
+}
+
 function decodeChange(value: unknown): ChangeSnapshot | null {
   if (!isRecord(value)) return null
   const fields = decodeFields(value.fields)
   const workflowRules = decodeWorkflowRules(value.workflowRules)
   const workflowExecution = decodeWorkflowExecution(value.workflowExecution, workflowRules, value.phase)
+  const owner = decodeUserRefKey(value, 'owner')
+  const creator = decodeUserRefKey(value, 'creator')
   if (typeof value.name !== 'string'
     || typeof value.path !== 'string'
     || typeof value.phase !== 'string'
@@ -173,7 +191,9 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     || workflowRules === null
     || workflowExecution === null
     || !workflowRules.steps.includes(value.phase)
-    || !fields) return null
+    || !fields
+    || owner === undefined
+    || creator === undefined) return null
   const reviewHandshake = value.reviewHandshake === undefined
     ? undefined
     : decodeReviewHandshake(value.reviewHandshake, workflowRules, value.phase)
@@ -211,6 +231,8 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     archived: value.archived,
     updated_at: value.updated_at,
     fields,
+    owner,
+    creator,
     workflowPlanFingerprint: value.workflowPlanFingerprint,
     workflowRules,
     workflowExecution,

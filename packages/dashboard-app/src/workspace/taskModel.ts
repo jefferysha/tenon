@@ -2,7 +2,7 @@ import type { WbIoSlot, WbStepIo } from '../api/governanceTypes'
 import { changeWorkflowName } from '../model/progressModel'
 import { snapshotRulesKey, type WorkflowRules } from '../model/workflowModel'
 import { isProjectNavigable } from '../state/projectSelectionModel'
-import type { ChangeSnapshot, Snapshot } from '../types'
+import type { ChangeSnapshot, Snapshot, UserRefView } from '../types'
 
 export type Tr = (key: string, vars?: Record<string, string | number>) => string
 
@@ -29,6 +29,8 @@ export interface TaskRow {
   rules: WorkflowRules | undefined
   workflow: string
   archived: boolean
+  /** Owner projected by the server; null for legacy values. */
+  owner: UserRefView | null
   stages: StageState[]
   summary: TaskSummary
 }
@@ -147,6 +149,7 @@ export function rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }: RowsInput
         rules,
         workflow,
         archived: change.archived === 'true',
+        owner: change.owner,
         stages: stagesOf(change, rules, t),
         summary: summaryOf(change, rules, ioOf(project.root, workflow)?.[change.phase]),
       })
@@ -157,6 +160,8 @@ export function rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }: RowsInput
 }
 
 export interface TaskFilterState {
+  /** 'all' 或负责人 slug。 */
+  owner: string
   /** 'all' 或工作流名。 */
   workflow: string
   /** 'all' 或轨道 id。 */
@@ -166,10 +171,11 @@ export interface TaskFilterState {
   includeArchived: boolean
 }
 
-export const DEFAULT_TASK_FILTER: TaskFilterState = { workflow: 'all', track: 'all', stage: 'all', includeArchived: false }
+export const DEFAULT_TASK_FILTER: TaskFilterState = { owner: 'all', workflow: 'all', track: 'all', stage: 'all', includeArchived: false }
 
 function matches(row: TaskRow, filter: TaskFilterState, ignore?: keyof TaskFilterState): boolean {
   if (!filter.includeArchived && row.archived) return false
+  if (ignore !== 'owner' && filter.owner !== 'all' && row.owner?.slug !== filter.owner) return false
   if (ignore !== 'workflow' && filter.workflow !== 'all' && row.workflow !== filter.workflow) return false
   if (ignore !== 'track' && filter.track !== 'all' && row.change.track !== filter.track) return false
   if (ignore !== 'stage' && filter.stage !== 'all' && row.change.phase !== filter.stage) return false
@@ -187,6 +193,8 @@ export interface FacetChip {
 }
 
 export interface TaskFacets {
+  /** Owner chips keyed by slug, labelled by name. */
+  owners: FacetChip[]
   workflows: FacetChip[]
   tracks: FacetChip[]
   /** 只在选定单一工作流时非 null：该工作流自己的阶段序。 */
@@ -197,7 +205,9 @@ export interface TaskFacets {
 export function taskFacets(rows: readonly TaskRow[], filter: TaskFilterState): TaskFacets {
   const workflowNames: string[] = []
   const trackIds: string[] = []
+  const ownerRefs: UserRefView[] = []
   for (const row of rows) {
+    if (row.owner !== null && !ownerRefs.some((ref) => ref.slug === row.owner?.slug)) ownerRefs.push(row.owner)
     if (!workflowNames.includes(row.workflow)) workflowNames.push(row.workflow)
     if (row.change.track !== '' && !trackIds.includes(row.change.track)) trackIds.push(row.change.track)
   }
@@ -211,22 +221,27 @@ export function taskFacets(rows: readonly TaskRow[], filter: TaskFilterState): T
     label: id,
     count: rows.filter((row) => row.change.track === id && matches(row, filter, 'track')).length,
   }))
+  const owners = ownerRefs.map((ref) => ({
+    id: ref.slug,
+    label: ref.name,
+    count: rows.filter((row) => row.owner?.slug === ref.slug && matches(row, filter, 'owner')).length,
+  }))
   // 阶段只在「单一工作流 + 单一轨道」下可比（每条轨道分支各有自己的阶段）；只有一条时直接可用，不必先点它。
   const effectiveWorkflow = filter.workflow !== 'all' ? filter.workflow : workflowNames.length === 1 ? workflowNames[0] : undefined
-  if (effectiveWorkflow === undefined) return { workflows, tracks, stages: null }
+  if (effectiveWorkflow === undefined) return { owners, workflows, tracks, stages: null }
   const scopedTracks = [...new Set(rows.filter((row) => row.workflow === effectiveWorkflow).map((row) => row.change.track))]
   const effectiveTrack = filter.track !== 'all' ? filter.track : scopedTracks.length <= 1 ? (scopedTracks[0] ?? '') : undefined
-  if (effectiveTrack === undefined) return { workflows, tracks, stages: null }
+  if (effectiveTrack === undefined) return { owners, workflows, tracks, stages: null }
   const sample = rows.find((row) => row.workflow === effectiveWorkflow && (effectiveTrack === '' || row.change.track === effectiveTrack))
   const stages = (sample?.stages ?? []).map((stage) => ({
     id: stage.id,
     label: stage.label,
     count: rows.filter((row) => row.change.phase === stage.id && matches(row, filter, 'stage')).length,
   }))
-  return { workflows, tracks, stages }
+  return { owners, workflows, tracks, stages }
 }
 
 /** 某层「全部」芯片的计数 = 忽略该层后命中的任务数。 */
-export function facetTotal(rows: readonly TaskRow[], filter: TaskFilterState, facet: 'workflow' | 'track' | 'stage'): number {
+export function facetTotal(rows: readonly TaskRow[], filter: TaskFilterState, facet: 'owner' | 'workflow' | 'track' | 'stage'): number {
   return rows.filter((row) => matches(row, filter, facet)).length
 }
