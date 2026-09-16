@@ -49,6 +49,8 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
       'workflow.create_yaml',
       'workflow.create_yaml_placeholder',
       'workflow.openspec',
+      // 纯占位符行（阶段 · 时间 · 归档人），两种语言逐字相同。
+      'workspace.archived_meta',
     ])
     const zhLeaves = stringLeaves(zh)
     const enLeaves = stringLeaves(en)

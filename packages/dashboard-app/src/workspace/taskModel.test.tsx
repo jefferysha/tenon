@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { WbStepIo } from '../api/governanceTypes'
 import type { ChangeSnapshot, Snapshot } from '../types'
 import { zh } from '../i18n/translations'
-import { DEFAULT_TASK_FILTER, facetTotal, filterRows, rowsOf, stagesOf, summaryOf, summaryText, taskFacets, type TaskRow } from './taskModel'
+import { archivedRowsOf, DEFAULT_TASK_FILTER, facetTotal, filterRows, rowsOf, stagesOf, summaryOf, summaryText, taskFacets, uncommittedDeletionsOf, type TaskRow } from './taskModel'
 
 function t(key: string, vars: Record<string, string | number> = {}): string {
   let node: unknown = zh
@@ -82,7 +82,7 @@ describe('summaryOf · 四级优先级', () => {
     expect(summaryOf(change(withSha), undefined, BUILD_IO)).toEqual({ kind: 'running' })
   })
   it('已归档恒为 archived；无物化 IO 时不判缺产出', () => {
-    expect(summaryOf(change({ archived: 'true' }), undefined, BUILD_IO)).toEqual({ kind: 'archived' })
+    expect(summaryOf(change({ archived: 'true' }), undefined, BUILD_IO)).toEqual({ kind: 'completed' })
     expect(summaryOf(change(), undefined, undefined)).toEqual({ kind: 'running' })
   })
   it('summaryText 用阶段中文名与槽位中文名，不出现字段元数据', () => {
@@ -129,7 +129,7 @@ describe('rowsOf / filterRows / taskFacets', () => {
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', track: 'frontend' }).map((row) => row.change.name)).toEqual(['b'])
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', stage: 'build' }).map((row) => row.change.name)).toEqual(['a'])
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, stage: 'build' }).map((row) => row.change.name)).toEqual(['a'])
-    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, includeArchived: true })).toHaveLength(4)
+    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, includeCompleted: true })).toHaveLength(4)
   })
   it('facet：未选工作流时无阶段行；选定后阶段序取该工作流，计数受其它层约束', () => {
     const open = taskFacets(rows, DEFAULT_TASK_FILTER)
@@ -149,5 +149,53 @@ describe('rowsOf / filterRows / taskFacets', () => {
     // 轨道计数忽略自身层：frontend 在 default 下仍计 1、backend 计 1
     expect(fe.tracks.map((chip) => [chip.id, chip.count])).toEqual([['backend', 1], ['frontend', 1]])
     expect(facetTotal(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default' }, 'workflow')).toBe(3)
+  })
+})
+
+describe('archivedRowsOf / uncommittedDeletionsOf', () => {
+  const archivedSnapshot = {
+    projects: [{
+      root: '/repo',
+      ok: true,
+      changes: [change({ name: 'shown' })],
+      archived: [
+        { ...change({ name: 'older', phase: 'spec' }), archive: { archivedAt: '2026-09-14T00:00:00Z', phase: 'spec', actor: { id: 'a@x.io', name: 'A', trust: 'declared' } } },
+        { ...change({ name: 'newer', phase: 'build' }), archive: { archivedAt: '2026-09-15T00:00:00Z', phase: 'build', actor: { id: 'b@x.io', name: 'B', trust: 'declared' } } },
+      ],
+      uncommittedDeletions: 2,
+    }],
+  } as unknown as Snapshot
+
+  it('lists archived rows newest first with the phase, time and actor of the archive', () => {
+    const rows = archivedRowsOf({ snapshot: archivedSnapshot, currentRoot: '/repo', rulesByKey: new Map(), t })
+    expect(rows.map((row) => row.change.name)).toEqual(['newer', 'older'])
+    expect(rows[0]?.archive).toEqual({ archivedAt: '2026-09-15T00:00:00Z', phase: 'build', actor: { id: 'b@x.io', name: 'B', trust: 'declared' } })
+    expect(rows[0]?.stages.map((stage) => stage.status))
+      .toEqual(['done', 'done', 'done', 'current', 'todo', 'todo', 'todo'])
+    expect(rows.every((row) => row.key.endsWith('@/repo'))).toBe(true)
+  })
+
+  it('reports no archived rows when the server sends none', () => {
+    const plain = { projects: [{ root: '/repo', ok: true, changes: [change()] }] } as unknown as Snapshot
+    expect(archivedRowsOf({ snapshot: plain, currentRoot: '/repo', rulesByKey: new Map(), t })).toEqual([])
+    expect(archivedRowsOf({ snapshot: null, currentRoot: '', rulesByKey: new Map(), t })).toEqual([])
+  })
+
+  it('sums 未提交删除 within the selected project only', () => {
+    expect(uncommittedDeletionsOf(archivedSnapshot, '/repo')).toBe(2)
+    expect(uncommittedDeletionsOf(archivedSnapshot, '/other')).toBe(0)
+    expect(uncommittedDeletionsOf(archivedSnapshot, '')).toBe(2)
+    expect(uncommittedDeletionsOf(null, '')).toBe(0)
+  })
+})
+
+describe('已完结 wording', () => {
+  it('summaryText reads 已完结 for a closed run', () => {
+    const rows = rowsOf({
+      snapshot: { projects: [{ root: '/repo', ok: true, changes: [change({ name: 'c', phase: 'archive', archived: 'true' })] }] } as unknown as Snapshot,
+      currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => ({ build: BUILD_IO }), t,
+    })
+    expect(rows[0]?.summary).toEqual({ kind: 'completed' })
+    expect(summaryText(rows[0] as TaskRow, t)).toBe('已完结')
   })
 })

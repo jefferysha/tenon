@@ -94,14 +94,14 @@ export function TaskListPane({
               type="button"
               className={cn(
                 'inline-flex flex-none items-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 py-1.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)',
-                filter.includeArchived && 'bg-accent-t font-semibold text-(--accent)',
+                filter.includeCompleted && 'bg-accent-t font-semibold text-(--accent)',
               )}
-              aria-pressed={filter.includeArchived}
-              data-testid="task-filter-archived"
-              onClick={() => onFilter({ ...filter, includeArchived: !filter.includeArchived })}
+              aria-pressed={filter.includeCompleted}
+              data-testid="task-filter-completed"
+              onClick={() => onFilter({ ...filter, includeCompleted: !filter.includeCompleted })}
             >
               <Archive className="size-3.5" aria-hidden="true" />
-              {t('workspace.include_archived')}
+              {t('workspace.include_completed')}
             </button>
           </div>
           {facets.tracks.length > 0 && (

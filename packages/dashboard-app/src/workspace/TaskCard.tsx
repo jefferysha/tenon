@@ -10,7 +10,7 @@ const TONE: Record<TaskRow['summary']['kind'], PillTone> = {
   review: 'blocked',
   ready: 'done',
   running: 'running',
-  archived: 'neutral',
+  completed: 'neutral',
 }
 
 export interface TaskCardProps {
