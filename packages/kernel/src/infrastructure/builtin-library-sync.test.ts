@@ -4,10 +4,14 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
   BUILTIN_LIBRARIES, BUILTIN_LIBRARY_MARKER, builtinSourceDigest, parseBuiltinLibraryMarker, syncBuiltinLibraries, syncBuiltinLibrary,
-  type BuiltinLibrary,
+  type BuiltinLibrary, type BuiltinSyncResult,
 } from './builtin-library-sync.js'
 
 const templates = BUILTIN_LIBRARIES[0] as BuiltinLibrary
+
+/** 本套用例只喂模板库的源；其余内建库在这个 payload 下没有目录，按 id 取自己那一条结果。 */
+const templateSync = async (): Promise<BuiltinSyncResult | undefined> =>
+  (await syncBuiltinLibraries(payload, config)).find((result) => result.id === 'instruction-templates')
 
 function blockText(id: string, extra = ''): string {
   return `---\nid: ${id}\ncategory: backend\ntitle: ${id}\n---\n## 后端（${id}）\n${extra}`
@@ -40,7 +44,7 @@ afterEach(() => {
 
 describe('syncBuiltinLibraries', () => {
   test('首次同步复制整棵树并最后写入摘要标记', async () => {
-    expect(await syncBuiltinLibraries(payload, config)).toEqual([{ id: 'instruction-templates', state: 'updated' }])
+    expect(await templateSync()).toEqual({ id: 'instruction-templates', state: 'updated' })
     expect(readFileSync(join(builtinDir(), 'backend', 'go.md'), 'utf8')).toBe(blockText('go'))
     const marker = parseBuiltinLibraryMarker(readFileSync(join(builtinDir(), BUILTIN_LIBRARY_MARKER), 'utf8'))
     expect(marker?.library).toBe('instruction-templates')
@@ -55,7 +59,7 @@ describe('syncBuiltinLibraries', () => {
     await syncBuiltinLibraries(payload, config)
     const before = statSync(join(builtinDir(), 'backend', 'go.md')).mtimeMs
     const markerBefore = readFileSync(join(builtinDir(), BUILTIN_LIBRARY_MARKER), 'utf8')
-    expect(await syncBuiltinLibraries(payload, config)).toEqual([{ id: 'instruction-templates', state: 'unchanged' }])
+    expect(await templateSync()).toEqual({ id: 'instruction-templates', state: 'unchanged' })
     expect(statSync(join(builtinDir(), 'backend', 'go.md')).mtimeMs).toBe(before)
     expect(readFileSync(join(builtinDir(), BUILTIN_LIBRARY_MARKER), 'utf8')).toBe(markerBefore)
   })
@@ -68,7 +72,7 @@ describe('syncBuiltinLibraries', () => {
     rmSync(join(payload, 'templates', 'instructions', 'builtin', 'backend', 'rust-axum.md'))
     writeSource('backend/go.md', blockText('go', '\n- 新规则\n'))
 
-    expect(await syncBuiltinLibraries(payload, config)).toEqual([{ id: 'instruction-templates', state: 'updated' }])
+    expect(await templateSync()).toEqual({ id: 'instruction-templates', state: 'updated' })
     expect(existsSync(join(builtinDir(), 'backend', 'rust-axum.md'))).toBe(false)
     expect(readFileSync(join(builtinDir(), 'backend', 'go.md'), 'utf8')).toContain('新规则')
     expect(readFileSync(custom, 'utf8')).toBe(blockText('mine'))
@@ -78,7 +82,7 @@ describe('syncBuiltinLibraries', () => {
   test('无效内建块 → failed，旧 builtin 保持原样', async () => {
     await syncBuiltinLibraries(payload, config)
     writeSource('backend/go.md', '---\nid: wrong\ncategory: backend\ntitle: go\n---\n## 后端\n')
-    const [result] = await syncBuiltinLibraries(payload, config)
+    const result = await templateSync()
     expect(result?.state).toBe('failed')
     expect(result?.state === 'failed' && result.detail).toContain('backend/go.md')
     expect(readFileSync(join(builtinDir(), 'backend', 'go.md'), 'utf8')).toBe(blockText('go'))
@@ -89,7 +93,7 @@ describe('syncBuiltinLibraries', () => {
     const outside = join(sandbox, 'outside.md')
     writeFileSync(outside, blockText('evil'))
     symlinkSync(outside, join(payload, 'templates', 'instructions', 'builtin', 'backend', 'evil.md'))
-    const [result] = await syncBuiltinLibraries(payload, config)
+    const result = await templateSync()
     expect(result).toEqual({ id: 'instruction-templates', state: 'failed', detail: 'backend/evil.md: 不允许符号链接' })
     expect(existsSync(join(builtinDir(), 'backend', 'evil.md'))).toBe(false)
   })

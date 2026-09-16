@@ -15,10 +15,15 @@ export * from './instructions/index.js'
 export * from './resources/index.js'
 // 内建库（模板、agent、资源目录、测试方向）从 payload 同步到全局 config/<kind>/builtin。
 export {
-  BUILTIN_LIBRARIES, BUILTIN_LIBRARY_MARKER, builtinSourceDigest, parseBuiltinLibraryMarker,
+  BUILTIN_LIBRARIES, BUILTIN_LIBRARY_MARKER, builtinLibrary, builtinSourceDigest, parseBuiltinLibraryMarker,
   syncBuiltinLibraries, syncBuiltinLibrary,
 } from './infrastructure/builtin-library-sync.js'
 export type { BuiltinLibrary, BuiltinLibraryMarker, BuiltinSyncResult } from './infrastructure/builtin-library-sync.js'
+export {
+  ResourceStoreError, copyResource, deleteCustomResource, ensureBuiltinResources, loadResourceCatalog,
+  readResourceFile, resourceStoreRoot, writeCustomResource,
+} from './infrastructure/resource-store.js'
+export type { ResourceCatalog, ResourceFile, ResourceStoreOptions } from './infrastructure/resource-store.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
 export {
   resolveProductPaths,
