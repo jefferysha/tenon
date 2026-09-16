@@ -9,7 +9,7 @@ import {
   stat,
 } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { atomicWriteFile, withLock } from '@tenon/kernel'
+import { atomicWriteFile, syncBuiltinLibraries, withLock } from '@tenon/kernel'
 import type {
   RuntimeActivation,
   RuntimeAuditEntry,
@@ -317,8 +317,10 @@ export class RuntimeReleaseStore {
         previousRelease: selection.activeRelease,
         detail: `verified ${host} candidate selection committed`,
       }).catch(() => { auditPending = true })
-      // Retention is post-commit housekeeping. A pruning/audit problem must not turn a successful
-      // activation into a reported failure after the canonical selection has already changed.
+      // Retention and builtin library sync are post-commit housekeeping. A pruning/audit/sync problem
+      // must not turn a successful activation into a reported failure after the canonical selection
+      // has already changed; a failed sync is retried by the next dashboard start or library read.
+      await syncBuiltinLibraries(join(finalRoot, 'payload'), this.paths.configRoot).catch(() => [])
       await this.prune(next).catch(() => {})
       return {
         selection: next,

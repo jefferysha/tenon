@@ -29,8 +29,14 @@ const WorkspaceView = lazy(async () => ({
 const WorkflowView = lazy(async () => ({
   default: (await import('./workflow/WorkflowView')).WorkflowView,
 }))
+const ProjectsView = lazy(async () => ({
+  default: (await import('./projects/ProjectsView')).ProjectsView,
+}))
+const LibraryView = lazy(async () => ({
+  default: (await import('./library/LibraryView')).LibraryView,
+}))
 
-// 视图记忆。旧值（overview/projects/hostPlan/inbox/board/…）随 IA 收敛退役——initialView 以 isView
+// 视图记忆。旧值（overview/hostPlan/inbox/board/…）随 IA 收敛退役——initialView 以 isView
 // 白名单校验，不认识的一律兜底回 progress（工作台，默认落地页）。
 const VIEW_KEY = 'tenon-dashboard-view'
 
@@ -63,13 +69,20 @@ function AppShell(): JSX.Element {
   })
   const { theme, setTheme } = useDashboardTheme()
   const { flash, flashRef, showFlash } = useFlash(lang)
-  const [workbenchDirty, setWorkbenchDirty] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null)
+  // 零项目教学态的「新建项目」跳到项目页并直接打开对话框。
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
   const pendingNavigationRef = useRef<PendingNavigation | null>(null)
   const viewRef = useRef(view)
-  const dirtyRef = useRef(workbenchDirty)
+  // 带未保存草稿的视图（任何编辑器通过 onDirtyChange 上报）；离开该视图才需要确认。
+  const dirtyViewRef = useRef<View | null>(null)
   const currentRootRef = useRef('')
   viewRef.current = view
+
+  const leavesDirtyView = useCallback((target: View): boolean => {
+    const dirty = dirtyViewRef.current
+    return dirty !== null && viewRef.current === dirty && target !== dirty
+  }, [])
 
   const commitView = useCallback((v: View) => {
     setViewState(v)
@@ -94,25 +107,22 @@ function AppShell(): JSX.Element {
 
   const onUninterceptablePopAttempt = useCallback((target: DashboardNavigationTarget): boolean => {
     if (pendingNavigationRef.current !== null) return false
-    // 工作流是全局的：切项目不会卸载草稿，只有离开工作流页才需要守卫。
-    const leavesDirtyWorkbench = target.view !== 'workbench'
-    if (viewRef.current !== 'workbench' || !dirtyRef.current || !leavesDirtyWorkbench) return true
+    // 切项目不会卸载草稿，只有离开带草稿的视图才需要守卫。
+    if (!leavesDirtyView(target.view)) return true
     const discard = window.confirm(`${t('common.unsaved_navigation_title')}\n\n${t('common.unsaved_navigation_body')}`)
     if (!discard) return false
     clearPendingNavigation()
-    dirtyRef.current = false
-    setWorkbenchDirty(false)
+    dirtyViewRef.current = null
     return true
-  }, [clearPendingNavigation, t])
+  }, [clearPendingNavigation, leavesDirtyView, t])
 
   const onPopAttempt = useCallback((target: DashboardNavigationTarget): boolean => {
-    const leavesDirtyWorkbench = target.view !== 'workbench'
-    if (viewRef.current === 'workbench' && dirtyRef.current && leavesDirtyWorkbench) {
+    if (leavesDirtyView(target.view)) {
       capturePendingNavigation({ kind: 'pop', target })
       return false
     }
     return true
-  }, [capturePendingNavigation])
+  }, [capturePendingNavigation, leavesDirtyView])
   const { snapshot, loading, error, connected, refresh, reconnect } = useSnapshot()
   const snapshotError = error === null ? null : formatApiError(error, t)
   const staleSnapshotError =
@@ -148,12 +158,11 @@ function AppShell(): JSX.Element {
   }, [currentRoot, selectedChange, snapshot, view])
 
   const setView = useCallback((nextView: View): void => {
-    if (viewRef.current === 'workbench' && dirtyRef.current && nextView !== 'workbench') {
+    if (leavesDirtyView(nextView)) {
       if (!supportsNavigationInterception && pendingNavigationRef.current === null) {
         const discard = window.confirm(`${t('common.unsaved_navigation_title')}\n\n${t('common.unsaved_navigation_body')}`)
         if (!discard) return
-        dirtyRef.current = false
-        setWorkbenchDirty(false)
+        dirtyViewRef.current = null
         commitView(nextView)
         return
       }
@@ -168,7 +177,7 @@ function AppShell(): JSX.Element {
       return
     }
     commitView(nextView)
-  }, [capturePendingNavigation, commitView, selectedChange, supportsNavigationInterception, t])
+  }, [capturePendingNavigation, commitView, leavesDirtyView, selectedChange, supportsNavigationInterception, t])
 
   const closePendingNavigation = useCallback(() => {
     cancelPopNavigation(clearPendingNavigation)
@@ -179,27 +188,27 @@ function AppShell(): JSX.Element {
     const pending = pendingNavigation
     if (pending.kind === 'pop') {
       clearPendingNavigation()
-      dirtyRef.current = false
-      setWorkbenchDirty(false)
+      dirtyViewRef.current = null
       confirmPopNavigation()
       return
     }
     cancelPopNavigation(() => {
       clearPendingNavigation()
-      dirtyRef.current = false
-      setWorkbenchDirty(false)
+      dirtyViewRef.current = null
       commitView(pending.target.view)
     })
   }, [cancelPopNavigation, clearPendingNavigation, commitView, confirmPopNavigation, pendingNavigation])
 
-  const onWorkbenchDirtyChange = useCallback((dirty: boolean): void => {
-    dirtyRef.current = dirty
-    setWorkbenchDirty(dirty)
+  /** 编辑器上报草稿状态：dirty 时记住所在视图；清空时只清自己那一份。 */
+  const onDirtyChange = useCallback((source: View, dirty: boolean): void => {
+    if (dirty) dirtyViewRef.current = source
+    else if (dirtyViewRef.current === source) dirtyViewRef.current = null
   }, [])
+  const onWorkbenchDirtyChange = useCallback((dirty: boolean): void => onDirtyChange('workbench', dirty), [onDirtyChange])
 
   useEffect(() => {
     const protectDraft = (event: BeforeUnloadEvent): void => {
-      if (!dirtyRef.current) return
+      if (dirtyViewRef.current === null) return
       event.preventDefault()
       event.returnValue = ''
     }
@@ -333,9 +342,14 @@ function AppShell(): JSX.Element {
               {t('common.snapshot_retry')}
             </button>
           </section>
-        ) : snapshot && snapshot.project_count === 0 && view !== 'workbench' ? (
-          // 零项目教学态：tenon init 自动登记，无注册表单。
-          <div className="px-6"><Onboarding kind="no-project" /></div>
+        ) : snapshot && snapshot.project_count === 0 && view === 'progress' ? (
+          // 零项目教学态只替换工作台；工作流与库不依赖项目，项目页本身就是新建项目的入口。
+          <div className="px-6">
+            <Onboarding
+              kind="no-project"
+              onNewProject={() => { setNewProjectOpen(true); setView('projects') }}
+            />
+          </div>
         ) : (
           <>
         {view === 'progress' && (
@@ -364,6 +378,17 @@ function AppShell(): JSX.Element {
             onToast={(m) => showFlash('toast', m)}
           />
         )}
+        {view === 'projects' && (
+          <ProjectsView
+            projects={projects}
+            currentRoot={currentRoot}
+            onSelectProject={selectRoot}
+            onToast={(m) => showFlash('toast', m)}
+            newProjectOpen={newProjectOpen}
+            onNewProjectOpenChange={setNewProjectOpen}
+          />
+        )}
+        {view === 'library' && <LibraryView onToast={(m) => showFlash('toast', m)} />}
           </>
         )}
         </Suspense>

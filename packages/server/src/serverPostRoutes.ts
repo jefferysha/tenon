@@ -79,6 +79,7 @@ import { handlePostVerificationRoutes } from './serverPostVerificationRoutes.js'
 import { handleOrchestrationV2PostRoute, type OrchestrationV2RouteDeps } from './serverOrchestrationV2Routes.js'
 import { resolveAdapterInstallPost } from './adapterInstallRoutes.js'
 import { handlePostUserRoutes } from './serverUserRoutes.js'
+import { resolveInstructionMutation } from './instructionRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
 
 type WorkflowRootCheck =
@@ -190,6 +191,8 @@ export async function handlePostRoute(
       })
       if (handled) return
     }
+    const instructionPost = resolveInstructionMutation(req, 'POST', path, deps)
+    if (instructionPost) { const result = await instructionPost; return sendJson(res, result.status, result.body) }
 
     // ── Track Router 公共预览：消费 effective registry，生产默认 scorer 真执行 grep -ciE。──
     // 虽然不写盘，仍走 POST：prompt 可能较长且携带用户意图，不放 URL/query；统一受 token、Host、

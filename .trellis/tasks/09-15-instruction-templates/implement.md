@@ -173,6 +173,35 @@ npm test && npm run test:web && bash tools/test-hooks.sh && bash tools/test-adap
 | `adapters/*`, `tools/test-adapters.sh`, `tools/generate-product-identity.mjs` | data-driven-runner (Codex block text) | marker grammar is content-independent; tests read the generated block file, so text changes stay green |
 | `templates/` | upstream-skills, data-driven-runner | new subtree `templates/instructions/` only |
 
+## Deviations
+
+1. **View registration moved into the commit that adds each view.** `implement.md` step 12 listed `shell/views.ts` and
+   the lazy view wiring, but `ProjectsView` / `LibraryView` do not exist until steps 13–14; registering them earlier
+   would render a nav tab with no page. `library` lands in commit 13 and `projects` in commit 14 (final tab order
+   progress → workbench → projects → library). Step 12 keeps the client, decoders, line diff, i18n and the generalized
+   dirty guard.
+2. **`instructionTrustedFs.ts` landed in commit 9** (design §4.3 lists it under commit 10) because the template library
+   routes already need trusted file reads and writes. Commit 10 adds `instructionFiles.ts` on top of it.
+3. **New-project 宿主 tab selects files, not hosts.** Design §7.3 reuses `HostTargetList`, but the host → project-file
+   table only arrives from `GET /api/instructions` for an existing root; a directory that is not registered yet has no
+   such response. The dialog therefore offers the three project instruction files (CLAUDE.md + AGENTS.md preselected),
+   which is exactly what `POST /api/projects/create` accepts. `HostTargetList` stays shared by the 项目 page.
+4. **`projects` i18n namespace rewritten.** The retired 项目 overview page left an orphan `projects.*` namespace; only
+   `projects.clear_filters` is still consumed (工作台 task list), so that key is kept and the rest of the namespace now
+   describes the instruction-files page.
+5. **Onboarding keys trimmed with the CLI rows.** Removing the two command rows (design §10) also removes
+   `onboard.register*` / `step_*` / `copy*`, and with them the `onboard.register_placeholder` entry in the i18n
+   identical-value allowlist. Pre-existing orphans (`onboard.no_change_*`, `cli_fallback`) are left untouched.
+6. **`dashboardLocation.test.tsx` retired-view list updated**: `?view=projects` is a live deep link now, so it moved out
+   of the retired assertions and `?view=library` was added.
+
+## Pending
+
+- **Commit 16** (template / instruction writer audit + author stamping) is not implemented: it depends on
+  `feat/multi-user` landing on `main` for `resolveTenonUser` / `RecordActor`. `InstructionRouteDeps` has no
+  `resolveActor` yet and no `audit.jsonl` is written.
+- **Commit 18** (real Claude Code / Codex host evidence) is deferred to wave 5 per parent §9 X18.
+
 ## Rough size
 
 - Kernel: ~900 lines + ~700 test lines. Server: ~1 100 + ~900. Dashboard: ~1 800 + ~900. Adapters/tools: ~250 + ~150.

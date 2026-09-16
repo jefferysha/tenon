@@ -17,6 +17,7 @@ import { removeProjectFromRegistry } from './projects.js'
 import { isValidSecretKey, removeSecret, SECRET_KEY_LIST } from './secrets.js'
 import { tokenFromHeaders, tokensMatch } from './token.js'
 import { handleWorkflowYamlPut, matchWorkflowYamlRoute } from './serverWorkflowYamlRoutes.js'
+import { resolveInstructionMutation } from './instructionRoutes.js'
 import type { ServerPaths } from './types.js'
 import {
   assertWorkflowRootAnchor,
@@ -140,6 +141,9 @@ export async function handleDeleteRoute(
     if (!provided || !tokensMatch(provided, token)) {
       return sendJson(res, 401, { ok: false, error: '缺少或无效 token（写端点需鉴权）' })
     }
+
+    const instructionDelete = resolveInstructionMutation(req, 'DELETE', path, deps)
+    if (instructionDelete) { const result = await instructionDelete; return sendJson(res, result.status, result.body) }
 
     // ── G18：DELETE /api/projects?root= —— 注销项目（注册的对称操作）──
     if (path === '/api/projects') {
@@ -315,6 +319,8 @@ export async function handlePutRoute(
   if (!provided || !tokensMatch(provided, token)) {
     return sendJson(res, 401, { ok: false, error: '缺少或无效 token（写端点需鉴权）' })
   }
+  const instructionPut = resolveInstructionMutation(req, 'PUT', path, deps)
+  if (instructionPut) { const result = await instructionPut; return sendJson(res, result.status, result.body) }
   const yamlName = matchWorkflowYamlRoute(path)
   if (yamlName !== null) {
     const result = await handleWorkflowYamlPut(req, yamlName, { workflowRootForRequest: workflowStoreForRequest, trackValidationContextFor, errMsg })

@@ -257,6 +257,31 @@ ask the server to guess. A missing match is rendered as an explicit “no associ
 historical lineage view must use translation keys for its label and show the exact run/attempt
 provenance supplied by the snapshot; artifact creation time is not a substitute for run time.
 
+## 项目 rules (`projects/`)
+
+- Three columns: rail = 用户级 + one card per registered project + `新建项目`; list = `HostTargetList` (12 host rows with
+  the two-level label 叠加 / 项目优先 / 个人优先 / 仅项目 / 需配置, plus the file table 文件 · 状态 · 受管块 · 载入);
+  detail = `InstructionEditor` (编辑 / 预览 sheets, 应用 / 删除 footer).
+- One body writes to every selected target. Files that differ show 不同 with a per-file 载入; the editor never merges
+  managed blocks itself — it sends the body and the server re-appends Tenon's blocks.
+- Every write carries the digest the UI last read. `应用` always goes through `POST /api/instructions/preview` and the
+  `DiffDrawer` (`lineDiff` rows carry `data-op`), so nothing is written before the reader confirms.
+- Polling: every 5 s while the document is visible plus on window focus. A changed digest with a clean editor reloads
+  silently; with a draft it only raises the 外部修改 banner. 409 from apply raises the same banner.
+- `新建项目` selects the three project instruction files directly (CLAUDE.md + AGENTS.md preselected): an unregistered
+  directory has no host table yet, and the create API takes file names.
+- Server prose is never rendered: `instructionErrorKey` maps the error `code` to `projects.errors.<key>` / `library.errors.<key>`.
+
+## 库 rules (`library/`)
+
+- Three columns: rail = one card per library kind (模板 today), list = category and 内建 / 自定义 chips + search + rows,
+  detail = `TemplateDetail` (预览 / 编辑 sheets, 变量 table, footer 复制 / 保存 / 删除).
+- Builtin templates are read-only: the detail footer offers 复制 only. Custom templates save with `If-Match` and delete
+  with the digest; a 409 shows the local message plus 重新载入.
+- The builtin library is synced by the server on every read; a failed sync shows one 内建同步失败 line and the list still
+  renders whatever is on disk.
+- `getToken() === ''` disables every write control on both pages.
+
 ## Styling patterns
 
 - Tokens only (`text-text-2`, `bg-accent-t`, `border-border`, `bg-seg-now` …); no hex in components.

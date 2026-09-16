@@ -416,7 +416,37 @@ cur_inst="$ADAPTERS/cursor/install.sh"
 if [ -f "$cur_inst" ]; then
   cp="$TMP/cursor-install"; mkdir -p "$cp"
   bash "$cur_inst" --target "$cp" --no-hooks --yes >/dev/null 2>&1 || true
-  assert_file "inject/cursor: install 落地 .cursor/rules/pipeline.md（降级静态层真产出）" "$cp/.cursor/rules/pipeline.md"
+  assert_file "inject/cursor: install 落地 .cursor/rules/tenon.mdc（降级静态层真产出）" "$cp/.cursor/rules/tenon.mdc"
+  cur_front="$(awk 'NR==1 && $0=="---" { inb=1; next } inb && $0=="---" { exit } inb { print }' "$cp/.cursor/rules/tenon.mdc" 2>/dev/null)"
+  assert_contains "inject/cursor: tenon.mdc frontmatter 含 alwaysApply: true（Cursor 每次会话都带上）" "$cur_front" "alwaysApply: true"
+  assert_absent "inject/cursor: 不写 Cursor 忽略的 .cursor/rules/pipeline.md" "$cp/.cursor/rules/pipeline.md"
+  # 旧版安装器生成的 pipeline.md（逐字节夹具，sha256 与 install.sh 的 LEGACY_RULES_SHA256 对账）
+  cur_legacy="$TMP/cursor-legacy"; mkdir -p "$cur_legacy/.cursor/rules"
+  cat > "$cur_legacy/.cursor/rules/pipeline.md" <<'LEGACY'
+# Pipeline Workflow（Cursor 静态注入层）
+
+> Cursor 无 SessionStart 级 inject 原语，本规则文件是 pipeline 上下文的降级静态层（契约 §1）。
+> 动态 breadcrumb 由 .cursor/hooks postToolUse 的 additional_context 补偿。
+
+7-phase 流水线：open → explore → spec → build ⇄ verify → ship → archive。
+状态操作一律走 `pipeline` CLI（status / get / set / transition / check），勿手改 .pipeline.yaml。
+
+离开 review phase（explore / spec / verify）须对确切 event 取得人类显式确认：
+
+    tenon review request <change> --event <event>
+    # 人类确认后：
+    tenon review acknowledge <change>
+
+不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀为 /pipeline-（如 /tenon-explore）。
+LEGACY
+  bash "$cur_inst" --target "$cur_legacy" --no-hooks --yes >/dev/null 2>&1 || true
+  assert_absent "inject/cursor: 旧版生成且未改动的 pipeline.md 被删除" "$cur_legacy/.cursor/rules/pipeline.md"
+  cur_edited="$TMP/cursor-legacy-edited"; mkdir -p "$cur_edited/.cursor/rules"
+  printf '# 我的规则\n' > "$cur_edited/.cursor/rules/pipeline.md"
+  cur_out="$(bash "$cur_inst" --target "$cur_edited" --no-hooks --yes 2>&1)"; cur_rc=$?
+  assert_eq "inject/cursor: 用户改过的 pipeline.md 不算失败（exit 0）" 0 "$cur_rc"
+  assert_file "inject/cursor: 用户改过的 pipeline.md 保留" "$cur_edited/.cursor/rules/pipeline.md"
+  assert_contains "inject/cursor: 保留旧文件时打印警告" "$cur_out" "保留不删"
 else
   bad "inject/cursor: install.sh 存在" "缺失：$cur_inst"
 fi
@@ -924,14 +954,49 @@ assert_eq "tier/zed: hasHooks=false" false "$(reg_field zed hasHooks)"
 assert_eq "tier/zed: inject degraded" degraded "$(reg_field zed inject_status)"
 assert_eq "tier/zed: veto degraded"   degraded "$(reg_field zed veto_status)"
 assert_eq "tier/zed: track degraded"  degraded "$(reg_field zed track_status)"
+# Zed 只读工作区根目录下第一个存在的指令文件（zed.dev/docs/ai/instructions）；块必须落在该文件里。
+# 顺序的单一来源是 kernel ZED_PROJECT_ORDER（Dashboard 用它显示生效文件），脚本里的副本必须逐项相等。
+zed_script_order="$(sed -n 's/^ZED_ORDER=(\(.*\))$/\1/p' "$ADAPTERS/zed/install.sh")"
+if command -v node >/dev/null 2>&1; then
+  zed_kernel_order="$(node --input-type=module -e "const m = await import('$ROOT/packages/kernel/dist/index.js'); console.log(m.ZED_PROJECT_ORDER.join(' '))" 2>&1)"
+  assert_eq "zed install: 脚本读取顺序与 kernel ZED_PROJECT_ORDER 一致" "$zed_kernel_order" "$zed_script_order"
+else
+  printf 'SKIP - zed 读取顺序与 kernel 对账（无 node）\n'
+fi
+zed_blocks_in() { # <dir> <rel> → 该文件 ZED START 标记数
+  if [ -f "$1/$2" ]; then grep -cxF '<!-- PIPELINE:ZED:START -->' "$1/$2" || true; else printf '0'; fi
+}
+zed_block_total() { # <dir> → 全部候选文件合计
+  local n=0 rel
+  for rel in $zed_script_order; do n=$((n + $(zed_blocks_in "$1" "$rel"))); done
+  printf '%s' "$n"
+}
+
 ZED_IT="$TMP/zed-it"; mkdir -p "$ZED_IT"
 bash "$ADAPTERS/zed/install.sh" --target "$ZED_IT" --yes >/dev/null 2>&1
-assert_file "zed install: .rules 静态层落地" "$ZED_IT/.rules"
-assert_contains "zed install: .rules 真含 pipeline 静态引导内容" "$(cat "$ZED_IT/.rules" 2>/dev/null)" "Pipeline Workflow"
+assert_absent "zed install: 干净项目不创建 .rules（它会遮住 AGENTS.md / CLAUDE.md）" "$ZED_IT/.rules"
+assert_eq "zed install: 干净项目 ZED 块写入 AGENTS.md" "1" "$(zed_blocks_in "$ZED_IT" AGENTS.md)"
+assert_contains "zed install: AGENTS.md 真含 pipeline 静态引导内容" "$(cat "$ZED_IT/AGENTS.md" 2>/dev/null)" "Pipeline Workflow"
 # 幂等：重装一次不应产生第二份哨兵块
 bash "$ADAPTERS/zed/install.sh" --target "$ZED_IT" --yes >/dev/null 2>&1
-cnt="$(grep -c "PIPELINE:ZED:START" "$ZED_IT/.rules" 2>/dev/null || echo 0)"
-assert_eq "zed install: 重装幂等（哨兵块恰一份，不重复）" "1" "$cnt"
+assert_eq "zed install: 重装幂等（全部候选文件合计恰一份 ZED 块）" "1" "$(zed_block_total "$ZED_IT")"
+
+ZED_USER="$TMP/zed-user-rules"; mkdir -p "$ZED_USER"
+printf '# 我的 Zed 规则\n' > "$ZED_USER/.rules"; printf '# 项目\n' > "$ZED_USER/AGENTS.md"
+bash "$ADAPTERS/zed/install.sh" --target "$ZED_USER" --yes >/dev/null 2>&1
+assert_eq "zed install: 用户已有 .rules → 块写入 .rules" "1" "$(zed_blocks_in "$ZED_USER" .rules)"
+assert_eq "zed install: 用户已有 .rules → AGENTS.md 不写块" "0" "$(zed_blocks_in "$ZED_USER" AGENTS.md)"
+assert_contains "zed install: .rules 保留用户内容" "$(cat "$ZED_USER/.rules")" "我的 Zed 规则"
+
+ZED_OLD="$TMP/zed-old-rules"; mkdir -p "$ZED_OLD"
+printf '\n<!-- PIPELINE:ZED:START -->\n## Pipeline Workflow（旧版）\n<!-- PIPELINE:ZED:END -->\n' > "$ZED_OLD/.rules"
+printf '# 项目\n' > "$ZED_OLD/AGENTS.md"
+bash "$ADAPTERS/zed/install.sh" --target "$ZED_OLD" --yes >/dev/null 2>&1
+assert_absent "zed install: 旧版安装器建的只含 Tenon 块的 .rules 被删除" "$ZED_OLD/.rules"
+assert_eq "zed install: 块移到 AGENTS.md" "1" "$(zed_blocks_in "$ZED_OLD" AGENTS.md)"
+assert_contains "zed install: AGENTS.md 保留用户内容" "$(cat "$ZED_OLD/AGENTS.md")" "# 项目"
+bash "$ADAPTERS/zed/install.sh" --target "$ZED_OLD" --yes >/dev/null 2>&1
+assert_eq "zed install: 迁移后重装仍恰一份 ZED 块" "1" "$(zed_block_total "$ZED_OLD")"
 
 # ════════════════════════════════════════════════════════════════════════════
 # ⑨.7 变异测试（反例哨兵）：新架构形态（JSON-only 输出 / Node 插件）也要能被抓红，非空跑

@@ -74,14 +74,16 @@ Dashboard `zh/en` 存在浏览器 `localStorage`，只控制 UI。治理文档 l
 
 ## 操作视图
 
-日常主导航只保留两项高频入口：
+日常主导航保留四项高频入口：
 
 ```text
-progress → workbench
+progress → workbench → projects → library
 ```
 
 - `progress`：按状态查看任务，打开详情执行下一动作；
-- `workbench`：编辑 Workflow 与阶段结构。
+- `workbench`：编辑 Workflow 与阶段结构；
+- `projects`：编辑项目级与用户级指令文件（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`），并从已有目录或新目录新建项目；
+- `library`：指令模板库，内建块随发行包同步，自定义块可复制与修改。
 
 AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有深链。`hostPlan` 只展示检测结果和零副作用命令计划，不触发安装写操作；需要安装时从明确的项目级安装流程进入。`overview` 独立于操作视图，避免把产品介绍混进日常控制面导航。
 

@@ -2,11 +2,12 @@
  * ownership.ts 纯逻辑单测（BACKLOG #24，GOAL C9：mock 层快速回归；真实副作用见
  * cli/src/sync-uninstall.integration.test.ts）。本文件零 fs——只钉纯函数语义。
  */
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import {
   ALL_MANAGED_DIRS,
-  MANAGED_BLOCK_END,
-  MANAGED_BLOCK_START,
   OWNED_MANIFEST,
   bannerNudge,
   buildOwnedManifest,
@@ -170,11 +171,27 @@ describe('classifyOwned — 五桶（老仓 analyze_changes:325-360）', () => {
 
 // ── ⑦ AGENTS.md 托管判定 + prune 四规则 ──
 describe('shouldKeepAgentsMd + pruneOwnedManifest（老仓 uninstall.sh:79-91 + update-upgrade.py:285-333）', () => {
-  test('AGENTS.md：不在磁盘(undefined)→keep；双哨兵→keep；单哨兵/无哨兵→prune', () => {
+  // 回归：适配器写的是带 TAG 的 `PIPELINE:CODEX:START`，内核曾只认不带 TAG 的 `PIPELINE:START`，
+  // 导致装了 Codex 块的 AGENTS.md 在 sync / uninstall 时被当成用户文件剪掉。
+  const codexBlock = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'templates', 'generated', 'codex-agents-block.md'),
+    'utf8',
+  )
+  const wrapped = `# 用户规则\n\n- 保持简单\n\n${codexBlock}`
+
+  test('AGENTS.md：不在磁盘(undefined)→keep；真实 Codex 块被用户文本包住→keep；单个标记/无标记→prune', () => {
     expect(shouldKeepAgentsMd(undefined)).toBe(true)
-    expect(shouldKeepAgentsMd(`x ${MANAGED_BLOCK_START} y ${MANAGED_BLOCK_END} z`)).toBe(true)
-    expect(shouldKeepAgentsMd(`only ${MANAGED_BLOCK_START} start`)).toBe(false)
+    expect(shouldKeepAgentsMd(wrapped)).toBe(true)
+    expect(shouldKeepAgentsMd('only\n<!-- PIPELINE:CODEX:START -->\nstart\n')).toBe(false)
     expect(shouldKeepAgentsMd('user-own content')).toBe(false)
+  })
+  test('不带 TAG 的旧标记对不算受管块', () => {
+    expect(shouldKeepAgentsMd('<!-- PIPELINE:START -->\nx\n<!-- PIPELINE:END -->\n')).toBe(false)
+  })
+  test('prune：含真实 Codex 块的 AGENTS.md 保留清单键', () => {
+    const { kept, pruned } = pruneOwnedManifest({ 'AGENTS.md': 'h' }, { agentsMdContent: wrapped })
+    expect(kept).toEqual({ 'AGENTS.md': 'h' })
+    expect(pruned).toEqual([])
   })
   test('prune 规则1：.pipeline/* 与 .pipeline 恒留', () => {
     const { kept, pruned } = pruneOwnedManifest(

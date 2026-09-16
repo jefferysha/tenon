@@ -43,7 +43,6 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
       'detail.related_sessions.platform_opencode',
       'detail.related_sessions.platform_pi',
       'detail.workflow_definition.workflow',
-      'onboard.register_placeholder',
       'workbench.lp_scope_placeholder',
       'workbench.afk_rd_docker',
       'progress.act_fail_http',

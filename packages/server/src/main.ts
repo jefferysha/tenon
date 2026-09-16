@@ -15,7 +15,7 @@ import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createTraceStore } from '@tenon/tap'
-import { createOrchestrationLedger, fingerprintWorkspace, machineStateScopeId } from '@tenon/kernel'
+import { createOrchestrationLedger, fingerprintWorkspace, machineStateScopeId, syncBuiltinLibraries } from '@tenon/kernel'
 import { createDashboardServer } from './server.js'
 import { resolveServerPaths } from './paths.js'
 import { decidePreemption, preemptOldServer, probeHealth } from './preempt.js'
@@ -85,6 +85,11 @@ async function main(): Promise<void> {
   // Product state must exist before token/pid publication. Failure is fatal: a server without
   // durable ownership metadata must never bind the singleton port.
   mkdirSync(paths.stateRoot, { recursive: true, mode: 0o700 })
+
+  // 内建库（模板等）按摘要同步到全局 config：覆盖宿主插件市场绕过 `tenon update` 的更新。失败只记日志，不阻止启动。
+  for (const result of await syncBuiltinLibraries(root, paths.configRoot)) {
+    if (result.state === 'failed') process.stderr.write(`[dashboard-server] 内建库 ${result.id} 同步失败：${result.detail}\n`)
+  }
 
   // ── B4 版本抢占 ──
   const existing = await probeHealth(port, host, 400)

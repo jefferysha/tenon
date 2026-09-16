@@ -41,7 +41,7 @@ pipeline 内核依赖三类 Claude Code hook 能力。适配器须对每一项�
 ```yaml
 inject:
   status: degraded
-  fallback: static-rules          # .cursor/rules/pipeline.md 静态层 + postToolUse.additional_context 动态补
+  fallback: static-rules          # .cursor/rules/tenon.mdc 静态层 + postToolUse.additional_context 动态补
   note: "工具无 SessionStart 级会话注入原语（spike 实证）"
 veto:
   status: native

@@ -1052,11 +1052,11 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     expect(screen.queryByTestId('workbench-view')).toBeNull()
   })
 
-  it('顶部条两个标签：工作台 / 工作流；项目切换器与设置都在顶部条', async () => {
+  it('顶部条标签：工作台 / 工作流 / 库；项目切换器与设置都在顶部条', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
     const nav = screen.getByTestId('primary-nav')
-    expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['工作台', '工作流'])
+    expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['工作台', '工作流', '项目', '库'])
     expect(screen.getByTestId('project-switcher')).toBeInTheDocument()
     expect(screen.queryByTestId('app-navigation')).toBeNull()
     expect(screen.queryByTestId('secondary-nav')).toBeNull()
@@ -1537,7 +1537,7 @@ describe('App 深浅色自适应 + i18n', () => {
 })
 
 describe('App G18 教学空状态（T17 起纯教学态）', () => {
-  it('零项目快照 → 全视图替换为教学 onboarding：无注册表单、CLI 是 tenon init、无幽灵命令', async () => {
+  it('零项目快照 → 教学空态只给「新建项目」一个动作：无注册表单、无命令行教学', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
@@ -1553,8 +1553,12 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     expect(screen.queryByTestId('project-register-form')).toBeNull()
     expect(screen.queryByTestId('project-register-path')).toBeNull()
     expect(screen.queryByTestId('project-register-submit')).toBeNull()
-    expect(screen.getByTestId('onboard-cli').textContent).toContain('tenon init')
+    // 新建项目由 Dashboard 自己完成（选已有目录或建目录 + git init），命令行教学行随之退役。
+    expect(screen.getByTestId('onboard-new-project')).toHaveTextContent('新建项目')
+    expect(screen.queryByTestId('onboard-cli')).toBeNull()
+    expect(screen.queryByTestId('onboard-copy')).toBeNull()
     expect(ob.textContent).not.toContain('projects add')
+    expect(ob.textContent).not.toContain('tenon init')
   })
 
   it('有项目零 change → 工作台中列给出 tenon init 教学空态，创建留在终端', async () => {

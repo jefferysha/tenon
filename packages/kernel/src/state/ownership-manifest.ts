@@ -49,6 +49,7 @@
  *   · derive_upgrade_channel（:81-98）：-beta→beta / -rc→rc（beta 先判）/ else latest；显式 tag 校验 NPM_TAG_RE。
  */
 import { createHash } from 'node:crypto'
+import { parseManagedBlocks } from '../instructions/managed-blocks.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // 常量
@@ -57,8 +58,6 @@ export const OWNED_MANIFEST = '.pipeline-owned.json'
 export const VERSION_FILE = '.pipeline-version'
 export const WORKFLOW_DIR = '.pipeline'
 export const AGENTS_MD = 'AGENTS.md'
-export const MANAGED_BLOCK_START = '<!-- PIPELINE:START -->'
-export const MANAGED_BLOCK_END = '<!-- PIPELINE:END -->'
 
 /** 受管目录全集（老仓 ALL_MANAGED_DIRS uninstall.sh:65）——cleanup/final_pass 双守卫单一数据源。 */
 export const ALL_MANAGED_DIRS = ['.pipeline', '.claude', '.codex', '.agents', '.agents/skills'] as const
@@ -181,15 +180,19 @@ export function classifyOwned(opts: {
 // D. AGENTS.md 托管 + prune 四规则
 // ════════════════════════════════════════════════════════════════════════════
 
-/** START AND END 双哨兵都在 → 托管（老仓 is_managed_agents 判据）。 */
+/**
+ * 至少一个成对、合法的带 TAG 受管块（`<!-- PIPELINE:CODEX:START -->` …）→ 托管。
+ * 适配器只写带 TAG 的标记；不带 TAG 的旧标记没有写入方，不再识别。标记无效（不成对、嵌套等）→ 不托管。
+ */
 export function isManagedAgentsMd(content: string | undefined): boolean {
   if (content === undefined) return false
-  return content.includes(MANAGED_BLOCK_START) && content.includes(MANAGED_BLOCK_END)
+  const parsed = parseManagedBlocks(content)
+  return parsed.ok && parsed.blocks.length > 0
 }
 
 /**
  * prune 阶段 AGENTS.md 保留判定（老仓 _should_keep_agents_md uninstall.sh:79-91 / update-upgrade.py:269-282）。
- * 不在磁盘（undefined）→ keep（true）；双哨兵 → keep；否则（用户自带/单哨兵）→ prune（false）。
+ * 不在磁盘（undefined）→ keep（true）；含合法受管块 → keep；否则（用户自带/标记无效）→ prune（false）。
  */
 export function shouldKeepAgentsMd(content: string | undefined): boolean {
   if (content === undefined) return true // 不在磁盘 / 读失败 → 保守 keep

@@ -249,6 +249,40 @@ describe('RuntimeReleaseStore', () => {
     expect((await store.inspect()).activeValid).toBe(true)
   }, 30_000)
 
+  it('populates the builtin template library on activation and leaves custom templates byte-identical', async () => {
+    const root = await freshRoot('builtin-library-sync')
+    const candidate = await candidateCopy(root)
+    const library = join(pathsFor(root).configRoot, 'templates', 'instructions')
+    const custom = join(library, 'custom', 'backend', 'mine.md')
+    const customText = '---\nid: mine\ncategory: backend\ntitle: mine\n---\n## 后端（mine）\n'
+    await mkdir(dirname(custom), { recursive: true })
+    await writeFile(custom, customText, 'utf8')
+
+    await storeFor(root).stageAndActivate(candidate, 'codex')
+
+    expect(await readFile(join(library, 'builtin', 'common', 'base.md'), 'utf8'))
+      .toBe(await readFile(join(repoRoot, 'templates', 'instructions', 'builtin', 'common', 'base.md'), 'utf8'))
+    expect(JSON.parse(await readFile(join(library, 'builtin', '.library.json'), 'utf8')).library).toBe('instruction-templates')
+    expect(await readFile(custom, 'utf8')).toBe(customText)
+  }, 30_000)
+
+  it('still activates the candidate when the builtin library sync fails and keeps the previous builtin library', async () => {
+    const root = await freshRoot('builtin-library-sync-failure')
+    const store = storeFor(root)
+    const builtin = join(pathsFor(root).configRoot, 'templates', 'instructions', 'builtin')
+    await store.stageAndActivate(await candidateCopy(root), 'codex')
+    const markerBefore = await readFile(join(builtin, '.library.json'), 'utf8')
+
+    const broken = await candidateCopy(root, '-broken')
+    await writeFile(join(broken, 'templates', 'instructions', 'builtin', 'backend', 'broken.md'), 'not a template block\n', 'utf8')
+    const activated = await store.stageAndActivate(broken, 'codex')
+
+    expect(activated.selection.activeRelease).toBe(activated.release.releaseId)
+    expect((await store.inspect()).activeValid).toBe(true)
+    expect(await readFile(join(builtin, '.library.json'), 'utf8')).toBe(markerBefore)
+    await expect(stat(join(builtin, 'backend', 'broken.md'))).rejects.toThrow()
+  }, 60_000)
+
   it('executes a newly activated v2 release through the real stable launcher', async () => {
     const root = await freshRoot('v2-stable-launcher')
     const home = join(root, 'home')

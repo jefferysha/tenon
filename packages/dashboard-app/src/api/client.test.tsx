@@ -237,26 +237,7 @@ describe('subscribeSnapshot（真 EventSource stub，组件真收帧）', () => 
   })
 })
 
-describe('G18 api 三函数（registerProject/unregisterProject/fetchWorkflowNames）', () => {
-  it('registerProject：POST /api/projects 带 token + body {root}，返回规范化 root', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, root: '/repo-a' }) })
-    vi.stubGlobal('fetch', fetchMock)
-    const { registerProject } = await import('./client')
-    const got = await registerProject('/repo-a/')
-    expect(got.root).toBe('/repo-a')
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('/api/projects')
-    expect(init.method).toBe('POST')
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok-abc')
-    expect(JSON.parse(init.body as string)).toEqual({ root: '/repo-a/' })
-  })
-
-  it('registerProject：!ok 抛 ApiError 带 server 文案（409 已注册）', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({ ok: false, error: '项目已注册' }) }))
-    const { registerProject } = await import('./client')
-    await expect(registerProject('/repo-a')).rejects.toThrow('项目已注册')
-  })
-
+describe('G18 api 两函数（unregisterProject/fetchWorkflowNames）', () => {
   it('unregisterProject：DELETE /api/projects?root= 带 token、无 Content-Type', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
     vi.stubGlobal('fetch', fetchMock)

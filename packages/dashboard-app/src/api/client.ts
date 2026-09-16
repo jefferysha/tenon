@@ -39,7 +39,6 @@ export {
   postRouterPreview,
   postTrackDefinition,
   postWorkflowDef,
-  registerProject,
   unregisterProject,
 } from './governanceClient'
 export type { WorkflowIndex } from './governanceClient'

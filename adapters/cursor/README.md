@@ -12,7 +12,9 @@ history**（「声明 track 却不写」的病灶）。本轮转正：
    `openspec/changes/<name>/.pipeline-history.jsonl`——与 codex/CC **同一条 history 记录**（conformance §⑤ 断言等价）。
 2. **veto 真硬拦**：`hooks/veto.sh` 透传 `hooks/gate.sh` 决策，命中新鲜 marker → `{"permission":"deny"}`；
    `hooks.json` 强制 `failClosed:true`（默认 fail-open 与硬拦冲突，conformance §⑥ 断言）。
-3. **inject 如实降级**：无 SessionStart 原语 → `.cursor/rules/pipeline.md` 静态层（install 真落盘）
+3. **inject 如实降级**：无 SessionStart 原语 → `.cursor/rules/tenon.mdc` 静态层（install 真落盘；frontmatter
+   `alwaysApply: true`。Cursor 项目规则只认 `.mdc`，旧版写的 `.cursor/rules/pipeline.md` 从未生效：字节未改则安装时删除，
+   改过则保留并警告）
    + `postToolUse.additional_context` 动态补偿；**不暴露伪 SessionStart inject**（conformance 断言无 `hooks/inject.sh`）。
 
 ## 安装
@@ -29,7 +31,7 @@ adapters/cursor/install.sh --no-hooks            # 只装静态层（降级）
 ```yaml
 inject:
   status: degraded
-  fallback: static-rules                     # .cursor/rules/pipeline.md + postToolUse.additional_context
+  fallback: static-rules                     # .cursor/rules/tenon.mdc + postToolUse.additional_context
   note: "Cursor 无 SessionStart 级会话注入原语（spike NOTES §1.1）"
 veto:
   status: native

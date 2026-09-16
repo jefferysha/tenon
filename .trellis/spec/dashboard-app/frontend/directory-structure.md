@@ -6,11 +6,13 @@
 
 ## Overview
 
-The dashboard is one SPA with two top-level views selected by the top bar: 工作台 (read the
-inputs / outputs of each stage of a task) and 工作流 (edit workflow definitions, default included).
-Both are three-column pages (rail / list / detail) built from `shell/ThreeColumns.tsx`. The workflow
-definition served by the server (with materialized `effectiveIo`) is the single source of truth for
-both pages.
+The dashboard is one SPA with four top-level views selected by the top bar: 工作台 (read the
+inputs / outputs of each stage of a task), 工作流 (edit workflow definitions, default included),
+项目 (edit project-level and user-level instruction files, and create projects) and 库 (the
+instruction template library). All except 工作流 are three-column pages (rail / list / detail) built
+from `shell/ThreeColumns.tsx`; 工作流 renders `TwoColumns`. The workflow definition served by the
+server (with materialized `effectiveIo`) is the single source of truth for the first two pages; the
+server's instruction routes are the single source of truth for 项目 and 库.
 
 ---
 
@@ -21,7 +23,7 @@ src/
 ├── App.tsx                 # routing (view / root / change), dirty-guard for the workflow editor, lazy views
 ├── index.css               # token truth source: runtime colour tokens + @theme static scales
 ├── shell/
-│   ├── views.ts            # View union: 'progress' | 'workbench' (stable URL/localStorage keys)
+│   ├── views.ts            # View union: 'progress' | 'workbench' | 'projects' | 'library' (stable URL/localStorage keys)
 │   ├── TopBar.tsx          # breadcrumb, project switcher, two tabs, global search, connection, settings (gear)
 │   ├── ThreeColumns.tsx    # ThreeColumns / RailColumn / RailCard / RailFootLink / ListColumn / FilterChip / DetailColumn / DetailEmpty / StatusPill
 │   ├── GlobalSearch.tsx    # GlobalSearchProvider + useGlobalSearch
@@ -47,6 +49,14 @@ src/
 │   ├── pipelineModel.ts    # forward / back edges
 │   ├── lint.ts             # lintWorkflow (step-no-output, input-not-upstream), draftEffectiveIo
 │   └── slotCatalog.ts      # FIELD_CATALOG, DOCUMENT_KINDS, availableOutputSlots, upstreamOutputs
+├── projects/               # view 'projects' — 项目 (instruction files + 新建项目)
+│   ├── ProjectsView.tsx    # rail 用户级 + 各项目 + 新建项目; list HostTargetList; detail InstructionEditor
+│   ├── InstructionEditor.tsx, HostTargetList.tsx, DiffDrawer.tsx, NewProjectDialog.tsx, TemplatePicker.tsx
+│   ├── useInstructionFiles.ts # GET + 5s polling / focus recheck; preview / apply / delete
+│   └── instructionModel.ts # targetsForHosts / fileStatus / firstLoadable / managedCount (pure)
+├── library/                # view 'library' — 库 (instruction template library)
+│   ├── LibraryView.tsx, TemplateDetail.tsx, NewTemplateDialog.tsx
+│   └── useTemplateLibrary.ts # list + selected document; save / create / copy / delete
 ├── workbench/              # workflow domain logic
 │   ├── useWorkflowEditor.ts# load / draft / save / create(copy|blank|import) / delete|restore / lint / canWrite
 │   ├── workbenchDefinition.ts # pure definition transforms (skills waves, outputs, inputs, document contract, stages, clone, blank)

@@ -56,7 +56,7 @@ const TRUTH_SOURCES = [
  * Dashboard 的可持久化视图 id 由 shell/views.ts 的 VIEWS 导出，文档门禁只校验
  * 这份真源，避免把已退役的导航结构复制到检查器中。
  */
-const EXPECTED_VIEWS = ['progress', 'workbench']
+const EXPECTED_VIEWS = ['progress', 'workbench', 'projects', 'library']
 
 function slash(path) {
   return path.split(sep).join('/')
