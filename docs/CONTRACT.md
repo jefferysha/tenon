@@ -223,8 +223,8 @@
   决策 phase，缩短会中途误清 → 绕过强制复核）。边界同老内核：age > TTL 才陈旧。
 - **持续交互授权投影（不是第四道 gate）**：用户在正常对话明确说“后续不用问 / 自主执行完成”后，
   `pipeline session activate <change> --continuous --host-session <id>` 或带合法 `session_id` 的 UserPromptSubmit 会写
-  `.pipeline-interaction-authority`。它是版本化、原子发布、只含 `change/scope/review/issued_at` 的
-  Change 与 host-session 双重绑定投影，只有 `.pipeline-active` 指向同一 live Change、且 hook
+  当前用户的 `.tenon/users/<slug>/local/authority`。它是版本化、原子发布、只含 `change/scope/review/issued_at` 的
+  Change 与 host-session 双重绑定投影，只有该用户的 `local/active-change` 指向同一 live Change、且 hook
   输入携带同一 `session_id` 时 `interactive-skill-gate.sh` 才会
   识别；格式不完整、换 Change、已归档或撤回均 fail-closed 回到普通 interaction gate。它只避免每次
   读取 `brainstorming` 等交互式 skill 时重复要求低风险确认，同时在 Change history 留下最小化审计行；

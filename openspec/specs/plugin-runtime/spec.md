@@ -110,7 +110,7 @@ only.
 ### Requirement: Workflow routing never revives an unrelated change
 
 The router SHALL assign exactly one explicit workflow owner to a request. A new objective SHALL
-produce a new change even when `.pipeline-active` or multiple unarchived changes exist. Only an
+produce a new change even when a per-user `active-change` pointer or multiple unarchived changes exist. Only an
 explicit resume request may bind to an eligible named or uniquely selectable change; modification
 time SHALL NOT be used to bind a new request.
 

@@ -23,6 +23,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Document Recording Boundary](./skill-output-registration.md) | Explicit `document record`, submission scope, Skill receipt never records | Current |
 | [Autonomous Orchestration](./orchestration.md) | v1 schemas, reducer and routing contracts | Current |
 | [State Lock Owner Identity](./state-lock.md) | Owner record, pid-only fallback in sandboxes, reclaim rules | Current |
+| [User Identity and Owner Rule](./user-identity.md) | Declared identity order, slug, `.tenon/users/<slug>/` layout, owner rule, 接手, error matrix | Current |
 
 ---
 

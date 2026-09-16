@@ -330,6 +330,40 @@ npm test && npm run test:web && bash tools/test-hooks.sh && bash tools/verify-sk
 | `.gitignore` | task-delete-archive, upstream-skills | Line deletions only. |
 | `packages/automation/src/lifecycle/ports.ts` | data-driven-runner (AFK execution) | Sandbox env addition is two keys. |
 
+## Deviations
+
+Recorded during implementation (design + parent `design.md` §9 otherwise followed as written).
+
+1. **Id / name validation is slightly stricter than the design text.** `validateUserId` also refuses `"`, `\`
+   anywhere and a leading `'`, so the id survives the bash JSON reader (`hooks/json-input.sh`) and the YAML quote
+   gate unchanged; `normalizeUserName` additionally rejects a name that would make `Name <id>` contain `": "`.
+2. **`tools/check-architecture.mjs` allowlists `hooks/tenon-user.sh`** for `TENON_RUNTIME_ROOTS`,
+   `TENON_RUNTIME_CONFIG_ROOT` and `TENON_RUNTIME_HOME`. The bash identity mirror must resolve the same config root
+   as `resolveProductPaths`, and hooks cannot call node. Added as one named site (`USER_IDENTITY_SHELL_MIRROR`).
+3. **`users/owner.ts` landed in C4b instead of C5.** The snapshot projection needs `ownerOf` / `creatorOf`; the owner
+   rule (`ownerDecision`, `assertOwner`, `OwnerRequiredError`, `transferOwner`) arrived with C5 as planned.
+4. **`GET /api/user` is called without a `root` query in the aggregate view**, and the four App deep-link tests now
+   assert the request set `{/api/snapshot, /api/user}` instead of only `/api/snapshot`. The top-bar user is a
+   machine-level identity, not a per-root request; the per-root ban (records, 接手, workflow definition) is unchanged.
+5. **Server `TransitionDeps.resolveUser` is optional** and falls back to the shared `defaultResolveUser`, because
+   low-level callers/tests construct `TransitionDeps` directly. Production always passes the server resolver.
+6. **`templates/skill-sources.yaml` is regenerated in C8** (`npm run sync:skill-provenance`): C8 edits three
+   `SKILL.md` files, so the canonical content hashes change and `tools/verify-skills.sh` fails without it. The main
+   session must rerun `npm run sync:skill-provenance` after merging siblings that touch the same skills.
+7. **Owner-rule fallout in existing tests:** `mockState` defaults `assignee` to `Tester <tester@tenon.test>` so
+   mock-based CLI unit tests stay owner-allowed, and `integration.test.ts`'s quote-gate case writes `prd_path`
+   instead of `assignee` (which is now a protected field).
+8. **New Dashboard test files** (`shell/TopBarUser.test.tsx`, `workspace/taskOwnerFacet.test.tsx`,
+   `api/userDecoders.test.tsx`) instead of appending to `App.test.tsx` / `taskModel.test.tsx` /
+   `boundaryDecoders.test.tsx`; the existing suites only got the new required fixture fields.
+9. **The authority history row's `actor` landed in C6**, not C4b: the authority writer only learns the slug and the
+   actor once `session activate` resolves the user.
+10. **Real-host acceptance (real Claude Code / Codex runs) is deferred to wave 5** per parent X18, together with the
+    two-terminal and second-clone scenarios in C9 of this plan.
+11. **`packages/cli/dist/tenon.mjs` is rebuilt locally but not committed** (generated file). It must be rebuilt for
+    `packages/cli/src/runtime/stable-hook.integration.test.ts`, which activates a runtime payload containing the
+    bundled CLI; the main session regenerates dist after merge.
+
 ## Rough size
 
 - **Files:** about 95 in total.

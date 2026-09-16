@@ -4,7 +4,7 @@ Tenon 的目标不是让所有请求都走最长流程，而是让任务复杂�
 
 ## Discussion
 
-适用于解释、只读检查、方案讨论和无需修改状态的研究。它不创建 Change，也不复用旧 `.pipeline-active`。新目标不会因为仓库里存在历史 Change 就被错误绑定。
+适用于解释、只读检查、方案讨论和无需修改状态的研究。它不创建 Change，也不复用旧的 `active-change`。新目标不会因为仓库里存在历史 Change 就被错误绑定。
 
 ## Simple
 
@@ -42,7 +42,7 @@ Custom workflow 由项目 `.pipeline/workflows/*.yaml` 定义 DAG、skills、gua
 
 `tenon session activate <change> --host-session <id>` 会把当前宿主会话精确绑定到一个
 Change。后续在该对话中说“继续执行”时，路由器先读取这条会话绑定，再考虑仓库级
-`.pipeline-active` 候选；因此另一个会话切换任务不会把当前对话串到旧 Change。用户完整点名
+用户自己的 `active-change` 候选；因此另一个会话切换任务不会把当前对话串到旧 Change。用户完整点名
 Change 的指令优先级仍然最高。绑定文件只负责会话身份和运行态观察，不参与 canonical guard
 或 transition。
 
@@ -85,9 +85,9 @@ Custom 可以只有三个步骤，也可以包含并行依赖。是否生成 pro
 - 已运行外部发布或生产迁移；
 - 已有后续阶段读取文档 digest。
 
-恢复规则可以避免“调研新项目却继续旧 Change”的串线问题。`.pipeline-active` 是恢复候选投影，不是把所有后续对话永久锁定到旧任务的全局开关。
+恢复规则可以避免“调研新项目却继续旧 Change”的串线问题。用户自己的 `active-change` 是恢复候选投影，不是把所有后续对话永久锁定到旧任务的全局开关。
 宿主提供 session id 时，只有该会话存在有效精确绑定，通用“继续执行”才会恢复；全新未绑定会话
-不会再回落到仓库级 `.pipeline-active`。用户显式点名 Change 始终拥有最高优先级。
+不会再回落到用户的 `active-change`。用户显式点名 Change 始终拥有最高优先级。
 
 ## Todo 如何随模式变化
 

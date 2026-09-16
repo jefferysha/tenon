@@ -58,7 +58,7 @@ Dashboard 和 API 默认只绑定 loopback。公共文档站是纯静态产物�
 
 ## 三条不可绕过的原则
 
-1. 新目标不会仅因存在旧 `.pipeline-active` 就恢复旧 Change；
+1. 新目标不会仅因存在旧的 `active-change` 指针就恢复旧 Change；
 2. review receipt 必须绑定准确 phase 和 event，删除 marker 不等于确认；
 3. 未运行的测试、未打开的页面和未成功的部署不得写成通过。
 

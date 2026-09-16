@@ -71,7 +71,7 @@ tenon session activate <change-name>
 ```
 
 When the host provides a session id, a generic “continue” from an unbound new
-conversation must not fall back to repository-wide `.pipeline-active`. Name the
+conversation must not fall back to the per-user `active-change`. Name the
 Change explicitly or activate an exact host-session binding.
 
 ### Everything takes the default seven phases
