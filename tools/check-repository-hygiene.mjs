@@ -87,6 +87,12 @@ const FORBIDDEN_TEST_PROJECT_IDENTITIES = [
 const FIRST_PARTY_TOOLING_PATH = new RegExp(
   `^\\.${FORBIDDEN_REFERENCE_IDENTITIES[0]}(?:/|$)`,
 )
+// 第三个身份是 Tenon 引用的开源设计资源合集，不是竞品：任务规划文本与随插件发布的
+// 资源目录条目必须写出它才能给出链接，其余受管理文本仍然禁止。
+const DESIGN_RESOURCE_REFERENCE_PATHS = [
+  new RegExp(`^\\.${FORBIDDEN_REFERENCE_IDENTITIES[0]}/tasks/`),
+  /^templates\/resources\//,
+]
 // 固定的调查记录允许保留产品名作为事实上下文；其余受管理文本仍禁止外部身份。
 const AUDIT_REFERENCE_DOCS = new Set(['docs/research/2026-09-12-runtime-artifact-code-findings.md'])
 const FIRST_PARTY_GOVERNANCE_FILES = new Set(['.gitattributes'])
@@ -204,6 +210,13 @@ function allowedCanonicalVersionReference(rel, identity) {
   )
 }
 
+function allowedDesignResourceReference(rel, identity) {
+  return (
+    identity === FORBIDDEN_REFERENCE_IDENTITIES[2]
+    && DESIGN_RESOURCE_REFERENCE_PATHS.some((pattern) => pattern.test(rel))
+  )
+}
+
 function disallowedReferenceIdentity(rel, value) {
   const normalized = value.toLowerCase()
   return FORBIDDEN_REFERENCE_IDENTITIES.find(
@@ -217,6 +230,7 @@ function disallowedReferenceIdentity(rel, value) {
       && !allowedReviewHandshakeReference(rel, identity)
       && !allowedOrchestrationGraphReference(rel, identity)
       && !allowedCanonicalVersionReference(rel, identity)
+      && !allowedDesignResourceReference(rel, identity)
     ),
   )
 }

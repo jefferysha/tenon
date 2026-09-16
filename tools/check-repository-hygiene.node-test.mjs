@@ -97,6 +97,31 @@ test('rejects reference identities in tracked paths and ordinary managed text', 
   }
 })
 
+test('allows the design resource collection in task plans and the shipped catalog only', async () => {
+  const root = await fixture()
+  const firstIdentity = String.fromCharCode(116, 114, 101, 108, 108, 105, 115)
+  const secondIdentity = String.fromCharCode(99, 111, 109, 101, 116)
+  const thirdIdentity = String.fromCharCode(
+    97, 119, 101, 115, 111, 109, 101, 45, 100, 101, 115, 105, 103, 110, 45, 109, 100,
+  )
+  const planPath = `.${firstIdentity}/tasks/09-15-design-resources/prd.md`
+  const catalogPath = 'templates/resources/design-md-collections.yaml'
+  const docPath = 'docs/resources.md'
+  await mkdir(join(root, `.${firstIdentity}`, 'tasks', '09-15-design-resources'), { recursive: true })
+  await mkdir(join(root, 'templates', 'resources'), { recursive: true })
+  await writeFile(join(root, planPath), `参考 ${thirdIdentity}\n`)
+  await writeFile(join(root, catalogPath), `repo: ${thirdIdentity}\n`)
+  await writeFile(join(root, docPath), `see ${thirdIdentity}\n`)
+  await writeFile(join(root, `.${firstIdentity}`, 'tasks', 'rival.md'), `see ${secondIdentity}\n`)
+  try {
+    assert.deepEqual(checkReferenceIdentities(root, [planPath, catalogPath]), [])
+    assert.equal(checkReferenceIdentities(root, [docPath]).length, 1)
+    assert.equal(checkReferenceIdentities(root, [`.${firstIdentity}/tasks/rival.md`]).length, 1)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('allows the first-party workflow directory while retaining competitor checks', async () => {
   const root = await fixture()
   const firstIdentity = String.fromCharCode(116, 114, 101, 108, 108, 105, 115)
