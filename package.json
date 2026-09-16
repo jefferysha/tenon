@@ -31,6 +31,7 @@
     "check:release-workflows": "node --test tools/check-release-workflows.node-test.mjs",
     "check:repository-hygiene": "node --test tools/check-repository-hygiene.node-test.mjs && node tools/check-repository-hygiene.mjs",
     "build:npx-package": "node tools/build-npx-package.mjs",
+    "check:clean-checkout": "bash tools/check-clean-checkout.sh",
     "check:npx-package": "node --test tools/build-npx-package.node-test.mjs tools/install-bootstrap.node-test.mjs tools/clean-codex-install-acceptance.node-test.mjs",
     "test:clean-install": "node tools/clean-codex-install-acceptance.mjs --mode local",
     "test:clean-install:public": "node tools/clean-codex-install-acceptance.mjs --mode public",

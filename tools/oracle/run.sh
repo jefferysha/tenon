@@ -417,9 +417,14 @@ track_oracle_skill() {
   # Exercise the same host-neutral native PostToolUse boundary as Claude. Session/tool identity is
   # required to seal the invocation against the canonical current StepVisit; a bare history row is
   # deliberately insufficient and would make this fixture fail closed at `document record`.
+  # The hook resolves the Change through the *caller's* `.tenon/users/<slug>/local/active-change`,
+  # so it needs the same declared identity as run_new_cli: without it the slug differs, the hook
+  # finds no active Change and silently records nothing.
   printf '{"cwd":"%s","tool_name":"Skill","skill":"%s","session_id":"oracle-document-bootstrap","tool_use_id":"oracle-%s"}' \
     "$dir" "$skill" "$skill" \
-    | CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$REPO_ROOT/hooks/skill-tracker.sh" >/dev/null
+    | CLAUDE_PLUGIN_ROOT="$REPO_ROOT" TENON_RUNTIME_HOME="$MACHINE_HOME" \
+      TENON_USER="$ORACLE_TENON_USER" TENON_USER_NAME="$ORACLE_TENON_USER_NAME" \
+      bash "$REPO_ROOT/hooks/skill-tracker.sh" >/dev/null
 }
 
 # Default transitions now enforce every mandatory Skill on the current phase visit. Oracle fixtures
@@ -526,6 +531,14 @@ bootstrap_new_document_contract() {
   # producing fixture Skill evidence, so dual-run document setup cannot accidentally bind a
   # concurrently present old fixture.
   run_new_cli "$dir" session activate "$change" || return 1
+  # Document recording is owner-gated, and legacy `assignee` values (bare name / unknown / null)
+  # project as unowned——a real behaviour change, not a harness artifact.  A real user takes the task
+  # over before producing documents; do the same once per Change so history gains one row, not one
+  # per bootstrap call.
+  if [ ! -f "$dir/.oracle-owner-taken-$change" ]; then
+    run_new_cli "$dir" owner take "$change" || return 1
+    : > "$dir/.oracle-owner-taken-$change" || return 1
+  fi
 
   record_oracle_document "$dir" "$change" "$phase" open proposal "$change_dir/proposal.md" openspec-propose || return 1
   record_oracle_document "$dir" "$change" "$phase" open openspec-design "$change_dir/design.md" openspec-propose || return 1
