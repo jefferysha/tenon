@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { appendFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, readdir, realpath, rename, rm, symlink, unlink, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
 import {
   builtinTrack,
@@ -35,6 +35,7 @@ import { captureChangePathAnchor } from './contextBundlePreviewSupport.js'
 import { readRegistry } from './registry.js'
 import { initChange, makeProject, makeTempHome, newStore, sleep } from './test-support.js'
 import { captureWorkflowRootAnchor, closeWorkflowRootAnchor } from './workflows.js'
+import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
 
 const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
 
@@ -2319,5 +2320,122 @@ describe('归档划分与未提交删除（查看者视角）', () => {
     // Another viewer's store is not part of this viewer's fingerprint.
     await archiveFor(root, bob.slug, 'one')
     expect(await computeFingerprint([root], 1, undefined, undefined, () => alice)).toBe(afterCommit)
+  })
+})
+
+/**
+ * Every project probe that spawns a child process must receive a path that child can resolve. The scan's
+ * `readRoot` is the anchor's `/proc/self/fd/<n>` handle on Linux, which only this process can resolve, so a
+ * spawned git dies with a misleading ENOENT and each probe degrades silently: no repository identity, an
+ * empty HEAD, and a build-revision assessment that can never find its identity. macOS normally leaves
+ * `fdPath` undefined, which is why the class is invisible there — so these tests force a readRoot that
+ * differs from the real path on every platform.
+ */
+describe('子进程探测只收到真实路径（anchor fd 句柄绝不外泄）', () => {
+  /** In-process fs traverses this, so the scan proceeds; it is still not the anchor's real path. */
+  async function anchorWithAliasReadRoot(root: string): Promise<{ anchor: WorkflowRootAnchor; alias: string }> {
+    const alias = `${root}-alias`
+    await symlink(root, alias, 'dir')
+    const anchor = captureWorkflowRootAnchor(root)
+    return { anchor: { ...anchor, fdPath: alias }, alias }
+  }
+
+  async function repositoryProject(): Promise<string> {
+    const root = await realpath(await makeProject())
+    await execFileAsync('git', ['init', '-q'], { cwd: root })
+    await execFileAsync('git', ['config', 'user.email', 'tenon-tests@example.invalid'], { cwd: root })
+    await execFileAsync('git', ['config', 'user.name', 'Tenon tests'], { cwd: root })
+    return root
+  }
+
+  it('repository identity 与未提交删除按 anchor 真实路径探测', async () => {
+    const store = newStore()
+    const root = await repositoryProject()
+    await initChange(store, root, 'one')
+    await execFileAsync('git', ['add', '-A'], { cwd: root })
+    await execFileAsync('git', ['commit', '-qm', 'seed'], { cwd: root })
+    const anchor = captureWorkflowRootAnchor(root)
+    const deletionRoots: string[] = []
+    try {
+      const snapshot = await buildSnapshot({
+        registry: () => [root],
+        store,
+        version: '1',
+        clock: () => 't',
+        // A real Linux readRoot: only this process can resolve it.
+        rootAnchor: () => ({ ...anchor, fdPath: '/proc/self/fd/4242' }),
+        countDeletions: async (repoRoot) => { deletionRoots.push(repoRoot); return 0 },
+      })
+      expect(deletionRoots).toEqual([anchor.realPath])
+      expect(deletionRoots.some(isProcessLocalFdPath)).toBe(false)
+      // readRepositoryIdentity really spawns git and cannot be injected away here: given an fd path the
+      // whole field disappears, and with it the Dashboard's repository label and worktree badge.
+      expect(snapshot.projects[0]?.repository?.workspace_kind).toBe('primary')
+      expect(snapshot.projects[0]?.repository?.label).toBe(basename(root))
+    } finally {
+      closeWorkflowRootAnchor(anchor)
+    }
+  })
+
+  it('HEAD 探测按 anchor 真实路径调用', async () => {
+    const store = newStore()
+    const root = await repositoryProject()
+    const dir = await initChange(store, root, 'head-read')
+    await store.setMany(dir, {
+      isolation: 'branch',
+      build_sha: `build:v1:git:${'a'.repeat(64)}:${'b'.repeat(64)}:${'c'.repeat(64)}`,
+      phase: 'verify',
+    })
+    const { anchor } = await anchorWithAliasReadRoot(root)
+    const headRoots: string[] = []
+    try {
+      await buildSnapshot({
+        registry: () => [root],
+        store,
+        version: '1',
+        clock: () => 't',
+        rootAnchor: () => anchor,
+        gitHeadSha: async (cwd) => { headRoots.push(cwd); return 'abc123' },
+      })
+      expect(headRoots.length).toBeGreaterThan(0)
+      expect([...new Set(headRoots)]).toEqual([anchor.realPath])
+    } finally {
+      closeWorkflowRootAnchor(anchor)
+    }
+  })
+
+  it('build revision identity 探测走真实路径，不再恒为 evaluation-error', async () => {
+    const store = newStore()
+    const root = await repositoryProject()
+    const dir = await initChange(store, root, 'revision')
+    await store.setMany(dir, {
+      isolation: 'in-place',
+      build_sha: `build:v1:workspace:${'a'.repeat(64)}:${'b'.repeat(64)}:${'c'.repeat(64)}`,
+      phase: 'verify',
+    })
+    const { anchor } = await anchorWithAliasReadRoot(root)
+    try {
+      const snapshot = await buildSnapshot({
+        registry: () => [root],
+        store,
+        version: '1',
+        clock: () => 't',
+        rootAnchor: () => anchor,
+        workspaceFingerprint: async () => `workspace:sha256:${'b'.repeat(64)}`,
+      })
+      const readiness = snapshot.projects[0]?.changes[0]?.workflowExecution.readinessByTransition
+      // probeBuildRevisionIdentity rejects a symlinked spelling outright, so before the fix the identity
+      // was never found and observe() threw. The honest blocker now is a revision mismatch, not
+      // "the capability could not even run" — which is what every Linux poll used to report.
+      const blockers = readiness?.verify?.['verify-pass']?.blockers ?? []
+      const revision = blockers.find((blocker) => 'reason' in blocker)
+      // project-mismatch means the identity probe RAN and disagreed with the stub token — the honest
+      // answer. evaluation-error means the capability could not run at all, which is what an
+      // unresolvable root produced on every Linux poll.
+      expect(revision).toMatchObject({ reason: 'project-mismatch' })
+      expect(JSON.stringify(blockers)).not.toContain('evaluation-error')
+    } finally {
+      closeWorkflowRootAnchor(anchor)
+    }
   })
 })

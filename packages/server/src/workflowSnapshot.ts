@@ -36,6 +36,12 @@ import { projectFileExists } from './projectCapabilities.js'
 export interface WorkflowSnapshotCapabilityDeps {
   readonly fileExists?: (root: string, repoRelativePath: string) => boolean
   readonly gitHeadSha?: (cwd: string) => Promise<string>
+  /**
+   * Root for the capabilities that spawn a child process (the build-revision identity probe). Defaults to
+   * `root`, which is correct for callers that already pass a real path; the project scan passes the
+   * anchor's real path because its `root` is the process-local fd handle no child can resolve.
+   */
+  readonly childProcessRoot?: string
   readonly workspaceFingerprint?: (cwd: string, changeName: string) => Promise<string>
   readonly assessBuildRevision?: import('@tenon/kernel').TransitionContext['assessBuildRevision']
 }
@@ -256,7 +262,7 @@ export async function snapshotWorkflowExecution(
   const gitHeadSha = deps.gitHeadSha
   const workspaceFingerprint = deps.workspaceFingerprint
   const assessBuildRevision = deps.assessBuildRevision ?? (async (request) => {
-    const identity = await probeBuildRevisionIdentity(root)
+    const identity = await probeBuildRevisionIdentity(deps.childProcessRoot ?? root)
     const observe = async () => {
       const kind = request.isolation === 'in-place' ? 'workspace' as const : 'git' as const
       const revision = kind === 'workspace'
