@@ -444,8 +444,9 @@ most 64 characters, and a manifest contains at most 256 fixtures.
 7. **插件资产零悬空引用（安装期验证，2026-07-06 用户硬要求）**：`plugin.json` / `hooks.json` /
    manifest / 任何 skill 清单引用的每个路径与 skill 名，必须被 `tools/verify-skills.sh`
    在安装/CI 时证实存在（路径存在 + 脚本可执行 + skill 目录含 SKILL.md），缺失即**硬失败并
-   逐条列出**。外部 skill 依赖（如 superpowers 系）必须显式清单化声明 + 安装校验，
-   **不允许运行时才发现「skill 找不到」**。老内核靠 manifest 选装外部 skills 曾出现此坑，本仓封死。
+   逐条列出**。第三方 skill 依赖必须在 `skills/sources.yaml` 显式声明来源，由 setup/update 获取后
+   经 `skills/skills.lock.json` 校验，**不允许运行时才发现「skill 找不到」**。老内核靠 manifest
+   选装外部 skills 曾出现此坑，本仓封死。
 
 8. **Canonical Skill provenance（Issue #44）**：`templates/skill-sources.yaml` 是分发
    Skill 唯一 tracked provenance source，使用 schema `version: 3` 与
@@ -458,3 +459,16 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    `npm run sync:skill-provenance` 原子刷新 registry，随后用
    `bash tools/verify-skills.sh --quiet --root "$PWD"` 验证；隐藏的
    `internal-skill-provenance verify|sync --root <path> [--json]` 是共享实现。
+
+9. **上游 Skill 安装（2026-09-15 用户硬要求）**：第三方 Skill 不再随仓库维护精简副本。
+   `skills/sources.yaml`（tracked，flow YAML，`version: 1`）按 id 声明
+   `{ repo, path, ref: default-branch, license_expected }`，许可证只允许 MIT 与 Apache-2.0。
+   `tenon setup --<host>` 与 `tenon update --<host>` 在宿主写好插件根之后、候选校验之前，从每个
+   仓库默认分支获取最新完整内容写入 `<插件根>/skills/<id>/`，并写 `skills/skills.lock.json`
+   （`{ id, repo, path, commit, previous_commit, tree_sha256, license, fetched_at }`，随 payload
+   分发、不入 git）。内容哈希沿用 `tree-sha256-v1`。单个 Skill 要么完整替换、要么保留旧内容，
+   不留半装状态；内容未变时锁字节不变，更新报告 `current`。获取失败、缺许可证、许可证不符、
+   上游改名或删除都不改变已激活 release，`<stateRoot>/skills/last-update.json` 记录该次结果，
+   `tenon doctor --skills`、`skills:upstream` 与 Dashboard `技能` 页显示来源/提交/许可证/更新时间。
+   verifier 的 declared 集合是 registry ∪ lock：缺目录、未登记目录、内容漂移、锁与 sources 不一致
+   一律 fail-closed。开发 checkout 用 `npm run skills:fetch` 获取，获取物与锁均 gitignored。

@@ -65,7 +65,7 @@ async function fixture() {
     root,
     'packages/dashboard-app/src/shell/views.ts',
     [
-      "export const VIEWS = ['progress', 'workbench'] as const",
+      "export const VIEWS = ['progress', 'workbench', 'skills'] as const",
       "export type View = (typeof VIEWS)[number]",
     ].join('\n'),
   )
@@ -191,7 +191,7 @@ async function fixture() {
   await write(
     root,
     'docs/usage/dashboard-and-local-api.md',
-    '# Dashboard\n\nProjects → Progress → AFK → Workbench → Machine → hostPlan are the operational views. Overview is separate. Use 127.0.0.1:18765 and `tenon dashboard --open`.\n',
+    '# Dashboard\n\nProjects → Progress → AFK → Workbench → Machine → Skills → hostPlan are the operational views. Overview is separate. Use 127.0.0.1:18765 and `tenon dashboard --open`.\n',
   )
   await write(
     root,
@@ -237,7 +237,7 @@ async function fixture() {
   await write(
     root,
     'docs/usage/zh-CN/dashboard-and-local-api.md',
-    '# Dashboard\n\nProjects → Progress → AFK → Workbench → Machine → hostPlan 是操作视图，Overview 独立。使用 127.0.0.1:18765 和 `tenon dashboard --open`。\n',
+    '# Dashboard\n\nProjects → Progress → AFK → Workbench → Machine → Skills → hostPlan 是操作视图，Overview 独立。使用 127.0.0.1:18765 和 `tenon dashboard --open`。\n',
   )
   await write(
     root,

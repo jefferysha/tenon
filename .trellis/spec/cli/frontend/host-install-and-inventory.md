@@ -121,6 +121,100 @@ if (fetched.result.code !== 0) throw remoteFailure('stable Release object proof'
 { "name": "tenon", "skills": "./skills/" }
 ```
 
+## Scenario: Upstream skills in the host plugin root
+
+### 1. Scope / Trigger
+
+- `tenon setup --<host>` and `tenon update --<host>` fetch every `skills/sources.yaml` entry into the
+  host plugin root between the host writing that root and candidate verification.
+- Trigger: the 51 bundled third-party skills were 13–24 line first-party rewrites (hue 14 lines vs 869
+  upstream). Hosts load skills only from the plugin root, so the content has to arrive there before the
+  payload is copied and digested.
+
+### 2. Signatures
+
+```ts
+// packages/cli/src/upstream-skills/install.ts
+installUpstreamSkills(input: UpstreamSkillInstallInput): Promise<UpstreamSkillInstallResult>
+// packages/cli/src/commands/upstream-skill-step.ts — setup/update call site
+runUpstreamSkillInstall(deps, env, installer, scope, host, pluginRoot): Promise<UpstreamSkillInstallResult>
+// packages/automation/src/skills/upstream-skill-view.ts — doctor and GET /api/skills/sources
+readUpstreamSkillView(pluginRoot: string, stateRoot: string): UpstreamSkillView
+git ls-remote --symref <url> HEAD                                   # runRemoteGit: 60 s, 3 attempts
+git clone --quiet --depth=1 --filter=blob:none --no-checkout --single-branch <url> <dir>  # 300 s, 2 attempts
+git -C <dir> sparse-checkout set --no-cone /<path>/ /LICENSE* /LICENCE* /COPYING* /README*
+git -C <dir> checkout --quiet                                       # downloads the blobs
+```
+
+### 3. Contracts
+
+- Only `https://github.com/<owner>/<name>.git` built from a validated `sources.yaml` row is fetched;
+  `sources.yaml` is tracked, so the stable-tag proof also covers the source list.
+- Tenon writes exactly `skills/<id>/`, `skills/skills.lock.json` and `.tenon-skills-staging-*` in the
+  host plugin root. Each skill is applied by rename: complete new content, complete previous content,
+  or absent. Unchanged content leaves the lock bytes untouched, so the payload digest is stable and
+  update still reports `无需更新`.
+- Licenses: skill license file → SKILL.md `license:` → repository-root license file → root README
+  license section; only MIT and Apache-2.0. A root license file is copied into the skill.
+- Symlinks, submodules, a missing or renamed `SKILL.md` name, > 64 MiB per skill or > 256 MiB total are
+  refused before staging. Failures keep the previous verified content (`kept`) or install nothing
+  (`missing`) and are recorded in `<stateRoot>/skills/last-update.json`.
+- `pluginPayloadMatchesMarketplace` compares `PAYLOAD_ENTRIES` minus `skills` plus the tracked
+  `skills/*` children from `git ls-tree --name-only HEAD skills/`, and returns false when that listing
+  fails. `install.sh` does the same and exits 1 when it cannot list them.
+- `verifySkillProvenance` declares registry ids ∪ lock ids; the bootstrap re-proves the payload digest
+  on every dispatch, with a stat-keyed cache in `stateRoot` so a 48 MB payload is hashed once.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+| --- | --- |
+| Invalid `sources.yaml` (unknown field, `ref: main`, bundled-token collision) | setup/update exit 1, no activation, `[invalid-skill-sources]` |
+| `ls-remote` fails after 3 transient attempts | every skill of that repository `kept` or `missing`, reason `unreachable` |
+| Upstream path missing / frontmatter name ≠ id | `removed` / `renamed`, previous content kept |
+| No license evidence or license ≠ `license_expected` | `license-missing` / `license-mismatch`, never installed |
+| Crash between per-skill renames | verifier reports `content-hash-mismatch`, activation refused, rerun repairs |
+| Lock without `sources.yaml`, or entry repo/path ≠ source | `invalid-skill-lock` |
+| Nothing changed upstream | lock bytes unchanged → `current` |
+
+### 5. Good / Base / Bad Cases
+
+- Good: one unreachable repository → `[skills] 失败 hue unreachable（保留 a910e31）`, every other skill
+  updates, the active runtime stays valid, doctor `skills:upstream` yellow.
+- Base: second update with no upstream change → no clone, `lockWritten=false`, `无需更新`.
+- Bad: fetching into `~/.claude/skills` or a project skills directory; that is another session's state.
+
+### 6. Tests Required
+
+- `packages/cli/src/upstream-skills/install.test.ts`: local bare fixtures reached through
+  `GIT_CONFIG_COUNT` `url.file://…insteadOf`; first install, idempotent second run without a clone,
+  per-skill update, kept vs missing, license/rename/symlink/size refusals, stale directory removal.
+- `packages/cli/src/commands/update.test.ts`: tracked-children payload proof (true / tampered
+  `skills/tenon` / failed `ls-tree`), host-exact update with an unchanged and a changed lock, and
+  `invalid-skill-sources` aborting before activation.
+- `packages/cli/src/commands/setup.test.ts`: the fetch runs after `installNativePluginCandidate` and
+  before `verifyPackagedAssets`, which now always re-verifies.
+- `packages/cli/src/runtime/bootstrap.test.ts`: the digest cache is written and reused, a same-size
+  content change with restored mtime is still refused, and a corrupt cache falls back to a full hash.
+- `tools/clean-codex-install-acceptance.mjs --mode local`: one upstream fixture repository, the host
+  root carrying `skills/<id>/SKILL.md` plus the lock, and Codex discovering `tenon:<id>`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+const assetCode = candidate.verified ? 0 : verifyPackagedAssets(deps, env, candidate.root, false)
+```
+
+#### Correct
+
+```ts
+await runUpstreamSkillInstall(deps, lifecycleEnv, installer, runtimeScope, host, candidate.root)
+// The upstream skill step can change a root that was verified earlier, so assets are always re-verified.
+const assetCode = verifyPackagedAssets(deps, lifecycleEnv, candidate.root, false)
+```
+
 ## Scenario: Doctor reports a host that failed to load Tenon
 
 ### 1. Scope / Trigger

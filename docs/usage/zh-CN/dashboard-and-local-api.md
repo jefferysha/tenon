@@ -74,14 +74,15 @@ Dashboard `zh/en` 存在浏览器 `localStorage`，只控制 UI。治理文档 l
 
 ## 操作视图
 
-日常主导航只保留两项高频入口：
+日常主导航保留三项高频入口：
 
 ```text
-progress → workbench
+progress → workbench → skills
 ```
 
 - `progress`：按状态查看任务，打开详情执行下一动作；
-- `workbench`：编辑 Workflow 与阶段结构。
+- `workbench`：编辑 Workflow 与阶段结构；
+- `skills`：只读查看每个技能的来源、提交、许可证、更新时间与状态。
 
 AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有深链。`hostPlan` 只展示检测结果和零副作用命令计划，不触发安装写操作；需要安装时从明确的项目级安装流程进入。`overview` 独立于操作视图，避免把产品介绍混进日常控制面导航。
 
@@ -96,6 +97,10 @@ AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有
 <img src="../../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard Workflow 工作台" width="1280" height="720" loading="lazy">
 
 工作台把 Track、七阶段 DAG、阶段 Skill、Hook 与运行前事实放在同一页面。Default 只读基线、自定义 Workflow 和每个 Workflow 的 Free Track 都从同一份有效计划投影。
+
+### 技能
+
+技能页（`?view=skills`）只读列出 Tenon 自有技能与 `skills/sources.yaml` 声明的上游技能：来源仓库与目录、已安装提交（变化时给出上一提交的对比链接）、许可证、更新时间与状态。数据来自 `GET /api/skills/sources`，即 setup/update 写入的 `skills/skills.lock.json` 与最近一次获取结果，页面本身不联网、不触发安装。
 
 ## 本地 API 边界
 

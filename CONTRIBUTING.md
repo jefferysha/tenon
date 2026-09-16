@@ -139,13 +139,24 @@ projection, and document the document-contract behavior.
 
 ### Skill
 
-`templates/skill-sources.yaml` is the only tracked provenance source. It uses
-schema v3 (`tree-sha256-v1`) with a bundled `source_ref`, canonical `sha256:`
-content hash, and immutable coordinate for every distributed Skill. After
+`templates/skill-sources.yaml` is the only tracked provenance source for
+Tenon-owned Skills. It uses schema v3 (`tree-sha256-v1`) with a bundled
+`source_ref`, canonical `sha256:` content hash, and immutable coordinate. After
 editing Skill bytes, run the explicit authoring sync and inspect its diff:
 
 ```bash
 npm run sync:skill-provenance
+bash tools/verify-skills.sh --quiet --root "$PWD"
+```
+
+Third-party Skills are not edited in this repository: add or change a row in
+`skills/sources.yaml` (`{ repo, path, ref: default-branch, license_expected }`,
+MIT or Apache-2.0 only) and fetch it into the checkout. The fetched directories
+and `skills/skills.lock.json` are gitignored, and the verifier proves them
+against that lock:
+
+```bash
+npm run skills:fetch
 bash tools/verify-skills.sh --quiet --root "$PWD"
 ```
 

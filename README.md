@@ -282,14 +282,31 @@ bash tools/verify-skills.sh
 bash tools/test-bundle.sh
 ```
 
+### Upstream Skills
+
+Third-party Skills are not vendored. `skills/sources.yaml` lists每个上游 Skill 的
+仓库、目录、许可证与 Tenon 使用的 id；`tenon setup --<host>` 与 `tenon update --<host>`
+从每个仓库默认分支获取最新完整内容（含参考文件与脚本）写入宿主插件根的 `skills/`，
+并把实际提交与内容哈希记进 `skills/skills.lock.json`（随发布包分发，不入 git）。
+许可证只接受 MIT 与 Apache-2.0；缺许可证或许可证不符的 Skill 不安装。某个上游不可达时
+该 Skill 保留已安装的旧版本，其余 Skill 不受影响，`tenon doctor --skills` 与 Dashboard
+的技能页显示每个 Skill 的来源、提交、许可证、更新时间与状态。
+
+开发 checkout 里运行一次即可获取同一批 Skill（获取到的目录不入 git）：
+
+```bash
+npm run skills:fetch
+```
+
 ### Bundled Skill provenance
 
 `templates/skill-sources.yaml` is the one tracked provenance registry for every
-distributed Skill. It is schema v3 (`hash_algorithm: tree-sha256-v1`): each
+Tenon-owned Skill. It is schema v3 (`hash_algorithm: tree-sha256-v1`): each
 entry declares `source_kind: bundled`, a normalized `source_ref`, the
 canonical `sha256:` content hash, and an immutable coordinate containing the
-same identity and digest. The historical `skills-lock.json` is removed and
-must not be reintroduced.
+same identity and digest. Upstream Skills are proven by `skills/skills.lock.json`
+instead, and the verifier accepts the union of both. The historical
+`skills-lock.json` is removed and must not be reintroduced.
 
 After changing a bundled Skill, refresh the registry explicitly and inspect
 the diff:
