@@ -3,17 +3,17 @@ import { compileEffectiveWorkflowPlan, workflowPlanSnapshot } from '../workflow/
 import { parseWorkflowPlanSnapshot, workflowPlanSnapshotContent } from './workflow-plan-snapshot.js'
 
 describe('workflow plan policy snapshot codec', () => {
-  it('parses the self-contained V3 sidecar for default policies', () => {
+  it('parses the self-contained V4 sidecar for default policies', () => {
     const snapshot = workflowPlanSnapshot(compileEffectiveWorkflowPlan('default'))
     const envelope = parseWorkflowPlanSnapshot(workflowPlanSnapshotContent('run-1', snapshot))
 
-    expect(envelope.plan.version).toBe(3)
-    if (envelope.plan.version !== 3) throw new Error('expected v3')
+    expect(envelope.plan.version).toBe(4)
+    if (envelope.plan.version !== 4) throw new Error('expected v4')
     expect(envelope.plan.decomposition).toBeDefined()
     expect(envelope.plan.interaction).toBeDefined()
   })
 
-  it('rejects unknown V3 sidecar fields', () => {
+  it('rejects unknown V4 sidecar fields', () => {
     const snapshot = workflowPlanSnapshot(compileEffectiveWorkflowPlan('nondefault-policy', {
       name: 'nondefault-policy',
       interaction: { version: 'v1', mode: 'recommended-defaults' },

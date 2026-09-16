@@ -43,8 +43,6 @@ export interface WbFieldRef {
 
 export interface WbSkillRef {
   id: string
-  kind?: 'work' | 'review'
-  review_lane?: string
   depends_on?: string[]
 }
 
@@ -144,7 +142,6 @@ export interface WbStepDef {
   label: string
   gate: 'review' | 'auto' | null
   prompt?: string
-  reviewLanes?: string[]
   skills: WbSkillRef[]
   inputs: WbFieldRef[]
   outputs: WbFieldRef[]
@@ -192,11 +189,6 @@ export interface WbInteractionPolicy {
   mode: WbInteractionMode
 }
 
-export interface WbReviewBudgetPolicy {
-  version: 'v1'
-  max_attempts: number
-}
-
 export const DEFAULT_WB_DECOMPOSITION_POLICY: WbDecompositionPolicy = {
   version: 'v1',
   mode: 'off',
@@ -211,11 +203,6 @@ export const DEFAULT_WB_DECOMPOSITION_POLICY: WbDecompositionPolicy = {
 export const DEFAULT_WB_INTERACTION_POLICY: WbInteractionPolicy = {
   version: 'v1',
   mode: 'interactive',
-}
-
-export const DEFAULT_WB_REVIEW_BUDGET_POLICY: WbReviewBudgetPolicy = {
-  version: 'v1',
-  max_attempts: 2,
 }
 
 /** 服务端物化的一个输入 / 输出槽位：文档（登记台账）或值（change 字段）。 */
@@ -247,8 +234,6 @@ export interface WbWorkflowDef {
   decomposition?: WbDecompositionPolicy
   /** Omitted only by pre-policy in-memory fixtures; HTTP decoding always projects safe v1 defaults. */
   interaction?: WbInteractionPolicy
-  /** Omitted only by pre-policy in-memory fixtures; HTTP decoding always projects a finite v1 budget. */
-  reviewBudget?: WbReviewBudgetPolicy
   /** 通用分支：track 未命中任何 tracks.<id> 时使用的 pipeline。 */
   steps: WbStepDef[]
   /** track 分支：每条 track 自己的完整 pipeline。 */

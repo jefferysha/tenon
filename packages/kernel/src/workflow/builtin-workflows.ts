@@ -8,7 +8,6 @@ import type { WorkflowDef } from './types.js'
  */
 const SIMPLE_WORKFLOW: WorkflowDef = {
   name: 'simple',
-  reviewBudget: { version: 'v1', max_attempts: 2 },
   steps: [
     {
       id: 'change',
@@ -27,8 +26,7 @@ const SIMPLE_WORKFLOW: WorkflowDef = {
       id: 'verify',
       label: 'Verify',
       gate: null,
-      reviewLanes: ['e2e'],
-      skills: [{ id: 'verification-before-completion', kind: 'review', review_lane: 'e2e' }],
+      skills: [{ id: 'verification-before-completion' }],
       inputs: [],
       outputs: [],
       guards: [],

@@ -158,7 +158,7 @@ describe('init --workflow（GOAL E，自定义 workflow 首个 step 落点）', 
         phase: 'intake',
         workflowPlanFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
         workflowPlanSnapshot: {
-          version: 3,
+          version: 4,
           workflowId: 'onboarding',
           workflowFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
           decomposition: { version: 'v1', mode: 'off' },

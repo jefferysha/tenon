@@ -16,7 +16,6 @@ import { isDefaultWorkflowName } from './identifier.js'
 import {
   compileWorkflowDecompositionPolicy,
   compileWorkflowInteractionPolicy,
-  compileWorkflowReviewBudgetPolicy,
 } from './policy.js'
 import type {
   ActionConfig,
@@ -45,13 +44,13 @@ const ACTION_TYPES: ReadonlySet<string> = new Set<ActionConfig['type']>([
 const CUSTOM_PRODUCER_POLICIES: ReadonlySet<string> = new Set(['effective-step-skills'])
 const DEFAULT_PRODUCER_POLICIES: ReadonlySet<string> = new Set(['effective-step-skills', 'effective-phase-skills'])
 const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
-  'name', 'decomposition', 'interaction', 'reviewBudget', 'openspec', 'documentContract', 'steps', 'tracks',
+  'name', 'decomposition', 'interaction', 'openspec', 'documentContract', 'steps', 'tracks',
 ])
 const STEP_KEYS: ReadonlySet<string> = new Set([
-  'id', 'label', 'gate', 'prompt', 'reviewLanes', 'skills', 'inputs', 'outputs', 'artifacts', 'tests',
+  'id', 'label', 'gate', 'prompt', 'skills', 'inputs', 'outputs', 'artifacts', 'tests',
   'agents', 'guards', 'transitions',
 ])
-const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'kind', 'review_lane', 'depends_on'])
+const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'depends_on'])
 const FIELD_REF_KEYS: ReadonlySet<string> = new Set(['field', 'type'])
 const TRANSITION_KEYS: ReadonlySet<string> = new Set(['event', 'to', 'guards', 'actions'])
 const ACTION_KEYS: ReadonlySet<string> = new Set(['type'])
@@ -149,43 +148,11 @@ function compileFieldRef(raw: FieldRef, path: string): FieldRef {
   return { field, type }
 }
 
-function compileReviewLanes(raw: unknown, path: string): readonly string[] {
-  if (raw === undefined) return []
-  const lanes = stringArray(raw, path)
-  const seen = new Set<string>()
-  for (const lane of lanes) {
-    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/u.test(lane)) {
-      compileError(path, `Review lane '${lane}' 含非法字符`)
-    }
-    if (seen.has(lane)) compileError(path, `Review lane '${lane}' 重复声明`)
-    seen.add(lane)
-  }
-  return lanes
-}
-
-function compileSkillRef(raw: SkillRef, path: string, reviewLanes: readonly string[]): SkillRef {
+function compileSkillRef(raw: SkillRef, path: string): SkillRef {
   const rec = asRecord(raw, path)
   rejectExtraKeys(rec, SKILL_KEYS, path)
-  const id = nonemptyString(rec.id, `${path}.id`)
-  const kind = rec.kind ?? 'work'
-  if (kind !== 'work' && kind !== 'review') {
-    compileError(`${path}.kind`, `必须是 'work' | 'review'（实际 ${JSON.stringify(kind)}）`)
-  }
-  if (kind === 'review') {
-    const reviewLane = nonemptyString(rec.review_lane, `${path}.review_lane`)
-    if (!reviewLanes.includes(reviewLane)) {
-      compileError(`${path}.review_lane`, `Review lane '${reviewLane}' 未在所属 step.reviewLanes 声明`)
-    }
-    return {
-      id, kind, review_lane: reviewLane,
-      ...(rec.depends_on === undefined ? {} : { depends_on: stringArray(rec.depends_on, `${path}.depends_on`) }),
-    }
-  }
-  if (rec.review_lane !== undefined) {
-    compileError(`${path}.review_lane`, 'kind=work 不得声明 review_lane')
-  }
   return {
-    id, kind,
+    id: nonemptyString(rec.id, `${path}.id`),
     ...(rec.depends_on === undefined ? {} : { depends_on: stringArray(rec.depends_on, `${path}.depends_on`) }),
   }
 }
@@ -222,9 +189,8 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
       compileError(`${path}.prompt`, '含未配对 UTF-16 surrogate，UTF-8 落盘无法往返')
     }
   }
-  const reviewLanes = compileReviewLanes(rec.reviewLanes, `${path}.reviewLanes`)
   const skills = asArray(rec.skills, `${path}.skills`).map((s, j) =>
-    compileSkillRef(s as SkillRef, `${path}.skills[${j}]`, reviewLanes),
+    compileSkillRef(s as SkillRef, `${path}.skills[${j}]`),
   )
   const inputs = asArray(rec.inputs, `${path}.inputs`).map((r, j) => compileFieldRef(r as FieldRef, `${path}.inputs[${j}]`))
   const outputs = asArray(rec.outputs, `${path}.outputs`).map((r, j) => compileFieldRef(r as FieldRef, `${path}.outputs[${j}]`))
@@ -256,7 +222,7 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   return {
     id, label: rec.label, gate: gate as GateKind,
     ...(prompt === undefined ? {} : { prompt }),
-    reviewLanes, skills, inputs, outputs, guards, artifacts,
+    skills, inputs, outputs, guards, artifacts,
     ...(tests === undefined ? {} : { tests }),
     ...(agents === undefined ? {} : { agents }),
     transitions,
@@ -321,7 +287,6 @@ function compileWith(def: unknown, allowedPolicies: ReadonlySet<string>): Workfl
   const name = nonemptyString(rec.name, 'name')
   const decomposition = compileWorkflowDecompositionPolicy(rec.decomposition)
   const interaction = compileWorkflowInteractionPolicy(rec.interaction)
-  const reviewBudget = compileWorkflowReviewBudgetPolicy(rec.reviewBudget)
   if (rec.openspec !== undefined && typeof rec.openspec !== 'boolean') {
     compileError('openspec', `必须是 true | false（实际 ${JSON.stringify(rec.openspec)}）`)
   }
@@ -332,7 +297,6 @@ function compileWith(def: unknown, allowedPolicies: ReadonlySet<string>): Workfl
     name,
     decomposition,
     interaction,
-    reviewBudget,
     ...(rec.openspec === true ? { openspec: true as const } : {}),
     ...(documentContract === undefined ? {} : { documentContract }),
     steps,

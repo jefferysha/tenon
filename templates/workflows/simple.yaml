@@ -1,7 +1,4 @@
 name: simple
-review_budget:
-  version: v1
-  max_attempts: 2
 steps:
   - id: change
     label: Change
@@ -21,11 +18,8 @@ steps:
   - id: verify
     label: Verify
     gate: null
-    review_lanes: [e2e]
     skills:
       - id: verification-before-completion
-        kind: review
-        review_lane: e2e
     inputs: []
     outputs: []
     guards: []

@@ -47,12 +47,6 @@ export interface WorkflowInteractionPolicyV1 {
   readonly mode: WorkflowInteractionMode
 }
 
-export interface WorkflowReviewBudgetPolicyV1 {
-  readonly version: 'v1'
-  /** Finite per-step automatic Review attempt ceiling. */
-  readonly max_attempts: number
-}
-
 export interface FieldRef {
   readonly field: string
   readonly type: FieldType
@@ -60,10 +54,6 @@ export interface FieldRef {
 
 export interface SkillRef {
   readonly id: string
-  /** Explicit orchestration classification. Omitted definitions compile to `work`; never infer from id. */
-  readonly kind?: 'work' | 'review'
-  /** Required exactly when kind=review; must name one of the owning step's reviewLanes. */
-  readonly review_lane?: string
   /** 同 step 内其它 skill 的 id；无 = 无依赖，可立即调用。跨 step 引用是校验期错误（Task 4）。 */
   readonly depends_on?: readonly string[]
 }
@@ -252,8 +242,6 @@ export interface StepDef {
   readonly gate: GateKind
   /** 该 step 交给运行时 agent 的任务补充指令。项目 YAML 以 `prompt: |-` literal block 保真落盘。 */
   readonly prompt?: string
-  /** Stable automatic Review lanes aggregated into one candidate-bound attempt. */
-  readonly reviewLanes?: readonly string[]
   readonly skills: readonly SkillRef[]
   readonly inputs: readonly FieldRef[]
   readonly outputs: readonly FieldRef[]
@@ -283,7 +271,6 @@ export interface WorkflowDef {
   readonly name: string
   readonly decomposition?: Omit<Partial<WorkflowDecompositionPolicyV1>, 'version'> & { readonly version: 'v1' }
   readonly interaction?: Omit<Partial<WorkflowInteractionPolicyV1>, 'version'> & { readonly version: 'v1' }
-  readonly reviewBudget?: Omit<Partial<WorkflowReviewBudgetPolicyV1>, 'version'> & { readonly version: 'v1' }
   /** 唯一的 OpenSpec 开关：parse 只产出 true 或缺省；关闭时没有文档治理。 */
   readonly openspec?: boolean
   /** 只与顶层 steps 同在；有 tracks 时写在 tracks.<id>.documentContract。 */

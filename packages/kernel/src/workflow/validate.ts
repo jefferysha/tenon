@@ -125,11 +125,6 @@ function validateBranchSteps(
     if (!IDENT_RE.test(step.id)) {
       errors.push(`step id '${step.id}' 含非法字符（仅允许 a-zA-Z0-9_-）`)
     }
-    for (const lane of step.reviewLanes ?? []) {
-      if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/u.test(lane)) {
-        errors.push(`step '${step.id}' 的 Review lane '${lane}' 含非法字符`)
-      }
-    }
     for (const skill of step.skills) {
       if (!SKILL_IDENT_RE.test(skill.id)) {
         errors.push(`step '${step.id}' 的 skill id '${skill.id}' 含非法字符（仅允许 a-zA-Z0-9_- 及命名空间冒号，如 superpowers:brainstorming）`)

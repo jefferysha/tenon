@@ -30,7 +30,6 @@ export type {
   WbDecompositionTarget,
   WbInteractionMode,
   WbInteractionPolicy,
-  WbReviewBudgetPolicy,
 } from '../api/governanceTypes'
 
 /**
@@ -325,7 +324,6 @@ export function displacedBackTransitions(before: WbWorkflowDef, after: WbWorkflo
 function cloneSteps(steps: readonly WbStepDef[]): WbStepDef[] {
   return steps.map((step) => ({
     ...step,
-    reviewLanes: step.reviewLanes === undefined ? undefined : [...step.reviewLanes],
     skills: step.skills.map((skill) => ({
       ...skill,
       depends_on: skill.depends_on ? [...skill.depends_on] : undefined,
@@ -356,7 +354,6 @@ export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDe
       ask_when: [...def.decomposition.ask_when],
     },
     interaction: def.interaction === undefined ? undefined : { ...def.interaction },
-    reviewBudget: def.reviewBudget === undefined ? undefined : { ...def.reviewBudget },
     documentContract: def.documentContract === undefined ? undefined : cloneDocumentContract(def.documentContract),
     steps: cloneSteps(def.steps),
   }

@@ -1898,7 +1898,6 @@ steps:
     const {
       decomposition: _decomposition,
       interaction: _interaction,
-      reviewBudget: _reviewBudget,
       // Historical bytes predate the openspec key and YAML-declared document contracts.
       openspec: _openspec,
       documentContract: _documentContract,
@@ -1909,7 +1908,7 @@ steps:
       // Historical bytes also predate step prompts (the frontend branch gained them with DESIGN.md).
       steps: legacyBase.steps.map((step) => {
         // Historical bytes also predate step tests (2026-09 per-step test evidence) and step prompts.
-        const { reviewLanes: _reviewLanes, tests: _tests, prompt: _prompt, ...legacyStep } = step
+        const { tests: _tests, prompt: _prompt, agents: _agents, ...legacyStep } = step
         return {
           ...legacyStep,
           // The last step was labelled 归档 before the 完结 wording.

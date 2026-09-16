@@ -13,7 +13,6 @@ describe('review candidate normalization', () => {
     const token = createBuildRevisionToken('git', 'a'.repeat(40), identity)
     const plan = compileEffectiveWorkflowPlan('candidate-flow', {
       name: 'candidate-flow',
-      reviewBudget: { version: 'v1', max_attempts: 2 },
       steps: [
         {
           id: 'build', label: 'Build', gate: null, skills: [],

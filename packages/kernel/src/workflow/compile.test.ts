@@ -181,8 +181,8 @@ describe('v1 → IR 下沉', () => {
     expect(step.label).toBe('构建')
     expect(step.gate).toBe('auto')
     expect(step.skills).toEqual([
-      { id: 'writer', kind: 'work' },
-      { id: 'reviewer', kind: 'work', depends_on: ['writer'] },
+      { id: 'writer' },
+      { id: 'reviewer', depends_on: ['writer'] },
     ])
     expect(step.inputs).toEqual([{ field: 'plan', type: 'file_path' }])
     expect(step.outputs).toEqual([{ field: 'branch', type: 'string' }])

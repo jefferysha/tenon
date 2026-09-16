@@ -17,8 +17,8 @@ const DEF: WbWorkflowDef = {
 describe('skillWaves · 列模型往返', () => {
   it('wavesToSkills 与 wavesOf 互逆', () => {
     const waves = [['s1', 's2'], ['s3'], ['s4', 's5']]
-    const skills = wavesToSkills(waves, [{ id: 's3', kind: 'review', review_lane: 'e2e' }])
-    expect(skills.find((skill) => skill.id === 's3')).toEqual({ id: 's3', kind: 'review', review_lane: 'e2e', depends_on: ['s1', 's2'] })
+    const skills = wavesToSkills(waves, [{ id: 's3' }])
+    expect(skills.find((skill) => skill.id === 's3')).toEqual({ id: 's3', depends_on: ['s1', 's2'] })
     expect(wavesOf(skills)).toEqual(waves)
     expect(skillExecutionWaves(['x'], {})).toEqual([['x']])
   })

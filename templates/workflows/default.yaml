@@ -1,7 +1,4 @@
 name: default
-review_budget:
-  version: v1
-  max_attempts: 2
 openspec: true
 tracks:
   chat:
@@ -117,7 +114,6 @@ tracks:
       - id: verify
         label: 验证
         gate: review
-        review_lanes: [standards, spec, e2e]
         skills:
           - id: tenon-verify
         inputs:
@@ -287,7 +283,6 @@ tracks:
       - id: verify
         label: 验证
         gate: review
-        review_lanes: [standards, spec, e2e]
         skills:
           - id: tenon-verify
           - id: browser-qa
@@ -486,7 +481,6 @@ tracks:
       - id: verify
         label: 验证
         gate: review
-        review_lanes: [standards, spec, e2e]
         skills:
           - id: tenon-verify
           - id: browser-qa
@@ -518,6 +512,24 @@ tracks:
               - path: test-results
                 kind: trace
                 required: false
+        agents:
+          reviewers:
+            - agent: spec-consistency
+              required: true
+              block_at: medium
+            - agent: frontend-quality
+              required: true
+              block_at: medium
+            - agent: security
+              required: true
+              block_at: medium
+            - agent: e2e
+              required: true
+              block_at: medium
+            - agent: architecture
+              required: false
+              block_at: high
+              depends_on: [spec-consistency, frontend-quality, security, e2e]
         guards: []
         transitions:
           - event: verify-pass
@@ -697,7 +709,6 @@ tracks:
       - id: verify
         label: 验证
         gate: review
-        review_lanes: [standards, spec, e2e]
         skills:
           - id: tenon-verify
           - id: verification-before-completion
@@ -718,6 +729,21 @@ tracks:
             label: 集成
             timeout_s: 1800
             required: true
+        agents:
+          reviewers:
+            - agent: spec-consistency
+              required: true
+              block_at: medium
+            - agent: backend-quality
+              required: true
+              block_at: medium
+            - agent: security
+              required: true
+              block_at: medium
+            - agent: architecture
+              required: false
+              block_at: high
+              depends_on: [spec-consistency, backend-quality, security]
         guards: []
         transitions:
           - event: verify-pass
@@ -877,7 +903,6 @@ tracks:
       - id: verify
         label: 验证
         gate: review
-        review_lanes: [standards, spec, e2e]
         skills:
           - id: tenon-verify
           - id: verification-before-completion

@@ -23,7 +23,7 @@ import type {
   ArtifactProducerPolicy, FieldRef, GateKind, SkillRef, StepAgentsDef, TestInputDef, TestMetricCriterion,
   TestOutputDef, TestOutputKind, WorkflowActionConfig, WorkflowConditional,
   WorkflowDecompositionPolicyV1, WorkflowDocumentContractV1, WorkflowGuardConfig,
-  WorkflowInteractionPolicyV1, WorkflowReviewBudgetPolicyV1,
+  WorkflowInteractionPolicyV1,
 } from './types.js'
 import type { TrackPredicate } from './predicates.js'
 import type {
@@ -192,8 +192,6 @@ export interface StepIR {
   readonly gate: GateKind
   /** 冻结后的 step agent 指令；缺席表示只使用生产 runner 的固定安全 prompt。 */
   readonly prompt?: string
-  /** Always present on newly compiled plans; optional only for historical snapshot compatibility. */
-  readonly reviewLanes?: readonly string[]
   readonly skills: readonly SkillRef[]
   readonly inputs: readonly FieldRef[]
   readonly outputs: readonly FieldRef[]
@@ -211,7 +209,6 @@ export interface WorkflowIR {
   readonly name: string
   readonly decomposition: WorkflowDecompositionPolicyV1
   readonly interaction: WorkflowInteractionPolicyV1
-  readonly reviewBudget: WorkflowReviewBudgetPolicyV1
   /** OpenSpec 开关；compile 把 false 归一为缺省。 */
   readonly openspec?: true
   readonly documentContract?: WorkflowDocumentContractV1
