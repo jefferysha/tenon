@@ -19,6 +19,10 @@ export interface UserProjectPaths {
   readonly authority: string
   readonly archived: string
   readonly artifactsDir: string
+  /** 测试运行中标记 `local/running/<change>/<test-id>.json`。 */
+  readonly runningDir: string
+  /** 环境变量摘要用的本机 HMAC 密钥（$HOME 在 Codex 里不可写，所以密钥留在仓库内的本机目录）。 */
+  readonly envKey: string
 }
 
 /** Slugs come from `userSlug`: `[a-z0-9._-]` and always `-at-`, so `.` / `..` can never appear. */
@@ -37,6 +41,8 @@ export function userProjectPaths(repoRoot: string, slug: string): UserProjectPat
     authority: join(localDir, 'authority'),
     archived: join(localDir, 'archived.json'),
     artifactsDir: join(localDir, 'artifacts'),
+    runningDir: join(localDir, 'running'),
+    envKey: join(localDir, 'env.key'),
   }
 }
 
