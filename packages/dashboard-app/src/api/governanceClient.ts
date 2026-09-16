@@ -11,7 +11,6 @@ import {
   decodeHistory,
   decodeHooksConfig,
   decodeNames,
-  decodeRoot,
   decodeRouterPreview,
   isPromptSkipKeyword,
 } from './governanceDecoders'
@@ -33,21 +32,6 @@ async function readOrThrow<T>(
   const decoded = decode(body)
   if (!decoded) throw new ApiError(invalidMessage, response.status)
   return decoded
-}
-
-export async function registerProject(root: string): Promise<{ root: string }> {
-  let response: Response
-  try {
-    response = await fetch('/api/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify({ root }),
-    })
-  } catch (error) {
-    wrapNetwork(error)
-  }
-  if (!response.ok) await throwApiError(response, '注册项目失败')
-  return readOrThrow(response, decodeRoot, '注册项目响应形状无效')
 }
 
 export async function unregisterProject(root: string): Promise<void> {

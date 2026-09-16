@@ -61,13 +61,18 @@ function AppShell(): JSX.Element {
   })
   const { theme, setTheme } = useDashboardTheme()
   const { flash, flashRef, showFlash } = useFlash(lang)
-  const [workbenchDirty, setWorkbenchDirty] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null)
   const pendingNavigationRef = useRef<PendingNavigation | null>(null)
   const viewRef = useRef(view)
-  const dirtyRef = useRef(workbenchDirty)
+  // 带未保存草稿的视图（任何编辑器通过 onDirtyChange 上报）；离开该视图才需要确认。
+  const dirtyViewRef = useRef<View | null>(null)
   const currentRootRef = useRef('')
   viewRef.current = view
+
+  const leavesDirtyView = useCallback((target: View): boolean => {
+    const dirty = dirtyViewRef.current
+    return dirty !== null && viewRef.current === dirty && target !== dirty
+  }, [])
 
   const commitView = useCallback((v: View) => {
     setViewState(v)
@@ -92,25 +97,22 @@ function AppShell(): JSX.Element {
 
   const onUninterceptablePopAttempt = useCallback((target: DashboardNavigationTarget): boolean => {
     if (pendingNavigationRef.current !== null) return false
-    // 工作流是全局的：切项目不会卸载草稿，只有离开工作流页才需要守卫。
-    const leavesDirtyWorkbench = target.view !== 'workbench'
-    if (viewRef.current !== 'workbench' || !dirtyRef.current || !leavesDirtyWorkbench) return true
+    // 切项目不会卸载草稿，只有离开带草稿的视图才需要守卫。
+    if (!leavesDirtyView(target.view)) return true
     const discard = window.confirm(`${t('common.unsaved_navigation_title')}\n\n${t('common.unsaved_navigation_body')}`)
     if (!discard) return false
     clearPendingNavigation()
-    dirtyRef.current = false
-    setWorkbenchDirty(false)
+    dirtyViewRef.current = null
     return true
-  }, [clearPendingNavigation, t])
+  }, [clearPendingNavigation, leavesDirtyView, t])
 
   const onPopAttempt = useCallback((target: DashboardNavigationTarget): boolean => {
-    const leavesDirtyWorkbench = target.view !== 'workbench'
-    if (viewRef.current === 'workbench' && dirtyRef.current && leavesDirtyWorkbench) {
+    if (leavesDirtyView(target.view)) {
       capturePendingNavigation({ kind: 'pop', target })
       return false
     }
     return true
-  }, [capturePendingNavigation])
+  }, [capturePendingNavigation, leavesDirtyView])
   const { snapshot, loading, error, connected, refresh, reconnect } = useSnapshot()
   const snapshotError = error === null ? null : formatApiError(error, t)
   const staleSnapshotError =
@@ -146,12 +148,11 @@ function AppShell(): JSX.Element {
   }, [currentRoot, selectedChange, snapshot, view])
 
   const setView = useCallback((nextView: View): void => {
-    if (viewRef.current === 'workbench' && dirtyRef.current && nextView !== 'workbench') {
+    if (leavesDirtyView(nextView)) {
       if (!supportsNavigationInterception && pendingNavigationRef.current === null) {
         const discard = window.confirm(`${t('common.unsaved_navigation_title')}\n\n${t('common.unsaved_navigation_body')}`)
         if (!discard) return
-        dirtyRef.current = false
-        setWorkbenchDirty(false)
+        dirtyViewRef.current = null
         commitView(nextView)
         return
       }
@@ -166,7 +167,7 @@ function AppShell(): JSX.Element {
       return
     }
     commitView(nextView)
-  }, [capturePendingNavigation, commitView, selectedChange, supportsNavigationInterception, t])
+  }, [capturePendingNavigation, commitView, leavesDirtyView, selectedChange, supportsNavigationInterception, t])
 
   const closePendingNavigation = useCallback(() => {
     cancelPopNavigation(clearPendingNavigation)
@@ -177,27 +178,27 @@ function AppShell(): JSX.Element {
     const pending = pendingNavigation
     if (pending.kind === 'pop') {
       clearPendingNavigation()
-      dirtyRef.current = false
-      setWorkbenchDirty(false)
+      dirtyViewRef.current = null
       confirmPopNavigation()
       return
     }
     cancelPopNavigation(() => {
       clearPendingNavigation()
-      dirtyRef.current = false
-      setWorkbenchDirty(false)
+      dirtyViewRef.current = null
       commitView(pending.target.view)
     })
   }, [cancelPopNavigation, clearPendingNavigation, commitView, confirmPopNavigation, pendingNavigation])
 
-  const onWorkbenchDirtyChange = useCallback((dirty: boolean): void => {
-    dirtyRef.current = dirty
-    setWorkbenchDirty(dirty)
+  /** 编辑器上报草稿状态：dirty 时记住所在视图；清空时只清自己那一份。 */
+  const onDirtyChange = useCallback((source: View, dirty: boolean): void => {
+    if (dirty) dirtyViewRef.current = source
+    else if (dirtyViewRef.current === source) dirtyViewRef.current = null
   }, [])
+  const onWorkbenchDirtyChange = useCallback((dirty: boolean): void => onDirtyChange('workbench', dirty), [onDirtyChange])
 
   useEffect(() => {
     const protectDraft = (event: BeforeUnloadEvent): void => {
-      if (!dirtyRef.current) return
+      if (dirtyViewRef.current === null) return
       event.preventDefault()
       event.returnValue = ''
     }

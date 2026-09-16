@@ -23,10 +23,6 @@ export function isPromptSkipKeyword(value: unknown): value is string {
     && (value === '' || /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/.test(value))
 }
 
-export function decodeRoot(value: unknown): { root: string } | null {
-  return isRecord(value) && typeof value.root === 'string' ? { root: value.root } : null
-}
-
 export function decodeNames(value: unknown): string[] | null {
   return isRecord(value) && stringArray(value.names) ? value.names : null
 }
