@@ -25,8 +25,12 @@ async function viewerArchive(deps: SnapshotDeps, readRoot: string, root: string)
   return read.kind === 'ok' ? read.archive : undefined
 }
 
-async function uncommittedDeletions(deps: SnapshotDeps, readRoot: string): Promise<number | undefined> {
-  const count = await deps.countDeletions?.(readRoot)
+/**
+ * `readRoot` may be the anchor's `/proc/self/fd/<n>` handle, which only this process can resolve; a spawned
+ * git would fail on it. The count therefore probes the anchor's real path, the one a child process can use.
+ */
+async function uncommittedDeletions(deps: SnapshotDeps, anchor: WorkflowRootAnchor): Promise<number | undefined> {
+  const count = await deps.countDeletions?.(anchor.realPath)
   return count === undefined || count === null ? undefined : count
 }
 
@@ -52,7 +56,7 @@ export async function scanAnchoredProject(
     assertWorkflowRootAnchor(anchor)
     if (typeof error !== 'object' || error === null || Reflect.get(error, 'code') !== 'ENOENT') throw error
     // 已注册但尚无 openspec/changes —— 合法空项目
-    const deletions = await uncommittedDeletions(deps, readRoot)
+    const deletions = await uncommittedDeletions(deps, anchor)
     return {
       root, ok: true, changes: [], workflowRules: {},
       ...(deletions === undefined ? {} : { uncommittedDeletions: deletions }),
@@ -228,7 +232,7 @@ export async function scanAnchoredProject(
   }
   changes.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
   archived.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-  const deletions = await uncommittedDeletions(deps, readRoot)
+  const deletions = await uncommittedDeletions(deps, anchor)
   compatibilityIssues.sort((a, b) => (
     a.change < b.change ? -1 : a.change > b.change ? 1 : 0
   ))

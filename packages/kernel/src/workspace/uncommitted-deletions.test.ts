@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
-import { countUncommittedTaskDeletions } from './uncommitted-deletions.js'
+import {
+  countUncommittedTaskDeletions, isProcessLocalFdPath, probeUncommittedTaskDeletions,
+} from './uncommitted-deletions.js'
 
 const execFileAsync = promisify(execFile)
 const roots: string[] = []
@@ -66,7 +68,8 @@ describe('countUncommittedTaskDeletions', () => {
     const plain = await mkdtemp(join(tmpdir(), 'tenon-uncommitted-plain-'))
     roots.push(plain)
     expect(await countUncommittedTaskDeletions(plain)).toBeNull()
-    expect(await countUncommittedTaskDeletions(plain, async () => ({ code: 128, stdout: '' }))).toBeNull()
+    const repo = await repositoryWithTwoChanges()
+    expect(await countUncommittedTaskDeletions(repo, async () => ({ code: 128, stdout: '' }))).toBeNull()
   })
 
   it('skips the source path of a rename entry', async () => {
@@ -78,5 +81,49 @@ describe('countUncommittedTaskDeletions', () => {
     expect(await countUncommittedTaskDeletions(root, runner)).toBe(0)
     await rm(join(root, 'openspec', 'changes', 'add-login'), { recursive: true, force: true })
     expect(await countUncommittedTaskDeletions(root, runner)).toBe(1)
+  })
+})
+describe('probeUncommittedTaskDeletions', () => {
+  it('separates "no repository here" from "the probe failed", and quotes git', async () => {
+    const plain = await mkdtemp(join(tmpdir(), 'tenon-probe-plain-'))
+    roots.push(plain)
+    const absent = await probeUncommittedTaskDeletions(plain)
+    expect(absent.kind).toBe('absent')
+    expect(absent.kind === 'absent' && absent.reason).toContain(plain)
+
+    const repo = await repositoryWithTwoChanges()
+    expect(await probeUncommittedTaskDeletions(repo)).toEqual({ kind: 'ok', count: 0 })
+
+    const failed = await probeUncommittedTaskDeletions(repo, async () => ({
+      code: 128, stdout: '', stderr: 'fatal: not a git repository\n',
+    }))
+    expect(failed.kind).toBe('unavailable')
+    expect(failed.kind === 'unavailable' && failed.reason).toContain('128')
+    expect(failed.kind === 'unavailable' && failed.reason).toContain('fatal: not a git repository')
+  })
+
+  /**
+   * A `/proc/self/fd/<n>` path is an entry in *this* process's descriptor table; a spawned git resolves it
+   * against its own table and fails with a misleading ENOENT. Refusing it by name is what turns that
+   * Linux-only silence into a reason a caller can print.
+   */
+  it('refuses a process-local fd path by name instead of spawning git against it', async () => {
+    let spawned = 0
+    const runner = async (): Promise<{ code: number; stdout: string }> => {
+      spawned += 1
+      return { code: 0, stdout: '' }
+    }
+    for (const path of ['/proc/self/fd/18', '/proc/4121/fd/7', '/dev/fd/3', '/proc/self/fd/18/openspec']) {
+      expect(isProcessLocalFdPath(path)).toBe(true)
+      const probe = await probeUncommittedTaskDeletions(path, runner)
+      expect(probe.kind).toBe('unavailable')
+      expect(probe.kind === 'unavailable' && probe.reason).toContain(path)
+      expect(await countUncommittedTaskDeletions(path, runner)).toBeNull()
+    }
+    expect(spawned).toBe(0)
+
+    for (const path of ['/tmp/repo', '/dev/fdx/3', '/home/a/proc/self/fd/2', '/dev/fd/abc']) {
+      expect(isProcessLocalFdPath(path)).toBe(false)
+    }
   })
 })

@@ -17,7 +17,7 @@ import {
   validateWorkflow,
   stateStorageExistsSync, validateWorkflowTrackReferences, withRegistryGovernanceLock, withTrackRegistryLock,
   writeRegistryWithGovernance,
-  createOrchestrationLedger, countUncommittedTaskDeletions,
+  createOrchestrationLedger,
 } from '@tenon/kernel'
 import { artifactNamespaceForChange, createRunnerSkillContentLocator, createProductionExecutionRuntimeV2, evaluateLoopExecutionWiring, openArtifactService, type ArtifactService } from '@tenon/automation'
 import type { FreezeWorkflowInputV2 } from './serverOrchestrationV2Routes.js'
@@ -62,7 +62,7 @@ import { handleGet as handleGetRoute } from './serverGetRoutes.js'
 import { createHostTargetPlanRuntime } from './serverGetHostTargetPlanRoutes.js'
 import { handleDeleteRoute, handlePatchRoute, handlePutRoute } from './serverMutationRoutes.js'
 import { handlePostRoute } from './serverPostRoutes.js'
-import { createTaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
+import { countProjectDeletions, createTaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 import {
   assertDashboardTransactionId,
   errMsg,
@@ -217,7 +217,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     artifactServiceForRoot,
     // 归档只对查看者生效，未提交删除是仓库事实；两者都按项目读一次。
     viewer: resolveUser,
-    countDeletions: (readRoot) => countUncommittedTaskDeletions(readRoot),
+    countDeletions: (repoRoot) => countProjectDeletions(repoRoot),
     ...(loadedManifest === undefined ? {} : { mandatorySkills: loadedManifest.mandatorySkills }),
   })
 

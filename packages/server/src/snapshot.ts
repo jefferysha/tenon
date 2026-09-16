@@ -87,7 +87,8 @@ export interface SnapshotDeps extends WorkflowSnapshotCapabilityDeps {
    */
   viewer?: (root: string) => TenonUserResolution
   /** 未提交删除 count per project; absent or `null` keeps the field out of the response. */
-  countDeletions?: (readRoot: string) => Promise<number | null>
+  /** Takes a path a spawned git can resolve (never the anchor's process-local fd handle). */
+  countDeletions?: (repoRoot: string) => Promise<number | null>
 }
 
 export function snapshotDepsFactory(

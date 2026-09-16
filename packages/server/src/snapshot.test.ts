@@ -22,7 +22,8 @@ import {
 } from '@tenon/kernel'
 import { ArtifactScopeMigrationError } from '@tenon/automation'
 import { buildSnapshot, computeFingerprint } from './snapshot.js'
-import { ensureUserLocalDir, serializeTaskArchive, type TenonUserResolution } from '@tenon/kernel'
+import { countProjectDeletions } from './serverTaskLifecycleRoutes.js'
+import { ensureUserLocalDir, isProcessLocalFdPath, serializeTaskArchive, type TenonUserResolution } from '@tenon/kernel'
 import { snapshotWorkflowRules } from './workflowSnapshot.js'
 import { readTasksMarkdown } from './snapshotTasks.js'
 import {
@@ -2239,6 +2240,53 @@ describe('归档划分与未提交删除（查看者视角）', () => {
     })
     expect(corrupt.projects[0]?.changes.map((change) => change.name)).toEqual(['hidden'])
     expect(corrupt.projects[0]?.archived).toBeUndefined()
+  })
+
+  /**
+   * Regression: the snapshot's readRoot may be the anchor's `/proc/self/fd/<n>` handle (Linux only), which
+   * no child process can resolve — a spawned `git -C` there fails with a misleading ENOENT and the count
+   * silently vanished from the response. The fd path is forced here so the guard holds on every platform.
+   */
+  it('未提交删除 probes the anchor real path, never the process-local fd handle', async () => {
+    const store = newStore()
+    const root = await makeProject()
+    await initChange(store, root, 'one')
+    const anchor = captureWorkflowRootAnchor(root)
+    const seen: string[] = []
+    try {
+      const snapshot = await buildSnapshot({
+        registry: () => [root],
+        store,
+        version: '1',
+        clock: () => 't',
+        rootAnchor: () => ({ ...anchor, fdPath: '/proc/self/fd/4242' }),
+        countDeletions: async (repoRoot) => { seen.push(repoRoot); return 3 },
+      })
+      expect(seen).toEqual([anchor.realPath])
+      expect(seen.every((candidate) => !isProcessLocalFdPath(candidate))).toBe(true)
+      expect(snapshot.projects[0]?.uncommittedDeletions).toBe(3)
+    } finally {
+      closeWorkflowRootAnchor(anchor)
+    }
+  })
+
+  it('未提交删除 counts through the real probe for a real repository', async () => {
+    const store = newStore()
+    const root = await realpath(await makeProject())
+    await initChange(store, root, 'gone')
+    await initChange(store, root, 'kept')
+    await execFileAsync('git', ['init', '-q'], { cwd: root })
+    await execFileAsync('git', ['config', 'user.email', 'tenon-tests@example.invalid'], { cwd: root })
+    await execFileAsync('git', ['config', 'user.name', 'Tenon tests'], { cwd: root })
+    await execFileAsync('git', ['add', '-A'], { cwd: root })
+    await execFileAsync('git', ['commit', '-qm', 'seed'], { cwd: root })
+    await rm(join(root, 'openspec', 'changes', 'gone'), { recursive: true, force: true })
+
+    const snapshot = await buildSnapshot({
+      registry: () => [root], store, version: '1', clock: () => 't', countDeletions: countProjectDeletions,
+    })
+    expect(snapshot.projects[0]?.changes.map((change) => change.name)).toEqual(['kept'])
+    expect(snapshot.projects[0]?.uncommittedDeletions).toBe(1)
   })
 
   it('未提交删除数按项目注入；null 时字段缺省', async () => {

@@ -57,8 +57,12 @@ export {
 } from './workspace/task-archive.js'
 export type { TaskArchive, TaskArchiveEntry, TaskArchiveRead, TaskArchiveUpdate } from './workspace/task-archive.js'
 export { withTaskArchiveLock, withoutTaskArchiveEntry, writeTaskArchiveOf } from './workspace/task-archive.js'
-export { countUncommittedTaskDeletions, gitStatusRunner } from './workspace/uncommitted-deletions.js'
-export type { GitStatusRunner } from './workspace/uncommitted-deletions.js'
+export {
+  countUncommittedTaskDeletions, gitStatusRunner, isProcessLocalFdPath, probeUncommittedTaskDeletions,
+} from './workspace/uncommitted-deletions.js'
+export type {
+  GitStatusResult, GitStatusRunner, UncommittedDeletionsProbe,
+} from './workspace/uncommitted-deletions.js'
 // 删除 / 归档 / 取消归档 的唯一实现：CLI 与 server 共用同一个 application、同一套原因与记录。
 export { createTaskLifecycleApplication, taskLifecycleUnlockHint } from './workspace/task-lifecycle.js'
 export type {
