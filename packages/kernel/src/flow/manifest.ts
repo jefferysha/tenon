@@ -78,8 +78,6 @@ export interface ExtendedManifestData extends ManifestData {
   recommendedSkills: SkillTable
   /** Explicit closed action grants by Skill profile; never inferred from skill slots or prose. */
   skillActionAuthority: SkillActionAuthorityManifestV1 | null
-  /** Explicit Review Skill id -> lane classification; never inferred from the id text. */
-  reviewSkillLanes: Readonly<Record<string, string>>
   /** phase → breadcrumb prose；hooks/router.sh:201 每轮注入。缺相位则键缺省。 */
   breadcrumbs: Readonly<Partial<Record<Phase, string>>>
 }
@@ -196,34 +194,7 @@ interface RawSections {
   mandatory_skills?: Map<string, string[]>
   recommended_skills?: Map<string, string[]>
   skill_action_authority?: { version: string; grants: Map<string, string[]> }
-  review_skills?: Map<string, string[]>
   breadcrumb?: Map<string, string>
-}
-
-function parseReviewSkillsBlock(
-  lines: string[], start: number, path: string,
-): { map: Map<string, string[]>; next: number } {
-  const map = new Map<string, string[]>()
-  let i = start
-  while (i < lines.length) {
-    const line = stripComment(lines[i]!)
-    if (line.trim() === '') { i++; continue }
-    if (!/^\s/.test(line)) break
-    const entry = line.match(/^\s+([A-Za-z0-9][A-Za-z0-9._-]{0,127}):\s*(\[.*\])\s*$/)
-    if (!entry) throw new ManifestError(`${path}:${i + 1} review_skills 条目须为 'lane: [skill, ...]'`)
-    const lane = entry[1]!
-    if (map.has(lane)) throw new ManifestError(`${path}:${i + 1} review_skills.${lane} 重复`)
-    const list = entry[2]!
-    const inner = /^\[(.*)\]$/.exec(list)?.[1] ?? ''
-    if (inner.trim() !== '' && inner.split(',').some((item) => item.trim() === '')) {
-      throw new ManifestError(`${path}:${i + 1} review_skills.${lane} 含空 skill`)
-    }
-    const skills = parseFlowList(list, `review_skills.${lane}`)
-    for (const skill of skills) skillTokenAlternatives(skill)
-    map.set(lane, skills)
-    i++
-  }
-  return { map, next: i }
 }
 
 function parseSkillActionAuthorityBlock(
@@ -462,12 +433,6 @@ function scanSections(text: string, path: string): RawSections {
       const r = parseSkillActionAuthorityBlock(lines, i + 1, path)
       out.skill_action_authority = r.value
       i = r.next
-    } else if (key === 'review_skills') {
-      if (rest !== '') throw new ManifestError(`${path}:${i + 1} review_skills 必须是块小节`)
-      if (out.review_skills !== undefined) throw new ManifestError(`${path}:${i + 1} review_skills 小节重复`)
-      const r = parseReviewSkillsBlock(lines, i + 1, path)
-      out.review_skills = r.map
-      i = r.next
     } else if (key === 'breadcrumb') {
       if (rest !== '') throw new ManifestError(`${path}:${i + 1} breadcrumb 必须是块小节`)
       const r = parseBreadcrumbBlock(lines, i + 1, path)
@@ -581,20 +546,6 @@ export function loadManifest(path: string): ExtendedManifestData {
   const mandatorySkills = deriveSkillTable(raw.mandatory_skills, declared, 'mandatory_skills')
   const recommendedSkills = deriveSkillTable(raw.recommended_skills, declared, 'recommended_skills')
   const skillActionAuthority = deriveSkillActionAuthority(raw.skill_action_authority)
-  const reviewSkillLanes: Record<string, string> = {}
-  for (const [lane, skills] of raw.review_skills ?? []) {
-    for (const skill of skills) {
-      for (const alternative of skillTokenAlternatives(skill)) {
-        if (reviewSkillLanes[alternative] !== undefined) {
-          throw new ManifestError(
-            `review skill '${alternative}' 同时声明于 lanes '${reviewSkillLanes[alternative]}' 与 '${lane}'`,
-          )
-        }
-        reviewSkillLanes[alternative] = lane
-      }
-    }
-  }
-
   const breadcrumbs: Partial<Record<Phase, string>> = {}
   if (raw.breadcrumb) {
     for (const [phaseName, prose] of raw.breadcrumb) {
@@ -606,6 +557,6 @@ export function loadManifest(path: string): ExtendedManifestData {
 
   return {
     phases, transitions, reviewPhases, mandatorySkills, recommendedSkills,
-    skillActionAuthority, reviewSkillLanes, breadcrumbs,
+    skillActionAuthority, breadcrumbs,
   }
 }

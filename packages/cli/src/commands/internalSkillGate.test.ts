@@ -4,14 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cmdInternalSkillGate } from './internalSkillGate.js'
 import { makeDeps, mockState, spy } from '../test-support.js'
-import {
-  compileEffectiveWorkflowPlan,
-  createReviewAttemptBudgetStore,
-  workflowPlanSnapshot,
-} from '@tenon/kernel'
-
 describe('cmdInternalSkillGate', () => {
-  const REVIEW_CANDIDATE = `workspace:sha256:${'1'.repeat(64)}`
   it('workflow=default 的 change → 直接放行（这条能力只管非 default workflow）', async () => {
     const deps = makeDeps()
     const code = await cmdInternalSkillGate(deps, 'some-change', 'any-skill')
@@ -87,82 +80,6 @@ steps:
       root = await mkdtemp(join(tmpdir(), 'internal-skill-gate-'))
       await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
       await writeFile(join(root, '.pipeline', 'workflows', 'custom1.yaml'), WF, 'utf8')
-    })
-
-    it('显式第三方 Review Skill 在 active attempt 前失败关闭，普通 work Skill 不靠名字误判', async () => {
-      const definition = {
-        name: 'custom-review',
-        reviewBudget: { version: 'v1', max_attempts: 2 } as const,
-        steps: [{
-          id: 'verify', label: 'Verify', gate: 'review' as const,
-          reviewLanes: ['standards', 'e2e'],
-          skills: [
-            { id: 'acme-quality-gate', kind: 'review' as const, review_lane: 'standards' },
-            { id: 'e2e-looking-work', kind: 'work' as const },
-          ],
-          inputs: [], outputs: [], guards: [], transitions: [],
-        }],
-      }
-      const plan = compileEffectiveWorkflowPlan('custom-review', definition)
-      const state = {
-        ...mockState({ workflow: 'custom-review', phase: 'verify' }),
-        runMetadata: {
-          runId: 'review-run',
-          transitionSequence: 0,
-          workflowPlanFingerprint: plan.workflowFingerprint,
-          workflowPlanSnapshot: workflowPlanSnapshot(plan),
-        },
-      }
-      const workflowPath = join(root, '.pipeline', 'workflows', 'custom-review.yaml')
-      await writeFile(workflowPath, `name: custom-review
-review_budget:
-  version: v1
-  max_attempts: 2
-steps:
-  - id: verify
-    label: Verify
-    gate: review
-    review_lanes: [standards, e2e]
-    skills:
-      - id: acme-quality-gate
-        kind: review
-        review_lane: standards
-      - id: e2e-looking-work
-        kind: work
-    inputs: []
-    outputs: []
-    guards: []
-    transitions: []
-`, 'utf8')
-      const deps = makeDeps({ cwd: root, state, workspaceFingerprint: async () => REVIEW_CANDIDATE })
-
-      expect(await cmdInternalSkillGate(deps, 'demo', 'e2e-looking-work')).toBe(0)
-      expect(await cmdInternalSkillGate(deps, 'demo', 'acme-quality-gate')).toBe(2)
-      expect(deps.errLines.join('\n')).toMatch(/review-attempt begin|active attempt/i)
-
-      const dir = join(root, 'openspec', 'changes', 'demo')
-      await mkdir(dir, { recursive: true })
-      await createReviewAttemptBudgetStore({
-        attemptId: () => '00000000-0000-4000-8000-000000000001',
-      }).begin({
-        projectRoot: root,
-        changeDir: dir,
-        runId: 'review-run',
-        workflowFingerprint: plan.workflowFingerprint,
-        scope: 'verify',
-        candidateFingerprint: REVIEW_CANDIDATE,
-        maxAttempts: 2,
-        requiredLanes: ['standards', 'e2e'],
-      })
-      expect(await cmdInternalSkillGate(deps, 'demo', 'acme-quality-gate')).toBe(0)
-
-      const drifted = makeDeps({
-        cwd: root,
-        state,
-        workspaceFingerprint: async () => `workspace:sha256:${'2'.repeat(64)}`,
-      })
-      expect(await cmdInternalSkillGate(drifted, 'demo', 'acme-quality-gate')).toBe(2)
-      expect(drifted.errLines.join('\n')).toMatch(/frozen candidate|review-attempt begin/i)
     })
 
     afterEach(async () => {

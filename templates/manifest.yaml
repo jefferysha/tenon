@@ -59,11 +59,6 @@ skill_action_authority:
   backend: [enter-afk]
   free: []
 
-# Review 语义必须显式分类；lane 名绑定 workflow 的 review_lanes，不从 Skill id/prose 猜测。
-review_skills:
-  standards: [security-review, web-design-guidelines, design-taste-frontend]
-  e2e: [verification-before-completion, e2e-testing, browser-qa]
-
 # ══════════════════════════════════════════════════════════════════════════════
 # 全派生面数据节（BACKLOG #18 / GOAL A1）——全部经 kernel loadManifest 真派生，零硬编码。
 # 蒸馏来源：老仓 skills/pipeline/manifest.yaml + scripts/manifest.py（严格只读参考）。

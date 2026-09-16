@@ -71,35 +71,11 @@ tenon handoff "$TENON_CHANGE_NAME" --bundle --target verify --json
 > 先完整执行。`tenon check` 是 `verify-pass` 的成功出口校验，放在 Step 4 跑；回退则走独立的
 > `tenon review request --event verify-fail` 证据校验，不能拿通过路径的 guard 卡死失败决策。
 
-### Step 0.5: 开始唯一的候选 Review attempt（任何 Review 派发前 HARD GATE）
-
-先读取冻结候选，再原子 begin；默认 Workflow 的 required lanes 是 `standards/spec/e2e`。本命令在
-预算耗尽时非零退出，必须立即停止，不能派发 Skill、reviewer agent 或 E2E runner，也不能自动提高预算。
-
-```bash
-BUILD_BASELINE="$(tenon get "$TENON_CHANGE_NAME" build_sha)"
-ATTEMPT_JSON="$(tenon review-attempt begin "$TENON_CHANGE_NAME" \
-  --candidate "$BUILD_BASELINE" --json)" || exit $?
-ATTEMPT_ID="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(x.attemptId)' "$ATTEMPT_JSON")"
-```
-
-`review-attempt begin` 接受当前 canonical `build:v1` token，并在比较/存储前规范化为既有
-`sha256:<revision_hash>` candidate ABI；同一 token resume 不增加 `used`，token 变化必须产生新的
-candidate/attempt。非 canonical token、旧裸 SHA、任意 workspace baseline、空白包裹值或伪造输入均拒绝。
-
-同一候选重启或上下文恢复时，`begin` 返回相同 `ATTEMPT_ID` 且不增加 used。Standards/Spec reviewer、
-security、E2E/API/browser/visual/public acceptance、Codex 轨都消费这个 id；lane 重试、E2E shard 和进程
-恢复不得再次 begin。TDD、unit、typecheck、lint 已属于 Build 反馈，不在这里另扣次数。
-
 > **全量聚合规则（HARD）**：所有适用轨必须读取同一冻结基线。Reviewer 必须审完整冻结 diff、
 > 全部 changed/untracked 交付文件与所有受影响 capability，调用方给出的“重点关注”只能增加专项，
 > 不能缩小范围。任一轨先发现 CRITICAL/HIGH 时，其余已适用轨仍要完成；主线等待全部轨返回后，
 > 去重并一次性聚合全部 findings 再作 pass/fail。verify-fail 后的下一轮既回归已知 finding，也重新
 > 全量审冻结 diff，禁止只复查上轮问题。
-
-> **有限次数规则（HARD）**：上述全部轨只是同一个 attempt 内的 lanes，不是多个 Review。任何可选
-> Review Skill 也必须先由 internal Skill gate 证明 active attempt；第三方 Skill 通过 Workflow
-> `kind: review` + `review_lane` 显式分类，不按名称猜测。
 
 > **repo-zero-output barrier（HARD）**：`in-place` 从读取 `build_sha` 到全部轨聚合完成期间，
 > 真实工作区必须保持零实现/配置/生成物写入，且 dispatch 前必须确认没有仍在运行的 writer。
@@ -355,18 +331,6 @@ REPORT_PATH="docs/superpowers/reports/$(date +%Y-%m-%d)-${TENON_CHANGE_NAME}-ver
 # ... 写报告（含三/四轨结论 + Step 1.5 勾选表 + Step 1.6 隔离演练记录）...
 tenon artifact register "$TENON_CHANGE_NAME" verification_report "$REPORT_PATH" \
   --producer verification-before-completion
-
-# 三条 lane 都绑定同一 attempt。每条 result 来自报告中的对应结论；任一 fail 则整轮只能 complete=fail。
-tenon review-attempt lane "$TENON_CHANGE_NAME" --attempt-id "$ATTEMPT_ID" \
-  --lane standards --result <pass|fail> --report "$REPORT_PATH"
-tenon review-attempt lane "$TENON_CHANGE_NAME" --attempt-id "$ATTEMPT_ID" \
-  --lane spec --result <pass|fail> --report "$REPORT_PATH"
-tenon review-attempt lane "$TENON_CHANGE_NAME" --attempt-id "$ATTEMPT_ID" \
-  --lane e2e --result <pass|fail> --report "$REPORT_PATH"
-
-# 全部 lane 通过才允许 pass；否则用 fail 完成同一次 attempt，再走 verify-fail。
-tenon review-attempt complete "$TENON_CHANGE_NAME" --attempt-id "$ATTEMPT_ID" \
-  --result <pass|fail> --report "$REPORT_PATH"
 ```
 
 ### Step 2.25: 登记验证报告（受治理 workflow 强制）

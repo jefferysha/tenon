@@ -3,17 +3,14 @@
  * DAG 解锁判定，从 hooks/gate.sh 委托过来（GOAL 清单 E Task 9）。default 的 manifest overlay
  * 与 custom 的 step graph 都先编译为 EffectiveWorkflowPlan capability，再在本入口统一判定。
  *
- * exit 口径（同 gate.sh 契约）：0=放行，2=拦截。本命令绝不让 0/2 之外的 code 泄漏出去——任何
- * 普通 work Skill 的内部异常（state 读不到 / workflow 文件损坏 / history 行损坏等）仍 catch 到
- * 顶层并 fail-open，避免证据系统死锁；但一旦 effective plan 已显式把 Skill 分类为 Review，active
- * attempt 的缺失、损坏或 lane 不匹配必须在派发前 fail-closed（exit 2）。
+ * exit 口径（同 gate.sh 契约）：0=放行，2=拦截。本命令绝不让 0/2 之外的 code 泄漏出去——Skill
+ * 的内部异常（state 读不到 / workflow 文件损坏 / history 行损坏等）仍 catch 到顶层并 fail-open，
+ * 避免证据系统死锁。
  */
 import {
-  createReviewAttemptBudgetStore,
   isSkillUnlocked,
   resolveAvailableSkillSlots,
   resolveRequiredSkillSlots,
-  type EffectiveWorkflowPlan,
   type PipelineState,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
@@ -22,7 +19,6 @@ import { str } from '../render.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { canonicalTenonSkillId, completedSkillsSinceStepEntry, parseHistoryLines } from './stepSkillEvidence.js'
-import { frozenReviewCandidate } from './review-candidate.js'
 
 /** `tenon` is the normal-chat orchestration entrypoint, not a phase work item. Every custom
  * workflow reaches it before the selected step's own DAG can run, so enforcing per-step membership
@@ -30,75 +26,6 @@ import { frozenReviewCandidate } from './review-candidate.js'
  * skills such as `tenon-open` remain subject to the declared DAG. */
 function isTenonOrchestratorSkill(skillId: string): boolean {
   return canonicalTenonSkillId(skillId) === 'tenon'
-}
-
-function scalar(state: PipelineState, field: keyof PipelineState['fields']): string {
-  const value = state.fields[field]
-  return Array.isArray(value) ? value.join(',') : (value ?? '')
-}
-
-function explicitReviewLane(
-  deps: CliDeps,
-  plan: EffectiveWorkflowPlan,
-  stepId: string,
-  skillId: string,
-): string | undefined {
-  if (plan.capabilities.skills.source === 'manifest-overlay') {
-    return deps.resolver.reviewLaneFor?.(plan.capabilities.skills, stepId, skillId)
-  }
-  const step = plan.capabilities.skills.steps.find((candidate) => candidate.stepId === stepId)
-  return step?.declared.find((skill) => skill.id === skillId && skill.kind === 'review')?.reviewLane
-}
-
-async function requireActiveReviewAttempt(
-  deps: CliDeps,
-  change: string,
-  dir: string,
-  state: PipelineState,
-  plan: EffectiveWorkflowPlan,
-  skillId: string,
-): Promise<boolean> {
-  const stepId = scalar(state, 'phase')
-  const lane = explicitReviewLane(deps, plan, stepId, skillId)
-  if (lane === undefined) return true
-  const requiredLanes = plan.capabilities.review.laneScopes
-    .find((scope) => scope.stepId === stepId)?.lanes
-  if (requiredLanes === undefined || !requiredLanes.includes(lane)) {
-    deps.io.err(
-      `【Tenon Review 门】skill '${skillId}' 映射 lane '${lane}'，但 step '${stepId}' 未声明该 review_lanes`,
-    )
-    return false
-  }
-  const runId = state.runMetadata?.runId
-  if (runId === undefined || runId === '') {
-    deps.io.err(`【Tenon Review 门】skill '${skillId}' 缺 durable run identity，拒绝派发`)
-    return false
-  }
-  try {
-    const budget = await createReviewAttemptBudgetStore().inspect({
-      projectRoot: deps.cwd,
-      changeDir: dir,
-      runId,
-      workflowFingerprint: plan.workflowFingerprint,
-      scope: stepId,
-    })
-    const active = budget?.active
-    const candidateFingerprint = await frozenReviewCandidate(deps, change, state, plan, stepId)
-    if (active === null || active === undefined
-      || active.requiredLanes.length !== requiredLanes.length
-      || active.requiredLanes.some((required, index) => required !== requiredLanes[index])
-      || active.candidateFingerprint !== candidateFingerprint) {
-      deps.io.err(
-        `【Tenon Review 门】skill '${skillId}' 属于 lane '${lane}'，派发前必须先为当前 frozen candidate `
-        + `执行 tenon review-attempt begin（used=${budget?.used ?? 0}/${budget?.maxAttempts ?? plan.reviewBudget.max_attempts}）`,
-      )
-      return false
-    }
-    return true
-  } catch (error) {
-    deps.io.err(`【Tenon Review 门】无法证明 active attempt，拒绝派发: ${errMsg(error)}`)
-    return false
-  }
 }
 
 export async function cmdInternalSkillGate(deps: CliDeps, name: string, skillId: string): Promise<number> {
@@ -111,12 +38,6 @@ export async function cmdInternalSkillGate(deps: CliDeps, name: string, skillId:
     const canonicalSkillId = canonicalTenonSkillId(skillId)
 
     const dir = changeDir(deps.cwd, name)
-    const preflightState = await deps.store.read(dir)
-    const preflightPlan = effectiveWorkflowForState(deps, preflightState)
-    if (preflightPlan !== null
-      && !await requireActiveReviewAttempt(deps, name, dir, preflightState, preflightPlan, canonicalSkillId)) {
-      return 2
-    }
     // Reconciliation is deliberately synchronous and under the same change lock as this DAG
     // read.  A Codex PreToolUse receipt still has no effect unless the host transcript proves the
     // matching exec call completed; after that proof is appended, this invocation immediately sees
