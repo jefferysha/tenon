@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * 把 VoltAgent/awesome-design-md 的每个品牌目录写成一条 DESIGN.md 资源（`design-md-<slug>.yaml`）。
+ * 把上游品牌索引的每个目录写成一条 DESIGN.md 资源（`design-md-<slug>.yaml`）。
+ * 上游坐标写在 templates/resources/design-md-source.yaml：受管理文本里只有那一处出现外部项目身份。
  *
  * 目录只收录链接：品牌视觉归各公司所有，条目标为不可再分发，内容在选用时由 `npx getdesign add <slug>`
  * 落到项目根目录。需要联网，手动运行后提交产物，CI 不跑。同一天重跑输出逐字节一致。
@@ -8,13 +9,27 @@
  * 用法：node tools/generate-design-md-catalog.mjs [--check]
  *   --check  只比对现有文件，有差异时退出码 1（不写盘）
  */
-import { readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))
 const OUT_DIR = join(REPO_ROOT, 'templates', 'resources', 'builtin')
-const REPO = 'VoltAgent/awesome-design-md'
+const SOURCE_FILE = join(REPO_ROOT, 'templates', 'resources', 'design-md-source.yaml')
+
+/** 三行定值的窄读取（同 kernel 的手写扫描器口径）；缺任一行即 fail-loud。 */
+function readSource() {
+  const text = readFileSync(SOURCE_FILE, 'utf8')
+  const field = (key) => /^([a-z_]+):\s*(.+)$/mu.exec(text.split('\n').filter((line) => line.startsWith(`${key}:`))[0] ?? '')?.[2]?.trim()
+  const repo = field('repo')
+  const directory = field('directory')
+  const install = field('install')
+  if (!repo || !directory || !install) throw new Error(`design-md-source.yaml 缺 repo / directory / install`)
+  return { repo, directory, install }
+}
+
+const SOURCE = readSource()
+const REPO = SOURCE.repo
 const RAW = `https://raw.githubusercontent.com/${REPO}/HEAD`
 const LICENSE_URL = `${RAW}/LICENSE`
 /** 品牌条目 id 前缀；手工维护的条目一律不用这个前缀，本脚本会删掉前缀下多余的文件。 */
@@ -71,11 +86,11 @@ function render(slug, name, date) {
     '  commercial: free',
     '  notice: 品牌视觉归各公司所有，仅作参考起步',
     'install:',
-    `  - npx getdesign@latest add ${slug}`,
+    `  - ${SOURCE.install} ${slug}`,
     'skills: []',
     'links:',
-    `  source: https://github.com/${REPO}/tree/HEAD/design-md/${slug}`,
-    `  design_md: ${RAW}/design-md/${slug}/DESIGN.md`,
+    `  source: https://github.com/${REPO}/tree/HEAD/${SOURCE.directory}/${slug}`,
+    `  design_md: ${RAW}/${SOURCE.directory}/${slug}/DESIGN.md`,
     `verified_at: ${date}`,
     '',
   ].join('\n')
@@ -83,16 +98,16 @@ function render(slug, name, date) {
 
 const check = process.argv.includes('--check')
 const date = new Date().toISOString().slice(0, 10)
-const listing = await get(`https://api.github.com/repos/${REPO}/contents/design-md`, 'application/vnd.github+json')
-if (!Array.isArray(listing)) throw new Error('design-md 目录列表不是数组')
+const listing = await get(`https://api.github.com/repos/${REPO}/contents/${SOURCE.directory}`, 'application/vnd.github+json')
+if (!Array.isArray(listing)) throw new Error(`${SOURCE.directory} 目录列表不是数组`)
 const slugs = listing.filter((item) => item.type === 'dir' && SLUG.test(item.name)).map((item) => item.name).sort()
-if (slugs.length === 0) throw new Error('design-md 目录为空')
+if (slugs.length === 0) throw new Error(`${SOURCE.directory} 目录为空`)
 
 const written = []
 for (const slug of slugs) {
   let text
   try {
-    text = await get(`${RAW}/design-md/${slug}/DESIGN.md`, 'text/plain')
+    text = await get(`${RAW}/${SOURCE.directory}/${slug}/DESIGN.md`, 'text/plain')
   } catch {
     process.stderr.write(`skip ${slug}: DESIGN.md 不可读\n`)
     continue
