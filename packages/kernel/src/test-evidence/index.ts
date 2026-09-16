@@ -18,3 +18,5 @@ export type {
   TestBaselineEntry, TestBaselineV1, TestHostKind, TestInputRecord, TestMetricRecord, TestOutputRecord,
   TestRunLog, TestRunReason, TestRunReasonCode, TestRunRecordV1, TestRunningMarker,
 } from './types.js'
+export { evaluateMetricCriteria, flattenMetrics, lastJsonObjectLine, readMetrics } from './metrics.js'
+export type { MetricEvaluation } from './metrics.js'
