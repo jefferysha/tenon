@@ -273,3 +273,75 @@ name="$(<"$root/.pipeline-active")"   # shared by every user of the repository
 ```bash
 dir="$(pipeline_active_change_dir "$root" || true)"   # the current user's own local/active-change
 ```
+
+## Scenario: Tasks archived for the current user
+
+### 1. Scope / Trigger
+
+- Hooks: `task-archive.sh` (new, source-only), applied in `active-change.sh`, `host-session-binding.sh`,
+  `router.sh`, `breadcrumb.sh`, `session-start.sh`, `statusline.sh`.
+- Trigger: 归档 hides a task for one user only. Every hook that already skips a 完结 Change
+  (`archived=true`) must skip an archived-for-me Change identically: no resume, no evidence, no statusline
+  entry — while the same Change stays visible to everybody else in the repository.
+
+### 2. Signatures
+
+```text
+hooks/task-archive.sh (source-only)  pipeline_task_archive_store <root>            # resolve once per hook run
+                                     pipeline_change_archived_for_user <store> <change>
+<root>/.tenon/users/<slug>/local/archived.json   canonical two-space JSON written by the kernel
+```
+
+### 3. Contracts
+
+- **ABI**: the kernel serializer (`kernel/src/workspace/task-archive.ts`) writes
+  `JSON.stringify(value, null, 2)` with `changes` at depth one, so a Change key is always the exact line
+  `    "<name>": {`. The hook greps that anchored line. Changing the serializer's indentation breaks every
+  hook, so the two must change together.
+- **One resolution per run**: `pipeline_task_archive_store` is called once before a scan loop and its result
+  is passed to each `pipeline_change_archived_for_user` call — the scan stays one grep per Change.
+- **Fail-open**: absent, non-regular, symlinked, unreadable, oversized (> 1 MiB) or malformed store hides
+  nothing. 归档 is a display preference and must never block progress.
+- **Per user**: another user's `archived.json` is never consulted; a missing identity hides nothing.
+- Hot path: pure bash 3.2 plus one `grep`; no node, python or jq. The check runs after the
+  `archived=true` check, never instead of it.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+| --- | --- |
+| Current user's store names the sole Change | router injects nothing, `active-change.sh` returns 1, session-start omits it, statusline empty |
+| Another user's store names it | visible to this user |
+| Symlinked or malformed store | visible (fail-open) |
+| Key differs only by prefix (`sole-extra` vs `sole`) | not archived (the grep is line-anchored) |
+| No identity | nothing hidden |
+| `archived=true` (完结) | already skipped by the existing check |
+
+### 5. Good / Base / Bad Cases
+
+- Good: A archives a task; A's router stops resuming it while B's router still does.
+- Base: no archive store at all — every hook behaves exactly as before the feature.
+- Bad: parsing `archived.json` with node or jq in the hot path, re-resolving the store per Change, or
+  replacing the `archived=true` check instead of adding to it.
+
+### 6. Tests Required
+
+- `tools/test-hooks.sh` section 14: before / after archiving for router, breadcrumb, statusline,
+  session-start and `active-change.sh`; another user's store, a symlinked store, a prefix-only key and a
+  malformed store all fail open; red line greps the comment-stripped hook for node / jq / python.
+- `packages/kernel/src/workspace/task-archive.test.ts` pins the serializer bytes that form this ABI.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```bash
+node -e "…JSON.parse(require('fs').readFileSync(store))…"   # spawns a runtime in the hot path
+```
+
+#### Correct
+
+```bash
+store="$(pipeline_task_archive_store "$root" || true)"       # once per hook run
+pipeline_change_archived_for_user "$store" "$change" && continue
+```

@@ -2295,6 +2295,75 @@ mu_gate b@x.io
   || bad "multi-user: A 的持续授权不放行 B" "B 借用了 A 的授权"
 rm -f "$mu_proj/.pipeline-pending-interaction"
 
+# ── 14. 归档（只对当前用户隐藏）：hook 与 archived=true 同等跳过，别人的归档记录无效 ──
+# 真相源是 kernel serializeTaskArchive 的规范字节：`changes` 在深度一，故每个 change 键恒为
+# `    "<name>": {` 这一行——hook 正是 grep 这条 ABI（改缩进就会破坏它）。
+ar_proj="$TMP/task-archive"
+ar_home="$TMP/task-archive-home"
+mkdir -p "$ar_proj/openspec/changes/sole" "$ar_home"
+printf 'track: pm\nphase: build\nworkflow: default\narchived: false\n' > "$ar_proj/openspec/changes/sole/.pipeline.yaml"
+printf 'CRUMB-sole\n' > "$ar_proj/openspec/changes/sole/.breadcrumb"
+set_active "$ar_proj" sole
+ar_store() { # $1=slug → prints that user's archived.json path (creating its directory)
+  mkdir -p "$ar_proj/.tenon/users/$1/local"
+  printf '%s/.tenon/users/%s/local/archived.json' "$ar_proj" "$1"
+}
+ar_write() { # $1=slug $2=change → canonical two-space JSON, exactly what the kernel writes
+  printf '{\n  "version": 1,\n  "changes": {\n    "%s": {\n      "archived_at": "2026-09-15T12:00:00.000Z",\n      "phase": "build",\n      "actor": {\n        "id": "hooks@tenon.test",\n        "name": "hooks",\n        "trust": "declared"\n      }\n    }\n  }\n}\n' \
+    "$2" > "$(ar_store "$1")"
+}
+ar_router() { printf '%s' "{\"prompt\":\"继续 sole\",\"cwd\":\"$ar_proj\"}" | TENON_ROUTER_CACHE="$TMP/task-archive-router.data" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$R" 2>/dev/null; }
+ar_crumb() { printf '{"prompt":"继续","cwd":"%s"}' "$ar_proj" | bash "$BC" 2>/dev/null; }
+ar_statusline() { printf '{"cwd":"%s"}' "$ar_proj" | bash "$SL" 2>/dev/null; }
+ar_session_start() { printf '{"cwd":"%s"}' "$ar_proj" | bash "$SS" 2>/dev/null; }
+
+# 归档前：四个 hook 都看得见它。
+assert_contains "task-archive: 归档前 router 注入该 Change" "$(ar_router)" "change: sole"
+assert_contains "task-archive: 归档前 breadcrumb 恢复该 Change" "$(ar_crumb)" "CRUMB-sole"
+assert_contains "task-archive: 归档前 statusline 显示该 Change" "$(ar_statusline)" "sole"
+assert_contains "task-archive: 归档前 session-start 列出该 Change" "$(ar_session_start)" "sole"
+ar_ac="$(printf 'ROOT=%s\n. "%s/hooks/json-input.sh"\n. "%s/hooks/canonical-state.sh"\n. "%s/hooks/active-change.sh"\npipeline_active_change_dir "$ROOT" || echo NONE\n' \
+  "$ar_proj" "$ROOT" "$ROOT" "$ROOT")"
+assert_contains "task-archive: 归档前 active-change 解析出该 Change" "$(bash -c "$ar_ac" 2>/dev/null)" "openspec/changes/sole"
+
+# 当前用户归档它 → 四个 hook 与 active-change 一致隐藏。
+ar_write "$HOOK_USER_SLUG" sole
+assert_empty "task-archive: 已归档 → router 不注入" "$(ar_router)"
+assert_not_contains "task-archive: 已归档 → breadcrumb 不恢复" "$(ar_crumb)" "CRUMB-sole"
+assert_empty "task-archive: 已归档 → statusline 不显示" "$(ar_statusline)"
+assert_not_contains "task-archive: 已归档 → session-start 不列出" "$(ar_session_start)" "sole"
+assert_contains "task-archive: 已归档 → active-change 返回 1" "$(bash -c "$ar_ac" 2>/dev/null)" "NONE"
+
+# 另一个用户的归档记录对本用户无效；符号链接与超大文件一律 fail-open。
+rm -f "$(ar_store "$HOOK_USER_SLUG")"
+ar_write other-at-x.io sole
+assert_contains "task-archive: 别人的归档记录不隐藏本用户的 Change" "$(ar_router)" "change: sole"
+ar_link_target="$TMP/task-archive-elsewhere.json"
+ar_write other-at-x.io sole
+cp "$(ar_store other-at-x.io)" "$ar_link_target"
+rm -f "$(ar_store "$HOOK_USER_SLUG")"
+ln -s "$ar_link_target" "$(ar_store "$HOOK_USER_SLUG")"
+assert_contains "task-archive: 符号链接归档记录被忽略" "$(ar_router)" "change: sole"
+rm -f "$(ar_store "$HOOK_USER_SLUG")"
+# 名字只是前缀/后缀也不算命中（grep 锚定整行键）。
+ar_write "$HOOK_USER_SLUG" sole-extra
+assert_contains "task-archive: 仅前缀相同的键不算归档" "$(ar_router)" "change: sole"
+rm -f "$(ar_store "$HOOK_USER_SLUG")"
+# 损坏记录 fail-open：显示偏好绝不阻断推进。
+printf 'not json\n' > "$(ar_store "$HOOK_USER_SLUG")"
+assert_contains "task-archive: 损坏归档记录 fail-open" "$(ar_router)" "change: sole"
+rm -f "$(ar_store "$HOOK_USER_SLUG")"
+clear_active "$ar_proj"
+
+# 红线：归档判定全程纯 bash + 一次 grep，绝不 spawn node / jq / python（剥注释后逐工具名断言）。
+ar_exec="$(grep -vE '^[[:space:]]*#' "$ROOT/hooks/task-archive.sh")"
+for ar_tool in node jq python; do
+  n="$(printf '%s' "$ar_exec" | grep -c "$ar_tool" || true)"
+  [ "$n" = "0" ] \
+    && ok "task-archive 红线: task-archive.sh 可执行行无 $ar_tool" \
+    || bad "task-archive 红线: task-archive.sh 可执行行无 $ar_tool" "实得 ${n} 行"
+done
+
 # ───────────────────────── 汇总 ─────────────────────────
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" = 0 ]

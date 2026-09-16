@@ -99,6 +99,13 @@ SOLE_CHANGE_NAME="" SOLE_CHANGE_PHASE="" SOLE_CHANGE_TRACK="" SOLE_CHANGE_WORKFL
 ACTIVE_CHANGE_COUNT=0
 ACTIVE_CHANGE_NAMES=() ACTIVE_CHANGE_PHASES=() ACTIVE_CHANGE_TRACKS=() ACTIVE_CHANGE_WORKFLOWS=()
 BEST_MTIME=0
+# 当前用户的归档记录：整趟扫描只解析一次路径（与 archived=true 同等跳过）。
+ARCHIVE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/task-archive.sh"
+# shellcheck source=task-archive.sh
+[ -r "$ARCHIVE_HELPER" ] && . "$ARCHIVE_HELPER"
+declare -F pipeline_change_archived_for_user >/dev/null 2>&1 || pipeline_change_archived_for_user() { return 1; }
+ARCHIVE_STORE=""
+declare -F pipeline_task_archive_store >/dev/null 2>&1 && ARCHIVE_STORE="$(pipeline_task_archive_store "$PROOT" || true)"
 for _change_dir in "$PROOT"/openspec/changes/*; do
   [ -d "$_change_dir" ] || continue
   f="$(pipeline_state_source "$_change_dir" || true)"
@@ -107,6 +114,7 @@ for _change_dir in "$PROOT"/openspec/changes/*; do
   _change_name="${_change_dir##*/}"
   # change 名会进入 hook 的结构化输出和动态正则；只接受 CLI/状态机同一份路径契约。
   case "$_change_name" in ''|*[!A-Za-z0-9_-]*) continue ;; esac
+  pipeline_change_archived_for_user "$ARCHIVE_STORE" "$_change_name" && continue
   ACTIVE_CHANGE_COUNT=$((ACTIVE_CHANGE_COUNT + 1))
   SOLE_CHANGE_NAME="$_change_name"
   SOLE_CHANGE_PHASE="$(yget "$f" phase)"

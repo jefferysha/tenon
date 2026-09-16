@@ -79,6 +79,13 @@ EXPLICIT_COUNT=0
 EXPLICIT_NAME=""
 EXPLICIT_DIR=""
 EXPLICIT_STATE=""
+# 当前用户的归档记录：两趟扫描共用一次解析（与 archived=true 同等跳过）。
+BC_ARCHIVE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/task-archive.sh"
+# shellcheck source=task-archive.sh
+[ -r "$BC_ARCHIVE_HELPER" ] && . "$BC_ARCHIVE_HELPER"
+declare -F pipeline_change_archived_for_user >/dev/null 2>&1 || pipeline_change_archived_for_user() { return 1; }
+BC_ARCHIVE_STORE=""
+declare -F pipeline_task_archive_store >/dev/null 2>&1 && BC_ARCHIVE_STORE="$(pipeline_task_archive_store "$PROOT" || true)"
 for change_dir in "$CHANGES"/*; do
   [ -d "$change_dir" ] || continue
   state="$(pipeline_state_source "$change_dir" || true)"
@@ -86,6 +93,7 @@ for change_dir in "$CHANGES"/*; do
   [ "$(yget "$state" archived)" = "true" ] && continue
   change_name="${change_dir##*/}"
   case "$change_name" in ''|*[!A-Za-z0-9_-]*) continue ;; esac
+  pipeline_change_archived_for_user "$BC_ARCHIVE_STORE" "$change_name" && continue
   if pipeline_prompt_names_change "$PROMPT" "$change_name"; then
     EXPLICIT_COUNT=$((EXPLICIT_COUNT + 1))
     EXPLICIT_NAME="$change_name"
@@ -135,8 +143,10 @@ elif pipeline_prompt_requests_resume "$PROMPT" ""; then
     state="$(pipeline_state_source "$change_dir" || true)"
     [ -n "$state" ] || continue
     [ "$(yget "$state" archived)" = "true" ] && continue
+    sole_candidate="${change_dir##*/}"
+    pipeline_change_archived_for_user "$BC_ARCHIVE_STORE" "$sole_candidate" && continue
     active_count=$((active_count + 1))
-    sole_name="${change_dir##*/}"
+    sole_name="$sole_candidate"
     sole_dir="$change_dir"
     sole_state="$state"
   done
