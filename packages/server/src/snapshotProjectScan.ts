@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { creatorOf, ownerOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
+import { creatorOf, isTenonUser, ownerOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
 import type { ProjectSnapshot, ChangeSnapshot } from './types.js'
 import { readRepositoryIdentity } from './repositoryIdentity.js'
 import { resolveSnapshotTrack, projectSkillRuns } from './skillRuns.js'
@@ -11,6 +11,9 @@ import { documentEvidence, documentTodoItems, type SnapshotDeps } from './snapsh
 import { projectArtifactScopeIssue, readTerminalActivity } from './snapshot.js'
 import { assertWorkflowRootAnchor, type WorkflowRootAnchor } from './workflowRootAnchor.js'
 import { readTasksProjection } from './snapshotTasks.js'
+import { createCandidateCache } from './testCandidateCache.js'
+import { projectTestEvidence } from './testEvidenceSnapshot.js'
+import { defaultResolveUser } from './serverUserRoutes.js'
 const MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100
 function str(v: string | string[] | undefined): string { return Array.isArray(v) ? v.join(',') : v ?? '' }
 
@@ -78,6 +81,12 @@ export async function scanAnchoredProject(
           },
         }),
   }
+  // 候选版本对整个 root 只算一次（TTL 内复用）：测试新鲜度判定需要它，但指纹遍历整棵树。
+  const resolved = (deps.resolveUser ?? defaultResolveUser)(root)
+  const actingUser = isTenonUser(resolved) ? resolved : undefined
+  const candidate = workspaceFingerprint === undefined
+    ? async () => undefined
+    : createCandidateCache((target) => workspaceFingerprint(target, ''))
   let compatibilityIssueOverflow = 0
   for (const e of [...entries].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
     if (!e.isDirectory() || e.name === 'archive') continue
@@ -114,12 +123,20 @@ export async function scanAnchoredProject(
         workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot,
       }, undefined, trackDefinition(track, workflowName))
       legacyWorkflowRules[workflowName] ??= legacySnapshotWorkflowRules(plan)
-      const [documents, terminalActivity, authority, skillRuns, artifactScope] = await Promise.all([
+      const [documents, terminalActivity, authority, skillRuns, artifactScope, testEvidence] = await Promise.all([
         documentEvidence(readRoot, changeDir, plan, phase),
         readTerminalActivity(changeDir, e.name, nowMs),
         readWorkflowSnapshotAuthority(changeDir, state, plan),
         projectSkillRuns(changeDir, plan, phase, trackDefinition(track, workflowName), deps.mandatorySkills),
         projectArtifactScopeIssue(deps, changeDir, anchor),
+        projectTestEvidence({
+          root: readRoot,
+          changeDir,
+          changeName: e.name,
+          plan,
+          user: actingUser,
+          candidate: () => candidate(readRoot),
+        }),
       ])
       if (artifactScope.compatibilityIssue !== undefined) {
         if (compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
@@ -160,6 +177,8 @@ export async function scanAnchoredProject(
         todo,
         documents,
         skillRuns,
+        ...(testEvidence.tests === undefined ? {} : { tests: testEvidence.tests }),
+        ...(testEvidence.diagnostics === undefined ? {} : { testDiagnostics: testEvidence.diagnostics }),
         ...(terminalActivity === undefined ? {} : { terminalActivity }),
       })
     } catch (error) {
