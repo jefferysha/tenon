@@ -27,6 +27,9 @@ const WorkspaceView = lazy(async () => ({
 const WorkflowView = lazy(async () => ({
   default: (await import('./workflow/WorkflowView')).WorkflowView,
 }))
+const ProjectsView = lazy(async () => ({
+  default: (await import('./projects/ProjectsView')).ProjectsView,
+}))
 const LibraryView = lazy(async () => ({
   default: (await import('./library/LibraryView')).LibraryView,
 }))
@@ -349,6 +352,14 @@ function AppShell(): JSX.Element {
             root=""
             runtimeContext={runtimeContext ?? undefined}
             onDirtyChange={onWorkbenchDirtyChange}
+            onToast={(m) => showFlash('toast', m)}
+          />
+        )}
+        {view === 'projects' && (
+          <ProjectsView
+            projects={projects}
+            currentRoot={currentRoot}
+            onSelectProject={selectRoot}
             onToast={(m) => showFlash('toast', m)}
           />
         )}
