@@ -137,14 +137,6 @@ function AppShell(): JSX.Element {
     preserveUnavailableRoot: false,
   })
   currentRootRef.current = currentRoot
-  const runtimeContext = useMemo(() => {
-    if ((view !== 'progress' && view !== 'workbench') || currentRoot === '' || selectedChange === null || snapshot === null) return null
-    const project = snapshot.projects.find((candidate) => candidate.root === currentRoot)
-    const change = project?.changes.find((candidate) => candidate.name === selectedChange)
-    if (change === undefined) return null
-    return { root: currentRoot, change: selectedChange, attempts: change.artifactAttempts ?? [] }
-  }, [currentRoot, selectedChange, snapshot, view])
-
   const setView = useCallback((nextView: View): void => {
     if (viewRef.current === 'workbench' && dirtyRef.current && nextView !== 'workbench') {
       if (!supportsNavigationInterception && pendingNavigationRef.current === null) {
@@ -343,7 +335,6 @@ function AppShell(): JSX.Element {
           // 工作流是全局的（用户级存储），不依赖所选项目；每个 change 自己选工作流与轨道。
           <WorkflowView
             root=""
-            runtimeContext={runtimeContext ?? undefined}
             onDirtyChange={onWorkbenchDirtyChange}
             onToast={(m) => showFlash('toast', m)}
           />

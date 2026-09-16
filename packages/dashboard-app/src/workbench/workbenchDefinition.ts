@@ -7,6 +7,7 @@ import type {
   WbWorkflowDef,
 } from '../api/governanceTypes'
 import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
+import { cloneDocumentContract, pruneContractForSteps, pruneDanglingDocuments, withDocumentContract } from './documentContractEdits'
 import { wavesOf, wavesToSkills } from './skillWaves'
 export type {
   WbActionConfig,
@@ -75,28 +76,34 @@ export function resolveBranch(def: WbWorkflowDef | null, branch: string): string
   return def?.tracks?.[branch] !== undefined ? branch : first?.[0] ?? BASE_BRANCH
 }
 
-/** 分支视图：把所选分支的 steps 与物化 IO 提升成一个「单条 pipeline」定义，供编辑器所有读路径使用。 */
+/** 分支视图：把所选分支的 steps、文档契约与物化 IO 提升成一个「单条 pipeline」定义，供编辑器所有读路径使用。 */
 export function selectBranchDef(def: WbWorkflowDef, branch: string): WbWorkflowDef {
-  const { tracks: _tracks, branches, effectiveIo, ...rest } = def
+  const { tracks: _tracks, branches, effectiveIo, documentContract, ...rest } = def
   const id = resolveBranch(def, branch)
   const track = id === BASE_BRANCH ? undefined : def.tracks?.[id]
   const io = branches?.[id === BASE_BRANCH ? '_base' : id]?.effectiveIo ?? (id === BASE_BRANCH ? effectiveIo : undefined)
+  const contract = track === undefined ? documentContract : track.documentContract
   return {
     ...rest,
     ...(io === undefined ? {} : { effectiveIo: io }),
+    ...(contract === undefined ? {} : { documentContract: contract }),
     steps: track === undefined ? def.steps : track.steps,
   }
 }
 
-/** 把分支视图上的编辑写回完整定义：steps 回到对应分支，其余工作流级字段（文档契约等）照抄更新后的值。 */
+/** 把分支视图上的编辑写回完整定义：steps 与文档契约回到对应分支，其余工作流级字段照抄更新后的值。 */
 export function writeBranchDef(def: WbWorkflowDef, branch: string, updated: WbWorkflowDef): WbWorkflowDef {
-  const { steps, tracks: _tracks, effectiveIo: _io, branches: _branches, ...rest } = updated
-  const base = { ...def, ...rest }
+  const { steps, tracks: _tracks, effectiveIo: _io, branches: _branches, documentContract, ...rest } = updated
+  const contract = documentContract === undefined ? {} : { documentContract }
   const id = resolveBranch(def, branch)
-  if (id === BASE_BRANCH) return { ...base, steps }
+  if (id === BASE_BRANCH) {
+    const { documentContract: _previous, ...base } = { ...def, ...rest }
+    return { ...base, ...contract, steps }
+  }
   const existing = def.tracks?.[id]
   if (existing === undefined) return def
-  return { ...base, steps: def.steps, tracks: { ...def.tracks, [id]: { ...existing, steps } } }
+  const { documentContract: _previousBranch, ...branchRest } = existing
+  return { ...def, ...rest, steps: def.steps, tracks: { ...def.tracks, [id]: { ...branchRest, ...contract, steps } } }
 }
 
 /**
@@ -104,21 +111,30 @@ export function writeBranchDef(def: WbWorkflowDef, branch: string, updated: WbWo
  * track（id `main`），顶层 steps 清空（steps ⊕ tracks）。
  */
 export function addTrackBranch(def: WbWorkflowDef, id: string, label: string, from: string = BASE_BRANCH): WbWorkflowDef {
-  const branch: WbTrackBranch = { ...(label === '' ? {} : { label }), steps: cloneSteps(selectBranchDef(def, from).steps) }
+  const source = selectBranchDef(def, from)
+  const branch: WbTrackBranch = {
+    ...(label === '' ? {} : { label }),
+    ...(source.documentContract === undefined ? {} : { documentContract: cloneDocumentContract(source.documentContract) }),
+    steps: cloneSteps(source.steps),
+  }
   if (trackEntries(def).length === 0) {
-    if (def.steps.length === 0) return { ...def, steps: [], tracks: { [id]: branch } }
+    const { documentContract: topContract, ...single } = def
+    if (def.steps.length === 0) return { ...single, steps: [], tracks: { [id]: branch } }
     const firstId = id === 'main' ? 'base' : 'main'
-    return { ...def, steps: [], tracks: { [firstId]: { steps: cloneSteps(def.steps) }, [id]: branch } }
+    const first: WbTrackBranch = { ...(topContract === undefined ? {} : { documentContract: cloneDocumentContract(topContract) }), steps: cloneSteps(def.steps) }
+    return { ...single, steps: [], tracks: { [firstId]: first, [id]: branch } }
   }
   return { ...def, tracks: { ...(def.tracks ?? {}), [id]: branch } }
 }
 
-/** 删除轨道分支；删到最后一条时它的 steps 回到顶层，工作流重新成为单条 pipeline。 */
+/** 删除轨道分支；删到最后一条时它的 steps 与文档契约回到顶层，工作流重新成为单条 pipeline。 */
 export function removeTrackBranch(def: WbWorkflowDef, id: string): WbWorkflowDef {
   const { [id]: removed, ...rest } = def.tracks ?? {}
   if (removed === undefined) return def
   const { tracks: _tracks, ...withoutTracks } = def
-  if (Object.keys(rest).length === 0) return { ...withoutTracks, steps: removed.steps }
+  if (Object.keys(rest).length === 0) {
+    return { ...withoutTracks, ...(removed.documentContract === undefined ? {} : { documentContract: removed.documentContract }), steps: removed.steps }
+  }
   return { ...def, tracks: rest }
 }
 
@@ -193,14 +209,6 @@ export function removeSkillFromDef(def: WbWorkflowDef, stepId: string, skillId: 
   return setStepSkillWavesInDef(def, stepId, waves)
 }
 
-function withContract(def: WbWorkflowDef, contract: WbDocumentContract): WbWorkflowDef {
-  if (contract.slots.length === 0 && contract.reads.length === 0) {
-    const { documentContract: _dropped, ...rest } = def
-    return rest
-  }
-  return { ...def, documentContract: contract }
-}
-
 /** 变动前每个阶段「去下一阶段」的那条边（同一目标有多条时取第一条）。 */
 function forwardTransitions(steps: readonly WbStepDef[]): Map<string, WbTransition> {
   const forward = new Map<string, WbTransition>()
@@ -268,18 +276,19 @@ export function removeStageFromDef(def: WbWorkflowDef, stepId: string): WbWorkfl
   const index = def.steps.findIndex((step) => step.id === stepId)
   if (index < 0) return def
   const successor = def.steps[index + 1]?.id ?? null
-  const contract = def.documentContract === undefined ? undefined : {
-    ...def.documentContract,
-    slots: def.documentContract.slots.filter((slot) => slot.ownerStep !== stepId),
-    reads: def.documentContract.reads.filter((read) => read.step !== stepId),
-  }
   const steps = relinkTransitions(
     def.steps.filter((step) => step.id !== stepId),
     forwardTransitions(def.steps),
     (to) => (to === stepId ? successor : to),
   )
   const base = { ...def, steps }
-  return contract === undefined ? base : withContract(base, contract)
+  if (def.documentContract === undefined) return base
+  const contract: WbDocumentContract = {
+    ...def.documentContract,
+    slots: def.documentContract.slots.filter((slot) => slot.ownerStep !== stepId),
+    reads: def.documentContract.reads.filter((read) => read.step !== stepId),
+  }
+  return withDocumentContract(base, pruneDanglingDocuments(steps, contract))
 }
 
 /**
@@ -316,7 +325,13 @@ export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDe
   return {
     ...rest,
     name,
-    ...(def.tracks === undefined ? {} : { tracks: Object.fromEntries(Object.entries(def.tracks).map(([id, branch]) => [id, { ...branch, steps: cloneSteps(branch.steps) }])) }),
+    ...(def.tracks === undefined ? {} : {
+      tracks: Object.fromEntries(Object.entries(def.tracks).map(([id, branch]) => [id, {
+        ...branch,
+        ...(branch.documentContract === undefined ? {} : { documentContract: cloneDocumentContract(branch.documentContract) }),
+        steps: cloneSteps(branch.steps),
+      }])),
+    }),
     decomposition: def.decomposition === undefined ? undefined : {
       ...def.decomposition,
       auto_when: [...def.decomposition.auto_when],
@@ -324,26 +339,15 @@ export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDe
     },
     interaction: def.interaction === undefined ? undefined : { ...def.interaction },
     reviewBudget: def.reviewBudget === undefined ? undefined : { ...def.reviewBudget },
-    documentContract: def.documentContract === undefined ? undefined : {
-      version: 'v1',
-      slots: def.documentContract.slots.map((slot) => ({ ...slot, producers: [...slot.producers] })),
-      reads: def.documentContract.reads.map((read) => ({ ...read, kinds: [...read.kinds] })),
-    },
+    documentContract: def.documentContract === undefined ? undefined : cloneDocumentContract(def.documentContract),
     steps: cloneSteps(def.steps),
   }
 }
 
 /**
  * 从 default 复制成自定义工作流：artifact 的 producer policy 从 default 专用的 effective-phase-skills
- * 改为 custom 契约允许的 effective-step-skills。
- *
- * **不写 `openspec_contract: required`。** default 受治理靠的是名字（kernel 的 document-contract 对
- * `name === 'default'` 直接套 OpenSpec 文档契约），它的 YAML 里从来没有这一行，`validateOpenSpecContractWorkflow`
- * 也从不对它跑。而 default 的 chat 轨是**有意**只声明 tenon-* 驱动的（见 kernel spec：chat is the
- * drivers-only flow），并不满足该契约的技能清单。曾经在复制时补盖这一行，等于替源定义断言了一件它自己
- * 做不到的事——校验第一次真跑就把复制挡在 400：`tracks.chat: openspec_contract: required 要求 'open'
- * 声明 OpenSpec proposal skill`。副本不再是 default，也就不再按名字受治理；要 OpenSpec 治理就自己在
- * YAML 里写 `openspec_contract: required` 并补齐各轨技能。
+ * 改为 custom 契约允许的 effective-step-skills；每条分支的文档契约按阶段技能裁剪（default 的技能矩阵由
+ * manifest 叠加、chat 轨只有驱动技能，副本按自定义规则校验 producer 必须是本阶段技能）。
  */
 export function copyWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDef {
   const cloned = cloneWorkflowDef(def, name)
@@ -352,10 +356,19 @@ export function copyWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDef
     ...step,
     artifacts: step.artifacts.map((artifact) => ({ ...artifact, producerPolicy: 'effective-step-skills' as const })),
   })
+  const { documentContract: _topContract, ...single } = cloned
+  const topContract = pruneContractForSteps(cloned.steps, cloned.documentContract)
   return {
-    ...cloned,
+    ...single,
+    ...(topContract === undefined ? {} : { documentContract: topContract }),
     steps: customPolicy(cloned.steps),
-    ...(cloned.tracks === undefined ? {} : { tracks: Object.fromEntries(Object.entries(cloned.tracks).map(([id, branch]) => [id, { ...branch, steps: customPolicy(branch.steps) }])) }),
+    ...(cloned.tracks === undefined ? {} : {
+      tracks: Object.fromEntries(Object.entries(cloned.tracks).map(([id, branch]) => {
+        const { documentContract: branchContract, ...plain } = branch
+        const pruned = pruneContractForSteps(branch.steps, branchContract)
+        return [id, { ...plain, ...(pruned === undefined ? {} : { documentContract: pruned }), steps: customPolicy(branch.steps) }]
+      })),
+    }),
   }
 }
 

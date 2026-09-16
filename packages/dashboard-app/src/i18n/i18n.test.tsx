@@ -49,6 +49,7 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
       'progress.act_fail_http',
       'workflow.create_yaml',
       'workflow.create_yaml_placeholder',
+      'workflow.openspec',
     ])
     const zhLeaves = stringLeaves(zh)
     const enLeaves = stringLeaves(en)

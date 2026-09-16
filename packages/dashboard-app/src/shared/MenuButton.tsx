@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { MoreHorizontal } from 'lucide-react'
+import { Check, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface MenuItem {
@@ -11,6 +11,8 @@ export interface MenuItem {
   /** 禁用原因 / 悬停说明。 */
   title?: string
   danger?: boolean
+  /** 给了就是开关项（role=menuitemcheckbox），勾选态显示对勾。 */
+  checked?: boolean
 }
 
 /**
@@ -58,7 +60,8 @@ export function MenuButton({ items, label, testId, align = 'right', className, d
             <button
               key={item.id}
               type="button"
-              role="menuitem"
+              role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+              aria-checked={item.checked}
               className={cn('flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-left text-body outline-none hover:bg-fill focus-visible:bg-fill disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent', item.danger ? 'text-red-d' : 'text-text')}
               disabled={item.disabled}
               title={item.title}
@@ -67,6 +70,7 @@ export function MenuButton({ items, label, testId, align = 'right', className, d
             >
               {item.icon !== undefined && <span className="flex-none text-text-3 [&_svg]:size-4" aria-hidden="true">{item.icon}</span>}
               {item.label}
+              {item.checked === true && <Check className="ml-auto size-4 flex-none text-(--accent)" aria-hidden="true" />}
             </button>
           ))}
         </div>

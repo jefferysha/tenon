@@ -7,7 +7,8 @@
   "exports": {
     ".": "./dist/index.js",
     "./workflow/identifier": "./dist/workflow/identifier.js",
-    "./workflow/document-contract-model": "./dist/workflow/document-contract-model.js"
+    "./workflow/document-contract-model": "./dist/workflow/document-contract-model.js",
+    "./workflow/document-contract-validation": "./dist/workflow/document-contract-validation.js"
   },
   "engines": {
     "node": ">=22"
