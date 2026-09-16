@@ -1,6 +1,7 @@
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
   BUILTIN_LIBRARIES, BUILTIN_LIBRARY_MARKER, builtinSourceDigest, parseBuiltinLibraryMarker, syncBuiltinLibraries, syncBuiltinLibrary,
@@ -40,7 +41,7 @@ afterEach(() => {
 
 describe('syncBuiltinLibraries', () => {
   test('首次同步复制整棵树并最后写入摘要标记', async () => {
-    expect(await syncBuiltinLibraries(payload, config)).toEqual([{ id: 'instruction-templates', state: 'updated' }])
+    expect(await syncBuiltinLibraries(payload, config, [templates])).toEqual([{ id: 'instruction-templates', state: 'updated' }])
     expect(readFileSync(join(builtinDir(), 'backend', 'go.md'), 'utf8')).toBe(blockText('go'))
     const marker = parseBuiltinLibraryMarker(readFileSync(join(builtinDir(), BUILTIN_LIBRARY_MARKER), 'utf8'))
     expect(marker?.library).toBe('instruction-templates')
@@ -52,23 +53,23 @@ describe('syncBuiltinLibraries', () => {
   })
 
   test('摘要相同 → unchanged，文件不重写', async () => {
-    await syncBuiltinLibraries(payload, config)
+    await syncBuiltinLibraries(payload, config, [templates])
     const before = statSync(join(builtinDir(), 'backend', 'go.md')).mtimeMs
     const markerBefore = readFileSync(join(builtinDir(), BUILTIN_LIBRARY_MARKER), 'utf8')
-    expect(await syncBuiltinLibraries(payload, config)).toEqual([{ id: 'instruction-templates', state: 'unchanged' }])
+    expect(await syncBuiltinLibraries(payload, config, [templates])).toEqual([{ id: 'instruction-templates', state: 'unchanged' }])
     expect(statSync(join(builtinDir(), 'backend', 'go.md')).mtimeMs).toBe(before)
     expect(readFileSync(join(builtinDir(), BUILTIN_LIBRARY_MARKER), 'utf8')).toBe(markerBefore)
   })
 
   test('源变化 → 整份替换：删掉的文件消失，custom/ 字节不变', async () => {
-    await syncBuiltinLibraries(payload, config)
+    await syncBuiltinLibraries(payload, config, [templates])
     const custom = join(libraryDir(), 'custom', 'backend', 'mine.md')
     mkdirSync(dirname(custom), { recursive: true })
     writeFileSync(custom, blockText('mine'))
     rmSync(join(payload, 'templates', 'instructions', 'builtin', 'backend', 'rust-axum.md'))
     writeSource('backend/go.md', blockText('go', '\n- 新规则\n'))
 
-    expect(await syncBuiltinLibraries(payload, config)).toEqual([{ id: 'instruction-templates', state: 'updated' }])
+    expect(await syncBuiltinLibraries(payload, config, [templates])).toEqual([{ id: 'instruction-templates', state: 'updated' }])
     expect(existsSync(join(builtinDir(), 'backend', 'rust-axum.md'))).toBe(false)
     expect(readFileSync(join(builtinDir(), 'backend', 'go.md'), 'utf8')).toContain('新规则')
     expect(readFileSync(custom, 'utf8')).toBe(blockText('mine'))
@@ -76,20 +77,20 @@ describe('syncBuiltinLibraries', () => {
   })
 
   test('无效内建块 → failed，旧 builtin 保持原样', async () => {
-    await syncBuiltinLibraries(payload, config)
+    await syncBuiltinLibraries(payload, config, [templates])
     writeSource('backend/go.md', '---\nid: wrong\ncategory: backend\ntitle: go\n---\n## 后端\n')
-    const [result] = await syncBuiltinLibraries(payload, config)
+    const [result] = await syncBuiltinLibraries(payload, config, [templates])
     expect(result?.state).toBe('failed')
     expect(result?.state === 'failed' && result.detail).toContain('backend/go.md')
     expect(readFileSync(join(builtinDir(), 'backend', 'go.md'), 'utf8')).toBe(blockText('go'))
   })
 
   test('payload 里的符号链接 → failed，旧 builtin 保持原样', async () => {
-    await syncBuiltinLibraries(payload, config)
+    await syncBuiltinLibraries(payload, config, [templates])
     const outside = join(sandbox, 'outside.md')
     writeFileSync(outside, blockText('evil'))
     symlinkSync(outside, join(payload, 'templates', 'instructions', 'builtin', 'backend', 'evil.md'))
-    const [result] = await syncBuiltinLibraries(payload, config)
+    const [result] = await syncBuiltinLibraries(payload, config, [templates])
     expect(result).toEqual({ id: 'instruction-templates', state: 'failed', detail: 'backend/evil.md: 不允许符号链接' })
     expect(existsSync(join(builtinDir(), 'backend', 'evil.md'))).toBe(false)
   })
@@ -103,7 +104,7 @@ describe('syncBuiltinLibraries', () => {
   test('残留的 staging / old 目录被清理', async () => {
     mkdirSync(join(libraryDir(), 'builtin.staging-1-abc', 'backend'), { recursive: true })
     mkdirSync(join(libraryDir(), 'builtin.old-def'), { recursive: true })
-    await syncBuiltinLibraries(payload, config)
+    await syncBuiltinLibraries(payload, config, [templates])
     expect(readdirSync(libraryDir()).sort()).toEqual(['builtin'])
   })
 
@@ -120,5 +121,35 @@ describe('syncBuiltinLibraries', () => {
     writeFileSync(join(payload, 'templates', 'agents', 'notes.txt'), 'ignored')
     expect(await syncBuiltinLibrary(agents, payload, config)).toEqual({ id: 'agents', state: 'updated' })
     expect(readdirSync(join(config, 'agents', 'builtin')).sort()).toEqual([BUILTIN_LIBRARY_MARKER, 'builder.md'])
+  })
+
+  test('内建测试方向：8 个模板整份同步，custom 不受影响，id 与文件名不符 → failed', async () => {
+    const directions = BUILTIN_LIBRARIES.find((library) => library.id === 'test-directions') as BuiltinLibrary
+    expect(directions.source).toBe('templates/test-directions')
+    expect(directions.target).toBe('test-directions/builtin')
+    const source = join(payload, 'templates', 'test-directions')
+    mkdirSync(source, { recursive: true })
+    writeFileSync(join(source, 'unit.yaml'), 'id: unit\ncommand: npm test\nlabel: 单测\n')
+    const custom = join(config, 'test-directions', 'custom', 'mine.yaml')
+    mkdirSync(dirname(custom), { recursive: true })
+    writeFileSync(custom, 'id: mine\ncommand: npm run mine\nlabel: 我的\n')
+
+    expect(await syncBuiltinLibrary(directions, payload, config)).toEqual({ id: 'test-directions', state: 'updated' })
+    const builtin = join(config, 'test-directions', 'builtin')
+    expect(readdirSync(builtin).sort()).toEqual([BUILTIN_LIBRARY_MARKER, 'unit.yaml'])
+    expect(readFileSync(custom, 'utf8')).toContain('id: mine')
+
+    writeFileSync(join(source, 'unit.yaml'), 'id: other\ncommand: npm test\nlabel: 单测\n')
+    const failure = await syncBuiltinLibrary(directions, payload, config)
+    expect(failure.state).toBe('failed')
+    expect(readFileSync(join(builtin, 'unit.yaml'), 'utf8')).toContain('id: unit')
+  })
+
+  test('仓库里真实的内建测试方向全部通过校验', async () => {
+    const directions = BUILTIN_LIBRARIES.find((library) => library.id === 'test-directions') as BuiltinLibrary
+    const repoTemplates = fileURLToPath(new URL('../../../../templates/test-directions', import.meta.url))
+    for (const name of readdirSync(repoTemplates).filter((file) => file.endsWith('.yaml'))) {
+      expect(directions.validate(name, readFileSync(join(repoTemplates, name), 'utf8'))).toEqual([])
+    }
   })
 })
