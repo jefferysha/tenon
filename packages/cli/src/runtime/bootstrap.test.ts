@@ -548,6 +548,70 @@ describe('stable runtime bootstrap', () => {
     })
   })
 
+  async function selectActive(root: string, activeRelease: string): Promise<string> {
+    const state = join(root, 'state')
+    await mkdir(state, { recursive: true })
+    await writeFile(join(state, 'selection.json'), `${JSON.stringify({
+      version: 1,
+      revision: 1,
+      activeRelease,
+      previousRelease: null,
+      updatedAt: '2026-07-24T00:00:00Z',
+    })}\n`, 'utf8')
+    return state
+  }
+
+  it('remembers a verified payload digest by stat fingerprint and reuses it on the next dispatch', async () => {
+    const root = await freshRoot('digest-cache')
+    const activeRelease = await createRelease(root, 'CACHED_ACTIVE_1')
+    const bootstrap = await installBootstrap(root)
+    const state = await selectActive(root, activeRelease)
+
+    const first = await runBootstrap(root, bootstrap, ['cli', '--help'])
+    expect(first).toMatchObject({ code: 0, stdout: 'CACHED_ACTIVE_1' })
+    const cache = JSON.parse(await readFile(join(state, 'payload-digest-cache.json'), 'utf8'))
+    expect(cache).toEqual({
+      version: 1,
+      releases: {
+        [activeRelease]: { manifestVersion: 1, payloadDigest: activeRelease.slice('sha256-'.length), fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/) },
+      },
+    })
+    const second = await runBootstrap(root, bootstrap, ['cli', '--help'])
+    expect(second).toMatchObject({ code: 0, stdout: 'CACHED_ACTIVE_1' })
+    expect(JSON.parse(await readFile(join(state, 'payload-digest-cache.json'), 'utf8'))).toEqual(cache)
+  })
+
+  it('still refuses a same-size content change with its mtime restored after the cache is warm', async () => {
+    const root = await freshRoot('digest-cache-tamper')
+    const activeRelease = await createRelease(root, 'CACHED_ACTIVE_1')
+    const bootstrap = await installBootstrap(root)
+    await selectActive(root, activeRelease)
+    expect((await runBootstrap(root, bootstrap, ['cli', '--help'])).stdout).toBe('CACHED_ACTIVE_1')
+
+    const cli = join(root, 'data', 'releases', activeRelease, 'payload', 'packages', 'cli', 'dist', 'tenon.mjs')
+    const before = await stat(cli)
+    await writeFile(cli, `process.stdout.write(${JSON.stringify('FORGED_ACTIVE_1')})\n`, 'utf8')
+    await utimes(cli, before.atime, before.mtime)
+    expect((await stat(cli)).size).toBe(before.size)
+
+    const result = await runBootstrap(root, bootstrap, ['cli', '--help'])
+    expect(result.code).toBe(1)
+    expect(result.stdout).not.toContain('FORGED_ACTIVE_1')
+    expect(result.stderr).toContain('runtime is unavailable')
+  })
+
+  it('falls back to a full payload hash when the digest cache is unreadable', async () => {
+    const root = await freshRoot('digest-cache-corrupt')
+    const activeRelease = await createRelease(root, 'CACHED_ACTIVE_1')
+    const bootstrap = await installBootstrap(root)
+    const state = await selectActive(root, activeRelease)
+    await writeFile(join(state, 'payload-digest-cache.json'), '{', 'utf8')
+
+    expect(await runBootstrap(root, bootstrap, ['cli', '--help'])).toMatchObject({ code: 0, stdout: 'CACHED_ACTIVE_1' })
+    expect(JSON.parse(await readFile(join(state, 'payload-digest-cache.json'), 'utf8')).releases[activeRelease])
+      .toMatchObject({ payloadDigest: activeRelease.slice('sha256-'.length) })
+  })
+
   it('reports a truncated audit tail instead of presenting an older event as lastAudit', async () => {
     const root = await freshRoot('audit-corrupt-tail')
     const activeRelease = await createRelease(root, 'ACTIVE')
