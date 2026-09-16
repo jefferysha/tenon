@@ -68,6 +68,7 @@ export interface MutationRouteDeps {
   workflowRootAnchors: Map<string, WorkflowRootAnchor>
   trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
   errMsg: (error: unknown) => string
+  resolveUser: import('./serverUserRoutes.js').ResolveUser
 }
 
 export async function handlePatchRoute(

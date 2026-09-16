@@ -229,7 +229,7 @@ export function deleteInstructionTarget(scope: InstructionScope, targetId: strin
           : fail(409, removed.code, '指令文件不可删除', { id: targetId })
       }
       const kept = writeTrustedFile(location.root, location.dirs, location.name, remaining, digest, INSTRUCTION_TEXT_MAX_BYTES)
-      if (kept.ok) return { status: 200, body: { ok: true, result: 'managed-kept' } }
+      if (kept.ok) return { status: 200, body: { ok: true, result: 'managed-kept', digest: kept.digest } }
       return kept.code === 'changed'
         ? fail(409, 'instruction-file-changed', '文件已被外部修改', { id: targetId, digest: kept.digest })
         : fail(409, kept.code, '指令文件不可写', { id: targetId })

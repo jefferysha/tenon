@@ -4,6 +4,7 @@ import { request as httpRequest } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { TenonUserResolution } from '@tenon/kernel'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolveServerPaths } from './paths.js'
 import { createDashboardServer } from './server.js'
@@ -15,18 +16,25 @@ const AUTH = { Authorization: `Bearer ${TOKEN}` }
 const servers: DashboardServer[] = []
 const homes: string[] = []
 
+/** 注入固定身份：审计行断言不依赖本机 git config，也不会把开发者邮箱写进临时库。 */
+const ACTOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+const TEST_USER: TenonUserResolution = { ...ACTOR, slug: 'tester-at-tenon.test', source: 'env' }
+
 afterEach(async () => {
   while (servers.length > 0) await servers.pop()?.close()
   await Promise.all(homes.splice(0).map((home) => rm(home, { recursive: true, force: true })))
 })
 
-async function start(roots: readonly string[] = []): Promise<{ port: number; paths: ServerPaths; library: string; home: string }> {
+async function start(
+  roots: readonly string[] = [],
+  resolveUser: (root: string) => TenonUserResolution = () => TEST_USER,
+): Promise<{ port: number; paths: ServerPaths; library: string; home: string }> {
   const home = await mkdtemp(join(tmpdir(), 'tenon-instruction-routes-'))
   homes.push(home)
   const paths = resolveServerPaths({ home, env: {} })
   const srv = createDashboardServer({
     version: '9.9.9', hostHome: home, paths, token: TOKEN, registry: () => [...roots], pollIntervalMs: 1000, cadence: false,
-    manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)),
+    manifestPath: fileURLToPath(new URL('../../../templates/manifest.yaml', import.meta.url)), resolveUser,
   })
   servers.push(srv)
   const { port } = await srv.listen(0, '127.0.0.1')
@@ -212,5 +220,79 @@ describe('instruction template routes', () => {
     }, { headers: AUTH })
     expect(mismatch.status).toBe(400)
     expect(mismatch.json<{ errors: string[] }>().errors[0]).toContain('framework-mismatch')
+  })
+
+  it('缺声明身份：每个写端点 412 且不落盘；只读与 dry run 照常', async () => {
+    const project = await tempProject()
+    const { port, library } = await start([project], () => ({ missing: true }))
+    const from = { source: 'builtin', category: 'backend', id: 'go' }
+    expect((await reqPut(port, '/api/instruction-templates/custom/backend/mine', CUSTOM, { ...AUTH, 'If-Match': 'absent' })).status).toBe(412)
+    expect(existsSync(join(library, 'custom', 'backend', 'mine.md'))).toBe(false)
+    const copy = await reqPost(port, '/api/instruction-templates/copy', { from, id: 'go-team' }, { headers: AUTH })
+    expect(copy.status).toBe(412)
+    expect(copy.json<{ code: string }>().code).toBe('user-missing')
+    expect((await reqDelete(port, '/api/instruction-templates/custom/backend/mine?digest=x', { headers: AUTH })).status).toBe(412)
+
+    const target = { root: project, text: '# x\n', targets: [{ id: 'CLAUDE.md', base_digest: 'absent' }] }
+    expect((await reqPost(port, '/api/instructions/apply', target, { headers: AUTH })).status).toBe(412)
+    expect(existsSync(join(project, 'CLAUDE.md'))).toBe(false)
+    expect((await reqDelete(port, `/api/instructions?root=${encodeURIComponent(project)}&target=CLAUDE.md&digest=absent`, { headers: AUTH })).status).toBe(412)
+    const create = { mode: 'existing', path: project, instructions: null }
+    expect((await reqPost(port, '/api/projects/create', create, { headers: AUTH })).status).toBe(412)
+
+    expect((await reqGet(port, '/api/instruction-templates')).status).toBe(200)
+    expect((await reqPost(port, '/api/instructions/preview', { root: project, text: '# x\n', targets: ['CLAUDE.md'] }, { headers: AUTH })).status).toBe(200)
+    expect((await reqPost(port, '/api/projects/create', { ...create, dry_run: true }, { headers: AUTH })).status).toBe(200)
+    expect(existsSync(join(library, 'audit.jsonl'))).toBe(false)
+  })
+
+  it('审计：模板与指令文件每次写入追加一行，记动作、作者与前后摘要', async () => {
+    const project = await tempProject()
+    const { port, library } = await start([project])
+    const created = await reqPut(port, '/api/instruction-templates/custom/backend/mine', CUSTOM, { ...AUTH, 'If-Match': 'absent' })
+    const saved = JSON.parse(created.body).digest as string
+    const copied = await reqPost(port, '/api/instruction-templates/copy', { from: { source: 'builtin', category: 'backend', id: 'go' }, id: 'go-team' }, { headers: AUTH })
+    expect(copied.status).toBe(200)
+    expect((await reqDelete(port, `/api/instruction-templates/custom/backend/mine?digest=${encodeURIComponent(saved)}`, { headers: AUTH })).status).toBe(200)
+
+    const applied = await reqPost(port, '/api/instructions/apply', {
+      root: project, text: '# 规则\n', targets: [{ id: 'CLAUDE.md', base_digest: 'absent' }],
+    }, { headers: AUTH })
+    const written = applied.json<{ files: { id: string; digest: string }[] }>().files[0]?.digest ?? ''
+    expect((await reqDelete(port, `/api/instructions?root=${encodeURIComponent(project)}&target=CLAUDE.md&digest=${encodeURIComponent(written)}`, { headers: AUTH })).status).toBe(200)
+
+    const rows = (await readFile(join(library, 'audit.jsonl'), 'utf8')).trimEnd().split('\n')
+      .map((line) => JSON.parse(line) as { at: string; actor: unknown; action: string; target: string; digest_before: string; digest_after: string })
+    expect(rows.map((row) => [row.action, row.target, row.digest_before, row.digest_after])).toEqual([
+      ['template-save', 'custom/backend/mine', 'absent', saved],
+      ['template-copy', 'custom/backend/go-team', 'absent', copied.json<{ digest: string }>().digest],
+      ['template-delete', 'custom/backend/mine', saved, 'absent'],
+      ['instruction-apply', join(project, 'CLAUDE.md'), 'absent', written],
+      ['instruction-delete', join(project, 'CLAUDE.md'), written, 'absent'],
+    ])
+    for (const row of rows) {
+      expect(row.actor).toEqual({ id: 'tester@tenon.test', name: 'Tester', trust: 'declared' })
+      expect(row.at).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/)
+    }
+  })
+
+  it('审计：用户级指令文件与新建项目各记一行，dry run 不记', async () => {
+    const parent = await tempProject()
+    const { port, library } = await start()
+    const audit = join(library, 'audit.jsonl')
+    const empty = { mode: 'empty', parent, name: 'shop', instructions: null }
+    expect((await reqPost(port, '/api/projects/create', { ...empty, dry_run: true }, { headers: AUTH })).status).toBe(200)
+    expect(existsSync(audit)).toBe(false)
+
+    expect((await reqPost(port, '/api/instructions/apply', {
+      root: '', text: '# 个人\n', targets: [{ id: 'claude', base_digest: 'absent' }],
+    }, { headers: AUTH })).status).toBe(200)
+    expect((await reqPost(port, '/api/projects/create', empty, { headers: AUTH })).status).toBe(200)
+
+    const rows = (await readFile(audit, 'utf8')).trimEnd().split('\n').map((line) => JSON.parse(line) as { action: string; target: string })
+    expect(rows.map((row) => [row.action, row.target])).toEqual([
+      ['instruction-apply', 'user/claude'],
+      ['project-create', join(parent, 'shop')],
+    ])
   })
 })

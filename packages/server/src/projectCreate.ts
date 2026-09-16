@@ -10,8 +10,9 @@ import { lstatSync, mkdirSync, rmSync } from 'node:fs'
 import { isAbsolute, join, resolve as resolvePath } from 'node:path'
 import {
   PROJECT_INSTRUCTION_FILES, containsManagedMarker, mergeManagedBlocks, readProjectRegistry,
-  type ProjectInstructionFile,
+  type ProjectInstructionFile, type RecordActor,
 } from '@tenon/kernel'
+import { IDENTITY_REQUIRED, recordInstructionAudit } from './instructionAudit.js'
 import { INSTRUCTION_TEXT_MAX_BYTES, applyInstructions, previewInstructionApply, type InstructionResult } from './instructionFiles.js'
 import { trustedFsFailure, writeTrustedFile } from './instructionTrustedFs.js'
 import { registerProjectAnchored } from './projects.js'
@@ -24,9 +25,11 @@ import {
 export type GitRunner = (args: readonly string[], cwd: string) => Promise<{ code: number; stderr: string }>
 
 export interface ProjectCreateDeps {
-  readonly paths: Pick<ServerPaths, 'registryPath'>
+  readonly paths: Pick<ServerPaths, 'registryPath' | 'configRoot'>
   readonly workflowRootAnchors: Map<string, WorkflowRootAnchor>
   readonly runGit: GitRunner
+  /** 新建项目的作者；null = 本机没有声明身份，执行阶段拒绝（dry run 不需要）。 */
+  readonly actor: RecordActor | null
 }
 
 interface InstructionsRequest { readonly text: string; readonly targets: readonly ProjectInstructionFile[]; readonly baseDigests: Readonly<Record<string, string>> }
@@ -214,14 +217,23 @@ async function executeExisting(plan: Extract<ProjectCreatePlan, { mode: 'existin
   return { status: 200, body: { ok: true, root: plan.root, git, registration: 'add', directories: [], files } }
 }
 
-/** POST /api/projects/create：解码 → 校验 / dry run → 执行。 */
+/** POST /api/projects/create：解码 → 校验 / dry run → 执行。执行记作者，dry run 不需要身份也不记。 */
 export async function handleProjectCreate(body: unknown, deps: ProjectCreateDeps): Promise<InstructionResult> {
   const plan = decodeProjectCreate(body)
   if ('status' in plan) return plan
   try {
     const checked = await planProjectCreate(plan, deps)
     if (checked.status !== 200 || plan.dryRun) return checked
-    return plan.mode === 'empty' ? await executeEmpty(plan, deps) : await executeExisting(plan, deps)
+    const actor = deps.actor
+    if (actor === null) return IDENTITY_REQUIRED
+    const created = plan.mode === 'empty' ? await executeEmpty(plan, deps) : await executeExisting(plan, deps)
+    // 项目根是目录，没有文件摘要可比，前后都记 absent。
+    if (created.status === 200) {
+      recordInstructionAudit(deps.paths.configRoot, {
+        actor, action: 'project-create', target: plan.root, digest_before: 'absent', digest_after: 'absent',
+      })
+    }
+    return created
   } catch (error) {
     return trustedFsFailure(error)
   }

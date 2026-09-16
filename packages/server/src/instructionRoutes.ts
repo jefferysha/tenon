@@ -1,9 +1,18 @@
 /**
  * 指令模板与指令文件路由。路由表只各加一行分派：GET 在这里做 Host 守卫；POST / PUT / DELETE 的 Host 守卫与
  * token 鉴权由路由表在分派前完成（POST 表同时要求 application/json）。返回 null = 非本模块路由。
+ *
+ * 写端点还要求本机有声明身份：缺身份 412，任何文件都不动；落盘成功后按 design §3.1 追加一行 audit.jsonl。
+ * 只读（GET、preview、compose）与 dry run 不需要身份。
  */
 import type { IncomingMessage } from 'node:http'
-import { INSTRUCTION_BLOCK_MAX_BYTES, NO_CATALOG, syncBuiltinLibraries, type BuiltinSyncResult } from '@tenon/kernel'
+import { join } from 'node:path'
+import {
+  INSTRUCTION_BLOCK_MAX_BYTES, NO_CATALOG, syncBuiltinLibraries, type BuiltinSyncResult, type RecordActor,
+} from '@tenon/kernel'
+import {
+  IDENTITY_REQUIRED, auditActor, recordInstructionAudit, type InstructionAuditAction, type ResolveInstructionUser,
+} from './instructionAudit.js'
 import {
   composeFromRequest, copyTemplate, deleteCustomTemplate, listTemplates, parseTemplateRef, readTemplate,
   templateLibraryAnchor, writeCustomTemplate, type LibraryResult,
@@ -33,6 +42,8 @@ export interface InstructionRouteDeps {
   readonly runGit?: GitRunner
   /** 内建库的 payload 根；缺省为本 server 所在插件根目录。 */
   readonly payloadRoot?: string
+  /** 请求 root 上的声明身份（路由表注入）；写端点据此记作者。 */
+  readonly resolveUser?: ResolveInstructionUser
 }
 
 const TEMPLATES = '/api/instruction-templates'
@@ -47,6 +58,26 @@ function scopeFor(root: string, deps: InstructionRouteDeps): InstructionScope | 
 }
 
 const isScope = (value: InstructionScope | RouteResult): value is InstructionScope => 'level' in value
+
+/** 写端点的作者；模板库是用户级，所以 root 传空串。 */
+const actorFor = (deps: InstructionRouteDeps, root: string): RecordActor | RouteResult =>
+  auditActor(deps.resolveUser, root) ?? IDENTITY_REQUIRED
+
+const isActor = (value: RecordActor | RouteResult): value is RecordActor => 'trust' in value
+
+function audit(
+  deps: InstructionRouteDeps, actor: RecordActor, action: InstructionAuditAction, target: string, before: string, after: string,
+): void {
+  recordInstructionAudit(deps.paths.configRoot, { actor, action, target, digest_before: before, digest_after: after })
+}
+
+/** 200 响应里的 digest；没有该字段（删除到文件消失）时按缺失记。 */
+function digestOf(result: RouteResult): string {
+  const body = result.body as { digest?: unknown } | null
+  return typeof body?.digest === 'string' ? body.digest : 'absent'
+}
+
+const instructionTarget = (root: string, id: string): string => (root === '' ? `user/${id}` : join(root, id))
 
 function objectBody(value: unknown, keys: readonly string[]): Record<string, unknown> | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
@@ -67,17 +98,33 @@ async function postInstructions(req: IncomingMessage, action: 'preview' | 'apply
   const targets = body.targets.map((item) => objectBody(item, ['id', 'base_digest']))
     .map((item) => (item && typeof item.id === 'string' && typeof item.base_digest === 'string' ? { id: item.id, base_digest: item.base_digest } : null))
   if (targets.some((item) => item === null)) return failure(400, 'invalid-target', 'targets 必须是 { id, base_digest } 列表')
-  return applyInstructions(scope, body.text, targets.filter((item): item is { id: string; base_digest: string } => item !== null))
+  const planned = targets.filter((item): item is { id: string; base_digest: string } => item !== null)
+  const actor = actorFor(deps, body.root)
+  if (!isActor(actor)) return actor
+  const applied = applyInstructions(scope, body.text, planned)
+  if (applied.status === 200) {
+    const root = body.root
+    for (const file of (applied.body as { files: readonly { id: string; digest: string }[] }).files) {
+      const before = planned.find((item) => item.id === file.id)?.base_digest ?? 'absent'
+      audit(deps, actor, 'instruction-apply', instructionTarget(root, file.id), before, file.digest)
+    }
+  }
+  return applied
 }
 
 function deleteInstructions(req: IncomingMessage, deps: InstructionRouteDeps): RouteResult {
   const query = new URL(req.url ?? '/', 'http://localhost').searchParams
-  const scope = scopeFor(query.get('root') ?? '', deps)
+  const root = query.get('root') ?? ''
+  const scope = scopeFor(root, deps)
   if (!isScope(scope)) return scope
   const target = query.get('target') ?? ''
   const digest = query.get('digest') ?? ''
   if (target === '' || digest === '') return failure(400, 'invalid-target', '缺少 target 或 digest')
-  return deleteInstructionTarget(scope, target, digest)
+  const actor = actorFor(deps, root)
+  if (!isActor(actor)) return actor
+  const removed = deleteInstructionTarget(scope, target, digest)
+  if (removed.status === 200) audit(deps, actor, 'instruction-delete', instructionTarget(root, target), digest, digestOf(removed))
+  return removed
 }
 
 const failure = (status: number, code: string, error: string): RouteResult => ({ status, body: { ok: false, code, error } })
@@ -137,7 +184,11 @@ async function putTemplate(req: IncomingMessage, path: string, deps: Instruction
   if (typeof ifMatch !== 'string' || ifMatch === '') return failure(428, 'if-match-required', '缺少 If-Match')
   const text = await readTextBody(req, INSTRUCTION_BLOCK_MAX_BYTES)
   if (text === null) return failure(413, 'too-large', `模板超过 ${INSTRUCTION_BLOCK_MAX_BYTES} 字节`)
-  return guarded(() => writeCustomTemplate(templateLibraryAnchor(deps.paths.configRoot), ref.category, ref.id, text, ifMatch))
+  const actor = actorFor(deps, '')
+  if (!isActor(actor)) return actor
+  const saved = guarded(() => writeCustomTemplate(templateLibraryAnchor(deps.paths.configRoot), ref.category, ref.id, text, ifMatch))
+  if (saved.status === 200) audit(deps, actor, 'template-save', `custom/${ref.category}/${ref.id}`, ifMatch, digestOf(saved))
+  return saved
 }
 
 async function postCopy(req: IncomingMessage, deps: InstructionRouteDeps): Promise<RouteResult> {
@@ -149,8 +200,12 @@ async function postCopy(req: IncomingMessage, deps: InstructionRouteDeps): Promi
   if (!request || Object.keys(request).some((key) => key !== 'from' && key !== 'id') || !ref || parseTemplateRef('custom', ref.category, id) === null) {
     return failure(400, 'invalid-template-ref', '复制请求不合法')
   }
+  const actor = actorFor(deps, '')
+  if (!isActor(actor)) return actor
   await syncTemplates(deps)
-  return guarded(() => copyTemplate(templateLibraryAnchor(deps.paths.configRoot), ref, id))
+  const copied = guarded(() => copyTemplate(templateLibraryAnchor(deps.paths.configRoot), ref, id))
+  if (copied.status === 200) audit(deps, actor, 'template-copy', `custom/${ref.category}/${id}`, 'absent', digestOf(copied))
+  return copied
 }
 
 async function postCompose(req: IncomingMessage, deps: InstructionRouteDeps): Promise<RouteResult> {
@@ -166,7 +221,11 @@ function deleteTemplate(req: IncomingMessage, path: string, deps: InstructionRou
   if (ref.source === 'builtin') return failure(409, 'template-builtin-readonly', '内建模板只读')
   const digest = new URL(req.url ?? '/', 'http://localhost').searchParams.get('digest') ?? ''
   if (digest === '') return failure(428, 'if-match-required', '缺少 digest')
-  return guarded(() => deleteCustomTemplate(templateLibraryAnchor(deps.paths.configRoot), ref.category, ref.id, digest))
+  const actor = actorFor(deps, '')
+  if (!isActor(actor)) return actor
+  const removed = guarded(() => deleteCustomTemplate(templateLibraryAnchor(deps.paths.configRoot), ref.category, ref.id, digest))
+  if (removed.status === 200) audit(deps, actor, 'template-delete', `custom/${ref.category}/${ref.id}`, digest, 'absent')
+  return removed
 }
 
 export function resolveInstructionMutation(
@@ -179,7 +238,10 @@ export function resolveInstructionMutation(
     return (async () => {
       if (!deps.workflowRootAnchors) return failure(404, 'not-found', '未知端点')
       const body = deps.readJsonBody ? await deps.readJsonBody(req) : undefined
-      return handleProjectCreate(body, { paths: deps.paths, workflowRootAnchors: deps.workflowRootAnchors, runGit: deps.runGit ?? runGitCommand })
+      return handleProjectCreate(body, {
+        paths: deps.paths, workflowRootAnchors: deps.workflowRootAnchors, runGit: deps.runGit ?? runGitCommand,
+        actor: auditActor(deps.resolveUser, ''),
+      })
     })()
   }
   if (method === 'POST' && path === `${INSTRUCTIONS}/preview`) return postInstructions(req, 'preview', deps)
