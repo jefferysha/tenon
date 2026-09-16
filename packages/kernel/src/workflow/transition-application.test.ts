@@ -1231,7 +1231,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const policy = compileEffectiveWorkflowPlan('governed', wf).documentPolicy
       if (!policy) throw new Error('expected document policy')
       const { changeDir: dir } = await deps.runRepository.initChange({
-        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', preset: 'full', clock: FIXED_CLOCK,
+        repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full', clock: FIXED_CLOCK,
         initialWorkflow: {
           workflow: 'governed', phase: 'build', documentProfile: 'document-v1',
           documentGovernanceFingerprint: documentGovernanceFingerprint(policy),

@@ -2,6 +2,6 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "outDir": "dist", "rootDir": "src" },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/test-support.ts", "src/integration-harness.ts"],
+  "exclude": ["src/**/*.test.ts", "src/test-support.ts", "src/integration-harness.ts", "src/integration-harness-documents.ts"],
   "references": [{ "path": "../kernel" }, { "path": "../channel" }, { "path": "../tap" }, { "path": "../automation" }]
 }
