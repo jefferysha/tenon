@@ -13,6 +13,9 @@ export * from './users/index.js'
 export * from './instructions/index.js'
 // 资源目录（组件库 / 图标 / 动画 / DESIGN.md / 状态管理 / 样式）条目的解析、校验与筛选。
 export * from './resources/index.js'
+// 项目设计体系（根目录 DESIGN.md + design/）的结构检查与变更提案。
+export * from './design-system/index.js'
+export { createDesignFileReader } from './infrastructure/design-system-fs.js'
 // 内建库（模板、agent、资源目录、测试方向）从 payload 同步到全局 config/<kind>/builtin。
 export {
   BUILTIN_LIBRARIES, BUILTIN_LIBRARY_MARKER, builtinLibrary, builtinSourceDigest, parseBuiltinLibraryMarker,

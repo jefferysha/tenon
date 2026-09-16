@@ -45,7 +45,7 @@ import { cmdInternalSkillProvenance } from './commands/internal-skill-provenance
 import { cmdTriage, type TriageCommandRuntime } from './commands/triage.js'
 import { bail, stripNl } from './program-exit.js'
 import { registerInstallCommands } from './program-install.js'
-import { registerResourceCommands } from './program-resources.js'
+import { registerDesignCommands, registerResourceCommands } from './program-resources.js'
 import { registerStateCommands } from './program-state.js'
 import { registerTrackCommands } from './program-tracks.js'
 import { registerHandoffCommand, registerWorkflowCommands } from './program-workflows.js'
@@ -373,6 +373,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
   registerTrackCommands(program, deps)
   registerUserCommands(program, deps)
   registerResourceCommands(program, deps)
+  registerDesignCommands(program, deps)
 
   program.addHelpText(
     'after',

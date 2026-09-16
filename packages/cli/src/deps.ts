@@ -227,6 +227,15 @@ export interface CliDeps {
    * 内建条目在这里按 payload 摘要同步。缺省 undefined = 未装配，命令 exit 1。
    */
   resourceCatalog?: () => Promise<import('@tenon/kernel').ResourceCatalog>
+  /**
+   * 上游 hue 的 `scripts/validate.mjs`（`tenon design validate` 用）：path() 返回脚本绝对路径，
+   * 技能没装时返回空串；run() 以仓库根为 cwd 执行并返回退出码。缺省 undefined = 未装配，命令 exit 1；
+   * 用例注入假实现，永不真的 spawn。
+   */
+  designValidator?: {
+    path: () => string
+    run: (script: string, folder: string, cwd: string) => Promise<number>
+  }
   io: CliIO
   /** ISO8601 UTC 注入时钟（CONTRACT §5.6：业务码禁止散落 new Date()） */
   clock: () => string

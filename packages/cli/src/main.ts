@@ -7,8 +7,8 @@
  * 若 kernel 侧签名不同（如 loadManifest 需要 manifest.yaml 路径参数），仅调整此处装配，
  * 命令模块与测试不受影响。
  */
-import { execFile } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { execFile, spawn } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -232,6 +232,18 @@ async function main(): Promise<void> {
     taskLifecycle: createTaskLifecycleApplication({ store, clock: isoNow, nowMs: () => Date.now() }),
     userConfigPath: () => runtimePaths().userConfigPath,
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
+    designValidator: {
+      // 上游 hue 随插件安装；技能没装时返回空串，命令据此给出安装提示而不是去 spawn 不存在的脚本。
+      path: () => {
+        const script = join(pluginRoot(), 'skills', 'hue', 'scripts', 'validate.mjs')
+        return existsSync(script) ? script : ''
+      },
+      run: (script, folder, cwd) => new Promise<number>((resolve) => {
+        const child = spawn(process.execPath, [script, folder], { cwd, stdio: 'inherit' })
+        child.on('error', () => resolve(1))
+        child.on('close', (code) => resolve(code ?? 1))
+      }),
+    },
     io: {
       out: (line: string) => process.stdout.write(`${line}\n`),
       err: (line: string) => process.stderr.write(`${line}\n`),

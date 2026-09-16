@@ -1,5 +1,6 @@
 import type { Command } from 'commander'
 import type { CliDeps } from './deps.js'
+import { cmdDesignCheck, cmdDesignPropose, cmdDesignValidate } from './commands/design.js'
 import { cmdResourcesList, cmdResourcesShow, type ResourcesListOpts } from './commands/resources.js'
 import { bail } from './program-exit.js'
 
@@ -26,4 +27,28 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
     .description('显示一条资源的许可、安装、链接与技能')
     .option('--json', 'JSON object 输出')
     .action(async (id: string, opts: { json?: boolean }) => bail(await cmdResourcesShow(deps, id, opts)))
+}
+
+export function registerDesignCommands(program: Command, deps: CliDeps): void {
+  const design = program
+    .command('design')
+    .description('项目设计体系：check（结构）/ validate（hue 校验 + 提案合并）/ propose <change>')
+    .action(() => {
+      deps.io.err('用法：tenon design <check|validate|propose> …（详见 tenon design --help）')
+      bail(1)
+    })
+  design
+    .command('check')
+    .description('DESIGN.md 结构检查：缺失 / 起步 / 不完整 / 就绪')
+    .option('--json', 'JSON object 输出（status + problems）')
+    .action(async (opts: { json?: boolean }) => bail(await cmdDesignCheck(deps, opts)))
+  design
+    .command('validate')
+    .description('结构就绪后跑上游 hue 校验器，并检查设计变更提案是否已合并')
+    .option('--change <change>', '任务名（缺省取 TENON_CHANGE_NAME）')
+    .action(async (opts: { change?: string }) => bail(await cmdDesignValidate(deps, opts)))
+  design
+    .command('propose <change>')
+    .description('写 openspec/changes/<change>/design-system.md 提案骨架')
+    .action(async (change: string) => bail(await cmdDesignPropose(deps, change)))
 }
