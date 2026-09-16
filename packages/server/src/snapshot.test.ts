@@ -1906,7 +1906,7 @@ steps:
       ...legacyBase,
       // Historical bytes also predate step prompts (the frontend branch gained them with DESIGN.md).
       steps: legacyBase.steps.map((step) => {
-        const { reviewLanes: _reviewLanes, prompt: _prompt, ...legacyStep } = step
+        const { reviewLanes: _reviewLanes, tests: _tests, prompt: _prompt, ...legacyStep } = step
         return {
           ...legacyStep,
           // The last step was labelled 归档 before the 完结 wording.
