@@ -227,10 +227,19 @@ export interface ProjectRepositoryIdentity {
   workspace_kind: 'primary' | 'worktree'
 }
 
+/** 归档只对查看者生效：同一个 change 在别人的快照里仍在 changes。 */
+export type ArchivedChangeSnapshot = ChangeSnapshot & {
+  archive: { archivedAt: string; phase: string; actor: { id: string; name: string; trust: 'declared' } }
+}
+
 export interface ProjectSnapshot {
   root: string
   ok: boolean
   changes: ChangeSnapshot[]
+  /** 查看者已归档的 change；每个聚合读数都只读 changes，故自动排除它们。 */
+  archived?: ArchivedChangeSnapshot[]
+  /** 未提交删除的 change 数；仓库不受版本控制时缺省。 */
+  uncommittedDeletions?: number
   repository?: ProjectRepositoryIdentity
   compatibilityIssues?: (CanonicalStateCompatibilityIssue | LegacyScopeCompatibilityIssue)[]
   compatibilityIssuesTruncated?: true

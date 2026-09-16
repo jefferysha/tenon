@@ -69,11 +69,19 @@ review_marker_for_displayed_change() { # $1=marker $2=displayed change name
 
 # 最新活跃 change：canonical 存在时按 current.json mtime；仅未迁移 change 才看 YAML。
 NAME="" PHASE="" BEST=0
+# 当前用户的归档记录：整趟扫描只解析一次路径（与 archived=true 同等跳过）。
+SL_ARCHIVE_HELPER="$HOOK_DIR/task-archive.sh"
+# shellcheck source=task-archive.sh
+[ -r "$SL_ARCHIVE_HELPER" ] && . "$SL_ARCHIVE_HELPER"
+declare -F pipeline_change_archived_for_user >/dev/null 2>&1 || pipeline_change_archived_for_user() { return 1; }
+SL_ARCHIVE_STORE=""
+declare -F pipeline_task_archive_store >/dev/null 2>&1 && SL_ARCHIVE_STORE="$(pipeline_task_archive_store "$ROOT" || true)"
 for change_dir in "$ROOT"/openspec/changes/*; do
   [ -d "$change_dir" ] || continue
   f="$(pipeline_state_source "$change_dir" || true)"
   [ -n "$f" ] || continue
   [ "$(yget "$f" archived)" = "true" ] && continue
+  pipeline_change_archived_for_user "$SL_ARCHIVE_STORE" "${change_dir##*/}" && continue
   # GNU `stat -f` 是文件系统状态模式（非 mtime），在 Linux 上会"成功"吐非数字，兜底永不触发
   # ——先试 GNU 语法（-c）+ 数字校验，而非只靠退出码判断。
   mt="$(stat -c %Y "$f" 2>/dev/null)"

@@ -1,7 +1,34 @@
-import { describe, expect, test } from 'vitest'
-import type { PipelineState } from '@tenon/kernel'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, test } from 'vitest'
+import { ensureUserLocalDir, serializeTaskArchive, type PipelineState } from '@tenon/kernel'
 import { cmdList, cmdStatus } from './status.js'
 import { makeDeps, mockState, spy } from '../test-support.js'
+
+const ARCHIVE_ENTRY = {
+  archivedAt: '2026-09-15T12:00:00.000Z',
+  phase: 'build',
+  actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' as const },
+}
+const repos: string[] = []
+
+/** Real temporary checkout whose per-user archive store hides `names` from the acting user. */
+async function repoWithArchived(...names: string[]): Promise<string> {
+  const repo = await mkdtemp(join(tmpdir(), 'tenon-status-archived-'))
+  repos.push(repo)
+  for (const name of names) await mkdir(join(repo, 'openspec', 'changes', name), { recursive: true })
+  const paths = await ensureUserLocalDir(repo, 'tester-at-tenon.test')
+  await writeFile(paths.archived, serializeTaskArchive({
+    version: 1,
+    changes: Object.fromEntries(names.map((name) => [name, ARCHIVE_ENTRY])),
+  }), 'utf8')
+  return repo
+}
+
+afterEach(async () => {
+  await Promise.all(repos.splice(0).map((repo) => rm(repo, { recursive: true, force: true })))
+})
 
 const stateA = mockState({
   track: 'backend',
@@ -175,5 +202,36 @@ describe('list —— 活跃 change 表；--json schema 稳定', () => {
     const code = await cmdList(deps, {})
     expect(code).toBe(0)
     expect(deps.errLines.join('\n')).toContain('broken')
+  })
+})
+
+describe('已归档（当前用户）在列表中隐藏', () => {
+  test('status / list 跳过当前用户已归档的 change，键序不变', async () => {
+    const cwd = await repoWithArchived('demo-a')
+    const status = makeDeps({ states: { 'demo-a': stateA, 'demo-b': stateB }, cwd })
+    expect(await cmdStatus(status, undefined, { json: true })).toBe(0)
+    expect(status.outLines[0]).toBe(
+      '{"active_changes":[{"name":"demo-b","track":"pm","phase":"explore","phase_status":"pending","verify_result":"","updated_at":"2026-07-05T00:00:00Z"}]}',
+    )
+    const list = makeDeps({ states: { 'demo-a': stateA, 'demo-b': stateB }, cwd })
+    expect(await cmdList(list, { json: true })).toBe(0)
+    expect(list.outLines[0]).toBe(
+      '{"changes":[{"name":"demo-b","track":"pm","phase":"explore","phase_status":"pending","owner":null}]}',
+    )
+  })
+
+  test('另一个用户的归档不影响本用户；读不到的归档记录 fail-open', async () => {
+    const cwd = await repoWithArchived('demo-a')
+    const other = makeDeps({
+      states: { 'demo-a': stateA },
+      cwd,
+      user: () => ({ id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }),
+    })
+    expect(await cmdList(other, { json: true })).toBe(0)
+    expect(other.outLines[0]).toContain('demo-a')
+
+    const missing = makeDeps({ states: { 'demo-a': stateA }, cwd, user: () => ({ missing: true }) })
+    expect(await cmdList(missing, { json: true })).toBe(0)
+    expect(missing.outLines[0]).toContain('demo-a')
   })
 })

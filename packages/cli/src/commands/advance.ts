@@ -32,6 +32,7 @@
 import { implicitCompletionTransition, resolveStep, resolveWorkflowName } from '@tenon/kernel'
 import type { EffectiveWorkflowPlan, PipelineState, StepIR, StepTransitionIR } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
+import { refuseArchived } from '../archivedGuard.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { str } from '../render.js'
 import {
@@ -55,6 +56,7 @@ export async function cmdAdvance(deps: CliDeps, name: string, opts: AdvanceOpts 
     deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
     return 1
   }
+  if (await refuseArchived(deps, name)) return 1
   const maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS
   const through = opts.throughGates ?? false
 

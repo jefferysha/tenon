@@ -18,6 +18,7 @@ import { isValidSecretKey, removeSecret, SECRET_KEY_LIST } from './secrets.js'
 import { tokenFromHeaders, tokensMatch } from './token.js'
 import { handleWorkflowYamlPut, matchWorkflowYamlRoute } from './serverWorkflowYamlRoutes.js'
 import { resolveInstructionMutation } from './instructionRoutes.js'
+import { handleTaskLifecycleDelete, type TaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 import type { ServerPaths } from './types.js'
 import {
   assertWorkflowRootAnchor,
@@ -69,6 +70,8 @@ export interface MutationRouteDeps {
   trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
   errMsg: (error: unknown) => string
   resolveUser: import('./serverUserRoutes.js').ResolveUser
+  /** 删除 的共享 application；未装配时该路由不存在（不谎报）。 */
+  taskLifecycle?: TaskLifecycleRouteDeps
 }
 
 export async function handlePatchRoute(
@@ -145,6 +148,7 @@ export async function handleDeleteRoute(
 
     const instructionDelete = resolveInstructionMutation(req, 'DELETE', path, deps)
     if (instructionDelete) { const result = await instructionDelete; return sendJson(res, result.status, result.body) }
+    if (await handleTaskLifecycleDelete(req, res, path, deps)) return
 
     // ── G18：DELETE /api/projects?root= —— 注销项目（注册的对称操作）──
     if (path === '/api/projects') {

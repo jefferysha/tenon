@@ -155,3 +155,33 @@ npm test && npm run test:web && bash tools/test-hooks.sh && bash tools/verify-sk
 
 ~3.5k lines including tests: kernel ≈ 450 + 550 tests, CLI ≈ 250 + 350, server ≈ 300 + 350, hooks ≈ 60 + 120,
 dashboard ≈ 450 + 300, docs/spec ≈ 120. 11 commits.
+
+## Deviations
+
+Recorded during implementation; each is the smallest change that still meets the prd.
+
+| # | Design said | Implemented | Why |
+| --- | --- | --- | --- |
+| D-1 | `design.md` §4 declares a new `TenonActor` in `task-archive.ts` | reuse multi-user `RecordActor` | Parent §9 X10: children use the multi-user names. `RecordActor` is already exported and decoded by `decodeRecordActor`, which the store reuse for validation. |
+| D-2 | `TASK_ARCHIVE_FILE = 'archived.json'` exported from `task-archive.ts` | not exported; the path comes from `userProjectPaths(...).archived` | Parent §9 X10 again — a second literal for the same path is exactly the parallel helper X10 forbids. |
+| D-3 | §4 `TaskLifecycleDeps.terminalActivityLive` required, supplied by the adapter | optional, with a kernel default in `workspace/task-terminal-activity.ts` | The CLI and server would otherwise each carry a copy of the same hardened sidecar reader. The server still injects its own; the CLI uses the kernel default. |
+| D-4 | `isTaskLifecycleName` lives in `task-lifecycle.ts` | lives in `task-archive.ts`, re-exported through the kernel barrel | The archive store validates names too, and `task-lifecycle.ts` imports it; the public API is unchanged. |
+| D-5 | One file `workspace/task-lifecycle.ts` | split into `task-archive.ts`, `task-delete.ts`, `task-terminal-activity.ts`, `task-lifecycle.ts` | `packages/kernel/src/` files are capped at 450 lines (`check:architecture`); one file would be ~700. |
+| D-6 | §4 `deleted` outcome has no warnings field | added `warnings: readonly string[]` | §16 requires a WARN for a failed tombstone sweep and for another user's corrupt archive store; there was no other channel for it. |
+| D-7 | §6 removes `.tenon/users/*/local/authority.json` | removes `local/authority` (no `.json`) | That is the file multi-user actually landed (v2 line grammar, not JSON). The match is the exact line `change=<name>` in a bounded read. |
+| D-8 | §6 also clears legacy `.pipeline-active` / `.pipeline-interaction-authority` | not implemented | `tenon session activate` already retires both (`cli/src/commands/session.ts:192`), so nothing can name a Change there after multi-user merged. |
+| D-9 | §8 identity missing → 409 `identity-missing` | 412 `user-missing` | Parent §2 fixes 412 `user-missing` for a missing identity, and the decisions route already answers that way. Keeping two codes for one condition would be the real deviation. |
+| D-10 | §12 dialog error uses `formatApiError` into a field named `message` | the field is named `text` | `i18n.test.tsx` forbids any `.message` property access in production TSX. |
+| D-11 | §13 renames several i18n keys | `include_archived` → `include_completed`, `summary_archived` → `summary_completed` plus the value renames; `fields.archived`, `phases.archive`, `workspace.include_archived` values were already 已完结 on `main` | Wave 1 had already applied part of the rename; only the remaining keys and values changed. |
+| D-12 | §17 hooks row says `tools/test-hooks.sh` §13 | added as section 14 | Section 13 is multi-user's (merged in wave 1). |
+| D-13 | A new `workspace.cancel` / `workspace.task_actions` key | added | §12 lists the dialog actions 取消 / 删除 and the card menu but no key for them; there is no `common.cancel`. |
+
+## Deferred
+
+- **C11 browser end-to-end (Playwright against a running Dashboard).** Every layer is covered by real
+  end-to-end tests without a browser: `serverTaskLifecycleRoutes.test.ts` drives the real HTTP server
+  (delete → snapshot lacks it and reports 未提交删除 1; archive → `archived[0].archive.phase`; another
+  viewer still sees it), `task-lifecycle.integration.test.ts` drives the real CLI against a real git
+  repository, `tools/test-hooks.sh` section 14 drives the real hooks, and `TaskActions.test.tsx` drives
+  the real components against a mocked transport. Per parent X18 the remaining host-level acceptance
+  belongs to wave 5 on `main`.

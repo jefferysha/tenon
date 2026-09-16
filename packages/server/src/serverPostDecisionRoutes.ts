@@ -4,6 +4,7 @@ import {
   actorOf,
   clearReviewMarkerFor,
   createInteractionEventRecorder,
+  isArchivedForUser,
   isTenonUser,
   USER_MISSING_HINT,
   type RecordActor,
@@ -22,6 +23,7 @@ import type { PostRouteDeps } from './serverPostRoutes.js'
 import { readPendingDecisionProjection, readReviewBindingSafely } from './decisionProjection.js'
 import { resolveSnapshotTrack } from './skillRuns.js'
 import { resolveSnapshotEffectivePlan } from './workflowSnapshot.js'
+import { TASK_ARCHIVED_HTTP_ERROR } from './serverTaskLifecycleRoutes.js'
 
 type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history' | 'recordStore' | 'resolveUser'>
 
@@ -89,6 +91,10 @@ export async function handlePostDecisionRoutes(
   const user = deps.resolveUser(root)
   if (!isTenonUser(user)) {
     sendJson(res, 412, { ok: false, code: 'user-missing', error: USER_MISSING_HINT })
+    return true
+  }
+  if (await isArchivedForUser(root, user, name)) {
+    sendJson(res, 409, { ok: false, code: 'task-archived', error: TASK_ARCHIVED_HTTP_ERROR })
     return true
   }
   let result: ReviewAcknowledgeResult

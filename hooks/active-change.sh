@@ -14,6 +14,12 @@ if ! declare -F pipeline_user_local_dir >/dev/null 2>&1; then
   [ -r "$_TENON_ACTIVE_USER_HELPER" ] && . "$_TENON_ACTIVE_USER_HELPER"
 fi
 
+if ! declare -F pipeline_change_archived_for_user >/dev/null 2>&1; then
+  _TENON_ARCHIVE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/task-archive.sh"
+  # shellcheck source=task-archive.sh
+  [ -r "$_TENON_ARCHIVE_HELPER" ] && . "$_TENON_ARCHIVE_HELPER"
+fi
+
 pipeline_active_change_dir() { # $1=verified project root -> exact non-archived Change dir
   local root="$1" local_dir pointer name dir state
   [ -n "$root" ] && [ -d "$root/openspec/changes" ] || return 1
@@ -31,5 +37,9 @@ pipeline_active_change_dir() { # $1=verified project root -> exact non-archived 
   [ -d "$dir" ] || return 1
   state="$(pipeline_state_source "$dir" || true)"
   [ -n "$state" ] && [ "$(pipeline_state_get "$state" archived)" != "true" ] || return 1
+  # 归档（对当前用户隐藏）与完结（archived=true）同等对待：不作为可恢复的选择。
+  if declare -F pipeline_change_archived_for_user >/dev/null 2>&1; then
+    pipeline_change_archived_for_user "$(pipeline_task_archive_store "$root" || true)" "$name" && return 1
+  fi
   printf '%s' "$dir"
 }

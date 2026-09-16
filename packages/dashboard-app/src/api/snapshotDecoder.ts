@@ -1,4 +1,5 @@
 import type {
+  ArchivedChangeSnapshot,
   ChangeSnapshot,
   DocumentEvidenceSnapshot,
   PipelineTodoProjection,
@@ -488,15 +489,42 @@ function decodeProject(value: unknown): ProjectSnapshot | null {
     rulesByFingerprint.set(decoded.workflowPlanFingerprint, semanticKey)
     changes.push(decoded)
   }
+  const archived = value.archived === undefined ? undefined : decodeArchivedChanges(value.archived)
+  if (archived === null) return null
+  const uncommittedDeletions = decodeDeletionCount(value.uncommittedDeletions)
+  if (uncommittedDeletions === null) return null
   return {
     root: value.root,
     ok: value.ok,
     changes,
+    ...(archived === undefined ? {} : { archived }),
+    ...(uncommittedDeletions === undefined ? {} : { uncommittedDeletions }),
     ...(repository === undefined ? {} : { repository }),
     ...(compatibilityIssues === undefined ? {} : { compatibilityIssues }),
     ...(compatibilityIssuesTruncated === undefined ? {} : { compatibilityIssuesTruncated }),
     ...(value.error === undefined ? {} : { error: value.error }),
   }
+}
+
+/** 归档行是普通 change 加一个 archive 段；任何形状不符都让整个项目解码失败（闭形状）。 */
+function decodeArchivedChanges(value: unknown): ArchivedChangeSnapshot[] | null {
+  if (!Array.isArray(value)) return null
+  const rows: ArchivedChangeSnapshot[] = []
+  for (const entry of value) {
+    const change = decodeChange(entry)
+    if (!change || !isRecord(entry) || !isRecord(entry.archive)) return null
+    const { archivedAt, phase, actor } = entry.archive
+    if (typeof archivedAt !== 'string' || typeof phase !== 'string' || !isRecord(actor)) return null
+    if (typeof actor.id !== 'string' || typeof actor.name !== 'string' || actor.trust !== 'declared') return null
+    rows.push({ ...change, archive: { archivedAt, phase, actor: { id: actor.id, name: actor.name, trust: 'declared' } } })
+  }
+  return rows
+}
+
+/** `undefined` when absent, `null` when present but not a non-negative integer. */
+function decodeDeletionCount(value: unknown): number | undefined | null {
+  if (value === undefined) return undefined
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null
 }
 
 function decodeCompatibilityIssues(

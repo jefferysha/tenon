@@ -6,6 +6,12 @@
 # identity and is therefore safe to use when a normal-dialogue prompt explicitly asks to resume.
 # Callers must source json-input.sh and canonical-state.sh first.
 
+if ! declare -F pipeline_change_archived_for_user >/dev/null 2>&1; then
+  _TENON_BINDING_ARCHIVE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/task-archive.sh"
+  # shellcheck source=task-archive.sh
+  [ -r "$_TENON_BINDING_ARCHIVE_HELPER" ] && . "$_TENON_BINDING_ARCHIVE_HELPER"
+fi
+
 pipeline_host_session_change_name() { # $1=verified project root $2=host session id
   local root="${1:-}" session_id="${2:-}" binding body protocol bound_session change dir state size
   [ -n "$root" ] && [ -d "$root/openspec/changes" ] || return 1
@@ -32,5 +38,8 @@ pipeline_host_session_change_name() { # $1=verified project root $2=host session
   [ -d "$dir" ] || return 1
   state="$(pipeline_state_source "$dir" || true)"
   [ -n "$state" ] && [ "$(pipeline_state_get "$state" archived)" != 'true' ] || return 1
+  if declare -F pipeline_change_archived_for_user >/dev/null 2>&1; then
+    pipeline_change_archived_for_user "$(pipeline_task_archive_store "$root" || true)" "$change" && return 1
+  fi
   printf '%s' "$change"
 }

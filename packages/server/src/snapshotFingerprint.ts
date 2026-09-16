@@ -1,7 +1,10 @@
 import { lstat, readdir } from 'node:fs/promises'
 import type { Dirent } from 'node:fs'
 import { join } from 'node:path'
-import { stateStorageSourcePathSync, TERMINAL_ACTIVITY_FILE } from '@tenon/kernel'
+import {
+  isTenonUser, stateStorageSourcePathSync, TERMINAL_ACTIVITY_FILE, userProjectPaths,
+  type TenonUserResolution,
+} from '@tenon/kernel'
 import { dedupeRoots } from './projectRoots.js'
 import { repositoryTopologyFingerprint } from './repositoryFingerprint.js'
 import {
@@ -19,6 +22,28 @@ type ActivityReader = (
 
 type ChangesDirectoryReader = (changesRoot: string) => Promise<Dirent[]>
 
+/**
+ * The viewer's archive store and the repository's commit log: 归档 / 取消归档 change what the Dashboard
+ * shows, and the user's own commit changes the 未提交删除 count, so both must push a new snapshot.
+ */
+async function viewerFingerprintParts(
+  readRoot: string,
+  viewer: TenonUserResolution | undefined,
+): Promise<string[]> {
+  const parts: string[] = []
+  const targets = [join(readRoot, '.git', 'logs', 'HEAD')]
+  if (viewer !== undefined && isTenonUser(viewer)) targets.push(userProjectPaths(readRoot, viewer.slug).archived)
+  for (const target of targets) {
+    try {
+      const stat = await lstat(target, { bigint: true })
+      parts.push(`${target}:${stat.size}:${stat.mtimeNs}`)
+    } catch {
+      // Absent means the fingerprint simply carries no part for it.
+    }
+  }
+  return parts
+}
+
 /** Build the SSE input fingerprint while retaining the same registered-root anchor as snapshots. */
 export async function computeSnapshotFingerprint(
   roots: string[],
@@ -26,6 +51,7 @@ export async function computeSnapshotFingerprint(
   rootAnchor: ((root: string) => WorkflowRootAnchor | undefined) | undefined,
   readTerminalActivity: ActivityReader,
   readChangesDirectory?: ChangesDirectoryReader,
+  viewer?: (root: string) => TenonUserResolution,
 ): Promise<string> {
   const parts: string[] = []
   for (const root of dedupeRoots(roots)) {
@@ -44,6 +70,7 @@ export async function computeSnapshotFingerprint(
       const readRoot = anchor.fdPath ?? anchor.realPath
       parts.push(`root:${root}:${anchor.dev}:${anchor.ino}`)
       parts.push(...await repositoryTopologyFingerprint(readRoot))
+      parts.push(...await viewerFingerprintParts(readRoot, viewer?.(root)))
       const changesRoot = join(readRoot, 'openspec', 'changes')
       let entries: Dirent[]
       try {

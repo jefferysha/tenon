@@ -1,7 +1,7 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { creatorOf, ownerOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
-import type { ProjectSnapshot, ChangeSnapshot } from './types.js'
+import { creatorOf, isTenonUser, ownerOf, readTaskArchiveOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TaskArchive, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
+import type { ArchivedChangeSnapshot, ProjectSnapshot, ChangeSnapshot } from './types.js'
 import { readRepositoryIdentity } from './repositoryIdentity.js'
 import { resolveSnapshotTrack, projectSkillRuns } from './skillRuns.js'
 import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'
@@ -13,6 +13,19 @@ import { assertWorkflowRootAnchor, type WorkflowRootAnchor } from './workflowRoo
 import { readTasksProjection } from './snapshotTasks.js'
 const MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100
 function str(v: string | string[] | undefined): string { return Array.isArray(v) ? v.join(',') : v ?? '' }
+
+/** Read the viewer's archive once per project; no viewer or a malformed store hides nothing. */
+async function viewerArchive(deps: SnapshotDeps, readRoot: string, root: string): Promise<TaskArchive | undefined> {
+  const viewer = deps.viewer?.(root)
+  if (viewer === undefined || !isTenonUser(viewer)) return undefined
+  const read = await readTaskArchiveOf(readRoot, viewer.slug)
+  return read.kind === 'ok' ? read.archive : undefined
+}
+
+async function uncommittedDeletions(deps: SnapshotDeps, readRoot: string): Promise<number | undefined> {
+  const count = await deps.countDeletions?.(readRoot)
+  return count === undefined || count === null ? undefined : count
+}
 
 export async function scanAnchoredProject(
   deps: SnapshotDeps,
@@ -36,11 +49,18 @@ export async function scanAnchoredProject(
     assertWorkflowRootAnchor(anchor)
     if (typeof error !== 'object' || error === null || Reflect.get(error, 'code') !== 'ENOENT') throw error
     // 已注册但尚无 openspec/changes —— 合法空项目
-    return { root, ok: true, changes: [], workflowRules: {}, ...(repository === undefined ? {} : { repository }) }
+    const deletions = await uncommittedDeletions(deps, readRoot)
+    return {
+      root, ok: true, changes: [], workflowRules: {},
+      ...(deletions === undefined ? {} : { uncommittedDeletions: deletions }),
+      ...(repository === undefined ? {} : { repository }),
+    }
   }
   assertWorkflowRootAnchor(anchor)
 
+  const archive = await viewerArchive(deps, readRoot, root)
   const changes: ChangeSnapshot[] = []
+  const archived: ArchivedChangeSnapshot[] = []
   const compatibilityIssues: NonNullable<ProjectSnapshot['compatibilityIssues']> = []
   const legacyWorkflowRules: ProjectSnapshot['workflowRules'] = {}
   const errors: string[] = []
@@ -134,7 +154,7 @@ export async function scanAnchoredProject(
         stages: snapshotTodoStages(plan, phase),
         additionalItemsByStage: documentTodoItems(plan, documents),
       })
-      changes.push({
+      const snapshot: ChangeSnapshot = {
         name: e.name,
         path: join(displayChangesRoot, e.name),
         phase,
@@ -161,7 +181,10 @@ export async function scanAnchoredProject(
         documents,
         skillRuns,
         ...(terminalActivity === undefined ? {} : { terminalActivity }),
-      })
+      }
+      const entry = archive?.changes[e.name]
+      if (entry === undefined) changes.push(snapshot)
+      else archived.push({ ...snapshot, archive: { archivedAt: entry.archivedAt, phase: entry.phase, actor: entry.actor } })
     } catch (error) {
       if (error instanceof UnsupportedRunStateVersionError) {
         if (compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
@@ -184,6 +207,8 @@ export async function scanAnchoredProject(
     }
   }
   changes.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+  archived.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+  const deletions = await uncommittedDeletions(deps, readRoot)
   compatibilityIssues.sort((a, b) => (
     a.change < b.change ? -1 : a.change > b.change ? 1 : 0
   ))
@@ -191,6 +216,8 @@ export async function scanAnchoredProject(
     root,
     ok: errors.length === 0 && compatibilityIssues.every((issue) => issue.severity === 'warning'),
     changes,
+    ...(archived.length === 0 ? {} : { archived }),
+    ...(deletions === undefined ? {} : { uncommittedDeletions: deletions }),
     ...(repository === undefined ? {} : { repository }),
     ...(compatibilityIssues.length === 0 ? {} : { compatibilityIssues }),
     ...(compatibilityIssueOverflow === 0 ? {} : { compatibilityIssuesTruncated: true as const }),

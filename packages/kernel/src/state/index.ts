@@ -83,7 +83,7 @@ export { publishTaskPlanRevision } from '../task-plan/publication.js'
 export type { PublishTaskPlanOptions } from '../task-plan/publication.js'
 export { createHistoryWriter, HISTORY_FILE, transitionRecordToHistoryEntry } from './history.js'
 export {
-  clearReviewMarkerFor, createBreadcrumbWriter, formatReviewMarker, parseReviewMarker, reviewHint,
+  clearReviewMarkerFor, clearReviewMarkerOfChange, createBreadcrumbWriter, formatReviewMarker, parseReviewMarker, reviewHint,
   BREADCRUMB_FILE, REVIEW_MARKER_FILE, REVIEW_MARKER_PROTOCOL,
 } from './markers.js'
 export type { BreadcrumbWriter, ReviewMarkerReceipt } from './markers.js'

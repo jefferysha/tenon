@@ -59,6 +59,7 @@ import {
 import { evaluateSpecMigrationEvidence, type TransitionContext } from '@tenon/kernel'
 import { enqueueAfterSpecComplete } from '@tenon/automation'
 import { errMsg, type CliDeps } from '../deps.js'
+import { refuseArchived } from '../archivedGuard.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { requireActor } from '../userIdentity.js'
@@ -73,6 +74,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
     return 1
   }
+  if (await refuseArchived(deps, name)) return 1
   const actor = requireActor(deps)
   if (actor === null) return 1
 

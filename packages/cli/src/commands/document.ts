@@ -14,8 +14,7 @@ import {
   isDocumentPolicyStep,
   migrateLegacyDeltaDocument,
   recordDocument,
-  currentDocumentSkillConfirmation,
-  recordDocumentReads,
+  currentDocumentSkillConfirmation, recordDocumentReads,
   renderDocumentTemplate,
   documentPathForKind,
   documentTemplateIdForKind,
@@ -38,6 +37,7 @@ import { relative, resolve } from 'node:path'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
+import { refuseArchived } from '../archivedGuard.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { resolveChangeDocumentLocale } from '../documentLocale.js'
 import {
@@ -212,6 +212,7 @@ export async function cmdDocumentRecord(
   producer: string,
   backfill = false,
 ): Promise<number> {
+  if (await refuseArchived(deps, name)) return 1
   const actor = requireActor(deps)
   const dir = assertChangeName(deps, name)
   if (!dir || actor === null) return 1

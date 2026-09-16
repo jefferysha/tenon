@@ -6,6 +6,7 @@
  *   children <name> [--json]   反查直接子（活跃 + 归档），stdout 列表 / JSON
  *   cascade <name>             BFS 传递闭包，stdout 逐行 active/archived
  *   canonical <name> [--json]  Tenon contract 24 字段 canonical task.json，stdout（pretty / 紧凑）
+ *   delete / archive / unarchive <name> [--yes] [--json]  见 task-lifecycle.ts（退出码 0/1/2/3）
  * stdout/exit 对齐老仓：数据走 stdout（老仓 echo/printf/python print），状态与错误走 stderr
  * （老仓 red/green 均 >&2）。exit：错误/非法 = 1；成功 = 0。
  */
@@ -26,6 +27,7 @@ import {
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
+import { cmdTaskArchive, cmdTaskDelete, cmdTaskUnarchive, type TaskLifecycleOpts } from './task-lifecycle.js'
 
 export type { ChangeNode } from '@tenon/kernel'
 
@@ -191,6 +193,11 @@ async function cmdCanonical(deps: CliDeps, args: string[], fs: TaskFs): Promise<
   return 0
 }
 
+/** 生命周期子命令的开关（program.ts 把 --json / --yes 追加进 args，同 children/canonical 口径）。 */
+function lifecycleOpts(args: readonly string[]): TaskLifecycleOpts {
+  return { json: args.includes('--json'), yes: args.includes('--yes') }
+}
+
 /**
  * task 子命令分派（纯函数 + deps 注入，风格同 fields.ts）。
  * fs 缺省真 fs（integration 走真路径）；mock 层注入 fake TaskFs 快速回归。
@@ -212,8 +219,17 @@ export async function cmdTask(
       return cmdCascade(deps, args[0], fs)
     case 'canonical':
       return cmdCanonical(deps, args, fs)
+    case 'delete':
+      return cmdTaskDelete(deps, args[0] ?? '', lifecycleOpts(args))
+    case 'archive':
+      return cmdTaskArchive(deps, args[0] ?? '', lifecycleOpts(args))
+    case 'unarchive':
+      return cmdTaskUnarchive(deps, args[0] ?? '', lifecycleOpts(args))
     default:
-      deps.io.err(`ERROR: 未知 task 子命令: ${sub}（支持: add-dep remove-dep children cascade canonical）`)
+      deps.io.err(
+        `ERROR: 未知 task 子命令: ${sub}`
+        + '（支持: add-dep remove-dep children cascade canonical delete archive unarchive）',
+      )
       return 1
   }
 }

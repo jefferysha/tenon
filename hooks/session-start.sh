@@ -168,11 +168,19 @@ SS_AFK_HIT=""
 [ -n "$OS_ROOT" ] && [ -f "$OS_ROOT/.pipeline/automation.json" ] && SS_AFK_HIT=1
 if [ -n "$OS_ROOT" ] && [ -d "$OS_ROOT/openspec/changes" ]; then
   SS_BEST=0
+  # 当前用户的归档记录：两趟扫描共用一次解析（与 archived=true 同等跳过）。
+  SS_ARCHIVE_HELPER="$HOOK_DIR/task-archive.sh"
+  # shellcheck source=task-archive.sh
+  [ -r "$SS_ARCHIVE_HELPER" ] && . "$SS_ARCHIVE_HELPER"
+  declare -F pipeline_change_archived_for_user >/dev/null 2>&1 || pipeline_change_archived_for_user() { return 1; }
+  SS_ARCHIVE_STORE=""
+  declare -F pipeline_task_archive_store >/dev/null 2>&1 && SS_ARCHIVE_STORE="$(pipeline_task_archive_store "$OS_ROOT" || true)"
   for change_dir in "$OS_ROOT"/openspec/changes/*; do
     [ -d "$change_dir" ] || continue
     f="$(pipeline_state_source "$change_dir" || true)"
     [ -n "$f" ] || continue
     [ "$(yget "$f" archived)" = "true" ] && continue
+    pipeline_change_archived_for_user "$SS_ARCHIVE_STORE" "${change_dir##*/}" && continue
     # GNU `stat -f` 是文件系统状态模式（非 mtime），先试 GNU 语法（-c）+ 数字校验兜底（同各 hook）。
     mt="$(stat -c %Y "$f" 2>/dev/null)"
     case "$mt" in ''|*[!0-9]*) mt="$(stat -f %m "$f" 2>/dev/null)" ;; esac
@@ -216,6 +224,7 @@ if [ -n "$OS_ROOT" ] && [ -d "$OS_ROOT/openspec/changes" ]; then
     [ -n "$f" ] || continue
     [ "$(yget "$f" archived)" = "true" ] && continue
     name="$(basename "$change_dir")"
+    pipeline_change_archived_for_user "${SS_ARCHIVE_STORE:-}" "$name" && continue
     phase="$(yget "$f" phase)"
     track="$(yget "$f" track)"
     CTX="${CTX}  - ${name}（track=${track:-?}, phase=${phase:-?}）

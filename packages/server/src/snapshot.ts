@@ -19,6 +19,7 @@ import {
   type EffectiveWorkflowPlan,
   type SkillTable,
   type StateStore,
+  type TenonUserResolution,
   type TrackDefinition,
 } from '@tenon/kernel'
 import { ArtifactScopeMigrationError, type ArtifactService } from '@tenon/automation'
@@ -78,6 +79,13 @@ export interface SnapshotDeps extends WorkflowSnapshotCapabilityDeps {
   mandatorySkills?: SkillTable
   /** Resolve the durable artifact service for one change directory; only the scope check is projected. */
   artifactServiceForRoot?: (root: string, anchor: WorkflowRootAnchor) => ArtifactService | undefined | Promise<ArtifactService | undefined>
+  /**
+   * Declared identity of the Dashboard viewer. 归档 is a personal preference, so the snapshot partitions
+   * each project by this user's archive store; absent viewer means nothing is hidden.
+   */
+  viewer?: (root: string) => TenonUserResolution
+  /** 未提交删除 count per project; absent or `null` keeps the field out of the response. */
+  countDeletions?: (readRoot: string) => Promise<number | null>
 }
 
 export function snapshotDepsFactory(
@@ -259,6 +267,7 @@ export async function computeFingerprint(
   nowMs = Date.now(),
   rootAnchor?: (root: string) => WorkflowRootAnchor | undefined,
   readChangesDirectory?: SnapshotDeps['readChangesDirectory'],
+  viewer?: SnapshotDeps['viewer'],
 ): Promise<string> {
-  return computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminalActivity, readChangesDirectory)
+  return computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminalActivity, readChangesDirectory, viewer)
 }

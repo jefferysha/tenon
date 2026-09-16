@@ -110,6 +110,31 @@ export async function clearReviewMarkerFor(root: string, change: string, event: 
   }
 }
 
+/**
+ * Remove the review marker of a Change whatever event it projects. 删除 takes the whole Change away, so
+ * no pending decision of it may survive; a marker of another Change is left alone. Returns whether a
+ * marker was removed so the caller can report it.
+ */
+export async function clearReviewMarkerOfChange(root: string, change: string): Promise<boolean> {
+  const marker = join(root, REVIEW_MARKER_FILE)
+  let content: string
+  try {
+    content = await readFile(marker, 'utf8')
+  } catch (error) {
+    if (isMissing(error)) return false
+    throw error
+  }
+  const receipt = parseReviewMarker(content)
+  if (receipt === null || receipt.changeName !== change) return false
+  try {
+    await unlink(marker)
+    return true
+  } catch (error) {
+    if (isMissing(error)) return false
+    throw error
+  }
+}
+
 function isMissing(error: unknown): boolean {
   return error !== null && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'
 }

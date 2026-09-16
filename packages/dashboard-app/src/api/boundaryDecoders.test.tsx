@@ -215,6 +215,51 @@ describe('API bounded-context response decoders', () => {
     })).toBeNull()
   })
 
+  it('accepts an optional archived list and 未提交删除 count, and rejects malformed ones', () => {
+    const withArchived = validSnapshot()
+    const project = withArchived.projects[0] as Record<string, unknown>
+    const archivedChange = structuredClone(withArchived.projects[0]!.changes[0]!) as Record<string, unknown>
+    archivedChange.name = 'hidden'
+    archivedChange.archive = {
+      archivedAt: '2026-09-15T12:00:00.000Z',
+      phase: 'build',
+      actor: { id: 'a@x.io', name: 'A', trust: 'declared' },
+    }
+    project.archived = [archivedChange]
+    project.uncommittedDeletions = 2
+    const decoded = decodeSnapshot(withArchived)
+    expect(decoded?.projects[0]?.archived?.map((row) => row.name)).toEqual(['hidden'])
+    expect(decoded?.projects[0]?.archived?.[0]?.archive).toEqual({
+      archivedAt: '2026-09-15T12:00:00.000Z',
+      phase: 'build',
+      actor: { id: 'a@x.io', name: 'A', trust: 'declared' },
+    })
+    expect(decoded?.projects[0]?.uncommittedDeletions).toBe(2)
+
+    // Absence keeps an older server readable.
+    const legacy = validSnapshot()
+    expect(decodeSnapshot(legacy)?.projects[0]?.archived).toBeUndefined()
+    expect(decodeSnapshot(legacy)?.projects[0]?.uncommittedDeletions).toBeUndefined()
+
+    for (const broken of [
+      { archived: {} },
+      { archived: [{ name: 'hidden' }] },
+      { uncommittedDeletions: -1 },
+      { uncommittedDeletions: 1.5 },
+      { uncommittedDeletions: '2' },
+    ]) {
+      const bad = validSnapshot()
+      Object.assign(bad.projects[0] as Record<string, unknown>, broken)
+      expect(decodeSnapshot(bad)).toBeNull()
+    }
+
+    const missingActor = validSnapshot()
+    const row = structuredClone(archivedChange) as Record<string, unknown>
+    row.archive = { archivedAt: 'now', phase: 'build', actor: { id: 'a@x.io', name: 'A' } }
+    Object.assign(missingActor.projects[0] as Record<string, unknown>, { archived: [row] })
+    expect(decodeSnapshot(missingActor)).toBeNull()
+  })
+
   it('preserves strict repository identity while accepting a legacy project without it', () => {
     const current = validSnapshot()
     const currentProject = current.projects[0] as typeof current.projects[number] & {
