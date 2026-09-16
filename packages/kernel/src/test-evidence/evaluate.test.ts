@@ -148,7 +148,7 @@ describe('evaluateTestEvidence', () => {
       repoRoot, changeDir, changeName: CHANGE, plan: plan([{ id: 'unit' }]), stepId: 'build', context: undefined,
     })
     expect(report.pass).toBe(false)
-    expect(report.blockers).toEqual(['测试证据无法验证：宿主未提供用户身份或工作区指纹'])
+    expect(report.blockers).toEqual(['测试证据无法验证：宿主未提供用户身份'])
   })
 
   test('未运行 / 通过 / 失败', async () => {
@@ -234,5 +234,48 @@ describe('evaluateTestEvidence', () => {
     const reordered = { ...test, pass: { metrics: test.pass.metrics, exit_code: test.pass.exit_code } } as StepTestIR
     expect(testDigest(reordered)).toBe(testDigest(test))
     expect(testDigest({ ...test, timeout_s: 901 })).not.toBe(testDigest(test))
+  })
+
+  test('宿主没有工作区指纹能力：跳过候选比对，其余三条绑定照查', async () => {
+    const current = plan([{ id: 'unit' }])
+    const withoutCandidate: TestEvidenceContext = {
+      user: context.user,
+      now: context.now,
+    }
+    const evaluateWithout = async () => evaluateTestEvidence({
+      repoRoot, changeDir, changeName: CHANGE, plan: current, stepId: 'build', context: withoutCandidate,
+    })
+
+    // 候选不同也不再判过期——能力缺席时这条绑定无从比对。
+    await publish(SLUG, record(current, 'unit', { candidate: `workspace:sha256:${'b'.repeat(64)}` }))
+    expect((await evaluateWithout()).items[0]?.status).toBe('passed')
+    expect((await evaluateWithout()).pass).toBe(true)
+
+    // 另外三条绑定仍然生效。
+    await publish(SLUG, record(current, 'unit', { test_digest: `sha256:${'c'.repeat(64)}` }))
+    expect((await evaluateWithout()).items[0]).toMatchObject({ status: 'stale', staleBecause: 'declaration' })
+    await publish(SLUG, record(current, 'unit', { workflow_fingerprint: 'd'.repeat(64) }))
+    expect((await evaluateWithout()).items[0]).toMatchObject({ status: 'stale', staleBecause: 'workflow' })
+  })
+
+  test('指纹能力在但取不到 → 按未知判过期；没有记录可判时根本不求指纹', async () => {
+    const current = plan([{ id: 'unit' }])
+    let calls = 0
+    const failing: TestEvidenceContext = {
+      user: context.user,
+      now: context.now,
+      currentCandidate: async () => { calls += 1; throw new Error('raced') },
+    }
+    const evaluateFailing = async () => evaluateTestEvidence({
+      repoRoot, changeDir, changeName: CHANGE, plan: current, stepId: 'build', context: failing,
+    })
+
+    // 一条记录都没有时，指纹（要遍历整棵实现树）根本不该被求值。
+    expect((await evaluateFailing()).items[0]?.status).toBe('missing')
+    expect(calls).toBe(0)
+
+    await publish(SLUG, record(current, 'unit'))
+    expect((await evaluateFailing()).items[0]).toMatchObject({ status: 'stale', staleBecause: 'candidate' })
+    expect(calls).toBe(1)
   })
 })

@@ -1689,7 +1689,7 @@ describe('步骤测试证据（每步测试登记）', () => {
     })
     expect(result).toEqual({
       kind: 'test-evidence-failed', stepId: 'build',
-      blockers: ['测试证据无法验证：宿主未提供用户身份或工作区指纹'],
+      blockers: ['测试证据无法验证：宿主未提供用户身份'],
     })
   })
 

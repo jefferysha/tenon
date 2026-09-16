@@ -5,12 +5,12 @@
 import { lstat, readFile, writeFile } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import {
-  evaluateTestEvidence, renderTestsRegion, replaceTestsRegion,
+  renderTestsRegion, replaceTestsRegion,
   type ReportLocale, type TestsRegionItem,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
-import { testEvidenceContextFor } from '../testEvidenceContext.js'
+import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { resolveTestCommand } from './test-context.js'
 
 const MAX_REPORT_BYTES = 1024 * 1024
@@ -45,7 +45,7 @@ export async function cmdTestReport(
   const items: TestsRegionItem[] = []
   for (const step of steps.slice(0, until + 1)) {
     if ((step.tests ?? []).length === 0) continue
-    const report = await evaluateTestEvidence({
+    const report = await testEvidenceReaderFor(deps)({
       repoRoot: deps.cwd,
       changeDir: context.dir,
       changeName: change,

@@ -30,4 +30,4 @@ export {
 } from './report.js'
 export type { ReportLocale, TestsRegionItem } from './report.js'
 export { rejectOnTestEvidence } from './transition-gate.js'
-export type { TestEvidenceRejection } from './transition-gate.js'
+export type { TestEvidenceReader, TestEvidenceRejection } from './transition-gate.js'

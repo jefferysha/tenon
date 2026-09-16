@@ -152,6 +152,8 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
       'build_mode=direct', 'isolation=worktree', 'direct_override=true',
       'pre_verify_review_result=pass',
     ])
+    // default 的 backend 轨在 build 声明了必需测试：像真实用户那样先跑它们（真记录，不是旁路）。
+    await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0)
     expect(await h.read('demo')).toMatch(/^phase: verify$/m)
     expect(await h.read('demo')).toContain(`build_sha: ${TEST_GIT_BUILD_TOKEN}`)
@@ -370,10 +372,12 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
       'build_mode=direct', 'isolation=worktree', 'direct_override=true',
       'pre_verify_review_result=pass',
     ])
+    await h.satisfyStepTests('e2e', 'build')
     await step('build-complete')
     // verify 出口：报告 + branch_status + 双 review pass + barrier（build_sha 已=DEADBEEF）
     await h.seedArtifact('e2e', 'verification_report', 'docs/superpowers/reports/e2e.md') // P6：复用 hash-bound verification report
     await h.run(['set-many', 'e2e', 'branch_status=handled', 'agent_review_result=pass', 'codex_review_result=pass'])
+    await h.satisfyStepTests('e2e', 'verify')
     await step('verify-pass')
     await step('ship-complete')
     await step('archived')

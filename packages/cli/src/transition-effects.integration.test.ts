@@ -84,6 +84,9 @@ async function initGoverned(name: string, track: 'backend' | 'pm' = 'backend', p
  * CLI 协议与 receipt 消费的接线错误。
  */
 async function approveReviewExit(name: string, event: string): Promise<void> {
+  // `review request` 的预检就是整份 check（含测试证据），所以先跑该步声明的测试——真实用户同样是
+  // 先把测试跑绿再请求评审。
+  await h.satisfyStepTests(name, event.replace(/-(complete|pass|fail)$/u, ''))
   const request = await h.run(['review', 'request', name, '--event', event])
   if (request !== 0) throw new Error(`review request failed (${request}): ${[...h.err, ...h.out].join('\n')}`)
   const acknowledge = await h.run(['review', 'acknowledge', name])
@@ -109,6 +112,7 @@ async function advanceTo(name: string, phase: 'explore' | 'spec' | 'build' | 've
   await h.run(['set', name, 'isolation', 'worktree'])
   await h.run(['set', name, 'direct_override', 'true'])
   await h.run(['set', name, 'pre_verify_review_result', 'pass'])
+  await h.satisfyStepTests(name, 'build')
   expect(await h.run(['transition', name, 'build-complete'])).toBe(0)
   if (phase === 'verify') return
   await seed('docs/verify.md')
@@ -117,6 +121,7 @@ async function advanceTo(name: string, phase: 'explore' | 'spec' | 'build' | 've
   await h.run(['set', name, 'agent_review_result', 'pass'])
   await h.run(['set', name, 'codex_review_result', 'pass'])
   await approveReviewExit(name, 'verify-pass')
+  await h.satisfyStepTests(name, 'verify')
   expect(await h.run(['transition', name, 'verify-pass'])).toBe(0)
 }
 
@@ -175,9 +180,11 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
   test('缺 build_mode → 缺 isolation → 逐个解锁（首错优先序对齐老仓）', async () => {
     await initGoverned('demo')
     await advanceTo('demo', 'build')
+    await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(1)
     expect(h.err).toContain('ERROR: build_mode 必须设置')
     await h.run(['set', 'demo', 'build_mode', 'direct'])
+    await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(1)
     expect(h.err).toContain('ERROR: isolation 必须设置')
     expect(await h.read('demo')).toMatch(/^phase: build$/m)
@@ -190,6 +197,7 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
     await h.run(['set', 'demo', 'isolation', 'branch'])
     await h.run(['set', 'demo', 'direct_override', 'true'])
     await corruptField('demo', 'isolation', 'bogus')
+    await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(1)
     expect(h.err).toContain("ERROR: 非法值 'bogus'，允许: branch worktree in-place")
   })
@@ -199,11 +207,13 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
     await advanceTo('demo', 'build')
     await h.run(['set', 'demo', 'build_mode', 'direct'])
     await h.run(['set', 'demo', 'isolation', 'worktree'])
+    await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(1)
     expect(h.err).toContain('ERROR: full workflow 使用 build_mode=direct 必须显式设 direct_override=true')
     expect(await h.read('demo')).toMatch(/^build_sha: null$/m) // 拒绝时不冻结
     await h.run(['set', 'demo', 'direct_override', 'true'])
     await h.run(['set', 'demo', 'pre_verify_review_result', 'pass'])
+    await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0)
     const yaml = await h.read('demo')
     expect(yaml).toMatch(/^phase: verify$/m)
@@ -216,6 +226,7 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
     await h.run(['set', 'demo', 'build_mode', 'direct'])
     await h.run(['set', 'demo', 'isolation', 'branch'])
     await h.run(['set', 'demo', 'pre_verify_review_result', 'pass'])
+    await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0)
     expect(await h.read('demo')).toMatch(/^phase: verify$/m)
   })
@@ -228,6 +239,7 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
     await h.run(['set', 'demo', 'isolation', 'in-place'])
     await h.run(['set', 'demo', 'direct_override', 'true'])
     await h.run(['set', 'demo', 'pre_verify_review_result', 'pass'])
+    await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0)
     const yaml = await h.read('demo')
     expect(yaml).toMatch(/^phase: verify$/m)
@@ -241,20 +253,25 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
   test('四前置逐个解锁：report → branch_status → agent → codex（首错优先序对齐老仓）', async () => {
     await initGoverned('demo')
     await advanceTo('demo', 'verify')
+    await h.satisfyStepTests('demo', 'verify')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err).toContain('ERROR: verify-pass 要求 verification_report 字段非空且文件存在 (当前=null)')
     await seed('docs/verify.md')
     await h.seedArtifact('demo', 'verification_report', 'docs/verify.md')
+    await h.satisfyStepTests('demo', 'verify')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err).toContain('ERROR: verify-pass 要求 branch_status=handled (当前=pending)')
     await h.run(['set', 'demo', 'branch_status', 'handled'])
+    await h.satisfyStepTests('demo', 'verify')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err).toContain('ERROR: backend track 要求 agent_review_result=pass (当前=pending)')
     await h.run(['set', 'demo', 'agent_review_result', 'pass'])
+    await h.satisfyStepTests('demo', 'verify')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err).toContain('ERROR: backend track 要求 codex_review_result=pass (当前=pending)')
     await h.run(['set', 'demo', 'codex_review_result', 'pass'])
     await approveReviewExit('demo', 'verify-pass')
+    await h.satisfyStepTests('demo', 'verify')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(0)
     const yaml = await h.read('demo')
     expect(yaml).toMatch(/^phase: ship$/m)
@@ -273,6 +290,7 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await approveReviewExit('demo', 'verify-pass')
     await corruptField('demo', 'build_sha', 'CAFEBABE') // 模拟 build 后偷改未复验
     const before = await h.read('demo')
+    await h.satisfyStepTests('demo', 'verify')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err.join('\n')).toContain(
       'ERROR: verify-build-revision-untrusted reason=malformed remediation=return-to-build-and-capture-current-revision',
@@ -290,6 +308,7 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await h.run(['set', 'demo', 'isolation', 'in-place'])
     await h.run(['set', 'demo', 'direct_override', 'true'])
     await h.run(['set', 'demo', 'pre_verify_review_result', 'pass'])
+    await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0)
     expect(await h.read('demo')).toMatch(/^build_sha: build:v1:workspace:[a-f0-9]{64}:[a-f0-9]{64}:[a-f0-9]{64}$/m)
 
@@ -302,6 +321,7 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
 
     await seed('src/app.js', 'export const version = 2\n')
     const before = await h.read('demo')
+    await h.satisfyStepTests('demo', 'verify')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err.join('\n')).toContain(
       'ERROR: verify-build-revision-untrusted reason=revision-stale remediation=return-to-build-and-capture-current-revision',
@@ -329,6 +349,7 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
       history: await readFile(join(changeDir, '.pipeline-history.jsonl'), 'utf8'),
       records: await Promise.all(recordNames.map(async (name) => [name, await readFile(join(recordsPath, name), 'utf8')] as const)),
     }
+    await h.satisfyStepTests('demo', 'verify')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err.join('\n')).toContain(
       'ERROR: verify-build-revision-untrusted reason=null remediation=return-to-build-and-capture-current-revision',
@@ -354,6 +375,7 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await h.run(['set', 'pmx', 'isolation', 'branch'])
     await h.run(['set', 'pmx', 'direct_override', 'true']) // full+direct 规则不分 track
     await h.run(['set', 'pmx', 'pre_verify_review_result', 'pass'])
+    await h.satisfyStepTests('pmx', 'build')
     expect(await h.run(['transition', 'pmx', 'build-complete'])).toBe(0)
     await seed('docs/verify.md')
     await h.seedArtifact('pmx', 'verification_report', 'docs/verify.md')
@@ -361,6 +383,7 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     // agent/codex 保持 init 的 skipped —— pm 不要求 pass
     await h.run(['set', 'pmx', 'verify_result', 'pass'])
     await approveReviewExit('pmx', 'verify-pass')
+    await h.satisfyStepTests('pmx', 'verify')
     expect(await h.run(['transition', 'pmx', 'verify-pass'])).toBe(0)
     const yaml = await h.read('pmx')
     expect(yaml).toMatch(/^phase: ship$/m)
@@ -431,6 +454,7 @@ describe('真实 e2e —— 跨命令串联 + 历史 JSONL（GOAL C10）', () =>
     await approveReviewExit('demo', 'verify-fail')
     expect(await h.run(['transition', 'demo', 'verify-fail'])).toBe(0) // → build，build_sha=null
     await h.run(['set', 'demo', 'pre_verify_review_result', 'pass'])
+    await h.satisfyStepTests('demo', 'build')
     expect(await h.run(['transition', 'demo', 'build-complete'])).toBe(0) // 重新收敛后冻结
     expect(await h.read('demo')).toContain(`build_sha: ${TEST_GIT_BUILD_TOKEN}`)
     await seed('docs/verify.md')
@@ -439,6 +463,7 @@ describe('真实 e2e —— 跨命令串联 + 历史 JSONL（GOAL C10）', () =>
     await h.run(['set', 'demo', 'agent_review_result', 'pass'])
     await h.run(['set', 'demo', 'codex_review_result', 'pass'])
     await approveReviewExit('demo', 'verify-pass')
+    await h.satisfyStepTests('demo', 'verify')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(0)
     expect(await h.read('demo')).toMatch(/^verify_result: pass$/m)
   }, 30_000)

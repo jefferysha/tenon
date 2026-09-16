@@ -12,6 +12,7 @@ import type { InteractionEventRecorder } from '../interaction/ports.js'
 import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
 import type { RecordActor, UserRef } from '../users/user.js'
 import type { TestEvidenceContext } from '../test-evidence/evaluate.js'
+import type { TestEvidenceReader } from '../test-evidence/transition-gate.js'
 
 export interface TransitionApplicationDeps {
   runRepository: WorkflowRunRepository
@@ -39,8 +40,13 @@ export interface TransitionApplicationDeps {
     changeDir: string,
     phase: DocumentContractPhase,
   ) => Promise<DocumentEvidenceReport>
-  /** 测试证据判定的注入面：缺省 = 声明了测试就失败关闭（宿主必须给身份与工作区指纹）。 */
+  /** 测试证据判定的注入面：缺省 = 声明了测试就失败关闭（宿主必须给身份）。 */
   testEvidence?: TestEvidenceContext
+  /**
+   * 判定读取面的覆写；缺省读权威的按用户运行记录。同 documentEvidence：生产不注入，
+   * 只有命令层单测用它隔离渲染与退出码，绝不因此关闭门禁。
+   */
+  testEvidenceReader?: TestEvidenceReader
   resolveConstraintContext?: (input: {
     readonly policy: AutomationPolicySnapshot
     readonly command: TransitionCommand

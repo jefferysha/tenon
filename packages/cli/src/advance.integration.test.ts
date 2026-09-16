@@ -74,6 +74,11 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
   }
 
   /** 让 build 出口 guard 真通过：tasks.md 全勾 + build mode/isolation/override + pre-Verify 收敛 */
+  /** default 的 backend 轨在 build/verify 声明了必需测试；像真实用户那样先跑它们再出闸。 */
+  async function armStepTests(name: string, step: string): Promise<void> {
+    await h.satisfyStepTests(name, step)
+  }
+
   async function armBuildGuard(name: string): Promise<void> {
     // seedToBuild 的真实 OpenSpec tasks.md 已有三项全部勾选；不得覆写它，否则 hash-bound
     // document ledger 会正确判为 stale，掩盖本用例要覆盖的 advance 行为。
@@ -82,6 +87,7 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
       'build_mode=direct', 'isolation=worktree', 'direct_override=true',
       'pre_verify_review_result=pass',
     ])
+    await armStepTests(name, 'build')
   }
 
   /** 让 verify 出口 guard + verify-pass 事件前置真通过（backend：双 review pass + 报告 + branch_status） */
@@ -89,6 +95,7 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
     await h.seedArtifact(name, 'verification_report', `docs/superpowers/reports/${name}.md`)
     expect(await h.run(['set-many', name,
       'branch_status=handled', 'agent_review_result=pass', 'codex_review_result=pass'])).toBe(0)
+    await armStepTests(name, 'verify')
   }
 
   /** 让 ship 出口 guard 真通过（backend：pr_url） */

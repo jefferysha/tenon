@@ -308,16 +308,15 @@ export async function performTransition(
     specMigrationStatus: () => evaluateSpecMigrationEvidence(root, dir, name),
     tasksThroughPhase: (phase) => taskPlanTasksThroughPhaseForChange(dir, phase),
   }
-  // 测试证据要身份与工作区指纹；指纹能力缺失时 kernel 失败关闭，不把读不到当成通过。
+  // 测试证据要身份：记录按用户存放，没有身份就没有可读的证据集，kernel 据此失败关闭；这里身份恒有
+  // （254-255 行已 412 `user-missing` 挡住）。工作区指纹是可降级能力，没接就跳过候选比对，其余三条新鲜度绑定照查。
   const fingerprint = deps.workspaceFingerprint
   const app = createTransitionApplication({
     runRepository: deps.runRepo,
-    ...(fingerprint === undefined ? {} : {
-      testEvidence: {
-        user: { id: user.id, name: user.name, slug: userSlug(user.id) },
-        currentCandidate: () => fingerprint(root, name),
-      },
-    }),
+    testEvidence: {
+      user: { id: user.id, name: user.name, slug: userSlug(user.id) },
+      ...(fingerprint === undefined ? {} : { currentCandidate: () => fingerprint(root, name) }),
+    },
     flow: deps.flow,
     clock: deps.clock,
     history: deps.history,

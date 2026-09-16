@@ -368,6 +368,7 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
         const testRejection = await rejectOnTestEvidence({
           repoRoot: command.root, changeDir: command.changeDir, changeName: command.changeName,
           plan: effectivePlan, from: prepared.from, to: prepared.to, context: deps.testEvidence,
+          ...(deps.testEvidenceReader === undefined ? {} : { evaluate: deps.testEvidenceReader }),
         })
         if (testRejection !== undefined) return testRejection
         // Review 的判定点是“离开当前 review phase”，不是“刚进入就锁住”。所有自动 guards

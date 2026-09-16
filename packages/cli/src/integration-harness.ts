@@ -9,7 +9,7 @@
  */
 import { execFileSync } from 'node:child_process'
 import { appendFile, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -131,7 +131,41 @@ export interface Harness {
       readonly autoSkills?: boolean
     },
   ) => Promise<void>
+  /**
+   * 像真实用户那样满足某一步的必需测试：项目声明自己的 npm 脚本，然后逐项 `tenon test run`。
+   * 不绕过门禁——跑的是工作流声明的那条命令，落的是真记录。
+   */
+  satisfyStepTests: (name: string, stepId: string) => Promise<void>
 }
+
+/** `tenon test status --json` 的窄解码：只取还没通过的必需测试 id，形状不符就当没有。 */
+function pendingRequiredTestIds(json: string): string[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return []
+  }
+  if (typeof parsed !== 'object' || parsed === null) return []
+  const items = (parsed as Record<string, unknown>).items
+  if (!Array.isArray(items)) return []
+  const ids: string[] = []
+  for (const item of items) {
+    if (typeof item !== 'object' || item === null) continue
+    const row = item as Record<string, unknown>
+    if (typeof row.id !== 'string' || row.required !== true || row.status === 'passed') continue
+    ids.push(row.id)
+  }
+  return ids
+}
+
+/** 声明式测试项在真实项目里由项目自己的 npm 脚本兑现；夹具项目声明等价的空脚本。 */
+const FIXTURE_PACKAGE_JSON = `${JSON.stringify({
+  name: 'tenon-harness-fixture',
+  private: true,
+  version: '0.0.0',
+  scripts: { test: 'exit 0', typecheck: 'exit 0', 'test:integration': 'exit 0', bench: 'exit 0' },
+}, null, 2)}\n`
 
 /** 真实 deps：与 main.ts 同款 fs 副作用，只把 io 收进数组、clock 固定、gitHeadSha 定桩。 */
 export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.ProcessEnv = process.env): CliDeps {
@@ -334,6 +368,18 @@ export function makeHarness(cwd: string): Harness {
       createStateStore().set(join(cwd, 'openspec', 'changes', name), field as FieldName, value),
     seedPhase: (name, phase) =>
       createStateStore().set(join(cwd, 'openspec', 'changes', name), 'phase', phase),
+    satisfyStepTests: async (name, stepId) => {
+      const packageJson = join(cwd, 'package.json')
+      if (!existsSync(packageJson)) await writeFile(packageJson, FIXTURE_PACKAGE_JSON, 'utf8')
+      const harness = makeHarness(cwd)
+      await harness.run(['test', 'status', name, '--step', stepId, '--json'])
+      for (const id of pendingRequiredTestIds(harness.out.join('\n'))) {
+        const code = await harness.run(['test', 'run', name, id])
+        if (code !== 0) {
+          throw new Error(`harness satisfyStepTests: tenon test run ${name} ${id} exit=${code}\n${harness.err.join('\n')}`)
+        }
+      }
+    },
     seedGovernedDocumentEvidence: async (name, overrides) => {
       await seedGovernedDocumentEvidence(
         cwd,
