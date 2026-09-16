@@ -10,6 +10,10 @@ import type {
   TerminalActivitySnapshot,
   TransitionReadinessBlockerSnapshot,
   SkillRunsSnapshot,
+  TestItemSnapshot,
+  TestItemStatus,
+  TestRunSummary,
+  TestStepSnapshot,
 } from '../types'
 import { isRecord, optionalString, recordOfBooleans, stringArray } from './transport'
 import { decodeWorkflowPolicyRules } from './workflowPolicySnapshotDecoder'
@@ -69,6 +73,57 @@ function decodeSkillRuns(value: unknown): SkillRunsSnapshot | undefined {
     steps.push({ stepId: step.stepId, skills })
   }
   return steps
+}
+
+const TEST_STATUSES: readonly string[] = ['passed', 'failed', 'stale', 'missing', 'running']
+
+/** 服务端 tests 投影：状态不在闭集或形状不合即整条 change 视为不可信（同 skillRuns 策略）。 */
+function decodeTests(value: unknown): TestStepSnapshot[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const steps: TestStepSnapshot[] = []
+  for (const step of value) {
+    if (!isRecord(step) || typeof step.stepId !== 'string' || step.stepId === '' || !Array.isArray(step.items)) return undefined
+    const items: TestItemSnapshot[] = []
+    for (const item of step.items) {
+      if (!isRecord(item) || typeof item.id !== 'string' || item.id === ''
+        || typeof item.direction !== 'string' || item.direction === ''
+        || typeof item.required !== 'boolean'
+        || typeof item.status !== 'string' || !TEST_STATUSES.includes(item.status)
+        || (item.label !== undefined && (typeof item.label !== 'string' || item.label === ''))) return undefined
+      const run = item.run === undefined ? undefined : decodeTestRun(item.run)
+      if (item.run !== undefined && run === undefined) return undefined
+      items.push({
+        id: item.id,
+        ...(item.label === undefined ? {} : { label: item.label }),
+        direction: item.direction,
+        required: item.required,
+        status: item.status as TestItemStatus,
+        ...(run === undefined ? {} : { run }),
+      })
+    }
+    steps.push({ stepId: step.stepId, items })
+  }
+  return steps
+}
+
+function decodeTestRun(value: unknown): TestRunSummary | undefined {
+  if (!isRecord(value) || typeof value.runId !== 'string' || value.runId === ''
+    || typeof value.user !== 'string' || !isRecord(value.actor)
+    || typeof value.actor.id !== 'string' || typeof value.actor.name !== 'string'
+    || (value.result !== 'pass' && value.result !== 'fail')
+    || (value.exitCode !== null && typeof value.exitCode !== 'number')
+    || typeof value.durationMs !== 'number' || typeof value.finishedAt !== 'string'
+    || !stringArray(value.reasons)) return undefined
+  return {
+    runId: value.runId,
+    user: value.user,
+    actor: { id: value.actor.id, name: value.actor.name },
+    result: value.result,
+    exitCode: value.exitCode === null ? null : value.exitCode,
+    durationMs: value.durationMs,
+    finishedAt: value.finishedAt,
+    reasons: value.reasons,
+  }
 }
 
 function decodeDocuments(value: unknown): DocumentEvidenceSnapshot | undefined {
@@ -204,7 +259,13 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
   const documents = value.documents === undefined ? undefined : decodeDocuments(value.documents)
   const terminalActivity = value.terminalActivity === undefined ? undefined : decodeTerminalActivity(value.terminalActivity)
   const skillRuns = value.skillRuns === undefined ? undefined : decodeSkillRuns(value.skillRuns)
-  if ((value.reviewHandshake !== undefined && !reviewHandshake)
+  const tests = value.tests === undefined ? undefined : decodeTests(value.tests)
+  const testDiagnostics = value.testDiagnostics === undefined
+    ? undefined
+    : stringArray(value.testDiagnostics) ? value.testDiagnostics : undefined
+  if ((value.tests !== undefined && !tests)
+    || (value.testDiagnostics !== undefined && !testDiagnostics)
+    || (value.reviewHandshake !== undefined && !reviewHandshake)
     || (value.todo !== undefined && !todo)
     || (value.documents !== undefined && !documents)
     || (value.terminalActivity !== undefined && !terminalActivity)
@@ -229,6 +290,8 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     ...(documents ? { documents } : {}),
     ...(terminalActivity ? { terminalActivity } : {}),
     ...(skillRuns ? { skillRuns } : {}),
+    ...(tests ? { tests } : {}),
+    ...(testDiagnostics ? { testDiagnostics } : {}),
   }
 }
 

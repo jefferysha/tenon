@@ -184,6 +184,38 @@ describe('decodeWorkflowDefinition', () => {
     })).toBeNull()
   })
 
+  it('decodes step tests with their pass criteria, inputs and outputs; rejects closed-set violations', () => {
+    const test = {
+      id: 'unit', direction: 'unit', command: 'npm test', cwd: 'frontend', label: '单测',
+      timeout_s: 900, required: true, keep_runs: 5, scope: 'full',
+      metrics_path: 'test-results/bench.json',
+      pass: { exit_code: 0, metrics: [{ name: 'p95_ms', max: 250, better: 'lower' }] },
+      inputs: [
+        { kind: 'document', ref: 'delta-spec' },
+        { kind: 'file', path: 'frontend/fixtures' },
+        { kind: 'env', name: 'DATABASE_URL' },
+        { kind: 'service', name: 'postgres', url: 'postgres://localhost:5432' },
+      ],
+      outputs: [{ path: 'test-results/junit.xml', kind: 'report', required: true }],
+    }
+    expect(decodeWorkflowDefinition({ name: 'tested', steps: [{ ...step, tests: [test] }] })?.steps[0]?.tests)
+      .toEqual([test])
+    expect(decodeWorkflowDefinition({ name: 'empty', steps: [{ ...step, tests: [] }] })?.steps[0]?.tests).toEqual([])
+    expect(decodeWorkflowDefinition({ name: 'legacy', steps: [step] })?.steps[0]?.tests).toBeUndefined()
+
+    for (const broken of [
+      { ...test, command: '' },
+      { ...test, direction: '' },
+      { ...test, scope: 'partial' },
+      { ...test, timeout_s: 1.5 },
+      { ...test, outputs: [{ path: 'x', kind: 'diagram' }] },
+      { ...test, inputs: [{ kind: 'secret', name: 'TOKEN' }] },
+      { ...test, pass: { metrics: [{ max: 1 }] } },
+    ]) {
+      expect(decodeWorkflowDefinition({ name: 'tested', steps: [{ ...step, tests: [broken] }] })).toBeNull()
+    }
+  })
+
   it('effectiveIo document slots carry role and scope; the legacy locked-only shape is rejected', () => {
     const io = (slot: Record<string, unknown>) => decodeWorkflowDefinition({
       name: 'io', steps: [step], effectiveIo: { one: { inputs: [], outputs: [slot] } },

@@ -186,6 +186,42 @@ describe('API bounded-context response decoders', () => {
     expect(decodeSnapshot(legacy)?.projects[0]?.changes[0]?.skillRuns).toBeUndefined()
   })
 
+  it('keeps tests when well-formed and fails closed on an unknown status or malformed run', () => {
+    const runSummary = {
+      runId: '20260915T101530Z-ab12cd', user: 'a-at-x.io', actor: { id: 'a@x.io', name: 'A' },
+      result: 'pass', exitCode: 0, durationMs: 12, finishedAt: '2026-09-15T10:15:30Z', reasons: [],
+    }
+    const tests = [{
+      stepId: 'open',
+      items: [
+        { id: 'unit', label: '单测', direction: 'unit', required: true, status: 'passed', run: runSummary },
+        { id: 'bad', direction: 'unit', required: false, status: 'missing' },
+      ],
+    }]
+    const good = validSnapshot()
+    Object.assign(good.projects[0]!.changes[0]!, { tests, testDiagnostics: ['broken.json'] })
+    const decoded = decodeSnapshot(good)?.projects[0]?.changes[0]
+    expect(decoded?.tests).toEqual(tests)
+    expect(decoded?.testDiagnostics).toEqual(['broken.json'])
+
+    const badStatus = validSnapshot()
+    Object.assign(badStatus.projects[0]!.changes[0]!, {
+      tests: [{ stepId: 'open', items: [{ id: 'unit', direction: 'unit', required: true, status: 'flaky' }] }],
+    })
+    expect(decodeSnapshot(badStatus)).toBeNull()
+
+    const badRun = validSnapshot()
+    Object.assign(badRun.projects[0]!.changes[0]!, {
+      tests: [{
+        stepId: 'open',
+        items: [{ id: 'unit', direction: 'unit', required: true, status: 'passed', run: { ...runSummary, result: 'maybe' } }],
+      }],
+    })
+    expect(decodeSnapshot(badRun)).toBeNull()
+
+    expect(decodeSnapshot(validSnapshot())?.projects[0]?.changes[0]?.tests).toBeUndefined()
+  })
+
   it('rejects a snapshot with a malformed nested todo item', () => {
     expect(decodeSnapshot({
       version: '1',

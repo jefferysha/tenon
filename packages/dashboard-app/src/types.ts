@@ -34,8 +34,39 @@ export interface ChangeSnapshot {
   documents?: DocumentEvidenceSnapshot
   /** Per-step skill execution state derived by the server from the history log; absent on older servers. */
   skillRuns?: SkillRunsSnapshot
+  /** Per-step declared tests with the acting user's latest run; absent when the branch declares none. */
+  tests?: TestStepSnapshot[]
+  /** Corrupt test record file names of the acting user. */
+  testDiagnostics?: string[]
   /** Fresh, explicitly bound native terminal heartbeat; never a workflow-state field. */
   terminalActivity?: TerminalActivitySnapshot
+}
+
+export type TestItemStatus = 'passed' | 'failed' | 'stale' | 'missing' | 'running'
+
+export interface TestRunSummary {
+  runId: string
+  user: string
+  actor: { id: string; name: string }
+  result: 'pass' | 'fail'
+  exitCode: number | null
+  durationMs: number
+  finishedAt: string
+  reasons: string[]
+}
+
+export interface TestItemSnapshot {
+  id: string
+  label?: string
+  direction: string
+  required: boolean
+  status: TestItemStatus
+  run?: TestRunSummary
+}
+
+export interface TestStepSnapshot {
+  stepId: string
+  items: TestItemSnapshot[]
 }
 
 export type SkillRunStatus = 'idle' | 'running' | 'done'
