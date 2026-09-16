@@ -43,16 +43,39 @@ function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
 
+function optionalText(value: unknown): { readonly ok: true; readonly text?: string } | null {
+  if (value === undefined) return { ok: true }
+  return typeof value === 'string' ? { ok: true, text: value } : null
+}
+
 function decodeRow(value: unknown): SkillSourceRow | null {
   const item = record(value)
   if (item === null || Object.keys(item).some((key) => !ROW_KEYS.has(key))) return null
-  if (typeof item.id !== 'string' || (item.origin !== 'tenon' && item.origin !== 'upstream') || !STATUSES.has(item.status)) return null
-  if (OPTIONAL_STRINGS.some((key) => item[key] !== undefined && typeof item[key] !== 'string')) return null
+  const { id, origin, status } = item
+  if (typeof id !== 'string' || (origin !== 'tenon' && origin !== 'upstream') || !STATUSES.has(status)) return null
+  if (OPTIONAL_STRINGS.some((key) => optionalText(item[key]) === null)) return null
   if (URL_KEYS.some((key) => item[key] !== undefined && (typeof item[key] !== 'string' || !String(item[key]).startsWith('https://github.com/')))) return null
   if (item.previousCommit !== undefined && item.previousCommit !== null && typeof item.previousCommit !== 'string') return null
   if (item.license !== undefined && item.license !== 'MIT' && item.license !== 'Apache-2.0') return null
   if (item.reason !== undefined && !REASONS.has(item.reason)) return null
-  return item as unknown as SkillSourceRow
+  const text = (key: (typeof OPTIONAL_STRINGS)[number] | (typeof URL_KEYS)[number]): string | undefined =>
+    typeof item[key] === 'string' ? String(item[key]) : undefined
+  return {
+    id,
+    origin,
+    status: status as SkillSourceStatus,
+    ...(text('repo') === undefined ? {} : { repo: text('repo') }),
+    ...(text('path') === undefined ? {} : { path: text('path') }),
+    ...(text('commit') === undefined ? {} : { commit: text('commit') }),
+    ...(item.previousCommit === undefined ? {} : { previousCommit: item.previousCommit === null ? null : String(item.previousCommit) }),
+    ...(item.license === undefined ? {} : { license: item.license === 'MIT' ? 'MIT' : 'Apache-2.0' }),
+    ...(text('fetchedAt') === undefined ? {} : { fetchedAt: text('fetchedAt') }),
+    ...(item.reason === undefined ? {} : { reason: item.reason as SkillFailureReason }),
+    ...(text('detail') === undefined ? {} : { detail: text('detail') }),
+    ...(text('sourceUrl') === undefined ? {} : { sourceUrl: text('sourceUrl') }),
+    ...(text('commitUrl') === undefined ? {} : { commitUrl: text('commitUrl') }),
+    ...(text('compareUrl') === undefined ? {} : { compareUrl: text('compareUrl') }),
+  }
 }
 
 /** Strict decoder: any unknown key, bad enum or wrongly typed field rejects the whole body. */
