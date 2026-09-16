@@ -104,7 +104,10 @@ fi
 if [ -f "$BUNDLE" ]; then
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
-  ( cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" TENON_USER=smoke@tenon.test node "$BUNDLE" init t8-smoke --track backend --preset full ) 2>/dev/null
+  # 声明身份对每一次 bundle 调用都必需（写操作要求身份）；CI runner 没有 git 身份，逐条注入会漏。
+  export TENON_USER=smoke@tenon.test
+  export TENON_USER_NAME=smoke
+  ( cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" node "$BUNDLE" init t8-smoke --track backend --preset full ) 2>/dev/null
   [ -f "$TMP/openspec/changes/t8-smoke/.pipeline.yaml" ] \
     && ok "bundle: init 落盘 .pipeline.yaml" || bad "bundle: init 落盘 .pipeline.yaml" "文件缺失"
   grep -q '"locale":"zh-CN"' "$TMP/openspec/changes/t8-smoke/.pipeline-document-locale.json" \
