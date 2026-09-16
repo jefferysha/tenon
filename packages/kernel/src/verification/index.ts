@@ -12,17 +12,3 @@ export {
   validateVerificationResult, collectVerificationResultErrors, isTrustedPass,
 } from './validate.js'
 export type { VerificationValidation } from './validate.js'
-export {
-  VERIFICATION_EVIDENCE_LIMITS,
-  composeVerificationEvidence,
-} from './evidence-composer.js'
-export type {
-  VerificationEvidenceComposition,
-  VerificationEvidenceDraft,
-  VerificationEvidenceEntry,
-  VerificationEvidenceError,
-  VerificationEvidenceErrorCode,
-  VerificationEvidenceKind,
-  VerificationEvidenceLocale,
-  VerificationEvidenceStatus,
-} from './evidence-composer.js'

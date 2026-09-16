@@ -189,7 +189,7 @@ describe('i18n 生产 TSX 不直出 Error.message', () => {
       const visit = (node: import('typescript').Node): void => {
         if (ts.isPropertyAccessExpression(node) && node.name.text === 'message') {
           const owner = node.expression.getText(ast)
-          // VerificationEvidenceComposer.validate() creates this object from current-locale t() output.
+          // 校验结果对象的 message 来自当前 locale 的 t() 输出，不是硬编码文案。
           if (owner !== 'validation') {
             const line = ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1
             leaks.push(`${relative(SRC, file)}:${line} → ${node.getText(ast)}`)

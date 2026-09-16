@@ -97,10 +97,6 @@ export {
   subscribeOrchestrationV2,
   type OrchestrationV2Envelope,
 } from './orchestrationV2Client'
-export {
-  postVerificationEvidenceCompose,
-  VerificationEvidenceApiError,
-} from './verificationEvidenceClient'
 
 export type {
   ChangeHistoryEntry,
@@ -174,13 +170,3 @@ export type {
   ContextBundleReasonCode,
   ContextBundleTier,
 } from './contextBundleTypes'
-
-export type {
-  VerificationEvidenceComposeInput,
-  VerificationEvidenceComposeResponse,
-  VerificationEvidenceDraftEntry,
-  VerificationEvidenceFieldError,
-  VerificationEvidenceKind,
-  VerificationEvidenceLocale,
-  VerificationEvidenceStatus,
-} from './verificationEvidenceTypes'
