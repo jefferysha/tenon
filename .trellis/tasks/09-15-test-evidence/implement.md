@@ -349,6 +349,14 @@ Net ≈ +5,200 production / +3,600 test lines, 26 code commits plus real-host ac
 | D-6 | Parent implement.md: generated files stay out of the branch | `templates/skill-sources.yaml` **is** committed (C24) | Editing a `SKILL.md` without re-syncing provenance makes `tools/verify-skills.sh` fail with a content-hash mismatch, so the sync belongs in the same commit |
 | D-7 | C27 real-host acceptance | Not run | Parent X18: wave 5 runs real Claude Code / Codex acceptance on `main` |
 
+### Post-merge wiring
+
+| Item | Action |
+| --- | --- |
+| Archived Change refusal (parent §7) | Replace `archivedForUser` in `packages/cli/src/commands/test-context.ts` with `refuseArchived(deps, name)` from `packages/cli/src/archivedGuard.ts`. It is the only archive call site in the `tenon test` family; the branch was cut before task-delete-archive merged, so it is a constant `false` here. The server test routes are read-only and need no refusal |
+| Generated default workflow | `npm run generate:default-workflow` (see below) |
+| Task deletion | Physical delete must also remove `.tenon/users/*/tests/<change>/` and `.tenon/users/*/local/{artifacts,running}/<change>/` (design §10) |
+
 ### Known red on this branch (by instruction)
 
 `packages/kernel/src/workflow/generate-default-workflow.test.ts` fails because C24 changed
