@@ -526,15 +526,21 @@ async function installLocal(repoRoot, env, cwd, version) {
   return runCommand('bash', [join(repoRoot, 'install.sh'), '--codex', '--ref', `v${version}`], {
     cwd,
     env,
-    timeoutMs: 180_000,
+    // A clean install fetches every skill in skills/sources.yaml from its upstream repository, so
+    // this budget covers real network clones, not just the local release copy.
+    timeoutMs: 600_000,
   })
 }
 
-const LOCAL_RELEASE_ENTRIES = [
+export const LOCAL_RELEASE_ENTRIES = [
   '.agents/plugins/marketplace.json',
   '.claude-plugin/marketplace.json',
   '.claude-plugin/plugin.json',
   '.codex-plugin/plugin.json',
+  // A real tag tree carries the ignore file, which is what keeps upstream skills fetched into the
+  // plugin root out of the tree. Without it this fixture commits them, the install's own fetch then
+  // rewrites skills/skills.lock.json, and the marketplace clone reads dirty.
+  '.gitignore',
   'adapters',
   'hooks',
   'packages/cli/dist/tenon.mjs',
@@ -545,6 +551,12 @@ const LOCAL_RELEASE_ENTRIES = [
   'templates',
   'tools/verify-skills.sh',
 ]
+
+/**
+ * Paths the repository tracks even though an ignore pattern matches them. `git add --all` honours
+ * .gitignore, so these must be forced or the release tree silently loses them.
+ */
+export const FORCED_RELEASE_ENTRIES = ['.agents/plugins/marketplace.json']
 
 async function createIsolatedReleaseRepository(repoRoot, fixture, env, version) {
   const releaseWork = join(fixture, 'release-work')
@@ -565,6 +577,7 @@ async function createIsolatedReleaseRepository(repoRoot, fixture, env, version) 
   await git(['config', 'user.name', 'Tenon clean-install acceptance'])
   await git(['config', 'user.email', 'acceptance@invalid.example'])
   await git(['add', '--all'])
+  for (const entry of FORCED_RELEASE_ENTRIES) await git(['add', '--force', entry])
   await git(['commit', '--quiet', '-m', `fixture v${version}`])
   // A lightweight tag makes the local GitHub ref fixture resolve directly to a commit object.
   await git(['tag', `v${version}`])
