@@ -17,6 +17,8 @@ import {
   assertSupportedAcceptancePlatform,
   commandResultError,
   cleanupIsolatedDashboardAfterFailure,
+  FORCED_RELEASE_ENTRIES,
+  LOCAL_RELEASE_ENTRIES,
   dashboardIdentityMatches,
   fetchWithTimeout,
   hasExactLocalTenonMarketplace,
@@ -30,6 +32,15 @@ import {
   snapshotExternalTenonState,
   waitForHealth,
 } from './clean-codex-install-acceptance.mjs'
+
+test('local release fixture mirrors a real tag for ignore rules', () => {
+  // Omitting .gitignore made the fixture commit the upstream skills that a real tag never carries;
+  // the install's own fetch then rewrote skills/skills.lock.json and the clone read dirty.
+  assert.ok(LOCAL_RELEASE_ENTRIES.includes('.gitignore'))
+  // .agents/ is ignored, yet the repository tracks the Codex marketplace manifest inside it.
+  assert.ok(FORCED_RELEASE_ENTRIES.includes('.agents/plugins/marketplace.json'))
+  for (const entry of FORCED_RELEASE_ENTRIES) assert.ok(LOCAL_RELEASE_ENTRIES.includes(entry))
+})
 
 test('clean-install auth guidance requires every supported login route and status verification', () => {
   const complete = [

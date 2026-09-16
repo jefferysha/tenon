@@ -101,15 +101,16 @@ function payloadComparisonEntries(env: Pick<SetupEnv, 'runCommand'>, marketplace
   return [...PAYLOAD_ENTRIES.filter((entry) => entry !== 'skills'), ...tracked]
 }
 
-export function pluginPayloadMatchesMarketplace(
+/** The payload entry that differs between marketplace and plugin root, or null when all match. */
+function payloadMismatchEntry(
   env: Pick<SetupEnv, 'runCommand'>,
   marketplaceRoot: string,
   pluginRoot: string,
-): boolean {
-  if (marketplaceRoot === pluginRoot) return true
+): string | null {
+  if (marketplaceRoot === pluginRoot) return null
   const entries = payloadComparisonEntries(env, marketplaceRoot)
-  if (entries === null) return false
-  return entries.every((entry) => {
+  if (entries === null) return 'skills/（marketplace ls-tree 不可读）'
+  for (const entry of entries) {
     const result = env.runCommand('git', [
       'diff',
       '--no-index',
@@ -118,8 +119,68 @@ export function pluginPayloadMatchesMarketplace(
       join(marketplaceRoot, entry),
       join(pluginRoot, entry),
     ])
-    return result.code === 0
+    if (result.code !== 0) return entry
+  }
+  return null
+}
+
+export function pluginPayloadMatchesMarketplace(
+  env: Pick<SetupEnv, 'runCommand'>,
+  marketplaceRoot: string,
+  pluginRoot: string,
+): boolean {
+  return payloadMismatchEntry(env, marketplaceRoot, pluginRoot) === null
+}
+
+/** What exactly makes the marketplace clone dirty, so a refusal can point at the files. */
+function dirtyMarketplaceDetail(env: Pick<SetupEnv, 'runCommand'>, root: string): string {
+  const status = env.runCommand('git', ['-C', root, 'status', '--porcelain'])
+  if (status.code !== 0) return `克隆 ${root} 状态不可读`
+  const lines = status.stdout.split(/\r?\n/u).filter((line) => line !== '')
+  if (lines.length === 0) return `克隆 ${root} 有改动或未跟踪文件`
+  const shown = lines.slice(0, 3).join('；')
+  return lines.length > 3 ? `克隆 ${root}：${shown}；共 ${lines.length} 项` : `克隆 ${root}：${shown}`
+}
+
+/**
+ * The first field separating the observed host from the frozen stable target, or null when every
+ * field matches. Fail-closed callers quote it: a refusal that cannot say what drifted costs the
+ * reader the whole investigation.
+ */
+export function nativeHostStableTargetMismatch(
+  env: SetupEnv,
+  host: NativePipelineHost,
+  target: StableReleaseTarget,
+): string | null {
+  const current = decodeNativeHostObservation(observeNativeHost(env, host))
+  if (current.marketplace === null) return 'marketplace 未注册'
+  if (current.plugin === null) return 'plugin 未安装'
+  if (current.marketplace.head !== target.commit) {
+    return `marketplace.head=${current.marketplace.head}；冻结 commit=${target.commit}`
+  }
+  if (current.marketplace.ref !== target.tag) {
+    return `marketplace.ref=${current.marketplace.ref}；冻结 tag=${target.tag}`
+  }
+  if (!current.marketplace.clean) {
+    return `marketplace.clean=false（${dirtyMarketplaceDetail(env, current.marketplace.root)}）`
+  }
+  if (!current.plugin.enabled) return 'plugin.enabled=false'
+  if (current.plugin.version !== target.version) {
+    return `plugin.version=${current.plugin.version}；冻结 version=${target.version}`
+  }
+  const atMarketplace = pluginVersionAtMarketplace(env, {
+    ...current.marketplace,
+    root: current.plugin.root,
   })
+  if (atMarketplace !== target.version) {
+    return `marketplace 内 plugin.json version=${atMarketplace}；冻结 version=${target.version}`
+  }
+  const payload = payloadMismatchEntry(env, current.marketplace.root, current.plugin.root)
+  if (payload !== null) return `payload 条目 ${payload} 与 marketplace 不一致`
+  if (!isCanonicalRemoteMarketplace(env, host, current.marketplace)) {
+    return `marketplace.source=${current.marketplace.source} 不是 canonical 远端`
+  }
+  return null
 }
 
 /** Read-only proof used by update idempotence before deciding whether any host mutation is needed. */
@@ -128,20 +189,7 @@ export function nativeHostMatchesStableTarget(
   host: NativePipelineHost,
   target: StableReleaseTarget,
 ): boolean {
-  const current = decodeNativeHostObservation(observeNativeHost(env, host))
-  return current.marketplace !== null
-    && current.plugin !== null
-    && current.marketplace.head === target.commit
-    && current.marketplace.ref === target.tag
-    && current.marketplace.clean
-    && current.plugin.enabled
-    && current.plugin.version === target.version
-    && pluginVersionAtMarketplace(env, {
-      ...current.marketplace,
-      root: current.plugin.root,
-    }) === target.version
-    && pluginPayloadMatchesMarketplace(env, current.marketplace.root, current.plugin.root)
-    && isCanonicalRemoteMarketplace(env, host, current.marketplace)
+  return nativeHostStableTargetMismatch(env, host, target) === null
 }
 
 function hasMarketplaceIdentity(

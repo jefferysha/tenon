@@ -5,7 +5,10 @@ import {
   type NativePipelineHost,
   type ParsedHostPluginInventory,
 } from './plugin-host.js'
-import { nativeHostMatchesStableTarget } from './managed-host-observation.js'
+import {
+  nativeHostMatchesStableTarget,
+  nativeHostStableTargetMismatch,
+} from './managed-host-observation.js'
 import type { SetupEnv } from './setupEnvironment.js'
 import { resolveStableTagTarget, type StableReleaseTarget } from './stable-release.js'
 
@@ -64,12 +67,14 @@ export function revalidateNativeStableCandidate(
       `候选版本已漂移：inventory=${inventory.tenonVersion ?? 'unknown'}; target=${target.version}`,
     )
   }
-  if (!nativeHostMatchesStableTarget(env, host, target)) {
-    throw new Error('候选宿主 marketplace/ref/HEAD/root/payload 不再匹配冻结稳定目标')
+  const beforeAssets = nativeHostStableTargetMismatch(env, host, target)
+  if (beforeAssets !== null) {
+    throw new Error(`候选宿主不再匹配冻结稳定目标：${beforeAssets}`)
   }
   if (!verifyAssets(candidateRoot)) throw new Error('候选打包资产重证失败')
-  if (!nativeHostMatchesStableTarget(env, host, target)) {
-    throw new Error('候选资产校验后宿主稳定 identity 发生漂移')
+  const afterAssets = nativeHostStableTargetMismatch(env, host, target)
+  if (afterAssets !== null) {
+    throw new Error(`候选资产校验后宿主稳定 identity 发生漂移：${afterAssets}`)
   }
   return inventory
 }
