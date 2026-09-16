@@ -783,27 +783,9 @@ export const zh: Dict = {
   // progress/useAfkLog（ProgressView running 行日志尾部）。
   onboard: {
     no_project_title: '还没有注册任何项目',
-    // T17 纯教学态（决议#7 + T2）：tenon init 自动登记项目，注册表单/幽灵命令全部退役。
-    // full-install W2：no-project 改「诚实两步 checklist」——setup 已把 Dashboard 带到这里，
-    // 不再猜测 Codex/Claude 宿主；只给 init 与 doctor 的可复制真命令。
-    no_project_desc: '已初始化的 Pipeline 项目会自动出现在这里；若还没有项目，请按下面两步从终端开始。',
-    register_title: '注册现有项目',
-    register_note: '输入已经初始化过的项目绝对路径；服务端会验证目录与可信 inode。',
-    register_path: '项目绝对路径',
-    register_placeholder: '/absolute/path/to/project',
-    register: '注册项目',
-    registering: '注册中…',
-    registered: '项目已注册',
-    or_initialize: '或者初始化一个新项目',
-    step_init: '建一个 change（tenon init 会把项目自动登记进来，不用单独注册）',
-    step_doctor: '确认环境就绪，然后刷新本页',
-    copy: '复制',
-    copy_command: '复制命令：{command}',
-    copying: '复制中…',
-    copying_status: '正在复制命令',
-    copied: '已复制',
-    copy_retry: '重试复制',
-    copy_error: '未能复制，请手动选择上方命令',
+    // Dashboard 自己就能建项目（选已有目录接入，或新建目录并 git init），零项目态只留一个动作：
+    // 旧的「回终端敲 tenon init / doctor」两步教学与逐条复制按钮随之退役。
+    no_project_desc: '用「新建项目」选一个已有目录接入，或新建一个目录。',
     no_change_title: '这个项目还没有 change',
     no_change_desc: '从这里描述意图、确认 Track 与 Workflow，一次创建并锁定路线。',
     cli_fallback: '也可以在终端创建',
@@ -2797,24 +2779,7 @@ export const en: Dict = {
   // progress/useAfkLog (running-row log tail in ProgressView).
   onboard: {
     no_project_title: 'No project registered yet',
-    no_project_desc: 'Initialized Pipeline projects appear here automatically. If you do not have one yet, start with the terminal checklist below.',
-    register_title: 'Register an existing project',
-    register_note: 'Enter the absolute path of an initialized project. The server validates the directory and trusted inode.',
-    register_path: 'Absolute project path',
-    register_placeholder: '/absolute/path/to/project',
-    register: 'Register project',
-    registering: 'Registering…',
-    registered: 'Project registered',
-    or_initialize: 'Or initialize a new project',
-    step_init: 'Create a change (tenon init auto-registers the project — no separate registration needed)',
-    step_doctor: 'Confirm the environment is ready, then refresh this page',
-    copy: 'Copy',
-    copy_command: 'Copy command: {command}',
-    copying: 'Copying…',
-    copying_status: 'Copying command',
-    copied: 'Copied',
-    copy_retry: 'Retry copy',
-    copy_error: 'Could not copy. Select the command above to copy it manually.',
+    no_project_desc: 'Use New project to adopt an existing directory or create a new one.',
     no_change_title: 'No changes in this project yet',
     no_change_desc: 'Describe the intent here, confirm the Track and Workflow, then create the locked route in one step.',
     cli_fallback: 'Or create it in your terminal',

@@ -26,6 +26,10 @@ export interface TemplateDocument extends TemplateRef { text: string; digest: st
 export interface ComposedDirectory { path: string; label: string }
 export interface ComposeResult { markdown: string; directories: ComposedDirectory[]; bytes: number }
 
+/** 项目级指令文件（协议闭集，server 的解码器只接受这三个）。 */
+export const PROJECT_INSTRUCTION_FILES = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md'] as const
+export type ProjectInstructionFile = (typeof PROJECT_INSTRUCTION_FILES)[number]
+
 export type InstructionLevels = 'joined' | 'project-wins' | 'user-wins' | 'project-only' | 'needs-config'
 export type InstructionTargetError = 'managed-block-invalid' | 'target-symlink' | 'not-file' | 'too-large' | 'path-unsafe'
 export interface InstructionHostRow { id: string; levels: InstructionLevels; target: string | null; effective_file?: string }

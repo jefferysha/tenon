@@ -68,6 +68,8 @@ function AppShell(): JSX.Element {
   const { theme, setTheme } = useDashboardTheme()
   const { flash, flashRef, showFlash } = useFlash(lang)
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null)
+  // 零项目教学态的「新建项目」跳到项目页并直接打开对话框。
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
   const pendingNavigationRef = useRef<PendingNavigation | null>(null)
   const viewRef = useRef(view)
   // 带未保存草稿的视图（任何编辑器通过 onDirtyChange 上报）；离开该视图才需要确认。
@@ -328,7 +330,12 @@ function AppShell(): JSX.Element {
           </section>
         ) : snapshot && snapshot.project_count === 0 && view === 'progress' ? (
           // 零项目教学态只替换工作台；工作流与库不依赖项目，项目页本身就是新建项目的入口。
-          <div className="px-6"><Onboarding kind="no-project" /></div>
+          <div className="px-6">
+            <Onboarding
+              kind="no-project"
+              onNewProject={() => { setNewProjectOpen(true); setView('projects') }}
+            />
+          </div>
         ) : (
           <>
         {view === 'progress' && (
@@ -361,6 +368,8 @@ function AppShell(): JSX.Element {
             currentRoot={currentRoot}
             onSelectProject={selectRoot}
             onToast={(m) => showFlash('toast', m)}
+            newProjectOpen={newProjectOpen}
+            onNewProjectOpenChange={setNewProjectOpen}
           />
         )}
         {view === 'library' && <LibraryView onToast={(m) => showFlash('toast', m)} />}

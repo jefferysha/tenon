@@ -1,24 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '../i18n'
 import type { InstructionPreviewFile } from '../api/instructionsDecoders'
+import { Icon } from '../shell/Icon'
 import type { TopBarProject } from '../shell/TopBar'
-import { DetailEmpty, ListColumn, RailCard, RailColumn, ThreeColumns } from '../shell/ThreeColumns'
+import { DetailEmpty, ListColumn, RailCard, RailColumn, RailFootLink, ThreeColumns } from '../shell/ThreeColumns'
 import { HostTargetList } from './HostTargetList'
 import { InstructionEditor } from './InstructionEditor'
+import { NewProjectDialog } from './NewProjectDialog'
 import { firstLoadable, targetsForHosts } from './instructionModel'
 import { useInstructionFiles } from './useInstructionFiles'
 
 const RAIL_KEY = 'tenon-dashboard-rail:projects'
 const DEFAULT_HOSTS = ['claude', 'codex']
 
-/** 项目：左列用户级 + 各项目 / 中列宿主与文件 / 右列指令文件编辑器。 */
+/** 项目：左列用户级 + 各项目 + 新建项目 / 中列宿主与文件 / 右列指令文件编辑器。 */
 export function ProjectsView({
-  projects, currentRoot, onSelectProject, onToast,
+  projects, currentRoot, onSelectProject, onToast, newProjectOpen = false, onNewProjectOpenChange,
 }: {
   projects: readonly TopBarProject[]
   currentRoot: string
   onSelectProject: (root: string) => void
   onToast?: (message: string) => void
+  /** 由零项目教学态的「新建项目」触发时为 true。 */
+  newProjectOpen?: boolean
+  onNewProjectOpenChange?: (open: boolean) => void
 }): JSX.Element {
   const { t } = useT()
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
@@ -27,6 +32,13 @@ export function ProjectsView({
   useEffect(() => {
     try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
   }, [railCollapsed])
+
+  const [localDialog, setLocalDialog] = useState(false)
+  const dialogOpen = newProjectOpen || localDialog
+  const closeDialog = (): void => {
+    setLocalDialog(false)
+    onNewProjectOpenChange?.(false)
+  }
 
   const [text, setText] = useState('')
   const loadedRef = useRef('')
@@ -70,94 +82,115 @@ export function ProjectsView({
   }
 
   return (
-    <ThreeColumns
-      testId="projects-view"
-      railCollapsed={railCollapsed}
-      rail={(
-        <RailColumn
-          title={t('projects.rail')}
-          collapsed={railCollapsed}
-          onToggle={() => setRailCollapsed((value) => !value)}
-          testId="projects-rail"
-        >
-          <ul className="grid gap-1">
-            <li>
-              <RailCard
-                mark="U"
-                name={t('projects.user_level')}
-                selected={currentRoot === ''}
+    <>
+      <ThreeColumns
+        testId="projects-view"
+        railCollapsed={railCollapsed}
+        rail={(
+          <RailColumn
+            title={t('projects.rail')}
+            collapsed={railCollapsed}
+            onToggle={() => setRailCollapsed((value) => !value)}
+            testId="projects-rail"
+            footer={(
+              <RailFootLink
+                icon={<Icon name="folder" size={14} />}
+                label={t('projects.new_project')}
                 collapsed={railCollapsed}
-                onClick={() => onSelectProject('')}
-                testId="proj-user"
+                onClick={() => setLocalDialog(true)}
+                testId="proj-new"
               />
-            </li>
-            {projects.map((candidate) => (
-              <li key={candidate.root}>
+            )}
+          >
+            <ul className="grid gap-1">
+              <li>
                 <RailCard
-                  mark={(candidate.name[0] ?? '?').toUpperCase()}
-                  name={candidate.name}
-                  meta={candidate.root}
-                  selected={candidate.root === currentRoot}
+                  mark="U"
+                  name={t('projects.user_level')}
+                  selected={currentRoot === ''}
                   collapsed={railCollapsed}
-                  onClick={() => onSelectProject(candidate.root)}
-                  testId={`proj-root-${candidate.name}`}
+                  onClick={() => onSelectProject('')}
+                  testId="proj-user"
                 />
               </li>
-            ))}
-          </ul>
-        </RailColumn>
-      )}
-      list={(
-        <ListColumn
-          testId="projects-list"
-          eyebrow={t('projects.rail')}
-          title={t('projects.hosts')}
-        >
-          {files.loading ? (
-            <p className="text-base text-text-2" data-testid="proj-loading">{t('projects.rail')}</p>
-          ) : (
-            <HostTargetList
-              hosts={hosts}
-              targets={targets}
-              selected={selectedHosts}
-              editorText={text}
-              onToggle={(hostId) => setSelectedHosts((current) => {
-                const next = new Set(current)
-                if (next.has(hostId)) next.delete(hostId)
-                else next.add(hostId)
-                return next
-              })}
-              onLoad={(id) => {
-                const target = targets.find((candidate) => candidate.id === id)
-                if (target === undefined) return
-                loadedRef.current = target.text
-                setText(target.text)
-              }}
-            />
-          )}
-        </ListColumn>
-      )}
-      detail={files.state === null ? (
-        <DetailEmpty title={t('projects.empty_detail')} desc={t('projects.rail')} testId="proj-detail-empty" />
-      ) : (
-        <InstructionEditor
-          level={level}
-          title={title}
-          root={currentRoot}
-          targets={targets}
-          targetIds={targetIds}
-          text={text}
-          onText={setText}
-          external={files.external}
-          busy={files.busy}
-          errorKey={files.errorKey}
-          onPreview={() => files.preview(text, targetIds)}
-          onApply={onApply}
-          onDelete={onDelete}
-          onReload={() => { void files.reload() }}
-          onDismissExternal={files.dismissExternal}
+              {projects.map((candidate) => (
+                <li key={candidate.root}>
+                  <RailCard
+                    mark={(candidate.name[0] ?? '?').toUpperCase()}
+                    name={candidate.name}
+                    meta={candidate.root}
+                    selected={candidate.root === currentRoot}
+                    collapsed={railCollapsed}
+                    onClick={() => onSelectProject(candidate.root)}
+                    testId={`proj-root-${candidate.name}`}
+                  />
+                </li>
+              ))}
+            </ul>
+          </RailColumn>
+        )}
+        list={(
+          <ListColumn
+            testId="projects-list"
+            eyebrow={t('projects.rail')}
+            title={t('projects.hosts')}
+          >
+            {files.loading ? (
+              <p className="text-base text-text-2" data-testid="proj-loading">{t('projects.rail')}</p>
+            ) : (
+              <HostTargetList
+                hosts={hosts}
+                targets={targets}
+                selected={selectedHosts}
+                editorText={text}
+                onToggle={(hostId) => setSelectedHosts((current) => {
+                  const next = new Set(current)
+                  if (next.has(hostId)) next.delete(hostId)
+                  else next.add(hostId)
+                  return next
+                })}
+                onLoad={(id) => {
+                  const target = targets.find((candidate) => candidate.id === id)
+                  if (target === undefined) return
+                  loadedRef.current = target.text
+                  setText(target.text)
+                }}
+              />
+            )}
+          </ListColumn>
+        )}
+        detail={files.state === null ? (
+          <DetailEmpty title={t('projects.empty_detail')} desc={t('projects.rail')} testId="proj-detail-empty" />
+        ) : (
+          <InstructionEditor
+            level={level}
+            title={title}
+            root={currentRoot}
+            targets={targets}
+            targetIds={targetIds}
+            text={text}
+            onText={setText}
+            external={files.external}
+            busy={files.busy}
+            errorKey={files.errorKey}
+            onPreview={() => files.preview(text, targetIds)}
+            onApply={onApply}
+            onDelete={onDelete}
+            onReload={() => { void files.reload() }}
+            onDismissExternal={files.dismissExternal}
+          />
+        )}
+      />
+      {dialogOpen && (
+        <NewProjectDialog
+          onClose={closeDialog}
+          onCreated={(root) => {
+            closeDialog()
+            onSelectProject(root)
+            onToast?.(t('projects.new_project'))
+          }}
         />
       )}
-    />
+    </>
   )
 }

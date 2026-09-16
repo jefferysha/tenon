@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { dashboardSearch, parseDashboardLocation, resolveDashboardRoot } from './dashboardLocation'
 
 describe('dashboard URL 深链路', () => {
-  it('退役的 overview / projects / hostPlan 深链不再是视图，只保留 root/change 与外部 query', () => {
+  it('退役的 overview / hostPlan 深链不再是视图，只保留 root/change 与外部 query', () => {
     expect(parseDashboardLocation('?debug=1&view=overview')).toEqual({})
     expect(parseDashboardLocation('?debug=1&view=hostPlan&root=%2Frepo')).toEqual({ root: '/repo' })
-    expect(parseDashboardLocation('?view=projects')).toEqual({})
   })
 
-  it('两个顶部标签视图都可深链；退役的 afk / machine 不再是视图', () => {
+  it('顶部标签视图都可深链；退役的 afk / machine 不再是视图', () => {
     expect(parseDashboardLocation('?view=workbench&root=%2Frepo')).toEqual({ view: 'workbench', root: '/repo' })
+    // 项目页（指令文件）与库页是一级视图，深链带 root 进项目级、空 root 进用户级。
+    expect(parseDashboardLocation('?view=projects&root=%2Frepo')).toEqual({ view: 'projects', root: '/repo' })
+    expect(parseDashboardLocation('?view=projects')).toEqual({ view: 'projects' })
+    expect(parseDashboardLocation('?view=library')).toEqual({ view: 'library' })
     expect(parseDashboardLocation('?view=afk&root=%2Frepo')).toEqual({ root: '/repo' })
     expect(parseDashboardLocation('?view=machine')).toEqual({})
     expect(dashboardSearch('?debug=1&root=%2Frepo&change=old', {
