@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Monitor, Moon, Settings, Sun, X } from 'lucide-react'
+import { ChevronDown, Monitor, Moon, Settings, Sun, User as UserIcon, X } from 'lucide-react'
+import type { CurrentUserState } from '../api/userClient'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n/translations'
 import { VIEWS, type ThemePreference, type View } from './views'
@@ -25,6 +26,9 @@ interface TopBarProps {
   onTheme: (theme: ThemePreference) => void
   /** 挂在「工作台」标签上的待决定计数；0 不显。 */
   decisionCount: number
+  /** Declared user; null while loading or when the request failed. */
+  user: CurrentUserState | null
+  onUser: () => void
 }
 
 function rootBasename(root: string): string {
@@ -43,7 +47,7 @@ const POPOVER_CLS = 'absolute top-[calc(100%+8px)] z-50 rounded-md border border
  * → 连接状态 → 设置（主题 / 语言）。
  * 状态一律走 aria-* / data-*；testid：top-bar / nav-<view> / project-switcher / project-menu /
  * project-item-<name> / conn-indicator / nav-settings / nav-settings-panel /
- * theme-toggle / lang-toggle / progress-badge / afk-badge。
+ * theme-toggle / lang-toggle / progress-badge / afk-badge / top-bar-user / top-bar-user-missing。
  */
 export function TopBar({
   view,
@@ -57,6 +61,8 @@ export function TopBar({
   theme,
   onTheme,
   decisionCount,
+  user,
+  onUser,
 }: TopBarProps): JSX.Element {
   const { t } = useT()
   const [projectOpen, setProjectOpen] = useState(false)
@@ -171,6 +177,32 @@ export function TopBar({
       </nav>
 
       <div className="flex items-center gap-3.5 max-[900px]:ml-auto">
+        {user?.kind === 'set' && (
+          <button
+            type="button"
+            className={cn(MENU_BTN_CLS, 'max-w-[20ch]')}
+            title={user.user.id}
+            aria-label={t('shell.user')}
+            data-source={user.user.source}
+            data-testid="top-bar-user"
+            onClick={onUser}
+          >
+            <UserIcon className="size-4 flex-none text-text-3" aria-hidden="true" />
+            <span className="truncate whitespace-nowrap">{user.user.name}</span>
+          </button>
+        )}
+        {user?.kind === 'missing' && (
+          <button
+            type="button"
+            className={cn(MENU_BTN_CLS, 'text-amber-d')}
+            aria-label={t('shell.user')}
+            data-testid="top-bar-user-missing"
+            onClick={onUser}
+          >
+            <UserIcon className="size-4 flex-none" aria-hidden="true" />
+            <span className="whitespace-nowrap">{t('shell.user_unset')}</span>
+          </button>
+        )}
         <span
           className="flex items-center gap-1.5 whitespace-nowrap text-base text-text-2 max-[1279px]:hidden"
           data-on={connected ? 'true' : 'false'}

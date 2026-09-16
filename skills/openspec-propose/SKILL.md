@@ -62,7 +62,7 @@ them to select; never guess based on modification time.
    tenon session activate "<change>"
    ```
 
-   Never infer a target from a pre-existing `.pipeline-active` file or its modification time.
+   Never infer a target from a pre-existing `active-change` pointer or its modification time.
 
 3. Read the current `proposal.md`, `design.md`, and `tasks.md` before changing them. Preserve any
    user-written or previously approved content; replace only explicit open-phase scaffold text.

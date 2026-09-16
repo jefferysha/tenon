@@ -112,11 +112,13 @@ export function reviewAcknowledgeHistoryEntry(input: {
   readonly channel: ReviewAcknowledgedVia
   /** Channel-specific audit suffix, e.g. the delegated authority reference. */
   readonly detail?: string
+  readonly actor?: import('../users/user.js').RecordActor
 }): HistoryEntry {
   const detail = input.detail === undefined || input.detail === '' ? '' : ` ${input.detail}`
   return {
     ts: input.acknowledgedAt,
     kind: 'tool',
     raw: `review:acknowledge via=${input.channel} phase=${input.phase} event=${input.event}${detail}`,
+    ...(input.actor === undefined ? {} : { actor: input.actor }),
   }
 }

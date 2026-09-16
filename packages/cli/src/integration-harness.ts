@@ -35,6 +35,10 @@ import {
   readCurrentRunRevisionSync,
   recordDocument,
   recordDocumentReads,
+  resolveProductPaths,
+  resolveTenonUser,
+  actorOf,
+  isTenonUser,
   stateStorageExistsSync,
   withTrackRegistryLock,
   type ExtendedManifestData,
@@ -94,8 +98,8 @@ export interface Harness {
   cwd: string
   out: string[]
   err: string[]
-  /** 跑一条 CLI（argv 风格，无 node/script 前缀）；返回 exit code，每次清空 out/err */
-  run: (args: string[]) => Promise<number>
+  /** 跑一条 CLI（argv 风格）；返回 exit code，每次清空 out/err；`env` 覆盖本次命令的进程环境（如切换 TENON_USER） */
+  run: (args: string[], options?: { readonly env?: Readonly<Record<string, string | undefined>> }) => Promise<number>
   /** 读某 change 的 .pipeline.yaml 原文 */
   read: (name: string) => Promise<string>
   /** 读某 change 目录下任意文件（相对 change 目录）；不存在 → 抛 */
@@ -274,7 +278,7 @@ async function readGovernedDocumentsForCurrentVisit(
 }
 
 /** 真实 deps：与 main.ts 同款 fs 副作用，只把 io 收进数组、clock 固定、gitHeadSha 定桩。 */
-export function realDeps(cwd: string, out: string[], err: string[]): CliDeps {
+export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.ProcessEnv = process.env): CliDeps {
   const manifest = loadManifest(MANIFEST)
   const abs = (p: string) => join(cwd, p)
   const guardCtx = (name: string): GuardFileContext => ({
@@ -325,7 +329,9 @@ export function realDeps(cwd: string, out: string[], err: string[]): CliDeps {
       manifest,
     }),
     cwd,
-    env: (name) => process.env[name],
+    env: (name) => env[name],
+    user: () => resolveTenonUser(cwd, env),
+    userConfigPath: () => resolveProductPaths({ env }).userConfigPath,
     io: { out: (l) => out.push(l), err: (l) => err.push(l) },
     clock: () => FIXED_CLOCK,
     listChanges: async (root) => {
@@ -359,7 +365,7 @@ export function realDeps(cwd: string, out: string[], err: string[]): CliDeps {
     },
     readHistoryRaw: async (dir) => { try { return await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8') } catch { return '' } },
     writeBreadcrumb: (dir, content) => writeFile(join(dir, '.breadcrumb'), content, 'utf8'),
-    history: createHistoryWriter(),
+    history: createHistoryWriter({ actor: () => { const user = resolveTenonUser(cwd, env); return isTenonUser(user) ? actorOf(user) : undefined } }),
     gitHeadSha: async () => TEST_GIT_HEAD,
     workspaceFingerprint: () => fingerprintWorkspace(cwd),
     buildRevisionIdentity: async () => TEST_BUILD_REVISION_IDENTITY,
@@ -417,10 +423,10 @@ export function makeHarness(cwd: string): Harness {
   const governedFixtures = new Set<string>()
   return {
     cwd, out, err,
-    run: async (args) => {
+    run: async (args, options) => {
       out.length = 0
       err.length = 0
-      const deps = realDeps(cwd, out, err)
+      const deps = realDeps(cwd, out, err, options?.env === undefined ? process.env : { ...process.env, ...options.env })
       // Transition-centric suites opt in explicitly. Refresh only the current canonical visit;
       // dedicated evidence suites never enter governedFixtures and retain fail-closed coverage.
       for (const name of governedFixtures) {

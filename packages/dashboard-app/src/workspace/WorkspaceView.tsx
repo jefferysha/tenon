@@ -4,7 +4,7 @@ import { CanonicalStateVersionNotice } from '../progress/CanonicalStateVersionNo
 import { SnapshotInlineError } from '../progress/SnapshotInlineError'
 import { isProjectNavigable } from '../state/projectSelectionModel'
 import type { WorkflowRules } from '../model/workflowModel'
-import type { Snapshot } from '../types'
+import type { Snapshot, UserRefView } from '../types'
 import { matchesQuery } from '../shell/GlobalSearch'
 import { DetailEmpty, ThreeColumns } from '../shell/ThreeColumns'
 import type { TopBarProject } from '../shell/TopBar'
@@ -27,6 +27,9 @@ export interface WorkspaceViewProps {
   onRefresh?: () => void | Promise<void>
   staleError?: string | null
   loading?: boolean
+  /** Current declared user for 我的 and 接手. */
+  me?: UserRefView | null
+  onUserMissing?: () => void
 }
 
 const RAIL_KEY = 'tenon-dashboard-rail:workspace'
@@ -34,7 +37,7 @@ const RAIL_KEY = 'tenon-dashboard-rail:workspace'
 /** 工作台：左列项目 / 中列任务（按阶段筛选）/ 右列所选任务逐阶段的输出与输入。只读。 */
 export function WorkspaceView({
   snapshot, currentRoot, rulesByKey, projects, onSelectProject, selectedChange, onSelectedChange, onToast,
-  staleError = null, loading = false, onRefresh,
+  staleError = null, loading = false, onRefresh, me = null, onUserMissing,
 }: WorkspaceViewProps): JSX.Element {
   const { t } = useT()
   const [filter, setFilter] = useState<TaskFilterState>(DEFAULT_TASK_FILTER)
@@ -125,10 +128,11 @@ export function WorkspaceView({
           emptyKind={emptyKind}
           onClearFilters={() => { setFilter(DEFAULT_TASK_FILTER); setSearch('') }}
           notice={notice}
+          me={me}
         />
       )}
       detail={selectedRow
-        ? <TaskDetailPane key={selectedRow.key} row={selectedRow} onToast={onToast} onRefresh={onRefresh} showReviewConsole={selectedChange !== null && currentRoot !== ''} fetchDefinition={currentRoot !== ''} />
+        ? <TaskDetailPane key={selectedRow.key} row={selectedRow} onToast={onToast} onRefresh={onRefresh} showReviewConsole={selectedChange !== null && currentRoot !== ''} fetchDefinition={currentRoot !== ''} me={me} onUserMissing={onUserMissing} />
         : <DetailEmpty title={t('workspace.no_selection')} desc="" testId="task-detail-empty" />}
     />
   )

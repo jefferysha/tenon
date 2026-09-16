@@ -29,6 +29,8 @@ export interface IoRow {
   producer: string | null
   /** 最近一次登记时间（ISO）；无则 null。 */
   at: string | null
+  /** 最近一次登记的操作人名字；无则缺省。 */
+  actor?: string | null
 }
 
 export function ioRowOf(change: ChangeSnapshot, slot: WbIoSlot): IoRow {
@@ -42,6 +44,7 @@ export function ioRowOf(change: ChangeSnapshot, slot: WbIoSlot): IoRow {
       value: item?.paths[0] ?? '',
       producer: last?.producer ?? item?.producers.at(-1) ?? null,
       at: last?.recordedAt ?? null,
+      actor: last?.actor?.name ?? null,
     }
   }
   const value = fieldStr(change, slot.id)

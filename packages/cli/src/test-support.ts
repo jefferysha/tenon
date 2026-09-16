@@ -70,7 +70,8 @@ export function mockState(fields: Partial<Record<FieldName, string | string[]>> 
   for (const f of FIELD_ORDER) {
     // workflow 缺省 'default'——镜像 kernel emptyFields()（Task 4）；否则 mockState 会产出
     // workflow==='' 让每个默认路径单测误入自定义 workflow 分支（'' !== 'default'）。
-    all[f] = f === 'workflow' ? 'default' : (LIST_FIELDS as readonly string[]).includes(f) ? [] : ''
+    // assignee 缺省为 makeDeps 的默认用户，负责人规则下 mock 转换照常放行。
+    all[f] = f === 'workflow' ? 'default' : f === 'assignee' ? 'Tester <tester@tenon.test>' : (LIST_FIELDS as readonly string[]).includes(f) ? [] : ''
   }
   return { fields: { ...all, ...fields }, opaqueTail: '' }
 }
@@ -522,6 +523,8 @@ export interface MakeDepsOpts {
   /** Git HEAD / in-place 工作区基线能力覆写；供 transition/check 的真实 barrier 单测使用。 */
   gitHeadSha?: CliDeps['gitHeadSha']
   workspaceFingerprint?: CliDeps['workspaceFingerprint']
+  /** Declared identity; defaults to Tester <tester@tenon.test>. */
+  user?: CliDeps['user']
 }
 
 export const FIXED_CLOCK = '2026-07-06T00:00:00Z'
@@ -576,6 +579,8 @@ export function makeDeps(o: MakeDepsOpts = {}): TestDeps {
     })),
     cwd: o.cwd ?? '/repo',
     env: () => undefined,
+    user: o.user ?? (() => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' })),
+    userConfigPath: () => '/repo/.tenon-test/user.json',
     io: {
       out: (line: string) => outLines.push(line),
       err: (line: string) => errLines.push(line),

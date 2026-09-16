@@ -21,7 +21,7 @@ import {
   fingerprintWorkspace, mutateTrackRegistry, readSecrets, registerProjectRoot,
   createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
   type BoardCommandV2, type BoardSnapshotV2, type WorkflowPipelinePlanV2,
-  withTrackRegistryLock,
+  withTrackRegistryLock, resolveTenonUser, type TenonUserResolution, actorOf, isTenonUser, USER_MISSING_HINT,
 } from '@tenon/kernel'
 import {
   createDocumentProjectionAdapter,
@@ -157,6 +157,12 @@ async function main(): Promise<void> {
     recordStore: createTransitionRecordStore(),
     clock: isoNow,
   })
+  let resolvedUser: TenonUserResolution | undefined
+  const resolveUser = (): TenonUserResolution => (resolvedUser ??= resolveTenonUser(process.cwd(), process.env))
+  const currentActor = () => {
+    const user = resolveUser()
+    return isTenonUser(user) ? actorOf(user) : undefined
+  }
   const deps: CliDeps = {
     orchestrationRuntime: async (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: createOrchestrationLedger(), worker_id: `cli:${process.pid}` }),
     orchestrationFreezePipeline: async ({ changeDir, pipeline }: { readonly changeDir: string; readonly pipeline: WorkflowPipelinePlanV2 }): Promise<BoardSnapshotV2> => {
@@ -222,6 +228,8 @@ async function main(): Promise<void> {
     }),
     cwd: process.cwd(),
     env: (name) => process.env[name],
+    user: resolveUser,
+    userConfigPath: () => runtimePaths().userConfigPath,
     io: {
       out: (line: string) => process.stdout.write(`${line}\n`),
       err: (line: string) => process.stderr.write(`${line}\n`),
@@ -233,7 +241,7 @@ async function main(): Promise<void> {
     doctor: makeDoctorProbes(runtimeScope, pluginRoot()),
     readGateMarkers: () => readGateMarkers(process.cwd()),
     writeBreadcrumb: (dir, content) => writeFile(join(dir, '.breadcrumb'), content, 'utf8'),
-    history: createHistoryWriter(),
+    history: createHistoryWriter({ actor: currentActor }),
     // init 成功后 best-effort 登记项目根到 Tenon config root 的 projects.json
     registerProject: async (repoRoot) => {
       await registerProjectRoot(runtimePaths().registryPath, repoRoot)
@@ -278,6 +286,11 @@ async function main(): Promise<void> {
         store,
         runRepository: runRepo,
         clock: isoNow,
+        creator: () => {
+          const actor = currentActor()
+          if (actor === undefined) throw new Error(USER_MISSING_HINT)
+          return actor
+        },
       }),
     }).parseAsync(toParse)
   } catch (e) {

@@ -37,7 +37,7 @@ export function StageIoPanel({ direction, items, activePath, onOpen, definitionS
   function row(item: IoRow, direction: 'output' | 'input'): JSX.Element {
     const label = slotLabel(item.slot, t)
     const meta = item.slot.kind === 'document'
-      ? [item.path === null ? null : fileName(item.path), item.producer, item.at === null ? null : formatTime(item.at)].filter((part): part is string => part !== null && part !== '').join(' · ')
+      ? [item.path === null ? null : fileName(item.path), item.producer, item.actor ?? null, item.at === null ? null : formatTime(item.at)].filter((part): part is string => part !== null && part !== '').join(' · ')
       : item.value === '' ? '' : item.slot.type === 'file_path' ? fileName(item.value) : item.value
     const Icon = item.slot.kind === 'field' && item.slot.type !== 'file_path' ? Hash : FileText
     const clickable = item.path !== null

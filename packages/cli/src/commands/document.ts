@@ -19,7 +19,7 @@ import {
   renderDocumentTemplate,
   documentPathForKind,
   documentTemplateIdForKind,
-  readDocumentLedger,
+  readDocumentLedger, assertOwner,
 } from '@tenon/kernel'
 import {
   recordCanonicalDocumentSkillInvocation,
@@ -37,6 +37,7 @@ import { lstat } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
+import { requireActor } from '../userIdentity.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { resolveChangeDocumentLocale } from '../documentLocale.js'
 import {
@@ -211,8 +212,9 @@ export async function cmdDocumentRecord(
   producer: string,
   backfill = false,
 ): Promise<number> {
+  const actor = requireActor(deps)
   const dir = assertChangeName(deps, name)
-  if (!dir) return 1
+  if (!dir || actor === null) return 1
   if (!isDocumentKind(kind)) return reject(deps, `未知 document kind: '${kind}'`)
   if (path === '') return reject(deps, 'document path 不得为空')
   if (producer === '') return reject(deps, '--producer 不得为空')
@@ -221,6 +223,7 @@ export async function cmdDocumentRecord(
     const recordedAt = deps.clock()
     await withSkillInvocationChangeLock(dir, async (lock) => {
       const state = await deps.store.read(dir)
+      assertOwner(name, state.fields, actor)
       const context = governedDocumentContext(deps, state)
       const { phase, policy } = assertGoverned(context)
       const runMetadata = state.runMetadata
@@ -259,7 +262,7 @@ export async function cmdDocumentRecord(
           documentKind: kind,
           producer,
           recordedAt,
-          allowBackfill: backfill,
+          allowBackfill: backfill, actor,
         })
         if (receipt.status !== 'committed') throw new Error(receipt.diagnostics?.join('; ') ?? 'document submission failed')
         ledger = await readDocumentLedger(dir)
@@ -274,7 +277,7 @@ export async function cmdDocumentRecord(
           path,
           producer,
           recordedAt,
-          allowBackfill: backfill,
+          allowBackfill: backfill, actor,
         })
       }
       const requestedPath = relative(resolve(deps.cwd), resolve(deps.cwd, path))

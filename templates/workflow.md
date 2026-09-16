@@ -19,7 +19,7 @@ open → explore → spec ⇄ build ⇄ verify → ship → archive
     `tenon review request <name> --event <event>` → 人类确认 → `tenon review acknowledge <name>` →
     `tenon transition <name> <event>` 推进。多出口 review step（default 的 verify / 自定义 workflow）必须指定 event。
   - `tenon inbox` 汇总待办交互；`tenon import <name>` 迁移老仓历史
-- **明确恢复才恢复**：`tenon list` 的活跃 change 与 `.pipeline-active` 都只是恢复候选，不能在会话开始自动绑定。只有用户明确说“继续/恢复”或点名 change，才从其 `.pipeline.yaml` 相位继续；任何独立新目标都从 `open` 创建新 change。多个候选时必须让用户点名，绝不按 mtime 猜测。
+- **明确恢复才恢复**：`tenon list` 的活跃 change 与用户自己的 `active-change` 都只是恢复候选，不能在会话开始自动绑定。只有用户明确说“继续/恢复”或点名 change，才从其 `.pipeline.yaml` 相位继续；任何独立新目标都从 `open` 创建新 change。多个候选时必须让用户点名，绝不按 mtime 猜测。
 - `tasks.md` 是七阶段持续演进的唯一 Todo 源。每个 phase 只能勾选并重登记自己的任务；出口只校验
   截至当前 phase 的未完成项，未来 phase 的 checkbox 必须显示但不能反向阻塞。
 
@@ -35,7 +35,7 @@ confirm 新鲜期 5 分钟，review / interaction 新鲜期 30 分钟。
   调用 `tenon review acknowledge <name>` 写入 approval receipt 并清投影；支持 AskUserQuestion 的宿主
   仅在回答中明确批准时做同一动作。档 C 必须保留确认事实并显式运行 acknowledge，**不得删 marker 绕过**。
 - `tenon transition` 只接受当前 review phase 的 exact approved receipt（同一个 phase 的不同 event 不可互用；
-  dashboard 的显式真人点击是同一 approval 语义）；成功转换立即消费 receipt。v2 marker 只作用于 `.pipeline-active` 明确选中的 Change，
+  dashboard 的显式真人点击是同一 approval 语义）；成功转换立即消费 receipt。v2 marker 只作用于用户 `active-change` 明确选中的 Change，
   不会让旧 Change 锁住无关的正常对话。被拦的写操作仍需在确认后重新发起。
 
 ## 三、HITL 原则（交互硬姿态）
@@ -46,7 +46,8 @@ confirm 新鲜期 5 分钟，review / interaction 新鲜期 30 分钟。
 4. 高风险问题当场逼出明确决断，不许「都要 / 先这样」收场。
 5. **明确持续授权是 Change 绑定的委托，不是总开关**：用户明确说“后续不用问 / 自主执行完成”时，入口以
    `tenon session activate <change> --continuous --host-session <id>` 写入同时绑定该 live Change 与
-   当前 host session 的版本化授权投影。
+   当前 host session 的版本化授权投影（落在该用户自己的 `.tenon/users/<slug>/local/authority`，
+   不会放行另一个用户）。
    交互式 skill 可对低风险细节采用保守默认，并把假设/理由写入产物；它不得跨 Change 继承，用户说
    “恢复逐步确认 / 撤回自主执行”即可撤回。该投影允许在 **真实 review 证据、OpenSpec 文档读取收据与
    guard 均已通过之后**，用 `tenon review acknowledge <change> --delegated` 记录一条带授权时间的

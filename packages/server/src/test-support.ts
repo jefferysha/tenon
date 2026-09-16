@@ -19,6 +19,7 @@ import {
   recordDocument,
   recordDocumentReads,
   BUILTIN_TRACK_DEFINITIONS, compileEffectiveWorkflowPlan,
+  ensureUserLocalDir, isTenonUser, resolveTenonUser,
 } from '@tenon/kernel'
 import type { FlowEngine, InitOptions, StateStore } from '@tenon/kernel'
 import {
@@ -70,7 +71,10 @@ export async function recordWorkflowPhaseSkill(root: string, changeDir: string, 
     return
   }
   const skill = skillId
-  const pointer = join(root, '.pipeline-active')
+  const user = resolveTenonUser(root, process.env)
+  if (!isTenonUser(user)) throw new Error('recordWorkflowPhaseSkill needs a declared TENON_USER')
+  // The hook resolves the same identity from the inherited env and reads this user's pointer.
+  const pointer = (await ensureUserLocalDir(root, user.slug)).activeChange
   let previous: string | undefined
   try {
     previous = await readFile(pointer, 'utf8')
@@ -140,6 +144,7 @@ export async function initChange(
     track,
     reviewSeed: builtinTrack(track).policyProfile.reviewSeed,
     preset: opts?.preset ?? 'full',
+    creator: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' as const },
     clock: () => '2026-07-07T00:00:00Z',
     ...(opts?.initialWorkflow !== undefined
       ? { initialWorkflow: opts.initialWorkflow }

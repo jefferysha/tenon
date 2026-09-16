@@ -113,6 +113,8 @@ export interface CreateProductionTriageRuntimeOptions {
   readonly store: StateStore
   readonly runRepository: Pick<WorkflowRunRepository, 'initChange'>
   readonly clock: () => string
+  /** Declared identity that creates triaged Changes; throws the setup hint when missing. */
+  readonly creator: () => import('@tenon/kernel').RecordActor
   readonly providerFactory?: (model: CodexTriageModel) => ProductionTriageProvider
   /** Hermetic test seam. Production omits it and receives a process-lifetime signal per invocation. */
   readonly signal?: AbortSignal
@@ -172,7 +174,7 @@ export function createProductionTriageRuntime(
       track: 'backend',
       reviewSeed: 'pending',
       preset: 'full',
-      user: 'codex-triage',
+      creator: options.creator(),
       clock: options.clock,
     }),
   })

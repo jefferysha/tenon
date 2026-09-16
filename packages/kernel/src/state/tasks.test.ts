@@ -22,6 +22,8 @@ import {
   type ChangeNode,
 } from './tasks.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 describe('normalizeDeps —— depends_on 三态归一（老仓 _deps_read state-task.sh:141-145）', () => {
   test('"null" / "" / undefined / [] → 空集', () => {
     expect(normalizeDeps('null')).toEqual([])
@@ -236,7 +238,7 @@ describe('loadTaskTree / resolveChangeDir —— 真 fs 树枚举（老仓 _tree
 
   test('G1：归档 change 仅保留 canonical current 时仍进入依赖树', async () => {
     const dir = await store.init({
-      repoRoot: root, name: 'canonical-old', track: 'backend', reviewSeed: 'pending', preset: 'full',
+      repoRoot: root, name: 'canonical-old', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
       clock: () => '2026-07-19T00:00:00Z',
     })
     await store.set(dir, 'depends_on', ['a'])

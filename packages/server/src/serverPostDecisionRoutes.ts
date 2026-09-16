@@ -1,8 +1,12 @@
 import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
+  actorOf,
   clearReviewMarkerFor,
   createInteractionEventRecorder,
+  isTenonUser,
+  USER_MISSING_HINT,
+  type RecordActor,
   createReviewDecisionLedger,
   executeReviewAcknowledge,
   nodeReviewDecisionLedgerFs,
@@ -19,7 +23,7 @@ import { readPendingDecisionProjection, readReviewBindingSafely } from './decisi
 import { resolveSnapshotTrack } from './skillRuns.js'
 import { resolveSnapshotEffectivePlan } from './workflowSnapshot.js'
 
-type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history' | 'recordStore'>
+type DecisionRouteDeps = Pick<PostRouteDeps, 'sendJson' | 'readJsonBody' | 'isRegisteredRoot' | 'store' | 'clock' | 'history' | 'recordStore' | 'resolveUser'>
 
 /** Fixed 500 text: filesystem codes and paths never reach the client. */
 export const DECISION_COMMAND_FAILED = '决策命令处理失败'
@@ -82,9 +86,14 @@ export async function handlePostDecisionRoutes(
     sendJson(res, 400, { ok: false, error: '找不到该 change（无 canonical/legacy 状态）' })
     return true
   }
+  const user = deps.resolveUser(root)
+  if (!isTenonUser(user)) {
+    sendJson(res, 412, { ok: false, code: 'user-missing', error: USER_MISSING_HINT })
+    return true
+  }
   let result: ReviewAcknowledgeResult
   try {
-    result = await acknowledgeFromDashboard({ deps, root, dir, name, ref, expectedRevision, idempotencyKey })
+    result = await acknowledgeFromDashboard({ deps, root, dir, name, ref, expectedRevision, idempotencyKey, actor: actorOf(user) })
   } catch {
     sendJson(res, 500, { ok: false, error: DECISION_COMMAND_FAILED })
     return true
@@ -108,6 +117,7 @@ function acknowledgeFromDashboard(input: {
   readonly ref: string
   readonly expectedRevision: number
   readonly idempotencyKey: string
+  readonly actor: RecordActor
 }): Promise<ReviewAcknowledgeResult> {
   const { deps, root, dir, name } = input
   const recorder = createInteractionEventRecorder()
@@ -135,5 +145,6 @@ function acknowledgeFromDashboard(input: {
     },
     appendHistory: (entry) => deps.history.append(dir, entry),
     clearMarker: (event) => clearReviewMarkerFor(root, name, event),
+    actor: input.actor,
   })
 }

@@ -25,7 +25,7 @@ export interface TaskCardProps {
 export function TaskCard({ row, selected, showProject, onSelect }: TaskCardProps): JSX.Element {
   const { t } = useT()
   const change = row.change
-  const slug = [showProject ? rootBasename(row.root) : null, row.workflow, change.track]
+  const slug = [showProject ? rootBasename(row.root) : null, row.workflow, change.track, row.owner?.name ?? null]
     .filter((part): part is string => typeof part === 'string' && part !== '')
     .join(' · ')
   return (
@@ -37,6 +37,7 @@ export function TaskCard({ row, selected, showProject, onSelect }: TaskCardProps
       )}
       aria-current={selected ? 'true' : undefined}
       data-summary={row.summary.kind}
+      data-owner={row.owner?.slug ?? ''}
       data-testid={`task-card-${change.name}`}
       onClick={onSelect}
     >

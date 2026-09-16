@@ -8,13 +8,14 @@ const stateA = mockState({
   phase: 'build',
   phase_status: 'in_progress',
   verify_result: 'pending',
-  assignee: 'jeff',
+  assignee: 'Jeff Sha <jeff@x.io>',
   updated_at: '2026-07-06T00:00:00Z',
 })
 const stateB = mockState({
   track: 'pm',
   phase: 'explore',
   phase_status: 'pending',
+  assignee: 'null',
   updated_at: '2026-07-05T00:00:00Z',
 })
 const stateArchived = mockState({
@@ -128,13 +129,13 @@ describe('status —— 人读渲染（对齐宽度）', () => {
 })
 
 describe('list —— 活跃 change 表；--json schema 稳定', () => {
-  test('人读：紧凑表 NAME/TRACK/PHASE/STATUS/ASSIGNEE', async () => {
+  test('人读：紧凑表 NAME/TRACK/PHASE/STATUS/OWNER（负责人名字，无负责人为 -）', async () => {
     const deps = makeDeps({ states: { 'demo-a': stateA, 'demo-b': stateB } })
     const code = await cmdList(deps, {})
     expect(code).toBe(0)
     expect(deps.outLines).toEqual([
-      'NAME    TRACK    PHASE    STATUS       ASSIGNEE',
-      'demo-a  backend  build    in_progress  jeff',
+      'NAME    TRACK    PHASE    STATUS       OWNER',
+      'demo-a  backend  build    in_progress  Jeff Sha',
       'demo-b  pm       explore  pending      -',
     ])
   })
@@ -145,7 +146,7 @@ describe('list —— 活跃 change 表；--json schema 稳定', () => {
     expect(code).toBe(0)
     expect(deps.outLines).toEqual([
       '{"changes":[{"name":"demo-a","track":"backend","phase":"build",'
-      + '"phase_status":"in_progress","assignee":"jeff"}]}',
+      + '"phase_status":"in_progress","owner":{"id":"jeff@x.io","name":"Jeff Sha"}}]}',
     ])
   })
 

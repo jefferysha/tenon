@@ -17,6 +17,8 @@ import { useDashboardTheme } from './shell/useDashboardTheme'
 import { SnapshotInlineError } from './progress/SnapshotInlineError'
 import { BUTTON_GHOST } from './shared/uiRecipes'
 import { TopBar, type TopBarProject } from './shell/TopBar'
+import { UserDialog } from './shell/UserDialog'
+import { useCurrentUser } from './state/useCurrentUser'
 import { isView, type View } from './shell/views'
 
 export { ErrorBoundary } from './AppErrorBoundary'
@@ -227,6 +229,9 @@ function AppShell(): JSX.Element {
   const selectRoot = useCallback((root: string): void => {
     selectProject(root, viewRef.current)
   }, [selectProject])
+  const currentUser = useCurrentUser(currentRoot)
+  const [userDialogOpen, setUserDialogOpen] = useState(false)
+  const me = currentUser.state?.kind === 'set' ? currentUser.state.user : null
 
   return (
     <div className="flex min-h-screen flex-col bg-bg font-sans text-base leading-[1.45] text-text-2">
@@ -249,7 +254,16 @@ function AppShell(): JSX.Element {
         theme={theme}
         onTheme={setTheme}
         decisionCount={decisionCount}
+        user={currentUser.state}
+        onUser={() => setUserDialogOpen(true)}
       />
+      {userDialogOpen && (
+        <UserDialog
+          initial={me}
+          onClose={() => setUserDialogOpen(false)}
+          onSaved={() => { setUserDialogOpen(false); currentUser.refresh() }}
+        />
+      )}
 
       {!connected && (
         <div
@@ -337,6 +351,8 @@ function AppShell(): JSX.Element {
             onRefresh={refresh}
             staleError={snapshot !== null ? staleSnapshotError : null}
             loading={loading}
+            me={me}
+            onUserMissing={() => setUserDialogOpen(true)}
           />
         )}
         {view === 'workbench' && (

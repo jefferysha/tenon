@@ -24,6 +24,7 @@ import {
 } from '../types.js'
 import { mergeLegacyImportFields } from './legacy-import.js'
 import { withLock } from './lock.js'
+import { formatUserRef } from '../users/user.js'
 import { parsePipeline, quoteGate, serializePipeline } from './parse.js'
 import {
   projectionMetadataFor, publishInitialRunRevision, publishRunRevision,
@@ -417,19 +418,10 @@ class FsStateStore implements StateStore {
 
       const ts = clock()
       const baseBranch = await detectBaseBranch(opts.repoRoot)
-      // created_by 是不可信入参：四闸校验挪到构造 fields 之前、纯内存判定——命中闸就地降级回安全
-      // 占位 'unknown'，不阻断 init（身份是软信息，绝不允许它写坏状态文件），也不再需要独占创建
-      // 之后再补一次 write 才能落这个字段（第 7 轮 codex review P1：那样的两步之间有竞态窗口，
-      // 第二步失败还会被调用方吞掉、init 仍报成功）。
-      let createdBy = 'unknown'
-      if (opts.user !== undefined && opts.user !== '' && opts.user !== 'unknown') {
-        try {
-          quoteGate('created_by', opts.user)
-          createdBy = opts.user
-        } catch (err) {
-          if (!(err instanceof QuoteGateError)) throw err
-        }
-      }
+      // Creator and first owner are the declared identity, published with the exclusive create; a ref that
+      // fails the quote gate rejects the init before anything is written.
+      const createdBy = formatUserRef(opts.creator)
+      quoteGate('created_by', createdBy)
       // runId 提供时随独占创建一次性写入 runMetadata（W1 第二增量）；custom workflow 首态
       // （opts.initialWorkflow）同理——这一整个 state 对象在下面同一次原子发布里落盘，不存在
       // "先创建 default/open、再 setMany 改成 custom/首 step"两步竞态（第 7 轮 codex review 另一个

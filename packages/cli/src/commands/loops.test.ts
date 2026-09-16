@@ -22,6 +22,8 @@ import {
 import type { LoopEntry } from './loops.js'
 import type { LoopStarterWiringDeps } from './loop-starter-wiring.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 function loop(over: Partial<LoopEntry> = {}): LoopEntry {
   return {
     id: 'loop-be', name: 'BE loop', kind: 'orchestrator', goal: 'x'.repeat(12), cadence: '1h',
@@ -38,7 +40,7 @@ describe('G1 REAL_LOOPS_FS canonical state cutover', () => {
     try {
       const store = createStateStore()
       const dir = await store.init({
-        repoRoot: root, name: 'loop-be-1', track: 'backend', reviewSeed: 'pending', preset: 'full',
+        repoRoot: root, name: 'loop-be-1', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR, preset: 'full',
         clock: () => '2026-07-19T00:00:00Z',
       })
       await store.setMany(dir, { automation: 'running', phase: 'build' })

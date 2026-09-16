@@ -190,3 +190,70 @@ rm -f "$ROOT/.pipeline-pending-interaction"   # unlocked, but the blocked agent 
 # … record InteractionConfirmed rows, remove markers …
 [ "$RELEASED_LOCK" -eq 1 ] && printf '<tenon-interaction-confirmed>\n用户已确认，待确认的交互已解封；请重试刚才被拦截的操作。\n</tenon-interaction-confirmed>\n'
 ```
+
+## Scenario: Per-user active Change and the bash identity mirror
+
+### 1. Scope / Trigger
+
+- Hooks: `active-change.sh` (sourced by gate, skill-tracker, skill-start, decision-recorder, codex-skill-receipt,
+  review-ack, confirm-clear-prompt, interactive-skill-gate), `interaction-authority.sh`, `router.sh`, `breadcrumb.sh`.
+- Trigger: several developers on one repository. The retired repository-wide `.pipeline-active` and
+  `.pipeline-interaction-authority` files let one user's selection and delegated authority steer another user's hooks.
+
+### 2. Signatures
+
+```text
+hooks/tenon-user.sh (source-only)   pipeline_user_id <root> · pipeline_user_slug <root> · pipeline_user_local_dir <root>
+                                    pipeline_ensure_user_local_dir <root>
+<root>/.tenon/users/<slug>/local/active-change   "<change>\n"
+<root>/.tenon/users/<slug>/local/authority       pipeline-interaction-authority-v2 lines (grammar unchanged)
+```
+
+### 3. Contracts
+
+- Identity order mirrors kernel `resolveTenonUser`: `TENON_USER` → `<configRoot>/user.json` (regular file ≤ 4096 bytes)
+  → `git config user.email`. An invalid higher source is missing; it never falls through. The config root follows
+  `TENON_RUNTIME_ROOTS.configRoot` → `TENON_RUNTIME_CONFIG_ROOT` → `$TENON_RUNTIME_HOME/config` → Darwin Application
+  Support → `${XDG_CONFIG_HOME:-$HOME/.config}/tenon`.
+- The slug is computed in pure bash (`LC_ALL=C`, lookup-table lowercase, `@` → `-at-`, other characters → `-`, no `-`
+  after `-`) and must equal kernel `userSlug`.
+- Missing identity means no selected Change and no authority: evidence hooks do nothing and exit 0. Hooks never block
+  on the owner rule; the CLI does.
+- Hot path: no node, python or jq; `git` is spawned only when env and the config file do not decide.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+| --- | --- |
+| `TENON_USER=a@x.io`, pointer `alpha` | breadcrumb / evidence use `alpha` |
+| Another user's pointer names `beta` | ignored for this user |
+| No identity anywhere | no selected Change, exit 0 |
+| `TENON_USER=not-an-email` with a valid git email | missing (no fall-through) |
+| User A's authority for Change + host session | unlocks A only; B's interaction gate still arms |
+| Symlinked `local/` | readers ignore it; the authority writer refuses |
+
+### 5. Good / Base / Bad Cases
+
+- Good: two terminals with different `TENON_USER` values resume their own tasks in the same repository.
+- Base: one developer with only `git config user.email`.
+- Bad: reading a repository-wide pointer, or mixing sources (an env id with a git name).
+
+### 6. Tests Required
+
+- `tools/test-hooks.sh` section 13 (two users, missing identity, config and git sources, authority isolation);
+  fixtures select Changes through `set_active` under `TENON_USER=hooks@tenon.test`.
+- `packages/cli/src/user-hook-parity.integration.test.ts`: bash slug equals TypeScript slug for env, config and git cases.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```bash
+name="$(<"$root/.pipeline-active")"   # shared by every user of the repository
+```
+
+#### Correct
+
+```bash
+dir="$(pipeline_active_change_dir "$root" || true)"   # the current user's own local/active-change
+```

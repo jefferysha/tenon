@@ -200,7 +200,8 @@ if [ -f "$HOOKS_JSON" ]; then
     hooks/skill-start.sh \
     hooks/interactive-skill-gate.sh \
     hooks/terminal-activity.sh \
-    hooks/interaction-authority.sh; do
+    hooks/interaction-authority.sh \
+    hooks/tenon-user.sh; do
     N_PATH=$((N_PATH + 1))
     p="$ROOT/$rel"
     [ -f "$p" ] && [ -x "$p" ] \

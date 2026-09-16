@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # terminal-activity.sh — native host tool-hook → short-lived terminal liveness sidecar.
 #
-# This script deliberately does not infer a Change from `.pipeline-active`: that pointer is a
+# This script deliberately does not infer a Change from the per-user `active-change`: that pointer is a
 # repository-level recovery candidate and was the reason an unrelated normal conversation could
 # make an old Change appear live. It writes only when `tenon session activate <change>
 # --host-session <id>` previously created an exact session-to-Change binding. The output is

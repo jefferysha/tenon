@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { createStateStore } from '@tenon/kernel'
 import { makeGuardCtx, readBoundedRegularFileSync } from './guardContext.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 describe('guard context dependency archive sources', () => {
   let root: string
 
@@ -24,7 +26,7 @@ describe('guard context dependency archive sources', () => {
       name: 'dep',
       track: 'simple',
       reviewSeed: 'pending',
-      preset: 'tweak',
+      creator: TEST_CREATOR, preset: 'tweak',
       clock: () => '2026-07-24T00:00:00Z',
     })
     await mkdir(join(root, 'openspec', 'changes', 'archive', '2026-07-01-dep'), { recursive: true })
@@ -45,7 +47,7 @@ describe('guard context dependency archive sources', () => {
       name: 'dep',
       track: 'simple',
       reviewSeed: 'pending',
-      preset: 'tweak',
+      creator: TEST_CREATOR, preset: 'tweak',
       clock: () => '2026-07-24T00:00:00Z',
     })
     await mkdir(join(root, 'openspec', 'changes', 'archive', '2026-07-01-dep'), { recursive: true })

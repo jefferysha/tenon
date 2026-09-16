@@ -349,7 +349,7 @@ export function createWorkflowRunCreateIfAbsentRepository(
         track: trusted.track,
         reviewSeed: trusted.reviewSeed,
         preset: trusted.preset,
-        user: trusted.user,
+        creator: trusted.creator,
         clock: trusted.clock,
         runId: expectedRunId,
         initialWorkflow: {

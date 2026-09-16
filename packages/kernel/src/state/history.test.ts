@@ -30,6 +30,21 @@ describe('createHistoryWriter —— .pipeline-history.jsonl 侧文件（CONTRAC
     expect(parsed[2]).toEqual({ ts: '2026-07-06T00:00:02Z', kind: 'transition', from: 'open', to: 'explore' })
   })
 
+  test('actor option stamps rows that carry none and keeps an explicit actor', async () => {
+    const tester = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' as const }
+    const other = { id: 'b@x.io', name: 'B', trust: 'declared' as const }
+    const w = createHistoryWriter({ actor: () => tester })
+    await w.append(dir, { ts: 't1', kind: 'set', field: 'plan', to: 'p.md' })
+    await w.append(dir, { ts: 't2', kind: 'tool', raw: 'review:acknowledge', actor: other })
+    await createHistoryWriter().append(dir, { ts: 't3', kind: 'tool', raw: 'Skill: x' })
+    const rows = (await readFile(join(dir, HISTORY_FILE), 'utf8')).trimEnd().split('\n').map((l) => JSON.parse(l) as unknown)
+    expect(rows).toEqual([
+      { ts: 't1', kind: 'set', field: 'plan', to: 'p.md', actor: tester },
+      { ts: 't2', kind: 'tool', raw: 'review:acknowledge', actor: other },
+      { ts: 't3', kind: 'tool', raw: 'Skill: x' },
+    ])
+  })
+
   test('目录不存在 → 抛错（best-effort 语义由调用方兜，writer 本身 fail-loud）', async () => {
     const w = createHistoryWriter()
     await expect(
@@ -63,6 +78,12 @@ describe('transitionRecordToHistoryEntry —— canonical TransitionRecord → J
       raw: 'build-complete',
       transitionRecordId: 'rec-abc123',
     })
+  })
+
+  test('the record user-ref actor becomes an actor object; a legacy value is dropped', () => {
+    expect(transitionRecordToHistoryEntry({ ...record, actor: 'Jeff Sha <jeff@x.io>' }).actor)
+      .toEqual({ id: 'jeff@x.io', name: 'Jeff Sha', trust: 'declared' })
+    expect(transitionRecordToHistoryEntry({ ...record, actor: 'cli' })).not.toHaveProperty('actor')
   })
 
   test('kind 恒为 transition（TransitionRecord 本身就只承载 transition，不需要从别处推断）', () => {

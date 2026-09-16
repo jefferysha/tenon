@@ -29,9 +29,9 @@ tenon runtime status
 
 #### 正常对话恢复了旧 Change
 
-新目标不应自动绑定 `.pipeline-active`。确认 router 是否把请求识别为 resume；多个候选时必须显式点名。独立目标创建新 Change 或走 discussion/simple。
+新目标不应自动绑定用户的 `active-change`。确认 router 是否把请求识别为 resume；多个候选时必须显式点名。独立目标创建新 Change 或走 discussion/simple。
 宿主提供 session id 时，全新未绑定会话里的通用“继续执行”必须 fail-closed，不得回落到仓库级
-`.pipeline-active`；应显式点名 Change，或先建立该会话的精确绑定。
+用户的 `active-change`；应显式点名 Change，或先建立该会话的精确绑定。
 
 #### Todo 与 Workflow 不一致
 

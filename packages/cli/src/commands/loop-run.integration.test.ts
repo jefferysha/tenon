@@ -14,6 +14,8 @@ import { makeHarness, realDeps, rm } from '../integration-harness.js'
 import { cmdLoopRun } from './loop-run.js'
 import { REAL_LOOPS_FS } from './loops.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const LOOPS_YAML = `version: 1
 loops:
   - id: loop-be
@@ -51,7 +53,7 @@ async function seedReady(name: string): Promise<void> {
     name,
     track: 'backend',
     reviewSeed: 'pending',
-    preset: 'full',
+    creator: TEST_CREATOR, preset: 'full',
     clock: () => '2026-07-19T00:00:00Z',
   })
   await store.setMany(dir, {

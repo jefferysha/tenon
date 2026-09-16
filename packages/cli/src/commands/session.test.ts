@@ -62,7 +62,7 @@ describe('activate（老仓 cmd_activate state-session.sh:33-45）', () => {
     expect(await cmdSession(deps, 'activate', ['chg'], fs)).toBe(0)
     expect(deps.outLines).toEqual([])
     expect(fs.bind.calls).toHaveLength(1)
-    expect(fs.bind.calls[0]).toEqual(['/repo', 'chg'])
+    expect(fs.bind.calls[0]).toEqual(['/repo', 'tester-at-tenon.test', 'chg'])
     expect(deps.errLines.join('\n')).toContain('[OK] activate chg')
   })
 
@@ -99,7 +99,7 @@ describe('activate（老仓 cmd_activate state-session.sh:33-45）', () => {
     const deps = makeDeps({ state: mockState() })
     const fs = fakeFs()
     expect(await cmdSession(deps, 'activate', ['chg', '--continuous'], fs)).toBe(0)
-    expect(fs.bind.calls).toEqual([['/repo', 'chg']])
+    expect(fs.bind.calls).toEqual([['/repo', 'tester-at-tenon.test', 'chg']])
     expect(fs.grant.calls).toEqual([])
     expect(deps.errLines.join('\n')).toContain('缺少 --host-session')
   })
@@ -114,16 +114,16 @@ describe('activate（老仓 cmd_activate state-session.sh:33-45）', () => {
       ['chg', '--continuous', '--host-session', sessionId],
       fs,
     )).toBe(0)
-    expect(fs.bind.calls).toEqual([['/repo', 'chg']])
+    expect(fs.bind.calls).toEqual([['/repo', 'tester-at-tenon.test', 'chg']])
     expect(fs.bindTerminal.calls).toEqual([['/repo', 'chg', sessionId]])
-    expect(fs.grant.calls).toEqual([['/repo', 'chg', sessionId]])
+    expect(fs.grant.calls).toEqual([['/repo', 'tester-at-tenon.test', 'chg', sessionId, { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' }]])
   })
 
   test('activate --host-session 仅绑定精确 host session，不改 phase 或复用 repo 级指针推断', async () => {
     const deps = makeDeps({ state: mockState() })
     const fs = fakeFs()
     expect(await cmdSession(deps, 'activate', ['chg', '--host-session', '019f92c7-6e66-7290-9352-f9d915266f14'], fs)).toBe(0)
-    expect(fs.bind.calls).toEqual([['/repo', 'chg']])
+    expect(fs.bind.calls).toEqual([['/repo', 'tester-at-tenon.test', 'chg']])
     expect(fs.bindTerminal.calls).toEqual([['/repo', 'chg', '019f92c7-6e66-7290-9352-f9d915266f14']])
     expect(fs.grant.calls).toEqual([])
   })

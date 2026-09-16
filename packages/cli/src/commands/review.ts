@@ -21,10 +21,12 @@ import {
   readCurrentRunRevision,
   timestampAfter,
   INTERACTION_PROJECTION_WRITE_FAILED,
+  assertOwner,
 } from '@tenon/kernel'
 import type { PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
+import { requireActor } from '../userIdentity.js'
 import { cmdCheck } from './check.js'
 import { recordHistory } from './fields.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
@@ -166,7 +168,10 @@ export async function cmdReview(
         deps.io.err('ERROR: --delegated 只可用于 review acknowledge；request 仍必须先完成真实 review 证据')
         return 1
       }
+      const actor = requireActor(deps)
+      if (actor === null) return 1
       const preflight = await deps.store.read(dir)
+      assertOwner(name, preflight.fields, actor)
       const preflightStep = resolveReviewStep(deps, preflight)
       const event = resolveReviewEventFromStep(preflightStep, opts.event)
       const check = await checkReviewRequestReadiness(deps, name, dir, preflight, preflightStep, event)
@@ -180,6 +185,7 @@ export async function cmdReview(
       } | undefined
       await deps.store.withLock(dir, async () => {
         const state = await deps.store.read(dir)
+        assertOwner(name, state.fields, actor)
         const beforeRevision = interaction === undefined ? undefined : await readCurrentRunRevision(dir)
         const step = resolveReviewStep(deps, state)
         const lockedEvent = resolveReviewEventFromStep(step, opts.event)

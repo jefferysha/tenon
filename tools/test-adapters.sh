@@ -25,6 +25,17 @@
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Hooks resolve the declared identity (hooks/tenon-user.sh); fixtures select Changes for this user.
+export TENON_USER=hooks@tenon.test
+HOOK_USER_SLUG=hooks-at-tenon.test
+set_active() { # $1=project root $2=change name
+  mkdir -p "$1/.tenon/users/$HOOK_USER_SLUG/local"
+  printf '%s\n' "$2" > "$1/.tenon/users/$HOOK_USER_SLUG/local/active-change"
+}
+clear_active() { rm -f "$1/.tenon/users/$HOOK_USER_SLUG/local/active-change"; }
+active_authority_path() { printf '%s/.tenon/users/%s/local/authority' "$1" "$HOOK_USER_SLUG"; }
+
 ADAPTERS="$ROOT/adapters"
 REG="$ADAPTERS/registry.yaml"
 CONTRACT="$ADAPTERS/contract.md"
@@ -153,7 +164,7 @@ mk_proj() {
   local d="$TMP/$1"
   mkdir -p "$d/.git" "$d/openspec/changes/demo-change"
   printf 'phase: explore\ntrack: backend\nworkflow: default\narchived: false\n' > "$d/openspec/changes/demo-change/.pipeline.yaml"
-  printf 'demo-change\n' > "$d/.pipeline-active"
+  set_active "$d" demo-change
   printf '%s' "$d"
 }
 
@@ -163,7 +174,7 @@ write_v2_review_marker() { # <project root> [change=demo-change] [phase=explore]
   if [ ! -f "$dir/.pipeline.yaml" ]; then
     printf 'phase: %s\ntrack: backend\nworkflow: default\narchived: false\n' "$phase" > "$dir/.pipeline.yaml"
   fi
-  printf '%s\n' "$name" > "$root/.pipeline-active"
+  set_active "$root" "$name"
   printf 'pipeline-review-v2\nphase=%s\nchange=%s\nrequested_at=2026-07-24T00:00:00Z\n待人工复核\n' "$phase" "$name" \
     > "$root/.pipeline-pending-review"
 }
@@ -227,7 +238,7 @@ mk_change_proj() { # <名> -> echo 项目路径（含显式选择的 change）
   # Runtime evidence never chooses a most-recent Change.  Model-side `tenon session activate`
   # creates this pointer in production; fixtures model that explicit binding before they exercise
   # native adapter tracking.
-  printf 'demo-change\n' > "$d/.pipeline-active"
+  set_active "$d" demo-change
   printf '%s' "$d"
 }
 
@@ -249,7 +260,7 @@ fi
 cx_prompt="$ADAPTERS/codex/hooks/prompt.sh"
 if [ -f "$cx_prompt" ]; then
   p="$(mk_change_proj codex-prompt-active)"
-  printf 'demo-change\n' > "$p/.pipeline-active"
+  set_active "$p" demo-change
   printf '实现登录页，并完成浏览器验收。\n' > "$p/openspec/changes/demo-change/REAL_AGENT_TASK.md"
   out="$(printf '{\"prompt\":\"继续实现登录页面的 React 组件\",\"cwd\":\"%s\"}' "$p" | TENON_ROUTER_CACHE="$TMP/codex-prompt-active.cache" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$cx_prompt" UserPromptSubmit 2>/dev/null)"
   assert_contains "route/codex: 产出 UserPromptSubmit hookSpecificOutput" "$out" "\"hookEventName\":\"UserPromptSubmit\""
@@ -257,7 +268,7 @@ if [ -f "$cx_prompt" ]; then
   assert_contains "route/codex: 真注入已保存任务提示词" "$out" "实现登录页，并完成浏览器验收。"
   assert_contains "route/codex: 同轮保留真实 workflow-state" "$out" "workflow-state"
 
-  # 回归跨会话劫持：repo 级 `.pipeline-active` 仅是明确恢复候选。一个新的工具项目
+  # 回归跨会话劫持：repo 级 `active-change` 仅是明确恢复候选。一个新的工具项目
   # 调研目标必须从 open 派发独立 change，不能继承 demo-change 的 phase / 任务文本。
   out="$(printf '{\"prompt\":\"我现在想要调研一个新的工具项目\",\"cwd\":\"%s\"}' "$p" | TENON_ROUTER_CACHE="$TMP/codex-prompt-new-topic.cache" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$cx_prompt" UserPromptSubmit 2>/dev/null)"
   assert_contains "route/codex: 新主题显式派发 new intent" "$out" "intent: new"
@@ -762,7 +773,7 @@ AIDER_IT="$TMP/aider-it"; mkdir -p "$AIDER_IT"
 ( cd "$AIDER_IT" && git init -q && git config user.email t@t.com && git config user.name t ) 2>/dev/null
 mkdir -p "$AIDER_IT/openspec/changes/demo-change"
 printf 'phase: explore\ntrack: backend\narchived: false\n' > "$AIDER_IT/openspec/changes/demo-change/.pipeline.yaml"
-printf 'demo-change\n' > "$AIDER_IT/.pipeline-active"
+set_active "$AIDER_IT" demo-change
 CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ADAPTERS/aider/install.sh" --target "$AIDER_IT" --yes >/dev/null 2>&1
 assert_file "aider install: .aider.conf.yml 落地" "$AIDER_IT/.aider.conf.yml"
 assert_file "aider install: 上下文文件落地且含宪法" "$AIDER_IT/.aider-pipeline-context.md"

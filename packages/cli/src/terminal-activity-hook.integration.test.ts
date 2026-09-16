@@ -57,7 +57,7 @@ describe('真实 e2e —— terminal-activity host hook', () => {
     })
   })
 
-  test('没有显式会话绑定时，即使仓库有 .pipeline-active 旧指针也绝不把新会话记到旧 Change', async () => {
+  test('没有显式会话绑定时，即使当前用户有 active-change 旧指针也绝不把新会话记到旧 Change', async () => {
     expect(await h.run(['init', 'old-change', '--track', 'backend', '--preset', 'full'])).toBe(0)
     expect(await h.run(['session', 'activate', 'old-change'])).toBe(0)
     expect(await h.run(['init', 'new-change', '--track', 'frontend', '--preset', 'full'])).toBe(0)

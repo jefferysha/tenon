@@ -31,6 +31,8 @@ import {
   type Harness,
 } from './integration-harness.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const CHANGE = 'skg'
 
 interface HookResult { code: number; stdout: string; stderr: string }
@@ -163,7 +165,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
       name: CHANGE,
       track: track.id,
       reviewSeed: track.policyProfile.reviewSeed,
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       clock: deps.clock,
       initialWorkflow: {
         workflow: workflowName,

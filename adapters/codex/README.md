@@ -41,7 +41,7 @@ route:
   status: native
   event: UserPromptSubmit
   format: json-additionalContext
-  impl: hooks/prompt.sh 顺序包装 hooks/breadcrumb.sh 与 hooks/router.sh；开发型普通对话直接派发 default 的 pipeline 根 skill，不再先问是否走 workflow；.pipeline-active 只是仓库级恢复候选，只有用户明确继续/点名 change 时才读取对应 REAL_AGENT_TASK.md，新目标一律派发独立 `intent: new`
+  impl: hooks/prompt.sh 顺序包装 hooks/breadcrumb.sh 与 hooks/router.sh；开发型普通对话直接派发 default 的 pipeline 根 skill，不再先问是否走 workflow；用户的 active-change 只是恢复候选，只有用户明确继续/点名 change 时才读取对应 REAL_AGENT_TASK.md，新目标一律派发独立 `intent: new`
 veto:
   status: native
   event: PreToolUse

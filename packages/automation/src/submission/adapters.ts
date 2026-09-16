@@ -9,13 +9,13 @@ export function createDocumentProjectionAdapter(input: {
   readonly policy?: DocumentGovernancePolicy
 }): DocumentProjectionAdapter {
   return {
-    record: async ({ subjectRef, path, documentKind, producer, recordedAt, allowBackfill }) => {
+    record: async ({ subjectRef, path, documentKind, producer, recordedAt, allowBackfill, actor }) => {
       // Artifact submissions use a path relative to the Change scope (for example
       // `proposal.md`), while the document ledger contract is rooted at the repository and
       // requires `openspec/changes/<change>/...`. Convert at this boundary so the Kernel keeps
       // owning canonical path, symlink, and `openspec/`/`docs/` validation.
       const repoRelativePath = relative(input.repoRoot, resolve(input.changeDir, path))
-      await recordDocument({ repoRoot: input.repoRoot, changeDir: input.changeDir, phase: input.phase, ...(input.policy ? { policy: input.policy } : {}), kind: documentKind as DocumentKind, path: repoRelativePath, producer, recordedAt, subjectRef, ...(allowBackfill !== undefined ? { allowBackfill } : {}) })
+      await recordDocument({ repoRoot: input.repoRoot, changeDir: input.changeDir, phase: input.phase, ...(input.policy ? { policy: input.policy } : {}), kind: documentKind as DocumentKind, path: repoRelativePath, producer, recordedAt, subjectRef, ...(allowBackfill !== undefined ? { allowBackfill } : {}), ...(actor !== undefined ? { actor } : {}) })
       return {}
     },
   }

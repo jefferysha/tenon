@@ -2,7 +2,7 @@
 # breadcrumb.sh — UserPromptSubmit 薄 shim：明确恢复时重提该 phase 面包屑。
 #
 # 缓存由 CLI 在 transition 时写 openspec/changes/<name>/.breadcrumb（CONTRACT §5.4）；
-# `.pipeline-active` 是仓库级恢复候选，不能把一个会话的旧任务注入另一个会话。
+# 当前用户的 `active-change` 是恢复候选，不能把一个会话的旧任务注入另一个会话。
 # 本 shim 仅在用户明确说继续/恢复或点名 change 时绑定候选；无候选时只有恰好一个
 # 活跃 change 才可由明确恢复词使用。无缓存或新任务时静默 exit 0。
 # 阶段×hook 开关（v5 T5 / 决议#2）：.pipeline/hooks.json 关掉当前阶段的 breadcrumb → 静默退出。
@@ -49,26 +49,18 @@ else
 fi
 yget() { pipeline_state_get "$1" "$2"; }
 
-# dashboard/CLI 的 `.pipeline-active` 是仓库级恢复候选。只有明确恢复意图才可拿它
+# dashboard/CLI 写下的当前用户 `active-change`（.tenon/users/<slug>/local/）是恢复候选。只有明确恢复意图才可拿它
 # 注入本轮；否则即使存在 REAL_AGENT_TASK.md 也绝不能泄漏到一条独立新任务。
 ACTIVE_NAME=""
 ACTIVE_DIR=""
 ACTIVE_STATE=""
-ACTIVE_POINTER="$PROOT/.pipeline-active"
-if [ -f "$ACTIVE_POINTER" ] && [ ! -L "$ACTIVE_POINTER" ] && [ -r "$ACTIVE_POINTER" ]; then
-  IFS= read -r ACTIVE_NAME < "$ACTIVE_POINTER" || ACTIVE_NAME=""
-  case "$ACTIVE_NAME" in
-    ''|*[!A-Za-z0-9_-]*) ACTIVE_NAME="" ;;
-    *)
-      ACTIVE_DIR="$CHANGES/$ACTIVE_NAME"
-      ACTIVE_STATE="$(pipeline_state_source "$ACTIVE_DIR" || true)"
-      if [ -z "$ACTIVE_STATE" ] || [ "$(yget "$ACTIVE_STATE" archived)" = "true" ]; then
-        ACTIVE_NAME=""
-        ACTIVE_DIR=""
-        ACTIVE_STATE=""
-      fi
-      ;;
-  esac
+ACTIVE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/active-change.sh"
+# shellcheck source=active-change.sh
+[ -r "$ACTIVE_HELPER" ] && . "$ACTIVE_HELPER"
+declare -F pipeline_active_change_dir >/dev/null 2>&1 && ACTIVE_DIR="$(pipeline_active_change_dir "$PROOT" || true)"
+if [ -n "$ACTIVE_DIR" ]; then
+  ACTIVE_NAME="${ACTIVE_DIR##*/}"
+  ACTIVE_STATE="$(pipeline_state_source "$ACTIVE_DIR" || true)"
 fi
 
 # 只有明确恢复才读取候选。helper 缺失时 fail-closed，避免旧上下文泄漏。
@@ -80,7 +72,7 @@ RESUME_NAME=""
 RESUME_DIR=""
 RESUME_STATE=""
 
-# 与 router 共享“完整点名优先”的语义。`.pipeline-active` 只是一条跨会话恢复候选；
+# 与 router 共享“完整点名优先”的语义。用户的 `active-change` 只是一条跨会话恢复候选；
 # 用户在当前普通对话中指名另一个活跃 change 时，breadcrumb 也必须跟随该明确选择，
 # 否则两个 UserPromptSubmit hook 会向模型注入相互矛盾的任务上下文。
 EXPLICIT_COUNT=0

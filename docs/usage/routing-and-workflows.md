@@ -107,10 +107,10 @@ When multiple candidates exist and none was selected, do not guess.
 
 `tenon session activate <change-name> --host-session <id>` creates an exact
 host-session binding. A later “continue” in that conversation resolves this
-binding before the repository-wide `.pipeline-active` candidate, so another
+binding before the per-user `active-change` candidate, so another
 conversation cannot hijack the resume target. If a host supplies a session id
 but that new conversation has no valid binding, generic “continue” fails closed
-instead of falling back to repository-wide `.pipeline-active`. An explicitly
+instead of falling back to the per-user `active-change`. An explicitly
 named Change still has the highest priority. This sidecar identifies the
 conversation and powers liveness only; it never participates in canonical
 guards or transitions.

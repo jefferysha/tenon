@@ -8,7 +8,9 @@ import {
 } from 'node:fs'
 import { isAbsolute, join, posix, relative, sep } from 'node:path'
 import {
+  creatorOf,
   decodeUtf8Text,
+  ownerOf,
   LedgerContextBundleError,
   isCanonicalTaskPlanTasksMarkdown,
   projectPipelineTodo,
@@ -369,6 +371,8 @@ export async function readChangeSnapshot(
       archived: stringField(fields.archived),
       updated_at: stringField(fields.updated_at),
       fields,
+      owner: ownerOf(fields),
+      creator: creatorOf(fields),
       workflowPlanFingerprint: plan.workflowFingerprint,
       workflowDefinition,
       workflowRules: snapshotWorkflowRules(plan, configuredPolicy, authority),

@@ -20,7 +20,8 @@ export interface ChangeHistoryEntry {
   field?: string
   from?: string
   to?: string
-  by?: string
+  /** Declared operator of a CLI/server write; host evidence rows carry none. */
+  actor?: { id: string; name: string; trust: 'declared' }
   raw?: string
 }
 

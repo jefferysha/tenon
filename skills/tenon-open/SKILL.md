@@ -166,15 +166,15 @@ tenon session activate "$TENON_CHANGE_NAME" --continuous --host-session "$TENON_
 这只绑定当前 Change 的交互式 skill 连续执行授权；不得把它当作 review approval 或 phase transition。
 
 只有此命令成功后才加载 `openspec-propose` 或任何 phase skill。它是当前会话的显式工作目标，
-不是从 `.pipeline-active` 猜回的旧任务；后续 Skill evidence、文档账本和 custom workflow DAG 都只
+不是从用户的 `active-change` 猜回的旧任务；后续 Skill evidence、文档账本和 custom workflow DAG 都只
 消费这个确切目标。
 
 可选入参：
 
 ```bash
-# --user：显式开发者身份（写 created_by）。缺省由 CLI 解析。
-tenon init "$TENON_CHANGE_NAME" --track "$TENON_TRACK" --preset "$TENON_PRESET" \
-  ${TENON_USER:+--user "$TENON_USER"}
+# 创建者与首位负责人 = 当前声明身份（TENON_USER → 本机 user.json → git config user.email）；
+# 身份缺失时 init exit 1 并提示设置，不写任何状态。
+tenon init "$TENON_CHANGE_NAME" --track "$TENON_TRACK" --preset "$TENON_PRESET"
 
 # 声明本 change 依赖另一个 change（老仓 init --depends-on 的等价改写；
 # depends_on 是列表字段，逗号分隔多值。目标不存在时只是声明意图——

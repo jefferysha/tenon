@@ -52,7 +52,7 @@
 import {
   compileWorkflow, completedWorkflowSkillsSinceStepEntry, createTransitionApplication,
   loadRegistry, loadWorkflow, nodeLoopIoStrict, requireTrackForRoot, resolveRequiredSkillSlots,
-  readReviewGateBinding, reviewGateBindingMatches,
+  readReviewGateBinding, reviewGateBindingMatches, ownerRequiredMessage,
   TASK_PLAN_CURRENT_FILE, TASK_PLAN_LIMITS, TASK_PLAN_STATE_DIR,
   taskPlanTasksThroughPhaseForChange,
 } from '@tenon/kernel'
@@ -61,6 +61,7 @@ import { enqueueAfterSpecComplete } from '@tenon/automation'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
+import { requireActor } from '../userIdentity.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 
 function canonicalPipelineSkillId(skillId: string): string {
@@ -72,6 +73,8 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
     return 1
   }
+  const actor = requireActor(deps)
+  if (actor === null) return 1
 
   const dir = changeDir(deps.cwd, name)
   const guardContext = deps.guardCtx?.(name)
@@ -175,6 +178,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
       changeDir: dir,
       changeName: name,
       event,
+      actor,
       context,
       // loadWorkflow→compileWorkflow：TransitionApplication 收编译产物 WorkflowIR；编译错误
       // （= 基础设施错误）经 execute 抛出，落本文件 catch → ERROR + exit 1（同 loadWorkflow 既有语义）。
@@ -235,6 +239,9 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         }
         return 0
       }
+      case 'owner-required':
+        deps.io.err(`ERROR: ${ownerRequiredMessage(name, result.owner)}`)
+        return 1
       case 'unknown-event':
         deps.io.err(`ERROR: 未知 event: ${event}`)
         return 1

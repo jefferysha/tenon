@@ -17,8 +17,7 @@ coverage/
 .release/
 *.tsbuildinfo
 .DS_Store
-# 运行时产物（session 指针 / 项目包声明 / 门 marker / 历史）
-.pipeline-active
+# 运行时产物（项目包声明 / 门 marker / 历史）
 .pipeline-project.yaml
 .pipeline-pending-*
 .breadcrumb
@@ -37,7 +36,6 @@ coverage/
 
 # 本机运行态与工具缓存：由 setup / hooks / 浏览器验收按需重建，不属于插件发布包。
 .pipeline/
-.pipeline-interaction-authority
 .playwright-mcp/
 .sandcastle-build/
 e2e-runs/

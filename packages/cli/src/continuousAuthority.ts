@@ -6,10 +6,8 @@
  * the user), but strict parsing keeps an incomplete, stale, or cross-Change file fail-closed.
  */
 import { lstat, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { readActiveChange, userProjectPaths } from '@tenon/kernel'
 
-export const ACTIVE_POINTER_FILE = '.pipeline-active'
-export const INTERACTION_AUTHORITY_FILE = '.pipeline-interaction-authority'
 export const INTERACTION_AUTHORITY_PROTOCOL = 'pipeline-interaction-authority-v2'
 
 export type ContinuousReviewMode = 'required' | 'delegated'
@@ -68,23 +66,24 @@ export function parseContinuousAuthority(raw: string): ContinuousAuthority | nul
 }
 
 /**
- * A delegated review acknowledgement is valid only for the exact Change currently selected by
- * `.pipeline-active`.  A stale authority for a previous Change cannot unlock its review exit.
+ * A delegated review acknowledgement is valid only for the exact Change the same user currently selects
+ * (`.tenon/users/<slug>/local/active-change`).  A stale authority for a previous Change, or another user's
+ * authority, cannot unlock its review exit.
  */
 export async function readDelegatedReviewAuthority(
   cwd: string,
+  slug: string,
   name: string,
   hostSessionId: string | undefined,
 ): Promise<ContinuousAuthority | null> {
   if (!isValidChangeName(name) || hostSessionId === undefined || !isValidHostSessionId(hostSessionId)) return null
-  const [rawAuthority, activePointer] = await Promise.all([
-    readRegularFile(join(cwd, INTERACTION_AUTHORITY_FILE)),
-    readRegularFile(join(cwd, ACTIVE_POINTER_FILE)),
+  const [rawAuthority, activeChange] = await Promise.all([
+    readRegularFile(userProjectPaths(cwd, slug).authority),
+    readActiveChange(cwd, slug),
   ])
-  if (rawAuthority === null || activePointer === null) return null
+  if (rawAuthority === null || activeChange !== name) return null
   const authority = parseContinuousAuthority(rawAuthority)
   if (authority === null || authority.review !== 'delegated' || authority.changeName !== name) return null
   if (authority.hostSessionId !== hostSessionId) return null
-  if (activePointer !== name && activePointer !== `${name}\n`) return null
   return authority
 }

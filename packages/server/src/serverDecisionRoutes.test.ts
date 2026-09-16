@@ -84,6 +84,7 @@ async function post(root: string, body: Record<string, unknown>): Promise<Captur
       recordStore: createTransitionRecordStore(),
       clock: () => FIXED_CLOCK,
       history: createHistoryWriter(),
+      resolveUser: () => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' }),
     },
   )
   return captured

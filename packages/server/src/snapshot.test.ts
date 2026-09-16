@@ -34,6 +34,8 @@ import { readRegistry } from './registry.js'
 import { initChange, makeProject, makeTempHome, newStore, sleep } from './test-support.js'
 import { captureWorkflowRootAnchor, closeWorkflowRootAnchor } from './workflows.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 const execFileAsync = promisify(execFile)
 
 describe('readRegistry', () => {
@@ -1794,7 +1796,7 @@ steps:
       name: 'compact-change',
       track: 'backend',
       reviewSeed: builtinTrack('backend').policyProfile.reviewSeed,
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       runId: 'compact-run',
       clock: () => '2026-07-07T00:00:00Z',
       initialWorkflow: {
@@ -1851,7 +1853,7 @@ steps:
       name: 'bound-change',
       track: 'backend',
       reviewSeed: builtinTrack('backend').policyProfile.reviewSeed,
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       runId: 'bound-run',
       clock: () => '2026-07-07T00:00:00Z',
       initialWorkflow: {
@@ -1927,7 +1929,7 @@ steps:
       name: 'legacy-v1-live',
       track: 'frontend',
       reviewSeed: builtinTrack('frontend').policyProfile.reviewSeed,
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       runId: 'legacy-v1-run',
       clock: () => '2026-07-26T00:00:00Z',
       initialWorkflow: {

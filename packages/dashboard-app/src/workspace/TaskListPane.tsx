@@ -4,6 +4,7 @@ import { useT } from '../i18n'
 import { FilterChip, ListColumn } from '../shell/ThreeColumns'
 import { TaskCard } from './TaskCard'
 import { facetTotal, taskFacets, type FacetChip, type TaskFilterState, type TaskRow } from './taskModel'
+import type { UserRefView } from '../types'
 import { cn } from '@/lib/utils'
 
 export interface TaskListPaneProps {
@@ -20,11 +21,15 @@ export interface TaskListPaneProps {
   emptyKind: 'no-project' | 'no-task' | 'filtered' | 'compat'
   onClearFilters: () => void
   notice?: ReactNode
+  /** Current declared user; enables the 我的 chip. */
+  me: UserRefView | null
 }
 
-function FacetRow({ label, facet, chips, current, total, mono, onPick }: {
+function FacetRow({ label, facet, chips, current, total, mono, lead, onPick }: {
   label: string
-  facet: 'workflow' | 'track' | 'stage'
+  facet: 'owner' | 'workflow' | 'track' | 'stage'
+  /** Extra chip rendered right after 全部 (the owner row's 我的). */
+  lead?: ReactNode
   chips: readonly FacetChip[]
   current: string
   total: number
@@ -36,6 +41,7 @@ function FacetRow({ label, facet, chips, current, total, mono, onPick }: {
     <div className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none]" role="tablist" aria-label={label} data-testid={`task-facet-${facet}`}>
       <span className="mr-1 min-w-12 flex-none whitespace-nowrap text-caption text-text-3">{label}</span>
       <FilterChip label={t('workspace.filter_all')} count={total} selected={current === 'all'} testId={`task-facet-${facet}-all`} onClick={() => onPick('all')} />
+      {lead}
       {chips.map((chip) => (
         <span key={chip.id} className={cn('flex-none', mono && '[&>button]:font-mono')}>
           <FilterChip label={chip.label} count={chip.count} selected={current === chip.id} testId={facet === 'stage' ? `task-filter-${chip.id}` : `task-facet-${facet}-${chip.id}`} onClick={() => onPick(chip.id)} />
@@ -47,10 +53,21 @@ function FacetRow({ label, facet, chips, current, total, mono, onPick }: {
 
 /** 中列：工作流 → 轨道 → 阶段三层芯片（阶段只在选定单一工作流时出现）+ 含已归档开关 + 任务卡。 */
 export function TaskListPane({
-  eyebrow, rows, visibleRows, filter, onFilter, search, onSearch, selectedKey, onSelect, showProject, emptyKind, onClearFilters, notice,
+  eyebrow, rows, visibleRows, filter, onFilter, search, onSearch, selectedKey, onSelect, showProject, emptyKind, onClearFilters, notice, me,
 }: TaskListPaneProps): JSX.Element {
   const { t } = useT()
   const facets = taskFacets(rows, filter)
+  const mine = me === null ? undefined : (
+    <span className="flex-none">
+      <FilterChip
+        label={t('workspace.filter_mine')}
+        count={facets.owners.find((chip) => chip.id === me.slug)?.count ?? 0}
+        selected={filter.owner === me.slug}
+        testId="task-facet-owner-me"
+        onClick={() => onFilter({ ...filter, owner: me.slug })}
+      />
+    </span>
+  )
   return (
     <ListColumn
       eyebrow={eyebrow}
@@ -58,6 +75,17 @@ export function TaskListPane({
       search={{ value: search, onChange: onSearch, placeholder: t('workspace.search_tasks'), label: t('workspace.search_tasks') }}
       chips={(
         <div className="grid w-full gap-1.5">
+          {(facets.owners.length > 0 || me !== null) && (
+            <FacetRow
+              label={t('workspace.facet_owner')}
+              facet="owner"
+              chips={facets.owners.filter((chip) => chip.id !== me?.slug)}
+              current={filter.owner}
+              total={facetTotal(rows, filter, 'owner')}
+              lead={mine}
+              onPick={(id) => onFilter({ ...filter, owner: id })}
+            />
+          )}
           <div className="flex w-full items-start gap-2">
             <div className="min-w-0 flex-1">
               <FacetRow label={t('workspace.facet_workflow')} facet="workflow" chips={facets.workflows} current={filter.workflow} total={facetTotal(rows, filter, 'workflow')} mono onPick={(id) => onFilter({ ...filter, workflow: id, stage: 'all' })} />

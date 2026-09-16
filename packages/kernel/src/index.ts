@@ -8,6 +8,7 @@ export * from './state/index.js'
 export * from './interaction/index.js'
 export * from './documents/index.js'
 export * from './flow/index.js'
+export * from './users/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
 export {
   resolveProductPaths,

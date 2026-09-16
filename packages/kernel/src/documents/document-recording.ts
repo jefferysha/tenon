@@ -81,6 +81,8 @@ export interface RecordDocumentInput {
   readonly allowBackfill?: boolean
   /** Optional canonical ref supplied by a unified artifact submission boundary. */
   readonly subjectRef?: ArtifactSubjectRef
+  /** Declared operator stored on the ledger record. */
+  readonly actor?: import('../users/user.js').RecordActor
 }
 
 /** Public recording use case; the producer anchor is always derived from canonical evidence. */

@@ -76,8 +76,8 @@ export interface TransitionRecord {
   readonly from: string
   readonly to: string
   readonly effects: readonly StateFieldEffect[]
-  /** 暂时省略：created_by 不是 transition actor，server bearer token 也不是用户身份——
-   * 没有可信来源前不填假值。 */
+  /** Declared operator as a user ref `Name <id>` (`formatUserRef`). It stays a string so released readers of
+   * the record chain keep validating; records committed before identity existed omit it. */
   readonly actor?: string
   readonly observedAt: string
 }

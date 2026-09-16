@@ -106,6 +106,7 @@ export interface GetRouteDeps {
   adapterInstall?: AdapterInstallManager
   artifactService?: ArtifactService
   artifactServiceForRoot?: (root: string, anchor: WorkflowRootAnchor) => ArtifactService | undefined | Promise<ArtifactService | undefined>
+  resolveUser: import('./serverUserRoutes.js').ResolveUser
 }
 function repoRootForSkills(): string {
   return join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')

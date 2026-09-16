@@ -4,6 +4,7 @@
  * Dashboard; this file only wires CLI ports and maps the contract H result to exit codes.
  */
 import {
+  actorOf,
   createReviewDecisionLedger,
   executeReviewAcknowledge,
   INTERACTION_PROJECTION_WRITE_FAILED,
@@ -17,6 +18,7 @@ import {
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { readDelegatedReviewAuthority } from '../continuousAuthority.js'
+import { requireUser } from '../userIdentity.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { readReviewGateBindingForRequest } from './review-binding.js'
 
@@ -41,9 +43,13 @@ export async function cmdReviewAcknowledge(
   dir: string,
   opts: { readonly event?: string; readonly delegated?: boolean },
 ): Promise<number> {
+  const user = requireUser(deps)
+  if (user === null) return 1
+  const actor = actorOf(user)
   const delegatedAuthority = opts.delegated === true
     ? await readDelegatedReviewAuthority(
         deps.cwd,
+        user.slug,
         name,
         deps.env?.('TENON_HOST_SESSION_ID') ?? deps.env?.('CODEX_THREAD_ID'),
       )
@@ -81,6 +87,7 @@ export async function cmdReviewAcknowledge(
     clearMarker: async (event) => {
       await deps.clearReviewMarker?.(name, event)
     },
+    actor,
   })
   for (const kind of result.deferred) deps.io.err(DEFERRED_WARNINGS[kind])
   if (!result.ok) {

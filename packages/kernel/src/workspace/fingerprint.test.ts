@@ -83,7 +83,11 @@ describe('fingerprintWorkspace', () => {
     await writeFile(join(root, 'dashboard-progress-custom-spec.png'), 'ignored\n')
     await writeFile(join(root, 'dashboard-acceptance-mobile.png'), 'ignored\n')
     await writeFile(join(root, 'workbench-current.png'), 'ignored\n')
-    await writeFile(join(root, '.pipeline-active'), 'catalog-flow\n')
+    await mkdir(join(root, '.tenon', 'users', 'a-at-x.io', 'local'), { recursive: true })
+    await mkdir(join(root, '.tenon', 'users', 'a-at-x.io', 'tests', 'catalog-flow'), { recursive: true })
+    await writeFile(join(root, '.tenon', '.gitignore'), 'users/*/local/\n')
+    await writeFile(join(root, '.tenon', 'users', 'a-at-x.io', 'local', 'active-change'), 'catalog-flow\n')
+    await writeFile(join(root, '.tenon', 'users', 'a-at-x.io', 'tests', 'catalog-flow', 'run-1.json'), '{}\n')
     await writeFile(join(root, '.pipeline-pending-review'), 'transient\n')
 
     expect(await fingerprintWorkspace(root)).toBe(first)

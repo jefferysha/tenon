@@ -35,6 +35,8 @@ import type { PipelineCliRunner } from './operations.js'
 import type { RouterPatternScorer } from './routerPreview.js'
 import type { CadenceSchedulerOptions } from './cadence.js'
 
+const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+
 /** 接线级：server 真消费 kernel 单一真相源（BACKLOG #25b / GOAL B2）——transition.ts 已删本地镜像，
  * TRANSITION_EVENTS/eventEdge 只是 kernel 的 re-export（引用同一对象=同一真相源）。 */
 describe('接线 —— server 事件表 = kernel 单源（无本地镜像）', () => {
@@ -90,6 +92,7 @@ async function start(opts?: {
   initialWorkflow?: { workflow: string; phase: string }
   seedGovernedEvidence?: boolean
   seedPhaseSkill?: boolean
+  resolveUser?: DashboardServerOptions['resolveUser']
 }): Promise<Harness> {
   const store = opts?.store ?? newStore()
   const root = await makeProject()
@@ -123,6 +126,7 @@ async function start(opts?: {
     runPipelineCli: opts?.runPipelineCli,
     scoreRouterPattern: opts?.scoreRouterPattern,
     cadence: opts?.cadence,
+    ...(opts?.resolveUser === undefined ? {} : { resolveUser: opts.resolveUser }),
   })
   openServers.push(srv)
   const { port } = await srv.listen(0, '127.0.0.1')
@@ -1498,6 +1502,7 @@ describe('POST /api/change/<name>/transition —— .pipeline-history.jsonl 记�
       // W1 第二增量收尾：写侧统一走 transitionRecordToHistoryEntry，打上来源标记（唯一构造点，
       // 见 kernel state/history.ts）——不再是手填的裸对象。
       transitionRecordId: expect.any(String),
+      actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' },
     })
   })
 
@@ -1583,7 +1588,7 @@ describe('GET /api/change/:name/history —— 阶段时间线读端点（G21 / 
     expect(entries).toEqual([
       // 这次转换首次建立 canonical 链（懒生成兜底），history 端点走 canonical 分支返回，条目带
       // transitionRecordId（chain.map(transitionRecordToHistoryEntry) 的标配字段）。
-      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: expect.any(String) },
+      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: expect.any(String), actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } },
     ])
   })
 
@@ -1616,7 +1621,7 @@ describe('GET /api/change/:name/history —— 阶段时间线读端点（G21 / 
     const entries = r.json<{ entries: Array<{ kind: string; from: string; to: string; raw: string; transitionRecordId?: string }> }>()
       .entries
     expect(entries).toEqual([
-      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: real.transitionRecordId },
+      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: real.transitionRecordId, actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } },
     ])
   })
 
@@ -1644,7 +1649,7 @@ describe('GET /api/change/:name/history —— 阶段时间线读端点（G21 / 
     // 老记录（链建立前，无标记）与新记录（canonical 链，带标记）都在，按时间排好序，互不重复
     expect(entries).toEqual([
       { ts: '2026-07-06T00:00:00Z', kind: 'transition', from: 'archive', to: 'archive', raw: 'archived' },
-      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: expect.any(String) },
+      { ts: '2026-07-07T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete', transitionRecordId: expect.any(String), actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } },
     ])
   })
 
@@ -1777,7 +1782,7 @@ describe('GET /api/change/:name/history —— transitionRecordId 来源判定�
     const { writeFile } = await import('node:fs/promises')
     const rows = [
       { ts: '2026-07-01T00:00:00Z', kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete' },
-      { ts: '2026-07-02T00:00:00Z', kind: 'set', field: 'design_doc', by: 'user' },
+      { ts: '2026-07-02T00:00:00Z', kind: 'set', field: 'design_doc', actor: { id: 'user@x.io', name: 'User', trust: 'declared' } },
     ]
     await writeFile(join(h.changeDir, '.pipeline-history.jsonl'), rows.map((row) => JSON.stringify(row)).join('\n') + '\n', 'utf8')
     // sanity：确认这个 change 真的没有 runMetadata（从未经历过 runRepo.transact）
@@ -1815,7 +1820,7 @@ describe('GET /api/change/:name/history —— transitionRecordId 来源判定�
     const { writeFile } = await import('node:fs/promises')
     const nonTransitionRows = [
       { ts: '2026-07-06T00:00:00Z', kind: 'init' },
-      { ts: '2026-07-06T01:00:00Z', kind: 'set', field: 'design_doc', by: 'alice' },
+      { ts: '2026-07-06T01:00:00Z', kind: 'set', field: 'design_doc', actor: { id: 'alice@x.io', name: 'Alice', trust: 'declared' } },
       { ts: '2026-07-06T02:00:00Z', kind: 'tool', raw: 'ran-lint' },
       { ts: '2026-07-06T03:00:00Z', kind: 'prompt', raw: 'Q|A' },
       { ts: '2026-07-06T04:00:00Z', kind: 'import', raw: 'legacy-note' },
@@ -3528,7 +3533,7 @@ describe('GET /api/orchestration-graph —— Change 编排图', () => {
       name: 'modern-change',
       track: 'backend',
       reviewSeed: builtinTrack('backend').policyProfile.reviewSeed,
-      preset: 'full',
+      creator: TEST_CREATOR, preset: 'full',
       initialWorkflow: {
         workflow: 'modern',
         phase: 'external',
@@ -5267,7 +5272,31 @@ describe('未知 HTTP 方法（非 GET/POST/PATCH/PUT/DELETE）仍 405（既有�
 // ═══════════ G18：项目注册端点（spec §3.1，dashboard 闭环第一环）═══════════
 
 /** G18 端点专用 harness：不注入 registry，走 Tenon 平台配置域的真实文件读写。 */
-async function startWithHome(opts?: { runPipelineCli?: PipelineCliRunner }): Promise<{
+describe('POST /api/change/<name>/transition —— 负责人规则', () => {
+  const post = (h: Harness) => reqPost(h.port, `/api/change/${h.name}/transition`, { root: h.root, event: 'open-complete' }, {
+    headers: { Authorization: `Bearer ${h.token}` },
+  })
+
+  it('非负责人推进 → 403 owner-required 并返回负责人，零写入', async () => {
+    const h = await start({ resolveUser: () => ({ id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }) })
+    const before = await readFile(join(h.changeDir, '.pipeline.yaml'), 'utf8')
+    const r = await post(h)
+    expect(r.status).toBe(403)
+    expect(r.json()).toMatchObject({
+      ok: false, code: 'owner-required', owner: { id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test' },
+    })
+    expect(await readFile(join(h.changeDir, '.pipeline.yaml'), 'utf8')).toBe(before)
+  })
+
+  it('身份缺失 → 412 user-missing', async () => {
+    const h = await start({ resolveUser: () => ({ missing: true }) })
+    const r = await post(h)
+    expect(r.status).toBe(412)
+    expect(r.json()).toMatchObject({ ok: false, code: 'user-missing' })
+  })
+})
+
+async function startWithHome(opts?: { runPipelineCli?: PipelineCliRunner; resolveUser?: DashboardServerOptions['resolveUser'] }): Promise<{
   srv: DashboardServer
   port: number
   token: string
@@ -5289,6 +5318,7 @@ async function startWithHome(opts?: { runPipelineCli?: PipelineCliRunner }): Pro
     clock: () => '2026-07-09T00:00:00Z',
     pollIntervalMs: 20,
     runPipelineCli: opts?.runPipelineCli,
+    ...(opts?.resolveUser === undefined ? {} : { resolveUser: opts.resolveUser }),
   })
   openServers.push(srv)
   const { port } = await srv.listen(0, '127.0.0.1')
@@ -5524,7 +5554,8 @@ describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
     const h = await startWithHome({
       runPipelineCli: async (root, args) => {
         calls.push({ root, args })
-        await writeFile(join(root, '.pipeline-active'), `${args[2] ?? ''}\n`, 'utf8')
+        const { writeActiveChange } = await import('@tenon/kernel')
+        await writeActiveChange(root, 'tester-at-tenon.test', args[2] ?? '')
         return { exitCode: 0, stdout: '', stderr: '' }
       },
     })
@@ -5549,7 +5580,7 @@ describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
     expect(body.session).toEqual({ requested: true, active: true, status: 'active', exit_code: 0 })
     const changeDir = join(proj, 'openspec', 'changes', 'route-me')
     expect(await readFile(join(changeDir, 'REAL_AGENT_TASK.md'), 'utf8')).toBe(`${prompt}\n`)
-    expect(await readFile(join(proj, '.pipeline-active'), 'utf8')).toBe('route-me\n')
+    expect(await readFile(join(proj, '.tenon', 'users', 'tester-at-tenon.test', 'local', 'active-change'), 'utf8')).toBe('route-me\n')
     const entries = await readdir(changeDir)
     expect(entries.some((entry) => entry.startsWith('.REAL_AGENT_TASK.md.') && entry.endsWith('.tmp'))).toBe(false)
   })
@@ -5586,6 +5617,40 @@ describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
     expect(lines).toHaveLength(1)
     expect(lines[0]!.kind).toBe('init')
     expect(typeof lines[0]!.ts).toBe('string')
+  })
+
+  it('creator 与负责人 = 服务端解析的声明身份；init 历史带 actor；snapshot 投影 owner/creator', async () => {
+    const h = await startWithHome()
+    const proj = await withRegisteredProject(h)
+    const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'owned-a' }, { headers: { Authorization: `Bearer ${h.token}` } })
+    expect(r.status).toBe(200)
+    const dir = join(proj, 'openspec', 'changes', 'owned-a')
+    expect(await h.store.get(dir, 'created_by')).toBe('Tester <tester@tenon.test>')
+    expect(await h.store.get(dir, 'assignee')).toBe('Tester <tester@tenon.test>')
+    const history = JSON.parse((await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8')).trim()) as Record<string, unknown>
+    expect(history.actor).toEqual({ id: 'tester@tenon.test', name: 'Tester', trust: 'declared' })
+    const snapshot = (await reqGet(h.port, '/api/snapshot')).json<any>()
+    const change = snapshot.projects[0].changes.find((entry: { name: string }) => entry.name === 'owned-a')
+    expect(change.owner).toEqual({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test' })
+    expect(change.creator).toEqual({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test' })
+  })
+
+  it('身份缺失 → 412 user-missing，零写入', async () => {
+    const h = await startWithHome({ resolveUser: () => ({ missing: true }) })
+    const proj = await withRegisteredProject(h)
+    const r = await reqPost(h.port, '/api/changes', { root: proj, name: 'nobody-a' }, { headers: { Authorization: `Bearer ${h.token}` } })
+    expect(r.status).toBe(412)
+    expect(r.json()).toMatchObject({ ok: false, code: 'user-missing' })
+    expect(existsSync(join(proj, 'openspec', 'changes', 'nobody-a'))).toBe(false)
+  })
+
+  it('legacy assignee/created_by（unknown、null）投影为 null', async () => {
+    const h = await start()
+    await h.store.setMany(h.changeDir, { assignee: 'null', created_by: 'unknown' })
+    const snapshot = (await reqGet(h.port, '/api/snapshot')).json<any>()
+    const change = snapshot.projects[0].changes[0]
+    expect(change.owner).toBeNull()
+    expect(change.creator).toBeNull()
   })
 
   it('200 显式 track=frontend', async () => {

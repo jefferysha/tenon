@@ -104,7 +104,7 @@ fi
 if [ -f "$BUNDLE" ]; then
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
-  ( cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" node "$BUNDLE" init t8-smoke --track backend --preset full --user smoke ) 2>/dev/null
+  ( cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" TENON_USER=smoke@tenon.test node "$BUNDLE" init t8-smoke --track backend --preset full ) 2>/dev/null
   [ -f "$TMP/openspec/changes/t8-smoke/.pipeline.yaml" ] \
     && ok "bundle: init 落盘 .pipeline.yaml" || bad "bundle: init 落盘 .pipeline.yaml" "文件缺失"
   grep -q '"locale":"zh-CN"' "$TMP/openspec/changes/t8-smoke/.pipeline-document-locale.json" \

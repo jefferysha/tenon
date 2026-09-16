@@ -283,7 +283,7 @@ describe('transition —— [TRANSITION] 走 stderr / 非法 exit 1（oracle 实
         '/repo/openspec/changes/demo',
         {
           ts: FIXED_CLOCK, kind: 'transition', from: 'open', to: 'explore', raw: 'open-complete',
-          transitionRecordId: 'mock-record-1',
+          transitionRecordId: 'mock-record-1', actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' },
         },
       ],
     ])
@@ -586,7 +586,7 @@ steps:
           join(cwd, 'openspec', 'changes', 'demo'),
           {
             ts: FIXED_CLOCK, kind: 'transition', from: 's1', to: 's2', raw: 'complete',
-            transitionRecordId: 'mock-record-1',
+            transitionRecordId: 'mock-record-1', actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' },
           },
         ],
       ])

@@ -1,5 +1,5 @@
 /**
- * init <name> --track --preset [--user] [--workflow] —— 初始化 change（CONTRACT §3，
+ * init <name> --track --preset [--workflow] —— 初始化 change（creator/负责人 = 当前声明身份，缺失 exit 1）（CONTRACT §3，
  * 2026-07-06 oracle 实测回写：老内核 init stdout 为空，创建路径改走 stderr 信息行）。
  * stdout：无；exit 0/1。
  *
@@ -32,13 +32,13 @@ import type { DocumentLocale } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { recordHistory } from './fields.js'
 import { isValidChangeName } from '../paths.js'
+import { requireActor } from '../userIdentity.js'
 
 export interface InitCmdOpts {
   // track/preset 为 optional：program.ts 用 .option（非 .requiredOption）注册，缺省时由交互
   // 向导（TTY）补齐或非交互 fail-loud——commander 不再抢在 action 前拦截，向导才有机会跑。
   track?: string
   preset?: string
-  user?: string
   workflow?: string
   documentLocale?: string
 }
@@ -93,7 +93,7 @@ async function askPlain(p: InitPrompter, label: string, dflt: string): Promise<s
 }
 
 /**
- * 交互向导：逐项问答收齐 track/preset（+ 可选 user/workflow）。已给 flag 作该项默认（回车即收），
+ * 交互向导：逐项问答收齐 track/preset（+ 可选 workflow）。已给 flag 作该项默认（回车即收），
  * track 选项与校验从 registry.ordered 生成（不再手抄枚举；缺 tracks.yaml 时即内建 Track），preset 非空，
  * 校验不过就地重问。返回补齐后的 opts（原字段其余保留）。
  */
@@ -116,13 +116,11 @@ async function runInitWizard(deps: CliDeps, registry: TrackRegistry, flags: Init
         : WIZARD_PRESETS.includes(s) ? null
         : `ERROR: 非法 preset '${s}'，允许: ${WIZARD_PRESETS.join(' | ')}（自定义 preset 请走 --preset flag）`),
     )
-    const userRaw = await askPlain(p, 'user（created_by，可空）', flags.user ?? '')
     const workflowRaw = await askPlain(p, 'workflow（自定义 workflow 名，缺省 default）', flags.workflow ?? '')
     return {
       ...flags,
       track,
       preset,
-      user: userRaw === '' ? undefined : userRaw,
       workflow: workflowRaw === '' ? undefined : workflowRaw,
     }
   } finally {
@@ -137,6 +135,8 @@ export async function cmdInit(
     deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
     return 1
   }
+  const creator = requireActor(deps)
+  if (creator === null) return 1
 
   // 缺 track/preset：TTY 下走向导补齐（BT6 小白友好），非交互（agent/CI）fail-loud exit 1。
   // 向导用一份 registry 生成选项/校验（仅影响交互提示；权威校验在下方 registry 锁内 fresh-load）。
@@ -233,7 +233,7 @@ export async function cmdInit(
           track: track.id,
           reviewSeed: track.policyProfile.reviewSeed,
           preset: opts.preset,
-          user: opts.user,
+          creator,
           clock: deps.clock,
           documentLocale: (opts.documentLocale ?? 'zh-CN') as DocumentLocale,
           initialWorkflow,
@@ -241,7 +241,7 @@ export async function cmdInit(
         await recordHistory(deps, created, {
           ts: deps.clock(),
           kind: 'init',
-          ...(opts.user ? { by: opts.user } : {}),
+          actor: creator,
         })
         // 决策 D（v5 T2）：init 成功后 best-effort 登记 repoRoot 到机器级项目注册表——注册表任何
         // 故障（损坏/目录不可写）只 WARN，绝不让已成功的 init 失败。

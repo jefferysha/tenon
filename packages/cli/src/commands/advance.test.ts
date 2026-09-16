@@ -125,6 +125,7 @@ function makeAdv(opts: {
       items: [],
     }),
     cwd: '/repo',
+    user: () => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' }),
     io: { out: (l: string) => out.push(l), err: (l: string) => err.push(l) },
     clock: () => FIXED_CLOCK,
     // Build's typed capture action must produce a canonical token; do not pre-seed build_sha.
@@ -460,6 +461,7 @@ describe('advance —— 非 default workflow（自定义 step 图，快速回�
       reviewGateBinding: async () => true,
       flow: mockFlow(),
       cwd: root,
+      user: () => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' }),
       io: { out: (l: string) => out.push(l), err: (l: string) => err.push(l) },
       clock: () => FIXED_CLOCK,
       listChanges: async () => [],

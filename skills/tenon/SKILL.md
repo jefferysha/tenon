@@ -83,7 +83,7 @@ text(result);
    `continuous_execution`、可选的 `host_session_id`；再用
    `tenon list --json` 与（仅 `intent: resume` 时的）`tenon status <name> --json` 复核状态。
 2. `intent: new` 是最高优先级：依据用户原始需求生成 kebab-case change 名，按 default **独立创建**，
-   严禁从 `tenon list`、`.pipeline-active`、旧 phase 或旧 `tasks.md` 推断/复用任何已有 change。
+   严禁从 `tenon list`、用户的 `active-change`、旧 phase 或旧 `tasks.md` 推断/复用任何已有 change。
    `intent: resume` 只能恢复注入中点名的 change；`intent: select` 只列候选并让用户点名，严禁猜测。
    只有缺少 `intent` 的手动调用才使用本文件 Step 3 的旧式决策表。用户明确点名 custom workflow 时才偏离 default。
 3. **选择契约优先于创建**：若 dispatch 含 `selection_required: true` 或 `workflow: select`，它已
@@ -98,7 +98,7 @@ text(result);
      workflow allowed 关系；workflow 内声明的分支轨道（例如 Dashboard 新建的轨道）不在注册表中，由
      `tenon init <name> --workflow <workflow> --track <track>` 校验该 workflow 确有此分支。
      复核失败则重新询问，绝不猜测回退。
-   - 选择完成后，以该 Track 与 workflow 创建**新的** Change；即使 `.pipeline-active` 指向其他
+   - 选择完成后，以该 Track 与 workflow 创建**新的** Change；即使用户的 `active-change` 指向其他
      Change，也不能把新目标绑回旧状态。
 4. 无 selection 契约时，按注入的 workflow 身份分支：
    - `workflow: default` 的新目标按注入 Track/default workflow 创建独立 Change；随后才建立七相 Todo
@@ -128,14 +128,18 @@ text(result);
    `tenon session activate "<change>"` 并确认成功。若 dispatch 带合法 `host_session_id`，先把其值
    写入本轮 shell 的 `TENON_HOST_SESSION_ID`，并在 activate 上追加
    `--host-session "$TENON_HOST_SESSION_ID"`；这是仅供 dashboard 判断正常会话是否仍在执行的精确
-   session→Change 绑定，绝不能用 `.pipeline-active` 猜测或替代它。若 dispatch 明确含
+   session→Change 绑定，绝不能用用户的 `active-change` 猜测或替代它。若 dispatch 明确含
    `continuous_execution: true`，同一条 activate 再追加 `--continuous`（两个 flag 可同时使用）：它会
    原子写入**仅绑定这个 Change**的互动 skill 连续执行授权与隐私最小化审计行。new 要在 `tenon init`
    成功后立刻执行；resume 要在 `tenon status <change> --json` 复核后执行。这个命令只把已明确选中的目标写为
-   evidence/DAG 的当前绑定；绝不能从旧 `.pipeline-active` 反推新任务，也不得在它成功前创建
+   evidence/DAG 的当前绑定；绝不能从旧的 `active-change` 反推新任务，也不得在它成功前创建
    Todo、读取 phase Skill 或登记文档。`--continuous` 记录该用户对这个 Change 的连续执行与 review
    委托：每个 review 出口仍须先完成真实 skill / OpenSpec / guard 证据，再用 `review acknowledge
    --delegated` 写带授权来源的 receipt；它不授权范围/安全/成本/外部状态的实质变更。
+   身份必须已声明（`tenon user` 打印当前用户；顺序为 `TENON_USER` → 本机 user.json → `git config
+   user.email`）：init / session activate / transition / review / document record 在身份缺失时 exit 1
+   并给出设置提示，不产生任何写入。每个 Change 只有一个负责人（创建者即首位负责人）；非负责人先
+   `tenon owner take <change>` 接手才能推进，接手会留下带操作人的历史记录。
 
    ```bash
    # 仅当 dispatch 有 host_session_id 时设置该变量；没有时不要编造值。

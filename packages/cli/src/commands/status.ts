@@ -2,10 +2,10 @@
  * status [name] [--json] / list [--json] —— 展示层（CONTRACT §3）。
  * 人读：对齐宽度的紧凑表 / key-value 块；--json：schema 稳定（键序固定，见测试锚）。
  *   status --json        {"active_changes":[{name,track,phase,phase_status,verify_result,updated_at}]}
- *   list   --json        {"changes":[{name,track,phase,phase_status,assignee}]}
+ *   list   --json        {"changes":[{name,track,phase,phase_status,owner:{id,name}|null}]}
  * 活跃 = openspec/changes/ 下有 .pipeline.yaml 且 archived != true；坏 change 跳过 + WARN。
  */
-import type { PipelineState } from '@tenon/kernel'
+import { ownerOf, type PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, changesRoot, isValidChangeName } from '../paths.js'
 import { display, renderKV, renderTable, str } from '../render.js'
@@ -33,6 +33,11 @@ async function collectActive(deps: CliDeps): Promise<Row[]> {
     }
   }
   return rows
+}
+
+function ownerView(row: Row): { id: string; name: string } | null {
+  const owner = ownerOf(row.state.fields)
+  return owner === null ? null : { id: owner.id, name: owner.name }
 }
 
 function statusJson(row: Row): Record<string, string> {
@@ -116,7 +121,7 @@ export async function cmdList(deps: CliDeps, opts: { json?: boolean }): Promise<
           track: field(r, 'track'),
           phase: field(r, 'phase'),
           phase_status: field(r, 'phase_status'),
-          assignee: field(r, 'assignee'),
+          owner: ownerView(r),
         })),
       }),
     )
@@ -127,13 +132,13 @@ export async function cmdList(deps: CliDeps, opts: { json?: boolean }): Promise<
     return 0
   }
   const table = renderTable(
-    ['NAME', 'TRACK', 'PHASE', 'STATUS', 'ASSIGNEE'],
+    ['NAME', 'TRACK', 'PHASE', 'STATUS', 'OWNER'],
     rows.map((r) => [
       r.name,
       display(r.state.fields.track),
       display(r.state.fields.phase),
       display(r.state.fields.phase_status),
-      display(r.state.fields.assignee),
+      ownerView(r)?.name ?? '-',
     ]),
   )
   for (const line of table) deps.io.out(line)
