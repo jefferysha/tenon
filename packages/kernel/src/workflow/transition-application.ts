@@ -37,6 +37,7 @@ import type { FieldName, FlowEngine, Phase, PipelineState } from '../types.js'
 import { IllegalTransitionError } from '../types.js'
 import { applyBreadcrumbTail, clearReviewGatePatch, readCurrentRunRevision, reviewGateApprovedFor, transitionRecordToHistoryEntry } from '../state/index.js'
 import { evaluateDocumentEvidence } from '../state/document-evidence.js'
+import { evaluateTestEvidence } from '../test-evidence/evaluate.js'
 import { ownerDecision } from '../users/owner.js'
 import { formatUserRef } from '../users/user.js'
 import type { DocumentEvidenceReport } from '../state/document-evidence.js'
@@ -70,6 +71,17 @@ export type {
 function isRejection(x: PreparedTransition | TransitionRejection): x is TransitionRejection {
   return 'kind' in x
 }
+/**
+ * 回退边：目标步骤在有效计划的步骤序里更早。同 shouldEnforceDocumentPolicyOnTransition 的口径，
+ * 只是作用在 plan.workflow.steps 上，所以隐式的 `archived` 边（目标不在步骤序里）仍然要求测试。
+ */
+function isBackwardStepEdge(plan: EffectiveWorkflowPlan, from: string, to: string): boolean {
+  const ids = plan.workflow.steps.map((step) => step.id)
+  const fromIndex = ids.indexOf(from)
+  const toIndex = ids.indexOf(to)
+  return fromIndex >= 0 && toIndex >= 0 && toIndex < fromIndex
+}
+
 function fieldStr(v: string | string[] | undefined): string {
   return Array.isArray(v) ? v.join(',') : (v ?? '')
 }
@@ -363,6 +375,19 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
           if (!evidence.pass) {
             return { kind: 'document-evidence-failed', phase: prepared.from, blockers: evidence.blockers }
           }
+        }
+        // 测试证据与文档证据同一条评估链，同一条非回退谓词：离开一个声明了测试的步骤时，
+        // 必需测试必须已通过且绑定当前候选版本。回退边（verify-fail、requirements-changed）永不要求测试。
+        if (!isBackwardStepEdge(effectivePlan, prepared.from, prepared.to)) {
+          const tests = await evaluateTestEvidence({
+            repoRoot: command.root,
+            changeDir: command.changeDir,
+            changeName: command.changeName,
+            plan: effectivePlan,
+            stepId: prepared.from,
+            context: deps.testEvidence,
+          })
+          if (!tests.pass) return { kind: 'test-evidence-failed', stepId: prepared.from, blockers: tests.blockers }
         }
         // Review 的判定点是“离开当前 review phase”，不是“刚进入就锁住”。所有自动 guards
         // / 文档证据先通过，才允许 request/ack receipt 成为下一步的人类复核证据。所有 caller

@@ -11,6 +11,7 @@ import type { BuildRevisionBlocker } from './build-revision.js'
 import type { InteractionEventRecorder } from '../interaction/ports.js'
 import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
 import type { RecordActor, UserRef } from '../users/user.js'
+import type { TestEvidenceContext } from '../test-evidence/evaluate.js'
 
 export interface TransitionApplicationDeps {
   runRepository: WorkflowRunRepository
@@ -38,6 +39,8 @@ export interface TransitionApplicationDeps {
     changeDir: string,
     phase: DocumentContractPhase,
   ) => Promise<DocumentEvidenceReport>
+  /** 测试证据判定的注入面：缺省 = 声明了测试就失败关闭（宿主必须给身份与工作区指纹）。 */
+  testEvidence?: TestEvidenceContext
   resolveConstraintContext?: (input: {
     readonly policy: AutomationPolicySnapshot
     readonly command: TransitionCommand
@@ -120,6 +123,11 @@ export type TransitionApplicationResult =
   | {
       readonly kind: 'document-evidence-failed'
       readonly phase: string
+      readonly blockers: readonly string[]
+    }
+  | {
+      readonly kind: 'test-evidence-failed'
+      readonly stepId: string
       readonly blockers: readonly string[]
     }
   | { readonly kind: 'review-approval-required'; readonly phase: string; readonly event: string }
