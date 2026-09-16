@@ -14,10 +14,16 @@ export interface UserProjectPaths {
   readonly userRoot: string
   readonly testsDir: string
   readonly baselinesDir: string
+  /** Task deletions: a shared fact, committed together with the removal. */
+  readonly audit: string
   readonly localDir: string
   readonly activeChange: string
   readonly authority: string
   readonly archived: string
+  /** 归档 / 取消归档: a personal preference, never synced. */
+  readonly localAudit: string
+  /** Staging for atomic 删除: the Change directory is renamed here, then removed. */
+  readonly deletingDir: string
   readonly artifactsDir: string
 }
 
@@ -32,10 +38,13 @@ export function userProjectPaths(repoRoot: string, slug: string): UserProjectPat
     userRoot,
     testsDir: join(userRoot, 'tests'),
     baselinesDir: join(userRoot, 'baselines'),
+    audit: join(userRoot, 'audit.jsonl'),
     localDir,
     activeChange: join(localDir, 'active-change'),
     authority: join(localDir, 'authority'),
     archived: join(localDir, 'archived.json'),
+    localAudit: join(localDir, 'audit.jsonl'),
+    deletingDir: join(localDir, 'deleting'),
     artifactsDir: join(localDir, 'artifacts'),
   }
 }

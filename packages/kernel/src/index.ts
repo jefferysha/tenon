@@ -33,6 +33,13 @@ export {
   isTerminalActivityChangeName, isTerminalSessionId, liveTerminalActivity, parseTerminalActivityRecord,
 } from './workspace/terminal-activity.js'
 export type { LiveTerminalActivity, TerminalActivityRecord } from './workspace/terminal-activity.js'
+// 归档（对当前用户隐藏任务）是个人显示偏好；archived-Change 拒绝是所有 Change 命令共用的唯一守卫。
+export {
+  EMPTY_TASK_ARCHIVE, TaskArchivedError,
+  assertTaskNotArchived, isArchivedForUser, isTaskLifecycleName, readTaskArchive, readTaskArchiveOf,
+  serializeTaskArchive, taskArchivePath, taskArchivedMessage, taskChangeDir, updateTaskArchiveOf,
+} from './workspace/task-archive.js'
+export type { TaskArchive, TaskArchiveEntry, TaskArchiveRead, TaskArchiveUpdate } from './workspace/task-archive.js'
 // 动态 Track Registry 公开面（GOAL.md 清单 T · R2 校验面切换）——tracks/ 是 R1 落地的叶子 barrel，
 // 本行把它接进根 barrel，使 cli/server 的 track 校验面从 types.ts 的写死 TRACKS 常量切到 registry
 // 驱动（requireTrack/assertWorkflowAllowed/loadTrackRegistry）。tracks/index.ts 已自做具名导出，
