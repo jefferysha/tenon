@@ -35,13 +35,27 @@
 
 ## Shared gates after every merge
 
+Run the **whole CI verify list**, in the order `.github/workflows/ci.yml` runs it, not a remembered subset.
+Picking a subset let two CI-only failures through in wave 1: `bash tools/test-bundle.sh` (identity was injected
+into one call, so every other bundled-CLI write fell back to the machine's git identity) and
+`npm run test:clean-install` (the local release fixture omits `.gitignore`, so fetched upstream skills make the
+marketplace clone dirty). Both pass locally with a developer git identity and fail on a runner without one.
+
 ```bash
-npm run build
-npm run check:architecture && npm run check:comments && npm run check:identity
-npm test && npm run test:web && bash tools/test-hooks.sh && bash tools/verify-skills.sh
+npm run check:dependencies && npm run check:release-workflows && npm run check:openspec
+npm run check:comments && npm run check:architecture && npm run check:identity && npm run check:repository-hygiene
+npm run check:npx-package && npm run check:legacy-bridge && npm run check:default-workflow-freshness
+npm run build && git diff --exit-code -- packages/cli/dist/tenon.mjs packages/server/dist/dashboard.mjs
+npm run check:dashboard-dist-freshness && npm run test:clean-install
+npm run check:docs && npm run check:document-templates && npm run check:design-scale
+npm run docs:sync && npm run docs:check && npm run docs:build && npm run docs:smoke
+npm run bundle && bash tools/sandcastle/build.sh local
+npm test && npm run test:web && bash tools/test-hooks.sh && bash tools/test-adapters.sh && bash tools/verify-skills.sh
+npm run test:migration-cas && bash tools/test-bundle.sh && npm run oracle
 ```
 
-Full CI mirror (`rel115-gates.sh` pattern) before the wave 5 release.
+Only the credential-gated real-Codex acceptance and the CI-only trusted-Codex PATH prep are skipped locally.
+A gate that needs a git identity must get one from the harness, never from the developer's machine.
 
 ## Final acceptance (wave 5)
 
