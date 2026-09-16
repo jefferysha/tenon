@@ -20,7 +20,8 @@
  */
 import type { FieldName } from '../types.js'
 import type {
-  ArtifactProducerPolicy, FieldRef, GateKind, SkillRef, WorkflowActionConfig, WorkflowConditional,
+  ArtifactProducerPolicy, FieldRef, GateKind, SkillRef, TestInputDef, TestMetricCriterion,
+  TestOutputDef, TestOutputKind, WorkflowActionConfig, WorkflowConditional,
   WorkflowDecompositionPolicyV1, WorkflowDocumentContractV1, WorkflowGuardConfig,
   WorkflowInteractionPolicyV1, WorkflowReviewBudgetPolicyV1,
 } from './types.js'
@@ -151,6 +152,29 @@ export interface ArtifactDeclaration {
   readonly requiredWhen?: TrackPredicate
 }
 
+/**
+ * 步骤测试项的 IR 形态：默认值全部补齐，键序由 compileStepTests 钉死（`id, direction, command, cwd` 开头，
+ * hooks/test-nudge.sh 的扫描依赖它）。`tests` 只在非空时进 IR，无测试的工作流指纹逐字不变。
+ */
+export interface StepTestIR {
+  readonly id: string
+  readonly direction: string
+  readonly command: string
+  readonly cwd: string
+  readonly label?: string
+  readonly timeout_s: number
+  readonly required: boolean
+  readonly keep_runs: number
+  readonly scope?: 'full' | 'known'
+  readonly metrics_path?: string
+  readonly pass: {
+    readonly exit_code: number
+    readonly metrics: readonly (TestMetricCriterion & { readonly better: 'lower' | 'higher' })[]
+  }
+  readonly inputs: readonly TestInputDef[]
+  readonly outputs: readonly (TestOutputDef & { readonly kind: TestOutputKind; readonly required: boolean })[]
+}
+
 /** 转换边的 IR 形态：edge 级 guards（该边专属前置）+ actions（走该边的副作用）。
  *  compileWorkflow 补默认值，两者恒为数组（v1 输入无声明 → []）。 */
 export interface StepTransitionIR {
@@ -175,6 +199,8 @@ export interface StepIR {
   readonly outputs: readonly FieldRef[]
   readonly guards: readonly CompiledGuardConfig[]
   readonly artifacts: readonly ArtifactDeclaration[]
+  /** 只在本步声明了测试时出现，使无测试的工作流编译成与本特性之前逐字相同的 IR。 */
+  readonly tests?: readonly StepTestIR[]
   readonly transitions: readonly StepTransitionIR[]
 }
 
