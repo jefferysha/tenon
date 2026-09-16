@@ -109,6 +109,10 @@ re-run the handoff.
 
 ```text
 tenon test run <change> <test-id> [--json]
+tenon test status <change> [--step <id>] [--json]
+tenon test baseline <change> <test-id> --run <run-id>
+tenon test report <change> [--step <id>] [--write <path>] [--locale zh-CN|en]
+tenon test code-size [--base <ref>]
 ```
 
 A step declares the tests it needs in the workflow YAML. Only a run through
@@ -120,6 +124,18 @@ of the declared outputs in the gitignored per-user local directory. Exit codes:
 `0` pass, `2` fail (the record is written), `1` usage or environment error (no
 record). The command receives `TENON_CHANGE_NAME`, `TENON_TEST_ID`,
 `TENON_TEST_RUN_ID`, `TENON_TEST_ARTIFACTS` and `TENON_BASE_BRANCH`.
+
+`test status` reports each declared test of the step with the same evaluation the
+transition uses, so a status pass is a transition pass; it exits `2` while a
+required test is failed, stale, missing or running. A record goes stale when the
+candidate, the test declaration digest or the workflow fingerprint moves.
+`test baseline` promotes the metrics of one passing run to the acting user's
+baseline and keeps the previous value in its history; baselines are per user
+because benchmark numbers depend on the machine. `test report` generates the
+tests section of the verification report from the records and, with `--write`,
+replaces the marked region in an existing repository file. `test code-size` is
+the deterministic probe behind the builtin `code-size` direction and prints one
+JSON line of metrics.
 
 ## Documents, artifacts, and review
 

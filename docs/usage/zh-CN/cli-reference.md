@@ -136,6 +136,10 @@ steps:
 
 ```bash
 tenon test run <change> <test-id> [--json]
+tenon test status <change> [--step <id>] [--json]
+tenon test baseline <change> <test-id> --run <run-id>
+tenon test report <change> [--step <id>] [--write <path>] [--locale zh-CN|en]
+tenon test code-size [--base <ref>]
 ```
 
 工作流的每一步在 YAML 里声明需要跑的测试。只有经 `tenon test run` 的执行会产生记录，
@@ -144,6 +148,12 @@ agent 自己跑的结果满足不了必需测试。Tenon 在独立进程组里�
 完整日志与输出副本留在该用户 gitignored 的本机目录。退出码：`0` 通过、`2` 失败（记录已落盘）、
 `1` 用法或环境错误（不落记录）。命令可读到 `TENON_CHANGE_NAME`、`TENON_TEST_ID`、
 `TENON_TEST_RUN_ID`、`TENON_TEST_ARTIFACTS` 与 `TENON_BASE_BRANCH`。
+
+`test status` 用与转换拦截完全相同的判定列出该步骤每项测试，所以这里通过就是转换会放行；
+必需测试失败、过期、未运行或运行中时 exit 2。候选版本、测试声明摘要或工作流指纹任一变化即过期。
+`test baseline` 把一次通过运行的指标升为当前用户的基线，旧值进 history；基线按用户维护，
+因为基准数值受机器影响。`test report` 由登记结果生成验证报告的测试段，`--write` 替换目标文件里的
+标记区间。`test code-size` 是内建 `code-size` 方向背后的确定性探针，输出一行 JSON 指标。
 
 ## Session 与恢复
 

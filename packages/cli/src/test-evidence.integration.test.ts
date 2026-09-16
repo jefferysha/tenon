@@ -194,4 +194,117 @@ describe('真实 e2e —— 每步测试登记', () => {
     expect(stored.reasons).toEqual([{ code: 'cwd-invalid', detail: 'nope' }])
     expect(stored.exit_code).toBeNull()
   })
+
+  /** 基准测试项：指标从 stdout 最后一行 JSON 读，声明相对基线的退化上限。 */
+  const BENCH_WF = TESTED_WF.replace(`          - id: bad
+            direction: unit
+            command: node -e 'process.exit(3)'
+            timeout_s: 60
+`, `          - id: bench
+            direction: benchmark
+            command: node -e 'console.log(JSON.stringify({ p95_ms: Number(process.env.TENON_BENCH ?? 100) }))'
+            timeout_s: 60
+            pass:
+              metrics:
+                - name: p95_ms
+                  max_regression_pct: 10
+                  better: lower
+`)
+
+  test('status 的文本与 JSON：未运行 → 通过 → 过期', async () => {
+    await seed()
+    expect(await h.run(['test', 'status', 'demo'], { env: USER_A })).toBe(2)
+    expect(h.out.join('\n')).toContain('[TEST] demo step=build')
+    expect(h.out.join('\n')).toContain('未运行 unit 单测')
+    expect(h.out.join('\n')).toContain('[FAIL] test: 测试 单测（unit）未运行')
+
+    await h.run(['test', 'run', 'demo', 'unit'], { env: USER_A })
+    await h.run(['test', 'run', 'demo', 'bad'], { env: USER_A })
+    expect(await h.run(['test', 'status', 'demo', '--json'], { env: USER_A })).toBe(2)
+    const report = JSON.parse(h.out.join('\n')) as {
+      change: string
+      step: string
+      pass: boolean
+      items: { id: string; status: string; required: boolean; run?: { result: string; reasons: string[] } }[]
+      blockers: string[]
+    }
+    expect(report).toMatchObject({ change: 'demo', step: 'build', pass: false })
+    expect(report.items.map((item) => [item.id, item.status])).toEqual([['unit', 'passed'], ['bad', 'failed']])
+    expect(report.items[1]?.run?.reasons).toEqual(['exit-code'])
+    expect(report.blockers).toHaveLength(1)
+
+    await writeFile(join(h.cwd, 'source.ts'), 'export const a = 1\n', 'utf8')
+    expect(await h.run(['test', 'status', 'demo', '--json'], { env: USER_A })).toBe(2)
+    const stale = JSON.parse(h.out.join('\n')) as { items: { id: string; status: string }[] }
+    expect(stale.items.map((item) => item.status)).toEqual(['stale', 'stale'])
+  })
+
+  test('基准：登记基线后退化超阈值判失败，记录里带基线与差异', async () => {
+    await seed(BENCH_WF)
+    process.env.TENON_BENCH = '100'
+    expect(await h.run(['test', 'run', 'demo', 'bench'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    const first = (await runIds(SLUG_A))[0] ?? ''
+    const baseRecord = await record(SLUG_A, first)
+    expect(baseRecord.metrics).toMatchObject([{ name: 'p95_ms', value: 100, baseline: null, ok: true }])
+    expect(baseRecord.reasons).toEqual([{ code: 'baseline-missing', detail: "指标 'p95_ms' 没有基线" }])
+
+    expect(await h.run(['test', 'baseline', 'demo', 'bench', '--run', first.replace('.json', '')], { env: USER_A }), h.err.join('\n')).toBe(0)
+    expect(h.out.join('\n')).toContain('[BASELINE] bench 1 项指标 ← run ')
+    const previous = await runIds(SLUG_A)
+
+    // 固定时钟下 run-id 只靠随机后缀区分，所以按内容找这次的记录，不按文件名排序。
+    process.env.TENON_BENCH = '130'
+    expect(await h.run(['test', 'run', 'demo', 'bench'], { env: USER_A })).toBe(2)
+    const after = await runIds(SLUG_A)
+    const worseId = after.find((id) => !previous.includes(id)) ?? ''
+    const worse = await record(SLUG_A, worseId)
+    expect(worse.result).toBe('fail')
+    expect(worse.metrics).toMatchObject([{ name: 'p95_ms', value: 130, baseline: 100, delta_pct: 30, ok: false }])
+    expect(worse.reasons).toEqual([{
+      code: 'metric-regression', detail: "指标 'p95_ms' 相对基线退化 30.00%，上限 10%",
+    }])
+
+    process.env.TENON_BENCH = '105'
+    expect(await h.run(['test', 'run', 'demo', 'bench'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    delete process.env.TENON_BENCH
+  })
+
+  test('report 生成测试段：--write 幂等替换，缺区间时追加一节', async () => {
+    await seed()
+    await h.run(['test', 'run', 'demo', 'unit'], { env: USER_A })
+    expect(await h.run(['test', 'report', 'demo'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    const region = h.out.join('\n')
+    expect(region).toContain('<!-- tenon:tests:start digest=sha256:')
+    expect(region).toContain('| 实现 | 单测 `unit` | unit | 通过 | 0 |')
+
+    await writeFile(join(h.cwd, 'report.md'), '# 验证报告\n\n结论：通过\n', 'utf8')
+    expect(await h.run(['test', 'report', 'demo', '--write', 'report.md'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    const once = await readFile(join(h.cwd, 'report.md'), 'utf8')
+    expect(once).toContain('## 测试')
+    expect(await h.run(['test', 'report', 'demo', '--write', 'report.md'], { env: USER_A })).toBe(0)
+    const twice = await readFile(join(h.cwd, 'report.md'), 'utf8')
+    expect(twice.split('<!-- tenon:tests:start')).toHaveLength(2)
+
+    expect(await h.run(['test', 'report', 'demo', '--locale', 'en'], { env: USER_A })).toBe(0)
+    expect(h.out.join('\n')).toContain('| Step | Test | Direction | Status |')
+    expect(await h.run(['test', 'report', 'demo', '--write', 'missing.md'], { env: USER_A })).toBe(1)
+  })
+
+  test('保留策略：7 次运行只留最近 5 个产物目录，摘要全留', async () => {
+    await seed(TESTED_WF.replace('            label: 单测', '            keep_runs: 5'))
+    for (let index = 0; index < 7; index++) {
+      expect(await h.run(['test', 'run', 'demo', 'unit'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    }
+    const summaries = await runIds(SLUG_A)
+    expect(summaries).toHaveLength(7)
+    const artifacts = (await readdir(join(h.cwd, '.tenon', 'users', SLUG_A, 'local', 'artifacts', 'demo'))).sort()
+    expect(artifacts).toHaveLength(5)
+    expect(artifacts).toEqual(summaries.slice(2).map((name) => name.replace('.json', '')))
+  })
+
+  test('code-size 在非 git 项目里明确报错（git 行为由单测覆盖）', async () => {
+    await seed()
+    expect(await h.run(['test', 'code-size'], { env: USER_A })).toBe(1)
+    expect(h.err.join('\n')).toContain('无法读取 git 规模信息（base=HEAD）')
+  })
 })
