@@ -177,6 +177,7 @@ normalize_yaml() {
       if (omit_declared_automation == "1" && $0 ~ /^(automation|automation_queued_at):/) next
       if (build_sha_value != "" && $0 ~ /^build_sha:/) { print "build_sha: " build_sha_value; next }
       if ($0 ~ /^[a-z_]+_at:/) { sub(/:.*$/, ": <WHITELISTED>"); print; next }
+      if ($0 ~ /^(created_by|assignee):/) { sub(/:.*$/, ": <WHITELISTED>"); print; next }
       print
     }
   ' "$1"
@@ -288,13 +289,13 @@ keyorder_ok() {
 }
 
 # 老/新两侧参数映射（老: init <name> <track> <preset> / check <name> <phase>；
-#  新: init <name> --track --preset [--user] / check <name>——CONTRACT §3）
+#  新: init <name> --track --preset / check <name>——CONTRACT §3；操作人走声明身份，无 --user）
 build_args() {
   local cmd="$1"; shift
   case "$cmd" in
     init)
       OLD_ARGS=(init "$1" "$2" "$3" --user oracle)
-      NEW_ARGS=(init "$1" --track "$2" --preset "$3" --user oracle)
+      NEW_ARGS=(init "$1" --track "$2" --preset "$3")
       ;;
     check)
       OLD_ARGS=(check "$1" "$2")
@@ -369,9 +370,16 @@ say ""
 # 产品 CLI 中受到约束：只能补当前 phase 之前的文档，仍需要真实 skill evidence + path/digest 校验，
 # 不能登记未来 phase。这样 oracle 同时覆盖升级兼容入口，而不是把旧 Change 悄悄豁免出治理。
 
+# 新 CLI 的操作人来自声明身份（env → config → git），没有 per-command 的 --user 冒名开关；
+# oracle 注入固定测试身份，机器上有没有 git 身份都不影响双跑。
+ORACLE_TENON_USER="oracle@tenon.test"
+ORACLE_TENON_USER_NAME="oracle"
+
 run_new_cli() {
   local dir="$1"; shift
-  (cd "$dir" && TENON_RUNTIME_HOME="$MACHINE_HOME" "${NEW_CMD[@]}" "$@")
+  (cd "$dir" && TENON_RUNTIME_HOME="$MACHINE_HOME" \
+    TENON_USER="$ORACLE_TENON_USER" TENON_USER_NAME="$ORACLE_TENON_USER_NAME" \
+    "${NEW_CMD[@]}" "$@")
 }
 
 install_post_init_fixture() {
