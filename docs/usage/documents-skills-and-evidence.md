@@ -97,9 +97,9 @@ Deleting a pending marker does not create approval.
 
 ## Short/custom Workflow behavior
 
-- `openspec_contract: required` enables the complete default seven-phase chain.
-- `document_contract.version: v1` maps selected document kinds and reads to the
-  actual custom steps.
+- `openspec: true` enables document governance; the declared
+  `document_contract.version: v1` maps document kinds and reads to the actual
+  steps of that Workflow or Track branch.
 - no contract means no document governance.
 
 A three-step Workflow therefore creates only what it declares. It does not

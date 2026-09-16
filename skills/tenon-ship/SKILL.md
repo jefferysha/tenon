@@ -80,8 +80,8 @@ tenon document read "$TENON_CHANGE_NAME" all
 **可选**：
 - 使用 Skill 工具加载 `code-tour` — 若 PRD 涉及现有代码改造
 
-**文档契约**：legacy-full profile 必须实际运行 `openspec-apply-change` 并登记 applied spec；
-`document_contract: v1` 只执行 Ship step 自己声明的 slot/read，自由 workflow 不生成 applied spec。
+**文档契约**：default 必须实际运行 `openspec-apply-change` 并登记 applied spec；其它 workflow
+只执行 Ship step 自己声明的 slot/read，自由 workflow 不生成 applied spec。
 
 #### 🎨 Track = frontend
 

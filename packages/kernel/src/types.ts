@@ -236,7 +236,7 @@ export interface InitOptions {
   initialWorkflow?: {
     workflow: string
     phase: string
-    /** Custom workflow declared `openspec_contract: required`; initialize its evidence ledger with state. */
+    /** Workflow resolves to the openspec-v1 policy; initialize its evidence ledger with state. */
     openspecContract?: boolean
     /** Custom workflow declared any versioned document contract; initialize its evidence ledger atomically. */
     documentContract?: boolean

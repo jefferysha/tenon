@@ -142,8 +142,9 @@ That is expected when the selected Workflow declares a review gate.
 
 ### A three-step Workflow has no OpenSpec documents
 
-Workflow length does not imply a document contract. Add an explicit
-`document_contract` only for documents the Workflow really produces and reads.
+Workflow length does not imply a document contract. Add `openspec: true` and an
+explicit `document_contract` only for documents the Workflow really produces and
+reads.
 
 ## Next action
 

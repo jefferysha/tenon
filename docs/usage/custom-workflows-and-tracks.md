@@ -23,6 +23,7 @@ A small example:
 
 ```yaml
 name: release-note
+openspec: true
 steps:
   - id: shape
     label: Shape
@@ -71,9 +72,9 @@ document_contract:
 The contract is optional. Without it, Tenon does not infer documents
 from the number or names of steps.
 
-`openspec_contract: required` is the legacy complete seven-phase OpenSpec
-contract and is appropriate only to that full phase shape. It is mutually
-exclusive with `document_contract`.
+`document_contract` requires `openspec: true` on the Workflow. A Workflow that
+declares `tracks:` puts the contract under each `tracks.<id>`, next to the steps
+it references, never at the top level.
 
 The Dashboard Workbench provides a visual editor for Workflows. The saved YAML,
 not the drawing alone, is the project definition.
@@ -170,7 +171,8 @@ Project files cannot override built-in `default` or `simple`.
 
 ### A short Workflow unexpectedly has no docs
 
-Add `document_contract.version: v1` with real owner/producer/read declarations.
+Add `openspec: true` and a `document_contract.version: v1` with real
+owner/producer/read declarations.
 
 ### A document producer is rejected
 

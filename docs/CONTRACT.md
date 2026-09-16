@@ -277,11 +277,12 @@ get/set/transition 的 stdout 与 exit code 以 **golden-oracle 双跑逐字一�
 > 绝不写盘；`pipeline workflow plan <change> --json` 是 Agent、CLI 与 Dashboard 读取同一冻结计划的
 > 公共入口。
 >
-> 2026-07-25：自定义 Workflow 的 step 图与文档治理解耦。`openspec_contract: required` 保留为
-> default 七阶段文档矩阵的兼容别名；短图通过 `document_contract.version: v1` 声明 slot 的
-> owner/producers 和逐 step 读取集合；未声明任一契约的 Workflow 是自由模式。两种契约同时出现、
-> owner/read 引用不存在或读取发生在 owner 之前均在 compile/validate 阶段失败。CLI、server 与
-> dashboard 投影消费同一编译结果，不按 workflow 名猜测文档策略。
+> 2026-09-16（workflow-io-openspec）：文档治理只有一个开关 `openspec: true`，`openspec_contract`
+> 已移除。契约写在它引用的 `steps` 旁边：单流程写顶层 `document_contract`，有 `tracks` 时逐分支写
+> `tracks.<id>.document_contract`；slot 的 `role` 只有 `produce | update | require`，scope 与路径由
+> kind 决定（`design-md` → `DESIGN.md`）。未声明契约的 Workflow 是自由模式。`document_contract` 缺少
+> `openspec: true`、owner/read 引用不存在或读取发生在 owner 之前均在 parse/compile/validate 阶段失败。
+> CLI、server 与 dashboard 投影消费同一编译结果，不按 workflow 名猜测文档策略。
 
 > 2026-07-24（PM Spec 后 AFK）：内建 PM track 在 `spec-complete` 成功提交后会按独立的
 > `auto_enqueue_on_spec_complete` 策略将 automation 从 `off` 原子置为 `queued`，并记录入队时间；不启动
