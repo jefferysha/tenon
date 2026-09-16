@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
 import type { Command } from 'commander'
 import type { CliDeps } from './deps.js'
+import { cmdInternalMotionGate } from './commands/internalMotionGate.js'
 import { cmdDesignCheck, cmdDesignPropose, cmdDesignValidate } from './commands/design.js'
 import { cmdResourcesList, cmdResourcesShow, type ResourcesListOpts } from './commands/resources.js'
 import { bail } from './program-exit.js'
@@ -51,4 +53,20 @@ export function registerDesignCommands(program: Command, deps: CliDeps): void {
     .command('propose <change>')
     .description('写 openspec/changes/<change>/design-system.md 提案骨架')
     .action(async (change: string) => bail(await cmdDesignPropose(deps, change)))
+}
+
+/** stdin 原文（hook 用管道喂工具输入）；没有管道或读失败按空串处理，动画门据此直接放行。 */
+function stdinText(): string {
+  try {
+    return readFileSync(0, 'utf8')
+  } catch {
+    return ''
+  }
+}
+
+export function registerMotionGateCommand(program: Command, deps: CliDeps): void {
+  program
+    .command('internal-motion-gate <name>', { hidden: true })
+    .description('[内部] GSAP 动画门：写入前要求已加载对应官方技能（hooks/gate.sh 委托目标；0=放行 2=拦截）')
+    .action(async (name: string) => bail(await cmdInternalMotionGate(deps, name, stdinText())))
 }
