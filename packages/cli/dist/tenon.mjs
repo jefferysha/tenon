@@ -49830,11 +49830,11 @@ function payloadComparisonEntries(env, marketplaceRoot) {
   const tracked = listed.stdout.split(/\r?\n/u).filter((line) => line !== "");
   return [...PAYLOAD_ENTRIES.filter((entry) => entry !== "skills"), ...tracked];
 }
-function pluginPayloadMatchesMarketplace(env, marketplaceRoot, pluginRoot2) {
-  if (marketplaceRoot === pluginRoot2) return true;
+function payloadMismatchEntry(env, marketplaceRoot, pluginRoot2) {
+  if (marketplaceRoot === pluginRoot2) return null;
   const entries = payloadComparisonEntries(env, marketplaceRoot);
-  if (entries === null) return false;
-  return entries.every((entry) => {
+  if (entries === null) return "skills/\uFF08marketplace ls-tree \u4E0D\u53EF\u8BFB\uFF09";
+  for (const entry of entries) {
     const result2 = env.runCommand("git", [
       "diff",
       "--no-index",
@@ -49843,15 +49843,51 @@ function pluginPayloadMatchesMarketplace(env, marketplaceRoot, pluginRoot2) {
       join76(marketplaceRoot, entry),
       join76(pluginRoot2, entry)
     ]);
-    return result2.code === 0;
-  });
+    if (result2.code !== 0) return entry;
+  }
+  return null;
 }
-function nativeHostMatchesStableTarget(env, host, target) {
+function dirtyMarketplaceDetail(env, root) {
+  const status = env.runCommand("git", ["-C", root, "status", "--porcelain"]);
+  if (status.code !== 0) return `\u514B\u9686 ${root} \u72B6\u6001\u4E0D\u53EF\u8BFB`;
+  const lines2 = status.stdout.split(/\r?\n/u).filter((line) => line !== "");
+  if (lines2.length === 0) return `\u514B\u9686 ${root} \u6709\u6539\u52A8\u6216\u672A\u8DDF\u8E2A\u6587\u4EF6`;
+  const shown = lines2.slice(0, 3).join("\uFF1B");
+  return lines2.length > 3 ? `\u514B\u9686 ${root}\uFF1A${shown}\uFF1B\u5171 ${lines2.length} \u9879` : `\u514B\u9686 ${root}\uFF1A${shown}`;
+}
+function nativeHostStableTargetMismatch(env, host, target) {
   const current = decodeNativeHostObservation(observeNativeHost(env, host));
-  return current.marketplace !== null && current.plugin !== null && current.marketplace.head === target.commit && current.marketplace.ref === target.tag && current.marketplace.clean && current.plugin.enabled && current.plugin.version === target.version && pluginVersionAtMarketplace(env, {
+  if (current.marketplace === null) return "marketplace \u672A\u6CE8\u518C";
+  if (current.plugin === null) return "plugin \u672A\u5B89\u88C5";
+  if (current.marketplace.head !== target.commit) {
+    return `marketplace.head=${current.marketplace.head}\uFF1B\u51BB\u7ED3 commit=${target.commit}`;
+  }
+  if (current.marketplace.ref !== target.tag) {
+    return `marketplace.ref=${current.marketplace.ref}\uFF1B\u51BB\u7ED3 tag=${target.tag}`;
+  }
+  if (!current.marketplace.clean) {
+    return `marketplace.clean=false\uFF08${dirtyMarketplaceDetail(env, current.marketplace.root)}\uFF09`;
+  }
+  if (!current.plugin.enabled) return "plugin.enabled=false";
+  if (current.plugin.version !== target.version) {
+    return `plugin.version=${current.plugin.version}\uFF1B\u51BB\u7ED3 version=${target.version}`;
+  }
+  const atMarketplace = pluginVersionAtMarketplace(env, {
     ...current.marketplace,
     root: current.plugin.root
-  }) === target.version && pluginPayloadMatchesMarketplace(env, current.marketplace.root, current.plugin.root) && isCanonicalRemoteMarketplace(env, host, current.marketplace);
+  });
+  if (atMarketplace !== target.version) {
+    return `marketplace \u5185 plugin.json version=${atMarketplace}\uFF1B\u51BB\u7ED3 version=${target.version}`;
+  }
+  const payload = payloadMismatchEntry(env, current.marketplace.root, current.plugin.root);
+  if (payload !== null) return `payload \u6761\u76EE ${payload} \u4E0E marketplace \u4E0D\u4E00\u81F4`;
+  if (!isCanonicalRemoteMarketplace(env, host, current.marketplace)) {
+    return `marketplace.source=${current.marketplace.source} \u4E0D\u662F canonical \u8FDC\u7AEF`;
+  }
+  return null;
+}
+function nativeHostMatchesStableTarget(env, host, target) {
+  return nativeHostStableTargetMismatch(env, host, target) === null;
 }
 function hasMarketplaceIdentity(current, expected) {
   return current !== null && current.root === expected.root && current.source === expected.source && current.sourceType === expected.sourceType;
@@ -68572,12 +68608,14 @@ function revalidateNativeStableCandidate(deps, env, host, target, candidateRoot,
       `\u5019\u9009\u7248\u672C\u5DF2\u6F02\u79FB\uFF1Ainventory=${inventory.tenonVersion ?? "unknown"}; target=${target.version}`
     );
   }
-  if (!nativeHostMatchesStableTarget(env, host, target)) {
-    throw new Error("\u5019\u9009\u5BBF\u4E3B marketplace/ref/HEAD/root/payload \u4E0D\u518D\u5339\u914D\u51BB\u7ED3\u7A33\u5B9A\u76EE\u6807");
+  const beforeAssets = nativeHostStableTargetMismatch(env, host, target);
+  if (beforeAssets !== null) {
+    throw new Error(`\u5019\u9009\u5BBF\u4E3B\u4E0D\u518D\u5339\u914D\u51BB\u7ED3\u7A33\u5B9A\u76EE\u6807\uFF1A${beforeAssets}`);
   }
   if (!verifyAssets(candidateRoot)) throw new Error("\u5019\u9009\u6253\u5305\u8D44\u4EA7\u91CD\u8BC1\u5931\u8D25");
-  if (!nativeHostMatchesStableTarget(env, host, target)) {
-    throw new Error("\u5019\u9009\u8D44\u4EA7\u6821\u9A8C\u540E\u5BBF\u4E3B\u7A33\u5B9A identity \u53D1\u751F\u6F02\u79FB");
+  const afterAssets = nativeHostStableTargetMismatch(env, host, target);
+  if (afterAssets !== null) {
+    throw new Error(`\u5019\u9009\u8D44\u4EA7\u6821\u9A8C\u540E\u5BBF\u4E3B\u7A33\u5B9A identity \u53D1\u751F\u6F02\u79FB\uFF1A${afterAssets}`);
   }
   return inventory;
 }

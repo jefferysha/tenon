@@ -57,6 +57,11 @@ npm run test:migration-cas && bash tools/test-bundle.sh && npm run oracle
 Only the credential-gated real-Codex acceptance and the CI-only trusted-Codex PATH prep are skipped locally.
 A gate that needs a git identity must get one from the harness, never from the developer's machine.
 
+`npm run test:clean-install` compares the real Tenon state root and port 18765 across the whole run, so it must be
+the only thing on the machine touching them: a second clean-install, or an interactive session whose hooks write
+Tenon state, fails it spuriously with `real user Tenon state changed during isolated acceptance`. Run it alone and
+stay idle until it finishes, or leave it to CI. It now clones 12 upstream repositories and takes about 300 s.
+
 ## Final acceptance (wave 5)
 
 - Parent prd cross-child acceptance scenario in both hosts (default frontend / backend / pm / free + a Dashboard-built
