@@ -15,5 +15,8 @@ export function lintMessage(t: Translate, issue: LintIssue, labelOf: (stepId: st
     case 'document-producer-missing': return t('workflow.lint_document_producer_missing', { document: issue.document, skill: issue.skill })
     case 'document-order': return t('workflow.lint_document_order', { document: issue.document })
     case 'document-chain-gap': return t('workflow.lint_document_gap', { missing: issue.missing })
+    case 'test-id-duplicate': return t('workflow.lint_test_id_duplicate', { test: issue.test })
+    case 'test-command-empty': return t('workflow.lint_test_command_empty', { test: issue.test })
+    case 'test-output-location': return t('workflow.lint_test_output_location', { path: issue.path })
   }
 }

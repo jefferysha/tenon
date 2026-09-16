@@ -317,6 +317,9 @@ export const zh: Dict = {
   workflow: {
     rail_title: '工作流',
     tests_title: '测试',
+    lint_test_id_duplicate: '测试 {test} 重复',
+    lint_test_command_empty: '测试 {test} 缺命令',
+    lint_test_output_location: '输出 {path} 不在测试目录下',
     test_add: '新增测试',
     test_label: '名称',
     test_direction: '方向',
@@ -2403,6 +2406,9 @@ export const en: Dict = {
   workflow: {
     rail_title: 'Workflows',
     tests_title: 'Tests',
+    lint_test_id_duplicate: 'Duplicate test {test}',
+    lint_test_command_empty: 'Test {test} has no command',
+    lint_test_output_location: 'Output {path} is outside the test directories',
     test_add: 'Add test',
     test_label: 'Name',
     test_direction: 'Direction',

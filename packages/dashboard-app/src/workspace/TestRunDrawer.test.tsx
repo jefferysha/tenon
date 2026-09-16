@@ -26,7 +26,7 @@ const RECORD = {
   ],
 }
 
-function stubFetch(): ReturnType<typeof vi.spyOn> {
+function stubFetch() {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const url = String(input)
     if (url.startsWith('/api/tests/runs')) {

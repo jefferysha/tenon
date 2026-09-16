@@ -248,3 +248,28 @@ describe('StageEditorPane · 退回', () => {
     expect(screen.queryByTestId('wb-lane-back-explore')).toBeNull()
   })
 })
+
+describe('StageEditorPane 测试段', () => {
+  it('测试段排在输出与门禁之间，行可点开抽屉，改命令经 setTests 回草稿', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify({ ok: true, directions: [] }), { status: 200 }))
+    const setTests = vi.fn()
+    const step: WbStepDef = {
+      ...EXPLORE,
+      tests: [{ id: 'unit', direction: 'unit', command: 'npm test', label: '单测', required: true }],
+    }
+    renderPane(step, { setTests, def: { ...DEF, steps: [step, SPEC] } })
+    const order = [...document.querySelectorAll('[data-testid]')]
+      .map((node) => node.getAttribute('data-testid'))
+      .filter((id): id is string => id === 'stage-outputs' || id === 'stage-tests' || id === 'stage-gate')
+    expect(order).toEqual(['stage-outputs', 'stage-tests', 'stage-gate'])
+
+    await userEvent.click(screen.getByTestId('wb-test-unit'))
+    await userEvent.clear(screen.getByTestId('wb-test-command'))
+    await userEvent.type(screen.getByTestId('wb-test-command'), 'npm run unit')
+    await userEvent.click(screen.getByTestId('wb-test-apply'))
+    expect(setTests).toHaveBeenCalledWith('explore', [
+      { id: 'unit', direction: 'unit', command: 'npm run unit', label: '单测', required: true },
+    ])
+  })
+})
