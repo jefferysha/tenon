@@ -4,7 +4,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { writeReadyDesignSystem } from '@tenon/kernel/design-system/test-support'
+import { removeDesignSystem, writeReadyDesignSystem } from '@tenon/kernel/design-system/test-support'
 import { buildProgram, CliExit } from './program.js'
 import { realDeps, freshHarness, type Harness } from './integration-harness.js'
 import type { CliDeps } from './deps.js'
@@ -68,7 +68,7 @@ steps:
 
 describe('tenon design', () => {
   let h: Harness
-  beforeEach(async () => { h = await freshHarness() })
+  beforeEach(async () => { h = await freshHarness(); removeDesignSystem(h.cwd) })
   afterEach(async () => { await rm(h.cwd, { recursive: true, force: true }) })
 
   test('check：空仓库缺失 exit 1；就绪 exit 0', async () => {
@@ -149,6 +149,7 @@ describe('立项前置条件', () => {
   let h: Harness
   beforeEach(async () => {
     h = await freshHarness()
+    removeDesignSystem(h.cwd)
     await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(h.cwd, '.pipeline', 'workflows', 'needs-design.yaml'), REQUIRE_WORKFLOW, 'utf8')
   })

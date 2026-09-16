@@ -25,7 +25,8 @@ function preVerifyConvergenceWorkflow() {
   return {
     ...legacy,
     steps: legacy.steps.map((step) => {
-      const { reviewLanes: _reviewLanes, ...legacyStep } = step
+      // Historical bytes also predate step prompts (the frontend branch gained them with DESIGN.md).
+      const { reviewLanes: _reviewLanes, prompt: _prompt, ...legacyStep } = step
       return {
         ...legacyStep,
         // The last step was labelled 归档 before the 完结 wording.

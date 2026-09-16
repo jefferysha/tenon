@@ -13,6 +13,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { writeReadyDesignSystem } from '@tenon/kernel/design-system/test-support'
 import {
   BUILTIN_TRACK_DEFINITIONS,
   clearReviewMarkerFor,
@@ -352,9 +353,16 @@ export function makeHarness(cwd: string): Harness {
   }
 }
 
-/** 便捷：mkdtemp + makeHarness（调用方负责 rm(h.cwd)）。 */
+/**
+ * 便捷：mkdtemp + makeHarness（调用方负责 rm(h.cwd)）。
+ *
+ * 临时仓库自带一套就绪的设计体系：default 的前端分支首步要求项目 DESIGN.md 就绪，没有它任何前端
+ * 任务都立不了项。要测这条前置条件的用例自己 removeDesignSystem(h.cwd)。
+ */
 export async function freshHarness(): Promise<Harness> {
-  return makeHarness(await mkdtemp(join(tmpdir(), 'lite-e2e-')))
+  const cwd = await mkdtemp(join(tmpdir(), 'lite-e2e-'))
+  writeReadyDesignSystem(cwd)
+  return makeHarness(cwd)
 }
 
 export { rm }

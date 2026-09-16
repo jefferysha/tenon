@@ -50,9 +50,14 @@ describe('parseUpstreamSkillSources', () => {
   it('parses the real skills/sources.yaml with renamed ids and root-path skills', () => {
     const sources = parseUpstreamSkillSources(SOURCES_TEXT)
     const ids = sources.skills.map((skill) => skill.id)
-    expect(sources.skills).toHaveLength(45)
-    expect(new Set(sources.skills.map((skill) => skill.repo)).size).toBe(12)
+    expect(sources.skills).toHaveLength(53)
+    expect(new Set(sources.skills.map((skill) => skill.repo)).size).toBe(13)
     expect(ids).toEqual(expect.arrayContaining(['vercel-react-best-practices', 'shadcn', 'design-taste-frontend', 'browser-qa', 'to-spec', 'to-tickets']))
+    // GSAP 官方技能：动画门禁按这 8 个 id 判断证据。
+    expect(ids).toEqual(expect.arrayContaining([
+      'gsap-core', 'gsap-timeline', 'gsap-scrolltrigger', 'gsap-plugins',
+      'gsap-utils', 'gsap-react', 'gsap-performance', 'gsap-frameworks',
+    ]))
     for (const removed of ['zoom-out', 'verify', 'run', 'uiuxdesign-pro', 'tailwind-css-patterns', 'code-review', 'react-best-practices', 'shadcn-ui', 'to-prd', 'to-issues', 'uiforge']) {
       expect(ids).not.toContain(removed)
     }

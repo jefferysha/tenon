@@ -19,7 +19,8 @@ describe('materializeWorkflowIo', () => {
       { kind: 'document', id: 'tasks', role: 'update', scope: 'change', producers: ['tenon-build', 'tenon:tenon-build'], consumers: ['verify', 'ship', 'archive'] },
       { kind: 'field', id: 'build_sha', type: 'string', producer: null, consumers: ['verify'] },
     ])
-    expect(io.ship?.outputs.map((slot) => slot.id)).toEqual(['applied-spec', 'tasks', 'pr_url'])
+    // 交付步骤可以更新项目 DESIGN.md（设计变更随交付合并回设计体系）。
+    expect(io.ship?.outputs.map((slot) => slot.id)).toEqual(['applied-spec', 'tasks', 'design-md', 'pr_url'])
     expect(io.archive?.outputs.map((slot) => slot.id)).toEqual(['tasks', 'archived'])
   })
 

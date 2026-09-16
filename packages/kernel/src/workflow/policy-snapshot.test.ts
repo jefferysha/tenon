@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { legacyDefaultWorkflow } from './test-support.js'
+import { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from './migrations/openspec-v1-document-policy.js'
 import { builtinTrack } from '../tracks/builtins.js'
 import {
   compileEffectiveWorkflowPlan,
@@ -121,7 +122,8 @@ describe('workflow policy snapshot v3', () => {
     const legacyWorkflow = {
       ...currentWithoutPolicies,
       // Historical V2 bytes predate issue #43; default phase Skills were not persisted.
-      steps: currentWithoutPolicies.steps.map(({ reviewLanes: _reviewLanes, ...step }) => ({
+      // Historical bytes also predate step prompts (the frontend branch gained them with DESIGN.md).
+      steps: currentWithoutPolicies.steps.map(({ reviewLanes: _reviewLanes, prompt: _prompt, ...step }) => ({
         ...step,
         label: step.id === 'archive' ? '归档' : step.label,
         skills: [],
@@ -135,7 +137,8 @@ describe('workflow policy snapshot v3', () => {
       workflowId: 'default',
       executionModel: 'phase-manifest',
       workflow: legacyWorkflow,
-      documentPolicy: current.documentPolicy ?? null,
+      // 历史字节里的文档表就是迁移表本身（前端分支后来才加 design-md 槽位）。
+      documentPolicy: LEGACY_DOCUMENT_GOVERNANCE_POLICY,
       workflowFingerprint: 'e0a5f815ec73ffe72c082ed7ca4b2f92ede3623d6d2ccdbe8bde97ceb678e35f',
     })
 
