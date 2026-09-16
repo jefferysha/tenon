@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CommanderError } from 'commander'
 import {
-  clearReviewMarkerFor,
+  clearReviewMarkerFor, createTaskLifecycleApplication,
   BUILTIN_TRACK_DEFINITIONS, createEffectiveSkillResolver, createFlowEngine, createHistoryWriter, createStateStore,
   createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest, loadTrackRegistry, loadWorkflow,
   fingerprintWorkspace, mutateTrackRegistry, readSecrets, registerProjectRoot,
@@ -229,6 +229,7 @@ async function main(): Promise<void> {
     cwd: process.cwd(),
     env: (name) => process.env[name],
     user: resolveUser,
+    taskLifecycle: createTaskLifecycleApplication({ store, clock: isoNow, nowMs: () => Date.now() }),
     userConfigPath: () => runtimePaths().userConfigPath,
     io: {
       out: (line: string) => process.stdout.write(`${line}\n`),

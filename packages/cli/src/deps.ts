@@ -213,6 +213,11 @@ export interface CliDeps {
   env?: (name: string) => string | undefined
   /** Declared identity (`TENON_USER` → user.json → git). Lazy; main.ts resolves once per process. */
   user: () => import('@tenon/kernel').TenonUserResolution
+  /**
+   * 删除 / 归档 / 取消归档 的唯一实现，与 server 共用同一个 kernel application：原因、拒绝与记录
+   * 只在那里决定。缺省 undefined = 未装配，三条子命令直接 exit 1（绝不本地重算一套原因）。
+   */
+  taskLifecycle?: import('@tenon/kernel').TaskLifecycleApplication
   /** `<configRoot>/user.json`, written by `tenon user set`. */
   userConfigPath: () => string
   io: CliIO

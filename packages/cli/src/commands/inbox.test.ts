@@ -1,7 +1,33 @@
-import { describe, expect, test } from 'vitest'
-import { GATE_TTL_MS, REVIEW_MARKER_PROTOCOL } from '@tenon/kernel'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, test } from 'vitest'
+import { ensureUserLocalDir, GATE_TTL_MS, REVIEW_MARKER_PROTOCOL, serializeTaskArchive } from '@tenon/kernel'
 import { cmdInbox } from './inbox.js'
 import { makeDeps, mockState } from '../test-support.js'
+
+const repos: string[] = []
+
+/** Real temporary checkout whose per-user archive store hides `names` from the acting user. */
+async function repoWithArchived(...names: string[]): Promise<string> {
+  const repo = await mkdtemp(join(tmpdir(), 'tenon-inbox-archived-'))
+  repos.push(repo)
+  for (const name of names) await mkdir(join(repo, 'openspec', 'changes', name), { recursive: true })
+  const paths = await ensureUserLocalDir(repo, 'tester-at-tenon.test')
+  await writeFile(paths.archived, serializeTaskArchive({
+    version: 1,
+    changes: Object.fromEntries(names.map((name) => [name, {
+      archivedAt: '2026-09-15T12:00:00.000Z',
+      phase: 'build',
+      actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' as const },
+    }])),
+  }), 'utf8')
+  return repo
+}
+
+afterEach(async () => {
+  await Promise.all(repos.splice(0).map((repo) => rm(repo, { recursive: true, force: true })))
+})
 
 describe('inbox —— 等待人工决策的 change 清单（BACKLOG #9a）', () => {
   const reviewMarker = (phase: string, name: string, requestedAt = '2026-07-06T00:00:00Z'): string => [
@@ -162,5 +188,28 @@ describe('inbox —— 等待人工决策的 change 清单（BACKLOG #9a）', ()
     expect(text).toContain('r1')
     expect(text).not.toContain('gone')
     expect(text).toContain('1h')
+  })
+})
+
+describe('已归档（当前用户）不进收件箱', () => {
+  const reviewMarker = (name: string): string => [
+    REVIEW_MARKER_PROTOCOL, 'phase=verify', `change=${name}`, 'requested_at=2026-07-06T00:00:00Z', '已请求人工复核', '',
+  ].join('\n')
+
+  test('marker 与 canonical receipt 两条来源都跳过当前用户已归档的 change', async () => {
+    const cwd = await repoWithArchived('hidden')
+    const states = {
+      hidden: mockState({ phase: 'verify', review_gate_status: 'pending', review_gate_phase: 'verify' }),
+      shown: mockState({ phase: 'verify', review_gate_status: 'pending', review_gate_phase: 'verify' }),
+    }
+    const deps = makeDeps({
+      states,
+      cwd,
+      gateMarkers: [{ kind: 'review', ageMs: 1_000, raw: reviewMarker('hidden') }],
+    })
+    expect(await cmdInbox(deps, { json: true })).toBe(0)
+    expect(JSON.parse(deps.outLines.join('\n'))).toEqual({
+      inbox: [{ name: 'shown', phase: 'verify', waiting_on: 'review-request', waiting_s: 0, hint: expect.any(String) }],
+    })
   })
 })

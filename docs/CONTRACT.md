@@ -255,7 +255,10 @@
 | check | `<name>` | guard 报告（人读） | 0 过 / 2 不过 / 1 错误 |
 | review | `request\|acknowledge <name> [--delegated]` | review receipt 状态 | 0 成功；2 投影写/清失败（receipt 已提交）；1 用法/状态错误 |
 | status | `[name] [--json]` | 单 change 摘要 | 0 |
-| list | `[--json]` | 活跃 change 表 | 0 |
+| list | `[--json] [--archived]` | 活跃 change 表；`--archived` 为当前用户已归档表 `NAME PHASE ARCHIVED_AT BY` | 0；归档记录损坏=1 |
+| task delete | `<name> [--yes] [--json]` | 无（`[DELETE] name` 与 `未提交删除 n` 走 stderr）；`--json` `{change,removed,uncommitted_deletions}` | 0；用法/名/缺任务/身份/记录损坏/失败=1；待确认=2；被阻止=3 |
+| task archive | `<name> [--yes] [--json]` | 无（`[ARCHIVE] name phase=<phase>` 走 stderr）；`--json` `{change,changed,archived_at,phase}` | 同上 |
+| task unarchive | `<name> [--json]` | 无（`[UNARCHIVE] name` 走 stderr）；`--json` `{change,changed}` | 0/1 |
 
 get/set/transition 的 stdout 与 exit code 以 **golden-oracle 双跑逐字一致**为准
 （oracle=老内核 `skills/pipeline/scripts/pipeline-state.sh`，diff 白名单仅时间戳字段值）。

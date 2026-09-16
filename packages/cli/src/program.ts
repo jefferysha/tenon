@@ -36,6 +36,7 @@ import { cmdTap } from './commands/tap.js'
 import { cmdTask } from './commands/task.js'
 import { cmdUninstall } from './commands/uninstall.js'
 import { cmdList, cmdStatus } from './commands/status.js'
+import { cmdListArchived } from './commands/task-lifecycle.js'
 import { cmdTransition } from './commands/transition.js'
 import { cmdInternalSkillGate } from './commands/internalSkillGate.js'
 import { cmdInternalConstraintGate } from './commands/internalConstraintGate.js'
@@ -201,10 +202,11 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
 
   program
     .command('task <sub> [args...]')
-    .description('task lifecycle：add-dep / remove-dep <name> <dep> · children / cascade / canonical <name>')
-    .option('--json', 'JSON 输出（children / canonical）')
-    .action(async (sub: string, args: string[], opts: { json?: boolean }) =>
-      bail(await cmdTask(deps, sub, opts.json ? [...args, '--json'] : args)))
+    .description('task lifecycle：add-dep / remove-dep <name> <dep> · children / cascade / canonical / delete / archive / unarchive <name>')
+    .option('--json', 'JSON 输出（children / canonical / delete / archive / unarchive）')
+    .option('--yes', '确认 delete / archive 的全部确认项（阻止项仍会拒绝）')
+    .action(async (sub: string, args: string[], opts: { json?: boolean; yes?: boolean }) =>
+      bail(await cmdTask(deps, sub, [...args, ...(opts.json ? ['--json'] : []), ...(opts.yes ? ['--yes'] : [])])))
 
   program
     .command('scaffold <sub> [args...]')
@@ -253,7 +255,9 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .command('list')
     .description('活跃 change 表')
     .option('--json', 'JSON 输出（schema 稳定）')
-    .action(async (opts: { json?: boolean }) => bail(await cmdList(deps, opts)))
+    .option('--archived', '当前用户已归档表：NAME PHASE ARCHIVED_AT BY')
+    .action(async (opts: { json?: boolean; archived?: boolean }) =>
+      bail(opts.archived ? await cmdListArchived(deps, opts) : await cmdList(deps, opts)))
 
   program
     .command('triage <source>')

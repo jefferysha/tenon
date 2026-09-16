@@ -6,6 +6,7 @@
  * 活跃 = openspec/changes/ 下有 .pipeline.yaml 且 archived != true；坏 change 跳过 + WARN。
  */
 import { ownerOf, type PipelineState } from '@tenon/kernel'
+import { archivedChangesForUser } from '../archivedGuard.js'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, changesRoot, isValidChangeName } from '../paths.js'
 import { display, renderKV, renderTable, str } from '../render.js'
@@ -19,11 +20,13 @@ function field(row: Row, name: keyof PipelineState['fields']): string {
   return str(row.state.fields[name])
 }
 
-/** 读活跃 change（排除 archived=true；单个读失败 → WARN + 跳过），按名排序 */
+/** 读活跃 change（排除 archived=true 与当前用户已归档的；单个读失败 → WARN + 跳过），按名排序 */
 async function collectActive(deps: CliDeps): Promise<Row[]> {
   const names = [...(await deps.listChanges(changesRoot(deps.cwd)))].sort()
+  const archivedForMe = await archivedChangesForUser(deps)
   const rows: Row[] = []
   for (const name of names) {
+    if (archivedForMe.has(name)) continue
     try {
       const state = await deps.store.read(changeDir(deps.cwd, name))
       if (str(state.fields.archived) === 'true') continue

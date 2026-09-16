@@ -13,6 +13,7 @@
  */
 import { join } from 'node:path'
 import { GATE_TTL_MS, parseReviewMarker, reviewGatePendingFor } from '@tenon/kernel'
+import { archivedChangesForUser } from '../archivedGuard.js'
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
 
@@ -78,6 +79,8 @@ ${body}
 export async function cmdInbox(deps: CliDeps, opts: { json?: boolean; html?: boolean }): Promise<number> {
   const items: InboxItem[] = []
   const seen = new Set<string>()
+  // 当前用户已归档的 change 不再出现在任何列表里（其他用户照常看见）。
+  const archivedForMe = await archivedChangesForUser(deps)
 
   // 1. 三门 marker（分级新鲜判定同 gate.sh：age > GATE_TTL_MS[kind] 才陈旧，边界仍新鲜）
   const markers = (await deps.readGateMarkers?.()) ?? []
@@ -87,7 +90,7 @@ export async function cmdInbox(deps: CliDeps, opts: { json?: boolean; html?: boo
       const receipt = parseReviewMarker(m.raw)
       // v1 marker was an entry-time lock.  Its only safe migration is to ignore it here; the
       // canonical review receipt now governs whether a transition may leave the phase.
-      if (!receipt) continue
+      if (!receipt || archivedForMe.has(receipt.changeName)) continue
       items.push({
         name: receipt.changeName,
         phase: receipt.phase,
@@ -113,7 +116,7 @@ export async function cmdInbox(deps: CliDeps, opts: { json?: boolean; html?: boo
   const now = Date.parse(deps.clock())
   const changesRoot = join(deps.cwd, 'openspec', 'changes')
   for (const name of await deps.listChanges(changesRoot)) {
-    if (seen.has(name)) continue
+    if (seen.has(name) || archivedForMe.has(name)) continue
     let state
     try {
       state = await deps.store.read(join(changesRoot, name))
