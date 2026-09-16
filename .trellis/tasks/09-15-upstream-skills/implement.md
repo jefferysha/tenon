@@ -284,3 +284,41 @@ and inert.
 | `packages/server/src/serverGetRoutes.ts` | review-agents, instruction-templates, design-resources, test-evidence, task-delete-archive | Hot. We add one `if (path === '/api/skills/sources')` block next to `/api/skills/registry` |
 | `packages/dashboard-app/src/shell/views.ts`, `App.tsx`, `i18n/translations.ts` | instruction-templates and design-resources (Library/Projects views), multi-user (top bar), task-delete-archive, workflow-io-openspec | Hot. `VIEWS` order after merge: `progress, workbench`, then other children's views, then `skills` last. Merge `nav` keys in both zh and en |
 | `.gitignore` | multi-user (`.tenon/users/*/local/`) | Disjoint blocks |
+
+## Deviations
+
+1. **Error categories landed in commit 4, not commit 1.** `SKILL_PROVENANCE_ERROR_CATEGORIES` gains
+   `invalid-skill-sources` / `invalid-skill-lock` together with the verifier fixtures that cover them,
+   because `skill-provenance.test.ts` asserts one failing fixture per declared category and commit 1
+   would have left that assertion red.
+2. **`skills:upstream` is appended at the very end of the doctor check list**, after `afk:*`, rather than
+   directly after `integration:codex-project-skills`. "Tail check, order unchanged except for the
+   appended row" is then literally true: every existing id keeps its position.
+3. **The file reader lives in `@tenon/automation`** (`skills/upstream-skill-view.ts`,
+   `readUpstreamSkillView` + `readUpstreamSkillRunReport`) instead of a server-only
+   `packages/server/src/skillSourcesView.ts`. The server already depends on automation, so doctor and
+   `GET /api/skills/sources` share one reader instead of two copies; its tests are
+   `packages/automation/src/skills/upstream-skill-view.test.ts` plus the route case in `server.test.ts`.
+4. **The three skill GET routes moved to `packages/server/src/serverGetSkillsRoutes.ts`.** Adding the
+   sources route inline pushed `serverGetRoutes.ts` to 405 lines against the 400-line controller limit;
+   the delegation call sits exactly where the routes were, so the DNS-rebinding Host guard still covers
+   them.
+5. **`internal-skill-upstream` is registered in `program-install.ts`**, not `program.ts`, for the same
+   size limit (`program.ts` reached 402 lines with the hidden command plus `doctor --skills`).
+6. **The `bundled-skills` host-target-plan step is kept.** It is a closed enum shared by the CLI, the
+   server protocol and the Dashboard decoders with their fixtures; removing it is a cross-package change
+   outside this child. `printPlanSkeleton` now describes that step as the upstream fetch.
+7. **A development checkout only deletes upstream-managed skill directories.** `applyStaged` removes any
+   directory that is neither bundled nor locked for `codex` / `claude`, but under `host: 'dev'` it removes
+   only ids listed in `sources.yaml` or the previous lock, so `npm run skills:fetch` cannot delete
+   unregistered work in progress.
+8. **The clean-install fixture serves every `sources.yaml` row from its own local bare repository.** A
+   single-entry rewrite (design step 12) removed the 20 mandatory upstream ids and made `doctor --json`
+   exit 1 on `skills:mandatory`. The fixture now copies only `git ls-files skills`, keeps the real
+   `sources.yaml`, adds `.gitignore` to `LOCAL_RELEASE_ENTRIES` (with one forced add for
+   `.agents/plugins/marketplace.json`, the only ignored payload entry), and rewrites each declared
+   repository URL exactly — a blanket `https://github.com/` rewrite would shadow the tenon marketplace.
+9. **`tools/check-docs.mjs` `EXPECTED_VIEWS` and its self-test fixtures gained `skills`**, and both
+   dashboard usage documents document the view; the checker pins the operational view set and order.
+10. **Deferred:** the real isolated Codex / Claude installs of step 14 (parent X18 keeps real-host runs in
+    wave 5) and the PRD acceptance task in both hosts (needs data-driven-runner's `skills/tenon`).
