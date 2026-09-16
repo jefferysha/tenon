@@ -25,8 +25,6 @@ export interface ChangeSnapshot {
   documents?: DocumentEvidenceSnapshot
   /** Per-step skill execution state derived by the server from the history log; absent on older servers. */
   skillRuns?: SkillRunsSnapshot
-  /** Runtime artifact attempt identities; actual entries are fetched from the artifact catalog API. */
-  artifactAttempts?: ReadonlyArray<{ stageId: string; stageAttemptId: string; workflowRunId?: string; startedAt?: string; lineageSource?: 'legacy' }>
   /** Fresh, explicitly bound native terminal heartbeat; never a workflow-state field. */
   terminalActivity?: TerminalActivitySnapshot
 }
@@ -55,6 +53,9 @@ export interface TerminalActivitySnapshot {
   turnId?: string
 }
 
+/** 过期原因：内容变了 / 产出技能不符 / 登记未原子完成 / 旧 delta 路径。 */
+export type DocumentStaleReason = 'changed' | 'producer' | 'invocation' | 'legacy-path'
+
 export interface DocumentEvidenceSnapshot {
   governed: boolean
   phase?: string
@@ -64,6 +65,8 @@ export interface DocumentEvidenceSnapshot {
   items: Array<{
     kind: string
     status: 'recorded' | 'missing' | 'stale' | 'unread'
+    /** Only when status is stale. */
+    reason?: DocumentStaleReason
     requiredRead: boolean
     paths: string[]
     producers: string[]

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState, type KeyboardEvent } from 'react'
 export interface SheetDef<Id extends string = string> {
   readonly id: Id
   readonly label: string
-  readonly count?: number
+  /** 数字，或「已齐 / 总数」这样的进度串（输出页签用 k/n）。 */
+  readonly count?: number | string
 }
 
 /**

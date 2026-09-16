@@ -36,8 +36,11 @@ export function StageIoPanel({ direction, items, activePath, onOpen, definitionS
 
   function row(item: IoRow, direction: 'output' | 'input'): JSX.Element {
     const label = slotLabel(item.slot, t)
+    // 缺失的文档行说清楚该由哪个技能产出；已登记的行说清楚文件、产出者与时间。
     const meta = item.slot.kind === 'document'
-      ? [item.path === null ? null : fileName(item.path), item.producer, item.at === null ? null : formatTime(item.at)].filter((part): part is string => part !== null && part !== '').join(' · ')
+      ? item.status === 'missing'
+        ? item.producers.join(', ')
+        : [item.path === null ? null : fileName(item.path), item.producer, item.at === null ? null : formatTime(item.at)].filter((part): part is string => part !== null && part !== '').join(' · ')
       : item.value === '' ? '' : item.slot.type === 'file_path' ? fileName(item.value) : item.value
     const Icon = item.slot.kind === 'field' && item.slot.type !== 'file_path' ? Hash : FileText
     const clickable = item.path !== null
@@ -49,7 +52,12 @@ export function StageIoPanel({ direction, items, activePath, onOpen, definitionS
           <span className="block truncate text-base font-semibold text-text">{label}</span>
           {meta !== '' && <span className="block truncate font-mono text-caption text-text-2">{meta}</span>}
         </span>
-        <StatusPill tone={STATUS_TONE[item.status]} className="flex-none">{t(`workspace.status_${item.status}`)}</StatusPill>
+        <span
+          className="flex-none"
+          {...(item.reason === null ? {} : { title: t(`workspace.stale_${item.reason.replace('-', '_')}`), 'data-reason': item.reason })}
+        >
+          <StatusPill tone={STATUS_TONE[item.status]}>{t(`workspace.status_${item.status}`)}</StatusPill>
+        </span>
       </>
     )
     const cls = 'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md border px-4 py-3 text-left'
