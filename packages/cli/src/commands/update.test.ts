@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest'
-import { join } from 'node:path'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { UpstreamSkillError } from '@tenon/kernel'
 import { makeDeps } from '../test-support.js'
+import { PAYLOAD_ENTRIES } from '../runtime/release-store-codecs.js'
+import type { UpstreamSkillInstallInput, UpstreamSkillInstallResult } from '../upstream-skills/install.js'
+import { createFixtureHub } from '../upstream-skills/test-support.js'
+import { pluginPayloadMatchesMarketplace } from './managed-host-observation.js'
 import {
   enabledHostPluginIds,
   installedPipelineRoot,
@@ -1923,5 +1929,127 @@ describe('tenon update', () => {
     expect(calls.exec.some(([cmd, args]) => cmd === 'bash'
       && args.join(' ') === `/new/tenon/tools/verify-skills.sh --quiet --root /new/tenon --node ${process.execPath}`)).toBe(true)
     expect(runtime.calls.activations).toEqual([['/new/tenon', 'codex', '/home/update-test']])
+  })
+})
+
+describe('upstream skills in native update', () => {
+  const EMPTY_INSTALL: UpstreamSkillInstallResult = {
+    report: { version: 1, at: '2026-09-15T08:00:00.000Z', host: 'codex', results: [] },
+    lockWritten: false,
+  }
+
+  test('the payload proof compares tracked skills children and ignores fetched upstream skills', () => {
+    const hub = createFixtureHub()
+    try {
+      const marketplace = join(hub.root, 'marketplace')
+      const plugin = join(hub.root, 'plugin')
+      for (const root of [marketplace, plugin]) {
+        for (const entry of PAYLOAD_ENTRIES) {
+          if (entry === 'skills') continue
+          const path = /\.[a-z]+$/u.test(entry) ? join(root, entry) : join(root, entry, 'payload.txt')
+          mkdirSync(dirname(path), { recursive: true })
+          writeFileSync(path, `${entry}\n`, 'utf8')
+        }
+        mkdirSync(join(root, 'skills', 'tenon'), { recursive: true })
+        writeFileSync(join(root, 'skills', 'tenon', 'SKILL.md'), '# tenon\n', 'utf8')
+        writeFileSync(join(root, 'skills', 'sources.yaml'), 'version: 1\nskills:\n', 'utf8')
+      }
+      const git = (args: string[]) => hub.env.runCommand('git', args)
+      expect(git(['init', '-q', marketplace]).code).toBe(0)
+      expect(git(['-C', marketplace, 'add', '-A']).code).toBe(0)
+      expect(git(['-C', marketplace, '-c', 'user.email=t@example.com', '-c', 'user.name=t', 'commit', '-q', '-m', 'release']).code).toBe(0)
+      mkdirSync(join(plugin, 'skills', 'hue'), { recursive: true })
+      writeFileSync(join(plugin, 'skills', 'hue', 'SKILL.md'), '# hue\n', 'utf8')
+      writeFileSync(join(plugin, 'skills', 'skills.lock.json'), '{}\n', 'utf8')
+
+      expect(pluginPayloadMatchesMarketplace(hub.env, marketplace, plugin)).toBe(true)
+      writeFileSync(join(plugin, 'skills', 'tenon', 'SKILL.md'), '# tampered\n', 'utf8')
+      expect(pluginPayloadMatchesMarketplace(hub.env, marketplace, plugin)).toBe(false)
+      writeFileSync(join(plugin, 'skills', 'tenon', 'SKILL.md'), '# tenon\n', 'utf8')
+      const lsTreeFails = {
+        runCommand: (cmd: string, args: string[], options?: { readonly cwd?: string; readonly timeoutMs?: number }) =>
+          args.includes('ls-tree') ? { code: 128, stdout: '', stderr: 'fatal: not a tree' } : hub.env.runCommand(cmd, args, options),
+      }
+      expect(pluginPayloadMatchesMarketplace(lsTreeFails, marketplace, plugin)).toBe(false)
+    } finally {
+      hub.cleanup()
+    }
+  })
+
+  test('a host-exact update with an unchanged lock fetches into the host root and stays current', async () => {
+    const deps = makeDeps()
+    const activeRelease = `sha256-${'c'.repeat(64)}`
+    const { env } = exactStableHostEnv()
+    const inputs: UpstreamSkillInstallInput[] = []
+    env.installUpstreamSkills = async (input) => {
+      inputs.push(input)
+      return EMPTY_INSTALL
+    }
+    const runtime = fakeRuntimeInstaller(false, activeRelease, activeRelease, STABLE_TARGET.version, STABLE_TARGET)
+
+    expect(await cmdUpdate(
+      deps,
+      { codex: true },
+      env,
+      runtime.installer,
+      fakeDashboardStarter([], activeRelease).starter,
+      STABLE_RESOLVER,
+      async () => ({ pluginVersion: STABLE_TARGET.version, payloadDigest: 'c'.repeat(64) }),
+    ), `${deps.errLines.join('\n')}\n${deps.outLines.join('\n')}`).toBe(0)
+    const releasesRoot = resolveRuntimePaths({ homeDir: '/home/update-test', env: {} }).releasesRoot
+    expect(inputs.map((input) => [input.pluginRoot, input.previousRoot, input.host])).toEqual([
+      ['/new/tenon', join(releasesRoot, activeRelease, 'payload'), 'codex'],
+    ])
+    expect(runtime.calls.activations).toEqual([])
+    expect(deps.outLines.join('\n')).toContain('无需更新')
+  })
+
+  test('a host-exact update whose install changes the lock publishes a new release under the same stable target', async () => {
+    const deps = makeDeps()
+    const activeRelease = `sha256-${'c'.repeat(64)}`
+    const { env, calls } = exactStableHostEnv()
+    let changed = false
+    env.installUpstreamSkills = async () => {
+      changed = true
+      return { ...EMPTY_INSTALL, lockWritten: true }
+    }
+    const runtime = fakeRuntimeInstaller(false, activeRelease, activeRelease, STABLE_TARGET.version, STABLE_TARGET)
+
+    expect(await cmdUpdate(
+      deps,
+      { codex: true },
+      env,
+      runtime.installer,
+      fakeDashboardStarter([], null).starter,
+      STABLE_RESOLVER,
+      async () => ({ pluginVersion: STABLE_TARGET.version, payloadDigest: (changed ? 'b' : 'c').repeat(64) }),
+    ), `${deps.errLines.join('\n')}\n${deps.outLines.join('\n')}`).toBe(0)
+    expect(hostMutationCommands(calls, 'codex')).toEqual([])
+    expect(runtime.calls.activations).toEqual([['/new/tenon', 'codex', '/home/update-test']])
+    expect(deps.outLines.join('\n')).toContain(`已冻结稳定目标：${STABLE_TARGET.tag} @ ${STABLE_TARGET.commit}`)
+    expect(deps.outLines.join('\n')).not.toContain('无需更新')
+  })
+
+  test('invalid skill sources abort the update before activation and keep the active runtime', async () => {
+    const deps = makeDeps()
+    const activeRelease = `sha256-${'c'.repeat(64)}`
+    const { env } = exactStableHostEnv()
+    env.installUpstreamSkills = async () => {
+      throw new UpstreamSkillError('invalid-skill-sources', "skills/sources.yaml: 技能 'tenon' 与 Tenon 自带技能同名")
+    }
+    const runtime = fakeRuntimeInstaller(false, activeRelease, activeRelease, STABLE_TARGET.version, STABLE_TARGET)
+
+    expect(await cmdUpdate(
+      deps,
+      { codex: true },
+      env,
+      runtime.installer,
+      fakeDashboardStarter([], activeRelease).starter,
+      STABLE_RESOLVER,
+      async () => ({ pluginVersion: STABLE_TARGET.version, payloadDigest: 'c'.repeat(64) }),
+    )).toBe(1)
+    expect(runtime.calls.activations).toEqual([])
+    expect(runtime.calls.reverts).toEqual([])
+    expect(deps.errLines.join('\n')).toContain('skills/sources.yaml')
   })
 })

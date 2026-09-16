@@ -35,6 +35,9 @@ const ProjectsView = lazy(async () => ({
 const LibraryView = lazy(async () => ({
   default: (await import('./library/LibraryView')).LibraryView,
 }))
+const SkillsView = lazy(async () => ({
+  default: (await import('./skills/SkillsView')).SkillsView,
+}))
 
 // 视图记忆。旧值（overview/hostPlan/inbox/board/…）随 IA 收敛退役——initialView 以 isView
 // 白名单校验，不认识的一律兜底回 progress（工作台，默认落地页）。
@@ -335,7 +338,7 @@ function AppShell(): JSX.Element {
             </button>
           </section>
         ) : snapshot && snapshot.project_count === 0 && view === 'progress' ? (
-          // 零项目教学态只替换工作台；工作流与库不依赖项目，项目页本身就是新建项目的入口。
+          // 零项目教学态只替换工作台；工作流、库与技能不依赖项目，项目页本身就是新建项目的入口。
           <div className="px-6">
             <Onboarding
               kind="no-project"
@@ -380,6 +383,7 @@ function AppShell(): JSX.Element {
           />
         )}
         {view === 'library' && <LibraryView onToast={(m) => showFlash('toast', m)} />}
+        {view === 'skills' && <SkillsView />}
           </>
         )}
         </Suspense>

@@ -6,6 +6,7 @@ import type {
 } from '../migration/legacy-project-registry.js'
 import type { NativeHostCommandEnvironment } from './native-host-command-binding.js'
 import type { CandidatePayloadIdentity } from '../runtime/release-store.js'
+import type { UpstreamSkillInstallInput, UpstreamSkillInstallResult } from '../upstream-skills/install.js'
 
 export interface SetupEnv extends NativeHostCommandEnvironment {
   homeDir(): string
@@ -32,6 +33,8 @@ export interface SetupEnv extends NativeHostCommandEnvironment {
   writeTextAtomic(path: string, text: string): void
   /** Test/adapter seam; production leaves this absent and uses the trusted Bash payload verifier. */
   inspectCandidatePayload?(root: string): Promise<CandidatePayloadIdentity>
+  /** Test seam; production leaves this absent and fetches upstream skills with git. */
+  installUpstreamSkills?(input: UpstreamSkillInstallInput): Promise<UpstreamSkillInstallResult>
   migrateProjectRegistry?(
     input: LegacyProjectRegistryMigrationInput,
   ): Promise<LegacyProjectRegistryMigrationResult>

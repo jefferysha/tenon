@@ -28,7 +28,7 @@ import { HOOK_METAS, readHooksConfig } from './hooksConfig.js'
 import { buildLoopsSnapshot } from './loops.js'
 import { buildRunDetail } from './runDetail.js'
 import { buildSecretsResponse } from './secrets.js'
-import { listAllSkillsDetailed, listSkillFiles, readSkillFile } from './skillsRegistry.js'
+import { resolveSkillsGet } from './serverGetSkillsRoutes.js'
 import { dedupeRoots, type SnapshotDeps } from './snapshot.js'
 import { readChangeHistory } from './transition.js'
 import type { DashboardServerOptions, ServerPaths } from './types.js'
@@ -225,34 +225,7 @@ export async function handleGet(
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
     }
-    const mSkillFiles = /^\/api\/skills\/([^/]+)\/(files|file)$/.exec(path)
-    if (mSkillFiles) {
-      const raw = decodeURIComponent(mSkillFiles[1] ?? '')
-      if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(raw)) return sendJson(res, 400, { ok: false, error: '非法技能名' })
-      try {
-        if (mSkillFiles[2] === 'files') {
-          const files = listSkillFiles(raw, repoRootForSkills(), join(hostHome, '.claude'))
-          if (files === undefined) return sendJson(res, 404, { ok: false, error: `技能 '${raw}' 不存在` })
-          return sendJson(res, 200, files)
-        }
-        const relPath = new URL(req.url ?? '/', 'http://localhost').searchParams.get('path') ?? ''
-        const file = readSkillFile(raw, relPath, repoRootForSkills(), join(hostHome, '.claude'))
-        if (file.kind === 'ok') return sendJson(res, 200, { path: file.path, text: file.text })
-        if (file.kind === 'invalid-path') return sendJson(res, 400, { ok: false, error: '非法文件路径' })
-        if (file.kind === 'too-large') return sendJson(res, 413, { ok: false, error: '文件超过 256KB' })
-        if (file.kind === 'binary') return sendJson(res, 415, { ok: false, error: '不是文本文件' })
-        return sendJson(res, 404, { ok: false, error: `技能 '${raw}' 没有文件 '${relPath}'` })
-      } catch (e) {
-        return sendJson(res, 500, { ok: false, error: errMsg(e) })
-      }
-    }
-    if (path === '/api/skills/registry') {
-      try {
-        return sendJson(res, 200, { skills: listAllSkillsDetailed(repoRootForSkills(), join(hostHome, '.claude')) })
-      } catch (e) {
-        return sendJson(res, 500, { ok: false, error: errMsg(e) })
-      }
-    }
+    if (resolveSkillsGet(req, res, path, { hostHome, repoRoot: repoRootForSkills(), stateRoot: paths.stateRoot, sendJson, errMsg })) return
     if (path === '/api/hooks') {
       const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
       const rootCheck = workflowRootForRequest(root)

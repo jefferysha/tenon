@@ -11,37 +11,21 @@ async function makeRepo(): Promise<string> {
   await writeFile(join(root, 'skills', 'tenon-open', 'SKILL.md'), '# tenon-open\n', 'utf8')
   await mkdir(join(root, 'skills', 'tenon-build'), { recursive: true })
   await writeFile(join(root, 'skills', 'tenon-build', 'SKILL.md'), '# tenon-build\n', 'utf8')
-  await writeFile(
-    join(root, 'skills', 'EXTERNAL-SKILLS.md'),
-    '# External\n\n## 已声明依赖\n\n- superpowers:brainstorming\n- grill-with-docs\n',
-    'utf8',
-  )
   return root
 }
 
 describe('listAllSkills', () => {
-  it('合并本地 skills/*/SKILL.md 目录名 + EXTERNAL-SKILLS.md 已声明依赖列表，去重排序', async () => {
+  it('本地 skills/*/SKILL.md 目录名去重排序', async () => {
     const root = await makeRepo()
-    const result = listAllSkills(root)
-    expect(result).toEqual(['grill-with-docs', 'superpowers:brainstorming', 'tenon-build', 'tenon-open'])
-  })
-
-  it('EXTERNAL-SKILLS.md 不存在时不报错，只返回本地目录', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'skills-reg-nolocal-'))
-    await mkdir(join(root, 'skills', 'tenon-open'), { recursive: true })
-    await writeFile(join(root, 'skills', 'tenon-open', 'SKILL.md'), '# x\n', 'utf8')
-    expect(listAllSkills(root)).toEqual(['tenon-open'])
+    expect(listAllSkills(root)).toEqual(['tenon-build', 'tenon-open'])
   })
 })
 
-// ── T6(v6 计划):skills「已装」三源检测 + registry 明细化 ──
-// 真 fs 测试(mkdtemp 临时目录,零 mock)。三源口径抄老仓 pipeline-doctor.sh:121-149
+// ── T6(v6 计划):skills「已装」探测 + registry 明细化 ──
+// 真 fs 测试(mkdtemp 临时目录,零 mock)。口径抄老仓 pipeline-doctor.sh:121-149
 // (研究报告 §4.1):① ~/.claude/skills/<name>/SKILL.md(跟随 symlink);
 // ② installed_plugins.json 各插件 installPath 下 skills/*/SKILL.md,排除 settings.json
-//   enabledPlugins=false 的插件(「装了但被关掉」不算已装);
-// ③ builtin 短名单 verify/run/code-review/security-review(不落盘,只能写死)。
-// 命名空间 token(superpowers:*)按插件前缀匹配判已装——badge 是标注不是判据,
-// 精度换实现成本(计划 T6 设计决策,风险节已登记)。
+//   enabledPlugins=false 的插件(「装了但被关掉」不算已装)。
 
 let base: string
 let repoRoot: string
@@ -52,31 +36,6 @@ function seedRepoSync(): void {
     mkdirSync(join(repoRoot, 'skills', name), { recursive: true })
     writeFileSync(join(repoRoot, 'skills', name, 'SKILL.md'), '# skill\n')
   }
-  writeFileSync(
-    join(repoRoot, 'skills', 'EXTERNAL-SKILLS.md'),
-    [
-      '# EXTERNAL-SKILLS — 外部 skill 依赖显式清单',
-      '',
-      '## 已声明依赖',
-      '',
-      '**superpowers 系（工作流方法论）**',
-      '- superpowers:brainstorming — 深度设计/需求对话',
-      '',
-      '**commit-commands 系**',
-      '- commit-commands:commit-push-pr — 提交+push+PR',
-      '',
-      '**调研 / 提问**',
-      '- grill-with-docs — 领域知识压测（一次一问）',
-      '',
-      '**验证**',
-      '- browser-qa — 浏览器走查',
-      '- verify — 真跑 app 验证（builtin）',
-      '- run — 启动 app（builtin）',
-      '- security-review — 安全专项（builtin）',
-      '- code-review — 代码评审（builtin）',
-      '',
-    ].join('\n'),
-  )
 }
 
 function seedClaudeDir(): void {
@@ -178,53 +137,21 @@ describe('listAllSkillsDetailed —— SkillEntry 明细', () => {
     expect(e.installCmd).toBeUndefined()
   })
 
-  it('命名空间 token 按插件前缀匹配判已装:superpowers:* 已装,commit-commands:* 未装', () => {
-    const entries = listAllSkillsDetailed(repoRoot, claudeDir)
-    const sp = entries.find((x) => x.name === 'superpowers:brainstorming')!
-    expect(sp.source).toBe('external-marketplace')
-    expect(sp.installed).toBe(true)
-    const cc = entries.find((x) => x.name === 'commit-commands:commit-push-pr')!
-    expect(cc.source).toBe('external-marketplace')
-    expect(cc.installed).toBe(false)
-    expect(cc.installCmd).toBe('claude plugin install commit-commands')
-  })
+  it('上游技能目录在 payload skills/ 下 → local-plugin 且已装', () => {
+    mkdirSync(join(repoRoot, 'skills', 'hue'), { recursive: true })
+    writeFileSync(join(repoRoot, 'skills', 'hue', 'SKILL.md'), '---\nname: hue\n---\n# hue\n')
 
-  it('用户自备类:在 ~/.claude/skills 命中即已装;未命中 installed:false 且无 installCmd(无真实可执行安装命令,UI 层按 source 给 find-skills 提示)', () => {
-    const entries = listAllSkillsDetailed(repoRoot, claudeDir)
-    const g = entries.find((x) => x.name === 'grill-with-docs')!
-    expect(g.source).toBe('user')
-    expect(g.installed).toBe(true)
-    const b = entries.find((x) => x.name === 'browser-qa')!
-    expect(b.source).toBe('user')
-    expect(b.installed).toBe(false)
-    expect(b.installCmd).toBeUndefined()
-  })
-
-  it('builtin 四件套恒 installed:true、source:builtin(不落盘,无法扫描,只能写死)', () => {
-    const entries = listAllSkillsDetailed(repoRoot, claudeDir)
-    for (const name of ['verify', 'run', 'code-review', 'security-review']) {
-      const e = entries.find((x) => x.name === name)!
-      expect(e.source).toBe('builtin')
-      expect(e.installed).toBe(true)
-      expect(e.installCmd).toBeUndefined()
-    }
-  })
-
-  it('同名能力随插件打包时，包内 SKILL.md 优先于宿主 builtin，UI 不会把完整安装误报成外部前置', () => {
-    mkdirSync(join(repoRoot, 'skills', 'verify'), { recursive: true })
-    writeFileSync(join(repoRoot, 'skills', 'verify', 'SKILL.md'), '# packaged verify\n')
-
-    const entry = listAllSkillsDetailed(repoRoot, claudeDir).find((item) => item.name === 'verify')!
+    const entry = listAllSkillsDetailed(repoRoot, claudeDir).find((item) => item.name === 'hue')!
     expect(entry).toMatchObject({ source: 'local-plugin', installed: true })
     expect(entry.installCmd).toBeUndefined()
   })
 
-  it('按 name 排序且去重;claudeDir 缺失时 builtin 与本仓 bundled 可用，其余探测项 fail-open 为未装', () => {
+  it('按 name 排序且去重;claudeDir 缺失时本仓目录可用，其余探测项 fail-open 为未装', () => {
     const entries = listAllSkillsDetailed(repoRoot, join(base, 'no-such-dir'))
     const names = entries.map((x) => x.name)
     expect(names).toEqual([...new Set(names)].sort())
     for (const e of entries) {
-      expect(e.installed).toBe(e.source === 'builtin' || e.source === 'local-plugin')
+      expect(e.installed).toBe(e.source === 'local-plugin')
     }
   })
 

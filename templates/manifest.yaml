@@ -61,7 +61,7 @@ skill_action_authority:
 
 # Review 语义必须显式分类；lane 名绑定 workflow 的 review_lanes，不从 Skill id/prose 猜测。
 review_skills:
-  standards: [code-review, security-review, web-design-guidelines, design-taste-frontend]
+  standards: [security-review, web-design-guidelines, design-taste-frontend]
   e2e: [verification-before-completion, e2e-testing, browser-qa]
 
 # ══════════════════════════════════════════════════════════════════════════════

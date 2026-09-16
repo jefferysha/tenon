@@ -1,4 +1,5 @@
 import { required } from '../required.js'
+import { parseFlowBody, stripFlowComment, unquoteFlowValue } from './flow-yaml.js'
 
 /**
  * skill source registry 的纯解析契约。
@@ -56,6 +57,8 @@ export const SKILL_PROVENANCE_ERROR_CATEGORIES = [
   'content-hash-mismatch',
   'coordinate-mismatch',
   'legacy-provenance-source',
+  'invalid-skill-sources',
+  'invalid-skill-lock',
 ] as const
 export type SkillProvenanceErrorCategory = typeof SKILL_PROVENANCE_ERROR_CATEGORIES[number]
 
@@ -83,56 +86,8 @@ export class SkillProvenanceRegistryError extends SkillSourcesError {
   }
 }
 
-function stripComment(line: string): string {
-  const t = line.trimStart()
-  if (t.startsWith('#')) return ''
-  const m = line.match(/^(.*?)\s#/)
-  return (m ? required(m[1]) : line).trimEnd()
-}
-
-function splitTopLevel(s: string, sep: string): string[] {
-  const out: string[] = []
-  let cur = ''
-  let quote = ''
-  for (const ch of s) {
-    if (quote) {
-      cur += ch
-      if (ch === quote) quote = ''
-    } else if (ch === '"' || ch === "'") {
-      quote = ch
-      cur += ch
-    } else if (ch === sep) {
-      out.push(cur)
-      cur = ''
-    } else {
-      cur += ch
-    }
-  }
-  out.push(cur)
-  return out
-}
-
-function unquote(v: string): string {
-  const s = v.trim()
-  if (s.length >= 2 && (s[0] === '"' || s[0] === "'") && s[s.length - 1] === s[0]) {
-    return s.slice(1, -1)
-  }
-  return s
-}
-
-function parseFlowBody(body: string, token: string): Map<string, string> {
-  const fields = new Map<string, string>()
-  for (const rawPair of splitTopLevel(body, ',')) {
-    const pair = rawPair.trim()
-    if (pair === '') continue
-    const colon = pair.indexOf(':')
-    if (colon <= 0) throw new SkillSourcesError(`token '${token}' 字段 '${pair}' 缺 'key: value' 冒号`)
-    const key = pair.slice(0, colon).trim()
-    const value = unquote(pair.slice(colon + 1))
-    if (fields.has(key)) throw new SkillSourcesError(`token '${token}' 字段 '${key}' 重复`)
-    fields.set(key, value)
-  }
-  return fields
+function parseFlowFields(body: string, token: string): Map<string, string> {
+  return parseFlowBody(body, (message) => new SkillSourcesError(`token '${token}' ${message}`))
 }
 
 function parseEntry(line: string, lineNo: number): SkillSourceDefinition {
@@ -148,7 +103,7 @@ function parseEntry(line: string, lineNo: number): SkillSourceDefinition {
   const token = keyPart.slice(0, -1).trim()
   if (token === '') throw new SkillSourcesError(`第 ${lineNo} 行 token 为空`)
 
-  const f = parseFlowBody(line.slice(brace + 1, close), token)
+  const f = parseFlowFields(line.slice(brace + 1, close), token)
   const tool = f.get('tool')
   if (!tool || !TOOL_SET.has(tool)) {
     throw new SkillSourcesError(`token '${token}' tool 非法或缺失: '${tool ?? ''}'（合法：${[...TOOL_SET].join('/')}）`)
@@ -201,7 +156,7 @@ export function parseSkillSources(text: string): SkillSourceDefinition[] {
   let inSkills = false
 
   for (let i = 0; i < lines.length; i++) {
-    const line = stripComment(required(lines[i]))
+    const line = stripFlowComment(required(lines[i]))
     if (line.trim() === '') continue
     const indented = /^\s/.test(line)
     if (!inSkills) {
@@ -242,7 +197,7 @@ function strictEntryLine(line: string, lineNo: number): {
     if (line.slice(close + 1).trim() !== '') {
       throw strictError('invalid-source-ref', `第 ${lineNo} 行 closing brace 后含尾随 token`)
     }
-    const fields = parseFlowBody(line.slice(brace + 1, close), entry.token)
+    const fields = parseFlowFields(line.slice(brace + 1, close), entry.token)
     for (const key of fields.keys()) {
       if (!STRICT_ENTRY_FIELDS.has(key)) {
         throw strictError('invalid-source-ref', `token '${entry.token}' 含未知 registry 字段 '${key}'`)
@@ -300,7 +255,7 @@ export function parseSkillProvenanceRegistry(text: string): SkillProvenanceRegis
   const seenRefs = new Set<string>()
 
   for (let i = 0; i < lines.length; i += 1) {
-    const line = stripComment(required(lines[i]))
+    const line = stripFlowComment(required(lines[i]))
     if (line.trim() === '') continue
     if (!inSkills) {
       const versionMatch = /^version:\s*(\d+)\s*$/.exec(line)
@@ -314,7 +269,7 @@ export function parseSkillProvenanceRegistry(text: string): SkillProvenanceRegis
       if (algorithmMatch) {
         if (seenHashAlgorithm) throw strictError('unsupported-registry-version', `第 ${i + 1} 行重复声明 hash_algorithm`)
         seenHashAlgorithm = true
-        hashAlgorithm = unquote(required(algorithmMatch[1]))
+        hashAlgorithm = unquoteFlowValue(required(algorithmMatch[1]))
         continue
       }
       if (/^skills:\s*$/.test(line)) {

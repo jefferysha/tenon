@@ -32,6 +32,56 @@ async function makeRoot(): Promise<{ root: string; digest: string }> {
   return { root, digest }
 }
 
+async function addUpstreamSkill(root: string): Promise<string> {
+  const dir = join(root, 'skills', 'hue')
+  await mkdir(dir, { recursive: true })
+  await writeFile(join(dir, 'SKILL.md'), '---\nname: hue\n---\n# hue\n', 'utf8')
+  const tree = `sha256:${(await buildCanonicalManifest('hue', dir)).treeSha256}`
+  await writeFile(join(root, 'skills', 'sources.yaml'), [
+    'version: 1',
+    'skills:',
+    '  hue: { repo: dominikmartn/hue, path: ., ref: default-branch, license_expected: MIT }',
+    '',
+  ].join('\n'), 'utf8')
+  await writeFile(join(root, 'skills', 'skills.lock.json'), `${JSON.stringify({
+    version: 1,
+    updated_at: '2026-09-15T08:00:00.000Z',
+    skills: [{
+      id: 'hue', repo: 'dominikmartn/hue', path: '.', commit: '1'.repeat(40), tree_sha256: tree,
+      license: 'MIT', fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null,
+    }],
+  }, null, 2)}\n`, 'utf8')
+  return dir
+}
+
+describe('createProvenanceAwareBundledLocator with upstream skills', () => {
+  it('locates a locked upstream skill after checking its tree hash', async () => {
+    const { root } = await makeRoot()
+    await addUpstreamSkill(root)
+    const result = await createProvenanceAwareBundledLocator(root).locate('hue')
+    expect(result.skillId).toBe('hue')
+    expect(result.contentDir).toContain(join('skills', 'hue'))
+  })
+
+  it('rejects a tampered upstream skill', async () => {
+    const { root } = await makeRoot()
+    const dir = await addUpstreamSkill(root)
+    await writeFile(join(dir, 'SKILL.md'), '---\nname: hue\n---\n# tampered\n', 'utf8')
+    await expect(createProvenanceAwareBundledLocator(root).locate('hue')).rejects.toMatchObject({
+      category: 'content-hash-mismatch',
+    } satisfies Partial<SkillProvenanceLocatorError>)
+  })
+
+  it('rejects an invalid lock without falling back to a lower tier', async () => {
+    const { root } = await makeRoot()
+    await addUpstreamSkill(root)
+    await writeFile(join(root, 'skills', 'skills.lock.json'), '{', 'utf8')
+    await expect(createProvenanceAwareBundledLocator(root).locate('hue')).rejects.toMatchObject({
+      category: 'invalid-skill-lock',
+    } satisfies Partial<SkillProvenanceLocatorError>)
+  })
+})
+
 describe('createProvenanceAwareBundledLocator', () => {
   it('returns only hash-verified bundled content and preserves logical token', async () => {
     const { root } = await makeRoot()

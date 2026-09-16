@@ -2,10 +2,14 @@ import { lstat, readFile, readdir, realpath } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import {
   parseSkillProvenanceRegistry,
+  parseUpstreamSkillLock,
+  parseUpstreamSkillSources,
   SKILL_PROVENANCE_ERROR_CATEGORIES,
   type SkillProvenanceErrorCategory,
   type SkillProvenanceRegistry,
   SkillProvenanceRegistryError,
+  UpstreamSkillError,
+  type UpstreamSkillLock,
 } from '@tenon/kernel'
 import { buildCanonicalManifest } from './snapshot-manifest.js'
 
@@ -53,15 +57,69 @@ function remediation(category: SkillProvenanceFindingCategory): string {
     case 'invalid-source-ref': return '将 source_ref 修复为安全规范的 skills/<id> 路径'
     case 'registry-read-error': return '恢复 templates/skill-sources.yaml 的可读性后重新验证'
     case 'filesystem-safety-error': return '修复 Skill 内容树的文件类型、权限或 symlink 后重新验证'
+    case 'invalid-skill-sources': return '修复 skills/sources.yaml（字段、repo/path、与 Tenon 自带技能撞名）后重新获取'
+    case 'invalid-skill-lock': return '运行 tenon update --<host> 或 npm run skills:fetch 重新获取上游技能'
   }
 }
+
+const UPSTREAM_REMEDIATION = '运行 tenon update --<host> 或 npm run skills:fetch 重新获取上游技能'
 
 function finding(
   category: SkillProvenanceFindingCategory,
   detail: string,
   values: Omit<SkillProvenanceFinding, 'category' | 'detail' | 'remediation'> = {},
+  remediationText: string = remediation(category),
 ): SkillProvenanceFinding {
-  return { category, detail, remediation: remediation(category), ...values }
+  return { category, detail, remediation: remediationText, ...values }
+}
+
+async function readOptionalText(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    throw error
+  }
+}
+
+/**
+ * `skills/sources.yaml` + `skills/skills.lock.json` extend the declared set with upstream skills.
+ * Returns `null` when there is no lock (a source checkout needs no upstream directory) and
+ * `undefined` after recording a finding.
+ */
+async function loadUpstreamLock(
+  skillsRoot: string,
+  registry: SkillProvenanceRegistry,
+  findings: SkillProvenanceFinding[],
+): Promise<UpstreamSkillLock | null | undefined> {
+  let sourcesText: string | null
+  let lockText: string | null
+  try {
+    sourcesText = await readOptionalText(join(skillsRoot, 'sources.yaml'))
+    lockText = await readOptionalText(join(skillsRoot, 'skills.lock.json'))
+  } catch (error) {
+    findings.push(finding('filesystem-safety-error', `读取上游技能清单失败: ${String(error)}`))
+    return undefined
+  }
+  if (sourcesText === null) {
+    if (lockText === null) return null
+    findings.push(finding('invalid-skill-lock', 'skills/skills.lock.json 存在但缺少 skills/sources.yaml'))
+    return undefined
+  }
+  try {
+    const sources = parseUpstreamSkillSources(sourcesText)
+    const bundled = new Set(registry.skills.flatMap((entry) => [entry.token, physicalId(entry.sourceRef)]))
+    const collision = sources.skills.find((source) => bundled.has(source.id))
+    if (collision !== undefined) {
+      findings.push(finding('invalid-skill-sources', `skills/sources.yaml: 技能 '${collision.id}' 与 Tenon 自带技能同名`, { skill: collision.id }))
+      return undefined
+    }
+    return lockText === null ? null : parseUpstreamSkillLock(lockText, sources)
+  } catch (error) {
+    const category = error instanceof UpstreamSkillError ? error.category : 'invalid-skill-lock'
+    findings.push(finding(category, error instanceof Error ? error.message : String(error)))
+    return undefined
+  }
 }
 
 function sortFindings(findings: readonly SkillProvenanceFinding[]): SkillProvenanceFinding[] {
@@ -149,6 +207,10 @@ export async function verifySkillProvenance(
     return { ok: false, root, findings: sortFindings(findings) }
   }
 
+  const lock = await loadUpstreamLock(skillsRoot, registry, findings)
+  if (lock === undefined) return { ok: false, root, registry, findings: sortFindings(findings) }
+  const locked = new Map((lock?.skills ?? []).map((entry) => [entry.id, entry]))
+
   let physical: string[]
   let realSkillsRoot: string
   try {
@@ -189,11 +251,40 @@ export async function verifySkillProvenance(
     }
   }
   for (const id of physical) {
-    if (!declared.has(id)) {
+    if (!declared.has(id) && !locked.has(id)) {
       findings.push(finding(
         'unregistered-distributed-skill',
-        `physical bundled Skill '${id}' 未在 canonical registry 声明`,
+        `physical bundled Skill '${id}' 未在 canonical registry 或 skills.lock.json 声明`,
         { skill: id, actual: `skills/${id}` },
+      ))
+    }
+  }
+  for (const entry of locked.values()) {
+    if (!physicalSet.has(entry.id)) {
+      findings.push(finding(
+        'missing-distributed-skill',
+        `skills.lock.json 声明的上游技能 '${entry.id}' 不存在`,
+        { skill: entry.id, sourceRef: `skills/${entry.id}` },
+        UPSTREAM_REMEDIATION,
+      ))
+      continue
+    }
+    if (!safePhysical.has(entry.id)) continue
+    try {
+      const actual = `sha256:${(await buildCanonicalManifest(entry.id, join(skillsRoot, entry.id))).treeSha256}`
+      if (actual !== entry.treeSha256) {
+        findings.push(finding(
+          'content-hash-mismatch',
+          `上游技能 '${entry.id}' canonical tree digest 与 skills.lock.json 不一致`,
+          { skill: entry.id, sourceRef: `skills/${entry.id}`, expected: entry.treeSha256, actual },
+          UPSTREAM_REMEDIATION,
+        ))
+      }
+    } catch (error) {
+      findings.push(finding(
+        'filesystem-safety-error',
+        `上游技能 '${entry.id}' 内容树无法安全读取: ${error instanceof Error ? error.message : String(error)}`,
+        { skill: entry.id, sourceRef: `skills/${entry.id}` },
       ))
     }
   }

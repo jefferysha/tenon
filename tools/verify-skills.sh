@@ -5,8 +5,6 @@
 #   1. Codex/Claude manifests、两套 marketplace、hooks/hooks.json、CLI/dashboard 发布产物与 canonical helpers 存在；
 #   2. hook command 必须调用用户级稳定 tenon-hook ABI，不能直连可变 marketplace checkout；
 #   3. skills/ 下每个 skill 目录都含 SKILL.md；
-#   4. skills/**/SKILL.md、hooks/hooks.json、templates/manifest.yaml（若有）中形如
-#      `external-skill: <名字>` 的可选集成引用，必须在 skills/EXTERNAL-SKILLS.md 中说明。
 #   5. templates/skill-sources.yaml 的每一项必须是 bundled，并有同名（或 content_skill 指向）的
 #      SKILL.md；这防止默认 workflow 悄悄重新引入外部安装依赖。
 # 任何缺失 → exit 1，逐条列出「缺什么 / 在哪引用的 / 怎么修」。
@@ -280,33 +278,6 @@ while IFS= read -r duplicate_skill; do
 done < <(
   list_release_skill_files | sort
 )
-
-# ── 4. 外部 skill 引用必须在 skills/EXTERNAL-SKILLS.md 声明 ──
-EXT_MANIFEST="$ROOT/skills/EXTERNAL-SKILLS.md"
-check_ext() { # name where
-  local name="$1" where="$2"
-  N_EXT=$((N_EXT + 1))
-  if [ ! -f "$EXT_MANIFEST" ]; then
-    add_fail "外部 skill 未声明: ${name}（显式清单 EXTERNAL-SKILLS.md 不存在）" "$where" "创建 skills/EXTERNAL-SKILLS.md 并添加行: - $name"
-  elif ! grep -Fq -- "- $name" "$EXT_MANIFEST"; then
-    add_fail "外部 skill 未声明: $name" "$where" "在 skills/EXTERNAL-SKILLS.md 的「已声明依赖」中添加行: - $name"
-  fi
-}
-scan_ext() { # file
-  local f="$1" name
-  [ -f "$f" ] || return 0
-  while IFS= read -r name; do
-    [ -n "$name" ] || continue
-    check_ext "$name" "${f#"$ROOT"/}"
-  done < <(grep -o 'external-skill:[[:space:]]*[^[:space:]]*' "$f" 2>/dev/null | sed 's/^external-skill:[[:space:]]*//' | sort -u)
-}
-if [ -d "$ROOT/skills" ]; then
-  while IFS= read -r sk; do
-    scan_ext "$sk"
-  done < <(find "$ROOT/skills" -name 'SKILL.md' -type f 2>/dev/null | sort)
-fi
-scan_ext "$HOOKS_JSON"
-scan_ext "$ROOT/templates/manifest.yaml"
 
 # ── 5. canonical provenance verifier（生产 CLI 唯一解析/哈希实现）──
 # 这里不再 grep/解析 YAML，也不计算 Skill hash。所有 canonical registry、source_ref、完整物理集合、

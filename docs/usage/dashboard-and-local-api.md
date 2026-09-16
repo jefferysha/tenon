@@ -46,7 +46,7 @@ development port is not a second production frontend.
 
 ## Views
 
-The two operational destinations in the primary shell are:
+The three operational destinations in the primary shell are:
 
 - Progress — Workflow graph, phase, Todo, history, and evidence
 - Workbench — Workflows, Tracks, hooks, automation, loops, and configuration
@@ -54,6 +54,7 @@ The two operational destinations in the primary shell are:
   `GEMINI.md`), plus creating a project from an existing or new directory
 - Library — the instruction template library: built-in blocks synced from the
   release payload, and your own copies
+- Skills — source, commit, license, update time, and status per Skill, read-only
 
 The Settings panel contains theme and language controls. AFK, machine diagnostics,
 and Host Plan remain CLI/API capabilities; their historical dashboard deep links
@@ -86,6 +87,15 @@ canonical Workflow state.
 The workbench places Tracks, the seven-phase DAG, phase Skills, hooks, and
 pre-run facts on one page. The read-only default baseline, custom Workflows,
 and each Workflow's free Track come from the same effective plan.
+
+### Skills
+
+`/?view=skills` lists the Tenon-owned Skills and every upstream Skill declared in
+`skills/sources.yaml`: source repository and directory, installed commit (with a
+compare link to the previous commit when it changed), license, update time, and
+status. It reads `GET /api/skills/sources`, which projects the
+`skills/skills.lock.json` written by setup/update plus the last fetch outcome. The
+page performs no network access and starts no installation.
 
 ## Status semantics
 

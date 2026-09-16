@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { parseUpstreamSkillSources } from '@tenon/kernel'
 import { buildCanonicalManifest } from './snapshot-manifest.js'
 import {
   SKILL_PROVENANCE_ERROR_CATEGORIES,
@@ -32,6 +33,80 @@ async function makeRoot(): Promise<{ root: string; digest: string }> {
   ].join('\n'), 'utf8')
   return { root, digest }
 }
+
+const SOURCES = [
+  'version: 1',
+  'skills:',
+  '  hue: { repo: dominikmartn/hue, path: ., ref: default-branch, license_expected: MIT }',
+  '',
+].join('\n')
+
+async function addUpstream(root: string, options: { readonly dir?: boolean; readonly sources?: boolean } = {}): Promise<void> {
+  const dir = join(root, 'skills', 'hue')
+  await mkdir(dir, { recursive: true })
+  await writeFile(join(dir, 'SKILL.md'), '---\nname: hue\n---\n# hue\n', 'utf8')
+  const tree = `sha256:${(await buildCanonicalManifest('hue', dir)).treeSha256}`
+  if (options.dir === false) await rm(dir, { recursive: true, force: true })
+  if (options.sources !== false) await writeFile(join(root, 'skills', 'sources.yaml'), SOURCES, 'utf8')
+  await writeFile(join(root, 'skills', 'skills.lock.json'), `${JSON.stringify({
+    version: 1,
+    updated_at: '2026-09-15T08:00:00.000Z',
+    skills: [{
+      id: 'hue', repo: 'dominikmartn/hue', path: '.', commit: 'a'.repeat(40), tree_sha256: tree,
+      license: 'MIT', fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null,
+    }],
+  }, null, 2)}\n`, 'utf8')
+}
+
+describe('verifySkillProvenance with upstream skills', () => {
+  it('accepts locked upstream directories whose hashes match', async () => {
+    const { root } = await makeRoot()
+    await addUpstream(root)
+    const result = await verifySkillProvenance(root)
+    expect(result.findings).toEqual([])
+    expect(result.ok).toBe(true)
+  })
+
+  it('accepts sources.yaml without a lock and without upstream directories', async () => {
+    const { root } = await makeRoot()
+    await writeFile(join(root, 'skills', 'sources.yaml'), SOURCES, 'utf8')
+    expect((await verifySkillProvenance(root)).ok).toBe(true)
+  })
+
+  it('reports a tampered upstream file for that id', async () => {
+    const { root } = await makeRoot()
+    await addUpstream(root)
+    await writeFile(join(root, 'skills', 'hue', 'SKILL.md'), '---\nname: hue\n---\n# tampered\n', 'utf8')
+    const result = await verifySkillProvenance(root)
+    expect(result.findings).toEqual([expect.objectContaining({ category: 'content-hash-mismatch', skill: 'hue' })])
+  })
+
+  it('reports a lock entry without its directory', async () => {
+    const { root } = await makeRoot()
+    await addUpstream(root, { dir: false })
+    expect((await verifySkillProvenance(root)).findings).toEqual([
+      expect.objectContaining({ category: 'missing-distributed-skill', skill: 'hue' }),
+    ])
+  })
+
+  it('reports an extra directory next to a lock', async () => {
+    const { root } = await makeRoot()
+    await addUpstream(root)
+    await mkdir(join(root, 'skills', 'extra'), { recursive: true })
+    expect((await verifySkillProvenance(root)).findings).toEqual([
+      expect.objectContaining({ category: 'unregistered-distributed-skill', skill: 'extra' }),
+    ])
+  })
+
+  it('reports a lock without sources.yaml and a source id that collides with a bundled token', async () => {
+    const { root } = await makeRoot()
+    await addUpstream(root, { sources: false })
+    expect((await verifySkillProvenance(root)).findings).toEqual([expect.objectContaining({ category: 'invalid-skill-lock' })])
+    const collision = await makeRoot()
+    await writeFile(join(collision.root, 'skills', 'sources.yaml'), SOURCES.replace('  hue:', '  demo:'), 'utf8')
+    expect((await verifySkillProvenance(collision.root)).findings).toEqual([expect.objectContaining({ category: 'invalid-skill-sources' })])
+  })
+})
 
 describe('verifySkillProvenance', () => {
   it('accepts a clean root and detects content drift', async () => {
@@ -112,7 +187,7 @@ describe('verifySkillProvenance', () => {
     expect(result.findings.some((item) => item.category === 'coordinate-mismatch')).toBe(false)
   })
 
-  it('measures the real repository provenance inventory exactly (62 physical roots = entries = verified hashes)', async () => {
+  it('measures the real repository provenance inventory (tracked skill roots = registry entries, no tracked lock, no rewrites)', async () => {
     const root = process.cwd()
     const tracked = execFileSync('git', ['ls-files', '--cached', '-z'], {
       cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
@@ -123,16 +198,26 @@ describe('verifySkillProvenance', () => {
     const provenanceSources = tracked.filter((path) =>
       machineDataRoots.test(path) && /\.(?:yaml|yml|json)$/iu.test(path) && provenanceLike.test(path))
     expect(provenanceSources).toEqual(['templates/skill-sources.yaml'])
+    expect(tracked).not.toContain('skills/skills.lock.json')
     expect(execFileSync('git', ['check-attr', 'eol', '--', 'skills/tenon/SKILL.md'], { cwd: root, encoding: 'utf8' })).toContain('eol: lf')
     await expect(lstat(join(root, 'skills-lock.json'))).rejects.toMatchObject({ code: 'ENOENT' })
-    const physical = (await readdir(join(root, 'skills'), { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
-    expect(physical).toHaveLength(62)
+    const trackedSkillIds = [...new Set(tracked
+      .filter((path) => /^skills\/[^/]+\/SKILL\.md$/u.test(path))
+      .map((path) => path.split('/')[1] ?? ''))].sort()
+    // A development checkout may hold fetched upstream directories plus their lock; the verifier accepts both.
     const result = await verifySkillProvenance(root)
-    expect(result.ok).toBe(true)
-    expect(result.registry?.skills).toHaveLength(62)
-    expect(result.registry?.skills.every((entry) => entry.contentHash.startsWith('sha256:'))).toBe(true)
     expect(result.findings).toHaveLength(0)
+    expect(result.ok).toBe(true)
+    const registryIds = (result.registry?.skills ?? []).map((entry) => entry.sourceRef.slice('skills/'.length)).sort()
+    expect(registryIds).toEqual(trackedSkillIds)
+    expect(result.registry?.skills.every((entry) => entry.contentHash.startsWith('sha256:'))).toBe(true)
+    const sources = parseUpstreamSkillSources(await readFile(join(root, 'skills', 'sources.yaml'), 'utf8'))
+    expect(trackedSkillIds.filter((id) => sources.skills.some((source) => source.id === id))).toEqual([])
+    const rewrites = []
+    for (const id of trackedSkillIds.filter((candidate) => !registryIds.includes(candidate))) {
+      if ((await readFile(join(root, 'skills', id, 'SKILL.md'), 'utf8')).includes('description: First-party')) rewrites.push(id)
+    }
+    expect(rewrites).toEqual([])
   })
 
   it('has a deterministic failing fixture for every declared drift category', async () => {
@@ -194,6 +279,17 @@ describe('verifySkillProvenance', () => {
       'legacy-provenance-source': async () => {
         const { root } = await makeRoot()
         await writeFile(join(root, 'skills-lock.json'), '{}', 'utf8')
+        return root
+      },
+      'invalid-skill-sources': async () => {
+        const { root } = await makeRoot()
+        await writeFile(join(root, 'skills', 'sources.yaml'), SOURCES.replace('ref: default-branch', 'ref: main'), 'utf8')
+        return root
+      },
+      'invalid-skill-lock': async () => {
+        const { root } = await makeRoot()
+        await addUpstream(root)
+        await writeFile(join(root, 'skills', 'skills.lock.json'), '{"version":2}', 'utf8')
         return root
       },
     }

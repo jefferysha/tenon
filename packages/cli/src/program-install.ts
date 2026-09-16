@@ -5,6 +5,7 @@ import {
   type DashboardOpts,
   type DashboardRuntime,
 } from './commands/dashboard.js'
+import { cmdInternalSkillUpstream } from './commands/internal-skill-upstream.js'
 import { cmdRuntime, type RuntimeCommandOpts } from './commands/runtime.js'
 import {
   cmdHostTargetPlan,
@@ -102,5 +103,14 @@ export function registerInstallCommands(
     .option('--dry-run', '验证已发布 dashboard 资产并打印启动计划，不启动 server')
     .action(async (opts: DashboardOpts) => {
       bail(await cmdDashboard(deps, opts, dashboardRuntime))
+    })
+
+  program
+    .command('internal-skill-upstream <mode>', { hidden: true })
+    .description('[内部] 开发 checkout 获取上游技能 fetch（npm run skills:fetch）')
+    .option('--root <path>', '开发 checkout 根目录')
+    .option('--json', '输出获取报告 JSON')
+    .action(async (mode: string, opts: { root?: string; json?: boolean }) => {
+      bail(await cmdInternalSkillUpstream(deps, mode, opts))
     })
 }

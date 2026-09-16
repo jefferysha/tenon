@@ -43,7 +43,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, stat, utimes, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { loadManifest, skillsFor, type Phase } from '@tenon/kernel'
+import { loadManifest, parseUpstreamSkillSources, skillsFor, type Phase } from '@tenon/kernel'
 import { freshHarness, MANIFEST, REPO_ROOT, rm, type Harness } from './integration-harness.js'
 
 const TRACK = 'backend' as const
@@ -450,9 +450,11 @@ tracks:
 })
 
 describe('真实 e2e —— verify-skills 零悬空覆盖本编排实际驱动的每个 skill 名（G4 收口的直接串联）', () => {
-  test('本次编排用到的每个 backend track mandatory skill，真名要么本地有 SKILL.md，要么在 EXTERNAL-SKILLS.md 声明', () => {
+  test('本次编排用到的每个 backend track mandatory skill，真名要么本地有 SKILL.md，要么在 skills/sources.yaml 声明', () => {
     const manifest = loadManifest(MANIFEST)
-    const externalManifest = readFileSync(join(REPO_ROOT, 'skills', 'EXTERNAL-SKILLS.md'), 'utf8')
+    // 上游 skill 目录由 setup/update 真装、不入库，所以声明面取 tracked 的 sources.yaml，而非 gitignore 的 lock。
+    const upstream = parseUpstreamSkillSources(readFileSync(join(REPO_ROOT, 'skills', 'sources.yaml'), 'utf8'))
+    const declared = new Set(upstream.skills.map((source) => source.id))
     const phases: Phase[] = ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive']
     const used = new Set<string>()
     for (const phase of phases) {
@@ -463,8 +465,7 @@ describe('真实 e2e —— verify-skills 零悬空覆盖本编排实际驱动�
     expect(used.size).toBeGreaterThan(0)
     for (const name of used) {
       const coveredLocally = existsSync(join(REPO_ROOT, 'skills', name, 'SKILL.md'))
-      const coveredExternally = externalManifest.includes(`- ${name}`)
-      expect(coveredLocally || coveredExternally, `skill "${name}" 既非本地 SKILL.md 也未在 EXTERNAL-SKILLS.md 声明——悬空引用`).toBe(true)
+      expect(coveredLocally || declared.has(name), `skill "${name}" 既非本地 SKILL.md 也未在 skills/sources.yaml 声明——悬空引用`).toBe(true)
     }
   })
 

@@ -34,7 +34,7 @@ export const zh: Dict = {
     // 进度页从此恒为单项目，「项目」页是选项目的主入口（聚合语境退役）。
     primary_label: '主导航',
     secondary_label: '更多工具',
-    progress: '工作台', workbench: '工作流', projects: '项目', library: '库', afk: '自动化', machine: '机器', hostPlan: '宿主计划',
+    progress: '工作台', workbench: '工作流', projects: '项目', library: '库', skills: '技能', afk: '自动化', machine: '机器', hostPlan: '宿主计划',
     progress_badge: '{count} 个待决策项',
     afk_badge: '{count} 个待处理自动运行',
     // v10c 孤儿键清理：nav.project_all（「全部项目」聚合项）随聚合语境退役删除——切换器不再有
@@ -2045,6 +2045,15 @@ export const zh: Dict = {
     'hint_verify-build-revision-untrusted': '回到 Build 捕获当前修订，再重新运行 Verify；不要手动回填 build_sha',
     hint_unknown: '先跑一次就绪体检（拷下方修复命令），按结果处置',
   },
+  skills: {
+    filter_all: '全部', filter_changed: '变化', filter_failed: '失败', updated: '更新',
+    col_skill: '技能', col_source: '来源', col_commit: '提交', col_license: '许可证', col_updated: '更新', col_status: '状态',
+    status_changed: '变化', status_unchanged: '无变化', status_failed: '失败',
+    reason_unreachable: '无法访问', reason_removed: '上游已删除', reason_renamed: '上游已改名',
+    'reason_invalid-content': '内容无效', 'reason_too-large': '超过大小限制',
+    'reason_license-missing': '缺少许可证', 'reason_license-mismatch': '许可证不符',
+    load_error: '技能来源读取失败',
+  },
 }
 
 export const en: Dict = {
@@ -2069,7 +2078,7 @@ export const en: Dict = {
   nav: {
     primary_label: 'Primary navigation',
     secondary_label: 'More tools',
-    progress: 'Workbench', workbench: 'Workflow', projects: 'Projects', library: 'Library', afk: 'Automation', machine: 'Machine', hostPlan: 'Host plans',
+    progress: 'Workbench', workbench: 'Workflow', projects: 'Projects', library: 'Library', skills: 'Skills', afk: 'Automation', machine: 'Machine', hostPlan: 'Host plans',
     progress_badge: '{count} pending decisions',
     afk_badge: '{count} automation items need attention',
     project_unregister: 'Unregister…',
@@ -4027,6 +4036,15 @@ export const en: Dict = {
     'hint_no-op': 'A no-op run is not a fault — adjust the task or split it smaller, then re-enqueue',
     'hint_verify-build-revision-untrusted': 'Return to Build and capture the current revision, then run Verify again; do not backfill build_sha by hand',
     hint_unknown: 'Run the readiness diagnostics first (copy the fix command below) and act on the findings',
+  },
+  skills: {
+    filter_all: 'All', filter_changed: 'Changed', filter_failed: 'Failed', updated: 'Updated',
+    col_skill: 'Skill', col_source: 'Source', col_commit: 'Commit', col_license: 'License', col_updated: 'Updated', col_status: 'Status',
+    status_changed: 'Changed', status_unchanged: 'Unchanged', status_failed: 'Failed',
+    reason_unreachable: 'Unreachable', reason_removed: 'Removed upstream', reason_renamed: 'Renamed upstream',
+    'reason_invalid-content': 'Invalid content', 'reason_too-large': 'Too large',
+    'reason_license-missing': 'License missing', 'reason_license-mismatch': 'License mismatch',
+    load_error: 'Skill sources failed to load',
   },
 }
 

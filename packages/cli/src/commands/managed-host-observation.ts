@@ -90,13 +90,26 @@ function isCanonicalRemoteMarketplace(
   return result.code === 0 && isCanonicalMarketplaceSource(result.stdout.trim())
 }
 
-function pluginPayloadMatchesMarketplace(
-  env: SetupEnv,
+/**
+ * Tracked `skills/*` children of the tag replace the whole `skills` entry. Upstream skills fetched into
+ * the plugin root are not in the tag; verify-skills proves them against `skills/skills.lock.json`.
+ */
+function payloadComparisonEntries(env: Pick<SetupEnv, 'runCommand'>, marketplaceRoot: string): readonly string[] | null {
+  const listed = env.runCommand('git', ['-C', marketplaceRoot, 'ls-tree', '--name-only', 'HEAD', 'skills/'])
+  if (listed.code !== 0) return null
+  const tracked = listed.stdout.split(/\r?\n/u).filter((line) => line !== '')
+  return [...PAYLOAD_ENTRIES.filter((entry) => entry !== 'skills'), ...tracked]
+}
+
+export function pluginPayloadMatchesMarketplace(
+  env: Pick<SetupEnv, 'runCommand'>,
   marketplaceRoot: string,
   pluginRoot: string,
 ): boolean {
   if (marketplaceRoot === pluginRoot) return true
-  return PAYLOAD_ENTRIES.every((entry) => {
+  const entries = payloadComparisonEntries(env, marketplaceRoot)
+  if (entries === null) return false
+  return entries.every((entry) => {
     const result = env.runCommand('git', [
       'diff',
       '--no-index',

@@ -11,7 +11,6 @@ export interface SkillEntry {
   available: boolean
   installCmd?: string
 }
-const BUILTIN_SKILLS = new Set(['verify', 'run', 'code-review', 'security-review'])
 function skillDescriptionFrom(path: string): string | undefined {
   try {
     const text = readFileSync(path, 'utf8')
@@ -209,23 +208,6 @@ function childDirsIn(dir: string): string[] {
 export function localSkillDirs(repoRoot: string): string[] {
   return skillDirsIn(join(repoRoot, 'skills'))
 }
-export function externalSkillSections(repoRoot: string): Map<string, string> {
-  const p = join(repoRoot, 'skills', 'EXTERNAL-SKILLS.md')
-  const out = new Map<string, string>()
-  if (!existsSync(p)) return out
-  let section = ''
-  for (const raw of readFileSync(p, 'utf8').split('\n')) {
-    const line = raw.trim()
-    const h = /^\*\*(.+)\*\*$/.exec(line)
-    if (h?.[1]) {
-      section = h[1]
-      continue
-    }
-    const m = /^-\s+(\S+)/.exec(line)
-    if (m?.[1]) out.set(m[1], section)
-  }
-  return out
-}
 export function detectInstalled(claudeDir: string): { skills: Set<string>; pluginBases: Set<string>; codexPluginBases: Set<string> } {
   const skills = new Set<string>(skillDirsIn(join(claudeDir, 'skills')))
   for (const name of skillDirsIn(join(dirname(claudeDir), '.agents', 'skills'))) skills.add(name)
@@ -305,27 +287,19 @@ export function installCmdFor(source: SkillSource, name: string, repoRoot: strin
 }
 export function listAllSkillsDetailed(repoRoot: string, claudeDir: string): SkillEntry[] {
   const detected = detectInstalled(claudeDir)
+  // Upstream skills are physical directories under the payload's skills/, so they list as local-plugin.
   const locals = new Set(localSkillDirs(repoRoot))
-  const external = externalSkillSections(repoRoot)
   const registry = sourceRegistry(repoRoot)
-  const names = new Set<string>([...locals, ...external.keys(), ...registry.keys()])
+  const names = new Set<string>([...locals, ...registry.keys()])
   const entries: SkillEntry[] = []
   for (const name of [...names].sort()) {
     const meta = metadataFor(registry, name)
-    let source: SkillSource
-    if (locals.has(name)) {
-      source = 'local-plugin'
-    } else if (BUILTIN_SKILLS.has(name)) {
-      source = 'builtin'
-    } else {
-      const section = external.get(name) ?? ''
-      source = /superpowers 系|commit-commands 系/.test(section) ? 'external-marketplace' : 'user'
-    }
+    const source: SkillSource = locals.has(name) ? 'local-plugin' : 'user'
     const available = meta?.unavailable !== true
     let installed: boolean
     if (!available) {
       installed = false
-    } else if (source === 'builtin' || meta?.tool === 'builtin' || meta?.tool === 'bundled' || locals.has(name)) {
+    } else if (meta?.tool === 'builtin' || meta?.tool === 'bundled' || locals.has(name)) {
       installed = true
     } else if (meta?.tool === 'npm') {
       installed = meta.bin !== undefined && executableOnPath(meta.bin)
@@ -354,7 +328,6 @@ export function listAllSkillsDetailed(repoRoot: string, claudeDir: string): Skil
 export function listAllSkills(repoRoot: string): string[] {
   const merged = new Set([
     ...localSkillDirs(repoRoot),
-    ...externalSkillSections(repoRoot).keys(),
     ...sourceRegistry(repoRoot).keys(),
   ])
   return [...merged].sort()

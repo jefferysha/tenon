@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { accessSync, constants as fsConstants, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { readAutomationJson } from '@tenon/automation'
+import { readAutomationJson, readUpstreamSkillView } from '@tenon/automation'
 import {
   loadManifest,
   readSecrets,
@@ -261,6 +261,13 @@ export function makeDoctorProbes(
         hostEnv: scope.env,
         defaultCodexHome: join(scope.homeDir, '.codex'),
       })
+    },
+    upstreamSkillView: () => {
+      try {
+        return readUpstreamSkillView(root, runtimeScope().paths.stateRoot)
+      } catch (error) {
+        return { error: error instanceof Error ? error.message : String(error) }
+      }
     },
   }
 }

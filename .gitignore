@@ -1,5 +1,21 @@
 node_modules/
 dist/
+# Upstream skills are fetched into the plugin root by tenon setup/update (skills/sources.yaml); not tracked.
+/skills/*
+!/skills/tenon/
+!/skills/sources.yaml
+# Tenon-owned skills removed by 09-15-data-driven-runner; delete these lines with them.
+!/skills/tenon-open/
+!/skills/tenon-explore/
+!/skills/tenon-spec/
+!/skills/tenon-build/
+!/skills/tenon-verify/
+!/skills/tenon-ship/
+!/skills/tenon-archive/
+!/skills/simple-task/
+!/skills/learn-record/
+!/skills/tenon-researcher/
+/.tenon-skills-staging-*/
 # 分发例外：CLI bundle 随 Marketplace 插件入包。
 # 三行缺一不可：dist/ 忽略了父目录后 git 不再下探，须先放行该目录、再重新忽略目录内全部内容、最后单独放行这一个 bundle。
 # 其余 tsc 产物（main.js/commands/ 等）仍被忽略。改 cli src 后须 npm run build 重构并提交此 bundle，详见 docs/DIST-RELEASE.md。

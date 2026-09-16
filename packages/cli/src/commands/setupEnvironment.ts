@@ -221,7 +221,7 @@ export function printPlanSkeleton(deps: CliDeps, opts: SetupOpts, host: Pipeline
     deps.io.out('  3. Codex 认证:Codex 安装会检查 `codex login status`，未登录时同时给出 ChatGPT 方案与 API Key 路径。')
   }
   const hostStepOffset = host === 'codex' ? 1 : 0
-  deps.io.out(`  ${3 + hostStepOffset}. 内置技能:验证本插件随包的 default workflow skills；不拉第三方 marketplace。`)
+  deps.io.out(`  ${3 + hostStepOffset}. 上游技能:宿主安装与更新时从 skills/sources.yaml 列出的 GitHub 仓库获取最新技能；获取失败保留旧版本。`)
   deps.io.out(`  ${4 + hostStepOffset}. 运行时检查:docker/镜像/两 runner 凭证就绪清单（本流程末尾直接跑;--dry-run 只提示见 tenon setup runtime）。`)
   deps.io.out(`  ${5 + hostStepOffset}. 全功能红黄绿汇总:安装后运行 tenon doctor --json 获取全机汇总。`)
   if (opts.dryRun) deps.io.out('  （--dry-run:仅打印计划,不发布 runtime、不写任何文件）')

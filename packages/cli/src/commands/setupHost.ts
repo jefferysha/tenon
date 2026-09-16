@@ -45,6 +45,7 @@ import type { StableReleaseTarget } from './stable-release.js'
 import { verifyPackagedAssets } from './packaged-assets.js'
 import { revalidateNativeStableCandidate } from './native-candidate-revalidation.js'
 import { installNativePluginCandidate } from './native-plugin-candidate.js'
+import { runUpstreamSkillInstall } from './upstream-skill-step.js'
 import {
   inspectCandidatePayload,
   type CandidatePayloadIdentity,
@@ -115,6 +116,14 @@ export function cmdSetupHost(
     const lifecycleEnv = bindNativeHostCommand(env, host, hostBinding, trustedCommands)
     const trustedBash = trustedCommands.bashBinding
     const trustedNode = trustedCommands.nodeBinding
+    const runtimeScope = {
+      homeDir: lifecycleEnv.homeDir(),
+      env: lifecycleEnv.runtimeEnv(),
+      ...(trustedCommands.bash === undefined ? {} : { trustedBashPath: trustedCommands.bash }),
+      ...(trustedBash === undefined ? {} : { verifyTrustedBash: trustedBash.assert }),
+      ...(trustedCommands.node === undefined ? {} : { trustedNodePath: trustedCommands.node }),
+      ...(trustedNode === undefined ? {} : { trustedNodeProof: trustedNode.proof, verifyTrustedNode: trustedNode.assert }),
+    }
     const inspectCandidate = candidateInspector !== inspectCandidatePayload
       ? candidateInspector
       : lifecycleEnv.inspectCandidatePayload
@@ -171,7 +180,9 @@ export function cmdSetupHost(
         async (transaction) => {
           const candidate = await installNativePluginCandidate(deps, lifecycleEnv, host, transaction)
           if (candidate === null) throw new Error('宿主插件未能解析为可发布候选')
-          const assetCode = candidate.verified ? 0 : verifyPackagedAssets(deps, lifecycleEnv, candidate.root, false)
+          await runUpstreamSkillInstall(deps, lifecycleEnv, installer, runtimeScope, host, candidate.root)
+          // The upstream skill step can change a root that was verified earlier, so assets are always re-verified.
+          const assetCode = verifyPackagedAssets(deps, lifecycleEnv, candidate.root, false)
           if (assetCode !== 0) throw new Error('宿主候选未通过插件资产校验')
           if (host === 'codex') {
             // Hook migration owns its own idempotent file transaction; it is not a host CLI

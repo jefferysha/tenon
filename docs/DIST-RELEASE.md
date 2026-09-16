@@ -31,8 +31,16 @@ Codex 与 Claude 的原生插件都通过 marketplace clone 整仓落地，**装
 
 ### Skill provenance candidate gate
 
-`templates/skill-sources.yaml` travels with the candidate as its single
-machine-verifiable Skill provenance source. It is schema v3 with
+`templates/skill-sources.yaml` travels with the candidate as the
+machine-verifiable provenance source for Tenon-owned Skills, and
+`skills/skills.lock.json` does the same for the upstream Skills that setup and
+update fetch into the host plugin root before candidate verification. The
+candidate's `skills/` therefore carries both the tracked `skills/tenon*` trees
+and the fetched upstream trees, and `copyReleasePayload` moves the same bytes
+into the managed payload. The stable-tag proof compares only the tracked
+`skills/*` children (`git ls-tree --name-only HEAD skills/`), because fetched
+content is not in the tag; `.gitignore` keeps it out of the marketplace
+clean-worktree check. It is schema v3 with
 `hash_algorithm: tree-sha256-v1`; every bundled entry carries a normalized
 `source_ref`, a `sha256:` digest produced by `buildCanonicalManifest()`, and an
 immutable coordinate containing that same identity and digest. Candidate
@@ -89,9 +97,10 @@ git add packages/server/dist/dashboard.mjs packages/dashboard-app/dist
 - `.claude-plugin/plugin.json`
 - `.claude-plugin/marketplace.json`
 
-默认 workflow 的每个 skill 都必须在 `templates/skill-sources.yaml` 里标为 `tool: bundled`，并有
-对应的 `skills/<name>/SKILL.md`。禁止把新的默认步骤改回 npm、第三方 marketplace 或某个开发者本机
-cache；可选集成只能作为非阻断增强项。
+默认 workflow 的每个 Tenon 自有 skill 都必须在 `templates/skill-sources.yaml` 里标为
+`tool: bundled`，并有对应的 `skills/<name>/SKILL.md`；第三方 skill 必须在 `skills/sources.yaml`
+声明上游来源，由 setup/update 获取并记进 `skills/skills.lock.json`。禁止把新的默认步骤改回 npm、
+第三方 marketplace 或某个开发者本机 cache；可选集成只能作为非阻断增强项。
 
 用户侧入口固定为 `tenon setup --codex` 或 `tenon setup --claude`。升级时：
 

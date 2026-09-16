@@ -259,9 +259,9 @@ async function releasePayload(paths, releaseId) {
     const cli = join(payload, 'packages', 'cli', 'dist', 'tenon.mjs')
     const bootstrap = join(payload, 'runtime', 'tenon-bootstrap.mjs')
     if (!await normalFile(cli) || !await normalFile(bootstrap)) return null
-    // Selection and manifest shape are not integrity proof. Recompute the immutable tree before
-    // every execution boundary so a locally forged active payload enters recovery-only mode.
-    if (await hashPayload(payload, manifest.version) !== manifest.payloadDigest) return null
+    // Selection and manifest shape are not integrity proof. Re-prove the immutable tree before every
+    // execution boundary so a locally forged active payload enters recovery-only mode.
+    if (!await payloadMatchesDigest(paths, releaseId, payload, manifest.version, manifest.payloadDigest)) return null
     return { releaseRoot, payload, ...manifest, host: manifest.source.host }
   } catch {
     return null
@@ -329,6 +329,73 @@ async function hashPayloadV2(root) {
 
 async function hashPayload(root, manifestVersion) {
   return manifestVersion === 1 ? hashLegacyPayload(root) : hashPayloadV2(root)
+}
+
+// Stat fingerprint of the same payload tree, without reading file bytes. ctime and inode are part of the
+// key, and ordinary writers cannot preserve them, so any content or mode change forces a full re-hash.
+async function payloadStatFingerprint(root) {
+  const hash = createHash('sha256')
+  hashFrame(hash, 'tenon-payload-stat-v1')
+  async function visit(dir, rel) {
+    const entries = await readdir(dir, { withFileTypes: true })
+    entries.sort(compareUtf8Names)
+    for (const entry of entries) {
+      const child = join(dir, entry.name)
+      const childRel = rel === '' ? entry.name : `${rel}/${entry.name}`
+      const item = await lstat(child, { bigint: true })
+      if (item.isSymbolicLink() || (!item.isDirectory() && !item.isFile())) {
+        throw new Error(`payload contains unsupported entry: ${childRel}`)
+      }
+      for (const field of [
+        item.isDirectory() ? 'directory' : 'file', childRel, item.mode, item.size, item.mtimeNs, item.ctimeNs, item.ino, item.dev,
+      ]) hashFrame(hash, String(field))
+      if (item.isDirectory()) await visit(child, childRel)
+    }
+  }
+  await visit(root, '')
+  return hash.digest('hex')
+}
+
+const DIGEST_CACHE_VERSION = 1
+
+function digestCachePath(paths) {
+  return join(paths.stateRoot, 'payload-digest-cache.json')
+}
+
+async function readDigestCache(paths) {
+  try {
+    const value = JSON.parse(await readFile(digestCachePath(paths), 'utf8'))
+    return isRecord(value) && value.version === DIGEST_CACHE_VERSION && isRecord(value.releases) ? value.releases : {}
+  } catch {
+    return {}
+  }
+}
+
+/*
+ * Every dispatch must prove the payload still matches its manifest digest. Re-hashing the full payload
+ * (tens of MB with upstream skills) on each hook is the slow path, so a verified digest is remembered in
+ * stateRoot next to selection.json, keyed by the stat fingerprint. Whoever can rewrite this cache can
+ * already repoint the active release, so it adds no new trust boundary. The fingerprint is taken before
+ * hashing: content changed during hashing either fails now or misses the cache next time.
+ */
+async function payloadMatchesDigest(paths, releaseId, payload, manifestVersion, expectedDigest) {
+  const fingerprint = await payloadStatFingerprint(payload)
+  const releases = await readDigestCache(paths)
+  const cached = releases[releaseId]
+  if (isRecord(cached) && cached.fingerprint === fingerprint
+    && cached.payloadDigest === expectedDigest && cached.manifestVersion === manifestVersion) return true
+  if (await hashPayload(payload, manifestVersion) !== expectedDigest) return false
+  try {
+    const others = Object.entries(releases).filter(([id]) => id !== releaseId && RELEASE_ID.test(id)).slice(-3)
+    await mkdir(paths.stateRoot, { recursive: true })
+    await atomicWrite(digestCachePath(paths), `${JSON.stringify({
+      version: DIGEST_CACHE_VERSION,
+      releases: { ...Object.fromEntries(others), [releaseId]: { manifestVersion, payloadDigest: expectedDigest, fingerprint } },
+    })}\n`)
+  } catch {
+    // The cache only saves time; the full hash above already proved this payload.
+  }
+  return true
 }
 
 function now() {

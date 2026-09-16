@@ -22,6 +22,7 @@
     "bundle": "esbuild packages/cli/src/main.ts --bundle --platform=node --format=esm --target=node22 --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\" --outfile=packages/cli/dist/tenon.mjs && chmod +x packages/cli/dist/tenon.mjs",
     "build:skill-provenance": "tsc -b packages/kernel packages/channel packages/tap packages/automation packages/cli && npm run bundle",
     "sync:skill-provenance": "npm run build:skill-provenance && node packages/cli/dist/tenon.mjs internal-skill-provenance sync --root \"$PWD\"",
+    "skills:fetch": "npm run build:skill-provenance && node packages/cli/dist/tenon.mjs internal-skill-upstream fetch --root \"$PWD\"",
     "check:comments": "bash tools/check-comment-honesty.sh",
     "check:architecture": "node --test tools/kernel-runtime-import-graph.node-test.mjs && node tools/check-architecture.mjs",
     "check:dependency-tree": "npm ls --all",

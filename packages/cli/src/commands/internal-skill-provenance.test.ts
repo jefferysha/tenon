@@ -2,6 +2,7 @@ import { chmod, mkdir, mkdtemp, readFile, rename, rm, stat, symlink, writeFile }
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { buildCanonicalManifest } from '@tenon/automation'
 import { makeDeps } from '../test-support.js'
 import { cmdInternalSkillProvenance, syncSkillProvenanceRegistry } from './internal-skill-provenance.js'
 
@@ -26,6 +27,36 @@ async function makeRoot(): Promise<string> {
 }
 
 describe('cmdInternalSkillProvenance', () => {
+  it('syncs a root with upstream directories and a lock into bundled entries only', async () => {
+    const root = await makeRoot()
+    const hue = join(root, 'skills', 'hue')
+    await mkdir(hue, { recursive: true })
+    await writeFile(join(hue, 'SKILL.md'), '---\nname: hue\n---\n# hue\n', 'utf8')
+    const tree = `sha256:${(await buildCanonicalManifest('hue', hue)).treeSha256}`
+    await writeFile(join(root, 'skills', 'sources.yaml'), [
+      'version: 1',
+      'skills:',
+      '  hue: { repo: dominikmartn/hue, path: ., ref: default-branch, license_expected: MIT }',
+      '  brainstorming: { repo: obra/superpowers, path: skills/brainstorming, ref: default-branch, license_expected: MIT }',
+      '',
+    ].join('\n'), 'utf8')
+    await writeFile(join(root, 'skills', 'skills.lock.json'), `${JSON.stringify({
+      version: 1,
+      updated_at: '2026-09-15T08:00:00.000Z',
+      skills: [{
+        id: 'hue', repo: 'dominikmartn/hue', path: '.', commit: 'a'.repeat(40), tree_sha256: tree,
+        license: 'MIT', fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null,
+      }],
+    }, null, 2)}\n`, 'utf8')
+    const deps = makeDeps()
+
+    expect(await cmdInternalSkillProvenance(deps, 'sync', { root, quiet: true })).toBe(0)
+    const registry = await readFile(join(root, 'templates', 'skill-sources.yaml'), 'utf8')
+    expect(registry).toContain('  demo: {')
+    expect(registry).not.toContain('hue')
+    expect(await cmdInternalSkillProvenance(deps, 'verify', { root, quiet: true })).toBe(0)
+  })
+
   it('syncs atomically then verifies clean root', async () => {
     const root = await makeRoot()
     const deps = makeDeps()

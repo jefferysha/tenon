@@ -189,6 +189,19 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     await setupHistoricalCustomChange('codex-skgwf', CODEX_WF)
   }
 
+  /** manifest 的串行节点 browser-qa 由 skills/sources.yaml 上游安装、不入库，干净 checkout 里没有
+   *  字节；host cache 必须两种情况都有它，否则门禁无从判定而假绿放行。 */
+  async function ensureHostCacheSkill(hostCache: string, id: string): Promise<void> {
+    const file = join(hostCache, 'skills', id, 'SKILL.md')
+    try {
+      await readFile(file, 'utf8')
+      return
+    } catch {
+      await mkdir(dirname(file), { recursive: true })
+      await writeFile(file, `---\nname: ${id}\ndescription: fixture\n---\n# ${id}\n`, 'utf8')
+    }
+  }
+
   test('init 落地的 change 缺省 workflow: default（回归锚，防 gate.sh 的 yget 解析假设漂移）', async () => {
     expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
     expect(await h.read(CHANGE)).toMatch(/^workflow: default$/m)
@@ -302,6 +315,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     const home = join(h.cwd, 'fake-home')
     const hostCache = join(home, '.codex', 'plugins', 'cache', 'tenon', 'tenon', '0.2.0')
     await cp(join(REPO_ROOT, 'skills'), join(hostCache, 'skills'), { recursive: true, preserveTimestamps: false })
+    await ensureHostCacheSkill(hostCache, 'browser-qa')
     await mkdir(join(hostCache, '.codex-plugin'), { recursive: true })
     await mkdir(join(home, '.codex', 'plugins', 'cache', 'tenon'), { recursive: true })
     await writeFile(join(hostCache, '.codex-plugin', 'plugin.json'), JSON.stringify({ name: 'tenon', version: '0.2.0' }), 'utf8')
@@ -435,6 +449,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     const home = join(h.cwd, 'abi-omitted-home')
     const hostCache = join(home, '.codex', 'plugins', 'cache', 'tenon', 'tenon', '0.2.0')
     await cp(join(REPO_ROOT, 'skills'), join(hostCache, 'skills'), { recursive: true, preserveTimestamps: false })
+    await ensureHostCacheSkill(hostCache, 'browser-qa')
     await mkdir(join(hostCache, '.codex-plugin'), { recursive: true })
     await mkdir(join(home, '.codex', 'plugins', 'cache', 'tenon'), { recursive: true })
     await writeFile(join(hostCache, '.codex-plugin', 'plugin.json'), JSON.stringify({ name: 'tenon', version: '0.2.0' }), 'utf8')

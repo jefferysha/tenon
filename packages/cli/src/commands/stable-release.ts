@@ -2,6 +2,7 @@ import { PRODUCT_IDENTITY } from '@tenon/kernel'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { runRemoteGit as runSharedRemoteGit } from './remote-git.js'
 import type { SetupEnv } from './setup.js'
 
 const STABLE_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/
@@ -102,21 +103,14 @@ export function decodeStableReleaseMetadata(
   return { version, tag: item.tag_name }
 }
 
-// A dropped or slow connection to GitHub is transient; a missing tag or ref is not. Retrying keeps the
-// proof unchanged because every successful result is still validated below.
+// Every successful remote result is still validated below, so retrying transient failures keeps the proof unchanged.
 const STABLE_RELEASE_REMOTE_ATTEMPTS = 3
-const STABLE_RELEASE_REMOTE_RETRY_DELAY_MS = 500
-const TRANSIENT_REMOTE_FAILURE = /ETIMEDOUT|timed out|SSL_ERROR|SSL_connect|unable to access|Could not resolve host|Connection (?:reset|refused|timed out)|Failed to connect|early EOF|RPC failed|remote end hung up/iu
 
-function runRemoteGit(env: SetupEnv, args: readonly string[]): { readonly result: ReturnType<SetupEnv['runCommand']>; readonly attempts: number } {
-  let result = env.runCommand('git', [...args], { timeoutMs: STABLE_RELEASE_GIT_REMOTE_TIMEOUT_MS })
-  let attempts = 1
-  while (result.code !== 0 && attempts < STABLE_RELEASE_REMOTE_ATTEMPTS && TRANSIENT_REMOTE_FAILURE.test(result.stderr)) {
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, STABLE_RELEASE_REMOTE_RETRY_DELAY_MS * attempts)
-    result = env.runCommand('git', [...args], { timeoutMs: STABLE_RELEASE_GIT_REMOTE_TIMEOUT_MS })
-    attempts += 1
-  }
-  return { result, attempts }
+function runRemoteGit(env: SetupEnv, args: readonly string[]): ReturnType<typeof runSharedRemoteGit> {
+  return runSharedRemoteGit(env, args, {
+    timeoutMs: STABLE_RELEASE_GIT_REMOTE_TIMEOUT_MS,
+    attempts: STABLE_RELEASE_REMOTE_ATTEMPTS,
+  })
 }
 
 function remoteFailure(label: string, run: ReturnType<typeof runRemoteGit>): Error {

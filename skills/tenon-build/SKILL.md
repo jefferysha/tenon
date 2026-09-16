@@ -181,8 +181,7 @@ tenon handoff "$TENON_CHANGE_NAME" --bundle --target build --json
      不启动“评 → 修 → 复评”自动循环。
 
 **条件性 Skill**（按 Step 0 选定的 DESIGN.md / 技术选型决定，用得上才加载）：
-- 使用 Skill 工具加载 `shadcn-ui` — **仅当**选 shadcn 风格的组件库
-- 使用 Skill 工具加载 `tailwind-css-patterns` — **仅当**用 Tailwind 排版
+- 使用 Skill 工具加载 `shadcn` — **仅当**选 shadcn 风格的组件库
 
 **推荐**（默认调用）：
 - 使用 Skill 工具加载 `hue` — 配色 / 视觉风格生成（Step 0 设计来源选 hue 设计语言时为必走）
@@ -190,7 +189,6 @@ tenon handoff "$TENON_CHANGE_NAME" --bundle --target build --json
 
 **可选**：
 - 使用 Skill 工具加载 `web-artifacts-builder` — 复杂多组件原型
-- 使用 Skill 工具加载 `uiuxdesign-pro`（若已装）— UX 高级模板
 
 **PM 不需要 builder Agent。** build_mode 自动设为 `prototype`（`tenon set <name> build_mode prototype`）。
 
@@ -217,9 +215,8 @@ tenon handoff "$TENON_CHANGE_NAME" --bundle --target build --json
 
 **条件性 Skill**（按框架/选型决定，用得上才加载——Vue 项目不该被 React skill 卡）：
 - 使用 Skill 工具加载 `react-patterns` — **仅当** React 项目
-- 使用 Skill 工具加载 `react-best-practices` — **仅当** React（Vercel 性能最佳实践）
-- 使用 Skill 工具加载 `tailwind-css-patterns` — **仅当** 用 Tailwind
-- 使用 Skill 工具加载 `shadcn-ui` — **仅当** 用 shadcn 组件库
+- 使用 Skill 工具加载 `vercel-react-best-practices` — **仅当** React（Vercel 性能最佳实践）
+- 使用 Skill 工具加载 `shadcn` — **仅当** 用 shadcn 组件库
 
 **推荐**：
 - 使用 Skill 工具加载 `writing-plans` — 复用上一步 plan
@@ -401,7 +398,7 @@ tenon transition "$TENON_CHANGE_NAME" requirements-changed
 - bundled-skill: dispatching-parallel-agents · 条件（build_mode）
 - bundled-skill: frontend-design / web-design-guidelines / design-taste-frontend · UI 评修
 - bundled-skill: huashu-design / hallmark / prototype / hue · PM 原型与视觉方向
-- bundled-skill: shadcn-ui / tailwind-css-patterns / web-artifacts-builder / uiuxdesign-pro · 条件或可选
-- bundled-skill: react-patterns / react-best-practices / frontend-patterns · 前端条件或可选
+- bundled-skill: shadcn / web-artifacts-builder · 条件或可选
+- bundled-skill: react-patterns / vercel-react-best-practices / frontend-patterns · 前端条件或可选
 - bundled-skill: nestjs-patterns / postgres-patterns / python-patterns / python-testing · 后端条件
 - bundled-skill: docker-patterns / deployment-patterns · 条件或可选

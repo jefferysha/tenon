@@ -40,6 +40,19 @@ async function candidateCopy(root: string): Promise<string> {
   return candidate
 }
 
+/** Receipt proofs read the named Skill's bytes out of a host cache copy, and upstream Skills are
+ *  fetched into the plugin root rather than tracked, so a clean checkout has none. Guarantee them
+ *  in the cache copy only, never in the staged candidate, whose provenance rejects undeclared Skills. */
+async function ensureCachedSkill(cacheRoot: string, id: string): Promise<void> {
+  const file = join(cacheRoot, 'skills', id, 'SKILL.md')
+  try {
+    await readFile(file, 'utf8')
+  } catch {
+    await mkdir(dirname(file), { recursive: true })
+    await writeFile(file, `---\nname: ${id}\ndescription: fixture\n---\n# ${id}\n`, 'utf8')
+  }
+}
+
 async function run(
   command: string,
   args: string[],
@@ -154,6 +167,7 @@ describe('stable host-hook ABI', () => {
     const hostVersion = `${pluginManifest.version}-host-current`
     const hostCache = join(home, '.codex', 'plugins', 'cache', 'tenon', 'tenon', hostVersion)
     await cp(candidate, hostCache, { recursive: true, preserveTimestamps: false })
+    await ensureCachedSkill(hostCache, 'openspec-propose')
     await writeFile(
       join(hostCache, '.codex-plugin', 'plugin.json'),
       `${JSON.stringify({ ...pluginManifest, version: hostVersion }, null, 2)}\n`,
@@ -263,6 +277,7 @@ describe('stable host-hook ABI', () => {
     // that cache independently passes the same ordinary-layout and manifest checks.
     const derivedCache = join(home, '.codex', 'plugins', 'cache', 'tenon', 'tenon', pluginManifest.version)
     await cp(candidate, derivedCache, { recursive: true, preserveTimestamps: false })
+    await ensureCachedSkill(derivedCache, 'openspec-propose')
     const derivedEnv = { ...env }
     delete derivedEnv.TENON_CODEX_PLUGIN_ROOT
     const derivedReceipt = await run(
@@ -302,9 +317,11 @@ describe('stable host-hook ABI', () => {
 
     const wrongVersion = join(cacheBase, `${pluginManifest.version}-folder-drift`)
     await cp(candidate, wrongVersion, { recursive: true, preserveTimestamps: false })
+    await ensureCachedSkill(wrongVersion, 'openspec-propose')
 
     const identityDrift = join(cacheBase, `${pluginManifest.version}-identity-drift`)
     await cp(candidate, identityDrift, { recursive: true, preserveTimestamps: false })
+    await ensureCachedSkill(identityDrift, 'openspec-propose')
     await writeFile(
       join(identityDrift, '.codex-plugin', 'plugin.json'),
       `${JSON.stringify({ ...pluginManifest, version: `${pluginManifest.version}-identity-drift` }, null, 2)}\n`,
@@ -323,6 +340,7 @@ describe('stable host-hook ABI', () => {
     const symlinkTarget = join(root, 'symlink-cache-target')
     const symlinkCache = join(cacheBase, symlinkVersion)
     await cp(candidate, symlinkTarget, { recursive: true, preserveTimestamps: false })
+    await ensureCachedSkill(symlinkTarget, 'openspec-propose')
     await writeFile(
       join(symlinkTarget, '.codex-plugin', 'plugin.json'),
       `${JSON.stringify({ ...pluginManifest, version: symlinkVersion }, null, 2)}\n`,
