@@ -212,7 +212,7 @@ export function decodeInstructionApply(value: unknown): AppliedFile[] | null {
 }
 
 export function decodeInstructionDelete(value: unknown): 'removed' | 'managed-kept' | null {
-  return exactKeys(value, ['ok', 'result']) && value.ok === true && oneOf(value.result, ['removed', 'managed-kept'] as const) ? value.result : null
+  return exactKeys(value, ['ok', 'result'], ['digest']) && value.ok === true && oneOf(value.result, ['removed', 'managed-kept'] as const) ? value.result : null
 }
 
 const GIT = ['init', 'existing', 'none'] as const

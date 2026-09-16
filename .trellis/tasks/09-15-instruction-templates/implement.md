@@ -194,12 +194,23 @@ npm test && npm run test:web && bash tools/test-hooks.sh && bash tools/test-adap
    identical-value allowlist. Pre-existing orphans (`onboard.no_change_*`, `cli_fallback`) are left untouched.
 6. **`dashboardLocation.test.tsx` retired-view list updated**: `?view=projects` is a live deep link now, so it moved out
    of the retired assertions and `?view=library` was added.
+7. **Missing identity answers 412 `user-missing`, not 409 `identity-missing`.** Step 16 above named 409
+   `identity-missing`, but every merged multi-user write gate (接手, transition, changes, decisions) answers 412
+   `user-missing` with `USER_MISSING_HINT`. The instruction routes follow the merged convention, so one dictionary key
+   and one client branch cover every identity-gated write.
+8. **The author is recorded in the audit row, not in block frontmatter.** `parseInstructionBlock` has a closed
+   `KNOWN_KEYS` set and design §3.1 lists no `author` key, so stamping one into a custom template would turn every
+   older block into an `unknown-key` error surface. The `actor` field of each `audit.jsonl` row carries the author of a
+   custom save instead.
+9. **A `managed-kept` delete now returns its new digest.** The audit row needs a truthful `digest_after` for a file that
+   still exists, so `DELETE /api/instructions` reports `digest` on that branch and `decodeInstructionDelete` accepts it
+   as an optional key while still returning only the result word.
+10. **`resolveActor` is spelled `resolveUser`.** The injected port reuses the merged `ResolveUser` shape already carried
+   by the GET and POST route tables; `auditActor` converts the resolution to a `RecordActor`. `MutationRouteDeps` gained
+   the same field so PUT and DELETE template writes can be attributed.
 
 ## Pending
 
-- **Commit 16** (template / instruction writer audit + author stamping) is not implemented: it depends on
-  `feat/multi-user` landing on `main` for `resolveTenonUser` / `RecordActor`. `InstructionRouteDeps` has no
-  `resolveActor` yet and no `audit.jsonl` is written.
 - **Commit 18** (real Claude Code / Codex host evidence) is deferred to wave 5 per parent §9 X18.
 
 ## Rough size

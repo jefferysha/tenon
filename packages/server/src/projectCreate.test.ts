@@ -26,7 +26,10 @@ async function deps(runGit: GitRunner = runGitCommand): Promise<ProjectCreateDep
   const anchors = new Map<string, WorkflowRootAnchor>()
   anchorMaps.push(anchors)
   const registryPath = join(config, 'projects.json')
-  return { paths: { registryPath }, workflowRootAnchors: anchors, runGit, registryPath }
+  return {
+    paths: { registryPath, configRoot: config }, workflowRootAnchors: anchors, runGit, registryPath,
+    actor: { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' },
+  }
 }
 
 const instructions = (targets: string[], baseDigests: Record<string, string> = {}) =>
@@ -137,6 +140,17 @@ describe('POST /api/projects/create — existing directory', () => {
     const result = await handleProjectCreate({ mode: 'existing', path: root, instructions: null }, d)
     expect(result.status).toBe(200)
     expect(result.body).toMatchObject({ git: 'none', registration: 'already' })
+  })
+
+  it('本机无声明身份：执行 412 不创建，dry run 仍可用', async () => {
+    const parent = await tempDir('parent')
+    const d = { ...(await deps()), actor: null }
+    const result = await handleProjectCreate({ mode: 'empty', parent, name: 'shop', instructions: null }, d)
+    expect(result.status).toBe(412)
+    expect((result.body as Body).code).toBe('user-missing')
+    expect(existsSync(join(parent, 'shop'))).toBe(false)
+    expect(readProjectRegistry(d.registryPath)).toEqual([])
+    expect((await handleProjectCreate({ mode: 'empty', parent, name: 'shop', instructions: null, dry_run: true }, d)).status).toBe(200)
   })
 
   it('已有目录带骨架目录 → 400；路径不存在 → 404', async () => {

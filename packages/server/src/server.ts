@@ -322,6 +322,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     workflowRootAnchors,
     trackValidationContextFor,
     errMsg,
+    resolveUser,
   }
   const handlePatch = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePatchRoute(req, res, path, mutationRouteDeps)
