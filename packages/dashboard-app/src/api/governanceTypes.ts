@@ -100,6 +100,45 @@ export interface WbTransition {
   actions?: WbActionConfig[]
 }
 
+export type WbTestOutputKind = 'report' | 'coverage' | 'metrics' | 'trace' | 'screenshot' | 'log' | 'other'
+
+export type WbTestInput =
+  | { kind: 'document'; ref: string }
+  | { kind: 'file'; path: string }
+  | { kind: 'env'; name: string }
+  | { kind: 'service'; name: string; url?: string }
+
+export interface WbTestOutput {
+  path: string
+  kind?: WbTestOutputKind
+  required?: boolean
+}
+
+export interface WbTestMetric {
+  name: string
+  max?: number
+  min?: number
+  max_regression_pct?: number
+  better?: 'lower' | 'higher'
+}
+
+/** 步骤测试项：与 kernel StepTestDef 同形（snake_case 上线），`direction` 只记来源方向 id。 */
+export interface WbStepTest {
+  id: string
+  direction: string
+  command: string
+  cwd?: string
+  label?: string
+  timeout_s?: number
+  required?: boolean
+  keep_runs?: number
+  scope?: 'full' | 'known'
+  metrics_path?: string
+  pass?: { exit_code?: number; metrics?: WbTestMetric[] }
+  inputs?: WbTestInput[]
+  outputs?: WbTestOutput[]
+}
+
 export interface WbStepDef {
   id: string
   label: string
@@ -110,6 +149,7 @@ export interface WbStepDef {
   inputs: WbFieldRef[]
   outputs: WbFieldRef[]
   artifacts?: WbArtifactConfig[]
+  tests?: WbStepTest[]
   guards: WbGuardConfig[]
   transitions: WbTransition[]
 }

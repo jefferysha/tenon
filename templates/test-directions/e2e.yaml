@@ -1,0 +1,8 @@
+id: e2e
+command: npm run test:e2e
+label: e2e
+timeout_s: 1800
+outputs:
+  - path: test-results
+    kind: trace
+    required: false

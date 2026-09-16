@@ -2,7 +2,9 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { fingerprintWorkspace, isWorkspaceBaseline, WORKSPACE_BASELINE_PREFIX } from './fingerprint.js'
+import {
+  fingerprintWorkspace, isWorkspaceBaseline, TEST_OUTPUT_DIR_SEGMENTS, WORKSPACE_BASELINE_PREFIX,
+} from './fingerprint.js'
 
 const roots: string[] = []
 
@@ -95,5 +97,17 @@ describe('fingerprintWorkspace', () => {
     await mkdir(join(root, 'design-demos', 'shots'), { recursive: true })
     await writeFile(join(root, 'design-demos', 'shots', 'delivery.png'), 'shipped image\n')
     expect(await fingerprintWorkspace(root)).not.toBe(first)
+  })
+
+  test('声明式测试输出目录段全部属于工作区指纹排除段，产出报告不会动候选版本', async () => {
+    const root = await freshWorkspace()
+    await mkdir(join(root, 'frontend'))
+    await writeFile(join(root, 'frontend', 'src.ts'), 'export const a = 1\n')
+    const first = await fingerprintWorkspace(root)
+    for (const segment of TEST_OUTPUT_DIR_SEGMENTS) {
+      await mkdir(join(root, 'frontend', segment), { recursive: true })
+      await writeFile(join(root, 'frontend', segment, 'report.xml'), '<testsuite/>\n')
+    }
+    expect(await fingerprintWorkspace(root)).toBe(first)
   })
 })

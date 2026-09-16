@@ -16,6 +16,7 @@ import type {
   WorkflowReviewBudgetPolicyV1,
 } from './types.js'
 import type { TrackPredicate } from './predicates.js'
+import { serializeStepTests } from './serialize-tests.js'
 
 function serializeSkill(s: SkillRef): string[] {
   const lines = [`      - id: ${s.id}`]
@@ -163,6 +164,7 @@ function serializeStep(step: StepDef): string[] {
   lines.push(...serializeBlockField('inputs', step.inputs, serializeFieldRef))
   lines.push(...serializeBlockField('outputs', step.outputs, serializeFieldRef))
   lines.push(...serializeArtifactsBlock(step.artifacts))
+  lines.push(...serializeStepTests(step.tests))
   lines.push(...serializeBlockField('guards', step.guards, (g) => serializeGuard(g, '      ')))
   lines.push(...serializeBlockField('transitions', step.transitions, serializeTransition))
   return lines

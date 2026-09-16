@@ -29,6 +29,8 @@ export {
   readResourceFile, resourceStoreRoot, writeCustomResource,
 } from './infrastructure/resource-store.js'
 export type { ResourceCatalog, ResourceFile, ResourceStoreOptions } from './infrastructure/resource-store.js'
+// 每步测试登记：测试方向、运行记录、基准与门禁判定。
+export * from './test-evidence/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
 export {
   resolveProductPaths,
@@ -36,7 +38,9 @@ export {
 } from './product-paths.js'
 export type { ProductPathInput, ProductPaths } from './product-paths.js'
 // in-place 构建不以未变化的 Git HEAD 冒充验证靶；提供内容寻址的工作区基线给 CLI/server 注入。
-export { fingerprintWorkspace, isWorkspaceBaseline, WORKSPACE_BASELINE_PREFIX } from './workspace/fingerprint.js'
+export {
+  fingerprintWorkspace, isWorkspaceBaseline, TEST_OUTPUT_DIR_SEGMENTS, WORKSPACE_BASELINE_PREFIX,
+} from './workspace/fingerprint.js'
 export { probeBuildRevisionIdentity } from './workspace/build-revision-identity.js'
 // Native terminal sessions are a dashboard-only liveness projection, never workflow state.
 export {
@@ -132,7 +136,8 @@ export { WorkflowTrackBranchError, selectTrackBranch, validateWorkflow, validate
 export { projectWorkflowNames, requireTrackForRoot } from './workflow/branch-track-lookup.js'
 export { validateWorkflowTrackReferences } from './workflow/track-reference-validation.js'
 export type {
-  StepDef, StepTransition, WorkflowActionConfig, WorkflowDecompositionAskCondition,
+  StepDef, StepTestDef, StepTestPassDef, StepTransition, TestInputDef, TestMetricCriterion,
+  TestOutputDef, TestOutputKind, WorkflowActionConfig, WorkflowDecompositionAskCondition,
   WorkflowDecompositionAutoCondition, WorkflowDecompositionMode, WorkflowDecompositionPolicyV1,
   WorkflowDecompositionStrategy, WorkflowDecompositionTarget, WorkflowDef, WorkflowDocumentContractV1,
   WorkflowDocumentRead, WorkflowDocumentSlot, WorkflowGuardConfig, WorkflowInteractionMode,
@@ -217,7 +222,7 @@ export {
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,
 } from './workflow/effective-io.js'
 export type {
-  ActionInput, CompiledGuardConfig, GuardDecision, GuardInput, StepIR, StepTransitionIR, WorkflowIR,
+  ActionInput, CompiledGuardConfig, GuardDecision, GuardInput, StepIR, StepTestIR, StepTransitionIR, WorkflowIR,
 } from './workflow/ir.js'
 export { readinessByTransition } from './workflow/transition-readiness.js'
 export type {

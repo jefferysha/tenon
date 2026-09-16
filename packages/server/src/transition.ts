@@ -35,7 +35,7 @@ import {
   taskPlanTasksThroughPhaseForChange, assessBuildRevisionTrust, createBuildRevisionToken,
   probeBuildRevisionIdentity, readValidatedTransitionHead, safeRevisionHash,
   readReviewGateBinding, reviewGateBindingMatches,
-  actorOf, isTenonUser, ownerRequiredMessage, USER_MISSING_HINT,
+  actorOf, isTenonUser, ownerRequiredMessage, USER_MISSING_HINT, userSlug,
 } from '@tenon/kernel'
 import type {
   BreadcrumbWriter, EffectiveSkillResolver, FlowEngine, HistoryWriter, StateStore, TrackDefinition,
@@ -207,6 +207,10 @@ function mapTransitionResult(name: string, event: string, result: TransitionAppl
       const lines = [`OpenSpec 文档证据未通过（phase=${result.phase}）`, ...result.blockers]
       return { code: 409, body: { ok: false, error: lines[0], detail: lines, code: 'document-evidence-failed' } }
     }
+    case 'test-evidence-failed': {
+      const lines = [`测试证据未通过（step=${result.stepId}）`, ...result.blockers]
+      return { code: 409, body: { ok: false, error: lines[0], detail: lines, code: 'test-evidence-failed' } }
+    }
     case 'owner-required':
       return {
         code: 403,
@@ -304,8 +308,16 @@ export async function performTransition(
     specMigrationStatus: () => evaluateSpecMigrationEvidence(root, dir, name),
     tasksThroughPhase: (phase) => taskPlanTasksThroughPhaseForChange(dir, phase),
   }
+  // 测试证据要身份与工作区指纹；指纹能力缺失时 kernel 失败关闭，不把读不到当成通过。
+  const fingerprint = deps.workspaceFingerprint
   const app = createTransitionApplication({
     runRepository: deps.runRepo,
+    ...(fingerprint === undefined ? {} : {
+      testEvidence: {
+        user: { id: user.id, name: user.name, slug: userSlug(user.id) },
+        currentCandidate: () => fingerprint(root, name),
+      },
+    }),
     flow: deps.flow,
     clock: deps.clock,
     history: deps.history,

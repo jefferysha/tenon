@@ -102,6 +102,7 @@ describe('stable host-hook ABI', () => {
       expect.stringContaining('skill-tracker'),
       expect.stringContaining('interactive-skill-gate'),
       expect.stringContaining('terminal-activity'),
+      expect.stringContaining('test-nudge'),
     ])
 
     // Codex host versions have reported command work as `command_execution` and `exec`, unlike

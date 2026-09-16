@@ -30,6 +30,8 @@ describe('userProjectPaths / ensureUserLocalDir', () => {
       localAudit: join(root, 'local', 'audit.jsonl'),
       deletingDir: join(root, 'local', 'deleting'),
       artifactsDir: join(root, 'local', 'artifacts'),
+      runningDir: join(root, 'local', 'running'),
+      envKey: join(root, 'local', 'env.key'),
     })
     for (const bad of ['..', 'a-at-x/..', 'jeff', 'A-at-x.io', '']) {
       expect(() => userProjectPaths(repo, bad)).toThrow('用户目录名非法')

@@ -77,9 +77,11 @@ last one. Anything that needs its own surface opens the shared right-side `share
   `skillsFromRuns(change.skillRuns[step])` rebuilds the column model (wave k depends on wave k-1) and `statusOf`
   colours each node (`data-status`: idle grey / running info ring / done green) with the run label under the name.
   Nothing renders when the server omits `skillRuns` or the step has no skills.
-- Inputs and outputs are **sheets**, not stacked sections: `SheetTabs` (`task-io-tab-inputs` / `task-io-tab-outputs`,
-  counts in the tab) above one `StageIoPanel` that shows the active side only; a file row still opens
-  `DocumentDrawer`. The project rail card shows the project path only — task counts live in the facet chips, never
+- Inputs, outputs and tests are **sheets**, not stacked sections: `SheetTabs` (`task-io-tab-inputs` /
+  `task-io-tab-outputs` / `task-io-tab-tests`, counts in the tab) above one panel that shows the active sheet
+  only; a file row still opens `DocumentDrawer`. The 测试 tab appears only when the selected step declares
+  tests, its count is `通过/总数`, and a row opens `TestRunDrawer` (inputs, outputs, log tail, screenshots,
+  history). Status words are one word each — 通过 / 失败 / 过期 / 未运行 / 运行中 — and never a sentence. The project rail card shows the project path only — task counts live in the facet chips, never
   twice. Facet rows, chips and card pills never wrap (`whitespace-nowrap`, horizontal scroll, truncated titles).
 
 ## 工作流 rules (`workflow/`)
@@ -110,7 +112,9 @@ last one. Anything that needs its own surface opens the shared right-side `share
 - **Stage pane (`StageEditorPane`).** Breadcrumb `wb-crumbs` (workflow › track), then the stage name as an editable
   title input (`wb-lane-name-input-<id>`; `wb-lane-name-<id>` is an sr-only copy so existing tests and readers keep
   the text), position `n / N`, delete with inline confirm. Sections are full-width with a one-line head
-  (`SectionHead`: title, mono count, right-aligned action) in **data-flow order: 输入 → 技能 → 输出 → 门禁**.
+  (`SectionHead`: title, mono count, right-aligned action) in **data-flow order: 输入 → 技能 → 输出 → 测试 → 门禁**.
+  测试 lists the step's declared tests (名称 · 方向 · 命令 · 必需); `+` copies a test direction into the step and
+  a row opens `TestEditorDrawer`, which writes back to the draft only on 应用.
   Document lint issues render once under 输出 (`stage-document-lint`): structural contract problems mirroring the
   kernel are errors that block saving; chain gaps and stages without outputs are warnings that do not.
 - **IO tables (`IoTable`).** Both tables are the same three equal columns so they align vertically: 文件 · 来源阶段 ·
@@ -304,6 +308,18 @@ row names the skills that should produce it, and a stale row carries its one-wor
 - Dialogs and the drawer keep accessible title, `aria-modal`, Escape, focus capture / restore.
 - Chips are `role=tab` inside a `role=tablist`; the gate switch is `role=radiogroup`.
 - Status is text + tone, never colour alone; `/` focuses global search.
+
+## Library page sections
+
+- The Library page's rail (`LibraryRail`) lists 模板 / 资源目录 / 测试方向; a section owns the middle and right
+  columns and nothing else. 资源目录 renders its own `ThreeColumns` with the shared rail passed in, so the rail's
+  collapsed state and selection stay with `LibraryView`.
+- 资源目录 filtering is client-side through `filterResources` from `@tenon/kernel/resources/query` — the same
+  predicate `tenon resources list` uses. Switching a facet chip must not issue a request; the list is fetched once.
+- The four facet rows are single-select `role=tablist` rows with a leading 全部 chip, `whitespace-nowrap` and
+  `overflow-x-auto`: enum values are nouns and must never wrap.
+- Builtin entries are read-only: only 复制 is offered. Custom entries add 编辑 (a YAML drawer validated by the
+  server, errors listed verbatim) and 删除 (a `Dialog`). A 409 offers 重新载入 rather than silently overwriting.
 
 ## Common mistakes
 

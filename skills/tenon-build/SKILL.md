@@ -287,6 +287,9 @@ plan 已把 build 切成若干**子阶段（每个 ≈ 一个干净上下文窗�
 2. **读输出**：有失败就**当场自纠**（改实现，必要时回看 design_doc / stack 规范），重跑直到三者全绿。
 3. 三者全绿，该 task 才算完成，方可进入 Step 3.2。
 
+> **离开 build 前 `tenon test status` 必须通过**：本步骤声明的必需测试只认 `tenon test run` 的记录；
+> 上面的自跑循环是快速反馈，不产生证据。
+
 > **分工（不许整体甩给 verify）**：build 内做的是**机器可验证的紧反馈自纠**（type/test/lint 当场修绿）；P5 verify 是**独立、对抗式的二次把关**（reviewer / codex / e2e）。把验证整体推后到 verify＝bug 留到那时才现、返工更贵——build 自己必须先收敛到绿。
 
 #### Step 3.2: 增量勾选 + 提交

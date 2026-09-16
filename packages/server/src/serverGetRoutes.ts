@@ -49,6 +49,7 @@ import { handleGetTraceRoutes } from './serverGetTraceRoutes.js'
 import type { TraceStoreReader } from './traces.js'
 import { resolveHostTargetPlanRoute } from './serverGetHostTargetPlanRoutes.js'
 import { resolveDocumentReadRoute } from './serverGetDocumentRoutes.js'
+import { handleTestGetRoutes } from './serverGetTestRoutes.js'
 import { resolveWorkflowYamlGet } from './serverWorkflowYamlRoutes.js'
 import { resolveInstructionGet } from './instructionRoutes.js'
 import { resolveResourceGet } from './serverResourceRoutes.js'
@@ -177,6 +178,9 @@ export async function handleGet(
   if (skillInvocations !== null) return sendJson(res, skillInvocations.status, skillInvocations.body)
     const documentRead = resolveDocumentReadRoute(req, path, { workflowRootForRequest, errMsg })
     if (documentRead !== null) return sendJson(res, documentRead.status, documentRead.body)
+    if (await handleTestGetRoutes(req, res, path, {
+      workflowRootForRequest, sendJson, configRoot: paths.configRoot,
+    })) return
     if (path === '/api/loops/snapshot') {
       try {
         const snap = await buildLoopsSnapshot({ registry: () => dedupeRoots(registry()), now: () => new Date(clock()) })

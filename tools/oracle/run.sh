@@ -177,6 +177,7 @@ normalize_yaml() {
       if (omit_declared_automation == "1" && $0 ~ /^(automation|automation_queued_at):/) next
       if (build_sha_value != "" && $0 ~ /^build_sha:/) { print "build_sha: " build_sha_value; next }
       if ($0 ~ /^[a-z_]+_at:/) { sub(/:.*$/, ": <WHITELISTED>"); print; next }
+      if ($0 ~ /^(created_by|assignee):/) { sub(/:.*$/, ": <WHITELISTED>"); print; next }
       print
     }
   ' "$1"
@@ -288,13 +289,13 @@ keyorder_ok() {
 }
 
 # 老/新两侧参数映射（老: init <name> <track> <preset> / check <name> <phase>；
-#  新: init <name> --track --preset [--user] / check <name>——CONTRACT §3）
+#  新: init <name> --track --preset / check <name>——CONTRACT §3；操作人走声明身份，无 --user）
 build_args() {
   local cmd="$1"; shift
   case "$cmd" in
     init)
       OLD_ARGS=(init "$1" "$2" "$3" --user oracle)
-      NEW_ARGS=(init "$1" --track "$2" --preset "$3" --user oracle)
+      NEW_ARGS=(init "$1" --track "$2" --preset "$3")
       ;;
     check)
       OLD_ARGS=(check "$1" "$2")
@@ -369,9 +370,16 @@ say ""
 # 产品 CLI 中受到约束：只能补当前 phase 之前的文档，仍需要真实 skill evidence + path/digest 校验，
 # 不能登记未来 phase。这样 oracle 同时覆盖升级兼容入口，而不是把旧 Change 悄悄豁免出治理。
 
+# 新 CLI 的操作人来自声明身份（env → config → git），没有 per-command 的 --user 冒名开关；
+# oracle 注入固定测试身份，机器上有没有 git 身份都不影响双跑。
+ORACLE_TENON_USER="oracle@tenon.test"
+ORACLE_TENON_USER_NAME="oracle"
+
 run_new_cli() {
   local dir="$1"; shift
-  (cd "$dir" && TENON_RUNTIME_HOME="$MACHINE_HOME" "${NEW_CMD[@]}" "$@")
+  (cd "$dir" && TENON_RUNTIME_HOME="$MACHINE_HOME" \
+    TENON_USER="$ORACLE_TENON_USER" TENON_USER_NAME="$ORACLE_TENON_USER_NAME" \
+    "${NEW_CMD[@]}" "$@")
 }
 
 install_post_init_fixture() {
@@ -409,9 +417,14 @@ track_oracle_skill() {
   # Exercise the same host-neutral native PostToolUse boundary as Claude. Session/tool identity is
   # required to seal the invocation against the canonical current StepVisit; a bare history row is
   # deliberately insufficient and would make this fixture fail closed at `document record`.
+  # The hook resolves the Change through the *caller's* `.tenon/users/<slug>/local/active-change`,
+  # so it needs the same declared identity as run_new_cli: without it the slug differs, the hook
+  # finds no active Change and silently records nothing.
   printf '{"cwd":"%s","tool_name":"Skill","skill":"%s","session_id":"oracle-document-bootstrap","tool_use_id":"oracle-%s"}' \
     "$dir" "$skill" "$skill" \
-    | CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$REPO_ROOT/hooks/skill-tracker.sh" >/dev/null
+    | CLAUDE_PLUGIN_ROOT="$REPO_ROOT" TENON_RUNTIME_HOME="$MACHINE_HOME" \
+      TENON_USER="$ORACLE_TENON_USER" TENON_USER_NAME="$ORACLE_TENON_USER_NAME" \
+      bash "$REPO_ROOT/hooks/skill-tracker.sh" >/dev/null
 }
 
 # Default transitions now enforce every mandatory Skill on the current phase visit. Oracle fixtures
@@ -518,6 +531,14 @@ bootstrap_new_document_contract() {
   # producing fixture Skill evidence, so dual-run document setup cannot accidentally bind a
   # concurrently present old fixture.
   run_new_cli "$dir" session activate "$change" || return 1
+  # Document recording is owner-gated, and legacy `assignee` values (bare name / unknown / null)
+  # project as unowned——a real behaviour change, not a harness artifact.  A real user takes the task
+  # over before producing documents; do the same once per Change so history gains one row, not one
+  # per bootstrap call.
+  if [ ! -f "$dir/.oracle-owner-taken-$change" ]; then
+    run_new_cli "$dir" owner take "$change" || return 1
+    : > "$dir/.oracle-owner-taken-$change" || return 1
+  fi
 
   record_oracle_document "$dir" "$change" "$phase" open proposal "$change_dir/proposal.md" openspec-propose || return 1
   record_oracle_document "$dir" "$change" "$phase" open openspec-design "$change_dir/design.md" openspec-propose || return 1

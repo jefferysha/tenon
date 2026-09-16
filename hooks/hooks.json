@@ -47,7 +47,8 @@
         "hooks": [
           { "type": "command", "command": "bash \"${HOME}/.local/bin/tenon-hook\" skill-tracker", "timeout": 5 },
           { "type": "command", "command": "bash \"${HOME}/.local/bin/tenon-hook\" interactive-skill-gate", "timeout": 5 },
-          { "type": "command", "command": "bash \"${HOME}/.local/bin/tenon-hook\" terminal-activity", "timeout": 5 }
+          { "type": "command", "command": "bash \"${HOME}/.local/bin/tenon-hook\" terminal-activity", "timeout": 5 },
+          { "type": "command", "command": "bash \"${HOME}/.local/bin/tenon-hook\" test-nudge", "timeout": 5 }
         ]
       }
     ]

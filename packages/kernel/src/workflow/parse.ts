@@ -6,8 +6,8 @@
  */
 import { GUARD_DATA_KEYS } from './types.js'
 import type {
-  ArtifactProducerPolicy, FieldRef, FieldType, GateKind, SkillRef, StepDef, StepTransition,
-  WorkflowActionConfig, WorkflowArtifactConfig, WorkflowConditional, WorkflowDef,
+  FieldRef, GateKind, SkillRef, StepDef, StepTransition,
+  StepTestDef, WorkflowActionConfig, WorkflowArtifactConfig, WorkflowConditional, WorkflowDef,
   WorkflowDocumentContractV1, WorkflowGuardConfig, TrackBranchDef,
 } from './types.js'
 import type { FieldName } from '../types.js'
@@ -15,43 +15,10 @@ import type { TrackPredicate } from './predicates.js'
 import { parseDocumentContract, type WorkflowParseCursor as Cursor } from './parse-document-contract.js'
 import { parseDecompositionPolicy, parseInteractionPolicy, parseReviewBudgetPolicy } from './parse-policy.js'
 import { parseSkillRefs } from './parse-skill-refs.js'
+import { parseStepTests } from './parse-tests.js'
 import { indentOf, parseInlineList, parsePromptBlock, parseFieldRefBlock, parseWhenBlock } from './parse-primitives.js'
+import { parseArtifactsBlock } from './parse-artifacts.js'
 
-
-/** Parse explicit file artifacts; semantic field/policy checks stay in compileWorkflow. */
-function parseArtifactsBlock(cur: Cursor, baseIndent: number): WorkflowArtifactConfig[] {
-  const arts: WorkflowArtifactConfig[] = []
-  while (cur.i < cur.lines.length) {
-    const line = cur.lines[cur.i] ?? ''
-    if (line.trim() === '') { cur.i++; continue }
-    if (indentOf(line) < baseIndent) break
-    const fieldMatch = /^\s*-\s+field:\s*(\S+)\s*$/.exec(line)
-    if (!fieldMatch) break
-    const itemIndent = indentOf(line)
-    cur.i++
-    let type: 'file_path' | undefined
-    let producerPolicy: ArtifactProducerPolicy | undefined
-    let requiredWhen: TrackPredicate | undefined
-    while (cur.i < cur.lines.length) {
-      const l = cur.lines[cur.i] ?? ''
-      if (l.trim() === '') { cur.i++; continue }
-      if (indentOf(l) <= itemIndent) break
-      let m: RegExpExecArray | null
-      if ((m = /^\s*type:\s*(\S+)\s*$/.exec(l))) {
-        if (m[1] !== 'file_path') throw new Error(`workflow 解析错误：artifact '${fieldMatch[1]}' 的 type 只支持 file_path（实际 '${m[1]}'）`)
-        type = 'file_path'; cur.i++; continue
-      }
-      if ((m = /^\s*producer_policy:\s*(\S+)\s*$/.exec(l))) { producerPolicy = m[1] as ArtifactProducerPolicy; cur.i++; continue }
-      if (/^\s*required_when:\s*$/.test(l)) { const wi = indentOf(l); cur.i++; requiredWhen = parseWhenBlock(cur, wi); continue }
-      throw new Error(`workflow 解析错误：artifact '${fieldMatch[1]}' 出现未知字段行 '${l.trim()}'`)
-    }
-    if (type === undefined) throw new Error(`workflow 解析错误：artifact '${fieldMatch[1]}' 缺 type`)
-    if (producerPolicy === undefined) throw new Error(`workflow 解析错误：artifact '${fieldMatch[1]}' 缺 producer_policy`)
-    const field = fieldMatch[1]! as FieldName
-    arts.push(requiredWhen === undefined ? { field, type, producerPolicy } : { field, type, producerPolicy, requiredWhen })
-  }
-  return arts
-}
 
 interface GuardFields {
   n?: number
@@ -230,6 +197,7 @@ function parseStep(cur: Cursor): StepDef {
   let inputs: FieldRef[] = []
   let outputs: FieldRef[] = []
   let artifacts: WorkflowArtifactConfig[] | undefined
+  let tests: StepTestDef[] | undefined
   let guards: WorkflowGuardConfig[] = []
   let transitions: StepTransition[] = []
 
@@ -275,6 +243,8 @@ function parseStep(cur: Cursor): StepDef {
     if (/^\s*outputs:\s*$/.test(line)) { cur.i++; outputs = parseFieldRefBlock(cur, baseIndent); continue }
     if (/^\s*artifacts:\s*\[\]\s*$/.test(line)) { artifacts = []; cur.i++; continue }
     if (/^\s*artifacts:\s*$/.test(line)) { cur.i++; artifacts = parseArtifactsBlock(cur, baseIndent); continue }
+    if (/^\s*tests:\s*\[\]\s*$/.test(line)) { tests = []; cur.i++; continue }
+    if (/^\s*tests:\s*$/.test(line)) { cur.i++; tests = parseStepTests(cur, baseIndent); continue }
     if (/^\s*guards:\s*\[\]\s*$/.test(line)) { cur.i++; continue }
     if (/^\s*guards:\s*$/.test(line)) { cur.i++; guards = parseGuardsBlock(cur, baseIndent); continue }
     if (/^\s*transitions:\s*\[\]\s*$/.test(line)) { transitions = []; cur.i++; continue }
@@ -287,6 +257,7 @@ function parseStep(cur: Cursor): StepDef {
     ...(prompt !== undefined ? { prompt } : {}),
     ...(reviewLanes !== undefined ? { reviewLanes } : {}),
     ...(artifacts !== undefined ? { artifacts } : {}),
+    ...(tests !== undefined ? { tests } : {}),
   }
 }
 

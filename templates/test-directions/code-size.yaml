@@ -1,0 +1,8 @@
+id: code-size
+command: tenon test code-size --json
+label: 代码规模
+timeout_s: 120
+pass:
+  metrics:
+    - name: lines_added
+      max: 2000

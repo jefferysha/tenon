@@ -155,6 +155,56 @@ export interface WorkflowArtifactConfig {
   readonly requiredWhen?: TrackPredicate
 }
 
+/**
+ * 步骤测试项（定义层）。测试方向只是创作模板：`direction` 只记来源 id，执行所需的一切都抄进本项，
+ * 所以冻结的工作流 IR 就是测试内容的冻结（父设计 X7），方向改动不影响在跑的任务。
+ */
+export type TestInputDef =
+  | { readonly kind: 'document'; readonly ref: string }
+  | { readonly kind: 'file'; readonly path: string }
+  | { readonly kind: 'env'; readonly name: string }
+  | { readonly kind: 'service'; readonly name: string; readonly url?: string }
+
+export type TestOutputKind = 'report' | 'coverage' | 'metrics' | 'trace' | 'screenshot' | 'log' | 'other'
+
+export interface TestOutputDef {
+  readonly path: string
+  readonly kind?: TestOutputKind
+  readonly required?: boolean
+}
+
+export interface TestMetricCriterion {
+  readonly name: string
+  readonly max?: number
+  readonly min?: number
+  /** 相对本用户基线的退化上限（百分比）；无基线时只留提示，不判失败。 */
+  readonly max_regression_pct?: number
+  readonly better?: 'lower' | 'higher'
+}
+
+export interface StepTestPassDef {
+  readonly exit_code?: number
+  readonly metrics?: readonly TestMetricCriterion[]
+}
+
+export interface StepTestDef {
+  readonly id: string
+  /** 来源方向 id（仅溯源）。 */
+  readonly direction: string
+  readonly command: string
+  readonly cwd?: string
+  readonly label?: string
+  readonly timeout_s?: number
+  readonly required?: boolean
+  readonly keep_runs?: number
+  /** 回归范围：全量 / 已知问题集。 */
+  readonly scope?: 'full' | 'known'
+  readonly metrics_path?: string
+  readonly pass?: StepTestPassDef
+  readonly inputs?: readonly TestInputDef[]
+  readonly outputs?: readonly TestOutputDef[]
+}
+
 /** step 间转换边——每个 step 自己声明"按哪个 event 名走向哪个下一个 step"，取代
  *  default workflow 依赖的全局 TRANSITION_EVENTS 表（那张表是 Record<Phase,...>，天然
  *  不适用任意自定义 step）。同一个 step 可以有多条边（不同 event 名指向不同下一个 step，
@@ -182,6 +232,8 @@ export interface StepDef {
   /** 显式 artifact 声明（G2 P4）——缺省（旧 YAML 无本键）= undefined，编译期视作无显式声明
    *  （artifact 仍从 file_path outputs 派生）；`artifacts: []` 显式空块与 undefined 是两种保留状态。 */
   readonly artifacts?: readonly WorkflowArtifactConfig[]
+  /** 本步声明的测试项；缺省 = 无测试（编译后不出现 tests 键，指纹逐字不变）。 */
+  readonly tests?: readonly StepTestDef[]
   readonly guards: readonly WorkflowGuardConfig[]
   readonly transitions: readonly StepTransition[]
 }

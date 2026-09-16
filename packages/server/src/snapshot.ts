@@ -77,6 +77,8 @@ export interface SnapshotDeps extends WorkflowSnapshotCapabilityDeps {
   rootAnchor?: (root: string) => WorkflowRootAnchor | undefined
   /** Machine-level manifest mandatory table; only used for frozen plans without an embedded track matrix. */
   mandatorySkills?: SkillTable
+  /** Declared identity for a root; the tests projection reads only this user's records. */
+  resolveUser?: (root: string) => import('@tenon/kernel').TenonUserResolution
   /** Resolve the durable artifact service for one change directory; only the scope check is projected. */
   artifactServiceForRoot?: (root: string, anchor: WorkflowRootAnchor) => ArtifactService | undefined | Promise<ArtifactService | undefined>
   /**

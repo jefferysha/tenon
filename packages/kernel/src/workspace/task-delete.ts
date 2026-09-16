@@ -168,7 +168,7 @@ export async function cleanupDeletedChangeReferences(
       const rel = await removeInside(repoRoot, paths.authority)
       if (rel !== null) removed.push(rel)
     }
-    for (const dir of [join(paths.testsDir, change), join(paths.artifactsDir, change)]) {
+    for (const dir of [join(paths.testsDir, change), join(paths.artifactsDir, change), join(paths.runningDir, change)]) {
       const rel = await removeInside(repoRoot, dir)
       if (rel !== null) removed.push(rel)
     }

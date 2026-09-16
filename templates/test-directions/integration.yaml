@@ -1,0 +1,9 @@
+id: integration
+command: npm run test:integration
+label: 集成
+timeout_s: 1800
+inputs:
+  - kind: env
+    name: DATABASE_URL
+  - kind: service
+    name: database

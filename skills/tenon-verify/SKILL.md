@@ -105,7 +105,9 @@ security、E2E/API/browser/visual/public acceptance、Codex 轨都消费这个 i
 > 真实工作区必须保持零实现/配置/生成物写入，且 dispatch 前必须确认没有仍在运行的 writer。
 > build、bundle、codegen、release asset 生成、会重写 tracked snapshot 的测试等命令必须在 Build
 > 冻结前完成；Verify 如需重跑，只能在保留权限和 symlink 的隔离副本执行。截图、Playwright
-> snapshot、trace、coverage、各轨原始审查产物与日志必须显式写到仓库外的临时目录。全部轨结束并
+> snapshot、trace、coverage、各轨原始审查产物与日志必须显式写到仓库外的临时目录；例外是工作流测试项
+> 声明过的输出（`test-results/`、`playwright-report/`、`coverage/`）——这三个目录不进工作区指纹，
+> 由 `tenon test run` 登记，报告的测试段由 `tenon test report --write` 从记录生成。全部轨结束并
 > 一次性聚合后，workflow 声明的 canonical `verification_report` 是唯一允许写入仓库并登记的
 > 治理产物；不得由某一轨边跑边写。每轨前后都重算 fingerprint；
 > 任一瞬时不一致即该轨无效并走 `verify-fail`，不得通过删除/还原产物来“恢复”冻结结论。

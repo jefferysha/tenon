@@ -182,4 +182,28 @@ describe('default 分支', () => {
     expect(defaultArtifactsForStep('spec', 'pm')).toEqual([])
     expect(defaultArtifactsForStep('spec', 'backend').map((artifact) => artifact.field)).toEqual(['plan'])
   })
+
+  it('测试 id 在分支内唯一；不同分支可以重名', () => {
+    const test = { id: 'unit', direction: 'unit', command: 'npm test' } as const
+    const step = (id: string, to: string, tests?: readonly typeof test[]) => ({
+      id, label: id, gate: null as null, skills: [], inputs: [], outputs: [],
+      ...(tests === undefined ? {} : { tests }),
+      guards: [], transitions: to === '' ? [] : [{ event: 'go', to }],
+    })
+    const duplicate = validateWorkflow({
+      name: 'dup',
+      steps: [],
+      tracks: { backend: { steps: [step('build', 'verify', [test]), step('verify', '', [test])] } },
+    })
+    expect(duplicate).toContain("tracks.backend: 测试 id 'unit' 在分支内重复（step 'build' 与 'verify'）")
+
+    expect(validateWorkflow({
+      name: 'shared',
+      steps: [],
+      tracks: {
+        backend: { steps: [step('build', '', [test])] },
+        mobile: { steps: [step('build', '', [test])] },
+      },
+    })).toEqual([])
+  })
 })

@@ -2,7 +2,7 @@ import { lstat, readdir } from 'node:fs/promises'
 import type { Dirent } from 'node:fs'
 import { join } from 'node:path'
 import {
-  isTenonUser, stateStorageSourcePathSync, TERMINAL_ACTIVITY_FILE, userProjectPaths,
+  isTenonUser, stateStorageSourcePathSync, TENON_PROJECT_DIR, TERMINAL_ACTIVITY_FILE, userProjectPaths,
   type TenonUserResolution,
 } from '@tenon/kernel'
 import { dedupeRoots } from './projectRoots.js'
@@ -42,6 +42,17 @@ async function viewerFingerprintParts(
     }
   }
   return parts
+}
+
+async function userSlugs(readRoot: string): Promise<readonly string[]> {
+  try {
+    return (await readdir(join(readRoot, TENON_PROJECT_DIR, 'users'), { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+  } catch {
+    return []
+  }
 }
 
 /** Build the SSE input fingerprint while retaining the same registered-root anchor as snapshots. */
@@ -101,6 +112,20 @@ export async function computeSnapshotFingerprint(
             parts.push(`${target}:${stat.size}:${stat.mtimeNs}`)
           } catch {
             // Missing optional snapshot input is represented by its absence from the fingerprint.
+          }
+        }
+        // 新的测试记录与运行中标记必须推一次 SSE，否则工作台的测试页签只在别的输入变化时才刷新。
+        for (const slug of await userSlugs(readRoot)) {
+          for (const dir of [
+            join(readRoot, TENON_PROJECT_DIR, 'users', slug, 'tests', entry.name),
+            join(readRoot, TENON_PROJECT_DIR, 'users', slug, 'local', 'running', entry.name),
+          ]) {
+            try {
+              const stat = await lstat(dir, { bigint: true })
+              parts.push(`${dir}:${stat.size}:${stat.mtimeNs}`)
+            } catch {
+              // 没跑过测试就没有目录，用它的缺席表达。
+            }
           }
         }
         const activity = join(changeDir, TERMINAL_ACTIVITY_FILE)

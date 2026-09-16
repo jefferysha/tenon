@@ -1,0 +1,11 @@
+id: playwright
+command: npx playwright test
+label: Playwright
+timeout_s: 1800
+outputs:
+  - path: playwright-report
+    kind: report
+    required: false
+  - path: test-results
+    kind: trace
+    required: false

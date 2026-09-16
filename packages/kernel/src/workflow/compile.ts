@@ -10,6 +10,7 @@ import type {
 } from './types.js'
 import { compileGuards, compileStepGuards } from './compile-guards.js'
 import { compileArtifacts } from './compile-artifacts.js'
+import { compileStepTests } from './compile-tests.js'
 import { isDefaultWorkflowName } from './identifier.js'
 import {
   compileWorkflowDecompositionPolicy,
@@ -46,7 +47,8 @@ const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
   'name', 'decomposition', 'interaction', 'reviewBudget', 'openspec', 'documentContract', 'steps', 'tracks',
 ])
 const STEP_KEYS: ReadonlySet<string> = new Set([
-  'id', 'label', 'gate', 'prompt', 'reviewLanes', 'skills', 'inputs', 'outputs', 'artifacts', 'guards', 'transitions',
+  'id', 'label', 'gate', 'prompt', 'reviewLanes', 'skills', 'inputs', 'outputs', 'artifacts', 'tests',
+  'guards', 'transitions',
 ])
 const SKILL_KEYS: ReadonlySet<string> = new Set(['id', 'kind', 'review_lane', 'depends_on'])
 const FIELD_REF_KEYS: ReadonlySet<string> = new Set(['field', 'type'])
@@ -229,6 +231,8 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   // 只有 undefined（真未声明）才吃默认 []（compileGuards 自身的口径）。
   const guards = compileGuards(rec.guards, `${path}.guards`, outputs)
   const artifacts = compileArtifacts(rec.artifacts, `${path}.artifacts`, outputs, `${path}.outputs`, allowedPolicies)
+  // 空数组与缺省同归一为「无 tests 键」：未声明测试的工作流编译成与本特性之前逐字相同的 IR，指纹不变。
+  const tests = compileStepTests(rec.tests, `${path}.tests`)
   // gate=auto：自动评审 = 本阶段声明的全部输出齐全即放行——编译成每条出边上的 nonempty-output
   //（展开为逐输出 field-nonempty / output-present），与显式守卫同一条评估链，不另起门类。
   const autoGuards = gate === 'auto' ? compileGuards([{ type: 'nonempty-output' }], `${path}.gate(auto)`, outputs) : []
@@ -249,7 +253,9 @@ function compileStep(step: unknown, index: number, allowedPolicies: ReadonlySet<
   return {
     id, label: rec.label, gate: gate as GateKind,
     ...(prompt === undefined ? {} : { prompt }),
-    reviewLanes, skills, inputs, outputs, guards, artifacts, transitions,
+    reviewLanes, skills, inputs, outputs, guards, artifacts,
+    ...(tests === undefined ? {} : { tests }),
+    transitions,
   }
 }
 

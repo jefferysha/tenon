@@ -34,6 +34,30 @@ export interface ServerPaths extends ProductPaths {
   pidfilePath: string
 }
 
+/** 工作台「测试」页签的一项：状态 + 当前用户最近一次运行的摘要。 */
+export interface TestItemSnapshot {
+  id: string
+  label?: string
+  direction: string
+  required: boolean
+  status: 'passed' | 'failed' | 'stale' | 'missing' | 'running'
+  run?: {
+    runId: string
+    user: string
+    actor: { id: string; name: string }
+    result: 'pass' | 'fail'
+    exitCode: number | null
+    durationMs: number
+    finishedAt: string
+    reasons: string[]
+  }
+}
+
+export interface TestStepSnapshot {
+  stepId: string
+  items: TestItemSnapshot[]
+}
+
 /** snapshot 里单个 change 的投影（.pipeline.yaml 全字段 + 常读字段提升到顶层）。 */
 export interface ChangeSnapshot {
   name: string
@@ -67,6 +91,10 @@ export interface ChangeSnapshot {
   documents?: DocumentEvidenceSnapshot
   /** Per-step skill execution state (idle / running / done, grouped by wave) derived from the history log. */
   skillRuns?: SkillRunsSnapshot
+  /** Per-step declared tests; omitted when the change's branch declares none. */
+  tests?: TestStepSnapshot[]
+  /** Corrupt test record file names of the acting user (at most 20). */
+  testDiagnostics?: string[]
   /**
    * Fresh host-hook heartbeat for an explicitly bound terminal session. This is dashboard-only
    * observability, not canonical workflow state; omitted as soon as its short lease expires.
@@ -340,34 +368,9 @@ export interface DashboardServer {
   close(): Promise<void>
 }
 
-export interface RelatedSessionSearchRequest {
-  root: string
-  query: string
-  platform: MemPlatformFilter
-}
-
-export interface RelatedSessionSearchMatch {
-  platform: MemPlatform
-  session_id: string
-  title?: string
-  updated_at?: string
-  score: number
-  hit_count: number
-  excerpt: string
-  descendants_merged: number
-}
-
-export interface RelatedSessionSearchResponse {
-  protocol: 'tenon-related-session-memory/v1'
-  query: string
-  platform: MemPlatformFilter
-  partial: boolean
-  warnings: Array<{ code: string; message: string }>
-  matches: RelatedSessionSearchMatch[]
-}
-
-export type RelatedSessionSearchRunner = (
-  request: RelatedSessionSearchRequest,
-) => RelatedSessionSearchResponse | Promise<RelatedSessionSearchResponse>
+import type { RelatedSessionSearchRunner } from './typesRelatedSession.js'
+export type {
+  RelatedSessionSearchMatch, RelatedSessionSearchRequest, RelatedSessionSearchResponse, RelatedSessionSearchRunner,
+} from './typesRelatedSession.js'
 
 export type { FieldName, FlowEngine, Phase, StateStore }

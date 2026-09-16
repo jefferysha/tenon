@@ -12,6 +12,8 @@ import { IoTable, type IoRow } from './IoTable'
 import { producerSkills } from './producers'
 import { SkillComposer } from './SkillComposer'
 import { SkillDetailDrawer } from './SkillDetail'
+import { TestEditorDrawer } from './TestEditorDrawer'
+import { TestsSection } from './TestsSection'
 import { SkillFlow } from './SkillFlow'
 import { cn } from '@/lib/utils'
 
@@ -56,6 +58,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const [composerOpen, setComposerOpen] = useState(false)
   const [skillDetail, setSkillDetail] = useState<string | null>(null)
   const [outputPicker, setOutputPicker] = useState(false)
+  const [testDetail, setTestDetail] = useState<string | null>(null)
   const [inputPicker, setInputPicker] = useState(false)
   const stepIo = editor.effectiveIo?.[step.id]
   const registry = editor.mandatory.registry
@@ -238,6 +241,13 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
             )}
           </section>
 
+          <TestsSection
+            tests={step.tests ?? []}
+            editable={editable}
+            onAdd={(test) => { editor.setTests(step.id, [...(step.tests ?? []), test]); setTestDetail(test.id) }}
+            onOpen={setTestDetail}
+          />
+
           <section className="grid gap-3.5 py-6" data-testid="stage-gate">
             <SectionHead title={t('workflow.gate_title')} />
             <div className="grid max-w-[24rem] grid-cols-3 gap-2" role="radiogroup" aria-label={t('workflow.gate_title')} data-testid={`wb-lane-gate-${step.id}`}>
@@ -324,6 +334,13 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
         onSave={(next) => editor.setSkills(step.id, next)}
       />
       <SkillDetailDrawer name={skillDetail} onClose={() => setSkillDetail(null)} />
+      <TestEditorDrawer
+        test={(step.tests ?? []).find((test) => test.id === testDetail) ?? null}
+        editable={editable}
+        onApply={(next) => editor.setTests(step.id, (step.tests ?? []).map((test) => test.id === next.id ? next : test))}
+        onDelete={(id) => editor.setTests(step.id, (step.tests ?? []).filter((test) => test.id !== id))}
+        onClose={() => setTestDetail(null)}
+      />
     </section>
   )
 }

@@ -312,7 +312,21 @@ fi
 
 # Codex 的项目级 skill 发现依赖 .agents/skills；仅注册 hook/写 AGENTS 无法让宿主实际调用
 # Tenon。静态安装也必须完整投递入口和七个 phase skill，并且重跑幂等。
-cx_inst="$ADAPTERS/codex/install.sh"
+# 上游 skill 由 setup/update 装进插件根、不入库，干净 checkout 里一个都没有。静态投递这一组用例要
+# 证明的正是「上游 skill 也会被投递」，所以从一个自带上游 skill 的 fixture 插件根安装，而不是改判
+# 成内置 skill，也不是缺内容就跳过。
+cx_plugin_root="$TMP/codex-static-plugin-root"
+mkdir -p "$cx_plugin_root"
+cp -R "$ROOT/adapters" "$cx_plugin_root/adapters"
+cp -R "$ROOT/skills" "$cx_plugin_root/skills"
+cp -R "$ROOT/templates" "$cx_plugin_root/templates"
+for skill in brainstorming writing-plans verification-before-completion openspec-propose openspec-apply-change; do
+  [ -f "$cx_plugin_root/skills/$skill/SKILL.md" ] && continue
+  mkdir -p "$cx_plugin_root/skills/$skill"
+  printf -- '---\nname: %s\ndescription: fixture\n---\n# %s\n' "$skill" "$skill" \
+    > "$cx_plugin_root/skills/$skill/SKILL.md"
+done
+cx_inst="$cx_plugin_root/adapters/codex/install.sh"
 if [ -f "$cx_inst" ]; then
   cx_target="$TMP/codex-static-skills"
   if bash "$cx_inst" --static --target "$cx_target" --codex-home "$TMP/codex-static-home" --yes >/dev/null 2>&1; then

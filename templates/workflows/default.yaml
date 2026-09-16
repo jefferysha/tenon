@@ -459,6 +459,19 @@ tracks:
         outputs:
           - field: build_sha
             type: string
+        tests:
+          - id: typecheck
+            direction: typecheck
+            command: npm run typecheck
+            label: 类型检查
+            timeout_s: 600
+            required: true
+          - id: unit
+            direction: unit
+            command: npm test
+            label: 单测
+            timeout_s: 900
+            required: true
         guards:
           - type: field-equals
             field: pre_verify_review_result
@@ -491,6 +504,20 @@ tracks:
           - field: verification_report
             type: file_path
             producer_policy: effective-phase-skills
+        tests:
+          - id: playwright
+            direction: playwright
+            command: npx playwright test
+            label: Playwright
+            timeout_s: 1800
+            required: true
+            outputs:
+              - path: playwright-report
+                kind: report
+                required: false
+              - path: test-results
+                kind: trace
+                required: false
         guards: []
         transitions:
           - event: verify-pass
@@ -516,6 +543,13 @@ tracks:
         outputs:
           - field: pr_url
             type: string
+        tests:
+          - id: design-system
+            direction: design-system
+            command: tenon design validate
+            label: 设计体系
+            timeout_s: 300
+            required: true
         guards:
           - type: spec-migration-applied
         transitions:
@@ -642,6 +676,13 @@ tracks:
         outputs:
           - field: build_sha
             type: string
+        tests:
+          - id: unit
+            direction: unit
+            command: npm test
+            label: 单测
+            timeout_s: 900
+            required: true
         guards:
           - type: field-equals
             field: pre_verify_review_result
@@ -670,6 +711,13 @@ tracks:
           - field: verification_report
             type: file_path
             producer_policy: effective-phase-skills
+        tests:
+          - id: integration
+            direction: integration
+            command: npm run test:integration
+            label: 集成
+            timeout_s: 1800
+            required: true
         guards: []
         transitions:
           - event: verify-pass

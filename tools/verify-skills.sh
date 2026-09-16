@@ -198,6 +198,7 @@ if [ -f "$HOOKS_JSON" ]; then
     hooks/skill-start.sh \
     hooks/interactive-skill-gate.sh \
     hooks/terminal-activity.sh \
+    hooks/test-nudge.sh \
     hooks/interaction-authority.sh \
     hooks/tenon-user.sh; do
     N_PATH=$((N_PATH + 1))

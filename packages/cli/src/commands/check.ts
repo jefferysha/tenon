@@ -38,6 +38,7 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { display, str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { stepTestBlockers } from './check-test-evidence.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 
 function renderBuildRevisionBlocker(blocker: BuildRevisionBlocker): string {
@@ -181,8 +182,10 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
     ? await evaluateSpecMigrationEvidence(deps.cwd, dir, name)
     : undefined
   let documents: DocumentEvidenceReport | undefined
+  let tests: readonly string[]
   try {
     documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
+    tests = await stepTestBlockers(deps, name, dir, state, plan)
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1
@@ -191,7 +194,8 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
   for (const warning of result.warnings ?? []) {
     deps.io.out(`  [WARN] ${warning}`)
   }
-  if (result.pass && revisionFailures.length === 0 && (documents?.pass ?? true) && migration?.kind !== 'invalid') {
+  if (result.pass && revisionFailures.length === 0 && (documents?.pass ?? true)
+    && tests.length === 0 && migration?.kind !== 'invalid') {
     deps.io.out('  [PASS] 所有检查通过')
     return 0
   }
@@ -204,12 +208,16 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
   for (const blocker of documents?.blockers ?? []) {
     deps.io.out(`  [FAIL] document: ${blocker}`)
   }
+  for (const blocker of tests) {
+    deps.io.out(`  [FAIL] test: ${blocker}`)
+  }
   if (migration?.kind === 'invalid') {
     deps.io.out(`  [FAIL] migration: ${migration.reason}`)
   }
   const total = result.failures.length
     + revisionFailures.length
     + (documents?.blockers.length ?? 0)
+    + tests.length
     + (migration?.kind === 'invalid' ? 1 : 0)
   deps.io.out(`  [FAIL] 共 ${total} 项未通过`)
   return 2
@@ -298,14 +306,16 @@ async function checkGraphWorkflow(
     ? await evaluateSpecMigrationEvidence(deps.cwd, dir, name)
     : undefined
   let documents: DocumentEvidenceReport | undefined
+  let tests: readonly string[]
   try {
     documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
+    tests = await stepTestBlockers(deps, name, dir, state, plan)
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1
   }
   deps.io.out(`[CHECK] ${name} (phase=${display(state.fields.phase)})`)
-  if (result.pass && (documents?.pass ?? true) && migration?.kind !== 'invalid') {
+  if (result.pass && (documents?.pass ?? true) && tests.length === 0 && migration?.kind !== 'invalid') {
     deps.io.out('  [PASS] 所有检查通过')
     return 0
   }
@@ -315,11 +325,15 @@ async function checkGraphWorkflow(
   for (const blocker of documents?.blockers ?? []) {
     deps.io.out(`  [FAIL] document: ${blocker}`)
   }
+  for (const blocker of tests) {
+    deps.io.out(`  [FAIL] test: ${blocker}`)
+  }
   if (migration?.kind === 'invalid') {
     deps.io.out(`  [FAIL] migration: ${migration.reason}`)
   }
   const total = result.failures.length
     + (documents?.blockers.length ?? 0)
+    + tests.length
     + (migration?.kind === 'invalid' ? 1 : 0)
   deps.io.out(`  [FAIL] 共 ${total} 项未通过`)
   return 2

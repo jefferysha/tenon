@@ -8,6 +8,8 @@ import { BUTTON_GHOST } from '../shared/uiRecipes'
 import { LibraryRail, type LibrarySection } from './LibraryRail'
 import { NewTemplateDialog } from './NewTemplateDialog'
 import { ResourceCatalog } from './resources/ResourceCatalog'
+import { TestDirectionsPane } from './TestDirectionsPane'
+import { useTestDirections } from './useTestDirections'
 import { TemplateDetail } from './TemplateDetail'
 import { useTemplateLibrary } from './useTemplateLibrary'
 
@@ -32,11 +34,12 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
   useEffect(() => {
     try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
   }, [railCollapsed])
-  const [section, setSection] = useState<LibrarySection>('templates')
   const [category, setCategory] = useState<CategoryFilter>('all')
   const [source, setSource] = useState<SourceFilter>('all')
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [section, setSection] = useState<LibrarySection>('templates')
+  const directions = useTestDirections()
 
   const rows = useMemo(
     () => library.templates.filter((row) =>
@@ -69,6 +72,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
     <LibraryRail
       section={section}
       templates={library.templates.length}
+      directions={directions.directions.length}
       collapsed={railCollapsed}
       onSection={setSection}
       onToggle={() => setRailCollapsed((value) => !value)}
@@ -91,7 +95,15 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
         testId="library-view"
         railCollapsed={railCollapsed}
         rail={rail}
-        list={(
+        list={section === 'directions' ? (
+          <ListColumn
+            testId="library-list"
+            eyebrow={t('library.title')}
+            title={t('library.test_directions')}
+          >
+            <TestDirectionsPane slot="list" library={directions} canWrite={canWrite} onToast={onToast} />
+          </ListColumn>
+        ) : (
           <ListColumn
             testId="library-list"
             eyebrow={t('library.title')}
@@ -174,7 +186,11 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
             )}
           </ListColumn>
         )}
-        detail={library.selected === null || library.document === null ? (
+        detail={section === 'directions' ? (
+          <div className="min-h-0 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4" data-testid="library-direction-detail">
+            <TestDirectionsPane slot="detail" library={directions} canWrite={canWrite} onToast={onToast} />
+          </div>
+        ) : library.selected === null || library.document === null ? (
           <DetailEmpty title={t('library.empty_detail')} desc={t('library.templates')} testId="lib-detail-empty" />
         ) : (
           <TemplateDetail

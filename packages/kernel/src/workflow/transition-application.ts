@@ -37,6 +37,7 @@ import type { FieldName, FlowEngine, Phase, PipelineState } from '../types.js'
 import { IllegalTransitionError } from '../types.js'
 import { applyBreadcrumbTail, clearReviewGatePatch, readCurrentRunRevision, reviewGateApprovedFor, transitionRecordToHistoryEntry } from '../state/index.js'
 import { evaluateDocumentEvidence } from '../state/document-evidence.js'
+import { rejectOnTestEvidence } from '../test-evidence/transition-gate.js'
 import { ownerDecision } from '../users/owner.js'
 import { formatUserRef } from '../users/user.js'
 import type { DocumentEvidenceReport } from '../state/document-evidence.js'
@@ -364,6 +365,11 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
             return { kind: 'document-evidence-failed', phase: prepared.from, blockers: evidence.blockers }
           }
         }
+        const testRejection = await rejectOnTestEvidence({
+          repoRoot: command.root, changeDir: command.changeDir, changeName: command.changeName,
+          plan: effectivePlan, from: prepared.from, to: prepared.to, context: deps.testEvidence,
+        })
+        if (testRejection !== undefined) return testRejection
         // Review 的判定点是“离开当前 review phase”，不是“刚进入就锁住”。所有自动 guards
         // / 文档证据先通过，才允许 request/ack receipt 成为下一步的人类复核证据。所有 caller
         // 都必须提供与当前状态绑定的 verifier；receipt 本身不能作为未绑定的放行凭证。

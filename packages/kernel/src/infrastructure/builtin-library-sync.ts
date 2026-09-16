@@ -13,6 +13,7 @@ import { isInstructionCategory } from '../instructions/categories.js'
 import { parseInstructionBlock } from '../instructions/block.js'
 import { parseResourceEntry } from '../resources/parse.js'
 import { validateResourceEntry } from '../resources/validate.js'
+import { parseTestDirection } from '../test-evidence/direction.js'
 import { sha256Hex } from '../sha256.js'
 import { withLock } from '../state/lock.js'
 
@@ -50,6 +51,16 @@ function validateResourceEntryFile(relativePath: string, text: string): readonly
   }
 }
 
+function validateTestDirection(relativePath: string, text: string): readonly string[] {
+  if (relativePath.includes('/')) return ['路径必须是 <id>.yaml']
+  try {
+    const direction = parseTestDirection(text)
+    return direction.id === relativePath.replace(/\.yaml$/u, '') ? [] : ['id 必须等于文件名主干']
+  } catch (error) {
+    return [error instanceof Error ? error.message : String(error)]
+  }
+}
+
 export const BUILTIN_LIBRARIES: readonly BuiltinLibrary[] = [
   {
     id: 'instruction-templates',
@@ -64,6 +75,13 @@ export const BUILTIN_LIBRARIES: readonly BuiltinLibrary[] = [
     target: 'resources/builtin',
     extensions: ['.yaml'],
     validate: validateResourceEntryFile,
+  },
+  {
+    id: 'test-directions',
+    source: 'templates/test-directions',
+    target: 'test-directions/builtin',
+    extensions: ['.yaml'],
+    validate: validateTestDirection,
   },
 ]
 

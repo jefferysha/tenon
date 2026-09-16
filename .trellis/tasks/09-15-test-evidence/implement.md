@@ -334,3 +334,35 @@ session after regenerating.)
 
 Net ≈ +5,200 production / +3,600 test lines, 26 code commits plus real-host acceptance. This is a large child; plan roughly
 3 parallelizable streams after C10: CLI (C11–C16), server (C17–C18), dashboard (C19–C22), then C23–C27.
+
+---
+
+## Deviations
+
+| # | Design says | Implemented | Why |
+| --- | --- | --- | --- |
+| D-1 | §5.1 `testEvidencePaths(repoRoot, slug)` as this child's own per-user helper | Path fields (`runningDir`, `envKey`) were added to `multi-user`'s `userProjectPaths`; `test-evidence/paths.ts` only derives per-change paths from it | Parent X10: children add their own fields to `userProjectPaths` instead of parallel helpers |
+| D-2 | §5.8 run ids "sort by time", so the newest record is the greatest run id | `listTestRuns` orders by `finished_at` and uses the run id only as a stable tie-break | Within one second, run ids differ only by their random suffix, so id order is arbitrary; a rerun in the same second must still win. `selectArtifactDirsToPrune` now takes an already time-ordered list instead of re-sorting by id |
+| D-3 | §9.2 the nudge scans `.pipeline-workflow-plan.json` for a command match | Same, plus: every variable next to a full-width punctuation mark is `${}`-delimited | In this locale bash accepts the leading byte of `；` as part of an identifier, so `$IDS；` resolved to an unbound variable |
+| D-4 | §7.2 the test routes are chained individually into `serverGetRoutes.ts` | One `handleTestGetRoutes` entry point covers runs / run / artifact / directions | `serverGetRoutes.ts` sits at the 400-line HTTP limit; one entry point keeps it inside the limit |
+| D-5 | §11.2 the library page mounts `TestDirectionsPane` into an existing rail shell | The rail gained its `section` state here (模板 / 测试方向) because `instruction-templates` shipped a single-section rail | The pane cannot be reached without a section switch; the shell change is 20 lines and the rail card contract is unchanged |
+| D-6 | Parent implement.md: generated files stay out of the branch | `templates/skill-sources.yaml` **is** committed (C24) | Editing a `SKILL.md` without re-syncing provenance makes `tools/verify-skills.sh` fail with a content-hash mismatch, so the sync belongs in the same commit |
+| D-7 | C27 real-host acceptance | Not run | Parent X18: wave 5 runs real Claude Code / Codex acceptance on `main` |
+
+### Post-merge wiring
+
+| Item | Action |
+| --- | --- |
+| Archived Change refusal (parent §7) | Replace `archivedForUser` in `packages/cli/src/commands/test-context.ts` with `refuseArchived(deps, name)` from `packages/cli/src/archivedGuard.ts`. It is the only archive call site in the `tenon test` family; the branch was cut before task-delete-archive merged, so it is a constant `false` here. The server test routes are read-only and need no refusal |
+| Generated default workflow | `npm run generate:default-workflow` (see below) |
+| Task deletion | Physical delete must also remove `.tenon/users/*/tests/<change>/` and `.tenon/users/*/local/{artifacts,running}/<change>/` (design §10) |
+
+### Known red on this branch (by instruction)
+
+`packages/kernel/src/workflow/generate-default-workflow.test.ts` fails because C24 changed
+`templates/workflows/default.yaml` while its instruction says not to stage
+`packages/kernel/src/workflow/default-workflow.generated.ts`. One command after merge makes it green:
+
+```bash
+npm run generate:default-workflow
+```

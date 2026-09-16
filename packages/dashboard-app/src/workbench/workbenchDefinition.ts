@@ -2,6 +2,7 @@ import type {
   WbDocumentContract,
   WbSkillRef,
   WbStepDef,
+  WbStepTest,
   WbTrackBranch,
   WbTransition,
   WbWorkflowDef,
@@ -17,6 +18,7 @@ export type {
   WbGuardConfig,
   WbSkillRef,
   WbStepDef,
+  WbStepTest,
   WbTrackPredicate,
   WbTransition,
   WbWorkflowDef,
@@ -192,6 +194,22 @@ export function setStepSkillWavesInDef(def: WbWorkflowDef, stepId: string, waves
 /** 整体替换阶段技能（含 depends_on）；来自技能画布。 */
 export function setStepSkillsInDef(def: WbWorkflowDef, stepId: string, skills: readonly WbSkillRef[]): WbWorkflowDef {
   return mapStep(def, stepId, (step) => ({ ...step, skills: [...skills] }))
+}
+
+/** 步骤测试项整份替换（同 setStepSkillsInDef 的口径：草稿里只改这一步）。 */
+export function setStepTestsInDef(def: WbWorkflowDef, stepId: string, tests: readonly WbStepTest[]): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => ({ ...step, tests: [...tests] }))
+}
+
+/** 把一个测试方向抄成步骤测试项；id 冲突时追加 `-2`、`-3` …（与 kernel testFromDirection 同规则）。 */
+export function testFromDirection(
+  direction: { id: string; label: string } & Omit<WbStepTest, 'id' | 'direction' | 'required' | 'keep_runs' | 'label'>,
+  existingIds: ReadonlySet<string>,
+): WbStepTest {
+  let id = direction.id
+  for (let suffix = 2; existingIds.has(id); suffix++) id = `${direction.id}-${suffix}`
+  const { id: _id, ...rest } = direction
+  return { ...rest, id, direction: direction.id, required: true }
 }
 
 /** 追加技能：缺省成为新的末列（串行接在最后）。 */

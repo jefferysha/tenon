@@ -1,0 +1,4 @@
+id: typecheck
+command: npm run typecheck
+label: 类型检查
+timeout_s: 600

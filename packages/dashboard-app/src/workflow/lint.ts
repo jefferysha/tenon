@@ -13,6 +13,9 @@ type LintKind =
   | { kind: 'document-producer-missing'; stepId: string; document: string; skill: string }
   | { kind: 'document-order'; stepId: string; document: string }
   | { kind: 'document-chain-gap'; stepId: string; document: string; missing: string }
+  | { kind: 'test-id-duplicate'; stepId: string; test: string }
+  | { kind: 'test-command-empty'; stepId: string; test: string }
+  | { kind: 'test-output-location'; stepId: string; test: string; path: string }
 
 /** error 挡保存（与 kernel 校验一致）；warning 只在导航上标点。 */
 export type LintIssue = LintKind & { severity: 'error' | 'warning' }
@@ -73,6 +76,28 @@ function documentIssues(def: WbWorkflowDef): LintIssue[] {
   return issues
 }
 
+/** 声明式测试输出只能落在工作区指纹排除的目录下（同 kernel TEST_OUTPUT_DIR_SEGMENTS）。 */
+const TEST_OUTPUT_SEGMENTS: readonly string[] = ['test-results', 'playwright-report', 'coverage']
+
+/** 测试项的编辑期检查，与 kernel compileStepTests 对齐：id 分支内唯一、命令非空、输出位置受限。 */
+function testIssues(def: WbWorkflowDef): LintIssue[] {
+  const issues: LintIssue[] = []
+  const owner = new Map<string, string>()
+  for (const step of def.steps) {
+    for (const test of step.tests ?? []) {
+      if (owner.has(test.id)) issues.push({ kind: 'test-id-duplicate', stepId: step.id, test: test.id, severity: 'error' })
+      else owner.set(test.id, step.id)
+      if (test.command.trim() === '') issues.push({ kind: 'test-command-empty', stepId: step.id, test: test.id, severity: 'error' })
+      for (const output of test.outputs ?? []) {
+        if (!output.path.split('/').some((segment) => TEST_OUTPUT_SEGMENTS.includes(segment))) {
+          issues.push({ kind: 'test-output-location', stepId: step.id, test: test.id, path: output.path, severity: 'error' })
+        }
+      }
+    }
+  }
+  return issues
+}
+
 /**
  * 编辑器保存前校验（kernel 校验之外的产品规则）：
  *   · 阶段没有输出是警告（运行时可以发现输出，不挡保存）；
@@ -80,7 +105,8 @@ function documentIssues(def: WbWorkflowDef): LintIssue[] {
  *   · 转移的事件名非空且在本阶段内唯一——引擎按事件名分派，重名无法判定走哪条；
  *   · 每条转移要么是去下一阶段的唯一一条，要么退回更早的阶段；
  *   · default 保留 CONTRACT_TRANSITIONS 要求的去向；
- *   · 开启 OpenSpec 时文档契约的技能、顺序与成对检查。
+ *   · 开启 OpenSpec 时文档契约的技能、顺序与成对检查；
+ *   · 测试 id 在分支内唯一、命令非空、声明输出落在测试目录下。
  */
 export function lintWorkflow(def: WbWorkflowDef, io: WbEffectiveIo | undefined): LintIssue[] {
   const issues: LintIssue[] = []
@@ -125,6 +151,7 @@ export function lintWorkflow(def: WbWorkflowDef, io: WbEffectiveIo | undefined):
     }
   })
   issues.push(...documentIssues(def))
+  issues.push(...testIssues(def))
   return issues
 }
 
