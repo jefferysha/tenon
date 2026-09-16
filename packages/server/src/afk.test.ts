@@ -7,7 +7,10 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { join } from 'node:path'
 import { createDashboardServer } from './server.js'
 import { resolveServerPaths } from './paths.js'
-import { buildAfkSnapshot } from './afk.js'
+import { writeFile } from 'node:fs/promises'
+import { ensureUserLocalDir, serializeTaskArchive } from '@tenon/kernel'
+import { buildAfkLog, buildAfkSnapshot } from './afk.js'
+import { buildSnapshot } from './snapshot.js'
 import type { DashboardServer, Snapshot } from './types.js'
 import { initChange, makeProject, makeTempHome, newStore, reqGet, testFlow } from './test-support.js'
 import type { StateStore } from '@tenon/kernel'
@@ -204,5 +207,29 @@ describe('F-b AfkCard.cause —— automation_cause 原样透传（开放集，�
     )
     expect(a.cards[0]!.cause).toBe('')
     expect(a.cards[0]!.last_error).toBe('kaboom')
+  })
+})
+
+describe('AFK 面排除查看者已归档的 change', () => {
+  const alice = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' } as const
+
+  it('归档后不再进泳道与流水；无查看者时照常看到', async () => {
+    const h = await startWith({ q1: { state: 'queued' }, q2: { state: 'queued' } })
+    const paths = await ensureUserLocalDir(h.root, alice.slug)
+    await writeFile(paths.archived, serializeTaskArchive({
+      version: 1,
+      changes: {
+        q1: { archivedAt: '2026-09-15T12:00:00.000Z', phase: 'build', actor: { id: 'a@x.io', name: 'A', trust: 'declared' } },
+      },
+    }), 'utf8')
+    const clock = (): string => '2026-07-07T00:00:00Z'
+    const deps = { registry: () => [h.root], store: h.store, version: '9.9.9', clock }
+
+    const forAlice = await buildSnapshot({ ...deps, viewer: () => alice })
+    expect(buildAfkSnapshot(forAlice, clock).lanes.queued.map((c) => c.name)).toEqual(['q2'])
+    expect(buildAfkLog(forAlice, clock).entries.some((entry) => entry.change === 'q1')).toBe(false)
+
+    const forAnyone = await buildSnapshot(deps)
+    expect(buildAfkSnapshot(forAnyone, clock).lanes.queued.map((c) => c.name)).toEqual(['q1', 'q2'])
   })
 })

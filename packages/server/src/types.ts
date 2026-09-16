@@ -190,11 +190,20 @@ export interface ProjectRepositoryIdentity {
   workspace_kind: 'primary' | 'worktree'
 }
 
+/** 归档只对查看者生效：同一个 change 在别人的快照里仍在 `changes`。 */
+export type ArchivedChangeSnapshot = ChangeSnapshot & {
+  archive: { archivedAt: string; phase: string; actor: { id: string; name: string; trust: 'declared' } }
+}
+
 /** 单个已注册 Project 的聚合（openspec/changes/* 下所有活跃 change）。 */
 export interface ProjectSnapshot {
   root: string
   ok: boolean
   changes: ChangeSnapshot[]
+  /** 查看者已归档的 change（从 `changes` 划出，故每个聚合读数自动排除它们）。 */
+  archived?: ArchivedChangeSnapshot[]
+  /** 未提交删除的 change 数；非 git 仓或 git 失败时缺省。 */
+  uncommittedDeletions?: number
   repository?: ProjectRepositoryIdentity
   /** Canonical Changes that this runtime intentionally refuses to decode. */
   compatibilityIssues?: (CanonicalStateCompatibilityIssueSnapshot | LegacyScopeCompatibilityIssueSnapshot)[]

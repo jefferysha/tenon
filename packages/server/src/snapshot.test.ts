@@ -22,6 +22,7 @@ import {
 } from '@tenon/kernel'
 import { ArtifactScopeMigrationError } from '@tenon/automation'
 import { buildSnapshot, computeFingerprint } from './snapshot.js'
+import { ensureUserLocalDir, serializeTaskArchive, type TenonUserResolution } from '@tenon/kernel'
 import { snapshotWorkflowRules } from './workflowSnapshot.js'
 import { readTasksMarkdown } from './snapshotTasks.js'
 import {
@@ -2179,5 +2180,94 @@ describe('computeFingerprint —— 变更检测', () => {
     const fresh = await computeFingerprint([root], heartbeat)
     const expired = await computeFingerprint([root], heartbeat + TERMINAL_ACTIVITY_TTL_MS)
     expect(fresh).not.toBe(expired)
+  })
+})
+
+describe('归档划分与未提交删除（查看者视角）', () => {
+  const alice: TenonUserResolution = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
+  const bob: TenonUserResolution = { id: 'b@x.io', name: 'B', slug: 'b-at-x.io', source: 'env', trust: 'declared' }
+
+  async function archiveFor(root: string, slug: string, change: string, phase = 'build'): Promise<string> {
+    const paths = await ensureUserLocalDir(root, slug)
+    await writeFile(paths.archived, serializeTaskArchive({
+      version: 1,
+      changes: { [change]: { archivedAt: '2026-09-15T12:00:00.000Z', phase, actor: { id: 'a@x.io', name: 'A', trust: 'declared' } } },
+    }), 'utf8')
+    return paths.archived
+  }
+
+  it('把查看者已归档的 change 从 changes 划到 archived，其他查看者不受影响', async () => {
+    const store = newStore()
+    const root = await makeProject()
+    await initChange(store, root, 'hidden')
+    await initChange(store, root, 'shown')
+    await archiveFor(root, alice.slug, 'hidden')
+
+    const forAlice = await buildSnapshot({
+      registry: () => [root], store, version: '1', clock: () => 't', viewer: () => alice,
+    })
+    const project = forAlice.projects[0]!
+    expect(project.changes.map((change) => change.name)).toEqual(['shown'])
+    expect(project.archived?.map((change) => change.name)).toEqual(['hidden'])
+    expect(project.archived?.[0]?.archive).toEqual({
+      archivedAt: '2026-09-15T12:00:00.000Z', phase: 'build', actor: { id: 'a@x.io', name: 'A', trust: 'declared' },
+    })
+    expect(forAlice.change_count).toBe(1)
+
+    const forBob = await buildSnapshot({
+      registry: () => [root], store, version: '1', clock: () => 't', viewer: () => bob,
+    })
+    expect(forBob.projects[0]?.changes.map((change) => change.name)).toEqual(['hidden', 'shown'])
+    expect(forBob.projects[0]?.archived).toBeUndefined()
+    expect(forBob.change_count).toBe(2)
+  })
+
+  it('无查看者或归档记录损坏时不隐藏任何 change', async () => {
+    const store = newStore()
+    const root = await makeProject()
+    await initChange(store, root, 'hidden')
+    const archivePath = await archiveFor(root, alice.slug, 'hidden')
+
+    const anonymous = await buildSnapshot({ registry: () => [root], store, version: '1', clock: () => 't' })
+    expect(anonymous.projects[0]?.changes.map((change) => change.name)).toEqual(['hidden'])
+
+    await writeFile(archivePath, 'not json', 'utf8')
+    const corrupt = await buildSnapshot({
+      registry: () => [root], store, version: '1', clock: () => 't', viewer: () => alice,
+    })
+    expect(corrupt.projects[0]?.changes.map((change) => change.name)).toEqual(['hidden'])
+    expect(corrupt.projects[0]?.archived).toBeUndefined()
+  })
+
+  it('未提交删除数按项目注入；null 时字段缺省', async () => {
+    const store = newStore()
+    const root = await makeProject()
+    await initChange(store, root, 'one')
+    const counted = await buildSnapshot({
+      registry: () => [root], store, version: '1', clock: () => 't', countDeletions: async () => 2,
+    })
+    expect(counted.projects[0]?.uncommittedDeletions).toBe(2)
+    const absent = await buildSnapshot({
+      registry: () => [root], store, version: '1', clock: () => 't', countDeletions: async () => null,
+    })
+    expect(absent.projects[0]?.uncommittedDeletions).toBeUndefined()
+  })
+
+  it('指纹在查看者 archived.json 写入后与提交日志变化后都改变', async () => {
+    const root = await makeProject()
+    const store = newStore()
+    await initChange(store, root, 'one')
+    const before = await computeFingerprint([root], 1, undefined, undefined, () => alice)
+    await archiveFor(root, alice.slug, 'one')
+    const afterArchive = await computeFingerprint([root], 1, undefined, undefined, () => alice)
+    expect(afterArchive).not.toBe(before)
+
+    await mkdir(join(root, '.git', 'logs'), { recursive: true })
+    await writeFile(join(root, '.git', 'logs', 'HEAD'), 'commit one\n', 'utf8')
+    const afterCommit = await computeFingerprint([root], 1, undefined, undefined, () => alice)
+    expect(afterCommit).not.toBe(afterArchive)
+    // Another viewer's store is not part of this viewer's fingerprint.
+    await archiveFor(root, bob.slug, 'one')
+    expect(await computeFingerprint([root], 1, undefined, undefined, () => alice)).toBe(afterCommit)
   })
 })
