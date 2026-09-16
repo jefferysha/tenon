@@ -38,6 +38,27 @@ case "$INPUT" in
     case "$INPUT" in *'/api/'*|*'\/api\/'*) SELF_APPROVAL_RAW=1 ;; esac
     ;;
 esac
+# 测试记录与基线只能由 `tenon test run` / `tenon test baseline` 写入：编辑类工具（Claude 的
+# Write/Edit/MultiEdit/NotebookEdit，Codex 的 apply_patch）直接改这些文件会把「agent 自报通过」
+# 重新变成可能，所以在 marker 逻辑之前就拒。纯 case 匹配、零 fork；shell 重定向不在本门覆盖范围内
+# （已在 design §12 记为残余风险）。AFK 也照拒：它免除的是交互拦截，不是写入边界。
+case "$INPUT" in
+  *'.tenon/users/'*|*'.tenon\/users\/'*)
+    case "$INPUT" in
+      *'"tool_name":"Write"'*|*'"tool_name":"Edit"'*|*'"tool_name":"MultiEdit"'*|*'"tool_name":"NotebookEdit"'* \
+      |*'"tool_name": "Write"'*|*'"tool_name": "Edit"'*|*'"tool_name": "MultiEdit"'*|*'"tool_name": "NotebookEdit"'* \
+      |*'*** Add File: '*|*'*** Update File: '*|*'*** Delete File: '*)
+        case "$INPUT" in
+          *'/tests/'*|*'/baselines/'*|*'\/tests\/'*|*'\/baselines\/'*)
+            printf '测试记录与基线只能由 tenon test run / tenon test baseline 写入\n' >&2
+            exit 2
+            ;;
+        esac
+        ;;
+    esac
+    ;;
+esac
+
 [ "${TENON_AFK:-}" = "1" ] && [ "$SELF_APPROVAL_RAW" = 0 ] && exit 0
 
 # All realtime hooks use the same escape-aware parser. This keeps Codex's quoted
