@@ -5,7 +5,7 @@
 import { lstat, readFile, writeFile } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import {
-  evaluateTestEvidence, renderTestsRegion, replaceTestsRegion,
+  renderTestsRegion, replaceTestsRegion,
   type ReportLocale, type TestsRegionItem,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'

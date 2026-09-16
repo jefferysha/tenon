@@ -2,7 +2,7 @@
  * `tenon test status <change> [--step <id>] [--json]` —— 当前步骤每项测试的状态、耗时、最近执行时间。
  * 判定与转换拦截同一份 evaluateTestEvidence，所以这里看到的通过就是转换会放行的通过。
  */
-import { evaluateTestEvidence, testStatusWord, type TestEvidenceReport } from '@tenon/kernel'
+import { testStatusWord, type TestEvidenceReport } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
