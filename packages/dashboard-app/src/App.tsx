@@ -27,8 +27,11 @@ const WorkspaceView = lazy(async () => ({
 const WorkflowView = lazy(async () => ({
   default: (await import('./workflow/WorkflowView')).WorkflowView,
 }))
+const LibraryView = lazy(async () => ({
+  default: (await import('./library/LibraryView')).LibraryView,
+}))
 
-// 视图记忆。旧值（overview/projects/hostPlan/inbox/board/…）随 IA 收敛退役——initialView 以 isView
+// 视图记忆。旧值（overview/hostPlan/inbox/board/…）随 IA 收敛退役——initialView 以 isView
 // 白名单校验，不认识的一律兜底回 progress（工作台，默认落地页）。
 const VIEW_KEY = 'tenon-dashboard-view'
 
@@ -320,8 +323,8 @@ function AppShell(): JSX.Element {
               {t('common.snapshot_retry')}
             </button>
           </section>
-        ) : snapshot && snapshot.project_count === 0 && view !== 'workbench' ? (
-          // 零项目教学态：tenon init 自动登记，无注册表单。
+        ) : snapshot && snapshot.project_count === 0 && view === 'progress' ? (
+          // 零项目教学态只替换工作台；工作流与库不依赖项目，项目页本身就是新建项目的入口。
           <div className="px-6"><Onboarding kind="no-project" /></div>
         ) : (
           <>
@@ -349,6 +352,7 @@ function AppShell(): JSX.Element {
             onToast={(m) => showFlash('toast', m)}
           />
         )}
+        {view === 'library' && <LibraryView onToast={(m) => showFlash('toast', m)} />}
           </>
         )}
         </Suspense>

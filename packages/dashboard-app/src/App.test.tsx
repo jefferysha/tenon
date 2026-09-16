@@ -1052,11 +1052,11 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     expect(screen.queryByTestId('workbench-view')).toBeNull()
   })
 
-  it('顶部条两个标签：工作台 / 工作流；项目切换器与设置都在顶部条', async () => {
+  it('顶部条标签：工作台 / 工作流 / 库；项目切换器与设置都在顶部条', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
     const nav = screen.getByTestId('primary-nav')
-    expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['工作台', '工作流'])
+    expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['工作台', '工作流', '库'])
     expect(screen.getByTestId('project-switcher')).toBeInTheDocument()
     expect(screen.queryByTestId('app-navigation')).toBeNull()
     expect(screen.queryByTestId('secondary-nav')).toBeNull()
