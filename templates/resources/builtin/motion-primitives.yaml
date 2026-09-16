@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: motion-primitives
+name: Motion Primitives
+category: motion-components
+frameworks: [react]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/ibelick/motion-primitives/main/LICENCE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://motion-primitives.com
+  source: https://github.com/ibelick/motion-primitives
+verified_at: 2026-09-16

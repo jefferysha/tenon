@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: ant-design-vue
+name: Ant Design Vue
+category: component-lib
+frameworks: [vue]
+styling: [css-in-js]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/vueComponent/ant-design-vue/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add ant-design-vue
+skills: []
+links:
+  home: https://antdv.com
+  source: https://github.com/vueComponent/ant-design-vue
+verified_at: 2026-09-16

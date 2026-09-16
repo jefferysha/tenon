@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: emotion
+name: Emotion
+category: styling
+frameworks: [react]
+styling: [css-in-js]
+use: 运行时 CSS-in-JS
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/emotion-js/emotion/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @emotion/react @emotion/styled
+skills: []
+links:
+  home: https://emotion.sh/docs/introduction
+  source: https://github.com/emotion-js/emotion
+verified_at: 2026-09-16

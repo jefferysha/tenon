@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: cult-ui
+name: Cult UI
+category: motion-components
+frameworks: [react]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/nolly-studio/cult-ui/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://www.cult-ui.com
+  source: https://github.com/nolly-studio/cult-ui
+verified_at: 2026-09-16

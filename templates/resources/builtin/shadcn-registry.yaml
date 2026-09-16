@@ -1,0 +1,22 @@
+schema: tenon-resource/v1
+id: shadcn-registry
+name: shadcn Registry
+category: blocks
+frameworks: [react, next]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/shadcn-ui/ui/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm dlx shadcn@latest add <registry-item>
+skills: [shadcn]
+links:
+  home: https://ui.shadcn.com/docs/registry
+  source: https://github.com/shadcn-ui/ui
+  registry: https://ui.shadcn.com/r/registries.json
+  llms_txt: https://ui.shadcn.com/llms.txt
+verified_at: 2026-09-16

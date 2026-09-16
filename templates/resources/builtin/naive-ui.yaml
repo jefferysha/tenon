@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: naive-ui
+name: Naive UI
+category: component-lib
+frameworks: [vue]
+styling: [css-in-js]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/tusen-ai/naive-ui/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add naive-ui
+skills: []
+links:
+  home: https://www.naiveui.com
+  source: https://github.com/tusen-ai/naive-ui
+verified_at: 2026-09-16

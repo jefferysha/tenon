@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: hyperui
+name: HyperUI
+category: blocks
+frameworks: [web, react, vue]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/markmead/hyperui/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://www.hyperui.dev
+  source: https://github.com/markmead/hyperui
+verified_at: 2026-09-16

@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: shadcn-vue
+name: shadcn-vue
+category: component-lib
+frameworks: [vue, nuxt]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/unovue/shadcn-vue/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm dlx shadcn-vue@latest init
+skills: []
+links:
+  home: https://www.shadcn-vue.com
+  source: https://github.com/unovue/shadcn-vue
+verified_at: 2026-09-16

@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: awesome-design-md
+name: Awesome DESIGN.md
+category: design-md
+frameworks: []
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/VoltAgent/awesome-design-md/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - npx getdesign@latest list
+skills: []
+links:
+  home: https://github.com/VoltAgent/awesome-design-md
+  source: https://github.com/VoltAgent/awesome-design-md
+  design_md: https://raw.githubusercontent.com/VoltAgent/awesome-design-md/HEAD/README.md
+verified_at: 2026-09-16

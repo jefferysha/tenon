@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: iconoir
+name: Iconoir
+category: icons
+frameworks: [web, react, react-native, vue, flutter]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/iconoir-icons/iconoir/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add iconoir-react
+skills: []
+links:
+  home: https://iconoir.com
+  source: https://github.com/iconoir-icons/iconoir
+verified_at: 2026-09-16

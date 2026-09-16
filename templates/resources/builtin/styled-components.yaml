@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: styled-components
+name: styled-components
+category: styling
+frameworks: [react]
+styling: [css-in-js]
+use: 运行时 CSS-in-JS
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/styled-components/styled-components/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add styled-components
+skills: []
+links:
+  home: https://styled-components.com
+  source: https://github.com/styled-components/styled-components
+verified_at: 2026-09-16

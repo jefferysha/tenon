@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: element-plus
+name: Element Plus
+category: component-lib
+frameworks: [vue]
+styling: [sass]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/element-plus/element-plus/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add element-plus
+skills: []
+links:
+  home: https://element-plus.org
+  source: https://github.com/element-plus/element-plus
+verified_at: 2026-09-16

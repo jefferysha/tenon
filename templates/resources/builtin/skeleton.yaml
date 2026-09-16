@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: skeleton
+name: Skeleton
+category: component-lib
+frameworks: [svelte]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/skeletonlabs/skeleton/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @skeletonlabs/skeleton
+skills: []
+links:
+  home: https://www.skeleton.dev
+  source: https://github.com/skeletonlabs/skeleton
+verified_at: 2026-09-16

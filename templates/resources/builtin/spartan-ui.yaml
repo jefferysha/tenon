@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: spartan-ui
+name: spartan/ui
+category: component-lib
+frameworks: [angular]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/goetzrobin/spartan/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @spartan-ng/brain
+skills: []
+links:
+  home: https://spartan.ng
+  source: https://github.com/goetzrobin/spartan
+verified_at: 2026-09-16

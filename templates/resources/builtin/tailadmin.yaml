@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: tailadmin
+name: TailAdmin
+category: template
+frameworks: [react, next, vue, angular]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/TailAdmin/free-react-tailwind-admin-dashboard/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: freemium
+install: []
+skills: []
+links:
+  home: https://tailadmin.com
+  source: https://github.com/TailAdmin/free-react-tailwind-admin-dashboard
+verified_at: 2026-09-16

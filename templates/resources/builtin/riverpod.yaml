@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: riverpod
+name: Riverpod
+category: state
+frameworks: [flutter]
+styling: []
+use: 依赖注入与状态
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/rrousselGit/riverpod/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - flutter pub add flutter_riverpod
+skills: []
+links:
+  home: https://riverpod.dev
+  source: https://github.com/rrousselGit/riverpod
+verified_at: 2026-09-16

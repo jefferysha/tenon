@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: tailwindcss
+name: Tailwind CSS
+category: styling
+frameworks: [web, react, next, vue, nuxt, angular, svelte]
+styling: [tailwind]
+use: 原子类
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/tailwindlabs/tailwindcss/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add tailwindcss @tailwindcss/vite
+skills: []
+links:
+  home: https://tailwindcss.com
+  source: https://github.com/tailwindlabs/tailwindcss
+verified_at: 2026-09-16

@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: mantine-ui
+name: Mantine UI
+category: blocks
+frameworks: [react]
+styling: [css-modules]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/mantinedev/ui.mantine.dev/master/LICENCE
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://ui.mantine.dev
+  source: https://github.com/mantinedev/ui.mantine.dev
+verified_at: 2026-09-16

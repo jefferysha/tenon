@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: semi-design
+name: Semi Design
+category: component-lib
+frameworks: [react]
+styling: [sass]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/DouyinFE/semi-design/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @douyinfe/semi-ui
+skills: []
+links:
+  home: https://semi.design
+  source: https://github.com/DouyinFE/semi-design
+verified_at: 2026-09-16

@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: design-md-spec
+name: design.md
+category: design-md
+frameworks: []
+styling: []
+baseline: false
+license:
+  spdx: Apache-2.0
+  url: https://raw.githubusercontent.com/google-labs-code/design.md/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://github.com/google-labs-code/design.md
+  source: https://github.com/google-labs-code/design.md
+  design_md: https://raw.githubusercontent.com/google-labs-code/design.md/HEAD/README.md
+verified_at: 2026-09-16

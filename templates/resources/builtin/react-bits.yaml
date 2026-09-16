@@ -1,0 +1,23 @@
+schema: tenon-resource/v1
+id: react-bits
+name: React Bits
+category: motion-components
+frameworks: [react]
+styling: [tailwind, css]
+baseline: true
+license:
+  spdx: MIT AND LicenseRef-Commons-Clause
+  url: https://raw.githubusercontent.com/DavidHDev/react-bits/HEAD/LICENSE.md
+  redistributable: false
+  attribution: false
+  commercial: freemium
+  notice: 可在应用中使用；不得出售或再分发组件本身
+install:
+  - pnpm dlx shadcn@latest add https://reactbits.dev/r/<Name>-TS-TW
+skills: []
+links:
+  home: https://reactbits.dev
+  source: https://github.com/DavidHDev/react-bits
+  registry: https://reactbits.dev/r
+  llms_txt: https://reactbits.dev/llms.txt
+verified_at: 2026-09-16

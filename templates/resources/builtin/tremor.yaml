@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: tremor
+name: Tremor
+category: blocks
+frameworks: [react]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: Apache-2.0
+  url: https://raw.githubusercontent.com/tremorlabs/tremor/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://tremor.so
+  source: https://github.com/tremorlabs/tremor
+verified_at: 2026-09-16

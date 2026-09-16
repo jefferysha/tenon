@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: tanstack-query
+name: TanStack Query
+category: state
+frameworks: [react, vue, svelte, angular]
+styling: []
+use: 服务端数据缓存
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/TanStack/query/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @tanstack/react-query
+skills: []
+links:
+  home: https://tanstack.com/query
+  source: https://github.com/TanStack/query
+verified_at: 2026-09-16

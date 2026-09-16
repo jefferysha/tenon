@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: material-symbols
+name: Material Symbols
+category: icons
+frameworks: [web, react, angular, flutter, compose]
+styling: []
+baseline: false
+license:
+  spdx: Apache-2.0
+  url: https://raw.githubusercontent.com/google/material-design-icons/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add material-symbols
+skills: []
+links:
+  home: https://fonts.google.com/icons
+  source: https://github.com/google/material-design-icons
+verified_at: 2026-09-16

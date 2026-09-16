@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: nativewind
+name: NativeWind
+category: styling
+frameworks: [react-native]
+styling: [tailwind]
+use: Tailwind 语法
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/nativewind/nativewind/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add nativewind
+skills: []
+links:
+  home: https://www.nativewind.dev
+  source: https://github.com/nativewind/nativewind
+verified_at: 2026-09-16

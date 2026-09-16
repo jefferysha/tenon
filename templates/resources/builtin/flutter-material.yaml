@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: flutter-material
+name: Flutter Material
+category: component-lib
+frameworks: [flutter]
+styling: [native]
+baseline: false
+license:
+  spdx: BSD-3-Clause
+  url: https://raw.githubusercontent.com/flutter/flutter/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://docs.flutter.dev/ui/widgets/material
+  source: https://github.com/flutter/flutter
+verified_at: 2026-09-16

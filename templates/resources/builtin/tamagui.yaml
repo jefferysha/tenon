@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: tamagui
+name: Tamagui
+category: component-lib
+frameworks: [react-native, react]
+styling: [native]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/tamagui/tamagui/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add tamagui
+skills: []
+links:
+  home: https://tamagui.dev
+  source: https://github.com/tamagui/tamagui
+verified_at: 2026-09-16

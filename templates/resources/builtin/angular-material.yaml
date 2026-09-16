@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: angular-material
+name: Angular Material
+category: component-lib
+frameworks: [angular]
+styling: [sass]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/angular/components/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm dlx ng add @angular/material
+skills: []
+links:
+  home: https://material.angular.dev
+  source: https://github.com/angular/components
+verified_at: 2026-09-16

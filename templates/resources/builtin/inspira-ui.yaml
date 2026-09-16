@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: inspira-ui
+name: Inspira UI
+category: motion-components
+frameworks: [vue, nuxt]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/unovue/inspira-ui/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://inspira-ui.com
+  source: https://github.com/unovue/inspira-ui
+verified_at: 2026-09-16

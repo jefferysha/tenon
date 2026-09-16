@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: tabler-icons
+name: Tabler Icons
+category: icons
+frameworks: [web, react, vue, svelte, angular]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/tabler/tabler-icons/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @tabler/icons-react
+skills: []
+links:
+  home: https://tabler.io/icons
+  source: https://github.com/tabler/tabler-icons
+verified_at: 2026-09-16

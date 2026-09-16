@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: lucide
+name: Lucide
+category: icons
+frameworks: [web, react, vue, angular, svelte, react-native]
+styling: []
+baseline: false
+license:
+  spdx: ISC
+  url: https://raw.githubusercontent.com/lucide-icons/lucide/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add lucide-react
+skills: []
+links:
+  home: https://lucide.dev
+  source: https://github.com/lucide-icons/lucide
+verified_at: 2026-09-16

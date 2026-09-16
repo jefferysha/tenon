@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: flowbite
+name: Flowbite
+category: blocks
+frameworks: [web, react, vue, svelte, angular]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/themesberg/flowbite/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: freemium
+install:
+  - pnpm add flowbite
+skills: []
+links:
+  home: https://flowbite.com
+  source: https://github.com/themesberg/flowbite
+verified_at: 2026-09-16

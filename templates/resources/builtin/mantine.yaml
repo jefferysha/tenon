@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: mantine
+name: Mantine
+category: component-lib
+frameworks: [react]
+styling: [css-modules]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/mantinedev/mantine/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add @mantine/core @mantine/hooks
+skills: []
+links:
+  home: https://mantine.dev
+  source: https://github.com/mantinedev/mantine
+verified_at: 2026-09-16

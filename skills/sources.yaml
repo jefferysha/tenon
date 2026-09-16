@@ -46,3 +46,11 @@ skills:
   hue: { repo: dominikmartn/hue, path: ., ref: default-branch, license_expected: MIT }
   hallmark: { repo: Nutlope/hallmark, path: skills/hallmark, ref: default-branch, license_expected: MIT }
   design-taste-frontend: { repo: Leonxlnx/taste-skill, path: skills/taste-skill, ref: default-branch, license_expected: MIT }
+  gsap-core: { repo: greensock/gsap-skills, path: skills/gsap-core, ref: default-branch, license_expected: MIT }
+  gsap-timeline: { repo: greensock/gsap-skills, path: skills/gsap-timeline, ref: default-branch, license_expected: MIT }
+  gsap-scrolltrigger: { repo: greensock/gsap-skills, path: skills/gsap-scrolltrigger, ref: default-branch, license_expected: MIT }
+  gsap-plugins: { repo: greensock/gsap-skills, path: skills/gsap-plugins, ref: default-branch, license_expected: MIT }
+  gsap-utils: { repo: greensock/gsap-skills, path: skills/gsap-utils, ref: default-branch, license_expected: MIT }
+  gsap-react: { repo: greensock/gsap-skills, path: skills/gsap-react, ref: default-branch, license_expected: MIT }
+  gsap-performance: { repo: greensock/gsap-skills, path: skills/gsap-performance, ref: default-branch, license_expected: MIT }
+  gsap-frameworks: { repo: greensock/gsap-skills, path: skills/gsap-frameworks, ref: default-branch, license_expected: MIT }

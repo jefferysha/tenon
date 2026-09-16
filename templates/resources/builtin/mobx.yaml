@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: mobx
+name: MobX
+category: state
+frameworks: [react]
+styling: []
+use: 响应式对象模型
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/mobxjs/mobx/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add mobx mobx-react-lite
+skills: []
+links:
+  home: https://mobx.js.org
+  source: https://github.com/mobxjs/mobx
+verified_at: 2026-09-16

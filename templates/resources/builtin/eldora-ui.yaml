@@ -1,0 +1,19 @@
+schema: tenon-resource/v1
+id: eldora-ui
+name: Eldora UI
+category: motion-components
+frameworks: [react]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/karthikmudunuri/eldoraui/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: free
+install: []
+skills: []
+links:
+  home: https://www.eldoraui.site
+  source: https://github.com/karthikmudunuri/eldoraui
+verified_at: 2026-09-16

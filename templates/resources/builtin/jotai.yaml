@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: jotai
+name: Jotai
+category: state
+frameworks: [react, next]
+styling: []
+use: 原子化状态
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/pmndrs/jotai/HEAD/LICENSE
+  redistributable: true
+  attribution: false
+  commercial: free
+install:
+  - pnpm add jotai
+skills: []
+links:
+  home: https://jotai.org
+  source: https://github.com/pmndrs/jotai
+verified_at: 2026-09-16

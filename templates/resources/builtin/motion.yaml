@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: motion
+name: Motion
+category: animation
+frameworks: [react, vue, web]
+styling: []
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/motiondivision/motion/HEAD/LICENSE.md
+  redistributable: true
+  attribution: false
+  commercial: freemium
+install:
+  - pnpm add motion
+skills: []
+links:
+  home: https://motion.dev
+  source: https://github.com/motiondivision/motion
+verified_at: 2026-09-16
