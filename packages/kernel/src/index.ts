@@ -11,6 +11,8 @@ export * from './flow/index.js'
 export * from './users/index.js'
 // 指令文件（AGENTS.md / CLAUDE.md …）受管块、模板块与宿主表的纯逻辑。
 export * from './instructions/index.js'
+// 资源目录（组件库 / 图标 / 动画 / DESIGN.md / 状态管理 / 样式）条目的解析、校验与筛选。
+export * from './resources/index.js'
 // 内建库（模板、agent、资源目录、测试方向）从 payload 同步到全局 config/<kind>/builtin。
 export {
   BUILTIN_LIBRARIES, BUILTIN_LIBRARY_MARKER, builtinSourceDigest, parseBuiltinLibraryMarker,
