@@ -187,6 +187,13 @@ export interface CliDeps {
     phase: DocumentContractPhase,
   ) => Promise<DocumentEvidenceReport>
   /**
+   * Test evidence reader seam, with the same contract as `documentEvidence`. Omit it in production:
+   * CLI and kernel then read the authoritative per-user run records. It exists so command unit
+   * tests with a mocked store can isolate rendering and exit codes without a real repository; the
+   * real gate is covered end to end by `test-evidence.integration.test.ts`.
+   */
+  testEvidence?: import('@tenon/kernel').TestEvidenceReader
+  /**
    * 载入项目 Track Registry（GOAL.md 清单 T · R2 校验面切换）：缺 `<cwd>/.pipeline/tracks.yaml`
    * → 内建 Track（builtin-only，行为与「没有本功能」逐字一致）；坏文件 fail-loud。装配处
    * （main.ts / integration-harness realDeps）用 loadTrackRegistry(cwd, ctx) 落地，**每次都从盘读、

@@ -104,8 +104,9 @@ export async function scanAnchoredProject(
   // 候选版本对整个 root 只算一次（TTL 内复用）：测试新鲜度判定需要它，但指纹遍历整棵树。
   const resolved = (deps.resolveUser ?? defaultResolveUser)(root)
   const actingUser = isTenonUser(resolved) ? resolved : undefined
+  // 能力缺席时不传 candidate（判定跳过候选比对），而不是传一个恒 undefined 的读取器。
   const candidate = workspaceFingerprint === undefined
-    ? async () => undefined
+    ? undefined
     : createCandidateCache((target) => workspaceFingerprint(target, ''))
   let compatibilityIssueOverflow = 0
   for (const e of [...entries].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
@@ -155,7 +156,7 @@ export async function scanAnchoredProject(
           changeName: e.name,
           plan,
           user: actingUser,
-          candidate: () => candidate(readRoot),
+          ...(candidate === undefined ? {} : { candidate: () => candidate(readRoot) }),
         }),
       ])
       if (artifactScope.compatibilityIssue !== undefined) {

@@ -124,6 +124,11 @@ function makeAdv(opts: {
       blockers: [],
       items: [],
     }),
+    // 同一条理由：advance 的单测目标是停点/事件编排。mock store 没有真实仓库可落运行记录，
+    // 真测试门禁由 test-evidence.integration.test.ts 用真 fs、真 `tenon test run` 覆盖。
+    testEvidence: async (input: { stepId: string }) => ({
+      stepId: input.stepId, pass: true, blockers: [], items: [],
+    }),
     cwd: '/repo',
     user: () => ({ id: 'tester@tenon.test', name: 'Tester', slug: 'tester-at-tenon.test', source: 'env', trust: 'declared' }),
     io: { out: (l: string) => out.push(l), err: (l: string) => err.push(l) },

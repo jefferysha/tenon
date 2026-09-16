@@ -5,7 +5,7 @@
 import { evaluateTestEvidence, testStatusWord, type TestEvidenceReport } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { str } from '../render.js'
-import { testEvidenceContextFor } from '../testEvidenceContext.js'
+import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { resolveTestCommand } from './test-context.js'
 
 export async function cmdTestStatus(
@@ -22,7 +22,7 @@ export async function cmdTestStatus(
   }
   let report: TestEvidenceReport
   try {
-    report = await evaluateTestEvidence({
+    report = await testEvidenceReaderFor(deps)({
       repoRoot: deps.cwd,
       changeDir: context.dir,
       changeName: change,

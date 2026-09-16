@@ -18,9 +18,19 @@ import { RUNNING_MARKER_GRACE_MS, type TestRunRecordV1 } from './types.js'
 
 export type TestItemStatus = 'passed' | 'failed' | 'stale' | 'missing' | 'running'
 
+/**
+ * 判定的注入面。两项输入回答的是两个不同的问题，所以缺失时的口径也不同：
+ *   · `user` 回答「读谁的记录」。记录按用户存放，没有身份就没有可读的证据集，与「没跑过」不可区分，
+ *     必须失败关闭。
+ *   · `currentCandidate` 回答「这条记录是否仍绑定当前代码」。它只是四条新鲜度绑定里的一条；另外三条
+ *     （workflow_run_id、工作流指纹、测试声明摘要）不依赖它。宿主没有这项能力时跳过候选比对，
+ *     其余三条照查——kernel 早已把 workspaceFingerprint 列为可降级的 GuardCapability，且「缺能力就
+ *     恒判过期」会让门禁无法被满足：再怎么跑测试都清不掉，那是故障不是门禁。
+ *     能力在但调用失败是另一回事（生产可达的竞态），按未知处理、仍判过期。
+ */
 export interface TestEvidenceContext {
   readonly user: { readonly id: string; readonly name: string; readonly slug: string }
-  readonly currentCandidate: () => Promise<string>
+  readonly currentCandidate?: () => Promise<string>
   readonly now?: () => number
 }
 
@@ -177,18 +187,24 @@ export async function evaluateTestEvidence(input: {
     return {
       stepId: input.stepId,
       pass: false,
-      blockers: ['测试证据无法验证：宿主未提供用户身份或工作区指纹'],
+      blockers: ['测试证据无法验证：宿主未提供用户身份'],
       items: tests.map((test) => ({ test, status: 'missing' as const })),
     }
   }
   const slug = input.context.user.slug
   const now = (input.context.now ?? Date.now)()
   const runId = await workflowRunId(input.changeDir)
-  let candidate: string | undefined
-  try {
-    candidate = await input.context.currentCandidate()
-  } catch {
-    candidate = undefined
+  // undefined = 宿主没有工作区指纹能力（跳过候选比对）；null = 能力在但这次取不到（按未知判过期）。
+  // 惰性求值且只求一次：指纹要遍历整棵实现树，没有任何记录可判时不该付这个代价。
+  const readCandidate = input.context.currentCandidate
+  let candidate: string | null | undefined
+  let candidateRead = readCandidate === undefined
+  const currentCandidate = async (): Promise<string | null | undefined> => {
+    if (!candidateRead && readCandidate !== undefined) {
+      candidate = await readCandidate().catch(() => null)
+      candidateRead = true
+    }
+    return candidate
   }
   const items: TestEvidenceItem[] = []
   for (const test of tests) {
@@ -207,11 +223,15 @@ export async function evaluateTestEvidence(input: {
       items.push({ test, status: 'missing' })
       continue
     }
+    const current = record.workflow_fingerprint === input.plan.workflowFingerprint
+      && record.test_digest === testDigest(test)
+      ? await currentCandidate()
+      : undefined
     const staleBecause = record.workflow_fingerprint !== input.plan.workflowFingerprint
       ? 'workflow' as const
       : record.test_digest !== testDigest(test)
         ? 'declaration' as const
-        : candidate === undefined || record.candidate !== candidate
+        : current !== undefined && (current === null || record.candidate !== current)
           ? 'candidate' as const
           : undefined
     if (staleBecause !== undefined) {

@@ -145,6 +145,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     breadcrumb: deps.writeBreadcrumb ? { write: deps.writeBreadcrumb } : undefined,
     documentEvidence: deps.documentEvidence,
     testEvidence: testEvidenceContextFor(deps, name),
+    ...(deps.testEvidence === undefined ? {} : { testEvidenceReader: deps.testEvidence }),
     resolveTrack: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd),
     missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => {
       const slots = resolveRequiredSkillSlots(deps.resolver, capability, stepId)

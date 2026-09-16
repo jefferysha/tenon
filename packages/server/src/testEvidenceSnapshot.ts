@@ -17,16 +17,24 @@ export async function projectTestEvidence(input: {
   readonly changeName: string
   readonly plan: EffectiveWorkflowPlan
   readonly user: TenonUser | undefined
-  readonly candidate: () => Promise<string | undefined>
+  /** 缺省 = 宿主没有工作区指纹能力；返回 undefined = 能力在但这次取不到（判定按未知处理）。 */
+  readonly candidate?: () => Promise<string | undefined>
 }): Promise<{ readonly tests?: TestStepSnapshot[]; readonly diagnostics?: string[] }> {
   const declared = input.plan.workflow.steps.filter((step) => (step.tests ?? []).length > 0)
   if (declared.length === 0) return {}
   const user = input.user
+  const readCandidate = input.candidate
   const context = user === undefined
     ? undefined
     : {
         user: { id: user.id, name: user.name, slug: userSlug(user.id) },
-        currentCandidate: async () => (await input.candidate()) ?? '',
+        ...(readCandidate === undefined ? {} : {
+          currentCandidate: async (): Promise<string> => {
+            const candidate = await readCandidate()
+            if (candidate === undefined) throw new Error('workspace fingerprint unavailable')
+            return candidate
+          },
+        }),
       }
   const tests: TestStepSnapshot[] = []
   for (const step of declared) {

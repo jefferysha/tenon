@@ -309,15 +309,14 @@ export async function performTransition(
     tasksThroughPhase: (phase) => taskPlanTasksThroughPhaseForChange(dir, phase),
   }
   // 测试证据要身份与工作区指纹；指纹能力缺失时 kernel 失败关闭，不把读不到当成通过。
+  // 身份恒有（上面已 412 挡住缺身份）；工作区指纹是可降级能力，没接就跳过候选比对。
   const fingerprint = deps.workspaceFingerprint
   const app = createTransitionApplication({
     runRepository: deps.runRepo,
-    ...(fingerprint === undefined ? {} : {
-      testEvidence: {
-        user: { id: user.id, name: user.name, slug: userSlug(user.id) },
-        currentCandidate: () => fingerprint(root, name),
-      },
-    }),
+    testEvidence: {
+      user: { id: user.id, name: user.name, slug: userSlug(user.id) },
+      ...(fingerprint === undefined ? {} : { currentCandidate: () => fingerprint(root, name) }),
+    },
     flow: deps.flow,
     clock: deps.clock,
     history: deps.history,

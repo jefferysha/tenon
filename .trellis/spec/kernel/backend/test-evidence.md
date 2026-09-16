@@ -57,7 +57,7 @@ renderTestsRegion / replaceTestsRegion                        // verification re
   same non-backward edge predicate. Send-backs (`verify-fail`, `requirements-changed`) never demand tests;
   the implicit 完结 edge does, because its target is not in the step order.
 - Missing identity or a missing workspace fingerprint fails closed with one blocker
-  (`测试证据无法验证：宿主未提供用户身份或工作区指纹`). "Cannot read the evidence" is never "the evidence passed".
+  (`测试证据无法验证：宿主未提供用户身份`). "Cannot read the evidence" is never "the evidence passed".
 - `tenon check` previews the same blockers as `[FAIL] test:`; `tenon review request` inherits them through
   `cmdCheck` before writing any receipt.
 - `hooks/gate.sh` refuses edit tools writing `.tenon/users/*/tests/` or `.../baselines/`. Shell redirection is

@@ -20,6 +20,7 @@ import type {
   CommitResult,
   DocumentContractPhase,
   DocumentEvidenceReport,
+  TestEvidenceReport,
   EffectiveSkillResolver,
   FieldName,
   GuardContext,
@@ -524,6 +525,7 @@ export interface MakeDepsOpts {
   resolver?: EffectiveSkillResolver
   /** OpenSpec evidence reader 覆写；缺省为已通过的 test double，真实账本语义由 kernel 集成测试覆盖。 */
   documentEvidence?: CliDeps['documentEvidence']
+  testEvidence?: CliDeps['testEvidence']
   /** Git HEAD / in-place 工作区基线能力覆写；供 transition/check 的真实 barrier 单测使用。 */
   gitHeadSha?: CliDeps['gitHeadSha']
   workspaceFingerprint?: CliDeps['workspaceFingerprint']
@@ -577,6 +579,14 @@ export function makeDeps(o: MakeDepsOpts = {}): TestDeps {
     ): Promise<DocumentEvidenceReport> => ({
       phase,
       hasLedger: true,
+      pass: true,
+      blockers: [],
+      items: [],
+    })),
+    // mock store 没有真实仓库，无法落一条真运行记录。与 documentEvidence 同一条缝：单测隔离渲染
+    // 与退出码，真门禁由 test-evidence.integration.test.ts（真 fs、真记录）端到端覆盖。
+    testEvidence: o.testEvidence ?? (async (input): Promise<TestEvidenceReport> => ({
+      stepId: input.stepId,
       pass: true,
       blockers: [],
       items: [],
