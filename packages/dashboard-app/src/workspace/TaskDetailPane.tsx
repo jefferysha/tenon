@@ -11,6 +11,9 @@ import { SheetTabs } from '../shared/DetailSheets'
 import { SkillFlow } from '../workflow/SkillFlow'
 import { DocumentDrawer } from './DocumentDrawer'
 import { StageIoPanel } from './StageIoPanel'
+import { StageTestsPanel } from './StageTestsPanel'
+import { TestRunDrawer } from './TestRunDrawer'
+import { stageTestCount, stageTestRows } from './stageTests'
 import { StageRail } from './StageRail'
 import { fallbackStepIo, gateProgress, isReadyRow, readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
 import { stageLabel, summaryText, type TaskRow } from './taskModel'
@@ -64,8 +67,11 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
   const inputs = useMemo(() => stageInputs(change, stepIo), [change, stepIo])
   const files = useMemo(() => readableFiles([...outputs, ...inputs]), [outputs, inputs])
   const [openIndex, setOpenIndex] = useState<number | null>(null)
-  const [sheet, setSheet] = useState<'inputs' | 'outputs'>('outputs')
-  useEffect(() => { setOpenIndex(null) }, [identity, selectedStep])
+  const testRows = useMemo(() => stageTestRows(change, selectedStep), [change, selectedStep])
+  const [openTest, setOpenTest] = useState<string | null>(null)
+  const [sheet, setSheet] = useState<'inputs' | 'outputs' | 'tests'>('outputs')
+  useEffect(() => { setOpenIndex(null); setOpenTest(null) }, [identity, selectedStep])
+  useEffect(() => { if (sheet === 'tests' && testRows.length === 0) setSheet('outputs') }, [sheet, testRows.length])
   const activePath = openIndex === null ? null : files[openIndex]?.path ?? null
   const readyOutputs = outputs.filter(isReadyRow).length
   const reviewSatisfied = row.stages.find((stage) => stage.id === selectedStep)?.status === 'done'
@@ -164,30 +170,43 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
             <span className="font-mono text-text-3">· {progress.done}/{progress.total}</span>
           </p>
         )}
-        {(inputs.length > 0 || outputs.length > 0) && (
+        {(inputs.length > 0 || outputs.length > 0 || testRows.length > 0) && (
           <div className="grid gap-4" data-testid="stage-io">
             <SheetTabs
               sheets={[
                 { id: 'inputs', label: t('workspace.inputs'), count: inputs.length },
                 { id: 'outputs', label: t('workspace.outputs'), count: `${readyOutputs}/${outputs.length}` },
+                ...(testRows.length === 0
+                  ? []
+                  : [{ id: 'tests' as const, label: t('workspace.tests'), count: stageTestCount(testRows) }]),
               ]}
               active={sheet}
               onChange={setSheet}
               ariaLabel={t('workspace.io_sheets')}
               idPrefix="task-io"
             />
-            <StageIoPanel
-              direction={sheet}
-              items={sheet === 'inputs' ? inputs : outputs}
-              activePath={activePath}
-              definitionState={definitionState}
-              onOpen={(path) => setOpenIndex(files.findIndex((file) => file.path === path))}
-            />
+            {sheet === 'tests' ? (
+              <StageTestsPanel rows={testRows} activeId={openTest} onOpen={setOpenTest} />
+            ) : (
+              <StageIoPanel
+                direction={sheet}
+                items={sheet === 'inputs' ? inputs : outputs}
+                activePath={activePath}
+                definitionState={definitionState}
+                onOpen={(path) => setOpenIndex(files.findIndex((file) => file.path === path))}
+              />
+            )}
           </div>
         )}
         {fetchDefinition && <TaskRecords root={root} change={change.name} signature={decisionSignature} />}
       </DetailColumn>
       <DocumentDrawer root={root} files={files} index={openIndex} onIndex={setOpenIndex} onClose={() => setOpenIndex(null)} />
+      <TestRunDrawer
+        root={root}
+        change={change.name}
+        row={testRows.find((item) => item.id === openTest) ?? null}
+        onClose={() => setOpenTest(null)}
+      />
     </>
   )
 }
