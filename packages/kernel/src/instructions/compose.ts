@@ -105,6 +105,7 @@ function catalogLines(entries: readonly (CatalogEntrySummary | null)[]): string 
     if (entry.install) parts.push(`安装 \`${entry.install}\``)
     if (entry.docs_url) parts.push(`文档 ${entry.docs_url}`)
     lines.push(`- ${entry.name}（${entry.license.spdx}）${parts.length > 0 ? `· ${parts.join(' · ')}` : ''}`)
+    if (!entry.license.redistributable) lines.push(`- 仅链接：${entry.name} 按安装命令在本项目使用，不再分发其源码`)
     if (entry.license.attribution) lines.push(`- 署名：${entry.name} 需要署名`)
   }
   return lines.length > 0 ? lines.join('\n') : null

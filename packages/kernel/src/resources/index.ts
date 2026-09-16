@@ -10,5 +10,6 @@ export type {
 export { ResourceParseError, parseResourceEntry } from './parse.js'
 export { serializeResourceEntry, serializeResourceScalar } from './serialize.js'
 export { validateResourceEntry } from './validate.js'
+export { resourceCatalogLookup, resourceSummary } from './frontend-selection.js'
 export { filterResources, licenseModes } from './query.js'
 export type { ResourceQuery } from './query.js'

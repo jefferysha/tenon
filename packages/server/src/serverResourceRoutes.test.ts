@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolveServerPaths } from './paths.js'
 import { createDashboardServer } from './server.js'
+import { resolveResourceMutation } from './serverResourceRoutes.js'
 import { reqDelete, reqGet, reqPost } from './test-support.js'
 import type { DashboardServer, ServerPaths } from './types.js'
 
@@ -138,5 +139,56 @@ describe('资源目录路由', () => {
     const builtin = await reqDelete(port, '/api/resources/lucide', { headers: AUTH })
     expect(builtin.status).toBe(409)
     expect(parse(builtin.body).code).toBe('builtin-readonly')
+  })
+})
+
+/** 起步端点直接按模块调用：注册表与抓取器都注入，不碰网络。 */
+describe('DESIGN.md 起步端点', () => {
+  function seedDeps(paths: ServerPaths, root: string | null, text = '# Claude\n') {
+    return {
+      isLocalHost: () => true,
+      boundPort: () => 0,
+      paths,
+      readJsonBody: async () => ({ root: root ?? '/nope', resource: 'design-md-claude' }),
+      workflowRootForRequest: (requested: string) => (root !== null && requested === root
+        ? { ok: true as const, anchor: {} as never }
+        : { ok: false as const, code: 403, error: 'root 未注册' }),
+      designSeedFetch: async () => ({ ok: true, status: 200, text }),
+    }
+  }
+
+  const call = async (deps: ReturnType<typeof seedDeps>) => {
+    const pending = resolveResourceMutation({ headers: {}, url: '/api/design/seed' } as never, 'POST', '/api/design/seed', deps)
+    if (pending === null) throw new Error('seed route not matched')
+    return pending
+  }
+
+  it('写到已注册项目根，已存在时 409', async () => {
+    const { paths } = await start()
+    const project = await mkdtemp(join(tmpdir(), 'tenon-design-project-'))
+    homes.push(project)
+    const first = await call(seedDeps(paths, project))
+    expect(first.status).toBe(200)
+    expect(await readFile(join(project, 'DESIGN.md'), 'utf8')).toBe('# Claude\n')
+    expect((await call(seedDeps(paths, project))).status).toBe(409)
+  })
+
+  it('未注册的 root 直接拒绝', async () => {
+    const { paths } = await start()
+    const denied = await call(seedDeps(paths, null))
+    expect(denied.status).toBe(403)
+  })
+
+  it('非 DESIGN.md 资源 400', async () => {
+    const { paths } = await start()
+    const project = await mkdtemp(join(tmpdir(), 'tenon-design-project-'))
+    homes.push(project)
+    const deps = {
+      ...seedDeps(paths, project),
+      readJsonBody: async () => ({ root: project, resource: 'lucide' }),
+    }
+    const result = await call(deps)
+    expect(result.status).toBe(400)
+    expect(parse(JSON.stringify(result.body)).code).toBe('not-design-md')
   })
 })

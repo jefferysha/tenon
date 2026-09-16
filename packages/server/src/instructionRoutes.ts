@@ -8,7 +8,8 @@
 import type { IncomingMessage } from 'node:http'
 import { join } from 'node:path'
 import {
-  INSTRUCTION_BLOCK_MAX_BYTES, NO_CATALOG, syncBuiltinLibraries, type BuiltinSyncResult, type RecordActor,
+  INSTRUCTION_BLOCK_MAX_BYTES, NO_CATALOG, loadResourceCatalog, resourceCatalogLookup, syncBuiltinLibraries,
+  type BuiltinSyncResult, type CatalogLookup, type RecordActor,
 } from '@tenon/kernel'
 import {
   IDENTITY_REQUIRED, auditActor, recordInstructionAudit, type InstructionAuditAction, type ResolveInstructionUser,
@@ -208,10 +209,24 @@ async function postCopy(req: IncomingMessage, deps: InstructionRouteDeps): Promi
   return copied
 }
 
+/** 资源目录读不出来时按「没有目录」拼（资源行整行省略），拼合本身不因目录故障失败。 */
+async function resourceLookup(deps: InstructionRouteDeps): Promise<CatalogLookup> {
+  try {
+    const catalog = await loadResourceCatalog({
+      payloadRoot: deps.payloadRoot ?? repoRootForSkills(),
+      configRoot: deps.paths.configRoot,
+    })
+    return resourceCatalogLookup(catalog.resources.map((item) => item.entry))
+  } catch {
+    return NO_CATALOG
+  }
+}
+
 async function postCompose(req: IncomingMessage, deps: InstructionRouteDeps): Promise<RouteResult> {
   const body = deps.readJsonBody ? await deps.readJsonBody(req) : undefined
   await syncTemplates(deps)
-  return guarded(() => composeFromRequest(templateLibraryAnchor(deps.paths.configRoot), body, NO_CATALOG))
+  const catalog = await resourceLookup(deps)
+  return guarded(() => composeFromRequest(templateLibraryAnchor(deps.paths.configRoot), body, catalog))
 }
 
 function deleteTemplate(req: IncomingMessage, path: string, deps: InstructionRouteDeps): RouteResult {

@@ -10,8 +10,10 @@ import {
   loadResourceCatalog, readResourceFile, resourceStoreRoot, writeCustomResource,
   type ResourceEntry, type ResourceSource,
 } from '@tenon/kernel'
+import { fetchDesignSeed, httpsDesignSeedFetch, writeDesignSeed, type DesignSeedFetch } from './designSeed.js'
 import { repoRootForSkills } from './serverSupport.js'
 import type { ServerPaths } from './types.js'
+import type { WorkflowRootAnchor } from './workflowRootAnchor.js'
 
 export interface ResourceRouteResult { readonly status: number; readonly body: unknown }
 
@@ -22,7 +24,13 @@ export interface ResourceRouteDeps {
   readonly readJsonBody?: (req: IncomingMessage) => Promise<unknown>
   /** 内建条目的 payload 根；缺省为本 server 所在插件根目录。 */
   readonly payloadRoot?: string
+  /** 项目根必须已在机器级注册表里；未注入时 DESIGN.md 起步端点直接 404。 */
+  readonly workflowRootForRequest?: (root: string) => { ok: true; anchor: WorkflowRootAnchor } | { ok: false; code: number; error: string }
+  /** DESIGN.md 起步内容的抓取器；缺省走 https。 */
+  readonly designSeedFetch?: DesignSeedFetch
 }
+
+const SEED = '/api/design/seed'
 
 const ROOT = '/api/resources'
 
@@ -114,12 +122,45 @@ async function put(req: IncomingMessage, id: string, deps: ResourceRouteDeps): P
   return { status: 200, body: { ok: true, entry: dto(stored.entry, stored.source, stored.revision) } }
 }
 
+const SEED_STATUS = { 'not-design-md': 400, exists: 409, 'fetch-failed': 502 } as const
+
+async function seed(req: IncomingMessage, deps: ResourceRouteDeps): Promise<ResourceRouteResult> {
+  const parsed = deps.readJsonBody ? await deps.readJsonBody(req) : undefined
+  const record = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? Object.fromEntries(Object.entries(parsed)) : null
+  if (!record || typeof record.root !== 'string' || typeof record.resource !== 'string'
+    || Object.keys(record).some((key) => key !== 'root' && key !== 'resource')) {
+    return failure(400, 'invalid', '请求体须含 root、resource')
+  }
+  const checked = deps.workflowRootForRequest?.(record.root)
+  if (!checked) return failure(404, 'root-not-registered', 'root 未在机器级项目注册表中')
+  if (!checked.ok) return { status: checked.code, body: { ok: false, error: checked.error } }
+  if (!RESOURCE_ID.test(record.resource)) return failure(404, 'not-found', `未知资源：${record.resource}`)
+  await loadResourceCatalog(options(deps))
+  const file = await readResourceFile(storeRoot(deps), record.resource)
+  if (!file) return failure(404, 'not-found', `未知资源：${record.resource}`)
+  const fetched = await fetchDesignSeed(file.stored.entry, deps.designSeedFetch ?? httpsDesignSeedFetch)
+  if (!fetched.ok) return failure(SEED_STATUS[fetched.code], fetched.code, fetched.error)
+  const written = writeDesignSeed(record.root, fetched.text)
+  return written.ok
+    ? { status: 200, body: { ok: true, path: written.path, bytes: written.bytes } }
+    : failure(SEED_STATUS[written.code], written.code, written.error)
+}
+
 export function resolveResourceMutation(
   req: IncomingMessage,
   method: 'POST' | 'PUT' | 'DELETE',
   path: string,
   deps: ResourceRouteDeps,
 ): Promise<ResourceRouteResult> | null {
+  if (method === 'POST' && path === SEED) {
+    return (async () => {
+      try {
+        return await seed(req, deps)
+      } catch (error) {
+        return storeFailure(error)
+      }
+    })()
+  }
   if (path !== ROOT && !path.startsWith(`${ROOT}/`)) return null
   return (async () => {
     try {
