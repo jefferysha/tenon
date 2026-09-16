@@ -138,6 +138,27 @@ export interface Harness {
   satisfyStepTests: (name: string, stepId: string) => Promise<void>
 }
 
+/** `tenon test status --json` 的窄解码：只取还没通过的必需测试 id，形状不符就当没有。 */
+function pendingRequiredTestIds(json: string): string[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return []
+  }
+  if (typeof parsed !== 'object' || parsed === null) return []
+  const items = (parsed as Record<string, unknown>).items
+  if (!Array.isArray(items)) return []
+  const ids: string[] = []
+  for (const item of items) {
+    if (typeof item !== 'object' || item === null) continue
+    const row = item as Record<string, unknown>
+    if (typeof row.id !== 'string' || row.required !== true || row.status === 'passed') continue
+    ids.push(row.id)
+  }
+  return ids
+}
+
 /** 声明式测试项在真实项目里由项目自己的 npm 脚本兑现；夹具项目声明等价的空脚本。 */
 const FIXTURE_PACKAGE_JSON = `${JSON.stringify({
   name: 'tenon-harness-fixture',
@@ -352,14 +373,10 @@ export function makeHarness(cwd: string): Harness {
       if (!existsSync(packageJson)) await writeFile(packageJson, FIXTURE_PACKAGE_JSON, 'utf8')
       const harness = makeHarness(cwd)
       await harness.run(['test', 'status', name, '--step', stepId, '--json'])
-      const status = JSON.parse(harness.out.join('\n')) as {
-        items: Array<{ id: string; required: boolean; status: string }>
-      }
-      for (const item of status.items) {
-        if (!item.required || item.status === 'passed') continue
-        const code = await harness.run(['test', 'run', name, item.id])
+      for (const id of pendingRequiredTestIds(harness.out.join('\n'))) {
+        const code = await harness.run(['test', 'run', name, id])
         if (code !== 0) {
-          throw new Error(`harness satisfyStepTests: tenon test run ${name} ${item.id} exit=${code}\n${harness.err.join('\n')}`)
+          throw new Error(`harness satisfyStepTests: tenon test run ${name} ${id} exit=${code}\n${harness.err.join('\n')}`)
         }
       }
     },
