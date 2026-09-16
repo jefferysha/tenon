@@ -595,6 +595,28 @@ bootstrap_new_pre_verify_review() {
   run_new_cli "$dir" set "$change" pre_verify_review_result pass
 }
 
+# 老 oracle 早于「项目设计体系」：default 的前端轨道首步声明 design-md `role: require`，没有就绪的
+# 根 DESIGN.md 就建不了前端任务。真实用户先跑一次设计体系任务（hue 产出 DESIGN.md + design/），
+# 之后这个项目的每个前端任务都直接开工。harness 跑不了 hue，就按同样的产物把项目备好——
+# 判定仍由产品的 checkDesignSystem 做，前置条件一行都没改。
+# 契约（章节表、预览清单、frontmatter）只有一份定义：直接调 kernel 的夹具助手，不在这里抄一遍。
+# 只对声明了前端工作的 fixture 生效（`.oracle-design-system` 标记），因此别的 fixture 的工作区指纹不受影响。
+DESIGN_SYSTEM_FIXTURE="$REPO_ROOT/packages/kernel/dist/design-system/test-support.js"
+
+bootstrap_new_design_system() {
+  local dir="$1"
+  [ -f "$dir/.oracle-design-system" ] || return 0
+  [ -f "$dir/DESIGN.md" ] && return 0
+  if [ ! -f "$DESIGN_SYSTEM_FIXTURE" ]; then
+    printf '缺少设计体系夹具助手: %s（先 npm run build）\n' "$DESIGN_SYSTEM_FIXTURE" >&2
+    return 1
+  fi
+  ORACLE_DESIGN_ROOT="$dir" ORACLE_DESIGN_FIXTURE="$DESIGN_SYSTEM_FIXTURE" node --input-type=module -e '
+    const { writeReadyDesignSystem } = await import(`file://${process.env.ORACLE_DESIGN_FIXTURE}`)
+    writeReadyDesignSystem(process.env.ORACLE_DESIGN_ROOT)
+  ' || return 1
+}
+
 # Legacy oracle predates per-step test evidence. default 的 frontend/backend 轨在 build/verify 声明了
 # 必需测试，而声明过的测试只认 `tenon test run` 落下的记录——自跑同一条命令不算。所以在老侧已经证明
 # 该出口成功之后，于新侧照真实用户的做法补齐：项目声明自己的 npm 脚本，读一遍状态，逐项真跑。
@@ -651,7 +673,8 @@ run_step_dual() {
   shift 5
   local args=("$@")
   local change="${args[0]}"
-  local old_rc new_rc bootstrap_rc review_bootstrap_rc convergence_bootstrap_rc test_bootstrap_rc f_out f_exit f_yaml label
+  local old_rc new_rc bootstrap_rc review_bootstrap_rc convergence_bootstrap_rc test_bootstrap_rc design_bootstrap_rc
+  local f_out f_exit f_yaml label
   local build_sha_override=""
 
   bootstrap_rc=0
@@ -679,6 +702,13 @@ run_step_dual() {
       > "$step_dir/new.convergence-bootstrap.out" 2> "$step_dir/new.convergence-bootstrap.err" \
       || convergence_bootstrap_rc=$?
   fi
+  design_bootstrap_rc=0
+  # 与其它 bootstrap 同一条口径：老侧先证明这一步能成，新侧才按真实项目的样子把设计体系备好。
+  # 必须排在新侧 init 之前——立项前置条件在写盘之前判定。
+  if [ "$cmd" = init ] && [ "$old_rc" -eq 0 ] && [ "$DOCUMENT_CONTRACT_BOOTSTRAP" = 1 ]; then
+    bootstrap_new_design_system "$base/new" \
+      > "$step_dir/new.design-bootstrap.out" 2> "$step_dir/new.design-bootstrap.err" || design_bootstrap_rc=$?
+  fi
   test_bootstrap_rc=0
   # 与 review receipt 同一条口径：只在老侧已证明该出口成功之后补，绝不在老侧拒绝时跑——那会把一次
   # guard 比较变成人为的测试登记。必须排在 review request 之前：`review request` 的预检就是整份
@@ -696,7 +726,8 @@ run_step_dual() {
       > "$step_dir/new.review-bootstrap.out" 2> "$step_dir/new.review-bootstrap.err" || review_bootstrap_rc=$?
   fi
   if [ "$bootstrap_rc" -eq 0 ] && [ "$convergence_bootstrap_rc" -eq 0 ] \
-    && [ "$review_bootstrap_rc" -eq 0 ] && [ "$test_bootstrap_rc" -eq 0 ]; then
+    && [ "$review_bootstrap_rc" -eq 0 ] && [ "$test_bootstrap_rc" -eq 0 ] \
+    && [ "$design_bootstrap_rc" -eq 0 ]; then
     run_new_cli "$base/new" "${NEW_ARGS[@]}" > "$step_dir/new.out" 2> "$step_dir/new.err"
     new_rc=$?
   else
@@ -711,6 +742,9 @@ run_step_dual() {
       elif [ "$test_bootstrap_rc" -ne 0 ]; then
         printf 'ERROR: oracle test evidence bootstrap 失败（exit=%s）\n' "$test_bootstrap_rc"
         cat "$step_dir/new.test-bootstrap.err"
+      elif [ "$design_bootstrap_rc" -ne 0 ]; then
+        printf 'ERROR: oracle design system bootstrap 失败（exit=%s）\n' "$design_bootstrap_rc"
+        cat "$step_dir/new.design-bootstrap.err"
       else
         printf 'ERROR: oracle review receipt bootstrap 失败（exit=%s）\n' "$review_bootstrap_rc"
         cat "$step_dir/new.review-bootstrap.err"
@@ -868,6 +902,11 @@ run_step_degraded() {
   local change="${args[0]}"
   local new_rc f_out f_exit f_yaml label
 
+  # 降级模式没有老侧可依据，fixture 计划里那一列期望退出码就是契约本身。
+  if [ "$cmd" = init ] && [ "$DOCUMENT_CONTRACT_BOOTSTRAP" = 1 ]; then
+    bootstrap_new_design_system "$base/new" \
+      > "$step_dir/new.design-bootstrap.out" 2> "$step_dir/new.design-bootstrap.err" || true
+  fi
   (cd "$base/new" && TENON_RUNTIME_HOME="$MACHINE_HOME" "${NEW_CMD[@]}" "${NEW_ARGS[@]}") \
     > "$step_dir/new.out" 2> "$step_dir/new.err"
   new_rc=$?
