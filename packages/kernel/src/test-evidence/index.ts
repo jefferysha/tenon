@@ -25,3 +25,9 @@ export {
   testEvidenceUserRoot, testStatusWord,
 } from './evaluate.js'
 export type { TestEvidenceContext, TestEvidenceItem, TestEvidenceReport, TestItemStatus } from './evaluate.js'
+export {
+  renderTestsRegion, replaceTestsRegion, TESTS_REGION_END, TESTS_REGION_START,
+} from './report.js'
+export type { ReportLocale, TestsRegionItem } from './report.js'
+export { rejectOnTestEvidence } from './transition-gate.js'
+export type { TestEvidenceRejection } from './transition-gate.js'
