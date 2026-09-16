@@ -15,7 +15,7 @@ vi.mock('@xyflow/react', () => import('../workflow/reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
 
 const ROOT = '/repo'
-const PROJECTS = [{ root: ROOT, name: 'repo', ok: true }]
+const PROJECTS = [{ root: ROOT, name: 'repo', count: 2, ok: true }]
 
 function archivedRow(name: string, phase: string, archivedAt: string, actor: string): ArchivedChangeSnapshot {
   return {
