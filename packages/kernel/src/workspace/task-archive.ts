@@ -32,7 +32,7 @@ export type TaskArchiveRead =
   | { readonly kind: 'corrupt'; readonly path: string }
 
 export type TaskArchiveUpdate =
-  | { readonly kind: 'ok'; readonly archive: TaskArchive; readonly changed: boolean }
+  | { readonly kind: 'ok'; readonly archive: TaskArchive; readonly changed: boolean; readonly written: boolean }
   | { readonly kind: 'corrupt'; readonly path: string }
 
 export const EMPTY_TASK_ARCHIVE: TaskArchive = { version: 1, changes: {} }
@@ -119,24 +119,51 @@ export async function readTaskArchive(repoRoot: string, user: TenonUser): Promis
   return readTaskArchiveOf(repoRoot, user.slug)
 }
 
+/** Serialize under `withLock(localDir)`, the same critical section the lifecycle application re-assesses in. */
+export async function withTaskArchiveLock<T>(repoRoot: string, slug: string, fn: () => Promise<T>): Promise<T> {
+  const paths = await ensureUserLocalDir(repoRoot, slug)
+  return withLock(paths.localDir, fn)
+}
+
+/** Writes only when the canonical bytes differ, so pruning a deleted Change also lands. */
+export async function writeTaskArchiveOf(repoRoot: string, slug: string, archive: TaskArchive): Promise<boolean> {
+  const path = userProjectPaths(repoRoot, slug).archived
+  const text = serializeTaskArchive(archive)
+  let current: string | null = null
+  try {
+    current = await readFile(path, 'utf8')
+  } catch {
+    current = null
+  }
+  if (current === text) return false
+  await writeUserLocalFile(path, text)
+  return true
+}
+
 /**
- * Read-modify-write under `withLock(localDir)`. `edit` returns `null` to mean "nothing to do", which
- * writes nothing and reports `changed: false`; a malformed store is reported, never overwritten.
+ * Read-modify-write under the store lock. `edit` returns `null` for "no entry change"; the file is still
+ * rewritten when pruning changed its bytes. A malformed store is reported, never overwritten.
  */
 export async function updateTaskArchiveOf(
   repoRoot: string,
   slug: string,
   edit: (archive: TaskArchive) => TaskArchive | null,
 ): Promise<TaskArchiveUpdate> {
-  const paths = await ensureUserLocalDir(repoRoot, slug)
-  return withLock(paths.localDir, async () => {
+  return withTaskArchiveLock(repoRoot, slug, async () => {
     const current = await readTaskArchiveOf(repoRoot, slug)
     if (current.kind === 'corrupt') return current
-    const next = edit(current.archive)
-    if (next === null) return { kind: 'ok', archive: current.archive, changed: false }
-    await writeUserLocalFile(paths.archived, serializeTaskArchive(next))
-    return { kind: 'ok', archive: next, changed: true }
+    const edited = edit(current.archive)
+    const archive = edited ?? current.archive
+    const written = await writeTaskArchiveOf(repoRoot, slug, archive)
+    return { kind: 'ok', archive, changed: edited !== null, written }
   })
+}
+
+export function withoutTaskArchiveEntry(archive: TaskArchive, change: string): TaskArchive | null {
+  if (archive.changes[change] === undefined) return null
+  const changes = { ...archive.changes }
+  delete changes[change]
+  return { version: 1, changes }
 }
 
 export function taskArchivedMessage(change: string): string {

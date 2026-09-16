@@ -7,7 +7,7 @@ import type { TenonUser } from '../users/user.js'
 import {
   EMPTY_TASK_ARCHIVE, TaskArchivedError,
   assertTaskNotArchived, isArchivedForUser, isTaskLifecycleName, readTaskArchive, serializeTaskArchive,
-  taskArchivePath, updateTaskArchiveOf,
+  taskArchivePath, updateTaskArchiveOf, withoutTaskArchiveEntry,
 } from './task-archive.js'
 
 const alice: TenonUser = { id: 'a@x.io', name: 'A', slug: 'a-at-x.io', source: 'env', trust: 'declared' }
@@ -108,12 +108,25 @@ describe('updateTaskArchiveOf', () => {
     const written = await updateTaskArchiveOf(repo, alice.slug, (archive) => ({
       version: 1, changes: { ...archive.changes, 'add-login': entry('build') },
     }))
-    expect(written).toEqual({ kind: 'ok', archive: { version: 1, changes: { 'add-login': entry('build') } }, changed: true })
+    expect(written).toEqual({
+      kind: 'ok', archive: { version: 1, changes: { 'add-login': entry('build') } }, changed: true, written: true,
+    })
     const path = userProjectPaths(repo, alice.slug).archived
     expect((await stat(path)).mode & 0o777).toBe(0o600)
     expect(await readFile(path, 'utf8')).toBe(serializeTaskArchive({ version: 1, changes: { 'add-login': entry('build') } }))
     const again = await updateTaskArchiveOf(repo, alice.slug, () => null)
-    expect(again).toEqual({ kind: 'ok', archive: { version: 1, changes: { 'add-login': entry('build') } }, changed: false })
+    expect(again).toEqual({
+      kind: 'ok', archive: { version: 1, changes: { 'add-login': entry('build') } }, changed: false, written: false,
+    })
+  })
+
+  it('rewrites the store when pruning drops a deleted Change', async () => {
+    await seedChange('add-login')
+    await updateTaskArchiveOf(repo, alice.slug, () => ({ version: 1, changes: { 'add-login': entry('build') } }))
+    await rm(join(repo, 'openspec', 'changes', 'add-login'), { recursive: true, force: true })
+    const update = await updateTaskArchiveOf(repo, alice.slug, (archive) => withoutTaskArchiveEntry(archive, 'add-login'))
+    expect(update).toEqual({ kind: 'ok', archive: EMPTY_TASK_ARCHIVE, changed: false, written: true })
+    expect(await readFile(userProjectPaths(repo, alice.slug).archived, 'utf8')).toBe(serializeTaskArchive(EMPTY_TASK_ARCHIVE))
   })
 
   it('refuses a corrupt store without touching the bytes', async () => {

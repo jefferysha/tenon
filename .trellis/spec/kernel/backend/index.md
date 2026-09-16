@@ -24,6 +24,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Autonomous Orchestration](./orchestration.md) | v1 schemas, reducer and routing contracts | Current |
 | [State Lock Owner Identity](./state-lock.md) | Owner record, pid-only fallback in sandboxes, reclaim rules | Current |
 | [User Identity and Owner Rule](./user-identity.md) | Declared identity order, slug, `.tenon/users/<slug>/` layout, owner rule, 接手, error matrix | Current |
+| [Task Delete and Archive](./task-lifecycle.md) | Per-user 归档 store and bash ABI, reasons assessed twice, rename-then-remove 删除, audit split, 未提交删除 | Current |
 
 ---
 
