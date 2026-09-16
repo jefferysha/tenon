@@ -37,9 +37,11 @@ describe('builtin resource catalog', () => {
   })
 
   test('the resources the frontend block and the design system depend on are present', () => {
-    for (const id of ['gsap', 'react-bits', 'shadcn-ui', 'lucide', 'zustand', 'tailwindcss', 'awesome-design-md']) {
+    for (const id of ['gsap', 'react-bits', 'shadcn-ui', 'lucide', 'zustand', 'tailwindcss']) {
       expect(byId(id).id).toBe(id)
     }
+    const index = [...entries.values()].filter((entry) => entry.category === 'design-md' && !entry.id.startsWith('design-md-'))
+    expect(index.length).toBeGreaterThanOrEqual(2)
   })
 
   test('gsap declares all eight upstream skills and stays link-only and baseline', () => {
@@ -57,6 +59,15 @@ describe('builtin resource catalog', () => {
     const installed = new Set([...sources.matchAll(/^ {2}([a-z0-9-]+):/gmu)].map((match) => match[1]))
     for (const entry of entries.values()) {
       for (const skill of entry.skills) expect([entry.id, skill, installed.has(skill)]).toEqual([entry.id, skill, true])
+    }
+  })
+
+  test('brand DESIGN.md entries ship link-only', () => {
+    const brands = [...entries.values()].filter((entry) => entry.id.startsWith('design-md-'))
+    expect(brands.length).toBeGreaterThanOrEqual(70)
+    for (const entry of brands) {
+      expect([entry.id, entry.category, entry.license.redistributable]).toEqual([entry.id, 'design-md', false])
+      expect(entry.links.design_md).toMatch(/^https:\/\/raw\.githubusercontent\.com\//u)
     }
   })
 

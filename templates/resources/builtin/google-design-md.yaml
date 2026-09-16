@@ -1,5 +1,5 @@
 schema: tenon-resource/v1
-id: design-md-spec
+id: google-design-md
 name: design.md
 category: design-md
 frameworks: []
