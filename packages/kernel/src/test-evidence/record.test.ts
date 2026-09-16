@@ -146,10 +146,10 @@ describe('运行中标记', () => {
 })
 
 describe('保留策略', () => {
-  test('按 run-id 逆序保留最近 keep_runs 个产物目录', async () => {
+  test('按调用方给出的时间升序保留最后 keep_runs 个产物目录', async () => {
     expect(selectArtifactDirsToPrune(['20260915T100000Z-000001', '20260915T100100Z-000002'], 5)).toEqual([])
     const ids = Array.from({ length: 7 }, (_, index) => `2026091${index}T100000Z-00000${index}`)
-    expect(selectArtifactDirsToPrune(ids, 5)).toEqual([ids[1], ids[0]])
+    expect(selectArtifactDirsToPrune(ids, 5)).toEqual([ids[0], ids[1]])
 
     const root = await freshRepo()
     for (const id of ids) await ensureTestEvidenceDirs(root, SLUG, RECORD.change, id)

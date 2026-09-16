@@ -27,7 +27,7 @@ tracks:
             timeout_s: 60
           - id: bad
             direction: unit
-            command: node -e 'process.exit(3)'
+            command: node -e 'process.exit(Number(process.env.TENON_BAD ?? 3))'
             timeout_s: 60
         guards: []
         transitions:
@@ -127,9 +127,9 @@ describe('真实 e2e —— 每步测试登记', () => {
 
   test('必需输出缺失判失败；产出后通过并登记输出摘要与副本', async () => {
     await seed()
-    await h.run(['transition', 'demo', 'build-done'], { env: USER_A })
     expect(await h.run(['test', 'run', 'demo', 'report'], { env: USER_A })).toBe(2)
-    let stored = await record(SLUG_A, (await runIds(SLUG_A))[0] ?? '')
+    const missingIds = await runIds(SLUG_A)
+    let stored = await record(SLUG_A, missingIds[0] ?? '')
     expect(stored.reasons).toEqual([{ code: 'output-missing', detail: 'test-results/junit.xml' }])
 
     await mkdir(join(h.cwd, 'test-results'), { recursive: true })
@@ -137,7 +137,7 @@ describe('真实 e2e —— 每步测试登记', () => {
     expect(await h.run(['test', 'run', 'demo', 'report'], { env: USER_A }), h.err.join('\n')).toBe(0)
     const ids = await runIds(SLUG_A)
     expect(ids).toHaveLength(2)
-    stored = await record(SLUG_A, ids[1] ?? '')
+    stored = await record(SLUG_A, ids.find((id) => !missingIds.includes(id)) ?? '')
     expect(stored.result).toBe('pass')
     expect(stored.outputs).toMatchObject([{
       path: 'test-results/junit.xml', kind: 'report', required: true, present: true, files: 1,
@@ -198,7 +198,7 @@ describe('真实 e2e —— 每步测试登记', () => {
   /** 基准测试项：指标从 stdout 最后一行 JSON 读，声明相对基线的退化上限。 */
   const BENCH_WF = TESTED_WF.replace(`          - id: bad
             direction: unit
-            command: node -e 'process.exit(3)'
+            command: node -e 'process.exit(Number(process.env.TENON_BAD ?? 3))'
             timeout_s: 60
 `, `          - id: bench
             direction: benchmark
@@ -299,12 +299,62 @@ describe('真实 e2e —— 每步测试登记', () => {
     expect(summaries).toHaveLength(7)
     const artifacts = (await readdir(join(h.cwd, '.tenon', 'users', SLUG_A, 'local', 'artifacts', 'demo'))).sort()
     expect(artifacts).toHaveLength(5)
-    expect(artifacts).toEqual(summaries.slice(2).map((name) => name.replace('.json', '')))
+    const kept = new Set(summaries.map((name) => name.replace('.json', '')))
+    expect(artifacts.every((runId) => kept.has(runId))).toBe(true)
   })
 
   test('code-size 在非 git 项目里明确报错（git 行为由单测覆盖）', async () => {
     await seed()
     expect(await h.run(['test', 'code-size'], { env: USER_A })).toBe(1)
     expect(h.err.join('\n')).toContain('无法读取 git 规模信息（base=HEAD）')
+  })
+
+  test('必需测试未通过时转换被拦截，check 同步报告；全部通过后放行', async () => {
+    await seed()
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A })).toBe(1)
+    expect(h.err.join('\n')).toContain('ERROR: 测试证据未通过（step=build）：')
+    expect(h.err.join('\n')).toContain('测试 单测（unit）未运行')
+    expect(h.err.join('\n')).toContain('测试 bad（bad）未运行')
+    expect(await h.read('demo')).toMatch(/^phase: build$/mu)
+
+    expect(await h.run(['check', 'demo'], { env: USER_A })).toBe(2)
+    expect(h.out.join('\n')).toContain('[FAIL] test: 测试 单测（unit）未运行')
+
+    await h.run(['test', 'run', 'demo', 'unit'], { env: USER_A })
+    expect(await h.run(['test', 'run', 'demo', 'bad'], { env: USER_A })).toBe(2)
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A })).toBe(1)
+    expect(h.err.join('\n')).toContain('测试 bad（bad）失败：exit-code')
+
+    process.env.TENON_BAD = '0'
+    expect(await h.run(['test', 'run', 'demo', 'bad'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    delete process.env.TENON_BAD
+    expect(await h.run(['check', 'demo'], { env: USER_A }), h.out.join('\n')).toBe(0)
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    expect(await h.read('demo')).toMatch(/^phase: verify$/mu)
+  })
+
+  test('改代码后已通过的结果过期并再次拦截，重跑后放行', async () => {
+    await seed()
+    process.env.TENON_BAD = '0'
+    await h.run(['test', 'run', 'demo', 'unit'], { env: USER_A })
+    await h.run(['test', 'run', 'demo', 'bad'], { env: USER_A })
+    await writeFile(join(h.cwd, 'src.ts'), 'export const a = 1\n', 'utf8')
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A })).toBe(1)
+    expect(h.err.join('\n')).toContain('过期：代码已变化')
+
+    await h.run(['test', 'run', 'demo', 'unit'], { env: USER_A })
+    await h.run(['test', 'run', 'demo', 'bad'], { env: USER_A })
+    delete process.env.TENON_BAD
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    expect(await h.read('demo')).toMatch(/^phase: verify$/mu)
+  })
+
+  test('review request 在必需测试未通过时被拦截且不写 review marker', async () => {
+    await seed(TESTED_WF.replace('        label: 实现\n        gate: null', '        label: 实现\n        gate: review'))
+    await h.run(['test', 'run', 'demo', 'unit'], { env: USER_A })
+    await h.run(['test', 'run', 'demo', 'bad'], { env: USER_A })
+    expect(await h.run(['review', 'request', 'demo', '--event', 'build-done'], { env: USER_A })).not.toBe(0)
+    expect(`${h.out.join('\n')}\n${h.err.join('\n')}`).toContain('测试 bad（bad）失败')
+    await expect(readFile(join(h.cwd, '.pipeline-pending-review'), 'utf8')).rejects.toThrow()
   })
 })

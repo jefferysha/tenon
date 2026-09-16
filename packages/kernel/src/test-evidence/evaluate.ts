@@ -90,7 +90,13 @@ export async function listTestRuns(
       out.push({ slug, record })
     }
   }
-  return out.sort((left, right) => (left.record.run_id < right.record.run_id ? -1 : 1))
+  // 同一秒内 run-id 只靠随机后缀区分，所以时间序按记录的完成时间排，run-id 只作稳定兜底。
+  return out.sort((left, right) => {
+    if (left.record.finished_at !== right.record.finished_at) {
+      return left.record.finished_at < right.record.finished_at ? -1 : 1
+    }
+    return left.record.run_id < right.record.run_id ? -1 : 1
+  })
 }
 
 async function userSlugs(repoRoot: string): Promise<readonly string[]> {

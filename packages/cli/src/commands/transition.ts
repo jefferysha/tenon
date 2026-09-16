@@ -62,6 +62,7 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { requireActor } from '../userIdentity.js'
+import { testEvidenceContextFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 
 function canonicalPipelineSkillId(skillId: string): string {
@@ -141,6 +142,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     history: deps.history,
     breadcrumb: deps.writeBreadcrumb ? { write: deps.writeBreadcrumb } : undefined,
     documentEvidence: deps.documentEvidence,
+    testEvidence: testEvidenceContextFor(deps, name),
     resolveTrack: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd),
     missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => {
       const slots = resolveRequiredSkillSlots(deps.resolver, capability, stepId)

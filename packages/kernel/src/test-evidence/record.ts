@@ -384,9 +384,13 @@ export async function releaseRunningMarker(path: string): Promise<void> {
   await rm(path, { force: true })
 }
 
-/** 保留最新 keepRuns 个 run 目录，更早的删除；摘要永不删除（R13、D18）。 */
-export function selectArtifactDirsToPrune(runIds: readonly string[], keepRuns: number): readonly string[] {
-  return [...runIds].sort().reverse().slice(keepRuns)
+/**
+ * 保留最后 keepRuns 个 run 目录，更早的删除；摘要永不删除（R13、D18）。
+ * 调用方按时间升序给出 run id（listTestRuns 的顺序），本函数不自己猜时间序。
+ */
+export function selectArtifactDirsToPrune(runIdsOldestFirst: readonly string[], keepRuns: number): readonly string[] {
+  const extra = runIdsOldestFirst.length - keepRuns
+  return extra <= 0 ? [] : runIdsOldestFirst.slice(0, extra)
 }
 
 export async function pruneTestArtifacts(
