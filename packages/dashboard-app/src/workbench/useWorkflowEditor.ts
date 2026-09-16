@@ -3,7 +3,7 @@ import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import { addDocumentOutputInDef, removeDocumentSlotInDef, setDocumentInputsInDef, setOpenspecInDef } from './documentContractEdits'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
-import type { WbEffectiveIo, WbSkillRef, WbStepDef, WbTransition, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbEffectiveIo, WbSkillRef, WbStepDef, WbStepTest, WbTransition, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
 import { fetchWorkflowYaml, putWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
@@ -35,6 +35,7 @@ import {
   setStageBackInDef,
   backTransitionOf,
   setStepSkillsInDef,
+  setStepTestsInDef,
   workflowNameFromYaml,
   writeBranchDef,
 } from './workbenchDefinition'
@@ -119,6 +120,7 @@ export interface WorkflowEditor {
   removeStage: (stepId: string) => void
   reorderStages: (fromId: string, toId: string, after: boolean) => void
   setSkills: (stepId: string, skills: readonly WbSkillRef[]) => void
+  setTests: (stepId: string, tests: readonly WbStepTest[]) => void
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
   save: () => Promise<void>
@@ -359,6 +361,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     rememberDisplaced(previous, reorderStagesInDef(previous, fromId, toId, after))
   )), [mutate, rememberDisplaced])
   const setSkills = useCallback((stepId: string, skills: readonly WbSkillRef[]) => mutate((previous) => setStepSkillsInDef(previous, stepId, skills)), [mutate])
+  const setTests = useCallback((stepId: string, tests: readonly WbStepTest[]) => mutate((previous) => setStepTestsInDef(previous, stepId, tests)), [mutate])
   const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
   const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])
   const setOpenspec = useCallback((on: boolean): void => {
@@ -612,6 +615,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     removeStage,
     reorderStages,
     setSkills,
+    setTests,
     addSkill,
     removeSkill,
     save,

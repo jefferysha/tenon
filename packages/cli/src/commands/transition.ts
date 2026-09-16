@@ -63,6 +63,7 @@ import { refuseArchived } from '../archivedGuard.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { requireActor } from '../userIdentity.js'
+import { testEvidenceContextFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 
 function canonicalPipelineSkillId(skillId: string): string {
@@ -143,6 +144,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     history: deps.history,
     breadcrumb: deps.writeBreadcrumb ? { write: deps.writeBreadcrumb } : undefined,
     documentEvidence: deps.documentEvidence,
+    testEvidence: testEvidenceContextFor(deps, name),
     resolveTrack: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd),
     missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => {
       const slots = resolveRequiredSkillSlots(deps.resolver, capability, stepId)
@@ -289,6 +291,10 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         return 2
       case 'document-evidence-failed':
         deps.io.err(`ERROR: OpenSpec 文档证据未通过（phase=${result.phase}）：`)
+        for (const blocker of result.blockers) deps.io.err(`  - ${blocker}`)
+        return 1
+      case 'test-evidence-failed':
+        deps.io.err(`ERROR: 测试证据未通过（step=${result.stepId}）：`)
         for (const blocker of result.blockers) deps.io.err(`  - ${blocker}`)
         return 1
       case 'review-approval-required':

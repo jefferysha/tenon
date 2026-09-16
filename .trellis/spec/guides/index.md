@@ -59,6 +59,9 @@ These guides help you **ask the right questions before coding**.
       → [Document Recording Boundary](../kernel/backend/skill-output-registration.md)
 - [ ] Does the code need anything Codex's `workspace-write` sandbox denies (`/bin/ps`, writes under `.git`, probing
       other pids)? → [State Lock Owner Identity](../kernel/backend/state-lock.md)
+- [ ] Do declared tests that bind a port, use the network or launch a browser tell Codex to run them with
+      `sandbox_permissions: "require_escalated"`, and does a denied run stay a failure instead of being waved
+      through? → [Per-step Test Evidence](../kernel/backend/test-evidence.md)
 - [ ] Does a network step survive one dropped connection? → [Host Install and Inventory](../cli/frontend/host-install-and-inventory.md)
 - [ ] Does every block an agent hits name the exact reply that unlocks it, and does the unlock announce itself?
       → [Hook Guidelines](../cli/frontend/hook-guidelines.md)

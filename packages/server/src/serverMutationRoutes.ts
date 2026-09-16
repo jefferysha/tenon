@@ -19,6 +19,8 @@ import { tokenFromHeaders, tokensMatch } from './token.js'
 import { handleWorkflowYamlPut, matchWorkflowYamlRoute } from './serverWorkflowYamlRoutes.js'
 import { resolveInstructionMutation } from './instructionRoutes.js'
 import { handleTaskLifecycleDelete, type TaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
+import { handleTestDirectionMutation, TEST_DIRECTION_MAX_BYTES } from './serverTestDirectionRoutes.js'
+import { readTextBody } from './serverWorkflowYamlRoutes.js'
 import type { ServerPaths } from './types.js'
 import {
   assertWorkflowRootAnchor,
@@ -149,6 +151,13 @@ export async function handleDeleteRoute(
     const instructionDelete = resolveInstructionMutation(req, 'DELETE', path, deps)
     if (instructionDelete) { const result = await instructionDelete; return sendJson(res, result.status, result.body) }
     if (await handleTaskLifecycleDelete(req, res, path, deps)) return
+
+    if (path.startsWith('/api/test-directions/')) {
+      const result = await handleTestDirectionMutation('DELETE', path, '', {
+        configRoot: paths.configRoot, authorized: () => true, sendJson,
+      })
+      if (result !== null) return sendJson(res, result.status, result.body)
+    }
 
     // ── G18：DELETE /api/projects?root= —— 注销项目（注册的对称操作）──
     if (path === '/api/projects') {
@@ -326,6 +335,14 @@ export async function handlePutRoute(
   }
   const instructionPut = resolveInstructionMutation(req, 'PUT', path, deps)
   if (instructionPut) { const result = await instructionPut; return sendJson(res, result.status, result.body) }
+  if (path.startsWith('/api/test-directions/')) {
+    const body = await readTextBody(req, TEST_DIRECTION_MAX_BYTES)
+    if (body === null) return sendJson(res, 400, { ok: false, error: `方向文件超过 ${TEST_DIRECTION_MAX_BYTES} 字节` })
+    const result = await handleTestDirectionMutation('PUT', path, body, {
+      configRoot: deps.paths.configRoot, authorized: () => true, sendJson,
+    })
+    if (result !== null) return sendJson(res, result.status, result.body)
+  }
   const yamlName = matchWorkflowYamlRoute(path)
   if (yamlName !== null) {
     const result = await handleWorkflowYamlPut(req, yamlName, { workflowRootForRequest: workflowStoreForRequest, trackValidationContextFor, errMsg })

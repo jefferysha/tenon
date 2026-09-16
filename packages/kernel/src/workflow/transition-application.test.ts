@@ -14,18 +14,67 @@ import { recordCanonicalDocumentSkillInvocation } from '../skill-invocation/docu
 import { createFlowEngine, loadManifest } from '../flow/index.js'
 import { compileAutomationPolicySnapshot } from '../loops/automation-policy.js'
 import type { LoopEntry } from '../loops/types.js'
+import { userSlug } from '../users/user.js'
 import { createTransitionApplication } from './transition-application.js'
 import type { TransitionApplicationDeps } from './transition-application.js'
 import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
 import { compileWorkflow } from './compile.js'
 import { builtinWorkflow } from './builtin-workflows.js'
-import { compileEffectiveWorkflowPlan, documentGovernanceFingerprint } from './effective-plan.js'
+import { compileEffectiveWorkflowPlan, documentGovernanceFingerprint, resolveEffectiveWorkflowPlan } from './effective-plan.js'
+import type { EffectiveWorkflowPlan } from './effective-plan-types.js'
+import { IMPLICIT_COMPLETION_EVENT } from './implicit-completion.js'
+import { builtinTrack } from '../tracks/builtins.js'
+import { readCurrentRunRevision } from '../state/run-revision-store.js'
+import { testDigest } from '../test-evidence/evaluate.js'
+import { ensureTestEvidenceDirs, testRunRecordPath } from '../test-evidence/paths.js'
+import { publishTestRunRecord } from '../test-evidence/record.js'
 import type { WorkflowDef } from './types.js'
 import type { WorkflowIR } from './ir.js'
 import type { HistoryEntry } from '../types.js'
 import { createBuildRevisionToken, makeBuildRevisionBlocker, safeRevisionHash } from './build-revision.js'
 
 const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+const TEST_EVIDENCE_CANDIDATE = `workspace:sha256:${'e'.repeat(64)}`
+const TEST_EVIDENCE_CONTEXT = {
+  user: { id: TEST_CREATOR.id, name: TEST_CREATOR.name, slug: userSlug(TEST_CREATOR.id) },
+  currentCandidate: async () => TEST_EVIDENCE_CANDIDATE,
+}
+
+/**
+ * default 的 frontend/backend 轨在 build/verify 声明了必需测试（X16）。主题与测试无关的用例
+ * 先把该步骤的测试登记成通过，避免这些用例变成测试证据闸的重复断言。
+ */
+async function satisfyStepTests(
+  root: string,
+  changeDir: string,
+  name: string,
+  phase: string,
+  track = 'backend',
+): Promise<void> {
+  const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack(track))
+  const tests = plan.workflow.steps.find((step) => step.id === phase)?.tests ?? []
+  const runId = (await readCurrentRunRevision(changeDir))?.state.runMetadata?.runId
+  if (runId === undefined) throw new Error('fixture run identity missing')
+  const slug = userSlug(TEST_CREATOR.id)
+  let index = 0
+  for (const test of tests) {
+    const recordRunId = `20260717T00000${index}Z-abcdef`
+    index += 1
+    const paths = await ensureTestEvidenceDirs(root, slug, name, recordRunId)
+    await publishTestRunRecord(testRunRecordPath(root, slug, name, recordRunId), paths.runsDir, {
+      schema: 'tenon-test-run-v1', run_id: recordRunId, change: name, workflow_run_id: runId,
+      workflow: 'default', workflow_fingerprint: plan.workflowFingerprint, track, step: phase,
+      step_visit: { run_id: runId, transition_sequence: 0 }, test_id: test.id, test_digest: testDigest(test),
+      direction: test.direction, command: test.command, cwd: test.cwd, timeout_s: test.timeout_s,
+      required: test.required, actor: TEST_CREATOR, host: { kind: 'terminal', sandbox: null },
+      candidate_before: TEST_EVIDENCE_CANDIDATE, candidate: TEST_EVIDENCE_CANDIDATE,
+      git_head: null, build_sha: null, started_at: FIXED_CLOCK(), finished_at: FIXED_CLOCK(),
+      duration_ms: 1, exit_code: 0, signal: null, result: 'pass', reasons: [], inputs: [], outputs: [],
+      metrics: [],
+      log: { artifact: 'output.log', bytes_total: 1, bytes_kept: 1, truncated: false, digest: `sha256:${'f'.repeat(64)}` },
+    })
+  }
+}
 
 const FIXED_CLOCK = () => '2026-07-17T00:00:00Z'
 const REVISION_IDENTITY = { repository: '/repo.git', worktree: '/repo\\0/repo.git/worktrees/change' } as const
@@ -71,6 +120,7 @@ function makeDeps(overrides: Partial<TransitionApplicationDeps> = {}): Transitio
     // Test callers explicitly provide the verifier; production adapters must use
     // the sidecar-backed binding matcher rather than this permissive test stub.
     reviewGateBinding: async () => true,
+    testEvidence: TEST_EVIDENCE_CONTEXT,
     history: { append: async (dir, entry) => { historyEntries.push([dir, entry]) } },
     breadcrumb: { write: async (dir, content) => { breadcrumbCalls.push([dir, content]) } },
     historyEntries,
@@ -380,6 +430,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         review_requested_at: FIXED_CLOCK(),
         review_acknowledged_at: FIXED_CLOCK(),
       })
+      await satisfyStepTests(root, dir, 'demo', 'verify')
       const app = createTransitionApplication(deps)
       const blocked = await app.execute({
         root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'verify-pass',
@@ -640,6 +691,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         phase: 'build', build_mode: 'direct', isolation: 'branch', direct_override: 'true',
         pre_verify_review_result: 'pass',
       })
+      await satisfyStepTests(root, dir, 'demo', 'build')
       let captureCalls = 0
       const app = createTransitionApplication(deps)
       const result = await app.execute({
@@ -665,6 +717,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         review_gate_event: 'verify-pass',
         review_requested_at: FIXED_CLOCK(), review_acknowledged_at: FIXED_CLOCK(),
       })
+      await satisfyStepTests(root, dir, 'demo', 'verify')
       let assessCalls = 0
       const app = createTransitionApplication(deps)
       const result = await app.execute({
@@ -1538,5 +1591,141 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       expect(result.from).toBe('draft')
       expect(result.to).toBe('end')
     })
+  })
+})
+
+describe('步骤测试证据（每步测试登记）', () => {
+  const CANDIDATE = `workspace:sha256:${'a'.repeat(64)}`
+  const SLUG = 'tester-at-tenon.test'
+  const TESTED: WorkflowDef = {
+    name: 'tested',
+    steps: [
+      {
+        id: 'build', label: 'build', gate: null, skills: [], inputs: [], outputs: [],
+        tests: [{ id: 'unit', direction: 'unit', command: 'npm test' }],
+        guards: [], transitions: [{ event: 'complete', to: 'verify' }],
+      },
+      {
+        id: 'verify', label: 'verify', gate: null, skills: [], inputs: [], outputs: [],
+        tests: [{ id: 'e2e', direction: 'e2e', command: 'npm run test:e2e' }],
+        guards: [], transitions: [{ event: 'reject', to: 'build' }],
+      },
+    ],
+  }
+  const loadTested = (name: string): WorkflowIR | null => (name === 'tested' ? compileWorkflow(TESTED) : null)
+  const evidenceContext = {
+    user: { id: TEST_CREATOR.id, name: TEST_CREATOR.name, slug: SLUG },
+    currentCandidate: async () => CANDIDATE,
+  }
+
+  function planFor(track: 'backend'): EffectiveWorkflowPlan {
+    const plan = resolveEffectiveWorkflowPlan('tested', loadTested, builtinTrack(track))
+    if (plan === null) throw new Error('fixture plan missing')
+    return plan
+  }
+
+  async function initTested(
+    deps: ReturnType<typeof makeDeps>,
+    root: string,
+    phase: string,
+  ): Promise<string> {
+    const { changeDir } = await deps.runRepository.initChange({
+      repoRoot: root, name: 'demo', track: 'backend', reviewSeed: 'pending', creator: TEST_CREATOR,
+      preset: 'full', clock: FIXED_CLOCK, initialWorkflow: { workflow: 'tested', phase },
+    })
+    return changeDir
+  }
+
+  async function publishPass(root: string, changeDir: string, stepId: string, testId: string): Promise<void> {
+    const plan = planFor('backend')
+    const test = plan.workflow.steps.find((step) => step.id === stepId)?.tests?.find((item) => item.id === testId)
+    if (test === undefined) throw new Error('fixture test missing')
+    const runId = (await readCurrentRunRevision(changeDir))?.state.runMetadata?.runId
+    if (runId === undefined) throw new Error('fixture run identity missing')
+    const recordRunId = '20260717T000000Z-abcdef'
+    const paths = await ensureTestEvidenceDirs(root, SLUG, 'demo', recordRunId)
+    await publishTestRunRecord(testRunRecordPath(root, SLUG, 'demo', recordRunId), paths.runsDir, {
+      schema: 'tenon-test-run-v1', run_id: recordRunId, change: 'demo', workflow_run_id: runId,
+      workflow: 'tested', workflow_fingerprint: plan.workflowFingerprint, track: 'backend', step: stepId,
+      step_visit: { run_id: runId, transition_sequence: 0 }, test_id: testId, test_digest: testDigest(test),
+      direction: test.direction, command: test.command, cwd: test.cwd, timeout_s: test.timeout_s,
+      required: test.required, actor: TEST_CREATOR, host: { kind: 'terminal', sandbox: null },
+      candidate_before: CANDIDATE, candidate: CANDIDATE, git_head: null, build_sha: null,
+      started_at: FIXED_CLOCK(), finished_at: FIXED_CLOCK(), duration_ms: 12, exit_code: 0, signal: null,
+      result: 'pass', reasons: [], inputs: [], outputs: [], metrics: [],
+      log: { artifact: 'output.log', bytes_total: 1, bytes_kept: 1, truncated: false, digest: `sha256:${'f'.repeat(64)}` },
+    })
+  }
+
+  test('前向边在必需测试未运行时被拦截，review 绑定不被询问，状态零推进', async () => {
+    const root = await freshRepoRoot()
+    let bindingCalls = 0
+    const deps = makeDeps({
+      testEvidence: evidenceContext,
+      reviewGateBinding: async () => { bindingCalls += 1; return true },
+    })
+    const dir = await initTested(deps, root, 'build')
+    const before = await readCurrentRunRevision(dir)
+    const result = await createTransitionApplication(deps).execute({
+      root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete',
+      context: {}, loadWorkflow: loadTested,
+    })
+    expect(result.kind).toBe('test-evidence-failed')
+    if (result.kind !== 'test-evidence-failed') throw new Error('expected test-evidence-failed')
+    expect(result.stepId).toBe('build')
+    expect(result.blockers[0]).toContain('测试 unit（unit）未运行')
+    expect(bindingCalls).toBe(0)
+    expect((await createStateStore().read(dir)).fields.phase).toBe('build')
+    expect((await readCurrentRunRevision(dir))?.revision).toBe(before?.revision)
+  })
+
+  test('宿主未提供身份时失败关闭', async () => {
+    const root = await freshRepoRoot()
+    const deps = makeDeps({ testEvidence: undefined })
+    const dir = await initTested(deps, root, 'build')
+    const result = await createTransitionApplication(deps).execute({
+      root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete',
+      context: {}, loadWorkflow: loadTested,
+    })
+    expect(result).toEqual({
+      kind: 'test-evidence-failed', stepId: 'build',
+      blockers: ['测试证据无法验证：宿主未提供用户身份或工作区指纹'],
+    })
+  })
+
+  test('通过的记录放行前向边', async () => {
+    const root = await freshRepoRoot()
+    const deps = makeDeps({ testEvidence: evidenceContext })
+    const dir = await initTested(deps, root, 'build')
+    await publishPass(root, dir, 'build', 'unit')
+    await expect(createTransitionApplication(deps).execute({
+      root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete',
+      context: {}, loadWorkflow: loadTested,
+    })).resolves.toMatchObject({ kind: 'applied', from: 'build', to: 'verify' })
+  })
+
+  test('回退边不要求测试', async () => {
+    const root = await freshRepoRoot()
+    const deps = makeDeps({ testEvidence: evidenceContext })
+    const dir = await initTested(deps, root, 'verify')
+    await expect(createTransitionApplication(deps).execute({
+      root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'reject',
+      context: {}, loadWorkflow: loadTested,
+    })).resolves.toMatchObject({ kind: 'applied', from: 'verify', to: 'build' })
+  })
+
+  test('隐式完结边同样要求测试', async () => {
+    const root = await freshRepoRoot()
+    const deps = makeDeps({ testEvidence: evidenceContext })
+    const dir = await initTested(deps, root, 'verify')
+    const command = {
+      root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: IMPLICIT_COMPLETION_EVENT,
+      context: {}, loadWorkflow: loadTested,
+    }
+    await expect(createTransitionApplication(deps).execute(command)).resolves.toMatchObject({
+      kind: 'test-evidence-failed', stepId: 'verify',
+    })
+    await publishPass(root, dir, 'verify', 'e2e')
+    await expect(createTransitionApplication(deps).execute(command)).resolves.toMatchObject({ kind: 'applied' })
   })
 })

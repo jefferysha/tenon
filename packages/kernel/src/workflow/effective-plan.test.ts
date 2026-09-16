@@ -25,7 +25,8 @@ function preVerifyConvergenceWorkflow() {
   return {
     ...legacy,
     steps: legacy.steps.map((step) => {
-      const { reviewLanes: _reviewLanes, ...legacyStep } = step
+      // Historical bytes also predate step tests (2026-09 per-step test evidence).
+      const { reviewLanes: _reviewLanes, tests: _tests, ...legacyStep } = step
       return {
         ...legacyStep,
         // The last step was labelled 归档 before the 完结 wording.
@@ -294,5 +295,26 @@ describe('compileEffectiveWorkflowPlan', () => {
       { documentProfile: 'document-v1' },
       () => compileEffectiveWorkflowPlan('compact', { name: 'compact', steps: governed.workflow.steps }).workflow,
     )).toThrow(/不可降级/)
+  })
+
+  it('步骤测试项：无测试的工作流指纹不变，声明测试后指纹改变，v3 快照往返保留测试', () => {
+    const base = {
+      name: 'tested',
+      steps: [{ id: 'one', label: 'One', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }],
+    } as const
+    const plain = compileEffectiveWorkflowPlan('tested', base)
+    expect(plain.workflowFingerprint).toBe(compileEffectiveWorkflowPlan('tested', { ...base, steps: [{ ...base.steps[0], tests: [] }] }).workflowFingerprint)
+
+    const tested = compileEffectiveWorkflowPlan('tested', {
+      ...base,
+      steps: [{ ...base.steps[0], tests: [{ id: 'unit', direction: 'unit', command: 'npm test' }] }],
+    })
+    expect(tested.workflowFingerprint).not.toBe(plain.workflowFingerprint)
+    expect(tested.workflow.steps[0]?.tests).toHaveLength(1)
+
+    const snapshot = workflowPlanSnapshot(tested)
+    const restored = effectiveWorkflowPlanFromSnapshot(JSON.parse(JSON.stringify(snapshot)))
+    expect(restored.workflowFingerprint).toBe(tested.workflowFingerprint)
+    expect(restored.workflow.steps[0]?.tests).toEqual(tested.workflow.steps[0]?.tests)
   })
 })

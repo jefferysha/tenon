@@ -51,6 +51,12 @@ const EXCLUDED_ANY_SEGMENT = new Set([
   '__pycache__',
 ])
 
+/**
+ * The excluded segments a declared test output may live under. Declared outputs must sit here so
+ * producing them never changes the candidate that binds the run record.
+ */
+export const TEST_OUTPUT_DIR_SEGMENTS = ['test-results', 'playwright-report', 'coverage'] as const
+
 const EXCLUDED_BASENAMES = new Set([
   '.DS_Store',
   '.pipeline-active',

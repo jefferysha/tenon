@@ -264,6 +264,12 @@ describe('RuntimeReleaseStore', () => {
       .toBe(await readFile(join(repoRoot, 'templates', 'instructions', 'builtin', 'common', 'base.md'), 'utf8'))
     expect(JSON.parse(await readFile(join(library, 'builtin', '.library.json'), 'utf8')).library).toBe('instruction-templates')
     expect(await readFile(custom, 'utf8')).toBe(customText)
+
+    // 同一次激活同步每一种内建库；测试方向与模板走同一条路径。
+    const directions = join(pathsFor(root).configRoot, 'test-directions', 'builtin')
+    expect(await readFile(join(directions, 'unit.yaml'), 'utf8'))
+      .toBe(await readFile(join(repoRoot, 'templates', 'test-directions', 'unit.yaml'), 'utf8'))
+    expect(JSON.parse(await readFile(join(directions, '.library.json'), 'utf8')).library).toBe('test-directions')
   }, 30_000)
 
   it('still activates the candidate when the builtin library sync fails and keeps the previous builtin library', async () => {

@@ -75,7 +75,6 @@ import { handlePostGovernanceRoutes } from './serverPostGovernanceRoutes.js'
 import { handlePostOperationsRoutes } from './serverPostOperationsRoutes.js'
 import { handlePostMemoryRoutes } from './serverPostMemoryRoutes.js'
 import type { RelatedSessionSearchExecutor } from './relatedSessionMemory.js'
-import { handlePostVerificationRoutes } from './serverPostVerificationRoutes.js'
 import { handleOrchestrationV2PostRoute, type OrchestrationV2RouteDeps } from './serverOrchestrationV2Routes.js'
 import { resolveAdapterInstallPost } from './adapterInstallRoutes.js'
 import { handlePostUserRoutes } from './serverUserRoutes.js'
@@ -202,8 +201,6 @@ export async function handlePostRoute(
     // 虽然不写盘，仍走 POST：prompt 可能较长且携带用户意图，不放 URL/query；统一受 token、Host、
     // JSON 三闸保护。响应保留全部候选分数，suppressed_reason 非空时 winner=null，显式创建 UI 仍可手选。
   await handlePostOperationsRoutes(req, res, path, deps)
-  if (res.writableEnded) return
-  await handlePostVerificationRoutes(req, res, path, deps)
   if (res.writableEnded) return
   await handlePostChangesRoutes(req, res, path, deps)
   if (res.writableEnded) return

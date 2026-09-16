@@ -1,0 +1,4 @@
+id: unit
+command: npm test
+label: 单测
+timeout_s: 900

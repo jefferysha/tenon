@@ -118,6 +118,8 @@ function validateBranchSteps(
   const errors: string[] = []
   const producedByEarlierStep = new Set<string>()
   const allStepIds = new Set(wf.steps.map((s) => s.id))
+  // 测试 id 在整条分支内唯一：`tenon test run <change> <id>` 只给 id，跨步骤重名就无从定位。
+  const testOwner = new Map<string, string>()
 
   wf.steps.forEach((step) => {
     if (!IDENT_RE.test(step.id)) {
@@ -137,6 +139,14 @@ function validateBranchSteps(
       if (!IDENT_RE.test(ref.field)) {
         errors.push(`step '${step.id}' 的字段 '${ref.field}' 含非法字符（仅允许 a-zA-Z0-9_-）`)
       }
+    }
+    for (const test of step.tests ?? []) {
+      const owner = testOwner.get(test.id)
+      if (owner !== undefined) {
+        errors.push(`测试 id '${test.id}' 在分支内重复（step '${owner}' 与 '${step.id}'）`)
+        continue
+      }
+      testOwner.set(test.id, step.id)
     }
     const transitionEvents = new Set<string>()
     for (const t of step.transitions) {

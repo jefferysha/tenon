@@ -12,6 +12,7 @@ import type {
   WbWorkflowDef,
   WbEffectiveIo,
   WbIoSlot, WbTrackBranch, WbBranchProjection, WbSkillFiles, WbSkillFile,
+  WbStepTest, WbTestInput, WbTestMetric, WbTestOutput, WbTestOutputKind,
 } from './governanceTypes'
 import {
   DEFAULT_WB_DECOMPOSITION_POLICY,
@@ -381,6 +382,94 @@ function decodeDocumentContract(value: unknown): WbDocumentContract | null {
   return slots === null || reads === null ? null : { version: 'v1', slots, reads }
 }
 
+const TEST_OUTPUT_KINDS: readonly string[] = ['report', 'coverage', 'metrics', 'trace', 'screenshot', 'log', 'other']
+
+function decodeTestInput(value: unknown): WbTestInput | null {
+  const input = record(value)
+  if (!input) return null
+  if (input.kind === 'document' && typeof input.ref === 'string') return { kind: 'document', ref: input.ref }
+  if (input.kind === 'file' && typeof input.path === 'string') return { kind: 'file', path: input.path }
+  if (input.kind === 'env' && typeof input.name === 'string') return { kind: 'env', name: input.name }
+  if (input.kind === 'service' && typeof input.name === 'string') {
+    if (input.url === undefined) return { kind: 'service', name: input.name }
+    return typeof input.url === 'string' ? { kind: 'service', name: input.name, url: input.url } : null
+  }
+  return null
+}
+
+function decodeTestOutput(value: unknown): WbTestOutput | null {
+  const output = record(value)
+  if (!output || typeof output.path !== 'string' || output.path === '') return null
+  if (output.kind !== undefined && (typeof output.kind !== 'string' || !TEST_OUTPUT_KINDS.includes(output.kind))) return null
+  if (output.required !== undefined && typeof output.required !== 'boolean') return null
+  return {
+    path: output.path,
+    ...(output.kind === undefined ? {} : { kind: output.kind as WbTestOutputKind }),
+    ...(output.required === undefined ? {} : { required: output.required }),
+  }
+}
+
+function decodeTestMetric(value: unknown): WbTestMetric | null {
+  const metric = record(value)
+  if (!metric || typeof metric.name !== 'string' || metric.name === '') return null
+  for (const key of ['max', 'min', 'max_regression_pct'] as const) {
+    if (metric[key] !== undefined && typeof metric[key] !== 'number') return null
+  }
+  if (metric.better !== undefined && metric.better !== 'lower' && metric.better !== 'higher') return null
+  return {
+    name: metric.name,
+    ...(metric.max === undefined ? {} : { max: metric.max as number }),
+    ...(metric.min === undefined ? {} : { min: metric.min as number }),
+    ...(metric.max_regression_pct === undefined ? {} : { max_regression_pct: metric.max_regression_pct as number }),
+    ...(metric.better === undefined ? {} : { better: metric.better }),
+  }
+}
+
+function decodeStepTest(value: unknown): WbStepTest | null {
+  const test = record(value)
+  if (!test || typeof test.id !== 'string' || test.id === ''
+    || typeof test.direction !== 'string' || test.direction === ''
+    || typeof test.command !== 'string' || test.command === '') return null
+  for (const key of ['cwd', 'label', 'metrics_path'] as const) {
+    if (test[key] !== undefined && typeof test[key] !== 'string') return null
+  }
+  for (const key of ['timeout_s', 'keep_runs'] as const) {
+    if (test[key] !== undefined && (typeof test[key] !== 'number' || !Number.isInteger(test[key]))) return null
+  }
+  if (test.required !== undefined && typeof test.required !== 'boolean') return null
+  if (test.scope !== undefined && test.scope !== 'full' && test.scope !== 'known') return null
+  let pass: WbStepTest['pass']
+  if (test.pass !== undefined) {
+    const raw = record(test.pass)
+    if (!raw) return null
+    if (raw.exit_code !== undefined && (typeof raw.exit_code !== 'number' || !Number.isInteger(raw.exit_code))) return null
+    const metrics = raw.metrics === undefined ? undefined : decodeArray(raw.metrics, decodeTestMetric)
+    if (metrics === null) return null
+    pass = {
+      ...(raw.exit_code === undefined ? {} : { exit_code: raw.exit_code as number }),
+      ...(metrics === undefined ? {} : { metrics }),
+    }
+  }
+  const inputs = test.inputs === undefined ? undefined : decodeArray(test.inputs, decodeTestInput)
+  const outputs = test.outputs === undefined ? undefined : decodeArray(test.outputs, decodeTestOutput)
+  if (inputs === null || outputs === null) return null
+  return {
+    id: test.id,
+    direction: test.direction,
+    command: test.command,
+    ...(test.cwd === undefined ? {} : { cwd: test.cwd as string }),
+    ...(test.label === undefined ? {} : { label: test.label as string }),
+    ...(test.timeout_s === undefined ? {} : { timeout_s: test.timeout_s as number }),
+    ...(test.required === undefined ? {} : { required: test.required }),
+    ...(test.keep_runs === undefined ? {} : { keep_runs: test.keep_runs as number }),
+    ...(test.scope === undefined ? {} : { scope: test.scope }),
+    ...(test.metrics_path === undefined ? {} : { metrics_path: test.metrics_path as string }),
+    ...(pass === undefined ? {} : { pass }),
+    ...(inputs === undefined ? {} : { inputs }),
+    ...(outputs === undefined ? {} : { outputs }),
+  }
+}
+
 function decodeStep(value: unknown): WbStepDef | null {
   const step = record(value)
   if (!step || typeof step.id !== 'string' || typeof step.label !== 'string') return null
@@ -393,6 +482,8 @@ function decodeStep(value: unknown): WbStepDef | null {
   const inputs = decodeArray(step.inputs, decodeField)
   const outputs = decodeArray(step.outputs, decodeField)
   const artifacts = step.artifacts === undefined ? undefined : decodeArray(step.artifacts, decodeArtifact)
+  const tests = step.tests === undefined ? undefined : decodeArray(step.tests, decodeStepTest)
+  if (tests === null) return null
   const guards = decodeArray(step.guards, decodeGuard)
   const transitions = decodeArray(step.transitions, decodeTransition)
   if (skills === null || inputs === null || outputs === null || artifacts === null || guards === null || transitions === null) return null
@@ -407,6 +498,7 @@ function decodeStep(value: unknown): WbStepDef | null {
     inputs,
     outputs,
     ...(artifacts === undefined ? {} : { artifacts }),
+    ...(tests === undefined ? {} : { tests }),
     guards,
     transitions,
   }

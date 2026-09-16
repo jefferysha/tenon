@@ -1563,9 +1563,10 @@ SKILL_START="$ROOT/hooks/skill-start.sh"
 IG="$ROOT/hooks/interactive-skill-gate.sh"
 IA="$ROOT/hooks/interaction-authority.sh"
 TA="$ROOT/hooks/terminal-activity.sh"
+TN="$ROOT/hooks/test-nudge.sh"
 
 # 存在 + 可执行（TDD 红阶段在此直接倒）
-for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA"; do
+for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA" "$TN"; do
   base="$(basename "$f")"
   [ -f "$f" ] && ok "PostToolUse: $base 存在" || bad "PostToolUse: $base 存在" "缺文件"
   [ -x "$f" ] && ok "PostToolUse: $base 可执行" || bad "PostToolUse: $base 可执行" "无 x 位"
@@ -1981,8 +1982,62 @@ RC=$?
 assert_exit "interactive-skill-gate: 非 Skill 工具 → exit 0" 0 "$RC"
 assert_empty "interactive-skill-gate: 非 Skill 工具 → 空输出" "$OUT"
 
+# ── 10d2. test-nudge：自行跑声明过的测试命令 → 软提醒；tenon test run 与无关命令零输出 ──
+proj="$TMP/ptu-test-nudge"
+mkdir -p "$proj/.git" "$proj/openspec/changes/demo"
+printf 'track: backend\nphase: build\nworkflow: tested\n' > "$proj/openspec/changes/demo/.pipeline.yaml"
+set_active "$proj" demo
+printf '%s' '{"name":"tested","steps":[{"id":"build","tests":[{"id":"unit","direction":"unit","command":"npm test","cwd":".","timeout_s":900}]}]}' \
+  > "$proj/openspec/changes/demo/.pipeline-workflow-plan.json"
+
+OUT="$(printf '{"tool_name":"Bash","cwd":"%s","command":"npm test"}' "$proj" | bash "$TN" 2>/dev/null)"
+RC=$?
+assert_exit "test-nudge: 声明过的命令 → exit 0" 0 "$RC"
+assert_contains "test-nudge: 提醒里带标记" "$OUT" '<tenon-test-nudge>'
+assert_contains "test-nudge: 提醒里带测试 id" "$OUT" 'unit'
+assert_contains "test-nudge: 提醒给出登记命令" "$OUT" 'tenon test run demo unit'
+
+OUT="$(printf '{"tool_name":"Bash","cwd":"%s","command":"tenon test run demo unit"}' "$proj" | bash "$TN" 2>/dev/null)"
+RC=$?
+assert_exit "test-nudge: tenon test run → exit 0" 0 "$RC"
+assert_empty "test-nudge: tenon test run → 零输出" "$OUT"
+
+OUT="$(printf '{"tool_name":"Bash","cwd":"%s","command":"git status"}' "$proj" | bash "$TN" 2>/dev/null)"
+assert_empty "test-nudge: 无关命令 → 零输出" "$OUT"
+
+OUT="$(printf '{"tool_name":"Read","cwd":"%s","file_path":"npm test"}' "$proj" | bash "$TN" 2>/dev/null)"
+assert_empty "test-nudge: 非命令工具 → 零输出" "$OUT"
+
+mv "$proj/openspec/changes/demo/.pipeline-workflow-plan.json" "$proj/openspec/changes/demo/.plan.bak"
+OUT="$(printf '{"tool_name":"Bash","cwd":"%s","command":"npm test"}' "$proj" | bash "$TN" 2>/dev/null)"
+RC=$?
+assert_exit "test-nudge: 缺冻结计划 → exit 0" 0 "$RC"
+assert_empty "test-nudge: 缺冻结计划 → 零输出" "$OUT"
+mv "$proj/openspec/changes/demo/.plan.bak" "$proj/openspec/changes/demo/.pipeline-workflow-plan.json"
+
+clear_active "$proj"
+OUT="$(printf '{"tool_name":"Bash","cwd":"%s","command":"npm test"}' "$proj" | bash "$TN" 2>/dev/null)"
+assert_empty "test-nudge: 无活跃 change → 零输出" "$OUT"
+set_active "$proj" demo
+
+# ── 10d3. gate.sh：测试记录与基线只能由 runner 写 ──
+( printf '{"tool_name":"Write","cwd":"%s","file_path":"%s/.tenon/users/%s/tests/demo/20260915T101530Z-ab12cd.json"}' \
+    "$proj" "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: 直接写测试记录 → exit 2" 2 "$?"
+ERR="$(printf '{"tool_name":"Edit","cwd":"%s","file_path":"%s/.tenon/users/%s/baselines/bench.json"}' \
+    "$proj" "$proj" "$HOOK_USER_SLUG" | bash "$GATE" 2>&1 >/dev/null)"
+assert_contains "gate: 拒绝文案点名两条登记命令" "$ERR" 'tenon test run / tenon test baseline'
+( printf '{"tool_name":"Bash","cwd":"%s","command":"apply_patch <<EOF\\n*** Update File: .tenon/users/%s/tests/demo/r.json\\nEOF"}' \
+    "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: Codex apply_patch 改测试记录 → exit 2" 2 "$?"
+( printf '{"tool_name":"Write","cwd":"%s","file_path":"%s/.tenon/users/%s/local/env.key"}' \
+    "$proj" "$proj" "$HOOK_USER_SLUG" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: 同目录下的 local 文件不受本规则影响" 0 "$?"
+( printf '{"tool_name":"Write","cwd":"%s","file_path":"%s/src/tests/demo.ts"}' "$proj" "$proj" | bash "$GATE" >/dev/null 2>&1 )
+assert_exit "gate: 普通 tests 目录不受影响" 0 "$?"
+
 # ── 10e. 红线自证：PostToolUse 热路径保持 bash；唯二 producer hook 只允许精确 managed CLI bridge ──
-for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA"; do
+for f in "$CC" "$CP" "$DR" "$ST" "$IG" "$IA" "$TA" "$TN"; do
   base="$(basename "$f")"
   case "$base" in
     decision-recorder.sh|skill-tracker.sh)
@@ -2011,6 +2066,7 @@ assert_contains "hooks.json: 注册 skill-tracker hook id" "$hjson" "skill-track
 assert_contains "hooks.json: 注册 skill-start hook id" "$hjson" "skill-start"
 assert_contains "hooks.json: 注册 interactive-skill-gate hook id" "$hjson" "interactive-skill-gate"
 assert_contains "hooks.json: 注册 terminal-activity hook id" "$hjson" "terminal-activity"
+assert_contains "hooks.json: 注册 test-nudge hook id" "$hjson" "test-nudge"
 assert_contains "hooks.json: 含 PostToolUse 段" "$hjson" "PostToolUse"
 assert_contains "hooks.json: PostToolUse 同时订阅 Claude/Codex 人类提问工具" "$hjson" '"matcher": "AskUserQuestion|request_user_input"'
 assert_contains "hooks.json: Skill 证据 hooks 全工具监听（Codex Bash 读取也可见）" "$hjson" '"matcher": "*"'

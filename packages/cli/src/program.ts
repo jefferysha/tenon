@@ -51,6 +51,7 @@ import { registerTrackCommands } from './program-tracks.js'
 import { registerHandoffCommand, registerWorkflowCommands } from './program-workflows.js'
 import { registerSkillInvocationInternalCommands } from './program-skill-invocations.js'
 import { registerReviewCommands } from './program-review.js'
+import { registerTestCommands } from './program-tests.js'
 import { LOOPS_HELP } from './program-help.js'
 import { registerOrchestrationCommands } from './program-orchestration.js'
 import { registerUserCommands } from './program-users.js'
@@ -171,6 +172,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .action(async (name: string, event: string) => bail(await cmdTransition(deps, name, event)))
 
   registerReviewCommands(program, deps)
+  registerTestCommands(program, deps)
 
   program
     .command('check <name>')
