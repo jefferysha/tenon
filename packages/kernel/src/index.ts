@@ -24,7 +24,9 @@ export {
 } from './product-paths.js'
 export type { ProductPathInput, ProductPaths } from './product-paths.js'
 // in-place 构建不以未变化的 Git HEAD 冒充验证靶；提供内容寻址的工作区基线给 CLI/server 注入。
-export { fingerprintWorkspace, isWorkspaceBaseline, WORKSPACE_BASELINE_PREFIX } from './workspace/fingerprint.js'
+export {
+  fingerprintWorkspace, isWorkspaceBaseline, TEST_OUTPUT_DIR_SEGMENTS, WORKSPACE_BASELINE_PREFIX,
+} from './workspace/fingerprint.js'
 export { probeBuildRevisionIdentity } from './workspace/build-revision-identity.js'
 // Native terminal sessions are a dashboard-only liveness projection, never workflow state.
 export {
