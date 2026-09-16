@@ -24227,19 +24227,23 @@ async function evaluateTestEvidence(input2) {
     return {
       stepId: input2.stepId,
       pass: false,
-      blockers: ["\u6D4B\u8BD5\u8BC1\u636E\u65E0\u6CD5\u9A8C\u8BC1\uFF1A\u5BBF\u4E3B\u672A\u63D0\u4F9B\u7528\u6237\u8EAB\u4EFD\u6216\u5DE5\u4F5C\u533A\u6307\u7EB9"],
+      blockers: ["\u6D4B\u8BD5\u8BC1\u636E\u65E0\u6CD5\u9A8C\u8BC1\uFF1A\u5BBF\u4E3B\u672A\u63D0\u4F9B\u7528\u6237\u8EAB\u4EFD"],
       items: tests.map((test) => ({ test, status: "missing" }))
     };
   }
   const slug = input2.context.user.slug;
   const now = (input2.context.now ?? Date.now)();
   const runId = await workflowRunId(input2.changeDir);
+  const readCandidate = input2.context.currentCandidate;
   let candidate2;
-  try {
-    candidate2 = await input2.context.currentCandidate();
-  } catch {
-    candidate2 = void 0;
-  }
+  let candidateRead = readCandidate === void 0;
+  const currentCandidate = async () => {
+    if (!candidateRead && readCandidate !== void 0) {
+      candidate2 = await readCandidate().catch(() => null);
+      candidateRead = true;
+    }
+    return candidate2;
+  };
   const items = [];
   for (const test of tests) {
     const marker = await readRunningMarker(testRunningMarkerPath(input2.repoRoot, slug, input2.changeName, test.id));
@@ -24255,7 +24259,8 @@ async function evaluateTestEvidence(input2) {
       items.push({ test, status: "missing" });
       continue;
     }
-    const staleBecause = record10.workflow_fingerprint !== input2.plan.workflowFingerprint ? "workflow" : record10.test_digest !== testDigest(test) ? "declaration" : candidate2 === void 0 || record10.candidate !== candidate2 ? "candidate" : void 0;
+    const current = record10.workflow_fingerprint === input2.plan.workflowFingerprint && record10.test_digest === testDigest(test) ? await currentCandidate() : void 0;
+    const staleBecause = record10.workflow_fingerprint !== input2.plan.workflowFingerprint ? "workflow" : record10.test_digest !== testDigest(test) ? "declaration" : current !== void 0 && (current === null || record10.candidate !== current) ? "candidate" : void 0;
     if (staleBecause !== void 0) {
       items.push({ test, status: "stale", run: record10, staleBecause });
       continue;
@@ -24364,7 +24369,7 @@ function isBackwardStepEdge(plan, from, to) {
 async function rejectOnTestEvidence(input2) {
   if (isBackwardStepEdge(input2.plan, input2.from, input2.to))
     return void 0;
-  const report = await evaluateTestEvidence({
+  const report = await (input2.evaluate ?? evaluateTestEvidence)({
     repoRoot: input2.repoRoot,
     changeDir: input2.changeDir,
     changeName: input2.changeName,
@@ -36220,7 +36225,8 @@ function createTransitionApplication(deps) {
           plan: effectivePlan,
           from: prepared.from,
           to: prepared.to,
-          context: deps.testEvidence
+          context: deps.testEvidence,
+          ...deps.testEvidenceReader === void 0 ? {} : { evaluate: deps.testEvidenceReader }
         });
         if (testRejection !== void 0)
           return testRejection;
@@ -47658,20 +47664,23 @@ function effectiveWorkflowForState(deps, state) {
 }
 
 // packages/cli/src/testEvidenceContext.ts
+function testEvidenceReaderFor(deps) {
+  return deps.testEvidence ?? evaluateTestEvidence;
+}
 function testEvidenceContextFor(deps, changeName) {
   const user = deps.user();
+  if (!isTenonUser(user)) return void 0;
   const fingerprint = deps.workspaceFingerprint;
-  if (!isTenonUser(user) || fingerprint === void 0) return void 0;
   return {
     user: { id: user.id, name: user.name, slug: userSlug(user.id) },
-    currentCandidate: () => fingerprint(changeName)
+    ...fingerprint === void 0 ? {} : { currentCandidate: () => fingerprint(changeName) }
   };
 }
 
 // packages/cli/src/commands/check-test-evidence.ts
 async function stepTestBlockers(deps, name2, dir, state, plan) {
   const stepId = str(state.fields.phase);
-  const report = await evaluateTestEvidence({
+  const report = await testEvidenceReaderFor(deps)({
     repoRoot: deps.cwd,
     changeDir: dir,
     changeName: name2,
@@ -55323,6 +55332,7 @@ async function cmdTransition(deps, name2, event) {
     breadcrumb: deps.writeBreadcrumb ? { write: deps.writeBreadcrumb } : void 0,
     documentEvidence: deps.documentEvidence,
     testEvidence: testEvidenceContextFor(deps, name2),
+    ...deps.testEvidence === void 0 ? {} : { testEvidenceReader: deps.testEvidence },
     resolveTrack: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd),
     missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => {
       const slots = resolveRequiredSkillSlots(deps.resolver, capability, stepId);
@@ -74018,7 +74028,7 @@ async function cmdTestReport(deps, change, opts = {}) {
   const items = [];
   for (const step of steps.slice(0, until + 1)) {
     if ((step.tests ?? []).length === 0) continue;
-    const report = await evaluateTestEvidence({
+    const report = await testEvidenceReaderFor(deps)({
       repoRoot: deps.cwd,
       changeDir: context2.dir,
       changeName: change,
@@ -74642,7 +74652,7 @@ async function cmdTestStatus(deps, change, opts = {}) {
   }
   let report;
   try {
-    report = await evaluateTestEvidence({
+    report = await testEvidenceReaderFor(deps)({
       repoRoot: deps.cwd,
       changeDir: context2.dir,
       changeName: change,

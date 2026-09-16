@@ -18435,19 +18435,23 @@ async function evaluateTestEvidence(input2) {
     return {
       stepId: input2.stepId,
       pass: false,
-      blockers: ["\u6D4B\u8BD5\u8BC1\u636E\u65E0\u6CD5\u9A8C\u8BC1\uFF1A\u5BBF\u4E3B\u672A\u63D0\u4F9B\u7528\u6237\u8EAB\u4EFD\u6216\u5DE5\u4F5C\u533A\u6307\u7EB9"],
+      blockers: ["\u6D4B\u8BD5\u8BC1\u636E\u65E0\u6CD5\u9A8C\u8BC1\uFF1A\u5BBF\u4E3B\u672A\u63D0\u4F9B\u7528\u6237\u8EAB\u4EFD"],
       items: tests.map((test) => ({ test, status: "missing" }))
     };
   }
   const slug = input2.context.user.slug;
   const now = (input2.context.now ?? Date.now)();
   const runId = await workflowRunId(input2.changeDir);
+  const readCandidate = input2.context.currentCandidate;
   let candidate2;
-  try {
-    candidate2 = await input2.context.currentCandidate();
-  } catch {
-    candidate2 = void 0;
-  }
+  let candidateRead = readCandidate === void 0;
+  const currentCandidate = async () => {
+    if (!candidateRead && readCandidate !== void 0) {
+      candidate2 = await readCandidate().catch(() => null);
+      candidateRead = true;
+    }
+    return candidate2;
+  };
   const items = [];
   for (const test of tests) {
     const marker = await readRunningMarker(testRunningMarkerPath(input2.repoRoot, slug, input2.changeName, test.id));
@@ -18463,7 +18467,8 @@ async function evaluateTestEvidence(input2) {
       items.push({ test, status: "missing" });
       continue;
     }
-    const staleBecause = record10.workflow_fingerprint !== input2.plan.workflowFingerprint ? "workflow" : record10.test_digest !== testDigest(test) ? "declaration" : candidate2 === void 0 || record10.candidate !== candidate2 ? "candidate" : void 0;
+    const current = record10.workflow_fingerprint === input2.plan.workflowFingerprint && record10.test_digest === testDigest(test) ? await currentCandidate() : void 0;
+    const staleBecause = record10.workflow_fingerprint !== input2.plan.workflowFingerprint ? "workflow" : record10.test_digest !== testDigest(test) ? "declaration" : current !== void 0 && (current === null || record10.candidate !== current) ? "candidate" : void 0;
     if (staleBecause !== void 0) {
       items.push({ test, status: "stale", run: record10, staleBecause });
       continue;
@@ -18484,7 +18489,7 @@ function isBackwardStepEdge(plan, from, to) {
 async function rejectOnTestEvidence(input2) {
   if (isBackwardStepEdge(input2.plan, input2.from, input2.to))
     return void 0;
-  const report = await evaluateTestEvidence({
+  const report = await (input2.evaluate ?? evaluateTestEvidence)({
     repoRoot: input2.repoRoot,
     changeDir: input2.changeDir,
     changeName: input2.changeName,
@@ -28805,7 +28810,8 @@ function createTransitionApplication(deps) {
           plan: effectivePlan,
           from: prepared.from,
           to: prepared.to,
-          context: deps.testEvidence
+          context: deps.testEvidence,
+          ...deps.testEvidenceReader === void 0 ? {} : { evaluate: deps.testEvidenceReader }
         });
         if (testRejection !== void 0)
           return testRejection;
@@ -35399,9 +35405,16 @@ async function projectTestEvidence(input2) {
   const declared = input2.plan.workflow.steps.filter((step) => (step.tests ?? []).length > 0);
   if (declared.length === 0) return {};
   const user = input2.user;
+  const readCandidate = input2.candidate;
   const context = user === void 0 ? void 0 : {
     user: { id: user.id, name: user.name, slug: userSlug(user.id) },
-    currentCandidate: async () => await input2.candidate() ?? ""
+    ...readCandidate === void 0 ? {} : {
+      currentCandidate: async () => {
+        const candidate2 = await readCandidate();
+        if (candidate2 === void 0) throw new Error("workspace fingerprint unavailable");
+        return candidate2;
+      }
+    }
   };
   const tests = [];
   for (const step of declared) {
@@ -35599,7 +35612,7 @@ async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
   };
   const resolved = (deps.resolveUser ?? defaultResolveUser)(root);
   const actingUser = isTenonUser(resolved) ? resolved : void 0;
-  const candidate2 = workspaceFingerprint === void 0 ? async () => void 0 : createCandidateCache((target) => workspaceFingerprint(target, ""));
+  const candidate2 = workspaceFingerprint === void 0 ? void 0 : createCandidateCache((target) => workspaceFingerprint(target, ""));
   let compatibilityIssueOverflow = 0;
   for (const e of [...entries].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
     if (!e.isDirectory() || e.name === "archive") continue;
@@ -35644,7 +35657,7 @@ async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
           changeName: e.name,
           plan,
           user: actingUser,
-          candidate: () => candidate2(readRoot)
+          ...candidate2 === void 0 ? {} : { candidate: () => candidate2(readRoot) }
         })
       ]);
       if (artifactScope.compatibilityIssue !== void 0) {
@@ -38657,11 +38670,9 @@ async function performTransition(deps, root, name, event) {
   const fingerprint = deps.workspaceFingerprint;
   const app = createTransitionApplication({
     runRepository: deps.runRepo,
-    ...fingerprint === void 0 ? {} : {
-      testEvidence: {
-        user: { id: user.id, name: user.name, slug: userSlug(user.id) },
-        currentCandidate: () => fingerprint(root, name)
-      }
+    testEvidence: {
+      user: { id: user.id, name: user.name, slug: userSlug(user.id) },
+      ...fingerprint === void 0 ? {} : { currentCandidate: () => fingerprint(root, name) }
     },
     flow: deps.flow,
     clock: deps.clock,
