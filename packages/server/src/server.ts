@@ -62,6 +62,7 @@ import { handleGet as handleGetRoute } from './serverGetRoutes.js'
 import { createHostTargetPlanRuntime } from './serverGetHostTargetPlanRoutes.js'
 import { handleDeleteRoute, handlePatchRoute, handlePutRoute } from './serverMutationRoutes.js'
 import { handlePostRoute } from './serverPostRoutes.js'
+import { createTaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 import {
   assertDashboardTransactionId,
   errMsg,
@@ -209,6 +210,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     return guarded
   })
 
+  const taskLifecycle = createTaskLifecycleRouteDeps({ store, clock, viewer: resolveUser, artifactServices })
   const snapshotDeps = snapshotDepsFactory({
     registry, store, version, clock, capabilities, gitHeadSha, workspaceFingerprint,
     rootAnchor: (root) => snapshotRootAnchor?.(root),
@@ -294,6 +296,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       },
       adapterInstall,
       resolveUser,
+      taskLifecycle,
     })
   const handlePost = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePostRoute(req, res, path, {
@@ -306,6 +309,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       realGraduationFs: REAL_GRADUATION_FS,
       relatedSessionSearch,
       resolveUser,
+      taskLifecycle,
       orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
       adapterInstall,
     })
@@ -326,6 +330,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     trackValidationContextFor,
     errMsg,
     resolveUser,
+    taskLifecycle,
   }
   const handlePatch = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handlePatchRoute(req, res, path, mutationRouteDeps)

@@ -61,6 +61,7 @@ import {
   resolveSkillInvocationRoute,
 } from './serverSkillInvocationRoutes.js'
 import { handleGetDecisionRoute } from './serverGetDecisionRoutes.js'
+import { handleTaskLifecycleGet, type TaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 type WorkflowStoreCheck =
   | { ok: true; anchor: WorkflowRootAnchor; global: boolean }
   | { ok: false; code: 403 | 404; error: string }
@@ -104,6 +105,8 @@ export interface GetRouteDeps {
   definitionCatalog?: Omit<DefinitionCatalogRouteDeps, 'sendJson'>
   adapterInstall?: AdapterInstallManager
   resolveUser: import('./serverUserRoutes.js').ResolveUser
+  /** 删除 / 归档 / 取消归档 的共享 application；未装配时这三条路由不存在（不谎报）。 */
+  taskLifecycle?: TaskLifecycleRouteDeps
 }
 function repoRootForSkills(): string {
   return join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
@@ -146,6 +149,7 @@ export async function handleGet(
   await handleGetActivityRoutes(req, res, path, deps)
   if (res.headersSent) return
   if (await handleGetDecisionRoute(req, res, path, { sendJson, store, recordStore, workflowRootForRequest })) return
+  if (await handleTaskLifecycleGet(req, res, path, deps)) return
   if (handleGetTraceRoutes(req, res, path, { clock, sendJson, traceStore })) return
   const hostPlan = await resolveHostTargetPlanRoute(req.url ?? '/', path, { hostHome, operationsAvailable, operationRunner, runtime: hostTargetPlanRuntime })
   if (hostPlan !== null) return sendJson(res, hostPlan.status, hostPlan.body)

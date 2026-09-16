@@ -29,6 +29,7 @@ import {
   type TrackValidationContext,
   type WorkflowDef,
   type WorkflowRunRepository,
+  isArchivedForUser,
 } from '@tenon/kernel'
 import {
   cancelAfkRun,
@@ -72,6 +73,7 @@ import {
 import type { PostRouteDeps } from './serverPostRoutes.js'
 import { handlePostDecisionRoutes } from './serverPostDecisionRoutes.js'
 import { readAnchoredChange } from './serverTaskPlanRoutes.js'
+import { TASK_ARCHIVED_HTTP_ERROR } from './serverTaskLifecycleRoutes.js'
 import {
   applyTaskRunOperationForChange,
   resolveTaskRunOperation,
@@ -309,6 +311,10 @@ export async function handlePostExecutionRoutes(
     const segment = mTr[1]
     if (segment === undefined) return sendJson(res, 400, { ok: false, error: '非法 change 路径' })
     const name = decodeURIComponent(segment)
+    // 归档只对该查看者生效：已归档的任务不接受推进，先取消归档。
+    if (await isArchivedForUser(root, deps.resolveUser(root), name)) {
+      return sendJson(res, 409, { ok: false, code: 'task-archived', error: TASK_ARCHIVED_HTTP_ERROR })
+    }
     const loadEffectiveTrackRegistry = () => loadTrackRegistry(root, {
       workflowExists: (workflowId) => {
         if (workflowId === 'default') return true

@@ -79,6 +79,7 @@ import { handlePostVerificationRoutes } from './serverPostVerificationRoutes.js'
 import { handleOrchestrationV2PostRoute, type OrchestrationV2RouteDeps } from './serverOrchestrationV2Routes.js'
 import { resolveAdapterInstallPost } from './adapterInstallRoutes.js'
 import { handlePostUserRoutes } from './serverUserRoutes.js'
+import { handleTaskLifecyclePost, type TaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 import { resolveInstructionMutation } from './instructionRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
 
@@ -135,6 +136,8 @@ export interface PostRouteDeps {
   adapterInstall?: AdapterInstallManager
   /** Declared identity for a request root (`''` = aggregate view). */
   resolveUser: import('./serverUserRoutes.js').ResolveUser
+  /** 归档 / 取消归档 的共享 application；未装配时这两条路由不存在（不谎报）。 */
+  taskLifecycle?: TaskLifecycleRouteDeps
 }
 
 export async function handlePostRoute(
@@ -193,6 +196,7 @@ export async function handlePostRoute(
     }
     const instructionPost = resolveInstructionMutation(req, 'POST', path, deps)
     if (instructionPost) { const result = await instructionPost; return sendJson(res, result.status, result.body) }
+    if (await handleTaskLifecyclePost(req, res, path, deps)) return
 
     // ── Track Router 公共预览：消费 effective registry，生产默认 scorer 真执行 grep -ciE。──
     // 虽然不写盘，仍走 POST：prompt 可能较长且携带用户意图，不放 URL/query；统一受 token、Host、
