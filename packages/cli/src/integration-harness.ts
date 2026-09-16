@@ -37,6 +37,7 @@ import {
   readCurrentRunRevisionSync,
   recordDocument,
   recordDocumentReads,
+  loadResourceCatalog,
   resolveProductPaths,
   resolveTenonUser,
   actorOf,
@@ -189,6 +190,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     env: (name) => env[name],
     user: () => resolveTenonUser(cwd, env),
     userConfigPath: () => resolveProductPaths({ env }).userConfigPath,
+    resourceCatalog: () => loadResourceCatalog({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
     io: { out: (l) => out.push(l), err: (l) => err.push(l) },
     clock: () => FIXED_CLOCK,
     listChanges: async (root) => {

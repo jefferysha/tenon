@@ -18,7 +18,7 @@ import {
   clearReviewMarkerFor, createTaskLifecycleApplication,
   BUILTIN_TRACK_DEFINITIONS, createEffectiveSkillResolver, createFlowEngine, createHistoryWriter, createStateStore,
   createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest, loadTrackRegistry, loadWorkflow,
-  fingerprintWorkspace, mutateTrackRegistry, readSecrets, registerProjectRoot,
+  fingerprintWorkspace, loadResourceCatalog, mutateTrackRegistry, readSecrets, registerProjectRoot,
   createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
   type BoardCommandV2, type BoardSnapshotV2, type WorkflowPipelinePlanV2,
   withTrackRegistryLock, resolveTenonUser, type TenonUserResolution, actorOf, isTenonUser, USER_MISSING_HINT,
@@ -231,6 +231,7 @@ async function main(): Promise<void> {
     user: resolveUser,
     taskLifecycle: createTaskLifecycleApplication({ store, clock: isoNow, nowMs: () => Date.now() }),
     userConfigPath: () => runtimePaths().userConfigPath,
+    resourceCatalog: () => loadResourceCatalog({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
     io: {
       out: (line: string) => process.stdout.write(`${line}\n`),
       err: (line: string) => process.stderr.write(`${line}\n`),

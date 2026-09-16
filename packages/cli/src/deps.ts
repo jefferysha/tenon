@@ -222,6 +222,11 @@ export interface CliDeps {
   taskLifecycle?: import('@tenon/kernel').TaskLifecycleApplication
   /** `<configRoot>/user.json`, written by `tenon user set`. */
   userConfigPath: () => string
+  /**
+   * 资源目录读取面（`tenon resources`）：main.ts 用 kernel loadResourceCatalog 落地，
+   * 内建条目在这里按 payload 摘要同步。缺省 undefined = 未装配，命令 exit 1。
+   */
+  resourceCatalog?: () => Promise<import('@tenon/kernel').ResourceCatalog>
   io: CliIO
   /** ISO8601 UTC 注入时钟（CONTRACT §5.6：业务码禁止散落 new Date()） */
   clock: () => string
