@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   actorOf,
   applyLevelChange,
+  designSystemPrecondition,
   assertWorkflowAllowed,
   isTenonUser,
   USER_MISSING_HINT,
@@ -52,6 +53,7 @@ import { validateHookToggleBody, writeHookToggle } from './hooksConfig.js'
 import { applyLoopsUpdate, type LoopActivationValidator } from './loops.js'
 import { parsePipelineCliJson, type PipelineCliRunner } from './operations.js'
 import { registerProjectAnchored } from './projects.js'
+import { repoRootForSkills } from './serverSupport.js'
 import {
   applyRouterDraft,
   parseRouterDraft,
@@ -195,6 +197,17 @@ export async function handlePostChangesRoutes(
             if (first === undefined) {
               return { ok: false, code: 400, error: `workflow '${workflowId}' 未声明任何 step` }
             }
+            // 项目级文档的立项前置条件（如前端轨道要求 DESIGN.md 就绪）：先于任何落盘。
+            const refused = await designSystemPrecondition({
+              workflow: workflowId,
+              track: track.id,
+              firstStep: first.id,
+              ...(plan.capabilities.documents.policy === undefined ? {} : { policy: plan.capabilities.documents.policy }),
+              repoRoot: root,
+              payloadRoot: repoRootForSkills(),
+              configRoot: paths.configRoot,
+            })
+            if (refused !== null) return { ok: false, code: 400, error: refused }
             initialWorkflow = {
               workflow: workflowId,
               phase: first.id,

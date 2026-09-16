@@ -4,33 +4,14 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { writeReadyDesignSystem } from '@tenon/kernel/design-system/test-support'
 import { buildProgram, CliExit } from './program.js'
 import { realDeps, freshHarness, type Harness } from './integration-harness.js'
 import type { CliDeps } from './deps.js'
 
-const PREVIEWS = ['design/preview.html', 'design/component-library.html', 'design/landing-page.html', 'design/app-screen.html']
-const SECTIONS = [
-  'Philosophy', 'Craft Rules', 'Anti-Patterns', 'Tokens', 'Iconography', 'Hero Stage',
-  'Components', 'Voice', 'Platform Mapping', 'Previews',
-]
-
 const MODEL = ['name: Ridge', 'primitives:', '  gray: {}', 'tokens:', '  light: {}', 'components:', '  button: {}', ''].join('\n')
 
-const designMd = (): string => [
-  '---', 'schema: tenon-design/v1', 'model: design/design-model.yaml', 'icons: lucide', '---', '',
-  '# Ridge Design System', '',
-  ...SECTIONS.flatMap((section, index) => [
-    `## ${index + 1}. ${section}`, '',
-    section === 'Previews' ? PREVIEWS.map((path) => `- [${path}](${path})`).join('\n') : '正文。', '',
-  ]),
-].join('\n')
-
-async function seedReady(cwd: string): Promise<void> {
-  await mkdir(join(cwd, 'design'), { recursive: true })
-  await writeFile(join(cwd, 'DESIGN.md'), designMd(), 'utf8')
-  await writeFile(join(cwd, 'design', 'design-model.yaml'), MODEL, 'utf8')
-  for (const path of PREVIEWS) await writeFile(join(cwd, path), '<html></html>', 'utf8')
-}
+const seedReady = (cwd: string): void => writeReadyDesignSystem(cwd)
 
 interface Run { code: number; out: string[]; err: string[]; scripts: string[] }
 
@@ -56,6 +37,35 @@ async function run(cwd: string, args: string[], options: { validatorCode?: numbe
   return { code: 0, out, err, scripts }
 }
 
+/** 第一个步骤声明 design-md require 的项目工作流：立项前置条件的最小载体。 */
+const REQUIRE_WORKFLOW = `name: needs-design
+openspec: true
+document_contract:
+  version: v1
+  slots:
+    - { kind: design-md, owner_step: draft, role: require }
+  reads: []
+steps:
+  - id: draft
+    label: draft
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: complete
+        to: done
+  - id: done
+    label: done
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions: []
+`
+
 describe('tenon design', () => {
   let h: Harness
   beforeEach(async () => { h = await freshHarness() })
@@ -65,7 +75,7 @@ describe('tenon design', () => {
     const missing = await run(h.cwd, ['design', 'check'])
     expect(missing.code).toBe(1)
     expect(missing.out.join('\n')).toContain('DESIGN.md：缺失')
-    await seedReady(h.cwd)
+    seedReady(h.cwd)
     const ready = await run(h.cwd, ['design', 'check'])
     expect(ready.code).toBe(0)
     expect(ready.out.join('\n')).toContain('DESIGN.md：就绪')
@@ -85,7 +95,7 @@ describe('tenon design', () => {
     const blocked = await run(h.cwd, ['design', 'validate'])
     expect(blocked.code).toBe(1)
     expect(blocked.scripts).toEqual([])
-    await seedReady(h.cwd)
+    seedReady(h.cwd)
     const passed = await run(h.cwd, ['design', 'validate'])
     expect(passed.code).toBe(0)
     expect(passed.scripts).toEqual(['/fake/skills/hue/scripts/validate.mjs'])
@@ -95,14 +105,14 @@ describe('tenon design', () => {
   })
 
   test('validate：hue 没装时给安装提示', async () => {
-    await seedReady(h.cwd)
+    seedReady(h.cwd)
     const missing = await run(h.cwd, ['design', 'validate'], { validatorPath: '' })
     expect(missing.code).toBe(1)
     expect(missing.err.join('\n')).toContain('hue 技能未安装')
   })
 
   test('propose 写骨架；重复 propose exit 1；未合并的提案让 validate 失败', async () => {
-    await seedReady(h.cwd)
+    seedReady(h.cwd)
     const proposed = await run(h.cwd, ['design', 'propose', 'add-cards'])
     expect(proposed.code).toBe(0)
     const path = join(h.cwd, 'openspec', 'changes', 'add-cards', 'design-system.md')
@@ -132,5 +142,49 @@ describe('tenon design', () => {
     const usage = await run(h.cwd, ['design'])
     expect(usage.code).toBe(1)
     expect(usage.err.join('\n')).toContain('用法：tenon design')
+  })
+})
+
+describe('立项前置条件', () => {
+  let h: Harness
+  beforeEach(async () => {
+    h = await freshHarness()
+    await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(h.cwd, '.pipeline', 'workflows', 'needs-design.yaml'), REQUIRE_WORKFLOW, 'utf8')
+  })
+  afterEach(async () => { await rm(h.cwd, { recursive: true, force: true }) })
+
+  const init = (args: string[]) => run(h.cwd, ['init', ...args])
+
+  test('DESIGN.md 未就绪 → exit 1，不留 change 目录', async () => {
+    const refused = await init(['ui-work', '--track', 'free', '--workflow', 'needs-design', '--preset', 'full'])
+    expect(refused.code).toBe(1)
+    expect(refused.err.join('\n')).toContain('要求项目 DESIGN.md 就绪（当前：缺失）')
+    expect(refused.err.join('\n')).toContain('tenon init <name> --workflow design-system --track free')
+    await expect(readFile(join(h.cwd, 'openspec', 'changes', 'ui-work', '.pipeline.yaml'), 'utf8')).rejects.toThrow()
+  })
+
+  test('品牌起步文件也拦：状态是起步', async () => {
+    await writeFile(join(h.cwd, 'DESIGN.md'), '# Claude\n', 'utf8')
+    const refused = await init(['ui-work', '--track', 'free', '--workflow', 'needs-design', '--preset', 'full'])
+    expect(refused.code).toBe(1)
+    expect(refused.err.join('\n')).toContain('当前：起步')
+  })
+
+  test('就绪后立项通过', async () => {
+    seedReady(h.cwd)
+    const created = await init(['ui-work', '--track', 'free', '--workflow', 'needs-design', '--preset', 'full'])
+    expect(created.code).toBe(0)
+    expect(await readFile(join(h.cwd, 'openspec', 'changes', 'ui-work', '.pipeline.yaml'), 'utf8')).toContain('workflow: needs-design')
+  })
+
+  test('require 不在第一个步骤的工作流不拦立项', async () => {
+    await writeFile(
+      join(h.cwd, '.pipeline', 'workflows', 'late-design.yaml'),
+      REQUIRE_WORKFLOW.replace('name: needs-design', 'name: late-design').replace('owner_step: draft', 'owner_step: done'),
+      'utf8',
+    )
+    const created = await init(['late-work', '--track', 'free', '--workflow', 'late-design', '--preset', 'full'])
+    expect(created.code).toBe(0)
   })
 })
