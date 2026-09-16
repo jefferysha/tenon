@@ -902,10 +902,13 @@ run_step_degraded() {
   local change="${args[0]}"
   local new_rc f_out f_exit f_yaml label
 
-  # 降级模式没有老侧可依据，fixture 计划里那一列期望退出码就是契约本身。
+  # 降级模式没有老侧可依据，fixture 计划里那一列期望退出码就是契约本身。备不出设计体系不静默吞掉：
+  # 说出来，再让契约列照常判定，免得「harness 自己坏了」被读成「产品拒绝了」。
   if [ "$cmd" = init ] && [ "$DOCUMENT_CONTRACT_BOOTSTRAP" = 1 ]; then
-    bootstrap_new_design_system "$base/new" \
-      > "$step_dir/new.design-bootstrap.out" 2> "$step_dir/new.design-bootstrap.err" || true
+    if ! bootstrap_new_design_system "$base/new" \
+      > "$step_dir/new.design-bootstrap.out" 2> "$step_dir/new.design-bootstrap.err"; then
+      say "  ! [$fx #$idx] design system bootstrap 失败，见 $step_dir/new.design-bootstrap.err"
+    fi
   fi
   (cd "$base/new" && TENON_RUNTIME_HOME="$MACHINE_HOME" "${NEW_CMD[@]}" "${NEW_ARGS[@]}") \
     > "$step_dir/new.out" 2> "$step_dir/new.err"
