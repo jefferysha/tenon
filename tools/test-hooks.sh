@@ -663,7 +663,8 @@ assert_exit "verify-skills: frozen Node path wins over fake PATH runner" 0 "$rc"
 
 # Installer replay: the already-frozen NODE identity must be rechecked immediately before the
 # installer-owned Bash verifier spawn and the absolute path must be passed explicitly.
-install_text="$(sed -n '955,972p' "$ROOT/install.sh")"
+install_text="$(awk '/^run_release_verification\(\) \{/{inside=1} inside{print} inside && /^\}/{exit}' "$ROOT/install.sh")"
+[ -n "$install_text" ] || bad "install.sh: run_release_verification 可定位" "未找到该函数"
 assert_contains "install.sh: verifier 前 replay frozen Node" "$install_text" 'verify_tool NODE ||'
 assert_contains "install.sh: verifier 显式绑定 frozen Node" "$install_text" '--node "$NODE_BIN"'
 
