@@ -14,6 +14,11 @@ target="${1:?usage: frontend-quotegate.sh <target-dir>}"
 mkdir -p "$target/openspec/changes"
 (cd "$target" && git init -q -b main 2>/dev/null || git init -q 2>/dev/null || true)
 
+# 这个 fixture 做前端工作：default 的前端轨道首步要求项目已有就绪的 DESIGN.md（设计体系任务的产出）。
+# 真实项目在开第一个前端任务之前就把它做好了，所以在这里声明「本项目有设计体系」，由 harness 在 init
+# 之前按产品的契约备好——判定仍然完全交给产品的前置条件。
+: > "$target/.oracle-design-system"
+
 # open 出口产物在 init 成功后由 harness 安装，避免把半初始化 Change 目录当 fixture：
 # 新 CLI check = guard 出口全语义（BACKLOG #12），open 出口要 proposal/tasks/design.md（frontend）；
 # 老 cmd_check open 只看 openspec/ 目录——两侧文件一致，exit 面保持可比。
