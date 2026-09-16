@@ -203,7 +203,7 @@ describe('loadWorkflow · 全局存储', () => {
     expect(loadWorkflow(root, 'shared')?.steps.map((step) => step.id)).toEqual(['only'])
   })
 
-  it('projectWorkflowNames 合并项目目录与全局目录，default 恒在且去重', async () => {
+  it('projectWorkflowNames 合并项目目录与全局目录，模板名恒在且去重', async () => {
     await isolatedHome()
     const globalDir = workflowsDirUnder(globalWorkflowRoot())
     await mkdir(globalDir, { recursive: true })
@@ -212,7 +212,7 @@ describe('loadWorkflow · 全局存储', () => {
     const root = await mkdtemp(join(tmpdir(), 'wf-global-names-'))
     await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(root, '.pipeline', 'workflows', 'p1.yaml'), 'name: p1\nsteps:\n', 'utf8')
-    expect(projectWorkflowNames(root).sort()).toEqual(['default', 'g1', 'p1'])
+    expect(projectWorkflowNames(root).sort()).toEqual(['default', 'design-system', 'g1', 'p1'])
   })
 
   it('TENON_RUNTIME_HOME 重定向全局存储位置', async () => {

@@ -118,7 +118,11 @@ export {
   IMPLICIT_COMPLETION_EVENT, implicitCompletionTransition, stepExitTransitions,
 } from './workflow/implicit-completion.js'
 export type { ImplicitCompletionPlan } from './workflow/implicit-completion.js'
-export { isDefaultWorkflowName, isValidWorkflowName } from './workflow/identifier.js'
+export {
+  TEMPLATE_WORKFLOW_NAMES, isDefaultWorkflowName, isTemplateWorkflowName, isValidWorkflowName,
+} from './workflow/identifier.js'
+export type { TemplateWorkflowName } from './workflow/identifier.js'
+export { templateWorkflowSource } from './workflow/template-workflows.js'
 export { isSkillUnlocked } from './workflow/skillDag.js'
 export { classifyInteractionWorkflowIdentity } from './workflow/interaction-effect.js'
 export { parseWorkflow } from './workflow/parse.js'

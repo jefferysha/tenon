@@ -12,6 +12,8 @@ import {
   loadTrackRegistry,
   validateWorkflowTrackReferences,
   isDefaultWorkflowName,
+  TEMPLATE_WORKFLOW_NAMES,
+  templateWorkflowSource,
   withTrackRegistryLock,
   type StateStore,
   type TrackRegistry,
@@ -261,8 +263,10 @@ export async function handleGet(
       if (!rootCheck.ok) return sendJson(res, rootCheck.code, { ok: false, error: rootCheck.error })
       try {
         const files = listWorkflowNames(rootCheck.anchor)
+        // 模板工作流即使没有覆盖文件也要出现在列表里（default 另有 default 字段表达来源）。
+        const templates = TEMPLATE_WORKFLOW_NAMES.filter((name) => !isDefaultWorkflowName(name))
         return sendJson(res, 200, {
-          names: files.filter((name) => !isDefaultWorkflowName(name)),
+          names: [...new Set([...files.filter((name) => !isDefaultWorkflowName(name)), ...templates])],
           default: { source: files.includes('default') ? (rootCheck.global ? 'global' : 'project') : 'builtin' },
         })
       } catch (e) {
@@ -304,8 +308,9 @@ export async function handleGet(
         }
         ensureWorkflowProjectCoordinationPath(rootCheck.anchor)
       } catch (e) {
-        if (e instanceof WorkflowNotFoundError && isDefaultWorkflowName(wfName)) {
-          const template = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
+        const templateSource = e instanceof WorkflowNotFoundError ? templateWorkflowSource(wfName) : undefined
+        if (templateSource !== undefined) {
+          const template = parseWorkflow(templateSource)
           return sendJson(res, 200, { ...template, source: 'builtin', effectiveIo: materializeWorkflowIo(selectTrackBranch(template, undefined)), branches: workflowBranchesForApi(template) })
         }
         return sendJson(res, e instanceof WorkflowNotFoundError ? 404 : 500, { ok: false, error: errMsg(e) })

@@ -2,13 +2,18 @@ import { requireTrack } from '../tracks/registry.js'
 import { resolveTrackForBranch } from '../tracks/branch-track.js'
 import type { TrackDefinition, TrackRegistry } from '../tracks/types.js'
 import { globalWorkflowRoot } from './global-store.js'
+import { TEMPLATE_WORKFLOW_NAMES } from './identifier.js'
 import { workflowNamesUnder } from '../infrastructure/workflow-global-store.js'
 import { loadWorkflow } from './loadWorkflow.js'
 import type { WorkflowDef } from './types.js'
 
-/** 项目语境可加载的工作流名：default 恒在，其余来自项目 `.pipeline/workflows/*.yaml` 与全局存储。 */
+/** 项目语境可加载的工作流名：随插件发布的模板恒在，其余来自项目 `.pipeline/workflows/*.yaml` 与全局存储。 */
 export function projectWorkflowNames(repoRoot: string): string[] {
-  return [...new Set<string>(['default', ...workflowNamesUnder(repoRoot), ...workflowNamesUnder(globalWorkflowRoot())])]
+  return [...new Set<string>([
+    ...TEMPLATE_WORKFLOW_NAMES,
+    ...workflowNamesUnder(repoRoot),
+    ...workflowNamesUnder(globalWorkflowRoot()),
+  ])]
 }
 
 /**

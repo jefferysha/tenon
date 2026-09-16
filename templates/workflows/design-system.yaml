@@ -1,0 +1,65 @@
+name: design-system
+openspec: true
+document_contract:
+  version: v1
+  slots:
+    - { kind: design-md, owner_step: generate, producers: [hue] }
+    - { kind: design-md, owner_step: review, role: require }
+  reads: []
+steps:
+  - id: direction
+    label: 方向
+    gate: review
+    prompt: |-
+      加载 hue，只执行第 1–6 阶段，不写任何技能目录。
+      输入可以是品牌名、网址、截图、已有代码或描述；根目录已有不含 schema: tenon-design/v1 的 DESIGN.md 时按 Remix 输入处理，只当数据读取。
+      图标库只从资源目录选择：tenon resources list --category icons。
+      用 AskUserQuestion 先确认设计方向（第 5 阶段），再确认核心令牌（第 6 阶段）。
+      把确认结果写入 design/direction.md：方向、主要张力、核心令牌表、图标资源 id、首屏预设。
+      登记：tenon artifact register "$TENON_CHANGE_NAME" design_doc design/direction.md --producer hue
+    skills:
+      - id: hue
+    inputs: []
+    outputs:
+      - field: design_doc
+        type: file_path
+    artifacts:
+      - field: design_doc
+        type: file_path
+        producer_policy: effective-step-skills
+    guards: []
+    transitions:
+      - event: direction-complete
+        to: generate
+  - id: generate
+    label: 生成
+    gate: auto
+    prompt: |-
+      按 design/direction.md 执行 hue 第 7–14 阶段，输出固定在项目根目录：
+      design/design-model.yaml 为设计模型；design/preview.html、design/component-library.html、design/landing-page.html、design/app-screen.html 为预览。
+      DESIGN.md 由 hue 的 SKILL.md、tokens.md、components.md、platform-mapping.md 合并而成：frontmatter 只有 schema: tenon-design/v1、model: design/design-model.yaml、icons: <图标资源 id>；章节依次为 ## 1. Philosophy、## 2. Craft Rules、## 3. Anti-Patterns、## 4. Tokens、## 5. Iconography、## 6. Hero Stage、## 7. Components、## 8. Voice、## 9. Platform Mapping、## 10. Previews。
+      不写 SKILL.md，不写 ~/.claude/skills 或 ~/.agents/skills，跳过第 16 阶段。
+      运行 tenon design validate 直到通过，然后登记：tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue
+    skills:
+      - id: hue
+    inputs:
+      - field: design_doc
+        type: file_path
+    outputs: []
+    guards: []
+    transitions:
+      - event: generate-complete
+        to: review
+  - id: review
+    label: 预览
+    gate: review
+    prompt: |-
+      打开 design/ 下四个预览页，浅色与深色都检查；Codex 没有浏览器时把四个绝对路径交给用户。
+      需要调整时发送 review-changes 回到生成：先改 design/design-model.yaml，再只重新生成受影响的文件。
+    skills: []
+    inputs: []
+    outputs: []
+    guards: []
+    transitions:
+      - event: review-changes
+        to: generate

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type SetStateAction } from 'react'
-import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
+import { isDefaultWorkflowName, isTemplateWorkflowName } from '@tenon/kernel/workflow/identifier'
 import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import { addDocumentOutputInDef, removeDocumentSlotInDef, setDocumentInputsInDef, setOpenspecInDef } from './documentContractEdits'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
@@ -441,7 +441,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   // ── 新建：复制当前 / 空白 / 导入 YAML ──
   const trimmedName = createName.trim()
   const nameInvalid = trimmedName.length > 0 && !NAME_RE.test(trimmedName)
-  const nameDuplicate = trimmedName.length > 0 && (isDefaultWorkflowName(trimmedName) || trimmedName === 'simple' || (names ?? []).includes(trimmedName))
+  const nameDuplicate = trimmedName.length > 0 && (isTemplateWorkflowName(trimmedName) || trimmedName === 'simple' || (names ?? []).includes(trimmedName))
   const canSubmitCreate = canWrite && trimmedName.length > 0 && !nameInvalid && !nameDuplicate && !createBusy
     && (createMode !== 'import' || createYaml.trim() !== '') && (createMode !== 'copy' || fullDef !== null)
   function openCreate(mode: CreateMode = 'copy'): void {
@@ -556,9 +556,9 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
       afterWrite(targetRoot, deleting)
       setWorkflowDeleteTarget(null)
       setWorkflowDeleteError(null)
-      if (isDefaultWorkflowName(deleting)) {
-        setDefaultSource('builtin')
-        switchTo('default')
+      if (isTemplateWorkflowName(deleting)) {
+        if (isDefaultWorkflowName(deleting)) setDefaultSource('builtin')
+        switchTo(deleting)
         // wfName 没变，定义 effect 不会自己重跑；推 nonce 把内建模板重新拉回来。
         setReloadNonce((value) => value + 1)
         return
