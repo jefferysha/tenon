@@ -9,11 +9,19 @@
 # skips evidence, guards, verification, or external/publication authority.
 
 TENON_INTERACTION_AUTHORITY_PROTOCOL='pipeline-interaction-authority-v2'
-TENON_INTERACTION_AUTHORITY_FILE='.pipeline-interaction-authority'
+if ! declare -F pipeline_user_local_dir >/dev/null 2>&1; then
+  _TENON_AUTHORITY_USER_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/tenon-user.sh"
+  # shellcheck source=tenon-user.sh
+  [ -r "$_TENON_AUTHORITY_USER_HELPER" ] && . "$_TENON_AUTHORITY_USER_HELPER"
+fi
 
+# The projection lives in the current user's `.tenon/users/<slug>/local/authority`, so another user's
+# authority can never unlock this user's gates.  A missing declared identity means no authority.
 pipeline_interaction_authority_path() { # $1=verified project root
-  [ -n "$1" ] || return 1
-  printf '%s/%s' "$1" "$TENON_INTERACTION_AUTHORITY_FILE"
+  local dir
+  [ -n "$1" ] && declare -F pipeline_user_local_dir >/dev/null 2>&1 || return 1
+  dir="$(pipeline_user_local_dir "$1")" || return 1
+  printf '%s/authority' "$dir"
 }
 
 pipeline_interaction_authority_valid_name() { # $1=Change name
@@ -105,15 +113,17 @@ pipeline_interaction_authority_now() {
 # metadata, not a security boundary (the repository belongs to the user), but this avoids readers
 # observing a half-written authority and keeps malformed data fail-closed.
 pipeline_write_interaction_authority() { # $1=root $2=live Change name $3=host session id
-  local root="$1" change="$2" host_session="$3" marker tmp now
+  local root="$1" change="$2" host_session="$3" dir marker tmp now
   [ -d "$root" ] || return 1
   pipeline_interaction_authority_valid_name "$change" || return 1
   pipeline_interaction_authority_valid_session "$host_session" || return 1
-  marker="$(pipeline_interaction_authority_path "$root" || true)"
-  [ -n "$marker" ] && [ ! -L "$marker" ] || return 1
+  dir="$(pipeline_ensure_user_local_dir "$root" || true)"
+  [ -n "$dir" ] || return 1
+  marker="$dir/authority"
+  [ ! -L "$marker" ] || return 1
   now="$(pipeline_interaction_authority_now || true)"
   [ -n "$now" ] || return 1
-  tmp="$root/.pipeline-interaction-authority.$$"
+  tmp="$marker.$$"
   [ ! -e "$tmp" ] && [ ! -L "$tmp" ] || return 1
   (
     umask 077

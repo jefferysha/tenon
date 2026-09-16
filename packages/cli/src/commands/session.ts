@@ -11,9 +11,9 @@
  * 与老仓的差异（诚实标注，GOAL C 精神——不臆造实现）：
  *   · activate 的持久化端在老仓委托 session_store.py（R20 per-session context-keyed 指针，解析
  *     CC session id / Cursor ticket / single-session fallback）；该 context_key 解析子系统本仓没有。
- *     本仓 activate 的真实副作用是「repo 级 .pipeline-active 平指针」（老仓 state-session.sh:18 记载的
- *     设计意图）：指针是 repo 粒度而非 session 粒度——同一 repo 多个并发 session 共享一个活跃指针，
- *     互相覆盖。因此 Hook 只把它作为「用户明确继续/点名 change」时的恢复候选，绝不自动把它注入新会话。
+ *     本仓 activate 的真实副作用是「当前用户的活跃任务指针」`.tenon/users/<slug>/local/active-change`：
+ *     指针按声明身份隔离而非 session 粒度——同一用户的并发 session 共享一个指针，不同用户互不覆盖。
+ *     Hook 只把它作为「用户明确继续/点名 change」时的恢复候选，绝不自动把它注入新会话。
  *     换粒度的接缝是 SessionFs.bindPointer（注入面已就位，见下方 SessionFs）。可选的
  *     `--host-session <id>` 另写一个严格 session→Change 的非 canonical 会话投影；正常对话
  *     明确要求恢复时，Hook 优先使用它解析当前 Change，dashboard 也用它识别终端活动。它绝不参与
@@ -39,21 +39,17 @@ import {
   readInteractionProjection,
   interactionStateHashEquals,
   INTERACTION_PROJECTION_WRITE_FAILED,
-  type PackageDecl,
+  actorOf, ensureUserLocalDir, writeActiveChange,
+  type PackageDecl, type RecordActor,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir } from '../paths.js'
 import { createInteractionCapture } from '../interaction-emitter.js'
-import {
-  ACTIVE_POINTER_FILE,
-  INTERACTION_AUTHORITY_FILE,
-  INTERACTION_AUTHORITY_PROTOCOL,
-} from '../continuousAuthority.js'
+import { INTERACTION_AUTHORITY_PROTOCOL } from '../continuousAuthority.js'
+import { requireUser } from '../userIdentity.js'
 
-export { ACTIVE_POINTER_FILE, INTERACTION_AUTHORITY_FILE, INTERACTION_AUTHORITY_PROTOCOL } from '../continuousAuthority.js'
+export { INTERACTION_AUTHORITY_PROTOCOL } from '../continuousAuthority.js'
 
-/** repo 级恢复候选指针（不是会话绑定；老仓 state-session.sh:18 记载的 `.pipeline-active`）。 */
-/** Change-bound hook projection for explicit normal-chat continuous execution. */
 /** 项目根 package 声明文件（老仓 monorepo.py PROJECT_CONFIG_FILE）。 */
 export const PROJECT_CONFIG_FILE = '.pipeline-project.yaml'
 
@@ -69,13 +65,13 @@ export function resumeOccurredAt(candidate: string, latestEffectAt: string): str
 /**
  * session fs 注入面（默认真 fs；mock 层注入 fake，见 session.test.ts）。
  *   loadPackages: 读项目根 .pipeline-project.yaml → package 声明（缺失/解析失败 → null 单仓，fail-open）。
- *   bindPointer:  写恢复候选（默认写 <cwd>/.pipeline-active，repo 粒度——换 per-session 粒度的接缝在此）。
+ *   bindPointer:  写当前用户的恢复候选（.tenon/users/<slug>/local/active-change），并删除退役的仓库级指针文件。
  */
 export interface SessionFs {
   loadPackages: (cwd: string) => Promise<PackageDecl[] | null>
-  bindPointer: (cwd: string, name: string) => Promise<void>
+  bindPointer: (cwd: string, slug: string, name: string) => Promise<void>
   /** Optional for legacy injected test/degraded adapters; missing means --continuous is safely unavailable. */
-  writeInteractionAuthority?: (cwd: string, name: string, sessionId: string) => Promise<void>
+  writeInteractionAuthority?: (cwd: string, slug: string, name: string, sessionId: string, actor: RecordActor) => Promise<void>
   /** Optional host-session identity for exact resume routing and terminal liveness. It never mutates workflow state. */
   bindTerminalSession?: (cwd: string, name: string, sessionId: string) => Promise<void>
 }
@@ -116,7 +112,7 @@ async function ensurePlainDirectory(path: string): Promise<void> {
 
 /**
  * Bind a native host session to the exact Change selected by the pipeline root skill.  This is an
- * non-canonical session identity projection: it prevents a repo-global `.pipeline-active` pointer
+ * non-canonical session identity projection: it prevents a per-user `active-change` pointer
  * from routing or displaying an unrelated conversation as an old Change.
  */
 async function writeTerminalSessionBinding(cwd: string, name: string, sessionId: string): Promise<void> {
@@ -144,9 +140,9 @@ async function writeTerminalSessionBinding(cwd: string, name: string, sessionId:
   }
 }
 
-async function writeAuthorityProjection(cwd: string, name: string, sessionId: string): Promise<void> {
+async function writeAuthorityProjection(cwd: string, slug: string, name: string, sessionId: string, actor: RecordActor): Promise<void> {
   if (!isTerminalSessionId(sessionId)) throw new Error('host session id 格式非法')
-  const target = join(cwd, INTERACTION_AUTHORITY_FILE)
+  const target = (await ensureUserLocalDir(cwd, slug)).authority
   const timestamp = authorityTimestamp()
   const body = [
     INTERACTION_AUTHORITY_PROTOCOL,
@@ -171,7 +167,7 @@ async function writeAuthorityProjection(cwd: string, name: string, sessionId: st
   await appendFile(
     history,
     `${JSON.stringify({ ts: timestamp, kind: 'prompt',
-      raw: `interaction-authority:enabled scope=interactive-skills review=delegated host_session=${sessionId}` })}\n`,
+      raw: `interaction-authority:enabled scope=interactive-skills review=delegated host_session=${sessionId}`, actor })}\n`,
     'utf8',
   )
 }
@@ -190,8 +186,12 @@ const REAL_FS: SessionFs = {
       return null
     }
   },
-  bindPointer: async (cwd, name) => {
-    await writeFile(join(cwd, ACTIVE_POINTER_FILE), `${name}\n`, 'utf8')
+  bindPointer: async (cwd, slug, name) => {
+    await writeActiveChange(cwd, slug, name)
+    // One-step migration: the retired repository-wide selection files are removed, never read.
+    for (const retired of ['.pipeline-active', '.pipeline-interaction-authority']) {
+      if ((await lstat(join(cwd, retired)).catch(() => null))?.isFile() === true) await rm(join(cwd, retired), { force: true })
+    }
   },
   writeInteractionAuthority: writeAuthorityProjection,
   bindTerminalSession: writeTerminalSessionBinding,
@@ -258,8 +258,10 @@ async function cmdActivate(deps: CliDeps, args: string[], fs: SessionFs): Promis
   }
   if (!checkName(deps, name)) return 1
   if ((await ensureState(deps, name)) === null) return 1
+  const user = requireUser(deps)
+  if (user === null) return 1
   try {
-    await fs.bindPointer(deps.cwd, name)
+    await fs.bindPointer(deps.cwd, user.slug, name)
   } catch (e) {
     // 老仓语义：session_store degraded（context_key 缺/落盘失败）→ 仅 WARN、回退对话上下文、rc=0。
     deps.io.err(`[activate] 活跃指针写入失败 → degraded（回退对话上下文），未落 session 指针: ${errMsg(e)}`)
@@ -321,18 +323,18 @@ async function cmdActivate(deps: CliDeps, args: string[], fs: SessionFs): Promis
       return 0
     }
     try {
-      await fs.writeInteractionAuthority(deps.cwd, name, options.hostSessionId)
+      await fs.writeInteractionAuthority(deps.cwd, user.slug, name, options.hostSessionId, actorOf(user))
     } catch (e) {
       deps.io.err(`[activate] 持续交互授权未写入 → degraded（仍已绑定 Change，interaction skill 将按常规提问）：${errMsg(e)}`)
       return 0
     }
-    deps.io.err(`[OK] activate ${name}（已写 .pipeline-active 与 Change 绑定的持续交互授权；review 仍须产生证据，并仅可用 --delegated 留下审计回执）`)
+    deps.io.err(`[OK] activate ${name}（已写当前用户的活跃任务与 Change 绑定的持续交互授权；review 仍须产生证据，并仅可用 --delegated 留下审计回执）`)
     return 0
   }
   const terminalStatus = options.hostSessionId === undefined
     ? ''
     : '；已绑定 host session 供 dashboard 识别短时运行心跳'
-  deps.io.err(`[OK] activate ${name}（已写 .pipeline-active 恢复候选；该指针是 repo 粒度、非 per-session——仅用户明确继续/点名时会被 Hook 使用；phase/phase_status 未改动${terminalStatus}）`)
+  deps.io.err(`[OK] activate ${name}（已写当前用户的活跃任务恢复候选；该指针按用户隔离、非 per-session——仅用户明确继续/点名时会被 Hook 使用；phase/phase_status 未改动${terminalStatus}）`)
   return 0
 }
 

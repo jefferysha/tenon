@@ -27,6 +27,17 @@ SS="$ROOT/hooks/session-start.sh"
 VS="$ROOT/tools/verify-skills.sh"
 JSON_INPUT="$ROOT/hooks/json-input.sh"
 
+# Hooks resolve the declared identity (hooks/tenon-user.sh); fixtures select Changes for this user.
+export TENON_USER=hooks@tenon.test
+HOOK_USER_SLUG=hooks-at-tenon.test
+set_active() { # $1=project root $2=change name
+  mkdir -p "$1/.tenon/users/$HOOK_USER_SLUG/local"
+  printf '%s\n' "$2" > "$1/.tenon/users/$HOOK_USER_SLUG/local/active-change"
+}
+clear_active() { rm -f "$1/.tenon/users/$HOOK_USER_SLUG/local/active-change"; }
+active_authority_path() { printf '%s/.tenon/users/%s/local/authority' "$1" "$HOOK_USER_SLUG"; }
+
+
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/test-hooks.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -74,7 +85,7 @@ write_v2_review_marker() { # $1=project root $2=change name $3=phase
   if [ ! -f "$dir/.pipeline.yaml" ]; then
     printf 'phase: %s\ntrack: backend\nworkflow: default\narchived: false\n' "$phase" > "$dir/.pipeline.yaml"
   fi
-  printf '%s\n' "$name" > "$root/.pipeline-active"
+  set_active "$root" "$name"
   printf 'pipeline-review-v2\nphase=%s\nchange=%s\nrequested_at=2026-07-24T00:00:00Z\n待人工复核\n' "$phase" "$name" \
     > "$root/.pipeline-pending-review"
 }
@@ -228,7 +239,7 @@ for command_desc in \
   assert_exit "gate: acknowledge 解封口不放行夹带写（${desc}）" 2 "$RC"
 done
 # review 之外的门不吃这条解封口：confirm/interaction 只由宿主真实问答清除。
-rm -f "$proj/.pipeline-pending-review" "$proj/.pipeline-active"
+rm -f "$proj/.pipeline-pending-review"; clear_active "$proj"
 touch "$proj/.pipeline-pending-interaction"
 run_gate "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"command\":\"$ACK_CMD\"}"
 assert_exit "gate: acknowledge 不额外解封 interaction 门" 2 "$RC"
@@ -355,7 +366,7 @@ assert_contains "self-approval: HITL 拦截保留原提示" "$ERR" "禁止读取
 assert_contains "self-approval: HITL 拦截前已调用记录器" "$(cat "$SA_LOG" 2>/dev/null || true)" "internal-self-approval"
 run_gate_self_approval "{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$SA_TOKEN\"}}" 1
 assert_exit "self-approval: AFK 下 pending review 读取 token 不拦截" 0 "$RC"
-rm -f "$proj/.pipeline-pending-review" "$proj/.pipeline-active"
+rm -f "$proj/.pipeline-pending-review"; clear_active "$proj"
 
 # ───── 1a. 门 TTL 分级（BACKLOG #13，对齐老内核 pipeline-gate.sh：confirm 300s / review·interaction 1800s） ─────
 touch_age() { # $1=文件 $2=秒龄：把 mtime 设为 now-$2（BSD/GNU date 双兼容）
@@ -564,12 +575,12 @@ rc=$?
 assert_exit "breadcrumb: 无缓存 → 静默 exit 0" 0 "$rc"
 assert_empty "breadcrumb: 无缓存 → 无输出" "$out"
 
-# 当前会话显式说继续时，dashboard/CLI 的 `.pipeline-active` 才可作为候选，且不得改取 mtime 最新的别的 Change。
+# 当前会话显式说继续时，dashboard/CLI 的 `active-change` 才可作为候选，且不得改取 mtime 最新的别的 Change。
 proj="$TMP/bc-active-task"
 mkdir -p "$proj/openspec/changes/selected" "$proj/openspec/changes/newer"
 printf 'track: frontend\nphase: build\narchived: \n' > "$proj/openspec/changes/selected/.pipeline.yaml"
 printf 'track: backend\nphase: build\narchived: \n' > "$proj/openspec/changes/newer/.pipeline.yaml"
-printf 'selected\n' > "$proj/.pipeline-active"
+set_active "$proj" selected
 printf '实现登录页响应式布局，并跑浏览器验收。\n' > "$proj/openspec/changes/selected/REAL_AGENT_TASK.md"
 printf 'OTHER-CRUMB\n' > "$proj/openspec/changes/newer/.breadcrumb"
 out="$(printf '{"prompt":"继续 selected 的登录页实现","cwd":"%s"}' "$proj" | bash "$BC" 2>/dev/null)"
@@ -586,7 +597,7 @@ out="$(printf '{"prompt":"我现在想要调研一个新的工具项目","cwd":"
 assert_empty "breadcrumb: 独立新主题不泄漏 repo 级旧任务" "$out"
 
 # 宿主提供 session_id 时，只有精确 session binding 或显式 change 名能恢复。未绑定的新会话
-# 即使泛化说“继续”也不能借仓库级 `.pipeline-active` 注入另一个会话的任务。
+# 即使泛化说“继续”也不能借仓库级 `active-change` 注入另一个会话的任务。
 out="$(printf '{"prompt":"继续执行","cwd":"%s","session_id":"unbound-new-conversation"}' "$proj" | bash "$BC" 2>/dev/null)"
 assert_empty "breadcrumb: 未绑定的新会话泛化继续不借 repo 级 active" "$out"
 
@@ -612,7 +623,7 @@ printf 'track: frontend\nphase: build\narchived: \n' > "$proj/openspec/changes/c
 printf 'track: backend\nphase: verify\narchived: \n' > "$proj/openspec/changes/catalog-flow-listing-application/.pipeline.yaml"
 printf 'PAGE-CRUMB\n' > "$proj/openspec/changes/catalog-flow-page/.breadcrumb"
 printf 'LISTING-CRUMB\n' > "$proj/openspec/changes/catalog-flow-listing-application/.breadcrumb"
-printf 'catalog-flow-listing-application\n' > "$proj/.pipeline-active"
+set_active "$proj" catalog-flow-listing-application
 out="$(printf '{"prompt":"继续 catalog-flow-page，并按当前 workflow 完成。","cwd":"%s"}' "$proj" | bash "$BC" 2>/dev/null)"
 assert_contains "breadcrumb: 多候选中精确点名 change → 目标 breadcrumb" "$out" "PAGE-CRUMB"
 assert_not_contains "breadcrumb: 精确点名不注入另一个指针 breadcrumb" "$out" "LISTING-CRUMB"
@@ -773,14 +784,14 @@ assert_contains "session-start: 加载证明绑定 host" "$(cat "$SS_PROOF" 2>/d
 assert_contains "session-start: 加载证明绑定 release id" "$(cat "$SS_PROOF" 2>/dev/null || true)" "release_id=sha256-aaaaaaaa"
 assert_contains "session-start: 加载证明带时间戳" "$(cat "$SS_PROOF" 2>/dev/null || true)" "loaded_at_epoch="
 
-# SessionStart 只能列恢复候选；它没有用户 prompt，绝不能把 repo 级 `.pipeline-active`
+# SessionStart 只能列恢复候选；它没有用户 prompt，绝不能把 repo 级 `active-change`
 # 与任务内容自动注入一个新 Codex 会话。
 proj="$TMP/ss-active-task"
 mkdir -p "$proj/openspec/changes/selected" "$proj/openspec/changes/newer"
 printf 'track: frontend\nphase: build\narchived: \n' > "$proj/openspec/changes/selected/.pipeline.yaml"
 printf 'track: backend\nphase: explore\narchived: \n' > "$proj/openspec/changes/newer/.pipeline.yaml"
 touch -t 202001010000 "$proj/openspec/changes/selected/.pipeline.yaml"
-printf 'selected\n' > "$proj/.pipeline-active"
+set_active "$proj" selected
 printf '实现登录页响应式布局，并跑浏览器验收。\n' > "$proj/openspec/changes/selected/REAL_AGENT_TASK.md"
 out="$(printf '{\"cwd\":\"%s\"}' "$proj" | bash "$SS" 2>/dev/null)"
 rc=$?
@@ -1286,11 +1297,11 @@ EOF
   assert_contains "router: 注入含推荐 skill（build.frontend）" "$ROUT" "推荐 skill"
   assert_contains "router: 注入含 build.frontend 推荐 skill token（react-patterns）" "$ROUT" "react-patterns"
 
-  # repo 级 `.pipeline-active` 只是恢复候选，不能劫持另一会话中的明确新主题。
+  # repo 级 `active-change` 只是恢复候选，不能劫持另一会话中的明确新主题。
   # 回归用户真实场景：旧 change 是 normal-chat 编排修复，新输入则是独立的新工具项目调研。
   rc_new_topic="$TMP/router-new-topic"; mkdir -p "$rc_new_topic/openspec/changes/normal-chat-default-orchestration"
   printf 'track: backend\nphase: spec\narchived: \n' > "$rc_new_topic/openspec/changes/normal-chat-default-orchestration/.pipeline.yaml"
-  printf 'normal-chat-default-orchestration\n' > "$rc_new_topic/.pipeline-active"
+  set_active "$rc_new_topic" normal-chat-default-orchestration
   run_router "{\"prompt\":\"我现在想要调研一个新的工具项目\",\"cwd\":\"$rc_new_topic\"}"
   assert_contains "router: 明确新调研主题仍选 pm Track" "$ROUT" "track: pm"
   assert_contains "router: 明确新调研主题从 open 分派" "$ROUT" "phase: open"
@@ -1307,7 +1318,7 @@ EOF
   printf 'track: frontend\nphase: build\narchived: \n' > "$rc_active/openspec/changes/selected/.pipeline.yaml"
   printf 'track: backend\nphase: build\narchived: \n' > "$rc_active/openspec/changes/newer/.pipeline.yaml"
   touch -t 202001010000 "$rc_active/openspec/changes/selected/.pipeline.yaml"
-  printf 'selected\n' > "$rc_active/.pipeline-active"
+  set_active "$rc_active" selected
   run_router "{\"prompt\":\"继续实现登录页面的 React 组件\",\"cwd\":\"$rc_active\"}"
   assert_contains "router: session 指针覆盖 mtime，注入选中的 change" "$ROUT" "change=selected"
   assert_contains "router: session 指针保留选中 change 的 phase" "$ROUT" "phase=build"
@@ -1326,13 +1337,13 @@ EOF
   assert_not_contains "router: 多个候选的泛化继续不按 mtime 选 newer" "$ROUT" "change: newer"
 
   # 多个活跃 change 时，普通对话里完整点名的 change 是明确选择，不能因为候选表
-  # 被清空而退化为 select。`.pipeline-active` 若指向另一个 change，也不能覆盖用户本轮
+  # 被清空而退化为 select。`active-change` 若指向另一个 change，也不能覆盖用户本轮
   # 的显式名称；这是 dashboard 启动多个 workflow 后仍可恢复指定目标的关键回归。
   rc_named="$TMP/router-explicit-change-name"
   mkdir -p "$rc_named/openspec/changes/catalog-flow-page" "$rc_named/openspec/changes/catalog-flow-listing-application"
   printf 'track: frontend\nphase: build\nworkflow: catalog-flow-openspec\narchived: \n' > "$rc_named/openspec/changes/catalog-flow-page/.pipeline.yaml"
   printf 'track: backend\nphase: verify\nworkflow: default\narchived: \n' > "$rc_named/openspec/changes/catalog-flow-listing-application/.pipeline.yaml"
-  printf 'catalog-flow-listing-application\n' > "$rc_named/.pipeline-active"
+  set_active "$rc_named" catalog-flow-listing-application
   run_router "{\"prompt\":\"继续 catalog-flow-page，并按当前 workflow 完成。\",\"cwd\":\"$rc_named\"}"
   assert_contains "router: 多候选中精确点名 change → resume" "$ROUT" "intent: resume"
   assert_contains "router: 精确点名覆盖另一个 repo 级指针" "$ROUT" "change: catalog-flow-page"
@@ -1559,14 +1570,14 @@ count_lines() { [ -f "$1" ] && grep -c '' "$1" 2>/dev/null || echo 0; }
 proj="$TMP/ptu-terminal-activity"; sid="019f92c7-6e66-7290-9352-f9d915266f14"
 mkdir -p "$proj/openspec/changes/current/.pipeline-run" "$proj/.pipeline/terminal-sessions"
 printf 'track: frontend\nphase: build\narchived: false\n' > "$proj/openspec/changes/current/.pipeline.yaml"
-printf 'old-change\n' > "$proj/.pipeline-active"
+set_active "$proj" old-change
 printf '{"protocol":"pipeline-terminal-session-v1","session_id":"%s","change":"current","bound_at":"2026-07-24T06:00:00Z"}\n' "$sid" > "$proj/.pipeline/terminal-sessions/$sid.json"
 RC="$(printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"command_execution\",\"session_id\":\"$sid\",\"turn_id\":\"turn-live\"}" | bash "$TA" >/dev/null 2>&1; echo $?)"
 assert_exit "terminal-activity: 已绑定 session 的工具生命周期 → exit 0" 0 "$RC"
 ACT="$proj/openspec/changes/current/.pipeline-terminal-activity.json"
 [ -f "$ACT" ] && ok "terminal-activity: 只给 binding 指定的 current Change 写心跳" || bad "terminal-activity: 只给 binding 指定的 current Change 写心跳" "sidecar 缺失"
 assert_contains "terminal-activity: sidecar 含 exact Change" "$(cat "$ACT" 2>/dev/null)" '"change":"current"'
-[ ! -f "$proj/openspec/changes/old-change/.pipeline-terminal-activity.json" ] && ok "terminal-activity: 不会借 .pipeline-active 写旧 Change" || bad "terminal-activity: 不会借 .pipeline-active 写旧 Change" "旧 Change 被写入"
+[ ! -f "$proj/openspec/changes/old-change/.pipeline-terminal-activity.json" ] && ok "terminal-activity: 不会借 active-change 写旧 Change" || bad "terminal-activity: 不会借 active-change 写旧 Change" "旧 Change 被写入"
 RC="$(printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"command_execution\",\"session_id\":\"unbound-session\"}" | bash "$TA" >/dev/null 2>&1; echo $?)"
 assert_exit "terminal-activity: 未绑定 session → fail-open exit 0" 0 "$RC"
 [ ! -f "$proj/openspec/changes/current/.pipeline-terminal-activity.json.tmp" ] && ok "terminal-activity: 未绑定 session 不产生临时副作用" || bad "terminal-activity: 未绑定 session 不产生临时副作用" "发现临时文件"
@@ -1641,7 +1652,7 @@ done
 # （Codex 为登记文档重读 producer SKILL.md 时曾反复要求确认）；未识别的回复要提示解封短语。──
 proj="$TMP/ptu-interaction-once"; mkdir -p "$proj/openspec/changes/once-live"
 printf 'track: backend\nphase: explore\nworkflow: default\narchived: false\n' > "$proj/openspec/changes/once-live/.pipeline.yaml"
-printf 'once-live\n' > "$proj/.pipeline-active"
+set_active "$proj" once-live
 ONCE_HIST="$proj/openspec/changes/once-live/.pipeline-history.jsonl"
 printf '{"ts":"2026-09-15T00:00:00Z","kind":"transition","from":"open","to":"explore","raw":"open-complete"}\n' > "$ONCE_HIST"
 printf 'tenon:brainstorming\n' > "$proj/.pipeline-pending-interaction"
@@ -1695,10 +1706,10 @@ proj="$TMP/ptu-interaction-authority"; mkdir -p "$proj/openspec/changes/autonomy
 authority_sid='session-authority-live'
 printf 'track: pm\nphase: explore\nworkflow: default\narchived: false\n' > "$proj/openspec/changes/autonomy-live/.pipeline.yaml"
 printf 'track: pm\nphase: explore\nworkflow: default\narchived: false\n' > "$proj/openspec/changes/other-live/.pipeline.yaml"
-printf 'autonomy-live\n' > "$proj/.pipeline-active"
+set_active "$proj" autonomy-live
 write_v2_review_marker "$proj" autonomy-live explore
 printf '%s' "{\"cwd\":\"$proj\",\"session_id\":\"$authority_sid\",\"prompt\":\"确认。后续不用问我，自己执行完成\"}" | PATH="$FAKE_TENON_BIN:/usr/bin:/bin" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" >/dev/null 2>&1
-[ -f "$proj/.pipeline-interaction-authority" ] \
+[ -f "$(active_authority_path "$proj")" ] \
   && ok "持续自主执行: 明确授权投影绑定当前 Change" \
   || bad "持续自主执行: 明确授权投影绑定当前 Change" "缺少 authority projection"
 [ -f "$proj/.pipeline-pending-review" ] \
@@ -1707,10 +1718,10 @@ printf '%s' "{\"cwd\":\"$proj\",\"session_id\":\"$authority_sid\",\"prompt\":\"�
 grep -Fq 'review acknowledge autonomy-live --delegated' "$FAKE_TENON_LOG" 2>/dev/null \
   && ok "持续自主执行: 通过 delegated review acknowledgement 留痕" \
   || bad "持续自主执行: 通过 delegated review acknowledgement 留痕" "未记录 --delegated acknowledge"
-grep -Fq 'review=delegated' "$proj/.pipeline-interaction-authority" 2>/dev/null \
+grep -Fq 'review=delegated' "$(active_authority_path "$proj")" 2>/dev/null \
   && ok "持续自主执行: authority 明确声明 delegated review 语义" \
   || bad "持续自主执行: authority 明确声明 delegated review 语义" "authority 仍是旧语义"
-grep -Fq "host_session=$authority_sid" "$proj/.pipeline-interaction-authority" 2>/dev/null \
+grep -Fq "host_session=$authority_sid" "$(active_authority_path "$proj")" 2>/dev/null \
   && ok "持续自主执行: authority 绑定精确 host session" \
   || bad "持续自主执行: authority 绑定精确 host session" "缺少 host_session"
 OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"session_id\":\"$authority_sid\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"superpowers:brainstorming\"}}" | bash "$IG" 2>/dev/null)"
@@ -1726,7 +1737,7 @@ OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"session_id\":\"session-authority-other\
   || bad "持续自主执行: 不跨 host session，另一会话应落 interaction 门" "marker 未落"
 rm -f "$proj/.pipeline-pending-interaction"
 # 授权绝不跨 Change：切换 selected Change 后，原 projection 必须 fail-closed 并恢复正常硬门。
-printf 'other-live\n' > "$proj/.pipeline-active"
+set_active "$proj" other-live
 OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"session_id\":\"$authority_sid\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"superpowers:brainstorming\"}}" | bash "$IG" 2>/dev/null)"
 [ -f "$proj/.pipeline-pending-interaction" ] \
   && ok "持续自主执行: 不跨 Change，切换后重新落 interaction 门" \
@@ -1734,9 +1745,9 @@ OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"session_id\":\"$authority_sid\",\"tool_
 assert_contains "持续自主执行: 非授权 Change 仍要求 AskUserQuestion" "$OUT" "AskUserQuestion"
 # 用户可显式撤回持续授权；撤回后当前 Change 的互动 skill 回到正常硬门。
 rm -f "$proj/.pipeline-pending-interaction"
-printf 'autonomy-live\n' > "$proj/.pipeline-active"
+set_active "$proj" autonomy-live
 printf '%s' "{\"cwd\":\"$proj\",\"session_id\":\"$authority_sid\",\"prompt\":\"恢复逐步确认\"}" | bash "$CP" >/dev/null 2>&1
-[ ! -f "$proj/.pipeline-interaction-authority" ] \
+[ ! -f "$(active_authority_path "$proj")" ] \
   && ok "持续自主执行: 显式撤回会删除当前 Change projection" \
   || bad "持续自主执行: 显式撤回会删除当前 Change projection" "authority projection 仍在"
 OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"session_id\":\"$authority_sid\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"superpowers:brainstorming\"}}" | bash "$IG" 2>/dev/null)"
@@ -1747,7 +1758,7 @@ OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"session_id\":\"$authority_sid\",\"tool_
 # ── 10b. decision-recorder：AskUserQuestion 决策 append 进活跃 change 的 .pipeline-history.jsonl（kind=prompt）──
 proj="$TMP/ptu-dr"; mkdir -p "$proj/openspec/changes/demo"
 printf 'track: backend\nphase: build\narchived: \n' > "$proj/openspec/changes/demo/.pipeline.yaml"
-printf 'demo\n' > "$proj/.pipeline-active"
+set_active "$proj" demo
 JL="$proj/openspec/changes/demo/.pipeline-history.jsonl"
 before="$(count_lines "$JL")"
 DRIN="{\"cwd\":\"$proj\",\"tool_name\":\"AskUserQuestion\",\"tool_input\":{\"questions\":[{\"question\":\"走 Tenon 还是直接改？\",\"header\":\"路由\"}]},\"tool_response\":{\"answers\":{\"路由\":\"tenon\"}}}"
@@ -1767,7 +1778,7 @@ case "$vrc" in 0) ok "decision-recorder: JSONL 全行合法 JSON（node 校验�
 # 转义硬测（别写坏 JSONL）：问题/答案含 换行 + 反斜杠 + 双引号 → 仍恰一行 + 合法 JSON
 proj2="$TMP/ptu-dr-esc"; mkdir -p "$proj2/openspec/changes/x"
 printf 'phase: build\narchived: \n' > "$proj2/openspec/changes/x/.pipeline.yaml"
-printf 'x\n' > "$proj2/.pipeline-active"
+set_active "$proj2" x
 JL2="$proj2/openspec/changes/x/.pipeline-history.jsonl"
 cat > "$TMP/dr-esc.json" <<EOF
 {"cwd":"$proj2","tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"第一行反斜杠\\路径
@@ -1791,7 +1802,7 @@ printf '%s' "{\"cwd\":\"$proj4\",\"tool_name\":\"AskUserQuestion\",\"tool_input\
 # ── 10c. skill-tracker：Skill 调用 append 进 .pipeline-history.jsonl（kind=tool，raw=skill 名）──
 proj="$TMP/ptu-st"; mkdir -p "$proj/openspec/changes/demo"
 printf 'phase: build\narchived: \n' > "$proj/openspec/changes/demo/.pipeline.yaml"
-printf 'demo\n' > "$proj/.pipeline-active"
+set_active "$proj" demo
 JL="$proj/openspec/changes/demo/.pipeline-history.jsonl"
 before="$(count_lines "$JL")"
 RC="$(printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"superpowers:brainstorming\"}}" | bash "$ST" >/dev/null 2>&1; echo $?)"
@@ -2012,7 +2023,7 @@ write_hooks_cfg() { # $1=root，其余=禁用键（如 router.build）——逐�
 # ── 11a. skill-tracker：当前阶段被禁用 → exit 0 且零副作用（JSONL 不 append）──
 proj="$TMP/hm-st"; mkdir -p "$proj/openspec/changes/demo"
 printf 'track: backend\nphase: build\narchived: \n' > "$proj/openspec/changes/demo/.pipeline.yaml"
-printf 'demo\n' > "$proj/.pipeline-active"
+set_active "$proj" demo
 JL="$proj/openspec/changes/demo/.pipeline-history.jsonl"
 write_hooks_cfg "$proj" "skill-tracker.build"
 RC="$(printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"tenon-build\"}}" | bash "$ST" >/dev/null 2>&1; echo $?)"
@@ -2206,6 +2217,67 @@ assert_exit "auto-update: 当日重复 SessionStart → exit 0" 0 "$?"
 trace_lines="$(wc -l < "$AU_TRACE" 2>/dev/null | tr -d ' ' || true)"
 [ -n "$trace_lines" ] || trace_lines=0
 [ "$trace_lines" = "1" ] && ok "auto-update: 当日只启动一次" || bad "auto-update: 当日只启动一次" "nohup 调用次数=${trace_lines}"
+
+# ── 13. 多用户（hooks/tenon-user.sh）：声明身份选定自己的 active-change 与 authority，互不串线 ──
+mu_proj="$TMP/multi-user"
+mu_home="$TMP/multi-user-home"
+mkdir -p "$mu_proj/openspec/changes/alpha" "$mu_proj/openspec/changes/beta" "$mu_home/cfg"
+for mu_change in alpha beta; do
+  printf 'track: pm\nphase: explore\nworkflow: default\narchived: false\n' > "$mu_proj/openspec/changes/$mu_change/.pipeline.yaml"
+  printf 'CRUMB-%s\n' "$mu_change" > "$mu_proj/openspec/changes/$mu_change/.breadcrumb"
+done
+for mu_pair in a-at-x.io:alpha b-at-x.io:beta; do
+  mkdir -p "$mu_proj/.tenon/users/${mu_pair%%:*}/local"
+  printf '%s\n' "${mu_pair##*:}" > "$mu_proj/.tenon/users/${mu_pair%%:*}/local/active-change"
+done
+mu_env() { # $@=extra NAME=VALUE assignments followed by the command; identity comes only from what the case sets
+  env -u TENON_USER -u TENON_RUNTIME_ROOTS -u TENON_RUNTIME_HOME HOME="$mu_home" GIT_CONFIG_GLOBAL="$mu_home/gitconfig" \
+    GIT_CONFIG_NOSYSTEM=1 TENON_RUNTIME_CONFIG_ROOT="$mu_home/cfg" "$@"
+}
+mu_crumb() { # $@=extra NAME=VALUE assignments → breadcrumb output for a generic resume prompt
+  printf '{"prompt":"继续","cwd":"%s"}' "$mu_proj" | mu_env "$@" bash "$BC" 2>/dev/null
+}
+out="$(mu_crumb TENON_USER=a@x.io)"
+assert_contains "multi-user: A 的继续只恢复 A 的 active-change" "$out" "CRUMB-alpha"
+assert_not_contains "multi-user: A 不串到 B 的 Change" "$out" "CRUMB-beta"
+out="$(mu_crumb TENON_USER=b@x.io)"
+assert_contains "multi-user: B 的继续只恢复 B 的 active-change" "$out" "CRUMB-beta"
+assert_not_contains "multi-user: B 不串到 A 的 Change" "$out" "CRUMB-alpha"
+out="$(mu_crumb)"
+assert_empty "multi-user: 身份缺失 → 没有选中的 Change，不注入" "$out"
+out="$(mu_crumb TENON_USER=not-an-email)"
+assert_empty "multi-user: 非法 TENON_USER 不回落到其它来源" "$out"
+printf '{"id":"a@x.io","name":"A"}\n' > "$mu_home/cfg/user.json"
+out="$(mu_crumb)"
+assert_contains "multi-user: 本机 user.json 身份选中 A 的 Change" "$out" "CRUMB-alpha"
+rm -f "$mu_home/cfg/user.json"
+printf '[user]\n\temail = b@x.io\n' > "$mu_home/gitconfig"
+out="$(mu_crumb)"
+assert_contains "multi-user: git user.email 身份选中 B 的 Change" "$out" "CRUMB-beta"
+printf '[user]\n\temail = not-an-email\n' > "$mu_home/gitconfig"
+out="$(mu_crumb)"
+assert_empty "multi-user: 非法 git 邮箱 → 身份缺失" "$out"
+rm -f "$mu_home/gitconfig"
+
+# A 为自己写下的持续授权只放行 A；B 选中同一 Change、同一 host session 也不能借用。
+mu_sid='session-multi-user'
+printf 'alpha\n' > "$mu_proj/.tenon/users/b-at-x.io/local/active-change"
+printf 'pipeline-interaction-authority-v2\nchange=alpha\nhost_session=%s\nscope=interactive-skills\nreview=delegated\nissued_at=2026-09-16T00:00:00Z\n' "$mu_sid" \
+  > "$mu_proj/.tenon/users/a-at-x.io/local/authority"
+mu_gate() { # $1=TENON_USER
+  rm -f "$mu_proj/.pipeline-pending-interaction"
+  printf '%s' "{\"cwd\":\"$mu_proj\",\"session_id\":\"$mu_sid\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"superpowers:brainstorming\"}}" \
+    | mu_env TENON_USER="$1" bash "$IG" >/dev/null 2>&1
+}
+mu_gate a@x.io
+[ ! -f "$mu_proj/.pipeline-pending-interaction" ] \
+  && ok "multi-user: A 的持续授权放行 A 的 interaction 门" \
+  || bad "multi-user: A 的持续授权放行 A 的 interaction 门" "A 仍被拦截"
+mu_gate b@x.io
+[ -f "$mu_proj/.pipeline-pending-interaction" ] \
+  && ok "multi-user: A 的持续授权不放行 B" \
+  || bad "multi-user: A 的持续授权不放行 B" "B 借用了 A 的授权"
+rm -f "$mu_proj/.pipeline-pending-interaction"
 
 # ───────────────────────── 汇总 ─────────────────────────
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"

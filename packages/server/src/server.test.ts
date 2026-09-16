@@ -5554,7 +5554,8 @@ describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
     const h = await startWithHome({
       runPipelineCli: async (root, args) => {
         calls.push({ root, args })
-        await writeFile(join(root, '.pipeline-active'), `${args[2] ?? ''}\n`, 'utf8')
+        const { writeActiveChange } = await import('@tenon/kernel')
+        await writeActiveChange(root, 'tester-at-tenon.test', args[2] ?? '')
         return { exitCode: 0, stdout: '', stderr: '' }
       },
     })
@@ -5579,7 +5580,7 @@ describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
     expect(body.session).toEqual({ requested: true, active: true, status: 'active', exit_code: 0 })
     const changeDir = join(proj, 'openspec', 'changes', 'route-me')
     expect(await readFile(join(changeDir, 'REAL_AGENT_TASK.md'), 'utf8')).toBe(`${prompt}\n`)
-    expect(await readFile(join(proj, '.pipeline-active'), 'utf8')).toBe('route-me\n')
+    expect(await readFile(join(proj, '.tenon', 'users', 'tester-at-tenon.test', 'local', 'active-change'), 'utf8')).toBe('route-me\n')
     const entries = await readdir(changeDir)
     expect(entries.some((entry) => entry.startsWith('.REAL_AGENT_TASK.md.') && entry.endsWith('.tmp'))).toBe(false)
   })

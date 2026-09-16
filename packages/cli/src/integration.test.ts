@@ -282,11 +282,11 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
       producer: 'openspec-propose', recordedAt: '2026-07-24T00:00:00Z', reads: [] })
   })
 
-  test('session：activate 真落 .pipeline-active（走 buildProgram，不动 phase）', async () => {
+  test('session：activate 真落当前用户 active-change（走 buildProgram，不动 phase）', async () => {
     await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full'])
     const before = await h.read('demo')
     expect(await h.run(['session', 'activate', 'demo'])).toBe(0)
-    expect(await readFile(join(h.cwd, '.pipeline-active'), 'utf8')).toContain('demo')
+    expect(await readFile(join(h.cwd, '.tenon', 'users', 'tester-at-tenon.test', 'local', 'active-change'), 'utf8')).toBe('demo\n')
     expect(await h.read('demo')).toBe(before) // activate 不碰 .pipeline.yaml
     // 缺 change → exit 1
     expect(await h.run(['session', 'activate', 'nonesuch'])).toBe(1)
@@ -296,7 +296,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     const sessionId = '019f92c7-6e66-7290-9352-f9d915266f14'
     await h.run(['init', 'continuous', '--track', 'backend', '--preset', 'full'])
     expect(await h.run(['session', 'activate', 'continuous', '--continuous', '--host-session', sessionId])).toBe(0)
-    const authority = await readFile(join(h.cwd, '.pipeline-interaction-authority'), 'utf8')
+    const authority = await readFile(join(h.cwd, '.tenon', 'users', 'tester-at-tenon.test', 'local', 'authority'), 'utf8')
     expect(authority).toContain('pipeline-interaction-authority-v2')
     expect(authority).toContain('change=continuous')
     expect(authority).toContain(`host_session=${sessionId}`)

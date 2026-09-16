@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # prompt-intent.sh — UserPromptSubmit 的跨会话绑定判定。
 #
-# `.pipeline-active` 是仓库级恢复候选，不是任意新会话的隐式绑定。只有用户明确要求
+# 用户的 `active-change` 是恢复候选，不是任意新会话的隐式绑定。只有用户明确要求
 # 继续（或点名 change）时，调用方才可把该候选注入为当前任务。这里仅做 shell
 # pattern 判定；用户文本始终保持数据，绝不 eval/source。
 
@@ -143,7 +143,7 @@ pipeline_prompt_names_change() { # $1=prompt $2=候选 change 名；0=明确点�
 }
 
 # 这是 router 上一轮向用户展示的 `track / workflow` 选择回复，不是对 repo 级
-# `.pipeline-active` 的恢复请求。选择文本常常同时含“上一步/继续”；若把它交给下面的
+# `active-change` 的恢复请求。选择文本常常同时含“上一步/继续”；若把它交给下面的
 # 宽泛恢复判定，两个 UserPromptSubmit hook 会把旧 Change 注入到新 workflow 的确认轮。
 # 只承认显式选择动词 + 两个安全 id 的成对形式，避免把普通带斜杠的自然语言吞掉。
 pipeline_prompt_is_workflow_selection() { # $1=prompt；0=上一轮 workflow 选择答案

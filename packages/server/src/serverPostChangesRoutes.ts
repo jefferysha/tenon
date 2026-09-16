@@ -304,6 +304,7 @@ export async function handlePostChangesRoutes(
           runner: operationRunner,
           repoRoot: rootCheck.anchor.path,
           changeName: name,
+          userSlug: user.slug,
         })
         : notRequestedSessionActivation()
       return sendJson(res, 200, {

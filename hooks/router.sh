@@ -130,7 +130,7 @@ for _change_dir in "$PROOT"/openspec/changes/*; do
 done
 
 # mtime 仅可用于展示/诊断，不能在多个活跃 change 中猜测当前会话。没有显式
-# `.pipeline-active` 时，只有唯一活跃 change 才是可恢复候选。
+# `active-change` 时，只有唯一活跃 change 才是可恢复候选。
 if [ "$ACTIVE_CHANGE_COUNT" -eq 1 ]; then
   CHANGE_NAME="$SOLE_CHANGE_NAME"
   CHANGE_PHASE="$SOLE_CHANGE_PHASE"
@@ -143,25 +143,22 @@ else
   CHANGE_WORKFLOW=""
 fi
 
-# Dashboard/CLI `session activate` writes a repo-level recovery candidate here.
+# Dashboard/CLI `session activate` writes the current user's recovery candidate
+# (`.tenon/users/<slug>/local/active-change`, resolved by active-change.sh).
 # It may win over mtime discovery, but it is never an implicit binding for an
 # unrelated/new conversation; binding is decided below from the user prompt.
-ACTIVE_POINTER="$PROOT/.pipeline-active"
-if [ -f "$ACTIVE_POINTER" ] && [ ! -L "$ACTIVE_POINTER" ] && [ -r "$ACTIVE_POINTER" ]; then
-  IFS= read -r ACTIVE_NAME < "$ACTIVE_POINTER" || ACTIVE_NAME=""
-  case "$ACTIVE_NAME" in
-    ''|*[!A-Za-z0-9_-]*) ;;
-    *)
-      ACTIVE_DIR="$PROOT/openspec/changes/$ACTIVE_NAME"
-      ACTIVE_STATE="$(pipeline_state_source "$ACTIVE_DIR" || true)"
-      if [ -n "$ACTIVE_STATE" ] && [ "$(yget "$ACTIVE_STATE" archived)" != "true" ]; then
-        CHANGE_NAME="$ACTIVE_NAME"
-        CHANGE_PHASE="$(yget "$ACTIVE_STATE" phase)"
-        CHANGE_TRACK="$(yget "$ACTIVE_STATE" track)"
-        CHANGE_WORKFLOW="$(yget "$ACTIVE_STATE" workflow)"
-      fi
-      ;;
-  esac
+ACTIVE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/active-change.sh"
+# shellcheck source=active-change.sh
+[ -r "$ACTIVE_HELPER" ] && . "$ACTIVE_HELPER"
+ACTIVE_DIR=""
+declare -F pipeline_active_change_dir >/dev/null 2>&1 && ACTIVE_DIR="$(pipeline_active_change_dir "$PROOT" || true)"
+if [ -n "$ACTIVE_DIR" ]; then
+  ACTIVE_NAME="${ACTIVE_DIR##*/}"
+  ACTIVE_STATE="$(pipeline_state_source "$ACTIVE_DIR" || true)"
+  CHANGE_NAME="$ACTIVE_NAME"
+  CHANGE_PHASE="$(yget "$ACTIVE_STATE" phase)"
+  CHANGE_TRACK="$(yget "$ACTIVE_STATE" track)"
+  CHANGE_WORKFLOW="$(yget "$ACTIVE_STATE" workflow)"
 fi
 
 # A project-level pointer cannot identify a Codex conversation.  Keep the old Change only when

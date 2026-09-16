@@ -8,7 +8,7 @@
 #     discussion / L5 快速修复仍不触发。
 #
 # 因此 default workflow 的派发不是仅停在 dashboard UI：root skill 创建/激活的
-# .pipeline-active 与 REAL_AGENT_TASK.md 只是恢复候选，只有用户明确继续/点名时才进入模型上下文；
+# 用户的 active-change 与 REAL_AGENT_TASK.md 只是恢复候选，只有用户明确继续/点名时才进入模型上下文；
 # 新目标始终以 `intent: new` 进入独立 Change。wrapper 只包装 JSON，两个 baseline 脚本保持唯一业务真相源。
 #
 # 任何异常均 fail-open，绝不阻断用户输入。用法：

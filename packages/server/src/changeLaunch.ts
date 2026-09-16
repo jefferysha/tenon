@@ -11,6 +11,7 @@
 import { randomUUID } from 'node:crypto'
 import { lstat, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { readActiveChange } from '@tenon/kernel'
 import type { PipelineCliRunner } from './operations.js'
 
 export const CHANGE_TASK_FILE = 'REAL_AGENT_TASK.md'
@@ -109,6 +110,8 @@ export async function activateChangeSession(input: {
   readonly runner: PipelineCliRunner
   readonly repoRoot: string
   readonly changeName: string
+  /** Server-resolved declared user; the CLI child inherits this env and writes the same user's pointer. */
+  readonly userSlug: string
 }): Promise<ChangeSessionActivation> {
   if (!input.available) {
     return { requested: true, active: false, status: 'unavailable', exit_code: null }
@@ -124,17 +127,8 @@ export async function activateChangeSession(input: {
     return { requested: true, active: false, status: 'failed', exit_code: result.exitCode }
   }
 
-  const pointer = join(input.repoRoot, '.pipeline-active')
-  try {
-    const pointerStat = await lstat(pointer)
-    if (!pointerStat.isFile() || pointerStat.isSymbolicLink()) {
-      return { requested: true, active: false, status: 'degraded', exit_code: result.exitCode }
-    }
-    const activeName = (await readFile(pointer, 'utf8')).trim()
-    return activeName === input.changeName
-      ? { requested: true, active: true, status: 'active', exit_code: result.exitCode }
-      : { requested: true, active: false, status: 'degraded', exit_code: result.exitCode }
-  } catch {
-    return { requested: true, active: false, status: 'degraded', exit_code: result.exitCode }
-  }
+  const activeName = await readActiveChange(input.repoRoot, input.userSlug).catch(() => null)
+  return activeName === input.changeName
+    ? { requested: true, active: true, status: 'active', exit_code: result.exitCode }
+    : { requested: true, active: false, status: 'degraded', exit_code: result.exitCode }
 }

@@ -274,10 +274,13 @@ const DOMAIN_INFRASTRUCTURE = new Set([
 ])
 
 const PRODUCT_PATH_OWNER = 'packages/kernel/src/product-paths.ts'
+// Bash mirror of resolveProductPaths for the declared identity config file (hooks cannot call node).
+const USER_IDENTITY_SHELL_MIRROR = 'hooks/tenon-user.sh'
 const PRODUCT_ROOT_CONTRACT_SITES = new Set([
   PRODUCT_PATH_OWNER,
   'packages/cli/src/runtime/launchers.ts',
   'runtime/tenon-bootstrap.mjs',
+  USER_IDENTITY_SHELL_MIRROR,
 ])
 const LEGACY_ROOT_PROJECTION_SITES = new Set([
   'packages/cli/src/runtime/launchers.ts',
@@ -285,6 +288,7 @@ const LEGACY_ROOT_PROJECTION_SITES = new Set([
   'packages/cli/src/codexSkillTrust.ts',
   'hooks/auto-update.sh',
   'hooks/session-start.sh',
+  USER_IDENTITY_SHELL_MIRROR,
 ])
 
 function walk(dir) {
@@ -429,7 +433,7 @@ for (const path of production) {
     && /['"]pipeline-projects\.json['"]/.test(code)) {
     failures.push(`${rel}: vendor-neutral kernel must not own host-specific migration paths`)
   }
-  if (rel !== PRODUCT_PATH_OWNER && /\bTENON_RUNTIME_HOME\b/.test(code)) {
+  if (rel !== PRODUCT_PATH_OWNER && rel !== USER_IDENTITY_SHELL_MIRROR && /\bTENON_RUNTIME_HOME\b/.test(code)) {
     failures.push(`${rel}: TENON_RUNTIME_HOME may only be interpreted by kernel resolveProductPaths`)
   }
   if (/\bTENON_DASHBOARD_HOME\b/.test(code)) {

@@ -256,7 +256,8 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
 
   test('delegated acknowledge requires a current Change-bound user authority and records that source', async () => {
     const marker = join(h.cwd, '.pipeline-pending-review')
-    const authority = join(h.cwd, '.pipeline-interaction-authority')
+    const local = join(h.cwd, '.tenon', 'users', 'tester-at-tenon.test', 'local')
+    const authority = join(local, 'authority')
     const sessionId = '019f92c7-6e66-7290-9352-f9d915266f14'
     const previousSession = process.env.TENON_HOST_SESSION_ID
     process.env.TENON_HOST_SESSION_ID = sessionId
@@ -266,7 +267,8 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
       expect(await h.run(['review', 'acknowledge', 'demo', '--delegated'])).toBe(1)
       expect(h.err.join('\n')).toContain('没有有效的用户委托')
 
-      await writeFile(join(h.cwd, '.pipeline-active'), 'demo\n', 'utf8')
+      await mkdir(local, { recursive: true })
+      await writeFile(join(local, 'active-change'), 'demo\n', 'utf8')
       await writeFile(authority, [
         'pipeline-interaction-authority-v1',
         'change=demo',
@@ -285,6 +287,16 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
         'review=delegated',
         'issued_at=2026-07-24T00:00:00Z',
         '',
+      ].join('\n'), 'utf8')
+      expect(await h.run(['review', 'acknowledge', 'demo', '--delegated'])).toBe(1)
+
+      // Another user's selection and authority never unlock this user's review exit.
+      const otherLocal = join(h.cwd, '.tenon', 'users', 'other-at-x.io', 'local')
+      await mkdir(otherLocal, { recursive: true })
+      await writeFile(join(otherLocal, 'active-change'), 'demo\n', 'utf8')
+      await writeFile(join(otherLocal, 'authority'), [
+        'pipeline-interaction-authority-v2', 'change=demo', `host_session=${sessionId}`,
+        'scope=interactive-skills', 'review=delegated', 'issued_at=2026-07-24T00:00:00Z', '',
       ].join('\n'), 'utf8')
       expect(await h.run(['review', 'acknowledge', 'demo', '--delegated'])).toBe(1)
 

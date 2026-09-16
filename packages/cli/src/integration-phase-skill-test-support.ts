@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createStateStore } from '@tenon/kernel'
+import { createStateStore, ensureUserLocalDir, isTenonUser, resolveTenonUser } from '@tenon/kernel'
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
@@ -18,7 +18,10 @@ export async function recordWorkflowPhaseSkill(root: string, changeDir: string):
   const state = await createStateStore().read(changeDir)
   const phase = String(state.fields.phase)
   const skill = `tenon-${phase}`
-  const pointer = join(root, '.pipeline-active')
+  const user = resolveTenonUser(root, process.env)
+  if (!isTenonUser(user)) throw new Error('recordWorkflowPhaseSkill needs a declared TENON_USER')
+  // The hook resolves the same identity from the inherited env and reads this user's pointer.
+  const pointer = (await ensureUserLocalDir(root, user.slug)).activeChange
   let previous: string | undefined
   try {
     previous = await readFile(pointer, 'utf8')
