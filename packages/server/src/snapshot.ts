@@ -21,7 +21,7 @@ import {
   type StateStore,
   type TrackDefinition,
 } from '@tenon/kernel'
-import { ArtifactScopeMigrationError, openLegacyLineageView } from '@tenon/automation'
+import { ArtifactScopeMigrationError, type ArtifactService } from '@tenon/automation'
 import type {
   ChangeSnapshot,
   DocumentEvidenceSnapshot,
@@ -52,7 +52,6 @@ import {
   closeWorkflowRootAnchor,
   type WorkflowRootAnchor,
 } from './workflowRootAnchor.js'
-import type { ArtifactService } from './serverArtifactRoutes.js'
 export { dedupeRoots } from './projectRoots.js'
 export { readTasksMarkdown } from './snapshotTasks.js'
 const MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100
@@ -77,7 +76,7 @@ export interface SnapshotDeps extends WorkflowSnapshotCapabilityDeps {
   rootAnchor?: (root: string) => WorkflowRootAnchor | undefined
   /** Machine-level manifest mandatory table; only used for frozen plans without an embedded track matrix. */
   mandatorySkills?: SkillTable
-  /** Resolve the durable artifact service for one change directory. */
+  /** Resolve the durable artifact service for one change directory; only the scope check is projected. */
   artifactServiceForRoot?: (root: string, anchor: WorkflowRootAnchor) => ArtifactService | undefined | Promise<ArtifactService | undefined>
 }
 
@@ -88,38 +87,26 @@ export function snapshotDepsFactory(
 }
 function str(v: string | string[] | undefined): string { return Array.isArray(v) ? v.join(',') : v ?? '' }
 
-export async function projectArtifactAttempts(
+/**
+ * Open the change's artifact scope only to surface an unmerged legacy scope as a compatibility issue.
+ * Runtime artifacts themselves have no dashboard surface, so nothing else is projected.
+ */
+export async function projectArtifactScopeIssue(
   deps: SnapshotDeps,
   changeDir: string,
   anchor: WorkflowRootAnchor,
-): Promise<{ attempts: ReadonlyArray<{ stageId: string; stageAttemptId: string; workflowRunId?: string; startedAt?: string; lineageSource?: 'legacy' }>; compatibilityIssue?: { kind: 'legacy-scope-unmerged'; legacyScopePath: string } }> {
-  if (deps.artifactServiceForRoot === undefined) return { attempts: [] }
-  let service: ArtifactService | undefined
+): Promise<{ compatibilityIssue?: { kind: 'legacy-scope-unmerged'; legacyScopePath: string } }> {
+  if (deps.artifactServiceForRoot === undefined) return {}
   try {
-    service = await deps.artifactServiceForRoot(changeDir, anchor)
+    await deps.artifactServiceForRoot(changeDir, anchor)
   } catch (error) {
     if (error instanceof ArtifactScopeMigrationError || (error !== null && typeof error === 'object' && (error as { code?: unknown }).code === 'legacy-scope-unmerged')) {
       const legacyScopePath = error instanceof ArtifactScopeMigrationError ? error.legacyPath : typeof (error as { legacyPath?: unknown }).legacyPath === 'string' ? (error as { legacyPath: string }).legacyPath : 'runtime-artifacts'
-      try {
-        const legacy = await openLegacyLineageView(changeDir)
-        const attempts = await legacy.attempts()
-        return { attempts: attempts.map((attempt) => ({ stageId: attempt.stageId, stageAttemptId: attempt.stageAttemptId, workflowRunId: attempt.workflowRunId, startedAt: attempt.startedAt, lineageSource: 'legacy' as const })), compatibilityIssue: { kind: 'legacy-scope-unmerged', legacyScopePath } }
-      } catch {
-        return { attempts: [], compatibilityIssue: { kind: 'legacy-scope-unmerged', legacyScopePath } }
-      }
+      return { compatibilityIssue: { kind: 'legacy-scope-unmerged', legacyScopePath } }
     }
     throw error
   }
-  if (service === undefined || service.attempts === undefined) return { attempts: [] }
-  const attempts = await service.attempts()
-  const latest = new Map<string, { stageId: string; stageAttemptId: string; workflowRunId?: string; startedAt: string }>()
-  for (const attempt of attempts) {
-    const prior = latest.get(attempt.stageId)
-    if (prior === undefined || prior.startedAt.localeCompare(attempt.startedAt) < 0) latest.set(attempt.stageId, { stageId: attempt.stageId, stageAttemptId: attempt.stageAttemptId, workflowRunId: attempt.workflowRunId, startedAt: attempt.startedAt })
-  }
-  return { attempts: [...latest.values()]
-    .sort((left, right) => left.stageId.localeCompare(right.stageId))
-    .map(({ stageId, stageAttemptId, workflowRunId, startedAt }) => ({ stageId, stageAttemptId, ...(workflowRunId === undefined ? {} : { workflowRunId }), ...(startedAt === undefined ? {} : { startedAt }) })) }
+  return {}
 }
 
 /**

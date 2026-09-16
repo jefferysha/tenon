@@ -65,7 +65,6 @@ describe('snapshotWorkflowRules policy diagnostics', () => {
     })
     const project = snapshot.projects[0]
     expect(project.changes.map((change) => change.name)).toEqual(['migration-conflict'])
-    expect(project.changes[0]?.artifactAttempts).toBeUndefined()
     expect(project.compatibilityIssues).toEqual([{
       severity: 'warning',
       kind: 'legacy-scope-unmerged',

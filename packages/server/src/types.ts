@@ -2,7 +2,7 @@
  * server 契约类型 —— dashboard server 的公共形状。
  * server 是 @tenon/kernel 的消费方（只 import 不改）+ node stdlib http，零第三方运行时依赖。
  */
-import type { ArtifactService } from './serverArtifactRoutes.js'
+import type { ArtifactService } from '@tenon/automation'
 import type {
   DocumentEvidenceItemStatus,
   DocumentStaleReason,
@@ -64,8 +64,6 @@ export interface ChangeSnapshot {
   documents?: DocumentEvidenceSnapshot
   /** Per-step skill execution state (idle / running / done, grouped by wave) derived from the history log. */
   skillRuns?: SkillRunsSnapshot
-  /** Runtime artifact attempt identities; actual entries are fetched from the artifact catalog API. */
-  artifactAttempts?: ReadonlyArray<{ stageId: string; stageAttemptId: string; workflowRunId?: string; startedAt?: string; lineageSource?: 'legacy' }>
   /**
    * Fresh host-hook heartbeat for an explicitly bound terminal session. This is dashboard-only
    * observability, not canonical workflow state; omitted as soon as its short lease expires.
@@ -314,9 +312,7 @@ export interface DashboardServerOptions {
   scoreRouterPattern?: import('./routerPreview.js').RouterPatternScorer
   /** Canonical v2 orchestration ledger. Production defaults to the filesystem ledger; tests may inject a fake. */
   orchestrationLedger?: OrchestrationLedger
-  /** Optional runtime artifact service; GET projections remain unavailable when omitted. */
-  artifactService?: ArtifactService
-  /** Resolve a repository-scoped artifact service after root-anchor validation. */
+  /** Resolve a repository-scoped artifact service after root-anchor validation; snapshot only checks its scope. */
   artifactServiceForRoot?: (root: string, anchor: import('./workflowRootAnchor.js').WorkflowRootAnchor) => ArtifactService | undefined | Promise<ArtifactService | undefined>
 }
 
