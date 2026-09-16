@@ -214,6 +214,34 @@ skill 冒充为活文档当前 hash 的 producer。活文档更新只能由当�
 
 ---
 
+## 测试（硬规则）
+
+工作流的每一步可以声明必需测试。声明过的测试**只能**经 Tenon 执行：
+
+```bash
+tenon test run "$TENON_CHANGE_NAME" <test-id>
+```
+
+- 自己跑一遍同样的命令不产生记录，必需测试仍算未运行。手写的“通过”、报告里的结论、agent 自报的结果都不算证据。
+- 离开该步骤前先读状态，再做既有的 `tenon check`：
+
+```bash
+tenon test status "$TENON_CHANGE_NAME" --json
+```
+
+- 代码改了、测试声明改了或工作流改了，之前通过的记录即过期，必须重跑。
+- Codex：`unit` / `typecheck` / `code-size` 直接跑；`integration`、`playwright`、`e2e` 或任何要绑端口、
+  用网络、起浏览器的测试，用 `exec_command` 带 `sandbox_permissions: "require_escalated"` 与
+  `justification` 执行，可提 `prefix_rule: ["tenon","test","run"]` 让批准复用。记录里出现
+  `sandbox-denied` 就按这条重跑。批准被完全关闭时必需测试保持失败、转移保持拦截，这就是诚实结论。
+- 登记验证报告之前，先由记录生成报告的测试段：
+
+```bash
+tenon test report "$TENON_CHANGE_NAME" --write <report-path>
+```
+
+---
+
 ## Decision Core（决策核心）
 
 执行任何动作前先完成以下 4 步定型。

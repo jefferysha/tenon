@@ -25,7 +25,8 @@ function preVerifyConvergenceWorkflow() {
   return {
     ...legacy,
     steps: legacy.steps.map((step) => {
-      const { reviewLanes: _reviewLanes, ...legacyStep } = step
+      // Historical bytes also predate step tests (2026-09 per-step test evidence).
+      const { reviewLanes: _reviewLanes, tests: _tests, ...legacyStep } = step
       return {
         ...legacyStep,
         // The last step was labelled 归档 before the 完结 wording.

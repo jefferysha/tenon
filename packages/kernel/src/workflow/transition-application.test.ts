@@ -14,6 +14,7 @@ import { recordCanonicalDocumentSkillInvocation } from '../skill-invocation/docu
 import { createFlowEngine, loadManifest } from '../flow/index.js'
 import { compileAutomationPolicySnapshot } from '../loops/automation-policy.js'
 import type { LoopEntry } from '../loops/types.js'
+import { userSlug } from '../users/user.js'
 import { createTransitionApplication } from './transition-application.js'
 import type { TransitionApplicationDeps } from './transition-application.js'
 import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
@@ -33,6 +34,47 @@ import type { HistoryEntry } from '../types.js'
 import { createBuildRevisionToken, makeBuildRevisionBlocker, safeRevisionHash } from './build-revision.js'
 
 const TEST_CREATOR = { id: 'tester@tenon.test', name: 'Tester', trust: 'declared' } as const
+const TEST_EVIDENCE_CANDIDATE = `workspace:sha256:${'e'.repeat(64)}`
+const TEST_EVIDENCE_CONTEXT = {
+  user: { id: TEST_CREATOR.id, name: TEST_CREATOR.name, slug: userSlug(TEST_CREATOR.id) },
+  currentCandidate: async () => TEST_EVIDENCE_CANDIDATE,
+}
+
+/**
+ * default 的 frontend/backend 轨在 build/verify 声明了必需测试（X16）。主题与测试无关的用例
+ * 先把该步骤的测试登记成通过，避免这些用例变成测试证据闸的重复断言。
+ */
+async function satisfyStepTests(
+  root: string,
+  changeDir: string,
+  name: string,
+  phase: string,
+  track = 'backend',
+): Promise<void> {
+  const plan = compileEffectiveWorkflowPlan('default', undefined, builtinTrack(track))
+  const tests = plan.workflow.steps.find((step) => step.id === phase)?.tests ?? []
+  const runId = (await readCurrentRunRevision(changeDir))?.state.runMetadata?.runId
+  if (runId === undefined) throw new Error('fixture run identity missing')
+  const slug = userSlug(TEST_CREATOR.id)
+  let index = 0
+  for (const test of tests) {
+    const recordRunId = `20260717T00000${index}Z-abcdef`
+    index += 1
+    const paths = await ensureTestEvidenceDirs(root, slug, name, recordRunId)
+    await publishTestRunRecord(testRunRecordPath(root, slug, name, recordRunId), paths.runsDir, {
+      schema: 'tenon-test-run-v1', run_id: recordRunId, change: name, workflow_run_id: runId,
+      workflow: 'default', workflow_fingerprint: plan.workflowFingerprint, track, step: phase,
+      step_visit: { run_id: runId, transition_sequence: 0 }, test_id: test.id, test_digest: testDigest(test),
+      direction: test.direction, command: test.command, cwd: test.cwd, timeout_s: test.timeout_s,
+      required: test.required, actor: TEST_CREATOR, host: { kind: 'terminal', sandbox: null },
+      candidate_before: TEST_EVIDENCE_CANDIDATE, candidate: TEST_EVIDENCE_CANDIDATE,
+      git_head: null, build_sha: null, started_at: FIXED_CLOCK(), finished_at: FIXED_CLOCK(),
+      duration_ms: 1, exit_code: 0, signal: null, result: 'pass', reasons: [], inputs: [], outputs: [],
+      metrics: [],
+      log: { artifact: 'output.log', bytes_total: 1, bytes_kept: 1, truncated: false, digest: `sha256:${'f'.repeat(64)}` },
+    })
+  }
+}
 
 const FIXED_CLOCK = () => '2026-07-17T00:00:00Z'
 const REVISION_IDENTITY = { repository: '/repo.git', worktree: '/repo\\0/repo.git/worktrees/change' } as const
@@ -78,6 +120,7 @@ function makeDeps(overrides: Partial<TransitionApplicationDeps> = {}): Transitio
     // Test callers explicitly provide the verifier; production adapters must use
     // the sidecar-backed binding matcher rather than this permissive test stub.
     reviewGateBinding: async () => true,
+    testEvidence: TEST_EVIDENCE_CONTEXT,
     history: { append: async (dir, entry) => { historyEntries.push([dir, entry]) } },
     breadcrumb: { write: async (dir, content) => { breadcrumbCalls.push([dir, content]) } },
     historyEntries,
@@ -387,6 +430,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         review_requested_at: FIXED_CLOCK(),
         review_acknowledged_at: FIXED_CLOCK(),
       })
+      await satisfyStepTests(root, dir, 'demo', 'verify')
       const app = createTransitionApplication(deps)
       const blocked = await app.execute({
         root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'verify-pass',
@@ -647,6 +691,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         phase: 'build', build_mode: 'direct', isolation: 'branch', direct_override: 'true',
         pre_verify_review_result: 'pass',
       })
+      await satisfyStepTests(root, dir, 'demo', 'build')
       let captureCalls = 0
       const app = createTransitionApplication(deps)
       const result = await app.execute({
@@ -672,6 +717,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         review_gate_event: 'verify-pass',
         review_requested_at: FIXED_CLOCK(), review_acknowledged_at: FIXED_CLOCK(),
       })
+      await satisfyStepTests(root, dir, 'demo', 'verify')
       let assessCalls = 0
       const app = createTransitionApplication(deps)
       const result = await app.execute({
@@ -1635,7 +1681,7 @@ describe('步骤测试证据（每步测试登记）', () => {
 
   test('宿主未提供身份时失败关闭', async () => {
     const root = await freshRepoRoot()
-    const deps = makeDeps()
+    const deps = makeDeps({ testEvidence: undefined })
     const dir = await initTested(deps, root, 'build')
     const result = await createTransitionApplication(deps).execute({
       root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'complete',
