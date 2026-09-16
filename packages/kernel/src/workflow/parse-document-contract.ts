@@ -3,27 +3,40 @@ import type {
   WorkflowDocumentRead,
   WorkflowDocumentSlot,
 } from './types.js'
+import { indentOf, parseInlineList, parseInlineMap } from './parse-primitives.js'
 
 export interface WorkflowParseCursor {
   lines: string[]
   i: number
 }
 
-function indentOf(line: string): number {
-  return line.length - line.trimStart().length
-}
+const SLOT_ROLES = ['produce', 'update', 'require'] as const
 
-function parseInlineList(raw: string): string[] {
-  const trimmed = raw.trim()
-  if (trimmed === '[]') return []
-  if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) {
-    throw new Error(`workflow 解析错误：期望 [a, b] 形态的单行列表，实际 '${raw}'`)
+/** 一条 slot 的原始键值 → 定义层 slot（role / producers 规则同 compile）。 */
+function buildSlot(kind: string, fields: Record<string, string | string[]>): WorkflowDocumentSlot {
+  for (const key of Object.keys(fields)) {
+    if (key !== 'kind' && key !== 'owner_step' && key !== 'role' && key !== 'producers') {
+      throw new Error(`workflow 解析错误：document slot '${kind}' 出现未知字段 '${key}'`)
+    }
   }
-  return trimmed
-    .slice(1, -1)
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
+  const ownerStep = fields.owner_step
+  if (typeof ownerStep !== 'string' || ownerStep === '') throw new Error(`workflow 解析错误：document slot '${kind}' 缺 owner_step`)
+  const role = fields.role ?? 'produce'
+  if (typeof role !== 'string' || !(SLOT_ROLES as readonly string[]).includes(role)) {
+    throw new Error(`workflow 解析错误：document slot '${kind}' 的 role 只支持 produce | update | require`)
+  }
+  const producers = fields.producers
+  if (producers !== undefined && !Array.isArray(producers)) {
+    throw new Error(`workflow 解析错误：document slot '${kind}' 的 producers 必须是 [a, b] 列表`)
+  }
+  if (role === 'require') {
+    if (producers !== undefined) throw new Error(`workflow 解析错误：document slot '${kind}' 的 role require 不声明 producers`)
+    return { kind, ownerStep, role, producers: [] }
+  }
+  if (!producers || producers.length === 0) {
+    throw new Error(`workflow 解析错误：document slot '${kind}' 缺非空 producers`)
+  }
+  return role === 'update' ? { kind, ownerStep, role, producers } : { kind, ownerStep, producers }
 }
 
 function parseSlots(cursor: WorkflowParseCursor, baseIndent: number): WorkflowDocumentSlot[] {
@@ -32,27 +45,34 @@ function parseSlots(cursor: WorkflowParseCursor, baseIndent: number): WorkflowDo
     const line = cursor.lines[cursor.i] ?? ''
     if (line.trim() === '') { cursor.i++; continue }
     if (indentOf(line) < baseIndent) break
+    const flowMatch = /^\s*-\s+(\{.*\})\s*$/.exec(line)
+    if (flowMatch) {
+      const fields = parseInlineMap(flowMatch[1] ?? '')
+      const kind = fields.kind
+      if (typeof kind !== 'string') throw new Error(`workflow 解析错误：document slot 缺 kind：'${line.trim()}'`)
+      slots.push(buildSlot(kind, fields))
+      cursor.i++
+      continue
+    }
     const kindMatch = /^\s*-\s+kind:\s*(\S+)\s*$/.exec(line)
     if (!kindMatch) break
+    const kind = kindMatch[1] ?? ''
     const itemIndent = indentOf(line)
     cursor.i++
-    let ownerStep: string | undefined
-    let producers: string[] | undefined
+    const fields: Record<string, string | string[]> = {}
     while (cursor.i < cursor.lines.length) {
       const child = cursor.lines[cursor.i] ?? ''
       if (child.trim() === '') { cursor.i++; continue }
       if (indentOf(child) <= itemIndent) break
-      const ownerMatch = /^\s*owner_step:\s*(\S+)\s*$/.exec(child)
-      if (ownerMatch) { ownerStep = ownerMatch[1]; cursor.i++; continue }
-      const producerMatch = /^\s*producers:\s*(\[.*\])\s*$/.exec(child)
-      if (producerMatch) { producers = parseInlineList(producerMatch[1] ?? ''); cursor.i++; continue }
-      throw new Error(`workflow 解析错误：document slot '${kindMatch[1]}' 出现未知字段行 '${child.trim()}'`)
+      const fieldMatch = /^\s*(owner_step|role|producers):\s*(\S.*?)\s*$/.exec(child)
+      if (!fieldMatch) throw new Error(`workflow 解析错误：document slot '${kind}' 出现未知字段行 '${child.trim()}'`)
+      const key = fieldMatch[1] ?? ''
+      if (Object.hasOwn(fields, key)) throw new Error(`workflow 解析错误：document slot '${kind}' 重复声明 ${key}`)
+      const value = fieldMatch[2] ?? ''
+      fields[key] = key === 'producers' ? parseInlineList(value) : value
+      cursor.i++
     }
-    if (!ownerStep) throw new Error(`workflow 解析错误：document slot '${kindMatch[1]}' 缺 owner_step`)
-    if (!producers || producers.length === 0) {
-      throw new Error(`workflow 解析错误：document slot '${kindMatch[1]}' 缺非空 producers`)
-    }
-    slots.push({ kind: kindMatch[1] ?? '', ownerStep, producers })
+    slots.push(buildSlot(kind, fields))
   }
   return slots
 }
@@ -63,21 +83,36 @@ function parseReads(cursor: WorkflowParseCursor, baseIndent: number): WorkflowDo
     const line = cursor.lines[cursor.i] ?? ''
     if (line.trim() === '') { cursor.i++; continue }
     if (indentOf(line) < baseIndent) break
-    const stepMatch = /^\s*-\s+step:\s*(\S+)\s*$/.exec(line)
-    if (!stepMatch) break
-    const itemIndent = indentOf(line)
-    cursor.i++
-    const kindsLine = cursor.lines[cursor.i] ?? ''
-    const kindsMatch = /^\s*kinds:\s*(\[.*\])\s*$/.exec(kindsLine)
-    if (!kindsMatch || indentOf(kindsLine) <= itemIndent) {
-      throw new Error(`workflow 解析错误：document read '${stepMatch[1]}' 缺 kinds`)
+    const flowMatch = /^\s*-\s+(\{.*\})\s*$/.exec(line)
+    let step: string
+    let kinds: string[]
+    if (flowMatch) {
+      const fields = parseInlineMap(flowMatch[1] ?? '')
+      const unknown = Object.keys(fields).find((key) => key !== 'step' && key !== 'kinds')
+      if (unknown !== undefined) throw new Error(`workflow 解析错误：document read 出现未知字段 '${unknown}'`)
+      if (typeof fields.step !== 'string') throw new Error(`workflow 解析错误：document read 缺 step：'${line.trim()}'`)
+      step = fields.step
+      if (!Array.isArray(fields.kinds)) throw new Error(`workflow 解析错误：document read '${step}' 缺 kinds`)
+      kinds = fields.kinds
+      cursor.i++
+    } else {
+      const stepMatch = /^\s*-\s+step:\s*(\S+)\s*$/.exec(line)
+      if (!stepMatch) break
+      step = stepMatch[1] ?? ''
+      const itemIndent = indentOf(line)
+      cursor.i++
+      const kindsLine = cursor.lines[cursor.i] ?? ''
+      const kindsMatch = /^\s*kinds:\s*(\[.*\])\s*$/.exec(kindsLine)
+      if (!kindsMatch || indentOf(kindsLine) <= itemIndent) {
+        throw new Error(`workflow 解析错误：document read '${step}' 缺 kinds`)
+      }
+      kinds = parseInlineList(kindsMatch[1] ?? '')
+      cursor.i++
     }
-    const kinds = parseInlineList(kindsMatch[1] ?? '')
     if (kinds.length === 0) {
-      throw new Error(`workflow 解析错误：document read '${stepMatch[1]}' 的 kinds 不得为空`)
+      throw new Error(`workflow 解析错误：document read '${step}' 的 kinds 不得为空`)
     }
-    cursor.i++
-    reads.push({ step: stepMatch[1] ?? '', kinds })
+    reads.push({ step, kinds })
   }
   return reads
 }

@@ -46,7 +46,7 @@ const BUILD_IO: WbStepIo = {
 }
 const OPEN_IO: WbStepIo = {
   inputs: [],
-  outputs: [{ kind: 'document', id: 'proposal', producers: ['openspec-propose'], consumers: [], locked: true }],
+  outputs: [{ kind: 'document', id: 'proposal', producers: ['openspec-propose'], consumers: [], role: 'produce', scope: 'change' }],
 }
 
 describe('stagesOf', () => {

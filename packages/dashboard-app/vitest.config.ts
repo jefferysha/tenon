@@ -18,7 +18,9 @@ export default defineConfig({
     root: fileURLToPath(new URL('.', import.meta.url)),
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./src/test-setup.ts'],
+    // 与根 run 共用运行时隔离与声明身份默认值：本包的服务端集成用例真启服务、真写记录，
+    // 缺 TENON_USER 的机器（CI 无 git 身份）否则会以 needs a declared TENON_USER 失败。
+    setupFiles: ['../../tools/vitest.isolate-runtime-home.mjs', './src/test-setup.ts'],
     include: ['src/**/*.test.tsx'],
   },
 })

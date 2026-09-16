@@ -40,6 +40,7 @@ export async function compileLedgerContextBundle(
     change: input.change,
     from: input.from,
     target: input.target,
+    policy: input.policy,
     ...(input.budgetBytes === undefined ? {} : { budgetBytes: input.budgetBytes }),
     ...(input.resourceLimits === undefined ? {} : { resourceLimits: input.resourceLimits }),
     ledgerRepository: {

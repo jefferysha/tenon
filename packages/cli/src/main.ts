@@ -186,8 +186,8 @@ async function main(): Promise<void> {
         changeDir,
         namespace,
         repoRoot: process.cwd(),
-        ...(phase !== undefined
-          ? { document: createDocumentProjectionAdapter({ repoRoot: process.cwd(), changeDir, phase, ...(policy ? { policy } : {}) }) }
+        ...(phase !== undefined && policy !== undefined
+          ? { document: createDocumentProjectionAdapter({ repoRoot: process.cwd(), changeDir, phase, policy }) }
           : {}),
         field: createFieldProjectionAdapter({ store, changeDir, persist: false }),
         runtime: {

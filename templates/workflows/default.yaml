@@ -2,9 +2,42 @@ name: default
 review_budget:
   version: v1
   max_attempts: 2
+openspec: true
 tracks:
   chat:
     label: 对话
+    document_contract:
+      version: v1
+      slots:
+        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
+        - { kind: adr, owner_step: explore, producers: [tenon-explore, tenon:tenon-explore, brainstorming, superpowers:brainstorming] }
+        - { kind: proposal, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: tasks, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }
+        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
+        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
+        - { kind: proposal, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: tasks, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: adr, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: tasks, owner_step: build, role: update, producers: [tenon-build, tenon:tenon-build] }
+        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion, tenon-verify, tenon:tenon-verify] }
+        - { kind: tasks, owner_step: verify, role: update, producers: [tenon-verify, tenon:tenon-verify] }
+        - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }
+        - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }
+        - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }
+      reads:
+        - { step: explore, kinds: [proposal, openspec-design, tasks] }
+        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
+        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
+        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
+        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }
+        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }
     steps:
       - id: open
         label: 立项
@@ -123,7 +156,7 @@ tracks:
           - event: ship-complete
             to: archive
       - id: archive
-        label: 归档
+        label: 完结
         gate: null
         skills:
           - id: tenon-archive
@@ -137,6 +170,38 @@ tracks:
         transitions: []
   pm:
     label: 产品
+    document_contract:
+      version: v1
+      slots:
+        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
+        - { kind: adr, owner_step: explore, producers: [tenon-explore, tenon:tenon-explore, brainstorming, superpowers:brainstorming] }
+        - { kind: proposal, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: tasks, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }
+        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
+        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
+        - { kind: proposal, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: tasks, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: adr, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: tasks, owner_step: build, role: update, producers: [tenon-build, tenon:tenon-build] }
+        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion, tenon-verify, tenon:tenon-verify] }
+        - { kind: tasks, owner_step: verify, role: update, producers: [tenon-verify, tenon:tenon-verify] }
+        - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }
+        - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }
+        - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }
+      reads:
+        - { step: explore, kinds: [proposal, openspec-design, tasks] }
+        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
+        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
+        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
+        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }
+        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }
     steps:
       - id: open
         label: 立项
@@ -269,7 +334,7 @@ tracks:
           - event: ship-complete
             to: archive
       - id: archive
-        label: 归档
+        label: 完结
         gate: null
         skills:
           - id: tenon-archive
@@ -283,6 +348,38 @@ tracks:
         transitions: []
   frontend:
     label: 前端
+    document_contract:
+      version: v1
+      slots:
+        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
+        - { kind: adr, owner_step: explore, producers: [tenon-explore, tenon:tenon-explore, brainstorming, superpowers:brainstorming] }
+        - { kind: proposal, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: tasks, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }
+        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
+        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
+        - { kind: proposal, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: tasks, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: adr, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: tasks, owner_step: build, role: update, producers: [tenon-build, tenon:tenon-build] }
+        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion, tenon-verify, tenon:tenon-verify] }
+        - { kind: tasks, owner_step: verify, role: update, producers: [tenon-verify, tenon:tenon-verify] }
+        - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }
+        - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }
+        - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }
+      reads:
+        - { step: explore, kinds: [proposal, openspec-design, tasks] }
+        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
+        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
+        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
+        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }
+        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }
     steps:
       - id: open
         label: 立项
@@ -417,7 +514,7 @@ tracks:
           - event: ship-complete
             to: archive
       - id: archive
-        label: 归档
+        label: 完结
         gate: null
         skills:
           - id: tenon-archive
@@ -431,6 +528,38 @@ tracks:
         transitions: []
   backend:
     label: 后端
+    document_contract:
+      version: v1
+      slots:
+        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
+        - { kind: adr, owner_step: explore, producers: [tenon-explore, tenon:tenon-explore, brainstorming, superpowers:brainstorming] }
+        - { kind: proposal, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: tasks, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }
+        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
+        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
+        - { kind: proposal, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: tasks, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: adr, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: tasks, owner_step: build, role: update, producers: [tenon-build, tenon:tenon-build] }
+        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion, tenon-verify, tenon:tenon-verify] }
+        - { kind: tasks, owner_step: verify, role: update, producers: [tenon-verify, tenon:tenon-verify] }
+        - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }
+        - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }
+        - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }
+      reads:
+        - { step: explore, kinds: [proposal, openspec-design, tasks] }
+        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
+        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
+        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
+        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }
+        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }
     steps:
       - id: open
         label: 立项
@@ -561,7 +690,7 @@ tracks:
           - event: ship-complete
             to: archive
       - id: archive
-        label: 归档
+        label: 完结
         gate: null
         skills:
           - id: tenon-archive
@@ -575,6 +704,38 @@ tracks:
         transitions: []
   free:
     label: 自由
+    document_contract:
+      version: v1
+      slots:
+        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }
+        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }
+        - { kind: adr, owner_step: explore, producers: [tenon-explore, tenon:tenon-explore, brainstorming, superpowers:brainstorming] }
+        - { kind: proposal, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: tasks, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }
+        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }
+        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
+        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }
+        - { kind: proposal, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: tasks, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: adr, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }
+        - { kind: tasks, owner_step: build, role: update, producers: [tenon-build, tenon:tenon-build] }
+        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion, tenon-verify, tenon:tenon-verify] }
+        - { kind: tasks, owner_step: verify, role: update, producers: [tenon-verify, tenon:tenon-verify] }
+        - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }
+        - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }
+        - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }
+      reads:
+        - { step: explore, kinds: [proposal, openspec-design, tasks] }
+        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }
+        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
+        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }
+        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }
+        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }
     steps:
       - id: open
         label: 立项
@@ -702,7 +863,7 @@ tracks:
           - event: ship-complete
             to: archive
       - id: archive
-        label: 归档
+        label: 完结
         gate: null
         skills:
           - id: tenon-archive

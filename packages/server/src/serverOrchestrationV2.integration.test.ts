@@ -114,7 +114,7 @@ describe('V2 orchestration dashboard HTTP integration', () => {
     ])
   })
 
-  it('projects a completed runtime artifact attempt into the real snapshot API', async () => {
+  it('keeps a change whose artifact scope is canonical free of compatibility issues', async () => {
     const root = await makeProject(); roots.push(root)
     const store = newStore(); const changeDir = await initChange(store, root, 'change-1')
     const artifacts = await openArtifactService({ rootDir: changeDir, scopeId: artifactNamespaceForChange(changeDir), now: () => now })
@@ -130,8 +130,9 @@ describe('V2 orchestration dashboard HTTP integration', () => {
     open.push(server); const { port } = await server.listen(0, '127.0.0.1')
     const response = await reqGet(port, '/api/snapshot')
     expect(response.status).toBe(200)
-    const body = response.json<{ projects: Array<{ changes: Array<{ name: string; artifactAttempts?: Array<{ stageId: string; stageAttemptId: string; workflowRunId?: string }> }> }> }>()
-    const change = body.projects.flatMap((project) => project.changes).find((entry) => entry.name === 'change-1')
-    expect(change?.artifactAttempts).toContainEqual(expect.objectContaining({ stageId: 'change', stageAttemptId: 'attempt-1', workflowRunId: 'run-1' }))
+    const body = response.json<{ projects: Array<{ changes: Array<{ name: string }>; compatibilityIssues?: readonly unknown[] }> }>()
+    const project = body.projects.find((entry) => entry.changes.some((change) => change.name === 'change-1'))
+    expect(project?.changes.map((change) => change.name)).toEqual(['change-1'])
+    expect(project?.compatibilityIssues ?? []).toEqual([])
   })
 })

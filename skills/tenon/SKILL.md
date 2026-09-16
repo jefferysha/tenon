@@ -107,7 +107,7 @@ text(result);
      `tenon tracks show free --json` 复核其 `allowed: '*'`，再以精确 Workflow 创建 Change。
      `free/default` 仍完整执行 default 七阶段、OpenSpec、Superpowers、ADR、review 与文档读取收据；
      `free/<custom>` 则只执行该 custom Workflow 声明的 DAG、Skill、Hook、gate 与
-     `openspec_contract`。两者都不得叠加 PM/frontend/backend 的 coverage、AFK 或技能矩阵。
+     `document_contract`。两者都不得叠加 PM/frontend/backend 的 coverage、AFK 或技能矩阵。
    - `workflow: simple` 的新目标必须按 `track=simple` 执行
      `tenon init <name> --track simple --preset tweak`。它从内建 `change` step 开始，不初始化
      OpenSpec/Superpowers/ADR 文档链；Todo 一级项来自内建图 `change → verify → done`，并保留
@@ -166,14 +166,14 @@ text(result);
 
 ## Governed OpenSpec document contract（default 的真实闭环）
 
-默认 workflow 的**全部可执行 track（包括 PM 与 free）**、声明了 `openspec_contract: required` 的自定义 workflow，
-以及声明了 `document_contract: v1` 的短 workflow，
+默认 workflow 的**全部可执行 track（包括 PM 与 free）**，以及任何 `openspec: true` 且声明了
+`document_contract` 的自定义 workflow，
 都不是“有文件即可”的松散流程。它们必须在 `.pipeline-documents.json` 中留下：**真实 Skill 调用证据 →
 文档内容 SHA-256 → 后续 phase 对该精确版本的读取收据**。PM 的 PRD、用户旅程和原型交付仍保留，但也必须
 产出可实施的 OpenSpec delta spec / plan 并在 ship 应用主 spec。
 
-对 default/legacy-full workflow，下表完整适用；对 `document_contract: v1`，只执行该 profile
-为当前 step 声明的 outputs/reads，不得擅自扩成七阶段矩阵。`--producer` 必须等于本轮**实际调用且已有完成态 history
+下表是 default 各 track 在 `document_contract` 中声明的契约；其它 workflow 只执行自己的
+`document_contract` 为当前 step 声明的 outputs/reads，不得擅自扩成七阶段矩阵。`--producer` 必须等于本轮**实际调用且已有完成态 history
 证据**的 Skill；不能为了通过检查伪造名字。原生 PostToolUse 是首选证据源；Codex 某些 exec
 路径缺少该回调时，CLI 只会在同一宿主 transcript 已证明该精确 SKILL.md 读取完成后补写同一种
 `CodexSkillRead` 证据。默认 workflow 一律使用本插件

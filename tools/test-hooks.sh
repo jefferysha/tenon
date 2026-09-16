@@ -58,6 +58,19 @@ assert_empty() { # desc value
   if [ -z "$2" ]; then ok "$1"; else bad "$1" "期望空输出，实得：${2}"; fi
 }
 
+strip_document_contract() { # $1=workflow yaml → stdout 去掉 openspec 开关与每个分支的 document_contract 块
+  # default 的契约点名 openspec-propose/brainstorming 等非 driver 技能，只有 default 免除 producer
+  # 归属校验。改名后的副本要通过 kernel 校验，就必须连同开关一起去掉契约——这些 router 夹具验证的是
+  # Track/workflow 选择，不是文档治理。
+  awk '
+    /^openspec: true$/ { next }
+    /^    document_contract:$/ { skip = 1; next }
+    skip && /^ {0,4}[^ ]/ { skip = 0 }
+    skip { next }
+    { print }
+  ' "$1"
+}
+
 sha256_text() { # stdin → lowercase hex；测试夹具与生产 helper 使用同一跨 macOS/Linux优先级
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum | awk '{print $1}'
@@ -1252,7 +1265,8 @@ EOF
   # → dispatch contract 的闭环；不是手写 cache fixture。
   selectproj="$TMP/router-workflow-selection"; selectcache="$TMP/router-workflow-selection.v5.data"
   mkdir -p "$selectproj/.pipeline/workflows" "$selectproj/openspec/changes"
-  sed -e 's/^name: default$/name: catalog-flow/' -e 's/effective-phase-skills/effective-step-skills/g' "$ROOT/templates/workflows/default.yaml" > "$selectproj/.pipeline/workflows/catalog-flow.yaml"
+  strip_document_contract "$ROOT/templates/workflows/default.yaml" \
+    | sed -e 's/^name: default$/name: catalog-flow/' -e 's/effective-phase-skills/effective-step-skills/g' > "$selectproj/.pipeline/workflows/catalog-flow.yaml"
   printf "version: 1\ntracks:\n  - id: catalog\n    label: Catalog Flow\n    workflow:\n      default: catalog-flow\n      allowed:\n        - catalog-flow\n    policy_profile:\n      review_seed: pending\n      automation_eligible: true\n      coverage_profile: frontend\n      routing:\n        enabled: true\n        pattern: '(目录|检索|catalog flow)'\n        priority: 980\n      skills:\n        matrix: true\n        profile: frontend\n" > "$selectproj/.pipeline/tracks.yaml"
   run_router "{\"prompt\":\"请实现商品目录 React HTML 页面\",\"cwd\":\"$selectproj\"}" "$selectcache"
   assert_contains "router: custom Track 选中 catalog" "$ROUT" "track: catalog"
@@ -1268,7 +1282,8 @@ EOF
   # 必须和额外 Track 一样在创建 Change 前确认，不能因 builtin 身份静默直达 custom workflow。
   builtinselectproj="$TMP/router-builtin-workflow-selection"; builtinselectcache="$TMP/router-builtin-workflow-selection.v5.data"
   mkdir -p "$builtinselectproj/.pipeline/workflows" "$builtinselectproj/openspec/changes"
-  sed -e 's/^name: default$/name: catalog-flow/' -e 's/effective-phase-skills/effective-step-skills/g' "$ROOT/templates/workflows/default.yaml" > "$builtinselectproj/.pipeline/workflows/catalog-flow.yaml"
+  strip_document_contract "$ROOT/templates/workflows/default.yaml" \
+    | sed -e 's/^name: default$/name: catalog-flow/' -e 's/effective-phase-skills/effective-step-skills/g' > "$builtinselectproj/.pipeline/workflows/catalog-flow.yaml"
   printf "version: 1\nbuiltins:\n  frontend:\n    workflow:\n      default: catalog-flow\n      allowed:\n        - catalog-flow\n" > "$builtinselectproj/.pipeline/tracks.yaml"
   run_router "{\"prompt\":\"请实现商品目录 React HTML 页面\",\"cwd\":\"$builtinselectproj\"}" "$builtinselectcache"
   assert_contains "router: builtin Track 非 default workflow 触发选择契约" "$ROUT" "workflow: select"

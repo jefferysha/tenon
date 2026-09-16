@@ -6,7 +6,10 @@ import type {
   WorkflowReviewBudgetPolicyV1,
 } from './types.js'
 
-export type LegacyWorkflowIR = Omit<WorkflowIR, 'decomposition' | 'interaction' | 'reviewBudget'>
+/** V1/V2 snapshots may still carry the removed `openspecContract` alias. */
+export type LegacyWorkflowIR = Omit<WorkflowIR, 'decomposition' | 'interaction' | 'reviewBudget'> & {
+  readonly openspecContract?: 'required'
+}
 export type WorkflowIRV3 = Omit<WorkflowIR, 'reviewBudget'> & {
   readonly reviewBudget?: WorkflowReviewBudgetPolicyV1
 }

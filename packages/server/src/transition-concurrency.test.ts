@@ -35,6 +35,7 @@ describe('真实 e2e —— server 并发 transition 尾部写入严格串行（
     const name = 'demo'
     await mkdir(join(root, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(root, '.pipeline', 'workflows', 'serial.yaml'), `name: serial
+openspec: true
 document_contract:
   version: v1
   slots:

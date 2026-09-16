@@ -92,9 +92,12 @@ function decodeDocuments(value: unknown): DocumentEvidenceSnapshot | undefined {
     if (item.timeline !== undefined && timeline === undefined) return undefined
     const status = item.status
     if (status !== 'recorded' && status !== 'missing' && status !== 'stale' && status !== 'unread') return undefined
+    const reason = item.reason
+    if (reason !== undefined && reason !== 'changed' && reason !== 'producer' && reason !== 'invocation' && reason !== 'legacy-path') return undefined
     items.push({
       kind: item.kind,
       status,
+      ...(reason === undefined ? {} : { reason }),
       requiredRead: item.requiredRead,
       paths: item.paths,
       producers: item.producers,
@@ -201,26 +204,11 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
   const documents = value.documents === undefined ? undefined : decodeDocuments(value.documents)
   const terminalActivity = value.terminalActivity === undefined ? undefined : decodeTerminalActivity(value.terminalActivity)
   const skillRuns = value.skillRuns === undefined ? undefined : decodeSkillRuns(value.skillRuns)
-  const artifactAttempts: ChangeSnapshot['artifactAttempts'] | null = value.artifactAttempts === undefined
-    ? undefined
-    : Array.isArray(value.artifactAttempts) && value.artifactAttempts.every((attempt) => {
-      if (!isRecord(attempt) || typeof attempt.stageId !== 'string' || attempt.stageId === '' || typeof attempt.stageAttemptId !== 'string' || attempt.stageAttemptId === '') return false
-      return (attempt.workflowRunId === undefined || (typeof attempt.workflowRunId === 'string' && attempt.workflowRunId !== ''))
-        && (attempt.startedAt === undefined || typeof attempt.startedAt === 'string')
-        && (attempt.lineageSource === undefined || attempt.lineageSource === 'legacy')
-    })
-      ? value.artifactAttempts.map((attempt) => {
-        const record = attempt as Record<string, unknown>
-      return { stageId: record.stageId as string, stageAttemptId: record.stageAttemptId as string, ...(record.workflowRunId === undefined ? {} : { workflowRunId: record.workflowRunId as string }), ...(record.startedAt === undefined ? {} : { startedAt: record.startedAt as string }), ...(record.lineageSource === undefined ? {} : { lineageSource: 'legacy' as const }) }
-      })
-      : null
   if ((value.reviewHandshake !== undefined && !reviewHandshake)
     || (value.todo !== undefined && !todo)
     || (value.documents !== undefined && !documents)
     || (value.terminalActivity !== undefined && !terminalActivity)
-    || (value.skillRuns !== undefined && !skillRuns)
-    || (value.artifactAttempts !== undefined && artifactAttempts === null)) return null
-  if (artifactAttempts === null) return null
+    || (value.skillRuns !== undefined && !skillRuns)) return null
   return {
     name: value.name,
     path: value.path,
@@ -241,7 +229,6 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     ...(documents ? { documents } : {}),
     ...(terminalActivity ? { terminalActivity } : {}),
     ...(skillRuns ? { skillRuns } : {}),
-    ...(artifactAttempts === undefined ? {} : { artifactAttempts }),
   }
 }
 

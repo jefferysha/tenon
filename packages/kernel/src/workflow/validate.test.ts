@@ -1,60 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { validateWorkflow } from './validate.js'
-import type { WorkflowActionConfig, WorkflowDef } from './types.js'
-import { DOCUMENT_CONTRACT_PHASES } from './document-contract.js'
+import type { WorkflowActionConfig, WorkflowDef, WorkflowDocumentRead, WorkflowDocumentSlot } from './types.js'
 
 function wf(overrides: Partial<WorkflowDef>): WorkflowDef {
   return { name: 'test', steps: [], ...overrides }
 }
 
-const CONTRACT_SKILLS: Readonly<Record<string, readonly string[]>> = {
-  open: ['tenon-open', 'openspec-propose'],
-  explore: ['tenon-explore', 'brainstorming'],
-  spec: ['tenon-spec', 'openspec-propose', 'writing-plans'],
-  build: ['tenon-build'],
-  verify: ['tenon-verify', 'verification-before-completion'],
-  ship: ['tenon-ship', 'openspec-apply-change'],
-  archive: ['tenon-archive'],
-}
-
-function governedWorkflow(overrides: Partial<WorkflowDef> = {}): WorkflowDef {
-  const next = (id: string): readonly { readonly event: string; readonly to: string }[] => {
-    if (id === 'open') return [{ event: 'open-complete', to: 'explore' }]
-    if (id === 'explore') return [{ event: 'explore-complete', to: 'spec' }]
-    if (id === 'spec') return [{ event: 'spec-complete', to: 'build' }]
-    if (id === 'build') {
-      return [
-        { event: 'build-complete', to: 'verify' },
-        { event: 'requirements-changed', to: 'spec' },
-      ]
-    }
-    if (id === 'verify') return [{ event: 'verify-pass', to: 'ship' }, { event: 'verify-fail', to: 'build' }]
-    if (id === 'ship') return [{ event: 'ship-complete', to: 'archive' }]
-    return []
-  }
-  return {
-    name: 'governed',
-    openspecContract: 'required',
-    steps: DOCUMENT_CONTRACT_PHASES.map((id) => ({
-      id,
-      label: id,
-      gate: ['explore', 'spec', 'verify'].includes(id) ? 'review' as const : null,
-      skills: CONTRACT_SKILLS[id].map((skill) => ({ id: skill })),
-      inputs: id === 'verify' ? [{ field: 'build_sha', type: 'string' }] : [],
-      outputs: id === 'build'
-        ? [{ field: 'build_sha', type: 'string' }]
-        : id === 'verify'
-          ? [{ field: 'verification_report', type: 'file_path' }]
-          : [],
-      guards: [], transitions: next(id),
-    })),
-    ...overrides,
-  }
-}
-
 describe('validateWorkflow', () => {
   it('三步 declarative document contract 不要求七阶段且校验 owner/read 顺序', () => {
     const compact = wf({
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [
@@ -94,6 +49,7 @@ describe('validateWorkflow', () => {
 
   it('declarative document reader 的所有入口路径都必须经过 owner step', () => {
     const branched = wf({
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
@@ -130,6 +86,7 @@ describe('validateWorkflow', () => {
 
   it('owner 支配 reader 时允许 reader 之后回环到 owner', () => {
     const looped = wf({
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
@@ -162,26 +119,65 @@ describe('validateWorkflow', () => {
     expect(validateWorkflow(looped)).toEqual([])
   })
 
-  it('openspec_contract: required 只有 canonical 7 phases、边、review gate 和所需 skills 全齐才可保存', () => {
-    expect(validateWorkflow(governedWorkflow())).toEqual([])
-    const broken = governedWorkflow({
-      steps: governedWorkflow().steps.map((step) => step.id === 'explore'
-        ? { ...step, skills: step.skills.filter((skill) => skill.id !== 'brainstorming') }
-        : step),
-    })
-    expect(validateWorkflow(broken).some((error) => error.includes('Superpower brainstorming'))).toBe(true)
+  it('E3/E4：document_contract 需要 openspec: true；有 tracks 时顶层契约被拒', () => {
+    const contract = { version: 'v1' as const, slots: [{ kind: 'proposal', ownerStep: 's1', producers: ['writer'] }], reads: [] }
+    const step = { id: 's1', label: 'a', gate: null, skills: [{ id: 'writer' }], inputs: [], outputs: [], guards: [], transitions: [] }
+    expect(validateWorkflow(wf({ documentContract: contract, steps: [step] }))).toContain('document_contract 需要 openspec: true')
+    expect(validateWorkflow(wf({ openspec: true, documentContract: contract, steps: [step] }))).toEqual([])
+    expect(validateWorkflow(wf({ openspec: true, documentContract: contract, tracks: { web: { steps: [step] } } })))
+      .toContain('有 tracks 时 document_contract 写在 tracks.<id> 下')
+    expect(validateWorkflow(wf({ tracks: { web: { documentContract: contract, steps: [step] } } })))
+      .toContain('tracks.web: document_contract 需要 openspec: true')
   })
 
-  it('openspec_contract: required 必须把 build 基线显式交给 verify，并声明验证报告输出', () => {
-    const missingBuildBaseline = governedWorkflow({
-      steps: governedWorkflow().steps.map((step) => step.id === 'build' ? { ...step, outputs: [] } : step),
-    })
-    expect(validateWorkflow(missingBuildBaseline).some((error) => error.includes("output 'build_sha'"))).toBe(true)
+  it('E8-E13：角色、顺序与读取规则逐条报错，分支错误带 tracks.<id> 前缀', () => {
+    const ids = ['shape', 'build', 'verify']
+    const steps = ids.map((id, index) => ({
+      id, label: id, gate: null, inputs: [], outputs: [], guards: [], skills: [{ id: 'writer' }],
+      transitions: index + 1 < ids.length ? [{ event: `${id}-done`, to: ids[index + 1] ?? '' }] : [],
+    }))
+    const errorsOf = (slots: WorkflowDocumentSlot[], reads: WorkflowDocumentRead[] = []): string[] => validateWorkflow(wf({
+      openspec: true,
+      tracks: { web: { documentContract: { version: 'v1', slots, reads }, steps } },
+    }))
+    expect(errorsOf([
+      { kind: 'tasks', ownerStep: 'shape', producers: ['writer'] },
+      { kind: 'tasks', ownerStep: 'build', role: 'update', producers: ['writer'] },
+      { kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] },
+      { kind: 'design-md', ownerStep: 'verify', role: 'update', producers: ['writer'] },
+    ], [{ step: 'verify', kinds: ['tasks'] }])).toEqual([])
+    expect(errorsOf([{ kind: 'tasks', ownerStep: 'shape', producers: [] }]))
+      .toContain("tracks.web: document_contract document 'tasks' 的 producers 不得为空")
+    expect(errorsOf([{ kind: 'design-md', ownerStep: 'shape', role: 'require', producers: ['writer'] }]))
+      .toContain("tracks.web: document_contract document 'design-md' 的 role require 不声明 producers")
+    expect(errorsOf([{ kind: 'readme', ownerStep: 'shape', producers: ['writer'] }]))
+      .toContain("tracks.web: document_contract.slots[0].kind 'readme' 不受支持")
+    expect(errorsOf([{ kind: 'tasks', ownerStep: 'shape', producers: ['writer'] }, { kind: 'tasks', ownerStep: 'build', producers: ['writer'] }]))
+      .toContain("tracks.web: document_contract document 'tasks' 只能有一个 produce")
+    expect(errorsOf([{ kind: 'tasks', ownerStep: 'shape', producers: ['writer'] }, { kind: 'tasks', ownerStep: 'shape', role: 'update', producers: ['writer'] }]))
+      .toContain("tracks.web: document_contract document 'tasks' 在 step 'shape' 重复声明")
+    expect(errorsOf([{ kind: 'tasks', ownerStep: 'ship', producers: ['writer'] }]))
+      .toContain("tracks.web: document_contract document 'tasks' 的 owner_step 'ship' 不存在")
+    expect(errorsOf([{ kind: 'tasks', ownerStep: 'shape', producers: ['other'] }]))
+      .toContain("tracks.web: document_contract document 'tasks' 的 producer 'other' 未在 owner_step 'shape' 声明")
+    expect(errorsOf([{ kind: 'tasks', ownerStep: 'build', role: 'update', producers: ['writer'] }]))
+      .toContain("tracks.web: document_contract document 'tasks' 的 update 需要更早的 produce")
+    expect(errorsOf([{ kind: 'tasks', ownerStep: 'shape', role: 'require', producers: [] }, { kind: 'tasks', ownerStep: 'build', producers: ['writer'] }]))
+      .toContain("tracks.web: document_contract document 'tasks' 的 require 需要更早的 produce")
+    expect(errorsOf([{ kind: 'tasks', ownerStep: 'build', producers: ['writer'] }], [{ step: 'shape', kinds: ['tasks'] }]))
+      .toContain("tracks.web: document_contract step 'shape' 读取了未声明的 document 'tasks'")
+    expect(errorsOf([{ kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] }], [{ step: 'verify', kinds: ['design-md'] }]))
+      .toContain("tracks.web: document_contract step 'verify' 读取了未声明的 document 'design-md'，项目文档用 role: require")
+  })
 
-    const missingVerifyRead = governedWorkflow({
-      steps: governedWorkflow().steps.map((step) => step.id === 'verify' ? { ...step, inputs: [] } : step),
+  it('default origin 不要求 producer 在阶段技能里（manifest 叠加）', () => {
+    const def = wf({
+      openspec: true,
+      documentContract: { version: 'v1', slots: [{ kind: 'tasks', ownerStep: 's1', producers: ['openspec-propose'] }], reads: [] },
+      steps: [{ id: 's1', label: 'a', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }],
     })
-    expect(validateWorkflow(missingVerifyRead).some((error) => error.includes("input 'build_sha'"))).toBe(true)
+    expect(validateWorkflow(def).some((error) => error.includes("producer 'openspec-propose'"))).toBe(true)
+    expect(validateWorkflow(def, { origin: 'default' })).toEqual([])
   })
 
   it('skill 依赖成环 → 报错', () => {

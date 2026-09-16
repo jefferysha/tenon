@@ -29,7 +29,7 @@ Track 和 Workflow 是两个维度：Workflow 决定时序与证据合同，Trac
 
 ### 3. 声明 Document contract
 
-`document_contract:v1` 只声明 slot 与 read：
+`openspec: true` 打开文档治理；`document_contract:v1` 只声明 slot 与 read：
 
 - kind；
 - owner step；
@@ -89,7 +89,7 @@ tenon document status <change>
 
 - `workflow not found`：确认文件名、Workflow `name` 和 Track allowlist 一致；
 - Todo 仍显示七阶段：Change 实际绑定了 default，检查 init 参数和 status；
-- 三步流程生成完整 OpenSpec：错误启用了 legacy-full，而不是精确 document contract；
+- 三步流程生成完整 OpenSpec：错误沿用了 default 的契约，而不是自己精确声明的 document contract；
 - document record 被拒：producer 不属于 owner step，或没有当前 visit 的真实 Skill 证据；
 - 修改 YAML 后旧 Change 没变化：这是固定身份的预期行为，需要显式迁移或新建 Change；
 - delta spec 进入 `<change>/<change>`：调用 scaffold 时遗漏真实 `--capability`。

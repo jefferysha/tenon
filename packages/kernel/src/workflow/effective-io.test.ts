@@ -5,21 +5,22 @@ import { parseWorkflow } from './parse.js'
 import type { WorkflowDef } from './types.js'
 import { selectTrackBranch } from './validate.js'
 
-// default 只有分支：IO 物化针对一条 pipeline，用 frontend 分支。
+// default 只有分支：IO 物化针对一条 pipeline，用 frontend 分支（含其文档契约）。
 const defaultDef = selectTrackBranch(parseWorkflow(DEFAULT_WORKFLOW_SOURCE), 'frontend')
 
 describe('materializeWorkflowIo', () => {
-  it('gives every default step at least one output and merges document slots with field slots', () => {
+  it('gives every default step at least one output; produce and update slots precede field slots', () => {
     const io = materializeWorkflowIo(defaultDef)
     for (const step of defaultDef.steps) {
       expect(io[step.id]?.outputs.length, step.id).toBeGreaterThan(0)
     }
     expect(io.open?.outputs.map((slot) => slot.id)).toEqual(['proposal', 'openspec-design', 'tasks'])
     expect(io.build?.outputs).toEqual([
+      { kind: 'document', id: 'tasks', role: 'update', scope: 'change', producers: ['tenon-build', 'tenon:tenon-build'], consumers: ['verify', 'ship', 'archive'] },
       { kind: 'field', id: 'build_sha', type: 'string', producer: null, consumers: ['verify'] },
     ])
-    expect(io.ship?.outputs.map((slot) => slot.id)).toEqual(['applied-spec', 'pr_url'])
-    expect(io.archive?.outputs).toEqual([{ kind: 'field', id: 'archived', type: 'boolean', producer: null, consumers: [] }])
+    expect(io.ship?.outputs.map((slot) => slot.id)).toEqual(['applied-spec', 'tasks', 'pr_url'])
+    expect(io.archive?.outputs.map((slot) => slot.id)).toEqual(['tasks', 'archived'])
   })
 
   it('resolves field producers from the nearest upstream output and document owners from the policy', () => {
@@ -30,18 +31,23 @@ describe('materializeWorkflowIo', () => {
     expect(field('design_doc')).toMatchObject({ producer: 'explore' })
     // 文档 kind 'plan' 与字段 'plan' 同名并存：一个是台账文档，一个是 change 字段，各自独立成槽。
     expect(field('plan')).toMatchObject({ producer: 'spec' })
-    expect(document('plan')).toMatchObject({ producers: ['spec'], locked: true })
-    expect(document('proposal')).toMatchObject({ producers: ['open'], locked: true })
+    expect(document('plan')).toMatchObject({ role: 'read', scope: 'change', producers: ['spec'] })
+    expect(document('proposal')).toMatchObject({ role: 'read', producers: ['open'] })
     expect(io.explore?.outputs.find((slot) => slot.id === 'design_doc')).toMatchObject({ consumers: ['spec', 'build'] })
   })
 
-  it('marks default document slots locked and custom document_contract slots editable', () => {
-    expect(materializeWorkflowIo(defaultDef).open?.outputs[0]).toMatchObject({ locked: true })
+  it('document slots carry role and scope: produce / update are outputs, read / require are inputs, no locked flag', () => {
+    expect(materializeWorkflowIo(defaultDef).open?.outputs[0]).not.toHaveProperty('locked')
     const custom: WorkflowDef = {
       name: 'short',
+      openspec: true,
       documentContract: {
         version: 'v1',
-        slots: [{ kind: 'proposal', ownerStep: 'draft', producers: ['openspec-propose'] }],
+        slots: [
+          { kind: 'proposal', ownerStep: 'draft', producers: ['openspec-propose'] },
+          { kind: 'proposal', ownerStep: 'done', role: 'update', producers: ['tenon'] },
+          { kind: 'design-md', ownerStep: 'done', role: 'require', producers: [] },
+        ],
         reads: [{ step: 'done', kinds: ['proposal'] }],
       },
       steps: [
@@ -51,10 +57,15 @@ describe('materializeWorkflowIo', () => {
     }
     const io = materializeWorkflowIo(custom)
     expect(io.draft?.outputs).toEqual([
-      { kind: 'document', id: 'proposal', producers: ['openspec-propose'], consumers: ['done'], locked: false },
+      { kind: 'document', id: 'proposal', role: 'produce', scope: 'change', producers: ['openspec-propose'], consumers: ['done'] },
+    ])
+    expect(io.done?.outputs).toEqual([
+      { kind: 'document', id: 'proposal', role: 'update', scope: 'change', producers: ['tenon'], consumers: [] },
+      { kind: 'field', id: 'archived', type: 'boolean', producer: null, consumers: [] },
     ])
     expect(io.done?.inputs).toEqual([
-      { kind: 'document', id: 'proposal', producers: ['draft'], consumers: [], locked: false },
+      { kind: 'document', id: 'proposal', role: 'read', scope: 'change', producers: ['draft'], consumers: [] },
+      { kind: 'document', id: 'design-md', role: 'require', scope: 'project', producers: [], consumers: [] },
     ])
   })
 

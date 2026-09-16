@@ -37,10 +37,16 @@ resolveSnapshotTrack(root, trackId, workflowName?): TrackDefinition | undefined
 
 ## 3. Contracts
 
-- `GET /api/workflows/:name` = definition (with `tracks`) + `source` + `effectiveIo` (first branch) + `branches`.
+- `GET /api/workflows/:name` = definition (with `tracks`, `openspec` and each branch's `documentContract`) +
+  `source` + `effectiveIo` (first branch) + `branches`.
   A workflow with `tracks` yields one `branches` entry per track and no `_base`; a workflow without tracks
   yields `_base` only. `branches`, `effectiveIo`, `source` are read-only projections: the POST decoder rejects
   them, so clients strip them before writing (the dashboard client does).
+- A materialized document slot is `{ kind: 'document', id, role, scope, producers, consumers }` — `role` is
+  `produce | update | require` and `scope` is `change | project`. There is no `locked` flag: the editor decides
+  what is editable from the definition itself. Field slots are unchanged.
+- `GET /api/snapshot` document items carry an optional `reason` (`changed | producer | invocation | legacy-path`)
+  next to `status`, so a stale row can say why in one word. `artifactAttempts` is gone with the artifact route.
 - `GET /api/skills/:name/files`: name must match `^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$` (400 otherwise). The skill
   directory is the first `SKILL.md` hit in: repo `skills/` (`local-plugin`, origin `tenon`) → `~/.claude/skills`,
   `~/.agents/skills` (`user`) → installed Claude plugin roots and the Codex plugin cache (`external-marketplace`).

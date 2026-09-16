@@ -1,21 +1,26 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { parseWorkflow } from '@tenon/kernel'
+import { parseWorkflow, validateWorkflowForStorage } from '@tenon/kernel'
 import { describe, expect, it } from 'vitest'
 import type { WbStepDef, WbTransition, WbWorkflowDef } from '../api/governanceTypes'
 import { branchesOf, copyWorkflowDef, selectBranchDef } from '../workbench/workbenchDefinition'
 import { draftEffectiveIo, lintWorkflow, type LintIssue } from './lint'
 
+/** 转移类问题按老形状比对（severity 单独有用例）。 */
+function withoutSeverity(issues: readonly LintIssue[]): Array<Record<string, unknown>> {
+  return issues.map(({ severity: _severity, ...issue }) => ({ ...issue }))
+}
+
 function stage(id: string, transitions: WbTransition[] = []): WbStepDef {
   return { id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions }
 }
 
-function transitionIssues(def: WbWorkflowDef): LintIssue[] {
-  return lintWorkflow(def, draftEffectiveIo(def, undefined)).filter((issue) => issue.kind.startsWith('transition-'))
+function transitionIssues(def: WbWorkflowDef): Array<Record<string, unknown>> {
+  return withoutSeverity(lintWorkflow(def, draftEffectiveIo(def)).filter((issue) => issue.kind.startsWith('transition-')))
 }
 
-function notNextOrBack(def: WbWorkflowDef): LintIssue[] {
+function notNextOrBack(def: WbWorkflowDef): Array<Record<string, unknown>> {
   return transitionIssues(def).filter((issue) => issue.kind === 'transition-not-next-or-back')
 }
 
@@ -81,6 +86,62 @@ describe('lint · 转移只能去下一阶段或退回', () => {
   })
 })
 
+describe('lint · 严重度与文档契约', () => {
+  const skills = (...ids: string[]): WbStepDef['skills'] => ids.map((id) => ({ id }))
+  const governed = (contract: WbWorkflowDef['documentContract'], name = 'mine'): WbWorkflowDef => ({
+    name,
+    openspec: true,
+    ...(contract === undefined ? {} : { documentContract: contract }),
+    steps: [
+      { ...stage('shape', [{ event: 'shape-complete', to: 'build' }]), skills: skills('openspec-propose') },
+      { ...stage('build'), outputs: [{ field: 'build_sha', type: 'string' }] },
+    ],
+  })
+  const lint = (def: WbWorkflowDef): LintIssue[] => lintWorkflow(def, draftEffectiveIo(def))
+
+  it('缺输出是警告（不挡保存）；转移问题是错误', () => {
+    const issues = lint({ name: 'mine', steps: [stage('a', [{ event: '', to: 'b' }]), stage('b')] })
+    expect(issues.filter((issue) => issue.kind === 'step-no-output').map((issue) => issue.severity)).toEqual(['warning', 'warning'])
+    expect(issues.find((issue) => issue.kind === 'transition-empty-event')?.severity).toBe('error')
+  })
+
+  it('producer 不在阶段技能里：自定义是错误、default 是警告；read 在产出之前是错误；成对文档缺一是警告', () => {
+    const contract = {
+      version: 'v1' as const,
+      slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
+      reads: [{ step: 'shape', kinds: ['tasks'] }],
+    }
+    const custom = lint(governed(contract))
+    expect(custom).toContainEqual({ kind: 'document-producer-missing', stepId: 'shape', document: 'proposal', skill: 'writer', severity: 'error' })
+    expect(custom).toContainEqual({ kind: 'document-order', stepId: 'shape', document: 'tasks', severity: 'error' })
+    expect(custom).toContainEqual({ kind: 'document-chain-gap', stepId: 'shape', document: 'proposal', missing: 'tasks', severity: 'warning' })
+    expect(lint(governed(contract, 'default')).find((issue) => issue.kind === 'document-producer-missing')?.severity).toBe('warning')
+    expect(lint(governed({ version: 'v1', slots: [{ kind: 'tasks', ownerStep: 'shape', role: 'update', producers: ['openspec-propose'] }], reads: [] })))
+      .toContainEqual({ kind: 'document-order', stepId: 'shape', document: 'tasks', severity: 'error' })
+  })
+
+  it('草稿 IO 从契约推出 role / scope：produce 与 update 是输出，read 与 require 是输入；关掉 OpenSpec 就没有文档槽位', () => {
+    const def = governed({
+      version: 'v1',
+      slots: [
+        { kind: 'proposal', ownerStep: 'shape', producers: ['openspec-propose'] },
+        { kind: 'design-md', ownerStep: 'build', role: 'require', producers: [] },
+      ],
+      reads: [{ step: 'build', kinds: ['proposal'] }],
+    })
+    const io = draftEffectiveIo(def)
+    expect(io.shape?.outputs).toEqual([
+      { kind: 'document', id: 'proposal', role: 'produce', scope: 'change', producers: ['openspec-propose'], consumers: ['build'] },
+    ])
+    expect(io.build?.inputs).toEqual([
+      { kind: 'document', id: 'proposal', role: 'read', scope: 'change', producers: ['shape'], consumers: [] },
+      { kind: 'document', id: 'design-md', role: 'require', scope: 'project', producers: [], consumers: [] },
+    ])
+    const { openspec: _openspec, ...off } = def
+    expect(draftEffectiveIo(off).shape?.outputs).toEqual([])
+  })
+})
+
 describe('lint · 内建 default 不误报', () => {
   const yaml = readFileSync(fileURLToPath(new URL('../../../../templates/workflows/default.yaml', import.meta.url)), 'utf8')
   const parsed = parseWorkflow(yaml)
@@ -111,5 +172,16 @@ describe('lint · 内建 default 不误报', () => {
       expect(transitionIssues(selectBranchDef(builtin, branch.id))).toEqual([])
       expect(transitionIssues(selectBranchDef(copied, branch.id))).toEqual([])
     }
+  })
+
+  it('复制 default：契约按阶段技能裁剪后每条分支都过 kernel 的自定义工作流校验', () => {
+    const full = JSON.parse(JSON.stringify(parsed)) as WbWorkflowDef
+    const copied = copyWorkflowDef(full, 'default-copy')
+    expect(copied.openspec).toBe(true)
+    expect(validateWorkflowForStorage('default-copy', copied as never)).toEqual([])
+    // chat 轨只有驱动技能：openspec-propose 产出的 proposal 被裁掉，tenon-explore 的 adr 留下。
+    const chat = copied.tracks?.chat?.documentContract?.slots.map((slot) => slot.kind) ?? []
+    expect(chat).not.toContain('proposal')
+    expect(chat).toContain('adr')
   })
 })

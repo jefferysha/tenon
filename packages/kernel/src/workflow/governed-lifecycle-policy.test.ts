@@ -18,7 +18,7 @@ afterEach(async () => {
 function governedWorkflow(): WorkflowDef {
   return {
     name: 'governed',
-    openspecContract: 'required',
+    openspec: true,
     steps: [
       {
         id: 'spec', label: 'Spec', gate: null, skills: [], inputs: [], outputs: [], guards: [],

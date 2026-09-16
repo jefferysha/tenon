@@ -1,6 +1,6 @@
 import type { TrackDefinition } from '../tracks/types.js'
 import type { DocumentGovernancePolicy } from './document-contract.js'
-import { documentGovernancePolicy } from './document-contract.js'
+import { legacyDocumentPolicyForSnapshot } from './migrations/openspec-v1-document-policy.js'
 import type {
   EffectiveWorkflowPlan,
 } from './effective-plan.js'
@@ -142,7 +142,7 @@ export function restoreLegacyWorkflowPlan(
   })
   let documentPolicy = snapshot.version === 2
     ? structuredClone(snapshot.documentPolicy) ?? undefined
-    : documentGovernancePolicy(snapshot.workflowId, workflow)
+    : legacyDocumentPolicyForSnapshot(snapshot.workflowId, legacyWorkflow)
   const historicalWorkflow = removeLegacyReviewLaneProjection(
     snapshot.workflowId,
     snapshot.executionModel,

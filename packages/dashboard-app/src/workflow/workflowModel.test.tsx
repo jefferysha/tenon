@@ -42,14 +42,15 @@ describe('pipelineModel', () => {
 })
 
 describe('lint / draftEffectiveIo / slotCatalog', () => {
-  const io = draftEffectiveIo(DEF, undefined)
+  const io = draftEffectiveIo(DEF)
   it('草稿物化 IO：字段生产者 / 消费者按阶段序推导', () => {
     expect(io.a?.outputs).toEqual([{ kind: 'field', id: 'design_doc', type: 'file_path', producer: null, consumers: ['b'] }])
     expect(io.b?.inputs).toEqual([{ kind: 'field', id: 'design_doc', type: 'file_path', producer: 'a', consumers: [] }])
   })
-  it('lint：无输出阶段 + 无上游的输入', () => {
+  it('lint：无输出阶段是警告，无上游的输入是错误', () => {
     expect(lintWorkflow(DEF, io)).toEqual([
-      { kind: 'input-not-upstream', stepId: 'c', field: 'plan' },
+      { kind: 'step-no-output', stepId: 'c', severity: 'warning' },
+      { kind: 'input-not-upstream', stepId: 'c', field: 'plan', severity: 'error' },
     ])
   })
   it('lint 转移：事件名为空 / 本阶段内重名', () => {
@@ -60,9 +61,9 @@ describe('lint / draftEffectiveIo / slotCatalog', () => {
         transitions: [{ event: '', to: 'b' }, { event: 'dup', to: 'b' }, { event: 'dup', to: 'c' }],
       }),
     }
-    const issues = lintWorkflow(def, draftEffectiveIo(def, undefined))
-    expect(issues).toContainEqual({ kind: 'transition-empty-event', stepId: 'a' })
-    expect(issues).toContainEqual({ kind: 'transition-duplicate-event', stepId: 'a', event: 'dup' })
+    const issues = lintWorkflow(def, draftEffectiveIo(def))
+    expect(issues).toContainEqual({ kind: 'transition-empty-event', stepId: 'a', severity: 'error' })
+    expect(issues).toContainEqual({ kind: 'transition-duplicate-event', stepId: 'a', event: 'dup', severity: 'error' })
   })
   it('lint 转移：受治理工作流缺必需去向才报，未受治理不报', () => {
     const steps = ['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'].map((id, index, all) => ({
@@ -70,13 +71,13 @@ describe('lint / draftEffectiveIo / slotCatalog', () => {
       transitions: all[index + 1] ? [{ event: `${id}-done`, to: all[index + 1]! }] : [],
     }))
     // 线性七阶段：缺两条回流 build→spec 与 verify→build。
-    const governed: WbWorkflowDef = { name: 'default', steps }
-    const issues = lintWorkflow(governed, draftEffectiveIo(governed, undefined))
-    expect(issues).toContainEqual({ kind: 'transition-contract-required', stepId: 'build', to: 'spec' })
-    expect(issues).toContainEqual({ kind: 'transition-contract-required', stepId: 'verify', to: 'build' })
-    // 同样的形状换个名字、不带契约 → 不管
+    const governed: WbWorkflowDef = { name: 'default', openspec: true, steps }
+    const issues = lintWorkflow(governed, draftEffectiveIo(governed))
+    expect(issues).toContainEqual({ kind: 'transition-contract-required', stepId: 'build', to: 'spec', severity: 'error' })
+    expect(issues).toContainEqual({ kind: 'transition-contract-required', stepId: 'verify', to: 'build', severity: 'error' })
+    // 同样的形状换个名字、不接入 OpenSpec → 不管
     const free: WbWorkflowDef = { name: 'mine', steps }
-    expect(lintWorkflow(free, draftEffectiveIo(free, undefined)).filter((issue) => issue.kind === 'transition-contract-required')).toEqual([])
+    expect(lintWorkflow(free, draftEffectiveIo(free)).filter((issue) => issue.kind === 'transition-contract-required')).toEqual([])
   })
 })
 

@@ -11,7 +11,7 @@ function step(id: string, label: string, gate: WbStepDef['gate'], to: string[]):
 const DEF: WbWorkflowDef = { name: 'default', steps: [step('open', '立项', null, ['explore']), step('explore', '调研', 'review', ['spec']), step('spec', '规格', 'review', ['build']), step('build', '实现', null, ['verify', 'spec'])] }
 
 function renderNav(overrides: Partial<Parameters<typeof WorkflowNav>[0]> = {}) {
-  const fns = { onSwitch: vi.fn(), onSwitchBranch: vi.fn(), onCreate: vi.fn(), onExport: vi.fn(), onDelete: vi.fn(), onNewTrack: vi.fn(), onDeleteTrack: vi.fn(), onSelect: vi.fn(), onAddStage: vi.fn(), onReorder: vi.fn() }
+  const fns = { onSwitch: vi.fn(), onSwitchBranch: vi.fn(), onCreate: vi.fn(), onExport: vi.fn(), onDelete: vi.fn(), onNewTrack: vi.fn(), onDeleteTrack: vi.fn(), onSelect: vi.fn(), onAddStage: vi.fn(), onReorder: vi.fn(), onToggleOpenspec: vi.fn() }
   render(
     <I18nProvider>
       <WorkflowNav
@@ -28,6 +28,7 @@ function renderNav(overrides: Partial<Parameters<typeof WorkflowNav>[0]> = {}) {
         error={null}
         canWrite
         busy={false}
+        openspec={false}
         {...fns}
         {...overrides}
       />
@@ -60,6 +61,21 @@ describe('WorkflowNav', () => {
     await user.click(screen.getByTestId('wb-wf-menu'))
     await user.click(screen.getByTestId('wb-wf-menu-delete-track'))
     expect(onDeleteTrack).toHaveBeenCalledWith('pm')
+  })
+
+  it('⋯ 菜单 OpenSpec：自定义工作流可切换且勾选态跟随，default 禁用', async () => {
+    const user = userEvent.setup()
+    const { onToggleOpenspec } = renderNav({ current: 'release', openspec: true })
+    await user.click(screen.getByTestId('wb-wf-menu'))
+    const item = screen.getByTestId('wb-wf-menu-openspec')
+    expect(item).toHaveAttribute('role', 'menuitemcheckbox')
+    expect(item).toHaveAttribute('aria-checked', 'true')
+    await user.click(item)
+    expect(onToggleOpenspec).toHaveBeenCalledOnce()
+    cleanup()
+    renderNav({ current: 'default', openspec: true })
+    await user.click(screen.getByTestId('wb-wf-menu'))
+    expect(screen.getByTestId('wb-wf-menu-openspec')).toBeDisabled()
   })
 
   it('恢复内建：来源 global / project 可用，builtin 禁用', async () => {

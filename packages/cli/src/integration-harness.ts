@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import {
   BUILTIN_TRACK_DEFINITIONS,
   clearReviewMarkerFor,
+  compileEffectiveWorkflowPlan,
   createBuildRevisionToken,
   createEffectiveSkillResolver,
   completedWorkflowSkillsSinceStepEntry,
@@ -225,7 +226,7 @@ export async function seedGovernedDocumentEvidence(
     })
     if (!confirmed) throw new Error(`fixture native confirmation rejected for ${producer}`)
     const ledger = await recordDocument({
-      repoRoot: root, changeDir, phase, kind, path, producer, recordedAt: FIXED_CLOCK,
+      repoRoot: root, changeDir, phase, policy: defaultDocumentPolicy(), kind, path, producer, recordedAt: FIXED_CLOCK,
     })
     const canonicalRecord = [...ledger.records].reverse().find((candidate) =>
       candidate.kind === kind && candidate.path === path && candidate.recordedAt === FIXED_CLOCK)
@@ -262,6 +263,9 @@ export async function seedGovernedDocumentEvidence(
   }
 }
 
+/** Fixtures record the built-in default document table (identical in every default branch). */
+function defaultDocumentPolicy() { const policy = compileEffectiveWorkflowPlan('default').documentPolicy; if (!policy) throw new Error('default must be document-governed'); return policy }
+
 async function readGovernedDocumentsForCurrentVisit(
   root: string,
   changeDir: string,
@@ -272,6 +276,7 @@ async function readGovernedDocumentsForCurrentVisit(
     repoRoot: root,
     changeDir,
     phase: String(state.fields.phase),
+    policy: defaultDocumentPolicy(),
     kind: 'all',
     readAt,
   })

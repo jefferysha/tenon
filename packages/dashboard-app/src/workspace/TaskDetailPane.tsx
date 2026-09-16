@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link2, UserCheck } from 'lucide-react'
+import { Link2, ShieldCheck, UserCheck, Zap } from 'lucide-react'
 import { useT } from '../i18n'
 import { ApiError, formatApiError, getToken } from '../api/transport'
 import { takeOwner } from '../api/userClient'
@@ -10,10 +10,9 @@ import { dashboardSearch } from '../shell/dashboardLocation'
 import { SheetTabs } from '../shared/DetailSheets'
 import { SkillFlow } from '../workflow/SkillFlow'
 import { DocumentDrawer } from './DocumentDrawer'
-import { ArtifactCatalogPanel } from './ArtifactCatalogPanel'
 import { StageIoPanel } from './StageIoPanel'
 import { StageRail } from './StageRail'
-import { fallbackStepIo, readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
+import { fallbackStepIo, gateProgress, isReadyRow, readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
 import { stageLabel, summaryText, type TaskRow } from './taskModel'
 import { useWorkflowDefinition } from './useWorkflowDefinition'
 import { ReviewDecisionPanel } from './ReviewDecisionPanel'
@@ -58,16 +57,20 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
     ? (definition.def.branches?.[change.track]?.effectiveIo ?? definition.def.branches?._base?.effectiveIo ?? definition.def.effectiveIo)?.[selectedStep]
     : definition.status === 'disabled' ? fallbackStepIo(change, selectedStep) : undefined
   const definitionState = definition.status === 'disabled' ? 'ready' : definition.status
-  const outputs = useMemo(() => stageOutputs(change, stepIo), [change, stepIo])
+  const runs = change.skillRuns?.find((step) => step.stepId === selectedStep)
+  const skills = useMemo(() => skillsFromRuns(runs), [runs])
+  const stageSkills = useMemo(() => skills.map((skill) => skill.id), [skills])
+  const outputs = useMemo(() => stageOutputs(change, stepIo, stageSkills), [change, stepIo, stageSkills])
   const inputs = useMemo(() => stageInputs(change, stepIo), [change, stepIo])
   const files = useMemo(() => readableFiles([...outputs, ...inputs]), [outputs, inputs])
   const [openIndex, setOpenIndex] = useState<number | null>(null)
   const [sheet, setSheet] = useState<'inputs' | 'outputs'>('outputs')
   useEffect(() => { setOpenIndex(null) }, [identity, selectedStep])
   const activePath = openIndex === null ? null : files[openIndex]?.path ?? null
-  const runs = change.skillRuns?.find((step) => step.stepId === selectedStep)
-  const artifactAttemptId = change.artifactAttempts?.find((attempt) => attempt.stageId === selectedStep)?.stageAttemptId
-  const skills = useMemo(() => skillsFromRuns(runs), [runs])
+  const readyOutputs = outputs.filter(isReadyRow).length
+  const reviewSatisfied = row.stages.find((stage) => stage.id === selectedStep)?.status === 'done'
+    || (change.phase === selectedStep && change.reviewHandshake?.status === 'approved')
+  const progress = gateProgress((row.rules ?? change.workflowRules).gateByStep[selectedStep] ?? null, outputs, reviewSatisfied)
   const statusOf = (id: string): { state: 'idle' | 'running' | 'done'; label: string } | null => {
     const hit = runs?.skills.find((skill) => skill.id === id)
     return hit === undefined ? null : { state: hit.status, label: t(`workspace.skill_${hit.status}`) }
@@ -152,23 +155,36 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
             <SkillFlow key={`${identity} ${selectedStep}`} skills={skills} registry={null} editable={false} onOpen={() => undefined} statusOf={statusOf} className="h-56" />
           </section>
         )}
-        {fetchDefinition && <div className="mb-8"><ArtifactCatalogPanel root={root} change={change.name} stageAttemptId={artifactAttemptId} stageId={selectedStep} /></div>}
-        <div className="grid gap-4" data-testid="stage-io">
-          <SheetTabs
-            sheets={[{ id: 'inputs', label: t('workspace.inputs'), count: inputs.length }, { id: 'outputs', label: t('workspace.outputs'), count: outputs.length }]}
-            active={sheet}
-            onChange={setSheet}
-            ariaLabel={t('workspace.io_sheets')}
-            idPrefix="task-io"
-          />
-          <StageIoPanel
-            direction={sheet}
-            items={sheet === 'inputs' ? inputs : outputs}
-            activePath={activePath}
-            definitionState={definitionState}
-            onOpen={(path) => setOpenIndex(files.findIndex((file) => file.path === path))}
-          />
-        </div>
+        {progress !== null && (
+          <p className="mb-3 flex items-center gap-2 whitespace-nowrap text-body text-text-2" data-testid="task-gate-row">
+            {progress.gate === 'review'
+              ? <ShieldCheck className="size-4 flex-none text-amber-d" aria-hidden="true" />
+              : <Zap className="size-4 flex-none text-(--accent)" aria-hidden="true" />}
+            {t(`workspace.gate_${progress.gate}`)}
+            <span className="font-mono text-text-3">· {progress.done}/{progress.total}</span>
+          </p>
+        )}
+        {(inputs.length > 0 || outputs.length > 0) && (
+          <div className="grid gap-4" data-testid="stage-io">
+            <SheetTabs
+              sheets={[
+                { id: 'inputs', label: t('workspace.inputs'), count: inputs.length },
+                { id: 'outputs', label: t('workspace.outputs'), count: `${readyOutputs}/${outputs.length}` },
+              ]}
+              active={sheet}
+              onChange={setSheet}
+              ariaLabel={t('workspace.io_sheets')}
+              idPrefix="task-io"
+            />
+            <StageIoPanel
+              direction={sheet}
+              items={sheet === 'inputs' ? inputs : outputs}
+              activePath={activePath}
+              definitionState={definitionState}
+              onOpen={(path) => setOpenIndex(files.findIndex((file) => file.path === path))}
+            />
+          </div>
+        )}
         {fetchDefinition && <TaskRecords root={root} change={change.name} signature={decisionSignature} />}
       </DetailColumn>
       <DocumentDrawer root={root} files={files} index={openIndex} onIndex={setOpenIndex} onClose={() => setOpenIndex(null)} />

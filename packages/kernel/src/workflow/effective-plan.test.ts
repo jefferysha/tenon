@@ -17,6 +17,9 @@ function preVerifyConvergenceWorkflow() {
     decomposition: _decomposition,
     interaction: _interaction,
     reviewBudget: _reviewBudget,
+    // Historical bytes predate the openspec key and YAML-declared document contracts.
+    openspec: _openspec,
+    documentContract: _documentContract,
     ...legacy
   } = current
   return {
@@ -25,6 +28,8 @@ function preVerifyConvergenceWorkflow() {
       const { reviewLanes: _reviewLanes, ...legacyStep } = step
       return {
         ...legacyStep,
+        // The last step was labelled 归档 before the 完结 wording.
+        label: step.id === 'archive' ? '归档' : step.label,
         // This fixture intentionally models the pre-issue#43 frozen snapshot, whose
         // default Workflow steps had no Workflow-owned phase Skills and whose ship/archive
         // steps declared no inputs/outputs (pr_url / archived were added in 2026-09).
@@ -141,6 +146,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   it('keeps a three-step declarative contract three steps wide', () => {
     const plan = compileEffectiveWorkflowPlan('compact', {
       name: 'compact',
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
@@ -169,6 +175,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   it('bound document governance cannot be removed or replaced by a mutable workflow definition', () => {
     const original = compileEffectiveWorkflowPlan('compact', {
       name: 'compact',
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
@@ -204,6 +211,7 @@ describe('compileEffectiveWorkflowPlan', () => {
 
     const changed = compileEffectiveWorkflowPlan('compact', {
       name: 'compact',
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'tasks', ownerStep: 'shape', producers: ['writer'] }],
@@ -218,6 +226,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   it('a bound workflow plan rejects graph, skill, or review drift even when documents are unchanged', () => {
     const definition = {
       name: 'compact',
+      openspec: true,
       documentContract: {
         version: 'v1' as const,
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
@@ -264,6 +273,7 @@ describe('compileEffectiveWorkflowPlan', () => {
   it('profile-only old runs retain compatibility but still cannot downgrade to ungoverned', () => {
     const governed = compileEffectiveWorkflowPlan('compact', {
       name: 'compact',
+      openspec: true,
       documentContract: {
         version: 'v1',
         slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],

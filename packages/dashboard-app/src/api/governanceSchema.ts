@@ -361,9 +361,9 @@ function decodeArtifact(value: unknown): WbArtifactConfig | null {
 
 function decodeDocumentSlot(value: unknown): WbDocumentContract['slots'][number] | null {
   const item = record(value)
-  return item && typeof item.kind === 'string' && typeof item.ownerStep === 'string' && strings(item.producers)
-    ? { kind: item.kind, ownerStep: item.ownerStep, producers: item.producers }
-    : null
+  if (!item || typeof item.kind !== 'string' || typeof item.ownerStep !== 'string' || !strings(item.producers)) return null
+  if (item.role !== undefined && item.role !== 'update' && item.role !== 'require') return null
+  return { kind: item.kind, ownerStep: item.ownerStep, ...(item.role === undefined ? {} : { role: item.role }), producers: item.producers }
 }
 
 function decodeDocumentRead(value: unknown): WbDocumentContract['reads'][number] | null {
@@ -419,8 +419,10 @@ function decodeIoSlot(value: unknown): WbIoSlot | null {
   if (consumers === null) return null
   if (slot.kind === 'document') {
     const producers = decodeArray(slot.producers, (item) => typeof item === 'string' ? item : null)
-    if (producers === null || typeof slot.locked !== 'boolean') return null
-    return { kind: 'document', id: slot.id, producers, consumers, locked: slot.locked }
+    if (producers === null) return null
+    if (slot.role !== 'produce' && slot.role !== 'update' && slot.role !== 'read' && slot.role !== 'require') return null
+    if (slot.scope !== 'change' && slot.scope !== 'project') return null
+    return { kind: 'document', id: slot.id, role: slot.role, scope: slot.scope, producers, consumers }
   }
   if (slot.kind === 'field') {
     if (slot.type !== 'string' && slot.type !== 'file_path' && slot.type !== 'boolean') return null
@@ -447,17 +449,22 @@ function decodeEffectiveIo(value: unknown): WbEffectiveIo | null {
 
 const TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
 
-/** `tracks.<id>` 分支：可选 label + 自己的 steps。 */
+/** `tracks.<id>` 分支：可选 label、可选文档契约 + 自己的 steps。 */
 function decodeTracks(value: unknown): Record<string, WbTrackBranch> | null {
   const body = record(value)
   if (!body) return null
   const out: Record<string, WbTrackBranch> = {}
   for (const [id, raw] of Object.entries(body)) {
     const branch = record(raw)
-    if (!TRACK_ID_RE.test(id) || !branch || !allowedKeys(branch, ['label', 'steps']) || !optionalString(branch.label)) return null
+    if (!TRACK_ID_RE.test(id) || !branch || !allowedKeys(branch, ['label', 'documentContract', 'steps']) || !optionalString(branch.label)) return null
+    const documentContract = branch.documentContract === undefined ? undefined : decodeDocumentContract(branch.documentContract)
     const steps = decodeArray(branch.steps, decodeStep)
-    if (steps === null) return null
-    out[id] = { ...(branch.label === undefined ? {} : { label: branch.label }), steps }
+    if (steps === null || documentContract === null) return null
+    out[id] = {
+      ...(branch.label === undefined ? {} : { label: branch.label }),
+      ...(documentContract === undefined ? {} : { documentContract }),
+      steps,
+    }
   }
   return out
 }
@@ -502,8 +509,8 @@ export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {
   if (body.source !== undefined && body.source !== 'builtin' && body.source !== 'project' && body.source !== 'global') return null
   const effectiveIo = body.effectiveIo === undefined ? undefined : decodeEffectiveIo(body.effectiveIo)
   if (effectiveIo === null) return null
-  if (body.openspecContract !== undefined && body.openspecContract !== 'required') return null
-  if (body.openspecContract !== undefined && body.documentContract !== undefined) return null
+  if (body.openspecContract !== undefined) return null
+  if (body.openspec !== undefined && typeof body.openspec !== 'boolean') return null
   const documentContract = body.documentContract === undefined ? undefined : decodeDocumentContract(body.documentContract)
   const decomposition = decodeDecompositionPolicy(body.decomposition)
   const interaction = decodeInteractionPolicy(body.interaction)
@@ -518,7 +525,7 @@ export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {
     ...(effectiveIo === undefined ? {} : { effectiveIo }),
     ...(tracks === undefined ? {} : { tracks }),
     ...(branches === undefined ? {} : { branches }),
-    ...(body.openspecContract === undefined ? {} : { openspecContract: body.openspecContract }),
+    ...(body.openspec === undefined ? {} : { openspec: body.openspec }),
     ...(documentContract === undefined ? {} : { documentContract }),
     decomposition,
     interaction,

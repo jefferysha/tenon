@@ -12,8 +12,9 @@
 
 ```ts
 // workflow/types.ts
-interface TrackBranchDef { label?: string; steps: StepDef[] }
-interface WorkflowDef { …; steps: StepDef[]; tracks?: Record<TrackId, TrackBranchDef> }
+interface TrackBranchDef { label?: string; steps: StepDef[]; documentContract?: DocumentContractDef }
+interface WorkflowDef { …; openspec?: boolean; steps: StepDef[]; documentContract?: DocumentContractDef; tracks?: Record<TrackId, TrackBranchDef> }
+interface DocumentSlotDef { kind: DocumentKind; ownerStep: string; role?: 'update' | 'require'; producers?: string[] }
 type GateKind = 'review' | 'auto' | null          // 'confirm' removed
 interface SkillRef { id; kind?; review_lane?; depends_on? }   // no `when`
 
@@ -40,19 +41,34 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
 
 ## 3. Contracts
 
-- YAML: either top-level `steps:` or `tracks:` (`<track-id>:` → optional `label:` and `steps:`, same step
-  schema indented four more spaces). Declaring both → `有 tracks 时不得再声明顶层 steps`. Track ids match
-  `TRACK_ID_RE`.
+- YAML: either top-level `steps:` or `tracks:` (`<track-id>:` → optional `label:`, `steps:` and
+  `document_contract:`, same step schema indented four more spaces). Declaring both → `有 tracks 时不得再声明顶层
+  steps`. Track ids match `TRACK_ID_RE`.
+- Document governance has one switch: `openspec: true` (absent = false; the serializer writes the line only when
+  true). `openspec_contract` is removed — the parser rejects the line and the compiler rejects the structured
+  `openspecContract` key, each naming the replacement.
+- A `document_contract` is written **beside the steps it references**: top-level with top-level `steps`, and per
+  branch under `tracks.<id>.document_contract` when the workflow declares `tracks`. There is no merge and no
+  override; a top-level contract together with `tracks` is rejected. Each slot names `kind`, `owner_step`,
+  optional `producers` and an optional `role`: `produce` (default), `update` (a later step revises a document an
+  earlier step produced) or `require` (the document must exist but this workflow never writes it, so it has no
+  producers). Several slots of the same kind may coexist with different roles. A slot's scope and path come from
+  the kind catalogue, never from YAML: change-scoped kinds live under the change directory, project-scoped ones at
+  a fixed repository path (`design-md` → `DESIGN.md`).
 - `compileWorkflow` compiles every branch (`tracks.<id>.steps[i]` error paths) and keeps `tracks` on the IR.
   `planFromIr` selects `tracks[track.id]` and exposes it as `plan.workflow`; the full IR stays on
   `plan.definition`. No track given (fingerprint / document-policy / generator contexts) → the first branch;
   a track without a branch → `WorkflowTrackBranchError('工作流 X 没有轨道 Y 的分支')`, which init and the
-  create-change route surface as exit 1 / 404. **The fingerprint hashes the full definition**, so it is identical for every track and
-  byte-identical to the pre-branch fingerprint for definitions without `tracks`.
+  create-change route surface as exit 1 / 404. `selectTrackBranch` / `selectTrackBranchIr` also lift the selected
+  branch's `document_contract` to the top level, so every downstream consumer reads one contract shape.
+- **The fingerprint hashes the full definition plus the selected track's document policy**, so branches whose
+  contracts differ have different fingerprints while branches with identical contracts still share one. For
+  definitions without `tracks` and without a contract it stays byte-identical to the pre-branch fingerprint.
 - Frozen snapshots (`workflowPlanSnapshot`) store `plan.definition`; `effectiveWorkflowPlanFromSnapshot(snapshot, track)`
   re-selects the branch. A change's pipeline is therefore stable as long as its `track` field is stable.
 - `validateWorkflow` validates each branch with its own step graph rules (errors prefixed `tracks.<id>: `);
-  `validateWorkflowForStorage('default', …)` runs the seven-phase skeleton check on every branch.
+  `validateWorkflowForStorage('default', …)` runs the seven-phase skeleton check on every branch and requires
+  `default` to keep `openspec: true`.
 - Track policy: a registered track keeps its `policyProfile`. An id that exists only as a branch resolves
   through `resolveTrackForBranch` to `BRANCH_TRACK_DEFAULT_POLICY` (pending review seed, matrix off, no routing).
   `requireTrackForRoot` is the runtime lookup for CLI init / transition / afk and server routes; it searches the
@@ -75,6 +91,9 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
   `readinessByTransition`, review handshake) omit it, because the Dashboard decoder requires readiness events and a
   pending handshake event to match `workflowRules.transitions` exactly. Entering such a step is never run completion;
   only `archived=true` is.
+- `default.yaml` owns its governance explicitly: `openspec: true` plus one `document_contract` per branch. The
+  kernel holds no name-based or `openspec_contract` policy table and no phase-keyed document helpers; the only
+  fixed table left is `migrations/openspec-v1-document-policy.ts`, read solely to restore V1 snapshots.
 - `default.yaml`: `tracks.chat / pm / frontend / backend / free`, each with its own seven stages (`chat` is the
   drivers-only flow and comes first, so it is also the representative branch in track-less contexts; pm has no
   plan artifact, frontend adds e2e). `DEFAULT_ARTIFACT_DECLARATIONS` is keyed by track; `defaultArtifactsForStep(step,
@@ -123,6 +142,14 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
 - Unknown key under a branch → compile error `tracks.<id>: 出现该变体不接受的附加键`.
 - Branch id violating `TRACK_ID_RE` → parse/compile error.
 - `gate: confirm` → `gate 'confirm' 已移除——需要人工停下用 review，输出齐全即放行用 auto`.
+- YAML line `openspec_contract:` → parse error `openspec_contract 已移除——改为 openspec: true 并声明
+  document_contract`; structured `openspecContract` → compile error `openspecContract: 已移除——改为 openspec: true`.
+- `openspec:` value other than `true` / `false` → `openspec 只支持 true 或 false`; declared twice →
+  `openspec 重复声明`.
+- `document_contract` without `openspec: true` → `document_contract 需要 openspec: true`.
+- Top-level `document_contract` together with `tracks` → `有 tracks 时 document_contract 写在 tracks.<id> 下`.
+- Unknown slot `role` → `document slot '<kind>' 的 role 只支持 produce | update | require`.
+- `default` stored without `openspec: true` → `default 必须保持 openspec: true`.
 - Track neither registered nor a branch → `requireTrack` error (`未知 track`).
 - Corrupt workflow YAML while resolving a branch track → the load error propagates; it is never reported as an
   unknown track.
@@ -139,6 +166,8 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
 - `workflow/track-branch.test.ts`: parse/serialize round trip, `selectTrackBranch`, plan selection + shared
   fingerprint, per-branch validation prefix, branch-only track synthesis, `auto` guard expansion, `confirm` error,
   default branches pass the skeleton check.
+- `workflow/default-document-contract.test.ts`: every `default.yaml` branch compiles to the same policy as the
+  moved `openspec-v1` table, so the governance fingerprint stays byte-identical to the pre-YAML default.
 - `workflow/default-artifacts.test.ts` and `generate-default-workflow.test.ts`: branch-keyed table.
 - `packages/cli/src/track-branch.integration.test.ts`: branch-only init, unknown track rejection, `auto` gate blocks
   then passes.
@@ -149,6 +178,8 @@ resolveTrackForBranch(registry, id, workflowDef): TrackDefinition | undefined
 
 ```yaml
 steps: [...]                       # a shared "base" pipeline the tracks inherit from
+document_contract:                 # one contract the branches are expected to inherit
+  version: v1
 tracks:
   pm:
     steps: [...]
@@ -157,11 +188,24 @@ tracks:
 ### Correct
 
 ```yaml
+openspec: true
 tracks:
   pm:
     label: 产品
     steps: [...]                   # every track writes its whole pipeline; nothing is preset
+    document_contract:             # and its own contract, beside the steps it references
+      version: v1
+      slots:
+        - kind: proposal
+          owner_step: open
+          producers: [openspec-propose]
   frontend:
     label: 前端
     steps: [...]
+    document_contract:
+      version: v1
+      slots:
+        - kind: design-md
+          owner_step: spec
+          role: require            # required to exist; this branch never writes it
 ```

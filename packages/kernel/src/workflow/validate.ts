@@ -1,7 +1,9 @@
 import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
-import { validateDefaultWorkflowStructure, validateOpenSpecContractWorkflow } from './document-contract.js'
+import { validateDefaultWorkflowStructure, validateDocumentContract } from './document-contract.js'
 import { isDefaultWorkflowName, isValidWorkflowName } from './identifier.js'
-import type { WorkflowDef, StepDef } from './types.js'
+import { WorkflowTrackBranchError } from './track-branch-error.js'
+import type { WorkflowDef, StepDef, WorkflowDocumentContractV1 } from './types.js'
+export { WorkflowTrackBranchError } from './track-branch-error.js'
 
 function detectCycle(skillIds: string[], dependsOn: Map<string, string[]>): string[] {
   const WHITE = 0, GRAY = 1, BLACK = 2
@@ -39,34 +41,49 @@ const IDENT_RE = /^[a-zA-Z0-9_-]+$/
  */
 const SKILL_IDENT_RE = /^[a-zA-Z0-9_-]+(?::[a-zA-Z0-9_-]+)*$/
 
-/** 有 tracks 的工作流：分支 = 每条 track（key = track id）；否则只有单条 pipeline（key ''）。 */
-export function workflowBranches(wf: WorkflowDef): ReadonlyArray<{ readonly track: string; readonly label?: string; readonly steps: readonly StepDef[] }> {
-  const tracks = Object.entries(wf.tracks ?? {})
-  if (tracks.length === 0) return [{ track: '', steps: wf.steps }]
-  return tracks.map(([track, branch]) => ({ track, ...(branch.label === undefined ? {} : { label: branch.label }), steps: branch.steps }))
+interface WorkflowBranch {
+  readonly track: string
+  readonly label?: string
+  readonly documentContract?: WorkflowDocumentContractV1
+  readonly steps: readonly StepDef[]
 }
 
-export class WorkflowTrackBranchError extends Error {
-  constructor(workflow: string, track: string) {
-    super(`工作流 '${workflow}' 没有轨道 '${track}' 的分支`)
-    this.name = 'WorkflowTrackBranchError'
+/** 有 tracks 的工作流：分支 = 每条 track（key = track id，契约取分支自己的）；否则只有单条 pipeline（key ''）。 */
+export function workflowBranches(wf: WorkflowDef): ReadonlyArray<WorkflowBranch> {
+  const tracks = Object.entries(wf.tracks ?? {})
+  if (tracks.length === 0) {
+    return [{ track: '', ...(wf.documentContract === undefined ? {} : { documentContract: wf.documentContract }), steps: wf.steps }]
+  }
+  return tracks.map(([track, branch]) => ({
+    track,
+    ...(branch.label === undefined ? {} : { label: branch.label }),
+    ...(branch.documentContract === undefined ? {} : { documentContract: branch.documentContract }),
+    steps: branch.steps,
+  }))
+}
+
+/** 单条分支 → 单 pipeline 定义：分支的 steps 与文档契约提到顶层，tracks 去掉。 */
+function branchDefinition(wf: WorkflowDef, branch: WorkflowBranch): WorkflowDef {
+  const { tracks: _tracks, documentContract: _documentContract, ...rest } = wf
+  return {
+    ...rest,
+    ...(branch.documentContract === undefined ? {} : { documentContract: branch.documentContract }),
+    steps: branch.steps,
   }
 }
 
 /**
- * 按 change 的 track 选中分支（结果不再携带 tracks）：
+ * 按 change 的 track 选中分支（结果不再携带 tracks，分支契约提到顶层）：
  * 有 tracks → 命中该分支；未给 track（无轨道语境：指纹 / 文档策略 / 生成器）→ 第一条分支；给了却没有 → 抛错，不兜底。
- * 无 tracks → 顶层 steps。
+ * 无 tracks → 顶层 steps 与顶层契约。
  */
 export function selectTrackBranch(wf: WorkflowDef, track: string | undefined): WorkflowDef {
-  const { tracks, ...rest } = wf
-  const entries = Object.entries(tracks ?? {})
-  if (entries.length === 0) return rest
-  const first = entries[0]
-  if (track === undefined || track === '') return first === undefined ? rest : { ...rest, steps: first[1].steps }
-  const branch = tracks?.[track]
-  if (branch === undefined) throw new WorkflowTrackBranchError(wf.name, track)
-  return { ...rest, steps: branch.steps }
+  const branches = workflowBranches(wf)
+  const branch = Object.keys(wf.tracks ?? {}).length === 0 || track === undefined || track === ''
+    ? branches[0]
+    : branches.find((candidate) => candidate.track === track)
+  if (branch === undefined) throw new WorkflowTrackBranchError(wf.name, track ?? '')
+  return branchDefinition(wf, branch)
 }
 
 export function validateWorkflow(
@@ -80,13 +97,16 @@ export function validateWorkflow(
   if (Object.keys(wf.tracks ?? {}).length > 0 && wf.steps.length > 0) {
     errors.push('有 tracks 时不得再声明顶层 steps（每条轨道各写自己的阶段）')
   }
+  if (Object.keys(wf.tracks ?? {}).length > 0 && wf.documentContract !== undefined) {
+    errors.push('有 tracks 时 document_contract 写在 tracks.<id> 下')
+  }
   for (const branch of workflowBranches(wf)) {
     const prefix = branch.track === '' ? '' : `tracks.${branch.track}: `
     if (branch.track !== '' && !/^[a-z][a-z0-9_-]{0,31}$/.test(branch.track)) {
       errors.push(`tracks 分支 id '${branch.track}' 非法（小写字母开头，仅 a-z0-9_-，≤32）`)
     }
     if (branch.track !== '' && branch.steps.length === 0) errors.push(`${prefix}分支至少要有一个阶段`)
-    errors.push(...validateBranchSteps({ ...wf, tracks: undefined, steps: branch.steps }, options).map((error) => `${prefix}${error}`))
+    errors.push(...validateBranchSteps(branchDefinition(wf, branch), options).map((error) => `${prefix}${error}`))
   }
   return errors
 }
@@ -179,7 +199,7 @@ function validateBranchSteps(
     }
   }
 
-  errors.push(...validateOpenSpecContractWorkflow(wf))
+  errors.push(...validateDocumentContract(wf, options))
 
   // 深校验（G2 P2）：复用 compileWorkflow 做新 guard/action 变体 + FIELD_ORDER 字段闭集 + 列表
   // 字段互斥 + artifact 形状的结构校验——不在本文件再抄一份闭集判定，避免与编译器漂移。
@@ -205,9 +225,10 @@ export function validateWorkflowForStorage(name: string, wf: WorkflowDef): strin
   const origin = isDefaultWorkflowName(name) ? 'default' : 'custom'
   const errors = validateWorkflow(wf, { origin })
   if (isDefaultWorkflowName(origin)) {
+    if (wf.openspec !== true) errors.push('default 必须保持 openspec: true')
     for (const branch of workflowBranches(wf)) {
       const prefix = branch.track === '' ? '' : `tracks.${branch.track}: `
-      errors.push(...validateDefaultWorkflowStructure({ ...wf, tracks: undefined, steps: branch.steps }).map((error) => `${prefix}${error}`))
+      errors.push(...validateDefaultWorkflowStructure(branchDefinition(wf, branch)).map((error) => `${prefix}${error}`))
     }
   }
   return errors

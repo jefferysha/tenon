@@ -73,7 +73,7 @@ export interface RecordDocumentInput {
   readonly repoRoot: string
   readonly changeDir: string
   readonly phase: string
-  readonly policy?: DocumentGovernancePolicy
+  readonly policy: DocumentGovernancePolicy
   readonly kind: DocumentKind
   readonly path: string
   readonly producer: string

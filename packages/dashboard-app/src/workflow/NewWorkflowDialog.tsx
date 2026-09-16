@@ -28,6 +28,21 @@ export function NewWorkflowDialog({ create, currentName }: { create: CreateState
             </button>
           ))}
         </div>
+        {create.mode !== 'import' && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={create.openspec}
+            className="mt-4 flex items-center gap-2 text-body text-text-2 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+            data-testid="wb-new-openspec"
+            onClick={() => create.setOpenspec(!create.openspec)}
+          >
+            <span className={cn('relative h-5 w-9 flex-none rounded-full border transition-colors', create.openspec ? 'border-accent-b bg-(--accent)' : 'border-border bg-fill')}>
+              <span className={cn('absolute top-0.5 size-3.5 rounded-full bg-card transition-transform', create.openspec ? 'translate-x-4' : 'translate-x-0.5')} />
+            </span>
+            {t('workflow.openspec')}
+          </button>
+        )}
         {create.mode === 'import' && (
           <div className="mt-4 grid gap-2">
             <textarea

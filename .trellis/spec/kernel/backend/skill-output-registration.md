@@ -30,6 +30,12 @@ recordCanonicalDocumentSkillInvocation(changeDir, kind, recordedAt, { lock?, rec
   `evaluateDocumentEvidence` with `producer invocation/artifact 尚未原子完成；执行 tenon document record …`.
 - A binding is idempotent only for the exact row: path, digest, kind **and** `recorded_at`. Recording
   unchanged bytes again at a later time mints a new application binding for the new row.
+- Recording and evidence are policy-driven: the change's resolved document policy is a required input
+  (`recordDocumentState`, `evaluateDocumentEvidence`), never inferred from the workflow name or the phase. A
+  document kind resolves its path through the kind catalogue, so a project-scoped kind is written and read at its
+  fixed repository path while change-scoped kinds stay under the change directory. A `require`-role project
+  document passes on presence alone — a non-empty regular file at that path — because no producer in this
+  workflow claims it. Stale evidence carries a reason code (`changed`, `producer`, `invocation`, `legacy-path`).
 - History line kinds: `tool` = confirmation evidence (PostToolUse `skill-tracker.sh`); `tool-start` =
   PreToolUse `skill-start.sh` marker. `tool-start` is never completion evidence.
 
@@ -39,7 +45,8 @@ recordCanonicalDocumentSkillInvocation(changeDir, kind, recordedAt, { lock?, rec
 | --- | --- |
 | No host confirmation for the producer in the current StepVisit | Reject `current StepVisit lacks exact host confirmation …` |
 | Document path escapes the repository | Reject `submission path outside repository` |
-| Path outside `openspec/` or `docs/` | Kernel rejects `document path 只能位于 openspec/ 或 docs/` |
+| Change-scoped path outside `openspec/` or `docs/` | Kernel rejects `document path 只能位于 openspec/ 或 docs/` |
+| Project-scoped kind recorded at any other path | Kernel rejects it: the catalogue's fixed path is the only legal one (`design-md` → `DESIGN.md`) |
 | Edited document recorded again | Commit; the subject keeps `subject_id` and carries the new digest |
 
 ## 5. Good / Base / Bad Cases

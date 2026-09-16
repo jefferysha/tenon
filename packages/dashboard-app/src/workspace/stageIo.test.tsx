@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WbStepIo } from '../api/governanceTypes'
 import type { ChangeSnapshot } from '../types'
-import { readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
+import { gateProgress, readableFiles, skillsFromRuns, stageInputs, stageOutputs, type IoRow } from './stageIo'
 
 const change = {
   name: 'demo',
@@ -22,8 +22,8 @@ const change = {
 
 const io: WbStepIo = {
   outputs: [
-    { kind: 'document', id: 'proposal', producers: [], consumers: [], locked: true },
-    { kind: 'document', id: 'tasks', producers: [], consumers: [], locked: true },
+    { kind: 'document', id: 'proposal', role: 'produce', scope: 'change', producers: [], consumers: [] },
+    { kind: 'document', id: 'tasks', role: 'produce', scope: 'change', producers: [], consumers: [] },
     { kind: 'field', id: 'plan', type: 'file_path', producer: null, consumers: [] },
     { kind: 'field', id: 'build_sha', type: 'string', producer: null, consumers: [] },
   ],
@@ -48,6 +48,40 @@ describe('stageOutputs / stageInputs', () => {
   })
   it('无物化 IO → 空列表', () => {
     expect(stageOutputs(change, undefined)).toEqual([])
+  })
+  it('缺失行带上应产出的技能：契约候选 ∩ 本阶段技能，没命中就用契约候选；输入侧与值槽位为空', () => {
+    const documents: WbStepIo = {
+      outputs: [{ kind: 'document', id: 'tasks', role: 'produce', scope: 'change', producers: ['openspec-propose', 'opsx:propose'], consumers: [] }],
+      inputs: [{ kind: 'document', id: 'proposal', role: 'read', scope: 'change', producers: ['open'], consumers: [] }],
+    }
+    expect(stageOutputs(change, documents, ['tenon-open', 'openspec-propose'])[0]?.producers).toEqual(['openspec-propose'])
+    expect(stageOutputs(change, documents, ['tenon-open'])[0]?.producers).toEqual(['openspec-propose', 'opsx:propose'])
+    expect(stageInputs(change, documents)[0]?.producers).toEqual([])
+    expect(stageOutputs(change, io)[2]?.producers).toEqual([])
+  })
+  it('过期原因原样带到行上；其它状态为 null', () => {
+    const stale = {
+      ...change,
+      documents: { governed: true, blockers: [], items: [{ kind: 'proposal', status: 'stale', reason: 'changed', requiredRead: true, paths: ['openspec/changes/demo/proposal.md'], producers: [] }] },
+    } as unknown as ChangeSnapshot
+    expect(stageOutputs(stale, io)[0]).toMatchObject({ status: 'stale', reason: 'changed' })
+    expect(stageOutputs(change, io)[0]?.reason).toBeNull()
+  })
+})
+
+describe('gateProgress', () => {
+  const row = (status: IoRow['status']): IoRow => ({
+    slot: { kind: 'field', id: 'x', type: 'string', producer: null, consumers: [] },
+    status, path: null, value: '', producer: null, at: null, reason: null, producers: [],
+  })
+
+  it('auto 数输出齐全；review 多一条人工确认；没有门禁或零条件 → null', () => {
+    expect(gateProgress('auto', [row('set'), row('unset')], false)).toEqual({ gate: 'auto', done: 1, total: 2 })
+    expect(gateProgress('review', [row('recorded'), row('missing')], false)).toEqual({ gate: 'review', done: 1, total: 3 })
+    expect(gateProgress('review', [row('recorded'), row('missing')], true)).toEqual({ gate: 'review', done: 2, total: 3 })
+    expect(gateProgress('review', [], true)).toEqual({ gate: 'review', done: 1, total: 1 })
+    expect(gateProgress(null, [row('set')], true)).toBeNull()
+    expect(gateProgress('auto', [], true)).toBeNull()
   })
 })
 

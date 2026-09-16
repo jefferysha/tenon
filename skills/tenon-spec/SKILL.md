@@ -183,8 +183,8 @@ tenon artifact register "$TENON_CHANGE_NAME" plan \
 
 ### Step 3.25: 登记 delta spec 与 Superpowers plan（受治理 workflow 强制）
 
-legacy-full profile（default 或 `openspec_contract: required`）必做；`document_contract: v1`
-只在当前 step 拥有 delta-spec/plan slot 时执行，不得因为 step 名类似 spec 就自动补齐。legacy-full 在用户旅程之后
+default 各 track 必做；其它 workflow 只在当前 step 拥有 delta-spec/plan slot 时执行，
+不得因为 step 名类似 spec 就自动补齐。default 在用户旅程之后
 补跑 `openspec-propose` 与 `writing-plans`，生成可实施的 delta spec/plan。这让“新 workflow 遵守
 OpenSpec”是机器可检查的事实，而不是标签。
 

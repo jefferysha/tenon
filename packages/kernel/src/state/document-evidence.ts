@@ -1,13 +1,10 @@
 import { createHash } from 'node:crypto'
 import {
-  isAcceptedDocumentProducer,
+  DOCUMENT_KIND_CATALOG,
   isRecordedDocumentProducerAllowedThroughPolicyStep,
-  isDocumentContractPhase,
   recordsRequiredForPolicyStep,
   readsRequiredForPolicyStep,
-  readsRequiredForPhase,
-  recordsRequiredForPhase,
-  type DocumentContractPhase,
+  requiresForPolicyStep,
   type DocumentGovernancePolicy,
   type DocumentKind,
 } from '../workflow/document-contract.js'
@@ -104,10 +101,14 @@ function hasExactDocumentApplication(
 }
 
 export type DocumentEvidenceItemStatus = 'recorded' | 'missing' | 'stale' | 'unread'
+/** Why a record is stale: content changed, producer outside the contract, incomplete invocation, legacy delta path. */
+export type DocumentStaleReason = 'changed' | 'producer' | 'invocation' | 'legacy-path'
 
 export interface DocumentEvidenceItem {
   readonly kind: DocumentKind
   readonly status: DocumentEvidenceItemStatus
+  /** Only when status is stale. */
+  readonly reason?: DocumentStaleReason
   readonly requiredRead: boolean
   readonly paths: readonly string[]
   readonly producers: readonly string[]
@@ -132,9 +133,18 @@ export interface DocumentEvidenceScope {
   readonly readKinds?: readonly DocumentKind[]
 }
 
+async function projectDocumentPresent(repoRoot: string, kind: DocumentKind, projectPath: string): Promise<boolean> {
+  try {
+    await resolveDocument(repoRoot, projectPath, undefined, kind)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function currentRecordDigest(repoRoot: string, record: DocumentRecord): Promise<string | undefined> {
   try {
-    return (await resolveDocument(repoRoot, record.path)).digest
+    return (await resolveDocument(repoRoot, record.path, undefined, record.kind)).digest
   } catch {
     return undefined
   }
@@ -147,10 +157,12 @@ function item(
   records: readonly DocumentRecord[],
   phase: string,
   currentVisitId?: string,
+  reason?: DocumentStaleReason,
 ): DocumentEvidenceItem {
   return {
     kind,
     status,
+    ...(reason === undefined ? {} : { reason }),
     requiredRead,
     paths: records.map((record) => record.path),
     producers: records.map((record) => record.producer),
@@ -183,8 +195,8 @@ export async function evaluateDocumentEvidence(
   repoRoot: string,
   changeDir: string,
   phase: string,
-  scope: DocumentEvidenceScope = {},
-  policy?: DocumentGovernancePolicy,
+  scope: DocumentEvidenceScope,
+  policy: DocumentGovernancePolicy,
 ): Promise<DocumentEvidenceReport> {
   let ledger
   try {
@@ -208,16 +220,12 @@ export async function evaluateDocumentEvidence(
     }
   }
 
-  const recordRequirements = policy
-    ? recordsRequiredForPolicyStep(policy, phase)
-    : isDocumentContractPhase(phase) ? recordsRequiredForPhase(phase) : []
+  const recordRequirements = recordsRequiredForPolicyStep(policy, phase)
   const recordKinds = scope.recordKinds ?? recordRequirements.map((requirement) => requirement.kind)
-  const readRequirements = new Set(scope.readKinds ?? (
-    policy
-      ? readsRequiredForPolicyStep(policy, phase)
-      : isDocumentContractPhase(phase) ? readsRequiredForPhase(phase) : []
-  ))
-  const kinds = new Set<DocumentKind>([...recordKinds, ...readRequirements])
+  const readRequirements = new Set(scope.readKinds ?? readsRequiredForPolicyStep(policy, phase))
+  // role require applies to full step exits only; a narrowed record scope (verify-fail rollback) skips it.
+  const requiredKinds = scope.recordKinds === undefined ? requiresForPolicyStep(policy, phase) : []
+  const kinds = new Set<DocumentKind>([...recordKinds, ...readRequirements, ...requiredKinds])
   const blockers: string[] = []
   const items: DocumentEvidenceItem[] = []
   let confirmations
@@ -245,17 +253,24 @@ export async function evaluateDocumentEvidence(
     const records = ledger.records.filter((record) => record.kind === kind)
     const requiredRead = readRequirements.has(kind)
     if (records.length === 0) {
+      const projectPath = DOCUMENT_KIND_CATALOG[kind].projectPath
+      if (projectPath !== undefined && requiredKinds.includes(kind)) {
+        // A project document produced outside this change only has to exist as a non-empty regular file.
+        if (await projectDocumentPresent(repoRoot, kind, projectPath)) {
+          items.push({ kind, status: 'recorded', requiredRead, paths: [projectPath], producers: [], timeline: [] })
+        } else {
+          blockers.push(`缺少项目文档 '${kind}'（${projectPath}）`)
+          items.push(item(kind, 'missing', requiredRead, records, phase, currentVisitId))
+        }
+        continue
+      }
       blockers.push(`缺少 document '${kind}'；执行 tenon document record <change> ${kind} <path> --producer <skill>`)
       items.push(item(kind, 'missing', requiredRead, records, phase, currentVisitId))
       continue
     }
-    if (records.some((record) => {
-      return policy
-        ? !isRecordedDocumentProducerAllowedThroughPolicyStep(policy, kind, phase, record.producer)
-        : !isAcceptedDocumentProducer(kind, record.producer)
-    })) {
+    if (records.some((record) => !isRecordedDocumentProducerAllowedThroughPolicyStep(policy, kind, phase, record.producer))) {
       blockers.push(`document '${kind}' 的 producer 不符合当前 document contract`)
-      items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId))
+      items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'producer'))
       continue
     }
     const legacyDelta = kind === 'delta-spec'
@@ -265,7 +280,7 @@ export async function evaluateDocumentEvidence(
       blockers.push(
         `存在旧 delta-spec 记录，必须用 tenon document migrate-delta 显式迁移: ${legacyDelta.map((record) => record.path).join(', ')}`,
       )
-      items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId))
+      items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'legacy-path'))
       continue
     }
     const digests: Array<string | undefined> = []
@@ -274,7 +289,7 @@ export async function evaluateDocumentEvidence(
     }
     if (records.some((record, index) => digests[index] !== record.sha256)) {
       blockers.push(`document '${kind}' 已缺失或内容变化；重新执行 tenon document record 后再继续`)
-      items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId))
+      items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'changed'))
       continue
     }
     const incompleteProducer = records.find((record) => {
@@ -300,7 +315,7 @@ export async function evaluateDocumentEvidence(
       blockers.push(
         `document '${kind}' 的 producer invocation/artifact 尚未原子完成: ${incompleteProducer.path}；执行 tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`,
       )
-      items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId))
+      items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'invocation'))
       continue
     }
     if (requiredRead && (

@@ -192,6 +192,8 @@ export interface StepDef {
  */
 export interface TrackBranchDef {
   readonly label?: string
+  /** 本分支的文档契约（引用本分支 steps）；有 tracks 时文档契约只写在分支下。 */
+  readonly documentContract?: WorkflowDocumentContractV1
   readonly steps: readonly StepDef[]
 }
 
@@ -200,13 +202,9 @@ export interface WorkflowDef {
   readonly decomposition?: Omit<Partial<WorkflowDecompositionPolicyV1>, 'version'> & { readonly version: 'v1' }
   readonly interaction?: Omit<Partial<WorkflowInteractionPolicyV1>, 'version'> & { readonly version: 'v1' }
   readonly reviewBudget?: Omit<Partial<WorkflowReviewBudgetPolicyV1>, 'version'> & { readonly version: 'v1' }
-  /** Explicit opt-in: this custom workflow must retain the canonical OpenSpec seven-phase contract. */
-  readonly openspecContract?: 'required'
-  /**
-   * Graph-independent document governance.  The legacy `openspecContract` field remains the
-   * compatibility alias for the canonical seven-phase profile; new short workflows use this
-   * bounded, versioned declaration instead of borrowing default phase names.
-   */
+  /** 唯一的 OpenSpec 开关：parse 只产出 true 或缺省；关闭时没有文档治理。 */
+  readonly openspec?: boolean
+  /** 只与顶层 steps 同在；有 tracks 时写在 tracks.<id>.documentContract。 */
   readonly documentContract?: WorkflowDocumentContractV1
   readonly steps: readonly StepDef[]
   readonly tracks?: Readonly<Record<string, TrackBranchDef>>
@@ -215,6 +213,9 @@ export interface WorkflowDef {
 export interface WorkflowDocumentSlot {
   readonly kind: string
   readonly ownerStep: string
+  /** 缺省 = produce；parse 与 compile 把 'produce' 归一为缺省。 */
+  readonly role?: 'update' | 'require'
+  /** role require 时为空数组。 */
   readonly producers: readonly string[]
 }
 

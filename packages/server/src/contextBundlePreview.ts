@@ -2,11 +2,15 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   compileLedgerContextBundleWithPorts,
   DEFAULT_LEDGER_CONTEXT_BUNDLE_RESOURCE_LIMITS,
-  isDocumentContractPhase,
+  isDocumentPolicyStep,
   LedgerContextBundleError,
   nodeLedgerContextBundlePrimitives,
-  readsRequiredForPhase,
+  readsRequiredForPolicyStep,
+  requiresForPolicyStep,
+  resolveWorkflowName,
   validateChangeName,
+  type DocumentGovernancePolicy,
+  type PipelineState,
 } from '@tenon/kernel'
 import {
   assertChangePathAnchor,
@@ -22,8 +26,30 @@ import {
   trustedContextBundleCurrentSnapshot,
   trustedContextBundleInputs,
 } from './contextBundleTrustedReader.js'
-import { assertWorkflowRootAnchor } from './workflows.js'
+import { assertWorkflowRootAnchor, readWorkflowForApi, WorkflowNotFoundError, type WorkflowRootAnchor } from './workflows.js'
+import { resolveSnapshotTrack } from './skillRuns.js'
+import { resolveSnapshotEffectivePlan } from './workflowSnapshot.js'
 import type { GetRouteDeps } from './serverGetRoutes.js'
+
+/** The change's bound document policy, resolved exactly like the snapshot; undefined = not governed. */
+function changeDocumentPolicy(anchor: WorkflowRootAnchor, state: PipelineState): DocumentGovernancePolicy | undefined {
+  const workflowName = resolveWorkflowName(state)
+  const trackValue = state.fields.track
+  const trackId = Array.isArray(trackValue) ? trackValue.join(',') : (trackValue ?? '')
+  return resolveSnapshotEffectivePlan(anchor.path, workflowName, {
+    documentProfile: state.runMetadata?.documentProfile,
+    documentGovernanceFingerprint: state.runMetadata?.documentGovernanceFingerprint,
+    workflowPlanFingerprint: state.runMetadata?.workflowPlanFingerprint,
+    workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot,
+  }, (name) => {
+    try {
+      return readWorkflowForApi(anchor, name)
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) return null
+      throw error
+    }
+  }, resolveSnapshotTrack(anchor.path, trackId, workflowName)).capabilities.documents.policy
+}
 
 type ContextBundlePreviewDeps = Pick<
   GetRouteDeps,
@@ -39,7 +65,7 @@ function invalidRequest(
     ok: false,
     code: 'CONTEXT_BUNDLE_INVALID_REQUEST',
     error,
-    repairAction: '请提供已注册 root、安全 change、canonical target 和正安全整数 budgetBytes。',
+    repairAction: '请提供已注册 root、安全 change、workflow step target 和正安全整数 budgetBytes。',
   })
 }
 
@@ -78,8 +104,8 @@ export async function handleContextBundlePreview(
   if (!validateChangeName(change).ok) {
     return invalidRequest(res, deps.sendJson, 'change 名非法（仅允许 a-z A-Z 0-9 - _）')
   }
-  if (!isDocumentContractPhase(target)) {
-    return invalidRequest(res, deps.sendJson, 'target 必须是 canonical phase')
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(target)) {
+    return invalidRequest(res, deps.sendJson, 'target 必须是 workflow step id')
   }
   if (!/^[1-9][0-9]*$/.test(budgetText)) {
     return invalidRequest(res, deps.sendJson, 'budgetBytes 必须是正安全整数')
@@ -123,9 +149,14 @@ export async function handleContextBundlePreview(
     }
     stateBefore = trustedContextBundleCurrentSnapshot(anchor, change, changeIdentity)
     const from = stateBefore.phase
+    const policy = changeDocumentPolicy(anchor, stateBefore.state)
+    if (policy === undefined) return invalidRequest(res, deps.sendJson, 'workflow 未开启 openspec')
+    if (!isDocumentPolicyStep(policy, target)) {
+      return invalidRequest(res, deps.sendJson, `target 必须是 workflow step: ${target}`)
+    }
     assertChangePathAnchor(changeAnchor)
     assertWorkflowRootAnchor(anchor)
-    const trustedInputs = readsRequiredForPhase(target).length === 0
+    const trustedInputs = [...readsRequiredForPolicyStep(policy, target), ...requiresForPolicyStep(policy, target)].length === 0
       ? {
           ledger: undefined,
           sourceReader: {
@@ -145,6 +176,7 @@ export async function handleContextBundlePreview(
       change,
       from,
       target,
+      policy,
       budgetBytes,
       ledgerRepository: {
         read: async () => trustedInputs.ledger,

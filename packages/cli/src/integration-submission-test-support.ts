@@ -16,8 +16,8 @@ export function harnessArtifactSubmission(cwd: string, store: StateStore): NonNu
     changeDir,
     namespace: artifactNamespaceForChange(changeDir),
     repoRoot: cwd,
-    ...(phase !== undefined
-      ? { document: createDocumentProjectionAdapter({ repoRoot: cwd, changeDir, phase, ...(policy ? { policy } : {}) }) }
+    ...(phase !== undefined && policy !== undefined
+      ? { document: createDocumentProjectionAdapter({ repoRoot: cwd, changeDir, phase, policy }) }
       : {}),
     field: createFieldProjectionAdapter({ store, changeDir, persist: false }),
   })

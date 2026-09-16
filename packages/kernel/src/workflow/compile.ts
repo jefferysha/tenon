@@ -43,7 +43,7 @@ const ACTION_TYPES: ReadonlySet<string> = new Set<ActionConfig['type']>([
 const CUSTOM_PRODUCER_POLICIES: ReadonlySet<string> = new Set(['effective-step-skills'])
 const DEFAULT_PRODUCER_POLICIES: ReadonlySet<string> = new Set(['effective-step-skills', 'effective-phase-skills'])
 const WORKFLOW_KEYS: ReadonlySet<string> = new Set([
-  'name', 'decomposition', 'interaction', 'reviewBudget', 'openspecContract', 'documentContract', 'steps', 'tracks',
+  'name', 'decomposition', 'interaction', 'reviewBudget', 'openspec', 'documentContract', 'steps', 'tracks',
 ])
 const STEP_KEYS: ReadonlySet<string> = new Set([
   'id', 'label', 'gate', 'prompt', 'reviewLanes', 'skills', 'inputs', 'outputs', 'artifacts', 'guards', 'transitions',
@@ -53,7 +53,7 @@ const FIELD_REF_KEYS: ReadonlySet<string> = new Set(['field', 'type'])
 const TRANSITION_KEYS: ReadonlySet<string> = new Set(['event', 'to', 'guards', 'actions'])
 const ACTION_KEYS: ReadonlySet<string> = new Set(['type'])
 const DOCUMENT_CONTRACT_KEYS: ReadonlySet<string> = new Set(['version', 'slots', 'reads'])
-const DOCUMENT_SLOT_KEYS: ReadonlySet<string> = new Set(['kind', 'ownerStep', 'producers'])
+const DOCUMENT_SLOT_KEYS: ReadonlySet<string> = new Set(['kind', 'ownerStep', 'role', 'producers'])
 const DOCUMENT_READ_KEYS: ReadonlySet<string> = new Set(['step', 'kinds'])
 function compileError(path: string, msg: string): never {
   throw new Error(`compileWorkflow: ${path}: ${msg}`)
@@ -257,30 +257,36 @@ function compileNonemptyStringArray(value: unknown, path: string): string[] {
   return asArray(value, path).map((item, index) => nonemptyString(item, `${path}[${index}]`))
 }
 
-function compileDocumentContract(value: unknown): WorkflowDocumentContractV1 | undefined {
+function compileDocumentContract(value: unknown, path: string): WorkflowDocumentContractV1 | undefined {
   if (value === undefined) return undefined
-  const rec = asRecord(value, 'documentContract')
-  rejectExtraKeys(rec, DOCUMENT_CONTRACT_KEYS, 'documentContract')
+  const rec = asRecord(value, path)
+  rejectExtraKeys(rec, DOCUMENT_CONTRACT_KEYS, path)
   if (rec.version !== 'v1') {
-    compileError('documentContract.version', `必须是 'v1'（实际 ${JSON.stringify(rec.version)}）`)
+    compileError(`${path}.version`, `必须是 'v1'（实际 ${JSON.stringify(rec.version)}）`)
   }
-  const slots: WorkflowDocumentSlot[] = asArray(rec.slots, 'documentContract.slots').map((slot, index) => {
-    const item = asRecord(slot, `documentContract.slots[${index}]`)
-    rejectExtraKeys(item, DOCUMENT_SLOT_KEYS, `documentContract.slots[${index}]`)
-    return {
-      kind: nonemptyString(item.kind, `documentContract.slots[${index}].kind`),
-      ownerStep: nonemptyString(item.ownerStep, `documentContract.slots[${index}].ownerStep`),
-      producers: compileNonemptyStringArray(item.producers, `documentContract.slots[${index}].producers`),
+  const slots: WorkflowDocumentSlot[] = asArray(rec.slots, `${path}.slots`).map((slot, index) => {
+    const slotPath = `${path}.slots[${index}]`
+    const item = asRecord(slot, slotPath)
+    rejectExtraKeys(item, DOCUMENT_SLOT_KEYS, slotPath)
+    const kind = nonemptyString(item.kind, `${slotPath}.kind`)
+    const ownerStep = nonemptyString(item.ownerStep, `${slotPath}.ownerStep`)
+    const role = item.role ?? 'produce'
+    if (role !== 'produce' && role !== 'update' && role !== 'require') {
+      compileError(`${slotPath}.role`, `document slot '${kind}' 的 role 只支持 produce | update | require`)
     }
+    const producers = role === 'require' && item.producers === undefined
+      ? []
+      : compileNonemptyStringArray(item.producers, `${slotPath}.producers`)
+    return role === 'produce' ? { kind, ownerStep, producers } : { kind, ownerStep, role, producers }
   })
-  if (slots.length === 0) compileError('documentContract.slots', '不得为空')
-  const reads: WorkflowDocumentRead[] = asArray(rec.reads, 'documentContract.reads').map((read, index) => {
-    const item = asRecord(read, `documentContract.reads[${index}]`)
-    rejectExtraKeys(item, DOCUMENT_READ_KEYS, `documentContract.reads[${index}]`)
-    const kinds = compileNonemptyStringArray(item.kinds, `documentContract.reads[${index}].kinds`)
-    if (kinds.length === 0) compileError(`documentContract.reads[${index}].kinds`, '不得为空')
+  if (slots.length === 0) compileError(`${path}.slots`, '不得为空')
+  const reads: WorkflowDocumentRead[] = asArray(rec.reads, `${path}.reads`).map((read, index) => {
+    const item = asRecord(read, `${path}.reads[${index}]`)
+    rejectExtraKeys(item, DOCUMENT_READ_KEYS, `${path}.reads[${index}]`)
+    const kinds = compileNonemptyStringArray(item.kinds, `${path}.reads[${index}].kinds`)
+    if (kinds.length === 0) compileError(`${path}.reads[${index}].kinds`, '不得为空')
     return {
-      step: nonemptyString(item.step, `documentContract.reads[${index}].step`),
+      step: nonemptyString(item.step, `${path}.reads[${index}].step`),
       kinds,
     }
   })
@@ -300,19 +306,16 @@ function deepFreeze<T>(value: T): T {
 
 function compileWith(def: unknown, allowedPolicies: ReadonlySet<string>): WorkflowIR {
   const rec = asRecord(def, 'workflow')
+  if (Object.hasOwn(rec, 'openspecContract')) compileError('openspecContract', '已移除——改为 openspec: true')
   rejectExtraKeys(rec, WORKFLOW_KEYS, 'workflow')
   const name = nonemptyString(rec.name, 'name')
   const decomposition = compileWorkflowDecompositionPolicy(rec.decomposition)
   const interaction = compileWorkflowInteractionPolicy(rec.interaction)
   const reviewBudget = compileWorkflowReviewBudgetPolicy(rec.reviewBudget)
-  const openspecContract = rec.openspecContract
-  if (openspecContract !== undefined && openspecContract !== 'required') {
-    compileError('openspecContract', `必须是 'required'（实际 ${JSON.stringify(openspecContract)}）`)
+  if (rec.openspec !== undefined && typeof rec.openspec !== 'boolean') {
+    compileError('openspec', `必须是 true | false（实际 ${JSON.stringify(rec.openspec)}）`)
   }
-  const documentContract = compileDocumentContract(rec.documentContract)
-  if (openspecContract !== undefined && documentContract !== undefined) {
-    compileError('documentContract', '不得与 openspecContract 同时声明')
-  }
+  const documentContract = compileDocumentContract(rec.documentContract, 'documentContract')
   const steps = asArray(rec.steps, 'steps').map((s, i) => compileStep(s, i, allowedPolicies))
   const tracks = compileTracks(rec.tracks, allowedPolicies)
   return deepFreeze({
@@ -320,21 +323,21 @@ function compileWith(def: unknown, allowedPolicies: ReadonlySet<string>): Workfl
     decomposition,
     interaction,
     reviewBudget,
-    ...(openspecContract === undefined ? {} : { openspecContract }),
+    ...(rec.openspec === true ? { openspec: true as const } : {}),
     ...(documentContract === undefined ? {} : { documentContract }),
     steps,
     ...(tracks === undefined ? {} : { tracks }),
   })
 }
 
-const TRACK_BRANCH_KEYS: ReadonlySet<string> = new Set(['label', 'steps'])
+const TRACK_BRANCH_KEYS: ReadonlySet<string> = new Set(['label', 'documentContract', 'steps'])
 const TRACK_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/
 
-/** `tracks.<id>` 分支：每条分支的 steps 与顶层同构编译（路径前缀 tracks.<id>.steps）。 */
+/** `tracks.<id>` 分支：每条分支的 steps 与顶层同构编译（路径前缀 tracks.<id>.steps），文档契约随分支编译。 */
 function compileTracks(raw: unknown, allowedPolicies: ReadonlySet<string>): WorkflowIR['tracks'] | undefined {
   if (raw === undefined) return undefined
   const rec = asRecord(raw, 'tracks')
-  const out: Record<string, { label?: string; steps: readonly StepIR[] }> = {}
+  const out: Record<string, { label?: string; documentContract?: WorkflowDocumentContractV1; steps: readonly StepIR[] }> = {}
   for (const [id, branchRaw] of Object.entries(rec)) {
     if (!TRACK_ID_RE.test(id)) compileError(`tracks.${id}`, '分支 id 须为小写字母开头的 a-z0-9_-（≤32）')
     const branch = asRecord(branchRaw, `tracks.${id}`)
@@ -342,8 +345,13 @@ function compileTracks(raw: unknown, allowedPolicies: ReadonlySet<string>): Work
     if (branch.label !== undefined && (typeof branch.label !== 'string' || branch.label === '')) {
       compileError(`tracks.${id}.label`, `必须是非空字符串（实际 ${JSON.stringify(branch.label)}）`)
     }
+    const documentContract = compileDocumentContract(branch.documentContract, `tracks.${id}.documentContract`)
     const steps = asArray(branch.steps, `tracks.${id}.steps`).map((s, i) => compileStep(s, i, allowedPolicies, `tracks.${id}.steps`))
-    out[id] = { ...(branch.label === undefined ? {} : { label: branch.label }), steps }
+    out[id] = {
+      ...(branch.label === undefined ? {} : { label: branch.label }),
+      ...(documentContract === undefined ? {} : { documentContract }),
+      steps,
+    }
   }
   return out
 }

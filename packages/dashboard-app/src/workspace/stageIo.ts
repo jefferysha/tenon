@@ -1,5 +1,6 @@
 import type { WbIoSlot, WbSkillRef, WbStepIo } from '../api/governanceTypes'
-import type { ChangeSnapshot, SkillRunsSnapshot } from '../types'
+import type { ChangeSnapshot, DocumentStaleReason, SkillRunsSnapshot } from '../types'
+import { producerSkills } from '../workflow/producers'
 import { fieldStr, isUnset } from './taskModel'
 
 const FILE_FIELDS = new Set(['design_doc', 'plan', 'verification_report', 'prd_path'])
@@ -31,12 +32,18 @@ export interface IoRow {
   at: string | null
   /** 最近一次登记的操作人名字；无则缺省。 */
   actor?: string | null
+  /** 过期原因；其它状态为 null。 */
+  reason: DocumentStaleReason | null
+  /** 应产出它的技能（输出侧文档槽位：契约候选 ∩ 本阶段技能）；其余为空。 */
+  producers: readonly string[]
 }
 
-export function ioRowOf(change: ChangeSnapshot, slot: WbIoSlot): IoRow {
+export function ioRowOf(change: ChangeSnapshot, slot: WbIoSlot, stageSkills: readonly string[] = []): IoRow {
   if (slot.kind === 'document') {
     const item = change.documents?.items.find((candidate) => candidate.kind === slot.id)
     const last = item?.timeline?.at(-1)
+    const produced = slot.role === 'produce' || slot.role === 'update'
+    const matched = produced ? producerSkills(slot.producers, stageSkills) : []
     return {
       slot,
       status: item?.status ?? 'missing',
@@ -45,6 +52,8 @@ export function ioRowOf(change: ChangeSnapshot, slot: WbIoSlot): IoRow {
       producer: last?.producer ?? item?.producers.at(-1) ?? null,
       at: last?.recordedAt ?? null,
       actor: last?.actor?.name ?? null,
+      reason: item?.status === 'stale' ? item.reason ?? null : null,
+      producers: produced ? (matched.length > 0 ? matched : [...slot.producers]) : [],
     }
   }
   const value = fieldStr(change, slot.id)
@@ -56,15 +65,33 @@ export function ioRowOf(change: ChangeSnapshot, slot: WbIoSlot): IoRow {
     value: set ? value : '',
     producer: null,
     at: null,
+    reason: null,
+    producers: [],
   }
 }
 
-export function stageOutputs(change: ChangeSnapshot, stepIo: WbStepIo | undefined): IoRow[] {
-  return (stepIo?.outputs ?? []).map((slot) => ioRowOf(change, slot))
+export function stageOutputs(change: ChangeSnapshot, stepIo: WbStepIo | undefined, stageSkills: readonly string[] = []): IoRow[] {
+  return (stepIo?.outputs ?? []).map((slot) => ioRowOf(change, slot, stageSkills))
 }
 
 export function stageInputs(change: ChangeSnapshot, stepIo: WbStepIo | undefined): IoRow[] {
   return (stepIo?.inputs ?? []).map((slot) => ioRowOf(change, slot))
+}
+
+/**
+ * 门禁行的条件计数：auto = 声明的输出齐全；review 在此之上多一条人工确认。
+ * 没有门禁或一个条件都没有 → null（不显示这一行）。
+ */
+export function gateProgress(
+  gate: 'review' | 'auto' | null,
+  outputs: readonly IoRow[],
+  reviewSatisfied: boolean,
+): { gate: 'review' | 'auto'; done: number; total: number } | null {
+  if (gate === null) return null
+  const total = outputs.length + (gate === 'review' ? 1 : 0)
+  if (total === 0) return null
+  const done = outputs.filter(isReadyRow).length + (gate === 'review' && reviewSatisfied ? 1 : 0)
+  return { gate, done, total }
 }
 
 export function isReadyRow(row: IoRow): boolean {

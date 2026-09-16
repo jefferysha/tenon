@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type SetStateAction } from 'react'
 import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
+import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
+import { addDocumentOutputInDef, removeDocumentSlotInDef, setDocumentInputsInDef, setOpenspecInDef } from './documentContractEdits'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
 import type { WbEffectiveIo, WbSkillRef, WbStepDef, WbTransition, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
@@ -55,6 +57,9 @@ export interface CreateState {
   setName: (name: string) => void
   yaml: string
   setYaml: (text: string) => void
+  /** 新工作流是否接入 OpenSpec（复制时取源工作流的开关，空白默认关，导入由 YAML 决定）。 */
+  openspec: boolean
+  setOpenspec: (on: boolean) => void
   nameInvalid: boolean
   nameDuplicate: boolean
   errors: string[]
@@ -87,11 +92,16 @@ export interface WorkflowEditor {
   branches: Array<{ id: string; label: string | null }>
   addTrack: (id: string, label: string) => void
   removeTrack: (id: string) => void
-  /** 草稿的物化 IO（字段槽位按草稿重算，文档槽位沿用已保存版本或草稿契约）。 */
+  /** 草稿的物化 IO（字段槽位与文档槽位都按草稿重算）。 */
   effectiveIo: WbEffectiveIo | undefined
   lint: LintIssue[]
-  /** 任一分支有 lint 问题 → 不能保存。 */
+  /** 任一分支有 error 级 lint 问题 → 不能保存；warning 不挡。 */
   lintBlocked: boolean
+  /** OpenSpec 开关（工作流级，关闭时清掉每条分支的文档契约；default 不能关）。 */
+  setOpenspec: (on: boolean) => void
+  addDocumentOutput: (stepId: string, kind: DocumentKind) => void
+  removeDocumentSlot: (stepId: string, kind: string, direction: 'inputs' | 'outputs') => void
+  setDocumentInputs: (stepId: string, kinds: readonly string[]) => void
   /** 页面是否持有写凭证；无则所有写入口置灰。 */
   canWrite: boolean
   dirty: boolean
@@ -155,6 +165,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   const [createMode, setCreateMode] = useState<CreateMode>('copy')
   const [createName, setCreateName] = useState('')
   const [createYaml, setCreateYaml] = useState('')
+  const [createOpenspec, setCreateOpenspec] = useState(false)
   const [createBusy, setCreateBusy] = useState(false)
   const [createErrors, setCreateErrors] = useState<string[]>([])
   const [workflowDeleteTarget, setWorkflowDeleteTarget] = useState<{ root: string; name: string } | null>(null)
@@ -276,19 +287,14 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   const { setSourceDirty } = useWorkbenchDirtyState({ localDirty: dirty || createDirty || stageDraft.draftDirty, onDirtyChange })
   const reportTrackDirty = useCallback((value: boolean) => { setSourceDirty('track', value) }, [setSourceDirty])
 
-  const effectiveIo = useMemo(() => {
-    if (def === null) return undefined
-    const baseline = baselineRef.current === null ? undefined : selectBranchDef(baselineRef.current, effectiveBranch).effectiveIo
-    return draftEffectiveIo(def, baseline)
-  }, [def, effectiveBranch])
+  const effectiveIo = useMemo(() => def === null ? undefined : draftEffectiveIo(def), [def])
   const lint = useMemo(() => def === null ? [] : lintWorkflow(def, effectiveIo), [def, effectiveIo])
-  // 保存门禁看全部分支：任一分支缺输出都不能保存。
+  // 保存门禁看全部分支：任一分支有 error 都不能保存；warning（缺输出、成对文档缺一）不挡。
   const lintBlocked = useMemo(() => {
     if (fullDef === null) return false
     return branchesOf(fullDef).some((candidate) => {
       const view = selectBranchDef(fullDef, candidate.id)
-      const baseline = baselineRef.current === null ? undefined : selectBranchDef(baselineRef.current, candidate.id).effectiveIo
-      return lintWorkflow(view, draftEffectiveIo(view, baseline)).length > 0
+      return lintWorkflow(view, draftEffectiveIo(view)).some((issue) => issue.severity === 'error')
     })
   }, [fullDef])
   // 名称只显示一个：YAML 有 label 用 label，没有就用 id；前端不做翻译。
@@ -355,6 +361,12 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   const setSkills = useCallback((stepId: string, skills: readonly WbSkillRef[]) => mutate((previous) => setStepSkillsInDef(previous, stepId, skills)), [mutate])
   const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
   const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])
+  const setOpenspec = useCallback((on: boolean): void => {
+    setDefState((previous) => previous === null || (!on && isDefaultWorkflowName(previous.name)) ? previous : setOpenspecInDef(previous, on))
+  }, [])
+  const addDocumentOutput = useCallback((stepId: string, kind: DocumentKind) => mutate((previous) => addDocumentOutputInDef(previous, stepId, kind)), [mutate])
+  const removeDocumentSlot = useCallback((stepId: string, kind: string, direction: 'inputs' | 'outputs') => mutate((previous) => removeDocumentSlotInDef(previous, stepId, kind, direction)), [mutate])
+  const setDocumentInputs = useCallback((stepId: string, kinds: readonly string[]) => mutate((previous) => setDocumentInputsInDef(previous, stepId, kinds)), [mutate])
 
   function afterWrite(targetRoot: string, name: string): void {
     invalidateWorkflowRules(targetRoot, name)
@@ -436,6 +448,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     if (saving || !canWrite) return
     setCreateMode(mode)
     setCreateName(mode === 'copy' ? `${wfName ?? 'workflow'}-copy` : '')
+    setCreateOpenspec(mode === 'copy' && fullDef?.openspec === true)
     setCreateYaml('')
     setCreateErrors([])
     setCreateOpen(true)
@@ -470,7 +483,8 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
           return
         }
       } else {
-        const next = createMode === 'copy' && fullDef !== null ? copyWorkflowDef(fullDef, name) : blankWorkflow(name, localeRef.current.t('workflow.blank_stage'))
+        const base = createMode === 'copy' && fullDef !== null ? copyWorkflowDef(fullDef, name) : blankWorkflow(name, localeRef.current.t('workflow.blank_stage'))
+        const next = setOpenspecInDef(base, createOpenspec)
         const response = await postWorkflowDef(name, { ...definitionForWrite(next), root: targetRoot })
         if (!response.ok) {
           const locale = localeRef.current
@@ -578,6 +592,10 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     effectiveIo,
     lint,
     lintBlocked,
+    setOpenspec,
+    addDocumentOutput,
+    removeDocumentSlot,
+    setDocumentInputs,
     canWrite,
     dirty,
     saving,
@@ -606,11 +624,18 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     create: {
       open: createOpen,
       mode: createMode,
-      setMode: (mode) => { setCreateMode(mode); setCreateErrors([]); if (mode === 'copy' && createName.trim() === '') setCreateName(`${wfName ?? 'workflow'}-copy`) },
+      setMode: (mode) => {
+        setCreateMode(mode)
+        setCreateErrors([])
+        setCreateOpenspec(mode === 'copy' && fullDef?.openspec === true)
+        if (mode === 'copy' && createName.trim() === '') setCreateName(`${wfName ?? 'workflow'}-copy`)
+      },
       name: createName,
       setName: setCreateName,
       yaml: createYaml,
       setYaml,
+      openspec: createOpenspec,
+      setOpenspec: setCreateOpenspec,
       nameInvalid,
       nameDuplicate,
       errors: createErrors,

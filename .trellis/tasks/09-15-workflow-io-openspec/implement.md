@@ -290,3 +290,52 @@ and screenshots in `research/acceptance.md`.
 
 Roughly 14 commits: kernel ~1.4k lines changed (+~400 YAML), dashboard ~0.9k, server/cli ~0.3k, deletions ~1.5k,
 tests ~1.2k. About 3–4 focused days plus real-host acceptance.
+
+## Deviations
+
+- **C4 instead of C6 for handoff policy.** Making the policy a required argument of `evaluateDocumentEvidence`
+  forced every caller to resolve it at once, so the CLI handoff/bundle resolution landed in C4; C6 then only
+  carried the bundle's own policy-step target rule.
+- **OpenSpec switch test id.** Design §5 named `wb-wf-openspec`; the switch lives in the workflow menu, whose
+  `MenuButton` convention prefixes items, so the real id is `wb-wf-menu-openspec`.
+- **`workflow.runtime_artifacts_*` deleted in C9, not C8.** The keys belong to the panel; removing them with the
+  panel kept every intermediate commit's dictionary consistent with its own UI.
+- **New files beyond the design's file list.** `workflow/track-branch-error.ts` (extracted to break a kernel import
+  cycle), `workflow/migrations/openspec-v1-document-policy.ts` (moved fixed table, V1 snapshot restore only),
+  `workflow/default-document-contract.test.ts`, `compress/ledger-context-bundle-policy.test.ts`,
+  `dashboard-app/src/workbench/documentContractEdits.ts`, `workflow/lintMessages.ts`, `workflow/producers.ts`,
+  `workspace/TaskDetailPane.test.tsx`.
+- **C10 kept the orchestration integration case.** Deleting only the `artifactAttempts` assertion would have left a
+  test with no subject, so it now asserts that a canonical artifact scope yields no compatibility issue — the
+  behaviour that survives. The `ArtifactService` type is re-sourced from `@tenon/automation`, which owns it, since
+  `serverArtifactRoutes.ts` is gone.
+- **C11 oracle item was a no-op.** `tools/oracle/run.sh` contains no `openspec_contract` and no custom-workflow YAML
+  fixture — `bootstrap_new_document_contract` only drives default-phase `document record` calls — so there was
+  nothing to add `openspec: true` to. Left unchanged.
+- **C11 extended past its file list.** `docs/usage/custom-workflows-and-tracks.md` (+ zh-CN mirror),
+  `documents-skills-and-evidence.md` and `routing-and-workflows.md` documented `openspec_contract: required` as live
+  behaviour and showed a `document_contract` example without `openspec: true`; leaving them would document a removed
+  key. Also deleted the dead `workflow.openspec_contract` / `workflow.document_contract` dictionary entries
+  (unreferenced after the switch rename) and fixed `kernel/src/types.ts:239`, whose comment still named the removed
+  YAML key. Note: `09-15-data-driven-runner` also edits the two `docs/usage` files on different lines.
+- **Historical records left alone.** `docs/adr/*`, `docs/superpowers/{plans,specs}/*` are dated records and still
+  mention `openspec_contract`; the C11 grep therefore lists them in addition to the expected packages-side
+  leftovers (E1/E2 hint strings and their tests, the moved migration table, the V1/V2 snapshot alias, and the
+  internal `openspecContract` init flags design §6.2 keeps).
+- **`server.test.ts` pre-read invalid-target case** uses `'bad target!'` (regex-rejected) because the previous
+  fixture value resolved differently on macOS; the not-a-step 400 assertion is asserted on Linux only.
+- **`tools/test-hooks.sh` router fixtures needed a new helper.** Two router selection fixtures build a custom
+  workflow by copying `templates/workflows/default.yaml` and only renaming it (`:1243`, `:1259`). With governance
+  now declared in that YAML, the renamed copy lost default's producer-membership exemption and `loadWorkflow`
+  rejected it (`tracks.chat: document_contract document 'proposal' 的 producer 'openspec-propose' 未在 owner_step
+  'open' 声明`), so the router cold path emitted nothing and 10 selection assertions failed. Added
+  `strip_document_contract()`, which drops the `openspec` switch and every branch contract block — these fixtures
+  verify Track/workflow selection, not document governance. Same root cause as the Dashboard copy pruning in C8.
+- **`check:default-workflow-freshness` cannot pass in this branch by construction.** It is
+  `generate:default-workflow && git diff --exit-code` on a generated file the ground rules keep uncommitted, so it
+  reports the regenerated 完结 label as drift. C13's own script ends by `git checkout --`-ing both generated files;
+  the main session regenerates and commits them after merge.
+- **C13 deferred.** Real-host acceptance belongs to wave 5 (parent X18); all local gates were run here.
+- **Generated files regenerated locally, left uncommitted** per the ground rules: `default-workflow.generated.ts`,
+  `document-presentation.generated.ts`, `templates/skill-sources.yaml` and `packages/cli/dist/tenon.mjs` (the last
+  two rewritten as a side effect of `npm run sync:skill-provenance`, needed to re-validate `verify-skills.sh`).

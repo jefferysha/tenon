@@ -39,6 +39,7 @@ steps:
 `
 
 const THREE_STEP_GOVERNED_WF = `name: compact-governed
+openspec: true
 document_contract:
   version: v1
   slots:
@@ -506,6 +507,18 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(await h.run(['document', 'status', 'bound-docs'])).toBe(2)
     expect(h.err.join('\n')).not.toContain('不可降级为自由模式')
     expect(h.out.join('\n')).toContain('workflow=compact-governed')
+  })
+
+  test('openspec: true 的自定义 workflow（无契约）建 ledger；仍写 openspec_contract 的 YAML 按 E1 拒绝', async () => {
+    await seedWorkflow('bare-governed', TWO_STEP_WF.replace(/^name: \S+\n/, 'name: bare-governed\nopenspec: true\n'))
+    expect(await h.run(['init', 'bare', '--track', 'backend', '--preset', 'full', '--workflow', 'bare-governed']), h.err.join('\n')).toBe(0)
+    expect(JSON.parse(await h.readIn('bare', '.pipeline-documents.json'))).toMatchObject({ records: [] })
+    expect(await h.run(['document', 'status', 'bare'])).toBe(0)
+
+    await seedWorkflow('old-contract', TWO_STEP_WF.replace(/^name: \S+\n/, 'name: old-contract\nopenspec_contract: required\n'))
+    expect(await h.run(['init', 'old', '--track', 'backend', '--preset', 'full', '--workflow', 'old-contract'])).toBe(1)
+    expect(h.err.join('\n')).toContain('openspec_contract 已移除——改为 openspec: true 并声明 document_contract')
+    await expect(h.read('old')).rejects.toThrow()
   })
 
   test('--workflow 指向不存在的文件：exit 1，不落盘任何 change 目录（先校验后创建，不留半成品）', async () => {

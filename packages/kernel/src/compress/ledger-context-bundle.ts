@@ -1,6 +1,8 @@
 import {
-  isDocumentContractPhase,
-  readsRequiredForPhase,
+  DOCUMENT_KIND_CATALOG,
+  isDocumentPolicyStep,
+  readsRequiredForPolicyStep,
+  requiresForPolicyStep,
   type DocumentKind,
 } from '../workflow/document-contract.js'
 import {
@@ -33,6 +35,7 @@ const DOCUMENT_REASONS: Readonly<Record<DocumentKind, string>> = {
   plan: '提供当前 Build 执行计划入口',
   'verification-report': '提供冻结基线上的验证结果和失败分类',
   'applied-spec': '证明 delta spec 已应用到主规格',
+  'design-md': '提供项目设计体系',
 }
 
 const DOCUMENT_REASON_CODES: Readonly<Record<DocumentKind, LedgerContextBundleReasonCode>> = {
@@ -46,6 +49,7 @@ const DOCUMENT_REASON_CODES: Readonly<Record<DocumentKind, LedgerContextBundleRe
   plan: 'context-bundle.reason.plan',
   'verification-report': 'context-bundle.reason.verification-report',
   'applied-spec': 'context-bundle.reason.applied-spec',
+  'design-md': 'context-bundle.reason.design-md',
 }
 
 function materializationMode(kind: DocumentKind): Exclude<ContextBundleMode, 'reference'> {
@@ -114,14 +118,15 @@ export async function compileLedgerContextBundleWithPorts(
   if (!input.primitives.isAbsoluteRoot(input.root) || !SAFE_ID.test(input.change) || !SAFE_ID.test(input.from)) {
     throw invalidRequest('Context Bundle root/change/from 非法')
   }
-  if (!isDocumentContractPhase(input.target)) {
-    throw invalidRequest(`Context Bundle target 必须是 canonical phase: ${input.target}`)
+  if (!isDocumentPolicyStep(input.policy, input.target)) {
+    throw invalidRequest(`Context Bundle target 必须是 workflow step: ${input.target}`)
   }
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
     throw invalidRequest(`Context Bundle budgetBytes 必须是正安全整数: ${maxBytes}`)
   }
 
-  const requiredKinds = readsRequiredForPhase(input.target)
+  const requires = requiresForPolicyStep(input.policy, input.target)
+  const requiredKinds = [...new Set([...readsRequiredForPolicyStep(input.policy, input.target), ...requires])]
   const bundleInputs: Array<{
     kind: DocumentKind
     path: string
@@ -166,9 +171,14 @@ export async function compileLedgerContextBundleWithPorts(
     let totalSourceBytes = 0
     const materializedPaths = new Set<string>()
     for (const kind of requiredKinds) {
-      const records = ledger.records
+      const recorded: ReadonlyArray<{ readonly path: string; readonly sha256?: string }> = ledger.records
         .filter((record) => record.kind === kind)
         .sort((left, right) => left.path.localeCompare(right.path, 'en'))
+      // A required project document produced outside this change is materialized from its fixed path.
+      const projectPath = DOCUMENT_KIND_CATALOG[kind].projectPath
+      const records = recorded.length === 0 && projectPath !== undefined && requires.includes(kind)
+        ? [{ path: projectPath }]
+        : recorded
       if (records.length === 0) {
         throw new LedgerContextBundleError(
           'CONTEXT_BUNDLE_DOCUMENT_MISSING',
@@ -264,7 +274,7 @@ export async function compileLedgerContextBundleWithPorts(
           )
         }
         const actual = input.primitives.sha256(text)
-        if (actual !== record.sha256) {
+        if (record.sha256 !== undefined && actual !== record.sha256) {
           throw new LedgerContextBundleError(
             'CONTEXT_BUNDLE_DOCUMENT_STALE',
             `Context Bundle stale document '${kind}': ${record.path}; run tenon document record ${input.change} ${kind} ${record.path} --producer <skill>, then tenon document read ${input.change} all`,
@@ -284,7 +294,7 @@ export async function compileLedgerContextBundleWithPorts(
           : mode === 'full'
             ? text
             : renderHandoffSummary(compressDocument(text), `${input.change}/${kind}`)
-        const digestValue = `sha256:${record.sha256}` as const
+        const digestValue = `sha256:${record.sha256 ?? actual}` as const
         bundleInputs.push({
           kind,
           path: record.path,

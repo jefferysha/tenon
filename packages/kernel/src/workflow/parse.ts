@@ -295,21 +295,22 @@ export function parseWorkflow(content: string): WorkflowDef {
   const nameMatch = /^name:\s*(\S+)\s*$/.exec(lines[0] ?? '')
   if (!nameMatch) throw new Error("workflow 解析错误：第一行必须是 'name: <name>'")
   let stepLine = 1
-  let openspecContract: 'required' | undefined
+  let openspec: boolean | undefined
   let documentContract: WorkflowDocumentContractV1 | undefined
   let decomposition: WorkflowDef['decomposition']
   let interaction: WorkflowDef['interaction']
   let reviewBudget: WorkflowDef['reviewBudget']
   const isPipelineStart = (line: string): boolean => line.trim() === 'steps:' || line.trim() === 'tracks:'
-  while (!isPipelineStart(lines[stepLine] ?? '')) {
+  while (!isPipelineStart(lines[stepLine] ?? '') && stepLine < lines.length) {
     const line = lines[stepLine] ?? ''
-    const contractLine = /^openspec_contract:\s*(\S+)\s*$/.exec(line)
-    if (contractLine) {
-      if (openspecContract !== undefined) throw new Error('workflow 解析错误：openspec_contract 重复声明')
-      if (contractLine[1] !== 'required') {
-        throw new Error("workflow 解析错误：openspec_contract 只支持 'required'")
+    if (/^openspec_contract:/.test(line)) throw new Error('workflow 解析错误：openspec_contract 已移除——改为 openspec: true 并声明 document_contract')
+    const openspecLine = /^openspec:\s*(.*?)\s*$/.exec(line)
+    if (openspecLine) {
+      if (openspec !== undefined) throw new Error('workflow 解析错误：openspec 重复声明')
+      if (openspecLine[1] !== 'true' && openspecLine[1] !== 'false') {
+        throw new Error('workflow 解析错误：openspec 只支持 true 或 false')
       }
-      openspecContract = 'required'
+      openspec = openspecLine[1] === 'true'
       stepLine++
       continue
     }
@@ -341,13 +342,10 @@ export function parseWorkflow(content: string): WorkflowDef {
       stepLine = cur.i
       continue
     }
-    throw new Error("workflow 解析错误：name 后必须是 'steps:' / 'tracks:'、policies、'openspec_contract: required' 或 document_contract")
-  }
-  if (openspecContract && documentContract) {
-    throw new Error('workflow 解析错误：openspec_contract 与 document_contract 不得同时声明')
+    throw new Error("workflow 解析错误：name 后必须是 'steps:' / 'tracks:'、policies、'openspec: true' 或 document_contract")
   }
   if (!isPipelineStart(lines[stepLine] ?? '')) {
-    throw new Error("workflow 解析错误：name 后必须是 'steps:' / 'tracks:'、'openspec_contract: required' 或 document_contract")
+    throw new Error("workflow 解析错误：name 后必须是 'steps:' / 'tracks:'、policies、'openspec: true' 或 document_contract")
   }
 
   // steps ⊕ tracks：有 tracks 的工作流每条轨道各写自己的阶段，顶层 steps 缺省为空（validate 拒绝两者并存）。
@@ -358,6 +356,7 @@ export function parseWorkflow(content: string): WorkflowDef {
   if ((lines[cur.i] ?? '').trim() === 'tracks:' && indentOf(lines[cur.i] ?? '') === 0) {
     cur.i++
     tracks = parseTracksBlock(cur)
+    if (documentContract !== undefined) throw new Error('workflow 解析错误：有 tracks 时 document_contract 写在 tracks.<id> 下')
   }
   while (cur.i < lines.length) {
     if ((lines[cur.i] ?? '').trim() !== '') {
@@ -370,7 +369,7 @@ export function parseWorkflow(content: string): WorkflowDef {
     ...(decomposition ? { decomposition } : {}),
     ...(interaction ? { interaction } : {}),
     ...(reviewBudget ? { reviewBudget } : {}),
-    ...(openspecContract ? { openspecContract } : {}),
+    ...(openspec === true ? { openspec: true } : {}),
     ...(documentContract ? { documentContract } : {}),
     steps,
     ...(tracks === undefined ? {} : { tracks }),
@@ -396,7 +395,7 @@ function parseStepList(cur: Cursor, path: string, blockIndent: number): StepDef[
 }
 
 /**
- * `tracks:` 块：每条 `  <id>:` 下可选 `label:` 与必有的 `steps:`（步骤项缩进再深一层）。
+ * `tracks:` 块：每条 `  <id>:` 下可选 `label:`、可选 `document_contract:` 与必有的 `steps:`（步骤项缩进再深一层）。
  * 分支 id 词法与 track id 一致（小写字母开头，a-z0-9_-，≤32）。
  */
 function parseTracksBlock(cur: Cursor): Record<string, TrackBranchDef> {
@@ -414,6 +413,7 @@ function parseTracksBlock(cur: Cursor): Record<string, TrackBranchDef> {
     const branchIndent = indentOf(line)
     cur.i++
     let label: string | undefined
+    let documentContract: WorkflowDocumentContractV1 | undefined
     let steps: StepDef[] | undefined
     while (cur.i < cur.lines.length) {
       const inner = cur.lines[cur.i] ?? ''
@@ -426,6 +426,12 @@ function parseTracksBlock(cur: Cursor): Record<string, TrackBranchDef> {
         cur.i++
         continue
       }
+      if (/^\s*document_contract:\s*$/.test(inner)) {
+        if (documentContract !== undefined || steps !== undefined) throw new Error(`workflow 解析错误：分支 '${id}' 的 document_contract 只能在 steps 之前声明一次`)
+        cur.i++
+        documentContract = parseDocumentContract(cur, indentOf(inner))
+        continue
+      }
       if (/^\s*steps:\s*$/.test(inner)) {
         if (steps !== undefined) throw new Error(`workflow 解析错误：分支 '${id}' 重复声明 steps`)
         const stepsIndent = indentOf(inner)
@@ -436,7 +442,7 @@ function parseTracksBlock(cur: Cursor): Record<string, TrackBranchDef> {
       throw new Error(`workflow 解析错误：分支 '${id}' 出现未知字段行 '${inner.trim()}'`)
     }
     if (steps === undefined) throw new Error(`workflow 解析错误：分支 '${id}' 缺 steps`)
-    tracks[id] = { ...(label === undefined ? {} : { label }), steps }
+    tracks[id] = { ...(label === undefined ? {} : { label }), ...(documentContract === undefined ? {} : { documentContract }), steps }
   }
   return tracks
 }

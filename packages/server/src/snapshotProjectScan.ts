@@ -1,7 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { creatorOf, ownerOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
-import { ArtifactScopeMigrationError, openLegacyLineageView } from '@tenon/automation'
 import type { ProjectSnapshot, ChangeSnapshot } from './types.js'
 import { readRepositoryIdentity } from './repositoryIdentity.js'
 import { resolveSnapshotTrack, projectSkillRuns } from './skillRuns.js'
@@ -9,7 +8,7 @@ import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'
 import { legacySnapshotWorkflowRules, resolveSnapshotEffectivePlan, snapshotTodoStages, snapshotWorkflowExecution, snapshotWorkflowRulesAtRoot, type WorkflowSnapshotCapabilityDeps } from './workflowSnapshot.js'
 import { projectReviewHandshake } from './reviewHandshake.js'
 import { documentEvidence, documentTodoItems, type SnapshotDeps } from './snapshot.js'
-import { projectArtifactAttempts, readTerminalActivity } from './snapshot.js'
+import { projectArtifactScopeIssue, readTerminalActivity } from './snapshot.js'
 import { assertWorkflowRootAnchor, type WorkflowRootAnchor } from './workflowRootAnchor.js'
 import { readTasksProjection } from './snapshotTasks.js'
 const MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100
@@ -115,16 +114,16 @@ export async function scanAnchoredProject(
         workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot,
       }, undefined, trackDefinition(track, workflowName))
       legacyWorkflowRules[workflowName] ??= legacySnapshotWorkflowRules(plan)
-      const [documents, terminalActivity, authority, skillRuns, artifactProjection] = await Promise.all([
+      const [documents, terminalActivity, authority, skillRuns, artifactScope] = await Promise.all([
         documentEvidence(readRoot, changeDir, plan, phase),
         readTerminalActivity(changeDir, e.name, nowMs),
         readWorkflowSnapshotAuthority(changeDir, state, plan),
         projectSkillRuns(changeDir, plan, phase, trackDefinition(track, workflowName), deps.mandatorySkills),
-        projectArtifactAttempts(deps, changeDir, anchor),
+        projectArtifactScopeIssue(deps, changeDir, anchor),
       ])
-      if (artifactProjection.compatibilityIssue !== undefined) {
+      if (artifactScope.compatibilityIssue !== undefined) {
         if (compatibilityIssues.length < MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES) {
-          compatibilityIssues.push({ severity: 'warning', kind: 'legacy-scope-unmerged', change: e.name, legacyScopePath: artifactProjection.compatibilityIssue.legacyScopePath, action: 'merge-or-remove-legacy-scope' })
+          compatibilityIssues.push({ severity: 'warning', kind: 'legacy-scope-unmerged', change: e.name, legacyScopePath: artifactScope.compatibilityIssue.legacyScopePath, action: 'merge-or-remove-legacy-scope' })
         } else compatibilityIssueOverflow += 1
       }
       const tasksProjection = await readTasksProjection(changeDir, {}, anchor)
@@ -161,7 +160,6 @@ export async function scanAnchoredProject(
         todo,
         documents,
         skillRuns,
-        ...(artifactProjection.attempts.length === 0 ? {} : { artifactAttempts: artifactProjection.attempts }),
         ...(terminalActivity === undefined ? {} : { terminalActivity }),
       })
     } catch (error) {

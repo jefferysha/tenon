@@ -109,7 +109,7 @@ async function checkVerifyFailReadiness(
         : await evaluateDocumentEvidence(deps.cwd, dir, phase, {
           recordKinds: ['verification-report'],
           readKinds: [],
-        })
+        }, documentPolicy)
       blockers.push(...evidence.blockers.map((blocker) => `document: ${blocker}`))
     }
   }

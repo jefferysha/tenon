@@ -15,6 +15,34 @@ export function parseInlineList(raw: string): string[] {
     .filter((s) => s.length > 0)
 }
 
+/** `{ a: x, b: [c, d] }` 单行 flow map：值是标量或单行列表；重复键 fail-loud。 */
+export function parseInlineMap(raw: string): Record<string, string | string[]> {
+  const trimmed = raw.trim()
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+    throw new Error(`workflow 解析错误：期望 { a: b } 形态的单行映射，实际 '${raw}'`)
+  }
+  const entries: string[] = []
+  let depth = 0
+  let current = ''
+  for (const char of trimmed.slice(1, -1)) {
+    if (char === '[') depth++
+    if (char === ']') depth--
+    if (char === ',' && depth === 0) { entries.push(current); current = ''; continue }
+    current += char
+  }
+  if (current.trim() !== '') entries.push(current)
+  const out: Record<string, string | string[]> = {}
+  for (const entry of entries) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$/.exec(entry)
+    if (!match || match[2] === '') throw new Error(`workflow 解析错误：映射项 '${entry.trim()}' 非法`)
+    const key = match[1] ?? ''
+    if (Object.hasOwn(out, key)) throw new Error(`workflow 解析错误：映射键 '${key}' 重复`)
+    const value = match[2] ?? ''
+    out[key] = value.startsWith('[') ? parseInlineList(value) : value
+  }
+  return out
+}
+
 export function indentOf(line: string): number {
   return line.length - line.trimStart().length
 }

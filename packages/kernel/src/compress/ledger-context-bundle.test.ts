@@ -9,10 +9,19 @@ import {
   LedgerContextBundleError,
   type LedgerContextBundleErrorCode,
 } from './ledger-context-bundle.js'
-import { compileLedgerContextBundle } from './ledger-context-bundle-node-adapter.js'
+import { compileLedgerContextBundle as compileWithPolicy } from './ledger-context-bundle-node-adapter.js'
 import { nodeLedgerContextBundlePrimitives } from './ledger-context-bundle-node-adapter.js'
-import { compileLedgerContextBundleWithPorts } from './ledger-context-bundle.js'
+import { compileLedgerContextBundleWithPorts as compileWithPortsAndPolicy } from './ledger-context-bundle.js'
 import type { DocumentLedger } from '../state/document-ledger.js'
+import { documentGovernancePolicy, type DocumentGovernancePolicy } from '../workflow/document-contract.js'
+import { LEGACY_DOCUMENT_GOVERNANCE_POLICY } from '../workflow/migrations/openspec-v1-document-policy.js'
+
+type WithDefaultPolicy<T> = Omit<T, 'policy'> & { readonly policy?: DocumentGovernancePolicy }
+/** Fixtures default to the openspec-v1 table that default declares in YAML. */
+const compileLedgerContextBundle = (input: WithDefaultPolicy<Parameters<typeof compileWithPolicy>[0]>) =>
+  compileWithPolicy({ ...input, policy: input.policy ?? LEGACY_DOCUMENT_GOVERNANCE_POLICY })
+const compileLedgerContextBundleWithPorts = (input: WithDefaultPolicy<Parameters<typeof compileWithPortsAndPolicy>[0]>) =>
+  compileWithPortsAndPolicy({ ...input, policy: input.policy ?? LEGACY_DOCUMENT_GOVERNANCE_POLICY })
 
 interface FixtureDocument {
   readonly kind: DocumentKind

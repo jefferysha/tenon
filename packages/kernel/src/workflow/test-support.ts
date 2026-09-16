@@ -27,11 +27,13 @@ export function allFields(
  */
 export function legacyDefaultWorkflow(): WorkflowDef {
   const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-  // 分支化之前 default 只有一条 pipeline：驱动技能 + spec 的 plan artifact 带 PM 豁免谓词。用 frontend 分支还原它。
-  const frontend = def.tracks?.frontend?.steps ?? def.steps
+  // 分支化之前 default 只有一条 pipeline：驱动技能 + spec 的 plan artifact 带 PM 豁免谓词。用 frontend 分支（含其文档契约）还原它。
+  const branch = def.tracks?.frontend
+  const frontend = branch?.steps ?? def.steps
   return {
     ...def,
     tracks: undefined,
+    ...(branch?.documentContract === undefined ? {} : { documentContract: branch.documentContract }),
     steps: frontend.map((step) => ({
       ...step,
       skills: step.skills.filter((skill) => skill.id.startsWith('tenon-')),

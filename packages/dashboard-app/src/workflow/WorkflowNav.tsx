@@ -12,13 +12,14 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { ChevronDown, Download, Plus, RotateCcw, ShieldCheck, Trash2, Zap } from 'lucide-react'
+import { ChevronDown, Download, FileCheck, Plus, RotateCcw, ShieldCheck, Trash2, Zap } from 'lucide-react'
 import type { WbStepDef, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { MenuButton } from '../shared/MenuButton'
 import { useFlipLayout } from '../shared/useFlip'
 import { BASE_BRANCH } from '../workbench/workbenchDefinition'
 import type { LintIssue } from './lint'
+import { lintMessage } from './lintMessages'
 import { backEdgesFrom, pipelineEdges } from './pipelineModel'
 import { cn } from '@/lib/utils'
 
@@ -36,6 +37,9 @@ export interface WorkflowNavProps {
   error: string | null
   canWrite: boolean
   busy: boolean
+  /** 工作流是否接入 OpenSpec（default 恒开、不可关）。 */
+  openspec: boolean
+  onToggleOpenspec: () => void
   onSwitch: (name: string) => void
   onSwitchBranch: (branch: string) => void
   onCreate: () => void
@@ -69,11 +73,12 @@ function GateIcon({ gate }: { gate: WbStepDef['gate'] }): JSX.Element | null {
   )
 }
 
-function StepRow({ step, order, selected, missing, editable, labelOf, onSelect }: {
+function StepRow({ step, order, selected, issue, editable, labelOf, onSelect }: {
   step: WbStepDef
   order: number
   selected: boolean
-  missing: boolean
+  /** 本阶段的第一条 lint 问题（错误或警告）；有就在块上标一个琥珀点。 */
+  issue: LintIssue | undefined
   editable: boolean
   labelOf: (stepId: string) => string
   onSelect: (id: string) => void
@@ -109,7 +114,7 @@ function StepRow({ step, order, selected, missing, editable, labelOf, onSelect }
       >
         <span className="truncate">{labelOf(step.id)}</span>
         <span className="flex flex-none items-center gap-1.5">
-          {missing && <span className="size-1.5 rounded-full bg-(--amber-d)" title={t('workflow.lint_no_output')} data-testid={`wb-lint-${step.id}`} />}
+          {issue !== undefined && <span className="size-1.5 rounded-full bg-(--amber-d)" title={lintMessage(t, issue, labelOf)} data-testid={`wb-lint-${step.id}`} />}
           {step.gate !== null && <span data-testid={`wb-gate-${step.id}`}><GateIcon gate={step.gate} /></span>}
         </span>
       </button>
@@ -122,7 +127,7 @@ function StepRow({ step, order, selected, missing, editable, labelOf, onSelect }
  * （圆点 = 拖柄，块 = 名称 + 门禁图标，右侧虚线 = 回流）→ 添加阶段。
  */
 export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
-  const { names, current, defaultSource, branches, branch, def, labelOf, selectedId, lint, loading, error, canWrite, busy } = props
+  const { names, current, defaultSource, branches, branch, def, labelOf, selectedId, lint, loading, error, canWrite, busy, openspec } = props
   const { t } = useT()
   const [switching, setSwitching] = useState(false)
   const switchRef = useRef<HTMLDivElement>(null)
@@ -168,6 +173,8 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
   const menu = [
     { id: 'new', label: t('workflow.new_workflow'), icon: <Plus />, onSelect: props.onCreate, disabled: !canWrite || busy, title: noToken },
     { id: 'export', label: t('workflow.export_yaml'), icon: <Download />, onSelect: props.onExport, disabled: current === null },
+    // default 恒受 OpenSpec 治理，开关只对自定义工作流开放。
+    { id: 'openspec', label: t('workflow.openspec'), icon: <FileCheck />, onSelect: props.onToggleOpenspec, checked: openspec, disabled: !canWrite || busy || isDefault || current === null, title: noToken },
     isDefault
       ? { id: 'restore', label: t('workflow.restore_default'), icon: <RotateCcw />, onSelect: props.onDelete, disabled: !deleteEnabled, title: noToken }
       : { id: 'delete', label: t('workflow.delete_workflow'), icon: <Trash2 />, onSelect: props.onDelete, disabled: !deleteEnabled, title: noToken, danger: true },
@@ -267,7 +274,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
               <SortableContext items={visible.map((step) => step.id)} strategy={verticalListSortingStrategy}>
                 <ol ref={listRef} className="grid" style={{ rowGap: STEP_PITCH - STEP_HEIGHT }} data-testid="stage-list-items">
                   {visible.map((step) => (
-                    <StepRow key={step.id} step={step} order={steps.indexOf(step) + 1} selected={step.id === selectedId} missing={lint.some((issue) => issue.stepId === step.id && issue.kind === 'step-no-output')} editable={editable} labelOf={labelOf} onSelect={props.onSelect} />
+                    <StepRow key={step.id} step={step} order={steps.indexOf(step) + 1} selected={step.id === selectedId} issue={lint.find((issue) => issue.stepId === step.id)} editable={editable} labelOf={labelOf} onSelect={props.onSelect} />
                   ))}
                 </ol>
               </SortableContext>

@@ -1,10 +1,11 @@
-import { render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { WbEffectiveIo, WbSkillEntry, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
-import { producerSkills, StageEditorPane } from './StageEditorPane'
+import { producerSkills } from './producers'
+import { StageEditorPane } from './StageEditorPane'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -24,13 +25,13 @@ const IO: WbEffectiveIo = {
   explore: {
     inputs: [],
     outputs: [
-      { kind: 'document', id: 'superpower-design', producers: ['brainstorming', 'superpowers:brainstorming'], consumers: ['spec'], locked: true },
+      { kind: 'document', id: 'superpower-design', producers: ['brainstorming', 'superpowers:brainstorming'], consumers: ['spec'], role: 'produce', scope: 'change' },
       { kind: 'field', id: 'design_doc', type: 'file_path', producer: null, consumers: ['spec'] },
     ],
   },
   spec: {
     inputs: [
-      { kind: 'document', id: 'superpower-design', producers: ['explore'], consumers: [], locked: true },
+      { kind: 'document', id: 'superpower-design', producers: ['explore'], consumers: [], role: 'read', scope: 'change' },
       { kind: 'field', id: 'design_doc', type: 'file_path', producer: 'explore', consumers: [] },
     ],
     outputs: [{ kind: 'field', id: 'plan', type: 'file_path', producer: null, consumers: [] }],
@@ -73,7 +74,7 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(editor.renameStep).toHaveBeenCalledWith('explore', '调研!')
     const order = ['stage-inputs', 'stage-skills', 'stage-outputs', 'stage-gate'].map((id) => screen.getByTestId(id))
     for (let i = 1; i < order.length; i += 1) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByTestId('workflow-runtime-artifacts-empty')).toHaveTextContent('请先在进度页选择一个变更')
+    expect(screen.queryByTestId('workflow-runtime-artifacts')).toBeNull()
   })
 
   it('输出表三列与输入对齐：文件 · 来源阶段（= 本阶段）· 来源技能；文档来源 = 契约候选 ∩ 阶段技能，字段 = 阶段全部技能', () => {
@@ -122,6 +123,72 @@ describe('StageEditorPane · 两栏定稿', () => {
   })
 })
 
+describe('StageEditorPane · OpenSpec 文档 IO', () => {
+  const GOV_OPEN: WbStepDef = {
+    id: 'open', label: '立项', gate: null, skills: [{ id: 'openspec-propose' }],
+    inputs: [], outputs: [], guards: [], transitions: [{ event: 'open-complete', to: 'build' }],
+  }
+  const GOV_BUILD: WbStepDef = {
+    id: 'build', label: '实现', gate: null, skills: [{ id: 'tenon-build' }],
+    inputs: [], outputs: [], guards: [], transitions: [],
+  }
+  const GOVERNED: WbWorkflowDef = {
+    name: 'mine',
+    openspec: true,
+    documentContract: { version: 'v1', slots: [{ kind: 'proposal', ownerStep: 'open', producers: ['openspec-propose'] }], reads: [] },
+    steps: [GOV_OPEN, GOV_BUILD],
+  }
+  const GOVERNED_IO: WbEffectiveIo = {
+    open: { inputs: [], outputs: [{ kind: 'document', id: 'proposal', role: 'produce', scope: 'change', producers: ['openspec-propose'], consumers: [] }] },
+    build: { inputs: [], outputs: [] },
+  }
+
+  function renderGoverned(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): WorkflowEditor {
+    const editor = fakeEditor(step, {
+      def: GOVERNED,
+      effectiveIo: GOVERNED_IO,
+      addDocumentOutput: vi.fn(),
+      removeDocumentSlot: vi.fn(),
+      setDocumentInputs: vi.fn(),
+      ...overrides,
+    })
+    render(<I18nProvider><StageEditorPane editor={editor} step={step} /></I18nProvider>)
+    return editor
+  }
+
+  it('+ 输出：只列本分支技能能产出、本阶段还没声明的文档；选中写回；文档行可移除', async () => {
+    const user = userEvent.setup()
+    const editor = renderGoverned(GOV_OPEN)
+    await user.click(screen.getByTestId('wb-outputs-add'))
+    const picker = screen.getByTestId('wb-outputs-picker')
+    expect(within(picker).queryByTestId('wb-output-option-proposal')).toBeNull()
+    expect(within(picker).getByTestId('wb-output-option-openspec-design')).toHaveTextContent('openspec-propose')
+    await user.click(within(picker).getByTestId('wb-output-option-tasks'))
+    expect(editor.addDocumentOutput).toHaveBeenCalledWith('open', 'tasks')
+    await user.click(screen.getByTestId('slot-remove-proposal'))
+    expect(editor.removeDocumentSlot).toHaveBeenCalledWith('open', 'proposal', 'outputs')
+  })
+
+  it('+ 输入：勾选上游已声明的输出与项目文档（无来源显示 —），勾选写回', async () => {
+    const user = userEvent.setup()
+    const editor = renderGoverned(GOV_BUILD)
+    await user.click(screen.getByTestId('wb-inputs-edit'))
+    expect(screen.getByTestId('wb-input-option-proposal')).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByTestId('wb-input-option-design-md')).toHaveTextContent('—')
+    await user.click(screen.getByTestId('wb-input-option-proposal'))
+    expect(editor.setDocumentInputs).toHaveBeenCalledWith('build', ['proposal'])
+  })
+
+  it('文档 lint 显示在输出下方；未开启 OpenSpec 时没有 + 输入 / + 输出', () => {
+    renderGoverned(GOV_OPEN, { lint: [{ kind: 'document-chain-gap', stepId: 'open', document: 'proposal', missing: 'tasks', severity: 'warning' }] })
+    expect(screen.getByTestId('stage-document-lint')).toHaveTextContent('缺 tasks')
+    cleanup()
+    renderPane(EXPLORE)
+    expect(screen.queryByTestId('wb-outputs-add')).toBeNull()
+    expect(screen.queryByTestId('wb-inputs-edit')).toBeNull()
+  })
+})
+
 describe('producerSkills', () => {
   it('候选与阶段技能按裸名匹配；无命中为空，不编造不在阶段里的技能', () => {
     expect(producerSkills(['brainstorming', 'superpowers:brainstorming'], ['tenon-explore', 'brainstorming'])).toEqual(['brainstorming'])
@@ -166,17 +233,17 @@ describe('StageEditorPane · 退回', () => {
   })
 
   it('本阶段的退回 lint 显示在段内', () => {
-    renderPane(SPEC, { lint: [{ kind: 'transition-contract-required', stepId: 'spec', to: 'explore' }] })
+    renderPane(SPEC, { lint: [{ kind: 'transition-contract-required', stepId: 'spec', to: 'explore', severity: 'error' }] })
     expect(screen.getByTestId('stage-back-lint')).toHaveTextContent('受治理工作流要求本阶段可退回「调研」')
   })
 
   it('既不去下一阶段也不退回的转移：段内说出事件与目标', () => {
-    renderPane(SPEC, { lint: [{ kind: 'transition-not-next-or-back', stepId: 'spec', event: 'spec-complete', to: 'spec' }] })
+    renderPane(SPEC, { lint: [{ kind: 'transition-not-next-or-back', stepId: 'spec', event: 'spec-complete', to: 'spec', severity: 'error' }] })
     expect(screen.getByTestId('stage-back-lint')).toHaveTextContent('「spec-complete」→「规格」：只能是去下一阶段的唯一一条，或退回更早的阶段')
   })
 
   it('第一个阶段带着往后跳的边：段落只为说出问题而出现，没有下拉', () => {
-    renderPane(EXPLORE, { lint: [{ kind: 'transition-not-next-or-back', stepId: 'explore', event: 'explore-skip', to: 'ship' }] })
+    renderPane(EXPLORE, { lint: [{ kind: 'transition-not-next-or-back', stepId: 'explore', event: 'explore-skip', to: 'ship', severity: 'error' }] })
     expect(screen.getByTestId('stage-back-lint')).toHaveTextContent('「explore-skip」→「ship」')
     expect(screen.queryByTestId('wb-lane-back-explore')).toBeNull()
   })

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, open, realpath, type FileHandle } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
-import type { DocumentKind } from '../workflow/document-contract.js'
+import { DOCUMENT_KIND_CATALOG, type DocumentKind } from '../workflow/document-contract-model.js'
 
 export class DocumentLedgerError extends Error {
   constructor(message: string) {
@@ -253,18 +253,30 @@ export function documentSlot(kind: DocumentKind, path: string, changeDir: string
   return slot
 }
 
+/** openspec/ or docs/; a project-scope kind (design-md) lives only at its catalogue path. */
+export function documentPathAllowed(kind: DocumentKind | undefined, relativePath: string): boolean {
+  const projectPath = kind === undefined ? undefined : DOCUMENT_KIND_CATALOG[kind].projectPath
+  if (projectPath !== undefined) return relativePath === projectPath
+  return relativePath.startsWith('openspec/') || relativePath.startsWith('docs/')
+}
+
 /** Resolve a document without root escape, symlinks/path aliases, or empty/non-file records. */
 export async function resolveDocument(
   repoRoot: string,
   path: string,
   readSource: BoundedFileHandleReader = readBoundedFileHandle,
+  kind?: DocumentKind,
 ): Promise<ResolvedDocument> {
   if (!path || isAbsolute(path)) throw new DocumentLedgerError(`document path 必须是项目相对路径: ${path || '(empty)'}`)
   const lexicalRoot = resolve(repoRoot)
   const lexicalTarget = resolve(repoRoot, path)
   if (!inside(lexicalRoot, lexicalTarget)) throw new DocumentLedgerError(`document path 越出项目根: ${path}`)
   const relativePath = normalizeRelativePath(relative(lexicalRoot, lexicalTarget))
-  if (!relativePath.startsWith('openspec/') && !relativePath.startsWith('docs/')) {
+  const projectPath = kind === undefined ? undefined : DOCUMENT_KIND_CATALOG[kind].projectPath
+  if (projectPath !== undefined && relativePath !== projectPath) {
+    throw new DocumentLedgerError(`document '${kind}' 的路径必须是 ${projectPath}`)
+  }
+  if (!documentPathAllowed(kind, relativePath)) {
     throw new DocumentLedgerError(`document path 只能位于 openspec/ 或 docs/: ${relativePath}`)
   }
   const info = await lstat(lexicalTarget)

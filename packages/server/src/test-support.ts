@@ -27,6 +27,13 @@ import {
   recordNativeDocumentSkillConfirmation,
 } from '../../kernel/dist/skill-invocation/producer-internal.js'
 
+/** Fixtures record the built-in default document table (identical in every default branch). */
+const DEFAULT_DOCUMENT_POLICY = (() => {
+  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
+  if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
+  return policy
+})()
+
 /** 新仓根 templates/manifest.yaml（src 下运行时：src → server → packages → 根）。 */
 export function repoManifestPath(): string {
   return join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'templates', 'manifest.yaml')
@@ -233,7 +240,7 @@ export async function seedGovernedDocumentEvidence(root: string, changeDir: stri
       observedAt: recordedAt,
     })
     if (!confirmed) throw new Error(`fixture native confirmation rejected for ${producer}`)
-    const ledger = await recordDocument({ repoRoot: root, changeDir, phase, kind, path, producer, recordedAt })
+    const ledger = await recordDocument({ repoRoot: root, changeDir, phase, policy: DEFAULT_DOCUMENT_POLICY, kind, path, producer, recordedAt })
     const canonicalRecord = [...ledger.records].reverse().find((candidate) =>
       candidate.kind === kind && candidate.path === path && candidate.recordedAt === recordedAt)
     if (canonicalRecord === undefined) throw new Error(`fixture canonical record missing for ${path}`)
@@ -281,6 +288,7 @@ export async function readGovernedDocumentsForCurrentVisit(
     repoRoot: root,
     changeDir,
     phase: String(state.fields.phase),
+    policy: DEFAULT_DOCUMENT_POLICY,
     kind: 'all',
     readAt,
   })

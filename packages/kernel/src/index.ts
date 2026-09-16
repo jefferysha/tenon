@@ -151,20 +151,18 @@ export type {
   WorkflowPermissionRemediationCode,
 } from './workflow/policy.js'
 export {
-  DOCUMENT_CONTRACT_PHASES, DOCUMENT_KINDS, LEGACY_DOCUMENT_GOVERNANCE_POLICY,
-  documentGovernancePolicy, documentOwnerPhase, documentOwnerPolicyStep, isAcceptedDocumentProducer,
-  isDocumentContractPhase, isDocumentKind, isDocumentProducerAllowedInPhase,
-  isDocumentPolicyStep, isDocumentProducerAllowedInPolicyStep, isDocumentRecordAllowedInPhase,
-  isDocumentRecordAllowedInPolicyStep, isOpenSpecDocumentContractRequired, isOutputAllowedInPhase,
-  outputsRequiredForPhase, outputsRequiredForPolicyStep, producerCandidatesFor,
-  readsRequiredForPhase, readsRequiredForPolicyStep, recordProducerCandidatesFor,
-  recordProducerCandidatesForPolicyStep, recordsRequiredForPhase, recordsRequiredForPolicyStep,
-  shouldEnforceDocumentEvidenceOnTransition, shouldEnforceDocumentPolicyOnTransition,
+  DOCUMENT_CHAIN_PAIRS, DOCUMENT_CONTRACT_PHASES, DOCUMENT_KIND_CATALOG, DOCUMENT_KINDS,
+  documentGovernancePolicy, documentKindScope, documentOwnerPolicyStep,
+  isDocumentContractPhase, isDocumentKind, isDocumentPolicyStep, isDocumentProducerAllowedInPolicyStep,
+  isDocumentRecordAllowedInPolicyStep, outputsRequiredForPolicyStep, readsRequiredForPolicyStep,
+  recordProducerCandidatesForPolicyStep, recordsRequiredForPolicyStep, requiresForPolicyStep,
+  shouldEnforceDocumentPolicyOnTransition,
   aliasesForSkill,
-  validateOpenSpecContractWorkflow,
+  validateDocumentContract,
 } from './workflow/document-contract.js'
 export type {
-  DocumentContractPhase, DocumentGovernancePolicy, DocumentKind, DocumentOutputRequirement, OpenSpecContract,
+  DocumentContractPhase, DocumentGovernancePolicy, DocumentKind, DocumentKindInfo, DocumentOutputRequirement,
+  DocumentScope, DocumentSlotRole,
 } from './workflow/document-contract.js'
 // Workflow IR 编译（G2）：v1 WorkflowDef → 归一化 WorkflowIR（含默认值/深冻结/字段闭集校验）。
 // custom 轨 transition adapter 在 loadWorkflow 后柯里化调用它拿运行层 IR；类型供 adapter/测试引用。
@@ -182,7 +180,7 @@ export type {
   WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3,
 } from './workflow/effective-plan.js'
 export {
-  documentSlotsLocked, materializeWorkflowIo,
+  materializeWorkflowIo,
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,
 } from './workflow/effective-io.js'
 export type {

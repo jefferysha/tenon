@@ -63,7 +63,7 @@ export { currentDocumentStepVisitId } from './document-step-visit.js'
 export { evaluateDocumentEvidence } from './document-evidence.js'
 export { decodeUtf8Text, readBoundedRegularFile, readBoundedFileHandle } from './document-path.js'
 export type {
-  DocumentEvidenceItem, DocumentEvidenceItemStatus, DocumentEvidenceReport, DocumentEvidenceScope,
+  DocumentEvidenceItem, DocumentEvidenceItemStatus, DocumentEvidenceReport, DocumentEvidenceScope, DocumentStaleReason,
 } from './document-evidence.js'
 export { evaluateSpecMigrationEvidence } from './spec-migration-evidence.js'
 export { parsePipeline, serializePipeline, quoteGate, unquoteScalar, emptyFields } from './parse.js'

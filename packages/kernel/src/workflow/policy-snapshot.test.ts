@@ -113,6 +113,9 @@ describe('workflow policy snapshot v3', () => {
       decomposition: _decomposition,
       interaction: _interaction,
       reviewBudget: _reviewBudget,
+      // Historical bytes predate the openspec key and YAML-declared document contracts.
+      openspec: _openspec,
+      documentContract: _documentContract,
       ...currentWithoutPolicies
     } = current.workflow
     const legacyWorkflow = {
@@ -120,6 +123,7 @@ describe('workflow policy snapshot v3', () => {
       // Historical V2 bytes predate issue #43; default phase Skills were not persisted.
       steps: currentWithoutPolicies.steps.map(({ reviewLanes: _reviewLanes, ...step }) => ({
         ...step,
+        label: step.id === 'archive' ? '归档' : step.label,
         skills: [],
         // Historical bytes also predate the 2026-09 ship/archive inputs/outputs (pr_url / archived).
         inputs: step.id === 'ship' || step.id === 'archive' ? [] : step.inputs,

@@ -7,7 +7,7 @@
     "build": "实现",
     "verify": "验证",
     "ship": "交付",
-    "archive": "归档"
+    "archive": "完结"
   },
   "templates": {
     "openspec-proposal": {
@@ -81,6 +81,9 @@
       "summary": "变更摘要",
       "requirements": "已应用需求",
       "evidence": "交付证据"
+    },
+    "design-md": {
+      "title": "设计体系"
     }
   }
 }

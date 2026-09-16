@@ -290,8 +290,6 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
         heartbeatMs,
       },
       adapterInstall,
-      artifactService: options.artifactService,
-      artifactServiceForRoot,
       resolveUser,
     })
   const handlePost = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>

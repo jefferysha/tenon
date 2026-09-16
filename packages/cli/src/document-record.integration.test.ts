@@ -1,8 +1,15 @@
 import { appendFile, mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { evaluateDocumentEvidence, readSkillInvocationEvidence } from '@tenon/kernel'
+import { compileEffectiveWorkflowPlan, evaluateDocumentEvidence, parseWorkflow, readSkillInvocationEvidence } from '@tenon/kernel'
 import { FIXED_CLOCK, freshHarness, type Harness } from './integration-harness.js'
+
+/** Changes in this file run the built-in default workflow. */
+function defaultDocumentPolicy() {
+  const policy = compileEffectiveWorkflowPlan('default').documentPolicy
+  if (policy === undefined) throw new Error('built-in default workflow must be document-governed')
+  return policy
+}
 
 describe('document record canonical invocation binding', () => {
   let h: Harness
@@ -57,7 +64,7 @@ describe('document record canonical invocation binding', () => {
     ]), h.err.join('\n')).toBe(0)
     const ledger = JSON.parse(await h.readIn(name, '.pipeline-documents.json')) as { records: unknown[] }
     expect(ledger.records).toEqual([])
-    const report = await evaluateDocumentEvidence(h.cwd, changeDir, 'open', { recordKinds: ['proposal'], readKinds: [] })
+    const report = await evaluateDocumentEvidence(h.cwd, changeDir, 'open', { recordKinds: ['proposal'], readKinds: [] }, defaultDocumentPolicy())
     expect(report.pass).toBe(false)
   })
 
@@ -70,7 +77,7 @@ describe('document record canonical invocation binding', () => {
     const path = `docs/superpowers/specs/${name}-design.md`
     const gateBlockers = async () => (await evaluateDocumentEvidence(h.cwd, changeDir, 'explore', {
       recordKinds: ['superpower-design'], readKinds: [],
-    })).blockers
+    }, defaultDocumentPolicy())).blockers
     const skillReceipt = async (toolUse: string) => {
       await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({
         ts: FIXED_CLOCK, kind: 'tool', raw: 'Skill: brainstorming',
@@ -109,10 +116,41 @@ describe('document record canonical invocation binding', () => {
     expect(await h.run([
       'document', 'record', name, 'proposal', path, '--producer', 'openspec-propose',
     ]), h.err.join('\n')).toBe(0)
-    const report = await evaluateDocumentEvidence(h.cwd, changeDir, 'open', { recordKinds: ['proposal'], readKinds: [] })
+    const report = await evaluateDocumentEvidence(h.cwd, changeDir, 'open', { recordKinds: ['proposal'], readKinds: [] }, defaultDocumentPolicy())
     expect(report.blockers).toEqual([])
     expect(await h.run([
       'internal-native-skill-receipt', name, 'tenon:bad id', 'namespaced-session', 'tool-bad', FIXED_CLOCK,
     ])).toBe(1)
+  })
+
+  test('项目文档 design-md：produce 阶段登记 DESIGN.md 过门禁；其它路径被拒', async () => {
+    h = await freshHarness()
+    const workflow = [
+      'name: design-flow', 'openspec: true', 'document_contract:', '  version: v1', '  slots:',
+      '    - kind: design-md', '      owner_step: design', '      producers: [hue]', '  reads: []',
+      'steps:',
+      '  - id: design', '    label: 设计', '    gate: null', '    skills:', '      - id: hue',
+      '    inputs: []', '    outputs: []', '    guards: []', '    transitions:', '      - event: design-complete', '        to: done',
+      '  - id: done', '    label: 完结', '    gate: null', '    skills: []',
+      '    inputs: []', '    outputs: []', '    guards: []', '    transitions: []', '',
+    ].join('\n')
+    await mkdir(join(h.cwd, '.pipeline', 'workflows'), { recursive: true })
+    await writeFile(join(h.cwd, '.pipeline', 'workflows', 'design-flow.yaml'), workflow, 'utf8')
+    const name = 'design-doc'
+    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full', '--workflow', 'design-flow']), h.err.join('\n')).toBe(0)
+    const changeDir = join(h.cwd, 'openspec', 'changes', name)
+    await writeFile(join(h.cwd, 'DESIGN.md'), '# Design system\n', 'utf8')
+    await mkdir(join(h.cwd, 'docs'), { recursive: true })
+    await writeFile(join(h.cwd, 'docs', 'DESIGN.md'), '# Design system\n', 'utf8')
+    await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({
+      ts: FIXED_CLOCK, kind: 'tool', raw: 'Skill: hue',
+    })}\n`, 'utf8')
+    expect(await h.run(['internal-native-skill-receipt', name, 'hue', 'design-session', 'tool-hue', FIXED_CLOCK]), h.err.join('\n')).toBe(0)
+    expect(await h.run(['document', 'record', name, 'design-md', 'docs/DESIGN.md', '--producer', 'hue'])).toBe(1)
+    expect(h.err.join('\n')).toContain("document 'design-md' 的路径必须是 DESIGN.md")
+    expect(await h.run(['document', 'record', name, 'design-md', 'DESIGN.md', '--producer', 'hue']), h.err.join('\n')).toBe(0)
+    const policy = compileEffectiveWorkflowPlan('design-flow', parseWorkflow(workflow)).documentPolicy
+    if (policy === undefined) throw new Error('expected document-v1 policy')
+    expect((await evaluateDocumentEvidence(h.cwd, changeDir, 'design', {}, policy)).blockers).toEqual([])
   })
 })
