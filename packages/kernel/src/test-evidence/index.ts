@@ -20,3 +20,8 @@ export type {
 } from './types.js'
 export { evaluateMetricCriteria, flattenMetrics, lastJsonObjectLine, readMetrics } from './metrics.js'
 export type { MetricEvaluation } from './metrics.js'
+export {
+  corruptTestRunFiles, evaluateTestEvidence, latestTestRun, listTestRuns, testDigest,
+  testEvidenceUserRoot, testStatusWord,
+} from './evaluate.js'
+export type { TestEvidenceContext, TestEvidenceItem, TestEvidenceReport, TestItemStatus } from './evaluate.js'
