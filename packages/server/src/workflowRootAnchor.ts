@@ -26,6 +26,17 @@ export interface WorkflowRootMutationVersion {
   readonly ctimeNs: bigint
 }
 
+/**
+ * The path to hand a CHILD process. In-process readers use `fdPath` (`/proc/self/fd/<n>` on Linux) because
+ * it pins the directory this server opened, but that path names an entry in *this* process's descriptor
+ * table: a spawned git resolves it against its own table, where the descriptor was never opened, and dies
+ * with a misleading ENOENT. Anything that runs `execFile`/`spawn` against a project root must go through
+ * this accessor so the class stays greppable — it has already produced three silent Linux-only failures.
+ */
+export function anchorChildProcessPath(anchor: WorkflowRootAnchor): string {
+  return anchor.realPath
+}
+
 export function sameIdentity(current: FileIdentity, expected: FileIdentity): boolean {
   return current.dev === expected.dev && current.ino === expected.ino
 }

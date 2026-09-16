@@ -9,7 +9,7 @@ import { legacySnapshotWorkflowRules, resolveSnapshotEffectivePlan, snapshotTodo
 import { projectReviewHandshake } from './reviewHandshake.js'
 import { documentEvidence, documentTodoItems, type SnapshotDeps } from './snapshot.js'
 import { projectArtifactScopeIssue, readTerminalActivity } from './snapshot.js'
-import { assertWorkflowRootAnchor, type WorkflowRootAnchor } from './workflowRootAnchor.js'
+import { anchorChildProcessPath, assertWorkflowRootAnchor, type WorkflowRootAnchor } from './workflowRootAnchor.js'
 import { readTasksProjection } from './snapshotTasks.js'
 import { createCandidateCache } from './testCandidateCache.js'
 import { projectTestEvidence } from './testEvidenceSnapshot.js'
@@ -30,7 +30,7 @@ async function viewerArchive(deps: SnapshotDeps, readRoot: string, root: string)
  * git would fail on it. The count therefore probes the anchor's real path, the one a child process can use.
  */
 async function uncommittedDeletions(deps: SnapshotDeps, anchor: WorkflowRootAnchor): Promise<number | undefined> {
-  const count = await deps.countDeletions?.(anchor.realPath)
+  const count = await deps.countDeletions?.(anchorChildProcessPath(anchor))
   return count === undefined || count === null ? undefined : count
 }
 
@@ -42,7 +42,9 @@ export async function scanAnchoredProject(
   nowMs: number,
 ): Promise<ProjectSnapshot> {
   const { store } = deps
-  const repository = await readRepositoryIdentity(readRoot, deps.repositoryIdentity)
+  // git runs in a child process, so every probe below takes the anchor's real path, never readRoot.
+  const childProcessRoot = anchorChildProcessPath(anchor)
+  const repository = await readRepositoryIdentity(childProcessRoot, deps.repositoryIdentity)
   assertWorkflowRootAnchor(anchor)
 
   const changesRoot = join(readRoot, 'openspec', 'changes')
@@ -82,13 +84,14 @@ export async function scanAnchoredProject(
   const gitHeadSha = deps.gitHeadSha
   const workspaceFingerprint = deps.workspaceFingerprint
   const capabilityDeps: WorkflowSnapshotCapabilityDeps = {
+    childProcessRoot,
     ...(deps.fileExists === undefined ? {} : { fileExists: deps.fileExists }),
     ...(deps.assessBuildRevision === undefined ? {} : { assessBuildRevision: deps.assessBuildRevision }),
     ...(gitHeadSha === undefined
       ? {}
       : {
           gitHeadSha: () => {
-            gitHeadPromise ??= gitHeadSha(readRoot)
+            gitHeadPromise ??= gitHeadSha(childProcessRoot)
             return gitHeadPromise
           },
         }),
