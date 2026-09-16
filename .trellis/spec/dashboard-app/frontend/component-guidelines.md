@@ -66,9 +66,11 @@ last one. Anything that needs its own surface opens the shared right-side `share
   `skillsFromRuns(change.skillRuns[step])` rebuilds the column model (wave k depends on wave k-1) and `statusOf`
   colours each node (`data-status`: idle grey / running info ring / done green) with the run label under the name.
   Nothing renders when the server omits `skillRuns` or the step has no skills.
-- Inputs and outputs are **sheets**, not stacked sections: `SheetTabs` (`task-io-tab-inputs` / `task-io-tab-outputs`,
-  counts in the tab) above one `StageIoPanel` that shows the active side only; a file row still opens
-  `DocumentDrawer`. The project rail card shows the project path only — task counts live in the facet chips, never
+- Inputs, outputs and tests are **sheets**, not stacked sections: `SheetTabs` (`task-io-tab-inputs` /
+  `task-io-tab-outputs` / `task-io-tab-tests`, counts in the tab) above one panel that shows the active sheet
+  only; a file row still opens `DocumentDrawer`. The 测试 tab appears only when the selected step declares
+  tests, its count is `通过/总数`, and a row opens `TestRunDrawer` (inputs, outputs, log tail, screenshots,
+  history). Status words are one word each — 通过 / 失败 / 过期 / 未运行 / 运行中 — and never a sentence. The project rail card shows the project path only — task counts live in the facet chips, never
   twice. Facet rows, chips and card pills never wrap (`whitespace-nowrap`, horizontal scroll, truncated titles).
 
 ## 工作流 rules (`workflow/`)
@@ -99,7 +101,9 @@ last one. Anything that needs its own surface opens the shared right-side `share
 - **Stage pane (`StageEditorPane`).** Breadcrumb `wb-crumbs` (workflow › track), then the stage name as an editable
   title input (`wb-lane-name-input-<id>`; `wb-lane-name-<id>` is an sr-only copy so existing tests and readers keep
   the text), position `n / N`, delete with inline confirm. Sections are full-width with a one-line head
-  (`SectionHead`: title, mono count, right-aligned action) in **data-flow order: 输入 → 技能 → 输出 → 门禁**.
+  (`SectionHead`: title, mono count, right-aligned action) in **data-flow order: 输入 → 技能 → 输出 → 测试 → 门禁**.
+  测试 lists the step's declared tests (名称 · 方向 · 命令 · 必需); `+` copies a test direction into the step and
+  a row opens `TestEditorDrawer`, which writes back to the draft only on 应用.
   Document lint issues render once under 输出 (`stage-document-lint`): structural contract problems mirroring the
   kernel are errors that block saving; chain gaps and stages without outputs are warnings that do not.
 - **IO tables (`IoTable`).** Both tables are the same three equal columns so they align vertically: 文件 · 来源阶段 ·
