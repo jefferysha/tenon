@@ -4,7 +4,7 @@ import {
   createBuildRevisionToken,
   type PipelineState,
 } from '@tenon/kernel'
-import { frozenReviewCandidate, normalizeReviewCandidate } from './review-candidate.js'
+import { currentCandidate, normalizeCandidate } from './candidate.js'
 
 const identity = { repository: '/repo.git', worktree: '/repo\\0/repo.git/worktrees/change' } as const
 
@@ -29,18 +29,18 @@ describe('review candidate normalization', () => {
       fields: { phase: 'verify', build_sha: token.value } as PipelineState['fields'],
       opaqueTail: '',
     }
-    const candidate = await frozenReviewCandidate(
+    const candidate = await currentCandidate(
       { cwd: '/repo', workspaceFingerprint: async () => 'workspace:sha256:' + 'b'.repeat(64) } as never,
       'demo', state, plan, 'verify',
     )
     expect(candidate).toBe(`sha256:${token.revisionHash}`)
-    expect(normalizeReviewCandidate(token.value)).toBe(candidate)
+    expect(normalizeCandidate(token.value)).toBe(candidate)
   })
 
   it('rejects malformed, whitespace-padded, and structurally non-canonical token candidates', () => {
-    expect(normalizeReviewCandidate('build:v1:git:bad')).toBeUndefined()
-    expect(normalizeReviewCandidate(' build:v1:git:' + 'a'.repeat(64) + ':' + 'b'.repeat(64) + ':' + 'c'.repeat(64))).toBeUndefined()
-    expect(normalizeReviewCandidate('build:v2:git:' + 'a'.repeat(64) + ':' + 'b'.repeat(64) + ':' + 'c'.repeat(64))).toBeUndefined()
-    expect(normalizeReviewCandidate('sha256:' + 'A'.repeat(64))).toBeUndefined()
+    expect(normalizeCandidate('build:v1:git:bad')).toBeUndefined()
+    expect(normalizeCandidate(' build:v1:git:' + 'a'.repeat(64) + ':' + 'b'.repeat(64) + ':' + 'c'.repeat(64))).toBeUndefined()
+    expect(normalizeCandidate('build:v2:git:' + 'a'.repeat(64) + ':' + 'b'.repeat(64) + ':' + 'c'.repeat(64))).toBeUndefined()
+    expect(normalizeCandidate('sha256:' + 'A'.repeat(64))).toBeUndefined()
   })
 })

@@ -70,6 +70,9 @@ export async function resolveTestCommand(
   return { name, dir, state, plan, user, actor, slug }
 }
 
+/** agent 命令与 test 命令的前置完全相同（同一套归档、身份、负责人与冻结计划），共用一个实现。 */
+export { resolveTestCommand as resolveChangeCommand }
+
 export interface LocatedTest {
   readonly step: StepIR
   readonly test: StepTestIR

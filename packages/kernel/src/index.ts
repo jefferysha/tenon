@@ -15,6 +15,7 @@ export * from './instructions/index.js'
 export * from './resources/index.js'
 // 任务级 agent（工作流步骤的执行者 / 评审者）定义文件的解析与校验。
 export * from './agents/index.js'
+export type { AgentSeverity, StepAgentsDef, StepExecutorRef, StepReviewerRef } from './workflow/types.js'
 // 项目设计体系（根目录 DESIGN.md + design/）的结构检查与变更提案。
 export * from './design-system/index.js'
 export { createDesignFileReader } from './infrastructure/design-system-fs.js'
@@ -39,6 +40,7 @@ export type { AgentEntry, AgentLibrary, AgentStoreOptions } from './infrastructu
 // 每步测试登记：测试方向、运行记录、基准与门禁判定。
 export * from './test-evidence/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
+export { sha256Hex } from './sha256.js'
 export {
   resolveProductPaths,
   serializeProductRootContract,
