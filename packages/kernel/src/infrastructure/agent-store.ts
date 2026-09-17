@@ -9,7 +9,9 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promise
 import { join } from 'node:path'
 import { agentDigest, parseAgentFile } from '../agents/parse.js'
 import { AGENT_FILE_MAX_BYTES, AGENT_NAME_RE, type AgentDefinition, type AgentSource } from '../agents/types.js'
+import { agentsReferenced } from '../state/agent-freeze.js'
 import { withLock } from '../state/lock.js'
+import type { WorkflowIR } from '../workflow/ir.js'
 import { builtinLibrary, syncBuiltinLibrary, type BuiltinSyncResult } from './builtin-library-sync.js'
 
 export type AgentStoreErrorCode =
@@ -180,4 +182,26 @@ export async function deleteCustomAgent(storeRoot: string, name: string, digest?
     if (digest !== undefined && now !== digest) throw new AgentStoreError('agent-stale', 'agent 已被修改，请刷新')
     await rm(path)
   })
+}
+
+/**
+ * Change 创建前的 agent 解析：工作流一个 agent 都没引用时连库都不读，否则逐个解析并把内容
+ * 交给 ensureAgentFreeze。缺失 / 不合法 / 冲突在这里抛出，Change 还没发布。
+ */
+export async function prepareAgentFreeze(
+  workflow: WorkflowIR,
+  loadLibrary: () => Promise<AgentLibrary>,
+): Promise<((name: string) => { readonly source: AgentSource; readonly content: string }) | undefined> {
+  const names = agentsReferenced(workflow)
+  if (names.length === 0) return undefined
+  const library = await loadLibrary()
+  const resolved = new Map(names.map((name) => {
+    const entry = resolveAgent(library, name)
+    return [name, { source: entry.source, content: entry.content }]
+  }))
+  return (name) => {
+    const entry = resolved.get(name)
+    if (entry === undefined) throw new AgentStoreError('agent-missing', `agent 库中不存在 '${name}'`)
+    return entry
+  }
 }

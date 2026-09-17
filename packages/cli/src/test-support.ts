@@ -3,9 +3,14 @@
  * 只依赖 types 契约（@tenon/kernel 目前仅 re-export types），零 vitest 依赖，
  * 因此可被 tsc 正常编译（不进任何运行时路径）。
  */
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
+  agentDigest,
   compileEffectiveWorkflowPlan,
   createEffectiveSkillResolver,
+  parseAgentFile,
   FIELD_ORDER,
   IllegalTransitionError,
   LIST_FIELDS,
@@ -15,7 +20,7 @@ import {
   workflowPlanSnapshot,
   DEFAULT_WORKFLOW_SOURCE, parseWorkflow,
 } from '@tenon/kernel'
-import type { WorkflowDef } from '@tenon/kernel'
+import type { AgentFreezeInput, AgentLibrary, WorkflowDef } from '@tenon/kernel'
 import type {
   CommitResult,
   DocumentContractPhase,
@@ -535,6 +540,23 @@ export interface MakeDepsOpts {
 
 export const FIXED_CLOCK = '2026-07-06T00:00:00Z'
 
+/**
+ * 单测用的内建 agent 库：直读仓库 `templates/agents/` 的真实字节，不经全局同步、不写盘。
+ * default 工作流的 verify 步骤声明了评审者，Change 创建时必须解析得到它们。
+ */
+const BUILTIN_AGENTS_DIR = fileURLToPath(new URL('../../../templates/agents', import.meta.url))
+
+export function builtinAgentLibrary(): AgentLibrary {
+  return {
+    entries: readdirSync(BUILTIN_AGENTS_DIR).filter((file) => file.endsWith('.md')).sort().map((file) => {
+      const name = file.slice(0, -'.md'.length)
+      const content = readFileSync(join(BUILTIN_AGENTS_DIR, file), 'utf8')
+      return { name, source: 'builtin' as const, digest: agentDigest(content), content, definition: parseAgentFile(content, name) }
+    }),
+    sync: { id: 'agents', state: 'unchanged' },
+  }
+}
+
 export function makeDeps(o: MakeDepsOpts = {}): TestDeps {
   const outLines: string[] = []
   const errLines: string[] = []
@@ -560,6 +582,9 @@ export function makeDeps(o: MakeDepsOpts = {}): TestDeps {
     // trusted verifier for legacy unit fixtures; tests that exercise production fail-closed
     // behavior remove the property and use cmdTransition's real reader.
     reviewGateBinding: async () => true,
+    agentLibrary: async () => builtinAgentLibrary(),
+    // mockStore.init 只返回路径、不真建目录，所以单测里冻结只记调用不写盘（真字节见 init-workflow.integration.test.ts）。
+    agentFreeze: spy(async (_input: AgentFreezeInput) => undefined),
     runRepo: mockWorkflowRunRepository(store),
     // R3：无记忆化（每次 fresh load）。单测 cwd 无 tracks.yaml → 内建 Track，恒新鲜。
     loadRegistry: () => loadTrackRegistry(o.cwd ?? '/repo', trackCtx),

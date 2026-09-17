@@ -235,6 +235,16 @@ export interface CliDeps {
    */
   resourceCatalog?: () => Promise<import('@tenon/kernel').ResourceCatalog>
   /**
+   * agent 库读取面（`tenon agent`、Change 创建时的冻结）：内建 agent 在这里按 payload 摘要同步。
+   * 缺省 undefined = 未装配，创建 Change 时视为空库（工作流引用了 agent 就拒绝创建）。
+   */
+  agentLibrary?: () => Promise<import('@tenon/kernel').AgentLibrary>
+  /**
+   * Change 创建后把它引用的 agent 冻结进 `.pipeline-frozen/`；缺省 = kernel ensureAgentFreeze。
+   * 只有 mock 掉 store（changeDir 并不真实存在）的单测才覆盖它。
+   */
+  agentFreeze?: (input: import('@tenon/kernel').AgentFreezeInput) => Promise<unknown>
+  /**
    * 上游 hue 的 `scripts/validate.mjs`（`tenon design validate` 用）：path() 返回脚本绝对路径，
    * 技能没装时返回空串；run() 以仓库根为 cwd 执行并返回退出码。缺省 undefined = 未装配，命令 exit 1；
    * 用例注入假实现，永不真的 spawn。

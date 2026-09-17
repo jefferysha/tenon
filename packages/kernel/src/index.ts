@@ -32,8 +32,8 @@ export {
 } from './infrastructure/resource-store.js'
 export type { ResourceCatalog, ResourceFile, ResourceStoreOptions } from './infrastructure/resource-store.js'
 export {
-  AgentStoreError, agentStoreRoot, deleteCustomAgent, ensureBuiltinAgents, loadAgentLibrary, resolveAgent,
-  writeCustomAgent,
+  AgentStoreError, agentStoreRoot, deleteCustomAgent, ensureBuiltinAgents, loadAgentLibrary,
+  prepareAgentFreeze, resolveAgent, writeCustomAgent,
 } from './infrastructure/agent-store.js'
 export type { AgentEntry, AgentLibrary, AgentStoreOptions } from './infrastructure/agent-store.js'
 // 每步测试登记：测试方向、运行记录、基准与门禁判定。

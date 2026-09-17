@@ -11,10 +11,13 @@ import {
   createTrack,
   decodeWorkflowDef,
   effectiveWorkflowPlanBinding,
+  ensureAgentFreeze,
   listAutomationPolicyTemplates,
+  loadAgentLibrary,
   loadEffectiveWorkflowPlan,
   loadTrackRegistry,
   loadWorkflow,
+  prepareAgentFreeze,
   requireTrackForRoot,
   stateStorageExistsSync,
   validateWorkflow,
@@ -208,6 +211,15 @@ export async function handlePostChangesRoutes(
               configRoot: paths.configRoot,
             })
             if (refused !== null) return { ok: false, code: 400, error: refused }
+            // agent 内容随 Change 创建冻结：库读不到任何被引用的 agent 就在这里 400，Change 还没落盘。
+            let freezeAgent
+            try {
+              freezeAgent = await prepareAgentFreeze(plan.workflow, () => loadAgentLibrary({
+                payloadRoot: repoRootForSkills(), configRoot: paths.configRoot,
+              }))
+            } catch (error) {
+              return { ok: false, code: 400, error: `工作流引用了 agent 库中不存在的 agent：${errMsg(error)}` }
+            }
             initialWorkflow = {
               workflow: workflowId,
               phase: first.id,
@@ -238,6 +250,15 @@ export async function handlePostChangesRoutes(
                   }, null, 2)}\n`,
                 }],
               })
+              if (freezeAgent !== undefined) {
+                await ensureAgentFreeze({
+                  changeDir: initResult.changeDir,
+                  runId: initResult.run.id,
+                  workflowFingerprint: plan.workflowFingerprint,
+                  workflow: plan.workflow,
+                  resolve: freezeAgent,
+                })
+              }
               if (taskPrompt.value !== null) {
                 try {
                   await writeChangeTaskPrompt(initResult.changeDir, taskPrompt.value)

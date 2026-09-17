@@ -568,4 +568,50 @@ steps:
     const content = await h.read('demo')
     expect(content).toMatch(/^phase: done$/m)
   })
+  test('工作流引用库里没有的 agent：exit 1，不落盘任何 change 目录（冻结在发布之前解析）', async () => {
+    await seedWorkflow('ghost-agent', `name: ghost-agent
+steps:
+  - id: s1
+    label: x
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    agents:
+      reviewers:
+        - agent: no-such-agent
+          required: true
+          block_at: high
+    guards: []
+    transitions: []
+`)
+    const code = await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'ghost-agent'])
+    expect(code).toBe(1)
+    expect(h.err.join('\n')).toContain('no-such-agent')
+    await expect(h.read('demo')).rejects.toThrow()
+  })
+
+  test('内建 agent 随 Change 创建冻结进 .pipeline-frozen，之后改库不影响该 Change', async () => {
+    await seedWorkflow('reviewed', `name: reviewed
+steps:
+  - id: s1
+    label: x
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    agents:
+      reviewers:
+        - agent: security
+          required: true
+          block_at: medium
+    guards: []
+    transitions: []
+`)
+    expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full', '--workflow', 'reviewed'])).toBe(0)
+    const lock = JSON.parse(await h.readIn('demo', '.pipeline-frozen/lock.json'))
+    expect(lock).toMatchObject({ version: 1, agents: [{ name: 'security', source: 'builtin' }] })
+    expect(lock.agents[0].digest).toMatch(/^sha256:[0-9a-f]{64}$/)
+    expect(await h.readIn('demo', '.pipeline-frozen/agents/security.md')).toContain('name: security')
+  })
 })

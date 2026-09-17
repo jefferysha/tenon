@@ -15,6 +15,19 @@ export {
   INTERACTION_MAX_LINE_BYTES,
 } from './interaction-event-store.js'
 export type { InteractionEventStore, InteractionProjectionReadResult } from './interaction-event-store.js'
+export {
+  AgentFreezeError, FROZEN_AGENTS_DIR, FROZEN_DIR, FROZEN_LOCK_FILE,
+  agentsReferenced, ensureAgentFreeze, frozenAgentFiles, readAgentFreezeLock, readFrozenAgents,
+} from './agent-freeze.js'
+export type { AgentFreezeInput, AgentFreezeLock, FrozenAgent, FrozenAgentEntry } from './agent-freeze.js'
+export {
+  AGENT_FINDINGS_MAX, AGENT_REPORTS_DIR, AGENT_RUNS_FILE, AGENT_RUNS_MAX_BYTES, AGENT_RUNS_MAX_RUNS,
+  AGENT_RUN_SCHEMA, AGENT_SEVERITIES, AgentRunError,
+  appendAgentRunRow, parseAgentReport, readAgentRuns, severityRank,
+} from './agent-runs.js'
+export type {
+  AgentFinding, AgentRunRole, AgentRunResult, AgentRunRow, AgentRunStatus, ParsedAgentReport,
+} from './agent-runs.js'
 export { readPipelineStateFromSync } from './sync-reader.js'
 export { atomicLinkPublish, atomicReplaceFile } from './atomic-publish.js'
 export { ensureTrustedProjectDirectory } from './trusted-project-path.js'

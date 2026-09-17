@@ -2,8 +2,11 @@ import { createHash } from 'node:crypto'
 import { join, resolve } from 'node:path'
 import {
   effectiveWorkflowPlanBinding,
+  ensureAgentFreeze,
   OBSERVE_ACTION_KINDS,
+  prepareAgentFreeze,
   workflowPlanSnapshot,
+  type AgentLibrary,
   type EffectiveWorkflowPlan,
   type InitOptions,
   type PipelineState,
@@ -50,6 +53,8 @@ export interface WorkflowRunCreateRepositoryDeps {
   readonly resolveInit: (
     request: WorkflowRunCreateRequest,
   ) => WorkflowRunCreateTrustedInit | Promise<WorkflowRunCreateTrustedInit>
+  /** Host 的 agent 库读取面；缺省 = 空库，工作流引用了 agent 就拒绝创建。 */
+  readonly loadAgentLibrary?: () => Promise<AgentLibrary>
 }
 
 export class WorkflowRunCreateRequestError extends Error {
@@ -341,6 +346,11 @@ export function createWorkflowRunCreateIfAbsentRepository(
         ])
       }
       const planBinding = effectiveWorkflowPlanBinding(plan)
+      // agent 内容随 Change 创建冻结；缺任何被引用的 agent 都在发布之前抛出。
+      const freezeAgent = await prepareAgentFreeze(
+        plan.workflow,
+        deps.loadAgentLibrary ?? (async () => ({ entries: [], sync: { id: 'agents', state: 'unchanged' as const } })),
+      )
       // Explicit projection is intentional: even an unsound host implementation cannot smuggle
       // repoRoot/name/runId/initialWorkflow through object spread and override request identity.
       const init: InitOptions = {
@@ -369,6 +379,15 @@ export function createWorkflowRunCreateIfAbsentRepository(
       }
       if (created !== undefined) {
         assertEstablishedRun(created.changeDir, expectedRunId, request, created.run)
+        if (freezeAgent !== undefined) {
+          await ensureAgentFreeze({
+            changeDir: created.changeDir,
+            runId: created.run.id,
+            workflowFingerprint: plan.workflowFingerprint,
+            workflow: plan.workflow,
+            resolve: freezeAgent,
+          })
+        }
         return { status: 'created', run: created.run }
       }
 

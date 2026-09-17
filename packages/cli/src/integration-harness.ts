@@ -39,6 +39,7 @@ import {
   recordDocument,
   recordDocumentReads,
   designSystemPrecondition,
+  loadAgentLibrary,
   loadResourceCatalog,
   resolveProductPaths,
   resolveTenonUser,
@@ -227,6 +228,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     user: () => resolveTenonUser(cwd, env),
     userConfigPath: () => resolveProductPaths({ env }).userConfigPath,
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
+    agentLibrary: () => loadAgentLibrary({ payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot }),
     creationPrecondition: (input) => designSystemPrecondition({
       ...input, repoRoot: cwd, payloadRoot: REPO_ROOT, configRoot: resolveProductPaths({ env }).configRoot,
     }),
