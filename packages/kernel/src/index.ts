@@ -117,6 +117,12 @@ export {
   completedWorkflowSkillsSinceStepEntry,
   missingWorkflowStepSkills,
 } from './workflow/skill-evidence.js'
+export {
+  evaluateStepAgents, isForwardExit, nextAgentWave, projectStepAgents, renderAgentBlocker,
+} from './workflow/agent-verdict.js'
+export type {
+  AgentBlocker, AgentRole, AgentRunState, AgentView, AgentWave, StepAgentsInput,
+} from './workflow/agent-verdict.js'
 export { evaluateStepGuards, evaluateWorkflowIrStepGuards } from './workflow/stepGuard.js'
 export {
   effectiveLifecyclePolicy, governedLifecyclePolicy, isRevisionGuard,
@@ -223,8 +229,9 @@ export {
 } from './workflow/effective-plan.js'
 export type {
   EffectiveWorkflowPlan, LegacyWorkflowIR, PersistedDocumentGovernanceBinding, WorkflowPlanSnapshot,
-  WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3,
+  WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3, WorkflowPlanSnapshotV4,
 } from './workflow/effective-plan.js'
+export type { StepAgentsCapability } from './workflow/effective-plan-types.js'
 export {
   materializeWorkflowIo,
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,
