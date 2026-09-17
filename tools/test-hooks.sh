@@ -565,6 +565,52 @@ else
   ok "gate: GSAP 动画门黑盒用例（缺 dist/tenon.mjs 或 node，按约定跳过）"
 fi
 
+# ─────────────── 2c. gate.sh agent 技能门（黑盒：真 CLI 建任务、真冻结、真台账） ───────────────
+# 一个 agent 的技能只在它自己跑着的时候可加载。夹具用打包后的 CLI 真建任务（真落冻结与运行台账），
+# 运行时家目录指向临时目录，绝不碰本机已安装的 Tenon 状态。
+if [ -f "$ROOT/packages/cli/dist/tenon.mjs" ] && [ -n "$TENON_NODE_PATH" ]; then
+  ag_proj="$TMP/gate-agent-skill"
+  ag_home="$TMP/gate-agent-home"
+  mkdir -p "$ag_proj/.pipeline/workflows" "$ag_home"
+  ( cd "$ag_proj" && git init -q . >/dev/null 2>&1 ) || true
+  cat > "$ag_proj/.pipeline/workflows/reviewed.yaml" <<'AGENTWF'
+name: reviewed
+steps:
+  - id: build
+    label: 实现
+    gate: null
+    skills: []
+    inputs: []
+    outputs: []
+    agents:
+      executors:
+        - agent: builder
+    guards: []
+    transitions: []
+AGENTWF
+  ag_cli() { ( cd "$ag_proj" && TENON_RUNTIME_HOME="$ag_home" "$TENON_NODE_PATH" "$ROOT/packages/cli/dist/tenon.mjs" "$@" ); }
+  if ag_cli init agentgate --track backend --preset full --workflow reviewed >/dev/null 2>&1; then
+    set_active "$ag_proj" agentgate
+    ag_blocked=0
+    ( cd "$ag_proj" \
+      && printf '{"cwd":"%s","tool_name":"Skill","tool_input":{"skill":"test-driven-development"}}' "$ag_proj" \
+      | TENON_RUNTIME_HOME="$ag_home" PLUGIN_ROOT="$ROOT" bash "$GATE" >/dev/null 2>&1 ) || ag_blocked=$?
+    assert_exit "gate: agent 未开始时它的技能被拦 → exit 2" 2 "$ag_blocked"
+
+    ag_cli agent prompt agentgate builder >/dev/null 2>&1 || true
+    ag_allowed=0
+    ( cd "$ag_proj" \
+      && printf '{"cwd":"%s","tool_name":"Skill","tool_input":{"skill":"test-driven-development"}}' "$ag_proj" \
+      | TENON_RUNTIME_HOME="$ag_home" PLUGIN_ROOT="$ROOT" bash "$GATE" >/dev/null 2>&1 ) || ag_allowed=$?
+    assert_exit "gate: agent 进行中时它的技能放行 → exit 0" 0 "$ag_allowed"
+    clear_active "$ag_proj"
+  else
+    ok "gate: agent 技能门黑盒用例（夹具任务建不起来，按约定跳过）"
+  fi
+else
+  ok "gate: agent 技能门黑盒用例（缺 dist/tenon.mjs 或 node，按约定跳过）"
+fi
+
 # ───────────────────────── 3. 红线自证：热路径纯 bash ─────────────────────────
 # gate.sh 例外（Task 9，GOAL 清单 E）：所有 workflow 的 skill DAG 判定合法委托 CLI（spawn
 # node），但**只**在该分支——workflow==='default' 这条最高频路径的零 spawn 承诺不变。文本 grep

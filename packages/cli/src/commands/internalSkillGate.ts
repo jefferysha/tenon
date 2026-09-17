@@ -17,6 +17,7 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { str } from '../render.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
+import { agentSkillDecision } from '../agentSkillGate.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { canonicalTenonSkillId, completedSkillsSinceStepEntry, parseHistoryLines } from './stepSkillEvidence.js'
 
@@ -52,6 +53,15 @@ export async function cmdInternalSkillGate(deps: CliDeps, name: string, skillId:
         return 0
       }
       const currentStepId = str(state.fields.phase)
+      // agent 技能先判：它不属于步骤 DAG，只在自己的 agent 跑着时解锁。
+      const agentDecision = await agentSkillDecision({
+        deps, name, dir, stepId: currentStepId, plan, state, skillId: canonicalSkillId,
+      })
+      if (agentDecision.kind === 'allow') return 0
+      if (agentDecision.kind === 'block') {
+        deps.io.err(agentDecision.message)
+        return 2
+      }
       const skillCapability = plan.capabilities.skills
       const capabilityStep = skillCapability.steps.find((candidate) => candidate.stepId === currentStepId)
       if (!capabilityStep) {

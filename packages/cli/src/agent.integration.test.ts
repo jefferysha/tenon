@@ -325,4 +325,37 @@ tracks:
     expect(await h.run(['check', 'demo'], { env: USER_A })).toBe(2)
     expect(h.out.join('\n')).toContain("[FAIL] agent: 执行者 'builder' 未运行")
   })
+  test('技能门：agent 的技能只在它跑着时可加载', async () => {
+    await seed()
+    // builder 声明了 test-driven-development；它还没开始 → 拦住并点名开始命令。
+    expect(await h.run(['internal-skill-gate', 'demo', 'test-driven-development'], { env: USER_A })).toBe(2)
+    expect(h.err.join('\n')).toContain("技能 'test-driven-development' 属于 agent 'builder'")
+    expect(h.err.join('\n')).toContain('tenon agent prompt demo builder')
+    // 不属于任何 agent 的技能走原有的步骤 DAG（本步 skills: [] → 放行）。
+    expect(await h.run(['internal-skill-gate', 'demo', 'unrelated-skill'], { env: USER_A })).toBe(0)
+
+    expect(await h.run(['agent', 'prompt', 'demo', 'builder', '--json'], { env: USER_A })).toBe(0)
+    const started = JSON.parse(h.out.join('')) as { run_id: string; report_path: string }
+    expect(await h.run(['internal-skill-gate', 'demo', 'test-driven-development'], { env: USER_A })).toBe(0)
+
+    await writeFile(
+      join(h.cwd, started.report_path),
+      '# builder\n\n\u0060\u0060\u0060tenon-result\n{"result":"done","findings":[]}\n\u0060\u0060\u0060\n',
+      'utf8',
+    )
+    expect(await h.run(['agent', 'record', 'demo', started.run_id], { env: USER_A })).toBe(0)
+    // 跑完就重新上锁。
+    expect(await h.run(['internal-skill-gate', 'demo', 'test-driven-development'], { env: USER_A })).toBe(2)
+  })
+
+  test('技能门：冻结内容被改动时失败关闭', async () => {
+    await seed()
+    await writeFile(
+      join(h.cwd, 'openspec/changes/demo/.pipeline-frozen/agents/builder.md'),
+      '---\nname: builder\ndescription: 篡改\n---\n\n正文\n',
+      'utf8',
+    )
+    expect(await h.run(['internal-skill-gate', 'demo', 'test-driven-development'], { env: USER_A })).toBe(2)
+    expect(h.err.join('\n')).toContain('agent 记录不可读')
+  })
 })
