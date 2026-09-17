@@ -94,7 +94,7 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
   async function armVerifyGuard(name: string): Promise<void> {
     await h.seedArtifact(name, 'verification_report', `docs/superpowers/reports/${name}.md`)
     expect(await h.run(['set-many', name,
-      'branch_status=handled', 'agent_review_result=pass', 'codex_review_result=pass'])).toBe(0)
+      'branch_status=handled'])).toBe(0)
     await armStepTests(name, 'verify')
   }
 
@@ -177,6 +177,8 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
     expect(first.out.some((l) => l.includes('确认回执'))).toBe(true)
 
     await recordMandatorySkills('demo')
+    // 进了 verify 才轮到该步的评审者；真实宿主同样是先跑完评审再请求确认。
+    await h.satisfyStepAgents('demo')
     await approveReviewExit('demo', 'verify-pass')
     const verifyExit = await advance('demo', { throughGates: true, maxSteps: 1 })
     expect(verifyExit.code).toBe(0)

@@ -84,13 +84,11 @@ export const DEFAULT_EVENT_POLICY = {
     enforceTaskExit: true,
   },
   'verify-pass': {
-    // 老仓 L163-199 首错优先：verification_report 非空且文件存在 → branch_status=handled →
-    // 非 pm 轨双 review=pass → trustworthy build revision barrier。
+    // 首错优先：verification_report 非空且文件存在 → branch_status=handled → trustworthy
+    // build revision barrier。手填的双 review 字段已删除，这道检查由步骤评审者承担。
     guards: [
       { type: 'file-exists', path: { kind: 'field', field: 'verification_report' } },
       { type: 'field-equals', field: 'branch_status', value: 'handled' },
-      { type: 'field-equals', field: 'agent_review_result', value: 'pass', when: NON_PM_OR_FREE },
-      { type: 'field-equals', field: 'codex_review_result', value: 'pass', when: NON_PM_OR_FREE },
       { type: 'build-head-unchanged', field: 'build_sha' },
     ],
     // 老仓 L201-204：verify_result=pass + verified_at=now。
@@ -195,9 +193,7 @@ export function renderPreconditionViolation(
         return [`ERROR: verify-pass 要求 verification_report 字段非空且文件存在 (当前=${actual})`]
       }
       if (guard.type === 'field-equals') {
-        if (guard.field === 'branch_status') return [`ERROR: verify-pass 要求 branch_status=handled (当前=${actual})`]
-        if (guard.field === 'agent_review_result') return [`ERROR: ${track} track 要求 agent_review_result=pass (当前=${actual})`]
-        return [`ERROR: ${track} track 要求 codex_review_result=pass (当前=${actual})`]
+        return [`ERROR: verify-pass 要求 branch_status=handled (当前=${actual})`]
       }
       if (guard.type === 'build-head-unchanged') {
         const bsha = (decision.kind === 'failed' ? decision.expected?.[0] : undefined) ?? ''

@@ -140,6 +140,38 @@ export interface Harness {
    * 不绕过门禁——跑的是工作流声明的那条命令，落的是真记录。
    */
   satisfyStepTests: (name: string, stepId: string) => Promise<void>
+  /**
+   * 像真实宿主那样跑完当前步骤声明的 agent：按 `tenon agent next` 的波次逐个 prompt、写一份
+   * 无发现的报告、record。不绕过门禁——落的是真台账行。
+   */
+  satisfyStepAgents: (name: string) => Promise<void>
+}
+
+/** `tenon agent next --json` 的窄解码：只取本波要跑的 agent，形状不符就当没有。 */
+function agentWave(json: string): string[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return []
+  }
+  if (typeof parsed !== 'object' || parsed === null) return []
+  const wave = (parsed as Record<string, unknown>).wave
+  return Array.isArray(wave) ? wave.filter((id): id is string => typeof id === 'string') : []
+}
+
+/** `tenon agent prompt --json` 的窄解码：形状不符返回 null，由调用方 fail-loud。 */
+function agentPromptResult(json: string): { run_id: string; report_path: string; role: string } | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return null
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null
+  const row = parsed as Record<string, unknown>
+  if (typeof row.run_id !== 'string' || typeof row.report_path !== 'string' || typeof row.role !== 'string') return null
+  return { run_id: row.run_id, report_path: row.report_path, role: row.role }
 }
 
 /** `tenon test status --json` 的窄解码：只取还没通过的必需测试 id，形状不符就当没有。 */
@@ -386,6 +418,33 @@ export function makeHarness(cwd: string): Harness {
         const code = await harness.run(['test', 'run', name, id])
         if (code !== 0) {
           throw new Error(`harness satisfyStepTests: tenon test run ${name} ${id} exit=${code}\n${harness.err.join('\n')}`)
+        }
+      }
+    },
+    satisfyStepAgents: async (name) => {
+      const harness = makeHarness(cwd)
+      for (let round = 0; round < 8; round++) {
+        if (await harness.run(['agent', 'next', name, '--json']) !== 0) return
+        const wave = agentWave(harness.out.join('\n'))
+        if (wave.length === 0) return
+        for (const agent of wave) {
+          if (await harness.run(['agent', 'prompt', name, agent, '--json']) !== 0) {
+            throw new Error(`harness satisfyStepAgents: prompt ${agent} 失败\n${harness.err.join('\n')}`)
+          }
+          const started = agentPromptResult(harness.out.join(''))
+          if (started === null) {
+            throw new Error(`harness satisfyStepAgents: prompt ${agent} 输出形状非法\n${harness.out.join('')}`)
+          }
+          const body = started.role === 'executor' ? '{"result":"done","findings":[]}' : '{"findings":[]}'
+          await mkdir(join(cwd, started.report_path, '..'), { recursive: true })
+          await writeFile(
+            join(cwd, started.report_path),
+            `# ${agent}\n\n\u0060\u0060\u0060tenon-result\n${body}\n\u0060\u0060\u0060\n`,
+            'utf8',
+          )
+          if (await harness.run(['agent', 'record', name, started.run_id]) !== 0) {
+            throw new Error(`harness satisfyStepAgents: record ${agent} 失败\n${harness.err.join('\n')}`)
+          }
         }
       }
     },

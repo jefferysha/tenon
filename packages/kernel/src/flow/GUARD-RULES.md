@@ -98,8 +98,6 @@
 | V2 | `verification_report` 字段非空 | yaml_nonempty | 全部 | M241 | ✅（lite 已有）|
 | V3 | `verification_report` 文件存在（相对项目根） | yaml_file_exists | 全部 | M242 | ✅ ctx.fileExists |
 | V4 | `branch_status=handled` | yaml_eq | 全部 | M243 | ✅（lite 已有）|
-| V5 | `agent_review_result=pass` | yaml_eq | tracks=frontend,backend | M244 | ✅（lite 已有）|
-| V6 | `codex_review_result=pass` | yaml_eq | tracks=frontend,backend | M245 | ✅（lite 已有）|
 | V7 | `verify_result=pass` | yaml_eq | **tracks=pm**（老仓 fe/be 由 verify-pass 事件体落 pass，出口不查） | M246 | ✅ lite 原为全 track（投影），随全量移植**回对齐老仓 pm-only**——新仓 transition.ts verify-pass 已自动 set verify_result=pass |
 | V8 | mandatory skills | — | full 硬卡 | G568 | ❌ 同 O6 |
 | V9 | 三轨 review 留痕（reviewer agent 8 名任一 + e2e-runner + codex exec 均在 tools_history） | hist_has（L104-110） | pm 跳过；full 硬卡，hotfix/tweak WARN | G569, G257-279 | ❌ 未移植（证据面同 O6；新仓证据存 .pipeline-history.jsonl，读取面归 #18/#21）|

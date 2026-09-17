@@ -1,6 +1,6 @@
 ---
 name: tenon-verify
-description: "Pipeline Phase 5: Verify · 三轨并行验证。PM Track 做原型走查（无 review agent），frontend/backend Track 跑 reviewer agent + codex + e2e 三轨并行，同读冻结的 build_sha token。"
+description: "Pipeline Phase 5: Verify · 并行验证。PM Track 做原型走查（无评审者），frontend/backend Track 按步骤声明的 agents.reviewers 分波跑评审者，加 codex 轨，同读冻结的 build_sha token。"
 ---
 
 <!-- TENON:INTERACTION-MODE:START -->
@@ -67,7 +67,7 @@ tenon document read "$TENON_CHANGE_NAME" all
 tenon handoff "$TENON_CHANGE_NAME" --bundle --target verify --json
 ```
 
-> **review 门提示**：verify 是 review 相位，但进入时不会落 marker；三轨验证、报告生成和文档读取必须
+> **review 门提示**：verify 是 review 相位，但进入时不会落 marker；评审者、报告生成和文档读取必须
 > 先完整执行。`tenon check` 是 `verify-pass` 的成功出口校验，放在 Step 4 跑；回退则走独立的
 > `tenon review request --event verify-fail` 证据校验，不能拿通过路径的 guard 卡死失败决策。
 
@@ -118,11 +118,11 @@ tenon set "$TENON_CHANGE_NAME" branch_status handled
 
 跳到 Step 4。
 
-#### 🎨 Track = frontend（三轨并行）
+#### 🎨 Track = frontend（按声明的波次并行）
 
 ⚡ **HARD RULE**：以下 3 轨**必须在同一条 Agent 消息**内并行 dispatch。
 
-> **三轨同读冻结的 `build_sha` token（barrier）**：verify 审的是 build-complete 时冻结的固定靶，不是漂移中的 working tree。先取 token 并按 kind 分流。Git 分支随后读取当前 HEAD 作为执行锚点；它不是 token 解码结果：
+> **全部轨同读冻结的 `build_sha` token（barrier）**：verify 审的是 build-complete 时冻结的固定靶，不是漂移中的 working tree。先取 token 并按 kind 分流。Git 分支随后读取当前 HEAD 作为执行锚点；它不是 token 解码结果：
 > ```bash
 > BUILD_BASELINE="$(tenon get "$TENON_CHANGE_NAME" build_sha)"
 > case "$BUILD_BASELINE" in
@@ -157,14 +157,22 @@ tenon set "$TENON_CHANGE_NAME" branch_status handled
 > 需审当前内容 identity。任一 assessment 失败都保留 `verify-build-revision-untrusted`、reason、stateHash/
 > revisionHash 与 remediation=`return-to-build-and-capture-current-revision`，不允许 set/backfill。
 
-**并发实现指南**：
-- 主 agent 一次性发起 3 个 tool 调用（2 个 Agent + 1 个 Bash）；含 UI 改动时再加第四轨 `tenon-design-reviewer` agent（视觉），同消息一并发起
-- 不要等任一返回再发下一个
-- 每个 reviewer agent 独立 context，彼此不知道对方
-- Codex CLI 通过 Bash 工具独立进程执行
-- 完成后聚合到 verification_report
+**评审者从哪来**：轨道名不再写在本文里。本步骤要跑哪些 agent、串行还是并行、必需还是参考、
+阻断级别多高，全部由工作流 YAML 的 `agents.reviewers` 声明，Tenon 按波次排定：
 
-> ⏳ **待迁移（M2 #21）**：老仓 skill-tracker hook 自动写 tools_history（三轨留痕 → 看板可视化
+```bash
+tenon agent next "$TENON_CHANGE_NAME" --json   # 读 wave：本波要跑哪几个 agent
+```
+
+**并发实现指南**：
+- 同一波的 agent **同消息**一次性发起：每个先 `tenon agent prompt "$TENON_CHANGE_NAME" <agent> --host claude --json`，
+  再把返回的 `prompt` 交给 Agent 工具（`subagent_type: general-purpose`）派发
+- 不要等任一返回再发下一个；每个 agent 独立 context，彼此不知道对方
+- 每个返回后写报告到它的 `report_path`，然后 `tenon agent record "$TENON_CHANGE_NAME" <run_id>`
+- 一波跑完再 `tenon agent next` 取下一波，直到「全部完成」
+- 没有子 agent 的宿主在主会话里按同样的顺序一个一个跑
+
+> ⏳ **待迁移（M2 #21）**：老仓 skill-tracker hook 自动写 tools_history（留痕 → 看板可视化
 > + guard V9 留痕硬卡）尚未迁移；当前证据落 `verification_report` 文件本体 +
 > `.pipeline-history.jsonl`。
 
@@ -181,52 +189,34 @@ tenon set "$TENON_CHANGE_NAME" branch_status handled
 4. 使用 Skill 工具加载 `verify`。**禁止跳过此步骤**。
    - 运行 app 实际验证行为
 
-**含 UI 改动时强制（视觉轨；下面三轨全是代码/行为验证、不覆盖视觉）**：
-
-5. **含 UI 改动时禁止跳过**：把视觉审作为**第四并行轨**——与上面三轨**同消息** dispatch 一个 **`tenon-design-reviewer` agent**（本仓 agents/tenon-design-reviewer.md，隔离上下文，读冻结的 `build_sha` 固定靶），让它加载 `web-design-guidelines` + `design-taste-frontend`，对**跑起来的 app**做视觉审查（截图关键屏 + 主要状态、查交互态/材质/反模板红线/无 emoji）。
-   - Verify 视觉轨严格只读，不写仓库内 REVIEW.md、不修页面；截图/trace 只能写仓库外临时目录。
-     它回传 severity findings + 「已无 critical/high/medium」结论；主线把视觉结论并入
-     verification_report，有 critical/high/medium 或证据不完整则 verify-fail 回 build。主线
-     **不内联**跑视觉审。
-
 **可选 Skill**：
 - 使用 Skill 工具加载 `run` — 启动 dev server
 - 使用 Skill 工具加载 `security-review`（builtin）
 
-**【轨道 1】Reviewer Agent（并行）**：
-- Agent 工具调用 `tenon-reviewer`（本仓 agents/tenon-reviewer.md）— 读冻结 build token；Git 分支由 typed assessor 复核当前 HEAD/identity 后审完整提交区间 diff，in-place 枚举并审当前未漂移工作区全部 changed/untracked 交付文件；回读全部受影响 capability，按改动语言套评审视角（TS/JS 专项 + 通用），回传 coverage、全部 severity 发现 + PASS/FAIL。固定靶全量 brief 已收进 agent，无需在此重述。
+**评审者（并行，按声明的波次）**：由本步骤的 `agents.reviewers` 决定；每个 agent 读冻结的
+`BUILD_SHA` 固定靶，Git 分支由 typed assessor 复核当前 HEAD/identity 后审完整提交区间 diff，
+in-place 枚举并审当前未漂移工作区全部 changed/untracked 交付文件。全量 brief 已收进 agent 正文，
+不在此重述。
 
-**【轨道 2】E2E（并行）**：
-- dispatch 一个通用子 agent（Agent 工具），brief：Git 分支先由 typed assessor 复核 token 与当前 HEAD/identity，再以已读取的 `BUILD_SHA` 作为只读执行锚点；
-  in-place 时读取当前未漂移工作区，加载 `e2e-testing` skill 跑 repo-zero-output E2E；所有截图、
-  snapshot、trace、coverage 与日志写仓库外临时目录，会写 tracked 产物的命令改在隔离副本运行；
-  前后 fingerprint 必须精确一致，回传通过/失败清单。（老仓专职 `e2e-runner` agent 未迁移，
-  若本机装有可直接用。）
-
-**【轨道 3】Codex CLI（并行，审冻结 SHA 的提交区间；缺失优雅降级）**：
+**Codex 并行轨（审冻结 SHA 的提交区间；缺失优雅降级）**：
 
 ```bash
-# codex 缺失 → 第三轨跳过（reviewer+e2e 两轨仍审固定靶），不算 FAIL。
+# codex 缺失 -> 该轨跳过（步骤声明的评审者仍审固定靶），不算 FAIL。
 if [ -n "${BUILD_SHA:-}" ] && command -v codex >/dev/null 2>&1; then
-  git diff "$BUILD_SHA"^.."$BUILD_SHA" | codex exec "review this diff: correctness/security/error-handling; 输出带 severity 的发现清单 + PASS/FAIL 结论" || echo "[WARN] codex 轨异常，降级两轨"
+  git diff "$BUILD_SHA"^.."$BUILD_SHA" | codex exec "review this diff: correctness/security/error-handling; 输出带 severity 的发现清单 + PASS/FAIL 结论" || echo "[WARN] codex 轨异常，降级"
 elif [ -z "${BUILD_SHA:-}" ]; then
   echo "[INFO] in-place 内容基线：Codex 轨审当前未漂移工作区；最终 verify-pass 会重算基线"
 else
-  echo "[WARN] codex CLI 未装，第三轨跳过（两轨仍有效）"
+  echo "[WARN] codex CLI 未装，该轨跳过"
 fi
 # 多提交区间（verify-fail 回环产生多个 build commit）：git diff <review base>..."$BUILD_SHA"
 ```
 
-> ⏳ **待迁移（M2 verify 全量面）**：老仓 `pipeline-codex-review.sh`（commit-scoped /
-> 绕 #17160 / --commit-vs-stdin / xhigh 全部 nuance 已收敛进脚本）未迁移，上面是直接调
-> codex CLI 的等价降级写法。
+> Codex 轨的发现并入 verification_report；它不是步骤声明的 agent，不产生 agent 运行记录。
 
-**可选 Agent**：
-- `database-reviewer`（外部，若装有）— 若涉及 DB schema
+#### ⚙️ Track = backend（按声明的波次并行）
 
-#### ⚙️ Track = backend（多语言 reviewer 并行）
-
-> **三轨同读冻结的 `build_sha` token（barrier）**：同 frontend，先按上方 `BUILD_BASELINE` 分流。Git 分支的提交区间命令只能使用已读取并校验的当前 `BUILD_SHA` 锚点；不得从 token 解码 SHA。in-place 必须审当前未漂移工作区，最终由 `verify-pass` 重新指纹验证。
+> **全部轨同读冻结的 `build_sha` token（barrier）**：同 frontend，先按上方 `BUILD_BASELINE` 分流。Git 分支的提交区间命令只能使用已读取并校验的当前 `BUILD_SHA` 锚点；不得从 token 解码 SHA。in-place 必须审当前未漂移工作区，最终由 `verify-pass` 重新指纹验证。
 
 **强制 Skill**：
 1. 使用本插件打包的 Skill `verification-before-completion`。**禁止跳过此步骤**。
@@ -241,14 +231,11 @@ fi
 - 使用 Skill 工具加载 `code-review`（builtin）
 - 使用 Skill 工具加载 `python-testing`（若 Python）
 
-**【轨道 1】强制 Reviewer Agent（并行）**：
-- Agent 工具调用 `tenon-reviewer` — 读冻结 build token；Git 分支由 typed assessor 复核当前 HEAD/identity 后审完整提交区间 diff，in-place 枚举并审当前未漂移工作区全部 changed/untracked 交付文件；回读全部受影响 capability，**按改动语言自动套视角**（Python/Go/Rust/Java/TS 后端），回传 coverage、全部 severity 发现 + PASS/FAIL。多语言全量 brief 已收进 agent，**无需逐语言列 reviewer**。
-- `database-reviewer`（外部，若装有）— 涉及 DB schema/查询时（专项，tenon-reviewer 不覆盖）
+**评审者（并行，按声明的波次）**：同 frontend——由本步骤的 `agents.reviewers` 决定，
+按改动语言自动套视角的全量 brief 已收进 agent 正文。涉及 DB schema / 查询时可另加外部
+`database-reviewer`（若装有）。
 
-**【轨道 2】E2E（并行）**：
-- dispatch 通用子 agent 加载 `e2e-testing` 跑 API E2E（同 frontend 轨道 2 写法）。
-
-**【轨道 3】Codex CLI（并行）**：同 frontend 轨道 3 的降级写法。
+**Codex 并行轨**：同 frontend 的降级写法。
 
 #### 🕊️ Track = free（中性验证）
 
@@ -316,19 +303,13 @@ archive 必须成功且产出的 main spec 通过 strict validate。缺少官方
 
 ### Step 2: 聚合 review 结果
 
-必须等待全部适用轨完成；合并、去重 findings，并保留每轨覆盖面与未验证项。完成后才可显式写入状态
-（防止下一阶段误判）：
+必须等待全部波次完成（`tenon agent next` 报「全部完成」）；合并、去重 findings，并保留每轨覆盖面
+与未验证项。评审结论不再手填状态字段——Tenon 从 agent 运行记录与各自的阻断级别算出放行与否。
 
 ```bash
-# 若所有 reviewer agent 都 pass
-tenon set "$TENON_CHANGE_NAME" agent_review_result pass
-
-# 若 codex pass（codex 缺失跳过时同样置 pass 并在报告注明"第三轨降级"）
-tenon set "$TENON_CHANGE_NAME" codex_review_result pass
-
 # 生成聚合报告
 REPORT_PATH="docs/superpowers/reports/$(date +%Y-%m-%d)-${TENON_CHANGE_NAME}-verify.md"
-# ... 写报告（含三/四轨结论 + Step 1.5 勾选表 + Step 1.6 隔离演练记录）...
+# ... 写报告（含各评审者结论 + Codex 轨 + Step 1.5 勾选表 + Step 1.6 隔离演练记录）...
 tenon artifact register "$TENON_CHANGE_NAME" verification_report "$REPORT_PATH" \
   --producer verification-before-completion
 ```
@@ -375,15 +356,14 @@ guard 通过条件（GUARD-RULES §5，按 Track 不同）：
 - `verify_result=pass`（人工设）
 
 **frontend/backend Track**:
-- `agent_review_result=pass`
-- `codex_review_result=pass`
+- 本步骤声明的必需评审者全部在当前候选上通过（Tenon 从 agent 运行记录判定）
 - `verification_report` 字段非空且文件存在
 - `branch_status=handled`
 
 **free Track**:
 - `verification_report` 字段非空且文件存在
 - `branch_status=handled`
-- 不要求工程 Track 的 `agent_review_result` / `codex_review_result`
+- 默认工作流的 free 轨没有声明评审者
 
 guard **只校验、不自动 transition**。若验证通过，先运行：
 

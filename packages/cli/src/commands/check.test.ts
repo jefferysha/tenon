@@ -409,7 +409,7 @@ describe('check —— guard 报告（人读）；0 过 / 2 不过（CONTRACT §
     const deps = makeDeps({
       state: mockState({
         phase: 'verify', track: 'backend', verification_report: 'docs/v.md',
-        branch_status: 'handled', agent_review_result: 'pass', codex_review_result: 'pass',
+        branch_status: 'handled',
         isolation: 'branch', build_sha: 'null',
       }),
     })
@@ -429,7 +429,7 @@ describe('check —— guard 报告（人读）；0 过 / 2 不过（CONTRACT §
     const deps = makeDeps({
       state: mockState({
         phase: 'verify', track: 'backend', verification_report: 'docs/v.md',
-        branch_status: 'handled', agent_review_result: 'pass', codex_review_result: 'pass',
+        branch_status: 'handled',
         isolation: 'branch', build_sha: 'build:v1:git:candidate',
       }),
     })
@@ -446,6 +446,26 @@ describe('check —— guard 报告（人读）；0 过 / 2 不过（CONTRACT §
     expect(await cmdCheck(deps, 'demo')).toBe(0)
     expect(calls).toBe(1)
     expect(deps.outLines).toContain('  [PASS] 所有检查通过')
+  })
+
+  test('default 分支把 agent 阻断渲染成 [FAIL] agent: 行并计入总数', async () => {
+    const deps = makeDeps({
+      state: mockState({
+        phase: 'verify', track: 'backend', verification_report: 'docs/v.md', branch_status: 'handled',
+        isolation: 'branch', build_sha: 'build:v1:git:candidate',
+      }),
+    })
+    deps.assessBuildRevision = async () => ({
+      trusted: true as const,
+      token: createBuildRevisionToken('git', 'a'.repeat(40), {
+        repository: '/repo.git', worktree: '/repo\\0/worktree',
+      }),
+    })
+    deps.stepAgents = async () => [{ kind: 'reviewer-stale', agent: 'security' }]
+    expect(await cmdCheck(deps, 'demo')).toBe(2)
+    expect(deps.outLines.some((line) =>
+      line.startsWith("  [FAIL] agent: 评审者 'security' 的结论已过期"))).toBe(true)
+    expect(deps.outLines).toContain('  [FAIL] 共 1 项未通过')
   })
 
   test('非 Verify default check 不调用 revision assessor', async () => {
@@ -539,6 +559,17 @@ steps:
     expect(deps.outLines).toEqual(['[CHECK] demo (phase=s1)', '  [PASS] 所有检查通过'])
     // 走自定义 step-guard 路径，不再委托 default 相位出口全量规则表
     expect(deps.flow.guardCheck.calls).toHaveLength(0)
+  })
+
+  test('step-graph 分支同样渲染 [FAIL] agent: 行', async () => {
+    await writeFile(join(root, 'openspec', 'changes', 'demo', 'tasks.md'), '- [ ] 任务一\n', 'utf8')
+    const deps = makeDeps({
+      cwd: root,
+      state: mockState({ workflow: 'custom-check', phase: 's1', design_doc: 'docs/design.md' }),
+    })
+    deps.stepAgents = async () => [{ kind: 'executor-missing', agent: 'builder' }]
+    expect(await cmdCheck(deps, 'demo')).toBe(2)
+    expect(deps.outLines).toContain("  [FAIL] agent: 执行者 'builder' 未运行；运行：tenon agent next demo")
   })
 
   test('tasks-at-least 不足（缺 tasks.md）→ exit 2 [FAIL] 逐行 + 汇总', async () => {

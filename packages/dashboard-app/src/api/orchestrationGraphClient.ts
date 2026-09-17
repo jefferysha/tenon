@@ -111,11 +111,7 @@ const METADATA_KEYS_BY_KIND: Record<OrchestrationNodeKind, readonly string[]> = 
 }
 
 const SAFE_COORDINATE = /^[a-zA-Z0-9_-]+$/
-const REVIEW_FIELDS = new Set([
-  'pre_verify_review_result',
-  'agent_review_result',
-  'codex_review_result',
-])
+const REVIEW_FIELDS = new Set(['pre_verify_review_result'])
 
 function safeInteger(value: string, minimum: number): boolean {
   if (!/^(0|[1-9][0-9]*)$/.test(value)) return false

@@ -62,8 +62,6 @@ const ENUMS = {
   phase_status: ['pending', 'in_progress', 'done', 'failed'],
   build_mode: ['direct', 'subagent-driven-development', 'parallel-team', 'prototype'],
   isolation: ['branch', 'worktree'],
-  agent_review_result: ['pending', 'pass', 'fail', 'handled', 'skipped'],
-  codex_review_result: ['pending', 'pass', 'fail', 'handled', 'skipped'],
   verify_result: ['pending', 'pass', 'fail', 'handled', 'skipped'],
   branch_status: ['pending', 'pass', 'fail', 'handled', 'skipped'],
   direct_override: ['true', 'false'],
@@ -273,10 +271,6 @@ function cmdTransition() {
     case 'verify-pass': {
       need('verification_report', true)
       if (unquote(getRaw(doc.lines, 'branch_status')) !== 'handled') errExit('ERROR: 要求 branch_status=handled')
-      if (track !== 'pm') {
-        if (unquote(getRaw(doc.lines, 'agent_review_result')) !== 'pass') errExit('ERROR: 要求 agent_review_result=pass')
-        if (unquote(getRaw(doc.lines, 'codex_review_result')) !== 'pass') errExit('ERROR: 要求 codex_review_result=pass')
-      }
       setLine(doc, 'verify_result', 'pass')
       setLine(doc, 'verified_at', ts())
       break

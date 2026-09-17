@@ -585,6 +585,8 @@ export function makeDeps(o: MakeDepsOpts = {}): TestDeps {
     agentLibrary: async () => builtinAgentLibrary(),
     // mockStore.init 只返回路径、不真建目录，所以单测里冻结只记调用不写盘（真字节见 init-workflow.integration.test.ts）。
     agentFreeze: spy(async (_input: AgentFreezeInput) => undefined),
+    // mock 掉的 store 没有真冻结内容与台账；需要断言 agent 拦截的单测自行覆写这一项。
+    stepAgents: async () => [],
     runRepo: mockWorkflowRunRepository(store),
     // R3：无记忆化（每次 fresh load）。单测 cwd 无 tracks.yaml → 内建 Track，恒新鲜。
     loadRegistry: () => loadTrackRegistry(o.cwd ?? '/repo', trackCtx),

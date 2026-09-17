@@ -61,7 +61,7 @@ describe('DEFAULT_EVENT_POLICY 表结构（穷尽 9 事件 + action 一一映射
     expect(DEFAULT_EVENT_POLICY['explore-complete'].guards.length).toBe(1)
     expect(DEFAULT_EVENT_POLICY['spec-complete'].guards.length).toBe(1)
     expect(DEFAULT_EVENT_POLICY['build-complete'].guards.length).toBe(5)
-    expect(DEFAULT_EVENT_POLICY['verify-pass'].guards.length).toBe(5)
+    expect(DEFAULT_EVENT_POLICY['verify-pass'].guards.length).toBe(3)
     expect(DEFAULT_EVENT_POLICY['ship-complete'].guards).toEqual([{ type: 'spec-migration-applied' }])
     for (const ev of ['open-complete', 'requirements-changed', 'verify-fail', 'archived'] as const) {
       expect(DEFAULT_EVENT_POLICY[ev].guards).toEqual([])
@@ -195,45 +195,46 @@ describe('checkDefaultEventPreconditions —— verify-pass（老仓 L163-199，
     track: 'backend',
     verification_report: 'docs/v.md',
     branch_status: 'handled',
-    agent_review_result: 'pass',
-    codex_review_result: 'pass',
   }
 
-  test('report → branch_status → agent → codex 首错优先序', async () => {
+  test('report → branch_status 首错优先序（两个手填评审字段已删除）', async () => {
     const noVr = await checkDefaultEventPreconditions('verify-pass', mkState({ ...base, verification_report: 'null' }), filesExist(true))
     expect(noVr).toEqual(['ERROR: verify-pass 要求 verification_report 字段非空且文件存在 (当前=null)'])
     const noBs = await checkDefaultEventPreconditions('verify-pass', mkState({ ...base, branch_status: 'pending' }), filesExist(true))
     expect(noBs).toEqual(['ERROR: verify-pass 要求 branch_status=handled (当前=pending)'])
-    const noAr = await checkDefaultEventPreconditions('verify-pass', mkState({ ...base, agent_review_result: 'pending' }), filesExist(true))
-    expect(noAr).toEqual(['ERROR: backend track 要求 agent_review_result=pass (当前=pending)'])
-    const noCr = await checkDefaultEventPreconditions('verify-pass', mkState({ ...base, codex_review_result: 'pending' }), filesExist(true))
-    expect(noCr).toEqual(['ERROR: backend track 要求 codex_review_result=pass (当前=pending)'])
   })
 
-  test.each(['chat', 'ml'])('%s track（未知轨）同样要求双 review，文案逐字（NON_PM：pm 外都不豁免）', async (tr) => {
-    const r = await checkDefaultEventPreconditions('verify-pass', mkState({ ...base, track: tr, agent_review_result: 'pending' }), filesExist(true))
-    expect(r).toEqual([`ERROR: ${tr} track 要求 agent_review_result=pass (当前=pending)`])
-  })
-
-  test('pm track 豁免双 review（when:NON_PM 不适用）', async () => {
+  test.each(['chat', 'ml'])('%s track（未知轨）不再有评审字段前置', async (tr) => {
     const token = createBuildRevisionToken('git', 'a'.repeat(40), {
       repository: '/repo.git', worktree: '/repo\\0/repo.git/worktrees/change',
     })
     const r = await checkDefaultEventPreconditions(
       'verify-pass',
-      mkState({ track: 'pm', verification_report: 'docs/v.md', branch_status: 'handled', agent_review_result: 'skipped', codex_review_result: 'skipped', isolation: 'branch', build_sha: token.value }),
+      mkState({ ...base, track: tr, isolation: 'branch', build_sha: token.value }),
       { fileExists: () => true, assessBuildRevision: async () => ({ trusted: true, token }) },
     )
     expect(r).toBeNull()
   })
 
-  test('free track 走中性验证分支，不继承工程 Track 的双 review', async () => {
+  test('pm track 同样只要求报告与分支状态', async () => {
     const token = createBuildRevisionToken('git', 'a'.repeat(40), {
       repository: '/repo.git', worktree: '/repo\\0/repo.git/worktrees/change',
     })
     const r = await checkDefaultEventPreconditions(
       'verify-pass',
-      mkState({ track: 'free', verification_report: 'docs/v.md', branch_status: 'handled', agent_review_result: 'skipped', codex_review_result: 'skipped', isolation: 'branch', build_sha: token.value }),
+      mkState({ track: 'pm', verification_report: 'docs/v.md', branch_status: 'handled', isolation: 'branch', build_sha: token.value }),
+      { fileExists: () => true, assessBuildRevision: async () => ({ trusted: true, token }) },
+    )
+    expect(r).toBeNull()
+  })
+
+  test('free track 走中性验证分支', async () => {
+    const token = createBuildRevisionToken('git', 'a'.repeat(40), {
+      repository: '/repo.git', worktree: '/repo\\0/repo.git/worktrees/change',
+    })
+    const r = await checkDefaultEventPreconditions(
+      'verify-pass',
+      mkState({ track: 'free', verification_report: 'docs/v.md', branch_status: 'handled', isolation: 'branch', build_sha: token.value }),
       { fileExists: () => true, assessBuildRevision: async () => ({ trusted: true, token }) },
     )
     expect(r).toBeNull()

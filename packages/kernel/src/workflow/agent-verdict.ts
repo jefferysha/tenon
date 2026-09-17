@@ -224,7 +224,7 @@ export function isForwardExit(
 
 const FINDING_PREVIEW = 5
 
-/** 每条阻断都点名解锁它的那条命令（`.trellis/spec/guides/index.md` 的门禁文案规则）。 */
+/** 每条阻断都点名解锁它的那条命令——门禁文案的既定规则：说清楚怎么解开。 */
 export function renderAgentBlocker(blocker: AgentBlocker, change: string): string {
   switch (blocker.kind) {
     case 'executor-missing':

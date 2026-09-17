@@ -7,6 +7,7 @@ import type { DocumentContractPhase, DocumentGovernancePolicy } from './document
 import type { TransitionRecord, WorkflowRunRepository } from './run-types.js'
 import type { EffectiveWorkflowPlan } from './effective-plan.js'
 import type { TrackDefinition } from '../tracks/types.js'
+import type { AgentBlocker } from './agent-verdict.js'
 import type { BuildRevisionBlocker } from './build-revision.js'
 import type { InteractionEventRecorder } from '../interaction/ports.js'
 import { INTERACTION_PROJECTION_WRITE_FAILED } from '../interaction/contract.js'
@@ -34,6 +35,16 @@ export interface TransitionApplicationDeps {
     readonly stepId: string
     readonly capability: EffectiveWorkflowPlan['capabilities']['skills']
   }) => Promise<readonly string[]>
+  /**
+   * 离开步骤前的 agent 判定；只在前进出边上调用（退回边永不检查 agent）。
+   * 缺省 undefined = 宿主未接线，不产生 agent 拦截。
+   */
+  stepAgentBlockers?: (input: {
+    readonly changeDir: string
+    readonly stepId: string
+    readonly plan: EffectiveWorkflowPlan
+    readonly state: PipelineState
+  }) => Promise<readonly AgentBlocker[]>
   resolveTrack?: (trackId: string) => TrackDefinition
   documentEvidence?: (
     root: string,
@@ -125,6 +136,12 @@ export type TransitionApplicationResult =
       readonly workflowName: string
       readonly stepId: string
       readonly missing: readonly string[]
+    }
+  | {
+      readonly kind: 'step-agents-incomplete'
+      readonly workflowName: string
+      readonly stepId: string
+      readonly blockers: readonly AgentBlocker[]
     }
   | {
       readonly kind: 'document-evidence-failed'

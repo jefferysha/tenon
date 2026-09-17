@@ -233,6 +233,10 @@ export type TransitionReadinessBlockerSnapshot =
       guardType: string
       capability?: string
     }
+  | {
+      kind: 'agents-incomplete'
+      agents: { agent: string; reason: string }[]
+    }
 
 /** 单个已注册 Project 的聚合。 */
 export interface CanonicalStateCompatibilityIssue {

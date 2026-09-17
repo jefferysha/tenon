@@ -59,6 +59,11 @@ printf '# verification report\n' > "$target/docs/verify.md"
 # P6 起 set/cas 对「当前有效 artifact 相位」的 artifact 字段拒写（改走 tenon artifact register）：
 # plan（spec 相位）、verification_report（verify 相位）改用 seed 在双侧直接注同值，隔离 legacy
 # transition 等价面的数据准备（design_doc 在 open 相位 set 时非有效 artifact、照常双跑）。
+# 老 oracle 的 verify-pass 要求 agent_review_result / codex_review_result=pass；这两个手填字段已删除
+# （评审改用步骤 agents.reviewers）。两侧都拒绝这一步、状态两侧仍逐字可比，只有 exit 码不同。
+printf '19\t老 oracle 要求已删除的手填评审字段；新 CLI 要求步骤声明的评审者跑过，两侧都不放行\n' \
+  > "$target/.oracle-exit-divergences"
+
 # 竖线转 TAB（计划值不含竖线）
 tr '|' '\t' > "$target/.oracle-plan" <<'PLAN'
 0|init|t6-be|backend|full
@@ -79,8 +84,6 @@ tr '|' '\t' > "$target/.oracle-plan" <<'PLAN'
 0|transition|t6-be|build-complete
 0|seed|t6-be|verification_report|docs/verify.md
 0|set|t6-be|branch_status|handled
-0|set|t6-be|agent_review_result|pass
-0|set|t6-be|codex_review_result|pass
 0|transition|t6-be|verify-pass
 0|get|t6-be|verify_result
 0|get|t6-be|verified_at

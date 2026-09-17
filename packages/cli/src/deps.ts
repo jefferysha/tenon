@@ -245,6 +245,18 @@ export interface CliDeps {
    */
   agentFreeze?: (input: import('@tenon/kernel').AgentFreezeInput) => Promise<unknown>
   /**
+   * 本步 agent 阻断的读取面，契约同 documentEvidence / testEvidence：生产不注入，读权威的冻结内容
+   * 与运行台账；只有 mock 掉 store 的命令单测用它隔离渲染与退出码，真门禁由 agent.integration.test.ts
+   * 端到端覆盖。
+   */
+  stepAgents?: (input: {
+    readonly name: string
+    readonly dir: string
+    readonly stepId: string
+    readonly plan: import('@tenon/kernel').EffectiveWorkflowPlan
+    readonly state: import('@tenon/kernel').PipelineState
+  }) => Promise<readonly import('@tenon/kernel').AgentBlocker[]>
+  /**
    * 上游 hue 的 `scripts/validate.mjs`（`tenon design validate` 用）：path() 返回脚本绝对路径，
    * 技能没装时返回空串；run() 以仓库根为 cwd 执行并返回退出码。缺省 undefined = 未装配，命令 exit 1；
    * 用例注入假实现，永不真的 spawn。

@@ -655,10 +655,60 @@ bootstrap_new_test_evidence() {
   done <<< "$ids"
 }
 
+# 老 oracle 早于「步骤 agent」：默认工作流的 frontend/backend verify 步骤现在声明必需评审者。
+# 与其它 bootstrap 同一条口径——只在老侧已证明该出口成功之后补，绝不在老侧拒绝时跑。报告内容
+# 由 harness 写成「无发现」，评审结论仍由 Tenon 从阻断级别算。
+oracle_json_field() {
+  node -e 'let s="";process.stdin.on("data",(d)=>{s+=d}).on("end",()=>{try{const v=JSON.parse(s)[process.argv[1]];process.stdout.write(Array.isArray(v)?v.join("\n"):String(v??""))}catch{}})' "$1"
+}
+
+bootstrap_new_step_agents() {
+  local dir="$1" change="$2" round agents agent started run_id report role
+  for round in 1 2 3 4; do
+    agents="$(run_new_cli "$dir" agent next "$change" --json 2>/dev/null | oracle_json_field wave)" || return 0
+    [ -n "$agents" ] || return 0
+    while IFS= read -r agent; do
+      [ -n "$agent" ] || continue
+      started="$(run_new_cli "$dir" agent prompt "$change" "$agent" --json)" || return 1
+      run_id="$(printf '%s' "$started" | oracle_json_field run_id)"
+      report="$(printf '%s' "$started" | oracle_json_field report_path)"
+      role="$(printf '%s' "$started" | oracle_json_field role)"
+      [ -n "$run_id" ] && [ -n "$report" ] || return 1
+      mkdir -p "$dir/$(dirname "$report")" || return 1
+      {
+        printf '# %s\n\n' "$agent"
+        printf '```tenon-result\n'
+        if [ "$role" = executor ]; then
+          printf '{"result":"done","findings":[]}\n'
+        else
+          printf '{"findings":[]}\n'
+        fi
+        printf '```\n'
+      } > "$dir/$report" || return 1
+      run_new_cli "$dir" agent record "$change" "$run_id" || return 1
+    done <<< "$agents"
+  done
+}
+
 # ---------- 双跑单步 ----------
 stderr_divergence_reason() {
   local base="$1" idx="$2" file
   file="$base/new/.oracle-stderr-divergences"
+  [ -f "$file" ] || return 1
+  awk -F '\t' -v wanted="$idx" '
+    $1 == wanted {
+      print substr($0, length(wanted) + 2)
+      exit
+    }
+  ' "$file"
+}
+
+# 与 stderr 同一条口径，但用于**双侧都拒绝、但拒绝理由不同**的一步：老 oracle 要求两个已删除的
+# 手填评审字段，新 CLI 要求步骤声明的评审者跑过。两侧都不放行，状态两侧仍逐字可比；只把 exit 码
+# 列为已知差异。绝不用于「一侧放行一侧拒绝」——那是真回归。
+exit_divergence_reason() {
+  local base="$1" idx="$2" file
+  file="$base/new/.oracle-exit-divergences"
   [ -f "$file" ] || return 1
   awk -F '\t' -v wanted="$idx" '
     $1 == wanted {
@@ -673,7 +723,7 @@ run_step_dual() {
   shift 5
   local args=("$@")
   local change="${args[0]}"
-  local old_rc new_rc bootstrap_rc review_bootstrap_rc convergence_bootstrap_rc test_bootstrap_rc design_bootstrap_rc
+  local old_rc new_rc bootstrap_rc review_bootstrap_rc convergence_bootstrap_rc test_bootstrap_rc design_bootstrap_rc agent_bootstrap_rc
   local f_out f_exit f_yaml label
   local build_sha_override=""
 
@@ -718,16 +768,24 @@ run_step_dual() {
     bootstrap_new_test_evidence "$base/new" "$change" \
       > "$step_dir/new.test-bootstrap.out" 2> "$step_dir/new.test-bootstrap.err" || test_bootstrap_rc=$?
   fi
-  review_bootstrap_rc=0
+  agent_bootstrap_rc=0
+  # 必须排在 review request 之前：`review request` 的预检就是整份 check（含 agent 结论）。
   if [ "$bootstrap_rc" -eq 0 ] && [ "$convergence_bootstrap_rc" -eq 0 ] \
     && [ "$test_bootstrap_rc" -eq 0 ] && [ "$old_rc" -eq 0 ] \
+    && { [ "$cmd" = transition ] || [ "$cmd" = check ]; } && [ "$DOCUMENT_CONTRACT_BOOTSTRAP" = 1 ]; then
+    bootstrap_new_step_agents "$base/new" "$change" \
+      > "$step_dir/new.agent-bootstrap.out" 2> "$step_dir/new.agent-bootstrap.err" || agent_bootstrap_rc=$?
+  fi
+  review_bootstrap_rc=0
+  if [ "$bootstrap_rc" -eq 0 ] && [ "$convergence_bootstrap_rc" -eq 0 ] \
+    && [ "$test_bootstrap_rc" -eq 0 ] && [ "$agent_bootstrap_rc" -eq 0 ] && [ "$old_rc" -eq 0 ] \
     && [ "$cmd" = transition ] && [ "$REVIEW_RECEIPT_BOOTSTRAP" = 1 ]; then
     bootstrap_new_review_receipt "$base/new" "$change" "${args[1]:-}" \
       > "$step_dir/new.review-bootstrap.out" 2> "$step_dir/new.review-bootstrap.err" || review_bootstrap_rc=$?
   fi
   if [ "$bootstrap_rc" -eq 0 ] && [ "$convergence_bootstrap_rc" -eq 0 ] \
     && [ "$review_bootstrap_rc" -eq 0 ] && [ "$test_bootstrap_rc" -eq 0 ] \
-    && [ "$design_bootstrap_rc" -eq 0 ]; then
+    && [ "$agent_bootstrap_rc" -eq 0 ] && [ "$design_bootstrap_rc" -eq 0 ]; then
     run_new_cli "$base/new" "${NEW_ARGS[@]}" > "$step_dir/new.out" 2> "$step_dir/new.err"
     new_rc=$?
   else
@@ -742,6 +800,9 @@ run_step_dual() {
       elif [ "$test_bootstrap_rc" -ne 0 ]; then
         printf 'ERROR: oracle test evidence bootstrap 失败（exit=%s）\n' "$test_bootstrap_rc"
         cat "$step_dir/new.test-bootstrap.err"
+      elif [ "$agent_bootstrap_rc" -ne 0 ]; then
+        printf 'ERROR: oracle step agent bootstrap 失败（exit=%s）\n' "$agent_bootstrap_rc"
+        cat "$step_dir/new.agent-bootstrap.err"
       elif [ "$design_bootstrap_rc" -ne 0 ]; then
         printf 'ERROR: oracle design system bootstrap 失败（exit=%s）\n' "$design_bootstrap_rc"
         cat "$step_dir/new.design-bootstrap.err"
@@ -759,7 +820,14 @@ run_step_dual() {
 
   # exit 面
   f_exit=PASS
-  [ "$old_rc" = "$new_rc" ] || f_exit=FAIL
+  if [ "$old_rc" != "$new_rc" ]; then
+    if [ "$old_rc" != 0 ] && [ "$new_rc" != 0 ] \
+      && [ -n "$(exit_divergence_reason "$base" "$idx" || true)" ]; then
+      f_exit=KNOWN
+    else
+      f_exit=FAIL
+    fi
+  fi
 
   # stdout 面
   if [ "$cmd" = check ]; then
@@ -860,6 +928,9 @@ run_step_dual() {
     say "  x [$fx #$idx $label] stdout 不一致："
     sed 's/^/      old| /' "$step_dir/old.out" | head -5 | tee -a "$REPORT"
     sed 's/^/      new| /' "$step_dir/new.out" | head -5 | tee -a "$REPORT"
+  fi
+  if [ "$f_exit" = KNOWN ]; then
+    say "  i [$fx #$idx $label] exit 已知差异（old=${old_rc} new=${new_rc}）：$(exit_divergence_reason "$base" "$idx")"
   fi
   if [ "$f_exit" = FAIL ]; then
     say "  x [$fx #$idx $label] exit 不一致: old=$old_rc new=$new_rc"

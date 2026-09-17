@@ -328,11 +328,10 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
         'set-many',
         CHANGE,
         'branch_status=handled',
-        'agent_review_result=pass',
-        'codex_review_result=pass',
       ]),
     ).toBe(0)
     await h.satisfyStepTests(CHANGE, 'verify')
+    await h.satisfyStepAgents(CHANGE)
     await approveReviewExit('verify')
 
     // ── verify-pass → ship（非 review 相位）──

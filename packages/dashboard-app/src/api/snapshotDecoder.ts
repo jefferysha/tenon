@@ -417,6 +417,11 @@ const GUARD_TYPES = new Set([
 const GUARD_CAPABILITIES = new Set([
   'readText', 'fileExists', 'gitHeadSha', 'workspaceFingerprint', 'specMigrationStatus',
 ])
+const AGENT_BLOCKER_REASONS = new Set([
+  'executor-missing', 'executor-running', 'executor-failed',
+  'reviewer-missing', 'reviewer-running', 'reviewer-stale', 'reviewer-failed',
+  'agent-records-invalid',
+])
 
 function decodeTransitionReadinessBlocker(value: unknown): TransitionReadinessBlockerSnapshot | null {
   if (!isRecord(value)) return null
@@ -446,6 +451,19 @@ function decodeTransitionReadinessBlocker(value: unknown): TransitionReadinessBl
       ...(value.stateHash === undefined ? {} : { stateHash: value.stateHash }),
       ...(value.revisionHash === undefined ? {} : { revisionHash: value.revisionHash }),
     }
+  }
+  // agent 阻断不挂在某个 guard 上（它不是 guard），所以在 guardType 校验之前判。
+  if (value.kind === 'agents-incomplete') {
+    if (!Array.isArray(value.agents)
+      || !Object.keys(value).every((key) => key === 'kind' || key === 'agents')) return null
+    const agents: { agent: string; reason: string }[] = []
+    for (const item of value.agents) {
+      if (!isRecord(item) || typeof item.agent !== 'string' || typeof item.reason !== 'string'
+        || !AGENT_BLOCKER_REASONS.has(item.reason)
+        || !Object.keys(item).every((key) => key === 'agent' || key === 'reason')) return null
+      agents.push({ agent: item.agent, reason: item.reason })
+    }
+    return { kind: 'agents-incomplete', agents }
   }
   if (typeof value.guardType !== 'string' || !GUARD_TYPES.has(value.guardType)) return null
   if (value.kind === 'evaluation-error') {

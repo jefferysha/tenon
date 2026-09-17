@@ -147,22 +147,19 @@ tenon document status <change> [--json]
 tenon artifact register <change> <field> <path> --producer <skill-id>
 tenon review request <change> --event <event>
 tenon review acknowledge <change> [--delegated]
-tenon review-attempt begin <change> --candidate <fingerprint> [--json]
-tenon review-attempt lane <change> --attempt-id <id> --lane <lane> \
-  --result <pass|fail> --report <project-relative-path> [--json]
-tenon review-attempt complete <change> --attempt-id <id> \
-  --result <pass|fail> --report <project-relative-path> [--json]
-tenon review-budget show <change> [--json]
-tenon review-budget set <change> --max-attempts <1..20> [--json]
+tenon agent next <change> [--json]
+tenon agent prompt <change> <agent> [--host <id>] [--json]
+tenon agent record <change> <run-id> [--json]
 ```
 
-`review-attempt` governs automated Review execution. One frozen candidate uses
-one attempt and aggregates all declared lanes, including standards, spec,
-security, E2E, browser, and visual acceptance. Retrying or sharding a lane does
-not consume another attempt. `review-budget set` is run-, workflow-, and
-step-scoped; it cannot rewrite an active attempt or lower the ceiling below the
-number already used. Human `review request/acknowledge` remains a separate
-exact-event confirmation boundary.
+`tenon agent` drives the executors and reviewers a step declares. Tenon only
+orders them, renders the handoff, records the verdict, and binds it to the
+candidate; the host runs every model. `next` returns the current wave, `prompt`
+starts or resumes one agent and prints its handoff, and `record` reads the
+trailing ```tenon-result``` block of the report. A reviewer never reports its own
+verdict: Tenon derives pass or fail from the finding severities and the step's
+`block_at`. Human `review request/acknowledge` remains a separate exact-event
+confirmation boundary and may be combined with reviewers.
 
 `review acknowledge` exit codes: `0` approved, replayed, or approved with a
 review-marker cleanup warning; `2` no matching pending review (missing, already
@@ -206,32 +203,37 @@ Custom Workflow authoring is file/Dashboard based; there is no public
 `tenon workflow create` command in the current CLI. `tenon workflow plan`
 is a read-only runtime introspection command, not a workflow authoring command.
 
-Every Workflow has a finite Review budget. Review membership is explicit and
-never inferred from a Skill or command name:
+Reviewers are declared per step and never inferred from a Skill or command name:
 
 ```yaml
 name: release-train
-review_budget:
-  version: v1
-  max_attempts: 2
 steps:
   - id: verify
     label: Verify
     gate: review
-    review_lanes: [standards, spec, e2e]
     skills:
       - id: acme-quality-gate
-        kind: review
-        review_lane: standards
-      - id: e2e-looking-work
-        kind: work
+    agents:
+      reviewers:
+        - agent: security
+          required: true
+          block_at: medium
+        - agent: code-size
+          required: true
+          block_at: medium
+          reads_tests: [code-size]
+        - agent: architecture
+          required: false
+          block_at: high
+          depends_on: [security, code-size]
 ```
 
-The default plugin maps packaged Review Skills to lanes in
-`templates/manifest.yaml`. A custom Workflow must use `kind: review` plus a
-declared `review_lane`; an unclassified third-party Skill is ordinary work and
-does not consume Review attempts. Dashboard policy editing preserves these
-fields and exposes `max_attempts` directly.
+Every `required` reviewer must pass on the current candidate before the step can
+be left; an advisory reviewer only reports. `reads_tests` names tests the same
+step declares, and Tenon hands their results to the reviewer. Agent definitions
+live in the global agent library and are frozen into
+`<change>/.pipeline-frozen/` when the Change is created, so editing the library
+never changes a Change that is already running.
 
 ## AFK and loops
 

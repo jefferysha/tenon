@@ -84,9 +84,10 @@ async function initGoverned(name: string, track: 'backend' | 'pm' = 'backend', p
  * CLI 协议与 receipt 消费的接线错误。
  */
 async function approveReviewExit(name: string, event: string): Promise<void> {
-  // `review request` 的预检就是整份 check（含测试证据），所以先跑该步声明的测试——真实用户同样是
-  // 先把测试跑绿再请求评审。
+  // `review request` 的预检就是整份 check（含测试证据与 agent 结论），所以先跑该步声明的测试与
+  // agent——真实用户同样是先把两者办完再请求评审。
   await h.satisfyStepTests(name, event.replace(/-(complete|pass|fail)$/u, ''))
+  await h.satisfyStepAgents(name)
   const request = await h.run(['review', 'request', name, '--event', event])
   if (request !== 0) throw new Error(`review request failed (${request}): ${[...h.err, ...h.out].join('\n')}`)
   const acknowledge = await h.run(['review', 'acknowledge', name])
@@ -118,10 +119,9 @@ async function advanceTo(name: string, phase: 'explore' | 'spec' | 'build' | 've
   await seed('docs/verify.md')
   await h.seedArtifact(name, 'verification_report', 'docs/verify.md')
   await h.run(['set', name, 'branch_status', 'handled'])
-  await h.run(['set', name, 'agent_review_result', 'pass'])
-  await h.run(['set', name, 'codex_review_result', 'pass'])
   await approveReviewExit(name, 'verify-pass')
   await h.satisfyStepTests(name, 'verify')
+    await h.satisfyStepAgents(name)
   expect(await h.run(['transition', name, 'verify-pass'])).toBe(0)
 }
 
@@ -250,28 +250,25 @@ describe('真实 e2e —— build-complete 校验 + build_sha 冻结（老仓 L1
 })
 
 describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）', () => {
-  test('四前置逐个解锁：report → branch_status → agent → codex（首错优先序对齐老仓）', async () => {
+  test('两前置逐个解锁：report → branch_status（手填评审字段已删除）', async () => {
     await initGoverned('demo')
     await advanceTo('demo', 'verify')
     await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err).toContain('ERROR: verify-pass 要求 verification_report 字段非空且文件存在 (当前=null)')
     await seed('docs/verify.md')
     await h.seedArtifact('demo', 'verification_report', 'docs/verify.md')
     await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err).toContain('ERROR: verify-pass 要求 branch_status=handled (当前=pending)')
     await h.run(['set', 'demo', 'branch_status', 'handled'])
     await h.satisfyStepTests('demo', 'verify')
-    expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
-    expect(h.err).toContain('ERROR: backend track 要求 agent_review_result=pass (当前=pending)')
-    await h.run(['set', 'demo', 'agent_review_result', 'pass'])
-    await h.satisfyStepTests('demo', 'verify')
-    expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
-    expect(h.err).toContain('ERROR: backend track 要求 codex_review_result=pass (当前=pending)')
-    await h.run(['set', 'demo', 'codex_review_result', 'pass'])
+    await h.satisfyStepAgents('demo')
     await approveReviewExit('demo', 'verify-pass')
     await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(0)
     const yaml = await h.read('demo')
     expect(yaml).toMatch(/^phase: ship$/m)
@@ -285,12 +282,11 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await seed('docs/verify.md')
     await h.seedArtifact('demo', 'verification_report', 'docs/verify.md')
     await h.run(['set', 'demo', 'branch_status', 'handled'])
-    await h.run(['set', 'demo', 'agent_review_result', 'pass'])
-    await h.run(['set', 'demo', 'codex_review_result', 'pass'])
     await approveReviewExit('demo', 'verify-pass')
     await corruptField('demo', 'build_sha', 'CAFEBABE') // 模拟 build 后偷改未复验
     const before = await h.read('demo')
     await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err.join('\n')).toContain(
       'ERROR: verify-build-revision-untrusted reason=malformed remediation=return-to-build-and-capture-current-revision',
@@ -315,13 +311,12 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await seed('docs/verify.md')
     await h.seedArtifact('demo', 'verification_report', 'docs/verify.md')
     await h.run(['set', 'demo', 'branch_status', 'handled'])
-    await h.run(['set', 'demo', 'agent_review_result', 'pass'])
-    await h.run(['set', 'demo', 'codex_review_result', 'pass'])
     await approveReviewExit('demo', 'verify-pass')
 
     await seed('src/app.js', 'export const version = 2\n')
     const before = await h.read('demo')
     await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err.join('\n')).toContain(
       'ERROR: verify-build-revision-untrusted reason=revision-stale remediation=return-to-build-and-capture-current-revision',
@@ -335,8 +330,6 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await seed('docs/verify.md')
     await h.seedArtifact('demo', 'verification_report', 'docs/verify.md')
     await h.run(['set', 'demo', 'branch_status', 'handled'])
-    await h.run(['set', 'demo', 'agent_review_result', 'pass'])
-    await h.run(['set', 'demo', 'codex_review_result', 'pass'])
     // Obtain a valid exact-event receipt while the canonical Build token is still trusted.
     await approveReviewExit('demo', 'verify-pass')
     await corruptField('demo', 'build_sha', 'null')
@@ -350,6 +343,7 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
       records: await Promise.all(recordNames.map(async (name) => [name, await readFile(join(recordsPath, name), 'utf8')] as const)),
     }
     await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(1)
     expect(h.err.join('\n')).toContain(
       'ERROR: verify-build-revision-untrusted reason=null remediation=return-to-build-and-capture-current-revision',
@@ -384,10 +378,10 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await h.run(['set', 'pmx', 'verify_result', 'pass'])
     await approveReviewExit('pmx', 'verify-pass')
     await h.satisfyStepTests('pmx', 'verify')
+    await h.satisfyStepAgents('pmx')
     expect(await h.run(['transition', 'pmx', 'verify-pass'])).toBe(0)
     const yaml = await h.read('pmx')
     expect(yaml).toMatch(/^phase: ship$/m)
-    expect(yaml).toMatch(/^agent_review_result: skipped$/m)
     expect(yaml).toMatch(/^verify_result: pass$/m)
   })
 })
@@ -460,10 +454,9 @@ describe('真实 e2e —— 跨命令串联 + 历史 JSONL（GOAL C10）', () =>
     await seed('docs/verify.md')
     await h.seedArtifact('demo', 'verification_report', 'docs/verify.md')
     await h.run(['set', 'demo', 'branch_status', 'handled'])
-    await h.run(['set', 'demo', 'agent_review_result', 'pass'])
-    await h.run(['set', 'demo', 'codex_review_result', 'pass'])
     await approveReviewExit('demo', 'verify-pass')
     await h.satisfyStepTests('demo', 'verify')
+    await h.satisfyStepAgents('demo')
     expect(await h.run(['transition', 'demo', 'verify-pass'])).toBe(0)
     expect(await h.read('demo')).toMatch(/^verify_result: pass$/m)
   }, 30_000)

@@ -203,11 +203,8 @@ export function buildOrchestrationGraph(input: BuildOrchestrationGraphInput): Or
     edges.push(edge('produces', source, id, 'produces document'))
   }
 
-  const reviewFields = [
-    'pre_verify_review_result',
-    'agent_review_result',
-    'codex_review_result',
-  ] as const
+  // agent / codex 两个评审字段已退役（评审改用步骤 agents.reviewers），图里不再有它们的节点。
+  const reviewFields = ['pre_verify_review_result'] as const
   for (const field of reviewFields) {
     const status = valueOf(change, field)
     if (status === '') continue

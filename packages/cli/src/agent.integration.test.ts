@@ -275,4 +275,54 @@ tracks:
     expect(view).toMatchObject({ agents: [], wave: [], pass: true, blockers: [] })
     expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A })).toBe(0)
   })
+  test('守卫：必需评审者未通过时离开步骤被拦，修完重跑放行；参考评审者不拦', async () => {
+    await seed()
+    expect(await runAgent('builder', [], { result: 'done' })).toBe(0)
+    expect(await runAgent('researcher', [], { result: 'done' })).toBe(0)
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A })).toBe(0)
+
+    expect(await h.run(['transition', 'demo', 'verify-pass'], { env: USER_A })).toBe(2)
+    expect(h.err.join('\n')).toContain("评审者 'security' 未运行")
+
+    expect(await runAgent('security', [{ severity: 'high', location: 'a.ts:1', message: '注入' }])).toBe(0)
+    expect(await runAgent('spec-consistency')).toBe(0)
+    expect(await h.run(['transition', 'demo', 'verify-pass'], { env: USER_A })).toBe(2)
+    expect(h.err.join('\n')).toContain('a.ts:1 注入')
+
+    expect(await runAgent('security')).toBe(0)
+    // 参考评审者报 critical 也不拦。
+    expect(await runAgent('architecture', [{ severity: 'critical', location: 'b.ts:2', message: '环' }])).toBe(0)
+    expect(await h.run(['transition', 'demo', 'verify-pass'], { env: USER_A }), h.err.join('\n')).toBe(0)
+  })
+
+  test('守卫：候选变化后旧结论过期，重跑通过才放行', async () => {
+    await seed()
+    expect(await runAgent('builder', [], { result: 'done' })).toBe(0)
+    expect(await runAgent('researcher', [], { result: 'done' })).toBe(0)
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A })).toBe(0)
+    expect(await runAgent('security')).toBe(0)
+    expect(await runAgent('spec-consistency')).toBe(0)
+    await writeFile(join(h.cwd, 'drift.ts'), 'export const drift = 1\n', 'utf8')
+    expect(await h.run(['transition', 'demo', 'verify-pass'], { env: USER_A })).toBe(2)
+    expect(h.err.join('\n')).toContain('已过期')
+    expect(await runAgent('security')).toBe(0)
+    expect(await runAgent('spec-consistency')).toBe(0)
+    expect(await h.run(['transition', 'demo', 'verify-pass'], { env: USER_A }), h.err.join('\n')).toBe(0)
+  })
+
+  test('守卫：退回边不检查 agent', async () => {
+    await seed()
+    expect(await runAgent('builder', [], { result: 'done' })).toBe(0)
+    expect(await runAgent('researcher', [], { result: 'done' })).toBe(0)
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A })).toBe(0)
+    expect(await h.run(['transition', 'demo', 'verify-fail'], { env: USER_A }), h.err.join('\n')).toBe(0)
+  })
+
+  test('守卫：执行者未完成时离开 build 被拦', async () => {
+    await seed()
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A })).toBe(2)
+    expect(h.err.join('\n')).toContain("执行者 'builder' 未运行")
+    expect(await h.run(['check', 'demo'], { env: USER_A })).toBe(2)
+    expect(h.out.join('\n')).toContain("[FAIL] agent: 执行者 'builder' 未运行")
+  })
 })

@@ -96,10 +96,6 @@ tr '|' '\t' > "$target/.oracle-plan" <<'PLAN'
 0|seed|t6-ge|verification_report|docs/verify.md
 1|transition|t6-ge|verify-pass
 0|set|t6-ge|branch_status|handled
-1|transition|t6-ge|verify-pass
-0|set|t6-ge|agent_review_result|pass
-1|transition|t6-ge|verify-pass
-0|set|t6-ge|codex_review_result|pass
 0|transition|t6-ge|verify-pass
 0|get|t6-ge|phase
 PLAN
