@@ -78,6 +78,9 @@ export function formatReadinessBlocker(blocker: ReadinessBlocker): string {
   if (blocker.kind === 'evaluation-error') {
     return blocker.capability === undefined ? `guard:${blocker.guardType}` : `capability:${blocker.capability}`
   }
+  if (blocker.kind === 'agents-incomplete') {
+    return blocker.agents.map((item) => `agent:${item.agent}:${item.reason}`).join(' ')
+  }
   return blocker.field ?? `guard:${blocker.guardType}`
 }
 

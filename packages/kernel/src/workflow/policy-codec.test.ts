@@ -16,20 +16,13 @@ decomposition:
 interaction:
   version: v1
   mode: recommended-defaults
-review_budget:
-  version: v1
-  max_attempts: 2
 steps:
   - id: build
     label: Build
     gate: null
-    review_lanes: [standards, spec, e2e]
     skills:
       - id: acme-quality-gate
-        kind: review
-        review_lane: standards
       - id: test-driven-development
-        kind: work
     inputs: []
     outputs: []
     guards: []
@@ -41,21 +34,14 @@ describe('workflow policy YAML codec', () => {
     const parsed = parseWorkflow(SOURCE)
     expect(parsed.decomposition?.mode).toBe('require-review')
     expect(parsed.interaction?.mode).toBe('recommended-defaults')
-    expect(parsed.reviewBudget?.max_attempts).toBe(2)
-    expect(parsed.steps[0]?.reviewLanes).toEqual(['standards', 'spec', 'e2e'])
     expect(parsed.steps[0]?.skills).toEqual([
-      { id: 'acme-quality-gate', kind: 'review', review_lane: 'standards' },
-      { id: 'test-driven-development', kind: 'work' },
+      { id: 'acme-quality-gate' },
+      { id: 'test-driven-development' },
     ])
     expect(parseWorkflow(serializeWorkflow(parsed))).toEqual(parsed)
     expect(compileWorkflow(parsed).decomposition.max_depth).toBe(4)
-    expect(compileWorkflow(parsed).reviewBudget).toEqual({ version: 'v1', max_attempts: 2 })
     expect(compileWorkflow(parsed).steps[0]).toMatchObject({
-      reviewLanes: ['standards', 'spec', 'e2e'],
-      skills: [
-        { id: 'acme-quality-gate', kind: 'review', review_lane: 'standards' },
-        { id: 'test-driven-development', kind: 'work' },
-      ],
+      skills: [{ id: 'acme-quality-gate' }, { id: 'test-driven-development' }],
     })
   })
 
@@ -74,28 +60,13 @@ describe('workflow policy YAML codec', () => {
     ))).toThrow(/空|列表/)
   })
 
-  it('rejects unknown review budget YAML keys instead of silently publishing an unlimited policy', () => {
-    expect(() => parseWorkflow(SOURCE.replace(
-      '  max_attempts: 2',
-      '  max_attempts: 2\n  unlimited: true',
-    ))).toThrow(/unlimited|未知/)
-  })
-
-  it('rejects a Review Skill whose explicit lane is not declared by the step', () => {
-    expect(() => compileWorkflow(parseWorkflow(SOURCE.replace(
-      'review_lane: standards',
-      'review_lane: security',
-    )))).toThrow(/security|review.*lane|声明/i)
-  })
-
-  it('does not infer Review semantics from a skill name', () => {
-    const parsed = parseWorkflow(SOURCE.replace(
-      'id: test-driven-development\n        kind: work',
-      'id: e2e-review-looking-name\n        kind: work',
-    ))
-    expect(compileWorkflow(parsed).steps[0]?.skills[1]).toEqual({
-      id: 'e2e-review-looking-name',
-      kind: 'work',
-    })
+  it.each([
+    ['review_budget', 'steps:', 'review_budget:\n  version: v1\n  max_attempts: 2\nsteps:'],
+    ['review_lanes', '    skills:', '    review_lanes: [standards]\n    skills:'],
+    ['skill kind', '      - id: acme-quality-gate', '      - id: acme-quality-gate\n        kind: review'],
+    ['skill review_lane', '      - id: acme-quality-gate', '      - id: acme-quality-gate\n        review_lane: standards'],
+  ])('已删除的评审键在解析期点名报错：%s', (_label, from, to) => {
+    expect(() => parseWorkflow(SOURCE.replace(from, to)))
+      .toThrow(/已删除——评审改用步骤 agents.reviewers/)
   })
 })

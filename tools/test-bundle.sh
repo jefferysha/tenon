@@ -63,12 +63,18 @@ grep -q 'repo-zero-output barrier' "$ROOT/skills/tenon-verify/SKILL.md" \
   && grep -q 'canonical `verification_report`.*唯一例外' "$plugin_runtime_spec" \
   && ok "bundle: Build/Verify 冻结交接强制零写入、外置产物与逐轨指纹" \
   || bad "bundle: Build/Verify 冻结交接强制零写入、外置产物与逐轨指纹" "冻结验证约束缺失"
-grep -q 'repo-zero-output' "$ROOT/agents/tenon-reviewer.md" \
-  && grep -q '审查前后.*fingerprint 必须一致' "$ROOT/agents/tenon-design-reviewer.md" \
-  && grep -q '已无 critical/high/medium' "$ROOT/agents/tenon-design-reviewer.md" \
-  && grep -q '截图、snapshot、trace 与日志只能写仓库外' "$ROOT/agents/tenon-design-reviewer.md" \
-  && ok "bundle: 代码与视觉 reviewer 使用只读冻结靶且 C/H/M 清零" \
-  || bad "bundle: 代码与视觉 reviewer 使用只读冻结靶且 C/H/M 清零" "reviewer brief 未闭环"
+# 内建 agent 在 templates/agents/ 下（插件根 agents/ 会被宿主自动加载，任务级 agent 不能进那里）。
+builtin_agents="$ROOT/templates/agents"
+missing_agents=""
+for agent in architecture backend-quality builder code-size e2e frontend-quality researcher security spec-consistency; do
+  [ -f "$builtin_agents/$agent.md" ] || missing_agents="$missing_agents $agent"
+done
+[ -z "$missing_agents" ] && [ ! -d "$ROOT/agents" ] \
+  && grep -q '只读' "$builtin_agents/backend-quality.md" \
+  && grep -q 'tenon-result' "$builtin_agents/frontend-quality.md" \
+  && grep -q '只能写仓库外临时目录' "$builtin_agents/e2e.md" \
+  && ok "bundle: 内建 agent 在 templates/agents/ 且插件根无 agents/" \
+  || bad "bundle: 内建 agent 在 templates/agents/ 且插件根无 agents/" "缺$missing_agents 或插件根仍有 agents/"
 
 # 2. 自足性：不残留对 npm 包的运行时 import（node: 内建豁免）
 if [ -f "$BUNDLE" ]; then

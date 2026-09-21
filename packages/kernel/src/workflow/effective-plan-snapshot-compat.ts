@@ -9,6 +9,7 @@ import type {
   WorkflowPlanSnapshotV1,
   WorkflowPlanSnapshotV2,
   WorkflowPlanSnapshotV3,
+  WorkflowPlanSnapshotV4,
   WorkflowIRV3,
 } from './workflow-plan-snapshot-types.js'
 import type { WorkflowIR } from './ir.js'
@@ -16,7 +17,6 @@ import { preTenonV1DocumentPolicy } from './migrations/pre-tenon-v1-document-pol
 import {
   compileWorkflowDecompositionPolicy,
   compileWorkflowInteractionPolicy,
-  compileWorkflowReviewBudgetPolicy,
 } from './policy.js'
 import { sha256Hex } from '../sha256.js'
 
@@ -33,30 +33,17 @@ const LEGACY_REVIEW_LANE_PROJECTIONS = new Map<string, readonly string[]>([
   ['phase-manifest:default:verify:review', LEGACY_DEFAULT_VERIFY_REVIEW_LANES],
 ])
 
+/** 旧快照字节里的 step 可能还带已删除的 reviewLanes；只在复算历史指纹时读它。 */
+type LegacyStepIR = WorkflowIR['steps'][number] & { readonly reviewLanes?: readonly string[] }
+
 function legacyReviewLanes(
   workflowId: string,
   executionModel: EffectiveWorkflowPlan['executionModel'],
-  step: WorkflowIR['steps'][number],
+  step: LegacyStepIR,
 ): readonly string[] | undefined {
   return LEGACY_REVIEW_LANE_PROJECTIONS.get(
     `${executionModel}:${workflowId}:${step.id}:${step.gate ?? 'none'}`,
   )
-}
-
-function projectLegacyReviewLanes(
-  workflowId: string,
-  executionModel: EffectiveWorkflowPlan['executionModel'],
-  workflow: WorkflowIR,
-): WorkflowIR {
-  return {
-    ...workflow,
-    steps: workflow.steps.map((step) => {
-      const lanes = legacyReviewLanes(workflowId, executionModel, step)
-      return lanes !== undefined && (step.reviewLanes?.length ?? 0) === 0
-        ? { ...step, reviewLanes: [...lanes] }
-        : step
-    }),
-  }
 }
 
 function removeLegacyReviewLaneProjection(
@@ -66,7 +53,7 @@ function removeLegacyReviewLaneProjection(
 ): LegacyWorkflowIR {
   return {
     ...workflow,
-    steps: workflow.steps.map((step) => {
+    steps: (workflow.steps as readonly LegacyStepIR[]).map((step) => {
       const lanes = legacyReviewLanes(workflowId, executionModel, step)
       if (lanes === undefined || JSON.stringify(step.reviewLanes) !== JSON.stringify(lanes)) {
         return step
@@ -81,12 +68,7 @@ export function legacyWorkflowForSnapshot(
   plan: EffectiveWorkflowPlan,
   documentFingerprint: (policy: DocumentGovernancePolicy) => string,
 ): LegacyWorkflowIR {
-  const {
-    decomposition: _decomposition,
-    interaction: _interaction,
-    reviewBudget: _reviewBudget,
-    ...legacyWorkflow
-  } = plan.workflow
+  const { decomposition: _decomposition, interaction: _interaction, ...legacyWorkflow } = plan.workflow
   const projected = removeLegacyReviewLaneProjection(plan.id, plan.executionModel, legacyWorkflow)
   return historicalWorkflowFingerprint(
     plan.id,
@@ -134,12 +116,11 @@ export function restoreLegacyWorkflowPlan(
   if (Object.hasOwn(legacyWorkflow, 'decomposition') || Object.hasOwn(legacyWorkflow, 'interaction')) {
     return fail('legacy workflow plan snapshot 不得携带 V3 policy 字段')
   }
-  const workflow = projectLegacyReviewLanes(snapshot.workflowId, snapshot.executionModel, {
+  const workflow: WorkflowIR = {
     ...legacyWorkflow,
     decomposition: compileWorkflowDecompositionPolicy(undefined),
     interaction: compileWorkflowInteractionPolicy(undefined),
-    reviewBudget: compileWorkflowReviewBudgetPolicy(undefined),
-  })
+  }
   let documentPolicy = snapshot.version === 2
     ? structuredClone(snapshot.documentPolicy) ?? undefined
     : legacyDocumentPolicyForSnapshot(snapshot.workflowId, legacyWorkflow)
@@ -238,7 +219,41 @@ export function historicalV3WorkflowFingerprint(
   }))
 }
 
-export function validateV3WorkflowPolicies(snapshot: WorkflowPlanSnapshotV3, fail: Fail): boolean {
+/**
+ * 已废弃的 reviewBudget 仍进旧 V3 快照的指纹输入（schema v3）。这里逐字复算，只为让那批
+ * 快照继续验证得过；除此之外没有任何读者。
+ */
+export function historicalV3PolicyWorkflowFingerprint(
+  workflowId: string,
+  executionModel: EffectiveWorkflowPlan['executionModel'],
+  workflow: WorkflowIRV3,
+  documentPolicy: DocumentGovernancePolicy | null,
+  documentFingerprint: (policy: DocumentGovernancePolicy) => string,
+): string {
+  const skillPolicy = executionModel === 'phase-manifest' ? 'manifest-overlay' : 'step-declared'
+  const reviewSteps = workflow.steps.filter((step) => step.gate === 'review').map((step) => step.id)
+  const projectionSteps = workflow.steps.map((step) => ({ id: step.id, label: step.label }))
+  return sha256Hex(JSON.stringify({
+    schema: 'effective-workflow-plan-v3',
+    id: workflowId,
+    executionModel,
+    workflow,
+    decomposition: workflow.decomposition,
+    interaction: workflow.interaction,
+    reviewBudget: workflow.reviewBudget,
+    documentPolicy: documentPolicy === null
+      ? null
+      : { id: documentPolicy.id, fingerprint: documentFingerprint(documentPolicy) },
+    skillPolicy,
+    reviewSteps,
+    projectionSteps,
+  }))
+}
+
+export function validateSnapshotPolicies(
+  snapshot: WorkflowPlanSnapshotV3 | WorkflowPlanSnapshotV4,
+  fail: Fail,
+): void {
   let decomposition
   let interaction
   let workflowDecomposition
@@ -254,33 +269,37 @@ export function validateV3WorkflowPolicies(snapshot: WorkflowPlanSnapshotV3, fai
   const decompositionKeys = [
     'version', 'mode', 'target', 'strategy', 'max_items', 'max_depth', 'auto_when', 'ask_when',
   ]
-  const legacyReviewBudget = snapshot.reviewBudget === undefined
-    && snapshot.workflow.reviewBudget === undefined
-  let reviewBudget
-  let workflowReviewBudget
-  if (!legacyReviewBudget) {
-    if (snapshot.reviewBudget === undefined || snapshot.workflow.reviewBudget === undefined) {
-      return fail('workflow plan snapshot review budget 顶层与 workflow 绑定不完整')
-    }
-    try {
-      reviewBudget = compileWorkflowReviewBudgetPolicy(snapshot.reviewBudget)
-      workflowReviewBudget = compileWorkflowReviewBudgetPolicy(snapshot.workflow.reviewBudget)
-    } catch (error) {
-      return fail(`workflow plan snapshot review budget 无效：${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
   if (!exactPolicyShape(snapshot.decomposition, decomposition, decompositionKeys)
     || !exactPolicyShape(snapshot.interaction, interaction, ['version', 'mode'])
     || !exactPolicyShape(snapshot.workflow.decomposition, workflowDecomposition, decompositionKeys)
     || !exactPolicyShape(snapshot.workflow.interaction, workflowInteraction, ['version', 'mode'])
     || JSON.stringify(decomposition) !== JSON.stringify(workflowDecomposition)
-    || JSON.stringify(interaction) !== JSON.stringify(workflowInteraction)
-    || (!legacyReviewBudget && (
-      !exactPolicyShape(snapshot.reviewBudget, reviewBudget as object, ['version', 'max_attempts'])
-      || !exactPolicyShape(snapshot.workflow.reviewBudget, workflowReviewBudget as object, ['version', 'max_attempts'])
-      || JSON.stringify(reviewBudget) !== JSON.stringify(workflowReviewBudget)
-    ))) {
+    || JSON.stringify(interaction) !== JSON.stringify(workflowInteraction)) {
     fail('workflow plan snapshot frozen policy 形状或绑定非法')
   }
-  return legacyReviewBudget
+}
+
+function retiredBudgetShape(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const keys = Object.keys(value)
+  return keys.length === 2 && keys.includes('version') && keys.includes('max_attempts')
+    && Reflect.get(value, 'version') === 'v1'
+    && Number.isInteger(Reflect.get(value, 'max_attempts'))
+}
+
+/** 返回 true 表示这条 V3 快照没有 reviewBudget（早于该策略），指纹走 schema v2 那支。 */
+export function validateV3WorkflowPolicies(snapshot: WorkflowPlanSnapshotV3, fail: Fail): boolean {
+  validateSnapshotPolicies(snapshot, fail)
+  const legacyReviewBudget = snapshot.reviewBudget === undefined
+    && snapshot.workflow.reviewBudget === undefined
+  if (legacyReviewBudget) return true
+  if (snapshot.reviewBudget === undefined || snapshot.workflow.reviewBudget === undefined) {
+    return fail('workflow plan snapshot review budget 顶层与 workflow 绑定不完整')
+  }
+  if (!retiredBudgetShape(snapshot.reviewBudget)
+    || !retiredBudgetShape(snapshot.workflow.reviewBudget)
+    || JSON.stringify(snapshot.reviewBudget) !== JSON.stringify(snapshot.workflow.reviewBudget)) {
+    fail('workflow plan snapshot frozen policy 形状或绑定非法')
+  }
+  return false
 }

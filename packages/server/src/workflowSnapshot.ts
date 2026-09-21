@@ -44,6 +44,8 @@ export interface WorkflowSnapshotCapabilityDeps {
   readonly childProcessRoot?: string
   readonly workspaceFingerprint?: (cwd: string, changeName: string) => Promise<string>
   readonly assessBuildRevision?: import('@tenon/kernel').TransitionContext['assessBuildRevision']
+  /** 本步 agent 的阻断；缺省 = 未接线，readiness 不含 agent 项。 */
+  readonly stepAgents?: () => Promise<readonly import('@tenon/kernel').AgentBlocker[]>
 }
 
 export interface WorkflowSnapshotAuthorityInput {
@@ -298,6 +300,7 @@ export async function snapshotWorkflowExecution(
         : () => workspaceFingerprint(root, changeName),
       assessBuildRevision,
       specMigrationStatus: () => evaluateSpecMigrationEvidence(root, changeDir, changeName),
+      ...(deps.stepAgents === undefined ? {} : { stepAgents: deps.stepAgents }),
     }),
   }
 }

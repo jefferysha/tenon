@@ -52,6 +52,7 @@ import { resolveDocumentReadRoute } from './serverGetDocumentRoutes.js'
 import { handleTestGetRoutes } from './serverGetTestRoutes.js'
 import { resolveWorkflowYamlGet } from './serverWorkflowYamlRoutes.js'
 import { resolveInstructionGet } from './instructionRoutes.js'
+import { resolveAgentGet } from './serverAgentRoutes.js'
 import { resolveResourceGet } from './serverResourceRoutes.js'
 import { resolveDefinitionCatalogRoute, type DefinitionCatalogRouteDeps } from './definitionCatalogRoutes.js'
 import { resolveAdapterInstallGet } from './adapterInstallRoutes.js'
@@ -261,6 +262,7 @@ export async function handleGet(
     }
     const instructionGet = resolveInstructionGet(req, path, deps); if (instructionGet) { const result = await instructionGet; return sendJson(res, result.status, result.body) }
     const resourceGet = resolveResourceGet(req, path, deps); if (resourceGet) { const result = await resourceGet; return sendJson(res, result.status, result.body) }
+    const agentGet = resolveAgentGet(req, path, deps); if (agentGet) { const result = await agentGet; return sendJson(res, result.status, result.body) }
     if (path === '/api/workflows') {
       const root = new URL(req.url ?? '/', 'http://localhost').searchParams.get('root') ?? ''
       const rootCheck = workflowStoreForRequest(root)

@@ -125,11 +125,6 @@ function validateBranchSteps(
     if (!IDENT_RE.test(step.id)) {
       errors.push(`step id '${step.id}' 含非法字符（仅允许 a-zA-Z0-9_-）`)
     }
-    for (const lane of step.reviewLanes ?? []) {
-      if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/u.test(lane)) {
-        errors.push(`step '${step.id}' 的 Review lane '${lane}' 含非法字符`)
-      }
-    }
     for (const skill of step.skills) {
       if (!SKILL_IDENT_RE.test(skill.id)) {
         errors.push(`step '${step.id}' 的 skill id '${skill.id}' 含非法字符（仅允许 a-zA-Z0-9_- 及命名空间冒号，如 superpowers:brainstorming）`)
@@ -147,6 +142,29 @@ function validateBranchSteps(
         continue
       }
       testOwner.set(test.id, step.id)
+    }
+    // agent 的 depends_on 只在同一身份列表内成立（执行者依赖执行者、评审者依赖评审者），
+    // reads_tests 只能引用本步骤声明的测试——跨步骤引用在运行期才发现就太晚了。
+    const stepTestIds = (step.tests ?? []).map((test) => test.id)
+    for (const [role, refs] of [
+      ['executors', step.agents?.executors ?? []],
+      ['reviewers', step.agents?.reviewers ?? []],
+    ] as const) {
+      const names = refs.map((ref) => ref.agent)
+      const dependsOn = new Map(refs.map((ref) => [ref.agent, [...(ref.depends_on ?? [])]]))
+      for (const ref of refs) {
+        for (const dep of ref.depends_on ?? []) {
+          if (!names.includes(dep)) {
+            errors.push(`step '${step.id}' 的 agent '${ref.agent}' 依赖了同一身份列表内不存在的 '${dep}'`)
+          }
+        }
+        for (const testId of 'reads_tests' in ref ? ref.reads_tests ?? [] : []) {
+          if (!stepTestIds.includes(testId)) {
+            errors.push(`step '${step.id}' 的评审者 '${ref.agent}' 读取的测试 '${testId}' 未在本步骤声明`)
+          }
+        }
+      }
+      errors.push(...detectCycle(names, dependsOn).map((e) => `step '${step.id}' ${role}: ${e}`))
     }
     const transitionEvents = new Set<string>()
     for (const t of step.transitions) {

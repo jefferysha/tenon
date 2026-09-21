@@ -3,13 +3,14 @@ import { isDefaultWorkflowName, isTemplateWorkflowName } from '@tenon/kernel/wor
 import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import { addDocumentOutputInDef, removeDocumentSlotInDef, setDocumentInputsInDef, setOpenspecInDef } from './documentContractEdits'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
-import type { WbEffectiveIo, WbSkillRef, WbStepDef, WbStepTest, WbTransition, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
+import type { WbEffectiveIo, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepDef, WbStepTest, WbTransition, WbWorkflowDef, WbWorkflowSource } from '../api/governanceTypes'
 import { formatApiError, getToken } from '../api/transport'
 import { fetchWorkflowYaml, putWorkflowYaml } from '../api/workflowYamlClient'
 import { useT } from '../i18n'
 import { invalidateWorkflowRules } from '../model/workflowModel'
 import { invalidateWorkflowDefinition } from '../workspace/useWorkflowDefinition'
 import { draftEffectiveIo, lintWorkflow, type LintIssue } from '../workflow/lint'
+import { fetchAgents, type AgentSummary } from '../api/agentClient'
 import { useMandatorySkills, type MandatoryState } from './mandatoryState'
 import { readSaveErrors, readWorkflowDeleteResponse } from './workbenchApiDecoders'
 import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
@@ -34,6 +35,7 @@ import {
   setGateInDef,
   setStageBackInDef,
   backTransitionOf,
+  setStepAgentsInDef,
   setStepSkillsInDef,
   setStepTestsInDef,
   workflowNameFromYaml,
@@ -114,12 +116,15 @@ export interface WorkflowEditor {
   selectedStep: WbStepDef | null
   labelOf: (stepId: string) => string
   mandatory: MandatoryState
+  /** agent 库（GET /api/agents）；null = 还没拉到 → 不做 agent lint，编辑入口置灰。 */
+  agents: AgentSummary[] | null
   renameStep: (stepId: string, label: string) => void
   setGate: (stepId: string, gate: WbStepDef['gate']) => void
   setStageBack: (stepId: string, to: string | null) => void
   removeStage: (stepId: string) => void
   reorderStages: (fromId: string, toId: string, after: boolean) => void
   setSkills: (stepId: string, skills: readonly WbSkillRef[]) => void
+  setAgents: (stepId: string, patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] }) => void
   setTests: (stepId: string, tests: readonly WbStepTest[]) => void
   addSkill: (stepId: string, skillId: string) => void
   removeSkill: (stepId: string, skillId: string) => void
@@ -289,16 +294,29 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   const { setSourceDirty } = useWorkbenchDirtyState({ localDirty: dirty || createDirty || stageDraft.draftDirty, onDirtyChange })
   const reportTrackDirty = useCallback((value: boolean) => { setSourceDirty('track', value) }, [setSourceDirty])
 
+  // agent 库挂载即拉（同 registry 纪律）：画布与 lint 都要知道库里有谁。失败即保持 null——
+  // 不可判就不判，既不谎报「不存在」也不打开写入口。
+  const [agents, setAgentLibrary] = useState<AgentSummary[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void fetchAgents().then((loaded) => { if (!cancelled) setAgentLibrary([...loaded]) }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [])
+
   const effectiveIo = useMemo(() => def === null ? undefined : draftEffectiveIo(def), [def])
-  const lint = useMemo(() => def === null ? [] : lintWorkflow(def, effectiveIo), [def, effectiveIo])
+  const agentNames = useMemo(() => agents === null ? null : agents.map((agent) => agent.name), [agents])
+  const lint = useMemo(
+    () => def === null ? [] : lintWorkflow(def, effectiveIo, agentNames),
+    [def, effectiveIo, agentNames],
+  )
   // 保存门禁看全部分支：任一分支有 error 都不能保存；warning（缺输出、成对文档缺一）不挡。
   const lintBlocked = useMemo(() => {
     if (fullDef === null) return false
     return branchesOf(fullDef).some((candidate) => {
       const view = selectBranchDef(fullDef, candidate.id)
-      return lintWorkflow(view, draftEffectiveIo(view)).some((issue) => issue.severity === 'error')
+      return lintWorkflow(view, draftEffectiveIo(view), agentNames).some((issue) => issue.severity === 'error')
     })
-  }, [fullDef])
+  }, [fullDef, agentNames])
   // 名称只显示一个：YAML 有 label 用 label，没有就用 id；前端不做翻译。
   const labelOf = useCallback((stepId: string): string => {
     const step = def?.steps.find((candidate) => candidate.id === stepId)
@@ -361,6 +379,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     rememberDisplaced(previous, reorderStagesInDef(previous, fromId, toId, after))
   )), [mutate, rememberDisplaced])
   const setSkills = useCallback((stepId: string, skills: readonly WbSkillRef[]) => mutate((previous) => setStepSkillsInDef(previous, stepId, skills)), [mutate])
+  const setAgents = useCallback((stepId: string, patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] }) => mutate((previous) => setStepAgentsInDef(previous, stepId, patch)), [mutate])
   const setTests = useCallback((stepId: string, tests: readonly WbStepTest[]) => mutate((previous) => setStepTestsInDef(previous, stepId, tests)), [mutate])
   const addSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => addSkillToDef(previous, stepId, skillId)), [mutate])
   const removeSkill = useCallback((stepId: string, skillId: string) => mutate((previous) => removeSkillFromDef(previous, stepId, skillId)), [mutate])
@@ -609,12 +628,14 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     selectedStep,
     labelOf,
     mandatory,
+    agents,
     renameStep,
     setGate,
     setStageBack,
     removeStage,
     reorderStages,
     setSkills,
+    setAgents,
     setTests,
     addSkill,
     removeSkill,

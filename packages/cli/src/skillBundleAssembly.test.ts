@@ -795,7 +795,7 @@ steps:
     expect(coord.resolution.kind).toBe('custom')
     if (coord.resolution.kind === 'custom') {
       expect(coord.resolution.step.id).toBe('intake')
-      expect(coord.resolution.step.skills).toEqual([{ id: 'some-skill', kind: 'work' }])
+      expect(coord.resolution.step.skills).toEqual([{ id: 'some-skill' }])
     }
   })
 

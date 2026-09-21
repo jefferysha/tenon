@@ -376,8 +376,9 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     await step('build-complete')
     // verify 出口：报告 + branch_status + 双 review pass + barrier（build_sha 已=DEADBEEF）
     await h.seedArtifact('e2e', 'verification_report', 'docs/superpowers/reports/e2e.md') // P6：复用 hash-bound verification report
-    await h.run(['set-many', 'e2e', 'branch_status=handled', 'agent_review_result=pass', 'codex_review_result=pass'])
+    await h.run(['set-many', 'e2e', 'branch_status=handled'])
     await h.satisfyStepTests('e2e', 'verify')
+    await h.satisfyStepAgents('e2e')
     await step('verify-pass')
     await step('ship-complete')
     await step('archived')
@@ -415,7 +416,7 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     await h.seedPhase('backfill', 'verify')
     await h.seedArtifact('backfill', 'verification_report', 'docs/superpowers/reports/backfill.md')
     await h.run(['set-many', 'backfill',
-      'branch_status=handled', 'agent_review_result=pass', 'codex_review_result=pass',
+      'branch_status=handled',
       'isolation=branch',
       `build_sha=${backfilledToken}`,
     ])

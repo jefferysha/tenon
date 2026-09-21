@@ -50,6 +50,7 @@ import { registerStateCommands } from './program-state.js'
 import { registerTrackCommands } from './program-tracks.js'
 import { registerHandoffCommand, registerWorkflowCommands } from './program-workflows.js'
 import { registerSkillInvocationInternalCommands } from './program-skill-invocations.js'
+import { registerAgentCommands } from './program-agents.js'
 import { registerReviewCommands } from './program-review.js'
 import { registerTestCommands } from './program-tests.js'
 import { LOOPS_HELP } from './program-help.js'
@@ -173,6 +174,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
 
   registerReviewCommands(program, deps)
   registerTestCommands(program, deps)
+  registerAgentCommands(program, deps)
 
   program
     .command('check <name>')

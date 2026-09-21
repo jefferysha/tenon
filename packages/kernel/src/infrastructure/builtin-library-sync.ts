@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto'
 import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
+import { parseAgentFile } from '../agents/parse.js'
 import { isInstructionCategory } from '../instructions/categories.js'
 import { parseInstructionBlock } from '../instructions/block.js'
 import { parseResourceEntry } from '../resources/parse.js'
@@ -51,6 +52,16 @@ function validateResourceEntryFile(relativePath: string, text: string): readonly
   }
 }
 
+function validateAgentFile(relativePath: string, text: string): readonly string[] {
+  if (relativePath.includes('/')) return ['agent 必须直接放在 templates/agents/ 下']
+  try {
+    parseAgentFile(text, relativePath.replace(/\.md$/u, ''))
+    return []
+  } catch (error) {
+    return [error instanceof Error ? error.message : String(error)]
+  }
+}
+
 function validateTestDirection(relativePath: string, text: string): readonly string[] {
   if (relativePath.includes('/')) return ['路径必须是 <id>.yaml']
   try {
@@ -82,6 +93,13 @@ export const BUILTIN_LIBRARIES: readonly BuiltinLibrary[] = [
     target: 'test-directions/builtin',
     extensions: ['.yaml'],
     validate: validateTestDirection,
+  },
+  {
+    id: 'agents',
+    source: 'templates/agents',
+    target: 'agents/builtin',
+    extensions: ['.md'],
+    validate: validateAgentFile,
   },
 ]
 

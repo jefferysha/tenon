@@ -68,7 +68,7 @@ tenon status "$TENON_CHANGE_NAME"
 |-------|---------------|---------|
 | SIMPLE (≤3 任务) | `direct` | 主 agent 直接做 |
 | STANDARD (3-10 任务) | `subagent-driven-development` | 主 agent 编排 + 拆给独立 sub-agent 并发实现（文件所有权隔离） |
-| COMPLEX (>10 任务 / 多模块) | `parallel-team` | 多 `tenon-builder` 并行，每 Builder 独立模块 |
+| COMPLEX (>10 任务 / 多模块) | `parallel-team` | 多 `builder` 并行，每 Builder 独立模块 |
 
 **HARD RULE**：
 - 选 `subagent-driven-development` 时，**立即执行**：使用本插件打包的 Skill `subagent-driven-development`
@@ -88,8 +88,8 @@ tenon status "$TENON_CHANGE_NAME"
 并在 Change 的 Build 记录中说明选择理由。
 
 **build_mode** 选项（枚举与 CLI 校验一致：direct | subagent-driven-development | parallel-team | prototype）：
-- `subagent-driven-development`（默认推荐：拆 sub-agent 并行实现 —— 每个 task dispatch 一个 `tenon-builder` agent，同消息并行）
-- `parallel-team`（COMPLEX 时：多 `tenon-builder` 并行 + 各自 worktree 隔离，互不污染）
+- `subagent-driven-development`（默认推荐：拆 sub-agent 并行实现 —— 每个 task dispatch 一个 `builder` agent，同消息并行）
+- `parallel-team`（COMPLEX 时：多 `builder` 并行 + 各自 worktree 隔离，互不污染）
 - `direct`（PM Track 固定 `prototype`；frontend/backend 仅 hotfix/tweak 默认，full 需 `direct_override: true`）
 
 **isolation** 选项：
@@ -226,7 +226,7 @@ tenon handoff "$TENON_CHANGE_NAME" --bundle --target build --json
 - 使用 Skill 工具加载 `frontend-patterns`
 
 **Agent**：
-- build_mode = subagent-driven / parallel-team 时：**每个 task/组件 dispatch 一个 `tenon-builder` agent**（本仓 agents/tenon-builder.md，隔离 worktree，同消息并行实现），只回传 diff 摘要+测试结果；主线汇总、不内联逐个实现。
+- build_mode = subagent-driven / parallel-team 时：**每个 task/组件 dispatch 一个 `builder` agent**（本仓 templates/agents/builder.md，隔离 worktree，同消息并行实现），只回传 diff 摘要+测试结果；主线汇总、不内联逐个实现。
 - TDD 监督由本插件 `test-driven-development` 的红绿重构纪律承担；不要把未打包 agent 当作默认前置。
 
 #### ⚙️ Track = backend
@@ -251,7 +251,7 @@ tenon handoff "$TENON_CHANGE_NAME" --bundle --target build --json
 - 使用 Skill 工具加载 `deployment-patterns`
 
 **Agent**：
-- build_mode = subagent-driven / parallel-team 时：**每个 task/端点/服务 dispatch 一个 `tenon-builder` agent**（隔离 worktree，同消息并行实现），只回传 diff 摘要+测试结果；主线汇总、不内联逐个实现。
+- build_mode = subagent-driven / parallel-team 时：**每个 task/端点/服务 dispatch 一个 `builder` agent**（隔离 worktree，同消息并行实现），只回传 diff 摘要+测试结果；主线汇总、不内联逐个实现。
 - 构建失败时保留同一任务的测试输出和最小复现，按 `test-driven-development` 与对应打包 pattern skill 修复；不依赖未打包 agent。
 
 #### 🕊️ Track = free（中性实现）

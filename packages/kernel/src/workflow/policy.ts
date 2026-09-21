@@ -12,7 +12,6 @@ import type {
   WorkflowDecompositionTarget,
   WorkflowInteractionMode,
   WorkflowInteractionPolicyV1,
-  WorkflowReviewBudgetPolicyV1,
 } from './types.js'
 
 export const WORKFLOW_DECOMPOSITION_MODES = Object.freeze([
@@ -43,9 +42,6 @@ export const DEFAULT_WORKFLOW_INTERACTION_POLICY: WorkflowInteractionPolicyV1 = 
   version: 'v1', mode: 'interactive',
 })
 
-export const DEFAULT_WORKFLOW_REVIEW_BUDGET_POLICY: WorkflowReviewBudgetPolicyV1 = Object.freeze({
-  version: 'v1', max_attempts: 2,
-})
 function policyError(path: string, message: string): never {
   throw new Error(`compileWorkflow: ${path}: ${message}`)
 }
@@ -132,19 +128,6 @@ export function compileWorkflowInteractionPolicy(value: unknown): WorkflowIntera
   return {
     version: 'v1',
     mode: closedValue(record.mode, WORKFLOW_INTERACTION_MODES, 'interaction.mode', 'interactive'),
-  }
-}
-
-export function compileWorkflowReviewBudgetPolicy(value: unknown): WorkflowReviewBudgetPolicyV1 {
-  if (value === undefined) return structuredClone(DEFAULT_WORKFLOW_REVIEW_BUDGET_POLICY)
-  const record = ownRecord(value, 'reviewBudget')
-  rejectUnknownKeys(record, ['version', 'max_attempts'], 'reviewBudget')
-  if (record.version !== 'v1') {
-    policyError('reviewBudget.version', `必须是 'v1'（实际 ${JSON.stringify(record.version)}）`)
-  }
-  return {
-    version: 'v1',
-    max_attempts: boundedInteger(record.max_attempts, 2, 1, 20, 'reviewBudget.max_attempts'),
   }
 }
 

@@ -1,6 +1,8 @@
 import { DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 import type { EventName } from '../flow/transition-table.js'
 import type { PipelineState } from '../types.js'
+import { isForwardExit } from './agent-verdict.js'
+import type { AgentBlocker } from './agent-verdict.js'
 import type { BuildRevisionBlocker } from './build-revision.js'
 import type { EffectiveWorkflowPlan } from './effective-plan.js'
 import { evaluateGuards } from './guard-handlers.js'
@@ -33,6 +35,10 @@ export type TransitionReadinessBlocker =
       readonly kind: 'evaluation-error'
       readonly guardType: CompiledGuardConfig['type']
       readonly capability?: GuardCapability | 'specMigrationStatus'
+    }
+  | {
+      readonly kind: 'agents-incomplete'
+      readonly agents: readonly { readonly agent: string; readonly reason: AgentBlocker['kind'] }[]
     }
 
 export interface TransitionReadiness {
@@ -102,6 +108,17 @@ export async function readinessByTransition(
   if (step === undefined) return {}
   // Structural exits (no run-state filter) so readiness keys always match the projected rules.
   const exits = plan.executionModel === 'phase-manifest' ? step.transitions : stepExitTransitions(plan, step.id)
+  // agent 阻断只求一次（要读台账与冻结内容），再按边分发到前进出边上。
+  const agentBlockers = context.stepAgents === undefined ? [] : await context.stepAgents()
+  const agentsBlocker = agentBlockers.length === 0
+    ? undefined
+    : {
+        kind: 'agents-incomplete' as const,
+        agents: agentBlockers.map((item) => ({
+          agent: 'agent' in item ? item.agent : item.reason,
+          reason: item.kind,
+        })),
+      }
   const transitions = await Promise.all(exits.map(async (transition) => {
       const guards = plan.executionModel === 'phase-manifest'
         ? defaultEventGuards(transition.event)
@@ -146,6 +163,9 @@ export async function readinessByTransition(
         decision.kind === 'passed' ? [] : [blocker(guard, decision)],
       )
       blockers.push(...errors)
+      if (agentsBlocker !== undefined && isForwardExit(plan, step.id, transition.to, transition.event)) {
+        blockers.push(agentsBlocker)
+      }
       return [transition.event, { ready: blockers.length === 0, blockers }] as const
     }))
   return { [step.id]: Object.fromEntries(transitions) }

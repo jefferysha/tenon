@@ -62,8 +62,16 @@ printf '# verification report\n' > "$target/docs/verify.md"
 # 场景 E（第 23 步）的 barrier 仍须双侧同样拒绝、YAML 不变；新 CLI 的拒绝文案是 Build revision 的
 # 类型化 blocker（packages/kernel/src/workflow/build-revision.ts：verify-build-revision-untrusted
 # reason=revision-stale），不再回显裸 SHA。exit/stdout/YAML 照比，只把过期的人读文案列为已知差异。
-printf '23\tbarrier 拒绝改为类型化 verify-build-revision-untrusted(revision-stale) blocker；旧 oracle 回显裸 SHA 文案\n' \
-  > "$target/.oracle-stderr-divergences"
+# 删掉两个手填评审字段的 set 步之后，后续步序整体前移两位：barrier 现在是第 21 步。
+{
+  printf '21\tbarrier 拒绝改为类型化 verify-build-revision-untrusted(revision-stale) blocker；旧 oracle 回显裸 SHA 文案\n'
+  printf '25\t老 oracle 要求已删除的手填评审字段；新 CLI 要求步骤声明的评审者跑过，两侧都不放行\n'
+  printf '27\t承上一步：两侧都停在 verify，只有拒绝文案不同（老按相位、新按边）\n'
+  printf '28\t承上一步：两侧都停在 verify，只有拒绝文案不同（老按相位、新按边）\n'
+} > "$target/.oracle-stderr-divergences"
+# 两侧都拒绝第 25 步（老要已删除的字段、新要评审者），只有 exit 码不同。
+printf '25\t老 oracle 要求已删除的手填评审字段；新 CLI 要求步骤声明的评审者跑过，两侧都不放行\n' \
+  > "$target/.oracle-exit-divergences"
 
 # P6 起 set/cas 对「当前有效 artifact 相位」的 artifact 字段拒写（改走 tenon artifact register）：
 # plan（spec 相位）、verification_report（verify 相位）改用 seed 双侧直接注同值，隔离 legacy
@@ -83,8 +91,6 @@ tr '|' '\t' > "$target/.oracle-plan" <<'PLAN'
 0|get|t6-de|build_sha
 0|seed|t6-de|verification_report|docs/verify.md
 0|set|t6-de|branch_status|handled
-0|set|t6-de|agent_review_result|pass
-0|set|t6-de|codex_review_result|pass
 0|transition|t6-de|verify-fail
 0|get|t6-de|build_sha
 0|get|t6-de|verify_result

@@ -185,3 +185,21 @@ describe('lint · 内建 default 不误报', () => {
     expect(chat).toContain('adr')
   })
 })
+
+describe('lint · 步骤 agent 必须在库里', () => {
+  const def: WbWorkflowDef = {
+    name: 'mine',
+    steps: [{
+      ...stage('a', [{ event: 'a-complete', to: 'b' }]),
+      agents: { executors: [{ agent: 'builder' }], reviewers: [{ agent: 'ghost', required: true, block_at: 'high' }] },
+    }, stage('b')],
+  }
+  const agentIssues = (agents: readonly string[] | null): LintIssue[] =>
+    lintWorkflow(def, draftEffectiveIo(def), agents).filter((issue) => issue.kind === 'agent-missing')
+
+  it('库里没有的 agent 是 error；库还没拉到就不判', () => {
+    expect(agentIssues(['builder'])).toEqual([{ kind: 'agent-missing', stepId: 'a', agent: 'ghost', severity: 'error' }])
+    expect(agentIssues(['builder', 'ghost'])).toEqual([])
+    expect(agentIssues(null)).toEqual([])
+  })
+})

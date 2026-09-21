@@ -16,7 +16,6 @@ function preVerifyConvergenceWorkflow() {
   const {
     decomposition: _decomposition,
     interaction: _interaction,
-    reviewBudget: _reviewBudget,
     // Historical bytes predate the openspec key and YAML-declared document contracts.
     openspec: _openspec,
     documentContract: _documentContract,
@@ -27,7 +26,7 @@ function preVerifyConvergenceWorkflow() {
     steps: legacy.steps.map((step) => {
       // Historical bytes also predate step tests (2026-09 per-step test evidence) and step prompts
       // (the frontend branch gained them with DESIGN.md).
-      const { reviewLanes: _reviewLanes, tests: _tests, prompt: _prompt, ...legacyStep } = step
+      const { tests: _tests, prompt: _prompt, agents: _agents, ...legacyStep } = step
       return {
         ...legacyStep,
         // The last step was labelled 归档 before the 完结 wording.
@@ -111,16 +110,16 @@ describe('compileEffectiveWorkflowPlan', () => {
     expect(roundTripped.workflowFingerprint).toBe(restored.workflowFingerprint)
   })
 
-  it('writes self-contained v3 snapshots with their frozen document policy and workflow policies', () => {
-    const plan = compileEffectiveWorkflowPlan('v3-policy', {
-      name: 'v3-policy',
+  it('writes self-contained v4 snapshots with their frozen document policy and workflow policies', () => {
+    const plan = compileEffectiveWorkflowPlan('v4-policy', {
+      name: 'v4-policy',
       interaction: { version: 'v1', mode: 'recommended-defaults' },
       steps: [{ id: 'one', label: 'One', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] }],
     })
     const snapshot = workflowPlanSnapshot(plan)
 
-    expect(snapshot.version).toBe(3)
-    if (snapshot.version !== 3) throw new Error('expected v3 workflow snapshot')
+    expect(snapshot.version).toBe(4)
+    if (snapshot.version !== 4) throw new Error('expected v4 workflow snapshot')
     expect(snapshot.documentPolicy).toEqual(plan.documentPolicy ?? null)
     expect(snapshot.decomposition).toEqual(plan.decomposition)
     expect(snapshot.interaction).toEqual(plan.interaction)

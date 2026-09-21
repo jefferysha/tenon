@@ -259,32 +259,6 @@ describe('派生面 · versioned Skill action authority', () => {
   })
 })
 
-describe('派生面 · explicit Review Skill lanes', () => {
-  it('真读 templates：Review Skill 由显式 lane map 分类，不靠名字猜测', () => {
-    const manifest = loadManifest(TEMPLATE_MANIFEST)
-    expect(manifest.reviewSkillLanes['verification-before-completion']).toBe('e2e')
-    expect(manifest.reviewSkillLanes['browser-qa']).toBe('e2e')
-    expect(manifest.reviewSkillLanes['security-review']).toBe('standards')
-    expect(manifest.reviewSkillLanes['test-driven-development']).toBeUndefined()
-  })
-
-  it('支持名字不含 review/verify/e2e 的第三方 Review Skill', () => {
-    const manifest = loadManifest(writeManifest([
-      'review_skills:',
-      '  standards: [acme-quality-gate]',
-    ].join('\n')))
-    expect(manifest.reviewSkillLanes).toEqual({ 'acme-quality-gate': 'standards' })
-  })
-
-  it.each([
-    ['duplicate skill', 'review_skills:\n  standards: [same]\n  e2e: [same]'],
-    ['empty lane entry', 'review_skills:\n  standards: [ok, ]'],
-    ['invalid lane', 'review_skills:\n  bad/lane: [quality]'],
-  ])('fail-loud: %s', (_label, body) => {
-    expect(() => loadManifest(writeManifest(body))).toThrow(ManifestError)
-  })
-})
-
 describe('派生面 · 回归锚（既有 phases/transitions/reviewPhases 派生不受新增节影响）', () => {
   it('templates 加派生节后，核心三派生仍稳定', () => {
     const m = loadManifest(TEMPLATE_MANIFEST)

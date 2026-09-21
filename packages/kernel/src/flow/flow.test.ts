@@ -226,30 +226,17 @@ describe('FlowEngine · guardCheck（lite 相位出口必填字段表）', () =>
     ).toEqual({ pass: true, failures: [] })
   })
 
-  it('verify 出口：verification_report + branch_status=handled + verify_result=pass；fe/be 另需双 review=pass', () => {
+  it('verify 出口：verification_report + branch_status=handled + verify_result=pass（手填评审字段已删除）', () => {
     const ok = {
       phase: 'verify' as const,
       verification_report: 'docs/verify.md',
       branch_status: 'handled',
       verify_result: 'pass',
     }
-    // pm：不要求 agent/codex review
-    expect(engine.guardCheck(makeState({ ...ok, track: 'pm' }))).toEqual({ pass: true, failures: [] })
-    // backend：缺双 review → fail
-    const be = engine.guardCheck(makeState({ ...ok, track: 'backend' }))
-    expect(be.pass).toBe(false)
-    expect(be.failures.some((f) => f.includes('agent_review_result'))).toBe(true)
-    expect(be.failures.some((f) => f.includes('codex_review_result'))).toBe(true)
-    expect(
-      engine.guardCheck(
-        makeState({ ...ok, track: 'backend', agent_review_result: 'pass', codex_review_result: 'pass' }),
-      ),
-    ).toEqual({ pass: true, failures: [] })
-    expect(
-      engine.guardCheck(
-        makeState({ ...ok, track: 'free', agent_review_result: 'skipped', codex_review_result: 'skipped' }),
-      ),
-    ).toEqual({ pass: true, failures: [] })
+    // 每条轨道都只剩报告、分支状态与 verify_result；评审由步骤声明的 agents.reviewers 承担。
+    for (const track of ['pm', 'backend', 'frontend', 'free'] as const) {
+      expect(engine.guardCheck(makeState({ ...ok, track }))).toEqual({ pass: true, failures: [] })
+    }
     // verify_result 非 pass → fail（verify→ship 需 verify_result=pass）
     expect(
       engine.guardCheck(makeState({ ...ok, track: 'pm', verify_result: 'fail' })).pass,

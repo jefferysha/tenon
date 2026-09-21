@@ -13,6 +13,9 @@ export * from './users/index.js'
 export * from './instructions/index.js'
 // 资源目录（组件库 / 图标 / 动画 / DESIGN.md / 状态管理 / 样式）条目的解析、校验与筛选。
 export * from './resources/index.js'
+// 任务级 agent（工作流步骤的执行者 / 评审者）定义文件的解析与校验。
+export * from './agents/index.js'
+export type { AgentSeverity, StepAgentsDef, StepExecutorRef, StepReviewerRef } from './workflow/types.js'
 // 项目设计体系（根目录 DESIGN.md + design/）的结构检查与变更提案。
 export * from './design-system/index.js'
 export { createDesignFileReader } from './infrastructure/design-system-fs.js'
@@ -29,9 +32,15 @@ export {
   readResourceFile, resourceStoreRoot, writeCustomResource,
 } from './infrastructure/resource-store.js'
 export type { ResourceCatalog, ResourceFile, ResourceStoreOptions } from './infrastructure/resource-store.js'
+export {
+  AgentStoreError, agentStoreRoot, deleteCustomAgent, ensureBuiltinAgents, loadAgentLibrary,
+  prepareAgentFreeze, resolveAgent, writeCustomAgent,
+} from './infrastructure/agent-store.js'
+export type { AgentEntry, AgentLibrary, AgentStoreOptions } from './infrastructure/agent-store.js'
 // 每步测试登记：测试方向、运行记录、基准与门禁判定。
 export * from './test-evidence/index.js'
 export { canonicalMachineStateRoot, machineStateScopeId } from './machine-state-scope.js'
+export { sha256Hex } from './sha256.js'
 export {
   resolveProductPaths,
   serializeProductRootContract,
@@ -110,6 +119,12 @@ export {
   completedWorkflowSkillsSinceStepEntry,
   missingWorkflowStepSkills,
 } from './workflow/skill-evidence.js'
+export {
+  evaluateStepAgents, isForwardExit, nextAgentWave, projectStepAgents, renderAgentBlocker,
+} from './workflow/agent-verdict.js'
+export type {
+  AgentBlocker, AgentRole, AgentRunState, AgentView, AgentWave, StepAgentsInput,
+} from './workflow/agent-verdict.js'
 export { evaluateStepGuards, evaluateWorkflowIrStepGuards } from './workflow/stepGuard.js'
 export {
   effectiveLifecyclePolicy, governedLifecyclePolicy, isRevisionGuard,
@@ -146,16 +161,13 @@ export type {
   WorkflowDecompositionStrategy, WorkflowDecompositionTarget, WorkflowDef, WorkflowDocumentContractV1,
   WorkflowDocumentRead, WorkflowDocumentSlot, WorkflowGuardConfig, WorkflowInteractionMode,
   WorkflowInteractionPolicyV1,
-  WorkflowReviewBudgetPolicyV1,
 } from './workflow/types.js'
 export {
   canUseWorkflowRecommendedDefault,
   compileWorkflowDecompositionPolicy,
   compileWorkflowInteractionPolicy,
-  compileWorkflowReviewBudgetPolicy,
   DEFAULT_WORKFLOW_DECOMPOSITION_POLICY,
   DEFAULT_WORKFLOW_INTERACTION_POLICY,
-  DEFAULT_WORKFLOW_REVIEW_BUDGET_POLICY,
   evaluateWorkflowAction,
   WORKFLOW_ACTIONS,
   WORKFLOW_DECOMPOSITION_ASK_CONDITIONS,
@@ -219,8 +231,9 @@ export {
 } from './workflow/effective-plan.js'
 export type {
   EffectiveWorkflowPlan, LegacyWorkflowIR, PersistedDocumentGovernanceBinding, WorkflowPlanSnapshot,
-  WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3,
+  WorkflowPlanSnapshotV1, WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3, WorkflowPlanSnapshotV4,
 } from './workflow/effective-plan.js'
+export type { StepAgentsCapability } from './workflow/effective-plan-types.js'
 export {
   materializeWorkflowIo,
   type WorkflowDocumentSlotIo, type WorkflowEffectiveIo, type WorkflowFieldSlotIo, type WorkflowIoSlot, type WorkflowStepIo,

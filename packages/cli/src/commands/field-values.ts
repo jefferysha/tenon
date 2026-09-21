@@ -18,8 +18,6 @@ const STATIC_ENUMS: Partial<Record<FieldName, readonly string[]>> = {
   phase_status: ['pending', 'in_progress', 'done', 'failed'],
   build_mode: ['direct', 'subagent-driven-development', 'parallel-team', 'prototype'],
   isolation: ['branch', 'worktree', 'in-place'],
-  agent_review_result: REVIEWISH,
-  codex_review_result: REVIEWISH,
   verify_result: REVIEWISH,
   branch_status: REVIEWISH,
   pre_verify_review_result: PRE_VERIFY_REVIEW,
@@ -28,7 +26,14 @@ const STATIC_ENUMS: Partial<Record<FieldName, readonly string[]>> = {
   automation: ['off', 'queued', 'scheduled', 'running', 'merged', 'failed', 'conflict', 'paused'],
 }
 
+/** 已退役的字段：槽位还在 canonical 闭集里，但没有任何读者，手填也不再有意义。 */
+const RETIRED_FIELDS = new Set<FieldName>(['agent_review_result', 'codex_review_result'])
+
 export function enumValueAllowed(deps: CliDeps, field: FieldName, value: string | string[]): boolean {
+  if (RETIRED_FIELDS.has(field)) {
+    deps.io.err(`ERROR: 字段 '${field}' 已删除——评审改用步骤 agents.reviewers`)
+    return false
+  }
   if (Array.isArray(value)) return true
   const allowed = field === 'phase' ? deps.flow.manifest.phases : STATIC_ENUMS[field]
   if (!allowed || allowed.includes(value as never)) return true

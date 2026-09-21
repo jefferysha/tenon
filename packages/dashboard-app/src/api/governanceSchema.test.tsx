@@ -45,7 +45,6 @@ describe('decodeWorkflowDefinition', () => {
       ask_when: [],
     })
     expect(decoded?.interaction).toEqual({ version: 'v1', mode: 'interactive' })
-    expect(decoded?.reviewBudget).toEqual({ version: 'v1', max_attempts: 2 })
   })
 
   it('preserves the complete decomposition and interaction policy without coupling them', () => {
@@ -62,7 +61,6 @@ describe('decodeWorkflowDefinition', () => {
         ask_when: ['hard-boundary', 'missing-authorization'],
       },
       interaction: { version: 'v1', mode: 'afk' },
-      reviewBudget: { version: 'v1', max_attempts: 4 },
       steps: [step],
     })
 
@@ -77,39 +75,21 @@ describe('decodeWorkflowDefinition', () => {
       ask_when: ['hard-boundary', 'missing-authorization'],
     })
     expect(decoded?.interaction).toEqual({ version: 'v1', mode: 'afk' })
-    expect(decoded?.reviewBudget).toEqual({ version: 'v1', max_attempts: 4 })
   })
 
-  it('preserves explicit Review lanes and classifies third-party Skills without name inference', () => {
-    const decoded = decodeWorkflowDefinition({
-      name: 'review-contract',
-      reviewBudget: { version: 'v1', max_attempts: 3 },
-      steps: [{
-        ...step,
-        id: 'verify',
-        gate: 'review',
-        reviewLanes: ['standards', 'e2e'],
-        skills: [
-          { id: 'acme-quality-gate', kind: 'review', review_lane: 'standards' },
-          { id: 'e2e-looking-work', kind: 'work' },
-        ],
-      }],
-    })
-
-    expect(decoded?.steps[0]).toMatchObject({
-      reviewLanes: ['standards', 'e2e'],
-      skills: [
-        { id: 'acme-quality-gate', kind: 'review', review_lane: 'standards' },
-        { id: 'e2e-looking-work', kind: 'work' },
-      ],
-    })
+  it('rejects the removed review budget, review lanes and skill classification keys', () => {
     expect(decodeWorkflowDefinition({
-      name: 'undeclared-lane',
-      steps: [{
-        ...step,
-        reviewLanes: ['e2e'],
-        skills: [{ id: 'acme-quality-gate', kind: 'review', review_lane: 'standards' }],
-      }],
+      name: 'retired-budget',
+      reviewBudget: { version: 'v1', max_attempts: 3 },
+      steps: [step],
+    })).toBeNull()
+    expect(decodeWorkflowDefinition({
+      name: 'retired-lanes',
+      steps: [{ ...step, reviewLanes: ['e2e'] }],
+    })).toBeNull()
+    expect(decodeWorkflowDefinition({
+      name: 'retired-kind',
+      steps: [{ ...step, skills: [{ id: 'acme-quality-gate', kind: 'review', review_lane: 'standards' }] }],
     })).toBeNull()
     expect(decodeWorkflowDefinition({
       name: 'name-is-not-a-contract',
@@ -152,14 +132,6 @@ describe('decodeWorkflowDefinition', () => {
       interaction: { mode: 'interactive' },
       steps: [step],
     })).toBeNull()
-    for (const reviewBudget of [
-      { max_attempts: 2 },
-      { version: 'v1', max_attempts: 0 },
-      { version: 'v1', max_attempts: 21 },
-      { version: 'v1', max_attempts: 2, infinite: true },
-    ]) {
-      expect(decodeWorkflowDefinition({ name: 'invalid-review-budget', reviewBudget, steps: [step] })).toBeNull()
-    }
   })
 
   it('decodes the openspec switch, branch contracts and slot roles; rejects the removed openspecContract key', () => {
@@ -308,5 +280,30 @@ describe('decodeWorkflowDefinition', () => {
       ...guard,
       when: { kind: 'track-not-in', values: ['pm'] },
     })
+  })
+})
+
+describe('decodeWorkflowDefinition · 步骤 agents', () => {
+  const withAgents = (agents: unknown) => decodeWorkflowDefinition({
+    name: 'agents', steps: [{ ...step, agents }],
+  })
+
+  it('执行者与评审者按原样解出；缺省不补键', () => {
+    const decoded = withAgents({
+      executors: [{ agent: 'builder' }],
+      reviewers: [{ agent: 'security', required: false, block_at: 'medium', reads_tests: ['unit'] }],
+    })
+    expect(decoded?.steps[0]?.agents).toEqual({
+      executors: [{ agent: 'builder' }],
+      reviewers: [{ agent: 'security', required: false, block_at: 'medium', reads_tests: ['unit'] }],
+    })
+    expect(decodeWorkflowDefinition({ name: 'bare', steps: [step] })?.steps[0]?.agents).toBeUndefined()
+  })
+
+  it('未知字段、非法阻断级别、缺 required 都整份作废', () => {
+    expect(withAgents({ executors: [{ agent: 'builder', lane: 'x' }], reviewers: [] })).toBeNull()
+    expect(withAgents({ executors: [], reviewers: [{ agent: 'a', required: true, block_at: 'fatal' }] })).toBeNull()
+    expect(withAgents({ executors: [], reviewers: [{ agent: 'a', block_at: 'high' }] })).toBeNull()
+    expect(withAgents({ executors: [], reviewers: [], extra: [] })).toBeNull()
   })
 })

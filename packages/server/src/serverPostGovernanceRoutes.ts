@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { missingWorkflowAgents } from './agentReferences.js'
 import { lstatSync } from 'node:fs'
 import { join, resolve as resolvePath } from 'node:path'
 import {
@@ -279,6 +280,10 @@ export async function handlePostGovernanceRoutes(
         return sendJson(res, 400, { ok: false, errors: [errMsg(error)] })
       }
       const shapeErrors = validateWorkflowForStorage(wfName, workflow)
+      // 工作流引用的每个 agent 都必须在库里；保存之后才发现缺 agent，任务就建不起来了。
+      for (const missing of await missingWorkflowAgents(deps.paths, workflow)) {
+        shapeErrors.push(`工作流引用了 agent 库中不存在的 '${missing}'`)
+      }
       if (shapeErrors.length > 0) return sendJson(res, 400, { ok: false, errors: shapeErrors })
       try {
         ensureWorkflowProjectCoordinationPath(rootCheck.anchor)

@@ -6,6 +6,10 @@ import type {
   WbGuardConfig,
   WbSkillEntry,
   WbSkillRef,
+  WbAgentSeverity,
+  WbExecutorRef,
+  WbReviewerRef,
+  WbStepAgents,
   WbStepDef,
   WbTrackPredicate,
   WbTransition,
@@ -17,14 +21,12 @@ import type {
 import {
   DEFAULT_WB_DECOMPOSITION_POLICY,
   DEFAULT_WB_INTERACTION_POLICY,
-  DEFAULT_WB_REVIEW_BUDGET_POLICY,
   type WbDecompositionMode,
   type WbDecompositionPolicy,
   type WbDecompositionStrategy,
   type WbDecompositionTarget,
   type WbInteractionMode,
   type WbInteractionPolicy,
-  type WbReviewBudgetPolicy,
 } from './governanceTypes'
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -106,19 +108,52 @@ function decodeField(value: unknown): WbFieldRef | null {
 function decodeSkill(value: unknown): WbSkillRef | null {
   const item = record(value)
   if (!item
-    || !allowedKeys(item, ['id', 'kind', 'review_lane', 'depends_on'])
+    || !allowedKeys(item, ['id', 'depends_on'])
     || typeof item.id !== 'string'
-    || (item.kind !== undefined && item.kind !== 'work' && item.kind !== 'review')
-    || !optionalString(item.review_lane)
     || (item.depends_on !== undefined && !strings(item.depends_on))) return null
-  const kind = item.kind ?? 'work'
-  if ((kind === 'review') !== (item.review_lane !== undefined)) return null
   return {
     id: item.id,
-    ...(item.kind === undefined ? {} : { kind }),
-    ...(item.review_lane === undefined ? {} : { review_lane: item.review_lane }),
     ...(item.depends_on === undefined ? {} : { depends_on: item.depends_on }),
   }
+}
+
+const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
+
+function decodeExecutor(value: unknown): WbExecutorRef | null {
+  const item = record(value)
+  if (!item
+    || !allowedKeys(item, ['agent', 'depends_on'])
+    || typeof item.agent !== 'string'
+    || (item.depends_on !== undefined && !strings(item.depends_on))) return null
+  return { agent: item.agent, ...(item.depends_on === undefined ? {} : { depends_on: item.depends_on }) }
+}
+
+function decodeReviewer(value: unknown): WbReviewerRef | null {
+  const item = record(value)
+  const blockAt = item === null ? null : item.block_at
+  if (!item
+    || !allowedKeys(item, ['agent', 'required', 'block_at', 'depends_on', 'reads_tests'])
+    || typeof item.agent !== 'string'
+    || typeof item.required !== 'boolean'
+    || !isMember<WbAgentSeverity>(blockAt, SEVERITIES)
+    || (item.depends_on !== undefined && !strings(item.depends_on))
+    || (item.reads_tests !== undefined && !strings(item.reads_tests))) return null
+  return {
+    agent: item.agent,
+    required: item.required,
+    block_at: blockAt,
+    ...(item.depends_on === undefined ? {} : { depends_on: item.depends_on }),
+    ...(item.reads_tests === undefined ? {} : { reads_tests: item.reads_tests }),
+  }
+}
+
+function decodeStepAgents(value: unknown): WbStepAgents | null {
+  const item = record(value)
+  if (!item || !allowedKeys(item, ['executors', 'reviewers'])) return null
+  const executors = item.executors === undefined ? [] : decodeArray(item.executors, decodeExecutor)
+  const reviewers = item.reviewers === undefined ? [] : decodeArray(item.reviewers, decodeReviewer)
+  if (executors === null || reviewers === null) return null
+  return { executors, reviewers }
 }
 
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
@@ -218,19 +253,6 @@ function decodeInteractionPolicy(value: unknown): WbInteractionPolicy | null {
   const mode = item.mode ?? DEFAULT_WB_INTERACTION_POLICY.mode
   return version === 'v1' && isMember<WbInteractionMode>(mode, INTERACTION_MODES)
     ? { version: 'v1', mode }
-    : null
-}
-
-function decodeReviewBudgetPolicy(value: unknown): WbReviewBudgetPolicy | null {
-  if (value === undefined) return { ...DEFAULT_WB_REVIEW_BUDGET_POLICY }
-  const item = record(value)
-  if (!item || !allowedKeys(item, ['version', 'max_attempts'])) return null
-  return item.version === 'v1'
-    && typeof item.max_attempts === 'number'
-    && Number.isInteger(item.max_attempts)
-    && item.max_attempts >= 1
-    && item.max_attempts <= 20
-    ? { version: 'v1', max_attempts: item.max_attempts }
     : null
 }
 
@@ -473,32 +495,31 @@ function decodeStepTest(value: unknown): WbStepTest | null {
 function decodeStep(value: unknown): WbStepDef | null {
   const step = record(value)
   if (!step || typeof step.id !== 'string' || typeof step.label !== 'string') return null
+  if (step.reviewLanes !== undefined) return null
   if (step.gate !== null && step.gate !== 'review' && step.gate !== 'auto') return null
   if (!optionalString(step.prompt)) return null
-  if (step.reviewLanes !== undefined && !strings(step.reviewLanes)) return null
-  const reviewLanes = step.reviewLanes ?? []
-  if (reviewLanes.some((lane) => lane.length === 0) || new Set(reviewLanes).size !== reviewLanes.length) return null
   const skills = decodeArray(step.skills, decodeSkill)
   const inputs = decodeArray(step.inputs, decodeField)
   const outputs = decodeArray(step.outputs, decodeField)
   const artifacts = step.artifacts === undefined ? undefined : decodeArray(step.artifacts, decodeArtifact)
   const tests = step.tests === undefined ? undefined : decodeArray(step.tests, decodeStepTest)
   if (tests === null) return null
+  const agents = step.agents === undefined ? undefined : decodeStepAgents(step.agents)
+  if (agents === null) return null
   const guards = decodeArray(step.guards, decodeGuard)
   const transitions = decodeArray(step.transitions, decodeTransition)
   if (skills === null || inputs === null || outputs === null || artifacts === null || guards === null || transitions === null) return null
-  if (skills.some((skill) => skill.kind === 'review' && !reviewLanes.includes(skill.review_lane ?? ''))) return null
   return {
     id: step.id,
     label: step.label,
     gate: step.gate,
     ...(step.prompt === undefined ? {} : { prompt: step.prompt }),
-    ...(step.reviewLanes === undefined ? {} : { reviewLanes }),
     skills,
     inputs,
     outputs,
     ...(artifacts === undefined ? {} : { artifacts }),
     ...(tests === undefined ? {} : { tests }),
+    ...(agents === undefined ? {} : { agents }),
     guards,
     transitions,
   }
@@ -601,16 +622,16 @@ export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {
   if (body.source !== undefined && body.source !== 'builtin' && body.source !== 'project' && body.source !== 'global') return null
   const effectiveIo = body.effectiveIo === undefined ? undefined : decodeEffectiveIo(body.effectiveIo)
   if (effectiveIo === null) return null
-  if (body.openspecContract !== undefined) return null
+  // 已删除的评审键：出现即拒，不静默丢弃（同 kernel parse 的点名报错）。
+  if (body.openspecContract !== undefined || body.reviewBudget !== undefined) return null
   if (body.openspec !== undefined && typeof body.openspec !== 'boolean') return null
   const documentContract = body.documentContract === undefined ? undefined : decodeDocumentContract(body.documentContract)
   const decomposition = decodeDecompositionPolicy(body.decomposition)
   const interaction = decodeInteractionPolicy(body.interaction)
-  const reviewBudget = decodeReviewBudgetPolicy(body.reviewBudget)
   const steps = decodeArray(body.steps, decodeStep)
   const tracks = body.tracks === undefined ? undefined : decodeTracks(body.tracks)
   const branches = body.branches === undefined ? undefined : decodeBranches(body.branches)
-  if (documentContract === null || decomposition === null || interaction === null || reviewBudget === null || steps === null || tracks === null || branches === null) return null
+  if (documentContract === null || decomposition === null || interaction === null || steps === null || tracks === null || branches === null) return null
   return {
     name: body.name,
     ...(body.source === undefined ? {} : { source: body.source }),
@@ -621,7 +642,6 @@ export function decodeWorkflowDefinition(value: unknown): WbWorkflowDef | null {
     ...(documentContract === undefined ? {} : { documentContract }),
     decomposition,
     interaction,
-    reviewBudget,
     steps,
   }
 }

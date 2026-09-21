@@ -87,13 +87,6 @@ workflow token 始终保持英文。冲突策略使用 `--strategy skip|overwrit
 tenon review request <change> --event <event>
 tenon review acknowledge <change>
 tenon review acknowledge <change> --delegated
-tenon review-attempt begin <change> --candidate <fingerprint> --json
-tenon review-attempt lane <change> --attempt-id <id> --lane <lane> \
-  --result <pass|fail> --report <项目内相对路径> --json
-tenon review-attempt complete <change> --attempt-id <id> \
-  --result <pass|fail> --report <项目内相对路径> --json
-tenon review-budget show <change> --json
-tenon review-budget set <change> --max-attempts <1..20> --json
 ```
 
 delegated 需要 Change 绑定的持续授权，且不能跳过 check。
@@ -102,35 +95,48 @@ delegated 需要 Change 绑定的持续授权，且不能跳过 check。
 review（缺失、已被消费、binding 失效或 event 已不是 workflow 出口）；`3` revision 冲突（仅 Dashboard CAS
 路径）；`4` 幂等键冲突；`1` 非法命令（例如 `--event` 与待确认 receipt 不一致）或意外错误。失败时不写入任何内容。
 
-自动 Review 与人工确认是两套不同边界。一次冻结候选只消耗一次 attempt，代码、规格、安全、
-E2E、浏览器和视觉验收都是该 attempt 的 lane；lane 分片、重跑和恢复不会重复计数。
-`review-budget set` 绑定当前 Run、Workflow 指纹和 step，active attempt 存在时不能改上限，
-也不能把上限降到已使用次数以下。
+自动评审与人工确认是两套不同边界：前者是步骤声明的 agent，后者是 `gate: review`，可以叠加。
 
-Workflow 用显式契约识别 Review，不根据 Skill 名称或命令文本猜测：
+```bash
+tenon agent next <change> [--json]
+tenon agent prompt <change> <agent> [--host <id>] [--json]
+tenon agent record <change> <run-id> [--json]
+```
+
+工作流在步骤里声明执行者与评审者；Tenon 只排顺序、渲染交接内容、记录结论与校验候选版本，
+模型一律由宿主跑。`next` 给出本波要跑的 agent，`prompt` 开始或续跑一个 agent 并打印交接内容，
+`record` 读报告末尾的 ```tenon-result``` 块登记结论。评审结论由 Tenon 从问题级别与
+`block_at` 计算，评审者不自报结论。
+
+退出码：`0` 正常；`1` 用法、IO 或记录损坏；`2` 被拦下（未轮到、宿主不支持、评审期间候选已变化）。
 
 ```yaml
 name: release-train
-review_budget:
-  version: v1
-  max_attempts: 2
 steps:
   - id: verify
     label: 验证
     gate: review
-    review_lanes: [standards, spec, e2e]
     skills:
       - id: acme-quality-gate
-        kind: review
-        review_lane: standards
-      - id: e2e-looking-work
-        kind: work
+    agents:
+      reviewers:
+        - agent: security
+          required: true
+          block_at: medium
+        - agent: code-size
+          required: true
+          block_at: medium
+          reads_tests: [code-size]
+        - agent: architecture
+          required: false
+          block_at: high
+          depends_on: [security, code-size]
 ```
 
-默认插件在 `templates/manifest.yaml` 的 `review_skills` 中声明打包 Skill 与 lane 的映射；
-自定义 Workflow 必须同时声明 `kind: review` 和所属 `review_lane`。未声明的第三方 Skill
-一律是普通工作，不消耗 Review 次数。Dashboard 策略编辑器可以直接配置 `max_attempts`，
-并会保留 lane 与 Skill 分类字段。
+`required` 的评审者全部通过才能离开该步骤；`required: false` 的只报问题、不拦。
+`reads_tests` 引用同一步骤声明的测试，结果由 Tenon 执行后交给评审者。agent 定义放在
+全局 agent 库，任务创建时随工作流一起冻结进 `<change>/.pipeline-frozen/`，之后改库不影响
+进行中的任务。
 
 ## 测试
 

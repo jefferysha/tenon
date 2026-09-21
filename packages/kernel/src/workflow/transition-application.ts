@@ -47,6 +47,7 @@ import type { EventName, TransitionContext } from '../flow/index.js'
 import { evaluateDefaultEventPreconditions, DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 import { applyStepTransition, planStepTransition, resolveStep } from './engine.js'
 import { implicitCompletionTransition } from './implicit-completion.js'
+import { rejectOnStepGates } from './transition-step-gates.js'
 import { applyActions } from './action-handlers.js'
 import { evaluateConstraintPolicy, type ConstraintDecision } from '../loops/automation-policy.js'
 import type { ActionOutcome, WorkflowIR } from './ir.js'
@@ -305,21 +306,17 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
           prepared = await planCustomTransition(tx.state, effectivePlan, command, deps.clock)
         }
         if (isRejection(prepared)) return prepared
-        if (deps.missingStepSkills !== undefined) {
-          const missing = await deps.missingStepSkills({
-            changeDir: command.changeDir,
-            stepId: prepared.from,
-            capability: effectivePlan.capabilities.skills,
-          })
-          if (missing.length > 0) {
-            return {
-              kind: 'step-skills-incomplete',
-              workflowName,
-              stepId: prepared.from,
-              missing,
-            }
-          }
-        }
+        const gated = await rejectOnStepGates({
+          deps,
+          changeDir: command.changeDir,
+          workflowName,
+          plan: effectivePlan,
+          state: tx.state,
+          from: prepared.from,
+          to: prepared.to,
+          event: command.event,
+        })
+        if (gated !== undefined) return gated
         const policy = tx.run.automationPolicy
         if (policy !== undefined) {
           const facts = deps.resolveConstraintContext === undefined

@@ -11,7 +11,7 @@ vi.mock('@xyflow/react/dist/style.css', () => ({}))
 const SKILLS: WbSkillRef[] = [
   { id: 'tenon-explore' },
   { id: 'brainstorming', depends_on: ['tenon-explore'] },
-  { id: 'grill-with-docs', depends_on: ['tenon-explore'], kind: 'review', review_lane: 'spec' },
+  { id: 'grill-with-docs', depends_on: ['tenon-explore'] },
 ]
 
 describe('SkillFlow · 纯函数', () => {
@@ -40,7 +40,7 @@ describe('SkillFlow · 纯函数', () => {
   it('graphToSkills：depends_on = 入边起点，其它字段带回，顺序按波次拍平', () => {
     const skills = graphToSkills(['grill-with-docs', 'brainstorming', 'tenon-explore', 'handoff'], [...edgesOf(SKILLS), { source: 'brainstorming', target: 'handoff' }], SKILLS)
     expect(skills.map((skill) => skill.id)).toEqual(['tenon-explore', 'brainstorming', 'grill-with-docs', 'handoff'])
-    expect(skills[2]).toEqual({ id: 'grill-with-docs', kind: 'review', review_lane: 'spec', depends_on: ['tenon-explore'] })
+    expect(skills[2]).toEqual({ id: 'grill-with-docs', depends_on: ['tenon-explore'] })
     expect(skills[3]).toEqual({ id: 'handoff', depends_on: ['brainstorming'] })
     expect(skills[0]!.depends_on).toBeUndefined()
   })
@@ -100,7 +100,7 @@ describe('SkillFlow · 组件', () => {
     await user.click(screen.getByTestId('flow-remove-tenon-explore'))
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-nodes', '2')
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-edges', '0')
-    expect(onChange).toHaveBeenLastCalledWith([{ id: 'brainstorming' }, { id: 'grill-with-docs', kind: 'review', review_lane: 'spec' }])
+    expect(onChange).toHaveBeenLastCalledWith([{ id: 'brainstorming' }, { id: 'grill-with-docs' }])
   })
   it('空态文案：只读「没有技能」，可编辑「拖入技能」', () => {
     const { unmount } = render(<I18nProvider><SkillFlow skills={[]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)

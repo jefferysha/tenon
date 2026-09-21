@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import type { AgentBlocker } from './agent-verdict.js'
 import { compileStepGuards } from './compile.js'
 import { evaluateGuards, type GuardEvaluation } from './guard-handlers.js'
 import type { CompiledGuardConfig, GuardInput, StepIR } from './ir.js'
@@ -23,6 +24,11 @@ export interface StepGuardContext {
   readonly assessBuildRevision?: GuardInput['assessBuildRevision']
   readonly currentStep?: string
   readonly specMigrationStatus?: GuardInput['specMigrationStatus']
+  /**
+   * 本步 agent 的阻断（Dashboard 的预测读模型用）：缺省 = 该门禁未接线，不产生 agent 拦截。
+   * 只在前进出边上加进 readiness——退回边永不检查 agent。
+   */
+  readonly stepAgents?: () => Promise<readonly AgentBlocker[]>
 }
 
 export type { GuardResult } from '../types.js'

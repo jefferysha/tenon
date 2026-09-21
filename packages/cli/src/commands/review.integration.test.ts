@@ -78,6 +78,36 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     }
   })
 
+  test('必需评审者未通过时 review request 被拒，也不写 pending receipt', async () => {
+    const h2 = await freshHarness()
+    try {
+      await h2.run(['init', 'reviewed', '--track', 'backend', '--preset', 'full'])
+      await h2.seedGovernedDocumentEvidence('reviewed')
+      for (const event of ['open-complete', 'explore-complete', 'spec-complete']) {
+        await h2.seedArtifact('reviewed', 'design_doc', 'openspec/changes/reviewed/design.md')
+        await h2.seedArtifact('reviewed', 'plan', 'openspec/changes/reviewed/tasks.md')
+        await h2.satisfyStepTests('reviewed', event.replace(/-complete$/u, ''))
+        await h2.run(['review', 'request', 'reviewed', '--event', event])
+        await h2.run(['review', 'acknowledge', 'reviewed'])
+        expect(await h2.run(['transition', 'reviewed', event]), h2.err.join('\n')).toBe(0)
+      }
+      await h2.run(['set-many', 'reviewed', 'build_mode=direct', 'isolation=worktree', 'direct_override=true', 'pre_verify_review_result=pass'])
+      await h2.satisfyStepTests('reviewed', 'build')
+      expect(await h2.run(['transition', 'reviewed', 'build-complete']), h2.err.join('\n')).toBe(0)
+      await h2.seedArtifact('reviewed', 'verification_report', 'docs/superpowers/reports/reviewed.md')
+      await h2.run(['set-many', 'reviewed', 'branch_status=handled'])
+      await h2.satisfyStepTests('reviewed', 'verify')
+      // verify 的必需评审者一个都没跑 → request 被拒，且不落 pending receipt。
+      expect(await h2.run(['review', 'request', 'reviewed', '--event', 'verify-pass'])).toBe(2)
+      expect(h2.out.join('\n')).toContain('[FAIL] agent:')
+      await expect(stat(join(h2.cwd, '.pipeline-pending-review'))).rejects.toMatchObject({ code: 'ENOENT' })
+      await h2.satisfyStepAgents('reviewed')
+      expect(await h2.run(['review', 'request', 'reviewed', '--event', 'verify-pass']), h2.err.join('\n')).toBe(0)
+    } finally {
+      await rm(h2.cwd, { recursive: true, force: true })
+    }
+  })
+
   test('exact review journey projects ordered request, acknowledgement, effect and valid resume', async () => {
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)

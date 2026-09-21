@@ -62,8 +62,6 @@ const ENUMS = {
   phase_status: ['pending', 'in_progress', 'done', 'failed'],
   build_mode: ['direct', 'subagent-driven-development', 'parallel-team', 'prototype'],
   isolation: ['branch', 'worktree'],
-  agent_review_result: ['pending', 'pass', 'fail', 'handled', 'skipped'],
-  codex_review_result: ['pending', 'pass', 'fail', 'handled', 'skipped'],
   verify_result: ['pending', 'pass', 'fail', 'handled', 'skipped'],
   branch_status: ['pending', 'pass', 'fail', 'handled', 'skipped'],
   direct_override: ['true', 'false'],
@@ -133,7 +131,9 @@ function corruptDrop(doc) {
 
 function persist(doc) {
   if (MODE === 'corrupt') corruptDrop(doc)
-  if (process.env.STUB_BUSINESS_TAMPER === '1') setLine(doc, 'assignee', 'hostile-oracle-value')
+  // 篡改的必须是**不在归一白名单里**的业务字段：assignee / created_by 会被 normalize_yaml 归一成
+  // <WHITELISTED>，拿它做漂移，YAML 面永远抓不到（harness 自测就会名存实亡）。
+  if (process.env.STUB_BUSINESS_TAMPER === '1') setLine(doc, 'scope', 'hostile-oracle-value')
   if (process.env.STUB_TRANSITION_HEAD) {
     const reservedPrefixes = [
       'pipeline_run_id:',
@@ -273,9 +273,15 @@ function cmdTransition() {
     case 'verify-pass': {
       need('verification_report', true)
       if (unquote(getRaw(doc.lines, 'branch_status')) !== 'handled') errExit('ERROR: 要求 branch_status=handled')
-      if (track !== 'pm') {
-        if (unquote(getRaw(doc.lines, 'agent_review_result')) !== 'pass') errExit('ERROR: 要求 agent_review_result=pass')
-        if (unquote(getRaw(doc.lines, 'codex_review_result')) !== 'pass') errExit('ERROR: 要求 codex_review_result=pass')
+      // 老内核 state-transition.sh:178-190：frontend/backend 还要求两个手填评审字段都 pass。
+      // 这两个字段已从产品里删除（评审改用步骤 agents.reviewers），但 oracle 的老侧仍是那份脚本，
+      // mirror stub 必须逐字复刻它的拒绝，否则「双跑全绿」会把一次真实差异掩盖成 stub 放行。
+      // 只在 mirror（复刻老内核）时校验：contract 模式按 docs/CONTRACT.md 走，那份契约里没有这两个字段。
+      if (MODE !== 'contract' && track !== 'pm') {
+        const ar = unquote(getRaw(doc.lines, 'agent_review_result'))
+        const cr = unquote(getRaw(doc.lines, 'codex_review_result'))
+        if (ar !== 'pass') errExit(`ERROR: ${track} track 要求 agent_review_result=pass (当前=${ar})`)
+        if (cr !== 'pass') errExit(`ERROR: ${track} track 要求 codex_review_result=pass (当前=${cr})`)
       }
       setLine(doc, 'verify_result', 'pass')
       setLine(doc, 'verified_at', ts())

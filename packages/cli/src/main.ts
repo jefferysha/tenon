@@ -18,7 +18,7 @@ import {
   clearReviewMarkerFor, createTaskLifecycleApplication,
   BUILTIN_TRACK_DEFINITIONS, createEffectiveSkillResolver, createFlowEngine, createHistoryWriter, createStateStore,
   createInteractionEventRecorder, createTransitionRecordStore, createWorkflowRunRepository, loadManifest, loadTrackRegistry, loadWorkflow,
-  designSystemPrecondition, fingerprintWorkspace, loadResourceCatalog, mutateTrackRegistry, readSecrets, registerProjectRoot,
+  designSystemPrecondition, fingerprintWorkspace, loadAgentLibrary, loadResourceCatalog, mutateTrackRegistry, readSecrets, registerProjectRoot,
   createBuildRevisionToken, probeBuildRevisionIdentity, createOrchestrationLedger,
   type BoardCommandV2, type BoardSnapshotV2, type WorkflowPipelinePlanV2,
   withTrackRegistryLock, resolveTenonUser, type TenonUserResolution, actorOf, isTenonUser, USER_MISSING_HINT,
@@ -232,6 +232,7 @@ async function main(): Promise<void> {
     taskLifecycle: createTaskLifecycleApplication({ store, clock: isoNow, nowMs: () => Date.now() }),
     userConfigPath: () => runtimePaths().userConfigPath,
     resourceCatalog: () => loadResourceCatalog({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
+    agentLibrary: () => loadAgentLibrary({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
     creationPrecondition: (input) => designSystemPrecondition({
       ...input,
       repoRoot: process.cwd(),

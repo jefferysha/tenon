@@ -23,7 +23,9 @@ import { createInterface } from 'node:readline/promises'
 import {
   assertWorkflowAllowed,
   effectiveWorkflowPlanBinding,
+  ensureAgentFreeze,
   loadEffectiveWorkflowPlan,
+  prepareAgentFreeze,
   requireTrackForRoot,
   workflowPlanSnapshot,
 } from '@tenon/kernel'
@@ -225,6 +227,17 @@ export async function cmdInit(
         deps.io.err(`ERROR: ${refused}`)
         return 1
       }
+      // agent 内容随 Change 创建冻结：库读不到任何被引用的 agent 就在这里拒绝，Change 还没落盘。
+      let freezeAgent
+      try {
+        freezeAgent = await prepareAgentFreeze(
+          plan.workflow,
+          deps.agentLibrary ?? (async () => ({ entries: [], sync: { id: 'agents', state: 'unchanged' as const } })),
+        )
+      } catch (e) {
+        deps.io.err(`ERROR: 工作流引用了 agent 库中不存在的 agent：${errMsg(e)}`)
+        return 1
+      }
       const binding = effectiveWorkflowPlanBinding(plan)
       initialWorkflow = {
         workflow: workflowId,
@@ -238,7 +251,7 @@ export async function cmdInit(
       try {
         // 身份随 init 独占创建一次性写入（W1 第五轮 codex review）；custom workflow 首态随
         // initialWorkflow 进同一次原子发布（第 7 轮 codex review，见 store.ts init() 注释）。
-        const { changeDir: created } = await deps.runRepo.initChange({
+        const { changeDir: created, run } = await deps.runRepo.initChange({
           repoRoot: deps.cwd,
           name,
           track: track.id,
@@ -249,6 +262,15 @@ export async function cmdInit(
           documentLocale: (opts.documentLocale ?? 'zh-CN') as DocumentLocale,
           initialWorkflow,
         })
+        if (freezeAgent !== undefined) {
+          await (deps.agentFreeze ?? ensureAgentFreeze)({
+            changeDir: created,
+            runId: run.id,
+            workflowFingerprint: plan.workflowFingerprint,
+            workflow: plan.workflow,
+            resolve: freezeAgent,
+          })
+        }
         await recordHistory(deps, created, {
           ts: deps.clock(),
           kind: 'init',

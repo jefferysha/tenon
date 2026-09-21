@@ -16,6 +16,7 @@ type LintKind =
   | { kind: 'test-id-duplicate'; stepId: string; test: string }
   | { kind: 'test-command-empty'; stepId: string; test: string }
   | { kind: 'test-output-location'; stepId: string; test: string; path: string }
+  | { kind: 'agent-missing'; stepId: string; agent: string }
 
 /** error 挡保存（与 kernel 校验一致）；warning 只在导航上标点。 */
 export type LintIssue = LintKind & { severity: 'error' | 'warning' }
@@ -106,9 +107,14 @@ function testIssues(def: WbWorkflowDef): LintIssue[] {
  *   · 每条转移要么是去下一阶段的唯一一条，要么退回更早的阶段；
  *   · default 保留 CONTRACT_TRANSITIONS 要求的去向；
  *   · 开启 OpenSpec 时文档契约的技能、顺序与成对检查；
- *   · 测试 id 在分支内唯一、命令非空、声明输出落在测试目录下。
+ *   · 测试 id 在分支内唯一、命令非空、声明输出落在测试目录下；
+ *   · 步骤声明的 agent 必须在库里——库还没拉到（agents 为 null）就不判，不谎报。
  */
-export function lintWorkflow(def: WbWorkflowDef, io: WbEffectiveIo | undefined): LintIssue[] {
+export function lintWorkflow(
+  def: WbWorkflowDef,
+  io: WbEffectiveIo | undefined,
+  agents?: readonly string[] | null,
+): LintIssue[] {
   const issues: LintIssue[] = []
   const canonical = def.openspec === true && isDefaultWorkflowName(def.name)
   def.steps.forEach((step, index) => {
@@ -152,6 +158,17 @@ export function lintWorkflow(def: WbWorkflowDef, io: WbEffectiveIo | undefined):
   })
   issues.push(...documentIssues(def))
   issues.push(...testIssues(def))
+  if (agents != null) {
+    for (const step of def.steps) {
+      const declared = [
+        ...(step.agents?.executors ?? []).map((ref) => ref.agent),
+        ...(step.agents?.reviewers ?? []).map((ref) => ref.agent),
+      ]
+      for (const agent of declared) {
+        if (!agents.includes(agent)) issues.push({ kind: 'agent-missing', stepId: step.id, agent, severity: 'error' })
+      }
+    }
+  }
   return issues
 }
 

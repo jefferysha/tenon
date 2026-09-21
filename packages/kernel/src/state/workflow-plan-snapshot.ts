@@ -10,8 +10,8 @@ import type { WorkflowIR } from '../workflow/ir.js'
 import type {
   WorkflowDecompositionPolicyV1,
   WorkflowInteractionPolicyV1,
-  WorkflowReviewBudgetPolicyV1,
 } from '../workflow/types.js'
+import type { RetiredReviewBudget } from '../workflow/workflow-plan-snapshot-types.js'
 import { atomicLinkPublish } from './atomic-publish.js'
 
 export const WORKFLOW_PLAN_SNAPSHOT_FILE = '.pipeline-workflow-plan.json'
@@ -50,7 +50,12 @@ export function parseWorkflowPlanSnapshot(raw: string): WorkflowPlanSnapshotEnve
   const envelope = ownRecord(value)
   const plan = ownRecord(envelope?.plan)
   const planVersion = plan?.version
-  const allowedPlanKeys = planVersion === 3
+  const allowedPlanKeys = planVersion === 4
+    ? [
+        'version', 'workflowId', 'executionModel', 'workflow', 'documentPolicy',
+        'decomposition', 'interaction', 'workflowFingerprint',
+      ]
+    : planVersion === 3
     ? [
         'version', 'workflowId', 'executionModel', 'workflow', 'documentPolicy',
         'decomposition', 'interaction', 'reviewBudget', 'workflowFingerprint',
@@ -66,13 +71,11 @@ export function parseWorkflowPlanSnapshot(raw: string): WorkflowPlanSnapshotEnve
     || envelope.run_id === ''
     || !plan
     || Object.keys(plan).some((key) => !allowedPlanKeys.includes(key))
-    || (planVersion !== 1 && planVersion !== 2 && planVersion !== 3)
+    || ![1, 2, 3, 4].includes(planVersion as number)
     || typeof plan.workflowId !== 'string'
     || (plan.executionModel !== 'phase-manifest' && plan.executionModel !== 'step-graph')
-    || ((planVersion === 2 || planVersion === 3)
-      && documentPolicy !== null
-      && ownRecord(documentPolicy) === undefined)
-    || (planVersion === 3
+    || (planVersion !== 1 && documentPolicy !== null && ownRecord(documentPolicy) === undefined)
+    || ((planVersion === 3 || planVersion === 4)
       && (ownRecord(plan.decomposition) === undefined || ownRecord(plan.interaction) === undefined))
     || typeof plan.workflowFingerprint !== 'string'
     || !/^[0-9a-f]{64}$/.test(plan.workflowFingerprint)
@@ -95,17 +98,27 @@ export function parseWorkflowPlanSnapshot(raw: string): WorkflowPlanSnapshotEnve
         documentPolicy: documentPolicy as DocumentGovernancePolicy | null,
         workflowFingerprint: plan.workflowFingerprint,
       }
-      : {
-          version: 3,
+      : planVersion === 3 ? {
+        version: 3,
+        workflowId: plan.workflowId,
+        executionModel: plan.executionModel,
+        workflow: plan.workflow,
+        documentPolicy: documentPolicy as DocumentGovernancePolicy | null,
+        decomposition: plan.decomposition as WorkflowDecompositionPolicyV1,
+        interaction: plan.interaction as WorkflowInteractionPolicyV1,
+        ...(plan.reviewBudget === undefined
+          ? {}
+          : { reviewBudget: plan.reviewBudget as RetiredReviewBudget }),
+        workflowFingerprint: plan.workflowFingerprint,
+      }
+        : {
+          version: 4,
           workflowId: plan.workflowId,
           executionModel: plan.executionModel,
           workflow: plan.workflow,
           documentPolicy: documentPolicy as DocumentGovernancePolicy | null,
           decomposition: plan.decomposition as WorkflowDecompositionPolicyV1,
           interaction: plan.interaction as WorkflowInteractionPolicyV1,
-          ...(plan.reviewBudget === undefined
-            ? {}
-            : { reviewBudget: plan.reviewBudget as WorkflowReviewBudgetPolicyV1 }),
           workflowFingerprint: plan.workflowFingerprint,
         }
   effectiveWorkflowPlanFromSnapshot(snapshot)

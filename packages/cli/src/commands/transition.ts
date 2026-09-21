@@ -52,7 +52,7 @@
 import {
   compileWorkflow, completedWorkflowSkillsSinceStepEntry, createTransitionApplication,
   loadRegistry, loadWorkflow, nodeLoopIoStrict, requireTrackForRoot, resolveRequiredSkillSlots,
-  readReviewGateBinding, reviewGateBindingMatches, ownerRequiredMessage,
+  readReviewGateBinding, renderAgentBlocker, reviewGateBindingMatches, ownerRequiredMessage,
   TASK_PLAN_CURRENT_FILE, TASK_PLAN_LIMITS, TASK_PLAN_STATE_DIR,
   taskPlanTasksThroughPhaseForChange,
 } from '@tenon/kernel'
@@ -63,6 +63,7 @@ import { refuseArchived } from '../archivedGuard.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { requireActor } from '../userIdentity.js'
+import { stepAgentBlockersFor } from '../agentGate.js'
 import { testEvidenceContextFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 
@@ -147,6 +148,8 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     testEvidence: testEvidenceContextFor(deps, name),
     ...(deps.testEvidence === undefined ? {} : { testEvidenceReader: deps.testEvidence }),
     resolveTrack: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd),
+    stepAgentBlockers: async ({ changeDir: targetDir, stepId, plan, state }) =>
+      stepAgentBlockersFor({ deps, name, dir: targetDir, stepId, plan, state }),
     missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => {
       const slots = resolveRequiredSkillSlots(deps.resolver, capability, stepId)
       const candidates = slots.flatMap((slot) => slot.alternatives.map(canonicalPipelineSkillId))
@@ -289,6 +292,10 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
       case 'step-skills-incomplete':
         deps.io.err(`ERROR: step '${result.stepId}' 尚未完成声明的 skill：`)
         for (const skillId of result.missing) deps.io.err(`  - ${skillId}`)
+        return 2
+      case 'step-agents-incomplete':
+        deps.io.err(`ERROR: step '${result.stepId}' 的 agent 未通过：`)
+        for (const blocker of result.blockers) deps.io.err(`  - ${renderAgentBlocker(blocker, name)}`)
         return 2
       case 'document-evidence-failed':
         deps.io.err(`ERROR: OpenSpec 文档证据未通过（phase=${result.phase}）：`)

@@ -86,7 +86,7 @@ tenon document read "$TENON_CHANGE_NAME" all
 > 前过一遍，别走过场）。核心一句：**任何 gap 都用 AskUserQuestion 批量问、答完重扫、迭代到清零，别自行假设、别问 2 个就收。**
 >
 > explore 专属补充（只在 explore 适用）：
-> - **外部调研走隔离 sub-agent（结构性还原不对称）**：deep-research / market-research / search-first 的"拉取"部分，优先用 **Agent 工具** dispatch `tenon-researcher` 子 agent（本仓 agents/tenon-researcher.md）——产出落盘、只回传路径+摘要+开放问题，主线**当外部输入读**。这样研究不是主线的"自有产物"，brainstorming 才不会背书自己刚写的结论。PM track 见下方 step 1 完整写法。
+> - **外部调研走隔离 sub-agent（结构性还原不对称）**：deep-research / market-research / search-first 的"拉取"部分，优先用 **Agent 工具** dispatch `researcher` 子 agent（本仓 templates/agents/researcher.md）——产出落盘、只回传路径+摘要+开放问题，主线**当外部输入读**。这样研究不是主线的"自有产物"，brainstorming 才不会背书自己刚写的结论。PM track 见下方 step 1 完整写法。
 
 > **持续自主执行例外（优先于本节的重复交互要求）**：若当前 dispatch / hook 已表明用户对这个
 > exact Change 授予持续执行权，`brainstorming`、`grill-with-docs` 仍必须实际加载、实际产出和实际
@@ -104,7 +104,7 @@ tenon document read "$TENON_CHANGE_NAME" all
 
 1. **调研走隔离 sub-agent（关键：治 brainstorm 变浅的根）——先问维度、再并行多路**：
    - **1a. 常规模式先用 AskUserQuestion（`multiSelect: true` 多选）问用户：本次从哪些维度调研。** 按 topic 给 4~N 个相关维度选项（如：直接竞品 / 间接竞品·替代方案 / 技术架构与实现 / 商业模式与定价 / 目标用户与需求 / 开源生态与社区 / 合规与安全…，按主题定、别写死），让用户多选。持续自主执行模式则按上面的窄例外处理：尊重已给维度，或选择三项保守默认并记入产物，**不得**把“没有再问一次”伪造成用户选择。
-   - **1b. 为用户选定的每个维度，并行 dispatch 一个 `tenon-researcher` 子 agent**——**同一条 Agent 消息内并行 dispatch（一维度一个），不许一个子 agent 串行包揽所有维度**。每个 dispatch prompt 必含：该维度的调研焦点 + 产出路径 `docs/superpowers/specs/<DATE>-<topic>-<维度>-research.md` + `track=pm`。
+   - **1b. 为用户选定的每个维度，并行 dispatch 一个 `researcher` 子 agent**——**同一条 Agent 消息内并行 dispatch（一维度一个），不许一个子 agent 串行包揽所有维度**。每个 dispatch prompt 必含：该维度的调研焦点 + 产出路径 `docs/superpowers/specs/<DATE>-<topic>-<维度>-research.md` + `track=pm`。
    - 各子 agent 在隔离上下文里（可自行加载 deep-research / market-research 取方法论）拉真实源、写报告到盘，**各自只回传 路径 + ≤10 行摘要 + 3-5 个待用户决断的开放问题**。
    - 主线**不**把全文吸进来污染上下文，也**不**在主线直接加载 deep-research / market-research——下一步 brainstorming 才把各份报告当**外部输入**读。
 
@@ -128,7 +128,7 @@ tenon document read "$TENON_CHANGE_NAME" all
 1. 使用 Skill 工具加载 `search-first`。**默认执行**——确无外部库/现成方案可搜时方可跳过（recommended，缺=WARN 不阻断）。
    - 用于：GitHub / Context7 / 包注册表查现成实现
    - 输出：候选库列表 + 优劣分析
-   - **「读很多」的活走隔离 sub-agent（同 PM track）**：凡需查库 / 比较方案 / 读外部库文档全文等"拉取量大"的调研，优先用 **Agent 工具** dispatch `tenon-researcher` 子 agent（`track=frontend`）——产出落盘 `docs/superpowers/specs/<DATE>-<topic>-<维度>-research.md`，**只回传 路径 + ≤10 行摘要 + 3-5 个开放问题**。主线**不**把库文档全文吸进主上下文（保护主窗口的聪明区），下一步 brainstorming 把报告当**外部输入**读。多维度时同一条 Agent 消息内并行 dispatch（一维度一个）。
+   - **「读很多」的活走隔离 sub-agent（同 PM track）**：凡需查库 / 比较方案 / 读外部库文档全文等"拉取量大"的调研，优先用 **Agent 工具** dispatch `researcher` 子 agent（`track=frontend`）——产出落盘 `docs/superpowers/specs/<DATE>-<topic>-<维度>-research.md`，**只回传 路径 + ≤10 行摘要 + 3-5 个开放问题**。主线**不**把库文档全文吸进主上下文（保护主窗口的聪明区），下一步 brainstorming 把报告当**外部输入**读。多维度时同一条 Agent 消息内并行 dispatch（一维度一个）。
 
 2. 使用 Skill 工具加载 `openspec-explore`。**禁止跳过此步骤**。
    - 用于：探索现有 `openspec/specs/` 已有能力
@@ -153,7 +153,7 @@ tenon document read "$TENON_CHANGE_NAME" all
 **立即执行**（按顺序）：
 
 1. 使用 Skill 工具加载 `search-first`。**默认执行**——确无外部库/现成方案可搜时方可跳过（recommended，缺=WARN 不阻断）。
-   - **「读很多」的活走隔离 sub-agent（同 PM track）**：凡需查库 / 比较方案 / 读外部库文档全文等"拉取量大"的调研，优先用 **Agent 工具** dispatch `tenon-researcher` 子 agent（`track=backend`）——产出落盘 `docs/superpowers/specs/<DATE>-<topic>-<维度>-research.md`，**只回传 路径 + ≤10 行摘要 + 3-5 个开放问题**。主线**不**把库文档全文吸进主上下文，下一步 brainstorming 把报告当**外部输入**读。多维度时同一条 Agent 消息内并行 dispatch（一维度一个）。
+   - **「读很多」的活走隔离 sub-agent（同 PM track）**：凡需查库 / 比较方案 / 读外部库文档全文等"拉取量大"的调研，优先用 **Agent 工具** dispatch `researcher` 子 agent（`track=backend`）——产出落盘 `docs/superpowers/specs/<DATE>-<topic>-<维度>-research.md`，**只回传 路径 + ≤10 行摘要 + 3-5 个开放问题**。主线**不**把库文档全文吸进主上下文，下一步 brainstorming 把报告当**外部输入**读。多维度时同一条 Agent 消息内并行 dispatch（一维度一个）。
 2. 使用 Skill 工具加载 `openspec-explore`。**禁止跳过此步骤**。
 3. 使用本插件打包的 Skill `brainstorming`。**禁止跳过此步骤**。
 4. 使用 Skill 工具加载 `grill-with-docs`。**禁止跳过此步骤**。

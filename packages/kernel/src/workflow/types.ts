@@ -47,12 +47,6 @@ export interface WorkflowInteractionPolicyV1 {
   readonly mode: WorkflowInteractionMode
 }
 
-export interface WorkflowReviewBudgetPolicyV1 {
-  readonly version: 'v1'
-  /** Finite per-step automatic Review attempt ceiling. */
-  readonly max_attempts: number
-}
-
 export interface FieldRef {
   readonly field: string
   readonly type: FieldType
@@ -60,10 +54,6 @@ export interface FieldRef {
 
 export interface SkillRef {
   readonly id: string
-  /** Explicit orchestration classification. Omitted definitions compile to `work`; never infer from id. */
-  readonly kind?: 'work' | 'review'
-  /** Required exactly when kind=review; must name one of the owning step's reviewLanes. */
-  readonly review_lane?: string
   /** 同 step 内其它 skill 的 id；无 = 无依赖，可立即调用。跨 step 引用是校验期错误（Task 4）。 */
   readonly depends_on?: readonly string[]
 }
@@ -205,6 +195,34 @@ export interface StepTestDef {
   readonly outputs?: readonly TestOutputDef[]
 }
 
+/** 问题级别，由高到低 critical / high / medium / low；评审者的阻断级别取本闭集。 */
+export type AgentSeverity = 'critical' | 'high' | 'medium' | 'low'
+
+/** 步骤执行者：完成本步工作；depends_on 指同一步骤 executors 列表内的其它 agent。 */
+export interface StepExecutorRef {
+  readonly agent: string
+  readonly depends_on?: readonly string[]
+}
+
+/**
+ * 步骤评审者：在产出与必需测试就绪后、离开本步骤前检查。
+ * `required` 决定它是否参与放行判定，`block_at` 决定多高级别的问题算不通过，
+ * `reads_tests` 引用同一步骤 `tests[].id`（结果由 Tenon 执行后交给它，评审者自己不跑测试）。
+ */
+export interface StepReviewerRef {
+  readonly agent: string
+  readonly required: boolean
+  readonly block_at: AgentSeverity
+  readonly depends_on?: readonly string[]
+  readonly reads_tests?: readonly string[]
+}
+
+/** 步骤 agent 块；两个列表都空时归一为「无 agents 键」，往返保真。 */
+export interface StepAgentsDef {
+  readonly executors: readonly StepExecutorRef[]
+  readonly reviewers: readonly StepReviewerRef[]
+}
+
 /** step 间转换边——每个 step 自己声明"按哪个 event 名走向哪个下一个 step"，取代
  *  default workflow 依赖的全局 TRANSITION_EVENTS 表（那张表是 Record<Phase,...>，天然
  *  不适用任意自定义 step）。同一个 step 可以有多条边（不同 event 名指向不同下一个 step，
@@ -224,8 +242,6 @@ export interface StepDef {
   readonly gate: GateKind
   /** 该 step 交给运行时 agent 的任务补充指令。项目 YAML 以 `prompt: |-` literal block 保真落盘。 */
   readonly prompt?: string
-  /** Stable automatic Review lanes aggregated into one candidate-bound attempt. */
-  readonly reviewLanes?: readonly string[]
   readonly skills: readonly SkillRef[]
   readonly inputs: readonly FieldRef[]
   readonly outputs: readonly FieldRef[]
@@ -234,6 +250,8 @@ export interface StepDef {
   readonly artifacts?: readonly WorkflowArtifactConfig[]
   /** 本步声明的测试项；缺省 = 无测试（编译后不出现 tests 键，指纹逐字不变）。 */
   readonly tests?: readonly StepTestDef[]
+  /** 本步的执行者与评审者；两个列表都空时等同缺省。 */
+  readonly agents?: StepAgentsDef
   readonly guards: readonly WorkflowGuardConfig[]
   readonly transitions: readonly StepTransition[]
 }
@@ -253,7 +271,6 @@ export interface WorkflowDef {
   readonly name: string
   readonly decomposition?: Omit<Partial<WorkflowDecompositionPolicyV1>, 'version'> & { readonly version: 'v1' }
   readonly interaction?: Omit<Partial<WorkflowInteractionPolicyV1>, 'version'> & { readonly version: 'v1' }
-  readonly reviewBudget?: Omit<Partial<WorkflowReviewBudgetPolicyV1>, 'version'> & { readonly version: 'v1' }
   /** 唯一的 OpenSpec 开关：parse 只产出 true 或缺省；关闭时没有文档治理。 */
   readonly openspec?: boolean
   /** 只与顶层 steps 同在；有 tracks 时写在 tracks.<id>.documentContract。 */

@@ -5,6 +5,9 @@ import { TEMPLATE_CATEGORIES, type TemplateCategory, type TemplateRef, type Temp
 import { DetailEmpty, FilterChip, ListColumn, ThreeColumns } from '../shell/ThreeColumns'
 import { matchesQuery } from '../shell/GlobalSearch'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
+import { AgentDetail } from './AgentDetail'
+import { AgentList, agentSkeleton } from './AgentList'
+import { useAgentLibrary } from './useAgentLibrary'
 import { LibraryRail, type LibrarySection } from './LibraryRail'
 import { NewTemplateDialog } from './NewTemplateDialog'
 import { ResourceCatalog } from './resources/ResourceCatalog'
@@ -24,7 +27,7 @@ function skeleton(category: TemplateCategory, id: string, title: string): string
   return `---\nid: ${id}\ncategory: ${category}\ntitle: ${id}\n${frameworks}---\n${heading} ${title}\n\n- \n`
 }
 
-/** 库：左列种类（模板）/ 中列模板列表 / 右列模板详情。 */
+/** 库：左列种类（模板 / 资源 / 测试方向 / agent）/ 中列列表 / 右列详情。 */
 export function LibraryView({ onToast }: { onToast?: (message: string) => void }): JSX.Element {
   const { t } = useT()
   const library = useTemplateLibrary()
@@ -40,6 +43,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
   const [dialogOpen, setDialogOpen] = useState(false)
   const [section, setSection] = useState<LibrarySection>('templates')
   const directions = useTestDirections()
+  const agents = useAgentLibrary()
 
   const rows = useMemo(
     () => library.templates.filter((row) =>
@@ -73,6 +77,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
       section={section}
       templates={library.templates.length}
       directions={directions.directions.length}
+      agents={agents.agents.length}
       collapsed={railCollapsed}
       onSection={setSection}
       onToggle={() => setRailCollapsed((value) => !value)}
@@ -95,7 +100,22 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
         testId="library-view"
         railCollapsed={railCollapsed}
         rail={rail}
-        list={section === 'directions' ? (
+        list={section === 'agents' ? (
+          <ListColumn testId="library-list" eyebrow={t('library.title')} title={t('library.agents')}>
+            <AgentList
+              agents={agents.agents}
+              selected={agents.selected?.name ?? null}
+              busy={agents.busy}
+              canWrite={canWrite}
+              onSelect={agents.select}
+              onCreate={(name) => {
+                void (async () => {
+                  if (await agents.create(name, agentSkeleton(name))) onToast?.(t('library.agent_new'))
+                })()
+              }}
+            />
+          </ListColumn>
+        ) : section === 'directions' ? (
           <ListColumn
             testId="library-list"
             eyebrow={t('library.title')}
@@ -186,7 +206,28 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
             )}
           </ListColumn>
         )}
-        detail={section === 'directions' ? (
+        detail={section === 'agents' ? (
+          agents.selected === null ? (
+            <DetailEmpty title={t('library.agent_empty_detail')} desc={t('library.agents')} testId="lib-agent-detail-empty" />
+          ) : (
+            <AgentDetail
+              document={agents.selected}
+              summary={agents.agents.find((row) => row.name === agents.selected?.name) ?? null}
+              draft={agents.draft}
+              busy={agents.busy}
+              error={agents.error}
+              blockedBy={agents.blockedBy}
+              onDraft={agents.setDraft}
+              onSave={() => { void (async () => { if (await agents.save()) onToast?.(t('library.save')) })() }}
+              onCopy={() => {
+                const current = agents.selected
+                if (current === null) return
+                void (async () => { if (await agents.copy(`${current.name}-copy`)) onToast?.(t('library.copy')) })()
+              }}
+              onDelete={() => { void (async () => { if (await agents.remove()) onToast?.(t('library.delete')) })() }}
+            />
+          )
+        ) : section === 'directions' ? (
           <div className="min-h-0 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4" data-testid="library-direction-detail">
             <TestDirectionsPane slot="detail" library={directions} canWrite={canWrite} onToast={onToast} />
           </div>

@@ -5,21 +5,19 @@ import type { TrackDefinition } from '../tracks/types.js'
 import { builtinWorkflow } from './builtin-workflows.js'
 import { compileDefaultWorkflow, compileWorkflow } from './compile.js'
 import { documentGovernancePolicy, type DocumentGovernancePolicy } from './document-contract.js'
+import { documentGovernanceFingerprint } from './document-governance-fingerprint.js'
+export { documentGovernanceFingerprint } from './document-governance-fingerprint.js'
 import { loadWorkflow } from './loadWorkflow.js'
 import type { WorkflowIR } from './ir.js'
 import { parseWorkflow } from './parse.js'
 import {
   restoreLegacyWorkflowPlan,
+  historicalV3PolicyWorkflowFingerprint,
   historicalV3WorkflowFingerprint,
   legacyWorkflowForSnapshot,
+  validateSnapshotPolicies,
   validateV3WorkflowPolicies,
 } from './effective-plan-snapshot-compat.js'
-import {
-  DEFAULT_WORKFLOW_DECOMPOSITION_POLICY,
-  DEFAULT_WORKFLOW_INTERACTION_POLICY,
-  DEFAULT_WORKFLOW_REVIEW_BUDGET_POLICY,
-  compileWorkflowReviewBudgetPolicy,
-} from './policy.js'
 import type { WorkflowDef } from './types.js'
 import { WorkflowTrackBranchError } from './validate.js'
 import { validateWorkflow } from './validate.js'
@@ -32,45 +30,13 @@ import type {
 export type { EffectiveWorkflowPlan, PersistedDocumentGovernanceBinding } from './effective-plan-types.js'
 export type {
   LegacyWorkflowIR, WorkflowPlanSnapshot, WorkflowPlanSnapshotV1,
-  WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3,
+  WorkflowPlanSnapshotV2, WorkflowPlanSnapshotV3, WorkflowPlanSnapshotV4,
 } from './workflow-plan-snapshot-types.js'
 export class DocumentGovernanceBindingError extends Error {
   readonly _tag = 'DocumentGovernanceBindingError'
 }
 function profileFor(policy: DocumentGovernancePolicy | undefined): DocumentProfileId | undefined {
   return policy?.id === 'openspec-v1' ? 'legacy-full' : policy?.id === 'document-v1' ? 'document-v1' : undefined
-}
-function canonicalRequirement(requirement: {
-  readonly kind: string; readonly producerCandidates: readonly string[]
-}): { readonly kind: string; readonly producerCandidates: readonly string[] } {
-  return {
-    kind: requirement.kind,
-    producerCandidates: [...new Set(requirement.producerCandidates)].sort(),
-  }
-}
-export function documentGovernanceFingerprint(policy: DocumentGovernancePolicy): string {
-  const canonical = {
-    id: policy.id,
-    steps: [...policy.steps],
-    outputsByStep: Object.fromEntries(policy.steps.map((step) => [
-      step,
-      [...(policy.outputsByStep[step] ?? [])]
-        .map(canonicalRequirement)
-        .sort((left, right) => left.kind.localeCompare(right.kind)),
-    ])),
-    mutableByStep: Object.fromEntries(policy.steps.map((step) => [
-      step,
-      [...(policy.mutableByStep[step] ?? [])]
-        .map(canonicalRequirement)
-        .sort((left, right) => left.kind.localeCompare(right.kind)),
-    ])),
-    readsByStep: Object.fromEntries(policy.steps.map((step) => [
-      step,
-      [...new Set(policy.readsByStep[step] ?? [])].sort(),
-    ])),
-    ...(policy.requiresByStep === undefined ? {} : { requiresByStep: Object.fromEntries(policy.steps.map((step) => [step, [...new Set(policy.requiresByStep?.[step] ?? [])].sort()])) }),
-  }
-  return sha256Hex(JSON.stringify(canonical))
 }
 function freeze<T>(value: T): T {
   if (value !== null && typeof value === 'object') {
@@ -108,19 +74,29 @@ function planFromIr(
   const reviewStepsOf = (steps: WorkflowIR['steps']): string[] => steps.filter((step) => step.gate === 'review').map((step) => step.id)
   const projectionStepsOf = (steps: WorkflowIR['steps']): Array<{ id: string; label: string }> => steps.map((step) => ({ id: step.id, label: step.label }))
   const reviewSteps = reviewStepsOf(workflow.steps)
-  const reviewLaneScopes = workflow.steps
-    .filter((step) => (step.reviewLanes?.length ?? 0) > 0)
-    .map((step) => ({ stepId: step.id, lanes: step.reviewLanes ?? [] }))
+  // agent 内容冻结在 Change 边车里，不进指纹；这里只投影声明本身。
+  const agentSteps = workflow.steps
+    .filter((step) => step.agents !== undefined)
+    .map((step) => ({
+      stepId: step.id,
+      executors: (step.agents?.executors ?? []).map((ref) => ({ agent: ref.agent, dependsOn: [...(ref.depends_on ?? [])] })),
+      reviewers: (step.agents?.reviewers ?? []).map((ref) => ({
+        agent: ref.agent,
+        required: ref.required,
+        blockAt: ref.block_at,
+        dependsOn: [...(ref.depends_on ?? [])],
+        readsTests: [...(ref.reads_tests ?? [])],
+      })),
+    }))
   const projectionSteps = projectionStepsOf(workflow.steps)
   const stepLabelSource = executionModel === 'phase-manifest' ? 'localized-builtin' : 'workflow-defined'
   const workflowFingerprint = frozenWorkflowFingerprint ?? sha256Hex(JSON.stringify({
-    schema: 'effective-workflow-plan-v3',
+    schema: 'effective-workflow-plan-v4',
     id,
     executionModel,
     workflow: compiled,
     decomposition: compiled.decomposition,
     interaction: compiled.interaction,
-    reviewBudget: compiled.reviewBudget,
     documentPolicy: documentPolicy === undefined
       ? null
       : {
@@ -140,7 +116,6 @@ function planFromIr(
     workflow,
     decomposition: workflow.decomposition,
     interaction: workflow.interaction,
-    reviewBudget: workflow.reviewBudget,
     ...(documentPolicy === undefined ? {} : { documentPolicy }),
     skillPolicy,
     reviewSteps,
@@ -155,8 +130,6 @@ function planFromIr(
           declared: step.skills.map((skill) => ({
             id: skill.id,
             dependsOn: [...(skill.depends_on ?? [])],
-            kind: skill.kind ?? 'work',
-            ...(skill.review_lane === undefined ? {} : { reviewLane: skill.review_lane }),
           })),
         })),
         trackOverlay: {
@@ -169,7 +142,8 @@ function planFromIr(
         ...(documentProfile === undefined ? {} : { profile: documentProfile }),
         ...(documentPolicy === undefined ? {} : { policy: documentPolicy }),
       },
-      review: { steps: reviewSteps, budget: workflow.reviewBudget, laneScopes: reviewLaneScopes },
+      review: { steps: reviewSteps },
+      agents: { steps: agentSteps },
       automation: {
         eligible: trackPolicy?.automationEligible ?? false,
         autoEnqueueOnSpecComplete: trackPolicy?.autoEnqueueOnSpecComplete ?? false,
@@ -196,11 +170,12 @@ export function workflowPlanSnapshot(plan: EffectiveWorkflowPlan): WorkflowPlanS
     plan.documentPolicy ?? null,
   )
   if (current.workflowFingerprint !== plan.workflowFingerprint) {
-    const { reviewBudget: _reviewBudget, ...v3Workflow } = definition
+    // 从旧快照恢复出来的计划再落盘时保持它原来的版本；生产路径只在 Change 创建时落盘，
+    // 走的都是上面那条 v4 分支。
     if (historicalV3WorkflowFingerprint(
       plan.id,
       plan.executionModel,
-      v3Workflow,
+      definition,
       plan.documentPolicy ?? null,
       documentGovernanceFingerprint,
     ) === plan.workflowFingerprint) {
@@ -208,7 +183,7 @@ export function workflowPlanSnapshot(plan: EffectiveWorkflowPlan): WorkflowPlanS
         version: 3,
         workflowId: plan.id,
         executionModel: plan.executionModel,
-        workflow: structuredClone(v3Workflow),
+        workflow: structuredClone(definition),
         documentPolicy: structuredClone(plan.documentPolicy ?? null),
         decomposition: structuredClone(plan.decomposition),
         interaction: structuredClone(plan.interaction),
@@ -226,14 +201,13 @@ export function workflowPlanSnapshot(plan: EffectiveWorkflowPlan): WorkflowPlanS
     })
   }
   return freeze({
-    version: 3,
+    version: 4,
     workflowId: plan.id,
     executionModel: plan.executionModel,
     workflow: structuredClone(definition),
     documentPolicy: structuredClone(plan.documentPolicy ?? null),
     decomposition: structuredClone(plan.decomposition),
     interaction: structuredClone(plan.interaction),
-    reviewBudget: structuredClone(plan.reviewBudget),
     workflowFingerprint: plan.workflowFingerprint,
   })
 }
@@ -241,7 +215,7 @@ export function effectiveWorkflowPlanFromSnapshot(
   snapshot: WorkflowPlanSnapshot,
   track?: TrackDefinition,
 ): EffectiveWorkflowPlan {
-  if ((snapshot.version !== 1 && snapshot.version !== 2 && snapshot.version !== 3)
+  if (![1, 2, 3, 4].includes(snapshot.version)
     || snapshot.workflowId === ''
     || (snapshot.executionModel !== 'phase-manifest' && snapshot.executionModel !== 'step-graph')
     || !/^[0-9a-f]{64}$/.test(snapshot.workflowFingerprint)) {
@@ -263,51 +237,50 @@ export function effectiveWorkflowPlanFromSnapshot(
       (message) => { throw new DocumentGovernanceBindingError(message) },
     )
   }
+  if (snapshot.version === 4) {
+    validateSnapshotPolicies(snapshot, (message) => { throw new DocumentGovernanceBindingError(message) })
+    const plan = planFromIr(
+      snapshot.workflowId,
+      snapshot.executionModel,
+      structuredClone(snapshot.workflow),
+      track,
+      structuredClone(snapshot.documentPolicy),
+    )
+    if (plan.workflowFingerprint === snapshot.workflowFingerprint) return plan
+    throw new DocumentGovernanceBindingError(
+      `workflow plan snapshot 内容与 fingerprint 不一致`
+      + `（expected=${snapshot.workflowFingerprint}, current=${plan.workflowFingerprint}）`,
+    )
+  }
+  // V3 的指纹输入取决于它有没有 reviewBudget：没有走 schema v2 那支，有就逐字复算 schema v3。
+  // 两支都只用来核对已冻结的指纹，恢复出来的 IR 不再携带该键。
   const legacyReviewBudget = validateV3WorkflowPolicies(
     snapshot,
     (message) => { throw new DocumentGovernanceBindingError(message) },
   )
-  const reviewBudget = legacyReviewBudget
-    ? structuredClone(DEFAULT_WORKFLOW_REVIEW_BUDGET_POLICY)
-    : compileWorkflowReviewBudgetPolicy(snapshot.reviewBudget)
-  const workflow: WorkflowIR = {
-    ...structuredClone(snapshot.workflow),
-    reviewBudget,
-  }
-  if (legacyReviewBudget) {
-    const historical = historicalV3WorkflowFingerprint(
-      snapshot.workflowId,
-      snapshot.executionModel,
-      snapshot.workflow,
-      snapshot.documentPolicy,
-      documentGovernanceFingerprint,
-    )
-    if (historical !== snapshot.workflowFingerprint) {
-      throw new DocumentGovernanceBindingError(
-        `workflow plan snapshot 内容与 fingerprint 不一致`
-        + `（expected=${snapshot.workflowFingerprint}, historical=${historical}）`,
+  const historical = legacyReviewBudget
+    ? historicalV3WorkflowFingerprint(
+        snapshot.workflowId, snapshot.executionModel, snapshot.workflow,
+        snapshot.documentPolicy, documentGovernanceFingerprint,
       )
-    }
-    return planFromIr(
-      snapshot.workflowId,
-      snapshot.executionModel,
-      workflow,
-      track,
-      structuredClone(snapshot.documentPolicy),
-      snapshot.workflowFingerprint,
+    : historicalV3PolicyWorkflowFingerprint(
+        snapshot.workflowId, snapshot.executionModel, snapshot.workflow,
+        snapshot.documentPolicy, documentGovernanceFingerprint,
+      )
+  if (historical !== snapshot.workflowFingerprint) {
+    throw new DocumentGovernanceBindingError(
+      `workflow plan snapshot 内容与 fingerprint 不一致`
+      + `（expected=${snapshot.workflowFingerprint}, historical=${historical}）`,
     )
   }
-  const plan = planFromIr(
+  const { reviewBudget: _reviewBudget, ...workflow } = structuredClone(snapshot.workflow)
+  return planFromIr(
     snapshot.workflowId,
     snapshot.executionModel,
     workflow,
     track,
     structuredClone(snapshot.documentPolicy),
-  )
-  if (plan.workflowFingerprint === snapshot.workflowFingerprint) return plan
-  throw new DocumentGovernanceBindingError(
-    `workflow plan snapshot 内容与 fingerprint 不一致`
-    + `（expected=${snapshot.workflowFingerprint}, current=${plan.workflowFingerprint}）`,
+    snapshot.workflowFingerprint,
   )
 }
 export function compileEffectiveWorkflowPlan(

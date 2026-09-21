@@ -193,3 +193,48 @@ describe('StageIoPanel · 过期原因与缺失技能', () => {
     cleanup()
   })
 })
+
+describe('TaskDetailPane · agent 段', () => {
+  const RUNS = [{
+    stepId: 'build',
+    agents: [
+      {
+        agent: 'builder', role: 'executor' as const, required: true, dependsOn: [], readsTests: [],
+        state: 'done' as const, result: 'done' as const, findings: 0, blocking: 0,
+        runId: 'r1', reportPath: 'openspec/changes/demo/.pipeline-agent-reports/r1.md',
+        actor: { id: 'ann@x.io', name: 'Ann' }, finishedAt: '2026-09-20T01:00:00Z',
+      },
+      {
+        agent: 'security', role: 'reviewer' as const, required: true, blockAt: 'high' as const,
+        dependsOn: [], readsTests: ['unit'], state: 'done' as const, result: 'fail' as const,
+        findings: 2, blocking: 1, runId: 'r2', reportPath: 'openspec/changes/demo/.pipeline-agent-reports/r2.md',
+        actor: { id: 'ann@x.io', name: 'Ann' }, finishedAt: '2026-09-20T02:00:00Z',
+      },
+    ],
+  }]
+
+  it('画布按身份与结论标注；评审者接在执行者之后', () => {
+    renderSnapshotPane(change({ agentRuns: RUNS }))
+    const section = screen.getByTestId('stage-agents')
+    expect(section).toHaveTextContent('2')
+    expect(within(section).getByTestId('skill-flow')).toHaveAttribute('data-edges', '1')
+    expect(screen.getByTestId('flow-caption-security')).toHaveTextContent('评审者')
+    expect(screen.getByTestId('flow-node-security')).toHaveTextContent('不通过 · 问题 2')
+    expect(screen.getByTestId('flow-node-builder')).toHaveTextContent('完成')
+  })
+
+  it('没有 agent 的步骤整段不渲染；点节点开抽屉，抽屉读它的报告', async () => {
+    const bare = renderSnapshotPane(change())
+    expect(screen.queryByTestId('stage-agents')).toBeNull()
+    cleanup()
+    bare.mockReset()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      JSON.stringify({ ok: true, path: 'r2.md', text: '# 结论\n\n不通过', bytes: 12 }),
+      { status: 200 },
+    )))
+    render(<I18nProvider><TaskDetailPane row={snapshotRow(change({ agentRuns: RUNS }))} fetchDefinition={false} /></I18nProvider>)
+    await userEvent.click(screen.getByTestId('flow-open-security'))
+    expect(screen.getByTestId('agent-run-facts')).toHaveTextContent('评审者 · 不通过 · 问题 2 · Ann')
+    await waitFor(() => expect(screen.getByTestId('agent-run-report')).toHaveTextContent('不通过'))
+  })
+})

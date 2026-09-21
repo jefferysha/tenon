@@ -411,14 +411,12 @@ describe('transition —— 事件前置校验（老仓 case 块，exit 1 + ERRO
     expect(deps.store.write.calls).toHaveLength(0)
   })
 
-  test('verify-pass：report → branch_status → agent → codex 首错优先序（老仓 L167-190）', async () => {
+  test('verify-pass：report → branch_status 首错优先序（手填评审字段已删除）', async () => {
     const base = {
       phase: 'verify' as const,
       track: 'backend',
       verification_report: 'docs/v.md',
       branch_status: 'pending',
-      agent_review_result: 'pending',
-      codex_review_result: 'pending',
     }
     const noVr = makeDeps({ state: mockState({ ...base, verification_report: 'null' }), guardCtx: ctxAllFiles(true) })
     expect(await cmdTransition(noVr, 'demo', 'verify-pass')).toBe(1)
@@ -426,18 +424,22 @@ describe('transition —— 事件前置校验（老仓 case 块，exit 1 + ERRO
     const noBs = makeDeps({ state: mockState(base), guardCtx: ctxAllFiles(true) })
     expect(await cmdTransition(noBs, 'demo', 'verify-pass')).toBe(1)
     expect(noBs.errLines).toContain('ERROR: verify-pass 要求 branch_status=handled (当前=pending)')
-    const noAr = makeDeps({ state: mockState({ ...base, branch_status: 'handled' }), guardCtx: ctxAllFiles(true) })
-    expect(await cmdTransition(noAr, 'demo', 'verify-pass')).toBe(1)
-    expect(noAr.errLines).toContain('ERROR: backend track 要求 agent_review_result=pass (当前=pending)')
-    const noCr = makeDeps({
-      state: mockState({ ...base, branch_status: 'handled', agent_review_result: 'pass' }),
-      guardCtx: ctxAllFiles(true),
-    })
-    expect(await cmdTransition(noCr, 'demo', 'verify-pass')).toBe(1)
-    expect(noCr.errLines).toContain('ERROR: backend track 要求 codex_review_result=pass (当前=pending)')
   })
 
-  test('verify-pass：pm track 豁免双 review（skipped 通过，老仓 L180 分支）', async () => {
+  test('前进出边：必需评审者未通过 → exit 2 并逐条点名解锁命令；退回边不查 agent', async () => {
+    const forward = makeDeps({ state: mockState({ phase: 'open', track: 'backend' }), guardCtx: ctxAllFiles(true) })
+    forward.stepAgents = async () => [{ kind: 'reviewer-missing', agent: 'security' }]
+    expect(await cmdTransition(forward, 'demo', 'open-complete')).toBe(2)
+    expect(forward.errLines).toContain("ERROR: step 'open' 的 agent 未通过：")
+    expect(forward.errLines).toContain("  - 评审者 'security' 未运行；运行：tenon agent next demo")
+    // verify-fail 是退回边（enforceTaskExit=false）：同样的阻断不参与判定。
+    const back = makeDeps({ state: mockState({ phase: 'verify', track: 'backend' }), guardCtx: ctxAllFiles(true) })
+    back.stepAgents = async () => [{ kind: 'reviewer-missing', agent: 'security' }]
+    await cmdTransition(back, 'demo', 'verify-fail')
+    expect(back.errLines.join('\n')).not.toContain('agent 未通过')
+  })
+
+  test('verify-pass：pm track 同样只要求报告与分支状态', async () => {
     const deps = makeDeps({
       state: approvedReviewState({
         phase: 'verify',

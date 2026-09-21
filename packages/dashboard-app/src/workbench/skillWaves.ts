@@ -44,7 +44,7 @@ export function wavesOf(skills: readonly WbSkillRef[]): string[][] {
 
 /**
  * 波（列）→ 技能引用：第 k 列的每个技能依赖第 k-1 列的全部技能，第 0 列无依赖。
- * 列模型是「同列并行、邻列串行」的唯一真相；kind / review_lane 等其它字段从 `existing` 原样带回。
+ * 列模型是「同列并行、邻列串行」的唯一真相；其它字段从 `existing` 原样带回。
  */
 export function wavesToSkills(waves: readonly (readonly string[])[], existing: readonly WbSkillRef[]): WbSkillRef[] {
   const byId = new Map(existing.map((skill) => [skill.id, skill]))

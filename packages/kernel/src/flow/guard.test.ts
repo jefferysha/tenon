@@ -615,8 +615,8 @@ describe('一致性矩阵：guard 出口适用性 == transition 前置强制性�
     expect(transitionRequires).toBe(required)
   })
 
-  it.each(REVIEW_MATRIX)('track=%s：verify 的双 review 要求两层同判（required=%s）', async (track, required) => {
-    // report/branch_status 给足，隔离出 review 面；review 结果留空 = 未通过
+  it.each(REVIEW_MATRIX)('track=%s：verify 出口不再有手填评审字段（曾 required=%s）', async (track) => {
+    // report/branch_status 给足，评审字段已删除：两层都不应再提它们。
     const fields = {
       verification_report: 'docs/v.md',
       branch_status: 'handled',
@@ -630,14 +630,9 @@ describe('一致性矩阵：guard 出口适用性 == transition 前置强制性�
       makeState({ ...fields, track }),
       { assessBuildRevision: async () => ({ trusted: true as const, token: trustedRevision }) },
     )
-    const transitionRequires = violations !== null
-    if (violations !== null) expect(violations[0]).toContain('要求 agent_review_result=pass')
+    expect(violations).toBeNull()
     const failures = engine.guardCheck(makeState({ ...fields, phase: 'verify', track })).failures
-    const guardAgent = failures.some((f) => f.includes('要求 agent_review_result=pass'))
-    const guardCodex = failures.some((f) => f.includes('要求 codex_review_result=pass'))
-    expect(guardAgent).toBe(transitionRequires)
-    expect(guardCodex).toBe(transitionRequires)
-    expect(transitionRequires).toBe(required)
+    expect(failures.some((f) => f.includes('review_result'))).toBe(false)
   })
 })
 

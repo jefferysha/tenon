@@ -34,6 +34,8 @@ export interface ChangeSnapshot {
   documents?: DocumentEvidenceSnapshot
   /** Per-step skill execution state derived by the server from the history log; absent on older servers. */
   skillRuns?: SkillRunsSnapshot
+  /** 每步 agent 的执行态与结论；步骤一个 agent 都没声明时整个字段缺席。 */
+  agentRuns?: AgentRunsSnapshot
   /** Per-step declared tests with the acting user's latest run; absent when the branch declares none. */
   tests?: TestStepSnapshot[]
   /** Corrupt test record file names of the acting user. */
@@ -74,6 +76,32 @@ export type SkillRunStatus = 'idle' | 'running' | 'done'
 export type SkillRunsSnapshot = ReadonlyArray<{
   readonly stepId: string
   readonly skills: ReadonlyArray<{ readonly id: string; readonly status: SkillRunStatus; readonly wave: number }>
+}>
+
+export type AgentRunState = 'idle' | 'running' | 'done' | 'stale'
+export type AgentRole = 'executor' | 'reviewer'
+export type AgentSeverityView = 'critical' | 'high' | 'medium' | 'low'
+
+export interface AgentRunView {
+  readonly agent: string
+  readonly role: AgentRole
+  readonly required: boolean
+  readonly blockAt?: AgentSeverityView
+  readonly dependsOn: readonly string[]
+  readonly readsTests: readonly string[]
+  readonly state: AgentRunState
+  readonly result: 'pass' | 'fail' | 'done' | 'failed' | null
+  readonly findings: number
+  readonly blocking: number
+  readonly runId: string | null
+  readonly reportPath: string | null
+  readonly actor: { readonly id: string; readonly name: string } | null
+  readonly finishedAt: string | null
+}
+
+export type AgentRunsSnapshot = ReadonlyArray<{
+  readonly stepId: string
+  readonly agents: readonly AgentRunView[]
 }>
 
 export type ReviewHandshakeSnapshot =
@@ -232,6 +260,10 @@ export type TransitionReadinessBlockerSnapshot =
       kind: 'evaluation-error'
       guardType: string
       capability?: string
+    }
+  | {
+      kind: 'agents-incomplete'
+      agents: { agent: string; reason: string }[]
     }
 
 /** 单个已注册 Project 的聚合。 */

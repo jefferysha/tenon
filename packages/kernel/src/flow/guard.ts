@@ -98,8 +98,6 @@ const EXIT_RULES: Readonly<Record<Phase, readonly GuardRule[]>> = {
     { kind: 'nonempty', field: 'verification_report' },
     { kind: 'field-file-exists', field: 'verification_report', desc: 'verification_report 文件存在' },
     { kind: 'eq', field: 'branch_status', value: 'handled' },
-    { kind: 'eq', field: 'agent_review_result', value: 'pass', when: NON_PM_OR_FREE },
-    { kind: 'eq', field: 'codex_review_result', value: 'pass', when: NON_PM_OR_FREE },
     { kind: 'eq', field: 'verify_result', value: 'pass', when: PM_ONLY },
     { kind: 'tasks-through-phase' },
   ],

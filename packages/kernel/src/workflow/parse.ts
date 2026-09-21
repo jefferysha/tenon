@@ -7,17 +7,19 @@
 import { GUARD_DATA_KEYS } from './types.js'
 import type {
   FieldRef, GateKind, SkillRef, StepDef, StepTransition,
-  StepTestDef, WorkflowActionConfig, WorkflowArtifactConfig, WorkflowConditional, WorkflowDef,
+  StepAgentsDef, StepTestDef, WorkflowActionConfig, WorkflowArtifactConfig, WorkflowConditional, WorkflowDef,
   WorkflowDocumentContractV1, WorkflowGuardConfig, TrackBranchDef,
 } from './types.js'
 import type { FieldName } from '../types.js'
 import type { TrackPredicate } from './predicates.js'
 import { parseDocumentContract, type WorkflowParseCursor as Cursor } from './parse-document-contract.js'
-import { parseDecompositionPolicy, parseInteractionPolicy, parseReviewBudgetPolicy } from './parse-policy.js'
+import { parseDecompositionPolicy, parseInteractionPolicy } from './parse-policy.js'
 import { parseSkillRefs } from './parse-skill-refs.js'
+import { parseStepAgents } from './parse-agents.js'
 import { parseStepTests } from './parse-tests.js'
 import { indentOf, parseInlineList, parsePromptBlock, parseFieldRefBlock, parseWhenBlock } from './parse-primitives.js'
 import { parseArtifactsBlock } from './parse-artifacts.js'
+import { REMOVED_KEY_ERROR } from './removed-keys.js'
 
 
 interface GuardFields {
@@ -192,12 +194,12 @@ function parseStep(cur: Cursor): StepDef {
   let label = ''
   let gate: GateKind = null
   let prompt: string | undefined
-  let reviewLanes: string[] | undefined
   let skills: SkillRef[] = []
   let inputs: FieldRef[] = []
   let outputs: FieldRef[] = []
   let artifacts: WorkflowArtifactConfig[] | undefined
   let tests: StepTestDef[] | undefined
+  let agents: StepAgentsDef | undefined
   let guards: WorkflowGuardConfig[] = []
   let transitions: StepTransition[] = []
 
@@ -223,18 +225,7 @@ function parseStep(cur: Cursor): StepDef {
       prompt = parsePromptBlock(cur, keyIndent)
       continue
     }
-    const reviewLanesMatch = /^\s*review_lanes:\s*(\[.*\])\s*$/.exec(line)
-    if (reviewLanesMatch) {
-      if (reviewLanes !== undefined) throw new Error(`workflow 解析错误：step '${id}' 重复声明 review_lanes`)
-      const rawLanes = reviewLanesMatch[1] ?? ''
-      const inner = /^\[(.*)\]$/.exec(rawLanes)?.[1] ?? ''
-      if (inner.trim() !== '' && inner.split(',').some((lane) => lane.trim() === '')) {
-        throw new Error(`workflow 解析错误：step '${id}' review_lanes 含空 lane`)
-      }
-      reviewLanes = parseInlineList(rawLanes)
-      cur.i++
-      continue
-    }
+    if (/^\s*review_lanes:/.test(line)) throw new Error(REMOVED_KEY_ERROR('review_lanes'))
     if (/^\s*skills:\s*\[\]\s*$/.test(line)) { skills = []; cur.i++; continue }
     if (/^\s*skills:\s*$/.test(line)) { cur.i++; skills = parseSkillRefs(cur, baseIndent); continue }
     if (/^\s*inputs:\s*\[\]\s*$/.test(line)) { inputs = []; cur.i++; continue }
@@ -245,6 +236,13 @@ function parseStep(cur: Cursor): StepDef {
     if (/^\s*artifacts:\s*$/.test(line)) { cur.i++; artifacts = parseArtifactsBlock(cur, baseIndent); continue }
     if (/^\s*tests:\s*\[\]\s*$/.test(line)) { tests = []; cur.i++; continue }
     if (/^\s*tests:\s*$/.test(line)) { cur.i++; tests = parseStepTests(cur, baseIndent); continue }
+    if (/^\s*agents:\s*$/.test(line)) {
+      if (agents !== undefined) throw new Error(`workflow 解析错误：step '${id}' 重复声明 agents`)
+      const keyIndent = indentOf(line)
+      cur.i++
+      agents = parseStepAgents(cur, keyIndent, id)
+      continue
+    }
     if (/^\s*guards:\s*\[\]\s*$/.test(line)) { cur.i++; continue }
     if (/^\s*guards:\s*$/.test(line)) { cur.i++; guards = parseGuardsBlock(cur, baseIndent); continue }
     if (/^\s*transitions:\s*\[\]\s*$/.test(line)) { transitions = []; cur.i++; continue }
@@ -255,9 +253,9 @@ function parseStep(cur: Cursor): StepDef {
   return {
     id, label, gate, skills, inputs, outputs, guards, transitions,
     ...(prompt !== undefined ? { prompt } : {}),
-    ...(reviewLanes !== undefined ? { reviewLanes } : {}),
     ...(artifacts !== undefined ? { artifacts } : {}),
     ...(tests !== undefined ? { tests } : {}),
+    ...(agents !== undefined ? { agents } : {}),
   }
 }
 
@@ -270,7 +268,6 @@ export function parseWorkflow(content: string): WorkflowDef {
   let documentContract: WorkflowDocumentContractV1 | undefined
   let decomposition: WorkflowDef['decomposition']
   let interaction: WorkflowDef['interaction']
-  let reviewBudget: WorkflowDef['reviewBudget']
   const isPipelineStart = (line: string): boolean => line.trim() === 'steps:' || line.trim() === 'tracks:'
   while (!isPipelineStart(lines[stepLine] ?? '') && stepLine < lines.length) {
     const line = lines[stepLine] ?? ''
@@ -306,13 +303,7 @@ export function parseWorkflow(content: string): WorkflowDef {
       stepLine = cur.i
       continue
     }
-    if (line.trim() === 'review_budget:') {
-      if (reviewBudget !== undefined) throw new Error('workflow 解析错误：review_budget 重复声明')
-      const cur: Cursor = { lines, i: stepLine + 1 }
-      reviewBudget = parseReviewBudgetPolicy(cur)
-      stepLine = cur.i
-      continue
-    }
+    if (line.trim() === 'review_budget:') throw new Error(REMOVED_KEY_ERROR('review_budget'))
     throw new Error("workflow 解析错误：name 后必须是 'steps:' / 'tracks:'、policies、'openspec: true' 或 document_contract")
   }
   if (!isPipelineStart(lines[stepLine] ?? '')) {
@@ -339,7 +330,6 @@ export function parseWorkflow(content: string): WorkflowDef {
     name: nameMatch[1] ?? '',
     ...(decomposition ? { decomposition } : {}),
     ...(interaction ? { interaction } : {}),
-    ...(reviewBudget ? { reviewBudget } : {}),
     ...(openspec === true ? { openspec: true } : {}),
     ...(documentContract ? { documentContract } : {}),
     steps,

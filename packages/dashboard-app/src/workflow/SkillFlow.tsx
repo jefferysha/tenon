@@ -39,10 +39,12 @@ export interface SkillFlowProps {
   dragLabel?: string | null
   /** 工作台：每个技能的运行状态与文字；不给则节点不显示状态。 */
   statusOf?: (id: string) => { state: SkillRunState; label: string } | null
+  /** 节点名下的一行小字（agent 段落用）；不给则不渲染。 */
+  captionOf?: (id: string) => string | null
   className?: string
 }
 
-function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabel = null, statusOf, className }: SkillFlowProps): JSX.Element {
+function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabel = null, statusOf, captionOf, className }: SkillFlowProps): JSX.Element {
   const { t } = useT()
   const flow = useReactFlow()
   const flowRef = useRef(flow)
@@ -57,6 +59,8 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
   onChangeRef.current = onChange
   const statusRef = useRef(statusOf)
   statusRef.current = statusOf
+  const captionRef = useRef(captionOf)
+  captionRef.current = captionOf
   const [nodes, setNodes] = useState<SkillNode[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [ghost, setGhost] = useState<{ x: number; y: number; label: string; target: DropTarget } | null>(null)
@@ -77,7 +81,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       id,
       type: 'skill',
       position: { x, y },
-      data: { label: id, description: entry?.description ?? null, source: entry?.source ?? null, editable, entering: enteringRef.current === id, status: statusRef.current?.(id)?.state ?? null, statusLabel: statusRef.current?.(id)?.label ?? null, onOpen: (target) => onOpenRef.current(target), onRemove: removeNode },
+      data: { label: id, description: entry?.description ?? null, caption: captionRef.current?.(id) ?? null, source: entry?.source ?? null, editable, entering: enteringRef.current === id, status: statusRef.current?.(id)?.state ?? null, statusLabel: statusRef.current?.(id)?.label ?? null, onOpen: (target) => onOpenRef.current(target), onRemove: removeNode },
       draggable: editable,
       selectable: editable,
     }

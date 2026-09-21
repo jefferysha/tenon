@@ -100,6 +100,7 @@ export function initialFields(
   fields.build_mode = 'null'
   fields.isolation = 'null'
   fields.build_sha = 'null'
+  // 两个评审字段已退役：只保留 canonical 闭集里的槽位（codec 要求逐字完整），不再有任何读者。
   fields.agent_review_result = opts.reviewSeed
   fields.codex_review_result = opts.reviewSeed
   fields.verify_result = 'pending'

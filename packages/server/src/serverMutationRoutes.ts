@@ -18,6 +18,7 @@ import { isValidSecretKey, removeSecret, SECRET_KEY_LIST } from './secrets.js'
 import { tokenFromHeaders, tokensMatch } from './token.js'
 import { handleWorkflowYamlPut, matchWorkflowYamlRoute } from './serverWorkflowYamlRoutes.js'
 import { resolveInstructionMutation } from './instructionRoutes.js'
+import { resolveAgentMutation } from './serverAgentRoutes.js'
 import { resolveResourceMutation } from './serverResourceRoutes.js'
 import { handleTaskLifecycleDelete, type TaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 import { handleTestDirectionMutation, TEST_DIRECTION_MAX_BYTES } from './serverTestDirectionRoutes.js'
@@ -153,6 +154,8 @@ export async function handleDeleteRoute(
     if (instructionDelete) { const result = await instructionDelete; return sendJson(res, result.status, result.body) }
     const resourceDelete = resolveResourceMutation(req, 'DELETE', path, deps)
     if (resourceDelete) { const result = await resourceDelete; return sendJson(res, result.status, result.body) }
+    const agentDelete = resolveAgentMutation(req, 'DELETE', path, deps)
+    if (agentDelete) { const result = await agentDelete; return sendJson(res, result.status, result.body) }
     if (await handleTaskLifecycleDelete(req, res, path, deps)) return
 
     if (path.startsWith('/api/test-directions/')) {
@@ -340,6 +343,8 @@ export async function handlePutRoute(
   if (instructionPut) { const result = await instructionPut; return sendJson(res, result.status, result.body) }
   const resourcePut = resolveResourceMutation(req, 'PUT', path, deps)
   if (resourcePut) { const result = await resourcePut; return sendJson(res, result.status, result.body) }
+  const agentPut = resolveAgentMutation(req, 'PUT', path, deps)
+  if (agentPut) { const result = await agentPut; return sendJson(res, result.status, result.body) }
   if (path.startsWith('/api/test-directions/')) {
     const body = await readTextBody(req, TEST_DIRECTION_MAX_BYTES)
     if (body === null) return sendJson(res, 400, { ok: false, error: `方向文件超过 ${TEST_DIRECTION_MAX_BYTES} 字节` })
@@ -350,7 +355,9 @@ export async function handlePutRoute(
   }
   const yamlName = matchWorkflowYamlRoute(path)
   if (yamlName !== null) {
-    const result = await handleWorkflowYamlPut(req, yamlName, { workflowRootForRequest: workflowStoreForRequest, trackValidationContextFor, errMsg })
+    const result = await handleWorkflowYamlPut(req, yamlName, {
+      workflowRootForRequest: workflowStoreForRequest, trackValidationContextFor, errMsg, paths: deps.paths,
+    })
     return sendJson(res, result.status, result.body)
   }
   return sendJson(res, 404, { ok: false, error: 'not found' })

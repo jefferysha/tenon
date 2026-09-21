@@ -18,5 +18,6 @@ export function lintMessage(t: Translate, issue: LintIssue, labelOf: (stepId: st
     case 'test-id-duplicate': return t('workflow.lint_test_id_duplicate', { test: issue.test })
     case 'test-command-empty': return t('workflow.lint_test_command_empty', { test: issue.test })
     case 'test-output-location': return t('workflow.lint_test_output_location', { path: issue.path })
+    case 'agent-missing': return t('workflow.lint_agent_missing', { name: issue.agent })
   }
 }

@@ -1,6 +1,9 @@
 import type {
   WbDocumentContract,
+  WbExecutorRef,
+  WbReviewerRef,
   WbSkillRef,
+  WbStepAgents,
   WbStepDef,
   WbStepTest,
   WbTrackBranch,
@@ -30,7 +33,6 @@ export type {
   WbDecompositionTarget,
   WbInteractionMode,
   WbInteractionPolicy,
-  WbReviewBudgetPolicy,
 } from '../api/governanceTypes'
 
 /**
@@ -196,6 +198,28 @@ export function setStepSkillsInDef(def: WbWorkflowDef, stepId: string, skills: r
   return mapStep(def, stepId, (step) => ({ ...step, skills: [...skills] }))
 }
 
+/**
+ * 整体替换步骤的 agent 列表（只给的那一侧被替换）；两侧都空 → 删掉 agents 键，与 YAML 往返一致。
+ */
+export function setStepAgentsInDef(
+  def: WbWorkflowDef,
+  stepId: string,
+  patch: { executors?: readonly WbExecutorRef[]; reviewers?: readonly WbReviewerRef[] },
+): WbWorkflowDef {
+  return mapStep(def, stepId, (step) => {
+    const current = step.agents ?? { executors: [], reviewers: [] }
+    const next: WbStepAgents = {
+      executors: [...(patch.executors ?? current.executors)],
+      reviewers: [...(patch.reviewers ?? current.reviewers)],
+    }
+    if (next.executors.length === 0 && next.reviewers.length === 0) {
+      const { agents: _agents, ...rest } = step
+      return rest
+    }
+    return { ...step, agents: next }
+  })
+}
+
 /** 步骤测试项整份替换（同 setStepSkillsInDef 的口径：草稿里只改这一步）。 */
 export function setStepTestsInDef(def: WbWorkflowDef, stepId: string, tests: readonly WbStepTest[]): WbWorkflowDef {
   return mapStep(def, stepId, (step) => ({ ...step, tests: [...tests] }))
@@ -325,7 +349,6 @@ export function displacedBackTransitions(before: WbWorkflowDef, after: WbWorkflo
 function cloneSteps(steps: readonly WbStepDef[]): WbStepDef[] {
   return steps.map((step) => ({
     ...step,
-    reviewLanes: step.reviewLanes === undefined ? undefined : [...step.reviewLanes],
     skills: step.skills.map((skill) => ({
       ...skill,
       depends_on: skill.depends_on ? [...skill.depends_on] : undefined,
@@ -333,6 +356,14 @@ function cloneSteps(steps: readonly WbStepDef[]): WbStepDef[] {
     inputs: step.inputs.map((field) => ({ ...field })),
     outputs: step.outputs.map((field) => ({ ...field })),
     artifacts: step.artifacts === undefined ? undefined : step.artifacts.map((artifact) => ({ ...artifact })),
+    agents: step.agents === undefined ? undefined : {
+      executors: step.agents.executors.map((ref) => ({ ...ref, depends_on: ref.depends_on ? [...ref.depends_on] : undefined })),
+      reviewers: step.agents.reviewers.map((ref) => ({
+        ...ref,
+        depends_on: ref.depends_on ? [...ref.depends_on] : undefined,
+        reads_tests: ref.reads_tests ? [...ref.reads_tests] : undefined,
+      })),
+    },
     guards: step.guards.map((guard) => ({ ...guard })),
     transitions: step.transitions.map((transition) => ({ ...transition })),
   }))
@@ -356,7 +387,6 @@ export function cloneWorkflowDef(def: WbWorkflowDef, name: string): WbWorkflowDe
       ask_when: [...def.decomposition.ask_when],
     },
     interaction: def.interaction === undefined ? undefined : { ...def.interaction },
-    reviewBudget: def.reviewBudget === undefined ? undefined : { ...def.reviewBudget },
     documentContract: def.documentContract === undefined ? undefined : cloneDocumentContract(def.documentContract),
     steps: cloneSteps(def.steps),
   }

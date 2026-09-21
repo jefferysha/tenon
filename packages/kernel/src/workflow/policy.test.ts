@@ -25,7 +25,6 @@ describe('workflow policy compilation', () => {
       max_items: 16, max_depth: 2, auto_when: [], ask_when: [],
     })
     expect(ir.interaction).toEqual({ version: 'v1', mode: 'interactive' })
-    expect(ir.reviewBudget).toEqual({ version: 'v1', max_attempts: 2 })
     expect(Object.isFrozen(ir.decomposition)).toBe(true)
     expect(Object.isFrozen(ir.decomposition.auto_when)).toBe(true)
     expect(Object.isFrozen(ir.interaction)).toBe(true)
@@ -40,13 +39,11 @@ describe('workflow policy compilation', () => {
         ask_when: ['hard-boundary', 'missing-authorization'],
       },
       interaction: { version: 'v1', mode: 'recommended-defaults' },
-      reviewBudget: { version: 'v1', max_attempts: 3 },
     }))
 
     expect(ir.decomposition.mode).toBe('auto-safe')
     expect(ir.decomposition.target).toBe('child-pipelines')
     expect(ir.interaction.mode).toBe('recommended-defaults')
-    expect(ir.reviewBudget.max_attempts).toBe(3)
   })
 
   it.each([
@@ -64,11 +61,7 @@ describe('workflow policy compilation', () => {
     ['unknown condition', { decomposition: { version: 'v1', mode: 'off', ask_when: ['ask-always'] } }],
     ['unknown interaction key', { interaction: { version: 'v1', mode: 'interactive', surprise: true } }],
     ['unknown interaction mode', { interaction: { version: 'v1', mode: 'silent' } }],
-    ['unknown review budget key', { reviewBudget: { version: 'v1', max_attempts: 2, surprise: true } }],
-    ['missing review budget version', { reviewBudget: { max_attempts: 2 } }],
-    ['unknown review budget version', { reviewBudget: { version: 'v2', max_attempts: 2 } }],
-    ['low review budget', { reviewBudget: { version: 'v1', max_attempts: 0 } }],
-    ['high review budget', { reviewBudget: { version: 'v1', max_attempts: 21 } }],
+    ['已删除的 reviewBudget', { reviewBudget: { version: 'v1', max_attempts: 2 } }],
   ])('rejects %s', (_label, overrides) => {
     expect(() => compileWorkflow(definition(overrides))).toThrow()
   })

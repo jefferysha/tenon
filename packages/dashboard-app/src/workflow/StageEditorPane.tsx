@@ -6,6 +6,8 @@ import { useT } from '../i18n'
 import { documentInputCandidates, documentKindsForOutput } from '../workbench/documentContractEdits'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
 import { backTargetOf, BASE_BRANCH } from '../workbench/workbenchDefinition'
+import { AgentComposer } from './AgentComposer'
+import { AgentSection } from './AgentSection'
 import { issuesFor } from './lint'
 import { lintMessage } from './lintMessages'
 import { IoTable, type IoRow } from './IoTable'
@@ -45,8 +47,8 @@ function SectionHead({ title, count, action }: { title: string; count?: number; 
 }
 
 /**
- * 工作流页右栏：面包屑 + 可编辑标题；段落顺序 输入 → 技能 → 输出 → 门禁 → 退回。段头一行（标题 · 计数 · 动作），
- * 内容满宽。字段输入输出由定义推导；开启 OpenSpec 时文档输出用「+ 输出」声明，文档输入用「+ 输入」勾选。
+ * 工作流页右栏：面包屑 + 可编辑标题；段落顺序 输入 → 技能 → 执行者 → 输出 → 评审者 → 门禁 → 退回。
+ * 段头一行（标题 · 计数 · 动作），内容满宽。字段输入输出由定义推导；开启 OpenSpec 时文档输出用「+ 输出」声明，文档输入用「+ 输入」勾选。
  */
 export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Element {
   const { t } = useT()
@@ -56,6 +58,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const editable = editor.canWrite
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
+  const [agentRole, setAgentRole] = useState<'executors' | 'reviewers' | null>(null)
   const [skillDetail, setSkillDetail] = useState<string | null>(null)
   const [outputPicker, setOutputPicker] = useState(false)
   const [testDetail, setTestDetail] = useState<string | null>(null)
@@ -228,6 +231,15 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
             <SkillFlow key={step.id} skills={step.skills} registry={registry} editable={false} onOpen={setSkillDetail} className="h-56" />
           </section>
 
+          <AgentSection
+            stepId={step.id}
+            role="executors"
+            refs={step.agents?.executors ?? []}
+            agents={editor.agents}
+            editable={editable}
+            onEdit={() => setAgentRole('executors')}
+          />
+
           <section className="grid gap-3.5 py-6" data-testid="stage-outputs">
             <SectionHead title={t('workflow.outputs_title')} count={outputRows.length} action={outputAction} />
             <IoTable
@@ -246,6 +258,15 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
             editable={editable}
             onAdd={(test) => { editor.setTests(step.id, [...(step.tests ?? []), test]); setTestDetail(test.id) }}
             onOpen={setTestDetail}
+          />
+
+          <AgentSection
+            stepId={step.id}
+            role="reviewers"
+            refs={step.agents?.reviewers ?? []}
+            agents={editor.agents}
+            editable={editable}
+            onEdit={() => setAgentRole('reviewers')}
           />
 
           <section className="grid gap-3.5 py-6" data-testid="stage-gate">
@@ -332,6 +353,17 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
         registry={registry}
         onClose={() => setComposerOpen(false)}
         onSave={(next) => editor.setSkills(step.id, next)}
+      />
+      <AgentComposer
+        open={agentRole !== null}
+        role={agentRole ?? 'executors'}
+        stageLabel={stageLabel}
+        executors={step.agents?.executors ?? []}
+        reviewers={step.agents?.reviewers ?? []}
+        tests={step.tests ?? []}
+        agents={editor.agents}
+        onClose={() => setAgentRole(null)}
+        onSave={(patch) => editor.setAgents(step.id, patch)}
       />
       <SkillDetailDrawer name={skillDetail} onClose={() => setSkillDetail(null)} />
       <TestEditorDrawer
