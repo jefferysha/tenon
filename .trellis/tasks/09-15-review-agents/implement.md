@@ -332,4 +332,14 @@ Recorded while implementing, smallest change that still meets the prd.
     renders. Adding a ledger route only to draw the same three columns was not worth a new surface.
 11. **`AgentComposer` has no Markdown preview of the agent body.** The right column shows the name,
     description and the reviewer settings; the body is one click away on the library page.
-12. **Real-host acceptance is deferred** to wave 5 (parent X18), as instructed. Every local gate was run.
+12. **Oracle mirror stub had to learn the old kernel's review-field guard.** `tools/oracle/tests/stub-cli.mjs`
+    mirrors the legacy kernel for the harness meta-test; with the `set` steps gone it kept passing
+    `verify-pass` while the real legacy script rejected, which hid a genuine divergence behind a green
+    “mirror 双跑全绿”. The guard now mirrors `state-transition.sh:178-190` in mirror mode only. While fixing
+    it, `STUB_BUSINESS_TAMPER` turned out to tamper `assignee`, which `normalize_yaml` rewrites to
+    `<WHITELISTED>` — so the “business drift must be caught” case could never fail for its own reason (it is
+    red on `main` too). The tamper moved to `scope`; `npx vitest run --config tools/oracle/vitest.config.ts`
+    is 16/16.
+13. **`packages/*/dist` is left uncommitted**, per the task brief. `main` carries its own `build(dist)`
+    commits, so the merge should rebuild (`npm run build`) and commit the bundles separately.
+14. **Real-host acceptance is deferred** to wave 5 (parent X18), as instructed. Every local gate was run.
