@@ -186,6 +186,24 @@ describe('API bounded-context response decoders', () => {
     expect(decodeSnapshot(legacy)?.projects[0]?.changes[0]?.skillRuns).toBeUndefined()
   })
 
+  it('keeps agentRuns when well-formed and fails closed on an unknown state', () => {
+    const view = {
+      agent: 'security', role: 'reviewer', required: true, blockAt: 'high',
+      dependsOn: ['builder'], readsTests: ['unit'], state: 'stale', result: 'pass',
+      findings: 2, blocking: 0, runId: 'r1', reportPath: 'openspec/changes/x/.pipeline-agent-reports/r1.md',
+      actor: { id: 'a@x.io', name: 'A' }, finishedAt: '2026-09-20T01:00:00Z',
+    }
+    const good = validSnapshot()
+    const runs = [{ stepId: 'open', agents: [view] }]
+    Object.assign(good.projects[0]!.changes[0]!, { agentRuns: runs })
+    expect(decodeSnapshot(good)?.projects[0]?.changes[0]?.agentRuns).toEqual(runs)
+    const bad = validSnapshot()
+    Object.assign(bad.projects[0]!.changes[0]!, { agentRuns: [{ stepId: 'open', agents: [{ ...view, state: 'queued' }] }] })
+    expect(decodeSnapshot(bad)).toBeNull()
+    const legacy = validSnapshot()
+    expect(decodeSnapshot(legacy)?.projects[0]?.changes[0]?.agentRuns).toBeUndefined()
+  })
+
   it('keeps tests when well-formed and fails closed on an unknown status or malformed run', () => {
     const runSummary = {
       runId: '20260915T101530Z-ab12cd', user: 'a-at-x.io', actor: { id: 'a@x.io', name: 'A' },

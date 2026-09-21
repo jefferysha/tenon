@@ -11,6 +11,8 @@ import type {
   TerminalActivitySnapshot,
   TransitionReadinessBlockerSnapshot,
   SkillRunsSnapshot,
+  AgentRunsSnapshot,
+  AgentRunView,
   TestItemSnapshot,
   TestItemStatus,
   TestRunSummary,
@@ -72,6 +74,64 @@ function decodeSkillRuns(value: unknown): SkillRunsSnapshot | undefined {
       skills.push({ id: skill.id, status: skill.status, wave: skill.wave })
     }
     steps.push({ stepId: step.stepId, skills })
+  }
+  return steps
+}
+
+const AGENT_STATES: readonly string[] = ['idle', 'running', 'done', 'stale']
+const AGENT_RESULTS: readonly string[] = ['pass', 'fail', 'done', 'failed']
+const AGENT_SEVERITIES: readonly string[] = ['critical', 'high', 'medium', 'low']
+
+function decodeAgentView(value: unknown): AgentRunView | null {
+  if (!isRecord(value) || typeof value.agent !== 'string' || value.agent === ''
+    || (value.role !== 'executor' && value.role !== 'reviewer')
+    || typeof value.required !== 'boolean'
+    || (value.blockAt !== undefined && (typeof value.blockAt !== 'string' || !AGENT_SEVERITIES.includes(value.blockAt)))
+    || !stringArray(value.dependsOn) || !stringArray(value.readsTests)
+    || typeof value.state !== 'string' || !AGENT_STATES.includes(value.state)
+    || (value.result !== null && (typeof value.result !== 'string' || !AGENT_RESULTS.includes(value.result)))
+    || typeof value.findings !== 'number' || !Number.isInteger(value.findings) || value.findings < 0
+    || typeof value.blocking !== 'number' || !Number.isInteger(value.blocking) || value.blocking < 0
+    || (value.runId !== null && typeof value.runId !== 'string')
+    || (value.reportPath !== null && typeof value.reportPath !== 'string')
+    || (value.finishedAt !== null && typeof value.finishedAt !== 'string')) return null
+  const actor = value.actor
+  let actorView: AgentRunView['actor'] = null
+  if (actor !== null) {
+    if (!isRecord(actor) || typeof actor.id !== 'string' || typeof actor.name !== 'string') return null
+    actorView = { id: actor.id, name: actor.name }
+  }
+  return {
+    agent: value.agent,
+    role: value.role,
+    required: value.required,
+    ...(value.blockAt === undefined ? {} : { blockAt: value.blockAt as AgentRunView['blockAt'] }),
+    dependsOn: value.dependsOn,
+    readsTests: value.readsTests,
+    state: value.state as AgentRunView['state'],
+    result: value.result as AgentRunView['result'],
+    findings: value.findings,
+    blocking: value.blocking,
+    runId: value.runId,
+    reportPath: value.reportPath,
+    actor: actorView,
+    finishedAt: value.finishedAt,
+  }
+}
+
+/** 服务端 agentRuns 投影：形状不合即整条 change 视为不可信（同 skillRuns 策略）。 */
+function decodeAgentRuns(value: unknown): AgentRunsSnapshot | undefined {
+  if (!Array.isArray(value)) return undefined
+  const steps: Array<AgentRunsSnapshot[number]> = []
+  for (const step of value) {
+    if (!isRecord(step) || typeof step.stepId !== 'string' || step.stepId === '' || !Array.isArray(step.agents)) return undefined
+    const agents: AgentRunView[] = []
+    for (const agent of step.agents) {
+      const decoded = decodeAgentView(agent)
+      if (decoded === null) return undefined
+      agents.push(decoded)
+    }
+    steps.push({ stepId: step.stepId, agents })
   }
   return steps
 }
@@ -260,6 +320,7 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
   const documents = value.documents === undefined ? undefined : decodeDocuments(value.documents)
   const terminalActivity = value.terminalActivity === undefined ? undefined : decodeTerminalActivity(value.terminalActivity)
   const skillRuns = value.skillRuns === undefined ? undefined : decodeSkillRuns(value.skillRuns)
+  const agentRuns = value.agentRuns === undefined ? undefined : decodeAgentRuns(value.agentRuns)
   const tests = value.tests === undefined ? undefined : decodeTests(value.tests)
   const testDiagnostics = value.testDiagnostics === undefined
     ? undefined
@@ -270,7 +331,8 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     || (value.todo !== undefined && !todo)
     || (value.documents !== undefined && !documents)
     || (value.terminalActivity !== undefined && !terminalActivity)
-    || (value.skillRuns !== undefined && !skillRuns)) return null
+    || (value.skillRuns !== undefined && !skillRuns)
+    || (value.agentRuns !== undefined && !agentRuns)) return null
   return {
     name: value.name,
     path: value.path,
@@ -291,6 +353,7 @@ function decodeChange(value: unknown): ChangeSnapshot | null {
     ...(documents ? { documents } : {}),
     ...(terminalActivity ? { terminalActivity } : {}),
     ...(skillRuns ? { skillRuns } : {}),
+    ...(agentRuns ? { agentRuns } : {}),
     ...(tests ? { tests } : {}),
     ...(testDiagnostics ? { testDiagnostics } : {}),
   }

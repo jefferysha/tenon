@@ -9,7 +9,9 @@ import { DetailColumn, StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { dashboardSearch } from '../shell/dashboardLocation'
 import { SheetTabs } from '../shared/DetailSheets'
 import { SkillFlow } from '../workflow/SkillFlow'
+import { AgentRunDrawer } from './AgentRunDrawer'
 import { DocumentDrawer } from './DocumentDrawer'
+import { StageAgentsPanel } from './StageAgentsPanel'
 import { StageIoPanel } from './StageIoPanel'
 import { StageTestsPanel } from './StageTestsPanel'
 import { TestRunDrawer } from './TestRunDrawer'
@@ -74,7 +76,9 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
   const testRows = useMemo(() => stageTestRows(change, selectedStep), [change, selectedStep])
   const [openTest, setOpenTest] = useState<string | null>(null)
   const [sheet, setSheet] = useState<'inputs' | 'outputs' | 'tests'>('outputs')
-  useEffect(() => { setOpenIndex(null); setOpenTest(null) }, [identity, selectedStep])
+  const stepAgents = change.agentRuns?.find((step) => step.stepId === selectedStep)?.agents ?? []
+  const [openAgent, setOpenAgent] = useState<string | null>(null)
+  useEffect(() => { setOpenIndex(null); setOpenTest(null); setOpenAgent(null) }, [identity, selectedStep])
   useEffect(() => { if (sheet === 'tests' && testRows.length === 0) setSheet('outputs') }, [sheet, testRows.length])
   const activePath = openIndex === null ? null : files[openIndex]?.path ?? null
   const readyOutputs = outputs.filter(isReadyRow).length
@@ -198,6 +202,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
             <SkillFlow key={`${identity} ${selectedStep}`} skills={skills} registry={null} editable={false} onOpen={() => undefined} statusOf={statusOf} className="h-56" />
           </section>
         )}
+        <StageAgentsPanel identity={identity} stepId={selectedStep} agents={stepAgents} onOpen={setOpenAgent} />
         {progress !== null && (
           <p className="mb-3 flex items-center gap-2 whitespace-nowrap text-body text-text-2" data-testid="task-gate-row">
             {progress.gate === 'review'
@@ -238,6 +243,11 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
         {fetchDefinition && <TaskRecords root={root} change={change.name} signature={decisionSignature} />}
       </DetailColumn>
       <DocumentDrawer root={root} files={files} index={openIndex} onIndex={setOpenIndex} onClose={() => setOpenIndex(null)} />
+      <AgentRunDrawer
+        root={root}
+        agent={stepAgents.find((agent) => agent.agent === openAgent) ?? null}
+        onClose={() => setOpenAgent(null)}
+      />
       <TestRunDrawer
         root={root}
         change={change.name}
