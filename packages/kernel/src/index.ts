@@ -120,6 +120,9 @@ export {
   missingWorkflowStepSkills,
 } from './workflow/skill-evidence.js'
 export {
+  RETIRED_SKILL_IDS, retiredSkillReferences, retiredSkillsChangeMessage, retiredSkillsWorkflowMessage,
+} from './workflow/retired-skills.js'
+export {
   evaluateStepAgents, isForwardExit, nextAgentWave, projectStepAgents, renderAgentBlocker,
 } from './workflow/agent-verdict.js'
 export type {
