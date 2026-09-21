@@ -1,15 +1,16 @@
 import { useT } from '../i18n'
 import { RailCard, RailColumn } from '../shell/ThreeColumns'
 
-export type LibrarySection = 'templates' | 'resources' | 'directions'
+export type LibrarySection = 'templates' | 'resources' | 'directions' | 'agents'
 
-/** 库页左列：模板 / 资源目录 / 测试方向。三个区共用同一条导轨，切换只换中列与右列。 */
+/** 库页左列：模板 / 资源目录 / 测试方向 / agent。各区共用同一条导轨，切换只换中列与右列。 */
 export function LibraryRail({
-  section, templates, directions, collapsed, onSection, onToggle,
+  section, templates, directions, agents, collapsed, onSection, onToggle,
 }: {
   section: LibrarySection
   templates: number
   directions: number
+  agents: number
   collapsed: boolean
   onSection: (next: LibrarySection) => void
   onToggle: () => void
@@ -48,6 +49,17 @@ export function LibraryRail({
             collapsed={collapsed}
             onClick={() => onSection('directions')}
             testId="lib-section-directions"
+          />
+        </li>
+        <li>
+          <RailCard
+            mark="A"
+            name={t('library.agents')}
+            count={agents}
+            selected={section === 'agents'}
+            collapsed={collapsed}
+            onClick={() => onSection('agents')}
+            testId="lib-section-agents"
           />
         </li>
       </ul>
