@@ -159,23 +159,26 @@ describe('buildLoopStarterWiringReport', () => {
     expect(evaluate).not.toHaveBeenCalled()
   })
 
-  test('default static admission 缺 phase Skill 内容 → skill bundle invalid，不降级成 profile-only 空/部分快照', async () => {
+  test('default static admission 缺 step Skill 内容 → skill bundle invalid，不降级成 profile-only 空/部分快照', async () => {
     const entry = loop({ status: 'active', phases: ['build'] })
     const report = await buildLoopStarterWiringReport('ci-sweeper', [entry], {
       repoRoot: '/repo',
       skillBundleWiring: {
-        resolver: createEffectiveSkillResolver({ mandatorySkills: {}, recommendedSkills: {} }),
+        resolver: createEffectiveSkillResolver({
+          mandatorySkills: { build: { _all: ['test-driven-development'] } } as never,
+          recommendedSkills: {},
+        }),
         isSkillProfileKnown: () => true,
         locator: {
           locate: async () => {
-            throw new SkillContentNotFoundError('tenon-build missing')
+            throw new SkillContentNotFoundError('test-driven-development missing')
           },
         },
       },
     })
 
     expect(report.wiring.skillBundle).toMatchObject({ status: 'invalid' })
-    expect(report.wiring.reason).toMatch(/phase "build".*tenon-build|tenon-build/i)
+    expect(report.wiring.reason).toMatch(/phase "build".*test-driven-development|test-driven-development/i)
     expect(report.runnable).toBe(false)
   })
 

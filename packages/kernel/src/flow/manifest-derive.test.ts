@@ -48,27 +48,20 @@ describe('派生面 · mandatory / recommended skills（evidence 派生，对齐
       'grill-with-docs',
       'improve-codebase-architecture',
     ])
-    expect(m.mandatorySkills.build.backend).toEqual([
-      'writing-plans',
-      'test-driven-development',
-    ])
+    expect(m.mandatorySkills.build.backend).toEqual(['test-driven-development'])
     expect(m.mandatorySkills.explore.free).toEqual(['brainstorming'])
     expect(m.mandatorySkills.spec.free).toEqual(['openspec-propose', 'writing-plans'])
-    expect(m.mandatorySkills.build.free).toEqual(['writing-plans', 'test-driven-development'])
+    expect(m.mandatorySkills.build.free).toEqual(['test-driven-development'])
     expect(m.mandatorySkills.verify.free).toEqual(['verification-before-completion'])
-    expect(m.mandatorySkills.ship.free).toEqual(['openspec-apply-change', 'finishing-a-development-branch'])
+    expect(m.mandatorySkills.ship.free).toEqual(['finishing-a-development-branch'])
     // 默认 workflow 只引用插件内置 skill，archive 无强制 skill。
     expect(m.mandatorySkills.verify.frontend).toContain('verification-before-completion')
     expect(m.mandatorySkills.archive).toEqual({})
   })
 
-  it('真读 templates：per phase×track 推荐 skill 表逐字派生', () => {
+  it('真读 templates：推荐 skill 表已空——一步该加载什么由 default.yaml 说清楚', () => {
     const m = loadManifest(TEMPLATE_MANIFEST)
-    expect(m.recommendedSkills.explore.pm).toEqual(['tenon-researcher'])
-    expect(m.recommendedSkills.build.frontend).toEqual([
-      'react-patterns',
-      'hallmark',
-    ])
+    for (const ph of PHASES) expect(m.recommendedSkills[ph], `recommended for ${ph}`).toEqual({})
   })
 
   it('skillsFor：per-track → _all 兜底 → 空，三级回退与老 evidence 同语义', () => {
@@ -184,15 +177,15 @@ describe('旧 manifest 路由字段迁移边界', () => {
 })
 
 describe('派生面 · breadcrumb prose（对齐 manifest.py breadcrumb 子命令 1031-1037）', () => {
-  it('真读 templates：7 相位 breadcrumb 均非空且多行 prose', () => {
+  it('真读 templates：7 相位 breadcrumb 均非空、各一行指向 step.next', () => {
     const m = loadManifest(TEMPLATE_MANIFEST)
     for (const ph of PHASES) {
       expect(m.breadcrumbs[ph], `breadcrumb for ${ph}`).toBeTruthy()
+      expect(m.breadcrumbs[ph]!.split('\n')).toHaveLength(1)
+      expect(m.breadcrumbs[ph]).toContain('tenon status <change> --json')
     }
     expect(m.breadcrumbs.open).toContain('立项')
     expect(m.breadcrumbs.explore).toContain('调研')
-    // block scalar 保多行结构
-    expect(m.breadcrumbs.build!.split('\n').length).toBeGreaterThan(1)
     // 末尾换行被 rstrip（对齐老 CLI `bc.rstrip("\n")`）
     expect(m.breadcrumbs.verify!.endsWith('\n')).toBe(false)
   })

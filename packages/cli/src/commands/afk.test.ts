@@ -60,17 +60,19 @@ async function initializeCanonicalStepVisit(cwd: string, change = 'w'): Promise<
 
 /**
  * Hermetic bundled content for legacy AFK argv fixtures. The production preparation and locator
- * remain real; only the temporary test plugin supplies the two phase Skills declared by W_LOOPS_YAML
- * (`build` and `ship`) that Linux CI cannot assume are installed on the host.
+ * remain real; only the temporary test plugin supplies the Skills default declares at `build` and
+ * `ship`, which neither Linux CI nor this repository can assume are materialized on the host.
  */
-async function seedDefaultPhaseSkills(cwd: string): Promise<string> {
+async function seedDefaultPhaseSkills(
+  cwd: string,
+  ids: readonly string[] = ['test-driven-development', 'finishing-a-development-branch'],
+): Promise<string> {
   const pluginRoot = join(cwd, '.test-plugin')
   const registryRows: string[] = []
-  for (const phase of ['build', 'ship'] as const) {
-    const skill = `tenon-${phase}`
+  for (const skill of ids) {
     const skillDir = join(pluginRoot, 'skills', skill)
     await mkdir(skillDir, { recursive: true })
-    await writeFile(join(skillDir, 'SKILL.md'), `# hermetic tenon-${phase} fixture\n`, 'utf8')
+    await writeFile(join(skillDir, 'SKILL.md'), `# hermetic ${skill} fixture\n`, 'utf8')
     const manifest = await buildCanonicalManifest(skill, skillDir)
     const digest = `sha256:${manifest.treeSha256}`
     registryRows.push(
@@ -509,7 +511,7 @@ loops:
       interaction: { version: 'v1', mode: 'afk' },
       steps: [{
         id: 'build', label: 'Build', gate: null,
-        skills: [{ id: 'tenon-build' }], inputs: [], outputs: [], guards: [], transitions: [],
+        skills: [{ id: 'tenon' }], inputs: [], outputs: [], guards: [], transitions: [],
       }],
     })
     const phaseState = mockAfkState({ phase: 'build', automation: 'queued' })
@@ -521,10 +523,10 @@ loops:
     const d = withEnterAfkSkillAuthority(makeDeps({
       cwd,
       states: { v: phaseState },
-      doctor: { pluginRoot: process.cwd() },
+      doctor: { pluginRoot: await seedDefaultPhaseSkills(cwd, ['tenon', 'test-driven-development', 'finishing-a-development-branch']) },
     }))
     d.isSkillProfileKnown = (id: string) => id === 'backend'
-    expect(await cmdAfk(d, 'run', undefined, {})).toBe(0)
+    expect(await cmdAfk(d, 'run', undefined, {}), d.errLines.join('|')).toBe(0)
     expect(dockerRunArgv()).toBeTruthy() // 真跑到 docker run（未被 profile 校验挡在 admission）
 
     const { records } = await createLoopLedgerStore().read(cwd)
@@ -533,12 +535,12 @@ loops:
     expect(snapshots[0]).toMatchObject({
       skill_bundle_id: 'backend',
       resolution_source: 'default',
-      slots: [expect.objectContaining({ token: 'tenon-build', concrete_skill_id: 'tenon-build' })],
+      slots: [expect.objectContaining({ token: 'tenon', concrete_skill_id: 'tenon' })],
     })
   })
 
   it('frozen phase Skill 内容缺失 → preparation fail-closed：无 snapshot、无 sandbox/收费', async () => {
-    const missingSkill = 'tenon-phase-skill-missing-for-test'
+    const missingSkill = 'phase-skill-missing-for-test'
     const phasePlan = compileEffectiveWorkflowPlan('default', {
       name: 'default',
       interaction: { version: 'v1', mode: 'afk' },
@@ -556,12 +558,12 @@ loops:
     const d = withEnterAfkSkillAuthority(makeDeps({
       cwd,
       states: { v: phaseState },
-      doctor: { pluginRoot: process.cwd() },
+      doctor: { pluginRoot: await seedDefaultPhaseSkills(cwd) },
     }))
     d.isSkillProfileKnown = (id: string) => id === 'backend'
     // The round itself remains healthy: preparation failure is a settled, non-charged entry
     // (`paused`), not a CLI-level registry/runtime failure.
-    expect(await cmdAfk(d, 'run', undefined, {})).toBe(0)
+    expect(await cmdAfk(d, 'run', undefined, {}), d.errLines.join('|')).toBe(0)
     expect(h.calls.find((c) => c[0] === 'docker' && c[1] === 'run')).toBeUndefined()
     const { records } = await createLoopLedgerStore().read(cwd)
     expect(records.some((r) => r.kind === 'skill-bundle-snapshot')).toBe(false)

@@ -68,7 +68,7 @@ install_workflow() {
     # 记录人类确认后：
     tenon review acknowledge <change>
 
-不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀 /pipeline-（如 /tenon-explore）。
+不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀 /pipeline-。
 EOF
   info "workflow → $dst/pipeline.md（inject 降级静态层；无 hook，review 仍走 CLI acknowledgement）"
 }

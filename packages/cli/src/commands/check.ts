@@ -21,6 +21,8 @@ import {
   isRevisionGuard,
   resolveStep,
   resolveWorkflowName,
+  retiredSkillReferences,
+  retiredSkillsChangeMessage,
   stepExitTransitions,
   TASK_PLAN_CURRENT_FILE,
   TASK_PLAN_LIMITS,
@@ -81,6 +83,12 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
   if (!plan) {
     const workflowName = resolveWorkflowName(state)
     deps.io.err(`ERROR: workflow '${workflowName}' 未找到（期望 .pipeline/workflows/${workflowName}.yaml）`)
+    return 1
+  }
+  // 引用已删除技能的快照没有兼容层：check 与 transition 给同一句话，别让它先报别的错。
+  const retired = retiredSkillReferences(plan)
+  if (retired.length > 0) {
+    deps.io.err(`ERROR: ${retiredSkillsChangeMessage(name, retired)}`)
     return 1
   }
   if (plan.capabilities.execution.model === 'step-graph') {

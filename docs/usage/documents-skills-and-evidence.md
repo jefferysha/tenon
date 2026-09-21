@@ -8,7 +8,7 @@ prove they read them, and why file existence alone is insufficient.
 ## Prerequisites
 
 - an active governed Change
-- the current packaged phase Skill
+- the skills the current step declares, plus the packaged `tenon` skill
 - document paths under the Change's `openspec/` or approved `docs/` scope
 
 ## Default document chain
@@ -24,7 +24,7 @@ prove they read them, and why file existence alone is insufficient.
 | Archive | tasks may be updated | all prior documents including applied spec |
 
 The state machine does not write substantive product documents by itself. The
-active coding agent executes the required phase Skill, authors the content, and
+active coding agent executes the skills the step declares, authors the content, and
 records it with current provenance.
 
 ## Ledger model

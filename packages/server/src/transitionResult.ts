@@ -4,7 +4,7 @@
  * 分类判定发生在 kernel createTransitionApplication 内部；这里只把结构化拒绝翻成 HTTP，
  * 消息模板逐字对齐 CLI 的同一条拒绝。单独成文件是为了让 transition.ts 保持在控制器行数上限内。
  */
-import { ownerRequiredMessage, renderAgentBlocker } from '@tenon/kernel'
+import { ownerRequiredMessage, renderAgentBlocker, retiredSkillsChangeMessage } from '@tenon/kernel'
 import type { TransitionApplicationResult } from '@tenon/kernel'
 
 export interface TransitionOutcome {
@@ -71,6 +71,15 @@ export function mapTransitionResult(name: string, event: string, result: Transit
         body: {
           ok: false,
           error: `workflow '${result.workflowName}' 未找到（期望 .pipeline/workflows/${result.workflowName}.yaml）`,
+        },
+      }
+    case 'retired-skills':
+      return {
+        code: 409,
+        body: {
+          ok: false,
+          error: retiredSkillsChangeMessage(name, result.skills),
+          code: 'retired-skills',
         },
       }
     case 'document-governance-invalid':

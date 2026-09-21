@@ -20,6 +20,7 @@ import {
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
+import { cmdSpecApply } from './specApply.js'
 
 export type { InjectOutcome, InjectChunk, SpecEntry, SpecListing } from '@tenon/kernel'
 
@@ -158,8 +159,14 @@ export async function cmdSpec(
       return cmdSetSpecScope(deps, args[0], args[1])
     case 'inject-jsonl':
       return cmdInjectJsonl(deps, args, fs)
+    case 'apply':
+      if (!checkName(deps, args[0])) return 1
+      return cmdSpecApply(deps, args[0], {
+        dryRun: args.includes('--dry-run'),
+        json: args.includes('--json'),
+      })
     default:
-      deps.io.err(`ERROR: 未知 spec 子命令: ${sub}（支持: specs set-spec-scope inject-jsonl）`)
+      deps.io.err(`ERROR: 未知 spec 子命令: ${sub}（支持: specs set-spec-scope inject-jsonl apply）`)
       return 1
   }
 }

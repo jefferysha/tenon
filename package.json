@@ -13,9 +13,7 @@
   ],
   "scripts": {
     "generate:identity": "node tools/generate-product-identity.mjs",
-    "generate:interaction-contract": "node tools/generate-skill-interaction-contract.mjs",
-    "check:interaction-contract": "node tools/generate-skill-interaction-contract.mjs --check && node --test tools/generate-skill-interaction-contract.node-test.mjs",
-    "check:identity": "node tools/check-product-identity.mjs && npm run check:interaction-contract && node --test tools/product-identity.node-test.mjs tools/check-product-identity.node-test.mjs tools/check-legacy-identity.node-test.mjs && node tools/check-legacy-identity.mjs",
+    "check:identity": "node tools/check-product-identity.mjs && node --test tools/product-identity.node-test.mjs tools/check-product-identity.node-test.mjs tools/check-legacy-identity.node-test.mjs && node tools/check-legacy-identity.mjs",
     "build": "tsc -b packages/kernel packages/channel packages/tap packages/automation packages/cli packages/server && npm run build:web && npm run build:server && npm run bundle",
     "typecheck:web": "tsc --noEmit -p packages/dashboard-app",
     "build:server": "esbuild packages/server/src/main.ts --bundle --platform=node --format=esm --target=node22 --banner:js=\"import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\" --outfile=packages/server/dist/dashboard.mjs && chmod +x packages/server/dist/dashboard.mjs",

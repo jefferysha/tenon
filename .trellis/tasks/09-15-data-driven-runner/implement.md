@@ -246,3 +246,49 @@ exists for governed workflows, main spec contains the delta, PR URL real for fro
 
 Write `.trellis/tasks/09-15-data-driven-runner/research/e2e-data-driven-runner.md` with one table per run (step, skills,
 documents, tests, agents, gate, result), defects found and fix commits, installed versions, and doctor output.
+
+## Deviations
+
+- **§4.2 `openspec validate --specs --strict` → per-capability strict re-validation.** Strict mode fails on
+  warnings, and an unrelated capability with a brief `## Purpose` would block every apply forever. `tenon spec
+  apply` now re-validates only the capabilities whose main spec actually changed
+  (`openspec validate <cap> --type spec --strict`). Verified in the spike (`research/openspec-upstream-compat.md`).
+- **§4.2 idempotency is decided before the rehearsal.** `openspec archive` is not idempotent: rehearsing the same
+  change twice merges its requirements twice. `alreadyApplied` therefore answers "already applied" from the previous
+  receipt plus the on-disk bytes, and only then is the rehearsal skipped. The receipt's `deltas[].sha256` are the
+  current file digests, not the ledger's frozen ones, because `step.next` asks "does this receipt still match the
+  delta spec on disk".
+- **§4.2 `SpecApplyHooks`.** A CAS conflict only happens concurrently, so `cmdSpecApply` takes an optional
+  test-only `afterRehearsal` hook to make exit 4 reachable. Production passes nothing.
+- **§3 CCR-1 shape.** The shipped agent CLI is `prompt` + `record` (parent X1), so the skill's `run-agent` action
+  is `agent prompt … --json` → host run → write the report → `agent record <run_id>`; there is no `--result` flag.
+- **§3.6 `configure-test` dropped.** Parent X2 makes a step test's `command` required, so `unconfigured` cannot
+  happen and the action has nothing to do.
+- **Step 3 keeps `cmdCheck`'s rendering.** `evaluateStepExitReport` is a sibling of `cmdCheck` rather than the
+  thing `cmdCheck` renders: the default path's human output is anchored to `deps.flow.guardCheck` (phase-shaped),
+  while per-exit readiness needs `evaluateDefaultEventPreconditions` (edge-shaped, the same source `transition`
+  uses). Both read kernel evaluators; no guard logic is duplicated.
+- **No `depends_on` in `default.yaml`.** `default` runs the manifest-overlay skill policy, where slot order comes
+  from the declaration order in `skills:` (plus the manifest table), not from `depends_on`. Writing `depends_on`
+  there would be inert. Order is expressed by the declaration order instead; frontend build lists
+  `test-driven-development` before `frontend-design`.
+- **Track skill sets kept as waves 1–3 left them.** design §5.1–5.4 listed a narrower set than
+  design-resources/test-evidence actually shipped (extra visual and e2e skills, pm `prototype`). Only the phase
+  skills, `writing-plans` at build (D24) and `openspec-apply-change` / `openspec-archive-change` at ship were
+  removed. Tests and agents were not touched (parent X16).
+- **`chat` declares no skills** (design §5.4 / D11 wanted it equal to `free`). `chat` is the branch
+  `compileEffectiveWorkflowPlan('default')` selects when no track is given — AFK loop wiring and the
+  execution coordinate port both do that. Giving it upstream skill ids makes those paths depend on bytes that
+  only exist after `tenon setup/update` fetches them, which fails on a clean checkout and in CI. Its document
+  contract is unchanged, so chat output is still governed.
+- **`recommended_skills` kept as an empty block.** `router-gen`/`loadManifest` require the key to be a block
+  section; deleting the key or writing `{}` breaks the router hot path. The table has no rows.
+- **`hooks/router.sh` `ROUTER_CONTRACT_REV` regenerated.** The manifest change moves
+  `routerContractRevision(manifest)`, and the digest is pinned in the hook; without updating it the router
+  fail-closes to silence. `packages/cli/src/commands/gen-router.test.ts` pins the two together.
+- **The migration document table now mirrors the new producers.** `migrations/openspec-v1-document-policy.ts`
+  exists for fingerprint equality with the shipped branches, so its producers became `tenon` too, and the V2
+  snapshot test's pinned fingerprint moved with it. Pre-migration Changes are refused anyway (D10).
+- **Release notes entry deferred.** Parent §10 gives the v0.1.0 notes to the main session in wave 5; adding an
+  entry here would collide with version-reset's version text.
+- **Real-host E2E deferred to wave 5** (parent X18). Every local gate was run instead.

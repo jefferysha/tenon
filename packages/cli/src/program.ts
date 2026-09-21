@@ -221,10 +221,15 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
 
   program
     .command('spec <sub> [args...]')
-    .description('living-spec：specs · set-spec-scope <cap> [scope] · inject-jsonl <cap> [agent]')
-    .option('--json', 'JSON 输出（specs）')
-    .action(async (sub: string, args: string[], opts: { json?: boolean }) =>
-      bail(await cmdSpec(deps, sub, opts.json ? [...args, '--json'] : args)))
+    .description('living-spec：specs · set-spec-scope <cap> [scope] · inject-jsonl <cap> [agent] · apply <change>')
+    .option('--json', 'JSON 输出（specs · apply）')
+    .option('--dry-run', '仅 apply：只彩排、不写主规格')
+    .action(async (sub: string, args: string[], opts: { json?: boolean; dryRun?: boolean }) => {
+      const forwarded = [...args]
+      if (opts.json) forwarded.push('--json')
+      if (opts.dryRun) forwarded.push('--dry-run')
+      bail(await cmdSpec(deps, sub, forwarded))
+    })
 
   program
     .command('session <sub> [args...]')

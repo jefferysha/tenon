@@ -431,8 +431,7 @@ track_oracle_skill() {
 # compare the legacy state machine rather than agent execution, so derive the exact slots the gate
 # checks and record them through the real hook:
 #   · the frozen workflow step's declared skills (`requiredSkillIds`), read from the public
-#     `tenon workflow plan --json` projection.  Track-branch workflows declare phase drivers such as
-#     `tenon-open` there, and the manifest router below never lists them;
+#     `tenon workflow plan --json` projection;
 #   · the manifest Track overlay (`M` slots of the production router projection).
 # This is evidence construction, not a transition bypass: stale previous-visit rows still cannot
 # satisfy a later visit because the product gate reads history after the latest transition record.
@@ -587,9 +586,9 @@ bootstrap_new_pre_verify_review() {
     tmp="$tasks.oracle-complete.tmp"
     awk '{ sub(/^- \[ \]/, "- [x]"); print }' "$tasks" > "$tmp" || return 1
     mv "$tmp" "$tasks" || return 1
-    track_oracle_skill "$dir" tenon-build || return 1
+    track_oracle_skill "$dir" tenon || return 1
     run_new_cli "$dir" document record "$change" tasks "openspec/changes/$change/tasks.md" \
-      --producer tenon-build || return 1
+      --producer tenon || return 1
     run_new_cli "$dir" document read "$change" all || return 1
   fi
   run_new_cli "$dir" set "$change" pre_verify_review_result pass

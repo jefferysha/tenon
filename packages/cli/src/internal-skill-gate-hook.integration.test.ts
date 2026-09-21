@@ -88,9 +88,9 @@ steps:
     label: codex-step-one
     gate: null
     skills:
-      - id: tenon-open
+      - id: openspec-explore
       - id: browser-qa
-        depends_on: [tenon-open]
+        depends_on: [openspec-explore]
     inputs: []
     outputs: []
     guards: []
@@ -189,8 +189,8 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     await setupHistoricalCustomChange('codex-skgwf', CODEX_WF)
   }
 
-  /** manifest 的串行节点 browser-qa 由 skills/sources.yaml 上游安装、不入库，干净 checkout 里没有
-   *  字节；host cache 必须两种情况都有它，否则门禁无从判定而假绿放行。 */
+  /** 上游 skill 由 skills/sources.yaml 安装、不入库，干净 checkout 里没有字节；host cache 必须
+   *  两种情况都有它，否则门禁无从判定而假绿放行。 */
   async function ensureHostCacheSkill(hostCache: string, id: string): Promise<void> {
     const file = join(hostCache, 'skills', id, 'SKILL.md')
     try {
@@ -207,38 +207,37 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     expect(await h.read(CHANGE)).toMatch(/^workflow: default$/m)
   })
 
-  test('workflow=default + 当前 phase Skill 可首调用，overlay receipt 缺失时不能绕过', async () => {
+  test('workflow=default + 本步首个技能可首调用，未声明技能不能绕过', async () => {
     expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     const blocked = runHook(
       'gate.sh',
-      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'openspec-propose' } },
+      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'undeclared-optional-skill' } },
     )
     expect(blocked.code, `stderr=${blocked.stderr}`).toBe(2)
-    expect(blocked.stderr).toContain('tenon-open')
+    expect(blocked.stderr).toContain('openspec-propose')
     const phase = runHook(
       'gate.sh',
-      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'tenon-open' } },
+      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'openspec-propose' } },
     )
     expect(phase.code, `stderr=${phase.stderr}`).toBe(0)
   })
 
-  test('workflow=default + phase 已完成时，matrix mandatory 未完成不应阻断未声明 optional Skill', async () => {
+  test('workflow=default + 本步首个技能已完成时，未声明 optional Skill 不被阻断', async () => {
     expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     const phase = runHook(
       'gate.sh',
-      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'tenon-open' } },
+      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'openspec-propose' } },
     )
     expect(phase.code, `stderr=${phase.stderr}`).toBe(0)
     const tracker = runHook(
       'skill-tracker.sh',
-      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'tenon-open' } },
+      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'openspec-propose' } },
     )
     expect(tracker.code, `stderr=${tracker.stderr}`).toBe(0)
 
-    // backend 的 open overlay 仍缺 openspec-propose；该缺口不能把一个未声明的
-    // optional Skill 重新变成 mandatory。Issue #43 只扩大了 phase-first hard gate。
+    // 本步声明的技能已完成；这个缺口不能把一个未声明的 optional Skill 重新变成 mandatory。
     const optional = runHook(
       'gate.sh',
       { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'undeclared-optional-skill' } },
@@ -246,7 +245,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     expect(optional.code, `stderr=${optional.stderr}`).toBe(0)
   })
 
-  test('workflow=default + free/matrix=false 仍要求 phase Skill，未声明 Skill 不能先行', async () => {
+  test('workflow=default + free/matrix=false 仍要求本步技能，未声明 Skill 不能先行', async () => {
     expect(await h.run(['init', CHANGE, '--track', 'free', '--preset', 'full'])).toBe(0)
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     const blocked = runHook(
@@ -254,10 +253,10 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
       { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'free-optional-skill' } },
     )
     expect(blocked.code, `stderr=${blocked.stderr}`).toBe(2)
-    expect(blocked.stderr).toContain('tenon-open')
+    expect(blocked.stderr).toContain('openspec-propose')
     const phase = runHook(
       'gate.sh',
-      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'tenon-open' } },
+      { cwd: h.cwd, tool_name: 'Skill', tool_input: { skill: 'openspec-propose' } },
     )
     expect(phase.code, `stderr=${phase.stderr}`).toBe(0)
   })
@@ -315,6 +314,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     const home = join(h.cwd, 'fake-home')
     const hostCache = join(home, '.codex', 'plugins', 'cache', 'tenon', 'tenon', '0.2.0')
     await cp(join(REPO_ROOT, 'skills'), join(hostCache, 'skills'), { recursive: true, preserveTimestamps: false })
+    await ensureHostCacheSkill(hostCache, 'openspec-explore')
     await ensureHostCacheSkill(hostCache, 'browser-qa')
     await mkdir(join(hostCache, '.codex-plugin'), { recursive: true })
     await mkdir(join(home, '.codex', 'plugins', 'cache', 'tenon'), { recursive: true })
@@ -330,10 +330,10 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     // Receipt evidence deliberately accepts only a complete literal cat. Partial readers and
     // wrapper shells cannot prove that the model received the whole trusted Skill document.
     const orchestrationRead = `cat ${hostCache}/skills/tenon/SKILL.md`
-    const pipelineOpenRead = `cat ${hostCache}/skills/tenon-open/SKILL.md`
+    const pipelineOpenRead = `cat ${hostCache}/skills/openspec-explore/SKILL.md`
     const browserQaRead = `cat ${hostCache}/skills/browser-qa/SKILL.md`
-    const batchedLockedRead = `cat ${hostCache}/skills/tenon-open/SKILL.md && cat ${hostCache}/skills/browser-qa/SKILL.md`
-    const batchedReceiptRead = `cat ${hostCache}/skills/tenon-open/SKILL.md && cat ${hostCache}/skills/tenon/SKILL.md`
+    const batchedLockedRead = `cat ${hostCache}/skills/openspec-explore/SKILL.md && cat ${hostCache}/skills/browser-qa/SKILL.md`
+    const batchedReceiptRead = `cat ${hostCache}/skills/openspec-explore/SKILL.md && cat ${hostCache}/skills/tenon/SKILL.md`
 
     // `tenon` 是正常对话进入 custom workflow 前必经的编排入口，不是该 step 的工作
     // 节点；DAG 只能约束阶段实际 skill，不能因此把入口本身锁死。
@@ -351,7 +351,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
 
     // One Codex exec can load multiple skills.  The first root node is available, but the second
     // serial node is not; gate.sh must inspect both rather than allowing the whole batch merely
-    // because tenon-open appeared first.
+    // because openspec-explore appeared first.
     const batchedGate = runHook(
       'gate.sh', { cwd: h.cwd, tool_name: 'exec', tool_input: { cmd: batchedLockedRead } }, commonEnv,
     )
@@ -387,7 +387,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
         payload: {
           type: 'custom_tool_call',
           status: 'completed',
-          call_id: 'call-tenon-open',
+          call_id: 'call-openspec-explore',
           name: 'exec',
           input: `const r = await tools.exec_command(${JSON.stringify({ cmd: batchedReceiptRead })}); text(r);`,
           internal_chat_message_metadata_passthrough: { turn_id: 'turn-dag-1' },
@@ -398,7 +398,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
         timestamp: transcriptTimestamp,
         payload: {
           type: 'custom_tool_call_output',
-          call_id: 'call-tenon-open',
+          call_id: 'call-openspec-explore',
           output: [
             { type: 'input_text', text: 'Script completed\nWall time 0.1 seconds\nOutput:\n' },
             {
@@ -407,7 +407,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
                 chunk_id: 'dag-receipt',
                 exit_code: 0,
                 original_token_count: 0,
-                output: await readFile(join(hostCache, 'skills', 'tenon-open', 'SKILL.md'), 'utf8')
+                output: await readFile(join(hostCache, 'skills', 'openspec-explore', 'SKILL.md'), 'utf8')
                   + await readFile(join(hostCache, 'skills', 'tenon', 'SKILL.md'), 'utf8'),
                 wall_time_seconds: 0.1,
               }),
@@ -424,15 +424,15 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
       transcript_path: transcript,
       session_id: 'session-dag-1',
       turn_id: 'turn-dag-1',
-      tool_use_id: 'call-tenon-open',
+      tool_use_id: 'call-openspec-explore',
     }, commonEnv)
     expect(receipt.code, `stderr=${receipt.stderr}`).toBe(0)
     const receiptJournal = join(h.cwd, '.pipeline', 'codex-skill-receipts.jsonl')
-    expect(await readFile(receiptJournal, 'utf8')).toContain('tenon-open')
+    expect(await readFile(receiptJournal, 'utf8')).toContain('openspec-explore')
     expect(await readFile(receiptJournal, 'utf8')).toContain('"skillId":"tenon"')
 
     const histPath = join(h.cwd, 'openspec', 'changes', CHANGE, '.pipeline-history.jsonl')
-    expect(await readFile(histPath, 'utf8')).not.toContain('CodexSkillRead: tenon-open')
+    expect(await readFile(histPath, 'utf8')).not.toContain('CodexSkillRead: openspec-explore')
 
     // 浏览器验收 skill 是串行节点；下一次 PreToolUse 的 gate 在同一 change lock 内先完成
     // transcript 核验，再读取 DAG，所以无需依赖缺失的 PostToolUse 或让用户重试。
@@ -440,7 +440,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
       'gate.sh', { cwd: h.cwd, tool_name: 'exec', tool_input: { cmd: browserQaRead } }, commonEnv,
     )
     expect(secondGate.code, `stderr=${secondGate.stderr}`).toBe(0)
-    expect(await readFile(histPath, 'utf8')).toContain('"raw":"CodexSkillRead: tenon-open"')
+    expect(await readFile(histPath, 'utf8')).toContain('"raw":"CodexSkillRead: openspec-explore"')
   })
 
   test('Codex 省略 PreToolUse transcript 标识时，当前项目的完成会话仍可解锁串行 skill', async () => {
@@ -449,6 +449,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     const home = join(h.cwd, 'abi-omitted-home')
     const hostCache = join(home, '.codex', 'plugins', 'cache', 'tenon', 'tenon', '0.2.0')
     await cp(join(REPO_ROOT, 'skills'), join(hostCache, 'skills'), { recursive: true, preserveTimestamps: false })
+    await ensureHostCacheSkill(hostCache, 'openspec-explore')
     await ensureHostCacheSkill(hostCache, 'browser-qa')
     await mkdir(join(hostCache, '.codex-plugin'), { recursive: true })
     await mkdir(join(home, '.codex', 'plugins', 'cache', 'tenon'), { recursive: true })
@@ -486,9 +487,9 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
         payload: {
           type: 'custom_tool_call',
           status: 'completed',
-          call_id: 'call-tenon-open',
+          call_id: 'call-openspec-explore',
           name: 'exec',
-          input: `const r = await tools.exec_command(${JSON.stringify({ cmd: `cat ${hostCache}/skills/tenon-open/SKILL.md` })}); text(r);`,
+          input: `const r = await tools.exec_command(${JSON.stringify({ cmd: `cat ${hostCache}/skills/openspec-explore/SKILL.md` })}); text(r);`,
         },
       }),
       JSON.stringify({
@@ -496,7 +497,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
         timestamp: transcriptTimestamp,
         payload: {
           type: 'custom_tool_call_output',
-          call_id: 'call-tenon-open',
+          call_id: 'call-openspec-explore',
           output: [
             { type: 'input_text', text: 'Script completed\nWall time 0.1 seconds\nOutput:\n' },
             {
@@ -505,7 +506,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
                 chunk_id: 'omitted-receipt',
                 exit_code: 0,
                 original_token_count: 0,
-                output: await readFile(join(hostCache, 'skills', 'tenon-open', 'SKILL.md'), 'utf8'),
+                output: await readFile(join(hostCache, 'skills', 'openspec-explore', 'SKILL.md'), 'utf8'),
                 wall_time_seconds: 0.1,
               }),
             },
@@ -530,16 +531,17 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     )
     expect(gate.code, `stderr=${gate.stderr}`).toBe(0)
     const histPath = join(h.cwd, 'openspec', 'changes', CHANGE, '.pipeline-history.jsonl')
-    expect(await readFile(histPath, 'utf8')).toContain('"raw":"CodexSkillRead: tenon-open"')
+    expect(await readFile(histPath, 'utf8')).toContain('"raw":"CodexSkillRead: openspec-explore"')
   })
 
   test('已激活 Change 时，同名全局 SKILL.md 不能抢占 tenon 打包 skill', async () => {
     await setupCodexCustomChange()
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
     const home = join(h.cwd, 'shadowed-skill-home')
-    const foreignSkill = join(home, '.agents', 'skills', 'tenon-open', 'SKILL.md')
+    // 影子检测只对插件真实打包的 skill 生效；技能合一后仓库里只剩 tenon 这一个。
+    const foreignSkill = join(home, '.agents', 'skills', 'tenon', 'SKILL.md')
     await mkdir(dirname(foreignSkill), { recursive: true })
-    await writeFile(foreignSkill, '# foreign tenon-open\n', 'utf8')
+    await writeFile(foreignSkill, '# foreign tenon\n', 'utf8')
 
     const shadowedRead = `cat ${foreignSkill}`
     const gate = runHook(
@@ -549,7 +551,7 @@ describe('真实 e2e —— hooks/gate.sh 委托 internal-skill-gate（Task 9）
     )
 
     expect(gate.code, `stderr=${gate.stderr}`).toBe(2)
-    expect(gate.stderr).toContain("skill 'tenon-open'")
-    expect(gate.stderr).toContain('tenon:tenon-open')
+    expect(gate.stderr).toContain("skill 'tenon'")
+    expect(gate.stderr).toContain('tenon:tenon')
   })
 })

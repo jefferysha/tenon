@@ -86,7 +86,7 @@ alwaysApply: true
     # 人类确认后：
     tenon review acknowledge <change>
 
-不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀为 /pipeline-（如 /tenon-explore）。
+不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀为 /pipeline-。
 EOF
   info "rules/tenon.mdc → $rdir/tenon.mdc（inject 降级静态层）"
   remove_legacy_rules

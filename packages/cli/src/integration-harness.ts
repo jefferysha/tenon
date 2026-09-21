@@ -369,11 +369,11 @@ export function makeHarness(cwd: string): Harness {
         const historyPath = join(changeDir, '.pipeline-history.jsonl')
         let history = await readFile(historyPath, 'utf8').catch(() => '')
         const completed = completedWorkflowSkillsSinceStepEntry(history, phase)
-        // A phase receipt is per canonical visit.  Reuse it for read/set commands in the same
-        // visit and invoke the real hook only when this visit has not yet loaded its Workflow
-        // phase Skill; this keeps transition fixtures faithful without spawning a shell for every
-        // preparatory command.
-        if (!completed.has(`tenon-${phase}`)) {
+        // The `tenon` receipt is per canonical visit.  Reuse it for read/set commands in the same
+        // visit and invoke the real hook only when this visit has not yet loaded the skill; this
+        // keeps transition fixtures faithful without spawning a shell for every preparatory
+        // command.
+        if (!completed.has('tenon')) {
           await recordWorkflowPhaseSkill(cwd, changeDir)
           history = await readFile(historyPath, 'utf8').catch(() => '')
         }

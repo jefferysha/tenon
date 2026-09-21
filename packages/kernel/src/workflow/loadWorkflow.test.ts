@@ -114,16 +114,16 @@ steps:
     const __dirname = dirname(fileURLToPath(import.meta.url))
     const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
     const content = await readFile(join(repoRoot, 'templates', 'workflows', 'default.yaml'), 'utf8')
-    // 第一处 tenon-open 在 chat 分支（十空格缩进）。
-    const edited = content.replace('          - id: tenon-open\n', '          - id: tenon-open\n          - id: brainstorming\n')
+    // chat 分支不声明技能；在它的第一步补一条，验证项目覆盖文件可以改技能。
+    const edited = content.replace('        skills: []\n', '        skills:\n          - id: brainstorming\n')
 
     const tempRoot = await mkdtemp(join(tmpdir(), 'wf-load-real-'))
     await mkdir(join(tempRoot, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(tempRoot, '.pipeline', 'workflows', 'default.yaml'), edited, 'utf8')
 
     const wf = loadWorkflow(tempRoot, 'default')
-    expect(wf?.tracks?.chat?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'brainstorming'])
-    expect(wf?.tracks?.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose'])
+    expect(wf?.tracks?.chat?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['brainstorming'])
+    expect(wf?.tracks?.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['openspec-propose'])
   })
 
   it('default 项目覆盖破坏七阶段契约（删掉 archive）→ fail-loud', async () => {

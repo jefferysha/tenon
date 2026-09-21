@@ -84,7 +84,7 @@ canonical Workflow state.
 
 <img src="../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard workflow workbench" width="1280" height="720" loading="lazy">
 
-The workbench places Tracks, the seven-phase DAG, phase Skills, hooks, and
+The workbench places Tracks, the seven-phase DAG, the skills each step declares, hooks, and
 pre-run facts on one page. The read-only default baseline, custom Workflows,
 and each Workflow's free Track come from the same effective plan.
 

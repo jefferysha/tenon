@@ -502,7 +502,7 @@ fail closed。系统 MUST NOT 仅因步骤处于 `started` 就盲目重放非幂
 ### Requirement: Requirements-changed SHALL 允许 Spec 诚实更新 ADR
 
 当 Build 或 Verify 发现已批准的架构语义需要变化并通过 `requirements-changed` 回到 Spec 时，
-document contract SHALL 允许当前 `tenon-spec` 在实际 Skill 证据下重新登记 proposal、OpenSpec
+document contract SHALL 允许 `tenon` 在实际 Skill 证据下重新登记 proposal、OpenSpec
 design、tasks、Superpowers design 与 ADR 的新 digest。旧 producer 与旧 read receipt SHALL 保留
 在 append-only history，但 MUST NOT 被当作新 digest 的证据。更新后所有后续 phase SHALL 重新读取
 精确版本。
@@ -511,9 +511,9 @@ design、tasks、Superpowers design 与 ADR 的新 digest。旧 producer 与旧 
 
 - **GIVEN** Change 已有 Explore 阶段登记的 ADR
 - **WHEN** `requirements-changed` 回到 Spec 并修订 ADR
-- **THEN** `tenon-spec` 可用当前 phase 的真实 Skill evidence 重登记该 ADR
+- **THEN** `tenon` 可用当前 step 访问的真实 Skill evidence 重登记该 ADR
 - **AND** 旧摘要的 read receipts 不再满足后续 phase
-- **AND** 未调用 `tenon-spec`、使用 `--backfill` 或手改 ledger 均被拒绝。
+- **AND** 未加载 `tenon`、使用 `--backfill` 或手改 ledger 均被拒绝。
 
 ### Requirement: 公开 Codex 首装 SHALL 通过真实干净宿主验收
 

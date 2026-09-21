@@ -66,7 +66,7 @@ describe('transition —— [TRANSITION] 走 stderr / 非法 exit 1（oracle 实
     })
     const code = await cmdTransition(deps, 'demo', 'open-complete')
     expect(code).toBe(2)
-    expect(deps.errLines.join('\n')).toContain('tenon-open')
+    expect(deps.errLines.join('\n')).toContain('openspec-propose')
     expect(deps.store.write.calls).toHaveLength(0)
   })
 

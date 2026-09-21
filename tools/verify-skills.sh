@@ -309,31 +309,6 @@ else
   fi
 fi
 
-# ── 6. OpenSpec Ship/Archive 收据语义 ──
-# 主 spec 是应用结果；ledger 的 applied-spec kind 必须绑定 Change 自己的审计 receipt。若这里
-# 漂移回 openspec/specs/**，Archive 就失去 changed/no-op 与 digest 证据。
-TENON_SHIP_SKILL="$ROOT/skills/tenon-ship/SKILL.md"
-if [ -f "$TENON_SHIP_SKILL" ]; then
-  grep -Fq 'APPLIED_RECEIPT="openspec/changes/$TENON_CHANGE_NAME/applied-spec.md"' "$TENON_SHIP_SKILL" \
-    || add_fail "tenon-ship 未登记 Change applied-spec receipt" \
-                "skills/tenon-ship/SKILL.md" \
-                "把 applied-spec document record 固定到 openspec/changes/<change>/applied-spec.md"
-  if grep -Fq 'applied="openspec/specs/' "$TENON_SHIP_SKILL"; then
-    add_fail "tenon-ship 把主 spec 冒充 applied-spec receipt" \
-             "skills/tenon-ship/SKILL.md" \
-             "主 spec 只作为应用结果；ledger 登记 Change applied-spec.md 收据"
-  fi
-  if grep -Fq 'node tools/reconcile-spec-application.mjs' "$TENON_SHIP_SKILL"; then
-    add_fail "tenon-ship 引用了 managed release 未分发的一次性仓库迁移工具" \
-             "skills/tenon-ship/SKILL.md" \
-             "打包 Skill 只消费 spec-migration-applied typed evidence；仓库维护工具不得成为用户运行时依赖"
-  fi
-  grep -Fq '`spec-migration-applied` typed guard' "$TENON_SHIP_SKILL" \
-    || add_fail "tenon-ship 未声明主规格迁移 typed evidence 门" \
-                "skills/tenon-ship/SKILL.md" \
-                "存在 migration receipt 时必须由 spec-migration-applied guard 复核 result 与 after digest"
-fi
-
 # ── 汇总 ──
 NFAIL=${#FAIL_WHAT[@]}
 if [ "$NFAIL" -gt 0 ]; then

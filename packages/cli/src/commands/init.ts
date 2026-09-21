@@ -27,6 +27,8 @@ import {
   loadEffectiveWorkflowPlan,
   prepareAgentFreeze,
   requireTrackForRoot,
+  retiredSkillReferences,
+  retiredSkillsWorkflowMessage,
   workflowPlanSnapshot,
 } from '@tenon/kernel'
 import type { TrackDefinition, TrackRegistry } from '@tenon/kernel'
@@ -214,6 +216,12 @@ export async function cmdInit(
       const first = plan.workflow.steps[0]
       if (first === undefined) {
         deps.io.err(`ERROR: workflow '${workflowId}' 未声明任何 step`)
+        return 1
+      }
+      // 引用已删除技能的工作流不能开新任务：先改工作流，再立项。
+      const retired = retiredSkillReferences(plan)
+      if (retired.length > 0) {
+        deps.io.err(`ERROR: ${retiredSkillsWorkflowMessage(workflowId, retired)}`)
         return 1
       }
       // 项目级文档的立项前置条件（如前端轨道要求 DESIGN.md 就绪）：先于任何落盘。

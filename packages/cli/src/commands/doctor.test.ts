@@ -24,7 +24,8 @@ const EXPECTED_IDS = [
   'project:changes',
   'project:markers',
   'quality:verify-skills',
-  'skills:workflow-phase',
+  'skills:workflow',
+  'integration:openspec-cli',
   'identity:release',
   'skills:mandatory',
   'skills:recommended',
@@ -106,28 +107,28 @@ describe('doctor skills:upstream', () => {
 })
 
 describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / D10 > tenon doctor）', () => {
-  test('全绿基线：22 项检查全 green，exit 0，人读输出含汇总行、无 WARN/FAIL', async () => {
+  test('全绿基线：23 项检查全 green，exit 0，人读输出含汇总行、无 WARN/FAIL', async () => {
     const deps = makeDeps()
     const code = await cmdDoctor(deps, {})
     expect(code).toBe(0)
     const text = deps.outLines.join('\n')
     expect(text).toContain('[DOCTOR]')
-    expect(text).toContain('绿 22')
+    expect(text).toContain('绿 23')
     expect(text).not.toContain('[WARN]')
     expect(text).not.toContain('[FAIL]')
     expect(text).not.toContain('fix:')
   })
 
-  test('default phase Skill 缺失时 skills:workflow-phase 必须 red，不能被其他健康项掩盖', async () => {
+  test('工作流声明的技能缺失时 skills:workflow 必须 red，不能被其他健康项掩盖', async () => {
     const deps = makeDeps({ doctor: {
-      fileExists: (path) => !path.endsWith('skills/tenon-build/SKILL.md'),
+      fileExists: (path) => !path.endsWith('skills/test-driven-development/SKILL.md'),
     } })
     const { code, payload } = await runJson(deps)
     expect(code).toBe(1)
-    const phase = byId(payload, 'skills:workflow-phase')
-    expect(phase.status).toBe('red')
-    expect(phase.detail).toContain('tenon-build')
-    expect(phase.hint).toContain('tenon-build')
+    const workflow = byId(payload, 'skills:workflow')
+    expect(workflow.status).toBe('red')
+    expect(workflow.detail).toContain('test-driven-development')
+    expect(workflow.hint).toContain('test-driven-development')
   })
 
   test('--json schema 稳定：checks 四键齐全、id 顺序固定、summary 计数一致', async () => {
@@ -141,7 +142,7 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
       expect(typeof c.detail).toBe('string')
       expect(typeof c.hint).toBe('string')
     }
-    expect(payload.summary).toEqual({ green: 22, yellow: 0, red: 0 })
+    expect(payload.summary).toEqual({ green: 23, yellow: 0, red: 0 })
   })
 
   test('native host/runtime/Dashboard 任一版本漂移时 identity:release red', async () => {
@@ -649,7 +650,7 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
     }
     expect(code).toBe(0)
     const payload = JSON.parse(deps.outLines.join('\n')) as DoctorJson
-    expect(payload.summary).toEqual({ green: 22, yellow: 0, red: 0 })
+    expect(payload.summary).toEqual({ green: 23, yellow: 0, red: 0 })
   })
 })
 

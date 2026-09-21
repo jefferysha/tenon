@@ -160,7 +160,7 @@ async function seedGovernedDocumentEvidence(root: string, changeDir: string, nam
     await writeFile(abs, `# ${path}\n`, 'utf8')
   }
   await writeFile(join(changeDir, '.pipeline-history.jsonl'), [
-    'openspec-propose', 'brainstorming', 'writing-plans', 'verification-before-completion', 'openspec-apply-change',
+    'openspec-propose', 'brainstorming', 'writing-plans', 'verification-before-completion', 'tenon',
   ].map((skill) => JSON.stringify({ kind: 'tool', raw: `Skill: ${skill}` })).join('\n') + '\n', 'utf8')
 
   const store = createStateStore()
@@ -203,7 +203,7 @@ async function seedGovernedDocumentEvidence(root: string, changeDir: string, nam
   await record('spec', 'superpower-plan', docs.plan, 'writing-plans')
   await record('spec', 'plan', docs.plan, 'writing-plans')
   await record('verify', 'verification-report', docs.report, 'verification-before-completion')
-  await record('ship', 'applied-spec', docs.applied, 'openspec-apply-change')
+  await record('ship', 'applied-spec', docs.applied, 'tenon')
   await store.set(changeDir, 'phase', originalPhase)
   for (const phase of ['explore', 'spec', 'build', 'verify', 'ship', 'archive'] as const) {
     await recordDocumentReads({ repoRoot: root, changeDir, phase, policy: defaultDocumentPolicy(), kind: 'all', readAt: FIXED_CLOCK() })
@@ -841,7 +841,7 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       const withSkill: WorkflowDef = {
         ...TWO_STEP_WF,
         steps: [
-          { ...TWO_STEP_WF.steps[0]!, skills: [{ id: 'simple-task' }] },
+          { ...TWO_STEP_WF.steps[0]!, skills: [{ id: 'brainstorming' }] },
           TWO_STEP_WF.steps[1]!,
         ],
       }
@@ -857,10 +857,10 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
         kind: 'step-skills-incomplete',
         workflowName: 'onboarding',
         stepId: 'intake',
-        missing: ['simple-task'],
+        missing: ['brainstorming'],
       })
       expect((await createStateStore().read(dir)).fields.phase).toBe('intake')
-      completed = new Set(['simple-task'])
+      completed = new Set(['brainstorming'])
       await expect(createTransitionApplication(deps).execute(command)).resolves.toMatchObject({
         kind: 'applied',
         from: 'intake',

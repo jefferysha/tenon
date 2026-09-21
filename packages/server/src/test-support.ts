@@ -221,7 +221,7 @@ export async function seedGovernedDocumentEvidence(root: string, changeDir: stri
     // A fresh change has no history until its first transition.
   }
   const skillLines = [
-    'openspec-propose', 'brainstorming', 'writing-plans', 'verification-before-completion', 'openspec-apply-change',
+    'openspec-propose', 'brainstorming', 'writing-plans', 'verification-before-completion', 'tenon',
   ].map((skill) => JSON.stringify({ kind: 'tool', raw: `Skill: ${skill}` })).join('\n')
   await writeFile(historyPath, `${originalHistory ?? ''}${skillLines}\n`, 'utf8')
   const store = createStateStore()
@@ -275,7 +275,7 @@ export async function seedGovernedDocumentEvidence(root: string, changeDir: stri
     await record('spec', 'superpower-plan', docs.plan, 'writing-plans', recordedAt)
     await record('spec', 'plan', docs.plan, 'writing-plans', recordedAt)
     await record('verify', 'verification-report', docs.report, 'verification-before-completion', recordedAt)
-    await record('ship', 'applied-spec', docs.applied, 'openspec-apply-change', recordedAt)
+    await record('ship', 'applied-spec', docs.applied, 'tenon', recordedAt)
     await store.set(changeDir, 'phase', originalPhase)
     await readGovernedDocumentsForCurrentVisit(root, changeDir, recordedAt)
   } finally {

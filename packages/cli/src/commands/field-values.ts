@@ -29,6 +29,31 @@ const STATIC_ENUMS: Partial<Record<FieldName, readonly string[]>> = {
 /** 已退役的字段：槽位还在 canonical 闭集里，但没有任何读者，手填也不再有意义。 */
 const RETIRED_FIELDS = new Set<FieldName>(['agent_review_result', 'codex_review_result'])
 
+/** 枚举字段的可选值，供 `status --json` 的 step.fields 直接呈现（`phase` 由 manifest 决定，不在此表）。 */
+export const STEP_FIELD_ENUMS: Readonly<Record<string, readonly string[] | undefined>> = STATIC_ENUMS
+
+/**
+ * 推荐值：原先写在阶段 skill 的散文里（「默认 direct」「默认 in-place」），现在与枚举同处一地。
+ * 持续 / AFK 模式直接取推荐值，人工模式把它排在第一位。
+ */
+const STATIC_RECOMMENDED: Readonly<Record<string, string>> = {
+  preset: 'full',
+  build_mode: 'direct',
+  isolation: 'in-place',
+  pre_verify_review_result: 'pass',
+  branch_status: 'handled',
+}
+
+export function RECOMMENDED(field: string, state: PipelineState): string | undefined {
+  // direct_override 只在 full + direct 这一种组合下才该是 true，别的组合没有推荐值。
+  if (field === 'direct_override') {
+    return scalarField(state, 'preset') === 'full' && scalarField(state, 'build_mode') === 'direct'
+      ? 'true'
+      : undefined
+  }
+  return STATIC_RECOMMENDED[field]
+}
+
 export function enumValueAllowed(deps: CliDeps, field: FieldName, value: string | string[]): boolean {
   if (RETIRED_FIELDS.has(field)) {
     deps.io.err(`ERROR: 字段 '${field}' 已删除——评审改用步骤 agents.reviewers`)

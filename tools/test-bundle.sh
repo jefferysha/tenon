@@ -45,21 +45,12 @@ if [ ! -f "$review_budget_spec" ]; then
   review_budget_spec="$ROOT/openspec/specs/review-attempt-budget/spec.md"
 fi
 grep -q 'Build pre-Verify readiness 门' "$ROOT/docs/CONTRACT.md" \
-  && grep -q '不得.*创建 Review attempt' "$ROOT/skills/tenon-build/SKILL.md" \
-  && grep -q '不产生放行 verdict，也不消耗 Review 次数' "$ROOT/skills/tenon-build/SKILL.md" \
-  && grep -q '同一个有限 Review attempt' "$ROOT/skills/tenon-build/SKILL.md" \
-  && ! grep -Eq '循环.*(critical|high|medium)|直到.*(critical|high|medium)' "$ROOT/skills/tenon-build/SKILL.md" \
   && grep -q 'Critical/High/Medium 全部清零' "$ROOT/docs/CONTRACT.md" \
   && grep -q '同一候选的一轮复核 SHALL 只有一个 attempt' "$review_budget_spec" \
   && grep -q 'Review 预算耗尽 SHALL 停止自动循环' "$review_budget_spec" \
-  && grep -q '所有适用轨必须读取同一冻结基线' "$ROOT/skills/tenon-verify/SKILL.md" \
   && ok "bundle: Build 实现反馈与有限聚合 Review 边界闭环" \
-  || bad "bundle: Build 实现反馈与有限聚合 Review 边界闭环" "治理契约、Skill 或 Review budget delta 未闭环"
-grep -q 'repo-zero-output barrier' "$ROOT/skills/tenon-verify/SKILL.md" \
-  && grep -q '每轨前后都重算 fingerprint' "$ROOT/skills/tenon-verify/SKILL.md" \
-  && grep -q '截图、Playwright' "$ROOT/skills/tenon-verify/SKILL.md" \
-  && grep -q '隔离副本' "$ROOT/skills/tenon-build/SKILL.md" \
-  && grep -q 'repo-zero-output' "$plugin_runtime_spec" \
+  || bad "bundle: Build 实现反馈与有限聚合 Review 边界闭环" "治理契约或 Review budget delta 未闭环"
+grep -q 'repo-zero-output' "$plugin_runtime_spec" \
   && grep -q 'canonical `verification_report`.*唯一例外' "$plugin_runtime_spec" \
   && ok "bundle: Build/Verify 冻结交接强制零写入、外置产物与逐轨指纹" \
   || bad "bundle: Build/Verify 冻结交接强制零写入、外置产物与逐轨指纹" "冻结验证约束缺失"
@@ -157,13 +148,13 @@ if [ -f "$BUNDLE" ]; then
     && ok "bundle: open 阶段 Todo 已完成" \
     || bad "bundle: open 阶段 Todo 已完成" "未找到可勾选的 open 任务"
 
-  # default workflow 的 open 阶段还要求 workflow owner tenon-open；通过同一个真实 PostToolUse
+  # 每次进入步骤都要重新加载唯一的 tenon skill；通过同一个真实 PostToolUse
   # skill tracker 记录它，保持 open-complete 的 workflow-skill enforcement fail-closed。
-  printf '{"cwd":"%s","tool_name":"Skill","skill":"tenon-open","session_id":"bundle-smoke-session","tool_use_id":"bundle-smoke-tenon-open"}' "$TMP" \
+  printf '{"cwd":"%s","tool_name":"Skill","skill":"tenon","session_id":"bundle-smoke-session","tool_use_id":"bundle-smoke-tenon"}' "$TMP" \
     | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ROOT/hooks/skill-tracker.sh" >/dev/null 2>&1
   [ "$?" -eq 0 ] \
-    && ok "bundle: hook 记录 tenon-open 调用证据" \
-    || bad "bundle: hook 记录 tenon-open 调用证据" "skill-tracker 失败"
+    && ok "bundle: hook 记录 tenon 调用证据" \
+    || bad "bundle: hook 记录 tenon 调用证据" "skill-tracker 失败"
 
   # default workflow 的 OpenSpec 文档契约要求 open 阶段先登记 proposal/design/tasks。它们是 init
   # 创建的最小骨架；这里通过真实 CLI 绑定产物 hash 和 openspec-propose skill 证据，证明入库 bundle

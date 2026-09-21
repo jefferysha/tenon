@@ -142,20 +142,21 @@ describe('④ 真读 templates/skill-sources.yaml', () => {
     }
   })
 
-  it('④b2 simple-task 是新用户安装清单中的 mandatory 包内能力', () => {
-    expect(by.get('simple-task')).toMatchObject({
+  it('④b2 tenon 是新用户安装清单中唯一的 mandatory 包内能力', () => {
+    expect(by.get('tenon')).toMatchObject({
       tool: 'bundled',
       source: 'tenon',
-      contentSkill: 'simple-task',
+      contentSkill: 'tenon',
       tier: 'mandatory',
     })
-    expect(existsSync(join(REPO_ROOT, 'skills', 'simple-task', 'SKILL.md'))).toBe(true)
+    expect(rows.map((row) => row.token)).toEqual(['tenon'])
+    expect(existsSync(join(REPO_ROOT, 'skills', 'tenon', 'SKILL.md'))).toBe(true)
   })
 
   it('④b3 Tenon 根 Skill 固定 custom exec 完整结果转发契约', () => {
     const tenonSkill = readFileSync(join(REPO_ROOT, 'skills', 'tenon', 'SKILL.md'), 'utf8')
     expect(tenonSkill).toContain('text(result);')
-    expect(tenonSkill).toContain('不得使用 `text(result.output)`')
+    expect(tenonSkill).toContain('不要用 `text(result.output)`')
     expect(tenonSkill).toContain('`exit_code` 可审计')
   })
 
@@ -198,7 +199,7 @@ describe('⑤ manifest 改名落地（templates/manifest.yaml）', () => {
     expect(manifest).not.toContain('uiforge')
   })
 
-  it('ship.pm 先应用 OpenSpec，再使用改名后的 to-spec / to-tickets', () => {
-    expect(manifest).toMatch(/ship\.pm:\s*\[openspec-apply-change,\s*to-spec,\s*to-tickets\]/)
+  it('ship.pm 使用改名后的 to-spec / to-tickets；规格应用由 tenon spec apply 完成', () => {
+    expect(manifest).toMatch(/ship\.pm:\s*\[to-spec,\s*to-tickets\]/)
   })
 })

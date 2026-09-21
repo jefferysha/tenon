@@ -1,11 +1,15 @@
 import { join } from 'node:path'
-import { compileEffectiveWorkflowPlan, PRODUCT_IDENTITY, type SkillTable } from '@tenon/kernel'
+import {
+  canonicalWorkflowSkillId, compileEffectiveWorkflowPlan, PRODUCT_IDENTITY, RETIRED_SKILL_IDS,
+  type SkillTable,
+} from '@tenon/kernel'
 import type { DoctorProbes, HostPluginInventorySource } from '../deps.js'
 import {
   LEGACY_PLUGIN_IDENTITY,
   TENON_PLUGIN_IDENTITY,
 } from '../migration/legacy-tenon-migration.js'
 import { loadCanonicalSkillSources, type SkillSource } from '../skillSources.js'
+import { resolveCommandOnPath } from './commandExists.js'
 import { green, yellow, red, type DoctorCheck } from './doctor-check.js'
 import { lockedUpstreamSkillIds } from './doctor-upstream-skills.js'
 
@@ -133,53 +137,72 @@ export function checkSkills(p: DoctorProbes): [DoctorCheck, DoctorCheck] {
   return evaluateSkillChecks(tables, [...registry, ...locked], p.installedSkillNames())
 }
 
-/** Verify the Workflow-owned phase Skill layer independently from Track matrix tables. */
-export function checkWorkflowPhaseSkills(p: DoctorProbes): DoctorCheck {
-  try {
-    const plan = compileEffectiveWorkflowPlan('default')
-    const required = plan.capabilities.skills.steps.flatMap((step) => step.requiredSkillIds)
-    const missing = [...new Set(required)].filter((id) => !p.fileExists(join(p.pluginRoot, 'skills', id, 'SKILL.md')))
-    const contract = 'phase requirements=Workflow-owned; automatic overlays=matrix-enabled mandatory/recommended; explicit profiles=phase+named allowlist'
-    if (missing.length === 0) {
-      return green('skills:workflow-phase', `default ${contract}；${required.length} 个 phase Skill 可发现`)
+/** 工作流数据声明的每个技能都要能在插件载荷里找到；技能清单不再硬编码在这里。 */
+export function declaredWorkflowSkillIds(): readonly string[] {
+  const ids = new Set<string>([PRODUCT_IDENTITY.entrySkill])
+  for (const workflow of [compileEffectiveWorkflowPlan('default'), compileEffectiveWorkflowPlan('simple')]) {
+    const definition = workflow.definition ?? workflow.workflow
+    const branches = [definition.steps, ...Object.values(definition.tracks ?? {}).map((track) => track.steps)]
+    for (const steps of branches) {
+      for (const step of steps) for (const skill of step.skills) ids.add(canonicalWorkflowSkillId(skill.id))
     }
-    return red(
-      'skills:workflow-phase',
-      `default Workflow 缺 ${missing.length} 个 phase Skill：${missing.join('、')}`,
-      `补齐 ${missing.map((id) => join(p.pluginRoot, 'skills', id, 'SKILL.md')).join('、')} 后重跑 tenon doctor`,
-    )
+  }
+  return [...ids].sort()
+}
+
+export function checkWorkflowSkills(p: DoctorProbes): DoctorCheck {
+  let declared: readonly string[]
+  try {
+    declared = declaredWorkflowSkillIds()
   } catch (error) {
     return red(
-      'skills:workflow-phase',
-      `default Workflow phase capability 无法解析：${error instanceof Error ? error.message : String(error)}`,
+      'skills:workflow',
+      `工作流技能清单无法解析：${error instanceof Error ? error.message : String(error)}`,
       '修复 default workflow source/generated runtime 后重跑 tenon doctor',
     )
   }
+  const retired = declared.filter((id) => RETIRED_SKILL_IDS.includes(id))
+  if (retired.length > 0) {
+    return red(
+      'skills:workflow',
+      `工作流引用已删除的技能：${retired.join('、')}`,
+      '在工作流页移除后重新保存，再重跑 tenon doctor',
+    )
+  }
+  const missing = declared.filter((id) => !p.fileExists(join(p.pluginRoot, 'skills', id, 'SKILL.md')))
+  if (missing.length === 0) {
+    return green('skills:workflow', `工作流声明的 ${declared.length} 个技能都可发现`)
+  }
+  return red(
+    'skills:workflow',
+    `工作流声明的技能缺 ${missing.length} 个：${missing.join('、')}`,
+    `运行 tenon update 补齐 ${missing.map((id) => join(p.pluginRoot, 'skills', id, 'SKILL.md')).join('、')} 后重跑 tenon doctor`,
+  )
 }
 
-const CODEX_PROJECT_CONTRACT_SKILLS = [
-  PRODUCT_IDENTITY.entrySkill,
-  'tenon-open',
-  'tenon-explore',
-  'tenon-spec',
-  'tenon-build',
-  'tenon-verify',
-  'tenon-ship',
-  'tenon-archive',
-  'openspec-propose',
-  'openspec-explore',
-  'openspec-apply-change',
-  'openspec-archive-change',
-  'brainstorming',
-  'grill-with-docs',
-  'improve-codebase-architecture',
-  'writing-plans',
-  'test-driven-development',
-  'verification-before-completion',
-  'finishing-a-development-branch',
-  'browser-qa',
-  'e2e-testing',
-] as const
+/**
+ * OpenSpec CLI：上游 OpenSpec 技能与 `tenon spec apply` 都调它。仓库里它只是 devDependency，
+ * 用户机器上没有就是黄灯——不是缺陷，但规格应用跑不了。
+ */
+export function checkOpenspecCli(): DoctorCheck {
+  const path = resolveCommandOnPath('openspec')
+  return path === undefined
+    ? yellow(
+      'integration:openspec-cli',
+      'PATH 上没有 openspec：受 openspec 治理的工作流无法应用规格',
+      '安装 OpenSpec CLI（npm i -g @fission-ai/openspec）后重跑 tenon doctor',
+    )
+    : green('integration:openspec-cli', `openspec 可执行：${path}`)
+}
+
+/** Codex 正常对话必须能发现的技能 = 工作流数据声明的那一份，不另列清单。 */
+function codexProjectContractSkills(): readonly string[] {
+  try {
+    return declaredWorkflowSkillIds()
+  } catch {
+    return [PRODUCT_IDENTITY.entrySkill]
+  }
+}
 
 export async function checkCodexProjectSkills(
   p: DoctorProbes,
@@ -221,7 +244,7 @@ export async function checkCodexProjectSkills(
     const discovery = await p.codexSkillDiscovery()
     const native = discovery.selectedRoot !== undefined
     const active = native ? discovery.selected : discovery.project
-    const missing = CODEX_PROJECT_CONTRACT_SKILLS.filter((name) => !active.has(name))
+    const missing = codexProjectContractSkills().filter((name) => !active.has(name))
     const duplicates: string[] = []
     const shadows: string[] = []
     if (native) {
@@ -276,7 +299,7 @@ export async function checkCodexProjectSkills(
     )
   }
   const installed = p.codexProjectSkillNames()
-  const missing = CODEX_PROJECT_CONTRACT_SKILLS.filter((name) => !installed.has(name))
+  const missing = codexProjectContractSkills().filter((name) => !installed.has(name))
   if (missing.length === 0) {
     return green(
       'integration:codex-project-skills',

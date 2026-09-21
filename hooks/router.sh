@@ -274,7 +274,7 @@ _GEN_MJS="$PLUGIN_ROOT/hooks/router-gen.mjs"
 # This release-owned digest is checked on every cache hit with bash builtins only. A unit test
 # pins it to kernel.routerContractRevision(manifest), so builtin/skill/breadcrumb changes cannot
 # silently retain a prior project cache even when plugin mtimes are older than that cache.
-ROUTER_CONTRACT_REV="743507eef120b7ca7af5cb161af274e75d61d511ef329e720c82bd77e014fc99"
+ROUTER_CONTRACT_REV="1a5b7e6ca3c1c901adac97c19021bb956a8fd9143e0605c72787e2d8d1c7856c"
 
 # Bash 3.2-compatible parallel arrays（不使用 associative array 或动态变量名）。
 _router_clear_cache() {
@@ -722,7 +722,7 @@ if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_NAME" ]; then
   elif [ "$TRACK" = "free" ]; then
     TAIL="已恢复自由模式 Change。必须立即调用 tenon，并只按绑定 Workflow '${CHANGE_WORKFLOW}' 的真实 DAG、skills、gates 与 OpenSpec contract 推进；不得叠加 PM/frontend/backend 的 profile 或技能矩阵。"
   else
-    TAIL="已恢复 ${TRACK} Change。必须立即调用 Skill 工具的 tenon，由它分派当前相位的 OpenSpec 与阶段 skill；先按 tasks.md 的阶段任务建立/更新 Todo，勿先生成通用 Todo、勿绕过 Tenon 直接实现。按 ${EFF_PHASE} 相位纪律推进，勿自动 transition，产出交用户确认后再推进。"
+    TAIL="已恢复 ${TRACK} Change。必须立即调用 Skill 工具的 tenon，由它按 tenon status <change> --json 的 step.next 执行当前步骤；先按 tasks.md 的阶段任务建立/更新 Todo，勿先生成通用 Todo、勿绕过 Tenon 直接实现。按 ${EFF_PHASE} 相位纪律推进，勿自动 transition，产出交用户确认后再推进。"
   fi
 elif [ "$DISPATCH_INTENT" = "select" ]; then
   HDR="疑似 track=${TRACK}（评分 ${BEST_SCORE}）· 恢复目标未选择"
@@ -738,7 +738,7 @@ else
     elif [ "$TRACK" = "free" ]; then
       TAIL="用户已显式选择自由模式。必须立即调用 tenon，先复核 free Track 与精确 Workflow 的 allowed 关系，再创建独立 Change；只执行所选 Workflow 自己的 DAG、skills、gates 与 OpenSpec contract，不叠加 PM/frontend/backend profile，也不得把自由模式解释为跳过 Workflow。"
     else
-      TAIL="疑似 ${TRACK} Track 新任务。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。默认选择 default workflow：必须立即调用 Skill 工具的 tenon，让入口 skill 创建并激活独立 Change、初始化 OpenSpec，并按 open 相位开始；不要先询问是否走工作流，也不要直接执行某个阶段 skill。仅当用户明确指定自定义 workflow 时才改用该 workflow。"
+      TAIL="疑似 ${TRACK} Track 新任务。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。默认选择 default workflow：必须立即调用 Skill 工具的 tenon，让入口 skill 创建并激活独立 Change、初始化 OpenSpec，并按 open 相位开始；不要先询问是否走工作流，也不要绕过 tenon 直接加载某个技能。仅当用户明确指定自定义 workflow 时才改用该 workflow。"
     fi
   fi
 fi

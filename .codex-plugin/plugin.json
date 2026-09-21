@@ -1,7 +1,7 @@
 {
   "name": "tenon",
   "version": "1.1.5",
-  "description": "A complete 7-phase OpenSpec development pipeline with packaged skills, hooks, CLI, dashboard automation, and multi-host adapters.",
+  "description": "A data-driven OpenSpec development pipeline: the workflow declares each step's skills, agents, tests and documents, and one packaged skill executes them, with hooks, CLI, dashboard automation, and multi-host adapters.",
   "author": {
     "name": "bigdata_storage_compute_engine"
   },
@@ -14,7 +14,7 @@
   "interface": {
     "displayName": "Tenon",
     "shortDescription": "A complete, host-selectable OpenSpec development pipeline.",
-    "longDescription": "One packaged pipeline plugin: 7-phase orchestration, OpenSpec evidence, built-in workflow skills, hooks, dashboard/AFK tooling, and adapters.",
+    "longDescription": "One packaged pipeline plugin: data-driven step execution, OpenSpec evidence, hooks, dashboard/AFK tooling, and adapters.",
     "developerName": "bigdata_storage_compute_engine",
     "category": "Productivity",
     "capabilities": ["Interactive", "Write"],

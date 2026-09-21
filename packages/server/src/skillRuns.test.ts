@@ -23,7 +23,7 @@ describe('skillRuns projection', () => {
     let runs = await skillRuns(root, store)
     expect(runs.map((step) => step.stepId)).toEqual(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive'])
     const open = runs[0]!
-    expect(open.skills.map((skill) => skill.id)).toEqual(expect.arrayContaining(['tenon-open', 'openspec-propose']))
+    expect(open.skills.map((skill) => skill.id)).toEqual(expect.arrayContaining(['openspec-propose']))
     expect(open.skills.every((skill) => skill.status === 'idle' && skill.wave === 0)).toBe(true)
     expect(runs[1]!.skills.every((skill) => skill.status === 'idle')).toBe(true)
     // backend 轨没有 handoff（只属 pm）
@@ -34,7 +34,8 @@ describe('skillRuns projection', () => {
     await appendFile(history, `${JSON.stringify({ ts: '2026-07-07T00:01:00Z', kind: 'tool-start', raw: 'Skill: openspec-propose' })}\n`, 'utf8')
     runs = await skillRuns(root, store)
     expect(runs[0]!.skills.find((skill) => skill.id === 'openspec-propose')?.status).toBe('running')
-    expect(runs[0]!.skills.find((skill) => skill.id === 'tenon-open')?.status).toBe('idle')
+    // 后续步骤不受当前步的进行中记录影响。
+    expect(runs[1]!.skills.every((skill) => skill.status === 'idle')).toBe(true)
 
     await appendFile(history, `${JSON.stringify({ ts: '2026-07-07T00:02:00Z', kind: 'tool', raw: 'Skill: superpowers:openspec-propose' })}\n`, 'utf8')
     runs = await skillRuns(root, store)
@@ -49,9 +50,9 @@ describe('skillRuns projection', () => {
     const table = { open: { backend: ['openspec-propose|opsx:propose'], _all: ['fallback'] } } as unknown as SkillTable
     await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({ ts: 't', kind: 'tool', raw: 'Skill: opsx:propose' })}\n`, 'utf8')
     const runs = await projectSkillRuns(changeDir, plan, 'open', builtinTrack('backend'), table)
-    expect(runs[0]!.skills.map((skill) => [skill.id, skill.status])).toEqual([['tenon-open', 'idle'], ['openspec-propose', 'done'], ['openspec-propose|opsx:propose', 'done']])
+    expect(runs[0]!.skills.map((skill) => [skill.id, skill.status])).toEqual([['openspec-propose', 'done'], ['openspec-propose|opsx:propose', 'done']])
     const none = await projectSkillRuns(changeDir, plan, 'open', builtinTrack('backend'))
-    expect(none[0]!.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose'])
+    expect(none[0]!.skills.map((skill) => skill.id)).toEqual(['openspec-propose'])
   })
 
   it('进入当前步之前的技能记录不算：只看最后一次 transition 到本步之后', async () => {
@@ -60,10 +61,10 @@ describe('skillRuns projection', () => {
     const changeDir = await initChange(store, root, 'demo', { track: 'backend' })
     const history = join(changeDir, '.pipeline-history.jsonl')
     await appendFile(history, [
-      JSON.stringify({ ts: '2026-07-07T00:01:00Z', kind: 'tool', raw: 'Skill: tenon-open' }),
+      JSON.stringify({ ts: '2026-07-07T00:01:00Z', kind: 'tool', raw: 'Skill: openspec-propose' }),
       JSON.stringify({ ts: '2026-07-07T00:02:00Z', kind: 'transition', field: 'phase', from: 'explore', to: 'open' }),
     ].map((line) => `${line}\n`).join(''), 'utf8')
     const runs = await skillRuns(root, store)
-    expect(runs[0]!.skills.find((skill) => skill.id === 'tenon-open')?.status).toBe('idle')
+    expect(runs[0]!.skills.find((skill) => skill.id === 'openspec-propose')?.status).toBe('idle')
   })
 })

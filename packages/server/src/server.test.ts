@@ -1125,7 +1125,7 @@ describe('POST /api/change/<name>/transition —— B5 token 鉴权', () => {
     expect(r.status).toBe(409)
     expect(r.json<{ code?: string; detail?: string[] }>()).toMatchObject({
       code: 'step-skills-incomplete',
-      detail: expect.arrayContaining([expect.stringContaining('tenon-open')]),
+      detail: expect.arrayContaining([expect.stringContaining('openspec-propose')]),
     })
   })
 })
@@ -2240,17 +2240,17 @@ describe('GET/POST/PATCH/DELETE /api/tracks —— v3 Studio Track CRUD', () => 
 describe('GET /api/skills/:name/files · /file —— 技能目录清单与单文件', () => {
   it('本仓技能 → files 200（SKILL.md 首位、来源 local-plugin）；file 读 SKILL.md 200；越界 / 不存在 / 非法名分别 400 / 404 / 400', async () => {
     const h = await start()
-    const files = await reqGet(h.port, '/api/skills/tenon-open/files')
+    const files = await reqGet(h.port, '/api/skills/tenon/files')
     expect(files.status).toBe(200)
     const body = files.json<{ name: string; source: string; origin: string; files: Array<{ path: string; bytes: number }> }>()
-    expect(body).toMatchObject({ name: 'tenon-open', source: 'local-plugin', origin: 'tenon' })
+    expect(body).toMatchObject({ name: 'tenon', source: 'local-plugin', origin: 'tenon' })
     expect(body.files[0]?.path).toBe('SKILL.md')
     expect(body.files.every((file) => file.bytes > 0 && !file.path.startsWith('/'))).toBe(true)
-    const file = await reqGet(h.port, '/api/skills/tenon-open/file?path=SKILL.md')
+    const file = await reqGet(h.port, '/api/skills/tenon/file?path=SKILL.md')
     expect(file.status).toBe(200)
-    expect(file.json<{ path: string; text: string }>().text).toContain('name: tenon-open')
-    expect((await reqGet(h.port, `/api/skills/tenon-open/file?path=${encodeURIComponent('../tenon-explore/SKILL.md')}`)).status).toBe(400)
-    expect((await reqGet(h.port, '/api/skills/tenon-open/file?path=nope.md')).status).toBe(404)
+    expect(file.json<{ path: string; text: string }>().text).toContain('name: tenon')
+    expect((await reqGet(h.port, `/api/skills/tenon/file?path=${encodeURIComponent('../tenon/SKILL.md')}`)).status).toBe(400)
+    expect((await reqGet(h.port, '/api/skills/tenon/file?path=nope.md')).status).toBe(404)
     expect((await reqGet(h.port, '/api/skills/no-such-skill-xyz/files')).status).toBe(404)
     expect((await reqGet(h.port, `/api/skills/${encodeURIComponent('../etc')}/files`)).status).toBe(400)
   })
@@ -2263,7 +2263,7 @@ describe('GET /api/skills/registry —— 全部已注册 skill 明细(T6 升级
     expect(r.status).toBe(200)
     const body = r.json<{ skills: Array<{ name: string; installed: boolean; source: string; tier: string; available: boolean; description?: string; installCmd?: string }> }>()
     const names = body.skills.map((s) => s.name)
-    expect(names).toContain('tenon-open') // 本仓真实存在的本地 skill 目录
+    expect(names).toContain('tenon') // 本仓真实存在的本地 skill 目录
     for (const e of body.skills) {
       expect(typeof e.name).toBe('string')
       expect(typeof e.installed).toBe('boolean')
@@ -2272,7 +2272,7 @@ describe('GET /api/skills/registry —— 全部已注册 skill 明细(T6 升级
       expect(typeof e.available).toBe('boolean')
     }
     expect(body.skills.some((entry) => typeof entry.description === 'string' && entry.description.length > 0)).toBe(true)
-    const local = body.skills.find((s) => s.name === 'tenon-open')!
+    const local = body.skills.find((s) => s.name === 'tenon')!
     expect(local.source).toBe('local-plugin')
     expect(body.skills.some((entry) => entry.source === 'builtin')).toBe(false)
   })
@@ -3917,7 +3917,7 @@ describe('POST /api/workflows/:name —— 新建/覆盖自定义 workflow（GOA
     const override = loaded.json<{ source: string; tracks: Record<string, { documentContract?: unknown; steps: Array<{ id: string; skills: Array<{ id: string }> }> }> }>()
     expect(override.source).toBe('project')
     expect(override.tracks.backend?.documentContract).toEqual(tracks.backend?.documentContract)
-    expect(override.tracks.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['tenon-open', 'openspec-propose', 'brainstorming'])
+    expect(override.tracks.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['openspec-propose', 'brainstorming'])
     const listed = await reqGet(h.port, `/api/workflows?root=${encodeURIComponent(h.root)}`)
     expect(listed.json<{ names: string[]; default: { source: string } }>()).toEqual({ names: ['design-system'], default: { source: 'project' } })
 
@@ -5560,7 +5560,7 @@ describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
     expect(await h.store.get(join(proj, 'openspec', 'changes', 'fe-x'), 'track')).toBe('frontend')
   })
 
-  it('simple 的 HTTP transition 也不能绕过当前 step 声明的 skill', async () => {
+  it('simple 的 change 步骤不声明技能：HTTP transition 直接推进，边界写在 step prompt 里', async () => {
     const h = await startWithHome()
     const proj = await withRegisteredProject(h)
     const created = await reqPost(
@@ -5570,25 +5570,10 @@ describe('POST /api/changes —— tenon init 的 HTTP 化（G18）', () => {
       { headers: { Authorization: `Bearer ${h.token}` } },
     )
     expect(created.status).toBe(200)
-    const route = '/api/change/simple-http/transition'
-    const blocked = await reqPost(
-      h.port,
-      route,
-      { root: proj, event: 'change-complete' },
-      { headers: { Authorization: `Bearer ${h.token}` } },
-    )
-    expect(blocked.status).toBe(409)
-    expect(blocked.json<{ code?: string }>().code).toBe('step-skills-incomplete')
-
     const dir = join(proj, 'openspec', 'changes', 'simple-http')
-    await appendFile(
-      join(dir, '.pipeline-history.jsonl'),
-      `${JSON.stringify({ ts: '2026-07-24T00:00:00Z', kind: 'tool', raw: 'Skill: simple-task' })}\n`,
-      'utf8',
-    )
     const applied = await reqPost(
       h.port,
-      route,
+      '/api/change/simple-http/transition',
       { root: proj, event: 'change-complete' },
       { headers: { Authorization: `Bearer ${h.token}` } },
     )
