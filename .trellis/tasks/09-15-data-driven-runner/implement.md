@@ -275,7 +275,12 @@ documents, tests, agents, gate, result), defects found and fix commits, installe
 - **Track skill sets kept as waves 1–3 left them.** design §5.1–5.4 listed a narrower set than
   design-resources/test-evidence actually shipped (extra visual and e2e skills, pm `prototype`). Only the phase
   skills, `writing-plans` at build (D24) and `openspec-apply-change` / `openspec-archive-change` at ship were
-  removed, and `chat` was filled in to equal `free`. Tests and agents were not touched (parent X16).
+  removed. Tests and agents were not touched (parent X16).
+- **`chat` declares no skills** (design §5.4 / D11 wanted it equal to `free`). `chat` is the branch
+  `compileEffectiveWorkflowPlan('default')` selects when no track is given — AFK loop wiring and the
+  execution coordinate port both do that. Giving it upstream skill ids makes those paths depend on bytes that
+  only exist after `tenon setup/update` fetches them, which fails on a clean checkout and in CI. Its document
+  contract is unchanged, so chat output is still governed.
 - **`recommended_skills` kept as an empty block.** `router-gen`/`loadManifest` require the key to be a block
   section; deleting the key or writing `{}` breaks the router hot path. The table has no rows.
 - **`hooks/router.sh` `ROUTER_CONTRACT_REV` regenerated.** The manifest change moves

@@ -687,7 +687,7 @@ describe('createExecutionCoordinatePort', () => {
     expect(coord.resolution).toMatchObject({ kind: 'default', stepId: 'build' })
     if (coord.resolution.kind === 'default') {
       expect(coord.resolution.capability?.steps.find((step) => step.stepId === 'build')?.requiredSkillIds)
-        .toEqual(['test-driven-development'])
+        .toEqual([])  // chat 分支不声明技能：没有 track 的 default 解析不依赖上游字节
     }
     expect(typeof coord.inputsDigest).toBe('string')
     expect(coord.inputsDigest.length).toBeGreaterThan(0)
@@ -708,7 +708,7 @@ describe('createExecutionCoordinatePort', () => {
     const coord = await port.capture(ctxFor('x') as never)
     if (coord.resolution.kind !== 'default') throw new Error('expected default coordinate')
     expect(coord.resolution.capability?.steps.find((step) => step.stepId === 'build')?.requiredSkillIds)
-      .toEqual(['test-driven-development'])
+      .toEqual([])
     expect(coord.workflowRunId).toBe('workflow-run-frozen-capability')
   })
 

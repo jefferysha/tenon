@@ -52,6 +52,10 @@ Skills declared per step (default, by track):
 | `ship` | to-spec · to-tickets | finishing-a-development-branch | finishing-a-development-branch | finishing-a-development-branch |
 | `archive` | — | — | — | — |
 
+The `chat` track — the default when the Dashboard picks no track — declares no skills. Its document
+contract still governs the outputs, but a default resolution without a track needs no upstream skill
+bytes, so it also holds on a clean checkout.
+
 The Verify phase also opens exactly one automated Review attempt for the frozen
 `build_sha`. Its standards, spec, and E2E lanes share the same attempt ID and
 finite Workflow budget. E2E is a Review lane, not an independent Review count.

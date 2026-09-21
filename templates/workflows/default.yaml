@@ -39,8 +39,7 @@ tracks:
       - id: open
         label: 立项
         gate: null
-        skills:
-          - id: openspec-propose
+        skills: []
         inputs: []
         outputs: []
         guards: []
@@ -50,8 +49,7 @@ tracks:
       - id: explore
         label: 调研
         gate: review
-        skills:
-          - id: brainstorming
+        skills: []
         inputs: []
         outputs:
           - field: design_doc
@@ -67,9 +65,7 @@ tracks:
       - id: spec
         label: 规格
         gate: review
-        skills:
-          - id: openspec-propose
-          - id: writing-plans
+        skills: []
         inputs:
           - field: design_doc
             type: file_path
@@ -91,8 +87,7 @@ tracks:
       - id: build
         label: 实现
         gate: null
-        skills:
-          - id: test-driven-development
+        skills: []
         inputs:
           - field: design_doc
             type: file_path
@@ -115,8 +110,7 @@ tracks:
       - id: verify
         label: 验证
         gate: review
-        skills:
-          - id: verification-before-completion
+        skills: []
         inputs:
           - field: build_sha
             type: string
@@ -139,8 +133,7 @@ tracks:
       - id: ship
         label: 交付
         gate: null
-        skills:
-          - id: finishing-a-development-branch
+        skills: []
         inputs:
           - field: verification_report
             type: file_path

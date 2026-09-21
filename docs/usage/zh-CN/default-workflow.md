@@ -19,6 +19,9 @@ Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计�
 | `ship` | to-spec · to-tickets | finishing-a-development-branch | finishing-a-development-branch | finishing-a-development-branch |
 | `archive` | — | — | — | — |
 
+`chat` 轨（Dashboard 不选轨道时的缺省）不声明任何技能：它的文档契约照常治理产出，但不要求
+上游技能字节，这样没有轨道的 default 解析在干净 checkout 上也成立。
+
 ## Open
 
 创建独立 Change，写 proposal、initial design 和 tasks。这里不提前实现代码，也不把未来任务伪装成已确认计划。

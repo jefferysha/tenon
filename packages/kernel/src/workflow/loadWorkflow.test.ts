@@ -114,15 +114,15 @@ steps:
     const __dirname = dirname(fileURLToPath(import.meta.url))
     const repoRoot = dirname(dirname(dirname(dirname(__dirname))))
     const content = await readFile(join(repoRoot, 'templates', 'workflows', 'default.yaml'), 'utf8')
-    // 第一处 openspec-propose 在 chat 分支（十空格缩进）。
-    const edited = content.replace('          - id: openspec-propose\n', '          - id: openspec-propose\n          - id: brainstorming\n')
+    // chat 分支不声明技能；在它的第一步补一条，验证项目覆盖文件可以改技能。
+    const edited = content.replace('        skills: []\n', '        skills:\n          - id: brainstorming\n')
 
     const tempRoot = await mkdtemp(join(tmpdir(), 'wf-load-real-'))
     await mkdir(join(tempRoot, '.pipeline', 'workflows'), { recursive: true })
     await writeFile(join(tempRoot, '.pipeline', 'workflows', 'default.yaml'), edited, 'utf8')
 
     const wf = loadWorkflow(tempRoot, 'default')
-    expect(wf?.tracks?.chat?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['openspec-propose', 'brainstorming'])
+    expect(wf?.tracks?.chat?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['brainstorming'])
     expect(wf?.tracks?.backend?.steps[0]?.skills.map((skill) => skill.id)).toEqual(['openspec-propose'])
   })
 

@@ -165,7 +165,7 @@ describe('default 分支', () => {
     expect(() => compileEffectiveWorkflowPlan('default', def, builtinTrack('simple'))).toThrow(/没有轨道 'simple' 的分支/u)
     expect(Object.keys(def.tracks ?? {})).toEqual(['chat', 'pm', 'frontend', 'backend', 'free'])
     // 无轨道语境取第一条分支 = chat（只有驱动技能的基础流）。
-    expect(compileEffectiveWorkflowPlan('default', def).capabilities.skills.steps.find((step) => step.stepId === 'build')?.requiredSkillIds).toEqual(['test-driven-development'])
+    expect(compileEffectiveWorkflowPlan('default', def).capabilities.skills.steps.find((step) => step.stepId === 'build')?.requiredSkillIds).toEqual([])
     expect(validateWorkflowForStorage('default', def)).toEqual([])
   })
 
