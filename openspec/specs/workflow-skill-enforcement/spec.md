@@ -19,14 +19,14 @@ phase requirements；该要求 SHALL 随 workflow plan snapshot 冻结，并且 
 - **GIVEN** 一个 `track=free`、`workflow=default` 的 Change 位于 Build
 - **AND** free Track 的 `matrix=false`
 - **WHEN** resolver 解析 required 与 available slots
-- **THEN** 两者均首先包含 default Workflow 声明的 `tenon-build`
+- **THEN** 两者均首先包含 default Workflow 在该 step 声明的技能（Build 为 `test-driven-development`）
 - **AND** 不包含 PM/frontend/backend 的 Track overlay。
 
 #### Scenario: Matrix-enabled Track 保留原 overlay
 
 - **GIVEN** 一个 matrix-enabled backend/default Change 位于 Explore
 - **WHEN** resolver 解析 required 与 available slots
-- **THEN** `tenon-explore` 位于首个 phase slot
+- **THEN** default Workflow 在 Explore 声明的技能位于首个 phase slot
 - **AND** 原 backend mandatory/recommended overlay 保持声明顺序且不重复。
 
 #### Scenario: Custom Workflow 保持 step-declared 语义
@@ -67,10 +67,10 @@ SHALL 在缺少同 Change、同 phase、当前 step visit 的完成态 receipt �
 
 #### Scenario: Hook 负例不能由可选 Skill 绕过
 
-- **GIVEN** free/default 当前 visit 尚无 `tenon-build` receipt
+- **GIVEN** free/default 当前 visit 尚无 `test-driven-development` receipt
 - **WHEN** 调用任一非根入口 Skill
-- **THEN** Hook 返回拒绝并指出缺少 `tenon-build`
-- **WHEN** 当前 visit 产生有效 `tenon-build` receipt
+- **THEN** Hook 返回拒绝并指出缺少 `test-driven-development`
+- **WHEN** 当前 visit 产生有效 `test-driven-development` receipt
 - **THEN** 未受其他 DAG 约束的可选 Skill 可继续调用。
 
 #### Scenario: CLI 与 HTTP transition 同时失败关闭

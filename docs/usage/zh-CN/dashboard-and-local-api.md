@@ -98,7 +98,7 @@ AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有
 
 <img src="../../../docs-site/public/images/dashboard-workbench.webp" alt="Tenon Dashboard Workflow 工作台" width="1280" height="720" loading="lazy">
 
-工作台把 Track、七阶段 DAG、阶段 Skill、Hook 与运行前事实放在同一页面。Default 只读基线、自定义 Workflow 和每个 Workflow 的 Free Track 都从同一份有效计划投影。
+工作台把 Track、七阶段 DAG、每步声明的技能、Hook 与运行前事实放在同一页面。Default 只读基线、自定义 Workflow 和每个 Workflow 的 Free Track 都从同一份有效计划投影。
 
 ### 技能
 

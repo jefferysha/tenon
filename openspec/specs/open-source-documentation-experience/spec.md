@@ -668,7 +668,7 @@ phase Skills 必须引用共享 Registry/幂等 scaffold 入口，并在当前 C
 
 #### Scenario: Verify phase writes report
 
-- **WHEN** `tenon-verify` 完成验证
+- **WHEN** Verify 步骤完成验证
 - **THEN** verification report 的可见章节、结果解释、失败和剩余风险使用中文
 - **AND** 命令、路径、测试名称和退出码保持原样
 - **AND** 未运行的验证不得被写成通过。

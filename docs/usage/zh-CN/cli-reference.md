@@ -54,6 +54,19 @@ tenon check <name>
 WorkflowRun 初始化时冻结的完整计划，包括步骤、Skill、门禁、守卫、产物和转换。后来修改或删除
 `.pipeline/workflows/<workflow>.yaml` 只影响新运行，不会改写已有运行的 Todo 和 Skill DAG。
 
+`tenon status <name> --json` 还带一个 `step` 块：单个 `tenon` skill 执行当前步骤所需的全部输入
+——本步技能、执行者、评审者、测试、文档、字段、评审回执、带阻塞原因的出口，以及一份闭集的
+`next` 动作表，按序执行即可。
+
+```text
+tenon spec apply <change> [--dry-run] [--json]
+```
+
+`spec apply` 在 `openspec/` 的临时整拷里跑 `openspec validate --strict`、`openspec archive`
+与逐 capability 的严格复验，再把改到的主规格字节按 compare-and-swap 写回，并登记
+`applied-spec.md`。`--dry-run` 除回执外不写任何文件。退出码：`0` 通过，`1` 用法或状态，
+`2` 校验或彩排失败，`3` PATH 上没有 openspec，`4` 主规格在彩排期间被改过。
+
 ## 文档证据
 
 ```bash

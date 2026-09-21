@@ -2,22 +2,22 @@
 
 Default workflow 是 Tenon 的完整治理路径。每个阶段都有明确输入、产出、允许的回边和出口条件。
 
-七个默认 step 分别冻结一个阶段入口 Skill（`tenon-open` 到 `tenon-archive`）。即使是
-`free`/`matrix=false` Change，也必须完成当前阶段 Skill；manifest 的
-`mandatory_skills`/`recommended_skills` 只在启用 Track matrix 时作为自动 overlay。artifact
-producer 与 AFK bundle 的具名 profile 仍可显式选择既有 allowlist，但解析结果始终先包含冻结的阶段 Skill。
+Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计划，按
+`tenon status <change> --json` 的 `step.next` 执行当前步骤。每一步加载哪些技能全部写在
+`templates/workflows/default.yaml` 里，按轨道分支；manifest 的 `mandatory_skills` 只是同一份
+数据的路由投影，启用 Track matrix 时作为自动 overlay。
 
-冻结的阶段分发与 source Workflow 一一对应：
+每步声明的技能（default，按轨道）：
 
-| Step | 冻结阶段 Skill |
-| --- | --- |
-| `open` | `tenon-open` |
-| `explore` | `tenon-explore` |
-| `spec` | `tenon-spec` |
-| `build` | `tenon-build` |
-| `verify` | `tenon-verify` |
-| `ship` | `tenon-ship` |
-| `archive` | `tenon-archive` |
+| Step | pm | frontend | backend | free |
+| --- | --- | --- | --- | --- |
+| `open` | openspec-propose | openspec-propose | openspec-propose | openspec-propose |
+| `explore` | brainstorming · grill-with-docs | openspec-explore · brainstorming · grill-with-docs | openspec-explore · brainstorming · grill-with-docs · improve-codebase-architecture | brainstorming |
+| `spec` | openspec-propose · brainstorming · writing-plans · grill-with-docs | openspec-propose · writing-plans | openspec-propose · writing-plans | openspec-propose · writing-plans |
+| `build` | prototype · frontend-design | test-driven-development · frontend-design | test-driven-development | test-driven-development |
+| `verify` | browser-qa · web-design-guidelines · design-taste-frontend · verification-before-completion · handoff | verification-before-completion · e2e-testing · browser-qa · web-design-guidelines · design-taste-frontend | verification-before-completion | verification-before-completion |
+| `ship` | to-spec · to-tickets | finishing-a-development-branch | finishing-a-development-branch | finishing-a-development-branch |
+| `archive` | — | — | — | — |
 
 ## Open
 
@@ -45,7 +45,8 @@ producer 与 AFK bundle 的具名 profile 仍可显式选择既有 allowlist，�
 
 ## Ship
 
-应用已经验证的 delta spec，形成 applied spec，准备真实交付。若 Change 带主规格迁移 receipt，
+`tenon spec apply <change>` 把已验证的 delta spec 应用进主规格并写下 applied spec 回执，
+再准备真实交付。若 Change 带主规格迁移 receipt，
 必须先生成身份和摘要绑定的机器应用结果；`tenon check` 与 `ship-complete` 的运行时 typed guard
 都会复核它。代码合并、push、Pages 上线等外部动作必须以实际成功为准。
 

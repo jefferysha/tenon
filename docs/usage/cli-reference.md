@@ -137,6 +137,22 @@ replaces the marked region in an existing repository file. `test code-size` is
 the deterministic probe behind the builtin `code-size` direction and prints one
 JSON line of metrics.
 
+`tenon status <name> --json` also carries a `step` block: the whole input the
+single `tenon` skill needs for the current step — its skills, executors,
+reviewers, tests, documents, fields, review receipt, exits with blockers, and a
+closed `next` action list to execute in order.
+
+```text
+tenon spec apply <change> [--dry-run] [--json]
+```
+
+`spec apply` rehearses `openspec validate --strict`, `openspec archive` and a
+per-capability strict re-validation inside a temporary copy of `openspec/`, then
+writes only the changed main spec bytes back under a compare-and-swap and records
+`applied-spec.md`. `--dry-run` writes nothing but the receipt. Exit codes: `0`
+pass, `1` usage or state, `2` validation or rehearsal failed, `3` no `openspec`
+on PATH, `4` a main spec changed during the rehearsal.
+
 ## Documents, artifacts, and review
 
 ```text

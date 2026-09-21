@@ -8,7 +8,7 @@ exact review receipts.
 ## Prerequisites
 
 - an active Change using `workflow=default`
-- the phase Skill dispatched by the Tenon entrypoint
+- the single `tenon` skill dispatched by the Tenon entrypoint
 - current document evidence for the phase
 
 ## Workflow graph
@@ -33,24 +33,24 @@ Transitions:
 
 Explore, Spec, and Verify are review-gated.
 
-Every default step freezes its phase entry Skill (`tenon-open` through
-`tenon-archive`) in the Workflow capability. The phase Skill is required even
-for `free`/`matrix=false` Changes. Track `mandatory_skills` and
-`recommended_skills` are a separate automatic overlay only when the Track
-matrix is enabled; explicit artifact producers and AFK bundles use a named
-profile projection that still starts with the frozen phase Skill.
+Tenon ships exactly one skill of its own, `tenon`. It reads the Change's frozen
+workflow plan and executes the current step from `tenon status <change> --json`
+→ `step.next`. Which skills a step loads is declared per track in
+`templates/workflows/default.yaml`; the manifest `mandatory_skills` table is a
+routing projection of that same data and only overlays automatically when the
+Track matrix is enabled.
 
-The frozen phase dispatch is one-to-one with the source Workflow steps:
+Skills declared per step (default, by track):
 
-| Step | Frozen phase Skill |
-| --- | --- |
-| `open` | `tenon-open` |
-| `explore` | `tenon-explore` |
-| `spec` | `tenon-spec` |
-| `build` | `tenon-build` |
-| `verify` | `tenon-verify` |
-| `ship` | `tenon-ship` |
-| `archive` | `tenon-archive` |
+| Step | pm | frontend | backend | free |
+| --- | --- | --- | --- | --- |
+| `open` | openspec-propose | openspec-propose | openspec-propose | openspec-propose |
+| `explore` | brainstorming · grill-with-docs | openspec-explore · brainstorming · grill-with-docs | openspec-explore · brainstorming · grill-with-docs · improve-codebase-architecture | brainstorming |
+| `spec` | openspec-propose · brainstorming · writing-plans · grill-with-docs | openspec-propose · writing-plans | openspec-propose · writing-plans | openspec-propose · writing-plans |
+| `build` | prototype · frontend-design | test-driven-development · frontend-design | test-driven-development | test-driven-development |
+| `verify` | browser-qa · web-design-guidelines · design-taste-frontend · verification-before-completion · handoff | verification-before-completion · e2e-testing · browser-qa · web-design-guidelines · design-taste-frontend | verification-before-completion | verification-before-completion |
+| `ship` | to-spec · to-tickets | finishing-a-development-branch | finishing-a-development-branch | finishing-a-development-branch |
+| `archive` | — | — | — | — |
 
 The Verify phase also opens exactly one automated Review attempt for the frozen
 `build_sha`. Its standards, spec, and E2E lanes share the same attempt ID and
@@ -58,6 +58,11 @@ finite Workflow budget. E2E is a Review lane, not an independent Review count.
 No Review Skill, reviewer agent, or E2E runner may start before that attempt is
 active. Build TDD, unit tests, type checks, lint, and narrow integration tests
 remain Build feedback and do not consume the Review budget.
+
+Ship applies the verified delta spec with `tenon spec apply <change>`, which
+rehearses `openspec validate`/`archive` in a temporary copy of `openspec/`,
+writes only the changed main spec bytes back under a compare-and-swap, and
+records `applied-spec.md`.
 
 Ship also has a machine-enforced migration guard. When the Change contains
 `migration/spec-application.json`, the managed apply tool must produce a result bound to the
@@ -73,9 +78,9 @@ tenon status <change-name> --json
 tenon document status <change-name>
 ```
 
-### 2. Run the dispatched phase Skill
+### 2. Run the step`s declared skills
 
-The coding agent reads the packaged phase Skill and the current Change
+The coding agent reads the packaged `tenon` skill and the current Change
 documents, performs the work, and records its current-visit evidence. Do not
 replace real Skill execution with a claim in prose.
 

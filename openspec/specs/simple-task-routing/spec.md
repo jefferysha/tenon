@@ -47,8 +47,8 @@ the simple candidate score to zero before winner selection, regardless of priori
 
 ### Requirement: The simple workflow SHALL verify changes without the governed document chain
 The packaged simple workflow SHALL expose `change`, `verify`, `done`, and `escalated` steps. It
-SHALL invoke the packaged `simple-task` skill for the change step and
-`verification-before-completion` for the verify step. It SHALL not declare
+It SHALL declare no skill for the change step, carrying the boundary rules in that step's
+`prompt` instead, and `verification-before-completion` for the verify step. It SHALL not declare
 `openspec_contract: required`, create OpenSpec/Superpower/ADR requirements, or add review gates.
 The Dashboard and native Todo projection SHALL show the actual lightweight steps rather than the
 default seven phases.
@@ -68,8 +68,8 @@ same step, and CLI and HTTP transitions SHALL enforce the same rule.
 - **AND** the workflow does not falsely mark the task complete
 
 #### Scenario: Direct transition cannot skip a declared skill
-- **WHEN** a caller sends `change-complete` without current-visit `simple-task` evidence
-- **THEN** the state remains at `change` and the adapter reports `step-skills-incomplete`
+- **WHEN** a caller sends `verify-pass` without current-visit `verification-before-completion` evidence
+- **THEN** the state remains at `verify` and the adapter reports `step-skills-incomplete`
 - **AND** the same event succeeds only after trusted evidence is present
 
 #### Scenario: Escalation does not fabricate completion
@@ -79,8 +79,8 @@ same step, and CLI and HTTP transitions SHALL enforce the same rule.
   `escalated` in a display array
 
 ### Requirement: Scope expansion SHALL escalate rather than bypass governance
-The `simple-task` skill SHALL inspect the requested and actual change boundary before and after
-editing. If it detects any simple exclusion or an unbounded expansion, it SHALL stop lightweight
+The `tenon` skill SHALL inspect the requested and actual change boundary, as stated by the change
+step's `prompt`, before and after editing. If it detects any simple exclusion or an unbounded expansion, it SHALL stop lightweight
 execution, transition through `scope-expanded` to `escalated`, and hand off to a newly created
 default workflow Change with the appropriate full Track. It SHALL preserve an auditable link
 between the lightweight attempt and the governed Change.
