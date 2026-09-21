@@ -1,24 +1,6 @@
 {
   "schemaVersion": 3,
-  "status": "pinned",
-  "tag": "v1.0.1",
-  "pluginVersion": "1.0.1",
-  "gitCommit": "8f716852952d34fcffbaad30628a249fd1d3f143",
-  "cliEntry": "packages/cli/dist/tenon.mjs",
-  "cliSha256": "9648441c82960a4a5c233246bbb5e5fd13d0826b3a9e77a9b7a569583cd703bc",
-  "payloadEntries": [
-    ".agents/plugins/marketplace.json",
-    ".claude-plugin/marketplace.json",
-    ".claude-plugin/plugin.json",
-    ".codex-plugin/plugin.json",
-    "adapters",
-    "hooks",
-    "packages/cli/dist/tenon.mjs",
-    "packages/dashboard-app/dist",
-    "packages/server/dist/dashboard.mjs",
-    "runtime/tenon-bootstrap.mjs",
-    "skills",
-    "templates",
-    "tools/verify-skills.sh"
-  ]
+  "status": "none",
+  "release": "v0.1.0",
+  "reason": "first release after the version reset; no earlier 0.x release exists"
 }

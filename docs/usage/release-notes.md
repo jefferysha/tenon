@@ -4,6 +4,119 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.0 · 2026-09-22
+
+Version numbering restarts at 0.1.0. Tenon is young, and a 1.x number claimed a maturity it did not have.
+This release also delivers the capabilities built after v1.1.5.
+
+### Version reset
+
+- Numbering restarts at 0.1.0 and continues 0.1.x, 0.x. The retired v1.0.0–v1.0.9 and v1.1.0–v1.1.5 releases
+  and tags are removed, and those 16 numbers are never published again: the release candidate rejects them.
+- Install order ranks every retired 1.x number below every other stable version, so 0.1.0 is an upgrade from
+  1.1.5, while a newer 0.x is never silently replaced by an older one. `tenon update` names the retired version
+  it migrates away from, so the change is never silent.
+
+### Upgrade from 1.x
+
+Run the versioned installer once for each host you use, then open a new host session:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --codex
+```
+
+`tenon update` on a 1.x installation reports a downgrade to 0.1.0 and changes nothing. That refusal ships inside
+the published 1.x code and cannot be fixed retroactively, so the one-liner above is the migration path. The daily
+automatic update on a 1.x machine logs the same refusal. After migrating, `tenon update --codex` (or `--claude`)
+is again the routine upgrade.
+
+### More than one person per repository
+
+- Tenon resolves a declared identity from `TENON_USER`, then `<config>/user.json`, then the repository's own
+  configured user email, with no login. New records carry the actor who wrote them.
+- Every task has a creator and an owner; another user takes over with 接手. Advancing a task you do not own is
+  refused.
+- Per-user state lives under `.tenon/users/<slug>/`, so two people in one repository no longer overwrite each
+  other's active task or authority state. The Dashboard shows the current user and filters the workspace list by
+  owner.
+
+### Task archive and deletion
+
+- 归档 / 取消归档 hides a task for one user only, and is reversible.
+- 删除 removes a task from the working tree without committing, and the Dashboard says so before you confirm.
+- `tenon task delete|archive|unarchive <name>` and `tenon list --archived`.
+
+### Workflows are data
+
+- `openspec: true` is the single OpenSpec switch in a workflow.
+- Each track declares its own `document_contract`: which documents a step produces, updates or requires. The
+  kernel's fixed per-phase document tables are gone, and the global default workflow spells the tables out.
+- The Dashboard workflow page edits the inputs, skills, executors, outputs, reviewers and gate of every step, and
+  a workflow's steps, tracks and gates (评审 or 自动) are stored globally rather than per project.
+
+### One skill instead of seven
+
+- A single `tenon` skill drives every step from `tenon status <change> --json`, whose `step` block names what to do
+  next, including pending agent runs and required tests.
+- `tenon spec apply` applies a delta spec to the main spec.
+
+### Executors and reviewers per step
+
+- A step declares executors and reviewers: `tenon agent next|prompt|record`. Nine builtin agents ship with the
+  release (builder, researcher, architecture, frontend-quality, backend-quality, code-size, security,
+  spec-consistency, e2e).
+- Tenon computes a reviewer's verdict from its findings and the severity that blocks the step, records every run
+  as evidence, and freezes the agent set for a task when the task is created.
+- Agents run in the host (Claude Code's Agent tool, or a Codex subagent). The Dashboard never calls a model.
+
+### Test evidence per step
+
+- Steps declare tests with a command, inputs and outputs, run through `tenon test run <change> <test-id>`, and the
+  transition gate refuses to advance while a required test record is missing or stale.
+- Nine builtin test directions ship as a library: unit, integration, e2e, playwright, typecheck, regression,
+  benchmark, code-size and design-system. Run logs, traces and screenshots are kept per run for the acting user.
+
+### Instruction files, templates and projects
+
+- Tenon writes project and user instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) from 32 builtin template
+  blocks, and reports a conflict instead of overwriting a file that changed outside Tenon.
+- The library page collects agents, templates, the resource catalog and test directions; builtin items are
+  read-only and can be copied before editing. A single 新建项目 button creates or adopts a project.
+
+### Design system and resource catalog
+
+- A project's design system lives in `DESIGN.md`, with `tenon design` and a design-system workflow to produce it.
+  Creating a frontend task is refused until the design system is ready.
+- The resource catalog ships 163 builtin entries (`tenon resources`), so a step can name the libraries and
+  references it is allowed to use.
+
+### Upstream skills
+
+- Setup and update install 53 upstream skills, declared in `skills/sources.yaml`, into the plugin root. A lock
+  file records each skill's commit, tree digest and license, and a failed fetch leaves the active release
+  untouched.
+- The installed payload therefore grows to roughly 48 MB. A digest cache keyed on file stat keeps the measured
+  hook dispatch overhead within about 7 ms of v1.1.5.
+
+### Compatibility
+
+- v0.1.0 has no earlier 0.x release, so the N-1 compatibility gate is skipped for this release only, and reported
+  rather than silent: the fixture names v0.1.0 and the tooling exits with a documented skip code. v0.1.1 pins
+  v0.1.0 as its baseline.
+- Because of that, v0.1.0 is not proven to read tasks created by 1.x. Finish or archive an in-flight 1.x task
+  before migrating, or expect to recreate it.
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+Both hosts' inventories, the active managed runtime and the Dashboard all report 0.1.0, and a repeated
+`tenon update --codex` reports that the release is already in effect.
+
 ## v1.1.5 · 2026-09-15
 
 Found while continuing the same real Codex task on v1.1.4.

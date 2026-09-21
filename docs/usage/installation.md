@@ -20,35 +20,36 @@ Tenon does not require users to install mandatory Skills one by one.
 New users install the complete Codex plugin without cloning the repository:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --codex
 ```
 
 For Claude:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --claude
 ```
 
 Preview the complete Codex Marketplace and packaged setup plan without invoking
 the host or writing user/project state:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex --dry-run
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --codex --dry-run
 ```
 
 The versioned script installs only prebuilt assets from the immutable stable
-`v1.1.5` release. It never clones or compiles the source repository.
+`v0.1.0` release. It never clones or compiles the source repository.
 The bootstrap adds the selected native marketplace plugin, resolves the install
 root from the host's own inventory, and invokes the same
 `tenon setup --<host>` operation. Tenon does not guess private host
 cache locations.
 
-For an existing published `v1.0.1` installation, run the versioned
-historical `v1.0.2/install.sh` command once as the migration bridge. The v1.0.1
-launcher dispatches its old updater only once and cannot safely rebind the new
-release tag in that same invocation. From v1.0.2 onward, every routine upgrade
-is one `tenon update --codex` (or `--claude`) command and uses a stable release
-tag as its delivery identity.
+Tenon's version numbering restarted at 0.1.0, and the retired 1.x releases were
+removed. On a machine that still runs a 1.x installation, run the versioned
+`v0.1.0/install.sh` command once per host. `tenon update` on 1.x reports a
+downgrade and changes nothing: that refusal ships inside the already published
+1.x release and cannot be fixed retroactively. From v0.1.0 onward, every routine
+upgrade is one `tenon update --codex` (or `--claude`) command and uses a stable
+release tag as its delivery identity.
 
 Setup always starts the packaged Dashboard and waits for readiness. Piped/CI
 installs do not open a browser; they print the verified local URL and

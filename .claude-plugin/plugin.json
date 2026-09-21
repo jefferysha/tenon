@@ -1,7 +1,7 @@
 {
   "name": "tenon",
   "description": "数据驱动的开发流水线：工作流数据说每步加载哪些技能、跑哪些 agent 与测试、产出哪些文档，单个 tenon skill 照做。TypeScript 单语言内核 + 纯 bash 门 shim（confirm/review/interaction 三 marker 统一门）+ breadcrumb 每轮重提对抗长会话漂移。",
-  "version": "1.1.5",
+  "version": "0.1.0",
   "author": { "name": "bigdata_storage_compute_engine" },
   "license": "MIT",
   "keywords": ["workflow", "pipeline", "state-machine", "openspec", "hooks", "lite"],
