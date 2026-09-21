@@ -179,9 +179,9 @@ describe('lint · 内建 default 不误报', () => {
     const copied = copyWorkflowDef(full, 'default-copy')
     expect(copied.openspec).toBe(true)
     expect(validateWorkflowForStorage('default-copy', copied as never)).toEqual([])
-    // chat 轨只有驱动技能：openspec-propose 产出的 proposal 被裁掉，tenon-explore 的 adr 留下。
+    // chat 轨与 free 同构：它声明的技能产出 proposal 与 adr，复制后两者都留下。
     const chat = copied.tracks?.chat?.documentContract?.slots.map((slot) => slot.kind) ?? []
-    expect(chat).not.toContain('proposal')
+    expect(chat).toContain('proposal')
     expect(chat).toContain('adr')
   })
 })

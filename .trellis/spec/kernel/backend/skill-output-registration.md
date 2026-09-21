@@ -36,6 +36,10 @@ recordCanonicalDocumentSkillInvocation(changeDir, kind, recordedAt, { lock?, rec
   fixed repository path while change-scoped kinds stay under the change directory. A `require`-role project
   document passes on presence alone — a non-empty regular file at that path — because no producer in this
   workflow claims it. Stale evidence carries a reason code (`changed`, `producer`, `invocation`, `legacy-path`).
+- `tenon` is an implicit producer: it is never declared in a step's `skills`, yet it is the allowed producer for
+  every `role: update` slot, for the OpenSpec living refresh, and for `applied-spec`. The runner reloads the
+  `tenon` skill on entering each StepVisit, which is what gives that producer its per-visit host confirmation —
+  the same confirmation the deleted phase skills used to supply.
 - History line kinds: `tool` = confirmation evidence (PostToolUse `skill-tracker.sh`); `tool-start` =
   PreToolUse `skill-start.sh` marker. `tool-start` is never completion evidence.
 
@@ -273,7 +277,7 @@ await recordNativeDocumentSkillConfirmation(dir, skillId.startsWith('tenon:') ? 
   `SKILL.md` read in the host transcript (`packages/cli/src/codexTranscriptEvidence.ts`).
 - Trigger (v1.1.3 real Codex task): two reads never became evidence, so the following record failed and the agent
   searched the bundled source for the cause: a complete read written as `text(await tools.exec_command({...}));`
-  (the parser accepted only the bound form), and reads of the 20 KB `tenon-explore` skill with
+  (the parser accepted only the bound form), and reads of a 20 KB skill with
   `max_output_tokens` 1000/2000 (correctly rejected as truncated, but the error did not say so).
 
 ### 2. Signatures

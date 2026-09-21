@@ -128,7 +128,7 @@ async function seedGovernedDocumentEvidence(root: string, changeDir: string, nam
     await record('spec', 'superpower-plan', plan, 'writing-plans')
     await record('spec', 'plan', plan, 'writing-plans')
     await record('verify', 'verification-report', report, 'verification-before-completion')
-    await record('ship', 'applied-spec', applied, 'openspec-apply-change')
+    await record('ship', 'applied-spec', applied, 'tenon')
     await store.set(changeDir, 'phase', originalPhase)
     await recordDocumentReads({ repoRoot: root, changeDir, phase: originalPhase, policy: defaultDocumentPolicy(), kind: 'all', readAt: recordedAt })
   } finally {

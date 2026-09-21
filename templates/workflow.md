@@ -18,3 +18,6 @@
   在真实证据与 guard 都过之后用 `tenon review acknowledge <change> --delegated` 留委托回执，
   不跳过任何评审、证据、guard，也不授权发布或外部副作用。
 - **tasks.md 是唯一 Todo 源**：每步只勾自己的任务；出口只校验截至当前步骤的未完成项。
+- **breadcrumb 对抗长会话漂移**：`tenon transition` 把当前步骤的行动提示写进
+  `openspec/changes/<name>/.breadcrumb`；UserPromptSubmit 薄 shim 只在用户明确恢复时读它，
+  绝不按修改时间把旧任务注入新会话。

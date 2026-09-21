@@ -275,9 +275,7 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
       return deps.runRepository.transact(command.changeDir, async (tx): Promise<TransitionApplicationResult> => {
         const owner = ownerDecision(tx.state.fields, command.actor)
         if (!owner.allowed) return { kind: 'owner-required', owner: owner.owner }
-        const beforeInteractionRevision = deps.interaction === undefined
-          ? undefined
-          : await readCurrentRunRevision(command.changeDir)
+        const beforeInteractionRevision = deps.interaction === undefined ? undefined : await readCurrentRunRevision(command.changeDir)
         // 事实物化在这里、锁内完成（workflow 定义加载），planner 只收规划所需的输入——state 与
         // 已加载并编译的 WorkflowIR，不把带 commit 能力的整个 tx 交给 planner（第 1 轮 review：
         // planner 拿到 tx 就有能力在规划途中提交，类型上就不该给这个权力）。
