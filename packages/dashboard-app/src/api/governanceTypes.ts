@@ -46,6 +46,27 @@ export interface WbSkillRef {
   depends_on?: string[]
 }
 
+export type WbAgentSeverity = 'critical' | 'high' | 'medium' | 'low'
+
+export interface WbExecutorRef {
+  agent: string
+  depends_on?: string[]
+}
+
+export interface WbReviewerRef {
+  agent: string
+  required: boolean
+  block_at: WbAgentSeverity
+  depends_on?: string[]
+  reads_tests?: string[]
+}
+
+/** 步骤 agent 块；两个列表都空时定义里没有这个键。 */
+export interface WbStepAgents {
+  executors: WbExecutorRef[]
+  reviewers: WbReviewerRef[]
+}
+
 /** 某技能目录的文件清单（GET /api/skills/:name/files）。 */
 export interface WbSkillFiles {
   name: string
@@ -147,6 +168,7 @@ export interface WbStepDef {
   outputs: WbFieldRef[]
   artifacts?: WbArtifactConfig[]
   tests?: WbStepTest[]
+  agents?: WbStepAgents
   guards: WbGuardConfig[]
   transitions: WbTransition[]
 }

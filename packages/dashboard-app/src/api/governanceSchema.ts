@@ -6,6 +6,10 @@ import type {
   WbGuardConfig,
   WbSkillEntry,
   WbSkillRef,
+  WbAgentSeverity,
+  WbExecutorRef,
+  WbReviewerRef,
+  WbStepAgents,
   WbStepDef,
   WbTrackPredicate,
   WbTransition,
@@ -111,6 +115,45 @@ function decodeSkill(value: unknown): WbSkillRef | null {
     id: item.id,
     ...(item.depends_on === undefined ? {} : { depends_on: item.depends_on }),
   }
+}
+
+const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
+
+function decodeExecutor(value: unknown): WbExecutorRef | null {
+  const item = record(value)
+  if (!item
+    || !allowedKeys(item, ['agent', 'depends_on'])
+    || typeof item.agent !== 'string'
+    || (item.depends_on !== undefined && !strings(item.depends_on))) return null
+  return { agent: item.agent, ...(item.depends_on === undefined ? {} : { depends_on: item.depends_on }) }
+}
+
+function decodeReviewer(value: unknown): WbReviewerRef | null {
+  const item = record(value)
+  const blockAt = item === null ? null : item.block_at
+  if (!item
+    || !allowedKeys(item, ['agent', 'required', 'block_at', 'depends_on', 'reads_tests'])
+    || typeof item.agent !== 'string'
+    || typeof item.required !== 'boolean'
+    || !isMember<WbAgentSeverity>(blockAt, SEVERITIES)
+    || (item.depends_on !== undefined && !strings(item.depends_on))
+    || (item.reads_tests !== undefined && !strings(item.reads_tests))) return null
+  return {
+    agent: item.agent,
+    required: item.required,
+    block_at: blockAt,
+    ...(item.depends_on === undefined ? {} : { depends_on: item.depends_on }),
+    ...(item.reads_tests === undefined ? {} : { reads_tests: item.reads_tests }),
+  }
+}
+
+function decodeStepAgents(value: unknown): WbStepAgents | null {
+  const item = record(value)
+  if (!item || !allowedKeys(item, ['executors', 'reviewers'])) return null
+  const executors = item.executors === undefined ? [] : decodeArray(item.executors, decodeExecutor)
+  const reviewers = item.reviewers === undefined ? [] : decodeArray(item.reviewers, decodeReviewer)
+  if (executors === null || reviewers === null) return null
+  return { executors, reviewers }
 }
 
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
@@ -461,6 +504,8 @@ function decodeStep(value: unknown): WbStepDef | null {
   const artifacts = step.artifacts === undefined ? undefined : decodeArray(step.artifacts, decodeArtifact)
   const tests = step.tests === undefined ? undefined : decodeArray(step.tests, decodeStepTest)
   if (tests === null) return null
+  const agents = step.agents === undefined ? undefined : decodeStepAgents(step.agents)
+  if (agents === null) return null
   const guards = decodeArray(step.guards, decodeGuard)
   const transitions = decodeArray(step.transitions, decodeTransition)
   if (skills === null || inputs === null || outputs === null || artifacts === null || guards === null || transitions === null) return null
@@ -474,6 +519,7 @@ function decodeStep(value: unknown): WbStepDef | null {
     outputs,
     ...(artifacts === undefined ? {} : { artifacts }),
     ...(tests === undefined ? {} : { tests }),
+    ...(agents === undefined ? {} : { agents }),
     guards,
     transitions,
   }

@@ -17,6 +17,7 @@ import {
   removeTrackBranch,
   reorderStagesInDef,
   selectBranchDef,
+  setStepAgentsInDef,
   setStepSkillWavesInDef,
   workflowNameFromYaml,
   writeBranchDef,
@@ -391,5 +392,20 @@ describe('workbenchDefinition · track 分支', () => {
     expect(none).not.toHaveProperty('tracks')
     expect(none.steps.map((step) => step.id)).toEqual(['a', 'b'])
     expect(definitionForWrite({ ...withTrack, branches: {} })).not.toHaveProperty('branches')
+  })
+})
+
+describe('setStepAgentsInDef', () => {
+  const base = pipeline(stage('a'), stage('b'))
+
+  it('只替换给的那一侧；两侧都空时删掉 agents 键', () => {
+    const withExecutors = setStepAgentsInDef(base, 'a', { executors: [{ agent: 'builder' }] })
+    expect(withExecutors.steps[0]?.agents).toEqual({ executors: [{ agent: 'builder' }], reviewers: [] })
+    const withBoth = setStepAgentsInDef(withExecutors, 'a', {
+      reviewers: [{ agent: 'security', required: true, block_at: 'high' }],
+    })
+    expect(withBoth.steps[0]?.agents?.executors).toEqual([{ agent: 'builder' }])
+    const cleared = setStepAgentsInDef(setStepAgentsInDef(withBoth, 'a', { executors: [] }), 'a', { reviewers: [] })
+    expect(cleared.steps[0]).not.toHaveProperty('agents')
   })
 })

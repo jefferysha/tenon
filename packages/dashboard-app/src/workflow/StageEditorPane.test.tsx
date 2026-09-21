@@ -37,6 +37,10 @@ const IO: WbEffectiveIo = {
     outputs: [{ kind: 'field', id: 'plan', type: 'file_path', producer: null, consumers: [] }],
   },
 }
+const AGENTS = [
+  { name: 'builder', source: 'builtin' as const, description: '实现', skills: [], tools: ['Read'], digest: 'sha256:a' },
+  { name: 'security', source: 'custom' as const, description: '安全评审', skills: [], tools: ['Read'], digest: 'sha256:b' },
+]
 const REGISTRY: WbSkillEntry[] = [
   { name: 'tenon-explore', installed: true, source: 'local-plugin', description: '调研 + 深度设计', available: true },
   { name: 'brainstorming', installed: true, source: 'external-marketplace', description: '把想法聊成设计', available: true },
@@ -49,6 +53,8 @@ function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
     wfName: 'default', branch: 'pm', branches: [{ id: 'pm', label: '产品' }],
     labelOf: (id: string) => labels.get(id) ?? id,
     mandatory: { registry: REGISTRY },
+    agents: AGENTS,
+    setAgents: vi.fn(),
     renameStep: vi.fn(), removeStage: vi.fn(), setGate: vi.fn(), setSkills: vi.fn(), save: vi.fn(), discardDraft: vi.fn(), reloadDefinition: vi.fn(),
     setStageBack: vi.fn(),
     ...overrides,
@@ -112,6 +118,31 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.getByTestId('wb-skills-edit')).toBeInTheDocument()
     await user.click(screen.getByTestId('wb-skills-edit'))
     expect(screen.getByTestId('skill-composer')).toBeInTheDocument()
+  })
+
+  it('执行者在技能之后、评审者在门禁之前；没有 agent 的步骤两段都显示「无」', () => {
+    renderPane(EXPLORE)
+    const order = ['stage-inputs', 'stage-skills', 'stage-executors', 'stage-outputs', 'stage-reviewers', 'stage-gate']
+      .map((id) => screen.getByTestId(id))
+    for (let i = 1; i < order.length; i += 1) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByTestId('stage-executors-empty')).toHaveTextContent('无')
+    expect(screen.getByTestId('stage-reviewers-empty')).toHaveTextContent('无')
+  })
+
+  it('评审者节点名下写出 必需 · 阻断 · 测试 n；编辑按钮打开 agent 编辑器', async () => {
+    const user = userEvent.setup()
+    const step: WbStepDef = {
+      ...EXPLORE,
+      agents: {
+        executors: [{ agent: 'builder' }],
+        reviewers: [{ agent: 'security', required: true, block_at: 'medium', reads_tests: ['unit'] }],
+      },
+    }
+    renderPane(step)
+    expect(within(screen.getByTestId('stage-executors')).getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1')
+    expect(screen.getByTestId('flow-caption-security')).toHaveTextContent('必需 · 中 · 测试 1')
+    await user.click(screen.getByTestId('wb-reviewers-edit'))
+    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
   })
 
   it('门禁三选：aria-checked 跟随 step.gate，点选写回', async () => {

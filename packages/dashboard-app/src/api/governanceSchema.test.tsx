@@ -282,3 +282,28 @@ describe('decodeWorkflowDefinition', () => {
     })
   })
 })
+
+describe('decodeWorkflowDefinition · 步骤 agents', () => {
+  const withAgents = (agents: unknown) => decodeWorkflowDefinition({
+    name: 'agents', steps: [{ ...step, agents }],
+  })
+
+  it('执行者与评审者按原样解出；缺省不补键', () => {
+    const decoded = withAgents({
+      executors: [{ agent: 'builder' }],
+      reviewers: [{ agent: 'security', required: false, block_at: 'medium', reads_tests: ['unit'] }],
+    })
+    expect(decoded?.steps[0]?.agents).toEqual({
+      executors: [{ agent: 'builder' }],
+      reviewers: [{ agent: 'security', required: false, block_at: 'medium', reads_tests: ['unit'] }],
+    })
+    expect(decodeWorkflowDefinition({ name: 'bare', steps: [step] })?.steps[0]?.agents).toBeUndefined()
+  })
+
+  it('未知字段、非法阻断级别、缺 required 都整份作废', () => {
+    expect(withAgents({ executors: [{ agent: 'builder', lane: 'x' }], reviewers: [] })).toBeNull()
+    expect(withAgents({ executors: [], reviewers: [{ agent: 'a', required: true, block_at: 'fatal' }] })).toBeNull()
+    expect(withAgents({ executors: [], reviewers: [{ agent: 'a', block_at: 'high' }] })).toBeNull()
+    expect(withAgents({ executors: [], reviewers: [], extra: [] })).toBeNull()
+  })
+})
