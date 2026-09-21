@@ -3030,11 +3030,11 @@ var require_commander = __commonJS({
 });
 
 // packages/cli/src/main.ts
-import { execFile as execFile9, spawn as spawn9 } from "node:child_process";
+import { execFile as execFile10, spawn as spawn9 } from "node:child_process";
 import { existsSync as existsSync13, readFileSync as readFileSync40 } from "node:fs";
-import { readFile as readFile73, stat as stat16, writeFile as writeFile30 } from "node:fs/promises";
+import { readFile as readFile76, stat as stat16, writeFile as writeFile31 } from "node:fs/promises";
 import { homedir as homedir22 } from "node:os";
-import { dirname as dirname37, join as join141 } from "node:path";
+import { dirname as dirname37, join as join145 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -5967,9 +5967,9 @@ async function hydratePreVerifyReview(changeDir2, revision) {
   }
   return attach(revision, parseRecord(await readFile3(target, "utf8"), target));
 }
-function hydratePreVerifyReviewFromSync(readText, revision, sourceRoot = "canonical state") {
+function hydratePreVerifyReviewFromSync(readText2, revision, sourceRoot = "canonical state") {
   const relative33 = preVerifyReviewRelativePath(revision.revision, revision.revisionId);
-  const raw = readText(relative33);
+  const raw = readText2(relative33);
   return attach(revision, raw === void 0 ? void 0 : parseRecord(raw, join4(sourceRoot, relative33)));
 }
 
@@ -6058,9 +6058,9 @@ async function hydrateReviewAcknowledgedVia(changeDir2, revision) {
   }
   return attach2(revision, parseRecord2(await readFile4(target, "utf8"), target));
 }
-function hydrateReviewAcknowledgedViaFromSync(readText, revision, sourceRoot = "canonical state") {
+function hydrateReviewAcknowledgedViaFromSync(readText2, revision, sourceRoot = "canonical state") {
   const relative33 = reviewAcknowledgedViaRelativePath(revision.revision, revision.revisionId);
-  const raw = readText(relative33);
+  const raw = readText2(relative33);
   return attach2(revision, raw === void 0 ? void 0 : parseRecord2(raw, join5(sourceRoot, relative33)));
 }
 
@@ -6068,8 +6068,8 @@ function hydrateReviewAcknowledgedViaFromSync(readText, revision, sourceRoot = "
 async function hydrateCompanions(changeDir2, revision) {
   return hydrateReviewAcknowledgedVia(changeDir2, await hydratePreVerifyReview(changeDir2, revision));
 }
-function hydrateCompanionsFromSync(readText, revision, sourceRoot = "canonical state") {
-  return hydrateReviewAcknowledgedViaFromSync(readText, hydratePreVerifyReviewFromSync(readText, revision, sourceRoot), sourceRoot);
+function hydrateCompanionsFromSync(readText2, revision, sourceRoot = "canonical state") {
+  return hydrateReviewAcknowledgedViaFromSync(readText2, hydratePreVerifyReviewFromSync(readText2, revision, sourceRoot), sourceRoot);
 }
 async function publishCompanions(changeDir2, revision, logicalState) {
   await publishReviewAcknowledgedViaRecord(changeDir2, revision);
@@ -6166,7 +6166,7 @@ function validateAnchoredRecord(revision, raw, source) {
     throw new RunStateCorruptError(`canonical head TransitionRecord \u635F\u574F: ${String(error2)}`);
   }
 }
-async function validateAnchoredTransitionHead(revision, readText, sourceRoot) {
+async function validateAnchoredTransitionHead(revision, readText2, sourceRoot) {
   const anchor = readTransitionHeadAnchor(revision.state);
   if (anchor === void 0)
     return void 0;
@@ -6177,12 +6177,12 @@ async function validateAnchoredTransitionHead(revision, readText, sourceRoot) {
   if (!transitionHeadAnchorMatchesMetadata(anchor, metadata))
     return void 0;
   const relativePath = anchoredRecordPath(anchor);
-  const raw = await readText(relativePath);
+  const raw = await readText2(relativePath);
   if (raw === void 0)
     throw new RunStateCorruptError("canonical head TransitionRecord \u7F3A\u5931");
   return validateAnchoredRecord(revision, raw, join6(sourceRoot, relativePath));
 }
-function validateAnchoredTransitionHeadFromSync(revision, readText, sourceRoot) {
+function validateAnchoredTransitionHeadFromSync(revision, readText2, sourceRoot) {
   const anchor = readTransitionHeadAnchor(revision.state);
   if (anchor === void 0)
     return void 0;
@@ -6193,7 +6193,7 @@ function validateAnchoredTransitionHeadFromSync(revision, readText, sourceRoot) 
   if (!transitionHeadAnchorMatchesMetadata(anchor, metadata))
     return void 0;
   const relativePath = anchoredRecordPath(anchor);
-  const raw = readText(relativePath);
+  const raw = readText2(relativePath);
   if (raw === void 0)
     throw new RunStateCorruptError("canonical head TransitionRecord \u7F3A\u5931");
   return validateAnchoredRecord(revision, raw, join6(sourceRoot, relativePath));
@@ -6351,7 +6351,7 @@ async function assertTransitionRecordFile(changeDir2, revision, previous) {
   assertTransitionRevisionLink(revision, transition, transitionRaw, previous);
   return transition;
 }
-function assertTransitionRecordFromSync(readText, revision, sourceRoot, previous) {
+function assertTransitionRecordFromSync(readText2, revision, sourceRoot, previous) {
   if (revision.mutation.kind !== "transition")
     return void 0;
   const metadata = revision.state.runMetadata;
@@ -6359,7 +6359,7 @@ function assertTransitionRecordFromSync(readText, revision, sourceRoot, previous
     throw new RunStateCorruptError("transition revision \u7F3A canonical run head/sequence");
   }
   const transitionRel = join7(TRANSITION_RECORDS_DIR, `${String(metadata.transitionSequence).padStart(6, "0")}-${revision.mutation.transitionRecordId}.json`);
-  const transitionRaw = readText(transitionRel);
+  const transitionRaw = readText2(transitionRel);
   if (transitionRaw === void 0)
     throw new RunStateCorruptError("transition revision \u5F15\u7528\u7684 TransitionRecord \u7F3A\u5931");
   try {
@@ -6540,43 +6540,43 @@ function readTextSyncIfExists(pathname) {
     throw error2;
   }
 }
-function readCurrentRunRevisionFromSync(readText, sourceRoot = "canonical state") {
+function readCurrentRunRevisionFromSync(readText2, sourceRoot = "canonical state") {
   const currentRel = join7(RUN_STATE_DIR, RUN_CURRENT_FILE);
-  const raw = readText(currentRel);
+  const raw = readText2(currentRel);
   if (raw === void 0)
     return void 0;
   const currentSource = join7(sourceRoot, currentRel);
-  const current = hydrateCompanionsFromSync(readText, parseRunRevision(raw, currentSource), sourceRoot);
+  const current = hydrateCompanionsFromSync(readText2, parseRunRevision(raw, currentSource), sourceRoot);
   const revisionsRel = join7(RUN_STATE_DIR, RUN_REVISIONS_DIR);
   const immutableRel = join7(revisionsRel, revisionFileName(current.revision, current.revisionId));
-  const immutableRaw = readText(immutableRel);
+  const immutableRaw = readText2(immutableRel);
   if (immutableRaw === void 0) {
     throw new RunStateCorruptError(`current \u5F15\u7528\u7684 immutable revision \u7F3A\u5931: ${join7(sourceRoot, immutableRel)}`);
   }
-  hydrateCompanionsFromSync(readText, parseRunRevision(immutableRaw, join7(sourceRoot, immutableRel)), sourceRoot);
+  hydrateCompanionsFromSync(readText2, parseRunRevision(immutableRaw, join7(sourceRoot, immutableRel)), sourceRoot);
   if (immutableRaw !== raw)
     throw new RunStateCorruptError("current \u4E0E immutable revision \u5B57\u8282\u4E0D\u4E00\u81F4");
   let previous;
   if (current.revision > 0) {
     const previousRevisionId = previousRevisionIdFor(current);
     const previousRel = join7(revisionsRel, revisionFileName(current.revision - 1, previousRevisionId));
-    const previousRaw = readText(previousRel);
+    const previousRaw = readText2(previousRel);
     if (previousRaw === void 0)
       throw new RunStateCorruptError("current \u5F15\u7528\u7684 previous revision \u7F3A\u5931");
-    previous = hydrateCompanionsFromSync(readText, parseRunRevision(previousRaw, join7(sourceRoot, previousRel)), sourceRoot);
+    previous = hydrateCompanionsFromSync(readText2, parseRunRevision(previousRaw, join7(sourceRoot, previousRel)), sourceRoot);
     if (previous.revisionId !== previousRevisionId || previous.revision !== current.revision - 1) {
       throw new RunStateCorruptError("current \u5F15\u7528\u7684 previous revision \u8EAB\u4EFD\u4E0D\u4E00\u81F4");
     }
     assertMutationEffects(current, previous);
   }
-  assertTransitionRecordFromSync(readText, current, sourceRoot, previous);
-  validateAnchoredTransitionHeadFromSync(current, readText, sourceRoot);
+  assertTransitionRecordFromSync(readText2, current, sourceRoot, previous);
+  validateAnchoredTransitionHeadFromSync(current, readText2, sourceRoot);
   if (previous?.mutation.kind === "transition") {
     const predecessorId = previousRevisionIdFor(previous);
     const predecessorRel = join7(revisionsRel, revisionFileName(previous.revision - 1, predecessorId));
-    const predecessorRaw = readText(predecessorRel);
-    const predecessor = assertDirectPredecessor(previous, predecessorRaw === void 0 ? void 0 : hydrateCompanionsFromSync(readText, parseRunRevision(predecessorRaw, join7(sourceRoot, predecessorRel)), sourceRoot));
-    assertTransitionRecordFromSync(readText, previous, sourceRoot, predecessor);
+    const predecessorRaw = readText2(predecessorRel);
+    const predecessor = assertDirectPredecessor(previous, predecessorRaw === void 0 ? void 0 : hydrateCompanionsFromSync(readText2, parseRunRevision(predecessorRaw, join7(sourceRoot, predecessorRel)), sourceRoot));
+    assertTransitionRecordFromSync(readText2, previous, sourceRoot, predecessor);
   }
   return current;
 }
@@ -7071,6 +7071,7 @@ var REQUIRED_RUNTIME_REFS = {
     outputs: [{ field: "verification_report", type: "file_path" }]
   }
 };
+var TENON_PRODUCER = "tenon";
 function aliasesForSkill(id2) {
   const aliases = /* @__PURE__ */ new Set([id2]);
   if (id2.startsWith("tenon:"))
@@ -7158,6 +7159,8 @@ function validateDocumentContract(workflow, options = {}) {
     if (isDefaultWorkflowName(options.origin ?? "custom"))
       continue;
     for (const producer of slot.producers) {
+      if (aliasesForSkill(producer).includes(TENON_PRODUCER))
+        continue;
       if (!skillDeclared(workflow, slot.ownerStep, producer)) {
         errors.push(`document_contract document '${kind}' \u7684 producer '${producer}' \u672A\u5728 owner_step '${slot.ownerStep}' \u58F0\u660E`);
       }
@@ -7253,7 +7256,7 @@ var WorkflowTrackBranchError = class extends Error {
 // packages/kernel/dist/workflow/document-contract.js
 var SPEC_ADR_LIVING_DOCUMENT = {
   kind: "adr",
-  producerCandidates: ["tenon-spec", "tenon:tenon-spec"]
+  producerCandidates: [TENON_PRODUCER]
 };
 function governedBranch(workflowId, workflow, track) {
   const tracks = workflow.tracks ?? {};
@@ -7320,6 +7323,11 @@ function recordsRequiredForPolicyStep(policy2, step) {
 function documentOwnerPolicyStep(policy2, kind) {
   return policy2.steps.find((step) => outputsRequiredForPolicyStep(policy2, step).some((requirement) => requirement.kind === kind));
 }
+function tenonImplicitlyProduces(policy2, kind, step) {
+  if (kind === "applied-spec")
+    return true;
+  return (policy2.mutableByStep[step] ?? []).some((requirement) => requirement.kind === kind);
+}
 function recordRequirementForPolicy(policy2, kind, step) {
   const frozenRequirement = [
     ...outputsRequiredForPolicyStep(policy2, step),
@@ -7336,6 +7344,8 @@ function isDocumentProducerAllowedInPolicyStep(policy2, kind, step, producer) {
   const requirement = recordRequirementForPolicy(policy2, kind, step);
   if (!requirement)
     return false;
+  if (aliasesForSkill(producer).includes(TENON_PRODUCER) && tenonImplicitlyProduces(policy2, kind, step))
+    return true;
   const supplied = new Set(aliasesForSkill(producer));
   return requirement.producerCandidates.some((candidate2) => aliasesForSkill(candidate2).some((alias) => supplied.has(alias)));
 }
@@ -8043,7 +8053,7 @@ import { lstat as lstat8, mkdir as mkdir6, opendir, realpath as realpath2 } from
 import { isAbsolute as isAbsolute2, join as join11, relative as relative2, sep as sep2 } from "node:path";
 
 // packages/kernel/dist/workflow/default-workflow.generated.js
-var DEFAULT_WORKFLOW_SOURCE = 'name: default\nopenspec: true\ntracks:\n  chat:\n    label: \u5BF9\u8BDD\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [tenon-explore, tenon:tenon-explore, brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon-build, tenon:tenon-build] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion, tenon-verify, tenon:tenon-verify] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon-verify, tenon:tenon-verify] }\n        - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: tenon-open\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: tenon-explore\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: tenon-spec\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: tenon-build\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: tenon-verify\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: tenon-ship\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills:\n          - id: tenon-archive\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  pm:\n    label: \u4EA7\u54C1\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [tenon-explore, tenon:tenon-explore, brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon-build, tenon:tenon-build] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion, tenon-verify, tenon:tenon-verify] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon-verify, tenon:tenon-verify] }\n        - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: tenon-open\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: tenon-explore\n          - id: brainstorming\n          - id: grill-with-docs\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: tenon-spec\n          - id: openspec-propose\n          - id: brainstorming\n          - id: writing-plans\n          - id: grill-with-docs\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts: []\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: tenon-build\n          - id: prototype\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: tenon-verify\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: handoff\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: tenon-ship\n          - id: openspec-apply-change\n          - id: to-spec\n          - id: to-tickets\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills:\n          - id: tenon-archive\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  frontend:\n    label: \u524D\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [tenon-explore, tenon:tenon-explore, brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon-build, tenon:tenon-build] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion, tenon-verify, tenon:tenon-verify] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon-verify, tenon:tenon-verify] }\n        - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }\n        - { kind: design-md, owner_step: open, role: require }\n        - { kind: design-md, owner_step: build, role: require }\n        - { kind: design-md, owner_step: verify, role: require }\n        - { kind: design-md, owner_step: ship, role: update, producers: [hue] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: tenon-open\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: tenon-explore\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grill-with-docs\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        prompt: |-\n          \u9700\u8981\u65B0\u589E\u6216\u8C03\u6574\u8BBE\u8BA1\u65F6\u8FD0\u884C tenon design propose "$TENON_CHANGE_NAME"\uFF0C\u5728 openspec/changes/<change>/design-system.md \u5199\u6E05\u4FEE\u6539\u3001\u7406\u7531\u3001\u5F71\u54CD\uFF0C\u968F\u89C4\u683C\u8BC4\u5BA1\u3002\n        skills:\n          - id: tenon-spec\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: tenon-build\n          - id: frontend-design\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        tests:\n          - id: typecheck\n            direction: typecheck\n            command: npm run typecheck\n            label: \u7C7B\u578B\u68C0\u67E5\n            timeout_s: 600\n            required: true\n          - id: unit\n            direction: unit\n            command: npm test\n            label: \u5355\u6D4B\n            timeout_s: 900\n            required: true\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: tenon-verify\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: e2e-testing\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: playwright\n            direction: playwright\n            command: npx playwright test\n            label: Playwright\n            timeout_s: 1800\n            required: true\n            outputs:\n              - path: playwright-report\n                kind: report\n                required: false\n              - path: test-results\n                kind: trace\n                required: false\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: frontend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: e2e\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, frontend-quality, security, e2e]\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        prompt: |-\n          \u5B58\u5728 openspec/changes/<change>/design-system.md \u65F6\uFF1A\u52A0\u8F7D hue\uFF0C\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210 DESIGN.md \u53D7\u5F71\u54CD\u7AE0\u8282\u4E0E\u9884\u89C8\uFF0C\u8DD1 tenon design validate \u5230\u901A\u8FC7\uFF0C\u767B\u8BB0 tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\u3002\n        skills:\n          - id: tenon-ship\n          - id: openspec-apply-change\n          - id: openspec-archive-change\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        tests:\n          - id: design-system\n            direction: design-system\n            command: tenon design validate\n            label: \u8BBE\u8BA1\u4F53\u7CFB\n            timeout_s: 300\n            required: true\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills:\n          - id: tenon-archive\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  backend:\n    label: \u540E\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [tenon-explore, tenon:tenon-explore, brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon-build, tenon:tenon-build] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion, tenon-verify, tenon:tenon-verify] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon-verify, tenon:tenon-verify] }\n        - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: tenon-open\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: tenon-explore\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grill-with-docs\n          - id: improve-codebase-architecture\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: tenon-spec\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: tenon-build\n          - id: test-driven-development\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        tests:\n          - id: unit\n            direction: unit\n            command: npm test\n            label: \u5355\u6D4B\n            timeout_s: 900\n            required: true\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: tenon-verify\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: integration\n            direction: integration\n            command: npm run test:integration\n            label: \u96C6\u6210\n            timeout_s: 1800\n            required: true\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: backend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, backend-quality, security]\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: tenon-ship\n          - id: openspec-apply-change\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills:\n          - id: tenon-archive\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  free:\n    label: \u81EA\u7531\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [tenon-explore, tenon:tenon-explore, brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon-explore, tenon:tenon-explore] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon-spec, tenon:tenon-spec] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon-build, tenon:tenon-build] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion, tenon-verify, tenon:tenon-verify] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon-verify, tenon:tenon-verify] }\n        - { kind: applied-spec, owner_step: ship, producers: [openspec-apply-change, opsx:apply] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon-ship, tenon:tenon-ship] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon-archive, tenon:tenon-archive] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: tenon-open\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: tenon-explore\n          - id: brainstorming\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: tenon-spec\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: tenon-build\n          - id: test-driven-development\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: tenon-verify\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: tenon-ship\n          - id: openspec-apply-change\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills:\n          - id: tenon-archive\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n';
+var DEFAULT_WORKFLOW_SOURCE = 'name: default\nopenspec: true\ntracks:\n  chat:\n    label: \u5BF9\u8BDD\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills: []\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills: []\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills: []\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  pm:\n    label: \u4EA7\u54C1\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n          - id: grill-with-docs\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: brainstorming\n          - id: writing-plans\n          - id: grill-with-docs\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts: []\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u539F\u578B\u4E3A\u4EA4\u4ED8\u7EA7\u9AD8\u4FDD\u771F\uFF0C\u8986\u76D6\u5173\u952E\u5C4F\u4E0E\u7A7A\u3001\u52A0\u8F7D\u3001\u9519\u8BEF\u3001\u6210\u529F\u6001\uFF1B\u7528\u6237\u9009\u5B9A\u4E00\u4E2A\u65B9\u6848\u540E\u53EA\u7CBE\u4FEE\u8BE5\u65B9\u6848\u3002\n        skills:\n          - id: prototype\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: handoff\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: to-spec\n          - id: to-tickets\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  frontend:\n    label: \u524D\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n        - { kind: design-md, owner_step: open, role: require }\n        - { kind: design-md, owner_step: build, role: require }\n        - { kind: design-md, owner_step: verify, role: require }\n        - { kind: design-md, owner_step: ship, role: update, producers: [hue] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grill-with-docs\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        prompt: |-\n          \u9700\u8981\u65B0\u589E\u6216\u8C03\u6574\u8BBE\u8BA1\u65F6\u8FD0\u884C tenon design propose "$TENON_CHANGE_NAME"\uFF0C\u5728 openspec/changes/<change>/design-system.md \u5199\u6E05\u4FEE\u6539\u3001\u7406\u7531\u3001\u5F71\u54CD\uFF0C\u968F\u89C4\u683C\u8BC4\u5BA1\u3002\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        tests:\n          - id: typecheck\n            direction: typecheck\n            command: npm run typecheck\n            label: \u7C7B\u578B\u68C0\u67E5\n            timeout_s: 600\n            required: true\n          - id: unit\n            direction: unit\n            command: npm test\n            label: \u5355\u6D4B\n            timeout_s: 900\n            required: true\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: e2e-testing\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: playwright\n            direction: playwright\n            command: npx playwright test\n            label: Playwright\n            timeout_s: 1800\n            required: true\n            outputs:\n              - path: playwright-report\n                kind: report\n                required: false\n              - path: test-results\n                kind: trace\n                required: false\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: frontend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: e2e\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, frontend-quality, security, e2e]\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        prompt: |-\n          \u5B58\u5728 openspec/changes/<change>/design-system.md \u65F6\uFF1A\u52A0\u8F7D hue\uFF0C\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210 DESIGN.md \u53D7\u5F71\u54CD\u7AE0\u8282\u4E0E\u9884\u89C8\uFF0C\u8DD1 tenon design validate \u5230\u901A\u8FC7\uFF0C\u767B\u8BB0 tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\u3002\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        tests:\n          - id: design-system\n            direction: design-system\n            command: tenon design validate\n            label: \u8BBE\u8BA1\u4F53\u7CFB\n            timeout_s: 300\n            required: true\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  backend:\n    label: \u540E\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grill-with-docs\n          - id: improve-codebase-architecture\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        tests:\n          - id: unit\n            direction: unit\n            command: npm test\n            label: \u5355\u6D4B\n            timeout_s: 900\n            required: true\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: integration\n            direction: integration\n            command: npm run test:integration\n            label: \u96C6\u6210\n            timeout_s: 1800\n            required: true\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: backend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, backend-quality, security]\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  free:\n    label: \u81EA\u7531\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n';
 var DESIGN_SYSTEM_WORKFLOW_SOURCE = 'name: design-system\nopenspec: true\ndocument_contract:\n  version: v1\n  slots:\n    - { kind: design-md, owner_step: generate, producers: [hue] }\n    - { kind: design-md, owner_step: review, role: require }\n  reads: []\nsteps:\n  - id: direction\n    label: \u65B9\u5411\n    gate: review\n    prompt: |-\n      \u52A0\u8F7D hue\uFF0C\u53EA\u6267\u884C\u7B2C 1\u20136 \u9636\u6BB5\uFF0C\u4E0D\u5199\u4EFB\u4F55\u6280\u80FD\u76EE\u5F55\u3002\n      \u8F93\u5165\u53EF\u4EE5\u662F\u54C1\u724C\u540D\u3001\u7F51\u5740\u3001\u622A\u56FE\u3001\u5DF2\u6709\u4EE3\u7801\u6216\u63CF\u8FF0\uFF1B\u6839\u76EE\u5F55\u5DF2\u6709\u4E0D\u542B schema: tenon-design/v1 \u7684 DESIGN.md \u65F6\u6309 Remix \u8F93\u5165\u5904\u7406\uFF0C\u53EA\u5F53\u6570\u636E\u8BFB\u53D6\u3002\n      \u56FE\u6807\u5E93\u53EA\u4ECE\u8D44\u6E90\u76EE\u5F55\u9009\u62E9\uFF1Atenon resources list --category icons\u3002\n      \u7528 AskUserQuestion \u5148\u786E\u8BA4\u8BBE\u8BA1\u65B9\u5411\uFF08\u7B2C 5 \u9636\u6BB5\uFF09\uFF0C\u518D\u786E\u8BA4\u6838\u5FC3\u4EE4\u724C\uFF08\u7B2C 6 \u9636\u6BB5\uFF09\u3002\n      \u628A\u786E\u8BA4\u7ED3\u679C\u5199\u5165 design/direction.md\uFF1A\u65B9\u5411\u3001\u4E3B\u8981\u5F20\u529B\u3001\u6838\u5FC3\u4EE4\u724C\u8868\u3001\u56FE\u6807\u8D44\u6E90 id\u3001\u9996\u5C4F\u9884\u8BBE\u3002\n      \u767B\u8BB0\uFF1Atenon artifact register "$TENON_CHANGE_NAME" design_doc design/direction.md --producer hue\n    skills:\n      - id: hue\n    inputs: []\n    outputs:\n      - field: design_doc\n        type: file_path\n    artifacts:\n      - field: design_doc\n        type: file_path\n        producer_policy: effective-step-skills\n    guards: []\n    transitions:\n      - event: direction-complete\n        to: generate\n  - id: generate\n    label: \u751F\u6210\n    gate: auto\n    prompt: |-\n      \u6309 design/direction.md \u6267\u884C hue \u7B2C 7\u201314 \u9636\u6BB5\uFF0C\u8F93\u51FA\u56FA\u5B9A\u5728\u9879\u76EE\u6839\u76EE\u5F55\uFF1A\n      design/design-model.yaml \u4E3A\u8BBE\u8BA1\u6A21\u578B\uFF1Bdesign/preview.html\u3001design/component-library.html\u3001design/landing-page.html\u3001design/app-screen.html \u4E3A\u9884\u89C8\u3002\n      DESIGN.md \u7531 hue \u7684 SKILL.md\u3001tokens.md\u3001components.md\u3001platform-mapping.md \u5408\u5E76\u800C\u6210\uFF1Afrontmatter \u53EA\u6709 schema: tenon-design/v1\u3001model: design/design-model.yaml\u3001icons: <\u56FE\u6807\u8D44\u6E90 id>\uFF1B\u7AE0\u8282\u4F9D\u6B21\u4E3A ## 1. Philosophy\u3001## 2. Craft Rules\u3001## 3. Anti-Patterns\u3001## 4. Tokens\u3001## 5. Iconography\u3001## 6. Hero Stage\u3001## 7. Components\u3001## 8. Voice\u3001## 9. Platform Mapping\u3001## 10. Previews\u3002\n      \u4E0D\u5199 SKILL.md\uFF0C\u4E0D\u5199 ~/.claude/skills \u6216 ~/.agents/skills\uFF0C\u8DF3\u8FC7\u7B2C 16 \u9636\u6BB5\u3002\n      \u8FD0\u884C tenon design validate \u76F4\u5230\u901A\u8FC7\uFF0C\u7136\u540E\u767B\u8BB0\uFF1Atenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\n    skills:\n      - id: hue\n    inputs:\n      - field: design_doc\n        type: file_path\n    outputs: []\n    guards: []\n    transitions:\n      - event: generate-complete\n        to: review\n  - id: review\n    label: \u9884\u89C8\n    gate: review\n    prompt: |-\n      \u6253\u5F00 design/ \u4E0B\u56DB\u4E2A\u9884\u89C8\u9875\uFF0C\u6D45\u8272\u4E0E\u6DF1\u8272\u90FD\u68C0\u67E5\uFF1BCodex \u6CA1\u6709\u6D4F\u89C8\u5668\u65F6\u628A\u56DB\u4E2A\u7EDD\u5BF9\u8DEF\u5F84\u4EA4\u7ED9\u7528\u6237\u3002\n      \u9700\u8981\u8C03\u6574\u65F6\u53D1\u9001 review-changes \u56DE\u5230\u751F\u6210\uFF1A\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210\u53D7\u5F71\u54CD\u7684\u6587\u4EF6\u3002\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions:\n      - event: review-changes\n        to: generate\n';
 var DEFAULT_WORKFLOW_STEPS = [
   { id: "open", label: "\u7ACB\u9879" },
@@ -9583,9 +9593,9 @@ function collectVerificationResultErrors(value, path15, errors) {
   }
 }
 function validateVerificationResult(input2, path15 = "verification") {
-  let snapshot;
+  let snapshot2;
   try {
-    snapshot = snapshotVerificationResultFields(input2);
+    snapshot2 = snapshotVerificationResultFields(input2);
   } catch (e) {
     return {
       ok: false,
@@ -9594,7 +9604,7 @@ function validateVerificationResult(input2, path15 = "verification") {
   }
   const errors = [];
   try {
-    collectVerificationResultErrors(snapshot, path15, errors);
+    collectVerificationResultErrors(snapshot2, path15, errors);
   } catch (e) {
     return {
       ok: false,
@@ -9603,7 +9613,7 @@ function validateVerificationResult(input2, path15 = "verification") {
   }
   if (errors.length > 0)
     return { ok: false, errors };
-  return { ok: true, value: deepFreeze3(snapshot) };
+  return { ok: true, value: deepFreeze3(snapshot2) };
 }
 function isTrustedPass(result2) {
   return result2.verdict === "passed" && result2.issuer.trusted === true;
@@ -10228,14 +10238,14 @@ function validateReservation(o, errors) {
   }
   const context = subObj2(o, "attempt_context", p, errors, true);
   if (context !== null) {
-    const cp2 = `${p}.attempt_context`;
-    checkKnownKeys(context, ["source_run_record_ids", "omitted_attempt_ids", "rendered", "stagnation"], cp2, errors);
-    checkStrArray(context, "source_run_record_ids", cp2, errors);
-    checkStrArray(context, "omitted_attempt_ids", cp2, errors);
-    checkStr(context, "rendered", cp2, errors);
-    const stagnation = subObj2(context, "stagnation", cp2, errors);
+    const cp3 = `${p}.attempt_context`;
+    checkKnownKeys(context, ["source_run_record_ids", "omitted_attempt_ids", "rendered", "stagnation"], cp3, errors);
+    checkStrArray(context, "source_run_record_ids", cp3, errors);
+    checkStrArray(context, "omitted_attempt_ids", cp3, errors);
+    checkStr(context, "rendered", cp3, errors);
+    const stagnation = subObj2(context, "stagnation", cp3, errors);
     if (stagnation !== null) {
-      const sp = `${cp2}.stagnation`;
+      const sp = `${cp3}.stagnation`;
       checkKnownKeys(stagnation, ["stagnant", "fingerprint", "repeated_attempt_ids"], sp, errors);
       checkBool(stagnation, "stagnant", sp, errors);
       checkSha2562(stagnation, "fingerprint", sp, errors, true);
@@ -10481,10 +10491,10 @@ function validateRun(o, errors) {
   checkStrArray(o, "usage_record_ids", p, errors);
   const accounting = subObj2(o, "accounting", p, errors);
   if (accounting !== null) {
-    const cp2 = `${p}.accounting`;
-    checkNum(accounting, "reserved_tokens", cp2, errors);
-    checkNum(accounting, "charged_tokens", cp2, errors);
-    checkEnum2(accounting, "charge_source", CHARGE_SOURCES, cp2, errors);
+    const cp3 = `${p}.accounting`;
+    checkNum(accounting, "reserved_tokens", cp3, errors);
+    checkNum(accounting, "charged_tokens", cp3, errors);
+    checkEnum2(accounting, "charge_source", CHARGE_SOURCES, cp3, errors);
   }
   const error2 = subObj2(o, "error", p, errors, true);
   if (error2 !== null) {
@@ -10590,11 +10600,11 @@ function parseProgress(text8, loopIds, now) {
     if (!known.has(loopCol))
       continue;
     const rowText = cols.join("|");
-    const rm24 = rowText.match(RESULT_RE);
+    const rm25 = rowText.match(RESULT_RE);
     const dm = rowText.match(DRY_COUNT_RE);
     required(rowsByLoop.get(loopCol)).push({
       ts: parseTimestamp(required(cols[0]), now),
-      result: rm24 ? rm24[1] : null,
+      result: rm25 ? rm25[1] : null,
       dryCount: dm ? Number(dm[1]) : null
     });
   }
@@ -11487,14 +11497,14 @@ async function anchoredStart(changeDir2, reservationId) {
   const terminals = read3.records.filter((record9) => record9.kind === "run" && record9.reservation_id === reservationId);
   const reservation = reservations[0];
   const activation = activations[0];
-  const snapshot = snapshots[0];
-  if (reservations.length !== 1 || activations.length !== 1 || snapshots.length !== 1 || terminals.length !== 0 || reservation === void 0 || activation === void 0 || snapshot === void 0 || reservation.change !== basename3(changeDir2) || activation.attempt_id !== reservation.attempt_id || activation.change !== reservation.change || activation.loop_id !== reservation.loop_id || snapshot.attempt_id !== reservation.attempt_id || snapshot.loop_id !== reservation.loop_id || snapshot.workflow_run_id !== metadata.runId || snapshot.workflow !== workflow || snapshot.step !== step) {
+  const snapshot2 = snapshots[0];
+  if (reservations.length !== 1 || activations.length !== 1 || snapshots.length !== 1 || terminals.length !== 0 || reservation === void 0 || activation === void 0 || snapshot2 === void 0 || reservation.change !== basename3(changeDir2) || activation.attempt_id !== reservation.attempt_id || activation.change !== reservation.change || activation.loop_id !== reservation.loop_id || snapshot2.attempt_id !== reservation.attempt_id || snapshot2.loop_id !== reservation.loop_id || snapshot2.workflow_run_id !== metadata.runId || snapshot2.workflow !== workflow || snapshot2.step !== step) {
     throw new AfkSkillInvocationProofError("AFK lifecycle binding lacks one exact open reservation, snapshot, activation, and canonical StepVisit");
   }
   return {
     reservation,
     activation,
-    snapshot,
+    snapshot: snapshot2,
     subject: {
       project_id: await skillInvocationProjectId(repoRoot),
       workflow_definition_id: workflow,
@@ -11506,17 +11516,17 @@ async function anchoredStart(changeDir2, reservationId) {
   };
 }
 async function startDurableAfkSkillInvocations(changeDir2, reservationId, interactionReceipts = []) {
-  const { subject: subject2, reservation, activation, snapshot } = await anchoredStart(changeDir2, reservationId);
+  const { subject: subject2, reservation, activation, snapshot: snapshot2 } = await anchoredStart(changeDir2, reservationId);
   const attempt2 = { attempt_id: reservation.attempt_id, reservation_id: reservation.reservation_id };
   const interactions = interactionReceipts.map((receipt) => ({
     receipt,
     input: inspectVerifiedAfkInteractionReceipt(receipt)
   }));
-  if (interactions.some(({ input: input2 }) => input2 === void 0) || new Set(interactions.map(({ input: input2 }) => input2?.skill_id)).size !== interactions.length || interactions.some(({ input: input2 }) => input2?.attempt_id !== attempt2.attempt_id || input2.reservation_id !== attempt2.reservation_id || input2.snapshot_sha256 !== snapshot.snapshot_sha256 || !snapshot.slots.some((slot) => slot.concrete_skill_id === input2.skill_id))) {
+  if (interactions.some(({ input: input2 }) => input2 === void 0) || new Set(interactions.map(({ input: input2 }) => input2?.skill_id)).size !== interactions.length || interactions.some(({ input: input2 }) => input2?.attempt_id !== attempt2.attempt_id || input2.reservation_id !== attempt2.reservation_id || input2.snapshot_sha256 !== snapshot2.snapshot_sha256 || !snapshot2.slots.some((slot) => slot.concrete_skill_id === input2.skill_id))) {
     throw new AfkSkillInvocationProofError("AFK interaction receipt does not match the exact prepared attempt and skill bundle");
   }
   const handles = [];
-  for (const slot of snapshot.slots) {
+  for (const slot of snapshot2.slots) {
     const invocationId = `invocation-${digest4("afk", attempt2.attempt_id, attempt2.reservation_id, slot.concrete_skill_id, slot.tree_sha256)}`;
     const started = {
       schema_version: "skill-invocation-evidence/v1",
@@ -11531,7 +11541,7 @@ async function startDurableAfkSkillInvocations(changeDir2, reservationId, intera
         input: { schema_id: "tenon-afk-skill-input/v1", fields: [{
           name: "skill_bundle",
           classification: "configuration",
-          digest: `sha256:${snapshot.snapshot_sha256}`,
+          digest: `sha256:${snapshot2.snapshot_sha256}`,
           validator: { id: "sealed-skill-bundle", status: "pass" }
         }] },
         adapter: { kind: "afk", proof_ref: `afk-attempt-${digest4(attempt2.attempt_id, attempt2.reservation_id, slot.concrete_skill_id)}` }
@@ -11569,8 +11579,8 @@ async function startDurableAfkSkillInvocations(changeDir2, reservationId, intera
       changeDir: changeDir2,
       change: reservation.change,
       loopId: reservation.loop_id,
-      workflowRunId: snapshot.workflow_run_id,
-      snapshotSha256: snapshot.snapshot_sha256,
+      workflowRunId: snapshot2.workflow_run_id,
+      snapshotSha256: snapshot2.snapshot_sha256,
       started,
       attempt: attempt2,
       nextSequence
@@ -11842,7 +11852,8 @@ var SIMPLE_WORKFLOW = {
       id: "change",
       label: "Change",
       gate: null,
-      skills: [{ id: "simple-task" }],
+      prompt: "\u53EA\u6539\u7528\u6237\u70B9\u540D\u7684\u5C40\u90E8\u76EE\u6807\uFF1A\u9519\u5B57\u3001\u6587\u6848\u3001\u6CE8\u91CA\u3001\u5355\u6587\u4EF6\u7684\u503C\u3001\u65E0\u7528 import\u3002\u6D89\u53CA\u63A5\u53E3\u6216\u5951\u7EA6\u3001schema \u6216\u8FC1\u79FB\u3001\u9274\u6743\u3001\u6743\u9650\u3001\u4F9D\u8D56\u3001\u53D1\u5E03\u3001\u751F\u4EA7\u6570\u636E\u3001\u8DE8\u6A21\u5757\u6216\u65B0\u529F\u80FD\u65F6\uFF0C\u4E0D\u4FEE\u6539\uFF0C\u8D70 scope-expanded\u3002\u6539\u5B8C\u8FD0\u884C\u6700\u7A84\u7684\u68C0\u67E5\u3002",
+      skills: [],
       inputs: [],
       outputs: [],
       guards: [],
@@ -13953,11 +13964,11 @@ function parseTestBody(id2, cur, itemIndent) {
     }
     if (indentOf(line) <= itemIndent)
       break;
-    const scalar22 = /^\s*(direction|command|cwd|label|metrics_path|scope):\s*(.+?)\s*$/.exec(line);
-    if (scalar22) {
-      const key = scalar22[1] ?? "";
+    const scalar23 = /^\s*(direction|command|cwd|label|metrics_path|scope):\s*(.+?)\s*$/.exec(line);
+    if (scalar23) {
+      const key = scalar23[1] ?? "";
       once(key);
-      fields[key] = parseScalar2(scalar22[2] ?? "");
+      fields[key] = parseScalar2(scalar23[2] ?? "");
       cur.i++;
       continue;
     }
@@ -14965,7 +14976,7 @@ var OUTPUTS_BY_PHASE = {
   ],
   explore: [
     { kind: "superpower-design", producerCandidates: ["brainstorming", "superpowers:brainstorming"] },
-    { kind: "adr", producerCandidates: ["tenon-explore", "tenon:tenon-explore", "brainstorming", "superpowers:brainstorming"] }
+    { kind: "adr", producerCandidates: ["brainstorming", "superpowers:brainstorming"] }
   ],
   spec: [
     { kind: "delta-spec", producerCandidates: ["openspec-propose", "opsx:propose"] },
@@ -14976,39 +14987,39 @@ var OUTPUTS_BY_PHASE = {
   verify: [
     {
       kind: "verification-report",
-      producerCandidates: ["verification-before-completion", "superpowers:verification-before-completion", "tenon-verify", "tenon:tenon-verify"]
+      producerCandidates: ["verification-before-completion", "superpowers:verification-before-completion"]
     }
   ],
   ship: [
-    { kind: "applied-spec", producerCandidates: ["openspec-apply-change", "opsx:apply"] }
+    { kind: "applied-spec", producerCandidates: ["tenon"] }
   ],
   archive: []
 };
 var MUTABLE_RECORDS_BY_PHASE = {
   open: [],
   explore: [
-    { kind: "proposal", producerCandidates: ["tenon-explore", "tenon:tenon-explore"] },
-    { kind: "openspec-design", producerCandidates: ["tenon-explore", "tenon:tenon-explore"] },
-    { kind: "tasks", producerCandidates: ["tenon-explore", "tenon:tenon-explore"] }
+    { kind: "proposal", producerCandidates: ["tenon"] },
+    { kind: "openspec-design", producerCandidates: ["tenon"] },
+    { kind: "tasks", producerCandidates: ["tenon"] }
   ],
   spec: [
-    { kind: "proposal", producerCandidates: ["tenon-spec", "tenon:tenon-spec"] },
-    { kind: "openspec-design", producerCandidates: ["tenon-spec", "tenon:tenon-spec"] },
-    { kind: "tasks", producerCandidates: ["tenon-spec", "tenon:tenon-spec"] },
-    { kind: "superpower-design", producerCandidates: ["tenon-spec", "tenon:tenon-spec"] },
-    { kind: "adr", producerCandidates: ["tenon-spec", "tenon:tenon-spec"] }
+    { kind: "proposal", producerCandidates: ["tenon"] },
+    { kind: "openspec-design", producerCandidates: ["tenon"] },
+    { kind: "tasks", producerCandidates: ["tenon"] },
+    { kind: "superpower-design", producerCandidates: ["tenon"] },
+    { kind: "adr", producerCandidates: ["tenon"] }
   ],
   build: [
-    { kind: "tasks", producerCandidates: ["tenon-build", "tenon:tenon-build"] }
+    { kind: "tasks", producerCandidates: ["tenon"] }
   ],
   verify: [
-    { kind: "tasks", producerCandidates: ["tenon-verify", "tenon:tenon-verify"] }
+    { kind: "tasks", producerCandidates: ["tenon"] }
   ],
   ship: [
-    { kind: "tasks", producerCandidates: ["tenon-ship", "tenon:tenon-ship"] }
+    { kind: "tasks", producerCandidates: ["tenon"] }
   ],
   archive: [
-    { kind: "tasks", producerCandidates: ["tenon-archive", "tenon:tenon-archive"] }
+    { kind: "tasks", producerCandidates: ["tenon"] }
   ]
 };
 var READS_BY_PHASE = {
@@ -15250,8 +15261,8 @@ function historicalWorkflowFingerprint(workflowId, executionModel, workflow, doc
     projectionSteps
   }));
 }
-function restoreLegacyWorkflowPlan(snapshot, track, documentFingerprint, build2, fail8) {
-  const legacyWorkflow = structuredClone(snapshot.workflow);
+function restoreLegacyWorkflowPlan(snapshot2, track, documentFingerprint, build2, fail8) {
+  const legacyWorkflow = structuredClone(snapshot2.workflow);
   if (Object.hasOwn(legacyWorkflow, "decomposition") || Object.hasOwn(legacyWorkflow, "interaction")) {
     return fail8("legacy workflow plan snapshot \u4E0D\u5F97\u643A\u5E26 V3 policy \u5B57\u6BB5");
   }
@@ -15260,30 +15271,30 @@ function restoreLegacyWorkflowPlan(snapshot, track, documentFingerprint, build2,
     decomposition: compileWorkflowDecompositionPolicy(void 0),
     interaction: compileWorkflowInteractionPolicy(void 0)
   };
-  let documentPolicy = snapshot.version === 2 ? structuredClone(snapshot.documentPolicy) ?? void 0 : legacyDocumentPolicyForSnapshot(snapshot.workflowId, legacyWorkflow);
-  const historicalWorkflow = removeLegacyReviewLaneProjection(snapshot.workflowId, snapshot.executionModel, legacyWorkflow);
-  let historical = historicalWorkflowFingerprint(snapshot.workflowId, snapshot.executionModel, historicalWorkflow, documentPolicy, documentFingerprint);
-  if (historical !== snapshot.workflowFingerprint && JSON.stringify(historicalWorkflow) !== JSON.stringify(legacyWorkflow)) {
-    const projectedHistorical = historicalWorkflowFingerprint(snapshot.workflowId, snapshot.executionModel, legacyWorkflow, documentPolicy, documentFingerprint);
-    if (projectedHistorical === snapshot.workflowFingerprint)
+  let documentPolicy = snapshot2.version === 2 ? structuredClone(snapshot2.documentPolicy) ?? void 0 : legacyDocumentPolicyForSnapshot(snapshot2.workflowId, legacyWorkflow);
+  const historicalWorkflow = removeLegacyReviewLaneProjection(snapshot2.workflowId, snapshot2.executionModel, legacyWorkflow);
+  let historical = historicalWorkflowFingerprint(snapshot2.workflowId, snapshot2.executionModel, historicalWorkflow, documentPolicy, documentFingerprint);
+  if (historical !== snapshot2.workflowFingerprint && JSON.stringify(historicalWorkflow) !== JSON.stringify(legacyWorkflow)) {
+    const projectedHistorical = historicalWorkflowFingerprint(snapshot2.workflowId, snapshot2.executionModel, legacyWorkflow, documentPolicy, documentFingerprint);
+    if (projectedHistorical === snapshot2.workflowFingerprint)
       historical = projectedHistorical;
   }
-  if (historical !== snapshot.workflowFingerprint && snapshot.version === 1) {
-    const preTenonPolicy = preTenonV1DocumentPolicy(snapshot.workflowId, snapshot.workflowFingerprint);
+  if (historical !== snapshot2.workflowFingerprint && snapshot2.version === 1) {
+    const preTenonPolicy = preTenonV1DocumentPolicy(snapshot2.workflowId, snapshot2.workflowFingerprint);
     if (preTenonPolicy !== void 0) {
       documentPolicy = preTenonPolicy;
-      historical = historicalWorkflowFingerprint(snapshot.workflowId, snapshot.executionModel, historicalWorkflow, documentPolicy, documentFingerprint);
-      if (historical !== snapshot.workflowFingerprint && JSON.stringify(historicalWorkflow) !== JSON.stringify(legacyWorkflow)) {
-        const projectedHistorical = historicalWorkflowFingerprint(snapshot.workflowId, snapshot.executionModel, legacyWorkflow, documentPolicy, documentFingerprint);
-        if (projectedHistorical === snapshot.workflowFingerprint)
+      historical = historicalWorkflowFingerprint(snapshot2.workflowId, snapshot2.executionModel, historicalWorkflow, documentPolicy, documentFingerprint);
+      if (historical !== snapshot2.workflowFingerprint && JSON.stringify(historicalWorkflow) !== JSON.stringify(legacyWorkflow)) {
+        const projectedHistorical = historicalWorkflowFingerprint(snapshot2.workflowId, snapshot2.executionModel, legacyWorkflow, documentPolicy, documentFingerprint);
+        if (projectedHistorical === snapshot2.workflowFingerprint)
           historical = projectedHistorical;
       }
     }
   }
-  if (historical !== snapshot.workflowFingerprint) {
-    return fail8(`workflow plan snapshot \u5185\u5BB9\u4E0E fingerprint \u4E0D\u4E00\u81F4\uFF08expected=${snapshot.workflowFingerprint}, historical=${historical}\uFF09`);
+  if (historical !== snapshot2.workflowFingerprint) {
+    return fail8(`workflow plan snapshot \u5185\u5BB9\u4E0E fingerprint \u4E0D\u4E00\u81F4\uFF08expected=${snapshot2.workflowFingerprint}, historical=${historical}\uFF09`);
   }
-  return build2(workflow, documentPolicy ?? null, snapshot.workflowFingerprint, track);
+  return build2(workflow, documentPolicy ?? null, snapshot2.workflowFingerprint, track);
 }
 function exactPolicyShape(value, normalized2, keys) {
   if (typeof value !== "object" || value === null || Array.isArray(value))
@@ -15326,16 +15337,16 @@ function historicalV3PolicyWorkflowFingerprint(workflowId, executionModel, workf
     projectionSteps
   }));
 }
-function validateSnapshotPolicies(snapshot, fail8) {
+function validateSnapshotPolicies(snapshot2, fail8) {
   let decomposition;
   let interaction;
   let workflowDecomposition;
   let workflowInteraction;
   try {
-    decomposition = compileWorkflowDecompositionPolicy(snapshot.decomposition);
-    interaction = compileWorkflowInteractionPolicy(snapshot.interaction);
-    workflowDecomposition = compileWorkflowDecompositionPolicy(snapshot.workflow.decomposition);
-    workflowInteraction = compileWorkflowInteractionPolicy(snapshot.workflow.interaction);
+    decomposition = compileWorkflowDecompositionPolicy(snapshot2.decomposition);
+    interaction = compileWorkflowInteractionPolicy(snapshot2.interaction);
+    workflowDecomposition = compileWorkflowDecompositionPolicy(snapshot2.workflow.decomposition);
+    workflowInteraction = compileWorkflowInteractionPolicy(snapshot2.workflow.interaction);
   } catch (error2) {
     return fail8(`workflow plan snapshot frozen policy \u65E0\u6548\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`);
   }
@@ -15349,7 +15360,7 @@ function validateSnapshotPolicies(snapshot, fail8) {
     "auto_when",
     "ask_when"
   ];
-  if (!exactPolicyShape(snapshot.decomposition, decomposition, decompositionKeys) || !exactPolicyShape(snapshot.interaction, interaction, ["version", "mode"]) || !exactPolicyShape(snapshot.workflow.decomposition, workflowDecomposition, decompositionKeys) || !exactPolicyShape(snapshot.workflow.interaction, workflowInteraction, ["version", "mode"]) || JSON.stringify(decomposition) !== JSON.stringify(workflowDecomposition) || JSON.stringify(interaction) !== JSON.stringify(workflowInteraction)) {
+  if (!exactPolicyShape(snapshot2.decomposition, decomposition, decompositionKeys) || !exactPolicyShape(snapshot2.interaction, interaction, ["version", "mode"]) || !exactPolicyShape(snapshot2.workflow.decomposition, workflowDecomposition, decompositionKeys) || !exactPolicyShape(snapshot2.workflow.interaction, workflowInteraction, ["version", "mode"]) || JSON.stringify(decomposition) !== JSON.stringify(workflowDecomposition) || JSON.stringify(interaction) !== JSON.stringify(workflowInteraction)) {
     fail8("workflow plan snapshot frozen policy \u5F62\u72B6\u6216\u7ED1\u5B9A\u975E\u6CD5");
   }
 }
@@ -15359,15 +15370,15 @@ function retiredBudgetShape(value) {
   const keys = Object.keys(value);
   return keys.length === 2 && keys.includes("version") && keys.includes("max_attempts") && Reflect.get(value, "version") === "v1" && Number.isInteger(Reflect.get(value, "max_attempts"));
 }
-function validateV3WorkflowPolicies(snapshot, fail8) {
-  validateSnapshotPolicies(snapshot, fail8);
-  const legacyReviewBudget = snapshot.reviewBudget === void 0 && snapshot.workflow.reviewBudget === void 0;
+function validateV3WorkflowPolicies(snapshot2, fail8) {
+  validateSnapshotPolicies(snapshot2, fail8);
+  const legacyReviewBudget = snapshot2.reviewBudget === void 0 && snapshot2.workflow.reviewBudget === void 0;
   if (legacyReviewBudget)
     return true;
-  if (snapshot.reviewBudget === void 0 || snapshot.workflow.reviewBudget === void 0) {
+  if (snapshot2.reviewBudget === void 0 || snapshot2.workflow.reviewBudget === void 0) {
     return fail8("workflow plan snapshot review budget \u9876\u5C42\u4E0E workflow \u7ED1\u5B9A\u4E0D\u5B8C\u6574");
   }
-  if (!retiredBudgetShape(snapshot.reviewBudget) || !retiredBudgetShape(snapshot.workflow.reviewBudget) || JSON.stringify(snapshot.reviewBudget) !== JSON.stringify(snapshot.workflow.reviewBudget)) {
+  if (!retiredBudgetShape(snapshot2.reviewBudget) || !retiredBudgetShape(snapshot2.workflow.reviewBudget) || JSON.stringify(snapshot2.reviewBudget) !== JSON.stringify(snapshot2.workflow.reviewBudget)) {
     fail8("workflow plan snapshot frozen policy \u5F62\u72B6\u6216\u7ED1\u5B9A\u975E\u6CD5");
   }
   return false;
@@ -15530,33 +15541,33 @@ function workflowPlanSnapshot(plan) {
     workflowFingerprint: plan.workflowFingerprint
   });
 }
-function effectiveWorkflowPlanFromSnapshot(snapshot, track) {
-  if (![1, 2, 3, 4].includes(snapshot.version) || snapshot.workflowId === "" || snapshot.executionModel !== "phase-manifest" && snapshot.executionModel !== "step-graph" || !/^[0-9a-f]{64}$/.test(snapshot.workflowFingerprint)) {
+function effectiveWorkflowPlanFromSnapshot(snapshot2, track) {
+  if (![1, 2, 3, 4].includes(snapshot2.version) || snapshot2.workflowId === "" || snapshot2.executionModel !== "phase-manifest" && snapshot2.executionModel !== "step-graph" || !/^[0-9a-f]{64}$/.test(snapshot2.workflowFingerprint)) {
     throw new DocumentGovernanceBindingError("workflow plan snapshot \u5F62\u72B6\u975E\u6CD5");
   }
-  if (snapshot.version === 1 || snapshot.version === 2) {
-    return restoreLegacyWorkflowPlan(snapshot, track, documentGovernanceFingerprint, (workflow2, policy2, fingerprint, frozenTrack) => planFromIr(snapshot.workflowId, snapshot.executionModel, workflow2, frozenTrack, policy2, fingerprint), (message2) => {
+  if (snapshot2.version === 1 || snapshot2.version === 2) {
+    return restoreLegacyWorkflowPlan(snapshot2, track, documentGovernanceFingerprint, (workflow2, policy2, fingerprint, frozenTrack) => planFromIr(snapshot2.workflowId, snapshot2.executionModel, workflow2, frozenTrack, policy2, fingerprint), (message2) => {
       throw new DocumentGovernanceBindingError(message2);
     });
   }
-  if (snapshot.version === 4) {
-    validateSnapshotPolicies(snapshot, (message2) => {
+  if (snapshot2.version === 4) {
+    validateSnapshotPolicies(snapshot2, (message2) => {
       throw new DocumentGovernanceBindingError(message2);
     });
-    const plan = planFromIr(snapshot.workflowId, snapshot.executionModel, structuredClone(snapshot.workflow), track, structuredClone(snapshot.documentPolicy));
-    if (plan.workflowFingerprint === snapshot.workflowFingerprint)
+    const plan = planFromIr(snapshot2.workflowId, snapshot2.executionModel, structuredClone(snapshot2.workflow), track, structuredClone(snapshot2.documentPolicy));
+    if (plan.workflowFingerprint === snapshot2.workflowFingerprint)
       return plan;
-    throw new DocumentGovernanceBindingError(`workflow plan snapshot \u5185\u5BB9\u4E0E fingerprint \u4E0D\u4E00\u81F4\uFF08expected=${snapshot.workflowFingerprint}, current=${plan.workflowFingerprint}\uFF09`);
+    throw new DocumentGovernanceBindingError(`workflow plan snapshot \u5185\u5BB9\u4E0E fingerprint \u4E0D\u4E00\u81F4\uFF08expected=${snapshot2.workflowFingerprint}, current=${plan.workflowFingerprint}\uFF09`);
   }
-  const legacyReviewBudget = validateV3WorkflowPolicies(snapshot, (message2) => {
+  const legacyReviewBudget = validateV3WorkflowPolicies(snapshot2, (message2) => {
     throw new DocumentGovernanceBindingError(message2);
   });
-  const historical = legacyReviewBudget ? historicalV3WorkflowFingerprint(snapshot.workflowId, snapshot.executionModel, snapshot.workflow, snapshot.documentPolicy, documentGovernanceFingerprint) : historicalV3PolicyWorkflowFingerprint(snapshot.workflowId, snapshot.executionModel, snapshot.workflow, snapshot.documentPolicy, documentGovernanceFingerprint);
-  if (historical !== snapshot.workflowFingerprint) {
-    throw new DocumentGovernanceBindingError(`workflow plan snapshot \u5185\u5BB9\u4E0E fingerprint \u4E0D\u4E00\u81F4\uFF08expected=${snapshot.workflowFingerprint}, historical=${historical}\uFF09`);
+  const historical = legacyReviewBudget ? historicalV3WorkflowFingerprint(snapshot2.workflowId, snapshot2.executionModel, snapshot2.workflow, snapshot2.documentPolicy, documentGovernanceFingerprint) : historicalV3PolicyWorkflowFingerprint(snapshot2.workflowId, snapshot2.executionModel, snapshot2.workflow, snapshot2.documentPolicy, documentGovernanceFingerprint);
+  if (historical !== snapshot2.workflowFingerprint) {
+    throw new DocumentGovernanceBindingError(`workflow plan snapshot \u5185\u5BB9\u4E0E fingerprint \u4E0D\u4E00\u81F4\uFF08expected=${snapshot2.workflowFingerprint}, historical=${historical}\uFF09`);
   }
-  const { reviewBudget: _reviewBudget, ...workflow } = structuredClone(snapshot.workflow);
-  return planFromIr(snapshot.workflowId, snapshot.executionModel, workflow, track, structuredClone(snapshot.documentPolicy), snapshot.workflowFingerprint);
+  const { reviewBudget: _reviewBudget, ...workflow } = structuredClone(snapshot2.workflow);
+  return planFromIr(snapshot2.workflowId, snapshot2.executionModel, workflow, track, structuredClone(snapshot2.documentPolicy), snapshot2.workflowFingerprint);
 }
 function compileEffectiveWorkflowPlan(id2, provided, track) {
   if (isDefaultWorkflowName(id2)) {
@@ -15592,13 +15603,13 @@ function effectiveWorkflowPlanBinding(plan) {
     workflowPlanFingerprint: plan.workflowFingerprint
   };
 }
-function resolveBoundEffectiveWorkflowPlan(id2, binding, loadCompiled, track, snapshot) {
+function resolveBoundEffectiveWorkflowPlan(id2, binding, loadCompiled, track, snapshot2) {
   let plan;
-  if (snapshot !== void 0) {
-    if (snapshot.workflowId !== id2) {
-      throw new DocumentGovernanceBindingError(`workflow plan snapshot identity \u4E0D\u4E00\u81F4\uFF1A\u5DF2\u7ED1\u5B9A '${snapshot.workflowId}'\uFF0C\u5F53\u524D '${id2}'`);
+  if (snapshot2 !== void 0) {
+    if (snapshot2.workflowId !== id2) {
+      throw new DocumentGovernanceBindingError(`workflow plan snapshot identity \u4E0D\u4E00\u81F4\uFF1A\u5DF2\u7ED1\u5B9A '${snapshot2.workflowId}'\uFF0C\u5F53\u524D '${id2}'`);
     }
-    plan = effectiveWorkflowPlanFromSnapshot(snapshot, track);
+    plan = effectiveWorkflowPlanFromSnapshot(snapshot2, track);
   } else {
     plan = resolveEffectiveWorkflowPlan(id2, loadCompiled, track);
   }
@@ -15880,7 +15891,7 @@ function parseWorkflowPlanSnapshot(raw) {
   if (!envelope2 || Object.keys(envelope2).some((key) => !["version", "run_id", "plan"].includes(key)) || envelope2.version !== 1 || typeof envelope2.run_id !== "string" || envelope2.run_id === "" || !plan || Object.keys(plan).some((key) => !allowedPlanKeys.includes(key)) || ![1, 2, 3, 4].includes(planVersion) || typeof plan.workflowId !== "string" || plan.executionModel !== "phase-manifest" && plan.executionModel !== "step-graph" || planVersion !== 1 && documentPolicy !== null && ownRecord5(documentPolicy) === void 0 || (planVersion === 3 || planVersion === 4) && (ownRecord5(plan.decomposition) === void 0 || ownRecord5(plan.interaction) === void 0) || typeof plan.workflowFingerprint !== "string" || !/^[0-9a-f]{64}$/.test(plan.workflowFingerprint) || !isWorkflowIr(plan.workflow)) {
     throw new Error("workflow plan snapshot \u5F62\u72B6\u975E\u6CD5");
   }
-  const snapshot = planVersion === 1 ? {
+  const snapshot2 = planVersion === 1 ? {
     version: 1,
     workflowId: plan.workflowId,
     executionModel: plan.executionModel,
@@ -15913,11 +15924,11 @@ function parseWorkflowPlanSnapshot(raw) {
     interaction: plan.interaction,
     workflowFingerprint: plan.workflowFingerprint
   };
-  effectiveWorkflowPlanFromSnapshot(snapshot);
-  return { version: 1, run_id: envelope2.run_id, plan: snapshot };
+  effectiveWorkflowPlanFromSnapshot(snapshot2);
+  return { version: 1, run_id: envelope2.run_id, plan: snapshot2 };
 }
-function workflowPlanSnapshotContent(runId, snapshot) {
-  return `${JSON.stringify({ version: 1, run_id: runId, plan: snapshot })}
+function workflowPlanSnapshotContent(runId, snapshot2) {
+  return `${JSON.stringify({ version: 1, run_id: runId, plan: snapshot2 })}
 `;
 }
 async function readWorkflowPlanSnapshot(changeDir2) {
@@ -15934,8 +15945,8 @@ async function readWorkflowPlanSnapshot(changeDir2) {
     throw error2;
   }
 }
-async function ensureWorkflowPlanSnapshot(changeDir2, runId, snapshot) {
-  const requested = workflowPlanSnapshotContent(runId, snapshot);
+async function ensureWorkflowPlanSnapshot(changeDir2, runId, snapshot2) {
+  const requested = workflowPlanSnapshotContent(runId, snapshot2);
   const existing = await readWorkflowPlanSnapshot(changeDir2);
   if (existing !== void 0) {
     if (`${JSON.stringify(existing)}
@@ -19129,7 +19140,7 @@ function evaluateCoverage(state, ctx, failures, warnings) {
     }
   }
   if (covBlock > 0) {
-    failures.push(`spec \u51FA\u53E3\uFF1A\u5168\u6808 Spec \u8986\u76D6\uFF08${covBlock} \u5C42\u963B\u585E\uFF09`);
+    failures.push(`spec \u51FA\u53E3\uFF1A\u5168\u6808 Spec \u8986\u76D6\uFF08${covBlock} \u5C42\u963B\u585E\uFF09\uFF1B\u5728 design_doc \u7684 \`\`\`coverage \u5757\u4E3A\u6BCF\u4E2A\u963B\u585E\u5C42\u5199 filled -> <\u7AE0\u8282> \u6216 waived -> <\u7406\u7531>\uFF08touches \u542B auth \u65F6 L6 \u4E0D\u53EF waived\uFF09`);
     for (const l of blockedLines)
       warnings.push(`\u8986\u76D6\u963B\u585E: ${l}`);
   }
@@ -19834,13 +19845,13 @@ function renderGuardFailure(ev, stepId) {
       return `step '${stepId}' \u8981\u6C42 preset=full \u4E14 build_mode=direct \u65F6 direct_override=true\uFF08\u5F53\u524D=${d.actual ?? ""}\uFF09`;
     case "build-head-unchanged":
       if (d.blocker !== void 0) {
-        const blocker = d.blocker;
+        const blocker2 = d.blocker;
         return [
-          blocker.code,
-          `reason=${blocker.reason}`,
-          `remediation=${blocker.remediation}`,
-          ...blocker.stateHash === void 0 ? [] : [`stateHash=${blocker.stateHash}`],
-          ...blocker.revisionHash === void 0 ? [] : [`revisionHash=${blocker.revisionHash}`]
+          blocker2.code,
+          `reason=${blocker2.reason}`,
+          `remediation=${blocker2.remediation}`,
+          ...blocker2.stateHash === void 0 ? [] : [`stateHash=${blocker2.stateHash}`],
+          ...blocker2.revisionHash === void 0 ? [] : [`revisionHash=${blocker2.revisionHash}`]
         ].join(" ");
       }
       if ((d.expected?.[0] ?? "").startsWith("workspace:sha256:")) {
@@ -20061,19 +20072,19 @@ function freezeSnapshot(core, fingerprint) {
   }));
   return Object.freeze({ ...core, layers: Object.freeze(layers), authorization_fingerprint: fingerprint });
 }
-function validateCrossBindings(snapshot) {
-  const byLayer = new Map(snapshot.layers.map((layer) => [layer.layer, layer]));
+function validateCrossBindings(snapshot2) {
+  const byLayer = new Map(snapshot2.layers.map((layer) => [layer.layer, layer]));
   const project = byLayer.get("project")?.provenance;
   const workflow = byLayer.get("workflow")?.provenance;
   const run2 = byLayer.get("run")?.provenance;
   const skill = byLayer.get("skill")?.provenance;
-  if (project?.identity !== snapshot.track_id || project.revision !== snapshot.track_registry_revision || workflow?.identity !== snapshot.workflow_id || workflow.revision !== snapshot.workflow_fingerprint || run2?.identity !== snapshot.workflow_run_id || run2.revision !== snapshot.iteration_id || skill?.identity !== snapshot.skill_bundle_id) {
+  if (project?.identity !== snapshot2.track_id || project.revision !== snapshot2.track_registry_revision || workflow?.identity !== snapshot2.workflow_id || workflow.revision !== snapshot2.workflow_fingerprint || run2?.identity !== snapshot2.workflow_run_id || run2.revision !== snapshot2.iteration_id || skill?.identity !== snapshot2.skill_bundle_id) {
     throw new Error("Workflow action authority provenance identity does not match snapshot binding");
   }
-  if (snapshot.iteration_id !== `iteration-${snapshot.attempt_id}`) {
+  if (snapshot2.iteration_id !== `iteration-${snapshot2.attempt_id}`) {
     throw new Error("Workflow action authority iteration must identify the exact attempt");
   }
-  if (snapshot.layers.some((layer) => layer.status !== "valid" || !layer.grants.includes(snapshot.action))) {
+  if (snapshot2.layers.some((layer) => layer.status !== "valid" || !layer.grants.includes(snapshot2.action))) {
     throw new Error("Workflow action authority snapshot must describe an effective allowed authorization");
   }
 }
@@ -20175,8 +20186,8 @@ function parseWorkflowActionAuthoritySnapshot(raw) {
     throw new Error("Workflow action authority snapshot fingerprint mismatch");
   return freezeSnapshot(core, expected);
 }
-function workflowActionAuthoritySnapshotContent(snapshot) {
-  const parsed = parseWorkflowActionAuthoritySnapshot(JSON.stringify(snapshot));
+function workflowActionAuthoritySnapshotContent(snapshot2) {
+  const parsed = parseWorkflowActionAuthoritySnapshot(JSON.stringify(snapshot2));
   return `${JSON.stringify(parsed)}
 `;
 }
@@ -20203,19 +20214,19 @@ async function readWorkflowActionAuthorityRecord(changeDir2, iterationId) {
     if (!info.isFile() || info.isSymbolicLink()) {
       throw new Error(`Workflow action authority record must be a non-symlink regular file: ${target}`);
     }
-    const snapshot = parseWorkflowActionAuthoritySnapshot(await readFile20(target, "utf8"));
-    if (snapshot.iteration_id !== iterationId) {
+    const snapshot2 = parseWorkflowActionAuthoritySnapshot(await readFile20(target, "utf8"));
+    if (snapshot2.iteration_id !== iterationId) {
       throw new Error("Workflow action authority record iteration identity mismatch");
     }
-    return snapshot;
+    return snapshot2;
   } catch (error2) {
     if (errorCode8(error2) === "ENOENT")
       return void 0;
     throw error2;
   }
 }
-async function ensureWorkflowActionAuthorityRecord(changeDir2, snapshot) {
-  const requested = parseWorkflowActionAuthoritySnapshot(JSON.stringify(snapshot));
+async function ensureWorkflowActionAuthorityRecord(changeDir2, snapshot2) {
+  const requested = parseWorkflowActionAuthoritySnapshot(JSON.stringify(snapshot2));
   const existing = await readWorkflowActionAuthorityRecord(changeDir2, requested.iteration_id);
   if (existing !== void 0) {
     if (!sameWorkflowActionAuthoritySnapshot(existing, requested)) {
@@ -20279,9 +20290,9 @@ var FsWorkflowRunRepository = class {
     const runId = opts.runId ?? newId();
     const workflowId = opts.initialWorkflow?.workflow ?? DEFAULT_PLAN2.id;
     const packagedPlan = resolveEffectiveWorkflowPlan(workflowId, () => null);
-    const snapshot = opts.initialWorkflow?.workflowPlanSnapshot ?? (packagedPlan === null ? void 0 : workflowPlanSnapshot(packagedPlan));
-    if (snapshot !== void 0) {
-      const validated = effectiveWorkflowPlanFromSnapshot(snapshot);
+    const snapshot2 = opts.initialWorkflow?.workflowPlanSnapshot ?? (packagedPlan === null ? void 0 : workflowPlanSnapshot(packagedPlan));
+    if (snapshot2 !== void 0) {
+      const validated = effectiveWorkflowPlanFromSnapshot(snapshot2);
       const boundFingerprint = opts.initialWorkflow?.workflowPlanFingerprint;
       if (validated.id !== workflowId || boundFingerprint !== void 0 && validated.workflowFingerprint !== boundFingerprint) {
         throw new Error("init workflow plan snapshot \u4E0E workflow identity/fingerprint \u4E0D\u4E00\u81F4");
@@ -20301,14 +20312,14 @@ var FsWorkflowRunRepository = class {
       ...opts,
       runId,
       initialFiles,
-      ...snapshot === void 0 ? {} : {
+      ...snapshot2 === void 0 ? {} : {
         initialWorkflow: {
           ...opts.initialWorkflow ?? {
             workflow: workflowId,
             phase: packagedPlan?.workflow.steps[0]?.id ?? "open"
           },
-          workflowPlanFingerprint: opts.initialWorkflow?.workflowPlanFingerprint ?? snapshot.workflowFingerprint,
-          workflowPlanSnapshot: snapshot
+          workflowPlanFingerprint: opts.initialWorkflow?.workflowPlanFingerprint ?? snapshot2.workflowFingerprint,
+          workflowPlanSnapshot: snapshot2
         }
       }
     });
@@ -20398,7 +20409,7 @@ var FsWorkflowRunRepository = class {
       return deriveRun(state.fields, metadata, await authorityForCurrentIteration(changeDir2, metadata));
     });
   }
-  async bindWorkflowActionAuthority(changeDir2, snapshot) {
+  async bindWorkflowActionAuthority(changeDir2, snapshot2) {
     const { store: store2 } = this.deps;
     return store2.withLock(changeDir2, async () => {
       const state = await store2.read(changeDir2);
@@ -20406,10 +20417,10 @@ var FsWorkflowRunRepository = class {
       const workflowId = resolveWorkflowName(state);
       const track = state.fields.track;
       const trackId = Array.isArray(track) ? track.join(",") : track ?? "";
-      if (snapshot.workflow_run_id !== metadata.runId || snapshot.workflow_id !== workflowId || snapshot.workflow_fingerprint !== metadata.workflowPlanFingerprint || snapshot.loop_id !== metadata.loopId || snapshot.iteration_id !== metadata.iterationId || snapshot.skill_bundle_id !== metadata.automationPolicy?.skill_bundle_id || snapshot.track_id !== trackId) {
+      if (snapshot2.workflow_run_id !== metadata.runId || snapshot2.workflow_id !== workflowId || snapshot2.workflow_fingerprint !== metadata.workflowPlanFingerprint || snapshot2.loop_id !== metadata.loopId || snapshot2.iteration_id !== metadata.iterationId || snapshot2.skill_bundle_id !== metadata.automationPolicy?.skill_bundle_id || snapshot2.track_id !== trackId) {
         throw new Error("Workflow action authority snapshot does not match canonical WorkflowRun identity");
       }
-      const bound = await ensureWorkflowActionAuthorityRecord(changeDir2, snapshot);
+      const bound = await ensureWorkflowActionAuthorityRecord(changeDir2, snapshot2);
       return deriveRun(state.fields, metadata, bound);
     });
   }
@@ -22466,9 +22477,9 @@ function topLevelKeyToken(raw) {
   const explicit = line.match(/^\?\s+(.+?)\s*(?:\s+#.*)?$/);
   if (explicit)
     return explicit[1];
-  const quoted = line.match(/^("(?:\\.|[^"\\])*"|'(?:''|[^'])*')\s*:/);
-  if (quoted)
-    return quoted[1];
+  const quoted2 = line.match(/^("(?:\\.|[^"\\])*"|'(?:''|[^'])*')\s*:/);
+  if (quoted2)
+    return quoted2[1];
   const plain = line.match(/^([^:#]+?)\s*:/);
   return plain?.[1];
 }
@@ -26382,9 +26393,9 @@ function walkPolicy(n, at) {
   const ae = getEntry(map, "automation_eligible");
   if (ae)
     out.automationEligible = expectBoolean(ae.node, `${at}.policy_profile.automation_eligible`);
-  const cp2 = getEntry(map, "coverage_profile");
-  if (cp2)
-    out.coverageProfile = expectString(cp2.node, `${at}.policy_profile.coverage_profile`);
+  const cp3 = getEntry(map, "coverage_profile");
+  if (cp3)
+    out.coverageProfile = expectString(cp3.node, `${at}.policy_profile.coverage_profile`);
   const r = getEntry(map, "routing");
   if (r)
     out.routing = walkRouting(r.node, `${at}.policy_profile`);
@@ -26967,8 +26978,8 @@ async function withTrackRegistryLock(repoRoot, context, callback) {
 }
 async function mutateTrackRegistry(repoRoot, context, callback) {
   const file = trackRegistryPath(repoRoot);
-  return withTrackRegistryLock(repoRoot, context, async (snapshot) => {
-    const { next, result: result2 } = await callback(snapshot);
+  return withTrackRegistryLock(repoRoot, context, async (snapshot2) => {
+    const { next, result: result2 } = await callback(snapshot2);
     const errors = validateTrackRegistry(next, context);
     if (errors.length > 0) {
       throw new Error(`mutateTrackRegistry: next \u672A\u8FC7\u5B8C\u6574\u6821\u9A8C\uFF08${errors.length} \u6761\uFF09\uFF0C\u62D2\u5199\uFF1A
@@ -30060,8 +30071,8 @@ function parseRunHistory(text8, loopId) {
       continue;
     if (!HIST_TS_RE.test(required(cols[0])))
       continue;
-    const rm24 = line.match(HIST_RESULT_RE);
-    results.push(rm24 ? rm24[1] : null);
+    const rm25 = line.match(HIST_RESULT_RE);
+    results.push(rm25 ? rm25[1] : null);
   }
   let failStreak = 0;
   for (let i = results.length - 1; i >= 0; i--) {
@@ -30443,7 +30454,7 @@ function updateLoopInYaml(text8, loopId, patch) {
 }
 function renderLoopEntryLines(entry) {
   const lines2 = [`  - id: ${formatScalar2(entry.id, "id")}`];
-  const scalar22 = (field3, v) => {
+  const scalar23 = (field3, v) => {
     lines2.push(`    ${field3}: ${formatScalar2(v, field3)}`);
   };
   const seq2 = (field3, values) => {
@@ -30455,25 +30466,25 @@ function renderLoopEntryLines(entry) {
     for (const v of values)
       lines2.push(`      - ${formatString(v, field3, true)}`);
   };
-  scalar22("name", entry.name);
-  scalar22("kind", entry.kind);
-  scalar22("goal", entry.goal);
-  scalar22("cadence", entry.cadence);
-  scalar22("risk", entry.risk);
-  scalar22("runner", entry.runner);
-  scalar22("change_prefix", entry.change_prefix);
+  scalar23("name", entry.name);
+  scalar23("kind", entry.kind);
+  scalar23("goal", entry.goal);
+  scalar23("cadence", entry.cadence);
+  scalar23("risk", entry.risk);
+  scalar23("runner", entry.runner);
+  scalar23("change_prefix", entry.change_prefix);
   seq2("phases", entry.phases);
   seq2("human_gates", entry.human_gates);
-  scalar22("design_doc", entry.design_doc);
-  scalar22("status", entry.status);
+  scalar23("design_doc", entry.design_doc);
+  scalar23("status", entry.status);
   if (entry.template_id !== void 0)
-    scalar22("template_id", entry.template_id);
+    scalar23("template_id", entry.template_id);
   if (entry.template_version !== void 0)
-    scalar22("template_version", entry.template_version);
+    scalar23("template_version", entry.template_version);
   if (entry.workflow_id !== void 0)
-    scalar22("workflow_id", entry.workflow_id);
+    scalar23("workflow_id", entry.workflow_id);
   if (entry.skill_bundle_id !== void 0)
-    scalar22("skill_bundle_id", entry.skill_bundle_id);
+    scalar23("skill_bundle_id", entry.skill_bundle_id);
   lines2.push("    budget:");
   const budgetScalar = (field3, v) => {
     lines2.push(`      ${field3}: ${formatScalar2(v, field3)}`);
@@ -30597,10 +30608,10 @@ async function readRegistrySnapshot(repoRoot) {
   const { data, errors } = loadRegistry(repoRoot, { readText: () => text8 });
   return { text: text8, epoch, registry: data, errors };
 }
-function assertActiveAtEpoch(snapshot, loopId) {
-  const loop = snapshot.registry?.loops.find((l) => l.id === loopId);
+function assertActiveAtEpoch(snapshot2, loopId) {
+  const loop = snapshot2.registry?.loops.find((l) => l.id === loopId);
   if (loop === void 0) {
-    throw new LoopNotActiveError(loopId, `loop\u300C${loopId}\u300D\u5728 registry \u5FEB\u7167\uFF08epoch ${snapshot.epoch.slice(0, 12)}\uFF09\u4E2D\u4E0D\u5B58\u5728`);
+    throw new LoopNotActiveError(loopId, `loop\u300C${loopId}\u300D\u5728 registry \u5FEB\u7167\uFF08epoch ${snapshot2.epoch.slice(0, 12)}\uFF09\u4E2D\u4E0D\u5B58\u5728`);
   }
   if (loop.status !== "active") {
     throw new LoopNotActiveError(loopId, `loop\u300C${loopId}\u300Dstatus=${loop.status}\uFF08\u975E active\uFF0Ckill-switch\uFF09`);
@@ -30643,9 +30654,9 @@ async function writeRegistryWithGovernance(repoRoot, expectedEpoch, produce) {
     return { ok: true };
   });
 }
-function assertPreparedPolicyUnchanged(snapshot, loop, prepared, phase) {
+function assertPreparedPolicyUnchanged(snapshot2, loop, prepared, phase) {
   const changed = [];
-  if (registryContentEpoch(snapshot.registry) !== prepared.policy_epoch)
+  if (registryContentEpoch(snapshot2.registry) !== prepared.policy_epoch)
     changed.push("policy_epoch");
   if ((loop.skill_bundle_id ?? null) !== (prepared.skill_bundle_id ?? null))
     changed.push("skill_bundle_id");
@@ -30655,17 +30666,17 @@ function assertPreparedPolicyUnchanged(snapshot, loop, prepared, phase) {
 }
 async function withLoopStartPermit(repoRoot, loopId, prepared, fn) {
   return withRegistryGovernanceLock(repoRoot, async () => {
-    const snapshot = await readRegistrySnapshot(repoRoot);
-    const loop = assertActiveAtEpoch(snapshot, loopId);
-    assertPreparedPolicyUnchanged(snapshot, loop, prepared, "\u542F\u52A8 sandbox");
+    const snapshot2 = await readRegistrySnapshot(repoRoot);
+    const loop = assertActiveAtEpoch(snapshot2, loopId);
+    assertPreparedPolicyUnchanged(snapshot2, loop, prepared, "\u542F\u52A8 sandbox");
     return fn();
   });
 }
 async function withLoopMergePermit(repoRoot, loopId, prepared, fn, verifyBase) {
   return withRegistryGovernanceLock(repoRoot, async () => {
-    const snapshot = await readRegistrySnapshot(repoRoot);
-    const loop = assertActiveAtEpoch(snapshot, loopId);
-    assertPreparedPolicyUnchanged(snapshot, loop, prepared, "merge");
+    const snapshot2 = await readRegistrySnapshot(repoRoot);
+    const loop = assertActiveAtEpoch(snapshot2, loopId);
+    assertPreparedPolicyUnchanged(snapshot2, loop, prepared, "merge");
     if (verifyBase !== void 0 && !await verifyBase()) {
       throw new BaseRefCasError(`loop\u300C${loopId}\u300Dmerge \u524D base ref \u5DF2\u88AB\u5916\u90E8\u63A8\u8FDB\uFF08expected-old-SHA CAS \u5931\u8D25\uFF09\uFF0C\u4E0D merge`);
     }
@@ -30796,19 +30807,19 @@ function ownDataValue(object7, key, path15) {
 }
 function snapshotRecord(input2, allowed, required3, path15) {
   const record9 = asRecord6(input2, path15);
-  const snapshot = /* @__PURE__ */ new Map();
+  const snapshot2 = /* @__PURE__ */ new Map();
   for (const key of Reflect.ownKeys(record9)) {
     if (typeof key !== "string" || !allowed.has(key)) {
       throw new Error(`AutomationPolicyTemplate: ${path15} has unknown key '${String(key)}'`);
     }
-    snapshot.set(key, ownDataValue(record9, key, `${path15}.${key}`));
+    snapshot2.set(key, ownDataValue(record9, key, `${path15}.${key}`));
   }
   for (const key of required3) {
-    if (!snapshot.has(key)) {
+    if (!snapshot2.has(key)) {
       throw new Error(`AutomationPolicyTemplate: ${path15}.${key} must be an own data property`);
     }
   }
-  return snapshot;
+  return snapshot2;
 }
 function snapshotArray(input2, path15) {
   if (!Array.isArray(input2)) {
@@ -30833,11 +30844,11 @@ function snapshotArray(input2, path15) {
       throw new Error(`AutomationPolicyTemplate: ${path15} has unknown key '${key}'`);
     }
   }
-  const snapshot = new Array(length);
+  const snapshot2 = new Array(length);
   for (let index = 0; index < length; index += 1) {
-    snapshot[index] = ownDataValue(input2, String(index), `${path15}[${index}]`);
+    snapshot2[index] = ownDataValue(input2, String(index), `${path15}[${index}]`);
   }
-  return snapshot;
+  return snapshot2;
 }
 function assertTemplateId(id2) {
   if (typeof id2 !== "string" || !TEMPLATE_ID_SET.has(id2)) {
@@ -31118,14 +31129,14 @@ function validateOperation(value, path15, errors) {
   errors.push(`${path15}.kind: unknown operation kind`);
 }
 function validateBlocker(value, path15, errors) {
-  const blocker = exactObject(value, path15, ["drift", "reason", "next_step"], errors);
-  if (blocker === null)
+  const blocker2 = exactObject(value, path15, ["drift", "reason", "next_step"], errors);
+  if (blocker2 === null)
     return;
-  validateDriftItem(blocker.drift, `${path15}.drift`, errors);
-  if (typeof blocker.reason !== "string" || !BLOCKER_REASONS.has(blocker.reason)) {
+  validateDriftItem(blocker2.drift, `${path15}.drift`, errors);
+  if (typeof blocker2.reason !== "string" || !BLOCKER_REASONS.has(blocker2.reason)) {
     errors.push(`${path15}.reason: unknown blocker reason`);
   }
-  stringValue(blocker.next_step, `${path15}.next_step`, errors);
+  stringValue(blocker2.next_step, `${path15}.next_step`, errors);
 }
 function validateDriftReport(value, path15, errors) {
   const report = exactObject(value, path15, ["version", "generated_at", "clean", "checked", "items"], errors);
@@ -31491,9 +31502,9 @@ function buildReconciliationPlan(input2) {
       }
       continue;
     }
-    const blocker = nonDocumentBlocker(item2);
-    if (blocker !== null)
-      blockers.push(blocker);
+    const blocker2 = nonDocumentBlocker(item2);
+    if (blocker2 !== null)
+      blockers.push(blocker2);
   }
   const loopDocEpoch = resourceEpoch(input2.loop_doc_bytes);
   let expectedLoopDocEpoch = loopDocEpoch;
@@ -31718,20 +31729,20 @@ async function applyReconciliationPlan(repoRoot, encodedPlan) {
     throw new ReconciliationPlanCodecError(decoded.errors);
   const plan = decoded.plan;
   return withRegistryGovernanceLock(repoRoot, async () => {
-    const snapshot = await readReconciliationSnapshot(repoRoot);
+    const snapshot2 = await readReconciliationSnapshot(repoRoot);
     const conflicts = [];
-    if (!epochsEqual(snapshot.registry_epoch, plan.preconditions.registry_epoch)) {
+    if (!epochsEqual(snapshot2.registry_epoch, plan.preconditions.registry_epoch)) {
       conflicts.push({
         resource: "registry",
         expected: plan.preconditions.registry_epoch,
-        actual: snapshot.registry_epoch
+        actual: snapshot2.registry_epoch
       });
     }
-    if (!epochsEqual(snapshot.loop_doc_epoch, plan.preconditions.loop_doc_epoch)) {
+    if (!epochsEqual(snapshot2.loop_doc_epoch, plan.preconditions.loop_doc_epoch)) {
       conflicts.push({
         resource: "loop_doc",
         expected: plan.preconditions.loop_doc_epoch,
-        actual: snapshot.loop_doc_epoch
+        actual: snapshot2.loop_doc_epoch
       });
     }
     if (conflicts.length > 0) {
@@ -31743,8 +31754,8 @@ async function applyReconciliationPlan(repoRoot, encodedPlan) {
       };
     }
     const transformed = applyReconciliationOperations({
-      loop_doc_bytes: snapshot.loop_doc_bytes,
-      loops: parseRegistryBytes(repoRoot, snapshot.registry_bytes),
+      loop_doc_bytes: snapshot2.loop_doc_bytes,
+      loops: parseRegistryBytes(repoRoot, snapshot2.registry_bytes),
       operations: plan.operations
     });
     if (!transformed.ok) {
@@ -32883,26 +32894,26 @@ function snapshotArray2(input2, path15, errors) {
     output2[index] = input2[index];
   return output2;
 }
-function own2(snapshot, key) {
-  return Object.prototype.hasOwnProperty.call(snapshot, key);
+function own2(snapshot2, key) {
+  return Object.prototype.hasOwnProperty.call(snapshot2, key);
 }
-function literal2(snapshot, key, expected, path15, errors) {
-  if (!own2(snapshot, key)) {
+function literal2(snapshot2, key, expected, path15, errors) {
+  if (!own2(snapshot2, key)) {
     errors.push(`${path15}.${key}: missing required literal ${JSON.stringify(expected)}`);
     return false;
   }
-  if (snapshot[key] !== expected) {
-    errors.push(`${path15}.${key}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(snapshot[key])}`);
+  if (snapshot2[key] !== expected) {
+    errors.push(`${path15}.${key}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(snapshot2[key])}`);
     return false;
   }
   return true;
 }
-function stringValue2(snapshot, key, path15, errors, options = {}) {
-  if (!own2(snapshot, key)) {
+function stringValue2(snapshot2, key, path15, errors, options = {}) {
+  if (!own2(snapshot2, key)) {
     errors.push(`${path15}.${key}: missing required string`);
     return null;
   }
-  const value = snapshot[key];
+  const value = snapshot2[key];
   if (typeof value !== "string") {
     errors.push(`${path15}.${key}: expected string, got ${typeName3(value)}`);
     return null;
@@ -32934,12 +32945,12 @@ function deepFreeze6(value) {
   return value;
 }
 function parseAction(input2, path15, errors) {
-  const snapshot = snapshotObject(input2, /* @__PURE__ */ new Set(["schemaVersion", "kind", "sourceId"]), path15, errors);
-  if (snapshot === null)
+  const snapshot2 = snapshotObject(input2, /* @__PURE__ */ new Set(["schemaVersion", "kind", "sourceId"]), path15, errors);
+  if (snapshot2 === null)
     return null;
-  const versionOk = literal2(snapshot, "schemaVersion", TRIAGE_SCHEMA_VERSION, path15, errors);
-  const sourceId = stringValue2(snapshot, "sourceId", path15, errors, { safeId: true });
-  const kind = stringValue2(snapshot, "kind", path15, errors);
+  const versionOk = literal2(snapshot2, "schemaVersion", TRIAGE_SCHEMA_VERSION, path15, errors);
+  const sourceId = stringValue2(snapshot2, "sourceId", path15, errors, { safeId: true });
+  const kind = stringValue2(snapshot2, "kind", path15, errors);
   if (kind !== null && !ACTION_KIND_SET.has(kind)) {
     errors.push(`${path15}.kind: unknown ObserveAction '${kind}'`);
   }
@@ -32948,13 +32959,13 @@ function parseAction(input2, path15, errors) {
   return { schemaVersion: TRIAGE_SCHEMA_VERSION, kind, sourceId };
 }
 function parseCheckpoint(input2, path15, errors) {
-  const snapshot = snapshotObject(input2, /* @__PURE__ */ new Set(["schemaVersion", "sourceId", "actionKind", "cursor"]), path15, errors);
-  if (snapshot === null)
+  const snapshot2 = snapshotObject(input2, /* @__PURE__ */ new Set(["schemaVersion", "sourceId", "actionKind", "cursor"]), path15, errors);
+  if (snapshot2 === null)
     return null;
-  const versionOk = literal2(snapshot, "schemaVersion", TRIAGE_SCHEMA_VERSION, path15, errors);
-  const sourceId = stringValue2(snapshot, "sourceId", path15, errors, { safeId: true });
-  const actionKind = stringValue2(snapshot, "actionKind", path15, errors);
-  const cursor = stringValue2(snapshot, "cursor", path15, errors);
+  const versionOk = literal2(snapshot2, "schemaVersion", TRIAGE_SCHEMA_VERSION, path15, errors);
+  const sourceId = stringValue2(snapshot2, "sourceId", path15, errors, { safeId: true });
+  const actionKind = stringValue2(snapshot2, "actionKind", path15, errors);
+  const cursor = stringValue2(snapshot2, "cursor", path15, errors);
   if (actionKind !== null && !ACTION_KIND_SET.has(actionKind)) {
     errors.push(`${path15}.actionKind: unknown ObserveAction '${actionKind}'`);
   }
@@ -32964,16 +32975,16 @@ function parseCheckpoint(input2, path15, errors) {
   return { schemaVersion: TRIAGE_SCHEMA_VERSION, sourceId, actionKind, cursor };
 }
 function parseObservation(input2, path15, errors) {
-  const snapshot = snapshotObject(input2, /* @__PURE__ */ new Set(["schemaVersion", "observationId", "sourceId", "actionKind", "observedAt", "title", "body"]), path15, errors);
-  if (snapshot === null)
+  const snapshot2 = snapshotObject(input2, /* @__PURE__ */ new Set(["schemaVersion", "observationId", "sourceId", "actionKind", "observedAt", "title", "body"]), path15, errors);
+  if (snapshot2 === null)
     return null;
-  const versionOk = literal2(snapshot, "schemaVersion", TRIAGE_SCHEMA_VERSION, path15, errors);
-  const observationId = stringValue2(snapshot, "observationId", path15, errors, { safeId: true });
-  const sourceId = stringValue2(snapshot, "sourceId", path15, errors, { safeId: true });
-  const actionKind = stringValue2(snapshot, "actionKind", path15, errors);
-  const observedAt = stringValue2(snapshot, "observedAt", path15, errors);
-  const title = stringValue2(snapshot, "title", path15, errors);
-  const body = stringValue2(snapshot, "body", path15, errors, { allowEmpty: true });
+  const versionOk = literal2(snapshot2, "schemaVersion", TRIAGE_SCHEMA_VERSION, path15, errors);
+  const observationId = stringValue2(snapshot2, "observationId", path15, errors, { safeId: true });
+  const sourceId = stringValue2(snapshot2, "sourceId", path15, errors, { safeId: true });
+  const actionKind = stringValue2(snapshot2, "actionKind", path15, errors);
+  const observedAt = stringValue2(snapshot2, "observedAt", path15, errors);
+  const title = stringValue2(snapshot2, "title", path15, errors);
+  const body = stringValue2(snapshot2, "body", path15, errors, { allowEmpty: true });
   if (actionKind !== null && !ACTION_KIND_SET.has(actionKind)) {
     errors.push(`${path15}.actionKind: unknown ObserveAction '${actionKind}'`);
   }
@@ -32993,12 +33004,12 @@ function parseObservation(input2, path15, errors) {
   };
 }
 function parsePage(input2, path15, errors) {
-  const snapshot = snapshotObject(input2, /* @__PURE__ */ new Set(["schemaVersion", "action", "observations", "nextCheckpoint", "hasMore"]), path15, errors);
-  if (snapshot === null)
+  const snapshot2 = snapshotObject(input2, /* @__PURE__ */ new Set(["schemaVersion", "action", "observations", "nextCheckpoint", "hasMore"]), path15, errors);
+  if (snapshot2 === null)
     return null;
-  const versionOk = literal2(snapshot, "schemaVersion", TRIAGE_SCHEMA_VERSION, path15, errors);
-  const action = own2(snapshot, "action") ? parseAction(snapshot.action, `${path15}.action`, errors) : (errors.push(`${path15}.action: missing required object`), null);
-  const observationInputs = own2(snapshot, "observations") ? snapshotArray2(snapshot.observations, `${path15}.observations`, errors) : (errors.push(`${path15}.observations: missing required array`), null);
+  const versionOk = literal2(snapshot2, "schemaVersion", TRIAGE_SCHEMA_VERSION, path15, errors);
+  const action = own2(snapshot2, "action") ? parseAction(snapshot2.action, `${path15}.action`, errors) : (errors.push(`${path15}.action: missing required object`), null);
+  const observationInputs = own2(snapshot2, "observations") ? snapshotArray2(snapshot2.observations, `${path15}.observations`, errors) : (errors.push(`${path15}.observations: missing required array`), null);
   const observations = [];
   if (observationInputs !== null) {
     for (let index = 0; index < observationInputs.length; index += 1) {
@@ -33007,14 +33018,14 @@ function parsePage(input2, path15, errors) {
         observations.push(observation);
     }
   }
-  const nextCheckpoint = own2(snapshot, "nextCheckpoint") ? parseCheckpoint(snapshot.nextCheckpoint, `${path15}.nextCheckpoint`, errors) : (errors.push(`${path15}.nextCheckpoint: missing required object`), null);
+  const nextCheckpoint = own2(snapshot2, "nextCheckpoint") ? parseCheckpoint(snapshot2.nextCheckpoint, `${path15}.nextCheckpoint`, errors) : (errors.push(`${path15}.nextCheckpoint: missing required object`), null);
   let hasMore = null;
-  if (!own2(snapshot, "hasMore"))
+  if (!own2(snapshot2, "hasMore"))
     errors.push(`${path15}.hasMore: missing required boolean`);
-  else if (typeof snapshot.hasMore !== "boolean")
+  else if (typeof snapshot2.hasMore !== "boolean")
     errors.push(`${path15}.hasMore: expected boolean`);
   else
-    hasMore = snapshot.hasMore;
+    hasMore = snapshot2.hasMore;
   const ids2 = /* @__PURE__ */ new Set();
   for (const observation of observations) {
     if (ids2.has(observation.observationId)) {
@@ -33038,17 +33049,17 @@ function parsePage(input2, path15, errors) {
   };
 }
 function parseRoute(input2, path15, errors) {
-  const snapshot = snapshotObject(input2, /* @__PURE__ */ new Set(["routeId", "description", "resolved"]), path15, errors);
-  if (snapshot === null)
+  const snapshot2 = snapshotObject(input2, /* @__PURE__ */ new Set(["routeId", "description", "resolved"]), path15, errors);
+  if (snapshot2 === null)
     return null;
-  const routeId = stringValue2(snapshot, "routeId", path15, errors, { safeId: true });
-  const description = stringValue2(snapshot, "description", path15, errors);
+  const routeId = stringValue2(snapshot2, "routeId", path15, errors, { safeId: true });
+  const description = stringValue2(snapshot2, "description", path15, errors);
   let workflowId = null;
   let initialStep = null;
-  if (!own2(snapshot, "resolved"))
+  if (!own2(snapshot2, "resolved"))
     errors.push(`${path15}.resolved: missing required object`);
   else {
-    const resolved = snapshotObject(snapshot.resolved, /* @__PURE__ */ new Set(["workflowId", "initialStep"]), `${path15}.resolved`, errors);
+    const resolved = snapshotObject(snapshot2.resolved, /* @__PURE__ */ new Set(["workflowId", "initialStep"]), `${path15}.resolved`, errors);
     if (resolved !== null) {
       workflowId = stringValue2(resolved, "workflowId", `${path15}.resolved`, errors, { safeId: true });
       initialStep = stringValue2(resolved, "initialStep", `${path15}.resolved`, errors, { safeId: true });
@@ -33076,12 +33087,12 @@ function parseRoutes(input2, path15, errors) {
   return routes.length === routeInputs.length ? routes : null;
 }
 function parseProvenance(input2, path15, errors) {
-  const snapshot = snapshotObject(input2, /* @__PURE__ */ new Set(["kind", "model", "invocationId"]), path15, errors);
-  if (snapshot === null)
+  const snapshot2 = snapshotObject(input2, /* @__PURE__ */ new Set(["kind", "model", "invocationId"]), path15, errors);
+  if (snapshot2 === null)
     return null;
-  const kind = stringValue2(snapshot, "kind", path15, errors, { safeId: true });
-  const model = stringValue2(snapshot, "model", path15, errors);
-  const invocationId = stringValue2(snapshot, "invocationId", path15, errors);
+  const kind = stringValue2(snapshot2, "kind", path15, errors, { safeId: true });
+  const model = stringValue2(snapshot2, "model", path15, errors);
+  const invocationId = stringValue2(snapshot2, "invocationId", path15, errors);
   return kind === null || model === null || invocationId === null ? null : { kind, model, invocationId };
 }
 function parseTrustedHighCap(input2, path15, errors) {
@@ -33092,12 +33103,12 @@ function parseTrustedHighCap(input2, path15, errors) {
   return input2;
 }
 function parseDecision(input2, path15, errors) {
-  const snapshot = snapshotObject(input2, /* @__PURE__ */ new Set(["observationId", "classification", "rationale", "routeId"]), path15, errors);
-  if (snapshot === null)
+  const snapshot2 = snapshotObject(input2, /* @__PURE__ */ new Set(["observationId", "classification", "rationale", "routeId"]), path15, errors);
+  if (snapshot2 === null)
     return null;
-  const observationId = stringValue2(snapshot, "observationId", path15, errors, { safeId: true });
-  const classification = stringValue2(snapshot, "classification", path15, errors);
-  const rationale = stringValue2(snapshot, "rationale", path15, errors);
+  const observationId = stringValue2(snapshot2, "observationId", path15, errors, { safeId: true });
+  const classification = stringValue2(snapshot2, "classification", path15, errors);
+  const rationale = stringValue2(snapshot2, "rationale", path15, errors);
   if (classification !== "high" && classification !== "watch" && classification !== "noise") {
     if (classification !== null)
       errors.push(`${path15}.classification: expected high, watch, or noise`);
@@ -33106,21 +33117,21 @@ function parseDecision(input2, path15, errors) {
   if (observationId === null || rationale === null)
     return null;
   if (classification === "high") {
-    const routeId = stringValue2(snapshot, "routeId", path15, errors, { safeId: true });
+    const routeId = stringValue2(snapshot2, "routeId", path15, errors, { safeId: true });
     return routeId === null ? null : { observationId, classification, rationale, routeId };
   }
-  if (own2(snapshot, "routeId")) {
+  if (own2(snapshot2, "routeId")) {
     errors.push(`${path15}.routeId: ${classification} decisions cannot nominate a candidate route`);
     return null;
   }
   return { observationId, classification, rationale };
 }
 function parseProviderClassification(input2, observations, routes, trustedHighCap, path15, errors) {
-  const snapshot = snapshotObject(input2, /* @__PURE__ */ new Set(["schemaVersion", "decisions"]), path15, errors);
-  if (snapshot === null)
+  const snapshot2 = snapshotObject(input2, /* @__PURE__ */ new Set(["schemaVersion", "decisions"]), path15, errors);
+  if (snapshot2 === null)
     return null;
-  const versionOk = literal2(snapshot, "schemaVersion", TRIAGE_SCHEMA_VERSION, path15, errors);
-  const decisionInputs = own2(snapshot, "decisions") ? snapshotArray2(snapshot.decisions, `${path15}.decisions`, errors) : (errors.push(`${path15}.decisions: missing required array`), null);
+  const versionOk = literal2(snapshot2, "schemaVersion", TRIAGE_SCHEMA_VERSION, path15, errors);
+  const decisionInputs = own2(snapshot2, "decisions") ? snapshotArray2(snapshot2.decisions, `${path15}.decisions`, errors) : (errors.push(`${path15}.decisions: missing required array`), null);
   if (decisionInputs === null)
     return null;
   const decisions = [];
@@ -33164,12 +33175,12 @@ function parseProviderClassification(input2, observations, routes, trustedHighCa
   };
 }
 function parseCandidateIdentity(input2, path15, errors) {
-  const snapshot = snapshotObject(input2, /* @__PURE__ */ new Set(["candidateId", "creationKey", "changeName"]), path15, errors);
-  if (snapshot === null)
+  const snapshot2 = snapshotObject(input2, /* @__PURE__ */ new Set(["candidateId", "creationKey", "changeName"]), path15, errors);
+  if (snapshot2 === null)
     return null;
-  const candidateId = stringValue2(snapshot, "candidateId", path15, errors, { safeId: true });
-  const creationKey = stringValue2(snapshot, "creationKey", path15, errors, { safeId: true });
-  const changeName = stringValue2(snapshot, "changeName", path15, errors, { changeName: true });
+  const candidateId = stringValue2(snapshot2, "candidateId", path15, errors, { safeId: true });
+  const creationKey = stringValue2(snapshot2, "creationKey", path15, errors, { safeId: true });
+  const changeName = stringValue2(snapshot2, "changeName", path15, errors, { changeName: true });
   return candidateId === null || creationKey === null || changeName === null ? null : { candidateId, creationKey, changeName };
 }
 function guarded(work) {
@@ -34940,9 +34951,9 @@ async function readSnapshotAtRevision(changeDir2, revision, expectedDigest) {
     if (parseRevision(name2) !== revision || !name2.endsWith(".json"))
       continue;
     try {
-      const snapshot = parseSnapshot(await readEnvelopeFile(path9.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), name2), "snapshot"), name2);
-      if (expectedDigest === void 0 || checksum(snapshot) === expectedDigest)
-        return snapshot;
+      const snapshot2 = parseSnapshot(await readEnvelopeFile(path9.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), name2), "snapshot"), name2);
+      if (expectedDigest === void 0 || checksum(snapshot2) === expectedDigest)
+        return snapshot2;
     } catch {
     }
   }
@@ -34967,8 +34978,8 @@ async function readIdempotencyRecords(changeDir2) {
   }
   return { records };
 }
-function leasesFor(snapshot, now) {
-  return snapshot.runs.flatMap((run2) => {
+function leasesFor(snapshot2, now) {
+  return snapshot2.runs.flatMap((run2) => {
     const lease = run2.lease;
     if (!lease)
       return [];
@@ -35045,10 +35056,10 @@ var FsOrchestrationLedger = class {
         if (prior.command_id !== command2.command_id || prior.idempotency_key !== command2.idempotency_key || prior.command_digest !== commandDigest)
           return reject2("idempotency-conflict", "command identity was already used with a different payload", "idempotency-conflict");
         const event2 = await this.readEvent(changeDir2, prior.event_id);
-        const snapshot = await readSnapshotAtRevision(changeDir2, prior.committed_revision, prior.snapshot_digest);
-        if (!event2 || !snapshot)
+        const snapshot2 = await readSnapshotAtRevision(changeDir2, prior.committed_revision, prior.snapshot_digest);
+        if (!event2 || !snapshot2)
           return reject2("contract-invalid", "idempotency record points to a missing event or snapshot", "idempotency-orphan");
-        return { kind: "replayed", event: event2, snapshot, replayed: true };
+        return { kind: "replayed", event: event2, snapshot: snapshot2, replayed: true };
       }
       if (command2.expected_revision !== current.revision)
         return reject2("revision-conflict", `expected revision ${command2.expected_revision}, current ${current.revision}`, "stale-revision", ["reload-snapshot"]);
@@ -35098,8 +35109,8 @@ var FsOrchestrationLedger = class {
       try {
         if (!name2.endsWith(".json"))
           throw new LedgerCorruptionError("snapshot filename is not JSON");
-        const snapshot = parseSnapshot(await readEnvelopeFile(path9.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), name2), "snapshot"), name2);
-        candidates.push(snapshot);
+        const snapshot2 = parseSnapshot(await readEnvelopeFile(path9.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), name2), "snapshot"), name2);
+        candidates.push(snapshot2);
       } catch {
       }
     }
@@ -36507,9 +36518,9 @@ function skillIdFromHistory(raw) {
   const match = /^(?:Skill|CodexSkillRead): (.+)$/.exec(raw);
   return match?.[1] === void 0 ? null : canonicalWorkflowSkillId(match[1]);
 }
-function completedWorkflowSkillsSinceStepEntry(historyRaw, currentStepId) {
+function completedWorkflowSkillsSinceStepEntry(historyRaw2, currentStepId) {
   const lines2 = [];
-  for (const line of historyRaw.split("\n")) {
+  for (const line of historyRaw2.split("\n")) {
     if (line.trim() === "")
       continue;
     try {
@@ -36536,6 +36547,50 @@ function completedWorkflowSkillsSinceStepEntry(historyRaw, currentStepId) {
       completed.add(skillId);
   }
   return completed;
+}
+
+// packages/kernel/dist/workflow/retired-skills.js
+var RETIRED_SKILL_IDS = [
+  "tenon-open",
+  "tenon-explore",
+  "tenon-spec",
+  "tenon-build",
+  "tenon-verify",
+  "tenon-ship",
+  "tenon-archive",
+  "simple-task",
+  "learn-record",
+  "tenon-researcher"
+];
+var RETIRED = new Set(RETIRED_SKILL_IDS);
+function bareId(skillId) {
+  return skillId.startsWith("tenon:") ? skillId.slice("tenon:".length) : skillId;
+}
+function collect2(ir, found) {
+  if (ir === void 0)
+    return;
+  const branches = [ir.steps, ...Object.values(ir.tracks ?? {}).map((track) => track.steps)];
+  for (const steps of branches) {
+    for (const step of steps) {
+      for (const skill of step.skills) {
+        const id2 = bareId(skill.id);
+        if (RETIRED.has(id2))
+          found.add(id2);
+      }
+    }
+  }
+}
+function retiredSkillReferences(plan) {
+  const found = /* @__PURE__ */ new Set();
+  collect2(plan.definition, found);
+  collect2(plan.workflow, found);
+  return [...found].sort();
+}
+function retiredSkillsChangeMessage(change, skills) {
+  return `\u4EFB\u52A1 '${change}' \u7684\u5DE5\u4F5C\u6D41\u5FEB\u7167\u5F15\u7528\u5DF2\u5220\u9664\u7684\u6280\u80FD\uFF08${skills.join("\u3001")}\uFF09\uFF0C\u65E0\u6CD5\u7EE7\u7EED\uFF1B\u8BF7\u65B0\u5EFA\u4EFB\u52A1\uFF0C\u65E7\u4EFB\u52A1\u53EF\u5728\u5DE5\u4F5C\u53F0\u5F52\u6863\u6216\u5220\u9664\u3002`;
+}
+function retiredSkillsWorkflowMessage(workflow, skills) {
+  return `\u5DE5\u4F5C\u6D41 '${workflow}' \u5F15\u7528\u5DF2\u5220\u9664\u7684\u6280\u80FD\uFF08${skills.join("\u3001")}\uFF09\uFF1B\u5728\u5DE5\u4F5C\u6D41\u9875\u79FB\u9664\u540E\u91CD\u65B0\u4FDD\u5B58\u3002`;
 }
 
 // packages/kernel/dist/workflow/implicit-completion.js
@@ -36705,26 +36760,26 @@ function waveOf(refs) {
   return waves;
 }
 function nextAgentWave(input2) {
-  const views = new Map(projectStepAgents(input2).map((view) => [view.agent, view]));
+  const views = new Map(projectStepAgents(input2).map((view2) => [view2.agent, view2]));
   const executorDone = (agent) => {
-    const view = views.get(agent);
-    return view?.state === "done" && view.result === "done";
+    const view2 = views.get(agent);
+    return view2?.state === "done" && view2.result === "done";
   };
   const pendingExecutors = input2.step.executors.filter((ref) => !executorDone(ref.agent));
-  const waitingFor = (view) => view.role === "executor" ? view.dependsOn.filter((dep) => !executorDone(dep)).map((dep) => `executor:${dep}`) : [
+  const waitingFor = (view2) => view2.role === "executor" ? view2.dependsOn.filter((dep) => !executorDone(dep)).map((dep) => `executor:${dep}`) : [
     ...pendingExecutors.map((ref) => `executor:${ref.agent}`),
     ...input2.testsReady.ready ? [] : input2.testsReady.pending.map((id2) => `test:${id2}`),
-    ...view.dependsOn.filter((dep) => views.get(dep)?.state !== "done").map((dep) => `agent:${dep}`)
+    ...view2.dependsOn.filter((dep) => views.get(dep)?.state !== "done").map((dep) => `agent:${dep}`)
   ];
-  const finished2 = (view) => view.role === "executor" ? executorDone(view.agent) : view.state === "done" && view.result === "pass";
-  const unfinished = [...views.values()].filter((view) => !finished2(view));
+  const finished2 = (view2) => view2.role === "executor" ? executorDone(view2.agent) : view2.state === "done" && view2.result === "pass";
+  const unfinished = [...views.values()].filter((view2) => !finished2(view2));
   const role = pendingExecutors.length > 0 ? "executor" : "reviewer";
   const waves = waveOf(role === "executor" ? input2.step.executors : input2.step.reviewers);
-  const runnable = unfinished.filter((view) => view.role === role && view.state !== "running" && waitingFor(view).length === 0);
-  const lowest = runnable.length === 0 ? void 0 : Math.min(...runnable.map((view) => waves.get(view.agent) ?? 0));
+  const runnable = unfinished.filter((view2) => view2.role === role && view2.state !== "running" && waitingFor(view2).length === 0);
+  const lowest = runnable.length === 0 ? void 0 : Math.min(...runnable.map((view2) => waves.get(view2.agent) ?? 0));
   return {
-    wave: lowest === void 0 ? [] : runnable.filter((view) => (waves.get(view.agent) ?? 0) === lowest).map((view) => view.agent),
-    waiting: unfinished.map((view) => ({ agent: view.agent, for: waitingFor(view) })).filter((item2) => item2.for.length > 0)
+    wave: lowest === void 0 ? [] : runnable.filter((view2) => (waves.get(view2.agent) ?? 0) === lowest).map((view2) => view2.agent),
+    waiting: unfinished.map((view2) => ({ agent: view2.agent, for: waitingFor(view2) })).filter((item2) => item2.for.length > 0)
   };
 }
 function isForwardExit(plan, from, to, event) {
@@ -36740,28 +36795,28 @@ function isForwardExit(plan, from, to, event) {
   return fromIndex >= 0 && toIndex > fromIndex;
 }
 var FINDING_PREVIEW = 5;
-function renderAgentBlocker(blocker, change) {
-  switch (blocker.kind) {
+function renderAgentBlocker(blocker2, change) {
+  switch (blocker2.kind) {
     case "executor-missing":
-      return `\u6267\u884C\u8005 '${blocker.agent}' \u672A\u8FD0\u884C\uFF1B\u8FD0\u884C\uFF1Atenon agent next ${change}`;
+      return `\u6267\u884C\u8005 '${blocker2.agent}' \u672A\u8FD0\u884C\uFF1B\u8FD0\u884C\uFF1Atenon agent next ${change}`;
     case "executor-running":
-      return `\u6267\u884C\u8005 '${blocker.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} <run>`;
+      return `\u6267\u884C\u8005 '${blocker2.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} <run>`;
     case "executor-failed":
-      return `\u6267\u884C\u8005 '${blocker.agent}' \u5931\u8D25\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker.agent}`;
+      return `\u6267\u884C\u8005 '${blocker2.agent}' \u5931\u8D25\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker2.agent}`;
     case "reviewer-missing":
-      return `\u8BC4\u5BA1\u8005 '${blocker.agent}' \u672A\u8FD0\u884C\uFF1B\u8FD0\u884C\uFF1Atenon agent next ${change}`;
+      return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u672A\u8FD0\u884C\uFF1B\u8FD0\u884C\uFF1Atenon agent next ${change}`;
     case "reviewer-running":
-      return `\u8BC4\u5BA1\u8005 '${blocker.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} <run>`;
+      return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} <run>`;
     case "reviewer-stale":
-      return `\u8BC4\u5BA1\u8005 '${blocker.agent}' \u7684\u7ED3\u8BBA\u5DF2\u8FC7\u671F\uFF08\u5019\u9009\u5DF2\u53D8\u5316\uFF09\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker.agent}`;
+      return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u7684\u7ED3\u8BBA\u5DF2\u8FC7\u671F\uFF08\u5019\u9009\u5DF2\u53D8\u5316\uFF09\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker2.agent}`;
     case "reviewer-failed": {
-      const shown = blocker.blocking.slice(0, FINDING_PREVIEW).map((finding2) => `${finding2.location} ${finding2.message}`).join("\uFF1B");
-      return `\u8BC4\u5BA1\u8005 '${blocker.agent}' \u672A\u901A\u8FC7\uFF08${blocker.blocking.length} \u4E2A\u95EE\u9898 \u2265 ${blocker.blockAt}\uFF09\uFF1A${shown}\uFF1B\u4FEE\u590D\u540E\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker.agent}`;
+      const shown = blocker2.blocking.slice(0, FINDING_PREVIEW).map((finding2) => `${finding2.location} ${finding2.message}`).join("\uFF1B");
+      return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u672A\u901A\u8FC7\uFF08${blocker2.blocking.length} \u4E2A\u95EE\u9898 \u2265 ${blocker2.blockAt}\uFF09\uFF1A${shown}\uFF1B\u4FEE\u590D\u540E\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker2.agent}`;
     }
     case "agent-records-invalid":
-      return `agent \u8BB0\u5F55\u4E0D\u53EF\u8BFB\uFF1A${blocker.reason}`;
+      return `agent \u8BB0\u5F55\u4E0D\u53EF\u8BFB\uFF1A${blocker2.reason}`;
     default: {
-      const exhaustive = blocker;
+      const exhaustive = blocker2;
       throw new Error(`renderAgentBlocker: \u672A\u77E5 blocker ${JSON.stringify(exhaustive)}`);
     }
   }
@@ -37032,8 +37087,8 @@ async function applyActions(actions, input2) {
   let patch = {};
   const signals = [];
   for (const action of actions) {
-    const view = { ...input2, fields: { ...input2.fields, ...patch } };
-    const outcome = await dispatchAction(action, view);
+    const view2 = { ...input2, fields: { ...input2.fields, ...patch } };
+    const outcome = await dispatchAction(action, view2);
     patch = { ...patch, ...outcome.patch };
     signals.push(...outcome.signals);
   }
@@ -37059,9 +37114,9 @@ async function planDefaultTransition(state, command2, flow, clock, effectivePlan
   const policy2 = DEFAULT_EVENT_POLICY[event];
   const preconditions = await evaluateDefaultEventPreconditions(event, state, command2.context);
   if (preconditions) {
-    const blocker = preconditions.blockers?.[0];
-    if (blocker !== void 0)
-      return { kind: "revision-untrusted", blocker };
+    const blocker2 = preconditions.blockers?.[0];
+    if (blocker2 !== void 0)
+      return { kind: "revision-untrusted", blocker: blocker2 };
     return { kind: "precondition-violated", lines: [...preconditions.lines] };
   }
   if (policy2.enforceTaskExit) {
@@ -37153,9 +37208,9 @@ async function planCustomTransition(state, effectivePlan, command2, clock) {
         available: plan.available
       };
     }
-    const blocker = plan.blockers?.[0];
-    if (blocker !== void 0)
-      return { kind: "revision-untrusted", blocker };
+    const blocker2 = plan.blockers?.[0];
+    if (blocker2 !== void 0)
+      return { kind: "revision-untrusted", blocker: blocker2 };
     return { kind: "step-guard-failed", workflowName, stepId: plan.stepId, failures: plan.failures, blockers: plan.blockers };
   }
   const currentStep = resolveStep(planningIr, plan.from);
@@ -37230,6 +37285,9 @@ function createTransitionApplication(deps) {
         }
         if (!effectivePlan)
           return { kind: "workflow-not-found", workflowName };
+        const retired = retiredSkillReferences(effectivePlan);
+        if (retired.length > 0)
+          return { kind: "retired-skills", workflowName, skills: retired };
         let prepared;
         if (effectivePlan.capabilities.execution.model === "phase-manifest") {
           prepared = await planDefaultTransition(tx.state, command2, deps.flow, deps.clock, effectivePlan);
@@ -38226,7 +38284,7 @@ function codexOnlyProcessEnv(...layers) {
   }
   return result2;
 }
-var nodeCodexTriageExec = (file, args, options) => new Promise((resolve55) => {
+var nodeCodexTriageExec = (file, args, options) => new Promise((resolve56) => {
   const detached = process.platform !== "win32";
   const child = spawn(file, args, {
     cwd: options.cwd,
@@ -38246,7 +38304,7 @@ var nodeCodexTriageExec = (file, args, options) => new Promise((resolve55) => {
     options.signal.removeEventListener("abort", onAbort);
     if (forceKillTimer !== void 0)
       clearTimeout(forceKillTimer);
-    resolve55(result2);
+    resolve56(result2);
   };
   const killProcessTree = (signal) => {
     if (detached && child.pid !== void 0) {
@@ -38348,7 +38406,7 @@ function abortReason(signal) {
 function awaitExecWithAbort(execution, signal) {
   if (signal.aborted)
     return Promise.reject(abortReason(signal));
-  return new Promise((resolve55, reject5) => {
+  return new Promise((resolve56, reject5) => {
     let settled = false;
     const finish = (complete) => {
       if (settled)
@@ -38359,7 +38417,7 @@ function awaitExecWithAbort(execution, signal) {
     };
     const onAbort = () => finish(() => reject5(abortReason(signal)));
     signal.addEventListener("abort", onAbort, { once: true });
-    execution.then((result2) => finish(() => resolve55(result2)), (error2) => finish(() => reject5(error2)));
+    execution.then((result2) => finish(() => resolve56(result2)), (error2) => finish(() => reject5(error2)));
   });
 }
 function createCodexTriageProvider(options = {}) {
@@ -38484,7 +38542,7 @@ import { createHash as createHash32 } from "node:crypto";
 import { execFile as execFile3, spawn as spawn2 } from "node:child_process";
 import { createInterface } from "node:readline";
 var mergedEnv = (env) => env ? { ...process.env, ...env } : process.env;
-var spawnStreaming = (file, args, opts) => new Promise((resolve55) => {
+var spawnStreaming = (file, args, opts) => new Promise((resolve56) => {
   const maxTail = opts.maxTailChars ?? MAX_TAIL_CHARS;
   const proc = spawn2(file, args, {
     cwd: opts.cwd,
@@ -38517,19 +38575,19 @@ var spawnStreaming = (file, args, opts) => new Promise((resolve55) => {
   }
   proc.on("error", (err) => {
     stderrTail.push(String(err.message ?? err));
-    resolve55({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: 127 });
+    resolve56({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: 127 });
   });
   proc.on("close", (code) => {
-    resolve55({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: code ?? 0 });
+    resolve56({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: code ?? 0 });
   });
 });
 var nodeExec = (file, args, opts) => {
   if (opts?.onLine || opts?.input !== void 0)
     return spawnStreaming(file, args, opts);
-  return new Promise((resolve55) => {
+  return new Promise((resolve56) => {
     execFile3(file, args, { cwd: opts?.cwd, env: mergedEnv(opts?.env), maxBuffer: 64 * 1024 * 1024, encoding: "utf-8" }, (error2, stdout, stderr) => {
       const code = error2 && typeof error2.code === "number" ? error2.code : error2 ? 1 : 0;
-      resolve55({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
+      resolve56({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
     });
   });
 };
@@ -38592,7 +38650,7 @@ var assertPositiveLimit = (value, name2) => {
   }
 };
 var snapshotSources = (sources) => {
-  const snapshot = /* @__PURE__ */ new Map();
+  const snapshot2 = /* @__PURE__ */ new Map();
   for (const [sourceId, source] of Object.entries(sources)) {
     if (!SAFE_SOURCE_ID_RE.test(sourceId)) {
       throw new TypeError(`sourceId '${sourceId}' must be an opaque safe id`);
@@ -38607,13 +38665,13 @@ var snapshotSources = (sources) => {
     if (pathspec.some((value) => value.includes("\0"))) {
       throw new TypeError(`source '${sourceId}' pathspec must not contain NUL`);
     }
-    snapshot.set(sourceId, Object.freeze({
+    snapshot2.set(sourceId, Object.freeze({
       repoRoot: source.repoRoot,
       ref: source.ref,
       pathspec
     }));
   }
-  return snapshot;
+  return snapshot2;
 };
 var bodyFor = (observation) => JSON.stringify(observation);
 var staleCursor = (sourceId, currentRefSha, lastCommitSha, reason2) => {
@@ -40321,7 +40379,7 @@ var createSemaphore = (maxParallel) => {
       running++;
       return Promise.resolve();
     }
-    return new Promise((resolve55) => queue.push(resolve55));
+    return new Promise((resolve56) => queue.push(resolve56));
   };
   const release2 = () => {
     if (running <= 0)
@@ -41052,8 +41110,8 @@ function createSchedulerExecution(input2) {
       const controller = new AbortController();
       abortControllers.set(name2, controller);
       let resolveShutdownCompletion;
-      const shutdownCompletion = new Promise((resolve55) => {
-        resolveShutdownCompletion = resolve55;
+      const shutdownCompletion = new Promise((resolve56) => {
+        resolveShutdownCompletion = resolve56;
       });
       shutdownCompletions.set(name2, { promise: shutdownCompletion, resolve: () => resolveShutdownCompletion?.() });
       let executedOutcome;
@@ -41620,9 +41678,9 @@ var createScheduler = (deps) => {
 // packages/automation/dist/admission/loop-admission-types.js
 var errText2 = (error2) => error2 instanceof Error ? error2.message : String(error2);
 var isPreparedContext = (ctx) => "preparedKind" in ctx && (ctx.preparedKind === "loop-bundle" || ctx.preparedKind === "non-loop");
-var snapshotMatchesPrepared = (snapshot, ctx) => {
+var snapshotMatchesPrepared = (snapshot2, ctx) => {
   const bundle = ctx.skillBundle;
-  return snapshot.attempt_id === ctx.attempt_id && snapshot.reservation_id === ctx.reservation_id && snapshot.loop_id === ctx.loop_id && snapshot.skill_bundle_id === ctx.skill_bundle_id && snapshot.policy_epoch === ctx.policy_epoch && snapshot.workflow_run_id === (ctx.workflow_run_id ?? ctx.attempt_id) && snapshot.resolution_source === bundle.resolutionSource && snapshot.workflow === bundle.workflow && snapshot.step === bundle.step && snapshot.track === bundle.track && snapshot.coordinate_digest === bundle.coordinateDigest && snapshot.snapshot_sha256 === bundle.snapshotSha256 && snapshot.cas_relative_path === bundle.casRelativePath && snapshot.slots.length === bundle.slots.length && snapshot.slots.every((slot, index) => {
+  return snapshot2.attempt_id === ctx.attempt_id && snapshot2.reservation_id === ctx.reservation_id && snapshot2.loop_id === ctx.loop_id && snapshot2.skill_bundle_id === ctx.skill_bundle_id && snapshot2.policy_epoch === ctx.policy_epoch && snapshot2.workflow_run_id === (ctx.workflow_run_id ?? ctx.attempt_id) && snapshot2.resolution_source === bundle.resolutionSource && snapshot2.workflow === bundle.workflow && snapshot2.step === bundle.step && snapshot2.track === bundle.track && snapshot2.coordinate_digest === bundle.coordinateDigest && snapshot2.snapshot_sha256 === bundle.snapshotSha256 && snapshot2.cas_relative_path === bundle.casRelativePath && snapshot2.slots.length === bundle.slots.length && snapshot2.slots.every((slot, index) => {
     const prepared = bundle.slots[index];
     return prepared !== void 0 && slot.token === prepared.token && slot.concrete_skill_id === prepared.concreteSkillId && slot.tree_sha256 === prepared.treeSha256 && slot.alternatives.length === prepared.alternatives.length && slot.alternatives.every((alternative, i) => alternative === prepared.alternatives[i]);
   });
@@ -42770,8 +42828,8 @@ function createLoopAdmission(deps) {
         throw new LedgerDegradedError("activate: loop admission \u4E0D\u63A5\u53D7 non-loop PreparedExecutionContext");
       }
       const snapshots = read3.records.filter((record9) => record9.kind === "skill-bundle-snapshot" && record9.reservation_id === ctx.reservation_id);
-      const snapshot = snapshots[0];
-      if (snapshots.length !== 1 || snapshot === void 0 || !snapshotMatchesPrepared(snapshot, ctx)) {
+      const snapshot2 = snapshots[0];
+      if (snapshots.length !== 1 || snapshot2 === void 0 || !snapshotMatchesPrepared(snapshot2, ctx)) {
         throw new LedgerDegradedError(`activate: reservation\u300C${ctx.reservation_id}\u300D\u7684 skill-bundle-snapshot \u7F3A\u5931\u3001\u91CD\u590D\u6216\u4E0E PreparedExecutionContext \u4E0D\u4E00\u81F4`);
       }
     }
@@ -43231,7 +43289,7 @@ async function withDigestPublishLock(casRoot, digest17, publish) {
       if (Date.now() >= deadline) {
         throw new SkillSnapshotIoError(`CAS \u53D1\u5E03\u9501\u7B49\u5F85\u8D85\u65F6\uFF08digest ${digest17}\uFF09\uFF0C\u62D2\u7EDD\u8BFB\u53D6\u53EF\u80FD\u672A\u63D0\u4EA4\u7684\u76EE\u6807\u76EE\u5F55`);
       }
-      await new Promise((resolve55) => setTimeout(resolve55, PUBLISH_LOCK_RETRY_MS));
+      await new Promise((resolve56) => setTimeout(resolve56, PUBLISH_LOCK_RETRY_MS));
     }
   }
   try {
@@ -45482,12 +45540,12 @@ import { readFile as fsReadFile, stat as fsStat } from "node:fs/promises";
 import { resolve as resolve23 } from "node:path";
 var resolveGitMounts = async (gitPath, deps) => {
   const stat17 = deps?.stat ?? ((p) => fsStat(p));
-  const readFile74 = deps?.readFile ?? ((p) => fsReadFile(p, "utf-8"));
+  const readFile77 = deps?.readFile ?? ((p) => fsReadFile(p, "utf-8"));
   const s = await stat17(gitPath);
   if (s.isDirectory()) {
     return [{ hostPath: gitPath, sandboxPath: gitPath }];
   }
-  const content = (await readFile74(gitPath)).trim();
+  const content = (await readFile77(gitPath)).trim();
   const match = content.match(/^gitdir:\s*(.+)$/);
   if (!match) {
     return [{ hostPath: gitPath, sandboxPath: gitPath }];
@@ -45510,7 +45568,7 @@ var AgentIdleTimeoutError = class extends Error {
 };
 var detectsCompletion = (accumulated, signals) => signals.some((sig) => accumulated.includes(sig));
 var armDecision = (completionDetected, idleMs, graceMs) => completionDetected ? { ms: graceMs, onExpiry: "resolve" } : { ms: idleMs, onExpiry: "reject-idle" };
-var invokeWithRace = (runExec, opts) => new Promise((resolve55, reject5) => {
+var invokeWithRace = (runExec, opts) => new Promise((resolve56, reject5) => {
   const { idleMs, graceMs, completionSignals, signal } = opts;
   let settled = false;
   let accumulated = "";
@@ -45532,7 +45590,7 @@ var invokeWithRace = (runExec, opts) => new Promise((resolve55, reject5) => {
       return;
     settled = true;
     cleanup2();
-    resolve55(v);
+    resolve56(v);
   };
   const settleReject = (e) => {
     if (settled)
@@ -46852,8 +46910,8 @@ async function defaultPauseAtEpoch(repoRoot, loopId, expectedEpoch) {
   const result2 = await writeRegistryWithGovernance(repoRoot, expectedEpoch, (current) => updateLoopInYaml(current, loopId, { status: "paused" }));
   return result2.ok ? { ok: true } : { ok: false, error: result2.error };
 }
-function snapshotError(snapshot) {
-  return snapshot.errors.length > 0 ? snapshot.errors.join("\uFF1B") : "loops.yaml \u7F3A\u5931";
+function snapshotError(snapshot2) {
+  return snapshot2.errors.length > 0 ? snapshot2.errors.join("\uFF1B") : "loops.yaml \u7F3A\u5931";
 }
 function blockFrom(verdict) {
   return {
@@ -46877,11 +46935,11 @@ async function enforceActiveLoopExecutionWiring(loopIds, deps) {
     let lastCasError = "unknown CAS failure";
     let resolved = false;
     for (let attempt2 = 1; attempt2 <= maxAttempts; attempt2++) {
-      const snapshot = await readSnapshot(deps.repoRoot);
-      if (snapshot.registry === null) {
-        throw new Error(`loop execution wiring guard \u65E0\u6CD5\u8BFB\u53D6 registry\uFF1A${snapshotError(snapshot)}`);
+      const snapshot2 = await readSnapshot(deps.repoRoot);
+      if (snapshot2.registry === null) {
+        throw new Error(`loop execution wiring guard \u65E0\u6CD5\u8BFB\u53D6 registry\uFF1A${snapshotError(snapshot2)}`);
       }
-      const loop = snapshot.registry.loops.find((entry) => entry.id === loopId);
+      const loop = snapshot2.registry.loops.find((entry) => entry.id === loopId);
       if (loop === void 0) {
         throw new Error(`loop execution wiring guard\uFF1Aregistry \u4E2D\u627E\u4E0D\u5230\u70B9\u540D loop "${loopId}"`);
       }
@@ -46891,13 +46949,13 @@ async function enforceActiveLoopExecutionWiring(loopIds, deps) {
         resolved = true;
         break;
       }
-      const verdict = await evaluate(loop, snapshot.registry.loops, deps.wiring);
+      const verdict = await evaluate(loop, snapshot2.registry.loops, deps.wiring);
       if (verdict.status === "ready") {
         resolved = true;
         break;
       }
       observedFailure = blockFrom(verdict);
-      const paused = await pauseAtEpoch(deps.repoRoot, loopId, snapshot.epoch);
+      const paused = await pauseAtEpoch(deps.repoRoot, loopId, snapshot2.epoch);
       if (paused.ok) {
         blocked.push(observedFailure);
         resolved = true;
@@ -47047,8 +47105,8 @@ function snapshotJsonBoundary(input2, limits) {
       active.delete(value);
     }
   };
-  const snapshot = visit2(input2, "$", 0);
-  return Object.freeze({ ...snapshot, bytes });
+  const snapshot2 = visit2(input2, "$", 0);
+  return Object.freeze({ ...snapshot2, bytes });
 }
 
 // packages/automation/dist/orchestration/proposal.js
@@ -47183,17 +47241,17 @@ function normalizeArtifact(value, index) {
   return { id: `${id2}:${index}`.slice(0, 160), kind, ref, digest: artifactDigest, ...media_type === void 0 ? {} : { media_type }, ...byte_length === void 0 ? {} : { byte_length } };
 }
 function normalizeObservation(raw, policy2) {
-  let snapshot;
+  let snapshot2;
   try {
-    snapshot = snapshotJsonBoundary(raw, { maxBytes: policy2.max_output_bytes, maxDepth: 40, maxNodes: 8192 });
+    snapshot2 = snapshotJsonBoundary(raw, { maxBytes: policy2.max_output_bytes, maxDepth: 40, maxNodes: 8192 });
   } catch (error2) {
     return { ok: false, code: error2 instanceof JsonBoundaryError ? error2.code : "observation-invalid" };
   }
-  const candidate2 = record7(snapshot.value);
+  const candidate2 = record7(snapshot2.value);
   const isEnvelope = candidate2 !== void 0 && Object.prototype.hasOwnProperty.call(candidate2, "output");
   if (isEnvelope && !onlyKeys(candidate2, ["output", "raw_output_ref", "artifacts", "consumed", "summary", "diagnostics"]))
     return { ok: false, code: "observation-shape-invalid" };
-  const output2 = isEnvelope ? candidate2.output ?? null : snapshot.value;
+  const output2 = isEnvelope ? candidate2.output ?? null : snapshot2.value;
   const artifactsRaw = isEnvelope ? candidate2.artifacts : [];
   const consumedRaw = isEnvelope ? candidate2.consumed : [];
   if (isEnvelope && !Array.isArray(artifactsRaw))
@@ -47317,10 +47375,10 @@ function resultProjection(result2) {
     diagnostics: [...result2.diagnostics]
   };
 }
-function pipelineDependencyItemIds(snapshot, item2) {
+function pipelineDependencyItemIds(snapshot2, item2) {
   const ids2 = new Set(item2.depends_on);
-  const pipeline = snapshot.pipeline;
-  const binding = snapshot.resolution?.bindings.find((candidate2) => candidate2.work_item_id === item2.work_item_id);
+  const pipeline = snapshot2.pipeline;
+  const binding = snapshot2.resolution?.bindings.find((candidate2) => candidate2.work_item_id === item2.work_item_id);
   const stage = pipeline?.stages.find((candidate2) => candidate2.work_item_ids.includes(item2.work_item_id));
   const skill = stage?.skills.find((candidate2) => candidate2.skill_id === binding?.skill_id && candidate2.skill_version === binding?.skill_version);
   if (pipeline && stage) {
@@ -47334,7 +47392,7 @@ function pipelineDependencyItemIds(snapshot, item2) {
     const dependencySkill = pipeline?.stages.flatMap((candidate2) => candidate2.skills).find((candidate2) => candidate2.binding_id === dependency || candidate2.skill_id === dependency || `skill:${candidate2.skill_id}` === dependency);
     const dependencyStage = pipeline?.stages.find((candidate2) => candidate2.skills.some((candidateSkill) => candidateSkill.binding_id === dependencySkill?.binding_id));
     const dependencyItem = dependencyStage?.work_item_ids.find((workItemId) => {
-      const candidateBinding = snapshot.resolution?.bindings.find((candidate2) => candidate2.work_item_id === workItemId);
+      const candidateBinding = snapshot2.resolution?.bindings.find((candidate2) => candidate2.work_item_id === workItemId);
       return candidateBinding?.skill_id === dependencySkill?.skill_id && candidateBinding?.skill_version === dependencySkill?.skill_version;
     });
     if (dependencyItem !== void 0)
@@ -47345,16 +47403,16 @@ function pipelineDependencyItemIds(snapshot, item2) {
       ids2.add(ref.slice("result:".length));
   return Object.freeze([...ids2]);
 }
-function dependencyResults(snapshot, item2) {
-  return pipelineDependencyItemIds(snapshot, item2).flatMap((dependency) => {
-    const dependencyItem = snapshot.work_items.find((candidate2) => candidate2.work_item_id === dependency);
-    const run2 = dependencyItem?.active_run_id === void 0 ? snapshot.runs.filter((candidate2) => candidate2.work_item_id === dependency && candidate2.status === "completed").at(-1) : snapshot.runs.find((candidate2) => candidate2.run_id === dependencyItem.active_run_id);
-    return run2?.result_id === void 0 ? [] : snapshot.results.filter((result2) => result2.result_id === run2.result_id);
+function dependencyResults(snapshot2, item2) {
+  return pipelineDependencyItemIds(snapshot2, item2).flatMap((dependency) => {
+    const dependencyItem = snapshot2.work_items.find((candidate2) => candidate2.work_item_id === dependency);
+    const run2 = dependencyItem?.active_run_id === void 0 ? snapshot2.runs.filter((candidate2) => candidate2.work_item_id === dependency && candidate2.status === "completed").at(-1) : snapshot2.runs.find((candidate2) => candidate2.run_id === dependencyItem.active_run_id);
+    return run2?.result_id === void 0 ? [] : snapshot2.results.filter((result2) => result2.result_id === run2.result_id);
   });
 }
-function inputRefs(snapshot, item2) {
+function inputRefs(snapshot2, item2) {
   const refs = [];
-  for (const result2 of dependencyResults(snapshot, item2)) {
+  for (const result2 of dependencyResults(snapshot2, item2)) {
     const projection = resultProjection(result2);
     refs.push({ ref: `skill-result:${result2.result_id}`, expected_digest: digest14(projection), kind: "result", source_result_id: result2.result_id, content: projection });
     if (result2.raw_output !== void 0)
@@ -47454,15 +47512,15 @@ async function materializeRunInputsV2(input2) {
 }
 
 // packages/automation/dist/orchestration/runtime-v2-scheduler.js
-function bindingFor2(snapshot, item2) {
-  return snapshot.resolution?.bindings.find((binding) => binding.work_item_id === item2.work_item_id);
+function bindingFor2(snapshot2, item2) {
+  return snapshot2.resolution?.bindings.find((binding) => binding.work_item_id === item2.work_item_id);
 }
-function resultInputRefs(snapshot, item2) {
+function resultInputRefs(snapshot2, item2) {
   const refs = [];
   for (const dependency of item2.depends_on) {
-    const depItem = snapshot.work_items.find((candidate2) => candidate2.work_item_id === dependency);
-    const run2 = depItem?.active_run_id === void 0 ? snapshot.runs.filter((candidate2) => candidate2.work_item_id === dependency && candidate2.status === "completed").at(-1) : snapshot.runs.find((candidate2) => candidate2.run_id === depItem.active_run_id);
-    const result2 = run2?.result_id === void 0 ? void 0 : snapshot.results.find((candidate2) => candidate2.result_id === run2.result_id);
+    const depItem = snapshot2.work_items.find((candidate2) => candidate2.work_item_id === dependency);
+    const run2 = depItem?.active_run_id === void 0 ? snapshot2.runs.filter((candidate2) => candidate2.work_item_id === dependency && candidate2.status === "completed").at(-1) : snapshot2.runs.find((candidate2) => candidate2.run_id === depItem.active_run_id);
+    const result2 = run2?.result_id === void 0 ? void 0 : snapshot2.results.find((candidate2) => candidate2.result_id === run2.result_id);
     if (result2 !== void 0) {
       refs.push(`skill-result:${result2.result_id}`);
       if (result2.raw_output !== void 0)
@@ -47475,70 +47533,70 @@ function resultInputRefs(snapshot, item2) {
 function activeOrQueued(item2) {
   return item2.status === "ready" || item2.status === "queued";
 }
-function groupFor(snapshot, item2) {
-  const group = snapshot.graph?.execution_groups.find((candidate2) => candidate2.work_item_ids.includes(item2.work_item_id));
+function groupFor(snapshot2, item2) {
+  const group = snapshot2.graph?.execution_groups.find((candidate2) => candidate2.work_item_ids.includes(item2.work_item_id));
   return group === void 0 ? void 0 : { mode: group.mode, ids: group.work_item_ids };
 }
-function pipelineStageFor(snapshot, item2) {
-  return snapshot.pipeline?.stages.find((stage) => stage.work_item_ids.includes(item2.work_item_id));
+function pipelineStageFor(snapshot2, item2) {
+  return snapshot2.pipeline?.stages.find((stage) => stage.work_item_ids.includes(item2.work_item_id));
 }
-function pipelineStageIdFor(snapshot, item2) {
-  return pipelineStageFor(snapshot, item2)?.stage_id ?? item2.work_item_id;
+function pipelineStageIdFor(snapshot2, item2) {
+  return pipelineStageFor(snapshot2, item2)?.stage_id ?? item2.work_item_id;
 }
-function pipelineDependencyStageIds(snapshot, item2) {
-  const stage = pipelineStageFor(snapshot, item2);
+function pipelineDependencyStageIds(snapshot2, item2) {
+  const stage = pipelineStageFor(snapshot2, item2);
   const ids2 = new Set(stage?.depends_on ?? []);
   for (const dependency of item2.depends_on) {
-    const dependencyItem = snapshot.work_items.find((candidate2) => candidate2.work_item_id === dependency);
-    ids2.add(dependencyItem === void 0 ? dependency : pipelineStageIdFor(snapshot, dependencyItem));
+    const dependencyItem = snapshot2.work_items.find((candidate2) => candidate2.work_item_id === dependency);
+    ids2.add(dependencyItem === void 0 ? dependency : pipelineStageIdFor(snapshot2, dependencyItem));
   }
-  for (const dependency of pipelineSkillFor(snapshot, item2)?.depends_on ?? []) {
-    const dependencyStage = snapshot.pipeline?.stages.find((candidate2) => candidate2.skills.some((skill) => skill.binding_id === dependency || skill.skill_id === dependency || `skill:${skill.skill_id}` === dependency));
+  for (const dependency of pipelineSkillFor(snapshot2, item2)?.depends_on ?? []) {
+    const dependencyStage = snapshot2.pipeline?.stages.find((candidate2) => candidate2.skills.some((skill) => skill.binding_id === dependency || skill.skill_id === dependency || `skill:${skill.skill_id}` === dependency));
     if (dependencyStage !== void 0)
       ids2.add(dependencyStage.stage_id);
   }
   for (const id2 of ids2) {
-    const dependencyStage = snapshot.pipeline?.stages.find((candidate2) => candidate2.stage_id === id2);
+    const dependencyStage = snapshot2.pipeline?.stages.find((candidate2) => candidate2.stage_id === id2);
     for (const upstream of dependencyStage?.depends_on ?? [])
       ids2.add(upstream);
   }
   return Object.freeze([...ids2]);
 }
-function pipelineSkillFor(snapshot, item2) {
-  const stage = pipelineStageFor(snapshot, item2);
-  const binding = bindingFor2(snapshot, item2);
+function pipelineSkillFor(snapshot2, item2) {
+  const stage = pipelineStageFor(snapshot2, item2);
+  const binding = bindingFor2(snapshot2, item2);
   return stage?.skills.find((skill) => skill.skill_id === binding?.skill_id && skill.skill_version === binding?.skill_version);
 }
-function pipelineRank(snapshot, item2) {
-  const pipeline = snapshot.pipeline;
+function pipelineRank(snapshot2, item2) {
+  const pipeline = snapshot2.pipeline;
   if (pipeline === void 0)
     return [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER];
-  const stage = pipelineStageFor(snapshot, item2);
+  const stage = pipelineStageFor(snapshot2, item2);
   const stageIndex = stage === void 0 ? -1 : pipeline.stage_order.indexOf(stage.stage_id);
-  const skill = pipelineSkillFor(snapshot, item2);
+  const skill = pipelineSkillFor(snapshot2, item2);
   return [stageIndex < 0 ? Number.MAX_SAFE_INTEGER : stageIndex, skill?.order ?? Number.MAX_SAFE_INTEGER];
 }
-function pipelineDependencyDone(snapshot, stage, item2) {
-  const stageById = new Map((snapshot.pipeline?.stages ?? []).map((candidate2) => [candidate2.stage_id, candidate2]));
+function pipelineDependencyDone(snapshot2, stage, item2) {
+  const stageById = new Map((snapshot2.pipeline?.stages ?? []).map((candidate2) => [candidate2.stage_id, candidate2]));
   for (const dependency of stage.depends_on) {
     const dependencyStage = stageById.get(dependency);
-    if (dependencyStage === void 0 || dependencyStage.work_item_ids.some((id2) => snapshot.work_items.find((candidate2) => candidate2.work_item_id === id2)?.status !== "completed"))
+    if (dependencyStage === void 0 || dependencyStage.work_item_ids.some((id2) => snapshot2.work_items.find((candidate2) => candidate2.work_item_id === id2)?.status !== "completed"))
       return false;
   }
-  const skills = snapshot.pipeline?.stages.flatMap((candidate2) => candidate2.skills) ?? [];
-  const currentSkill = pipelineSkillFor(snapshot, item2);
+  const skills = snapshot2.pipeline?.stages.flatMap((candidate2) => candidate2.skills) ?? [];
+  const currentSkill = pipelineSkillFor(snapshot2, item2);
   if (currentSkill === void 0)
     return false;
   for (const dependency of currentSkill.depends_on) {
     const dependencySkill = skills.find((skill) => skill.binding_id === dependency || skill.skill_id === dependency || `skill:${skill.skill_id}` === dependency);
     if (dependencySkill === void 0)
       return false;
-    const dependencyStage = snapshot.pipeline?.stages.find((candidate2) => candidate2.skills.some((skill) => skill.binding_id === dependencySkill.binding_id));
+    const dependencyStage = snapshot2.pipeline?.stages.find((candidate2) => candidate2.skills.some((skill) => skill.binding_id === dependencySkill.binding_id));
     const dependencyItem = dependencyStage?.work_item_ids.find((workItemId) => {
-      const candidate2 = snapshot.work_items.find((candidateItem) => candidateItem.work_item_id === workItemId);
-      return candidate2 !== void 0 && pipelineSkillFor(snapshot, candidate2)?.binding_id === dependencySkill.binding_id;
+      const candidate2 = snapshot2.work_items.find((candidateItem) => candidateItem.work_item_id === workItemId);
+      return candidate2 !== void 0 && pipelineSkillFor(snapshot2, candidate2)?.binding_id === dependencySkill.binding_id;
     });
-    if (dependencyItem === void 0 || snapshot.work_items.find((candidate2) => candidate2.work_item_id === dependencyItem)?.status !== "completed")
+    if (dependencyItem === void 0 || snapshot2.work_items.find((candidate2) => candidate2.work_item_id === dependencyItem)?.status !== "completed")
       return false;
   }
   return true;
@@ -47550,53 +47608,53 @@ function claimKeysOverlap(left, right) {
     return left.key === right.key;
   return left.key === right.key || left.key.startsWith(`${right.key}/`) || right.key.startsWith(`${left.key}/`);
 }
-function claimsConflict(left, right, snapshot) {
-  const leftClaims = pipelineSkillFor(snapshot, left)?.resource_claims ?? [];
-  const rightClaims = pipelineSkillFor(snapshot, right)?.resource_claims ?? [];
+function claimsConflict(left, right, snapshot2) {
+  const leftClaims = pipelineSkillFor(snapshot2, left)?.resource_claims ?? [];
+  const rightClaims = pipelineSkillFor(snapshot2, right)?.resource_claims ?? [];
   for (const l of leftClaims)
     for (const r of rightClaims)
       if (claimKeysOverlap(l, r) && (l.access === "write" || r.access === "write"))
         return true;
   return false;
 }
-function chooseWave(snapshot, policy2) {
-  const candidates = snapshot.work_items.filter(activeOrQueued).sort((left, right) => {
-    const leftRank = pipelineRank(snapshot, left);
-    const rightRank = pipelineRank(snapshot, right);
+function chooseWave(snapshot2, policy2) {
+  const candidates = snapshot2.work_items.filter(activeOrQueued).sort((left, right) => {
+    const leftRank = pipelineRank(snapshot2, left);
+    const rightRank = pipelineRank(snapshot2, right);
     return (leftRank[0] ?? Number.MAX_SAFE_INTEGER) - (rightRank[0] ?? Number.MAX_SAFE_INTEGER) || (leftRank[1] ?? Number.MAX_SAFE_INTEGER) - (rightRank[1] ?? Number.MAX_SAFE_INTEGER) || left.work_item_id.localeCompare(right.work_item_id);
   });
   const first = candidates[0];
   if (first === void 0)
     return [];
-  if (snapshot.pipeline !== void 0) {
-    for (const stageId of snapshot.pipeline.stage_order) {
-      const stage = snapshot.pipeline.stages.find((candidate2) => candidate2.stage_id === stageId);
+  if (snapshot2.pipeline !== void 0) {
+    for (const stageId of snapshot2.pipeline.stage_order) {
+      const stage = snapshot2.pipeline.stages.find((candidate2) => candidate2.stage_id === stageId);
       if (stage === void 0)
         continue;
       const stageItems = candidates.filter((item2) => stage.work_item_ids.includes(item2.work_item_id));
-      const stageHasIncomplete = stage.work_item_ids.some((id2) => snapshot.work_items.find((item2) => item2.work_item_id === id2)?.status !== "completed");
+      const stageHasIncomplete = stage.work_item_ids.some((id2) => snapshot2.work_items.find((item2) => item2.work_item_id === id2)?.status !== "completed");
       if (stageHasIncomplete && stageItems.length === 0)
         return [];
       if (stageItems.length === 0)
         continue;
-      const ready = stageItems.filter((item2) => pipelineDependencyDone(snapshot, stage, item2));
+      const ready = stageItems.filter((item2) => pipelineDependencyDone(snapshot2, stage, item2));
       if (ready.length === 0)
         return [];
       const firstReady = ready[0];
       if (firstReady === void 0)
         return [];
-      if (stage.execution_mode === "serial" || pipelineSkillFor(snapshot, firstReady)?.mode === "serial")
+      if (stage.execution_mode === "serial" || pipelineSkillFor(snapshot2, firstReady)?.mode === "serial")
         return [firstReady];
       const selected = [];
-      const active = snapshot.work_items.filter((item2) => item2.status === "claimed" || item2.status === "running");
+      const active = snapshot2.work_items.filter((item2) => item2.status === "claimed" || item2.status === "running");
       for (const item2 of ready) {
         if (selected.length >= policy2.max_parallel)
           break;
-        if (pipelineSkillFor(snapshot, item2)?.mode === "serial" && selected.length > 0)
+        if (pipelineSkillFor(snapshot2, item2)?.mode === "serial" && selected.length > 0)
           continue;
-        if (active.some((candidate2) => claimsConflict(candidate2, item2, snapshot)))
+        if (active.some((candidate2) => claimsConflict(candidate2, item2, snapshot2)))
           continue;
-        if (selected.some((candidate2) => claimsConflict(candidate2, item2, snapshot)))
+        if (selected.some((candidate2) => claimsConflict(candidate2, item2, snapshot2)))
           continue;
         selected.push(item2);
       }
@@ -47604,7 +47662,7 @@ function chooseWave(snapshot, policy2) {
     }
     return [];
   }
-  const group = groupFor(snapshot, first);
+  const group = groupFor(snapshot2, first);
   if (group === void 0 || group.mode === "serial")
     return [first];
   const members = candidates.filter((item2) => group.ids.includes(item2.work_item_id)).slice(0, policy2.max_parallel);
@@ -47965,29 +48023,29 @@ var ExecutionRuntimeV2 = class {
     this.artifactResolver = options.artifact_resolver ?? createFilesystemArtifactResolverV2(options.change_dir);
   }
   async run() {
-    let snapshot = await this.snapshot();
-    const recovery = await this.recoverExpired(snapshot);
-    snapshot = recovery.snapshot;
+    let snapshot2 = await this.snapshot();
+    const recovery = await this.recoverExpired(snapshot2);
+    snapshot2 = recovery.snapshot;
     for (let round = 0; round < this.policy.max_rounds; round += 1) {
       if (this.stopping || this.options.signal?.aborted === true) {
-        snapshot = await this.cancelIfNeeded(snapshot, this.stopping ? "runtime-shutdown" : "execution-aborted");
-        return this.result(snapshot, recovery);
+        snapshot2 = await this.cancelIfNeeded(snapshot2, this.stopping ? "runtime-shutdown" : "execution-aborted");
+        return this.result(snapshot2, recovery);
       }
-      snapshot = await this.evaluateCompletionGate(snapshot);
-      if (snapshot.status === "completed")
-        return this.result(snapshot, recovery);
-      if (snapshot.status === "paused" || snapshot.status === "waiting-input" || snapshot.status === "blocked" || snapshot.status === "cancelled")
-        return this.result(snapshot, recovery);
-      snapshot = await this.enqueueReady(snapshot);
-      const wave = chooseWave(snapshot, this.policy);
+      snapshot2 = await this.evaluateCompletionGate(snapshot2);
+      if (snapshot2.status === "completed")
+        return this.result(snapshot2, recovery);
+      if (snapshot2.status === "paused" || snapshot2.status === "waiting-input" || snapshot2.status === "blocked" || snapshot2.status === "cancelled")
+        return this.result(snapshot2, recovery);
+      snapshot2 = await this.enqueueReady(snapshot2);
+      const wave = chooseWave(snapshot2, this.policy);
       if (wave.length === 0)
-        return this.result(await this.evaluateCompletionGate(snapshot), recovery);
-      const prepared = await this.claimAndBegin(snapshot, wave);
-      snapshot = prepared.snapshot;
+        return this.result(await this.evaluateCompletionGate(snapshot2), recovery);
+      const prepared = await this.claimAndBegin(snapshot2, wave);
+      snapshot2 = prepared.snapshot;
       const settled = await Promise.allSettled(prepared.runs.map((run2) => this.executeOne(run2)));
       if (Boolean(this.options.signal?.aborted) || this.stopping) {
-        snapshot = await this.cancelIfNeeded(snapshot, this.stopping ? "runtime-shutdown" : "execution-aborted");
-        return this.result(snapshot, recovery);
+        snapshot2 = await this.cancelIfNeeded(snapshot2, this.stopping ? "runtime-shutdown" : "execution-aborted");
+        return this.result(snapshot2, recovery);
       }
       const outcomes = settled.map((entry, index) => {
         const preparedRun = prepared.runs[index];
@@ -48002,22 +48060,22 @@ var ExecutionRuntimeV2 = class {
         };
       }).sort((left, right) => Number(left.blocking) - Number(right.blocking));
       for (const outcome of outcomes) {
-        snapshot = await this.settle(snapshot, outcome);
+        snapshot2 = await this.settle(snapshot2, outcome);
       }
       if (Boolean(this.options.signal?.aborted) || this.stopping) {
-        snapshot = await this.cancelIfNeeded(snapshot, this.stopping ? "runtime-shutdown" : "execution-aborted");
-        return this.result(snapshot, recovery);
+        snapshot2 = await this.cancelIfNeeded(snapshot2, this.stopping ? "runtime-shutdown" : "execution-aborted");
+        return this.result(snapshot2, recovery);
       }
       let retried = false;
       for (const outcome of outcomes) {
-        const item2 = snapshot.work_items.find((candidate2) => candidate2.work_item_id === outcome.item.work_item_id);
+        const item2 = snapshot2.work_items.find((candidate2) => candidate2.work_item_id === outcome.item.work_item_id);
         if (item2?.status === "failed" && outcome.retryable && this.policy.auto_retry && item2.attempt_count + 1 < this.policy.max_attempts) {
-          snapshot = await this.append(snapshot, "retry-work-item", { work_item_id: item2.work_item_id, attempt_id: this.id("attempt"), run_id: this.id("run") }, `retry:${item2.work_item_id}:${item2.attempt_count + 1}`);
+          snapshot2 = await this.append(snapshot2, "retry-work-item", { work_item_id: item2.work_item_id, attempt_id: this.id("attempt"), run_id: this.id("run") }, `retry:${item2.work_item_id}:${item2.attempt_count + 1}`);
           retried = true;
         }
       }
-      if (snapshot.status === "failed" && !retried)
-        return this.result(snapshot, recovery);
+      if (snapshot2.status === "failed" && !retried)
+        return this.result(snapshot2, recovery);
     }
     this.diagnostics.push("round-budget-exceeded");
     throw new ExecutionRuntimeErrorV2("round-budget-exceeded", "execution exceeded bounded round budget");
@@ -48055,20 +48113,20 @@ var ExecutionRuntimeV2 = class {
     return this.artifactServicePromise;
   }
   async snapshot() {
-    let snapshot;
+    let snapshot2;
     try {
-      snapshot = await this.options.ledger.readSnapshot(this.options.change_dir);
+      snapshot2 = await this.options.ledger.readSnapshot(this.options.change_dir);
     } catch (error2) {
       throw error2;
     }
-    if (snapshot === void 0)
+    if (snapshot2 === void 0)
       throw new ExecutionRuntimeErrorV2("ledger-unavailable", "orchestration ledger is not initialized");
-    return snapshot;
+    return snapshot2;
   }
-  async recoverExpired(snapshot) {
+  async recoverExpired(snapshot2) {
     const now = utc(this.clock);
     const recovery = await this.options.ledger.recover(this.options.change_dir, now);
-    let next = recovery.snapshot ?? snapshot;
+    let next = recovery.snapshot ?? snapshot2;
     const expired = recovery.report.lease_decisions.filter((entry) => entry.decision === "expired-awaiting-scheduler").map((entry) => entry.run_id);
     for (const runId of expired) {
       const run2 = next.runs.find((candidate2) => candidate2.run_id === runId);
@@ -48083,15 +48141,15 @@ var ExecutionRuntimeV2 = class {
     }
     return { snapshot: next, report: recovery.report, recovered: recovery.snapshot !== void 0, expired_runs: expired };
   }
-  async enqueueReady(snapshot) {
-    let next = snapshot;
-    for (const item2 of snapshot.work_items.filter((candidate2) => candidate2.status === "ready")) {
+  async enqueueReady(snapshot2) {
+    let next = snapshot2;
+    for (const item2 of snapshot2.work_items.filter((candidate2) => candidate2.status === "ready")) {
       next = await this.append(next, "enqueue-work-item", { work_item_id: item2.work_item_id }, `enqueue:${item2.work_item_id}`);
     }
     return next;
   }
-  async claimAndBegin(snapshot, items) {
-    let next = snapshot;
+  async claimAndBegin(snapshot2, items) {
+    let next = snapshot2;
     const runs = [];
     for (const item2 of items) {
       if (item2.status !== "queued")
@@ -48294,22 +48352,22 @@ var ExecutionRuntimeV2 = class {
     const blocking = result2.contract_status !== "validated" || report?.status !== "pass" || report.checks.some((check) => check.status !== "pass") || issue2 !== void 0;
     return { run: run2, item: item2, result: result2, ...report === void 0 ? {} : { report }, retryable, blocking };
   }
-  async settle(snapshot, outcome) {
-    const current = snapshot.runs.find((candidate2) => candidate2.run_id === outcome.run.run_id);
+  async settle(snapshot2, outcome) {
+    const current = snapshot2.runs.find((candidate2) => candidate2.run_id === outcome.run.run_id);
     if (current === void 0 || current.status !== "running")
-      return snapshot;
-    let next = await this.append(snapshot, "complete-run", { run_id: outcome.run.run_id, result: outcome.result }, `complete:${outcome.run.run_id}`);
+      return snapshot2;
+    let next = await this.append(snapshot2, "complete-run", { run_id: outcome.run.run_id, result: outcome.result }, `complete:${outcome.run.run_id}`);
     if (outcome.report !== void 0 && outcome.result.contract_status === "validated") {
       const report = { ...outcome.report, revision: next.revision };
       next = await this.append(next, "record-validation", { report }, `validate:${outcome.run.run_id}`);
     }
     return next;
   }
-  async cancelIfNeeded(snapshot, reason2) {
-    if (snapshot.status === "cancelled" || snapshot.status === "completed")
-      return snapshot;
+  async cancelIfNeeded(snapshot2, reason2) {
+    if (snapshot2.status === "cancelled" || snapshot2.status === "completed")
+      return snapshot2;
     try {
-      return await this.append(snapshot, "cancel-change", { reason: reason2 }, `cancel:${reason2}`);
+      return await this.append(snapshot2, "cancel-change", { reason: reason2 }, `cancel:${reason2}`);
     } catch (error2) {
       if (error2 instanceof ExecutionRuntimeErrorV2 && error2.code === "command-rejected") {
         const latest = await this.snapshot();
@@ -48319,34 +48377,34 @@ var ExecutionRuntimeV2 = class {
       throw error2;
     }
   }
-  async evaluateCompletionGate(snapshot) {
-    if (snapshot.work_items.length === 0 || !snapshot.work_items.every((item2) => item2.status === "completed"))
-      return snapshot;
-    if (snapshot.gates.some((gate2) => gate2.kind === "verification" && (gate2.status === "passed" || gate2.status === "waived")))
-      return snapshot;
-    const evidence = [...snapshot.results.flatMap((result2) => result2.artifacts.map((artifact) => artifact.ref)), ...snapshot.validations.flatMap((report) => report.evidence_refs)];
+  async evaluateCompletionGate(snapshot2) {
+    if (snapshot2.work_items.length === 0 || !snapshot2.work_items.every((item2) => item2.status === "completed"))
+      return snapshot2;
+    if (snapshot2.gates.some((gate2) => gate2.kind === "verification" && (gate2.status === "passed" || gate2.status === "waived")))
+      return snapshot2;
+    const evidence = [...snapshot2.results.flatMap((result2) => result2.artifacts.map((artifact) => artifact.ref)), ...snapshot2.validations.flatMap((report) => report.evidence_refs)];
     const gate = {
       schema_version: "gate-evaluation/v2",
-      record_id: `gate:${snapshot.change_id}:verification`,
-      project_id: snapshot.project_id,
-      change_id: snapshot.change_id,
-      revision: snapshot.revision,
-      correlation_id: snapshot.correlation_id,
+      record_id: `gate:${snapshot2.change_id}:verification`,
+      project_id: snapshot2.project_id,
+      change_id: snapshot2.change_id,
+      revision: snapshot2.revision,
+      correlation_id: snapshot2.correlation_id,
       actor: { kind: "worker", id: this.options.worker_id },
       created_at: utc(this.clock),
-      gate_id: `gate:${snapshot.change_id}:verification`,
+      gate_id: `gate:${snapshot2.change_id}:verification`,
       kind: "verification",
       status: "passed",
       required_evidence_refs: [...new Set(evidence)],
-      decision_revision: snapshot.revision,
+      decision_revision: snapshot2.revision,
       rationale: "all work items completed with passing validation evidence"
     };
-    return this.append(snapshot, "evaluate-gate", { gate }, "gate:verification");
+    return this.append(snapshot2, "evaluate-gate", { gate }, "gate:verification");
   }
-  async append(snapshot, type, payload, key) {
+  async append(snapshot2, type, payload, key) {
     const commandId = this.id(`command:${key}`);
     const idempotencyKey = this.id(`idem:${key}`);
-    let expected = snapshot;
+    let expected = snapshot2;
     for (let attempt2 = 0; attempt2 < 8; attempt2 += 1) {
       const command2 = {
         schema_version: "board-command/v2",
@@ -48370,8 +48428,8 @@ var ExecutionRuntimeV2 = class {
     }
     throw new ExecutionRuntimeErrorV2("command-rejected", `${type}: revision conflict retry budget exhausted`);
   }
-  result(snapshot, recovery) {
-    return { ok: true, snapshot, recovery: { report: recovery.report, recovered: recovery.recovered, expired_runs: recovery.expired_runs }, attempts: this.attempts, diagnostics: Object.freeze([...this.diagnostics]) };
+  result(snapshot2, recovery) {
+    return { ok: true, snapshot: snapshot2, recovery: { report: recovery.report, recovered: recovery.recovered, expired_runs: recovery.expired_runs }, attempts: this.attempts, diagnostics: Object.freeze([...this.diagnostics]) };
   }
 };
 
@@ -48847,7 +48905,7 @@ async function stepAgentLines(deps, name2, dir, state, plan, event) {
     return [];
   }
   const blockers = await stepAgentBlockersFor({ deps, name: name2, dir, stepId, plan, state });
-  return blockers.map((blocker) => renderAgentBlocker(blocker, name2));
+  return blockers.map((blocker2) => renderAgentBlocker(blocker2, name2));
 }
 
 // packages/cli/src/commands/check-test-evidence.ts
@@ -48893,13 +48951,13 @@ function resolveBuildRevisionAssessor(deps, changeName, changeDir2) {
 }
 
 // packages/cli/src/commands/check.ts
-function renderBuildRevisionBlocker(blocker) {
+function renderBuildRevisionBlocker(blocker2) {
   return [
-    blocker.code,
-    `reason=${blocker.reason}`,
-    `remediation=${blocker.remediation}`,
-    ...blocker.stateHash === void 0 ? [] : [`stateHash=${blocker.stateHash}`],
-    ...blocker.revisionHash === void 0 ? [] : [`revisionHash=${blocker.revisionHash}`]
+    blocker2.code,
+    `reason=${blocker2.reason}`,
+    `remediation=${blocker2.remediation}`,
+    ...blocker2.stateHash === void 0 ? [] : [`stateHash=${blocker2.stateHash}`],
+    ...blocker2.revisionHash === void 0 ? [] : [`revisionHash=${blocker2.revisionHash}`]
   ].join(" ");
 }
 async function cmdCheck(deps, name2, opts = {}) {
@@ -48925,6 +48983,11 @@ async function cmdCheck(deps, name2, opts = {}) {
   if (!plan) {
     const workflowName = resolveWorkflowName(state);
     deps.io.err(`ERROR: workflow '${workflowName}' \u672A\u627E\u5230\uFF08\u671F\u671B .pipeline/workflows/${workflowName}.yaml\uFF09`);
+    return 1;
+  }
+  const retired = retiredSkillReferences(plan);
+  if (retired.length > 0) {
+    deps.io.err(`ERROR: ${retiredSkillsChangeMessage(name2, retired)}`);
     return 1;
   }
   if (plan.capabilities.execution.model === "step-graph") {
@@ -48998,11 +49061,11 @@ async function cmdCheck(deps, name2, opts = {}) {
   for (const failure3 of revisionFailures) {
     deps.io.out(`  [FAIL] ${failure3}`);
   }
-  for (const blocker of documents?.blockers ?? []) {
-    deps.io.out(`  [FAIL] document: ${blocker}`);
+  for (const blocker2 of documents?.blockers ?? []) {
+    deps.io.out(`  [FAIL] document: ${blocker2}`);
   }
-  for (const blocker of tests) {
-    deps.io.out(`  [FAIL] test: ${blocker}`);
+  for (const blocker2 of tests) {
+    deps.io.out(`  [FAIL] test: ${blocker2}`);
   }
   for (const line of agents) {
     deps.io.out(`  [FAIL] agent: ${line}`);
@@ -49083,11 +49146,11 @@ async function checkGraphWorkflow(deps, name2, dir, state, plan, event) {
   for (const failure3 of result2.failures) {
     deps.io.out(`  [FAIL] ${failure3}`);
   }
-  for (const blocker of documents?.blockers ?? []) {
-    deps.io.out(`  [FAIL] document: ${blocker}`);
+  for (const blocker2 of documents?.blockers ?? []) {
+    deps.io.out(`  [FAIL] document: ${blocker2}`);
   }
-  for (const blocker of tests) {
-    deps.io.out(`  [FAIL] test: ${blocker}`);
+  for (const blocker2 of tests) {
+    deps.io.out(`  [FAIL] test: ${blocker2}`);
   }
   for (const line of agents) {
     deps.io.out(`  [FAIL] agent: ${line}`);
@@ -49198,6 +49261,37 @@ function loadCanonicalSkillSources(path15) {
   }
 }
 
+// packages/cli/src/commands/commandExists.ts
+import { accessSync, constants as fsConstants, statSync as statSync4 } from "node:fs";
+import { posix as posix3, win32 as win322 } from "node:path";
+function resolveCommandOnPath(name2, options = {}) {
+  const platform = options.platform ?? process.platform;
+  const pathApi2 = platform === "win32" ? win322 : posix3;
+  const candidates = platform === "win32" && pathApi2.extname(name2) === "" ? [
+    name2,
+    ...(options.pathExt ?? process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter((extension2) => extension2 !== "").map((extension2) => `${name2}${extension2}`)
+  ] : [name2];
+  const pathValue = options.pathValue ?? process.env.PATH ?? "";
+  for (const dir of pathValue.split(platform === "win32" ? ";" : ":")) {
+    if (options.requireAbsolutePathEntries === true && (dir === "" || !pathApi2.isAbsolute(dir))) {
+      continue;
+    }
+    for (const candidate2 of candidates) {
+      const path15 = pathApi2.resolve(dir === "" ? "." : dir, candidate2);
+      try {
+        if (!statSync4(path15).isFile()) continue;
+        accessSync(path15, fsConstants.X_OK);
+        return path15;
+      } catch {
+      }
+    }
+  }
+  return void 0;
+}
+function commandExistsOnPath(name2, options = {}) {
+  return resolveCommandOnPath(name2, options) !== void 0;
+}
+
 // packages/cli/src/commands/doctor-upstream-skills.ts
 import { join as join74 } from "node:path";
 var CHECK_ID = "skills:upstream";
@@ -49253,11 +49347,11 @@ function cell(value, width) {
   if (width === 0) return value;
   return (value.length >= width ? `${value.slice(0, width - 2)}\u2026` : value).padEnd(width);
 }
-function renderUpstreamSkillTable(view) {
+function renderUpstreamSkillTable(view2) {
   const line = (values) => values.map((value, index) => cell(value, COLUMNS[index]?.[1] ?? 0)).join("").trimEnd();
   return [
     line(COLUMNS.map(([header]) => header)),
-    ...view.rows.map((row2) => line([
+    ...view2.rows.map((row2) => line([
       row2.id,
       row2.origin === "tenon" ? "tenon" : `${row2.repo ?? ""}:${row2.path ?? ""}`,
       row2.commit?.slice(0, 7) ?? "\u2014",
@@ -49367,51 +49461,61 @@ function checkSkills(p) {
   const locked = lockedUpstreamSkillIds(p).filter((id2) => !registry.some((source) => source.token === id2)).map((token) => ({ token, tool: "bundled", source: "upstream", tier: "optional", official: false }));
   return evaluateSkillChecks(tables, [...registry, ...locked], p.installedSkillNames());
 }
-function checkWorkflowPhaseSkills(p) {
-  try {
-    const plan = compileEffectiveWorkflowPlan("default");
-    const required3 = plan.capabilities.skills.steps.flatMap((step) => step.requiredSkillIds);
-    const missing3 = [...new Set(required3)].filter((id2) => !p.fileExists(join75(p.pluginRoot, "skills", id2, "SKILL.md")));
-    const contract = "phase requirements=Workflow-owned; automatic overlays=matrix-enabled mandatory/recommended; explicit profiles=phase+named allowlist";
-    if (missing3.length === 0) {
-      return green("skills:workflow-phase", `default ${contract}\uFF1B${required3.length} \u4E2A phase Skill \u53EF\u53D1\u73B0`);
+function declaredWorkflowSkillIds() {
+  const ids2 = /* @__PURE__ */ new Set([PRODUCT_IDENTITY.entrySkill]);
+  for (const workflow of [compileEffectiveWorkflowPlan("default"), compileEffectiveWorkflowPlan("simple")]) {
+    const definition = workflow.definition ?? workflow.workflow;
+    const branches = [definition.steps, ...Object.values(definition.tracks ?? {}).map((track) => track.steps)];
+    for (const steps of branches) {
+      for (const step of steps) for (const skill of step.skills) ids2.add(canonicalWorkflowSkillId(skill.id));
     }
-    return red(
-      "skills:workflow-phase",
-      `default Workflow \u7F3A ${missing3.length} \u4E2A phase Skill\uFF1A${missing3.join("\u3001")}`,
-      `\u8865\u9F50 ${missing3.map((id2) => join75(p.pluginRoot, "skills", id2, "SKILL.md")).join("\u3001")} \u540E\u91CD\u8DD1 tenon doctor`
-    );
+  }
+  return [...ids2].sort();
+}
+function checkWorkflowSkills(p) {
+  let declared;
+  try {
+    declared = declaredWorkflowSkillIds();
   } catch (error2) {
     return red(
-      "skills:workflow-phase",
-      `default Workflow phase capability \u65E0\u6CD5\u89E3\u6790\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`,
+      "skills:workflow",
+      `\u5DE5\u4F5C\u6D41\u6280\u80FD\u6E05\u5355\u65E0\u6CD5\u89E3\u6790\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`,
       "\u4FEE\u590D default workflow source/generated runtime \u540E\u91CD\u8DD1 tenon doctor"
     );
   }
+  const retired = declared.filter((id2) => RETIRED_SKILL_IDS.includes(id2));
+  if (retired.length > 0) {
+    return red(
+      "skills:workflow",
+      `\u5DE5\u4F5C\u6D41\u5F15\u7528\u5DF2\u5220\u9664\u7684\u6280\u80FD\uFF1A${retired.join("\u3001")}`,
+      "\u5728\u5DE5\u4F5C\u6D41\u9875\u79FB\u9664\u540E\u91CD\u65B0\u4FDD\u5B58\uFF0C\u518D\u91CD\u8DD1 tenon doctor"
+    );
+  }
+  const missing3 = declared.filter((id2) => !p.fileExists(join75(p.pluginRoot, "skills", id2, "SKILL.md")));
+  if (missing3.length === 0) {
+    return green("skills:workflow", `\u5DE5\u4F5C\u6D41\u58F0\u660E\u7684 ${declared.length} \u4E2A\u6280\u80FD\u90FD\u53EF\u53D1\u73B0`);
+  }
+  return red(
+    "skills:workflow",
+    `\u5DE5\u4F5C\u6D41\u58F0\u660E\u7684\u6280\u80FD\u7F3A ${missing3.length} \u4E2A\uFF1A${missing3.join("\u3001")}`,
+    `\u8FD0\u884C tenon update \u8865\u9F50 ${missing3.map((id2) => join75(p.pluginRoot, "skills", id2, "SKILL.md")).join("\u3001")} \u540E\u91CD\u8DD1 tenon doctor`
+  );
 }
-var CODEX_PROJECT_CONTRACT_SKILLS = [
-  PRODUCT_IDENTITY.entrySkill,
-  "tenon-open",
-  "tenon-explore",
-  "tenon-spec",
-  "tenon-build",
-  "tenon-verify",
-  "tenon-ship",
-  "tenon-archive",
-  "openspec-propose",
-  "openspec-explore",
-  "openspec-apply-change",
-  "openspec-archive-change",
-  "brainstorming",
-  "grill-with-docs",
-  "improve-codebase-architecture",
-  "writing-plans",
-  "test-driven-development",
-  "verification-before-completion",
-  "finishing-a-development-branch",
-  "browser-qa",
-  "e2e-testing"
-];
+function checkOpenspecCli() {
+  const path15 = resolveCommandOnPath("openspec");
+  return path15 === void 0 ? yellow(
+    "integration:openspec-cli",
+    "PATH \u4E0A\u6CA1\u6709 openspec\uFF1A\u53D7 openspec \u6CBB\u7406\u7684\u5DE5\u4F5C\u6D41\u65E0\u6CD5\u5E94\u7528\u89C4\u683C",
+    "\u5B89\u88C5 OpenSpec CLI\uFF08npm i -g @fission-ai/openspec\uFF09\u540E\u91CD\u8DD1 tenon doctor"
+  ) : green("integration:openspec-cli", `openspec \u53EF\u6267\u884C\uFF1A${path15}`);
+}
+function codexProjectContractSkills() {
+  try {
+    return declaredWorkflowSkillIds();
+  } catch {
+    return [PRODUCT_IDENTITY.entrySkill];
+  }
+}
 async function checkCodexProjectSkills(p, inventory) {
   if (inventory?.kind === "unavailable") {
     return red(
@@ -49449,7 +49553,7 @@ async function checkCodexProjectSkills(p, inventory) {
     const discovery = await p.codexSkillDiscovery();
     const native = discovery.selectedRoot !== void 0;
     const active = native ? discovery.selected : discovery.project;
-    const missing4 = CODEX_PROJECT_CONTRACT_SKILLS.filter((name2) => !active.has(name2));
+    const missing4 = codexProjectContractSkills().filter((name2) => !active.has(name2));
     const duplicates2 = [];
     const shadows = [];
     if (native) {
@@ -49498,7 +49602,7 @@ async function checkCodexProjectSkills(p, inventory) {
     );
   }
   const installed = p.codexProjectSkillNames();
-  const missing3 = CODEX_PROJECT_CONTRACT_SKILLS.filter((name2) => !installed.has(name2));
+  const missing3 = codexProjectContractSkills().filter((name2) => !installed.has(name2));
   if (missing3.length === 0) {
     return green(
       "integration:codex-project-skills",
@@ -49515,39 +49619,6 @@ async function checkCodexProjectSkills(p, inventory) {
 // packages/cli/src/codexAuth.ts
 import { spawn as spawn3 } from "node:child_process";
 import { posix as posix4, win32 as win323 } from "node:path";
-
-// packages/cli/src/commands/commandExists.ts
-import { accessSync, constants as fsConstants, statSync as statSync4 } from "node:fs";
-import { posix as posix3, win32 as win322 } from "node:path";
-function resolveCommandOnPath(name2, options = {}) {
-  const platform = options.platform ?? process.platform;
-  const pathApi2 = platform === "win32" ? win322 : posix3;
-  const candidates = platform === "win32" && pathApi2.extname(name2) === "" ? [
-    name2,
-    ...(options.pathExt ?? process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter((extension2) => extension2 !== "").map((extension2) => `${name2}${extension2}`)
-  ] : [name2];
-  const pathValue = options.pathValue ?? process.env.PATH ?? "";
-  for (const dir of pathValue.split(platform === "win32" ? ";" : ":")) {
-    if (options.requireAbsolutePathEntries === true && (dir === "" || !pathApi2.isAbsolute(dir))) {
-      continue;
-    }
-    for (const candidate2 of candidates) {
-      const path15 = pathApi2.resolve(dir === "" ? "." : dir, candidate2);
-      try {
-        if (!statSync4(path15).isFile()) continue;
-        accessSync(path15, fsConstants.X_OK);
-        return path15;
-      } catch {
-      }
-    }
-  }
-  return void 0;
-}
-function commandExistsOnPath(name2, options = {}) {
-  return resolveCommandOnPath(name2, options) !== void 0;
-}
-
-// packages/cli/src/codexAuth.ts
 var CODEX_STATUS_SENTINEL_MAX_BYTES = 4096;
 var CODEX_NOT_LOGGED_IN_SENTINEL = "Not logged in";
 function codexStatusSpawnPlan(platform = process.platform, env = process.env, resolveCommand = resolveCommandOnPath) {
@@ -49615,12 +49686,12 @@ async function probeCodexAuth(exec = REAL_CODEX_AUTH_EXEC) {
   }
 }
 function createCodexAuthExec(options = {}) {
-  return () => new Promise((resolve55) => {
+  return () => new Promise((resolve56) => {
     const platform = options.platform ?? process.platform;
     const env = options.env ?? process.env;
     const plan = options.plan ?? codexStatusSpawnPlan(platform, env);
     if ("unavailableReason" in plan) {
-      resolve55({ kind: "unavailable", reason: plan.unavailableReason });
+      resolve56({ kind: "unavailable", reason: plan.unavailableReason });
       return;
     }
     const spawnProcess = options.spawnProcess ?? spawn3;
@@ -49653,7 +49724,7 @@ function createCodexAuthExec(options = {}) {
         terminationKiller = void 0;
         directKill(killer);
       }
-      resolve55(result2);
+      resolve56(result2);
     };
     const terminateCurrentProcessTree = () => {
       const target = child;
@@ -49920,30 +49991,30 @@ async function waitForHealthyServer(port, expectedReleaseId, expectedStateScopeI
   return null;
 }
 function listenerPids(port) {
-  return new Promise((resolve55) => {
+  return new Promise((resolve56) => {
     execFile4("lsof", ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }, (error2, stdout) => {
       if (error2 === null) {
-        resolve55([...new Set(String(stdout ?? "").split(/\r?\n/).map((line) => Number.parseInt(line.trim(), 10)).filter((pid) => Number.isSafeInteger(pid) && pid > 0))]);
+        resolve56([...new Set(String(stdout ?? "").split(/\r?\n/).map((line) => Number.parseInt(line.trim(), 10)).filter((pid) => Number.isSafeInteger(pid) && pid > 0))]);
         return;
       }
-      resolve55(error2.code === 1 ? [] : null);
+      resolve56(error2.code === 1 ? [] : null);
     });
   });
 }
 function dashboardPortOpen(port) {
-  return new Promise((resolve55) => {
+  return new Promise((resolve56) => {
     const socket = createConnection({ host: "127.0.0.1", port });
     socket.setTimeout(250);
     socket.once("connect", () => {
       socket.destroy();
-      resolve55(true);
+      resolve56(true);
     });
     socket.once("timeout", () => {
       socket.destroy();
-      resolve55(true);
+      resolve56(true);
     });
     socket.once("error", (error2) => {
-      resolve55(error2.code !== "ECONNREFUSED");
+      resolve56(error2.code !== "ECONNREFUSED");
     });
   });
 }
@@ -51122,13 +51193,13 @@ async function convergeStableLaunchers(paths, checkpoint, homeDir = homedir5(), 
   }
   return converged;
 }
-async function restoreStableLaunchers(snapshot, committed) {
+async function restoreStableLaunchers(snapshot2, committed) {
   const current = await Promise.all([
-    captureLauncher(snapshot.tenon.path),
-    captureLauncher(snapshot.hook.path)
+    captureLauncher(snapshot2.tenon.path),
+    captureLauncher(snapshot2.hook.path)
   ]);
   for (const [index, value] of current.entries()) {
-    const before = index === 0 ? snapshot.tenon : snapshot.hook;
+    const before = index === 0 ? snapshot2.tenon : snapshot2.hook;
     const owned = index === 0 ? committed?.tenon : committed?.hook;
     if (!sameLauncherState(value.state, before.state) && (owned === void 0 || !sameLauncherState(value.state, owned.state, false)) && !await installerOwnedCapturedLauncherTransition(
       value,
@@ -51139,9 +51210,9 @@ async function restoreStableLaunchers(snapshot, committed) {
       throw new Error(`launcher \u5728 activation \u540E\u88AB\u5916\u90E8\u4FEE\u6539\uFF0C\u62D2\u7EDD\u8986\u76D6: ${value.path}`);
     }
   }
-  const allowed = committed ?? snapshot;
-  await replaceLauncherNoOverwrite(snapshot.tenon, snapshot.tenon, allowed.tenon);
-  await replaceLauncherNoOverwrite(snapshot.hook, snapshot.hook, allowed.hook);
+  const allowed = committed ?? snapshot2;
+  await replaceLauncherNoOverwrite(snapshot2.tenon, snapshot2.tenon, allowed.tenon);
+  await replaceLauncherNoOverwrite(snapshot2.hook, snapshot2.hook, allowed.hook);
 }
 async function writeStableLaunchers(paths, homeDir = homedir5(), options = {}) {
   const { tenon, hook } = launcherPaths(homeDir);
@@ -52349,7 +52420,7 @@ function decodeJournal(raw, paths) {
   if (activationCheckpoint === null || activation === null || hostSteps === null || dashboardBefore === null || dashboard === null || dashboardRestored === null || stableTarget === null) return null;
   if (activation !== void 0 && (activation.selection.activeRelease !== activation.release.releaseId || activation.release.source.host !== value.source || stableTarget !== void 0 && (activation.release.version !== 2 || activation.release.stableTarget === void 0 || JSON.stringify(activation.release.stableTarget) !== JSON.stringify(stableTarget)))) return null;
   const expectedLaunchers = expectedStableLaunchers(paths, paths.homeDir);
-  const launchersHaveExpectedPaths = (snapshot) => snapshot === void 0 || snapshot.tenon.path === expectedLaunchers.tenon.path && snapshot.hook.path === expectedLaunchers.hook.path;
+  const launchersHaveExpectedPaths = (snapshot2) => snapshot2 === void 0 || snapshot2.tenon.path === expectedLaunchers.tenon.path && snapshot2.hook.path === expectedLaunchers.hook.path;
   if (!launchersHaveExpectedPaths(activationCheckpoint?.launchers) || !launchersHaveExpectedPaths(activation?.launcherSnapshot) || !launchersHaveExpectedPaths(activation?.launcherCommitted) || activation !== void 0 && activation.releaseRoot !== join83(paths.releasesRoot, activation.release.releaseId)) return null;
   if (value.phase === "candidate-resolved" && typeof value.candidateRoot !== "string" || value.phase === "activating-runtime" && (typeof value.candidateRoot !== "string" || activationCheckpoint === void 0) || (value.phase === "runtime-activated" || value.phase === "starting-dashboard" || value.phase === "dashboard-ready" || value.phase === "stopping-candidate" || value.phase === "reverting-activation" || value.phase === "restoring-previous" || value.phase === "previous-restored" || value.phase === "evidence-committed") && (typeof value.candidateRoot !== "string" || activation === void 0) || (value.phase === "dashboard-ready" || value.phase === "evidence-committed") && value.dashboard !== void 0 && dashboard === void 0 || dashboard?.owner === "transaction" && dashboard.transactionId !== value.transactionId || (value.phase === "stopping-candidate" || value.phase === "reverting-activation" || value.phase === "restoring-previous" || value.phase === "previous-restored") && (activationCheckpoint === void 0 || typeof value.compensationReason !== "string") || dashboardRestored !== void 0 && dashboardRestored.transactionId !== `${value.transactionId}:restore` || dashboardBefore !== void 0 && value.dashboardBeforeAbsent === true || value.dashboardBeforeRetiring === true && (value.phase !== "starting-dashboard" || dashboardBefore === void 0 || value.dashboardBeforeAbsent === true) || value.dashboardPort !== void 0 && (dashboardBefore !== void 0 && dashboardBefore.port !== value.dashboardPort || dashboard !== void 0 && dashboard.port !== value.dashboardPort || dashboardRestored !== void 0 && dashboardRestored.port !== value.dashboardPort) || (value.source === "codex" || value.source === "claude") && (value.phase === "runtime-activated" || value.phase === "starting-dashboard" || value.phase === "dashboard-ready" || value.phase === "stopping-candidate" || value.phase === "reverting-activation" || value.phase === "restoring-previous" || value.phase === "previous-restored" || value.phase === "evidence-committed") && value.dashboardPort === void 0 && !((value.operation === "setup" || value.operation === "update") && value.stableTarget === void 0)) return null;
   return {
@@ -52453,8 +52524,8 @@ function isLauncherSnapshot(value) {
     if (Object.keys(file).sort().join(",") !== "path,state" || typeof file.path !== "string") return false;
     const state = file.state;
     if (typeof state !== "object" || state === null || Array.isArray(state)) return false;
-    const snapshot = state;
-    return snapshot.kind === "missing" ? Object.keys(snapshot).join(",") === "kind" : snapshot.kind === "file" && Object.keys(snapshot).sort().join(",") === "content,kind,mode" && typeof snapshot.content === "string" && Number.isSafeInteger(snapshot.mode) && snapshot.mode >= 0 && snapshot.mode <= 511;
+    const snapshot2 = state;
+    return snapshot2.kind === "missing" ? Object.keys(snapshot2).join(",") === "kind" : snapshot2.kind === "file" && Object.keys(snapshot2).sort().join(",") === "content,kind,mode" && typeof snapshot2.content === "string" && Number.isSafeInteger(snapshot2.mode) && snapshot2.mode >= 0 && snapshot2.mode <= 511;
   });
 }
 function decodeRollbackJournal(raw) {
@@ -53547,7 +53618,7 @@ var REAL_PRODUCT_IDENTITY_RUNTIME = {
     }
   },
   run(file, args, options) {
-    const asText = (value) => Buffer.isBuffer(value) ? value.toString("utf8") : typeof value === "string" ? value : "";
+    const asText2 = (value) => Buffer.isBuffer(value) ? value.toString("utf8") : typeof value === "string" ? value : "";
     try {
       return {
         code: 0,
@@ -53563,8 +53634,8 @@ var REAL_PRODUCT_IDENTITY_RUNTIME = {
       const failed = error2;
       return {
         code: typeof failed.status === "number" ? failed.status : 1,
-        stdout: asText(failed.stdout),
-        stderr: asText(failed.stderr)
+        stdout: asText2(failed.stdout),
+        stderr: asText2(failed.stderr)
       };
     }
   },
@@ -53926,7 +53997,8 @@ async function cmdDoctor(deps, opts) {
     ["project:changes", () => checkChanges(deps)],
     ["project:markers", () => checkMarkers(deps)],
     ["quality:verify-skills", () => checkVerifySkills(p)],
-    ["skills:workflow-phase", () => checkWorkflowPhaseSkills(p)],
+    ["skills:workflow", () => checkWorkflowSkills(p)],
+    ["integration:openspec-cli", () => checkOpenspecCli()],
     ["identity:release", () => checkProductIdentity(p)]
   ];
   const checks = [];
@@ -53996,8 +54068,8 @@ async function cmdDoctor(deps, opts) {
     deps.io.out(`  ${STATUS_TAG[c.status]} ${c.id.padEnd(idW)}  ${c.detail}`);
     if (c.status !== "green" && c.hint !== "") deps.io.out(`${" ".repeat(9 + idW + 2)}fix: ${c.hint}`);
   }
-  const view = opts.skills === true ? upstreamSkillViewOf(p) : null;
-  if (view !== null) for (const line of renderUpstreamSkillTable(view)) deps.io.out(line);
+  const view2 = opts.skills === true ? upstreamSkillViewOf(p) : null;
+  if (view2 !== null) for (const line of renderUpstreamSkillTable(view2)) deps.io.out(line);
   return exit;
 }
 
@@ -54047,6 +54119,20 @@ var STATIC_ENUMS = {
   automation: ["off", "queued", "scheduled", "running", "merged", "failed", "conflict", "paused"]
 };
 var RETIRED_FIELDS = /* @__PURE__ */ new Set(["agent_review_result", "codex_review_result"]);
+var STEP_FIELD_ENUMS = STATIC_ENUMS;
+var STATIC_RECOMMENDED = {
+  preset: "full",
+  build_mode: "direct",
+  isolation: "in-place",
+  pre_verify_review_result: "pass",
+  branch_status: "handled"
+};
+function RECOMMENDED(field3, state) {
+  if (field3 === "direct_override") {
+    return scalarField2(state, "preset") === "full" && scalarField2(state, "build_mode") === "direct" ? "true" : void 0;
+  }
+  return STATIC_RECOMMENDED[field3];
+}
 function enumValueAllowed(deps, field3, value) {
   if (RETIRED_FIELDS.has(field3)) {
     deps.io.err(`ERROR: \u5B57\u6BB5 '${field3}' \u5DF2\u5220\u9664\u2014\u2014\u8BC4\u5BA1\u6539\u7528\u6B65\u9AA4 agents.reviewers`);
@@ -56256,7 +56342,7 @@ function renderEvidence(deps, report) {
     const paths = item2.paths.length === 0 ? "" : ` \xB7 ${item2.paths.join(", ")}`;
     deps.io.out(`  [${item2.status.toUpperCase()}] ${item2.kind}${read3}${paths}`);
   }
-  for (const blocker of report.blockers) deps.io.out(`  [FAIL] ${blocker}`);
+  for (const blocker2 of report.blockers) deps.io.out(`  [FAIL] ${blocker2}`);
 }
 async function cmdDocumentStatus(deps, name2, json2) {
   const dir = assertChangeName(deps, name2);
@@ -56633,6 +56719,9 @@ async function cmdTransition(deps, name2, event) {
           `ERROR: workflow '${result2.workflowName}' \u672A\u627E\u5230\uFF08\u671F\u671B .pipeline/workflows/${result2.workflowName}.yaml\uFF09`
         );
         return 1;
+      case "retired-skills":
+        deps.io.err(`ERROR: ${retiredSkillsChangeMessage(name2, result2.skills)}`);
+        return 1;
       case "document-governance-invalid":
         deps.io.err(`ERROR: ${result2.reason}`);
         return 1;
@@ -56654,15 +56743,15 @@ async function cmdTransition(deps, name2, event) {
         return 2;
       case "step-agents-incomplete":
         deps.io.err(`ERROR: step '${result2.stepId}' \u7684 agent \u672A\u901A\u8FC7\uFF1A`);
-        for (const blocker of result2.blockers) deps.io.err(`  - ${renderAgentBlocker(blocker, name2)}`);
+        for (const blocker2 of result2.blockers) deps.io.err(`  - ${renderAgentBlocker(blocker2, name2)}`);
         return 2;
       case "document-evidence-failed":
         deps.io.err(`ERROR: OpenSpec \u6587\u6863\u8BC1\u636E\u672A\u901A\u8FC7\uFF08phase=${result2.phase}\uFF09\uFF1A`);
-        for (const blocker of result2.blockers) deps.io.err(`  - ${blocker}`);
+        for (const blocker2 of result2.blockers) deps.io.err(`  - ${blocker2}`);
         return 1;
       case "test-evidence-failed":
         deps.io.err(`ERROR: \u6D4B\u8BD5\u8BC1\u636E\u672A\u901A\u8FC7\uFF08step=${result2.stepId}\uFF09\uFF1A`);
-        for (const blocker of result2.blockers) deps.io.err(`  - ${blocker}`);
+        for (const blocker2 of result2.blockers) deps.io.err(`  - ${blocker2}`);
         return 1;
       case "review-approval-required":
         deps.io.err(
@@ -57447,20 +57536,20 @@ function createExecutionCoordinatePort(deps) {
     async capture(ctx) {
       const dir = changeDir(repoRoot, ctx.change);
       return store2.withLock(dir, async () => {
-        const snapshot = await readCoordinateSnapshot(store2, repoRoot, dir, manifestRoot);
+        const snapshot2 = await readCoordinateSnapshot(store2, repoRoot, dir, manifestRoot);
         return {
-          resolution: snapshot.resolution,
-          workflow: snapshot.workflow,
-          track: snapshot.track,
-          workflowRunId: snapshot.workflowRunId,
-          inputsDigest: sha256Hex4(snapshot.digestInput)
+          resolution: snapshot2.resolution,
+          workflow: snapshot2.workflow,
+          track: snapshot2.track,
+          workflowRunId: snapshot2.workflowRunId,
+          inputsDigest: sha256Hex4(snapshot2.digestInput)
         };
       });
     },
     async readCurrentInputsDigest(ctx) {
       const dir = changeDir(repoRoot, ctx.change);
-      const snapshot = await readCoordinateSnapshot(store2, repoRoot, dir, manifestRoot);
-      return sha256Hex4(snapshot.digestInput);
+      const snapshot2 = await readCoordinateSnapshot(store2, repoRoot, dir, manifestRoot);
+      return sha256Hex4(snapshot2.digestInput);
     }
   };
 }
@@ -57890,12 +57979,12 @@ import { homedir as homedir9 } from "node:os";
 async function enforceProductionLoopWiring(deps, loopIds, home = homedir9()) {
   let selected = loopIds;
   if (selected === void 0) {
-    const snapshot = await readRegistrySnapshot(deps.cwd);
-    if (snapshot.registry === null) {
-      if (snapshot.errors.length === 0) return { blocked: [] };
-      throw new Error(`loops registry \u65E0\u6CD5\u6821\u9A8C\uFF1A${snapshot.errors.join("\uFF1B")}`);
+    const snapshot2 = await readRegistrySnapshot(deps.cwd);
+    if (snapshot2.registry === null) {
+      if (snapshot2.errors.length === 0) return { blocked: [] };
+      throw new Error(`loops registry \u65E0\u6CD5\u6821\u9A8C\uFF1A${snapshot2.errors.join("\uFF1B")}`);
     }
-    selected = snapshot.registry.loops.filter((loop) => loop.status === "active").map((loop) => loop.id);
+    selected = snapshot2.registry.loops.filter((loop) => loop.status === "active").map((loop) => loop.id);
   }
   if (selected.length === 0) return { blocked: [] };
   const wiringForRunner = (runner) => ({
@@ -58057,7 +58146,7 @@ async function runAfkRound(deps, options, runtime = {}) {
     },
     isSkillProfileKnown: deps.isSkillProfileKnown,
     bindAutomationPolicy: (change, policy2, binding) => deps.runRepo.bindAutomationPolicy(changeDir(deps.cwd, change), policy2, binding),
-    bindWorkflowActionAuthority: (change, snapshot) => deps.runRepo.bindWorkflowActionAuthority(changeDir(deps.cwd, change), snapshot),
+    bindWorkflowActionAuthority: (change, snapshot2) => deps.runRepo.bindWorkflowActionAuthority(changeDir(deps.cwd, change), snapshot2),
     withWorkflowActionAuthorityLock: (use) => deps.withRegistryLock(({ registry }) => use(registry)),
     workflowActionAuthority: ({ change, context, run: run2, registry }) => resolveAfkWorkflowActionAuthority(deps, change, context, run2, registry)
   });
@@ -58084,11 +58173,11 @@ async function runAfkRound(deps, options, runtime = {}) {
     })
   });
   const pauseLoop = async (loopId) => {
-    const snapshot = await readRegistrySnapshot(deps.cwd);
-    if (snapshot.registry === null) throw new Error(`pause loop\u300C${loopId}\u300D\u5931\u8D25\uFF1Aloops.yaml \u7F3A\u5931\u6216\u4E0D\u53EF\u89E3\u6790`);
+    const snapshot2 = await readRegistrySnapshot(deps.cwd);
+    if (snapshot2.registry === null) throw new Error(`pause loop\u300C${loopId}\u300D\u5931\u8D25\uFF1Aloops.yaml \u7F3A\u5931\u6216\u4E0D\u53EF\u89E3\u6790`);
     const result2 = await writeRegistryWithGovernance(
       deps.cwd,
-      snapshot.epoch,
+      snapshot2.epoch,
       (current) => updateLoopInYaml(current, loopId, { status: "paused" })
     );
     if (!result2.ok) throw new Error(`pause loop\u300C${loopId}\u300D\u5931\u8D25\uFF1A${result2.error}`);
@@ -59640,8 +59729,8 @@ function readNewEvents(fs, path15, state) {
   return parseEventsText(lines2.join("\n"));
 }
 function defaultSleep(ms) {
-  return new Promise((resolve55) => {
-    const t = setTimeout(resolve55, ms);
+  return new Promise((resolve56) => {
+    const t = setTimeout(resolve56, ms);
     if (typeof t.unref === "function")
       t.unref();
   });
@@ -59861,7 +59950,7 @@ var ShutdownController = class {
   awaitKilled() {
     if (this.killedDone || !this.killedStarted)
       return Promise.resolve();
-    return new Promise((resolve55) => this.killedWaiters.push(resolve55));
+    return new Promise((resolve56) => this.killedWaiters.push(resolve56));
   }
   startKillLadder() {
     const child = this.deps.child();
@@ -60088,8 +60177,8 @@ async function startSupervisor(channelName, workerName, config, deps) {
   fs.writeText(wfile(workerName, "pid"), String(proc.selfPid));
   const adapter2 = deps.resolveAdapter(config.provider);
   const ctx = adapter2.createCtx();
-  const view = { resume: config.resume, model: config.model, systemPrompt: config.systemPrompt, cwd: config.cwd };
-  const args = adapter2.buildArgs(view);
+  const view2 = { resume: config.resume, model: config.model, systemPrompt: config.systemPrompt, cwd: config.cwd };
+  const args = adapter2.buildArgs(view2);
   const childEnv = { ...config.env ?? {} };
   childEnv.TENON_HOOKS = "0";
   childEnv.TENON_CHANNEL = channelName;
@@ -60097,12 +60186,12 @@ async function startSupervisor(channelName, workerName, config, deps) {
   log2(`[supervisor] starting ${adapter2.provider} ${args.join(" ")}
 `);
   const child = proc.spawn(adapter2.provider, args, { cwd: config.cwd, env: childEnv });
-  const settled = new Promise((resolve55) => {
-    child.onSpawn(() => resolve55(true));
+  const settled = new Promise((resolve56) => {
+    child.onSpawn(() => resolve56(true));
     child.onError((err) => {
       log2(`[supervisor] worker error: ${err.message}
 `);
-      resolve55(false);
+      resolve56(false);
     });
   });
   child.onStderr((chunk) => log2(chunk));
@@ -60196,7 +60285,7 @@ async function startSupervisor(channelName, workerName, config, deps) {
   });
   if (typeof adapter2.handshake === "function") {
     try {
-      adapter2.handshake(child, ctx, view);
+      adapter2.handshake(child, ctx, view2);
     } catch (err) {
       log2(`[supervisor] adapter handshake failed: ${err instanceof Error ? err.message : String(err)}
 `);
@@ -61271,6 +61360,11 @@ async function cmdInit(deps, name2, opts, env = REAL_INIT_WIZARD_ENV) {
         deps.io.err(`ERROR: workflow '${workflowId}' \u672A\u58F0\u660E\u4EFB\u4F55 step`);
         return 1;
       }
+      const retired = retiredSkillReferences(plan);
+      if (retired.length > 0) {
+        deps.io.err(`ERROR: ${retiredSkillsWorkflowMessage(workflowId, retired)}`);
+        return 1;
+      }
       const refused = await deps.creationPrecondition?.({
         workflow: workflowId,
         track: track.id,
@@ -61861,8 +61955,8 @@ function decode(bytes, label2) {
     throw new Error(`${label2} \u4E0D\u662F\u5408\u6CD5 UTF-8`);
   }
 }
-function loadSnapshotRegistry(repoRoot, snapshot) {
-  const text8 = decode(snapshot.registry_bytes, ".pipeline/loops.yaml");
+function loadSnapshotRegistry(repoRoot, snapshot2) {
+  const text8 = decode(snapshot2.registry_bytes, ".pipeline/loops.yaml");
   if (text8 === null) throw new Error(`loops.yaml \u672A\u627E\u5230\u4E8E ${repoRoot}/.pipeline/loops.yaml`);
   const loaded = loadRegistry(repoRoot, { readText: () => text8 });
   if (loaded.data === null || loaded.errors.length > 0) {
@@ -61870,33 +61964,33 @@ function loadSnapshotRegistry(repoRoot, snapshot) {
   }
   return loaded.data;
 }
-function blockerView(blocker, disposition) {
+function blockerView(blocker2, disposition) {
   return {
     disposition,
-    loop_id: blocker.drift.loop,
-    dimension: blocker.drift.dimension,
-    severity: blocker.drift.severity,
-    detail: blocker.drift.detail,
-    suggestion: blocker.drift.suggestion,
-    reason: blocker.reason,
-    next_step: blocker.next_step
+    loop_id: blocker2.drift.loop,
+    dimension: blocker2.drift.dimension,
+    severity: blocker2.drift.severity,
+    detail: blocker2.drift.detail,
+    suggestion: blocker2.drift.suggestion,
+    reason: blocker2.reason,
+    next_step: blocker2.next_step
   };
 }
 function blockerViews(plan) {
   const unsupported = [];
   const notApplicable = [];
-  for (const blocker of plan.blockers) {
-    if (blocker.reason === "runtime-remediation-required") {
-      notApplicable.push(blockerView(blocker, "not-applicable"));
+  for (const blocker2 of plan.blockers) {
+    if (blocker2.reason === "runtime-remediation-required") {
+      notApplicable.push(blockerView(blocker2, "not-applicable"));
     } else {
-      unsupported.push(blockerView(blocker, "unsupported"));
+      unsupported.push(blockerView(blocker2, "unsupported"));
     }
   }
   return { unsupported, notApplicable };
 }
-function expectedShaConflicts(parsed, snapshot) {
+function expectedShaConflicts(parsed, snapshot2) {
   const conflicts = [];
-  const registryActual = snapshot.registry_epoch.kind === "sha256" ? snapshot.registry_epoch.value : null;
+  const registryActual = snapshot2.registry_epoch.kind === "sha256" ? snapshot2.registry_epoch.value : null;
   if (parsed.expectedRegistrySha !== null && parsed.expectedRegistrySha !== registryActual) {
     conflicts.push({
       resource: "registry",
@@ -61905,7 +61999,7 @@ function expectedShaConflicts(parsed, snapshot) {
       actual_sha: registryActual
     });
   }
-  const workflowActual = snapshot.loop_doc_epoch.kind === "sha256" ? snapshot.loop_doc_epoch.value : null;
+  const workflowActual = snapshot2.loop_doc_epoch.kind === "sha256" ? snapshot2.loop_doc_epoch.value : null;
   if (parsed.expectedWorkflowSha !== null && parsed.expectedWorkflowSha !== workflowActual) {
     conflicts.push({
       resource: "workflow",
@@ -61921,11 +62015,11 @@ async function cmdLoopSync(deps, args, runtime = REAL_LOOP_SYNC_RUNTIME) {
   try {
     const current = parseArgs(args);
     parsed = current;
-    const [snapshot, runLogBytes] = await Promise.all([
+    const [snapshot2, runLogBytes] = await Promise.all([
       runtime.readSnapshot(deps.cwd),
       runtime.readRunLog(deps.cwd)
     ]);
-    const requestedConflicts = expectedShaConflicts(current, snapshot);
+    const requestedConflicts = expectedShaConflicts(current, snapshot2);
     if (requestedConflicts.length > 0) {
       const output3 = {
         schema_version: 1,
@@ -61949,14 +62043,14 @@ async function cmdLoopSync(deps, args, runtime = REAL_LOOP_SYNC_RUNTIME) {
       }
       return 3;
     }
-    const registry = loadSnapshotRegistry(deps.cwd, snapshot);
+    const registry = loadSnapshotRegistry(deps.cwd, snapshot2);
     if (!registry.loops.some((loop) => loop.id === current.loopId)) {
       throw new Error(`\u672A\u77E5 loop id: ${current.loopId}`);
     }
     const now = new Date(deps.clock());
     const driftReport = detectDrift(
       registry,
-      decode(snapshot.loop_doc_bytes, "LOOP.md"),
+      decode(snapshot2.loop_doc_bytes, "LOOP.md"),
       decode(runLogBytes, ".superpowers/loops/progress.md"),
       now
     );
@@ -61964,9 +62058,9 @@ async function cmdLoopSync(deps, args, runtime = REAL_LOOP_SYNC_RUNTIME) {
       generated_at: now.toISOString(),
       scope: { kind: "loop", loop_id: current.loopId },
       loops: registry.loops,
-      registry_epoch: snapshot.registry_epoch,
+      registry_epoch: snapshot2.registry_epoch,
       run_log_epoch: resourceEpoch(runLogBytes),
-      loop_doc_bytes: snapshot.loop_doc_bytes,
+      loop_doc_bytes: snapshot2.loop_doc_bytes,
       drift_report: driftReport
     });
     const { unsupported, notApplicable } = blockerViews(plan);
@@ -64427,6 +64521,276 @@ async function cmdSession(deps, sub, args, fs = REAL_FS2) {
   }
 }
 
+// packages/cli/src/commands/specApply.ts
+import { writeFile as writeFile26 } from "node:fs/promises";
+import { join as join107, resolve as resolve43 } from "node:path";
+
+// packages/cli/src/commands/specApplyRehearsal.ts
+import { execFile as execFile6 } from "node:child_process";
+import { cp as cp2, mkdtemp as mkdtemp3, readFile as readFile63, readdir as readdir24, rm as rm23 } from "node:fs/promises";
+import { tmpdir as tmpdir4 } from "node:os";
+import { join as join106 } from "node:path";
+var MAX_OUTPUT_BYTES = 256 * 1024;
+function runOpenspec(args, cwd) {
+  return new Promise((done) => {
+    execFile6("openspec", [...args], { cwd, maxBuffer: MAX_OUTPUT_BYTES }, (error2, stdout, stderr) => {
+      const code = error2 === null ? 0 : typeof error2.code === "number" ? error2.code : 1;
+      done({ code, stdout, stderr });
+    });
+  });
+}
+function asRecord8(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null;
+}
+function asArray6(value) {
+  return Array.isArray(value) ? value : [];
+}
+function asText(value) {
+  return typeof value === "string" ? value : void 0;
+}
+function decodeJson(raw) {
+  try {
+    return asRecord8(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+function quoted(outcome, label2) {
+  const head = `${label2} \u9000\u51FA\u7801 ${outcome.code}`;
+  const lines2 = [];
+  for (const rawItem of asArray6(decodeJson(outcome.stdout)?.items)) {
+    const item2 = asRecord8(rawItem);
+    if (item2 === null || item2.valid !== false) continue;
+    for (const rawIssue of asArray6(item2.issues)) {
+      const issue2 = asRecord8(rawIssue);
+      if (issue2 === null) continue;
+      lines2.push([
+        asText(item2.id) ?? "?",
+        asText(issue2.level) ?? "ERROR",
+        asText(issue2.path) ?? "",
+        asText(issue2.message) ?? ""
+      ].join(" ").trim());
+    }
+  }
+  if (lines2.length > 0) return [head, ...lines2];
+  const text8 = `${outcome.stdout}${outcome.stderr}`.trim();
+  return [head, ...text8 === "" ? [] : text8.split("\n")];
+}
+function capabilityOf(path15) {
+  return /^openspec\/specs\/([^/]+)\/spec\.md$/u.exec(path15)?.[1];
+}
+async function readMaybe(root, rel) {
+  try {
+    return await readFile63(join106(root, rel), "utf8");
+  } catch {
+    return null;
+  }
+}
+async function snapshot(root) {
+  const found = /* @__PURE__ */ new Map();
+  let entries;
+  try {
+    entries = await readdir24(join106(root, "openspec", "specs"), { withFileTypes: true });
+  } catch {
+    return found;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const path15 = `openspec/specs/${entry.name}/spec.md`;
+    const text8 = await readMaybe(root, path15);
+    if (text8 !== null) found.set(path15, text8);
+  }
+  return found;
+}
+function collectTargets(before, after) {
+  const targets2 = [];
+  for (const path15 of [...after.keys()].sort()) {
+    const next = after.get(path15) ?? "";
+    const previous = before.get(path15) ?? null;
+    targets2.push({
+      path: path15,
+      before: previous,
+      after: next,
+      change: previous === null ? "created" : previous === next ? "no-op" : "changed"
+    });
+  }
+  return targets2;
+}
+async function rehearseSpecApply(repoRoot, change, hooks) {
+  const rehearsal = await mkdtemp3(join106(tmpdir4(), "tenon-spec-apply-"));
+  let targets2 = [];
+  const errors = [];
+  try {
+    await cp2(join106(repoRoot, "openspec"), join106(rehearsal, "openspec"), {
+      recursive: true,
+      verbatimSymlinks: true,
+      preserveTimestamps: true
+    });
+    const before = await snapshot(rehearsal);
+    const validate2 = await runOpenspec(
+      ["validate", change, "--strict", "--no-interactive", "--json"],
+      rehearsal
+    );
+    if (validate2.code !== 0) errors.push(...quoted(validate2, "openspec validate"));
+    if (errors.length === 0) {
+      const archive = await runOpenspec(["archive", change, "--yes", "--json"], rehearsal);
+      if (archive.code !== 0) errors.push(...quoted(archive, "openspec archive"));
+    }
+    if (errors.length === 0) {
+      targets2 = collectTargets(before, await snapshot(rehearsal));
+      for (const target of targets2) {
+        const capability = target.change === "no-op" ? void 0 : capabilityOf(target.path);
+        if (capability === void 0) continue;
+        const merged = await runOpenspec(
+          ["validate", capability, "--type", "spec", "--strict", "--no-interactive", "--json"],
+          rehearsal
+        );
+        if (merged.code !== 0) errors.push(...quoted(merged, `openspec validate ${capability}`));
+      }
+      if (errors.length > 0) targets2 = [];
+    }
+    await hooks?.afterRehearsal?.();
+  } catch (e) {
+    errors.push(errMsg(e));
+  } finally {
+    await rm23(rehearsal, { recursive: true, force: true });
+  }
+  return { targets: targets2, errors };
+}
+
+// packages/cli/src/commands/specApply.ts
+var SPEC_APPLY_RECEIPT = ".pipeline-spec-apply.json";
+var APPLIED_SPEC_FILE = "applied-spec.md";
+async function alreadyApplied(repoRoot, dir, deltas) {
+  const raw = await readMaybe(dir, SPEC_APPLY_RECEIPT);
+  const receipt = raw === null ? null : decodeJson(raw);
+  if (receipt === null || receipt.mode !== "apply" || receipt.result !== "pass") return null;
+  const recorded = asArray6(receipt.deltas).map((row2) => asRecord8(row2)).map((row2) => `${asText(row2?.path) ?? ""}:${asText(row2?.sha256) ?? ""}`).sort();
+  const current = deltas.map((delta) => `${delta.path}:${delta.sha256}`).sort();
+  if (recorded.length !== current.length || recorded.some((row2, index) => row2 !== current[index])) return null;
+  const targets2 = [];
+  for (const row2 of asArray6(receipt.targets)) {
+    const target = asRecord8(row2);
+    const path15 = asText(target?.path);
+    if (path15 === void 0) return null;
+    const text8 = await readMaybe(repoRoot, path15);
+    if (text8 === null || sha256Hex(text8) !== asText(target?.after_sha256)) return null;
+    targets2.push({ path: path15, before: text8, after: text8, change: "no-op" });
+  }
+  return targets2;
+}
+async function writeAppliedSpec(dir, change, targets2) {
+  const locale = await resolveChangeDocumentLocale(dir, void 0, true);
+  const skeleton = renderDocumentTemplate("applied-spec", locale, { change });
+  const bodies = [
+    `delta spec \u5DF2\u5E94\u7528\u5230 ${targets2.filter((target) => target.change !== "no-op").length} \u4EFD\u4E3B\u89C4\u683C\u3002`,
+    targets2.map((target) => `- ${target.path}\uFF08${target.change}\uFF09`).join("\n"),
+    SPEC_APPLY_RECEIPT
+  ];
+  let filled = 0;
+  const lines2 = skeleton.split("\n").map((line) => line.startsWith("> [") ? bodies[filled++] ?? line : line);
+  await writeFile26(join107(dir, APPLIED_SPEC_FILE), lines2.join("\n"), "utf8");
+}
+function targetView(target) {
+  return {
+    path: target.path,
+    before_sha256: target.before === null ? null : sha256Hex(target.before),
+    after_sha256: sha256Hex(target.after),
+    change: target.change
+  };
+}
+async function cmdSpecApply(deps, change, opts, hooks) {
+  if (!isValidChangeName(change)) {
+    deps.io.err(`ERROR: change-name \u975E\u6CD5: '${change}' (\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _)`);
+    return 1;
+  }
+  const dir = changeDir(deps.cwd, change);
+  let state;
+  try {
+    state = await deps.store.read(dir);
+  } catch (e) {
+    deps.io.err(`ERROR: ${errMsg(e)}`);
+    return 1;
+  }
+  if (await refuseArchived(deps, change)) return 1;
+  let deltas;
+  try {
+    if (effectiveWorkflowForState(deps, state)?.capabilities.documents.governed !== true) {
+      deps.io.err(`ERROR: \u4EFB\u52A1 '${change}' \u7684\u5DE5\u4F5C\u6D41\u672A\u5F00\u542F openspec\uFF0C\u65E0\u9700\u5E94\u7528\u89C4\u683C`);
+      return 1;
+    }
+    deltas = (await readDocumentLedger(dir))?.records.filter((record9) => record9.kind === "delta-spec") ?? [];
+  } catch (e) {
+    deps.io.err(`ERROR: ${errMsg(e)}`);
+    return 1;
+  }
+  if (deltas.length === 0) {
+    deps.io.err(`ERROR: delta-spec-unrecorded\uFF1A\u4EFB\u52A1 '${change}' \u8FD8\u6CA1\u6709\u767B\u8BB0 delta spec`);
+    return 1;
+  }
+  const cli = await runOpenspec(["--version"], deps.cwd);
+  if (cli.code !== 0) {
+    deps.io.err("ERROR: openspec-cli-missing\uFF1APATH \u4E0A\u6CA1\u6709 openspec\uFF0C\u88C5\u4E0A\u540E\u91CD\u8BD5");
+    return 3;
+  }
+  const mode = opts.dryRun === true ? "dry-run" : "apply";
+  const deltaRefs = await Promise.all(deltas.map(async (record9) => ({
+    path: record9.path,
+    sha256: sha256Hex(await readMaybe(deps.cwd, record9.path) ?? "")
+  })));
+  const settled = await alreadyApplied(deps.cwd, dir, deltaRefs);
+  const rehearsed = settled === null ? await rehearseSpecApply(deps.cwd, change, hooks) : { targets: settled, errors: [] };
+  const targets2 = rehearsed.targets;
+  const errors = [...rehearsed.errors];
+  let conflict = false;
+  if (errors.length === 0 && mode === "apply") {
+    for (const target of targets2) {
+      if (target.change === "no-op") continue;
+      if (await readMaybe(deps.cwd, target.path) !== target.before) {
+        conflict = true;
+        errors.push(`main-spec-changed\uFF1A${target.path} \u5728\u5F69\u6392\u671F\u95F4\u88AB\u6539\u52A8\uFF0C\u91CD\u8DD1 tenon spec apply ${change}`);
+      }
+    }
+    if (!conflict) {
+      for (const target of targets2) {
+        if (target.change === "no-op") continue;
+        await writeFile26(resolve43(deps.cwd, target.path), target.after, "utf8");
+      }
+      await writeAppliedSpec(dir, change, targets2);
+    }
+  }
+  const result2 = errors.length === 0 ? "pass" : "fail";
+  const view2 = {
+    change,
+    mode,
+    result: result2,
+    openspec_version: cli.stdout.trim(),
+    deltas: deltaRefs,
+    targets: targets2.map(targetView)
+  };
+  let receiptPath = null;
+  try {
+    await writeFile26(
+      join107(dir, SPEC_APPLY_RECEIPT),
+      `${JSON.stringify({ schema: "tenon-spec-apply-v1", ...view2, at: deps.clock() }, null, 2)}
+`,
+      "utf8"
+    );
+    receiptPath = `openspec/changes/${change}/${SPEC_APPLY_RECEIPT}`;
+  } catch (e) {
+    deps.io.err(`WARN: \u56DE\u6267\u5199\u5165\u5931\u8D25: ${errMsg(e)}`);
+  }
+  if (opts.json === true) {
+    deps.io.out(JSON.stringify({ ...view2, receipt_path: receiptPath, errors }));
+  } else {
+    deps.io.out(`[SPEC] ${change} ${mode} ${result2}`);
+    for (const target of targets2) deps.io.out(`  ${target.change} ${target.path}`);
+    for (const error2 of errors) deps.io.err(`  ERROR: ${error2}`);
+  }
+  if (conflict) return 4;
+  return errors.length === 0 ? 0 : 2;
+}
+
 // packages/cli/src/commands/spec.ts
 var REAL_FS3 = { listSpecs: listSpecEntries, inject: injectJsonl };
 function checkName3(deps, name2) {
@@ -64522,8 +64886,14 @@ async function cmdSpec(deps, sub, args, fs = REAL_FS3) {
       return cmdSetSpecScope(deps, args[0], args[1]);
     case "inject-jsonl":
       return cmdInjectJsonl(deps, args, fs);
+    case "apply":
+      if (!checkName3(deps, args[0])) return 1;
+      return cmdSpecApply(deps, args[0], {
+        dryRun: args.includes("--dry-run"),
+        json: args.includes("--json")
+      });
     default:
-      deps.io.err(`ERROR: \u672A\u77E5 spec \u5B50\u547D\u4EE4: ${sub}\uFF08\u652F\u6301: specs set-spec-scope inject-jsonl\uFF09`);
+      deps.io.err(`ERROR: \u672A\u77E5 spec \u5B50\u547D\u4EE4: ${sub}\uFF08\u652F\u6301: specs set-spec-scope inject-jsonl apply\uFF09`);
       return 1;
   }
 }
@@ -64613,15 +64983,15 @@ async function cmdSync(deps, opts, fs = createOwnedFs()) {
 import { spawn as spawn7 } from "node:child_process";
 
 // packages/tap/dist/paths.js
-import { homedir as homedir13, tmpdir as tmpdir4 } from "node:os";
+import { homedir as homedir13, tmpdir as tmpdir5 } from "node:os";
 import { mkdirSync as mkdirSync2 } from "node:fs";
-import { join as join106, dirname as dirname25, resolve as resolve43 } from "node:path";
+import { join as join108, dirname as dirname25, resolve as resolve44 } from "node:path";
 function safeHome() {
   const h = homedir13();
   if (h && h.length > 0)
     return h;
   const uid = typeof process.getuid === "function" ? String(process.getuid()) : "nouid";
-  const base = join106(tmpdir4(), `tenon-tap-${uid}`);
+  const base = join108(tmpdir5(), `tenon-tap-${uid}`);
   try {
     mkdirSync2(base, { recursive: true, mode: 448 });
   } catch {
@@ -64630,26 +65000,26 @@ function safeHome() {
 }
 function resolveTapDir(opts = {}) {
   if (opts.dir)
-    return resolve43(opts.dir);
+    return resolve44(opts.dir);
   const env = opts.env ?? process.env;
   const explicit = (env.TENON_TAP_DIR ?? "").trim();
   if (explicit)
-    return resolve43(explicit);
+    return resolve44(explicit);
   const db = (env.TENON_TAP_DB ?? "").trim();
   if (db)
-    return resolve43(dirname25(resolve43(db)));
+    return resolve44(dirname25(resolve44(db)));
   const xdg = (env.XDG_DATA_HOME ?? "").trim();
   if (xdg)
-    return resolve43(join106(xdg, "tenon-tap"));
-  return resolve43(join106(safeHome(), ".local", "share", "tenon-tap"));
+    return resolve44(join108(xdg, "tenon-tap"));
+  return resolve44(join108(safeHome(), ".local", "share", "tenon-tap"));
 }
 function resolveStateDir(opts = {}) {
   if (opts.dir)
-    return resolve43(opts.dir);
+    return resolve44(opts.dir);
   const env = opts.env ?? process.env;
   const override = (env.TENON_TAP_STATE_DIR ?? "").trim();
   if (override)
-    return resolve43(override);
+    return resolve44(override);
   return resolveTapDir(opts);
 }
 
@@ -64913,7 +65283,7 @@ function headerLookup(headers, name2) {
 
 // packages/tap/dist/trace-store.js
 import { appendFileSync as appendFileSync2, closeSync as closeSync4, constants as constants10, existsSync as existsSync9, lstatSync as lstatSync5, mkdirSync as mkdirSync3, openSync as openSync4, readFileSync as readFileSync25, realpathSync as realpathSync6, readSync as readSync3, readdirSync as readdirSync7, renameSync as renameSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { join as join107, sep as sep23 } from "node:path";
+import { join as join109, sep as sep23 } from "node:path";
 import { randomUUID as randomUUID19 } from "node:crypto";
 
 // packages/tap/dist/trace-codecs.js
@@ -64967,16 +65337,16 @@ var FileTraceStore = class {
   recordsDir;
   constructor(dir) {
     this.dir = dir;
-    this.sessionsDir = join107(dir, "sessions");
-    this.recordsDir = join107(dir, "records");
+    this.sessionsDir = join109(dir, "sessions");
+    this.recordsDir = join109(dir, "records");
     mkdirSync3(this.sessionsDir, { recursive: true });
     mkdirSync3(this.recordsDir, { recursive: true });
   }
   sessionFile(id2) {
-    return join107(this.sessionsDir, `${encodeURIComponent(id2)}.json`);
+    return join109(this.sessionsDir, `${encodeURIComponent(id2)}.json`);
   }
   recordsFile(id2) {
-    return join107(this.recordsDir, `${encodeURIComponent(id2)}.jsonl`);
+    return join109(this.recordsDir, `${encodeURIComponent(id2)}.jsonl`);
   }
   openRecordsFileForRead(id2) {
     const candidate2 = this.recordsFile(id2);
@@ -65202,7 +65572,7 @@ var FileTraceStore = class {
       if (!name2.endsWith(".json"))
         continue;
       try {
-        const row2 = decodeSessionRow(JSON.parse(readFileSync25(join107(this.sessionsDir, name2), "utf8")));
+        const row2 = decodeSessionRow(JSON.parse(readFileSync25(join109(this.sessionsDir, name2), "utf8")));
         if (row2)
           out.push(row2);
       } catch {
@@ -65223,12 +65593,12 @@ function getTraceStore() {
 
 // packages/tap/dist/security.js
 import { existsSync as existsSync10, mkdirSync as mkdirSync4, readFileSync as readFileSync26, renameSync as renameSync3, writeFileSync as writeFileSync3 } from "node:fs";
-import { join as join108 } from "node:path";
+import { join as join110 } from "node:path";
 var FLAG_NAME = "capture.enabled";
 var TTL_MS = 1e3;
 var cache = /* @__PURE__ */ new Map();
 function flagPath(opts = {}) {
-  return join108(resolveStateDir(opts), FLAG_NAME);
+  return join110(resolveStateDir(opts), FLAG_NAME);
 }
 function isCaptureEnabled(opts = {}) {
   const p = flagPath(opts);
@@ -65454,13 +65824,13 @@ function serve(opts) {
       }
     }
   });
-  return new Promise((resolve55, reject5) => {
+  return new Promise((resolve56, reject5) => {
     server.once("error", reject5);
     server.listen(opts.port ?? 0, host, () => {
       server.removeAllListeners("error");
       const boundPort = server.address().port;
       const unregister = registerIntercept({ kind: "reverse", port: boundPort, client, target: opts.target });
-      resolve55({
+      resolve56({
         port: boundPort,
         host,
         target: opts.target,
@@ -66526,13 +66896,13 @@ function serveForward(opts = {}) {
     upstream.on("close", cleanup2);
     clientSocket.on("close", cleanup2);
   });
-  return new Promise((resolve55, reject5) => {
+  return new Promise((resolve56, reject5) => {
     server.once("error", reject5);
     server.listen(opts.port ?? 0, host, () => {
       server.removeAllListeners("error");
       const boundPort = server.address().port;
       const unregister = registerIntercept({ kind: "forward", port: boundPort, client, tls: !!ca });
-      resolve55({
+      resolve56({
         port: boundPort,
         host,
         client,
@@ -66621,7 +66991,7 @@ import { X509Certificate as X509Certificate2, createPublicKey, createPrivateKey 
 import { X509Certificate, createPrivateKey, randomBytes as randomBytes4 } from "node:crypto";
 import { chmodSync, closeSync as closeSync5, existsSync as existsSync11, mkdirSync as mkdirSync5, openSync as openSync5, readFileSync as readFileSync27, renameSync as renameSync4, rmSync as rmSync4, statSync as statSync8, writeFileSync as writeFileSync4 } from "node:fs";
 import { homedir as homedir14 } from "node:os";
-import { join as join109 } from "node:path";
+import { join as join111 } from "node:path";
 function resolveCaDir(opts = {}) {
   if (opts.dir)
     return opts.dir;
@@ -66629,7 +66999,7 @@ function resolveCaDir(opts = {}) {
   const override = (env.TENON_TAP_CA_DIR ?? "").trim();
   if (override)
     return override;
-  return join109(opts.home ?? homedir14(), ".pipeline-tap");
+  return join111(opts.home ?? homedir14(), ".pipeline-tap");
 }
 var LOCK_WAIT_MS = 1e4;
 var STEAL_MAX_ATTEMPTS = 5;
@@ -66701,9 +67071,9 @@ function writeAtomic(path15, data, mode) {
 function ensureCa(opts = {}) {
   const caDir = resolveCaDir(opts);
   mkdirSync5(caDir, { recursive: true });
-  const caCertPath = join109(caDir, "ca.pem");
-  const caKeyPath = join109(caDir, "ca-key.pem");
-  const lockPath3 = join109(caDir, "ca.lock");
+  const caCertPath = join111(caDir, "ca.pem");
+  const caKeyPath = join111(caDir, "ca-key.pem");
+  const lockPath3 = join111(caDir, "ca.lock");
   const existing = tryLoadPair(caCertPath, caKeyPath);
   if (existing)
     return { caCertPath, caKeyPath, ...existing };
@@ -67061,7 +67431,7 @@ function loadPrivateKey(keyPem) {
 // packages/tap/dist/clients.js
 import { readFileSync as readFileSync28 } from "node:fs";
 import { homedir as homedir15 } from "node:os";
-import { join as join110 } from "node:path";
+import { join as join112 } from "node:path";
 function cfg(partial) {
   return {
     provider: "anthropic",
@@ -67253,7 +67623,7 @@ function detectAnthropicTarget(c, env, home) {
   if (fromEnv)
     return fromEnv.replace(/\/+$/, "");
   for (const name2 of ["settings.json", "settings.local.json"]) {
-    const data = readJson2(join110(home, ".claude", name2));
+    const data = readJson2(join112(home, ".claude", name2));
     const envBlock = typeof data.env === "object" && data.env !== null ? data.env : {};
     const val = String(envBlock.ANTHROPIC_BASE_URL ?? "").trim();
     if (val)
@@ -67265,7 +67635,7 @@ function detectCodexTarget(c, env, home) {
   const fromEnv = (env.OPENAI_BASE_URL ?? "").trim();
   if (fromEnv)
     return fromEnv.replace(/\/+$/, "");
-  const auth = readJson2(join110(home, ".codex", "auth.json"));
+  const auth = readJson2(join112(home, ".codex", "auth.json"));
   if (auth.tokens && !auth.OPENAI_API_KEY)
     return "https://chatgpt.com/backend-api/codex";
   return c.defaultTarget;
@@ -67459,28 +67829,28 @@ async function cmdTap(deps, sub, args) {
         }
         const merged = {};
         for (const c of result2.clients) Object.assign(merged, c.env);
-        const code = await new Promise((resolve55) => {
+        const code = await new Promise((resolve56) => {
           const child = spawn7(executable, command2.slice(1), {
             stdio: "inherit",
             env: { ...process.env, ...merged }
           });
-          child.on("exit", (exitCode, signal) => resolve55(exitCode ?? (signal ? 1 : 0)));
-          child.on("error", () => resolve55(1));
+          child.on("exit", (exitCode, signal) => resolve56(exitCode ?? (signal ? 1 : 0)));
+          child.on("error", () => resolve56(1));
         });
         await result2.daemon.stop();
         return code;
       }
-      const termination = new Promise((resolve55, reject5) => {
+      const termination = new Promise((resolve56, reject5) => {
         const cleanup2 = () => {
-          process.off("SIGINT", stop);
-          process.off("SIGTERM", stop);
+          process.off("SIGINT", stop2);
+          process.off("SIGTERM", stop2);
         };
-        const stop = () => {
+        const stop2 = () => {
           cleanup2();
-          void result2.daemon.stop().then(resolve55, reject5);
+          void result2.daemon.stop().then(resolve56, reject5);
         };
-        process.once("SIGINT", stop);
-        process.once("SIGTERM", stop);
+        process.once("SIGINT", stop2);
+        process.once("SIGTERM", stop2);
       });
       emitLaunchSummary(deps, result2.clients, json2);
       for (const line of envLines(result2.clients)) deps.io.out(line);
@@ -67976,6 +68346,522 @@ async function cmdUninstall(deps, opts, fs = createOwnedFs()) {
   return 0;
 }
 
+// packages/cli/src/commands/statusStep.ts
+import { readFile as readFile65 } from "node:fs/promises";
+import { join as join114 } from "node:path";
+
+// packages/cli/src/commands/statusStepAgents.ts
+function statusOf(view2, waiting) {
+  if (view2.state === "done") return view2.result === "pass" || view2.result === "done" ? "pass" : "fail";
+  if (view2.state === "running") return "running";
+  if (view2.state === "stale") return "stale";
+  return waiting ? "waiting" : "pending";
+}
+async function agentStepViews(deps, name2, dir, state, plan, stepId) {
+  const step = plan.capabilities.agents.steps.find((item2) => item2.stepId === stepId) ?? { stepId, executors: [], reviewers: [] };
+  if (step.executors.length === 0 && step.reviewers.length === 0) return { executors: [], reviewers: [] };
+  const runId = state.runMetadata?.runId;
+  let frozen;
+  try {
+    frozen = runId === void 0 || runId === "" ? /* @__PURE__ */ new Map() : await readFrozenAgents({ changeDir: dir, runId, workflowFingerprint: plan.workflowFingerprint });
+  } catch {
+    frozen = /* @__PURE__ */ new Map();
+  }
+  const report = await (deps.testEvidence ?? evaluateTestEvidence)({
+    repoRoot: deps.cwd,
+    changeDir: dir,
+    changeName: name2,
+    plan,
+    stepId,
+    context: testEvidenceContextFor(deps, name2)
+  });
+  const pending = report.items.filter((item2) => item2.test.required && item2.status !== "passed").map((item2) => item2.test.id);
+  const input2 = {
+    step,
+    runs: await readAgentRuns(dir),
+    stepVisit: await currentDocumentStepVisitId(dir),
+    candidate: await currentCandidate(deps, name2, state, plan, stepId),
+    testsReady: { ready: pending.length === 0, pending },
+    frozen
+  };
+  const views = projectStepAgents(input2);
+  const { wave, waiting } = nextAgentWave(input2);
+  const project = (role) => views.filter((view2) => view2.role === role).map((view2, index) => ({
+    agent: view2.agent,
+    role,
+    required: view2.required,
+    block_at: view2.blockAt ?? null,
+    reads_tests: view2.readsTests,
+    wave: index,
+    wave_ready: wave.includes(view2.agent),
+    status: statusOf(view2, waiting.some((item2) => item2.agent === view2.agent)),
+    run_id: view2.runId,
+    blocking_findings: view2.blocking
+  }));
+  return { executors: project("executor"), reviewers: project("reviewer") };
+}
+
+// packages/cli/src/commands/stepExitReport.ts
+var IMPLICIT_COMPLETION_EVENT2 = "archived";
+function blocker(source, code, message2) {
+  return { source, code, message: message2 };
+}
+async function documentEvidence(deps, dir, stepId, plan) {
+  const policy2 = plan.capabilities.documents.policy;
+  if (policy2 === void 0 || !isDocumentPolicyStep(policy2, stepId)) return void 0;
+  if (policy2.id === "openspec-v1" && deps.documentEvidence && isDocumentContractPhase(stepId)) {
+    return deps.documentEvidence(deps.cwd, dir, stepId);
+  }
+  return evaluateDocumentEvidence(deps.cwd, dir, stepId, {}, policy2);
+}
+async function guardBlockers(deps, name2, dir, state, plan, stepId, event, to) {
+  const fileContext = deps.guardCtx?.(name2);
+  const workspaceFingerprint = deps.workspaceFingerprint;
+  const context = {
+    fileExists: fileContext?.fileExists,
+    gitHeadSha: deps.gitHeadSha,
+    workspaceFingerprint: workspaceFingerprint === void 0 ? void 0 : () => workspaceFingerprint(name2),
+    specMigrationStatus: () => evaluateSpecMigrationEvidence(deps.cwd, dir, name2),
+    assessBuildRevision: resolveBuildRevisionAssessor(deps, name2, dir)
+  };
+  if (plan.capabilities.execution.model === "phase-manifest") {
+    const result3 = await evaluateDefaultEventPreconditions(
+      event,
+      state,
+      context,
+      { stopOnFirstFailure: false }
+    );
+    if (result3 === null) return [];
+    const revision = (result3.blockers ?? []).map((item2) => blocker("revision", item2.code, `${item2.reason}\uFF1B${item2.remediation}`));
+    return [
+      ...result3.lines.map((line) => blocker("guard", "guard-failed", line)),
+      ...revision
+    ];
+  }
+  const step = resolveStep(plan.workflow, stepId);
+  if (!step) return [];
+  const edge = stepExitTransitions(plan, stepId, state).find((transition) => transition.event === event);
+  const guards = edge === void 0 ? step.guards : effectiveLifecyclePolicy(
+    plan.capabilities.documents.governed,
+    step,
+    edge,
+    plan.workflow.steps.find((candidate2) => candidate2.id === to)
+  ).guards;
+  const result2 = await evaluateWorkflowIrStepGuards(state, { ...step, guards }, {
+    changeDirAbs: dir,
+    ...context
+  });
+  return result2.failures.map((failure3) => blocker("guard", "guard-failed", failure3));
+}
+async function evaluateStepExitReport(deps, name2, dir, state, plan) {
+  const stepId = str(state.fields.phase);
+  const documents = await documentEvidence(deps, dir, stepId, plan);
+  const testReport = await testEvidenceReaderFor(deps)({
+    repoRoot: deps.cwd,
+    changeDir: dir,
+    changeName: name2,
+    plan,
+    stepId,
+    context: testEvidenceContextFor(deps, name2)
+  });
+  const agentBlockers = await stepAgentBlockersFor({ deps, name: name2, dir, stepId, plan, state });
+  const reviewers = agentBlockers.map((item2) => blocker("reviewer", item2.kind, renderAgentBlocker(item2, name2)));
+  const migration = stepId === "ship" && plan.capabilities.documents.governed ? await evaluateSpecMigrationEvidence(deps.cwd, dir, name2) : void 0;
+  const shared = [
+    ...(documents?.blockers ?? []).map((item2) => blocker("document", "document-evidence", item2)),
+    ...testReport.blockers.map((item2) => blocker("test", "test-evidence", item2)),
+    ...reviewers,
+    ...migration?.kind === "invalid" ? [blocker("spec", "migration", migration.reason)] : []
+  ];
+  const exits = [];
+  for (const transition of stepExitTransitions(plan, stepId, state)) {
+    const forward = isForwardExit(plan, stepId, transition.to, transition.event);
+    const direction = transition.event === IMPLICIT_COMPLETION_EVENT2 && transition.to === stepId ? "completion" : forward ? "forward" : "back";
+    const guards = await guardBlockers(
+      deps,
+      name2,
+      dir,
+      state,
+      plan,
+      stepId,
+      transition.event,
+      transition.to
+    );
+    const blockers = forward ? [...guards, ...shared] : guards;
+    exits.push({
+      event: transition.event,
+      to: transition.to,
+      direction,
+      ready: blockers.length === 0,
+      blockers
+    });
+  }
+  return { exits, documents, tests: testReport.blockers, reviewers };
+}
+
+// packages/cli/src/commands/stepSkillEvidence.ts
+function decodeHistoryLine2(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record9 = value;
+  if (typeof record9.kind !== "string") return null;
+  if (record9.to !== void 0 && typeof record9.to !== "string") return null;
+  if (record9.raw !== void 0 && typeof record9.raw !== "string") return null;
+  return {
+    kind: record9.kind,
+    ...typeof record9.to === "string" ? { to: record9.to } : {},
+    ...typeof record9.raw === "string" ? { raw: record9.raw } : {}
+  };
+}
+function parseHistoryLines(raw) {
+  const out = [];
+  for (const line of raw.split("\n")) {
+    if (!line) continue;
+    try {
+      const decoded = decodeHistoryLine2(JSON.parse(line));
+      if (decoded) out.push(decoded);
+    } catch {
+    }
+  }
+  return out;
+}
+function skillIdFromToolRaw(raw) {
+  const m = /^(?:Skill|CodexSkillRead): (.+)$/.exec(raw);
+  return m?.[1] ?? null;
+}
+function canonicalTenonSkillId(skillId) {
+  return skillId.startsWith("tenon:") ? skillId.slice("tenon:".length) : skillId;
+}
+function completedSkillsSinceStepEntry(lines2, currentStepId) {
+  let enteredAt = -1;
+  for (let i = lines2.length - 1; i >= 0; i--) {
+    if (lines2[i]?.kind === "transition" && lines2[i]?.to === currentStepId) {
+      enteredAt = i;
+      break;
+    }
+  }
+  const completed = /* @__PURE__ */ new Set();
+  for (const line of lines2.slice(enteredAt + 1)) {
+    if (line.kind !== "tool") continue;
+    const id2 = skillIdFromToolRaw(line.raw ?? "");
+    if (id2) completed.add(canonicalTenonSkillId(id2));
+  }
+  return completed;
+}
+
+// packages/cli/src/commands/statusStepParts.ts
+var OUTCOME_FIELDS = /* @__PURE__ */ new Set(["verify_result", "branch_status", "pre_verify_review_result"]);
+function scalar19(state, field3) {
+  const value = state.fields[field3];
+  return Array.isArray(value) ? value.join(",") : value ?? "";
+}
+function stepSkills(deps, plan, stepId, completed) {
+  const declared = plan.capabilities.skills.steps.find((step) => step.stepId === stepId)?.declared ?? [];
+  const slots = resolveRequiredSkillSlots(deps.resolver, plan.capabilities.skills, stepId);
+  const views = [];
+  let unlocked = true;
+  for (const [index, slot] of slots.entries()) {
+    const id2 = canonicalTenonSkillId(slot.token);
+    const done = slot.alternatives.some((candidate2) => completed.has(canonicalTenonSkillId(candidate2)));
+    views.push({
+      id: id2,
+      depends_on: declared.find((ref) => canonicalTenonSkillId(ref.id) === id2)?.dependsOn.map(canonicalTenonSkillId) ?? views.slice(0, index).map((view2) => view2.id),
+      wave: index,
+      status: done ? "done" : unlocked ? "ready" : "waiting"
+    });
+    if (!done) unlocked = false;
+  }
+  return views;
+}
+function documentPath(change, kind, item2) {
+  const recorded = item2?.paths[0];
+  if (recorded !== void 0) return recorded;
+  const projectPath = DOCUMENT_KIND_CATALOG[kind].projectPath;
+  return projectPath ?? documentPathForKind(kind, { change });
+}
+function view(change, kind, producers, items) {
+  const item2 = items.find((candidate2) => candidate2.kind === kind);
+  return {
+    kind,
+    path: documentPath(change, kind, item2),
+    producers,
+    status: item2?.status ?? "missing"
+  };
+}
+function stepDocuments(change, policy2, stepId, items) {
+  if (policy2 === void 0) return { reads: [], records: [], updates: [] };
+  const reads = [...readsRequiredForPolicyStep(policy2, stepId), ...requiresForPolicyStep(policy2, stepId)];
+  const seen = /* @__PURE__ */ new Set();
+  return {
+    reads: reads.filter((kind) => !seen.has(kind) && seen.add(kind)).map((kind) => view(change, kind, [], items)),
+    records: (policy2.outputsByStep[stepId] ?? []).map((requirement) => view(change, requirement.kind, requirement.producerCandidates, items)),
+    updates: (policy2.mutableByStep[stepId] ?? []).map((requirement) => view(change, requirement.kind, requirement.producerCandidates, items))
+  };
+}
+function fieldView(state, field3, kind) {
+  const value = scalar19(state, field3);
+  const set2 = value !== "" && value !== "null";
+  return {
+    field: field3,
+    kind,
+    status: set2 ? "set" : "missing",
+    value: set2 ? value : null,
+    allowed: STEP_FIELD_ENUMS[field3] ?? null,
+    recommended: RECOMMENDED(field3, state) ?? null
+  };
+}
+function stepFields(state, step) {
+  if (step === void 0) return [];
+  const seen = /* @__PURE__ */ new Set();
+  const fields = [];
+  const push = (field3, kind) => {
+    if (seen.has(field3)) return;
+    seen.add(field3);
+    fields.push(fieldView(state, field3, OUTCOME_FIELDS.has(field3) ? "outcome" : kind));
+  };
+  for (const output2 of step.outputs) push(output2.field, "output");
+  for (const guard of step.guards) {
+    const field3 = guard.field;
+    if (typeof field3 === "string") push(field3, "guard");
+  }
+  return fields;
+}
+
+// packages/cli/src/commands/statusStepSpec.ts
+import { readFile as readFile64 } from "node:fs/promises";
+import { join as join113 } from "node:path";
+async function readText(path15) {
+  try {
+    return await readFile64(path15, "utf8");
+  } catch {
+    return null;
+  }
+}
+async function specApplyReceiptFresh(repoRoot, changeDir2) {
+  const raw = await readText(join113(changeDir2, SPEC_APPLY_RECEIPT));
+  const receipt = raw === null ? null : decodeJson(raw);
+  if (receipt === null || receipt.result !== "pass") return { fresh: false, mode: null };
+  let deltas;
+  try {
+    deltas = (await readDocumentLedger(changeDir2))?.records.filter((record9) => record9.kind === "delta-spec").map((record9) => ({ path: record9.path, sha256: record9.sha256 })) ?? [];
+  } catch {
+    return { fresh: false, mode: null };
+  }
+  if (deltas.length === 0) return { fresh: false, mode: null };
+  const recorded = /* @__PURE__ */ new Map();
+  for (const row2 of asArray6(receipt.deltas)) {
+    const entry = asRecord8(row2);
+    const path15 = asText(entry?.path);
+    const digest17 = asText(entry?.sha256);
+    if (path15 !== void 0 && digest17 !== void 0) recorded.set(path15, digest17);
+  }
+  if (recorded.size !== deltas.length) return { fresh: false, mode: null };
+  for (const delta of deltas) {
+    const text8 = await readText(join113(repoRoot, delta.path));
+    if (text8 === null || recorded.get(delta.path) !== sha256Hex(text8)) return { fresh: false, mode: null };
+  }
+  return { fresh: true, mode: asText(receipt.mode) ?? null };
+}
+
+// packages/cli/src/commands/statusStep.ts
+var TENON_SKILL = "tenon";
+async function historyRaw(dir) {
+  try {
+    return await readFile65(join114(dir, ".pipeline-history.jsonl"), "utf8");
+  } catch {
+    return "";
+  }
+}
+async function modeOf3(deps, name2) {
+  if ((deps.env?.("TENON_AFK") ?? "") === "1") return "afk";
+  const user = deps.user();
+  if (!isTenonUser(user)) return "interactive";
+  try {
+    const raw = await readFile65(userProjectPaths(deps.cwd, userSlug(user.id)).authority, "utf8");
+    return parseContinuousAuthority(raw)?.changeName === name2 ? "continuous" : "interactive";
+  } catch {
+    return "interactive";
+  }
+}
+function stop(code, message2) {
+  return [{ action: "stop", code, message: message2 }];
+}
+function stepNextActions(input2) {
+  if (!input2.loaded) return [{ action: "load-tenon" }];
+  const unread = input2.documents.reads.filter((doc) => doc.status !== "recorded" && doc.status !== "read");
+  if (unread.length > 0) {
+    return [{ action: "read-documents", documents: unread.map((doc) => doc.path) }];
+  }
+  const executors = pendingAgents(input2.executors, true);
+  if (executors.length > 0) return executors;
+  const ready = input2.skills.filter((skill) => skill.status === "ready");
+  if (ready.length > 0) {
+    return ready.map((skill) => ({ action: "load-skill", skill: skill.id, wave: skill.wave }));
+  }
+  if (input2.ownsAppliedSpec && input2.specApplyPending) return [{ action: "apply-spec" }];
+  const writes = [...input2.documents.records, ...input2.documents.updates].filter((doc) => doc.status !== "recorded");
+  if (writes.length > 0) {
+    return writes.map((doc) => ({
+      action: doc.status === "missing" ? "scaffold-document" : "record-document",
+      kind: doc.kind,
+      path: doc.path,
+      producers: doc.producers
+    }));
+  }
+  const missingFields = input2.fields.filter((field3) => field3.kind !== "outcome" && field3.status === "missing");
+  if (missingFields.length > 0) {
+    return missingFields.map((field3) => ({
+      action: "set-field",
+      field: field3.field,
+      allowed: field3.allowed,
+      recommended: field3.recommended
+    }));
+  }
+  if (input2.ownsDeltaSpec && input2.specApplyPending) return [{ action: "validate-spec" }];
+  const tests = input2.tests.filter((test) => test.required && test.status !== "passed");
+  if (tests.length > 0) return tests.map((test) => ({ action: "run-test", test: test.id }));
+  const reviewers = pendingAgents(input2.reviewers, false);
+  if (reviewers.length > 0) return reviewers;
+  const outcomes = input2.fields.filter((field3) => field3.kind === "outcome" && field3.status === "missing");
+  if (outcomes.length > 0) {
+    return outcomes.map((field3) => ({
+      action: "set-field",
+      field: field3.field,
+      allowed: field3.allowed,
+      recommended: field3.recommended
+    }));
+  }
+  return exitActions(input2);
+}
+function pendingAgents(views, rerunFailed) {
+  const pending = views.filter((view2) => view2.wave_ready && view2.status !== "pass" && (rerunFailed || view2.status !== "fail"));
+  return pending.map((view2) => ({
+    action: "run-agent",
+    agent: view2.agent,
+    role: view2.role,
+    wave: view2.wave
+  }));
+}
+function exitActions(input2) {
+  const forward = input2.exits.filter((exit) => exit.direction !== "back");
+  const back = input2.exits.filter((exit) => exit.direction === "back");
+  const failed = input2.tests.some((test) => test.required && test.status === "failed") || input2.reviewers.some((view2) => view2.required && view2.status === "fail");
+  const firstBack = back[0];
+  if (failed && firstBack !== void 0) {
+    return [{ action: "choose-exit", exits: back.map((exit) => exit.event) }];
+  }
+  const readyForward = forward.filter((exit) => exit.ready);
+  if (input2.gate === "review") {
+    if (input2.review.status === "pending") return [{ action: "await-review", event: input2.review.event }];
+    if (input2.review.status === "approved" && input2.review.event !== null) {
+      const exit = input2.exits.find((candidate2) => candidate2.event === input2.review.event);
+      return [{
+        action: exit?.direction === "completion" ? "complete" : "transition",
+        event: input2.review.event
+      }];
+    }
+    if (readyForward.length === 1 && readyForward[0] !== void 0) {
+      return [{ action: "request-review", event: readyForward[0].event }];
+    }
+  } else if (readyForward.length === 1 && readyForward[0] !== void 0) {
+    const exit = readyForward[0];
+    return [{ action: exit.direction === "completion" ? "complete" : "transition", event: exit.event }];
+  }
+  if (readyForward.length > 1) {
+    return [{ action: "choose-exit", exits: readyForward.map((exit) => exit.event) }];
+  }
+  const blockers = [];
+  for (const exit of forward) blockers.push(...exit.blockers);
+  return [{ action: "fix", blockers }];
+}
+async function buildStatusStep(deps, name2, state, plan) {
+  const dir = changeDir(deps.cwd, name2);
+  const stepId = str(state.fields.phase);
+  const step = plan.workflow.steps.find((candidate2) => candidate2.id === stepId);
+  const archived = (await archivedChangesForUser(deps)).has(name2);
+  const completed = completedWorkflowSkillsSinceStepEntry(await historyRaw(dir), stepId);
+  const skills = stepSkills(deps, plan, stepId, completed);
+  const agents = await agentStepViews(deps, name2, dir, state, plan, stepId);
+  const testReport = await testEvidenceReaderFor(deps)({
+    repoRoot: deps.cwd,
+    changeDir: dir,
+    changeName: name2,
+    plan,
+    stepId,
+    context: testEvidenceContextFor(deps, name2)
+  });
+  const tests = testReport.items.map((item2) => ({
+    id: item2.test.id,
+    direction: item2.test.direction,
+    required: item2.test.required,
+    status: item2.status,
+    run_id: item2.run?.run_id ?? null
+  }));
+  const report = await evaluateStepExitReport(deps, name2, dir, state, plan);
+  const policy2 = plan.capabilities.documents.policy;
+  const documents = stepDocuments(name2, policy2, stepId, report.documents?.items ?? []);
+  const fields = stepFields(state, step);
+  const gateStatus = reviewGateStatus(state);
+  const review = {
+    status: gateStatus !== null && reviewGateMatches(state, stepId) ? gateStatus : "none",
+    event: gateStatus !== null && reviewGateMatches(state, stepId) ? reviewGateEvent(state) : null
+  };
+  const specApply = await specApplyReceiptFresh(deps.cwd, dir);
+  const retired = retiredSkillReferences(plan);
+  const block = {
+    schema: "tenon-step-v1",
+    change: name2,
+    workflow: plan.id,
+    track: str(state.fields.track),
+    source: state.runMetadata?.workflowPlanSnapshot === void 0 ? "current-definition" : "frozen-snapshot",
+    id: stepId,
+    label: step?.label ?? stepId,
+    prompt: step?.prompt ?? null,
+    gate: step?.gate ?? null,
+    mode: await modeOf3(deps, name2),
+    archived,
+    governed_openspec: plan.capabilities.documents.governed,
+    candidate: await currentCandidate(deps, name2, state, plan, stepId),
+    skills,
+    executors: agents.executors,
+    reviewers: agents.reviewers,
+    tests,
+    documents,
+    fields,
+    review,
+    exits: report.exits
+  };
+  if (archived) return { ...block, next: stop("archived", `\u4EFB\u52A1 '${name2}' \u5DF2\u5F52\u6863\uFF1B\u5148\u53D6\u6D88\u5F52\u6863\u518D\u7EE7\u7EED`) };
+  if (retired.length > 0) {
+    return { ...block, next: stop("retired-skills", retiredSkillsChangeMessage(name2, retired)) };
+  }
+  if (step === void 0) {
+    return {
+      ...block,
+      next: stop("step-not-in-plan", `step '${stepId}' \u4E0D\u5728 workflow '${plan.id}' \u91CC\uFF1B\u65B0\u5EFA\u4EFB\u52A1`)
+    };
+  }
+  return {
+    ...block,
+    next: stepNextActions({
+      change: name2,
+      loaded: completed.has(TENON_SKILL),
+      skills,
+      executors: agents.executors,
+      reviewers: agents.reviewers,
+      tests,
+      documents,
+      fields,
+      review,
+      gate: step.gate ?? null,
+      mode: block.mode,
+      exits: report.exits,
+      specApplyPending: !specApply.fresh,
+      ownsDeltaSpec: documents.records.some((doc) => doc.kind === "delta-spec"),
+      ownsAppliedSpec: documents.records.some((doc) => doc.kind === "applied-spec")
+    })
+  };
+}
+
 // packages/cli/src/commands/status.ts
 function field2(row2, name2) {
   return str(row2.state.fields[name2]);
@@ -68025,7 +68911,17 @@ async function cmdStatus2(deps, name2, opts) {
     }
     const row2 = { name: name2, state };
     if (opts.json) {
-      deps.io.out(JSON.stringify({ active_changes: [statusJson(row2)] }));
+      let step;
+      try {
+        const plan = effectiveWorkflowForState(deps, state);
+        if (plan !== null) step = await buildStatusStep(deps, name2, state, plan);
+      } catch (e) {
+        deps.io.err(`WARN: step \u6295\u5F71\u4E0D\u53EF\u7528: ${errMsg(e)}`);
+      }
+      deps.io.out(JSON.stringify({
+        active_changes: [statusJson(row2)],
+        ...step === void 0 ? {} : { step }
+      }));
       return 0;
     }
     for (const line of renderKV([
@@ -68151,55 +69047,6 @@ async function agentSkillDecision(input2) {
   };
 }
 
-// packages/cli/src/commands/stepSkillEvidence.ts
-function decodeHistoryLine2(value) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const record9 = value;
-  if (typeof record9.kind !== "string") return null;
-  if (record9.to !== void 0 && typeof record9.to !== "string") return null;
-  if (record9.raw !== void 0 && typeof record9.raw !== "string") return null;
-  return {
-    kind: record9.kind,
-    ...typeof record9.to === "string" ? { to: record9.to } : {},
-    ...typeof record9.raw === "string" ? { raw: record9.raw } : {}
-  };
-}
-function parseHistoryLines(raw) {
-  const out = [];
-  for (const line of raw.split("\n")) {
-    if (!line) continue;
-    try {
-      const decoded = decodeHistoryLine2(JSON.parse(line));
-      if (decoded) out.push(decoded);
-    } catch {
-    }
-  }
-  return out;
-}
-function skillIdFromToolRaw(raw) {
-  const m = /^(?:Skill|CodexSkillRead): (.+)$/.exec(raw);
-  return m?.[1] ?? null;
-}
-function canonicalTenonSkillId(skillId) {
-  return skillId.startsWith("tenon:") ? skillId.slice("tenon:".length) : skillId;
-}
-function completedSkillsSinceStepEntry(lines2, currentStepId) {
-  let enteredAt = -1;
-  for (let i = lines2.length - 1; i >= 0; i--) {
-    if (lines2[i]?.kind === "transition" && lines2[i]?.to === currentStepId) {
-      enteredAt = i;
-      break;
-    }
-  }
-  const completed = /* @__PURE__ */ new Set();
-  for (const line of lines2.slice(enteredAt + 1)) {
-    if (line.kind !== "tool") continue;
-    const id2 = skillIdFromToolRaw(line.raw ?? "");
-    if (id2) completed.add(canonicalTenonSkillId(id2));
-  }
-  return completed;
-}
-
 // packages/cli/src/commands/internalSkillGate.ts
 function isTenonOrchestratorSkill(skillId) {
   return canonicalTenonSkillId(skillId) === "tenon";
@@ -68298,8 +69145,8 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
         history: deps.history,
         evidenceScope: currentStepId
       });
-      const historyRaw = await deps.readHistoryRaw?.(dir) ?? "";
-      const lines2 = parseHistoryLines(historyRaw);
+      const historyRaw2 = await deps.readHistoryRaw?.(dir) ?? "";
+      const lines2 = parseHistoryLines(historyRaw2);
       const completedSinceEntry = completedSkillsSinceStepEntry(lines2, currentStepId);
       const canonicalStepSkills = capabilityStep.declared.map((ref2) => ({
         id: canonicalTenonSkillId(ref2.id),
@@ -68420,11 +69267,11 @@ async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
 
 // packages/cli/src/commands/internal-skill-provenance.ts
 import { randomUUID as randomUUID20 } from "node:crypto";
-import { chmod as chmod5, lstat as lstat52, mkdir as mkdir45, open as open11, readFile as readFile63, readdir as readdir24, realpath as realpath16, rename as rename19, rm as rm23 } from "node:fs/promises";
-import { dirname as dirname26, join as join111, relative as relative28, resolve as resolve44 } from "node:path";
+import { chmod as chmod5, lstat as lstat52, mkdir as mkdir45, open as open11, readFile as readFile66, readdir as readdir25, realpath as realpath16, rename as rename19, rm as rm24 } from "node:fs/promises";
+import { dirname as dirname26, join as join115, relative as relative28, resolve as resolve45 } from "node:path";
 function rootPath(value) {
   if (value === void 0 || value.trim() === "") throw new Error("--root <path> \u662F\u5FC5\u9700\u53C2\u6570");
-  return resolve44(value);
+  return resolve45(value);
 }
 function within(root, path15) {
   const rel = relative28(root, path15);
@@ -68607,10 +69454,10 @@ async function assertPathIdentity(expected, label2) {
     throw new Error(`${label2} \u5728 sync \u671F\u95F4\u53D1\u751F\u66FF\u6362\uFF0C\u62D2\u7EDD TOCTOU \u5199\u5165: ${expected.path}`);
   }
 }
-async function assertRegistrySnapshot(snapshot, registryPath) {
-  await assertPathIdentity(snapshot.root, "--root");
-  await assertPathIdentity(snapshot.parent, "canonical registry parent");
-  if (snapshot.registry === null) {
+async function assertRegistrySnapshot(snapshot2, registryPath) {
+  await assertPathIdentity(snapshot2.root, "--root");
+  await assertPathIdentity(snapshot2.parent, "canonical registry parent");
+  if (snapshot2.registry === null) {
     try {
       await lstat52(registryPath);
     } catch (error2) {
@@ -68619,11 +69466,11 @@ async function assertRegistrySnapshot(snapshot, registryPath) {
     }
     throw new Error(`canonical registry \u5728 sync \u671F\u95F4\u88AB\u521B\u5EFA\u6216\u66FF\u6362\uFF0C\u62D2\u7EDD CAS rename: ${registryPath}`);
   }
-  await assertPathIdentity(snapshot.registry, "canonical registry");
+  await assertPathIdentity(snapshot2.registry, "canonical registry");
 }
 async function readOptionalText2(path15) {
   try {
-    return await readFile63(path15, "utf8");
+    return await readFile66(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
@@ -68631,20 +69478,20 @@ async function readOptionalText2(path15) {
 }
 async function upstreamSkillIds(skillsRoot) {
   const ids2 = /* @__PURE__ */ new Set();
-  const sources = await readOptionalText2(join111(skillsRoot, "sources.yaml"));
+  const sources = await readOptionalText2(join115(skillsRoot, "sources.yaml"));
   if (sources !== null) for (const source of parseUpstreamSkillSources(sources).skills) ids2.add(source.id);
-  const lock = await readOptionalText2(join111(skillsRoot, "skills.lock.json"));
+  const lock = await readOptionalText2(join115(skillsRoot, "skills.lock.json"));
   if (lock !== null) for (const entry of parseUpstreamSkillLock(lock).skills) ids2.add(entry.id);
   return ids2;
 }
 async function syncRegistry(root, hooks = {}) {
-  const registryPath = join111(root, "templates", "skill-sources.yaml");
+  const registryPath = join115(root, "templates", "skill-sources.yaml");
   if (!within(root, registryPath)) throw new Error("registry path \u8D8A\u51FA --root");
-  const snapshot = await captureRegistryPathSnapshot(root, registryPath);
-  const sourceText = await readFile63(registryPath, "utf8");
+  const snapshot2 = await captureRegistryPathSnapshot(root, registryPath);
+  const sourceText = await readFile66(registryPath, "utf8");
   const entries = parseSyncSources(sourceText);
-  const skillsRoot = join111(root, "skills");
-  const physicalEntries = await readdir24(skillsRoot, { withFileTypes: true });
+  const skillsRoot = join115(root, "skills");
+  const physicalEntries = await readdir25(skillsRoot, { withFileTypes: true });
   const upstreamIds = await upstreamSkillIds(skillsRoot);
   const physicalIds = /* @__PURE__ */ new Set();
   for (const entry of physicalEntries) {
@@ -68669,7 +69516,7 @@ async function syncRegistry(root, hooks = {}) {
     if (declaredIds.has(physical)) throw new Error(`physical bundled Skill '${physical}' \u91CD\u590D\u58F0\u660E`);
     declaredIds.add(physical);
     if (!physicalIds.has(physical)) throw new Error(`registry \u58F0\u660E\u7684 bundled Skill '${physical}' \u4E0D\u5B58\u5728`);
-    const manifest = await buildCanonicalManifest(physical, join111(skillsRoot, physical));
+    const manifest = await buildCanonicalManifest(physical, join115(skillsRoot, physical));
     computed.push({ entry, digest: manifest.treeSha256 });
   }
   for (const physical of physicalIds) {
@@ -68680,7 +69527,7 @@ async function syncRegistry(root, hooks = {}) {
   let handle;
   try {
     await hooks.beforeTempCreate?.();
-    await assertRegistrySnapshot(snapshot, registryPath);
+    await assertRegistrySnapshot(snapshot2, registryPath);
     await mkdir45(dirname26(registryPath), { recursive: true });
     handle = await open11(tmp, "wx", 420);
     await handle.writeFile(output2, "utf8");
@@ -68693,7 +69540,7 @@ async function syncRegistry(root, hooks = {}) {
       throw new Error(`\u5019\u9009 provenance \u672A\u901A\u8FC7 production verifier: ${detail}`);
     }
     await hooks.beforeRename?.();
-    await assertRegistrySnapshot(snapshot, registryPath);
+    await assertRegistrySnapshot(snapshot2, registryPath);
     await rename19(tmp, registryPath);
     await chmod5(registryPath, 420);
     const parent = await open11(dirname26(registryPath), "r");
@@ -68704,7 +69551,7 @@ async function syncRegistry(root, hooks = {}) {
     }
   } catch (error2) {
     if (handle !== void 0) await handle.close().catch(() => void 0);
-    await rm23(tmp, { force: true }).catch(() => void 0);
+    await rm24(tmp, { force: true }).catch(() => void 0);
     throw error2;
   }
   return { registryPath, count: computed.length };
@@ -68756,7 +69603,7 @@ async function cmdInternalSkillProvenance(deps, mode, options) {
 
 // packages/cli/src/commands/triage.ts
 import { homedir as homedir16 } from "node:os";
-import { join as join112 } from "node:path";
+import { join as join116 } from "node:path";
 var TRIAGE_SOURCE_KINDS = ["git-commits", "loop-run-terminals"];
 var isTriageSourceKind = (value) => TRIAGE_SOURCE_KINDS.includes(value);
 var TriageCommandInterruptedError = class extends Error {
@@ -68807,7 +69654,7 @@ function createCodexFirstTriageProvider(options) {
   const execute2 = options.exec ?? nodeCodexTriageExec;
   const hostEnv = options.env ?? process.env;
   const configuredHome = hostEnv.CODEX_HOME?.trim();
-  const codexHome = configuredHome === void 0 || configuredHome === "" ? join112((options.homeDir ?? homedir16)(), ".codex") : configuredHome;
+  const codexHome = configuredHome === void 0 || configuredHome === "" ? join116((options.homeDir ?? homedir16)(), ".codex") : configuredHome;
   return createCodexTriageProvider({
     model: options.model,
     exec: (file, args, execOptions) => execute2(file, args, {
@@ -69014,16 +69861,16 @@ var stripNl = (value) => value.replace(/\n$/, "");
 
 // packages/cli/src/commands/internal-skill-upstream.ts
 import { homedir as homedir18 } from "node:os";
-import { resolve as resolve46 } from "node:path";
+import { resolve as resolve47 } from "node:path";
 
 // packages/cli/src/upstream-skills/install.ts
 import { randomUUID as randomUUID21 } from "node:crypto";
 import { copyFileSync as copyFileSync2, existsSync as existsSync12, lstatSync as lstatSync7, mkdirSync as mkdirSync7, readFileSync as readFileSync33, readdirSync as readdirSync10, renameSync as renameSync5, rmSync as rmSync5, writeFileSync as writeFileSync5 } from "node:fs";
-import { basename as basename12, join as join115 } from "node:path";
+import { basename as basename12, join as join119 } from "node:path";
 
 // packages/cli/src/upstream-skills/content.ts
 import { chmodSync as chmodSync2, copyFileSync, lstatSync as lstatSync6, mkdirSync as mkdirSync6, readFileSync as readFileSync31, readdirSync as readdirSync8 } from "node:fs";
-import { join as join113 } from "node:path";
+import { join as join117 } from "node:path";
 var NO_EXCLUDES = /* @__PURE__ */ new Set();
 function unquote(value) {
   const s = value.trim();
@@ -69053,7 +69900,7 @@ function measureTree(dir, excludeTopLevel) {
   const visit2 = (current, rel, excludes) => {
     for (const name2 of readdirSync8(current).sort()) {
       if (excludes.has(name2)) continue;
-      const path15 = join113(current, name2);
+      const path15 = join117(current, name2);
       const relPath = rel === "" ? name2 : `${rel}/${name2}`;
       const item2 = lstatSync6(path15);
       if (item2.isDirectory()) {
@@ -69075,8 +69922,8 @@ function copyTree(source, target, excludeTopLevel = NO_EXCLUDES) {
   chmodSync2(target, 493);
   for (const name2 of readdirSync8(source)) {
     if (excludeTopLevel.has(name2)) continue;
-    const from = join113(source, name2);
-    const to = join113(target, name2);
+    const from = join117(source, name2);
+    const to = join117(target, name2);
     const item2 = lstatSync6(from);
     if (item2.isDirectory()) {
       copyTree(from, to);
@@ -69160,7 +70007,7 @@ function treeEntryModes(env, checkoutDir, path15) {
 
 // packages/cli/src/upstream-skills/license.ts
 import { readFileSync as readFileSync32, readdirSync as readdirSync9, statSync as statSync9 } from "node:fs";
-import { join as join114 } from "node:path";
+import { join as join118 } from "node:path";
 var LICENSE_FILE_NAMES = ["LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING"];
 var README = /^README(?:\.[A-Za-z0-9]+)?$/u;
 var LICENSE_HEADING = /^#{1,3}\s*Licen[cs]e\s*$/u;
@@ -69172,7 +70019,7 @@ function isFile(path15) {
   }
 }
 function hasSkillLicenseFile(dir) {
-  return LICENSE_FILE_NAMES.some((name2) => isFile(join114(dir, name2)));
+  return LICENSE_FILE_NAMES.some((name2) => isFile(join118(dir, name2)));
 }
 function classify(text8) {
   if (text8.includes("Permission is hereby granted, free of charge")) return "MIT";
@@ -69184,7 +70031,7 @@ function exactLicense(value) {
 }
 function licenseFile(dir, source) {
   for (const name2 of LICENSE_FILE_NAMES) {
-    const file = join114(dir, name2);
+    const file = join118(dir, name2);
     if (!isFile(file)) continue;
     const license = classify(readFileSync32(file, "utf8"));
     return license === "unrecognized" ? { license, file } : { license, source, file };
@@ -69199,7 +70046,7 @@ function readmeLicense(checkoutDir) {
     return void 0;
   }
   for (const name2 of names) {
-    const file = join114(checkoutDir, name2);
+    const file = join118(checkoutDir, name2);
     if (!isFile(file)) continue;
     const lines2 = readFileSync32(file, "utf8").split(/\r?\n/u);
     const heading = lines2.findIndex((line) => LICENSE_HEADING.test(line.trim()));
@@ -69211,10 +70058,10 @@ function readmeLicense(checkoutDir) {
   return void 0;
 }
 function detectUpstreamLicense(checkoutDir, skillPath) {
-  const skillDir = skillPath === "." ? checkoutDir : join114(checkoutDir, skillPath);
+  const skillDir = skillPath === "." ? checkoutDir : join118(checkoutDir, skillPath);
   const skillFile = licenseFile(skillDir, "skill-file");
   if (skillFile !== void 0) return skillFile;
-  const frontmatter = readSkillFrontmatter(join114(skillDir, "SKILL.md"));
+  const frontmatter = readSkillFrontmatter(join118(skillDir, "SKILL.md"));
   const declared = exactLicense(frontmatter?.get("license"));
   if (declared !== void 0) return { license: declared, source: "frontmatter" };
   if (skillPath !== ".") {
@@ -69238,12 +70085,12 @@ function readOptional2(path15) {
   }
 }
 function bundledSkillIds(pluginRoot2) {
-  const registry = parseSkillProvenanceRegistry(readFileSync33(join115(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"));
+  const registry = parseSkillProvenanceRegistry(readFileSync33(join119(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"));
   return new Set(registry.skills.flatMap((entry) => [entry.token, entry.contentSkill ?? entry.token]));
 }
 function readPreviousLock(input2) {
   if (input2.previousRoot === null) return null;
-  const text8 = readOptional2(join115(input2.previousRoot, "skills", "skills.lock.json"));
+  const text8 = readOptional2(join119(input2.previousRoot, "skills", "skills.lock.json"));
   if (text8 === null) return null;
   try {
     return parseUpstreamSkillLock(text8);
@@ -69257,12 +70104,12 @@ function previousFor(run2, source) {
   return entry?.repo === source.repo && entry.path === source.path ? entry : void 0;
 }
 async function keepVerified(run2, entry) {
-  if (await treeHash(entry.id, join115(run2.skillsRoot, entry.id)) === entry.treeSha256) return true;
+  if (await treeHash(entry.id, join119(run2.skillsRoot, entry.id)) === entry.treeSha256) return true;
   const previousRoot = run2.input.previousRoot;
   if (previousRoot === null || previousRoot === run2.input.pluginRoot) return false;
-  const previousDir = join115(previousRoot, "skills", entry.id);
+  const previousDir = join119(previousRoot, "skills", entry.id);
   if (await treeHash(entry.id, previousDir) !== entry.treeSha256) return false;
-  copyTree(previousDir, join115(run2.staging, entry.id));
+  copyTree(previousDir, join119(run2.staging, entry.id));
   run2.staged.add(entry.id);
   return true;
 }
@@ -69277,8 +70124,8 @@ function validate(run2, source, checkout) {
   if (tree.length === 0) return { reason: "removed", detail: `${source.path} missing at ${checkout.commit.slice(0, 7)}` };
   const link6 = tree.find((entry) => entry.mode === "120000" || entry.mode === "160000");
   if (link6 !== void 0) return { reason: "invalid-content", detail: `${link6.mode === "120000" ? "symlink" : "submodule"} ${link6.path}` };
-  const skillDir = source.path === "." ? checkout.dir : join115(checkout.dir, source.path);
-  const name2 = readSkillFrontmatter(join115(skillDir, "SKILL.md"))?.get("name");
+  const skillDir = source.path === "." ? checkout.dir : join119(checkout.dir, source.path);
+  const name2 = readSkillFrontmatter(join119(skillDir, "SKILL.md"))?.get("name");
   if (name2 === void 0 || name2 === "") return { reason: "invalid-content", detail: "SKILL.md or its name is missing" };
   if (name2 !== source.id) return { reason: "renamed", detail: `upstream name ${name2}` };
   const measured = measureTree(skillDir, source.path === "." ? ROOT_EXCLUDES : NESTED_EXCLUDES);
@@ -69300,11 +70147,11 @@ async function installFromCheckout(run2, source, checkout) {
     run2.failures.set(source.id, verdict);
     return;
   }
-  const skillDir = source.path === "." ? checkout.dir : join115(checkout.dir, source.path);
-  const staged = join115(run2.staging, source.id);
+  const skillDir = source.path === "." ? checkout.dir : join119(checkout.dir, source.path);
+  const staged = join119(run2.staging, source.id);
   copyTree(skillDir, staged, source.path === "." ? ROOT_EXCLUDES : NESTED_EXCLUDES);
   if (verdict.source === "repo-file" && verdict.file !== void 0 && !hasSkillLicenseFile(staged)) {
-    copyFileSync2(verdict.file, join115(staged, basename12(verdict.file)));
+    copyFileSync2(verdict.file, join119(staged, basename12(verdict.file)));
   }
   const hash = await treeHash(source.id, staged);
   if (hash === null) {
@@ -69313,7 +70160,7 @@ async function installFromCheckout(run2, source, checkout) {
   }
   const previous = previousFor(run2, source);
   if (previous?.treeSha256 === hash) {
-    if (await treeHash(source.id, join115(run2.skillsRoot, source.id)) === hash) rmSync5(staged, { recursive: true, force: true });
+    if (await treeHash(source.id, join119(run2.skillsRoot, source.id)) === hash) rmSync5(staged, { recursive: true, force: true });
     else run2.staged.add(source.id);
     unchanged(run2, previous);
     return;
@@ -69366,15 +70213,15 @@ async function settleFailures(run2, sources) {
 function applyStaged(run2, bundled, managed) {
   mkdirSync7(run2.skillsRoot, { recursive: true });
   for (const id2 of run2.staged) {
-    const target = join115(run2.skillsRoot, id2);
-    if (existsSync12(target) || isLink(target)) renameSync5(target, join115(run2.staging, `.old-${id2}`));
-    renameSync5(join115(run2.staging, id2), target);
+    const target = join119(run2.skillsRoot, id2);
+    if (existsSync12(target) || isLink(target)) renameSync5(target, join119(run2.staging, `.old-${id2}`));
+    renameSync5(join119(run2.staging, id2), target);
   }
   for (const item2 of readdirSync10(run2.skillsRoot, { withFileTypes: true })) {
     if (!item2.isDirectory() && !item2.isSymbolicLink()) continue;
     if (bundled.has(item2.name) || run2.entries.has(item2.name)) continue;
     if (run2.input.host === "dev" && !managed.has(item2.name)) continue;
-    rmSync5(join115(run2.skillsRoot, item2.name), { recursive: true, force: true });
+    rmSync5(join119(run2.skillsRoot, item2.name), { recursive: true, force: true });
   }
 }
 function isLink(path15) {
@@ -69386,7 +70233,7 @@ function isLink(path15) {
 }
 function writeLock(run2, previousLock, runId) {
   const skills = [...run2.entries.values()];
-  const lockPath3 = join115(run2.skillsRoot, "skills.lock.json");
+  const lockPath3 = join119(run2.skillsRoot, "skills.lock.json");
   const existing = readOptional2(lockPath3);
   if (skills.length === 0 && previousLock === null && existing === null) return false;
   const sameAsPrevious = previousLock !== null && serializeUpstreamSkillLock({ ...previousLock, skills }) === serializeUpstreamSkillLock(previousLock);
@@ -69399,7 +70246,7 @@ function writeLock(run2, previousLock, runId) {
 }
 async function installUpstreamSkills(input2) {
   const at = input2.now();
-  const sourcesText = readOptional2(join115(input2.pluginRoot, "skills", "sources.yaml"));
+  const sourcesText = readOptional2(join119(input2.pluginRoot, "skills", "sources.yaml"));
   if (sourcesText === null) return { report: { version: 1, at, host: input2.host, results: [] }, lockWritten: false };
   const sources = parseUpstreamSkillSources(sourcesText);
   const bundled = bundledSkillIds(input2.pluginRoot);
@@ -69409,17 +70256,17 @@ async function installUpstreamSkills(input2) {
   }
   const previousLock = readPreviousLock(input2);
   for (const name2 of readdirSync10(input2.pluginRoot)) {
-    if (name2.startsWith(STAGING_PREFIX)) rmSync5(join115(input2.pluginRoot, name2), { recursive: true, force: true });
+    if (name2.startsWith(STAGING_PREFIX)) rmSync5(join119(input2.pluginRoot, name2), { recursive: true, force: true });
   }
   const runId = randomUUID21();
-  const staging = join115(input2.pluginRoot, `${STAGING_PREFIX}${runId}`);
-  const clones = join115(input2.workRoot, `upstream-${runId}`);
+  const staging = join119(input2.pluginRoot, `${STAGING_PREFIX}${runId}`);
+  const clones = join119(input2.workRoot, `upstream-${runId}`);
   mkdirSync7(staging, { recursive: true });
   const run2 = {
     input: input2,
     at,
     limits: { ...DEFAULT_LIMITS, ...input2.limits },
-    skillsRoot: join115(input2.pluginRoot, "skills"),
+    skillsRoot: join119(input2.pluginRoot, "skills"),
     staging,
     previous: new Map((previousLock?.skills ?? []).map((entry) => [entry.id, entry])),
     entries: /* @__PURE__ */ new Map(),
@@ -69434,7 +70281,7 @@ async function installUpstreamSkills(input2) {
     mkdirSync7(clones, { recursive: true });
     const started = Date.now();
     let index = 0;
-    for (const [repo, items] of byRepo) await installRepository(run2, repo, items, join115(clones, String(index++)), started);
+    for (const [repo, items] of byRepo) await installRepository(run2, repo, items, join119(clones, String(index++)), started);
     await settleFailures(run2, sources.skills);
     const managed = /* @__PURE__ */ new Set([...sources.skills.map((source) => source.id), ...run2.previous.keys()]);
     applyStaged(run2, bundled, managed);
@@ -69449,7 +70296,7 @@ async function installUpstreamSkills(input2) {
 
 // packages/cli/src/upstream-skills/report.ts
 import { randomUUID as randomUUID22 } from "node:crypto";
-import { mkdir as mkdir46, rename as rename20, writeFile as writeFile26 } from "node:fs/promises";
+import { mkdir as mkdir46, rename as rename20, writeFile as writeFile27 } from "node:fs/promises";
 import { dirname as dirname27 } from "node:path";
 function renderUpstreamSkillReport(report) {
   if (report.results.length === 0) return [];
@@ -69462,12 +70309,12 @@ async function writeUpstreamSkillRunReport(stateRoot, report) {
   const path15 = upstreamSkillRunReportPath(stateRoot);
   await mkdir46(dirname27(path15), { recursive: true });
   const tmp = `${path15}.tmp-${randomUUID22()}`;
-  await writeFile26(tmp, serializeUpstreamSkillRunReport(report), { encoding: "utf8", mode: 420 });
+  await writeFile27(tmp, serializeUpstreamSkillRunReport(report), { encoding: "utf8", mode: 420 });
   await rename20(tmp, path15);
 }
 
 // packages/cli/src/commands/setupEnvironment.ts
-import { dirname as dirname28, join as join116, resolve as resolve45, win32 as win326 } from "node:path";
+import { dirname as dirname28, join as join120, resolve as resolve46, win32 as win326 } from "node:path";
 import { randomUUID as randomUUID23 } from "node:crypto";
 import { execFileSync as execFileSync3 } from "node:child_process";
 import {
@@ -69493,7 +70340,7 @@ var REAL_SETUP_ENV = {
     return r !== void 0 && r.trim() !== "" ? r : null;
   },
   selfPath: () => {
-    const candidate2 = resolve45(process.argv[1] ?? "");
+    const candidate2 = resolve46(process.argv[1] ?? "");
     try {
       return realpathSync7(candidate2);
     } catch {
@@ -69612,7 +70459,7 @@ var REAL_SETUP_ENV = {
   withHostMutationLock: (host, operation) => {
     const homeDir = homedir17();
     const paths = resolveRuntimePaths({ homeDir, env: { ...process.env } });
-    return withLock(join116(paths.stateRoot, "host-mutation", host), operation);
+    return withLock(join120(paths.stateRoot, "host-mutation", host), operation);
   },
   confirm: (question) => {
     process.stdout.write(question);
@@ -69629,7 +70476,7 @@ var REAL_SETUP_ENV = {
 function resolvePipelineRoot(env) {
   const root = env.pluginRoot();
   if (root !== null) return root;
-  return resolve45(dirname28(env.selfPath()), "..", "..", "..");
+  return resolve46(dirname28(env.selfPath()), "..", "..", "..");
 }
 function printPlanSkeleton(deps, opts, host) {
   deps.io.out(`[setup] ${hostFlag(host)} \u5168\u529F\u80FD\u5C31\u7EEA\u5F15\u5BFC \u2014\u2014 \u8BA1\u5212\u9AA8\u67B6`);
@@ -69645,7 +70492,7 @@ function printPlanSkeleton(deps, opts, host) {
   if (opts.dryRun) deps.io.out("  \uFF08--dry-run:\u4EC5\u6253\u5370\u8BA1\u5212,\u4E0D\u53D1\u5E03 runtime\u3001\u4E0D\u5199\u4EFB\u4F55\u6587\u4EF6\uFF09");
 }
 function autoUpdateConfigPath(env) {
-  return join116(resolveRuntimePaths({
+  return join120(resolveRuntimePaths({
     homeDir: env.homeDir(),
     env: env.runtimeEnv()
   }).configRoot, "auto-update.conf");
@@ -69721,7 +70568,7 @@ function scrubLegacyCodexAdapterHooks(content) {
 `, removed };
 }
 function migrateLegacyCodexHooks(deps, env) {
-  const configPath = join116(env.homeDir(), ".codex", "hooks.json");
+  const configPath = join120(env.homeDir(), ".codex", "hooks.json");
   if (!env.pathExists(configPath)) return 0;
   const current = env.readText(configPath);
   if (current === void 0) {
@@ -69754,7 +70601,7 @@ async function cmdInternalSkillUpstream(deps, mode, options, runtime = productio
     deps.io.err("internal-skill-upstream: --root <path> \u662F\u5FC5\u9700\u53C2\u6570");
     return 2;
   }
-  const root = resolve46(options.root);
+  const root = resolve47(options.root);
   try {
     const { report } = await installUpstreamSkills({
       env: runtime.env,
@@ -70177,10 +71024,10 @@ function createReleasedDashboardStarter(runtime) {
 var REAL_RELEASED_DASHBOARD_STARTER = createReleasedDashboardStarter(REAL_DASHBOARD_RUNTIME);
 
 // packages/cli/src/commands/setupHost.ts
-import { join as join124 } from "node:path";
+import { join as join128 } from "node:path";
 
 // packages/cli/src/commands/release-dashboard-coordinator.ts
-import { join as join117 } from "node:path";
+import { join as join121 } from "node:path";
 async function coordinateReleaseDashboard(deps, transaction, initialJournal, activation, openBrowser2, dashboardPort, starter, trustedNodePath, verifyTrustedNode) {
   let journal = initialJournal;
   if (journal.dashboardPort !== void 0 && journal.dashboardPort !== dashboardPort) {
@@ -70415,7 +71262,7 @@ async function coordinateReleaseDashboard(deps, transaction, initialJournal, act
       startedNewDashboard = true;
       dashboardOutcome = await starter.start(
         deps,
-        join117(activation.releaseRoot, "payload"),
+        join121(activation.releaseRoot, "payload"),
         {
           openBrowser: openBrowser2,
           port: dashboardPort,
@@ -70473,11 +71320,11 @@ async function coordinateReleaseDashboard(deps, transaction, initialJournal, act
 }
 
 // packages/cli/src/commands/dashboard-restore.ts
-import { dirname as dirname29, join as join118 } from "node:path";
+import { dirname as dirname29, join as join122 } from "node:path";
 async function restorePreviousReleasedDashboard(deps, activation, starter, dashboardPort, restoreTransactionId, trustedNodePath, verifyTrustedNode) {
   const previousRelease = activation.selection.previousRelease;
   if (previousRelease === null) return { state: "not-required" };
-  const payloadRoot = join118(dirname29(activation.releaseRoot), previousRelease, "payload");
+  const payloadRoot = join122(dirname29(activation.releaseRoot), previousRelease, "payload");
   const outcome = await starter.start(deps, payloadRoot, {
     openBrowser: false,
     port: dashboardPort,
@@ -71532,8 +72379,8 @@ async function publishSetupManagedRuntime(deps, env, installer, prepareCandidate
 
 // packages/cli/src/migration/legacy-project-registry.ts
 import { statSync as statSync10 } from "node:fs";
-import { mkdir as mkdir47, readFile as readFile64 } from "node:fs/promises";
-import { isAbsolute as isAbsolute36, join as join119, posix as posix7, resolve as resolve47, win32 as win327 } from "node:path";
+import { mkdir as mkdir47, readFile as readFile67 } from "node:fs/promises";
+import { isAbsolute as isAbsolute36, join as join123, posix as posix7, resolve as resolve48, win32 as win327 } from "node:path";
 var MAX_LEGACY_REGISTRY_BYTES = 1048576;
 var MIGRATION_ID = "host-project-registry-v1";
 function resolveHostProjectRegistryCandidates(input2) {
@@ -71550,7 +72397,7 @@ function nonNegativeInteger(value) {
 async function readMigrationReceipt(path15) {
   let text8;
   try {
-    text8 = await readFile64(path15, "utf8");
+    text8 = await readFile67(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
@@ -71582,7 +72429,7 @@ async function readMigrationReceipt(path15) {
 async function readPendingMigration(path15) {
   let text8;
   try {
-    text8 = await readFile64(path15, "utf8");
+    text8 = await readFile67(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
@@ -71603,7 +72450,7 @@ async function readPendingMigration(path15) {
   return {
     version: 1,
     migration: MIGRATION_ID,
-    roots: record9.roots.map((root) => resolve47(root)),
+    roots: record9.roots.map((root) => resolve48(root)),
     rejected: record9.rejected
   };
 }
@@ -71613,9 +72460,9 @@ async function migrateLegacyProjectRegistry(input2) {
     ...input2.platform === void 0 ? {} : { platform: input2.platform },
     env: input2.env
   });
-  const migrationRoot = join119(productPaths.migrationsRoot, MIGRATION_ID);
-  const receiptPath = join119(migrationRoot, "receipt.json");
-  const pendingPath = join119(migrationRoot, "pending.json");
+  const migrationRoot = join123(productPaths.migrationsRoot, MIGRATION_ID);
+  const receiptPath = join123(migrationRoot, "receipt.json");
+  const pendingPath = join123(migrationRoot, "pending.json");
   await mkdir47(migrationRoot, { recursive: true });
   return withLock(migrationRoot, async () => {
     if (await readMigrationReceipt(receiptPath) !== null) {
@@ -71669,7 +72516,7 @@ async function migrateLegacyProjectRegistry(input2) {
             rejected += 1;
             continue;
           }
-          discovered.add(resolve47(item2));
+          discovered.add(resolve48(item2));
         }
       }
       pending = {
@@ -71707,7 +72554,7 @@ async function migrateLegacyProjectRegistry(input2) {
 }
 
 // packages/cli/src/commands/host-plugin-convergence.ts
-import { join as join121 } from "node:path";
+import { join as join125 } from "node:path";
 
 // packages/cli/src/commands/native-runtime-installer-scope.ts
 function nativeRuntimeInstallerScope(env) {
@@ -71744,12 +72591,12 @@ function nativeCandidateValidationOptions(env) {
 }
 
 // packages/cli/src/commands/host-plugin-convergence-receipt.ts
-import { dirname as dirname30, isAbsolute as isAbsolute37, join as join120, normalize as normalize5 } from "node:path";
+import { dirname as dirname30, isAbsolute as isAbsolute37, join as join124, normalize as normalize5 } from "node:path";
 function hostPluginConvergencePaths(env, host) {
   const paths = resolveRuntimePaths({ homeDir: env.homeDir(), env: env.runtimeEnv() });
   return {
-    receiptPath: join120(paths.migrationsRoot, "host-plugin-convergence", `${host}.json`),
-    sessionProofPath: join120(paths.stateRoot, "migration", "tenon-session-loaded")
+    receiptPath: join124(paths.migrationsRoot, "host-plugin-convergence", `${host}.json`),
+    sessionProofPath: join124(paths.stateRoot, "migration", "tenon-session-loaded")
   };
 }
 function isReleaseId(value) {
@@ -71856,7 +72703,7 @@ function recordPendingHostPluginConflict(deps, env, host, inventory, activation,
   if (!inventory.enabledIds.has(LEGACY_PLUGIN_IDENTITY)) {
     if (existing.state === "none") return true;
     const previous = existing.receipt;
-    const sameRelease = previous.releaseId === activation.release.releaseId && previous.releaseRoot === join121(activation.releaseRoot, "payload") && previous.candidateRoot === candidateRoot;
+    const sameRelease = previous.releaseId === activation.release.releaseId && previous.releaseRoot === join125(activation.releaseRoot, "payload") && previous.candidateRoot === candidateRoot;
     const newerRelease = previous.stableTarget === void 0 || compareReleaseOrder(stableTarget.version, previous.stableTarget.version) > 0;
     if (!sameRelease && !newerRelease) {
       deps.io.err("ERROR: \u5DF2\u7F3A\u5E2D\u7684 legacy plugin \u5BF9\u5E94\u53E6\u4E00\u4E2A\u672A\u88AB\u5F53\u524D\u7A33\u5B9A\u7248\u672C\u8D85\u8D8A\u7684 receipt\uFF1B\u62D2\u7EDD\u8986\u76D6\u3002");
@@ -71876,7 +72723,7 @@ function recordPendingHostPluginConflict(deps, env, host, inventory, activation,
       conflictPluginId: LEGACY_PLUGIN_IDENTITY,
       conflictScopes: [],
       releaseId: activation.release.releaseId,
-      releaseRoot: join121(activation.releaseRoot, "payload"),
+      releaseRoot: join125(activation.releaseRoot, "payload"),
       candidateRoot,
       stableTarget,
       createdAtEpoch: createdAtEpoch2,
@@ -71888,7 +72735,7 @@ function recordPendingHostPluginConflict(deps, env, host, inventory, activation,
   }
   if (existing.state === "receipt") {
     const receipt2 = existing.receipt;
-    const sameRelease = receipt2.releaseId === activation.release.releaseId && receipt2.releaseRoot === join121(activation.releaseRoot, "payload") && receipt2.candidateRoot === candidateRoot && (receipt2.stableTarget === void 0 || receipt2.stableTarget.version === stableTarget.version && receipt2.stableTarget.tag === stableTarget.tag && receipt2.stableTarget.commit === stableTarget.commit);
+    const sameRelease = receipt2.releaseId === activation.release.releaseId && receipt2.releaseRoot === join125(activation.releaseRoot, "payload") && receipt2.candidateRoot === candidateRoot && (receipt2.stableTarget === void 0 || receipt2.stableTarget.version === stableTarget.version && receipt2.stableTarget.tag === stableTarget.tag && receipt2.stableTarget.commit === stableTarget.commit);
     if (receipt2.transactionId === transactionId && !sameRelease) {
       deps.io.err("ERROR: \u540C\u4E00 transaction id \u7684\u6536\u655B receipt \u4E0E\u5F53\u524D activation \u4E0D\u4E00\u81F4\u3002");
       return false;
@@ -71928,7 +72775,7 @@ function recordPendingHostPluginConflict(deps, env, host, inventory, activation,
     conflictPluginId: LEGACY_PLUGIN_IDENTITY,
     conflictScopes,
     releaseId: activation.release.releaseId,
-    releaseRoot: join121(activation.releaseRoot, "payload"),
+    releaseRoot: join125(activation.releaseRoot, "payload"),
     candidateRoot,
     stableTarget,
     createdAtEpoch,
@@ -72032,14 +72879,14 @@ async function finalizePendingHostPluginConflictWithinTransaction(deps, env, ins
 }
 
 // packages/cli/src/commands/packaged-assets.ts
-import { join as join122 } from "node:path";
+import { join as join126 } from "node:path";
 function verifyPackagedAssets(deps, env, root, dryRun, silent = false) {
   const provenance = provenanceVerifierBinding(env);
   const nodePath = provenance.nodePath || "<unavailable>";
-  const command2 = [join122(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", nodePath];
+  const command2 = [join126(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", nodePath];
   if (!silent) deps.io.out(`[setup] \u63D2\u4EF6\u8D44\u4EA7\u6821\u9A8C: bash ${command2.join(" ")}`);
   if (dryRun) return 0;
-  if (!env.pathExists(join122(root, "runtime", "tenon-bootstrap.mjs"))) {
+  if (!env.pathExists(join126(root, "runtime", "tenon-bootstrap.mjs"))) {
     if (!silent) deps.io.err("ERROR: \u63D2\u4EF6\u8D44\u4EA7\u6821\u9A8C\u5931\u8D25\uFF1A\u7F3A\u5C11 runtime/tenon-bootstrap.mjs\uFF08\u8BE5 marketplace release \u4E0D\u662F\u5B8C\u6574\u53EF\u5B89\u88C5\u5305\uFF09");
     return 1;
   }
@@ -72354,11 +73201,11 @@ async function installNativePluginCandidate(deps, env, host, transaction) {
 }
 
 // packages/cli/src/commands/upstream-skill-step.ts
-import { join as join123 } from "node:path";
+import { join as join127 } from "node:path";
 async function runUpstreamSkillInstall(deps, env, installer, scope, host, pluginRoot2) {
   const paths = resolveRuntimePaths({ homeDir: scope.homeDir, env: scope.env });
   const inspection = await installer.inspect(scope);
-  const previousRoot = inspection.activeValid && inspection.active !== null ? join123(paths.releasesRoot, inspection.active.releaseId, "payload") : null;
+  const previousRoot = inspection.activeValid && inspection.active !== null ? join127(paths.releasesRoot, inspection.active.releaseId, "payload") : null;
   const install = env.installUpstreamSkills ?? installUpstreamSkills;
   const result2 = await install({
     env,
@@ -72710,7 +73557,7 @@ function cmdSetupHost(deps, host, opts, env = REAL_SETUP_ENV, installer = REAL_R
       openDashboard
     ).then((runtimeCode) => {
       if (runtimeCode !== 0) return runtimeCode;
-      const adapter2 = join124(root, "adapters", "install.sh");
+      const adapter2 = join128(root, "adapters", "install.sh");
       const args = [adapter2, hostFlag(host), "--target", opts.target ?? deps.cwd, "--yes"];
       deps.io.out(`[setup] $ bash ${args.join(" ")}`);
       const result2 = env.runCommand("bash", args);
@@ -72725,17 +73572,17 @@ function cmdSetupHost(deps, host, opts, env = REAL_SETUP_ENV, installer = REAL_R
 }
 
 // packages/cli/src/commands/setupRuntime.ts
-import { join as join126 } from "node:path";
+import { join as join130 } from "node:path";
 
 // packages/cli/src/afkReadiness.ts
-import { execFile as execFile6 } from "node:child_process";
+import { execFile as execFile7 } from "node:child_process";
 import { accessSync as accessSync5, constants as fsConstants5, statSync as statSync11 } from "node:fs";
-import { join as join125 } from "node:path";
-var nodeExecDocker = (args) => new Promise((resolve55) => {
-  execFile6("docker", [...args], (err, stdout, stderr) => {
+import { join as join129 } from "node:path";
+var nodeExecDocker = (args) => new Promise((resolve56) => {
+  execFile7("docker", [...args], (err, stdout, stderr) => {
     const code = err?.code;
     const exitCode = err === null ? 0 : typeof code === "number" ? code : 1;
-    resolve55({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
+    resolve56({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
   });
 });
 async function execDocker(args, opts) {
@@ -72743,8 +73590,8 @@ async function execDocker(args, opts) {
   const timeoutMs = opts?.timeoutMs ?? 5e3;
   let timer;
   try {
-    const timeout = new Promise((resolve55) => {
-      timer = setTimeout(() => resolve55(null), timeoutMs);
+    const timeout = new Promise((resolve56) => {
+      timer = setTimeout(() => resolve56(null), timeoutMs);
     });
     return await Promise.race([exec(args).catch(() => null), timeout]);
   } finally {
@@ -72788,7 +73635,7 @@ async function probeAfkReadiness(opts) {
         CODEX_HOME: codexHomeCredentialLight(
           hostEnv.CODEX_HOME,
           opts.defaultCodexHome,
-          (home) => (opts.canReadFile ?? canReadFile)(join125(home, "auth.json"))
+          (home) => (opts.canReadFile ?? canReadFile)(join129(home, "auth.json"))
         )
       }
     }
@@ -72800,7 +73647,7 @@ import { homedir as homedir20 } from "node:os";
 var REAL_RUNTIME_ENV = {
   exec: nodeExecDocker,
   hostEnv: process.env,
-  defaultCodexHome: join126(homedir20(), ".codex"),
+  defaultCodexHome: join130(homedir20(), ".codex"),
   resolveImage: (cwd) => readAutomationJson(cwd).image ?? "sandcastle:local"
 };
 var READY_TAG = "[\u5C31\u7EEA]";
@@ -72947,7 +73794,7 @@ function cmdSetup(deps, sub, opts, env = REAL_SETUP_ENV, rt = REAL_RUNTIME_ENV, 
 }
 
 // packages/cli/src/commands/update-native.ts
-import { join as join129 } from "node:path";
+import { join as join133 } from "node:path";
 
 // packages/cli/src/commands/update-boundary-report.ts
 function boundaryDetail(hostState, managedState, detail) {
@@ -72966,12 +73813,12 @@ function reportHostBoundary(deps, host, state) {
 }
 
 // packages/cli/src/commands/update-candidate-verification.ts
-import { join as join127 } from "node:path";
+import { join as join131 } from "node:path";
 function verifyUpdatedRoot(deps, env, root, targetVersion) {
   const provenance = provenanceVerifierBinding(env);
   const nodePath = provenance.nodePath || "<unavailable>";
   const result2 = provenance.run([
-    join127(root, "tools", "verify-skills.sh"),
+    join131(root, "tools", "verify-skills.sh"),
     "--quiet",
     "--root",
     root,
@@ -72980,8 +73827,8 @@ function verifyUpdatedRoot(deps, env, root, targetVersion) {
   ]);
   if (result2.code === 0) {
     const decoded = decodePluginManifestVersion({
-      codex: env.readText(join127(root, ".codex-plugin", "plugin.json")),
-      claude: env.readText(join127(root, ".claude-plugin", "plugin.json"))
+      codex: env.readText(join131(root, ".codex-plugin", "plugin.json")),
+      claude: env.readText(join131(root, ".claude-plugin", "plugin.json"))
     });
     if (decoded.ok && (targetVersion === void 0 || decoded.version === targetVersion)) return true;
     const actual = decoded.ok ? decoded.version : decoded.detail;
@@ -73001,7 +73848,7 @@ async function rejectUpdate(deps, installer, env, detail) {
 }
 
 // packages/cli/src/commands/update-project-report.ts
-import { isAbsolute as isAbsolute38, join as join128 } from "node:path";
+import { isAbsolute as isAbsolute38, join as join132 } from "node:path";
 function shellQuote3(value) {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
@@ -73030,7 +73877,7 @@ function reportRegisteredProjects(deps, env, pluginVersion) {
   )];
   const outdated = registeredRoots.filter((root) => {
     try {
-      return env.readText(join128(root, ".pipeline-version"))?.trim() !== pluginVersion;
+      return env.readText(join132(root, ".pipeline-version"))?.trim() !== pluginVersion;
     } catch {
       return true;
     }
@@ -73249,7 +74096,7 @@ async function runNativeUpdate(input2) {
               const currentActivation = {
                 selection: runtime.selection,
                 release: active,
-                releaseRoot: join129(runtimePaths.releasesRoot, active.releaseId),
+                releaseRoot: join133(runtimePaths.releasesRoot, active.releaseId),
                 launcherCommitted: expectedStableLaunchers(
                   runtimePaths,
                   env.homeDir(),
@@ -73537,8 +74384,8 @@ async function cmdInternalMotionGate(deps, name2, stdin) {
 }
 
 // packages/cli/src/commands/design.ts
-import { mkdir as mkdir48, readFile as readFile65, writeFile as writeFile27 } from "node:fs/promises";
-import { dirname as dirname33, join as join130 } from "node:path";
+import { mkdir as mkdir48, readFile as readFile68, writeFile as writeFile28 } from "node:fs/promises";
+import { dirname as dirname33, join as join134 } from "node:path";
 var DESIGN_MD = "DESIGN.md";
 var MODEL = "design/design-model.yaml";
 async function iconIds(deps) {
@@ -73566,13 +74413,13 @@ async function cmdDesignCheck(deps, opts) {
   for (const problem of check.problems) deps.io.out(`- ${problem}`);
   return check.status === "ready" ? 0 : 1;
 }
-var read2 = async (path15) => readFile65(path15, "utf8").catch(() => null);
+var read2 = async (path15) => readFile68(path15, "utf8").catch(() => null);
 async function unmergedProposal(deps, change) {
-  const proposal = await read2(join130(deps.cwd, designProposalPath(change)));
+  const proposal = await read2(join134(deps.cwd, designProposalPath(change)));
   if (proposal === null) return false;
   const base = designProposalBase(proposal);
   if (base === null) return false;
-  const current = designBaseDigest(await read2(join130(deps.cwd, DESIGN_MD)), await read2(join130(deps.cwd, MODEL)));
+  const current = designBaseDigest(await read2(join134(deps.cwd, DESIGN_MD)), await read2(join134(deps.cwd, MODEL)));
   return current === base;
 }
 async function cmdDesignValidate(deps, opts) {
@@ -73592,7 +74439,7 @@ async function cmdDesignValidate(deps, opts) {
       deps.io.err("ERROR: hue \u6280\u80FD\u672A\u5B89\u88C5\uFF1B\u8FD0\u884C tenon update \u540C\u6B65\u4E0A\u6E38\u6280\u80FD");
       return 1;
     }
-    const code = await deps.designValidator.run(script, join130(deps.cwd, "design"), deps.cwd);
+    const code = await deps.designValidator.run(script, join134(deps.cwd, "design"), deps.cwd);
     if (code !== 0) {
       deps.io.err(`ERROR: hue \u6821\u9A8C\u672A\u901A\u8FC7\uFF08${code}\uFF09`);
       return 1;
@@ -73612,7 +74459,7 @@ async function cmdDesignValidate(deps, opts) {
 async function cmdDesignPropose(deps, change) {
   try {
     const relative33 = designProposalPath(change);
-    const path15 = join130(deps.cwd, relative33);
+    const path15 = join134(deps.cwd, relative33);
     if (await read2(path15) !== null) {
       deps.io.err(`ERROR: \u63D0\u6848\u5DF2\u5B58\u5728\uFF1A${relative33}`);
       return 1;
@@ -73622,9 +74469,9 @@ async function cmdDesignPropose(deps, change) {
       deps.io.err("ERROR: \u9879\u76EE\u8FD8\u6CA1\u6709 DESIGN.md\uFF1B\u5148\u5B8C\u6210\u8BBE\u8BA1\u4F53\u7CFB\u4EFB\u52A1");
       return 1;
     }
-    const base = designBaseDigest(await read2(join130(deps.cwd, DESIGN_MD)), await read2(join130(deps.cwd, MODEL)));
+    const base = designBaseDigest(await read2(join134(deps.cwd, DESIGN_MD)), await read2(join134(deps.cwd, MODEL)));
     await mkdir48(dirname33(path15), { recursive: true });
-    await writeFile27(path15, renderDesignProposal(change, base), { encoding: "utf8", flag: "wx" });
+    await writeFile28(path15, renderDesignProposal(change, base), { encoding: "utf8", flag: "wx" });
     deps.io.out(relative33);
     return 0;
   } catch (error2) {
@@ -73799,13 +74646,13 @@ async function cmdMigrateWorkflow(deps, name2) {
 }
 
 // packages/cli/src/commands/state-projection.ts
-import { lstat as lstat53, readFile as readFile66 } from "node:fs/promises";
-import { isAbsolute as isAbsolute39, join as join131, resolve as resolve50 } from "node:path";
+import { lstat as lstat53, readFile as readFile69 } from "node:fs/promises";
+import { isAbsolute as isAbsolute39, join as join135, resolve as resolve51 } from "node:path";
 function message(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
 }
 async function cmdStateProjection(deps, sub, name2, opts = {}) {
-  const changeDir2 = join131(deps.cwd, "openspec", "changes", name2);
+  const changeDir2 = join135(deps.cwd, "openspec", "changes", name2);
   try {
     switch (sub) {
       case "status": {
@@ -73847,7 +74694,7 @@ async function cmdStateProjection(deps, sub, name2, opts = {}) {
           deps.io.out(opts.json ? JSON.stringify({ status: "already-pinned" }) : `${name2}: workflow snapshot already pinned`);
           return 0;
         }
-        const sourcePath = isAbsolute39(opts.workflowFile) ? opts.workflowFile : resolve50(deps.cwd, opts.workflowFile);
+        const sourcePath = isAbsolute39(opts.workflowFile) ? opts.workflowFile : resolve51(deps.cwd, opts.workflowFile);
         const info = await lstat53(sourcePath);
         if (!info.isFile() || info.isSymbolicLink()) {
           throw new Error(`workflow file \u5FC5\u987B\u662F\u975E symlink \u666E\u901A\u6587\u4EF6: ${sourcePath}`);
@@ -73855,7 +74702,7 @@ async function cmdStateProjection(deps, sub, name2, opts = {}) {
         const workflowId = resolveWorkflowName(state);
         const plan = compileEffectiveWorkflowPlan(
           workflowId,
-          parseWorkflow(await readFile66(sourcePath, "utf8"))
+          parseWorkflow(await readFile69(sourcePath, "utf8"))
         );
         if (plan.workflowFingerprint !== metadata.workflowPlanFingerprint) {
           throw new Error(
@@ -74107,7 +74954,7 @@ async function cmdHandoff(deps, name2, opts, fs = void 0, localeResolver = resol
 }
 
 // packages/cli/src/commands/workflow-plan.ts
-function scalar19(value) {
+function scalar20(value) {
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 function renderHuman(deps, name2, state, plan) {
@@ -74115,7 +74962,7 @@ function renderHuman(deps, name2, state, plan) {
   deps.io.out(`change   ${name2}`);
   deps.io.out(`workflow ${plan.id}`);
   deps.io.out(`source   ${source}`);
-  deps.io.out(`current  ${scalar19(state.fields.phase)}`);
+  deps.io.out(`current  ${scalar20(state.fields.phase)}`);
   for (const [index, step] of plan.workflow.steps.entries()) {
     const skills = step.skills.map((skill) => skill.id).join(", ") || "-";
     const completion = implicitCompletionTransition(plan, step.id, state);
@@ -74151,7 +74998,7 @@ async function cmdWorkflowPlan(deps, name2, opts) {
     return 1;
   }
   if (plan === null) {
-    deps.io.err(`ERROR: workflow '${scalar19(state.fields.workflow)}' \u672A\u627E\u5230`);
+    deps.io.err(`ERROR: workflow '${scalar20(state.fields.workflow)}' \u672A\u627E\u5230`);
     return 1;
   }
   const source = state.runMetadata?.workflowPlanSnapshot === void 0 ? "current-definition" : "frozen-snapshot";
@@ -74159,7 +75006,7 @@ async function cmdWorkflowPlan(deps, name2, opts) {
     deps.io.out(JSON.stringify({
       change: name2,
       source,
-      current_step: scalar19(state.fields.phase),
+      current_step: scalar20(state.fields.phase),
       plan: planWithCompletionEvents(plan, state)
     }));
   } else {
@@ -74343,7 +75190,7 @@ async function cmdInternalNativeSkillReceipt(deps, changeName, skillId, sessionI
 // packages/cli/src/commands/internalSelfApproval.ts
 import { createHash as createHash55 } from "node:crypto";
 import { constants as constants14 } from "node:fs";
-import { open as open14, readFile as readFile67 } from "node:fs/promises";
+import { open as open14, readFile as readFile70 } from "node:fs/promises";
 import { basename as basename13 } from "node:path";
 
 // packages/cli/src/commands/selfApprovalIdentity.ts
@@ -74421,7 +75268,7 @@ function observationIdentityDigest(key, identity2) {
 // packages/cli/src/commands/selfApprovalObservationLog.ts
 import { constants as constants13 } from "node:fs";
 import { open as open13 } from "node:fs/promises";
-import { join as join132 } from "node:path";
+import { join as join136 } from "node:path";
 var OVERFLOW_TAIL_BYTES = 4096;
 function lineRecords(text8) {
   const records = [];
@@ -74438,7 +75285,7 @@ function lineRecords(text8) {
   return records;
 }
 async function appendObservationUnderLock(changeDirPath, signal, observedAt, maxBytes = SELF_APPROVAL_SIGNAL_MAX_BYTES) {
-  const target = join132(changeDirPath, SELF_APPROVAL_SIGNAL_FILE);
+  const target = join136(changeDirPath, SELF_APPROVAL_SIGNAL_FILE);
   const handle = await open13(
     target,
     constants13.O_RDWR | constants13.O_APPEND | constants13.O_CREAT | constants13.O_NOFOLLOW,
@@ -74479,7 +75326,7 @@ async function readPayloadObject(payloadPath) {
   try {
     const before = await handle.stat();
     if (!before.isFile() || before.size > MAX_PAYLOAD_BYTES2) throw new Error("payload must be a bounded regular file");
-    const raw = await readFile67(handle, "utf8");
+    const raw = await readFile70(handle, "utf8");
     const after = await handle.stat();
     if (after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size) {
       throw new Error("payload changed during verified read");
@@ -74516,7 +75363,7 @@ async function readPayload(payloadPath) {
   }
   return { candidate: candidate2, toolUseId, identity: identity2 };
 }
-function scalar20(state, field3) {
+function scalar21(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
@@ -74528,10 +75375,10 @@ function observationKey(change, anchor, kind, payload) {
   return `sha256:${sha2565([change, anchor, kind, call].join("\0"))}`;
 }
 function pendingPhaseEvent(state) {
-  const phase = scalar20(state, "review_gate_phase");
-  const event = scalar20(state, "review_gate_event");
+  const phase = scalar21(state, "review_gate_phase");
+  const event = scalar21(state, "review_gate_event");
   if (phase === "" || event === "" || !reviewGatePendingFor(state, phase, event)) return void 0;
-  return { phase, event, requestedAt: scalar20(state, "review_requested_at") };
+  return { phase, event, requestedAt: scalar21(state, "review_requested_at") };
 }
 async function recordForChange(deps, changeName, kinds, payload, identityKey) {
   const dir = changeDir(deps.cwd, changeName);
@@ -74622,8 +75469,8 @@ function registerSkillInvocationInternalCommands(program2, deps) {
 
 // packages/cli/src/commands/agent.ts
 import { randomUUID as randomUUID25 } from "node:crypto";
-import { mkdir as mkdir50, readFile as readFile68, stat as stat15 } from "node:fs/promises";
-import { join as join133 } from "node:path";
+import { mkdir as mkdir50, readFile as readFile71, stat as stat15 } from "node:fs/promises";
+import { join as join137 } from "node:path";
 
 // packages/cli/src/commands/agent-prompt.ts
 var RESULT_HINT = {
@@ -74763,19 +75610,19 @@ async function resolveAgentCommand(deps, name2, options) {
     return 1;
   }
 }
-var viewJson = (view, waiting) => ({
-  agent: view.agent,
-  role: view.role,
-  required: view.required,
-  block_at: view.blockAt ?? null,
-  depends_on: view.dependsOn,
-  reads_tests: view.readsTests,
-  state: view.state,
-  result: view.result,
-  findings: view.findings,
-  blocking: view.blocking,
-  run_id: view.runId,
-  waiting_for: waiting.find((item2) => item2.agent === view.agent)?.for ?? []
+var viewJson = (view2, waiting) => ({
+  agent: view2.agent,
+  role: view2.role,
+  required: view2.required,
+  block_at: view2.blockAt ?? null,
+  depends_on: view2.dependsOn,
+  reads_tests: view2.readsTests,
+  state: view2.state,
+  result: view2.result,
+  findings: view2.findings,
+  blocking: view2.blocking,
+  run_id: view2.runId,
+  waiting_for: waiting.find((item2) => item2.agent === view2.agent)?.for ?? []
 });
 async function cmdAgentNext(deps, name2, json2) {
   const context = await resolveAgentCommand(deps, name2, { requireOwner: false });
@@ -74789,17 +75636,17 @@ async function cmdAgentNext(deps, name2, json2) {
       step: context.step.stepId,
       step_visit: context.stepVisit,
       candidate: context.candidate,
-      agents: views.map((view) => viewJson(view, waiting)),
+      agents: views.map((view2) => viewJson(view2, waiting)),
       wave,
       pass: verdict.pass,
       blockers: verdict.blockers
     }));
     return 0;
   }
-  for (const view of views) {
-    const result2 = view.result === null ? "" : ` ${RESULT_WORD[view.result]}`;
-    const findings = view.findings === 0 ? "" : ` \u95EE\u9898 ${view.findings}`;
-    deps.io.out(`${view.agent} ${ROLE_WORD[view.role]} ${STATE_WORD[view.state]}${result2}${findings}`);
+  for (const view2 of views) {
+    const result2 = view2.result === null ? "" : ` ${RESULT_WORD[view2.result]}`;
+    const findings = view2.findings === 0 ? "" : ` \u95EE\u9898 ${view2.findings}`;
+    deps.io.out(`${view2.agent} ${ROLE_WORD[view2.role]} ${STATE_WORD[view2.state]}${result2}${findings}`);
   }
   deps.io.out(wave.length === 0 ? "\u5168\u90E8\u5B8C\u6210" : `\u4E0B\u4E00\u6CE2\uFF1A${wave.join(", ")}`);
   return 0;
@@ -74842,7 +75689,7 @@ async function cmdAgentPrompt(deps, name2, agent, options) {
   }
   const existing = context.runs.find((row2) => row2.agent === agent && row2.step_visit === context.stepVisit && row2.status === "running" && row2.candidate === context.candidate);
   const runId = existing?.run_id ?? randomUUID25();
-  const reportPath = join133("openspec", "changes", name2, AGENT_REPORTS_DIR, `${runId}.md`);
+  const reportPath = join137("openspec", "changes", name2, AGENT_REPORTS_DIR, `${runId}.md`);
   if (existing === void 0) {
     const row2 = {
       schema: "agent-run/v1",
@@ -74863,7 +75710,7 @@ async function cmdAgentPrompt(deps, name2, agent, options) {
       finished_at: null
     };
     try {
-      await mkdir50(join133(context.dir, AGENT_REPORTS_DIR), { recursive: true });
+      await mkdir50(join137(context.dir, AGENT_REPORTS_DIR), { recursive: true });
       await deps.store.withLock(context.dir, () => appendAgentRunRow(context.dir, row2));
     } catch (e) {
       deps.io.err(`ERROR: ${errMsg(e)}`);
@@ -74905,7 +75752,7 @@ async function cmdAgentRecord(deps, name2, runId, json2) {
     deps.io.err(`ERROR: run '${runId}' \u4E0D\u662F\u672C\u6B21\u6B65\u9AA4\u8BBF\u95EE\u4E2D\u8FDB\u884C\u4E2D\u7684\u8FD0\u884C`);
     return 1;
   }
-  const reportPath = join133(deps.cwd, row2.report_path);
+  const reportPath = join137(deps.cwd, row2.report_path);
   let text8;
   try {
     const info = await stat15(reportPath);
@@ -74913,7 +75760,7 @@ async function cmdAgentRecord(deps, name2, runId, json2) {
       deps.io.err(`ERROR: \u62A5\u544A\u65E0\u6548\uFF1A\u8D85\u8FC7 ${REPORT_MAX_BYTES} \u5B57\u8282`);
       return 1;
     }
-    text8 = await readFile68(reportPath, "utf8");
+    text8 = await readFile71(reportPath, "utf8");
   } catch {
     deps.io.err(`ERROR: \u62A5\u544A\u65E0\u6548\uFF1A${row2.report_path} \u8BFB\u4E0D\u5230`);
     return 1;
@@ -74965,7 +75812,7 @@ function registerAgentCommands(program2, deps) {
 
 // packages/cli/src/commands/interaction.ts
 import { lstat as lstat55 } from "node:fs/promises";
-import { isAbsolute as isAbsolute40, join as join134, relative as relative29, resolve as resolve51 } from "node:path";
+import { isAbsolute as isAbsolute40, join as join138, relative as relative29, resolve as resolve52 } from "node:path";
 var MAX_FIXTURE_BYTES = 1024 * 1024;
 var MAX_EVENT_FILE_BYTES = 1024 * 1024;
 var MAX_FIXTURES = 256;
@@ -75021,8 +75868,8 @@ function assertFixturePath(root, file) {
   if (isAbsolute40(file) || file.includes("\\") || !SAFE_RELATIVE.test(file)) {
     throw new Error("fixture file path invalid");
   }
-  const target = resolve51(root, file);
-  const rootRelative = relative29(resolve51(root), target);
+  const target = resolve52(root, file);
+  const rootRelative = relative29(resolve52(root), target);
   if (rootRelative.startsWith("..") || isAbsolute40(rootRelative)) throw new Error("fixture file path invalid");
   return target;
 }
@@ -75110,7 +75957,7 @@ async function cmdInteraction(deps, sub, args, opts = {}) {
       throw new Error("fixture directory unavailable");
     }
     if (directory.isSymbolicLink() || !directory.isDirectory()) throw new Error("fixture directory unavailable");
-    const manifest = parseManifest2(await readRegularJson(join134(fixtureDir, "manifest.json"), MAX_FIXTURE_BYTES, "manifest"));
+    const manifest = parseManifest2(await readRegularJson(join138(fixtureDir, "manifest.json"), MAX_FIXTURE_BYTES, "manifest"));
     const orderedEntries = [...manifest.fixtures].sort((left, right) => left.id.localeCompare(right.id));
     const physicalFiles = /* @__PURE__ */ new Set();
     for (const entry of orderedEntries) {
@@ -75264,12 +76111,12 @@ function resolveReviewEvent(step, requestedEvent) {
 }
 
 // packages/cli/src/commands/review.ts
-function scalar21(state, field3) {
+function scalar22(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
 function resolveReviewStep(deps, state) {
-  const phase = scalar21(state, "phase");
+  const phase = scalar22(state, "phase");
   const plan = effectiveWorkflowForState(deps, state);
   if (!plan) throw new Error(`workflow '${String(state.fields.workflow ?? "")}' \u672A\u627E\u5230\u6216\u4E0D\u53EF\u7F16\u8BD1`);
   const step = resolveStep(plan.workflow, phase);
@@ -75284,7 +76131,7 @@ function resolveReviewStep(deps, state) {
 }
 async function checkVerifyFailReadiness(deps, name2, dir, state) {
   const blockers = [];
-  const report = scalar21(state, "verification_report");
+  const report = scalar22(state, "verification_report");
   const fileExists2 = deps.guardCtx?.(name2)?.fileExists;
   if (report === "" || report === "null") {
     blockers.push(`verify-fail \u51B3\u7B56\u8981\u6C42 verification_report \u975E\u7A7A\uFF08\u5F53\u524D='${report || "null"}'\uFF09`);
@@ -75294,7 +76141,7 @@ async function checkVerifyFailReadiness(deps, name2, dir, state) {
   const plan = effectiveWorkflowForState(deps, state);
   const documentPolicy = plan?.capabilities.documents.policy;
   if (documentPolicy) {
-    const phase = scalar21(state, "phase");
+    const phase = scalar22(state, "phase");
     if (!isDocumentPolicyStep(documentPolicy, phase) || !isDocumentContractPhase(phase)) {
       blockers.push(`\u53D7 OpenSpec \u6587\u6863\u5951\u7EA6\u6CBB\u7406\u7684 workflow \u5F53\u524D phase \u975E\u6CD5\uFF08\u5F53\u524D='${phase || "\u7A7A"}'\uFF09`);
     } else {
@@ -75302,7 +76149,7 @@ async function checkVerifyFailReadiness(deps, name2, dir, state) {
         recordKinds: ["verification-report"],
         readKinds: []
       }, documentPolicy);
-      blockers.push(...evidence.blockers.map((blocker) => `document: ${blocker}`));
+      blockers.push(...evidence.blockers.map((blocker2) => `document: ${blocker2}`));
     }
   }
   deps.io.out(`[CHECK] ${name2} (phase=verify, event=verify-fail)`);
@@ -75310,7 +76157,7 @@ async function checkVerifyFailReadiness(deps, name2, dir, state) {
     deps.io.out("  [PASS] verify-fail \u56DE\u9000\u8BC1\u636E\u5DF2\u5C31\u7EEA");
     return 0;
   }
-  for (const blocker of blockers) deps.io.out(`  [FAIL] ${blocker}`);
+  for (const blocker2 of blockers) deps.io.out(`  [FAIL] ${blocker2}`);
   deps.io.out(`  [FAIL] \u5171 ${blockers.length} \u9879\u672A\u901A\u8FC7`);
   return 2;
 }
@@ -75362,14 +76209,14 @@ async function cmdReview(deps, sub, name2, opts = {}) {
         }
         const existingStatus = reviewGateStatus(state);
         if (existingStatus !== null && !reviewGateMatches(state, step.phase)) {
-          throw new Error(`\u68C0\u6D4B\u5230\u5C5E\u4E8E phase '${scalar21(state, "review_gate_phase")}' \u7684\u6B8B\u7559 review receipt\uFF1B\u8BF7\u5148\u8BCA\u65AD state \u540E\u91CD\u8BD5`);
+          throw new Error(`\u68C0\u6D4B\u5230\u5C5E\u4E8E phase '${scalar22(state, "review_gate_phase")}' \u7684\u6B8B\u7559 review receipt\uFF1B\u8BF7\u5148\u8BCA\u65AD state \u540E\u91CD\u8BD5`);
         }
         const existingBinding = await readReviewGateBindingForRequest(dir);
         const bindingMatches = reviewGateBindingMatches(existingBinding, state, step.phase, event);
         if (reviewGateApprovedFor(state, step.phase, event) && bindingMatches) {
           throw new Error(`phase '${step.phase}' \u7684 event '${event}' \u5DF2\u83B7\u786E\u8BA4\uFF1B\u8BF7\u76F4\u63A5\u6267\u884C\u8BE5 transition\uFF0C\u4E0D\u80FD\u91CD\u590D request`);
         }
-        const existingAt = scalar21(state, "review_requested_at");
+        const existingAt = scalar22(state, "review_requested_at");
         if (reviewGatePendingFor(state, step.phase, event) && bindingMatches) {
           await refreshReviewGateBinding(dir, state, step.phase, event, existingAt || deps.clock());
           requested = {
@@ -75464,7 +76311,7 @@ function registerReviewCommands(program2, deps) {
 }
 
 // packages/cli/src/commands/test-baseline.ts
-import { join as join135 } from "node:path";
+import { join as join139 } from "node:path";
 async function cmdTestBaseline(deps, change, testId, opts) {
   const context = await resolveTestCommand(deps, change, { requireOwner: true });
   if (typeof context === "number") return context;
@@ -75477,7 +76324,7 @@ async function cmdTestBaseline(deps, change, testId, opts) {
     return 1;
   }
   const paths = testEvidencePaths(deps.cwd, context.slug, change);
-  const record9 = await readTestRunRecord(join135(paths.runsDir, `${opts.run}.json`));
+  const record9 = await readTestRunRecord(join139(paths.runsDir, `${opts.run}.json`));
   if (record9 === void 0 || record9.test_id !== testId) {
     deps.io.err(`ERROR: \u627E\u4E0D\u5230\u5F53\u524D\u7528\u6237\u7684\u8FD0\u884C\u8BB0\u5F55 '${opts.run}'`);
     return 1;
@@ -75515,11 +76362,11 @@ async function cmdTestBaseline(deps, change, testId, opts) {
 }
 
 // packages/cli/src/commands/test-code-size.ts
-import { execFile as execFile7 } from "node:child_process";
-import { lstat as lstat56, readFile as readFile69 } from "node:fs/promises";
-import { join as join136 } from "node:path";
+import { execFile as execFile8 } from "node:child_process";
+import { lstat as lstat56, readFile as readFile72 } from "node:fs/promises";
+import { join as join140 } from "node:path";
 import { promisify as promisify3 } from "node:util";
-var run = promisify3(execFile7);
+var run = promisify3(execFile8);
 var MAX_UNTRACKED_FILES = 5e3;
 var MAX_UNTRACKED_BYTES = 1024 * 1024;
 async function git(cwd, args) {
@@ -75533,7 +76380,7 @@ async function countLines(path15) {
   try {
     const entry = await lstat56(path15);
     if (!entry.isFile() || entry.size > MAX_UNTRACKED_BYTES) return 0;
-    const text8 = await readFile69(path15, "utf8");
+    const text8 = await readFile72(path15, "utf8");
     if (text8 === "") return 0;
     return text8.endsWith("\n") ? text8.split("\n").length - 1 : text8.split("\n").length;
   } catch {
@@ -75563,7 +76410,7 @@ async function collectCodeSize(cwd, base) {
   }
   const untracked = (await git(cwd, ["ls-files", "--others", "--exclude-standard"]) ?? "").split("\n").filter((path15) => path15 !== "").slice(0, MAX_UNTRACKED_FILES);
   for (const path15 of untracked) {
-    const lines2 = await countLines(join136(cwd, path15));
+    const lines2 = await countLines(join140(cwd, path15));
     filesChanged += 1;
     linesAdded += lines2;
     largest = Math.max(largest, lines2);
@@ -75587,12 +76434,12 @@ async function cmdTestCodeSize(deps, opts = {}) {
 }
 
 // packages/cli/src/commands/test-report.ts
-import { lstat as lstat57, readFile as readFile70, writeFile as writeFile28 } from "node:fs/promises";
-import { isAbsolute as isAbsolute41, resolve as resolve52 } from "node:path";
+import { lstat as lstat57, readFile as readFile73, writeFile as writeFile29 } from "node:fs/promises";
+import { isAbsolute as isAbsolute41, resolve as resolve53 } from "node:path";
 var MAX_REPORT_BYTES = 1024 * 1024;
 async function writableReport(repoRoot, path15) {
   if (path15 === "" || isAbsolute41(path15) || path15.includes("..")) return void 0;
-  const absolute = resolve52(repoRoot, path15);
+  const absolute = resolve53(repoRoot, path15);
   try {
     const entry = await lstat57(absolute);
     return entry.isFile() && entry.size <= MAX_REPORT_BYTES ? absolute : void 0;
@@ -75636,8 +76483,8 @@ async function cmdTestReport(deps, change, opts = {}) {
     return 1;
   }
   try {
-    const markdown = await readFile70(target, "utf8");
-    await writeFile28(target, replaceTestsRegion(markdown, region, locale), "utf8");
+    const markdown = await readFile73(target, "utf8");
+    await writeFile29(target, replaceTestsRegion(markdown, region, locale), "utf8");
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`);
     return 1;
@@ -75649,12 +76496,12 @@ async function cmdTestReport(deps, change, opts = {}) {
 // packages/cli/src/commands/test-run.ts
 import { randomBytes as randomBytes8 } from "node:crypto";
 import { lstat as lstat59, mkdir as mkdir52, realpath as realpath18 } from "node:fs/promises";
-import { join as join138, relative as relative31, resolve as resolve54, sep as sep25 } from "node:path";
+import { join as join142, relative as relative31, resolve as resolve55, sep as sep25 } from "node:path";
 
 // packages/cli/src/test-runner/collect.ts
 import { createHash as createHash56, randomBytes as randomBytes7 } from "node:crypto";
-import { copyFile as copyFile3, lstat as lstat58, mkdir as mkdir51, readFile as readFile71, readdir as readdir25, realpath as realpath17, writeFile as writeFile29 } from "node:fs/promises";
-import { dirname as dirname35, join as join137, relative as relative30, resolve as resolve53, sep as sep24 } from "node:path";
+import { copyFile as copyFile3, lstat as lstat58, mkdir as mkdir51, readFile as readFile74, readdir as readdir26, realpath as realpath17, writeFile as writeFile30 } from "node:fs/promises";
+import { dirname as dirname35, join as join141, relative as relative30, resolve as resolve54, sep as sep24 } from "node:path";
 var MAX_DIRECTORY_FILES = 5e3;
 var MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 var MAX_ARTIFACT_FILE_BYTES = 64 * 1024 * 1024;
@@ -75679,8 +76526,8 @@ async function summarizeTree(absolute) {
   let bytes = 0;
   let capped = false;
   const walk = async (dir) => {
-    for (const name2 of (await readdir25(dir)).sort()) {
-      const path15 = join137(dir, name2);
+    for (const name2 of (await readdir26(dir)).sort()) {
+      const path15 = join141(dir, name2);
       const entry = await lstat58(path15);
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
@@ -75696,7 +76543,7 @@ async function summarizeTree(absolute) {
       bytes += entry.size;
       const rel = relative30(absolute, path15).split(sep24).join("/");
       entries.push({ path: rel, bytes: entry.size });
-      lines2.push(`${rel}\0${entry.size}\0${digestOf(await readFile71(path15))}`);
+      lines2.push(`${rel}\0${entry.size}\0${digestOf(await readFile74(path15))}`);
     }
   };
   await walk(absolute);
@@ -75704,17 +76551,17 @@ async function summarizeTree(absolute) {
 }
 async function envKey(path15) {
   try {
-    return await readFile71(path15);
+    return await readFile74(path15);
   } catch {
   }
   try {
     await mkdir51(dirname35(path15), { recursive: true });
     const key = randomBytes7(32);
-    await writeFile29(path15, key, { flag: "wx", mode: 384 });
+    await writeFile30(path15, key, { flag: "wx", mode: 384 });
     return key;
   } catch {
     try {
-      return await readFile71(path15);
+      return await readFile74(path15);
     } catch {
       return void 0;
     }
@@ -75729,11 +76576,11 @@ async function documentInput(repoRoot, changeDir2, ref) {
   }
   const entries = [];
   for (const record9 of records.filter((candidate2) => candidate2.kind === ref)) {
-    const absolute = join137(repoRoot, record9.path);
+    const absolute = join141(repoRoot, record9.path);
     try {
       const entry = await lstat58(absolute);
       if (!entry.isFile() || entry.size > MAX_DOCUMENT_BYTES) continue;
-      entries.push({ path: record9.path, digest: digestOf(await readFile71(absolute)) });
+      entries.push({ path: record9.path, digest: digestOf(await readFile74(absolute)) });
     } catch {
       continue;
     }
@@ -75741,13 +76588,13 @@ async function documentInput(repoRoot, changeDir2, ref) {
   return { kind: "document", ref, present: entries.length > 0, entries };
 }
 async function fileInput(repoRoot, path15) {
-  const absolute = resolve53(repoRoot, path15);
+  const absolute = resolve54(repoRoot, path15);
   const missing3 = { kind: "file", path: path15, present: false, digest: null, files: 0 };
   try {
     const entry = await lstat58(absolute);
     if (entry.isSymbolicLink() || !await insideRepo(repoRoot, absolute)) return missing3;
     if (entry.isFile()) {
-      return { kind: "file", path: path15, present: true, digest: digestOf(await readFile71(absolute)), files: 1 };
+      return { kind: "file", path: path15, present: true, digest: digestOf(await readFile74(absolute)), files: 1 };
     }
     if (entry.isDirectory()) {
       const tree = await summarizeTree(absolute);
@@ -75787,9 +76634,9 @@ async function collectTestInputs(repoRoot, changeDir2, test, envKeyPath) {
 async function copyTree2(source, target, entries, budget) {
   for (const entry of entries) {
     if (entry.bytes > MAX_ARTIFACT_FILE_BYTES || budget.used + entry.bytes > MAX_ARTIFACT_RUN_BYTES) return false;
-    const destination = join137(target, ...entry.path.split("/"));
+    const destination = join141(target, ...entry.path.split("/"));
     await mkdir51(dirname35(destination), { recursive: true });
-    await copyFile3(join137(source, ...entry.path.split("/")), destination);
+    await copyFile3(join141(source, ...entry.path.split("/")), destination);
     budget.used += entry.bytes;
   }
   return true;
@@ -75798,7 +76645,7 @@ async function collectTestOutputs(repoRoot, test, runDir) {
   const budget = { used: 0 };
   const records = [];
   for (const output2 of test.outputs) {
-    const absolute = resolve53(repoRoot, output2.path);
+    const absolute = resolve54(repoRoot, output2.path);
     const base = { path: output2.path, kind: output2.kind, required: output2.required };
     const absent = { ...base, present: false, digest: null, bytes: 0, files: 0, artifact: null };
     let entry;
@@ -75813,9 +76660,9 @@ async function collectTestOutputs(repoRoot, test, runDir) {
       continue;
     }
     const artifactRelative = `outputs/${output2.path.split(sep24).join("/")}`;
-    const destination = join137(runDir, ...artifactRelative.split("/"));
+    const destination = join141(runDir, ...artifactRelative.split("/"));
     if (entry.isFile()) {
-      const bytes = await readFile71(absolute);
+      const bytes = await readFile74(absolute);
       let artifact = null;
       if (entry.size <= MAX_ARTIFACT_FILE_BYTES && budget.used + entry.size <= MAX_ARTIFACT_RUN_BYTES) {
         await mkdir51(dirname35(destination), { recursive: true });
@@ -75945,7 +76792,7 @@ function runTestProcess(request) {
     }
     omittedTail.push(chunk);
   };
-  return new Promise((resolve55) => {
+  return new Promise((resolve56) => {
     const detached = process.platform !== "win32";
     const shell = shellFor(request.command);
     let settled = false;
@@ -75973,7 +76820,7 @@ function runTestProcess(request) {
       }
       stream.end(() => {
         const finishedAtMs = Date.now();
-        resolve55({
+        resolve56({
           exitCode,
           signal,
           timedOut,
@@ -76004,20 +76851,20 @@ function runTestProcess(request) {
       }
       child.kill(signal);
     };
-    const stop = () => {
+    const stop2 = () => {
       killGroup("SIGTERM");
       forceKill = setTimeout(() => killGroup("SIGKILL"), request.graceMs);
       forceKill.unref?.();
     };
     function onAbort() {
       interrupted = true;
-      stop();
+      stop2();
     }
     if (request.signal?.aborted === true) onAbort();
     else request.signal?.addEventListener("abort", onAbort, { once: true });
     deadline = setTimeout(() => {
       timedOut = true;
-      stop();
+      stop2();
     }, request.timeoutMs);
     deadline.unref?.();
     child.stdout?.on("data", (chunk) => write(chunk));
@@ -76052,7 +76899,7 @@ async function candidateOf(deps, name2) {
 }
 async function resolvedCwd(repoRoot, cwd) {
   try {
-    const target = await realpath18(resolve54(repoRoot, cwd));
+    const target = await realpath18(resolve55(repoRoot, cwd));
     const rel = relative31(await realpath18(repoRoot), target);
     if (rel !== "" && (rel.startsWith("..") || rel.startsWith(sep25))) return void 0;
     return (await lstat59(target)).isDirectory() ? target : void 0;
@@ -76097,7 +76944,7 @@ async function execute(deps, context, input2) {
   const { test, step, runId } = input2;
   const change = context.name;
   const runDir = testRunArtifactsDir(deps.cwd, context.slug, change, runId);
-  const logPath = join138(runDir, TEST_LOG_ARTIFACT);
+  const logPath = join142(runDir, TEST_LOG_ARTIFACT);
   await mkdir52(runDir, { recursive: true });
   const candidateBefore = await candidateOf(deps, change);
   const gitHead = deps.gitHeadSha === void 0 ? null : await deps.gitHeadSha().catch(() => null);
@@ -76135,7 +76982,7 @@ async function execute(deps, context, input2) {
   });
   const outputs2 = workDir === void 0 ? [] : await collectTestOutputs(deps.cwd, test, runDir);
   const values = test.pass.metrics.length === 0 && test.metrics_path === void 0 ? void 0 : await readMetrics({
-    ...test.metrics_path === void 0 ? {} : { metricsPath: resolve54(deps.cwd, test.metrics_path) },
+    ...test.metrics_path === void 0 ? {} : { metricsPath: resolve55(deps.cwd, test.metrics_path) },
     logText: outcome.tail
   });
   const baseline = await readTestBaseline(testBaselinePath(deps.cwd, context.slug, test.id));
@@ -76282,7 +77129,7 @@ async function cmdTestStatus(deps, change, opts = {}) {
     const actor3 = item2.run?.actor.name ?? "\u2014";
     deps.io.out(`  ${statusWord(item2.status)} ${item2.test.id} ${item2.test.label ?? item2.test.id} ${duration2} ${item2.run?.finished_at ?? "\u2014"} ${actor3}`);
   }
-  for (const blocker of report.blockers) deps.io.out(`  [FAIL] test: ${blocker}`);
+  for (const blocker2 of report.blockers) deps.io.out(`  [FAIL] test: ${blocker2}`);
   return report.pass ? 0 : 2;
 }
 
@@ -76341,7 +77188,7 @@ starter:
 // packages/cli/src/commands/orchestration.ts
 import { randomUUID as randomUUID26 } from "node:crypto";
 import { readFileSync as readFileSync37 } from "node:fs";
-import { readFile as readFile72 } from "node:fs/promises";
+import { readFile as readFile75 } from "node:fs/promises";
 function ledgerDir(deps, change) {
   if (!isValidChangeName(change)) {
     deps.io.err(`ERROR: change-name \u975E\u6CD5: '${change}'`);
@@ -76349,26 +77196,26 @@ function ledgerDir(deps, change) {
   }
   return changeDir(deps.cwd, change);
 }
-function printSnapshot(deps, snapshot, json2) {
+function printSnapshot(deps, snapshot2, json2) {
   if (json2) {
-    deps.io.out(JSON.stringify({ schema_version: "orchestration-cli-status/v2", snapshot }));
+    deps.io.out(JSON.stringify({ schema_version: "orchestration-cli-status/v2", snapshot: snapshot2 }));
     return;
   }
-  deps.io.out(`change ${snapshot.change_id}`);
-  deps.io.out(`status ${snapshot.status}`);
-  deps.io.out(`revision ${snapshot.revision}`);
-  deps.io.out(`work-items ${snapshot.work_items.filter((item2) => item2.status === "completed").length}/${snapshot.work_items.length}`);
-  if (snapshot.blockers.length > 0) deps.io.out(`blockers ${snapshot.blockers.join(", ")}`);
+  deps.io.out(`change ${snapshot2.change_id}`);
+  deps.io.out(`status ${snapshot2.status}`);
+  deps.io.out(`revision ${snapshot2.revision}`);
+  deps.io.out(`work-items ${snapshot2.work_items.filter((item2) => item2.status === "completed").length}/${snapshot2.work_items.length}`);
+  if (snapshot2.blockers.length > 0) deps.io.out(`blockers ${snapshot2.blockers.join(", ")}`);
 }
 async function cmdOrchestrationStatus(deps, change, json2) {
   const dir = ledgerDir(deps, change);
   if (!dir) return 1;
-  const snapshot = await createOrchestrationLedger().readSnapshot(dir);
-  if (!snapshot) {
+  const snapshot2 = await createOrchestrationLedger().readSnapshot(dir);
+  if (!snapshot2) {
     deps.io.err(`ERROR: orchestration ledger \u672A\u521D\u59CB\u5316: ${change}`);
     return 1;
   }
-  printSnapshot(deps, snapshot, json2);
+  printSnapshot(deps, snapshot2, json2);
   return 0;
 }
 async function cmdOrchestrationEvents(deps, change, after, json2) {
@@ -76385,8 +77232,8 @@ async function cmdOrchestrationEvents(deps, change, after, json2) {
 async function cmdOrchestrationInit(deps, change, project, correlation) {
   const dir = ledgerDir(deps, change);
   if (!dir || project.trim() === "" || correlation.trim() === "") return 1;
-  const snapshot = await createOrchestrationLedger().initialize(dir, { project_id: project, change_id: change, correlation_id: correlation, updated_at: deps.clock() });
-  printSnapshot(deps, snapshot, true);
+  const snapshot2 = await createOrchestrationLedger().initialize(dir, { project_id: project, change_id: change, correlation_id: correlation, updated_at: deps.clock() });
+  printSnapshot(deps, snapshot2, true);
   return 0;
 }
 async function cmdOrchestrationFreezePipeline(deps, change, pipelineJson, pipelineFile) {
@@ -76401,7 +77248,7 @@ async function cmdOrchestrationFreezePipeline(deps, change, pipelineJson, pipeli
   }
   let pipeline;
   try {
-    const source = pipelineFile === void 0 ? pipelineJson : pipelineFile === "-" ? readFileSync37(0, "utf8") : await readFile72(pipelineFile, "utf8");
+    const source = pipelineFile === void 0 ? pipelineJson : pipelineFile === "-" ? readFileSync37(0, "utf8") : await readFile75(pipelineFile, "utf8");
     const parsed = JSON.parse(source);
     const decoded = decodeWorkflowPipelineV2(parsed);
     if (!decoded.ok) throw new Error(decoded.errors.map((entry) => `${entry.path}:${entry.code}`).join(", "));
@@ -76411,8 +77258,8 @@ async function cmdOrchestrationFreezePipeline(deps, change, pipelineJson, pipeli
     return 1;
   }
   try {
-    const snapshot = await deps.orchestrationFreezePipeline({ changeDir: dir, pipeline });
-    deps.io.out(JSON.stringify({ schema_version: "orchestration-cli-freeze-pipeline/v2", ok: true, snapshot }));
+    const snapshot2 = await deps.orchestrationFreezePipeline({ changeDir: dir, pipeline });
+    deps.io.out(JSON.stringify({ schema_version: "orchestration-cli-freeze-pipeline/v2", ok: true, snapshot: snapshot2 }));
     return 0;
   } catch (error2) {
     deps.io.err(`ERROR: freeze-pipeline \u5931\u8D25: ${error2 instanceof Error ? error2.message : String(error2)}`);
@@ -76423,8 +77270,8 @@ async function cmdOrchestrationControl(deps, change, type, reason2) {
   const dir = ledgerDir(deps, change);
   if (!dir) return 1;
   const ledger = createOrchestrationLedger();
-  const snapshot = await ledger.readSnapshot(dir);
-  if (!snapshot) {
+  const snapshot2 = await ledger.readSnapshot(dir);
+  if (!snapshot2) {
     deps.io.err(`ERROR: orchestration ledger \u672A\u521D\u59CB\u5316: ${change}`);
     return 1;
   }
@@ -76433,12 +77280,12 @@ async function cmdOrchestrationControl(deps, change, type, reason2) {
     schema_version: "board-command/v2",
     command_id: `cli:${type}:${nonce}`,
     idempotency_key: `cli:${type}:${nonce}`,
-    expected_revision: snapshot.revision,
+    expected_revision: snapshot2.revision,
     actor: { kind: "user", id: "cli" },
     issued_at: deps.clock(),
-    correlation_id: snapshot.correlation_id,
-    ...snapshot.event_head_id === void 0 ? {} : { causation_id: snapshot.event_head_id },
-    change_id: snapshot.change_id,
+    correlation_id: snapshot2.correlation_id,
+    ...snapshot2.event_head_id === void 0 ? {} : { causation_id: snapshot2.event_head_id },
+    change_id: snapshot2.change_id,
     type,
     ...["resume-change", "start-change"].includes(type) ? {} : { reason: reason2 }
   };
@@ -76469,27 +77316,27 @@ async function cmdOrchestrationRetry(deps, change, workItemId) {
   const dir = ledgerDir(deps, change);
   if (!dir) return 1;
   const ledger = createOrchestrationLedger();
-  const snapshot = await ledger.readSnapshot(dir);
-  const item2 = snapshot?.work_items.find((entry) => entry.work_item_id === workItemId);
-  const previous = snapshot?.runs.filter((run2) => run2.work_item_id === workItemId).at(-1);
-  if (!snapshot || !item2 || !previous) {
+  const snapshot2 = await ledger.readSnapshot(dir);
+  const item2 = snapshot2?.work_items.find((entry) => entry.work_item_id === workItemId);
+  const previous = snapshot2?.runs.filter((run2) => run2.work_item_id === workItemId).at(-1);
+  if (!snapshot2 || !item2 || !previous) {
     deps.io.err(`ERROR: retry \u9700\u8981\u5B58\u5728\u7684\u5931\u8D25/\u4E2D\u65AD\u5DE5\u4F5C\u9879\u548C\u5386\u53F2 run: ${workItemId}`);
     return 1;
   }
   const nonce = randomUUID26();
-  return appendCommand(deps, ledger, dir, snapshot, { type: "retry-work-item", work_item_id: workItemId, attempt_id: `attempt:cli:${nonce}`, run_id: `run:cli:${nonce}` });
+  return appendCommand(deps, ledger, dir, snapshot2, { type: "retry-work-item", work_item_id: workItemId, attempt_id: `attempt:cli:${nonce}`, run_id: `run:cli:${nonce}` });
 }
 async function cmdOrchestrationGate(deps, change, status, gateId, evidence, rationale) {
   const dir = ledgerDir(deps, change);
   if (!dir) return 1;
   const ledger = createOrchestrationLedger();
-  const snapshot = await ledger.readSnapshot(dir);
-  if (!snapshot) {
+  const snapshot2 = await ledger.readSnapshot(dir);
+  if (!snapshot2) {
     deps.io.err(`ERROR: orchestration ledger \u672A\u521D\u59CB\u5316: ${change}`);
     return 1;
   }
-  const gate = { schema_version: "gate-evaluation/v2", record_id: `gate:${gateId}`, project_id: snapshot.project_id, change_id: snapshot.change_id, revision: snapshot.revision, correlation_id: snapshot.correlation_id, actor: { kind: "user", id: "cli" }, created_at: deps.clock(), gate_id: gateId, kind: "verification", status, required_evidence_refs: evidence, decision_revision: snapshot.revision, rationale };
-  return appendCommand(deps, ledger, dir, snapshot, { type: "evaluate-gate", gate });
+  const gate = { schema_version: "gate-evaluation/v2", record_id: `gate:${gateId}`, project_id: snapshot2.project_id, change_id: snapshot2.change_id, revision: snapshot2.revision, correlation_id: snapshot2.correlation_id, actor: { kind: "user", id: "cli" }, created_at: deps.clock(), gate_id: gateId, kind: "verification", status, required_evidence_refs: evidence, decision_revision: snapshot2.revision, rationale };
+  return appendCommand(deps, ledger, dir, snapshot2, { type: "evaluate-gate", gate });
 }
 async function cmdOrchestrationBindArtifact(deps, change, workItemId, artifactRef2, artifactDigest) {
   const dir = ledgerDir(deps, change);
@@ -76498,26 +77345,26 @@ async function cmdOrchestrationBindArtifact(deps, change, workItemId, artifactRe
     return 1;
   }
   const ledger = createOrchestrationLedger();
-  const snapshot = await ledger.readSnapshot(dir);
-  if (!snapshot) {
+  const snapshot2 = await ledger.readSnapshot(dir);
+  if (!snapshot2) {
     deps.io.err(`ERROR: orchestration ledger \u672A\u521D\u59CB\u5316: ${change}`);
     return 1;
   }
-  return appendCommand(deps, ledger, dir, snapshot, { type: "bind-artifact", work_item_id: workItemId, artifact_ref: artifactRef2, digest: artifactDigest });
+  return appendCommand(deps, ledger, dir, snapshot2, { type: "bind-artifact", work_item_id: workItemId, artifact_ref: artifactRef2, digest: artifactDigest });
 }
 async function cmdOrchestrationWatch(deps, change, json2, follow, intervalMs = 1e3) {
   const dir = ledgerDir(deps, change);
   if (!dir) return 1;
-  let snapshot = await createOrchestrationLedger().readSnapshot(dir);
-  if (!snapshot) {
+  let snapshot2 = await createOrchestrationLedger().readSnapshot(dir);
+  if (!snapshot2) {
     deps.io.err(`ERROR: orchestration ledger \u672A\u521D\u59CB\u5316: ${change}`);
     return 1;
   }
-  let cursor = snapshot.revision;
-  printSnapshot(deps, snapshot, json2);
+  let cursor = snapshot2.revision;
+  printSnapshot(deps, snapshot2, json2);
   if (!follow) return 0;
-  while (!["completed", "cancelled", "failed"].includes(snapshot.status)) {
-    await new Promise((resolve55) => setTimeout(resolve55, Math.max(100, Math.min(intervalMs, 3e4))));
+  while (!["completed", "cancelled", "failed"].includes(snapshot2.status)) {
+    await new Promise((resolve56) => setTimeout(resolve56, Math.max(100, Math.min(intervalMs, 3e4))));
     const ledger = createOrchestrationLedger();
     const current = await ledger.readSnapshot(dir);
     if (!current) return 1;
@@ -76526,24 +77373,24 @@ async function cmdOrchestrationWatch(deps, change, json2, follow, intervalMs = 1
       if (json2) for (const event of events) deps.io.out(JSON.stringify({ schema_version: "orchestration-cli-event/v2", event }));
       else for (const event of events) deps.io.out(`${event.revision}	${event.event_type}	${event.event_id}`);
       cursor = current.revision;
-      snapshot = current;
+      snapshot2 = current;
     }
   }
   return 0;
 }
-async function appendCommand(deps, ledger, dir, snapshot, payload) {
+async function appendCommand(deps, ledger, dir, snapshot2, payload) {
   const nonce = randomUUID26();
   const type = payload.type;
   const command2 = {
     schema_version: "board-command/v2",
     command_id: `cli:${type}:${nonce}`,
     idempotency_key: `cli:${type}:${nonce}`,
-    expected_revision: snapshot.revision,
+    expected_revision: snapshot2.revision,
     actor: { kind: "user", id: "cli" },
     issued_at: deps.clock(),
-    correlation_id: snapshot.correlation_id,
-    ...snapshot.event_head_id === void 0 ? {} : { causation_id: snapshot.event_head_id },
-    change_id: snapshot.change_id,
+    correlation_id: snapshot2.correlation_id,
+    ...snapshot2.event_head_id === void 0 ? {} : { causation_id: snapshot2.event_head_id },
+    change_id: snapshot2.change_id,
     ...payload
   };
   const result2 = await ledger.append(dir, command2);
@@ -76702,7 +77549,12 @@ function buildProgram(deps, runtimes = {}) {
   program2.command("doctor").description("\u7EDF\u4E00\u5065\u5EB7\u9762\uFF1A\u54EA\u4E9B\u4FDD\u969C\u6B64\u523B\u771F\u7684\u5728\u751F\u6548/\u5DF2\u9759\u9ED8\u964D\u7EA7\uFF08exit 1=\u6709\u7EA2\u706F\uFF09").option("--json", "JSON \u8F93\u51FA\uFF08schema \u7A33\u5B9A\uFF09").option("--skills", "\u9644\u52A0\u6BCF\u4E2A\u6280\u80FD\u7684\u6765\u6E90\u3001\u63D0\u4EA4\u3001\u8BB8\u53EF\u8BC1\u4E0E\u66F4\u65B0\u65F6\u95F4").action(async (opts) => bail(await cmdDoctor(deps, opts)));
   program2.command("task <sub> [args...]").description("task lifecycle\uFF1Aadd-dep / remove-dep <name> <dep> \xB7 children / cascade / canonical / delete / archive / unarchive <name>").option("--json", "JSON \u8F93\u51FA\uFF08children / canonical / delete / archive / unarchive\uFF09").option("--yes", "\u786E\u8BA4 delete / archive \u7684\u5168\u90E8\u786E\u8BA4\u9879\uFF08\u963B\u6B62\u9879\u4ECD\u4F1A\u62D2\u7EDD\uFF09").action(async (sub, args, opts) => bail(await cmdTask(deps, sub, [...args, ...opts.json ? ["--json"] : [], ...opts.yes ? ["--yes"] : []])));
   program2.command("scaffold <sub> [args...]").description("Tenon contract parity\uFF1Ascaffold \u6309\u7C7B\u578B\u94FA\u5206\u5C42\u7A7A\u6587\u6863\u96C6 \xB7 resolve-workflow \u591A id \u89E3\u6790\uFF08D2/B16\uFF09").allowUnknownOption().action(async (sub, args) => bail(await cmdScaffold(deps, sub, args)));
-  program2.command("spec <sub> [args...]").description("living-spec\uFF1Aspecs \xB7 set-spec-scope <cap> [scope] \xB7 inject-jsonl <cap> [agent]").option("--json", "JSON \u8F93\u51FA\uFF08specs\uFF09").action(async (sub, args, opts) => bail(await cmdSpec(deps, sub, opts.json ? [...args, "--json"] : args)));
+  program2.command("spec <sub> [args...]").description("living-spec\uFF1Aspecs \xB7 set-spec-scope <cap> [scope] \xB7 inject-jsonl <cap> [agent] \xB7 apply <change>").option("--json", "JSON \u8F93\u51FA\uFF08specs \xB7 apply\uFF09").option("--dry-run", "\u4EC5 apply\uFF1A\u53EA\u5F69\u6392\u3001\u4E0D\u5199\u4E3B\u89C4\u683C").action(async (sub, args, opts) => {
+    const forwarded = [...args];
+    if (opts.json) forwarded.push("--json");
+    if (opts.dryRun) forwarded.push("--dry-run");
+    bail(await cmdSpec(deps, sub, forwarded));
+  });
   program2.command("session <sub> [args...]").description("session\uFF1Aactivate <name> [--continuous] [--host-session <id>] \xB7 route-context <name> [--json]").option("--json", "JSON \u8F93\u51FA\uFF08route-context\uFF09").option("--continuous", "\u4EC5 activate\uFF1A\u7ED1\u5B9A\u5F53\u524D Change \u7684\u6301\u7EED\u4EA4\u4E92\u6388\u6743").option("--host-session <id>", "\u4EC5 activate\uFF1A\u7ED1\u5B9A\u539F\u751F host session\uFF0C\u4F9B dashboard \u5224\u65AD\u666E\u901A\u4F1A\u8BDD\u662F\u5426\u4ECD\u5728\u6267\u884C").action(async (sub, args, opts) => {
     const forwarded = [...args];
     if (opts.json) forwarded.push("--json");
@@ -76763,8 +77615,8 @@ import {
   realpathSync as realpathSync8,
   statSync as statSync12
 } from "node:fs";
-import { readdir as readdir26 } from "node:fs/promises";
-import { dirname as dirname36, isAbsolute as isAbsolute42, join as join139, relative as relative32, sep as sep26 } from "node:path";
+import { readdir as readdir27 } from "node:fs/promises";
+import { dirname as dirname36, isAbsolute as isAbsolute42, join as join143, relative as relative32, sep as sep26 } from "node:path";
 function sameBoundedFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
 }
@@ -76779,7 +77631,7 @@ function boundedAncestors(root, path15) {
   const ancestors = [{ path: root, info: rootInfo, real: rootReal }];
   let candidate2 = root;
   for (const segment of segments) {
-    candidate2 = join139(candidate2, segment);
+    candidate2 = join143(candidate2, segment);
     const info = lstatSync9(candidate2, { bigint: true });
     if (!info.isDirectory() || info.isSymbolicLink()) return void 0;
     ancestors.push({ path: candidate2, info, real: realpathSync8(candidate2) });
@@ -76840,16 +77692,16 @@ function readBoundedRegularFileSync(path15, maxBytes, root, hooks = {}) {
 async function listChanges(changesRoot2) {
   let entries;
   try {
-    entries = await readdir26(changesRoot2, { withFileTypes: true });
+    entries = await readdir27(changesRoot2, { withFileTypes: true });
   } catch {
     return [];
   }
-  return entries.filter((entry) => entry.isDirectory() && entry.name !== "archive").filter((entry) => stateStorageExistsSync(join139(changesRoot2, entry.name))).map((entry) => entry.name).sort();
+  return entries.filter((entry) => entry.isDirectory() && entry.name !== "archive").filter((entry) => stateStorageExistsSync(join143(changesRoot2, entry.name))).map((entry) => entry.name).sort();
 }
 async function listChangeDirs(changesRoot2) {
   let entries;
   try {
-    entries = await readdir26(changesRoot2, { withFileTypes: true });
+    entries = await readdir27(changesRoot2, { withFileTypes: true });
   } catch {
     return [];
   }
@@ -76857,7 +77709,7 @@ async function listChangeDirs(changesRoot2) {
 }
 function activeCanonicalArchived(cwd, dep) {
   try {
-    const current = readCurrentRunRevisionSync(join139(cwd, "openspec", "changes", dep));
+    const current = readCurrentRunRevisionSync(join143(cwd, "openspec", "changes", dep));
     return current?.state.fields.archived === "true";
   } catch {
     return false;
@@ -76865,13 +77717,13 @@ function activeCanonicalArchived(cwd, dep) {
 }
 function physicallyArchived(cwd, dep) {
   try {
-    return readdirSync12(join139(cwd, "openspec", "changes", "archive"), { withFileTypes: true }).some((entry) => entry.isDirectory() && entry.name.endsWith(`-${dep}`));
+    return readdirSync12(join143(cwd, "openspec", "changes", "archive"), { withFileTypes: true }).some((entry) => entry.isDirectory() && entry.name.endsWith(`-${dep}`));
   } catch {
     return false;
   }
 }
 function makeGuardCtx(cwd) {
-  const abs = (relativePath) => join139(cwd, relativePath);
+  const abs = (relativePath) => join143(cwd, relativePath);
   return (name2) => ({
     changeDirRel: `openspec/changes/${name2}`,
     stateExists: (changeDirRel) => stateStorageExistsSync(abs(changeDirRel)),
@@ -76913,9 +77765,9 @@ function makeGuardCtx(cwd) {
 
 // packages/cli/src/runtime/scope.ts
 function createRuntimeScopeResolver(providers) {
-  let snapshot;
+  let snapshot2;
   return () => {
-    if (snapshot !== void 0) return snapshot;
+    if (snapshot2 !== void 0) return snapshot2;
     const homeDir = providers.homeDir();
     const env = Object.freeze({ ...providers.env() });
     const paths = resolveRuntimePaths({
@@ -76923,8 +77775,8 @@ function createRuntimeScopeResolver(providers) {
       env,
       ...providers.platform === void 0 ? {} : { platform: providers.platform }
     });
-    snapshot = Object.freeze({ homeDir, env, paths });
-    return snapshot;
+    snapshot2 = Object.freeze({ homeDir, env, paths });
+    return snapshot2;
   };
 }
 
@@ -76940,11 +77792,11 @@ function createManifestSkillActionAuthorityResolver(manifest, isKnownProfile) {
 }
 
 // packages/cli/src/commands/doctor-probes.ts
-import { execFile as execFile8, execFileSync as execFileSync4 } from "node:child_process";
+import { execFile as execFile9, execFileSync as execFileSync4 } from "node:child_process";
 import { createHash as createHash58 } from "node:crypto";
 import { accessSync as accessSync6, constants as fsConstants6, readdirSync as readdirSync13, readFileSync as readFileSync39, statSync as statSync13 } from "node:fs";
 import { homedir as homedir21 } from "node:os";
-import { join as join140 } from "node:path";
+import { join as join144 } from "node:path";
 function safeReaddirDirs(dir) {
   try {
     return readdirSync13(dir, { withFileTypes: true }).filter((e) => e.isDirectory() || e.isSymbolicLink()).map((e) => e.name);
@@ -76955,7 +77807,7 @@ function safeReaddirDirs(dir) {
 function readDisabledPluginKeys() {
   const disabled = /* @__PURE__ */ new Set();
   try {
-    const raw = readFileSync39(join140(homedir21(), ".claude", "settings.json"), "utf8");
+    const raw = readFileSync39(join144(homedir21(), ".claude", "settings.json"), "utf8");
     const parsed = JSON.parse(raw);
     const ep = typeof parsed === "object" && parsed !== null && "enabledPlugins" in parsed ? parsed.enabledPlugins : void 0;
     if (ep !== null && typeof ep === "object") {
@@ -76968,26 +77820,26 @@ function readDisabledPluginKeys() {
 function scanInstalledSkillNames() {
   const home = homedir21();
   const names = /* @__PURE__ */ new Set();
-  for (const n of safeReaddirDirs(join140(home, ".claude", "skills"))) names.add(n);
-  for (const n of safeReaddirDirs(join140(home, ".agents", "skills"))) names.add(n);
-  const cache2 = join140(home, ".claude", "plugins", "cache");
+  for (const n of safeReaddirDirs(join144(home, ".claude", "skills"))) names.add(n);
+  for (const n of safeReaddirDirs(join144(home, ".agents", "skills"))) names.add(n);
+  const cache2 = join144(home, ".claude", "plugins", "cache");
   const disabledPlugins = readDisabledPluginKeys();
   for (const marketplace of safeReaddirDirs(cache2)) {
-    const mktDir = join140(cache2, marketplace);
+    const mktDir = join144(cache2, marketplace);
     for (const plugin of safeReaddirDirs(mktDir)) {
       if (disabledPlugins.has(`${plugin}@${marketplace}`)) continue;
       names.add(plugin);
-      for (const skill of safeReaddirDirs(join140(mktDir, plugin, "skills"))) names.add(skill);
+      for (const skill of safeReaddirDirs(join144(mktDir, plugin, "skills"))) names.add(skill);
     }
   }
   return names;
 }
 function scanCodexProjectSkillNames(cwd, root) {
   const names = /* @__PURE__ */ new Set();
-  for (const skillsRoot of [join140(root, "skills"), join140(cwd, ".agents", "skills")]) {
+  for (const skillsRoot of [join144(root, "skills"), join144(cwd, ".agents", "skills")]) {
     for (const name2 of safeReaddirDirs(skillsRoot)) {
       try {
-        if (statSync13(join140(skillsRoot, name2, "SKILL.md")).isFile()) names.add(name2);
+        if (statSync13(join144(skillsRoot, name2, "SKILL.md")).isFile()) names.add(name2);
       } catch {
       }
     }
@@ -76998,7 +77850,7 @@ function scanSkillDigests(skillsRoot) {
   const digests = /* @__PURE__ */ new Map();
   for (const name2 of safeReaddirDirs(skillsRoot)) {
     try {
-      const skillPath = join140(skillsRoot, name2, "SKILL.md");
+      const skillPath = join144(skillsRoot, name2, "SKILL.md");
       if (!statSync13(skillPath).isFile()) continue;
       digests.set(name2, createHash58("sha256").update(readFileSync39(skillPath)).digest("hex"));
     } catch {
@@ -77031,7 +77883,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     if (bash === void 0 || node === void 0) {
       return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u4E0D\u53EF\u6267\u884C" });
     }
-    const args = [join140(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", node.executable];
+    const args = [join144(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", node.executable];
     try {
       if (!bash.verify() || !node.verify()) {
         return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u8EAB\u4EFD\u5DF2\u6F02\u79FB" });
@@ -77040,15 +77892,15 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
       return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u8EAB\u4EFD\u5DF2\u6F02\u79FB" });
     }
     if (runtime.run !== void 0) return runtime.run(bash.executable, args, { timeoutMs: 3e4 });
-    return new Promise((resolve55) => {
-      execFile8(
+    return new Promise((resolve56) => {
+      execFile9(
         bash.executable,
         args,
         { timeout: 3e4 },
         (err, stdout, stderr) => {
           const errCode = err?.code;
           const code = err ? typeof errCode === "number" ? errCode : 1 : 0;
-          resolve55({ code, output: `${stdout ?? ""}${stderr ?? ""}` });
+          resolve56({ code, output: `${stdout ?? ""}${stderr ?? ""}` });
         }
       );
     });
@@ -77058,14 +77910,14 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     gitAvailable: () => {
       const git2 = trustedCommand("git");
       if (git2 === void 0) return Promise.resolve(false);
-      return new Promise((resolve55) => {
-        execFile8(git2.executable, ["--version"], (err) => resolve55(!err));
+      return new Promise((resolve56) => {
+        execFile9(git2.executable, ["--version"], (err) => resolve56(!err));
       });
     },
     pluginRoot: root,
     manifestError: () => {
       try {
-        loadManifest(join140(root, "templates", "manifest.yaml"));
+        loadManifest(join144(root, "templates", "manifest.yaml"));
         return null;
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
@@ -77096,7 +77948,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     env: (name2) => process.env[name2],
     statuslineConfigured: () => {
       try {
-        return readFileSync39(join140(homedir21(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
+        return readFileSync39(join144(homedir21(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
       } catch {
         return false;
       }
@@ -77139,14 +77991,14 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
       const native = active === "codex" || active === "claude";
       return {
         ...native ? { selectedRoot: root } : {},
-        projectRoot: join140(process.cwd(), ".agents", "skills"),
-        selected: native ? scanSkillDigests(join140(root, "skills")) : /* @__PURE__ */ new Map(),
-        project: scanSkillDigests(join140(process.cwd(), ".agents", "skills"))
+        projectRoot: join144(process.cwd(), ".agents", "skills"),
+        selected: native ? scanSkillDigests(join144(root, "skills")) : /* @__PURE__ */ new Map(),
+        project: scanSkillDigests(join144(process.cwd(), ".agents", "skills"))
       };
     },
     manifestSkills: () => {
       try {
-        const m = loadManifest(join140(root, "templates", "manifest.yaml"));
+        const m = loadManifest(join144(root, "templates", "manifest.yaml"));
         return { mandatory: m.mandatorySkills, recommended: m.recommendedSkills };
       } catch {
         return null;
@@ -77158,7 +78010,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         image: readAutomationJson(process.cwd()).image ?? "sandcastle:local",
         secretsEnv: readSecrets(scope.paths.secretsPath).keys,
         hostEnv: scope.env,
-        defaultCodexHome: join140(scope.homeDir, ".codex")
+        defaultCodexHome: join144(scope.homeDir, ".codex")
       });
     },
     upstreamSkillView: () => {
@@ -77176,9 +78028,9 @@ function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 function gitHeadSha(cwd) {
-  return new Promise((resolve55) => {
-    execFile9("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => {
-      resolve55((stdout ?? "").trim());
+  return new Promise((resolve56) => {
+    execFile10("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => {
+      resolve56((stdout ?? "").trim());
     });
   });
 }
@@ -77186,19 +78038,19 @@ async function readGateMarkers(cwd) {
   const out = [];
   for (const kind of ["confirm", "review", "interaction"]) {
     try {
-      const p = join141(cwd, `.pipeline-pending-${kind}`);
+      const p = join145(cwd, `.pipeline-pending-${kind}`);
       const st = await stat16(p);
-      out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile73(p, "utf8") });
+      out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile76(p, "utf8") });
     } catch {
     }
   }
   return out;
 }
 function pluginRoot() {
-  return join141(dirname37(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join145(dirname37(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function manifestPath() {
-  return join141(pluginRoot(), "templates", "manifest.yaml");
+  return join145(pluginRoot(), "templates", "manifest.yaml");
 }
 function trackValidationContext(repoRoot, manifest) {
   const skillProfiles = /* @__PURE__ */ new Set();
@@ -77228,7 +78080,7 @@ function readPluginVersion() {
     [".claude-plugin", "plugin.json"]
   ]) {
     try {
-      const raw = readFileSync40(join141(pluginRoot(), ...rel), "utf8");
+      const raw = readFileSync40(join145(pluginRoot(), ...rel), "utf8");
       const parsed = JSON.parse(raw);
       const version = typeof parsed === "object" && parsed !== null && "version" in parsed ? parsed.version : void 0;
       if (typeof version === "string" && version.trim() !== "") return version;
@@ -77262,19 +78114,19 @@ async function main() {
     orchestrationRuntime: async (changeDir2) => createProductionExecutionRuntimeV2({ change_dir: changeDir2, ledger: createOrchestrationLedger(), worker_id: `cli:${process.pid}` }),
     orchestrationFreezePipeline: async ({ changeDir: changeDir2, pipeline }) => {
       const ledger = createOrchestrationLedger();
-      const snapshot = await ledger.readSnapshot(changeDir2);
-      if (snapshot === void 0) throw new Error("orchestration ledger \u672A\u521D\u59CB\u5316");
+      const snapshot2 = await ledger.readSnapshot(changeDir2);
+      if (snapshot2 === void 0) throw new Error("orchestration ledger \u672A\u521D\u59CB\u5316");
       const commandId = `cli:freeze-pipeline:${pipeline.pipeline_id}:${pipeline.pipeline_version}`;
       const command2 = {
         schema_version: "board-command/v2",
         command_id: commandId,
         idempotency_key: `idem:${commandId}`,
-        expected_revision: snapshot.revision,
+        expected_revision: snapshot2.revision,
         actor: { kind: "user", id: "cli" },
         issued_at: isoNow(),
-        correlation_id: snapshot.correlation_id,
-        ...snapshot.event_head_id === void 0 ? {} : { causation_id: snapshot.event_head_id },
-        change_id: snapshot.change_id,
+        correlation_id: snapshot2.correlation_id,
+        ...snapshot2.event_head_id === void 0 ? {} : { causation_id: snapshot2.event_head_id },
+        change_id: snapshot2.change_id,
         type: "freeze-pipeline",
         pipeline
       };
@@ -77342,13 +78194,13 @@ async function main() {
     designValidator: {
       // 上游 hue 随插件安装；技能没装时返回空串，命令据此给出安装提示而不是去 spawn 不存在的脚本。
       path: () => {
-        const script = join141(pluginRoot(), "skills", "hue", "scripts", "validate.mjs");
+        const script = join145(pluginRoot(), "skills", "hue", "scripts", "validate.mjs");
         return existsSync13(script) ? script : "";
       },
-      run: (script, folder, cwd) => new Promise((resolve55) => {
+      run: (script, folder, cwd) => new Promise((resolve56) => {
         const child = spawn9(process.execPath, [script, folder], { cwd, stdio: "inherit" });
-        child.on("error", () => resolve55(1));
-        child.on("close", (code) => resolve55(code ?? 1));
+        child.on("error", () => resolve56(1));
+        child.on("close", (code) => resolve56(code ?? 1));
       })
     },
     io: {
@@ -77363,7 +78215,7 @@ async function main() {
     guardCtx: makeGuardCtx(process.cwd()),
     doctor: makeDoctorProbes(runtimeScope2, pluginRoot()),
     readGateMarkers: () => readGateMarkers(process.cwd()),
-    writeBreadcrumb: (dir, content) => writeFile30(join141(dir, ".breadcrumb"), content, "utf8"),
+    writeBreadcrumb: (dir, content) => writeFile31(join145(dir, ".breadcrumb"), content, "utf8"),
     history: createHistoryWriter({ actor: currentActor }),
     // init 成功后 best-effort 登记项目根到 Tenon config root 的 projects.json
     registerProject: async (repoRoot) => {
@@ -77374,7 +78226,7 @@ async function main() {
     readSecretsEnv: async () => readSecrets(runtimePaths().secretsPath).keys,
     readHistoryRaw: async (dir) => {
       try {
-        return await readFile73(join141(dir, ".pipeline-history.jsonl"), "utf8");
+        return await readFile76(join145(dir, ".pipeline-history.jsonl"), "utf8");
       } catch {
         return "";
       }
@@ -77388,13 +78240,13 @@ async function main() {
       const revision = kind === "workspace" ? await fingerprintWorkspace(process.cwd()) : await gitHeadSha(process.cwd());
       return createBuildRevisionToken(kind, revision, identity2).value;
     },
-    writeReviewMarker: (content) => writeFile30(join141(process.cwd(), ".pipeline-pending-review"), content, "utf8"),
+    writeReviewMarker: (content) => writeFile31(join145(process.cwd(), ".pipeline-pending-review"), content, "utf8"),
     clearReviewMarker: (change, event) => clearReviewMarkerFor(process.cwd(), change, event),
     pluginVersion: readPluginVersion(),
     readInstalledPlugins: async () => {
-      for (const p of [join141(pluginRoot(), "..", "installed_plugins.json"), join141(process.env.HOME ?? "", ".claude", "installed_plugins.json")]) {
+      for (const p of [join145(pluginRoot(), "..", "installed_plugins.json"), join145(process.env.HOME ?? "", ".claude", "installed_plugins.json")]) {
         try {
-          return await readFile73(p, "utf8");
+          return await readFile76(p, "utf8");
         } catch {
         }
       }
