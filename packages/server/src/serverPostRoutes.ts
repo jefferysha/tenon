@@ -80,6 +80,7 @@ import { resolveAdapterInstallPost } from './adapterInstallRoutes.js'
 import { handlePostUserRoutes } from './serverUserRoutes.js'
 import { handleTaskLifecyclePost, type TaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 import { resolveInstructionMutation } from './instructionRoutes.js'
+import { resolveAgentMutation } from './serverAgentRoutes.js'
 import { resolveResourceMutation } from './serverResourceRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
 
@@ -198,6 +199,8 @@ export async function handlePostRoute(
     if (instructionPost) { const result = await instructionPost; return sendJson(res, result.status, result.body) }
     const resourcePost = resolveResourceMutation(req, 'POST', path, deps)
     if (resourcePost) { const result = await resourcePost; return sendJson(res, result.status, result.body) }
+    const agentPost = resolveAgentMutation(req, 'POST', path, deps)
+    if (agentPost) { const result = await agentPost; return sendJson(res, result.status, result.body) }
     if (await handleTaskLifecyclePost(req, res, path, deps)) return
 
     // ── Track Router 公共预览：消费 effective registry，生产默认 scorer 真执行 grep -ciE。──

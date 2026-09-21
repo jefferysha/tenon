@@ -91,6 +91,8 @@ export interface ChangeSnapshot {
   documents?: DocumentEvidenceSnapshot
   /** Per-step skill execution state (idle / running / done, grouped by wave) derived from the history log. */
   skillRuns?: SkillRunsSnapshot
+  /** 每步 agent 的执行态与结论；步骤一个 agent 都没声明时整个字段缺席。 */
+  agentRuns?: import('./agentRuns.js').AgentRunsSnapshot
   /** Per-step declared tests; omitted when the change's branch declares none. */
   tests?: TestStepSnapshot[]
   /** Corrupt test record file names of the acting user (at most 20). */

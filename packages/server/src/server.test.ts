@@ -1291,14 +1291,26 @@ describe('POST /api/change/<name>/transition —— Verify revision rejection co
         verify: {
           'verify-pass': {
             ready: false,
-            blockers: [{
-              kind: 'verify-build-revision-untrusted',
-              code: 'verify-build-revision-untrusted',
-              reason: 'malformed',
-              remediation: 'return-to-build-and-capture-current-revision',
-              stateHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
-            }],
+            blockers: [
+              {
+                kind: 'verify-build-revision-untrusted',
+                code: 'verify-build-revision-untrusted',
+                reason: 'malformed',
+                remediation: 'return-to-build-and-capture-current-revision',
+                stateHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+              },
+              // 前进出边还带 agent 面：backend verify 声明的必需评审者一个都没跑。
+              {
+                kind: 'agents-incomplete',
+                agents: [
+                  { agent: 'spec-consistency', reason: 'reviewer-missing' },
+                  { agent: 'backend-quality', reason: 'reviewer-missing' },
+                  { agent: 'security', reason: 'reviewer-missing' },
+                ],
+              },
+            ],
           },
+          // verify-fail 是退回边：agent 面不参与。
           'verify-fail': { ready: true, blockers: [] },
         },
       },
@@ -6183,6 +6195,26 @@ describe('PUT /api/workflows/:name/yaml —— 导入原文', () => {
     expect(broken.status).toBe(400)
     expect(existsSync(join(h.root, '.pipeline', 'workflows', 'imported.yaml'))).toBe(false)
     expect(existsSync(join(h.root, '.pipeline', 'workflows', 'other.yaml'))).toBe(false)
+  })
+
+  it('引用了库里没有的 agent → 400 且不落盘；引用内建 agent → 200', async () => {
+    const h = await start()
+    const withAgents = (agent: string): string => SOURCE.replace(
+      '    guards: []',
+      `    agents:\n      reviewers:\n        - agent: ${agent}\n          required: true\n          block_at: high\n    guards: []`,
+    )
+    const ghost = await reqPutText(
+      h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`,
+      withAgents('no-such-agent'), { Authorization: `Bearer ${h.token}` },
+    )
+    expect(ghost.status).toBe(400)
+    expect(JSON.parse(ghost.body).errors.join(' ')).toContain("agent 库中不存在的 'no-such-agent'")
+    expect(existsSync(join(h.root, '.pipeline', 'workflows', 'imported.yaml'))).toBe(false)
+    const known = await reqPutText(
+      h.port, `/api/workflows/imported/yaml?root=${encodeURIComponent(h.root)}`,
+      withAgents('security'), { Authorization: `Bearer ${h.token}` },
+    )
+    expect(known.status, known.body).toBe(200)
   })
 
   it('超过 256KB → 413；内建 simple → 409', async () => {

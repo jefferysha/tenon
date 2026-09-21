@@ -11,6 +11,8 @@ import {
   type TrackValidationContext,
   type WorkflowDef,
 } from '@tenon/kernel'
+import { missingWorkflowAgents } from './agentReferences.js'
+import type { ServerPaths } from './types.js'
 import { isWorkflowName } from './workflowTrustedFs.js'
 import {
   assertWorkflowRootAnchor,
@@ -89,6 +91,8 @@ export function readTextBody(req: IncomingMessage, maxBytes: number): Promise<st
 
 export interface WorkflowYamlPutDeps extends WorkflowYamlGetDeps {
   readonly trackValidationContextFor: (anchor: WorkflowRootAnchor) => TrackValidationContext
+  /** 全局产品路径；保存前校验工作流引用的 agent 是否都在库里。 */
+  readonly paths: ServerPaths
 }
 
 /**
@@ -112,6 +116,10 @@ export async function handleWorkflowYamlPut(req: IncomingMessage, name: string, 
   }
   const errors = validateWorkflowForStorage(name, workflow)
   if (workflow.name !== name) errors.unshift(`workflow name '${workflow.name}' 必须与 URL 中的 '${name}' 一致`)
+  // 工作流引用的每个 agent 都必须在库里；保存之后才发现缺 agent，任务就建不起来了。
+  for (const missing of await missingWorkflowAgents(deps.paths, workflow)) {
+    errors.push(`工作流引用了 agent 库中不存在的 '${missing}'`)
+  }
   if (errors.length > 0) return { status: 400, body: { ok: false, errors } }
   try {
     ensureWorkflowProjectCoordinationPath(rootCheck.anchor)

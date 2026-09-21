@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { creatorOf, isTenonUser, ownerOf, readTaskArchiveOf, stateStorageSourcePathSync, projectPipelineTodo, type EffectiveWorkflowPlan, type SkillTable, type StateStore, type TaskArchive, type TrackDefinition, UnsupportedRunStateVersionError } from '@tenon/kernel'
 import type { ArchivedChangeSnapshot, ProjectSnapshot, ChangeSnapshot } from './types.js'
 import { readRepositoryIdentity } from './repositoryIdentity.js'
+import { agentBlockersOf, projectAgentRuns } from './agentRuns.js'
 import { resolveSnapshotTrack, projectSkillRuns } from './skillRuns.js'
 import { readWorkflowSnapshotAuthority } from './workflowSnapshotAuthority.js'
 import { legacySnapshotWorkflowRules, resolveSnapshotEffectivePlan, snapshotTodoStages, snapshotWorkflowExecution, snapshotWorkflowRulesAtRoot, type WorkflowSnapshotCapabilityDeps } from './workflowSnapshot.js'
@@ -151,7 +152,7 @@ export async function scanAnchoredProject(
         workflowPlanSnapshot: state.runMetadata?.workflowPlanSnapshot,
       }, undefined, trackDefinition(track, workflowName))
       legacyWorkflowRules[workflowName] ??= legacySnapshotWorkflowRules(plan)
-      const [documents, terminalActivity, authority, skillRuns, artifactScope, testEvidence] = await Promise.all([
+      const [documents, terminalActivity, authority, skillRuns, artifactScope, testEvidence, agentRuns] = await Promise.all([
         documentEvidence(readRoot, changeDir, plan, phase),
         readTerminalActivity(changeDir, e.name, nowMs),
         readWorkflowSnapshotAuthority(changeDir, state, plan),
@@ -163,6 +164,13 @@ export async function scanAnchoredProject(
           changeName: e.name,
           plan,
           user: actingUser,
+          ...(candidate === undefined ? {} : { candidate: () => candidate(readRoot) }),
+        }),
+        projectAgentRuns({
+          changeDir,
+          plan,
+          state,
+          phase,
           ...(candidate === undefined ? {} : { candidate: () => candidate(readRoot) }),
         }),
       ])
@@ -199,12 +207,14 @@ export async function scanAnchoredProject(
           readRoot,
           changeDir,
           e.name,
-          capabilityDeps,
+          // readiness 的 agent 面与工作台读同一份投影：这里只把已算好的阻断交出去。
+          { ...capabilityDeps, stepAgents: async () => agentBlockersOf(agentRuns, plan, phase) },
         ),
         reviewHandshake: projectReviewHandshake(state, plan, phase),
         todo,
         documents,
         skillRuns,
+        ...(agentRuns.length === 0 ? {} : { agentRuns }),
         ...(testEvidence.tests === undefined ? {} : { tests: testEvidence.tests }),
         ...(testEvidence.diagnostics === undefined ? {} : { testDiagnostics: testEvidence.diagnostics }),
         ...(terminalActivity === undefined ? {} : { terminalActivity }),
