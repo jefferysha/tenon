@@ -16,7 +16,7 @@ const OUTPUTS_BY_PHASE: Readonly<Record<string, readonly DocumentOutputRequireme
   ],
   explore: [
     { kind: 'superpower-design', producerCandidates: ['brainstorming', 'superpowers:brainstorming'] },
-    { kind: 'adr', producerCandidates: ['tenon-explore', 'tenon:tenon-explore', 'brainstorming', 'superpowers:brainstorming'] },
+    { kind: 'adr', producerCandidates: ['brainstorming', 'superpowers:brainstorming'] },
   ],
   spec: [
     { kind: 'delta-spec', producerCandidates: ['openspec-propose', 'opsx:propose'] },
@@ -27,11 +27,11 @@ const OUTPUTS_BY_PHASE: Readonly<Record<string, readonly DocumentOutputRequireme
   verify: [
     {
       kind: 'verification-report',
-      producerCandidates: ['verification-before-completion', 'superpowers:verification-before-completion', 'tenon-verify', 'tenon:tenon-verify'],
+      producerCandidates: ['verification-before-completion', 'superpowers:verification-before-completion'],
     },
   ],
   ship: [
-    { kind: 'applied-spec', producerCandidates: ['openspec-apply-change', 'opsx:apply'] },
+    { kind: 'applied-spec', producerCandidates: ['tenon'] },
   ],
   archive: [],
 }
@@ -39,28 +39,28 @@ const OUTPUTS_BY_PHASE: Readonly<Record<string, readonly DocumentOutputRequireme
 const MUTABLE_RECORDS_BY_PHASE: Readonly<Record<string, readonly DocumentOutputRequirement[]>> = {
   open: [],
   explore: [
-    { kind: 'proposal', producerCandidates: ['tenon-explore', 'tenon:tenon-explore'] },
-    { kind: 'openspec-design', producerCandidates: ['tenon-explore', 'tenon:tenon-explore'] },
-    { kind: 'tasks', producerCandidates: ['tenon-explore', 'tenon:tenon-explore'] },
+    { kind: 'proposal', producerCandidates: ['tenon'] },
+    { kind: 'openspec-design', producerCandidates: ['tenon'] },
+    { kind: 'tasks', producerCandidates: ['tenon'] },
   ],
   spec: [
-    { kind: 'proposal', producerCandidates: ['tenon-spec', 'tenon:tenon-spec'] },
-    { kind: 'openspec-design', producerCandidates: ['tenon-spec', 'tenon:tenon-spec'] },
-    { kind: 'tasks', producerCandidates: ['tenon-spec', 'tenon:tenon-spec'] },
-    { kind: 'superpower-design', producerCandidates: ['tenon-spec', 'tenon:tenon-spec'] },
-    { kind: 'adr', producerCandidates: ['tenon-spec', 'tenon:tenon-spec'] },
+    { kind: 'proposal', producerCandidates: ['tenon'] },
+    { kind: 'openspec-design', producerCandidates: ['tenon'] },
+    { kind: 'tasks', producerCandidates: ['tenon'] },
+    { kind: 'superpower-design', producerCandidates: ['tenon'] },
+    { kind: 'adr', producerCandidates: ['tenon'] },
   ],
   build: [
-    { kind: 'tasks', producerCandidates: ['tenon-build', 'tenon:tenon-build'] },
+    { kind: 'tasks', producerCandidates: ['tenon'] },
   ],
   verify: [
-    { kind: 'tasks', producerCandidates: ['tenon-verify', 'tenon:tenon-verify'] },
+    { kind: 'tasks', producerCandidates: ['tenon'] },
   ],
   ship: [
-    { kind: 'tasks', producerCandidates: ['tenon-ship', 'tenon:tenon-ship'] },
+    { kind: 'tasks', producerCandidates: ['tenon'] },
   ],
   archive: [
-    { kind: 'tasks', producerCandidates: ['tenon-archive', 'tenon:tenon-archive'] },
+    { kind: 'tasks', producerCandidates: ['tenon'] },
   ],
 }
 

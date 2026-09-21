@@ -134,13 +134,14 @@ describe('workflow policy snapshot v4', () => {
       workflowId: 'default',
       executionModel: 'phase-manifest',
       workflow: legacyWorkflow,
-      // 历史字节里的文档表就是迁移表本身（前端分支后来才加 design-md 槽位）。
+      // 历史字节里的文档表就是迁移表本身（前端分支后来才加 design-md 槽位）；迁移表的产出者
+      // 随技能合一改成 tenon，指纹随之变——旧快照本就不再受支持（本 change 的 retired-skills 拒绝）。
       documentPolicy: LEGACY_DOCUMENT_GOVERNANCE_POLICY,
-      workflowFingerprint: 'e0a5f815ec73ffe72c082ed7ca4b2f92ede3623d6d2ccdbe8bde97ceb678e35f',
+      workflowFingerprint: 'dd71177912f3ad1d4a2d27691f703faa6931eaa46c6084321a8c8731597525f6',
     })
 
     expect(restored.workflowFingerprint)
-      .toBe('e0a5f815ec73ffe72c082ed7ca4b2f92ede3623d6d2ccdbe8bde97ceb678e35f')
+      .toBe('dd71177912f3ad1d4a2d27691f703faa6931eaa46c6084321a8c8731597525f6')
     expect(restored.workflow.decomposition.mode).toBe('off')
     expect(restored.workflow.interaction.mode).toBe('interactive')
 

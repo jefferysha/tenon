@@ -257,10 +257,7 @@ describe('writeMandatorySkills —— 外科手术式改盘 + 真 kernel 往返�
     // 其余条目逐字不变（spot check）
     expect(reparsed.mandatorySkills.explore.pm).toEqual(['brainstorming', 'grill-with-docs'])
     expect(reparsed.mandatorySkills.open._all).toEqual(['openspec-propose'])
-    expect(reparsed.mandatorySkills.ship.backend).toEqual([
-      'openspec-apply-change',
-      'finishing-a-development-branch',
-    ])
+    expect(reparsed.mandatorySkills.ship.backend).toEqual(['finishing-a-development-branch'])
     expect(reparsed.mandatorySkills.ship.backend).not.toContain('commit-commands:commit-push-pr')
   })
 
@@ -278,7 +275,7 @@ describe('writeMandatorySkills —— 外科手术式改盘 + 真 kernel 往返�
     const text = await readFile(manifestPath, 'utf8')
     expect(text).toContain('# archive 无强制 skill（归档不 gate skill）——不声明即空表')
     // 其它顶层小节（如 breadcrumb）不受影响 —— 整份仍可被 kernel 完整解析
-    expect(reparsed.breadcrumbs.build).toContain('TDD')
+    expect(reparsed.breadcrumbs.build).toContain('step.next')
   })
 
   it('空数组显式覆盖：写 [] 后不再回退 _all（三级回退语义的写入侧验证）', async () => {

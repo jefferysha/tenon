@@ -47,7 +47,15 @@ const AFK_WORKFLOW_PLAN = compileEffectiveWorkflowPlan('sdk-afk', {
   }],
 })
 const AFK_WORKFLOW_SNAPSHOT = workflowPlanSnapshot(AFK_WORKFLOW_PLAN)
-const DEFAULT_COORDINATE_CAPABILITY = compileEffectiveWorkflowPlan('default').capabilities.skills
+// 技能由 manifest 叠加解析，本用例的 resolver 存根返回空表：坐标能力也必须不自带步骤技能，
+// 否则会去仓库里找一个上游技能文件（它按设计不在版本库里）。
+const DEFAULT_COORDINATE_CAPABILITY = compileEffectiveWorkflowPlan('sdk-coordinates', {
+  name: 'sdk-coordinates',
+  interaction: { version: 'v1', mode: 'afk' },
+  steps: [{
+    id: 'build', label: 'Build', gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [],
+  }],
+}).capabilities.skills
 const AFK_GRANT = { status: 'valid', grants: ['enter-afk'] } as const
 const AUTH_TRACK_REGISTRY: TrackRegistry = {
   ordered: BUILTIN_TRACK_DEFINITIONS,

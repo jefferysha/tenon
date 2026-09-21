@@ -3,8 +3,9 @@ steps:
   - id: change
     label: Change
     gate: null
-    skills:
-      - id: simple-task
+    prompt: |-
+      只改用户点名的局部目标：错字、文案、注释、单文件的值、无用 import。涉及接口或契约、schema 或迁移、鉴权、权限、依赖、发布、生产数据、跨模块或新功能时，不修改，走 scope-expanded。改完运行最窄的检查。
+    skills: []
     inputs: []
     outputs: []
     guards: []

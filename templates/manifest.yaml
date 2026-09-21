@@ -88,56 +88,38 @@ mandatory_skills:
   spec.free: [openspec-propose, writing-plans]
   build.pm: [prototype, frontend-design]
   build.frontend: [test-driven-development, frontend-design]
-  build.backend: [writing-plans, test-driven-development]
-  build.free: [writing-plans, test-driven-development]
+  build.backend: [test-driven-development]
+  build.free: [test-driven-development]
   verify.pm: [browser-qa, web-design-guidelines, design-taste-frontend, verification-before-completion, handoff]
   verify.frontend: [verification-before-completion, e2e-testing, browser-qa, web-design-guidelines, design-taste-frontend]
   verify.backend: [verification-before-completion]
   verify.free: [verification-before-completion]
-  ship.pm: [openspec-apply-change, to-spec, to-tickets]
-  ship.frontend: [openspec-apply-change, openspec-archive-change, finishing-a-development-branch]
-  ship.backend: [openspec-apply-change, finishing-a-development-branch]
-  ship.free: [openspec-apply-change, finishing-a-development-branch]
+  ship.pm: [to-spec, to-tickets]
+  ship.frontend: [finishing-a-development-branch]
+  ship.backend: [finishing-a-development-branch]
+  ship.free: [finishing-a-development-branch]
   # archive 无强制 skill（归档不 gate skill）——不声明即空表
 
 # —— phase × track 推荐 skill 表（老 evidence 派生；缺只 WARN、不阻断）——
+# 技能合一后不再声明推荐项：一步该加载什么由 default.yaml 的 skills 逐条说清楚。
 recommended_skills:
-  explore.pm: [tenon-researcher]
-  explore.frontend: [search-first]
-  explore.backend: [search-first]
-  build.pm: [prototype, frontend-design, hallmark]
-  build.frontend: [react-patterns, hallmark]
 
 # —— breadcrumb prose（老 phases.<phase>.breadcrumb 派生；`|` 字面块标量，缩进 4 定块界）——
-# 消费方：router hook #19 每轮被动注入活跃 change 当前相位的行动提示。派生就绪待消费。
+# 消费方：router hook #19 每轮被动注入活跃 change 当前相位的行动提示。每步做什么来自工作流数据，
+# 这里只指路：真正的清单在 `tenon status <change> --json` 的 step.next。
 # 末尾换行 rstrip（对齐老 CLI `bc.rstrip("\n")`）；内部换行/空行逐字保留。
 breadcrumb:
   open: |
-    立项中。使用 router 已选的 track（pm/frontend/backend，或用户显式选择的 free）创建独立 Change，产出 proposal.md + tasks.md 骨架，init canonical state；只有 dispatch 明确 unresolved/select 或用户点名自定义 workflow 时才请求选择。
-    别跳到实现。常规模式骨架齐后交用户过目、用户说"继续"再 transition open→explore；已绑定持续授权时，仍须完成真实 OpenSpec 文档证据和 tenon check，再按既有 guard 继续，绝不跳过验证。
+    立项：按 tenon status <change> --json 的 step.next 执行。
   explore: |
-    调研 + 深度设计：research 先用 AskUserQuestion 多选调研维度 → 每维度并行 dispatch 隔离 sub-agent
-    tenon-researcher（同消息内并行、各自落盘）→ brainstorming（必做）→ grill（必做，禁自判跳过）。
-    backend 额外 improve-codebase-architecture 架构扫描（必做）；free 只运行 free profile，不叠加领域轨技能。任何 gap 用 AskUserQuestion 批量问、
-    迭代到清零；硬取舍落 ADR。产出 design_doc（含 coverage 块）后停下等用户逐项确认，说"继续"才 transition。
+    调研：按 tenon status <change> --json 的 step.next 执行。
   spec: |
-    规格 + 实施计划：所有 track 先产出 OpenSpec delta spec + 可执行 plan；pm 额外产出用户旅程图。
-    plan 两条必做：①首阶段 = tracer bullet 纵向打通端到端最小链路；②按上下文窗口拆 build 子阶段，
-    plan 里显式标注子阶段边界 + 何处 /clear。产出 plan + 填齐 coverage 块后停下等确认，说"继续"才 transition。
+    规格：按 tenon status <change> --json 的 step.next 执行。
   build: |
-    实现（与 verify 是 barrier、不并行）。完成一个 task 立即把 tasks.md 的 [ ] 改 [x]。
-    fe·be·free：TDD 完整红-绿-重构——先写测试 → 运行确认按预期失败(红) → 最小实现到绿 → 重构。
-    build 内紧反馈循环（必做）：每 task 自跑类型检查 + 测试 + lint、读输出、失败当场自纠，绿了才算完成。
-    fe 含 UI 改动额外过 frontend-design + web-design-guidelines + taste 评→修→复评循环，证据落 REVIEW.md。
-    全 task 自测绿后 build-complete 冻结可复验 build_sha 基线：branch/worktree 为 Git HEAD，in-place 为工作区内容 SHA-256；之后才进 verify。verify 跑完停下等复核。
+    实现：按 tenon status <change> --json 的 step.next 执行。
   verify: |
-    标准轨验证。fe·be：同消息并行 dispatch 三轨——reviewer agent + e2e-runner + codex exec（同读冻结 build_sha 基线；in-place 不得把它当 Git revision）；free 只执行 free profile 的验证技能与 Workflow 门禁。
-    verify 是对 build 已自测产物的独立对抗式二次把关，非替代 build 自测。
-    fe 含 UI 改动额外视觉轨：web-design-guidelines + taste 对跑起来的 app 视觉审查，结论并入 verification_report。
-    pm：跳过三轨，人工走查原型。产出 verification_report、set verify_result 后停下等复核；verify-fail → 回 build。
+    验证：按 tenon status <change> --json 的 step.next 执行。
   ship: |
-    发布。pm：产出 PRD（set prd_path）+ handoff。fe·be：sync spec + 建 PR（set pr_url）。free 按所选 Workflow 与 free profile 应用 spec，不补领域交付物。
-    verify_result≠pass 不许 ship。ship 完停下，用户确认后再手动 transition 进 archive——不自动推进。
+    交付：按 tenon status <change> --json 的 step.next 执行。
   archive: |
-    归档 + 沉淀。用 tenon archive 归档（别手动改 .pipeline.yaml）。
-    debug≥2 轮 / 比较≥2 方案 / 用户要求"沉淀" → 触发 learn-record；做不做把选项问用户拍板，别自行跳。
+    完结：按 tenon status <change> --json 的 step.next 执行。

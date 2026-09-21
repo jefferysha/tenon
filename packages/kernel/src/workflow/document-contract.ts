@@ -13,7 +13,7 @@ import {
   type DocumentKind,
   type DocumentOutputRequirement,
 } from './document-contract-model.js'
-import { aliasesForSkill } from './document-contract-validation.js'
+import { aliasesForSkill, TENON_PRODUCER } from './document-contract-validation.js'
 import { isDefaultWorkflowName } from './identifier.js'
 import { WorkflowTrackBranchError } from './track-branch-error.js'
 export {
@@ -35,7 +35,7 @@ export {
 
 const SPEC_ADR_LIVING_DOCUMENT: DocumentOutputRequirement = {
   kind: 'adr',
-  producerCandidates: ['tenon-spec', 'tenon:tenon-spec'],
+  producerCandidates: [TENON_PRODUCER],
 }
 
 interface DocumentContractBranch {
@@ -147,6 +147,19 @@ export function documentOwnerPolicyStep(
   )
 }
 
+/**
+ * `tenon` 是隐式产出者：它不出现在任何 step 的 `skills` 里，但活文档的刷新、OpenSpec 的活更新与
+ * `applied-spec` 都由它完成（父设计 X4）。只对这三类放行，别的产出仍须由声明的技能写。
+ */
+function tenonImplicitlyProduces(
+  policy: DocumentGovernancePolicy,
+  kind: DocumentKind,
+  step: string,
+): boolean {
+  if (kind === 'applied-spec') return true
+  return (policy.mutableByStep[step] ?? []).some((requirement) => requirement.kind === kind)
+}
+
 function recordRequirementForPolicy(
   policy: DocumentGovernancePolicy,
   kind: DocumentKind,
@@ -184,6 +197,8 @@ export function isDocumentProducerAllowedInPolicyStep(
 ): boolean {
   const requirement = recordRequirementForPolicy(policy, kind, step)
   if (!requirement) return false
+  if (aliasesForSkill(producer).includes(TENON_PRODUCER)
+    && tenonImplicitlyProduces(policy, kind, step)) return true
   const supplied = new Set(aliasesForSkill(producer))
   return requirement.producerCandidates.some((candidate) =>
     aliasesForSkill(candidate).some((alias) => supplied.has(alias)),

@@ -109,7 +109,7 @@ test('document ledger 在解析和磁盘读取前执行条目/字节硬上限', 
     kind: 'proposal',
     path: `docs/${index}.md`,
     sha256: 'a'.repeat(64),
-    producer: 'tenon-spec',
+    producer: 'tenon',
     recordedAt: NOW,
     reads: [],
   }))
@@ -136,7 +136,7 @@ test('document record 在 digest 前拒绝超过单文档硬上限的来源', as
     phase: 'open',
     kind: 'proposal',
     path: relativePath,
-    producer: 'tenon-spec',
+    producer: 'tenon',
     recordedAt: NOW,
   })).rejects.toThrow(/document 超过/)
 })
@@ -802,22 +802,22 @@ describe('OpenSpec document ledger', () => {
     await expect(recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'tasks', path: tasks,
       producer: 'openspec-propose', recordedAt: NOW,
-    })).rejects.toThrow(/当前 spec 允许: tenon-spec/)
+    })).rejects.toThrow(/当前 spec 允许: tenon/)
 
-    await appendSkillHistory(changeDir, 'tenon-spec')
+    await appendSkillHistory(changeDir, 'tenon')
     const afterTasks = await recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'tasks', path: tasks,
-      producer: 'tenon-spec', recordedAt: NOW,
+      producer: 'tenon', recordedAt: NOW,
     })
     const afterDesign = await recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'superpower-design', path: design,
-      producer: 'tenon-spec', recordedAt: NOW,
+      producer: 'tenon', recordedAt: NOW,
     })
-    expect(afterTasks.records.find((record) => record.kind === 'tasks')?.producer).toBe('tenon-spec')
-    expect(afterDesign.records.find((record) => record.kind === 'superpower-design')?.producer).toBe('tenon-spec')
+    expect(afterTasks.records.find((record) => record.kind === 'tasks')?.producer).toBe('tenon')
+    expect(afterDesign.records.find((record) => record.kind === 'superpower-design')?.producer).toBe('tenon')
   })
 
-  test('Explore 回填 OpenSpec proposal/design 时必须由 tenon-explore 重登记并重新读取', async () => {
+  test('Explore 回填 OpenSpec proposal/design 时必须由 tenon 重登记并重新读取', async () => {
     const { root, changeDir, name } = await fixture()
     const proposal = `openspec/changes/${name}/proposal.md`
     const design = `openspec/changes/${name}/design.md`
@@ -845,27 +845,27 @@ describe('OpenSpec document ledger', () => {
       `${JSON.stringify({ kind: 'transition', from: 'open', to: 'explore' })}\n`,
       'utf8',
     )
-    await appendSkillHistory(changeDir, 'tenon-explore')
+    await appendSkillHistory(changeDir, 'tenon')
 
     await writeDoc(root, proposal, '# explored proposal\n')
     await writeDoc(root, design, '# explored design\n')
     await expect(recordDocument({
       repoRoot: root, changeDir, phase: 'explore', kind: 'proposal', path: proposal,
       producer: 'openspec-propose', recordedAt: NOW,
-    })).rejects.toThrow(/当前 explore 允许: tenon-explore/)
+    })).rejects.toThrow(/当前 explore 允许: tenon/)
 
     const afterProposal = await recordDocument({
       repoRoot: root, changeDir, phase: 'explore', kind: 'proposal', path: proposal,
-      producer: 'tenon-explore', recordedAt: NOW,
+      producer: 'tenon', recordedAt: NOW,
     })
     expect(afterProposal.records.find((record) => record.kind === 'proposal')).toMatchObject({
-      producer: 'tenon-explore', reads: [],
+      producer: 'tenon', reads: [],
     })
     const updated = await recordDocument({
       repoRoot: root, changeDir, phase: 'explore', kind: 'openspec-design', path: design,
-      producer: 'tenon-explore', recordedAt: NOW,
+      producer: 'tenon', recordedAt: NOW,
     })
-    expect(updated.records.find((record) => record.kind === 'openspec-design')?.producer).toBe('tenon-explore')
+    expect(updated.records.find((record) => record.kind === 'openspec-design')?.producer).toBe('tenon')
 
     await recordDocumentReads({ repoRoot: root, changeDir, phase: 'explore', kind: 'all', readAt: NOW })
     const afterRead = await evaluateDocumentEvidence(root, changeDir, 'explore')
@@ -873,7 +873,7 @@ describe('OpenSpec document ledger', () => {
     expect(afterRead.items.find((item) => item.kind === 'proposal')?.status).toBe('recorded')
     expect(afterRead.items.find((item) => item.kind === 'openspec-design')?.status).toBe('recorded')
     expect(afterRead.items.find((item) => item.kind === 'proposal')?.timeline).toEqual([
-      { producer: 'tenon-explore', recordedAt: NOW, readAt: NOW },
+      { producer: 'tenon', recordedAt: NOW, readAt: NOW },
     ])
     expect(afterRead.blockers).not.toContain("document 'proposal' 的 producer 不符合当前 document contract")
     expect(afterRead.blockers).not.toContain("document 'openspec-design' 的 producer 不符合当前 document contract")
@@ -883,7 +883,7 @@ describe('OpenSpec document ledger', () => {
     const { root, changeDir, name } = await fixture()
     const tasks = `openspec/changes/${name}/tasks.md`
     await writeDoc(root, tasks, '# changed in current spec visit\n')
-    await appendSkillHistory(changeDir, 'tenon-spec')
+    await appendSkillHistory(changeDir, 'tenon')
     await writeFile(
       join(changeDir, '.pipeline-history.jsonl'),
       `${JSON.stringify({ kind: 'transition', from: 'explore', to: 'spec' })}\n`,
@@ -891,17 +891,17 @@ describe('OpenSpec document ledger', () => {
     )
     await expect(recordDocumentState({ policy: LEGACY_DOCUMENT_GOVERNANCE_POLICY,
       repoRoot: root, changeDir, phase: 'spec', kind: 'tasks', path: tasks,
-      producer: 'tenon-spec', recordedAt: NOW,
+      producer: 'tenon', recordedAt: NOW,
     })).rejects.toThrow(/缺少 Skill 调用证据（当前 phase）/)
 
-    await appendSkillHistory(changeDir, 'tenon-spec')
+    await appendSkillHistory(changeDir, 'tenon')
     await expect(recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'tasks', path: tasks,
-      producer: 'tenon-spec', recordedAt: NOW,
-    })).resolves.toMatchObject({ records: [expect.objectContaining({ kind: 'tasks', producer: 'tenon-spec' })] })
+      producer: 'tenon', recordedAt: NOW,
+    })).resolves.toMatchObject({ records: [expect.objectContaining({ kind: 'tasks', producer: 'tenon' })] })
   })
 
-  test('七阶段 Todo 是活文档：每个 phase 只能用自己的 phase skill 重新登记 tasks', async () => {
+  test('七阶段 Todo 是活文档：每个 phase 都由 tenon 重新登记 tasks', async () => {
     const { root, changeDir, name } = await fixture()
     const tasks = `openspec/changes/${name}/tasks.md`
     await writeDoc(root, tasks, '# Tasks\n\n## Open\n- [x] open\n')
@@ -912,7 +912,7 @@ describe('OpenSpec document ledger', () => {
     })
 
     for (const phase of ['explore', 'spec', 'build', 'verify', 'ship', 'archive'] as const) {
-      const producer = `tenon-${phase}`
+      const producer = 'tenon'
       await appendFile(
         join(changeDir, '.pipeline-history.jsonl'),
         `${JSON.stringify({ kind: 'transition', from: 'previous', to: phase })}\n`,
@@ -928,7 +928,7 @@ describe('OpenSpec document ledger', () => {
     }
   })
 
-  test('requirements-changed 回到 spec 后，tenon-spec 可诚实重登记修订后的 proposal/design', async () => {
+  test('requirements-changed 回到 spec 后，tenon 可诚实重登记修订后的 proposal/design', async () => {
     const { root, changeDir, name } = await fixture()
     const proposal = `openspec/changes/${name}/proposal.md`
     const design = `openspec/changes/${name}/design.md`
@@ -945,27 +945,27 @@ describe('OpenSpec document ledger', () => {
     })
 
     await commitCanonicalTransition(changeDir, 'build', 'spec', 'requirements-changed')
-    await appendSkillHistory(changeDir, 'tenon-spec')
+    await appendSkillHistory(changeDir, 'tenon')
     await writeDoc(root, proposal, '# revised proposal\n')
     await writeDoc(root, design, '# revised design\n')
 
     const proposalLedger = await recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'proposal', path: proposal,
-      producer: 'tenon-spec', recordedAt: NOW,
+      producer: 'tenon', recordedAt: NOW,
     })
     expect(proposalLedger.records.find((record) => record.kind === 'proposal')).toMatchObject({
-      producer: 'tenon-spec',
+      producer: 'tenon',
     })
     const designLedger = await recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'openspec-design', path: design,
-      producer: 'tenon-spec', recordedAt: NOW,
+      producer: 'tenon', recordedAt: NOW,
     })
     expect(designLedger.records.find((record) => record.kind === 'openspec-design')).toMatchObject({
-      producer: 'tenon-spec',
+      producer: 'tenon',
     })
   })
 
-  test('requirements-changed 回到 spec 后，只有当前 tenon-spec 可重登记 ADR 新摘要', async () => {
+  test('requirements-changed 回到 spec 后，只有当前 tenon 可重登记 ADR 新摘要', async () => {
     const { root, changeDir, name } = await fixture()
     const adr = `docs/adr/${name}.md`
     const frozenPolicy = {
@@ -992,25 +992,25 @@ describe('OpenSpec document ledger', () => {
 
     await expect(recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'adr', path: adr,
-      producer: 'tenon-spec', recordedAt: NOW, policy: frozenPolicy,
+      producer: 'tenon', recordedAt: NOW, policy: frozenPolicy,
     })).rejects.toThrow(/缺少 Skill 调用证据（当前 phase）/)
 
-    await appendSkillHistory(changeDir, 'brainstorming', 'tenon-spec')
+    await appendSkillHistory(changeDir, 'brainstorming', 'tenon')
     await expect(recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'adr', path: adr,
       producer: 'brainstorming', recordedAt: NOW, policy: frozenPolicy,
-    })).rejects.toThrow(/当前 spec 允许: tenon-spec/)
+    })).rejects.toThrow(/当前 spec 允许: tenon/)
     await expect(recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'adr', path: adr,
-      producer: 'tenon-spec', recordedAt: NOW, allowBackfill: true, policy: frozenPolicy,
+      producer: 'tenon', recordedAt: NOW, allowBackfill: true, policy: frozenPolicy,
     })).rejects.toThrow(/--backfill 只能首次登记历史 document/)
 
     const revised = await recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'adr', path: adr,
-      producer: 'tenon-spec', recordedAt: NOW, policy: frozenPolicy,
+      producer: 'tenon', recordedAt: NOW, policy: frozenPolicy,
     })
     expect(revised.records.find((record) => record.kind === 'adr')).toMatchObject({
-      producer: 'tenon-spec',
+      producer: 'tenon',
       reads: [],
     })
   })
@@ -1072,12 +1072,12 @@ describe('OpenSpec document ledger', () => {
       to: 'spec',
     })
     await writeFile(transitionPath, JSON.stringify(record), 'utf8')
-    await appendSkillHistory(changeDir, 'tenon-spec')
+    await appendSkillHistory(changeDir, 'tenon')
     await writeDoc(root, adr, '# forged transition rewrite\n')
 
     await expect(recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'adr', path: adr,
-      producer: 'tenon-spec', recordedAt: NOW,
+      producer: 'tenon', recordedAt: NOW,
     })).rejects.toThrow(/TransitionRecord digest|审计绑定/)
   })
 
@@ -1122,11 +1122,11 @@ describe('OpenSpec document ledger', () => {
     companion.stateDigest = current.stateDigest
     await writeFile(companionPath, `${JSON.stringify(companion)}\n`, 'utf8')
 
-    await appendSkillHistory(changeDir, 'tenon-spec')
+    await appendSkillHistory(changeDir, 'tenon')
     await writeDoc(root, adr, '# forged old head rewrite\n')
     await expect(recordDocument({
       repoRoot: root, changeDir, phase: 'spec', kind: 'adr', path: adr,
-      producer: 'tenon-spec', recordedAt: NOW,
+      producer: 'tenon', recordedAt: NOW,
     })).rejects.toThrow(/非 transition revision.*head|runMetadata head/)
   })
 
@@ -1154,7 +1154,7 @@ describe('OpenSpec document ledger', () => {
       policy: frozenPolicy,
     })
     await commitCanonicalTransition(changeDir, 'explore', 'spec', 'explore-complete')
-    await appendSkillHistory(changeDir, 'tenon-spec')
+    await appendSkillHistory(changeDir, 'tenon')
     await writeDoc(root, adr, '# unauthorized first-spec rewrite\n')
 
     await expect(recordDocument({
@@ -1163,7 +1163,7 @@ describe('OpenSpec document ledger', () => {
       phase: 'spec',
       kind: 'adr',
       path: adr,
-      producer: 'tenon-spec',
+      producer: 'tenon',
       recordedAt: NOW,
       policy: frozenPolicy,
     })).rejects.toThrow(/requirements-changed/)
@@ -1187,7 +1187,7 @@ describe('OpenSpec document ledger', () => {
       policy,
     })
     await commitCanonicalTransition(changeDir, 'explore', 'spec', 'explore-complete')
-    await appendSkillHistory(changeDir, 'tenon-spec')
+    await appendSkillHistory(changeDir, 'tenon')
     await writeDoc(root, adr, '# unauthorized first-spec rewrite\n')
 
     await expect(recordDocument({
@@ -1196,7 +1196,7 @@ describe('OpenSpec document ledger', () => {
       phase: 'spec',
       kind: 'adr',
       path: adr,
-      producer: 'tenon-spec',
+      producer: 'tenon',
       recordedAt: NOW,
       policy,
     })).rejects.toThrow(/requirements-changed/)
@@ -1222,7 +1222,7 @@ describe('OpenSpec document ledger', () => {
       `${JSON.stringify({ kind: 'transition', from: 'build', to: 'spec', raw: 'requirements-changed' })}\n`,
       'utf8',
     )
-    await appendSkillHistory(changeDir, 'tenon-spec')
+    await appendSkillHistory(changeDir, 'tenon')
     await writeDoc(root, adr, '# forged history rewrite\n')
 
     await expect(recordDocument({
@@ -1231,7 +1231,7 @@ describe('OpenSpec document ledger', () => {
       phase: 'spec',
       kind: 'adr',
       path: adr,
-      producer: 'tenon-spec',
+      producer: 'tenon',
       recordedAt: NOW,
     })).rejects.toThrow(/requirements-changed/)
   })

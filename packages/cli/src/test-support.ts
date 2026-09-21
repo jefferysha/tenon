@@ -83,8 +83,8 @@ export function mockState(fields: Partial<Record<FieldName, string | string[]>> 
 }
 
 /**
- * 技能矩阵并入 YAML 之前的 default 定义（只保留无轨道条件的 tenon-* 驱动技能）：manifest a|b 备选、
- * 机器级 mandatory/recommended 表这些 manifest-overlay 机制的单测，用它冻结成 run 快照后仍按旧口径求值。
+ * 技能矩阵并入 YAML 之前的 default 定义（step 不声明技能，全部来自 manifest 叠加）：manifest a|b
+ * 备选、机器级 mandatory/recommended 表这些 manifest-overlay 机制的单测，用它冻结成 run 快照后仍按旧口径求值。
  */
 export function legacyDefaultWorkflowDef(): WorkflowDef {
   const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
@@ -97,7 +97,7 @@ export function legacyDefaultWorkflowDef(): WorkflowDef {
     ...(branch?.documentContract === undefined ? {} : { documentContract: branch.documentContract }),
     steps: frontend.map((step) => ({
       ...step,
-      skills: step.skills.filter((skill) => skill.id.startsWith('tenon-')),
+      skills: [],
       ...(step.id === 'spec' && step.artifacts !== undefined
         ? { artifacts: step.artifacts.map((artifact) => artifact.field === 'plan' ? { ...artifact, requiredWhen: { kind: 'track-not-in' as const, values: ['pm'] } } : artifact) }
         : {}),
@@ -421,8 +421,8 @@ export const testEffectiveSkillResolver: EffectiveSkillResolver = {
  * 缺失态测试应显式注入不在 registry 的自定义 workflow skill，确保 setup 不会掩盖扩展缺口。
  */
 const DEFAULT_MANIFEST_SKILLS: { mandatory: SkillTable; recommended: SkillTable } = {
-  mandatory: { build: { frontend: ['tenon-build', 'tenon-spec'] } } as unknown as SkillTable,
-  recommended: { build: { frontend: ['tenon-researcher'] } } as unknown as SkillTable,
+  mandatory: { build: { frontend: ['tenon'] } } as unknown as SkillTable,
+  recommended: {} as unknown as SkillTable,
 }
 
 export function mockDoctorProbes(overrides: Partial<DoctorProbes> = {}): DoctorProbes {
@@ -465,11 +465,12 @@ export function mockDoctorProbes(overrides: Partial<DoctorProbes> = {}): DoctorP
     installedSkillNames: () => new Set(),
     // Codex normal-chat 就绪面：缺省 fixture 代表安装器已投递完整 contract skills。
     codexProjectSkillNames: () => new Set([
-      'tenon', 'tenon-open', 'tenon-explore', 'tenon-spec', 'tenon-build', 'tenon-verify',
-      'tenon-ship', 'tenon-archive', 'openspec-propose', 'openspec-explore', 'openspec-apply-change',
-      'openspec-archive-change', 'brainstorming', 'grill-with-docs', 'improve-codebase-architecture',
+      'tenon', 'openspec-propose', 'openspec-explore',
+      'brainstorming', 'grill-with-docs', 'improve-codebase-architecture',
       'writing-plans', 'test-driven-development', 'verification-before-completion',
       'finishing-a-development-branch', 'browser-qa', 'e2e-testing',
+      'frontend-design', 'design-taste-frontend', 'web-design-guidelines',
+      'handoff', 'prototype', 'to-spec', 'to-tickets',
     ]),
     hostPluginInventory: async () => ({ kind: 'native', host: 'claude', enabledIds: new Set(['tenon@tenon']) }),
     manifestSkills: () => DEFAULT_MANIFEST_SKILLS,

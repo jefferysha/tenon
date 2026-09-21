@@ -22,12 +22,12 @@ export function allFields(
 }
 
 /**
- * 2026-09 技能合一之前的 default 定义（技能矩阵仍在机器级 manifest、YAML 只有 tenon-* 驱动技能）：
- * 只保留无轨道条件的 tenon-* 驱动技能即得。manifest-overlay 机制的单测用它做夹具——该机制仍服务冻结的老快照。
+ * 技能全部来自 manifest 叠加的 default 定义（step 自己不声明技能）：manifest-overlay 机制的单测
+ * 用它做夹具——该机制仍服务冻结的老快照。
  */
 export function legacyDefaultWorkflow(): WorkflowDef {
   const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
-  // 分支化之前 default 只有一条 pipeline：驱动技能 + spec 的 plan artifact 带 PM 豁免谓词。用 frontend 分支（含其文档契约）还原它。
+  // 分支化之前 default 只有一条 pipeline：spec 的 plan artifact 带 PM 豁免谓词。用 frontend 分支（含其文档契约）还原它。
   const branch = def.tracks?.frontend
   const frontend = branch?.steps ?? def.steps
   return {
@@ -36,7 +36,7 @@ export function legacyDefaultWorkflow(): WorkflowDef {
     ...(branch?.documentContract === undefined ? {} : { documentContract: branch.documentContract }),
     steps: frontend.map((step) => ({
       ...step,
-      skills: step.skills.filter((skill) => skill.id.startsWith('tenon-')),
+      skills: [],
       ...(step.id === 'spec' && step.artifacts !== undefined
         ? { artifacts: step.artifacts.map((artifact) => artifact.field === 'plan' ? { ...artifact, requiredWhen: { kind: 'track-not-in' as const, values: ['pm'] } } : artifact) }
         : {}),

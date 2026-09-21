@@ -258,7 +258,12 @@ function evaluateCoverage(
     }
   }
   if (covBlock > 0) {
-    failures.push(`spec 出口：全栈 Spec 覆盖（${covBlock} 层阻塞）`)
+    // 怎么解开写在失败行里：这条指引原先散在阶段 skill 的散文中，现在只剩这一处。
+    failures.push(
+      `spec 出口：全栈 Spec 覆盖（${covBlock} 层阻塞）；`
+      + '在 design_doc 的 ```coverage 块为每个阻塞层写 filled -> <章节> 或 waived -> <理由>'
+      + '（touches 含 auth 时 L6 不可 waived）',
+    )
     for (const l of blockedLines) warnings.push(`覆盖阻塞: ${l}`)
   }
 }

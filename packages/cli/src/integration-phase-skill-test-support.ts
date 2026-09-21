@@ -1,5 +1,5 @@
 /**
- * Test-only bridge for recording a real Workflow-owned phase Skill receipt.
+ * Test-only bridge for recording a real `tenon` Skill receipt for the current step visit.
  *
  * Transition fixtures must go through the production PostToolUse tracker rather than appending a
  * synthetic history row.  Keeping this bridge outside the main harness keeps the harness focused
@@ -13,11 +13,14 @@ import { createStateStore, ensureUserLocalDir, isTenonUser, resolveTenonUser } f
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
-/** Drive the production PostToolUse hook for the current Workflow-owned phase Skill. */
-export async function recordWorkflowPhaseSkill(root: string, changeDir: string): Promise<void> {
+/** Drive the production PostToolUse hook for a Skill of the current step visit. */
+export async function recordWorkflowPhaseSkill(
+  root: string,
+  changeDir: string,
+  skill = 'tenon',
+): Promise<void> {
   const state = await createStateStore().read(changeDir)
   const phase = String(state.fields.phase)
-  const skill = `tenon-${phase}`
   const user = resolveTenonUser(root, process.env)
   if (!isTenonUser(user)) throw new Error('recordWorkflowPhaseSkill needs a declared TENON_USER')
   // The hook resolves the same identity from the inherited env and reads this user's pointer.

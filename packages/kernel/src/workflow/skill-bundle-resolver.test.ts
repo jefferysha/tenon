@@ -61,7 +61,6 @@ describe('resolveSkillBundle —— default 分支委托 frozen explicit profile
     expect(result).toEqual({
       source: 'default',
       slots: [
-        { token: 'tenon-explore', alternatives: ['tenon-explore'] },
         { token: 'opsx:explore|openspec-explore', alternatives: ['opsx:explore', 'openspec-explore'] },
         { token: 'grill-with-docs', alternatives: ['grill-with-docs'] },
       ],
@@ -79,7 +78,6 @@ describe('resolveSkillBundle —— default 分支委托 frozen explicit profile
     })).toEqual({
       source: 'default',
       slots: [
-        { token: 'tenon-open', alternatives: ['tenon-open'] },
         { token: 'propose', alternatives: ['propose'] },
       ],
     })
@@ -111,7 +109,6 @@ describe('resolveSkillBundle —— default 分支委托 frozen explicit profile
     })).toEqual({
       source: 'default',
       slots: [
-        { token: 'tenon-open', alternatives: ['tenon-open'] },
         { token: 'propose', alternatives: ['propose'] },
       ],
     })
@@ -126,7 +123,7 @@ describe('resolveSkillBundle —— default 分支委托 frozen explicit profile
     const result = resolveSkillBundle(resolver, {
       kind: 'default', stepId: 'build', profileId: 'free', capability: plan.capabilities.skills,
     })
-    expect(result.slots.map((slot) => slot.token)).toEqual(['tenon-build', 'writing-plans', 'hallmark'])
+    expect(result.slots.map((slot) => slot.token)).toEqual(['writing-plans', 'hallmark'])
   })
 
   it('issue #43：default bundle 缺 frozen capability 时 fail-closed，不回退到 profile-only resolver', () => {

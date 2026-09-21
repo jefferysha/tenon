@@ -661,16 +661,11 @@ describe('default skill bundle 资产真实性', () => {
     }
   })
 
-  it('tenon-ship 如实把 commit-push-pr 标为可选外部命令，默认 bundled registry 不再依赖它', async () => {
+  it('默认 bundled registry 不依赖外部 commit-push-pr 命令', async () => {
     const sources = await readFile(join(process.cwd(), 'templates', 'skill-sources.yaml'), 'utf8')
-    const ship = await readFile(join(process.cwd(), 'skills', 'tenon-ship', 'SKILL.md'), 'utf8')
     const sourceLine = sources.split('\n').find((line) => line.trimStart().startsWith('commit-commands:commit-push-pr:'))
 
     expect(sourceLine).toBeUndefined()
-    expect(ship).not.toMatch(/使用 Skill 工具加载 `commit-commands:commit(?:-push-pr)?`/)
-    expect(ship).not.toMatch(/external-skill:\s*commit-commands:/)
-    expect(ship).toMatch(/commit\s*\+\s*push\s*\+\s*(?:创建\s*)?PR.*必做|必做.*commit\s*\+\s*push\s*\+\s*(?:创建\s*)?PR/i)
-    expect(ship).toMatch(/commit-commands:commit-push-pr.*可选|可选.*commit-commands:commit-push-pr/i)
   })
 })
 
@@ -692,7 +687,7 @@ describe('createExecutionCoordinatePort', () => {
     expect(coord.resolution).toMatchObject({ kind: 'default', stepId: 'build' })
     if (coord.resolution.kind === 'default') {
       expect(coord.resolution.capability?.steps.find((step) => step.stepId === 'build')?.requiredSkillIds)
-        .toEqual(['tenon-build'])
+        .toEqual(['test-driven-development'])
     }
     expect(typeof coord.inputsDigest).toBe('string')
     expect(coord.inputsDigest.length).toBeGreaterThan(0)
@@ -713,7 +708,7 @@ describe('createExecutionCoordinatePort', () => {
     const coord = await port.capture(ctxFor('x') as never)
     if (coord.resolution.kind !== 'default') throw new Error('expected default coordinate')
     expect(coord.resolution.capability?.steps.find((step) => step.stepId === 'build')?.requiredSkillIds)
-      .toEqual(['tenon-build'])
+      .toEqual(['test-driven-development'])
     expect(coord.workflowRunId).toBe('workflow-run-frozen-capability')
   })
 

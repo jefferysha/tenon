@@ -85,7 +85,7 @@ install_rules() {
     # 人类确认后：
     tenon review acknowledge <change>
 
-不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀 /pipeline-（如 /tenon-explore）。
+不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀 /pipeline-。
 EOF
 )"
   local rel f range effective="AGENTS.md"

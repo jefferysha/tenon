@@ -79,7 +79,7 @@ tracks:
         label: build
         gate: null
         skills:
-          - id: tenon-build
+          - id: brainstorming
         inputs: []
         outputs: []
         guards: []
@@ -250,10 +250,10 @@ describe('真实 e2e —— transition 非 default workflow 的真实 step 间�
     expect(entered).toMatch(/^archived: false$/m)
 
     expect(await h.run(['transition', CHANGE, 'archived'])).toBe(2)
-    expect(h.err.join('\n')).toContain('tenon-build')
+    expect(h.err.join('\n')).toContain('brainstorming')
     expect(await h.read(CHANGE)).toMatch(/^archived: false$/m)
 
-    await recordWorkflowPhaseSkill(h.cwd, join(h.cwd, 'openspec', 'changes', CHANGE))
+    await recordWorkflowPhaseSkill(h.cwd, join(h.cwd, 'openspec', 'changes', CHANGE), 'brainstorming')
     expect(await h.run(['transition', CHANGE, 'archived'])).toBe(0)
     const closed = await h.read(CHANGE)
     expect(closed).toMatch(/^phase: build$/m)

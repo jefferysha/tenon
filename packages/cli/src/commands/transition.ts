@@ -52,7 +52,8 @@
 import {
   compileWorkflow, completedWorkflowSkillsSinceStepEntry, createTransitionApplication,
   loadRegistry, loadWorkflow, nodeLoopIoStrict, requireTrackForRoot, resolveRequiredSkillSlots,
-  readReviewGateBinding, renderAgentBlocker, reviewGateBindingMatches, ownerRequiredMessage,
+  readReviewGateBinding, renderAgentBlocker, retiredSkillsChangeMessage,
+  reviewGateBindingMatches, ownerRequiredMessage,
   TASK_PLAN_CURRENT_FILE, TASK_PLAN_LIMITS, TASK_PLAN_STATE_DIR,
   taskPlanTasksThroughPhaseForChange,
 } from '@tenon/kernel'
@@ -273,6 +274,9 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         deps.io.err(
           `ERROR: workflow '${result.workflowName}' 未找到（期望 .pipeline/workflows/${result.workflowName}.yaml）`,
         )
+        return 1
+      case 'retired-skills':
+        deps.io.err(`ERROR: ${retiredSkillsChangeMessage(name, result.skills)}`)
         return 1
       case 'document-governance-invalid':
         deps.io.err(`ERROR: ${result.reason}`)

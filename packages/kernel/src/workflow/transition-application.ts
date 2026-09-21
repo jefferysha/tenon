@@ -47,6 +47,7 @@ import type { EventName, TransitionContext } from '../flow/index.js'
 import { evaluateDefaultEventPreconditions, DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
 import { applyStepTransition, planStepTransition, resolveStep } from './engine.js'
 import { implicitCompletionTransition } from './implicit-completion.js'
+import { retiredSkillReferences } from './retired-skills.js'
 import { rejectOnStepGates } from './transition-step-gates.js'
 import { applyActions } from './action-handlers.js'
 import { evaluateConstraintPolicy, type ConstraintDecision } from '../loops/automation-policy.js'
@@ -299,6 +300,9 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
           throw error
         }
         if (!effectivePlan) return { kind: 'workflow-not-found', workflowName }
+        // 引用已删除技能的快照没有兼容层：在排边之前一次认出来，别让它后面报一堆不相干的错。
+        const retired = retiredSkillReferences(effectivePlan)
+        if (retired.length > 0) return { kind: 'retired-skills', workflowName, skills: retired }
         let prepared: PreparedTransition | TransitionRejection
         if (effectivePlan.capabilities.execution.model === 'phase-manifest') {
           prepared = await planDefaultTransition(tx.state, command, deps.flow, deps.clock, effectivePlan)

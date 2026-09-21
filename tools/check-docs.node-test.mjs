@@ -332,24 +332,6 @@ test('detects workflow shape drift from the YAML step list', async (t) => {
   assert.match(checkRepository(root).join('\n'), /routing-and-workflows\.md.*audit/)
 })
 
-test('rejects a default phase Skill missing from the source YAML and generated runtime contract', async (t) => {
-  const root = await fixture()
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const source = await readFile(join(root, 'templates/workflows/default.yaml'), 'utf8')
-  await write(root, 'templates/workflows/default.yaml', source.replace('tenon-build', 'wrong-build'))
-  const failures = checkRepository(root).join('\n')
-  assert.match(failures, /default\.yaml.*build.*tenon-build/)
-})
-
-test('rejects a dispatch mapping drift even when source and generated workflow still agree', async (t) => {
-  const root = await fixture()
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const skill = await readFile(join(root, 'skills/tenon/SKILL.md'), 'utf8')
-  await write(root, 'skills/tenon/SKILL.md', skill.replace('| `verify` | `tenon-verify` |', '| `verify` | `tenon-build` |'))
-  const failures = checkRepository(root).join('\n')
-  assert.match(failures, /SKILL\.md.*verify.*tenon-verify/)
-})
-
 test('detects drift in the documented runtime subcommands', async (t) => {
   const root = await fixture()
   t.after(() => rm(root, { recursive: true, force: true }))

@@ -16,7 +16,7 @@ describe('materializeWorkflowIo', () => {
     }
     expect(io.open?.outputs.map((slot) => slot.id)).toEqual(['proposal', 'openspec-design', 'tasks'])
     expect(io.build?.outputs).toEqual([
-      { kind: 'document', id: 'tasks', role: 'update', scope: 'change', producers: ['tenon-build', 'tenon:tenon-build'], consumers: ['verify', 'ship', 'archive'] },
+      { kind: 'document', id: 'tasks', role: 'update', scope: 'change', producers: ['tenon'], consumers: ['verify', 'ship', 'archive'] },
       { kind: 'field', id: 'build_sha', type: 'string', producer: null, consumers: ['verify'] },
     ])
     // 交付步骤可以更新项目 DESIGN.md（设计变更随交付合并回设计体系）。

@@ -112,6 +112,11 @@ export type TransitionApplicationResult =
   | { readonly kind: 'revision-untrusted'; readonly blocker: BuildRevisionBlocker }
   | { readonly kind: 'workflow-not-found'; readonly workflowName: string }
   | {
+      readonly kind: 'retired-skills'
+      readonly workflowName: string
+      readonly skills: readonly string[]
+    }
+  | {
       readonly kind: 'document-governance-invalid'
       readonly workflowName: string
       readonly reason: string

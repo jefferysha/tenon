@@ -227,8 +227,8 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
   /** 走完一个相位在 backend track 下 manifest 真派生的全部 mandatory skill（skillsFor 三级回退，
    *  非硬编码——manifest.yaml 改了这里自动跟着变，回归锚同 manifest-derive.test.ts 的单一真相源原则）。 */
   async function runMandatorySkillsForPhase(phase: Phase): Promise<void> {
-    // The Workflow-owned phase entry is required even when Track overlays are empty/disabled.
-    await invokeSkillThroughGate(phase, `tenon-${phase}`)
+    // 每次进入步骤都先重新加载唯一的 tenon skill：它是产出登记的宿主确认来源。
+    await invokeSkillThroughGate(phase, 'tenon')
     for (const token of skillsFor(manifest.mandatorySkills, phase, TRACK)) {
       await invokeSkillThroughGate(phase, token)
     }
@@ -369,18 +369,11 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     expect(skillTools).toHaveLength(toolCount)
     expect(reviewOps).toHaveLength(6) // explore/spec/verify 各 request + acknowledge
     expect(prompts).toHaveLength(unlockCount)
-    // Ship 契约分两层：manifest 只列可由 Skill 工具加载的 mandatory skill；commit/push/PR 是
-    // tenon-ship 里的必做交付动作，不能伪装成 command token 塞进 skill bundle。
-    expect(skillsFor(manifest.mandatorySkills, 'ship', TRACK)).toEqual([
-      'openspec-apply-change',
-      'finishing-a-development-branch',
-    ])
-    const pipelineShip = readFileSync(join(REPO_ROOT, 'skills', 'tenon-ship', 'SKILL.md'), 'utf8')
-    expect(pipelineShip).toContain('完成 commit + push + 创建 PR。**这是必做交付动作，不是 Skill。**')
-    expect(pipelineShip).toContain('/commit-commands:commit-push-pr` 仅是可选命令加速器，不进入 skill bundle。')
+    // Ship 只列可由 Skill 工具加载的 mandatory skill；规格应用由 `tenon spec apply` 完成。
+    expect(skillsFor(manifest.mandatorySkills, 'ship', TRACK)).toEqual(['finishing-a-development-branch'])
 
-    // 与当前真实 manifest.yaml 的锚点（backend track 全 7 相位 mandatory skill 求和）。
-    expect(toolCount).toBe(19)
+    // 与当前真实 manifest.yaml 的锚点（backend track 全 7 相位 mandatory skill 求和 + 每步一次 tenon）。
+    expect(toolCount).toBe(17)
     expect(unlockCount).toBe(2)
 
     // 行序因果核验（非仅计数）：每个相位区间内的 tool/prompt 条数必须落在该相位真实转移事件之间
@@ -393,16 +386,16 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     const idxShip = idx('ship')
     const idxArchive = idx('archive')
     const skillCount = (entries: HistLine[]) => entries.filter((p) => p.kind === 'tool' && p.raw?.startsWith('Skill:')).length
-    expect(skillCount(parsed.slice(0, idxExplore))).toBe(2) // open 阶段 phase + overlay skill
+    expect(skillCount(parsed.slice(0, idxExplore))).toBe(2) // open 阶段 tenon + overlay skill
     expect(skillCount(seg(idxExplore, idxSpec))).toBe(5)
     expect(seg(idxExplore, idxSpec).filter((p) => p.kind === 'prompt')).toHaveLength(2)
     expect(skillCount(seg(idxSpec, idxBuild))).toBe(3)
     expect(seg(idxSpec, idxBuild).filter((p) => p.kind === 'prompt')).toHaveLength(0)
-    expect(skillCount(seg(idxBuild, idxVerify))).toBe(3)
+    expect(skillCount(seg(idxBuild, idxVerify))).toBe(2)
     expect(seg(idxBuild, idxVerify).filter((p) => p.kind === 'prompt')).toHaveLength(0) // build 非 review 相位，全程不该有解锁
     expect(skillCount(seg(idxVerify, idxShip))).toBe(2)
     expect(seg(idxVerify, idxShip).filter((p) => p.kind === 'prompt')).toHaveLength(0)
-    expect(skillCount(seg(idxShip, idxArchive))).toBe(3)
+    expect(skillCount(seg(idxShip, idxArchive))).toBe(2)
     expect(seg(idxShip, idxArchive).filter((p) => p.kind === 'prompt')).toHaveLength(0) // ship 非 review 相位，全程不该有解锁
   }, 30_000)
 
@@ -435,7 +428,7 @@ tracks:
     expect(await h.run(['init', CHANGE, '--track', TRACK, '--preset', 'full'])).toBe(0)
     await h.seedGovernedDocumentEvidence(CHANGE)
     expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
-    await invokeSkillThroughGate('open', 'tenon-open')
+    await invokeSkillThroughGate('open', 'tenon')
     expect(await h.run(['transition', CHANGE, 'open-complete'])).toBe(0)
     await h.seedArtifact(CHANGE, 'design_doc', `openspec/changes/${CHANGE}/design.md`)
     expect(await h.run(['review', 'request', CHANGE, '--event', 'explore-complete'])).toBe(0)

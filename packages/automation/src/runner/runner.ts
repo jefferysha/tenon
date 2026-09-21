@@ -3,7 +3,7 @@
  *
  * 老仓真相源：scheduler/runChange.ts:447-545（parseSandboxReport / findLastOutputTag /
  * unwrapFences）+ sdk/output/extractStructuredOutput.ts（取最后 tag + fence 剥离）+
- * runner/docker/tenon-afk-run.sh（沙箱内 /tenon-build → /tenon-verify → ship）。
+ * runner/docker/tenon-afk-run.sh（沙箱内按 tenon status --json 的 step.next 逐步推进）。
  *
  * exec 是注入面：production 绑真 docker exec（IT），单测绑 fake。缺 docker → honest skip（见
  * docker.integration.test.ts）；任何路径不为绿伪造 pass——非零退出真抛错。

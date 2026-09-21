@@ -336,7 +336,7 @@ if [ -f "$cx_inst" ]; then
       "$(cat "$cx_target/AGENTS.md" 2>/dev/null)" 'tenon:pipeline'
     assert_contains "codex static install: managed block 使用唯一 Tenon CLI" \
       "$(cat "$cx_target/AGENTS.md" 2>/dev/null)" 'tenon status'
-    for skill in tenon tenon-open tenon-explore tenon-spec tenon-build tenon-verify tenon-ship tenon-archive simple-task brainstorming writing-plans verification-before-completion openspec-propose openspec-apply-change; do
+    for skill in tenon brainstorming writing-plans verification-before-completion openspec-propose; do
       assert_file "codex static install: 投递 $skill skill" "$cx_target/.agents/skills/$skill/SKILL.md"
     done
     [ -L "$cx_target/.agents/skills/tenon" ] \
@@ -451,7 +451,7 @@ if [ -f "$cur_inst" ]; then
     # 人类确认后：
     tenon review acknowledge <change>
 
-不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀为 /pipeline-（如 /tenon-explore）。
+不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀为 /pipeline-。
 LEGACY
   bash "$cur_inst" --target "$cur_legacy" --no-hooks --yes >/dev/null 2>&1 || true
   assert_absent "inject/cursor: 旧版生成且未改动的 pipeline.md 被删除" "$cur_legacy/.cursor/rules/pipeline.md"
@@ -468,14 +468,14 @@ fi
 # ════════════════════════════════════════════════════════════════════════════
 # ⑤ track conformance（真 append history，与 baseline 逐字对齐）
 # ════════════════════════════════════════════════════════════════════════════
-TRACK_JSON_TMPL='{"cwd":"%s","tool_name":"Skill","skill":"tenon-explore"}'
+TRACK_JSON_TMPL='{"cwd":"%s","tool_name":"Skill","skill":"brainstorming"}'
 HIST="openspec/changes/demo-change/.pipeline-history.jsonl"
 
-# baseline：skill-tracker.sh 直跑 → history 记 raw="Skill: tenon-explore"
+# baseline：skill-tracker.sh 直跑 → history 记 raw="Skill: brainstorming"
 p="$(mk_change_proj track-baseline)"
 printf "$TRACK_JSON_TMPL" "$p" | bash "$TRACKER" >/dev/null 2>&1 || true
 if [ -f "$p/$HIST" ]; then
-  assert_contains "track/baseline: history 记 Skill: tenon-explore" "$(cat "$p/$HIST")" '"raw":"Skill: tenon-explore"'
+  assert_contains "track/baseline: history 记 Skill: brainstorming" "$(cat "$p/$HIST")" '"raw":"Skill: brainstorming"'
 else
   bad "track/baseline: history 文件生成" "缺 $p/$HIST"
 fi
@@ -494,7 +494,7 @@ drive_track() { # <id> -> 在独立项目跑该适配器 track，echo 最后一�
 }
 for id in $ADAPTER_IDS; do
   line="$(drive_track "$id")"
-  assert_contains "track/$id: 真 append history（与 baseline 记录等价）" "$line" '"raw":"Skill: tenon-explore"'
+  assert_contains "track/$id: 真 append history（与 baseline 记录等价）" "$line" '"raw":"Skill: brainstorming"'
 done
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -655,7 +655,7 @@ fi
 # ⑧.4 track conformance — native（gemini/copilot/pi 真 append history）/ degraded（devin 无自动留痕不伪装）
 for id in gemini copilot pi; do
   line="$(drive_track "$id")"
-  assert_contains "track/$id: 真 append history（与 baseline 记录等价）" "$line" '"raw":"Skill: tenon-explore"'
+  assert_contains "track/$id: 真 append history（与 baseline 记录等价）" "$line" '"raw":"Skill: brainstorming"'
 done
 assert_eq "track/devin: registry 声明 degraded（tier C 无 hook 自动留痕）" degraded "$(reg_field devin track_status)"
 assert_ne "track/devin: track_fallback 非空" "" "$(reg_field devin track_fallback)"
@@ -776,7 +776,7 @@ assert_contains "inject/continue: 产出 hookSpecificOutput" "$out" "hookSpecifi
 assert_contains "inject/continue: additionalContext 真包 baseline 宪法" "$out" "tenon"
 
 line="$(drive_track continue)"
-assert_contains "track/continue: 真 append history（与 baseline 记录等价）" "$line" '"raw":"Skill: tenon-explore"'
+assert_contains "track/continue: 真 append history（与 baseline 记录等价）" "$line" '"raw":"Skill: brainstorming"'
 
 # ════════════════════════════════════════════════════════════════════════════
 # ⑨.3 aider（档 B：veto 降级 commit-gate·inject/track native）
@@ -875,10 +875,10 @@ out2="$(printf '%s' "$json2" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ADAPTERS/cline/
 assert_contains "inject/cline(TaskResume): 委托 TaskStart 同款注入" "$out2" "contextModification"
 
 p="$(mk_change_proj s9-cline-track)"
-json3="$(printf '{"hookName":"PostToolUse","workspaceRoots":["%s"],"postToolUse":{"toolName":"tenon-explore","parameters":{},"result":"ok","success":true,"executionTimeMs":1}}' "$p")"
+json3="$(printf '{"hookName":"PostToolUse","workspaceRoots":["%s"],"postToolUse":{"toolName":"brainstorming","parameters":{},"result":"ok","success":true,"executionTimeMs":1}}' "$p")"
 printf '%s' "$json3" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ADAPTERS/cline/hooks/PostToolUse" >/dev/null 2>&1 || true
 if [ -f "$p/$HIST" ]; then
-  assert_contains "track/cline: 真 append history（真实工具名强制映射，与 baseline 等价记录）" "$(cat "$p/$HIST")" '"raw":"Skill: tenon-explore"'
+  assert_contains "track/cline: 真 append history（真实工具名强制映射，与 baseline 等价记录）" "$(cat "$p/$HIST")" '"raw":"Skill: brainstorming"'
 else
   bad "track/cline: history 文件生成" "缺 $p/$HIST"
 fi
@@ -924,9 +924,9 @@ if [ "$HAVE_NODE" = 1 ]; then
   assert_contains "inject/amp: buildInjectContext 真含 baseline 宪法" "$out" "tenon"
 
   p="$(mk_change_proj s9-amp-track)"
-  CLAUDE_PLUGIN_ROOT="$ROOT" node "$AMP_PLUGIN" __test recordToolResult "$p" tenon-explore >/dev/null 2>&1 || true
+  CLAUDE_PLUGIN_ROOT="$ROOT" node "$AMP_PLUGIN" __test recordToolResult "$p" brainstorming >/dev/null 2>&1 || true
   if [ -f "$p/$HIST" ]; then
-    assert_contains "track/amp: 真 append history（真实工具名强制映射，与 baseline 等价记录）" "$(cat "$p/$HIST")" '"raw":"Skill: tenon-explore"'
+    assert_contains "track/amp: 真 append history（真实工具名强制映射，与 baseline 等价记录）" "$(cat "$p/$HIST")" '"raw":"Skill: brainstorming"'
   else
     bad "track/amp: history 文件生成" "缺 $p/$HIST"
   fi

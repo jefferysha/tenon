@@ -142,7 +142,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     await appendFile(
       join(h.cwd, 'openspec', 'changes', 'english-docs', '.pipeline-history.jsonl'),
       `${JSON.stringify({
-        ts: '2026-07-25T00:00:00Z', kind: 'tool', raw: 'Skill: tenon-open',
+        ts: '2026-07-25T00:00:00Z', kind: 'tool', raw: 'Skill: openspec-propose',
       })}\n`,
       'utf8',
     )
@@ -261,7 +261,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
       join(h.cwd, 'openspec', 'changes', name, '.pipeline-history.jsonl'),
       [
         { ts: '2026-07-25T00:00:00Z', kind: 'tool', raw: 'Skill: openspec-propose' },
-        { ts: '2026-07-25T00:00:00Z', kind: 'tool', raw: 'Skill: tenon-open' },
+        { ts: '2026-07-25T00:00:00Z', kind: 'tool', raw: 'Skill: openspec-propose' },
       ].map((entry) => JSON.stringify(entry)).join('\n') + '\n',
       'utf8',
     )
@@ -308,9 +308,9 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
       )
     }
 
-    await recordSkills('tenon-open', 'openspec-propose')
+    await recordSkills('openspec-propose')
     expect(await h.run(['transition', name, 'open-complete'])).toBe(0)
-    await recordSkills('tenon-explore', 'brainstorming')
+    await recordSkills('brainstorming')
     expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
     expect(
       await h.run(['review', 'request', name, '--event', 'explore-complete']),
@@ -318,7 +318,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     ).toBe(0)
     expect(await h.run(['review', 'acknowledge', name])).toBe(0)
     expect(await h.run(['transition', name, 'explore-complete'])).toBe(0)
-    await recordSkills('tenon-spec', 'openspec-propose', 'writing-plans')
+    await recordSkills('openspec-propose', 'writing-plans')
     expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
     expect(await h.run(['review', 'request', name, '--event', 'spec-complete'])).toBe(0)
     expect(await h.run(['review', 'acknowledge', name])).toBe(0)
@@ -329,11 +329,11 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
       'build_mode=direct', 'isolation=worktree', 'direct_override=true',
       'pre_verify_review_result=pass',
     ])).toBe(0)
-    await recordSkills('tenon-build', 'writing-plans', 'test-driven-development')
+    await recordSkills('test-driven-development')
     expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
     expect(await h.run(['transition', name, 'build-complete'])).toBe(0)
     expect(await h.run(['set', name, 'branch_status', 'handled'])).toBe(0)
-    await recordSkills('tenon-verify', 'verification-before-completion')
+    await recordSkills('verification-before-completion')
     expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
     expect(
       await h.run(['review', 'request', name, '--event', 'verify-pass']),
@@ -342,11 +342,11 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(await h.run(['review', 'acknowledge', name])).toBe(0)
     expect(await h.run(['transition', name, 'verify-pass'])).toBe(0)
 
-    await recordSkills('tenon-ship', 'openspec-apply-change', 'finishing-a-development-branch')
+    await recordSkills('finishing-a-development-branch')
     expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
     expect(await h.run(['transition', name, 'ship-complete']), h.err.join('\n')).toBe(0)
     expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
-    await recordSkills('tenon-archive')
+    await recordSkills()
     expect(await h.run(['transition', name, 'archived'])).toBe(0)
     const completed = await h.read(name)
     expect(completed).toMatch(/^track: free$/m)
@@ -360,13 +360,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
 
   test('simple workflow 完整生命周期可验证后结束；范围扩大走独立 escalated 终态', async () => {
     expect(await h.run(['init', 'tiny-done', '--track', 'simple', '--preset', 'tweak'])).toBe(0)
-    expect(await h.run(['transition', 'tiny-done', 'change-complete'])).toBe(2)
-    expect((await h.read('tiny-done'))).toMatch(/^phase: change$/m)
-    await appendFile(
-      join(h.cwd, 'openspec', 'changes', 'tiny-done', '.pipeline-history.jsonl'),
-      `${JSON.stringify({ ts: '2026-07-24T00:00:00Z', kind: 'tool', raw: 'Skill: simple-task' })}\n`,
-      'utf8',
-    )
+    // change 步骤不声明技能：边界写在 step prompt 里，转换不再要求技能证据。
     expect(await h.run(['transition', 'tiny-done', 'change-complete'])).toBe(0)
     expect((await h.read('tiny-done'))).toMatch(/^phase: verify$/m)
     expect(await h.run(['transition', 'tiny-done', 'verify-pass'])).toBe(2)
@@ -383,11 +377,6 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(completed).toMatch(/^archived: true$/m)
 
     expect(await h.run(['init', 'tiny-expanded', '--track', 'simple', '--preset', 'tweak'])).toBe(0)
-    await appendFile(
-      join(h.cwd, 'openspec', 'changes', 'tiny-expanded', '.pipeline-history.jsonl'),
-      `${JSON.stringify({ ts: '2026-07-24T00:02:00Z', kind: 'tool', raw: 'Skill: simple-task' })}\n`,
-      'utf8',
-    )
     expect(await h.run(['transition', 'tiny-expanded', 'scope-expanded'])).toBe(0)
     const escalated = await h.read('tiny-expanded')
     expect(escalated).toMatch(/^phase: escalated$/m)
