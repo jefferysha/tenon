@@ -179,10 +179,13 @@ describe('lint · 内建 default 不误报', () => {
     const copied = copyWorkflowDef(full, 'default-copy')
     expect(copied.openspec).toBe(true)
     expect(validateWorkflowForStorage('default-copy', copied as never)).toEqual([])
-    // chat 轨与 free 同构：它声明的技能产出 proposal 与 adr，复制后两者都留下。
+    // chat 轨不声明技能：复制成自定义工作流后，没有产出者的槽位被裁掉，契约变空。
     const chat = copied.tracks?.chat?.documentContract?.slots.map((slot) => slot.kind) ?? []
-    expect(chat).toContain('proposal')
-    expect(chat).toContain('adr')
+    expect(chat).toEqual([])
+    // 声明了技能的轨道保留对应槽位。
+    const backend = copied.tracks?.backend?.documentContract?.slots.map((slot) => slot.kind) ?? []
+    expect(backend).toContain('proposal')
+    expect(backend).toContain('adr')
   })
 })
 
