@@ -380,3 +380,24 @@ cmdInternalMotionGate(deps, change, stdin): Promise<0 | 2>
 - Any internal error is a `WARN` and an allow. The gate never blocks because of its own failure.
 - Codex hook coverage of file edits is host-defined; whether `apply_patch` reaches `gate.sh` is verified in the
   wave-5 real-host acceptance. Where it does not, the reviewer's motion checklist is the enforcement.
+
+## Scenario: agent skill gate (`gate.sh` → `internal-skill-gate`)
+
+### 1. Trigger
+
+A step's agent declares `skills:`. Those skills are not part of the step's own `skills[]`, so the
+progressive gate would block them — while the agent that needs them is running.
+
+### 2. Contracts
+
+- The bash side is unchanged: `gate.sh` still delegates to `internal-skill-gate`, and only exit 2 blocks.
+- The CLI answers `allow` for a skill that belongs to an agent of the current step **only while that agent
+  has a `running` row in `.pipeline-agent-runs.jsonl` for the current step visit**. Otherwise the answer is
+  `not-agent-skill` and the existing progressive rules decide.
+- The decision reads the frozen agents of this run (`readFrozenAgents`), never the live library: the library
+  may have moved on; this Change did not.
+- Cost: the workspace fingerprint (the reviewer candidate) is computed only when such a `running` row
+  exists. A Change created before agents existed restores a pre-agents frozen plan, so the step declares no
+  agent and the gate returns `not-agent-skill` before any freeze read.
+- A corrupt ledger fails closed like every other agent read: the skill stays blocked and the message names
+  the damaged line.

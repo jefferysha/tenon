@@ -77,6 +77,12 @@ last one. Anything that needs its own surface opens the shared right-side `share
   `skillsFromRuns(change.skillRuns[step])` rebuilds the column model (wave k depends on wave k-1) and `statusOf`
   colours each node (`data-status`: idle grey / running info ring / done green) with the run label under the name.
   Nothing renders when the server omits `skillRuns` or the step has no skills.
+- The stage's agents render right after the skills canvas (`StageAgentsPanel`, `stage-agents`): the same
+  read-only `SkillFlow`, reviewers depending on the executors so the canvas draws the run order rather than
+  the literal `depends_on`. Node caption = 执行者 / 评审者; node status = 未运行 / 进行中 / 通过 · 不通过 ·
+  完成 · 失败, with 过期 shown as idle and `· 问题 n` appended when the run reported findings. A step that
+  declares no agent renders nothing. Clicking a node opens `AgentRunDrawer`: one line of 身份 · 结论 ·
+  问题 n · 操作人 · 时间 and the report the agent wrote, read through `GET /api/documents/read`.
 - Inputs, outputs and tests are **sheets**, not stacked sections: `SheetTabs` (`task-io-tab-inputs` /
   `task-io-tab-outputs` / `task-io-tab-tests`, counts in the tab) above one panel that shows the active sheet
   only; a file row still opens `DocumentDrawer`. The 测试 tab appears only when the selected step declares
@@ -284,14 +290,38 @@ row names the skills that should produce it, and a stale row carries its one-wor
   directory has no host table yet, and the create API takes file names.
 - Server prose is never rendered: `instructionErrorKey` maps the error `code` to `projects.errors.<key>` / `library.errors.<key>`.
 
+### Stage sections and agents
+
+- Stage section order is 输入 → 技能 → 执行者 → 输出 → 评审者 → 门禁 → 退回 (`StageEditorPane`). Executors sit
+  after the skills because they produce the outputs; reviewers sit right before the gate as their own
+  section, never inside it.
+- `stage-executors` / `stage-reviewers` (`AgentSection`) are a section head (title · count · 编辑) plus a
+  read-only `SkillFlow` whose registry is mapped from the agent library (builtin → `builtin`, custom →
+  `user`). A reviewer node carries one caption line — 必需 / 参考 · 阻断级别 (· 测试 n) — through `SkillFlow`'s
+  `captionOf` prop. Empty lists show the noun 无.
+- 编辑 opens `AgentComposer`: palette = the agent library (`palette-agent-<name>`, drag or `+`), canvas =
+  the editable `SkillFlow` (an edge is `depends_on`), right column = the selected node's settings. Reviewers
+  get 必需 / 参考 (`wb-agent-required-<name>`), an 阻断 select (`wb-agent-block-<name>`: 严重 / 高 / 中 / 低)
+  and test chips from the step's own `tests[].id` (`wb-agent-tests-<name>`). A newly dropped reviewer takes
+  the kernel's parse defaults (必需, 高). Settings are keyed by agent name, so re-laying out the canvas never
+  loses them. 保存 writes through `editor.setAgents`; both lists empty removes the `agents` key.
+- Lint `agent-missing` is an **error** (blocks 保存) when a step names an agent the library does not have.
+  While the library is still loading (`editor.agents === null`) the rule does not run: unknowable is not
+  reported as missing.
+
 ## 库 rules (`library/`)
 
-- Three columns: rail = one card per library kind (模板 today), list = category and 内建 / 自定义 chips + search + rows,
+- Three columns: rail = one card per library kind (模板 / 资源目录 / 测试方向 / agent), list = category and 内建 / 自定义 chips + search + rows,
   detail = `TemplateDetail` (预览 / 编辑 sheets, 变量 table, footer 复制 / 保存 / 删除).
 - Builtin templates are read-only: the detail footer offers 复制 only. Custom templates save with `If-Match` and delete
   with the digest; a 409 shows the local message plus 重新载入.
 - The builtin library is synced by the server on every read; a failed sync shows one 内建同步失败 line and the list still
   renders whatever is on disk.
+- The agent section (`AgentList` / `AgentDetail`) is the same shape: middle column lists the global library
+  (builtin rows carry a lock icon), 新建 asks only for a name and writes a valid skeleton, and the detail
+  shows a frontmatter table (说明 · 技能 · 工具 · 模型 · 宿主) plus the body, 预览 / 编辑 sheets for custom
+  agents and 复制 only for builtin ones. Deleting an agent a workflow references fails with 409 and the
+  detail lists every reference (`workflow / track / step · 身份`) instead of guessing.
 - `getToken() === ''` disables every write control on both pages.
 
 ## Styling patterns
@@ -311,7 +341,7 @@ row names the skills that should produce it, and a stale row carries its one-wor
 
 ## Library page sections
 
-- The Library page's rail (`LibraryRail`) lists 模板 / 资源目录 / 测试方向; a section owns the middle and right
+- The Library page's rail (`LibraryRail`) lists 模板 / 资源目录 / 测试方向 / agent; a section owns the middle and right
   columns and nothing else. 资源目录 renders its own `ThreeColumns` with the shared rail passed in, so the rail's
   collapsed state and selection stay with `LibraryView`.
 - 资源目录 filtering is client-side through `filterResources` from `@tenon/kernel/resources/query` — the same

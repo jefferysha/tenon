@@ -289,3 +289,43 @@ list in Claude Code and Codex from the officially installed build; record eviden
 About 14 commits. Additions ≈ kernel 1.4k + tests 1.2k, CLI 0.7k + tests 0.7k, server 0.5k + tests 0.4k, dashboard 1.6k +
 tests 0.7k, templates/agents 0.5k; deletions ≈ 2.5–3k (review attempt store and CLI, lanes, budget, field guards, skill
 prose). Net roughly +5k.
+
+## Deviations
+
+Recorded while implementing, smallest change that still meets the prd.
+
+1. **Kernel agent fs code lives in `infrastructure/agent-store.ts`, not `agents/library.ts`.** The kernel
+   architecture gate forbids `node:` imports inside the domain directories (`agents/`, `workflow/`), so the
+   store sits with the other fs-touching modules. `agents/` keeps types and the pure parser.
+2. **`templates/workflows/default-workflow.generated.ts` is committed.** The task brief forbids committing
+   generated files unless a commit regenerates them, but `check:default-workflow-freshness` is on the final
+   verification list and fails on any drift, so the regenerated file ships with the YAML change.
+3. **`workflowPlanSnapshot` no longer re-emits a v3-with-budget snapshot.** Four real snapshots in the repo
+   carry the old schema-v3 policy fingerprint. Rather than break their restore, `historicalV3PolicyWorkflow-
+   Fingerprint` reproduces the old math verbatim for reading, and new snapshots are written at v4.
+   `validateSnapshotPolicies` (shared by v3 and v4) closes the tampering hole that the top-level
+   decomposition / interaction copies left open, because they are not part of the fingerprint.
+4. **New `tools/oracle/.oracle-exit-divergences` sidecar.** Backend-full step 19 diverges permanently: the
+   legacy script requires the two deleted review fields, so old rejects with 1 and new with 2. The sidecar
+   records that one exit-code divergence with a reason and is honoured **only when both sides reject**.
+5. **New CLI seams `deps.agentFreeze`, `deps.agentLibrary`, `deps.stepAgents`.** Unit tests drive `check`,
+   `transition` and `init` against a mocked store whose change directory does not exist on disk; the seams
+   default to the real implementations and are stubbed in `makeDeps`.
+6. **`setStepAgentsInDef(def, stepId, patch)` takes a patch object** (`{ executors?, reviewers? }`) instead of
+   `(role, refs)`. It keeps the two element types apart without a cast, and one call site can clear both
+   lists (which removes the `agents` key).
+7. **`lintWorkflow(def, io, agents?)` takes the agent names**, and the dashboard editor fetches the library
+   itself (`editor.agents`). A null library means the rule does not run: unknowable is not reported as
+   missing.
+8. **C11 and C12 were committed in the other order** (library first, step editor second). Both validate on
+   their own; nothing in C11 depends on C12 beyond `api/agentClient.ts`, which C12 adds.
+9. **Library UI is smaller than design §12.1.** No search box in the agent list (the library is small), copy
+   writes `<name>-copy` without a name dialog, delete has no inline confirm step, and the detail header drops
+   the digest line. Sheet ids are `lib-agent-tab-{preview,edit}` (the shared `SheetTabs` id convention)
+   rather than `lib-agent-sheet-*`.
+10. **`AgentRunDrawer` shows the report, not a findings table.** The snapshot projection carries a findings
+    **count** (`AgentView.findings`), not the finding rows; the rows live in the report the drawer already
+    renders. Adding a ledger route only to draw the same three columns was not worth a new surface.
+11. **`AgentComposer` has no Markdown preview of the agent body.** The right column shows the name,
+    description and the reviewer settings; the body is one click away on the library page.
+12. **Real-host acceptance is deferred** to wave 5 (parent X18), as instructed. Every local gate was run.

@@ -16,7 +16,11 @@ interface TrackBranchDef { label?: string; steps: StepDef[]; documentContract?: 
 interface WorkflowDef { …; openspec?: boolean; steps: StepDef[]; documentContract?: DocumentContractDef; tracks?: Record<TrackId, TrackBranchDef> }
 interface DocumentSlotDef { kind: DocumentKind; ownerStep: string; role?: 'update' | 'require'; producers?: string[] }
 type GateKind = 'review' | 'auto' | null          // 'confirm' removed
-interface SkillRef { id; kind?; review_lane?; depends_on? }   // no `when`
+interface SkillRef { id; depends_on? }                        // no `when`, no `kind`, no `review_lane`
+interface StepExecutorRef { agent: string; depends_on?: string[] }
+interface StepReviewerRef { agent: string; required: boolean; block_at: AgentSeverity; depends_on?: string[]; reads_tests?: string[] }
+interface StepAgentsDef { executors: StepExecutorRef[]; reviewers: StepReviewerRef[] }   // both empty ⇒ no `agents` key
+interface StepDef { …; skills: SkillRef[]; tests?: StepTestDef[]; agents?: StepAgentsDef; guards; transitions }
 
 // workflow/validate.ts
 workflowBranches(def): Array<{ track: '' | TrackId; label?; steps }>
