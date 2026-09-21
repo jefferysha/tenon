@@ -1,0 +1,171 @@
+/**
+ * `tenon status <change> --json` 的 `step` 分块投影：技能、文档、字段。
+ *
+ * 每一块都读已有的判定源（技能证据、文档台账、guard 字段表），这里只把它们摆成 skill 能照做的形状。
+ */
+import {
+  DOCUMENT_KIND_CATALOG, documentPathForKind, isDocumentKind,
+  readsRequiredForPolicyStep, requiresForPolicyStep, resolveRequiredSkillSlots,
+  type DocumentEvidenceItem, type DocumentGovernancePolicy, type DocumentKind,
+  type EffectiveWorkflowPlan, type PipelineState, type StepIR,
+} from '@tenon/kernel'
+import type { CliDeps } from '../deps.js'
+import { RECOMMENDED, STEP_FIELD_ENUMS } from './field-values.js'
+import { canonicalTenonSkillId } from './stepSkillEvidence.js'
+
+export interface StepSkillView {
+  readonly id: string
+  readonly depends_on: readonly string[]
+  readonly wave: number
+  readonly status: 'done' | 'ready' | 'waiting'
+}
+
+export interface StepDocumentView {
+  readonly kind: string
+  readonly path: string
+  readonly producers: readonly string[]
+  readonly status: string
+}
+
+export interface StepFieldView {
+  readonly field: string
+  readonly kind: 'output' | 'guard' | 'outcome'
+  readonly status: 'set' | 'missing'
+  readonly value: string | null
+  readonly allowed: readonly string[] | null
+  readonly recommended: string | null
+}
+
+/** 步骤结果字段：本步的必需测试与评审者都过了才该填，所以单独成一类。 */
+const OUTCOME_FIELDS = new Set(['verify_result', 'branch_status', 'pre_verify_review_result'])
+
+function scalar(state: PipelineState, field: string): string {
+  const value = state.fields[field as keyof PipelineState['fields']]
+  return Array.isArray(value) ? value.join(',') : (value ?? '')
+}
+
+/**
+ * 技能顺序的唯一真相源仍是解析出来的必需槽位：default 走 manifest 叠加，自定义走 step 声明。
+ * 槽位是有序的，所以第 n 个槽位的前置就是它前面所有槽位。
+ */
+export function stepSkills(
+  deps: CliDeps,
+  plan: EffectiveWorkflowPlan,
+  stepId: string,
+  completed: ReadonlySet<string>,
+): readonly StepSkillView[] {
+  const declared = plan.capabilities.skills.steps.find((step) => step.stepId === stepId)?.declared ?? []
+  const slots = resolveRequiredSkillSlots(deps.resolver, plan.capabilities.skills, stepId)
+  const views: StepSkillView[] = []
+  let unlocked = true
+  for (const [index, slot] of slots.entries()) {
+    const id = canonicalTenonSkillId(slot.token)
+    const done = slot.alternatives.some((candidate) => completed.has(canonicalTenonSkillId(candidate)))
+    views.push({
+      id,
+      depends_on: declared.find((ref) => canonicalTenonSkillId(ref.id) === id)?.dependsOn.map(canonicalTenonSkillId)
+        ?? views.slice(0, index).map((view) => view.id),
+      wave: index,
+      status: done ? 'done' : unlocked ? 'ready' : 'waiting',
+    })
+    if (!done) unlocked = false
+  }
+  return views
+}
+
+function documentPath(
+  change: string,
+  kind: DocumentKind,
+  item: DocumentEvidenceItem | undefined,
+): string {
+  const recorded = item?.paths[0]
+  if (recorded !== undefined) return recorded
+  const projectPath = DOCUMENT_KIND_CATALOG[kind].projectPath
+  return projectPath ?? documentPathForKind(kind, { change })
+}
+
+function view(
+  change: string,
+  kind: DocumentKind,
+  producers: readonly string[],
+  items: readonly DocumentEvidenceItem[],
+): StepDocumentView {
+  const item = items.find((candidate) => candidate.kind === kind)
+  return {
+    kind,
+    path: documentPath(change, kind, item),
+    producers,
+    status: item?.status ?? 'missing',
+  }
+}
+
+export interface StepDocumentsView {
+  readonly reads: readonly StepDocumentView[]
+  readonly records: readonly StepDocumentView[]
+  readonly updates: readonly StepDocumentView[]
+}
+
+/**
+ * 三类文档分别来自契约的 reads / role produce / role update；`role: require` 的项目文档与 reads
+ * 同属「必须先在」的输入面，因此也列在 reads 里。
+ */
+export function stepDocuments(
+  change: string,
+  policy: DocumentGovernancePolicy | undefined,
+  stepId: string,
+  items: readonly DocumentEvidenceItem[],
+): StepDocumentsView {
+  if (policy === undefined) return { reads: [], records: [], updates: [] }
+  const reads = [...readsRequiredForPolicyStep(policy, stepId), ...requiresForPolicyStep(policy, stepId)]
+  const seen = new Set<string>()
+  return {
+    reads: reads.filter((kind) => !seen.has(kind) && seen.add(kind))
+      .map((kind) => view(change, kind, [], items)),
+    records: (policy.outputsByStep[stepId] ?? [])
+      .map((requirement) => view(change, requirement.kind, requirement.producerCandidates, items)),
+    updates: (policy.mutableByStep[stepId] ?? [])
+      .map((requirement) => view(change, requirement.kind, requirement.producerCandidates, items)),
+  }
+}
+
+function fieldView(
+  state: PipelineState,
+  field: string,
+  kind: StepFieldView['kind'],
+): StepFieldView {
+  const value = scalar(state, field)
+  const set = value !== '' && value !== 'null'
+  return {
+    field,
+    kind,
+    status: set ? 'set' : 'missing',
+    value: set ? value : null,
+    allowed: STEP_FIELD_ENUMS[field] ?? null,
+    recommended: RECOMMENDED(field, state) ?? null,
+  }
+}
+
+/**
+ * 本步要填的字段：声明的 outputs 是产出，guard 里点名的字段是门禁前置，结果字段单列。
+ * 只列当前步骤真正读得到的那些，避免 skill 去填与本步无关的槽。
+ */
+export function stepFields(state: PipelineState, step: StepIR | undefined): readonly StepFieldView[] {
+  if (step === undefined) return []
+  const seen = new Set<string>()
+  const fields: StepFieldView[] = []
+  const push = (field: string, kind: StepFieldView['kind']): void => {
+    if (seen.has(field)) return
+    seen.add(field)
+    fields.push(fieldView(state, field, OUTCOME_FIELDS.has(field) ? 'outcome' : kind))
+  }
+  for (const output of step.outputs) push(output.field, 'output')
+  for (const guard of step.guards) {
+    const field = (guard as { readonly field?: string }).field
+    if (typeof field === 'string') push(field, 'guard')
+  }
+  return fields
+}
+
+export function isKnownDocumentKind(kind: string): kind is DocumentKind {
+  return isDocumentKind(kind)
+}

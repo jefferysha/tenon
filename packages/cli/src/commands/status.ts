@@ -10,6 +10,8 @@ import { archivedChangesForUser } from '../archivedGuard.js'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, changesRoot, isValidChangeName } from '../paths.js'
 import { display, renderKV, renderTable, str } from '../render.js'
+import { effectiveWorkflowForState } from './effective-workflow.js'
+import { buildStatusStep, type StepBlock } from './statusStep.js'
 
 interface Row {
   name: string
@@ -74,7 +76,19 @@ export async function cmdStatus(
     }
     const row: Row = { name, state }
     if (opts.json) {
-      deps.io.out(JSON.stringify({ active_changes: [statusJson(row)] }))
+      // 单个 change 的 JSON 多一块 step：单个 `tenon` skill 每一步照做的全部输入（键序即 schema）。
+      // 列表形态（status --json 无名 / list --json）逐字不变。
+      let step: StepBlock | undefined
+      try {
+        const plan = effectiveWorkflowForState(deps, state)
+        if (plan !== null) step = await buildStatusStep(deps, name, state, plan)
+      } catch (e) {
+        deps.io.err(`WARN: step 投影不可用: ${errMsg(e)}`)
+      }
+      deps.io.out(JSON.stringify({
+        active_changes: [statusJson(row)],
+        ...(step === undefined ? {} : { step }),
+      }))
       return 0
     }
     for (const line of renderKV([
