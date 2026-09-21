@@ -16,6 +16,15 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/tenon-clean-checkout.XXXXXX")"
 
 git -C "$ROOT" ls-files -z > "$WORK/.tracked"
+# A tracked path missing from the working tree means rebuilt artifacts are still uncommitted;
+# rsync would only say "stat: No such file or directory", so name the real cause here.
+missing="$(git -C "$ROOT" ls-files -d | head -5)"
+if [ -n "$missing" ]; then
+  echo "[clean-checkout] 工作树缺少已跟踪文件（多半是重建后的产物尚未提交）：" >&2
+  printf '  %s\n' $missing >&2
+  echo "[clean-checkout] 先提交或还原这些文件再跑本检查。" >&2
+  exit 1
+fi
 rsync -a --files-from="$WORK/.tracked" --from0 "$ROOT/" "$WORK/tree/"
 rm -f "$WORK/.tracked"
 cd "$WORK/tree"
