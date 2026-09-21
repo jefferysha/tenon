@@ -36,13 +36,13 @@ Tenon SHALL 只把官方仓库中不可变、完整、稳定的 `vX.Y.Z` Release
 - **THEN** update 失败并输出可操作诊断
 - **AND** 不执行 plugin、marketplace、managed runtime 或 Dashboard mutation
 
-#### Scenario: 已发布 v1.0.1 用户迁移到版本化通道
+#### Scenario: 已退役 1.x 用户迁移到 0.x 版本化通道
 
-- **WHEN** 用户当前 launcher/runtime 是无法追溯修改的 v1.0.1
-- **THEN** 文档要求执行一次固定到 `v1.0.2/install.sh` 的官方迁移命令
-- **AND** 安装器在同一调用中把 plugin、marketplace、runtime 与 Dashboard 收敛到 `v1.0.2`
-- **AND** 不宣称旧 v1.0.1 `tenon update` 能同进程运行尚未激活的新版 updater
-- **AND** v1.0.2 起的后续升级只需单条 `tenon update --codex`
+- **WHEN** 用户当前 launcher/runtime 是无法追溯修改的已退役 1.x（v1.0.0–v1.1.5）
+- **THEN** 文档要求为每个宿主执行一次固定到 `v0.1.0/install.sh` 的官方迁移命令
+- **AND** 安装器在同一调用中把 plugin、marketplace、runtime 与 Dashboard 收敛到 `v0.1.0`
+- **AND** 不宣称旧 1.x `tenon update` 能同进程运行尚未激活的新版 updater，它只报告降级且不做任何改动
+- **AND** v0.1.0 起的后续升级只需单条 `tenon update --codex`
 
 #### Scenario: v1.0.1 收敛 receipt 遇到已经重绑的 v1.0.2 宿主
 

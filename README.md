@@ -67,30 +67,31 @@ Dashboard 顶部只保留流程进度与工作流两个高频入口；主题和�
 新用户无需 clone 仓库。一次安装完整 Codex 插件：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --codex
 ```
 
 Claude Code 用户只替换宿主参数：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --claude
 ```
 
 先预览 Codex 的完整 Marketplace 与包内 setup 计划、且不调用宿主或写入用户目录：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex --dry-run
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --codex --dry-run
 ```
 
-该命令始终从不可变稳定版本 `v1.1.5` 安装预构建发行资产，不 clone 仓库、不运行源码编译。
+该命令始终从不可变稳定版本 `v0.1.0` 安装预构建发行资产，不 clone 仓库、不运行源码编译。
 Bootstrap 注册 Tenon Marketplace、安装同一个完整插件、校验发行 payload，并执行
 `tenon setup --<host>`。已经安装后的维护入口仍是 `tenon setup --codex`、`tenon update --codex`
 与 `tenon runtime status`。
 
-如果当前是已发布的 `v1.0.1`，请把固定的 `v1.0.2/install.sh` 命令作为一次性迁移桥执行一次。
-`v1.0.1` 的旧 launcher 只会派发一次旧 updater，无法在同一命令中安全重绑新的版本标签；因此不把
-第二次命令或 Dashboard/校验脚本副作用伪装成一键升级。从 `v1.0.2` 起，之后每次常规升级都只需运行
-一条 `tenon update --codex`（或 `--claude`），且始终以稳定 release tag 为交付身份。
+Tenon 版本号已重置为从 0.1.0 开始，已退役的 1.x Release 与标签全部删除。如果机器上仍是 1.x 安装，
+请为每个宿主各执行一次上面的版本化安装命令。1.x 上的 `tenon update` 只会报告降级且不做任何改动：
+那段拒绝逻辑属于已经发布的 1.x，无法事后修补；因此也不把第二次命令或 Dashboard/校验脚本副作用
+伪装成一键升级。从 `v0.1.0` 起，之后每次常规升级都只需运行一条 `tenon update --codex`（或 `--claude`），
+且始终以稳定 release tag 为交付身份。
 
 安装会启动并等待 Dashboard 就绪。curl/CI 安装不会自动打开浏览器，而会打印已验证 URL；需要时运行
 `tenon dashboard --open`。交互式终端中的首次 `tenon setup` 可以自动打开，手动或后台更新不会。

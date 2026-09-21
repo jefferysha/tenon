@@ -1570,3 +1570,53 @@ test('Claude one-line bootstrap uses the same stable Marketplace channel before 
     await rm(fixture, { recursive: true, force: true })
   }
 })
+
+test(`Codex bootstrap replaces an installed retired 1.1.5 plugin with ${CURRENT_RELEASE_VERSION}`, async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'tenon-install-bootstrap-retired-plugin-'))
+  try {
+    const prepared = await prepareReleasedBootstrapFixture(fixture, 'codex', {
+      initiallyInstalled: true,
+      reportedVersion: '1.1.5',
+      reportedVersionAfterInstall: CURRENT_RELEASE_VERSION,
+    })
+
+    const result = await exec('/bin/bash', [join(root, 'install.sh'), '--codex'], {
+      cwd: fixture,
+      env: prepared.env,
+    })
+    assert.match(result.stdout, /Tenon installed for --codex/u)
+    const commands = await readFile(prepared.log, 'utf8')
+    assert.match(
+      commands,
+      new RegExp(`plugin marketplace add jefferysha/tenon --ref ${CURRENT_RELEASE_TAG_PATTERN}`),
+    )
+    assert.match(commands, /plugin add tenon@tenon --json/u)
+    assert.deepEqual(JSON.parse(await readFile(prepared.setupArgs, 'utf8')), [
+      'setup', '--codex', '--yes',
+    ])
+  } finally {
+    await rm(fixture, { recursive: true, force: true })
+  }
+})
+
+test(`Codex bootstrap takes over a completed retired v1.1.5 plugin-installed WAL before the ${CURRENT_RELEASE_VERSION} upgrade`, async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'tenon-install-bootstrap-retired-wal-'))
+  try {
+    const { prepared, journal } = await preparePriorStableBridgeFixture(fixture, { targetVersion: '1.1.5' })
+
+    const result = await exec('/bin/bash', [join(root, 'install.sh'), '--codex'], {
+      cwd: fixture,
+      env: prepared.env,
+    })
+    assert.match(result.stdout, /Tenon installed for --codex/u)
+    const commands = (await readFile(prepared.log, 'utf8')).trim().split(/\r?\n/u)
+    assert.ok(commands.includes(`plugin marketplace add jefferysha/tenon --ref ${CURRENT_RELEASE_TAG} --json`))
+    assert.equal(commands.filter((command) => command.startsWith('plugin marketplace add ')).length, 1)
+    assert.deepEqual(JSON.parse(await readFile(prepared.setupArgs, 'utf8')), [
+      'setup', '--codex', '--yes',
+    ])
+    await assert.rejects(readFile(journal, 'utf8'), /ENOENT/u)
+  } finally {
+    await rm(fixture, { recursive: true, force: true })
+  }
+})

@@ -12,6 +12,107 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.1.0 · 2026-09-22
+
+版本号从 0.1.0 重新开始。Tenon 还不成熟，1.x 这个号码宣称了它并不具备的稳定度。
+本版同时交付 v1.1.5 之后完成的能力。
+
+### 版本号重置
+
+- 版本号从 0.1.0 重新开始，之后按 0.1.x / 0.x 递增。已发布的 v1.0.0–v1.0.9 与 v1.1.0–v1.1.5 的 Release
+  与标签已经删除，这 16 个号码永不复用：release candidate 会直接拒绝它们。
+- 安装顺序把已退役的 1.x 排在其他所有正式版本之下：0.1.0 相对 1.1.5 是升级，而更新的 0.x 不会被更旧的
+  0.x 静默覆盖。`tenon update` 会写明自己正在离开的已退役版本，迁移不会静默发生。
+
+### 升级动作
+
+为使用的每个宿主各运行一次版本化安装命令，然后新开宿主会话：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --codex
+```
+
+在 1.x 上运行 `tenon update` 只会报告降级到 0.1.0，并且不做任何改动：那段拒绝逻辑属于已经发布的 1.x，
+无法事后修补，所以上面的一行命令才是迁移路径；1.x 机器上的每日自动更新记录的也是同一条拒绝。
+迁移完成后，`tenon update --codex`（或 `--claude`）重新成为常规升级入口。
+
+### 一个仓库多个用户
+
+- Tenon 依次从 `TENON_USER`、`<config>/user.json`、仓库自身配置的用户邮箱解析声明式身份，不需要登录；
+  新写入的记录都带上执行者。
+- 每个任务都有创建者与负责人，其他用户通过「接手」成为负责人；推进不属于自己的任务会被拒绝。
+- 每个用户的状态存放在 `.tenon/users/<slug>/`，同一仓库里的两个人不再互相覆盖当前任务与授权状态。
+  Dashboard 顶栏显示当前用户，工作区列表可按负责人筛选。
+
+### 任务归档与删除
+
+- 归档 / 取消归档 只对当前用户隐藏任务，随时可逆。
+- 删除只动工作区、不自动提交，Dashboard 会在确认前说明这是「未提交删除」。
+- 对应命令：`tenon task delete|archive|unarchive <name>` 与 `tenon list --archived`。
+
+### 工作流即数据
+
+- `openspec: true` 是工作流里唯一的 OpenSpec 开关。
+- 每条轨道自己声明 `document_contract`：哪个步骤产出、更新或要求哪份文档。内核里固定的按阶段文档表已删除，
+  全局默认工作流把这些表完整写出来。
+- Dashboard 工作流页面可编辑每个步骤的输入、技能、执行者、输出、评审者与门禁（评审或自动）；工作流的步骤、
+  轨道与门禁存在全局，不再绑定单个项目。
+
+### 一个技能取代七个
+
+- 单个 `tenon` 技能按 `tenon status <change> --json` 的 `step` 块驱动每一步，其中直接给出待执行的 agent
+  与必需测试。
+- `tenon spec apply` 把 delta spec 应用到主规格。
+
+### 每步的执行者与评审者
+
+- 步骤可声明执行者与评审者：`tenon agent next|prompt|record`。随包提供九个内建 agent（builder、researcher、
+  architecture、frontend-quality、backend-quality、code-size、security、spec-consistency、e2e）。
+- 评审结论由 Tenon 依据发现项与阻断级别计算，每次运行都留存证据；任务创建时冻结该任务的 agent 集合。
+- agent 一律在宿主内运行（Claude Code 的 Agent 工具或 Codex 子 agent），Dashboard 从不调用模型。
+
+### 每步的测试证据
+
+- 步骤可声明测试的命令、输入与输出，统一通过 `tenon test run <change> <test-id>` 执行；必需测试记录缺失或
+  过期时，流转门禁拒绝推进。
+- 随包提供九个内建测试方向：unit、integration、e2e、playwright、typecheck、regression、benchmark、
+  code-size、design-system。运行日志、trace 与截图按运行留存在当前用户的本地目录。
+
+### 指令文件、模板与项目
+
+- Tenon 依据 32 个内建模板块写项目级与用户级指令文件（AGENTS.md、CLAUDE.md、GEMINI.md）；文件在 Tenon 之外
+  被改动时报告冲突，不覆盖。
+- 库页面集中管理 agent、模板、资源目录与测试方向，内建条目只读、可复制后编辑；「新建项目」一个按钮完成新建或接入。
+
+### 设计体系与资源目录
+
+- 项目的设计体系写在 `DESIGN.md`，由 `tenon design` 与设计体系工作流产出；设计体系未就绪时，拒绝创建前端任务。
+- 资源目录随包提供 163 条内建条目（`tenon resources`），供步骤声明可用的库与参考。
+
+### 上游技能
+
+- setup 与 update 按 `skills/sources.yaml` 安装 53 个上游技能到插件根目录；lock 文件记录每个技能的 commit、
+  目录摘要与许可证，抓取失败不改变当前发行版。
+- 因此安装后的 payload 增长到约 48 MB。以文件 stat 为键的摘要缓存把实测 hook 派发开销控制在相对 v1.1.5
+  约 7 ms 以内。
+
+### 兼容性
+
+- v0.1.0 之前没有更早的 0.x 正式版本，因此本次发布显式跳过 N-1 兼容门禁，并且是可见的跳过：fixture 点名
+  v0.1.0，工具以约定的退出码报告跳过。v0.1.1 起以 v0.1.0 为基线。
+- 也因此，v0.1.0 没有验证过读取 1.x 创建的任务。迁移前请先完结或归档进行中的 1.x 任务，否则可能需要重建。
+
+### 验证
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+两个宿主的 inventory、active managed runtime 与 Dashboard 都报告 0.1.0；再次运行 `tenon update --codex`
+会提示当前发行版已精确生效。
+
 ## v1.1.5 · 2026-09-15
 
 在 v1.1.4 上继续同一个真实 Codex 任务时发现并修复的问题。

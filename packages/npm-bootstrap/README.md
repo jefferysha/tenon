@@ -7,13 +7,13 @@ npm 的公共包。
 这个薄入口、产品身份、许可证和本说明。入口会下载对应 release tag 的 Marketplace 安装脚本，
 并校验内嵌 SHA-256；脚本随后使用对应的不可变稳定版本标签。因此 Marketplace 与 npx
 会激活同一个已验证候选 digest，日常升级再由 `tenon update --codex` 解析最新稳定 Release。
-已发布 v1.0.1 的旧 launcher 不能在一次旧 updater 调用中安全自重绑新 tag；该版本只需一次性执行
-固定的 `v1.0.2/install.sh` 迁移桥。从 v1.0.2 起，每次常规升级都是单条 `tenon update --codex`。
+已退役的 1.x 旧 launcher 不能在一次旧 updater 调用中安全自重绑新 tag；这些机器只需为每个宿主一次性
+执行固定的 `v0.1.0/install.sh` 迁移命令。从 v0.1.0 起，每次常规升级都是单条 `tenon update --codex`。
 
 在 publisher scope 与 npm 凭据尚未配置前，请使用已公开的 Marketplace bootstrap：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v1.1.5/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --codex
 ```
 
 Codex CLI 缺失时先运行 `npm install -g @openai/codex`，再用 `codex --version` 验证。插件安装后，
