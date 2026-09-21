@@ -1395,9 +1395,8 @@ EOF
   assert_contains "router: 注入含当前相位（phase=build）" "$ROUT" "phase=build"
   assert_contains "router: 注入含 change 名" "$ROUT" "demo"
   assert_contains "router: 注入含 <workflow-state> 标签" "$ROUT" "<workflow-state>"
-  assert_contains "router: 注入含该相位 breadcrumb 行动提示（build 含 TDD）" "$ROUT" "TDD"
-  assert_contains "router: 注入含推荐 skill（build.frontend）" "$ROUT" "推荐 skill"
-  assert_contains "router: 注入含 build.frontend 推荐 skill token（react-patterns）" "$ROUT" "react-patterns"
+  assert_contains "router: 注入含该相位 breadcrumb 行动提示（指向 step.next）" "$ROUT" "step.next"
+  assert_contains "router: 注入含 build.frontend 强制 skill token（test-driven-development）" "$ROUT" "test-driven-development"
 
   # repo 级 `active-change` 只是恢复候选，不能劫持另一会话中的明确新主题。
   # 回归用户真实场景：旧 change 是 normal-chat 编排修复，新输入则是独立的新工具项目调研。
@@ -1457,7 +1456,7 @@ EOF
   # canonical dispatch，具体 DAG 必须由 tenon 读取该 workflow 后分派。
   assert_contains "router: custom resume 明示由 tenon 加载真实 workflow 图" "$ROUT" "自定义 workflow"
   assert_not_contains "router: custom resume 不注入 default build breadcrumb" "$ROUT" "TDD"
-  assert_not_contains "router: custom resume 不注入 default 推荐 skill" "$ROUT" "react-patterns"
+  assert_not_contains "router: custom resume 不注入 default 技能矩阵" "$ROUT" "test-driven-development"
 
   # 已建 Change 的 workflow 来自状态文件；它也必须经过输出边界校验，不能把手改
   # state 中的结构化分隔符注入到宿主提示。无效值安全退回 default。
@@ -1557,7 +1556,6 @@ EOF
   run_router "{\"prompt\":\"继续处理 mobile-route-token\",\"cwd\":\"$profileproj\"}" "$profilecache"
   assert_contains "router: matrix=false 的 custom id 仍动态命中" "$ROUT" "track=designer-mobile"
   assert_contains "router: 显示 custom track id 但技能继承 backend profile" "$ROUT" "improve-codebase-architecture"
-  assert_contains "router: inherited backend profile 的 recommended skill 生效" "$ROUT" "search-first"
 
   # stale + 生成失败必须 fail-closed：旧 cache 留盘也不得在本轮消费。
   staleproj="$TMP/router-stale-failure"
@@ -1961,21 +1959,25 @@ assert_contains "skill-tracker: Codex exec/cmd 证据含 skill id" "$line" 'Code
 # Codex 通常把同一 phase 的多份 SKILL.md 合并为一条 `exec`。每一个受信任的最终读取都必须
 # 记账，不能只保留第一个并在后续 document/DAG check 时误报缺少 skill 证据。
 before="$(count_lines "$JL")"
-CODEX_MULTI_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/tenon-spec/SKILL.md && sed -n '1,120p' $ROOT/skills/tenon/SKILL.md && sed -n '1,120p' $ROOT/skills/tenon-open/SKILL.md\\\"\"}}"
-printf '%s' "$CODEX_MULTI_SKILL_READ" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ST" >/dev/null 2>&1
+ST_ROOT="$TMP/ptu-st-plugin"; mkdir -p "$ST_ROOT/skills/alpha-skill" "$ST_ROOT/skills/tenon" "$ST_ROOT/skills/beta-skill"
+printf -- '---\nname: alpha-skill\ndescription: fixture\n---\n' > "$ST_ROOT/skills/alpha-skill/SKILL.md"
+printf -- '---\nname: beta-skill\ndescription: fixture\n---\n' > "$ST_ROOT/skills/beta-skill/SKILL.md"
+cp "$ROOT/skills/tenon/SKILL.md" "$ST_ROOT/skills/tenon/SKILL.md"
+CODEX_MULTI_SKILL_READ="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ST_ROOT/skills/alpha-skill/SKILL.md && sed -n '1,120p' $ST_ROOT/skills/tenon/SKILL.md && sed -n '1,120p' $ST_ROOT/skills/beta-skill/SKILL.md\\\"\"}}"
+printf '%s' "$CODEX_MULTI_SKILL_READ" | CLAUDE_PLUGIN_ROOT="$ST_ROOT" bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "$((before + 3))" ] && ok "skill-tracker: Codex 同一 exec 的多个 bundled SKILL.md → 全部留证" || bad "skill-tracker: Codex 同一 exec 的多个 bundled SKILL.md → 全部留证" "行数=$(count_lines "$JL")"
 multi_lines="$(tail -3 "$JL" 2>/dev/null)"
-assert_contains "skill-tracker: 多 skill 证据含 tenon-spec" "$multi_lines" "tenon-spec"
+assert_contains "skill-tracker: 多 skill 证据含 alpha-skill" "$multi_lines" "alpha-skill"
 assert_contains "skill-tracker: 多 skill 证据含 tenon" "$multi_lines" 'CodexSkillRead: tenon"'
-assert_contains "skill-tracker: 多 skill 证据含 tenon-open" "$multi_lines" "tenon-open"
+assert_contains "skill-tracker: 多 skill 证据含 beta-skill" "$multi_lines" "beta-skill"
 # 只有每段的最终 read 参数才可形成证据。后续 printf 提到另一个路径不能伪造第二个 skill 调用。
 before="$(count_lines "$JL")"
-CODEX_READ_WITH_PATH_MENTION="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ROOT/skills/tenon-spec/SKILL.md && printf $ROOT/skills/tenon-open/SKILL.md\\\"\"}}"
-printf '%s' "$CODEX_READ_WITH_PATH_MENTION" | CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ST" >/dev/null 2>&1
+CODEX_READ_WITH_PATH_MENTION="{\"cwd\":\"$proj\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $ST_ROOT/skills/alpha-skill/SKILL.md && printf $ST_ROOT/skills/beta-skill/SKILL.md\\\"\"}}"
+printf '%s' "$CODEX_READ_WITH_PATH_MENTION" | CLAUDE_PLUGIN_ROOT="$ST_ROOT" bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "$((before + 1))" ] && ok "skill-tracker: 非 read 段提及 SKILL.md 不伪造证据" || bad "skill-tracker: 非 read 段提及 SKILL.md 不伪造证据" "行数=$(count_lines "$JL")"
 line="$(tail -1 "$JL" 2>/dev/null)"
-assert_contains "skill-tracker: 最终 read 段仍保留真实 skill" "$line" "tenon-spec"
-assert_not_contains "skill-tracker: 非 read 路径不被误记" "$line" "tenon-open"
+assert_contains "skill-tracker: 最终 read 段仍保留真实 skill" "$line" "alpha-skill"
+assert_not_contains "skill-tracker: 非 read 路径不被误记" "$line" "beta-skill"
 # Codex command hook 未传 exact selected plugin root 时，不得枚举历史 cache 猜当前版本。
 # 同一 host-owned cache 只有被 bootstrap 明确传为 TENON_HOST_PLUGIN_ROOT 后才可留证。
 codex_home="$TMP/ptu-codex-home"
@@ -2007,7 +2009,7 @@ printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Read\",\"tool_input\":{\"file_pa
 [ "$(count_lines "$JL")" = "$before" ] && ok "skill-tracker: 非 Skill 工具 → 不写" || bad "skill-tracker: 非 Skill 工具 → 不写" "误写"
 # 无活跃 change → exit 0 不写
 proj2="$TMP/ptu-st-nochange"; mkdir -p "$proj2"
-RC="$(printf '%s' "{\"cwd\":\"$proj2\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"tenon-build\"}}" | bash "$ST" >/dev/null 2>&1; echo $?)"
+RC="$(printf '%s' "{\"cwd\":\"$proj2\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"test-driven-development\"}}" | bash "$ST" >/dev/null 2>&1; echo $?)"
 assert_exit "skill-tracker: 无活跃 change → exit 0" 0 "$RC"
 
 # ── 10d. interactive-skill-gate：交互式 skill 加载后注入交互硬姿态 + 落 interaction 硬门 ──
@@ -2039,9 +2041,9 @@ OUT="$(printf '%s' "{\"cwd\":\"$proj2\",\"tool_name\":\"Skill\",\"tool_input\":{
 assert_contains "interactive-skill-gate: 裸名 brainstorming 也命中" "$OUT" "AskUserQuestion"
 # Codex bundled-skill read 也必须触发同一交互硬门；否则真实 Codex 会话会绕开交互治理。
 # 交互式 skill 由 setup/update 从上游获取，源码 checkout 里没有；用一个最小插件根承载被读的 SKILL.md。
-IG_ROOT="$TMP/ptu-ig-plugin"; mkdir -p "$IG_ROOT/skills/brainstorming" "$IG_ROOT/skills/tenon-spec"
+IG_ROOT="$TMP/ptu-ig-plugin"; mkdir -p "$IG_ROOT/skills/brainstorming" "$IG_ROOT/skills/tenon"
 printf -- '---\nname: brainstorming\ndescription: fixture\n---\n' > "$IG_ROOT/skills/brainstorming/SKILL.md"
-cp "$ROOT/skills/tenon-spec/SKILL.md" "$IG_ROOT/skills/tenon-spec/SKILL.md"
+cp "$ROOT/skills/tenon/SKILL.md" "$IG_ROOT/skills/tenon/SKILL.md"
 proj_codex="$TMP/ptu-ig-codex"; mkdir -p "$proj_codex"
 OUT="$(printf '%s' "{\"cwd\":\"$proj_codex\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sed -n '1,120p' \\\"$IG_ROOT/skills/brainstorming/SKILL.md\\\"\"}}" | CLAUDE_PLUGIN_ROOT="$IG_ROOT" bash "$IG" 2>/dev/null)"
 assert_contains "interactive-skill-gate: Codex bundled interaction skill 也注入 AskUserQuestion" "$OUT" "AskUserQuestion"
@@ -2054,13 +2056,13 @@ assert_contains "interactive-skill-gate: Codex exec/cmd 包装的 interaction sk
 # 同一个 Codex exec 先读普通 phase skill 再读交互式 skill 时，也必须落 interaction 门；此前
 # 只取第一个 id 会让 brainstorming 被静默忽略。
 proj_codex_multi="$TMP/ptu-ig-codex-multi"; mkdir -p "$proj_codex_multi"
-OUT="$(printf '%s' "{\"cwd\":\"$proj_codex_multi\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $IG_ROOT/skills/tenon-spec/SKILL.md && sed -n '1,120p' $IG_ROOT/skills/brainstorming/SKILL.md\\\"\"}}" | CLAUDE_PLUGIN_ROOT="$IG_ROOT" bash "$IG" 2>/dev/null)"
+OUT="$(printf '%s' "{\"cwd\":\"$proj_codex_multi\",\"tool_name\":\"exec\",\"tool_input\":{\"cmd\":\"/bin/zsh -lc \\\"sed -n '1,120p' $IG_ROOT/skills/tenon/SKILL.md && sed -n '1,120p' $IG_ROOT/skills/brainstorming/SKILL.md\\\"\"}}" | CLAUDE_PLUGIN_ROOT="$IG_ROOT" bash "$IG" 2>/dev/null)"
 assert_contains "interactive-skill-gate: 多 skill 读取仍识别后置 interaction skill" "$OUT" "AskUserQuestion"
 assert_contains "interactive-skill-gate: 多 skill 姿态点名 brainstorming" "$OUT" "brainstorming"
 [ -f "$proj_codex_multi/.pipeline-pending-interaction" ] && ok "interactive-skill-gate: 多 skill 读取也落 interaction 硬门" || bad "interactive-skill-gate: 多 skill 读取未落硬门" "marker 未落"
-# 非交互式 skill（tenon-build）→ 不注入、不落门
+# 非交互式 skill（test-driven-development）→ 不注入、不落门
 proj3="$TMP/ptu-ig-noninteractive"; mkdir -p "$proj3"
-OUT="$(printf '%s' "{\"cwd\":\"$proj3\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"tenon-build\"}}" | bash "$IG" 2>/dev/null)"
+OUT="$(printf '%s' "{\"cwd\":\"$proj3\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"test-driven-development\"}}" | bash "$IG" 2>/dev/null)"
 RC=$?
 assert_exit "interactive-skill-gate: 非交互式 skill → exit 0" 0 "$RC"
 assert_empty "interactive-skill-gate: 非交互式 skill → 不注入姿态" "$OUT"
@@ -2188,16 +2190,16 @@ printf 'track: backend\nphase: build\narchived: \n' > "$proj/openspec/changes/de
 set_active "$proj" demo
 JL="$proj/openspec/changes/demo/.pipeline-history.jsonl"
 write_hooks_cfg "$proj" "skill-tracker.build"
-RC="$(printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"tenon-build\"}}" | bash "$ST" >/dev/null 2>&1; echo $?)"
+RC="$(printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"test-driven-development\"}}" | bash "$ST" >/dev/null 2>&1; echo $?)"
 assert_exit "开关: skill-tracker 当前阶段（build）被禁用 → exit 0" 0 "$RC"
 [ "$(count_lines "$JL")" = "0" ] && ok "开关: 禁用的 skill-tracker 零副作用（JSONL 不 append）" || bad "开关: 禁用的 skill-tracker 零副作用（JSONL 不 append）" "行数=$(count_lines "$JL")"
 # 只关别的阶段（verify）→ 本阶段（build）照常写（阶段×hook 精准粒度，非全局开关）
 write_hooks_cfg "$proj" "skill-tracker.verify"
-printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"tenon-build\"}}" | bash "$ST" >/dev/null 2>&1
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"test-driven-development\"}}" | bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "1" ] && ok "开关: skill-tracker 仅它阶段被禁 → 本阶段照常 append" || bad "开关: skill-tracker 仅它阶段被禁 → 本阶段照常 append" "行数=$(count_lines "$JL")"
 # 损坏配置 → fail-open 到启用（行为与今天完全一致）
 printf 'not json {{{' > "$proj/.pipeline/hooks.json"
-printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"tenon-build\"}}" | bash "$ST" >/dev/null 2>&1
+printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"test-driven-development\"}}" | bash "$ST" >/dev/null 2>&1
 [ "$(count_lines "$JL")" = "2" ] && ok "开关: skill-tracker 配置损坏 → fail-open 照常 append" || bad "开关: skill-tracker 配置损坏 → fail-open 照常 append" "行数=$(count_lines "$JL")"
 
 # ── 11b. breadcrumb：newest change 的阶段被禁用 → 静默 exit 0；别的阶段被禁 → 照常 cat ──

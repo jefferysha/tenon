@@ -451,7 +451,7 @@ if [ -f "$cur_inst" ]; then
     # 人类确认后：
     tenon review acknowledge <change>
 
-不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀为 /pipeline-。
+不得删除 `.pipeline-pending-review` 绕过 review-gate（会产生 solo 推进）。命令前缀为 /pipeline-（如 /tenon-explore）。
 LEGACY
   bash "$cur_inst" --target "$cur_legacy" --no-hooks --yes >/dev/null 2>&1 || true
   assert_absent "inject/cursor: 旧版生成且未改动的 pipeline.md 被删除" "$cur_legacy/.cursor/rules/pipeline.md"
