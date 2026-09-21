@@ -305,9 +305,13 @@ Recorded while implementing, smallest change that still meets the prd.
    Fingerprint` reproduces the old math verbatim for reading, and new snapshots are written at v4.
    `validateSnapshotPolicies` (shared by v3 and v4) closes the tampering hole that the top-level
    decomposition / interaction copies left open, because they are not part of the fingerprint.
-4. **New `tools/oracle/.oracle-exit-divergences` sidecar.** Backend-full step 19 diverges permanently: the
-   legacy script requires the two deleted review fields, so old rejects with 1 and new with 2. The sidecar
-   records that one exit-code divergence with a reason and is honoured **only when both sides reject**.
+4. **New `tools/oracle/.oracle-exit-divergences` sidecar.** The legacy script requires the two deleted
+   review fields, so where the plan used to `set` them both sides now reject with different codes and
+   wording: `backend-full` #19, `default-effects` #25 (plus the #27 / #28 cascade, where both sides stay at
+   verify and only the rejection wording differs) and `default-guard-errors` #28. The sidecar records each
+   exit-code divergence with a reason and is honoured **only when both sides reject**; the matching stderr
+   reasons go in the existing `.oracle-stderr-divergences`. Removing the two `set` steps also shifted
+   `default-effects` step indices by two, so its barrier entry moved from 23 to 21.
 5. **New CLI seams `deps.agentFreeze`, `deps.agentLibrary`, `deps.stepAgents`.** Unit tests drive `check`,
    `transition` and `init` against a mocked store whose change directory does not exist on disk; the seams
    default to the real implementations and are stubbed in `makeDeps`.

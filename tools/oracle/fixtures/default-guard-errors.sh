@@ -64,8 +64,12 @@ printf '# verification report\n' > "$target/docs/verify.md"
 : > "$target/.oracle-stderr-check"
 # 旧版 oracle 枚举 isolation 仅 branch/worktree；新默认工作流有意新增 in-place，供受限 Codex
 # 沙盒如实声明未创建 Git 隔离。第 17 步仍比较 exit/stdout/YAML，只把这个过期错误枚举列为已知差异。
-printf '17\tin-place 是受限 agent 的显式 isolation 产品扩展；旧 oracle 无此枚举\n' \
-  > "$target/.oracle-stderr-divergences"
+{
+  printf '17\tin-place 是受限 agent 的显式 isolation 产品扩展；旧 oracle 无此枚举\n'
+  printf '28\t老 oracle 要求已删除的手填评审字段；新 CLI 要求步骤声明的评审者跑过，两侧都不放行\n'
+} > "$target/.oracle-stderr-divergences"
+printf '28\t老 oracle 要求已删除的手填评审字段；新 CLI 要求步骤声明的评审者跑过，两侧都不放行\n' \
+  > "$target/.oracle-exit-divergences"
 
 # 竖线转 TAB（计划值不含竖线）
 tr '|' '\t' > "$target/.oracle-plan" <<'PLAN'
