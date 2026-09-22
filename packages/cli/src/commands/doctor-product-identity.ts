@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 import { win32 } from 'node:path'
 import { machineStateScopeId } from '@tenon/kernel'
 import type { DoctorCheck } from './doctor-check.js'
-import { green, red } from './doctor-check.js'
+import { green, red, yellow } from './doctor-check.js'
+import { TRANSIENT_REMOTE_FAILURE } from './remote-git.js'
 import type { DoctorProbes, DoctorProductIdentity } from '../deps.js'
 import type { RuntimeInstaller } from '../runtime/installer.js'
 import type { RuntimeScopeSnapshot } from '../runtime/scope.js'
@@ -110,14 +111,18 @@ const REAL_PRODUCT_IDENTITY_RUNTIME: DoctorProductIdentityProbeRuntime = {
   probeDashboard: probeHealthyDashboard,
 }
 
-export async function checkProductIdentity(p: DoctorProbes): Promise<DoctorCheck> {
-  const identity = await p.productIdentity()
+export async function checkProductIdentity(
+  p: DoctorProbes,
+  options: { readonly verifyRemote?: boolean } = {},
+): Promise<DoctorCheck> {
+  const verifyRemote = options.verifyRemote === true
+  const identity = await p.productIdentity({ verifyRemote })
   if (identity.state === 'unavailable') {
-    return red(
-      'identity:release',
-      `无法证明发布身份: ${identity.detail}`,
-      '重新运行 tenon setup --<host> 或 tenon update，使宿主、runtime 与 Dashboard 收敛到同一发布版本',
-    )
+    // 链路不通不是「装坏了」。以前无论断网、缺 tag 还是真漂移都劝用户重跑 setup/update，
+    // 断网时那条建议只会让人白跑一次安装；现在按 cause 各给各的修法。
+    return identity.cause === 'network'
+      ? yellow('identity:release', `无法证明发布身份: ${identity.detail}`, identity.remediation)
+      : red('identity:release', `无法证明发布身份: ${identity.detail}`, identity.remediation)
   }
   const exact = identity.hostPluginVersion === identity.expectedVersion
     && identity.runtimePluginVersion === identity.expectedVersion
@@ -125,18 +130,24 @@ export async function checkProductIdentity(p: DoctorProbes): Promise<DoctorCheck
     && identity.dashboardReleaseId === identity.runtimeReleaseId
     && identity.hostTargetExact
     && identity.payloadDigestExact
+  const targetScope = identity.remoteTargetVerified ? 'exact' : 'exact-local'
   const detail = [
     `expected=${identity.expectedVersion}`,
     `host=${identity.hostPluginVersion ?? 'missing'}`,
     `root=${identity.hostPluginRoot ?? 'missing'}`,
-    `target=${identity.stableTargetTag}@${identity.stableTargetCommit.slice(0, 12)}:${identity.hostTargetExact ? 'exact' : 'drift'}`,
+    `target=${identity.stableTargetTag}@${identity.stableTargetCommit.slice(0, 12)}:${identity.hostTargetExact ? targetScope : 'drift'}`,
     `payload=${identity.hostPayloadDigest?.slice(0, 12) ?? 'missing'}/${identity.runtimePayloadDigest.slice(0, 12)}:${identity.payloadDigestExact ? 'exact' : 'drift'}`,
     `runtime=${identity.runtimePluginVersion}`,
     `dashboard=${identity.dashboardServerVersion ?? 'missing'}`,
     `release=${identity.dashboardReleaseId ?? 'missing'}/${identity.runtimeReleaseId}`,
   ].join('; ')
   return exact
-    ? green('identity:release', `${identity.host} 发布身份一致（${detail}）`)
+    ? green(
+        'identity:release',
+        identity.remoteTargetVerified
+          ? `${identity.host} 发布身份一致（${detail}）`
+          : `${identity.host} 发布身份本地一致（${detail}）；本次未联网复核冻结 tag，需要时跑 tenon doctor --verify-release`,
+      )
     : red(
         'identity:release',
         `发布身份漂移（${detail}）`,
@@ -144,26 +155,66 @@ export async function checkProductIdentity(p: DoctorProbes): Promise<DoctorCheck
       )
 }
 
+/** 本机前提不满足（可信命令缺失、runtime 清单不完整）：与联网失败分开报。 */
+function unavailableLocal(detail: string): DoctorProductIdentity {
+  return {
+    state: 'unavailable',
+    cause: 'local',
+    detail,
+    remediation: '重新运行 tenon setup --<host> 或 tenon update，使宿主、runtime 与 Dashboard 收敛到同一发布版本',
+  }
+}
+
+/** 探针失败的分因归类：文案与修法都由此决定，不再一句话盖住所有原因。 */
+function classifyProbeFailure(error: unknown): {
+  readonly cause: 'network' | 'missing-tag' | 'mismatch' | 'local'
+  readonly detail: string
+  readonly remediation: string
+} {
+  const message = error instanceof Error ? error.message : String(error)
+  if (TRANSIENT_REMOTE_FAILURE.test(message) || /timed out|timeout|ETIMEDOUT/iu.test(message)) {
+    return {
+      cause: 'network',
+      detail: `联网复核冻结发布 tag 失败（远端不可达或超时）：${message}`,
+      remediation: '这是链路问题，不是安装问题：本地检查用 tenon doctor（不联网）即可；网络恢复后再跑 tenon doctor --verify-release 复核',
+    }
+  }
+  if (/proof is missing|is not complete stable SemVer|does not resolve to a commit|final object is not a commit/u.test(message)) {
+    return {
+      cause: 'missing-tag',
+      detail: `远端没有可用的冻结发布 tag：${message}`,
+      remediation: '远端缺少这条 release tag；确认要装的版本仍在 GitHub Releases 上，再运行 tenon update --<host>',
+    }
+  }
+  if (/does not match|is ambiguous|unexpected ref|is malformed|does not belong/u.test(message)) {
+    return {
+      cause: 'mismatch',
+      detail: `冻结发布身份与远端不一致：${message}`,
+      remediation: '本机记录的 tag/commit 与远端广告的不符；不要继续从当前 runtime 启动，运行 tenon update --<host> 重新收敛',
+    }
+  }
+  return {
+    cause: 'local',
+    detail: message,
+    remediation: '重新运行 tenon setup --<host> 或 tenon update，使宿主、runtime 与 Dashboard 收敛到同一发布版本',
+  }
+}
+
 export function createDoctorProductIdentityProbe(
   runtimeScope: () => RuntimeScopeSnapshot,
   installer: RuntimeInstaller,
   runtime: DoctorProductIdentityProbeRuntime = REAL_PRODUCT_IDENTITY_RUNTIME,
-): () => Promise<DoctorProductIdentity> {
-  return async () => {
+): (options?: { readonly verifyRemote?: boolean }) => Promise<DoctorProductIdentity> {
+  return async (options = {}) => {
+    const verifyRemote = options.verifyRemote === true
     const scope = runtimeScope()
     try {
       const trustedBash = runtime.resolveTrustedCommand('bash', scope)
       const trustedGit = runtime.resolveTrustedCommand('git', scope)
       const trustedNode = runtime.resolveTrustedCommand('node', scope)
-      if (trustedBash === undefined) {
-        return { state: 'unavailable', detail: '可信 Bash 不可执行' }
-      }
-      if (trustedGit === undefined) {
-        return { state: 'unavailable', detail: '可信 Git 不可执行' }
-      }
-      if (trustedNode === undefined) {
-        return { state: 'unavailable', detail: '可信 Node 不可执行' }
-      }
+      if (trustedBash === undefined) return unavailableLocal('可信 Bash 不可执行')
+      if (trustedGit === undefined) return unavailableLocal('可信 Git 不可执行')
+      if (trustedNode === undefined) return unavailableLocal('可信 Node 不可执行')
       const inspection = await installer.inspect({
         homeDir: scope.homeDir,
         env: scope.env,
@@ -176,15 +227,13 @@ export function createDoctorProductIdentityProbe(
       const active = inspection.activeValid ? inspection.active : null
       const host = active?.source.host
       if (active === null || (host !== 'codex' && host !== 'claude')) {
-        return { state: 'unavailable', detail: '没有可验证的 native managed runtime' }
+        return unavailableLocal('没有可验证的 native managed runtime')
       }
       if (active.version !== 2 || active.stableTarget === undefined) {
-        return { state: 'unavailable', detail: 'active runtime manifest 缺少持久化 stable tag/commit 证明' }
+        return unavailableLocal('active runtime manifest 缺少持久化 stable tag/commit 证明')
       }
       const hostBinding = runtime.resolveHostCommand(host, scope)
-      if (hostBinding === undefined) {
-        return { state: 'unavailable', detail: `${host} 宿主不可执行` }
-      }
+      if (hostBinding === undefined) return unavailableLocal(`${host} 宿主不可执行`)
       const diagnosticEnv = {
         homeDir: () => scope.homeDir,
         runtimeEnv: () => scope.env,
@@ -236,9 +285,17 @@ export function createDoctorProductIdentityProbe(
         host,
         active.stableTarget,
       )
-      const provenTarget = resolveStableTagTarget(diagnosticEnv, active.stableTarget.version)
-      const remoteTargetExact = provenTarget.tag === active.stableTarget.tag
-        && provenTarget.commit === active.stableTarget.commit
+      // 联网复核只在 --verify-release 时做。冻结的 tag/commit 是安装时就落盘的证明，本地一致性
+      // （宿主 marketplace/plugin/payload 与它逐项相等）无需联网即可判定；为此在每次本地健康检查里
+      // 打两趟远端 git（ls-remote + 浅 fetch，各 3 次重试 × 60 s 预算）是把 update 的职责搬进了
+      // doctor——慢链路上能跑到十几分钟，而它回答的并不是「本机此刻是否健康」。
+      const remoteTargetExact = verifyRemote
+        ? (() => {
+            const provenTarget = resolveStableTagTarget(diagnosticEnv, active.stableTarget.version)
+            return provenTarget.tag === active.stableTarget.tag
+              && provenTarget.commit === active.stableTarget.commit
+          })()
+        : true
       const hostTargetExact = hostTargetExactBeforePayload
         && hostTargetExactAfterPayload
         && remoteTargetExact
@@ -261,6 +318,7 @@ export function createDoctorProductIdentityProbe(
         stableTargetTag: active.stableTarget.tag,
         stableTargetCommit: active.stableTarget.commit,
         hostTargetExact,
+        remoteTargetVerified: verifyRemote,
         hostPayloadDigest: candidate?.payloadDigest ?? null,
         runtimePluginVersion: active.source.pluginVersion,
         runtimeReleaseId: active.releaseId,
@@ -269,8 +327,8 @@ export function createDoctorProductIdentityProbe(
         dashboardServerVersion: dashboard?.serverVersion ?? null,
         dashboardReleaseId: dashboard?.releaseId ?? null,
       }
-    } catch {
-      return { state: 'unavailable', detail: '发布身份探针失败' }
+    } catch (error) {
+      return { state: 'unavailable', ...classifyProbeFailure(error) }
     }
   }
 }

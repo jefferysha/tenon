@@ -35,7 +35,7 @@ import { cmdSync } from './commands/sync.js'
 import { cmdTap } from './commands/tap.js'
 import { cmdTask } from './commands/task.js'
 import { cmdUninstall } from './commands/uninstall.js'
-import { cmdList, cmdStatus } from './commands/status.js'
+import { cmdList, cmdListFinished, cmdStatus } from './commands/status.js'
 import { cmdListArchived } from './commands/task-lifecycle.js'
 import { cmdTransition } from './commands/transition.js'
 import { cmdInternalSkillGate } from './commands/internalSkillGate.js'
@@ -203,7 +203,9 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .description('统一健康面：哪些保障此刻真的在生效/已静默降级（exit 1=有红灯）')
     .option('--json', 'JSON 输出（schema 稳定）')
     .option('--skills', '附加每个技能的来源、提交、许可证与更新时间')
-    .action(async (opts: { json?: boolean; skills?: boolean }) => bail(await cmdDoctor(deps, opts)))
+    .option('--verify-release', '额外联网向 GitHub 复核冻结发布 tag（默认不联网：doctor 是本地健康检查）')
+    .action(async (opts: { json?: boolean; skills?: boolean; verifyRelease?: boolean }) =>
+      bail(await cmdDoctor(deps, opts)))
 
   program
     .command('task <sub> [args...]')
@@ -265,9 +267,20 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .command('list')
     .description('活跃 change 表')
     .option('--json', 'JSON 输出（schema 稳定）')
-    .option('--archived', '当前用户已归档表：NAME PHASE ARCHIVED_AT BY')
-    .action(async (opts: { json?: boolean; archived?: boolean }) =>
-      bail(opts.archived ? await cmdListArchived(deps, opts) : await cmdList(deps, opts)))
+    .option('--archived', '当前用户已归档表（per-user 隐藏，可 unarchive）：NAME PHASE ARCHIVED_AT BY')
+    .option('--finished', '已完结表（openspec/changes/archive/ 下做完的任务）：NAME TRACK PHASE STATUS ARCHIVED_AT OWNER')
+    .action(async (opts: { json?: boolean; archived?: boolean; finished?: boolean }) => {
+      if (opts.archived && opts.finished) {
+        deps.io.err('ERROR: --archived（当前用户隐藏表）与 --finished（已完结表）是两张表，一次只能选一张')
+        bail(1)
+        return
+      }
+      if (opts.finished) {
+        bail(await cmdListFinished(deps, opts))
+        return
+      }
+      bail(opts.archived ? await cmdListArchived(deps, opts) : await cmdList(deps, opts))
+    })
 
   program
     .command('triage <source>')

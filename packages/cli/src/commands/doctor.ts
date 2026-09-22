@@ -107,9 +107,20 @@ function checkGateEffective(p: DoctorProbes): DoctorCheck {
   return green('guard:gate', 'PreToolUse 三门会真拦（hooks.json 注册 + gate.sh 可执行）')
 }
 
+/**
+ * 「现在是哪个宿主」：优先按进程环境判定正在跑这条命令的宿主，terminal 时才退回 runtime 的安装
+ * 来源。用安装来源当当前宿主，会在 `setup --codex` 的机器上把 Claude Code 会话误判成 Codex。
+ */
+async function activeHost(p: DoctorProbes): Promise<'codex' | 'claude' | null> {
+  const live = p.hostKind()
+  if (live === 'codex') return 'codex'
+  if (live === 'claude-code') return 'claude'
+  return p.nativeRuntimeHost()
+}
+
 async function checkStatusline(p: DoctorProbes): Promise<DoctorCheck> {
-  if (await p.nativeRuntimeHost() === 'codex') {
-    return green('guard:statusline', '当前 runtime 为 Codex；Claude 专属 statusline 不适用（不影响 Dashboard 或 pipeline hooks）')
+  if (await activeHost(p) === 'codex') {
+    return green('guard:statusline', '当前会话宿主为 Codex；Claude 专属 statusline 不适用（不影响 Dashboard 或 pipeline hooks）')
   }
   if (p.statuslineConfigured()) return green('guard:statusline', 'statusline 已接入 settings（终端零开销状态生效）')
   return yellow(
@@ -191,8 +202,8 @@ async function checkVerifySkills(p: DoctorProbes): Promise<DoctorCheck> {
 }
 
 async function checkCodexAuth(p: DoctorProbes): Promise<DoctorCheck> {
-  if (await p.nativeRuntimeHost() !== 'codex') {
-    return green('auth:codex', '当前 runtime 非 Codex；本机 Codex 登录检查不适用')
+  if (await activeHost(p) !== 'codex') {
+    return green('auth:codex', '当前会话宿主非 Codex；本机 Codex 登录检查不适用')
   }
   const status = await p.codexAuthStatus()
   if (status.state === 'authenticated') {
@@ -282,7 +293,10 @@ async function checkAfk(p: DoctorProbes): Promise<[DoctorCheck, DoctorCheck, Doc
 
 const STATUS_TAG: Record<DoctorStatus, string> = { green: '[PASS]', yellow: '[WARN]', red: '[FAIL]' }
 
-export async function cmdDoctor(deps: CliDeps, opts: { json?: boolean; skills?: boolean }): Promise<number> {
+export async function cmdDoctor(
+  deps: CliDeps,
+  opts: { json?: boolean; skills?: boolean; verifyRelease?: boolean },
+): Promise<number> {
   const p = deps.doctor
   if (!p) {
     deps.io.err('ERROR: doctor 探针未装配（main.ts 集成缺口，无法评估保障生效性）')
@@ -303,7 +317,7 @@ export async function cmdDoctor(deps: CliDeps, opts: { json?: boolean; skills?: 
     ['quality:verify-skills', () => checkVerifySkills(p)],
     ['skills:workflow', () => checkWorkflowSkills(p)],
     ['integration:openspec-cli', () => checkOpenspecCli()],
-    ['identity:release', () => checkProductIdentity(p)],
+    ['identity:release', () => checkProductIdentity(p, { verifyRemote: opts.verifyRelease === true })],
   ]
 
   const checks: DoctorCheck[] = []
