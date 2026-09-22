@@ -29047,7 +29047,9 @@ var TREE_SHA256 = /^sha256:[0-9a-f]{64}$/;
 var ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 var SOURCE_FIELDS = /* @__PURE__ */ new Set(["repo", "path", "ref", "license_expected"]);
 var LOCK_KEYS = ["version", "updated_at", "skills"];
-var LOCK_ENTRY_KEYS = ["id", "repo", "path", "commit", "tree_sha256", "license", "fetched_at", "previous_commit", "model_invocable"];
+var LOCK_ENTRY_KEYS_V1 = ["id", "repo", "path", "commit", "tree_sha256", "license", "fetched_at", "previous_commit"];
+var LOCK_ENTRY_KEYS_V2 = [...LOCK_ENTRY_KEYS_V1, "model_invocable"];
+var LOCK_VERSIONS = /* @__PURE__ */ new Set([1, 2]);
 var REPORT_KEYS = ["version", "at", "host", "results"];
 var RESULT_KEYS = /* @__PURE__ */ new Set(["id", "outcome", "reason", "detail"]);
 var FAILURE_REASONS = /* @__PURE__ */ new Set([
@@ -29180,8 +29182,9 @@ function lockError(message) {
 }
 function parseLockEntry(raw, index) {
   const at = `skills[${index}]`;
-  if (!isRecord7(raw) || !hasExactKeys(raw, LOCK_ENTRY_KEYS))
-    throw lockError(`${at} \u5B57\u6BB5\u987B\u4E3A ${LOCK_ENTRY_KEYS.join(" / ")}`);
+  if (!isRecord7(raw) || !(hasExactKeys(raw, LOCK_ENTRY_KEYS_V1) || hasExactKeys(raw, LOCK_ENTRY_KEYS_V2))) {
+    throw lockError(`${at} \u5B57\u6BB5\u987B\u4E3A ${LOCK_ENTRY_KEYS_V1.join(" / ")}\uFF08\u53EF\u591A\u4E00\u4E2A model_invocable\uFF09`);
+  }
   const { id: id2, repo, path: path14, commit, license } = raw;
   if (typeof id2 !== "string" || !ID3.test(id2))
     throw lockError(`${at}.id \u4E0D\u5408\u6CD5`);
@@ -29201,8 +29204,9 @@ function parseLockEntry(raw, index) {
   const previousCommit = previous === null ? null : typeof previous === "string" && COMMIT.test(previous) ? previous : void 0;
   if (previousCommit === void 0)
     throw lockError(`${id2} previous_commit \u987B\u4E3A null \u6216 40 \u4F4D\u5341\u516D\u8FDB\u5236`);
-  if (typeof raw.model_invocable !== "boolean")
+  if (Object.hasOwn(raw, "model_invocable") && typeof raw.model_invocable !== "boolean") {
     throw lockError(`${id2} model_invocable \u987B\u4E3A\u5E03\u5C14\u503C`);
+  }
   return {
     id: id2,
     repo,
@@ -29212,15 +29216,16 @@ function parseLockEntry(raw, index) {
     license,
     fetchedAt: raw.fetched_at,
     previousCommit,
-    modelInvocable: raw.model_invocable
+    ...typeof raw.model_invocable === "boolean" ? { modelInvocable: raw.model_invocable } : {}
   };
 }
 function parseUpstreamSkillLock(text7, sources) {
   const value = parseJson3(text7, lockError);
   if (!isRecord7(value) || !hasExactKeys(value, LOCK_KEYS))
     throw lockError(`\u9876\u5C42\u5B57\u6BB5\u987B\u4E3A ${LOCK_KEYS.join(" / ")}`);
-  if (value.version !== 2)
-    throw lockError(`version '${String(value.version)}' \u4E0D\u53D7\u652F\u6301\uFF08\u9700\u8981 2\uFF09`);
+  if (typeof value.version !== "number" || !LOCK_VERSIONS.has(value.version)) {
+    throw lockError(`version '${String(value.version)}' \u4E0D\u53D7\u652F\u6301\uFF08\u9700\u8981 1\uFF0C\u517C\u5BB9\u8BFB 2\uFF09`);
+  }
   if (!isIsoUtc(value.updated_at))
     throw lockError("updated_at \u4E0D\u662F ISO-8601 UTC \u65F6\u95F4");
   if (!Array.isArray(value.skills))
@@ -29242,7 +29247,7 @@ function parseUpstreamSkillLock(text7, sources) {
     }
     return entry;
   });
-  return { version: 2, updatedAt: value.updated_at, skills };
+  return { version: 1, updatedAt: value.updated_at, skills };
 }
 function reportError(message) {
   return new UpstreamSkillError("invalid-skill-lock", `skills/last-update.json: ${message}`);
@@ -29321,7 +29326,7 @@ function buildUpstreamSkillView(input2) {
       previousCommit: entry.previousCommit,
       license: entry.license,
       fetchedAt: entry.fetchedAt,
-      modelInvocable: entry.modelInvocable,
+      ...entry.modelInvocable === void 0 ? {} : { modelInvocable: entry.modelInvocable },
       ...failureFields,
       sourceUrl: treeUrl(source2.repo, entry.commit, source2.path),
       commitUrl: `https://github.com/${source2.repo}/commit/${entry.commit}`,

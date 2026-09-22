@@ -7,6 +7,7 @@ import { readAutomationJson, readUpstreamSkillView } from '@tenon/automation'
 import {
   loadManifest,
   readSecrets,
+  skillTextModelInvocable,
 } from '@tenon/kernel'
 import { tapStatus } from '@tenon/tap'
 import type { DoctorProbes } from '../deps.js'
@@ -263,6 +264,21 @@ export function makeDoctorProbes(
         hostEnv: scope.env,
         defaultCodexHome: join(scope.homeDir, '.codex'),
       })
+    },
+    /**
+     * 直接读 `<pluginRoot>/skills/<id>/SKILL.md`：宿主允不允许代模型调用这个技能，权威来源就是
+     * 这份 frontmatter。不走 skills.lock.json——那是跨版本线格式，v0.1.0 的读取器 exact-keys，
+     * 多一个字段就整条拒掉（真机 setup 已实测中招）。读不到字节就回 null（未知），不猜。
+     */
+    skillModelInvocable: (skillId: string) => {
+      if (skillId.includes(':') || skillId.includes('/') || skillId === '' || skillId === '.' || skillId === '..') {
+        return null
+      }
+      try {
+        return skillTextModelInvocable(readFileSync(join(root, 'skills', skillId, 'SKILL.md'), 'utf8'))
+      } catch {
+        return null
+      }
     },
     upstreamSkillView: () => {
       try {

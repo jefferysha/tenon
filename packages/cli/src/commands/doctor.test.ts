@@ -988,13 +988,14 @@ describe('doctor 缺技能检测（full-install 批2 A1：skills:mandatory / ski
 describe('doctor skills:invocable —— 强制技能必须是宿主肯代模型调用的那一种', () => {
   const mandatory = (token: string) => () =>
     ({ mandatory: { explore: { backend: [token] } } as never, recommended: {} as never })
-  const row = (id: string, modelInvocable: boolean): UpstreamSkillViewRow =>
-    ({ ...upstreamRow(id), modelInvocable })
+  /** 探针的三态：true 可调用 / false 带 disable-model-invocation / null 读不到字节。 */
+  const bytes = (verdicts: Readonly<Record<string, boolean>>) =>
+    (id: string): boolean | null => (id in verdicts ? verdicts[id] ?? null : null)
 
-  test('锁里记为不可调用的强制技能 → red，exit 1，detail 与 fix 都点名它', async () => {
+  test('SKILL.md 证明不可调用的强制技能 → red，exit 1，detail 与 fix 都点名它', async () => {
     const deps = makeDeps({ doctor: {
       manifestSkills: mandatory('improve-codebase-architecture'),
-      upstreamSkillView: () => upstreamView([row('improve-codebase-architecture', false)]),
+      skillModelInvocable: bytes({ 'improve-codebase-architecture': false }),
     } })
     const { code, payload } = await runJson(deps)
     expect(code).toBe(1)
@@ -1008,28 +1009,45 @@ describe('doctor skills:invocable —— 强制技能必须是宿主肯代模型
   test('a|b 只要一侧可调用就算过；两侧都不可调用才 red', async () => {
     const one = makeDeps({ doctor: {
       manifestSkills: mandatory('grill-with-docs|grilling'),
-      upstreamSkillView: () => upstreamView([row('grill-with-docs', false), row('grilling', true)]),
+      skillModelInvocable: bytes({ 'grill-with-docs': false, grilling: true }),
     } })
     expect(byId((await runJson(one)).payload, 'skills:invocable').status).toBe('green')
     const none = makeDeps({ doctor: {
       manifestSkills: mandatory('grill-with-docs|to-spec'),
-      upstreamSkillView: () => upstreamView([row('grill-with-docs', false), row('to-spec', false)]),
+      skillModelInvocable: bytes({ 'grill-with-docs': false, 'to-spec': false }),
     } })
     expect(byId((await runJson(none)).payload, 'skills:invocable').status).toBe('red')
   })
 
-  test('锁里没有这一位就不定罪：自带技能与宿主命名空间照常 green', async () => {
+  /**
+   * 读不到字节不定罪也不报绿：宿主命名空间与干净检出本就没有那些字节，拿「读不到」判红会让
+   * 所有人装不上；而「强制技能压根没装」另有 skills:mandatory 报红，不会因此漏掉。
+   */
+  test('字节读不到 → yellow（既不定罪也不误报 green）', async () => {
     const deps = makeDeps({ doctor: {
       manifestSkills: mandatory('superpowers:brainstorming'),
-      upstreamSkillView: () => upstreamView([row('grill-with-docs', false)]),
+      skillModelInvocable: bytes({}),
     } })
-    expect(byId((await runJson(deps)).payload, 'skills:invocable').status).toBe('green')
+    const check = byId((await runJson(deps)).payload, 'skills:invocable')
+    expect(check.status).toBe('yellow')
+    expect(check.detail).toContain('superpowers:brainstorming')
   })
 
-  test('manifest 或上游锁读不到 → yellow，不误报 green', async () => {
+  test('一条读不到、一条不可调用时，红优先于黄', async () => {
+    const deps = makeDeps({ doctor: {
+      manifestSkills: () => ({
+        mandatory: { explore: { backend: ['to-spec'], pm: ['superpowers:brainstorming'] } } as never,
+        recommended: {} as never,
+      }),
+      skillModelInvocable: bytes({ 'to-spec': false }),
+    } })
+    expect(byId((await runJson(deps)).payload, 'skills:invocable').status).toBe('red')
+  })
+
+  test('manifest 或探针缺席 → yellow，不误报 green', async () => {
     const noManifest = makeDeps({ doctor: { manifestSkills: () => null } })
     expect(byId((await runJson(noManifest)).payload, 'skills:invocable').status).toBe('yellow')
-    const badLock = makeDeps({ doctor: { upstreamSkillView: () => ({ error: 'skills/skills.lock.json: version 不受支持' }) } })
-    expect(byId((await runJson(badLock)).payload, 'skills:invocable').status).toBe('yellow')
+    const noProbe = makeDeps({ doctor: { skillModelInvocable: undefined } })
+    expect(byId((await runJson(noProbe)).payload, 'skills:invocable').status).toBe('yellow')
   })
 })

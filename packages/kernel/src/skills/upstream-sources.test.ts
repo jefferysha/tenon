@@ -35,14 +35,14 @@ const miniSources = parseUpstreamSkillSources([
   '',
 ].join('\n'))
 
-function lockText(entries: readonly Record<string, unknown>[], updatedAt = '2026-09-15T08:00:00.000Z'): string {
-  return `${JSON.stringify({ version: 2, updated_at: updatedAt, skills: entries }, null, 2)}\n`
+function lockText(entries: readonly Record<string, unknown>[], updatedAt = '2026-09-15T08:00:00.000Z', version = 1): string {
+  return `${JSON.stringify({ version, updated_at: updatedAt, skills: entries }, null, 2)}\n`
 }
 
 function entry(id: string, repo: string, path: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id, repo, path, commit: C1, tree_sha256: T1, license: 'MIT',
-    fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null, model_invocable: true, ...extra,
+    fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null, ...extra,
   }
 }
 
@@ -116,6 +116,7 @@ describe('upstream skill lock', () => {
     ['duplicate id', [entry('hue', 'dominikmartn/hue', '.'), entry('hue', 'dominikmartn/hue', '.')]],
     ['extra field', [entry('hue', 'dominikmartn/hue', '.', { note: 'x' })]],
     ['non-boolean model_invocable', [entry('hue', 'dominikmartn/hue', '.', { model_invocable: 'true' })]],
+    ['unknown extra field next to model_invocable', [entry('hue', 'dominikmartn/hue', '.', { model_invocable: true, note: 'x' })]],
   ])('rejects %s', (_label, entries) => {
     expect(category(() => parseUpstreamSkillLock(lockText(entries), miniSources))).toBe('invalid-skill-lock')
   })
@@ -125,25 +126,41 @@ describe('upstream skill lock', () => {
     expect(category(() => parseUpstreamSkillLock(lockText([], '2026-09-15 08:00')))).toBe('invalid-skill-lock')
   })
 
-  // A v1 lock predates model_invocable. Invocability cannot be back-filled from a record that never
-  // held it, so the whole lock is refused and the documented remedy is one more upstream fetch.
-  it('refuses a version 1 lock instead of guessing invocability', () => {
-    const legacy = JSON.stringify({
-      version: 1,
-      updated_at: '2026-09-15T08:00:00.000Z',
-      skills: [{
-        id: 'hue', repo: 'dominikmartn/hue', path: '.', commit: C1, tree_sha256: T1, license: 'MIT',
-        fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null,
-      }],
-    })
-    expect(category(() => parseUpstreamSkillLock(legacy, miniSources))).toBe('invalid-skill-lock')
+  /**
+   * 锁是跨组件线格式：写它的 fetcher 与读它的 verifier（候选根自带 / 已激活 release 里的
+   * doctor）在一次升级里可以是三个年龄。v0.1.0 的读取器 exact-keys 校验条目，多一个键就整条拒，
+   * 与 version 无关——真机 `setup --codex` 曾因此中止安装。所以写永远按 v1，读两种形状都收。
+   */
+  it('always serializes the v0.1.0 wire shape: version 1 and exactly the eight v1 keys', () => {
+    const lock = parseUpstreamSkillLock(
+      lockText([entry('hue', 'dominikmartn/hue', '.', { model_invocable: false })], undefined, 2),
+      miniSources,
+    )
+    const written = JSON.parse(serializeUpstreamSkillLock(lock)) as {
+      version: number
+      skills: readonly Record<string, unknown>[]
+    }
+    expect(written.version).toBe(1)
+    expect(Object.keys(written.skills[0] ?? {})).toEqual([
+      'id', 'repo', 'path', 'commit', 'tree_sha256', 'license', 'fetched_at', 'previous_commit',
+    ])
   })
 
-  it('round-trips a non-invocable entry as model_invocable false', () => {
-    const text = lockText([entry('hue', 'dominikmartn/hue', '.', { model_invocable: false })])
-    const lock = parseUpstreamSkillLock(text, miniSources)
-    expect(lock.skills[0]?.modelInvocable).toBe(false)
-    expect(serializeUpstreamSkillLock(lock)).toBe(text)
+  it('reads both the v1 shape and the short-lived v2 shape; a missing field is unknown, never false', () => {
+    const v1 = parseUpstreamSkillLock(lockText([entry('hue', 'dominikmartn/hue', '.')]), miniSources)
+    expect(v1.version).toBe(1)
+    expect(v1.skills[0]?.modelInvocable).toBeUndefined()
+    const v2 = parseUpstreamSkillLock(
+      lockText([entry('hue', 'dominikmartn/hue', '.', { model_invocable: false })], undefined, 2),
+      miniSources,
+    )
+    // 归一到 1：下一次写盘就自愈成两侧都收的形状。
+    expect(v2.version).toBe(1)
+    expect(v2.skills[0]?.modelInvocable).toBe(false)
+  })
+
+  it('still refuses a version it has never seen', () => {
+    expect(category(() => parseUpstreamSkillLock(lockText([], undefined, 3)))).toBe('invalid-skill-lock')
   })
 })
 

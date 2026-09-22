@@ -153,6 +153,11 @@ export interface DoctorProbes {
   afkReadiness?: () => Promise<AfkReadiness>
   /** skills/sources.yaml + skills/skills.lock.json + last-update.json 的只读视图；清单或锁无效时返回 error。 */
   upstreamSkillView?: () => import('@tenon/kernel').UpstreamSkillView | { error: string }
+  /**
+   * 该 skill 的 SKILL.md 允不允许宿主代模型调用；`null` = 读不到字节，因而无从证明。
+   * 权威来源是字节本身，不是锁：锁是跨版本线格式，塞不进新字段（见 upstream-sources.ts）。
+   */
+  skillModelInvocable?: (skillId: string) => boolean | null
 }
 
 export interface CliIO {

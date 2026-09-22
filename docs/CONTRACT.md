@@ -477,8 +477,13 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    `tenon doctor --skills`、`skills:upstream` 与 Dashboard `技能` 页显示来源/提交/许可证/更新时间。
    verifier 的 declared 集合是 registry ∪ lock：缺目录、未登记目录、内容漂移、锁与 sources 不一致
    一律 fail-closed。开发 checkout 用 `npm run skills:fetch` 获取，获取物与锁均 gitignored。
-   `model_invocable` 记录获取当时 SKILL.md 的 frontmatter 有没有 `disable-model-invocation: true`；
-   `version: 1` 的旧锁没有这一位，一律 `invalid-skill-lock`，重新获取一次即补齐（不猜、不回填）。
+   锁是**跨年龄线格式**：写它的 fetcher、候选根里自带的 verifier、已激活 release 里的 doctor，
+   在一次升级里可以是三个年龄。v0.1.0 的读取器按 exact-keys 校验条目（多一个键就整条拒，与
+   version 无关），因此这份文件**加不了任何字段**，也不许换 version：两种改法都让 `setup`/`update`
+   在候选校验处中止（真机各中过一次）。规则是：**永远按 v1 那 8 个键写**；读的时候同时收 v1 与
+   0.1.1-pre 短命的 v2（`model_invocable` 视为附注，缺失=未知、绝不当作「不可调用」），读进来一律
+   归一成 v1，下一次写盘即自愈。技能可不可以被模型调用的权威来源是 SKILL.md 字节本身
+   （`tree_sha256` 已把字节钉死），由 doctor 探针与候选校验现读，不进锁。
 
 10. **强制 Skill 必须模型可调用（2026-09-22）**：`templates/manifest.yaml` 的 `mandatory_skills`
    与 `templates/workflows/default.yaml` 的 step `skills` 只能声明宿主肯代模型调用的 Skill。
@@ -488,5 +493,17 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    spec.pm、verify.pm、ship.pm 即如此）。判定实现单源于 kernel `isSkillModelInvocable`，获取期
    记进锁的 `model_invocable`，两道门禁消费它：候选校验（`internal-skill-provenance verify` 的
    `mandatory-skill-not-invocable`，随 `tools/verify-skills.sh` 与 setup/update 的候选门一起跑）
-   与 `tenon doctor` 的 `skills:invocable`。token 的 `a|b` 备选只要有一个可调用即算过；没有字节的
-   备选判未知、不定罪。仅人工调用的 Skill 仍随包分发作人工指引，只是不得出现在强制表。
+   与 `tenon doctor` 的 `skills:invocable`。两者都直接读 `skills/<id>/SKILL.md` 的 frontmatter。
+   token 的 `a|b` 备选只要有一个被证明可调用即算过；**读不到字节 = 未知**，既不定罪也不报绿——
+   候选校验对未知沉默（干净检出本就没有这些字节，否则没人能发版），doctor 对未知报 yellow。
+   「强制技能压根没装」由 `skills:mandatory` / `skills:workflow` 报红，不会因这条沉默而漏掉。
+   仅人工调用的 Skill 仍随包分发作人工指引，只是不得出现在强制表。
+
+11. **跨年龄线格式不许做版本握手（2026-09-22）**：一份文件如果由一个组件写、由另一个**可能是
+   别的年龄**的组件读，它的 schema 就是对外契约，不能靠「双方同时升级」成立。本仓已知的这类面：
+   `skills/skills.lock.json`（fetcher ↔ 候选 verifier ↔ 已激活 doctor）、
+   `<stateRoot>/skills/last-update.json`（fetcher ↔ doctor，state root 跨 release 共享、回滚后仍在）、
+   以及 `openspec/changes/<name>/.pipeline.yaml` 这类项目态（回滚后由更老的读取器读，故
+   `tools/test-bundle.sh` 备有冻结 N-1 读取器）。纪律：这些文件**只增不改、且只能以旧读取器
+   已经容忍的方式增**；旧读取器若是 exact-keys，就一个字段都不能加，新事实应当放到旧读取器
+   根本不看的地方（如内容字节本身）。改 version 等于断代，必须当作破坏性变更单独设计升级路径。

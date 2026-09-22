@@ -1,7 +1,7 @@
 import { chmodSync, copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildCanonicalManifest } from '@tenon/automation'
-import { isSkillModelInvocable, parseSkillFrontmatter } from '@tenon/kernel'
+import { parseSkillFrontmatter } from '@tenon/kernel'
 
 const NO_EXCLUDES: ReadonlySet<string> = new Set()
 
@@ -12,13 +12,6 @@ export function readSkillFrontmatter(path: string): ReadonlyMap<string, string> 
   } catch {
     return null
   }
-}
-
-/** Whether the host's Skill tool may invoke this skill on the model's behalf; an unreadable
- *  SKILL.md is not proof of invocability, so it reads as not invocable. */
-export function skillModelInvocable(path: string): boolean {
-  const fields = readSkillFrontmatter(path)
-  return fields !== null && isSkillModelInvocable(fields)
 }
 
 /** Sum of regular file bytes; any entry that is neither a regular file nor a directory is rejected. */
