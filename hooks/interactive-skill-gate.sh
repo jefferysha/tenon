@@ -16,13 +16,15 @@
 #   interactive_skills 字段且本 hook 无权改它，故清单内联在此（老仓原清单：manifest.yaml
 #   interactive_skills: [brainstorming, grill-with-docs, prototype, huashu-design]）。新增交互式
 #   skill 只改下面一处。plugin 前缀（superpowers: 等）自动剥离比对，裸名也命中。
+#   grilling 是 default 流程里真正跑那场盘问的 skill；grill-with-docs 只是它的人工入口包装
+#   （带 disable-model-invocation，不进强制表）。两者都留在清单里，自动与人工两条路同受这道硬门。
 #
 # 纯 bash 热路径（CONTRACT §5.4：PostToolUse 每次工具后触发）：零解释器 / 外部 JSON 解析器 spawn。
 # fail-safe：非 Skill / 不在清单 / 解析异常 → 一律 exit 0 放行，绝不打断。
 set -uo pipefail
 
 # === 中心清单（内联单一真相源；空格分隔）===
-INTERACTIVE_SKILLS="brainstorming grill-with-docs prototype huashu-design"
+INTERACTIVE_SKILLS="brainstorming grilling grill-with-docs prototype huashu-design"
 
 INPUT="$(cat 2>/dev/null || printf '{}')"
 

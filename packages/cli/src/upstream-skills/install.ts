@@ -15,7 +15,7 @@ import {
   type UpstreamSkillSource,
 } from '@tenon/kernel'
 import type { SetupEnv } from '../commands/setup.js'
-import { copyTree, measureTree, readSkillFrontmatter, treeHash } from './content.js'
+import { copyTree, measureTree, readSkillFrontmatter, skillModelInvocable, treeHash } from './content.js'
 import { checkoutUpstreamPaths, resolveDefaultBranchHead, treeEntryModes, type UpstreamCheckout } from './fetch.js'
 import { detectUpstreamLicense, hasSkillLicenseFile, type LicenseEvidence } from './license.js'
 
@@ -157,6 +157,9 @@ async function installFromCheckout(run: Run, source: UpstreamSkillSource, checko
   run.entries.set(source.id, {
     id: source.id, repo: source.repo, path: source.path, commit: checkout.commit, treeSha256: hash,
     license: verdict.license, fetchedAt: run.at, previousCommit: previous?.commit ?? null,
+    // Recorded from the bytes that are actually being installed, which is the only moment the
+    // repository ever holds them: skills/<id> is gitignored, so no later repo-only check can.
+    modelInvocable: skillModelInvocable(join(staged, 'SKILL.md')),
   })
   run.results.set(source.id, { id: source.id, outcome: 'updated' })
   run.input.log(`[skills] 更新 ${source.id} ${checkout.commit.slice(0, 7)}`)
@@ -226,7 +229,7 @@ function writeLock(run: Run, previousLock: UpstreamSkillLock | null, runId: stri
   if (skills.length === 0 && previousLock === null && existing === null) return false
   const sameAsPrevious = previousLock !== null
     && serializeUpstreamSkillLock({ ...previousLock, skills }) === serializeUpstreamSkillLock(previousLock)
-  const text = serializeUpstreamSkillLock({ version: 1, updatedAt: sameAsPrevious ? previousLock.updatedAt : run.at, skills })
+  const text = serializeUpstreamSkillLock({ version: 2, updatedAt: sameAsPrevious ? previousLock.updatedAt : run.at, skills })
   if (existing === text) return false
   const tmp = `${lockPath}.tmp-${runId}`
   writeFileSync(tmp, text, { encoding: 'utf8', mode: 0o644 })

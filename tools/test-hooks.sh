@@ -1555,7 +1555,7 @@ EOF
   printf 'track: designer-mobile\nphase: explore\narchived: \n' > "$profileproj/openspec/changes/demo/.pipeline.yaml"
   run_router "{\"prompt\":\"继续处理 mobile-route-token\",\"cwd\":\"$profileproj\"}" "$profilecache"
   assert_contains "router: matrix=false 的 custom id 仍动态命中" "$ROUT" "track=designer-mobile"
-  assert_contains "router: 显示 custom track id 但技能继承 backend profile" "$ROUT" "improve-codebase-architecture"
+  assert_contains "router: 显示 custom track id 但技能继承 backend profile" "$ROUT" "codebase-design"
 
   # stale + 生成失败必须 fail-closed：旧 cache 留盘也不得在本轮消费。
   staleproj="$TMP/router-stale-failure"

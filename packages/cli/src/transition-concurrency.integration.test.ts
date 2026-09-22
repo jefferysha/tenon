@@ -88,7 +88,7 @@ describe('真实 e2e —— 并发 transition 尾部写入严格串行（不逆�
       // 严格按序：第二次只能在第一次 breadcrumb 收尾后读到 explore；未获确认时不写自己的 breadcrumb。
       expect(order).toEqual(['first-breadcrumb-blocked', 'breadcrumb:pipeline:demo phase=explore'])
 
-      await recordSkills('openspec-explore', 'brainstorming', 'grill-with-docs', 'improve-codebase-architecture')
+      await recordSkills('openspec-explore', 'brainstorming', 'grilling', 'domain-modeling', 'codebase-design')
       expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
       expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
       expect(await cmdTransition(deps, 'demo', 'explore-complete')).toBe(0)

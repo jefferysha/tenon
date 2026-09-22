@@ -41,6 +41,33 @@ const SOURCES = [
   '',
 ].join('\n')
 
+/**
+ * A root whose single bundled Skill carries the upstream `disable-model-invocation: true` header
+ * and is declared mandatory by a real flow manifest. Both halves are required: the flag alone is
+ * legal (it only bars automatic invocation), and the manifest row alone is legal too.
+ */
+async function makeNonInvocableDemoRoot(): Promise<{ root: string }> {
+  const { root } = await makeRoot()
+  await writeFile(
+    join(root, 'skills', 'demo', 'SKILL.md'),
+    '---\nname: demo\ndescription: human-invoked only\ndisable-model-invocation: true\n---\n# demo\n',
+    'utf8',
+  )
+  const digest = `sha256:${(await buildCanonicalManifest('demo', join(root, 'skills', 'demo'))).treeSha256}`
+  await writeFile(join(root, 'templates', 'skill-sources.yaml'), [
+    'version: 3',
+    'hash_algorithm: tree-sha256-v1',
+    'skills:',
+    `  demo: { tool: bundled, source: tenon, content_skill: demo, tier: mandatory, official: true, source_kind: bundled, source_ref: skills/demo, content_hash: ${digest}, coordinate: tenon:skills/demo@${digest} }`,
+    '',
+  ].join('\n'), 'utf8')
+  const manifest = await readFile(join(process.cwd(), 'templates', 'manifest.yaml'), 'utf8')
+  const patched = manifest.replace(/^ {2}explore\.pm:.*$/mu, '  explore.pm: [demo]')
+  expect(patched).toContain('  explore.pm: [demo]')
+  await writeFile(join(root, 'templates', 'manifest.yaml'), patched, 'utf8')
+  return { root }
+}
+
 async function addUpstream(root: string, options: { readonly dir?: boolean; readonly sources?: boolean } = {}): Promise<void> {
   const dir = join(root, 'skills', 'hue')
   await mkdir(dir, { recursive: true })
@@ -49,11 +76,12 @@ async function addUpstream(root: string, options: { readonly dir?: boolean; read
   if (options.dir === false) await rm(dir, { recursive: true, force: true })
   if (options.sources !== false) await writeFile(join(root, 'skills', 'sources.yaml'), SOURCES, 'utf8')
   await writeFile(join(root, 'skills', 'skills.lock.json'), `${JSON.stringify({
-    version: 1,
+    version: 2,
     updated_at: '2026-09-15T08:00:00.000Z',
     skills: [{
       id: 'hue', repo: 'dominikmartn/hue', path: '.', commit: 'a'.repeat(40), tree_sha256: tree,
       license: 'MIT', fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null,
+      model_invocable: true,
     }],
   }, null, 2)}\n`, 'utf8')
 }
@@ -290,6 +318,12 @@ describe('verifySkillProvenance', () => {
         const { root } = await makeRoot()
         await addUpstream(root)
         await writeFile(join(root, 'skills', 'skills.lock.json'), '{"version":2}', 'utf8')
+        return root
+      },
+      // 0.1.0 的原始事故：manifest 把一个 disable-model-invocation: true 的技能列为强制，
+      // 宿主不会代模型调用它，该 phase×track 于是永远过不去。真 manifest + 真字节复现一次。
+      'mandatory-skill-not-invocable': async () => {
+        const { root } = await makeNonInvocableDemoRoot()
         return root
       },
     }

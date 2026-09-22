@@ -203,7 +203,7 @@ Fixes found by continuing real Claude Code and Codex tasks on v1.1.1.
 
 ### Interaction gate
 
-- An interactive skill (`brainstorming`, `grill-with-docs`, `prototype`, `huashu-design`) asks the user
+- An interactive skill (`brainstorming`, `grilling`, `grill-with-docs`, `prototype`, `huashu-design`) asks the user
   once per step visit. Codex records a document only after re-reading its producer skill; for an
   interactive producer that re-read locked the same question again, so Explore could not record its
   design or ADR in Codex. An approval now leaves an `InteractionConfirmed` history row, and the gate

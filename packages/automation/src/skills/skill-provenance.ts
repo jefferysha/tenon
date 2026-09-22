@@ -12,6 +12,7 @@ import {
   type UpstreamSkillLock,
 } from '@tenon/kernel'
 import { buildCanonicalManifest } from './snapshot-manifest.js'
+import { scanMandatorySkillInvocability } from './mandatory-invocability.js'
 
 export { SKILL_PROVENANCE_ERROR_CATEGORIES } from '@tenon/kernel'
 
@@ -40,6 +41,8 @@ export interface SkillProvenanceVerificationResult {
 export interface SkillProvenanceVerificationOptions {
   readonly registryPath?: string
   readonly skillsRoot?: string
+  /** Flow manifest whose mandatory_skills table must stay model-invocable; defaults to `<root>/templates/manifest.yaml`. */
+  readonly manifestPath?: string
 }
 
 const CATEGORY_ORDER = new Map<string, number>(SKILL_PROVENANCE_ERROR_CATEGORIES.map((category, index) => [category, index]))
@@ -59,6 +62,9 @@ function remediation(category: SkillProvenanceFindingCategory): string {
     case 'filesystem-safety-error': return '修复 Skill 内容树的文件类型、权限或 symlink 后重新验证'
     case 'invalid-skill-sources': return '修复 skills/sources.yaml（字段、repo/path、与 Tenon 自带技能撞名）后重新获取'
     case 'invalid-skill-lock': return '运行 tenon update --<host> 或 npm run skills:fetch 重新获取上游技能'
+    case 'mandatory-skill-not-invocable':
+      return '把 templates/manifest.yaml 与 templates/workflows/default.yaml 里的该强制技能换成模型可调用的等价技能，'
+        + '或降级为人工指引；仅人工调用的技能（disable-model-invocation: true）做不了自动门禁'
   }
 }
 
@@ -315,6 +321,29 @@ export async function verifySkillProvenance(
         'filesystem-safety-error',
         `Skill '${id}' 内容树无法安全读取: ${error instanceof Error ? error.message : String(error)}`,
         { skill: id, sourceRef: entry.sourceRef },
+      ))
+    }
+  }
+
+  // 强制技能的可调用性：唯一能读到真字节的时刻就是校验候选载荷的现在。
+  const scan = await scanMandatorySkillInvocability(root, {
+    skillsRoot,
+    ...(options.manifestPath === undefined ? {} : { manifestPath: options.manifestPath }),
+  })
+  if (scan.kind === 'unreadable-manifest') {
+    findings.push(finding(
+      'mandatory-skill-not-invocable',
+      `无法读取 templates/manifest.yaml 的 mandatory_skills，强制技能可调用性无从证明：${scan.detail}`,
+      {},
+      '修复 templates/manifest.yaml 后重新验证；解析不了就不能当作没有强制技能',
+    ))
+  } else if (scan.kind === 'scanned') {
+    for (const offender of scan.offenders) {
+      findings.push(finding(
+        'mandatory-skill-not-invocable',
+        `强制技能 '${offender.token}' 的全部备选都带 disable-model-invocation: true，宿主不会代模型调用它，`
+        + `声明它的 ${offender.cells.join('、')} 会卡死在 step-skills-incomplete`,
+        { skill: offender.skillIds.join('|'), sourceRef: `skills/${offender.skillIds[0] ?? ''}` },
       ))
     }
   }

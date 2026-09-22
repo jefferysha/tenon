@@ -466,11 +466,11 @@ export function mockDoctorProbes(overrides: Partial<DoctorProbes> = {}): DoctorP
     // Codex normal-chat 就绪面：缺省 fixture 代表安装器已投递完整 contract skills。
     codexProjectSkillNames: () => new Set([
       'tenon', 'openspec-propose', 'openspec-explore',
-      'brainstorming', 'grill-with-docs', 'improve-codebase-architecture',
+      'brainstorming', 'grilling', 'domain-modeling', 'codebase-design',
       'writing-plans', 'test-driven-development', 'verification-before-completion',
       'finishing-a-development-branch', 'browser-qa', 'e2e-testing',
       'frontend-design', 'design-taste-frontend', 'web-design-guidelines',
-      'handoff', 'prototype', 'to-spec', 'to-tickets',
+      'prototype',
     ]),
     hostPluginInventory: async () => ({ kind: 'native', host: 'claude', enabledIds: new Set(['tenon@tenon']) }),
     manifestSkills: () => DEFAULT_MANIFEST_SKILLS,

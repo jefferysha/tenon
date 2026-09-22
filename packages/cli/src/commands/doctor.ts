@@ -22,7 +22,9 @@ import {
   type DoctorCheck,
   type DoctorStatus,
 } from './doctor-check.js'
-import { checkCodexProjectSkills, checkOpenspecCli, checkSkills, checkWorkflowSkills } from './doctor-skills.js'
+import {
+  checkCodexProjectSkills, checkMandatorySkillInvocability, checkOpenspecCli, checkSkills, checkWorkflowSkills,
+} from './doctor-skills.js'
 import { renderCodexAuthLines } from '../codexAuth.js'
 import { checkProductIdentity } from './doctor-product-identity.js'
 import { checkUpstreamSkills, renderUpstreamSkillTable, upstreamSkillViewOf } from './doctor-upstream-skills.js'
@@ -302,6 +304,7 @@ export async function cmdDoctor(deps: CliDeps, opts: { json?: boolean; skills?: 
     ['project:markers', () => checkMarkers(deps)],
     ['quality:verify-skills', () => checkVerifySkills(p)],
     ['skills:workflow', () => checkWorkflowSkills(p)],
+    ['skills:invocable', () => checkMandatorySkillInvocability(p)],
     ['integration:openspec-cli', () => checkOpenspecCli()],
     ['identity:release', () => checkProductIdentity(p)],
   ]

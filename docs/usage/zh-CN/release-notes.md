@@ -192,7 +192,7 @@ tenon runtime status
 
 ### 交互门
 
-- 交互式技能（`brainstorming`、`grill-with-docs`、`prototype`、`huashu-design`）在每次进入阶段后只向用户
+- 交互式技能（`brainstorming`、`grilling`、`grill-with-docs`、`prototype`、`huashu-design`）在每次进入阶段后只向用户
   确认一次。Codex 需要重新读取产出技能才能登记文档；对交互式产出技能，这次重读会再次锁住同一个问题，
   导致 Codex 中 explore 无法登记设计文档与 ADR。现在用户确认后会写入 `InteractionConfirmed` 历史行，
   在重新进入该阶段之前，门禁不再为同一技能加锁。

@@ -25,6 +25,7 @@ const EXPECTED_IDS = [
   'project:markers',
   'quality:verify-skills',
   'skills:workflow',
+  'skills:invocable',
   'integration:openspec-cli',
   'identity:release',
   'skills:mandatory',
@@ -107,13 +108,13 @@ describe('doctor skills:upstream', () => {
 })
 
 describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / D10 > tenon doctor）', () => {
-  test('全绿基线：23 项检查全 green，exit 0，人读输出含汇总行、无 WARN/FAIL', async () => {
+  test('全绿基线：24 项检查全 green，exit 0，人读输出含汇总行、无 WARN/FAIL', async () => {
     const deps = makeDeps()
     const code = await cmdDoctor(deps, {})
     expect(code).toBe(0)
     const text = deps.outLines.join('\n')
     expect(text).toContain('[DOCTOR]')
-    expect(text).toContain('绿 23')
+    expect(text).toContain('绿 24')
     expect(text).not.toContain('[WARN]')
     expect(text).not.toContain('[FAIL]')
     expect(text).not.toContain('fix:')
@@ -142,7 +143,7 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
       expect(typeof c.detail).toBe('string')
       expect(typeof c.hint).toBe('string')
     }
-    expect(payload.summary).toEqual({ green: 23, yellow: 0, red: 0 })
+    expect(payload.summary).toEqual({ green: 24, yellow: 0, red: 0 })
   })
 
   test('native host/runtime/Dashboard 任一版本漂移时 identity:release red', async () => {
@@ -650,7 +651,7 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
     }
     expect(code).toBe(0)
     const payload = JSON.parse(deps.outLines.join('\n')) as DoctorJson
-    expect(payload.summary).toEqual({ green: 23, yellow: 0, red: 0 })
+    expect(payload.summary).toEqual({ green: 24, yellow: 0, red: 0 })
   })
 })
 
@@ -921,5 +922,54 @@ describe('doctor 缺技能检测（full-install 批2 A1：skills:mandatory / ski
     const text = deps.outLines.join('\n')
     expect(text).toContain('[FAIL] skills:mandatory')
     expect(text).toMatch(/fix: .*自定义插件/)
+  })
+})
+
+describe('doctor skills:invocable —— 强制技能必须是宿主肯代模型调用的那一种', () => {
+  const mandatory = (token: string) => () =>
+    ({ mandatory: { explore: { backend: [token] } } as never, recommended: {} as never })
+  const row = (id: string, modelInvocable: boolean): UpstreamSkillViewRow =>
+    ({ ...upstreamRow(id), modelInvocable })
+
+  test('锁里记为不可调用的强制技能 → red，exit 1，detail 与 fix 都点名它', async () => {
+    const deps = makeDeps({ doctor: {
+      manifestSkills: mandatory('improve-codebase-architecture'),
+      upstreamSkillView: () => upstreamView([row('improve-codebase-architecture', false)]),
+    } })
+    const { code, payload } = await runJson(deps)
+    expect(code).toBe(1)
+    const check = byId(payload, 'skills:invocable')
+    expect(check.status).toBe('red')
+    expect(check.detail).toContain('improve-codebase-architecture')
+    expect(check.detail).toContain('disable-model-invocation')
+    expect(check.hint).toContain('improve-codebase-architecture')
+  })
+
+  test('a|b 只要一侧可调用就算过；两侧都不可调用才 red', async () => {
+    const one = makeDeps({ doctor: {
+      manifestSkills: mandatory('grill-with-docs|grilling'),
+      upstreamSkillView: () => upstreamView([row('grill-with-docs', false), row('grilling', true)]),
+    } })
+    expect(byId((await runJson(one)).payload, 'skills:invocable').status).toBe('green')
+    const none = makeDeps({ doctor: {
+      manifestSkills: mandatory('grill-with-docs|to-spec'),
+      upstreamSkillView: () => upstreamView([row('grill-with-docs', false), row('to-spec', false)]),
+    } })
+    expect(byId((await runJson(none)).payload, 'skills:invocable').status).toBe('red')
+  })
+
+  test('锁里没有这一位就不定罪：自带技能与宿主命名空间照常 green', async () => {
+    const deps = makeDeps({ doctor: {
+      manifestSkills: mandatory('superpowers:brainstorming'),
+      upstreamSkillView: () => upstreamView([row('grill-with-docs', false)]),
+    } })
+    expect(byId((await runJson(deps)).payload, 'skills:invocable').status).toBe('green')
+  })
+
+  test('manifest 或上游锁读不到 → yellow，不误报 green', async () => {
+    const noManifest = makeDeps({ doctor: { manifestSkills: () => null } })
+    expect(byId((await runJson(noManifest)).payload, 'skills:invocable').status).toBe('yellow')
+    const badLock = makeDeps({ doctor: { upstreamSkillView: () => ({ error: 'skills/skills.lock.json: version 不受支持' }) } })
+    expect(byId((await runJson(badLock)).payload, 'skills:invocable').status).toBe('yellow')
   })
 })

@@ -469,10 +469,24 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    `{ repo, path, ref: default-branch, license_expected }`，许可证只允许 MIT 与 Apache-2.0。
    `tenon setup --<host>` 与 `tenon update --<host>` 在宿主写好插件根之后、候选校验之前，从每个
    仓库默认分支获取最新完整内容写入 `<插件根>/skills/<id>/`，并写 `skills/skills.lock.json`
-   （`{ id, repo, path, commit, previous_commit, tree_sha256, license, fetched_at }`，随 payload
+   （`version: 2`，`{ id, repo, path, commit, previous_commit, tree_sha256, license, fetched_at,
+   model_invocable }`，随 payload
    分发、不入 git）。内容哈希沿用 `tree-sha256-v1`。单个 Skill 要么完整替换、要么保留旧内容，
    不留半装状态；内容未变时锁字节不变，更新报告 `current`。获取失败、缺许可证、许可证不符、
    上游改名或删除都不改变已激活 release，`<stateRoot>/skills/last-update.json` 记录该次结果，
    `tenon doctor --skills`、`skills:upstream` 与 Dashboard `技能` 页显示来源/提交/许可证/更新时间。
    verifier 的 declared 集合是 registry ∪ lock：缺目录、未登记目录、内容漂移、锁与 sources 不一致
    一律 fail-closed。开发 checkout 用 `npm run skills:fetch` 获取，获取物与锁均 gitignored。
+   `model_invocable` 记录获取当时 SKILL.md 的 frontmatter 有没有 `disable-model-invocation: true`；
+   `version: 1` 的旧锁没有这一位，一律 `invalid-skill-lock`，重新获取一次即补齐（不猜、不回填）。
+
+10. **强制 Skill 必须模型可调用（2026-09-22）**：`templates/manifest.yaml` 的 `mandatory_skills`
+   与 `templates/workflows/default.yaml` 的 step `skills` 只能声明宿主肯代模型调用的 Skill。
+   带 `disable-model-invocation: true` 的 Skill 由设计只接受人工触发，宿主 Skill 工具拒绝代模型
+   执行它，Tenon 下发的 `load-skill <id>` 因此既跑不起来也留不下回执，transition 的
+   step-skills-incomplete 会把该 phase×track 永久锁死（v0.1.0 的 explore.pm/frontend/backend、
+   spec.pm、verify.pm、ship.pm 即如此）。判定实现单源于 kernel `isSkillModelInvocable`，获取期
+   记进锁的 `model_invocable`，两道门禁消费它：候选校验（`internal-skill-provenance verify` 的
+   `mandatory-skill-not-invocable`，随 `tools/verify-skills.sh` 与 setup/update 的候选门一起跑）
+   与 `tenon doctor` 的 `skills:invocable`。token 的 `a|b` 备选只要有一个可调用即算过；没有字节的
+   备选判未知、不定罪。仅人工调用的 Skill 仍随包分发作人工指引，只是不得出现在强制表。

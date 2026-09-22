@@ -8,7 +8,7 @@ export { loadManifest, ManifestError } from './manifest.js'
 export { createFlowEngine } from './engine.js'
 export type { ReviewGate } from './engine.js'
 // manifest 全派生面（BACKLOG #18）——供 router hook #19 / guard skill 面消费
-export { skillsFor } from './manifest.js'
+export { skillsFor, skillTokenAlternatives } from './manifest.js'
 export type { ExtendedManifestData, SkillActionAuthorityManifestV1, SkillTable, SkillTrackKey } from './manifest.js'
 // transition 事件边表（BACKLOG #25b / GOAL B2）——事件名 → 转移边 + 注入面，供 cli/server 共消费。
 export { TRANSITION_EVENTS, eventEdge } from './transition-table.js'
