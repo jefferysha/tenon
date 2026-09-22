@@ -124,12 +124,32 @@ describe('implicitCompletionTransition', () => {
       .toEqual([null, null, null, 'archived'])
   })
 
-  test('bundled default and simple plans are unchanged', () => {
+  /**
+   * The derived edge used to be limited to step-graph plans, so `default`'s `archive` — the one
+   * bundled terminal this rule was written for — had no exit at all: `tenon status --json` showed
+   * `"exits": []` and `next: [{action:'fix', blockers:[]}]`, and nothing ever named
+   * `tenon transition <change> archived`. The default state machine does declare that self-edge
+   * (`flow/transition-table.ts`); only the manifest-derived IR drops it.
+   */
+  test('the bundled default archive terminal completes through the derived archived edge', () => {
     const defaultPlan = compileEffectiveWorkflowPlan('default')
     for (const candidate of defaultPlan.workflow.steps) {
+      if (candidate.id === 'archive') continue
       expect(implicitCompletionTransition(defaultPlan, candidate.id)).toBeUndefined()
       expect(stepExitTransitions(defaultPlan, candidate.id)).toBe(candidate.transitions)
     }
+    expect(implicitCompletionTransition(defaultPlan, 'archive')).toEqual({
+      event: IMPLICIT_COMPLETION_EVENT,
+      to: 'archive',
+      guards: [],
+      actions: [{ type: 'archive-run' }],
+    })
+    expect(stepExitTransitions(defaultPlan, 'archive', stateWith('false')).map((exit) => exit.event))
+      .toEqual(['archived'])
+    expect(stepExitTransitions(defaultPlan, 'archive', stateWith('true'))).toEqual([])
+  })
+
+  test('bundled simple plan is unchanged', () => {
     const simple = builtinWorkflow('simple')
     if (simple === null) throw new Error('simple workflow missing')
     const simplePlan = compileEffectiveWorkflowPlan('simple', simple)

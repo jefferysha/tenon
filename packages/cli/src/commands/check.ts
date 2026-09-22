@@ -37,7 +37,7 @@ import type {
 } from '@tenon/kernel'
 import type { StepIR } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { changeDir, isValidChangeName } from '../paths.js'
+import { isValidChangeName, resolveChangeDir } from '../paths.js'
 import { display, str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { stepAgentLines } from './check-agents.js'
@@ -67,7 +67,7 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
     deps.io.err(`ERROR: change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
     return 1
   }
-  const dir = changeDir(deps.cwd, name)
+  const dir = resolveChangeDir(deps.cwd, name)
   let state
   try {
     state = await deps.store.read(dir)

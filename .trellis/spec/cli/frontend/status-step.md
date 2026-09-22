@@ -34,13 +34,16 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   `nextAgentWave`，出口 guard `evaluateDefaultEventPreconditions`（default）或
   `evaluateWorkflowIrStepGuards` + `effectiveLifecyclePolicy`（自定义），评审回执 `reviewGateStatus`。
   这里只换形状，不新写一套 guard。
-- `next` 是闭集：`stop`、`load-tenon`、`read-documents`、`run-agent`、`load-skill`、
+- `next` 是闭集：`stop`、`load-tenon`、`finish-change`、`read-documents`、`run-agent`、`load-skill`、
   `scaffold-document`、`record-document`、`register-field`、`set-field`、`validate-spec`、
   `apply-spec`、`run-test`、`fix`、`request-review`、`await-review`、`choose-exit`、`transition`、
   `complete`。第一条命中的规则返回，同一条规则内同波的项一起返回。
-- 顺序：停（归档 / 引用已删除技能 / 步骤不在计划里）→ 重新加载 tenon → 读输入文档 → 执行者 →
-  本步技能 → 应用规格 → 产出与登记文档 → 产出字段与门禁字段 → 彩排规格 → 必需测试 →
-  评审者 → 结果字段 → 出口。
+- 顺序：停（归档 / 引用已删除技能 / 步骤不在计划里）→ 重新加载 tenon → 状态机已归档（治理归档
+  或停）→ 读输入文档 → 执行者 → 本步技能 → 应用规格 → 产出与登记文档 → 产出字段与门禁字段 →
+  彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
+- 终态自边由 kernel 推导（`implicitCompletionTransition`），`default` 的 `archive` 也在内：它
+  投影成 `direction: completion` 的出口，`next` 给 `complete`。走完之后 `archived=true`，
+  `next` 只剩 `finish-change`（治理归档命令）；两条命令的先后因此写在数据里，而不是靠人记。
 - 执行者失败可以重跑；评审者不通过不重跑——评审结论是证据，代码没改重跑只会得到同一份结论，
   该走的是回退边。
 - 回退边只在必需评审者不通过、且本步真的有回退边时出现在 `choose-exit` 里；否则给 `fix` 加上

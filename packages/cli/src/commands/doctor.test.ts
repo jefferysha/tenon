@@ -532,6 +532,60 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
     expect(c.hint).toContain('tenon setup --codex')
   })
 
+  /**
+   * 真机实测的缺陷（acceptance run）：非 Codex 项目里，doctor 先打
+   * `[PASS] auth:codex 当前会话宿主非 Codex`，两行之后又打
+   * `[WARN] integration:codex-project-skills Codex 唯一发现根缺 17 个 Tenon Skills`。同一屏上
+   * 两句互相打脸，而且后者给的修复在一个不用 Codex 的项目里没有意义。
+   */
+  test('非 Codex 项目：不数一个不存在的宿主缺几个 Skill，与 auth:codex 同一判定', async () => {
+    const deps = makeDeps({ doctor: {
+      hostKind: () => null,
+      nativeRuntimeHost: async () => null,
+      codexSkillDiscovery: async () => ({
+        projectRoot: '/repo/.agents/skills',
+        selected: new Map(),
+        project: new Map(),
+      }),
+    } })
+    const { payload } = await runJson(deps)
+    const codex = byId(payload, 'integration:codex-project-skills')
+    expect(codex.status).toBe('green')
+    expect(codex.detail).toContain('不适用')
+    expect(codex.detail).not.toContain('缺')
+    expect(byId(payload, 'auth:codex').status).toBe('green')
+  })
+
+  test('项目里已经投影过 Skill 时照常盘点，哪怕当前会话不在 Codex', async () => {
+    const deps = makeDeps({ doctor: {
+      hostKind: () => null,
+      nativeRuntimeHost: async () => null,
+      codexSkillDiscovery: async () => ({
+        projectRoot: '/repo/.agents/skills',
+        selected: new Map(),
+        project: new Map([['tenon', 'digest-tenon']]),
+      }),
+    } })
+    const { payload } = await runJson(deps)
+    const c = byId(payload, 'integration:codex-project-skills')
+    expect(c.status).toBe('yellow')
+    expect(c.detail).toContain('static root=/repo/.agents/skills')
+  })
+
+  test('已安装 Codex runtime 时照常盘点，即使项目里一个投影都没有', async () => {
+    const deps = makeDeps({ doctor: {
+      hostKind: () => null,
+      nativeRuntimeHost: async () => 'codex',
+      codexSkillDiscovery: async () => ({
+        projectRoot: '/repo/.agents/skills',
+        selected: new Map(),
+        project: new Map(),
+      }),
+    } })
+    const { payload } = await runJson(deps)
+    expect(byId(payload, 'integration:codex-project-skills').status).toBe('yellow')
+  })
+
   test('Codex native selected root 单独满足 contract，不要求项目 Skill 投影', async () => {
     const contract = mockDoctorProbes().codexProjectSkillNames?.() ?? new Set<string>()
     const selected = new Map([...contract].map((id) => [id, `digest-${id}`]))

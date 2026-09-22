@@ -100,3 +100,41 @@ describe('role require project documents', () => {
     expect(shape.items).toEqual([])
   })
 })
+
+/**
+ * `role: update` 槽位此前完全不进证据面：kinds 只由 record/read/require 三类拼出来，
+ * 于是「已登记的可更新文档」在 status 投影里恒为 missing，运行器照着 next 永远做不完。
+ */
+describe('role update mutable slots', () => {
+  const UPDATE = policyOf([{ kind: 'design-md', ownerStep: 'build', role: 'update', producers: ['hue'] }])
+  const DESIGN = 'DESIGN.md'
+  const designRecord = record({ kind: 'design-md', path: DESIGN, sha256: sha('# design\n'), producer: 'hue' })
+
+  it('已登记的 update 槽位：recorded，不再被投影成 missing', async () => {
+    const { root, changeDir } = await fixture({ [DESIGN]: '# design\n' }, [designRecord])
+    const report = await evaluateDocumentEvidence(root, changeDir, 'build', {}, UPDATE)
+    expect(report.items).toMatchObject([{ kind: 'design-md', status: 'recorded', producers: ['hue'] }])
+    expect(report.pass).toBe(true)
+  })
+
+  it('未登记的 update 槽位：missing 但不阻断（update 是许可，不是出口前置）', async () => {
+    const { root, changeDir } = await fixture({ [DESIGN]: '# design\n' }, [])
+    const report = await evaluateDocumentEvidence(root, changeDir, 'build', {}, UPDATE)
+    expect(report.items).toMatchObject([{ kind: 'design-md', status: 'missing' }])
+    expect(report.blockers).toEqual([])
+    expect(report.pass).toBe(true)
+  })
+
+  it('内容变化的 update 槽位：stale 但不阻断', async () => {
+    const { root, changeDir } = await fixture({ [DESIGN]: '# edited\n' }, [designRecord])
+    const report = await evaluateDocumentEvidence(root, changeDir, 'build', {}, UPDATE)
+    expect(report.items).toMatchObject([{ kind: 'design-md', status: 'stale', reason: 'changed' }])
+    expect(report.blockers).toEqual([])
+  })
+
+  it('收窄 record scope（回退边）时不投影 update 槽位', async () => {
+    const { root, changeDir } = await fixture({ [DESIGN]: '# design\n' }, [designRecord])
+    const report = await evaluateDocumentEvidence(root, changeDir, 'build', { recordKinds: [], readKinds: [] }, UPDATE)
+    expect(report.items).toEqual([])
+  })
+})

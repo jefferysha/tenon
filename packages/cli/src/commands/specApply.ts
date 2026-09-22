@@ -12,7 +12,7 @@ import {
   type DocumentLocale, type DocumentRecord,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { changeDir, isValidChangeName } from '../paths.js'
+import { isValidChangeName, resolveChangeDir } from '../paths.js'
 import { refuseArchived } from '../archivedGuard.js'
 import { resolveChangeDocumentLocale } from '../documentLocale.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
@@ -104,7 +104,7 @@ export async function cmdSpecApply(
     deps.io.err(`ERROR: change-name 非法: '${change}' (仅允许 a-z A-Z 0-9 - _)`)
     return 1
   }
-  const dir = changeDir(deps.cwd, change)
+  const dir = resolveChangeDir(deps.cwd, change)
   let state
   try {
     state = await deps.store.read(dir)

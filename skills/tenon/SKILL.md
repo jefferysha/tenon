@@ -82,7 +82,8 @@ repeat:
 | `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`。afk：结束本轮。 |
 | `choose-exit` | 按下面的「出口」挑一条边。 |
 | `transition` | `tenon transition <c> <event>`。 |
-| `complete` | `tenon transition <c> <event>`；`governed_openspec` 为真时再跑 `openspec archive <c> --skip-specs --yes --json`。 |
+| `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `openspec archive`。 |
+| `finish-change` | 照 `command` 原样跑（`openspec archive <c> --skip-specs --yes --json`），把 change 目录搬进 `openspec/changes/archive/`。跑完这条 `tenon list --finished` 才看得见它。 |
 
 ## 决定、字段、出口
 

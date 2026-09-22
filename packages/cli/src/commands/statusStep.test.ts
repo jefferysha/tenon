@@ -15,6 +15,8 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     review: { status: 'none', event: null },
     gate: null,
     mode: 'interactive',
+    runArchived: false,
+    governedOpenspec: true,
     exits: [],
     specRehearsalPending: false,
     specApplicationPending: false,
@@ -233,5 +235,43 @@ describe('step.next 顺序', () => {
     const fix = stepNextActions(input({ exits: [exit('a', 'forward', false)] }))
     expect(fix[0]?.action).toBe('fix')
     expect(fix[0]?.blockers).toHaveLength(1)
+  })
+
+  test('终态自边 → complete', () => {
+    expect(stepNextActions(input({ exits: [exit('archived', 'completion', true)] })))
+      .toEqual([{ action: 'complete', event: 'archived' }])
+  })
+
+  /**
+   * 真机实测的 P0（acceptance run）：`tenon transition <c> archived` 之后、`openspec archive`
+   * 之前，状态机没有出边了，`next` 只剩 `{action: fix, blockers: []}`——一个没有可修项的 fix。
+   * 同一刻 `tenon list` 按 `archived != true` 把它滤掉、`tenon list --finished` 只读 archive
+   * 目录，两边都看不见它。治理归档那条命令必须由 `next` 自己点名。
+   */
+  test('状态机已归档 → 点名治理归档命令，而不是空 fix', () => {
+    expect(stepNextActions(input({ runArchived: true, exits: [] }))).toEqual([{
+      action: 'finish-change',
+      change: 'demo',
+      command: 'openspec archive demo --skip-specs --yes --json',
+    }])
+  })
+
+  test('非 OpenSpec 治理的工作流归档后直接停', () => {
+    const next = stepNextActions(input({ runArchived: true, governedOpenspec: false, exits: [] }))
+    expect(next[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+  })
+
+  /**
+   * 终态自边开出的步骤访问不会再前进，`tenon` 的加载证据在那次访问里也落不下来——先发
+   * `load-tenon` 就变成新的死循环（真机实测里它连打 4 轮）。动作自带整条命令，先做归档即可。
+   */
+  test('已归档时不再回头发加载、技能、文档或出口动作', () => {
+    expect(actions({
+      runArchived: true,
+      loaded: false,
+      skills: [skill('brainstorming', 'ready', 0)],
+      documents: { reads: [doc('plan', 'missing')], records: [doc('adr', 'missing')], updates: [] },
+      exits: [exit('a', 'forward', true)],
+    })).toEqual(['finish-change'])
   })
 })

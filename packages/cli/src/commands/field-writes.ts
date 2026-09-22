@@ -9,7 +9,7 @@
 import { assertOwner, resolveWorkflowName } from '@tenon/kernel'
 import type { FieldName, PipelineState, RecordActor } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { refuseArchived } from '../archivedGuard.js'
+import { refuseArchived, refuseFinished } from '../archivedGuard.js'
 import { requireActor } from '../userIdentity.js'
 import { effectiveArtifactFields } from './effective-artifacts.js'
 import { isValidChangeName } from '../paths.js'
@@ -126,6 +126,7 @@ export async function runComboWrite(
       deps.store.withLock(dir, async () => {
         const cur = await deps.store.read(dir)
         assertOwner(owner.change, cur.fields, owner.actor)
+        if (refuseFinished(deps, owner.change, cur.fields)) return 1
         const plan = compute(cur)
         // P6：artifact 拒优先于一切（含 CAS miss）。track/workflow 若被 custom workflow 声明为 artifact，
         // 旧入口一律禁用，不能因 expect 不匹配先返 3、泄露「有时还能写」的契约（codex 阻断 1）。cas-miss 与
@@ -167,6 +168,7 @@ export async function runGuardedWrite(
     return await deps.store.withLock(dir, async () => {
       const cur = await deps.store.read(dir)
       assertOwner(owner.change, cur.fields, owner.actor)
+      if (refuseFinished(deps, owner.change, cur.fields)) return 1
       const artReject = checkArtifactPatch(deps, cur, patch)
       if (artReject !== null) {
         deps.io.err(artReject)
@@ -201,6 +203,8 @@ export async function runGuardedCas(
     return await deps.store.withLock(dir, async () => {
       const cur = await deps.store.read(dir)
       assertOwner(owner.change, cur.fields, owner.actor)
+      // 完结拒写优先于 CAS 比对：expect 不匹配先返 3 会让人以为「换个 expect 就还能写」。
+      if (refuseFinished(deps, owner.change, cur.fields)) return 1
       const artReject = checkArtifactPatch(deps, cur, fieldPatch(f, next))
       if (artReject !== null) {
         deps.io.err(artReject)

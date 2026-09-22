@@ -97,6 +97,8 @@ export interface StepNextInput {
   readonly review: { readonly status: string; readonly event: string | null }
   readonly gate: string | null
   readonly mode: StepBlock['mode']
+  readonly runArchived: boolean
+  readonly governedOpenspec: boolean
   readonly exits: readonly StepExit[]
   /** 还没拿到一份对得上当前 delta spec 的彩排结论（`tenon spec apply --dry-run` 即可满足）。 */
   readonly specRehearsalPending: boolean
@@ -137,6 +139,14 @@ function writeFieldActions(
 
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
 export function stepNextActions(input: StepNextInput): readonly StepAction[] {
+  // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩治理归档这一步，排在
+  // load-tenon 之前——终态自边的步骤访问不会再前进，补技能证据只会原地打转，而动作自带整条命令。
+  // 归档跑完前目录还在 openspec/changes/ 下而 archived=true，两张列表都看不见它，不点名就只剩空 fix。
+  if (input.runArchived) {
+    if (!input.governedOpenspec) return stop('run-archived', `任务 '${input.change}' 已完结`)
+    const command = `openspec archive ${input.change} --skip-specs --yes --json`
+    return [{ action: 'finish-change', change: input.change, command }]
+  }
   if (!input.loaded) return [{ action: 'load-tenon' }]
 
   const unread = input.documents.reads.filter((doc) => doc.status !== 'recorded' && doc.status !== 'read')
@@ -372,6 +382,8 @@ export async function buildStatusStep(
       review,
       gate: step.gate ?? null,
       mode: block.mode,
+      runArchived: str(state.fields.archived) === 'true',
+      governedOpenspec: plan.capabilities.documents.governed,
       exits: report.exits,
       specRehearsalPending: !specApply.rehearsed,
       // 彩排与应用是两件事：`--dry-run` 也写同一份 result=pass 的回执，只认 result 就等于让一次

@@ -225,7 +225,15 @@ export async function evaluateDocumentEvidence(
   const readRequirements = new Set(scope.readKinds ?? readsRequiredForPolicyStep(policy, phase))
   // role require applies to full step exits only; a narrowed record scope (verify-fail rollback) skips it.
   const requiredKinds = scope.recordKinds === undefined ? requiresForPolicyStep(policy, phase) : []
-  const kinds = new Set<DocumentKind>([...recordKinds, ...readRequirements, ...requiredKinds])
+  // role update says this step may re-record a document, not that it must. The slots still belong
+  // to the step's document surface, so they are evaluated and projected — a slot that produced no
+  // item at all read as `missing` everywhere downstream and sent runners round the same write
+  // forever. Their verdicts stay out of `blockers`: blocking would turn a permission into a gate.
+  const mutableKinds = scope.recordKinds === undefined
+    ? (policy.mutableByStep[phase] ?? []).map((requirement) => requirement.kind)
+    : []
+  const gatingKinds = new Set<DocumentKind>([...recordKinds, ...readRequirements, ...requiredKinds])
+  const kinds = new Set<DocumentKind>([...gatingKinds, ...mutableKinds])
   const blockers: string[] = []
   const items: DocumentEvidenceItem[] = []
   let confirmations
@@ -249,6 +257,11 @@ export async function evaluateDocumentEvidence(
     }
   }
 
+  /** Record a verdict; update-only slots are projected but never gate their step's exits. */
+  const gate = (kind: DocumentKind, message: string): void => {
+    if (gatingKinds.has(kind)) blockers.push(message)
+  }
+
   for (const kind of kinds) {
     const records = ledger.records.filter((record) => record.kind === kind)
     const requiredRead = readRequirements.has(kind)
@@ -259,17 +272,17 @@ export async function evaluateDocumentEvidence(
         if (await projectDocumentPresent(repoRoot, kind, projectPath)) {
           items.push({ kind, status: 'recorded', requiredRead, paths: [projectPath], producers: [], timeline: [] })
         } else {
-          blockers.push(`缺少项目文档 '${kind}'（${projectPath}）`)
+          gate(kind, `缺少项目文档 '${kind}'（${projectPath}）`)
           items.push(item(kind, 'missing', requiredRead, records, phase, currentVisitId))
         }
         continue
       }
-      blockers.push(`缺少 document '${kind}'；执行 tenon document record <change> ${kind} <path> --producer <skill>`)
+      gate(kind, `缺少 document '${kind}'；执行 tenon document record <change> ${kind} <path> --producer <skill>`)
       items.push(item(kind, 'missing', requiredRead, records, phase, currentVisitId))
       continue
     }
     if (records.some((record) => !isRecordedDocumentProducerAllowedThroughPolicyStep(policy, kind, phase, record.producer))) {
-      blockers.push(`document '${kind}' 的 producer 不符合当前 document contract`)
+      gate(kind, `document '${kind}' 的 producer 不符合当前 document contract`)
       items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'producer'))
       continue
     }
@@ -277,7 +290,8 @@ export async function evaluateDocumentEvidence(
       ? records.filter((record) => deltaSpecSlot(record.path, changeDir) === undefined)
       : []
     if (legacyDelta.length > 0) {
-      blockers.push(
+      gate(
+        kind,
         `存在旧 delta-spec 记录，必须用 tenon document migrate-delta 显式迁移: ${legacyDelta.map((record) => record.path).join(', ')}`,
       )
       items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'legacy-path'))
@@ -288,7 +302,7 @@ export async function evaluateDocumentEvidence(
       digests.push(await currentRecordDigest(repoRoot, record))
     }
     if (records.some((record, index) => digests[index] !== record.sha256)) {
-      blockers.push(`document '${kind}' 已缺失或内容变化；重新执行 tenon document record 后再继续`)
+      gate(kind, `document '${kind}' 已缺失或内容变化；重新执行 tenon document record 后再继续`)
       items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'changed'))
       continue
     }
@@ -312,7 +326,8 @@ export async function evaluateDocumentEvidence(
         hasExactDocumentApplication(invocationEvents, confirmation, record))
     })
     if (incompleteProducer !== undefined) {
-      blockers.push(
+      gate(
+        kind,
         `document '${kind}' 的 producer invocation/artifact 尚未原子完成: ${incompleteProducer.path}；执行 tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`,
       )
       items.push(item(kind, 'stale', requiredRead, records, phase, currentVisitId, 'invocation'))
@@ -325,7 +340,8 @@ export async function evaluateDocumentEvidence(
       ))
     )) {
       if (currentVisitId !== undefined) {
-        blockers.push(
+        gate(
+          kind,
           `document '${kind}' 尚未由 ${phase} 的当前 step visit 读取；执行 tenon document read <change> ${kind}`,
         )
       }

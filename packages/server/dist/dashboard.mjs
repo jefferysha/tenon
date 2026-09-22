@@ -14737,7 +14737,9 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
   const recordKinds = scope.recordKinds ?? recordRequirements.map((requirement2) => requirement2.kind);
   const readRequirements = new Set(scope.readKinds ?? readsRequiredForPolicyStep(policy2, phase));
   const requiredKinds = scope.recordKinds === void 0 ? requiresForPolicyStep(policy2, phase) : [];
-  const kinds = /* @__PURE__ */ new Set([...recordKinds, ...readRequirements, ...requiredKinds]);
+  const mutableKinds = scope.recordKinds === void 0 ? (policy2.mutableByStep[phase] ?? []).map((requirement2) => requirement2.kind) : [];
+  const gatingKinds = /* @__PURE__ */ new Set([...recordKinds, ...readRequirements, ...requiredKinds]);
+  const kinds = /* @__PURE__ */ new Set([...gatingKinds, ...mutableKinds]);
   const blockers = [];
   const items = [];
   let confirmations;
@@ -14758,6 +14760,10 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
       blockers.push(`current step visit \u4E0D\u53EF\u9A8C\u8BC1: ${error2 instanceof Error ? error2.message : String(error2)}`);
     }
   }
+  const gate = (kind, message) => {
+    if (gatingKinds.has(kind))
+      blockers.push(message);
+  };
   for (const kind of kinds) {
     const records = ledger.records.filter((record11) => record11.kind === kind);
     const requiredRead = readRequirements.has(kind);
@@ -14767,23 +14773,23 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
         if (await projectDocumentPresent(repoRoot, kind, projectPath)) {
           items.push({ kind, status: "recorded", requiredRead, paths: [projectPath], producers: [], timeline: [] });
         } else {
-          blockers.push(`\u7F3A\u5C11\u9879\u76EE\u6587\u6863 '${kind}'\uFF08${projectPath}\uFF09`);
+          gate(kind, `\u7F3A\u5C11\u9879\u76EE\u6587\u6863 '${kind}'\uFF08${projectPath}\uFF09`);
           items.push(item(kind, "missing", requiredRead, records, phase, currentVisitId));
         }
         continue;
       }
-      blockers.push(`\u7F3A\u5C11 document '${kind}'\uFF1B\u6267\u884C tenon document record <change> ${kind} <path> --producer <skill>`);
+      gate(kind, `\u7F3A\u5C11 document '${kind}'\uFF1B\u6267\u884C tenon document record <change> ${kind} <path> --producer <skill>`);
       items.push(item(kind, "missing", requiredRead, records, phase, currentVisitId));
       continue;
     }
     if (records.some((record11) => !isRecordedDocumentProducerAllowedThroughPolicyStep(policy2, kind, phase, record11.producer))) {
-      blockers.push(`document '${kind}' \u7684 producer \u4E0D\u7B26\u5408\u5F53\u524D document contract`);
+      gate(kind, `document '${kind}' \u7684 producer \u4E0D\u7B26\u5408\u5F53\u524D document contract`);
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "producer"));
       continue;
     }
     const legacyDelta = kind === "delta-spec" ? records.filter((record11) => deltaSpecSlot(record11.path, changeDir2) === void 0) : [];
     if (legacyDelta.length > 0) {
-      blockers.push(`\u5B58\u5728\u65E7 delta-spec \u8BB0\u5F55\uFF0C\u5FC5\u987B\u7528 tenon document migrate-delta \u663E\u5F0F\u8FC1\u79FB: ${legacyDelta.map((record11) => record11.path).join(", ")}`);
+      gate(kind, `\u5B58\u5728\u65E7 delta-spec \u8BB0\u5F55\uFF0C\u5FC5\u987B\u7528 tenon document migrate-delta \u663E\u5F0F\u8FC1\u79FB: ${legacyDelta.map((record11) => record11.path).join(", ")}`);
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "legacy-path"));
       continue;
     }
@@ -14792,7 +14798,7 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
       digests.push(await currentRecordDigest(repoRoot, record11));
     }
     if (records.some((record11, index) => digests[index] !== record11.sha256)) {
-      blockers.push(`document '${kind}' \u5DF2\u7F3A\u5931\u6216\u5185\u5BB9\u53D8\u5316\uFF1B\u91CD\u65B0\u6267\u884C tenon document record \u540E\u518D\u7EE7\u7EED`);
+      gate(kind, `document '${kind}' \u5DF2\u7F3A\u5931\u6216\u5185\u5BB9\u53D8\u5316\uFF1B\u91CD\u65B0\u6267\u884C tenon document record \u540E\u518D\u7EE7\u7EED`);
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "changed"));
       continue;
     }
@@ -14808,13 +14814,13 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
       return !applicableConfirmations.some((confirmation) => hasExactDocumentApplication(invocationEvents, confirmation, record11));
     });
     if (incompleteProducer !== void 0) {
-      blockers.push(`document '${kind}' \u7684 producer invocation/artifact \u5C1A\u672A\u539F\u5B50\u5B8C\u6210: ${incompleteProducer.path}\uFF1B\u6267\u884C tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`);
+      gate(kind, `document '${kind}' \u7684 producer invocation/artifact \u5C1A\u672A\u539F\u5B50\u5B8C\u6210: ${incompleteProducer.path}\uFF1B\u6267\u884C tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`);
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "invocation"));
       continue;
     }
     if (requiredRead && (currentVisitId === void 0 || records.some((record11) => !record11.reads.some((receipt) => receiptMatchesVisit(receipt, phase, record11.sha256, currentVisitId))))) {
       if (currentVisitId !== void 0) {
-        blockers.push(`document '${kind}' \u5C1A\u672A\u7531 ${phase} \u7684\u5F53\u524D step visit \u8BFB\u53D6\uFF1B\u6267\u884C tenon document read <change> ${kind}`);
+        gate(kind, `document '${kind}' \u5C1A\u672A\u7531 ${phase} \u7684\u5F53\u524D step visit \u8BFB\u53D6\uFF1B\u6267\u884C tenon document read <change> ${kind}`);
       }
       items.push(item(kind, "unread", requiredRead, records, phase, currentVisitId));
       continue;
@@ -29588,8 +29594,6 @@ function loopHasAnotherExit(steps, step) {
   return false;
 }
 function implicitCompletionTransition(plan, stepId, state) {
-  if (plan.capabilities.execution.model !== "step-graph")
-    return void 0;
   if (state !== void 0 && runArchived(state))
     return void 0;
   const steps = plan.workflow.steps;
@@ -29679,18 +29683,21 @@ function isForwardExit(plan, from, to, event) {
   return fromIndex >= 0 && toIndex > fromIndex;
 }
 var FINDING_PREVIEW = 5;
+function runRef(runId, change) {
+  return runId ?? `<run>\uFF08\u7528 tenon agent next ${change} \u67E5 run id\uFF09`;
+}
 function renderAgentBlocker(blocker2, change) {
   switch (blocker2.kind) {
     case "executor-missing":
       return `\u6267\u884C\u8005 '${blocker2.agent}' \u672A\u8FD0\u884C\uFF1B\u8FD0\u884C\uFF1Atenon agent next ${change}`;
     case "executor-running":
-      return `\u6267\u884C\u8005 '${blocker2.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} <run>`;
+      return `\u6267\u884C\u8005 '${blocker2.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} ${runRef(blocker2.runId, change)}`;
     case "executor-failed":
       return `\u6267\u884C\u8005 '${blocker2.agent}' \u5931\u8D25\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker2.agent}`;
     case "reviewer-missing":
       return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u672A\u8FD0\u884C\uFF1B\u8FD0\u884C\uFF1Atenon agent next ${change}`;
     case "reviewer-running":
-      return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} <run>`;
+      return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} ${runRef(blocker2.runId, change)}`;
     case "reviewer-stale":
       return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u7684\u7ED3\u8BBA\u5DF2\u8FC7\u671F\uFF08\u5019\u9009\u5DF2\u53D8\u5316\uFF09\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker2.agent}`;
     case "reviewer-failed": {
@@ -36919,14 +36926,16 @@ function agentBlockersOf(runs, plan, phase) {
   for (const view of projected.agents) {
     if (view.role === "executor") {
       if (view.state === "idle") blockers.push({ kind: "executor-missing", agent: view.agent });
-      else if (view.state === "running") blockers.push({ kind: "executor-running", agent: view.agent });
-      else if (view.result !== "done") blockers.push({ kind: "executor-failed", agent: view.agent });
+      else if (view.state === "running") {
+        blockers.push({ kind: "executor-running", agent: view.agent, runId: view.runId });
+      } else if (view.result !== "done") blockers.push({ kind: "executor-failed", agent: view.agent });
       continue;
     }
     if (!view.required) continue;
     if (view.state === "idle") blockers.push({ kind: "reviewer-missing", agent: view.agent });
-    else if (view.state === "running") blockers.push({ kind: "reviewer-running", agent: view.agent });
-    else if (view.state === "stale") blockers.push({ kind: "reviewer-stale", agent: view.agent });
+    else if (view.state === "running") {
+      blockers.push({ kind: "reviewer-running", agent: view.agent, runId: view.runId });
+    } else if (view.state === "stale") blockers.push({ kind: "reviewer-stale", agent: view.agent });
     else if (view.result === "fail") {
       blockers.push({
         kind: "reviewer-failed",
