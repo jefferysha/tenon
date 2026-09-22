@@ -19,7 +19,7 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { refuseArchived } from '../archivedGuard.js'
 import { requireActor } from '../userIdentity.js'
 import { effectiveArtifactFields } from './effective-artifacts.js'
-import { changeDir, isValidChangeName } from '../paths.js'
+import { changeDir, isValidChangeName, readChangeForDisplay } from '../paths.js'
 import {
   enumValueAllowed,
   fieldPatch,
@@ -294,7 +294,8 @@ export async function cmdGet(deps: CliDeps, name: string, field: string): Promis
   try {
     // 状态文件缺失仍 fail-loud（老内核 ensure_state_exists）；字段缺失/未知则对齐
     // 老内核 yaml_get grep 语义：空行 + exit 0（2026-07-06 oracle 实测回写）。
-    const state = await deps.store.read(changeDir(deps.cwd, name))
+    // 完结并被 OpenSpec 移入 archive/ 的 change 仍可读（readChangeForDisplay 的回落）。
+    const { state } = await readChangeForDisplay((dir) => deps.store.read(dir), deps.cwd, name)
     const known = (FIELD_ORDER as readonly string[]).includes(field)
     const v = known ? state.fields[field as FieldName] : undefined
     deps.io.out(v === undefined ? '' : Array.isArray(v) ? v.join(',') : v)
