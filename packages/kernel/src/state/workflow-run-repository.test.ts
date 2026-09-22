@@ -765,8 +765,12 @@ describe('WorkflowRunRepository.transact —— 并发安全（同一 change 严
       await firstBlocked // 卡住，直到测试主动放行
       order.push('first-end')
     })
-    // 给第一个 transact 时间真正进入并卡住
-    await new Promise((r) => setTimeout(r, 20))
+    // 等第一个 transact 真正进入并卡住；固定睡眠在高负载下会误判成串行失败。
+    const firstEntered = Date.now() + 10_000
+    while (!order.includes('first-start')) {
+      if (Date.now() > firstEntered) throw new Error('第一个 transact 始终没有进入回调')
+      await new Promise((r) => setTimeout(r, 10))
+    }
     const p2 = repo.transact(dir, async (tx) => {
       order.push('second-start')
       expect(tx.run.transitionSequence).toBe(1) // 必须已经看到第一个的提交结果
