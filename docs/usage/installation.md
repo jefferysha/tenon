@@ -38,6 +38,11 @@ the host or writing user/project state:
 
 The versioned script installs only prebuilt assets from the immutable stable
 `v0.1.0` release. It never clones or compiles the source repository.
+
+The Claude Code host clones this repository as a plugin marketplace, and its
+default clone timeout is 120 s. On a slow link raise it for the install, e.g.
+`CLAUDE_CODE_PLUGIN_GIT_TIMEOUT_MS=1800000`; a timed-out clone leaves the host
+without the plugin, so rerun the install after raising it.
 The bootstrap adds the selected native marketplace plugin, resolves the install
 root from the host's own inventory, and invokes the same
 `tenon setup --<host>` operation. Tenon does not guess private host

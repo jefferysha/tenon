@@ -47,6 +47,8 @@ Codex/Claude，也不会写 Tenon、宿主或项目状态：
 ```
 
 版本化脚本只使用不可变稳定版本 `v0.1.0` 的预构建资产，不 clone 仓库、不执行源码编译。
+
+Claude Code 宿主会把本仓库作为插件市场 clone，其默认 clone 超时为 120 秒。网络较慢时先放宽再安装，例如 `CLAUDE_CODE_PLUGIN_GIT_TIMEOUT_MS=1800000`；clone 超时会让该宿主处于未装插件状态，放宽后重跑安装即可。
 脚本只负责注册 Tenon Marketplace、安装并验证完整 payload，然后调用包内
 `tenon setup --<host>`。已经安装的用户可以直接再次运行 `tenon setup --codex`
 修复宿主接线；更新时运行 `tenon update --codex`（或 `--claude`）。手动更新和显式启用的

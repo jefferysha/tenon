@@ -60,3 +60,8 @@ design-demos/shots/
 # 正式文档站的确定性构建产物；源内容、manifest、主题与脚本入库。
 docs-site/.generated/
 docs-site/dist/
+
+# 本机测试产物（测试声明的输出目录；工作区指纹也排除这些段）。
+test-results/
+playwright-report/
+coverage/
