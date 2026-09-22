@@ -3,13 +3,21 @@
  * stdout/exit 契约（get/set 以老内核双跑逐字一致为准）：
  *   get      裸值一行（去引号后由 store 保证），0；字段缺失/未知 → 空行 + 0（老内核 yaml_get 语义）；
  *            change 缺失/名非法=1
- *   set      无输出，0；四闸/枚举/未知字段拒写=1（枚举表对齐老内核 state-fields.sh cmd_set）
+ *   set      无输出，0；四闸/枚举/未知字段/身份/负责人/已归档拒写=1
+ *            （枚举表对齐老内核 state-fields.sh cmd_set）
  *   set-many 无输出，同 set
  *   cas      无输出，0；不匹配=3；错误=1
+ *
+ * 三条写命令与 document record / review request / transition 同属 Change 改写，因此过同一条
+ * 身份+负责人闸（writePreflight + 锁内 assertOwner）。`get` 是只读面，不过闸。
  */
-import { FIELD_ORDER, LIST_FIELDS, resolveWorkflowName } from '@tenon/kernel'
-import type { FieldName, HistoryEntry, PipelineState, TrackRegistry } from '@tenon/kernel'
+import { assertOwner, FIELD_ORDER, LIST_FIELDS, resolveWorkflowName } from '@tenon/kernel'
+import type {
+  FieldName, HistoryEntry, PipelineState, RecordActor, TrackRegistry,
+} from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
+import { refuseArchived } from '../archivedGuard.js'
+import { requireActor } from '../userIdentity.js'
 import { effectiveArtifactFields } from './effective-artifacts.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import {
@@ -40,6 +48,27 @@ type ComboPlan =
       readonly finalWorkflow: string
       readonly patch: Partial<Record<FieldName, string | string[]>>
     }
+
+/**
+ * 字段写入的身份/负责人前置。
+ *
+ * set/set-many/cas 是对 Change 的状态改写，和 document record / review request / transition 一样，
+ * 因此走同一条规则：身份必须解析得出，且当前用户必须是负责人。此前这三条命令是唯一不过这道闸的
+ * 写入口——换个 TENON_USER、甚至一个解析不出的身份，都能改别人任务的字段（包括 pr_url 这类交付
+ * 证据）。校验在 change 锁内对刚读到的 state 做，避免锁外判定与落盘之间负责人被改（TOCTOU）。
+ */
+interface OwnerCheck {
+  readonly change: string
+  readonly actor: RecordActor
+}
+
+/** 写入口的公共前置：change 名合法 → 未被当前用户归档 → 身份可解析。返回 null = 已拒绝。 */
+async function writePreflight(deps: CliDeps, name: string): Promise<OwnerCheck | null> {
+  if (!checkName(deps, name)) return null
+  if (await refuseArchived(deps, name)) return null
+  const actor = requireActor(deps)
+  return actor === null ? null : { change: name, actor }
+}
 
 /** P6 · artifact 字段被旧写入口拒绝时的统一 stderr 文案（含改用指引）。 */
 function artifactRejectMsg(field: FieldName, ctx: PipelineState): string {
@@ -101,6 +130,7 @@ function checkArtifactPatch(
 async function runComboWrite(
   deps: CliDeps,
   dir: string,
+  owner: OwnerCheck,
   compute: (cur: PipelineState) => ComboPlan,
 ): Promise<number> {
   try {
@@ -111,6 +141,7 @@ async function runComboWrite(
     return await deps.withRegistryLock(async ({ registry }) =>
       deps.store.withLock(dir, async () => {
         const cur = await deps.store.read(dir)
+        assertOwner(owner.change, cur.fields, owner.actor)
         const plan = compute(cur)
         // P6：artifact 拒优先于一切（含 CAS miss）。track/workflow 若被 custom workflow 声明为 artifact，
         // 旧入口一律禁用，不能因 expect 不匹配先返 3、泄露「有时还能写」的契约（codex 阻断 1）。cas-miss 与
@@ -145,11 +176,13 @@ async function runComboWrite(
 async function runGuardedWrite(
   deps: CliDeps,
   dir: string,
+  owner: OwnerCheck,
   patch: Partial<Record<FieldName, string | string[]>>,
 ): Promise<number> {
   try {
     return await deps.store.withLock(dir, async () => {
       const cur = await deps.store.read(dir)
+      assertOwner(owner.change, cur.fields, owner.actor)
       const artReject = checkArtifactPatch(deps, cur, patch)
       if (artReject !== null) {
         deps.io.err(artReject)
@@ -175,6 +208,7 @@ async function runGuardedWrite(
 async function runGuardedCas(
   deps: CliDeps,
   dir: string,
+  owner: OwnerCheck,
   f: FieldName,
   expect: string,
   next: string,
@@ -182,6 +216,7 @@ async function runGuardedCas(
   try {
     return await deps.store.withLock(dir, async () => {
       const cur = await deps.store.read(dir)
+      assertOwner(owner.change, cur.fields, owner.actor)
       const artReject = checkArtifactPatch(deps, cur, fieldPatch(f, next))
       if (artReject !== null) {
         deps.io.err(artReject)
@@ -220,6 +255,13 @@ function rejectReviewGateField(deps: CliDeps, field: FieldName): boolean {
 function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
   if (field === 'phase' || field === 'created_by' || field === 'assignee') {
     deps.io.err(`ERROR: 字段 '${field}' 由 ${field === 'phase' ? 'tenon transition' : 'tenon owner'} 管理，禁止通过 set/set-many/cas 写入`)
+    return true
+  }
+  // 完结是一次转换，不是一个字段。`archived`/`archived_at` 由 archived 事件的 archive-run 副作用
+  // 成对落下（archived=true + archived_at=<now>，phase_status=done 在 flow 层）；手写 archived
+  // 只会留下 archived=true、archived_at=null、phase_status=pending 这种半盖章的终态。
+  if (field === 'archived' || field === 'archived_at') {
+    deps.io.err(`ERROR: 字段 '${field}' 由 tenon transition <change> archived 管理，禁止通过 set/set-many/cas 写入；完结须经该转换才会同时落 archived_at 与 phase_status`)
     return true
   }
   return rejectReviewGateField(deps, field)
@@ -265,7 +307,8 @@ export async function cmdGet(deps: CliDeps, name: string, field: string): Promis
 }
 
 export async function cmdSet(deps: CliDeps, name: string, field: string, value: string): Promise<number> {
-  if (!checkName(deps, name)) return 1
+  const owner = await writePreflight(deps, name)
+  if (owner === null) return 1
   const f = asField(deps, field)
   if (!f) return 1
   if (rejectProtectedField(deps, f)) return 1
@@ -278,7 +321,7 @@ export async function cmdSet(deps: CliDeps, name: string, field: string, value: 
   // 两者都过统一的 checkTrackWorkflow（requireTrack + assertWorkflowAllowed）；内建轨 allowed='*'
   // 恒放行（零回归）。此前 set track 只 requireTrack、不看旧 workflow，是 codex R2 点名的旁路。
   if (f === 'track' || f === 'workflow') {
-    const code = await runComboWrite(deps, dir, (cur) => ({
+    const code = await runComboWrite(deps, dir, owner, (cur) => ({
       kind: 'write',
       finalTrack: f === 'track' ? (v as string) : scalarField(cur, 'track'),
       finalWorkflow: f === 'workflow' ? (v as string) : scalarField(cur, 'workflow'),
@@ -290,7 +333,7 @@ export async function cmdSet(deps: CliDeps, name: string, field: string, value: 
   }
   // P6：非 track/workflow 字段也走锁内 read→判 artifact→write（不能锁外判定再 store.set，
   // store.set 另取锁，artifact 判定依据 phase/track/workflow 存在 TOCTOU）。artifact 字段 → 拒。
-  const code = await runGuardedWrite(deps, dir, fieldPatch(f, v))
+  const code = await runGuardedWrite(deps, dir, owner, fieldPatch(f, v))
   if (code !== 0) return code
   await recordHistory(deps, dir, {
     ts: deps.clock(),
@@ -302,7 +345,8 @@ export async function cmdSet(deps: CliDeps, name: string, field: string, value: 
 }
 
 export async function cmdSetMany(deps: CliDeps, name: string, pairs: string[]): Promise<number> {
-  if (!checkName(deps, name)) return 1
+  const owner = await writePreflight(deps, name)
+  if (owner === null) return 1
   const kv: Partial<Record<FieldName, string | string[]>> = {}
   for (const pair of pairs) {
     const i = pair.indexOf('=')
@@ -332,7 +376,7 @@ export async function cmdSetMany(deps: CliDeps, name: string, pairs: string[]): 
   // （反之亦然）的组合。不触及两者的 set-many（如仅改 build_mode/isolation）走原路 store.setMany
   // （其内部自持一次锁完成 read-modify-write）——不额外 read、不做组合校验，无从谈起也无需谈起。
   if (Object.hasOwn(kv, 'track') || Object.hasOwn(kv, 'workflow')) {
-    const code = await runComboWrite(deps, dir, (cur) => ({
+    const code = await runComboWrite(deps, dir, owner, (cur) => ({
       kind: 'write',
       finalTrack: scalarValue(kv.track, scalarField(cur, 'track')),
       finalWorkflow: scalarValue(kv.workflow, scalarField(cur, 'workflow')),
@@ -342,7 +386,7 @@ export async function cmdSetMany(deps: CliDeps, name: string, pairs: string[]): 
   } else {
     // P6：不触及 track/workflow 的批量也走锁内 read→判 artifact 并集→write（同 set，堵 TOCTOU +
     // artifact 字段 cutover）。任一字段命中当前/patch 后有效 artifact 集 → 整批拒、零落盘。
-    const code = await runGuardedWrite(deps, dir, kv)
+    const code = await runGuardedWrite(deps, dir, owner, kv)
     if (code !== 0) return code
   }
   for (const [f, v] of Object.entries(kv) as Array<[FieldName, string | string[]]>) {
@@ -363,7 +407,8 @@ export async function cmdCas(
   expect: string,
   next: string,
 ): Promise<number> {
-  if (!checkName(deps, name)) return 1
+  const owner = await writePreflight(deps, name)
+  if (owner === null) return 1
   const f = asField(deps, field)
   if (!f) return 1
   if (rejectProtectedField(deps, f)) return 1
@@ -376,7 +421,7 @@ export async function cmdCas(
   // expect 不命中 → 退 3、不写；命中但最终组合非法 → 退 1、不写。此前 cas track 只 requireTrack
   // （不看旧 workflow）、cas workflow 完全无 registry 校验——是 codex R2 点名的两条旁路。
   if (f === 'track' || f === 'workflow') {
-    const code = await runComboWrite(deps, dir, (cur) => {
+    const code = await runComboWrite(deps, dir, owner, (cur) => {
       if (cur.fields[f] !== expect) return { kind: 'cas-miss', patch: fieldPatch(f, next) }
       return {
         kind: 'write',
@@ -391,7 +436,7 @@ export async function cmdCas(
     return code
   }
   // P6：非 track/workflow cas 也锁内 read→判 artifact（命中优先于 CAS miss）→比对 expect→write。
-  const code = await runGuardedCas(deps, dir, f, expect, next)
+  const code = await runGuardedCas(deps, dir, owner, f, expect, next)
   if (code === 0) {
     await recordHistory(deps, dir, { ts: deps.clock(), kind: 'set', field: f, from: expect, to: next })
   }

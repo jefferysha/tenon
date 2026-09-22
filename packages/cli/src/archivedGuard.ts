@@ -15,8 +15,10 @@ export async function archivedChangesForUser(deps: Pick<CliDeps, 'cwd' | 'user'>
 
 /**
  * The single archived-Change refusal for every command that acts on a Change. `true` means refused and
- * the caller returns 1 without writing anything. `get` / `set` / `set-many` / `cas` stay open: they are
- * the repair path, and a hidden task must remain repairable.
+ * the caller returns 1 without writing anything. `get` stays open, because reading a hidden task is how
+ * the user decides whether to bring it back; the repair path is `tenon task unarchive`. The field
+ * writers (`set` / `set-many` / `cas`) are refused like every other mutation: leaving them open made
+ * them the one way to keep changing a task the user had already put away.
  */
 export async function refuseArchived(deps: Pick<CliDeps, 'cwd' | 'user' | 'io'>, name: string): Promise<boolean> {
   if (!(await isArchivedForUser(deps.cwd, deps.user(), name))) return false
