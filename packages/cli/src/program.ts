@@ -9,7 +9,6 @@ import type { CliDeps } from './deps.js'
 import { cmdCheck } from './commands/check.js'
 import type { DashboardRuntime } from './commands/dashboard.js'
 import { cmdDoctor } from './commands/doctor.js'
-import { cmdCas, cmdGet, cmdSet, cmdSetMany } from './commands/fields.js'
 import { cmdArtifactRegister } from './commands/artifact.js'
 import {
   cmdDocumentInit,
@@ -44,6 +43,7 @@ import { cmdInternalCodexJsonl } from './commands/internalCodexJsonl.js'
 import { cmdInternalSkillProvenance } from './commands/internal-skill-provenance.js'
 import { cmdTriage, type TriageCommandRuntime } from './commands/triage.js'
 import { bail, stripNl } from './program-exit.js'
+import { registerFieldCommands } from './program-fields.js'
 import { registerInstallCommands } from './program-install.js'
 import { registerDesignCommands, registerMotionGateCommand, registerResourceCommands } from './program-resources.js'
 import { registerStateCommands } from './program-state.js'
@@ -88,27 +88,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
   registerInstallCommands(program, deps, runtimes.dashboard)
   registerOrchestrationCommands(program, deps)
 
-  program
-    .command('get <name> <field>')
-    .description('读字段（stdout: 裸值；字段缺失/未知 → 空行 + exit 0）')
-    .action(async (name: string, fieldName: string) => bail(await cmdGet(deps, name, fieldName)))
-
-  program
-    .command('set <name> <field> <value>')
-    .description('写字段（无输出；四闸拒写 exit 1）')
-    .action(async (name: string, fieldName: string, value: string) =>
-      bail(await cmdSet(deps, name, fieldName, value)))
-
-  program
-    .command('set-many <name> <kv...>')
-    .description('多字段原子写 key=value ...（无输出）')
-    .action(async (name: string, kv: string[]) => bail(await cmdSetMany(deps, name, kv)))
-
-  program
-    .command('cas <name> <field> <expect> <next>')
-    .description('compare-and-set（无输出；不匹配 exit 3）')
-    .action(async (name: string, fieldName: string, expect: string, next: string) =>
-      bail(await cmdCas(deps, name, fieldName, expect, next)))
+  registerFieldCommands(program, deps)
 
   // ── artifact：受 artifact 契约约束的单字段写（G2 P5）——Commander 真子命令树（同 tracks 装配惯例，
   // exitOverride/configureOutput 由父命令继承；--producer 缺失 = usage error → main 映射 exit 1）。

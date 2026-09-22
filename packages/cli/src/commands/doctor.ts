@@ -23,7 +23,7 @@ import {
   type DoctorStatus,
 } from './doctor-check.js'
 import { checkCodexProjectSkills, checkOpenspecCli, checkSkills, checkWorkflowSkills } from './doctor-skills.js'
-import { renderCodexAuthLines } from '../codexAuth.js'
+import { checkCodexAuth, checkStatusline } from './doctor-host.js'
 import { checkProductIdentity } from './doctor-product-identity.js'
 import { checkUpstreamSkills, renderUpstreamSkillTable, upstreamSkillViewOf } from './doctor-upstream-skills.js'
 
@@ -107,29 +107,6 @@ function checkGateEffective(p: DoctorProbes): DoctorCheck {
   return green('guard:gate', 'PreToolUse 三门会真拦（hooks.json 注册 + gate.sh 可执行）')
 }
 
-/**
- * 「现在是哪个宿主」：优先按进程环境判定正在跑这条命令的宿主，terminal 时才退回 runtime 的安装
- * 来源。用安装来源当当前宿主，会在 `setup --codex` 的机器上把 Claude Code 会话误判成 Codex。
- */
-async function activeHost(p: DoctorProbes): Promise<'codex' | 'claude' | null> {
-  const live = p.hostKind()
-  if (live === 'codex') return 'codex'
-  if (live === 'claude-code') return 'claude'
-  return p.nativeRuntimeHost()
-}
-
-async function checkStatusline(p: DoctorProbes): Promise<DoctorCheck> {
-  if (await activeHost(p) === 'codex') {
-    return green('guard:statusline', '当前会话宿主为 Codex；Claude 专属 statusline 不适用（不影响 Dashboard 或 pipeline hooks）')
-  }
-  if (p.statuslineConfigured()) return green('guard:statusline', 'statusline 已接入 settings（终端零开销状态生效）')
-  return yellow(
-    'guard:statusline',
-    'statusline 未接入 settings——终端状态面不可见（功能降级）',
-    `在 ~/.claude/settings.json 加 "statusLine": {"type": "command", "command": "bash ${join(p.pluginRoot, 'hooks', 'statusline.sh')}"}`,
-  )
-}
-
 /** tap 流量代理状态（BACKLOG #34e：敏感能力必须对用户明示——正在拦截=黄灯提醒） */
 function checkTap(p: DoctorProbes): DoctorCheck {
   if (!p.tapStatus) return green('security:tap', 'tap 流量代理未装（无 MITM 面）')
@@ -198,24 +175,6 @@ async function checkVerifySkills(p: DoctorProbes): Promise<DoctorCheck> {
     'quality:verify-skills',
     `verify-skills 失败（exit ${code}）: ${summary}`,
     `bash ${join(p.pluginRoot, 'tools', 'verify-skills.sh')} 查看逐条修复指引`,
-  )
-}
-
-async function checkCodexAuth(p: DoctorProbes): Promise<DoctorCheck> {
-  if (await activeHost(p) !== 'codex') {
-    return green('auth:codex', '当前会话宿主非 Codex；本机 Codex 登录检查不适用')
-  }
-  const status = await p.codexAuthStatus()
-  if (status.state === 'authenticated') {
-    return green('auth:codex', 'Codex CLI 已登录（ChatGPT 方案或 API Key）')
-  }
-  const lines = renderCodexAuthLines(status)
-  return yellow(
-    'auth:codex',
-    status.state === 'unauthenticated'
-      ? 'Codex CLI 尚未登录；插件已安装，但调用 Codex 前需要完成认证'
-      : '暂时无法确认 Codex CLI 登录状态；插件仍可安装和检查',
-    lines.slice(1).map((line) => line.trim()).join('；'),
   )
 }
 
