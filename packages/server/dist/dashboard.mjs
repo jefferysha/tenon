@@ -29574,18 +29574,21 @@ function isForwardExit(plan, from, to, event) {
   return fromIndex >= 0 && toIndex > fromIndex;
 }
 var FINDING_PREVIEW = 5;
+function runRef(runId, change) {
+  return runId ?? `<run>\uFF08\u7528 tenon agent next ${change} \u67E5 run id\uFF09`;
+}
 function renderAgentBlocker(blocker2, change) {
   switch (blocker2.kind) {
     case "executor-missing":
       return `\u6267\u884C\u8005 '${blocker2.agent}' \u672A\u8FD0\u884C\uFF1B\u8FD0\u884C\uFF1Atenon agent next ${change}`;
     case "executor-running":
-      return `\u6267\u884C\u8005 '${blocker2.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} <run>`;
+      return `\u6267\u884C\u8005 '${blocker2.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} ${runRef(blocker2.runId, change)}`;
     case "executor-failed":
       return `\u6267\u884C\u8005 '${blocker2.agent}' \u5931\u8D25\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker2.agent}`;
     case "reviewer-missing":
       return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u672A\u8FD0\u884C\uFF1B\u8FD0\u884C\uFF1Atenon agent next ${change}`;
     case "reviewer-running":
-      return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} <run>`;
+      return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u8FDB\u884C\u4E2D\uFF1B\u5B8C\u6210\u540E\uFF1Atenon agent record ${change} ${runRef(blocker2.runId, change)}`;
     case "reviewer-stale":
       return `\u8BC4\u5BA1\u8005 '${blocker2.agent}' \u7684\u7ED3\u8BBA\u5DF2\u8FC7\u671F\uFF08\u5019\u9009\u5DF2\u53D8\u5316\uFF09\uFF1B\u91CD\u8DD1\uFF1Atenon agent prompt ${change} ${blocker2.agent}`;
     case "reviewer-failed": {
@@ -36798,14 +36801,16 @@ function agentBlockersOf(runs, plan, phase) {
   for (const view of projected.agents) {
     if (view.role === "executor") {
       if (view.state === "idle") blockers.push({ kind: "executor-missing", agent: view.agent });
-      else if (view.state === "running") blockers.push({ kind: "executor-running", agent: view.agent });
-      else if (view.result !== "done") blockers.push({ kind: "executor-failed", agent: view.agent });
+      else if (view.state === "running") {
+        blockers.push({ kind: "executor-running", agent: view.agent, runId: view.runId });
+      } else if (view.result !== "done") blockers.push({ kind: "executor-failed", agent: view.agent });
       continue;
     }
     if (!view.required) continue;
     if (view.state === "idle") blockers.push({ kind: "reviewer-missing", agent: view.agent });
-    else if (view.state === "running") blockers.push({ kind: "reviewer-running", agent: view.agent });
-    else if (view.state === "stale") blockers.push({ kind: "reviewer-stale", agent: view.agent });
+    else if (view.state === "running") {
+      blockers.push({ kind: "reviewer-running", agent: view.agent, runId: view.runId });
+    } else if (view.state === "stale") blockers.push({ kind: "reviewer-stale", agent: view.agent });
     else if (view.result === "fail") {
       blockers.push({
         kind: "reviewer-failed",

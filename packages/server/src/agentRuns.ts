@@ -121,13 +121,17 @@ export function agentBlockersOf(
   for (const view of projected.agents) {
     if (view.role === 'executor') {
       if (view.state === 'idle') blockers.push({ kind: 'executor-missing', agent: view.agent })
-      else if (view.state === 'running') blockers.push({ kind: 'executor-running', agent: view.agent })
+      else if (view.state === 'running') {
+        blockers.push({ kind: 'executor-running', agent: view.agent, runId: view.runId })
+      }
       else if (view.result !== 'done') blockers.push({ kind: 'executor-failed', agent: view.agent })
       continue
     }
     if (!view.required) continue
     if (view.state === 'idle') blockers.push({ kind: 'reviewer-missing', agent: view.agent })
-    else if (view.state === 'running') blockers.push({ kind: 'reviewer-running', agent: view.agent })
+    else if (view.state === 'running') {
+      blockers.push({ kind: 'reviewer-running', agent: view.agent, runId: view.runId })
+    }
     else if (view.state === 'stale') blockers.push({ kind: 'reviewer-stale', agent: view.agent })
     else if (view.result === 'fail') {
       blockers.push({

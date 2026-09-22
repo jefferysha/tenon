@@ -31,8 +31,17 @@ export interface AgentView {
 }
 
 export type AgentBlocker =
-  | { readonly kind: 'executor-missing' | 'executor-running' | 'executor-failed'; readonly agent: string }
-  | { readonly kind: 'reviewer-missing' | 'reviewer-running' | 'reviewer-stale'; readonly agent: string }
+  | { readonly kind: 'executor-missing' | 'executor-failed'; readonly agent: string }
+  | { readonly kind: 'reviewer-missing' | 'reviewer-stale'; readonly agent: string }
+  /**
+   * 还在跑的那次运行的 id。解锁命令要的就是它，而它此刻就在同一份台账（也在 status 投影的
+   * `step.reviewers[].run_id`）里——不带上它，阻断行只能印一个字面量 `<run>` 让人自己去找。
+   */
+  | {
+      readonly kind: 'executor-running' | 'reviewer-running'
+      readonly agent: string
+      readonly runId: string | null
+    }
   | {
       readonly kind: 'reviewer-failed'
       readonly agent: string
@@ -123,15 +132,19 @@ export function evaluateStepAgents(
     const row = latestRun(input, ref.agent)
     const state = stateOf(row, 'executor', input.candidate)
     if (state === 'idle') blockers.push({ kind: 'executor-missing', agent: ref.agent })
-    else if (state === 'running') blockers.push({ kind: 'executor-running', agent: ref.agent })
-    else if (row?.result !== 'done') blockers.push({ kind: 'executor-failed', agent: ref.agent })
+    else if (state === 'running') {
+      blockers.push({ kind: 'executor-running', agent: ref.agent, runId: row?.run_id ?? null })
+    } else if (row?.result !== 'done') blockers.push({ kind: 'executor-failed', agent: ref.agent })
   }
   for (const ref of input.step.reviewers) {
     if (!ref.required) continue
     const row = latestRun(input, ref.agent)
     const state = stateOf(row, 'reviewer', input.candidate)
     if (state === 'idle') { blockers.push({ kind: 'reviewer-missing', agent: ref.agent }); continue }
-    if (state === 'running') { blockers.push({ kind: 'reviewer-running', agent: ref.agent }); continue }
+    if (state === 'running') {
+      blockers.push({ kind: 'reviewer-running', agent: ref.agent, runId: row?.run_id ?? null })
+      continue
+    }
     if (state === 'stale') { blockers.push({ kind: 'reviewer-stale', agent: ref.agent }); continue }
     const blocking = row === undefined ? [] : blockingFindings(row, ref.blockAt)
     if (blocking.length > 0) blockers.push({ kind: 'reviewer-failed', agent: ref.agent, blockAt: ref.blockAt, blocking })
@@ -224,19 +237,24 @@ export function isForwardExit(
 
 const FINDING_PREVIEW = 5
 
+/** 解锁命令里的 run 位：有 id 就直接给，拿不到就点名去哪儿查——不留字面量占位符让人照抄。 */
+function runRef(runId: string | null, change: string): string {
+  return runId ?? `<run>（用 tenon agent next ${change} 查 run id）`
+}
+
 /** 每条阻断都点名解锁它的那条命令——门禁文案的既定规则：说清楚怎么解开。 */
 export function renderAgentBlocker(blocker: AgentBlocker, change: string): string {
   switch (blocker.kind) {
     case 'executor-missing':
       return `执行者 '${blocker.agent}' 未运行；运行：tenon agent next ${change}`
     case 'executor-running':
-      return `执行者 '${blocker.agent}' 进行中；完成后：tenon agent record ${change} <run>`
+      return `执行者 '${blocker.agent}' 进行中；完成后：tenon agent record ${change} ${runRef(blocker.runId, change)}`
     case 'executor-failed':
       return `执行者 '${blocker.agent}' 失败；重跑：tenon agent prompt ${change} ${blocker.agent}`
     case 'reviewer-missing':
       return `评审者 '${blocker.agent}' 未运行；运行：tenon agent next ${change}`
     case 'reviewer-running':
-      return `评审者 '${blocker.agent}' 进行中；完成后：tenon agent record ${change} <run>`
+      return `评审者 '${blocker.agent}' 进行中；完成后：tenon agent record ${change} ${runRef(blocker.runId, change)}`
     case 'reviewer-stale':
       return `评审者 '${blocker.agent}' 的结论已过期（候选已变化）；重跑：tenon agent prompt ${change} ${blocker.agent}`
     case 'reviewer-failed': {

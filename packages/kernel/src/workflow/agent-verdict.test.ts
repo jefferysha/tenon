@@ -102,7 +102,7 @@ describe('evaluateStepAgents', () => {
       .toEqual([{ kind: 'executor-missing', agent: 'b' }])
     expect(evaluateStepAgents(input({ executors: [executor('b')] },
       [run({ agent: 'b', role: 'executor', status: 'running', result: null })])).blockers)
-      .toEqual([{ kind: 'executor-running', agent: 'b' }])
+      .toEqual([{ kind: 'executor-running', agent: 'b', runId: 'r-b' }])
     expect(evaluateStepAgents(input({ executors: [executor('b')] },
       [run({ agent: 'b', role: 'executor', result: 'failed' })])).blockers)
       .toEqual([{ kind: 'executor-failed', agent: 'b' }])
@@ -115,7 +115,7 @@ describe('evaluateStepAgents', () => {
     const step = { reviewers: [reviewer('a')] }
     expect(evaluateStepAgents(input(step)).blockers).toEqual([{ kind: 'reviewer-missing', agent: 'a' }])
     expect(evaluateStepAgents(input(step, [run({ agent: 'a', status: 'running', result: null })])).blockers)
-      .toEqual([{ kind: 'reviewer-running', agent: 'a' }])
+      .toEqual([{ kind: 'reviewer-running', agent: 'a', runId: 'r-a' }])
     expect(evaluateStepAgents(input(step, [run({ agent: 'a', candidate: OTHER })])).blockers)
       .toEqual([{ kind: 'reviewer-stale', agent: 'a' }])
     const failing = [run({ agent: 'a', findings: [{ severity: 'high', location: 'a.ts:1', message: '坏' }] })]
@@ -226,18 +226,45 @@ describe('renderAgentBlocker', () => {
   it('每条都点名解锁命令', () => {
     expect(renderAgentBlocker({ kind: 'executor-missing', agent: 'b' }, 'c'))
       .toBe("执行者 'b' 未运行；运行：tenon agent next c")
-    expect(renderAgentBlocker({ kind: 'executor-running', agent: 'b' }, 'c'))
-      .toBe("执行者 'b' 进行中；完成后：tenon agent record c <run>")
+    expect(renderAgentBlocker({ kind: 'executor-running', agent: 'b', runId: 'r-b' }, 'c'))
+      .toBe("执行者 'b' 进行中；完成后：tenon agent record c r-b")
     expect(renderAgentBlocker({ kind: 'executor-failed', agent: 'b' }, 'c'))
       .toBe("执行者 'b' 失败；重跑：tenon agent prompt c b")
     expect(renderAgentBlocker({ kind: 'reviewer-missing', agent: 'a' }, 'c'))
       .toBe("评审者 'a' 未运行；运行：tenon agent next c")
-    expect(renderAgentBlocker({ kind: 'reviewer-running', agent: 'a' }, 'c'))
-      .toBe("评审者 'a' 进行中；完成后：tenon agent record c <run>")
+    expect(renderAgentBlocker({ kind: 'reviewer-running', agent: 'a', runId: 'r-a' }, 'c'))
+      .toBe("评审者 'a' 进行中；完成后：tenon agent record c r-a")
     expect(renderAgentBlocker({ kind: 'reviewer-stale', agent: 'a' }, 'c'))
       .toBe("评审者 'a' 的结论已过期（候选已变化）；重跑：tenon agent prompt c a")
     expect(renderAgentBlocker({ kind: 'agent-records-invalid', reason: '第 2 行形状非法' }, 'c'))
       .toBe('agent 记录不可读：第 2 行形状非法')
+  })
+
+  /**
+   * 真机实测的缺陷（acceptance run）：阻断行发的是字面量 `<run>`，而真正的 run id 就在同一份
+   * payload 的 `step.reviewers[].run_id` 里。照抄那条命令必然失败。
+   */
+  it('进行中的阻断带上真实 run id，而不是占位符', () => {
+    const running = run({ agent: 'security', status: 'running', result: null, run_id: 'r-security-7' })
+    const result = evaluateStepAgents(input(
+      { reviewers: [reviewer('security')], executors: [executor('builder')] },
+      [running, run({ agent: 'builder', role: 'executor', status: 'running', result: null, run_id: 'r-builder-3' })],
+    ))
+    expect(result.blockers).toEqual([
+      { kind: 'executor-running', agent: 'builder', runId: 'r-builder-3' },
+      { kind: 'reviewer-running', agent: 'security', runId: 'r-security-7' },
+    ])
+    const lines = result.blockers.map((blocker) => renderAgentBlocker(blocker, 'demo'))
+    expect(lines).toEqual([
+      "执行者 'builder' 进行中；完成后：tenon agent record demo r-builder-3",
+      "评审者 'security' 进行中；完成后：tenon agent record demo r-security-7",
+    ])
+    for (const line of lines) expect(line).not.toContain('<run>')
+  })
+
+  it('拿不到 run id 时点名去哪儿查，仍不让人照抄占位符', () => {
+    expect(renderAgentBlocker({ kind: 'reviewer-running', agent: 'a', runId: null }, 'c'))
+      .toBe("评审者 'a' 进行中；完成后：tenon agent record c <run>（用 tenon agent next c 查 run id）")
   })
 
   it('不通过只列前五条问题', () => {

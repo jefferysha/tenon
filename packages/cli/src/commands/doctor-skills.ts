@@ -11,6 +11,7 @@ import {
 import { loadCanonicalSkillSources, type SkillSource } from '../skillSources.js'
 import { resolveCommandOnPath } from './commandExists.js'
 import { green, yellow, red, type DoctorCheck } from './doctor-check.js'
+import { activeHost } from './doctor-host.js'
 import { lockedUpstreamSkillIds } from './doctor-upstream-skills.js'
 
 function skillInPlace(
@@ -260,6 +261,34 @@ export function checkOpenspecCli(): DoctorCheck {
     : green('integration:openspec-cli', `openspec 可执行：${path}`)
 }
 
+/**
+ * 这台机器上「Codex 参与了」的证据：当前会话宿主是 Codex，或已安装的 native runtime 宿主是
+ * Codex，或宿主 plugin inventory 报的就是 Codex。三条都不成立、项目里也一个 Skill 都没投影过时，
+ * 这项检查在给一个不存在的宿主打分。
+ */
+async function codexInPlay(
+  p: DoctorProbes,
+  inventory: HostPluginInventorySource | undefined,
+): Promise<boolean> {
+  if ((inventory?.kind === 'native' || inventory?.kind === 'unavailable') && inventory.host === 'codex') {
+    return true
+  }
+  return await activeHost(p) === 'codex'
+}
+
+/**
+ * 真机实测的缺陷（acceptance run）：doctor 对一个非 Codex 项目先打
+ * `[PASS] auth:codex 当前会话宿主非 Codex`，两行之后又打
+ * `[WARN] integration:codex-project-skills Codex 唯一发现根缺 17 个 Tenon Skills`。同一屏上两句
+ * 互相打脸，而后者要求的修复（重跑 static adapter）在一个不用 Codex 的项目里毫无意义。
+ */
+function notApplicable(): DoctorCheck {
+  return green(
+    'integration:codex-project-skills',
+    '此项目未启用 Codex（无 Codex 宿主登记，项目里也没有 Skill 投影）；Codex Skill 发现检查不适用',
+  )
+}
+
 /** Codex 正常对话必须能发现的技能 = 工作流数据声明的那一份，不另列清单。 */
 function codexProjectContractSkills(): readonly string[] {
   try {
@@ -308,6 +337,9 @@ export async function checkCodexProjectSkills(
   if (p.codexSkillDiscovery !== undefined) {
     const discovery = await p.codexSkillDiscovery()
     const native = discovery.selectedRoot !== undefined
+    if (!native && discovery.project.size === 0 && !(await codexInPlay(p, inventory))) {
+      return notApplicable()
+    }
     const active = native ? discovery.selected : discovery.project
     const missing = codexProjectContractSkills().filter((name) => !active.has(name))
     const duplicates: string[] = []
@@ -365,6 +397,9 @@ export async function checkCodexProjectSkills(
   }
   const installed = p.codexProjectSkillNames()
   const missing = codexProjectContractSkills().filter((name) => !installed.has(name))
+  if (missing.length > 0 && installed.size === 0 && !(await codexInPlay(p, inventory))) {
+    return notApplicable()
+  }
   if (missing.length === 0) {
     return green(
       'integration:codex-project-skills',
