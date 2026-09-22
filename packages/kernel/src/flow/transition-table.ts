@@ -13,7 +13,7 @@
  * renderPreconditionViolation）。TransitionContext（文件存在性 / git HEAD 注入面）留在本文件，供
  * default-event-policy 与 cli/server adapter 绑定项目根后注入。kernel 零第三方依赖。
  */
-import type { Phase } from '../types.js'
+import type { GuardContext, Phase } from '../types.js'
 
 export interface EventEdge {
   from: Phase
@@ -66,4 +66,13 @@ export interface TransitionContext {
   specMigrationStatus?: import('../workflow/ir.js').GuardInput['specMigrationStatus']
   /** 在 transition 持有 Change lock 时重验 tasks-through-phase，关闭 preview→commit TOCTOU。 */
   tasksThroughPhase?: (phase: Phase) => Promise<{ readonly pass: boolean; readonly failure?: string }>
+  /**
+   * 相位出口规则（flow/guard.ts EXIT_RULES）的文件面注入，与 `tenon check` 同一份。
+   *
+   * 那张表此前只有 check 一个调用点：`tenon check` 说 FAIL exit 2，同一状态上 transition 却
+   * exit 0——pm 就这样带着 prd_path=null 走完 ship 与 archive。注入缺省时规则表仍按纯字段面评估
+   * （prd_path / pr_url / verify_result 这些槽不降级），只有文件、覆盖与任务面跳过。
+   * coverageProfile 不由调用方猜：它来自本次转换已绑定的 effective plan。
+   */
+  phaseExitGuard?: Omit<GuardContext, 'coverageProfile'>
 }

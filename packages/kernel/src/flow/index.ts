@@ -27,3 +27,7 @@ export type {
   DefaultGuardFieldRequirement,
   DefaultPreconditionResult,
 } from './default-event-policy.js'
+// 相位出口规则表（guard.ts EXIT_RULES）的字段投影——`status --json` 的字段/blockers 与
+// `tenon check`、transition 强制层读同一张表。
+export { phaseExitGuardFields } from './guard.js'
+export type { PhaseExitGuardFieldRequirement } from './guard.js'

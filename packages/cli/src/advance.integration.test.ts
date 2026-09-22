@@ -98,9 +98,10 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
     await armStepTests(name, 'verify')
   }
 
-  /** 让 ship 出口 guard 真通过（backend：pr_url） */
+  /** 让 ship 出口 guard 真通过（backend：pr_url + 本 change 的 delta spec 已真应用进主规格） */
   async function armShipGuard(name: string): Promise<void> {
     await h.run(['set', name, 'pr_url', 'https://example.com/pr/1'])
+    await h.seedAppliedSpec(name)
   }
 
   test('HITL 红线：默认从 build 只推进到 verify（复核相位）就停，绝不跑到 ship/archive', async () => {

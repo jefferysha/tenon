@@ -2,7 +2,7 @@
  * transition <name> <event> —— 状态机转换（CONTRACT §3，2026-07-06 oracle 实测回写）。
  * stdout：无（`[TRANSITION] name: old -> new` 走 stderr，对齐老内核 green() 落 stderr）；
  * exit：0 成功 / 1 非法转换、未知事件、事件前置校验不满足或其它错误（老内核实测口径）/
- *       2 非 default workflow 的 step guard 未通过。
+ *       2 step guard 未通过（非 default workflow 的 step.guards，或 default 轨的相位出口规则表）。
  *
  * 编排现在整个下沉进 kernel 单一 TransitionApplication 用例（G1 支点，2026-07-17，见
  * packages/kernel/src/workflow/transition-application.ts）——default/custom 双轨分流、
@@ -44,6 +44,7 @@
  * | verify-fail       | L207-210 | verify_result=fail + build_sha=null + phase_status=in_progress | kernel DefaultEventPolicy action ✓（phase_status 在 flow）|
  * | archived          | L213-217 | archived=true + archived_at=now + phase_status=done | kernel DefaultEventPolicy action ✓（phase_status 在 flow）|
  * | ship-complete     | current  | 主规格迁移 receipt 存在时机器应用结果必须身份/摘要一致 | kernel DefaultEventPolicy guard ✓ |
+ * | （全前进边）      | guard.sh | 相位出口规则表（EXIT_RULES：prd_path / pr_url / verify_result …）| kernel planDefaultTransition ✓（文件面经 context.phaseExitGuard 注入，与 check 同一份）|
  * | 其它事件          | L219-221 | 无专属校验（open-complete/自定义相位事件）| kernel default 通行 ✓ |
  * 校验失败 = 任何写盘之前 exit 1（老仓 case 校验先于 cmd_set phase），ERROR 文案逐字对齐。
  * 文件存在性经 deps.guardCtx 注入（main.ts/harness 全量注入 = 真实校验；未注入时仅旧文件面
@@ -67,6 +68,7 @@ import { stepAgentBlockersFor } from '../agentGate.js'
 import { missingStepSkillTokens } from '../stepSkillGate.js'
 import { testEvidenceContextFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
+import { phaseExitGuardContext } from './phaseExitGuard.js'
 
 export async function cmdTransition(deps: CliDeps, name: string, event: string): Promise<number> {
   if (!isValidChangeName(name)) {
@@ -102,6 +104,9 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     captureBuildRevision: deps.captureBuildRevision,
     assessBuildRevision: resolveBuildRevisionAssessor(deps, name, dir),
     specMigrationStatus: () => evaluateSpecMigrationEvidence(deps.cwd, dir, name),
+    // 相位出口规则表（kernel flow/guard.ts）的文件面，与 `tenon check` / status 出边投影同一份
+    // （commands/phaseExitGuard.ts）。kernel 在锁内、前进边上评估它；此前它只有 check 一个调用点。
+    phaseExitGuard: await phaseExitGuardContext(guardContext, dir),
     ...(guardContext === undefined
       ? {}
       : { tasksThroughPhase: async (phase) => {

@@ -545,6 +545,9 @@ describe('createTransitionApplication —— 唯一 TransitionApplication 用例
       expect(invalid.kind).toBe('precondition-violated')
       expect((await createStateStore().read(dir)).fields.phase).toBe('ship')
 
+      // ship 的相位出口规则也在这条边上评估（非 pm 轨要求 pr_url 非空）；本用例的主题是迁移证据，
+      // 所以把出口条件真喂足，而不是让它替迁移证据挡住转换。
+      await createStateStore().set(dir, 'pr_url', 'https://example.com/pr/1')
       const applied = await app.execute({
         root, changeDir: dir, changeName: 'demo', actor: TEST_CREATOR, event: 'ship-complete',
         context: { specMigrationStatus: async () => ({ kind: 'not-required' }) },

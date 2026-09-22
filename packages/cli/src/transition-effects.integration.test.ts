@@ -14,6 +14,7 @@
  *   archived           archived=true + archived_at + phase_status=done（L212-218）
  * 校验失败 = exit 1 + ERROR 走 stderr + canonical/YAML 均不变（老仓 case 校验先于任何写）。
  */
+import { existsSync } from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
@@ -123,6 +124,10 @@ async function advanceTo(name: string, phase: 'explore' | 'spec' | 'build' | 've
   await h.satisfyStepTests(name, 'verify')
     await h.satisfyStepAgents(name)
   expect(await h.run(['transition', name, 'verify-pass'])).toBe(0)
+  // Ship 出口要求本 change 的 delta spec 真的应用进主规格；夹具留下 `tenon spec apply` 的产物。
+  await h.seedAppliedSpec(name)
+  // 非 pm 轨的 ship 出口还要求 pr_url（kernel flow/guard.ts 的 EXIT_RULES，transition 现在也评估）。
+  await h.run(['set', name, 'pr_url', 'https://example.com/pr/1'])
 }
 
 describe('真实 e2e —— explore-complete 校验（老仓 L120-126）', () => {
@@ -384,6 +389,85 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     expect(yaml).toMatch(/^phase: ship$/m)
     expect(yaml).toMatch(/^verify_result: pass$/m)
   })
+
+  /**
+   * 真机实测：两个 pm 任务带着 `prd_path = null` 走完了 ship 与 archive。`tenon check` 当时就在说
+   * 「ship 出口：要求 prd_path 非空」，但 ship 步 gate=null、transition 不评估出口规则表，于是
+   * 那句话没有任何执行力。这条用例把真实的七相位走完，钉住通往 完结 的那条边现在真的拦得住。
+   */
+  test('完结：pm 带着 prd_path=null 走不进 archive；补齐 PRD 后才走得进', async () => {
+    await initGoverned('pmship', 'pm')
+    expect(await h.run(['transition', 'pmship', 'open-complete'])).toBe(0)
+    await h.seedArtifact('pmship', 'design_doc', 'openspec/changes/pmship/design.md')
+    await approveReviewExit('pmship', 'explore-complete')
+    expect(await h.run(['transition', 'pmship', 'explore-complete'])).toBe(0)
+    await approveReviewExit('pmship', 'spec-complete')
+    expect(await h.run(['transition', 'pmship', 'spec-complete'])).toBe(0)
+    await h.run(['set-many', 'pmship',
+      'build_mode=direct', 'isolation=branch', 'direct_override=true', 'pre_verify_review_result=pass'])
+    await h.satisfyStepTests('pmship', 'build')
+    expect(await h.run(['transition', 'pmship', 'build-complete'])).toBe(0)
+    await seed('docs/pmship-verify.md')
+    await h.seedArtifact('pmship', 'verification_report', 'docs/pmship-verify.md')
+    await h.run(['set-many', 'pmship', 'branch_status=handled', 'verify_result=pass'])
+    await approveReviewExit('pmship', 'verify-pass')
+    await h.satisfyStepTests('pmship', 'verify')
+    await h.satisfyStepAgents('pmship')
+    expect(await h.run(['transition', 'pmship', 'verify-pass'])).toBe(0)
+    await h.seedAppliedSpec('pmship')
+
+    // PRD 还没产出：通往 完结 的那条边必须拒，逐字给出理由，相位不动。
+    expect(await h.run(['get', 'pmship', 'prd_path'])).toBe(0)
+    expect(h.out.join('').trim()).toBe('null')
+    expect(await h.run(['transition', 'pmship', 'ship-complete'])).toBe(2)
+    expect(h.err.join('\n')).toContain("ship 出口：要求 prd_path 非空（当前='null'）")
+    expect(await h.read('pmship')).toMatch(/^phase: ship$/m)
+
+    // 交付物真的在了才放行，一路到 完结。
+    await seed('docs/pmship-prd.md')
+    expect(await h.run(['set', 'pmship', 'prd_path', 'docs/pmship-prd.md']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['transition', 'pmship', 'ship-complete']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['transition', 'pmship', 'archived']), h.err.join('\n')).toBe(0)
+    const finished = await h.read('pmship')
+    expect(finished).toMatch(/^phase: archive$/m)
+    expect(finished).toMatch(/^archived: true$/m)
+    expect(finished).toMatch(/^prd_path: docs\/pmship-prd\.md$/m)
+  }, 60_000)
+
+  /**
+   * 同一个终局的另一半：真机三条 track 全部到了 完结，而 `find openspec/specs -type f` 一个文件
+   * 都没有——每个 change 手里只有一份 `--dry-run` 写下的 result=pass 回执。这条用例把主规格目录
+   * 整个清掉、只留那份彩排回执，钉住通往 完结 的那条边拒得住，拒完主规格目录还是空的。
+   */
+  test('完结：backend 在主规格为空、只有彩排回执时走不进 archive；真应用后才走得进', async () => {
+    await initGoverned('beship')
+    await advanceTo('beship', 'ship')
+    const specsDir = join(h.cwd, 'openspec', 'specs')
+    const mainSpec = join(specsDir, 'capability', 'spec.md')
+    const mainBody = await readFile(mainSpec, 'utf8')
+    const receipt = join(h.cwd, 'openspec', 'changes', 'beship', '.pipeline-spec-apply.json')
+    await writeFile(receipt, (await readFile(receipt, 'utf8')).replace('"mode": "apply"', '"mode": "dry-run"'), 'utf8')
+    await rm(specsDir, { recursive: true, force: true })
+    expect(existsSync(specsDir)).toBe(false)
+
+    expect(await h.run(['transition', 'beship', 'ship-complete'])).toBe(1)
+    expect(h.err.join('\n')).toContain(
+      'ERROR: ship-complete 要求主规格迁移机器证据有效（当前=spec-apply-rehearsal-only）',
+    )
+    expect(await h.read('beship')).toMatch(/^phase: ship$/m)
+    expect(existsSync(specsDir), '拒绝之后主规格目录仍然是空的').toBe(false)
+
+    // 真跑一次应用留下的产物：主规格在盘上 + mode=apply 的回执。
+    await mkdir(dirname(mainSpec), { recursive: true })
+    await writeFile(mainSpec, mainBody, 'utf8')
+    await h.seedAppliedSpec('beship')
+    expect(await h.run(['transition', 'beship', 'ship-complete']), h.err.join('\n')).toBe(0)
+    expect(await h.run(['transition', 'beship', 'archived']), h.err.join('\n')).toBe(0)
+    const finished = await h.read('beship')
+    expect(finished).toMatch(/^phase: archive$/m)
+    expect(finished).toMatch(/^archived: true$/m)
+    expect(existsSync(mainSpec)).toBe(true)
+  }, 60_000)
 })
 
 describe('真实 e2e —— verify-fail / archived 副作用（老仓 L206-218）', () => {

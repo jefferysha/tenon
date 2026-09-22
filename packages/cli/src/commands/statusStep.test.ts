@@ -18,7 +18,8 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     runArchived: false,
     governedOpenspec: true,
     exits: [],
-    specApplyPending: false,
+    specRehearsalPending: false,
+    specApplicationPending: false,
     ownsDeltaSpec: false,
     ownsAppliedSpec: false,
     artifactProducers: [],
@@ -89,7 +90,17 @@ describe('step.next 顺序', () => {
   test('applied-spec 归本步时先应用规格，再登记', () => {
     expect(actions({
       ownsAppliedSpec: true,
-      specApplyPending: true,
+      specRehearsalPending: true,
+      specApplicationPending: true,
+      documents: { reads: [], records: [doc('applied-spec', 'missing')], updates: [] },
+    })).toEqual(['apply-spec'])
+  })
+
+  test('彩排过但没真应用：仍然是 apply-spec，不是去铺 applied-spec 骨架', () => {
+    expect(actions({
+      ownsAppliedSpec: true,
+      specRehearsalPending: false,
+      specApplicationPending: true,
       documents: { reads: [], records: [doc('applied-spec', 'missing')], updates: [] },
     })).toEqual(['apply-spec'])
   })
@@ -97,14 +108,26 @@ describe('step.next 顺序', () => {
   test('delta-spec 归本步时，登记完文档再彩排', () => {
     expect(actions({
       ownsDeltaSpec: true,
-      specApplyPending: true,
+      specRehearsalPending: true,
+      specApplicationPending: true,
       documents: { reads: [], records: [doc('delta-spec', 'missing')], updates: [] },
     })).toEqual(['scaffold-document'])
     expect(actions({
       ownsDeltaSpec: true,
-      specApplyPending: true,
+      specRehearsalPending: true,
+      specApplicationPending: true,
       documents: { reads: [], records: [doc('delta-spec', 'recorded')], updates: [] },
     })).toEqual(['validate-spec'])
+  })
+
+  test('彩排已是最新：spec 步不再重复 validate-spec（彩排满足彩排，应用另算）', () => {
+    expect(actions({
+      ownsDeltaSpec: true,
+      specRehearsalPending: false,
+      specApplicationPending: true,
+      documents: { reads: [], records: [doc('delta-spec', 'recorded')], updates: [] },
+      exits: [exit('spec-complete', 'forward', true)],
+    })).toEqual(['transition'])
   })
 
   test('已登记的文档过期时重新登记，不再铺骨架', () => {

@@ -1304,7 +1304,7 @@ export const zh: Dict = {
     'step_guard_spec-migration-applied': '规格迁移已应用',
     'step_guard_note_nonempty-output': '编译时按当前 outputs 展开为逐字段非空检查。',
     'step_guard_note_full-direct-override': '只允许 full preset 的 direct build override；由 kernel 闭集处理器判定。',
-    'step_guard_note_spec-migration-applied': '要求当前规范迁移已正式应用，不能只凭预演结果推进。',
+    'step_guard_note_spec-migration-applied': '要求本任务登记的 delta spec 已真正写进主规格；--dry-run 彩排不算。',
     // ── P1 编排画布·可编辑面（board_ed_ / mand_ 前缀）──
     // 门只有二态（null ↔ review）：confirm 门只在 default 只读态出现，自定义 workflow
     // 的编辑语义按 demo 拍板为「review 单档」（同 StepEditor ed_gate 口径，勿造第三态）。
@@ -3490,7 +3490,7 @@ export const en: Dict = {
     'step_guard_spec-migration-applied': 'Spec migration applied',
     'step_guard_note_nonempty-output': 'Compiled into per-field non-empty checks for the current outputs.',
     'step_guard_note_full-direct-override': 'Allows only the full-preset direct-build override through the kernel closed-set handler.',
-    'step_guard_note_spec-migration-applied': 'Requires the current spec migration to be applied, not merely rehearsed.',
+    'step_guard_note_spec-migration-applied': "Requires this change's recorded delta spec to be written into the main spec; a --dry-run rehearsal does not count.",
     // ── P1 orchestration board · editable surface (board_ed_ / mand_ prefixes) ──
     // The gate is binary (null ↔ review): the confirm gate only appears in the read-only
     // default workflow; custom workflows edit a single review档 (same as StepEditor's

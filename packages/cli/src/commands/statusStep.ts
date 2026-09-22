@@ -6,7 +6,7 @@
  */
 import { readFile } from 'node:fs/promises'
 import {
-  defaultEventGuardFields, isTenonUser, reviewGateEvent,
+  defaultEventGuardFields, isTenonUser, phaseExitGuardFields, readSpecApplyReceiptStatus, reviewGateEvent,
   reviewGateMatches, reviewGateStatus, userProjectPaths, userSlug,
   type EffectiveWorkflowPlan, type EventName, type PipelineState,
 } from '@tenon/kernel'
@@ -27,7 +27,6 @@ import { retiredSkillReferences, retiredSkillsChangeMessage } from '@tenon/kerne
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { currentCandidate } from './candidate.js'
 import { SPEC_APPLY_RECEIPT } from './specApply.js'
-import { specApplyReceiptFresh } from './statusStepSpec.js'
 
 export interface StepTestView {
   readonly id: string
@@ -98,11 +97,13 @@ export interface StepNextInput {
   readonly review: { readonly status: string; readonly event: string | null }
   readonly gate: string | null
   readonly mode: StepBlock['mode']
-  /** `fields.archived === 'true'`：状态机已走完，只剩治理归档。不是 per-user 的隐藏表。 */
   readonly runArchived: boolean
   readonly governedOpenspec: boolean
   readonly exits: readonly StepExit[]
-  readonly specApplyPending: boolean
+  /** 还没拿到一份对得上当前 delta spec 的彩排结论（`tenon spec apply --dry-run` 即可满足）。 */
+  readonly specRehearsalPending: boolean
+  /** delta spec 还没真的应用进主规格（彩排不算——它连一个字节都不写）。 */
+  readonly specApplicationPending: boolean
   readonly ownsDeltaSpec: boolean
   readonly ownsAppliedSpec: boolean
   /** artifact 字段的合法 `--producer` 集（与 register 命令同源；空 = 无合法 producer）。 */
@@ -138,19 +139,13 @@ function writeFieldActions(
 
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
 export function stepNextActions(input: StepNextInput): readonly StepAction[] {
-  // 状态机已归档：这个任务只剩治理归档那一步，排在重新加载 tenon 之前——终态自边开出的步骤访问
-  // 不会再前进，让运行器去补一次技能证据只会原地打转。在治理归档跑完之前，change 目录还在
-  // `openspec/changes/` 下但 `archived=true`，`tenon list` 与 `tenon list --finished` 两边都看
-  // 不见它；不点名这条命令，运行器就停在一个没有阻塞项的 `fix` 上。动作自带整条命令，因此即使
-  // 技能还没加载也照做得了。
+  // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩治理归档这一步，排在
+  // load-tenon 之前——终态自边的步骤访问不会再前进，补技能证据只会原地打转，而动作自带整条命令。
+  // 归档跑完前目录还在 openspec/changes/ 下而 archived=true，两张列表都看不见它，不点名就只剩空 fix。
   if (input.runArchived) {
-    return input.governedOpenspec
-      ? [{
-          action: 'finish-change',
-          change: input.change,
-          command: `openspec archive ${input.change} --skip-specs --yes --json`,
-        }]
-      : stop('run-archived', `任务 '${input.change}' 已完结`)
+    if (!input.governedOpenspec) return stop('run-archived', `任务 '${input.change}' 已完结`)
+    const command = `openspec archive ${input.change} --skip-specs --yes --json`
+    return [{ action: 'finish-change', change: input.change, command }]
   }
   if (!input.loaded) return [{ action: 'load-tenon' }]
 
@@ -168,7 +163,7 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     return ready.map((skill) => ({ action: 'load-skill', skill: skill.id, wave: skill.wave }))
   }
 
-  if (input.ownsAppliedSpec && input.specApplyPending) return [{ action: 'apply-spec' }]
+  if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]
   const writes = [...input.documents.records, ...input.documents.updates]
     .filter((doc) => doc.status !== 'recorded')
   if (writes.length > 0) {
@@ -187,7 +182,7 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     input.artifactProducers,
   )
   if (missingFields.length > 0) return missingFields
-  if (input.ownsDeltaSpec && input.specApplyPending) return [{ action: 'validate-spec' }]
+  if (input.ownsDeltaSpec && input.specRehearsalPending) return [{ action: 'validate-spec' }]
 
   const tests = input.tests.filter((test) => test.required && test.status !== 'passed')
   if (tests.length > 0) return tests.map((test) => ({ action: 'run-test', test: test.id }))
@@ -277,9 +272,12 @@ function artifactFieldsOf(
 }
 
 /**
- * default 轨的前置 guard 在 flow/default-event-policy.ts 的事件政策表里，不在 step.guards 上。
- * 按本步每条出边的事件去那张表取字段，投影层与转换强制层就读同一份声明。
- * custom 轨（execution.model !== 'phase-manifest'）的 guard 全在 step 上，返回空集。
+ * default 轨的前置 guard 分在两张表里，都不在 step.guards 上：
+ *   · flow/default-event-policy.ts —— 每条出边事件自己的前置（build_mode / isolation / …）；
+ *   · flow/guard.ts 的 EXIT_RULES —— 离开本相位的出口条件（pm 的 prd_path、pm verify 的
+ *     verify_result、非 pm 的 pr_url …）。第二张表此前只有 `tenon check` 读，于是 pm 在 verify
+ *     步既看不到 verify_result 也收不到对应 blocker，只能在 request-review 上空转。
+ * 两张都取，投影层与转换强制层就读同一份声明。custom 轨的 guard 全在 step 上，返回空集。
  */
 function nativeGuardFieldsOf(
   plan: EffectiveWorkflowPlan,
@@ -288,13 +286,15 @@ function nativeGuardFieldsOf(
 ): readonly StepFieldRequirement[] {
   if (plan.capabilities.execution.model !== 'phase-manifest') return []
   const out: StepFieldRequirement[] = []
+  const push = (item: { readonly field: string; readonly required?: readonly string[] }): void => {
+    if (out.some((seen) => seen.field === item.field)) return
+    out.push(item.required === undefined ? { field: item.field } : { field: item.field, required: item.required })
+  }
   for (const exit of exits) {
     if (exit.direction === 'back') continue
-    for (const item of defaultEventGuardFields(exit.event as EventName, state)) {
-      if (out.some((seen) => seen.field === item.field)) continue
-      out.push(item.required === undefined ? { field: item.field } : { field: item.field, required: item.required })
-    }
+    for (const item of defaultEventGuardFields(exit.event as EventName, state)) push(item)
   }
+  for (const item of phaseExitGuardFields(state)) push(item)
   return out
 }
 
@@ -333,7 +333,7 @@ export async function buildStatusStep(
     status: gateStatus !== null && reviewGateMatches(state, stepId) ? gateStatus : 'none',
     event: gateStatus !== null && reviewGateMatches(state, stepId) ? reviewGateEvent(state) : null,
   }
-  const specApply = await specApplyReceiptFresh(deps.cwd, dir)
+  const specApply = await readSpecApplyReceiptStatus(deps.cwd, dir)
   const retired = retiredSkillReferences(plan)
   const block: Omit<StepBlock, 'next'> = {
     schema: 'tenon-step-v1',
@@ -385,7 +385,10 @@ export async function buildStatusStep(
       runArchived: str(state.fields.archived) === 'true',
       governedOpenspec: plan.capabilities.documents.governed,
       exits: report.exits,
-      specApplyPending: !specApply.fresh,
+      specRehearsalPending: !specApply.rehearsed,
+      // 彩排与应用是两件事：`--dry-run` 也写同一份 result=pass 的回执，只认 result 就等于让一次
+      // 彩排顶替一次应用，ship 于是去铺 applied-spec 骨架而不是真的把 delta 应用进主规格。
+      specApplicationPending: !specApply.applied,
       ownsDeltaSpec: documents.records.some((doc) => doc.kind === 'delta-spec'),
       ownsAppliedSpec: documents.records.some((doc) => doc.kind === 'applied-spec'),
       artifactProducers: artifacts.size === 0 ? [] : effectiveArtifactProducers(deps, state),

@@ -308,7 +308,7 @@ tracks:
           - field: verification_report
             type: file_path
         outputs:
-          - field: pr_url
+          - field: prd_path
             type: string
         guards:
           - type: spec-migration-applied
@@ -320,7 +320,7 @@ tracks:
         gate: null
         skills: []
         inputs:
-          - field: pr_url
+          - field: prd_path
             type: string
         outputs:
           - field: archived
