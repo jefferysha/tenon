@@ -102,6 +102,8 @@ describe('ship 出口：delta spec 必须真的应用进主规格', () => {
 
   test('真应用过：三个出口一起放行', async () => {
     await h.seedAppliedSpec(CHANGE)
+    // ship 出口的另一条规则（非 pm 轨要 pr_url）与本用例无关，喂足它才能看清规格应用这一条。
+    expect(await h.run(['set', CHANGE, 'pr_url', 'https://example.com/pr/1'])).toBe(0)
 
     await h.run(['check', CHANGE])
     expect(h.out.join('\n')).not.toContain('migration:')

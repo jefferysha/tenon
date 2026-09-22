@@ -12,9 +12,22 @@
  * 记账）在一个非 review 相位（open：`open._all: [openspec-propose]`）上，把两条命令跑在同一个
  * 状态上逐条对齐：技能缺失时两条都拒、技能齐备时两条都过。
  */
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { freshHarness, recordWorkflowPhaseSkill, rm, type Harness } from './integration-harness.js'
+
+interface StatusStep {
+  readonly step: {
+    readonly fields: readonly { field: string; status: string; required: readonly string[] | null }[]
+    readonly exits: readonly {
+      event: string
+      ready: boolean
+      blockers: readonly { source: string; message: string }[]
+    }[]
+    readonly next: readonly { action: string; blockers?: readonly { message: string }[] }[]
+  }
+}
 
 const CHANGE = 'skillagree'
 const TRACK = 'backend'
@@ -75,5 +88,92 @@ describe('check ⇔ transition：技能门不得只有一边看得见', () => {
 
     expect(await h.run(['transition', CHANGE, 'open-complete']), h.err.join('\n')).toBe(0)
     expect(await h.read(CHANGE)).toMatch(/^phase: explore$/m)
+  })
+})
+
+/**
+ * 同一条 bug 的第二种形态：相位出口规则表（kernel flow/guard.ts 的 EXIT_RULES）此前只有
+ * `tenon check` 一个调用点。真机实测的 pm 任务：
+ *   $ tenon check pm2                       → [FAIL] ship 出口：要求 prd_path 非空  exit=2
+ *   $ tenon status pm2 --json               → exits[ship-complete].ready=true, blockers=[]
+ *   $ tenon transition pm2 ship-complete    → [TRANSITION] pm2: ship -> archive      exit=0
+ * 两个 pm 任务就这样带着 prd_path=null 归了档。default 的 ship / archive 步 gate=null，
+ * `tenon` skill 又只在 request-review 下跑 check，所以那几步没有任何东西在评估这张表。
+ */
+describe('check ⇔ status ⇔ transition：相位出口规则表不得只有 check 看得见', () => {
+  const PM = 'pmgate'
+  let h: Harness
+
+  beforeEach(async () => {
+    h = await freshHarness()
+    expect(await h.run(['init', PM, '--track', 'pm', '--preset', 'full'])).toBe(0)
+    expect(await h.run(['session', 'activate', PM])).toBe(0)
+    await h.seedGovernedDocumentEvidence(PM)
+    await h.seedAppliedSpec(PM)
+    // 本用例的主题是 ship 出口规则，不是前面六相位的推进；相位直接置于 ship。
+    await h.seedPhase(PM, 'ship')
+  })
+
+  afterEach(async () => {
+    await rm(h.cwd, { recursive: true, force: true })
+  })
+
+  async function status(): Promise<StatusStep['step']> {
+    expect(await h.run(['status', PM, '--json']), h.err.join('\n')).toBe(0)
+    return (JSON.parse(h.out.join('\n')) as StatusStep).step
+  }
+
+  test('pm ship 且 prd_path=null：三条命令同判，且相位不动', async () => {
+    expect(await h.run(['get', PM, 'prd_path'])).toBe(0)
+    expect(h.out.join('').trim()).toBe('null')
+
+    const check = await h.run(['check', PM])
+    const checkOut = h.out.join('\n')
+    expect(check, checkOut).toBe(2)
+    expect(checkOut).toContain('ship 出口：要求 prd_path 非空')
+
+    const step = await status()
+    const exit = step.exits.find((candidate) => candidate.event === 'ship-complete')
+    expect(exit?.ready, 'ready=true 曾经是这条 bug 的门面').toBe(false)
+    expect(exit?.blockers.some((blocker) =>
+      blocker.source === 'guard' && blocker.message.includes('prd_path'))).toBe(true)
+    // pm 的 ship 交付物是 PRD，不是 PR：投影点名的字段必须与 guard 点名的是同一个。
+    expect(step.fields.some((field) => field.field === 'prd_path' && field.status === 'missing')).toBe(true)
+    expect(step.fields.some((field) => field.field === 'pr_url')).toBe(false)
+
+    const transition = await h.run(['transition', PM, 'ship-complete'])
+    expect(transition, h.err.join('\n')).toBe(2)
+    expect(h.err.join('\n')).toContain('prd_path')
+    expect(await h.read(PM)).toMatch(/^phase: ship$/m)
+  })
+
+  test('补齐 prd_path 后三条命令一起放行', async () => {
+    await writeFile(join(h.cwd, 'docs', 'prd.md'), '# PRD\n', 'utf8')
+    expect(await h.run(['set', PM, 'prd_path', 'docs/prd.md']), h.err.join('\n')).toBe(0)
+
+    expect(await h.run(['check', PM]), h.out.join('\n')).toBe(0)
+    const step = await status()
+    expect(step.exits.find((candidate) => candidate.event === 'ship-complete')?.ready).toBe(true)
+    expect(await h.run(['transition', PM, 'ship-complete']), h.err.join('\n')).toBe(0)
+    expect(await h.read(PM)).toMatch(/^phase: archive$/m)
+  })
+
+  test('pm verify 且 verify_result=pending：check 与 status 同判，字段进投影', async () => {
+    await h.seedPhase(PM, 'verify')
+    await h.seedArtifact(PM, 'verification_report', `docs/superpowers/reports/${PM}.md`)
+    expect(await h.run(['set', PM, 'branch_status', 'handled'])).toBe(0)
+
+    const check = await h.run(['check', PM])
+    expect(check, h.out.join('\n')).toBe(2)
+    expect(h.out.join('\n')).toContain('verify 出口：要求 verify_result=pass')
+
+    const step = await status()
+    const exit = step.exits.find((candidate) => candidate.event === 'verify-pass')
+    expect(exit?.ready).toBe(false)
+    expect(exit?.blockers.some((blocker) => blocker.message.includes('verify_result'))).toBe(true)
+    // 运行器要能照着投影把它填上，而不是在 request-review 上空转。
+    const field = step.fields.find((candidate) => candidate.field === 'verify_result')
+    expect(field?.status).toBe('missing')
+    expect(field?.required).toEqual(['pass'])
   })
 })

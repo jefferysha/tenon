@@ -343,6 +343,7 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
 
     // ── ship-complete → archive；archived 事件收尾 ──
     await h.seedAppliedSpec(CHANGE)
+    expect(await h.run(['set', CHANGE, 'pr_url', 'https://example.com/pr/1'])).toBe(0)
     expect(await h.run(['transition', CHANGE, 'ship-complete'])).toBe(0)
     await runMandatorySkillsForPhase('archive')
     expect(await h.run(['transition', CHANGE, 'archived'])).toBe(0)

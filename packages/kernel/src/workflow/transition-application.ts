@@ -33,8 +33,7 @@
  * exact-phase-and-event approval receipt。StateStore 已以 canonical current 为真相并把 `.pipeline.yaml`
  * 作为兼容投影，本用例只消费该抽象，不自行读任一格式。
  */
-import type { FieldName, FlowEngine, Phase, PipelineState } from '../types.js'
-import { IllegalTransitionError } from '../types.js'
+import type { FieldName, Phase, PipelineState } from '../types.js'
 import { applyBreadcrumbTail, clearReviewGatePatch, readCurrentRunRevision, reviewGateApprovedFor, transitionRecordToHistoryEntry } from '../state/index.js'
 import { evaluateDocumentEvidence } from '../state/document-evidence.js'
 import { rejectOnTestEvidence } from '../test-evidence/transition-gate.js'
@@ -42,13 +41,14 @@ import { ownerDecision } from '../users/owner.js'
 import { formatUserRef } from '../users/user.js'
 import type { DocumentEvidenceReport } from '../state/document-evidence.js'
 import { builtinTrack, isBuiltinTrackId } from '../tracks/builtins.js'
-import { eventEdge } from '../flow/index.js'
-import type { EventName, TransitionContext } from '../flow/index.js'
-import { evaluateDefaultEventPreconditions, DEFAULT_EVENT_POLICY } from '../flow/default-event-policy.js'
+import type { TransitionContext } from '../flow/index.js'
 import { applyStepTransition, planStepTransition, resolveStep } from './engine.js'
 import { implicitCompletionTransition } from './implicit-completion.js'
 import { retiredSkillReferences } from './retired-skills.js'
 import { rejectOnStepGates } from './transition-step-gates.js'
+// default 轨规划器单独成模块（同 rejectOnStepGates 的拆法）：本文件只留编排与 custom 轨规划。
+import { planDefaultTransition } from './transition-plan-default.js'
+import { fieldStr } from './transition-field-scalar.js'
 import { applyActions } from './action-handlers.js'
 import { evaluateConstraintPolicy, type ConstraintDecision } from '../loops/automation-policy.js'
 import type { ActionOutcome, WorkflowIR } from './ir.js'
@@ -72,99 +72,6 @@ export type {
 } from './transition-application-types.js'
 function isRejection(x: PreparedTransition | TransitionRejection): x is TransitionRejection {
   return 'kind' in x
-}
-function fieldStr(v: string | string[] | undefined): string {
-  return Array.isArray(v) ? v.join(',') : (v ?? '')
-}
-// planner 只收 flow+clock，不收完整 TransitionApplicationDeps——deps 里有 runRepository 与两个
-// projection writer，收整包等于 planner 在类型上仍可间接提交/写盘（第 2 轮 review 抓到：从
-// "直接持有 tx" 变成 "间接可达" 不算收窄）。
-async function planDefaultTransition(
-  state: PipelineState,
-  command: TransitionCommand,
-  flow: FlowEngine,
-  clock: () => string,
-  effectivePlan: EffectiveWorkflowPlan,
-): Promise<PreparedTransition | TransitionRejection> {
-  const edge = eventEdge(command.event)
-  if (!edge) return { kind: 'unknown-event', event: command.event }
-  const current = fieldStr(state.fields.phase)
-  if (current !== edge.from) {
-    return { kind: 'event-source-mismatch', event: command.event, current, expected: edge.from, to: edge.to }
-  }
-  // eventEdge 命中 → command.event ∈ TRANSITION_EVENTS 键 = EventName（DEFAULT_EVENT_POLICY 同键
-  // 空间，查表恒命中）。
-  const event = command.event as EventName
-  const policy = DEFAULT_EVENT_POLICY[event]
-
-  // ① 前置 guard：typed guard handler 判定（首错优先）+ renderer 逐字 ERROR 文案——default 轨
-  // 政策从老 checkTransitionPreconditions switch 迁到 DefaultEventPolicy + guard-handlers（G2 P3）。
-  const preconditions = await evaluateDefaultEventPreconditions(event, state, command.context)
-  if (preconditions) {
-    const blocker = preconditions.blockers?.[0]
-    if (blocker !== undefined) return { kind: 'revision-untrusted', blocker }
-    return { kind: 'precondition-violated', lines: [...preconditions.lines] }
-  }
-  if (policy.enforceTaskExit) {
-    const tasks = await command.context.tasksThroughPhase?.(edge.from)
-    if (tasks && !tasks.pass) {
-      return { kind: 'precondition-violated', lines: [tasks.failure ?? `${edge.from} 出口：tasks.md 未通过`] }
-    }
-  }
-
-  // ② FlowEngine 推进：合法边检查 + phase/phase_status/updated_at 变换（转换结构不迁——保守分叉，
-  // 边选择与相位推进继续由 eventEdge + FlowEngine 承担）。
-  let result: ReturnType<FlowEngine['transition']>
-  try {
-    result = flow.transition(state, edge.to, clock)
-  } catch (e) {
-    if (e instanceof IllegalTransitionError) return { kind: 'illegal-transition', from: e.from, to: e.to }
-    throw e
-  }
-
-  // ③ 状态副作用：typed action handler → patch，commit 前一次合并进 nextFields——default 轨从老
-  // applyTransitionEffects switch 迁到 DefaultEventPolicy.actions + applyActions（G2 P3），与
-  // custom 轨（planCustomTransition）共用同一 applyActions 引擎、同一「推进后 action、commit 前
-  // 合并」时序。单次 planner 路径只跑 typed action、绝不再调 legacy switch（防双执行：两条都跑
-  // 会让 clock()/gitHeadSha 各调两次 = 真实行为差异）。freeze-build-sha 统一由 capture capability
-  // 生成 typed token；能力缺失或异常在 commit 前转为 revision-untrusted。
-  const warnings: TransitionApplicationWarning[] = []
-  let nextFields = result.state.fields
-  if (policy.actions.length > 0) {
-    let outcome: ActionOutcome
-    try {
-      outcome = await applyActions(policy.actions, {
-        fields: result.state.fields,
-        clock,
-        gitHeadSha: command.context.gitHeadSha,
-        workspaceFingerprint: command.context.workspaceFingerprint,
-        captureBuildRevision: command.context.captureBuildRevision,
-      })
-    } catch (error) {
-      if (error instanceof BuildRevisionCaptureError) {
-        return {
-          kind: 'revision-untrusted',
-          blocker: {
-            ...error.blocker,
-            // Capture ran against the prospective target fields, but a rejected transition never
-            // commits that state. Always report the locked canonical pre-state digest.
-            stateHash: safeRevisionHash(state.fields),
-          },
-        }
-      }
-      throw error
-    }
-    nextFields = { ...result.state.fields, ...outcome.patch }
-    for (const signal of outcome.signals) warnings.push({ kind: signal.kind })
-  }
-  return {
-    governedDocumentContract: effectivePlan.capabilities.documents.governed,
-    ...(effectivePlan.capabilities.documents.policy === undefined
-      ? {}
-      : { documentPolicy: effectivePlan.capabilities.documents.policy }),
-    requiresReviewApproval: effectivePlan.capabilities.review.steps.includes(result.from),
-    from: result.from, to: result.to, nextFields, warnings,
-  }
 }
 async function planCustomTransition(
   state: PipelineState,

@@ -179,6 +179,13 @@ export async function performTransition(
       : assessBuildRevision,
     specMigrationStatus: () => evaluateSpecMigrationEvidence(root, dir, name),
     tasksThroughPhase: (phase) => taskPlanTasksThroughPhaseForChange(dir, phase),
+    // 相位出口规则表（kernel flow/guard.ts）：字段面（prd_path / pr_url / verify_result …）不依赖
+    // 任何注入，这里再补上 Dashboard 有的那一项能力——文件存在性。覆盖矩阵与 tasks 计数需要
+    // readFile，server 的 TransitionDeps 没有这项原语，对应规则按既有「缺能力即跳过」语义跳过。
+    phaseExitGuard: {
+      changeDirRel: `openspec/changes/${name}`,
+      ...(fileExists === undefined ? {} : { fileExists: (p: string): boolean => fileExists(root, p) }),
+    },
   }
   // 测试证据要身份：记录按用户存放，没有身份就没有可读的证据集，kernel 据此失败关闭；这里身份恒有
   // （254-255 行已 412 `user-missing` 挡住）。工作区指纹是可降级能力，没接就跳过候选比对，其余三条新鲜度绑定照查。

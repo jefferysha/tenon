@@ -6,7 +6,7 @@
  */
 import { readFile } from 'node:fs/promises'
 import {
-  defaultEventGuardFields, isTenonUser, readSpecApplyReceiptStatus, reviewGateEvent,
+  defaultEventGuardFields, isTenonUser, phaseExitGuardFields, readSpecApplyReceiptStatus, reviewGateEvent,
   reviewGateMatches, reviewGateStatus, userProjectPaths, userSlug,
   type EffectiveWorkflowPlan, type EventName, type PipelineState,
 } from '@tenon/kernel'
@@ -262,9 +262,12 @@ function artifactFieldsOf(
 }
 
 /**
- * default 轨的前置 guard 在 flow/default-event-policy.ts 的事件政策表里，不在 step.guards 上。
- * 按本步每条出边的事件去那张表取字段，投影层与转换强制层就读同一份声明。
- * custom 轨（execution.model !== 'phase-manifest'）的 guard 全在 step 上，返回空集。
+ * default 轨的前置 guard 分在两张表里，都不在 step.guards 上：
+ *   · flow/default-event-policy.ts —— 每条出边事件自己的前置（build_mode / isolation / …）；
+ *   · flow/guard.ts 的 EXIT_RULES —— 离开本相位的出口条件（pm 的 prd_path、pm verify 的
+ *     verify_result、非 pm 的 pr_url …）。第二张表此前只有 `tenon check` 读，于是 pm 在 verify
+ *     步既看不到 verify_result 也收不到对应 blocker，只能在 request-review 上空转。
+ * 两张都取，投影层与转换强制层就读同一份声明。custom 轨的 guard 全在 step 上，返回空集。
  */
 function nativeGuardFieldsOf(
   plan: EffectiveWorkflowPlan,
@@ -273,13 +276,15 @@ function nativeGuardFieldsOf(
 ): readonly StepFieldRequirement[] {
   if (plan.capabilities.execution.model !== 'phase-manifest') return []
   const out: StepFieldRequirement[] = []
+  const push = (item: { readonly field: string; readonly required?: readonly string[] }): void => {
+    if (out.some((seen) => seen.field === item.field)) return
+    out.push(item.required === undefined ? { field: item.field } : { field: item.field, required: item.required })
+  }
   for (const exit of exits) {
     if (exit.direction === 'back') continue
-    for (const item of defaultEventGuardFields(exit.event as EventName, state)) {
-      if (out.some((seen) => seen.field === item.field)) continue
-      out.push(item.required === undefined ? { field: item.field } : { field: item.field, required: item.required })
-    }
+    for (const item of defaultEventGuardFields(exit.event as EventName, state)) push(item)
   }
+  for (const item of phaseExitGuardFields(state)) push(item)
   return out
 }
 

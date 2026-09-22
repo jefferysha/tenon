@@ -381,6 +381,8 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     await h.satisfyStepAgents('e2e')
     await step('verify-pass')
     await h.seedAppliedSpec('e2e')
+    // ship 出口（非 pm 轨）要求 pr_url：check 一直在查它，transition 现在也查。
+    await h.run(['set', 'e2e', 'pr_url', 'https://example.com/pr/1'])
     await step('ship-complete')
     await step('archived')
     expect(await h.read('e2e')).toMatch(/^phase: archive$/m)
