@@ -54,6 +54,12 @@ export type DoctorProductIdentity =
       readonly stableTargetTag: string
       readonly stableTargetCommit: string
       readonly hostTargetExact: boolean
+      /**
+       * 冻结的 stable tag 是否刚刚向远端复核过。`doctor` 默认只用安装时留下的那份证明（本地健康
+       * 检查不该为此联网几十秒），`--verify-release` 才去 GitHub 复核。false = 本次没复核，
+       * `hostTargetExact` 只覆盖本地一致性。
+       */
+      readonly remoteTargetVerified: boolean
       readonly hostPayloadDigest: string | null
       readonly runtimePluginVersion: string
       readonly runtimeReleaseId: string
@@ -62,7 +68,19 @@ export type DoctorProductIdentity =
       readonly dashboardServerVersion: string | null
       readonly dashboardReleaseId: string | null
     }
-  | { readonly state: 'unavailable'; readonly detail: string }
+  | {
+      readonly state: 'unavailable'
+      readonly detail: string
+      /**
+       * 为什么证不出来，分开报。`network` 是链路问题（远端不可达/超时），不是装坏了；
+       * `missing-tag` / `mismatch` 才是发布身份本身的问题；`local` 是本机可信命令或 runtime
+       * 清单不满足前提。以前全部塌成一句「发布身份探针失败」，附带一条「重跑 setup/update」的
+       * 建议——对断网的用户是错的指令。
+       */
+      readonly cause: 'network' | 'missing-tag' | 'mismatch' | 'local'
+      /** 针对 cause 的修复指引（doctor 直接用作 hint）。 */
+      readonly remediation: string
+    }
 
 export interface DoctorProbes {
   /** process.version 形如 'v22.1.0' */
@@ -86,12 +104,18 @@ export interface DoctorProbes {
    * 的缺省配置误报给纯 Codex 安装。
    */
   nativeRuntimeHost: () => Promise<'codex' | 'claude' | null>
+  /**
+   * 正在跑这条命令的宿主（按进程环境判定，与 `tenon test run` 记 `host.kind` 同一口径）。
+   * `nativeRuntimeHost` 说的是 runtime 为哪个宿主安装；用后者判定「当前宿主」会在
+   * `setup --codex` 的机器上对着 Claude Code 会话讲 Codex 的话、并跳过 Claude 的检查。
+   */
+  hostKind: () => 'claude-code' | 'codex' | 'terminal'
   /** 本机 Codex CLI 登录态，与 AFK 容器凭证灯分离；不读取或返回凭证内容。 */
   codexAuthStatus: () => Promise<CodexAuthStatus>
   /** 子进程跑 tools/verify-skills.sh；spawn 失败也折算为非 0 code */
   runVerifySkills: () => Promise<{ code: number; output: string }>
   /** 宿主插件、managed runtime 与 Dashboard 必须共同证明同一编译发布身份。 */
-  productIdentity: () => Promise<DoctorProductIdentity>
+  productIdentity: (options?: { readonly verifyRemote?: boolean }) => Promise<DoctorProductIdentity>
   /** tap 流量代理状态（BACKLOG #34e：敏感能力 doctor 明示）。main.ts 注入 @tenon/tap tapStatus */
   tapStatus?: () => { intercepting: boolean; captureEnabled: boolean; message: string }
   /**

@@ -30,7 +30,7 @@ import type { ActionConfig, CompiledGuardConfig, GuardInput } from '../workflow/
 import { evaluateGuards, type EvaluateGuardsOptions, type GuardEvaluation } from '../workflow/guard-handlers.js'
 import { safeRevisionHash } from '../workflow/build-revision.js'
 import type { BuildRevisionBlocker } from '../workflow/build-revision.js'
-import { NON_PM, NON_PM_OR_FREE } from '../workflow/predicates.js'
+import { matchesTrackPredicate, NON_PM, NON_PM_OR_FREE } from '../workflow/predicates.js'
 
 /** 一个 default 事件的转换政策：前置 guard（首错优先评估）+ 走边后的状态副作用 action。 */
 export interface DefaultEventPolicy {
@@ -111,6 +111,64 @@ export const DEFAULT_EVENT_POLICY = {
     enforceTaskExit: true,
   },
 } as const satisfies Record<EventName, DefaultEventPolicy>
+
+/**
+ * 本事件的 guard 会读哪些**人可填**的字段，按首错优先序去重。
+ *
+ * default 轨的前置 guard 只活在上面这张表里，不在 workflow IR 的 step.guards 上，所以 `status --json`
+ * 的字段投影此前看不见它们：运行器只能从 `ERROR: build_mode 必须设置` 这类散文里猜字段名、猜枚举。
+ * 本函数让投影层与强制层读同一张表——新增 guard 变体若引入新字段，这里同步可见，不会再漂移。
+ *
+ * 不列进来的三类，因为它们不是「填一个值就能过」的槽：
+ *   · build-head-unchanged 的 build_sha —— 由 freeze-build-sha 副作用冻结，手填即伪造 barrier；
+ *   · spec-migration-applied / tasks-at-least —— 判定的是文档与任务证据，不是某个字段的值。
+ * full-direct-override 没有 field 位，但它要的就是 direct_override；只有 preset=full ∧
+ * build_mode=direct 这一种组合才真的要求它，其余组合列出来只会让运行器去填一个没人读的槽。
+ */
+export interface DefaultGuardFieldRequirement {
+  readonly field: FieldName
+  /** guard 接受的具体值；缺省 = 只要求非空（file-exists 另要求该路径存在）。 */
+  readonly required?: readonly string[]
+}
+
+export function defaultEventGuardFields(
+  event: EventName,
+  state: PipelineState,
+): readonly DefaultGuardFieldRequirement[] {
+  const policy: DefaultEventPolicy | undefined = DEFAULT_EVENT_POLICY[event]
+  if (policy === undefined) return []
+  const track = fieldStr(state, 'track')
+  const out: DefaultGuardFieldRequirement[] = []
+  const push = (field: FieldName, required?: readonly string[]): void => {
+    if (out.some((item) => item.field === field)) return
+    out.push(required === undefined ? { field } : { field, required })
+  }
+  for (const guard of policy.guards) {
+    if (guard.when !== undefined && !matchesTrackPredicate(guard.when, track)) continue
+    switch (guard.type) {
+      case 'field-nonempty':
+        push(guard.field)
+        break
+      case 'field-equals':
+        push(guard.field, [guard.value])
+        break
+      case 'field-in':
+        push(guard.field, guard.values)
+        break
+      case 'file-exists':
+        push(guard.path.field)
+        break
+      case 'full-direct-override':
+        if (fieldStr(state, 'preset') === 'full' && fieldStr(state, 'build_mode') === 'direct') {
+          push('direct_override', ['true'])
+        }
+        break
+      default:
+        break
+    }
+  }
+  return out
+}
 
 /** 值级 fstr：列表按逗号连接、缺省空串——老仓 cmd_get / 老 transition-table fstr 读值口径。 */
 function fstr(v: string | string[] | undefined): string {

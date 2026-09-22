@@ -321,6 +321,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
       env: (name) => process.env[name],
       statuslineConfigured: () => false,
       nativeRuntimeHost: async () => 'claude',
+      hostKind: () => 'terminal',
       codexAuthStatus: async () => ({ state: 'authenticated' }),
       runVerifySkills: async () => {
         try {

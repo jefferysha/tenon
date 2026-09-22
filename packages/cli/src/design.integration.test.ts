@@ -9,7 +9,24 @@ import { buildProgram, CliExit } from './program.js'
 import { realDeps, freshHarness, type Harness } from './integration-harness.js'
 import type { CliDeps } from './deps.js'
 
-const MODEL = ['name: Ridge', 'primitives:', '  gray: {}', 'tokens:', '  light: {}', 'components:', '  button: {}', ''].join('\n')
+// 与 kernel 的「就绪」夹具同形：tokens.colors.light/dark 的 background/text1 是 hue 对比度门的
+// 输入，缺了它整道检查只会 WARN 一句 skipped（见 design-system/check.ts DESIGN_MODEL_CONTRAST_PATHS）。
+const MODEL = [
+  'name: Ridge',
+  'primitives:',
+  '  gray: {}',
+  'tokens:',
+  '  colors:',
+  '    light:',
+  '      background: "#ffffff"',
+  '      text1: "#111111"',
+  '    dark:',
+  '      background: "#111111"',
+  '      text1: "#f5f5f5"',
+  'components:',
+  '  button: {}',
+  '',
+].join('\n')
 
 const seedReady = (cwd: string): void => writeReadyDesignSystem(cwd)
 

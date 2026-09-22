@@ -439,6 +439,7 @@ export function mockDoctorProbes(overrides: Partial<DoctorProbes> = {}): DoctorP
     env: () => undefined,
     statuslineConfigured: () => true,
     nativeRuntimeHost: async () => 'claude',
+    hostKind: () => 'terminal',
     codexAuthStatus: async () => ({ state: 'authenticated' }),
     runVerifySkills: async () => ({ code: 0, output: '[verify-skills] OK' }),
     productIdentity: async () => {

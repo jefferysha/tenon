@@ -13,6 +13,17 @@ export const REVIEW_GATE_FIELDS = new Set<FieldName>([
   'review_gate_phase', 'review_gate_status', 'review_gate_event', 'review_requested_at', 'review_acknowledged_at', 'review_acknowledged_via',
 ])
 
+/**
+ * 不接受字段写入的槽：值由 transition / owner / review 这些命令的副作用落下。
+ *
+ * 一处声明两处消费——fields.ts 据它拒写，`status --json` 的 step 投影据它不把这些槽当成「运行器
+ * 要填的字段」。两边分开维护时，投影会发出一条 CLI 当场拒绝的 set-field（`archived` 就是这样被
+ * 当成「完结要填的值」写成了 archived=true / archived_at=null 的半盖章终态）。
+ */
+export const TRANSITION_MANAGED_FIELDS: ReadonlySet<string> = new Set<string>([
+  'phase', 'created_by', 'assignee', 'archived', 'archived_at', ...REVIEW_GATE_FIELDS,
+])
+
 const STATIC_ENUMS: Partial<Record<FieldName, readonly string[]>> = {
   preset: ['full', 'hotfix', 'tweak'],
   phase_status: ['pending', 'in_progress', 'done', 'failed'],

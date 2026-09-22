@@ -12,6 +12,7 @@ import type { TransitionContext } from './transition-table.js'
 import {
   checkDefaultEventPreconditions,
   DEFAULT_EVENT_POLICY,
+  defaultEventGuardFields,
   renderPreconditionViolation,
 } from './default-event-policy.js'
 import { evaluateGuards, type GuardEvaluation } from '../workflow/guard-handlers.js'
@@ -513,6 +514,54 @@ describe('checkDefaultEventPreconditions —— 数组边界输入（阻断 1：
     expect(
       await checkDefaultEventPreconditions('build-complete', mkState({ build_mode: 'direct', isolation: ['branch', 'worktree'] })),
     ).toEqual(["ERROR: 非法值 'branch,worktree'，允许: branch worktree in-place"])
+  })
+})
+
+/**
+ * D12：default 轨的前置 guard 只活在 DEFAULT_EVENT_POLICY 里，不在 workflow IR 的 step.guards 上，
+ * 所以 `status --json` 的字段投影此前看不见它们；运行器只能从 `ERROR: build_mode 必须设置` 这类
+ * 散文里反推字段名与枚举。投影层与强制层必须读同一张表。
+ */
+describe('defaultEventGuardFields —— 投影层与强制层同源', () => {
+  test('build-complete 给出 build_mode / isolation（含被接受的值）', () => {
+    expect(defaultEventGuardFields('build-complete', mkState({ track: 'backend' }))).toEqual([
+      { field: 'build_mode' },
+      { field: 'isolation' },
+      { field: 'isolation', required: ['branch', 'worktree', 'in-place'] },
+      { field: 'pre_verify_review_result', required: ['pass'] },
+    ].filter((item, index, all) => all.findIndex((seen) => seen.field === item.field) === index))
+  })
+
+  test('full + direct 这一种组合才要求 direct_override', () => {
+    const withOverride = defaultEventGuardFields(
+      'build-complete',
+      mkState({ track: 'backend', preset: 'full', build_mode: 'direct' }),
+    )
+    expect(withOverride).toContainEqual({ field: 'direct_override', required: ['true'] })
+    const without = defaultEventGuardFields(
+      'build-complete',
+      mkState({ track: 'backend', preset: 'full', build_mode: 'parallel-team' }),
+    )
+    expect(without.some((item) => item.field === 'direct_override')).toBe(false)
+  })
+
+  test('verify-pass 给出 verification_report 与 branch_status=handled，不给 build_sha', () => {
+    const fields = defaultEventGuardFields('verify-pass', mkState({ track: 'backend' }))
+    expect(fields).toEqual([
+      { field: 'verification_report' },
+      { field: 'branch_status', required: ['handled'] },
+    ])
+  })
+
+  test('track 谓词生效：pm 轨的 spec-complete 不要求 plan 字段', () => {
+    expect(defaultEventGuardFields('spec-complete', mkState({ track: 'backend' })))
+      .toEqual([{ field: 'plan' }])
+    expect(defaultEventGuardFields('spec-complete', mkState({ track: 'pm' }))).toEqual([])
+  })
+
+  test('无字段类 guard 的事件给空表', () => {
+    expect(defaultEventGuardFields('open-complete', mkState({ track: 'backend' }))).toEqual([])
+    expect(defaultEventGuardFields('ship-complete', mkState({ track: 'backend' }))).toEqual([])
   })
 })
 

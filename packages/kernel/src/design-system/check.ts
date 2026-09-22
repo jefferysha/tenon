@@ -22,6 +22,22 @@ export const DESIGN_PREVIEWS = [
 
 export const DESIGN_MODEL_KEYS = ['name', 'primitives', 'tokens', 'components'] as const
 
+/**
+ * 对比度门要跑起来，模型必须给出 hue 读得到的那几个槽。
+ *
+ * hue 的 validate.mjs 只认 `tokens.colors.<light|dark>` 下的 `background` 与 `text1`：拼成
+ * `tokens.color`（单数）它报 "tokens.colors not found — contrast check skipped"，只给
+ * `tokens.colors` 而不分 light/dark 它报 "no resolvable text/background pairs"。两种都只是 WARN，
+ * 于是 DESIGN.md 一路「就绪」，正文对比度其实一次都没被检查过。Tenon 这边只要求过一个顶层
+ * `tokens`，等于把这道门的开关交给了拼写。
+ */
+export const DESIGN_MODEL_CONTRAST_PATHS = [
+  'tokens.colors.light.background',
+  'tokens.colors.light.text1',
+  'tokens.colors.dark.background',
+  'tokens.colors.dark.text1',
+] as const
+
 export type DesignSystemStatus = 'missing' | 'seed' | 'incomplete' | 'ready'
 
 export interface DesignFileReader { read(relativePath: string): string | null }
@@ -74,6 +90,28 @@ function previewProblems(reader: DesignFileReader, body: string): string[] {
   return problems
 }
 
+/**
+ * 模型里出现过的映射键路径（`a.b.c`），按缩进还原层级。
+ *
+ * 只认「键: [值]」这一种行，够用来判某个槽在不在；值本身不解析（是不是合法颜色由 hue 判）。
+ * 制表符按一格缩进计，避免混排缩进把同级键算成父子。
+ */
+function modelKeyPaths(model: string): ReadonlySet<string> {
+  const paths = new Set<string>()
+  const stack: Array<{ readonly indent: number; readonly key: string }> = []
+  for (const raw of model.split('\n')) {
+    const line = raw.replace(/\t/gu, ' ')
+    const match = /^(\s*)([A-Za-z_][A-Za-z0-9_-]*):(.*)$/u.exec(line)
+    if (match === null) continue
+    const indent = (match[1] ?? '').length
+    const key = match[2] ?? ''
+    while (stack.length > 0 && (stack[stack.length - 1]?.indent ?? 0) >= indent) stack.pop()
+    stack.push({ indent, key })
+    paths.add(stack.map((entry) => entry.key).join('.'))
+  }
+  return paths
+}
+
 function modelProblems(reader: DesignFileReader, keys: ReadonlyMap<string, string>): string[] {
   const problems: string[] = []
   if ((keys.get('model') ?? '') !== DESIGN_MODEL_PATH) problems.push(`model 必须是 ${DESIGN_MODEL_PATH}`)
@@ -85,6 +123,12 @@ function modelProblems(reader: DesignFileReader, keys: ReadonlyMap<string, strin
   const top = new Set([...model.matchAll(/^([a-z_]+):/gmu)].map((match) => match[1] ?? ''))
   for (const key of DESIGN_MODEL_KEYS) {
     if (!top.has(key)) problems.push(`design-model.yaml 缺少顶层键 ${key}`)
+  }
+  const paths = modelKeyPaths(model)
+  for (const path of DESIGN_MODEL_CONTRAST_PATHS) {
+    if (!paths.has(path)) {
+      problems.push(`design-model.yaml 缺少 ${path}（缺了这个槽 hue 的对比度检查会静默跳过）`)
+    }
   }
   return problems
 }

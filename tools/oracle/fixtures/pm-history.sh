@@ -5,6 +5,9 @@
 #
 # 验证点：
 #   · 对含历史区的既有 change 做 get/set/transition/check（不 init）
+#   · assignee 写成 run.sh 的 ORACLE_TENON_USER：字段写入与 document record / review 同过负责人闸，
+#     无主 change 要先 `tenon owner take`。本 fixture 验的是历史尾块保真与 automation 演进，不是
+#     无主任务的接手流程（那条由 kernel users/ownership 与 cli fields 单测覆盖），所以直接给它一个主。
 #   · 新内核写回时历史尾块必须逐字保留 —— 基线写入 <target>/.oracle-preserve
 #     （首行 change 名，其余 = 历史区块），run.sh 全程跑完后在新侧做逐字子串校验
 #   · PM 内建策略在项目显式开启 automation + default_opt_in 后，于 spec-complete 自动入 AFK
@@ -55,7 +58,7 @@ cat > "$chdir/.pipeline.yaml" <<YAML
 track: pm
 preset: full
 created_by: oracle
-assignee: null
+assignee: oracle <oracle@tenon.test>
 phase: spec
 phase_status: in_progress
 design_doc: docs/design.md

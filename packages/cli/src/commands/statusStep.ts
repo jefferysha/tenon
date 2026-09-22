@@ -7,9 +7,9 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  completedWorkflowSkillsSinceStepEntry, isTenonUser, reviewGateEvent, reviewGateMatches,
-  reviewGateStatus, userProjectPaths, userSlug,
-  type EffectiveWorkflowPlan, type PipelineState,
+  completedWorkflowSkillsSinceStepEntry, defaultEventGuardFields, isTenonUser, reviewGateEvent,
+  reviewGateMatches, reviewGateStatus, userProjectPaths, userSlug,
+  type EffectiveWorkflowPlan, type EventName, type PipelineState,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { str } from '../render.js'
@@ -20,8 +20,10 @@ import { agentStepViews, type StepAgentView } from './statusStepAgents.js'
 import { evaluateStepExitReport, type StepBlocker, type StepExit } from './stepExitReport.js'
 import {
   stepDocuments, stepFields, stepSkills,
-  type StepDocumentsView, type StepFieldView, type StepSkillView,
+  type StepDocumentsView, type StepFieldRequirement, type StepFieldView, type StepSkillView,
 } from './statusStepParts.js'
+import { effectiveArtifactFields } from './effective-artifacts.js'
+import { effectiveArtifactProducers } from './artifact.js'
 import { retiredSkillReferences, retiredSkillsChangeMessage } from '@tenon/kernel'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { currentCandidate } from './candidate.js'
@@ -109,6 +111,35 @@ export interface StepNextInput {
   readonly specApplyPending: boolean
   readonly ownsDeltaSpec: boolean
   readonly ownsAppliedSpec: boolean
+  /** artifact 字段的合法 `--producer` 集（与 register 命令同源；空 = 无合法 producer）。 */
+  readonly artifactProducers: readonly string[]
+}
+
+/**
+ * 待填字段 → 它真正接受的那条写入动作。
+ *
+ * 动作名就是命令名：`set-field` 走 `tenon set`，`register-field` 走 `tenon artifact register`。
+ * 从前任何缺字段都只发 `set-field`，遇上 artifact 声明过的字段，运行器照做就撞上「禁止通过
+ * set/set-many/cas 写入」，只能自己猜。`transition` 那一类槽（archived / archived_at / review
+ * receipt）由转换副作用落值，这里不发任何动作——让流程走到出边，由转换自己填。
+ */
+function writeFieldActions(
+  fields: readonly StepFieldView[],
+  producers: readonly string[],
+): readonly StepAction[] {
+  const actions: StepAction[] = []
+  for (const field of fields) {
+    if (field.writer === 'transition') continue
+    actions.push(field.writer === 'artifact-register'
+      ? { action: 'register-field', field: field.field, producers }
+      : {
+          action: 'set-field',
+          field: field.field,
+          allowed: field.allowed,
+          recommended: field.recommended,
+        })
+  }
+  return actions
 }
 
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
@@ -139,15 +170,11 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
       producers: doc.producers,
     }))
   }
-  const missingFields = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
-  if (missingFields.length > 0) {
-    return missingFields.map((field) => ({
-      action: 'set-field',
-      field: field.field,
-      allowed: field.allowed,
-      recommended: field.recommended,
-    }))
-  }
+  const missingFields = writeFieldActions(
+    input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing'),
+    input.artifactProducers,
+  )
+  if (missingFields.length > 0) return missingFields
   if (input.ownsDeltaSpec && input.specApplyPending) return [{ action: 'validate-spec' }]
 
   const tests = input.tests.filter((test) => test.required && test.status !== 'passed')
@@ -156,15 +183,11 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   const reviewers = pendingAgents(input.reviewers, false)
   if (reviewers.length > 0) return reviewers
 
-  const outcomes = input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing')
-  if (outcomes.length > 0) {
-    return outcomes.map((field) => ({
-      action: 'set-field',
-      field: field.field,
-      allowed: field.allowed,
-      recommended: field.recommended,
-    }))
-  }
+  const outcomes = writeFieldActions(
+    input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing'),
+    input.artifactProducers,
+  )
+  if (outcomes.length > 0) return outcomes
 
   return exitActions(input)
 }
@@ -224,6 +247,45 @@ function exitActions(input: {
   return [{ action: 'fix', blockers }]
 }
 
+/**
+ * 本步被 set/set-many/cas 拒写的字段集。优先用 fields.ts 拒写时用的那份判定（当前定义），
+ * 二者同源才不会出现「投影说 set、命令说不许 set」；该判定对坏 workflow fail-loud，此时退回
+ * 冻结快照里这一步的 artifact 声明——投影是只读面，不该因为 workflow 坏了就整块消失。
+ */
+function artifactFieldsOf(
+  deps: CliDeps,
+  state: PipelineState,
+  step: { readonly artifacts: readonly { readonly field: string }[] } | undefined,
+): ReadonlySet<string> {
+  try {
+    return effectiveArtifactFields(deps, state)
+  } catch {
+    return new Set((step?.artifacts ?? []).map((artifact) => artifact.field))
+  }
+}
+
+/**
+ * default 轨的前置 guard 在 flow/default-event-policy.ts 的事件政策表里，不在 step.guards 上。
+ * 按本步每条出边的事件去那张表取字段，投影层与转换强制层就读同一份声明。
+ * custom 轨（execution.model !== 'phase-manifest'）的 guard 全在 step 上，返回空集。
+ */
+function nativeGuardFieldsOf(
+  plan: EffectiveWorkflowPlan,
+  state: PipelineState,
+  exits: readonly StepExit[],
+): readonly StepFieldRequirement[] {
+  if (plan.capabilities.execution.model !== 'phase-manifest') return []
+  const out: StepFieldRequirement[] = []
+  for (const exit of exits) {
+    if (exit.direction === 'back') continue
+    for (const item of defaultEventGuardFields(exit.event as EventName, state)) {
+      if (out.some((seen) => seen.field === item.field)) continue
+      out.push(item.required === undefined ? { field: item.field } : { field: item.field, required: item.required })
+    }
+  }
+  return out
+}
+
 export async function buildStatusStep(
   deps: CliDeps,
   name: string,
@@ -251,7 +313,8 @@ export async function buildStatusStep(
   const report = await evaluateStepExitReport(deps, name, dir, state, plan)
   const policy = plan.capabilities.documents.policy
   const documents = stepDocuments(name, policy, stepId, report.documents?.items ?? [])
-  const fields = stepFields(state, step)
+  const artifacts = artifactFieldsOf(deps, state, step)
+  const fields = stepFields(state, step, artifacts, nativeGuardFieldsOf(plan, state, report.exits))
   const gateStatus = reviewGateStatus(state)
   const review = {
     status: gateStatus !== null && reviewGateMatches(state, stepId) ? gateStatus : 'none',
@@ -310,6 +373,7 @@ export async function buildStatusStep(
       specApplyPending: !specApply.fresh,
       ownsDeltaSpec: documents.records.some((doc) => doc.kind === 'delta-spec'),
       ownsAppliedSpec: documents.records.some((doc) => doc.kind === 'applied-spec'),
+      artifactProducers: artifacts.size === 0 ? [] : effectiveArtifactProducers(deps, state),
     }),
   }
 }

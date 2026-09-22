@@ -1,9 +1,28 @@
 import { describe, expect, test } from 'vitest'
-import { DESIGN_PREVIEWS, checkDesignSystem, type DesignFileReader } from './check.js'
+import {
+  DESIGN_MODEL_CONTRAST_PATHS, DESIGN_PREVIEWS, checkDesignSystem, type DesignFileReader,
+} from './check.js'
 
 const ICONS = new Set(['lucide', 'phosphor'])
 
-const MODEL = ['name: Ridge', 'primitives:', '  gray: {}', 'tokens:', '  light: {}', 'components:', '  button: {}', ''].join('\n')
+// hue 的对比度门只读 tokens.colors.light/dark 下的 background 与 text1；「就绪」模型必须带上，
+// 否则那道检查只会 WARN 一句 skipped，而 DESIGN.md 照样通过（见 DESIGN_MODEL_CONTRAST_PATHS）。
+const MODEL = [
+  'name: Ridge',
+  'primitives:',
+  '  gray: {}',
+  'tokens:',
+  '  colors:',
+  '    light:',
+  '      background: "#ffffff"',
+  '      text1: "#111111"',
+  '    dark:',
+  '      background: "#111111"',
+  '      text1: "#f5f5f5"',
+  'components:',
+  '  button: {}',
+  '',
+].join('\n')
 
 function designMd(over: { schema?: string; model?: string; icons?: string; sections?: readonly string[]; previews?: readonly string[]; extra?: string } = {}): string {
   const sections = over.sections ?? [
@@ -68,6 +87,45 @@ describe('checkDesignSystem', () => {
     expect(problems).toContain('design-model.yaml 缺少顶层键 primitives')
     expect(problems).toContain('design-model.yaml 缺少顶层键 tokens')
     expect(problems).toContain('design-model.yaml 缺少顶层键 components')
+  })
+
+  // D6：只要求顶层 tokens 时，`tokens.color`（单数）与没分 light/dark 的 `tokens.colors` 都能
+  // 一路「就绪」，而 hue 的对比度检查在这两种形状下只报 WARN、一次都没跑。
+  test('tokens.color 单数拼写不再算就绪', () => {
+    const model = [
+      'name: Ridge', 'primitives:', '  gray: {}',
+      'tokens:', '  color:', '    light:', '      background: "#ffffff"', '      text1: "#111111"',
+      'components:', '  button: {}', '',
+    ].join('\n')
+    const check = checkDesignSystem(reader({ 'DESIGN.md': designMd(), 'design/design-model.yaml': model }), ICONS)
+    expect(check.status).toBe('incomplete')
+    for (const path of DESIGN_MODEL_CONTRAST_PATHS) {
+      expect(check.problems).toContain(`design-model.yaml 缺少 ${path}（缺了这个槽 hue 的对比度检查会静默跳过）`)
+    }
+  })
+
+  test('tokens.colors 不分 light/dark 时不再算就绪', () => {
+    const model = [
+      'name: Ridge', 'primitives:', '  gray: {}',
+      'tokens:', '  colors:', '    background: "#ffffff"', '    text1: "#f2f2f2"',
+      'components:', '  button: {}', '',
+    ].join('\n')
+    const check = checkDesignSystem(reader({ 'DESIGN.md': designMd(), 'design/design-model.yaml': model }), ICONS)
+    expect(check.status).toBe('incomplete')
+    expect(check.problems).toContain('design-model.yaml 缺少 tokens.colors.light.background（缺了这个槽 hue 的对比度检查会静默跳过）')
+    expect(check.problems).toContain('design-model.yaml 缺少 tokens.colors.dark.text1（缺了这个槽 hue 的对比度检查会静默跳过）')
+  })
+
+  test('只给 light 一半也不算就绪：dark 那半同样要能被检查', () => {
+    const model = [
+      'name: Ridge', 'primitives:', '  gray: {}',
+      'tokens:', '  colors:', '    light:', '      background: "#ffffff"', '      text1: "#111111"',
+      'components:', '  button: {}', '',
+    ].join('\n')
+    const check = checkDesignSystem(reader({ 'DESIGN.md': designMd(), 'design/design-model.yaml': model }), ICONS)
+    expect(check.status).toBe('incomplete')
+    expect(check.problems).toContain('design-model.yaml 缺少 tokens.colors.dark.background（缺了这个槽 hue 的对比度检查会静默跳过）')
+    expect(check.problems).not.toContain('design-model.yaml 缺少 tokens.colors.light.background（缺了这个槽 hue 的对比度检查会静默跳过）')
   })
 
   test('icons 必须是资源目录里的图标', () => {
