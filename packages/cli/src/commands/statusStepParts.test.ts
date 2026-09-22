@@ -96,6 +96,15 @@ describe('stepFields —— 本步要填的槽', () => {
     expect(fields[0]).toMatchObject({ field: 'design_doc', writer: 'artifact-register', status: 'missing' })
   })
 
+  /** D15：archived 由 archived 事件的副作用落值，投影不能把它标成运行器要 `tenon set` 的槽。 */
+  test('转换管理的槽标成 transition，不标 set', () => {
+    const fields = stepFields(
+      mockState({ phase: 'archive', archived: '' }),
+      step({ id: 'archive', outputs: [{ field: 'archived', type: 'boolean' }] }),
+    )
+    expect(fields[0]).toMatchObject({ field: 'archived', writer: 'transition' })
+  })
+
   test('同一字段既是 output 又被原生 guard 点名时只出现一次', () => {
     const fields = stepFields(
       mockState({ verification_report: 'null' }),

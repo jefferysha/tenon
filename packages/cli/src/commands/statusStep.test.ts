@@ -137,12 +137,12 @@ describe('step.next 顺序', () => {
    * 从前对任何缺字段都只会发 set-field，运行器照做就撞上「禁止通过 set/set-many/cas 写入；请改用
    * tenon artifact register」，只能自己猜。动作名必须就是能跑通的那条命令。
    */
-  test('artifact 字段发 register-artifact，并带上合法 producer', () => {
+  test('artifact 字段发 register-field，并带上合法 producer', () => {
     expect(stepNextActions(input({
       fields: [field('design_doc', { writer: 'artifact-register' })],
       artifactProducers: ['brainstorming', 'superpowers:brainstorming'],
     }))).toEqual([
-      { action: 'register-artifact', field: 'design_doc', producers: ['brainstorming', 'superpowers:brainstorming'] },
+      { action: 'register-field', field: 'design_doc', producers: ['brainstorming', 'superpowers:brainstorming'] },
     ])
   })
 
@@ -154,17 +154,28 @@ describe('step.next 顺序', () => {
       ],
       artifactProducers: ['hue'],
     }))).toEqual([
-      { action: 'register-artifact', field: 'design_doc', producers: ['hue'] },
+      { action: 'register-field', field: 'design_doc', producers: ['hue'] },
       { action: 'set-field', field: 'build_mode', allowed: ['direct'], recommended: 'direct' },
     ])
   })
 
-  test('结果位上的 artifact 字段同样走 register-artifact', () => {
+  /**
+   * D15：`archived` 是 archive-run 副作用成对落下的槽，不是运行器要填的值。把它当字段发出去，
+   * 就会得到 archived=true / archived_at=null / phase_status=pending 这种半盖章的终态。
+   */
+  test('转换自己落的槽不发写入动作，直接走到出边', () => {
+    expect(stepNextActions(input({
+      fields: [field('archived', { writer: 'transition' })],
+      exits: [exit('archived', 'completion', true)],
+    }))).toEqual([{ action: 'complete', event: 'archived' }])
+  })
+
+  test('结果位上的 artifact 字段同样走 register-field', () => {
     expect(stepNextActions(input({
       fields: [field('verification_report', { kind: 'outcome', writer: 'artifact-register' })],
       artifactProducers: ['verification-before-completion'],
     }))).toEqual([
-      { action: 'register-artifact', field: 'verification_report', producers: ['verification-before-completion'] },
+      { action: 'register-field', field: 'verification_report', producers: ['verification-before-completion'] },
     ])
   })
 

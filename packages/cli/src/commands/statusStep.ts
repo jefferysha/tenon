@@ -116,24 +116,30 @@ export interface StepNextInput {
 }
 
 /**
- * 一个待填字段 → 该字段真正接受的那条写入动作。
+ * 待填字段 → 它真正接受的那条写入动作。
  *
- * artifact 声明过的字段被 set/set-many/cas 拒写，只能 `tenon artifact register`；从前这里一律
- * 发 `set-field`，运行器照做就撞上 `禁止通过 set/set-many/cas 写入`，只能自己猜。现在动作名就是
- * 命令名，枚举与推荐值也一并带上，运行器不需要解析任何散文。
+ * 动作名就是命令名：`set-field` 走 `tenon set`，`register-field` 走 `tenon artifact register`。
+ * 从前任何缺字段都只发 `set-field`，遇上 artifact 声明过的字段，运行器照做就撞上「禁止通过
+ * set/set-many/cas 写入」，只能自己猜。`transition` 那一类槽（archived / archived_at / review
+ * receipt）由转换副作用落值，这里不发任何动作——让流程走到出边，由转换自己填。
  */
-function writeFieldAction(
-  field: StepFieldView,
+function writeFieldActions(
+  fields: readonly StepFieldView[],
   producers: readonly string[],
-): StepAction {
-  return field.writer === 'artifact-register'
-    ? { action: 'register-artifact', field: field.field, producers }
-    : {
-        action: 'set-field',
-        field: field.field,
-        allowed: field.allowed,
-        recommended: field.recommended,
-      }
+): readonly StepAction[] {
+  const actions: StepAction[] = []
+  for (const field of fields) {
+    if (field.writer === 'transition') continue
+    actions.push(field.writer === 'artifact-register'
+      ? { action: 'register-field', field: field.field, producers }
+      : {
+          action: 'set-field',
+          field: field.field,
+          allowed: field.allowed,
+          recommended: field.recommended,
+        })
+  }
+  return actions
 }
 
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
@@ -164,10 +170,11 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
       producers: doc.producers,
     }))
   }
-  const missingFields = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
-  if (missingFields.length > 0) {
-    return missingFields.map((field) => writeFieldAction(field, input.artifactProducers))
-  }
+  const missingFields = writeFieldActions(
+    input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing'),
+    input.artifactProducers,
+  )
+  if (missingFields.length > 0) return missingFields
   if (input.ownsDeltaSpec && input.specApplyPending) return [{ action: 'validate-spec' }]
 
   const tests = input.tests.filter((test) => test.required && test.status !== 'passed')
@@ -176,10 +183,11 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   const reviewers = pendingAgents(input.reviewers, false)
   if (reviewers.length > 0) return reviewers
 
-  const outcomes = input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing')
-  if (outcomes.length > 0) {
-    return outcomes.map((field) => writeFieldAction(field, input.artifactProducers))
-  }
+  const outcomes = writeFieldActions(
+    input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing'),
+    input.artifactProducers,
+  )
+  if (outcomes.length > 0) return outcomes
 
   return exitActions(input)
 }

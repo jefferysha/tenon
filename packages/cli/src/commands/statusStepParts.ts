@@ -10,7 +10,7 @@ import {
   type EffectiveWorkflowPlan, type PipelineState, type StepIR,
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
-import { RECOMMENDED, STEP_FIELD_ENUMS } from './field-values.js'
+import { RECOMMENDED, STEP_FIELD_ENUMS, TRANSITION_MANAGED_FIELDS } from './field-values.js'
 import { canonicalTenonSkillId } from './stepSkillEvidence.js'
 
 export interface StepSkillView {
@@ -31,11 +31,12 @@ export interface StepFieldView {
   readonly field: string
   readonly kind: 'output' | 'guard' | 'outcome'
   /**
-   * 写这个字段该用哪条命令。artifact 声明过的字段被 set/set-many/cas 拒写（fields.ts 的
-   * checkArtifactPatch），只能走 `tenon artifact register`；两者共用同一份 declaration 判定源，
-   * 所以投影说的写法与命令实际接受的写法不会分家。
+   * 写这个字段该用哪条命令：`set` 是 `tenon set`，`artifact-register` 是
+   * `tenon artifact register`（artifact 声明过的字段被 set/set-many/cas 拒写），`transition` 是
+   * 转换副作用自己落的槽（archived / archived_at / review receipt 等），运行器不该去填。
+   * 三者共用 fields.ts 那一份拒写判定，投影说的写法与命令实际接受的写法因此不会分家。
    */
-  readonly writer: 'set' | 'artifact-register'
+  readonly writer: 'set' | 'artifact-register' | 'transition'
   /**
    * `missing` = 本步的出口还不接受当前值：要么没值，要么 guard 点名要别的值（branch_status=pending
    * 时 verify-pass 要 handled）。「有值但不是要的那个值」从前算 `set`，运行器因此收不到任何动作，
@@ -160,7 +161,9 @@ function fieldView(
   return {
     field,
     kind,
-    writer: artifacts.has(field) ? 'artifact-register' : 'set',
+    writer: TRANSITION_MANAGED_FIELDS.has(field)
+      ? 'transition'
+      : artifacts.has(field) ? 'artifact-register' : 'set',
     status: satisfied ? 'set' : 'missing',
     value: present ? value : null,
     allowed: STEP_FIELD_ENUMS[field] ?? null,

@@ -24,6 +24,7 @@ import {
   REVIEW_GATE_FIELDS,
   scalarField,
   scalarValue,
+  TRANSITION_MANAGED_FIELDS,
 } from './field-values.js'
 
 /** history 记账 best-effort（CONTRACT §1：失败仅 WARN，绝不影响主写已成功的 exit） */
@@ -42,13 +43,6 @@ function asField(deps: CliDeps, field: string): FieldName | undefined {
   return undefined
 }
 
-/** Review receipt 是 transition 安全边界，不能经通用状态写入口伪造。 */
-function rejectReviewGateField(deps: CliDeps, field: FieldName): boolean {
-  if (!REVIEW_GATE_FIELDS.has(field)) return false
-  deps.io.err(`ERROR: 字段 '${field}' 由 tenon review request|acknowledge 管理，禁止通过 set/set-many/cas 写入`)
-  return true
-}
-
 /**
  * `phase` is the state-machine cursor.  It must only change as part of a
  * validated transition (which also appends history and applies phase guards),
@@ -57,8 +51,9 @@ function rejectReviewGateField(deps: CliDeps, field: FieldName): boolean {
  * boundary.
  */
 function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
-  if (field === 'phase' || field === 'created_by' || field === 'assignee') {
-    deps.io.err(`ERROR: 字段 '${field}' 由 ${field === 'phase' ? 'tenon transition' : 'tenon owner'} 管理，禁止通过 set/set-many/cas 写入`)
+  if (!TRANSITION_MANAGED_FIELDS.has(field)) return false
+  if (REVIEW_GATE_FIELDS.has(field)) {
+    deps.io.err(`ERROR: 字段 '${field}' 由 tenon review request|acknowledge 管理，禁止通过 set/set-many/cas 写入`)
     return true
   }
   // 完结是一次转换，不是一个字段。`archived`/`archived_at` 由 archived 事件的 archive-run 副作用
@@ -68,7 +63,8 @@ function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
     deps.io.err(`ERROR: 字段 '${field}' 由 tenon transition <change> archived 管理，禁止通过 set/set-many/cas 写入；完结须经该转换才会同时落 archived_at 与 phase_status`)
     return true
   }
-  return rejectReviewGateField(deps, field)
+  deps.io.err(`ERROR: 字段 '${field}' 由 ${field === 'phase' ? 'tenon transition' : 'tenon owner'} 管理，禁止通过 set/set-many/cas 写入`)
+  return true
 }
 
 function isListField(field: FieldName): boolean {
