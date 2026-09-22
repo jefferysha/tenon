@@ -81,7 +81,10 @@ export async function cmdStatus(
       state = read.state
       finished = read.finished
     } catch (e) {
-      deps.io.err(`ERROR: ${errMsg(e)}`)
+      // 不存在的任务是产品层的一句话，不是一行 `ENOENT ... open '.../.pipeline.yaml'`：那行既点名
+      // 了内部存储文件，又不告诉读者该怎么办。`tenon get` 早已是这个口径，这里与它同一句。
+      const code = typeof e === 'object' && e !== null ? Reflect.get(e, 'code') : undefined
+      deps.io.err(code === 'ENOENT' ? `ERROR: change 不存在: ${name}` : `ERROR: ${errMsg(e)}`)
       return 1
     }
     const row: Row = { name, state }
