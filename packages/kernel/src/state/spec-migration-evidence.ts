@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { lstat, readFile, realpath } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import type { SpecMigrationGuardStatus } from '../workflow/ir.js'
+import { readSpecApplyReceiptStatus } from './spec-apply-receipt.js'
 
 function digest(content: Buffer): string {
   return createHash('sha256').update(content).digest('hex')
@@ -85,7 +86,10 @@ export async function evaluateSpecMigrationEvidence(
     const migrationDir = resolve(expectedChangeDir, 'migration')
     const receiptPath = resolve(migrationDir, 'spec-application.json')
     const receiptRaw = await trustedOrdinaryFile(root, receiptPath, true)
-    if (!receiptRaw) return { kind: 'not-required' }
+    // 没有历史迁移回执 = 这份 change 的主规格应用不是由那次一次性迁移承担的，于是问题回到它自己：
+    // 它登记的 delta spec 到底应用了没有。此前这里直接 not-required，于是 guard 只守着一份历史
+    // 回执、对本次应用一言不发——ship 与 archive 就这样放行了一个主规格里什么都没有的 change。
+    if (!receiptRaw) return await changeSpecApplication(root, changeDir)
 
     const receipt = parseJson(receiptRaw, 'migration receipt')
     if (
@@ -145,4 +149,21 @@ export async function evaluateSpecMigrationEvidence(
       reason: error instanceof Error ? error.message : 'migration-evidence-read-failed',
     }
   }
+}
+
+/**
+ * 这份 change 自己的规格应用证据：`tenon spec apply <change>` 的回执，且必须是真跑过的那一种。
+ *
+ * 彩排（`--dry-run`）写的是同一份回执文件、同样 result=pass，只有 mode 不同；判定不看 mode 就等于
+ * 认彩排为应用。回执之外还要求它点名的每份主规格此刻真的在盘上、摘要与回执一致——回执是自述，
+ * 主规格字节才是证据。没有登记过 delta spec 的 change 本来就不产出规格增量，对它不适用。
+ */
+async function changeSpecApplication(
+  repoRoot: string,
+  changeDir: string,
+): Promise<SpecMigrationGuardStatus> {
+  const status = await readSpecApplyReceiptStatus(repoRoot, changeDir)
+  if (status.applied) return { kind: 'applied' }
+  if (status.reason === 'delta-spec-unrecorded') return { kind: 'not-required' }
+  return { kind: 'invalid', reason: status.reason ?? 'spec-apply-missing' }
 }

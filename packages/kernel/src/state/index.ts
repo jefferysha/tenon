@@ -62,6 +62,10 @@ export type {
   DocumentEvidenceItem, DocumentEvidenceItemStatus, DocumentEvidenceReport, DocumentEvidenceScope, DocumentStaleReason,
 } from './document-evidence.js'
 export { evaluateSpecMigrationEvidence } from './spec-migration-evidence.js'
+export {
+  SPEC_APPLY_RECEIPT_FILE, readSpecApplyReceiptStatus, recordedDeltaSpecPaths,
+} from './spec-apply-receipt.js'
+export type { SpecApplyReceiptStatus } from './spec-apply-receipt.js'
 export { parsePipeline, serializePipeline, quoteGate, unquoteScalar, emptyFields } from './parse.js'
 export { withLock, LOCK_DIR_NAME, STALE_LOCK_MS } from './lock.js'
 export {

@@ -108,6 +108,20 @@ describe('tenon spec apply', () => {
     expect(await readFile(join(h.cwd, MAIN_SPEC), 'utf8')).toBe(merged)
   })
 
+  test('新 capability：主规格目录还不存在时 apply 仍要真的落盘（彩排说 created，真写不能 ENOENT）', async () => {
+    const { h, name } = await seed()
+    harness = h
+    // 每一条 `## ADDED Requirements` delta 都在引入一个新 capability：它的主规格目录此刻不存在。
+    await rm(join(h.cwd, 'openspec', 'specs'), { recursive: true, force: true })
+
+    expect(await apply(h, name, { dryRun: true, json: true }), h.err.join('\n')).toBe(0)
+    const rehearsal = JSON.parse(h.out.join('')) as { targets: { path: string; change: string }[] }
+    expect(rehearsal.targets.map((target) => target.change)).toEqual(['created'])
+
+    expect(await apply(h, name, { json: true }), h.err.join('\n')).toBe(0)
+    expect(await readFile(join(h.cwd, MAIN_SPEC), 'utf8')).toContain('### Requirement: New rule')
+  })
+
   test('缺 SHALL/MUST 的需求：exit 2，主规格不动，错误里带 OpenSpec 原话', async () => {
     const { h, name } = await seed(false)
     harness = h

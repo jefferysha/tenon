@@ -12,6 +12,7 @@ import {
 } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { str } from '../render.js'
+import { phaseExitGuardContext } from './phaseExitGuard.js'
 import { stepAgentBlockersFor } from '../agentGate.js'
 import { completedStepSkillIds, missingStepSkillTokensFrom } from '../stepSkillGate.js'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
@@ -151,7 +152,17 @@ export async function evaluateStepExitReport(
   const migration = stepId === 'ship' && plan.capabilities.documents.governed
     ? await evaluateSpecMigrationEvidence(deps.cwd, dir, name)
     : undefined
+  // default 轨的相位出口规则表（kernel flow/guard.ts）此前只有 `tenon check` 评估：同一份状态上
+  // check 说 FAIL exit 2，这里的 `ready` 却是 true、blockers 空，于是 `next` 发的是 transition 而
+  // 不是带真实文案的 fix。规则是「离开本相位」的条件，只加给前进边。
+  const phaseExit = plan.capabilities.execution.model === 'phase-manifest'
+    ? deps.flow.guardCheck(state, {
+      ...await phaseExitGuardContext(deps.guardCtx?.(name), dir),
+      coverageProfile: plan.capabilities.track.coverageProfile,
+    })
+    : { pass: true, failures: [] as readonly string[] }
   const shared: readonly StepBlocker[] = [
+    ...phaseExit.failures.map((item) => blocker('guard', 'phase-exit', item)),
     ...(documents?.blockers ?? []).map((item) => blocker('document', 'document-evidence', item)),
     ...testReport.blockers.map((item) => blocker('test', 'test-evidence', item)),
     ...reviewers,

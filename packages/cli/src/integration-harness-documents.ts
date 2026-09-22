@@ -10,6 +10,9 @@ import {
   ensureDocumentLedger,
   recordDocument,
   recordDocumentReads,
+  recordedDeltaSpecPaths,
+  sha256Hex,
+  SPEC_APPLY_RECEIPT_FILE,
 } from '@tenon/kernel'
 import {
   recordCanonicalDocumentSkillInvocation,
@@ -167,4 +170,47 @@ export async function readGovernedDocumentsForCurrentVisit(
     kind: 'all',
     readAt,
   })
+}
+
+/**
+ * Ship-phase fixture for tests whose subject is transition orchestration rather than spec
+ * application. It leaves behind exactly what a real `tenon spec apply <change>` leaves behind: the
+ * main spec on disk plus a `mode: "apply"` receipt whose delta and target digests are taken from
+ * the bytes actually present. It deliberately does not fabricate `mode`, does not touch the main
+ * spec's bytes (the ledger's `applied-spec` digest is bound to them), and does nothing when the
+ * change has no recorded delta spec — a test that wants the unapplied state simply does not call it.
+ */
+export async function seedAppliedSpec(root: string, changeDir: string, change: string): Promise<void> {
+  const deltas = await recordedDeltaSpecPaths(changeDir)
+  if (deltas.length === 0) return
+  const prefix = `openspec/changes/${change}/specs/`
+  const targets: { path: string; before_sha256: string | null; after_sha256: string; change: string }[] = []
+  const deltaRefs: { path: string; sha256: string }[] = []
+  for (const delta of deltas) {
+    if (!delta.startsWith(prefix)) throw new Error(`fixture seedAppliedSpec: 非预期的 delta 路径 ${delta}`)
+    deltaRefs.push({ path: delta, sha256: sha256Hex(await readFile(join(root, delta), 'utf8')) })
+    const mainPath = `openspec/specs/${delta.slice(prefix.length)}`
+    const target = join(root, mainPath)
+    await mkdir(dirname(target), { recursive: true })
+    let body: string
+    try {
+      body = await readFile(target, 'utf8')
+    } catch {
+      body = '# applied\n'
+      await writeFile(target, body, 'utf8')
+    }
+    targets.push({
+      path: mainPath, before_sha256: null, after_sha256: sha256Hex(body), change: 'created',
+    })
+  }
+  await writeFile(join(changeDir, SPEC_APPLY_RECEIPT_FILE), `${JSON.stringify({
+    schema: 'tenon-spec-apply-v1',
+    change,
+    mode: 'apply',
+    result: 'pass',
+    openspec_version: 'integration-harness',
+    deltas: deltaRefs,
+    targets,
+    at: FIXED_CLOCK,
+  }, null, 2)}\n`, 'utf8')
 }

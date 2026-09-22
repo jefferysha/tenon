@@ -7,6 +7,12 @@
  *   · skills/pipeline/manifest.yaml phases.*.exit_checks（S4 数据表）
  * 逐相位 × track × preset 的完整盘点（含未移植面与理由）见同目录 GUARD-RULES.md。
  *
+ * 三个消费者，读同一张 EXIT_RULES：`tenon check`（人读报告）、`status --json` 的
+ * `exits[].blockers`（运行器照做的动作表）、以及 default 轨 transition 的前进边强制层
+ * （workflow/transition-plan-default.ts）。2026-09 之前只有第一个：同一份状态上 check 说 FAIL
+ * exit 2、status 说 ready=true、transition 照样 exit 0，pm 就这样带着 prd_path=null 归了档。
+ * 相应地，EXIT_RULES 点名的**可填字段**由 phaseExitGuardFields 投影出去，投影与强制同源。
+ *
  * 两个运行面（GUARD-RULES §7.2）：
  *   · guardCheck(state)          —— lite 纯字段面：文件类检查静默跳过（向后兼容原 lite 子集）。
  *   · guardCheck(state, ctx)     —— 注入 GuardContext（fileExists/readFile/... 由 CLI 落地）后
@@ -32,6 +38,8 @@ import type { FieldName, GuardContext, GuardResult, Phase, PipelineState } from 
 // 具体文件路径而非 barrel（同 transition-table.ts）：predicates.ts 零 import，物理上无环。
 import { matchesTrackPredicate, NON_PM, NON_PM_OR_FREE, type TrackPredicate } from '../workflow/predicates.js'
 import { incompletePipelineTasksForExit } from '../workflow/todo-projection.js'
+// spec 出口的覆盖矩阵（profile × 层）单独成模块：那是一张领域数据表，不是这里的规则求值。
+import { evaluateCoverage } from './guard-coverage.js'
 
 type GuardRule =
   // ── 纯字段谓词（无 ctx 也评估；lite 原有面）──
@@ -117,65 +125,6 @@ const EXIT_RULES: Readonly<Record<Phase, readonly GuardRule[]>> = {
   ],
 }
 
-// ===== M1 全栈 Spec 覆盖矩阵（pipeline-guard-lib.sh:112-160 逐字对齐）=====
-
-const COVERAGE_LAYERS = [
-  'L1_api', 'L2_data', 'L3_rules', 'L4_state', 'L5_errors',
-  'L6_security', 'L7_perf', 'L8_deps', 'L10_terms',
-] as const
-
-type Applicability = 'required' | 'optional' | 'na'
-
-/** 每 coverage profile 每层适用性（lib:119-141）；表外层 = na；none 在入口直接跳过。 */
-const COVERAGE_PROFILE_APPLICABILITY: Readonly<Record<string, Readonly<Record<string, Applicability>>>> = {
-  backend: {
-    L1_api: 'required', L2_data: 'required', L3_rules: 'required', L4_state: 'required',
-    L5_errors: 'required', L6_security: 'required', L8_deps: 'required',
-    L7_perf: 'optional', L10_terms: 'optional',
-  },
-  frontend: {
-    L4_state: 'required', L5_errors: 'required',
-    L1_api: 'optional', L3_rules: 'optional', L6_security: 'optional',
-    L7_perf: 'optional', L8_deps: 'optional', L10_terms: 'optional',
-  },
-  pm: {
-    L3_rules: 'required',
-    L2_data: 'optional', L4_state: 'optional', L10_terms: 'optional',
-  },
-}
-
-/** 🔒 概念→层（lib:144：默认仅 auth→L6_security） */
-const COVERAGE_LOCK_CONCERN: Readonly<Record<string, string>> = { L6_security: 'auth' }
-
-/** design_doc 的 ```coverage 围栏块内容行（lib awk '/^```coverage/{f=1;next} /^```/{f=0} f'） */
-function coverageBlockLines(content: string | undefined): string[] {
-  if (content === undefined) return []
-  const out: string[] = []
-  let inBlock = false
-  for (const line of content.split('\n')) {
-    if (/^```coverage/.test(line)) { inBlock = true; continue }
-    if (/^```/.test(line)) { inBlock = false; continue }
-    if (inBlock) out.push(line)
-  }
-  return out
-}
-
-/** 层状态（lib:147-155）：filled|waived 之外（含缺行/坏值）一律 blank */
-function coverageBlockStatus(lines: readonly string[], layer: string): 'filled' | 'waived' | 'blank' {
-  const row = lines.find((l) => l.startsWith(`${layer}:`))
-  if (row === undefined) return 'blank'
-  const m = /^[ \t]*([a-zA-Z]+)/.exec(row.slice(layer.length + 1))
-  const st = m?.[1]
-  return st === 'filled' || st === 'waived' ? st : 'blank'
-}
-
-/** touches 受保护域（lib:157-160 + guard.sh:450 tr ',' ' ' 词切） */
-function coverageTouches(lines: readonly string[]): string[] {
-  const row = lines.find((l) => l.startsWith('touches:'))
-  if (row === undefined) return []
-  return row.slice('touches:'.length).split(/[,\s]+/).filter((w) => w !== '')
-}
-
 // ===== 谓词与工具 =====
 
 /** 老内核空值语义：空串与 "null" 哨兵都算空；列表字段取长度 */
@@ -213,59 +162,55 @@ function trackSuffix(when: TrackPredicate | undefined, track: string): string {
   return when === undefined ? '' : ` (${track} track)`
 }
 
-/** M1 覆盖 gate（guard.sh:436-477 emit_coverage_status + 510-528 spec 显式步） */
-function evaluateCoverage(
-  state: PipelineState,
-  ctx: GuardContext,
-  failures: string[],
-  warnings: string[],
-): void {
-  if (ctx.readFile === undefined || ctx.coverageProfile === 'none') return
-  const preset = scalar(state.fields.preset)
-  const dd = scalar(state.fields.design_doc)
-  const content = dd !== '' && dd !== 'null' ? ctx.readFile(dd) : undefined
-  const lines = coverageBlockLines(content)
-  const touches = coverageTouches(lines)
-  const applicability = COVERAGE_PROFILE_APPLICABILITY[ctx.coverageProfile]
+/** 相位出口 guard 对某字段点名的值集（形状与 default 轨事件表的同名投影一致）。 */
+export interface PhaseExitGuardFieldRequirement {
+  readonly field: FieldName
+  /** guard 接受的具体值；缺省 = 只要求非空（file-exists 另要求该路径存在）。 */
+  readonly required?: readonly string[]
+}
 
-  // emit 行格式照老仓：`$layer $app $status $verdict$tag`（na 层 skip，连锁也不查——guard.sh:459）
-  const blockedLines: string[] = []
-  let lockViolations = 0
-  for (const layer of COVERAGE_LAYERS) {
-    const app = applicability?.[layer] ?? 'na'
-    if (app === 'na') continue
-    const status = coverageBlockStatus(lines, layer)
-    const concern = COVERAGE_LOCK_CONCERN[layer]
-    const locked = concern !== undefined && touches.includes(concern)
-    if (locked) {
-      // 🔒 锁层必须 filled，waive/blank 都违反（guard.sh:467-469）
-      if (status !== 'filled') {
-        blockedLines.push(`${layer} ${app} ${status} BLOCKED LOCKVIOLATION`)
-        lockViolations += 1
-      }
-    } else if (app === 'required' && status === 'blank') {
-      blockedLines.push(`${layer} ${app} ${status} BLOCKED`)
+/**
+ * 当前相位的出口 guard 会读哪些**人可填**的字段，按规则声明序去重。
+ *
+ * 这张表此前只有 `tenon check` 一个消费者，于是 `status --json` 的字段投影看不见它点名的槽：
+ * pm 在 verify 步既看不到 `verify_result`、blockers 里也没有它，运行器只能在 `request-review`
+ * 上空转；pm 的 ship 步显示的是 `pr_url`（非 pm 的 guard），而真正卡住出口的是 `prd_path`。
+ *
+ * 不列进来的两类，因为它们不是「填一个值就能过」的槽：
+ *   · automation-queued —— 要的是「别让主线抢调度器的活」，不是给 automation 填一个值；
+ *   · coverage / tasks / statefile / depends-archived —— 判定的是文档、任务与依赖证据。
+ */
+export function phaseExitGuardFields(state: PipelineState): readonly PhaseExitGuardFieldRequirement[] {
+  const phase = scalar(state.fields.phase)
+  const rules = (EXIT_RULES as Record<string, readonly GuardRule[] | undefined>)[phase]
+  if (!rules) return []
+  const track = scalar(state.fields.track)
+  const out: PhaseExitGuardFieldRequirement[] = []
+  const push = (field: FieldName, required?: readonly string[]): void => {
+    if (out.some((item) => item.field === field)) return
+    out.push(required === undefined ? { field } : { field, required })
+  }
+  for (const rule of rules) {
+    switch (rule.kind) {
+      case 'nonempty':
+        if (trackApplies(rule.when, track)) push(rule.field)
+        break
+      case 'eq':
+        if (trackApplies(rule.when, track)) push(rule.field, [rule.value])
+        break
+      case 'field-file-exists':
+        if (trackApplies(rule.when, track)) push(rule.field)
+        break
+      case 'full-direct-override':
+        if (scalar(state.fields.preset) === 'full' && scalar(state.fields.build_mode) === 'direct') {
+          push('direct_override', ['true'])
+        }
+        break
+      default:
+        break
     }
   }
-
-  // hotfix/tweak：required-blank 降级 WARN，仅 🔒 锁违反计入阻塞（guard.sh:512-524）
-  const waive = preset === 'hotfix' || preset === 'tweak'
-  const covBlock = waive ? lockViolations : blockedLines.length
-  if (waive) {
-    const warnBlank = blockedLines.length - lockViolations
-    if (warnBlank > 0) {
-      warnings.push(`${preset}：${warnBlank} 层覆盖留空（已豁免，建议补；🔒 锁不豁免）`)
-    }
-  }
-  if (covBlock > 0) {
-    // 怎么解开写在失败行里：这条指引原先散在阶段 skill 的散文中，现在只剩这一处。
-    failures.push(
-      `spec 出口：全栈 Spec 覆盖（${covBlock} 层阻塞）；`
-      + '在 design_doc 的 ```coverage 块为每个阻塞层写 filled -> <章节> 或 waived -> <理由>'
-      + '（touches 含 auth 时 L6 不可 waived）',
-    )
-    for (const l of blockedLines) warnings.push(`覆盖阻塞: ${l}`)
-  }
+  return out
 }
 
 export function evaluateGuard(state: PipelineState, ctx?: GuardContext): GuardResult {
@@ -395,7 +340,13 @@ export function evaluateGuard(state: PipelineState, ctx?: GuardContext): GuardRe
         break
       }
       case 'coverage': {
-        if (ctx !== undefined) evaluateCoverage(state, ctx, failures, warnings)
+        if (ctx !== undefined) {
+          evaluateCoverage({
+            ctx,
+            preset: scalar(state.fields.preset),
+            designDoc: scalar(state.fields.design_doc),
+          }, failures, warnings)
+        }
         break
       }
       case 'depends-archived': {
