@@ -36270,6 +36270,9 @@ var SKILL_MODEL_INVOCATION_DISABLED_FIELD = "disable-model-invocation";
 function isSkillModelInvocable(fields) {
   return fields?.get(SKILL_MODEL_INVOCATION_DISABLED_FIELD)?.trim().toLowerCase() !== "true";
 }
+function skillTextModelInvocable(text8) {
+  return isSkillModelInvocable(parseSkillFrontmatter(text8));
+}
 
 // packages/kernel/dist/skills/upstream-sources.js
 var UpstreamSkillError = class extends Error {
@@ -36289,7 +36292,9 @@ var TREE_SHA256 = /^sha256:[0-9a-f]{64}$/;
 var ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 var SOURCE_FIELDS = /* @__PURE__ */ new Set(["repo", "path", "ref", "license_expected"]);
 var LOCK_KEYS = ["version", "updated_at", "skills"];
-var LOCK_ENTRY_KEYS = ["id", "repo", "path", "commit", "tree_sha256", "license", "fetched_at", "previous_commit", "model_invocable"];
+var LOCK_ENTRY_KEYS_V1 = ["id", "repo", "path", "commit", "tree_sha256", "license", "fetched_at", "previous_commit"];
+var LOCK_ENTRY_KEYS_V2 = [...LOCK_ENTRY_KEYS_V1, "model_invocable"];
+var LOCK_VERSIONS = /* @__PURE__ */ new Set([1, 2]);
 var REPORT_KEYS = ["version", "at", "host", "results"];
 var RESULT_KEYS = /* @__PURE__ */ new Set(["id", "outcome", "reason", "detail"]);
 var FAILURE_REASONS = /* @__PURE__ */ new Set([
@@ -36425,8 +36430,9 @@ function lockError(message2) {
 }
 function parseLockEntry(raw, index) {
   const at = `skills[${index}]`;
-  if (!isRecord8(raw) || !hasExactKeys(raw, LOCK_ENTRY_KEYS))
-    throw lockError(`${at} \u5B57\u6BB5\u987B\u4E3A ${LOCK_ENTRY_KEYS.join(" / ")}`);
+  if (!isRecord8(raw) || !(hasExactKeys(raw, LOCK_ENTRY_KEYS_V1) || hasExactKeys(raw, LOCK_ENTRY_KEYS_V2))) {
+    throw lockError(`${at} \u5B57\u6BB5\u987B\u4E3A ${LOCK_ENTRY_KEYS_V1.join(" / ")}\uFF08\u53EF\u591A\u4E00\u4E2A model_invocable\uFF09`);
+  }
   const { id: id2, repo, path: path15, commit, license } = raw;
   if (typeof id2 !== "string" || !ID3.test(id2))
     throw lockError(`${at}.id \u4E0D\u5408\u6CD5`);
@@ -36446,8 +36452,9 @@ function parseLockEntry(raw, index) {
   const previousCommit = previous === null ? null : typeof previous === "string" && COMMIT.test(previous) ? previous : void 0;
   if (previousCommit === void 0)
     throw lockError(`${id2} previous_commit \u987B\u4E3A null \u6216 40 \u4F4D\u5341\u516D\u8FDB\u5236`);
-  if (typeof raw.model_invocable !== "boolean")
+  if (Object.hasOwn(raw, "model_invocable") && typeof raw.model_invocable !== "boolean") {
     throw lockError(`${id2} model_invocable \u987B\u4E3A\u5E03\u5C14\u503C`);
+  }
   return {
     id: id2,
     repo,
@@ -36457,15 +36464,16 @@ function parseLockEntry(raw, index) {
     license,
     fetchedAt: raw.fetched_at,
     previousCommit,
-    modelInvocable: raw.model_invocable
+    ...typeof raw.model_invocable === "boolean" ? { modelInvocable: raw.model_invocable } : {}
   };
 }
 function parseUpstreamSkillLock(text8, sources) {
   const value = parseJson3(text8, lockError);
   if (!isRecord8(value) || !hasExactKeys(value, LOCK_KEYS))
     throw lockError(`\u9876\u5C42\u5B57\u6BB5\u987B\u4E3A ${LOCK_KEYS.join(" / ")}`);
-  if (value.version !== 2)
-    throw lockError(`version '${String(value.version)}' \u4E0D\u53D7\u652F\u6301\uFF08\u9700\u8981 2\uFF09`);
+  if (typeof value.version !== "number" || !LOCK_VERSIONS.has(value.version)) {
+    throw lockError(`version '${String(value.version)}' \u4E0D\u53D7\u652F\u6301\uFF08\u9700\u8981 1\uFF0C\u517C\u5BB9\u8BFB 2\uFF09`);
+  }
   if (!isIsoUtc(value.updated_at))
     throw lockError("updated_at \u4E0D\u662F ISO-8601 UTC \u65F6\u95F4");
   if (!Array.isArray(value.skills))
@@ -36487,7 +36495,7 @@ function parseUpstreamSkillLock(text8, sources) {
     }
     return entry;
   });
-  return { version: 2, updatedAt: value.updated_at, skills };
+  return { version: 1, updatedAt: value.updated_at, skills };
 }
 function serializeUpstreamSkillLock(lock) {
   const skills = [...lock.skills].sort(byId).map((entry) => ({
@@ -36498,10 +36506,9 @@ function serializeUpstreamSkillLock(lock) {
     tree_sha256: entry.treeSha256,
     license: entry.license,
     fetched_at: entry.fetchedAt,
-    previous_commit: entry.previousCommit,
-    model_invocable: entry.modelInvocable
+    previous_commit: entry.previousCommit
   }));
-  return `${JSON.stringify({ version: 2, updated_at: lock.updatedAt, skills }, null, 2)}
+  return `${JSON.stringify({ version: 1, updated_at: lock.updatedAt, skills }, null, 2)}
 `;
 }
 function reportError(message2) {
@@ -36591,7 +36598,7 @@ function buildUpstreamSkillView(input2) {
       previousCommit: entry.previousCommit,
       license: entry.license,
       fetchedAt: entry.fetchedAt,
-      modelInvocable: entry.modelInvocable,
+      ...entry.modelInvocable === void 0 ? {} : { modelInvocable: entry.modelInvocable },
       ...failureFields,
       sourceUrl: treeUrl(source.repo, entry.commit, source.path),
       commitUrl: `https://github.com/${source.repo}/commit/${entry.commit}`,
@@ -51403,38 +51410,44 @@ function checkMandatorySkillInvocability(p) {
       "\u5148\u4FEE\u590D asset:manifest\uFF08templates/manifest.yaml\uFF09\u540E\u91CD\u8DD1 tenon doctor"
     );
   }
-  const view2 = p.upstreamSkillView?.();
-  if (view2 === void 0 || "error" in view2) {
+  const probe = p.skillModelInvocable;
+  if (probe === void 0) {
     return yellow(
       "skills:invocable",
-      view2 === void 0 ? "\u4E0A\u6E38\u6280\u80FD\u63A2\u9488\u672A\u88C5\u914D\u2014\u2014\u65E0\u6CD5\u6838\u5F3A\u5236\u6280\u80FD\u662F\u5426\u6A21\u578B\u53EF\u8C03\u7528\uFF08\u4E0D\u8BEF\u62A5 green\uFF09" : `\u4E0A\u6E38\u6280\u80FD\u9501\u4E0D\u53EF\u8BFB\uFF08${view2.error}\uFF09\u2014\u2014\u65E0\u6CD5\u6838\u5F3A\u5236\u6280\u80FD\u662F\u5426\u6A21\u578B\u53EF\u8C03\u7528`,
-      "\u8FD0\u884C tenon update --<host> \u6216 npm run skills:fetch \u91CD\u65B0\u83B7\u53D6\u4E0A\u6E38\u6280\u80FD\u540E\u91CD\u8DD1 tenon doctor"
+      "\u672A\u88C5\u914D SKILL.md \u53EF\u8C03\u7528\u6027\u63A2\u9488\u2014\u2014\u65E0\u6CD5\u8BC1\u660E\u5F3A\u5236\u6280\u80FD\u80FD\u88AB\u5BBF\u4E3B\u8C03\u7528\uFF08\u4E0D\u8BEF\u62A5 green\uFF09",
+      "\u4F7F\u7528\u5305\u542B\u8BE5\u63A2\u9488\u7684 Tenon CLI \u540E\u91CD\u8DD1 tenon doctor"
     );
   }
-  const invocable = /* @__PURE__ */ new Map();
-  for (const row2 of view2.rows) {
-    if (row2.modelInvocable !== void 0) invocable.set(row2.id, row2.modelInvocable);
-  }
   const offenders = [];
+  const unprovable = [];
   const seen = /* @__PURE__ */ new Set();
   for (const row2 of Object.values(tables.mandatory)) {
     for (const list3 of Object.values(row2)) {
       for (const token of list3 ?? []) {
         if (seen.has(token)) continue;
         seen.add(token);
-        const alternatives = skillTokenAlternatives(token);
-        if (alternatives.every((id2) => invocable.get(id2) === false)) offenders.push(token);
+        const verdicts = skillTokenAlternatives(token).map((id2) => probe(id2));
+        if (verdicts.some((verdict) => verdict === true)) continue;
+        if (verdicts.every((verdict) => verdict === false)) offenders.push(token);
+        else unprovable.push(token);
       }
     }
   }
-  if (offenders.length === 0) {
-    return green("skills:invocable", `${seen.size} \u4E2A manifest \u5F3A\u5236\u6280\u80FD\u90FD\u662F\u5BBF\u4E3B\u53EF\u4EE3\u6A21\u578B\u8C03\u7528\u7684`);
+  if (offenders.length > 0) {
+    return red(
+      "skills:invocable",
+      `${offenders.length} \u4E2A\u5F3A\u5236\u6280\u80FD\u5E26 disable-model-invocation: true\uFF0C\u5BBF\u4E3B\u4E0D\u4F1A\u4EE3\u6A21\u578B\u8C03\u7528\uFF0C\u58F0\u660E\u5B83\u4EEC\u7684\u76F8\u4F4D\u4F1A\u5361\u6B7B\u5728 step-skills-incomplete\uFF1A${offenders.join("\u3001")}`,
+      `\u628A templates/manifest.yaml \u4E0E templates/workflows/default.yaml \u91CC\u7684 ${offenders.join("\u3001")} \u6362\u6210\u6A21\u578B\u53EF\u8C03\u7528\u7684\u7B49\u4EF7\u6280\u80FD\uFF0C\u6216\u964D\u7EA7\u4E3A\u4EBA\u5DE5\u6307\u5F15\u540E\u91CD\u8DD1 tenon doctor`
+    );
   }
-  return red(
-    "skills:invocable",
-    `${offenders.length} \u4E2A\u5F3A\u5236\u6280\u80FD\u5E26 disable-model-invocation: true\uFF0C\u5BBF\u4E3B\u4E0D\u4F1A\u4EE3\u6A21\u578B\u8C03\u7528\uFF0C\u58F0\u660E\u5B83\u4EEC\u7684\u76F8\u4F4D\u4F1A\u5361\u6B7B\u5728 step-skills-incomplete\uFF1A${offenders.join("\u3001")}`,
-    `\u628A templates/manifest.yaml \u4E0E templates/workflows/default.yaml \u91CC\u7684 ${offenders.join("\u3001")} \u6362\u6210\u6A21\u578B\u53EF\u8C03\u7528\u7684\u7B49\u4EF7\u6280\u80FD\uFF0C\u6216\u964D\u7EA7\u4E3A\u4EBA\u5DE5\u6307\u5F15\u540E\u91CD\u8DD1 tenon doctor`
-  );
+  if (unprovable.length > 0) {
+    return yellow(
+      "skills:invocable",
+      `${unprovable.length} \u4E2A\u5F3A\u5236\u6280\u80FD\u8BFB\u4E0D\u5230 SKILL.md\uFF0C\u65E0\u6CD5\u8BC1\u660E\u53EF\u8C03\u7528\uFF08\u4E0D\u8BEF\u62A5 green\uFF09\uFF1A${unprovable.join("\u3001")}`,
+      "\u8FD0\u884C tenon update --<host> \u6216 npm run skills:fetch \u8865\u9F50\u6280\u80FD\u5B57\u8282\u540E\u91CD\u8DD1 tenon doctor"
+    );
+  }
+  return green("skills:invocable", `${seen.size} \u4E2A manifest \u5F3A\u5236\u6280\u80FD\u90FD\u7ECF SKILL.md \u8BC1\u660E\u53EF\u88AB\u5BBF\u4E3B\u8C03\u7528`);
 }
 function declaredWorkflowSkillIds() {
   const ids2 = /* @__PURE__ */ new Set([PRODUCT_IDENTITY.entrySkill]);
@@ -70402,10 +70415,6 @@ function readSkillFrontmatter(path15) {
     return null;
   }
 }
-function skillModelInvocable(path15) {
-  const fields = readSkillFrontmatter(path15);
-  return fields !== null && isSkillModelInvocable(fields);
-}
 function measureTree(dir, excludeTopLevel) {
   let bytes = 0;
   const visit2 = (current, rel, excludes) => {
@@ -70685,10 +70694,7 @@ async function installFromCheckout(run2, source, checkout) {
     treeSha256: hash,
     license: verdict.license,
     fetchedAt: run2.at,
-    previousCommit: previous?.commit ?? null,
-    // Recorded from the bytes that are actually being installed, which is the only moment the
-    // repository ever holds them: skills/<id> is gitignored, so no later repo-only check can.
-    modelInvocable: skillModelInvocable(join122(staged, "SKILL.md"))
+    previousCommit: previous?.commit ?? null
   });
   run2.results.set(source.id, { id: source.id, outcome: "updated" });
   run2.input.log(`[skills] \u66F4\u65B0 ${source.id} ${checkout.commit.slice(0, 7)}`);
@@ -70751,7 +70757,7 @@ function writeLock(run2, previousLock, runId) {
   const existing = readOptional2(lockPath3);
   if (skills.length === 0 && previousLock === null && existing === null) return false;
   const sameAsPrevious = previousLock !== null && serializeUpstreamSkillLock({ ...previousLock, skills }) === serializeUpstreamSkillLock(previousLock);
-  const text8 = serializeUpstreamSkillLock({ version: 2, updatedAt: sameAsPrevious ? previousLock.updatedAt : run2.at, skills });
+  const text8 = serializeUpstreamSkillLock({ version: 1, updatedAt: sameAsPrevious ? previousLock.updatedAt : run2.at, skills });
   if (existing === text8) return false;
   const tmp = `${lockPath3}.tmp-${runId}`;
   writeFileSync5(tmp, text8, { encoding: "utf8", mode: 420 });
@@ -78540,6 +78546,21 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         hostEnv: scope.env,
         defaultCodexHome: join147(scope.homeDir, ".codex")
       });
+    },
+    /**
+     * 直接读 `<pluginRoot>/skills/<id>/SKILL.md`：宿主允不允许代模型调用这个技能，权威来源就是
+     * 这份 frontmatter。不走 skills.lock.json——那是跨版本线格式，v0.1.0 的读取器 exact-keys，
+     * 多一个字段就整条拒掉（真机 setup 已实测中招）。读不到字节就回 null（未知），不猜。
+     */
+    skillModelInvocable: (skillId) => {
+      if (skillId.includes(":") || skillId.includes("/") || skillId === "" || skillId === "." || skillId === "..") {
+        return null;
+      }
+      try {
+        return skillTextModelInvocable(readFileSync39(join147(root, "skills", skillId, "SKILL.md"), "utf8"));
+      } catch {
+        return null;
+      }
     },
     upstreamSkillView: () => {
       try {

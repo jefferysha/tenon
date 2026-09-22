@@ -37,15 +37,14 @@ export interface UpstreamSkillLockEntry {
   readonly fetchedAt: string
   readonly previousCommit: string | null
   /**
-   * 获取当时这份 SKILL.md 的 frontmatter 允不允许模型自己调用（`disable-model-invocation: true`
-   * 即 false）。字节在获取期才在手上、仓库里是 gitignore 的，所以这一位只能在这里落账；
-   * 发布候选门禁与 doctor 据此拒绝把仅人工调用的技能列为强制技能。treeSha256 一致即字节一致，
-   * 因此这一位与盘上内容不会各说各话。
+   * 只在读到 0.1.1-pre 那版短命的 v2 锁时才有值；本仓**不再写它**，缺省即「未知」。
+   * 技能可不可以被模型调用的权威来源是 SKILL.md 字节本身（treeSha256 已经把字节钉死），
+   * 判定放在 doctor 探针与发布候选校验里现读，不进这份跨组件线格式。原因见下方 LOCK_*_KEYS。
    */
-  readonly modelInvocable: boolean
+  readonly modelInvocable?: boolean
 }
 export interface UpstreamSkillLock {
-  readonly version: 2
+  readonly version: 1
   readonly updatedAt: string
   readonly skills: readonly UpstreamSkillLockEntry[]
 }
@@ -76,7 +75,7 @@ export interface UpstreamSkillViewRow {
   readonly previousCommit?: string | null
   readonly license?: UpstreamSkillLicense
   readonly fetchedAt?: string
-  /** 锁里记的「模型可调用」；上游行有锁条目时才有值，bundled 行与未安装行留空。 */
+  /** 0.1.1-pre 那版 v2 锁里记过的「模型可调用」；本仓不再写它，通常为空。判定见 doctor 探针。 */
   readonly modelInvocable?: boolean
   readonly reason?: UpstreamSkillFailureReason
   readonly detail?: string
@@ -98,7 +97,19 @@ const TREE_SHA256 = /^sha256:[0-9a-f]{64}$/
 const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/
 const SOURCE_FIELDS: ReadonlySet<string> = new Set(['repo', 'path', 'ref', 'license_expected'])
 const LOCK_KEYS = ['version', 'updated_at', 'skills'] as const
-const LOCK_ENTRY_KEYS = ['id', 'repo', 'path', 'commit', 'tree_sha256', 'license', 'fetched_at', 'previous_commit', 'model_invocable'] as const
+/**
+ * 锁是**跨组件线格式**：写它的是当前进程里的 fetcher，读它的是候选根里自带的 verifier 和已激活
+ * release 里的 doctor——三者在一次升级里可以是三个年龄。v0.1.0 的读取器用 exact-keys 校验条目
+ * （多一个键就报 `skills[0] 字段须为 …`，与 version 无关），所以这份文件里**加不了任何字段**：
+ *   · v1 + 新字段 → 老 verifier 拒（字段集不符）；
+ *   · v2         → 老 verifier 拒（version 不符，真机 setup --codex 已实测中招）。
+ * 唯一两侧都收的形状就是 v1 那 8 个键。因此：**永远按 v1 写**，读的时候两种形状都收——
+ * 0.1.1-pre 那版写出去的 v2 锁还在一些机器上，读它、按 v1 重写即自愈。
+ */
+const LOCK_ENTRY_KEYS_V1 = ['id', 'repo', 'path', 'commit', 'tree_sha256', 'license', 'fetched_at', 'previous_commit'] as const
+/** 0.1.1-pre 短命形状：v1 + model_invocable。只读不写。 */
+const LOCK_ENTRY_KEYS_V2 = [...LOCK_ENTRY_KEYS_V1, 'model_invocable'] as const
+const LOCK_VERSIONS: ReadonlySet<number> = new Set([1, 2])
 const REPORT_KEYS = ['version', 'at', 'host', 'results'] as const
 const RESULT_KEYS: ReadonlySet<string> = new Set(['id', 'outcome', 'reason', 'detail'])
 const FAILURE_REASONS: ReadonlySet<string> = new Set<UpstreamSkillFailureReason>([
@@ -231,7 +242,9 @@ function lockError(message: string): UpstreamSkillError {
 
 function parseLockEntry(raw: unknown, index: number): UpstreamSkillLockEntry {
   const at = `skills[${index}]`
-  if (!isRecord(raw) || !hasExactKeys(raw, LOCK_ENTRY_KEYS)) throw lockError(`${at} 字段须为 ${LOCK_ENTRY_KEYS.join(' / ')}`)
+  if (!isRecord(raw) || !(hasExactKeys(raw, LOCK_ENTRY_KEYS_V1) || hasExactKeys(raw, LOCK_ENTRY_KEYS_V2))) {
+    throw lockError(`${at} 字段须为 ${LOCK_ENTRY_KEYS_V1.join(' / ')}（可多一个 model_invocable）`)
+  }
   const { id, repo, path, commit, license } = raw
   if (typeof id !== 'string' || !ID.test(id)) throw lockError(`${at}.id 不合法`)
   if (!isRepo(repo)) throw lockError(`${id} repo 不合法`)
@@ -243,10 +256,13 @@ function parseLockEntry(raw: unknown, index: number): UpstreamSkillLockEntry {
   const previous = raw.previous_commit
   const previousCommit = previous === null ? null : typeof previous === 'string' && COMMIT.test(previous) ? previous : undefined
   if (previousCommit === undefined) throw lockError(`${id} previous_commit 须为 null 或 40 位十六进制`)
-  if (typeof raw.model_invocable !== 'boolean') throw lockError(`${id} model_invocable 须为布尔值`)
+  // 缺字段 = 未知，绝不当作「不可调用」：那会让一份老锁把随包技能全部定罪。
+  if (Object.hasOwn(raw, 'model_invocable') && typeof raw.model_invocable !== 'boolean') {
+    throw lockError(`${id} model_invocable 须为布尔值`)
+  }
   return {
     id, repo, path, commit, treeSha256: raw.tree_sha256, license, fetchedAt: raw.fetched_at, previousCommit,
-    modelInvocable: raw.model_invocable,
+    ...(typeof raw.model_invocable === 'boolean' ? { modelInvocable: raw.model_invocable } : {}),
   }
 }
 
@@ -254,8 +270,9 @@ function parseLockEntry(raw: unknown, index: number): UpstreamSkillLockEntry {
 export function parseUpstreamSkillLock(text: string, sources?: UpstreamSkillSources): UpstreamSkillLock {
   const value = parseJson(text, lockError)
   if (!isRecord(value) || !hasExactKeys(value, LOCK_KEYS)) throw lockError(`顶层字段须为 ${LOCK_KEYS.join(' / ')}`)
-  // v1 没有 model_invocable，不能靠猜补齐——重新获取一次上游即得到完整记账。
-  if (value.version !== 2) throw lockError(`version '${String(value.version)}' 不受支持（需要 2）`)
+  if (typeof value.version !== 'number' || !LOCK_VERSIONS.has(value.version)) {
+    throw lockError(`version '${String(value.version)}' 不受支持（需要 1，兼容读 2）`)
+  }
   if (!isIsoUtc(value.updated_at)) throw lockError('updated_at 不是 ISO-8601 UTC 时间')
   if (!Array.isArray(value.skills)) throw lockError('skills 不是数组')
   const byIdSource = sources === undefined ? undefined : new Map(sources.skills.map((source) => [source.id, source]))
@@ -273,7 +290,8 @@ export function parseUpstreamSkillLock(text: string, sources?: UpstreamSkillSour
     }
     return entry
   })
-  return { version: 2, updatedAt: value.updated_at, skills }
+  // 一律归一成 version 1：读进来的 v2 在下一次写盘时自愈成两侧都收的形状。
+  return { version: 1, updatedAt: value.updated_at, skills }
 }
 
 /** 条目按 id 排序、键序固定，内容不变时字节不变。 */
@@ -287,9 +305,9 @@ export function serializeUpstreamSkillLock(lock: UpstreamSkillLock): string {
     license: entry.license,
     fetched_at: entry.fetchedAt,
     previous_commit: entry.previousCommit,
-    model_invocable: entry.modelInvocable,
   }))
-  return `${JSON.stringify({ version: 2, updated_at: lock.updatedAt, skills }, null, 2)}\n`
+  // 只写 v1 的 8 个键。任何新字段都会被 v0.1.0 的 exact-keys 读取器拒掉，让升级半路中止。
+  return `${JSON.stringify({ version: 1, updated_at: lock.updatedAt, skills }, null, 2)}\n`
 }
 
 function reportError(message: string): UpstreamSkillError {
@@ -385,7 +403,7 @@ export function buildUpstreamSkillView(input: {
       previousCommit: entry.previousCommit,
       license: entry.license,
       fetchedAt: entry.fetchedAt,
-      modelInvocable: entry.modelInvocable,
+      ...(entry.modelInvocable === undefined ? {} : { modelInvocable: entry.modelInvocable }),
       ...failureFields,
       sourceUrl: treeUrl(source.repo, entry.commit, source.path),
       commitUrl: `https://github.com/${source.repo}/commit/${entry.commit}`,
