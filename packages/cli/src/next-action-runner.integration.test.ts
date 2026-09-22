@@ -5,14 +5,14 @@
  * 这里的运行器没有任何本地知识：它只认 `next` 里的动作名与动作自带的载荷（要读哪些文档、要用哪个
  * producer 登记、字段的枚举与推荐值、要跑哪条测试、走哪条出边），路径到 kind 的对应关系也只从同
  * 一份 `step.documents` 里取。任何一条 `next` 发出去却执行不了的动作，都会让这个用例当场红：
- * 真机验收那一轮就是这样连撞六处（scaffold 不推进状态、过期文档只发 read、ship 要 scaffold 一份
+ * 真机验收那一轮就是这样连撞五处（scaffold 不推进状态、过期文档只发 read、ship 要 scaffold 一份
  * 契约里没有的文档、build 提前要 build_sha、回退边不带人工确认）。
  *
- * 零 mock：真临时项目、真 kernel、真 Skill PostToolUse hook、真文档台账与测试记录。
+ * 零 mock：真临时项目、真 kernel、真文档台账、真测试记录；Skill 回执落在 PostToolUse hook 最终
+ * 调用的那条生产命令上（`internal-native-skill-receipt`），时间戳跟 harness 的固定 clock 走。
  */
-import { appendFile, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { FIXED_CLOCK, freshHarness, rm, type Harness } from './integration-harness.js'
@@ -78,9 +78,9 @@ async function run(args: readonly string[]): Promise<void> {
 }
 
 /**
- * 宿主加载一个 Skill：落一行真实的 PostToolUse 历史，再经生产命令把它绑定到 canonical StepVisit
- * 上（hooks/skill-tracker.sh 最终调用的就是这条）。时间戳跟 harness 的固定 clock 走，
- * 与文档登记时刻同一口径。
+ * 宿主加载一个 Skill：落一行 PostToolUse 历史，再经生产命令把它绑定到 canonical StepVisit 上
+ * （hooks/skill-tracker.sh 最终调用的就是这条）。时间戳跟 harness 的固定 clock 走，与文档登记
+ * 时刻同一口径。
  */
 let toolUseSeq = 0
 async function loadSkill(skill: string): Promise<void> {
