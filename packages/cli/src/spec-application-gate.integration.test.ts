@@ -13,6 +13,7 @@
  * 本文件在真 harness 上把那份彩排回执原样摆出来，逐条钉住三个出口：check 拒、status 的出边
  * blockers 点名、transition 不动相位；再换成真应用后三者一起放行。
  */
+import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
@@ -98,6 +99,24 @@ describe('ship 出口：delta spec 必须真的应用进主规格', () => {
     expect(h.out.join('\n')).toContain('[FAIL] migration: spec-apply-receipt-missing')
     expect(await h.run(['transition', CHANGE, 'ship-complete'])).toBe(1)
     expect(await h.read(CHANGE)).toMatch(/^phase: ship$/m)
+  })
+
+  /**
+   * 真机实测那三条 track 的终局：`find openspec/specs -type f` 一个文件都没有，change 却在 完结。
+   * 这一条就钉住那个终局——主规格目录整个为空时，通往 完结 的那条边必须拒，且拒完之后主规格仍然为空。
+   */
+  test('主规格目录整个为空：通往 完结 的 ship-complete 被拒，逐字给出拒绝行', async () => {
+    await writeRehearsalReceipt()
+    await rm(join(h.cwd, 'openspec', 'specs'), { recursive: true, force: true })
+    expect(existsSync(join(h.cwd, 'openspec', 'specs'))).toBe(false)
+
+    expect(await h.run(['transition', CHANGE, 'ship-complete'])).toBe(1)
+    expect(h.err.join('\n')).toContain(
+      'ERROR: ship-complete 要求主规格迁移机器证据有效（当前=spec-apply-rehearsal-only）',
+    )
+    // 拒绝必须真拦住：相位没进 完结，主规格目录也还是空的。
+    expect(await h.read(CHANGE)).toMatch(/^phase: ship$/m)
+    expect(existsSync(join(h.cwd, 'openspec', 'specs'))).toBe(false)
   })
 
   test('真应用过：三个出口一起放行', async () => {

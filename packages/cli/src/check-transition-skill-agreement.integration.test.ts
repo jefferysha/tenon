@@ -141,10 +141,15 @@ describe('check ⇔ status ⇔ transition：相位出口规则表不得只有 ch
     expect(step.fields.some((field) => field.field === 'prd_path' && field.status === 'missing')).toBe(true)
     expect(step.fields.some((field) => field.field === 'pr_url')).toBe(false)
 
+    // 通往 完结（archive）的那条边逐字给出拒绝行；相位不动。
     const transition = await h.run(['transition', PM, 'ship-complete'])
     expect(transition, h.err.join('\n')).toBe(2)
-    expect(h.err.join('\n')).toContain('prd_path')
+    const stderr = h.err.join('\n')
+    expect(stderr).toContain("ERROR: step 'ship' guard 未通过：")
+    expect(stderr).toContain("ship 出口：要求 prd_path 非空（当前='null'）")
+    expect(stderr).toContain("ship 出口：要求 prd_path 文件存在 (pm track)（当前='null'）")
     expect(await h.read(PM)).toMatch(/^phase: ship$/m)
+    expect(await h.read(PM)).toMatch(/^archived: false$/m)
   })
 
   test('补齐 prd_path 后三条命令一起放行', async () => {
