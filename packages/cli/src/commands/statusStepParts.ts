@@ -5,7 +5,8 @@
  */
 import {
   DOCUMENT_KIND_CATALOG, documentPathTemplateForKind, isDocumentKind, renderDocumentPathForKind,
-  readsRequiredForPolicyStep, requiresForPolicyStep, resolveRequiredSkillSlots,
+  readsRequiredForPolicyStep, recordProducerCandidatesForPolicyStep, requiresForPolicyStep,
+  resolveRequiredSkillSlots,
   type DocumentEvidenceItem, type DocumentGovernancePolicy, type DocumentKind,
   type EffectiveWorkflowPlan, type PipelineState, type StepIR,
 } from '@tenon/kernel'
@@ -144,6 +145,10 @@ export interface StepDocumentsView {
 /**
  * 三类文档分别来自契约的 reads / role produce / role update；`role: require` 的项目文档与 reads
  * 同属「必须先在」的输入面，因此也列在 reads 里。
+ *
+ * 读清单的 producers 是**当前步**接受的那组，不是空表：输入文档被改动后状态变 stale，读不动了，
+ * 要的是一次重新登记，而登记命令只认当前步合法的 producer（`explore` 的 proposal 只认 `tenon`，
+ * 不认当初在 `open` 写它的 `openspec-propose`）。空表让投影说不出这件事。
  */
 export function stepDocuments(
   change: string,
@@ -156,7 +161,7 @@ export function stepDocuments(
   const seen = new Set<string>()
   return {
     reads: reads.filter((kind) => !seen.has(kind) && seen.add(kind))
-      .map((kind) => view(change, kind, [], items)),
+      .map((kind) => view(change, kind, recordProducerCandidatesForPolicyStep(policy, kind, stepId), items)),
     records: (policy.outputsByStep[stepId] ?? [])
       .map((requirement) => view(change, requirement.kind, requirement.producerCandidates, items)),
     updates: (policy.mutableByStep[stepId] ?? [])

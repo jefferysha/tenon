@@ -15399,7 +15399,7 @@ function evaluateCoverage(input2, failures, warnings) {
     }
   }
   if (covBlock > 0) {
-    failures.push(`spec \u51FA\u53E3\uFF1A\u5168\u6808 Spec \u8986\u76D6\uFF08${covBlock} \u5C42\u963B\u585E\uFF09\uFF1B\u5728 design_doc \u7684 \`\`\`coverage \u5757\u4E3A\u6BCF\u4E2A\u963B\u585E\u5C42\u5199 filled -> <\u7AE0\u8282> \u6216 waived -> <\u7406\u7531>\uFF08touches \u542B auth \u65F6 L6 \u4E0D\u53EF waived\uFF09`);
+    failures.push(`spec \u51FA\u53E3\uFF1A\u5168\u6808 Spec \u8986\u76D6\uFF08${covBlock} \u5C42\u963B\u585E\uFF09\uFF1B\u5728 design_doc \u7684 \`\`\`coverage \u5757\u4E3A\u6BCF\u4E2A\u963B\u585E\u5C42\u5199\u4E00\u884C \`<\u5C42>: filled -> <\u7AE0\u8282>\` \u6216 \`<\u5C42>: waived -> <\u7406\u7531>\`\uFF0C\u4F8B\uFF1A\`L1_api: filled -> \xA73 \u63A5\u53E3\u5951\u7EA6\`\uFF08touches \u542B auth \u65F6 L6_security \u4E0D\u53EF waived\uFF09`);
     for (const l of blockedLines)
       warnings.push(`\u8986\u76D6\u963B\u585E: ${l}`);
   }

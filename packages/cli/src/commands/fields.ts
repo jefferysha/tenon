@@ -63,6 +63,14 @@ function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
     deps.io.err(`ERROR: 字段 '${field}' 由 tenon transition <change> archived 管理，禁止通过 set/set-many/cas 写入；完结须经该转换才会同时落 archived_at 与 phase_status`)
     return true
   }
+  // build 修订是一次捕获，不是一个可以提前填好的值：`freeze-build-sha` 在离开 build 的那条转换上
+  // 读当前 HEAD / 工作区并写成绑定了本仓与本工作树的 build:v1 token，Verify 的 barrier 再按同一份
+  // 出处复核（provenance 只认那次转换落下的 effect）。手填一个裸 SHA 既过不了 barrier 的出处检查，
+  // 也会被那次转换原样覆盖——它唯一的作用是让运行器先写一遍、再白跑一趟 verify-fail。
+  if (field === 'build_sha') {
+    deps.io.err('ERROR: 字段 \'build_sha\' 由 build 出口的 transition 冻结（freeze-build-sha 副作用），禁止通过 set/set-many/cas 写入；先把实现与测试做完，再执行该 transition 捕获当前修订')
+    return true
+  }
   deps.io.err(`ERROR: 字段 '${field}' 由 ${field === 'phase' ? 'tenon transition' : 'tenon owner'} 管理，禁止通过 set/set-many/cas 写入`)
   return true
 }

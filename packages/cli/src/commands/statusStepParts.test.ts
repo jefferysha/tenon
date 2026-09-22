@@ -96,6 +96,21 @@ describe('stepFields —— 本步要填的槽', () => {
     expect(fields[0]).toMatchObject({ field: 'design_doc', writer: 'artifact-register', status: 'missing' })
   })
 
+  /**
+   * D4（acceptance run）：`build_sha` 是 build 出口的 `freeze-build-sha` 副作用冻结的 build:v1
+   * token（绑定本仓与本工作树），Verify 的 barrier 再按那次转换的 effect 复核出处。把它当成
+   * 运行器要填的槽，`next` 就会在写任何代码、跑任何测试之前发一条没有枚举、没有推荐值、也没有
+   * 任何命令能正确执行的 set-field——真机实测里运行器照做在空树上填了一个裸修订值，白跑一趟
+   * verify-fail → build → verify。
+   */
+  test('build_sha 标成 transition：由 build 出口冻结，不由运行器填', () => {
+    const fields = stepFields(
+      mockState({ phase: 'build', build_sha: 'null' }),
+      step({ id: 'build', outputs: [{ field: 'build_sha', type: 'string' }] }),
+    )
+    expect(fields[0]).toMatchObject({ field: 'build_sha', writer: 'transition' })
+  })
+
   /** D15：archived 由 archived 事件的副作用落值，投影不能把它标成运行器要 `tenon set` 的槽。 */
   test('转换管理的槽标成 transition，不标 set', () => {
     const fields = stepFields(
@@ -149,6 +164,50 @@ describe('stepDocuments —— 路径还定不下来的文档不许带走整块�
       { kind: 'delta-spec', status: 'recorded', paths: ['openspec/changes/demo/specs/routing/spec.md'] },
     ] as unknown as DocumentEvidenceItem[])
     expect(documents.records[0]?.path).toBe('openspec/changes/demo/specs/routing/spec.md')
+  })
+})
+
+
+/**
+ * D1（acceptance run）：输入文档被改后状态是 stale，重新登记时 `tenon document record` 只认
+ * **当前步**合法的 producer。读清单从前一律投影空 producers，于是投影对「怎么解开」一个字都说
+ * 不出；运行器只能拿当初写它的那个 producer 去试，撞上「producer 'openspec-propose' 不合法
+ * （当前 explore 允许: tenon）」。
+ */
+describe('stepDocuments —— 读清单的 producers 来自当前步的契约', () => {
+  const policy = {
+    id: 'openspec-v1',
+    steps: ['open', 'explore', 'build'],
+    outputsByStep: {
+      open: [{ kind: 'proposal', producerCandidates: ['openspec-propose'] }],
+      explore: [],
+      build: [],
+    },
+    mutableByStep: {
+      open: [],
+      explore: [{ kind: 'proposal', producerCandidates: ['tenon'] }],
+      build: [],
+    },
+    readsByStep: { open: [], explore: ['proposal'], build: ['proposal'] },
+    requiresByStep: {},
+  } as unknown as DocumentGovernancePolicy
+
+  const stale = [
+    { kind: 'proposal', status: 'stale', reason: 'changed', paths: ['openspec/changes/demo/proposal.md'] },
+  ] as unknown as DocumentEvidenceItem[]
+
+  test('explore 读到的 proposal 报 explore 接受的 producer，不是 open 的那个', () => {
+    expect(stepDocuments('demo', policy, 'explore', stale).reads).toEqual([{
+      kind: 'proposal',
+      path: 'openspec/changes/demo/proposal.md',
+      path_template: 'openspec/changes/{change}/proposal.md',
+      producers: ['tenon'],
+      status: 'stale',
+    }])
+  })
+
+  test('当前步不能重新登记它时如实报空 producers', () => {
+    expect(stepDocuments('demo', policy, 'build', stale).reads[0]?.producers).toEqual([])
   })
 })
 

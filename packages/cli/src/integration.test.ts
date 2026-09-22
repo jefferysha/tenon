@@ -412,17 +412,16 @@ describe('真实 e2e —— 全命令驱动真 kernel + 真 fs（GOAL C9）', ()
     if (!identity) throw new Error('real Git fixture identity unavailable')
     const backfilledToken = createBuildRevisionToken('git', revision, identity).value
 
-    // Reach Verify through the legacy field writer rather than Build-complete; no Build transition
-    // record/effect is created for this token. The report is a real governed artifact, but review
-    // request must now reject the unproven token before creating any receipt.
+    // Reach Verify without a Build-complete transition, so no transition record/effect exists for
+    // this token. `tenon set` no longer accepts `build_sha` at all (it is frozen by the Build exit),
+    // so the token is planted white-box through the store — this test's subject is the assessor
+    // that must reject an unproven token, not the writer that refuses to create one. The report is
+    // a real governed artifact, but review request must reject the token before any receipt.
     expect(await h.run(['transition', 'backfill', 'open-complete'])).toBe(0)
     await h.seedPhase('backfill', 'verify')
     await h.seedArtifact('backfill', 'verification_report', 'docs/superpowers/reports/backfill.md')
-    await h.run(['set-many', 'backfill',
-      'branch_status=handled',
-      'isolation=branch',
-      `build_sha=${backfilledToken}`,
-    ])
+    await h.seedArtifact('backfill', 'build_sha', backfilledToken)
+    await h.run(['set-many', 'backfill', 'branch_status=handled', 'isolation=branch'])
     const changeDir = join(h.cwd, 'openspec', 'changes', 'backfill')
     const recordsPath = join(changeDir, '.pipeline-transitions')
     const recordNames = (await readdir(recordsPath).catch(() => [] as string[])).sort()

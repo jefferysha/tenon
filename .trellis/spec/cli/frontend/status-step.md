@@ -46,8 +46,17 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   `next` 只剩 `finish-change`（治理归档命令）；两条命令的先后因此写在数据里，而不是靠人记。
 - 执行者失败可以重跑；评审者不通过不重跑——评审结论是证据，代码没改重跑只会得到同一份结论，
   该走的是回退边。
-- 回退边只在必需评审者不通过、且本步真的有回退边时出现在 `choose-exit` 里；否则给 `fix` 加上
-  全部前进边阻塞原因的并集。
+- 回退边只在必需评审者不通过、且本步真的有回退边时出现；否则给 `fix` 加上全部前进边阻塞原因的
+  并集。回退边与前进边过同一道门：`gate: review` 的步骤上，唯一的回退边走
+  `request-review → await-review → transition`（review 回执逐边绑定，一次「回到实现」的决定不能
+  顺便授权 verify-pass），多条回退边仍然交给人 `choose-exit`。
+- 文档动作按台账状态派：`missing` 的产出发 `scaffold-document` + `record-document` 一对（骨架
+  只写文件，登记才推进台账）；`stale` 的（产出 / 可改 / 只读输入都算）发 `record-document`；
+  `unread` 的才发 `read-documents`。`role: update` 的槽从没登记过时不发动作——它是「本步可以改
+  它」，不是「本步必须产出它」，与文档取证层（update 槽不进 blockers）同一口径。
+- 文档动作的 `producers` 恒取该文档在**当前步**合法的那组（`recordProducerCandidatesForPolicyStep`），
+  读清单也不例外：登记命令认的就是这一组。当前步没有合法 producer 时不发登记动作，让出口 blocker
+  如实说明。
 - `mode`：`TENON_AFK=1` → `afk`；本任务有交互授权 → `continuous`；否则 `interactive`。
 
 ## 4. Validation & Error Matrix
@@ -58,14 +67,22 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | 计划引用已删除技能 | `next: [{action: stop, code: retired-skills}]`，文案与 CLI/HTTP 拒绝同一份 |
 | 当前 step 不在计划里 | `next: [{action: stop, code: step-not-in-plan}]` |
 | 本次步骤访问还没加载 `tenon` | `next: [{action: load-tenon}]`，先于一切 |
-| 声明的输入文档未读 / 过期 | `read-documents` 带全部待读路径 |
+| 声明的输入文档未读（`unread`） | `read-documents` 带全部待读路径 |
+| 已登记的文档被改（`stale`） | `record-document`，producer 取当前步接受的那组；不再发 `read-documents` |
+| 本步产出还没有（`missing`） | `scaffold-document` + `record-document` 一对 |
+| `role: update` 的槽还没登记过 | 不发动作（可以改 ≠ 必须产出） |
 | 必需测试未通过 | `run-test`；失败的测试要先改代码再重跑 |
 | `delta-spec` 归本步且回执不新鲜 | 文档登记完之后 `validate-spec` |
 | `applied-spec` 归本步且回执不新鲜 | 先 `apply-spec`，再登记 |
+| 评审门上必需评审者打回且只有一条回退边 | `request-review` → `await-review` → `transition` |
 | 多条前进边就绪 | `choose-exit` |
+| 字段由转换副作用落值（`archived` / `build_sha` / review 回执…） | 不发写入动作，走到那条转换 |
 
 ## 5. Tests
 
 - `packages/cli/src/commands/statusStep.test.ts`：`stepNextActions` 的每条规则与相对顺序（纯输入）。
 - `packages/cli/src/commands/status.test.ts`：列表与无名形态逐字不变。
 - `packages/cli/src/spec-apply.integration.test.ts`：`spec apply` 的真实彩排与退出码。
+- `packages/cli/src/next-action-runner.integration.test.ts`：验收锚——只照 `next` 做事的运行器把一个
+  `default` 任务从 `open` 做到 `list --finished`，中途改掉一份已登记的文档、并被评审者打回一次。
+  `next` 发出去却执行不了的动作会让它当场红。

@@ -167,6 +167,22 @@ describe('status —— 人读渲染（对齐宽度）', () => {
     const code = await cmdStatus(deps, 'ghost', {})
     expect(code).toBe(1)
   })
+
+  /**
+   * D7（acceptance run）：`tenon status no-such-change` 打的是
+   * `ERROR: ENOENT: no such file or directory, open '….../.pipeline.yaml'`——既点名了内部存储
+   * 文件，又不告诉读者发生了什么。`tenon get` 早已把同一条缝翻译成产品层的一句话。
+   */
+  test('指定 name 不存在：产品层文案，不漏内部存储路径', async () => {
+    const deps = makeDeps({ states: { 'demo-a': stateA } })
+    deps.store.read = spy(async (dir: string) => {
+      const error: NodeJS.ErrnoException = new Error(`ENOENT: no such file or directory, open '${dir}/.pipeline.yaml'`)
+      error.code = 'ENOENT'
+      throw error
+    })
+    expect(await cmdStatus(deps, 'ghost', {})).toBe(1)
+    expect(deps.errLines).toEqual(['ERROR: change 不存在: ghost'])
+  })
 })
 
 describe('list —— 活跃 change 表；--json schema 稳定', () => {

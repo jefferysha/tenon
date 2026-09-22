@@ -114,6 +114,27 @@ describe('set —— 无输出 / 四闸拒写 exit 1', () => {
     expect(deps.errLines.join('\\n')).toContain('phase')
   })
 
+  /**
+   * D4（acceptance run）：`build_sha` 是 build 出口的 `freeze-build-sha` 副作用冻结的 build:v1
+   * token；Verify 的 barrier 按那次转换留下的 effect 复核出处，手填的值既过不了出处检查，也会被
+   * 那次转换原样覆盖。它与 phase/archived 同属「由转换落值」的槽，写入口一并拒，拒绝理由点名
+   * 该走哪条路。
+   */
+  test('build_sha 只能由 build 出口的 transition 冻结', async () => {
+    const deps = makeDeps({ state: mockState({ phase: 'build' }) })
+    expect(await cmdSet(deps, 'demo', 'build_sha', 'd'.repeat(40))).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    const err = deps.errLines.join('\n')
+    expect(err).toContain('build_sha')
+    expect(err).toContain('transition')
+  })
+
+  test('set-many 不能借批量写绕过 build_sha 的冻结', async () => {
+    const deps = makeDeps({ state: mockState({ phase: 'build' }) })
+    expect(await cmdSetMany(deps, 'demo', ['build_sha=cafebabe', 'branch=x'])).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+  })
+
   test('成功：无 stdout，exit 0，值透传（P6 锁内 write，plan 在空 phase 非 artifact → 放行）', async () => {
     const deps = makeDeps()
     const code = await cmdSet(deps, 'demo', 'plan', 'docs/plans/p.md')

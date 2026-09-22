@@ -1,4 +1,4 @@
-import { appendFile, mkdir, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { compileEffectiveWorkflowPlan, evaluateDocumentEvidence, parseWorkflow, readSkillInvocationEvidence } from '@tenon/kernel'
@@ -152,5 +152,35 @@ describe('document record canonical invocation binding', () => {
     const policy = compileEffectiveWorkflowPlan('design-flow', parseWorkflow(workflow)).documentPolicy
     if (policy === undefined) throw new Error('expected document-v1 policy')
     expect((await evaluateDocumentEvidence(h.cwd, changeDir, 'design', {}, policy)).blockers).toEqual([])
+  })
+
+  /**
+   * D2（acceptance run，frontend 的 ship）：`design-md` 在 default 里只以 `role: require` 和
+   * `role: update` 出现，从没被声明为任何一步的产出，所以 `document scaffold` 永远拒；而登记它
+   * 要的 `hue` 也不在 ship 的 skills 里。`next` 从前偏偏在那一步发 scaffold-document design-md，
+   * 两条命令都执行不了。这里钉住两条拒绝，以及那次失败的 scaffold 不会碰到既有的 DESIGN.md。
+   */
+  test('frontend ship 的 design-md：scaffold 与 hue 登记都被拒，既有 DESIGN.md 一个字节不动', async () => {
+    h = await freshHarness()
+    const name = 'shipdesign'
+    expect(await h.run(['init', name, '--track', 'frontend', '--preset', 'full']), h.err.join('\n')).toBe(0)
+    await h.seedArtifact(name, 'phase', 'ship')
+    const designMd = join(h.cwd, 'DESIGN.md')
+    const before = await readFile(designMd, 'utf8')
+
+    expect(await h.run(['document', 'scaffold', name, 'design-md'])).toBe(1)
+    expect(h.err.join('\n')).toContain("document kind 'design-md' 未在 workflow 'default' 的 contract 中声明")
+    expect(await readFile(designMd, 'utf8')).toBe(before)
+
+    expect(await h.run(['document', 'record', name, 'design-md', 'DESIGN.md', '--producer', 'hue'])).toBe(1)
+    expect(h.err.join('\n')).toContain("lacks exact host confirmation for document producer 'hue'")
+
+    // 于是这一步的 next 一条 design-md 动作都不发：它是「可以改」，不是「必须产出」。
+    expect(await h.run(['status', name, '--json']), h.err.join('\n')).toBe(0)
+    const step = (JSON.parse(h.out.join('\n')) as {
+      step: { documents: { updates: readonly { kind: string; status: string }[] }; next: readonly { action: string }[] }
+    }).step
+    expect(step.documents.updates.some((doc) => doc.kind === 'design-md' && doc.status === 'missing')).toBe(true)
+    expect(step.next.some((action) => JSON.stringify(action).includes('design-md'))).toBe(false)
   })
 })

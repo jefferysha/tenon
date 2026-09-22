@@ -19173,7 +19173,7 @@ function evaluateCoverage(input2, failures, warnings) {
     }
   }
   if (covBlock > 0) {
-    failures.push(`spec \u51FA\u53E3\uFF1A\u5168\u6808 Spec \u8986\u76D6\uFF08${covBlock} \u5C42\u963B\u585E\uFF09\uFF1B\u5728 design_doc \u7684 \`\`\`coverage \u5757\u4E3A\u6BCF\u4E2A\u963B\u585E\u5C42\u5199 filled -> <\u7AE0\u8282> \u6216 waived -> <\u7406\u7531>\uFF08touches \u542B auth \u65F6 L6 \u4E0D\u53EF waived\uFF09`);
+    failures.push(`spec \u51FA\u53E3\uFF1A\u5168\u6808 Spec \u8986\u76D6\uFF08${covBlock} \u5C42\u963B\u585E\uFF09\uFF1B\u5728 design_doc \u7684 \`\`\`coverage \u5757\u4E3A\u6BCF\u4E2A\u963B\u585E\u5C42\u5199\u4E00\u884C \`<\u5C42>: filled -> <\u7AE0\u8282>\` \u6216 \`<\u5C42>: waived -> <\u7406\u7531>\`\uFF0C\u4F8B\uFF1A\`L1_api: filled -> \xA73 \u63A5\u53E3\u5951\u7EA6\`\uFF08touches \u542B auth \u65F6 L6_security \u4E0D\u53EF waived\uFF09`);
     for (const l of blockedLines)
       warnings.push(`\u8986\u76D6\u963B\u585E: ${l}`);
   }
@@ -56197,6 +56197,7 @@ var TRANSITION_MANAGED_FIELDS = /* @__PURE__ */ new Set([
   "assignee",
   "archived",
   "archived_at",
+  "build_sha",
   ...REVIEW_GATE_FIELDS2
 ]);
 var STATIC_ENUMS = {
@@ -56382,6 +56383,10 @@ function rejectProtectedField(deps, field3) {
   }
   if (field3 === "archived" || field3 === "archived_at") {
     deps.io.err(`ERROR: \u5B57\u6BB5 '${field3}' \u7531 tenon transition <change> archived \u7BA1\u7406\uFF0C\u7981\u6B62\u901A\u8FC7 set/set-many/cas \u5199\u5165\uFF1B\u5B8C\u7ED3\u987B\u7ECF\u8BE5\u8F6C\u6362\u624D\u4F1A\u540C\u65F6\u843D archived_at \u4E0E phase_status`);
+    return true;
+  }
+  if (field3 === "build_sha") {
+    deps.io.err("ERROR: \u5B57\u6BB5 'build_sha' \u7531 build \u51FA\u53E3\u7684 transition \u51BB\u7ED3\uFF08freeze-build-sha \u526F\u4F5C\u7528\uFF09\uFF0C\u7981\u6B62\u901A\u8FC7 set/set-many/cas \u5199\u5165\uFF1B\u5148\u628A\u5B9E\u73B0\u4E0E\u6D4B\u8BD5\u505A\u5B8C\uFF0C\u518D\u6267\u884C\u8BE5 transition \u6355\u83B7\u5F53\u524D\u4FEE\u8BA2");
     return true;
   }
   deps.io.err(`ERROR: \u5B57\u6BB5 '${field3}' \u7531 ${field3 === "phase" ? "tenon transition" : "tenon owner"} \u7BA1\u7406\uFF0C\u7981\u6B62\u901A\u8FC7 set/set-many/cas \u5199\u5165`);
@@ -69263,7 +69268,7 @@ function stepDocuments(change, policy2, stepId, items) {
   const reads = [...readsRequiredForPolicyStep(policy2, stepId), ...requiresForPolicyStep(policy2, stepId)];
   const seen = /* @__PURE__ */ new Set();
   return {
-    reads: reads.filter((kind) => !seen.has(kind) && seen.add(kind)).map((kind) => view(change, kind, [], items)),
+    reads: reads.filter((kind) => !seen.has(kind) && seen.add(kind)).map((kind) => view(change, kind, recordProducerCandidatesForPolicyStep(policy2, kind, stepId), items)),
     records: (policy2.outputsByStep[stepId] ?? []).map((requirement) => view(change, requirement.kind, requirement.producerCandidates, items)),
     updates: (policy2.mutableByStep[stepId] ?? []).map((requirement) => view(change, requirement.kind, requirement.producerCandidates, items))
   };
@@ -69315,19 +69320,7 @@ function stepFields(state, step, artifacts = /* @__PURE__ */ new Set(), nativeGu
   return fields;
 }
 
-// packages/cli/src/commands/statusStep.ts
-var TENON_SKILL = "tenon";
-async function modeOf3(deps, name2) {
-  if ((deps.env?.("TENON_AFK") ?? "") === "1") return "afk";
-  const user = deps.user();
-  if (!isTenonUser(user)) return "interactive";
-  try {
-    const raw = await readFile67(userProjectPaths(deps.cwd, userSlug(user.id)).authority, "utf8");
-    return parseContinuousAuthority(raw)?.changeName === name2 ? "continuous" : "interactive";
-  } catch {
-    return "interactive";
-  }
-}
+// packages/cli/src/commands/statusStepNext.ts
 function stop(code, message2) {
   return [{ action: "stop", code, message: message2 }];
 }
@@ -69344,6 +69337,29 @@ function writeFieldActions(fields, producers) {
   }
   return actions;
 }
+function documentWriteActions(documents) {
+  const actions = [];
+  const seen = /* @__PURE__ */ new Set();
+  const push = (doc, scaffold) => {
+    if (seen.has(doc.kind)) return;
+    seen.add(doc.kind);
+    const shape = {
+      kind: doc.kind,
+      path: doc.path,
+      path_template: doc.path_template,
+      producers: doc.producers
+    };
+    if (scaffold) actions.push({ action: "scaffold-document", ...shape });
+    actions.push({ action: "record-document", ...shape });
+  };
+  for (const doc of documents.records) {
+    if (doc.status === "missing" || doc.status === "stale") push(doc, doc.status === "missing");
+  }
+  for (const doc of [...documents.updates, ...documents.reads]) {
+    if (doc.status === "stale" && doc.producers.length > 0) push(doc, false);
+  }
+  return actions;
+}
 function stepNextActions(input2) {
   if (input2.runArchived) {
     if (!input2.governedOpenspec) return stop("run-archived", `\u4EFB\u52A1 '${input2.change}' \u5DF2\u5B8C\u7ED3`);
@@ -69351,7 +69367,7 @@ function stepNextActions(input2) {
     return [{ action: "finish-change", change: input2.change, command: command2 }];
   }
   if (!input2.loaded) return [{ action: "load-tenon" }];
-  const unread = input2.documents.reads.filter((doc) => doc.status !== "recorded" && doc.status !== "read");
+  const unread = input2.documents.reads.filter((doc) => doc.status === "unread");
   if (unread.length > 0) {
     return [{ action: "read-documents", documents: unread.flatMap((doc) => doc.path ?? []) }];
   }
@@ -69362,18 +69378,8 @@ function stepNextActions(input2) {
     return ready.map((skill) => ({ action: "load-skill", skill: skill.id, wave: skill.wave }));
   }
   if (input2.ownsAppliedSpec && input2.specApplicationPending) return [{ action: "apply-spec" }];
-  const writes = [...input2.documents.records, ...input2.documents.updates].filter((doc) => doc.status !== "recorded");
-  if (writes.length > 0) {
-    return writes.map((doc) => ({
-      action: doc.status === "missing" ? "scaffold-document" : "record-document",
-      kind: doc.kind,
-      // path=null 时 path_template 说明还缺哪个变量（delta-spec 缺 {capability}，由作者拍板后
-      // 经 `tenon document scaffold <change> delta-spec --capability <x>` 定下来）。
-      path: doc.path,
-      path_template: doc.path_template,
-      producers: doc.producers
-    }));
-  }
+  const writes = documentWriteActions(input2.documents);
+  if (writes.length > 0) return writes;
   const missingFields = writeFieldActions(
     input2.fields.filter((field3) => field3.kind !== "outcome" && field3.status === "missing"),
     input2.artifactProducers
@@ -69400,14 +69406,22 @@ function pendingAgents(views, rerunFailed) {
     wave: view2.wave
   }));
 }
+function gatedBackActions(input2, back) {
+  const choose = { action: "choose-exit", exits: back.map((exit) => exit.event) };
+  if (input2.gate !== "review") return [choose];
+  const bound = back.find((exit) => exit.event === input2.review.event);
+  if (bound !== void 0) {
+    if (input2.review.status === "pending") return [{ action: "await-review", event: bound.event }];
+    if (input2.review.status === "approved") return [{ action: "transition", event: bound.event }];
+  }
+  const only = back.length === 1 ? back[0] : void 0;
+  return only === void 0 ? [choose] : [{ action: "request-review", event: only.event }];
+}
 function exitActions(input2) {
   const forward = input2.exits.filter((exit) => exit.direction !== "back");
   const back = input2.exits.filter((exit) => exit.direction === "back");
   const failed = input2.tests.some((test) => test.required && test.status === "failed") || input2.reviewers.some((view2) => view2.required && view2.status === "fail");
-  const firstBack = back[0];
-  if (failed && firstBack !== void 0) {
-    return [{ action: "choose-exit", exits: back.map((exit) => exit.event) }];
-  }
+  if (failed && back.length > 0) return gatedBackActions(input2, back);
   const readyForward = forward.filter((exit) => exit.ready);
   if (input2.gate === "review") {
     if (input2.review.status === "pending") return [{ action: "await-review", event: input2.review.event }];
@@ -69431,6 +69445,20 @@ function exitActions(input2) {
   const blockers = [];
   for (const exit of forward) blockers.push(...exit.blockers);
   return [{ action: "fix", blockers }];
+}
+
+// packages/cli/src/commands/statusStep.ts
+var TENON_SKILL = "tenon";
+async function modeOf3(deps, name2) {
+  if ((deps.env?.("TENON_AFK") ?? "") === "1") return "afk";
+  const user = deps.user();
+  if (!isTenonUser(user)) return "interactive";
+  try {
+    const raw = await readFile67(userProjectPaths(deps.cwd, userSlug(user.id)).authority, "utf8");
+    return parseContinuousAuthority(raw)?.changeName === name2 ? "continuous" : "interactive";
+  } catch {
+    return "interactive";
+  }
 }
 function artifactFieldsOf(deps, state, step) {
   try {
@@ -69596,7 +69624,8 @@ async function cmdStatus2(deps, name2, opts) {
       state = read3.state;
       finished2 = read3.finished;
     } catch (e) {
-      deps.io.err(`ERROR: ${errMsg(e)}`);
+      const code = typeof e === "object" && e !== null ? Reflect.get(e, "code") : void 0;
+      deps.io.err(code === "ENOENT" ? `ERROR: change \u4E0D\u5B58\u5728: ${name2}` : `ERROR: ${errMsg(e)}`);
       return 1;
     }
     const row2 = { name: name2, state };
