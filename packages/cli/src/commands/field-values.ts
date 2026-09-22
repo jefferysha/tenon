@@ -21,7 +21,7 @@ export const REVIEW_GATE_FIELDS = new Set<FieldName>([
  * 当成「完结要填的值」写成了 archived=true / archived_at=null 的半盖章终态）。
  */
 export const TRANSITION_MANAGED_FIELDS: ReadonlySet<string> = new Set<string>([
-  'phase', 'created_by', 'assignee', 'archived', 'archived_at', ...REVIEW_GATE_FIELDS,
+  'phase', 'created_by', 'assignee', 'archived', 'archived_at', 'build_sha', ...REVIEW_GATE_FIELDS,
 ])
 
 const STATIC_ENUMS: Partial<Record<FieldName, readonly string[]>> = {

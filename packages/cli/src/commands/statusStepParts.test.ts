@@ -96,6 +96,21 @@ describe('stepFields —— 本步要填的槽', () => {
     expect(fields[0]).toMatchObject({ field: 'design_doc', writer: 'artifact-register', status: 'missing' })
   })
 
+  /**
+   * D4（acceptance run）：`build_sha` 是 build 出口的 `freeze-build-sha` 副作用冻结的 build:v1
+   * token（绑定本仓与本工作树），Verify 的 barrier 再按那次转换的 effect 复核出处。把它当成
+   * 运行器要填的槽，`next` 就会在写任何代码、跑任何测试之前发一条没有枚举、没有推荐值、也没有
+   * 任何命令能正确执行的 set-field——真机实测里运行器照做在空树上填了一个裸修订值，白跑一趟
+   * verify-fail → build → verify。
+   */
+  test('build_sha 标成 transition：由 build 出口冻结，不由运行器填', () => {
+    const fields = stepFields(
+      mockState({ phase: 'build', build_sha: 'null' }),
+      step({ id: 'build', outputs: [{ field: 'build_sha', type: 'string' }] }),
+    )
+    expect(fields[0]).toMatchObject({ field: 'build_sha', writer: 'transition' })
+  })
+
   /** D15：archived 由 archived 事件的副作用落值，投影不能把它标成运行器要 `tenon set` 的槽。 */
   test('转换管理的槽标成 transition，不标 set', () => {
     const fields = stepFields(
@@ -151,6 +166,7 @@ describe('stepDocuments —— 路径还定不下来的文档不许带走整块�
     expect(documents.records[0]?.path).toBe('openspec/changes/demo/specs/routing/spec.md')
   })
 })
+
 
 /**
  * 真机实测的 P0（acceptance run）：frontend 的 ship 步声明 `{ kind: design-md, role: update,
