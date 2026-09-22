@@ -5,8 +5,8 @@
  *
  * exit 0 = 通过，1 = 用法或状态，2 = 校验/彩排失败，3 = 没有 openspec CLI，4 = 主规格被人改过。
  */
-import { writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 import {
   readDocumentLedger, renderDocumentTemplate, sha256Hex,
   type DocumentLocale, type DocumentRecord,
@@ -159,7 +159,12 @@ export async function cmdSpecApply(
     if (!conflict) {
       for (const target of targets) {
         if (target.change === 'no-op') continue
-        await writeFile(resolve(deps.cwd, target.path), target.after, 'utf8')
+        // 每条 `## ADDED Requirements` delta 引入的都是一个新 capability，它的
+        // openspec/specs/<capability>/ 目录此刻还不存在。彩排在临时整拷里把父目录一起建了，所以
+        // 它照样报 created；真写少了这一步就 ENOENT，于是「彩排过、真跑崩」成了每个首次 capability 的常态。
+        const absolute = resolve(deps.cwd, target.path)
+        await mkdir(dirname(absolute), { recursive: true })
+        await writeFile(absolute, target.after, 'utf8')
       }
       await writeAppliedSpec(dir, change, targets)
     }
