@@ -1,8 +1,8 @@
 /**
  * 当前步骤每条出边的就绪判定，结构化版本。
  *
- * 判定源与 `tenon check` / transition 完全相同（guard 求值器、文档台账、测试证据、agent 台账、
- * 规格迁移回执），这里只把「过 / 不过」摊成 skill 能照做的 per-exit blocker 列表。
+ * 判定源与 `tenon check` / transition 完全相同（guard 求值器、技能门、文档台账、测试证据、
+ * agent 台账、规格迁移回执），这里只把「过 / 不过」摊成 skill 能照做的 per-exit blocker 列表。
  */
 import {
   evaluateDefaultEventPreconditions, evaluateDocumentEvidence, evaluateSpecMigrationEvidence,
@@ -13,6 +13,7 @@ import {
 import type { CliDeps } from '../deps.js'
 import { str } from '../render.js'
 import { stepAgentBlockersFor } from '../agentGate.js'
+import { completedStepSkillIds, missingStepSkillTokensFrom } from '../stepSkillGate.js'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 
@@ -37,6 +38,10 @@ export interface StepExitReport {
   readonly documents: DocumentEvidenceReport | undefined
   readonly tests: readonly string[]
   readonly reviewers: readonly StepBlocker[]
+  /** 本步未满足的必需技能槽；transition 用同一份判定拒绝离开本步。 */
+  readonly skills: readonly StepBlocker[]
+  /** 本次进入该步骤之后已完成的技能 id；status 的技能分块据此排 done/ready/waiting。 */
+  readonly completedSkillIds: ReadonlySet<string>
 }
 
 const IMPLICIT_COMPLETION_EVENT = 'archived'
@@ -134,6 +139,12 @@ export async function evaluateStepExitReport(
     stepId,
     context: testEvidenceContextFor(deps, name),
   })
+  // 技能门对退回边同样生效（rejectOnStepGates 不分方向），所以它进 perExit 而非 shared。
+  const completedSkillIds = await completedStepSkillIds({
+    deps, changeDir: dir, stepId, capability: plan.capabilities.skills, recordEvidence: false,
+  })
+  const skills = missingStepSkillTokensFrom(deps, plan.capabilities.skills, stepId, completedSkillIds)
+    .map((token) => blocker('skill', 'skill-incomplete', `尚未完成声明的 skill：${token}`))
   const agentBlockers = await stepAgentBlockersFor({ deps, name, dir, stepId, plan, state })
   const reviewers = agentBlockers.map((item) =>
     blocker('reviewer', item.kind, renderAgentBlocker(item, name)))
@@ -155,7 +166,7 @@ export async function evaluateStepExitReport(
       : forward ? 'forward' : 'back'
     const guards = await guardBlockers(
       deps, name, dir, state, plan, stepId, transition.event, transition.to)
-    const blockers = forward ? [...guards, ...shared] : guards
+    const blockers = forward ? [...guards, ...skills, ...shared] : [...guards, ...skills]
     exits.push({
       event: transition.event,
       to: transition.to,
@@ -164,5 +175,5 @@ export async function evaluateStepExitReport(
       blockers,
     })
   }
-  return { exits, documents, tests: testReport.blockers, reviewers }
+  return { exits, documents, tests: testReport.blockers, reviewers, skills, completedSkillIds }
 }

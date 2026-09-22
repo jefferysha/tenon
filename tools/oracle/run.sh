@@ -733,7 +733,11 @@ run_step_dual() {
     bootstrap_new_document_contract "$base/new" "$change" \
       > "$step_dir/new.document-bootstrap.out" 2> "$step_dir/new.document-bootstrap.err" || bootstrap_rc=$?
   fi
-  if [ "$cmd" = transition ] && [ "$DOCUMENT_CONTRACT_BOOTSTRAP" = 1 ] && [ "$bootstrap_rc" -eq 0 ]; then
+  # Same reason as the document bootstrap above: `check` now previews transition's exact skill
+  # gate, so a historical fixture must get the same phase-skill evidence or the preview fails one
+  # step before the state guard it exists to compare.
+  if { [ "$cmd" = transition ] || [ "$cmd" = check ]; } && [ "$DOCUMENT_CONTRACT_BOOTSTRAP" = 1 ] \
+    && [ "$bootstrap_rc" -eq 0 ]; then
     bootstrap_new_phase_skills "$base/new" "$change" \
       > "$step_dir/new.skill-bootstrap.out" 2> "$step_dir/new.skill-bootstrap.err" || bootstrap_rc=$?
   fi

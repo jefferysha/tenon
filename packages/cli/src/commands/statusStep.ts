@@ -5,9 +5,8 @@
  * 这里把这些声明与现有证据合成一份闭集的 `next` 动作表。顺序只在这一个函数里，不写在 skill 文案里。
  */
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import {
-  completedWorkflowSkillsSinceStepEntry, isTenonUser, reviewGateEvent, reviewGateMatches,
+  isTenonUser, reviewGateEvent, reviewGateMatches,
   reviewGateStatus, userProjectPaths, userSlug,
   type EffectiveWorkflowPlan, type PipelineState,
 } from '@tenon/kernel'
@@ -67,14 +66,6 @@ export interface StepBlock {
 }
 
 const TENON_SKILL = 'tenon'
-
-async function historyRaw(dir: string): Promise<string> {
-  try {
-    return await readFile(join(dir, '.pipeline-history.jsonl'), 'utf8')
-  } catch {
-    return ''
-  }
-}
 
 /** 持续模式的证据是「这个 Change 上有交互授权」（`tenon session activate --continuous` 写的那份）。 */
 async function modeOf(deps: CliDeps, name: string): Promise<StepBlock['mode']> {
@@ -234,7 +225,9 @@ export async function buildStatusStep(
   const stepId = str(state.fields.phase)
   const step = plan.workflow.steps.find((candidate) => candidate.id === stepId)
   const archived = (await archivedChangesForUser(deps)).has(name)
-  const completed = completedWorkflowSkillsSinceStepEntry(await historyRaw(dir), stepId)
+  // 出边报告与技能分块共用同一份完成证据；两处各算一遍就是 check/transition 分歧的来源。
+  const report = await evaluateStepExitReport(deps, name, dir, state, plan)
+  const completed = report.completedSkillIds
   const skills = stepSkills(deps, plan, stepId, completed)
   const agents = await agentStepViews(deps, name, dir, state, plan, stepId)
   const testReport = await testEvidenceReaderFor(deps)({
@@ -248,7 +241,6 @@ export async function buildStatusStep(
     status: item.status,
     run_id: item.run?.run_id ?? null,
   }))
-  const report = await evaluateStepExitReport(deps, name, dir, state, plan)
   const policy = plan.capabilities.documents.policy
   const documents = stepDocuments(name, policy, stepId, report.documents?.items ?? [])
   const fields = stepFields(state, step)
