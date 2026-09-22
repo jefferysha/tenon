@@ -6,7 +6,24 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DESIGN_MD_PATH, DESIGN_MODEL_PATH, DESIGN_PREVIEWS, DESIGN_SCHEMA, DESIGN_SECTIONS } from './check.js'
 
-const MODEL = ['name: Ridge', 'primitives:', '  gray: {}', 'tokens:', '  light: {}', 'components:', '  button: {}', ''].join('\n')
+// tokens.colors.light/dark 的 background/text1 是 hue 对比度门的输入；缺了它就只报 WARN、
+// 整道检查静默跳过（见 check.ts DESIGN_MODEL_CONTRAST_PATHS），所以「就绪」夹具必须带上。
+const MODEL = [
+  'name: Ridge',
+  'primitives:',
+  '  gray: {}',
+  'tokens:',
+  '  colors:',
+  '    light:',
+  '      background: "#ffffff"',
+  '      text1: "#111111"',
+  '    dark:',
+  '      background: "#111111"',
+  '      text1: "#f5f5f5"',
+  'components:',
+  '  button: {}',
+  '',
+].join('\n')
 
 export function readyDesignMd(icons = 'lucide'): string {
   return [
