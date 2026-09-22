@@ -18142,23 +18142,35 @@ function documentTemplateIdForKind(kind) {
     throw new Error(`\u672A\u77E5 document kind '${kind}'`);
   return templateId;
 }
-function documentPathForKind(kind, variables) {
-  const templateId = documentTemplateIdForKind(kind);
-  const definition = DOCUMENT_PRESENTATION_REGISTRY.templates[templateId];
+function documentPathTemplateForKind(kind) {
+  return DOCUMENT_PRESENTATION_REGISTRY.templates[documentTemplateIdForKind(kind)].path;
+}
+function renderDocumentPathForKind(kind, variables) {
+  const definition = DOCUMENT_PRESENTATION_REGISTRY.templates[documentTemplateIdForKind(kind)];
   const values = {
     change: variables.change,
     capability: variables.capability
   };
-  const output2 = definition.path.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (_token, key) => {
+  let missing3;
+  const output2 = definition.path.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (token, key) => {
     const value = values[key];
     if (value === void 0 || value === "") {
-      throw new Error(`document kind '${kind}' \u8DEF\u5F84\u7F3A\u5C11 '${key}'`);
+      missing3 ??= key;
+      return token;
     }
     return value;
   });
+  if (missing3 !== void 0)
+    return { missing: missing3 };
   if (/[{}]/.test(output2))
     throw new Error(`document kind '${kind}' \u8DEF\u5F84\u542B\u672A\u89E3\u6790\u5360\u4F4D\u7B26`);
-  return output2;
+  return { path: output2 };
+}
+function documentPathForKind(kind, variables) {
+  const rendered = renderDocumentPathForKind(kind, variables);
+  if ("missing" in rendered)
+    throw new Error(`document kind '${kind}' \u8DEF\u5F84\u7F3A\u5C11 '${rendered.missing}'`);
+  return rendered.path;
 }
 function workflowStepLabel(step, locale, stepLabelSource) {
   const explicit = step.label?.trim();
@@ -68975,13 +68987,16 @@ function documentPath(change, kind, item2) {
   const recorded = item2?.paths[0];
   if (recorded !== void 0) return recorded;
   const projectPath = DOCUMENT_KIND_CATALOG[kind].projectPath;
-  return projectPath ?? documentPathForKind(kind, { change });
+  if (projectPath !== void 0) return projectPath;
+  const rendered = renderDocumentPathForKind(kind, { change });
+  return "missing" in rendered ? null : rendered.path;
 }
 function view(change, kind, producers, items) {
   const item2 = items.find((candidate2) => candidate2.kind === kind);
   return {
     kind,
     path: documentPath(change, kind, item2),
+    path_template: DOCUMENT_KIND_CATALOG[kind].projectPath ?? documentPathTemplateForKind(kind),
     producers,
     status: item2?.status ?? "missing"
   };
@@ -69112,7 +69127,7 @@ function stepNextActions(input2) {
   if (!input2.loaded) return [{ action: "load-tenon" }];
   const unread = input2.documents.reads.filter((doc) => doc.status !== "recorded" && doc.status !== "read");
   if (unread.length > 0) {
-    return [{ action: "read-documents", documents: unread.map((doc) => doc.path) }];
+    return [{ action: "read-documents", documents: unread.flatMap((doc) => doc.path ?? []) }];
   }
   const executors = pendingAgents(input2.executors, true);
   if (executors.length > 0) return executors;
@@ -69126,7 +69141,10 @@ function stepNextActions(input2) {
     return writes.map((doc) => ({
       action: doc.status === "missing" ? "scaffold-document" : "record-document",
       kind: doc.kind,
+      // path=null 时 path_template 说明还缺哪个变量（delta-spec 缺 {capability}，由作者拍板后
+      // 经 `tenon document scaffold <change> delta-spec --capability <x>` 定下来）。
       path: doc.path,
+      path_template: doc.path_template,
       producers: doc.producers
     }));
   }

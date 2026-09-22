@@ -139,7 +139,8 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
 
   const unread = input.documents.reads.filter((doc) => doc.status !== 'recorded' && doc.status !== 'read')
   if (unread.length > 0) {
-    return [{ action: 'read-documents', documents: unread.map((doc) => doc.path) }]
+    // 路径还定不下来的文档不进读清单：没有路径就没有可读的文件，列出 null 只会让执行者读空气。
+    return [{ action: 'read-documents', documents: unread.flatMap((doc) => doc.path ?? []) }]
   }
 
   const executors = pendingAgents(input.executors, true)
@@ -157,7 +158,10 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     return writes.map((doc) => ({
       action: doc.status === 'missing' ? 'scaffold-document' : 'record-document',
       kind: doc.kind,
+      // path=null 时 path_template 说明还缺哪个变量（delta-spec 缺 {capability}，由作者拍板后
+      // 经 `tenon document scaffold <change> delta-spec --capability <x>` 定下来）。
       path: doc.path,
+      path_template: doc.path_template,
       producers: doc.producers,
     }))
   }
