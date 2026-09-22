@@ -343,6 +343,7 @@ describe('真实 e2e —— init --workflow 落地自定义 workflow 的首个 s
     expect(await h.run(['transition', name, 'verify-pass'])).toBe(0)
 
     await recordSkills('finishing-a-development-branch')
+    await h.seedAppliedSpec(name)
     expect(await h.run(['document', 'read', name, 'all'])).toBe(0)
     expect(await h.run(['transition', name, 'ship-complete']), h.err.join('\n')).toBe(0)
     expect(await h.run(['document', 'read', name, 'all'])).toBe(0)

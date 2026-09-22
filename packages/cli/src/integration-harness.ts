@@ -53,7 +53,9 @@ import {
   type TrackValidationContext,
 } from '@tenon/kernel'
 import type { CliDeps, GuardFileContext } from './deps.js'
-import { FIXED_CLOCK, readGovernedDocumentsForCurrentVisit, seedGovernedDocumentEvidence } from './integration-harness-documents.js'
+import {
+  FIXED_CLOCK, readGovernedDocumentsForCurrentVisit, seedAppliedSpec, seedGovernedDocumentEvidence,
+} from './integration-harness-documents.js'
 export { FIXED_CLOCK, seedGovernedDocumentEvidence } from './integration-harness-documents.js'
 import { harnessArtifactSubmission } from './integration-submission-test-support.js'
 import { buildProgram, CliExit } from './program.js'
@@ -135,6 +137,13 @@ export interface Harness {
       readonly autoSkills?: boolean
     },
   ) => Promise<void>
+  /**
+   * Leave behind what a real `tenon spec apply <name>` leaves behind, for tests that must walk
+   * through Ship while their subject is something else. Ship's spec-migration-applied guard now
+   * demands this change's own delta spec to be applied, so a test that never applies it is
+   * asserting the blocked path on purpose.
+   */
+  seedAppliedSpec: (name: string) => Promise<void>
   /**
    * 像真实用户那样满足某一步的必需测试：项目声明自己的 npm 脚本，然后逐项 `tenon test run`。
    * 不绕过门禁——跑的是工作流声明的那条命令，落的是真记录。
@@ -449,6 +458,8 @@ export function makeHarness(cwd: string): Harness {
         }
       }
     },
+    seedAppliedSpec: (name) =>
+      seedAppliedSpec(cwd, join(cwd, 'openspec', 'changes', name), name),
     seedGovernedDocumentEvidence: async (name, overrides) => {
       await seedGovernedDocumentEvidence(
         cwd,

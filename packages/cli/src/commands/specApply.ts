@@ -8,7 +8,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import {
-  readDocumentLedger, renderDocumentTemplate, sha256Hex,
+  readDocumentLedger, renderDocumentTemplate, sha256Hex, SPEC_APPLY_RECEIPT_FILE,
   type DocumentLocale, type DocumentRecord,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
@@ -21,7 +21,8 @@ import {
   type SpecApplyHooks, type SpecTarget,
 } from './specApplyRehearsal.js'
 
-export const SPEC_APPLY_RECEIPT = '.pipeline-spec-apply.json'
+/** 回执文件名的真相源在 kernel：ship 出口的 spec-migration-applied guard 读的是同一份。 */
+export const SPEC_APPLY_RECEIPT = SPEC_APPLY_RECEIPT_FILE
 const APPLIED_SPEC_FILE = 'applied-spec.md'
 
 export type { SpecApplyHooks } from './specApplyRehearsal.js'

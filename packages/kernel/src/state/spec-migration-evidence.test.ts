@@ -24,9 +24,79 @@ describe('主规格迁移机器证据', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  it('没有 migration receipt 时明确判为不需要，而不是伪造应用结果', async () => {
+  it('没有 migration receipt、也没登记过 delta spec：这份 change 不产出规格增量，判为不需要', async () => {
     await expect(evaluateSpecMigrationEvidence(root, changeDir, change)).resolves.toEqual({
       kind: 'not-required',
+    })
+  })
+
+  /**
+   * 历史迁移回执之外，guard 还必须回答这份 change 自己的规格应用。真机三条 track 全部走到完结，
+   * 主规格目录空空如也，靠的就是一份 `--dry-run` 写下的 result=pass 回执。
+   */
+  describe('这份 change 自己的 delta spec 应用', () => {
+    const capability = 'demo-two'
+    const deltaPath = `openspec/changes/${change}/specs/${capability}/spec.md`
+    const mainPath = `openspec/specs/${capability}/spec.md`
+    const deltaBody = '## ADDED Requirements\n'
+    const mainBody = '# demo-two\n'
+
+    async function seedDelta(): Promise<void> {
+      await mkdir(join(changeDir, 'specs', capability), { recursive: true })
+      await writeFile(join(root, deltaPath), deltaBody)
+      await writeFile(join(changeDir, '.pipeline-documents.json'), `${JSON.stringify({
+        version: 1,
+        contract: 'openspec-v1',
+        createdAt: '2026-09-22T00:00:00Z',
+        records: [{
+          kind: 'delta-spec',
+          path: deltaPath,
+          sha256: digest(deltaBody),
+          producer: 'openspec-propose',
+          recordedAt: '2026-09-22T00:00:00Z',
+          reads: [],
+        }],
+      }, null, 2)}\n`)
+    }
+
+    async function seedReceipt(mode: string): Promise<void> {
+      await writeFile(join(changeDir, '.pipeline-spec-apply.json'), `${JSON.stringify({
+        schema: 'tenon-spec-apply-v1',
+        change,
+        mode,
+        result: 'pass',
+        deltas: [{ path: deltaPath, sha256: digest(deltaBody) }],
+        targets: [{
+          path: mainPath, before_sha256: null, after_sha256: digest(mainBody), change: 'created',
+        }],
+      }, null, 2)}\n`)
+    }
+
+    it('只彩排过（mode=dry-run）：拒绝，理由点名彩排', async () => {
+      await seedDelta()
+      await seedReceipt('dry-run')
+      await expect(evaluateSpecMigrationEvidence(root, changeDir, change)).resolves.toEqual({
+        kind: 'invalid',
+        reason: 'spec-apply-rehearsal-only',
+      })
+    })
+
+    it('登记了 delta spec 却没跑过 spec apply：拒绝', async () => {
+      await seedDelta()
+      await expect(evaluateSpecMigrationEvidence(root, changeDir, change)).resolves.toEqual({
+        kind: 'invalid',
+        reason: 'spec-apply-receipt-missing',
+      })
+    })
+
+    it('真跑过且主规格在盘上：通过', async () => {
+      await seedDelta()
+      await seedReceipt('apply')
+      await mkdir(join(root, 'openspec', 'specs', capability), { recursive: true })
+      await writeFile(join(root, mainPath), mainBody)
+      await expect(evaluateSpecMigrationEvidence(root, changeDir, change)).resolves.toEqual({
+        kind: 'applied',
+      })
     })
   })
 

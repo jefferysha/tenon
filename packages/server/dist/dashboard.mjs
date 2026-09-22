@@ -4,7 +4,7 @@ import { createRequire as __cr } from 'node:module'; const require = __cr(import
 // packages/server/src/main.ts
 import { execFile as execFile10 } from "node:child_process";
 import { mkdirSync as mkdirSync10, unlinkSync as unlinkSync5, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname24, join as join104 } from "node:path";
+import { dirname as dirname24, join as join105 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // packages/tap/dist/paths.js
@@ -3750,9 +3750,9 @@ async function hydratePreVerifyReview(changeDir2, revision) {
   }
   return attach(revision, parseRecord(await readFile3(target, "utf8"), target));
 }
-function hydratePreVerifyReviewFromSync(readText, revision, sourceRoot = "canonical state") {
+function hydratePreVerifyReviewFromSync(readText2, revision, sourceRoot = "canonical state") {
   const relative14 = preVerifyReviewRelativePath(revision.revision, revision.revisionId);
-  const raw = readText(relative14);
+  const raw = readText2(relative14);
   return attach(revision, raw === void 0 ? void 0 : parseRecord(raw, join6(sourceRoot, relative14)));
 }
 
@@ -3841,9 +3841,9 @@ async function hydrateReviewAcknowledgedVia(changeDir2, revision) {
   }
   return attach2(revision, parseRecord2(await readFile4(target, "utf8"), target));
 }
-function hydrateReviewAcknowledgedViaFromSync(readText, revision, sourceRoot = "canonical state") {
+function hydrateReviewAcknowledgedViaFromSync(readText2, revision, sourceRoot = "canonical state") {
   const relative14 = reviewAcknowledgedViaRelativePath(revision.revision, revision.revisionId);
-  const raw = readText(relative14);
+  const raw = readText2(relative14);
   return attach2(revision, raw === void 0 ? void 0 : parseRecord2(raw, join7(sourceRoot, relative14)));
 }
 
@@ -3851,8 +3851,8 @@ function hydrateReviewAcknowledgedViaFromSync(readText, revision, sourceRoot = "
 async function hydrateCompanions(changeDir2, revision) {
   return hydrateReviewAcknowledgedVia(changeDir2, await hydratePreVerifyReview(changeDir2, revision));
 }
-function hydrateCompanionsFromSync(readText, revision, sourceRoot = "canonical state") {
-  return hydrateReviewAcknowledgedViaFromSync(readText, hydratePreVerifyReviewFromSync(readText, revision, sourceRoot), sourceRoot);
+function hydrateCompanionsFromSync(readText2, revision, sourceRoot = "canonical state") {
+  return hydrateReviewAcknowledgedViaFromSync(readText2, hydratePreVerifyReviewFromSync(readText2, revision, sourceRoot), sourceRoot);
 }
 async function publishCompanions(changeDir2, revision, logicalState) {
   await publishReviewAcknowledgedViaRecord(changeDir2, revision);
@@ -3949,7 +3949,7 @@ function validateAnchoredRecord(revision, raw, source2) {
     throw new RunStateCorruptError(`canonical head TransitionRecord \u635F\u574F: ${String(error2)}`);
   }
 }
-async function validateAnchoredTransitionHead(revision, readText, sourceRoot) {
+async function validateAnchoredTransitionHead(revision, readText2, sourceRoot) {
   const anchor = readTransitionHeadAnchor(revision.state);
   if (anchor === void 0)
     return void 0;
@@ -3960,12 +3960,12 @@ async function validateAnchoredTransitionHead(revision, readText, sourceRoot) {
   if (!transitionHeadAnchorMatchesMetadata(anchor, metadata))
     return void 0;
   const relativePath = anchoredRecordPath(anchor);
-  const raw = await readText(relativePath);
+  const raw = await readText2(relativePath);
   if (raw === void 0)
     throw new RunStateCorruptError("canonical head TransitionRecord \u7F3A\u5931");
   return validateAnchoredRecord(revision, raw, join8(sourceRoot, relativePath));
 }
-function validateAnchoredTransitionHeadFromSync(revision, readText, sourceRoot) {
+function validateAnchoredTransitionHeadFromSync(revision, readText2, sourceRoot) {
   const anchor = readTransitionHeadAnchor(revision.state);
   if (anchor === void 0)
     return void 0;
@@ -3976,7 +3976,7 @@ function validateAnchoredTransitionHeadFromSync(revision, readText, sourceRoot) 
   if (!transitionHeadAnchorMatchesMetadata(anchor, metadata))
     return void 0;
   const relativePath = anchoredRecordPath(anchor);
-  const raw = readText(relativePath);
+  const raw = readText2(relativePath);
   if (raw === void 0)
     throw new RunStateCorruptError("canonical head TransitionRecord \u7F3A\u5931");
   return validateAnchoredRecord(revision, raw, join8(sourceRoot, relativePath));
@@ -4134,7 +4134,7 @@ async function assertTransitionRecordFile(changeDir2, revision, previous) {
   assertTransitionRevisionLink(revision, transition, transitionRaw, previous);
   return transition;
 }
-function assertTransitionRecordFromSync(readText, revision, sourceRoot, previous) {
+function assertTransitionRecordFromSync(readText2, revision, sourceRoot, previous) {
   if (revision.mutation.kind !== "transition")
     return void 0;
   const metadata = revision.state.runMetadata;
@@ -4142,7 +4142,7 @@ function assertTransitionRecordFromSync(readText, revision, sourceRoot, previous
     throw new RunStateCorruptError("transition revision \u7F3A canonical run head/sequence");
   }
   const transitionRel = join9(TRANSITION_RECORDS_DIR, `${String(metadata.transitionSequence).padStart(6, "0")}-${revision.mutation.transitionRecordId}.json`);
-  const transitionRaw = readText(transitionRel);
+  const transitionRaw = readText2(transitionRel);
   if (transitionRaw === void 0)
     throw new RunStateCorruptError("transition revision \u5F15\u7528\u7684 TransitionRecord \u7F3A\u5931");
   try {
@@ -4302,43 +4302,43 @@ async function readRegularTextIfExists(pathname) {
     throw error2;
   }
 }
-function readCurrentRunRevisionFromSync(readText, sourceRoot = "canonical state") {
+function readCurrentRunRevisionFromSync(readText2, sourceRoot = "canonical state") {
   const currentRel = join9(RUN_STATE_DIR, RUN_CURRENT_FILE);
-  const raw = readText(currentRel);
+  const raw = readText2(currentRel);
   if (raw === void 0)
     return void 0;
   const currentSource = join9(sourceRoot, currentRel);
-  const current = hydrateCompanionsFromSync(readText, parseRunRevision(raw, currentSource), sourceRoot);
+  const current = hydrateCompanionsFromSync(readText2, parseRunRevision(raw, currentSource), sourceRoot);
   const revisionsRel = join9(RUN_STATE_DIR, RUN_REVISIONS_DIR);
   const immutableRel = join9(revisionsRel, revisionFileName(current.revision, current.revisionId));
-  const immutableRaw = readText(immutableRel);
+  const immutableRaw = readText2(immutableRel);
   if (immutableRaw === void 0) {
     throw new RunStateCorruptError(`current \u5F15\u7528\u7684 immutable revision \u7F3A\u5931: ${join9(sourceRoot, immutableRel)}`);
   }
-  hydrateCompanionsFromSync(readText, parseRunRevision(immutableRaw, join9(sourceRoot, immutableRel)), sourceRoot);
+  hydrateCompanionsFromSync(readText2, parseRunRevision(immutableRaw, join9(sourceRoot, immutableRel)), sourceRoot);
   if (immutableRaw !== raw)
     throw new RunStateCorruptError("current \u4E0E immutable revision \u5B57\u8282\u4E0D\u4E00\u81F4");
   let previous;
   if (current.revision > 0) {
     const previousRevisionId = previousRevisionIdFor(current);
     const previousRel = join9(revisionsRel, revisionFileName(current.revision - 1, previousRevisionId));
-    const previousRaw = readText(previousRel);
+    const previousRaw = readText2(previousRel);
     if (previousRaw === void 0)
       throw new RunStateCorruptError("current \u5F15\u7528\u7684 previous revision \u7F3A\u5931");
-    previous = hydrateCompanionsFromSync(readText, parseRunRevision(previousRaw, join9(sourceRoot, previousRel)), sourceRoot);
+    previous = hydrateCompanionsFromSync(readText2, parseRunRevision(previousRaw, join9(sourceRoot, previousRel)), sourceRoot);
     if (previous.revisionId !== previousRevisionId || previous.revision !== current.revision - 1) {
       throw new RunStateCorruptError("current \u5F15\u7528\u7684 previous revision \u8EAB\u4EFD\u4E0D\u4E00\u81F4");
     }
     assertMutationEffects(current, previous);
   }
-  assertTransitionRecordFromSync(readText, current, sourceRoot, previous);
-  validateAnchoredTransitionHeadFromSync(current, readText, sourceRoot);
+  assertTransitionRecordFromSync(readText2, current, sourceRoot, previous);
+  validateAnchoredTransitionHeadFromSync(current, readText2, sourceRoot);
   if (previous?.mutation.kind === "transition") {
     const predecessorId = previousRevisionIdFor(previous);
     const predecessorRel = join9(revisionsRel, revisionFileName(previous.revision - 1, predecessorId));
-    const predecessorRaw = readText(predecessorRel);
-    const predecessor = assertDirectPredecessor(previous, predecessorRaw === void 0 ? void 0 : hydrateCompanionsFromSync(readText, parseRunRevision(predecessorRaw, join9(sourceRoot, predecessorRel)), sourceRoot));
-    assertTransitionRecordFromSync(readText, previous, sourceRoot, predecessor);
+    const predecessorRaw = readText2(predecessorRel);
+    const predecessor = assertDirectPredecessor(previous, predecessorRaw === void 0 ? void 0 : hydrateCompanionsFromSync(readText2, parseRunRevision(predecessorRaw, join9(sourceRoot, predecessorRel)), sourceRoot));
+    assertTransitionRecordFromSync(readText2, previous, sourceRoot, predecessor);
   }
   return current;
 }
@@ -4741,10 +4741,10 @@ async function readValidatedTransitionHead(changeDir2) {
   }
   throw new RunStateCorruptError("legacy canonical transition head \u8D85\u8FC7\u517C\u5BB9\u6821\u9A8C\u4E0A\u9650\u6216\u7F3A\u63D0\u4EA4 revision");
 }
-function readValidatedTransitionHeadFromSync(readText, sourceRoot = "canonical state") {
+function readValidatedTransitionHeadFromSync(readText2, sourceRoot = "canonical state") {
   let totalBytes = 0;
   const boundedRead2 = (relativePath) => {
-    const raw = readText(relativePath);
+    const raw = readText2(relativePath);
     if (raw === void 0)
       return void 0;
     totalBytes += Buffer.byteLength(raw, "utf8");
@@ -14069,17 +14069,17 @@ async function readAgentRuns(changeDir2) {
 
 // packages/kernel/dist/state/sync-reader.js
 var LEGACY_STATE_FILE_NAME = ".pipeline.yaml";
-function readPipelineStateFromSync(readText, sourceRoot = "canonical Change state") {
-  const current = readCurrentRunRevisionFromSync(readText, sourceRoot);
+function readPipelineStateFromSync(readText2, sourceRoot = "canonical Change state") {
+  const current = readCurrentRunRevisionFromSync(readText2, sourceRoot);
   if (current !== void 0) {
-    const bindingRaw = readText(".pipeline-workflow-governance.json");
-    const planRaw = readText(".pipeline-workflow-plan.json");
+    const bindingRaw = readText2(".pipeline-workflow-governance.json");
+    const planRaw = readText2(".pipeline-workflow-plan.json");
     const state = structuredClone(current.state);
     const governedMetadata = attachWorkflowGovernanceBinding(state.runMetadata, bindingRaw === void 0 ? void 0 : parseWorkflowGovernanceBinding(bindingRaw));
     const metadata = attachWorkflowPlanSnapshot(governedMetadata, planRaw === void 0 ? void 0 : parseWorkflowPlanSnapshot(planRaw));
     return { ...state, ...metadata === void 0 ? {} : { runMetadata: metadata } };
   }
-  const legacy = readText(LEGACY_STATE_FILE_NAME);
+  const legacy = readText2(LEGACY_STATE_FILE_NAME);
   return legacy === void 0 ? void 0 : parsePipeline(legacy);
 }
 
@@ -14826,8 +14826,103 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
 
 // packages/kernel/dist/state/spec-migration-evidence.js
 import { createHash as createHash12 } from "node:crypto";
-import { lstat as lstat16, readFile as readFile16, realpath as realpath5 } from "node:fs/promises";
-import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve6, sep as sep6 } from "node:path";
+import { lstat as lstat16, readFile as readFile17, realpath as realpath5 } from "node:fs/promises";
+import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve7, sep as sep6 } from "node:path";
+
+// packages/kernel/dist/state/spec-apply-receipt.js
+import { readFile as readFile16 } from "node:fs/promises";
+import { join as join24, resolve as resolve6 } from "node:path";
+var SPEC_APPLY_RECEIPT_FILE = ".pipeline-spec-apply.json";
+var UNUSABLE = {
+  rehearsed: false,
+  applied: false,
+  mode: null,
+  reason: "spec-apply-receipt-missing"
+};
+async function readText(path14) {
+  try {
+    return await readFile16(path14, "utf8");
+  } catch {
+    return null;
+  }
+}
+function asRecord6(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function asArray6(value) {
+  return Array.isArray(value) ? value : [];
+}
+function asText(value) {
+  return typeof value === "string" ? value : void 0;
+}
+async function recordedDeltaSpecPaths(changeDir2) {
+  const ledger = await readDocumentLedger(changeDir2);
+  return (ledger?.records ?? []).filter((record11) => record11.kind === "delta-spec").map((record11) => record11.path);
+}
+async function readSpecApplyReceiptStatus(repoRoot, changeDir2) {
+  let deltas;
+  try {
+    deltas = await recordedDeltaSpecPaths(changeDir2);
+  } catch {
+    return { ...UNUSABLE, reason: "delta-spec-ledger-unreadable" };
+  }
+  if (deltas.length === 0)
+    return { ...UNUSABLE, reason: "delta-spec-unrecorded" };
+  const raw = await readText(join24(changeDir2, SPEC_APPLY_RECEIPT_FILE));
+  let receipt;
+  if (raw !== null) {
+    try {
+      receipt = asRecord6(JSON.parse(raw));
+    } catch {
+      receipt = void 0;
+    }
+  }
+  if (receipt === void 0)
+    return UNUSABLE;
+  const mode = asText(receipt.mode) ?? null;
+  if (receipt.result !== "pass") {
+    return { rehearsed: false, applied: false, mode, reason: "spec-apply-not-passing" };
+  }
+  const recorded = /* @__PURE__ */ new Map();
+  for (const row of asArray6(receipt.deltas)) {
+    const entry = asRecord6(row);
+    const path14 = asText(entry?.path);
+    const digest14 = asText(entry?.sha256);
+    if (path14 !== void 0 && digest14 !== void 0)
+      recorded.set(path14, digest14);
+  }
+  if (recorded.size !== deltas.length) {
+    return { rehearsed: false, applied: false, mode, reason: "spec-apply-receipt-stale" };
+  }
+  for (const delta of deltas) {
+    const text7 = await readText(resolve6(repoRoot, delta));
+    if (text7 === null || recorded.get(delta) !== sha256Hex(text7)) {
+      return { rehearsed: false, applied: false, mode, reason: "spec-apply-receipt-stale" };
+    }
+  }
+  if (mode !== "apply") {
+    return { rehearsed: true, applied: false, mode, reason: "spec-apply-rehearsal-only" };
+  }
+  const targets = asArray6(receipt.targets);
+  if (targets.length === 0) {
+    return { rehearsed: true, applied: false, mode, reason: "spec-apply-no-targets" };
+  }
+  for (const row of targets) {
+    const target = asRecord6(row);
+    const path14 = asText(target?.path);
+    const after = asText(target?.after_sha256);
+    if (path14 === void 0 || after === void 0) {
+      return { rehearsed: true, applied: false, mode, reason: "spec-apply-target-invalid" };
+    }
+    const text7 = await readText(resolve6(repoRoot, path14));
+    if (text7 === null || sha256Hex(text7) !== after) {
+      return { rehearsed: true, applied: false, mode, reason: "main-spec-not-applied" };
+    }
+  }
+  return { rehearsed: true, applied: true, mode };
+}
+
+// packages/kernel/dist/state/spec-migration-evidence.js
 function digest4(content) {
   return createHash12("sha256").update(content).digest("hex");
 }
@@ -14842,14 +14937,14 @@ function errorCode6(error2) {
   return typeof code === "string" ? code : void 0;
 }
 async function trustedOrdinaryFile(repoRoot, candidate2, optional = false) {
-  const root = resolve6(repoRoot);
-  const target = resolve6(candidate2);
+  const root = resolve7(repoRoot);
+  const target = resolve7(candidate2);
   if (escaped2(root, target))
     throw new Error("\u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839");
   let cursor = root;
   const segments2 = relative5(root, target).split(sep6).filter(Boolean);
   for (const [index, segment] of segments2.entries()) {
-    cursor = resolve6(cursor, segment);
+    cursor = resolve7(cursor, segment);
     let info;
     try {
       info = await lstat16(cursor);
@@ -14870,7 +14965,7 @@ async function trustedOrdinaryFile(repoRoot, candidate2, optional = false) {
   const [rootReal, targetReal] = await Promise.all([realpath5(root), realpath5(target)]);
   if (escaped2(rootReal, targetReal))
     throw new Error("\u8FC1\u79FB\u8BC1\u636E\u771F\u5B9E\u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839");
-  return readFile16(target);
+  return readFile17(target);
 }
 function record4(value, label) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -14894,16 +14989,16 @@ function parseJson(raw, label) {
 }
 async function evaluateSpecMigrationEvidence(repoRoot, changeDir2, changeName) {
   try {
-    const root = resolve6(repoRoot);
-    const expectedChangeDir = resolve6(root, "openspec", "changes", changeName);
-    if (resolve6(changeDir2) !== expectedChangeDir || escaped2(root, expectedChangeDir)) {
+    const root = resolve7(repoRoot);
+    const expectedChangeDir = resolve7(root, "openspec", "changes", changeName);
+    if (resolve7(changeDir2) !== expectedChangeDir || escaped2(root, expectedChangeDir)) {
       return { kind: "invalid", reason: "change-directory-mismatch" };
     }
-    const migrationDir = resolve6(expectedChangeDir, "migration");
-    const receiptPath = resolve6(migrationDir, "spec-application.json");
+    const migrationDir = resolve7(expectedChangeDir, "migration");
+    const receiptPath = resolve7(migrationDir, "spec-application.json");
     const receiptRaw = await trustedOrdinaryFile(root, receiptPath, true);
     if (!receiptRaw)
-      return { kind: "not-required" };
+      return await changeSpecApplication(root, changeDir2);
     const receipt = parseJson(receiptRaw, "migration receipt");
     if (receipt.schemaVersion !== 1 || receipt.kind !== "historical-spec-application-migration" || text2(receipt.change, "receipt.change") !== changeName) {
       return { kind: "invalid", reason: "receipt-identity-mismatch" };
@@ -14919,18 +15014,18 @@ async function evaluateSpecMigrationEvidence(repoRoot, changeDir2, changeName) {
     }
     const expectedDigest = text2(receipt.expectedAfterDigest, "receipt.expectedAfterDigest");
     const deltaDigest = text2(receipt.deltaDigest, "receipt.deltaDigest");
-    const deltaRaw = await trustedOrdinaryFile(root, resolve6(root, expectedDeltaPath));
+    const deltaRaw = await trustedOrdinaryFile(root, resolve7(root, expectedDeltaPath));
     if (!deltaRaw || digest4(deltaRaw) !== deltaDigest) {
       return { kind: "invalid", reason: "delta-digest-mismatch" };
     }
-    const resultRaw = await trustedOrdinaryFile(root, resolve6(migrationDir, "spec-application-result.json"), true);
+    const resultRaw = await trustedOrdinaryFile(root, resolve7(migrationDir, "spec-application-result.json"), true);
     if (!resultRaw)
       return { kind: "invalid", reason: "application-result-missing" };
     const result2 = parseJson(resultRaw, "migration result");
     if (result2.schemaVersion !== 1 || result2.kind !== "spec-migration-application" || result2.change !== changeName || result2.capability !== capability || result2.receiptDigest !== digest4(receiptRaw) || result2.targetPath !== expectedMainPath || result2.effect !== "changed" && result2.effect !== "no-op" || result2.expectedAfterDigest !== expectedDigest || result2.afterDigest !== expectedDigest) {
       return { kind: "invalid", reason: "application-result-mismatch" };
     }
-    const mainRaw = await trustedOrdinaryFile(root, resolve6(root, expectedMainPath));
+    const mainRaw = await trustedOrdinaryFile(root, resolve7(root, expectedMainPath));
     if (!mainRaw || digest4(mainRaw) !== expectedDigest) {
       return { kind: "invalid", reason: "main-spec-digest-mismatch" };
     }
@@ -14942,17 +15037,25 @@ async function evaluateSpecMigrationEvidence(repoRoot, changeDir2, changeName) {
     };
   }
 }
+async function changeSpecApplication(repoRoot, changeDir2) {
+  const status2 = await readSpecApplyReceiptStatus(repoRoot, changeDir2);
+  if (status2.applied)
+    return { kind: "applied" };
+  if (status2.reason === "delta-spec-unrecorded")
+    return { kind: "not-required" };
+  return { kind: "invalid", reason: status2.reason ?? "spec-apply-missing" };
+}
 
 // packages/kernel/dist/state/markers.js
-import { readFile as readFile17, unlink as unlink4, writeFile as writeFile5 } from "node:fs/promises";
-import { join as join24 } from "node:path";
+import { readFile as readFile18, unlink as unlink4, writeFile as writeFile5 } from "node:fs/promises";
+import { join as join25 } from "node:path";
 var BREADCRUMB_FILE = ".breadcrumb";
 var REVIEW_MARKER_FILE = ".pipeline-pending-review";
 var REVIEW_MARKER_PROTOCOL = "pipeline-review-v2";
 function createBreadcrumbWriter() {
   return {
     async write(changeDir2, content) {
-      await writeFile5(join24(changeDir2, BREADCRUMB_FILE), content, "utf8");
+      await writeFile5(join25(changeDir2, BREADCRUMB_FILE), content, "utf8");
     }
   };
 }
@@ -14976,10 +15079,10 @@ function parseReviewMarker(content) {
   return { phase, changeName, event, requestedAt };
 }
 async function clearReviewMarkerFor(root, change, event) {
-  const marker = join24(root, REVIEW_MARKER_FILE);
+  const marker = join25(root, REVIEW_MARKER_FILE);
   let content;
   try {
-    content = await readFile17(marker, "utf8");
+    content = await readFile18(marker, "utf8");
   } catch (error2) {
     if (isMissing(error2))
       return;
@@ -14998,10 +15101,10 @@ async function clearReviewMarkerFor(root, change, event) {
   }
 }
 async function clearReviewMarkerOfChange(root, change) {
-  const marker = join24(root, REVIEW_MARKER_FILE);
+  const marker = join25(root, REVIEW_MARKER_FILE);
   let content;
   try {
-    content = await readFile17(marker, "utf8");
+    content = await readFile18(marker, "utf8");
   } catch (error2) {
     if (isMissing(error2))
       return false;
@@ -15066,7 +15169,7 @@ function clearReviewGatePatch() {
 
 // packages/kernel/dist/state/review-gate-binding.js
 import { createHash as createHash13 } from "node:crypto";
-import { join as join25 } from "node:path";
+import { join as join26 } from "node:path";
 var REVIEW_GATE_BINDING_FILE = ".pipeline-review-gate-binding.json";
 var MAX_REVIEW_GATE_BINDING_BYTES = 16 * 1024;
 async function readReviewGateBindingSource(handle, maxBytes) {
@@ -15111,7 +15214,7 @@ function parseBinding(value) {
   };
 }
 async function readReviewGateBinding(changeDir2, readSource = readReviewGateBindingSource) {
-  const target = join25(changeDir2, REVIEW_GATE_BINDING_FILE);
+  const target = join26(changeDir2, REVIEW_GATE_BINDING_FILE);
   const raw = await readOptionalBoundedRegularTextFile(target, MAX_REVIEW_GATE_BINDING_BYTES, "review gate binding", readSource);
   if (raw === void 0)
     return void 0;
@@ -15136,11 +15239,11 @@ function reviewGateBindingMatches(binding, state, phase, event) {
 }
 
 // packages/kernel/dist/state/review-decision-ledger-fs.js
-import { appendFile as appendFile3, readFile as readFile18 } from "node:fs/promises";
+import { appendFile as appendFile3, readFile as readFile19 } from "node:fs/promises";
 var nodeReviewDecisionLedgerFs = {
   readText: async (path14) => {
     try {
-      return await readFile18(path14, "utf8");
+      return await readFile19(path14, "utf8");
     } catch (error2) {
       if (error2 !== null && typeof error2 === "object" && "code" in error2 && error2.code === "ENOENT")
         return void 0;
@@ -16228,8 +16331,8 @@ function applyStepTransition(state, to, clock) {
 
 // packages/kernel/dist/state/workflow-action-authority-record.js
 import { createHash as createHash15 } from "node:crypto";
-import { lstat as lstat17, readFile as readFile19 } from "node:fs/promises";
-import { join as join26 } from "node:path";
+import { lstat as lstat17, readFile as readFile20 } from "node:fs/promises";
+import { join as join27 } from "node:path";
 
 // packages/kernel/dist/state/workflow-action-authority-snapshot.js
 import { createHash as createHash14 } from "node:crypto";
@@ -16422,7 +16525,7 @@ function errorCode7(error2) {
 }
 function workflowActionAuthorityRecordPath(changeDir2, iterationId) {
   const identity = createHash15("sha256").update(iterationId).digest("hex");
-  return join26(changeDir2, `${WORKFLOW_ACTION_AUTHORITY_RECORD_PREFIX}${identity}.json`);
+  return join27(changeDir2, `${WORKFLOW_ACTION_AUTHORITY_RECORD_PREFIX}${identity}.json`);
 }
 async function readWorkflowActionAuthorityRecord(changeDir2, iterationId) {
   const target = workflowActionAuthorityRecordPath(changeDir2, iterationId);
@@ -16431,7 +16534,7 @@ async function readWorkflowActionAuthorityRecord(changeDir2, iterationId) {
     if (!info.isFile() || info.isSymbolicLink()) {
       throw new Error(`Workflow action authority record must be a non-symlink regular file: ${target}`);
     }
-    const snapshot = parseWorkflowActionAuthoritySnapshot(await readFile19(target, "utf8"));
+    const snapshot = parseWorkflowActionAuthoritySnapshot(await readFile20(target, "utf8"));
     if (snapshot.iteration_id !== iterationId) {
       throw new Error("Workflow action authority record iteration identity mismatch");
     }
@@ -17651,29 +17754,29 @@ async function writeUserConfig(path14, input2) {
 // packages/kernel/dist/users/user-paths.js
 import { randomUUID as randomUUID9 } from "node:crypto";
 import { lstat as lstat19, mkdir as mkdir14, rename as rename6, rm as rm5, writeFile as writeFile9 } from "node:fs/promises";
-import { join as join27 } from "node:path";
+import { join as join28 } from "node:path";
 var TENON_PROJECT_DIR = ".tenon";
 var TENON_PROJECT_GITIGNORE = "users/*/local/\n";
 var SLUG = /^[a-z0-9._-]*-at-[a-z0-9._-]*$/u;
 function userProjectPaths(repoRoot, slug) {
   if (!SLUG.test(slug))
     throw new Error(`\u7528\u6237\u76EE\u5F55\u540D\u975E\u6CD5: ${slug}`);
-  const userRoot = join27(repoRoot, TENON_PROJECT_DIR, "users", slug);
-  const localDir = join27(userRoot, "local");
+  const userRoot = join28(repoRoot, TENON_PROJECT_DIR, "users", slug);
+  const localDir = join28(userRoot, "local");
   return {
     userRoot,
-    testsDir: join27(userRoot, "tests"),
-    baselinesDir: join27(userRoot, "baselines"),
-    audit: join27(userRoot, "audit.jsonl"),
+    testsDir: join28(userRoot, "tests"),
+    baselinesDir: join28(userRoot, "baselines"),
+    audit: join28(userRoot, "audit.jsonl"),
     localDir,
-    activeChange: join27(localDir, "active-change"),
-    authority: join27(localDir, "authority"),
-    archived: join27(localDir, "archived.json"),
-    localAudit: join27(localDir, "audit.jsonl"),
-    deletingDir: join27(localDir, "deleting"),
-    artifactsDir: join27(localDir, "artifacts"),
-    runningDir: join27(localDir, "running"),
-    envKey: join27(localDir, "env.key")
+    activeChange: join28(localDir, "active-change"),
+    authority: join28(localDir, "authority"),
+    archived: join28(localDir, "archived.json"),
+    localAudit: join28(localDir, "audit.jsonl"),
+    deletingDir: join28(localDir, "deleting"),
+    artifactsDir: join28(localDir, "artifacts"),
+    runningDir: join28(localDir, "running"),
+    envKey: join28(localDir, "env.key")
   };
 }
 function errnoCode4(error2) {
@@ -17699,15 +17802,15 @@ async function isPlainDirectory(path14) {
 }
 async function ensureUserLocalDir(repoRoot, slug) {
   const paths = userProjectPaths(repoRoot, slug);
-  const tenonDir = join27(repoRoot, TENON_PROJECT_DIR);
+  const tenonDir = join28(repoRoot, TENON_PROJECT_DIR);
   await ensurePlainDirectory(tenonDir, 493);
   try {
-    await writeFile9(join27(tenonDir, ".gitignore"), TENON_PROJECT_GITIGNORE, { flag: "wx" });
+    await writeFile9(join28(tenonDir, ".gitignore"), TENON_PROJECT_GITIGNORE, { flag: "wx" });
   } catch (error2) {
     if (errnoCode4(error2) !== "EEXIST")
       throw error2;
   }
-  await ensurePlainDirectory(join27(tenonDir, "users"), 493);
+  await ensurePlainDirectory(join28(tenonDir, "users"), 493);
   await ensurePlainDirectory(paths.userRoot, 493);
   await ensurePlainDirectory(paths.localDir, 448);
   return paths;
@@ -17731,7 +17834,7 @@ async function writeUserLocalFile(path14, content) {
 }
 
 // packages/kernel/dist/users/active-change.js
-import { lstat as lstat20, readFile as readFile20 } from "node:fs/promises";
+import { lstat as lstat20, readFile as readFile21 } from "node:fs/promises";
 async function readActiveChange(repoRoot, slug) {
   const paths = userProjectPaths(repoRoot, slug);
   if (!await isPlainDirectory(paths.localDir))
@@ -17739,7 +17842,7 @@ async function readActiveChange(repoRoot, slug) {
   try {
     if (!(await lstat20(paths.activeChange)).isFile())
       return null;
-    const name = (await readFile20(paths.activeChange, "utf8")).replace(/\n+$/u, "");
+    const name = (await readFile21(paths.activeChange, "utf8")).replace(/\n+$/u, "");
     return validateChangeName(name).ok ? name : null;
   } catch {
     return null;
@@ -18740,13 +18843,13 @@ function assertCreationPreconditions(input2, specs) {
 
 // packages/kernel/dist/infrastructure/design-system-fs.js
 import { readFileSync as readFileSync10, statSync } from "node:fs";
-import { isAbsolute as isAbsolute6, join as join28, normalize, resolve as resolve7 } from "node:path";
+import { isAbsolute as isAbsolute6, join as join29, normalize, resolve as resolve8 } from "node:path";
 var MAX_BYTES = 2 * 1024 * 1024;
 function insideRoot(root, relativePath) {
   if (isAbsolute6(relativePath) || normalize(relativePath).startsWith(".."))
     return null;
-  const path14 = resolve7(join28(root, relativePath));
-  return path14.startsWith(resolve7(root)) ? path14 : null;
+  const path14 = resolve8(join29(root, relativePath));
+  return path14.startsWith(resolve8(root)) ? path14 : null;
 }
 function createDesignFileReader(repoRoot) {
   return {
@@ -18767,13 +18870,13 @@ function createDesignFileReader(repoRoot) {
 }
 
 // packages/kernel/dist/infrastructure/resource-store.js
-import { mkdir as mkdir16, readFile as readFile22, readdir as readdir6, rename as rename8, rm as rm7, writeFile as writeFile11 } from "node:fs/promises";
-import { join as join30 } from "node:path";
+import { mkdir as mkdir16, readFile as readFile23, readdir as readdir6, rename as rename8, rm as rm7, writeFile as writeFile11 } from "node:fs/promises";
+import { join as join31 } from "node:path";
 
 // packages/kernel/dist/infrastructure/builtin-library-sync.js
 import { randomUUID as randomUUID10 } from "node:crypto";
-import { lstat as lstat21, mkdir as mkdir15, readFile as readFile21, readdir as readdir5, rename as rename7, rm as rm6, writeFile as writeFile10 } from "node:fs/promises";
-import { basename as basename2, dirname as dirname6, join as join29 } from "node:path";
+import { lstat as lstat21, mkdir as mkdir15, readFile as readFile22, readdir as readdir5, rename as rename7, rm as rm6, writeFile as writeFile10 } from "node:fs/promises";
+import { basename as basename2, dirname as dirname6, join as join30 } from "node:path";
 
 // packages/kernel/dist/workflow/serialize-tests.js
 function serializeInput(input2, pad) {
@@ -18977,12 +19080,12 @@ var SyncFailure = class extends Error {
 async function readSourceTree(library, root) {
   const files = [];
   const walk = async (relative14) => {
-    const entries = await readdir5(relative14 === "" ? root : join29(root, relative14), { withFileTypes: true });
+    const entries = await readdir5(relative14 === "" ? root : join30(root, relative14), { withFileTypes: true });
     for (const entry of entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
       if (entry.name.startsWith("."))
         continue;
       const path14 = relative14 === "" ? entry.name : `${relative14}/${entry.name}`;
-      const item2 = await lstat21(join29(root, path14));
+      const item2 = await lstat21(join30(root, path14));
       if (item2.isSymbolicLink())
         throw new SyncFailure(`${path14}: \u4E0D\u5141\u8BB8\u7B26\u53F7\u94FE\u63A5`);
       if (item2.isDirectory()) {
@@ -18995,7 +19098,7 @@ async function readSourceTree(library, root) {
         throw new SyncFailure(`\u6587\u4EF6\u8D85\u8FC7 ${MAX_FILES} \u4E2A`);
       if (item2.size > MAX_FILE_BYTES)
         throw new SyncFailure(`${path14}: \u8D85\u8FC7 ${MAX_FILE_BYTES} \u5B57\u8282`);
-      files.push({ path: path14, bytes: await readFile21(join29(root, path14)) });
+      files.push({ path: path14, bytes: await readFile22(join30(root, path14)) });
     }
   };
   try {
@@ -19033,7 +19136,7 @@ function parseBuiltinLibraryMarker(text7) {
 }
 async function readMarker(targetDir) {
   try {
-    return parseBuiltinLibraryMarker(await readFile21(join29(targetDir, BUILTIN_LIBRARY_MARKER), "utf8"));
+    return parseBuiltinLibraryMarker(await readFile22(join30(targetDir, BUILTIN_LIBRARY_MARKER), "utf8"));
   } catch {
     return null;
   }
@@ -19041,7 +19144,7 @@ async function readMarker(targetDir) {
 async function removeStale(parent, base) {
   for (const name of await readdir5(parent)) {
     if (name.startsWith(`${base}.staging-`) || name.startsWith(`${base}.old-`)) {
-      await rm6(join29(parent, name), { recursive: true, force: true });
+      await rm6(join30(parent, name), { recursive: true, force: true });
     }
   }
 }
@@ -19055,17 +19158,17 @@ async function exists(path14) {
 }
 async function replaceTarget(library, parent, targetDir, files, digest14) {
   const base = basename2(targetDir);
-  const staging = join29(parent, `${base}.staging-${process.pid}-${randomUUID10()}`);
-  const old = join29(parent, `${base}.old-${randomUUID10()}`);
+  const staging = join30(parent, `${base}.staging-${process.pid}-${randomUUID10()}`);
+  const old = join30(parent, `${base}.old-${randomUUID10()}`);
   try {
     await mkdir15(staging, { mode: 493 });
     for (const file of files) {
-      const destination = join29(staging, ...file.path.split("/"));
+      const destination = join30(staging, ...file.path.split("/"));
       await mkdir15(dirname6(destination), { recursive: true });
       await writeFile10(destination, file.bytes, { flag: "wx", mode: 420 });
     }
     const marker = { version: 1, library: library.id, source_digest: digest14, synced_at: (/* @__PURE__ */ new Date()).toISOString() };
-    await writeFile10(join29(staging, BUILTIN_LIBRARY_MARKER), `${JSON.stringify(marker)}
+    await writeFile10(join30(staging, BUILTIN_LIBRARY_MARKER), `${JSON.stringify(marker)}
 `, { flag: "wx", mode: 420 });
     if (!await exists(targetDir)) {
       await rename7(staging, targetDir);
@@ -19086,12 +19189,12 @@ async function replaceTarget(library, parent, targetDir, files, digest14) {
 }
 async function syncBuiltinLibrary(library, payloadRoot, configRoot) {
   try {
-    const files = await readSourceTree(library, join29(payloadRoot, ...library.source.split("/")));
+    const files = await readSourceTree(library, join30(payloadRoot, ...library.source.split("/")));
     const problems = files.flatMap((file) => library.validate(file.path, file.bytes.toString("utf8")).map((detail) => `${file.path}: ${detail}`));
     if (problems.length > 0)
       return { id: library.id, state: "failed", detail: problems.join("; ") };
     const digest14 = builtinSourceDigest(files);
-    const targetDir = join29(configRoot, ...library.target.split("/"));
+    const targetDir = join30(configRoot, ...library.target.split("/"));
     const parent = dirname6(targetDir);
     await mkdir15(parent, { recursive: true });
     return await withLock(parent, async () => {
@@ -19124,8 +19227,8 @@ var ResourceStoreError = class extends Error {
     this.errors = errors;
   }
 };
-var resourceStoreRoot = (configRoot) => join30(configRoot, "resources");
-var sourceDir = (storeRoot3, source2) => join30(storeRoot3, source2);
+var resourceStoreRoot = (configRoot) => join31(configRoot, "resources");
+var sourceDir = (storeRoot3, source2) => join31(storeRoot3, source2);
 async function listYaml(dir) {
   try {
     return (await readdir6(dir)).filter((name) => name.endsWith(".yaml")).sort();
@@ -19160,7 +19263,7 @@ async function loadResourceCatalog(options3) {
     for (const file of await listYaml(dir)) {
       let text7;
       try {
-        text7 = await readFile22(join30(dir, file), "utf8");
+        text7 = await readFile23(join31(dir, file), "utf8");
       } catch (error2) {
         errors.push({ file, source: source2, errors: [error2 instanceof Error ? error2.message : String(error2)] });
         continue;
@@ -19187,7 +19290,7 @@ async function readResourceFile(storeRoot3, id2) {
   for (const source2 of ["custom", "builtin"]) {
     let text7;
     try {
-      text7 = await readFile22(join30(sourceDir(storeRoot3, source2), `${id2}.yaml`), "utf8");
+      text7 = await readFile23(join31(sourceDir(storeRoot3, source2), `${id2}.yaml`), "utf8");
     } catch {
       continue;
     }
@@ -19200,20 +19303,20 @@ async function readResourceFile(storeRoot3, id2) {
 }
 async function currentRevision(path14) {
   try {
-    return `sha256:${sha256Hex(await readFile22(path14, "utf8"))}`;
+    return `sha256:${sha256Hex(await readFile23(path14, "utf8"))}`;
   } catch {
     return null;
   }
 }
 async function writeAtomic(path14, text7) {
-  await mkdir16(join30(path14, ".."), { recursive: true });
+  await mkdir16(join31(path14, ".."), { recursive: true });
   const tmp = `${path14}.tmp.${process.pid}`;
   await writeFile11(tmp, text7, "utf8");
   await rename8(tmp, path14);
 }
 async function builtinExists(storeRoot3, id2) {
   try {
-    await readFile22(join30(sourceDir(storeRoot3, "builtin"), `${id2}.yaml`), "utf8");
+    await readFile23(join31(sourceDir(storeRoot3, "builtin"), `${id2}.yaml`), "utf8");
     return true;
   } catch {
     return false;
@@ -19232,7 +19335,7 @@ async function writeCustomResource(storeRoot3, id2, yaml, revision) {
   return withLock(storeRoot3, async () => {
     if (await builtinExists(storeRoot3, id2))
       throw new ResourceStoreError("builtin-readonly", "\u5185\u7F6E\u8D44\u6E90\u53EA\u8BFB\uFF0C\u5148\u590D\u5236");
-    const path14 = join30(sourceDir(storeRoot3, "custom"), `${id2}.yaml`);
+    const path14 = join31(sourceDir(storeRoot3, "custom"), `${id2}.yaml`);
     const now = await currentRevision(path14);
     if (revision !== void 0 && now !== revision)
       throw new ResourceStoreError("conflict", "\u8D44\u6E90\u5DF2\u5728\u78C1\u76D8\u4E0A\u88AB\u4FEE\u6539\uFF0C\u91CD\u65B0\u8F7D\u5165");
@@ -19255,7 +19358,7 @@ async function copyResource(storeRoot3, id2) {
       next = `${id2}-copy-${index}`;
     if (!RESOURCE_ID.test(next))
       throw new ResourceStoreError("duplicate", `\u590D\u5236 id \u8FC7\u957F\uFF1A${next}`);
-    await writeAtomic(join30(sourceDir(storeRoot3, "custom"), `${next}.yaml`), file.yaml.replace(/^id: .*$/mu, `id: ${next}`));
+    await writeAtomic(join31(sourceDir(storeRoot3, "custom"), `${next}.yaml`), file.yaml.replace(/^id: .*$/mu, `id: ${next}`));
     return next;
   });
 }
@@ -19266,7 +19369,7 @@ async function deleteCustomResource(storeRoot3, id2, revision) {
   await withLock(storeRoot3, async () => {
     if (await builtinExists(storeRoot3, id2))
       throw new ResourceStoreError("builtin-readonly", "\u5185\u7F6E\u8D44\u6E90\u53EA\u8BFB\uFF0C\u5148\u590D\u5236");
-    const path14 = join30(sourceDir(storeRoot3, "custom"), `${id2}.yaml`);
+    const path14 = join31(sourceDir(storeRoot3, "custom"), `${id2}.yaml`);
     const now = await currentRevision(path14);
     if (now === null)
       throw new ResourceStoreError("not-found", `\u672A\u77E5\u8D44\u6E90\uFF1A${id2}`);
@@ -19301,8 +19404,8 @@ async function designSystemPrecondition(input2) {
 }
 
 // packages/kernel/dist/infrastructure/agent-store.js
-import { mkdir as mkdir17, readFile as readFile23, readdir as readdir7, rename as rename9, rm as rm8, writeFile as writeFile12 } from "node:fs/promises";
-import { join as join31 } from "node:path";
+import { mkdir as mkdir17, readFile as readFile24, readdir as readdir7, rename as rename9, rm as rm8, writeFile as writeFile12 } from "node:fs/promises";
+import { join as join32 } from "node:path";
 var AgentStoreError = class extends Error {
   code;
   constructor(code, message) {
@@ -19311,8 +19414,8 @@ var AgentStoreError = class extends Error {
     this.code = code;
   }
 };
-var agentStoreRoot = (configRoot) => join31(configRoot, "agents");
-var sourceDir2 = (storeRoot3, source2) => join31(storeRoot3, source2);
+var agentStoreRoot = (configRoot) => join32(configRoot, "agents");
+var sourceDir2 = (storeRoot3, source2) => join32(storeRoot3, source2);
 var CONFLICT = "\u540D\u79F0\u51B2\u7A81";
 async function listAgents(dir) {
   try {
@@ -19335,7 +19438,7 @@ async function loadAgentLibrary(options3) {
       const name = file.slice(0, -".md".length);
       let content;
       try {
-        content = await readFile23(join31(dir, file), "utf8");
+        content = await readFile24(join32(dir, file), "utf8");
       } catch (error2) {
         entries.push({ name, source: source2, digest: "", content: "", error: error2 instanceof Error ? error2.message : String(error2) });
         continue;
@@ -19370,20 +19473,20 @@ function resolveAgent(library, name) {
 }
 async function currentDigest(path14) {
   try {
-    return agentDigest(await readFile23(path14, "utf8"));
+    return agentDigest(await readFile24(path14, "utf8"));
   } catch {
     return null;
   }
 }
 async function writeAtomic2(path14, text7) {
-  await mkdir17(join31(path14, ".."), { recursive: true });
+  await mkdir17(join32(path14, ".."), { recursive: true });
   const tmp = `${path14}.tmp.${process.pid}`;
   await writeFile12(tmp, text7, "utf8");
   await rename9(tmp, path14);
 }
 async function builtinExists2(storeRoot3, name) {
   try {
-    await readFile23(join31(sourceDir2(storeRoot3, "builtin"), `${name}.md`), "utf8");
+    await readFile24(join32(sourceDir2(storeRoot3, "builtin"), `${name}.md`), "utf8");
     return true;
   } catch {
     return false;
@@ -19406,7 +19509,7 @@ async function writeCustomAgent(storeRoot3, name, content, options3 = {}) {
     if (await builtinExists2(storeRoot3, name)) {
       throw new AgentStoreError(options3.create === true ? "agent-exists" : "agent-builtin-readonly", options3.create === true ? `agent '${name}' \u5DF2\u5B58\u5728` : "\u5185\u7F6E agent \u53EA\u8BFB");
     }
-    const path14 = join31(sourceDir2(storeRoot3, "custom"), `${name}.md`);
+    const path14 = join32(sourceDir2(storeRoot3, "custom"), `${name}.md`);
     const now = await currentDigest(path14);
     if (options3.create === true && now !== null)
       throw new AgentStoreError("agent-exists", `agent '${name}' \u5DF2\u5B58\u5728`);
@@ -19426,7 +19529,7 @@ async function deleteCustomAgent(storeRoot3, name, digest14) {
   await withLock(storeRoot3, async () => {
     if (await builtinExists2(storeRoot3, name))
       throw new AgentStoreError("agent-builtin-readonly", "\u5185\u7F6E agent \u53EA\u8BFB");
-    const path14 = join31(sourceDir2(storeRoot3, "custom"), `${name}.md`);
+    const path14 = join32(sourceDir2(storeRoot3, "custom"), `${name}.md`);
     const now = await currentDigest(path14);
     if (now === null)
       throw new AgentStoreError("agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name}'`);
@@ -19453,7 +19556,7 @@ async function prepareAgentFreeze(workflow, loadLibrary) {
 }
 
 // packages/kernel/dist/test-evidence/record.js
-import { lstat as lstat22, mkdir as mkdir18, readFile as readFile24, readdir as readdir8, rm as rm9, writeFile as writeFile13 } from "node:fs/promises";
+import { lstat as lstat22, mkdir as mkdir18, readFile as readFile25, readdir as readdir8, rm as rm9, writeFile as writeFile13 } from "node:fs/promises";
 
 // packages/kernel/dist/test-evidence/types.js
 var TEST_RUN_SCHEMA = "tenon-test-run-v1";
@@ -19763,7 +19866,7 @@ function decodeRunningMarker(value) {
   }
 }
 async function readJson(path14) {
-  const raw = await readFile24(path14, "utf8");
+  const raw = await readFile25(path14, "utf8");
   try {
     return JSON.parse(raw);
   } catch {
@@ -19786,22 +19889,22 @@ async function readRunningMarker(path14) {
 }
 
 // packages/kernel/dist/test-evidence/paths.js
-import { join as join32 } from "node:path";
+import { join as join33 } from "node:path";
 function testEvidencePaths(repoRoot, slug, change) {
   const paths = userProjectPaths(repoRoot, slug);
   return {
-    runsDir: join32(paths.testsDir, change),
+    runsDir: join33(paths.testsDir, change),
     baselinesDir: paths.baselinesDir,
-    runningDir: join32(paths.runningDir, change),
+    runningDir: join33(paths.runningDir, change),
     envKey: paths.envKey,
-    artifactsDir: join32(paths.artifactsDir, change)
+    artifactsDir: join33(paths.artifactsDir, change)
   };
 }
 function testRunningMarkerPath(repoRoot, slug, change, testId) {
-  return join32(testEvidencePaths(repoRoot, slug, change).runningDir, `${testId}.json`);
+  return join33(testEvidencePaths(repoRoot, slug, change).runningDir, `${testId}.json`);
 }
 function testRunArtifactsDir(repoRoot, slug, change, runId) {
-  return join32(testEvidencePaths(repoRoot, slug, change).artifactsDir, runId);
+  return join33(testEvidencePaths(repoRoot, slug, change).artifactsDir, runId);
 }
 
 // packages/kernel/dist/test-evidence/metrics.js
@@ -19809,7 +19912,7 @@ var MAX_METRICS_BYTES = 1024 * 1024;
 
 // packages/kernel/dist/test-evidence/evaluate.js
 import { readdir as readdir9 } from "node:fs/promises";
-import { join as join33 } from "node:path";
+import { join as join34 } from "node:path";
 function canonical(value) {
   if (Array.isArray(value))
     return `[${value.map(canonical).join(",")}]`;
@@ -19845,7 +19948,7 @@ async function listTestRuns(repoRoot, changeName, filter = {}) {
   for (const slug of slugs) {
     const paths = testEvidencePaths(repoRoot, slug, changeName);
     for (const runId of await runIdsIn(paths.runsDir)) {
-      const record11 = await readTestRunRecord(join33(paths.runsDir, `${runId}.json`));
+      const record11 = await readTestRunRecord(join34(paths.runsDir, `${runId}.json`));
       if (record11 === void 0)
         continue;
       if (filter.testId !== void 0 && record11.test_id !== filter.testId)
@@ -19862,7 +19965,7 @@ async function listTestRuns(repoRoot, changeName, filter = {}) {
 }
 async function userSlugs(repoRoot) {
   try {
-    const usersDir = join33(repoRoot, TENON_PROJECT_DIR, "users");
+    const usersDir = join34(repoRoot, TENON_PROJECT_DIR, "users");
     return (await readdir9(usersDir, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
   } catch {
     return [];
@@ -19876,7 +19979,7 @@ async function corruptTestRunFiles(repoRoot, changeName, slug) {
   const paths = testEvidencePaths(repoRoot, slug, changeName);
   const corrupt = [];
   for (const runId of await runIdsIn(paths.runsDir)) {
-    if (await readTestRunRecord(join33(paths.runsDir, `${runId}.json`)) === void 0)
+    if (await readTestRunRecord(join34(paths.runsDir, `${runId}.json`)) === void 0)
       corrupt.push(`${runId}.json`);
   }
   return corrupt;
@@ -19973,10 +20076,10 @@ async function rejectOnTestEvidence(input2) {
 
 // packages/kernel/dist/machine-state-scope.js
 import { createHash as createHash16 } from "node:crypto";
-import { resolve as resolve8 } from "node:path";
+import { resolve as resolve9 } from "node:path";
 var STATE_SCOPE_NAMESPACE = "tenon:machine-state-scope:v1\0";
 function canonicalMachineStateRoot(stateRoot) {
-  return resolve8(stateRoot);
+  return resolve9(stateRoot);
 }
 function machineStateScopeId(stateRoot) {
   const digest14 = createHash16("sha256").update(STATE_SCOPE_NAMESPACE).update(canonicalMachineStateRoot(stateRoot)).digest("hex");
@@ -19986,7 +20089,7 @@ function machineStateScopeId(stateRoot) {
 // packages/kernel/dist/workspace/build-revision-identity.js
 import { execFile } from "node:child_process";
 import { lstat as lstat23, realpath as realpath6 } from "node:fs/promises";
-import { isAbsolute as isAbsolute7, resolve as resolve9 } from "node:path";
+import { isAbsolute as isAbsolute7, resolve as resolve10 } from "node:path";
 import { promisify } from "node:util";
 var execFileAsync = promisify(execFile);
 async function physicalDirectory(pathname) {
@@ -19995,7 +20098,7 @@ async function physicalDirectory(pathname) {
     if (!info.isDirectory() || info.isSymbolicLink())
       return void 0;
     const physical = await realpath6(pathname);
-    return resolve9(pathname) === physical ? physical : void 0;
+    return resolve10(pathname) === physical ? physical : void 0;
   } catch {
     return void 0;
   }
@@ -20087,8 +20190,8 @@ function liveTerminalActivity(record11, nowMs) {
 }
 
 // packages/kernel/dist/workspace/task-archive.js
-import { lstat as lstat24, readFile as readFile25 } from "node:fs/promises";
-import { join as join34 } from "node:path";
+import { lstat as lstat24, readFile as readFile26 } from "node:fs/promises";
+import { join as join35 } from "node:path";
 var MAX_ARCHIVE_BYTES = 1048576;
 var CHANGE_NAME2 = /^[A-Za-z0-9_-]+$/u;
 var RESERVED_CHANGE_DIR = "archive";
@@ -20097,7 +20200,7 @@ function isTaskLifecycleName(name) {
   return CHANGE_NAME2.test(name) && name !== RESERVED_CHANGE_DIR;
 }
 function taskChangeDir(repoRoot, change) {
-  return join34(repoRoot, "openspec", "changes", change);
+  return join35(repoRoot, "openspec", "changes", change);
 }
 function entryOf(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value))
@@ -20164,7 +20267,7 @@ async function readTaskArchiveOf(repoRoot, slug) {
     const item2 = await lstat24(path14);
     if (!item2.isFile() || item2.size > MAX_ARCHIVE_BYTES)
       return { kind: "corrupt", path: path14 };
-    text7 = await readFile25(path14, "utf8");
+    text7 = await readFile26(path14, "utf8");
   } catch {
     return { kind: "ok", archive: EMPTY_TASK_ARCHIVE };
   }
@@ -20180,7 +20283,7 @@ async function writeTaskArchiveOf(repoRoot, slug, archive) {
   const text7 = serializeTaskArchive(archive);
   let current = null;
   try {
-    current = await readFile25(path14, "utf8");
+    current = await readFile26(path14, "utf8");
   } catch {
     current = null;
   }
@@ -20217,7 +20320,7 @@ async function isArchivedForUser(repoRoot, user, change) {
 // packages/kernel/dist/workspace/uncommitted-deletions.js
 import { execFile as execFile2 } from "node:child_process";
 import { lstat as lstat25 } from "node:fs/promises";
-import { join as join35 } from "node:path";
+import { join as join36 } from "node:path";
 import { promisify as promisify2 } from "node:util";
 var execFileAsync2 = promisify2(execFile2);
 var CHANGES_PREFIX = "openspec/changes/";
@@ -20251,7 +20354,7 @@ function changeNameOf(path14) {
 }
 async function hasRepository(repoRoot) {
   try {
-    await lstat25(join35(repoRoot, ".git"));
+    await lstat25(join36(repoRoot, ".git"));
     return true;
   } catch {
     return false;
@@ -20308,12 +20411,12 @@ import { appendFile as appendFile4, mkdir as mkdir20 } from "node:fs/promises";
 import { dirname as dirname7 } from "node:path";
 
 // packages/kernel/dist/workspace/task-delete.js
-import { lstat as lstat26, mkdir as mkdir19, readdir as readdir10, readFile as readFile26, rename as rename10, rm as rm10 } from "node:fs/promises";
-import { isAbsolute as isAbsolute8, join as join36, relative as relative6, resolve as resolve10 } from "node:path";
+import { lstat as lstat26, mkdir as mkdir19, readdir as readdir10, readFile as readFile27, rename as rename10, rm as rm10 } from "node:fs/promises";
+import { isAbsolute as isAbsolute8, join as join37, relative as relative6, resolve as resolve11 } from "node:path";
 var MAX_POINTER_BYTES = 4096;
 var SESSION_MARKERS = GATE_MARKERS.filter((name) => name !== REVIEW_MARKER_FILE);
 function repoRelative2(repoRoot, target) {
-  const rel = relative6(resolve10(repoRoot), resolve10(target));
+  const rel = relative6(resolve11(repoRoot), resolve11(target));
   return rel === "" || rel.startsWith("..") || isAbsolute8(rel) ? null : rel;
 }
 async function removeInside(repoRoot, target) {
@@ -20347,7 +20450,7 @@ async function readPointer(path14) {
     const item2 = await lstat26(path14);
     if (!item2.isFile() || item2.size > MAX_POINTER_BYTES)
       return null;
-    return await readFile26(path14, "utf8");
+    return await readFile27(path14, "utf8");
   } catch {
     return null;
   }
@@ -20355,7 +20458,7 @@ async function readPointer(path14) {
 async function checkoutSlugs(repoRoot) {
   let entries;
   try {
-    entries = await readdir10(join36(repoRoot, TENON_PROJECT_DIR, "users"), { withFileTypes: true });
+    entries = await readdir10(join37(repoRoot, TENON_PROJECT_DIR, "users"), { withFileTypes: true });
   } catch {
     return [];
   }
@@ -20384,7 +20487,7 @@ function bindsChange(text7, change) {
   }
 }
 async function removeSessionBindings(repoRoot, change) {
-  const dir = join36(repoRoot, TERMINAL_SESSION_BINDINGS_DIR);
+  const dir = join37(repoRoot, TERMINAL_SESSION_BINDINGS_DIR);
   let entries;
   try {
     entries = await readdir10(dir, { withFileTypes: true });
@@ -20395,10 +20498,10 @@ async function removeSessionBindings(repoRoot, change) {
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith(".json"))
       continue;
-    const text7 = await readPointer(join36(dir, entry.name));
+    const text7 = await readPointer(join37(dir, entry.name));
     if (text7 === null || !bindsChange(text7, change))
       continue;
-    const rel = await removeInside(repoRoot, join36(dir, entry.name));
+    const rel = await removeInside(repoRoot, join37(dir, entry.name));
     if (rel !== null)
       removed.push(rel);
   }
@@ -20414,13 +20517,13 @@ async function sweepTaskTombstones(deletingDir) {
   for (const entry of entries) {
     if (entry.isSymbolicLink())
       continue;
-    await rm10(join36(deletingDir, entry.name), { recursive: true, force: true }).catch(() => {
+    await rm10(join37(deletingDir, entry.name), { recursive: true, force: true }).catch(() => {
     });
   }
 }
 async function stageTaskForDelete(changeDir2, deletingDir, change, nowMs) {
   await mkdir19(deletingDir, { recursive: true, mode: 448 });
-  const tombstone = join36(deletingDir, `${change}-${nowMs}`);
+  const tombstone = join37(deletingDir, `${change}-${nowMs}`);
   await rename10(changeDir2, tombstone);
   return tombstone;
 }
@@ -20444,7 +20547,7 @@ async function cleanupDeletedChangeReferences(repoRoot, change, actingSlug) {
       if (rel !== null)
         removed.push(rel);
     }
-    for (const dir of [join36(paths.testsDir, change), join36(paths.artifactsDir, change), join36(paths.runningDir, change)]) {
+    for (const dir of [join37(paths.testsDir, change), join37(paths.artifactsDir, change), join37(paths.runningDir, change)]) {
       const rel = await removeInside(repoRoot, dir);
       if (rel !== null)
         removed.push(rel);
@@ -20459,7 +20562,7 @@ async function cleanupDeletedChangeReferences(repoRoot, change, actingSlug) {
   }
   if (clearedOwnPointer) {
     for (const marker of SESSION_MARKERS) {
-      const rel = await removeInside(repoRoot, join36(repoRoot, marker));
+      const rel = await removeInside(repoRoot, join37(repoRoot, marker));
       if (rel !== null)
         removed.push(rel);
     }
@@ -20471,16 +20574,16 @@ async function cleanupDeletedChangeReferences(repoRoot, change, actingSlug) {
 }
 
 // packages/kernel/dist/workspace/task-terminal-activity.js
-import { lstat as lstat27, readFile as readFile27 } from "node:fs/promises";
-import { join as join37 } from "node:path";
+import { lstat as lstat27, readFile as readFile28 } from "node:fs/promises";
+import { join as join38 } from "node:path";
 var MAX_SIDECAR_BYTES = 4096;
 async function defaultTerminalActivityLive(changeDir2, change, nowMs) {
-  const path14 = join37(changeDir2, TERMINAL_ACTIVITY_FILE);
+  const path14 = join38(changeDir2, TERMINAL_ACTIVITY_FILE);
   try {
     const item2 = await lstat27(path14);
     if (!item2.isFile() || item2.size > MAX_SIDECAR_BYTES)
       return false;
-    const record11 = parseTerminalActivityRecord(JSON.parse(await readFile27(path14, "utf8")));
+    const record11 = parseTerminalActivityRecord(JSON.parse(await readFile28(path14, "utf8")));
     if (record11 === null || record11.change !== change)
       return false;
     return liveTerminalActivity(record11, nowMs) !== null;
@@ -21569,7 +21672,7 @@ function serializeTrackRegistry(config) {
 // packages/kernel/dist/tracks/registry.js
 import { createHash as createHash17 } from "node:crypto";
 import { readFileSync as readFileSync11 } from "node:fs";
-import { mkdir as mkdir21, readFile as readFile28 } from "node:fs/promises";
+import { mkdir as mkdir21, readFile as readFile29 } from "node:fs/promises";
 import path7 from "node:path";
 var TENON_DIR = ".pipeline";
 var TRACKS_FILE = "tracks.yaml";
@@ -21685,7 +21788,7 @@ function assertWorkflowAllowed(track, workflowId) {
 async function freshReadUnderLock(file, context) {
   let text7 = null;
   try {
-    text7 = await readFile28(file, "utf8");
+    text7 = await readFile29(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
@@ -22067,7 +22170,7 @@ function mtimeIso(fs, path14) {
 // packages/kernel/dist/mem/adapters/opencode.js
 import { statSync as statSync3 } from "node:fs";
 import { createRequire } from "node:module";
-import { join as join38 } from "node:path";
+import { join as join39 } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // packages/kernel/dist/mem/dialogue.js
@@ -22125,7 +22228,7 @@ function isHostSummaryTurn(turn) {
 }
 
 // packages/kernel/dist/mem/filter.js
-import { resolve as resolve11, sep as sep7 } from "node:path";
+import { resolve as resolve12, sep as sep7 } from "node:path";
 function parseIso(iso) {
   if (!iso)
     return null;
@@ -22154,8 +22257,8 @@ function sameProject(sessionCwd, target) {
     return true;
   if (!sessionCwd)
     return false;
-  const a = resolve11(sessionCwd);
-  const b = resolve11(target);
+  const a = resolve12(sessionCwd);
+  const b = resolve12(target);
   return a === b || a.startsWith(b + sep7);
 }
 function sameProjectForMemFs(fs, sessionCwd, target) {
@@ -22323,7 +22426,7 @@ function createChunkLocator(text7, maxChars) {
 }
 
 // packages/kernel/dist/mem/adapters/opencode-budget.js
-import { resolve as resolve12 } from "node:path";
+import { resolve as resolve13 } from "node:path";
 var sqliteSourceBudgets = /* @__PURE__ */ new WeakMap();
 function sqliteSourceBudget(fs, dbPath) {
   const budget = fs.contentReadBudget;
@@ -22459,7 +22562,7 @@ function projectIdsForFilter(fs, db, f, source2, budget) {
   if (projects === null)
     return null;
   const directories = boundedProjectRows(db, "project_directory", source2, budget) ?? [];
-  const target = f.cwd ? resolve12(f.cwd) : null;
+  const target = f.cwd ? resolve13(f.cwd) : null;
   const ids2 = /* @__PURE__ */ new Set();
   for (const row of [...projects, ...directories]) {
     if (typeof row.project_id !== "string" || typeof row.directory !== "string")
@@ -22747,8 +22850,8 @@ function loadSqlite() {
 }
 function opencodeDbPath(fs) {
   const xdgData = fs.env?.("XDG_DATA_HOME");
-  const dataHome = xdgData && xdgData.trim() ? xdgData : join38(fs.home, ".local", "share");
-  return join38(dataHome, "opencode", "opencode.db");
+  const dataHome = xdgData && xdgData.trim() ? xdgData : join39(fs.home, ".local", "share");
+  return join39(dataHome, "opencode", "opencode.db");
 }
 function createRelatedImmutableTarget(fs, dbPath) {
   const walPath = `${dbPath}-wal`;
@@ -23090,7 +23193,7 @@ function splitShellArgs(s) {
 }
 
 // packages/kernel/dist/mem/adapters/claude.js
-import { basename as basename3, dirname as dirname8, join as join40 } from "node:path";
+import { basename as basename3, dirname as dirname8, join as join41 } from "node:path";
 
 // packages/kernel/dist/mem/jsonl.js
 var OPEN_BRACE = 123;
@@ -23147,7 +23250,7 @@ function findInJsonl(text7, predicate, maxLines = 200) {
 }
 
 // packages/kernel/dist/mem/paths.js
-import { join as join39, resolve as resolve13 } from "node:path";
+import { join as join40, resolve as resolve14 } from "node:path";
 var SEP_RE = /[/\\:_.]/g;
 var PI_SEP_RE = /[/\\:]/g;
 var PI_LEAD_RE = /^[/\\]/;
@@ -23155,29 +23258,29 @@ function expandHome(fs, p) {
   if (p === "~")
     return fs.home;
   if (p.startsWith("~/") || p.startsWith("~\\"))
-    return join39(fs.home, p.slice(2));
+    return join40(fs.home, p.slice(2));
   return p;
 }
 function claudeProjectsRoot(fs) {
-  return join39(fs.home, ".claude", "projects");
+  return join40(fs.home, ".claude", "projects");
 }
 function codexSessionsRoot(fs) {
-  return join39(fs.home, ".codex", "sessions");
+  return join40(fs.home, ".codex", "sessions");
 }
 function claudeProjectDirFromCwd(fs, cwd) {
-  return join39(claudeProjectsRoot(fs), cwd.replace(SEP_RE, "-"));
+  return join40(claudeProjectsRoot(fs), cwd.replace(SEP_RE, "-"));
 }
 function piAgentDir(fs) {
   const env = fs.env?.("PI_CODING_AGENT_DIR");
-  return expandHome(fs, env || join39(fs.home, ".pi", "agent"));
+  return expandHome(fs, env || join40(fs.home, ".pi", "agent"));
 }
 function piProjectDirFromCwd(fs, cwd) {
-  const resolved = resolve13(cwd);
+  const resolved = resolve14(cwd);
   const safe = "--" + resolved.replace(PI_LEAD_RE, "").replace(PI_SEP_RE, "-") + "--";
-  return join39(piAgentDir(fs), "sessions", safe);
+  return join40(piAgentDir(fs), "sessions", safe);
 }
 function readPiSettingsSessionDir(fs) {
-  const raw = fs.readText(join39(piAgentDir(fs), "settings.json"));
+  const raw = fs.readText(join40(piAgentDir(fs), "settings.json"));
   if (!raw)
     return null;
   let parsed2;
@@ -23194,7 +23297,7 @@ function readPiSettingsSessionDir(fs) {
   return null;
 }
 function piSessionRoots(fs) {
-  const roots = [join39(piAgentDir(fs), "sessions")];
+  const roots = [join40(piAgentDir(fs), "sessions")];
   const envSess = fs.env?.("PI_CODING_AGENT_SESSION_DIR");
   if (envSess)
     roots.push(expandHome(fs, envSess));
@@ -23204,7 +23307,7 @@ function piSessionRoots(fs) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   for (const root of roots) {
-    const normalized2 = resolve13(root);
+    const normalized2 = resolve14(root);
     if (seen.has(normalized2))
       continue;
     seen.add(normalized2);
@@ -23222,7 +23325,7 @@ function walkDir(fs, root) {
     if (cur === void 0)
       break;
     for (const e of fs.readDir(cur)) {
-      const full = join39(cur, e.name);
+      const full = join40(cur, e.name);
       if (e.isDirectory)
         stack.push(full);
       else if (e.isFile)
@@ -23290,7 +23393,7 @@ function walkDirForRelatedSearch(fs, root, accept, fileLimit, source2, shouldDes
         break;
       }
       budget.consumeDiscoveryEntries(source2, 1);
-      const path14 = join39(current.path, entry.name);
+      const path14 = join40(current.path, entry.name);
       ranked.push({ entry, path: path14, mtime: entry.isFile ? fs.mtimeMs(path14) ?? 0 : 0 });
     }
     ranked.sort((left, right) => {
@@ -23335,7 +23438,7 @@ function claudeListSessions(fs, f) {
     return [];
   const out = [];
   const projectDirs = () => {
-    const allDirs = () => fs.readDir(root).filter((entry) => entry.isDirectory).map((entry) => join40(root, entry.name));
+    const allDirs = () => fs.readDir(root).filter((entry) => entry.isDirectory).map((entry) => join41(root, entry.name));
     if (!f.cwd)
       return allDirs();
     const derived = claudeProjectDirFromCwd(fs, f.cwd);
@@ -23347,7 +23450,7 @@ function claudeListSessions(fs, f) {
     if (cached)
       return cached;
     const indexById = /* @__PURE__ */ new Map();
-    const indexPath = join40(directory, "sessions-index.json");
+    const indexPath = join41(directory, "sessions-index.json");
     const indexRaw = fs.exists(indexPath) ? fs.readText(indexPath) : void 0;
     if (indexRaw) {
       try {
@@ -23367,8 +23470,8 @@ function claudeListSessions(fs, f) {
     directory: dirname8(file),
     entry: { name: basename3(file), isFile: true, isDirectory: false }
   })) : projectDirs().flatMap((directory) => fs.readDir(directory).filter((entry) => entry.isFile && entry.name.endsWith(".jsonl")).map((entry) => ({ directory, entry }))).sort((left, right) => {
-    const leftPath = join40(left.directory, left.entry.name);
-    const rightPath = join40(right.directory, right.entry.name);
+    const leftPath = join41(left.directory, left.entry.name);
+    const rightPath = join41(right.directory, right.entry.name);
     return (fs.mtimeMs(rightPath) ?? 0) - (fs.mtimeMs(leftPath) ?? 0);
   });
   for (const { directory, entry } of sessionEntries) {
@@ -23376,7 +23479,7 @@ function claudeListSessions(fs, f) {
       fs.contentReadBudget.noteTotalExhausted();
       break;
     }
-    const filePath = join40(directory, entry.name);
+    const filePath = join41(directory, entry.name);
     const sid = entry.name.slice(0, -".jsonl".length);
     const idx = indexFor(directory).get(sid);
     let cwd = idx?.cwd ?? null;
@@ -23595,7 +23698,7 @@ function codexSearch(fs, s, kw) {
 }
 
 // packages/kernel/dist/mem/adapters/pi.js
-import { basename as basename5, join as join41, resolve as resolve14 } from "node:path";
+import { basename as basename5, join as join42, resolve as resolve15 } from "node:path";
 function piListSessions(fs, f) {
   const out = [];
   const files = candidateFiles(fs, f).sort((left, right) => (fs.mtimeMs(right) ?? 0) - (fs.mtimeMs(left) ?? 0));
@@ -23656,7 +23759,7 @@ function piListSessions(fs, f) {
   return out;
 }
 function candidateFiles(fs, f) {
-  const defaultRoot = join41(piAgentDir(fs), "sessions");
+  const defaultRoot = join42(piAgentDir(fs), "sessions");
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   const pushJsonl = (root, fileLimit) => {
@@ -23666,7 +23769,7 @@ function candidateFiles(fs, f) {
     for (const file of discovered) {
       if (!file.endsWith(".jsonl"))
         continue;
-      const normalized2 = resolve14(file);
+      const normalized2 = resolve15(file);
       if (seen.has(normalized2))
         continue;
       seen.add(normalized2);
@@ -23682,7 +23785,7 @@ function candidateFiles(fs, f) {
     const remainingRoots = roots.length - index;
     const remainingFiles = fs.contentReadBudget?.remainingDiscoveryFiles?.("pi");
     const fairLimit = remainingFiles === void 0 ? normalLimit : Math.min(normalLimit, Math.ceil(remainingFiles / remainingRoots));
-    if (f.cwd && resolve14(root) === resolve14(defaultRoot)) {
+    if (f.cwd && resolve15(root) === resolve15(defaultRoot)) {
       pushJsonl(fs.contentReadBudget ? root : piProjectDirFromCwd(fs, f.cwd), fairLimit);
     } else {
       pushJsonl(root, fairLimit);
@@ -24886,10 +24989,10 @@ async function applyLevelChange(repoRoot, loopId, target, opts, fs) {
 // packages/kernel/dist/loops/drafts.js
 import { readFileSync as readFileSync13 } from "node:fs";
 import { mkdir as mkdir22, rename as rename11, writeFile as writeFile14 } from "node:fs/promises";
-import { dirname as dirname9, join as join42 } from "node:path";
+import { dirname as dirname9, join as join43 } from "node:path";
 var DRAFT_MARKS_FILE = "loops.drafts.json";
 function draftMarksPath(repoRoot) {
-  return join42(repoRoot, ".pipeline", DRAFT_MARKS_FILE);
+  return join43(repoRoot, ".pipeline", DRAFT_MARKS_FILE);
 }
 function readDraftMarks(path14) {
   try {
@@ -25083,26 +25186,26 @@ function updateLoopInYaml(text7, loopId, patch) {
 
 // packages/kernel/dist/loops/governance.js
 import { createHash as createHash18, randomBytes } from "node:crypto";
-import { mkdir as mkdir23, open as open5, readFile as readFile29, rename as rename12 } from "node:fs/promises";
-import { join as join43, resolve as resolve15 } from "node:path";
+import { mkdir as mkdir23, open as open5, readFile as readFile30, rename as rename12 } from "node:fs/promises";
+import { join as join44, resolve as resolve16 } from "node:path";
 var LOOPS_REL = [".pipeline", "loops.yaml"];
 var GOVERNANCE_LOCK_BASE = [".pipeline", "loops", "governance"];
 var ABSENT_REGISTRY_EPOCH = "absent";
 function loopsYamlPath(repoRoot) {
-  return join43(repoRoot, ...LOOPS_REL);
+  return join44(repoRoot, ...LOOPS_REL);
 }
 function governanceLockBase(repoRoot) {
-  return join43(repoRoot, ...GOVERNANCE_LOCK_BASE);
+  return join44(repoRoot, ...GOVERNANCE_LOCK_BASE);
 }
 async function withRegistryGovernanceLock(repoRoot, fn) {
-  const base = resolve15(governanceLockBase(repoRoot));
+  const base = resolve16(governanceLockBase(repoRoot));
   await mkdir23(base, { recursive: true });
   return withLock(base, fn);
 }
 async function readRegistrySnapshot(repoRoot) {
   let text7;
   try {
-    text7 = await readFile29(loopsYamlPath(repoRoot), "utf8");
+    text7 = await readFile30(loopsYamlPath(repoRoot), "utf8");
   } catch (e) {
     if (e.code === "ENOENT") {
       return { text: "", epoch: ABSENT_REGISTRY_EPOCH, registry: null, errors: [] };
@@ -25114,10 +25217,10 @@ async function readRegistrySnapshot(repoRoot) {
   return { text: text7, epoch, registry: data, errors };
 }
 async function writeRegistryTextAtomic(repoRoot, text7) {
-  const dir = join43(repoRoot, ".pipeline");
+  const dir = join44(repoRoot, ".pipeline");
   await mkdir23(dir, { recursive: true });
   const finalPath = loopsYamlPath(repoRoot);
-  const tmp = join43(dir, `.loops.yaml.tmp.${process.pid}.${randomBytes(6).toString("hex")}`);
+  const tmp = join44(dir, `.loops.yaml.tmp.${process.pid}.${randomBytes(6).toString("hex")}`);
   const fh = await open5(tmp, "w");
   try {
     await fh.writeFile(text7, "utf8");
@@ -25246,7 +25349,7 @@ var TEMPLATE_ID_SET = new Set(AUTOMATION_POLICY_TEMPLATE_IDS);
 var TRIGGER_KEYS = /* @__PURE__ */ new Set(["kind"]);
 var TRIGGER_KINDS = /* @__PURE__ */ new Set(["schedule", "event", "manual"]);
 var NO_KEYS = /* @__PURE__ */ new Set();
-function asRecord6(input2, path14) {
+function asRecord7(input2, path14) {
   if (typeof input2 !== "object" || input2 === null || Array.isArray(input2)) {
     throw new Error(`AutomationPolicyTemplate: ${path14} must be an object`);
   }
@@ -25264,7 +25367,7 @@ function ownDataValue(object6, key, path14) {
   return descriptor.value;
 }
 function snapshotRecord(input2, allowed, required3, path14) {
-  const record11 = asRecord6(input2, path14);
+  const record11 = asRecord7(input2, path14);
   const snapshot = /* @__PURE__ */ new Map();
   for (const key of Reflect.ownKeys(record11)) {
     if (typeof key !== "string" || !allowed.has(key)) {
@@ -25983,7 +26086,7 @@ async function compileLedgerContextBundleWithPorts(input2) {
 
 // packages/kernel/dist/compress/ledger-context-bundle-node-adapter.js
 import { createHash as createHash20 } from "node:crypto";
-import { isAbsolute as isAbsolute10, join as join44, posix as posix2 } from "node:path";
+import { isAbsolute as isAbsolute10, join as join45, posix as posix2 } from "node:path";
 var nodeLedgerContextBundlePrimitives = {
   isAbsoluteRoot: isAbsolute10,
   ledgerPath: (change) => posix2.join("openspec", "changes", change, ".pipeline-documents.json"),
@@ -27439,7 +27542,7 @@ function decideV2(aggregate, command) {
 }
 
 // packages/kernel/dist/orchestration/ledger.js
-import { mkdir as mkdir24, lstat as lstat28, readFile as readFile30, readdir as readdir11 } from "node:fs/promises";
+import { mkdir as mkdir24, lstat as lstat28, readFile as readFile31, readdir as readdir11 } from "node:fs/promises";
 import path8 from "node:path";
 var ORCHESTRATION_LEDGER_DIR = ".orchestration-v2";
 var ORCHESTRATION_CURRENT_FILE = "current.json";
@@ -27519,7 +27622,7 @@ async function boundedRead(file) {
     throw new LedgerCorruptionError(`symlink or non-regular ledger record: ${file}`);
   if (item2.size > ORCHESTRATION_MAX_RECORD_BYTES)
     throw new LedgerCorruptionError(`ledger record exceeds ${ORCHESTRATION_MAX_RECORD_BYTES} bytes: ${file}`);
-  const raw = await readFile30(file, "utf8");
+  const raw = await readFile31(file, "utf8");
   if (Buffer.byteLength(raw, "utf8") > ORCHESTRATION_MAX_RECORD_BYTES)
     throw new LedgerCorruptionError(`ledger record exceeds byte limit: ${file}`);
   return raw;
@@ -28301,7 +28404,7 @@ function projectPendingDecisions(input2) {
 import { createHash as createHash21 } from "node:crypto";
 
 // packages/kernel/dist/decision/idempotency.js
-import { join as join45 } from "node:path";
+import { join as join46 } from "node:path";
 var REVIEW_DECISION_IDEMPOTENCY_FILE = ".pipeline-decision-idempotency.jsonl";
 var REVIEW_DECISION_IDEMPOTENCY_MAX_BYTES = 1024 * 1024;
 function isReviewDecisionIdempotencyRecord(value) {
@@ -28337,7 +28440,7 @@ function storedCode(record11) {
   return record11.code === "idempotent-replay" ? "idempotent-replay" : "approved";
 }
 function createReviewDecisionLedger(changeDir2, fs) {
-  const path14 = join45(changeDir2, REVIEW_DECISION_IDEMPOTENCY_FILE);
+  const path14 = join46(changeDir2, REVIEW_DECISION_IDEMPOTENCY_FILE);
   return {
     lookup: async (key, payloadDigest) => {
       const raw = await fs.readText(path14);
@@ -30582,7 +30685,7 @@ function createTransitionApplication(deps) {
 // packages/server/src/server.ts
 import { join as joinPath3 } from "node:path";
 import { createServer } from "node:http";
-import { join as join103 } from "node:path";
+import { join as join104 } from "node:path";
 
 // packages/automation/dist/types.js
 var AUTOMATION_STATES = [
@@ -30605,12 +30708,12 @@ var DEFAULT_CONFIG = {
 
 // packages/automation/dist/artifacts/service.js
 import { createHash as createHash22 } from "node:crypto";
-import { cp, mkdir as mkdir26, readFile as readFile32, stat as stat3, writeFile as writeFile15 } from "node:fs/promises";
-import { dirname as dirname11, join as join47, relative as relative7, resolve as resolve16 } from "node:path";
+import { cp, mkdir as mkdir26, readFile as readFile33, stat as stat3, writeFile as writeFile15 } from "node:fs/promises";
+import { dirname as dirname11, join as join48, relative as relative7, resolve as resolve17 } from "node:path";
 
 // packages/automation/dist/submission/registry.js
-import { readFile as readFile31, mkdir as mkdir25 } from "node:fs/promises";
-import { dirname as dirname10, join as join46 } from "node:path";
+import { readFile as readFile32, mkdir as mkdir25 } from "node:fs/promises";
+import { dirname as dirname10, join as join47 } from "node:path";
 var ARTIFACT_SUBJECT_REGISTRY_FILE = ".pipeline-artifact-subjects.json";
 var emptyRegistry = () => ({ version: 1, records: [] });
 function isRecord8(value) {
@@ -30643,7 +30746,7 @@ function decodeRegistry(value) {
 }
 async function readArtifactSubjectRegistry(changeDir2) {
   try {
-    return decodeRegistry(JSON.parse(await readFile31(join46(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), "utf8")));
+    return decodeRegistry(JSON.parse(await readFile32(join47(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), "utf8")));
   } catch (error2) {
     if (error2.code === "ENOENT")
       return emptyRegistry();
@@ -30655,8 +30758,8 @@ async function recordArtifactSubjectProjection(changeDir2, record11) {
   const records = current.records.filter((candidate2) => candidate2.receiptId !== record11.receiptId);
   records.push(record11);
   const next = { version: 1, records };
-  await mkdir25(dirname10(join46(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE)), { recursive: true });
-  await atomicReplaceFile(join46(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), `${JSON.stringify(next, null, 2)}
+  await mkdir25(dirname10(join47(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE)), { recursive: true });
+  await atomicReplaceFile(join47(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), `${JSON.stringify(next, null, 2)}
 `);
   return next;
 }
@@ -30696,7 +30799,7 @@ function bytesOf(value) {
   return jsonBytes(value);
 }
 function safePath(root, p) {
-  const abs = resolve16(root, p);
+  const abs = resolve17(root, p);
   const rel = relative7(root, abs);
   if (!rel || rel.startsWith("..") || rel.includes(`${requireSep()}..`))
     throw new Error("artifact path outside scope");
@@ -30733,15 +30836,15 @@ function decodeState(value) {
   };
 }
 async function openArtifactService(options3) {
-  const root = resolve16(options3.rootDir);
-  const store = join47(root, ".pipeline-artifacts", options3.scopeId);
-  const legacyStore = join47(root, ".pipeline-artifacts", "runtime-artifacts");
-  const blobs = join47(store, "blobs");
-  const statePath = join47(store, "state.json");
+  const root = resolve17(options3.rootDir);
+  const store = join48(root, ".pipeline-artifacts", options3.scopeId);
+  const legacyStore = join48(root, ".pipeline-artifacts", "runtime-artifacts");
+  const blobs = join48(store, "blobs");
+  const statePath = join48(store, "state.json");
   const now = options3.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
   let legacyScopeCopied = false;
   if (!options3.readOnly && options3.scopeId !== "runtime-artifacts") {
-    await mkdir26(join47(root, ".pipeline-artifacts"), { recursive: true });
+    await mkdir26(join48(root, ".pipeline-artifacts"), { recursive: true });
     await mkdir26(store, { recursive: true });
     const existingMigration = scopeMigrationLocks.get(store);
     const migration = existingMigration ?? (async () => {
@@ -30758,7 +30861,7 @@ async function openArtifactService(options3) {
           }
           let legacyExists = true;
           try {
-            await stat3(join47(legacyStore, "state.json"));
+            await stat3(join48(legacyStore, "state.json"));
           } catch (error2) {
             if (error2.code === "ENOENT")
               legacyExists = false;
@@ -30768,8 +30871,8 @@ async function openArtifactService(options3) {
           if (!legacyExists)
             return;
           if (targetExists) {
-            const target = decodeState(JSON.parse(await readFile32(statePath, "utf8")));
-            const legacy = decodeState(JSON.parse(await readFile32(join47(legacyStore, "state.json"), "utf8")));
+            const target = decodeState(JSON.parse(await readFile33(statePath, "utf8")));
+            const legacy = decodeState(JSON.parse(await readFile33(join48(legacyStore, "state.json"), "utf8")));
             const known = new Set(target.artifacts.flatMap((record11) => record11.versions.map((version) => `${version.contentDigest}:${version.source?.path ?? ""}`)));
             const knownAttempts = new Set(target.attempts.map((attempt2) => attempt2.stageAttemptId));
             const knownEvents = new Set(target.events.map((event) => event.idempotencyKey));
@@ -30791,7 +30894,7 @@ async function openArtifactService(options3) {
             return;
           }
           await cp(legacyStore, store, { recursive: true });
-          const migrated = decodeState(JSON.parse(await readFile32(statePath, "utf8")));
+          const migrated = decodeState(JSON.parse(await readFile33(statePath, "utf8")));
           const receiptId = `migration:scope:runtime-artifacts:${options3.scopeId}`;
           if (!migrated.migrationReceipts.some((receipt) => receipt.receipt_id === receiptId)) {
             migrated.migrationReceipts.push({ receipt_id: receiptId, legacy_artifact_id: "scope:runtime-artifacts", subject_id: `scope:${options3.scopeId}`, namespace: options3.scopeId, content_digest: `sha256:${"0".repeat(64)}`, migrated_at: now(), kind: "legacy-scope", legacy_scope_path: relative7(root, legacyStore), canonical_scope_path: relative7(root, store), retention: "preserved-awaiting-confirmation" });
@@ -30806,8 +30909,8 @@ async function openArtifactService(options3) {
       scopeMigrationLocks.set(store, migration);
     await migration;
     try {
-      const current = decodeState(JSON.parse(await readFile32(statePath, "utf8")));
-      await stat3(join47(legacyStore, "state.json"));
+      const current = decodeState(JSON.parse(await readFile33(statePath, "utf8")));
+      await stat3(join48(legacyStore, "state.json"));
       legacyScopeCopied = Array.isArray(current.migrationReceipts) && !current.migrationReceipts.some((receipt) => receipt.receipt_id === `migration:scope:runtime-artifacts:${options3.scopeId}`);
     } catch {
     }
@@ -30819,7 +30922,7 @@ async function openArtifactService(options3) {
     await mkdir26(blobs, { recursive: true });
   async function load() {
     try {
-      return decodeState(JSON.parse(await readFile32(statePath, "utf8")));
+      return decodeState(JSON.parse(await readFile33(statePath, "utf8")));
     } catch (e) {
       if (e.code === "ENOENT")
         return emptyState();
@@ -30882,7 +30985,7 @@ async function openArtifactService(options3) {
     if (options3.readOnly)
       throw new Error("artifact service is read-only");
     const sha = digest8(bytes);
-    const path14 = join47(blobs, sha);
+    const path14 = join48(blobs, sha);
     try {
       await stat3(path14);
     } catch {
@@ -31003,7 +31106,7 @@ async function openArtifactService(options3) {
       if (input2.data !== void 0 || input2.content !== void 0)
         bytes = bytesOf(input2.data ?? input2.content);
       else if (input2.path)
-        bytes = new Uint8Array(await readFile32(safePath(root, input2.path)));
+        bytes = new Uint8Array(await readFile33(safePath(root, input2.path)));
       else
         throw new Error("artifact content or path required");
       result2.push(await versionFor(s, input2, bytes, a));
@@ -31259,7 +31362,7 @@ async function openArtifactService(options3) {
     }
   };
   async function readBlob(sha, max) {
-    const b = new Uint8Array(await readFile32(join47(blobs, sha)));
+    const b = new Uint8Array(await readFile33(join48(blobs, sha)));
     return max && b.byteLength > max ? b.slice(0, max) : b;
   }
   return service;
@@ -31351,7 +31454,7 @@ var outputSchema = JSON.stringify({
 import { execFile as execFile3, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 var mergedEnv = (env) => env ? { ...process.env, ...env } : process.env;
-var spawnStreaming = (file, args, opts) => new Promise((resolve19) => {
+var spawnStreaming = (file, args, opts) => new Promise((resolve20) => {
   const maxTail = opts.maxTailChars ?? MAX_TAIL_CHARS;
   const proc = spawn(file, args, {
     cwd: opts.cwd,
@@ -31384,19 +31487,19 @@ var spawnStreaming = (file, args, opts) => new Promise((resolve19) => {
   }
   proc.on("error", (err) => {
     stderrTail.push(String(err.message ?? err));
-    resolve19({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: 127 });
+    resolve20({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: 127 });
   });
   proc.on("close", (code) => {
-    resolve19({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: code ?? 0 });
+    resolve20({ stdout: stdoutTail.toString(), stderr: stderrTail.toString(), exitCode: code ?? 0 });
   });
 });
 var nodeExec = (file, args, opts) => {
   if (opts?.onLine || opts?.input !== void 0)
     return spawnStreaming(file, args, opts);
-  return new Promise((resolve19) => {
+  return new Promise((resolve20) => {
     execFile3(file, args, { cwd: opts?.cwd, env: mergedEnv(opts?.env), maxBuffer: 64 * 1024 * 1024, encoding: "utf-8" }, (error2, stdout, stderr) => {
       const code = error2 && typeof error2.code === "number" ? error2.code : error2 ? 1 : 0;
-      resolve19({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
+      resolve20({ stdout: String(stdout), stderr: String(stderr), exitCode: code });
     });
   });
 };
@@ -31453,7 +31556,7 @@ var ACTIONS2 = new Set(WORKFLOW_ACTIONS);
 import { createHash as createHash24 } from "node:crypto";
 import { constants as constants4 } from "node:fs";
 import { chmod, lstat as lstat29, mkdir as mkdir27, open as open6, readdir as readdir12, realpath as realpath7, stat as stat4, writeFile as writeFile16 } from "node:fs/promises";
-import { dirname as dirname12, join as join48, relative as relative8, sep as sep8 } from "node:path";
+import { dirname as dirname12, join as join49, relative as relative8, sep as sep8 } from "node:path";
 
 // packages/automation/dist/skills/types.js
 function isPathSafeSkillId(skillId) {
@@ -31508,7 +31611,7 @@ async function captureDirectoryIdentities(realRoot, absFile, rootIdentity, onFai
   let cursor = realRoot;
   if (fromRoot !== "") {
     for (const segment of fromRoot.split(sep8)) {
-      cursor = join48(cursor, segment);
+      cursor = join49(cursor, segment);
       paths.push(cursor);
     }
   }
@@ -31597,7 +31700,7 @@ async function buildCanonicalManifest(skillId, sourceDir3, hooks = {}) {
     }
     for (const d of dirents) {
       const relPath = relDir ? `${relDir}/${d.name}` : d.name;
-      const absPath = join48(realDir, d.name);
+      const absPath = join49(realDir, d.name);
       if (d.isSymbolicLink()) {
         let real;
         try {
@@ -31719,11 +31822,11 @@ var GIT_REVISION_VERIFIER_ISSUER_IDENTITY = Object.freeze({
 });
 
 // packages/automation/dist/lifecycle/spec-complete.js
-import { join as join50 } from "node:path";
+import { join as join51 } from "node:path";
 
 // packages/automation/dist/config/automationJson.js
 import { readFileSync as readFileSync14 } from "node:fs";
-import { join as join49 } from "node:path";
+import { join as join50 } from "node:path";
 var AUTOMATION_JSON_LIMITS = {
   maxParallel: { min: 1, max: 8 },
   maxRetries: { min: 0, max: 3 },
@@ -31731,7 +31834,7 @@ var AUTOMATION_JSON_LIMITS = {
 };
 var AUTOMATION_IMAGE_RE = /^[a-zA-Z0-9._/:@-]+$/;
 function automationJsonPath(root) {
-  return join49(root, ".pipeline", "automation.json");
+  return join50(root, ".pipeline", "automation.json");
 }
 var intIn = (v, min, max) => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 function isValidImageRef(v) {
@@ -31778,7 +31881,7 @@ async function enqueueAfterSpecComplete(deps, transition) {
     return { kind: "not-applicable" };
   }
   const config = resolveAutomationConfig(deps);
-  const changeDir2 = join50(deps.repoRoot, "openspec", "changes", transition.changeName);
+  const changeDir2 = join51(deps.repoRoot, "openspec", "changes", transition.changeName);
   return deps.store.withLock(changeDir2, async () => {
     const state = await deps.store.read(changeDir2);
     if (scalar9(state.fields.phase) !== "build")
@@ -31811,7 +31914,7 @@ var DEFAULT_COMPLETION_TIMEOUT_MS = 60 * 1e3;
 
 // packages/automation/dist/skills/content-locator.js
 import { lstat as lstat30, realpath as realpath8, stat as stat5 } from "node:fs/promises";
-import { join as join51 } from "node:path";
+import { join as join52 } from "node:path";
 var SkillContentNotFoundError = class extends Error {
   name = "SkillContentNotFoundError";
   _tag = "SkillContentNotFoundError";
@@ -31838,7 +31941,7 @@ function createFsSkillContentLocator(roots) {
       }
       const candidates = [];
       for (const root of roots) {
-        const candidate2 = join51(root, skillId);
+        const candidate2 = join52(root, skillId);
         try {
           await lstat30(candidate2);
         } catch (err) {
@@ -31888,7 +31991,7 @@ function createFsSkillContentLocator(roots) {
 
 // packages/automation/dist/skills/production-content-locator.js
 import { readdirSync as readdirSync4, readFileSync as readFileSync15 } from "node:fs";
-import { isAbsolute as isAbsolute11, join as join52 } from "node:path";
+import { isAbsolute as isAbsolute11, join as join53 } from "node:path";
 var SkillRootRegistryError = class extends Error {
   name = "SkillRootRegistryError";
   _tag = "SkillRootRegistryError";
@@ -31929,13 +32032,13 @@ function append(map, key, value) {
 }
 function codexPluginRoots(home, read2) {
   const result2 = /* @__PURE__ */ new Map();
-  const cache = join52(home, ".codex", "plugins", "cache");
+  const cache = join53(home, ".codex", "plugins", "cache");
   for (const authority of checkedNames(read2, cache)) {
-    const authorityDir = join52(cache, authority);
+    const authorityDir = join53(cache, authority);
     for (const plugin of checkedNames(read2, authorityDir)) {
-      const pluginDir = join52(authorityDir, plugin);
+      const pluginDir = join53(authorityDir, plugin);
       for (const version of checkedNames(read2, pluginDir)) {
-        append(result2, plugin, join52(pluginDir, version, "skills"));
+        append(result2, plugin, join53(pluginDir, version, "skills"));
       }
     }
   }
@@ -31981,7 +32084,7 @@ function claudeInstalledRoots(raw) {
       if (typeof installPath !== "string" || installPath.trim() === "" || !isAbsolute11(installPath)) {
         throw new SkillRootRegistryError(`Claude plugins.${key}[${index}].installPath \u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84`);
       }
-      append(result2, plugin, join52(installPath, "skills"));
+      append(result2, plugin, join53(installPath, "skills"));
     }
   }
   return result2;
@@ -32006,28 +32109,28 @@ function createRunnerSkillContentLocator(options3) {
   };
   const getCodexFlat = () => {
     codexFlat ??= createFsSkillContentLocator([
-      join52(options3.home, ".codex", "skills"),
-      join52(options3.home, ".codex", "skills", ".system"),
+      join53(options3.home, ".codex", "skills"),
+      join53(options3.home, ".codex", "skills", ".system"),
       // skills CLI 的 Codex/global 安装真落点是 agent-neutral ~/.agents/skills；它不属于
       // Claude 私有面，Codex runner 必须可读，否则 setup/doctor 绿而 H10 readiness 必红。
-      join52(options3.home, ".agents", "skills"),
+      join53(options3.home, ".agents", "skills"),
       ...flatten(getCodexPlugins())
     ]);
     return codexFlat;
   };
   const getClaudePlugins = () => {
-    claudePlugins ??= claudeInstalledRoots((options3.readInstalledPluginsJson ?? realInstalledJson)(join52(options3.home, ".claude", "plugins", "installed_plugins.json")));
+    claudePlugins ??= claudeInstalledRoots((options3.readInstalledPluginsJson ?? realInstalledJson)(join53(options3.home, ".claude", "plugins", "installed_plugins.json")));
     return claudePlugins;
   };
   const getClaudeFlat = () => {
     if (claudeFlat !== void 0)
       return claudeFlat;
-    const roots = [join52(options3.home, ".claude", "skills"), join52(options3.home, ".agents", "skills")];
-    const cache = join52(options3.home, ".claude", "plugins", "cache");
+    const roots = [join53(options3.home, ".claude", "skills"), join53(options3.home, ".agents", "skills")];
+    const cache = join53(options3.home, ".claude", "plugins", "cache");
     for (const marketplace of checkedNames(readDirs, cache)) {
-      const marketplaceDir = join52(cache, marketplace);
+      const marketplaceDir = join53(cache, marketplace);
       for (const plugin of checkedNames(readDirs, marketplaceDir)) {
-        roots.push(join52(marketplaceDir, plugin, "skills"));
+        roots.push(join53(marketplaceDir, plugin, "skills"));
       }
     }
     roots.push(...flatten(getClaudePlugins()));
@@ -32197,7 +32300,7 @@ var CATEGORY_ORDER = new Map(SKILL_PROVENANCE_ERROR_CATEGORIES.map((category, in
 
 // packages/automation/dist/skills/upstream-skill-view.js
 import { readFileSync as readFileSync16 } from "node:fs";
-import { join as join53 } from "node:path";
+import { join as join54 } from "node:path";
 function readOptional(path14) {
   try {
     return readFileSync16(path14, "utf8");
@@ -32208,7 +32311,7 @@ function readOptional(path14) {
   }
 }
 function upstreamSkillRunReportPath(stateRoot) {
-  return join53(stateRoot, "skills", "last-update.json");
+  return join54(stateRoot, "skills", "last-update.json");
 }
 function readUpstreamSkillRunReport(stateRoot) {
   try {
@@ -32219,10 +32322,10 @@ function readUpstreamSkillRunReport(stateRoot) {
   }
 }
 function readUpstreamSkillView(pluginRoot2, stateRoot) {
-  const registryText = readOptional(join53(pluginRoot2, "templates", "skill-sources.yaml"));
+  const registryText = readOptional(join54(pluginRoot2, "templates", "skill-sources.yaml"));
   const bundledIds = registryText === null ? [] : parseSkillProvenanceRegistry(registryText).skills.map((entry) => entry.token);
-  const sourcesText = readOptional(join53(pluginRoot2, "skills", "sources.yaml"));
-  const lockText = readOptional(join53(pluginRoot2, "skills", "skills.lock.json"));
+  const sourcesText = readOptional(join54(pluginRoot2, "skills", "sources.yaml"));
+  const lockText = readOptional(join54(pluginRoot2, "skills", "skills.lock.json"));
   if (sourcesText === null && lockText !== null) {
     throw new UpstreamSkillError("invalid-skill-lock", "skills/skills.lock.json \u5B58\u5728\u4F46\u7F3A\u5C11 skills/sources.yaml");
   }
@@ -32473,7 +32576,7 @@ async function evaluateLoopExecutionWiring(loop, loops, deps) {
 // packages/automation/dist/task-plan-run/journal.js
 import { constants as constants5 } from "node:fs";
 import { lstat as lstat31, mkdir as mkdir28, open as open7 } from "node:fs/promises";
-import { join as join54 } from "node:path";
+import { join as join55 } from "node:path";
 var JOURNAL_SCHEMA_VERSION = "task-run-event/v1";
 var MAX_JOURNAL_BYTES = 8 * 1024 * 1024;
 var TaskRunRevisionConflictError = class extends Error {
@@ -32635,7 +32738,7 @@ async function journalDirectory(changeDir2, revisionId, create2) {
   }
   let current = changeDir2;
   for (const segment of [".pipeline", "task-runs", revisionId]) {
-    current = join54(current, segment);
+    current = join55(current, segment);
     if (create2) {
       try {
         await mkdir28(current);
@@ -32662,7 +32765,7 @@ async function events(changeDir2, revisionId) {
   const directory = await journalDirectory(changeDir2, revisionId, false);
   if (directory === null)
     return [];
-  const path14 = join54(directory, "events.jsonl");
+  const path14 = join55(directory, "events.jsonl");
   const handle = await openJournalFile(path14, constants5.O_RDONLY | constants5.O_NONBLOCK | constants5.O_NOFOLLOW);
   if (handle === null)
     return [];
@@ -32717,7 +32820,7 @@ async function appendEvent(changeDir2, revisionId, expectedRunRevision, event) {
     const directory = await journalDirectory(changeDir2, revisionId, true);
     if (directory === null)
       throw new TaskRunJournalCorruptError("Task run journal directory is missing");
-    const path14 = join54(directory, "events.jsonl");
+    const path14 = join55(directory, "events.jsonl");
     const handle = await openJournalFile(path14, constants5.O_RDWR | constants5.O_APPEND | constants5.O_CREAT | constants5.O_NONBLOCK | constants5.O_NOFOLLOW, 384);
     if (handle === null)
       throw new TaskRunJournalCorruptError("Task run journal leaf disappeared");
@@ -33837,7 +33940,7 @@ function resultFor3(run, observation, report, now, issue2, outputSchemaId) {
 }
 
 // packages/automation/dist/orchestration/input-materialization-v2.js
-import { readFile as readFile33 } from "node:fs/promises";
+import { readFile as readFile34 } from "node:fs/promises";
 import { createHash as createHash28 } from "node:crypto";
 import path10 from "node:path";
 var MAX_INPUT_BYTES = 1024 * 1024;
@@ -33957,7 +34060,7 @@ function createFilesystemArtifactResolverV2(changeDir2) {
           throw new InputMaterializationErrorV2("artifact-invalid", `input reference escapes change directory: ${ref}`);
       }
       try {
-        const value = await readFile33(target, "utf8");
+        const value = await readFile34(target, "utf8");
         if (byteLength(value) > MAX_INPUT_BYTES)
           throw new InputMaterializationErrorV2("bundle-too-large", `input ${ref} exceeds ${MAX_INPUT_BYTES} bytes`);
         try {
@@ -34180,7 +34283,7 @@ function chooseWave(snapshot, policy2) {
 
 // packages/automation/dist/artifact-runtime/stage-runtime.js
 import { createHash as createHash29 } from "node:crypto";
-import { readFile as readFile34, readdir as readdir13, stat as stat6 } from "node:fs/promises";
+import { readFile as readFile35, readdir as readdir13, stat as stat6 } from "node:fs/promises";
 import path11 from "node:path";
 var StageArtifactRuntime = class _StageArtifactRuntime {
   service;
@@ -34247,7 +34350,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     const observed = changes.filter((change) => change.kind !== "deleted");
     const inputs = await Promise.all(observed.map(async (change) => ({
       source: { path: change.path },
-      data: await readFile34(this.resolve(change.path)),
+      data: await readFile35(this.resolve(change.path)),
       mediaType: mediaTypeFor(change.path),
       origin: "unknown",
       observationSource: "reconcile"
@@ -34277,7 +34380,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   async publish(relativePath, disposition = "candidate") {
     const relative14 = this.safeRelative(relativePath);
     const absolute = this.resolve(relative14);
-    const bytes = await readFile34(absolute);
+    const bytes = await readFile35(absolute);
     const currentDigest2 = digest12(bytes);
     const prior = this.observedVersionsByPath.get(relative14);
     const needsManagedObservation = prior === void 0 || prior.contentDigest !== currentDigest2 || prior.origin !== "stage" || prior.producer?.stageAttemptId !== this.stageAttemptId;
@@ -34309,7 +34412,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     const relative14 = this.safeRelative(relativePath);
     if (this.service.submitArtifactOutput === void 0)
       return this.publish(relative14, disposition);
-    const bytes = await readFile34(this.resolve(relative14));
+    const bytes = await readFile35(this.resolve(relative14));
     const version = await this.service.submitArtifactOutput(this.stageAttemptId, {
       data: bytes,
       path: relative14,
@@ -34330,7 +34433,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   }
   async observePath(relativePath, options3 = {}) {
     const relative14 = this.safeRelative(relativePath);
-    const bytes = await readFile34(this.resolve(relative14));
+    const bytes = await readFile35(this.resolve(relative14));
     const value = await this.service.observe(this.stageAttemptId, { source: { path: relative14 }, data: bytes, mediaType: mediaTypeFor(relative14), origin: "stage", producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...this.skillId ? { skillId: this.skillId } : {}, ...this.actorId ? { actorId: this.actorId } : {} }, observationSource: options3.source ?? "managed-tool", ...options3.toolCallId ? { toolCallId: options3.toolCallId } : {} });
     const version = value;
     this.observedDigestsByPath.set(relative14, digest12(bytes));
@@ -34404,7 +34507,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
         if (entry.isDirectory())
           await walk(absolute);
         else if (entry.isFile() && !this.isIgnored(path11.relative(this.rootDir, absolute))) {
-          const bytes = await readFile34(absolute);
+          const bytes = await readFile35(absolute);
           result2.set(path11.relative(this.rootDir, absolute), createHash29("sha256").update(bytes).digest("hex"));
         }
       }
@@ -34950,7 +35053,7 @@ var MAX_MANAGED_TOOL_OBSERVATIONS = 128;
 var MAX_EVENT_TYPES = 32;
 var MAX_EVENT_SAMPLES = 8;
 var MAX_EVENT_SAMPLE_CHARS = 180;
-function asRecord7(value) {
+function asRecord8(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
 function unwrap(text7) {
@@ -34972,17 +35075,17 @@ function parseCodexSkillOutput(jsonl) {
       diagnostics.push(`codex-jsonl-invalid:${index + 1}`);
       continue;
     }
-    const record11 = asRecord7(event);
+    const record11 = asRecord8(event);
     if (record11 === void 0)
       continue;
-    const item2 = asRecord7(record11.item);
+    const item2 = asRecord8(record11.item);
     const values = [record11.output, record11.text, record11.message, item2?.output, item2?.text, item2?.message, item2?.content];
     for (const value of values) {
       if (typeof value === "string" && value.trim().length > 0)
         candidates.push(value);
       else if (Array.isArray(value)) {
         for (const part of value) {
-          const partRecord = asRecord7(part);
+          const partRecord = asRecord8(part);
           if (typeof partRecord?.text === "string")
             candidates.push(partRecord.text);
         }
@@ -34999,7 +35102,7 @@ function parseCodexSkillOutput(jsonl) {
   }
 }
 function toolCompletionKind(event) {
-  const record11 = asRecord7(event);
+  const record11 = asRecord8(event);
   if (record11 === void 0)
     return void 0;
   const type = typeof record11.type === "string" ? record11.type : "";
@@ -35007,7 +35110,7 @@ function toolCompletionKind(event) {
     return type;
   if (type !== "item.completed")
     return void 0;
-  const item2 = asRecord7(record11.item);
+  const item2 = asRecord8(record11.item);
   const itemType = typeof item2?.type === "string" ? item2.type : "";
   return (/* @__PURE__ */ new Set(["command_execution", "command", "shell_command", "shell", "file_change", "write", "file_write", "tool_call", "tool_use", "mcp_tool_call"])).has(itemType) ? itemType : void 0;
 }
@@ -35019,7 +35122,7 @@ function stringsAtKnownKeys(value, output2, depth = 0) {
       stringsAtKnownKeys(child, output2, depth + 1);
     return;
   }
-  const record11 = asRecord7(value);
+  const record11 = asRecord8(value);
   if (record11 === void 0)
     return;
   const keys2 = ["path", "file_path", "relative_path", "output_path", "target_path", "source_path"];
@@ -35055,8 +35158,8 @@ function decodeCodexToolCompletion(event, changeDir2) {
   const kind = toolCompletionKind(event);
   if (kind === void 0)
     return void 0;
-  const record11 = asRecord7(event);
-  const item2 = asRecord7(record11?.item);
+  const record11 = asRecord8(event);
+  const item2 = asRecord8(record11?.item);
   const candidates = [];
   stringsAtKnownKeys(record11, candidates);
   const paths = [];
@@ -35106,11 +35209,11 @@ function createCodexSkillExecutorV2(options3) {
         onLine: (line) => {
           try {
             const event = JSON.parse(line);
-            const eventType = typeof asRecord7(event)?.type === "string" ? asRecord7(event)?.type : void 0;
+            const eventType = typeof asRecord8(event)?.type === "string" ? asRecord8(event)?.type : void 0;
             if (eventType === "turn.completed" || eventType === "turn.started")
               reconcileScheduledForTurn = false;
             const completion = decodeCodexToolCompletion(event, options3.change_dir);
-            const type = completion?.kind ?? (typeof asRecord7(event)?.type === "string" ? asRecord7(event)?.type : void 0);
+            const type = completion?.kind ?? (typeof asRecord8(event)?.type === "string" ? asRecord8(event)?.type : void 0);
             if (type !== void 0) {
               if (eventTypeCounts.size < MAX_EVENT_TYPES || eventTypeCounts.has(type))
                 eventTypeCounts.set(type, (eventTypeCounts.get(type) ?? 0) + 1);
@@ -35154,7 +35257,7 @@ function createCodexSkillExecutorV2(options3) {
       const observationDiagnostics = observationResults.flatMap((entry) => entry.status === "rejected" ? [`artifact-managed-observe-failed:${redact(entry.reason instanceof Error ? entry.reason.message : "unknown", 180)}`] : []);
       if (result2.exitCode !== 0)
         throw new Error(`codex skill execution failed (${result2.exitCode}): ${redact(result2.stderr, 512)}`);
-      const candidate2 = asRecord7(parsed2.value);
+      const candidate2 = asRecord8(parsed2.value);
       const streamDiagnostics = [
         ...parsed2.diagnostics,
         ...reconcileDiagnostics,
@@ -35173,7 +35276,7 @@ function createCodexSkillExecutorV2(options3) {
       if (candidate2 !== void 0 && Array.isArray(candidate2.artifacts) && input2.artifact_runtime !== void 0) {
         observedArtifacts = [];
         for (const artifact of candidate2.artifacts) {
-          const ref = asRecord7(artifact)?.ref;
+          const ref = asRecord8(artifact)?.ref;
           if (typeof ref !== "string" || !SAFE_LOCAL_REF.test(ref) || ref.includes("..") || ref.includes("://"))
             continue;
           try {
@@ -35251,7 +35354,7 @@ import {
   realpathSync as realpathSync4,
   unlinkSync
 } from "node:fs";
-import { isAbsolute as isAbsolute12, join as join55, relative as relative9, sep as sep10 } from "node:path";
+import { isAbsolute as isAbsolute12, join as join56, relative as relative9, sep as sep10 } from "node:path";
 
 // packages/server/src/workflowRootAnchor.ts
 import {
@@ -35404,8 +35507,8 @@ function assertDirectoryStillTrusted(directory, root) {
 function openTrustedChildDirectory(root, parent, name, create2) {
   if (parent.lexicalPath === root.path) assertWorkflowRootAnchor(root);
   else assertDirectoryStillTrusted(parent, root);
-  const lexicalPath = join55(parent.lexicalPath, name);
-  const operationPath = join55(parent.fdPath ?? parent.lexicalPath, name);
+  const lexicalPath = join56(parent.lexicalPath, name);
+  const operationPath = join56(parent.fdPath ?? parent.lexicalPath, name);
   let before = lstatIfExists(operationPath);
   if (!before) {
     if (!create2) return void 0;
@@ -35531,8 +35634,8 @@ function assertWorkflowDirectoriesStillTrusted(directories) {
 }
 function childEntry(directory, name) {
   return {
-    lexical: join55(directory.lexicalPath, name),
-    operation: join55(directory.fdPath ?? directory.lexicalPath, name)
+    lexical: join56(directory.lexicalPath, name),
+    operation: join56(directory.fdPath ?? directory.lexicalPath, name)
   };
 }
 var WORKFLOW_NAME_RE2 = /^[\p{L}\p{N}\p{M}_-]+$/u;
@@ -36096,7 +36199,7 @@ function deleteWorkflowForApi(root, name, permit) {
 
 // packages/server/src/snapshot.ts
 import { closeSync as closeSync5, constants as constants12, fstatSync as fstatSync8, lstatSync as lstatSync8, openSync as openSync9 } from "node:fs";
-import { join as join64 } from "node:path";
+import { join as join65 } from "node:path";
 
 // packages/server/src/contextBundleTrustedReader.ts
 import { constants as constants10, fstatSync as fstatSync6, openSync as openSync7, readSync as readSync4 } from "node:fs";
@@ -36341,13 +36444,13 @@ function trustedContextBundleInputs(root, change, changeIdentity, limits) {
 }
 
 // packages/server/src/projectRoots.ts
-import { resolve as resolve17 } from "node:path";
+import { resolve as resolve18 } from "node:path";
 function dedupeRoots(roots) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
   for (const root of roots) {
     if (!root) continue;
-    const normalized2 = resolve17(root);
+    const normalized2 = resolve18(root);
     if (seen.has(normalized2)) continue;
     seen.add(normalized2);
     out.push(normalized2);
@@ -36375,7 +36478,7 @@ async function mapWithConcurrency(items, limit, mapper) {
 // packages/server/src/repositoryIdentity.ts
 import { execFile as execFile4 } from "node:child_process";
 import { createHash as createHash30 } from "node:crypto";
-import { basename as basename6, dirname as dirname14, isAbsolute as isAbsolute13, join as join56, normalize as normalize2, resolve as resolve18 } from "node:path";
+import { basename as basename6, dirname as dirname14, isAbsolute as isAbsolute13, join as join57, normalize as normalize2, resolve as resolve19 } from "node:path";
 var REPOSITORY_IDENTITY_TIMEOUT_MS = 1500;
 var REPOSITORY_IDENTITY_MAX_OUTPUT_BYTES = 4096;
 var REPOSITORY_IDENTITY_ARGS = [
@@ -36446,11 +36549,11 @@ async function probeRepositoryIdentity(root, deps = {}) {
   if (lines2.length !== 3) return void 0;
   const [commonDirectoryRaw, topLevelRaw, gitDirectoryRaw] = lines2;
   if (!commonDirectoryRaw || !topLevelRaw || !gitDirectoryRaw || !isAbsolute13(commonDirectoryRaw) || !isAbsolute13(topLevelRaw) || !isAbsolute13(gitDirectoryRaw)) return void 0;
-  const commonDirectory = normalize2(resolve18(commonDirectoryRaw));
-  const topLevel = normalize2(resolve18(topLevelRaw));
-  const gitDirectory = normalize2(resolve18(gitDirectoryRaw));
+  const commonDirectory = normalize2(resolve19(commonDirectoryRaw));
+  const topLevel = normalize2(resolve19(topLevelRaw));
+  const gitDirectory = normalize2(resolve19(gitDirectoryRaw));
   const commonName = basename6(commonDirectory);
-  const conventionalDotGit = commonName === ".git" && (commonDirectory === normalize2(resolve18(join56(topLevel, ".git"))) || gitDirectory !== commonDirectory);
+  const conventionalDotGit = commonName === ".git" && (commonDirectory === normalize2(resolve19(join57(topLevel, ".git"))) || gitDirectory !== commonDirectory);
   const label = conventionalDotGit ? basename6(dirname14(commonDirectory)) : commonName.endsWith(".git") && commonName.length > ".git".length ? commonName.slice(0, -".git".length) : basename6(topLevel);
   if (!label) return void 0;
   return {
@@ -36462,11 +36565,11 @@ async function probeRepositoryIdentity(root, deps = {}) {
 
 // packages/server/src/snapshotFingerprint.ts
 import { lstat as lstat33, readdir as readdir14 } from "node:fs/promises";
-import { join as join58 } from "node:path";
+import { join as join59 } from "node:path";
 
 // packages/server/src/repositoryFingerprint.ts
 import { lstat as lstat32 } from "node:fs/promises";
-import { join as join57, sep as sep11 } from "node:path";
+import { join as join58, sep as sep11 } from "node:path";
 async function metadataPart(path14, mode = "volatile", lookupPath = path14) {
   try {
     const metadata = await lstat32(lookupPath, { bigint: true });
@@ -36484,18 +36587,18 @@ async function repositoryTopologyFingerprint(root) {
   const rootEntry = await metadataPart(root, "stable", `${root}${sep11}.`);
   if (rootEntry === null) return [];
   if (!rootEntry.directory) return [rootEntry.value];
-  const dotGit = join57(root, ".git");
+  const dotGit = join58(root, ".git");
   const entry = await metadataPart(dotGit, "stable-directory");
   if (entry === null) return [rootEntry.value];
   if (!entry.directory) return [rootEntry.value, entry.value];
-  const worktrees = await metadataPart(join57(dotGit, "worktrees"));
+  const worktrees = await metadataPart(join58(dotGit, "worktrees"));
   return worktrees === null ? [rootEntry.value, entry.value] : [rootEntry.value, entry.value, worktrees.value];
 }
 
 // packages/server/src/snapshotFingerprint.ts
 async function viewerFingerprintParts(readRoot, viewer) {
   const parts = [];
-  const targets = [join58(readRoot, ".git", "logs", "HEAD")];
+  const targets = [join59(readRoot, ".git", "logs", "HEAD")];
   if (viewer !== void 0 && isTenonUser(viewer)) targets.push(userProjectPaths(readRoot, viewer.slug).archived);
   for (const target of targets) {
     try {
@@ -36508,7 +36611,7 @@ async function viewerFingerprintParts(readRoot, viewer) {
 }
 async function userSlugs2(readRoot) {
   try {
-    return (await readdir14(join58(readRoot, TENON_PROJECT_DIR, "users"), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    return (await readdir14(join59(readRoot, TENON_PROJECT_DIR, "users"), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
   } catch {
     return [];
   }
@@ -36532,7 +36635,7 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
       parts.push(`root:${root}:${anchor.dev}:${anchor.ino}`);
       parts.push(...await repositoryTopologyFingerprint(readRoot));
       parts.push(...await viewerFingerprintParts(readRoot, viewer?.(root)));
-      const changesRoot = join58(readRoot, "openspec", "changes");
+      const changesRoot = join59(readRoot, "openspec", "changes");
       let entries;
       try {
         entries = readChangesDirectory === void 0 ? await readdir14(changesRoot, { withFileTypes: true }) : await readChangesDirectory(changesRoot);
@@ -36544,7 +36647,7 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
       assertWorkflowRootAnchor(anchor);
       for (const entry of entries) {
         if (!entry.isDirectory() || entry.name === "archive") continue;
-        const changeDir2 = join58(changesRoot, entry.name);
+        const changeDir2 = join59(changesRoot, entry.name);
         const source2 = stateStorageSourcePathSync(changeDir2);
         if (source2 === void 0) continue;
         try {
@@ -36553,7 +36656,7 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
         } catch {
         }
         for (const name of ["tasks.md", ".pipeline-documents.json"]) {
-          const target = join58(changeDir2, name);
+          const target = join59(changeDir2, name);
           try {
             const stat7 = await lstat33(target, { bigint: true });
             parts.push(`${target}:${stat7.size}:${stat7.mtimeNs}`);
@@ -36562,8 +36665,8 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
         }
         for (const slug of await userSlugs2(readRoot)) {
           for (const dir of [
-            join58(readRoot, TENON_PROJECT_DIR, "users", slug, "tests", entry.name),
-            join58(readRoot, TENON_PROJECT_DIR, "users", slug, "local", "running", entry.name)
+            join59(readRoot, TENON_PROJECT_DIR, "users", slug, "tests", entry.name),
+            join59(readRoot, TENON_PROJECT_DIR, "users", slug, "local", "running", entry.name)
           ]) {
             try {
               const stat7 = await lstat33(dir, { bigint: true });
@@ -36572,7 +36675,7 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
             }
           }
         }
-        const activity = join58(changeDir2, TERMINAL_ACTIVITY_FILE);
+        const activity = join59(changeDir2, TERMINAL_ACTIVITY_FILE);
         try {
           const stat7 = await lstat33(activity, { bigint: true });
           const live = await readTerminalActivity2(changeDir2, entry.name, nowMs);
@@ -36600,7 +36703,7 @@ import {
   openSync as openSync8,
   realpathSync as realpathSync5
 } from "node:fs";
-import { dirname as dirname15, isAbsolute as isAbsolute14, join as join59, relative as relative10, sep as sep12 } from "node:path";
+import { dirname as dirname15, isAbsolute as isAbsolute14, join as join60, relative as relative10, sep as sep12 } from "node:path";
 
 // packages/server/src/stableFileMetadata.ts
 function captureStableFileVersion(stat7) {
@@ -36647,7 +36750,7 @@ function readBoundedTasksSource(fd, maxBytes) {
   return decodeUtf8Text(bytes, "tasks.md snapshot");
 }
 async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
-  const lexicalTarget = join59(changeDir2, "tasks.md");
+  const lexicalTarget = join60(changeDir2, "tasks.md");
   let changeFd;
   let fd;
   let rootVersion2;
@@ -36675,7 +36778,7 @@ async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
     const anchoredChangeDir = traversableDirectoryFdPath(changeFd, openedDir) ?? changeDir2;
     if (!openedChangeDir.isDirectory() || !sameIdentity(openedChangeDir, openedDir)) return void 0;
     assertTrustContext();
-    const target = join59(anchoredChangeDir, "tasks.md");
+    const target = join60(anchoredChangeDir, "tasks.md");
     hooks.beforeOpen?.();
     fd = openSync8(target, constants11.O_RDONLY | constants11.O_NOFOLLOW | constants11.O_NONBLOCK);
     const opened = fstatSync7(fd, { bigint: true });
@@ -36710,7 +36813,7 @@ async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
 
 // packages/server/src/snapshotProjectScan.ts
 import { readdir as readdir15 } from "node:fs/promises";
-import { join as join63 } from "node:path";
+import { join as join64 } from "node:path";
 
 // packages/server/src/agentRuns.ts
 var PAST_CANDIDATE = "past";
@@ -36815,8 +36918,8 @@ function agentBlockersOf(runs, plan, phase) {
 }
 
 // packages/server/src/skillRuns.ts
-import { readFile as readFile35 } from "node:fs/promises";
-import { join as join60 } from "node:path";
+import { readFile as readFile36 } from "node:fs/promises";
+import { join as join61 } from "node:path";
 var BUILTIN_SKILL_PROFILES = new Set(
   BUILTIN_TRACK_IDS.map((id2) => builtinTrack(id2).policyProfile.skills.profile).filter((profile) => profile !== "_all")
 );
@@ -36837,7 +36940,7 @@ function resolveSnapshotTrack(root, trackId, workflowName) {
 async function readHistoryLines(changeDir2) {
   let text7;
   try {
-    text7 = await readFile35(join60(changeDir2, HISTORY_FILE), "utf8");
+    text7 = await readFile36(join61(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return [];
     throw error2;
@@ -36967,10 +37070,10 @@ function projectWorkflowSnapshotAuthority(snapshot, state, plan) {
 
 // packages/server/src/projectCapabilities.ts
 import { statSync as statSync4 } from "node:fs";
-import { join as join61 } from "node:path";
+import { join as join62 } from "node:path";
 function projectFileExists(root, repoRelativePath) {
   try {
-    return statSync4(join61(root, repoRelativePath)).isFile();
+    return statSync4(join62(root, repoRelativePath)).isFile();
   } catch {
     return false;
   }
@@ -37256,7 +37359,7 @@ async function projectTestEvidence(input2) {
 }
 
 // packages/server/src/serverUserRoutes.ts
-import { join as join62 } from "node:path";
+import { join as join63 } from "node:path";
 function defaultResolveUser(root) {
   return root === "" ? resolveTenonUser(void 0, process.env) : resolveTenonUser(root, process.env);
 }
@@ -37305,7 +37408,7 @@ async function takeOwner(req, res, segment, deps) {
     return deps.sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
   }
   if (!/^[A-Za-z0-9_-]+$/.test(name)) return deps.sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
-  const dir = join62(root, "openspec", "changes", name);
+  const dir = join63(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 404, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change" });
   const user = deps.resolveUser(root);
   if (!isTenonUser(user)) return deps.sendJson(res, 412, { ok: false, code: "user-missing", error: USER_MISSING_HINT });
@@ -37357,8 +37460,8 @@ async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
   const childProcessRoot = anchorChildProcessPath(anchor);
   const repository = await readRepositoryIdentity(childProcessRoot, deps.repositoryIdentity);
   assertWorkflowRootAnchor(anchor);
-  const changesRoot = join63(readRoot, "openspec", "changes");
-  const displayChangesRoot = join63(root, "openspec", "changes");
+  const changesRoot = join64(readRoot, "openspec", "changes");
+  const displayChangesRoot = join64(root, "openspec", "changes");
   let entries;
   try {
     entries = deps.readChangesDirectory === void 0 ? await readdir15(changesRoot, { withFileTypes: true }) : await deps.readChangesDirectory(changesRoot);
@@ -37420,7 +37523,7 @@ async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
   for (const e of [...entries].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
     if (!e.isDirectory() || e.name === "archive") continue;
     assertWorkflowRootAnchor(anchor);
-    const changeDir2 = join63(changesRoot, e.name);
+    const changeDir2 = join64(changesRoot, e.name);
     let source2;
     try {
       source2 = stateStorageSourcePathSync(changeDir2);
@@ -37485,7 +37588,7 @@ async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
       });
       const snapshot = {
         name: e.name,
-        path: join63(displayChangesRoot, e.name),
+        path: join64(displayChangesRoot, e.name),
         phase,
         phase_status: str(f.phase_status),
         track,
@@ -37575,7 +37678,7 @@ async function projectArtifactScopeIssue(deps, changeDir2, anchor) {
   return {};
 }
 async function readTerminalActivity(changeDir2, changeName, nowMs) {
-  const target = join64(changeDir2, TERMINAL_ACTIVITY_FILE);
+  const target = join65(changeDir2, TERMINAL_ACTIVITY_FILE);
   let fd;
   try {
     fd = openSync9(target, constants12.O_RDONLY | constants12.O_NOFOLLOW | constants12.O_NONBLOCK);
@@ -37873,15 +37976,15 @@ function hasTraceTimelineReader(store) {
 // packages/server/src/operations.ts
 import { execFile as execFile5 } from "node:child_process";
 import { existsSync as existsSync6 } from "node:fs";
-import { dirname as dirname16, join as join65 } from "node:path";
+import { dirname as dirname16, join as join66 } from "node:path";
 import { fileURLToPath } from "node:url";
 function pipelineCliBundlePath() {
-  return join65(dirname16(fileURLToPath(import.meta.url)), "..", "..", "cli", "dist", "tenon.mjs");
+  return join66(dirname16(fileURLToPath(import.meta.url)), "..", "..", "cli", "dist", "tenon.mjs");
 }
 function pipelineCliAvailable() {
   return existsSync6(pipelineCliBundlePath());
 }
-var runPipelineCli = (repoRoot, args, options3) => new Promise((resolve19, reject3) => {
+var runPipelineCli = (repoRoot, args, options3) => new Promise((resolve20, reject3) => {
   const bundle = pipelineCliBundlePath();
   if (!existsSync6(bundle)) {
     reject3(new Error(`Tenon CLI bundle \u4E0D\u5B58\u5728\uFF1A${bundle}\uFF1B\u8BF7\u5148\u6267\u884C npm run bundle`));
@@ -37900,12 +38003,12 @@ var runPipelineCli = (repoRoot, args, options3) => new Promise((resolve19, rejec
     },
     (error2, stdout, stderr) => {
       if (error2 === null) {
-        resolve19({ exitCode: 0, stdout, stderr });
+        resolve20({ exitCode: 0, stdout, stderr });
         return;
       }
       const code = typeof error2.code === "number" ? error2.code : 1;
       if (typeof error2.code === "number") {
-        resolve19({ exitCode: code, stdout, stderr });
+        resolve20({ exitCode: code, stdout, stderr });
         return;
       }
       reject3(error2);
@@ -38034,7 +38137,7 @@ function routerSuppressionReason(prompt) {
   return null;
 }
 function scoreRouterPatternWithGrep(pattern, prompt) {
-  return new Promise((resolve19, reject3) => {
+  return new Promise((resolve20, reject3) => {
     const child = spawn2("grep", ["-ciE", "--", pattern], {
       env: { ...process.env, LC_ALL: "C" },
       stdio: ["pipe", "pipe", "pipe"]
@@ -38067,12 +38170,12 @@ function scoreRouterPatternWithGrep(pattern, prompt) {
         if (signal !== null) return reject3(new Error(`router grep \u88AB\u4FE1\u53F7 ${signal} \u7EC8\u6B62`));
         if (code !== 0 && code !== 1) return reject3(new Error(`router grep exit ${String(code)}\uFF1A${stderr.trim() || "unknown error"}`));
         if (stdinError !== null) return reject3(new Error(`router grep stdin \u5931\u8D25\uFF1A${stdinError.message}`));
-        if (code === 1) return resolve19(0);
+        if (code === 1) return resolve20(0);
         const score = Number(stdout.trim());
         if (!Number.isSafeInteger(score) || score < 0) {
           return reject3(new Error(`router grep \u8FD4\u56DE\u975E\u6CD5\u8BA1\u5206\uFF1A${JSON.stringify(stdout.trim())}`));
         }
-        return resolve19(score);
+        return resolve20(score);
       });
     });
     child.stdin.on("error", (error2) => {
@@ -38275,20 +38378,20 @@ function createCadenceScheduler(options3) {
 
 // packages/server/src/serverGetRoutes.ts
 import { lstatSync as lstatSync15 } from "node:fs";
-import { dirname as dirname21, join as join93 } from "node:path";
+import { dirname as dirname21, join as join94 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // packages/server/src/afkReadiness.ts
 import { accessSync, constants as fsConstants, statSync as statSync5 } from "node:fs";
-import { join as join66 } from "node:path";
+import { join as join67 } from "node:path";
 
 // packages/server/src/dockerImages.ts
 import { execFile as execFile6 } from "node:child_process";
-var nodeExecDocker = (args) => new Promise((resolve19) => {
+var nodeExecDocker = (args) => new Promise((resolve20) => {
   execFile6("docker", [...args], (err, stdout, stderr) => {
     const code = err?.code;
     const exitCode = err === null ? 0 : typeof code === "number" ? code : 1;
-    resolve19({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
+    resolve20({ stdout: String(stdout ?? ""), stderr: String(stderr ?? ""), exitCode });
   });
 });
 async function execDocker(args, opts) {
@@ -38296,8 +38399,8 @@ async function execDocker(args, opts) {
   const timeoutMs = opts?.timeoutMs ?? 5e3;
   let timer;
   try {
-    const timeout = new Promise((resolve19) => {
-      timer = setTimeout(() => resolve19(null), timeoutMs);
+    const timeout = new Promise((resolve20) => {
+      timer = setTimeout(() => resolve20(null), timeoutMs);
     });
     const result2 = await Promise.race([exec(args).catch(() => null), timeout]);
     return result2;
@@ -38356,7 +38459,7 @@ async function buildAfkReadiness(opts) {
         CODEX_HOME: codexHomeCredentialLight(
           hostEnv.CODEX_HOME,
           opts.defaultCodexHome,
-          (home) => (opts.canReadFile ?? canReadFile)(join66(home, "auth.json"))
+          (home) => (opts.canReadFile ?? canReadFile)(join67(home, "auth.json"))
         )
       }
     }
@@ -38365,7 +38468,7 @@ async function buildAfkReadiness(opts) {
 
 // packages/server/src/automationConfig.ts
 import { mkdirSync as mkdirSync4, readFileSync as readFileSync19, renameSync as renameSync4, writeFileSync as writeFileSync4 } from "node:fs";
-import { join as join67 } from "node:path";
+import { join as join68 } from "node:path";
 var AUTOMATION_DEFAULTS = {
   enabled: false,
   max_parallel: 4,
@@ -38374,7 +38477,7 @@ var AUTOMATION_DEFAULTS = {
   image: ""
 };
 function automationConfigPath(root) {
-  return join67(root, ".pipeline", "automation.json");
+  return join68(root, ".pipeline", "automation.json");
 }
 var intIn2 = (v, min, max) => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 var validImage = (v) => v === "" || isValidImageRef(v);
@@ -38426,7 +38529,7 @@ function writeAutomationSettings(root, settings) {
     default_opt_in: settings.default_opt_in
   };
   if (settings.image !== "") payload.image = settings.image;
-  const dir = join67(root, ".pipeline");
+  const dir = join68(root, ".pipeline");
   mkdirSync4(dir, { recursive: true });
   const file = automationConfigPath(root);
   const tmp = `${file}.tmp.${process.pid}`;
@@ -38437,7 +38540,7 @@ function writeAutomationSettings(root, settings) {
 
 // packages/server/src/config.ts
 import { readFileSync as readFileSync20 } from "node:fs";
-import { readFile as readFile36, rename as rename14, rm as rm11, writeFile as writeFile19 } from "node:fs/promises";
+import { readFile as readFile37, rename as rename14, rm as rm11, writeFile as writeFile19 } from "node:fs/promises";
 import { dirname as dirname17 } from "node:path";
 var ConfigError = class extends Error {
   constructor(message) {
@@ -38570,7 +38673,7 @@ async function writeMandatorySkills(manifestPath2, phase, track, skills) {
   }
   const key = `${phase}.${track}`;
   await withLock(dirname17(manifestPath2), async () => {
-    const original = await readFile36(manifestPath2, "utf8");
+    const original = await readFile37(manifestPath2, "utf8");
     const lines2 = original.split("\n");
     let sectionStart = -1;
     for (let i = 0; i < lines2.length; i++) {
@@ -38653,7 +38756,7 @@ import {
   unlinkSync as unlinkSync3,
   writeFileSync as writeFileSync5
 } from "node:fs";
-import { join as join68 } from "node:path";
+import { join as join69 } from "node:path";
 var HOOK_METAS = [
   { id: "session-start", event: "SessionStart", matcher: "*", script: "hooks/session-start.sh", configurable: true },
   { id: "breadcrumb", event: "UserPromptSubmit", matcher: "*", script: "hooks/breadcrumb.sh", configurable: true },
@@ -38848,7 +38951,7 @@ async function withHooksConfigLock(rootInput, operation) {
   const { anchor, owned } = acquireHooksRoot(rootInput);
   try {
     ensureWorkflowProjectCoordinationPath(anchor);
-    await withLock(join68(anchor.path, ".pipeline"), async () => {
+    await withLock(join69(anchor.path, ".pipeline"), async () => {
       assertWorkflowRootAnchor(anchor);
       operation(anchor);
     });
@@ -38886,17 +38989,17 @@ async function writePromptRoutingBypass(root, value) {
 
 // packages/server/src/loops.ts
 import { existsSync as existsSync7, readdirSync as readdirSync8, readFileSync as readFileSync21 } from "node:fs";
-import { join as join69 } from "node:path";
+import { join as join70 } from "node:path";
 function readRunLogText(root) {
   try {
-    return readFileSync21(join69(root, ".superpowers", "loops", "progress.md"), "utf8");
+    return readFileSync21(join70(root, ".superpowers", "loops", "progress.md"), "utf8");
   } catch {
     return null;
   }
 }
 function readLoopDocText(root) {
   try {
-    return readFileSync21(join69(root, "LOOP.md"), "utf8");
+    return readFileSync21(join70(root, "LOOP.md"), "utf8");
   } catch {
     return null;
   }
@@ -38910,7 +39013,7 @@ var READONLY_GRADUATION_FS = {
 };
 function listMatchedChanges(root, changePrefix) {
   try {
-    return readdirSync8(join69(root, "openspec", "changes"), { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== "archive" && e.name.startsWith(changePrefix)).map((e) => e.name).sort();
+    return readdirSync8(join70(root, "openspec", "changes"), { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== "archive" && e.name.startsWith(changePrefix)).map((e) => e.name).sort();
   } catch {
     return [];
   }
@@ -39128,11 +39231,11 @@ async function removeSecret(path14, key) {
 }
 
 // packages/server/src/serverGetSkillsRoutes.ts
-import { join as join71 } from "node:path";
+import { join as join72 } from "node:path";
 
 // packages/server/src/skillsRegistry.ts
 import { accessSync as accessSync2, constants as constants14, existsSync as existsSync8, readdirSync as readdirSync9, readFileSync as readFileSync22, realpathSync as realpathSync6, statSync as statSync6 } from "node:fs";
-import { delimiter, dirname as dirname18, join as join70, sep as sep13 } from "node:path";
+import { delimiter, dirname as dirname18, join as join71, sep as sep13 } from "node:path";
 function skillDescriptionFrom(path14) {
   try {
     const text7 = readFileSync22(path14, "utf8");
@@ -39151,7 +39254,7 @@ function skillDescriptionFrom(path14) {
 }
 function installedPluginRoots(claudeDir) {
   try {
-    const parsed2 = JSON.parse(readFileSync22(join70(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
+    const parsed2 = JSON.parse(readFileSync22(join71(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
     const plugins = typeof parsed2 === "object" && parsed2 !== null ? Reflect.get(parsed2, "plugins") : void 0;
     if (typeof plugins !== "object" || plugins === null || Array.isArray(plugins)) return [];
     return Object.values(plugins).flat().map((entry) => typeof entry === "object" && entry !== null ? Reflect.get(entry, "installPath") : void 0).filter((path14) => typeof path14 === "string" && path14.trim() !== "");
@@ -39168,25 +39271,25 @@ function descriptionForSkill(name, repoRoot, claudeDir, meta2) {
     name.includes(":") ? name.split(":").at(-1) : void 0
   ].filter((candidate2) => typeof candidate2 === "string" && candidate2 !== ""))];
   const roots = [
-    join70(repoRoot, "skills"),
-    join70(claudeDir, "skills"),
-    join70(home, ".agents", "skills"),
-    ...installedPluginRoots(claudeDir).map((root) => join70(root, "skills"))
+    join71(repoRoot, "skills"),
+    join71(claudeDir, "skills"),
+    join71(home, ".agents", "skills"),
+    ...installedPluginRoots(claudeDir).map((root) => join71(root, "skills"))
   ];
   for (const root of roots) {
     for (const candidate2 of candidates) {
-      const description = skillDescriptionFrom(join70(root, candidate2, "SKILL.md"));
+      const description = skillDescriptionFrom(join71(root, candidate2, "SKILL.md"));
       if (description) return description;
     }
   }
   if (meta2?.tool === "claude-plugin") {
     const plugin = meta2.skill ?? name.split(":")[0] ?? name;
-    const cache = join70(home, ".codex", "plugins", "cache");
+    const cache = join71(home, ".codex", "plugins", "cache");
     for (const marketplace of childDirsIn(cache)) {
-      const pluginRoot2 = join70(cache, marketplace, plugin);
+      const pluginRoot2 = join71(cache, marketplace, plugin);
       for (const version of childDirsIn(pluginRoot2)) {
         for (const candidate2 of candidates) {
-          const description = skillDescriptionFrom(join70(pluginRoot2, version, "skills", candidate2, "SKILL.md")) ?? skillDescriptionFrom(join70(pluginRoot2, version, "skills", "SKILL.md"));
+          const description = skillDescriptionFrom(join71(pluginRoot2, version, "skills", candidate2, "SKILL.md")) ?? skillDescriptionFrom(join71(pluginRoot2, version, "skills", "SKILL.md"));
           if (description) return description;
         }
       }
@@ -39199,16 +39302,16 @@ var MAX_LISTED_FILE_BYTES = 1024 * 1024;
 function skillRoots(repoRoot, claudeDir) {
   const home = dirname18(claudeDir);
   const roots = [
-    { dir: join70(repoRoot, "skills"), source: "local-plugin", origin: "tenon" },
-    { dir: join70(claudeDir, "skills"), source: "user", origin: "~/.claude/skills" },
-    { dir: join70(home, ".agents", "skills"), source: "user", origin: "~/.agents/skills" },
-    ...installedPluginRoots(claudeDir).map((root) => ({ dir: join70(root, "skills"), source: "external-marketplace", origin: root.split("/").filter(Boolean).at(-1) ?? root }))
+    { dir: join71(repoRoot, "skills"), source: "local-plugin", origin: "tenon" },
+    { dir: join71(claudeDir, "skills"), source: "user", origin: "~/.claude/skills" },
+    { dir: join71(home, ".agents", "skills"), source: "user", origin: "~/.agents/skills" },
+    ...installedPluginRoots(claudeDir).map((root) => ({ dir: join71(root, "skills"), source: "external-marketplace", origin: root.split("/").filter(Boolean).at(-1) ?? root }))
   ];
-  const cache = join70(home, ".codex", "plugins", "cache");
+  const cache = join71(home, ".codex", "plugins", "cache");
   for (const marketplace of childDirsIn(cache)) {
-    for (const plugin of childDirsIn(join70(cache, marketplace))) {
-      for (const version of childDirsIn(join70(cache, marketplace, plugin))) {
-        roots.push({ dir: join70(cache, marketplace, plugin, version, "skills"), source: "external-marketplace", origin: `${marketplace}/${plugin}@${version}` });
+    for (const plugin of childDirsIn(join71(cache, marketplace))) {
+      for (const version of childDirsIn(join71(cache, marketplace, plugin))) {
+        roots.push({ dir: join71(cache, marketplace, plugin, version, "skills"), source: "external-marketplace", origin: `${marketplace}/${plugin}@${version}` });
       }
     }
   }
@@ -39218,9 +39321,9 @@ function locateSkillDir(name, repoRoot, claudeDir) {
   const candidates = [...new Set([name, name.includes(":") ? name.split(":").at(-1) : void 0].filter((candidate2) => typeof candidate2 === "string" && candidate2 !== ""))];
   for (const root of skillRoots(repoRoot, claudeDir)) {
     for (const candidate2 of candidates) {
-      const dir = join70(root.dir, candidate2);
+      const dir = join71(root.dir, candidate2);
       try {
-        if (statSync6(join70(dir, "SKILL.md")).isFile()) return { dir, source: root.source, origin: root.origin };
+        if (statSync6(join71(dir, "SKILL.md")).isFile()) return { dir, source: root.source, origin: root.origin };
       } catch {
         continue;
       }
@@ -39232,7 +39335,7 @@ function walkFiles(root, rel = "") {
   const out = [];
   let entries;
   try {
-    entries = readdirSync9(join70(root, rel)).sort();
+    entries = readdirSync9(join71(root, rel)).sort();
   } catch {
     return out;
   }
@@ -39241,7 +39344,7 @@ function walkFiles(root, rel = "") {
     const relPath = rel === "" ? entry : `${rel}/${entry}`;
     let info;
     try {
-      info = statSync6(join70(root, relPath));
+      info = statSync6(join71(root, relPath));
     } catch {
       continue;
     }
@@ -39266,7 +39369,7 @@ function readSkillFile(name, relPath, repoRoot, claudeDir) {
   const entry = listed.files.find((file) => file.path === relPath);
   if (located === void 0 || entry === void 0) return { kind: "not-found" };
   if (entry.bytes > MAX_SKILL_FILE_BYTES) return { kind: "too-large" };
-  const absolute = join70(located.dir, relPath);
+  const absolute = join71(located.dir, relPath);
   try {
     const realRoot = realpathSync6(located.dir);
     const realFile = realpathSync6(absolute);
@@ -39282,9 +39385,9 @@ function skillDirsIn(dir) {
   if (!existsSync8(dir)) return [];
   try {
     return readdirSync9(dir).filter((name) => {
-      const p = join70(dir, name);
+      const p = join71(dir, name);
       try {
-        return statSync6(p).isDirectory() && existsSync8(join70(p, "SKILL.md"));
+        return statSync6(p).isDirectory() && existsSync8(join71(p, "SKILL.md"));
       } catch {
         return false;
       }
@@ -39298,7 +39401,7 @@ function childDirsIn(dir) {
   try {
     return readdirSync9(dir).filter((name) => {
       try {
-        return statSync6(join70(dir, name)).isDirectory();
+        return statSync6(join71(dir, name)).isDirectory();
       } catch {
         return false;
       }
@@ -39308,23 +39411,23 @@ function childDirsIn(dir) {
   }
 }
 function localSkillDirs(repoRoot) {
-  return skillDirsIn(join70(repoRoot, "skills"));
+  return skillDirsIn(join71(repoRoot, "skills"));
 }
 function detectInstalled(claudeDir) {
-  const skills = new Set(skillDirsIn(join70(claudeDir, "skills")));
-  for (const name of skillDirsIn(join70(dirname18(claudeDir), ".agents", "skills"))) skills.add(name);
+  const skills = new Set(skillDirsIn(join71(claudeDir, "skills")));
+  for (const name of skillDirsIn(join71(dirname18(claudeDir), ".agents", "skills"))) skills.add(name);
   const pluginBases = /* @__PURE__ */ new Set();
   const codexPluginBases = /* @__PURE__ */ new Set();
-  const codexCache = join70(dirname18(claudeDir), ".codex", "plugins", "cache");
+  const codexCache = join71(dirname18(claudeDir), ".codex", "plugins", "cache");
   for (const marketplace of childDirsIn(codexCache)) {
-    for (const plugin of childDirsIn(join70(codexCache, marketplace))) codexPluginBases.add(plugin);
+    for (const plugin of childDirsIn(join71(codexCache, marketplace))) codexPluginBases.add(plugin);
   }
   try {
-    const raw = readFileSync22(join70(claudeDir, "plugins", "installed_plugins.json"), "utf8");
+    const raw = readFileSync22(join71(claudeDir, "plugins", "installed_plugins.json"), "utf8");
     const parsed2 = JSON.parse(raw);
     let disabled = {};
     try {
-      const settings = JSON.parse(readFileSync22(join70(claudeDir, "settings.json"), "utf8"));
+      const settings = JSON.parse(readFileSync22(join71(claudeDir, "settings.json"), "utf8"));
       if (typeof settings === "object" && settings !== null) {
         const candidate2 = Reflect.get(settings, "enabledPlugins");
         if (typeof candidate2 === "object" && candidate2 !== null && !Array.isArray(candidate2)) {
@@ -39344,7 +39447,7 @@ function detectInstalled(claudeDir) {
         if (typeof entry !== "object" || entry === null) continue;
         const installPath = Reflect.get(entry, "installPath");
         if (typeof installPath !== "string") continue;
-        for (const name of skillDirsIn(join70(installPath, "skills"))) skills.add(name);
+        for (const name of skillDirsIn(join71(installPath, "skills"))) skills.add(name);
       }
     }
   } catch {
@@ -39353,7 +39456,7 @@ function detectInstalled(claudeDir) {
 }
 function sourceRegistry(repoRoot) {
   try {
-    const rows = parseSkillSources(readFileSync22(join70(repoRoot, "templates", "skill-sources.yaml"), "utf8"));
+    const rows = parseSkillSources(readFileSync22(join71(repoRoot, "templates", "skill-sources.yaml"), "utf8"));
     return new Map(rows.map((row) => [row.token, row]));
   } catch {
     return /* @__PURE__ */ new Map();
@@ -39367,7 +39470,7 @@ function executableOnPath(bin) {
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     if (dir === "") continue;
     try {
-      accessSync2(join70(dir, bin), constants14.X_OK);
+      accessSync2(join71(dir, bin), constants14.X_OK);
       return true;
     } catch {
     }
@@ -39430,7 +39533,7 @@ function listAllSkillsDetailed(repoRoot, claudeDir) {
 // packages/server/src/serverGetSkillsRoutes.ts
 function resolveSkillsGet(req, res, path14, deps) {
   const { hostHome, repoRoot, stateRoot, sendJson, errMsg: errMsg2 } = deps;
-  const claudeDir = join71(hostHome, ".claude");
+  const claudeDir = join72(hostHome, ".claude");
   const mSkillFiles = /^\/api\/skills\/([^/]+)\/(files|file)$/.exec(path14);
   if (mSkillFiles) {
     const raw = decodeURIComponent(mSkillFiles[1] ?? "");
@@ -39468,12 +39571,12 @@ function resolveSkillsGet(req, res, path14, deps) {
 }
 
 // packages/server/src/serverGetActivityRoutes.ts
-import { join as join76, resolve as resolvePath4 } from "node:path";
+import { join as join77, resolve as resolvePath4 } from "node:path";
 
 // packages/server/src/afk.ts
 import { execFile as execFile7 } from "node:child_process";
-import { readFile as readFile37, writeFile as writeFile20 } from "node:fs/promises";
-import { join as join72 } from "node:path";
+import { readFile as readFile38, writeFile as writeFile20 } from "node:fs/promises";
+import { join as join73 } from "node:path";
 var AFK_LANES = ["queued", "running", "merged", "failed", "conflict", "paused"];
 function isAutomationState(value) {
   return AUTOMATION_STATES.includes(value);
@@ -39594,7 +39697,7 @@ async function cancelAfkRun(store, changeDir2) {
     return { ok: false, error: "\u7F3A automation_worktree/automation_sandbox\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u5BB9\u5668" };
   }
   try {
-    await writeFile20(join72(worktree, CANCEL_MARKER_FILE), "1", "utf8");
+    await writeFile20(join73(worktree, CANCEL_MARKER_FILE), "1", "utf8");
   } catch (err) {
     const code = err?.code ?? "unknown";
     return {
@@ -39602,8 +39705,8 @@ async function cancelAfkRun(store, changeDir2) {
       error: `\u65E0\u6CD5\u5728 automation_worktree \u76EE\u5F55\u843D\u53D6\u6D88\u6807\u8BB0\uFF08${code}\uFF09\uFF1Aworktree \u76EE\u5F55\u53EF\u80FD\u5DF2\u88AB\u6E05\u7406\uFF0C\u6216\u5B57\u6BB5\u503C\u66FE\u88AB\u65E7\u7248\u622A\u65AD\u635F\u574F\u2014\u2014\u82E5\u4EFB\u52A1\u5B9E\u9645\u5DF2\u4E0D\u5728\u8DD1\uFF0C\u53EF\u76F4\u63A5\u91CD\u8BD5/\u653E\u5F03\u8BE5\u4EFB\u52A1`
     };
   }
-  await new Promise((resolve19) => {
-    execFile7("docker", ["kill", sandbox], () => resolve19());
+  await new Promise((resolve20) => {
+    execFile7("docker", ["kill", sandbox], () => resolve20());
   });
   return { ok: true };
 }
@@ -39650,7 +39753,7 @@ async function enqueueAfkRun(store, changeDir2, clock, eligibility) {
 }
 async function readAfkRunLog(changeDir2) {
   try {
-    return await readFile37(join72(changeDir2, ".sandcastle-run.log"), "utf8");
+    return await readFile38(join73(changeDir2, ".sandcastle-run.log"), "utf8");
   } catch {
     return null;
   }
@@ -39658,7 +39761,7 @@ async function readAfkRunLog(changeDir2) {
 
 // packages/server/src/contextBundlePreviewSupport.ts
 import { lstatSync as lstatSync9, realpathSync as realpathSync7 } from "node:fs";
-import { isAbsolute as isAbsolute15, join as join73, relative as relative11, sep as sep14 } from "node:path";
+import { isAbsolute as isAbsolute15, join as join74, relative as relative11, sep as sep14 } from "node:path";
 var SCHEMA_VERSION = "context-bundle-preview/v1";
 var SIDE_EFFECTS = "none";
 var ContextBundlePathError = class extends Error {
@@ -39691,7 +39794,7 @@ function captureDirectoryIdentity(path14) {
 }
 function captureChangeParentPathAnchor(root) {
   const chain = [];
-  for (const path14 of [join73(root.path, "openspec"), join73(root.path, "openspec", "changes")]) {
+  for (const path14 of [join74(root.path, "openspec"), join74(root.path, "openspec", "changes")]) {
     try {
       chain.push(captureDirectoryIdentity(path14));
     } catch (error2) {
@@ -39703,9 +39806,9 @@ function captureChangeParentPathAnchor(root) {
 }
 function captureChangePathAnchor(root, change) {
   const chainPaths = [
-    join73(root.path, "openspec"),
-    join73(root.path, "openspec", "changes"),
-    join73(root.path, "openspec", "changes", change)
+    join74(root.path, "openspec"),
+    join74(root.path, "openspec", "changes"),
+    join74(root.path, "openspec", "changes", change)
   ];
   const chain = [];
   for (const path14 of chainPaths) {
@@ -40209,8 +40312,8 @@ async function buildRunDetail(repoRoot, changeDir2, changeName, deps) {
 }
 
 // packages/server/src/transition.ts
-import { readFile as readFile39 } from "node:fs/promises";
-import { join as join75 } from "node:path";
+import { readFile as readFile40 } from "node:fs/promises";
+import { join as join76 } from "node:path";
 
 // packages/server/src/transitionResult.ts
 function errText4(e) {
@@ -40354,8 +40457,8 @@ function mapTransitionResult(name, event, result2) {
 }
 
 // packages/server/src/transitionHistory.ts
-import { readFile as readFile38 } from "node:fs/promises";
-import { join as join74 } from "node:path";
+import { readFile as readFile39 } from "node:fs/promises";
+import { join as join75 } from "node:path";
 function decodeHistoryEntry(value) {
   if (typeof value !== "object" || value === null) return null;
   const record11 = value;
@@ -40385,7 +40488,7 @@ function decodeHistoryEntry(value) {
 async function readJsonlHistory(changeDir2) {
   let text7;
   try {
-    text7 = await readFile38(join74(changeDir2, HISTORY_FILE), "utf8");
+    text7 = await readFile39(join75(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return [];
     throw error2;
@@ -40452,7 +40555,7 @@ async function performTransition(deps, root, name, event) {
   if (!name || !CHANGE_NAME_RE2.test(name) || name.includes("..")) {
     return { code: 400, body: { ok: false, error: "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09" } };
   }
-  const dir = join75(root, "openspec", "changes", name);
+  const dir = join76(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) {
     return { code: 404, body: { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" } };
   }
@@ -40524,7 +40627,7 @@ async function performTransition(deps, root, name, event) {
       const slots = resolveRequiredSkillSlots(deps.skillResolver, capability, stepId);
       let historyRaw = "";
       try {
-        historyRaw = await readFile39(join75(targetDir, HISTORY_FILE), "utf8");
+        historyRaw = await readFile40(join76(targetDir, HISTORY_FILE), "utf8");
       } catch (error2) {
         if (error2.code !== "ENOENT") throw error2;
       }
@@ -40686,7 +40789,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join76(root, "openspec", "changes", name);
+    const dir = join77(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -40704,7 +40807,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join76(root, "openspec", "changes", name);
+    const dir = join77(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -40722,7 +40825,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join76(root, "openspec", "changes", name);
+    const dir = join77(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -40739,7 +40842,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverGetSessionRoutes.ts
-import { join as join77 } from "node:path";
+import { join as join78 } from "node:path";
 function isChangeName(name) {
   return name !== "" && /^[a-zA-Z0-9_-]+$/.test(name) && !name.includes("..");
 }
@@ -40754,7 +40857,7 @@ async function handleSessionLink(req, res, deps) {
   if (!deps.isRegisteredRoot(root)) {
     return deps.sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
   }
-  if (!stateStorageExistsSync(join77(root, "openspec", "changes", name))) {
+  if (!stateStorageExistsSync(join78(root, "openspec", "changes", name))) {
     return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
   }
   return deps.sendJson(res, 200, await deps.resolveSessionLink(root, name));
@@ -40774,7 +40877,7 @@ async function handleSessionLinks(req, res, deps) {
     roots.map(async (root, index) => {
       const name = names[index] ?? "";
       const key = `${name}@${root}`;
-      const valid = isChangeName(name) && root !== "" && deps.isRegisteredRoot(root) && stateStorageExistsSync(join77(root, "openspec", "changes", name));
+      const valid = isChangeName(name) && root !== "" && deps.isRegisteredRoot(root) && stateStorageExistsSync(join78(root, "openspec", "changes", name));
       links2[key] = valid ? await deps.resolveSessionLink(root, name) : { found: false, reason: "invalid" };
     })
   );
@@ -40853,13 +40956,13 @@ function handleGetTraceRoutes(req, res, path14, deps) {
 
 // packages/server/src/hostTargetDetection.ts
 import { closeSync as closeSync6, constants as constants15, fstatSync as fstatSync10, lstatSync as lstatSync10, openSync as openSync11, readSync as readSync6, readdirSync as readdirSync10 } from "node:fs";
-import { join as join78 } from "node:path";
+import { join as join79 } from "node:path";
 var MAX_HOST_INVENTORY_BYTES = 256 * 1024;
 function captureDirectoryChain(hostHome, segments2) {
   const identities = [];
   let candidate2 = hostHome;
   for (const segment of ["", ...segments2]) {
-    if (segment !== "") candidate2 = join78(candidate2, segment);
+    if (segment !== "") candidate2 = join79(candidate2, segment);
     try {
       const descriptor = openSync11(
         candidate2,
@@ -40912,7 +41015,7 @@ function hasInstalledPlugin(hostHome, namespaceSegments, markerSegments, options
   if (namespace === null) return false;
   try {
     try {
-      const path14 = join78(hostHome, ...namespaceSegments);
+      const path14 = join79(hostHome, ...namespaceSegments);
       const versions = options3.readPluginCacheEntries?.(path14) ?? readdirSync10(path14, { withFileTypes: true });
       if (versions.length > 128 || !directoryChainIsStable(namespace)) return false;
       return versions.some((version) => {
@@ -40920,7 +41023,7 @@ function hasInstalledPlugin(hostHome, namespaceSegments, markerSegments, options
         const segments2 = [...namespaceSegments, version.name, ...markerSegments];
         const directories = captureDirectoryChain(hostHome, segments2.slice(0, -1));
         if (directories === null) return false;
-        const marker = join78(hostHome, ...segments2);
+        const marker = join79(hostHome, ...segments2);
         let descriptor;
         try {
           if (!directoryChainIsStable(namespace) || !directoryChainIsStable(directories)) return false;
@@ -40949,7 +41052,7 @@ function readBoundedHostFile(hostHome, segments2) {
   if (segments2.length === 0) return null;
   const directories = captureDirectoryChain(hostHome, segments2.slice(0, -1));
   if (directories === null) return null;
-  const path14 = join78(hostHome, ...segments2);
+  const path14 = join79(hostHome, ...segments2);
   let descriptor;
   try {
     descriptor = openSync11(
@@ -41399,10 +41502,10 @@ function createHostTargetPlanRuntime(options3 = {}) {
     }
   };
   const schedule = (load) => {
-    const scheduled = new Promise((resolve19, reject3) => {
+    const scheduled = new Promise((resolve20, reject3) => {
       queue.push({
         load,
-        resolve: resolve19,
+        resolve: resolve20,
         reject: reject3,
         deadline: now() + timeoutMs
       });
@@ -41532,18 +41635,18 @@ function resolveDocumentReadRoute(req, path14, deps) {
 import { createReadStream } from "node:fs";
 import { lstat as lstat34, open as open8, realpath as realpath9 } from "node:fs/promises";
 import { constants as constants16 } from "node:fs";
-import { join as join80, relative as relative12, sep as sep15 } from "node:path";
+import { join as join81, relative as relative12, sep as sep15 } from "node:path";
 
 // packages/server/src/serverTestDirectionRoutes.ts
-import { mkdir as mkdir30, readFile as readFile40, readdir as readdir16, rm as rm12 } from "node:fs/promises";
-import { join as join79 } from "node:path";
+import { mkdir as mkdir30, readFile as readFile41, readdir as readdir16, rm as rm12 } from "node:fs/promises";
+import { join as join80 } from "node:path";
 var TEST_DIRECTION_MAX_BYTES = 64 * 1024;
 var ID_RE3 = /^[A-Za-z0-9_-]{1,64}$/u;
 function directionsRoot(configRoot) {
-  return join79(configRoot, "test-directions");
+  return join80(configRoot, "test-directions");
 }
 async function readScope(configRoot, source2) {
-  const dir = join79(directionsRoot(configRoot), source2);
+  const dir = join80(directionsRoot(configRoot), source2);
   let names;
   try {
     names = (await readdir16(dir)).filter((name) => name.endsWith(".yaml")).sort();
@@ -41553,7 +41656,7 @@ async function readScope(configRoot, source2) {
   const entries = [];
   for (const name of names) {
     try {
-      const yaml = await readFile40(join79(dir, name), "utf8");
+      const yaml = await readFile41(join80(dir, name), "utf8");
       const definition = parseTestDirection(yaml);
       if (definition.id !== name.replace(/\.yaml$/u, "")) continue;
       entries.push({ id: definition.id, label: definition.label, source: source2, yaml, definition });
@@ -41579,7 +41682,7 @@ function idOf(path14) {
 }
 async function isBuiltin(configRoot, id2) {
   try {
-    await readFile40(join79(directionsRoot(configRoot), "builtin", `${id2}.yaml`), "utf8");
+    await readFile41(join80(directionsRoot(configRoot), "builtin", `${id2}.yaml`), "utf8");
     return true;
   } catch {
     return false;
@@ -41593,11 +41696,11 @@ async function handleTestDirectionMutation(method, path14, body2, deps) {
   if (await isBuiltin(deps.configRoot, id2)) {
     return { status: 409, body: { ok: false, error: `\u5185\u5EFA\u65B9\u5411 '${id2}' \u53EA\u8BFB\uFF1B\u5148\u590D\u5236\u6210\u81EA\u5B9A\u4E49\u518D\u6539` } };
   }
-  const customDir = join79(directionsRoot(deps.configRoot), "custom");
-  const target = join79(customDir, `${id2}.yaml`);
+  const customDir = join80(directionsRoot(deps.configRoot), "custom");
+  const target = join80(customDir, `${id2}.yaml`);
   if (method === "DELETE") {
     try {
-      await readFile40(target, "utf8");
+      await readFile41(target, "utf8");
     } catch {
       return { status: 404, body: { ok: false, error: `\u65B9\u5411 '${id2}' \u4E0D\u5B58\u5728` } };
     }
@@ -41699,7 +41802,7 @@ async function resolveTestRunsRoute(url, path14, deps) {
   if (!SLUG_RE.test(query.user) || !TEST_RUN_ID_RE.test(query.run)) {
     return { status: 400, body: { ok: false, error: "user \u6216 run \u53C2\u6570\u975E\u6CD5" } };
   }
-  const recordPath2 = join80(testEvidencePaths(readRoot, query.user, query.change).runsDir, `${query.run}.json`);
+  const recordPath2 = join81(testEvidencePaths(readRoot, query.user, query.change).runsDir, `${query.run}.json`);
   let exists2 = false;
   try {
     exists2 = (await lstat34(recordPath2)).isFile();
@@ -41714,12 +41817,12 @@ async function resolveTestRunsRoute(url, path14, deps) {
   for (const output2 of record11.outputs) {
     if (output2.artifact === null) continue;
     try {
-      await lstat34(join80(runDir, ...output2.artifact.split("/")));
+      await lstat34(join81(runDir, ...output2.artifact.split("/")));
       files.push(output2.artifact);
     } catch {
     }
   }
-  const log2 = await lstat34(join80(runDir, record11.log.artifact)).then(() => true, () => false);
+  const log2 = await lstat34(join81(runDir, record11.log.artifact)).then(() => true, () => false);
   return { status: 200, body: { ok: true, record: record11, artifacts: { log: log2, files } } };
 }
 async function handleTestGetRoutes(req, res, path14, deps) {
@@ -41755,7 +41858,7 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
   }
   const readRoot = rootCheck2.anchor.fdPath ?? rootCheck2.anchor.realPath;
   const runDir = testRunArtifactsDir(readRoot, query.user, query.change, query.run);
-  const target = join80(runDir, ...query.path.split("/"));
+  const target = join81(runDir, ...query.path.split("/"));
   let size = 0;
   try {
     const entry = await lstat34(target);
@@ -41786,10 +41889,10 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
     "Content-Security-Policy": "sandbox",
     ...contentTypeFor(query.path) === "application/zip" ? { "Content-Disposition": "attachment" } : {}
   });
-  await new Promise((resolve19) => {
+  await new Promise((resolve20) => {
     const stream = createReadStream("", { fd: handle.fd, start, autoClose: false });
-    stream.on("end", () => resolve19());
-    stream.on("error", () => resolve19());
+    stream.on("end", () => resolve20());
+    stream.on("error", () => resolve20());
     stream.pipe(res);
   });
   await handle.close();
@@ -41799,24 +41902,24 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
 
 // packages/server/src/agentReferences.ts
 import { readFileSync as readFileSync24 } from "node:fs";
-import { join as join82 } from "node:path";
+import { join as join83 } from "node:path";
 
 // packages/server/src/serverSupport.ts
 import { readFileSync as readFileSync23 } from "node:fs";
-import { dirname as dirname19, join as join81 } from "node:path";
+import { dirname as dirname19, join as join82 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var REAL_GRADUATION_FS = {
   loadRegistry: (repoRoot) => loadRegistry(repoRoot),
   readRunLog: (repoRoot) => {
     try {
-      return readFileSync23(join81(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
+      return readFileSync23(join82(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
     } catch {
       return null;
     }
   },
   readLoopDoc: (repoRoot) => {
     try {
-      return readFileSync23(join81(repoRoot, "LOOP.md"), "utf8");
+      return readFileSync23(join82(repoRoot, "LOOP.md"), "utf8");
     } catch {
       return null;
     }
@@ -41831,7 +41934,7 @@ var REAL_GRADUATION_FS = {
   }
 };
 function repoRootForSkills() {
-  return join81(dirname19(fileURLToPath2(import.meta.url)), "..", "..", "..");
+  return join82(dirname19(fileURLToPath2(import.meta.url)), "..", "..", "..");
 }
 function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -41902,13 +42005,13 @@ function parsed(source2) {
 }
 function readGlobal(root, name) {
   try {
-    return readFileSync24(join82(workflowsDirUnder(root), `${name}.yaml`), "utf8");
+    return readFileSync24(join83(workflowsDirUnder(root), `${name}.yaml`), "utf8");
   } catch {
     return void 0;
   }
 }
 function agentReferences(paths, agent) {
-  const root = join82(paths.configRoot, "workflows");
+  const root = join83(paths.configRoot, "workflows");
   const stored = workflowNamesUnder(root);
   const found = [];
   for (const name of stored) {
@@ -41971,12 +42074,12 @@ function resolveWorkflowYamlGet(req, path14, deps) {
   }
 }
 function readTextBody(req, maxBytes) {
-  return new Promise((resolve19) => {
+  return new Promise((resolve20) => {
     let done = false;
     const finish = (value) => {
       if (!done) {
         done = true;
-        resolve19(value);
+        resolve20(value);
       }
     };
     const declared = Number.parseInt(String(req.headers["content-length"] ?? ""), 10);
@@ -42051,18 +42154,18 @@ function readDefaultOverride(anchor) {
 }
 
 // packages/server/src/instructionRoutes.ts
-import { join as join87 } from "node:path";
+import { join as join88 } from "node:path";
 
 // packages/server/src/instructionAudit.ts
 import { closeSync as closeSync7, constants as constants17, mkdirSync as mkdirSync5, openSync as openSync12, writeFileSync as writeFileSync6 } from "node:fs";
-import { dirname as dirname20, join as join83 } from "node:path";
+import { dirname as dirname20, join as join84 } from "node:path";
 var IDENTITY_REQUIRED = { status: 412, body: { ok: false, code: "user-missing", error: USER_MISSING_HINT } };
-function auditActor(resolve19, root) {
-  const resolution = resolve19?.(root);
+function auditActor(resolve20, root) {
+  const resolution = resolve20?.(root);
   return resolution !== void 0 && isTenonUser(resolution) ? actorOf(resolution) : null;
 }
 function recordInstructionAudit(configRoot, row) {
-  const path14 = join83(configRoot, "templates", "instructions", "audit.jsonl");
+  const path14 = join84(configRoot, "templates", "instructions", "audit.jsonl");
   let fd;
   try {
     mkdirSync5(dirname20(path14), { recursive: true });
@@ -42079,7 +42182,7 @@ function recordInstructionAudit(configRoot, row) {
 
 // packages/server/src/instructionLibrary.ts
 import { mkdirSync as mkdirSync6 } from "node:fs";
-import { join as join84 } from "node:path";
+import { join as join85 } from "node:path";
 
 // packages/server/src/instructionTrustedFs.ts
 import { randomUUID as randomUUID15 } from "node:crypto";
@@ -42202,7 +42305,7 @@ function trustedFsFailure(error2) {
 // packages/server/src/instructionLibrary.ts
 var anchors = /* @__PURE__ */ new Map();
 function templateLibraryAnchor(configRoot) {
-  const root = join84(configRoot, "templates", "instructions");
+  const root = join85(configRoot, "templates", "instructions");
   const cached = anchors.get(root);
   if (cached) {
     try {
@@ -42377,7 +42480,7 @@ function composeFromRequest(anchor, body2, catalog2) {
 
 // packages/server/src/instructionFiles.ts
 import { mkdirSync as mkdirSync7 } from "node:fs";
-import { join as join85 } from "node:path";
+import { join as join86 } from "node:path";
 var INSTRUCTION_TEXT_MAX_BYTES = 256 * 1024;
 var fail7 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
 function targetIdsFor(scope) {
@@ -42392,12 +42495,12 @@ function captureRoot(path14, create2) {
 }
 function locate(scope, id2, create2) {
   if (!targetIdsFor(scope).includes(id2)) return null;
-  if (scope.level === "project") return { root: scope.anchor, owned: false, dirs: [], name: id2, path: join85(scope.anchor.path, id2) };
+  if (scope.level === "project") return { root: scope.anchor, owned: false, dirs: [], name: id2, path: join86(scope.anchor.path, id2) };
   const segments2 = userInstructionPath(id2, scope);
   const [rootPath, ...rest] = segments2 ?? [];
   const name = rest.at(-1);
   if (rootPath === void 0 || name === void 0) return null;
-  return { root: captureRoot(rootPath, create2), owned: true, dirs: rest.slice(0, -1), name, path: join85(rootPath, ...rest) };
+  return { root: captureRoot(rootPath, create2), owned: true, dirs: rest.slice(0, -1), name, path: join86(rootPath, ...rest) };
 }
 function release2(location) {
   if (location.owned && location.root) closeWorkflowRootAnchor(location.root);
@@ -42448,7 +42551,7 @@ function readInstructionTargets(scope) {
     if (scope.level === "user") return { id: host.id, levels: host.levels, target: hasUserInstructionFile(host.id) ? host.id : null };
     const row = { id: host.id, levels: host.levels, target: host.projectFile };
     if (host.id !== "zed") return row;
-    return { ...row, effective_file: zedEffectiveFile((file) => lstatIfExists(join85(scope.anchor.path, file)) !== void 0) };
+    return { ...row, effective_file: zedEffectiveFile((file) => lstatIfExists(join86(scope.anchor.path, file)) !== void 0) };
   });
   return {
     status: 200,
@@ -42568,7 +42671,7 @@ function deleteInstructionTarget(scope, targetId, digest14) {
 // packages/server/src/projectCreate.ts
 import { execFile as execFile8 } from "node:child_process";
 import { lstatSync as lstatSync13, mkdirSync as mkdirSync8, rmSync } from "node:fs";
-import { isAbsolute as isAbsolute16, join as join86, resolve as resolvePath6 } from "node:path";
+import { isAbsolute as isAbsolute16, join as join87, resolve as resolvePath6 } from "node:path";
 
 // packages/server/src/projects.ts
 import { lstatSync as lstatSync12, statSync as statSync7 } from "node:fs";
@@ -42643,10 +42746,10 @@ async function registerProjectAnchored(paths, anchors2, rawRoot) {
 var NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 var DIRECTORY2 = /^[a-z0-9._-]+\/$/;
 var fail8 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
-var runGitCommand = (args, cwd) => new Promise((resolve19) => {
+var runGitCommand = (args, cwd) => new Promise((resolve20) => {
   execFile8("git", [...args], { cwd, timeout: 1e4 }, (error2, _stdout, stderr) => {
     const exit = error2 === null ? 0 : typeof error2.code === "number" ? error2.code : 1;
-    resolve19({ code: exit, stderr: String(stderr ?? "") });
+    resolve20({ code: exit, stderr: String(stderr ?? "") });
   });
 });
 function record9(value) {
@@ -42679,7 +42782,7 @@ function decodeProjectCreate(body2) {
   if (request.mode === "empty") {
     if (!absolutePath(request.parent) || typeof request.name !== "string" || !NAME.test(request.name)) return fail8(400, "invalid-path", "\u7236\u76EE\u5F55\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u540D\u79F0\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u3001. _ -");
     const parent = resolvePath6(request.parent);
-    return { mode: "empty", parent, root: join86(parent, request.name), directories: directories.map(String), instructions, dryRun };
+    return { mode: "empty", parent, root: join87(parent, request.name), directories: directories.map(String), instructions, dryRun };
   }
   if (request.mode === "existing") {
     if (!absolutePath(request.path)) return fail8(400, "invalid-path", "\u8DEF\u5F84\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84");
@@ -42712,7 +42815,7 @@ async function planProjectCreate(plan, deps) {
         directories: plan.directories.map((path14) => ({ path: path14, exists: false })),
         files: (plan.instructions?.targets ?? []).map((id2) => ({
           id: id2,
-          path: join86(plan.root, id2),
+          path: join87(plan.root, id2),
           base_digest: "absent",
           current: null,
           next: mergeManagedBlocks(plan.instructions?.text ?? "", [])
@@ -42738,7 +42841,7 @@ async function planProjectCreate(plan, deps) {
     body: {
       ok: true,
       root: plan.root,
-      git: lstatIfExists(join86(plan.root, ".git")) ? "existing" : "none",
+      git: lstatIfExists(join87(plan.root, ".git")) ? "existing" : "none",
       registration: registered(deps, plan.root) ? "already" : "add",
       directories: [],
       files
@@ -42807,7 +42910,7 @@ async function executeExisting(plan, deps) {
       closeWorkflowRootAnchor(anchor);
     }
   }
-  const git = lstatIfExists(join86(plan.root, ".git")) ? "existing" : "none";
+  const git = lstatIfExists(join87(plan.root, ".git")) ? "existing" : "none";
   if (registered(deps, plan.root)) {
     return { status: 200, body: { ok: true, root: plan.root, git, registration: "already", directories: [], files } };
   }
@@ -42858,7 +42961,7 @@ function digestOf(result2) {
   const body2 = result2.body;
   return typeof body2?.digest === "string" ? body2.digest : "absent";
 }
-var instructionTarget = (root, id2) => root === "" ? `user/${id2}` : join87(root, id2);
+var instructionTarget = (root, id2) => root === "" ? `user/${id2}` : join88(root, id2);
 function objectBody(value, keys2) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const record11 = Object.fromEntries(Object.entries(value));
@@ -43178,7 +43281,7 @@ function resolveAgentMutation(req, method, path14, deps) {
 
 // packages/server/src/designSeed.ts
 import { writeFileSync as writeFileSync8 } from "node:fs";
-import { join as join88 } from "node:path";
+import { join as join89 } from "node:path";
 var DESIGN_SEED_MAX_BYTES = 512 * 1024;
 var FETCH_TIMEOUT_MS = 1e4;
 var httpsDesignSeedFetch = async (url) => {
@@ -43215,7 +43318,7 @@ async function fetchDesignSeed(entry, get) {
 }
 function writeDesignSeed(root, text7) {
   try {
-    writeFileSync8(join88(root, "DESIGN.md"), text7, { encoding: "utf8", flag: "wx" });
+    writeFileSync8(join89(root, "DESIGN.md"), text7, { encoding: "utf8", flag: "wx" });
   } catch (error2) {
     const code = error2.code;
     if (code === "EEXIST") return { ok: false, code: "exists", error: "DESIGN.md \u5DF2\u5B58\u5728" };
@@ -43826,7 +43929,7 @@ import {
   openSync as openSync14,
   realpathSync as realpathSync8
 } from "node:fs";
-import { isAbsolute as isAbsolute17, join as join89, posix as posix4, relative as relative13, sep as sep16 } from "node:path";
+import { isAbsolute as isAbsolute17, join as join90, posix as posix4, relative as relative13, sep as sep16 } from "node:path";
 
 // packages/server/src/workflowDefinitionStatus.ts
 function projectWorkflowDefinitionStatus(workflow, frozenFingerprint, current) {
@@ -43884,7 +43987,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
     }
   };
   assertTrustContext();
-  const lexicalTarget = join89(changeAnchor.changeDir, "tasks.md");
+  const lexicalTarget = join90(changeAnchor.changeDir, "tasks.md");
   const changeIdentity = changeAnchor.chain.at(-1);
   if (changeIdentity === void 0) {
     throw new ContextBundlePathError(403, "Change tasks directory identity is missing");
@@ -43906,7 +44009,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
     throw new ContextBundlePathError(403, "Change tasks directory identity changed while anchoring");
   }
   assertTrustContext();
-  const target = join89(anchoredChangeDir, "tasks.md");
+  const target = join90(anchoredChangeDir, "tasks.md");
   let fd;
   try {
     fd = openSync14(
@@ -43982,7 +44085,7 @@ async function readAnchoredChangeState(root, changeName) {
   if (changeIdentity === void 0) {
     throw new ContextBundlePathError(403, "canonical Change \u8DEF\u5F84\u8EAB\u4EFD\u7F3A\u5931");
   }
-  const readText = (relativePath) => {
+  const readText2 = (relativePath) => {
     try {
       return readTrustedFile(
         root,
@@ -44003,7 +44106,7 @@ async function readAnchoredChangeState(root, changeName) {
       throw error2;
     }
   };
-  const state = readPipelineStateFromSync(readText, "canonical Change state");
+  const state = readPipelineStateFromSync(readText2, "canonical Change state");
   if (state === void 0) return null;
   assertWorkflowRootAnchor(root);
   assertChangePathAnchor(changeAnchor);
@@ -44470,7 +44573,7 @@ async function resolveOrchestrationRoutes(rawUrl, path14, deps) {
 }
 
 // packages/server/src/serverOrchestrationV2Routes.ts
-import { join as join90 } from "node:path";
+import { join as join91 } from "node:path";
 var CHANGE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 var PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 var CURSOR = /^(?:0|[1-9][0-9]{0,9})$/u;
@@ -44484,7 +44587,7 @@ function validChangeId(value) {
   return value !== "." && value !== ".." && CHANGE_ID.test(value) && !value.includes("/") && !value.includes("\\");
 }
 function changeDir(anchor, changeId) {
-  return join90(anchor.path, "openspec", "changes", changeId);
+  return join91(anchor.path, "openspec", "changes", changeId);
 }
 function rootCheck(deps, root) {
   if (root === "") return failure6(400, "ORCHESTRATION_V2_ROOT_REQUIRED", "\u7F3A\u5C11 root \u53C2\u6570");
@@ -45170,7 +45273,7 @@ async function resolveSkillInvocationRoute(rawUrl, path14, deps) {
 }
 
 // packages/server/src/serverGetDecisionRoutes.ts
-import { join as join91 } from "node:path";
+import { join as join92 } from "node:path";
 
 // packages/server/src/decisionProjection.ts
 async function readReviewBindingSafely(dir) {
@@ -45212,7 +45315,7 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
   const root = query.get("root") ?? "";
   const checked = deps.workflowRootForRequest(root);
   if (!checked.ok) return deps.sendJson(res, checked.code, { ok: false, error: checked.error }), true;
-  const dir = join91(checked.anchor.path, "openspec", "changes", name);
+  const dir = join92(checked.anchor.path, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" }), true;
   try {
     const view = await readPendingDecisionProjection({
@@ -45228,7 +45331,7 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
 }
 
 // packages/server/src/serverTaskLifecycleRoutes.ts
-import { join as join92 } from "node:path";
+import { join as join93 } from "node:path";
 var DELETE_FAILED = "\u5220\u9664\u5931\u8D25";
 var TASK_ARCHIVED_HTTP_ERROR = "\u4EFB\u52A1\u5DF2\u5F52\u6863\uFF0C\u5148\u53D6\u6D88\u5F52\u6863";
 var REASON_CODES = [
@@ -45403,7 +45506,7 @@ async function handleTaskLifecycleDelete(req, res, path14, deps) {
     sendJson(res, 500, { ok: false, code: "delete-failed", error: DELETE_FAILED });
     return true;
   }
-  taskLifecycle.evictChange(join92(repoRoot, "openspec", "changes", change));
+  taskLifecycle.evictChange(join93(repoRoot, "openspec", "changes", change));
   sendJson(res, 200, {
     ok: true,
     removed: outcome.removed,
@@ -45414,7 +45517,7 @@ async function handleTaskLifecycleDelete(req, res, path14, deps) {
 
 // packages/server/src/serverGetRoutes.ts
 function repoRootForSkills2() {
-  return join93(dirname21(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join94(dirname21(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function isWorkflowName2(name) {
   return name !== "" && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name);
@@ -45529,7 +45632,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync15(join93(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync15(join94(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -45552,7 +45655,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync15(join93(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync15(join94(rootCheck2.anchor.path, ".pipeline"));
       } catch (e) {
         if (e.code === "ENOENT") pipelineExists = false;
         else throw e;
@@ -45716,7 +45819,7 @@ async function handleGet(req, res, path14, deps) {
       image,
       secretsPath: paths.secretsPath,
       exec: options3.execDocker,
-      defaultCodexHome: join93(hostHome, ".codex")
+      defaultCodexHome: join94(hostHome, ".codex")
     });
     return sendJson(res, 200, r);
   }
@@ -46018,7 +46121,7 @@ async function handlePutRoute(req, res, path14, deps) {
 // packages/server/src/changeLaunch.ts
 import { randomUUID as randomUUID17 } from "node:crypto";
 import { lstat as lstat35, rename as rename15, unlink as unlink5, writeFile as writeFile22 } from "node:fs/promises";
-import { join as join94 } from "node:path";
+import { join as join95 } from "node:path";
 var CHANGE_TASK_FILE = "REAL_AGENT_TASK.md";
 var MAX_TASK_PROMPT_CHARS = 24e3;
 function errorCode8(error2) {
@@ -46049,7 +46152,7 @@ async function writeChangeTaskPrompt(changeDir2, prompt) {
   if (!dirStat.isDirectory() || dirStat.isSymbolicLink()) {
     throw new Error("Change \u76EE\u5F55\u4E0D\u662F\u53EF\u4FE1\u666E\u901A\u76EE\u5F55\uFF0C\u62D2\u7EDD\u4FDD\u5B58\u4EFB\u52A1\u63D0\u793A\u8BCD");
   }
-  const target = join94(changeDir2, CHANGE_TASK_FILE);
+  const target = join95(changeDir2, CHANGE_TASK_FILE);
   let targetExists = false;
   try {
     await lstat35(target);
@@ -46058,7 +46161,7 @@ async function writeChangeTaskPrompt(changeDir2, prompt) {
     if (errorCode8(error2) !== "ENOENT") throw error2;
   }
   if (targetExists) throw new Error("\u4EFB\u52A1\u63D0\u793A\u8BCD\u5DF2\u5B58\u5728\uFF0C\u62D2\u7EDD\u8986\u76D6");
-  const temporary = join94(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
+  const temporary = join95(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
   try {
     await writeFile22(temporary, `${prompt}
 `, { encoding: "utf8", flag: "wx", mode: 384 });
@@ -46324,10 +46427,10 @@ async function handlePostChangesRoutes(req, res, path14, deps) {
 
 // packages/server/src/serverPostExecutionRoutes.ts
 import { randomUUID as randomUUID18 } from "node:crypto";
-import { join as join96 } from "node:path";
+import { join as join97 } from "node:path";
 
 // packages/server/src/serverPostDecisionRoutes.ts
-import { join as join95 } from "node:path";
+import { join as join96 } from "node:path";
 var DECISION_COMMAND_FAILED = "\u51B3\u7B56\u547D\u4EE4\u5904\u7406\u5931\u8D25";
 function scalar11(state, field3) {
   const value = state.fields[field3];
@@ -46373,7 +46476,7 @@ async function handlePostDecisionRoutes(req, res, path14, deps) {
     sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
     return true;
   }
-  const dir = join95(root, "openspec", "changes", name);
+  const dir = join96(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) {
     sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     return true;
@@ -46608,7 +46711,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join96(root2, "openspec", "changes", name2);
+    const dir = join97(root2, "openspec", "changes", name2);
     const result2 = await cancelAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -46628,7 +46731,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join96(root2, "openspec", "changes", name2);
+    const dir = join97(root2, "openspec", "changes", name2);
     const result2 = await retryAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -46648,7 +46751,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join96(root2, "openspec", "changes", name2);
+    const dir = join97(root2, "openspec", "changes", name2);
     const result2 = await dismissAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -46668,7 +46771,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join96(root2, "openspec", "changes", name2);
+    const dir = join97(root2, "openspec", "changes", name2);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -46994,7 +47097,7 @@ async function handlePostGovernanceRoutes(req, res, path14, deps) {
 
 // packages/server/src/serverPostOperationsRoutes.ts
 import { lstatSync as lstatSync16 } from "node:fs";
-import { join as join97 } from "node:path";
+import { join as join98 } from "node:path";
 
 // packages/server/src/loopScopePreview.ts
 import {
@@ -47026,7 +47129,7 @@ function registryReadError(error2) {
   const detail = error2 instanceof Error ? error2.message : String(error2);
   return new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${code}\uFF09\uFF1A${detail}`);
 }
-function readTrustedLoopRegistry(anchor, readFile42 = (fd) => readFileSync26(fd, "utf8")) {
+function readTrustedLoopRegistry(anchor, readFile43 = (fd) => readFileSync26(fd, "utf8")) {
   return readWithLoopScopeRootTrust(
     () => assertWorkflowRootAnchor(anchor),
     () => {
@@ -47074,7 +47177,7 @@ function readTrustedLoopRegistry(anchor, readFile42 = (fd) => readFileSync26(fd,
               assertDirectoryStillTrusted(pipeline, anchor);
               let text7;
               try {
-                text7 = readFile42(fd);
+                text7 = readFile43(fd);
               } catch (error2) {
                 throw registryReadError(error2);
               }
@@ -47283,7 +47386,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync16(join97(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync16(join98(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -47470,7 +47573,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join97(root, "openspec", "changes", name);
+    const dir = join98(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -47499,7 +47602,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverPostMemoryRoutes.ts
-import { join as join98 } from "node:path";
+import { join as join99 } from "node:path";
 var RELATED_SEARCH_PATH = "/api/mem/related-sessions/search";
 var PLATFORM_VALUES = /* @__PURE__ */ new Set(["all", "claude", "codex", "opencode", "pi"]);
 var CHANGE_NAME_RE3 = /^[a-zA-Z0-9_-]+$/;
@@ -47538,7 +47641,7 @@ async function handlePostMemoryRoutes(req, res, path14, deps) {
   const anchoredRoot = rootCheck2.anchor.path;
   let changeExists = false;
   try {
-    changeExists = stateStorageExistsSync(join98(anchoredRoot, "openspec", "changes", name));
+    changeExists = stateStorageExistsSync(join99(anchoredRoot, "openspec", "changes", name));
   } catch {
     return missingTarget(deps, res);
   }
@@ -47774,7 +47877,7 @@ function createFreezeHandlers(deps) {
 
 // packages/server/src/serverTransport.ts
 import { readFileSync as readFileSync27 } from "node:fs";
-import { join as join99 } from "node:path";
+import { join as join100 } from "node:path";
 import { gzipSync } from "node:zlib";
 
 // packages/server/src/singleFlight.ts
@@ -47873,12 +47976,12 @@ data: ${data}
     res.end(body2);
   }
   function readJsonBody(req) {
-    return new Promise((resolve19) => {
+    return new Promise((resolve20) => {
       let done = false;
       const finish = (v) => {
         if (!done) {
           done = true;
-          resolve19(v);
+          resolve20(v);
         }
       };
       const len = Number.parseInt(String(req.headers["content-length"] ?? ""), 10);
@@ -47958,7 +48061,7 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
   function serveIndexWithToken(res) {
     if (!webRoot) return false;
     try {
-      let html = readFileSync27(join99(webRoot, "index.html"), "utf8");
+      let html = readFileSync27(join100(webRoot, "index.html"), "utf8");
       const jsToken = JSON.stringify(token).replace(/</g, "\\u003c");
       const inject = `<script>window.__TENON_DASHBOARD_TOKEN__ = ${jsToken};</script>`;
       html = html.includes("</head>") ? html.replace("</head>", `${inject}</head>`) : `${inject}${html}`;
@@ -47972,8 +48075,8 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
     if (!webRoot || !path14.startsWith("/assets/")) return false;
     const rel = path14.slice(1);
     if (rel.includes("..")) return false;
-    const abs = join99(webRoot, rel);
-    if (!abs.startsWith(join99(webRoot, "assets"))) return false;
+    const abs = join100(webRoot, rel);
+    if (!abs.startsWith(join100(webRoot, "assets"))) return false;
     try {
       const source2 = readFileSync27(abs);
       const ext = abs.slice(abs.lastIndexOf("."));
@@ -48013,7 +48116,7 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
 // packages/server/src/serverGovernance.ts
 import { mkdirSync as mkdirSync9 } from "node:fs";
 import { readdir as readdir17 } from "node:fs/promises";
-import { join as join100, resolve as resolvePath11 } from "node:path";
+import { join as join101, resolve as resolvePath11 } from "node:path";
 function createServerGovernance(options3) {
   const { registry, globalWorkflowRoot: globalWorkflowRoot2, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options3;
   function trackRegistryBody(trackRegistry) {
@@ -48025,7 +48128,7 @@ function createServerGovernance(options3) {
     };
   }
   async function scanActiveTrackChanges(root) {
-    const changesRoot = join100(root, "openspec", "changes");
+    const changesRoot = join101(root, "openspec", "changes");
     let entries;
     try {
       entries = await readdir17(changesRoot, { withFileTypes: true });
@@ -48038,7 +48141,7 @@ function createServerGovernance(options3) {
     const unreadable = [];
     for (const name of names) {
       try {
-        const state = await store.read(join100(changesRoot, name));
+        const state = await store.read(join101(changesRoot, name));
         const track = state.fields.track;
         const workflow = state.fields.workflow;
         refs.push({
@@ -48160,7 +48263,7 @@ function createServerGovernance(options3) {
   const globalWorkflowStore = () => {
     try {
       if (globalAnchor === null) {
-        mkdirSync9(join100(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
+        mkdirSync9(join101(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
         globalAnchor = captureWorkflowRootAnchor(globalWorkflowRoot2);
       } else {
         assertWorkflowRootAnchor(globalAnchor);
@@ -48240,21 +48343,21 @@ function createRelatedSessionSearchExecutor(runner) {
     if (inFlight) return { ok: false, reason: "busy" };
     inFlight = true;
     try {
-      await new Promise((resolve19) => setImmediate(resolve19));
+      await new Promise((resolve20) => setImmediate(resolve20));
       return { ok: true, response: await runner(request) };
     } catch {
       return { ok: false, reason: "unavailable" };
     } finally {
-      await new Promise((resolve19) => setImmediate(resolve19));
+      await new Promise((resolve20) => setImmediate(resolve20));
       inFlight = false;
     }
   };
 }
 
 // packages/server/src/sessionLinkResolver.ts
-import { join as join101 } from "node:path";
+import { join as join102 } from "node:path";
 async function resolveSessionLink(root, name, deps) {
-  const changeDir2 = join101(root, "openspec", "changes", name);
+  const changeDir2 = join102(root, "openspec", "changes", name);
   try {
     const wtRaw = await deps.store.get(changeDir2, "automation_worktree");
     const wt = Array.isArray(wtRaw) ? wtRaw.join(",") : wtRaw ?? "";
@@ -48280,7 +48383,7 @@ async function resolveSessionLink(root, name, deps) {
 
 // packages/server/src/version.ts
 import { readFileSync as readFileSync28 } from "node:fs";
-import { basename as basename8, dirname as dirname22, join as join102 } from "node:path";
+import { basename as basename8, dirname as dirname22, join as join103 } from "node:path";
 var SERVER_VERSION = "0.1.0";
 var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
 function isPluginManifestVersion(value) {
@@ -48289,7 +48392,7 @@ function isPluginManifestVersion(value) {
 function resolveReleaseVersion(pluginRoot2) {
   for (const relative14 of [".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
     try {
-      const parsed2 = JSON.parse(readFileSync28(join102(pluginRoot2, relative14), "utf8"));
+      const parsed2 = JSON.parse(readFileSync28(join103(pluginRoot2, relative14), "utf8"));
       if (isPluginManifestVersion(parsed2) && typeof parsed2.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed2.version)) {
         return parsed2.version;
       }
@@ -48359,7 +48462,7 @@ function createDashboardServer(options3) {
       locator: createRunnerSkillContentLocator({
         runner,
         home: hostHome,
-        bundledRoot: join103(repoRootForSkills(), "skills")
+        bundledRoot: join104(repoRootForSkills(), "skills")
       }),
       isSkillProfileKnown: (profileId) => profileId === "_all" || trackSkillProfiles.has(profileId)
     });
@@ -48601,7 +48704,7 @@ function createDashboardServer(options3) {
     version,
     httpServer,
     listen(port = 0, host = "127.0.0.1") {
-      return new Promise((resolve19, reject3) => {
+      return new Promise((resolve20, reject3) => {
         const onError = (e) => reject3(e);
         httpServer.once("error", onError);
         httpServer.listen(port, host, () => {
@@ -48613,12 +48716,12 @@ function createDashboardServer(options3) {
           }
           boundPort = address.port;
           cadenceScheduler?.start();
-          resolve19({ port: boundPort, host });
+          resolve20({ port: boundPort, host });
         });
       });
     },
     close() {
-      return new Promise((resolve19) => {
+      return new Promise((resolve20) => {
         stopPoll();
         cadenceScheduler?.stop();
         for (const anchor of workflowRootAnchors.values()) closeWorkflowRootAnchor(anchor);
@@ -48630,7 +48733,7 @@ function createDashboardServer(options3) {
           }
         }
         clients.clear();
-        httpServer.close(() => resolve19());
+        httpServer.close(() => resolve20());
         const closeAllConnections = Reflect.get(httpServer, "closeAllConnections");
         if (typeof closeAllConnections === "function") closeAllConnections.call(httpServer);
       });
@@ -48711,14 +48814,14 @@ function readPidfile(pidfilePath) {
   }
 }
 function probeHealth(port, host = "127.0.0.1", timeoutMs = 500) {
-  return new Promise((resolve19) => {
+  return new Promise((resolve20) => {
     let done = false;
     let wallClockTimer;
     const finish = (v) => {
       if (done) return;
       done = true;
       if (wallClockTimer !== void 0) clearTimeout(wallClockTimer);
-      resolve19(v);
+      resolve20(v);
     };
     const req = httpGet({ host, port, path: "/api/health", timeout: timeoutMs }, (res) => {
       let body2 = "";
@@ -48775,28 +48878,28 @@ function parseListenerPids(stdout) {
   return [...new Set(stdout.split(/\r?\n/).map((line) => Number.parseInt(line.trim(), 10)).filter((pid) => Number.isSafeInteger(pid) && pid > 0))];
 }
 function listenerPids(port) {
-  return new Promise((resolve19) => {
+  return new Promise((resolve20) => {
     execFile9("lsof", ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }, (error2, stdout) => {
       if (error2 === null) {
-        resolve19(parseListenerPids(String(stdout ?? "")));
+        resolve20(parseListenerPids(String(stdout ?? "")));
         return;
       }
       const code = error2.code;
       if (code === 1) {
-        resolve19([]);
+        resolve20([]);
         return;
       }
-      resolve19(null);
+      resolve20(null);
     });
   });
 }
 function probePortOpen(port, host = "127.0.0.1", timeoutMs = 250) {
-  return new Promise((resolve19) => {
+  return new Promise((resolve20) => {
     let done = false;
     const finish = (open9) => {
       if (done) return;
       done = true;
-      resolve19(open9);
+      resolve20(open9);
     };
     const socket = createConnection({ host, port });
     socket.setTimeout(timeoutMs);
@@ -48872,14 +48975,14 @@ function managedTransactionId() {
   return value;
 }
 function pluginRoot() {
-  return join104(dirname24(fileURLToPath4(import.meta.url)), "..", "..", "..");
+  return join105(dirname24(fileURLToPath4(import.meta.url)), "..", "..", "..");
 }
 function manifestPath() {
-  return join104(pluginRoot(), "templates", "manifest.yaml");
+  return join105(pluginRoot(), "templates", "manifest.yaml");
 }
 function gitHeadSha(cwd) {
-  return new Promise((resolve19) => {
-    execFile10("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => resolve19((stdout ?? "").trim()));
+  return new Promise((resolve20) => {
+    execFile10("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => resolve20((stdout ?? "").trim()));
   });
 }
 async function main() {
@@ -48942,7 +49045,7 @@ async function main() {
     gitHeadSha,
     workspaceFingerprint: (cwd) => fingerprintWorkspace(cwd),
     // dashboard-app 构建产物（BACKLOG #26c）：存在则服务真 SPA，否则回退最小落地页
-    webRoot: join104(dirname24(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
+    webRoot: join105(dirname24(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
     // tap 流量查看器数据源：只读 sessions/records/timeline；完整 reader 才声明 traffic=true。
     // tap capture 默认 OFF，无捕获时返回空会话——数据端仍在线（#34e：只读本地、不外发）
     traceStore: createTraceStore(),

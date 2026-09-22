@@ -123,6 +123,8 @@ async function advanceTo(name: string, phase: 'explore' | 'spec' | 'build' | 've
   await h.satisfyStepTests(name, 'verify')
     await h.satisfyStepAgents(name)
   expect(await h.run(['transition', name, 'verify-pass'])).toBe(0)
+  // Ship 出口要求本 change 的 delta spec 真的应用进主规格；夹具留下 `tenon spec apply` 的产物。
+  await h.seedAppliedSpec(name)
 }
 
 describe('真实 e2e —— explore-complete 校验（老仓 L120-126）', () => {

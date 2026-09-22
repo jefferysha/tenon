@@ -6,7 +6,7 @@
  */
 import { readFile } from 'node:fs/promises'
 import {
-  defaultEventGuardFields, isTenonUser, reviewGateEvent,
+  defaultEventGuardFields, isTenonUser, readSpecApplyReceiptStatus, reviewGateEvent,
   reviewGateMatches, reviewGateStatus, userProjectPaths, userSlug,
   type EffectiveWorkflowPlan, type EventName, type PipelineState,
 } from '@tenon/kernel'
@@ -27,7 +27,6 @@ import { retiredSkillReferences, retiredSkillsChangeMessage } from '@tenon/kerne
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { currentCandidate } from './candidate.js'
 import { SPEC_APPLY_RECEIPT } from './specApply.js'
-import { specApplyReceiptFresh } from './statusStepSpec.js'
 
 export interface StepTestView {
   readonly id: string
@@ -99,7 +98,10 @@ export interface StepNextInput {
   readonly gate: string | null
   readonly mode: StepBlock['mode']
   readonly exits: readonly StepExit[]
-  readonly specApplyPending: boolean
+  /** 还没拿到一份对得上当前 delta spec 的彩排结论（`tenon spec apply --dry-run` 即可满足）。 */
+  readonly specRehearsalPending: boolean
+  /** delta spec 还没真的应用进主规格（彩排不算——它连一个字节都不写）。 */
+  readonly specApplicationPending: boolean
   readonly ownsDeltaSpec: boolean
   readonly ownsAppliedSpec: boolean
   /** artifact 字段的合法 `--producer` 集（与 register 命令同源；空 = 无合法 producer）。 */
@@ -151,7 +153,7 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     return ready.map((skill) => ({ action: 'load-skill', skill: skill.id, wave: skill.wave }))
   }
 
-  if (input.ownsAppliedSpec && input.specApplyPending) return [{ action: 'apply-spec' }]
+  if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]
   const writes = [...input.documents.records, ...input.documents.updates]
     .filter((doc) => doc.status !== 'recorded')
   if (writes.length > 0) {
@@ -170,7 +172,7 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     input.artifactProducers,
   )
   if (missingFields.length > 0) return missingFields
-  if (input.ownsDeltaSpec && input.specApplyPending) return [{ action: 'validate-spec' }]
+  if (input.ownsDeltaSpec && input.specRehearsalPending) return [{ action: 'validate-spec' }]
 
   const tests = input.tests.filter((test) => test.required && test.status !== 'passed')
   if (tests.length > 0) return tests.map((test) => ({ action: 'run-test', test: test.id }))
@@ -316,7 +318,7 @@ export async function buildStatusStep(
     status: gateStatus !== null && reviewGateMatches(state, stepId) ? gateStatus : 'none',
     event: gateStatus !== null && reviewGateMatches(state, stepId) ? reviewGateEvent(state) : null,
   }
-  const specApply = await specApplyReceiptFresh(deps.cwd, dir)
+  const specApply = await readSpecApplyReceiptStatus(deps.cwd, dir)
   const retired = retiredSkillReferences(plan)
   const block: Omit<StepBlock, 'next'> = {
     schema: 'tenon-step-v1',
@@ -366,7 +368,10 @@ export async function buildStatusStep(
       gate: step.gate ?? null,
       mode: block.mode,
       exits: report.exits,
-      specApplyPending: !specApply.fresh,
+      specRehearsalPending: !specApply.rehearsed,
+      // 彩排与应用是两件事：`--dry-run` 也写同一份 result=pass 的回执，只认 result 就等于让一次
+      // 彩排顶替一次应用，ship 于是去铺 applied-spec 骨架而不是真的把 delta 应用进主规格。
+      specApplicationPending: !specApply.applied,
       ownsDeltaSpec: documents.records.some((doc) => doc.kind === 'delta-spec'),
       ownsAppliedSpec: documents.records.some((doc) => doc.kind === 'applied-spec'),
       artifactProducers: artifacts.size === 0 ? [] : effectiveArtifactProducers(deps, state),
