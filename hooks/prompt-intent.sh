@@ -209,6 +209,57 @@ pipeline_prompt_has_unsafe_authority_context() { # $1=prompt; 0=authority use is
   return 0
 }
 
+pipeline_prompt_is_qualified_approval() { # $1=prompt; 0=同意里带着转折约束（modify）
+  # 带转折的同意不是放行：「继续，但先别改代码」要留住门。判定的是**同一口气**里的转折，
+  # 不是整条 prompt 里任何位置的「但」——按整条匹配时，`确认继续，按你的推荐执行。另外这个
+  # 方案不错，但以后再说。` 也会被判成 modify，一条完全有效的批准就被那个无关的「但」作废了。
+  #
+  # 同一口气 = 句号/问号/感叹号/换行切出的那一句里，转折词出现在同意词之后；或者下一句直接
+  # 以转折词开头（「同意继续执行。但是先别动数据库。」——句号换不掉它仍是对这次同意的约束）。
+  local rest="${1:-}" sentence head sep
+  local approved=1 leading_qualifier=0
+  while [ -n "$rest" ]; do
+    sentence="$rest"
+    sep=''
+    # 取出最靠前的一个句末标点，切出当前这一句。
+    for sep in '。' '！' '？' '.' '!' '?' $'\n'; do
+      head="${rest%%"$sep"*}"
+      [ "${#head}" -lt "${#sentence}" ] && sentence="$head"
+    done
+    rest="${rest:${#sentence}}"
+    # 去掉刚才那个分隔符（可能是多字节）后进入下一句。
+    for sep in '。' '！' '？' '.' '!' '?' $'\n'; do
+      case "$rest" in "$sep"*) rest="${rest:${#sep}}"; break ;; esac
+    done
+
+    if [ "$approved" -eq 0 ] && [ "$leading_qualifier" -eq 0 ]; then
+      # 上一句已经同意：紧接着以转折词开头的这一句，仍属于对那次同意的约束。
+      case "$sentence" in
+        但*|不过*|先别*|只是*|然而*) return 0 ;;
+      esac
+    fi
+    leading_qualifier=1
+
+    case "$sentence" in
+      *继续*|*可以*|*同意*)
+        # 同一句内：转折词必须出现在同意词之后才算约束这次同意。
+        local after=''
+        case "$sentence" in
+          *继续*) after="${sentence#*继续}" ;;
+          *可以*) after="${sentence#*可以}" ;;
+          *同意*) after="${sentence#*同意}" ;;
+        esac
+        case "$after" in
+          *但*|*不过*|*先别*) return 0 ;;
+        esac
+        approved=0
+        leading_qualifier=0
+        ;;
+    esac
+  done
+  return 1
+}
+
 pipeline_prompt_approval_intent() { # $1=prompt; stdout=intent; 0=matched, 1=unrelated
   local prompt="${1:-}"
   case "$prompt" in
@@ -216,8 +267,11 @@ pipeline_prompt_approval_intent() { # $1=prompt; stdout=intent; 0=matched, 1=unr
       printf 'revoke'; return 0 ;;
     *不可以*|*不同意*|*不批准*|*不要继续*|*别继续*|*不要执行*|*别执行*|*暂停执行*)
       printf 'reject'; return 0 ;;
-    *继续*但*|*继续*但是*|*继续*不过*|*继续*先别*|*可以*但*|*可以*但是*|*同意*但*)
-      printf 'modify'; return 0 ;;
+  esac
+  if pipeline_prompt_is_qualified_approval "$prompt"; then
+    printf 'modify'; return 0
+  fi
+  case "$prompt" in
     *没有说*批准*|*没说*批准*|*不是所有操作*批准*|*并非所有操作*批准*|\
     *不代表*批准*|*不等于*批准*|*这句话*所有操作我都批准*|\
     *\"所有操作我都批准\"*|*“所有操作我都批准”*)
