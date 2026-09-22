@@ -4,7 +4,7 @@
  * 每一块都读已有的判定源（技能证据、文档台账、guard 字段表），这里只把它们摆成 skill 能照做的形状。
  */
 import {
-  DOCUMENT_KIND_CATALOG, documentPathForKind, isDocumentKind,
+  DOCUMENT_KIND_CATALOG, documentPathTemplateForKind, isDocumentKind, renderDocumentPathForKind,
   readsRequiredForPolicyStep, requiresForPolicyStep, resolveRequiredSkillSlots,
   type DocumentEvidenceItem, type DocumentGovernancePolicy, type DocumentKind,
   type EffectiveWorkflowPlan, type PipelineState, type StepIR,
@@ -22,7 +22,13 @@ export interface StepSkillView {
 
 export interface StepDocumentView {
   readonly kind: string
-  readonly path: string
+  /**
+   * 已登记的实际路径，或该 kind 的规范路径；`null` = 这一条的路径还定不下来
+   * （delta-spec 的 `{capability}` 由作者拍板，`tenon document scaffold` 要 `--capability`）。
+   */
+  readonly path: string | null
+  /** 路径模板，占位符原样保留；path 为 null 时它说明还缺哪个变量。 */
+  readonly path_template: string
   readonly producers: readonly string[]
   readonly status: string
 }
@@ -93,15 +99,24 @@ export function stepSkills(
   return views
 }
 
+/**
+ * 还没登记、模板又缺变量时返回 null，而不是抛。
+ *
+ * 这一条抛出去，`tenon status --json` 的 step 分块会被整块吞掉（status.ts 捕获后只打一行 WARN），
+ * 数据驱动的执行者在 spec 相位就什么也拿不到——和技能门那个缺陷同一类：本该告诉执行者做什么的
+ * 投影，一句话都不说。
+ */
 function documentPath(
   change: string,
   kind: DocumentKind,
   item: DocumentEvidenceItem | undefined,
-): string {
+): string | null {
   const recorded = item?.paths[0]
   if (recorded !== undefined) return recorded
   const projectPath = DOCUMENT_KIND_CATALOG[kind].projectPath
-  return projectPath ?? documentPathForKind(kind, { change })
+  if (projectPath !== undefined) return projectPath
+  const rendered = renderDocumentPathForKind(kind, { change })
+  return 'missing' in rendered ? null : rendered.path
 }
 
 function view(
@@ -114,6 +129,7 @@ function view(
   return {
     kind,
     path: documentPath(change, kind, item),
+    path_template: DOCUMENT_KIND_CATALOG[kind].projectPath ?? documentPathTemplateForKind(kind),
     producers,
     status: item?.status ?? 'missing',
   }

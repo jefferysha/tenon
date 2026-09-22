@@ -8,6 +8,12 @@ export {
   SKILL_PROVENANCE_REGISTRY_VERSION,
 } from './source-registry.js'
 export {
+  isSkillModelInvocable,
+  parseSkillFrontmatter,
+  skillTextModelInvocable,
+  SKILL_MODEL_INVOCATION_DISABLED_FIELD,
+} from './invocability.js'
+export {
   buildUpstreamSkillView,
   parseUpstreamSkillLock,
   parseUpstreamSkillRunReport,

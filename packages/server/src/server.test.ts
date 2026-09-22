@@ -2318,7 +2318,7 @@ describe('POST /api/config/mandatory-skills —— M3 config 写端点（同 B5 
     // 真副作用：磁盘上的 manifest.yaml 已改，且真过 kernel loadManifest 重解析
     const reparsed = loadManifest(h.manifestPath!)
     expect(reparsed.mandatorySkills.build.backend).toEqual(['new-a', 'new-b'])
-    expect(reparsed.mandatorySkills.explore.pm).toEqual(['brainstorming', 'grill-with-docs'])
+    expect(reparsed.mandatorySkills.explore.pm).toEqual(['brainstorming', 'grilling', 'domain-modeling'])
 
     // 且 GET /api/config 立刻回显新值（读写一致，非缓存旧值）
     const after = (await reqGet(h.port, `/api/config?root=${encodeURIComponent(h.root)}`))

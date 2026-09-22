@@ -255,7 +255,7 @@ describe('writeMandatorySkills —— 外科手术式改盘 + 真 kernel 往返�
     const reparsed = loadManifest(manifestPath)
     expect(reparsed.mandatorySkills.build.backend).toEqual(['x', 'y'])
     // 其余条目逐字不变（spot check）
-    expect(reparsed.mandatorySkills.explore.pm).toEqual(['brainstorming', 'grill-with-docs'])
+    expect(reparsed.mandatorySkills.explore.pm).toEqual(['brainstorming', 'grilling', 'domain-modeling'])
     expect(reparsed.mandatorySkills.open._all).toEqual(['openspec-propose'])
     expect(reparsed.mandatorySkills.ship.backend).toEqual(['finishing-a-development-branch'])
     expect(reparsed.mandatorySkills.ship.backend).not.toContain('commit-commands:commit-push-pr')

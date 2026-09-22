@@ -82,22 +82,46 @@ export function documentTemplateIdForKind(kind: string): DocumentTemplateId {
   return templateId
 }
 
-export function documentPathForKind(kind: string, variables: DocumentPathVariables): string {
-  const templateId = documentTemplateIdForKind(kind)
-  const definition = DOCUMENT_PRESENTATION_REGISTRY.templates[templateId]
+/** 该 kind 的路径模板，占位符原样保留（如 delta-spec 的 `{capability}`）。 */
+export function documentPathTemplateForKind(kind: string): string {
+  return DOCUMENT_PRESENTATION_REGISTRY.templates[documentTemplateIdForKind(kind)].path
+}
+
+/**
+ * 渲染路径；缺变量时返回缺的那个变量名而不是抛。
+ *
+ * 有些 kind 的路径要到作者拍板后才存在——delta-spec 的 `{capability}` 是人选的，`tenon document
+ * scaffold` 要求 `--capability`，没有默认值。投影面（`tenon status --json` 的 step 分块）必须能
+ * 如实说「这一条还定不下来」，而不是抛异常把整块投影一起带走（那会让数据驱动的执行者在 spec
+ * 相位一无所得）。要求路径必须落定的调用方继续用 documentPathForKind，它照旧 fail-loud。
+ */
+export function renderDocumentPathForKind(
+  kind: string,
+  variables: DocumentPathVariables,
+): { readonly path: string } | { readonly missing: string } {
+  const definition = DOCUMENT_PRESENTATION_REGISTRY.templates[documentTemplateIdForKind(kind)]
   const values: Readonly<Record<string, string | undefined>> = {
     change: variables.change,
     capability: variables.capability,
   }
-  const output = definition.path.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (_token, key: string) => {
+  let missing: string | undefined
+  const output = definition.path.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (token, key: string) => {
     const value = values[key]
     if (value === undefined || value === '') {
-      throw new Error(`document kind '${kind}' 路径缺少 '${key}'`)
+      missing ??= key
+      return token
     }
     return value
   })
+  if (missing !== undefined) return { missing }
   if (/[{}]/.test(output)) throw new Error(`document kind '${kind}' 路径含未解析占位符`)
-  return output
+  return { path: output }
+}
+
+export function documentPathForKind(kind: string, variables: DocumentPathVariables): string {
+  const rendered = renderDocumentPathForKind(kind, variables)
+  if ('missing' in rendered) throw new Error(`document kind '${kind}' 路径缺少 '${rendered.missing}'`)
+  return rendered.path
 }
 
 function workflowStepLabel(

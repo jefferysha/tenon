@@ -373,7 +373,7 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     expect(skillsFor(manifest.mandatorySkills, 'ship', TRACK)).toEqual(['finishing-a-development-branch'])
 
     // 与当前真实 manifest.yaml 的锚点（backend track 全 7 相位 mandatory skill 求和 + 每步一次 tenon）。
-    expect(toolCount).toBe(17)
+    expect(toolCount).toBe(18)
     expect(unlockCount).toBe(2)
 
     // 行序因果核验（非仅计数）：每个相位区间内的 tool/prompt 条数必须落在该相位真实转移事件之间
@@ -387,7 +387,7 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     const idxArchive = idx('archive')
     const skillCount = (entries: HistLine[]) => entries.filter((p) => p.kind === 'tool' && p.raw?.startsWith('Skill:')).length
     expect(skillCount(parsed.slice(0, idxExplore))).toBe(2) // open 阶段 tenon + overlay skill
-    expect(skillCount(seg(idxExplore, idxSpec))).toBe(5)
+    expect(skillCount(seg(idxExplore, idxSpec))).toBe(6) // tenon + openspec-explore/brainstorming/grilling/domain-modeling/codebase-design
     expect(seg(idxExplore, idxSpec).filter((p) => p.kind === 'prompt')).toHaveLength(2)
     expect(skillCount(seg(idxSpec, idxBuild))).toBe(3)
     expect(seg(idxSpec, idxBuild).filter((p) => p.kind === 'prompt')).toHaveLength(0)

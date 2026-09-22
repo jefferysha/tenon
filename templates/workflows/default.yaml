@@ -208,7 +208,8 @@ tracks:
         gate: review
         skills:
           - id: brainstorming
-          - id: grill-with-docs
+          - id: grilling
+          - id: domain-modeling
         inputs: []
         outputs:
           - field: design_doc
@@ -228,7 +229,8 @@ tracks:
           - id: openspec-propose
           - id: brainstorming
           - id: writing-plans
-          - id: grill-with-docs
+          - id: grilling
+          - id: domain-modeling
         inputs:
           - field: design_doc
             type: file_path
@@ -279,7 +281,6 @@ tracks:
           - id: web-design-guidelines
           - id: design-taste-frontend
           - id: verification-before-completion
-          - id: handoff
         inputs:
           - field: build_sha
             type: string
@@ -302,9 +303,7 @@ tracks:
       - id: ship
         label: 交付
         gate: null
-        skills:
-          - id: to-spec
-          - id: to-tickets
+        skills: []
         inputs:
           - field: verification_report
             type: file_path
@@ -384,7 +383,8 @@ tracks:
         skills:
           - id: openspec-explore
           - id: brainstorming
-          - id: grill-with-docs
+          - id: grilling
+          - id: domain-modeling
         inputs: []
         outputs:
           - field: design_doc
@@ -610,8 +610,9 @@ tracks:
         skills:
           - id: openspec-explore
           - id: brainstorming
-          - id: grill-with-docs
-          - id: improve-codebase-architecture
+          - id: grilling
+          - id: domain-modeling
+          - id: codebase-design
         inputs: []
         outputs:
           - field: design_doc

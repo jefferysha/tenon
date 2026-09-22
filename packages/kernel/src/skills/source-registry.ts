@@ -59,6 +59,7 @@ export const SKILL_PROVENANCE_ERROR_CATEGORIES = [
   'legacy-provenance-source',
   'invalid-skill-sources',
   'invalid-skill-lock',
+  'mandatory-skill-not-invocable',
 ] as const
 export type SkillProvenanceErrorCategory = typeof SKILL_PROVENANCE_ERROR_CATEGORIES[number]
 

@@ -1,4 +1,13 @@
 # skills/sources.yaml — upstream skills installed into the Tenon plugin root on every setup and update.
+#
+# 这里的技能分两类，**只有第一类能进 templates/manifest.yaml 的 mandatory_skills**：
+#   · 模型可调用（frontmatter 没有 `disable-model-invocation: true`）——Tenon 的 step.next 会下发
+#     `load-skill <id>`，宿主 Skill 工具真能执行，因此才可能留下受理回执、让 transition 放行；
+#   · 仅人工调用（frontmatter 带 `disable-model-invocation: true`，如 grill-with-docs /
+#     improve-codebase-architecture / to-spec / to-tickets / handoff / triage）——宿主拒绝代模型调用，
+#     手敲斜杠命令也不写回执。这类技能只作为人工指引随包分发，声明成强制即等于把该 step 永久锁死。
+# 该契约由 `internal-skill-provenance verify`（发布候选门禁）与 `tenon doctor` 的 skills:invocable
+# 两道门禁裁决；invocability 在获取时记进 skills/skills.lock.json 的 model_invocable。
 version: 1
 skills:
   brainstorming: { repo: obra/superpowers, path: skills/brainstorming, ref: default-branch, license_expected: MIT }
@@ -28,6 +37,9 @@ skills:
   react-patterns: { repo: affaan-m/ECC, path: skills/react-patterns, ref: default-branch, license_expected: MIT }
   search-first: { repo: affaan-m/ECC, path: skills/search-first, ref: default-branch, license_expected: MIT }
   security-review: { repo: affaan-m/ECC, path: skills/security-review, ref: default-branch, license_expected: MIT }
+  codebase-design: { repo: mattpocock/skills, path: skills/engineering/codebase-design, ref: default-branch, license_expected: MIT }
+  domain-modeling: { repo: mattpocock/skills, path: skills/engineering/domain-modeling, ref: default-branch, license_expected: MIT }
+  grilling: { repo: mattpocock/skills, path: skills/productivity/grilling, ref: default-branch, license_expected: MIT }
   grill-with-docs: { repo: mattpocock/skills, path: skills/engineering/grill-with-docs, ref: default-branch, license_expected: MIT }
   improve-codebase-architecture: { repo: mattpocock/skills, path: skills/engineering/improve-codebase-architecture, ref: default-branch, license_expected: MIT }
   prototype: { repo: mattpocock/skills, path: skills/engineering/prototype, ref: default-branch, license_expected: MIT }

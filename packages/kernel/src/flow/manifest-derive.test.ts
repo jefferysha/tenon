@@ -41,12 +41,13 @@ function writeManifest(body: string): string {
 describe('派生面 · mandatory / recommended skills（evidence 派生，对齐 manifest.py:evidence 346-355）', () => {
   it('真读 templates：per phase×track 强制 skill 表逐字派生', () => {
     const m = loadManifest(TEMPLATE_MANIFEST)
-    expect(m.mandatorySkills.explore.pm).toEqual(['brainstorming', 'grill-with-docs'])
+    expect(m.mandatorySkills.explore.pm).toEqual(['brainstorming', 'grilling', 'domain-modeling'])
     expect(m.mandatorySkills.explore.backend).toEqual([
       'openspec-explore',
       'brainstorming',
-      'grill-with-docs',
-      'improve-codebase-architecture',
+      'grilling',
+      'domain-modeling',
+      'codebase-design',
     ])
     expect(m.mandatorySkills.build.backend).toEqual(['test-driven-development'])
     expect(m.mandatorySkills.explore.free).toEqual(['brainstorming'])
@@ -71,7 +72,7 @@ describe('派生面 · mandatory / recommended skills（evidence 派生，对齐
     expect(skillsFor(m.mandatorySkills, 'open', 'pm')).toEqual(['openspec-propose'])
     expect(skillsFor(m.mandatorySkills, 'open', 'free')).toEqual(['openspec-propose'])
     // per-track 优先于 _all
-    expect(skillsFor(m.mandatorySkills, 'explore', 'pm')).toEqual(['brainstorming', 'grill-with-docs'])
+    expect(skillsFor(m.mandatorySkills, 'explore', 'pm')).toEqual(['brainstorming', 'grilling', 'domain-modeling'])
     // 无声明 → 空
     expect(skillsFor(m.recommendedSkills, 'archive', 'backend')).toEqual([])
     expect(skillsFor(m.mandatorySkills, 'verify', 'chat')).toEqual([])

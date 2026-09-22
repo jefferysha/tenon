@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import {
   canonicalWorkflowSkillId, compileEffectiveWorkflowPlan, PRODUCT_IDENTITY, RETIRED_SKILL_IDS,
-  type SkillTable,
+  skillTokenAlternatives, type SkillTable,
 } from '@tenon/kernel'
 import type { DoctorProbes, HostPluginInventorySource } from '../deps.js'
 import {
@@ -135,6 +135,61 @@ export function checkSkills(p: DoctorProbes): [DoctorCheck, DoctorCheck] {
     .filter((id) => !registry.some((source) => source.token === id))
     .map((token) => ({ token, tool: 'bundled', source: 'upstream', tier: 'optional', official: false }))
   return evaluateSkillChecks(tables, [...registry, ...locked], p.installedSkillNames())
+}
+
+/**
+ * 强制技能必须是宿主肯代模型调用的那一种。
+ *
+ * 事实来自获取期记进 skills.lock.json 的 model_invocable——skills/<id> 是 gitignore 的，
+ * 只有那一刻手里有字节；tree_sha256 同时钉住内容，所以这一位不会和盘上的 SKILL.md 各说各话。
+ * 判定按 token：`a|b` 只要有一个备选可调用就算过；没有锁记录的备选（自带技能、宿主命名空间、
+ * 还没装上的）算未知，不拿它定罪，缺技能本身由 skills:mandatory 管。
+ */
+export function checkMandatorySkillInvocability(p: DoctorProbes): DoctorCheck {
+  const tables = p.manifestSkills()
+  if (tables === null) {
+    return yellow(
+      'skills:invocable',
+      'manifest 不可用——无法核强制技能是否模型可调用（不误报 green）',
+      '先修复 asset:manifest（templates/manifest.yaml）后重跑 tenon doctor',
+    )
+  }
+  const view = p.upstreamSkillView?.()
+  if (view === undefined || 'error' in view) {
+    return yellow(
+      'skills:invocable',
+      view === undefined
+        ? '上游技能探针未装配——无法核强制技能是否模型可调用（不误报 green）'
+        : `上游技能锁不可读（${view.error}）——无法核强制技能是否模型可调用`,
+      '运行 tenon update --<host> 或 npm run skills:fetch 重新获取上游技能后重跑 tenon doctor',
+    )
+  }
+  const invocable = new Map<string, boolean>()
+  for (const row of view.rows) {
+    if (row.modelInvocable !== undefined) invocable.set(row.id, row.modelInvocable)
+  }
+  const offenders: string[] = []
+  const seen = new Set<string>()
+  for (const row of Object.values(tables.mandatory)) {
+    for (const list of Object.values(row)) {
+      for (const token of list ?? []) {
+        if (seen.has(token)) continue
+        seen.add(token)
+        const alternatives = skillTokenAlternatives(token)
+        if (alternatives.every((id) => invocable.get(id) === false)) offenders.push(token)
+      }
+    }
+  }
+  if (offenders.length === 0) {
+    return green('skills:invocable', `${seen.size} 个 manifest 强制技能都是宿主可代模型调用的`)
+  }
+  return red(
+    'skills:invocable',
+    `${offenders.length} 个强制技能带 disable-model-invocation: true，宿主不会代模型调用，`
+      + `声明它们的相位会卡死在 step-skills-incomplete：${offenders.join('、')}`,
+    `把 templates/manifest.yaml 与 templates/workflows/default.yaml 里的 ${offenders.join('、')} `
+      + '换成模型可调用的等价技能，或降级为人工指引后重跑 tenon doctor',
+  )
 }
 
 /** 工作流数据声明的每个技能都要能在插件载荷里找到；技能清单不再硬编码在这里。 */

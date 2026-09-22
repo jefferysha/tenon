@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
-import type { StepIR } from '@tenon/kernel'
+import type { DocumentEvidenceItem, DocumentGovernancePolicy, StepIR } from '@tenon/kernel'
 import { mockState } from '../test-support.js'
-import { stepFields } from './statusStepParts.js'
+import { stepDocuments, stepFields } from './statusStepParts.js'
 
 function step(over: Partial<StepIR> = {}): StepIR {
   return {
@@ -113,5 +113,41 @@ describe('stepFields —— 本步要填的槽', () => {
       [{ field: 'verification_report' }, { field: 'branch_status', required: ['handled'] }],
     )
     expect(fields.map((f) => f.field)).toEqual(['verification_report', 'branch_status'])
+  })
+})
+
+/**
+ * 真机实测的 P0（acceptance run）：phase=spec、delta-spec 还没登记时，`tenon status <change>
+ * --json` 打 `WARN: step 投影不可用: document kind 'delta-spec' 路径缺少 'capability'` 并且
+ * **整块 step 都不输出**——数据驱动的执行者在 spec 相位一无所得。根因是 documentPath 把
+ * documentPathForKind 的 fail-loud 直接抛进投影，而 delta-spec 的 `{capability}` 要作者拍板
+ * （`tenon document scaffold <change> delta-spec --capability <x>`），此刻本来就定不下来。
+ */
+describe('stepDocuments —— 路径还定不下来的文档不许带走整块投影', () => {
+  const policy = {
+    id: 'openspec-v1',
+    steps: ['spec'],
+    outputsByStep: { spec: [{ kind: 'delta-spec', producerCandidates: ['openspec-propose'] }] },
+    mutableByStep: {},
+    readsByStep: {},
+    requiresByStep: {},
+  } as unknown as DocumentGovernancePolicy
+
+  test('未登记的 delta-spec：path 为 null、path_template 指出缺的变量，不抛', () => {
+    const documents = stepDocuments('demo', policy, 'spec', [])
+    expect(documents.records).toEqual([{
+      kind: 'delta-spec',
+      path: null,
+      path_template: 'openspec/changes/{change}/specs/{capability}/spec.md',
+      producers: ['openspec-propose'],
+      status: 'missing',
+    }])
+  })
+
+  test('已登记后仍回实际路径', () => {
+    const documents = stepDocuments('demo', policy, 'spec', [
+      { kind: 'delta-spec', status: 'recorded', paths: ['openspec/changes/demo/specs/routing/spec.md'] },
+    ] as unknown as DocumentEvidenceItem[])
+    expect(documents.records[0]?.path).toBe('openspec/changes/demo/specs/routing/spec.md')
   })
 })

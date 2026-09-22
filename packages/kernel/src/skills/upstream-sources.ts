@@ -36,9 +36,16 @@ export interface UpstreamSkillLockEntry {
   readonly license: UpstreamSkillLicense
   readonly fetchedAt: string
   readonly previousCommit: string | null
+  /**
+   * 获取当时这份 SKILL.md 的 frontmatter 允不允许模型自己调用（`disable-model-invocation: true`
+   * 即 false）。字节在获取期才在手上、仓库里是 gitignore 的，所以这一位只能在这里落账；
+   * 发布候选门禁与 doctor 据此拒绝把仅人工调用的技能列为强制技能。treeSha256 一致即字节一致，
+   * 因此这一位与盘上内容不会各说各话。
+   */
+  readonly modelInvocable: boolean
 }
 export interface UpstreamSkillLock {
-  readonly version: 1
+  readonly version: 2
   readonly updatedAt: string
   readonly skills: readonly UpstreamSkillLockEntry[]
 }
@@ -69,6 +76,8 @@ export interface UpstreamSkillViewRow {
   readonly previousCommit?: string | null
   readonly license?: UpstreamSkillLicense
   readonly fetchedAt?: string
+  /** 锁里记的「模型可调用」；上游行有锁条目时才有值，bundled 行与未安装行留空。 */
+  readonly modelInvocable?: boolean
   readonly reason?: UpstreamSkillFailureReason
   readonly detail?: string
   readonly sourceUrl?: string
@@ -89,7 +98,7 @@ const TREE_SHA256 = /^sha256:[0-9a-f]{64}$/
 const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/
 const SOURCE_FIELDS: ReadonlySet<string> = new Set(['repo', 'path', 'ref', 'license_expected'])
 const LOCK_KEYS = ['version', 'updated_at', 'skills'] as const
-const LOCK_ENTRY_KEYS = ['id', 'repo', 'path', 'commit', 'tree_sha256', 'license', 'fetched_at', 'previous_commit'] as const
+const LOCK_ENTRY_KEYS = ['id', 'repo', 'path', 'commit', 'tree_sha256', 'license', 'fetched_at', 'previous_commit', 'model_invocable'] as const
 const REPORT_KEYS = ['version', 'at', 'host', 'results'] as const
 const RESULT_KEYS: ReadonlySet<string> = new Set(['id', 'outcome', 'reason', 'detail'])
 const FAILURE_REASONS: ReadonlySet<string> = new Set<UpstreamSkillFailureReason>([
@@ -234,14 +243,19 @@ function parseLockEntry(raw: unknown, index: number): UpstreamSkillLockEntry {
   const previous = raw.previous_commit
   const previousCommit = previous === null ? null : typeof previous === 'string' && COMMIT.test(previous) ? previous : undefined
   if (previousCommit === undefined) throw lockError(`${id} previous_commit 须为 null 或 40 位十六进制`)
-  return { id, repo, path, commit, treeSha256: raw.tree_sha256, license, fetchedAt: raw.fetched_at, previousCommit }
+  if (typeof raw.model_invocable !== 'boolean') throw lockError(`${id} model_invocable 须为布尔值`)
+  return {
+    id, repo, path, commit, treeSha256: raw.tree_sha256, license, fetchedAt: raw.fetched_at, previousCommit,
+    modelInvocable: raw.model_invocable,
+  }
 }
 
 /** 严格解析锁文件；给出 `sources` 时每个条目都必须对应一个来源且 repo/path 相同。 */
 export function parseUpstreamSkillLock(text: string, sources?: UpstreamSkillSources): UpstreamSkillLock {
   const value = parseJson(text, lockError)
   if (!isRecord(value) || !hasExactKeys(value, LOCK_KEYS)) throw lockError(`顶层字段须为 ${LOCK_KEYS.join(' / ')}`)
-  if (value.version !== 1) throw lockError(`version '${String(value.version)}' 不受支持（需要 1）`)
+  // v1 没有 model_invocable，不能靠猜补齐——重新获取一次上游即得到完整记账。
+  if (value.version !== 2) throw lockError(`version '${String(value.version)}' 不受支持（需要 2）`)
   if (!isIsoUtc(value.updated_at)) throw lockError('updated_at 不是 ISO-8601 UTC 时间')
   if (!Array.isArray(value.skills)) throw lockError('skills 不是数组')
   const byIdSource = sources === undefined ? undefined : new Map(sources.skills.map((source) => [source.id, source]))
@@ -259,7 +273,7 @@ export function parseUpstreamSkillLock(text: string, sources?: UpstreamSkillSour
     }
     return entry
   })
-  return { version: 1, updatedAt: value.updated_at, skills }
+  return { version: 2, updatedAt: value.updated_at, skills }
 }
 
 /** 条目按 id 排序、键序固定，内容不变时字节不变。 */
@@ -273,8 +287,9 @@ export function serializeUpstreamSkillLock(lock: UpstreamSkillLock): string {
     license: entry.license,
     fetched_at: entry.fetchedAt,
     previous_commit: entry.previousCommit,
+    model_invocable: entry.modelInvocable,
   }))
-  return `${JSON.stringify({ version: 1, updated_at: lock.updatedAt, skills }, null, 2)}\n`
+  return `${JSON.stringify({ version: 2, updated_at: lock.updatedAt, skills }, null, 2)}\n`
 }
 
 function reportError(message: string): UpstreamSkillError {
@@ -370,6 +385,7 @@ export function buildUpstreamSkillView(input: {
       previousCommit: entry.previousCommit,
       license: entry.license,
       fetchedAt: entry.fetchedAt,
+      modelInvocable: entry.modelInvocable,
       ...failureFields,
       sourceUrl: treeUrl(source.repo, entry.commit, source.path),
       commitUrl: `https://github.com/${source.repo}/commit/${entry.commit}`,

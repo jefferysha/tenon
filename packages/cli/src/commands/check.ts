@@ -4,6 +4,10 @@
  * deps.guardCtx（main.ts 用 node:fs 落地）注入文件面 → 老 guard 全语义；未注入 = lite 纯字段面。
  * warnings（老 guard yellow 提示面：coverage 豁免/阻塞层明细）渲染为 [WARN] 行，不影响 exit。
  *
+ * 覆盖面与 transition 的拒绝面一一对应：flow guard / 步骤 guard、技能门、文档台账、测试证据、
+ * agent 台账、规格迁移。任何一项只在 transition 有而 check 没有，用户就会先收到「所有检查通过」、
+ * 再被下一条命令拒绝——技能门 2026-09 之前正是这样缺着的。
+ *
  * 双轨（对齐 transition.ts 的 default vs 自定义 workflow 分岔）：读完 state 立刻按 workflow 字段分流。
  * default（含历史遗留空串，故 `|| 'default'` 兜空串，不是 `??`）→ 上面的 guardCheck 路径逐字不变；
  * 非 default → 读该 workflow 当前 step 定义、按 step-guard 评估（evaluateStepGuards）。check 是纯预览：
@@ -41,6 +45,8 @@ import { changeDir, isValidChangeName } from '../paths.js'
 import { display, str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { stepAgentLines } from './check-agents.js'
+import { renderCheckReport } from './check-report.js'
+import { stepSkillLines } from './check-skills.js'
 import { stepTestBlockers } from './check-test-evidence.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 
@@ -193,49 +199,26 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
   let documents: DocumentEvidenceReport | undefined
   let tests: readonly string[]
   let agents: readonly string[]
+  let skills: readonly string[]
   try {
     documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
     tests = await stepTestBlockers(deps, name, dir, state, plan)
     agents = await stepAgentLines(deps, name, dir, state, plan, opts.event)
+    skills = await stepSkillLines(deps, dir, state, plan)
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1
   }
-  deps.io.out(`[CHECK] ${name} (phase=${display(state.fields.phase)})`)
-  for (const warning of result.warnings ?? []) {
-    deps.io.out(`  [WARN] ${warning}`)
-  }
-  if (result.pass && revisionFailures.length === 0 && (documents?.pass ?? true)
-    && tests.length === 0 && agents.length === 0 && migration?.kind !== 'invalid') {
-    deps.io.out('  [PASS] 所有检查通过')
-    return 0
-  }
-  for (const failure of result.failures) {
-    deps.io.out(`  [FAIL] ${failure}`)
-  }
-  for (const failure of revisionFailures) {
-    deps.io.out(`  [FAIL] ${failure}`)
-  }
-  for (const blocker of documents?.blockers ?? []) {
-    deps.io.out(`  [FAIL] document: ${blocker}`)
-  }
-  for (const blocker of tests) {
-    deps.io.out(`  [FAIL] test: ${blocker}`)
-  }
-  for (const line of agents) {
-    deps.io.out(`  [FAIL] agent: ${line}`)
-  }
-  if (migration?.kind === 'invalid') {
-    deps.io.out(`  [FAIL] migration: ${migration.reason}`)
-  }
-  const total = result.failures.length
-    + revisionFailures.length
-    + (documents?.blockers.length ?? 0)
-    + tests.length
-    + agents.length
-    + (migration?.kind === 'invalid' ? 1 : 0)
-  deps.io.out(`  [FAIL] 共 ${total} 项未通过`)
-  return 2
+  return renderCheckReport(deps, name, display(state.fields.phase), {
+    warnings: result.warnings ?? [],
+    guards: result.pass ? [] : result.failures,
+    revision: revisionFailures,
+    documents: documents?.blockers ?? [],
+    skills,
+    tests,
+    agents,
+    migration: migration?.kind === 'invalid' ? migration.reason : undefined,
+  })
 }
 
 /**
@@ -323,42 +306,24 @@ async function checkGraphWorkflow(
   let documents: DocumentEvidenceReport | undefined
   let tests: readonly string[]
   let agents: readonly string[]
+  let skills: readonly string[]
   try {
     documents = await governedDocumentEvidence(deps, dir, state, plan.capabilities.documents.policy)
     tests = await stepTestBlockers(deps, name, dir, state, plan)
     agents = await stepAgentLines(deps, name, dir, state, plan, event)
+    skills = await stepSkillLines(deps, dir, state, plan)
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`)
     return 1
   }
-  deps.io.out(`[CHECK] ${name} (phase=${display(state.fields.phase)})`)
-  if (result.pass && (documents?.pass ?? true) && tests.length === 0 && agents.length === 0
-    && migration?.kind !== 'invalid') {
-    deps.io.out('  [PASS] 所有检查通过')
-    return 0
-  }
-  for (const failure of result.failures) {
-    deps.io.out(`  [FAIL] ${failure}`)
-  }
-  for (const blocker of documents?.blockers ?? []) {
-    deps.io.out(`  [FAIL] document: ${blocker}`)
-  }
-  for (const blocker of tests) {
-    deps.io.out(`  [FAIL] test: ${blocker}`)
-  }
-  for (const line of agents) {
-    deps.io.out(`  [FAIL] agent: ${line}`)
-  }
-  if (migration?.kind === 'invalid') {
-    deps.io.out(`  [FAIL] migration: ${migration.reason}`)
-  }
-  const total = result.failures.length
-    + (documents?.blockers.length ?? 0)
-    + tests.length
-    + agents.length
-    + (migration?.kind === 'invalid' ? 1 : 0)
-  deps.io.out(`  [FAIL] 共 ${total} 项未通过`)
-  return 2
+  return renderCheckReport(deps, name, display(state.fields.phase), {
+    guards: result.pass ? [] : result.failures,
+    documents: documents?.blockers ?? [],
+    skills,
+    tests,
+    agents,
+    migration: migration?.kind === 'invalid' ? migration.reason : undefined,
+  })
 }
 
 /**

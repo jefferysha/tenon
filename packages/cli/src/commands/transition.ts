@@ -50,8 +50,8 @@
  * 保持兼容，Verify revision assessor 缺失仍 fail-closed）。
  */
 import {
-  compileWorkflow, completedWorkflowSkillsSinceStepEntry, createTransitionApplication,
-  loadRegistry, loadWorkflow, nodeLoopIoStrict, requireTrackForRoot, resolveRequiredSkillSlots,
+  compileWorkflow, createTransitionApplication,
+  loadRegistry, loadWorkflow, nodeLoopIoStrict, requireTrackForRoot,
   readReviewGateBinding, renderAgentBlocker, retiredSkillsChangeMessage,
   reviewGateBindingMatches, ownerRequiredMessage,
   TASK_PLAN_CURRENT_FILE, TASK_PLAN_LIMITS, TASK_PLAN_STATE_DIR,
@@ -62,15 +62,11 @@ import { enqueueAfterSpecComplete } from '@tenon/automation'
 import { errMsg, type CliDeps } from '../deps.js'
 import { refuseArchived } from '../archivedGuard.js'
 import { changeDir, isValidChangeName } from '../paths.js'
-import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { requireActor } from '../userIdentity.js'
 import { stepAgentBlockersFor } from '../agentGate.js'
+import { missingStepSkillTokens } from '../stepSkillGate.js'
 import { testEvidenceContextFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
-
-function canonicalPipelineSkillId(skillId: string): string {
-  return skillId.startsWith('tenon:') ? skillId.slice('tenon:'.length) : skillId
-}
 
 export async function cmdTransition(deps: CliDeps, name: string, event: string): Promise<number> {
   if (!isValidChangeName(name)) {
@@ -151,25 +147,10 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     resolveTrack: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd),
     stepAgentBlockers: async ({ changeDir: targetDir, stepId, plan, state }) =>
       stepAgentBlockersFor({ deps, name, dir: targetDir, stepId, plan, state }),
-    missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => {
-      const slots = resolveRequiredSkillSlots(deps.resolver, capability, stepId)
-      const candidates = slots.flatMap((slot) => slot.alternatives.map(canonicalPipelineSkillId))
-      await reconcileCodexSkillEvidence({
-        repoRoot: deps.cwd,
-        changeDir: targetDir,
-        candidateSkillIds: candidates,
-        recordedAt: deps.clock(),
-        history: deps.history,
-        evidenceScope: stepId,
-      })
-      const completed = completedWorkflowSkillsSinceStepEntry(
-        (await deps.readHistoryRaw?.(targetDir)) ?? '',
-        stepId,
-      )
-      return slots
-        .filter((slot) => !slot.alternatives.some((candidate) => completed.has(canonicalPipelineSkillId(candidate))))
-        .map((slot) => slot.token)
-    },
+    // 与 check / status 的出边投影同一个判定；这里持锁，所以顺带把宿主回执落成 history 证据。
+    missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => missingStepSkillTokens({
+      deps, changeDir: targetDir, stepId, capability, recordEvidence: true,
+    }),
     resolveConstraintContext: async ({ policy }) => {
       const registry = loadRegistry(deps.cwd, nodeLoopIoStrict)
       if (registry.data === null) throw new Error(`loops registry 无法校验：${registry.errors.join('；')}`)

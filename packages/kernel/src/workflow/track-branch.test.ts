@@ -173,11 +173,14 @@ describe('default 分支', () => {
     const def = parseWorkflow(DEFAULT_WORKFLOW_SOURCE)
     const backend = compileEffectiveWorkflowPlan('default', def, builtinTrack('backend'))
     expect(backend.capabilities.skills.steps.find((step) => step.stepId === 'explore')?.requiredSkillIds).toEqual([
-      'openspec-explore', 'brainstorming', 'grill-with-docs', 'improve-codebase-architecture',
+      'openspec-explore', 'brainstorming', 'grilling', 'domain-modeling', 'codebase-design',
     ])
     const pm = compileEffectiveWorkflowPlan('default', def, builtinTrack('pm'))
-    expect(pm.capabilities.skills.steps.find((step) => step.stepId === 'verify')?.requiredSkillIds).toContain('handoff')
-    expect(backend.capabilities.skills.steps.find((step) => step.stepId === 'verify')?.requiredSkillIds).not.toContain('handoff')
+    // pm 的 verify 只声明走查与验证四件；架构词汇（codebase-design）是 backend explore 的事。
+    expect(pm.capabilities.skills.steps.find((step) => step.stepId === 'verify')?.requiredSkillIds)
+      .toEqual(['browser-qa', 'web-design-guidelines', 'design-taste-frontend', 'verification-before-completion'])
+    expect(backend.capabilities.skills.steps.find((step) => step.stepId === 'explore')?.requiredSkillIds)
+      .not.toContain('improve-codebase-architecture')
     // default 运行时 artifact 走生成表：pm 分支的 spec 没有 plan artifact，其余分支有。
     expect(defaultArtifactsForStep('spec', 'pm')).toEqual([])
     expect(defaultArtifactsForStep('spec', 'backend').map((artifact) => artifact.field)).toEqual(['plan'])

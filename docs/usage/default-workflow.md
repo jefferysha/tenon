@@ -45,11 +45,11 @@ Skills declared per step (default, by track):
 | Step | pm | frontend | backend | free |
 | --- | --- | --- | --- | --- |
 | `open` | openspec-propose | openspec-propose | openspec-propose | openspec-propose |
-| `explore` | brainstorming · grill-with-docs | openspec-explore · brainstorming · grill-with-docs | openspec-explore · brainstorming · grill-with-docs · improve-codebase-architecture | brainstorming |
-| `spec` | openspec-propose · brainstorming · writing-plans · grill-with-docs | openspec-propose · writing-plans | openspec-propose · writing-plans | openspec-propose · writing-plans |
+| `explore` | brainstorming · grilling · domain-modeling | openspec-explore · brainstorming · grilling · domain-modeling | openspec-explore · brainstorming · grilling · domain-modeling · codebase-design | brainstorming |
+| `spec` | openspec-propose · brainstorming · writing-plans · grilling · domain-modeling | openspec-propose · writing-plans | openspec-propose · writing-plans | openspec-propose · writing-plans |
 | `build` | prototype · frontend-design | test-driven-development · frontend-design | test-driven-development | test-driven-development |
-| `verify` | browser-qa · web-design-guidelines · design-taste-frontend · verification-before-completion · handoff | verification-before-completion · e2e-testing · browser-qa · web-design-guidelines · design-taste-frontend | verification-before-completion | verification-before-completion |
-| `ship` | to-spec · to-tickets | finishing-a-development-branch | finishing-a-development-branch | finishing-a-development-branch |
+| `verify` | browser-qa · web-design-guidelines · design-taste-frontend · verification-before-completion | verification-before-completion · e2e-testing · browser-qa · web-design-guidelines · design-taste-frontend | verification-before-completion | verification-before-completion |
+| `ship` | — | finishing-a-development-branch | finishing-a-development-branch | finishing-a-development-branch |
 | `archive` | — | — | — | — |
 
 The `chat` track — the default when the Dashboard picks no track — declares no skills. Its document

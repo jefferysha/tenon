@@ -36,13 +36,13 @@ const miniSources = parseUpstreamSkillSources([
 ].join('\n'))
 
 function lockText(entries: readonly Record<string, unknown>[], updatedAt = '2026-09-15T08:00:00.000Z'): string {
-  return `${JSON.stringify({ version: 1, updated_at: updatedAt, skills: entries }, null, 2)}\n`
+  return `${JSON.stringify({ version: 2, updated_at: updatedAt, skills: entries }, null, 2)}\n`
 }
 
 function entry(id: string, repo: string, path: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id, repo, path, commit: C1, tree_sha256: T1, license: 'MIT',
-    fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null, ...extra,
+    fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null, model_invocable: true, ...extra,
   }
 }
 
@@ -50,9 +50,12 @@ describe('parseUpstreamSkillSources', () => {
   it('parses the real skills/sources.yaml with renamed ids and root-path skills', () => {
     const sources = parseUpstreamSkillSources(SOURCES_TEXT)
     const ids = sources.skills.map((skill) => skill.id)
-    expect(sources.skills).toHaveLength(53)
+    expect(sources.skills).toHaveLength(56)
     expect(new Set(sources.skills.map((skill) => skill.repo)).size).toBe(13)
     expect(ids).toEqual(expect.arrayContaining(['vercel-react-best-practices', 'shadcn', 'design-taste-frontend', 'browser-qa', 'to-spec', 'to-tickets']))
+    // 强制技能的模型可调用替身（grill-with-docs → grilling + domain-modeling，
+    // improve-codebase-architecture → codebase-design）必须随包分发，否则 explore/spec 无从执行。
+    expect(ids).toEqual(expect.arrayContaining(['grilling', 'domain-modeling', 'codebase-design']))
     // GSAP 官方技能：动画门禁按这 8 个 id 判断证据。
     expect(ids).toEqual(expect.arrayContaining([
       'gsap-core', 'gsap-timeline', 'gsap-scrolltrigger', 'gsap-plugins',
@@ -112,6 +115,7 @@ describe('upstream skill lock', () => {
     ['license not allowed', [entry('hue', 'dominikmartn/hue', '.', { license: 'GPL-3.0' })]],
     ['duplicate id', [entry('hue', 'dominikmartn/hue', '.'), entry('hue', 'dominikmartn/hue', '.')]],
     ['extra field', [entry('hue', 'dominikmartn/hue', '.', { note: 'x' })]],
+    ['non-boolean model_invocable', [entry('hue', 'dominikmartn/hue', '.', { model_invocable: 'true' })]],
   ])('rejects %s', (_label, entries) => {
     expect(category(() => parseUpstreamSkillLock(lockText(entries), miniSources))).toBe('invalid-skill-lock')
   })
@@ -119,6 +123,27 @@ describe('upstream skill lock', () => {
   it('rejects malformed JSON and a non-UTC timestamp', () => {
     expect(category(() => parseUpstreamSkillLock('{'))).toBe('invalid-skill-lock')
     expect(category(() => parseUpstreamSkillLock(lockText([], '2026-09-15 08:00')))).toBe('invalid-skill-lock')
+  })
+
+  // A v1 lock predates model_invocable. Invocability cannot be back-filled from a record that never
+  // held it, so the whole lock is refused and the documented remedy is one more upstream fetch.
+  it('refuses a version 1 lock instead of guessing invocability', () => {
+    const legacy = JSON.stringify({
+      version: 1,
+      updated_at: '2026-09-15T08:00:00.000Z',
+      skills: [{
+        id: 'hue', repo: 'dominikmartn/hue', path: '.', commit: C1, tree_sha256: T1, license: 'MIT',
+        fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: null,
+      }],
+    })
+    expect(category(() => parseUpstreamSkillLock(legacy, miniSources))).toBe('invalid-skill-lock')
+  })
+
+  it('round-trips a non-invocable entry as model_invocable false', () => {
+    const text = lockText([entry('hue', 'dominikmartn/hue', '.', { model_invocable: false })])
+    const lock = parseUpstreamSkillLock(text, miniSources)
+    expect(lock.skills[0]?.modelInvocable).toBe(false)
+    expect(serializeUpstreamSkillLock(lock)).toBe(text)
   })
 })
 

@@ -100,6 +100,8 @@ repeat:
 
 - 任务已经存在且已绑定：不要 `openspec new change`，也不要另选或另建 change。
 - 文档写在 `step.documents` 给的 `path` 上；缺结构先 `scaffold-document`。
+- `path` 为 `null` = 这一条的路径还要你拍板：按 `path_template` 里剩下的占位符定值再 scaffold
+  （delta-spec 缺 `{capability}`，即 `tenon document scaffold <c> delta-spec --capability <x>`）。
 - 只经 `record-document` 登记。技能自带的「归档」「同步规格」「推送」「建 PR」等收尾动作，
   只有 `step.next` 点名时才做。
 - tasks 只勾当前步骤标题下的复选框；它的重新登记会出现在 `step.documents.updates` 里。

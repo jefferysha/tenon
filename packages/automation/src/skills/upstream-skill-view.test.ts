@@ -20,11 +20,12 @@ const SOURCES = [
   '',
 ].join('\n')
 const LOCK = `${JSON.stringify({
-  version: 1,
+  version: 2,
   updated_at: '2026-09-15T08:00:00.000Z',
   skills: [{
     id: 'hue', repo: 'dominikmartn/hue', path: '.', commit: '2'.repeat(40), tree_sha256: DIGEST,
     license: 'MIT', fetched_at: '2026-09-15T08:00:00.000Z', previous_commit: '1'.repeat(40),
+    model_invocable: true,
   }],
 }, null, 2)}\n`
 

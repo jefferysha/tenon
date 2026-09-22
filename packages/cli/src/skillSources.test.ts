@@ -199,7 +199,11 @@ describe('⑤ manifest 改名落地（templates/manifest.yaml）', () => {
     expect(manifest).not.toContain('uiforge')
   })
 
-  it('ship.pm 使用改名后的 to-spec / to-tickets；规格应用由 tenon spec apply 完成', () => {
-    expect(manifest).toMatch(/ship\.pm:\s*\[to-spec,\s*to-tickets\]/)
+  // to-spec / to-tickets 都带 disable-model-invocation（宿主拒绝代模型调用），强制表里不能有它们。
+  // ship.pm 的把关改由工作流数据承担：applied-spec 文档槽 + spec-migration-applied guard。
+  it('ship.pm 不声明任何强制技能；durable spec 由 applied-spec 文档与 spec-migration-applied guard 把关', () => {
+    expect(manifest).toMatch(/ship\.pm:\s*\[\]/)
+    expect(manifest).not.toMatch(/^\s*[a-z]+\.[a-z_]+:.*\bto-spec\b/mu)
+    expect(manifest).not.toMatch(/^\s*[a-z]+\.[a-z_]+:.*\bto-tickets\b/mu)
   })
 })

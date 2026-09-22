@@ -76,13 +76,20 @@ skill_action_authority:
 # profile resolver 选择 phase + named allowlist，但不会因此重新开启自动 overlay。
 # 所有默认 overlay token 均是本插件内置 skill；新用户不依赖另一宿主、npm 或第三方 marketplace。
 # 消费方：resolver required/available/explicit 三投影、doctor 与 router 注入。
+#
+# ⚠️ 强制 = **模型可调用**。这里每个 token 至少要有一个备选，其 SKILL.md frontmatter 不带
+# `disable-model-invocation: true`；否则 step.next 下发的 `load-skill <id>` 会被宿主 Skill 工具拒绝，
+# 既跑不起来也留不下回执，transition 的 step-skills-incomplete 会把该 phase×track 永久锁死
+# （0.1.0 的 explore.pm/frontend/backend 就是这么坏的）。仅人工调用的技能（grill-with-docs、
+# improve-codebase-architecture、to-spec、to-tickets、handoff、triage）仍随包分发作人工指引，
+# 但不得出现在本表。门禁：`internal-skill-provenance verify` + `tenon doctor` 的 skills:invocable。
 mandatory_skills:
   open._all: [openspec-propose]
-  explore.pm: [brainstorming, grill-with-docs]
-  explore.frontend: [openspec-explore, brainstorming, grill-with-docs]
-  explore.backend: [openspec-explore, brainstorming, grill-with-docs, improve-codebase-architecture]
+  explore.pm: [brainstorming, grilling, domain-modeling]
+  explore.frontend: [openspec-explore, brainstorming, grilling, domain-modeling]
+  explore.backend: [openspec-explore, brainstorming, grilling, domain-modeling, codebase-design]
   explore.free: [brainstorming]
-  spec.pm: [openspec-propose, brainstorming, writing-plans, grill-with-docs]
+  spec.pm: [openspec-propose, brainstorming, writing-plans, grilling, domain-modeling]
   spec.frontend: [openspec-propose, writing-plans]
   spec.backend: [openspec-propose, writing-plans]
   spec.free: [openspec-propose, writing-plans]
@@ -90,11 +97,17 @@ mandatory_skills:
   build.frontend: [test-driven-development, frontend-design]
   build.backend: [test-driven-development]
   build.free: [test-driven-development]
-  verify.pm: [browser-qa, web-design-guidelines, design-taste-frontend, verification-before-completion, handoff]
+  # verify.pm 曾声明 handoff（仅人工调用）。交接本身没丢：`tenon handoff <change> [--bundle]`
+  # 由 CLI 确定性生成，不依赖宿主肯不肯代模型调一个技能。
+  verify.pm: [browser-qa, web-design-guidelines, design-taste-frontend, verification-before-completion]
   verify.frontend: [verification-before-completion, e2e-testing, browser-qa, web-design-guidelines, design-taste-frontend]
   verify.backend: [verification-before-completion]
   verify.free: [verification-before-completion]
-  ship.pm: [to-spec, to-tickets]
+  # ship.pm 曾声明 to-spec + to-tickets（都仅人工调用，且都是往外部 issue tracker 发布——Tenon 没有）。
+  # 这两件事的把关已经在工作流数据里，且比技能回执更硬：durable spec = ship 的 applied-spec 文档槽
+  # （owner_step: ship，producer tenon）+ `spec-migration-applied` guard；工作项拆解 = spec.pm 的
+  # writing-plans + `tasks-at-least: 3` guard。所以这一格空着，不是把严格性删了。
+  ship.pm: []
   ship.frontend: [finishing-a-development-branch]
   ship.backend: [finishing-a-development-branch]
   ship.free: [finishing-a-development-branch]
