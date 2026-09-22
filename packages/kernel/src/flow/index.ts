@@ -18,7 +18,12 @@ export type { EventEdge, EventName, TransitionContext } from './transition-table
 export {
   DEFAULT_EVENT_POLICY,
   checkDefaultEventPreconditions,
+  defaultEventGuardFields,
   evaluateDefaultEventPreconditions,
   renderPreconditionViolation,
 } from './default-event-policy.js'
-export type { DefaultEventPolicy, DefaultPreconditionResult } from './default-event-policy.js'
+export type {
+  DefaultEventPolicy,
+  DefaultGuardFieldRequirement,
+  DefaultPreconditionResult,
+} from './default-event-policy.js'

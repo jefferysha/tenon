@@ -25,7 +25,7 @@ import {
 import {
   checkCodexProjectSkills, checkMandatorySkillInvocability, checkOpenspecCli, checkSkills, checkWorkflowSkills,
 } from './doctor-skills.js'
-import { renderCodexAuthLines } from '../codexAuth.js'
+import { checkCodexAuth, checkStatusline } from './doctor-host.js'
 import { checkProductIdentity } from './doctor-product-identity.js'
 import { checkUpstreamSkills, renderUpstreamSkillTable, upstreamSkillViewOf } from './doctor-upstream-skills.js'
 
@@ -109,18 +109,6 @@ function checkGateEffective(p: DoctorProbes): DoctorCheck {
   return green('guard:gate', 'PreToolUse 三门会真拦（hooks.json 注册 + gate.sh 可执行）')
 }
 
-async function checkStatusline(p: DoctorProbes): Promise<DoctorCheck> {
-  if (await p.nativeRuntimeHost() === 'codex') {
-    return green('guard:statusline', '当前 runtime 为 Codex；Claude 专属 statusline 不适用（不影响 Dashboard 或 pipeline hooks）')
-  }
-  if (p.statuslineConfigured()) return green('guard:statusline', 'statusline 已接入 settings（终端零开销状态生效）')
-  return yellow(
-    'guard:statusline',
-    'statusline 未接入 settings——终端状态面不可见（功能降级）',
-    `在 ~/.claude/settings.json 加 "statusLine": {"type": "command", "command": "bash ${join(p.pluginRoot, 'hooks', 'statusline.sh')}"}`,
-  )
-}
-
 /** tap 流量代理状态（BACKLOG #34e：敏感能力必须对用户明示——正在拦截=黄灯提醒） */
 function checkTap(p: DoctorProbes): DoctorCheck {
   if (!p.tapStatus) return green('security:tap', 'tap 流量代理未装（无 MITM 面）')
@@ -189,24 +177,6 @@ async function checkVerifySkills(p: DoctorProbes): Promise<DoctorCheck> {
     'quality:verify-skills',
     `verify-skills 失败（exit ${code}）: ${summary}`,
     `bash ${join(p.pluginRoot, 'tools', 'verify-skills.sh')} 查看逐条修复指引`,
-  )
-}
-
-async function checkCodexAuth(p: DoctorProbes): Promise<DoctorCheck> {
-  if (await p.nativeRuntimeHost() !== 'codex') {
-    return green('auth:codex', '当前 runtime 非 Codex；本机 Codex 登录检查不适用')
-  }
-  const status = await p.codexAuthStatus()
-  if (status.state === 'authenticated') {
-    return green('auth:codex', 'Codex CLI 已登录（ChatGPT 方案或 API Key）')
-  }
-  const lines = renderCodexAuthLines(status)
-  return yellow(
-    'auth:codex',
-    status.state === 'unauthenticated'
-      ? 'Codex CLI 尚未登录；插件已安装，但调用 Codex 前需要完成认证'
-      : '暂时无法确认 Codex CLI 登录状态；插件仍可安装和检查',
-    lines.slice(1).map((line) => line.trim()).join('；'),
   )
 }
 
@@ -284,7 +254,10 @@ async function checkAfk(p: DoctorProbes): Promise<[DoctorCheck, DoctorCheck, Doc
 
 const STATUS_TAG: Record<DoctorStatus, string> = { green: '[PASS]', yellow: '[WARN]', red: '[FAIL]' }
 
-export async function cmdDoctor(deps: CliDeps, opts: { json?: boolean; skills?: boolean }): Promise<number> {
+export async function cmdDoctor(
+  deps: CliDeps,
+  opts: { json?: boolean; skills?: boolean; verifyRelease?: boolean },
+): Promise<number> {
   const p = deps.doctor
   if (!p) {
     deps.io.err('ERROR: doctor 探针未装配（main.ts 集成缺口，无法评估保障生效性）')
@@ -306,7 +279,7 @@ export async function cmdDoctor(deps: CliDeps, opts: { json?: boolean; skills?: 
     ['skills:workflow', () => checkWorkflowSkills(p)],
     ['skills:invocable', () => checkMandatorySkillInvocability(p)],
     ['integration:openspec-cli', () => checkOpenspecCli()],
-    ['identity:release', () => checkProductIdentity(p)],
+    ['identity:release', () => checkProductIdentity(p, { verifyRemote: opts.verifyRelease === true })],
   ]
 
   const checks: DoctorCheck[] = []

@@ -53,6 +53,31 @@ function listAllowed(slots: readonly EffectiveSkillSlot[]): string {
 }
 
 /**
+ * 当前 step/track 下 `--producer` 会被接受的具体 skill id 列表。
+ *
+ * register 的 producer 校验与 `status --json` 的 artifact 动作投影共用本函数：投影若自己另算一遍
+ * 许可集，就会出现「投影报的 producer 被 register 拒掉」——正是本轮要修的那类矛盾。
+ * 解析不出有效计划/步骤时返回空数组，调用方据此判「无合法 producer」。
+ */
+export function effectiveArtifactProducers(deps: CliDeps, state: PipelineState): readonly string[] {
+  const plan = effectiveWorkflowForState(deps, state)
+  if (!plan) return []
+  const stepId = scalar(state, 'phase')
+  const track = scalar(state, 'track')
+  if (!resolveStep(plan.workflow, stepId)) return []
+  const skillCapability = plan.capabilities.skills
+  const slots: readonly EffectiveSkillSlot[] = skillCapability.source === 'manifest-overlay'
+    ? resolveExplicitProfileSkillSlots(
+        deps.resolver,
+        skillCapability,
+        stepId,
+        skillCapability.trackOverlay.profile,
+      )
+    : resolveExplicitProfileSkillSlots(deps.resolver, skillCapability, stepId, track)
+  return slots.flatMap((slot) => slot.alternatives)
+}
+
+/**
  * register 的锁内核心（读 state → 判 declaration/origin → 取 slots → 校验 producer → 写）。
  * default/custom 两条 declaration 判定路径各自区分「未声明」与「track 不适用」两类拒绝（D5）。
  * 返回 0=已写 / 1=拒绝（含各类校验失败，state 未写）。

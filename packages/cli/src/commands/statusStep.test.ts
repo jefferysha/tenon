@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { stepNextActions, type StepNextInput } from './statusStep.js'
+import type { StepFieldView } from './statusStepParts.js'
 
 function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
   return {
@@ -18,9 +19,25 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     specApplyPending: false,
     ownsDeltaSpec: false,
     ownsAppliedSpec: false,
+    artifactProducers: [],
     ...overrides,
   }
 }
+
+const field = (
+  name: string,
+  over: Partial<StepFieldView> = {},
+): StepFieldView => ({
+  field: name,
+  kind: 'output',
+  writer: 'set',
+  status: 'missing',
+  value: null,
+  allowed: null,
+  required: null,
+  recommended: null,
+  ...over,
+})
 
 const doc = (kind: string, status: string, producers: readonly string[] = []) =>
   ({ kind, path: `openspec/changes/demo/${kind}.md`, producers, status })
@@ -106,13 +123,59 @@ describe('step.next 顺序', () => {
   })
 
   test('结果字段排在测试与评审者之后', () => {
-    const outcome = {
-      field: 'branch_status', kind: 'outcome' as const, status: 'missing' as const,
-      value: null, allowed: ['handled'], recommended: 'handled',
-    }
+    const outcome = field('branch_status', {
+      kind: 'outcome', allowed: ['handled'], recommended: 'handled',
+    })
     expect(actions({ fields: [outcome], tests: [test_('unit', 'not-run')] })).toEqual(['run-test'])
     expect(stepNextActions(input({ fields: [outcome] }))).toEqual([
       { action: 'set-field', field: 'branch_status', allowed: ['handled'], recommended: 'handled' },
+    ])
+  })
+
+  /**
+   * D7：artifact 声明过的字段被 set/set-many/cas 拒写（fields.ts 的 artifact cutover），而本表
+   * 从前对任何缺字段都只会发 set-field，运行器照做就撞上「禁止通过 set/set-many/cas 写入；请改用
+   * tenon artifact register」，只能自己猜。动作名必须就是能跑通的那条命令。
+   */
+  test('artifact 字段发 register-field，并带上合法 producer', () => {
+    expect(stepNextActions(input({
+      fields: [field('design_doc', { writer: 'artifact-register' })],
+      artifactProducers: ['brainstorming', 'superpowers:brainstorming'],
+    }))).toEqual([
+      { action: 'register-field', field: 'design_doc', producers: ['brainstorming', 'superpowers:brainstorming'] },
+    ])
+  })
+
+  test('同一波里 artifact 与普通字段各发各的动作', () => {
+    expect(stepNextActions(input({
+      fields: [
+        field('design_doc', { writer: 'artifact-register' }),
+        field('build_mode', { allowed: ['direct'], recommended: 'direct' }),
+      ],
+      artifactProducers: ['hue'],
+    }))).toEqual([
+      { action: 'register-field', field: 'design_doc', producers: ['hue'] },
+      { action: 'set-field', field: 'build_mode', allowed: ['direct'], recommended: 'direct' },
+    ])
+  })
+
+  /**
+   * D15：`archived` 是 archive-run 副作用成对落下的槽，不是运行器要填的值。把它当字段发出去，
+   * 就会得到 archived=true / archived_at=null / phase_status=pending 这种半盖章的终态。
+   */
+  test('转换自己落的槽不发写入动作，直接走到出边', () => {
+    expect(stepNextActions(input({
+      fields: [field('archived', { writer: 'transition' })],
+      exits: [exit('archived', 'completion', true)],
+    }))).toEqual([{ action: 'complete', event: 'archived' }])
+  })
+
+  test('结果位上的 artifact 字段同样走 register-field', () => {
+    expect(stepNextActions(input({
+      fields: [field('verification_report', { kind: 'outcome', writer: 'artifact-register' })],
+      artifactProducers: ['verification-before-completion'],
+    }))).toEqual([
+      { action: 'register-field', field: 'verification_report', producers: ['verification-before-completion'] },
     ])
   })
 

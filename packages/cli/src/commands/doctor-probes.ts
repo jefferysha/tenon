@@ -12,6 +12,7 @@ import { tapStatus } from '@tenon/tap'
 import type { DoctorProbes } from '../deps.js'
 import { probeAfkReadiness } from '../afkReadiness.js'
 import { probeCodexAuth } from '../codexAuth.js'
+import { detectHostEnvironment } from '../hostKind.js'
 import { createDoctorProductIdentityProbe } from './doctor-product-identity.js'
 import { parseHostPluginInventory } from './plugin-host.js'
 import { resolveCommandOnPath } from './commandExists.js'
@@ -204,6 +205,7 @@ export function makeDoctorProbes(
       const active = (await REAL_RUNTIME_INSTALLER.inspect(runtimeInstallerScope())).active?.source.host
       return active === 'codex' || active === 'claude' ? active : null
     },
+    hostKind: () => detectHostEnvironment(process.env).kind,
     codexAuthStatus: () => probeCodexAuth(),
     runVerifySkills,
     productIdentity: createDoctorProductIdentityProbe(runtimeScope, REAL_RUNTIME_INSTALLER),

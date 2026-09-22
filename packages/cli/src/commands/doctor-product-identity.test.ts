@@ -18,6 +18,12 @@ function probeFixture(options: {
   readonly candidateDigest?: string
   readonly driftHeadAfterCandidate?: string
   readonly remoteCommit?: string
+  /** ls-remote 的原始输出；空串 = 远端没有这条 tag。 */
+  readonly remoteRefs?: string
+  /** 让每次远端 git 都按这条 stderr 失败（模拟断网/超时）。 */
+  readonly remoteFailure?: string
+  /** 本机没有可信 git。 */
+  readonly missingTrustedGit?: boolean
   readonly driftGitAfterCandidate?: boolean
   readonly verificationCounts?: Record<'host' | 'bash' | 'git' | 'node', number>
   readonly runtimeCalls?: Array<{
@@ -85,7 +91,8 @@ function probeFixture(options: {
           return { file: join(trustedRoot, command), args }
         },
       }),
-      resolveTrustedCommand: (command) => trusted(command),
+      resolveTrustedCommand: (command) =>
+        command === 'git' && options.missingTrustedGit === true ? undefined : trusted(command),
       readText: (path) => path === join(marketplaceRoot, '.codex-plugin', 'plugin.json')
         || path === join(marketplaceRoot, '.claude-plugin', 'plugin.json')
         ? JSON.stringify({ version: target.version })
@@ -128,9 +135,12 @@ function probeFixture(options: {
           return { code: 0, stdout: 'https://github.com/jefferysha/tenon.git\n', stderr: '' }
         }
         if (text === `ls-remote https://github.com/jefferysha/tenon.git refs/tags/${target.tag} refs/tags/${target.tag}^{}`) {
+          if (options.remoteFailure !== undefined) {
+            return { code: 128, stdout: '', stderr: options.remoteFailure }
+          }
           return {
             code: 0,
-            stdout: `${options.remoteCommit ?? target.commit}\trefs/tags/${target.tag}\n`,
+            stdout: options.remoteRefs ?? `${options.remoteCommit ?? target.commit}\trefs/tags/${target.tag}\n`,
             stderr: '',
           }
         }
@@ -138,7 +148,9 @@ function probeFixture(options: {
           return { code: 0, stdout: '', stderr: '' }
         }
         if (/^-C .+ fetch --no-tags --depth=1 https:\/\/github\.com\/jefferysha\/tenon\.git refs\/tags\/v1\.0\.2$/u.test(text)) {
-          return { code: 0, stdout: '', stderr: '' }
+          return options.remoteFailure === undefined
+            ? { code: 0, stdout: '', stderr: '' }
+            : { code: 128, stdout: '', stderr: options.remoteFailure }
         }
         if (/^-C .+ rev-parse FETCH_HEAD\^\{commit\}$/u.test(text)) {
           return { code: 0, stdout: `${options.remoteCommit ?? target.commit}\n`, stderr: '' }
@@ -215,7 +227,7 @@ describe('doctor native immutable product identity probe', () => {
   test('reports drift when the public stable tag no longer proves the persisted commit', async () => {
     await expect(probeFixture({
       remoteCommit: 'd'.repeat(40),
-    })()).resolves.toMatchObject({
+    })({ verifyRemote: true })).resolves.toMatchObject({
       state: 'native',
       hostTargetExact: false,
       payloadDigestExact: true,
@@ -227,7 +239,7 @@ describe('doctor native immutable product identity probe', () => {
     await expect(probeFixture({
       driftGitAfterCandidate: true,
       verificationCounts,
-    })()).resolves.toMatchObject({ state: 'unavailable' })
+    })({ verifyRemote: true })).resolves.toMatchObject({ state: 'unavailable' })
     expect(verificationCounts.host).toBeGreaterThan(0)
     expect(verificationCounts.git).toBeGreaterThan(1)
     expect(verificationCounts.bash).toBeGreaterThan(0)
@@ -240,7 +252,8 @@ describe('doctor native immutable product identity probe', () => {
       readonly cwd?: string
       readonly timeoutMs: number
     }> = []
-    await expect(probeFixture({ runtimeCalls })()).resolves.toMatchObject({ state: 'native' })
+    await expect(probeFixture({ runtimeCalls })({ verifyRemote: true }))
+      .resolves.toMatchObject({ state: 'native' })
 
     const call = (predicate: (args: readonly string[]) => boolean) => {
       const matching = runtimeCalls.find((entry) => predicate(entry.args))
@@ -257,5 +270,65 @@ describe('doctor native immutable product identity probe', () => {
     expect(call((args) => args.includes('fetch') && args.includes('--no-tags'))).toMatchObject({ timeoutMs: 60_000 })
     expect(call((args) => args.includes('rev-parse') && args.includes('FETCH_HEAD^{commit}'))).toMatchObject({ timeoutMs: 10_000 })
     expect(call((args) => args.includes('cat-file') && args.includes('-t'))).toMatchObject({ timeoutMs: 10_000 })
+  })
+
+  /**
+   * D11：这道探针原本每次 `tenon doctor` 都要向 GitHub 打两趟 git（ls-remote + 浅 fetch，各
+   * 3 次重试 × 60 s 预算）。它回答的是「远端那条 tag 还在不在原处」，不是「本机此刻是否健康」；
+   * 慢链路上把一条本地健康命令拖成十几分钟。默认不联网，复核要显式要。
+   */
+  test('默认不做任何远端 git：本地一致性照常判定，并标明未联网复核', async () => {
+    const runtimeCalls: Array<{
+      readonly args: readonly string[]
+      readonly cwd?: string
+      readonly timeoutMs: number
+    }> = []
+    await expect(probeFixture({ runtimeCalls })()).resolves.toMatchObject({
+      state: 'native',
+      hostTargetExact: true,
+      payloadDigestExact: true,
+      remoteTargetVerified: false,
+    })
+    expect(runtimeCalls.filter((entry) => entry.args[0] === 'ls-remote')).toEqual([])
+    expect(runtimeCalls.filter((entry) => entry.args.includes('fetch'))).toEqual([])
+    expect(runtimeCalls.filter((entry) => entry.args[0] === 'init')).toEqual([])
+  })
+
+  test('--verify-release 才联网，并标记已复核', async () => {
+    await expect(probeFixture()({ verifyRemote: true }))
+      .resolves.toMatchObject({ state: 'native', remoteTargetVerified: true })
+  })
+
+  /**
+   * D11：断网、缺 tag 与真漂移从前都塌成一句「发布身份探针失败」，并统一建议「重跑 setup/update」。
+   * 对断网的用户，那条建议是错的指令。
+   */
+  test('联网失败按网络归因，不再劝用户重装', async () => {
+    const identity = await probeFixture({ remoteFailure: 'fatal: unable to access: Failed to connect' })(
+      { verifyRemote: true },
+    )
+    expect(identity).toMatchObject({ state: 'unavailable', cause: 'network' })
+    expect(identity.state === 'unavailable' ? identity.detail : '').toContain('远端不可达或超时')
+    expect(identity.state === 'unavailable' ? identity.remediation : '').not.toContain('tenon setup')
+  })
+
+  test('远端确实没有那条 tag 时归因为 missing-tag', async () => {
+    const identity = await probeFixture({ remoteRefs: '' })({ verifyRemote: true })
+    expect(identity).toMatchObject({ state: 'unavailable', cause: 'missing-tag' })
+    expect(identity.state === 'unavailable' ? identity.remediation : '').toContain('tenon update')
+  })
+
+  test('远端广告的 commit 与冻结的不一致时归因为 mismatch', async () => {
+    const identity = await probeFixture({
+      remoteRefs: `${'d'.repeat(40)}\trefs/tags/${target.tag}\n`,
+      remoteCommit: 'e'.repeat(40),
+    })({ verifyRemote: true })
+    expect(identity).toMatchObject({ state: 'unavailable', cause: 'mismatch' })
+  })
+
+  test('本机可信命令缺失归因为 local，保留原有重装指引', async () => {
+    const identity = await probeFixture({ missingTrustedGit: true })()
+    expect(identity).toMatchObject({ state: 'unavailable', cause: 'local', detail: '可信 Git 不可执行' })
+    expect(identity.state === 'unavailable' ? identity.remediation : '').toContain('tenon setup')
   })
 })

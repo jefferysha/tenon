@@ -1263,6 +1263,27 @@ EOF
   [ "$AUTHORITY_INTENT" = authorize ] \
     && ok "classifier: 封闭肯定句允许确认前缀与多个授权短语" \
     || bad "classifier: 封闭肯定句允许确认前缀与多个授权短语" "实际 intent=${AUTHORITY_INTENT:-<empty>}"
+  # 带转折的同意仍然不是放行，但「转折」必须跟同意在同一口气里。整条 prompt 里任何位置的「但」
+  # 都作废批准时，`确认继续，按你的推荐执行。另外这个方案不错，但配色偏暗。` 也被判成 modify，
+  # 门就锁死在一条完全有效的批准上。
+  intent_is() { # $1=prompt $2=expected
+    local actual
+    actual="$(bash -c '. "$1"; pipeline_prompt_approval_intent "$2"' _ \
+      "$ROOT/hooks/prompt-intent.sh" "$1" 2>/dev/null || true)"
+    [ "$actual" = "$2" ] \
+      && ok "classifier: 「$1」→ $2" \
+      || bad "classifier: 「$1」→ $2" "实际 intent=${actual:-<empty>}"
+  }
+  intent_is '继续，但先别改代码' modify
+  intent_is '同意继续执行。但是先别动数据库。' modify
+  intent_is '可以但是我想先看看' modify
+  intent_is '同意，不过要先跑测试' modify
+  intent_is '确认继续，按你的推荐执行。另外这个方案不错，但配色偏暗。' confirm
+  intent_is '可以继续。顺便说一下，昨天那个问题很烦，但已经修好了。' confirm
+  intent_is '继续执行。这个库很好用，不过文档差了点。' confirm
+  intent_is '这个方案不错但一般。确认继续。' confirm
+  intent_is '继续，按照你的推荐' contextual-confirm
+
   run_router "{\"prompt\":\"不要继续，即使后续不用问我\",\"cwd\":\"$rproj\"}"
   assert_not_contains "router: 拒绝优先于授权短语" "$ROUT" "continuous_execution: true"
   run_router "{\"prompt\":\"我没有说所有操作我都批准；请修复这个 React 页面\",\"cwd\":\"$rproj\"}"

@@ -18579,6 +18579,12 @@ var DESIGN_PREVIEWS = [
   "design/app-screen.html"
 ];
 var DESIGN_MODEL_KEYS = ["name", "primitives", "tokens", "components"];
+var DESIGN_MODEL_CONTRAST_PATHS = [
+  "tokens.colors.light.background",
+  "tokens.colors.light.text1",
+  "tokens.colors.dark.background",
+  "tokens.colors.dark.text1"
+];
 function frontMatter(text7) {
   const lines2 = text7.split("\n");
   if (lines2[0]?.trim() !== "---")
@@ -18623,6 +18629,23 @@ function previewProblems(reader, body2) {
   }
   return problems;
 }
+function modelKeyPaths(model) {
+  const paths = /* @__PURE__ */ new Set();
+  const stack = [];
+  for (const raw of model.split("\n")) {
+    const line = raw.replace(/\t/gu, " ");
+    const match = /^(\s*)([A-Za-z_][A-Za-z0-9_-]*):(.*)$/u.exec(line);
+    if (match === null)
+      continue;
+    const indent = (match[1] ?? "").length;
+    const key = match[2] ?? "";
+    while (stack.length > 0 && (stack[stack.length - 1]?.indent ?? 0) >= indent)
+      stack.pop();
+    stack.push({ indent, key });
+    paths.add(stack.map((entry) => entry.key).join("."));
+  }
+  return paths;
+}
 function modelProblems(reader, keys2) {
   const problems = [];
   if ((keys2.get("model") ?? "") !== DESIGN_MODEL_PATH)
@@ -18636,6 +18659,12 @@ function modelProblems(reader, keys2) {
   for (const key of DESIGN_MODEL_KEYS) {
     if (!top.has(key))
       problems.push(`design-model.yaml \u7F3A\u5C11\u9876\u5C42\u952E ${key}`);
+  }
+  const paths = modelKeyPaths(model);
+  for (const path14 of DESIGN_MODEL_CONTRAST_PATHS) {
+    if (!paths.has(path14)) {
+      problems.push(`design-model.yaml \u7F3A\u5C11 ${path14}\uFF08\u7F3A\u4E86\u8FD9\u4E2A\u69FD hue \u7684\u5BF9\u6BD4\u5EA6\u68C0\u67E5\u4F1A\u9759\u9ED8\u8DF3\u8FC7\uFF09`);
+    }
   }
   return problems;
 }

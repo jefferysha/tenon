@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 import { ensureUserLocalDir, serializeTaskArchive, type PipelineState } from '@tenon/kernel'
-import { cmdList, cmdStatus } from './status.js'
+import { cmdList, cmdListFinished, cmdStatus } from './status.js'
 import { makeDeps, mockState, spy } from '../test-support.js'
 
 const ARCHIVE_ENTRY = {
@@ -23,6 +23,20 @@ async function repoWithArchived(...names: string[]): Promise<string> {
     version: 1,
     changes: Object.fromEntries(names.map((name) => [name, ARCHIVE_ENTRY])),
   }), 'utf8')
+  return repo
+}
+
+/**
+ * D14：OpenSpec 归档把 `openspec/changes/<name>` 移成 `openspec/changes/archive/<日期>-<name>`
+ * （skills/openspec-archive-change 第 5 步）。真目录 + 真 `.pipeline.yaml`，因为定位逻辑要在
+ * 文件系统上找那份被移走的状态。
+ */
+async function repoWithFinished(dated: string): Promise<string> {
+  const repo = await mkdtemp(join(tmpdir(), 'tenon-status-finished-'))
+  repos.push(repo)
+  const dir = join(repo, 'openspec', 'changes', 'archive', dated)
+  await mkdir(dir, { recursive: true })
+  await writeFile(join(dir, '.pipeline.yaml'), 'phase: archive\n', 'utf8')
   return repo
 }
 
@@ -233,5 +247,91 @@ describe('已归档（当前用户）在列表中隐藏', () => {
     const missing = makeDeps({ states: { 'demo-a': stateA }, cwd, user: () => ({ missing: true }) })
     expect(await cmdList(missing, { json: true })).toBe(0)
     expect(missing.outLines[0]).toContain('demo-a')
+  })
+})
+
+/**
+ * D14：完结的任务被 OpenSpec 移进 archive/ 之后，status 与 get 只剩一句 ENOENT，两张列表也都
+ * 看不到它——做完的工作从此不可查。做完 ≠ 消失：只读面要能一路读到归档目录里那份状态。
+ */
+describe('完结（已移入 openspec/changes/archive/）的 change 仍可查', () => {
+  const finishedState = mockState({
+    track: 'backend',
+    phase: 'archive',
+    phase_status: 'done',
+    archived: 'true',
+    archived_at: '2026-09-22T03:00:00Z',
+    assignee: 'Tester <tester@tenon.test>',
+    updated_at: '2026-09-22T03:00:00Z',
+  })
+
+  test('status <name>：从归档目录读到状态，不再 ENOENT', async () => {
+    const cwd = await repoWithFinished('2026-09-22-fin-demo')
+    const deps = makeDeps({ states: { '2026-09-22-fin-demo': finishedState }, changes: [], cwd })
+    expect(await cmdStatus(deps, 'fin-demo', {})).toBe(0)
+    expect(deps.outLines).toEqual([
+      'change       fin-demo',
+      'track        backend',
+      'phase        archive (done)',
+      'verify       -',
+      'updated      2026-09-22T03:00:00Z',
+      'archived     true',
+      'archived_at  2026-09-22T03:00:00Z',
+    ])
+  })
+
+  test('status <name> --json：给出状态但不给 step——完结的任务没有下一步', async () => {
+    const cwd = await repoWithFinished('2026-09-22-fin-demo')
+    const deps = makeDeps({ states: { '2026-09-22-fin-demo': finishedState }, changes: [], cwd })
+    expect(await cmdStatus(deps, 'fin-demo', { json: true })).toBe(0)
+    const parsed = JSON.parse(deps.outLines[0]!) as Record<string, unknown>
+    expect(parsed.active_changes).toEqual([{
+      name: 'fin-demo',
+      track: 'backend',
+      phase: 'archive',
+      phase_status: 'done',
+      verify_result: '',
+      updated_at: '2026-09-22T03:00:00Z',
+    }])
+    expect(parsed.step).toBeUndefined()
+  })
+
+  test('list --finished 列出它；活跃表仍然不列', async () => {
+    const cwd = await repoWithFinished('2026-09-22-fin-demo')
+    const finished = makeDeps({ states: { '2026-09-22-fin-demo': finishedState }, changes: [], cwd })
+    expect(await cmdListFinished(finished, { json: true })).toBe(0)
+    expect(JSON.parse(finished.outLines[0]!)).toEqual({
+      finished: [{
+        name: 'fin-demo',
+        track: 'backend',
+        phase: 'archive',
+        phase_status: 'done',
+        archived: 'true',
+        archived_at: '2026-09-22T03:00:00Z',
+        owner: { id: 'tester@tenon.test', name: 'Tester' },
+      }],
+    })
+    const active = makeDeps({ states: { '2026-09-22-fin-demo': finishedState }, changes: [], cwd })
+    expect(await cmdList(active, { json: true })).toBe(0)
+    expect(active.outLines[0]).toBe('{"changes":[]}')
+  })
+
+  test('没有归档目录时 list --finished 说清楚是空的', async () => {
+    const deps = makeDeps({ changes: [] })
+    expect(await cmdListFinished(deps, {})).toBe(0)
+    expect(deps.outLines).toEqual(['无已完结 change'])
+  })
+
+  test('活跃目录还在时不去归档目录找（同名不串）', async () => {
+    const cwd = await repoWithFinished('2026-09-22-demo-a')
+    const deps = makeDeps({ states: { 'demo-a': stateA, '2026-09-22-demo-a': finishedState }, cwd })
+    expect(await cmdStatus(deps, 'demo-a', {})).toBe(0)
+    expect(deps.outLines).toEqual([
+      'change   demo-a',
+      'track    backend',
+      'phase    build (in_progress)',
+      'verify   pending',
+      'updated  2026-07-06T00:00:00Z',
+    ])
   })
 })

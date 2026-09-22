@@ -9,7 +9,6 @@ import type { CliDeps } from './deps.js'
 import { cmdCheck } from './commands/check.js'
 import type { DashboardRuntime } from './commands/dashboard.js'
 import { cmdDoctor } from './commands/doctor.js'
-import { cmdCas, cmdGet, cmdSet, cmdSetMany } from './commands/fields.js'
 import { cmdArtifactRegister } from './commands/artifact.js'
 import {
   cmdDocumentInit,
@@ -35,7 +34,7 @@ import { cmdSync } from './commands/sync.js'
 import { cmdTap } from './commands/tap.js'
 import { cmdTask } from './commands/task.js'
 import { cmdUninstall } from './commands/uninstall.js'
-import { cmdList, cmdStatus } from './commands/status.js'
+import { cmdList, cmdListFinished, cmdStatus } from './commands/status.js'
 import { cmdListArchived } from './commands/task-lifecycle.js'
 import { cmdTransition } from './commands/transition.js'
 import { cmdInternalSkillGate } from './commands/internalSkillGate.js'
@@ -44,6 +43,7 @@ import { cmdInternalCodexJsonl } from './commands/internalCodexJsonl.js'
 import { cmdInternalSkillProvenance } from './commands/internal-skill-provenance.js'
 import { cmdTriage, type TriageCommandRuntime } from './commands/triage.js'
 import { bail, stripNl } from './program-exit.js'
+import { registerFieldCommands } from './program-fields.js'
 import { registerInstallCommands } from './program-install.js'
 import { registerDesignCommands, registerMotionGateCommand, registerResourceCommands } from './program-resources.js'
 import { registerStateCommands } from './program-state.js'
@@ -88,27 +88,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
   registerInstallCommands(program, deps, runtimes.dashboard)
   registerOrchestrationCommands(program, deps)
 
-  program
-    .command('get <name> <field>')
-    .description('读字段（stdout: 裸值；字段缺失/未知 → 空行 + exit 0）')
-    .action(async (name: string, fieldName: string) => bail(await cmdGet(deps, name, fieldName)))
-
-  program
-    .command('set <name> <field> <value>')
-    .description('写字段（无输出；四闸拒写 exit 1）')
-    .action(async (name: string, fieldName: string, value: string) =>
-      bail(await cmdSet(deps, name, fieldName, value)))
-
-  program
-    .command('set-many <name> <kv...>')
-    .description('多字段原子写 key=value ...（无输出）')
-    .action(async (name: string, kv: string[]) => bail(await cmdSetMany(deps, name, kv)))
-
-  program
-    .command('cas <name> <field> <expect> <next>')
-    .description('compare-and-set（无输出；不匹配 exit 3）')
-    .action(async (name: string, fieldName: string, expect: string, next: string) =>
-      bail(await cmdCas(deps, name, fieldName, expect, next)))
+  registerFieldCommands(program, deps)
 
   // ── artifact：受 artifact 契约约束的单字段写（G2 P5）——Commander 真子命令树（同 tracks 装配惯例，
   // exitOverride/configureOutput 由父命令继承；--producer 缺失 = usage error → main 映射 exit 1）。
@@ -203,7 +183,9 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .description('统一健康面：哪些保障此刻真的在生效/已静默降级（exit 1=有红灯）')
     .option('--json', 'JSON 输出（schema 稳定）')
     .option('--skills', '附加每个技能的来源、提交、许可证与更新时间')
-    .action(async (opts: { json?: boolean; skills?: boolean }) => bail(await cmdDoctor(deps, opts)))
+    .option('--verify-release', '额外联网向 GitHub 复核冻结发布 tag（默认不联网：doctor 是本地健康检查）')
+    .action(async (opts: { json?: boolean; skills?: boolean; verifyRelease?: boolean }) =>
+      bail(await cmdDoctor(deps, opts)))
 
   program
     .command('task <sub> [args...]')
@@ -265,9 +247,20 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .command('list')
     .description('活跃 change 表')
     .option('--json', 'JSON 输出（schema 稳定）')
-    .option('--archived', '当前用户已归档表：NAME PHASE ARCHIVED_AT BY')
-    .action(async (opts: { json?: boolean; archived?: boolean }) =>
-      bail(opts.archived ? await cmdListArchived(deps, opts) : await cmdList(deps, opts)))
+    .option('--archived', '当前用户已归档表（per-user 隐藏，可 unarchive）：NAME PHASE ARCHIVED_AT BY')
+    .option('--finished', '已完结表（openspec/changes/archive/ 下做完的任务）：NAME TRACK PHASE STATUS ARCHIVED_AT OWNER')
+    .action(async (opts: { json?: boolean; archived?: boolean; finished?: boolean }) => {
+      if (opts.archived && opts.finished) {
+        deps.io.err('ERROR: --archived（当前用户隐藏表）与 --finished（已完结表）是两张表，一次只能选一张')
+        bail(1)
+        return
+      }
+      if (opts.finished) {
+        bail(await cmdListFinished(deps, opts))
+        return
+      }
+      bail(opts.archived ? await cmdListArchived(deps, opts) : await cmdList(deps, opts))
+    })
 
   program
     .command('triage <source>')

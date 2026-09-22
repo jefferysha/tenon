@@ -596,3 +596,85 @@ describe('P6 —— set/set-many/cas 对当前有效 artifact 字段 cutover', (
     expect(deps.store.write.calls[0]?.[1].fields.automation).toBe('scheduled')
   })
 })
+
+/**
+ * D8：set / set-many / cas 曾是唯一不过身份+负责人闸的 Change 写入口——换个 TENON_USER、甚至
+ * 一个解析不出的身份，都能改别人任务的字段（包括 pr_url 这类交付证据），而同一台机器上
+ * `tenon review request` / `tenon owner take` / `tenon task archive` 对同样的输入一律 exit 1。
+ */
+describe('字段写入的身份与负责人闸（与其它 Change 写入口同规则）', () => {
+  const ownedByOther = () => mockState({ assignee: 'Alice <alice@example.com>', pr_url: '' })
+
+  test('身份解析不出来 → 拒写，不落盘', async () => {
+    for (const run of [
+      (d: ReturnType<typeof makeDeps>) => cmdSet(d, 'demo', 'pr_url', 'https://x/1'),
+      (d: ReturnType<typeof makeDeps>) => cmdSetMany(d, 'demo', ['pr_url=https://x/1']),
+      (d: ReturnType<typeof makeDeps>) => cmdCas(d, 'demo', 'pr_url', '', 'https://x/1'),
+    ]) {
+      const deps = makeDeps({ state: mockState({ pr_url: '' }), user: () => ({ missing: true }) })
+      expect(await run(deps)).toBe(1)
+      expect(deps.store.write.calls).toHaveLength(0)
+      expect(deps.errLines.join('\n')).toContain('未设置用户身份')
+    }
+  })
+
+  test('不是负责人 → 拒写，并指向 tenon owner take', async () => {
+    for (const run of [
+      (d: ReturnType<typeof makeDeps>) => cmdSet(d, 'demo', 'pr_url', 'https://x/1'),
+      (d: ReturnType<typeof makeDeps>) => cmdSetMany(d, 'demo', ['pr_url=https://x/1']),
+      (d: ReturnType<typeof makeDeps>) => cmdCas(d, 'demo', 'pr_url', '', 'https://x/1'),
+    ]) {
+      const deps = makeDeps({ state: ownedByOther() })
+      expect(await run(deps)).toBe(1)
+      expect(deps.store.write.calls).toHaveLength(0)
+      expect(deps.errLines.join('\n')).toContain('tenon owner take demo')
+    }
+  })
+
+  test('负责人是自己时照常写入', async () => {
+    const deps = makeDeps({ state: mockState({ pr_url: '' }) })
+    expect(await cmdSet(deps, 'demo', 'pr_url', 'https://x/1')).toBe(0)
+    expect(deps.store.write.calls[0]?.[1].fields.pr_url).toBe('https://x/1')
+  })
+
+  test('track/workflow 这条组合写路径同样过闸', async () => {
+    const deps = makeDeps({ state: ownedByOther() })
+    expect(await cmdSet(deps, 'demo', 'track', 'frontend')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+  })
+
+  test('get 是只读面，不受负责人限制', async () => {
+    const deps = makeDeps({ state: ownedByOther() })
+    expect(await cmdGet(deps, 'demo', 'assignee')).toBe(0)
+    expect(deps.outLines).toEqual(['Alice <alice@example.com>'])
+  })
+})
+
+/**
+ * D15：完结是一次转换。`archived` / `archived_at` 由 archived 事件的 archive-run 副作用成对落下；
+ * 手写 archived 只会留下 archived=true、archived_at=null、phase_status=pending 这种半盖章的终态。
+ */
+describe('archived 由转换管理，不接受字段写入', () => {
+  test('set archived true → 拒写并指向 transition', async () => {
+    const deps = makeDeps({ state: mockState({ phase: 'archive' }) })
+    expect(await cmdSet(deps, 'demo', 'archived', 'true')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain('tenon transition <change> archived')
+    expect(deps.errLines.join('\n')).toContain('archived_at')
+  })
+
+  test('archived_at 同样拒写', async () => {
+    const deps = makeDeps({ state: mockState({ phase: 'archive' }) })
+    expect(await cmdSet(deps, 'demo', 'archived_at', '2026-09-22T00:00:00Z')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+  })
+
+  test('set-many 与 cas 走同一条边界', async () => {
+    const many = makeDeps({ state: mockState({ phase: 'archive' }) })
+    expect(await cmdSetMany(many, 'demo', ['archived=true'])).toBe(1)
+    expect(many.store.write.calls).toHaveLength(0)
+    const cas = makeDeps({ state: mockState({ phase: 'archive', archived: 'false' }) })
+    expect(await cmdCas(cas, 'demo', 'archived', 'false', 'true')).toBe(1)
+    expect(cas.store.write.calls).toHaveLength(0)
+  })
+})

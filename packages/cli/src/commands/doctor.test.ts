@@ -368,6 +368,66 @@ describe('doctor —— 统一健康面（BACKLOG #26b，GOAL B8 降级可见 / 
     expect(c.hint).toBe('')
   })
 
+  /**
+   * D13：一台机器可以 `tenon setup --codex` 装 runtime，然后在 Claude Code 会话里跑 tenon。
+   * 按 release.json 的 source.host 判定「当前宿主」，会对着 Claude Code 讲 Codex 的登录步骤，
+   * 同时跳过 Claude 专属的 statusline 检查——两处都答错了它们自己的问题。
+   */
+  test('Codex 装的 runtime 在 Claude Code 会话里跑：statusline 照查', async () => {
+    const deps = makeDeps({
+      doctor: {
+        statuslineConfigured: () => false,
+        nativeRuntimeHost: async () => 'codex',
+        hostKind: () => 'claude-code',
+      },
+    })
+    const { payload } = await runJson(deps)
+    const c = byId(payload, 'guard:statusline')
+    expect(c.status).toBe('yellow')
+    expect(c.hint).toContain('statusline.sh')
+  })
+
+  test('Codex 装的 runtime 在 Claude Code 会话里跑：不给 Codex 登录建议', async () => {
+    const deps = makeDeps({
+      doctor: {
+        nativeRuntimeHost: async () => 'codex',
+        hostKind: () => 'claude-code',
+        codexAuthStatus: async () => ({ state: 'unauthenticated' }),
+      },
+    })
+    const { payload } = await runJson(deps)
+    const auth = byId(payload, 'auth:codex')
+    expect(auth.status).toBe('green')
+    expect(auth.detail).toContain('非 Codex')
+    expect(auth.hint).toBe('')
+  })
+
+  test('Claude 装的 runtime 在 Codex 会话里跑：statusline 不适用、Codex 登录照查', async () => {
+    const deps = makeDeps({
+      doctor: {
+        statuslineConfigured: () => false,
+        nativeRuntimeHost: async () => 'claude',
+        hostKind: () => 'codex',
+        codexAuthStatus: async () => ({ state: 'unauthenticated' }),
+      },
+    })
+    const { payload } = await runJson(deps)
+    expect(byId(payload, 'guard:statusline').status).toBe('green')
+    expect(byId(payload, 'auth:codex').status).toBe('yellow')
+  })
+
+  test('纯终端会话仍退回 runtime 的安装来源', async () => {
+    const deps = makeDeps({
+      doctor: {
+        statuslineConfigured: () => false,
+        nativeRuntimeHost: async () => 'codex',
+        hostKind: () => 'terminal',
+      },
+    })
+    const { payload } = await runJson(deps)
+    expect(byId(payload, 'guard:statusline').status).toBe('green')
+  })
+
   test('security:tap 黄灯：tap 正在拦截 → 明示提醒（#34e 敏感能力可见）', async () => {
     const deps = makeDeps({
       doctor: { tapStatus: () => ({ intercepting: true, captureEnabled: true, message: 'tap 正在拦截流量：2 个端口' }) },

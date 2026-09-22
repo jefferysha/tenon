@@ -17,6 +17,7 @@ import type {
   StepIR, StepTestIR, TestEvidencePaths, TestHostKind, TestRunRecordV1, TestRunReason,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
+import { detectHostEnvironment } from '../hostKind.js'
 import { str } from '../render.js'
 import { collectTestInputs, collectTestOutputs } from '../test-runner/collect.js'
 import { classifyTestRun, SANDBOX_ESCALATION_HINT } from '../test-runner/classify.js'
@@ -31,11 +32,9 @@ function newRunId(iso: string): string {
   return `${stamp}-${randomBytes(3).toString('hex')}`
 }
 
+/** 宿主判定的单一真相源在 ../hostKind.ts；doctor 的宿主相关检查读同一份口径。 */
 function hostOf(env: NodeJS.ProcessEnv): { readonly kind: TestHostKind; readonly sandbox: string | null } {
-  const sandbox = env.CODEX_SANDBOX ?? null
-  if (sandbox !== null || env.CODEX_THREAD_ID !== undefined) return { kind: 'codex', sandbox }
-  if (env.CLAUDECODE === '1') return { kind: 'claude-code', sandbox }
-  return { kind: 'terminal', sandbox }
+  return detectHostEnvironment(env)
 }
 
 async function candidateOf(deps: CliDeps, name: string): Promise<string | null> {
