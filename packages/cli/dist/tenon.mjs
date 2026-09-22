@@ -5323,8 +5323,8 @@ function parseWorkflowGovernanceBinding(raw) {
     ...record9.workflow_plan_fingerprint === void 0 ? {} : { workflow_plan_fingerprint: record9.workflow_plan_fingerprint }
   };
 }
-async function readWorkflowGovernanceBinding(changeDir2) {
-  const target = join2(changeDir2, WORKFLOW_GOVERNANCE_BINDING_FILE);
+async function readWorkflowGovernanceBinding(changeDir7) {
+  const target = join2(changeDir7, WORKFLOW_GOVERNANCE_BINDING_FILE);
   try {
     const info = await lstat(target);
     if (!info.isFile() || info.isSymbolicLink()) {
@@ -5346,24 +5346,24 @@ function bindingFor(metadata) {
     ...metadata.workflowPlanFingerprint === void 0 ? {} : { workflow_plan_fingerprint: metadata.workflowPlanFingerprint }
   };
 }
-async function ensureWorkflowGovernanceBinding(changeDir2, metadata) {
+async function ensureWorkflowGovernanceBinding(changeDir7, metadata) {
   const requested = bindingFor(metadata);
-  const existing = await readWorkflowGovernanceBinding(changeDir2);
+  const existing = await readWorkflowGovernanceBinding(changeDir7);
   if (existing !== void 0) {
     if (JSON.stringify(existing) !== JSON.stringify(requested)) {
       throw new Error("Change \u5DF2\u56FA\u5B9A\u4E0D\u540C\u7684 workflow governance binding\uFF0C\u62D2\u7EDD\u8986\u76D6");
     }
     return existing;
   }
-  const target = join2(changeDir2, WORKFLOW_GOVERNANCE_BINDING_FILE);
+  const target = join2(changeDir7, WORKFLOW_GOVERNANCE_BINDING_FILE);
   try {
-    await atomicLinkPublish(changeDir2, ".pipeline-workflow-governance.tmp", target, `${JSON.stringify(requested)}
+    await atomicLinkPublish(changeDir7, ".pipeline-workflow-governance.tmp", target, `${JSON.stringify(requested)}
 `);
     return requested;
   } catch (error2) {
     if (errorCode(error2) !== "EEXIST")
       throw error2;
-    const raced = await readWorkflowGovernanceBinding(changeDir2);
+    const raced = await readWorkflowGovernanceBinding(changeDir7);
     if (raced === void 0 || JSON.stringify(raced) !== JSON.stringify(requested)) {
       throw new Error("workflow governance binding \u5E76\u53D1\u521B\u5EFA\u540E\u5185\u5BB9\u4E0D\u4E00\u81F4");
     }
@@ -5800,16 +5800,16 @@ function assertValidIdentity(sequence, recordId) {
     throw new InvalidRecordIdentityError(`\u975E\u6CD5 recordId\uFF08\u53EA\u5141\u8BB8\u5B57\u6BCD\u6570\u5B57/\u8FDE\u5B57\u7B26/\u4E0B\u5212\u7EBF\uFF09: ${recordId}`);
   }
 }
-function recordPath(changeDir2, sequence, recordId) {
+function recordPath(changeDir7, sequence, recordId) {
   assertValidIdentity(sequence, recordId);
   const seqPart = String(sequence).padStart(6, "0");
-  return join3(changeDir2, TRANSITION_RECORDS_DIR, `${seqPart}-${recordId}.json`);
+  return join3(changeDir7, TRANSITION_RECORDS_DIR, `${seqPart}-${recordId}.json`);
 }
 var FsTransitionRecordStore = class {
-  async write(changeDir2, record9) {
-    const dir = join3(changeDir2, TRANSITION_RECORDS_DIR);
+  async write(changeDir7, record9) {
+    const dir = join3(changeDir7, TRANSITION_RECORDS_DIR);
     await mkdir(dir, { recursive: true });
-    const target = recordPath(changeDir2, record9.sequence, record9.id);
+    const target = recordPath(changeDir7, record9.sequence, record9.id);
     try {
       await atomicLinkPublish(dir, ".tmp", target, JSON.stringify(record9));
     } catch (e) {
@@ -5819,9 +5819,9 @@ var FsTransitionRecordStore = class {
       throw e;
     }
   }
-  async read(changeDir2, sequence, recordId) {
+  async read(changeDir7, sequence, recordId) {
     try {
-      const raw = await readFile2(recordPath(changeDir2, sequence, recordId), "utf8");
+      const raw = await readFile2(recordPath(changeDir7, sequence, recordId), "utf8");
       const parsed = JSON.parse(raw);
       return parseTransitionRecord(parsed);
     } catch (e) {
@@ -5830,7 +5830,7 @@ var FsTransitionRecordStore = class {
       throw e;
     }
   }
-  async readChain(changeDir2, headSequence, headId, expectedRunId) {
+  async readChain(changeDir7, headSequence, headId, expectedRunId) {
     const chain = [];
     const visited = /* @__PURE__ */ new Set();
     let sequence = headSequence;
@@ -5842,7 +5842,7 @@ var FsTransitionRecordStore = class {
       steps++;
       let record9;
       try {
-        record9 = await this.read(changeDir2, sequence, id2);
+        record9 = await this.read(changeDir7, sequence, id2);
       } catch (e) {
         if (e instanceof InvalidRecordIdentityError || e instanceof SyntaxError)
           break;
@@ -5945,15 +5945,15 @@ function attach(revision, record9) {
     }
   };
 }
-async function publishPreVerifyReviewRecord(changeDir2, revision, logicalState) {
-  const dir = join4(changeDir2, ".pipeline-run", PRE_VERIFY_REVIEW_DIR);
+async function publishPreVerifyReviewRecord(changeDir7, revision, logicalState) {
+  const dir = join4(changeDir7, ".pipeline-run", PRE_VERIFY_REVIEW_DIR);
   await mkdir2(dir, { recursive: true });
   const target = join4(dir, preVerifyReviewFileName(revision.revision, revision.revisionId));
   await atomicLinkPublish(dir, ".tmp", target, `${JSON.stringify(recordFor(revision, logicalState))}
 `);
 }
-async function hydratePreVerifyReview(changeDir2, revision) {
-  const target = join4(changeDir2, preVerifyReviewRelativePath(revision.revision, revision.revisionId));
+async function hydratePreVerifyReview(changeDir7, revision) {
+  const target = join4(changeDir7, preVerifyReviewRelativePath(revision.revision, revision.revisionId));
   let info;
   try {
     info = await lstat2(target);
@@ -5968,9 +5968,9 @@ async function hydratePreVerifyReview(changeDir2, revision) {
   return attach(revision, parseRecord(await readFile3(target, "utf8"), target));
 }
 function hydratePreVerifyReviewFromSync(readText2, revision, sourceRoot = "canonical state") {
-  const relative33 = preVerifyReviewRelativePath(revision.revision, revision.revisionId);
-  const raw = readText2(relative33);
-  return attach(revision, raw === void 0 ? void 0 : parseRecord(raw, join4(sourceRoot, relative33)));
+  const relative34 = preVerifyReviewRelativePath(revision.revision, revision.revisionId);
+  const raw = readText2(relative34);
+  return attach(revision, raw === void 0 ? void 0 : parseRecord(raw, join4(sourceRoot, relative34)));
 }
 
 // packages/kernel/dist/state/review-acknowledged-via-store.js
@@ -6024,14 +6024,14 @@ function attach2(revision, record9) {
     }
   };
 }
-async function publishReviewAcknowledgedViaRecord(changeDir2, revision) {
+async function publishReviewAcknowledgedViaRecord(changeDir7, revision) {
   const via = revision.state.fields[REVIEW_ACKNOWLEDGED_VIA_FIELD];
   if (via === REVIEW_ACKNOWLEDGED_VIA_DEFAULT)
     return;
   if (typeof via !== "string" || !ALLOWED_VALUES.has(via)) {
     throw new RunStateCorruptError(`canonical ${REVIEW_ACKNOWLEDGED_VIA_FIELD} \u975E\u6CD5`);
   }
-  const dir = join5(changeDir2, ".pipeline-run", REVIEW_ACKNOWLEDGED_VIA_DIR);
+  const dir = join5(changeDir7, ".pipeline-run", REVIEW_ACKNOWLEDGED_VIA_DIR);
   await mkdir3(dir, { recursive: true });
   const record9 = {
     schemaVersion: 1,
@@ -6040,11 +6040,11 @@ async function publishReviewAcknowledgedViaRecord(changeDir2, revision) {
     stateDigest: revision.stateDigest,
     via
   };
-  await atomicLinkPublish(dir, ".tmp", join5(changeDir2, reviewAcknowledgedViaRelativePath(revision.revision, revision.revisionId)), `${JSON.stringify(record9)}
+  await atomicLinkPublish(dir, ".tmp", join5(changeDir7, reviewAcknowledgedViaRelativePath(revision.revision, revision.revisionId)), `${JSON.stringify(record9)}
 `);
 }
-async function hydrateReviewAcknowledgedVia(changeDir2, revision) {
-  const target = join5(changeDir2, reviewAcknowledgedViaRelativePath(revision.revision, revision.revisionId));
+async function hydrateReviewAcknowledgedVia(changeDir7, revision) {
+  const target = join5(changeDir7, reviewAcknowledgedViaRelativePath(revision.revision, revision.revisionId));
   let info;
   try {
     info = await lstat3(target);
@@ -6059,21 +6059,21 @@ async function hydrateReviewAcknowledgedVia(changeDir2, revision) {
   return attach2(revision, parseRecord2(await readFile4(target, "utf8"), target));
 }
 function hydrateReviewAcknowledgedViaFromSync(readText2, revision, sourceRoot = "canonical state") {
-  const relative33 = reviewAcknowledgedViaRelativePath(revision.revision, revision.revisionId);
-  const raw = readText2(relative33);
-  return attach2(revision, raw === void 0 ? void 0 : parseRecord2(raw, join5(sourceRoot, relative33)));
+  const relative34 = reviewAcknowledgedViaRelativePath(revision.revision, revision.revisionId);
+  const raw = readText2(relative34);
+  return attach2(revision, raw === void 0 ? void 0 : parseRecord2(raw, join5(sourceRoot, relative34)));
 }
 
 // packages/kernel/dist/state/revision-companions.js
-async function hydrateCompanions(changeDir2, revision) {
-  return hydrateReviewAcknowledgedVia(changeDir2, await hydratePreVerifyReview(changeDir2, revision));
+async function hydrateCompanions(changeDir7, revision) {
+  return hydrateReviewAcknowledgedVia(changeDir7, await hydratePreVerifyReview(changeDir7, revision));
 }
 function hydrateCompanionsFromSync(readText2, revision, sourceRoot = "canonical state") {
   return hydrateReviewAcknowledgedViaFromSync(readText2, hydratePreVerifyReviewFromSync(readText2, revision, sourceRoot), sourceRoot);
 }
-async function publishCompanions(changeDir2, revision, logicalState) {
-  await publishReviewAcknowledgedViaRecord(changeDir2, revision);
-  await publishPreVerifyReviewRecord(changeDir2, revision, logicalState);
+async function publishCompanions(changeDir7, revision, logicalState) {
+  await publishReviewAcknowledgedViaRecord(changeDir7, revision);
+  await publishPreVerifyReviewRecord(changeDir7, revision, logicalState);
 }
 
 // packages/kernel/dist/state/run-revision-continuity.js
@@ -6299,8 +6299,8 @@ function errnoCode3(error2) {
   const record9 = Object.fromEntries(Object.entries(error2));
   return typeof record9.code === "string" ? record9.code : void 0;
 }
-function stateStorageSourcePathSync(changeDir2) {
-  const current = join7(changeDir2, RUN_STATE_DIR, RUN_CURRENT_FILE);
+function stateStorageSourcePathSync(changeDir7) {
+  const current = join7(changeDir7, RUN_STATE_DIR, RUN_CURRENT_FILE);
   try {
     lstatSync(current);
     return current;
@@ -6308,7 +6308,7 @@ function stateStorageSourcePathSync(changeDir2) {
     if (errnoCode3(error2) !== "ENOENT")
       throw error2;
   }
-  const legacy = join7(changeDir2, ".pipeline.yaml");
+  const legacy = join7(changeDir7, ".pipeline.yaml");
   try {
     lstatSync(legacy);
     return legacy;
@@ -6318,8 +6318,8 @@ function stateStorageSourcePathSync(changeDir2) {
     throw error2;
   }
 }
-function stateStorageExistsSync(changeDir2) {
-  return stateStorageSourcePathSync(changeDir2) !== void 0;
+function stateStorageExistsSync(changeDir7) {
+  return stateStorageSourcePathSync(changeDir7) !== void 0;
 }
 function previousRevisionIdFor(revision) {
   if (revision.previousRevisionId === void 0) {
@@ -6330,14 +6330,14 @@ function previousRevisionIdFor(revision) {
 function revisionFileName(revision, revisionId) {
   return `${String(revision).padStart(6, "0")}-${revisionId}.json`;
 }
-async function assertTransitionRecordFile(changeDir2, revision, previous) {
+async function assertTransitionRecordFile(changeDir7, revision, previous) {
   if (revision.mutation.kind !== "transition")
     return void 0;
   const metadata = revision.state.runMetadata;
   if (metadata === void 0 || metadata.transitionHead === void 0 || metadata.transitionSequence < 1) {
     throw new RunStateCorruptError("transition revision \u7F3A canonical run head/sequence");
   }
-  const transitionPath = join7(changeDir2, TRANSITION_RECORDS_DIR, `${String(metadata.transitionSequence).padStart(6, "0")}-${revision.mutation.transitionRecordId}.json`);
+  const transitionPath = join7(changeDir7, TRANSITION_RECORDS_DIR, `${String(metadata.transitionSequence).padStart(6, "0")}-${revision.mutation.transitionRecordId}.json`);
   const transitionRaw = await readRegularTextIfExists(transitionPath);
   if (transitionRaw === void 0) {
     throw new RunStateCorruptError("transition revision \u5F15\u7528\u7684 TransitionRecord \u7F3A\u5931");
@@ -6379,8 +6379,8 @@ function projectionMetadataFor(revision) {
     stateDigest: revision.stateDigest
   };
 }
-async function publishInitialRunRevision(changeDir2, state, observedAt, kind = "init") {
-  const runDir = join7(changeDir2, RUN_STATE_DIR);
+async function publishInitialRunRevision(changeDir7, state, observedAt, kind = "init") {
+  const runDir = join7(changeDir7, RUN_STATE_DIR);
   const revisionsDir = join7(runDir, RUN_REVISIONS_DIR);
   await mkdir4(revisionsDir, { recursive: true });
   const revision = createRunRevision({
@@ -6388,14 +6388,14 @@ async function publishInitialRunRevision(changeDir2, state, observedAt, kind = "
     revision: 0,
     mutation: { kind, observedAt, effects: [] }
   });
-  await publishCompanions(changeDir2, revision, state);
+  await publishCompanions(changeDir7, revision, state);
   const raw = serializeRunRevision(revision);
   await atomicLinkPublish(revisionsDir, ".tmp", join7(revisionsDir, revisionFileName(revision.revision, revision.revisionId)), raw);
   await atomicLinkPublish(runDir, ".current.tmp", join7(runDir, RUN_CURRENT_FILE), raw);
   return revision;
 }
-async function publishRunRevision(changeDir2, current, state, mutation) {
-  const runDir = join7(changeDir2, RUN_STATE_DIR);
+async function publishRunRevision(changeDir7, current, state, mutation) {
+  const runDir = join7(changeDir7, RUN_STATE_DIR);
   const revisionsDir = join7(runDir, RUN_REVISIONS_DIR);
   await mkdir4(revisionsDir, { recursive: true });
   let transitionRaw;
@@ -6407,7 +6407,7 @@ async function publishRunRevision(changeDir2, current, state, mutation) {
     if (metadata === void 0 || metadata.transitionHead !== mutation.transitionRecordId || metadata.transitionSequence < 1) {
       throw new RunStateCorruptError("transition publish \u7F3A\u5339\u914D\u7684 canonical run head/sequence");
     }
-    const transitionPath = join7(changeDir2, TRANSITION_RECORDS_DIR, `${String(metadata.transitionSequence).padStart(6, "0")}-${mutation.transitionRecordId}.json`);
+    const transitionPath = join7(changeDir7, TRANSITION_RECORDS_DIR, `${String(metadata.transitionSequence).padStart(6, "0")}-${mutation.transitionRecordId}.json`);
     transitionRaw = await readRegularTextIfExists(transitionPath);
     if (transitionRaw === void 0) {
       throw new RunStateCorruptError("transition publish \u5F15\u7528\u7684 TransitionRecord \u7F3A\u5931");
@@ -6440,30 +6440,30 @@ async function publishRunRevision(changeDir2, current, state, mutation) {
   if (transitionRaw !== void 0) {
     assertTransitionRevisionLink(revision, transition, transitionRaw, current);
   }
-  await publishCompanions(changeDir2, revision, revisionState);
+  await publishCompanions(changeDir7, revision, revisionState);
   const raw = serializeRunRevision(revision);
   await atomicLinkPublish(revisionsDir, ".tmp", join7(revisionsDir, revisionFileName(revision.revision, revision.revisionId)), raw);
   await atomicReplaceFile(join7(runDir, RUN_CURRENT_FILE), raw);
   return revision;
 }
-async function readCurrentRunRevision(changeDir2) {
-  const currentPath2 = join7(changeDir2, RUN_STATE_DIR, RUN_CURRENT_FILE);
+async function readCurrentRunRevision(changeDir7) {
+  const currentPath2 = join7(changeDir7, RUN_STATE_DIR, RUN_CURRENT_FILE);
   const raw = await readRegularTextIfExists(currentPath2);
   if (raw === void 0)
     return void 0;
-  const current = await hydrateCompanions(changeDir2, parseRunRevision(raw, currentPath2));
-  const immutablePath = join7(changeDir2, RUN_STATE_DIR, RUN_REVISIONS_DIR, revisionFileName(current.revision, current.revisionId));
+  const current = await hydrateCompanions(changeDir7, parseRunRevision(raw, currentPath2));
+  const immutablePath = join7(changeDir7, RUN_STATE_DIR, RUN_REVISIONS_DIR, revisionFileName(current.revision, current.revisionId));
   const immutableRaw = await readRegularTextIfExists(immutablePath);
   if (immutableRaw === void 0) {
     throw new RunStateCorruptError(`current \u5F15\u7528\u7684 immutable revision \u7F3A\u5931: ${immutablePath}`);
   }
-  await hydrateCompanions(changeDir2, parseRunRevision(immutableRaw, immutablePath));
+  await hydrateCompanions(changeDir7, parseRunRevision(immutableRaw, immutablePath));
   if (immutableRaw !== raw)
     throw new RunStateCorruptError("current \u4E0E immutable revision \u5B57\u8282\u4E0D\u4E00\u81F4");
   let previous;
   if (current.revision > 0) {
     const previousRevisionId = previousRevisionIdFor(current);
-    previous = await readImmutableRunRevision(changeDir2, current.revision - 1, previousRevisionId);
+    previous = await readImmutableRunRevision(changeDir7, current.revision - 1, previousRevisionId);
     if (previous === void 0) {
       throw new RunStateCorruptError("current \u5F15\u7528\u7684 previous revision \u7F3A\u5931");
     }
@@ -6472,21 +6472,21 @@ async function readCurrentRunRevision(changeDir2) {
     }
     assertMutationEffects(current, previous);
   }
-  await assertTransitionRecordFile(changeDir2, current, previous);
-  await validateAnchoredTransitionHead(current, (relativePath) => readRegularTextIfExists(join7(changeDir2, relativePath)), changeDir2);
+  await assertTransitionRecordFile(changeDir7, current, previous);
+  await validateAnchoredTransitionHead(current, (relativePath) => readRegularTextIfExists(join7(changeDir7, relativePath)), changeDir7);
   if (previous?.mutation.kind === "transition") {
-    const predecessor = assertDirectPredecessor(previous, await readImmutableRunRevision(changeDir2, previous.revision - 1, previousRevisionIdFor(previous)));
-    await assertTransitionRecordFile(changeDir2, previous, predecessor);
+    const predecessor = assertDirectPredecessor(previous, await readImmutableRunRevision(changeDir7, previous.revision - 1, previousRevisionIdFor(previous)));
+    await assertTransitionRecordFile(changeDir7, previous, predecessor);
   }
   return current;
 }
-async function validateCanonicalRevisionHistory(changeDir2) {
-  let cursor = await readCurrentRunRevision(changeDir2);
+async function validateCanonicalRevisionHistory(changeDir7) {
+  let cursor = await readCurrentRunRevision(changeDir7);
   if (cursor === void 0)
     return;
   while (cursor.revision > 0) {
     const previousRevisionId = previousRevisionIdFor(cursor);
-    const previous = await readImmutableRunRevision(changeDir2, cursor.revision - 1, previousRevisionId);
+    const previous = await readImmutableRunRevision(changeDir7, cursor.revision - 1, previousRevisionId);
     if (previous === void 0) {
       throw new RunStateCorruptError(`canonical history revision ${cursor.revision - 1} \u7F3A\u5931`);
     }
@@ -6494,7 +6494,7 @@ async function validateCanonicalRevisionHistory(changeDir2) {
       throw new RunStateCorruptError("canonical history previous revision \u8EAB\u4EFD\u4E0D\u4E00\u81F4");
     }
     assertMutationEffects(cursor, previous);
-    await assertTransitionRecordFile(changeDir2, cursor, previous);
+    await assertTransitionRecordFile(changeDir7, cursor, previous);
     cursor = previous;
   }
 }
@@ -6580,15 +6580,15 @@ function readCurrentRunRevisionFromSync(readText2, sourceRoot = "canonical state
   }
   return current;
 }
-function readCurrentRunRevisionSync(changeDir2) {
-  return readCurrentRunRevisionFromSync((relativePath) => readTextSyncIfExists(join7(changeDir2, relativePath)), changeDir2);
+function readCurrentRunRevisionSync(changeDir7) {
+  return readCurrentRunRevisionFromSync((relativePath) => readTextSyncIfExists(join7(changeDir7, relativePath)), changeDir7);
 }
-async function readImmutableRunRevision(changeDir2, revision, revisionId) {
+async function readImmutableRunRevision(changeDir7, revision, revisionId) {
   if (!Number.isSafeInteger(revision) || revision < 0 || !SAFE_ID_RE5.test(revisionId))
     return void 0;
-  const pathname = join7(changeDir2, RUN_STATE_DIR, RUN_REVISIONS_DIR, revisionFileName(revision, revisionId));
+  const pathname = join7(changeDir7, RUN_STATE_DIR, RUN_REVISIONS_DIR, revisionFileName(revision, revisionId));
   const raw = await readRegularTextIfExists(pathname);
-  return raw === void 0 ? void 0 : hydrateCompanions(changeDir2, parseRunRevision(raw, pathname));
+  return raw === void 0 ? void 0 : hydrateCompanions(changeDir7, parseRunRevision(raw, pathname));
 }
 
 // packages/kernel/dist/skill-invocation/document-confirmation.js
@@ -6760,20 +6760,20 @@ function isSafeProjectRelativePath(value) {
     return false;
   return value.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
 }
-function deltaSpecSlot(path15, changeDir2) {
+function deltaSpecSlot(path15, changeDir7) {
   const parts = path15.split("/");
-  const changeName = basename(resolve(changeDir2));
+  const changeName = basename(resolve(changeDir7));
   if (parts.length !== 6 || parts[0] !== "openspec" || parts[1] !== "changes" || parts[2] !== changeName || parts[3] !== "specs" || !parts[4] || parts[5] !== "spec.md") {
     return void 0;
   }
   return `delta-spec:${parts[4]}`;
 }
-function documentSlot(kind, path15, changeDir2) {
+function documentSlot(kind, path15, changeDir7) {
   if (kind !== "delta-spec")
     return kind;
-  const slot = deltaSpecSlot(path15, changeDir2);
+  const slot = deltaSpecSlot(path15, changeDir7);
   if (!slot) {
-    throw new DocumentLedgerError(`delta-spec \u5FC5\u987B\u4F4D\u4E8E\u5F53\u524D Change \u7684 canonical capability \u8DEF\u5F84: openspec/changes/${basename(resolve(changeDir2))}/specs/<capability>/spec.md`);
+    throw new DocumentLedgerError(`delta-spec \u5FC5\u987B\u4F4D\u4E8E\u5F53\u524D Change \u7684 canonical capability \u8DEF\u5F84: openspec/changes/${basename(resolve(changeDir7))}/specs/<capability>/spec.md`);
   }
   return slot;
 }
@@ -6902,10 +6902,10 @@ function decodeRecordActor(value) {
 var HISTORY_FILE = ".pipeline-history.jsonl";
 function createHistoryWriter(options = {}) {
   return {
-    async append(changeDir2, entry) {
+    async append(changeDir7, entry) {
       const actor3 = entry.actor ?? options.actor?.();
       const row2 = actor3 === void 0 ? entry : { ...entry, actor: actor3 };
-      await appendFile(join8(changeDir2, HISTORY_FILE), `${JSON.stringify(row2)}
+      await appendFile(join8(changeDir7, HISTORY_FILE), `${JSON.stringify(row2)}
 `, "utf8");
     }
   };
@@ -6964,12 +6964,12 @@ function validateCommittingRecord(cursor, previous, raw) {
   }
   return assertTransitionRevisionLink(cursor, parsed, raw, previous);
 }
-async function readValidatedTransitionHead(changeDir2) {
-  const current = await readCurrentRunRevision(changeDir2);
+async function readValidatedTransitionHead(changeDir7) {
+  const current = await readCurrentRunRevision(changeDir7);
   const metadata = current?.state.runMetadata;
   if (current === void 0 || metadata?.transitionHead === void 0 || metadata.transitionSequence < 1)
     return void 0;
-  const anchored = await validateAnchoredTransitionHead(current, (relativePath) => readRegularTextIfExists2(join9(changeDir2, relativePath)), changeDir2);
+  const anchored = await validateAnchoredTransitionHead(current, (relativePath) => readRegularTextIfExists2(join9(changeDir7, relativePath)), changeDir7);
   if (anchored !== void 0)
     return { current, record: anchored };
   let cursor = current;
@@ -6977,10 +6977,10 @@ async function readValidatedTransitionHead(changeDir2) {
     if (cursor.revision === 0)
       break;
     const previousId = previousRevisionIdFor2(cursor);
-    const previous = await readImmutableRunRevision(changeDir2, cursor.revision - 1, previousId);
+    const previous = await readImmutableRunRevision(changeDir7, cursor.revision - 1, previousId);
     const bound = assertDirectPredecessor(cursor, previous);
     if (cursor.mutation.kind === "transition" && cursor.mutation.transitionRecordId === metadata.transitionHead) {
-      const raw = await readRegularTextIfExists2(join9(changeDir2, transitionRelativePath(cursor)));
+      const raw = await readRegularTextIfExists2(join9(changeDir7, transitionRelativePath(cursor)));
       if (raw === void 0)
         throw new RunStateCorruptError("canonical head TransitionRecord \u7F3A\u5931");
       const record9 = validateCommittingRecord(cursor, bound, raw);
@@ -7015,8 +7015,8 @@ function skillsEquivalent(left, right) {
   const leftAliases = new Set(aliases(left));
   return aliases(right).some((candidate2) => leftAliases.has(candidate2));
 }
-async function currentSpecVisitEnteredViaRequirementsChanged(changeDir2) {
-  const validated = await readValidatedTransitionHead(changeDir2);
+async function currentSpecVisitEnteredViaRequirementsChanged(changeDir7) {
+  const validated = await readValidatedTransitionHead(changeDir7);
   if (validated === void 0)
     return false;
   const current = validated.current;
@@ -7368,8 +7368,8 @@ function shouldEnforceDocumentPolicyOnTransition(policy2, from, to) {
 }
 
 // packages/kernel/dist/state/document-step-visit.js
-async function currentDocumentStepVisitId(changeDir2) {
-  const metadata = (await readCurrentRunRevision(changeDir2))?.state.runMetadata;
+async function currentDocumentStepVisitId(changeDir7) {
+  const metadata = (await readCurrentRunRevision(changeDir7))?.state.runMetadata;
   if (metadata === void 0)
     throw new DocumentLedgerError("\u7F3A\u5C11 canonical WorkflowRun visit identity\uFF1B\u65E7 Change \u5FC5\u987B\u5148\u901A\u8FC7\u53D7\u63A7 state mutation \u5EFA\u7ACB run identity\uFF0C\u518D\u91CD\u65B0\u8BFB\u53D6 document");
   return JSON.stringify([metadata.runId, metadata.transitionSequence]);
@@ -7590,8 +7590,8 @@ function parseDocumentLedger(raw) {
   }
   return { version: 1, contract: "openspec-v1", createdAt, records };
 }
-async function readDocumentLedger(changeDir2, readSource = readBoundedFileHandle) {
-  const raw = await readOptionalBoundedRegularTextFile(join10(changeDir2, DOCUMENT_LEDGER_FILE), MAX_DOCUMENT_LEDGER_BYTES, "document ledger", readSource);
+async function readDocumentLedger(changeDir7, readSource = readBoundedFileHandle) {
+  const raw = await readOptionalBoundedRegularTextFile(join10(changeDir7, DOCUMENT_LEDGER_FILE), MAX_DOCUMENT_LEDGER_BYTES, "document ledger", readSource);
   return raw === void 0 ? void 0 : parseDocumentLedger(raw);
 }
 function initialDocumentLedgerContent(createdAt) {
@@ -7599,29 +7599,29 @@ function initialDocumentLedgerContent(createdAt) {
   return `${JSON.stringify(ledger, null, 2)}
 `;
 }
-async function ensureDocumentLedger(changeDir2, createdAt) {
-  const existing = await readDocumentLedger(changeDir2);
+async function ensureDocumentLedger(changeDir7, createdAt) {
+  const existing = await readDocumentLedger(changeDir7);
   if (existing)
     return existing;
   const ledger = { version: 1, contract: "openspec-v1", createdAt, records: [] };
-  const target = join10(changeDir2, DOCUMENT_LEDGER_FILE);
+  const target = join10(changeDir7, DOCUMENT_LEDGER_FILE);
   try {
-    await atomicLinkPublish(changeDir2, ".pipeline-documents.tmp", target, initialDocumentLedgerContent(createdAt));
+    await atomicLinkPublish(changeDir7, ".pipeline-documents.tmp", target, initialDocumentLedgerContent(createdAt));
     return ledger;
   } catch (error2) {
     if (errorCode2(error2) !== "EEXIST")
       throw error2;
-    const raced = await readDocumentLedger(changeDir2);
+    const raced = await readDocumentLedger(changeDir7);
     if (!raced)
       throw new DocumentLedgerError(`document ledger \u5E76\u53D1\u521B\u5EFA\u540E\u4E0D\u53EF\u8BFB\u53D6: ${target}`);
     return raced;
   }
 }
-async function writeDocumentLedger(changeDir2, ledger) {
+async function writeDocumentLedger(changeDir7, ledger) {
   const content = `${JSON.stringify(ledger, null, 2)}
 `;
   parseDocumentLedger(content);
-  await atomicReplaceFile(join10(changeDir2, DOCUMENT_LEDGER_FILE), content);
+  await atomicReplaceFile(join10(changeDir7, DOCUMENT_LEDGER_FILE), content);
 }
 function projectDocumentUpdateStep(policy2, kind) {
   if (DOCUMENT_KIND_CATALOG[kind].scope !== "project")
@@ -7814,8 +7814,8 @@ var HEARTBEAT_MS = Math.floor(STALE_LOCK_MS / 3);
 var ACQUIRE_TIMEOUT_MS = 1e4;
 var POLL_MS = 10;
 var queues = /* @__PURE__ */ new Map();
-function lockDirFor(changeDir2) {
-  return path.join(path.resolve(changeDir2), LOCK_DIR_NAME);
+function lockDirFor(changeDir7) {
+  return path.join(path.resolve(changeDir7), LOCK_DIR_NAME);
 }
 function ownerPathFor(lockDir) {
   return path.join(lockDir, LOCK_OWNER_FILE);
@@ -8027,8 +8027,8 @@ async function release(lockDir, held) {
   await rmdir(lockDir).catch(() => {
   });
 }
-async function withLock(changeDir2, fn) {
-  const lockDir = lockDirFor(changeDir2);
+async function withLock(changeDir7, fn) {
+  const lockDir = lockDirFor(changeDir7);
   const prev = queues.get(lockDir) ?? Promise.resolve();
   const run2 = prev.then(async () => {
     const held = await acquire(lockDir);
@@ -8233,8 +8233,8 @@ async function readImmutableTwin(revisionsDir, revision, expectedRaw) {
     return void 0;
   throw new TaskPlanStateCorruptError("TaskPlan current immutable revision disagrees with its content");
 }
-async function readCanonicalTaskPlanState(changeDir2) {
-  const stateDir = join11(changeDir2, TASK_PLAN_STATE_DIR);
+async function readCanonicalTaskPlanState(changeDir7) {
+  const stateDir = join11(changeDir7, TASK_PLAN_STATE_DIR);
   const currentPath2 = join11(stateDir, TASK_PLAN_CURRENT_FILE);
   const currentRaw = await readStateFile(currentPath2, TASK_PLAN_LIMITS.maxRevisionBytes);
   if (currentRaw === void 0)
@@ -8244,28 +8244,28 @@ async function readCanonicalTaskPlanState(changeDir2) {
     throw new TaskPlanStateCorruptError("TaskPlan current is malformed");
   const revision = decoded.value;
   assertCommittedRevisionSemantics(revision);
-  await assertOwnedDirectory(changeDir2, stateDir);
-  await assertOwnedDirectory(changeDir2, join11(stateDir, TASK_PLAN_REVISIONS_DIR));
+  await assertOwnedDirectory(changeDir7, stateDir);
+  await assertOwnedDirectory(changeDir7, join11(stateDir, TASK_PLAN_REVISIONS_DIR));
   const immutableRaw = await readImmutableTwin(join11(stateDir, TASK_PLAN_REVISIONS_DIR), revision, currentRaw.bytes);
   if (immutableRaw === void 0) {
     throw new TaskPlanStateCorruptError("TaskPlan current lacks an identical immutable revision");
   }
   return { revision, currentBytes: currentRaw.bytes };
 }
-async function classifyTaskPlanProjectionForChange(changeDir2, source) {
-  const state = await readCanonicalTaskPlanState(changeDir2);
+async function classifyTaskPlanProjectionForChange(changeDir7, source) {
+  const state = await readCanonicalTaskPlanState(changeDir7);
   if (state === void 0)
     return "legacy";
   const expected = renderTaskPlanTasksMd(state.revision, { digest: digest2(state.currentBytes) });
   return normalizeProjectionCompletion(source) === expected ? "current" : "invalid";
 }
-async function taskPlanTasksThroughPhaseForChange(changeDir2, phase, sourceOverride) {
-  const state = await readCanonicalTaskPlanState(changeDir2);
+async function taskPlanTasksThroughPhaseForChange(changeDir7, phase, sourceOverride) {
+  const state = await readCanonicalTaskPlanState(changeDir7);
   const limit = state ? MAX_CANONICAL_TASKS_MD_BYTES : MAX_LEGACY_TASKS_MD_BYTES;
   let source = sourceOverride ?? void 0;
   if (sourceOverride === void 0)
     try {
-      source = await readRegular(join11(changeDir2, "tasks.md"), limit);
+      source = await readRegular(join11(changeDir7, "tasks.md"), limit);
     } catch {
       return { pass: false, failure: `${phase} \u51FA\u53E3\uFF1Atasks.md \u4E0D\u53EF\u4FE1\u6216\u8D85\u51FA\u9884\u7B97` };
     }
@@ -8278,16 +8278,16 @@ async function taskPlanTasksThroughPhaseForChange(changeDir2, phase, sourceOverr
   const status = incompletePipelineTasksForExit({ phase, tasksMarkdown: source, trustedCanonicalProjection: state !== void 0 });
   return status.incomplete > 0 ? { pass: false, failure: `${phase} \u51FA\u53E3\uFF1Atasks.md \u4ECD\u6709 ${status.incomplete} \u9879\u672A\u52FE` } : { pass: true };
 }
-async function readTaskPlanForChange(changeDir2) {
-  const state = await readCanonicalTaskPlanState(changeDir2);
+async function readTaskPlanForChange(changeDir7) {
+  const state = await readCanonicalTaskPlanState(changeDir7);
   if (state === void 0) {
-    const legacy = await readRegular(join11(changeDir2, "tasks.md"), MAX_LEGACY_TASKS_MD_BYTES);
+    const legacy = await readRegular(join11(changeDir7, "tasks.md"), MAX_LEGACY_TASKS_MD_BYTES);
     return legacy === void 0 ? null : adaptLegacyTasksMd(legacy);
   }
   let tasks;
   let projectionReadFailed = false;
   try {
-    tasks = await readRegular(join11(changeDir2, "tasks.md"), MAX_CANONICAL_TASKS_MD_BYTES);
+    tasks = await readRegular(join11(changeDir7, "tasks.md"), MAX_CANONICAL_TASKS_MD_BYTES);
   } catch {
     projectionReadFailed = true;
   }
@@ -8311,8 +8311,8 @@ async function skillInvocationProjectId(repoRoot) {
   const canonicalRoot = await realpath3(repoRoot);
   return `project:${createHash9("sha256").update(canonicalRoot).digest("hex")}`;
 }
-async function canonicalBinding(changeDir2, attempt2) {
-  const current = await readCurrentRunRevision(changeDir2);
+async function canonicalBinding(changeDir7, attempt2) {
+  const current = await readCurrentRunRevision(changeDir7);
   const metadata = current?.state.runMetadata;
   if (current === void 0 || metadata === void 0) {
     throw new SkillInvocationEvidenceBindingError("canonical WorkflowRun identity is missing");
@@ -8322,8 +8322,8 @@ async function canonicalBinding(changeDir2, attempt2) {
   if (workflowDefinitionId === "" || stepId === "") {
     throw new SkillInvocationEvidenceBindingError("canonical WorkflowDefinition or Step identity is missing");
   }
-  const repoRoot = resolve2(changeDir2, "..", "..", "..");
-  const plan = await readTaskPlanForChange(changeDir2);
+  const repoRoot = resolve2(changeDir7, "..", "..", "..");
+  const plan = await readTaskPlanForChange(changeDir7);
   return {
     project_id: await skillInvocationProjectId(repoRoot),
     workflow_definition_id: workflowDefinitionId,
@@ -8351,13 +8351,13 @@ function assertBinding(event, expected) {
     throw new SkillInvocationEvidenceBindingError("AFK invocation requires exact attempt and reservation binding");
   }
 }
-function ledgerPath(changeDir2) {
-  return join12(changeDir2, SKILL_INVOCATION_LEDGER_FILE);
+function ledgerPath(changeDir7) {
+  return join12(changeDir7, SKILL_INVOCATION_LEDGER_FILE);
 }
-async function readLedgerEvents(changeDir2, options = {}) {
+async function readLedgerEvents(changeDir7, options = {}) {
   let raw;
   try {
-    raw = options.anchoredDirectoryIdentity === void 0 ? await readOptionalBoundedRegularTextFile(ledgerPath(changeDir2), SKILL_INVOCATION_LIMITS.maxLedgerBytes, "SkillInvocation evidence ledger") : await readOptionalBoundedRegularTextFileFromAnchoredDirectory(ledgerPath(changeDir2), SKILL_INVOCATION_LIMITS.maxLedgerBytes, "SkillInvocation evidence ledger", options.anchoredDirectoryIdentity);
+    raw = options.anchoredDirectoryIdentity === void 0 ? await readOptionalBoundedRegularTextFile(ledgerPath(changeDir7), SKILL_INVOCATION_LIMITS.maxLedgerBytes, "SkillInvocation evidence ledger") : await readOptionalBoundedRegularTextFileFromAnchoredDirectory(ledgerPath(changeDir7), SKILL_INVOCATION_LIMITS.maxLedgerBytes, "SkillInvocation evidence ledger", options.anchoredDirectoryIdentity);
   } catch (cause) {
     throw new SkillInvocationEvidenceCorruptError(`SkillInvocation ledger cannot be read: ${String(cause)}`);
   }
@@ -8437,8 +8437,8 @@ function inside2(base, candidate2) {
   const fromBase = relative3(base, candidate2);
   return fromBase !== "" && fromBase !== ".." && !fromBase.startsWith(`..${sep3}`) && !isAbsolute3(fromBase);
 }
-async function verifyFileArtifact(changeDir2, intent) {
-  const repoRoot = resolve2(changeDir2, "..", "..", "..");
+async function verifyFileArtifact(changeDir7, intent) {
+  const repoRoot = resolve2(changeDir7, "..", "..", "..");
   const target = resolve2(repoRoot, intent.artifact.ref);
   if (!inside2(repoRoot, target))
     return false;
@@ -8448,21 +8448,21 @@ async function verifyFileArtifact(changeDir2, intent) {
   const bytes = await readBoundedRegularFile(target, SKILL_INVOCATION_LIMITS.maxLedgerBytes, "SkillInvocation artifact");
   return `sha256:${createHash9("sha256").update(bytes).digest("hex")}` === intent.artifact.digest;
 }
-async function verifyDocumentArtifact(changeDir2, intent) {
+async function verifyDocumentArtifact(changeDir7, intent) {
   const document = intent.artifact.document;
   if (document === void 0)
     return false;
-  const ledger = await readDocumentLedger(changeDir2);
+  const ledger = await readDocumentLedger(changeDir7);
   return ledger?.records.some((record9) => record9.kind === document.kind && record9.path === intent.artifact.ref && record9.recordedAt === document.recorded_at && `sha256:${record9.sha256}` === intent.artifact.digest) ?? false;
 }
-async function verifyArtifact(changeDir2, intent, binding, options) {
+async function verifyArtifact(changeDir7, intent, binding, options) {
   if (intent.artifact.kind === "document") {
-    if (!await verifyDocumentArtifact(changeDir2, intent))
+    if (!await verifyDocumentArtifact(changeDir7, intent))
       return false;
     if (intent.validator_ids.every((id2) => id2 === "document-ledger"))
       return true;
   } else if (intent.artifact.kind === "file") {
-    if (!await verifyFileArtifact(changeDir2, intent))
+    if (!await verifyFileArtifact(changeDir7, intent))
       return false;
     if (intent.validator_ids.every((id2) => id2 === "digest"))
       return true;
@@ -8479,10 +8479,10 @@ function validateExistingLedger(events) {
     throw new SkillInvocationEvidenceCorruptError(`SkillInvocation ledger violates aggregate invariants: ${String(cause)}`);
   }
 }
-async function readSkillInvocationEventsForApplication(changeDir2) {
-  const identity2 = await captureLedgerIdentity(ledgerPath(changeDir2));
-  const events = await readLedgerEvents(changeDir2);
-  await assertLedgerIdentity(ledgerPath(changeDir2), identity2);
+async function readSkillInvocationEventsForApplication(changeDir7) {
+  const identity2 = await captureLedgerIdentity(ledgerPath(changeDir7));
+  const events = await readLedgerEvents(changeDir7);
+  await assertLedgerIdentity(ledgerPath(changeDir7), identity2);
   validateExistingLedger(events);
   return structuredClone(events);
 }
@@ -8510,10 +8510,10 @@ function intentFor(events, event) {
   return intent?.payload;
 }
 var activeChangeLocks = /* @__PURE__ */ new WeakMap();
-async function withSkillInvocationChangeLock(changeDir2, operation) {
-  return withLock(changeDir2, async () => {
+async function withSkillInvocationChangeLock(changeDir7, operation) {
+  return withLock(changeDir7, async () => {
     const lock = Object.freeze({ kind: "skill-invocation-change-lock" });
-    activeChangeLocks.set(lock, changeDir2);
+    activeChangeLocks.set(lock, changeDir7);
     try {
       return await operation(lock);
     } finally {
@@ -8521,20 +8521,20 @@ async function withSkillInvocationChangeLock(changeDir2, operation) {
     }
   });
 }
-async function appendSkillInvocationEventWithLockHeld(changeDir2, input2, options) {
-  const identity2 = await captureLedgerIdentity(ledgerPath(changeDir2));
-  const events = await readLedgerEvents(changeDir2);
-  await assertLedgerIdentity(ledgerPath(changeDir2), identity2);
+async function appendSkillInvocationEventWithLockHeld(changeDir7, input2, options) {
+  const identity2 = await captureLedgerIdentity(ledgerPath(changeDir7));
+  const events = await readLedgerEvents(changeDir7);
+  await assertLedgerIdentity(ledgerPath(changeDir7), identity2);
   validateExistingLedger(events);
   const replay = events.find((event) => event.event_id === input2.event_id);
   if (replay !== void 0) {
     if (encodeSkillInvocationEventV1(replay) === encodeSkillInvocationEventV1(input2)) {
-      await assertLedgerIdentity(ledgerPath(changeDir2), identity2);
+      await assertLedgerIdentity(ledgerPath(changeDir7), identity2);
       return { appended: false };
     }
     throw new SkillInvocationEvidenceCorruptError("event id conflicts with an existing fact");
   }
-  const expected = await canonicalBinding(changeDir2, options.attempt);
+  const expected = await canonicalBinding(changeDir7, options.attempt);
   assertBinding(input2, expected);
   const invocationEvents = events.filter((event) => event.invocation_id === input2.invocation_id);
   const resultingEvents = [...events, input2];
@@ -8571,11 +8571,11 @@ async function appendSkillInvocationEventWithLockHeld(changeDir2, input2, option
   }
   if (input2.type === "artifact-bound") {
     const intent = intentFor(events, input2);
-    if (intent === void 0 || !await verifyArtifact(changeDir2, intent, input2.payload, options)) {
+    if (intent === void 0 || !await verifyArtifact(changeDir7, intent, input2.payload, options)) {
       throw new SkillInvocationEvidenceBindingError("artifact binding does not match the current artifact or canonical document record");
     }
   }
-  await appendFsync(ledgerPath(changeDir2), encodedLine, identity2);
+  await appendFsync(ledgerPath(changeDir7), encodedLine, identity2);
   return { appended: true };
 }
 function decodeApplicationEvent(input2) {
@@ -8585,21 +8585,21 @@ function decodeApplicationEvent(input2) {
   }
   return decoded.value;
 }
-async function appendSkillInvocationEvent(changeDir2, input2, options) {
+async function appendSkillInvocationEvent(changeDir7, input2, options) {
   const decoded = decodeApplicationEvent(input2);
-  return withLock(changeDir2, async () => appendSkillInvocationEventWithLockHeld(changeDir2, decoded, options));
+  return withLock(changeDir7, async () => appendSkillInvocationEventWithLockHeld(changeDir7, decoded, options));
 }
-async function appendSkillInvocationEventUnderLock(changeDir2, lock, input2, options) {
-  if (activeChangeLocks.get(lock) !== changeDir2) {
+async function appendSkillInvocationEventUnderLock(changeDir7, lock, input2, options) {
+  if (activeChangeLocks.get(lock) !== changeDir7) {
     throw new SkillInvocationEvidenceBindingError("SkillInvocation Change lock capability is invalid");
   }
   const decoded = decodeApplicationEvent(input2);
-  return appendSkillInvocationEventWithLockHeld(changeDir2, decoded, options);
+  return appendSkillInvocationEventWithLockHeld(changeDir7, decoded, options);
 }
-async function readSkillInvocationEvidence(changeDir2, options = {}) {
-  const identity2 = await captureLedgerIdentity(ledgerPath(changeDir2));
-  const events = await readLedgerEvents(changeDir2, options);
-  await assertLedgerIdentity(ledgerPath(changeDir2), identity2);
+async function readSkillInvocationEvidence(changeDir7, options = {}) {
+  const identity2 = await captureLedgerIdentity(ledgerPath(changeDir7));
+  const events = await readLedgerEvents(changeDir7, options);
+  await assertLedgerIdentity(ledgerPath(changeDir7), identity2);
   if (events.length === 0)
     return { schema_version: "skill-invocation-list/v1", state: "empty", items: [] };
   try {
@@ -8649,8 +8649,8 @@ function parseConfirmation(value) {
     }
   };
 }
-async function readDocumentSkillConfirmations(changeDir2) {
-  const raw = await readOptionalBoundedRegularTextFile(join13(changeDir2, DOCUMENT_SKILL_CONFIRMATIONS_FILE), MAX_CONFIRMATIONS_BYTES, "document Skill confirmation ledger");
+async function readDocumentSkillConfirmations(changeDir7) {
+  const raw = await readOptionalBoundedRegularTextFile(join13(changeDir7, DOCUMENT_SKILL_CONFIRMATIONS_FILE), MAX_CONFIRMATIONS_BYTES, "document Skill confirmation ledger");
   if (raw === void 0 || raw === "" || !raw.endsWith("\n"))
     return [];
   const confirmations = [];
@@ -8691,26 +8691,26 @@ function receiptDigest(visit2, producer, confirmedAt, sessionId, toolUseId) {
 function codexReceiptDigest(visit2, producer, confirmedAt) {
   return digest3(visit2.changeName, producer, confirmedAt, visit2.runId, String(visit2.transitionSequence));
 }
-async function canonicalVisit(changeDir2, evidenceScope) {
-  const revision = await readCurrentRunRevision(changeDir2);
+async function canonicalVisit(changeDir7, evidenceScope) {
+  const revision = await readCurrentRunRevision(changeDir7);
   const metadata = revision?.state.runMetadata;
   const phase = revision?.state.fields.phase;
   const workflow = revision?.state.fields.workflow;
   if (revision === void 0 || metadata === void 0 || typeof phase !== "string" || phase !== evidenceScope || typeof workflow !== "string")
     return void 0;
-  await validateCanonicalRevisionHistory(changeDir2);
+  await validateCanonicalRevisionHistory(changeDir7);
   let initial = revision;
   while (initial.revision > 0) {
     const previousId = initial.previousRevisionId;
     if (previousId === void 0)
       return void 0;
-    const previous = await readImmutableRunRevision(changeDir2, initial.revision - 1, previousId);
+    const previous = await readImmutableRunRevision(changeDir7, initial.revision - 1, previousId);
     if (previous === void 0)
       return void 0;
     initial = previous;
   }
   return {
-    changeName: basename2(changeDir2),
+    changeName: basename2(changeDir7),
     phase,
     runId: metadata.runId,
     transitionSequence: metadata.transitionSequence,
@@ -8720,7 +8720,7 @@ async function canonicalVisit(changeDir2, evidenceScope) {
       observedAt: initial.mutation.observedAt
     },
     subject: {
-      project_id: await skillInvocationProjectId(join14(changeDir2, "..", "..", "..")),
+      project_id: await skillInvocationProjectId(join14(changeDir7, "..", "..", "..")),
       workflow_definition_id: workflow,
       workflow_run_id: metadata.runId,
       step_id: phase,
@@ -8728,8 +8728,8 @@ async function canonicalVisit(changeDir2, evidenceScope) {
     }
   };
 }
-async function historyRows(changeDir2) {
-  const raw = await readOptionalBoundedRegularTextFile(join14(changeDir2, HISTORY_FILE), MAX_HISTORY_BYTES, "Change history");
+async function historyRows(changeDir7) {
+  const raw = await readOptionalBoundedRegularTextFile(join14(changeDir7, HISTORY_FILE), MAX_HISTORY_BYTES, "Change history");
   if (raw === void 0 || raw === "" || !raw.endsWith("\n"))
     return void 0;
   const rows = [];
@@ -8789,7 +8789,7 @@ function exactNativeSkillRow(rows, visit2, producer, observedAt) {
     return match !== null && skillsEquivalent(match[1] ?? "", producer);
   });
 }
-async function appendConfirmation(changeDir2, visit2, producer, confirmedAt, invocationId, adapter2) {
+async function appendConfirmation(changeDir7, visit2, producer, confirmedAt, invocationId, adapter2) {
   const confirmation = {
     schema_version: "document-skill-confirmation/v1",
     invocation_id: invocationId,
@@ -8799,17 +8799,17 @@ async function appendConfirmation(changeDir2, visit2, producer, confirmedAt, inv
     step_visit: { run_id: visit2.runId, transition_sequence: visit2.transitionSequence },
     adapter: adapter2
   };
-  await appendFile2(join14(changeDir2, DOCUMENT_SKILL_CONFIRMATIONS_FILE), `${JSON.stringify(confirmation)}
+  await appendFile2(join14(changeDir7, DOCUMENT_SKILL_CONFIRMATIONS_FILE), `${JSON.stringify(confirmation)}
 `, {
     encoding: "utf8",
     mode: 384
   });
 }
-async function recordNativeDocumentSkillConfirmation(changeDir2, producer, evidenceScope, receipt) {
+async function recordNativeDocumentSkillConfirmation(changeDir7, producer, evidenceScope, receipt) {
   if (!SAFE_OPAQUE_ID.test(receipt.sessionId) || !SAFE_OPAQUE_ID.test(receipt.toolUseId))
     return false;
-  const visit2 = await canonicalVisit(changeDir2, evidenceScope);
-  const rows = await historyRows(changeDir2);
+  const visit2 = await canonicalVisit(changeDir7, evidenceScope);
+  const rows = await historyRows(changeDir7);
   if (visit2 === void 0 || rows === void 0 || !exactNativeSkillRow(rows, visit2, producer, receipt.observedAt))
     return false;
   const proofRef = `native-post-tool-use-${receiptDigest(visit2, producer, receipt.observedAt, receipt.sessionId, receipt.toolUseId)}`;
@@ -8838,41 +8838,41 @@ async function recordNativeDocumentSkillConfirmation(changeDir2, producer, evide
       }
     }
   };
-  const existing = (await readDocumentSkillConfirmations(changeDir2)).find((confirmation) => confirmation.invocation_id === invocationId && confirmation.producer === producer && confirmation.confirmed_at === receipt.observedAt && confirmation.adapter.kind === "native" && confirmation.adapter.proof_ref === proofRef);
-  if (existing !== void 0 && await confirmationIsValid(changeDir2, visit2, rows, existing)) {
-    await appendSkillInvocationEvent(changeDir2, started, {});
+  const existing = (await readDocumentSkillConfirmations(changeDir7)).find((confirmation) => confirmation.invocation_id === invocationId && confirmation.producer === producer && confirmation.confirmed_at === receipt.observedAt && confirmation.adapter.kind === "native" && confirmation.adapter.proof_ref === proofRef);
+  if (existing !== void 0 && await confirmationIsValid(changeDir7, visit2, rows, existing)) {
+    await appendSkillInvocationEvent(changeDir7, started, {});
     return true;
   }
-  await appendSkillInvocationEvent(changeDir2, started, {});
-  await appendFile2(join14(changeDir2, HISTORY_FILE), `${JSON.stringify({
+  await appendSkillInvocationEvent(changeDir7, started, {});
+  await appendFile2(join14(changeDir7, HISTORY_FILE), `${JSON.stringify({
     ts: receipt.observedAt,
     kind: "tool",
     raw: `NativeSkillReadBinding: ${producer} ${visit2.runId} ${visit2.transitionSequence} ${proofRef}`
   })}
 `, "utf8");
-  await appendConfirmation(changeDir2, visit2, producer, receipt.observedAt, invocationId, {
+  await appendConfirmation(changeDir7, visit2, producer, receipt.observedAt, invocationId, {
     kind: "native",
     proof_ref: proofRef,
     host_session_ref: hostSessionRef,
     tool_use_ref: toolUseRef
   });
-  return (await currentDocumentSkillConfirmation(changeDir2, producer, evidenceScope, receipt.observedAt))?.invocation_id === invocationId;
+  return (await currentDocumentSkillConfirmation(changeDir7, producer, evidenceScope, receipt.observedAt))?.invocation_id === invocationId;
 }
-async function recordCodexDocumentSkillConfirmation(changeDir2, producer, confirmedAt, evidenceScope, expectedStepVisit, transcriptReceiptDigest, applicationKey = "") {
-  const visit2 = await canonicalVisit(changeDir2, evidenceScope);
+async function recordCodexDocumentSkillConfirmation(changeDir7, producer, confirmedAt, evidenceScope, expectedStepVisit, transcriptReceiptDigest, applicationKey = "") {
+  const visit2 = await canonicalVisit(changeDir7, evidenceScope);
   if (visit2 === void 0 || visit2.runId !== expectedStepVisit.runId || visit2.transitionSequence !== expectedStepVisit.transitionSequence || Buffer.byteLength(applicationKey) > 4096 || transcriptReceiptDigest !== `sha256:${codexReceiptDigest(visit2, producer, confirmedAt)}`)
     return false;
   const proofRef = `codex-transcript-${transcriptReceiptDigest.slice("sha256:".length)}`;
   const applicationRef = `sha256:${digest3(applicationKey)}`;
   const invocationId = `invocation-${digest3("codex-document-skill", visit2.runId, String(visit2.transitionSequence), producer, proofRef, applicationRef)}`;
-  await appendConfirmation(changeDir2, visit2, producer, confirmedAt, invocationId, {
+  await appendConfirmation(changeDir7, visit2, producer, confirmedAt, invocationId, {
     kind: "codex",
     proof_ref: proofRef,
     application_ref: applicationRef
   });
   return true;
 }
-async function confirmationIsValid(changeDir2, visit2, rows, confirmation) {
+async function confirmationIsValid(changeDir7, visit2, rows, confirmation) {
   if (confirmation.step_visit.run_id !== visit2.runId || confirmation.step_visit.transition_sequence !== visit2.transitionSequence || confirmation.evidence_scope !== visit2.phase)
     return false;
   if (confirmation.adapter.kind === "native") {
@@ -8894,39 +8894,39 @@ async function confirmationIsValid(changeDir2, visit2, rows, confirmation) {
   const binding = `CodexSkillReadBinding: ${confirmation.producer} ${visit2.runId} ${visit2.transitionSequence}`;
   return rows.some(({ value }) => value.kind === "tool" && value.ts === confirmation.confirmed_at && value.raw === read3) && rows.some(({ value }) => value.kind === "tool" && value.ts === confirmation.confirmed_at && value.raw === binding);
 }
-async function currentDocumentSkillConfirmation(changeDir2, producer, evidenceScope, notAfter) {
-  const visit2 = await canonicalVisit(changeDir2, evidenceScope);
-  const rows = await historyRows(changeDir2);
+async function currentDocumentSkillConfirmation(changeDir7, producer, evidenceScope, notAfter) {
+  const visit2 = await canonicalVisit(changeDir7, evidenceScope);
+  const rows = await historyRows(changeDir7);
   if (visit2 === void 0 || rows === void 0 || validTimestamp(notAfter) === void 0)
     return void 0;
-  const candidates = (await readDocumentSkillConfirmations(changeDir2)).filter((confirmation) => skillsEquivalent(confirmation.producer, producer) && confirmation.evidence_scope === evidenceScope && Date.parse(confirmation.confirmed_at) <= Date.parse(notAfter));
+  const candidates = (await readDocumentSkillConfirmations(changeDir7)).filter((confirmation) => skillsEquivalent(confirmation.producer, producer) && confirmation.evidence_scope === evidenceScope && Date.parse(confirmation.confirmed_at) <= Date.parse(notAfter));
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
     const confirmation = candidates[index];
-    if (confirmation !== void 0 && await confirmationIsValid(changeDir2, visit2, rows, confirmation)) {
+    if (confirmation !== void 0 && await confirmationIsValid(changeDir7, visit2, rows, confirmation)) {
       return confirmation;
     }
   }
   return void 0;
 }
-async function resolveNativeActiveDocumentSkill(changeDir2, input2) {
+async function resolveNativeActiveDocumentSkill(changeDir7, input2) {
   if (!SAFE_OPAQUE_ID.test(input2.sessionId) || validTimestamp(input2.observedAt) === void 0)
     return void 0;
-  const revision = await readCurrentRunRevision(changeDir2);
+  const revision = await readCurrentRunRevision(changeDir7);
   const phase = revision?.state.fields.phase;
   if (typeof phase !== "string")
     return void 0;
-  const visit2 = await canonicalVisit(changeDir2, phase);
-  const rows = await historyRows(changeDir2);
+  const visit2 = await canonicalVisit(changeDir7, phase);
+  const rows = await historyRows(changeDir7);
   if (visit2 === void 0 || rows === void 0)
     return void 0;
   const hostSessionRef = `sha256:${digest3("native-host-session", input2.sessionId)}`;
-  const evidence = await readSkillInvocationEvidence(changeDir2);
+  const evidence = await readSkillInvocationEvidence(changeDir7);
   if (evidence.state === "corrupt")
     return void 0;
-  const eligible = (await readDocumentSkillConfirmations(changeDir2)).filter((confirmation) => confirmation.adapter.kind === "native" && confirmation.adapter.host_session_ref === hostSessionRef && confirmation.evidence_scope === phase && confirmation.step_visit.run_id === visit2.runId && confirmation.step_visit.transition_sequence === visit2.transitionSequence && Date.parse(confirmation.confirmed_at) <= Date.parse(input2.observedAt) && (input2.invocationId === void 0 || confirmation.invocation_id === input2.invocationId) && evidence.items.some((item2) => item2.invocation_id === confirmation.invocation_id && item2.status === "incomplete"));
+  const eligible = (await readDocumentSkillConfirmations(changeDir7)).filter((confirmation) => confirmation.adapter.kind === "native" && confirmation.adapter.host_session_ref === hostSessionRef && confirmation.evidence_scope === phase && confirmation.step_visit.run_id === visit2.runId && confirmation.step_visit.transition_sequence === visit2.transitionSequence && Date.parse(confirmation.confirmed_at) <= Date.parse(input2.observedAt) && (input2.invocationId === void 0 || confirmation.invocation_id === input2.invocationId) && evidence.items.some((item2) => item2.invocation_id === confirmation.invocation_id && item2.status === "incomplete"));
   const candidates = [];
   for (const confirmation of eligible) {
-    if (await confirmationIsValid(changeDir2, visit2, rows, confirmation))
+    if (await confirmationIsValid(changeDir7, visit2, rows, confirmation))
       candidates.push(confirmation);
   }
   if (candidates.length === 0)
@@ -8967,15 +8967,15 @@ function isCurrentIncomplete(events, runId, transitionSequence) {
   const started = events.find((event) => event.type === "invocation-started");
   return started !== void 0 && started.subject.workflow_run_id === runId && started.subject.step_visit.run_id === runId && started.subject.step_visit.transition_sequence === transitionSequence && !events.some((event) => event.type === "invocation-completed" || event.type === "invocation-failed" || event.type === "invocation-interrupted");
 }
-async function recordHostSkillInvocationInteraction(changeDir2, receipt) {
+async function recordHostSkillInvocationInteraction(changeDir7, receipt) {
   if (!safeId(receipt.receipt_id) || receipt.questions.length === 0 || receipt.questions.length > 3) {
     throw new SkillInvocationInteractionBindingError("host interaction receipt identity or question count is invalid");
   }
-  const current = await readCurrentRunRevision(changeDir2);
+  const current = await readCurrentRunRevision(changeDir7);
   const metadata = current?.state.runMetadata;
   if (metadata === void 0)
     throw new SkillInvocationInteractionBindingError("canonical WorkflowRun identity is missing");
-  const active = await resolveNativeActiveDocumentSkill(changeDir2, {
+  const active = await resolveNativeActiveDocumentSkill(changeDir7, {
     sessionId: receipt.binding.host_session_id,
     observedAt: receipt.recorded_at,
     ...receipt.binding.invocation_id === void 0 ? {} : { invocationId: receipt.binding.invocation_id }
@@ -8983,7 +8983,7 @@ async function recordHostSkillInvocationInteraction(changeDir2, receipt) {
   if (active === void 0) {
     throw new SkillInvocationInteractionBindingError("host interaction lacks one exact active Skill invocation in this session");
   }
-  const allEvents = await readSkillInvocationEventsForApplication(changeDir2);
+  const allEvents = await readSkillInvocationEventsForApplication(changeDir7);
   const invocationEvents = invocationGroups(allEvents).get(active.invocationId);
   if (invocationEvents === void 0 || !isCurrentIncomplete(invocationEvents, metadata.runId, metadata.transitionSequence)) {
     throw new SkillInvocationInteractionBindingError("active host Skill invocation does not match the canonical StepVisit");
@@ -9011,9 +9011,9 @@ async function recordHostSkillInvocationInteraction(changeDir2, receipt) {
       recorded_at: receipt.recorded_at,
       payload: { ...item2.question, question_id: questionId }
     };
-    await appendSkillInvocationEvent(changeDir2, questionEvent, options);
+    await appendSkillInvocationEvent(changeDir7, questionEvent, options);
     sequence += 1;
-    await appendSkillInvocationEvent(changeDir2, {
+    await appendSkillInvocationEvent(changeDir7, {
       ...started,
       event_id: `${questionId}-answered`,
       sequence,
@@ -11478,15 +11478,15 @@ var eventId = (invocationId, suffix) => `${invocationId}-${suffix}`;
 function scalar(value) {
   return typeof value === "string" ? value : "";
 }
-async function anchoredStart(changeDir2, reservationId) {
-  const revision = await readCurrentRunRevision(changeDir2);
+async function anchoredStart(changeDir7, reservationId) {
+  const revision = await readCurrentRunRevision(changeDir7);
   const metadata = revision?.state.runMetadata;
   const workflow = scalar(revision?.state.fields.workflow);
   const step = scalar(revision?.state.fields.phase);
   if (metadata === void 0 || workflow === "" || step === "") {
     throw new AfkSkillInvocationProofError("canonical WorkflowRun StepVisit identity is missing");
   }
-  const repoRoot = resolve4(changeDir2, "..", "..", "..");
+  const repoRoot = resolve4(changeDir7, "..", "..", "..");
   const read3 = await createLoopLedgerStore().read(repoRoot);
   if (read3.rejected.length > 0) {
     throw new AfkSkillInvocationProofError("AFK lifecycle cannot use a degraded loop ledger");
@@ -11498,7 +11498,7 @@ async function anchoredStart(changeDir2, reservationId) {
   const reservation = reservations[0];
   const activation = activations[0];
   const snapshot2 = snapshots[0];
-  if (reservations.length !== 1 || activations.length !== 1 || snapshots.length !== 1 || terminals.length !== 0 || reservation === void 0 || activation === void 0 || snapshot2 === void 0 || reservation.change !== basename3(changeDir2) || activation.attempt_id !== reservation.attempt_id || activation.change !== reservation.change || activation.loop_id !== reservation.loop_id || snapshot2.attempt_id !== reservation.attempt_id || snapshot2.loop_id !== reservation.loop_id || snapshot2.workflow_run_id !== metadata.runId || snapshot2.workflow !== workflow || snapshot2.step !== step) {
+  if (reservations.length !== 1 || activations.length !== 1 || snapshots.length !== 1 || terminals.length !== 0 || reservation === void 0 || activation === void 0 || snapshot2 === void 0 || reservation.change !== basename3(changeDir7) || activation.attempt_id !== reservation.attempt_id || activation.change !== reservation.change || activation.loop_id !== reservation.loop_id || snapshot2.attempt_id !== reservation.attempt_id || snapshot2.loop_id !== reservation.loop_id || snapshot2.workflow_run_id !== metadata.runId || snapshot2.workflow !== workflow || snapshot2.step !== step) {
     throw new AfkSkillInvocationProofError("AFK lifecycle binding lacks one exact open reservation, snapshot, activation, and canonical StepVisit");
   }
   return {
@@ -11515,8 +11515,8 @@ async function anchoredStart(changeDir2, reservationId) {
     }
   };
 }
-async function startDurableAfkSkillInvocations(changeDir2, reservationId, interactionReceipts = []) {
-  const { subject: subject2, reservation, activation, snapshot: snapshot2 } = await anchoredStart(changeDir2, reservationId);
+async function startDurableAfkSkillInvocations(changeDir7, reservationId, interactionReceipts = []) {
+  const { subject: subject2, reservation, activation, snapshot: snapshot2 } = await anchoredStart(changeDir7, reservationId);
   const attempt2 = { attempt_id: reservation.attempt_id, reservation_id: reservation.reservation_id };
   const interactions = interactionReceipts.map((receipt) => ({
     receipt,
@@ -11547,12 +11547,12 @@ async function startDurableAfkSkillInvocations(changeDir2, reservationId, intera
         adapter: { kind: "afk", proof_ref: `afk-attempt-${digest4(attempt2.attempt_id, attempt2.reservation_id, slot.concrete_skill_id)}` }
       }
     };
-    await appendSkillInvocationEvent(changeDir2, started, { attempt: attempt2 });
+    await appendSkillInvocationEvent(changeDir7, started, { attempt: attempt2 });
     const interaction = interactions.find(({ input: input2 }) => input2?.skill_id === slot.concrete_skill_id);
     let nextSequence = 2;
     if (interaction?.input !== void 0) {
       const { input: input2 } = interaction;
-      await appendSkillInvocationEvent(changeDir2, {
+      await appendSkillInvocationEvent(changeDir7, {
         ...started,
         event_id: eventId(invocationId, "question"),
         sequence: nextSequence,
@@ -11561,7 +11561,7 @@ async function startDurableAfkSkillInvocations(changeDir2, reservationId, intera
         payload: input2.question
       }, { attempt: attempt2 });
       nextSequence += 1;
-      await appendSkillInvocationEvent(changeDir2, {
+      await appendSkillInvocationEvent(changeDir7, {
         ...started,
         event_id: eventId(invocationId, "decision"),
         sequence: nextSequence,
@@ -11576,7 +11576,7 @@ async function startDurableAfkSkillInvocations(changeDir2, reservationId, intera
       consumeVerifiedAfkInteractionReceipt(interaction.receipt);
     }
     const handle = Object.freeze({
-      changeDir: changeDir2,
+      changeDir: changeDir7,
       change: reservation.change,
       loopId: reservation.loop_id,
       workflowRunId: snapshot2.workflow_run_id,
@@ -12492,11 +12492,11 @@ function repoRelative(value, path15, id2) {
   return value;
 }
 function testOutputPath(value, path15, id2) {
-  const relative33 = repoRelative(value, path15, id2);
-  if (!relative33.split("/").some((segment) => TEST_OUTPUT_DIR_SEGMENTS.includes(segment))) {
-    compileError4(path15, `\u6D4B\u8BD5 '${id2}' \u7684\u8F93\u51FA '${relative33}' \u5FC5\u987B\u4F4D\u4E8E ${TEST_OUTPUT_DIR_SEGMENTS.join("/\u3001")}/ \u76EE\u5F55\u4E0B`);
+  const relative34 = repoRelative(value, path15, id2);
+  if (!relative34.split("/").some((segment) => TEST_OUTPUT_DIR_SEGMENTS.includes(segment))) {
+    compileError4(path15, `\u6D4B\u8BD5 '${id2}' \u7684\u8F93\u51FA '${relative34}' \u5FC5\u987B\u4F4D\u4E8E ${TEST_OUTPUT_DIR_SEGMENTS.join("/\u3001")}/ \u76EE\u5F55\u4E0B`);
   }
-  return relative33;
+  return relative34;
 }
 function compileInput(raw, path15, id2) {
   const record9 = asRecord4(raw, path15);
@@ -15797,8 +15797,8 @@ function parseDocumentLocalePin(raw) {
   }
   return { version: 1, locale: record9.locale };
 }
-async function readDocumentLocalePin(changeDir2) {
-  const target = join18(changeDir2, DOCUMENT_LOCALE_FILE);
+async function readDocumentLocalePin(changeDir7) {
+  const target = join18(changeDir7, DOCUMENT_LOCALE_FILE);
   try {
     const info = await lstat11(target);
     if (!info.isFile() || info.isSymbolicLink()) {
@@ -15811,8 +15811,8 @@ async function readDocumentLocalePin(changeDir2) {
     throw error2;
   }
 }
-async function ensureDocumentLocalePin(changeDir2, locale) {
-  const existing = await readDocumentLocalePin(changeDir2);
+async function ensureDocumentLocalePin(changeDir7, locale) {
+  const existing = await readDocumentLocalePin(changeDir7);
   if (existing !== void 0) {
     if (existing.locale !== locale) {
       throw new Error(`Change \u5DF2\u56FA\u5B9A document locale '${existing.locale}'\uFF0C\u62D2\u7EDD\u6539\u4E3A '${locale}'`);
@@ -15820,15 +15820,15 @@ async function ensureDocumentLocalePin(changeDir2, locale) {
     return existing;
   }
   const pin = { version: 1, locale };
-  const target = join18(changeDir2, DOCUMENT_LOCALE_FILE);
+  const target = join18(changeDir7, DOCUMENT_LOCALE_FILE);
   try {
-    await atomicLinkPublish(changeDir2, ".pipeline-document-locale.tmp", target, `${JSON.stringify(pin)}
+    await atomicLinkPublish(changeDir7, ".pipeline-document-locale.tmp", target, `${JSON.stringify(pin)}
 `);
     return pin;
   } catch (error2) {
     if (errorCode3(error2) !== "EEXIST")
       throw error2;
-    const raced = await readDocumentLocalePin(changeDir2);
+    const raced = await readDocumentLocalePin(changeDir7);
     if (raced === void 0)
       throw new Error(`document locale pin \u5E76\u53D1\u521B\u5EFA\u540E\u4E0D\u53EF\u8BFB\u53D6: ${target}`);
     if (raced.locale !== locale) {
@@ -15931,8 +15931,8 @@ function workflowPlanSnapshotContent(runId, snapshot2) {
   return `${JSON.stringify({ version: 1, run_id: runId, plan: snapshot2 })}
 `;
 }
-async function readWorkflowPlanSnapshot(changeDir2) {
-  const target = join19(changeDir2, WORKFLOW_PLAN_SNAPSHOT_FILE);
+async function readWorkflowPlanSnapshot(changeDir7) {
+  const target = join19(changeDir7, WORKFLOW_PLAN_SNAPSHOT_FILE);
   try {
     const info = await lstat12(target);
     if (!info.isFile() || info.isSymbolicLink()) {
@@ -15945,9 +15945,9 @@ async function readWorkflowPlanSnapshot(changeDir2) {
     throw error2;
   }
 }
-async function ensureWorkflowPlanSnapshot(changeDir2, runId, snapshot2) {
+async function ensureWorkflowPlanSnapshot(changeDir7, runId, snapshot2) {
   const requested = workflowPlanSnapshotContent(runId, snapshot2);
-  const existing = await readWorkflowPlanSnapshot(changeDir2);
+  const existing = await readWorkflowPlanSnapshot(changeDir7);
   if (existing !== void 0) {
     if (`${JSON.stringify(existing)}
 ` !== requested) {
@@ -15955,13 +15955,13 @@ async function ensureWorkflowPlanSnapshot(changeDir2, runId, snapshot2) {
     }
     return;
   }
-  const target = join19(changeDir2, WORKFLOW_PLAN_SNAPSHOT_FILE);
+  const target = join19(changeDir7, WORKFLOW_PLAN_SNAPSHOT_FILE);
   try {
-    await atomicLinkPublish(changeDir2, ".pipeline-workflow-plan.tmp", target, requested);
+    await atomicLinkPublish(changeDir7, ".pipeline-workflow-plan.tmp", target, requested);
   } catch (error2) {
     if (errorCode4(error2) !== "EEXIST")
       throw error2;
-    const raced = await readWorkflowPlanSnapshot(changeDir2);
+    const raced = await readWorkflowPlanSnapshot(changeDir7);
     if (raced === void 0 || `${JSON.stringify(raced)}
 ` !== requested) {
       throw new Error("workflow plan snapshot \u5E76\u53D1\u521B\u5EFA\u540E\u5185\u5BB9\u4E0D\u4E00\u81F4");
@@ -16165,11 +16165,11 @@ async function prepareInitialChangePublication(inputRoot, name2) {
     throw error2;
   }
 }
-async function writeInitialChangeFiles(changeDir2, files) {
+async function writeInitialChangeFiles(changeDir7, files) {
   const observed = /* @__PURE__ */ new Set();
   for (const file of files ?? []) {
-    const target = path3.resolve(changeDir2, file.relativePath);
-    if (file.relativePath === "" || !contained(changeDir2, target) || observed.has(target)) {
+    const target = path3.resolve(changeDir7, file.relativePath);
+    if (file.relativePath === "" || !contained(changeDir7, target) || observed.has(target)) {
       throw new Error(`init: initial file \u8DEF\u5F84\u975E\u6CD5\u6216\u91CD\u590D: ${file.relativePath}`);
     }
     observed.add(target);
@@ -16193,8 +16193,8 @@ async function publishInitialChange(publication) {
     throw alreadyInitialized(finalChangeDir);
   }
 }
-async function discardInitialChangeCandidate(changeDir2) {
-  await rm2(changeDir2, { recursive: true, force: true }).catch(() => {
+async function discardInitialChangeCandidate(changeDir7) {
+  await rm2(changeDir7, { recursive: true, force: true }).catch(() => {
   });
 }
 
@@ -16203,8 +16203,8 @@ var STATE_FILE_NAME = ".pipeline.yaml";
 var StateProjectionDriftError = class extends Error {
   _tag = "StateProjectionDriftError";
 };
-function stateFilePath(changeDir2) {
-  return path4.join(changeDir2, STATE_FILE_NAME);
+function stateFilePath(changeDir7) {
+  return path4.join(changeDir7, STATE_FILE_NAME);
 }
 var atomicWriteFile = atomicReplaceFile;
 function gateValue(field3, value) {
@@ -16255,13 +16255,13 @@ function isPreciseLegacyFieldProjection(raw, parsed, current) {
     return false;
   return FIELD_ORDER.every((field3) => seen.has(field3) || omitsCompleteReviewGate && REVIEW_GATE_FIELD_SET2.has(field3) || omitsPreVerifyReview && field3 === PRE_VERIFY_REVIEW_FIELD || omitsReviewChannel && field3 === "review_acknowledged_via");
 }
-async function inspectProjectionAgainst(changeDir2, current) {
+async function inspectProjectionAgainst(changeDir7, current) {
   if (current === void 0)
     return { status: "legacy" };
   const identity2 = { revision: current.revision, revisionId: current.revisionId };
   let raw;
   try {
-    raw = await readFile13(stateFilePath(changeDir2), "utf8");
+    raw = await readFile13(stateFilePath(changeDir7), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT")
       return { status: "missing", ...identity2 };
@@ -16293,7 +16293,7 @@ async function inspectProjectionAgainst(changeDir2, current) {
   if (isPreciseLegacyFieldProjection(raw, parsed, current)) {
     return { status: "current", ...identity2 };
   }
-  const referenced = await readImmutableRunRevision(changeDir2, metadata.stateRevision, metadata.stateRevisionId);
+  const referenced = await readImmutableRunRevision(changeDir7, metadata.stateRevision, metadata.stateRevisionId);
   if (referenced !== void 0 && referenced.stateDigest === metadata.stateDigest && (matchesKnownProjection(raw, referenced) || isPreciseLegacyFieldProjection(raw, parsed, referenced)))
     return { status: "stale", ...identity2 };
   return {
@@ -16309,126 +16309,126 @@ var FsStateStore = class {
     this.writeProjection = options.writeProjection ?? atomicWriteFile;
     this.beforeInitialPublish = options.beforeInitialPublish;
   }
-  async read(changeDir2) {
-    const current = await readCurrentRunRevision(changeDir2);
+  async read(changeDir7) {
+    const current = await readCurrentRunRevision(changeDir7);
     if (current !== void 0) {
       const state = structuredClone(current.state);
-      const binding = await readWorkflowGovernanceBinding(changeDir2);
+      const binding = await readWorkflowGovernanceBinding(changeDir7);
       const governedMetadata = attachWorkflowGovernanceBinding(state.runMetadata, binding);
-      const metadata = attachWorkflowPlanSnapshot(governedMetadata, await readWorkflowPlanSnapshot(changeDir2));
+      const metadata = attachWorkflowPlanSnapshot(governedMetadata, await readWorkflowPlanSnapshot(changeDir7));
       return {
         ...state,
         ...metadata === void 0 ? {} : { runMetadata: metadata }
       };
     }
-    return parsePipeline(await readFile13(stateFilePath(changeDir2), "utf8"));
+    return parsePipeline(await readFile13(stateFilePath(changeDir7), "utf8"));
   }
-  async write(changeDir2, state, mutation = { kind: "replace" }) {
-    return withLock(changeDir2, () => this.writeUnderLock(changeDir2, state, mutation));
+  async write(changeDir7, state, mutation = { kind: "replace" }) {
+    return withLock(changeDir7, () => this.writeUnderLock(changeDir7, state, mutation));
   }
-  async writeUnderLock(changeDir2, state, mutation = { kind: "replace" }) {
+  async writeUnderLock(changeDir7, state, mutation = { kind: "replace" }) {
     if (state.runMetadata !== void 0 && (state.runMetadata.documentProfile !== void 0 || state.runMetadata.documentGovernanceFingerprint !== void 0 || state.runMetadata.workflowPlanFingerprint !== void 0)) {
-      await ensureWorkflowGovernanceBinding(changeDir2, state.runMetadata);
+      await ensureWorkflowGovernanceBinding(changeDir7, state.runMetadata);
     }
     if (state.runMetadata?.workflowPlanSnapshot !== void 0) {
-      await ensureWorkflowPlanSnapshot(changeDir2, state.runMetadata.runId, state.runMetadata.workflowPlanSnapshot);
+      await ensureWorkflowPlanSnapshot(changeDir7, state.runMetadata.runId, state.runMetadata.workflowPlanSnapshot);
     }
     const nextState = stateWithoutProjection(state);
     serializePipeline(nextState);
-    let current = await readCurrentRunRevision(changeDir2);
+    let current = await readCurrentRunRevision(changeDir7);
     if (current === void 0) {
-      const legacy = parsePipeline(await readFile13(stateFilePath(changeDir2), "utf8"));
-      current = await publishInitialRunRevision(changeDir2, legacy, defaultStateClock(), "migration");
+      const legacy = parsePipeline(await readFile13(stateFilePath(changeDir7), "utf8"));
+      current = await publishInitialRunRevision(changeDir7, legacy, defaultStateClock(), "migration");
     } else {
-      const status = await inspectProjectionAgainst(changeDir2, current);
+      const status = await inspectProjectionAgainst(changeDir7, current);
       if (status.status === "drift") {
         throw new StateProjectionDriftError(`YAML projection drift\uFF1A${status.reason}`);
       }
     }
-    const next = await publishRunRevision(changeDir2, current, nextState, {
+    const next = await publishRunRevision(changeDir7, current, nextState, {
       kind: mutation.kind,
       observedAt: defaultStateClock(),
       ...mutation.transitionRecordId === void 0 ? {} : { transitionRecordId: mutation.transitionRecordId }
     });
     try {
-      await this.writeProjection(stateFilePath(changeDir2), projectionContent(next));
+      await this.writeProjection(stateFilePath(changeDir7), projectionContent(next));
       return { projection: { status: "updated" } };
     } catch (error2) {
       return { projection: { status: "pending", error: error2 } };
     }
   }
-  async get(changeDir2, field3) {
-    const state = await this.read(changeDir2);
+  async get(changeDir7, field3) {
+    const state = await this.read(changeDir7);
     return state.fields[field3];
   }
-  async set(changeDir2, field3, value) {
-    await this.setMany(changeDir2, { [field3]: value }, "set");
+  async set(changeDir7, field3, value) {
+    await this.setMany(changeDir7, { [field3]: value }, "set");
   }
-  async setMany(changeDir2, kv, mutationKind = "set-many") {
+  async setMany(changeDir7, kv, mutationKind = "set-many") {
     const entries = Object.entries(kv).filter((e) => e[1] !== void 0);
     for (const [field3, value] of entries)
       gateValue(field3, value);
     if (entries.length === 0)
       return;
-    await withLock(changeDir2, async () => {
-      const state = await this.read(changeDir2);
+    await withLock(changeDir7, async () => {
+      const state = await this.read(changeDir7);
       for (const [field3, value] of entries)
         state.fields[field3] = value;
-      await this.writeUnderLock(changeDir2, state, { kind: mutationKind });
+      await this.writeUnderLock(changeDir7, state, { kind: mutationKind });
     });
   }
-  async cas(changeDir2, field3, expect, next) {
+  async cas(changeDir7, field3, expect, next) {
     quoteGate(field3, next);
-    return withLock(changeDir2, async () => {
-      const state = await this.read(changeDir2);
+    return withLock(changeDir7, async () => {
+      const state = await this.read(changeDir7);
       if (state.fields[field3] !== expect)
         return false;
       state.fields[field3] = next;
-      await this.writeUnderLock(changeDir2, state, { kind: "cas" });
+      await this.writeUnderLock(changeDir7, state, { kind: "cas" });
       return true;
     });
   }
-  async casMany(changeDir2, field3, expects, kv) {
+  async casMany(changeDir7, field3, expects, kv) {
     const entries = Object.entries(kv).filter((e) => e[1] !== void 0);
     for (const [entryField, value] of entries)
       gateValue(entryField, value);
-    return withLock(changeDir2, async () => {
-      const state = await this.read(changeDir2);
+    return withLock(changeDir7, async () => {
+      const state = await this.read(changeDir7);
       const observed = state.fields[field3];
       if (typeof observed !== "string" || !expects.includes(observed))
         return false;
       for (const [entryField, value] of entries)
         state.fields[entryField] = value;
-      await this.writeUnderLock(changeDir2, state, { kind: "cas-many" });
+      await this.writeUnderLock(changeDir7, state, { kind: "cas-many" });
       return true;
     });
   }
-  async inspectProjection(changeDir2) {
-    return inspectProjectionAgainst(changeDir2, await readCurrentRunRevision(changeDir2));
+  async inspectProjection(changeDir7) {
+    return inspectProjectionAgainst(changeDir7, await readCurrentRunRevision(changeDir7));
   }
-  async repairProjection(changeDir2, opts = {}) {
-    return withLock(changeDir2, async () => {
-      const current = await readCurrentRunRevision(changeDir2);
+  async repairProjection(changeDir7, opts = {}) {
+    return withLock(changeDir7, async () => {
+      const current = await readCurrentRunRevision(changeDir7);
       if (current === void 0) {
         throw new StateProjectionDriftError("repair-projection: canonical current \u4E0D\u5B58\u5728\uFF1B\u4ECD\u662F legacy change");
       }
-      const status = await inspectProjectionAgainst(changeDir2, current);
+      const status = await inspectProjectionAgainst(changeDir7, current);
       if (status.status === "current")
         return status;
       if (status.status === "drift" && opts.forceCanonical !== true) {
         throw new StateProjectionDriftError(`repair-projection \u62D2\u7EDD\u8986\u76D6\u672A\u77E5 YAML drift\uFF1A${status.reason}\uFF1B\u663E\u5F0F\u9009\u62E9 canonical \u8986\u76D6\u6216 legacy import`);
       }
-      await this.writeProjection(stateFilePath(changeDir2), projectionContent(current));
+      await this.writeProjection(stateFilePath(changeDir7), projectionContent(current));
       return { status: "current", revision: current.revision, revisionId: current.revisionId };
     });
   }
-  async importLegacyProjection(changeDir2) {
-    return withLock(changeDir2, async () => {
-      const current = await readCurrentRunRevision(changeDir2);
+  async importLegacyProjection(changeDir7) {
+    return withLock(changeDir7, async () => {
+      const current = await readCurrentRunRevision(changeDir7);
       if (current === void 0) {
         throw new StateProjectionDriftError("import-legacy: canonical current \u4E0D\u5B58\u5728\uFF1B\u65E0\u9700\u89E3\u51B3\u53CC\u4E3B drift");
       }
-      const legacy = parsePipeline(await readFile13(stateFilePath(changeDir2), "utf8"));
+      const legacy = parsePipeline(await readFile13(stateFilePath(changeDir7), "utf8"));
       const merged = mergeLegacyImportFields(legacy.fields, current.state.fields);
       const imported = {
         fields: merged.fields,
@@ -16436,12 +16436,12 @@ var FsStateStore = class {
         opaqueTail: legacy.opaqueTail
       };
       serializePipeline(imported);
-      const next = await publishRunRevision(changeDir2, current, imported, {
+      const next = await publishRunRevision(changeDir7, current, imported, {
         kind: "legacy-import",
         observedAt: defaultStateClock()
       });
       try {
-        await this.writeProjection(stateFilePath(changeDir2), projectionContent(next));
+        await this.writeProjection(stateFilePath(changeDir7), projectionContent(next));
         return { projection: { status: "updated" }, ignoredProtectedFields: merged.ignoredProtectedFields };
       } catch (error2) {
         return { projection: { status: "pending", error: error2 }, ignoredProtectedFields: merged.ignoredProtectedFields };
@@ -16453,7 +16453,7 @@ var FsStateStore = class {
     assertValidChangeName(name2);
     const clock = opts.clock ?? defaultStateClock;
     const publication = await prepareInitialChangePublication(opts.repoRoot, name2);
-    const { candidateChangeDir: changeDir2, finalChangeDir } = publication;
+    const { candidateChangeDir: changeDir7, finalChangeDir } = publication;
     let published = false;
     try {
       const requestedDocumentLocale = opts.documentLocale ?? "zh-CN";
@@ -16467,34 +16467,34 @@ var FsStateStore = class {
         ...fullRunMetadata === void 0 ? {} : { runMetadata: withoutWorkflowGovernanceBinding(fullRunMetadata) },
         opaqueTail: ""
       };
-      await ensureDocumentLocalePin(changeDir2, requestedDocumentLocale);
+      await ensureDocumentLocalePin(changeDir7, requestedDocumentLocale);
       if (fullRunMetadata !== void 0 && (fullRunMetadata.documentProfile !== void 0 || fullRunMetadata.documentGovernanceFingerprint !== void 0 || fullRunMetadata.workflowPlanFingerprint !== void 0)) {
-        await ensureWorkflowGovernanceBinding(changeDir2, fullRunMetadata);
+        await ensureWorkflowGovernanceBinding(changeDir7, fullRunMetadata);
       }
       if (fullRunMetadata?.workflowPlanSnapshot !== void 0) {
         if (fullRunMetadata.workflowPlanFingerprint === void 0) {
           throw new Error("init workflow plan snapshot \u7F3A\u5C11 workflow plan fingerprint");
         }
-        await ensureWorkflowPlanSnapshot(changeDir2, fullRunMetadata.runId, fullRunMetadata.workflowPlanSnapshot);
+        await ensureWorkflowPlanSnapshot(changeDir7, fullRunMetadata.runId, fullRunMetadata.workflowPlanSnapshot);
       }
-      const revision = await publishInitialRunRevision(changeDir2, state, ts);
+      const revision = await publishInitialRunRevision(changeDir7, state, ts);
       try {
-        await atomicLinkPublish(changeDir2, ".pipeline.yaml.tmp", stateFilePath(changeDir2), projectionContent(revision));
+        await atomicLinkPublish(changeDir7, ".pipeline.yaml.tmp", stateFilePath(changeDir7), projectionContent(revision));
       } catch {
       }
-      await writeInitialChangeFiles(changeDir2, opts.initialFiles);
-      await this.beforeInitialPublish?.(changeDir2, finalChangeDir);
+      await writeInitialChangeFiles(changeDir7, opts.initialFiles);
+      await this.beforeInitialPublish?.(changeDir7, finalChangeDir);
       await publishInitialChange(publication);
       published = true;
       return finalChangeDir;
     } finally {
       if (!published)
-        await discardInitialChangeCandidate(changeDir2);
+        await discardInitialChangeCandidate(changeDir7);
       await releaseInitialChangePublication(publication);
     }
   }
-  async withLock(changeDir2, fn) {
-    return withLock(changeDir2, fn);
+  async withLock(changeDir7, fn) {
+    return withLock(changeDir7, fn);
   }
 };
 function createStateStore(options = {}) {
@@ -17191,11 +17191,11 @@ function splitLines(raw) {
   }
   return lines2;
 }
-function interactionProjectionPath(changeDir2) {
-  return join20(changeDir2, INTERACTION_PROJECTION_FILE);
+function interactionProjectionPath(changeDir7) {
+  return join20(changeDir7, INTERACTION_PROJECTION_FILE);
 }
-async function readInteractionProjection(changeDir2) {
-  const path15 = interactionProjectionPath(changeDir2);
+async function readInteractionProjection(changeDir7) {
+  const path15 = interactionProjectionPath(changeDir7);
   const entry = await assertRegular(path15, true);
   if (entry === false)
     return { kind: "missing", path: path15, diagnostic: "projection-unavailable" };
@@ -17246,9 +17246,9 @@ async function readInteractionProjection(changeDir2) {
   }
   return { kind: "valid", path: path15, events, rawLines };
 }
-async function appendInteractionEventUnderLock(changeDir2, event) {
-  const path15 = interactionProjectionPath(changeDir2);
-  const existing = await readInteractionProjection(changeDir2);
+async function appendInteractionEventUnderLock(changeDir7, event) {
+  const path15 = interactionProjectionPath(changeDir7);
+  const existing = await readInteractionProjection(changeDir7);
   if (existing.kind === "valid" && existing.events.length >= INTERACTION_MAX_EVENTS) {
     throw new InteractionProjectionError("projection-size-exceeded", "interaction projection event \u6570\u8FBE\u5230\u4E0A\u9650");
   }
@@ -17292,8 +17292,8 @@ async function appendInteractionEventUnderLock(changeDir2, event) {
 }
 function createInteractionEventRecorder() {
   return {
-    recordUnderLock: async (changeDir2, draft) => {
-      const current = await readInteractionProjection(changeDir2);
+    recordUnderLock: async (changeDir7, draft) => {
+      const current = await readInteractionProjection(changeDir7);
       const previous = current.kind === "valid" ? current.events.at(-1) : void 0;
       const previousRaw = current.kind === "valid" ? current.rawLines.at(-1) : void 0;
       const event = createInteractionEvent({
@@ -17301,7 +17301,7 @@ function createInteractionEventRecorder() {
         sequence: (previous?.sequence ?? 0) + 1,
         previousEventHash: previousRaw === void 0 ? null : interactionLineHash(previousRaw)
       });
-      await appendInteractionEventUnderLock(changeDir2, event);
+      await appendInteractionEventUnderLock(changeDir7, event);
       return event;
     }
   };
@@ -17415,9 +17415,9 @@ function agentsReferenced(workflow) {
   }
   return [...names].sort();
 }
-var frozenRoot = (changeDir2) => join21(changeDir2, FROZEN_DIR);
-var lockPath = (changeDir2) => join21(frozenRoot(changeDir2), FROZEN_LOCK_FILE);
-var agentPath = (changeDir2, name2) => join21(frozenRoot(changeDir2), FROZEN_AGENTS_DIR, `${name2}.md`);
+var frozenRoot = (changeDir7) => join21(changeDir7, FROZEN_DIR);
+var lockPath = (changeDir7) => join21(frozenRoot(changeDir7), FROZEN_LOCK_FILE);
+var agentPath = (changeDir7, name2) => join21(frozenRoot(changeDir7), FROZEN_AGENTS_DIR, `${name2}.md`);
 function decodeLock(text8) {
   let value;
   try {
@@ -17444,9 +17444,9 @@ function decodeLock(text8) {
   });
   return { version: LOCK_VERSION, run_id: record9.run_id, workflow_fingerprint: record9.workflow_fingerprint, agents };
 }
-async function readAgentFreezeLock(changeDir2) {
+async function readAgentFreezeLock(changeDir7) {
   try {
-    return decodeLock(await readFile14(lockPath(changeDir2), "utf8"));
+    return decodeLock(await readFile14(lockPath(changeDir7), "utf8"));
   } catch (error2) {
     if (error2 instanceof AgentFreezeError)
       throw error2;
@@ -17616,10 +17616,10 @@ function decodeRow(value) {
     finished_at: record9.finished_at
   };
 }
-async function readAgentRuns(changeDir2) {
+async function readAgentRuns(changeDir7) {
   let raw;
   try {
-    raw = await readFile15(join22(changeDir2, AGENT_RUNS_FILE), "utf8");
+    raw = await readFile15(join22(changeDir7, AGENT_RUNS_FILE), "utf8");
   } catch {
     return [];
   }
@@ -17650,8 +17650,8 @@ async function readAgentRuns(changeDir2) {
   }
   return order.map((runId) => latest.get(runId)).filter((row2) => row2 !== void 0);
 }
-async function appendAgentRunRow(changeDir2, row2) {
-  await appendFile3(join22(changeDir2, AGENT_RUNS_FILE), `${JSON.stringify(row2)}
+async function appendAgentRunRow(changeDir7, row2) {
+  await appendFile3(join22(changeDir7, AGENT_RUNS_FILE), `${JSON.stringify(row2)}
 `, "utf8");
 }
 var RESULT_BLOCK_RE = /^[\s\S]*```tenon-result\s*\n([\s\S]*?)\n?```\s*$/;
@@ -18246,8 +18246,8 @@ import { readFile as readFile16 } from "node:fs/promises";
 import { join as join23 } from "node:path";
 
 // packages/kernel/dist/state/document-producer-invocation.js
-async function currentDocumentProducerInvocation(changeDir2, producer, phase, recordedAt) {
-  const confirmation = await currentDocumentSkillConfirmation(changeDir2, producer, phase, recordedAt);
+async function currentDocumentProducerInvocation(changeDir7, producer, phase, recordedAt) {
+  const confirmation = await currentDocumentSkillConfirmation(changeDir7, producer, phase, recordedAt);
   return confirmation === void 0 ? void 0 : {
     confirmationInvocationId: confirmation.invocation_id,
     evidenceScope: confirmation.evidence_scope,
@@ -18257,8 +18257,8 @@ async function currentDocumentProducerInvocation(changeDir2, producer, phase, re
     }
   };
 }
-async function requiredDocumentProducerInvocation(changeDir2, producer, phase, recordedAt, allowBackfill) {
-  const invocation = await currentDocumentProducerInvocation(changeDir2, producer, phase, recordedAt);
+async function requiredDocumentProducerInvocation(changeDir7, producer, phase, recordedAt, allowBackfill) {
+  const invocation = await currentDocumentProducerInvocation(changeDir7, producer, phase, recordedAt);
   if (invocation === void 0 && !allowBackfill)
     throw new DocumentLedgerError(`current StepVisit lacks exact host confirmation for document producer '${producer}'\uFF1B\u5728\u5F53\u524D\u9636\u6BB5\u91CD\u65B0\u8C03\u7528\u8BE5\u6280\u80FD\u540E\u91CD\u8BD5\u767B\u8BB0\uFF08Claude Code \u7528 Skill \u5DE5\u5177\uFF1BCodex \u7528\u5355\u72EC\u4E00\u6761 cat \u8BFB\u53D6\u5176 SKILL.md\uFF0Cmax_output_tokens \u8981\u8DB3\u591F\u5927\uFF0C\u8F93\u51FA\u88AB\u622A\u65AD\u4E0D\u7B97\u8BFB\u53D6\uFF09`);
   return invocation;
@@ -18271,10 +18271,10 @@ function object3(value) {
 function string3(value) {
   return typeof value === "string" ? value : void 0;
 }
-async function hasSkillEvidence(changeDir2, producer, phase, allowEarlierPhaseEvidence) {
+async function hasSkillEvidence(changeDir7, producer, phase, allowEarlierPhaseEvidence) {
   let text8;
   try {
-    text8 = await readFile16(join23(changeDir2, HISTORY_FILE), "utf8");
+    text8 = await readFile16(join23(changeDir7, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (typeof error2 === "object" && error2 !== null && Reflect.get(error2, "code") === "ENOENT")
       return false;
@@ -18445,10 +18445,10 @@ function item(kind, status, requiredRead, records, phase, currentVisitId, reason
 function receiptMatchesVisit(receipt, phase, digest17, visitId) {
   return receipt.phase === phase && receipt.sha256 === digest17 && receipt.visitId === visitId;
 }
-async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, policy2) {
+async function evaluateDocumentEvidence(repoRoot, changeDir7, phase, scope, policy2) {
   let ledger;
   try {
-    ledger = await readDocumentLedger(changeDir2);
+    ledger = await readDocumentLedger(changeDir7);
   } catch (error2) {
     return {
       phase,
@@ -18479,8 +18479,8 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
   let confirmations;
   let invocationEvents;
   try {
-    confirmations = await readDocumentSkillConfirmations(changeDir2);
-    invocationEvents = await readSkillInvocationEventsForApplication(changeDir2);
+    confirmations = await readDocumentSkillConfirmations(changeDir7);
+    invocationEvents = await readSkillInvocationEventsForApplication(changeDir7);
   } catch (error2) {
     blockers.push(`document producer invocation evidence \u4E0D\u53EF\u9A8C\u8BC1: ${error2 instanceof Error ? error2.message : String(error2)}`);
     confirmations = [];
@@ -18489,7 +18489,7 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
   let currentVisitId;
   if (readRequirements.size > 0) {
     try {
-      currentVisitId = await currentDocumentStepVisitId(changeDir2);
+      currentVisitId = await currentDocumentStepVisitId(changeDir7);
     } catch (error2) {
       blockers.push(`current step visit \u4E0D\u53EF\u9A8C\u8BC1: ${error2 instanceof Error ? error2.message : String(error2)}`);
     }
@@ -18521,7 +18521,7 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "producer"));
       continue;
     }
-    const legacyDelta = kind === "delta-spec" ? records.filter((record9) => deltaSpecSlot(record9.path, changeDir2) === void 0) : [];
+    const legacyDelta = kind === "delta-spec" ? records.filter((record9) => deltaSpecSlot(record9.path, changeDir7) === void 0) : [];
     if (legacyDelta.length > 0) {
       gate(kind, `\u5B58\u5728\u65E7 delta-spec \u8BB0\u5F55\uFF0C\u5FC5\u987B\u7528 tenon document migrate-delta \u663E\u5F0F\u8FC1\u79FB: ${legacyDelta.map((record9) => record9.path).join(", ")}`);
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "legacy-path"));
@@ -18632,11 +18632,11 @@ function parseJson(raw, label2) {
     throw error2;
   }
 }
-async function evaluateSpecMigrationEvidence(repoRoot, changeDir2, changeName) {
+async function evaluateSpecMigrationEvidence(repoRoot, changeDir7, changeName) {
   try {
     const root = resolve6(repoRoot);
     const expectedChangeDir = resolve6(root, "openspec", "changes", changeName);
-    if (resolve6(changeDir2) !== expectedChangeDir || escaped2(root, expectedChangeDir)) {
+    if (resolve6(changeDir7) !== expectedChangeDir || escaped2(root, expectedChangeDir)) {
       return { kind: "invalid", reason: "change-directory-mismatch" };
     }
     const migrationDir = resolve6(expectedChangeDir, "migration");
@@ -18886,8 +18886,8 @@ function parseBinding(value) {
     ...record9.runId === void 0 ? {} : { runId: record9.runId }
   };
 }
-async function readReviewGateBinding(changeDir2, readSource = readReviewGateBindingSource) {
-  const target = join25(changeDir2, REVIEW_GATE_BINDING_FILE);
+async function readReviewGateBinding(changeDir7, readSource = readReviewGateBindingSource) {
+  const target = join25(changeDir7, REVIEW_GATE_BINDING_FILE);
   const raw = await readOptionalBoundedRegularTextFile(target, MAX_REVIEW_GATE_BINDING_BYTES, "review gate binding", readSource);
   if (raw === void 0)
     return void 0;
@@ -18904,8 +18904,8 @@ async function readReviewGateBinding(changeDir2, readSource = readReviewGateBind
   }
   return binding;
 }
-async function writeReviewGateBindingUnderLock(changeDir2, binding) {
-  await atomicReplaceFile(join25(changeDir2, REVIEW_GATE_BINDING_FILE), `${JSON.stringify(binding)}
+async function writeReviewGateBindingUnderLock(changeDir7, binding) {
+  await atomicReplaceFile(join25(changeDir7, REVIEW_GATE_BINDING_FILE), `${JSON.stringify(binding)}
 `);
 }
 function reviewGateBindingMatches(binding, state, phase, event) {
@@ -19170,7 +19170,7 @@ function evaluateGuard(state, ctx) {
     return { pass: false, failures: [`\u672A\u77E5 phase '${phase}'\uFF0C\u65E0\u6CD5\u8BC4\u4F30\u51FA\u53E3\u6761\u4EF6`] };
   }
   const track = scalar4(state.fields.track);
-  const changeDir2 = ctx?.changeDirRel;
+  const changeDir7 = ctx?.changeDirRel;
   const failures = [];
   const warnings = [];
   for (const rule of rules) {
@@ -19211,9 +19211,9 @@ function evaluateGuard(state, ctx) {
         break;
       }
       case "statefile": {
-        if (changeDir2 === void 0)
+        if (changeDir7 === void 0)
           break;
-        const exists2 = ctx?.stateExists !== void 0 ? ctx.stateExists(changeDir2) : ctx?.fileNonempty?.(`${changeDir2}/.pipeline.yaml`);
+        const exists2 = ctx?.stateExists !== void 0 ? ctx.stateExists(changeDir7) : ctx?.fileNonempty?.(`${changeDir7}/.pipeline.yaml`);
         if (exists2 === void 0)
           break;
         if (!exists2) {
@@ -19224,41 +19224,41 @@ function evaluateGuard(state, ctx) {
       case "file-nonempty": {
         if (!trackApplies(rule.when, track))
           break;
-        if (ctx?.fileNonempty === void 0 || changeDir2 === void 0)
+        if (ctx?.fileNonempty === void 0 || changeDir7 === void 0)
           break;
-        if (!ctx.fileNonempty(`${changeDir2}/${rule.path}`)) {
+        if (!ctx.fileNonempty(`${changeDir7}/${rule.path}`)) {
           failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${rule.path} \u5B58\u5728\u4E14\u975E\u7A7A${trackSuffix(rule.when, track)}`);
         }
         break;
       }
       case "file-exists": {
-        if (ctx?.fileExists === void 0 || changeDir2 === void 0)
+        if (ctx?.fileExists === void 0 || changeDir7 === void 0)
           break;
-        if (!ctx.fileExists(`${changeDir2}/${rule.path}`)) {
+        if (!ctx.fileExists(`${changeDir7}/${rule.path}`)) {
           failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 ${rule.path} \u5B58\u5728`);
         }
         break;
       }
       case "tasks-at-least": {
-        if (ctx?.readFile === void 0 || changeDir2 === void 0)
+        if (ctx?.readFile === void 0 || changeDir7 === void 0)
           break;
-        const count2 = taskCount(ctx.readFile(`${changeDir2}/tasks.md`));
+        const count2 = taskCount(ctx.readFile(`${changeDir7}/tasks.md`));
         if (count2 < rule.n) {
           failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42 tasks.md \u81F3\u5C11 ${rule.n} \u4E2A\u4EFB\u52A1\uFF08\u5F53\u524D=${count2}\uFF09`);
         }
         break;
       }
       case "tasks-through-phase": {
-        if (ctx?.readFile === void 0 || changeDir2 === void 0)
+        if (ctx?.readFile === void 0 || changeDir7 === void 0)
           break;
-        const content = ctx.readFile(`${changeDir2}/tasks.md`);
+        const content = ctx.readFile(`${changeDir7}/tasks.md`);
         if (content === void 0) {
           if (phase === "build") {
             failures.push(`${phase} \u51FA\u53E3\uFF1A\u8981\u6C42\u622A\u81F3\u5F53\u524D\u9636\u6BB5\u7684 tasks.md \u5168\u90E8\u52FE\u9009\uFF08tasks.md \u7F3A\u5931\uFF09`);
           }
         } else {
           const projectionStatus = ctx.canonicalTasksProjectionStatus?.({
-            changeDirRel: changeDir2,
+            changeDirRel: changeDir7,
             tasksMarkdown: content
           }) ?? "legacy";
           if (projectionStatus === "invalid") {
@@ -20259,12 +20259,12 @@ function errorCode8(error2) {
   const code = Reflect.get(error2, "code");
   return typeof code === "string" ? code : void 0;
 }
-function workflowActionAuthorityRecordPath(changeDir2, iterationId) {
+function workflowActionAuthorityRecordPath(changeDir7, iterationId) {
   const identity2 = createHash18("sha256").update(iterationId).digest("hex");
-  return join26(changeDir2, `${WORKFLOW_ACTION_AUTHORITY_RECORD_PREFIX}${identity2}.json`);
+  return join26(changeDir7, `${WORKFLOW_ACTION_AUTHORITY_RECORD_PREFIX}${identity2}.json`);
 }
-async function readWorkflowActionAuthorityRecord(changeDir2, iterationId) {
-  const target = workflowActionAuthorityRecordPath(changeDir2, iterationId);
+async function readWorkflowActionAuthorityRecord(changeDir7, iterationId) {
+  const target = workflowActionAuthorityRecordPath(changeDir7, iterationId);
   try {
     const info = await lstat17(target);
     if (!info.isFile() || info.isSymbolicLink()) {
@@ -20281,23 +20281,23 @@ async function readWorkflowActionAuthorityRecord(changeDir2, iterationId) {
     throw error2;
   }
 }
-async function ensureWorkflowActionAuthorityRecord(changeDir2, snapshot2) {
+async function ensureWorkflowActionAuthorityRecord(changeDir7, snapshot2) {
   const requested = parseWorkflowActionAuthoritySnapshot(JSON.stringify(snapshot2));
-  const existing = await readWorkflowActionAuthorityRecord(changeDir2, requested.iteration_id);
+  const existing = await readWorkflowActionAuthorityRecord(changeDir7, requested.iteration_id);
   if (existing !== void 0) {
     if (!sameWorkflowActionAuthoritySnapshot(existing, requested)) {
       throw new Error("Workflow action authority binding is immutable and already contains different facts");
     }
     return existing;
   }
-  const target = workflowActionAuthorityRecordPath(changeDir2, requested.iteration_id);
+  const target = workflowActionAuthorityRecordPath(changeDir7, requested.iteration_id);
   try {
-    await atomicLinkPublish(changeDir2, ".pipeline-workflow-action-authority.tmp", target, workflowActionAuthoritySnapshotContent(requested));
+    await atomicLinkPublish(changeDir7, ".pipeline-workflow-action-authority.tmp", target, workflowActionAuthoritySnapshotContent(requested));
     return requested;
   } catch (error2) {
     if (errorCode8(error2) !== "EEXIST")
       throw error2;
-    const raced = await readWorkflowActionAuthorityRecord(changeDir2, requested.iteration_id);
+    const raced = await readWorkflowActionAuthorityRecord(changeDir7, requested.iteration_id);
     if (raced === void 0 || !sameWorkflowActionAuthoritySnapshot(raced, requested)) {
       throw new Error("Workflow action authority concurrent immutable bind contains different facts");
     }
@@ -20331,10 +20331,10 @@ function deriveRun(fields, metadata, workflowActionAuthority) {
     workflowActionAuthority
   };
 }
-async function authorityForCurrentIteration(changeDir2, metadata) {
+async function authorityForCurrentIteration(changeDir7, metadata) {
   if (metadata.iterationId === void 0)
     return void 0;
-  return readWorkflowActionAuthorityRecord(changeDir2, metadata.iterationId);
+  return readWorkflowActionAuthorityRecord(changeDir7, metadata.iterationId);
 }
 var FsWorkflowRunRepository = class {
   deps;
@@ -20364,7 +20364,7 @@ var FsWorkflowRunRepository = class {
         content: initialDocumentLedgerContent(this.deps.clock())
       }] : []
     ];
-    const changeDir2 = await this.deps.store.init({
+    const changeDir7 = await this.deps.store.init({
       ...opts,
       runId,
       initialFiles,
@@ -20379,14 +20379,14 @@ var FsWorkflowRunRepository = class {
         }
       }
     });
-    const state = await this.deps.store.read(changeDir2);
-    return { changeDir: changeDir2, run: deriveRun(state.fields, required(state.runMetadata)) };
+    const state = await this.deps.store.read(changeDir7);
+    return { changeDir: changeDir7, run: deriveRun(state.fields, required(state.runMetadata)) };
   }
-  async establishRun(changeDir2, governance = {}) {
+  async establishRun(changeDir7, governance = {}) {
     const { store: store2 } = this.deps;
     const newId = this.deps.newId ?? randomUUID6;
-    return store2.withLock(changeDir2, async () => {
-      const state = await store2.read(changeDir2);
+    return store2.withLock(changeDir7, async () => {
+      const state = await store2.read(changeDir7);
       const workflowId = resolveWorkflowName(state);
       const documentProfile = governance.documentProfile ?? (governance.openspecContract === true ? "legacy-full" : governance.documentContract === true ? "document-v1" : void 0);
       const documentGovernanceFingerprint2 = governance.documentGovernanceFingerprint ?? (documentProfile === "legacy-full" ? DEFAULT_PLAN_BINDING2.documentGovernanceFingerprint : void 0);
@@ -20411,11 +20411,11 @@ var FsWorkflowRunRepository = class {
           ...existing.workflowPlanFingerprint === void 0 && workflowPlanFingerprint !== void 0 ? { workflowPlanFingerprint } : {}
         };
         if (metadata2.documentProfile !== existing.documentProfile || metadata2.documentGovernanceFingerprint !== existing.documentGovernanceFingerprint || metadata2.workflowPlanFingerprint !== existing.workflowPlanFingerprint) {
-          await ensureWorkflowGovernanceBinding(changeDir2, metadata2);
+          await ensureWorkflowGovernanceBinding(changeDir7, metadata2);
         } else if (metadata2.documentProfile !== void 0 || metadata2.documentGovernanceFingerprint !== void 0 || metadata2.workflowPlanFingerprint !== void 0) {
-          await ensureWorkflowGovernanceBinding(changeDir2, metadata2);
+          await ensureWorkflowGovernanceBinding(changeDir7, metadata2);
         }
-        return deriveRun(state.fields, metadata2, await authorityForCurrentIteration(changeDir2, metadata2));
+        return deriveRun(state.fields, metadata2, await authorityForCurrentIteration(changeDir7, metadata2));
       }
       const metadata = {
         runId: newId(),
@@ -20426,17 +20426,17 @@ var FsWorkflowRunRepository = class {
         ...workflowPlanFingerprint === void 0 ? {} : { workflowPlanFingerprint }
       };
       if (metadata.documentProfile !== void 0 || metadata.documentGovernanceFingerprint !== void 0 || metadata.workflowPlanFingerprint !== void 0) {
-        await ensureWorkflowGovernanceBinding(changeDir2, metadata);
+        await ensureWorkflowGovernanceBinding(changeDir7, metadata);
       }
-      await store2.writeUnderLock(changeDir2, { ...state, runMetadata: metadata });
-      return deriveRun(state.fields, metadata, await authorityForCurrentIteration(changeDir2, metadata));
+      await store2.writeUnderLock(changeDir7, { ...state, runMetadata: metadata });
+      return deriveRun(state.fields, metadata, await authorityForCurrentIteration(changeDir7, metadata));
     });
   }
-  async bindAutomationPolicy(changeDir2, policy2, binding) {
+  async bindAutomationPolicy(changeDir7, policy2, binding) {
     const { store: store2 } = this.deps;
     const newId = this.deps.newId ?? randomUUID6;
-    return store2.withLock(changeDir2, async () => {
-      const state = await store2.read(changeDir2);
+    return store2.withLock(changeDir7, async () => {
+      const state = await store2.read(changeDir7);
       const metadata = state.runMetadata ? structuredClone(state.runMetadata) : { runId: newId(), transitionSequence: 0, transitionHead: void 0 };
       const existing = metadata.automationPolicy;
       if (existing !== void 0 && existing.policy_version !== policy2.policy_version) {
@@ -20456,19 +20456,19 @@ var FsWorkflowRunRepository = class {
       if (existing === void 0)
         metadata.automationPolicy = canonicalPolicy;
       if (existing !== void 0 && binding === void 0) {
-        return deriveRun(state.fields, metadata, await authorityForCurrentIteration(changeDir2, metadata));
+        return deriveRun(state.fields, metadata, await authorityForCurrentIteration(changeDir7, metadata));
       }
       if (existing !== void 0 && binding !== void 0 && state.runMetadata?.loopId === binding.loopId && state.runMetadata.iterationId === binding.iterationId) {
-        return deriveRun(state.fields, metadata, await authorityForCurrentIteration(changeDir2, metadata));
+        return deriveRun(state.fields, metadata, await authorityForCurrentIteration(changeDir7, metadata));
       }
-      await store2.writeUnderLock(changeDir2, { ...state, runMetadata: metadata });
-      return deriveRun(state.fields, metadata, await authorityForCurrentIteration(changeDir2, metadata));
+      await store2.writeUnderLock(changeDir7, { ...state, runMetadata: metadata });
+      return deriveRun(state.fields, metadata, await authorityForCurrentIteration(changeDir7, metadata));
     });
   }
-  async bindWorkflowActionAuthority(changeDir2, snapshot2) {
+  async bindWorkflowActionAuthority(changeDir7, snapshot2) {
     const { store: store2 } = this.deps;
-    return store2.withLock(changeDir2, async () => {
-      const state = await store2.read(changeDir2);
+    return store2.withLock(changeDir7, async () => {
+      const state = await store2.read(changeDir7);
       const metadata = required(state.runMetadata);
       const workflowId = resolveWorkflowName(state);
       const track = state.fields.track;
@@ -20476,18 +20476,18 @@ var FsWorkflowRunRepository = class {
       if (snapshot2.workflow_run_id !== metadata.runId || snapshot2.workflow_id !== workflowId || snapshot2.workflow_fingerprint !== metadata.workflowPlanFingerprint || snapshot2.loop_id !== metadata.loopId || snapshot2.iteration_id !== metadata.iterationId || snapshot2.skill_bundle_id !== metadata.automationPolicy?.skill_bundle_id || snapshot2.track_id !== trackId) {
         throw new Error("Workflow action authority snapshot does not match canonical WorkflowRun identity");
       }
-      const bound = await ensureWorkflowActionAuthorityRecord(changeDir2, snapshot2);
+      const bound = await ensureWorkflowActionAuthorityRecord(changeDir7, snapshot2);
       return deriveRun(state.fields, metadata, bound);
     });
   }
-  async transact(changeDir2, fn) {
+  async transact(changeDir7, fn) {
     const { store: store2, recordStore, clock } = this.deps;
     const newId = this.deps.newId ?? randomUUID6;
-    return store2.withLock(changeDir2, async () => {
-      const state = await store2.read(changeDir2);
+    return store2.withLock(changeDir7, async () => {
+      const state = await store2.read(changeDir7);
       const beforeFields = structuredClone(state.fields);
       const metadata = state.runMetadata ? structuredClone(state.runMetadata) : { runId: newId(), transitionSequence: 0, transitionHead: void 0 };
-      const authority = await authorityForCurrentIteration(changeDir2, metadata);
+      const authority = await authorityForCurrentIteration(changeDir7, metadata);
       const run2 = deriveRun(state.fields, metadata, authority);
       let committed = false;
       const tx = {
@@ -20523,7 +20523,7 @@ var FsWorkflowRunRepository = class {
             actor: draft.actor,
             observedAt
           };
-          await recordStore.write(changeDir2, record9);
+          await recordStore.write(changeDir7, record9);
           const newMetadata = {
             runId: metadata.runId,
             transitionSequence: sequence,
@@ -20537,7 +20537,7 @@ var FsWorkflowRunRepository = class {
             iterationId: metadata.iterationId
           };
           const committedState = { fields: nextFields, runMetadata: newMetadata, opaqueTail: state.opaqueTail };
-          const writeResult = await store2.writeUnderLock(changeDir2, committedState, {
+          const writeResult = await store2.writeUnderLock(changeDir7, committedState, {
             kind: "transition",
             transitionRecordId: recordId
           });
@@ -20811,9 +20811,9 @@ function parseFieldSubjectLedger(raw) {
     ...migrationReceipts === void 0 ? {} : { migrationReceipts }
   };
 }
-async function readFieldSubjectLedger(changeDir2) {
+async function readFieldSubjectLedger(changeDir7) {
   try {
-    const raw = await readFile21(join27(changeDir2, FIELD_SUBJECTS_FILE), "utf8");
+    const raw = await readFile21(join27(changeDir7, FIELD_SUBJECTS_FILE), "utf8");
     if (Buffer.byteLength(raw, "utf8") > MAX_FIELD_SUBJECTS_BYTES)
       throw new Error("field subject ledger \u8D85\u8FC7\u5927\u5C0F\u4E0A\u9650");
     return parseFieldSubjectLedger(raw);
@@ -24144,12 +24144,12 @@ var SyncFailure = class extends Error {
 };
 async function readSourceTree(library, root) {
   const files = [];
-  const walk = async (relative33) => {
-    const entries = await readdir7(relative33 === "" ? root : join31(root, relative33), { withFileTypes: true });
+  const walk = async (relative34) => {
+    const entries = await readdir7(relative34 === "" ? root : join31(root, relative34), { withFileTypes: true });
     for (const entry of entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
       if (entry.name.startsWith("."))
         continue;
-      const path15 = relative33 === "" ? entry.name : `${relative33}/${entry.name}`;
+      const path15 = relative34 === "" ? entry.name : `${relative34}/${entry.name}`;
       const item2 = await lstat21(join31(root, path15));
       if (item2.isSymbolicLink())
         throw new SyncFailure(`${path15}: \u4E0D\u5141\u8BB8\u7B26\u53F7\u94FE\u63A5`);
@@ -25106,9 +25106,9 @@ function testDigest(test) {
 function stepTests(plan, stepId) {
   return plan.workflow.steps.find((step) => step.id === stepId)?.tests ?? [];
 }
-async function workflowRunId(changeDir2) {
+async function workflowRunId(changeDir7) {
   try {
-    return (await readCurrentRunRevision(changeDir2))?.state.runMetadata?.runId;
+    return (await readCurrentRunRevision(changeDir7))?.state.runMetadata?.runId;
   } catch {
     return void 0;
   }
@@ -25574,7 +25574,7 @@ function withoutTaskArchiveEntry(archive, change) {
   return { version: 1, changes };
 }
 function taskArchivedMessage(change) {
-  return `\u4EFB\u52A1 '${change}' \u5DF2\u5F52\u6863\uFF1B\u5148\u6267\u884C tenon task unarchive ${change}`;
+  return `\u4EFB\u52A1 '${change}' \u5DF2\u5F52\u6863\uFF08\u5F53\u524D\u7528\u6237\u7684\u6536\u8D77\u5217\u8868\uFF0C\u4E0D\u662F\u4EFB\u52A1\u5DF2\u5B8C\u7ED3\uFF09\uFF1B\u5148\u6267\u884C tenon task unarchive ${change}`;
 }
 async function isArchivedForUser(repoRoot, user, change) {
   if (!isTenonUser(user) || !isTaskLifecycleName(change))
@@ -25787,10 +25787,10 @@ async function sweepTaskTombstones(deletingDir) {
     });
   }
 }
-async function stageTaskForDelete(changeDir2, deletingDir, change, nowMs) {
+async function stageTaskForDelete(changeDir7, deletingDir, change, nowMs) {
   await mkdir20(deletingDir, { recursive: true, mode: 448 });
   const tombstone = join39(deletingDir, `${change}-${nowMs}`);
-  await rename9(changeDir2, tombstone);
+  await rename9(changeDir7, tombstone);
   return tombstone;
 }
 async function cleanupDeletedChangeReferences(repoRoot, change, actingSlug) {
@@ -25843,8 +25843,8 @@ async function cleanupDeletedChangeReferences(repoRoot, change, actingSlug) {
 import { lstat as lstat27, readFile as readFile32 } from "node:fs/promises";
 import { join as join40 } from "node:path";
 var MAX_SIDECAR_BYTES = 4096;
-async function defaultTerminalActivityLive(changeDir2, change, nowMs) {
-  const path15 = join40(changeDir2, TERMINAL_ACTIVITY_FILE);
+async function defaultTerminalActivityLive(changeDir7, change, nowMs) {
+  const path15 = join40(changeDir7, TERMINAL_ACTIVITY_FILE);
   try {
     const item2 = await lstat27(path15);
     if (!item2.isFile() || item2.size > MAX_SIDECAR_BYTES)
@@ -25872,16 +25872,16 @@ function scalar7(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
-function stateExists(changeDir2) {
+function stateExists(changeDir7) {
   try {
-    return stateStorageSourcePathSync(changeDir2) !== void 0;
+    return stateStorageSourcePathSync(changeDir7) !== void 0;
   } catch {
     return false;
   }
 }
-async function changeFacts(store2, changeDir2) {
+async function changeFacts(store2, changeDir7) {
   try {
-    const state = await store2.read(changeDir2);
+    const state = await store2.read(changeDir7);
     return {
       phase: scalar7(state, "phase") === "" ? UNKNOWN_PHASE : scalar7(state, "phase"),
       automation: scalar7(state, "automation"),
@@ -25911,8 +25911,8 @@ function createTaskLifecycleApplication(deps) {
   const terminalActivityLive = deps.terminalActivityLive ?? defaultTerminalActivityLive;
   const tree = deps.loadTaskTree ?? loadTaskTree;
   async function assessKnown(repoRoot, change, action, user) {
-    const changeDir2 = taskChangeDir(repoRoot, change);
-    const facts = await changeFacts(deps.store, changeDir2);
+    const changeDir7 = taskChangeDir(repoRoot, change);
+    const facts = await changeFacts(deps.store, changeDir7);
     const blockers = [];
     const confirmations = [];
     const automation = facts?.automation ?? "";
@@ -25922,7 +25922,7 @@ function createTaskLifecycleApplication(deps) {
       (action === "archive" ? blockers : confirmations).push({ code: "afk-queued" });
     if (facts?.reviewPending === true)
       confirmations.push({ code: "review-pending" });
-    if (await terminalActivityLive(changeDir2, change, deps.nowMs()))
+    if (await terminalActivityLive(changeDir7, change, deps.nowMs()))
       confirmations.push({ code: "host-session-live" });
     if (action === "delete") {
       const dependents = directChildren(await tree(repoRoot, deps.store), change).filter((child) => !child.archived).map((child) => child.name);
@@ -25963,9 +25963,9 @@ function createTaskLifecycleApplication(deps) {
     if ("kind" in ready)
       return ready;
     const { repoRoot, change } = command2;
-    const changeDir2 = taskChangeDir(repoRoot, change);
+    const changeDir7 = taskChangeDir(repoRoot, change);
     const paths = userProjectPaths(repoRoot, ready.user.slug);
-    return deps.store.withLock(changeDir2, async () => {
+    return deps.store.withLock(changeDir7, async () => {
       await sweepTaskTombstones(paths.deletingDir);
       const assessment = await assessKnown(repoRoot, change, "delete", ready.user);
       const refusal = refuse(assessment, command2.acknowledged);
@@ -25973,7 +25973,7 @@ function createTaskLifecycleApplication(deps) {
         return refusal;
       let tombstone;
       try {
-        tombstone = await stageTaskForDelete(changeDir2, paths.deletingDir, change, deps.nowMs());
+        tombstone = await stageTaskForDelete(changeDir7, paths.deletingDir, change, deps.nowMs());
       } catch (error2) {
         return { kind: "delete-failed", cause: String(error2.code ?? error2) };
       }
@@ -34843,30 +34843,30 @@ function safeId2(value, label2) {
 function integer4(value) {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
-function rootFor(changeDir2) {
-  return path9.join(path9.resolve(changeDir2), ORCHESTRATION_LEDGER_DIR);
+function rootFor(changeDir7) {
+  return path9.join(path9.resolve(changeDir7), ORCHESTRATION_LEDGER_DIR);
 }
-function dirFor(changeDir2, name2) {
-  return path9.join(rootFor(changeDir2), name2);
+function dirFor(changeDir7, name2) {
+  return path9.join(rootFor(changeDir7), name2);
 }
-function currentPath(changeDir2) {
-  return path9.join(rootFor(changeDir2), ORCHESTRATION_CURRENT_FILE);
+function currentPath(changeDir7) {
+  return path9.join(rootFor(changeDir7), ORCHESTRATION_CURRENT_FILE);
 }
-function eventPath(changeDir2, revision, eventId2) {
+function eventPath(changeDir7, revision, eventId2) {
   if (!integer4(revision) || revision < 1)
     throw new LedgerPathError("event revision must be a positive integer");
   safeId2(eventId2, "event id");
-  return path9.join(dirFor(changeDir2, ORCHESTRATION_EVENTS_DIR), `${String(revision).padStart(12, "0")}-${eventId2}.json`);
+  return path9.join(dirFor(changeDir7, ORCHESTRATION_EVENTS_DIR), `${String(revision).padStart(12, "0")}-${eventId2}.json`);
 }
-function snapshotPath(changeDir2, revision, digest17) {
+function snapshotPath(changeDir7, revision, digest17) {
   if (!integer4(revision))
     throw new LedgerPathError("snapshot revision must be a non-negative integer");
   safeId2(digest17, "snapshot digest");
-  return path9.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), `${String(revision).padStart(12, "0")}-${digest17.slice(7, 23)}.json`);
+  return path9.join(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR), `${String(revision).padStart(12, "0")}-${digest17.slice(7, 23)}.json`);
 }
-function idempotencyPath(changeDir2, commandId) {
+function idempotencyPath(changeDir7, commandId) {
   safeId2(commandId, "command id");
-  return path9.join(dirFor(changeDir2, ORCHESTRATION_IDEMPOTENCY_DIR), `${commandId}.json`);
+  return path9.join(dirFor(changeDir7, ORCHESTRATION_IDEMPOTENCY_DIR), `${commandId}.json`);
 }
 var LedgerPathError = class extends Error {
   code = "unsafe-path";
@@ -34995,11 +34995,11 @@ function parseRevision(name2) {
   const revision = Number(match[1]);
   return integer4(revision) ? revision : void 0;
 }
-async function readEventByPath(changeDir2, file) {
-  return parseEvent(await readEnvelopeFile(path9.join(dirFor(changeDir2, ORCHESTRATION_EVENTS_DIR), file), "event"), file);
+async function readEventByPath(changeDir7, file) {
+  return parseEvent(await readEnvelopeFile(path9.join(dirFor(changeDir7, ORCHESTRATION_EVENTS_DIR), file), "event"), file);
 }
-async function readEventsSorted(changeDir2) {
-  const names = await listFiles(dirFor(changeDir2, ORCHESTRATION_EVENTS_DIR));
+async function readEventsSorted(changeDir7) {
+  const names = await listFiles(dirFor(changeDir7, ORCHESTRATION_EVENTS_DIR));
   const events = [];
   const tempFiles = names.filter((name2) => name2.includes(".tmp-") || name2.startsWith(".tmp"));
   for (const name2 of names.filter((entry) => !tempFiles.includes(entry))) {
@@ -35007,36 +35007,36 @@ async function readEventsSorted(changeDir2) {
     try {
       if (revision === void 0 || !name2.endsWith(".json"))
         throw new LedgerCorruptionError("event filename is not versioned");
-      const event = await readEventByPath(changeDir2, name2);
+      const event = await readEventByPath(changeDir7, name2);
       if (event.revision !== revision || event.schema_version !== "board-event/v2")
         throw new LedgerCorruptionError("event filename/revision mismatch");
       events.push(event);
     } catch (error2) {
       const reason2 = error2 instanceof Error ? error2.message : String(error2);
-      return { events, invalid: { path: path9.join(dirFor(changeDir2, ORCHESTRATION_EVENTS_DIR), name2), revision, reason: reason2 }, tempFiles };
+      return { events, invalid: { path: path9.join(dirFor(changeDir7, ORCHESTRATION_EVENTS_DIR), name2), revision, reason: reason2 }, tempFiles };
     }
   }
   events.sort((a, b) => a.revision - b.revision);
   if (events.length > ORCHESTRATION_MAX_EVENTS)
-    return { events: events.slice(0, ORCHESTRATION_MAX_EVENTS), invalid: { path: dirFor(changeDir2, ORCHESTRATION_EVENTS_DIR), reason: "event count exceeds bounded reader limit" }, tempFiles };
+    return { events: events.slice(0, ORCHESTRATION_MAX_EVENTS), invalid: { path: dirFor(changeDir7, ORCHESTRATION_EVENTS_DIR), reason: "event count exceeds bounded reader limit" }, tempFiles };
   return { events, tempFiles };
 }
-async function readCurrent(changeDir2) {
+async function readCurrent(changeDir7) {
   try {
-    return parseSnapshot(await readEnvelopeFile(currentPath(changeDir2), "snapshot"), currentPath(changeDir2));
+    return parseSnapshot(await readEnvelopeFile(currentPath(changeDir7), "snapshot"), currentPath(changeDir7));
   } catch (error2) {
     if (error2.code === "ENOENT")
       return void 0;
     throw error2;
   }
 }
-async function readSnapshotAtRevision(changeDir2, revision, expectedDigest) {
-  const names = await listFiles(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR));
+async function readSnapshotAtRevision(changeDir7, revision, expectedDigest) {
+  const names = await listFiles(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR));
   for (const name2 of names) {
     if (parseRevision(name2) !== revision || !name2.endsWith(".json"))
       continue;
     try {
-      const snapshot2 = parseSnapshot(await readEnvelopeFile(path9.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), name2), "snapshot"), name2);
+      const snapshot2 = parseSnapshot(await readEnvelopeFile(path9.join(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR), name2), "snapshot"), name2);
       if (expectedDigest === void 0 || checksum(snapshot2) === expectedDigest)
         return snapshot2;
     } catch {
@@ -35044,21 +35044,21 @@ async function readSnapshotAtRevision(changeDir2, revision, expectedDigest) {
   }
   return void 0;
 }
-async function readIdempotencyRecords(changeDir2) {
-  const names = await listFiles(dirFor(changeDir2, ORCHESTRATION_IDEMPOTENCY_DIR));
+async function readIdempotencyRecords(changeDir7) {
+  const names = await listFiles(dirFor(changeDir7, ORCHESTRATION_IDEMPOTENCY_DIR));
   if (names.filter((entry) => entry.endsWith(".json")).length > ORCHESTRATION_MAX_EVENTS)
-    return { records: [], invalid: { path: dirFor(changeDir2, ORCHESTRATION_IDEMPOTENCY_DIR), reason: "idempotency index exceeds bounded reader limit" } };
+    return { records: [], invalid: { path: dirFor(changeDir7, ORCHESTRATION_IDEMPOTENCY_DIR), reason: "idempotency index exceeds bounded reader limit" } };
   const records = [];
   for (const name2 of names.filter((entry) => !entry.includes(".tmp-") && !entry.startsWith(".tmp"))) {
     try {
       if (!name2.endsWith(".json"))
         throw new LedgerCorruptionError("idempotency filename is not JSON");
-      const record9 = parseIdempotency(await readEnvelopeFile(path9.join(dirFor(changeDir2, ORCHESTRATION_IDEMPOTENCY_DIR), name2), "idempotency"), name2);
+      const record9 = parseIdempotency(await readEnvelopeFile(path9.join(dirFor(changeDir7, ORCHESTRATION_IDEMPOTENCY_DIR), name2), "idempotency"), name2);
       if (`${record9.command_id}.json` !== name2)
         throw new LedgerCorruptionError("idempotency filename/command mismatch");
       records.push(record9);
     } catch (error2) {
-      return { records, invalid: { path: path9.join(dirFor(changeDir2, ORCHESTRATION_IDEMPOTENCY_DIR), name2), reason: error2 instanceof Error ? error2.message : String(error2) } };
+      return { records, invalid: { path: path9.join(dirFor(changeDir7, ORCHESTRATION_IDEMPOTENCY_DIR), name2), reason: error2 instanceof Error ? error2.message : String(error2) } };
     }
   }
   return { records };
@@ -35076,16 +35076,16 @@ function sameJson(a, b) {
   return stable2(a) === stable2(b);
 }
 var FsOrchestrationLedger = class {
-  async initialize(changeDir2, seed) {
+  async initialize(changeDir7, seed) {
     safeId2(seed.project_id, "project id");
     safeId2(seed.change_id, "change id");
     safeId2(seed.correlation_id, "correlation id");
     if (seed.updated_at !== void 0 && !UTC2.test(seed.updated_at))
       throw new LedgerInitializationError("updated_at must be UTC");
-    await ensureDirectory(rootFor(changeDir2));
-    await Promise.all([ORCHESTRATION_EVENTS_DIR, ORCHESTRATION_SNAPSHOTS_DIR, ORCHESTRATION_IDEMPOTENCY_DIR].map((name2) => ensureDirectory(dirFor(changeDir2, name2))));
-    return withLock(changeDir2, async () => {
-      const existing = await readCurrent(changeDir2);
+    await ensureDirectory(rootFor(changeDir7));
+    await Promise.all([ORCHESTRATION_EVENTS_DIR, ORCHESTRATION_SNAPSHOTS_DIR, ORCHESTRATION_IDEMPOTENCY_DIR].map((name2) => ensureDirectory(dirFor(changeDir7, name2))));
+    return withLock(changeDir7, async () => {
+      const existing = await readCurrent(changeDir7);
       if (existing !== void 0) {
         if (existing.project_id !== seed.project_id || existing.change_id !== seed.change_id || existing.correlation_id !== seed.correlation_id)
           throw new LedgerInitializationError("existing ledger identity does not match seed");
@@ -35093,46 +35093,46 @@ var FsOrchestrationLedger = class {
       }
       const aggregate = createAggregateV2(seed.project_id, seed.change_id, seed.correlation_id, seed.updated_at);
       const digest17 = checksum(aggregate);
-      await publishImmutable(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), snapshotPath(changeDir2, 0, digest17), "snapshot", aggregate);
-      await atomicReplaceFile(currentPath(changeDir2), json(envelope("snapshot", aggregate)));
+      await publishImmutable(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR), snapshotPath(changeDir7, 0, digest17), "snapshot", aggregate);
+      await atomicReplaceFile(currentPath(changeDir7), json(envelope("snapshot", aggregate)));
       return aggregate;
     });
   }
-  async readSnapshot(changeDir2) {
-    return readCurrent(changeDir2);
+  async readSnapshot(changeDir7) {
+    return readCurrent(changeDir7);
   }
-  async readEvent(changeDir2, eventId2) {
+  async readEvent(changeDir7, eventId2) {
     safeId2(eventId2, "event id");
-    const names = await listFiles(dirFor(changeDir2, ORCHESTRATION_EVENTS_DIR));
+    const names = await listFiles(dirFor(changeDir7, ORCHESTRATION_EVENTS_DIR));
     for (const name2 of names) {
       if (!name2.endsWith(`-${eventId2}.json`))
         continue;
-      return readEventByPath(changeDir2, name2);
+      return readEventByPath(changeDir7, name2);
     }
     return void 0;
   }
-  async readEvents(changeDir2, options = {}) {
+  async readEvents(changeDir7, options = {}) {
     if (options.fromRevision !== void 0 && !integer4(options.fromRevision))
       throw new LedgerPathError("fromRevision must be a non-negative integer");
     if (options.toRevision !== void 0 && !integer4(options.toRevision))
       throw new LedgerPathError("toRevision must be a non-negative integer");
-    const result2 = await readEventsSorted(changeDir2);
+    const result2 = await readEventsSorted(changeDir7);
     if (result2.invalid)
       throw new LedgerCorruptionError(result2.invalid.reason);
-    const current = await readCurrent(changeDir2);
+    const current = await readCurrent(changeDir7);
     const upperBound = options.toRevision ?? current?.revision ?? 0;
     return result2.events.filter((event) => event.revision <= upperBound && (options.fromRevision === void 0 || event.revision >= options.fromRevision));
   }
-  async append(changeDir2, command2) {
+  async append(changeDir7, command2) {
     safeId2(command2.command_id, "command id");
     safeId2(command2.idempotency_key, "idempotency key");
-    return withLock(changeDir2, async () => {
-      const current = await readCurrent(changeDir2);
+    return withLock(changeDir7, async () => {
+      const current = await readCurrent(changeDir7);
       if (current === void 0)
         return reject2("not-found", "orchestration ledger is not initialized", "ledger-not-initialized");
       if (command2.change_id !== current.change_id)
         return reject2("contract-invalid", "command change does not match ledger", "identity-mismatch");
-      const indexed = await readIdempotencyRecords(changeDir2);
+      const indexed = await readIdempotencyRecords(changeDir7);
       if (indexed.invalid)
         return reject2("contract-invalid", `idempotency index is corrupt: ${indexed.invalid.reason}`, "idempotency-index-corrupt");
       const commandDigest = digestAggregate(command2);
@@ -35140,8 +35140,8 @@ var FsOrchestrationLedger = class {
       if (prior !== void 0) {
         if (prior.command_id !== command2.command_id || prior.idempotency_key !== command2.idempotency_key || prior.command_digest !== commandDigest)
           return reject2("idempotency-conflict", "command identity was already used with a different payload", "idempotency-conflict");
-        const event2 = await this.readEvent(changeDir2, prior.event_id);
-        const snapshot2 = await readSnapshotAtRevision(changeDir2, prior.committed_revision, prior.snapshot_digest);
+        const event2 = await this.readEvent(changeDir7, prior.event_id);
+        const snapshot2 = await readSnapshotAtRevision(changeDir7, prior.committed_revision, prior.snapshot_digest);
         if (!event2 || !snapshot2)
           return reject2("contract-invalid", "idempotency record points to a missing event or snapshot", "idempotency-orphan");
         return { kind: "replayed", event: event2, snapshot: snapshot2, replayed: true };
@@ -35155,10 +35155,10 @@ var FsOrchestrationLedger = class {
       const next = evolveV2(current, event);
       if (event.revision !== next.revision || next.event_head_id !== event.event_id || next.event_head_digest !== event.after_digest)
         throw new LedgerCorruptionError("aggregate/event digest linkage failed before publication");
-      await publishImmutable(dirFor(changeDir2, ORCHESTRATION_EVENTS_DIR), eventPath(changeDir2, event.revision, event.event_id), "event", event);
+      await publishImmutable(dirFor(changeDir7, ORCHESTRATION_EVENTS_DIR), eventPath(changeDir7, event.revision, event.event_id), "event", event);
       const nextDigest = checksum(next);
-      await publishImmutable(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), snapshotPath(changeDir2, next.revision, nextDigest), "snapshot", next);
-      await atomicReplaceFile(currentPath(changeDir2), json(envelope("snapshot", next)));
+      await publishImmutable(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR), snapshotPath(changeDir7, next.revision, nextDigest), "snapshot", next);
+      await atomicReplaceFile(currentPath(changeDir7), json(envelope("snapshot", next)));
       const index = {
         schema_version: "orchestration-idempotency/v1",
         record_id: `idempotency:${command2.command_id}`,
@@ -35173,28 +35173,28 @@ var FsOrchestrationLedger = class {
         snapshot_digest: nextDigest,
         created_at: command2.issued_at
       };
-      await publishImmutable(dirFor(changeDir2, ORCHESTRATION_IDEMPOTENCY_DIR), idempotencyPath(changeDir2, command2.command_id), "idempotency", index);
+      await publishImmutable(dirFor(changeDir7, ORCHESTRATION_IDEMPOTENCY_DIR), idempotencyPath(changeDir7, command2.command_id), "idempotency", index);
       return { kind: "committed", event, snapshot: next, replayed: false };
     });
   }
-  async recover(changeDir2, now = (/* @__PURE__ */ new Date()).toISOString()) {
+  async recover(changeDir7, now = (/* @__PURE__ */ new Date()).toISOString()) {
     if (!UTC2.test(now))
       throw new LedgerPathError("recovery time must be UTC");
-    const eventRead = await readEventsSorted(changeDir2);
-    const snapshotNames = await listFiles(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR));
+    const eventRead = await readEventsSorted(changeDir7);
+    const snapshotNames = await listFiles(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR));
     let current;
     let currentCorruption;
     try {
-      current = await readCurrent(changeDir2);
+      current = await readCurrent(changeDir7);
     } catch (error2) {
-      currentCorruption = { kind: "current-snapshot", path: currentPath(changeDir2), reason: error2 instanceof Error ? error2.message : String(error2) };
+      currentCorruption = { kind: "current-snapshot", path: currentPath(changeDir7), reason: error2 instanceof Error ? error2.message : String(error2) };
     }
     const candidates = [];
     for (const name2 of snapshotNames.filter((entry) => !entry.includes(".tmp-") && !entry.startsWith(".tmp")).sort().reverse()) {
       try {
         if (!name2.endsWith(".json"))
           throw new LedgerCorruptionError("snapshot filename is not JSON");
-        const snapshot2 = parseSnapshot(await readEnvelopeFile(path9.join(dirFor(changeDir2, ORCHESTRATION_SNAPSHOTS_DIR), name2), "snapshot"), name2);
+        const snapshot2 = parseSnapshot(await readEnvelopeFile(path9.join(dirFor(changeDir7, ORCHESTRATION_SNAPSHOTS_DIR), name2), "snapshot"), name2);
         candidates.push(snapshot2);
       } catch {
       }
@@ -35258,9 +35258,9 @@ var FsOrchestrationLedger = class {
       recovered_at: now
     };
     if (recovered !== void 0 && (current === void 0 || !sameJson(current, recovered))) {
-      const live = await readCurrent(changeDir2).catch(() => void 0);
+      const live = await readCurrent(changeDir7).catch(() => void 0);
       if (live === void 0 || live.revision <= recovered.revision) {
-        await atomicReplaceFile(currentPath(changeDir2), json(envelope("snapshot", recovered)));
+        await atomicReplaceFile(currentPath(changeDir7), json(envelope("snapshot", recovered)));
       }
     }
     return { ...recovered ? { snapshot: recovered } : {}, events: validEvents, report };
@@ -35474,8 +35474,8 @@ function parseLedger(raw) {
 function storedCode(record9) {
   return record9.code === "idempotent-replay" ? "idempotent-replay" : "approved";
 }
-function createReviewDecisionLedger(changeDir2, fs) {
-  const path15 = join50(changeDir2, REVIEW_DECISION_IDEMPOTENCY_FILE);
+function createReviewDecisionLedger(changeDir7, fs) {
+  const path15 = join50(changeDir7, REVIEW_DECISION_IDEMPOTENCY_FILE);
   return {
     lookup: async (key, payloadDigest) => {
       const raw = await fs.readText(path15);
@@ -37617,22 +37617,22 @@ function decodeRegistry(value) {
     throw new Error("invalid artifact subject registry records");
   return { version: 1, records };
 }
-async function readArtifactSubjectRegistry(changeDir2) {
+async function readArtifactSubjectRegistry(changeDir7) {
   try {
-    return decodeRegistry(JSON.parse(await readFile36(join51(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), "utf8")));
+    return decodeRegistry(JSON.parse(await readFile36(join51(changeDir7, ARTIFACT_SUBJECT_REGISTRY_FILE), "utf8")));
   } catch (error2) {
     if (error2.code === "ENOENT")
       return emptyRegistry();
     throw error2;
   }
 }
-async function recordArtifactSubjectProjection(changeDir2, record9) {
-  const current = await readArtifactSubjectRegistry(changeDir2);
+async function recordArtifactSubjectProjection(changeDir7, record9) {
+  const current = await readArtifactSubjectRegistry(changeDir7);
   const records = current.records.filter((candidate2) => candidate2.receiptId !== record9.receiptId);
   records.push(record9);
   const next = { version: 1, records };
-  await mkdir26(dirname9(join51(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE)), { recursive: true });
-  await atomicReplaceFile(join51(changeDir2, ARTIFACT_SUBJECT_REGISTRY_FILE), `${JSON.stringify(next, null, 2)}
+  await mkdir26(dirname9(join51(changeDir7, ARTIFACT_SUBJECT_REGISTRY_FILE)), { recursive: true });
+  await atomicReplaceFile(join51(changeDir7, ARTIFACT_SUBJECT_REGISTRY_FILE), `${JSON.stringify(next, null, 2)}
 `);
   return next;
 }
@@ -38334,8 +38334,8 @@ function createFieldProjectionAdapter(input2) {
 // packages/automation/dist/submission/namespace.js
 import path10 from "node:path";
 import { createHash as createHash31 } from "node:crypto";
-function artifactNamespaceForChange(changeDir2) {
-  const normalized2 = path10.resolve(changeDir2);
+function artifactNamespaceForChange(changeDir7) {
+  const normalized2 = path10.resolve(changeDir7);
   const changeName = normalized2.split(path10.sep).at(-1) ?? "change";
   const safe = changeName.toLowerCase().replace(/[^a-z0-9._/-]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 80) || "change";
   const identity2 = createHash31("sha256").update(normalized2).digest("hex").slice(0, 12);
@@ -39584,11 +39584,11 @@ function errnoCode5(error2) {
 function stateString(value) {
   return typeof value === "string" ? value : void 0;
 }
-function assertExistingIdentity(changeDir2, expectedRunId, request, observed) {
+function assertExistingIdentity(changeDir7, expectedRunId, request, observed) {
   if (observed.runId === expectedRunId && observed.workflowId === request.workflowId && observed.initialStep === request.initialStep)
     return;
   throw new WorkflowRunCreateConflictError({
-    changeDir: changeDir2,
+    changeDir: changeDir7,
     expectedRunId,
     observedRunId: observed.runId,
     expectedWorkflowId: request.workflowId,
@@ -39597,8 +39597,8 @@ function assertExistingIdentity(changeDir2, expectedRunId, request, observed) {
     observedInitialStep: observed.initialStep
   });
 }
-function assertEstablishedRun(changeDir2, expectedRunId, request, run2) {
-  assertExistingIdentity(changeDir2, expectedRunId, request, {
+function assertEstablishedRun(changeDir7, expectedRunId, request, run2) {
+  assertExistingIdentity(changeDir7, expectedRunId, request, {
     runId: run2.id,
     workflowId: run2.workflowId,
     initialStep: run2.currentStep
@@ -39635,13 +39635,13 @@ function createWorkflowRunCreateIfAbsentRepository(deps) {
     async createIfAbsent(input2) {
       const request = snapshotRequest(input2);
       const expectedRunId = runIdFor(request);
-      const changeDir2 = join55(resolve20(deps.repoRoot), "openspec", "changes", request.changeName);
+      const changeDir7 = join55(resolve20(deps.repoRoot), "openspec", "changes", request.changeName);
       const readExisting = async () => {
         try {
-          await deps.store.read(changeDir2);
-          return await deps.store.withLock(changeDir2, async () => {
-            const state = await deps.store.read(changeDir2);
-            assertExistingIdentity(changeDir2, expectedRunId, request, {
+          await deps.store.read(changeDir7);
+          return await deps.store.withLock(changeDir7, async () => {
+            const state = await deps.store.read(changeDir7);
+            assertExistingIdentity(changeDir7, expectedRunId, request, {
               runId: state.runMetadata?.runId,
               workflowId: stateString(state.fields.workflow),
               initialStep: stateString(state.fields.phase)
@@ -39706,7 +39706,7 @@ function createWorkflowRunCreateIfAbsentRepository(deps) {
       }
       const run2 = await readExisting();
       if (run2 === void 0) {
-        throw new Error(`WorkflowRun init reported EEXIST but no committed Change exists: ${changeDir2}`);
+        throw new Error(`WorkflowRun init reported EEXIST but no committed Change exists: ${changeDir7}`);
       }
       return { status: "existing", run: run2 };
     }
@@ -40334,15 +40334,15 @@ function settleFailure(kind, attemptsAfterIncr, maxRetries) {
 
 // packages/automation/dist/queue/claim.js
 var DAEMON_OWNED = ["running", "scheduled"];
-async function markQueued(store2, changeDir2, clock) {
-  await store2.setMany(changeDir2, { automation: "queued", automation_queued_at: clock() });
+async function markQueued(store2, changeDir7, clock) {
+  await store2.setMany(changeDir7, { automation: "queued", automation_queued_at: clock() });
 }
-function claim(store2, changeDir2, expectedTrackId, expectedRun) {
+function claim(store2, changeDir7, expectedTrackId, expectedRun) {
   if (expectedTrackId === void 0 && expectedRun === void 0) {
-    return store2.cas(changeDir2, "automation", "queued", "scheduled");
+    return store2.cas(changeDir7, "automation", "queued", "scheduled");
   }
-  return store2.withLock(changeDir2, async () => {
-    const state = await store2.read(changeDir2);
+  return store2.withLock(changeDir7, async () => {
+    const state = await store2.read(changeDir7);
     if (state.fields.automation !== "queued" || expectedTrackId !== void 0 && state.fields.track !== expectedTrackId)
       return false;
     if (expectedRun !== void 0) {
@@ -40352,24 +40352,24 @@ function claim(store2, changeDir2, expectedTrackId, expectedRun) {
         return false;
     }
     state.fields.automation = "scheduled";
-    await store2.writeUnderLock(changeDir2, state, { kind: "automation" });
+    await store2.writeUnderLock(changeDir7, state, { kind: "automation" });
     return true;
   });
 }
-async function setAutomationOwned(store2, changeDir2, next) {
-  if (await store2.cas(changeDir2, "automation", "running", next))
+async function setAutomationOwned(store2, changeDir7, next) {
+  if (await store2.cas(changeDir7, "automation", "running", next))
     return true;
-  return store2.cas(changeDir2, "automation", "scheduled", next);
+  return store2.cas(changeDir7, "automation", "scheduled", next);
 }
-function setAutomationOwnedWithFields(store2, changeDir2, next, fields) {
-  return store2.casMany(changeDir2, "automation", DAEMON_OWNED, {
+function setAutomationOwnedWithFields(store2, changeDir7, next, fields) {
+  return store2.casMany(changeDir7, "automation", DAEMON_OWNED, {
     ...fields,
     automation: next
   });
 }
-function commitFailureOwned(store2, changeDir2, input2) {
-  return store2.withLock(changeDir2, async () => {
-    const state = await store2.read(changeDir2);
+function commitFailureOwned(store2, changeDir7, input2) {
+  return store2.withLock(changeDir7, async () => {
+    const state = await store2.read(changeDir7);
     const writable = state.fields;
     const rawAutomation = writable.automation;
     const observed = typeof rawAutomation === "string" ? rawAutomation : "";
@@ -40389,12 +40389,12 @@ function commitFailureOwned(store2, changeDir2, input2) {
     for (const [field3, value] of Object.entries(input2.fields))
       writable[field3] = value;
     writable.automation = automation;
-    await store2.writeUnderLock(changeDir2, state, { kind: "automation" });
+    await store2.writeUnderLock(changeDir7, state, { kind: "automation" });
     return { status: "committed", automation, ...attempts === void 0 ? {} : { attempts } };
   });
 }
-async function getAutomation(store2, changeDir2) {
-  const v = await store2.get(changeDir2, "automation");
+async function getAutomation(store2, changeDir7) {
+  const v = await store2.get(changeDir7, "automation");
   return typeof v === "string" ? v : "";
 }
 function isSettled(automation) {
@@ -40442,8 +40442,8 @@ async function scanReadyFromFs(changesDir, store2) {
   const entries = [];
   const automationByName = /* @__PURE__ */ new Map();
   for (const name2 of activeNames) {
-    const changeDir2 = join57(changesDir, name2);
-    const state = await store2.read(changeDir2);
+    const changeDir7 = join57(changesDir, name2);
+    const state = await store2.read(changeDir7);
     const automation = scalar11(state.fields.automation);
     automationByName.set(name2, automation);
     entries.push({
@@ -45139,8 +45139,8 @@ function digest12(...values) {
     hash.update(value).update("\0");
   return hash.digest("hex");
 }
-async function canonicalSubject(changeDir2) {
-  const revision = await readCurrentRunRevision(changeDir2);
+async function canonicalSubject(changeDir7) {
+  const revision = await readCurrentRunRevision(changeDir7);
   const metadata = revision?.state.runMetadata;
   const workflow = revision?.state.fields.workflow;
   const phase = revision?.state.fields.phase;
@@ -45148,29 +45148,29 @@ async function canonicalSubject(changeDir2) {
     throw new Error("canonical WorkflowRun StepVisit identity is missing");
   }
   return {
-    project_id: await skillInvocationProjectId(join63(changeDir2, "..", "..", "..")),
+    project_id: await skillInvocationProjectId(join63(changeDir7, "..", "..", "..")),
     workflow_definition_id: workflow,
     workflow_run_id: metadata.runId,
     step_id: phase,
     step_visit: { run_id: metadata.runId, transition_sequence: metadata.transitionSequence }
   };
 }
-async function matchingConfirmation(changeDir2, subject2, record9) {
-  const confirmation = await currentDocumentSkillConfirmation(changeDir2, record9.producer, subject2.step_id, record9.recordedAt);
+async function matchingConfirmation(changeDir7, subject2, record9) {
+  const confirmation = await currentDocumentSkillConfirmation(changeDir7, record9.producer, subject2.step_id, record9.recordedAt);
   return confirmation?.step_visit.run_id === subject2.step_visit.run_id && confirmation.step_visit.transition_sequence === subject2.step_visit.transition_sequence ? confirmation : void 0;
 }
 function intentMatchesRecord(event, record9) {
   return event.payload.artifact.ref === record9.path && event.payload.artifact.digest === `sha256:${record9.sha256}` && event.payload.artifact.document?.kind === record9.kind && event.payload.artifact.document.recorded_at === record9.recordedAt;
 }
-async function recordCanonicalDocumentSkillInvocation(changeDir2, kind, recordedAt, options = {}) {
+async function recordCanonicalDocumentSkillInvocation(changeDir7, kind, recordedAt, options = {}) {
   const lock = options.lock;
   const appendEvent = lock === void 0 ? appendSkillInvocationEvent : (dir, event, appendOptions) => appendSkillInvocationEventUnderLock(dir, lock, event, appendOptions);
-  const subject2 = await canonicalSubject(changeDir2);
-  const ledger = await readDocumentLedger(changeDir2);
+  const subject2 = await canonicalSubject(changeDir7);
+  const ledger = await readDocumentLedger(changeDir7);
   const records = ledger?.records.filter((record10) => record10.kind === kind && record10.recordedAt === recordedAt && (options.record === void 0 || record10.path === options.record.path && record10.sha256 === options.record.sha256)) ?? [];
   const confirmed = [];
   for (const record10 of records) {
-    const confirmation2 = await matchingConfirmation(changeDir2, subject2, record10);
+    const confirmation2 = await matchingConfirmation(changeDir7, subject2, record10);
     if (confirmation2 !== void 0)
       confirmed.push({ record: record10, confirmation: confirmation2 });
   }
@@ -45181,7 +45181,7 @@ async function recordCanonicalDocumentSkillInvocation(changeDir2, kind, recorded
   const { record: record9, confirmation } = confirmed[0];
   let invocationId = confirmation.invocation_id;
   const adapter2 = { kind: confirmation.adapter.kind, proof_ref: confirmation.adapter.proof_ref };
-  const allInvocationEvents = await readSkillInvocationEventsForApplication(changeDir2);
+  const allInvocationEvents = await readSkillInvocationEventsForApplication(changeDir7);
   let invocationEvents = allInvocationEvents.filter((event) => event.invocation_id === invocationId);
   const existingIntent = invocationEvents.find((event) => event.type === "artifact-binding-intent" && intentMatchesRecord(event, record9));
   if (existingIntent !== void 0 && invocationEvents.some((event) => event.type === "artifact-bound" && event.payload.binding_id === existingIntent.payload.binding_id)) {
@@ -45221,7 +45221,7 @@ async function recordCanonicalDocumentSkillInvocation(changeDir2, kind, recorded
         }] }
       }
     };
-    await appendEvent(changeDir2, started, {});
+    await appendEvent(changeDir7, started, {});
     invocationEvents = [started];
   }
   let sequence = Math.max(...invocationEvents.map((event) => event.sequence)) + 1;
@@ -45238,12 +45238,12 @@ async function recordCanonicalDocumentSkillInvocation(changeDir2, kind, recorded
         validator: { id: "canonical-document-record", status: "pass" }
       }] } }
     };
-    await appendEvent(changeDir2, completed, { verify_completed_adapter: async () => true });
+    await appendEvent(changeDir7, completed, { verify_completed_adapter: async () => true });
     sequence += 1;
   }
   const bindingId = `binding-${digest12(invocationId, record9.sha256)}`;
   const artifactEventRef = digest12(record9.path, record9.sha256);
-  await appendEvent(changeDir2, {
+  await appendEvent(changeDir7, {
     ...started,
     event_id: `${invocationId}-artifact-intent-${artifactEventRef}`,
     sequence,
@@ -45261,7 +45261,7 @@ async function recordCanonicalDocumentSkillInvocation(changeDir2, kind, recorded
     }
   }, {});
   sequence += 1;
-  await appendEvent(changeDir2, {
+  await appendEvent(changeDir7, {
     ...started,
     event_id: `${invocationId}-artifact-bound-${artifactEventRef}`,
     sequence,
@@ -45326,9 +45326,9 @@ function createAfkSkillInvocationLifecycle(changeDirFor, interactionReceipts) {
   const start = async (context, recordedAt) => {
     if (context.preparedKind !== "loop-bundle" || context.workflow_run_id === void 0)
       return [];
-    const changeDir2 = changeDirFor(context.change);
+    const changeDir7 = changeDirFor(context.change);
     const receipts = interactionReceipts === void 0 ? await canonicalAfkInteractionReceipts(context, recordedAt) : await interactionReceipts.verifiedReceiptsFor(context);
-    return startDurableAfkSkillInvocations(changeDir2, context.reservation_id, receipts);
+    return startDurableAfkSkillInvocations(changeDir7, context.reservation_id, receipts);
   };
   return {
     start,
@@ -45379,16 +45379,16 @@ function resolveAutomationConfig(deps, entrypointDefaults = {}) {
   return { ...DEFAULT_CONFIG, ...entrypointDefaults, ...fileCfg, ...deps.config };
 }
 var scalar12 = (v) => typeof v === "string" ? v : "";
-var storeWriter = (store2, changeDir2) => ({
-  claim: (name2, expectedTrackId, expectedRun) => claim(store2, changeDir2(name2), expectedTrackId, expectedRun),
-  setAutomation: (name2, s) => store2.set(changeDir2(name2), "automation", s),
-  setField: (name2, field3, value) => store2.set(changeDir2(name2), field3, value),
-  commitFailureOwned: (name2, input2) => commitFailureOwned(store2, changeDir2(name2), input2),
-  getAutomation: (name2) => getAutomation(store2, changeDir2(name2)),
-  setAutomationOwned: (name2, next) => setAutomationOwned(store2, changeDir2(name2), next),
-  setAutomationOwnedWithFields: (name2, next, fields) => setAutomationOwnedWithFields(store2, changeDir2(name2), next, fields),
+var storeWriter = (store2, changeDir7) => ({
+  claim: (name2, expectedTrackId, expectedRun) => claim(store2, changeDir7(name2), expectedTrackId, expectedRun),
+  setAutomation: (name2, s) => store2.set(changeDir7(name2), "automation", s),
+  setField: (name2, field3, value) => store2.set(changeDir7(name2), field3, value),
+  commitFailureOwned: (name2, input2) => commitFailureOwned(store2, changeDir7(name2), input2),
+  getAutomation: (name2) => getAutomation(store2, changeDir7(name2)),
+  setAutomationOwned: (name2, next) => setAutomationOwned(store2, changeDir7(name2), next),
+  setAutomationOwnedWithFields: (name2, next, fields) => setAutomationOwnedWithFields(store2, changeDir7(name2), next, fields),
   markFailedSync: (name2, reason2) => {
-    void store2.setMany(changeDir2(name2), { automation: "failed", automation_last_error: reason2, automation_cause: "" }).catch(() => {
+    void store2.setMany(changeDir7(name2), { automation: "failed", automation_last_error: reason2, automation_cause: "" }).catch(() => {
     });
   }
 });
@@ -45396,7 +45396,7 @@ function createAutomation(deps) {
   const config = resolveAutomationConfig(deps, { enabled: true, defaultOptIn: true });
   const { store: store2, clock } = deps;
   const changesDir = join64(deps.repoRoot, "openspec", "changes");
-  const changeDir2 = (name2) => join64(changesDir, name2);
+  const changeDir7 = (name2) => join64(changesDir, name2);
   const admission = deps.admission ?? createLoopAdmission({
     repoRoot: deps.repoRoot,
     ledger: createLoopLedgerStore(),
@@ -45404,16 +45404,16 @@ function createAutomation(deps) {
     clock,
     level: config.level,
     image: deps.image,
-    getAutomation: (change) => getAutomation(store2, changeDir2(change)),
+    getAutomation: (change) => getAutomation(store2, changeDir7(change)),
     bindAutomationPolicy: deps.bindAutomationPolicy,
     bindWorkflowActionAuthority: deps.bindWorkflowActionAuthority,
     withWorkflowActionAuthorityLock: deps.withWorkflowActionAuthorityLock,
     workflowActionAuthority: deps.workflowActionAuthority
   });
   const preparation = deps.preparation ?? createDefaultExecutionPreparation();
-  const skillInvocations = createAfkSkillInvocationLifecycle(changeDir2, deps.interactionReceipts);
+  const skillInvocations = createAfkSkillInvocationLifecycle(changeDir7, deps.interactionReceipts);
   const schedulerFor = (runChange) => createScheduler({
-    state: storeWriter(store2, changeDir2),
+    state: storeWriter(store2, changeDir7),
     runChange,
     registerShutdown: deps.registerShutdown ?? registerProcessShutdown,
     config: { maxParallel: config.maxParallel, maxRetries: config.maxRetries, level: config.level },
@@ -45426,7 +45426,7 @@ function createAutomation(deps) {
   return {
     config,
     async enqueue(name2, resolveTrackPolicy) {
-      const state = await store2.read(changeDir2(name2));
+      const state = await store2.read(changeDir7(name2));
       const policy2 = resolveTrackPolicy(scalar12(state.fields.track));
       const eligible = shouldEnqueueOnSpecComplete({
         enabled: config.enabled,
@@ -45436,7 +45436,7 @@ function createAutomation(deps) {
       });
       if (!eligible)
         return false;
-      await markQueued(store2, changeDir2(name2), clock);
+      await markQueued(store2, changeDir7(name2), clock);
       return true;
     },
     scanReady() {
@@ -45478,9 +45478,9 @@ async function enqueueAfterSpecComplete(deps, transition) {
     return { kind: "not-applicable" };
   }
   const config = resolveAutomationConfig(deps);
-  const changeDir2 = join65(deps.repoRoot, "openspec", "changes", transition.changeName);
-  return deps.store.withLock(changeDir2, async () => {
-    const state = await deps.store.read(changeDir2);
+  const changeDir7 = join65(deps.repoRoot, "openspec", "changes", transition.changeName);
+  return deps.store.withLock(changeDir7, async () => {
+    const state = await deps.store.read(changeDir7);
     if (scalar13(state.fields.phase) !== "build")
       return { kind: "phase-changed" };
     const policy2 = deps.resolveTrackPolicy(scalar13(state.fields.track));
@@ -45500,7 +45500,7 @@ async function enqueueAfterSpecComplete(deps, transition) {
       return { kind: "not-opted-in" };
     state.fields.automation = "queued";
     state.fields.automation_queued_at = deps.clock();
-    await deps.store.writeUnderLock(changeDir2, state, { kind: "automation" });
+    await deps.store.writeUnderLock(changeDir7, state, { kind: "automation" });
     return { kind: "queued" };
   });
 }
@@ -45983,10 +45983,10 @@ var createLifecyclePorts = (deps) => {
     },
     async runWork(sandboxExec, name2, signal, runner) {
       const cmd = buildAfkRunCommand(name2, runner, deps.imageExpectation);
-      const changeDir2 = join66(hostRepoDir, "openspec", "changes", name2);
-      const logPath = join66(changeDir2, ".sandcastle-run.log");
+      const changeDir7 = join66(hostRepoDir, "openspec", "changes", name2);
+      const logPath = join66(changeDir7, ".sandcastle-run.log");
       const persistLog = async (content) => {
-        await mkdir33(changeDir2, { recursive: true }).catch(() => {
+        await mkdir33(changeDir7, { recursive: true }).catch(() => {
         });
         await writeFile19(logPath, content, "utf8").catch(() => {
         });
@@ -46043,11 +46043,11 @@ var PathPolicyResolverUnconfiguredError = class extends Error {
     this.name = "PathPolicyResolverUnconfiguredError";
   }
 };
-var resolveWorkflowKindFor = async (store2, changeDir2, name2) => {
+var resolveWorkflowKindFor = async (store2, changeDir7, name2) => {
   if (!store2)
     return "default";
   try {
-    const state = await store2.read(changeDir2(name2));
+    const state = await store2.read(changeDir7(name2));
     return resolveWorkflowName(state) === "default" ? "default" : "custom";
   } catch {
     return "custom";
@@ -46071,8 +46071,8 @@ var claudeCredentialEnv = (hostEnv) => {
 var createDockerRunChange = (opts) => {
   const exec = opts.exec ?? nodeExec;
   const { store: store2, hostRepoDir } = opts;
-  const changeDir2 = (name2) => join67(hostRepoDir, "openspec", "changes", name2);
-  const setStateField = store2 ? (name2, field3, value) => store2.set(changeDir2(name2), field3, field3 === "automation_worktree" ? sanitizePath(value) : value) : void 0;
+  const changeDir7 = (name2) => join67(hostRepoDir, "openspec", "changes", name2);
+  const setStateField = store2 ? (name2, field3, value) => store2.set(changeDir7(name2), field3, field3 === "automation_worktree" ? sanitizePath(value) : value) : void 0;
   const ports = createLifecyclePorts({
     exec,
     hostRepoDir: opts.hostRepoDir,
@@ -46105,7 +46105,7 @@ var createDockerRunChange = (opts) => {
     const withStartPermit = startPermit ? (fn) => startPermit(loopId, { policy_epoch: context.policy_epoch, skill_bundle_id: context.skill_bundle_id }, fn) : void 0;
     const mergePermit = opts.mergePermit;
     const withMergePermit = mergePermit ? (fn, verifyBase) => mergePermit(loopId, { policy_epoch: context.policy_epoch, skill_bundle_id: context.skill_bundle_id }, fn, verifyBase) : void 0;
-    const workflowKind = await resolveWorkflowKindFor(store2, changeDir2, name2);
+    const workflowKind = await resolveWorkflowKindFor(store2, changeDir7, name2);
     const preparedBundle = context.preparedKind === "loop-bundle" ? context.skillBundle : void 0;
     const workflowCoordinate = workflowKind === "custom" && preparedBundle?.resolutionSource === "custom" && preparedBundle.workflow !== void 0 && preparedBundle.step !== void 0 && preparedBundle.coordinateDigest !== void 0 ? {
       workflow_digest: preparedBundle.coordinateDigest,
@@ -47632,8 +47632,8 @@ function emptyInputBundleV2(runId, workItemId) {
 function rejectedInputManifest(runId, workItemId, refs, reason2, now) {
   return Object.freeze({ schema_version: "skill-input-manifest/v2", manifest_id: `input:${runId}`, run_id: runId, work_item_id: workItemId, input_refs: Object.freeze([...refs]), artifact_digests: [], bundle_digest: digest14(refs), byte_length: 0, delivery: "rejected", rejection_reason: reason2.slice(0, 160), created_at: now });
 }
-function createFilesystemArtifactResolverV2(changeDir2) {
-  const root = path11.resolve(changeDir2);
+function createFilesystemArtifactResolverV2(changeDir7) {
+  const root = path11.resolve(changeDir7);
   return {
     async resolve({ ref, signal }) {
       if (signal.aborted)
@@ -47929,16 +47929,16 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   async reconcileNow() {
     const next = await this.snapshot();
     const changes = [];
-    for (const [relative33, digest17] of next) {
-      const previous = this.baseline.get(relative33);
+    for (const [relative34, digest17] of next) {
+      const previous = this.baseline.get(relative34);
       if (previous === void 0)
-        changes.push({ path: relative33, kind: "created", digest: digest17 });
+        changes.push({ path: relative34, kind: "created", digest: digest17 });
       else if (previous !== digest17)
-        changes.push({ path: relative33, kind: "changed", digest: digest17 });
+        changes.push({ path: relative34, kind: "changed", digest: digest17 });
     }
-    for (const relative33 of this.baseline.keys())
-      if (!next.has(relative33))
-        changes.push({ path: relative33, kind: "deleted" });
+    for (const relative34 of this.baseline.keys())
+      if (!next.has(relative34))
+        changes.push({ path: relative34, kind: "deleted" });
     const observed = changes.filter((change) => change.kind !== "deleted");
     const inputs2 = await Promise.all(observed.map(async (change) => ({
       source: { path: change.path },
@@ -47970,17 +47970,17 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     return Object.freeze(changes);
   }
   async publish(relativePath, disposition = "candidate") {
-    const relative33 = this.safeRelative(relativePath);
-    const absolute = this.resolve(relative33);
+    const relative34 = this.safeRelative(relativePath);
+    const absolute = this.resolve(relative34);
     const bytes = await readFile45(absolute);
     const currentDigest = digest15(bytes);
-    const prior = this.observedVersionsByPath.get(relative33);
+    const prior = this.observedVersionsByPath.get(relative34);
     const needsManagedObservation = prior === void 0 || prior.contentDigest !== currentDigest || prior.origin !== "stage" || prior.producer?.stageAttemptId !== this.stageAttemptId;
     if (needsManagedObservation) {
       const observed2 = await this.service.observe(this.stageAttemptId, {
-        source: { path: relative33 },
+        source: { path: relative34 },
         data: bytes,
-        mediaType: mediaTypeFor(relative33),
+        mediaType: mediaTypeFor(relative34),
         origin: "stage",
         producer: {
           workflowRunId: this.workflowRunId,
@@ -47990,26 +47990,26 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
         },
         observationSource: "explicit-publish"
       });
-      this.observedDigestsByPath.set(relative33, currentDigest);
+      this.observedDigestsByPath.set(relative34, currentDigest);
       if (observed2 !== null && typeof observed2 === "object" && "artifactId" in observed2) {
-        this.artifactIdsByPath.set(relative33, String(observed2.artifactId));
-        this.observedVersionsByPath.set(relative33, observed2);
+        this.artifactIdsByPath.set(relative34, String(observed2.artifactId));
+        this.observedVersionsByPath.set(relative34, observed2);
       }
     }
-    const observed = this.observedVersionsByPath.get(relative33);
-    return this.service.publish(this.stageAttemptId, { path: relative33, ...observed ? { artifactId: observed.artifactId, version: observed.version } : {}, disposition });
+    const observed = this.observedVersionsByPath.get(relative34);
+    return this.service.publish(this.stageAttemptId, { path: relative34, ...observed ? { artifactId: observed.artifactId, version: observed.version } : {}, disposition });
   }
   /** Submit an executor-declared output through the host-owned boundary. */
   async submit(relativePath, disposition = "deliverable", logicalKey) {
-    const relative33 = this.safeRelative(relativePath);
+    const relative34 = this.safeRelative(relativePath);
     if (this.service.submitArtifactOutput === void 0)
-      return this.publish(relative33, disposition);
-    const bytes = await readFile45(this.resolve(relative33));
+      return this.publish(relative34, disposition);
+    const bytes = await readFile45(this.resolve(relative34));
     const version = await this.service.submitArtifactOutput(this.stageAttemptId, {
       data: bytes,
-      path: relative33,
-      mediaType: mediaTypeFor(relative33),
-      kind: mediaTypeFor(relative33).includes("json") ? "json" : mediaTypeFor(relative33).startsWith("text/") ? "text" : "file",
+      path: relative34,
+      mediaType: mediaTypeFor(relative34),
+      kind: mediaTypeFor(relative34).includes("json") ? "json" : mediaTypeFor(relative34).startsWith("text/") ? "text" : "file",
       origin: "stage",
       producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...this.skillId ? { skillId: this.skillId } : {}, ...this.actorId ? { actorId: this.actorId } : {} },
       logicalKey,
@@ -48018,19 +48018,19 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
       disposition,
       observationSource: "explicit-publish"
     });
-    this.observedVersionsByPath.set(relative33, version);
-    this.observedDigestsByPath.set(relative33, digest15(bytes));
-    this.artifactIdsByPath.set(relative33, version.artifactId);
+    this.observedVersionsByPath.set(relative34, version);
+    this.observedDigestsByPath.set(relative34, digest15(bytes));
+    this.artifactIdsByPath.set(relative34, version.artifactId);
     return version;
   }
   async observePath(relativePath, options = {}) {
-    const relative33 = this.safeRelative(relativePath);
-    const bytes = await readFile45(this.resolve(relative33));
-    const value = await this.service.observe(this.stageAttemptId, { source: { path: relative33 }, data: bytes, mediaType: mediaTypeFor(relative33), origin: "stage", producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...this.skillId ? { skillId: this.skillId } : {}, ...this.actorId ? { actorId: this.actorId } : {} }, observationSource: options.source ?? "managed-tool", ...options.toolCallId ? { toolCallId: options.toolCallId } : {} });
+    const relative34 = this.safeRelative(relativePath);
+    const bytes = await readFile45(this.resolve(relative34));
+    const value = await this.service.observe(this.stageAttemptId, { source: { path: relative34 }, data: bytes, mediaType: mediaTypeFor(relative34), origin: "stage", producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...this.skillId ? { skillId: this.skillId } : {}, ...this.actorId ? { actorId: this.actorId } : {} }, observationSource: options.source ?? "managed-tool", ...options.toolCallId ? { toolCallId: options.toolCallId } : {} });
     const version = value;
-    this.observedDigestsByPath.set(relative33, digest15(bytes));
-    this.observedVersionsByPath.set(relative33, version);
-    this.artifactIdsByPath.set(relative33, version.artifactId);
+    this.observedDigestsByPath.set(relative34, digest15(bytes));
+    this.observedVersionsByPath.set(relative34, version);
+    this.artifactIdsByPath.set(relative34, version.artifactId);
     return version;
   }
   async catalog(policy2 = {}) {
@@ -48070,22 +48070,22 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     }
     await this.service.endAttempt(this.stageAttemptId, status);
   }
-  resolve(relative33) {
-    const absolute = path12.resolve(this.rootDir, relative33);
+  resolve(relative34) {
+    const absolute = path12.resolve(this.rootDir, relative34);
     if (absolute !== this.rootDir && !absolute.startsWith(`${this.rootDir}${path12.sep}`))
-      throw new Error(`artifact path escapes root: ${relative33}`);
+      throw new Error(`artifact path escapes root: ${relative34}`);
     return absolute;
   }
-  safeRelative(relative33) {
-    const normalized2 = path12.relative(this.rootDir, this.resolve(relative33));
+  safeRelative(relative34) {
+    const normalized2 = path12.relative(this.rootDir, this.resolve(relative34));
     if (!normalized2 || normalized2.startsWith(".."))
-      throw new Error(`invalid artifact path: ${relative33}`);
+      throw new Error(`invalid artifact path: ${relative34}`);
     if (this.isIgnored(normalized2))
-      throw new Error(`ignored artifact path: ${relative33}`);
+      throw new Error(`ignored artifact path: ${relative34}`);
     return normalized2;
   }
-  isIgnored(relative33) {
-    const segments = relative33.split(path12.sep);
+  isIgnored(relative34) {
+    const segments = relative34.split(path12.sep);
     return segments.some((segment) => this.ignoredDirectories.has(segment)) || this.ignoredFiles.has(segments[segments.length - 1] ?? "");
   }
   async snapshot() {
@@ -48175,9 +48175,9 @@ async function consumeArtifactsV2(service, runtime, stageAttemptId, declarations
 import { randomUUID as randomUUID13 } from "node:crypto";
 import { mkdir as mkdir34, rename as rename13, writeFile as writeFile20 } from "node:fs/promises";
 import path13 from "node:path";
-async function persistRuntimeOutputV2(changeDir2, run2, observation) {
+async function persistRuntimeOutputV2(changeDir7, run2, observation) {
   const resultId = resultIdentity(run2.run_id);
-  const directory = path13.join(path13.resolve(changeDir2), ".tenon-artifacts", resultId);
+  const directory = path13.join(path13.resolve(changeDir7), ".tenon-artifacts", resultId);
   await mkdir34(directory, { recursive: true });
   const output2 = stable3(observation.output);
   const temporary = path13.join(directory, `output.json.tmp-${randomUUID13()}`);
@@ -48732,21 +48732,21 @@ function stringsAtKnownKeys(value, output2, depth = 0) {
       stringsAtKnownKeys(record9[key], output2, depth + 1);
   }
 }
-function normalizeScopedPath(candidate2, changeDir2) {
+function normalizeScopedPath(candidate2, changeDir7) {
   const normalizedCandidate = candidate2.trim().replaceAll("\\", path14.sep);
   if (normalizedCandidate.length === 0 || normalizedCandidate.includes("\0") || normalizedCandidate.includes("://") || /^[A-Za-z]:\//u.test(normalizedCandidate))
     return void 0;
-  const root = path14.resolve(changeDir2);
+  const root = path14.resolve(changeDir7);
   const absolute = path14.resolve(root, normalizedCandidate);
-  const relative33 = path14.relative(root, absolute);
-  if (!relative33 || relative33 === ".." || relative33.startsWith(`..${path14.sep}`) || path14.isAbsolute(relative33))
+  const relative34 = path14.relative(root, absolute);
+  if (!relative34 || relative34 === ".." || relative34.startsWith(`..${path14.sep}`) || path14.isAbsolute(relative34))
     return void 0;
-  const segments = relative33.split(path14.sep);
+  const segments = relative34.split(path14.sep);
   if (segments.some((segment) => segment === ".git" || segment === ".pipeline-artifacts" || segment === ".tenon-artifacts" || segment === ".orchestration-v2"))
     return void 0;
-  return relative33;
+  return relative34;
 }
-function decodeCodexToolCompletion(event, changeDir2) {
+function decodeCodexToolCompletion(event, changeDir7) {
   const kind = toolCompletionKind(event);
   if (kind === void 0)
     return void 0;
@@ -48757,7 +48757,7 @@ function decodeCodexToolCompletion(event, changeDir2) {
   const paths = [];
   let rejectedPathCount = 0;
   for (const candidate2 of candidates) {
-    const normalized2 = normalizeScopedPath(candidate2, changeDir2);
+    const normalized2 = normalizeScopedPath(candidate2, changeDir7);
     if (normalized2 === void 0)
       rejectedPathCount += 1;
     else if (!paths.includes(normalized2))
@@ -48985,6 +48985,13 @@ function archivedChangeDir(cwd, name2) {
     if (stateStorageExistsSync(dir)) return dir;
   }
   return null;
+}
+function resolveChangeDir2(cwd, name2) {
+  return relocatedChangeDir(cwd, name2) ?? changeDir(cwd, name2);
+}
+function relocatedChangeDir(cwd, name2) {
+  if (stateStorageExistsSync(changeDir(cwd, name2))) return null;
+  return archivedChangeDir(cwd, name2);
 }
 async function readChangeForDisplay(read3, cwd, name2) {
   try {
@@ -50570,9 +50577,9 @@ function currentVisitEvidence(history, evidenceScope) {
   }
   return { completedSkillIds: ids2, startedAt, valid };
 }
-async function readHistory(changeDir2) {
+async function readHistory(changeDir7) {
   try {
-    return await readFile50(join79(changeDir2, HISTORY_FILE), "utf8");
+    return await readFile50(join79(changeDir7, HISTORY_FILE), "utf8");
   } catch {
     return "";
   }
@@ -50897,7 +50904,7 @@ async function stepTestBlockers(deps, name2, dir, state, plan) {
 }
 
 // packages/cli/src/commands/buildRevisionAssessor.ts
-function resolveBuildRevisionAssessor(deps, changeName, changeDir2) {
+function resolveBuildRevisionAssessor(deps, changeName, changeDir7) {
   if (deps.assessBuildRevision !== void 0) return deps.assessBuildRevision;
   return async (request) => {
     const identity2 = deps.buildRevisionIdentity === void 0 ? await probeBuildRevisionIdentity(deps.cwd) : await deps.buildRevisionIdentity();
@@ -50908,7 +50915,7 @@ function resolveBuildRevisionAssessor(deps, changeName, changeDir2) {
       return { kind, revision, identity: identity2 };
     };
     const provenance = async () => {
-      const validated = await readValidatedTransitionHead(changeDir2);
+      const validated = await readValidatedTransitionHead(changeDir7);
       if (!validated) return void 0;
       const { current, record: record9 } = validated;
       const stateBuildSha = current.state.fields.build_sha;
@@ -50939,7 +50946,7 @@ async function cmdCheck(deps, name2, opts = {}) {
     deps.io.err(`ERROR: change-name \u975E\u6CD5: '${name2}' (\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _)`);
     return 1;
   }
-  const dir = changeDir(deps.cwd, name2);
+  const dir = resolveChangeDir2(deps.cwd, name2);
   let state;
   try {
     state = await deps.store.read(dir);
@@ -55905,9 +55912,10 @@ async function cmdDoctor(deps, opts) {
 }
 
 // packages/cli/src/commands/artifact.ts
-import { relative as relative20, resolve as resolve34 } from "node:path";
+import { relative as relative21, resolve as resolve34 } from "node:path";
 
 // packages/cli/src/archivedGuard.ts
+import { relative as relative20 } from "node:path";
 async function archivedChangesForUser(deps) {
   const user = deps.user();
   if (!isTenonUser(user)) return /* @__PURE__ */ new Set();
@@ -55915,8 +55923,39 @@ async function archivedChangesForUser(deps) {
   return read3.kind === "ok" ? new Set(Object.keys(read3.archive.changes)) : /* @__PURE__ */ new Set();
 }
 async function refuseArchived(deps, name2) {
-  if (!await isArchivedForUser(deps.cwd, deps.user(), name2)) return false;
-  deps.io.err(`ERROR: ${taskArchivedMessage(name2)}`);
+  if (await isArchivedForUser(deps.cwd, deps.user(), name2)) {
+    deps.io.err(`ERROR: ${taskArchivedMessage(name2)}`);
+    return true;
+  }
+  return refuseUnfinishedRelocation(deps, name2);
+}
+async function refuseUnfinishedRelocation(deps, name2) {
+  const relocated = relocatedChangeDir(deps.cwd, name2);
+  if (relocated === null) return false;
+  let fields;
+  try {
+    fields = (await deps.store.read(relocated)).fields;
+  } catch {
+    return false;
+  }
+  const archived = fields.archived;
+  if ((Array.isArray(archived) ? archived.join(",") : archived ?? "") === "true") return false;
+  const dated = relative20(deps.cwd, relocated);
+  deps.io.err(
+    `ERROR: change '${name2}' \u7684\u76EE\u5F55\u5DF2\u88AB openspec archive \u642C\u5230 ${dated}\uFF0C\u4F46\u5B83\u8FD8\u6CA1\u5B8C\u7ED3\uFF08archived=false\uFF09\uFF1B\u5F52\u6863\u5FC5\u987B\u6392\u5728 tenon transition ${name2} archived \u4E4B\u540E`
+  );
+  deps.io.err(
+    `  \u6062\u590D\uFF1Amv ${dated} openspec/changes/${name2} && tenon transition ${name2} archived && openspec archive ${name2} --skip-specs --yes`
+  );
+  return true;
+}
+function changeFinishedMessage(change) {
+  return `\u4EFB\u52A1 '${change}' \u5DF2\u5B8C\u7ED3\uFF08archived=true\uFF0C\u72B6\u6001\u673A\u5DF2\u8D70\u5B8C\uFF09\uFF1B\u5B8C\u7ED3\u7684\u4EFB\u52A1\u4E0D\u518D\u63A5\u53D7\u72B6\u6001\u5199\u5165\uFF0C\u8981\u7EE7\u7EED\u505A\u5C31\u65B0\u5EFA\u4EFB\u52A1`;
+}
+function refuseFinished(deps, change, fields) {
+  const archived = fields.archived;
+  if ((Array.isArray(archived) ? archived.join(",") : archived ?? "") !== "true") return false;
+  deps.io.err(`ERROR: ${changeFinishedMessage(change)}`);
   return true;
 }
 
@@ -56072,6 +56111,7 @@ async function runComboWrite(deps, dir, owner, compute) {
       async ({ registry }) => deps.store.withLock(dir, async () => {
         const cur = await deps.store.read(dir);
         assertOwner(owner.change, cur.fields, owner.actor);
+        if (refuseFinished(deps, owner.change, cur.fields)) return 1;
         const plan = compute(cur);
         const artReject = checkArtifactPatch(deps, cur, plan.patch);
         if (artReject !== null) {
@@ -56096,6 +56136,7 @@ async function runGuardedWrite(deps, dir, owner, patch) {
     return await deps.store.withLock(dir, async () => {
       const cur = await deps.store.read(dir);
       assertOwner(owner.change, cur.fields, owner.actor);
+      if (refuseFinished(deps, owner.change, cur.fields)) return 1;
       const artReject = checkArtifactPatch(deps, cur, patch);
       if (artReject !== null) {
         deps.io.err(artReject);
@@ -56116,6 +56157,7 @@ async function runGuardedCas(deps, dir, owner, f, expect, next) {
     return await deps.store.withLock(dir, async () => {
       const cur = await deps.store.read(dir);
       assertOwner(owner.change, cur.fields, owner.actor);
+      if (refuseFinished(deps, owner.change, cur.fields)) return 1;
       const artReject = checkArtifactPatch(deps, cur, fieldPatch(f, next));
       if (artReject !== null) {
         deps.io.err(artReject);
@@ -56189,7 +56231,7 @@ async function cmdSet(deps, name2, field3, value) {
   if (rejectProtectedField(deps, f)) return 1;
   const v = coerceValue(f, value);
   if (!enumValueAllowed(deps, f, v)) return 1;
-  const dir = changeDir(deps.cwd, name2);
+  const dir = resolveChangeDir2(deps.cwd, name2);
   if (f === "track" || f === "workflow") {
     const code2 = await runComboWrite(deps, dir, owner, (cur) => ({
       kind: "write",
@@ -56236,7 +56278,7 @@ async function cmdSetMany(deps, name2, pairs) {
     deps.io.err("ERROR: set-many \u81F3\u5C11\u9700\u8981 1 \u4E2A key=value");
     return 1;
   }
-  const dir = changeDir(deps.cwd, name2);
+  const dir = resolveChangeDir2(deps.cwd, name2);
   if (Object.hasOwn(kv, "track") || Object.hasOwn(kv, "workflow")) {
     const code = await runComboWrite(deps, dir, owner, (cur) => ({
       kind: "write",
@@ -56266,7 +56308,7 @@ async function cmdCas(deps, name2, field3, expect, next) {
   if (!f) return 1;
   if (rejectProtectedField(deps, f)) return 1;
   if (f === "automation" && !enumValueAllowed(deps, f, next)) return 1;
-  const dir = changeDir(deps.cwd, name2);
+  const dir = resolveChangeDir2(deps.cwd, name2);
   if (f === "track" || f === "workflow") {
     const code2 = await runComboWrite(deps, dir, owner, (cur) => {
       if (cur.fields[f] !== expect) return { kind: "cas-miss", patch: fieldPatch(f, next) };
@@ -56389,13 +56431,13 @@ async function cmdArtifactRegister(deps, name2, field3, path15, producer) {
   if (producer.includes("|")) {
     return reject3(deps, `--producer '${producer}' \u662F a|b \u5907\u9009 token\u3001\u4E0D\u662F\u5177\u4F53 skill id\u2014\u2014\u8BF7\u4F20\u5176\u4E2D\u67D0\u4E00\u4E2A\u5177\u4F53 branch`);
   }
-  const dir = changeDir(deps.cwd, name2);
+  const dir = resolveChangeDir2(deps.cwd, name2);
   try {
     const result2 = await deps.store.withLock(dir, () => runRegister(deps, dir, field3, path15, producer));
     if (result2 === 0 && deps.artifactSubmission) {
       try {
         const submission = await deps.artifactSubmission({ changeDir: dir });
-        const submissionPath = relative20(dir, resolve34(deps.cwd, path15));
+        const submissionPath = relative21(dir, resolve34(deps.cwd, path15));
         const receipt = await submission.submit({
           projection: "field",
           logicalKey: `field:${field3}`,
@@ -56417,7 +56459,7 @@ async function cmdArtifactRegister(deps, name2, field3, path15, producer) {
 
 // packages/cli/src/commands/document.ts
 import { lstat as lstat44 } from "node:fs/promises";
-import { relative as relative22, resolve as resolve37 } from "node:path";
+import { relative as relative23, resolve as resolve37 } from "node:path";
 
 // packages/cli/src/documentLocale.ts
 import { readFile as readFile57 } from "node:fs/promises";
@@ -56477,7 +56519,7 @@ async function resolveChangeDocumentLocale(changeDirPath, requestedLocale, pinLe
 
 // packages/cli/src/commands/documentScaffoldSafety.ts
 import { lstat as lstat43, realpath as realpath14 } from "node:fs/promises";
-import { dirname as dirname21, isAbsolute as isAbsolute27, relative as relative21, resolve as resolve36, sep as sep18 } from "node:path";
+import { dirname as dirname21, isAbsolute as isAbsolute27, relative as relative22, resolve as resolve36, sep as sep18 } from "node:path";
 function ordinaryDocumentFile(info) {
   return info.isFile() && !info.isSymbolicLink();
 }
@@ -56495,7 +56537,7 @@ function requiredDeltaCapability(requestedCapability) {
 }
 async function assertSafeChangeRoot(repoRoot, changeRoot) {
   const root = resolve36(repoRoot);
-  const lexical = relative21(root, resolve36(changeRoot));
+  const lexical = relative22(root, resolve36(changeRoot));
   if (lexical === ".." || lexical.startsWith(`..${sep18}`) || isAbsolute27(lexical)) {
     throw new Error(`Change \u6839\u8D8A\u8FC7\u9879\u76EE\u6839: ${changeRoot}`);
   }
@@ -56512,7 +56554,7 @@ async function assertSafeChangeRoot(repoRoot, changeRoot) {
     }
   }
   const [rootReal, changeReal] = await Promise.all([realpath14(root), realpath14(changeRoot)]);
-  const escaped3 = relative21(rootReal, changeReal);
+  const escaped3 = relative22(rootReal, changeReal);
   if (escaped3 === ".." || escaped3.startsWith(`..${sep18}`) || isAbsolute27(escaped3)) {
     throw new Error(`Change \u6839\u771F\u5B9E\u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839: ${changeRoot}`);
   }
@@ -56551,7 +56593,7 @@ async function cmdDocumentScaffold(deps, name2, kind, requestedLocale, requested
     const locale = await resolveChangeDocumentLocale(dir, requestedLocale, true);
     const targetRelative = documentPathForKind(kind, { change: name2, capability });
     const target = resolve37(deps.cwd, targetRelative);
-    const escaped3 = relative22(resolve37(deps.cwd), target);
+    const escaped3 = relative23(resolve37(deps.cwd), target);
     if (escaped3 === ".." || escaped3.startsWith("../") || escaped3.startsWith("..\\")) {
       throw new Error(`document scaffold \u8DEF\u5F84\u8D8A\u754C: ${targetRelative}`);
     }
@@ -56608,7 +56650,7 @@ function governedDocumentContext(deps, state) {
   return { workflowName, phase, governed: true, policy: policy2 };
 }
 function assertChangeName(deps, name2) {
-  if (isValidChangeName(name2)) return changeDir(deps.cwd, name2);
+  if (isValidChangeName(name2)) return resolveChangeDir2(deps.cwd, name2);
   reject4(deps, `change-name \u975E\u6CD5: '${name2}' (\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _)`);
   return void 0;
 }
@@ -56674,7 +56716,7 @@ async function cmdDocumentRecord(deps, name2, kind, path15, producer, backfill =
       let ledger;
       if (deps.artifactSubmission) {
         const submission = await deps.artifactSubmission({ changeDir: dir, phase, policy: policy2 });
-        const submissionPath = relative22(dir, resolve37(deps.cwd, path15));
+        const submissionPath = relative23(dir, resolve37(deps.cwd, path15));
         const receipt = await submission.submit({
           projection: "document",
           logicalKey: `document:${kind}`,
@@ -56702,7 +56744,7 @@ async function cmdDocumentRecord(deps, name2, kind, path15, producer, backfill =
           actor: actor3
         });
       }
-      const requestedPath = relative22(resolve37(deps.cwd), resolve37(deps.cwd, path15));
+      const requestedPath = relative23(resolve37(deps.cwd), resolve37(deps.cwd, path15));
       const canonicalRecords = ledger.records.filter((record9) => record9.kind === kind && record9.producer === producer && record9.recordedAt === recordedAt && record9.path === requestedPath);
       if (canonicalRecords.length !== 1) {
         throw new Error("canonical document record is missing or ambiguous after registration");
@@ -56746,6 +56788,7 @@ async function cmdDocumentMigrateDelta(deps, name2, legacyPath, canonicalPath) {
 async function cmdDocumentRead(deps, name2, kind) {
   const dir = assertChangeName(deps, name2);
   if (!dir) return 1;
+  if (await refuseArchived(deps, name2)) return 1;
   if (kind !== "all" && !isDocumentKind(kind)) return reject4(deps, `\u672A\u77E5 document kind: '${kind}'`);
   try {
     await deps.store.withLock(dir, async () => {
@@ -56984,7 +57027,7 @@ async function cmdTransition(deps, name2, event) {
   if (await refuseArchived(deps, name2)) return 1;
   const actor3 = requireActor(deps);
   if (actor3 === null) return 1;
-  const dir = changeDir(deps.cwd, name2);
+  const dir = resolveChangeDir2(deps.cwd, name2);
   const guardContext = deps.guardCtx?.(name2);
   const tasksPath = guardContext?.changeDirRel === void 0 ? void 0 : `${guardContext.changeDirRel}/tasks.md`;
   const canonicalStatePath = guardContext?.changeDirRel === void 0 ? void 0 : `${guardContext.changeDirRel}/${TASK_PLAN_STATE_DIR}/${TASK_PLAN_CURRENT_FILE}`;
@@ -57016,9 +57059,9 @@ async function cmdTransition(deps, name2, event) {
     interaction: deps.interaction,
     // Canonical review authorization is always bound to the sidecar digest. The interaction
     // projection remains optional and must never decide whether a transition is allowed.
-    reviewGateBinding: deps.reviewGateBinding ?? (async ({ changeDir: changeDir2, state, phase, event: event2 }) => {
+    reviewGateBinding: deps.reviewGateBinding ?? (async ({ changeDir: changeDir7, state, phase, event: event2 }) => {
       try {
-        const binding = await readReviewGateBinding(changeDir2);
+        const binding = await readReviewGateBinding(changeDir7);
         return reviewGateBindingMatches(binding, state, phase, event2);
       } catch {
         return false;
@@ -57601,7 +57644,7 @@ import { isAbsolute as isAbsolute29, join as join100 } from "node:path";
 
 // packages/cli/src/skill-provenance-locator.ts
 import { lstatSync as lstatSync4, readFileSync as readFileSync20, realpathSync as realpathSync4 } from "node:fs";
-import { isAbsolute as isAbsolute28, join as join98, relative as relative23, sep as sep19 } from "node:path";
+import { isAbsolute as isAbsolute28, join as join98, relative as relative24, sep as sep19 } from "node:path";
 var SkillProvenanceLocatorError = class extends Error {
   constructor(category, message2) {
     super(`[${category}] ${message2}`);
@@ -57624,7 +57667,7 @@ function candidateExists(path15) {
   }
 }
 function pathWithin2(root, candidate2) {
-  const rel = relative23(root, candidate2);
+  const rel = relative24(root, candidate2);
   return rel === "" || !isAbsolute28(rel) && rel !== ".." && !rel.startsWith(`..${sep19}`);
 }
 function assertSafeSkillsRoot(root) {
@@ -63261,13 +63304,13 @@ function scalarStateFields(fields) {
     typeof value === "string" ? value : value.join(",")
   ]));
 }
-function readStateFields(changeDir2) {
+function readStateFields(changeDir7) {
   try {
-    const current = readCurrentRunRevisionSync(changeDir2);
+    const current = readCurrentRunRevisionSync(changeDir7);
     if (current !== void 0) {
       return scalarStateFields(current.state.fields);
     }
-    const legacy = readFileSync24(join106(changeDir2, ".pipeline.yaml"), "utf8");
+    const legacy = readFileSync24(join106(changeDir7, ".pipeline.yaml"), "utf8");
     return scalarStateFields(parsePipeline(legacy).fields);
   } catch {
     return null;
@@ -63828,17 +63871,17 @@ async function cmdMem(deps, sub, args, fs = nodeMemFs()) {
 
 // packages/cli/src/commands/scaffold.ts
 import { lstat as lstat49, mkdir as mkdir43, readFile as readFile62, rm as rm21, stat as stat14, unlink as unlink8, writeFile as writeFile24 } from "node:fs/promises";
-import { dirname as dirname24, isAbsolute as isAbsolute34, join as join107, relative as relative27, resolve as resolve43, sep as sep22 } from "node:path";
+import { dirname as dirname24, isAbsolute as isAbsolute34, join as join107, relative as relative28, resolve as resolve43, sep as sep22 } from "node:path";
 
 // packages/cli/src/commands/specScaffoldTransaction.ts
 import { lstat as lstat48, mkdir as mkdir42, rename as rename17, rm as rm20, writeFile as writeFile23 } from "node:fs/promises";
 import { randomUUID as randomUUID18 } from "node:crypto";
-import { dirname as dirname23, isAbsolute as isAbsolute33, relative as relative26, resolve as resolve42, sep as sep21 } from "node:path";
+import { dirname as dirname23, isAbsolute as isAbsolute33, relative as relative27, resolve as resolve42, sep as sep21 } from "node:path";
 
 // packages/cli/src/commands/specScaffoldTree.ts
 import { createHash as createHash52 } from "node:crypto";
 import { copyFile as copyFile2, lstat as lstat46, mkdir as mkdir41, readFile as readFile60, readdir as readdir23 } from "node:fs/promises";
-import { relative as relative24, resolve as resolve40 } from "node:path";
+import { relative as relative25, resolve as resolve40 } from "node:path";
 async function copyOrdinaryTree(source, target) {
   await mkdir41(target);
   for (const entry of await readdir23(source, { withFileTypes: true })) {
@@ -63868,7 +63911,7 @@ async function syncUnmanagedOrdinaryTree(source, target, managedPaths) {
         await mkdir41(targetPath, { recursive: true });
         await walk(sourcePath, targetPath);
       } else if (entry.isFile()) {
-        const relativePath = relative24(source, sourcePath);
+        const relativePath = relative25(source, sourcePath);
         if (!managedPaths.has(relativePath)) await copyFile2(sourcePath, targetPath);
       } else {
         throw new Error(`spec scaffold \u4E8B\u52A1\u53EA\u5141\u8BB8\u666E\u901A\u6587\u4EF6\u548C\u76EE\u5F55: ${sourcePath}`);
@@ -63916,14 +63959,14 @@ function ordinaryPathKey(target) {
 
 // packages/cli/src/commands/specScaffoldRecovery.ts
 import { lstat as lstat47, readFile as readFile61, rename as rename16, rm as rm19 } from "node:fs/promises";
-import { basename as basename11, dirname as dirname22, isAbsolute as isAbsolute32, relative as relative25, resolve as resolve41, sep as sep20 } from "node:path";
+import { basename as basename11, dirname as dirname22, isAbsolute as isAbsolute32, relative as relative26, resolve as resolve41, sep as sep20 } from "node:path";
 function errorCode9(error2) {
   if (typeof error2 !== "object" || error2 === null || !("code" in error2)) return void 0;
   const code = Reflect.get(error2, "code");
   return typeof code === "string" ? code : void 0;
 }
 function contained2(root, target) {
-  const rel = relative25(root, target);
+  const rel = relative26(root, target);
   return rel !== ".." && !rel.startsWith(`..${sep20}`) && !isAbsolute32(rel);
 }
 async function existingOrdinaryFile(target) {
@@ -64098,7 +64141,7 @@ async function acquireTransaction(specDirectory, receipt, anchor) {
 
 // packages/cli/src/commands/specScaffoldTransaction.ts
 function contained3(root, target) {
-  const rel = relative26(root, target);
+  const rel = relative27(root, target);
   return rel !== ".." && !rel.startsWith(`..${sep21}`) && !isAbsolute33(rel);
 }
 async function existingOrdinaryDirectory2(target) {
@@ -64119,7 +64162,7 @@ async function publishSpecScaffoldTransaction(options) {
   if (!contained3(repoRoot, specDirectory)) {
     throw new Error(`spec scaffold \u4E8B\u52A1\u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839: ${options.specDirectory}`);
   }
-  const specRelative = relative26(repoRoot, specDirectory);
+  const specRelative = relative27(repoRoot, specDirectory);
   const topLevelName = specRelative.split(sep21).filter(Boolean)[0];
   if (!topLevelName) {
     throw new Error("spec scaffold \u4E8B\u52A1\u76EE\u6807\u4E0D\u80FD\u662F\u9879\u76EE\u6839");
@@ -64167,7 +64210,7 @@ async function publishSpecScaffoldTransaction(options) {
       } catch (error2) {
         if (error2.code !== "ENOENT") throw error2;
       }
-      managedPaths.add(relative26(candidateSpecDirectory, target));
+      managedPaths.add(relative27(candidateSpecDirectory, target));
       await writeFile23(target, file.content, "utf8");
     }
     await options.beforeCommit?.();
@@ -64270,13 +64313,13 @@ var REAL_FS = {
 var SPEC_STRATEGY_SIGNAL = "TENON_SPEC_STRATEGY";
 function safeSpecDir(cwd, specDir) {
   if (isAbsolute34(specDir)) return false;
-  const rel = relative27(resolve43(cwd), resolve43(cwd, specDir));
+  const rel = relative28(resolve43(cwd), resolve43(cwd, specDir));
   return rel !== ".." && !rel.startsWith(`..${sep22}`) && !isAbsolute34(rel);
 }
 async function assertExistingParentsSafe(cwd, target) {
   const root = resolve43(cwd);
   const parent = dirname24(target);
-  const rel = relative27(root, parent);
+  const rel = relative28(root, parent);
   if (rel === ".." || rel.startsWith(`..${sep22}`) || isAbsolute34(rel)) {
     throw new Error(`scaffold \u8DEF\u5F84\u8D8A\u8FC7\u9879\u76EE\u6839: ${target}`);
   }
@@ -64386,7 +64429,7 @@ async function cmdScaffoldSpec(deps, args, fs) {
         repoRoot: deps.cwd,
         specDirectory: specRoot,
         files: plan.writes.map((file) => ({
-          relativePath: relative27(specRoot, abs(file.rel)),
+          relativePath: relative28(specRoot, abs(file.rel)),
           content: file.content
         }))
       });
@@ -64556,7 +64599,7 @@ function journey(input2, origin, event, requestedAt) {
   });
 }
 function createInteractionCapture(recorder, clock) {
-  const write = (changeDir2, draft) => recorder.recordUnderLock(changeDir2, draft);
+  const write = (changeDir7, draft) => recorder.recordUnderLock(changeDir7, draft);
   return {
     recordReviewRequested: async (input2) => {
       const origin = input2.beforeRevision ?? input2.revision;
@@ -65121,7 +65164,7 @@ async function cmdSpecApply(deps, change, opts, hooks) {
     deps.io.err(`ERROR: change-name \u975E\u6CD5: '${change}' (\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _)`);
     return 1;
   }
-  const dir = changeDir(deps.cwd, change);
+  const dir = resolveChangeDir2(deps.cwd, change);
   let state;
   try {
     state = await deps.store.read(dir);
@@ -69085,13 +69128,13 @@ async function readText(path15) {
     return null;
   }
 }
-async function specApplyReceiptFresh(repoRoot, changeDir2) {
-  const raw = await readText(join116(changeDir2, SPEC_APPLY_RECEIPT));
+async function specApplyReceiptFresh(repoRoot, changeDir7) {
+  const raw = await readText(join116(changeDir7, SPEC_APPLY_RECEIPT));
   const receipt = raw === null ? null : decodeJson(raw);
   if (receipt === null || receipt.result !== "pass") return { fresh: false, mode: null };
   let deltas;
   try {
-    deltas = (await readDocumentLedger(changeDir2))?.records.filter((record9) => record9.kind === "delta-spec").map((record9) => ({ path: record9.path, sha256: record9.sha256 })) ?? [];
+    deltas = (await readDocumentLedger(changeDir7))?.records.filter((record9) => record9.kind === "delta-spec").map((record9) => ({ path: record9.path, sha256: record9.sha256 })) ?? [];
   } catch {
     return { fresh: false, mode: null };
   }
@@ -69819,13 +69862,13 @@ async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
 // packages/cli/src/commands/internal-skill-provenance.ts
 import { randomUUID as randomUUID20 } from "node:crypto";
 import { chmod as chmod5, lstat as lstat52, mkdir as mkdir45, open as open11, readFile as readFile68, readdir as readdir25, realpath as realpath16, rename as rename19, rm as rm24 } from "node:fs/promises";
-import { dirname as dirname26, join as join118, relative as relative28, resolve as resolve46 } from "node:path";
+import { dirname as dirname26, join as join118, relative as relative29, resolve as resolve46 } from "node:path";
 function rootPath(value) {
   if (value === void 0 || value.trim() === "") throw new Error("--root <path> \u662F\u5FC5\u9700\u53C2\u6570");
   return resolve46(value);
 }
 function within(root, path15) {
-  const rel = relative28(root, path15);
+  const rel = relative29(root, path15);
   return rel === "" || !rel.startsWith("../") && rel !== ".." && !rel.includes("/../");
 }
 function quoteValue(value) {
@@ -75001,10 +75044,10 @@ async function cmdDesignValidate(deps, opts) {
 }
 async function cmdDesignPropose(deps, change) {
   try {
-    const relative33 = designProposalPath(change);
-    const path15 = join137(deps.cwd, relative33);
+    const relative34 = designProposalPath(change);
+    const path15 = join137(deps.cwd, relative34);
     if (await read2(path15) !== null) {
-      deps.io.err(`ERROR: \u63D0\u6848\u5DF2\u5B58\u5728\uFF1A${relative33}`);
+      deps.io.err(`ERROR: \u63D0\u6848\u5DF2\u5B58\u5728\uFF1A${relative34}`);
       return 1;
     }
     const check = await runCheck(deps);
@@ -75015,7 +75058,7 @@ async function cmdDesignPropose(deps, change) {
     const base = designBaseDigest(await read2(join137(deps.cwd, DESIGN_MD)), await read2(join137(deps.cwd, MODEL)));
     await mkdir48(dirname33(path15), { recursive: true });
     await writeFile28(path15, renderDesignProposal(change, base), { encoding: "utf8", flag: "wx" });
-    deps.io.out(relative33);
+    deps.io.out(relative34);
     return 0;
   } catch (error2) {
     deps.io.err(`ERROR: ${errMsg(error2)}`);
@@ -75195,23 +75238,23 @@ function message(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
 }
 async function cmdStateProjection(deps, sub, name2, opts = {}) {
-  const changeDir2 = join138(deps.cwd, "openspec", "changes", name2);
+  const changeDir7 = join138(deps.cwd, "openspec", "changes", name2);
   try {
     switch (sub) {
       case "status": {
-        const status = await deps.store.inspectProjection(changeDir2);
+        const status = await deps.store.inspectProjection(changeDir7);
         deps.io.out(opts.json ? JSON.stringify(status) : `${name2}: ${status.status}`);
         return status.status === "drift" ? 2 : 0;
       }
       case "repair-projection": {
-        const status = await deps.store.repairProjection(changeDir2, {
+        const status = await deps.store.repairProjection(changeDir7, {
           forceCanonical: opts.forceCanonical
         });
         deps.io.out(opts.json ? JSON.stringify(status) : `${name2}: ${status.status}`);
         return 0;
       }
       case "import-legacy": {
-        const result2 = await deps.store.importLegacyProjection(changeDir2);
+        const result2 = await deps.store.importLegacyProjection(changeDir7);
         if (result2.ignoredProtectedFields.length > 0) {
           deps.io.err(`WARN: import-legacy \u5DF2\u5FFD\u7565\u53D7\u4FDD\u62A4\u5B57\u6BB5\uFF08\u4FDD\u7559 canonical \u503C\uFF09\uFF1A${result2.ignoredProtectedFields.join(", ")}`);
         }
@@ -75228,7 +75271,7 @@ async function cmdStateProjection(deps, sub, name2, opts = {}) {
           deps.io.err("ERROR: pin-workflow-snapshot \u5FC5\u987B\u63D0\u4F9B --workflow-file");
           return 1;
         }
-        const state = await deps.store.read(changeDir2);
+        const state = await deps.store.read(changeDir7);
         const metadata = state.runMetadata;
         if (metadata?.workflowPlanFingerprint === void 0) {
           throw new Error("Change \u672A\u7ED1\u5B9A workflow plan fingerprint\uFF0C\u4E0D\u80FD\u8865\u5FEB\u7167");
@@ -75252,7 +75295,7 @@ async function cmdStateProjection(deps, sub, name2, opts = {}) {
             `workflow file fingerprint \u4E0D\u5339\u914D\uFF1Aexpected=${metadata.workflowPlanFingerprint} actual=${plan.workflowFingerprint}`
           );
         }
-        await ensureWorkflowPlanSnapshot(changeDir2, metadata.runId, workflowPlanSnapshot(plan));
+        await ensureWorkflowPlanSnapshot(changeDir7, metadata.runId, workflowPlanSnapshot(plan));
         deps.io.out(opts.json ? JSON.stringify({ status: "pinned", workflow: workflowId, fingerprint: plan.workflowFingerprint }) : `${name2}: workflow snapshot pinned (${plan.workflowFingerprint})`);
         return 0;
       }
@@ -75436,7 +75479,7 @@ async function cmdHandoff(deps, name2, opts, fs = void 0, localeResolver = resol
     deps.io.err(`ERROR: change-name \u975E\u6CD5: '${name2 ?? ""}' (\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _)`);
     return 1;
   }
-  const dir = changeDir(deps.cwd, name2);
+  const dir = resolveChangeDir2(deps.cwd, name2);
   let state;
   try {
     state = await deps.store.read(dir);
@@ -76057,7 +76100,7 @@ async function resolveTestCommand(deps, name2, options) {
     deps.io.err(`ERROR: change-name \u975E\u6CD5: '${name2}' (\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _)`);
     return 1;
   }
-  const dir = changeDir(deps.cwd, name2);
+  const dir = resolveChangeDir2(deps.cwd, name2);
   let state;
   try {
     state = await deps.store.read(dir);
@@ -76355,7 +76398,7 @@ function registerAgentCommands(program2, deps) {
 
 // packages/cli/src/commands/interaction.ts
 import { lstat as lstat55 } from "node:fs/promises";
-import { isAbsolute as isAbsolute40, join as join141, relative as relative29, resolve as resolve53 } from "node:path";
+import { isAbsolute as isAbsolute40, join as join141, relative as relative30, resolve as resolve53 } from "node:path";
 var MAX_FIXTURE_BYTES = 1024 * 1024;
 var MAX_EVENT_FILE_BYTES = 1024 * 1024;
 var MAX_FIXTURES = 256;
@@ -76412,7 +76455,7 @@ function assertFixturePath(root, file) {
     throw new Error("fixture file path invalid");
   }
   const target = resolve53(root, file);
-  const rootRelative = relative29(resolve53(root), target);
+  const rootRelative = relative30(resolve53(root), target);
   if (rootRelative.startsWith("..") || isAbsolute40(rootRelative)) throw new Error("fixture file path invalid");
   return target;
 }
@@ -76534,24 +76577,24 @@ async function cmdInteraction(deps, sub, args, opts = {}) {
 }
 
 // packages/cli/src/commands/review-binding.ts
-async function refreshReviewGateBinding(changeDir2, state, phase, event, requestedAt, options = {}) {
+async function refreshReviewGateBinding(changeDir7, state, phase, event, requestedAt, options = {}) {
   let existing;
   try {
-    existing = await readReviewGateBinding(changeDir2);
+    existing = await readReviewGateBinding(changeDir7);
   } catch {
     if (options.tolerateUnreadable !== true) throw new Error("review gate binding unreadable");
     existing = void 0;
   }
   if (!reviewGateBindingMatches(existing, state, phase, event)) {
     await writeReviewGateBindingUnderLock(
-      changeDir2,
+      changeDir7,
       reviewGateBindingForState(state, phase, event, requestedAt)
     );
   }
 }
-async function readReviewGateBindingForRequest(changeDir2) {
+async function readReviewGateBindingForRequest(changeDir7) {
   try {
-    return await readReviewGateBinding(changeDir2);
+    return await readReviewGateBinding(changeDir7);
   } catch {
     return void 0;
   }
@@ -76724,7 +76767,7 @@ async function cmdReview(deps, sub, name2, opts = {}) {
     return 1;
   }
   if (await refuseArchived(deps, name2)) return 1;
-  const dir = changeDir(deps.cwd, name2);
+  const dir = resolveChangeDir2(deps.cwd, name2);
   const interaction = deps.interaction === void 0 ? void 0 : createInteractionCapture(deps.interaction, deps.clock);
   try {
     if (sub === "request") {
@@ -77039,7 +77082,7 @@ async function cmdTestReport(deps, change, opts = {}) {
 // packages/cli/src/commands/test-run.ts
 import { randomBytes as randomBytes8 } from "node:crypto";
 import { lstat as lstat59, mkdir as mkdir52, realpath as realpath18 } from "node:fs/promises";
-import { join as join145, relative as relative31, resolve as resolve56, sep as sep25 } from "node:path";
+import { join as join145, relative as relative32, resolve as resolve56, sep as sep25 } from "node:path";
 
 // packages/cli/src/hostKind.ts
 function detectHostEnvironment(env) {
@@ -77052,7 +77095,7 @@ function detectHostEnvironment(env) {
 // packages/cli/src/test-runner/collect.ts
 import { createHash as createHash56, randomBytes as randomBytes7 } from "node:crypto";
 import { copyFile as copyFile3, lstat as lstat58, mkdir as mkdir51, readFile as readFile76, readdir as readdir26, realpath as realpath17, writeFile as writeFile30 } from "node:fs/promises";
-import { dirname as dirname35, join as join144, relative as relative30, resolve as resolve55, sep as sep24 } from "node:path";
+import { dirname as dirname35, join as join144, relative as relative31, resolve as resolve55, sep as sep24 } from "node:path";
 var MAX_DIRECTORY_FILES = 5e3;
 var MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 var MAX_ARTIFACT_FILE_BYTES = 64 * 1024 * 1024;
@@ -77064,7 +77107,7 @@ async function insideRepo(repoRoot, path15) {
   try {
     const root = await realpath17(repoRoot);
     const target = await realpath17(path15);
-    const rel = relative30(root, target);
+    const rel = relative31(root, target);
     return rel === "" || !rel.startsWith("..") && !rel.startsWith(sep24);
   } catch {
     return false;
@@ -77092,7 +77135,7 @@ async function summarizeTree(absolute) {
       }
       files += 1;
       bytes += entry.size;
-      const rel = relative30(absolute, path15).split(sep24).join("/");
+      const rel = relative31(absolute, path15).split(sep24).join("/");
       entries.push({ path: rel, bytes: entry.size });
       lines2.push(`${rel}\0${entry.size}\0${digestOf(await readFile76(path15))}`);
     }
@@ -77118,10 +77161,10 @@ async function envKey(path15) {
     }
   }
 }
-async function documentInput(repoRoot, changeDir2, ref) {
+async function documentInput(repoRoot, changeDir7, ref) {
   let records = [];
   try {
-    records = (await readDocumentLedger(changeDir2))?.records ?? [];
+    records = (await readDocumentLedger(changeDir7))?.records ?? [];
   } catch {
     records = [];
   }
@@ -77155,13 +77198,13 @@ async function fileInput(repoRoot, path15) {
   }
   return missing3;
 }
-async function collectTestInputs(repoRoot, changeDir2, test, envKeyPath) {
+async function collectTestInputs(repoRoot, changeDir7, test, envKeyPath) {
   const records = [];
   let key;
   let keyLoaded = false;
   for (const input2 of test.inputs) {
     if (input2.kind === "document") {
-      records.push(await documentInput(repoRoot, changeDir2, input2.ref));
+      records.push(await documentInput(repoRoot, changeDir7, input2.ref));
       continue;
     }
     if (input2.kind === "file") {
@@ -77448,7 +77491,7 @@ async function candidateOf(deps, name2) {
 async function resolvedCwd(repoRoot, cwd) {
   try {
     const target = await realpath18(resolve56(repoRoot, cwd));
-    const rel = relative31(await realpath18(repoRoot), target);
+    const rel = relative32(await realpath18(repoRoot), target);
     if (rel !== "" && (rel.startsWith("..") || rel.startsWith(sep25))) return void 0;
     return (await lstat59(target)).isDirectory() ? target : void 0;
   } catch {
@@ -77602,8 +77645,8 @@ async function execute(deps, context, input2) {
   await publishTestRunRecord(recordPath3, input2.paths.runsDir, record9);
   const runsOfTest = (await listTestRuns(deps.cwd, change, { slug: context.slug, testId: test.id })).map((entry) => entry.record.run_id);
   await pruneTestArtifacts(input2.paths.artifactsDir, runsOfTest, test.keep_runs);
-  const relativeRecord = relative31(deps.cwd, recordPath3);
-  const relativeLog = relative31(deps.cwd, logPath);
+  const relativeRecord = relative32(deps.cwd, recordPath3);
+  const relativeLog = relative32(deps.cwd, logPath);
   if (input2.json) {
     deps.io.out(JSON.stringify({ ...record9, record_path: relativeRecord, log_path: relativeLog }, null, 2));
   } else {
@@ -77986,7 +78029,7 @@ async function transfer(deps, name2, to) {
   }
   const actor3 = requireActor(deps);
   if (actor3 === null) return 1;
-  const dir = changeDir(deps.cwd, name2);
+  const dir = resolveChangeDir2(deps.cwd, name2);
   if (!stateStorageExistsSync(dir)) {
     deps.io.err(`ERROR: \u627E\u4E0D\u5230\u4EFB\u52A1 ${name2}`);
     return 1;
@@ -78172,12 +78215,12 @@ import {
   statSync as statSync12
 } from "node:fs";
 import { readdir as readdir27 } from "node:fs/promises";
-import { dirname as dirname36, isAbsolute as isAbsolute42, join as join146, relative as relative32, sep as sep26 } from "node:path";
+import { dirname as dirname36, isAbsolute as isAbsolute42, join as join146, relative as relative33, sep as sep26 } from "node:path";
 function sameBoundedFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
 }
 function boundedAncestors(root, path15) {
-  const fromRoot = relative32(root, path15);
+  const fromRoot = relative33(root, path15);
   if (fromRoot === "" || fromRoot === ".." || fromRoot.startsWith(`..${sep26}`) || isAbsolute42(fromRoot)) return void 0;
   const rootInfo = lstatSync9(root, { bigint: true });
   if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) return void 0;
@@ -78193,7 +78236,7 @@ function boundedAncestors(root, path15) {
     ancestors.push({ path: candidate2, info, real: realpathSync8(candidate2) });
   }
   const parentReal = realpathSync8(dirname36(path15));
-  const fromRealRoot = relative32(rootReal, parentReal);
+  const fromRealRoot = relative33(rootReal, parentReal);
   if (fromRealRoot === ".." || fromRealRoot.startsWith(`..${sep26}`) || isAbsolute42(fromRealRoot)) return void 0;
   return ancestors;
 }
@@ -78683,10 +78726,10 @@ async function main() {
     return isTenonUser(user) ? actorOf(user) : void 0;
   };
   const deps = {
-    orchestrationRuntime: async (changeDir2) => createProductionExecutionRuntimeV2({ change_dir: changeDir2, ledger: createOrchestrationLedger(), worker_id: `cli:${process.pid}` }),
-    orchestrationFreezePipeline: async ({ changeDir: changeDir2, pipeline }) => {
+    orchestrationRuntime: async (changeDir7) => createProductionExecutionRuntimeV2({ change_dir: changeDir7, ledger: createOrchestrationLedger(), worker_id: `cli:${process.pid}` }),
+    orchestrationFreezePipeline: async ({ changeDir: changeDir7, pipeline }) => {
       const ledger = createOrchestrationLedger();
-      const snapshot2 = await ledger.readSnapshot(changeDir2);
+      const snapshot2 = await ledger.readSnapshot(changeDir7);
       if (snapshot2 === void 0) throw new Error("orchestration ledger \u672A\u521D\u59CB\u5316");
       const commandId = `cli:freeze-pipeline:${pipeline.pipeline_id}:${pipeline.pipeline_version}`;
       const command2 = {
@@ -78702,21 +78745,21 @@ async function main() {
         type: "freeze-pipeline",
         pipeline
       };
-      const result2 = await ledger.append(changeDir2, command2);
+      const result2 = await ledger.append(changeDir7, command2);
       if (result2.kind === "rejected") throw new Error(`${result2.rejection.reason_code}: ${result2.rejection.message}`);
       return result2.snapshot;
     },
-    artifactSubmission: async ({ changeDir: changeDir2, phase, policy: policy2 }) => {
-      const namespace = artifactNamespaceForChange(changeDir2);
+    artifactSubmission: async ({ changeDir: changeDir7, phase, policy: policy2 }) => {
+      const namespace = artifactNamespaceForChange(changeDir7);
       return openArtifactSubmissionService({
-        changeDir: changeDir2,
+        changeDir: changeDir7,
         namespace,
         repoRoot: process.cwd(),
-        ...phase !== void 0 && policy2 !== void 0 ? { document: createDocumentProjectionAdapter({ repoRoot: process.cwd(), changeDir: changeDir2, phase, policy: policy2 }) } : {},
-        field: createFieldProjectionAdapter({ store: store2, changeDir: changeDir2, persist: false }),
+        ...phase !== void 0 && policy2 !== void 0 ? { document: createDocumentProjectionAdapter({ repoRoot: process.cwd(), changeDir: changeDir7, phase, policy: policy2 }) } : {},
+        field: createFieldProjectionAdapter({ store: store2, changeDir: changeDir7, persist: false }),
         runtime: {
           submitArtifactOutput: async (stageAttemptId, input2) => {
-            const output2 = await (await openArtifactService({ rootDir: changeDir2, scopeId: namespace })).submitArtifactOutput(stageAttemptId, input2);
+            const output2 = await (await openArtifactService({ rootDir: changeDir7, scopeId: namespace })).submitArtifactOutput(stageAttemptId, input2);
             return {
               artifactId: output2.artifactId,
               version: output2.version,

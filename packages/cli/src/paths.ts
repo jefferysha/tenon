@@ -27,7 +27,7 @@ export function changeNameOfArchivedDir(dirName: string): string {
  * 完结后 OpenSpec 会把 `openspec/changes/<name>` 移到 `openspec/changes/archive/<日期>-<name>`
  * （skills/openspec-archive-change 第 5 步），此后按活跃路径去读就只剩一句 ENOENT。做完的任务仍要
  * 可查，所以只读命令在活跃路径落空时回落到归档目录；同名多份（重跑过归档）取目录名最大的那份，
- * 日期前缀使字典序即时间序。写入路径不用本函数：归档目录是既成事实的记录，不是继续改的工作区。
+ * 日期前缀使字典序即时间序。作用于既有 change 的命令经 resolveChangeDir 走同一条回落。
  */
 export function archivedChangeDir(cwd: string, name: string): string | null {
   let entries
@@ -45,6 +45,33 @@ export function archivedChangeDir(cwd: string, name: string): string | null {
     if (stateStorageExistsSync(dir)) return dir
   }
   return null
+}
+
+/**
+ * 命令实际要操作的 change 目录：活跃路径优先，活跃路径里已经没有 state storage 而归档目录里有时
+ * 用归档目录。
+ *
+ * 归档目录仍然不是继续做事的工作区——那条边界现在由状态守着（`archived=true` 一律拒写，见
+ * archivedGuard.refuseFinished），不再由路径守着。此前是反过来的：`openspec archive` 先于
+ * `tenon transition <c> archived` 跑（两条命令没有任何地方说过先后），change 目录被搬走而
+ * `archived` 还是 false，于是每条写入路径都在活跃路径上开锁，直接抛
+ * `ENOENT ... mkdir '.../.pipeline.lock.claim-<uuid>'`——读能回落、写不能，这条 Change 再也无法
+ * 被标成完结，只能手工把目录搬回去。
+ *
+ * 只探真实文件系统上的活跃路径：注入内存 store 的调用方（测试、dashboard）那里活跃路径本来就
+ * 不存在，归档目录也不存在，于是原样返回活跃路径——行为与本函数诞生前逐字一致。
+ */
+export function resolveChangeDir(cwd: string, name: string): string {
+  return relocatedChangeDir(cwd, name) ?? changeDir(cwd, name)
+}
+
+/**
+ * change 目录已经不在活跃路径、却在归档目录里时的那个归档路径；否则 null。
+ * 这是「`openspec archive` 已经跑过」的物证，判定与 resolveChangeDir 同源。
+ */
+export function relocatedChangeDir(cwd: string, name: string): string | null {
+  if (stateStorageExistsSync(changeDir(cwd, name))) return null
+  return archivedChangeDir(cwd, name)
 }
 
 /**

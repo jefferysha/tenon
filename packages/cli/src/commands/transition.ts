@@ -61,7 +61,7 @@ import { evaluateSpecMigrationEvidence, type TransitionContext } from '@tenon/ke
 import { enqueueAfterSpecComplete } from '@tenon/automation'
 import { errMsg, type CliDeps } from '../deps.js'
 import { refuseArchived } from '../archivedGuard.js'
-import { changeDir, isValidChangeName } from '../paths.js'
+import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
 import { stepAgentBlockersFor } from '../agentGate.js'
 import { missingStepSkillTokens } from '../stepSkillGate.js'
@@ -77,7 +77,7 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
   const actor = requireActor(deps)
   if (actor === null) return 1
 
-  const dir = changeDir(deps.cwd, name)
+  const dir = resolveChangeDir(deps.cwd, name)
   const guardContext = deps.guardCtx?.(name)
   const tasksPath = guardContext?.changeDirRel === undefined
     ? undefined

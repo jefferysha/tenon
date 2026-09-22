@@ -35,7 +35,7 @@ import type {
 import { lstat } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { errMsg, type CliDeps } from '../deps.js'
-import { changeDir, isValidChangeName } from '../paths.js'
+import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
 import { refuseArchived } from '../archivedGuard.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
@@ -159,7 +159,7 @@ export function governedDocumentContext(deps: CliDeps, state: PipelineState): Go
 }
 
 function assertChangeName(deps: CliDeps, name: string): string | undefined {
-  if (isValidChangeName(name)) return changeDir(deps.cwd, name)
+  if (isValidChangeName(name)) return resolveChangeDir(deps.cwd, name)
   reject(deps, `change-name 非法: '${name}' (仅允许 a-z A-Z 0-9 - _)`)
   return undefined
 }
@@ -339,6 +339,8 @@ export async function cmdDocumentRead(
 ): Promise<number> {
   const dir = assertChangeName(deps, name)
   if (!dir) return 1
+  // 读取回执写进台账，所以这条命令与 record 一样过写入闸。
+  if (await refuseArchived(deps, name)) return 1
   if (kind !== 'all' && !isDocumentKind(kind)) return reject(deps, `未知 document kind: '${kind}'`)
   try {
     await deps.store.withLock(dir, async () => {

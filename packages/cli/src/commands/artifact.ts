@@ -31,7 +31,7 @@ import { relative, resolve } from 'node:path'
 import { refuseArchived } from '../archivedGuard.js'
 import { errMsg, type CliDeps } from '../deps.js'
 import { recordHistory } from './fields.js'
-import { changeDir, isValidChangeName } from '../paths.js'
+import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { artifactNamespaceForChange } from '@tenon/automation'
 
@@ -187,7 +187,7 @@ export async function cmdArtifactRegister(
   if (producer.includes('|')) {
     return reject(deps, `--producer '${producer}' 是 a|b 备选 token、不是具体 skill id——请传其中某一个具体 branch`)
   }
-  const dir = changeDir(deps.cwd, name)
+  const dir = resolveChangeDir(deps.cwd, name)
   try {
     const result = await deps.store.withLock(dir, () => runRegister(deps, dir, field, path, producer))
     if (result === 0 && deps.artifactSubmission) {

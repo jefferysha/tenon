@@ -4,7 +4,7 @@
  * codes are asserted together with the state staying intact.
  */
 import { execFileSync } from 'node:child_process'
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
@@ -264,5 +264,66 @@ describe('已归档任务拒绝推进', () => {
     expect(await h.run(['cas', 'feat', 'branch', 'feat/x', 'feat/y'])).toBe(0)
     expect(await h.run(['get', 'feat', 'branch'])).toBe(0)
     expect(h.out.join('')).toBe('feat/y')
+  })
+})
+
+/**
+ * 真机实测的 P0（acceptance run）：`openspec archive` 抢在 `tenon transition <c> archived` 前面
+ * 跑过——两条命令的先后此前没有任何地方说过。change 目录被搬进 `openspec/changes/archive/`，
+ * `archived` 还是 false，于是每条写入路径都在活跃路径上开锁，抛出
+ * `ENOENT ... mkdir '.../.pipeline.lock.claim-<uuid>'`：一个只会出现在锁实现里的字符串，既不说
+ * 发生了什么也不说怎么办，任务再也无法被标成完结，只能手工把目录搬回去。
+ */
+describe('openspec archive 抢跑：目录已搬走而任务还没完结', () => {
+  const DATED = '2026-01-02-feat'
+
+  async function relocate(): Promise<void> {
+    await mkdir(join(h.cwd, 'openspec', 'changes', 'archive'), { recursive: true })
+    await rename(
+      join(h.cwd, 'openspec', 'changes', 'feat'),
+      join(h.cwd, 'openspec', 'changes', 'archive', DATED),
+    )
+  }
+
+  test('写入口说清楚发生了什么、为什么、怎么恢复，而不是抛锁的 ENOENT', async () => {
+    await init('feat')
+    await relocate()
+    for (const argv of [
+      ['transition', 'feat', 'archived'],
+      ['set', 'feat', 'branch', 'feat/x'],
+      ['document', 'read', 'feat', 'all'],
+      ['review', 'request', 'feat'],
+    ]) {
+      expect(await h.run(argv)).toBe(1)
+      const err = h.err.join('\n')
+      expect(err).toContain(`openspec/changes/archive/${DATED}`)
+      expect(err).toContain('archived=false')
+      expect(err).toContain(`mv openspec/changes/archive/${DATED} openspec/changes/feat`)
+      expect(err).toContain('tenon transition feat archived')
+      expect(err).not.toContain('ENOENT')
+      expect(err).not.toContain('.pipeline.lock.claim')
+    }
+  })
+
+  test('照提示搬回去之后命令照常工作', async () => {
+    await init('feat')
+    await relocate()
+    expect(await h.run(['set', 'feat', 'branch', 'feat/x'])).toBe(1)
+    await rename(
+      join(h.cwd, 'openspec', 'changes', 'archive', DATED),
+      join(h.cwd, 'openspec', 'changes', 'feat'),
+    )
+    expect(await h.run(['set', 'feat', 'branch', 'feat/x'])).toBe(0)
+    expect(await h.run(['get', 'feat', 'branch'])).toBe(0)
+    expect(h.out.join('')).toBe('feat/x')
+  })
+
+  test('搬走的 change 仍然查得到，只是不给继续改', async () => {
+    await init('feat')
+    await relocate()
+    expect(await h.run(['status', 'feat'])).toBe(0)
+    expect(h.out.join('\n')).toContain('feat')
+    expect(await h.run(['get', 'feat', 'phase'])).toBe(0)
+    expect(h.out.join('')).toBe('open')
   })
 })

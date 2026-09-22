@@ -14,7 +14,7 @@
 import { FIELD_ORDER, LIST_FIELDS } from '@tenon/kernel'
 import type { FieldName, HistoryEntry } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { changeDir, readChangeForDisplay } from '../paths.js'
+import { readChangeForDisplay, resolveChangeDir } from '../paths.js'
 import {
   checkName, runComboWrite, runGuardedCas, runGuardedWrite, writePreflight,
 } from './field-writes.js'
@@ -109,7 +109,7 @@ export async function cmdSet(deps: CliDeps, name: string, field: string, value: 
   if (rejectProtectedField(deps, f)) return 1
   const v = coerceValue(f, value)
   if (!enumValueAllowed(deps, f, v)) return 1
-  const dir = changeDir(deps.cwd, name)
+  const dir = resolveChangeDir(deps.cwd, name)
   // track/workflow：锁内按「更新后的最终 {track,workflow} 组合」校验 + 落盘（R2 · 关 TOCTOU、堵旁路）。
   //  - set track    → finalTrack=新值、finalWorkflow=旧 workflow（读 state 补齐）；
   //  - set workflow → finalTrack=旧 track（读 state 补齐）、finalWorkflow=新值。
@@ -165,7 +165,7 @@ export async function cmdSetMany(deps: CliDeps, name: string, pairs: string[]): 
     deps.io.err('ERROR: set-many 至少需要 1 个 key=value')
     return 1
   }
-  const dir = changeDir(deps.cwd, name)
+  const dir = resolveChangeDir(deps.cwd, name)
   // 触及 track 和/或 workflow 时：锁内按「更新后的最终组合」校验 + 整批落盘（R2 · 关 TOCTOU）。
   // 读旧 state 补齐未在本批显式给出的那一半，避免只校验单字段漏掉「新 track 不允许旧 workflow」
   // （反之亦然）的组合。不触及两者的 set-many（如仅改 build_mode/isolation）走原路 store.setMany
@@ -209,7 +209,7 @@ export async function cmdCas(
   if (rejectProtectedField(deps, f)) return 1
   // 老内核 cmd_cas 仅对 automation 复用枚举校验（state-fields.sh）
   if (f === 'automation' && !enumValueAllowed(deps, f, next)) return 1
-  const dir = changeDir(deps.cwd, name)
+  const dir = resolveChangeDir(deps.cwd, name)
   // track/workflow：锁内 read + 比对 expect + 最终组合校验 + 条件写（R2 · 关 TOCTOU、堵 cas 旁路）。
   //  - cas track    → finalTrack=next、finalWorkflow=旧 workflow；
   //  - cas workflow → finalTrack=旧 track、finalWorkflow=next。

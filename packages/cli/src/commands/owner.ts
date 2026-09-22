@@ -7,7 +7,7 @@ import {
   type RecordActor,
 } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { changeDir, isValidChangeName } from '../paths.js'
+import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
 
 async function transfer(deps: CliDeps, name: string, to?: RecordActor): Promise<number> {
@@ -17,7 +17,7 @@ async function transfer(deps: CliDeps, name: string, to?: RecordActor): Promise<
   }
   const actor = requireActor(deps)
   if (actor === null) return 1
-  const dir = changeDir(deps.cwd, name)
+  const dir = resolveChangeDir(deps.cwd, name)
   if (!stateStorageExistsSync(dir)) {
     deps.io.err(`ERROR: 找不到任务 ${name}`)
     return 1

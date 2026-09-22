@@ -25,7 +25,7 @@ import {
 } from '@tenon/kernel'
 import type { PipelineState } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { changeDir, isValidChangeName } from '../paths.js'
+import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
 import { refuseArchived } from '../archivedGuard.js'
 import { cmdCheck } from './check.js'
@@ -160,7 +160,7 @@ export async function cmdReview(
     return 1
   }
   if (await refuseArchived(deps, name)) return 1
-  const dir = changeDir(deps.cwd, name)
+  const dir = resolveChangeDir(deps.cwd, name)
   const interaction = deps.interaction === undefined
     ? undefined
     : createInteractionCapture(deps.interaction, deps.clock)

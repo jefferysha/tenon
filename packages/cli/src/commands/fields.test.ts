@@ -678,3 +678,54 @@ describe('archived 由转换管理，不接受字段写入', () => {
     expect(cas.store.write.calls).toHaveLength(0)
   })
 })
+
+/**
+ * 真机实测的 P0（acceptance run）：`tenon set pm1 branch_status pass` 在 `archived: true` /
+ * `phase: archive (done)` 的 Change 上照样 exit 0。此前唯一的「已归档」拒写是 per-user 的
+ * `tenon task archive` 收起表，完结任务的交付证据因此仍可被随手改写；两条拒绝的文案也必须
+ * 能分辨——一条指向 `tenon task unarchive`，一条指向新建任务。
+ */
+describe('完结的 Change 不接受字段写入', () => {
+  const finished = () => mockState({ phase: 'archive', phase_status: 'done', archived: 'true' })
+
+  test('set → exit 1、零落盘，文案说的是已完结而不是已归档', async () => {
+    const deps = makeDeps({ state: finished() })
+    expect(await cmdSet(deps, 'demo', 'branch_status', 'pass')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    const err = deps.errLines.join('\n')
+    expect(err).toContain("任务 'demo' 已完结（archived=true")
+    expect(err).not.toContain('tenon task unarchive')
+  })
+
+  test('set-many 与 cas 走同一条边界；cas 不因 expect 不匹配先返 3', async () => {
+    const many = makeDeps({ state: finished() })
+    expect(await cmdSetMany(many, 'demo', ['branch_status=pass', 'branch=x'])).toBe(1)
+    expect(many.store.write.calls).toHaveLength(0)
+
+    const hit = makeDeps({ state: finished() })
+    expect(await cmdCas(hit, 'demo', 'branch_status', 'pending', 'pass')).toBe(1)
+    expect(hit.store.write.calls).toHaveLength(0)
+    const miss = makeDeps({ state: finished() })
+    expect(await cmdCas(miss, 'demo', 'branch_status', 'nope', 'pass')).toBe(1)
+    expect(miss.store.write.calls).toHaveLength(0)
+  })
+
+  test('track/workflow 的组合写入口同样拒', async () => {
+    const deps = makeDeps({ state: finished() })
+    expect(await cmdSet(deps, 'demo', 'track', 'backend')).toBe(1)
+    expect(deps.store.write.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain('已完结')
+  })
+
+  test('没完结就照常写', async () => {
+    const deps = makeDeps({ state: mockState({ phase: 'verify', archived: 'false' }) })
+    expect(await cmdSet(deps, 'demo', 'branch_status', 'pass')).toBe(0)
+    expect(deps.store.write.calls).toHaveLength(1)
+  })
+
+  test('get 仍然开着：读完结任务不需要任何解除', async () => {
+    const deps = makeDeps({ state: finished() })
+    expect(await cmdGet(deps, 'demo', 'phase')).toBe(0)
+    expect(deps.outLines).toEqual(['archive'])
+  })
+})

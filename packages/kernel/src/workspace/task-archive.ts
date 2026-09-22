@@ -166,8 +166,12 @@ export function withoutTaskArchiveEntry(archive: TaskArchive, change: string): T
   return { version: 1, changes }
 }
 
+/**
+ * 这条说的是 per-user 的「先收起来」，不是任务已完结。两件事都曾只说「已归档」，读的人分不出
+ * 自己撞的是哪一个，也就不知道该 unarchive 还是该新建任务——所以这里点名是谁的收起列表。
+ */
 export function taskArchivedMessage(change: string): string {
-  return `任务 '${change}' 已归档；先执行 tenon task unarchive ${change}`
+  return `任务 '${change}' 已归档（当前用户的收起列表，不是任务已完结）；先执行 tenon task unarchive ${change}`
 }
 
 export class TaskArchivedError extends Error {
