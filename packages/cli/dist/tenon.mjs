@@ -51159,39 +51159,7 @@ var red = (id2, detail, hint) => ({
 });
 
 // packages/cli/src/commands/doctor-skills.ts
-import { join as join84 } from "node:path";
-
-// packages/cli/src/migration/legacy-tenon-migration.ts
-var LEGACY_PLUGIN_IDENTITY = String.fromCharCode(
-  112,
-  105,
-  112,
-  101,
-  108,
-  105,
-  110,
-  101,
-  45,
-  108,
-  105,
-  116,
-  101,
-  64,
-  112,
-  105,
-  112,
-  101,
-  108,
-  105,
-  110,
-  101,
-  45,
-  108,
-  105,
-  116,
-  101
-);
-var TENON_PLUGIN_IDENTITY = "tenon@tenon";
+import { join as join83 } from "node:path";
 
 // packages/cli/src/skillSources.ts
 import { readFileSync as readFileSync17 } from "node:fs";
@@ -51246,8 +51214,306 @@ function commandExistsOnPath(name2, options = {}) {
   return resolveCommandOnPath(name2, options) !== void 0;
 }
 
-// packages/cli/src/commands/doctor-host.ts
+// packages/cli/src/commands/doctor-upstream-skills.ts
 import { join as join82 } from "node:path";
+var CHECK_ID = "skills:upstream";
+var COLUMNS = [["\u6280\u80FD", 30], ["\u6765\u6E90", 39], ["\u63D0\u4EA4", 10], ["\u8BB8\u53EF\u8BC1", 12], ["\u66F4\u65B0", 21], ["\u72B6\u6001", 0]];
+var STATUS_WORD2 = { changed: "\u53D8\u5316", unchanged: "\u65E0\u53D8\u5316", failed: "\u5931\u8D25", bundled: "\u2014" };
+function upstreamSkillViewOf(p) {
+  const probed = p.upstreamSkillView?.();
+  return probed === void 0 || "error" in probed ? null : probed;
+}
+function lockedUpstreamSkillIds(p) {
+  return (upstreamSkillViewOf(p)?.rows ?? []).filter((row2) => row2.origin === "upstream" && row2.commit !== void 0).map((row2) => row2.id);
+}
+function label(row2) {
+  return row2.reason === void 0 ? row2.id : `${row2.id}(${row2.reason})`;
+}
+async function refetchCommand(p) {
+  try {
+    const host = await p.nativeRuntimeHost();
+    return host === null ? "npm run skills:fetch" : `tenon update --${host}`;
+  } catch {
+    return "tenon update --<host>";
+  }
+}
+async function checkUpstreamSkills(p) {
+  const probed = p.upstreamSkillView?.();
+  if (probed === void 0) return red(CHECK_ID, "\u4E0A\u6E38\u6280\u80FD\u63A2\u9488\u672A\u88C5\u914D", "\u6392\u9664\u63A2\u9488\u73AF\u5883\u95EE\u9898\u540E\u91CD\u8DD1 tenon doctor");
+  const refetch = await refetchCommand(p);
+  if ("error" in probed) {
+    return red(
+      CHECK_ID,
+      `\u4E0A\u6E38\u6280\u80FD\u6E05\u5355\u65E0\u6548\uFF1A${probed.error}`,
+      `\u8FD0\u884C ${refetch} \u91CD\u65B0\u83B7\u53D6\uFF1Bbash ${join82(p.pluginRoot, "tools", "verify-skills.sh")} \u67E5\u770B category`
+    );
+  }
+  const upstream = probed.rows.filter((row2) => row2.origin === "upstream");
+  if (upstream.length === 0) return green(CHECK_ID, "\u65E0\u4E0A\u6E38\u6280\u80FD\u6765\u6E90\u6E05\u5355");
+  const missing3 = upstream.filter((row2) => row2.commit === void 0);
+  if (missing3.length > 0) {
+    return red(
+      CHECK_ID,
+      `\u7F3A ${missing3.length} \u4E2A\u4E0A\u6E38\u6280\u80FD\uFF1A${missing3.map(label).join("\u3001")}`,
+      `\u8FD0\u884C ${refetch}\uFF1B\u7F3A\u8BB8\u53EF\u8BC1\u6216\u8BB8\u53EF\u8BC1\u4E0D\u7B26\u7684\u6280\u80FD\u4E0D\u4F1A\u5B89\u88C5`
+    );
+  }
+  const kept = upstream.filter((row2) => row2.status === "failed");
+  if (kept.length > 0) {
+    return yellow(CHECK_ID, `${kept.length} \u4E2A\u4E0A\u6E38\u6280\u80FD\u83B7\u53D6\u5931\u8D25\uFF0C\u4FDD\u7559\u65E7\u7248\u672C\uFF1A${kept.map(label).join("\u3001")}`, `\u7F51\u7EDC\u6062\u590D\u540E\u8FD0\u884C ${refetch}`);
+  }
+  const changed = upstream.filter((row2) => row2.status === "changed").length;
+  return green(CHECK_ID, `${upstream.length} \u4E2A\u4E0A\u6E38\u6280\u80FD\u5DF2\u5B89\u88C5\uFF0C\u81EA\u4E0A\u6B21\u66F4\u65B0\u53D8\u5316 ${changed} \u4E2A`);
+}
+function cell(value, width) {
+  if (width === 0) return value;
+  return (value.length >= width ? `${value.slice(0, width - 2)}\u2026` : value).padEnd(width);
+}
+function renderUpstreamSkillTable(view2) {
+  const line = (values) => values.map((value, index) => cell(value, COLUMNS[index]?.[1] ?? 0)).join("").trimEnd();
+  return [
+    line(COLUMNS.map(([header]) => header)),
+    ...view2.rows.map((row2) => line([
+      row2.id,
+      row2.origin === "tenon" ? "tenon" : `${row2.repo ?? ""}:${row2.path ?? ""}`,
+      row2.commit?.slice(0, 7) ?? "\u2014",
+      row2.license ?? "\u2014",
+      row2.fetchedAt === void 0 ? "\u2014" : row2.fetchedAt.slice(0, 16).replace("T", " "),
+      row2.status === "failed" && row2.reason !== void 0 ? `\u5931\u8D25 ${row2.reason}` : STATUS_WORD2[row2.status]
+    ]))
+  ];
+}
+
+// packages/cli/src/commands/doctor-skills.ts
+function skillInPlace(entry, byToken, installed) {
+  for (const raw of entry.split("|")) {
+    const alternative = raw.trim();
+    if (alternative === "") continue;
+    const source = byToken.get(alternative);
+    if (source && (source.tool === "builtin" || source.tool === "bundled")) return true;
+    if (installed.has(alternative)) return true;
+    if (source?.skill !== void 0 && installed.has(source.skill)) return true;
+    const colon = alternative.indexOf(":");
+    if (colon <= 0) continue;
+    const prefix = alternative.slice(0, colon);
+    const suffix = alternative.slice(colon + 1);
+    if (installed.has(prefix) || installed.has(suffix)) return true;
+    const pluginSkill = byToken.get(prefix)?.skill;
+    if (pluginSkill !== void 0 && installed.has(pluginSkill)) return true;
+  }
+  return false;
+}
+function collectMissingSkills(table, byToken, installed) {
+  const seen = /* @__PURE__ */ new Set();
+  const missing3 = [];
+  for (const row2 of Object.values(table)) {
+    for (const list3 of Object.values(row2)) {
+      for (const entry of list3 ?? []) {
+        if (seen.has(entry)) continue;
+        seen.add(entry);
+        if (!skillInPlace(entry, byToken, installed)) missing3.push(entry);
+      }
+    }
+  }
+  return missing3;
+}
+function evaluateSkillChecks(tables, registry, installed) {
+  const byToken = new Map(registry.map((source) => [source.token, source]));
+  const mandatoryMissing = collectMissingSkills(tables.mandatory, byToken, installed);
+  const recommendedMissing = collectMissingSkills(tables.recommended, byToken, installed);
+  const mandatory = mandatoryMissing.length === 0 ? green("skills:mandatory", "\u6240\u6709 manifest \u5F3A\u5236\u6280\u80FD\u5747\u968F\u5F53\u524D pipeline \u63D2\u4EF6\u6253\u5305\u5E76\u53EF\u7528") : red(
+    "skills:mandatory",
+    `\u81EA\u5B9A\u4E49 workflow \u7F3A ${mandatoryMissing.length} \u4E2A\u975E\u6253\u5305\u5F3A\u5236\u6280\u80FD\uFF1A${mandatoryMissing.join("\u3001")}`,
+    `\u5B89\u88C5\u6216\u968F\u81EA\u5B9A\u4E49\u63D2\u4EF6\u6253\u5305\u8FD9\u4E9B\u6280\u80FD\uFF08${mandatoryMissing.join("\u3001")}\uFF09\uFF1Btenon setup --<host> \u53EA\u5B89\u88C5\u672C\u63D2\u4EF6\u9ED8\u8BA4\u6D41\u7A0B\u8D44\u4EA7`
+  );
+  const recommended = recommendedMissing.length === 0 ? green("skills:recommended", "\u6240\u6709 manifest \u63A8\u8350\u6280\u80FD\u5747\u968F\u5F53\u524D pipeline \u63D2\u4EF6\u6253\u5305\u5E76\u53EF\u7528") : yellow(
+    "skills:recommended",
+    `\u81EA\u5B9A\u4E49 workflow \u7F3A ${recommendedMissing.length} \u4E2A\u975E\u6253\u5305\u63A8\u8350\u6280\u80FD\uFF1A${recommendedMissing.join("\u3001")}`,
+    "\u5B89\u88C5\u6216\u968F\u81EA\u5B9A\u4E49\u63D2\u4EF6\u6253\u5305\u8FD9\u4E9B\u63A8\u8350\u6280\u80FD\uFF08\u9ED8\u8BA4 pipeline \u4E0D\u4F1A\u4E0B\u8F7D\u7B2C\u4E09\u65B9\u6280\u80FD\uFF09"
+  );
+  return [mandatory, recommended];
+}
+function checkSkills(p) {
+  const tables = p.manifestSkills();
+  if (tables === null) {
+    return [
+      yellow(
+        "skills:mandatory",
+        "manifest \u4E0D\u53EF\u7528\u2014\u2014\u65E0\u6CD5\u6838\u5F3A\u5236\u6280\u80FD\u9F50\u5168\u5EA6\uFF08\u4E0D\u8BEF\u62A5 green\uFF09",
+        "\u5148\u4FEE\u590D asset:manifest\uFF08templates/manifest.yaml\uFF09\u540E\u91CD\u8DD1 tenon doctor"
+      ),
+      yellow(
+        "skills:recommended",
+        "manifest \u4E0D\u53EF\u7528\u2014\u2014\u65E0\u6CD5\u6838\u63A8\u8350\u6280\u80FD\u9F50\u5168\u5EA6",
+        "\u5148\u4FEE\u590D asset:manifest \u540E\u91CD\u8DD1 tenon doctor"
+      )
+    ];
+  }
+  const registryPath = join83(p.pluginRoot, "templates", "skill-sources.yaml");
+  const registryResult = p.fileExists(registryPath) ? loadCanonicalSkillSources(registryPath) : { ok: false, error: "registry \u7F3A\u5931" };
+  if (!registryResult.ok && p.fileExists(registryPath)) {
+    return [
+      red(
+        "skills:mandatory",
+        `canonical registry \u65E0\u6548\uFF08${registryResult.error}\uFF09\u2014\u2014\u4E25\u683C provenance \u6821\u9A8C\u5931\u8D25`,
+        `\u4FEE\u590D ${registryPath} \u540E\u91CD\u8DD1 tenon doctor\uFF1Bbash ${join83(p.pluginRoot, "tools", "verify-skills.sh")} \u53EF\u67E5\u770B category`
+      ),
+      red(
+        "skills:recommended",
+        `canonical registry \u65E0\u6548\uFF08${registryResult.error}\uFF09\u2014\u2014\u4E25\u683C provenance \u6821\u9A8C\u5931\u8D25`,
+        `\u4FEE\u590D ${registryPath} \u540E\u91CD\u8DD1 tenon doctor\uFF1Bbash ${join83(p.pluginRoot, "tools", "verify-skills.sh")} \u53EF\u67E5\u770B category`
+      )
+    ];
+  }
+  const registry = registryResult.ok ? registryResult.sources : [];
+  if (registry.length === 0) {
+    return [
+      yellow(
+        "skills:mandatory",
+        "registry \u672A\u5C31\u7EEA\uFF08templates/skill-sources.yaml \u7F3A\u5931/\u7A7A\uFF09\u2014\u2014\u65E0\u6CD5\u6838\u5F3A\u5236\u6280\u80FD\u9F50\u5168\u5EA6\uFF08\u4E0D\u8BEF\u62A5 green\uFF09",
+        "\u786E\u8BA4\u63D2\u4EF6\u5B89\u88C5\u5B8C\u6574\uFF08skill-sources.yaml \u5E94\u968F\u63D2\u4EF6\u5206\u53D1\uFF09\u540E\u91CD\u8DD1 tenon doctor"
+      ),
+      yellow(
+        "skills:recommended",
+        "registry \u672A\u5C31\u7EEA\uFF08templates/skill-sources.yaml \u7F3A\u5931/\u7A7A\uFF09\u2014\u2014\u65E0\u6CD5\u6838\u63A8\u8350\u6280\u80FD\u9F50\u5168\u5EA6",
+        "\u786E\u8BA4\u63D2\u4EF6\u5B89\u88C5\u5B8C\u6574\u540E\u91CD\u8DD1 tenon doctor"
+      )
+    ];
+  }
+  const locked = lockedUpstreamSkillIds(p).filter((id2) => !registry.some((source) => source.token === id2)).map((token) => ({ token, tool: "bundled", source: "upstream", tier: "optional", official: false }));
+  return evaluateSkillChecks(tables, [...registry, ...locked], p.installedSkillNames());
+}
+function checkMandatorySkillInvocability(p) {
+  const tables = p.manifestSkills();
+  if (tables === null) {
+    return yellow(
+      "skills:invocable",
+      "manifest \u4E0D\u53EF\u7528\u2014\u2014\u65E0\u6CD5\u6838\u5F3A\u5236\u6280\u80FD\u662F\u5426\u6A21\u578B\u53EF\u8C03\u7528\uFF08\u4E0D\u8BEF\u62A5 green\uFF09",
+      "\u5148\u4FEE\u590D asset:manifest\uFF08templates/manifest.yaml\uFF09\u540E\u91CD\u8DD1 tenon doctor"
+    );
+  }
+  const probe = p.skillModelInvocable;
+  if (probe === void 0) {
+    return yellow(
+      "skills:invocable",
+      "\u672A\u88C5\u914D SKILL.md \u53EF\u8C03\u7528\u6027\u63A2\u9488\u2014\u2014\u65E0\u6CD5\u8BC1\u660E\u5F3A\u5236\u6280\u80FD\u80FD\u88AB\u5BBF\u4E3B\u8C03\u7528\uFF08\u4E0D\u8BEF\u62A5 green\uFF09",
+      "\u4F7F\u7528\u5305\u542B\u8BE5\u63A2\u9488\u7684 Tenon CLI \u540E\u91CD\u8DD1 tenon doctor"
+    );
+  }
+  const offenders = [];
+  const unprovable = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const row2 of Object.values(tables.mandatory)) {
+    for (const list3 of Object.values(row2)) {
+      for (const token of list3 ?? []) {
+        if (seen.has(token)) continue;
+        seen.add(token);
+        const verdicts = skillTokenAlternatives(token).map((id2) => probe(id2));
+        if (verdicts.some((verdict) => verdict === true)) continue;
+        if (verdicts.every((verdict) => verdict === false)) offenders.push(token);
+        else unprovable.push(token);
+      }
+    }
+  }
+  if (offenders.length > 0) {
+    return red(
+      "skills:invocable",
+      `${offenders.length} \u4E2A\u5F3A\u5236\u6280\u80FD\u5E26 disable-model-invocation: true\uFF0C\u5BBF\u4E3B\u4E0D\u4F1A\u4EE3\u6A21\u578B\u8C03\u7528\uFF0C\u58F0\u660E\u5B83\u4EEC\u7684\u76F8\u4F4D\u4F1A\u5361\u6B7B\u5728 step-skills-incomplete\uFF1A${offenders.join("\u3001")}`,
+      `\u628A templates/manifest.yaml \u4E0E templates/workflows/default.yaml \u91CC\u7684 ${offenders.join("\u3001")} \u6362\u6210\u6A21\u578B\u53EF\u8C03\u7528\u7684\u7B49\u4EF7\u6280\u80FD\uFF0C\u6216\u964D\u7EA7\u4E3A\u4EBA\u5DE5\u6307\u5F15\u540E\u91CD\u8DD1 tenon doctor`
+    );
+  }
+  if (unprovable.length > 0) {
+    return yellow(
+      "skills:invocable",
+      `${unprovable.length} \u4E2A\u5F3A\u5236\u6280\u80FD\u8BFB\u4E0D\u5230 SKILL.md\uFF0C\u65E0\u6CD5\u8BC1\u660E\u53EF\u8C03\u7528\uFF08\u4E0D\u8BEF\u62A5 green\uFF09\uFF1A${unprovable.join("\u3001")}`,
+      "\u8FD0\u884C tenon update --<host> \u6216 npm run skills:fetch \u8865\u9F50\u6280\u80FD\u5B57\u8282\u540E\u91CD\u8DD1 tenon doctor"
+    );
+  }
+  return green("skills:invocable", `${seen.size} \u4E2A manifest \u5F3A\u5236\u6280\u80FD\u90FD\u7ECF SKILL.md \u8BC1\u660E\u53EF\u88AB\u5BBF\u4E3B\u8C03\u7528`);
+}
+function declaredWorkflowSkillIds() {
+  const ids2 = /* @__PURE__ */ new Set([PRODUCT_IDENTITY.entrySkill]);
+  for (const workflow of [compileEffectiveWorkflowPlan("default"), compileEffectiveWorkflowPlan("simple")]) {
+    const definition = workflow.definition ?? workflow.workflow;
+    const branches = [definition.steps, ...Object.values(definition.tracks ?? {}).map((track) => track.steps)];
+    for (const steps of branches) {
+      for (const step of steps) for (const skill of step.skills) ids2.add(canonicalWorkflowSkillId(skill.id));
+    }
+  }
+  return [...ids2].sort();
+}
+function checkWorkflowSkills(p) {
+  let declared;
+  try {
+    declared = declaredWorkflowSkillIds();
+  } catch (error2) {
+    return red(
+      "skills:workflow",
+      `\u5DE5\u4F5C\u6D41\u6280\u80FD\u6E05\u5355\u65E0\u6CD5\u89E3\u6790\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`,
+      "\u4FEE\u590D default workflow source/generated runtime \u540E\u91CD\u8DD1 tenon doctor"
+    );
+  }
+  const retired = declared.filter((id2) => RETIRED_SKILL_IDS.includes(id2));
+  if (retired.length > 0) {
+    return red(
+      "skills:workflow",
+      `\u5DE5\u4F5C\u6D41\u5F15\u7528\u5DF2\u5220\u9664\u7684\u6280\u80FD\uFF1A${retired.join("\u3001")}`,
+      "\u5728\u5DE5\u4F5C\u6D41\u9875\u79FB\u9664\u540E\u91CD\u65B0\u4FDD\u5B58\uFF0C\u518D\u91CD\u8DD1 tenon doctor"
+    );
+  }
+  const missing3 = declared.filter((id2) => !p.fileExists(join83(p.pluginRoot, "skills", id2, "SKILL.md")));
+  if (missing3.length === 0) {
+    return green("skills:workflow", `\u5DE5\u4F5C\u6D41\u58F0\u660E\u7684 ${declared.length} \u4E2A\u6280\u80FD\u90FD\u53EF\u53D1\u73B0`);
+  }
+  return red(
+    "skills:workflow",
+    `\u5DE5\u4F5C\u6D41\u58F0\u660E\u7684\u6280\u80FD\u7F3A ${missing3.length} \u4E2A\uFF1A${missing3.join("\u3001")}`,
+    `\u8FD0\u884C tenon update \u8865\u9F50 ${missing3.map((id2) => join83(p.pluginRoot, "skills", id2, "SKILL.md")).join("\u3001")} \u540E\u91CD\u8DD1 tenon doctor`
+  );
+}
+function checkOpenspecCli() {
+  const path15 = resolveCommandOnPath("openspec");
+  return path15 === void 0 ? yellow(
+    "integration:openspec-cli",
+    "PATH \u4E0A\u6CA1\u6709 openspec\uFF1A\u53D7 openspec \u6CBB\u7406\u7684\u5DE5\u4F5C\u6D41\u65E0\u6CD5\u5E94\u7528\u89C4\u683C",
+    "\u5B89\u88C5 OpenSpec CLI\uFF08npm i -g @fission-ai/openspec\uFF09\u540E\u91CD\u8DD1 tenon doctor"
+  ) : green("integration:openspec-cli", `openspec \u53EF\u6267\u884C\uFF1A${path15}`);
+}
+
+// packages/cli/src/migration/legacy-tenon-migration.ts
+var LEGACY_PLUGIN_IDENTITY = String.fromCharCode(
+  112,
+  105,
+  112,
+  101,
+  108,
+  105,
+  110,
+  101,
+  45,
+  108,
+  105,
+  116,
+  101,
+  64,
+  112,
+  105,
+  112,
+  101,
+  108,
+  105,
+  110,
+  101,
+  45,
+  108,
+  105,
+  116,
+  101
+);
+var TENON_PLUGIN_IDENTITY = "tenon@tenon";
+
+// packages/cli/src/commands/doctor-host.ts
+import { join as join84 } from "node:path";
 
 // packages/cli/src/codexAuth.ts
 import { spawn as spawn3 } from "node:child_process";
@@ -51531,7 +51797,7 @@ async function checkStatusline(p) {
   return yellow(
     "guard:statusline",
     "statusline \u672A\u63A5\u5165 settings\u2014\u2014\u7EC8\u7AEF\u72B6\u6001\u9762\u4E0D\u53EF\u89C1\uFF08\u529F\u80FD\u964D\u7EA7\uFF09",
-    `\u5728 ~/.claude/settings.json \u52A0 "statusLine": {"type": "command", "command": "bash ${join82(p.pluginRoot, "hooks", "statusline.sh")}"}`
+    `\u5728 ~/.claude/settings.json \u52A0 "statusLine": {"type": "command", "command": "bash ${join84(p.pluginRoot, "hooks", "statusline.sh")}"}`
   );
 }
 async function checkCodexAuth(p) {
@@ -51550,271 +51816,7 @@ async function checkCodexAuth(p) {
   );
 }
 
-// packages/cli/src/commands/doctor-upstream-skills.ts
-import { join as join83 } from "node:path";
-var CHECK_ID = "skills:upstream";
-var COLUMNS = [["\u6280\u80FD", 30], ["\u6765\u6E90", 39], ["\u63D0\u4EA4", 10], ["\u8BB8\u53EF\u8BC1", 12], ["\u66F4\u65B0", 21], ["\u72B6\u6001", 0]];
-var STATUS_WORD2 = { changed: "\u53D8\u5316", unchanged: "\u65E0\u53D8\u5316", failed: "\u5931\u8D25", bundled: "\u2014" };
-function upstreamSkillViewOf(p) {
-  const probed = p.upstreamSkillView?.();
-  return probed === void 0 || "error" in probed ? null : probed;
-}
-function lockedUpstreamSkillIds(p) {
-  return (upstreamSkillViewOf(p)?.rows ?? []).filter((row2) => row2.origin === "upstream" && row2.commit !== void 0).map((row2) => row2.id);
-}
-function label(row2) {
-  return row2.reason === void 0 ? row2.id : `${row2.id}(${row2.reason})`;
-}
-async function refetchCommand(p) {
-  try {
-    const host = await p.nativeRuntimeHost();
-    return host === null ? "npm run skills:fetch" : `tenon update --${host}`;
-  } catch {
-    return "tenon update --<host>";
-  }
-}
-async function checkUpstreamSkills(p) {
-  const probed = p.upstreamSkillView?.();
-  if (probed === void 0) return red(CHECK_ID, "\u4E0A\u6E38\u6280\u80FD\u63A2\u9488\u672A\u88C5\u914D", "\u6392\u9664\u63A2\u9488\u73AF\u5883\u95EE\u9898\u540E\u91CD\u8DD1 tenon doctor");
-  const refetch = await refetchCommand(p);
-  if ("error" in probed) {
-    return red(
-      CHECK_ID,
-      `\u4E0A\u6E38\u6280\u80FD\u6E05\u5355\u65E0\u6548\uFF1A${probed.error}`,
-      `\u8FD0\u884C ${refetch} \u91CD\u65B0\u83B7\u53D6\uFF1Bbash ${join83(p.pluginRoot, "tools", "verify-skills.sh")} \u67E5\u770B category`
-    );
-  }
-  const upstream = probed.rows.filter((row2) => row2.origin === "upstream");
-  if (upstream.length === 0) return green(CHECK_ID, "\u65E0\u4E0A\u6E38\u6280\u80FD\u6765\u6E90\u6E05\u5355");
-  const missing3 = upstream.filter((row2) => row2.commit === void 0);
-  if (missing3.length > 0) {
-    return red(
-      CHECK_ID,
-      `\u7F3A ${missing3.length} \u4E2A\u4E0A\u6E38\u6280\u80FD\uFF1A${missing3.map(label).join("\u3001")}`,
-      `\u8FD0\u884C ${refetch}\uFF1B\u7F3A\u8BB8\u53EF\u8BC1\u6216\u8BB8\u53EF\u8BC1\u4E0D\u7B26\u7684\u6280\u80FD\u4E0D\u4F1A\u5B89\u88C5`
-    );
-  }
-  const kept = upstream.filter((row2) => row2.status === "failed");
-  if (kept.length > 0) {
-    return yellow(CHECK_ID, `${kept.length} \u4E2A\u4E0A\u6E38\u6280\u80FD\u83B7\u53D6\u5931\u8D25\uFF0C\u4FDD\u7559\u65E7\u7248\u672C\uFF1A${kept.map(label).join("\u3001")}`, `\u7F51\u7EDC\u6062\u590D\u540E\u8FD0\u884C ${refetch}`);
-  }
-  const changed = upstream.filter((row2) => row2.status === "changed").length;
-  return green(CHECK_ID, `${upstream.length} \u4E2A\u4E0A\u6E38\u6280\u80FD\u5DF2\u5B89\u88C5\uFF0C\u81EA\u4E0A\u6B21\u66F4\u65B0\u53D8\u5316 ${changed} \u4E2A`);
-}
-function cell(value, width) {
-  if (width === 0) return value;
-  return (value.length >= width ? `${value.slice(0, width - 2)}\u2026` : value).padEnd(width);
-}
-function renderUpstreamSkillTable(view2) {
-  const line = (values) => values.map((value, index) => cell(value, COLUMNS[index]?.[1] ?? 0)).join("").trimEnd();
-  return [
-    line(COLUMNS.map(([header]) => header)),
-    ...view2.rows.map((row2) => line([
-      row2.id,
-      row2.origin === "tenon" ? "tenon" : `${row2.repo ?? ""}:${row2.path ?? ""}`,
-      row2.commit?.slice(0, 7) ?? "\u2014",
-      row2.license ?? "\u2014",
-      row2.fetchedAt === void 0 ? "\u2014" : row2.fetchedAt.slice(0, 16).replace("T", " "),
-      row2.status === "failed" && row2.reason !== void 0 ? `\u5931\u8D25 ${row2.reason}` : STATUS_WORD2[row2.status]
-    ]))
-  ];
-}
-
-// packages/cli/src/commands/doctor-skills.ts
-function skillInPlace(entry, byToken, installed) {
-  for (const raw of entry.split("|")) {
-    const alternative = raw.trim();
-    if (alternative === "") continue;
-    const source = byToken.get(alternative);
-    if (source && (source.tool === "builtin" || source.tool === "bundled")) return true;
-    if (installed.has(alternative)) return true;
-    if (source?.skill !== void 0 && installed.has(source.skill)) return true;
-    const colon = alternative.indexOf(":");
-    if (colon <= 0) continue;
-    const prefix = alternative.slice(0, colon);
-    const suffix = alternative.slice(colon + 1);
-    if (installed.has(prefix) || installed.has(suffix)) return true;
-    const pluginSkill = byToken.get(prefix)?.skill;
-    if (pluginSkill !== void 0 && installed.has(pluginSkill)) return true;
-  }
-  return false;
-}
-function collectMissingSkills(table, byToken, installed) {
-  const seen = /* @__PURE__ */ new Set();
-  const missing3 = [];
-  for (const row2 of Object.values(table)) {
-    for (const list3 of Object.values(row2)) {
-      for (const entry of list3 ?? []) {
-        if (seen.has(entry)) continue;
-        seen.add(entry);
-        if (!skillInPlace(entry, byToken, installed)) missing3.push(entry);
-      }
-    }
-  }
-  return missing3;
-}
-function evaluateSkillChecks(tables, registry, installed) {
-  const byToken = new Map(registry.map((source) => [source.token, source]));
-  const mandatoryMissing = collectMissingSkills(tables.mandatory, byToken, installed);
-  const recommendedMissing = collectMissingSkills(tables.recommended, byToken, installed);
-  const mandatory = mandatoryMissing.length === 0 ? green("skills:mandatory", "\u6240\u6709 manifest \u5F3A\u5236\u6280\u80FD\u5747\u968F\u5F53\u524D pipeline \u63D2\u4EF6\u6253\u5305\u5E76\u53EF\u7528") : red(
-    "skills:mandatory",
-    `\u81EA\u5B9A\u4E49 workflow \u7F3A ${mandatoryMissing.length} \u4E2A\u975E\u6253\u5305\u5F3A\u5236\u6280\u80FD\uFF1A${mandatoryMissing.join("\u3001")}`,
-    `\u5B89\u88C5\u6216\u968F\u81EA\u5B9A\u4E49\u63D2\u4EF6\u6253\u5305\u8FD9\u4E9B\u6280\u80FD\uFF08${mandatoryMissing.join("\u3001")}\uFF09\uFF1Btenon setup --<host> \u53EA\u5B89\u88C5\u672C\u63D2\u4EF6\u9ED8\u8BA4\u6D41\u7A0B\u8D44\u4EA7`
-  );
-  const recommended = recommendedMissing.length === 0 ? green("skills:recommended", "\u6240\u6709 manifest \u63A8\u8350\u6280\u80FD\u5747\u968F\u5F53\u524D pipeline \u63D2\u4EF6\u6253\u5305\u5E76\u53EF\u7528") : yellow(
-    "skills:recommended",
-    `\u81EA\u5B9A\u4E49 workflow \u7F3A ${recommendedMissing.length} \u4E2A\u975E\u6253\u5305\u63A8\u8350\u6280\u80FD\uFF1A${recommendedMissing.join("\u3001")}`,
-    "\u5B89\u88C5\u6216\u968F\u81EA\u5B9A\u4E49\u63D2\u4EF6\u6253\u5305\u8FD9\u4E9B\u63A8\u8350\u6280\u80FD\uFF08\u9ED8\u8BA4 pipeline \u4E0D\u4F1A\u4E0B\u8F7D\u7B2C\u4E09\u65B9\u6280\u80FD\uFF09"
-  );
-  return [mandatory, recommended];
-}
-function checkSkills(p) {
-  const tables = p.manifestSkills();
-  if (tables === null) {
-    return [
-      yellow(
-        "skills:mandatory",
-        "manifest \u4E0D\u53EF\u7528\u2014\u2014\u65E0\u6CD5\u6838\u5F3A\u5236\u6280\u80FD\u9F50\u5168\u5EA6\uFF08\u4E0D\u8BEF\u62A5 green\uFF09",
-        "\u5148\u4FEE\u590D asset:manifest\uFF08templates/manifest.yaml\uFF09\u540E\u91CD\u8DD1 tenon doctor"
-      ),
-      yellow(
-        "skills:recommended",
-        "manifest \u4E0D\u53EF\u7528\u2014\u2014\u65E0\u6CD5\u6838\u63A8\u8350\u6280\u80FD\u9F50\u5168\u5EA6",
-        "\u5148\u4FEE\u590D asset:manifest \u540E\u91CD\u8DD1 tenon doctor"
-      )
-    ];
-  }
-  const registryPath = join84(p.pluginRoot, "templates", "skill-sources.yaml");
-  const registryResult = p.fileExists(registryPath) ? loadCanonicalSkillSources(registryPath) : { ok: false, error: "registry \u7F3A\u5931" };
-  if (!registryResult.ok && p.fileExists(registryPath)) {
-    return [
-      red(
-        "skills:mandatory",
-        `canonical registry \u65E0\u6548\uFF08${registryResult.error}\uFF09\u2014\u2014\u4E25\u683C provenance \u6821\u9A8C\u5931\u8D25`,
-        `\u4FEE\u590D ${registryPath} \u540E\u91CD\u8DD1 tenon doctor\uFF1Bbash ${join84(p.pluginRoot, "tools", "verify-skills.sh")} \u53EF\u67E5\u770B category`
-      ),
-      red(
-        "skills:recommended",
-        `canonical registry \u65E0\u6548\uFF08${registryResult.error}\uFF09\u2014\u2014\u4E25\u683C provenance \u6821\u9A8C\u5931\u8D25`,
-        `\u4FEE\u590D ${registryPath} \u540E\u91CD\u8DD1 tenon doctor\uFF1Bbash ${join84(p.pluginRoot, "tools", "verify-skills.sh")} \u53EF\u67E5\u770B category`
-      )
-    ];
-  }
-  const registry = registryResult.ok ? registryResult.sources : [];
-  if (registry.length === 0) {
-    return [
-      yellow(
-        "skills:mandatory",
-        "registry \u672A\u5C31\u7EEA\uFF08templates/skill-sources.yaml \u7F3A\u5931/\u7A7A\uFF09\u2014\u2014\u65E0\u6CD5\u6838\u5F3A\u5236\u6280\u80FD\u9F50\u5168\u5EA6\uFF08\u4E0D\u8BEF\u62A5 green\uFF09",
-        "\u786E\u8BA4\u63D2\u4EF6\u5B89\u88C5\u5B8C\u6574\uFF08skill-sources.yaml \u5E94\u968F\u63D2\u4EF6\u5206\u53D1\uFF09\u540E\u91CD\u8DD1 tenon doctor"
-      ),
-      yellow(
-        "skills:recommended",
-        "registry \u672A\u5C31\u7EEA\uFF08templates/skill-sources.yaml \u7F3A\u5931/\u7A7A\uFF09\u2014\u2014\u65E0\u6CD5\u6838\u63A8\u8350\u6280\u80FD\u9F50\u5168\u5EA6",
-        "\u786E\u8BA4\u63D2\u4EF6\u5B89\u88C5\u5B8C\u6574\u540E\u91CD\u8DD1 tenon doctor"
-      )
-    ];
-  }
-  const locked = lockedUpstreamSkillIds(p).filter((id2) => !registry.some((source) => source.token === id2)).map((token) => ({ token, tool: "bundled", source: "upstream", tier: "optional", official: false }));
-  return evaluateSkillChecks(tables, [...registry, ...locked], p.installedSkillNames());
-}
-function checkMandatorySkillInvocability(p) {
-  const tables = p.manifestSkills();
-  if (tables === null) {
-    return yellow(
-      "skills:invocable",
-      "manifest \u4E0D\u53EF\u7528\u2014\u2014\u65E0\u6CD5\u6838\u5F3A\u5236\u6280\u80FD\u662F\u5426\u6A21\u578B\u53EF\u8C03\u7528\uFF08\u4E0D\u8BEF\u62A5 green\uFF09",
-      "\u5148\u4FEE\u590D asset:manifest\uFF08templates/manifest.yaml\uFF09\u540E\u91CD\u8DD1 tenon doctor"
-    );
-  }
-  const probe = p.skillModelInvocable;
-  if (probe === void 0) {
-    return yellow(
-      "skills:invocable",
-      "\u672A\u88C5\u914D SKILL.md \u53EF\u8C03\u7528\u6027\u63A2\u9488\u2014\u2014\u65E0\u6CD5\u8BC1\u660E\u5F3A\u5236\u6280\u80FD\u80FD\u88AB\u5BBF\u4E3B\u8C03\u7528\uFF08\u4E0D\u8BEF\u62A5 green\uFF09",
-      "\u4F7F\u7528\u5305\u542B\u8BE5\u63A2\u9488\u7684 Tenon CLI \u540E\u91CD\u8DD1 tenon doctor"
-    );
-  }
-  const offenders = [];
-  const unprovable = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const row2 of Object.values(tables.mandatory)) {
-    for (const list3 of Object.values(row2)) {
-      for (const token of list3 ?? []) {
-        if (seen.has(token)) continue;
-        seen.add(token);
-        const verdicts = skillTokenAlternatives(token).map((id2) => probe(id2));
-        if (verdicts.some((verdict) => verdict === true)) continue;
-        if (verdicts.every((verdict) => verdict === false)) offenders.push(token);
-        else unprovable.push(token);
-      }
-    }
-  }
-  if (offenders.length > 0) {
-    return red(
-      "skills:invocable",
-      `${offenders.length} \u4E2A\u5F3A\u5236\u6280\u80FD\u5E26 disable-model-invocation: true\uFF0C\u5BBF\u4E3B\u4E0D\u4F1A\u4EE3\u6A21\u578B\u8C03\u7528\uFF0C\u58F0\u660E\u5B83\u4EEC\u7684\u76F8\u4F4D\u4F1A\u5361\u6B7B\u5728 step-skills-incomplete\uFF1A${offenders.join("\u3001")}`,
-      `\u628A templates/manifest.yaml \u4E0E templates/workflows/default.yaml \u91CC\u7684 ${offenders.join("\u3001")} \u6362\u6210\u6A21\u578B\u53EF\u8C03\u7528\u7684\u7B49\u4EF7\u6280\u80FD\uFF0C\u6216\u964D\u7EA7\u4E3A\u4EBA\u5DE5\u6307\u5F15\u540E\u91CD\u8DD1 tenon doctor`
-    );
-  }
-  if (unprovable.length > 0) {
-    return yellow(
-      "skills:invocable",
-      `${unprovable.length} \u4E2A\u5F3A\u5236\u6280\u80FD\u8BFB\u4E0D\u5230 SKILL.md\uFF0C\u65E0\u6CD5\u8BC1\u660E\u53EF\u8C03\u7528\uFF08\u4E0D\u8BEF\u62A5 green\uFF09\uFF1A${unprovable.join("\u3001")}`,
-      "\u8FD0\u884C tenon update --<host> \u6216 npm run skills:fetch \u8865\u9F50\u6280\u80FD\u5B57\u8282\u540E\u91CD\u8DD1 tenon doctor"
-    );
-  }
-  return green("skills:invocable", `${seen.size} \u4E2A manifest \u5F3A\u5236\u6280\u80FD\u90FD\u7ECF SKILL.md \u8BC1\u660E\u53EF\u88AB\u5BBF\u4E3B\u8C03\u7528`);
-}
-function declaredWorkflowSkillIds() {
-  const ids2 = /* @__PURE__ */ new Set([PRODUCT_IDENTITY.entrySkill]);
-  for (const workflow of [compileEffectiveWorkflowPlan("default"), compileEffectiveWorkflowPlan("simple")]) {
-    const definition = workflow.definition ?? workflow.workflow;
-    const branches = [definition.steps, ...Object.values(definition.tracks ?? {}).map((track) => track.steps)];
-    for (const steps of branches) {
-      for (const step of steps) for (const skill of step.skills) ids2.add(canonicalWorkflowSkillId(skill.id));
-    }
-  }
-  return [...ids2].sort();
-}
-function checkWorkflowSkills(p) {
-  let declared;
-  try {
-    declared = declaredWorkflowSkillIds();
-  } catch (error2) {
-    return red(
-      "skills:workflow",
-      `\u5DE5\u4F5C\u6D41\u6280\u80FD\u6E05\u5355\u65E0\u6CD5\u89E3\u6790\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`,
-      "\u4FEE\u590D default workflow source/generated runtime \u540E\u91CD\u8DD1 tenon doctor"
-    );
-  }
-  const retired = declared.filter((id2) => RETIRED_SKILL_IDS.includes(id2));
-  if (retired.length > 0) {
-    return red(
-      "skills:workflow",
-      `\u5DE5\u4F5C\u6D41\u5F15\u7528\u5DF2\u5220\u9664\u7684\u6280\u80FD\uFF1A${retired.join("\u3001")}`,
-      "\u5728\u5DE5\u4F5C\u6D41\u9875\u79FB\u9664\u540E\u91CD\u65B0\u4FDD\u5B58\uFF0C\u518D\u91CD\u8DD1 tenon doctor"
-    );
-  }
-  const missing3 = declared.filter((id2) => !p.fileExists(join84(p.pluginRoot, "skills", id2, "SKILL.md")));
-  if (missing3.length === 0) {
-    return green("skills:workflow", `\u5DE5\u4F5C\u6D41\u58F0\u660E\u7684 ${declared.length} \u4E2A\u6280\u80FD\u90FD\u53EF\u53D1\u73B0`);
-  }
-  return red(
-    "skills:workflow",
-    `\u5DE5\u4F5C\u6D41\u58F0\u660E\u7684\u6280\u80FD\u7F3A ${missing3.length} \u4E2A\uFF1A${missing3.join("\u3001")}`,
-    `\u8FD0\u884C tenon update \u8865\u9F50 ${missing3.map((id2) => join84(p.pluginRoot, "skills", id2, "SKILL.md")).join("\u3001")} \u540E\u91CD\u8DD1 tenon doctor`
-  );
-}
-function checkOpenspecCli() {
-  const path15 = resolveCommandOnPath("openspec");
-  return path15 === void 0 ? yellow(
-    "integration:openspec-cli",
-    "PATH \u4E0A\u6CA1\u6709 openspec\uFF1A\u53D7 openspec \u6CBB\u7406\u7684\u5DE5\u4F5C\u6D41\u65E0\u6CD5\u5E94\u7528\u89C4\u683C",
-    "\u5B89\u88C5 OpenSpec CLI\uFF08npm i -g @fission-ai/openspec\uFF09\u540E\u91CD\u8DD1 tenon doctor"
-  ) : green("integration:openspec-cli", `openspec \u53EF\u6267\u884C\uFF1A${path15}`);
-}
+// packages/cli/src/commands/doctor-codex-skills.ts
 async function codexInPlay(p, inventory) {
   if ((inventory?.kind === "native" || inventory?.kind === "unavailable") && inventory.host === "codex") {
     return true;

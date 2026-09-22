@@ -332,11 +332,7 @@ export async function cmdDocumentMigrateDelta(
 }
 
 /** `tenon document read`: store a digest-bound receipt that the current phase consumed its inputs. */
-export async function cmdDocumentRead(
-  deps: CliDeps,
-  name: string,
-  kind: string,
-): Promise<number> {
+export async function cmdDocumentRead(deps: CliDeps, name: string, kind: string): Promise<number> {
   const dir = assertChangeName(deps, name)
   if (!dir) return 1
   // 读取回执写进台账，所以这条命令与 record 一样过写入闸。
