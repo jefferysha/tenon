@@ -42,8 +42,13 @@ const field = (
   ...over,
 })
 
-const doc = (kind: string, status: string, producers: readonly string[] = []) =>
-  ({ kind, path: `openspec/changes/demo/${kind}.md`, producers, status })
+const doc = (kind: string, status: string, producers: readonly string[] = []) => ({
+  kind,
+  path: `openspec/changes/demo/${kind}.md`,
+  path_template: `openspec/changes/{change}/${kind}.md`,
+  producers,
+  status,
+})
 
 const skill = (id: string, status: 'done' | 'ready' | 'waiting', wave: number) =>
   ({ id, depends_on: [], wave, status })
@@ -69,7 +74,7 @@ describe('step.next 顺序', () => {
 
   test('读取声明的输入文档排在一切产出之前', () => {
     expect(actions({
-      documents: { reads: [doc('plan', 'missing')], records: [doc('adr', 'missing')], updates: [] },
+      documents: { reads: [doc('plan', 'unread')], records: [doc('adr', 'missing')], updates: [] },
       skills: [skill('brainstorming', 'ready', 0)],
     })).toEqual(['read-documents'])
   })
@@ -111,7 +116,7 @@ describe('step.next 顺序', () => {
       specRehearsalPending: true,
       specApplicationPending: true,
       documents: { reads: [], records: [doc('delta-spec', 'missing')], updates: [] },
-    })).toEqual(['scaffold-document'])
+    })).toEqual(['scaffold-document', 'record-document'])
     expect(actions({
       ownsDeltaSpec: true,
       specRehearsalPending: true,
@@ -134,6 +139,114 @@ describe('step.next 顺序', () => {
     expect(actions({
       documents: { reads: [], records: [], updates: [doc('tasks', 'stale', ['tenon'])] },
     })).toEqual(['record-document'])
+  })
+
+  /**
+   * D3（acceptance run）：`tenon document scaffold` 写完文件就返回 0，台账却仍是 `missing`——
+   * 只有 `document record` 会登记。从前 `missing` 只发 scaffold，于是 `next` 一轮一轮重发同一条
+   * scaffold，文件一再被确认存在、状态一步不动（真机实测卡在 open 相位）。骨架与登记是一对动作。
+   */
+  test('缺失的产出文档：铺骨架之后紧跟登记，一波下发', () => {
+    expect(stepNextActions(input({
+      documents: {
+        reads: [],
+        records: [doc('proposal', 'missing', ['openspec-propose'])],
+        updates: [],
+      },
+    }))).toEqual([
+      {
+        action: 'scaffold-document',
+        kind: 'proposal',
+        path: 'openspec/changes/demo/proposal.md',
+        path_template: 'openspec/changes/{change}/proposal.md',
+        producers: ['openspec-propose'],
+      },
+      {
+        action: 'record-document',
+        kind: 'proposal',
+        path: 'openspec/changes/demo/proposal.md',
+        path_template: 'openspec/changes/{change}/proposal.md',
+        producers: ['openspec-propose'],
+      },
+    ])
+  })
+
+  /**
+   * D1（acceptance run，五个相位各撞一次）：已登记的输入文档被改后状态是 `stale`，
+   * `tenon document read` 当场拒「已变更；先重新 record 后再 read」，而 `next` 仍然只发
+   * read-documents——同一条必定失败的命令无限重发。它要的是一次重新登记，producer 必须是
+   * **当前步**接受的那个（`explore` 的 proposal 只认 `tenon`，不认当初在 open 写它的
+   * `openspec-propose`）。
+   */
+  test('输入文档过期 → 按当前步的 producer 重新登记，而不是再读一次', () => {
+    expect(stepNextActions(input({
+      documents: {
+        reads: [doc('proposal', 'stale', ['tenon'])],
+        records: [],
+        updates: [],
+      },
+    }))).toEqual([{
+      action: 'record-document',
+      kind: 'proposal',
+      path: 'openspec/changes/demo/proposal.md',
+      path_template: 'openspec/changes/{change}/proposal.md',
+      producers: ['tenon'],
+    }])
+  })
+
+  test('读清单里只有 unread 才发 read-documents；过期的那条不混进去', () => {
+    expect(stepNextActions(input({
+      documents: {
+        reads: [doc('proposal', 'stale', ['tenon']), doc('tasks', 'unread', ['tenon'])],
+        records: [],
+        updates: [],
+      },
+    }))).toEqual([{
+      action: 'read-documents',
+      documents: ['openspec/changes/demo/tasks.md'],
+    }])
+  })
+
+  test('同一份文档既在读清单又在可改清单时只发一条动作', () => {
+    expect(actions({
+      documents: {
+        reads: [doc('tasks', 'stale', ['tenon'])],
+        records: [],
+        updates: [doc('tasks', 'stale', ['tenon'])],
+      },
+    })).toEqual(['record-document'])
+  })
+
+  /**
+   * D2（acceptance run，frontend 的 ship）：`role: update` 的槽是「本步可以改它」，不是「本步
+   * 必须产出它」——文档取证层早就是这个口径（update 槽从不进 blockers）。当成必须产出时，`next`
+   * 会要求 scaffold 一份 contract 里根本没声明为产出的 design-md（命令拒：未在 contract 中声明），
+   * 而登记它要的 `hue` 又不在 ship 的 skills 里，`next` 也从不发 load-skill hue：一条谁都执行不了
+   * 的动作。没登记过的 update 槽不发任何动作。
+   */
+  test('未登记的 role:update 槽不发动作，直接走到出口', () => {
+    expect(stepNextActions(input({
+      documents: {
+        reads: [],
+        records: [],
+        updates: [{
+          kind: 'design-md',
+          path: 'DESIGN.md',
+          path_template: 'DESIGN.md',
+          producers: ['hue'],
+          status: 'missing',
+        }],
+      },
+      exits: [exit('ship-complete', 'forward', true)],
+    }))).toEqual([{ action: 'transition', event: 'ship-complete' }])
+  })
+
+  test('当前步没有合法 producer 的过期输入文档不发无法执行的登记', () => {
+    const next = stepNextActions(input({
+      documents: { reads: [doc('plan', 'stale', [])], records: [], updates: [] },
+      exits: [exit('build-complete', 'forward', false)],
+    }))
+    expect(next[0]?.action).toBe('fix')
   })
 
   test('只跑必需测试；评审者排在测试之后', () => {
@@ -222,6 +335,44 @@ describe('step.next 顺序', () => {
     expect(actions({
       reviewers: [agent('security', 'reviewer', 'fail', true)],
       exits: [exit('verify-pass', 'forward', false), exit('verify-fail', 'back', true)],
+    })).toEqual(['choose-exit'])
+  })
+
+  /**
+   * D6（acceptance run）：评审门上的回退边也要人工确认。真机实测里 `next` 直接给
+   * `choose-exit: [verify-fail]`，照做却得到「phase 'verify' 的 event 'verify-fail' 尚未取得
+   * 人工确认；先运行 tenon review request … --event verify-fail」——review 回执逐边绑定，
+   * 一次「回到实现」的决定不能顺便授权 verify-pass，所以回退边同样走 request → await → transition。
+   */
+  test('评审门上唯一的回退边：先请求评审，再等待，再转换', () => {
+    const exits = [exit('verify-pass', 'forward', false), exit('verify-fail', 'back', true)]
+    const failed = { reviewers: [agent('security', 'reviewer', 'fail', true)], gate: 'review', exits }
+    expect(stepNextActions(input(failed)))
+      .toEqual([{ action: 'request-review', event: 'verify-fail' }])
+    expect(stepNextActions(input({
+      ...failed,
+      review: { status: 'pending', event: 'verify-fail' },
+    }))).toEqual([{ action: 'await-review', event: 'verify-fail' }])
+    expect(stepNextActions(input({
+      ...failed,
+      review: { status: 'approved', event: 'verify-fail' },
+    }))).toEqual([{ action: 'transition', event: 'verify-fail' }])
+  })
+
+  test('回退时挂着的是前进边的评审回执 → 改为请求回退边的评审', () => {
+    expect(stepNextActions(input({
+      reviewers: [agent('security', 'reviewer', 'fail', true)],
+      gate: 'review',
+      exits: [exit('verify-pass', 'forward', false), exit('verify-fail', 'back', true)],
+      review: { status: 'pending', event: 'verify-pass' },
+    }))).toEqual([{ action: 'request-review', event: 'verify-fail' }])
+  })
+
+  test('多条回退边仍然交给人选，不替他选一条去请求评审', () => {
+    expect(actions({
+      reviewers: [agent('security', 'reviewer', 'fail', true)],
+      gate: 'review',
+      exits: [exit('a', 'back', true), exit('b', 'back', true)],
     })).toEqual(['choose-exit'])
   })
 

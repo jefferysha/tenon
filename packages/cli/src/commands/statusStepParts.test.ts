@@ -169,6 +169,49 @@ describe('stepDocuments —— 路径还定不下来的文档不许带走整块�
 
 
 /**
+ * D1（acceptance run）：输入文档被改后状态是 stale，重新登记时 `tenon document record` 只认
+ * **当前步**合法的 producer。读清单从前一律投影空 producers，于是投影对「怎么解开」一个字都说
+ * 不出；运行器只能拿当初写它的那个 producer 去试，撞上「producer 'openspec-propose' 不合法
+ * （当前 explore 允许: tenon）」。
+ */
+describe('stepDocuments —— 读清单的 producers 来自当前步的契约', () => {
+  const policy = {
+    id: 'openspec-v1',
+    steps: ['open', 'explore', 'build'],
+    outputsByStep: {
+      open: [{ kind: 'proposal', producerCandidates: ['openspec-propose'] }],
+      explore: [],
+      build: [],
+    },
+    mutableByStep: {
+      open: [],
+      explore: [{ kind: 'proposal', producerCandidates: ['tenon'] }],
+      build: [],
+    },
+    readsByStep: { open: [], explore: ['proposal'], build: ['proposal'] },
+    requiresByStep: {},
+  } as unknown as DocumentGovernancePolicy
+
+  const stale = [
+    { kind: 'proposal', status: 'stale', reason: 'changed', paths: ['openspec/changes/demo/proposal.md'] },
+  ] as unknown as DocumentEvidenceItem[]
+
+  test('explore 读到的 proposal 报 explore 接受的 producer，不是 open 的那个', () => {
+    expect(stepDocuments('demo', policy, 'explore', stale).reads).toEqual([{
+      kind: 'proposal',
+      path: 'openspec/changes/demo/proposal.md',
+      path_template: 'openspec/changes/{change}/proposal.md',
+      producers: ['tenon'],
+      status: 'stale',
+    }])
+  })
+
+  test('当前步不能重新登记它时如实报空 producers', () => {
+    expect(stepDocuments('demo', policy, 'build', stale).reads[0]?.producers).toEqual([])
+  })
+})
+
+/**
  * 真机实测的 P0（acceptance run）：frontend 的 ship 步声明 `{ kind: design-md, role: update,
  * producers: [hue] }`，`tenon document record` 成功、`document status` 打 [PASS]，`status --json`
  * 的 `documents.updates` 却一直是 `missing`，`next` 因此永远重发同一条 scaffold-document。
