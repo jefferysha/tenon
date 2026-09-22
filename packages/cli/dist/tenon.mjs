@@ -18471,7 +18471,9 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
   const recordKinds = scope.recordKinds ?? recordRequirements.map((requirement) => requirement.kind);
   const readRequirements = new Set(scope.readKinds ?? readsRequiredForPolicyStep(policy2, phase));
   const requiredKinds = scope.recordKinds === void 0 ? requiresForPolicyStep(policy2, phase) : [];
-  const kinds = /* @__PURE__ */ new Set([...recordKinds, ...readRequirements, ...requiredKinds]);
+  const mutableKinds = scope.recordKinds === void 0 ? (policy2.mutableByStep[phase] ?? []).map((requirement) => requirement.kind) : [];
+  const gatingKinds = /* @__PURE__ */ new Set([...recordKinds, ...readRequirements, ...requiredKinds]);
+  const kinds = /* @__PURE__ */ new Set([...gatingKinds, ...mutableKinds]);
   const blockers = [];
   const items = [];
   let confirmations;
@@ -18492,6 +18494,10 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
       blockers.push(`current step visit \u4E0D\u53EF\u9A8C\u8BC1: ${error2 instanceof Error ? error2.message : String(error2)}`);
     }
   }
+  const gate = (kind, message2) => {
+    if (gatingKinds.has(kind))
+      blockers.push(message2);
+  };
   for (const kind of kinds) {
     const records = ledger.records.filter((record9) => record9.kind === kind);
     const requiredRead = readRequirements.has(kind);
@@ -18501,23 +18507,23 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
         if (await projectDocumentPresent(repoRoot, kind, projectPath)) {
           items.push({ kind, status: "recorded", requiredRead, paths: [projectPath], producers: [], timeline: [] });
         } else {
-          blockers.push(`\u7F3A\u5C11\u9879\u76EE\u6587\u6863 '${kind}'\uFF08${projectPath}\uFF09`);
+          gate(kind, `\u7F3A\u5C11\u9879\u76EE\u6587\u6863 '${kind}'\uFF08${projectPath}\uFF09`);
           items.push(item(kind, "missing", requiredRead, records, phase, currentVisitId));
         }
         continue;
       }
-      blockers.push(`\u7F3A\u5C11 document '${kind}'\uFF1B\u6267\u884C tenon document record <change> ${kind} <path> --producer <skill>`);
+      gate(kind, `\u7F3A\u5C11 document '${kind}'\uFF1B\u6267\u884C tenon document record <change> ${kind} <path> --producer <skill>`);
       items.push(item(kind, "missing", requiredRead, records, phase, currentVisitId));
       continue;
     }
     if (records.some((record9) => !isRecordedDocumentProducerAllowedThroughPolicyStep(policy2, kind, phase, record9.producer))) {
-      blockers.push(`document '${kind}' \u7684 producer \u4E0D\u7B26\u5408\u5F53\u524D document contract`);
+      gate(kind, `document '${kind}' \u7684 producer \u4E0D\u7B26\u5408\u5F53\u524D document contract`);
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "producer"));
       continue;
     }
     const legacyDelta = kind === "delta-spec" ? records.filter((record9) => deltaSpecSlot(record9.path, changeDir2) === void 0) : [];
     if (legacyDelta.length > 0) {
-      blockers.push(`\u5B58\u5728\u65E7 delta-spec \u8BB0\u5F55\uFF0C\u5FC5\u987B\u7528 tenon document migrate-delta \u663E\u5F0F\u8FC1\u79FB: ${legacyDelta.map((record9) => record9.path).join(", ")}`);
+      gate(kind, `\u5B58\u5728\u65E7 delta-spec \u8BB0\u5F55\uFF0C\u5FC5\u987B\u7528 tenon document migrate-delta \u663E\u5F0F\u8FC1\u79FB: ${legacyDelta.map((record9) => record9.path).join(", ")}`);
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "legacy-path"));
       continue;
     }
@@ -18526,7 +18532,7 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
       digests.push(await currentRecordDigest(repoRoot, record9));
     }
     if (records.some((record9, index) => digests[index] !== record9.sha256)) {
-      blockers.push(`document '${kind}' \u5DF2\u7F3A\u5931\u6216\u5185\u5BB9\u53D8\u5316\uFF1B\u91CD\u65B0\u6267\u884C tenon document record \u540E\u518D\u7EE7\u7EED`);
+      gate(kind, `document '${kind}' \u5DF2\u7F3A\u5931\u6216\u5185\u5BB9\u53D8\u5316\uFF1B\u91CD\u65B0\u6267\u884C tenon document record \u540E\u518D\u7EE7\u7EED`);
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "changed"));
       continue;
     }
@@ -18542,13 +18548,13 @@ async function evaluateDocumentEvidence(repoRoot, changeDir2, phase, scope, poli
       return !applicableConfirmations.some((confirmation) => hasExactDocumentApplication(invocationEvents, confirmation, record9));
     });
     if (incompleteProducer !== void 0) {
-      blockers.push(`document '${kind}' \u7684 producer invocation/artifact \u5C1A\u672A\u539F\u5B50\u5B8C\u6210: ${incompleteProducer.path}\uFF1B\u6267\u884C tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`);
+      gate(kind, `document '${kind}' \u7684 producer invocation/artifact \u5C1A\u672A\u539F\u5B50\u5B8C\u6210: ${incompleteProducer.path}\uFF1B\u6267\u884C tenon document record <change> ${kind} ${incompleteProducer.path} --producer ${incompleteProducer.producer}`);
       items.push(item(kind, "stale", requiredRead, records, phase, currentVisitId, "invocation"));
       continue;
     }
     if (requiredRead && (currentVisitId === void 0 || records.some((record9) => !record9.reads.some((receipt) => receiptMatchesVisit(receipt, phase, record9.sha256, currentVisitId))))) {
       if (currentVisitId !== void 0) {
-        blockers.push(`document '${kind}' \u5C1A\u672A\u7531 ${phase} \u7684\u5F53\u524D step visit \u8BFB\u53D6\uFF1B\u6267\u884C tenon document read <change> ${kind}`);
+        gate(kind, `document '${kind}' \u5C1A\u672A\u7531 ${phase} \u7684\u5F53\u524D step visit \u8BFB\u53D6\uFF1B\u6267\u884C tenon document read <change> ${kind}`);
       }
       items.push(item(kind, "unread", requiredRead, records, phase, currentVisitId));
       continue;

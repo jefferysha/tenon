@@ -151,3 +151,33 @@ describe('stepDocuments —— 路径还定不下来的文档不许带走整块�
     expect(documents.records[0]?.path).toBe('openspec/changes/demo/specs/routing/spec.md')
   })
 })
+
+/**
+ * 真机实测的 P0（acceptance run）：frontend 的 ship 步声明 `{ kind: design-md, role: update,
+ * producers: [hue] }`，`tenon document record` 成功、`document status` 打 [PASS]，`status --json`
+ * 的 `documents.updates` 却一直是 `missing`，`next` 因此永远重发同一条 scaffold-document。
+ * 证据面此前不评估 update 槽位，投影拿不到条目就按 missing 兜底。
+ */
+describe('stepDocuments —— update 槽位读证据面的判定，不按缺省兜底', () => {
+  const policy = {
+    id: 'openspec-v1',
+    steps: ['ship'],
+    outputsByStep: { ship: [] },
+    mutableByStep: { ship: [{ kind: 'design-md', producerCandidates: ['hue'] }] },
+    readsByStep: {},
+    requiresByStep: {},
+  } as unknown as DocumentGovernancePolicy
+
+  test('证据面说 recorded 时 updates 就是 recorded', () => {
+    const documents = stepDocuments('demo', policy, 'ship', [
+      { kind: 'design-md', status: 'recorded', paths: ['DESIGN.md'] },
+    ] as unknown as DocumentEvidenceItem[])
+    expect(documents.updates).toEqual([{
+      kind: 'design-md',
+      path: 'DESIGN.md',
+      path_template: 'DESIGN.md',
+      producers: ['hue'],
+      status: 'recorded',
+    }])
+  })
+})
