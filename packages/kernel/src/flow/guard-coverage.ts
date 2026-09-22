@@ -118,10 +118,14 @@ export function evaluateCoverage(
   }
   if (covBlock > 0) {
     // 怎么解开写在失败行里：这条指引原先散在阶段 skill 的散文中，现在只剩这一处。
+    // 行格式与上面 coverageBlockStatus 的解析口径逐字同源：层名、冒号、filled/waived。
+    // 从前这句写成「为每个阻塞层写 filled -> …」，照做写出的 `L1_api -> filled -> …` 没有冒号，
+    // 解析器读不到 `${layer}:` 前缀，每一层仍是 blank——照着修反而修不动。
     failures.push(
       `spec 出口：全栈 Spec 覆盖（${covBlock} 层阻塞）；`
-      + '在 design_doc 的 ```coverage 块为每个阻塞层写 filled -> <章节> 或 waived -> <理由>'
-      + '（touches 含 auth 时 L6 不可 waived）',
+      + '在 design_doc 的 ```coverage 块为每个阻塞层写一行 `<层>: filled -> <章节>` 或 '
+      + '`<层>: waived -> <理由>`，例：`L1_api: filled -> §3 接口契约`'
+      + '（touches 含 auth 时 L6_security 不可 waived）',
     )
     for (const l of blockedLines) warnings.push(`覆盖阻塞: ${l}`)
   }

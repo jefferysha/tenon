@@ -217,6 +217,23 @@ describe('spec 出口（S1-S5）', () => {
     expect((r.warnings ?? []).filter((w) => w.includes('覆盖阻塞')).length).toBe(7)
   })
 
+  /**
+   * D5（acceptance run）：失败行原先写「为每个阻塞层写 filled -> <章节> 或 waived -> <理由>」，
+   * 照着写出的 `L1_api -> filled -> …` 不带冒号，解析器（coverageBlockStatus 找 `${layer}:` 前缀）
+   * 每一层仍判 blank——照着修反而修不动。文案必须给出一条能逐字照抄的行，且照抄之后真的解得开。
+   */
+  it('S5 失败文案里的示例行照抄进 coverage 块就真的解得开（文案与解析器同源）', () => {
+    const blocked = evaluateGuard(be(), ctxOf(specFiles('# design 无覆盖块\n')))
+    const message = fails(blocked, '全栈 Spec 覆盖')[0] ?? ''
+    const example = /`([A-Za-z0-9_]+): (filled -> [^`]+)`/.exec(message)
+    expect(example, `文案必须带一条可照抄的示例行，实际: ${message}`).not.toBeNull()
+    const value = example![2]!
+    const copied = coverageDoc(Object.fromEntries(Object.keys(ALL_FILLED).map((layer) => [layer, value])))
+    expect(copied).toContain(`${example![1]!}: ${value}`)
+    const after = evaluateGuard(be(), ctxOf(specFiles(copied)))
+    expect(fails(after, '全栈 Spec 覆盖')).toHaveLength(0)
+  })
+
   it('S5 coverageProfile 接管适用性：data+backend 按 backend 矩阵，backend+none 不检查', () => {
     const files = specFiles('# design 无覆盖块\n')
     const dynamicBackend = evaluateGuard(
