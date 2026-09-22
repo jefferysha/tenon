@@ -237,10 +237,29 @@ describe('已归档任务拒绝推进', () => {
     expect(JSON.stringify(lastJson())).toContain('feat')
   })
 
-  test('归档不阻断修复路径 get / set / cas', async () => {
+  /**
+   * 归档之后只剩读是开着的。字段写入曾被留作「修复路径」，结果它成了继续改一个已经收起来的任务的
+   * 唯一入口——同一条 Change 上 transition / document record / artifact register 全被拒，`set` 却能写。
+   * 要改它就先 `tenon task unarchive`。
+   */
+  test('归档拒绝字段写入；get 与 unarchive 才是修复路径', async () => {
     await init('feat')
     expect(await h.run(['task', 'archive', 'feat'])).toBe(0)
+    const before = await h.read('feat')
     expect(await h.run(['get', 'feat', 'phase'])).toBe(0)
+    expect(h.out.join('')).toBe('open')
+    for (const argv of [
+      ['set', 'feat', 'branch', 'feat/x'],
+      ['set-many', 'feat', 'branch=feat/x'],
+      ['cas', 'feat', 'branch', 'null', 'feat/x'],
+    ]) {
+      expect(await h.run(argv)).toBe(1)
+      expect(h.err.join('\n')).toContain("任务 'feat' 已归档")
+      expect(h.err.join('\n')).toContain('tenon task unarchive feat')
+    }
+    expect(await h.read('feat')).toBe(before)
+
+    expect(await h.run(['task', 'unarchive', 'feat'])).toBe(0)
     expect(await h.run(['set', 'feat', 'branch', 'feat/x'])).toBe(0)
     expect(await h.run(['cas', 'feat', 'branch', 'feat/x', 'feat/y'])).toBe(0)
     expect(await h.run(['get', 'feat', 'branch'])).toBe(0)
