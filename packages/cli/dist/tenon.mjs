@@ -36760,8 +36760,6 @@ function loopHasAnotherExit(steps, step) {
   return false;
 }
 function implicitCompletionTransition(plan, stepId, state) {
-  if (plan.capabilities.execution.model !== "step-graph")
-    return void 0;
   if (state !== void 0 && runArchived(state))
     return void 0;
   const steps = plan.workflow.steps;
@@ -69143,6 +69141,13 @@ function writeFieldActions(fields, producers) {
   return actions;
 }
 function stepNextActions(input2) {
+  if (input2.runArchived) {
+    return input2.governedOpenspec ? [{
+      action: "finish-change",
+      change: input2.change,
+      command: `openspec archive ${input2.change} --skip-specs --yes --json`
+    }] : stop("run-archived", `\u4EFB\u52A1 '${input2.change}' \u5DF2\u5B8C\u7ED3`);
+  }
   if (!input2.loaded) return [{ action: "load-tenon" }];
   const unread = input2.documents.reads.filter((doc) => doc.status !== "recorded" && doc.status !== "read");
   if (unread.length > 0) {
@@ -69326,6 +69331,8 @@ async function buildStatusStep(deps, name2, state, plan) {
       review,
       gate: step.gate ?? null,
       mode: block.mode,
+      runArchived: str(state.fields.archived) === "true",
+      governedOpenspec: plan.capabilities.documents.governed,
       exits: report.exits,
       specApplyPending: !specApply.fresh,
       ownsDeltaSpec: documents.records.some((doc) => doc.kind === "delta-spec"),

@@ -98,6 +98,9 @@ export interface StepNextInput {
   readonly review: { readonly status: string; readonly event: string | null }
   readonly gate: string | null
   readonly mode: StepBlock['mode']
+  /** `fields.archived === 'true'`：状态机已走完，只剩治理归档。不是 per-user 的隐藏表。 */
+  readonly runArchived: boolean
+  readonly governedOpenspec: boolean
   readonly exits: readonly StepExit[]
   readonly specApplyPending: boolean
   readonly ownsDeltaSpec: boolean
@@ -135,6 +138,20 @@ function writeFieldActions(
 
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
 export function stepNextActions(input: StepNextInput): readonly StepAction[] {
+  // 状态机已归档：这个任务只剩治理归档那一步，排在重新加载 tenon 之前——终态自边开出的步骤访问
+  // 不会再前进，让运行器去补一次技能证据只会原地打转。在治理归档跑完之前，change 目录还在
+  // `openspec/changes/` 下但 `archived=true`，`tenon list` 与 `tenon list --finished` 两边都看
+  // 不见它；不点名这条命令，运行器就停在一个没有阻塞项的 `fix` 上。动作自带整条命令，因此即使
+  // 技能还没加载也照做得了。
+  if (input.runArchived) {
+    return input.governedOpenspec
+      ? [{
+          action: 'finish-change',
+          change: input.change,
+          command: `openspec archive ${input.change} --skip-specs --yes --json`,
+        }]
+      : stop('run-archived', `任务 '${input.change}' 已完结`)
+  }
   if (!input.loaded) return [{ action: 'load-tenon' }]
 
   const unread = input.documents.reads.filter((doc) => doc.status !== 'recorded' && doc.status !== 'read')
@@ -365,6 +382,8 @@ export async function buildStatusStep(
       review,
       gate: step.gate ?? null,
       mode: block.mode,
+      runArchived: str(state.fields.archived) === 'true',
+      governedOpenspec: plan.capabilities.documents.governed,
       exits: report.exits,
       specApplyPending: !specApply.fresh,
       ownsDeltaSpec: documents.records.some((doc) => doc.kind === 'delta-spec'),

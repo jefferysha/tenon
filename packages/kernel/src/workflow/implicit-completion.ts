@@ -65,17 +65,22 @@ function loopHasAnotherExit(steps: readonly StepIR[], step: StepIR): boolean {
 
 /**
  * The implicit `archived` edge of `stepId`, or undefined when the step has a forward edge, declares
- * `archived` itself, can still leave its loop through another step, or the workflow is
- * phase-manifest. Pass `state` whenever the caller acts on the edge: an archived run has nothing
- * left to complete. Plan-level projections that must agree across Changes (snapshot rules,
- * readiness, review handshake) omit it.
+ * `archived` itself, or can still leave its loop through another step. Pass `state` whenever the
+ * caller acts on the edge: an archived run has nothing left to complete.
+ *
+ * The rule covers phase-manifest plans too. `default`'s `archive` terminal compiles to
+ * `transitions: []`, so while it was limited to step-graph, every `default` Change reached
+ * `archive` with no exit at all — `tenon status --json` printed `"exits": []` and a `fix` action
+ * with an empty blocker list, and no projection ever named `tenon transition <change> archived`.
+ * That event is declared by the default state machine itself (`flow/transition-table.ts`:
+ * `archived: archive -> archive`); only the manifest-derived IR drops the edge, so deriving it
+ * here restores the graph rather than inventing policy.
  */
 export function implicitCompletionTransition(
   plan: ImplicitCompletionPlan,
   stepId: string,
   state?: PipelineState,
 ): StepTransitionIR | undefined {
-  if (plan.capabilities.execution.model !== 'step-graph') return undefined
   if (state !== undefined && runArchived(state)) return undefined
   const steps = plan.workflow.steps
   const index = steps.findIndex((candidate) => candidate.id === stepId)

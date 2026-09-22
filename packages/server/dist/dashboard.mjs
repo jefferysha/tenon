@@ -29485,8 +29485,6 @@ function loopHasAnotherExit(steps, step) {
   return false;
 }
 function implicitCompletionTransition(plan, stepId, state) {
-  if (plan.capabilities.execution.model !== "step-graph")
-    return void 0;
   if (state !== void 0 && runArchived(state))
     return void 0;
   const steps = plan.workflow.steps;
