@@ -322,6 +322,58 @@ describe('完结（已移入 openspec/changes/archive/）的 change 仍可查', 
     expect(deps.outLines).toEqual(['无已完结 change'])
   })
 
+  /**
+   * 真机实测的 P0（acceptance run）：`tenon transition <c> archived` 之后、`openspec archive`
+   * 之前，change 目录还在 `openspec/changes/` 下而 `archived` 已是 true。活跃表按 archived=true
+   * 把它滤掉，完结表只读归档目录，做完的任务在两张表里同时消失——正是 collectFinished 的注释
+   * 说「不该存在」的那个状态。完结的判定是 `archived=true`，目录在哪只决定它还能不能继续改。
+   */
+  test('list --finished 也列出还没被 openspec archive 搬走的完结 change', async () => {
+    const finished = makeDeps({ states: { 'fin-demo': finishedState }, changes: ['fin-demo'] })
+    expect(await cmdListFinished(finished, { json: true })).toBe(0)
+    expect(JSON.parse(finished.outLines[0]!)).toEqual({
+      finished: [{
+        name: 'fin-demo',
+        track: 'backend',
+        phase: 'archive',
+        phase_status: 'done',
+        archived: 'true',
+        archived_at: '2026-09-22T03:00:00Z',
+        owner: { id: 'tester@tenon.test', name: 'Tester' },
+      }],
+    })
+    const active = makeDeps({ states: { 'fin-demo': finishedState }, changes: ['fin-demo'] })
+    expect(await cmdList(active, { json: true })).toBe(0)
+    expect(active.outLines[0]).toBe('{"changes":[]}')
+  })
+
+  test('同一个 change 两边都在时只列一次，读归档目录那份', async () => {
+    const cwd = await repoWithFinished('2026-09-22-fin-demo')
+    const deps = makeDeps({
+      states: { 'fin-demo': finishedState, '2026-09-22-fin-demo': finishedState },
+      changes: ['fin-demo'],
+      cwd,
+    })
+    expect(await cmdListFinished(deps, { json: true })).toBe(0)
+    const parsed = JSON.parse(deps.outLines[0]!) as { finished: readonly { name: string }[] }
+    expect(parsed.finished.map((row) => row.name)).toEqual(['fin-demo'])
+  })
+
+  test('活跃 change 没有 archived=true 时不进完结表', async () => {
+    const deps = makeDeps({ states: { 'demo-a': stateA }, changes: ['demo-a'] })
+    expect(await cmdListFinished(deps, { json: true })).toBe(0)
+    expect(deps.outLines[0]).toBe('{"finished":[]}')
+  })
+
+  test('status <name>：目录还没搬走也照样报 archived / archived_at', async () => {
+    const deps = makeDeps({ states: { 'fin-demo': finishedState }, changes: ['fin-demo'] })
+    expect(await cmdStatus(deps, 'fin-demo', {})).toBe(0)
+    expect(deps.outLines.slice(-2)).toEqual([
+      'archived     true',
+      'archived_at  2026-09-22T03:00:00Z',
+    ])
+  })
+
   test('活跃目录还在时不去归档目录找（同名不串）', async () => {
     const cwd = await repoWithFinished('2026-09-22-demo-a')
     const deps = makeDeps({ states: { 'demo-a': stateA, '2026-09-22-demo-a': finishedState }, cwd })

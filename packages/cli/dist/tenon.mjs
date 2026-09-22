@@ -69413,7 +69413,8 @@ async function cmdStatus2(deps, name2, opts) {
       ["phase", `${display(state.fields.phase)} (${display(state.fields.phase_status)})`],
       ["verify", display(state.fields.verify_result)],
       ["updated", display(state.fields.updated_at)],
-      ...finished2 ? [
+      // 完结的判定是 `archived=true`；目录被 OpenSpec 搬走与否只决定它还能不能继续改。
+      ...finished2 || str(state.fields.archived) === "true" ? [
         ["archived", display(state.fields.archived)],
         ["archived_at", display(state.fields.archived_at)]
       ] : []
@@ -69446,24 +69447,33 @@ async function cmdStatus2(deps, name2, opts) {
   return 0;
 }
 async function collectFinished(deps) {
+  const rows = /* @__PURE__ */ new Map();
+  for (const name2 of [...await deps.listChanges(changesRoot(deps.cwd))].sort()) {
+    try {
+      const state = await deps.store.read(changeDir(deps.cwd, name2));
+      if (str(state.fields.archived) === "true") rows.set(name2, { name: name2, state });
+    } catch (e) {
+      deps.io.err(`WARN: \u8DF3\u8FC7 ${name2}\uFF08\u8BFB\u53D6\u5931\u8D25: ${errMsg(e)}\uFF09`);
+    }
+  }
   let entries;
   try {
     entries = readdirSync9(archivedChangesRoot(deps.cwd), { withFileTypes: true });
   } catch {
-    return [];
+    return [...rows.values()];
   }
-  const rows = [];
   for (const entry of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
     if (!entry.isDirectory()) continue;
     const dir = join117(archivedChangesRoot(deps.cwd), entry.name);
     if (!stateStorageExistsSync(dir)) continue;
+    const name2 = changeNameOfArchivedDir(entry.name);
     try {
-      rows.push({ name: changeNameOfArchivedDir(entry.name), state: await deps.store.read(dir) });
+      rows.set(name2, { name: name2, state: await deps.store.read(dir) });
     } catch (e) {
       deps.io.err(`WARN: \u8DF3\u8FC7 ${entry.name}\uFF08\u8BFB\u53D6\u5931\u8D25: ${errMsg(e)}\uFF09`);
     }
   }
-  return rows;
+  return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 async function cmdListFinished(deps, opts) {
   const rows = await collectFinished(deps);

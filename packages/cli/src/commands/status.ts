@@ -107,7 +107,8 @@ export async function cmdStatus(
       ['phase', `${display(state.fields.phase)} (${display(state.fields.phase_status)})`],
       ['verify', display(state.fields.verify_result)],
       ['updated', display(state.fields.updated_at)],
-      ...(finished
+      // 完结的判定是 `archived=true`；目录被 OpenSpec 搬走与否只决定它还能不能继续改。
+      ...(finished || str(state.fields.archived) === 'true'
         ? [
             ['archived', display(state.fields.archived)] as [string, string],
             ['archived_at', display(state.fields.archived_at)] as [string, string],
@@ -144,30 +145,44 @@ export async function cmdStatus(
 }
 
 /**
- * 完结并被 OpenSpec 移进 `openspec/changes/archive/` 的 change。
+ * 完结的 change：`archived=true`，或已被 OpenSpec 移进 `openspec/changes/archive/`。
  *
  * 与 `list --archived` 不同：那是当前用户的「先收起来」隐藏表（per-user，可 unarchive），这里是
  * 全项目做完的任务。两者此前都看不到完结任务，做完的工作就此从所有列表里消失。
+ *
+ * 判定必须包含还留在活跃目录里的完结 change：`tenon transition <c> archived` 与 `openspec
+ * archive` 是两条命令，中间那段时间里活跃表按 `archived=true` 把它滤掉、归档目录里又还没有它，
+ * 任务在两张表里同时消失——正是这段注释说不该存在的状态。目录在哪只决定它还能不能继续改。
  */
 async function collectFinished(deps: CliDeps): Promise<Row[]> {
+  const rows = new Map<string, Row>()
+  for (const name of [...(await deps.listChanges(changesRoot(deps.cwd)))].sort()) {
+    try {
+      const state = await deps.store.read(changeDir(deps.cwd, name))
+      if (str(state.fields.archived) === 'true') rows.set(name, { name, state })
+    } catch (e) {
+      deps.io.err(`WARN: 跳过 ${name}（读取失败: ${errMsg(e)}）`)
+    }
+  }
   let entries
   try {
     entries = readdirSync(archivedChangesRoot(deps.cwd), { withFileTypes: true })
   } catch {
-    return []
+    return [...rows.values()]
   }
-  const rows: Row[] = []
   for (const entry of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
     if (!entry.isDirectory()) continue
     const dir = join(archivedChangesRoot(deps.cwd), entry.name)
     if (!stateStorageExistsSync(dir)) continue
+    const name = changeNameOfArchivedDir(entry.name)
     try {
-      rows.push({ name: changeNameOfArchivedDir(entry.name), state: await deps.store.read(dir) })
+      // 归档目录里的那份是既成事实的记录，同名时以它为准。
+      rows.set(name, { name, state: await deps.store.read(dir) })
     } catch (e) {
       deps.io.err(`WARN: 跳过 ${entry.name}（读取失败: ${errMsg(e)}）`)
     }
   }
-  return rows
+  return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export async function cmdListFinished(deps: CliDeps, opts: { json?: boolean }): Promise<number> {
