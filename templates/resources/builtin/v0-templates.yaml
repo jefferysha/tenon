@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: v0-templates
+name: v0 Templates
+category: template
+frameworks: [react, next]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: LicenseRef-v0-Community-Templates
+  url: https://vercel.com/legal/terms
+  redistributable: false
+  attribution: false
+  commercial: freemium
+  notice: 许可证未知，社区模板未声明开源许可，受 Vercel 服务条款约束；仅浏览与链接，不得复制或再分发模板源码
+install: []
+skills: []
+links:
+  home: https://v0.app/templates
+  docs: https://v0.app/docs
+verified_at: 2026-09-23
