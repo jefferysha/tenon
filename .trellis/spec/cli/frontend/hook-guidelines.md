@@ -83,6 +83,32 @@ consumers that only act on short commands use `pipeline_json_get_command_bounded
 **Prevention**: `tools/test-hooks.sh` feeds a 166 KB heredoc and a 1.3 MB output to every PostToolUse hook and gate and
 requires each to finish within 3 s.
 
+### Common Mistake: pasted logs in UserPromptSubmit hooks
+
+**Symptom**: a user pastes a long log; router / breadcrumb / confirm-clear-prompt exceed the 5 s host timeout, so the
+turn loses its routing and a 「确认继续」 at the end never unlocks. v0.1.2 on macOS `/bin/bash` 3.2: 64 KB of log took
+>30 s in router and confirm-clear-prompt; 300 KB ≈ 145 s.
+
+**Cause** (all measured on bash 3.2):
+- `${input#*\"cwd\"}` / `${input%%\"cwd\"*}` are quadratic in the distance to the match, in any locale (1 MB ≈ 140 s).
+- `${arr[$i]}` walks the array list from its head, and `arr+=(x)` is linear per call: an indexed loop or `+=`
+  appends over tens of thousands of pieces are quadratic.
+- `pipeline_prompt_is_qualified_approval` copied the remaining text per sentence (20 KB ≈ 90 s).
+
+**Fix**:
+- `json-input.sh`: find a key on a `"`-split (fast path: `#*` on the first 4 KiB). Read up to the first quote with
+  `read -d '"'`. Walk arrays with `for x in "${arr[@]}"` and append with `arr[${#arr[@]}]=x`.
+- `prompt-intent.sh`: prompts over 256 characters go through one `LC_ALL=C awk` pass that applies the same sentence
+  rules. Authority phrases longer than 512 characters are rejected before the `${//}` normalisation.
+- `pipeline_prompt_bound_input`: all three UserPromptSubmit hooks call it first. When stdin is over 64 KiB, one
+  `LC_ALL=C awk` pass cuts the encoded prompt to its first and last 8 KiB, joined by `\n...\n`. The cut never lands
+  inside an escape or a UTF-8 sequence, and other keys are kept as they are. Smaller input is returned unchanged with
+  no process spawned.
+
+**Prevention**: `tools/test-hooks.sh` section 9 runs all three hooks on ≈ 300 KB and ≈ 1 MB log payloads with `cwd`
+after the prompt (≤ 3 s each, end-of-prompt naming still routes). Long-text classifier cases must match the
+short-text results.
+
 ## Review and automation decisions
 
 The terminal is the only model-interaction surface. CLI review acknowledgement

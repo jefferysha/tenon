@@ -1270,12 +1270,13 @@ EOF
   # 都作废批准时，`确认继续，按你的推荐执行。另外这个方案不错，但配色偏暗。` 也被判成 modify，
   # 门就锁死在一条完全有效的批准上。
   intent_is() { # $1=prompt $2=expected
-    local actual
+    local actual label="$1"
+    [ "${#label}" -le 80 ] || label="（${#1} 字长文本）…${label: -30}"
     actual="$(bash -c '. "$1"; pipeline_prompt_approval_intent "$2"' _ \
       "$ROOT/hooks/prompt-intent.sh" "$1" 2>/dev/null || true)"
     [ "$actual" = "$2" ] \
-      && ok "classifier: 「$1」→ $2" \
-      || bad "classifier: 「$1」→ $2" "实际 intent=${actual:-<empty>}"
+      && ok "classifier: 「${label}」→ $2" \
+      || bad "classifier: 「${label}」→ $2" "实际 intent=${actual:-<empty>}"
   }
   intent_is '继续，但先别改代码' modify
   intent_is '同意继续执行。但是先别动数据库。' modify
@@ -1286,6 +1287,14 @@ EOF
   intent_is '继续执行。这个库很好用，不过文档差了点。' confirm
   intent_is '这个方案不错但一般。确认继续。' confirm
   intent_is '继续，按照你的推荐' contextual-confirm
+  # 超过 256 字时转折判定改走 awk 一趟扫描；前面垫一段中性长文，结论必须与短文本一致。
+  INTENT_PAD='这是一段很长的背景说明，没有任何特殊词语，仅用于让文本超过阈值长度。'
+  INTENT_PAD="$INTENT_PAD$INTENT_PAD$INTENT_PAD$INTENT_PAD$INTENT_PAD$INTENT_PAD$INTENT_PAD$INTENT_PAD"
+  intent_is "${INTENT_PAD}继续，但先别改代码" modify
+  intent_is "${INTENT_PAD}同意继续执行。但是先别动数据库。" modify
+  intent_is "${INTENT_PAD}确认继续，按你的推荐执行。另外这个方案不错，但配色偏暗。" confirm
+  intent_is "${INTENT_PAD}这个方案不错但一般。确认继续。" confirm
+  intent_is "${INTENT_PAD}可以但是我想先看看" modify
 
   run_router "{\"prompt\":\"不要继续，即使后续不用问我\",\"cwd\":\"$rproj\"}"
   assert_not_contains "router: 拒绝优先于授权短语" "$ROUT" "continuous_execution: true"
@@ -1401,6 +1410,40 @@ EOF
   long_filler="$(printf '%*s' 12000 '' | tr ' ' 'x')"
   run_router "{\"prompt\":\"修复 API 的 bug，日志如下：${long_filler}。走 free 轨道即可\",\"cwd\":\"$rproj\"}"
   assert_contains "router: 长 prompt 结尾的点名仍生效（只扫首尾窗口）" "$ROUT" "track: free"
+
+  # 用户粘贴大段日志：v0.1.2 的 router 在 bash 3.2 上处理 300 KB prompt 约 145 s（宿主 5 s 超时，路由
+  # 静默丢失）。日志行带转义引号、反斜杠、换行和中文，cwd 排在 prompt 之后（最坏的键位置）；
+  # 三个 UserPromptSubmit hook 都必须 3 s 内完成，且 prompt 结尾的点名与 cwd 仍被正确读到。
+  BIG_PROMPT_LINE='2026-09-24T01:02:03Z ERROR api/handler.go:42 请求失败. \"status\": 500, path=/api/v1/users \\ retry. 修复中。\n'
+  BIG_PROMPT_UNIT="$BIG_PROMPT_LINE"   # 118 字节
+  for _ in 1 2 3 4 5 6 7 8; do BIG_PROMPT_UNIT="$BIG_PROMPT_UNIT$BIG_PROMPT_UNIT"; done   # ≈ 30 KB
+  for big_scale in 10 34; do   # ≈ 300 KB 与 ≈ 1 MB
+    big_body=''
+    for _ in $(seq 1 "$big_scale"); do big_body="$big_body$BIG_PROMPT_UNIT"; done
+    printf '{"session_id":"s","prompt":"修复 API 的 bug，日志：%s 走 free 轨道","cwd":"%s"}' "$big_body" "$rproj" \
+      > "$TMP/big-prompt.json"
+    big_bytes="$(wc -c < "$TMP/big-prompt.json" | tr -d ' ')"
+    for big_hook in "$R" "$ROOT/hooks/breadcrumb.sh" "$ROOT/hooks/confirm-clear-prompt.sh"; do
+      big_start=$SECONDS
+      big_out="$(TENON_ROUTER_CACHE="$RCACHE" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$big_hook" < "$TMP/big-prompt.json" 2>/dev/null)"
+      big_elapsed=$((SECONDS - big_start))
+      if [ "$big_elapsed" -le 3 ]; then
+        ok "超长 prompt: $(basename "$big_hook") ${big_bytes} 字节 ${big_elapsed}s 内完成"
+      else
+        bad "超长 prompt: $(basename "$big_hook") ${big_bytes} 字节 3s 内完成" "耗时 ${big_elapsed}s"
+      fi
+      [ "$big_hook" = "$R" ] && assert_contains "超长 prompt: router ${big_bytes} 字节仍读到结尾点名与 cwd" "$big_out" "track: free"
+    done
+  done
+  BOUND_OUT="$(bash -c '. "$1"; pipeline_prompt_bound_input "$(cat "$2")"' _ "$ROOT/hooks/prompt-intent.sh" "$TMP/big-prompt.json")"
+  assert_contains "超长 prompt: 截断保留开头" "$BOUND_OUT" '"prompt":"修复 API 的 bug，日志：2026-09-24'
+  assert_contains "超长 prompt: 截断保留结尾与其余键" "$BOUND_OUT" "走 free 轨道\",\"cwd\":\"$rproj\"}"
+  [ "${#BOUND_OUT}" -lt 20000 ] && ok "超长 prompt: 截断后不超过首尾各 8 KiB" || bad "超长 prompt: 截断后不超过首尾各 8 KiB" "长度 ${#BOUND_OUT}"
+  BOUND_DECODED="$(bash -c '. "$1"; . "$2"; pipeline_json_get_string "$3" prompt' _ "$ROOT/hooks/json-input.sh" "$ROOT/hooks/prompt-intent.sh" "$BOUND_OUT")"
+  [ -n "$BOUND_DECODED" ] && ok "超长 prompt: 截断后的 JSON 仍可解码" || bad "超长 prompt: 截断后的 JSON 仍可解码" "解码失败"
+  SMALL_JSON="{\"prompt\":\"短 prompt \\\"引号\\\" 继续\",\"cwd\":\"$rproj\"}"
+  SMALL_OUT="$(bash -c '. "$1"; pipeline_prompt_bound_input "$2"' _ "$ROOT/hooks/prompt-intent.sh" "$SMALL_JSON")"
+  [ "$SMALL_OUT" = "$SMALL_JSON" ] && ok "超长 prompt: 64 KiB 以内的输入原样返回" || bad "超长 prompt: 64 KiB 以内的输入原样返回" "被改写"
 
   # 项目自定义 Track/workflow 是正常对话的真实选择，不得被 hook 偷换成 workflow: default。
   # 这里用真实 kernel cold-path 载入一份有效的 custom workflow，再验证 V5 cache → bash hot-path
