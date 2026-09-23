@@ -4,6 +4,90 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.2 · 2026-09-24
+
+An acceptance-fix release. v0.1.1 was self-tested end to end in real use: a real Claude Code session through all
+seven phases, every CLI capability, and every Dashboard page in a browser. This release fixes what that found.
+
+### Host and hooks
+
+- The interaction gate no longer blocks `ToolSearch`. In Claude Code `AskUserQuestion` is a deferred tool that must
+  be loaded through `ToolSearch`, so v0.1.1 deadlocked whenever a skill required a question. The block message now
+  explains how to ask.
+- Hook JSON parsing is linear. On macOS's bash 3.2, v0.1.1 took quadratic time on long commands: a 21 KB heredoc kept
+  the test-nudge hook busy for 67 s and the host cancelled it. A 166 KB input now takes about 1 s, and commands over
+  64 KiB are never treated as read-only.
+- The test reminder only matches tests declared on the current step and track; the `free` track is no longer told
+  to run tests it does not have.
+- The entry skill activates the session with the host session id, and "确认继续" / "继续执行" resume the current
+  change while a review is pending instead of being routed as a new task.
+- `.pipeline/.gitignore` ignores local-only state: `cache/`, `terminal-sessions/` and `codex-skill-receipts.jsonl`.
+
+### Data-driven flow (`step.next`)
+
+- `pre_verify_review_result` can be set to `pass` only once the step's declared tests, executors and required
+  reviewers have real results. `next` no longer recommends `pass`, nor a `build_mode` that then demands
+  `direct_override`.
+- `phase_status`, `verified_at` and `updated_at` are managed by transitions and refused by `tenon set`.
+- When a required reviewer fails, `next` goes straight to the fix or `verify-fail` exit.
+- Parallel agents are numbered by dependency layer; `next` reports an agent that is still running, and
+  `tenon agent next` no longer claims everything is done when it is not.
+- `ship`: unchecked `tasks.md` items appear in `next` as the exit blocker. With no git remote, `pr_url` accepts
+  `no-remote` (the CLI checks there is no remote); any other value must be an http(s) URL.
+- Finished changes are listed under `finished_changes`, and `tenon check` reports them as finished with exit 0.
+  `finish-change` carries the paths and message to commit the archive move, so no uncommitted changes are left.
+- `document record` refuses scaffolds that still contain template placeholders and lists the lines.
+
+### CLI
+
+- Top-level workflow YAML keys may appear in any order (the documented example with `document_contract` after
+  `steps` now parses).
+- `--preset` accepts only `full|hotfix|tweak`; custom workflows no longer need one.
+- Unknown change names report "change 不存在" instead of raw file errors, and the CLI exits quietly on a closed pipe.
+- `tenon test code-size` counts source files only; reviewer verdicts bind to the workspace fingerprint like test
+  records, so a code edit makes an old review stale.
+- The human-readable `tenon workflow plan` lists each step's inputs, outputs, tests and agents; `doctor` and
+  `last-update.json` agree on the changed-skill count.
+
+### Dashboard
+
+- The reviewer/executor editor keeps its draft across parent re-renders (in v0.1.1 added reviewers could be lost).
+- First load shows a loading state instead of "no projects"; middle-column search boxes keep their height and filter
+  rows wrap.
+- Previews no longer render YAML frontmatter as body text; deleting a custom template, agent or test direction asks
+  for confirmation; toasts report the outcome.
+- The offline banner is fully visible below the top bar; the projects page no longer re-reads instruction files
+  every 5 seconds.
+- The resource catalog adds v0 templates, Skiper UI (links only) and coss ui.
+
+### Upgrade
+
+From v0.1.1: run `tenon update --codex` (or `--claude`) and open a new host session. The N-1 gate reads and writes
+this release's data with the published v0.1.1 in both directions.
+
+From 1.x: run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.2/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.2/install.sh | /bin/bash -s -- --codex
+```
+
+### Compatibility
+
+- `tenon status <change> --json` adds `finished_changes`; `set-field` and `agent next` JSON gain fields.
+- An unknown `--preset` and `agent prompt` for an undeclared agent now exit 1.
+- Documents already recorded with placeholders in changes in progress are unaffected; re-recording requires filling
+  them first.
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+Both hosts' inventory, the active managed runtime and the Dashboard report 0.1.2.
+
 ## v0.1.1 · 2026-09-23
 
 A correctness release. Accepting v0.1.0 on real hosts found the default workflow unusable on three of its five

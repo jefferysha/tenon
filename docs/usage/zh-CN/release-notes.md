@@ -12,6 +12,78 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.1.2 · 2026-09-24
+
+验收修复版。对 v0.1.1 做了系统性真实场景自测（真实 Claude Code 会话完整走完 7 个阶段、逐项命令行能力覆盖、
+Dashboard 逐页浏览器操作），本版修复其中发现的缺陷。
+
+### 宿主与 hook
+
+- 交互门不再拦截 `ToolSearch`。Claude Code 中 `AskUserQuestion` 是延迟加载工具，必须先经 `ToolSearch` 载入；
+  v0.1.1 在技能要求提问时会形成「必须先问、却不能发问」的死锁。拦截提示改为给出可执行的提问方式。
+- hook 的 JSON 解析改为线性：v0.1.1 在 macOS 自带 bash 3.2 上对长命令是平方级耗时，21 KB 的 heredoc 就让测试
+  提醒 hook 耗时 67 秒并被宿主以超时取消。现在 166 KB 输入约 1 秒；超过 64 KiB 的命令不再判为只读。
+- 测试提醒只匹配当前步骤、当前轨道声明的测试，`free` 轨道不再被提醒运行并不存在的测试。
+- 入口技能激活会话时携带宿主会话 id；有待确认评审时，「确认继续」「继续执行」会接续当前任务，而不被路由成新任务。
+- `.pipeline/.gitignore` 忽略 `cache/`、`terminal-sessions/` 与 `codex-skill-receipts.jsonl` 等纯本地状态。
+
+### 数据驱动流程（`step.next`）
+
+- `pre_verify_review_result` 只有在本步骤声明的测试、执行者与必需评审者都有真实结果时才能写成 `pass`；`next`
+  不再推荐 `pass`，也不再推荐一个接受后又要求 `direct_override` 的 `build_mode`。
+- `phase_status`、`verified_at`、`updated_at` 由流转管理，`tenon set` 拒绝直接写入。
+- 必需评审者失败时，`next` 直接指向修复或 `verify-fail`，不再要求填写结果字段。
+- 并行 agent 按依赖分层编号波次；有 agent 仍在运行时 `next` 如实提示，`tenon agent next` 不再误报「全部完成」。
+- `ship`：`tasks.md` 未完成项作为出口阻塞出现在 `next` 中；仓库没有远端时 `pr_url` 可填 `no-remote`
+  （CLI 复核确实无远端），其余取值必须是 http(s) 地址。
+- 已完结任务列在 `finished_changes`；`tenon check` 对其报告「已完结，无需检查」并以 0 退出。
+  `finish-change` 附带提交归档搬移的路径与提交信息，工作区不再留下未提交改动。
+- `document record` 拒绝仍含模板占位符的骨架文档，并列出所在行。
+
+### 命令行
+
+- 工作流 YAML 顶层键顺序无关（文档示例中 `document_contract` 写在 `steps` 之后现在可解析）。
+- `--preset` 只接受 `full|hotfix|tweak`；自定义工作流不再要求 preset。
+- 不存在的任务名统一报「change 不存在」，不再泄漏原始文件错误；输出被管道提前关闭时安静退出。
+- `tenon test code-size` 只统计源代码；评审结论与测试记录一样绑定工作区指纹，改码后旧评审会过期。
+- 人读的 `tenon workflow plan` 列出每步的输入、输出、测试与 agent；`doctor` 与 `last-update.json` 对变化技能的
+  计数一致。
+
+### Dashboard
+
+- 评审者 / 执行者编辑器在父组件重渲染时不再清空草稿（v0.1.1 中添加的评审者可能保存不下来）。
+- 首次加载显示加载中，而不是「还没有项目」；中栏搜索框不再被压扁，筛选行换行显示完整。
+- 预览不再把 YAML frontmatter 当正文渲染；删除自定义模板、智能体与测试方向前需要确认；提示改为报告结果。
+- 断线横幅完整显示在页头下方；项目页不再每 5 秒重读指令文件。
+- 资源目录新增 v0 模板、Skiper UI（仅链接）与 coss ui。
+
+### 升级动作
+
+从 v0.1.1 升级：运行 `tenon update --codex`（或 `--claude`），然后新开宿主会话。N-1 兼容门禁在两个方向上用已发布的
+v0.1.1 读写本版本的数据。
+
+从 1.x 迁移：为使用的每个宿主各运行一次版本化安装命令：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.2/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.2/install.sh | /bin/bash -s -- --codex
+```
+
+### 兼容性
+
+- `tenon status <change> --json` 新增 `finished_changes`；`set-field` 与 `agent next` 的 JSON 新增字段。
+- `--preset` 传入未知值、`agent prompt` 指定未声明的 agent 现在以 1 退出。
+- 进行中任务里仍含占位符的已登记文档不受影响；再次登记时需先填写。
+
+### 验证
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+两个宿主的 inventory、active managed runtime 与 Dashboard 都报告 0.1.2。
+
 ## v0.1.1 · 2026-09-23
 
 正确性修复版。在真实宿主上验收 v0.1.0 时发现：默认工作流五条轨道里有三条走不通，另有几处 Tenon 没有核实就把步骤报成了完成。

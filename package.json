@@ -1,7 +1,7 @@
 {
   "name": "tenon",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "packageManager": "npm@11.16.0",
   "type": "module",
   "engines": {

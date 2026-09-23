@@ -1,7 +1,7 @@
 {
   "name": "@tenon-internal/npm-bootstrap",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "bin": {
     "tenon": "bin/tenon-bootstrap.mjs"

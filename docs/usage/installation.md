@@ -20,24 +20,24 @@ Tenon does not require users to install mandatory Skills one by one.
 New users install the complete Codex plugin without cloning the repository:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.1/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.2/install.sh | /bin/bash -s -- --codex
 ```
 
 For Claude:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.1/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.2/install.sh | /bin/bash -s -- --claude
 ```
 
 Preview the complete Codex Marketplace and packaged setup plan without invoking
 the host or writing user/project state:
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.1/install.sh | /bin/bash -s -- --codex --dry-run
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.2/install.sh | /bin/bash -s -- --codex --dry-run
 ```
 
 The versioned script installs only prebuilt assets from the immutable stable
-`v0.1.1` release. It never clones or compiles the source repository.
+`v0.1.2` release. It never clones or compiles the source repository.
 
 The Claude Code host clones this repository as a plugin marketplace, and its
 default clone timeout is 120 s. On a slow link raise it for the install, e.g.
@@ -50,7 +50,7 @@ cache locations.
 
 Tenon's version numbering restarted at 0.1.0, and the retired 1.x releases were
 removed. On a machine that still runs a 1.x installation, run the versioned
-`v0.1.1/install.sh` command once per host. `tenon update` on 1.x reports a
+`v0.1.2/install.sh` command once per host. `tenon update` on 1.x reports a
 downgrade and changes nothing: that refusal ships inside the already published
 1.x release and cannot be fixed retroactively. From v0.1.0 onward, every routine
 upgrade is one `tenon update --codex` (or `--claude`) command and uses a stable
