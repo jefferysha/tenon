@@ -313,6 +313,7 @@ async function main(): Promise<void> {
         store,
         runRepository: runRepo,
         clock: isoNow,
+        loadAgentLibrary: () => loadAgentLibrary({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
         creator: () => {
           const actor = currentActor()
           if (actor === undefined) throw new Error(USER_MISSING_HINT)

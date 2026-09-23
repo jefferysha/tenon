@@ -14,6 +14,8 @@ import {
   type ProductionTriageProvider,
 } from '@tenon/automation'
 import { describe, expect, it, vi } from 'vitest'
+import { loadAgentLibrary } from '@tenon/kernel'
+import { fileURLToPath } from 'node:url'
 import {
   cmdTriage,
   createCodexFirstTriageProvider,
@@ -22,6 +24,8 @@ import {
   type TriageCommandRuntime,
 } from './triage.js'
 import { makeDeps } from '../test-support.js'
+
+const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..')
 
 const execFileAsync = promisify(execFile)
 
@@ -308,6 +312,8 @@ describe('cmdTriage', () => {
         creator: () => ({ id: 'tester@tenon.test', name: 'Tester', trust: 'declared' }),
         providerFactory: () => provider,
         signal: new AbortController().signal,
+        // default 的每条分支都引用内建评审者：发布前要从真实 payload 冻结它们。
+        loadAgentLibrary: () => loadAgentLibrary({ payloadRoot: REPO_ROOT, configRoot: join(root, '.config') }),
       })
 
       expect(await cmdTriage(deps, 'git-commits', { json: true }, runtime)).toBe(0)

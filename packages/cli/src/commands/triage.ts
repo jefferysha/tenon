@@ -119,6 +119,11 @@ export interface CreateProductionTriageRuntimeOptions {
   /** Hermetic test seam. Production omits it and receives a process-lifetime signal per invocation. */
   readonly signal?: AbortSignal
   readonly processSignals?: TriageProcessSignals
+  /**
+   * 被创建 run 的工作流引用了 agent 时用来冻结它们的库（main.ts 给插件 payload + 配置目录）。
+   * 缺省 = 空库：引用了 agent 的工作流（default 的每条分支都引用内建评审者）会在发布前被拒。
+   */
+  readonly loadAgentLibrary?: () => Promise<import('@tenon/kernel').AgentLibrary>
 }
 
 export interface CreateCodexFirstTriageProviderOptions {
@@ -177,6 +182,7 @@ export function createProductionTriageRuntime(
       creator: options.creator(),
       clock: options.clock,
     }),
+    ...(options.loadAgentLibrary === undefined ? {} : { loadAgentLibrary: options.loadAgentLibrary }),
   })
   const materializer = createWorkflowRunMaterializer({ repository: createRepository })
   const gitConnector = createGitCommitsConnector({

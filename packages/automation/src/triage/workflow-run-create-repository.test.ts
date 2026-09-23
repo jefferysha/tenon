@@ -2,11 +2,13 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   compileEffectiveWorkflowPlan,
   createStateStore,
   createTransitionRecordStore,
   createWorkflowRunRepository,
+  loadAgentLibrary,
   type InitOptions,
   type StateStore,
   type WorkflowRunRepository,
@@ -28,6 +30,16 @@ async function freshRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'pipeline-triage-run-create-'))
   roots.push(root)
   return root
+}
+
+const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..')
+/** default 的每条分支都引用内建评审者：创建 run 前从真实 payload 冻结它们（配置目录落在临时根下）。 */
+const agentLibraryDeps = {
+  loadAgentLibrary: async () => {
+    const configRoot = await mkdtemp(join(tmpdir(), 'tenon-agent-config-'))
+    roots.push(configRoot)
+    return loadAgentLibrary({ payloadRoot: REPO_ROOT, configRoot })
+  },
 }
 
 afterEach(async () => {
@@ -102,6 +114,7 @@ async function makeHarness(
   const store = options.store ?? createStateStore()
   const runRepository = options.runRepository ?? makeRunRepository(store)
   const repository = createWorkflowRunCreateIfAbsentRepository({
+    ...agentLibraryDeps,
     repoRoot,
     store,
     runRepository,
@@ -196,6 +209,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
     const runRepository = makeRunRepository(store)
     const input = request({ workflowId: 'incident-response', initialStep: 'assess' })
     const repository = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps,
       repoRoot,
       store,
       runRepository,
@@ -234,6 +248,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
     let initCalls = 0
     const realRunRepository = makeRunRepository(store)
     const repository = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps,
       repoRoot,
       store,
       runRepository: {
@@ -284,6 +299,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
       },
     }
     const repository = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps,
       repoRoot,
       store,
       runRepository,
@@ -311,6 +327,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
     })
     let initCalls = 0
     const repository = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps,
       repoRoot,
       store,
       runRepository: {
@@ -352,6 +369,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
     await repository.createIfAbsent(input)
     let planResolutionCalls = 0
     const retry = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps,
       repoRoot,
       store,
       runRepository,
@@ -380,6 +398,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
     const input = request()
     const originalRunRepository = makeRunRepository(store)
     const creator = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps,
       repoRoot,
       store,
       runRepository: originalRunRepository,
@@ -396,6 +415,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
       newId: () => 'hijacked-run-id',
     })
     const retry = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps,
       repoRoot,
       store,
       runRepository: {
@@ -425,6 +445,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
       init: async () => { throw initFailure },
     })
     const initFailRepository = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps,
       repoRoot,
       store: initFailStore,
       runRepository: makeRunRepository(initFailStore),
@@ -446,6 +467,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
       read: async () => { throw readFailure },
     })
     const existsRepository = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps,
       repoRoot,
       store: existsStore,
       runRepository: makeRunRepository(existsStore),
@@ -516,6 +538,7 @@ describe('WorkflowRunCreateIfAbsentRepository production adapter', () => {
       },
     })
     const repository = createWorkflowRunCreateIfAbsentRepository({
+      ...agentLibraryDeps,
       repoRoot,
       store,
       runRepository: makeRunRepository(store),

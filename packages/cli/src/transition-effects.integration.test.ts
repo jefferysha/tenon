@@ -379,7 +379,9 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await h.run(['set', 'pmx', 'isolation', 'branch'])
     await h.run(['set', 'pmx', 'direct_override', 'true']) // full+direct 规则不分 track
     await h.satisfyStepTests('pmx', 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    // pm 的 build 就绪证据是必需评审者 spec-consistency。
+    await h.satisfyStepAgents('pmx')
+    // pre-Verify 结论只能在本步就绪证据（必需测试 / 必需评审者）齐全之后写入。
     expect(await h.run(['set', 'pmx', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', 'pmx', 'build-complete'])).toBe(0)
     await seed('docs/verify.md')
@@ -412,7 +414,9 @@ describe('真实 e2e —— verify-pass 校验 + 副作用（老仓 L163-205）'
     await h.run(['set-many', 'pmship',
       'build_mode=direct', 'isolation=branch', 'direct_override=true'])
     await h.satisfyStepTests('pmship', 'build')
-    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    // pm 的 build 就绪证据是必需评审者 spec-consistency。
+    await h.satisfyStepAgents('pmship')
+    // pre-Verify 结论只能在本步就绪证据（必需测试 / 必需评审者）齐全之后写入。
     expect(await h.run(['set', 'pmship', 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
     expect(await h.run(['transition', 'pmship', 'build-complete'])).toBe(0)
     await seed('docs/pmship-verify.md')
