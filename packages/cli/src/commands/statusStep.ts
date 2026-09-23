@@ -26,11 +26,13 @@ import { effectiveArtifactProducers } from './artifact.js'
 import { retiredSkillReferences, retiredSkillsChangeMessage } from '@tenon/kernel'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { currentCandidate } from './candidate.js'
+import { unconfiguredMessage, unconfiguredNpmScript } from '../test-runner/npmScript.js'
 import { SPEC_APPLY_RECEIPT } from './specApply.js'
 import { PR_URL_NO_REMOTE, repositoryHasNoRemote } from './prUrlField.js'
 import {
   stepNextActions, stop,
-  type StepAction, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestView,
+  type StepAction, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestConfigGap,
+  type StepTestView,
 } from './statusStepNext.js'
 
 export interface StepBlock {
@@ -148,6 +150,36 @@ async function finishFacts(deps: CliDeps, name: string, state: PipelineState): P
   return { changeDirTracked, workspaceDirty, verified }
 }
 
+/**
+ * 本步与下一步（前进边指向的步骤）声明的必需测试里未配置的那些。本步已通过的不算；下一步的测试
+ * 还没有自己的证据，只看命令配没配。
+ */
+async function testConfigGaps(
+  deps: CliDeps,
+  plan: EffectiveWorkflowPlan,
+  stepId: string,
+  tests: readonly StepTestView[],
+  exits: readonly StepExit[],
+): Promise<readonly StepTestConfigGap[]> {
+  const gaps: StepTestConfigGap[] = tests
+    .filter((test) => test.required && test.status === 'unconfigured' && test.hint !== undefined)
+    .map((test) => ({ id: test.id, step: stepId, hint: test.hint ?? '' }))
+  const ahead = new Set(exits.filter((exit) => exit.direction === 'forward' && exit.to !== stepId).map((exit) => exit.to))
+  for (const step of plan.workflow.steps) {
+    if (!ahead.has(step.id)) continue
+    for (const test of step.tests ?? []) {
+      if (!test.required || gaps.some((gap) => gap.id === test.id)) continue
+      const gap = await unconfiguredNpmScript(deps.cwd, test)
+      if (gap !== undefined) {
+        const hint = `${unconfiguredMessage(test.id, test.command, gap)}`
+          + `（下一步 '${step.id}' 的必需测试，先在本步配置好）`
+        gaps.push({ id: test.id, step: step.id, hint })
+      }
+    }
+  }
+  return gaps
+}
+
 export async function buildStatusStep(
   deps: CliDeps,
   name: string,
@@ -167,12 +199,18 @@ export async function buildStatusStep(
     repoRoot: deps.cwd, changeDir: dir, changeName: name, plan, stepId,
     context: testEvidenceContextFor(deps, name),
   })
-  const tests: readonly StepTestView[] = testReport.items.map((item) => ({
-    id: item.test.id,
-    direction: item.test.direction,
-    required: item.test.required,
-    status: item.status,
-    run_id: item.run?.run_id ?? null,
+  const tests: readonly StepTestView[] = await Promise.all(testReport.items.map(async (item) => {
+    // 还没通过、且命令要的 npm 脚本在项目里不存在：这是「未配置」，不是「未运行」——run-test 只会
+    // 被拒，next 在步骤入口就把它作为待配置项提出来。
+    const gap = item.status === 'passed' ? undefined : await unconfiguredNpmScript(deps.cwd, item.test)
+    return {
+      id: item.test.id,
+      direction: item.test.direction,
+      required: item.test.required,
+      status: gap === undefined ? item.status : 'unconfigured',
+      run_id: item.run?.run_id ?? null,
+      ...(gap === undefined ? {} : { hint: unconfiguredMessage(item.test.id, item.test.command, gap) }),
+    }
   }))
   const policy = plan.capabilities.documents.policy
   const documents = stepDocuments(name, policy, stepId, report.documents?.items ?? [])
@@ -244,6 +282,7 @@ export async function buildStatusStep(
       ownsAppliedSpec: documents.records.some((doc) => doc.kind === 'applied-spec'),
       artifactProducers: artifacts.size === 0 ? [] : effectiveArtifactProducers(deps, state),
       finish: await finishFacts(deps, name, state),
+      testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits),
     }),
   }
 }

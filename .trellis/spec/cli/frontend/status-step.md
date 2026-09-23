@@ -47,7 +47,7 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   `apply-spec`、`run-test`、`fix`、`request-review`、`await-review`、`choose-exit`、`transition`、
   `complete`。第一条命中的规则返回，同一条规则内同波的项一起返回。
 - 顺序：停（归档 / 引用已删除技能 / 步骤不在计划里）→ 状态机已归档（治理归档或停）→ 重新加载
-  tenon → 读输入文档 → 决定类字段（带枚举、走 `tenon set`：build_mode / isolation …，动手之前拍板）
+  tenon → 读输入文档 → 未配置的必需测试（本步与下一步的，`fix` `code: test-unconfigured`）→ 决定类字段（带枚举、走 `tenon set`：build_mode / isolation …，动手之前拍板）
   → 执行者 → 本步技能 → 技能欠的文档 → 未勾任务（`fix`，blocker `source: tasks`，带 `items` 未勾项
   原文；tasks.md 自己还待产出 / 重新登记时让位给文档写入）→ 应用规格 → 产出与登记文档 → artifact
   登记 → 自由文本交付值（`pr_url` / `prd_path`）→ 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
@@ -105,6 +105,7 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | 技能已调用、欠本步产物（`invoked`） | 它欠的每份文档 `record-document`（缺文件先 `scaffold-document`），不再 `load-skill` |
 | `role: update` 的槽还没登记过 | 不发动作（可以改 ≠ 必须产出） |
 | 必需测试未通过 | `run-test`；失败的测试要先改代码再重跑 |
+| 本步或下一步的必需测试命令要的 npm 脚本不存在 | 读完输入后先 `fix`（`source: test`、`code: test-unconfigured`，message 说明两种配置方式）；本步的那条 `step.tests[].status=unconfigured` 带 `hint`；`tenon test run` 拒跑（exit 1，不落记录） |
 | `delta-spec` 归本步且回执不新鲜 | 文档登记完之后 `validate-spec` |
 | `applied-spec` 归本步且回执不新鲜 | 先 `apply-spec`，再登记 |
 | 评审门上必需评审者打回且只有一条回退边 | `request-review` → `await-review` → `transition` |

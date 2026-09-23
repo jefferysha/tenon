@@ -16,8 +16,11 @@ export interface StepTestView {
   readonly id: string
   readonly direction: string
   readonly required: boolean
+  /** kernel 测试证据状态；命令要的 npm 脚本在项目里不存在时为 `unconfigured`（带 `hint`）。 */
   readonly status: string
   readonly run_id: string | null
+  /** 仅 `unconfigured`：为什么未配置、怎么配置（与 `tenon test run` 的拒绝同一份文案）。 */
+  readonly hint?: string
 }
 
 /** 交互模式：AFK 环境变量 → afk；本任务有交互授权 → continuous；否则 interactive。 */
@@ -40,6 +43,13 @@ export interface StepFinishFacts {
   readonly workspaceDirty: boolean | null
   /** 这次运行以验证通过收尾（verify_result=pass）；scope-expanded 之类的放弃出口不提交。 */
   readonly verified: boolean
+}
+
+/** 一条未配置的必需测试（本步或下一步声明的）。 */
+export interface StepTestConfigGap {
+  readonly id: string
+  readonly step: string
+  readonly hint: string
 }
 
 export interface StepNextInput {
@@ -66,6 +76,8 @@ export interface StepNextInput {
   /** artifact 字段的合法 `--producer` 集（与 register 命令同源；空 = 无合法 producer）。 */
   readonly artifactProducers: readonly string[]
   readonly finish: StepFinishFacts
+  /** 本步与下一步声明的必需测试里，命令要的 npm 脚本在项目里不存在的那些。 */
+  readonly testConfigGaps: readonly StepTestConfigGap[]
 }
 
 /**
@@ -226,6 +238,19 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     // 多个 kind 可以共用一份文件（plan / superpower-plan）：路径只列一次；各 kind 仍各自在
     // step.documents.reads 里，`tenon document read <c> all` 一次把它们都标为已读。
     return [{ action: 'read-documents', documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))] }]
+  }
+
+  // 必需测试未配置（命令要的 npm 脚本在项目里不存在）：在步骤入口就作为待配置项提出，本步的与
+  // 下一步（前进边指向的步骤）的都算——配置是一次工作区改动，等到 verify 才发现，改完 package.json
+  // 就让 build 冻结的候选版本失效；等到出口前才发 run-test 只会被拒（真机：模型临时加一条与
+  // npm test 相同的脚本凑数）。
+  if (input.testConfigGaps.length > 0) {
+    return [{
+      action: 'fix',
+      blockers: input.testConfigGaps.map((gap) => ({
+        source: 'test', code: 'test-unconfigured', message: gap.hint,
+      })),
+    }]
   }
 
   const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')

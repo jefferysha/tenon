@@ -78,8 +78,8 @@ repeat:
 | `set-field` | 先按下面的「决定」定值，再 `tenon set <c> <field> <value>`。 |
 | `validate-spec` | `tenon spec apply <c> --dry-run`；退出码 2 就按报错改 delta spec 再跑。 |
 | `apply-spec` | `tenon spec apply <c>`。 |
-| `run-test` | `tenon test run <c> <test>`；`fail` 先改代码再重跑，不改就重跑没有意义。 |
-| `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。 |
+| `run-test` | `tenon test run <c> <test>`；`fail` 先改代码再重跑，不改就重跑没有意义。报「未配置（test-unconfigured）」不是失败：按提示配置（见 `fix`）。 |
+| `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。`code: test-unconfigured`：项目没有这条必需测试要的 npm 脚本——在 package.json 加上运行本项目真正这类测试的脚本（还没有这类测试就先写），不要复制别的测试命令凑数；项目不用 npm 时停下告诉用户去改工作流的测试命令。 |
 | `request-review` | `tenon check <c>` → `tenon review request <c> --event <event>` → 把产出与结论摆给用户。 |
 | `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`。afk：结束本轮。 |
 | `choose-exit` | 按下面的「出口」挑一条边。 |

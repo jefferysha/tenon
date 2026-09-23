@@ -230,7 +230,19 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
     }
     // 未勾任务：动作自带未勾项原文，运行器就是做完它们的作者——逐条勾上。
     case 'fix': {
-      const blockers = action.blockers as readonly { source: string; items?: readonly string[] }[]
+      const blockers = action.blockers as readonly { source: string; code: string; message: string; items?: readonly string[] }[]
+      // 必需测试未配置：运行器就是配置它的作者——按提示把真正运行这类测试的脚本加进 package.json。
+      const unconfigured = blockers.filter((item) => item.code === 'test-unconfigured')
+      if (unconfigured.length > 0) {
+        for (const item of unconfigured) {
+          const script = /npm 脚本 '([^']+)'/u.exec(item.message)?.[1]
+          expect(script, `test-unconfigured 必须点名要配置的脚本：${item.message}`).toBeDefined()
+          const pkg = JSON.parse(await readFile(join(h.cwd, 'package.json'), 'utf8')) as { scripts: Record<string, string> }
+          pkg.scripts[script!] = 'node -e "process.exit(0)"'
+          await writeFile(join(h.cwd, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
+        }
+        return false
+      }
       const items = blockers.filter((item) => item.source === 'tasks').flatMap((item) => item.items ?? [])
       expect(items.length, `fix 必须是能照做的未勾任务（带原文）：${JSON.stringify(action)}`).toBeGreaterThan(0)
       const tasksPath = join(changeDir(), 'tasks.md')
@@ -458,6 +470,43 @@ describe('照着 next 做事的运行器：open → 完结', () => {
       && action.action === 'set-field' && action.field === 'pre_verify_review_result')
     expect(review).toBeGreaterThan(-1)
     expect(review).toBeLessThan(verdict)
+  })
+
+  /**
+   * 真机（第二轮）：项目没有 `test:integration` 脚本，backend verify 的必需测试只能被记成一次失败，
+   * 模型加了一条与 npm test 相同的脚本凑数。现在 `tenon test run` 说「未配置」（不落记录），
+   * next 在 build 入口（verify 的上一步：配置是一次工作区改动，要赶在 build 冻结候选版本之前）就把它
+   * 作为待配置项（fix test-unconfigured）提出来。
+   */
+  test('项目没有 test:integration：build 入口先要求配置；未配置时 test run 拒跑、不落记录', async () => {
+    const pkg = JSON.parse(FIXTURE_PACKAGE_JSON) as { scripts: Record<string, string> }
+    delete pkg.scripts['test:integration']
+    await writeFile(join(h.cwd, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
+    let probed = false
+    const { actions } = await walk({
+      before: async (step, action) => {
+        if (probed || action.action !== 'fix') return
+        probed = true
+        expect(step.id).toBe('build')
+        expect(await h.run(['test', 'run', CHANGE, 'integration'])).toBe(1)
+        expect(h.err.join('\n')).toContain("测试 'integration' 未配置（test-unconfigured，不是失败）")
+        expect(await h.run(['test', 'status', CHANGE, '--step', 'verify', '--json'])).toBe(2)
+        const status = JSON.parse(h.out.join('\n')) as { items: readonly { id: string; run?: unknown }[] }
+        expect(status.items.find((item) => item.id === 'integration')?.run, '未配置不落记录').toBeUndefined()
+      },
+    })
+    expect(probed, 'build 必须先发 test-unconfigured 的 fix').toBe(true)
+    const buildStart = actions.findIndex(({ step }) => step === 'build')
+    const fix = actions.findIndex(({ step, action }) => step === 'build' && action.action === 'fix')
+    const firstSkill = actions.findIndex(({ step, action }, index) =>
+      index > buildStart && step === 'build' && action.action === 'load-skill')
+    expect(fix).toBeLessThan(firstSkill)
+    expect(actions[fix]?.action).toMatchObject({
+      blockers: [expect.objectContaining({ source: 'test', code: 'test-unconfigured' })],
+    })
+    // 配好之后的 verify 真跑了这条测试并通过。
+    expect(actions.some(({ step, action }) => step === 'verify'
+      && action.action === 'run-test' && action.test === 'integration')).toBe(true)
   })
 
   /** D7：不存在的任务是产品层的一句话，不是一行 ENOENT。 */

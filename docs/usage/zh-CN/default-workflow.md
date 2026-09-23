@@ -47,6 +47,12 @@ Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计�
 pm / free / chat 是必需评审者 `spec-consistency`（`block_at: medium`，逐条比对实现与 proposal /
 design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒，并点名缺的测试或评审者。
 
+必需测试的命令是 npm 脚本（`npm test`、`npm run test:integration` 等）而项目里没有这个脚本时，这条测试是
+「未配置」，不是失败：`tenon test run` 拒跑、不落记录，并给出配置方式；`step.next` 在本步或上一步
+（配置是一次工作区改动，要赶在 Build 冻结候选版本之前）入口就以 `fix`（`test-unconfigured`）提出。配置方式：
+在 package.json 加上运行本项目真正这类测试的脚本；项目不用 npm 时在 Dashboard 工作流页改这条测试的
+command（存为全局 default 覆盖，只对之后新建的任务生效，已开始的任务按冻结计划执行）。
+
 ## Verify
 
 独立检查测试、类型、构建、浏览器、安装和安全边界。Verify 不修改实现；失败走 `verify-fail` 返回 Build，返工后重新冻结基线。

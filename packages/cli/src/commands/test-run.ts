@@ -2,7 +2,8 @@
  * `tenon test run <change> <test-id>` —— Tenon 真实执行声明的测试并登记结果。
  * agent 自报「通过」不产生记录，因此永远满足不了必需测试。
  *
- * exit 0 = 通过，2 = 失败（已落记录），1 = 用法或环境错误（未落记录）。
+ * exit 0 = 通过，2 = 失败（已落记录），1 = 用法或环境错误（未落记录）——包括测试未配置
+ * （命令要的 npm 脚本在项目里不存在：不是失败，不执行、不落记录，说明怎么配置）。
  */
 import { randomBytes } from 'node:crypto'
 import { lstat, mkdir, realpath } from 'node:fs/promises'
@@ -22,6 +23,7 @@ import { str } from '../render.js'
 import { collectTestInputs, collectTestOutputs } from '../test-runner/collect.js'
 import { classifyTestRun, SANDBOX_ESCALATION_HINT } from '../test-runner/classify.js'
 import { GRACE_MS, LOG_TAIL_BYTES, MAX_LOG_BYTES, runTestProcess } from '../test-runner/process.js'
+import { unconfiguredMessage, unconfiguredNpmScript } from '../test-runner/npmScript.js'
 import { declaredTestIds, locateTest, resolveTestCommand, type TestCommandContext } from './test-context.js'
 
 const FAILURE_TAIL_CHARS = 4096
@@ -89,6 +91,11 @@ export async function cmdTestRun(
     return 1
   }
   const { step, test } = located
+  const gap = await unconfiguredNpmScript(deps.cwd, test)
+  if (gap !== undefined) {
+    deps.io.err(`ERROR: ${unconfiguredMessage(test.id, test.command, gap)}`)
+    return 1
+  }
   const runId = newRunId(deps.clock())
   const paths = await ensureTestEvidenceDirs(deps.cwd, context.slug, change, runId)
   const markerPath = testRunningMarkerPath(deps.cwd, context.slug, change, test.id)

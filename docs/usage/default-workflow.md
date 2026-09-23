@@ -60,6 +60,18 @@ tests, backend requires `unit`, and pm / free / chat require the
 of the implementation against the proposal, design, delta spec and tasks).
 Writing `pass` without that evidence is refused and names what is missing.
 
+When a required test's command is an npm script (`npm test`,
+`npm run test:integration`, …) that the project does not define, the test is
+*unconfigured*, not failed: `tenon test run` refuses it without writing a
+record and explains how to configure it, and `step.next` raises it as a `fix`
+(`test-unconfigured`) at the entry of its own step or the step before it
+(configuring is a workspace change and must land before Build freezes the
+candidate). Configure it by adding a script that runs the project's real tests
+of that kind, or — for a project that does not use npm — by editing the test's
+command on the Dashboard workflow page (saved as the global default override;
+it applies to changes created afterwards, started changes keep their frozen
+plan).
+
 The `chat` track — the default when the Dashboard picks no track — declares no skills. Its document
 contract still governs the outputs, but a default resolution without a track needs no upstream skill
 bytes, so it also holds on a clean checkout.

@@ -24,6 +24,7 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     ownsAppliedSpec: false,
     artifactProducers: [],
     finish: { changeDirTracked: false, workspaceDirty: true, verified: true },
+    testConfigGaps: [],
     ...overrides,
   }
 }
@@ -195,6 +196,29 @@ describe('step.next 顺序', () => {
     expect(actions({ skills: [skill('test-driven-development', 'ready', 0)], exits })).toEqual(['load-skill'])
     expect(actions({ skills: [skill('test-driven-development', 'done', 0)], exits, tests: [test_('unit', 'not-run')] }))
       .toEqual(['fix'])
+  })
+
+  /**
+   * 真机（第二轮）：backend verify 固定跑 `npm run test:integration`，项目没有这个脚本，模型只能加一条
+   * 与 npm test 相同的脚本凑数。未配置的必需测试在步骤入口（读完输入之后、决定与技能之前）作为
+   * 待配置项提出，文案就是投影给的 hint；可选测试未配置不拦。
+   */
+  test('必需测试未配置：步骤入口先 fix（test-unconfigured），先于决定、执行者与技能', () => {
+    const gap = { id: 'integration', step: 'verify', hint: "测试 'integration' 未配置（test-unconfigured，不是失败）" }
+    expect(stepNextActions(input({
+      testConfigGaps: [gap],
+      fields: [field('build_mode', { allowed: ['direct'], recommended: 'direct' })],
+      skills: [skill('test-driven-development', 'ready', 0)],
+      executors: [agent('builder', 'executor', 'pending', true)],
+    }))).toEqual([{
+      action: 'fix',
+      blockers: [{ source: 'test', code: 'test-unconfigured', message: gap.hint }],
+    }])
+    // 输入文档仍先读。
+    expect(actions({
+      testConfigGaps: [gap],
+      documents: { reads: [doc('plan', 'unread')], records: [], updates: [] },
+    })).toEqual(['read-documents'])
   })
 
   test('技能按波次下发，waiting 的不进本波', () => {
