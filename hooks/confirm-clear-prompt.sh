@@ -132,9 +132,20 @@ fi
 # idempotent clear-on-explicit-approval semantics.  The review marker is intentionally excluded:
 # the CLI owns both its removal and the durable approval state, preventing a hook-only deletion
 # from bypassing the exit gate.
+#
+# Release is claimed with an atomic rename, not "test then rm": when the host runs this hook more than
+# once for the same prompt (duplicate registrations run concurrently), every copy used to see the
+# marker, each announced the release and each wrote the InteractionConfirmed rows.  Only the copy whose
+# rename wins releases the lock, records the confirmation and announces it.
+RELEASED_LOCK=0
+INTERACTION_CLAIM="$ROOT/.pipeline-pending-interaction.claim.$$"
+CONFIRM_CLAIM="$ROOT/.pipeline-pending-confirm.claim.$$"
+mv "$ROOT/.pipeline-pending-interaction" "$INTERACTION_CLAIM" 2>/dev/null && RELEASED_LOCK=1
+mv "$ROOT/.pipeline-pending-confirm" "$CONFIRM_CLAIM" 2>/dev/null && RELEASED_LOCK=1
+
 # Remember which interactive skill the user just approved in this step visit, so reading the same
 # skill again (Codex re-reads a producer skill to record its document) does not ask again.
-if [ -f "$ROOT/.pipeline-pending-interaction" ] \
+if [ -f "$INTERACTION_CLAIM" ] \
   && [ -r "$HOOK_DIR/canonical-state.sh" ] && [ -r "$HOOK_DIR/active-change.sh" ]; then
   # shellcheck source=canonical-state.sh
   . "$HOOK_DIR/canonical-state.sh"
@@ -143,7 +154,7 @@ if [ -f "$ROOT/.pipeline-pending-interaction" ] \
   CONFIRMED_DIR="$(pipeline_active_change_dir "$ROOT" || true)"
   if [ -n "$CONFIRMED_DIR" ]; then
     CONFIRMED_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
-    CONFIRMED_SKILLS="$(<"$ROOT/.pipeline-pending-interaction")"
+    CONFIRMED_SKILLS="$(<"$INTERACTION_CLAIM")"
     CONFIRMED_SKILLS="${CONFIRMED_SKILLS//、/$'\n'}"
     while IFS= read -r CONFIRMED_SKILL; do
       case "$CONFIRMED_SKILL" in ''|*[!A-Za-z0-9_:-]*) continue ;; esac
@@ -154,10 +165,7 @@ if [ -f "$ROOT/.pipeline-pending-interaction" ] \
   fi
 fi
 
-RELEASED_LOCK=0
-if [ -f "$ROOT/.pipeline-pending-interaction" ] || [ -f "$ROOT/.pipeline-pending-confirm" ]; then RELEASED_LOCK=1; fi
-rm -f "$ROOT/.pipeline-pending-confirm" \
-      "$ROOT/.pipeline-pending-interaction" 2>/dev/null || true
+rm -f "$INTERACTION_CLAIM" "$CONFIRM_CLAIM" 2>/dev/null || true
 # Announce a released lock: an agent that was blocked earlier otherwise assumes the gate still holds
 # and stops without retrying the blocked action.
 if [ "$RELEASED_LOCK" -eq 1 ]; then
