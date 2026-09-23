@@ -61,6 +61,14 @@ case "$TURN_ID" in *[!A-Za-z0-9_.:-]*) TURN_ID='' ;; esac
 TOOL_NAME="$(json_get tool_name || true)"
 [ -n "$TOOL_NAME" ] || exit 0
 
+# The heartbeat is local, volatile state: `openspec/.gitignore` keeps it out of git. `session activate`
+# creates that file; create it here too (once, never overwritten) for projects bound before it existed.
+# Content is byte-identical to kernel OPENSPEC_LOCAL_GITIGNORE.
+if [ ! -L "$PROOT/openspec" ] && [ ! -e "$PROOT/openspec/.gitignore" ] && [ ! -L "$PROOT/openspec/.gitignore" ]; then
+  ( set -C; printf '%s\n' '# Tenon local runtime state; Change documents in this directory stay tracked.' \
+    '.pipeline-terminal-activity.*' > "$PROOT/openspec/.gitignore" ) 2>/dev/null || true
+fi
+
 TARGET="$CHANGE_DIR/.pipeline-terminal-activity.json"
 [ ! -e "$TARGET" ] || { [ -f "$TARGET" ] && [ ! -L "$TARGET" ]; } || exit 0
 TEMP="$(mktemp "$CHANGE_DIR/.pipeline-terminal-activity.XXXXXX" 2>/dev/null || true)"

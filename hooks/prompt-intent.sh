@@ -10,6 +10,45 @@ HOOKS_CONFIG_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/hooks-config.sh"
 # shellcheck source=hooks-config.sh
 . "$HOOKS_CONFIG_HELPER"
 
+# 用户常把整段日志或代码贴进 prompt。UserPromptSubmit 的三个 hook（confirm-clear-prompt、breadcrumb、
+# router）只看 prompt 开头和结尾的意图/点名/确认语，但 bash 3.2 处理 MB 级字符串的常数极高：1 MB prompt
+# 仅 JSON 解码就要数秒，宿主 5 s 超时后路由与解封都会静默丢失。超过 64 KiB 的输入先交给 awk 一趟线性
+# 扫描，把 prompt 的已编码值截成首尾各 8 KiB（中间换成 `\n...\n`），其余键原样保留；截断点避开转义序列
+# 与 UTF-8 多字节序列的中间（awk 固定 C locale 按字节处理：UTF-8 locale 下的 macOS awk 不接受字节类正则）。
+# 64 KiB 以内原样返回，不 spawn 任何进程。awk 失败时返回 1，调用方 fail-open。
+pipeline_prompt_bound_input() { # $1=hook stdin JSON → stdout=同一 JSON，prompt 过长时截成首尾窗口
+  local input="${1:-}"
+  if [ "${#input}" -le 65536 ]; then
+    printf '%s' "$input"
+    return 0
+  fi
+  printf '%s' "$input" | LC_ALL=C awk '
+    BEGIN { RS = "\001"; W = 8192 }
+    {
+      s = $0
+      if (!match(s, /"prompt"[ \t\r\n]*:[ \t\r\n]*"/)) { printf "%s", s; exit }
+      start = RSTART + RLENGTH
+      rest = substr(s, start)
+      if (!match(rest, /^([^"\\]|\\.)*"/)) { printf "%s", s; exit }
+      raw = substr(rest, 1, RLENGTH - 1)
+      after = substr(rest, RLENGTH)
+      if (length(raw) > 2 * W) {
+        head = substr(raw, 1, W)
+        sub(/[\300-\377][\200-\277]*$/, "", head)
+        n = length(head); k = 0
+        while (k < n && substr(head, n - k, 1) == "\\") k++
+        if (k % 2) head = substr(head, 1, n - 1)
+        t = length(raw) - W + 1; j = t - 1; b = 0
+        while (j >= 1 && substr(raw, j, 1) == "\\") { b++; j-- }
+        if (b % 2) t++
+        tail = substr(raw, t)
+        sub(/^[\200-\277]+/, "", tail)
+        raw = head "\\n...\\n" tail
+      }
+      printf "%s%s%s", substr(s, 1, start - 1), raw, after
+    }'
+}
+
 pipeline_prompt_skip_keyword_from_snapshot() { # stdout=有效 keyword（空表示显式禁用）
   local line trimmed raw value keyword='no-tenon'
   {
@@ -194,6 +233,9 @@ pipeline_prompt_has_unsafe_authority_context() { # $1=prompt; 0=authority use is
   # This is intentionally stricter than trying to enumerate every Chinese/English negation,
   # quotation, condition, or meta-expression: `禁止`, `拒绝`, `do not`, `never`, and future unknown
   # wording all fail closed without needing another deny-list entry.
+  # A long prompt is never a plain authority statement; it also must not reach the `${//}` passes
+  # below, which are quadratic on bash 3.2 (a pasted log full of spaces would stall the hook).
+  [ "${#remainder}" -le 512 ] || return 0
   remainder="${remainder// /}"
   remainder="${remainder//$'\t'/}"
   remainder="${remainder//$'\r'/}"
@@ -218,6 +260,33 @@ pipeline_prompt_is_qualified_approval() { # $1=prompt; 0=同意里带着转折�
   # 以转折词开头（「同意继续执行。但是先别动数据库。」——句号换不掉它仍是对这次同意的约束）。
   local rest="${1:-}" sentence head sep
   local approved=1 leading_qualifier=0
+  # 没有同意词就不可能是带转折的同意：绝大多数 prompt 在这里结束，不 spawn 任何进程。
+  case "$rest" in *继续*|*可以*|*同意*) ;; *) return 1 ;; esac
+  # 超过 256 字的 prompt 交给 awk 一趟线性扫描（同一套切句与判定）：下面的纯 bash 循环每句都要
+  # 复制剩余文本，bash 3.2 下 20 KB 粘贴日志就要 ~90 s。短回复仍走纯 bash，行为逐字不变。
+  if [ "${#rest}" -gt 256 ]; then
+    # C locale: byte-wise index/split on UTF-8 is exact (the encoding is self-synchronising) and
+    # never fails on invalid input. Exit 0 = qualified, 1 = not; any awk failure counts as
+    # qualified so the gate stays locked (fail closed).
+    local status=0
+    printf '%s' "$rest" | LC_ALL=C awk '
+      function judge(s,   after, p) {
+        if (approved && !leading && (index(s, "但") == 1 || index(s, "不过") == 1 || index(s, "先别") == 1 \
+          || index(s, "只是") == 1 || index(s, "然而") == 1)) { found = 1; exit }
+        leading = 1
+        if ((p = index(s, "继续")) > 0) after = substr(s, p + length("继续"))
+        else if ((p = index(s, "可以")) > 0) after = substr(s, p + length("可以"))
+        else if ((p = index(s, "同意")) > 0) after = substr(s, p + length("同意"))
+        else return
+        if (index(after, "但") || index(after, "不过") || index(after, "先别")) { found = 1; exit }
+        approved = 1; leading = 0
+      }
+      { n = split($0, parts, /。|！|？|[.!?]/); if (n == 0) { n = 1; parts[1] = "" }
+        for (i = 1; i <= n; i++) judge(parts[i]) }
+      END { exit found ? 0 : 1 }' || status=$?
+    [ "$status" -eq 1 ] && return 1
+    return 0
+  fi
   while [ -n "$rest" ]; do
     sentence="$rest"
     sep=''

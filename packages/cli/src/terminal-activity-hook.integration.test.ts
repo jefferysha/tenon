@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { WORKFLOW_STATE_GITIGNORE } from '@tenon/kernel'
+import { OPENSPEC_LOCAL_GITIGNORE, WORKFLOW_STATE_GITIGNORE } from '@tenon/kernel'
 import { freshHarness, REPO_ROOT, rm, type Harness } from './integration-harness.js'
 
 const SESSION_ID = '019f92c7-6e66-7290-9352-f9d915266f14'
@@ -95,6 +95,44 @@ describe('真实 e2e —— terminal-activity host hook', () => {
     expect(breadcrumb.code, breadcrumb.stderr).toBe(0)
     expect(breadcrumb.stdout).toContain('FRONTEND_BREADCRUMB')
     expect(breadcrumb.stdout).not.toContain('RESEARCH_BREADCRUMB')
+  })
+
+  test('终端心跳由 openspec/.gitignore 忽略：session activate 与心跳 hook 都会补上，文档仍入库', async () => {
+    const ignore = join(h.cwd, 'openspec', '.gitignore')
+    expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.run(['session', 'activate', 'demo', '--host-session', SESSION_ID])).toBe(0)
+    expect(await readFile(ignore, 'utf8')).toBe(OPENSPEC_LOCAL_GITIGNORE)
+
+    // A project bound by an older release has no file yet: the first heartbeat writes the same bytes.
+    await rm(ignore)
+    const activity = runHook('terminal-activity.sh', {
+      cwd: h.cwd, tool_name: 'command_execution', session_id: SESSION_ID, turn_id: 'turn-ignore', command: 'pwd',
+    })
+    expect(activity.code, activity.stderr).toBe(0)
+    expect(await readFile(ignore, 'utf8')).toBe(OPENSPEC_LOCAL_GITIGNORE)
+    // …and never rewrites a project-edited one.
+    await writeFile(ignore, 'custom\n', 'utf8')
+    runHook('terminal-activity.sh', { cwd: h.cwd, tool_name: 'command_execution', session_id: SESSION_ID, command: 'pwd' })
+    expect(await readFile(ignore, 'utf8')).toBe('custom\n')
+    await writeFile(ignore, OPENSPEC_LOCAL_GITIGNORE, 'utf8')
+
+    spawnSync('git', ['init', '-q'], { cwd: h.cwd })
+    const checked = spawnSync('git', ['check-ignore', '--no-index', '-v', '--stdin'], {
+      cwd: h.cwd,
+      input: [
+        'openspec/changes/demo/.pipeline-terminal-activity.json',
+        'openspec/changes/demo/.pipeline-terminal-activity.Ab12Cd',
+        'openspec/changes/archive/2026-09-24-demo/.pipeline-terminal-activity.json',
+        'openspec/changes/demo/proposal.md', 'openspec/changes/demo/.pipeline-history.jsonl', 'openspec/.gitignore',
+      ].join('\n'),
+      encoding: 'utf8',
+    })
+    const ignored = checked.stdout.split('\n').filter(Boolean).map((line) => line.split('\t')[1])
+    expect(ignored).toEqual([
+      'openspec/changes/demo/.pipeline-terminal-activity.json',
+      'openspec/changes/demo/.pipeline-terminal-activity.Ab12Cd',
+      'openspec/changes/archive/2026-09-24-demo/.pipeline-terminal-activity.json',
+    ])
   })
 
   test('.pipeline 的本地运行态由嵌套 .gitignore 忽略：router 冷生成与 session activate 都会补上', async () => {

@@ -83,6 +83,32 @@ consumers that only act on short commands use `pipeline_json_get_command_bounded
 **Prevention**: `tools/test-hooks.sh` feeds a 166 KB heredoc and a 1.3 MB output to every PostToolUse hook and gate and
 requires each to finish within 3 s.
 
+### Common Mistake: pasted logs in UserPromptSubmit hooks
+
+**Symptom**: a user pastes a long log; router / breadcrumb / confirm-clear-prompt exceed the 5 s host timeout, so the
+turn loses its routing and a 「确认继续」 at the end never unlocks. v0.1.2 on macOS `/bin/bash` 3.2: 64 KB of log took
+>30 s in router and confirm-clear-prompt; 300 KB ≈ 145 s.
+
+**Cause** (all measured on bash 3.2):
+- `${input#*\"cwd\"}` / `${input%%\"cwd\"*}` are quadratic in the distance to the match, in any locale (1 MB ≈ 140 s).
+- `${arr[$i]}` walks the array list from its head, and `arr+=(x)` is linear per call: an indexed loop or `+=`
+  appends over tens of thousands of pieces are quadratic.
+- `pipeline_prompt_is_qualified_approval` copied the remaining text per sentence (20 KB ≈ 90 s).
+
+**Fix**:
+- `json-input.sh`: find a key on a `"`-split (fast path: `#*` on the first 4 KiB). Read up to the first quote with
+  `read -d '"'`. Walk arrays with `for x in "${arr[@]}"` and append with `arr[${#arr[@]}]=x`.
+- `prompt-intent.sh`: prompts over 256 characters go through one `LC_ALL=C awk` pass that applies the same sentence
+  rules. Authority phrases longer than 512 characters are rejected before the `${//}` normalisation.
+- `pipeline_prompt_bound_input`: all three UserPromptSubmit hooks call it first. When stdin is over 64 KiB, one
+  `LC_ALL=C awk` pass cuts the encoded prompt to its first and last 8 KiB, joined by `\n...\n`. The cut never lands
+  inside an escape or a UTF-8 sequence, and other keys are kept as they are. Smaller input is returned unchanged with
+  no process spawned.
+
+**Prevention**: `tools/test-hooks.sh` section 9 runs all three hooks on ≈ 300 KB and ≈ 1 MB log payloads with `cwd`
+after the prompt (≤ 3 s each, end-of-prompt naming still routes). Long-text classifier cases must match the
+short-text results.
+
 ## Review and automation decisions
 
 The terminal is the only model-interaction surface. CLI review acknowledgement
@@ -160,11 +186,14 @@ pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | c
 
 ### 3. Contracts
 
-- Approval phrases are the classifier's confirm set (「确认继续」「继续执行」「同意继续」…). A bare 「继续」 is
-  `contextual-confirm` and counts only while a pending marker exists in this project.
+- Approval phrases are the classifier's confirm set (「确认继续」「继续执行」「同意继续」…). Short agreement —
+  「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」 — is `contextual-confirm` and counts only while a pending marker
+  exists in this project. Accepting 「按推荐」 is deliberate: `openspec/specs/interaction-and-skill-provenance` —
+  "Natural reply approves the unique pending recommendation" — says the user is not required to repeat a magic
+  phrase.
 - **Unrecognised reply** (empty intent, `reject`, `modify`) while an interaction, confirm or review marker is
   pending: no mutation, no `tenon review acknowledge`; stdout
-  `<tenon-pending-confirmation>…用户回复「确认继续」即解封；带条件的回复请先说明条件并重新提问。</tenon-pending-confirmation>`.
+  `<tenon-pending-confirmation>…用户回复「确认继续」…或简短同意「继续」…「按你的推荐」（采纳推荐项），即确认当前待决事项…</tenon-pending-confirmation>`.
   Nothing pending → no output.
 - **Approval** with `.pipeline-pending-interaction` present: append one `InteractionConfirmed: <skill>` row per
   marker entry (split on `、`; entries outside `[A-Za-z0-9_:-]` skipped) to the active Change history, then remove the
@@ -179,14 +208,15 @@ pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | c
 - While any marker is pending, `gate.sh` passes `AskUserQuestion`, `request_user_input` and `ToolSearch` (Claude Code
   defers AskUserQuestion behind ToolSearch; blocking the loader deadlocks the question) plus read-only tools; the block
   message tells the model to load the question tool with `ToolSearch` `select:AskUserQuestion`.
-- `gate.sh` block message names the unlock reply: `没有提问工具时，用户回复「确认继续」（或「继续执行」「同意继续」）即解封，
-  带条件或不含这些词的回复不会解封`.
+- `gate.sh` block message lists every unlock reply and the replies that do not unlock (「不可以」「不同意」「继续，但……」).
+  Both hints must describe the classifier exactly: `tools/test-hooks.sh` classifies every 「…」 phrase in each list.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Result |
 | --- | --- |
-| Pending interaction, reply 「好的」 | Marker kept, `<tenon-pending-confirmation>` hint |
+| Pending interaction, reply 「好的」 / 「按推荐」 | `contextual-confirm` → markers removed |
+| Pending interaction, reply 「确认以上决策并写入产物」 (unrecognised) | Marker kept, `<tenon-pending-confirmation>` hint |
 | Pending interaction, reply 「确认继续，但先改标题」 (`modify`) | Marker kept, hint |
 | Pending interaction, reply 「确认继续」 | History rows written, markers removed, `<tenon-interaction-confirmed>` |
 | No pending marker, reply 「继续」 | No output, no mutation |
@@ -421,3 +451,37 @@ progressive gate would block them — while the agent that needs them is running
   agent and the gate returns `not-agent-skill` before any freeze read.
 - A corrupt ledger fails closed like every other agent read: the skill stays blocked and the message names
   the damaged line.
+
+## Scenario: User-named Track in the router (`router.sh`)
+
+### 1. Scope / Trigger
+
+- Hook: `router.sh` (UserPromptSubmit), new-task dispatch only (`intent: new`). A resumed Change keeps the Track
+  from its state; a selection turn keeps `unresolved`.
+- Trigger: v0.1.2 real session — 「……走 free 轨道即可」 was routed as `疑似 track=simple（评分 1）`.
+
+### 2. Signatures
+
+```text
+<tenon-dispatch> … track: <id> · track_basis: user-named | score | state | none
+router header    track=<id>（用户点名） | 疑似 track=<id>（评分 N）
+```
+
+### 3. Contracts
+
+- Named forms (pure bash `=~`, at most 8 matches per pattern, only the first and last 4 KiB of a longer prompt, no
+  process spawn): Chinese verb + id + 轨道/赛道/track
+  (「走 free 轨道」「用 backend 轨道」); `track=<id>` / `track: <id>` / `轨道：<id>` / `--track <id>`;
+  English `use|using|choose|pick|select|go with|switch to [the] <id> track`. Id comparison is ASCII
+  case-insensitive against the effective registry ids (builtins including non-routable chat/free, and project Tracks).
+- Exactly one known id → bind it (`track_basis: user-named`), its profile and workflow default; the scorer is ignored.
+- Negated naming (不/别/勿/不要/不用/无需/没/don't/do not/not/never right before the verb) is ignored.
+- Two different known ids → fall back to scoring and tell the agent to confirm with the user.
+- Unknown id only → fall back to scoring with a hint naming it. When scoring also finds nothing, the router stays
+  silent as before.
+- The older free-mode phrases (「用自由模式」…) still bind free and still bypass the discussion filter.
+
+### 4. Tests Required
+
+- `tools/test-hooks.sh` section 9: named free/backend/pm/English/simple, not named, unknown id, negated, two ids, and a
+  project custom Track.

@@ -20,6 +20,14 @@ JSON_INPUT_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/json-input.sh"
 . "$JSON_INPUT_HELPER"
 json_get() { pipeline_json_get_string "$INPUT" "$1"; }
 
+# A pasted multi-MB log must not push this hook past the host timeout: keep only the prompt's first
+# and last 8 KiB before any parsing (pipeline_prompt_bound_input, prompt-intent.sh).
+BOUND_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/prompt-intent.sh"
+[ -r "$BOUND_HELPER" ] || exit 0
+# shellcheck source=prompt-intent.sh
+. "$BOUND_HELPER"
+INPUT="$(pipeline_prompt_bound_input "$INPUT")" || exit 0
+
 CWD="$(json_get cwd || true)"
 [ -z "$CWD" ] && CWD="$PWD"
 [ -d "$CWD" ] || exit 0

@@ -20,6 +20,14 @@ JSON_INPUT_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/json-input.sh"
 . "$JSON_INPUT_HELPER"
 json_get() { pipeline_json_get_string "$INPUT" "$1"; }
 
+# A pasted multi-MB log must not push this hook past the host timeout: keep only the prompt's first
+# and last 8 KiB before any parsing (pipeline_prompt_bound_input, prompt-intent.sh).
+BOUND_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/prompt-intent.sh"
+[ -r "$BOUND_HELPER" ] || exit 0
+# shellcheck source=prompt-intent.sh
+. "$BOUND_HELPER"
+INPUT="$(pipeline_prompt_bound_input "$INPUT")" || exit 0
+
 PROMPT="$(json_get prompt || true)"
 [ -n "$PROMPT" ] || exit 0
 
@@ -48,7 +56,7 @@ pending_unlock_hint_and_exit() {
   [ -n "$hint_root" ] || exit 0
   [ -f "$hint_root/.pipeline-pending-interaction" ] || [ -f "$hint_root/.pipeline-pending-confirm" ] \
     || [ -f "$hint_root/.pipeline-pending-review" ] || exit 0
-  printf '<tenon-pending-confirmation>\n本条回复未被识别为确认，待确认的交互或评审保持锁定。用户回复「确认继续」即确认当前待决事项（评审按已请求的事件推进）；带条件的回复请先说明条件并重新提问。\n</tenon-pending-confirmation>\n'
+  printf '<tenon-pending-confirmation>\n本条回复未被识别为确认，待确认的交互或评审保持锁定。用户回复「确认继续」「继续执行」「同意继续」，或简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」（采纳推荐项），即确认当前待决事项（评审按已请求的事件推进）；拒绝或带条件的回复不会解封，带条件的请先说明条件并重新提问。\n</tenon-pending-confirmation>\n'
   exit 0
 }
 [ -n "$INTENT" ] || pending_unlock_hint_and_exit

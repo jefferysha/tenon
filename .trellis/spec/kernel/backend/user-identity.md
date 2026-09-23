@@ -56,6 +56,15 @@ Server: `DashboardServerOptions.resolveUser(root)`, `GET/POST /api/user`, `POST 
   `ensurePipelineGitignore` before any of those is written, never rewritten). `hooks/router.sh` writes the router cache
   without Node and carries a byte-identical copy. Shared configuration (`workflows/`, `tracks.yaml`, `hooks.json`,
   `loops.yaml`, …) stays tracked.
+- **Change heartbeat:** `openspec/changes/<c>/.pipeline-terminal-activity.json` (and its mktemp siblings) is ignored by
+  `<repo>/openspec/.gitignore` (kernel `OPENSPEC_LOCAL_GITIGNORE`: `.pipeline-terminal-activity.*`, any depth, so
+  archived Changes too). `ensureOpenspecGitignore` runs in `session activate --host-session` (the binding that enables
+  heartbeats); `hooks/terminal-activity.sh` writes the same bytes before a heartbeat when absent. Created once, never
+  rewritten, never creates `openspec/`. Not `openspec/changes/.gitignore`: Change scanners treat any non-directory
+  entry there as a blocker. The heartbeat path itself is unchanged, so N-1 readers and writers keep working; a
+  heartbeat that an earlier commit already tracked needs one `git rm --cached`.
+- **Commit the ignore files:** `.pipeline/.gitignore`, `.tenon/.gitignore` and `openspec/.gitignore` are shared
+  project files, not local state; they belong in the task's first commit.
 - **Records:** `created_by` / `assignee` hold `Name <id>` (creator and first owner = the declared identity at init);
   history rows, document ledger records and review acknowledgements carry `actor`; `TransitionRecord.actor` stays the
   user-ref string. Hook-written host evidence rows carry no actor.

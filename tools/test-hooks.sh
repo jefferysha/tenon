@@ -1270,12 +1270,13 @@ EOF
   # 都作废批准时，`确认继续，按你的推荐执行。另外这个方案不错，但配色偏暗。` 也被判成 modify，
   # 门就锁死在一条完全有效的批准上。
   intent_is() { # $1=prompt $2=expected
-    local actual
+    local actual label="$1"
+    [ "${#label}" -le 80 ] || label="（${#1} 字长文本）…${label: -30}"
     actual="$(bash -c '. "$1"; pipeline_prompt_approval_intent "$2"' _ \
       "$ROOT/hooks/prompt-intent.sh" "$1" 2>/dev/null || true)"
     [ "$actual" = "$2" ] \
-      && ok "classifier: 「$1」→ $2" \
-      || bad "classifier: 「$1」→ $2" "实际 intent=${actual:-<empty>}"
+      && ok "classifier: 「${label}」→ $2" \
+      || bad "classifier: 「${label}」→ $2" "实际 intent=${actual:-<empty>}"
   }
   intent_is '继续，但先别改代码' modify
   intent_is '同意继续执行。但是先别动数据库。' modify
@@ -1286,6 +1287,14 @@ EOF
   intent_is '继续执行。这个库很好用，不过文档差了点。' confirm
   intent_is '这个方案不错但一般。确认继续。' confirm
   intent_is '继续，按照你的推荐' contextual-confirm
+  # 超过 256 字时转折判定改走 awk 一趟扫描；前面垫一段中性长文，结论必须与短文本一致。
+  INTENT_PAD='这是一段很长的背景说明，没有任何特殊词语，仅用于让文本超过阈值长度。'
+  INTENT_PAD="$INTENT_PAD$INTENT_PAD$INTENT_PAD$INTENT_PAD$INTENT_PAD$INTENT_PAD$INTENT_PAD$INTENT_PAD"
+  intent_is "${INTENT_PAD}继续，但先别改代码" modify
+  intent_is "${INTENT_PAD}同意继续执行。但是先别动数据库。" modify
+  intent_is "${INTENT_PAD}确认继续，按你的推荐执行。另外这个方案不错，但配色偏暗。" confirm
+  intent_is "${INTENT_PAD}这个方案不错但一般。确认继续。" confirm
+  intent_is "${INTENT_PAD}可以但是我想先看看" modify
 
   run_router "{\"prompt\":\"不要继续，即使后续不用问我\",\"cwd\":\"$rproj\"}"
   assert_not_contains "router: 拒绝优先于授权短语" "$ROUT" "continuous_execution: true"
@@ -1370,6 +1379,72 @@ EOF
   run_router "{\"prompt\":\"请处理这个任务\",\"cwd\":\"$rproj\"}"
   assert_empty "router: free 永不靠兜底或评分自动命中" "$ROUT"
 
+  # v0.1.2 真实会话：「……走 free 轨道即可」被评分成 simple。用户点名的已知轨道 id 以点名为准。
+  run_router "{\"prompt\":\"先把登录接口的 bug 修一下，走 free 轨道即可\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 「走 free 轨道」→ track: free" "$ROUT" "track: free"
+  assert_contains "router: 点名轨道标注来源" "$ROUT" "track_basis: user-named"
+  assert_contains "router: 点名轨道的头部不再写评分猜测" "$ROUT" "track=free（用户点名）"
+  assert_not_contains "router: 点名 free 不再落到 simple" "$ROUT" "track: simple"
+  run_router "{\"prompt\":\"修复 API 的 bug，用 backend 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 「用 backend 轨道」→ track: backend" "$ROUT" "track: backend"
+  assert_contains "router: 「用 backend 轨道」来源 user-named" "$ROUT" "track_basis: user-named"
+  run_router "{\"prompt\":\"请实现 React 响应式页面组件，track=pm\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: track=pm 胜过 frontend 评分" "$ROUT" "track: pm"
+  run_router "{\"prompt\":\"Please use the Backend track to build the React page\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 英文 use the Backend track（大小写不敏感）" "$ROUT" "track: backend"
+  run_router "{\"prompt\":\"快速修复 README 里的错别字，走 simple 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 点名 simple 仍走内建 simple workflow" "$ROUT" "workflow: simple"
+  run_router "{\"prompt\":\"修复 API 的 bug\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 未点名 → 评分选 backend" "$ROUT" "track: backend"
+  assert_contains "router: 未点名 → 来源 score" "$ROUT" "track_basis: score"
+  run_router "{\"prompt\":\"修复 API 的 bug，走 foo 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 点名不存在的轨道 → 回退评分" "$ROUT" "track: backend"
+  assert_contains "router: 点名不存在的轨道 → 来源 score" "$ROUT" "track_basis: score"
+  assert_contains "router: 点名不存在的轨道 → 输出提示" "$ROUT" "用户点名的轨道 foo 不在本项目的轨道列表中"
+  run_router "{\"prompt\":\"修复 API 的 bug，不要走 frontend 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 否定点名（不要走 X 轨道）不绑定" "$ROUT" "track_basis: score"
+  assert_not_contains "router: 否定点名不绑定 frontend" "$ROUT" "track: frontend"
+  run_router "{\"prompt\":\"修复 API bug，走 pm 轨道还是走 frontend 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 点名多个轨道 → 回退评分" "$ROUT" "track_basis: score"
+  assert_contains "router: 点名多个轨道 → 提示先确认" "$ROUT" "同时点名了多个轨道（pm、frontend）"
+  long_filler="$(printf '%*s' 12000 '' | tr ' ' 'x')"
+  run_router "{\"prompt\":\"修复 API 的 bug，日志如下：${long_filler}。走 free 轨道即可\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 长 prompt 结尾的点名仍生效（只扫首尾窗口）" "$ROUT" "track: free"
+
+  # 用户粘贴大段日志：v0.1.2 的 router 在 bash 3.2 上处理 300 KB prompt 约 145 s（宿主 5 s 超时，路由
+  # 静默丢失）。日志行带转义引号、反斜杠、换行和中文，cwd 排在 prompt 之后（最坏的键位置）；
+  # 三个 UserPromptSubmit hook 都必须 3 s 内完成，且 prompt 结尾的点名与 cwd 仍被正确读到。
+  BIG_PROMPT_LINE='2026-09-24T01:02:03Z ERROR api/handler.go:42 请求失败. \"status\": 500, path=/api/v1/users \\ retry. 修复中。\n'
+  BIG_PROMPT_UNIT="$BIG_PROMPT_LINE"   # 118 字节
+  for _ in 1 2 3 4 5 6 7 8; do BIG_PROMPT_UNIT="$BIG_PROMPT_UNIT$BIG_PROMPT_UNIT"; done   # ≈ 30 KB
+  for big_scale in 10 34; do   # ≈ 300 KB 与 ≈ 1 MB
+    big_body=''
+    for _ in $(seq 1 "$big_scale"); do big_body="$big_body$BIG_PROMPT_UNIT"; done
+    printf '{"session_id":"s","prompt":"修复 API 的 bug，日志：%s 走 free 轨道","cwd":"%s"}' "$big_body" "$rproj" \
+      > "$TMP/big-prompt.json"
+    big_bytes="$(wc -c < "$TMP/big-prompt.json" | tr -d ' ')"
+    for big_hook in "$R" "$ROOT/hooks/breadcrumb.sh" "$ROOT/hooks/confirm-clear-prompt.sh"; do
+      big_start=$SECONDS
+      big_out="$(TENON_ROUTER_CACHE="$RCACHE" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$big_hook" < "$TMP/big-prompt.json" 2>/dev/null)"
+      big_elapsed=$((SECONDS - big_start))
+      if [ "$big_elapsed" -le 3 ]; then
+        ok "超长 prompt: $(basename "$big_hook") ${big_bytes} 字节 ${big_elapsed}s 内完成"
+      else
+        bad "超长 prompt: $(basename "$big_hook") ${big_bytes} 字节 3s 内完成" "耗时 ${big_elapsed}s"
+      fi
+      [ "$big_hook" = "$R" ] && assert_contains "超长 prompt: router ${big_bytes} 字节仍读到结尾点名与 cwd" "$big_out" "track: free"
+    done
+  done
+  BOUND_OUT="$(bash -c '. "$1"; pipeline_prompt_bound_input "$(cat "$2")"' _ "$ROOT/hooks/prompt-intent.sh" "$TMP/big-prompt.json")"
+  assert_contains "超长 prompt: 截断保留开头" "$BOUND_OUT" '"prompt":"修复 API 的 bug，日志：2026-09-24'
+  assert_contains "超长 prompt: 截断保留结尾与其余键" "$BOUND_OUT" "走 free 轨道\",\"cwd\":\"$rproj\"}"
+  [ "${#BOUND_OUT}" -lt 20000 ] && ok "超长 prompt: 截断后不超过首尾各 8 KiB" || bad "超长 prompt: 截断后不超过首尾各 8 KiB" "长度 ${#BOUND_OUT}"
+  BOUND_DECODED="$(bash -c '. "$1"; . "$2"; pipeline_json_get_string "$3" prompt' _ "$ROOT/hooks/json-input.sh" "$ROOT/hooks/prompt-intent.sh" "$BOUND_OUT")"
+  [ -n "$BOUND_DECODED" ] && ok "超长 prompt: 截断后的 JSON 仍可解码" || bad "超长 prompt: 截断后的 JSON 仍可解码" "解码失败"
+  SMALL_JSON="{\"prompt\":\"短 prompt \\\"引号\\\" 继续\",\"cwd\":\"$rproj\"}"
+  SMALL_OUT="$(bash -c '. "$1"; pipeline_prompt_bound_input "$2"' _ "$ROOT/hooks/prompt-intent.sh" "$SMALL_JSON")"
+  [ "$SMALL_OUT" = "$SMALL_JSON" ] && ok "超长 prompt: 64 KiB 以内的输入原样返回" || bad "超长 prompt: 64 KiB 以内的输入原样返回" "被改写"
+
   # 项目自定义 Track/workflow 是正常对话的真实选择，不得被 hook 偷换成 workflow: default。
   # 这里用真实 kernel cold-path 载入一份有效的 custom workflow，再验证 V5 cache → bash hot-path
   # → dispatch contract 的闭环；不是手写 cache fixture。
@@ -1387,6 +1462,10 @@ EOF
   assert_contains "router: custom pair 选择前明确尚未绑定 workflow" "$ROUT" "尚未选定自定义 workflow"
   assert_not_contains "router: custom pair 选择前不伪造空 workflow 绑定" "$ROUT" "当前 Change 绑定自定义 workflow ''"
   assert_not_contains "router: custom pair 选择前不注入 default breadcrumb" "$ROUT" "TDD"
+  run_router "{\"prompt\":\"修复后端 API 接口的 bug，用 catalog 轨道\",\"cwd\":\"$selectproj\"}" "$selectcache"
+  assert_contains "router: 点名项目自定义轨道 catalog" "$ROUT" "track: catalog"
+  assert_contains "router: 点名自定义轨道标注来源" "$ROUT" "track_basis: user-named"
+  assert_contains "router: 点名自定义轨道推荐其 workflow" "$ROUT" "suggested_workflow: catalog-flow"
 
   # 内建 Track 也允许被项目配置覆盖 workflow。它仍是 builtin:true，但非 default 绑定是项目选择，
   # 必须和额外 Track 一样在创建 Change 前确认，不能因 builtin 身份静默直达 custom workflow。
@@ -1762,6 +1841,41 @@ for prompt in 可以 同意 按推荐 '继续，按照你的推荐'; do
   [ ! -f "$proj/.pipeline-pending-interaction" ] \
     && ok "confirm-clear-prompt: 自然确认「${prompt}」清 exact pending interaction" \
     || bad "confirm-clear-prompt: 自然确认「${prompt}」清 exact pending interaction" "marker 仍在"
+done
+# v0.1.2 真实会话：门的提示只列了「确认继续」等三句，「按推荐」却解封了。按 interaction-and-skill-provenance
+# 规格，简短同意在有 exact pending 时本就算确认；这里把两条提示里列出的每个解封语、每个不解封示例
+# 都交给真分类器核对，提示与匹配规则从此不能再漂移。
+unlock_phrases_ok() { # $1=label $2=text containing the unlock list, ending at $3
+  local label="$1" text="$2" stop="$3" unlock deny phrase intent
+  unlock="${text%%"${stop}"*}"
+  [ "$unlock" != "$text" ] || { bad "${label}: 提示含「${stop}」" "未找到"; return; }
+  deny="${text#*"${stop}"}"
+  for phrase in $(printf '%s' "$unlock" | awk -F'「' '{ for (i = 2; i <= NF; i++) { sub(/」.*/, "", $i); print $i } }'); do
+    intent="$(bash -c '. "$1"; pipeline_prompt_approval_intent "$2"' _ "$ROOT/hooks/prompt-intent.sh" "${phrase}" 2>/dev/null || true)"
+    case "${intent}" in
+      confirm|contextual-confirm) ok "${label}: 提示列出的「${phrase}」确实解封（${intent}）" ;;
+      *) bad "${label}: 提示列出的「${phrase}」确实解封" "实际 intent=${intent:-<empty>}" ;;
+    esac
+  done
+  for phrase in $(printf '%s' "$deny" | awk -F'「' '{ for (i = 2; i <= NF; i++) { sub(/」.*/, "", $i); sub(/……/, "先别改代码", $i); print $i } }'); do
+    intent="$(bash -c '. "$1"; pipeline_prompt_approval_intent "$2"' _ "$ROOT/hooks/prompt-intent.sh" "${phrase}" 2>/dev/null || true)"
+    case "${intent}" in
+      confirm|contextual-confirm|authorize) bad "${label}: 提示说不解封的「${phrase}」确实不解封" "实际 intent=${intent}" ;;
+      *) ok "${label}: 提示说不解封的「${phrase}」确实不解封" ;;
+    esac
+  done
+}
+GATE_UNLOCK_TEXT="$(grep -o '没有提问工具时.*解封后再重发' "$ROOT/hooks/gate.sh")"
+unlock_phrases_ok "gate 解封提示" "$GATE_UNLOCK_TEXT" "即解封"
+HINT_UNLOCK_TEXT="$(grep -o '用户回复「确认继续」.*带条件的请先说明' "$ROOT/hooks/confirm-clear-prompt.sh")"
+unlock_phrases_ok "confirm-clear-prompt 解封提示" "$HINT_UNLOCK_TEXT" "即确认当前待决事项"
+for prompt in 好的 按你的推荐; do
+  touch "$proj/.pipeline-pending-interaction"
+  printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"$prompt\"}" \
+    | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" >/dev/null 2>&1
+  [ ! -f "$proj/.pipeline-pending-interaction" ] \
+    && ok "confirm-clear-prompt: 提示列出的「${prompt}」端到端清 pending interaction" \
+    || bad "confirm-clear-prompt: 提示列出的「${prompt}」端到端清 pending interaction" "marker 仍在"
 done
 for prompt in 不可以 不同意 '继续，但先别改代码'; do
   touch "$proj/.pipeline-pending-interaction"

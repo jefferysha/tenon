@@ -31,6 +31,7 @@ import {
   renderRouteContextText,
   routeBucketsToObject,
   routeContext,
+  ensureOpenspecGitignore,
   ensurePipelineGitignore,
   TERMINAL_SESSION_BINDINGS_DIR,
   TERMINAL_SESSION_PROTOCOL,
@@ -121,6 +122,8 @@ async function writeTerminalSessionBinding(cwd: string, name: string, sessionId:
   const pipelineDir = join(cwd, '.pipeline')
   const sessionsDir = join(cwd, TERMINAL_SESSION_BINDINGS_DIR)
   await ensurePipelineGitignore(cwd)
+  // A binding is what lets the host hook write the Change's heartbeat sidecar; keep that file out of git.
+  await ensureOpenspecGitignore(cwd)
   await ensurePlainDirectory(pipelineDir)
   await ensurePlainDirectory(sessionsDir)
   const target = join(sessionsDir, `${sessionId}.json`)

@@ -19,12 +19,46 @@
 # pipeline_json_get_string so the scalar and the array reader share one key lookup instead of
 # drifting into two subtly different scanners.  Result is published in _PIPELINE_JSON_REST because
 # bash 3.2 (macOS system bash) has no namerefs.
+#
+# The key is located on a `"`-split of the buffer, not with `${input#*\"$key\"}`: on bash 3.2 that
+# expansion is quadratic in the distance to the key (a `cwd` after a 1 MB prompt took ~140 s), while
+# `read -a` is one linear pass and the scan below stops at the first piece equal to the key — the
+# same first `"key"` occurrence the pattern would find.
 _pipeline_json_seek_value() { # $1=input JSON, $2=key
-  local input="${1:-}" key="${2:-}" rest
+  local input="${1:-}" key="${2:-}" rest IFS index count offset=0 found=0 piece head
+  local -a pieces
   _PIPELINE_JSON_REST=''
   [ -n "$key" ] || return 1
   case "$input" in *"\"$key\""*) ;; *) return 1 ;; esac
-  rest="${input#*\"$key\"}"
+  # Fast path: the key sits in the first 4 KiB (every small payload, and keys before a big value).
+  head="${input:0:4096}"
+  case "$head" in
+    *"\"$key\""*)
+      piece="${head#*\"$key\"}"
+      offset=$(( ${#head} - ${#piece} ))
+      found=1
+      ;;
+  esac
+  if [ "$found" -eq 1 ]; then
+    rest="${input:$offset}"
+  else
+    IFS='"'
+    read -r -d '' -a pieces <<< "$input" || true
+    IFS=$' \t\n'
+    count=${#pieces[@]}
+    index=0
+    # A piece equal to the key with a quote on both sides: never the first piece (no quote before
+    # it) nor the last one (the here-string newline, no quote after it). Walked with `for … in`:
+    # indexed access is linear per element on bash 3.2.
+    for piece in "${pieces[@]}"; do
+      [ "$index" -lt "$((count - 1))" ] || break
+      if [ "$index" -gt 0 ] && [ "$piece" = "$key" ]; then found=1; break; fi
+      offset=$((offset + ${#piece} + 1))
+      index=$((index + 1))
+    done
+    [ "$found" -eq 1 ] || return 1
+    rest="${input:$((offset + ${#key} + 1))}"
+  fi
   while true; do
     case "$rest" in
       [$' \t\r\n']*) rest="${rest#?}" ;;
@@ -59,7 +93,7 @@ _pipeline_json_seek_value() { # $1=input JSON, $2=key
 # value is treated like a malformed one (failure), and the escape scan never looks past the bound.
 # Set it with pipeline_json_get_command_bounded, never globally.
 _pipeline_json_read_string() { # $1=buffer starting at '"'
-  local rest="${1:-}" IFS raw part tail count index last close=-1 slashes length=0 scan
+  local rest="${1:-}" IFS raw part tail count index last close=-1 slashes length=0 scan plain
   local max="${PIPELINE_JSON_MAX_STRING:-}"
   local -a pieces decoded
   _PIPELINE_JSON_VALUE=''
@@ -73,7 +107,9 @@ _pipeline_json_read_string() { # $1=buffer starting at '"'
   # Fast path: most values (tool names, paths, short commands) carry no escape at all.  Cutting at
   # the first quote costs one pass over the prefix, instead of splitting the whole remaining
   # payload (PostToolUse carries the full tool output after the input).
-  raw="${rest%%\"*}"
+  # `read -d '"'` stops at the first quote in one pass; `${rest%%\"*}` is quadratic on bash 3.2 when
+  # that quote is far away (a quote-free 1 MB prompt).
+  IFS= read -r -d '"' raw <<< "$rest" || true
   case "$raw" in
     *'\'*) ;;
     *)
@@ -94,8 +130,11 @@ _pipeline_json_read_string() { # $1=buffer starting at '"'
   read -r -d '' -a pieces <<< "$scan" || true
   count=${#pieces[@]}
   index=0
-  while [ "$index" -lt "$((count - 1))" ]; do
-    tail="${pieces[$index]}"
+  # `for … in "${pieces[@]}"` walks the array once. `${pieces[$index]}` does not: bash 3.2 finds an
+  # element by walking its list from the head, so an indexed loop is quadratic in the piece count
+  # (a pasted log with thousands of `\"` took seconds).
+  for tail in "${pieces[@]}"; do
+    [ "$index" -lt "$((count - 1))" ] || break
     length=$((length + ${#tail}))
     slashes=0
     while [[ "$tail" == *'\' ]]; do tail="${tail%?}"; slashes=$((slashes + 1)); done
@@ -115,36 +154,43 @@ _pipeline_json_read_string() { # $1=buffer starting at '"'
   read -r -d '' -a pieces <<< "$raw" || true
   last=$((${#pieces[@]} - 1))
   pieces[$last]="${pieces[$last]%$'\n'}"
-  # Empty strings are never appended to `decoded` (see the \177 note above).
+  # Empty strings are never appended to `decoded` (see the \177 note above). Appends are written
+  # `decoded[${#decoded[@]}]=…`: on bash 3.2 each `decoded+=(…)` costs time linear in the array size.
+  # Walked with `for … in` for the same reason as the quote scan above; `plain` marks the piece
+  # after an escaped backslash (and the first piece), which is copied without decoding.
   decoded=()
-  [ -z "${pieces[0]}" ] || decoded+=("${pieces[0]}")
-  index=1
-  while [ "$index" -le "$last" ]; do
-    part="${pieces[$index]}"
+  index=0
+  plain=1
+  for part in "${pieces[@]}"; do
+    if [ "$plain" -eq 1 ]; then
+      plain=0
+      [ -z "$part" ] || decoded[${#decoded[@]}]="$part"
+      index=$((index + 1))
+      continue
+    fi
     if [ -z "$part" ]; then
       # An empty piece sits between the two backslashes of `\\`; the piece after it is plain text.
       [ "$index" -lt "$last" ] || return 1
-      index=$((index + 1))
-      decoded+=('\')
-      [ -z "${pieces[$index]}" ] || decoded+=("${pieces[$index]}")
+      decoded[${#decoded[@]}]='\'
+      plain=1
       index=$((index + 1))
       continue
     fi
     case "${part:0:1}" in
-      '"') decoded+=('"') ;;
-      /) decoded+=('/') ;;
-      b) decoded+=($'\b') ;;
-      f) decoded+=($'\f') ;;
-      n) decoded+=($'\n') ;;
-      r) decoded+=($'\r') ;;
-      t) decoded+=($'\t') ;;
+      '"') decoded[${#decoded[@]}]='"' ;;
+      /) decoded[${#decoded[@]}]='/' ;;
+      b) decoded[${#decoded[@]}]=$'\b' ;;
+      f) decoded[${#decoded[@]}]=$'\f' ;;
+      n) decoded[${#decoded[@]}]=$'\n' ;;
+      r) decoded[${#decoded[@]}]=$'\r' ;;
+      t) decoded[${#decoded[@]}]=$'\t' ;;
       # Hook routing keys and packaged paths are ASCII. Preserve a Unicode escape literally
       # instead of spawning an interpreter merely to decode it.
-      u) decoded+=('\\u') ;;
+      u) decoded[${#decoded[@]}]='\\u' ;;
       *) return 1 ;;
     esac
     part="${part#?}"
-    [ -z "$part" ] || decoded+=("$part")
+    [ -z "$part" ] || decoded[${#decoded[@]}]="$part"
     index=$((index + 1))
   done
   IFS=''
