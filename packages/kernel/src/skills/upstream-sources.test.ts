@@ -228,6 +228,25 @@ describe('buildUpstreamSkillView', () => {
     expect(newer.rows.find((row) => row.id === 'hue')).toMatchObject({ status: 'failed', reason: 'unreachable', commit: C2 })
   })
 
+  it('a current last run decides changed / unchanged, the same count last-update.json reports', () => {
+    // hue was fetched when the lock was written (fetchedAt === updatedAt), but the latest install run found
+    // nothing new: doctor must say unchanged, not "changed since the lock".
+    const run = (at: string, hue: 'updated' | 'unchanged', brainstorming: 'updated' | 'unchanged'): UpstreamSkillRunReport => ({
+      version: 1, at, host: 'claude', results: [{ id: 'hue', outcome: hue }, { id: 'brainstorming', outcome: brainstorming }],
+    })
+    const status = (view: ReturnType<typeof buildUpstreamSkillView>): string[][] =>
+      view.rows.filter((row) => row.id !== 'shadcn').map((row) => [row.id, row.status])
+    const current = buildUpstreamSkillView({
+      bundledIds: [], sources: miniSources, lock, lastRun: run('2026-09-16T00:00:00.000Z', 'unchanged', 'updated'),
+    })
+    expect(status(current)).toEqual([['hue', 'unchanged'], ['brainstorming', 'changed']])
+    // A run older than the lock says nothing about it: fall back to the lock's own fetch time.
+    const stale = buildUpstreamSkillView({
+      bundledIds: [], sources: miniSources, lock, lastRun: run('2026-09-14T00:00:00.000Z', 'unchanged', 'updated'),
+    })
+    expect(status(stale)).toEqual([['hue', 'changed'], ['brainstorming', 'unchanged']])
+  })
+
   it('marks every source failed without reasons when there is no lock and no run', () => {
     const view = buildUpstreamSkillView({ bundledIds: [], sources: miniSources, lock: null, lastRun: null })
     expect(view.rows.every((row) => row.status === 'failed' && row.reason === undefined)).toBe(true)
