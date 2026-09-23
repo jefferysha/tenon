@@ -68,7 +68,7 @@ repeat:
 | `stop` | 报告 `message` 后结束。 |
 | `load-tenon` | 重新加载本技能（Claude 用 Skill 工具；Codex 按上面的读取规则整读一次）。 |
 | `read-documents` | 逐个读完 `documents` 列出的文件，再 `tenon document read <c> all`。 |
-| `run-agent` | 逐项：`tenon agent prompt <c> <agent> --json` → 在宿主里跑回来的提示词（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。同一波并行。 |
+| `run-agent` | 逐项：`tenon agent prompt <c> <agent> --json` → 在宿主里跑回来的提示词（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。同一波并行。带 `status: running` 与 `run_id` 的项是已经开始的那次运行：不要重新 prompt，等它跑完把报告写到给出的 `report_path`，再 `tenon agent record <c> <run_id>`。 |
 | `load-skill` | 加载本波每个技能，按下面的「上游技能怎么用」执行。 |
 | `scaffold-document` | 文件不存在时先 `tenon document scaffold <c> <kind> [--capability <cap>]`，再动笔写内容。 |
 | `record-document` | `tenon document record <c> <kind> <path> --producer <producer>`。 |

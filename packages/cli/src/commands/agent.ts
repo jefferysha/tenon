@@ -12,7 +12,8 @@ import { join } from 'node:path'
 import {
   AGENT_REPORTS_DIR,
   appendAgentRunRow, currentDocumentStepVisitId, evaluateStepAgents, evaluateTestEvidence, latestTestRun,
-  nextAgentWave, parseAgentReport, projectStepAgents, readAgentRuns, readFrozenAgents, severityRank, sha256Hex,
+  nextAgentWave, parseAgentReport, projectStepAgents, readAgentRuns, readFrozenAgents, renderAgentBlocker,
+  severityRank, sha256Hex,
 } from '@tenon/kernel'
 import type {
   AgentSeverity, AgentRunRow, AgentView, EffectiveWorkflowPlan, FrozenAgent, StepAgentsCapability,
@@ -131,6 +132,9 @@ export async function cmdAgentNext(deps: CliDeps, name: string, json: boolean): 
       agents: views.map((view) => viewJson(view, waiting)),
       wave,
       pass: verdict.pass,
+      // 与人读输出的「全部完成」同一判定：没有进行中的、没有在等的、离开判定通过。
+      complete: wave.length === 0 && waiting.length === 0 && verdict.pass
+        && views.every((view) => view.state !== 'running'),
       blockers: verdict.blockers,
     }))
     return 0
@@ -140,8 +144,34 @@ export async function cmdAgentNext(deps: CliDeps, name: string, json: boolean): 
     const findings = view.findings === 0 ? '' : ` 问题 ${view.findings}`
     deps.io.out(`${view.agent} ${ROLE_WORD[view.role]} ${STATE_WORD[view.state]}${result}${findings}`)
   }
-  deps.io.out(wave.length === 0 ? '全部完成' : `下一波：${wave.join(', ')}`)
+  for (const line of waveSummary(name, views, wave, waiting, verdict)) deps.io.out(line)
   return 0
+}
+
+/**
+ * 「下一波」为空不等于做完了：执行者 prompt 之后还没 record、评审者在等必需测试或别的 agent、
+ * 必需评审者打回——这三种情况波次都是空的，从前一律印「全部完成」，运行器照信就走了。
+ * 只有没有进行中的、没有在等的、且离开判定通过时才说全部完成；否则逐条说还差什么。
+ */
+function waveSummary(
+  change: string,
+  views: readonly AgentView[],
+  wave: readonly string[],
+  waiting: readonly { readonly agent: string; readonly for: readonly string[] }[],
+  verdict: ReturnType<typeof evaluateStepAgents>,
+): readonly string[] {
+  if (wave.length > 0) return [`下一波：${wave.join(', ')}`]
+  const lines: string[] = []
+  for (const view of views) {
+    if (view.state !== 'running') continue
+    lines.push(`进行中：${view.agent}；完成后 tenon agent record ${change} ${view.runId ?? '<run>'}`)
+  }
+  for (const item of waiting) lines.push(`等待：${item.agent} ← ${item.for.join(', ')}`)
+  if (lines.length === 0 && verdict.pass) return ['全部完成']
+  if (lines.length === 0) {
+    for (const blocker of verdict.blockers) lines.push(`未完成：${renderAgentBlocker(blocker, change)}`)
+  }
+  return lines
 }
 
 function roleOf(step: StepAgentsCapability, agent: string): 'executor' | 'reviewer' | undefined {

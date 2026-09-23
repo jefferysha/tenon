@@ -2,7 +2,7 @@
  * `step` 分块的执行者 / 评审者投影：与 `tenon agent next` 同一份判定，只换一个形状。
  */
 import {
-  currentDocumentStepVisitId, evaluateTestEvidence, nextAgentWave, projectStepAgents,
+  agentWaves, currentDocumentStepVisitId, evaluateTestEvidence, nextAgentWave, projectStepAgents,
   readAgentRuns, readFrozenAgents,
   type EffectiveWorkflowPlan, type FrozenAgent, type PipelineState, type StepAgentsCapability,
 } from '@tenon/kernel'
@@ -16,10 +16,13 @@ export interface StepAgentView {
   readonly required: boolean
   readonly block_at: string | null
   readonly reads_tests: readonly string[]
+  /** 依赖分层：无 depends_on 的同为 0（与 `tenon agent next` 的排波同源，kernel agentWaves）。 */
   readonly wave: number
   readonly wave_ready: boolean
   readonly status: 'pending' | 'running' | 'pass' | 'fail' | 'stale' | 'waiting'
   readonly run_id: string | null
+  /** 本次运行的报告路径（仓库相对）；`running` 时运行器把报告写到这里再 `tenon agent record`。 */
+  readonly report_path: string | null
   readonly blocking_findings: number
 }
 
@@ -70,17 +73,22 @@ export async function agentStepViews(
   }
   const views = projectStepAgents(input)
   const { wave, waiting } = nextAgentWave(input)
+  const waves = {
+    executor: agentWaves(step.executors),
+    reviewer: agentWaves(step.reviewers),
+  }
   const project = (role: 'executor' | 'reviewer'): readonly StepAgentView[] =>
-    views.filter((view) => view.role === role).map((view, index) => ({
+    views.filter((view) => view.role === role).map((view) => ({
       agent: view.agent,
       role,
       required: view.required,
       block_at: view.blockAt ?? null,
       reads_tests: view.readsTests,
-      wave: index,
+      wave: waves[role].get(view.agent) ?? 0,
       wave_ready: wave.includes(view.agent),
       status: statusOf(view, waiting.some((item) => item.agent === view.agent)),
       run_id: view.runId,
+      report_path: view.reportPath,
       blocking_findings: view.blocking,
     }))
   return { executors: project('executor'), reviewers: project('reviewer') }

@@ -55,7 +55,7 @@ const skill = (id: string, status: 'done' | 'ready' | 'waiting', wave: number) =
 
 const agent = (name: string, role: 'executor' | 'reviewer', status: string, ready: boolean) => ({
   agent: name, role, required: true, block_at: 'high', reads_tests: [], wave: 0,
-  wave_ready: ready, status: status as 'pending', run_id: null, blocking_findings: 0,
+  wave_ready: ready, status: status as 'pending', run_id: null, report_path: null, blocking_findings: 0,
 })
 
 const test_ = (id: string, status: string, required = true) =>
@@ -84,6 +84,17 @@ describe('step.next 顺序', () => {
       executors: [agent('researcher', 'executor', 'pending', true)],
       skills: [skill('brainstorming', 'ready', 0)],
     })).toEqual(['run-agent'])
+  })
+
+  test('进行中的执行者先于本步技能：指回那次运行，而不是跳去加载技能', () => {
+    const running = { ...agent('researcher', 'executor', 'running', false), run_id: 'r-1', report_path: 'x/r-1.md' }
+    expect(stepNextActions(input({
+      executors: [running, agent('builder', 'executor', 'pass', false)],
+      skills: [skill('brainstorming', 'ready', 0)],
+    }))).toEqual([{
+      action: 'run-agent', agent: 'researcher', role: 'executor', wave: 0,
+      status: 'running', run_id: 'r-1', report_path: 'x/r-1.md',
+    }])
   })
 
   test('技能按波次下发，waiting 的不进本波', () => {

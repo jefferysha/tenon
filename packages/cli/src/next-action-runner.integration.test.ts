@@ -164,8 +164,14 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       await run(['test', 'run', CHANGE, String(action.test)])
       return false
     case 'run-agent': {
-      await run(['agent', 'prompt', CHANGE, String(action.agent), '--json'])
-      const row = JSON.parse(h.out.join('')) as { run_id: string; report_path: string; role: string }
+      // 带 run_id 的是已经在跑的那次：不重开，写报告后登记它。
+      let row: { run_id: string; report_path: string; role: string }
+      if (typeof action.run_id === 'string') {
+        row = { run_id: action.run_id, report_path: String(action.report_path), role: String(action.role) }
+      } else {
+        await run(['agent', 'prompt', CHANGE, String(action.agent), '--json'])
+        row = JSON.parse(h.out.join('')) as { run_id: string; report_path: string; role: string }
+      }
       const blocking = failOnce === action.agent
       if (blocking) failOnce = undefined
       const findings = blocking

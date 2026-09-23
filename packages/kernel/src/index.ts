@@ -123,7 +123,7 @@ export {
   RETIRED_SKILL_IDS, retiredSkillReferences, retiredSkillsChangeMessage, retiredSkillsWorkflowMessage,
 } from './workflow/retired-skills.js'
 export {
-  evaluateStepAgents, isForwardExit, nextAgentWave, projectStepAgents, renderAgentBlocker,
+  agentWaves, evaluateStepAgents, isForwardExit, nextAgentWave, projectStepAgents, renderAgentBlocker,
 } from './workflow/agent-verdict.js'
 export type {
   AgentBlocker, AgentRole, AgentRunState, AgentView, AgentWave, StepAgentsInput,

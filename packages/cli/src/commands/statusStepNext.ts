@@ -219,8 +219,25 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
 /**
  * 执行者失败可以直接重跑；评审者不行——评审结论是证据，代码没改就重跑只会得到同一份结论，
  * 该走的是回退边。
+ *
+ * 已经在跑（`running`）的 agent 先于一切新动作：`agent prompt` 之后还没 `record` 时，从前
+ * 波次判定把它排除在外（进行中的不算可运行），`next` 于是越过它去发 `load-skill`，那次运行就此
+ * 悬空。现在它原样回到 `run-agent`，带上 `run_id` 与 `report_path`：宿主等它跑完，把报告写到
+ * 该路径，再 `tenon agent record <c> <run_id>`——不重开一次新的运行。
  */
 function pendingAgents(views: readonly StepAgentView[], rerunFailed: boolean): readonly StepAction[] {
+  const running = views.filter((view) => view.status === 'running')
+  if (running.length > 0) {
+    return running.map((view) => ({
+      action: 'run-agent',
+      agent: view.agent,
+      role: view.role,
+      wave: view.wave,
+      status: 'running',
+      run_id: view.run_id,
+      report_path: view.report_path,
+    }))
+  }
   const pending = views.filter((view) =>
     view.wave_ready && view.status !== 'pass' && (rerunFailed || view.status !== 'fail'))
   return pending.map((view) => ({
