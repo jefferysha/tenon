@@ -207,13 +207,26 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   const reviewers = pendingAgents(input.reviewers, false)
   if (reviewers.length > 0) return reviewers
 
-  const outcomes = writeFieldActions(
-    input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing'),
-    input.artifactProducers,
-  )
-  if (outcomes.length > 0) return outcomes
+  // 结果字段是「本步通过」的结论；必需测试或必需评审者已经不通过时，填它只会让运行器去写一条
+  // 与证据相反的结论（真机：verify 里评审者打回后 next 仍给 set-field branch_status）。直接去出口：
+  // 有回退边走回退边，没有就 fix。
+  if (!requiredEvidenceFailed(input)) {
+    const outcomes = writeFieldActions(
+      input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing'),
+      input.artifactProducers,
+    )
+    if (outcomes.length > 0) return outcomes
+  }
 
   return exitActions(input)
+}
+
+function requiredEvidenceFailed(input: {
+  readonly tests: readonly StepTestView[]
+  readonly reviewers: readonly StepAgentView[]
+}): boolean {
+  return input.tests.some((test) => test.required && test.status === 'failed')
+    || input.reviewers.some((view) => view.required && view.status === 'fail')
 }
 
 /**
@@ -280,9 +293,7 @@ function exitActions(input: {
 }): readonly StepAction[] {
   const forward = input.exits.filter((exit) => exit.direction !== 'back')
   const back = input.exits.filter((exit) => exit.direction === 'back')
-  const failed = input.tests.some((test) => test.required && test.status === 'failed')
-    || input.reviewers.some((view) => view.required && view.status === 'fail')
-  if (failed && back.length > 0) return gatedBackActions(input, back)
+  if (requiredEvidenceFailed(input) && back.length > 0) return gatedBackActions(input, back)
   const readyForward = forward.filter((exit) => exit.ready)
   if (input.gate === 'review') {
     if (input.review.status === 'pending') return [{ action: 'await-review', event: input.review.event }]

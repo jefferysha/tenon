@@ -289,8 +289,13 @@ describe('照着 next 做事的运行器：open → 完结', () => {
     expect(failOnce, '用例必须真的让一个评审者打回过').toBeUndefined()
     // verify → build → verify：build 出现过两次。
     expect(seen.filter((id, index) => id === 'build' && seen[index - 1] === 'verify')).toHaveLength(1)
-    expect(actions.some(({ step, action }) => step === 'verify'
-      && action.action === 'request-review' && action.event === 'verify-fail')).toBe(true)
+    const failRequest = actions.findIndex(({ step, action }) => step === 'verify'
+      && action.action === 'request-review' && action.event === 'verify-fail')
+    expect(failRequest).toBeGreaterThan(-1)
+    // D2：评审者打回的那次访问里，next 不要结果字段——回退边之前一条 set-field 都没有。
+    const firstVerify = actions.findIndex(({ step }) => step === 'verify')
+    expect(actions.slice(firstVerify, failRequest)
+      .filter(({ action }) => action.action === 'set-field')).toEqual([])
     expect(actions.some(({ step, action }) => step === 'verify'
       && action.action === 'await-review' && action.event === 'verify-fail')).toBe(true)
     // 第二次进入 verify：上一次访问登记的 verification-report 不算，next 让它的 producer 在本次访问

@@ -97,6 +97,26 @@ describe('step.next 顺序', () => {
     }])
   })
 
+  test('必需评审者不通过：不再要结果字段，直接指向回退边（D2）', () => {
+    const base = {
+      gate: 'review',
+      reviewers: [agent('security', 'reviewer', 'fail', false)],
+      fields: [field('branch_status', { kind: 'outcome', allowed: ['pending', 'handled'], recommended: 'handled' })],
+    } as const
+    expect(stepNextActions(input({
+      ...base,
+      exits: [exit('verify-pass', 'forward', false), exit('verify-fail', 'back', true)],
+    }))).toEqual([{ action: 'request-review', event: 'verify-fail' }])
+    // 没有回退边：fix，而不是替失败的评审写一条通过的结论。
+    expect(actions({ ...base, exits: [exit('verify-pass', 'forward', false)] })).toEqual(['fix'])
+    // 评审者都过了，结果字段才出现。
+    expect(actions({
+      ...base,
+      reviewers: [agent('security', 'reviewer', 'pass', false)],
+      exits: [exit('verify-pass', 'forward', false), exit('verify-fail', 'back', true)],
+    })).toEqual(['set-field'])
+  })
+
   test('技能按波次下发，waiting 的不进本波', () => {
     expect(stepNextActions(input({
       skills: [skill('a', 'done', 0), skill('b', 'ready', 1), skill('c', 'waiting', 2)],
