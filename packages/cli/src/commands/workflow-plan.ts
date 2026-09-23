@@ -1,5 +1,5 @@
 import { implicitCompletionTransition } from '@tenon/kernel'
-import type { EffectiveWorkflowPlan, PipelineState } from '@tenon/kernel'
+import type { EffectiveWorkflowPlan, PipelineState, StepDef } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName } from '../paths.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
@@ -10,6 +10,30 @@ export interface WorkflowPlanOpts {
 
 function scalar(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value.join(',') : (value ?? '')
+}
+
+/**
+ * 一步的输入、输出、测试与 agents，一类一行、空的不写：与 --json 同一份计划，只是排版精简。
+ * 测试标出非必需（可选），评审者标出参考（非必需）与阻断级别。
+ */
+function stepDetailLines(step: StepDef): string[] {
+  const lines: string[] = []
+  const fields = (refs: readonly { readonly field: string; readonly type: string }[]): string =>
+    refs.map((ref) => `${ref.field}(${ref.type})`).join(', ')
+  if (step.inputs.length > 0) lines.push(`inputs: ${fields(step.inputs)}`)
+  if (step.outputs.length > 0) lines.push(`outputs: ${fields(step.outputs)}`)
+  const tests = step.tests ?? []
+  if (tests.length > 0) {
+    lines.push(`tests: ${tests.map((test) => (test.required === false ? `${test.id}(可选)` : test.id)).join(', ')}`)
+  }
+  const executors = step.agents?.executors ?? []
+  const reviewers = step.agents?.reviewers ?? []
+  if (executors.length > 0) lines.push(`executors: ${executors.map((ref) => ref.agent).join(', ')}`)
+  if (reviewers.length > 0) {
+    lines.push(`reviewers: ${reviewers
+      .map((ref) => `${ref.agent}(${ref.required ? '' : '参考, '}block_at=${ref.block_at})`).join(', ')}`)
+  }
+  return lines.map((line) => `     ${line}`)
 }
 
 function renderHuman(deps: CliDeps, name: string, state: PipelineState, plan: EffectiveWorkflowPlan): void {
@@ -27,6 +51,7 @@ function renderHuman(deps: CliDeps, name: string, state: PipelineState, plan: Ef
       `${String(index + 1).padStart(2, '0')} ${step.id} | ${step.label} | skills: ${skills}` +
       (completion === undefined ? '' : ` | completion: ${completion.event}`),
     )
+    for (const line of stepDetailLines(step)) deps.io.out(line)
   }
 }
 
