@@ -20,7 +20,7 @@ export function registerAgentCommands(program: Command, deps: CliDeps): void {
       bail(await cmdAgentNext(deps, change, opts.json === true)))
   agent
     .command('prompt <change> <agent>')
-    .description('开始（或续跑）一个 agent 并打印交接内容；未轮到 / 宿主不支持 exit 2')
+    .description('开始（或续跑）一个 agent 并打印交接内容；未轮到 / 宿主不支持 exit 2；未声明的 agent exit 1')
     .option('--host <id>', '宿主 id；agent 声明了 hosts 时据此校验')
     .option('--json', 'JSON 输出（run_id / model / tools / skills / report_path / prompt）')
     .action(async (change: string, agentName: string, opts: { host?: string; json?: boolean }) =>

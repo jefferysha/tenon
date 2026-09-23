@@ -154,11 +154,11 @@ describe('真实 e2e —— 步骤 agent', () => {
 
   test('prompt 拒绝：未声明的 agent、未轮到的评审者、不支持的宿主', async () => {
     await seed()
-    expect(await h.run(['agent', 'prompt', 'demo', 'e2e'], { env: USER_A })).toBe(2)
+    expect(await h.run(['agent', 'prompt', 'demo', 'e2e'], { env: USER_A })).toBe(1)
     expect(h.err.join('\n')).toContain("agent 'e2e' 未在步骤 'build' 声明")
     // builder 没声明 hosts（缺省适用每个宿主），所以 --host 任意值都放行。
     expect(await h.run(['agent', 'prompt', 'demo', 'builder', '--host', 'nope'], { env: USER_A })).toBe(0)
-    expect(await h.run(['agent', 'prompt', 'demo', 'security'], { env: USER_A })).toBe(2)
+    expect(await h.run(['agent', 'prompt', 'demo', 'security'], { env: USER_A })).toBe(1)
     expect(h.err.join('\n')).toContain("agent 'security' 未在步骤 'build' 声明")
   })
 
