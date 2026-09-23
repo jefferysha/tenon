@@ -4,7 +4,7 @@ import { createRequire as __cr } from 'node:module'; const require = __cr(import
 // packages/server/src/main.ts
 import { execFile as execFile10 } from "node:child_process";
 import { mkdirSync as mkdirSync10, unlinkSync as unlinkSync5, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname24, join as join105 } from "node:path";
+import { dirname as dirname24, join as join106 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // packages/tap/dist/paths.js
@@ -5080,6 +5080,16 @@ function isDocumentPolicyStep(policy2, value) {
 }
 function outputsRequiredForPolicyStep(policy2, step) {
   return policy2.outputsByStep[step] ?? [];
+}
+function documentKindsProducedBySkillAtPolicyStep(policy2, step, skill) {
+  const supplied = new Set(aliasesForSkill(skill));
+  const kinds = [];
+  for (const requirement2 of outputsRequiredForPolicyStep(policy2, step)) {
+    const named = requirement2.producerCandidates.some((candidate2) => aliasesForSkill(candidate2).some((alias) => supplied.has(alias)));
+    if (named && !kinds.includes(requirement2.kind))
+      kinds.push(requirement2.kind);
+  }
+  return kinds;
 }
 function readsRequiredForPolicyStep(policy2, step) {
   return policy2.readsByStep[step] ?? [];
@@ -14614,6 +14624,52 @@ function defaultOpenSpecScaffoldFiles(change, locale = "zh-CN", workflowSteps, w
       })
     }
   ];
+}
+
+// packages/kernel/dist/state/skill-document-binding.js
+async function documentRecordsInCurrentStepVisit(changeDir2) {
+  let ledger;
+  let metadata;
+  try {
+    ledger = await readDocumentLedger(changeDir2);
+    metadata = (await readCurrentRunRevision(changeDir2))?.state.runMetadata;
+  } catch {
+    return [];
+  }
+  if (ledger === void 0 || metadata === void 0)
+    return [];
+  return ledger.records.filter((record11) => {
+    const visit = record11.producerInvocation?.stepVisit;
+    return visit !== void 0 && visit.runId === metadata.runId && visit.transitionSequence === metadata.transitionSequence;
+  });
+}
+function pendingSkillDocumentKinds(policy2, stepId, skill, visitRecords) {
+  if (policy2 === void 0)
+    return [];
+  return documentKindsProducedBySkillAtPolicyStep(policy2, stepId, skill).filter((kind) => !visitRecords.some((record11) => record11.kind === kind && skillsEquivalent(record11.producer, skill)));
+}
+function canonicalSkillId(skillId) {
+  return skillId.startsWith("tenon:") ? skillId.slice("tenon:".length) : skillId;
+}
+function judgeStepSkillSlots(input2) {
+  const { policy: policy2, stepId, visitRecords } = input2;
+  const completed = new Set([...input2.completed].map(canonicalSkillId));
+  return input2.slots.map((slot) => {
+    const invoked = slot.alternatives.map(canonicalSkillId).filter((id2) => completed.has(id2)).map((id2) => pendingSkillDocumentKinds(policy2, stepId, id2, visitRecords));
+    const done = invoked.some((pending) => pending.length === 0);
+    const closest = [...invoked].sort((left, right) => left.length - right.length)[0];
+    const first = slot.alternatives[0];
+    const pendingDocuments = done ? [] : closest ?? (first === void 0 || policy2 === void 0 ? [] : documentKindsProducedBySkillAtPolicyStep(policy2, stepId, canonicalSkillId(first)));
+    return { token: slot.token, invoked: invoked.length > 0, pendingDocuments, done };
+  });
+}
+function missingStepSkillMessages(slots) {
+  return slots.filter((slot) => !slot.done).map((slot) => {
+    const kinds = slot.pendingDocuments.join(", ");
+    if (kinds === "")
+      return slot.token;
+    return slot.invoked ? `${slot.token}\uFF08\u5DF2\u8C03\u7528\uFF0C\u672C\u6B21\u6B65\u9AA4\u8BBF\u95EE\u5C1A\u672A\u767B\u8BB0\u5B83\u4EA7\u51FA\u7684 document\uFF1A${kinds}\uFF09` : `${slot.token}\uFF08\u8C03\u7528\u540E\u8FD8\u987B\u5728\u672C\u6B65\u767B\u8BB0\u5B83\u4EA7\u51FA\u7684 document\uFF1A${kinds}\uFF09`;
+  });
 }
 
 // packages/kernel/dist/state/document-evidence.js
@@ -29144,6 +29200,32 @@ function parseSkillProvenanceRegistry(text7) {
   return { version: SKILL_PROVENANCE_REGISTRY_VERSION, hashAlgorithm: SKILL_PROVENANCE_HASH_ALGORITHM, skills };
 }
 
+// packages/kernel/dist/skills/invocability.js
+function parseSkillFrontmatter(text7) {
+  const lines2 = text7.split(/\r?\n/u);
+  if (lines2[0]?.trim() !== "---")
+    return null;
+  const fields = /* @__PURE__ */ new Map();
+  for (const line of lines2.slice(1)) {
+    if (line.trim() === "---")
+      return fields;
+    const match = /^([A-Za-z0-9_-]+):\s*(.*?)\s*$/u.exec(line);
+    const key = match?.[1];
+    if (key === void 0 || fields.has(key))
+      continue;
+    fields.set(key, unquote(match?.[2] ?? ""));
+  }
+  return null;
+}
+function unquote(value) {
+  const s = value.trim();
+  return s.length >= 2 && (s[0] === '"' || s[0] === "'") && s.at(-1) === s[0] ? s.slice(1, -1) : s;
+}
+var SKILL_MODEL_INVOCATION_DISABLED_FIELD = "disable-model-invocation";
+function isSkillModelInvocable(fields) {
+  return fields?.get(SKILL_MODEL_INVOCATION_DISABLED_FIELD)?.trim().toLowerCase() !== "true";
+}
+
 // packages/kernel/dist/skills/upstream-sources.js
 var UpstreamSkillError = class extends Error {
   category;
@@ -30276,7 +30358,8 @@ async function rejectOnStepGates(input2) {
     const missing4 = await deps.missingStepSkills({
       changeDir: input2.changeDir,
       stepId: from,
-      capability: plan.capabilities.skills
+      capability: plan.capabilities.skills,
+      plan
     });
     if (missing4.length > 0)
       return { kind: "step-skills-incomplete", workflowName, stepId: from, missing: missing4 };
@@ -30714,7 +30797,7 @@ function createTransitionApplication(deps) {
 // packages/server/src/server.ts
 import { join as joinPath3 } from "node:path";
 import { createServer } from "node:http";
-import { join as join104 } from "node:path";
+import { join as join105 } from "node:path";
 
 // packages/automation/dist/types.js
 var AUTOMATION_STATES = [
@@ -32324,12 +32407,41 @@ async function evaluateSkillBundleWiring(loop, deps, resolutionInputs) {
   return { status: "ready", bundleId, reason: null };
 }
 
+// packages/automation/dist/skills/mandatory-invocability.js
+import { readFile as readFile34 } from "node:fs/promises";
+import { join as join54 } from "node:path";
+async function verdictFor(skillsRoot, skillId) {
+  if (skillId.includes(":") || skillId.includes("/"))
+    return "unknown";
+  let text7;
+  try {
+    text7 = await readFile34(join54(skillsRoot, skillId, "SKILL.md"), "utf8");
+  } catch {
+    return "unknown";
+  }
+  return isSkillModelInvocable(parseSkillFrontmatter(text7)) ? "invocable" : "not-invocable";
+}
+async function provenNotInvocable(skillsRoot, token) {
+  const alternatives = skillTokenAlternatives(token);
+  const verdicts = await Promise.all(alternatives.map((id2) => verdictFor(skillsRoot, id2)));
+  return verdicts.length > 0 && verdicts.every((verdict) => verdict === "not-invocable") ? alternatives : void 0;
+}
+async function nonInvocableSkillTokens(skillsRoot, tokens) {
+  const offenders = [];
+  for (const token of tokens) {
+    const skillIds = await provenNotInvocable(skillsRoot, token);
+    if (skillIds !== void 0)
+      offenders.push({ token, skillIds });
+  }
+  return offenders;
+}
+
 // packages/automation/dist/skills/skill-provenance.js
 var CATEGORY_ORDER = new Map(SKILL_PROVENANCE_ERROR_CATEGORIES.map((category, index) => [category, index]));
 
 // packages/automation/dist/skills/upstream-skill-view.js
 import { readFileSync as readFileSync16 } from "node:fs";
-import { join as join54 } from "node:path";
+import { join as join55 } from "node:path";
 function readOptional(path14) {
   try {
     return readFileSync16(path14, "utf8");
@@ -32340,7 +32452,7 @@ function readOptional(path14) {
   }
 }
 function upstreamSkillRunReportPath(stateRoot) {
-  return join54(stateRoot, "skills", "last-update.json");
+  return join55(stateRoot, "skills", "last-update.json");
 }
 function readUpstreamSkillRunReport(stateRoot) {
   try {
@@ -32351,10 +32463,10 @@ function readUpstreamSkillRunReport(stateRoot) {
   }
 }
 function readUpstreamSkillView(pluginRoot2, stateRoot) {
-  const registryText = readOptional(join54(pluginRoot2, "templates", "skill-sources.yaml"));
+  const registryText = readOptional(join55(pluginRoot2, "templates", "skill-sources.yaml"));
   const bundledIds = registryText === null ? [] : parseSkillProvenanceRegistry(registryText).skills.map((entry) => entry.token);
-  const sourcesText = readOptional(join54(pluginRoot2, "skills", "sources.yaml"));
-  const lockText = readOptional(join54(pluginRoot2, "skills", "skills.lock.json"));
+  const sourcesText = readOptional(join55(pluginRoot2, "skills", "sources.yaml"));
+  const lockText = readOptional(join55(pluginRoot2, "skills", "skills.lock.json"));
   if (sourcesText === null && lockText !== null) {
     throw new UpstreamSkillError("invalid-skill-lock", "skills/skills.lock.json \u5B58\u5728\u4F46\u7F3A\u5C11 skills/sources.yaml");
   }
@@ -32605,7 +32717,7 @@ async function evaluateLoopExecutionWiring(loop, loops, deps) {
 // packages/automation/dist/task-plan-run/journal.js
 import { constants as constants5 } from "node:fs";
 import { lstat as lstat31, mkdir as mkdir28, open as open7 } from "node:fs/promises";
-import { join as join55 } from "node:path";
+import { join as join56 } from "node:path";
 var JOURNAL_SCHEMA_VERSION = "task-run-event/v1";
 var MAX_JOURNAL_BYTES = 8 * 1024 * 1024;
 var TaskRunRevisionConflictError = class extends Error {
@@ -32767,7 +32879,7 @@ async function journalDirectory(changeDir2, revisionId, create2) {
   }
   let current = changeDir2;
   for (const segment of [".pipeline", "task-runs", revisionId]) {
-    current = join55(current, segment);
+    current = join56(current, segment);
     if (create2) {
       try {
         await mkdir28(current);
@@ -32794,7 +32906,7 @@ async function events(changeDir2, revisionId) {
   const directory = await journalDirectory(changeDir2, revisionId, false);
   if (directory === null)
     return [];
-  const path14 = join55(directory, "events.jsonl");
+  const path14 = join56(directory, "events.jsonl");
   const handle = await openJournalFile(path14, constants5.O_RDONLY | constants5.O_NONBLOCK | constants5.O_NOFOLLOW);
   if (handle === null)
     return [];
@@ -32849,7 +32961,7 @@ async function appendEvent(changeDir2, revisionId, expectedRunRevision, event) {
     const directory = await journalDirectory(changeDir2, revisionId, true);
     if (directory === null)
       throw new TaskRunJournalCorruptError("Task run journal directory is missing");
-    const path14 = join55(directory, "events.jsonl");
+    const path14 = join56(directory, "events.jsonl");
     const handle = await openJournalFile(path14, constants5.O_RDWR | constants5.O_APPEND | constants5.O_CREAT | constants5.O_NONBLOCK | constants5.O_NOFOLLOW, 384);
     if (handle === null)
       throw new TaskRunJournalCorruptError("Task run journal leaf disappeared");
@@ -33969,7 +34081,7 @@ function resultFor3(run, observation, report, now, issue2, outputSchemaId) {
 }
 
 // packages/automation/dist/orchestration/input-materialization-v2.js
-import { readFile as readFile34 } from "node:fs/promises";
+import { readFile as readFile35 } from "node:fs/promises";
 import { createHash as createHash28 } from "node:crypto";
 import path10 from "node:path";
 var MAX_INPUT_BYTES = 1024 * 1024;
@@ -34089,7 +34201,7 @@ function createFilesystemArtifactResolverV2(changeDir2) {
           throw new InputMaterializationErrorV2("artifact-invalid", `input reference escapes change directory: ${ref}`);
       }
       try {
-        const value = await readFile34(target, "utf8");
+        const value = await readFile35(target, "utf8");
         if (byteLength(value) > MAX_INPUT_BYTES)
           throw new InputMaterializationErrorV2("bundle-too-large", `input ${ref} exceeds ${MAX_INPUT_BYTES} bytes`);
         try {
@@ -34312,7 +34424,7 @@ function chooseWave(snapshot, policy2) {
 
 // packages/automation/dist/artifact-runtime/stage-runtime.js
 import { createHash as createHash29 } from "node:crypto";
-import { readFile as readFile35, readdir as readdir13, stat as stat6 } from "node:fs/promises";
+import { readFile as readFile36, readdir as readdir13, stat as stat6 } from "node:fs/promises";
 import path11 from "node:path";
 var StageArtifactRuntime = class _StageArtifactRuntime {
   service;
@@ -34379,7 +34491,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     const observed = changes.filter((change) => change.kind !== "deleted");
     const inputs = await Promise.all(observed.map(async (change) => ({
       source: { path: change.path },
-      data: await readFile35(this.resolve(change.path)),
+      data: await readFile36(this.resolve(change.path)),
       mediaType: mediaTypeFor(change.path),
       origin: "unknown",
       observationSource: "reconcile"
@@ -34409,7 +34521,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   async publish(relativePath, disposition = "candidate") {
     const relative14 = this.safeRelative(relativePath);
     const absolute = this.resolve(relative14);
-    const bytes = await readFile35(absolute);
+    const bytes = await readFile36(absolute);
     const currentDigest2 = digest12(bytes);
     const prior = this.observedVersionsByPath.get(relative14);
     const needsManagedObservation = prior === void 0 || prior.contentDigest !== currentDigest2 || prior.origin !== "stage" || prior.producer?.stageAttemptId !== this.stageAttemptId;
@@ -34441,7 +34553,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
     const relative14 = this.safeRelative(relativePath);
     if (this.service.submitArtifactOutput === void 0)
       return this.publish(relative14, disposition);
-    const bytes = await readFile35(this.resolve(relative14));
+    const bytes = await readFile36(this.resolve(relative14));
     const version = await this.service.submitArtifactOutput(this.stageAttemptId, {
       data: bytes,
       path: relative14,
@@ -34462,7 +34574,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
   }
   async observePath(relativePath, options3 = {}) {
     const relative14 = this.safeRelative(relativePath);
-    const bytes = await readFile35(this.resolve(relative14));
+    const bytes = await readFile36(this.resolve(relative14));
     const value = await this.service.observe(this.stageAttemptId, { source: { path: relative14 }, data: bytes, mediaType: mediaTypeFor(relative14), origin: "stage", producer: { workflowRunId: this.workflowRunId, stageAttemptId: this.stageAttemptId, ...this.skillId ? { skillId: this.skillId } : {}, ...this.actorId ? { actorId: this.actorId } : {} }, observationSource: options3.source ?? "managed-tool", ...options3.toolCallId ? { toolCallId: options3.toolCallId } : {} });
     const version = value;
     this.observedDigestsByPath.set(relative14, digest12(bytes));
@@ -34536,7 +34648,7 @@ var StageArtifactRuntime = class _StageArtifactRuntime {
         if (entry.isDirectory())
           await walk(absolute);
         else if (entry.isFile() && !this.isIgnored(path11.relative(this.rootDir, absolute))) {
-          const bytes = await readFile35(absolute);
+          const bytes = await readFile36(absolute);
           result2.set(path11.relative(this.rootDir, absolute), createHash29("sha256").update(bytes).digest("hex"));
         }
       }
@@ -35383,7 +35495,7 @@ import {
   realpathSync as realpathSync4,
   unlinkSync
 } from "node:fs";
-import { isAbsolute as isAbsolute12, join as join56, relative as relative9, sep as sep10 } from "node:path";
+import { isAbsolute as isAbsolute12, join as join57, relative as relative9, sep as sep10 } from "node:path";
 
 // packages/server/src/workflowRootAnchor.ts
 import {
@@ -35536,8 +35648,8 @@ function assertDirectoryStillTrusted(directory, root) {
 function openTrustedChildDirectory(root, parent, name, create2) {
   if (parent.lexicalPath === root.path) assertWorkflowRootAnchor(root);
   else assertDirectoryStillTrusted(parent, root);
-  const lexicalPath = join56(parent.lexicalPath, name);
-  const operationPath = join56(parent.fdPath ?? parent.lexicalPath, name);
+  const lexicalPath = join57(parent.lexicalPath, name);
+  const operationPath = join57(parent.fdPath ?? parent.lexicalPath, name);
   let before = lstatIfExists(operationPath);
   if (!before) {
     if (!create2) return void 0;
@@ -35663,8 +35775,8 @@ function assertWorkflowDirectoriesStillTrusted(directories) {
 }
 function childEntry(directory, name) {
   return {
-    lexical: join56(directory.lexicalPath, name),
-    operation: join56(directory.fdPath ?? directory.lexicalPath, name)
+    lexical: join57(directory.lexicalPath, name),
+    operation: join57(directory.fdPath ?? directory.lexicalPath, name)
   };
 }
 var WORKFLOW_NAME_RE2 = /^[\p{L}\p{N}\p{M}_-]+$/u;
@@ -36228,7 +36340,7 @@ function deleteWorkflowForApi(root, name, permit) {
 
 // packages/server/src/snapshot.ts
 import { closeSync as closeSync5, constants as constants12, fstatSync as fstatSync8, lstatSync as lstatSync8, openSync as openSync9 } from "node:fs";
-import { join as join65 } from "node:path";
+import { join as join66 } from "node:path";
 
 // packages/server/src/contextBundleTrustedReader.ts
 import { constants as constants10, fstatSync as fstatSync6, openSync as openSync7, readSync as readSync4 } from "node:fs";
@@ -36507,7 +36619,7 @@ async function mapWithConcurrency(items, limit, mapper) {
 // packages/server/src/repositoryIdentity.ts
 import { execFile as execFile4 } from "node:child_process";
 import { createHash as createHash30 } from "node:crypto";
-import { basename as basename6, dirname as dirname14, isAbsolute as isAbsolute13, join as join57, normalize as normalize2, resolve as resolve19 } from "node:path";
+import { basename as basename6, dirname as dirname14, isAbsolute as isAbsolute13, join as join58, normalize as normalize2, resolve as resolve19 } from "node:path";
 var REPOSITORY_IDENTITY_TIMEOUT_MS = 1500;
 var REPOSITORY_IDENTITY_MAX_OUTPUT_BYTES = 4096;
 var REPOSITORY_IDENTITY_ARGS = [
@@ -36582,7 +36694,7 @@ async function probeRepositoryIdentity(root, deps = {}) {
   const topLevel = normalize2(resolve19(topLevelRaw));
   const gitDirectory = normalize2(resolve19(gitDirectoryRaw));
   const commonName = basename6(commonDirectory);
-  const conventionalDotGit = commonName === ".git" && (commonDirectory === normalize2(resolve19(join57(topLevel, ".git"))) || gitDirectory !== commonDirectory);
+  const conventionalDotGit = commonName === ".git" && (commonDirectory === normalize2(resolve19(join58(topLevel, ".git"))) || gitDirectory !== commonDirectory);
   const label = conventionalDotGit ? basename6(dirname14(commonDirectory)) : commonName.endsWith(".git") && commonName.length > ".git".length ? commonName.slice(0, -".git".length) : basename6(topLevel);
   if (!label) return void 0;
   return {
@@ -36594,11 +36706,11 @@ async function probeRepositoryIdentity(root, deps = {}) {
 
 // packages/server/src/snapshotFingerprint.ts
 import { lstat as lstat33, readdir as readdir14 } from "node:fs/promises";
-import { join as join59 } from "node:path";
+import { join as join60 } from "node:path";
 
 // packages/server/src/repositoryFingerprint.ts
 import { lstat as lstat32 } from "node:fs/promises";
-import { join as join58, sep as sep11 } from "node:path";
+import { join as join59, sep as sep11 } from "node:path";
 async function metadataPart(path14, mode = "volatile", lookupPath = path14) {
   try {
     const metadata = await lstat32(lookupPath, { bigint: true });
@@ -36616,18 +36728,18 @@ async function repositoryTopologyFingerprint(root) {
   const rootEntry = await metadataPart(root, "stable", `${root}${sep11}.`);
   if (rootEntry === null) return [];
   if (!rootEntry.directory) return [rootEntry.value];
-  const dotGit = join58(root, ".git");
+  const dotGit = join59(root, ".git");
   const entry = await metadataPart(dotGit, "stable-directory");
   if (entry === null) return [rootEntry.value];
   if (!entry.directory) return [rootEntry.value, entry.value];
-  const worktrees = await metadataPart(join58(dotGit, "worktrees"));
+  const worktrees = await metadataPart(join59(dotGit, "worktrees"));
   return worktrees === null ? [rootEntry.value, entry.value] : [rootEntry.value, entry.value, worktrees.value];
 }
 
 // packages/server/src/snapshotFingerprint.ts
 async function viewerFingerprintParts(readRoot, viewer) {
   const parts = [];
-  const targets = [join59(readRoot, ".git", "logs", "HEAD")];
+  const targets = [join60(readRoot, ".git", "logs", "HEAD")];
   if (viewer !== void 0 && isTenonUser(viewer)) targets.push(userProjectPaths(readRoot, viewer.slug).archived);
   for (const target of targets) {
     try {
@@ -36640,7 +36752,7 @@ async function viewerFingerprintParts(readRoot, viewer) {
 }
 async function userSlugs2(readRoot) {
   try {
-    return (await readdir14(join59(readRoot, TENON_PROJECT_DIR, "users"), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    return (await readdir14(join60(readRoot, TENON_PROJECT_DIR, "users"), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
   } catch {
     return [];
   }
@@ -36664,7 +36776,7 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
       parts.push(`root:${root}:${anchor.dev}:${anchor.ino}`);
       parts.push(...await repositoryTopologyFingerprint(readRoot));
       parts.push(...await viewerFingerprintParts(readRoot, viewer?.(root)));
-      const changesRoot = join59(readRoot, "openspec", "changes");
+      const changesRoot = join60(readRoot, "openspec", "changes");
       let entries;
       try {
         entries = readChangesDirectory === void 0 ? await readdir14(changesRoot, { withFileTypes: true }) : await readChangesDirectory(changesRoot);
@@ -36676,7 +36788,7 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
       assertWorkflowRootAnchor(anchor);
       for (const entry of entries) {
         if (!entry.isDirectory() || entry.name === "archive") continue;
-        const changeDir2 = join59(changesRoot, entry.name);
+        const changeDir2 = join60(changesRoot, entry.name);
         const source2 = stateStorageSourcePathSync(changeDir2);
         if (source2 === void 0) continue;
         try {
@@ -36685,7 +36797,7 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
         } catch {
         }
         for (const name of ["tasks.md", ".pipeline-documents.json"]) {
-          const target = join59(changeDir2, name);
+          const target = join60(changeDir2, name);
           try {
             const stat7 = await lstat33(target, { bigint: true });
             parts.push(`${target}:${stat7.size}:${stat7.mtimeNs}`);
@@ -36694,8 +36806,8 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
         }
         for (const slug of await userSlugs2(readRoot)) {
           for (const dir of [
-            join59(readRoot, TENON_PROJECT_DIR, "users", slug, "tests", entry.name),
-            join59(readRoot, TENON_PROJECT_DIR, "users", slug, "local", "running", entry.name)
+            join60(readRoot, TENON_PROJECT_DIR, "users", slug, "tests", entry.name),
+            join60(readRoot, TENON_PROJECT_DIR, "users", slug, "local", "running", entry.name)
           ]) {
             try {
               const stat7 = await lstat33(dir, { bigint: true });
@@ -36704,7 +36816,7 @@ async function computeSnapshotFingerprint(roots, nowMs, rootAnchor, readTerminal
             }
           }
         }
-        const activity = join59(changeDir2, TERMINAL_ACTIVITY_FILE);
+        const activity = join60(changeDir2, TERMINAL_ACTIVITY_FILE);
         try {
           const stat7 = await lstat33(activity, { bigint: true });
           const live = await readTerminalActivity2(changeDir2, entry.name, nowMs);
@@ -36732,7 +36844,7 @@ import {
   openSync as openSync8,
   realpathSync as realpathSync5
 } from "node:fs";
-import { dirname as dirname15, isAbsolute as isAbsolute14, join as join60, relative as relative10, sep as sep12 } from "node:path";
+import { dirname as dirname15, isAbsolute as isAbsolute14, join as join61, relative as relative10, sep as sep12 } from "node:path";
 
 // packages/server/src/stableFileMetadata.ts
 function captureStableFileVersion(stat7) {
@@ -36779,7 +36891,7 @@ function readBoundedTasksSource(fd, maxBytes) {
   return decodeUtf8Text(bytes, "tasks.md snapshot");
 }
 async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
-  const lexicalTarget = join60(changeDir2, "tasks.md");
+  const lexicalTarget = join61(changeDir2, "tasks.md");
   let changeFd;
   let fd;
   let rootVersion2;
@@ -36807,7 +36919,7 @@ async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
     const anchoredChangeDir = traversableDirectoryFdPath(changeFd, openedDir) ?? changeDir2;
     if (!openedChangeDir.isDirectory() || !sameIdentity(openedChangeDir, openedDir)) return void 0;
     assertTrustContext();
-    const target = join60(anchoredChangeDir, "tasks.md");
+    const target = join61(anchoredChangeDir, "tasks.md");
     hooks.beforeOpen?.();
     fd = openSync8(target, constants11.O_RDONLY | constants11.O_NOFOLLOW | constants11.O_NONBLOCK);
     const opened = fstatSync7(fd, { bigint: true });
@@ -36842,7 +36954,7 @@ async function readTasksProjection(changeDir2, hooks = {}, rootAnchor) {
 
 // packages/server/src/snapshotProjectScan.ts
 import { readdir as readdir15 } from "node:fs/promises";
-import { join as join64 } from "node:path";
+import { join as join65 } from "node:path";
 
 // packages/server/src/agentRuns.ts
 var PAST_CANDIDATE = "past";
@@ -36949,8 +37061,8 @@ function agentBlockersOf(runs, plan, phase) {
 }
 
 // packages/server/src/skillRuns.ts
-import { readFile as readFile36 } from "node:fs/promises";
-import { join as join61 } from "node:path";
+import { readFile as readFile37 } from "node:fs/promises";
+import { join as join62 } from "node:path";
 var BUILTIN_SKILL_PROFILES = new Set(
   BUILTIN_TRACK_IDS.map((id2) => builtinTrack(id2).policyProfile.skills.profile).filter((profile) => profile !== "_all")
 );
@@ -36971,7 +37083,7 @@ function resolveSnapshotTrack(root, trackId, workflowName) {
 async function readHistoryLines(changeDir2) {
   let text7;
   try {
-    text7 = await readFile36(join61(changeDir2, HISTORY_FILE), "utf8");
+    text7 = await readFile37(join62(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return [];
     throw error2;
@@ -37101,10 +37213,10 @@ function projectWorkflowSnapshotAuthority(snapshot, state, plan) {
 
 // packages/server/src/projectCapabilities.ts
 import { statSync as statSync4 } from "node:fs";
-import { join as join62 } from "node:path";
+import { join as join63 } from "node:path";
 function projectFileExists(root, repoRelativePath) {
   try {
-    return statSync4(join62(root, repoRelativePath)).isFile();
+    return statSync4(join63(root, repoRelativePath)).isFile();
   } catch {
     return false;
   }
@@ -37390,7 +37502,7 @@ async function projectTestEvidence(input2) {
 }
 
 // packages/server/src/serverUserRoutes.ts
-import { join as join63 } from "node:path";
+import { join as join64 } from "node:path";
 function defaultResolveUser(root) {
   return root === "" ? resolveTenonUser(void 0, process.env) : resolveTenonUser(root, process.env);
 }
@@ -37439,7 +37551,7 @@ async function takeOwner(req, res, segment, deps) {
     return deps.sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
   }
   if (!/^[A-Za-z0-9_-]+$/.test(name)) return deps.sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
-  const dir = join63(root, "openspec", "changes", name);
+  const dir = join64(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 404, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change" });
   const user = deps.resolveUser(root);
   if (!isTenonUser(user)) return deps.sendJson(res, 412, { ok: false, code: "user-missing", error: USER_MISSING_HINT });
@@ -37491,8 +37603,8 @@ async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
   const childProcessRoot = anchorChildProcessPath(anchor);
   const repository = await readRepositoryIdentity(childProcessRoot, deps.repositoryIdentity);
   assertWorkflowRootAnchor(anchor);
-  const changesRoot = join64(readRoot, "openspec", "changes");
-  const displayChangesRoot = join64(root, "openspec", "changes");
+  const changesRoot = join65(readRoot, "openspec", "changes");
+  const displayChangesRoot = join65(root, "openspec", "changes");
   let entries;
   try {
     entries = deps.readChangesDirectory === void 0 ? await readdir15(changesRoot, { withFileTypes: true }) : await deps.readChangesDirectory(changesRoot);
@@ -37554,7 +37666,7 @@ async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
   for (const e of [...entries].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
     if (!e.isDirectory() || e.name === "archive") continue;
     assertWorkflowRootAnchor(anchor);
-    const changeDir2 = join64(changesRoot, e.name);
+    const changeDir2 = join65(changesRoot, e.name);
     let source2;
     try {
       source2 = stateStorageSourcePathSync(changeDir2);
@@ -37619,7 +37731,7 @@ async function scanAnchoredProject(deps, root, readRoot, anchor, nowMs) {
       });
       const snapshot = {
         name: e.name,
-        path: join64(displayChangesRoot, e.name),
+        path: join65(displayChangesRoot, e.name),
         phase,
         phase_status: str(f.phase_status),
         track,
@@ -37709,7 +37821,7 @@ async function projectArtifactScopeIssue(deps, changeDir2, anchor) {
   return {};
 }
 async function readTerminalActivity(changeDir2, changeName, nowMs) {
-  const target = join65(changeDir2, TERMINAL_ACTIVITY_FILE);
+  const target = join66(changeDir2, TERMINAL_ACTIVITY_FILE);
   let fd;
   try {
     fd = openSync9(target, constants12.O_RDONLY | constants12.O_NOFOLLOW | constants12.O_NONBLOCK);
@@ -38007,10 +38119,10 @@ function hasTraceTimelineReader(store) {
 // packages/server/src/operations.ts
 import { execFile as execFile5 } from "node:child_process";
 import { existsSync as existsSync6 } from "node:fs";
-import { dirname as dirname16, join as join66 } from "node:path";
+import { dirname as dirname16, join as join67 } from "node:path";
 import { fileURLToPath } from "node:url";
 function pipelineCliBundlePath() {
-  return join66(dirname16(fileURLToPath(import.meta.url)), "..", "..", "cli", "dist", "tenon.mjs");
+  return join67(dirname16(fileURLToPath(import.meta.url)), "..", "..", "cli", "dist", "tenon.mjs");
 }
 function pipelineCliAvailable() {
   return existsSync6(pipelineCliBundlePath());
@@ -38409,12 +38521,12 @@ function createCadenceScheduler(options3) {
 
 // packages/server/src/serverGetRoutes.ts
 import { lstatSync as lstatSync15 } from "node:fs";
-import { dirname as dirname21, join as join94 } from "node:path";
+import { dirname as dirname21, join as join95 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // packages/server/src/afkReadiness.ts
 import { accessSync, constants as fsConstants, statSync as statSync5 } from "node:fs";
-import { join as join67 } from "node:path";
+import { join as join68 } from "node:path";
 
 // packages/server/src/dockerImages.ts
 import { execFile as execFile6 } from "node:child_process";
@@ -38490,7 +38602,7 @@ async function buildAfkReadiness(opts) {
         CODEX_HOME: codexHomeCredentialLight(
           hostEnv.CODEX_HOME,
           opts.defaultCodexHome,
-          (home) => (opts.canReadFile ?? canReadFile)(join67(home, "auth.json"))
+          (home) => (opts.canReadFile ?? canReadFile)(join68(home, "auth.json"))
         )
       }
     }
@@ -38499,7 +38611,7 @@ async function buildAfkReadiness(opts) {
 
 // packages/server/src/automationConfig.ts
 import { mkdirSync as mkdirSync4, readFileSync as readFileSync19, renameSync as renameSync4, writeFileSync as writeFileSync4 } from "node:fs";
-import { join as join68 } from "node:path";
+import { join as join69 } from "node:path";
 var AUTOMATION_DEFAULTS = {
   enabled: false,
   max_parallel: 4,
@@ -38508,7 +38620,7 @@ var AUTOMATION_DEFAULTS = {
   image: ""
 };
 function automationConfigPath(root) {
-  return join68(root, ".pipeline", "automation.json");
+  return join69(root, ".pipeline", "automation.json");
 }
 var intIn2 = (v, min, max) => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 var validImage = (v) => v === "" || isValidImageRef(v);
@@ -38560,7 +38672,7 @@ function writeAutomationSettings(root, settings) {
     default_opt_in: settings.default_opt_in
   };
   if (settings.image !== "") payload.image = settings.image;
-  const dir = join68(root, ".pipeline");
+  const dir = join69(root, ".pipeline");
   mkdirSync4(dir, { recursive: true });
   const file = automationConfigPath(root);
   const tmp = `${file}.tmp.${process.pid}`;
@@ -38571,7 +38683,7 @@ function writeAutomationSettings(root, settings) {
 
 // packages/server/src/config.ts
 import { readFileSync as readFileSync20 } from "node:fs";
-import { readFile as readFile37, rename as rename14, rm as rm11, writeFile as writeFile19 } from "node:fs/promises";
+import { readFile as readFile38, rename as rename14, rm as rm11, writeFile as writeFile19 } from "node:fs/promises";
 import { dirname as dirname17 } from "node:path";
 var ConfigError = class extends Error {
   constructor(message) {
@@ -38704,7 +38816,7 @@ async function writeMandatorySkills(manifestPath2, phase, track, skills) {
   }
   const key = `${phase}.${track}`;
   await withLock(dirname17(manifestPath2), async () => {
-    const original = await readFile37(manifestPath2, "utf8");
+    const original = await readFile38(manifestPath2, "utf8");
     const lines2 = original.split("\n");
     let sectionStart = -1;
     for (let i = 0; i < lines2.length; i++) {
@@ -38787,7 +38899,7 @@ import {
   unlinkSync as unlinkSync3,
   writeFileSync as writeFileSync5
 } from "node:fs";
-import { join as join69 } from "node:path";
+import { join as join70 } from "node:path";
 var HOOK_METAS = [
   { id: "session-start", event: "SessionStart", matcher: "*", script: "hooks/session-start.sh", configurable: true },
   { id: "breadcrumb", event: "UserPromptSubmit", matcher: "*", script: "hooks/breadcrumb.sh", configurable: true },
@@ -38982,7 +39094,7 @@ async function withHooksConfigLock(rootInput, operation) {
   const { anchor, owned } = acquireHooksRoot(rootInput);
   try {
     ensureWorkflowProjectCoordinationPath(anchor);
-    await withLock(join69(anchor.path, ".pipeline"), async () => {
+    await withLock(join70(anchor.path, ".pipeline"), async () => {
       assertWorkflowRootAnchor(anchor);
       operation(anchor);
     });
@@ -39020,17 +39132,17 @@ async function writePromptRoutingBypass(root, value) {
 
 // packages/server/src/loops.ts
 import { existsSync as existsSync7, readdirSync as readdirSync8, readFileSync as readFileSync21 } from "node:fs";
-import { join as join70 } from "node:path";
+import { join as join71 } from "node:path";
 function readRunLogText(root) {
   try {
-    return readFileSync21(join70(root, ".superpowers", "loops", "progress.md"), "utf8");
+    return readFileSync21(join71(root, ".superpowers", "loops", "progress.md"), "utf8");
   } catch {
     return null;
   }
 }
 function readLoopDocText(root) {
   try {
-    return readFileSync21(join70(root, "LOOP.md"), "utf8");
+    return readFileSync21(join71(root, "LOOP.md"), "utf8");
   } catch {
     return null;
   }
@@ -39044,7 +39156,7 @@ var READONLY_GRADUATION_FS = {
 };
 function listMatchedChanges(root, changePrefix) {
   try {
-    return readdirSync8(join70(root, "openspec", "changes"), { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== "archive" && e.name.startsWith(changePrefix)).map((e) => e.name).sort();
+    return readdirSync8(join71(root, "openspec", "changes"), { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== "archive" && e.name.startsWith(changePrefix)).map((e) => e.name).sort();
   } catch {
     return [];
   }
@@ -39262,11 +39374,11 @@ async function removeSecret(path14, key) {
 }
 
 // packages/server/src/serverGetSkillsRoutes.ts
-import { join as join72 } from "node:path";
+import { join as join73 } from "node:path";
 
 // packages/server/src/skillsRegistry.ts
 import { accessSync as accessSync2, constants as constants14, existsSync as existsSync8, readdirSync as readdirSync9, readFileSync as readFileSync22, realpathSync as realpathSync6, statSync as statSync6 } from "node:fs";
-import { delimiter, dirname as dirname18, join as join71, sep as sep13 } from "node:path";
+import { delimiter, dirname as dirname18, join as join72, sep as sep13 } from "node:path";
 function skillDescriptionFrom(path14) {
   try {
     const text7 = readFileSync22(path14, "utf8");
@@ -39285,7 +39397,7 @@ function skillDescriptionFrom(path14) {
 }
 function installedPluginRoots(claudeDir) {
   try {
-    const parsed2 = JSON.parse(readFileSync22(join71(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
+    const parsed2 = JSON.parse(readFileSync22(join72(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
     const plugins = typeof parsed2 === "object" && parsed2 !== null ? Reflect.get(parsed2, "plugins") : void 0;
     if (typeof plugins !== "object" || plugins === null || Array.isArray(plugins)) return [];
     return Object.values(plugins).flat().map((entry) => typeof entry === "object" && entry !== null ? Reflect.get(entry, "installPath") : void 0).filter((path14) => typeof path14 === "string" && path14.trim() !== "");
@@ -39302,25 +39414,25 @@ function descriptionForSkill(name, repoRoot, claudeDir, meta2) {
     name.includes(":") ? name.split(":").at(-1) : void 0
   ].filter((candidate2) => typeof candidate2 === "string" && candidate2 !== ""))];
   const roots = [
-    join71(repoRoot, "skills"),
-    join71(claudeDir, "skills"),
-    join71(home, ".agents", "skills"),
-    ...installedPluginRoots(claudeDir).map((root) => join71(root, "skills"))
+    join72(repoRoot, "skills"),
+    join72(claudeDir, "skills"),
+    join72(home, ".agents", "skills"),
+    ...installedPluginRoots(claudeDir).map((root) => join72(root, "skills"))
   ];
   for (const root of roots) {
     for (const candidate2 of candidates) {
-      const description = skillDescriptionFrom(join71(root, candidate2, "SKILL.md"));
+      const description = skillDescriptionFrom(join72(root, candidate2, "SKILL.md"));
       if (description) return description;
     }
   }
   if (meta2?.tool === "claude-plugin") {
     const plugin = meta2.skill ?? name.split(":")[0] ?? name;
-    const cache = join71(home, ".codex", "plugins", "cache");
+    const cache = join72(home, ".codex", "plugins", "cache");
     for (const marketplace of childDirsIn(cache)) {
-      const pluginRoot2 = join71(cache, marketplace, plugin);
+      const pluginRoot2 = join72(cache, marketplace, plugin);
       for (const version of childDirsIn(pluginRoot2)) {
         for (const candidate2 of candidates) {
-          const description = skillDescriptionFrom(join71(pluginRoot2, version, "skills", candidate2, "SKILL.md")) ?? skillDescriptionFrom(join71(pluginRoot2, version, "skills", "SKILL.md"));
+          const description = skillDescriptionFrom(join72(pluginRoot2, version, "skills", candidate2, "SKILL.md")) ?? skillDescriptionFrom(join72(pluginRoot2, version, "skills", "SKILL.md"));
           if (description) return description;
         }
       }
@@ -39333,16 +39445,16 @@ var MAX_LISTED_FILE_BYTES = 1024 * 1024;
 function skillRoots(repoRoot, claudeDir) {
   const home = dirname18(claudeDir);
   const roots = [
-    { dir: join71(repoRoot, "skills"), source: "local-plugin", origin: "tenon" },
-    { dir: join71(claudeDir, "skills"), source: "user", origin: "~/.claude/skills" },
-    { dir: join71(home, ".agents", "skills"), source: "user", origin: "~/.agents/skills" },
-    ...installedPluginRoots(claudeDir).map((root) => ({ dir: join71(root, "skills"), source: "external-marketplace", origin: root.split("/").filter(Boolean).at(-1) ?? root }))
+    { dir: join72(repoRoot, "skills"), source: "local-plugin", origin: "tenon" },
+    { dir: join72(claudeDir, "skills"), source: "user", origin: "~/.claude/skills" },
+    { dir: join72(home, ".agents", "skills"), source: "user", origin: "~/.agents/skills" },
+    ...installedPluginRoots(claudeDir).map((root) => ({ dir: join72(root, "skills"), source: "external-marketplace", origin: root.split("/").filter(Boolean).at(-1) ?? root }))
   ];
-  const cache = join71(home, ".codex", "plugins", "cache");
+  const cache = join72(home, ".codex", "plugins", "cache");
   for (const marketplace of childDirsIn(cache)) {
-    for (const plugin of childDirsIn(join71(cache, marketplace))) {
-      for (const version of childDirsIn(join71(cache, marketplace, plugin))) {
-        roots.push({ dir: join71(cache, marketplace, plugin, version, "skills"), source: "external-marketplace", origin: `${marketplace}/${plugin}@${version}` });
+    for (const plugin of childDirsIn(join72(cache, marketplace))) {
+      for (const version of childDirsIn(join72(cache, marketplace, plugin))) {
+        roots.push({ dir: join72(cache, marketplace, plugin, version, "skills"), source: "external-marketplace", origin: `${marketplace}/${plugin}@${version}` });
       }
     }
   }
@@ -39352,9 +39464,9 @@ function locateSkillDir(name, repoRoot, claudeDir) {
   const candidates = [...new Set([name, name.includes(":") ? name.split(":").at(-1) : void 0].filter((candidate2) => typeof candidate2 === "string" && candidate2 !== ""))];
   for (const root of skillRoots(repoRoot, claudeDir)) {
     for (const candidate2 of candidates) {
-      const dir = join71(root.dir, candidate2);
+      const dir = join72(root.dir, candidate2);
       try {
-        if (statSync6(join71(dir, "SKILL.md")).isFile()) return { dir, source: root.source, origin: root.origin };
+        if (statSync6(join72(dir, "SKILL.md")).isFile()) return { dir, source: root.source, origin: root.origin };
       } catch {
         continue;
       }
@@ -39366,7 +39478,7 @@ function walkFiles(root, rel = "") {
   const out = [];
   let entries;
   try {
-    entries = readdirSync9(join71(root, rel)).sort();
+    entries = readdirSync9(join72(root, rel)).sort();
   } catch {
     return out;
   }
@@ -39375,7 +39487,7 @@ function walkFiles(root, rel = "") {
     const relPath = rel === "" ? entry : `${rel}/${entry}`;
     let info;
     try {
-      info = statSync6(join71(root, relPath));
+      info = statSync6(join72(root, relPath));
     } catch {
       continue;
     }
@@ -39400,7 +39512,7 @@ function readSkillFile(name, relPath, repoRoot, claudeDir) {
   const entry = listed.files.find((file) => file.path === relPath);
   if (located === void 0 || entry === void 0) return { kind: "not-found" };
   if (entry.bytes > MAX_SKILL_FILE_BYTES) return { kind: "too-large" };
-  const absolute = join71(located.dir, relPath);
+  const absolute = join72(located.dir, relPath);
   try {
     const realRoot = realpathSync6(located.dir);
     const realFile = realpathSync6(absolute);
@@ -39416,9 +39528,9 @@ function skillDirsIn(dir) {
   if (!existsSync8(dir)) return [];
   try {
     return readdirSync9(dir).filter((name) => {
-      const p = join71(dir, name);
+      const p = join72(dir, name);
       try {
-        return statSync6(p).isDirectory() && existsSync8(join71(p, "SKILL.md"));
+        return statSync6(p).isDirectory() && existsSync8(join72(p, "SKILL.md"));
       } catch {
         return false;
       }
@@ -39432,7 +39544,7 @@ function childDirsIn(dir) {
   try {
     return readdirSync9(dir).filter((name) => {
       try {
-        return statSync6(join71(dir, name)).isDirectory();
+        return statSync6(join72(dir, name)).isDirectory();
       } catch {
         return false;
       }
@@ -39442,23 +39554,23 @@ function childDirsIn(dir) {
   }
 }
 function localSkillDirs(repoRoot) {
-  return skillDirsIn(join71(repoRoot, "skills"));
+  return skillDirsIn(join72(repoRoot, "skills"));
 }
 function detectInstalled(claudeDir) {
-  const skills = new Set(skillDirsIn(join71(claudeDir, "skills")));
-  for (const name of skillDirsIn(join71(dirname18(claudeDir), ".agents", "skills"))) skills.add(name);
+  const skills = new Set(skillDirsIn(join72(claudeDir, "skills")));
+  for (const name of skillDirsIn(join72(dirname18(claudeDir), ".agents", "skills"))) skills.add(name);
   const pluginBases = /* @__PURE__ */ new Set();
   const codexPluginBases = /* @__PURE__ */ new Set();
-  const codexCache = join71(dirname18(claudeDir), ".codex", "plugins", "cache");
+  const codexCache = join72(dirname18(claudeDir), ".codex", "plugins", "cache");
   for (const marketplace of childDirsIn(codexCache)) {
-    for (const plugin of childDirsIn(join71(codexCache, marketplace))) codexPluginBases.add(plugin);
+    for (const plugin of childDirsIn(join72(codexCache, marketplace))) codexPluginBases.add(plugin);
   }
   try {
-    const raw = readFileSync22(join71(claudeDir, "plugins", "installed_plugins.json"), "utf8");
+    const raw = readFileSync22(join72(claudeDir, "plugins", "installed_plugins.json"), "utf8");
     const parsed2 = JSON.parse(raw);
     let disabled = {};
     try {
-      const settings = JSON.parse(readFileSync22(join71(claudeDir, "settings.json"), "utf8"));
+      const settings = JSON.parse(readFileSync22(join72(claudeDir, "settings.json"), "utf8"));
       if (typeof settings === "object" && settings !== null) {
         const candidate2 = Reflect.get(settings, "enabledPlugins");
         if (typeof candidate2 === "object" && candidate2 !== null && !Array.isArray(candidate2)) {
@@ -39478,7 +39590,7 @@ function detectInstalled(claudeDir) {
         if (typeof entry !== "object" || entry === null) continue;
         const installPath = Reflect.get(entry, "installPath");
         if (typeof installPath !== "string") continue;
-        for (const name of skillDirsIn(join71(installPath, "skills"))) skills.add(name);
+        for (const name of skillDirsIn(join72(installPath, "skills"))) skills.add(name);
       }
     }
   } catch {
@@ -39487,7 +39599,7 @@ function detectInstalled(claudeDir) {
 }
 function sourceRegistry(repoRoot) {
   try {
-    const rows = parseSkillSources(readFileSync22(join71(repoRoot, "templates", "skill-sources.yaml"), "utf8"));
+    const rows = parseSkillSources(readFileSync22(join72(repoRoot, "templates", "skill-sources.yaml"), "utf8"));
     return new Map(rows.map((row) => [row.token, row]));
   } catch {
     return /* @__PURE__ */ new Map();
@@ -39501,7 +39613,7 @@ function executableOnPath(bin) {
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     if (dir === "") continue;
     try {
-      accessSync2(join71(dir, bin), constants14.X_OK);
+      accessSync2(join72(dir, bin), constants14.X_OK);
       return true;
     } catch {
     }
@@ -39564,7 +39676,7 @@ function listAllSkillsDetailed(repoRoot, claudeDir) {
 // packages/server/src/serverGetSkillsRoutes.ts
 function resolveSkillsGet(req, res, path14, deps) {
   const { hostHome, repoRoot, stateRoot, sendJson, errMsg: errMsg2 } = deps;
-  const claudeDir = join72(hostHome, ".claude");
+  const claudeDir = join73(hostHome, ".claude");
   const mSkillFiles = /^\/api\/skills\/([^/]+)\/(files|file)$/.exec(path14);
   if (mSkillFiles) {
     const raw = decodeURIComponent(mSkillFiles[1] ?? "");
@@ -39602,12 +39714,12 @@ function resolveSkillsGet(req, res, path14, deps) {
 }
 
 // packages/server/src/serverGetActivityRoutes.ts
-import { join as join77, resolve as resolvePath4 } from "node:path";
+import { join as join78, resolve as resolvePath4 } from "node:path";
 
 // packages/server/src/afk.ts
 import { execFile as execFile7 } from "node:child_process";
-import { readFile as readFile38, writeFile as writeFile20 } from "node:fs/promises";
-import { join as join73 } from "node:path";
+import { readFile as readFile39, writeFile as writeFile20 } from "node:fs/promises";
+import { join as join74 } from "node:path";
 var AFK_LANES = ["queued", "running", "merged", "failed", "conflict", "paused"];
 function isAutomationState(value) {
   return AUTOMATION_STATES.includes(value);
@@ -39728,7 +39840,7 @@ async function cancelAfkRun(store, changeDir2) {
     return { ok: false, error: "\u7F3A automation_worktree/automation_sandbox\uFF0C\u65E0\u6CD5\u5B9A\u4F4D\u5BB9\u5668" };
   }
   try {
-    await writeFile20(join73(worktree, CANCEL_MARKER_FILE), "1", "utf8");
+    await writeFile20(join74(worktree, CANCEL_MARKER_FILE), "1", "utf8");
   } catch (err) {
     const code = err?.code ?? "unknown";
     return {
@@ -39784,7 +39896,7 @@ async function enqueueAfkRun(store, changeDir2, clock, eligibility) {
 }
 async function readAfkRunLog(changeDir2) {
   try {
-    return await readFile38(join73(changeDir2, ".sandcastle-run.log"), "utf8");
+    return await readFile39(join74(changeDir2, ".sandcastle-run.log"), "utf8");
   } catch {
     return null;
   }
@@ -39792,7 +39904,7 @@ async function readAfkRunLog(changeDir2) {
 
 // packages/server/src/contextBundlePreviewSupport.ts
 import { lstatSync as lstatSync9, realpathSync as realpathSync7 } from "node:fs";
-import { isAbsolute as isAbsolute15, join as join74, relative as relative11, sep as sep14 } from "node:path";
+import { isAbsolute as isAbsolute15, join as join75, relative as relative11, sep as sep14 } from "node:path";
 var SCHEMA_VERSION = "context-bundle-preview/v1";
 var SIDE_EFFECTS = "none";
 var ContextBundlePathError = class extends Error {
@@ -39825,7 +39937,7 @@ function captureDirectoryIdentity(path14) {
 }
 function captureChangeParentPathAnchor(root) {
   const chain = [];
-  for (const path14 of [join74(root.path, "openspec"), join74(root.path, "openspec", "changes")]) {
+  for (const path14 of [join75(root.path, "openspec"), join75(root.path, "openspec", "changes")]) {
     try {
       chain.push(captureDirectoryIdentity(path14));
     } catch (error2) {
@@ -39837,9 +39949,9 @@ function captureChangeParentPathAnchor(root) {
 }
 function captureChangePathAnchor(root, change) {
   const chainPaths = [
-    join74(root.path, "openspec"),
-    join74(root.path, "openspec", "changes"),
-    join74(root.path, "openspec", "changes", change)
+    join75(root.path, "openspec"),
+    join75(root.path, "openspec", "changes"),
+    join75(root.path, "openspec", "changes", change)
   ];
   const chain = [];
   for (const path14 of chainPaths) {
@@ -40343,8 +40455,8 @@ async function buildRunDetail(repoRoot, changeDir2, changeName, deps) {
 }
 
 // packages/server/src/transition.ts
-import { readFile as readFile40 } from "node:fs/promises";
-import { join as join76 } from "node:path";
+import { readFile as readFile41 } from "node:fs/promises";
+import { join as join77 } from "node:path";
 
 // packages/server/src/transitionResult.ts
 function errText4(e) {
@@ -40488,8 +40600,8 @@ function mapTransitionResult(name, event, result2) {
 }
 
 // packages/server/src/transitionHistory.ts
-import { readFile as readFile39 } from "node:fs/promises";
-import { join as join75 } from "node:path";
+import { readFile as readFile40 } from "node:fs/promises";
+import { join as join76 } from "node:path";
 function decodeHistoryEntry(value) {
   if (typeof value !== "object" || value === null) return null;
   const record11 = value;
@@ -40519,7 +40631,7 @@ function decodeHistoryEntry(value) {
 async function readJsonlHistory(changeDir2) {
   let text7;
   try {
-    text7 = await readFile39(join75(changeDir2, HISTORY_FILE), "utf8");
+    text7 = await readFile40(join76(changeDir2, HISTORY_FILE), "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return [];
     throw error2;
@@ -40586,7 +40698,7 @@ async function performTransition(deps, root, name, event) {
   if (!name || !CHANGE_NAME_RE2.test(name) || name.includes("..")) {
     return { code: 400, body: { ok: false, error: "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09" } };
   }
-  const dir = join76(root, "openspec", "changes", name);
+  const dir = join77(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) {
     return { code: 404, body: { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" } };
   }
@@ -40661,16 +40773,23 @@ async function performTransition(deps, root, name, event) {
         return false;
       }
     },
-    missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => {
-      const slots = resolveRequiredSkillSlots(deps.skillResolver, capability, stepId);
+    // 与 CLI 的 check / transition / status 同一份判定（kernel judgeStepSkillSlots）：契约点名为
+    // producer 的必需技能，要在本次步骤访问里登记了它的文档才算完成。
+    missingStepSkills: async ({ changeDir: targetDir, stepId, capability, plan }) => {
       let historyRaw = "";
       try {
-        historyRaw = await readFile40(join76(targetDir, HISTORY_FILE), "utf8");
+        historyRaw = await readFile41(join77(targetDir, HISTORY_FILE), "utf8");
       } catch (error2) {
         if (error2.code !== "ENOENT") throw error2;
       }
-      const completed = completedWorkflowSkillsSinceStepEntry(historyRaw, stepId);
-      return slots.filter((slot) => !slot.alternatives.some((candidate2) => completed.has(candidate2))).map((slot) => slot.token);
+      const policy2 = plan.capabilities.documents.policy;
+      return missingStepSkillMessages(judgeStepSkillSlots({
+        slots: resolveRequiredSkillSlots(deps.skillResolver, capability, stepId),
+        completed: completedWorkflowSkillsSinceStepEntry(historyRaw, stepId),
+        policy: policy2,
+        stepId,
+        visitRecords: policy2 === void 0 ? [] : await documentRecordsInCurrentStepVisit(targetDir)
+      }));
     },
     resolveConstraintContext: async ({ policy: policy2 }) => {
       const registry = loadRegistry(root, nodeLoopIoStrict);
@@ -40827,7 +40946,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join77(root, "openspec", "changes", name);
+    const dir = join78(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -40845,7 +40964,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join77(root, "openspec", "changes", name);
+    const dir = join78(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -40863,7 +40982,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join77(root, "openspec", "changes", name);
+    const dir = join78(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -40880,7 +40999,7 @@ async function handleGetActivityRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverGetSessionRoutes.ts
-import { join as join78 } from "node:path";
+import { join as join79 } from "node:path";
 function isChangeName(name) {
   return name !== "" && /^[a-zA-Z0-9_-]+$/.test(name) && !name.includes("..");
 }
@@ -40895,7 +41014,7 @@ async function handleSessionLink(req, res, deps) {
   if (!deps.isRegisteredRoot(root)) {
     return deps.sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
   }
-  if (!stateStorageExistsSync(join78(root, "openspec", "changes", name))) {
+  if (!stateStorageExistsSync(join79(root, "openspec", "changes", name))) {
     return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
   }
   return deps.sendJson(res, 200, await deps.resolveSessionLink(root, name));
@@ -40915,7 +41034,7 @@ async function handleSessionLinks(req, res, deps) {
     roots.map(async (root, index) => {
       const name = names[index] ?? "";
       const key = `${name}@${root}`;
-      const valid = isChangeName(name) && root !== "" && deps.isRegisteredRoot(root) && stateStorageExistsSync(join78(root, "openspec", "changes", name));
+      const valid = isChangeName(name) && root !== "" && deps.isRegisteredRoot(root) && stateStorageExistsSync(join79(root, "openspec", "changes", name));
       links2[key] = valid ? await deps.resolveSessionLink(root, name) : { found: false, reason: "invalid" };
     })
   );
@@ -40994,13 +41113,13 @@ function handleGetTraceRoutes(req, res, path14, deps) {
 
 // packages/server/src/hostTargetDetection.ts
 import { closeSync as closeSync6, constants as constants15, fstatSync as fstatSync10, lstatSync as lstatSync10, openSync as openSync11, readSync as readSync6, readdirSync as readdirSync10 } from "node:fs";
-import { join as join79 } from "node:path";
+import { join as join80 } from "node:path";
 var MAX_HOST_INVENTORY_BYTES = 256 * 1024;
 function captureDirectoryChain(hostHome, segments2) {
   const identities = [];
   let candidate2 = hostHome;
   for (const segment of ["", ...segments2]) {
-    if (segment !== "") candidate2 = join79(candidate2, segment);
+    if (segment !== "") candidate2 = join80(candidate2, segment);
     try {
       const descriptor = openSync11(
         candidate2,
@@ -41053,7 +41172,7 @@ function hasInstalledPlugin(hostHome, namespaceSegments, markerSegments, options
   if (namespace === null) return false;
   try {
     try {
-      const path14 = join79(hostHome, ...namespaceSegments);
+      const path14 = join80(hostHome, ...namespaceSegments);
       const versions = options3.readPluginCacheEntries?.(path14) ?? readdirSync10(path14, { withFileTypes: true });
       if (versions.length > 128 || !directoryChainIsStable(namespace)) return false;
       return versions.some((version) => {
@@ -41061,7 +41180,7 @@ function hasInstalledPlugin(hostHome, namespaceSegments, markerSegments, options
         const segments2 = [...namespaceSegments, version.name, ...markerSegments];
         const directories = captureDirectoryChain(hostHome, segments2.slice(0, -1));
         if (directories === null) return false;
-        const marker = join79(hostHome, ...segments2);
+        const marker = join80(hostHome, ...segments2);
         let descriptor;
         try {
           if (!directoryChainIsStable(namespace) || !directoryChainIsStable(directories)) return false;
@@ -41090,7 +41209,7 @@ function readBoundedHostFile(hostHome, segments2) {
   if (segments2.length === 0) return null;
   const directories = captureDirectoryChain(hostHome, segments2.slice(0, -1));
   if (directories === null) return null;
-  const path14 = join79(hostHome, ...segments2);
+  const path14 = join80(hostHome, ...segments2);
   let descriptor;
   try {
     descriptor = openSync11(
@@ -41673,18 +41792,18 @@ function resolveDocumentReadRoute(req, path14, deps) {
 import { createReadStream } from "node:fs";
 import { lstat as lstat34, open as open8, realpath as realpath9 } from "node:fs/promises";
 import { constants as constants16 } from "node:fs";
-import { join as join81, relative as relative12, sep as sep15 } from "node:path";
+import { join as join82, relative as relative12, sep as sep15 } from "node:path";
 
 // packages/server/src/serverTestDirectionRoutes.ts
-import { mkdir as mkdir30, readFile as readFile41, readdir as readdir16, rm as rm12 } from "node:fs/promises";
-import { join as join80 } from "node:path";
+import { mkdir as mkdir30, readFile as readFile42, readdir as readdir16, rm as rm12 } from "node:fs/promises";
+import { join as join81 } from "node:path";
 var TEST_DIRECTION_MAX_BYTES = 64 * 1024;
 var ID_RE3 = /^[A-Za-z0-9_-]{1,64}$/u;
 function directionsRoot(configRoot) {
-  return join80(configRoot, "test-directions");
+  return join81(configRoot, "test-directions");
 }
 async function readScope(configRoot, source2) {
-  const dir = join80(directionsRoot(configRoot), source2);
+  const dir = join81(directionsRoot(configRoot), source2);
   let names;
   try {
     names = (await readdir16(dir)).filter((name) => name.endsWith(".yaml")).sort();
@@ -41694,7 +41813,7 @@ async function readScope(configRoot, source2) {
   const entries = [];
   for (const name of names) {
     try {
-      const yaml = await readFile41(join80(dir, name), "utf8");
+      const yaml = await readFile42(join81(dir, name), "utf8");
       const definition = parseTestDirection(yaml);
       if (definition.id !== name.replace(/\.yaml$/u, "")) continue;
       entries.push({ id: definition.id, label: definition.label, source: source2, yaml, definition });
@@ -41720,7 +41839,7 @@ function idOf(path14) {
 }
 async function isBuiltin(configRoot, id2) {
   try {
-    await readFile41(join80(directionsRoot(configRoot), "builtin", `${id2}.yaml`), "utf8");
+    await readFile42(join81(directionsRoot(configRoot), "builtin", `${id2}.yaml`), "utf8");
     return true;
   } catch {
     return false;
@@ -41734,11 +41853,11 @@ async function handleTestDirectionMutation(method, path14, body2, deps) {
   if (await isBuiltin(deps.configRoot, id2)) {
     return { status: 409, body: { ok: false, error: `\u5185\u5EFA\u65B9\u5411 '${id2}' \u53EA\u8BFB\uFF1B\u5148\u590D\u5236\u6210\u81EA\u5B9A\u4E49\u518D\u6539` } };
   }
-  const customDir = join80(directionsRoot(deps.configRoot), "custom");
-  const target = join80(customDir, `${id2}.yaml`);
+  const customDir = join81(directionsRoot(deps.configRoot), "custom");
+  const target = join81(customDir, `${id2}.yaml`);
   if (method === "DELETE") {
     try {
-      await readFile41(target, "utf8");
+      await readFile42(target, "utf8");
     } catch {
       return { status: 404, body: { ok: false, error: `\u65B9\u5411 '${id2}' \u4E0D\u5B58\u5728` } };
     }
@@ -41840,7 +41959,7 @@ async function resolveTestRunsRoute(url, path14, deps) {
   if (!SLUG_RE.test(query.user) || !TEST_RUN_ID_RE.test(query.run)) {
     return { status: 400, body: { ok: false, error: "user \u6216 run \u53C2\u6570\u975E\u6CD5" } };
   }
-  const recordPath2 = join81(testEvidencePaths(readRoot, query.user, query.change).runsDir, `${query.run}.json`);
+  const recordPath2 = join82(testEvidencePaths(readRoot, query.user, query.change).runsDir, `${query.run}.json`);
   let exists2 = false;
   try {
     exists2 = (await lstat34(recordPath2)).isFile();
@@ -41855,12 +41974,12 @@ async function resolveTestRunsRoute(url, path14, deps) {
   for (const output2 of record11.outputs) {
     if (output2.artifact === null) continue;
     try {
-      await lstat34(join81(runDir, ...output2.artifact.split("/")));
+      await lstat34(join82(runDir, ...output2.artifact.split("/")));
       files.push(output2.artifact);
     } catch {
     }
   }
-  const log2 = await lstat34(join81(runDir, record11.log.artifact)).then(() => true, () => false);
+  const log2 = await lstat34(join82(runDir, record11.log.artifact)).then(() => true, () => false);
   return { status: 200, body: { ok: true, record: record11, artifacts: { log: log2, files } } };
 }
 async function handleTestGetRoutes(req, res, path14, deps) {
@@ -41896,7 +42015,7 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
   }
   const readRoot = rootCheck2.anchor.fdPath ?? rootCheck2.anchor.realPath;
   const runDir = testRunArtifactsDir(readRoot, query.user, query.change, query.run);
-  const target = join81(runDir, ...query.path.split("/"));
+  const target = join82(runDir, ...query.path.split("/"));
   let size = 0;
   try {
     const entry = await lstat34(target);
@@ -41940,24 +42059,24 @@ async function handleTestArtifactRoute(req, res, path14, deps) {
 
 // packages/server/src/agentReferences.ts
 import { readFileSync as readFileSync24 } from "node:fs";
-import { join as join83 } from "node:path";
+import { join as join84 } from "node:path";
 
 // packages/server/src/serverSupport.ts
 import { readFileSync as readFileSync23 } from "node:fs";
-import { dirname as dirname19, join as join82 } from "node:path";
+import { dirname as dirname19, join as join83 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var REAL_GRADUATION_FS = {
   loadRegistry: (repoRoot) => loadRegistry(repoRoot),
   readRunLog: (repoRoot) => {
     try {
-      return readFileSync23(join82(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
+      return readFileSync23(join83(repoRoot, ".superpowers", "loops", "progress.md"), "utf8");
     } catch {
       return null;
     }
   },
   readLoopDoc: (repoRoot) => {
     try {
-      return readFileSync23(join82(repoRoot, "LOOP.md"), "utf8");
+      return readFileSync23(join83(repoRoot, "LOOP.md"), "utf8");
     } catch {
       return null;
     }
@@ -41972,7 +42091,7 @@ var REAL_GRADUATION_FS = {
   }
 };
 function repoRootForSkills() {
-  return join82(dirname19(fileURLToPath2(import.meta.url)), "..", "..", "..");
+  return join83(dirname19(fileURLToPath2(import.meta.url)), "..", "..", "..");
 }
 function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -42043,13 +42162,13 @@ function parsed(source2) {
 }
 function readGlobal(root, name) {
   try {
-    return readFileSync24(join83(workflowsDirUnder(root), `${name}.yaml`), "utf8");
+    return readFileSync24(join84(workflowsDirUnder(root), `${name}.yaml`), "utf8");
   } catch {
     return void 0;
   }
 }
 function agentReferences(paths, agent) {
-  const root = join83(paths.configRoot, "workflows");
+  const root = join84(paths.configRoot, "workflows");
   const stored = workflowNamesUnder(root);
   const found = [];
   for (const name of stored) {
@@ -42192,18 +42311,18 @@ function readDefaultOverride(anchor) {
 }
 
 // packages/server/src/instructionRoutes.ts
-import { join as join88 } from "node:path";
+import { join as join89 } from "node:path";
 
 // packages/server/src/instructionAudit.ts
 import { closeSync as closeSync7, constants as constants17, mkdirSync as mkdirSync5, openSync as openSync12, writeFileSync as writeFileSync6 } from "node:fs";
-import { dirname as dirname20, join as join84 } from "node:path";
+import { dirname as dirname20, join as join85 } from "node:path";
 var IDENTITY_REQUIRED = { status: 412, body: { ok: false, code: "user-missing", error: USER_MISSING_HINT } };
 function auditActor(resolve20, root) {
   const resolution = resolve20?.(root);
   return resolution !== void 0 && isTenonUser(resolution) ? actorOf(resolution) : null;
 }
 function recordInstructionAudit(configRoot, row) {
-  const path14 = join84(configRoot, "templates", "instructions", "audit.jsonl");
+  const path14 = join85(configRoot, "templates", "instructions", "audit.jsonl");
   let fd;
   try {
     mkdirSync5(dirname20(path14), { recursive: true });
@@ -42220,7 +42339,7 @@ function recordInstructionAudit(configRoot, row) {
 
 // packages/server/src/instructionLibrary.ts
 import { mkdirSync as mkdirSync6 } from "node:fs";
-import { join as join85 } from "node:path";
+import { join as join86 } from "node:path";
 
 // packages/server/src/instructionTrustedFs.ts
 import { randomUUID as randomUUID15 } from "node:crypto";
@@ -42343,7 +42462,7 @@ function trustedFsFailure(error2) {
 // packages/server/src/instructionLibrary.ts
 var anchors = /* @__PURE__ */ new Map();
 function templateLibraryAnchor(configRoot) {
-  const root = join85(configRoot, "templates", "instructions");
+  const root = join86(configRoot, "templates", "instructions");
   const cached = anchors.get(root);
   if (cached) {
     try {
@@ -42518,7 +42637,7 @@ function composeFromRequest(anchor, body2, catalog2) {
 
 // packages/server/src/instructionFiles.ts
 import { mkdirSync as mkdirSync7 } from "node:fs";
-import { join as join86 } from "node:path";
+import { join as join87 } from "node:path";
 var INSTRUCTION_TEXT_MAX_BYTES = 256 * 1024;
 var fail7 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
 function targetIdsFor(scope) {
@@ -42533,12 +42652,12 @@ function captureRoot(path14, create2) {
 }
 function locate(scope, id2, create2) {
   if (!targetIdsFor(scope).includes(id2)) return null;
-  if (scope.level === "project") return { root: scope.anchor, owned: false, dirs: [], name: id2, path: join86(scope.anchor.path, id2) };
+  if (scope.level === "project") return { root: scope.anchor, owned: false, dirs: [], name: id2, path: join87(scope.anchor.path, id2) };
   const segments2 = userInstructionPath(id2, scope);
   const [rootPath, ...rest] = segments2 ?? [];
   const name = rest.at(-1);
   if (rootPath === void 0 || name === void 0) return null;
-  return { root: captureRoot(rootPath, create2), owned: true, dirs: rest.slice(0, -1), name, path: join86(rootPath, ...rest) };
+  return { root: captureRoot(rootPath, create2), owned: true, dirs: rest.slice(0, -1), name, path: join87(rootPath, ...rest) };
 }
 function release2(location) {
   if (location.owned && location.root) closeWorkflowRootAnchor(location.root);
@@ -42589,7 +42708,7 @@ function readInstructionTargets(scope) {
     if (scope.level === "user") return { id: host.id, levels: host.levels, target: hasUserInstructionFile(host.id) ? host.id : null };
     const row = { id: host.id, levels: host.levels, target: host.projectFile };
     if (host.id !== "zed") return row;
-    return { ...row, effective_file: zedEffectiveFile((file) => lstatIfExists(join86(scope.anchor.path, file)) !== void 0) };
+    return { ...row, effective_file: zedEffectiveFile((file) => lstatIfExists(join87(scope.anchor.path, file)) !== void 0) };
   });
   return {
     status: 200,
@@ -42709,7 +42828,7 @@ function deleteInstructionTarget(scope, targetId, digest14) {
 // packages/server/src/projectCreate.ts
 import { execFile as execFile8 } from "node:child_process";
 import { lstatSync as lstatSync13, mkdirSync as mkdirSync8, rmSync } from "node:fs";
-import { isAbsolute as isAbsolute16, join as join87, resolve as resolvePath6 } from "node:path";
+import { isAbsolute as isAbsolute16, join as join88, resolve as resolvePath6 } from "node:path";
 
 // packages/server/src/projects.ts
 import { lstatSync as lstatSync12, statSync as statSync7 } from "node:fs";
@@ -42820,7 +42939,7 @@ function decodeProjectCreate(body2) {
   if (request.mode === "empty") {
     if (!absolutePath(request.parent) || typeof request.name !== "string" || !NAME.test(request.name)) return fail8(400, "invalid-path", "\u7236\u76EE\u5F55\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u540D\u79F0\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u3001. _ -");
     const parent = resolvePath6(request.parent);
-    return { mode: "empty", parent, root: join87(parent, request.name), directories: directories.map(String), instructions, dryRun };
+    return { mode: "empty", parent, root: join88(parent, request.name), directories: directories.map(String), instructions, dryRun };
   }
   if (request.mode === "existing") {
     if (!absolutePath(request.path)) return fail8(400, "invalid-path", "\u8DEF\u5F84\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84");
@@ -42853,7 +42972,7 @@ async function planProjectCreate(plan, deps) {
         directories: plan.directories.map((path14) => ({ path: path14, exists: false })),
         files: (plan.instructions?.targets ?? []).map((id2) => ({
           id: id2,
-          path: join87(plan.root, id2),
+          path: join88(plan.root, id2),
           base_digest: "absent",
           current: null,
           next: mergeManagedBlocks(plan.instructions?.text ?? "", [])
@@ -42879,7 +42998,7 @@ async function planProjectCreate(plan, deps) {
     body: {
       ok: true,
       root: plan.root,
-      git: lstatIfExists(join87(plan.root, ".git")) ? "existing" : "none",
+      git: lstatIfExists(join88(plan.root, ".git")) ? "existing" : "none",
       registration: registered(deps, plan.root) ? "already" : "add",
       directories: [],
       files
@@ -42948,7 +43067,7 @@ async function executeExisting(plan, deps) {
       closeWorkflowRootAnchor(anchor);
     }
   }
-  const git = lstatIfExists(join87(plan.root, ".git")) ? "existing" : "none";
+  const git = lstatIfExists(join88(plan.root, ".git")) ? "existing" : "none";
   if (registered(deps, plan.root)) {
     return { status: 200, body: { ok: true, root: plan.root, git, registration: "already", directories: [], files } };
   }
@@ -42999,7 +43118,7 @@ function digestOf(result2) {
   const body2 = result2.body;
   return typeof body2?.digest === "string" ? body2.digest : "absent";
 }
-var instructionTarget = (root, id2) => root === "" ? `user/${id2}` : join88(root, id2);
+var instructionTarget = (root, id2) => root === "" ? `user/${id2}` : join89(root, id2);
 function objectBody(value, keys2) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const record11 = Object.fromEntries(Object.entries(value));
@@ -43319,7 +43438,7 @@ function resolveAgentMutation(req, method, path14, deps) {
 
 // packages/server/src/designSeed.ts
 import { writeFileSync as writeFileSync8 } from "node:fs";
-import { join as join89 } from "node:path";
+import { join as join90 } from "node:path";
 var DESIGN_SEED_MAX_BYTES = 512 * 1024;
 var FETCH_TIMEOUT_MS = 1e4;
 var httpsDesignSeedFetch = async (url) => {
@@ -43356,7 +43475,7 @@ async function fetchDesignSeed(entry, get) {
 }
 function writeDesignSeed(root, text7) {
   try {
-    writeFileSync8(join89(root, "DESIGN.md"), text7, { encoding: "utf8", flag: "wx" });
+    writeFileSync8(join90(root, "DESIGN.md"), text7, { encoding: "utf8", flag: "wx" });
   } catch (error2) {
     const code = error2.code;
     if (code === "EEXIST") return { ok: false, code: "exists", error: "DESIGN.md \u5DF2\u5B58\u5728" };
@@ -43967,7 +44086,7 @@ import {
   openSync as openSync14,
   realpathSync as realpathSync8
 } from "node:fs";
-import { isAbsolute as isAbsolute17, join as join90, posix as posix4, relative as relative13, sep as sep16 } from "node:path";
+import { isAbsolute as isAbsolute17, join as join91, posix as posix4, relative as relative13, sep as sep16 } from "node:path";
 
 // packages/server/src/workflowDefinitionStatus.ts
 function projectWorkflowDefinitionStatus(workflow, frozenFingerprint, current) {
@@ -44025,7 +44144,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
     }
   };
   assertTrustContext();
-  const lexicalTarget = join90(changeAnchor.changeDir, "tasks.md");
+  const lexicalTarget = join91(changeAnchor.changeDir, "tasks.md");
   const changeIdentity = changeAnchor.chain.at(-1);
   if (changeIdentity === void 0) {
     throw new ContextBundlePathError(403, "Change tasks directory identity is missing");
@@ -44047,7 +44166,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
     throw new ContextBundlePathError(403, "Change tasks directory identity changed while anchoring");
   }
   assertTrustContext();
-  const target = join90(anchoredChangeDir, "tasks.md");
+  const target = join91(anchoredChangeDir, "tasks.md");
   let fd;
   try {
     fd = openSync14(
@@ -44611,7 +44730,7 @@ async function resolveOrchestrationRoutes(rawUrl, path14, deps) {
 }
 
 // packages/server/src/serverOrchestrationV2Routes.ts
-import { join as join91 } from "node:path";
+import { join as join92 } from "node:path";
 var CHANGE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 var PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 var CURSOR = /^(?:0|[1-9][0-9]{0,9})$/u;
@@ -44625,7 +44744,7 @@ function validChangeId(value) {
   return value !== "." && value !== ".." && CHANGE_ID.test(value) && !value.includes("/") && !value.includes("\\");
 }
 function changeDir(anchor, changeId) {
-  return join91(anchor.path, "openspec", "changes", changeId);
+  return join92(anchor.path, "openspec", "changes", changeId);
 }
 function rootCheck(deps, root) {
   if (root === "") return failure6(400, "ORCHESTRATION_V2_ROOT_REQUIRED", "\u7F3A\u5C11 root \u53C2\u6570");
@@ -45311,7 +45430,7 @@ async function resolveSkillInvocationRoute(rawUrl, path14, deps) {
 }
 
 // packages/server/src/serverGetDecisionRoutes.ts
-import { join as join92 } from "node:path";
+import { join as join93 } from "node:path";
 
 // packages/server/src/decisionProjection.ts
 async function readReviewBindingSafely(dir) {
@@ -45353,7 +45472,7 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
   const root = query.get("root") ?? "";
   const checked = deps.workflowRootForRequest(root);
   if (!checked.ok) return deps.sendJson(res, checked.code, { ok: false, error: checked.error }), true;
-  const dir = join92(checked.anchor.path, "openspec", "changes", name);
+  const dir = join93(checked.anchor.path, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" }), true;
   try {
     const view = await readPendingDecisionProjection({
@@ -45369,7 +45488,7 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
 }
 
 // packages/server/src/serverTaskLifecycleRoutes.ts
-import { join as join93 } from "node:path";
+import { join as join94 } from "node:path";
 var DELETE_FAILED = "\u5220\u9664\u5931\u8D25";
 var TASK_ARCHIVED_HTTP_ERROR = "\u4EFB\u52A1\u5DF2\u5F52\u6863\uFF0C\u5148\u53D6\u6D88\u5F52\u6863";
 var REASON_CODES = [
@@ -45544,7 +45663,7 @@ async function handleTaskLifecycleDelete(req, res, path14, deps) {
     sendJson(res, 500, { ok: false, code: "delete-failed", error: DELETE_FAILED });
     return true;
   }
-  taskLifecycle.evictChange(join93(repoRoot, "openspec", "changes", change));
+  taskLifecycle.evictChange(join94(repoRoot, "openspec", "changes", change));
   sendJson(res, 200, {
     ok: true,
     removed: outcome.removed,
@@ -45555,7 +45674,7 @@ async function handleTaskLifecycleDelete(req, res, path14, deps) {
 
 // packages/server/src/serverGetRoutes.ts
 function repoRootForSkills2() {
-  return join94(dirname21(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join95(dirname21(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function isWorkflowName2(name) {
   return name !== "" && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name);
@@ -45670,7 +45789,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync15(join94(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync15(join95(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -45693,7 +45812,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync15(join94(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync15(join95(rootCheck2.anchor.path, ".pipeline"));
       } catch (e) {
         if (e.code === "ENOENT") pipelineExists = false;
         else throw e;
@@ -45857,7 +45976,7 @@ async function handleGet(req, res, path14, deps) {
       image,
       secretsPath: paths.secretsPath,
       exec: options3.execDocker,
-      defaultCodexHome: join94(hostHome, ".codex")
+      defaultCodexHome: join95(hostHome, ".codex")
     });
     return sendJson(res, 200, r);
   }
@@ -46159,7 +46278,7 @@ async function handlePutRoute(req, res, path14, deps) {
 // packages/server/src/changeLaunch.ts
 import { randomUUID as randomUUID17 } from "node:crypto";
 import { lstat as lstat35, rename as rename15, unlink as unlink5, writeFile as writeFile22 } from "node:fs/promises";
-import { join as join95 } from "node:path";
+import { join as join96 } from "node:path";
 var CHANGE_TASK_FILE = "REAL_AGENT_TASK.md";
 var MAX_TASK_PROMPT_CHARS = 24e3;
 function errorCode8(error2) {
@@ -46190,7 +46309,7 @@ async function writeChangeTaskPrompt(changeDir2, prompt) {
   if (!dirStat.isDirectory() || dirStat.isSymbolicLink()) {
     throw new Error("Change \u76EE\u5F55\u4E0D\u662F\u53EF\u4FE1\u666E\u901A\u76EE\u5F55\uFF0C\u62D2\u7EDD\u4FDD\u5B58\u4EFB\u52A1\u63D0\u793A\u8BCD");
   }
-  const target = join95(changeDir2, CHANGE_TASK_FILE);
+  const target = join96(changeDir2, CHANGE_TASK_FILE);
   let targetExists = false;
   try {
     await lstat35(target);
@@ -46199,7 +46318,7 @@ async function writeChangeTaskPrompt(changeDir2, prompt) {
     if (errorCode8(error2) !== "ENOENT") throw error2;
   }
   if (targetExists) throw new Error("\u4EFB\u52A1\u63D0\u793A\u8BCD\u5DF2\u5B58\u5728\uFF0C\u62D2\u7EDD\u8986\u76D6");
-  const temporary = join95(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
+  const temporary = join96(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
   try {
     await writeFile22(temporary, `${prompt}
 `, { encoding: "utf8", flag: "wx", mode: 384 });
@@ -46465,10 +46584,10 @@ async function handlePostChangesRoutes(req, res, path14, deps) {
 
 // packages/server/src/serverPostExecutionRoutes.ts
 import { randomUUID as randomUUID18 } from "node:crypto";
-import { join as join97 } from "node:path";
+import { join as join98 } from "node:path";
 
 // packages/server/src/serverPostDecisionRoutes.ts
-import { join as join96 } from "node:path";
+import { join as join97 } from "node:path";
 var DECISION_COMMAND_FAILED = "\u51B3\u7B56\u547D\u4EE4\u5904\u7406\u5931\u8D25";
 function scalar11(state, field3) {
   const value = state.fields[field3];
@@ -46514,7 +46633,7 @@ async function handlePostDecisionRoutes(req, res, path14, deps) {
     sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
     return true;
   }
-  const dir = join96(root, "openspec", "changes", name);
+  const dir = join97(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) {
     sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     return true;
@@ -46749,7 +46868,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join97(root2, "openspec", "changes", name2);
+    const dir = join98(root2, "openspec", "changes", name2);
     const result2 = await cancelAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -46769,7 +46888,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join97(root2, "openspec", "changes", name2);
+    const dir = join98(root2, "openspec", "changes", name2);
     const result2 = await retryAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -46789,7 +46908,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join97(root2, "openspec", "changes", name2);
+    const dir = join98(root2, "openspec", "changes", name2);
     const result2 = await dismissAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -46809,7 +46928,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join97(root2, "openspec", "changes", name2);
+    const dir = join98(root2, "openspec", "changes", name2);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -46978,6 +47097,20 @@ async function handlePostGovernanceRoutes(req, res, path14, deps) {
     const validated = validateMandatorySkillsBody(body2);
     if (!validated.ok) return sendJson(res, 400, { ok: false, error: validated.error });
     const { phase, track, skills } = validated.value;
+    let offenders;
+    try {
+      offenders = await nonInvocableSkillTokens(deps.skillsRoot, skills);
+    } catch (e) {
+      return sendJson(res, 400, { ok: false, error: errMsg2(e) });
+    }
+    if (offenders.length > 0) {
+      return sendJson(res, 400, {
+        ok: false,
+        code: "mandatory-skill-not-invocable",
+        error: `\u5F3A\u5236\u6280\u80FD\u5FC5\u987B\u5141\u8BB8\u6A21\u578B\u8C03\u7528\uFF1B\u4EE5\u4E0B\u6280\u80FD\u5E26 disable-model-invocation: true\uFF0C\u5BBF\u4E3B\u4E0D\u4F1A\u4EE3\u6A21\u578B\u8C03\u7528\uFF1A${offenders.map((item2) => item2.token).join("\u3001")}`,
+        detail: offenders.map((item2) => ({ token: item2.token, skill_ids: item2.skillIds }))
+      });
+    }
     try {
       await writeMandatorySkills(manifestPath2, phase, track, skills);
     } catch (e) {
@@ -47135,7 +47268,7 @@ async function handlePostGovernanceRoutes(req, res, path14, deps) {
 
 // packages/server/src/serverPostOperationsRoutes.ts
 import { lstatSync as lstatSync16 } from "node:fs";
-import { join as join98 } from "node:path";
+import { join as join99 } from "node:path";
 
 // packages/server/src/loopScopePreview.ts
 import {
@@ -47167,7 +47300,7 @@ function registryReadError(error2) {
   const detail = error2 instanceof Error ? error2.message : String(error2);
   return new RegistryReadError(`loops.yaml \u8BFB\u5931\u8D25\uFF08${code}\uFF09\uFF1A${detail}`);
 }
-function readTrustedLoopRegistry(anchor, readFile43 = (fd) => readFileSync26(fd, "utf8")) {
+function readTrustedLoopRegistry(anchor, readFile44 = (fd) => readFileSync26(fd, "utf8")) {
   return readWithLoopScopeRootTrust(
     () => assertWorkflowRootAnchor(anchor),
     () => {
@@ -47215,7 +47348,7 @@ function readTrustedLoopRegistry(anchor, readFile43 = (fd) => readFileSync26(fd,
               assertDirectoryStillTrusted(pipeline, anchor);
               let text7;
               try {
-                text7 = readFile43(fd);
+                text7 = readFile44(fd);
               } catch (error2) {
                 throw registryReadError(error2);
               }
@@ -47424,7 +47557,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync16(join98(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync16(join99(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -47611,7 +47744,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join98(root, "openspec", "changes", name);
+    const dir = join99(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -47640,7 +47773,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverPostMemoryRoutes.ts
-import { join as join99 } from "node:path";
+import { join as join100 } from "node:path";
 var RELATED_SEARCH_PATH = "/api/mem/related-sessions/search";
 var PLATFORM_VALUES = /* @__PURE__ */ new Set(["all", "claude", "codex", "opencode", "pi"]);
 var CHANGE_NAME_RE3 = /^[a-zA-Z0-9_-]+$/;
@@ -47679,7 +47812,7 @@ async function handlePostMemoryRoutes(req, res, path14, deps) {
   const anchoredRoot = rootCheck2.anchor.path;
   let changeExists = false;
   try {
-    changeExists = stateStorageExistsSync(join99(anchoredRoot, "openspec", "changes", name));
+    changeExists = stateStorageExistsSync(join100(anchoredRoot, "openspec", "changes", name));
   } catch {
     return missingTarget(deps, res);
   }
@@ -47915,7 +48048,7 @@ function createFreezeHandlers(deps) {
 
 // packages/server/src/serverTransport.ts
 import { readFileSync as readFileSync27 } from "node:fs";
-import { join as join100 } from "node:path";
+import { join as join101 } from "node:path";
 import { gzipSync } from "node:zlib";
 
 // packages/server/src/singleFlight.ts
@@ -48099,7 +48232,7 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
   function serveIndexWithToken(res) {
     if (!webRoot) return false;
     try {
-      let html = readFileSync27(join100(webRoot, "index.html"), "utf8");
+      let html = readFileSync27(join101(webRoot, "index.html"), "utf8");
       const jsToken = JSON.stringify(token).replace(/</g, "\\u003c");
       const inject = `<script>window.__TENON_DASHBOARD_TOKEN__ = ${jsToken};</script>`;
       html = html.includes("</head>") ? html.replace("</head>", `${inject}</head>`) : `${inject}${html}`;
@@ -48113,8 +48246,8 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
     if (!webRoot || !path14.startsWith("/assets/")) return false;
     const rel = path14.slice(1);
     if (rel.includes("..")) return false;
-    const abs = join100(webRoot, rel);
-    if (!abs.startsWith(join100(webRoot, "assets"))) return false;
+    const abs = join101(webRoot, rel);
+    if (!abs.startsWith(join101(webRoot, "assets"))) return false;
     try {
       const source2 = readFileSync27(abs);
       const ext = abs.slice(abs.lastIndexOf("."));
@@ -48154,7 +48287,7 @@ data: ${JSON.stringify(await buildSnapshot(deps))}
 // packages/server/src/serverGovernance.ts
 import { mkdirSync as mkdirSync9 } from "node:fs";
 import { readdir as readdir17 } from "node:fs/promises";
-import { join as join101, resolve as resolvePath11 } from "node:path";
+import { join as join102, resolve as resolvePath11 } from "node:path";
 function createServerGovernance(options3) {
   const { registry, globalWorkflowRoot: globalWorkflowRoot2, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options3;
   function trackRegistryBody(trackRegistry) {
@@ -48166,7 +48299,7 @@ function createServerGovernance(options3) {
     };
   }
   async function scanActiveTrackChanges(root) {
-    const changesRoot = join101(root, "openspec", "changes");
+    const changesRoot = join102(root, "openspec", "changes");
     let entries;
     try {
       entries = await readdir17(changesRoot, { withFileTypes: true });
@@ -48179,7 +48312,7 @@ function createServerGovernance(options3) {
     const unreadable = [];
     for (const name of names) {
       try {
-        const state = await store.read(join101(changesRoot, name));
+        const state = await store.read(join102(changesRoot, name));
         const track = state.fields.track;
         const workflow = state.fields.workflow;
         refs.push({
@@ -48301,7 +48434,7 @@ function createServerGovernance(options3) {
   const globalWorkflowStore = () => {
     try {
       if (globalAnchor === null) {
-        mkdirSync9(join101(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
+        mkdirSync9(join102(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
         globalAnchor = captureWorkflowRootAnchor(globalWorkflowRoot2);
       } else {
         assertWorkflowRootAnchor(globalAnchor);
@@ -48393,9 +48526,9 @@ function createRelatedSessionSearchExecutor(runner) {
 }
 
 // packages/server/src/sessionLinkResolver.ts
-import { join as join102 } from "node:path";
+import { join as join103 } from "node:path";
 async function resolveSessionLink(root, name, deps) {
-  const changeDir2 = join102(root, "openspec", "changes", name);
+  const changeDir2 = join103(root, "openspec", "changes", name);
   try {
     const wtRaw = await deps.store.get(changeDir2, "automation_worktree");
     const wt = Array.isArray(wtRaw) ? wtRaw.join(",") : wtRaw ?? "";
@@ -48421,7 +48554,7 @@ async function resolveSessionLink(root, name, deps) {
 
 // packages/server/src/version.ts
 import { readFileSync as readFileSync28 } from "node:fs";
-import { basename as basename8, dirname as dirname22, join as join103 } from "node:path";
+import { basename as basename8, dirname as dirname22, join as join104 } from "node:path";
 var SERVER_VERSION = "0.1.0";
 var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
 function isPluginManifestVersion(value) {
@@ -48430,7 +48563,7 @@ function isPluginManifestVersion(value) {
 function resolveReleaseVersion(pluginRoot2) {
   for (const relative14 of [".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
     try {
-      const parsed2 = JSON.parse(readFileSync28(join103(pluginRoot2, relative14), "utf8"));
+      const parsed2 = JSON.parse(readFileSync28(join104(pluginRoot2, relative14), "utf8"));
       if (isPluginManifestVersion(parsed2) && typeof parsed2.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed2.version)) {
         return parsed2.version;
       }
@@ -48500,7 +48633,7 @@ function createDashboardServer(options3) {
       locator: createRunnerSkillContentLocator({
         runner,
         home: hostHome,
-        bundledRoot: join104(repoRootForSkills(), "skills")
+        bundledRoot: join105(repoRootForSkills(), "skills")
       }),
       isSkillProfileKnown: (profileId) => profileId === "_all" || trackSkillProfiles.has(profileId)
     });
@@ -48693,6 +48826,7 @@ function createDashboardServer(options3) {
     manifestPath: manifestPath2,
     paths,
     validateLoopActivation,
+    skillsRoot: options3.skillsRoot ?? join105(repoRootForSkills(), "skills"),
     mutateTrackForApi: mutateTrackForRoutes,
     trackRegistryBody,
     sendTrackError,
@@ -49013,10 +49147,10 @@ function managedTransactionId() {
   return value;
 }
 function pluginRoot() {
-  return join105(dirname24(fileURLToPath4(import.meta.url)), "..", "..", "..");
+  return join106(dirname24(fileURLToPath4(import.meta.url)), "..", "..", "..");
 }
 function manifestPath() {
-  return join105(pluginRoot(), "templates", "manifest.yaml");
+  return join106(pluginRoot(), "templates", "manifest.yaml");
 }
 function gitHeadSha(cwd) {
   return new Promise((resolve20) => {
@@ -49083,7 +49217,7 @@ async function main() {
     gitHeadSha,
     workspaceFingerprint: (cwd) => fingerprintWorkspace(cwd),
     // dashboard-app 构建产物（BACKLOG #26c）：存在则服务真 SPA，否则回退最小落地页
-    webRoot: join105(dirname24(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
+    webRoot: join106(dirname24(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
     // tap 流量查看器数据源：只读 sessions/records/timeline；完整 reader 才声明 traffic=true。
     // tap capture 默认 OFF，无捕获时返回空会话——数据端仍在线（#34e：只读本地、不外发）
     traceStore: createTraceStore(),
