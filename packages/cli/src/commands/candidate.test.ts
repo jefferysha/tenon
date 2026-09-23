@@ -29,12 +29,19 @@ describe('review candidate normalization', () => {
       fields: { phase: 'verify', build_sha: token.value } as PipelineState['fields'],
       opaqueTail: '',
     }
-    const candidate = await currentCandidate(
-      { cwd: '/repo', workspaceFingerprint: async () => 'workspace:sha256:' + 'b'.repeat(64) } as never,
-      'demo', state, plan, 'verify',
-    )
+    // 没有工作区指纹能力时才回落到冻结的 build token。
+    const candidate = await currentCandidate({ cwd: '/repo' } as never, 'demo', state, plan, 'verify')
     expect(candidate).toBe(`sha256:${token.revisionHash}`)
     expect(normalizeCandidate(token.value)).toBe(candidate)
+
+    // 有指纹能力时即使 verify 冻结了 build token 也用工作区指纹：改了代码，候选随之改变，
+    // 绑在旧候选上的评审结论因此过期（与测试记录同一口径）。
+    let tree = 'b'
+    const deps = { cwd: '/repo', workspaceFingerprint: async () => 'workspace:sha256:' + tree.repeat(64) } as never
+    const before = await currentCandidate(deps, 'demo', state, plan, 'verify')
+    expect(before).toBe('workspace:sha256:' + 'b'.repeat(64))
+    tree = 'c'
+    expect(await currentCandidate(deps, 'demo', state, plan, 'verify')).not.toBe(before)
   })
 
   it('rejects malformed, whitespace-padded, and structurally non-canonical token candidates', () => {
