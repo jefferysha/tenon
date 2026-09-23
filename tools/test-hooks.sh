@@ -171,12 +171,15 @@ for m in confirm review interaction; do
   assert_exit "gate: 新鲜 .pipeline-pending-$m → exit 2" 2 "$RC"
   [ -n "$ERR" ] && ok "gate: 新鲜 $m 时 stderr 有中文指引" || bad "gate: 新鲜 $m 时 stderr 有中文指引" "stderr 为空"
   assert_contains "gate: 指引提到 AskUserQuestion（${m}）" "$ERR" "AskUserQuestion"
+  assert_contains "gate: 指引说明先用 ToolSearch 载入提问工具（${m}）" "$ERR" 'ToolSearch 查询 "select:AskUserQuestion"'
 done
 
 # 人类交互工具不是产出工具：marker 必须继续挡住写入，但不能挡住它自己向用户提问，
 # 否则 interactive skill 会在“需要问用户”与“不能发问”之间自锁。Codex 的真实工具名为
 # request_user_input，Claude 兼容名为 AskUserQuestion；两者都必须精确放行。
-for tool in AskUserQuestion request_user_input; do
+# Claude Code 的 AskUserQuestion 是延迟加载工具，须先经 ToolSearch 载入：ToolSearch 也必须放行，
+# 否则 interaction marker 会让模型既不能加载、也不能调用提问工具（v0.1.1 真实会话死锁）。
+for tool in AskUserQuestion request_user_input ToolSearch; do
   proj="$TMP/gate-human-question-$tool"
   mkdir -p "$proj"
   touch "$proj/.pipeline-pending-interaction"

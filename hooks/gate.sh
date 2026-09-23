@@ -3,7 +3,7 @@
 #
 # 机制：项目根存在新鲜（TTL 分级，CONTRACT §2 / types.ts GATE_TTL_MS）的
 #   .pipeline-pending-{confirm,review,interaction} 任一 marker → 对产出类工具 exit 2 + stderr 中文指引；
-#   原生人类提问工具 AskUserQuestion / request_user_input 是唯一例外：它们只负责把决策交给用户，
+#   原生人类提问工具 AskUserQuestion / request_user_input 及其加载器 ToolSearch 是例外：它们只负责把决策交给用户，
 #   不会绕过 marker 或写入产出；无 marker / 陈旧（顺手清掉）→ exit 0。
 # TTL 分级（BACKLOG #13，对齐老内核 pipeline-gate.sh，勿改回统一值）：
 #   - confirm 300s：正常流程同轮 AskUserQuestion 即清（秒级），300s 只是「漏确认」安全网。
@@ -371,13 +371,15 @@ for kind in confirm review interaction; do
     # request_user_input 也拦住，会形成“必须先问、却不能发问”的自锁；它们的
     # PostToolUse handler 在拿到真实回答后才会清 marker，故此处只是精确放行，
     # 绝不删除 marker，也不放行任何写类工具。
+    # ToolSearch 只加载延迟工具的 schema：Claude Code 里 AskUserQuestion 是延迟加载工具，
+    # 必须先经 ToolSearch 载入才能调用；拦住它同样会形成“必须先问、却不能发问”的死锁。
     case "$TOOL" in
-      AskUserQuestion|request_user_input) continue ;;
+      AskUserQuestion|request_user_input|ToolSearch) continue ;;
     esac
     # 读取不会扩大权限，也不清 marker。允许它能让 Agent 在等待决定时继续核对事实，
     # 同时 state transition、外部副作用和任何未知动作仍 fail closed。
     pipeline_tool_is_read_only "$TOOL" && continue
-    printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认。支持 AskUserQuestion 的宿主可在该交互后解封；没有提问工具时，用户回复「确认继续」（或「继续执行」「同意继续」）即解封，带条件或不含这些词的回复不会解封，再重发本次操作。\n' "$base" "$TOOL" >&2
+    printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认：调用 AskUserQuestion 提问（Claude Code 中它若尚未加载，先用 ToolSearch 查询 \"select:AskUserQuestion\" 载入；Codex 用 request_user_input），该交互完成后解封；等待期间 Read/Grep/Glob 等只读工具不受拦截。没有提问工具时，用户回复「确认继续」（或「继续执行」「同意继续」）即解封，带条件或不含这些词的回复不会解封，再重发本次操作。\n' "$base" "$TOOL" >&2
     exit 2
   fi
 done
