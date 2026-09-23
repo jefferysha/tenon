@@ -52,7 +52,7 @@ Server: `DashboardServerOptions.resolveUser(root)`, `GET/POST /api/user`, `POST 
   `active-change`, `authority`, `archived.json`, `artifacts/`). Directories must be ordinary; readers ignore a symlinked
   `local/`. The whole `.tenon/` directory is excluded from the workspace fingerprint.
 - **`.pipeline/` local state:** the same nested pattern — `<repo>/.pipeline/.gitignore` (kernel
-  `PIPELINE_PROJECT_GITIGNORE`: `cache/`, `terminal-sessions/`, `codex-skill-receipts.jsonl`; created once by
+  `WORKFLOW_STATE_GITIGNORE`: `cache/`, `terminal-sessions/`, `codex-skill-receipts.jsonl`; created once by
   `ensurePipelineGitignore` before any of those is written, never rewritten). `hooks/router.sh` writes the router cache
   without Node and carries a byte-identical copy. Shared configuration (`workflows/`, `tracks.yaml`, `hooks.json`,
   `loops.yaml`, …) stays tracked.

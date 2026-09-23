@@ -20291,7 +20291,7 @@ function liveTerminalActivity(record11, nowMs) {
 }
 
 // packages/kernel/dist/workspace/pipeline-gitignore.js
-var PIPELINE_PROJECT_GITIGNORE = [
+var WORKFLOW_STATE_GITIGNORE = [
   "# Tenon local runtime state; shared configuration in this directory stays tracked.",
   "cache/",
   "terminal-sessions/",

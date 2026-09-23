@@ -11,10 +11,10 @@
 import { lstat, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-export const PIPELINE_PROJECT_DIR = '.pipeline'
+export const WORKFLOW_STATE_DIR = '.pipeline'
 
 /** Router data cache (regenerated), host-session bindings (per conversation), Codex read receipts (per machine). */
-export const PIPELINE_PROJECT_GITIGNORE = [
+export const WORKFLOW_STATE_GITIGNORE = [
   '# Tenon local runtime state; shared configuration in this directory stays tracked.',
   'cache/',
   'terminal-sessions/',
@@ -30,7 +30,7 @@ function errnoCode(error: unknown): string | undefined {
 
 /** Create `<repoRoot>/.pipeline/.gitignore` if absent.  A `.pipeline` that is not a plain directory is refused. */
 export async function ensurePipelineGitignore(repoRoot: string): Promise<void> {
-  const dir = join(repoRoot, PIPELINE_PROJECT_DIR)
+  const dir = join(repoRoot, WORKFLOW_STATE_DIR)
   try {
     await mkdir(dir)
   } catch (error) {
@@ -39,7 +39,7 @@ export async function ensurePipelineGitignore(repoRoot: string): Promise<void> {
   const entry = await lstat(dir)
   if (!entry.isDirectory()) throw new Error(`目录不是普通目录: ${dir}`)
   try {
-    await writeFile(join(dir, '.gitignore'), PIPELINE_PROJECT_GITIGNORE, { flag: 'wx' })
+    await writeFile(join(dir, '.gitignore'), WORKFLOW_STATE_GITIGNORE, { flag: 'wx' })
   } catch (error) {
     if (errnoCode(error) !== 'EEXIST') throw error
   }

@@ -168,6 +168,13 @@ if [ -f "$BUNDLE" ]; then
   [ "$?" -eq 0 ] \
     && ok "bundle: hook 记录 openspec-propose 调用证据" \
     || bad "bundle: hook 记录 openspec-propose 调用证据" "skill-tracker 失败"
+  # document record 拒绝仍含模板占位符的骨架：先像真实作者一样填上内容，再登记。
+  node -e '
+    const fs = require("node:fs")
+    for (const path of process.argv.slice(1)) {
+      fs.writeFileSync(path, fs.readFileSync(path, "utf8").replaceAll("待填写", "冒烟测试内容").replaceAll("将本阶段目标拆成可验证任务。", "冒烟测试任务"), "utf8")
+    }
+  ' "$TMP/openspec/changes/t8-smoke/proposal.md" "$TMP/openspec/changes/t8-smoke/design.md" "$tasks_path"
   for row in \
     'proposal proposal.md' \
     'openspec-design design.md' \

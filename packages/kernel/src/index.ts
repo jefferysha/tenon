@@ -60,7 +60,7 @@ export {
 export type { LiveTerminalActivity, TerminalActivityRecord } from './workspace/terminal-activity.js'
 // `.pipeline/.gitignore` keeps local runtime state out of git without touching the root `.gitignore`.
 export {
-  ensurePipelineGitignore, PIPELINE_PROJECT_DIR, PIPELINE_PROJECT_GITIGNORE,
+  ensurePipelineGitignore, WORKFLOW_STATE_DIR, WORKFLOW_STATE_GITIGNORE,
 } from './workspace/pipeline-gitignore.js'
 // 归档（对当前用户隐藏任务）是个人显示偏好；archived-Change 拒绝是所有 Change 命令共用的唯一守卫。
 export {

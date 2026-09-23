@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { PIPELINE_PROJECT_GITIGNORE } from '@tenon/kernel'
+import { WORKFLOW_STATE_GITIGNORE } from '@tenon/kernel'
 import { freshHarness, REPO_ROOT, rm, type Harness } from './integration-harness.js'
 
 const SESSION_ID = '019f92c7-6e66-7290-9352-f9d915266f14'
@@ -102,12 +102,12 @@ describe('真实 e2e —— terminal-activity host hook', () => {
     // Router cold generation writes the default cache (no TENON_ROUTER_CACHE override).
     const routed = runHook('router.sh', { prompt: '帮我实现一个响应式 React 页面', cwd: h.cwd, session_id: SESSION_ID })
     expect(routed.code, routed.stderr).toBe(0)
-    expect(await readFile(ignore, 'utf8')).toBe(PIPELINE_PROJECT_GITIGNORE)
+    expect(await readFile(ignore, 'utf8')).toBe(WORKFLOW_STATE_GITIGNORE)
 
     await rm(ignore)
     expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full'])).toBe(0)
     expect(await h.run(['session', 'activate', 'demo', '--host-session', SESSION_ID])).toBe(0)
-    expect(await readFile(ignore, 'utf8')).toBe(PIPELINE_PROJECT_GITIGNORE)
+    expect(await readFile(ignore, 'utf8')).toBe(WORKFLOW_STATE_GITIGNORE)
 
     // git itself agrees: local state is ignored, shared configuration and the ignore file are not.
     spawnSync('git', ['init', '-q'], { cwd: h.cwd })

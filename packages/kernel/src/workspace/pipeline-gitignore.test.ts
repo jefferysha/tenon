@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, symlink, writeFile, mkdir } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { ensurePipelineGitignore, PIPELINE_PROJECT_GITIGNORE } from './pipeline-gitignore.js'
+import { ensurePipelineGitignore, WORKFLOW_STATE_GITIGNORE } from './pipeline-gitignore.js'
 
 describe('ensurePipelineGitignore', () => {
   let root: string
@@ -18,7 +18,7 @@ describe('ensurePipelineGitignore', () => {
   test('creates .pipeline/.gitignore listing only local runtime state', async () => {
     await ensurePipelineGitignore(root)
     const content = await readFile(join(root, '.pipeline', '.gitignore'), 'utf8')
-    expect(content).toBe(PIPELINE_PROJECT_GITIGNORE)
+    expect(content).toBe(WORKFLOW_STATE_GITIGNORE)
     const entries = content.split('\n').filter((line) => line !== '' && !line.startsWith('#'))
     expect(entries).toEqual(['cache/', 'terminal-sessions/', 'codex-skill-receipts.jsonl'])
     // Shared configuration must stay tracked.

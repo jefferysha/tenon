@@ -25699,8 +25699,8 @@ function liveTerminalActivity(record9, nowMs) {
 // packages/kernel/dist/workspace/pipeline-gitignore.js
 import { lstat as lstat24, mkdir as mkdir20, writeFile as writeFile14 } from "node:fs/promises";
 import { join as join38 } from "node:path";
-var PIPELINE_PROJECT_DIR = ".pipeline";
-var PIPELINE_PROJECT_GITIGNORE = [
+var WORKFLOW_STATE_DIR = ".pipeline";
+var WORKFLOW_STATE_GITIGNORE = [
   "# Tenon local runtime state; shared configuration in this directory stays tracked.",
   "cache/",
   "terminal-sessions/",
@@ -25711,7 +25711,7 @@ function errnoCode5(error2) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 ? String(Reflect.get(error2, "code")) : void 0;
 }
 async function ensurePipelineGitignore(repoRoot) {
-  const dir = join38(repoRoot, PIPELINE_PROJECT_DIR);
+  const dir = join38(repoRoot, WORKFLOW_STATE_DIR);
   try {
     await mkdir20(dir);
   } catch (error2) {
@@ -25722,7 +25722,7 @@ async function ensurePipelineGitignore(repoRoot) {
   if (!entry.isDirectory())
     throw new Error(`\u76EE\u5F55\u4E0D\u662F\u666E\u901A\u76EE\u5F55: ${dir}`);
   try {
-    await writeFile14(join38(dir, ".gitignore"), PIPELINE_PROJECT_GITIGNORE, { flag: "wx" });
+    await writeFile14(join38(dir, ".gitignore"), WORKFLOW_STATE_GITIGNORE, { flag: "wx" });
   } catch (error2) {
     if (errnoCode5(error2) !== "EEXIST")
       throw error2;

@@ -191,6 +191,11 @@ describe('stable host-hook ABI', () => {
 
     expect((await run('bash', [launchers.tenon, 'init', change, '--track', 'backend', '--preset', 'full'], '', env, project)).code).toBe(0)
     expect((await run('bash', [launchers.tenon, 'session', 'activate', change], '', env, project)).code).toBe(0)
+    // document record 拒绝仍含模板占位符的骨架；本用例验证的是宿主证据，先像作者一样填上内容。
+    for (const path of [proposal, design, tasks]) {
+      const file = join(project, path)
+      await writeFile(file, (await readFile(file, 'utf8')).replaceAll('待填写', '已填写').replaceAll('将本阶段目标拆成可验证任务。', '实现证据链'), 'utf8')
+    }
     const beforeEvidence = await run(
       'bash', [launchers.tenon, 'document', 'record', change, 'proposal', proposal, '--producer', 'openspec-propose'], '', env, project,
     )
