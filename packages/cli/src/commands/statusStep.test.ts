@@ -207,6 +207,16 @@ describe('step.next 顺序', () => {
     }])
   })
 
+  test('两个 kind 指向同一路径（plan / superpower-plan）时读清单只列一次该路径', () => {
+    const shared = { ...doc('superpower-plan', 'unread'), path: 'openspec/changes/demo/plan.md' }
+    expect(stepNextActions(input({
+      documents: { reads: [doc('plan', 'unread'), shared, doc('tasks', 'unread')], records: [], updates: [] },
+    }))).toEqual([{
+      action: 'read-documents',
+      documents: ['openspec/changes/demo/plan.md', 'openspec/changes/demo/tasks.md'],
+    }])
+  })
+
   test('同一份文档既在读清单又在可改清单时只发一条动作', () => {
     expect(actions({
       documents: {
