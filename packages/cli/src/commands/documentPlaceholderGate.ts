@@ -7,6 +7,7 @@
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { findDocumentPlaceholders } from '@tenon/kernel'
+import type { CliDeps } from '../deps.js'
 
 const PREVIEW = 5
 
@@ -23,4 +24,12 @@ export async function placeholderRefusal(cwd: string, kind: string, path: string
   const shown = found.slice(0, PREVIEW).map((item) => `${path}:${item.line}: ${item.text}`)
   const more = found.length > shown.length ? `\n  …另有 ${found.length - shown.length} 处` : ''
   return `document '${kind}' 仍含 ${found.length} 处未替换的骨架占位符，写完再登记：\n  ${shown.join('\n  ')}${more}`
+}
+
+/** true = 已拒绝并打印 `ERROR: …`（与 document 命令其余拒绝同一口径）。 */
+export async function refuseUnfilledDocument(deps: CliDeps, kind: string, path: string): Promise<boolean> {
+  const refusal = await placeholderRefusal(deps.cwd, kind, path)
+  if (refusal === null) return false
+  deps.io.err(`ERROR: ${refusal}`)
+  return true
 }
