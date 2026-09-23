@@ -18,7 +18,7 @@ import {
   renderDocumentTemplate,
   documentPathForKind,
   documentTemplateIdForKind,
-  readDocumentLedger, assertOwner,
+  readDocumentLedger, assertOwner, findDocumentPlaceholders,
 } from '@tenon/kernel'
 import {
   recordCanonicalDocumentSkillInvocation,
@@ -27,12 +27,13 @@ import {
 import type {
   DocumentContractPhase,
   DocumentEvidenceReport,
+  DocumentPlaceholder,
   DocumentGovernancePolicy,
   DocumentKind,
   PipelineState,
   DocumentLocale,
 } from '@tenon/kernel'
-import { lstat } from 'node:fs/promises'
+import { lstat, readFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
@@ -220,6 +221,13 @@ export async function cmdDocumentRecord(
   if (path === '') return reject(deps, 'document path 不得为空')
   if (producer === '') return reject(deps, '--producer 不得为空')
   if (producer.includes('|')) return reject(deps, `--producer '${producer}' 必须是单个具体 skill id`)
+  const placeholders = await unfilledPlaceholders(deps.cwd, path)
+  if (placeholders.length > 0) {
+    const shown = placeholders.slice(0, PLACEHOLDER_PREVIEW)
+      .map((item) => `${path}:${item.line}: ${item.text}`)
+    const more = placeholders.length > shown.length ? `\n  …另有 ${placeholders.length - shown.length} 处` : ''
+    return reject(deps, `document '${kind}' 仍含 ${placeholders.length} 处未替换的骨架占位符，写完再登记：\n  ${shown.join('\n  ')}${more}`)
+  }
   try {
     const recordedAt = deps.clock()
     await withSkillInvocationChangeLock(dir, async (lock) => {
@@ -302,6 +310,22 @@ export async function cmdDocumentRecord(
   } catch (error) {
     return reject(deps, errMsg(error))
   }
+}
+
+const PLACEHOLDER_PREVIEW = 5
+
+/**
+ * 骨架还没写完的文档不是证据（D7）：登记前按模板记号扫一遍。读不到文件时不在这里判——
+ * 路径越界、缺文件、符号链接等由登记本身按既有口径拒绝，这里不另造一套文案。
+ */
+async function unfilledPlaceholders(cwd: string, path: string): Promise<readonly DocumentPlaceholder[]> {
+  let content: string
+  try {
+    content = await readFile(resolve(cwd, path), 'utf8')
+  } catch {
+    return []
+  }
+  return findDocumentPlaceholders(content)
 }
 
 /** Explicitly map one legacy delta record to its canonical capability path without changing bytes. */

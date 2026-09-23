@@ -16,6 +16,19 @@ export {
 } from './document-presentation-registry.js'
 export const DEFAULT_DOCUMENT_LOCALE: DocumentLocale = 'zh-CN'
 
+/**
+ * 骨架里「这里还没写」的记号，渲染与判定共用这一份（document-placeholders.ts 据它拒绝登记
+ * 仍含占位符的文档）。改记号只改这里，判定随之改变，不会出现骨架换了词而登记闸认不出来。
+ */
+export const DOCUMENT_PENDING_WORD: Readonly<Record<DocumentLocale, string>> = {
+  'zh-CN': '待填写',
+  en: 'Pending',
+}
+export const DOCUMENT_PROMPT_TAG: Readonly<Record<DocumentLocale, string>> = {
+  'zh-CN': '[待填写]',
+  en: '[pending]',
+}
+
 export interface WorkflowStepPresentation {
   readonly id: string
   readonly label?: string
@@ -141,7 +154,7 @@ function renderLayoutInstruction(
   locale: DocumentLocale,
   variables: DocumentTemplateVariables,
 ): readonly string[] {
-  const pending = locale === 'zh-CN' ? '待填写' : 'Pending'
+  const pending = DOCUMENT_PENDING_WORD[locale]
   if (instruction === 'frontmatter') {
     return [
       '---',
@@ -181,7 +194,7 @@ function renderLayoutInstruction(
   if (operation === 'quote') return [`> ${value}`]
   if (operation === 'text') return [value]
   if (operation === 'prompt-placeholder') {
-    return [`> ${locale === 'zh-CN' ? '[待填写]' : '[pending]'} ${value}`]
+    return [`> ${DOCUMENT_PROMPT_TAG[locale]} ${value}`]
   }
   throw new Error(`Document Presentation Registry layout operation 未知: '${operation}'`)
 }

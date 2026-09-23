@@ -55,6 +55,22 @@ const DESIGN_DOC = [
   '```', '',
 ].join('\n')
 
+/** 骨架占位符的记号（与 kernel 模板渲染器同一份：`[待填写…]`、`: 待填写` 等）。 */
+const PLACEHOLDER = /\[待填写|: 待填写$|\*\* 待填写$|- \[ \] 待填写$/mu
+
+/** 作者写成的文档内容。delta spec 要过 OpenSpec strict 校验，所以写成一条真需求。 */
+function authored(kind: string): string {
+  if (kind === 'tasks') return '- [x] scope\n- [x] implementation\n- [x] verification\n'
+  if (kind === 'delta-spec') {
+    return [
+      '# capability', '', '## ADDED Requirements', '',
+      '### Requirement: Runner capability', 'The system SHALL complete the runner flow.', '',
+      '#### Scenario: runner completes', '- **WHEN** the runner follows next', '- **THEN** the change finishes', '',
+    ].join('\n')
+  }
+  return `# ${kind}\n\nwritten by the runner\n`
+}
+
 let h: Harness
 /** 让这一个评审者在第一次给结论时打回一次（D6 的回退边验收）。 */
 let failOnce: string | undefined
@@ -131,11 +147,11 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       const producer = (action.producers as readonly string[])[0]
       expect(producer, `record-document 必须带当前步认的 producer：${JSON.stringify(action)}`).toBeDefined()
       const path = (action.path as string | null) ?? `openspec/changes/${CHANGE}/specs/capability/spec.md`
-      // 运行器替作者把活干完：骨架的 tasks.md 全是未勾选的框，而 open/spec 出口要求全勾。
-      if (action.kind === 'tasks' || !existsSync(join(h.cwd, path))) {
-        await put(path, action.kind === 'tasks'
-          ? '- [x] scope\n- [x] implementation\n- [x] verification\n'
-          : `# ${String(action.kind)}\n\nwritten by the runner\n`)
+      // 运行器替作者把活干完：骨架里满是占位符（登记闸拒收，D7），tasks.md 全是未勾选的框（而 open/spec
+      // 出口要求全勾）。作者要做的就是把骨架写成真内容。
+      const abs = join(h.cwd, path)
+      if (action.kind === 'tasks' || !existsSync(abs) || PLACEHOLDER.test(await readFile(abs, 'utf8'))) {
+        await put(path, authored(String(action.kind)))
       }
       await loadSkill(producer!)
       await run(['document', 'record', CHANGE, String(action.kind), path, '--producer', producer!])
