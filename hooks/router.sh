@@ -619,20 +619,78 @@ while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
   i=$((i + 1))
 done
 
-EXPLICIT_FREE_BOUND=0
-if [ "$DISPATCH_INTENT" = "new" ] && [ "$EXPLICIT_FREE_MODE" = "true" ]; then
-  i=0
-  while [ "$i" -lt "${#ROUTER_IDS[@]}" ]; do
-    if [ "${ROUTER_IDS[$i]}" = "free" ]; then
-      TRACK="free"
-      PROFILE="${ROUTER_PROFILES[$i]}"
-      MATRIX="${ROUTER_MATRICES[$i]}"
-      BEST_WORKFLOW="${ROUTER_WORKFLOWS[$i]}"
-      EXPLICIT_FREE_BOUND=1
-      break
-    fi
-    i=$((i + 1))
+# 用户点名轨道（「走 free 轨道」「用 backend 轨道」「track=pm」「use the frontend track」）比内容评分更强。
+# 只认 effective registry 里的 id（含 chat/free 这类不参与评分的内建轨道与项目自定义轨道）；点名多个或
+# 点名不存在的 id 时回退评分并在输出里说明。纯 bash =~，每条正则最多取 8 个匹配，不 spawn 任何进程。
+NAMED_TRACK="" NAMED_TRACK_CONFLICT="" NAMED_TRACK_UNKNOWN=""
+_router_track_index() { # $1=token → NAMED_INDEX = index in ROUTER_IDS（ASCII 大小写不敏感），无则 return 1
+  local token="$1" idx=0 found=1
+  NAMED_INDEX=""
+  shopt -s nocasematch
+  while [ "$idx" -lt "${#ROUTER_IDS[@]}" ]; do
+    if [[ "${ROUTER_IDS[$idx]}" == "$token" ]]; then NAMED_INDEX="$idx"; found=0; break; fi
+    idx=$((idx + 1))
   done
+  shopt -u nocasematch
+  return "$found"
+}
+_router_named_negated() { # $1=text before the match → 0 when the naming is negated
+  local before="$1"
+  while :; do
+    case "$before" in *' '|*$'\t') before="${before%?}" ;; *) break ;; esac
+  done
+  case "$before" in
+    *不|*别|*勿|*不要|*不用|*无需|*没|*"不要再"|*"don't"|*"do not"|*"not"|*"never"|*"Don't"|*"Do not"|*"Not"|*"Never") return 0 ;;
+  esac
+  return 1
+}
+_router_scan_named() { # $1=ERE $2=capture index
+  local re="$1" group="$2" rest="$PROMPT" match token before rounds=0
+  while [ "$rounds" -lt 8 ] && [[ $rest =~ $re ]]; do
+    rounds=$((rounds + 1))
+    match="${BASH_REMATCH[0]}"
+    token="${BASH_REMATCH[$group]}"
+    before="${rest%%"$match"*}"
+    rest="${rest#*"$match"}"
+    [ -n "$token" ] || continue
+    _router_named_negated "$before" && continue
+    if _router_track_index "$token"; then
+      token="${ROUTER_IDS[$NAMED_INDEX]}"
+      if [ -z "$NAMED_TRACK" ]; then
+        NAMED_TRACK="$token"
+      elif [ "$NAMED_TRACK" != "$token" ]; then
+        NAMED_TRACK_CONFLICT="$token"
+      fi
+    elif [ -z "$NAMED_TRACK_UNKNOWN" ] && [ "${#token}" -le 32 ]; then
+      NAMED_TRACK_UNKNOWN="$token"
+    fi
+  done
+}
+if [ "$DISPATCH_INTENT" = "new" ]; then
+  _router_scan_named '(走|使用|选用|选择|采用|切换到|切到|改用|改走|换成|换到|用|选|按)[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)[[:space:]]*(轨道|赛道|track|Track|TRACK)' 2
+  _router_scan_named '([Tt]rack|TRACK|轨道)[[:space:]]*(=|:|：)[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)' 3
+  _router_scan_named '--track[[:space:]]+([A-Za-z][A-Za-z0-9_-]*)' 1
+  _router_scan_named '(^|[^A-Za-z])([Uu]se|[Uu]sing|[Cc]hoose|[Pp]ick|[Ss]elect|[Gg]o with|[Ss]witch to)[[:space:]]+(the[[:space:]]+)?([A-Za-z][A-Za-z0-9_-]*)[[:space:]]+([Tt]rack|TRACK)' 4
+  if [ -z "$NAMED_TRACK" ] && [ "$EXPLICIT_FREE_MODE" = "true" ] && _router_track_index free; then
+    NAMED_TRACK="free"
+  fi
+  if [ -n "$NAMED_TRACK_CONFLICT" ]; then
+    NAMED_TRACK_CONFLICT="${NAMED_TRACK}、${NAMED_TRACK_CONFLICT}"
+    NAMED_TRACK=""
+  fi
+fi
+
+NAMED_TRACK_BOUND=0
+TRACK_BASIS="score"
+if [ -n "$NAMED_TRACK" ]; then
+  _router_track_index "$NAMED_TRACK"
+  i="$NAMED_INDEX"
+  TRACK="${ROUTER_IDS[$i]}"
+  PROFILE="${ROUTER_PROFILES[$i]}"
+  MATRIX="${ROUTER_MATRICES[$i]}"
+  BEST_WORKFLOW="${ROUTER_WORKFLOWS[$i]}"
+  NAMED_TRACK_BOUND=1
+  TRACK_BASIS="user-named"
 fi
 
 # 新任务由本轮文本评分选择 track；恢复已有 Change 时则反过来，以持久化状态中的
@@ -649,13 +707,14 @@ if [ "$DISPATCH_INTENT" = "resume" ] && [ -n "$CHANGE_TRACK" ]; then
       MATRIX="${ROUTER_MATRICES[$i]}"
       BEST_WORKFLOW="${ROUTER_WORKFLOWS[$i]}"
       RESUME_TRACK_BOUND=1
+      TRACK_BASIS="state"
       break
     fi
     i=$((i + 1))
   done
 fi
 
-if [ "$RESUME_TRACK_BOUND" -ne 1 ] && [ "$EXPLICIT_FREE_BOUND" -ne 1 ] && [ "$DISPATCH_INTENT" != "select" ] \
+if [ "$RESUME_TRACK_BOUND" -ne 1 ] && [ "$NAMED_TRACK_BOUND" -ne 1 ] && [ "$DISPATCH_INTENT" != "select" ] \
   && { [ "$BEST_SCORE" -le 0 ] || [ -z "$TRACK" ]; }; then
   exit 0
 fi
@@ -665,6 +724,7 @@ fi
 if [ "$DISPATCH_INTENT" = "select" ] && [ -z "$TRACK" ]; then
   TRACK="unresolved"
   PROFILE=""
+  TRACK_BASIS="none"
 fi
 
 # A project-defined routable Track or a project-selected non-default workflow is a real
@@ -751,17 +811,24 @@ elif [ "$DISPATCH_INTENT" = "select" ]; then
   HDR="疑似 track=${TRACK}（评分 ${BEST_SCORE}）· 恢复目标未选择"
   TAIL="用户明确要继续，但项目中有多个未选择的活跃 change。必须立即调用 Skill 工具的 tenon，让入口 skill 用 tenon list/status 列出候选并要求用户点名；严禁按 mtime 猜测，也严禁把它当作新任务创建。"
 else
-  if [ "$SELECTION_REQUIRED" = "1" ]; then
-    HDR="疑似 track=${TRACK}（评分 ${BEST_SCORE}）· 独立新任务 · 发现项目自定义 Tenon workflow/track"
-    TAIL="疑似 ${TRACK} Track 新任务。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。项目已声明自定义 routable Track：必须立即调用 Skill 工具的 tenon，由入口 skill 先根据下方推荐 pair 与候选 pair 询问用户选择 Track/workflow；在用户选择前严禁创建 Change、严禁假定 default。选定后才创建并激活独立 Change。"
+  if [ "$TRACK_BASIS" = "user-named" ]; then
+    TRACK_LABEL="track=${TRACK}（用户点名）"
+    TRACK_TASK_PHRASE="用户点名 ${TRACK} Track 的新任务"
   else
-    HDR="疑似 track=${TRACK}（评分 ${BEST_SCORE}）· 独立新任务"
+    TRACK_LABEL="疑似 track=${TRACK}（评分 ${BEST_SCORE}）"
+    TRACK_TASK_PHRASE="疑似 ${TRACK} Track 新任务"
+  fi
+  if [ "$SELECTION_REQUIRED" = "1" ]; then
+    HDR="${TRACK_LABEL} · 独立新任务 · 发现项目自定义 Tenon workflow/track"
+    TAIL="${TRACK_TASK_PHRASE}。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。项目已声明自定义 routable Track：必须立即调用 Skill 工具的 tenon，由入口 skill 先根据下方推荐 pair 与候选 pair 询问用户选择 Track/workflow；在用户选择前严禁创建 Change、严禁假定 default。选定后才创建并激活独立 Change。"
+  else
+    HDR="${TRACK_LABEL} · 独立新任务"
     if [ "$BEST_WORKFLOW" = "simple" ]; then
       TAIL="已命中严格边界内的 simple 任务。必须立即调用 tenon，创建并激活独立 simple Change，按 change → verify → done 的轻量 DAG 执行；不得生成 default 的 PM/前后端/OpenSpec 文档链。若执行中边界扩大，必须走 scope-expanded 并升级为新的 default Change。"
     elif [ "$TRACK" = "free" ]; then
       TAIL="用户已显式选择自由模式。必须立即调用 tenon，先复核 free Track 与精确 Workflow 的 allowed 关系，再创建独立 Change；只执行所选 Workflow 自己的 DAG、skills、gates 与 OpenSpec contract，不叠加 PM/frontend/backend profile，也不得把自由模式解释为跳过 Workflow。"
     else
-      TAIL="疑似 ${TRACK} Track 新任务。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。默认选择 default workflow：必须立即调用 Skill 工具的 tenon，让入口 skill 创建并激活独立 Change、初始化 OpenSpec，并按 open 相位开始；不要先询问是否走工作流，也不要绕过 tenon 直接加载某个技能。仅当用户明确指定自定义 workflow 时才改用该 workflow。"
+      TAIL="${TRACK_TASK_PHRASE}。项目内已有 change 仅是显式恢复时的候选，严禁把它们绑定到本轮或复用其 phase/tasks。默认选择 default workflow：必须立即调用 Skill 工具的 tenon，让入口 skill 创建并激活独立 Change、初始化 OpenSpec，并按 open 相位开始；不要先询问是否走工作流，也不要绕过 tenon 直接加载某个技能。仅当用户明确指定自定义 workflow 时才改用该 workflow。"
     fi
   fi
 fi
@@ -775,6 +842,13 @@ elif [ "$NON_DEFAULT_WORKFLOW_DISPATCH" = "1" ]; then
   else
     TAIL="$TAIL 当前 Change 绑定自定义 workflow '${CHANGE_WORKFLOW}'：此路由器不会用 default 的 breadcrumb 或 skill 矩阵伪造该阶段要求；必须先调用 tenon，由它以 canonical state 与项目 workflow 图解析本阶段的真实 DAG、OpenSpec 约束和依赖顺序后再分派。"
   fi
+fi
+if [ "$TRACK_BASIS" = "user-named" ]; then
+  TAIL="$TAIL 轨道 ${TRACK} 由用户在消息里点名，以点名为准：创建 Change 时用 --track ${TRACK}，不得按内容评分改成其他轨道。"
+elif [ -n "$NAMED_TRACK_CONFLICT" ]; then
+  TAIL="$TAIL 用户消息同时点名了多个轨道（${NAMED_TRACK_CONFLICT}），无法确定以哪个为准，本轮回退为内容评分；请先向用户确认轨道。"
+elif [ -n "$NAMED_TRACK_UNKNOWN" ]; then
+  TAIL="$TAIL 用户点名的轨道 ${NAMED_TRACK_UNKNOWN} 不在本项目的轨道列表中，本轮回退为内容评分；请告诉用户可用轨道并确认。"
 fi
 if [ -n "$HOST_SESSION_ID" ] && [ "$CONTINUOUS_EXECUTION" != 'true' ]; then
   # Only a host-session binding lets the next turn's 「继续」 find this conversation's Change.
@@ -803,7 +877,7 @@ elif [ "$SELECTION_REQUIRED" = "1" ]; then
 elif [ "$DISPATCH_INTENT" = "new" ] && _workflow_default_ok "$BEST_WORKFLOW"; then
   DISPATCH_WORKFLOW="$BEST_WORKFLOW"
 fi
-printf '<tenon-dispatch>\naction: invoke-skill\nskill: tenon\nworkflow: %s\ntrack: %s\nintent: %s\ncontinuous_execution: %s\n' "$DISPATCH_WORKFLOW" "$TRACK" "$DISPATCH_INTENT" "$CONTINUOUS_EXECUTION"
+printf '<tenon-dispatch>\naction: invoke-skill\nskill: tenon\nworkflow: %s\ntrack: %s\ntrack_basis: %s\nintent: %s\ncontinuous_execution: %s\n' "$DISPATCH_WORKFLOW" "$TRACK" "$TRACK_BASIS" "$DISPATCH_INTENT" "$CONTINUOUS_EXECUTION"
 [ -n "$HOST_SESSION_ID" ] && printf 'host_session_id: %s\n' "$HOST_SESSION_ID"
 if [ "$SELECTION_REQUIRED" = "1" ]; then
   i=0

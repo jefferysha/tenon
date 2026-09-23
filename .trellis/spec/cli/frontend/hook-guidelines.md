@@ -421,3 +421,36 @@ progressive gate would block them — while the agent that needs them is running
   agent and the gate returns `not-agent-skill` before any freeze read.
 - A corrupt ledger fails closed like every other agent read: the skill stays blocked and the message names
   the damaged line.
+
+## Scenario: User-named Track in the router (`router.sh`)
+
+### 1. Scope / Trigger
+
+- Hook: `router.sh` (UserPromptSubmit), new-task dispatch only (`intent: new`). A resumed Change keeps the Track
+  from its state; a selection turn keeps `unresolved`.
+- Trigger: v0.1.2 real session — 「……走 free 轨道即可」 was routed as `疑似 track=simple（评分 1）`.
+
+### 2. Signatures
+
+```text
+<tenon-dispatch> … track: <id> · track_basis: user-named | score | state | none
+router header    track=<id>（用户点名） | 疑似 track=<id>（评分 N）
+```
+
+### 3. Contracts
+
+- Named forms (pure bash `=~`, at most 8 matches per pattern, no process spawn): Chinese verb + id + 轨道/赛道/track
+  (「走 free 轨道」「用 backend 轨道」); `track=<id>` / `track: <id>` / `轨道：<id>` / `--track <id>`;
+  English `use|using|choose|pick|select|go with|switch to [the] <id> track`. Id comparison is ASCII
+  case-insensitive against the effective registry ids (builtins including non-routable chat/free, and project Tracks).
+- Exactly one known id → bind it (`track_basis: user-named`), its profile and workflow default; the scorer is ignored.
+- Negated naming (不/别/勿/不要/不用/无需/没/don't/do not/not/never right before the verb) is ignored.
+- Two different known ids → fall back to scoring and tell the agent to confirm with the user.
+- Unknown id only → fall back to scoring with a hint naming it. When scoring also finds nothing, the router stays
+  silent as before.
+- The older free-mode phrases (「用自由模式」…) still bind free and still bypass the discussion filter.
+
+### 4. Tests Required
+
+- `tools/test-hooks.sh` section 9: named free/backend/pm/English/simple, not named, unknown id, negated, two ids, and a
+  project custom Track.

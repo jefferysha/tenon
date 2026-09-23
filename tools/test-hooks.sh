@@ -1370,6 +1370,35 @@ EOF
   run_router "{\"prompt\":\"请处理这个任务\",\"cwd\":\"$rproj\"}"
   assert_empty "router: free 永不靠兜底或评分自动命中" "$ROUT"
 
+  # v0.1.2 真实会话：「……走 free 轨道即可」被评分成 simple。用户点名的已知轨道 id 以点名为准。
+  run_router "{\"prompt\":\"先把登录接口的 bug 修一下，走 free 轨道即可\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 「走 free 轨道」→ track: free" "$ROUT" "track: free"
+  assert_contains "router: 点名轨道标注来源" "$ROUT" "track_basis: user-named"
+  assert_contains "router: 点名轨道的头部不再写评分猜测" "$ROUT" "track=free（用户点名）"
+  assert_not_contains "router: 点名 free 不再落到 simple" "$ROUT" "track: simple"
+  run_router "{\"prompt\":\"修复 API 的 bug，用 backend 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 「用 backend 轨道」→ track: backend" "$ROUT" "track: backend"
+  assert_contains "router: 「用 backend 轨道」来源 user-named" "$ROUT" "track_basis: user-named"
+  run_router "{\"prompt\":\"请实现 React 响应式页面组件，track=pm\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: track=pm 胜过 frontend 评分" "$ROUT" "track: pm"
+  run_router "{\"prompt\":\"Please use the Backend track to build the React page\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 英文 use the Backend track（大小写不敏感）" "$ROUT" "track: backend"
+  run_router "{\"prompt\":\"快速修复 README 里的错别字，走 simple 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 点名 simple 仍走内建 simple workflow" "$ROUT" "workflow: simple"
+  run_router "{\"prompt\":\"修复 API 的 bug\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 未点名 → 评分选 backend" "$ROUT" "track: backend"
+  assert_contains "router: 未点名 → 来源 score" "$ROUT" "track_basis: score"
+  run_router "{\"prompt\":\"修复 API 的 bug，走 foo 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 点名不存在的轨道 → 回退评分" "$ROUT" "track: backend"
+  assert_contains "router: 点名不存在的轨道 → 来源 score" "$ROUT" "track_basis: score"
+  assert_contains "router: 点名不存在的轨道 → 输出提示" "$ROUT" "用户点名的轨道 foo 不在本项目的轨道列表中"
+  run_router "{\"prompt\":\"修复 API 的 bug，不要走 frontend 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 否定点名（不要走 X 轨道）不绑定" "$ROUT" "track_basis: score"
+  assert_not_contains "router: 否定点名不绑定 frontend" "$ROUT" "track: frontend"
+  run_router "{\"prompt\":\"修复 API bug，走 pm 轨道还是走 frontend 轨道\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 点名多个轨道 → 回退评分" "$ROUT" "track_basis: score"
+  assert_contains "router: 点名多个轨道 → 提示先确认" "$ROUT" "同时点名了多个轨道（pm、frontend）"
+
   # 项目自定义 Track/workflow 是正常对话的真实选择，不得被 hook 偷换成 workflow: default。
   # 这里用真实 kernel cold-path 载入一份有效的 custom workflow，再验证 V5 cache → bash hot-path
   # → dispatch contract 的闭环；不是手写 cache fixture。
@@ -1387,6 +1416,10 @@ EOF
   assert_contains "router: custom pair 选择前明确尚未绑定 workflow" "$ROUT" "尚未选定自定义 workflow"
   assert_not_contains "router: custom pair 选择前不伪造空 workflow 绑定" "$ROUT" "当前 Change 绑定自定义 workflow ''"
   assert_not_contains "router: custom pair 选择前不注入 default breadcrumb" "$ROUT" "TDD"
+  run_router "{\"prompt\":\"修复后端 API 接口的 bug，用 catalog 轨道\",\"cwd\":\"$selectproj\"}" "$selectcache"
+  assert_contains "router: 点名项目自定义轨道 catalog" "$ROUT" "track: catalog"
+  assert_contains "router: 点名自定义轨道标注来源" "$ROUT" "track_basis: user-named"
+  assert_contains "router: 点名自定义轨道推荐其 workflow" "$ROUT" "suggested_workflow: catalog-flow"
 
   # 内建 Track 也允许被项目配置覆盖 workflow。它仍是 builtin:true，但非 default 绑定是项目选择，
   # 必须和额外 Track 一样在创建 Change 前确认，不能因 builtin 身份静默直达 custom workflow。

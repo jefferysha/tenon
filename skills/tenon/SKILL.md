@@ -46,6 +46,8 @@ text(result);
 2. dispatch `intent: new` → 起一个 kebab-case 名；`intent: select` 或 `selection_required: true`
    → 要用户给出**一对**确切的候选（名字 + 工作流），然后结束回合；`intent: resume` → 只接手
    点名的那个任务。没有 dispatch 的手动 `/tenon`：`tenon list --json`，多于一个就问。
+   `track_basis: user-named` 表示 `track` 是用户在消息里点名的轨道，建任务时照用，不按内容另选；
+   `score` 是按内容评分的推测，用户另有说法以用户为准。
 3. 新建：`tenon init <c> --workflow <w> --track <t> --preset full`（用户可以点别的 preset）；
    随后 `tenon session activate <c> --host-session <host_session_id> [--continuous]`。恢复只跑同一条
    activate。`<host_session_id>` 取 dispatch 里的 `host_session_id`；dispatch 带了它就必须传，
