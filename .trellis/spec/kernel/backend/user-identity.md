@@ -64,7 +64,10 @@ Server: `DashboardServerOptions.resolveUser(root)`, `GET/POST /api/user`, `POST 
   entry there as a blocker. The heartbeat path itself is unchanged, so N-1 readers and writers keep working; a
   heartbeat that an earlier commit already tracked needs one `git rm --cached`.
 - **Commit the ignore files:** `.pipeline/.gitignore`, `.tenon/.gitignore` and `openspec/.gitignore` are shared
-  project files, not local state; they belong in the task's first commit.
+  project files, not local state; they belong in the task's first commit. The same holds for the tracked
+  `.tenon/users/<slug>/{tests,baselines}/` records: the delivery step's `commit` action (`status --json`
+  `step.next`, paths = whole workspace minus the repo-root gate markers) carries them together with the code, and
+  `finish-change` lists the ignore files again if they are still uncommitted.
 - **Records:** `created_by` / `assignee` hold `Name <id>` (creator and first owner = the declared identity at init);
   history rows, document ledger records and review acknowledgements carry `actor`; `TransitionRecord.actor` stays the
   user-ref string. Hook-written host evidence rows carry no actor.

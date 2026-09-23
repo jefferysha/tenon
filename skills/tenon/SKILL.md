@@ -62,7 +62,7 @@ text(result);
 ```
 repeat:
   S = tenon status <c> --json | .step
-  S.next[0].action == stop → 报告 message，结束
+  S.next[0].action == stop → 报告 message，结束（已完结的任务也有 step：next 是 stop，code finished）
   把 S.next 里与 next[0] 同 action 的项一起做完（一波），按下面的动作表
   做完 transition / complete → 重新加载 tenon（新的步骤访问），按模式继续或暂停
 ```
@@ -83,9 +83,10 @@ repeat:
 | `validate-spec` | `tenon spec apply <c> --dry-run`；退出码 2 就按报错改 delta spec 再跑。 |
 | `apply-spec` | `tenon spec apply <c>`。 |
 | `run-test` | `tenon test run <c> <test>`；`fail` 先改代码再重跑，不改就重跑没有意义。报「未配置（test-unconfigured）」不是失败：按提示配置（见 `fix`）。 |
-| `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。`code: test-unconfigured`：项目没有这条必需测试要的 npm 脚本——在 package.json 加上运行本项目真正这类测试的脚本（还没有这类测试就先写），不要复制别的测试命令凑数；项目不用 npm 时停下告诉用户去改工作流的测试命令。 |
+| `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。`code: test-unconfigured`：项目没有这条必需测试要的 npm 脚本——在 package.json 加上运行本项目真正这类测试的脚本，不要复制别的测试命令凑数；在计划步提出时，把「写这类测试」列进本步的计划与 tasks；在之后的步骤提出时只补 package.json 的脚本（及它要跑的测试代码），不要改已登记的规格文档（proposal / design / plan）。项目不用 npm 时停下告诉用户去改工作流的测试命令。 |
 | `request-review` | `tenon check <c>` → `tenon review request <c> --event <event>` → 把产出与结论摆给用户。 |
 | `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`。afk：结束本轮。 |
+| `commit` | 交付物提交：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（`:(exclude)…` 是挡住仓库根门禁标记的 pathspec，照抄）。宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交。 |
 | `choose-exit` | 按下面的「出口」挑一条边。 |
 | `transition` | `tenon transition <c> <event>`。 |
 | `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `openspec archive`。 |
@@ -94,12 +95,14 @@ repeat:
 ## 决定、字段、出口
 
 - 带 `allowed` 的字段是一次决定：interactive 把 `recommended` 排在第一位问；continuous / afk
-  直接用 `recommended`。决定在动手之前下发（build 的 `build_mode` / `isolation` 先于实现技能），
+  直接用 `recommended`。决定在动手之前下发（build 的 `build_mode` / `isolation` 先于测试配置与实现技能），
   按你接下来真的要用的方式填，之后照它执行。
 - `kind: outcome` 的字段只在本步必需测试与评审者都过了之后才出现在 `next` 里；它们没有 `recommended`，填 `required` 给的值。`pre_verify_review_result` / `verify_result` 是通过结论：CLI 写入前核对本步证据，被拒就按错误里点名的测试或 agent 去补，不要换个写法绕过。
 - `direct_override` 是 full 预设下 `build_mode=direct` 的风险确认，没有推荐值：interactive 问人，continuous / afk 不选 `direct`（取 `build_mode` 的推荐值即可免去这一项）。
 - `pr_url`、`prd_path` 和各类文件路径只填真值，绝不编造。`pr_url` 是真实的 http(s) PR 地址；仓库没有 远端时 `next` 会推荐 `no-remote`（本地交付、没有 PR，CLI 会复核确实没有远端）。有远端却开不了 PR 就停下说明。
-- 不要为了「隔离」自己建分支、worktree 或提交；宿主没给就用 `isolation=in-place`。
+- 不要为了「隔离」自己建分支或 worktree；宿主没给就用 `isolation=in-place`。提交只照 `next` 的
+  `commit` / `finish-change` 做（交付步在交付值之前点名提交交付物，完结后点名提交归档），`next` 没点名
+  就不提交；技能自带的提交步骤同样不做。
 - 出口：`ready` 的前进边直接走；回退边只在它的含义成立时走（必需测试或评审者不通过 → 回到实现
   的那条边；已确认的需求变了 → 回到规格的那条边）；interactive 先问。走到终态的
   `scope-expanded` 表示目标超出了这个工作流：之后新建一个 `default` 任务，并
@@ -111,7 +114,7 @@ repeat:
 - 文档写在 `step.documents` 给的 `path` 上；缺结构先 `scaffold-document`。
 - `path` 为 `null` = 这一条的路径还要你拍板：按 `path_template` 里剩下的占位符定值再 scaffold
   （delta-spec 缺 `{capability}`，即 `tenon document scaffold <c> delta-spec --capability <x>`）。
-- 只经 `record-document` 登记。技能自带的「归档」「同步规格」「推送」「建 PR」等收尾动作，
+- 只经 `record-document` 登记。技能自带的「提交」「归档」「同步规格」「推送」「建 PR」等收尾动作，
   只有 `step.next` 点名时才做。
 - tasks 只勾当前步骤标题下的复选框；它的重新登记会出现在 `step.documents.updates` 里。
 
