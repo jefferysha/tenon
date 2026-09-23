@@ -23,6 +23,7 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     ownsDeltaSpec: false,
     ownsAppliedSpec: false,
     artifactProducers: [],
+    finish: { changeDirTracked: false, workspaceDirty: true, verified: true },
     ...overrides,
   }
 }
@@ -528,17 +529,58 @@ describe('step.next 顺序', () => {
       action: 'finish-change',
       change: 'demo',
       command: 'openspec archive demo --skip-specs --yes --json',
-      // 搬移留下的删除与新目录要跟一次提交，否则 ship 之后工作区是脏的。
+      // 搬移留下的新目录要跟一次提交，否则 ship 之后工作区是脏的。
       commit: {
-        paths: ['openspec/changes/demo', 'openspec/changes/archive'],
+        paths: ['openspec/changes/archive'],
         message: 'chore(openspec): archive demo',
       },
     }])
   })
 
-  test('非 OpenSpec 治理的工作流归档后直接停', () => {
-    const next = stepNextActions(input({ runArchived: true, governedOpenspec: false, exits: [] }))
-    expect(next[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+  /**
+   * 真机（第二轮）：原目录从未被 git 跟踪，搬走之后 `git add -A -- openspec/changes/<c> …` 报
+   * `fatal: pathspec … did not match any files`（exit 128）。原目录只有被跟踪过才列出（-A 据索引项
+   * 暂存删除）；archive/ 搬移后一定存在，恒列出。
+   */
+  test('finish-change 的提交路径：原目录只在被 git 跟踪过时列出；不是 git 仓就不发提交', () => {
+    const commitOf = (changeDirTracked: boolean | null) => stepNextActions(input({
+      runArchived: true,
+      finish: { changeDirTracked, workspaceDirty: true, verified: true },
+    }))[0]?.commit
+    expect(commitOf(true)).toEqual({
+      paths: ['openspec/changes/demo', 'openspec/changes/archive'],
+      message: 'chore(openspec): archive demo',
+    })
+    expect(commitOf(false)).toEqual({ paths: ['openspec/changes/archive'], message: 'chore(openspec): archive demo' })
+    expect(commitOf(null)).toBeNull()
+  })
+
+  /**
+   * 真机（第二轮）：simple 工作流 verify-pass 后直接完结，功能代码与任务状态文件全留在工作区。
+   * 它没有归档命令，只剩一次提交；提交过（工作区干净）或以 scope-expanded 放弃时就停。
+   */
+  test('非 OpenSpec 治理的工作流以验证通过完结：只带提交的 finish-change；提交过或放弃时停', () => {
+    expect(stepNextActions(input({ runArchived: true, governedOpenspec: false }))).toEqual([{
+      action: 'finish-change',
+      change: 'demo',
+      command: null,
+      commit: { paths: ['.'], message: 'chore(tenon): finish demo' },
+    }])
+    const clean = stepNextActions(input({
+      runArchived: true, governedOpenspec: false,
+      finish: { changeDirTracked: true, workspaceDirty: false, verified: true },
+    }))
+    expect(clean[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+    const escalated = stepNextActions(input({
+      runArchived: true, governedOpenspec: false,
+      finish: { changeDirTracked: false, workspaceDirty: true, verified: false },
+    }))
+    expect(escalated[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+    const noGit = stepNextActions(input({
+      runArchived: true, governedOpenspec: false,
+      finish: { changeDirTracked: null, workspaceDirty: null, verified: true },
+    }))
+    expect(noGit[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
   })
 
   /**

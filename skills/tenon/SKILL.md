@@ -79,18 +79,19 @@ repeat:
 | `validate-spec` | `tenon spec apply <c> --dry-run`；退出码 2 就按报错改 delta spec 再跑。 |
 | `apply-spec` | `tenon spec apply <c>`。 |
 | `run-test` | `tenon test run <c> <test>`；`fail` 先改代码再重跑，不改就重跑没有意义。 |
-| `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。 |
+| `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。 |
 | `request-review` | `tenon check <c>` → `tenon review request <c> --event <event>` → 把产出与结论摆给用户。 |
 | `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`。afk：结束本轮。 |
 | `choose-exit` | 按下面的「出口」挑一条边。 |
 | `transition` | `tenon transition <c> <event>`。 |
 | `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `openspec archive`。 |
-| `finish-change` | 照 `command` 原样跑（`openspec archive <c> --skip-specs --yes --json`），把 change 目录搬进 `openspec/changes/archive/`；再把这次搬移提交：`git add -A -- <commit.paths…>` 后 `git commit -m "<commit.message>"`（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）。跑完这条 `tenon list --finished` 才看得见它。 |
+| `finish-change` | `command` 不是 `null` 时照原样跑（`openspec archive <c> --skip-specs --yes --json`），把 change 目录搬进 `openspec/changes/archive/`。`commit` 不是 `null` 时再提交：`git add -A -- <commit.paths…>` 后 `git commit -m "<commit.message>"`，paths 原样用、不增不减（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）；`commit` 为 `null`（不是 git 仓）就不提交。 |
 
 ## 决定、字段、出口
 
 - 带 `allowed` 的字段是一次决定：interactive 把 `recommended` 排在第一位问；continuous / afk
-  直接用 `recommended`。
+  直接用 `recommended`。决定在动手之前下发（build 的 `build_mode` / `isolation` 先于实现技能），
+  按你接下来真的要用的方式填，之后照它执行。
 - `kind: outcome` 的字段只在本步必需测试与评审者都过了之后才出现在 `next` 里；它们没有 `recommended`，填 `required` 给的值。`pre_verify_review_result` / `verify_result` 是通过结论：CLI 写入前核对本步证据，被拒就按错误里点名的测试或 agent 去补，不要换个写法绕过。
 - `direct_override` 是 full 预设下 `build_mode=direct` 的风险确认，没有推荐值：interactive 问人，continuous / afk 不选 `direct`（取 `build_mode` 的推荐值即可免去这一项）。
 - `pr_url`、`prd_path` 和各类文件路径只填真值，绝不编造。`pr_url` 是真实的 http(s) PR 地址；仓库没有 远端时 `next` 会推荐 `no-remote`（本地交付、没有 PR，CLI 会复核确实没有远端）。有远端却开不了 PR 就停下说明。

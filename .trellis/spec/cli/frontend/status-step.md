@@ -11,6 +11,11 @@
 - 已完结（`archived=true`，无论目录是否已被 `openspec archive` 搬走）的 change 不在
   `active_changes`，而在 `finished_changes`（多一个 `archived_at`）；与列表形态、`list --finished`
   同一口径。`tenon check` 对它只打一行「已完结（已归档），无需检查」、exit 0。
+- 已完结的 change 只在还有收尾动作（`finish-change`）时带 `step`，且 `step.archived=true`；没有可做
+  的事（default 已搬进 archive/、simple 已提交或以 scope-expanded 放弃）时省略 `step`——所有工作流
+  同一形态。`step.archived` = 当前用户收起了它，或状态机已完结。
+- 已完结的 change 上 `tenon test status <c>`（不带 `--step`）按步骤列出每项测试的最后记录
+  （JSON：`step: null`、`finished: true`、`items[].step`、`report: "tenon test report <c>"`），exit 0。
 - `step` 投影不可用时（工作流读不到、指纹不匹配等）写一行 `WARN: step 投影不可用: …` 到 stderr，
   `active_changes` 照常输出、exit 0 —— 读状态不该因为投影失败而失败。
 
@@ -56,7 +61,12 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   （commands/verdictFieldGate.ts）。`build_mode` 推荐无需豁免的值（full：`subagent-driven-development`，
   pm `prototype`；hotfix / tweak：`direct`）。
 - `pr_url` 只接受 http(s) URL，或仓库没有 git 远端时的 `no-remote`（此时它就是 `recommended`）。
-- `finish-change` 带 `commit: { paths, message }`：搬移之后要提交的两处路径。
+- `finish-change` 带 `command`（OpenSpec 治理的工作流是 `openspec archive <c> --skip-specs --yes --json`；
+  非治理工作流为 `null`）与 `commit: { paths, message } | null`。paths 必须让
+  `git add -A -- <paths…>` 一次成功：OpenSpec 工作流恒列 `openspec/changes/archive`，原目录
+  `openspec/changes/<c>` 只在 git 跟踪过它时列出（未跟踪的原目录搬走后 pathspec 匹配不到，exit 128）；
+  非治理工作流以验证通过（`verify_result=pass`）完结且工作区有未提交改动时是 `paths: ['.']`、
+  `message: chore(tenon): finish <c>`，否则 `stop run-archived`。不是 git 仓时 `commit: null`。
 - 终态自边由 kernel 推导（`implicitCompletionTransition`），`default` 的 `archive` 也在内：它
   投影成 `direction: completion` 的出口，`next` 给 `complete`。走完之后 `archived=true`，
   `next` 只剩 `finish-change`（治理归档命令）；两条命令的先后因此写在数据里，而不是靠人记。
@@ -104,7 +114,9 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | 必需评审者打回 | 不发结果字段；回退边（评审门上走 request → await → transition）或 `fix` |
 | ship 有未勾任务 | 先 `fix`（`source: tasks`，`items` 为截至本步仍未勾的任务原文），再 `apply-spec` / applied-spec 登记 / `set-field pr_url` |
 | build 缺 build_mode / isolation | 读完输入文档后第一批就是 `set-field`，先于执行者与 `load-skill` |
-| 已完结 | `finished_changes` 而非 `active_changes`；`check` 说无需检查 |
+| 已完结 | `finished_changes` 而非 `active_changes`；`check` 说无需检查；`step` 只在 `finish-change` 待做时出现，`archived=true` |
+| 原目录从未被 git 跟踪 | `finish-change.commit.paths` 只有 `openspec/changes/archive` |
+| simple 以 verify-pass 完结、工作区有改动 | `finish-change`，`command: null`，`commit.paths: ['.']` |
 
 ## 5. Tests
 

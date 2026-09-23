@@ -15,7 +15,8 @@ import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { FIXED_CLOCK, freshHarness, rm, type Harness } from './integration-harness.js'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { FIXED_CLOCK, freshHarness, REPO_ROOT, rm, type Harness } from './integration-harness.js'
 
 const CHANGE = 'nextrun'
 const FIXTURE_PACKAGE_JSON = `${JSON.stringify({
@@ -81,11 +82,26 @@ function authored(kind: string): string {
 }
 
 let h: Harness
+
+/** 夹具是一个真 git 仓：只提交过 package.json，change 目录从未被跟踪（真机第二轮的失败形态）。 */
+const GIT_IDENTITY = ['-c', 'user.name=runner', '-c', 'user.email=runner@example.com', '-c', 'commit.gpgsign=false']
+function git(args: readonly string[]): { readonly status: number | null; readonly output: string } {
+  const result = spawnSync('git', [...GIT_IDENTITY, ...args], { cwd: h.cwd, encoding: 'utf8' })
+  return { status: result.status, output: `${result.stdout}${result.stderr}` }
+}
+
+/** 完结动作的提交：照动作给的 paths 与 message 原样执行，两条命令都必须一次成功。 */
+function commitAsInstructed(commit: { readonly paths: readonly string[]; readonly message: string }): void {
+  const add = git(['add', '-A', '--', ...commit.paths])
+  expect(add.status, `git add -A -- ${commit.paths.join(' ')}\n${add.output}`).toBe(0)
+  const done = git(['commit', '-q', '-m', commit.message])
+  expect(done.status, `git commit\n${done.output}`).toBe(0)
+}
 /** 让这一个评审者在第一次给结论时打回一次（D6 的回退边验收）。 */
 let failOnce: string | undefined
 
-function changeDir(): string {
-  return join(h.cwd, 'openspec', 'changes', CHANGE)
+function changeDir(name = CHANGE): string {
+  return join(h.cwd, 'openspec', 'changes', name)
 }
 
 async function put(rel: string, body: string): Promise<void> {
@@ -107,14 +123,14 @@ async function run(args: readonly string[]): Promise<void> {
  * 时刻同一口径。
  */
 let toolUseSeq = 0
-async function loadSkill(skill: string): Promise<void> {
+async function loadSkill(skill: string, name = CHANGE): Promise<void> {
   toolUseSeq += 1
   await appendFile(
-    join(changeDir(), '.pipeline-history.jsonl'),
+    join(changeDir(name), '.pipeline-history.jsonl'),
     `${JSON.stringify({ ts: FIXED_CLOCK, kind: 'tool', raw: `Skill: ${skill}` })}\n`,
     'utf8',
   )
-  await run(['internal-native-skill-receipt', CHANGE, skill, 'runner-session', `tool-${toolUseSeq}`, FIXED_CLOCK])
+  await run(['internal-native-skill-receipt', name, skill, 'runner-session', `tool-${toolUseSeq}`, FIXED_CLOCK])
 }
 
 async function readStep(): Promise<StepBlock> {
@@ -242,14 +258,26 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
     case 'choose-exit':
       await run(['transition', CHANGE, String((action.exits as readonly string[])[0])])
       return false
-    // 治理归档是 OpenSpec 自己的命令（动作自带整条命令），到这里状态机已经完结。
-    // 搬移之后要提交的路径也由动作给出：旧目录与 archive/ 两处。
-    case 'finish-change':
-      expect(action.commit).toEqual({
-        paths: [`openspec/changes/${CHANGE}`, 'openspec/changes/archive'],
+    // 治理归档是 OpenSpec 自己的命令（动作自带整条命令），到这里状态机已经完结。运行器照原样跑它，
+    // 再照动作给的 paths 提交这次搬移——change 目录从未被 git 跟踪，paths 不能点名它（搬走之后
+    // `git add` 会以 pathspec did not match 整条失败）。
+    case 'finish-change': {
+      const commit = action.commit as { paths: readonly string[]; message: string }
+      expect(commit).toEqual({
+        paths: ['openspec/changes/archive'],
         message: `chore(openspec): archive ${CHANGE}`,
       })
+      const [bin, ...args] = String(action.command).split(' ')
+      execFileSync(bin!, args, {
+        cwd: h.cwd,
+        env: { ...process.env, PATH: `${join(REPO_ROOT, 'node_modules', '.bin')}:${process.env.PATH ?? ''}` },
+        stdio: 'ignore',
+      })
+      expect(existsSync(changeDir()), 'openspec archive 必须真的把 change 目录搬走').toBe(false)
+      commitAsInstructed(commit)
+      expect(git(['status', '--porcelain', '--', 'openspec/changes']).output).toBe('')
       return true
+    }
     default:
       throw new Error(`runner: next 给了执行不了的动作 ${JSON.stringify(action)}`)
   }
@@ -259,6 +287,9 @@ beforeEach(async () => {
   failOnce = undefined
   h = await freshHarness()
   await writeFile(join(h.cwd, 'package.json'), FIXTURE_PACKAGE_JSON, 'utf8')
+  expect(git(['init', '-q']).status).toBe(0)
+  expect(git(['add', 'package.json']).status).toBe(0)
+  expect(git(['commit', '-q', '-m', 'fixture']).status).toBe(0)
   expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
   // Skill 回执绑定当前用户的活跃任务，真实宿主会话就是这样起头的。
   expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
@@ -294,6 +325,20 @@ async function walk(options: { readonly editAt?: string } = {}): Promise<{
     }
     if (done) {
       expect(edited, '用例必须真的改过一份已登记的文档').toBe(true)
+      // 搬进 archive/ 之后没有可做的事了：step 省略，任务在 finished_changes（与 simple 收尾后同一形态）。
+      await run(['status', CHANGE, '--json'])
+      const after = JSON.parse(h.out.join('\n')) as { step?: unknown; finished_changes?: readonly { name: string }[] }
+      expect(after.step).toBeUndefined()
+      expect(after.finished_changes?.map((row) => row.name)).toEqual([CHANGE])
+      // 已完结的 test status 不再是空 items：按步骤给出每项测试的最后记录，并点名完整报告。
+      await run(['test', 'status', CHANGE, '--json'])
+      const tests = JSON.parse(h.out.join('\n')) as {
+        finished: boolean; report: string; items: readonly { step: string; id: string; run?: { result: string } }[]
+      }
+      expect(tests.finished).toBe(true)
+      expect(tests.report).toBe(`tenon test report ${CHANGE}`)
+      expect(tests.items.map((item) => [item.step, item.id, item.run?.result]))
+        .toEqual([['build', 'unit', 'pass'], ['verify', 'integration', 'pass']])
       await run(['list', '--finished', '--json'])
       const finished = JSON.parse(h.out.join('\n')) as { finished: readonly { name: string; archived: string }[] }
       expect(finished.finished).toEqual([expect.objectContaining({ name: CHANGE, archived: 'true' })])
@@ -384,5 +429,76 @@ describe('照着 next 做事的运行器：open → 完结', () => {
   test('不存在的任务：status 给产品层文案', async () => {
     expect(await h.run(['status', 'no-such-change'])).toBe(1)
     expect(h.err.join('\n')).toBe('ERROR: change 不存在: no-such-change')
+  })
+})
+
+/**
+ * 真机（第二轮）：simple 工作流 verify-pass 后直接完结，功能代码与任务状态文件全留在工作区未提交；
+ * 已完结的 simple 任务 status 还带着 `step.archived: false`。收尾的 next 是只带提交的
+ * finish-change（没有归档命令），照做一次成功；提交之后 step 省略，与 default 搬进 archive/ 后同一形态。
+ */
+describe('照着 next 做事的运行器：simple 工作流', () => {
+  const SIMPLE = 'tiny'
+
+  test('verify-pass 完结后 next 给出一次成功的提交；提交之后 step 省略', async () => {
+    expect(await h.run(['init', SIMPLE, '--track', 'simple', '--preset', 'tweak'])).toBe(0)
+    expect(await h.run(['session', 'activate', SIMPLE])).toBe(0)
+    await put('src/typo.txt', 'fixed the typo\n')
+    const seen: string[] = []
+    for (let round = 1; round <= 30; round++) {
+      await run(['status', SIMPLE, '--json'])
+      const payload = JSON.parse(h.out.join('\n')) as {
+        step?: { id: string; archived: boolean; next: readonly StepAction[] }
+        finished_changes?: readonly { name: string }[]
+      }
+      if (payload.step === undefined) {
+        expect(payload.finished_changes?.map((row) => row.name)).toEqual([SIMPLE])
+        expect(seen).toContain('finish-change')
+        expect(git(['status', '--porcelain']).output).toBe('')
+        return
+      }
+      for (const action of payload.step.next) {
+        seen.push(action.action)
+        switch (action.action) {
+          case 'load-tenon':
+            await loadSkill('tenon', SIMPLE)
+            break
+          case 'load-skill':
+            await loadSkill(String(action.skill), SIMPLE)
+            break
+          case 'transition':
+          case 'complete':
+            await run(['transition', SIMPLE, String(action.event)])
+            break
+          case 'choose-exit': {
+            const exits = action.exits as readonly string[]
+            await run(['transition', SIMPLE, exits.includes('verify-pass') ? 'verify-pass' : exits.includes('change-complete') ? 'change-complete' : exits[0]!])
+            break
+          }
+          case 'finish-change':
+            expect(payload.step.archived, '已完结的 change：step.archived 为 true').toBe(true)
+            expect(action).toEqual({
+              action: 'finish-change',
+              change: SIMPLE,
+              command: null,
+              commit: { paths: ['.'], message: `chore(tenon): finish ${SIMPLE}` },
+            })
+            commitAsInstructed(action.commit as { paths: readonly string[]; message: string })
+            break
+          default:
+            throw new Error(`runner(simple): next 给了执行不了的动作 ${JSON.stringify(action)}`)
+        }
+      }
+    }
+    throw new Error(`runner(simple): 30 轮还没走到完结：${seen.join(' → ')}`)
+  })
+
+  test('scope-expanded 放弃：不发提交，step 省略', async () => {
+    expect(await h.run(['init', SIMPLE, '--track', 'simple', '--preset', 'tweak'])).toBe(0)
+    expect(await h.run(['transition', SIMPLE, 'scope-expanded'])).toBe(0)
+    await run(['status', SIMPLE, '--json'])
+    const payload = JSON.parse(h.out.join('\n')) as { step?: unknown; finished_changes?: readonly { name: string }[] }
+    expect(payload.step).toBeUndefined()
+    expect(payload.finished_changes?.map((row) => row.name)).toEqual([SIMPLE])
   })
 })

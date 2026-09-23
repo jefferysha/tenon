@@ -32,6 +32,16 @@ export function stop(code: string, message: string): readonly StepAction[] {
   return [{ action: 'stop', code, message }]
 }
 
+/** 完结时要问 git 的事实（只在 `runArchived` 时由投影层取；null = 不是 git 仓或 git 跑不起来）。 */
+export interface StepFinishFacts {
+  /** `openspec/changes/<c>` 之下有没有已跟踪的文件。 */
+  readonly changeDirTracked: boolean | null
+  /** 工作区有没有待提交的改动。 */
+  readonly workspaceDirty: boolean | null
+  /** 这次运行以验证通过收尾（verify_result=pass）；scope-expanded 之类的放弃出口不提交。 */
+  readonly verified: boolean
+}
+
 export interface StepNextInput {
   readonly change: string
   readonly loaded: boolean
@@ -55,6 +65,7 @@ export interface StepNextInput {
   readonly ownsAppliedSpec: boolean
   /** artifact 字段的合法 `--producer` 集（与 register 命令同源；空 = 无合法 producer）。 */
   readonly artifactProducers: readonly string[]
+  readonly finish: StepFinishFacts
 }
 
 /**
@@ -161,23 +172,48 @@ function skillDocumentActions(
   return actions
 }
 
+/**
+ * 完结之后的收尾：治理归档（OpenSpec 工作流）与一次提交。
+ *
+ * 提交的 paths 必须让 `git add -A -- <paths…>` 一次成功（真机：原目录从未被 git 跟踪，搬走之后
+ * `fatal: pathspec 'openspec/changes/<c>' did not match any files`，exit 128）：
+ *   · archive/ 目录在搬移后一定存在，恒列出；
+ *   · 原目录只有被跟踪过才列出——`-A` 据索引项暂存删除；没被跟踪过就没有什么删除可提交。
+ * 不是 git 仓（或 git 跑不起来）时不发提交（`commit: null`）：没有可以一次成功的写法。
+ *
+ * 非 OpenSpec 治理的工作流（内置 simple）没有归档命令，但以验证通过收尾时同样留下一整个工作区的
+ * 改动（功能代码与任务状态文件）：`command: null`，只带提交；工作区干净（已提交）或放弃出口
+ * （scope-expanded）时就停。
+ */
+function finishActions(input: StepNextInput): readonly StepAction[] {
+  const change = input.change
+  if (!input.governedOpenspec) {
+    if (!input.finish.verified || input.finish.workspaceDirty !== true) {
+      return stop('run-archived', `任务 '${change}' 已完结`)
+    }
+    return [{
+      action: 'finish-change',
+      change,
+      command: null,
+      commit: { paths: ['.'], message: `chore(tenon): finish ${change}` },
+    }]
+  }
+  const command = `openspec archive ${change} --skip-specs --yes --json`
+  const tracked = input.finish.changeDirTracked
+  const commit = tracked === null
+    ? null
+    : {
+        paths: [...(tracked ? [`openspec/changes/${change}`] : []), 'openspec/changes/archive'],
+        message: `chore(openspec): archive ${change}`,
+      }
+  return [{ action: 'finish-change', change, command, commit }]
+}
+
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
 export function stepNextActions(input: StepNextInput): readonly StepAction[] {
-  // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩治理归档这一步，排在
-  // load-tenon 之前——终态自边的步骤访问不会再前进，补技能证据只会原地打转，而动作自带整条命令。
-  // 归档跑完前目录还在 openspec/changes/ 下而 archived=true，两张列表都看不见它，不点名就只剩空 fix。
-  if (input.runArchived) {
-    if (!input.governedOpenspec) return stop('run-archived', `任务 '${input.change}' 已完结`)
-    const command = `openspec archive ${input.change} --skip-specs --yes --json`
-    // 搬移本身是一次工作区改动：ship 的提交早于它，不跟一次提交就留下「删除 + 未跟踪」的脏工作区
-    // （真机验收：5 个删除 + 未跟踪的 archive/ 目录）。动作自带要提交的路径与提交说明——提交是本地
-    // 动作；宿主不让写 .git（Codex 受限沙箱）时如实把这一步留给用户，不伪装成已提交。
-    const commit = {
-      paths: [`openspec/changes/${input.change}`, 'openspec/changes/archive'],
-      message: `chore(openspec): archive ${input.change}`,
-    }
-    return [{ action: 'finish-change', change: input.change, command, commit }]
-  }
+  // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩收尾这一步，排在 load-tenon
+  // 之前——终态自边的步骤访问不会再前进，补技能证据只会原地打转，而动作自带整条命令。
+  if (input.runArchived) return finishActions(input)
   if (!input.loaded) return [{ action: 'load-tenon' }]
 
   // 只有 `unread` 是 `tenon document read` 能推进的状态。`stale` 的文档读不动——命令当场拒

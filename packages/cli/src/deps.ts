@@ -358,6 +358,10 @@ export interface CliDeps {
   gitHeadSha?: () => Promise<string>
   /** 仓库的 git 远端名（`git remote`）；非 git 仓 → []，git 跑不起来 → null。pr_url 的取值闸用它。 */
   gitRemotes?: () => Promise<readonly string[] | null>
+  /** 项目根相对路径 `rel` 之下有没有 git 已跟踪的文件；非 git 仓或 git 跑不起来 → null。完结的提交动作用它。 */
+  gitTracksPath?: (rel: string) => Promise<boolean | null>
+  /** 工作区有没有待提交的改动（`git status --porcelain` 非空）；判定不了 → null。 */
+  gitWorkspaceDirty?: () => Promise<boolean | null>
   /**
    * in-place build 的内容寻址工作区基线。按 change 名保留调用上下文，防未来基线策略需要排除
    * 当前 change 的控制面；production 由 kernel fingerprintWorkspace 落地。

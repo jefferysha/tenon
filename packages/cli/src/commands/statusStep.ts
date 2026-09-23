@@ -30,7 +30,7 @@ import { SPEC_APPLY_RECEIPT } from './specApply.js'
 import { PR_URL_NO_REMOTE, repositoryHasNoRemote } from './prUrlField.js'
 import {
   stepNextActions, stop,
-  type StepAction, type StepMode, type StepNextInput, type StepTestView,
+  type StepAction, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestView,
 } from './statusStepNext.js'
 
 export interface StepBlock {
@@ -44,6 +44,10 @@ export interface StepBlock {
   readonly prompt: string | null
   readonly gate: string | null
   readonly mode: StepMode
+  /**
+   * 这个任务不再是活跃任务：当前用户把它收起了（per-user 归档表），或状态机已完结
+   * （`fields.archived=true`）。两种都为 true——已完结的 change 不会再带一个 `archived:false` 的 step。
+   */
   readonly archived: boolean
   readonly governed_openspec: boolean
   readonly candidate: string
@@ -131,6 +135,19 @@ async function withPrUrlRecommendation(
   return fields.map((field, at) => at === index ? { ...field, recommended: PR_URL_NO_REMOTE } : field)
 }
 
+/** 完结收尾要的 git 事实；只在状态机已归档时才去问 git（活跃步骤的每次 status 不付这份开销）。 */
+async function finishFacts(deps: CliDeps, name: string, state: PipelineState): Promise<StepFinishFacts> {
+  const verified = str(state.fields.verify_result) === 'pass'
+  if (str(state.fields.archived) !== 'true') {
+    return { changeDirTracked: null, workspaceDirty: null, verified }
+  }
+  const [changeDirTracked, workspaceDirty] = await Promise.all([
+    deps.gitTracksPath?.(`openspec/changes/${name}`) ?? Promise.resolve(null),
+    deps.gitWorkspaceDirty?.() ?? Promise.resolve(null),
+  ])
+  return { changeDirTracked, workspaceDirty, verified }
+}
+
 export async function buildStatusStep(
   deps: CliDeps,
   name: string,
@@ -180,7 +197,7 @@ export async function buildStatusStep(
     prompt: step?.prompt ?? null,
     gate: step?.gate ?? null,
     mode: await modeOf(deps, name),
-    archived,
+    archived: archived || str(state.fields.archived) === 'true',
     governed_openspec: plan.capabilities.documents.governed,
     candidate: await currentCandidate(deps, name, state, plan, stepId),
     skills,
@@ -226,10 +243,13 @@ export async function buildStatusStep(
       ownsDeltaSpec: documents.records.some((doc) => doc.kind === 'delta-spec'),
       ownsAppliedSpec: documents.records.some((doc) => doc.kind === 'applied-spec'),
       artifactProducers: artifacts.size === 0 ? [] : effectiveArtifactProducers(deps, state),
+      finish: await finishFacts(deps, name, state),
     }),
   }
 }
 
 export { SPEC_APPLY_RECEIPT }
 // 顺序表与它的输入面归 statusStepNext.ts；从这里转出，投影的消费方（测试、dashboard）只认一个入口。
-export { stepNextActions, type StepAction, type StepMode, type StepNextInput, type StepTestView }
+export {
+  stepNextActions, type StepAction, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestView,
+}
