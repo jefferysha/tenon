@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
+import { diffFileLabel } from './DiffDrawer'
 import { ProjectsView } from './ProjectsView'
 
 const PROJECTS = [{ root: '/repo', name: 'repo', count: 1, ok: true }]
@@ -108,6 +109,9 @@ describe('项目页 · 指令文件', () => {
     expect(within(drawer).getByTestId('proj-diff-AGENTS.md')).toBeInTheDocument()
     expect(within(drawer).getByTestId('proj-diff-CLAUDE.md')).toBeInTheDocument()
     expect(drawer.querySelectorAll('[data-op="add"]').length).toBeGreaterThan(0)
+    // 标题是相对项目根的文件名，完整绝对路径只在 title 与副行里。
+    expect(within(drawer).getByTestId('proj-diff-name-AGENTS.md')).toHaveTextContent(/^AGENTS\.md$/u)
+    expect(within(drawer).getByTestId('proj-diff-name-AGENTS.md')).toHaveAttribute('title', '/repo/AGENTS.md')
     await user.click(screen.getByTestId('proj-diff-confirm'))
     await waitFor(() => {
       const apply = calls.find((call) => call.url === '/api/instructions/apply')
@@ -184,5 +188,14 @@ describe('项目页 · 指令文件', () => {
     expect(await screen.findByTestId('proj-apply')).toBeDisabled()
     expect(screen.getByTestId('proj-delete')).toBeDisabled()
     expect(screen.getByTestId('proj-no-token')).toBeInTheDocument()
+  })
+})
+
+describe('diffFileLabel', () => {
+  it('项目内文件取相对项目根的路径，用户级文件取文件名', () => {
+    expect(diffFileLabel('/Users/me/very/long/workspace/repo/AGENTS.md', '/Users/me/very/long/workspace/repo')).toBe('AGENTS.md')
+    expect(diffFileLabel('/repo/docs/CLAUDE.md', '/repo/')).toBe('docs/CLAUDE.md')
+    expect(diffFileLabel('/Users/me/.claude/CLAUDE.md', '')).toBe('CLAUDE.md')
+    expect(diffFileLabel('/elsewhere/GEMINI.md', '/repo')).toBe('GEMINI.md')
   })
 })
