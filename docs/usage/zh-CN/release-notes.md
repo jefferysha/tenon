@@ -12,6 +12,92 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.1.1 · 2026-09-23
+
+正确性修复版。在真实宿主上验收 v0.1.0 时发现：默认工作流五条轨道里有三条走不通，另有几处 Tenon 没有核实就把步骤报成了完成。
+
+### 阻断修复：宿主拒绝执行的强制技能
+
+- v0.1.0 的 `pm`、`frontend`、`backend` 三条轨道都出不了 `explore`，`pm` 还卡在 `spec`、`verify` 与 `ship`。
+  这些步骤的强制技能里有上游技能在 `SKILL.md` 中声明了 `disable-model-invocation: true`：宿主拒绝代模型调用，
+  留不下回执，每次流转都报 `step-skills-incomplete`。
+- 替换：`grill-with-docs` 换成它自己委托的 `grilling` + `domain-modeling`；`improve-codebase-architecture` 换成
+  `codebase-design`，内建 `architecture` agent 同步更换。`pm` 不再强制 `handoff`（改用
+  `tenon handoff <change> [--bundle]`）、`to-spec` 与 `to-tickets`：applied-spec 文档与 spec 步骤的任务门禁已经覆盖
+  它们原本的作用。被移出的技能仍随包分发，作为人工指引。
+- 此类缺陷不会再发版：发布候选的技能校验以 `mandatory-skill-not-invocable` 失败；`tenon doctor` 新增
+  `skills:invocable`，强制技能的全部备选都被证明不可调用时为红，读不到其 `SKILL.md` 时为黄；Dashboard 拒绝保存
+  把这类技能设为强制的工作流。
+
+### 不再误报通过
+
+- `tenon check`、`tenon transition` 与 `tenon status` 对步骤技能与出口规则共用同一份判定。v0.1.0 中三者会对同一份
+  状态给出不同结论：在 pm 的 `ship`，`check` 失败，`status` 却显示出口就绪，`transition` 也放行。现在任务不能在缺少
+  交付物时完成，例如 `prd_path` 为空的 pm 任务。
+- 任何轨道上，spec 预演都不再满足 applied-spec 义务。
+- 被步骤文档契约点名为产出者的强制技能，只有在本次步骤访问中登记了它产出的文档才算完成，仅有调用回执不再算数。
+
+### 只按 `next` 就能走完任务
+
+`tenon status <change> --json` 的 `next` 现在只给出命令真正接受的动作，只按它执行的 runner 可以把默认任务从
+`open` 走到 `tenon list --finished`：
+
+- 已登记后又被修改的输入文档会重新登记，不再无限重复读取；
+- 脚手架生成的文档在同一波里登记，脚手架步骤会收敛；
+- 未登记的 `role: update` 槽是许可而非义务，不再索要任何动作；
+- 评审门后的单条回退边与前进边一样先发起评审请求；
+- 归档步骤先给出 `complete`（即 `archived` 流转），再给出带完整 `openspec archive` 命令的 `finish-change`；
+- `build_sha` 由 Build 的出口流转写入，不再要求 runner 填写；
+- 覆盖率门禁的修复提示与其解析器实际读取的内容一致。
+
+### 负责人与已完结任务
+
+- `tenon set`、`set-many` 与 `cas` 与其他写操作一样要求身份、拒绝非负责人，并拒绝已完结的任务。
+- 完结就是流转 `tenon transition <change> archived`，它同时写入 `archived_at`；手动写 `archived` 或 `archived_at`
+  会被拒绝。
+- 已完结的任务仍可用 `tenon status` 查看，并在标记完结的那一刻就出现在 `tenon list --finished`，不必等目录移动。
+- 被「归档」隐藏的任务与已完结的任务给出不同提示：前者指向 `tenon task unarchive`，后者说明任务已完结、需要新建任务。
+
+### 安装与升级
+
+- `tenon spec apply` 会为尚不存在的能力创建主规格目录。
+- `tenon doctor` 把检查结论归属到当前使用的宿主，只有加 `--verify-release` 时才访问远端。
+- 上游技能 lock 与 v0.1.0 的格式逐字节一致：v0.1.0 的校验器能读 v0.1.1 写出的 lock，反之亦然。技能能否被调用
+  改为从其 `SKILL.md` 字节读取，不再经过 lock。
+- 安装文档说明如何放宽 `CLAUDE_CODE_PLUGIN_GIT_TIMEOUT_MS`：Claude Code clone 插件市场的默认超时为 120 秒，
+  clone 超时会让该宿主处于未装插件状态。
+
+### 升级动作
+
+从 v0.1.0 升级：运行 `tenon update --codex`（或 `--claude`），然后新开宿主会话。N-1 兼容门禁在两个方向上用已发布的
+v0.1.0 读写本版本的数据。
+
+从 1.x 迁移：为使用的每个宿主各运行一次版本化安装命令：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.1/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.1/install.sh | /bin/bash -s -- --codex
+```
+
+### 兼容性
+
+- 进行中的任务：产出型强制技能在更早一次步骤访问中登记的文档，不再计入当前访问；`next` 会以 `record-document`
+  （带技能名）要求重新登记。
+- 以下强制技能仍以调用即算完成，因为在该步骤没有文档槽把它们点名为产出者：`openspec-explore`、`grilling`、
+  `domain-modeling`、`codebase-design`（explore）；`brainstorming`（pm 的 spec）；`test-driven-development`、
+  `frontend-design`、`prototype`（build）；`browser-qa`、`web-design-guidelines`、`design-taste-frontend`、
+  `e2e-testing`（verify）；`finishing-a-development-branch`（ship）。把它们绑定到产物，需要在后续版本中对文档契约
+  另行决策。
+
+### 验证
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+`skills:invocable` 为绿；两个宿主的 inventory、active managed runtime 与 Dashboard 都报告 0.1.1。
+
 ## v0.1.0 · 2026-09-22
 
 版本号从 0.1.0 重新开始。Tenon 还不成熟，1.x 这个号码宣称了它并不具备的稳定度。

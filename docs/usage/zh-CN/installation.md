@@ -30,23 +30,23 @@ git --version
 新用户无需 clone、安装 monorepo 依赖或本地 build。安装 Codex：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --codex
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.1/install.sh | /bin/bash -s -- --codex
 ```
 
 安装 Claude Code：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.1/install.sh | /bin/bash -s -- --claude
 ```
 
 首次安装前可执行零写入预览。它会列出完整的宿主 Marketplace 命令和包内 setup 计划，但不会调用
 Codex/Claude，也不会写 Tenon、宿主或项目状态：
 
 ```bash
-/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.0/install.sh | /bin/bash -s -- --codex --dry-run
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.1/install.sh | /bin/bash -s -- --codex --dry-run
 ```
 
-版本化脚本只使用不可变稳定版本 `v0.1.0` 的预构建资产，不 clone 仓库、不执行源码编译。
+版本化脚本只使用不可变稳定版本 `v0.1.1` 的预构建资产，不 clone 仓库、不执行源码编译。
 
 Claude Code 宿主会把本仓库作为插件市场 clone，其默认 clone 超时为 120 秒。网络较慢时先放宽再安装，例如 `CLAUDE_CODE_PLUGIN_GIT_TIMEOUT_MS=1800000`；clone 超时会让该宿主处于未装插件状态，放宽后重跑安装即可。
 脚本只负责注册 Tenon Marketplace、安装并验证完整 payload，然后调用包内
@@ -55,7 +55,7 @@ Claude Code 宿主会把本仓库作为插件市场 clone，其默认 clone 超�
 自动更新复用同一个整包事务，不再拆出第二套 CLI 自更新通道。
 
 Tenon 版本号已重置为从 0.1.0 开始，已退役的 1.x Release 与标签全部删除。机器上仍是 1.x 安装时，
-每个宿主各运行一次版本化的 `v0.1.0/install.sh` 命令。1.x 上的 `tenon update` 只会报告降级且不做
+每个宿主各运行一次版本化的 `v0.1.1/install.sh` 命令。1.x 上的 `tenon update` 只会报告降级且不做
 任何改动：那段拒绝逻辑属于已经发布的 1.x，无法事后修补；因此也不能用第二次命令或 Dashboard/校验
 脚本副作用冒充一键升级。从 v0.1.0 起，之后每次常规升级只运行一条
 `tenon update --codex`（或 `--claude`），交付身份始终是稳定 release tag。

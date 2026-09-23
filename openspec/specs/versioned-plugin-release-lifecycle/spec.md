@@ -39,8 +39,8 @@ Tenon SHALL 只把官方仓库中不可变、完整、稳定的 `vX.Y.Z` Release
 #### Scenario: 已退役 1.x 用户迁移到 0.x 版本化通道
 
 - **WHEN** 用户当前 launcher/runtime 是无法追溯修改的已退役 1.x（v1.0.0–v1.1.5）
-- **THEN** 文档要求为每个宿主执行一次固定到 `v0.1.0/install.sh` 的官方迁移命令
-- **AND** 安装器在同一调用中把 plugin、marketplace、runtime 与 Dashboard 收敛到 `v0.1.0`
+- **THEN** 文档要求为每个宿主执行一次固定到当前正式版本 `install.sh` 的官方迁移命令
+- **AND** 安装器在同一调用中把 plugin、marketplace、runtime 与 Dashboard 收敛到该正式版本
 - **AND** 不宣称旧 1.x `tenon update` 能同进程运行尚未激活的新版 updater，它只报告降级且不做任何改动
 - **AND** v0.1.0 起的后续升级只需单条 `tenon update --codex`
 

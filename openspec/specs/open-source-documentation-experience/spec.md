@@ -805,12 +805,12 @@ README、中文/英文安装文档、quickstart 和文档站 SHALL 使用同一�
 ### Requirement: 文档 SHALL 诚实说明 1.x 到 v0.1.0 的一次性迁移边界
 
 正式安装与升级文档 SHALL 说明：版本号已重置为 0.1.0，已经发布的 1.x 无法由后续源码追溯修改，1.x 上的
-`tenon update` SHALL 被描述为报告降级且不做任何改动；仍在 1.x 的用户迁移到 v0.1.0 时 SHALL 为每个宿主
+`tenon update` SHALL 被描述为报告降级且不做任何改动；仍在 1.x 的用户迁移到 0.x 时 SHALL 为每个宿主
 执行一次固定版本安装器；完成后每次更新 SHALL 使用单条 `tenon update --codex`。文档 SHALL NOT 要求用户
 运行源码构建，也 SHALL NOT 用第二次隐式 update、验证脚本 mutation 或 Dashboard side effect 冒充一键迁移。
 
 #### Scenario: 1.x 用户查看升级说明
 
-- **WHEN** 用户从当前稳定文档查找 1.x 到 v0.1.0 的升级方式
-- **THEN** 文档给出与新用户相同的 `v0.1.0/install.sh` 一行命令
+- **WHEN** 用户从当前稳定文档查找 1.x 到 0.x 的升级方式
+- **THEN** 文档给出与新用户相同的当前正式版本 `install.sh` 一行命令
 - **AND** 解释这是每个宿主一次的迁移，1.x 的 `tenon update` 不是迁移路径，之后恢复为 `tenon update --codex`
