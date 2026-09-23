@@ -51,6 +51,11 @@ Server: `DashboardServerOptions.resolveUser(root)`, `GET/POST /api/user`, `POST 
   `.gitignore` is never edited) and `.tenon/users/<slug>/{tests,baselines}/` (tracked) plus `local/` (0700:
   `active-change`, `authority`, `archived.json`, `artifacts/`). Directories must be ordinary; readers ignore a symlinked
   `local/`. The whole `.tenon/` directory is excluded from the workspace fingerprint.
+- **`.pipeline/` local state:** the same nested pattern — `<repo>/.pipeline/.gitignore` (kernel
+  `PIPELINE_PROJECT_GITIGNORE`: `cache/`, `terminal-sessions/`, `codex-skill-receipts.jsonl`; created once by
+  `ensurePipelineGitignore` before any of those is written, never rewritten). `hooks/router.sh` writes the router cache
+  without Node and carries a byte-identical copy. Shared configuration (`workflows/`, `tracks.yaml`, `hooks.json`,
+  `loops.yaml`, …) stays tracked.
 - **Records:** `created_by` / `assignee` hold `Name <id>` (creator and first owner = the declared identity at init);
   history rows, document ledger records and review acknowledgements carry `actor`; `TransitionRecord.actor` stays the
   user-ref string. Hook-written host evidence rows carry no actor.

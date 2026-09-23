@@ -297,11 +297,25 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
         for (const blocker of result.blockers) deps.io.err(`  - ${blocker}`)
         return 1
       case 'review-approval-required':
+        if (result.pendingEvent === result.event) {
+          // The request already exists; asking for another one would only restart the wait.
+          deps.io.err(
+            `ERROR: phase '${result.phase}' 的 event '${result.event}' 已请求评审，正在等待用户确认；` +
+            `不要重复 review request。展示产物，用户回复“确认继续”后运行 tenon review acknowledge ${name}，` +
+            '再重发本次 transition',
+          )
+          return 2
+        }
         deps.io.err(
           `ERROR: phase '${result.phase}' 的 event '${result.event}' 尚未取得人工确认；先运行 ` +
           `tenon review request ${name} --event ${result.event}，` +
           '展示产物并等待用户“确认继续”，再重发本次 transition',
         )
+        if (result.pendingEvent !== undefined) {
+          deps.io.err(
+            `  当前待确认的 review request 绑定的是 event '${result.pendingEvent}'，确认不能跨 event 使用`,
+          )
+        }
         return 2
       case 'constraint-denied':
         deps.io.err(`ERROR: automation constraint denied transition: ${result.reason}`)

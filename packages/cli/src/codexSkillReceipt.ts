@@ -14,7 +14,7 @@ import { createHash } from 'node:crypto'
 import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { DOCUMENT_SKILL_CONFIRMATIONS_FILE, withLock } from '@tenon/kernel'
+import { DOCUMENT_SKILL_CONFIRMATIONS_FILE, ensurePipelineGitignore, withLock } from '@tenon/kernel'
 import { recordCodexDocumentSkillConfirmation } from '../../kernel/dist/skill-invocation/producer-internal.js'
 import type { HistoryWriter } from '@tenon/kernel'
 import { errMsg, type CliDeps } from './deps.js'
@@ -167,6 +167,8 @@ async function validatedReceipt(
 async function appendReceipt(repoRoot: string, receipt: CodexSkillReceipt): Promise<void> {
   const journalDir = join(resolve(repoRoot), '.pipeline')
   await mkdir(journalDir, { recursive: true })
+  // Receipts are machine-local; the ignore file is best effort and never blocks recording one.
+  await ensurePipelineGitignore(resolve(repoRoot)).catch(() => undefined)
   const line = `${JSON.stringify(receipt)}\n`
   // This receipt journal is append-only.  The existing cross-process mkdir lock serializes writers;
   // appendFile then emits exactly one complete JSONL record while that lock is held.

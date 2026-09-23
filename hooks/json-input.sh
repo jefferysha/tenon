@@ -45,41 +45,114 @@ _pipeline_json_seek_value() { # $1=input JSON, $2=key
 # Decode one JSON string that starts at the opening quote of "$1".  Publishes the decoded value in
 # _PIPELINE_JSON_VALUE and the remainder after the closing quote in _PIPELINE_JSON_REST, so an
 # array reader can continue scanning without re-implementing escape handling.
+#
+# Linear by construction.  A per-character loop (`${rest:1}` per step) copies the remaining buffer
+# on every character, and bash 3.2 (macOS /bin/bash, which runs these hooks) also makes every
+# `${var//pattern/replacement}` quadratic in the number of matches: a 40 KB heredoc command took
+# ~35 s, far beyond the 5 s host hook timeout, so every PostToolUse hook was cancelled.  Instead the
+# buffer is split with `read -a` — one linear pass per delimiter — first on `"` (a piece that ends
+# in an odd number of backslashes hides an escaped quote; the first even one closes the string),
+# then the value on `\` to decode each escape.  Pieces are collected in arrays and joined once,
+# because repeated `+=` on a growing string is quadratic as well.
+#
+# PIPELINE_JSON_MAX_STRING (unset = unlimited) bounds the encoded length of one value: a longer
+# value is treated like a malformed one (failure), and the escape scan never looks past the bound.
+# Set it with pipeline_json_get_command_bounded, never globally.
 _pipeline_json_read_string() { # $1=buffer starting at '"'
-  local rest="${1:-}" value='' character escaped=0
+  local rest="${1:-}" IFS raw part tail count index last close=-1 slashes length=0 scan
+  local max="${PIPELINE_JSON_MAX_STRING:-}"
+  local -a pieces decoded
   _PIPELINE_JSON_VALUE=''
+  case "$max" in *[!0-9]*) max='' ;; esac
   case "$rest" in
     '"'*) rest="${rest#\"}" ;;
     *) return 1 ;;
   esac
+  case "$rest" in *'"'*) ;; *) return 1 ;; esac
 
-  while [ -n "$rest" ]; do
-    character="${rest:0:1}"
-    rest="${rest:1}"
-    if [ "$escaped" -eq 1 ]; then
-      case "$character" in
-        '"'|\\|/) value+="$character" ;;
-        b) value+=$'\b' ;;
-        f) value+=$'\f' ;;
-        n) value+=$'\n' ;;
-        r) value+=$'\r' ;;
-        t) value+=$'\t' ;;
-        # Hook routing keys and packaged paths are ASCII. Preserve a Unicode escape literally
-        # instead of spawning an interpreter merely to decode it.
-        u) value+='\\u' ;;
-        *) return 1 ;;
-      esac
-      escaped=0
-    else
-      case "$character" in
-        \\) escaped=1 ;;
-        '"') _PIPELINE_JSON_VALUE="$value"; _PIPELINE_JSON_REST="$rest"; return 0 ;;
-        *) value+="$character" ;;
-      esac
-    fi
+  # Fast path: most values (tool names, paths, short commands) carry no escape at all.  Cutting at
+  # the first quote costs one pass over the prefix, instead of splitting the whole remaining
+  # payload (PostToolUse carries the full tool output after the input).
+  raw="${rest%%\"*}"
+  case "$raw" in
+    *'\'*) ;;
+    *)
+      [ -z "$max" ] || [ "${#raw}" -le "$max" ] || return 1
+      _PIPELINE_JSON_VALUE="$raw"
+      _PIPELINE_JSON_REST="${rest:$((${#raw} + 1))}"
+      return 0
+      ;;
+  esac
+
+  # Only the lengths of the pieces are used here: joining an array that holds empty strings leaks
+  # bash 3.2's internal \177 null marker into the result.  The here-string's trailing newline lands
+  # in the last piece, which never belongs to the value.  Under a bound, a value that fits closes
+  # within the first max+1 characters, so only that prefix is split.
+  scan="$rest"
+  [ -z "$max" ] || scan="${rest:0:$((max + 1))}"
+  IFS='"'
+  read -r -d '' -a pieces <<< "$scan" || true
+  count=${#pieces[@]}
+  index=0
+  while [ "$index" -lt "$((count - 1))" ]; do
+    tail="${pieces[$index]}"
+    length=$((length + ${#tail}))
+    slashes=0
+    while [[ "$tail" == *'\' ]]; do tail="${tail%?}"; slashes=$((slashes + 1)); done
+    if [ "$((slashes % 2))" -eq 0 ]; then close=$index; break; fi
+    length=$((length + 1))
+    index=$((index + 1))
   done
-  return 1
+  [ "$close" -ge 0 ] || return 1
+  raw="${rest:0:$length}"
+  rest="${rest:$((length + 1))}"
+
+  case "$raw" in
+    *'\'*) ;;
+    *) _PIPELINE_JSON_VALUE="$raw"; _PIPELINE_JSON_REST="$rest"; return 0 ;;
+  esac
+  IFS='\'
+  read -r -d '' -a pieces <<< "$raw" || true
+  last=$((${#pieces[@]} - 1))
+  pieces[$last]="${pieces[$last]%$'\n'}"
+  # Empty strings are never appended to `decoded` (see the \177 note above).
+  decoded=()
+  [ -z "${pieces[0]}" ] || decoded+=("${pieces[0]}")
+  index=1
+  while [ "$index" -le "$last" ]; do
+    part="${pieces[$index]}"
+    if [ -z "$part" ]; then
+      # An empty piece sits between the two backslashes of `\\`; the piece after it is plain text.
+      [ "$index" -lt "$last" ] || return 1
+      index=$((index + 1))
+      decoded+=('\')
+      [ -z "${pieces[$index]}" ] || decoded+=("${pieces[$index]}")
+      index=$((index + 1))
+      continue
+    fi
+    case "${part:0:1}" in
+      '"') decoded+=('"') ;;
+      /) decoded+=('/') ;;
+      b) decoded+=($'\b') ;;
+      f) decoded+=($'\f') ;;
+      n) decoded+=($'\n') ;;
+      r) decoded+=($'\r') ;;
+      t) decoded+=($'\t') ;;
+      # Hook routing keys and packaged paths are ASCII. Preserve a Unicode escape literally
+      # instead of spawning an interpreter merely to decode it.
+      u) decoded+=('\\u') ;;
+      *) return 1 ;;
+    esac
+    part="${part#?}"
+    [ -z "$part" ] || decoded+=("$part")
+    index=$((index + 1))
+  done
+  IFS=''
+  [ "${#decoded[@]}" -eq 0 ] || _PIPELINE_JSON_VALUE="${decoded[*]}"
+  _PIPELINE_JSON_REST="$rest"
+  return 0
 }
+
 
 pipeline_json_get_string() { # $1=input JSON, $2=key
   _pipeline_json_seek_value "${1:-}" "${2:-}" || return 1
@@ -148,6 +221,14 @@ pipeline_json_get_command() { # $1=input JSON
   done
   [ "$found" -eq 0 ] || return 1
   return 0
+}
+
+# Same as pipeline_json_get_command, but a command whose encoded form exceeds $2 characters fails
+# like a missing one.  For consumers that only ever act on short commands (test commands, read-only
+# allowlists, review control), so a huge heredoc costs one bounded scan instead of a full decode.
+pipeline_json_get_command_bounded() { # $1=input JSON, $2=max encoded length
+  local PIPELINE_JSON_MAX_STRING="${2:-}"
+  pipeline_json_get_command "${1:-}"
 }
 
 # The working directory decides which project root a hook inspects, so a missing value is not a

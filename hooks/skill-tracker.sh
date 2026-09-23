@@ -58,6 +58,8 @@ case "$TOOL" in
     ;;
   *)
     pipeline_json_is_command_tool "$TOOL" || exit 0
+    # Only a command naming a SKILL.md can be a skill read; skip decoding every other (possibly huge) one.
+    case "$INPUT" in *SKILL.md*) ;; *) exit 0 ;; esac
     EVIDENCE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/skill-evidence.sh"
     [ -r "$EVIDENCE_HELPER" ] || exit 0
     # shellcheck source=skill-evidence.sh

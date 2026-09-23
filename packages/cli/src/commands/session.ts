@@ -31,6 +31,7 @@ import {
   renderRouteContextText,
   routeBucketsToObject,
   routeContext,
+  ensurePipelineGitignore,
   TERMINAL_SESSION_BINDINGS_DIR,
   TERMINAL_SESSION_PROTOCOL,
   validateChangeName,
@@ -119,6 +120,7 @@ async function writeTerminalSessionBinding(cwd: string, name: string, sessionId:
   if (!isTerminalSessionId(sessionId)) throw new Error('host session id 格式非法')
   const pipelineDir = join(cwd, '.pipeline')
   const sessionsDir = join(cwd, TERMINAL_SESSION_BINDINGS_DIR)
+  await ensurePipelineGitignore(cwd)
   await ensurePlainDirectory(pipelineDir)
   await ensurePlainDirectory(sessionsDir)
   const target = join(sessionsDir, `${sessionId}.json`)

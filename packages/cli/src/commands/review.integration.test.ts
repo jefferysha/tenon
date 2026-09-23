@@ -34,6 +34,10 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     const marker = join(h.cwd, '.pipeline-pending-review')
     await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' })
 
+    // Without any request the refusal asks for one.
+    expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(2)
+    expect(h.err.join('\n')).toContain('先运行 tenon review request demo --event explore-complete')
+
     expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
     const projection = await readFile(marker, 'utf8')
     expect(projection).toContain(`${REVIEW_MARKER_PROTOCOL}\n`)
@@ -49,8 +53,12 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
     expect(h.err.join('\n')).toContain('由 tenon review')
 
     // Pending receipt is not permission: repeat transition only after the explicit acknowledgement.
+    // The refusal must point at the acknowledgement, not at another request that already exists.
     expect(await h.run(['transition', 'demo', 'explore-complete'])).toBe(2)
-    expect(h.err.join('\n')).toContain('尚未取得人工确认')
+    const pendingRefusal = h.err.join('\n')
+    expect(pendingRefusal).toContain('已请求评审，正在等待用户确认')
+    expect(pendingRefusal).toContain('tenon review acknowledge demo')
+    expect(pendingRefusal).not.toContain('先运行 tenon review request')
 
     expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
     await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -103,6 +111,12 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
       await expect(stat(join(h2.cwd, '.pipeline-pending-review'))).rejects.toMatchObject({ code: 'ENOENT' })
       await h2.satisfyStepAgents('reviewed')
       expect(await h2.run(['review', 'request', 'reviewed', '--event', 'verify-pass']), h2.err.join('\n')).toBe(0)
+      // A pending request for verify-pass does not authorise verify-fail: the refusal asks for the
+      // matching request and names the event the pending one is bound to.
+      expect(await h2.run(['transition', 'reviewed', 'verify-fail'])).toBe(2)
+      const crossEvent = h2.err.join('\n')
+      expect(crossEvent).toContain('先运行 tenon review request reviewed --event verify-fail')
+      expect(crossEvent).toContain("绑定的是 event 'verify-pass'")
     } finally {
       await rm(h2.cwd, { recursive: true, force: true })
     }
