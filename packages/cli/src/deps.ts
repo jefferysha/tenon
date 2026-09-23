@@ -2,6 +2,7 @@
  * cli 依赖注入面 —— 命令逻辑全部是接受 CliDeps 的纯函数（CONTRACT §4 agent:cli）。
  * store/flow 按 types.ts 契约注入；测试全 mock，绝不 import kernel 实现。
  */
+import type { GitFinishProbe } from './gitWorkspace.js'
 import type { BoardSnapshotV2, DocumentContractPhase, DocumentEvidenceReport, EffectiveSkillResolver, FlowEngine, GuardContext, HistoryWriter, InteractionEventRecorder, MutationOutcome, PipelineState, ProjectTrackConfig, RegistrySnapshot, SkillTable, StateStore, TrackRegistry, WorkflowRunRepository, WorkflowPipelinePlanV2 } from '@tenon/kernel'
 import type { ArtifactSubmissionService, ExecutionRuntimeV2, SkillActionAuthorityResolver } from '@tenon/automation'
 import type { AfkReadiness } from './afkReadiness.js'
@@ -358,6 +359,8 @@ export interface CliDeps {
   gitHeadSha?: () => Promise<string>
   /** 仓库的 git 远端名（`git remote`）；非 git 仓 → []，git 跑不起来 → null。pr_url 的取值闸用它。 */
   gitRemotes?: () => Promise<readonly string[] | null>
+  /** 完结提交动作要的 git 事实（gitWorkspace.ts probeGitFinish）；不是 git 仓或 git 跑不起来 → null。 */
+  gitFinishProbe?: (change: string) => Promise<GitFinishProbe | null>
   /**
    * in-place build 的内容寻址工作区基线。按 change 名保留调用上下文，防未来基线策略需要排除
    * 当前 change 的控制面；production 由 kernel fingerprintWorkspace 落地。

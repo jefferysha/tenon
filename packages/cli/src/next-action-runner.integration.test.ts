@@ -15,7 +15,8 @@ import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import { FIXED_CLOCK, freshHarness, rm, type Harness } from './integration-harness.js'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { FIXED_CLOCK, freshHarness, REPO_ROOT, rm, type Harness } from './integration-harness.js'
 
 const CHANGE = 'nextrun'
 const FIXTURE_PACKAGE_JSON = `${JSON.stringify({
@@ -48,6 +49,8 @@ const FREEFORM: Readonly<Record<string, string>> = {
   prd_path: `docs/${CHANGE}-prd.md`,
 }
 
+const SHIP_TASK = 'update the usage docs'
+
 const DESIGN_DOC = [
   '# design', '', '```coverage', 'touches:',
   ...['L1_api', 'L2_data', 'L3_rules', 'L4_state', 'L5_errors', 'L6_security', 'L7_perf', 'L8_deps', 'L10_terms']
@@ -60,7 +63,14 @@ const PLACEHOLDER = /\[待填写|: 待填写$|\*\* 待填写$|- \[ \] 待填写$
 
 /** 作者写成的文档内容。delta spec 要过 OpenSpec strict 校验，所以写成一条真需求。 */
 function authored(kind: string): string {
-  if (kind === 'tasks') return '- [x] scope\n- [x] implementation\n- [x] verification\n'
+  // ship 段留一项未勾：ship 的 next 必须先发带这条原文的 fix（运行器照做去勾它），而不是
+  // 越过它去 apply-spec。
+  if (kind === 'tasks') {
+    return '## Open\n- [x] scope\n## Build\n- [x] implementation\n## Verify\n- [x] verification\n'
+      + `## Ship\n- [ ] ${SHIP_TASK}\n`
+  }
+  // 新 capability 主规格的 Purpose 取自 proposal（spec apply 不再留上游 TBD 占位）。
+  if (kind === 'proposal') return '# proposal\n\n## Why\n\nThe runner flow needs a durable capability.\n'
   if (kind === 'delta-spec') {
     return [
       '# capability', '', '## ADDED Requirements', '',
@@ -72,11 +82,36 @@ function authored(kind: string): string {
 }
 
 let h: Harness
+
+/** 夹具是一个真 git 仓：只提交过 package.json，change 目录从未被跟踪（真机第二轮的失败形态）。 */
+const GIT_IDENTITY = ['-c', 'user.name=runner', '-c', 'user.email=runner@example.com', '-c', 'commit.gpgsign=false']
+function git(args: readonly string[]): { readonly status: number | null; readonly output: string } {
+  const result = spawnSync('git', [...GIT_IDENTITY, ...args], { cwd: h.cwd, encoding: 'utf8' })
+  return { status: result.status, output: `${result.stdout}${result.stderr}` }
+}
+
+interface FinishCommit {
+  readonly paths: readonly string[]
+  readonly untrack: readonly string[]
+  readonly message: string
+}
+
+/** 完结动作的提交：照动作给的 paths / untrack / message 原样执行，每条命令都必须一次成功。 */
+function commitAsInstructed(commit: FinishCommit): void {
+  const add = git(['add', '-A', '--', ...commit.paths])
+  expect(add.status, `git add -A -- ${commit.paths.join(' ')}\n${add.output}`).toBe(0)
+  if (commit.untrack.length > 0) {
+    const untrack = git(['rm', '--cached', '-q', '--ignore-unmatch', '--', ...commit.untrack])
+    expect(untrack.status, untrack.output).toBe(0)
+  }
+  const done = git(['commit', '-q', '-m', commit.message])
+  expect(done.status, `git commit\n${done.output}`).toBe(0)
+}
 /** 让这一个评审者在第一次给结论时打回一次（D6 的回退边验收）。 */
 let failOnce: string | undefined
 
-function changeDir(): string {
-  return join(h.cwd, 'openspec', 'changes', CHANGE)
+function changeDir(name = CHANGE): string {
+  return join(h.cwd, 'openspec', 'changes', name)
 }
 
 async function put(rel: string, body: string): Promise<void> {
@@ -98,14 +133,14 @@ async function run(args: readonly string[]): Promise<void> {
  * 时刻同一口径。
  */
 let toolUseSeq = 0
-async function loadSkill(skill: string): Promise<void> {
+async function loadSkill(skill: string, name = CHANGE): Promise<void> {
   toolUseSeq += 1
   await appendFile(
-    join(changeDir(), '.pipeline-history.jsonl'),
+    join(changeDir(name), '.pipeline-history.jsonl'),
     `${JSON.stringify({ ts: FIXED_CLOCK, kind: 'tool', raw: `Skill: ${skill}` })}\n`,
     'utf8',
   )
-  await run(['internal-native-skill-receipt', CHANGE, skill, 'runner-session', `tool-${toolUseSeq}`, FIXED_CLOCK])
+  await run(['internal-native-skill-receipt', name, skill, 'runner-session', `tool-${toolUseSeq}`, FIXED_CLOCK])
 }
 
 async function readStep(): Promise<StepBlock> {
@@ -150,7 +185,10 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       // 运行器替作者把活干完：骨架里满是占位符（登记闸拒收，D7），tasks.md 全是未勾选的框（而 open/spec
       // 出口要求全勾）。作者要做的就是把骨架写成真内容。
       const abs = join(h.cwd, path)
-      if (action.kind === 'tasks' || !existsSync(abs) || PLACEHOLDER.test(await readFile(abs, 'utf8'))) {
+      // tasks 的骨架行（「将本阶段目标拆成可验证任务」）不带占位记号，按「还没写成作者的清单」判；
+      // 写成之后（含运行器勾过的项）不再覆盖。
+      const current = existsSync(abs) ? await readFile(abs, 'utf8') : null
+      if (current === null || PLACEHOLDER.test(current) || (action.kind === 'tasks' && !current.includes(SHIP_TASK))) {
         await put(path, authored(String(action.kind)))
       }
       await loadSkill(producer!)
@@ -200,6 +238,29 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       await run(['agent', 'record', CHANGE, row.run_id])
       return false
     }
+    // 未勾任务：动作自带未勾项原文，运行器就是做完它们的作者——逐条勾上。
+    case 'fix': {
+      const blockers = action.blockers as readonly { source: string; code: string; message: string; items?: readonly string[] }[]
+      // 必需测试未配置：运行器就是配置它的作者——按提示把真正运行这类测试的脚本加进 package.json。
+      const unconfigured = blockers.filter((item) => item.code === 'test-unconfigured')
+      if (unconfigured.length > 0) {
+        for (const item of unconfigured) {
+          const script = /npm 脚本 '([^']+)'/u.exec(item.message)?.[1]
+          expect(script, `test-unconfigured 必须点名要配置的脚本：${item.message}`).toBeDefined()
+          const pkg = JSON.parse(await readFile(join(h.cwd, 'package.json'), 'utf8')) as { scripts: Record<string, string> }
+          pkg.scripts[script!] = 'node -e "process.exit(0)"'
+          await writeFile(join(h.cwd, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
+        }
+        return false
+      }
+      const items = blockers.filter((item) => item.source === 'tasks').flatMap((item) => item.items ?? [])
+      expect(items.length, `fix 必须是能照做的未勾任务（带原文）：${JSON.stringify(action)}`).toBeGreaterThan(0)
+      const tasksPath = join(changeDir(), 'tasks.md')
+      let text = await readFile(tasksPath, 'utf8')
+      for (const item of items) text = text.replace(`- [ ] ${item}`, `- [x] ${item}`)
+      await writeFile(tasksPath, text, 'utf8')
+      return false
+    }
     case 'apply-spec':
       await run(['spec', 'apply', CHANGE])
       return false
@@ -219,14 +280,30 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
     case 'choose-exit':
       await run(['transition', CHANGE, String((action.exits as readonly string[])[0])])
       return false
-    // 治理归档是 OpenSpec 自己的命令（动作自带整条命令），到这里状态机已经完结。
-    // 搬移之后要提交的路径也由动作给出：旧目录与 archive/ 两处。
-    case 'finish-change':
-      expect(action.commit).toEqual({
-        paths: [`openspec/changes/${CHANGE}`, 'openspec/changes/archive'],
+    // 治理归档是 OpenSpec 自己的命令（动作自带整条命令），到这里状态机已经完结。运行器照原样跑它，
+    // 再照动作给的 paths 提交这次搬移——change 目录从未被 git 跟踪，paths 不能点名它（搬走之后
+    // `git add` 会以 pathspec did not match 整条失败）。
+    case 'finish-change': {
+      const commit = action.commit as FinishCommit
+      // archive/ 恒在最前；原目录没被跟踪过，不列；其后是存在且未被忽略的状态目录 .gitignore。
+      expect(commit).toEqual({
+        paths: ['openspec/changes/archive', ...['.pipeline/.gitignore', '.tenon/.gitignore', 'openspec/.gitignore']
+          .filter((path) => existsSync(join(h.cwd, path)))],
+        untrack: [],
         message: `chore(openspec): archive ${CHANGE}`,
       })
+      const [bin, ...args] = String(action.command).split(' ')
+      execFileSync(bin!, args, {
+        cwd: h.cwd,
+        env: { ...process.env, PATH: `${join(REPO_ROOT, 'node_modules', '.bin')}:${process.env.PATH ?? ''}` },
+        stdio: 'ignore',
+      })
+      expect(existsSync(changeDir()), 'openspec archive 必须真的把 change 目录搬走').toBe(false)
+      commitAsInstructed(commit)
+      // 收尾负责的面：搬移与状态目录的 .gitignore（主规格、测试记录等由 ship 的提交负责，运行器不替它做）。
+      expect(git(['status', '--porcelain', '--', 'openspec/changes', ...commit.paths.slice(1)]).output).toBe('')
       return true
+    }
     default:
       throw new Error(`runner: next 给了执行不了的动作 ${JSON.stringify(action)}`)
   }
@@ -236,20 +313,31 @@ beforeEach(async () => {
   failOnce = undefined
   h = await freshHarness()
   await writeFile(join(h.cwd, 'package.json'), FIXTURE_PACKAGE_JSON, 'utf8')
-  expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
-  // Skill 回执绑定当前用户的活跃任务，真实宿主会话就是这样起头的。
-  expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
+  expect(git(['init', '-q']).status).toBe(0)
+  expect(git(['add', 'package.json']).status).toBe(0)
+  expect(git(['commit', '-q', '-m', 'fixture']).status).toBe(0)
 })
 
 afterEach(async () => {
   await rm(h.cwd, { recursive: true, force: true })
 })
 
+interface WalkOptions {
+  readonly track?: string
+  readonly editAt?: string
+  /** 每条动作照做之前的观察点（用例在这里探测 CLI 对「越过 next 的写法」的拒绝）。 */
+  readonly before?: (step: StepBlock, action: StepAction) => Promise<void>
+}
+
 /** 跑完整条链；返回每一轮所在的 step 与所有下发过的动作名。 */
-async function walk(options: { readonly editAt?: string } = {}): Promise<{
+async function walk(options: WalkOptions = {}): Promise<{
   readonly seen: readonly string[]
   readonly actions: readonly { readonly step: string; readonly action: StepAction }[]
 }> {
+  const track = options.track ?? 'backend'
+  expect(await h.run(['init', CHANGE, '--track', track, '--preset', 'full'])).toBe(0)
+  // Skill 回执绑定当前用户的活跃任务，真实宿主会话就是这样起头的。
+  expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
   const proposal = join(changeDir(), 'proposal.md')
   const seen: string[] = []
   const actions: { step: string; action: StepAction }[] = []
@@ -267,10 +355,25 @@ async function walk(options: { readonly editAt?: string } = {}): Promise<{
     let done = false
     for (const action of step.next) {
       actions.push({ step: step.id, action })
+      await options.before?.(step, action)
       done = (await perform(step, action)) || done
     }
     if (done) {
       expect(edited, '用例必须真的改过一份已登记的文档').toBe(true)
+      // 搬进 archive/ 之后没有可做的事了：step 省略，任务在 finished_changes（与 simple 收尾后同一形态）。
+      await run(['status', CHANGE, '--json'])
+      const after = JSON.parse(h.out.join('\n')) as { step?: unknown; finished_changes?: readonly { name: string }[] }
+      expect(after.step).toBeUndefined()
+      expect(after.finished_changes?.map((row) => row.name)).toEqual([CHANGE])
+      // 已完结的 test status 不再是空 items：按步骤给出每项测试的最后记录，并点名完整报告。
+      await run(['test', 'status', CHANGE, '--json'])
+      const tests = JSON.parse(h.out.join('\n')) as {
+        finished: boolean; report: string; items: readonly { step: string; id: string; run?: { result: string } }[]
+      }
+      expect(tests.finished).toBe(true)
+      expect(tests.report).toBe(`tenon test report ${CHANGE}`)
+      expect(tests.items.map((item) => [item.step, item.id, item.run?.result]))
+        .toEqual(track === 'backend' ? [['build', 'unit', 'pass'], ['verify', 'integration', 'pass']] : [])
       await run(['list', '--finished', '--json'])
       const finished = JSON.parse(h.out.join('\n')) as { finished: readonly { name: string; archived: string }[] }
       expect(finished.finished).toEqual([expect.objectContaining({ name: CHANGE, archived: 'true' })])
@@ -308,6 +411,26 @@ describe('照着 next 做事的运行器：open → 完结', () => {
     expect(actions[verdict]?.action).toMatchObject({ recommended: null, required: ['pass'] })
     expect(actions.findIndex(({ step, action }) => step === 'build' && action.action === 'run-test'))
       .toBeLessThan(verdict)
+    // 决定类字段在动手之前：build 的 build_mode / isolation 先于本步第一次加载技能。
+    const buildStart = actions.findIndex(({ step }) => step === 'build')
+    const firstBuildSkill = actions.findIndex(({ step, action }, index) =>
+      index > buildStart && step === 'build' && action.action === 'load-skill')
+    for (const decision of ['build_mode', 'isolation']) {
+      const at = actions.findIndex(({ step, action }) =>
+        step === 'build' && action.action === 'set-field' && action.field === decision)
+      expect(at, `${decision} 必须在 build 下发`).toBeGreaterThan(-1)
+      expect(at, `${decision} 必须先于 build 的第一次 load-skill`).toBeLessThan(firstBuildSkill)
+    }
+    // ship 的未勾任务：带原文的 fix 先于 apply-spec。
+    const shipFix = actions.findIndex(({ step, action }) => step === 'ship' && action.action === 'fix')
+    expect(actions[shipFix]?.action).toMatchObject({
+      blockers: [expect.objectContaining({ source: 'tasks', items: [SHIP_TASK] })],
+    })
+    expect(shipFix).toBeLessThan(actions.findIndex(({ action }) => action.action === 'apply-spec'))
+    // 新 capability 的主规格带真实 Purpose（出自 proposal 的 ## Why），不是上游 archive 的 TBD 占位。
+    const mainSpec = await readFile(join(h.cwd, 'openspec', 'specs', 'capability', 'spec.md'), 'utf8')
+    expect(mainSpec).not.toContain('TBD')
+    expect(mainSpec).toContain('The runner flow needs a durable capability.')
   })
 
   /**
@@ -337,9 +460,143 @@ describe('照着 next 做事的运行器：open → 完结', () => {
       && action.skill === 'verification-before-completion')).toHaveLength(2)
   })
 
+  /**
+   * 真机（第二轮）：free / pm / chat 的 build 不声明测试或评审者，`pre_verify_review_result pass`
+   * 没有可核对的证据，模型直接 set 通过。现在这些轨道的 build 声明必需评审者 spec-consistency：
+   * next 先让它跑，评审通过之前 `tenon set … pass` 被拒。
+   */
+  test('free 轨：build 的通过结论要等必需评审者 spec-consistency 通过', async () => {
+    let refusedBeforeReview = false
+    const { seen, actions } = await walk({
+      track: 'free',
+      before: async (step, action) => {
+        if (step.id !== 'build' || action.action !== 'run-agent' || refusedBeforeReview) return
+        expect(await h.run(['set', CHANGE, 'pre_verify_review_result', 'pass'])).toBe(1)
+        expect(h.err.join('\n')).toContain('必需评审者 spec-consistency 未通过')
+        refusedBeforeReview = true
+      },
+    })
+    expect(new Set(seen)).toEqual(new Set(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive']))
+    expect(refusedBeforeReview, 'build 里必须先出现评审者，且越过它的自批被拒').toBe(true)
+    const review = actions.findIndex(({ step, action }) => step === 'build'
+      && action.action === 'run-agent' && action.agent === 'spec-consistency' && action.role === 'reviewer')
+    const verdict = actions.findIndex(({ step, action }) => step === 'build'
+      && action.action === 'set-field' && action.field === 'pre_verify_review_result')
+    expect(review).toBeGreaterThan(-1)
+    expect(review).toBeLessThan(verdict)
+  })
+
+  /**
+   * 真机（第二轮）：项目没有 `test:integration` 脚本，backend verify 的必需测试只能被记成一次失败，
+   * 模型加了一条与 npm test 相同的脚本凑数。现在 `tenon test run` 说「未配置」（不落记录），
+   * next 在 build 入口（verify 的上一步：配置是一次工作区改动，要赶在 build 冻结候选版本之前）就把它
+   * 作为待配置项（fix test-unconfigured）提出来。
+   */
+  test('项目没有 test:integration：build 入口先要求配置；未配置时 test run 拒跑、不落记录', async () => {
+    const pkg = JSON.parse(FIXTURE_PACKAGE_JSON) as { scripts: Record<string, string> }
+    delete pkg.scripts['test:integration']
+    await writeFile(join(h.cwd, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
+    let probed = false
+    const { actions } = await walk({
+      before: async (step, action) => {
+        if (probed || action.action !== 'fix') return
+        probed = true
+        expect(step.id).toBe('build')
+        expect(await h.run(['test', 'run', CHANGE, 'integration'])).toBe(1)
+        expect(h.err.join('\n')).toContain("测试 'integration' 未配置（test-unconfigured，不是失败）")
+        expect(await h.run(['test', 'status', CHANGE, '--step', 'verify', '--json'])).toBe(2)
+        const status = JSON.parse(h.out.join('\n')) as { items: readonly { id: string; run?: unknown }[] }
+        expect(status.items.find((item) => item.id === 'integration')?.run, '未配置不落记录').toBeUndefined()
+      },
+    })
+    expect(probed, 'build 必须先发 test-unconfigured 的 fix').toBe(true)
+    const buildStart = actions.findIndex(({ step }) => step === 'build')
+    const fix = actions.findIndex(({ step, action }) => step === 'build' && action.action === 'fix')
+    const firstSkill = actions.findIndex(({ step, action }, index) =>
+      index > buildStart && step === 'build' && action.action === 'load-skill')
+    expect(fix).toBeLessThan(firstSkill)
+    expect(actions[fix]?.action).toMatchObject({
+      blockers: [expect.objectContaining({ source: 'test', code: 'test-unconfigured' })],
+    })
+    // 配好之后的 verify 真跑了这条测试并通过。
+    expect(actions.some(({ step, action }) => step === 'verify'
+      && action.action === 'run-test' && action.test === 'integration')).toBe(true)
+  })
+
   /** D7：不存在的任务是产品层的一句话，不是一行 ENOENT。 */
   test('不存在的任务：status 给产品层文案', async () => {
     expect(await h.run(['status', 'no-such-change'])).toBe(1)
     expect(h.err.join('\n')).toBe('ERROR: change 不存在: no-such-change')
+  })
+})
+
+/**
+ * 真机（第二轮）：simple 工作流 verify-pass 后直接完结，功能代码与任务状态文件全留在工作区未提交；
+ * 已完结的 simple 任务 status 还带着 `step.archived: false`。收尾的 next 是只带提交的
+ * finish-change（没有归档命令），照做一次成功；提交之后 step 省略，与 default 搬进 archive/ 后同一形态。
+ */
+describe('照着 next 做事的运行器：simple 工作流', () => {
+  const SIMPLE = 'tiny'
+
+  test('verify-pass 完结后 next 给出一次成功的提交；提交之后 step 省略', async () => {
+    expect(await h.run(['init', SIMPLE, '--track', 'simple', '--preset', 'tweak'])).toBe(0)
+    expect(await h.run(['session', 'activate', SIMPLE])).toBe(0)
+    await put('src/typo.txt', 'fixed the typo\n')
+    const seen: string[] = []
+    for (let round = 1; round <= 30; round++) {
+      await run(['status', SIMPLE, '--json'])
+      const payload = JSON.parse(h.out.join('\n')) as {
+        step?: { id: string; archived: boolean; next: readonly StepAction[] }
+        finished_changes?: readonly { name: string }[]
+      }
+      if (payload.step === undefined) {
+        expect(payload.finished_changes?.map((row) => row.name)).toEqual([SIMPLE])
+        expect(seen).toContain('finish-change')
+        expect(git(['status', '--porcelain']).output).toBe('')
+        return
+      }
+      for (const action of payload.step.next) {
+        seen.push(action.action)
+        switch (action.action) {
+          case 'load-tenon':
+            await loadSkill('tenon', SIMPLE)
+            break
+          case 'load-skill':
+            await loadSkill(String(action.skill), SIMPLE)
+            break
+          case 'transition':
+          case 'complete':
+            await run(['transition', SIMPLE, String(action.event)])
+            break
+          case 'choose-exit': {
+            const exits = action.exits as readonly string[]
+            await run(['transition', SIMPLE, exits.includes('verify-pass') ? 'verify-pass' : exits.includes('change-complete') ? 'change-complete' : exits[0]!])
+            break
+          }
+          case 'finish-change':
+            expect(payload.step.archived, '已完结的 change：step.archived 为 true').toBe(true)
+            expect(action).toEqual({
+              action: 'finish-change',
+              change: SIMPLE,
+              command: null,
+              commit: { paths: ['.'], untrack: [], message: `chore(tenon): finish ${SIMPLE}` },
+            })
+            commitAsInstructed(action.commit as FinishCommit)
+            break
+          default:
+            throw new Error(`runner(simple): next 给了执行不了的动作 ${JSON.stringify(action)}`)
+        }
+      }
+    }
+    throw new Error(`runner(simple): 30 轮还没走到完结：${seen.join(' → ')}`)
+  })
+
+  test('scope-expanded 放弃：不发提交，step 省略', async () => {
+    expect(await h.run(['init', SIMPLE, '--track', 'simple', '--preset', 'tweak'])).toBe(0)
+    expect(await h.run(['transition', SIMPLE, 'scope-expanded'])).toBe(0)
+    await run(['status', SIMPLE, '--json'])
+    const payload = JSON.parse(h.out.join('\n')) as { step?: unknown; finished_changes?: readonly { name: string }[] }
+    expect(payload.step).toBeUndefined()
+    expect(payload.finished_changes?.map((row) => row.name)).toEqual([SIMPLE])
   })
 })

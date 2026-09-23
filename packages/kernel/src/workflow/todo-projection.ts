@@ -194,7 +194,12 @@ export function incompletePipelineTasksForExit(input: {
   readonly tasksMarkdown: string
   readonly stages?: readonly PipelineTodoStageDefinition[]
   readonly trustedCanonicalProjection?: boolean
-}): { readonly structured: boolean; readonly incomplete: number } {
+}): {
+  readonly structured: boolean
+  readonly incomplete: number
+  /** 未勾项的文本，按 tasks.md 中的顺序；`incomplete === items.length`。 */
+  readonly items: readonly string[]
+} {
   const declared = input.stages ?? DEFAULT_WORKFLOW_TODO_STAGES
   const stages = declared.filter((stage, index) =>
     stage.id !== '' && stage.label !== '' && declared.findIndex((other) => other.id === stage.id) === index,
@@ -207,18 +212,19 @@ export function incompletePipelineTasksForExit(input: {
   )
 
   if (!parsed.structured) {
-    const incomplete = input.phase === 'build'
-      ? [...parsed.byStage.values()].flat().filter((task) => !task.completed).length
-      : 0
-    return { structured: false, incomplete }
+    const items = input.phase === 'build'
+      ? [...parsed.byStage.values()].flat().filter((task) => !task.completed).map((task) => task.text)
+      : []
+    return { structured: false, incomplete: items.length, items }
   }
 
   const phaseIndex = stages.findIndex((stage) => stage.id === input.phase)
-  if (phaseIndex < 0) return { structured: true, incomplete: 0 }
+  if (phaseIndex < 0) return { structured: true, incomplete: 0, items: [] }
 
-  const incomplete = stages
+  const items = stages
     .slice(0, phaseIndex + 1)
     .flatMap((stage) => parsed.byStage.get(stage.id) ?? [])
-    .filter((task) => !task.completed).length
-  return { structured: true, incomplete }
+    .filter((task) => !task.completed)
+    .map((task) => task.text)
+  return { structured: true, incomplete: items.length, items }
 }

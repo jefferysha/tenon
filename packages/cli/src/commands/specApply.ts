@@ -20,6 +20,7 @@ import {
   asArray, asRecord, asText, decodeJson, readMaybe, rehearseSpecApply, runOpenspec,
   type SpecApplyHooks, type SpecTarget,
 } from './specApplyRehearsal.js'
+import { fillPurpose, proposalPurpose } from './specPurpose.js'
 
 /** 回执文件名的真相源在 kernel：ship 出口的 spec-migration-applied guard 读的是同一份。 */
 export const SPEC_APPLY_RECEIPT = SPEC_APPLY_RECEIPT_FILE
@@ -78,6 +79,34 @@ async function writeAppliedSpec(
   const lines = skeleton.split('\n').map((line) =>
     line.startsWith('> [') ? bodies[filled++] ?? line : line)
   await writeFile(join(dir, APPLIED_SPEC_FILE), lines.join('\n'), 'utf8')
+}
+
+/**
+ * 新 capability 的主规格带着上游 archive 的占位 Purpose（`TBD - created by archiving change …`）；
+ * 换成 proposal 给出的真实 Purpose，给不出就是一条错误——彩排与应用同一口径，spec 步的
+ * validate-spec 就能提前拦下，不等 ship 才发现。
+ */
+async function withRealPurpose(
+  dir: string,
+  change: string,
+  targets: readonly SpecTarget[],
+): Promise<{ readonly targets: readonly SpecTarget[]; readonly errors: readonly string[] }> {
+  const proposal = await readMaybe(dir, 'proposal.md')
+  const errors: string[] = []
+  const filled = targets.map((target) => {
+    // 只有这次新建的主规格带上游占位；已有主规格的 Purpose 属于它自己的历史，不由本 change 改写。
+    if (target.change !== 'created') return target
+    const capability = /^openspec\/specs\/([^/]+)\/spec\.md$/u.exec(target.path)?.[1] ?? target.path
+    const after = fillPurpose(target.after, proposalPurpose(proposal, capability))
+    if (after === undefined) {
+      errors.push(`purpose-missing：新 capability '${capability}' 的主规格 Purpose 只有 OpenSpec 占位 TBD；`
+        + `在 openspec/changes/${change}/proposal.md 的 ### New Capabilities 写一条「- \`${capability}\`: 说明」`
+        + `（或在 ## Why 写明原因），再重跑 tenon spec apply ${change}`)
+      return target
+    }
+    return { ...target, after }
+  })
+  return errors.length > 0 ? { targets: [], errors } : { targets: filled, errors }
 }
 
 function targetView(target: SpecTarget): Record<string, unknown> {
@@ -145,8 +174,11 @@ export async function cmdSpecApply(
   const rehearsed = settled === null
     ? await rehearseSpecApply(deps.cwd, change, hooks)
     : { targets: settled, errors: [] as string[] }
-  const targets = rehearsed.targets
-  const errors = [...rehearsed.errors]
+  const purposed = rehearsed.errors.length === 0 && settled === null
+    ? await withRealPurpose(dir, change, rehearsed.targets)
+    : rehearsed
+  const targets = purposed.targets
+  const errors = [...purposed.errors]
 
   let conflict = false
   if (errors.length === 0 && mode === 'apply') {

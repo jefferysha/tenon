@@ -6,6 +6,8 @@
  * 命令拒绝的写法，投影一条都不许发。
  */
 import { aliasesForSkill } from '@tenon/kernel'
+import type { StepAction } from './statusStepAction.js'
+import { finishActions, type StepFinishFacts } from './statusStepFinish.js'
 import type { StepAgentView } from './statusStepAgents.js'
 import type { StepBlocker, StepExit } from './stepExitReport.js'
 import type {
@@ -16,20 +18,25 @@ export interface StepTestView {
   readonly id: string
   readonly direction: string
   readonly required: boolean
+  /** kernel 测试证据状态；命令要的 npm 脚本在项目里不存在时为 `unconfigured`（带 `hint`）。 */
   readonly status: string
   readonly run_id: string | null
+  /** 仅 `unconfigured`：为什么未配置、怎么配置（与 `tenon test run` 的拒绝同一份文案）。 */
+  readonly hint?: string
 }
 
 /** 交互模式：AFK 环境变量 → afk；本任务有交互授权 → continuous；否则 interactive。 */
 export type StepMode = 'interactive' | 'continuous' | 'afk'
 
-export interface StepAction {
-  readonly action: string
-  readonly [key: string]: unknown
-}
+export type { StepFinishFacts } from './statusStepFinish.js'
 
-export function stop(code: string, message: string): readonly StepAction[] {
-  return [{ action: 'stop', code, message }]
+export { stop, type StepAction } from './statusStepAction.js'
+
+/** 一条未配置的必需测试（本步或下一步声明的）。 */
+export interface StepTestConfigGap {
+  readonly id: string
+  readonly step: string
+  readonly hint: string
 }
 
 export interface StepNextInput {
@@ -55,6 +62,9 @@ export interface StepNextInput {
   readonly ownsAppliedSpec: boolean
   /** artifact 字段的合法 `--producer` 集（与 register 命令同源；空 = 无合法 producer）。 */
   readonly artifactProducers: readonly string[]
+  readonly finish: StepFinishFacts
+  /** 本步与下一步声明的必需测试里，命令要的 npm 脚本在项目里不存在的那些。 */
+  readonly testConfigGaps: readonly StepTestConfigGap[]
 }
 
 /**
@@ -163,21 +173,9 @@ function skillDocumentActions(
 
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
 export function stepNextActions(input: StepNextInput): readonly StepAction[] {
-  // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩治理归档这一步，排在
-  // load-tenon 之前——终态自边的步骤访问不会再前进，补技能证据只会原地打转，而动作自带整条命令。
-  // 归档跑完前目录还在 openspec/changes/ 下而 archived=true，两张列表都看不见它，不点名就只剩空 fix。
-  if (input.runArchived) {
-    if (!input.governedOpenspec) return stop('run-archived', `任务 '${input.change}' 已完结`)
-    const command = `openspec archive ${input.change} --skip-specs --yes --json`
-    // 搬移本身是一次工作区改动：ship 的提交早于它，不跟一次提交就留下「删除 + 未跟踪」的脏工作区
-    // （真机验收：5 个删除 + 未跟踪的 archive/ 目录）。动作自带要提交的路径与提交说明——提交是本地
-    // 动作；宿主不让写 .git（Codex 受限沙箱）时如实把这一步留给用户，不伪装成已提交。
-    const commit = {
-      paths: [`openspec/changes/${input.change}`, 'openspec/changes/archive'],
-      message: `chore(openspec): archive ${input.change}`,
-    }
-    return [{ action: 'finish-change', change: input.change, command, commit }]
-  }
+  // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩收尾这一步，排在 load-tenon
+  // 之前——终态自边的步骤访问不会再前进，补技能证据只会原地打转，而动作自带整条命令。
+  if (input.runArchived) return finishActions(input.change, input.governedOpenspec, input.finish)
   if (!input.loaded) return [{ action: 'load-tenon' }]
 
   // 只有 `unread` 是 `tenon document read` 能推进的状态。`stale` 的文档读不动——命令当场拒
@@ -192,6 +190,30 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     return [{ action: 'read-documents', documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))] }]
   }
 
+  // 必需测试未配置（命令要的 npm 脚本在项目里不存在）：在步骤入口就作为待配置项提出，本步的与
+  // 下一步（前进边指向的步骤）的都算——配置是一次工作区改动，等到 verify 才发现，改完 package.json
+  // 就让 build 冻结的候选版本失效；等到出口前才发 run-test 只会被拒（真机：模型临时加一条与
+  // npm test 相同的脚本凑数）。
+  if (input.testConfigGaps.length > 0) {
+    return [{
+      action: 'fix',
+      blockers: input.testConfigGaps.map((gap) => ({
+        source: 'test', code: 'test-unconfigured', message: gap.hint,
+      })),
+    }]
+  }
+
+  const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
+  // 决定类字段（带枚举、走 `tenon set`：build_mode / isolation / direct_override…）是「怎么做」的
+  // 选择，必须在动手之前拍板：排在执行者与本步技能之前。真机 build 步里它排在技能之后，代码写完
+  // 才被要求登记 build_mode，模型只能事后补填一个与事实不符的值（直接实现却登记成
+  // subagent-driven-development）。artifact 登记不在这一档——它登记的是技能的产出，要等技能跑完。
+  const decisions = writeFieldActions(
+    missing.filter((field) => field.allowed !== null && field.writer === 'set'),
+    input.artifactProducers,
+  )
+  if (decisions.length > 0) return decisions
+
   const executors = pendingAgents(input.executors, true)
   if (executors.length > 0) return executors
 
@@ -202,22 +224,25 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   const producing = skillDocumentActions(input.skills, input.documents)
   if (producing.length > 0) return producing
 
-  if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]
   const writes = documentWriteActions(input.documents)
+  // 未勾的任务是本步还没做完的工作：排在应用规格、登记文档与一切字段之前——它们记录的都是「做完
+  // 之后」的事实。真机 ship 步 exits 里明明有 tasks-incomplete，next 却只给 apply-spec 与
+  // applied-spec 的骨架/登记，任务一直排在它们后面，模型只能自己去 exits 里发现并勾选。
+  // 唯一的例外是 tasks.md 本身还没产出（open 步，`missing`）：先写出来，才谈得上勾选。勾过一项之后
+  // 它是 `stale`（要重新登记）——那不是例外：剩下没勾的仍排在前面，全勾完再一起重新登记。
+  const tasksMissing = input.documents.records.some((doc) => doc.kind === 'tasks' && doc.status === 'missing')
+  const tasks = tasksMissing ? [] : taskBlockers(input.exits)
+  if (tasks.length > 0) return [{ action: 'fix', blockers: tasks }]
+
+  if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]
   if (writes.length > 0) return writes
-  const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
-  // 决定（带枚举）与 artifact 登记先做；然后是本步未勾的任务；最后才是自由文本的交付值
-  // （pr_url / prd_path）——交付值记录的是做完之后的事实，排在任务前面只会让它挡住真正的出口阻塞。
-  const decisions = writeFieldActions(
-    missing.filter((field) => field.allowed !== null || field.writer !== 'set'),
+  // artifact 登记（技能产出的字段）；最后才是自由文本的交付值（pr_url / prd_path）——交付值记录
+  // 的是做完之后的事实。
+  const registers = writeFieldActions(
+    missing.filter((field) => field.writer !== 'set'),
     input.artifactProducers,
   )
-  if (decisions.length > 0) return decisions
-  const tasks = input.exits.filter((exit) => exit.direction !== 'back')
-    .flatMap((exit) => exit.blockers)
-    .filter((item, index, all) => item.source === 'tasks'
-      && all.findIndex((other) => other.message === item.message) === index)
-  if (tasks.length > 0) return [{ action: 'fix', blockers: tasks }]
+  if (registers.length > 0) return registers
   const freeform = writeFieldActions(
     missing.filter((field) => field.allowed === null && field.writer === 'set'),
     input.artifactProducers,
@@ -243,6 +268,14 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   }
 
   return exitActions(input)
+}
+
+/** 前进边上的未勾任务（`source: tasks`），按文案去重；每条带未勾项原文（`items`）。 */
+function taskBlockers(exits: readonly StepExit[]): readonly StepBlocker[] {
+  return exits.filter((exit) => exit.direction !== 'back')
+    .flatMap((exit) => exit.blockers)
+    .filter((item, index, all) => item.source === 'tasks'
+      && all.findIndex((other) => other.message === item.message) === index)
 }
 
 function requiredEvidenceFailed(input: {

@@ -6,7 +6,7 @@
  */
 import {
   evaluateDefaultEventPreconditions, evaluateDocumentEvidence, evaluateSpecMigrationEvidence,
-  evaluateWorkflowIrStepGuards, effectiveLifecyclePolicy, isDocumentContractPhase,
+  evaluateWorkflowIrStepGuards, effectiveLifecyclePolicy, incompletePipelineTasksForExit, isDocumentContractPhase,
   isDocumentPolicyStep, isForwardExit, renderAgentBlocker, resolveStep, stepExitTransitions,
   type DocumentEvidenceReport, type EffectiveWorkflowPlan, type PipelineState,
 } from '@tenon/kernel'
@@ -24,6 +24,8 @@ export interface StepBlocker {
   readonly source: BlockerSource
   readonly code: string
   readonly message: string
+  /** 仅 `source: tasks`：截至本步仍未勾选的任务原文（tasks.md 顺序）。 */
+  readonly items?: readonly string[]
 }
 
 export interface StepExit {
@@ -122,6 +124,28 @@ async function guardBlockers(
 }
 
 /**
+ * 截至本步仍未勾选的任务原文——与出口规则同一份有界读取与投影认证（phaseExitGuardContext），
+ * 让 `fix` 自带要做的事，而不是只给一句「仍有 N 项未勾」。
+ */
+function unfinishedTaskItems(
+  context: Awaited<ReturnType<typeof phaseExitGuardContext>>,
+  changeDirRel: string | undefined,
+  stepId: string,
+): readonly string[] {
+  if (context === undefined || changeDirRel === undefined) return []
+  const tasksPath = `${changeDirRel}/tasks.md`
+  const markdown = context.readFile?.(tasksPath)
+  if (markdown === undefined || markdown === '') return []
+  const projection = context.canonicalTasksProjectionStatus?.({ changeDirRel, tasksMarkdown: markdown }) ?? 'legacy'
+  if (projection === 'invalid') return []
+  return incompletePipelineTasksForExit({
+    phase: stepId,
+    tasksMarkdown: markdown,
+    trustedCanonicalProjection: projection === 'current',
+  }).items
+}
+
+/**
  * 一条边的证据面。退回边只要求那条边自己的 guard：修问题的路必须一直开着，否则失败的验证就没有
  * 回到实现的通道（同 `tenon check` 与 transition 的既有口径）。
  */
@@ -158,18 +182,23 @@ export async function evaluateStepExitReport(
   // default 轨的相位出口规则表（kernel flow/guard.ts）此前只有 `tenon check` 评估：同一份状态上
   // check 说 FAIL exit 2，这里的 `ready` 却是 true、blockers 空，于是 `next` 发的是 transition 而
   // 不是带真实文案的 fix。规则是「离开本相位」的条件，只加给前进边。
+  const fileContext = deps.guardCtx?.(name)
+  const exitContext = plan.capabilities.execution.model === 'phase-manifest'
+    ? await phaseExitGuardContext(fileContext, dir)
+    : undefined
   const phaseExit = plan.capabilities.execution.model === 'phase-manifest'
     ? deps.flow.guardCheck(state, {
-      ...await phaseExitGuardContext(deps.guardCtx?.(name), dir),
+      ...exitContext,
       coverageProfile: plan.capabilities.track.coverageProfile,
     })
     : { pass: true, failures: [] as readonly string[] }
+  const openTasks = unfinishedTaskItems(exitContext, fileContext?.changeDirRel, stepId)
   const shared: readonly StepBlocker[] = [
     // tasks.md 的勾选是本步的工作项，不是一个可填的字段：单列成 `tasks` 来源，`next` 才能把它排在
     // 自由文本字段（pr_url 等）之前——真机 ship 步只给了一条做不完的 set-field pr_url，真正卡住
     // 出口的未勾任务藏在 check 的 FAIL 里。
     ...phaseExit.failures.map((item) => item.includes('tasks.md')
-      ? blocker('tasks', 'tasks-incomplete', item)
+      ? { ...blocker('tasks', 'tasks-incomplete', item), items: openTasks }
       : blocker('guard', 'phase-exit', item)),
     ...(documents?.blockers ?? []).map((item) => blocker('document', 'document-evidence', item)),
     ...testReport.blockers.map((item) => blocker('test', 'test-evidence', item)),

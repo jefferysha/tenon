@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { stepNextActions, type StepNextInput } from './statusStep.js'
 import type { StepFieldView } from './statusStepParts.js'
+import type { GitFinishProbe } from '../gitWorkspace.js'
+
+/** 一个 git 仓里完结时的事实：原目录未跟踪、工作区有改动、没有状态目录 .gitignore 与心跳要处理。 */
+function probe(over: Partial<GitFinishProbe> = {}): GitFinishProbe {
+  return { changeDirTracked: false, workspaceDirty: true, housekeeping: [], untrack: [], ...over }
+}
 
 function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
   return {
@@ -23,6 +29,8 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     ownsDeltaSpec: false,
     ownsAppliedSpec: false,
     artifactProducers: [],
+    finish: { git: probe(), verified: true },
+    testConfigGaps: [],
     ...overrides,
   }
 }
@@ -131,6 +139,97 @@ describe('step.next 顺序', () => {
       fields: [field('build_mode', { allowed: ['direct'], recommended: 'direct' })],
       exits: [shipExit],
     }))[0]).toMatchObject({ action: 'set-field', field: 'build_mode' })
+  })
+
+  /**
+   * 真机（第二轮）：build 步 next 在代码写完之后才出现 `set-field build_mode`，模型事后补填，
+   * 记录与事实不符。决定类字段（带枚举的 set 字段）是「怎么做」，排在执行者与本步技能之前。
+   */
+  test('决定类字段（build_mode / isolation）先于执行者与本步技能，一波下发', () => {
+    const buildMode = field('build_mode', { kind: 'guard', allowed: ['direct', 'subagent-driven-development'], recommended: 'subagent-driven-development' })
+    const isolation = field('isolation', { kind: 'guard', allowed: ['branch', 'worktree', 'in-place'], recommended: 'in-place' })
+    const next = stepNextActions(input({
+      fields: [buildMode, isolation],
+      executors: [agent('builder', 'executor', 'pending', true)],
+      skills: [skill('test-driven-development', 'ready', 0)],
+    }))
+    expect(next.map((action) => [action.action, action.field])).toEqual([
+      ['set-field', 'build_mode'], ['set-field', 'isolation'],
+    ])
+    // 输入文档仍先读——决定要基于读过的计划。
+    expect(actions({
+      fields: [buildMode],
+      documents: { reads: [doc('plan', 'unread')], records: [], updates: [] },
+    })).toEqual(['read-documents'])
+  })
+
+  /**
+   * 真机（第二轮，backend 与 free 各一次）：ship 的 exits 里有 tasks-incomplete，next 却只给
+   * apply-spec 与 applied-spec 的骨架 / 登记——任务排在它们后面，模型只能自己去 exits 里发现。
+   */
+  test('ship 有未勾任务：fix（带未勾项原文）先于 apply-spec 与 applied-spec 的骨架/登记', () => {
+    const tasksBlocker = {
+      source: 'tasks' as const, code: 'tasks-incomplete',
+      message: 'ship 出口：要求截至当前阶段的 tasks.md 全部勾选（仍有 1 项未勾）',
+      items: ['更新 README 的用法段'],
+    }
+    const shipExit = { event: 'ship-complete', to: 'archive', direction: 'forward' as const, ready: false, blockers: [tasksBlocker] }
+    const shipInput = {
+      ownsAppliedSpec: true,
+      specApplicationPending: true,
+      documents: { reads: [], records: [doc('applied-spec', 'missing')], updates: [] },
+      fields: [field('pr_url', { recommended: 'no-remote' })],
+      exits: [shipExit],
+    }
+    expect(stepNextActions(input(shipInput))).toEqual([{ action: 'fix', blockers: [tasksBlocker] }])
+    // 规格已应用、只差 applied-spec 登记时也一样。
+    expect(actions({ ...shipInput, specApplicationPending: false })).toEqual(['fix'])
+    // 勾过一项后 tasks.md 变 stale（要重新登记）：剩下没勾的仍排在 apply-spec 与重新登记之前。
+    expect(actions({
+      ...shipInput,
+      documents: { reads: [], records: [doc('applied-spec', 'missing')], updates: [doc('tasks', 'stale', ['tenon'])] },
+    })).toEqual(['fix'])
+    // 勾完之后才是 apply-spec。
+    expect(actions({ ...shipInput, exits: [{ ...shipExit, blockers: [], ready: true }] })).toEqual(['apply-spec'])
+  })
+
+  test('tasks.md 自己还没产出（open）：先铺骨架并登记，不先发勾选任务的 fix', () => {
+    const tasksBlocker = { source: 'tasks' as const, code: 'tasks-incomplete', message: 'open 出口：要求 tasks.md 存在', items: [] }
+    expect(actions({
+      documents: { reads: [], records: [doc('tasks', 'missing', ['openspec-propose'])], updates: [] },
+      exits: [{ event: 'open-complete', to: 'explore', direction: 'forward', ready: false, blockers: [tasksBlocker] }],
+    })).toEqual(['scaffold-document', 'record-document'])
+  })
+
+  test('本步技能先于未勾任务的 fix：build 先加载实现技能，再列出要做的任务', () => {
+    const tasksBlocker = { source: 'tasks' as const, code: 'tasks-incomplete', message: 'build 出口：要求截至当前阶段的 tasks.md 全部勾选（仍有 2 项未勾）', items: ['a', 'b'] }
+    const exits = [{ event: 'build-complete', to: 'verify', direction: 'forward' as const, ready: false, blockers: [tasksBlocker] }]
+    expect(actions({ skills: [skill('test-driven-development', 'ready', 0)], exits })).toEqual(['load-skill'])
+    expect(actions({ skills: [skill('test-driven-development', 'done', 0)], exits, tests: [test_('unit', 'not-run')] }))
+      .toEqual(['fix'])
+  })
+
+  /**
+   * 真机（第二轮）：backend verify 固定跑 `npm run test:integration`，项目没有这个脚本，模型只能加一条
+   * 与 npm test 相同的脚本凑数。未配置的必需测试在步骤入口（读完输入之后、决定与技能之前）作为
+   * 待配置项提出，文案就是投影给的 hint；可选测试未配置不拦。
+   */
+  test('必需测试未配置：步骤入口先 fix（test-unconfigured），先于决定、执行者与技能', () => {
+    const gap = { id: 'integration', step: 'verify', hint: "测试 'integration' 未配置（test-unconfigured，不是失败）" }
+    expect(stepNextActions(input({
+      testConfigGaps: [gap],
+      fields: [field('build_mode', { allowed: ['direct'], recommended: 'direct' })],
+      skills: [skill('test-driven-development', 'ready', 0)],
+      executors: [agent('builder', 'executor', 'pending', true)],
+    }))).toEqual([{
+      action: 'fix',
+      blockers: [{ source: 'test', code: 'test-unconfigured', message: gap.hint }],
+    }])
+    // 输入文档仍先读。
+    expect(actions({
+      testConfigGaps: [gap],
+      documents: { reads: [doc('plan', 'unread')], records: [], updates: [] },
+    })).toEqual(['read-documents'])
   })
 
   test('技能按波次下发，waiting 的不进本波', () => {
@@ -341,17 +440,21 @@ describe('step.next 顺序', () => {
     ])
   })
 
-  test('同一波里 artifact 与普通字段各发各的动作', () => {
+  test('决定类字段先于 artifact 登记：build_mode 先拍板，artifact 等本步技能产出后再登记', () => {
+    const designDoc = field('design_doc', { writer: 'artifact-register' })
     expect(stepNextActions(input({
-      fields: [
-        field('design_doc', { writer: 'artifact-register' }),
-        field('build_mode', { allowed: ['direct'], recommended: 'direct' }),
-      ],
+      fields: [designDoc, field('build_mode', { allowed: ['direct'], recommended: 'direct' })],
       artifactProducers: ['hue'],
     }))).toEqual([
-      { action: 'register-field', field: 'design_doc', producers: ['hue'] },
       { action: 'set-field', field: 'build_mode', allowed: ['direct'], required: null, recommended: 'direct' },
     ])
+    expect(stepNextActions(input({
+      fields: [designDoc, field('build_mode', { allowed: ['direct'], status: 'set', value: 'direct' })],
+      artifactProducers: ['hue'],
+    }))).toEqual([{ action: 'register-field', field: 'design_doc', producers: ['hue'] }])
+    // artifact 登记的是技能的产出：技能还没加载时先加载技能。
+    expect(actions({ fields: [designDoc], artifactProducers: ['hue'], skills: [skill('hue', 'ready', 0)] }))
+      .toEqual(['load-skill'])
   })
 
   /**
@@ -461,17 +564,63 @@ describe('step.next 顺序', () => {
       action: 'finish-change',
       change: 'demo',
       command: 'openspec archive demo --skip-specs --yes --json',
-      // 搬移留下的删除与新目录要跟一次提交，否则 ship 之后工作区是脏的。
+      // 搬移留下的新目录要跟一次提交，否则 ship 之后工作区是脏的。
       commit: {
-        paths: ['openspec/changes/demo', 'openspec/changes/archive'],
+        paths: ['openspec/changes/archive'],
+        untrack: [],
         message: 'chore(openspec): archive demo',
       },
     }])
   })
 
-  test('非 OpenSpec 治理的工作流归档后直接停', () => {
-    const next = stepNextActions(input({ runArchived: true, governedOpenspec: false, exits: [] }))
-    expect(next[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+  /**
+   * 真机（第二轮）：原目录从未被 git 跟踪，搬走之后 `git add -A -- openspec/changes/<c> …` 报
+   * `fatal: pathspec … did not match any files`（exit 128）。原目录只有被跟踪过才列出（-A 据索引项
+   * 暂存删除）；archive/ 搬移后一定存在，恒列出；状态目录的 .gitignore 存在且没被忽略时一起提交；
+   * 已跟踪、如今被忽略的终端心跳进 untrack。
+   */
+  test('finish-change 的提交路径：原目录只在被 git 跟踪过时列出；不是 git 仓就不发提交', () => {
+    const commitOf = (git: GitFinishProbe | null) => stepNextActions(input({
+      runArchived: true,
+      finish: { git, verified: true },
+    }))[0]?.commit
+    expect(commitOf(probe({ changeDirTracked: true }))).toEqual({
+      paths: ['openspec/changes/demo', 'openspec/changes/archive'],
+      untrack: [],
+      message: 'chore(openspec): archive demo',
+    })
+    expect(commitOf(probe())).toEqual({ paths: ['openspec/changes/archive'], untrack: [], message: 'chore(openspec): archive demo' })
+    expect(commitOf(probe({
+      housekeeping: ['.pipeline/.gitignore', 'openspec/.gitignore'],
+      untrack: ['openspec/changes/old/.pipeline-terminal-activity.json'],
+    }))).toEqual({
+      paths: ['openspec/changes/archive', '.pipeline/.gitignore', 'openspec/.gitignore'],
+      untrack: ['openspec/changes/old/.pipeline-terminal-activity.json'],
+      message: 'chore(openspec): archive demo',
+    })
+    expect(commitOf(null)).toBeNull()
+  })
+
+  /**
+   * 真机（第二轮）：simple 工作流 verify-pass 后直接完结，功能代码与任务状态文件全留在工作区。
+   * 它没有归档命令，只剩一次提交；提交过（工作区干净）、不是 git 仓或以 scope-expanded 放弃时就停。
+   */
+  test('非 OpenSpec 治理的工作流以验证通过完结：只带提交的 finish-change；提交过或放弃时停', () => {
+    const simple = (git: GitFinishProbe | null, verified = true) => stepNextActions(input({
+      runArchived: true, governedOpenspec: false, finish: { git, verified },
+    }))
+    expect(simple(probe())).toEqual([{
+      action: 'finish-change',
+      change: 'demo',
+      command: null,
+      commit: { paths: ['.'], untrack: [], message: 'chore(tenon): finish demo' },
+    }])
+    // 工作区干净，但还有已跟踪、如今被忽略的心跳：仍要一次提交把它移出索引。
+    expect(simple(probe({ workspaceDirty: false, untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] }))[0])
+      .toMatchObject({ action: 'finish-change', commit: { untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] } })
+    expect(simple(probe({ workspaceDirty: false }))[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+    expect(simple(probe(), false)[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+    expect(simple(null)[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
   })
 
   /**

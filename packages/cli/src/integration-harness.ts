@@ -68,6 +68,7 @@ import {
 import { createManifestSkillActionAuthorityResolver } from './skill-action-authority-provider.js'
 import { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 import { gitRemoteNames } from './gitRemotes.js'
+import { probeGitFinish } from './gitWorkspace.js'
 export { recordWorkflowPhaseSkill } from './integration-phase-skill-test-support.js'
 
 /** Track Registry 校验上下文（与 main.ts trackValidationContext 同款，harness 镜像生产装配）。 */
@@ -312,6 +313,7 @@ export function realDeps(cwd: string, out: string[], err: string[], env: NodeJS.
     gitHeadSha: async () => TEST_GIT_HEAD,
     // 真跑 `git remote`：临时项目不是 git 仓，与真机「本地仓库没有远端」同一口径。
     gitRemotes: () => gitRemoteNames(cwd),
+    gitFinishProbe: (change) => probeGitFinish(cwd, change),
     workspaceFingerprint: () => fingerprintWorkspace(cwd),
     buildRevisionIdentity: async () => TEST_BUILD_REVISION_IDENTITY,
     captureBuildRevision: async (isolation) => createBuildRevisionToken(

@@ -26,11 +26,13 @@ import { effectiveArtifactProducers } from './artifact.js'
 import { retiredSkillReferences, retiredSkillsChangeMessage } from '@tenon/kernel'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { currentCandidate } from './candidate.js'
+import { unconfiguredMessage, unconfiguredNpmScript } from '../test-runner/npmScript.js'
 import { SPEC_APPLY_RECEIPT } from './specApply.js'
 import { PR_URL_NO_REMOTE, repositoryHasNoRemote } from './prUrlField.js'
 import {
   stepNextActions, stop,
-  type StepAction, type StepMode, type StepNextInput, type StepTestView,
+  type StepAction, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestConfigGap,
+  type StepTestView,
 } from './statusStepNext.js'
 
 export interface StepBlock {
@@ -44,6 +46,10 @@ export interface StepBlock {
   readonly prompt: string | null
   readonly gate: string | null
   readonly mode: StepMode
+  /**
+   * 这个任务不再是活跃任务：当前用户把它收起了（per-user 归档表），或状态机已完结
+   * （`fields.archived=true`）。两种都为 true——已完结的 change 不会再带一个 `archived:false` 的 step。
+   */
   readonly archived: boolean
   readonly governed_openspec: boolean
   readonly candidate: string
@@ -131,6 +137,43 @@ async function withPrUrlRecommendation(
   return fields.map((field, at) => at === index ? { ...field, recommended: PR_URL_NO_REMOTE } : field)
 }
 
+/** 完结收尾要的 git 事实；只在状态机已归档时才去问 git（活跃步骤的每次 status 不付这份开销）。 */
+async function finishFacts(deps: CliDeps, name: string, state: PipelineState): Promise<StepFinishFacts> {
+  const verified = str(state.fields.verify_result) === 'pass'
+  if (str(state.fields.archived) !== 'true') return { git: null, verified }
+  return { git: await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null)), verified }
+}
+
+/**
+ * 本步与下一步（前进边指向的步骤）声明的必需测试里未配置的那些。本步已通过的不算；下一步的测试
+ * 还没有自己的证据，只看命令配没配。
+ */
+async function testConfigGaps(
+  deps: CliDeps,
+  plan: EffectiveWorkflowPlan,
+  stepId: string,
+  tests: readonly StepTestView[],
+  exits: readonly StepExit[],
+): Promise<readonly StepTestConfigGap[]> {
+  const gaps: StepTestConfigGap[] = tests
+    .filter((test) => test.required && test.status === 'unconfigured' && test.hint !== undefined)
+    .map((test) => ({ id: test.id, step: stepId, hint: test.hint ?? '' }))
+  const ahead = new Set(exits.filter((exit) => exit.direction === 'forward' && exit.to !== stepId).map((exit) => exit.to))
+  for (const step of plan.workflow.steps) {
+    if (!ahead.has(step.id)) continue
+    for (const test of step.tests ?? []) {
+      if (!test.required || gaps.some((gap) => gap.id === test.id)) continue
+      const gap = await unconfiguredNpmScript(deps.cwd, test)
+      if (gap !== undefined) {
+        const hint = `${unconfiguredMessage(test.id, test.command, gap)}`
+          + `（下一步 '${step.id}' 的必需测试，先在本步配置好）`
+        gaps.push({ id: test.id, step: step.id, hint })
+      }
+    }
+  }
+  return gaps
+}
+
 export async function buildStatusStep(
   deps: CliDeps,
   name: string,
@@ -150,12 +193,18 @@ export async function buildStatusStep(
     repoRoot: deps.cwd, changeDir: dir, changeName: name, plan, stepId,
     context: testEvidenceContextFor(deps, name),
   })
-  const tests: readonly StepTestView[] = testReport.items.map((item) => ({
-    id: item.test.id,
-    direction: item.test.direction,
-    required: item.test.required,
-    status: item.status,
-    run_id: item.run?.run_id ?? null,
+  const tests: readonly StepTestView[] = await Promise.all(testReport.items.map(async (item) => {
+    // 还没通过、且命令要的 npm 脚本在项目里不存在：这是「未配置」，不是「未运行」——run-test 只会
+    // 被拒，next 在步骤入口就把它作为待配置项提出来。
+    const gap = item.status === 'passed' ? undefined : await unconfiguredNpmScript(deps.cwd, item.test)
+    return {
+      id: item.test.id,
+      direction: item.test.direction,
+      required: item.test.required,
+      status: gap === undefined ? item.status : 'unconfigured',
+      run_id: item.run?.run_id ?? null,
+      ...(gap === undefined ? {} : { hint: unconfiguredMessage(item.test.id, item.test.command, gap) }),
+    }
   }))
   const policy = plan.capabilities.documents.policy
   const documents = stepDocuments(name, policy, stepId, report.documents?.items ?? [])
@@ -180,7 +229,7 @@ export async function buildStatusStep(
     prompt: step?.prompt ?? null,
     gate: step?.gate ?? null,
     mode: await modeOf(deps, name),
-    archived,
+    archived: archived || str(state.fields.archived) === 'true',
     governed_openspec: plan.capabilities.documents.governed,
     candidate: await currentCandidate(deps, name, state, plan, stepId),
     skills,
@@ -226,10 +275,14 @@ export async function buildStatusStep(
       ownsDeltaSpec: documents.records.some((doc) => doc.kind === 'delta-spec'),
       ownsAppliedSpec: documents.records.some((doc) => doc.kind === 'applied-spec'),
       artifactProducers: artifacts.size === 0 ? [] : effectiveArtifactProducers(deps, state),
+      finish: await finishFacts(deps, name, state),
+      testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits),
     }),
   }
 }
 
 export { SPEC_APPLY_RECEIPT }
 // 顺序表与它的输入面归 statusStepNext.ts；从这里转出，投影的消费方（测试、dashboard）只认一个入口。
-export { stepNextActions, type StepAction, type StepMode, type StepNextInput, type StepTestView }
+export {
+  stepNextActions, type StepAction, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestView,
+}
