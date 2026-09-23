@@ -44,3 +44,35 @@ export async function ensurePipelineGitignore(repoRoot: string): Promise<void> {
     if (errnoCode(error) !== 'EEXIST') throw error
   }
 }
+
+/** `openspec/` holds the tracked Change documents; only the hook-written liveness sidecar is local. */
+const OPENSPEC_DIR = 'openspec'
+
+/**
+ * Terminal heartbeat (`openspec/changes/<c>/.pipeline-terminal-activity.json`) and its mktemp siblings.
+ * The pattern has no slash, so it applies at every depth below `openspec/`, including archived Changes.
+ * It lives in `openspec/.gitignore` rather than `openspec/changes/.gitignore` because Change scanners
+ * treat any non-directory entry of `openspec/changes/` as a blocker.  hooks/terminal-activity.sh writes
+ * the same bytes before its first heartbeat.
+ */
+export const OPENSPEC_LOCAL_GITIGNORE = [
+  '# Tenon local runtime state; Change documents in this directory stay tracked.',
+  '.pipeline-terminal-activity.*',
+  '',
+].join('\n')
+
+/** Create `<repoRoot>/openspec/.gitignore` if absent.  Never creates `openspec/` and skips a non-plain one. */
+export async function ensureOpenspecGitignore(repoRoot: string): Promise<void> {
+  const dir = join(repoRoot, OPENSPEC_DIR)
+  try {
+    if (!(await lstat(dir)).isDirectory()) return
+  } catch (error) {
+    if (errnoCode(error) === 'ENOENT') return
+    throw error
+  }
+  try {
+    await writeFile(join(dir, '.gitignore'), OPENSPEC_LOCAL_GITIGNORE, { flag: 'wx' })
+  } catch (error) {
+    if (errnoCode(error) !== 'EEXIST') throw error
+  }
+}
