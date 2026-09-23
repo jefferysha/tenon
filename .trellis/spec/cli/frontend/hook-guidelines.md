@@ -195,11 +195,12 @@ pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | c
   pending: no mutation, no `tenon review acknowledge`; stdout
   `<tenon-pending-confirmation>…用户回复「确认继续」…或简短同意「继续」…「按你的推荐」（采纳推荐项），即确认当前待决事项…</tenon-pending-confirmation>`.
   Nothing pending → no output.
-- **Approval** with `.pipeline-pending-interaction` present: append one `InteractionConfirmed: <skill>` row per
-  marker entry (split on `、`; entries outside `[A-Za-z0-9_:-]` skipped) to the active Change history, then remove the
-  interaction and confirm markers and print
-  `<tenon-interaction-confirmed>…请重试刚才被拦截的操作。</tenon-interaction-confirmed>`. The review marker is never
-  removed here (the CLI owns it).
+- **Approval** with `.pipeline-pending-interaction` present: claim the interaction and confirm markers with an atomic
+  `mv` to `<marker>.claim.$$`; only the copy whose rename wins appends one `InteractionConfirmed: <skill>` row per
+  marker entry (split on `、`; entries outside `[A-Za-z0-9_:-]` skipped) to the active Change history, removes its
+  claim files and prints `<tenon-interaction-confirmed>…请重试刚才被拦截的操作。</tenon-interaction-confirmed>` —
+  exactly once per prompt even when the host runs the hook more than once concurrently (real session, round 3: the
+  announcement appeared twice). The review marker is never removed here (the CLI owns it).
 - **Once per step visit** (`interactive-skill-gate.sh`, non-autonomous only): scan history in order; a `transition`
   row whose `"to"` equals the current phase resets the confirmed set; `InteractionConfirmed` rows add the base name
   (namespace after the last `:` stripped). Matched skills already confirmed are dropped; if none remain the hook
@@ -219,6 +220,7 @@ pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | c
 | Pending interaction, reply 「确认以上决策并写入产物」 (unrecognised) | Marker kept, `<tenon-pending-confirmation>` hint |
 | Pending interaction, reply 「确认继续，但先改标题」 (`modify`) | Marker kept, hint |
 | Pending interaction, reply 「确认继续」 | History rows written, markers removed, `<tenon-interaction-confirmed>` |
+| Same prompt, hook run 4× concurrently | One announcement, one history row, no `*.claim.*` left |
 | No pending marker, reply 「继续」 | No output, no mutation |
 | Confirmed skill read again in the same visit | No marker |
 | Another skill read in the same visit | Marker for that skill only |
@@ -253,7 +255,8 @@ rm -f "$ROOT/.pipeline-pending-interaction"   # unlocked, but the blocked agent 
 
 ```bash
 [ -n "$INTENT" ] || pending_unlock_hint_and_exit
-# … record InteractionConfirmed rows, remove markers …
+mv "$ROOT/.pipeline-pending-interaction" "$INTERACTION_CLAIM" 2>/dev/null && RELEASED_LOCK=1   # atomic claim
+# … record InteractionConfirmed rows from the claim, remove the claim …
 [ "$RELEASED_LOCK" -eq 1 ] && printf '<tenon-interaction-confirmed>\n用户已确认，待确认的交互已解封；请重试刚才被拦截的操作。\n</tenon-interaction-confirmed>\n'
 ```
 

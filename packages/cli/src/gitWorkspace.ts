@@ -1,5 +1,5 @@
 /**
- * 完结时下发的提交动作要问 git 的事实。提交命令（`git add -A -- <paths…>`、可选的
+ * 交付步与完结时下发的提交动作要问 git 的事实。提交命令（`git add -A -- <paths…>`、可选的
  * `git rm --cached -q --ignore-unmatch -- <untrack…>`、`git commit`）必须一次成功，所以 paths 里
  * 只能出现 git 接受的路径：
  *
@@ -11,18 +11,28 @@
  *     `git add`（被忽略的路径 `git add` 会 exit 1）。
  *   · 旧版本已经提交进 git 的终端心跳（`openspec/changes/**\/.pipeline-terminal-activity.*`）不会因为
  *     后来加的忽略规则而取消跟踪：已跟踪且已被忽略的那些列进 `untrack`，由 `git rm --cached` 移出索引。
+ *   · 整个工作区的提交（交付步的 `commit`、非治理工作流的收尾）用 `.` 加 exclude pathspec 挡住仓库根
+ *     的本机门禁标记；判「还有没有要提交的」用同一组 pathspec，否则只剩标记时 `git commit` 以
+ *     「nothing to commit」失败。
  *
  * 不是 git 仓（或 git 跑不起来）时返回 null：调用方据此不发提交动作，不把「不知道」当成「可以提交」。
  */
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
+import { GATE_MARKERS } from '@tenon/kernel'
 
 export interface GitFinishProbe {
   /** `openspec/changes/<c>` 之下有没有已跟踪的文件。 */
   readonly changeDirTracked: boolean
-  /** 工作区（含未跟踪、不含被忽略的）有没有待提交的改动。 */
+  /** 工作区（含未跟踪、不含被忽略的、不含仓库根的本机门禁标记）有没有待提交的改动。 */
   readonly workspaceDirty: boolean
+  /**
+   * 同上，再去掉 change 目录本身：交付物（代码、文档、主规格、测试记录、.gitignore）有没有待提交的。
+   * change 目录每次 hook 都会追加历史，拿它判「还要不要提交」会让提交动作永远发不完；它随交付
+   * 提交一起入库，之后的改动由完结的 finish-change 负责。
+   */
+  readonly deliverablesDirty: boolean
   /** 存在且未被忽略、可以一起 `git add` 的状态目录 `.gitignore`。 */
   readonly housekeeping: readonly string[]
   /** 已跟踪、但按当前忽略规则应被忽略的终端心跳文件。 */
@@ -33,6 +43,23 @@ export const FINISH_HOUSEKEEPING_PATHS: readonly string[] = [
   '.pipeline/.gitignore',
   '.tenon/.gitignore',
   'openspec/.gitignore',
+]
+
+/**
+ * 仓库根上只属于本机的文件：三个门禁标记（`.pipeline-pending-*`），以及旧版本留下的活跃指针与
+ * 交互授权（session activate 会删掉它们，但升级前的仓库里可能还在）。项目根 `.gitignore` 不归
+ * Tenon 改写，所以它们靠提交命令里的 exclude pathspec 挡在提交之外。
+ */
+export const LOCAL_ROOT_FILES: readonly string[] = [
+  ...GATE_MARKERS,
+  '.pipeline-active',
+  '.pipeline-interaction-authority',
+]
+
+/** `git add -A -- <这些>` = 整个工作区，去掉仓库根的本机文件（exclude 不要求匹配到文件）。 */
+export const WORKSPACE_COMMIT_PATHS: readonly string[] = [
+  '.',
+  ...LOCAL_ROOT_FILES.map((name) => `:(exclude)${name}`),
 ]
 
 const TERMINAL_ACTIVITY_PREFIX = '.pipeline-terminal-activity.'
@@ -62,12 +89,17 @@ function nulList(stdout: string): readonly string[] {
 export async function probeGitFinish(cwd: string, change: string): Promise<GitFinishProbe | null> {
   const inside = await git(cwd, ['rev-parse', '--is-inside-work-tree'])
   if (inside.code !== 0 || inside.stdout.trim() !== 'true') return null
-  const [tracked, status, ignoredTracked] = await Promise.all([
+  // 判「脏」与提交用同一组 pathspec：只剩门禁标记时说干净，否则发出去的 `git commit` 会以
+  // 「nothing to commit」失败。
+  const statusOf = (paths: readonly string[]): Promise<GitOutcome> =>
+    git(cwd, ['status', '--porcelain', '-z', '--untracked-files=normal', '--', ...paths])
+  const [tracked, status, deliverables, ignoredTracked] = await Promise.all([
     git(cwd, ['ls-files', '-z', '--', `openspec/changes/${change}`]),
-    git(cwd, ['status', '--porcelain', '-z', '--untracked-files=normal']),
+    statusOf(WORKSPACE_COMMIT_PATHS),
+    statusOf([...WORKSPACE_COMMIT_PATHS, `:(exclude)openspec/changes/${change}`]),
     git(cwd, ['ls-files', '-z', '-c', '-i', '--exclude-standard', '--', 'openspec/changes']),
   ])
-  if (tracked.code !== 0 || status.code !== 0) return null
+  if (tracked.code !== 0 || status.code !== 0 || deliverables.code !== 0) return null
   const housekeeping: string[] = []
   for (const path of FINISH_HOUSEKEEPING_PATHS) {
     if (!existsSync(join(cwd, path))) continue
@@ -80,6 +112,7 @@ export async function probeGitFinish(cwd: string, change: string): Promise<GitFi
   return {
     changeDirTracked: tracked.stdout !== '',
     workspaceDirty: status.stdout !== '',
+    deliverablesDirty: deliverables.stdout !== '',
     housekeeping,
     untrack,
   }

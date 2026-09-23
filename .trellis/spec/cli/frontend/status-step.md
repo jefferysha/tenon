@@ -11,9 +11,11 @@
 - 已完结（`archived=true`，无论目录是否已被 `openspec archive` 搬走）的 change 不在
   `active_changes`，而在 `finished_changes`（多一个 `archived_at`）；与列表形态、`list --finished`
   同一口径。`tenon check` 对它只打一行「已完结（已归档），无需检查」、exit 0。
-- 已完结的 change 只在还有收尾动作（`finish-change`）时带 `step`，且 `step.archived=true`；没有可做
-  的事（default 已搬进 archive/、simple 已提交或以 scope-expanded 放弃）时省略 `step`——所有工作流
-  同一形态。`step.archived` = 当前用户收起了它，或状态机已完结。
+- 已完结的 change 恒带 `step`（键序与活跃 change 相同），`step.archived=true`：还有收尾动作时 `next`
+  是 `finish-change`；没有可做的事（default 已搬进 archive/、simple 已提交或以 scope-expanded 放弃）时
+  `next: [{action: stop, code: finished}]`——所有工作流同一形态。目录已被搬进 archive/ 时证据类分块
+  （skills / tests / documents / fields / exits …）为空（`finishedStatusStep`）。`step.archived` = 当前
+  用户收起了它，或状态机已完结。
 - 已完结的 change 上 `tenon test status <c>`（不带 `--step`）按步骤列出每项测试的最后记录
   （JSON：`step: null`、`finished: true`、`items[].step`、`report: "tenon test report <c>"`），exit 0。
 - `step` 投影不可用时（工作流读不到、指纹不匹配等）写一行 `WARN: step 投影不可用: …` 到 stderr，
@@ -24,6 +26,11 @@
 ```ts
 // packages/cli/src/commands/statusStep.ts
 buildStatusStep(deps, name, state, plan): Promise<StepBlock>
+finishedStatusStep(deps, name, state, plan | null): Promise<StepBlock>        // 目录已搬进 archive/
+// packages/cli/src/commands/statusStepFinish.ts
+deliveryCommit(change, git): StepCommit | null · finishActions(change, governed, finish) · finishedStop(change)
+// packages/cli/src/gitWorkspace.ts
+probeGitFinish(cwd, change) · WORKSPACE_COMMIT_PATHS · LOCAL_ROOT_FILES
 stepNextActions(input: StepNextInput): readonly StepAction[]   // 纯函数，顺序的唯一真相源
 // packages/cli/src/commands/stepExitReport.ts
 evaluateStepExitReport(deps, name, dir, state, plan): Promise<StepExitReport>
@@ -44,13 +51,31 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   这里只换形状，不新写一套 guard。
 - `next` 是闭集：`stop`、`load-tenon`、`finish-change`、`read-documents`、`run-agent`、`load-skill`、
   `scaffold-document`、`record-document`、`register-field`、`set-field`、`validate-spec`、
-  `apply-spec`、`run-test`、`fix`、`request-review`、`await-review`、`choose-exit`、`transition`、
+  `apply-spec`、`run-test`、`fix`、`commit`、`request-review`、`await-review`、`choose-exit`、`transition`、
   `complete`。第一条命中的规则返回，同一条规则内同波的项一起返回。
 - 顺序：停（归档 / 引用已删除技能 / 步骤不在计划里）→ 状态机已归档（治理归档或停）→ 重新加载
-  tenon → 读输入文档 → 未配置的必需测试（本步与下一步的，`fix` `code: test-unconfigured`）→ 决定类字段（带枚举、走 `tenon set`：build_mode / isolation …，动手之前拍板）
+  tenon → 读输入文档 → 决定类字段（带枚举、走 `tenon set`：build_mode / isolation …，动手之前拍板，
+  也先于测试配置）→ 未配置的必需测试（本步与下一步的；计划步——本步产出 `plan` / `superpower-plan`——
+  是之后所有前进可达步骤的；`fix` `code: test-unconfigured`）
   → 执行者 → 本步技能 → 技能欠的文档 → 未勾任务（`fix`，blocker `source: tasks`，带 `items` 未勾项
   原文；tasks.md 自己还没产出（`missing`）时让位给文档写入，勾过一项后的 `stale` 不让位）→ 应用规格 → 产出与登记文档 → artifact
-  登记 → 自由文本交付值（`pr_url` / `prd_path`）→ 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
+  登记 → 交付物提交（交付步，`commit`）→ 自由文本交付值（`pr_url` / `prd_path`）→ 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
+- `test-unconfigured` 的 message = `unconfiguredMessage` + 范围说明：计划步说「只需在 package.json 补上
+  脚本；这类测试若还没有，把写这类测试列进本步的计划与 tasks」；之后的步骤说「只需补 package.json 的
+  scripts（以及这条脚本要跑的测试代码），不需要修改已登记的规格文档」。只改 package.json 不会让已登记
+  的文档失效：文档台账按各自文件的 sha256 判定，与 package.json 无关；build 冻结的候选版本（build_sha）
+  在 build-complete 才取，build 内改 package.json 不触发 `revision-stale`。真机第三轮的 build→spec
+  回退来自模型把「补测试」写回已登记的 plan / design（只读输入变 `stale`，build 上没有合法 producer，
+  只能 `requirements-changed`）。
+- 交付步 = 本步字段含交付值（`pr_url` / `prd_path`，`writer: set`）。状态机未归档、交付物还有未提交的
+  改动（`deliverablesDirty`：`git status` 在 `WORKSPACE_COMMIT_PATHS` 且再排除 `openspec/changes/<c>`
+  时非空）时发 `{action: commit, change, commit: {paths, untrack, message}}`：`paths` =
+  `WORKSPACE_COMMIT_PATHS`（`.` 加每个仓库根本机文件的 `:(exclude)<name>`：三个 `.pipeline-pending-*`
+  门禁标记、旧版 `.pipeline-active` / `.pipeline-interaction-authority`），`untrack` 同 finish-change，
+  `message: feat(<c>): deliver`。执行与 finish-change 的提交三条命令相同。判「脏」不看 change 目录（每次
+  hook 都在追加历史，看它会让这条动作永远发不完）；change 目录随这次提交入库，之后的改动由
+  finish-change（原目录已跟踪 → 列出）提交。不是 git 仓时不发。交付步提交后本步再产生的改动（例如本步
+  测试记录）会再发一次 `commit`，出口前交付物总是已提交。
 - 进行中（`running`）的 agent 先于同一档的一切新动作：`run-agent` 带 `status: running`、`run_id`、
   `report_path`，宿主写报告后 `agent record` 那次运行，不重开。
 - agent 的 `wave` 是依赖分层（kernel `agentWaves`，无 `depends_on` 的同为 0），与 `tenon agent next`
@@ -68,8 +93,10 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   `openspec/changes/<c>` 只在 git 跟踪过它时列出（未跟踪的原目录搬走后 pathspec 匹配不到，exit 128）；
   `.pipeline/.gitignore`、`.tenon/.gitignore`、`openspec/.gitignore` 存在且未被上层规则忽略时一并列出；
   `untrack` = `openspec/changes/**` 下已跟踪、但按当前忽略规则应被忽略的 `.pipeline-terminal-activity.*`；
-  非治理工作流以验证通过（`verify_result=pass`）完结且工作区有未提交改动（或有待 untrack 的心跳）时是 `paths: ['.']`、
-  `message: chore(tenon): finish <c>`，否则 `stop run-archived`。不是 git 仓时 `commit: null`。
+  非治理工作流以验证通过（`verify_result=pass`）完结且工作区有未提交改动（或有待 untrack 的心跳）时是
+  `paths: WORKSPACE_COMMIT_PATHS`、`message: chore(tenon): finish <c>`，否则 `stop finished`；判「有未提交
+  改动」与提交用同一组 pathspec（只剩门禁标记 = 干净，否则 `git commit` 以 nothing to commit 失败）。
+  不是 git 仓时 `commit: null`。
 - 终态自边由 kernel 推导（`implicitCompletionTransition`），`default` 的 `archive` 也在内：它
   投影成 `direction: completion` 的出口，`next` 给 `complete`。走完之后 `archived=true`，
   `next` 只剩 `finish-change`（治理归档命令）；两条命令的先后因此写在数据里，而不是靠人记。
@@ -108,7 +135,7 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | 技能已调用、欠本步产物（`invoked`） | 它欠的每份文档 `record-document`（缺文件先 `scaffold-document`），不再 `load-skill` |
 | `role: update` 的槽还没登记过 | 不发动作（可以改 ≠ 必须产出） |
 | 必需测试未通过 | `run-test`；失败的测试要先改代码再重跑 |
-| 本步或下一步的必需测试命令要的 npm 脚本不存在 | 读完输入后先 `fix`（`source: test`、`code: test-unconfigured`，message 说明两种配置方式）；本步的那条 `step.tests[].status=unconfigured` 带 `hint`；`tenon test run` 拒跑（exit 1，不落记录） |
+| 本步或下一步（计划步：之后任一步）的必需测试命令要的 npm 脚本不存在 | 读完输入、拍板决定字段后先 `fix`（`source: test`、`code: test-unconfigured`，message 说明两种配置方式）；本步的那条 `step.tests[].status=unconfigured` 带 `hint`；`tenon test run` 拒跑（exit 1，不落记录） |
 | `delta-spec` 归本步且回执不新鲜 | 文档登记完之后 `validate-spec` |
 | `applied-spec` 归本步且回执不新鲜 | 先 `apply-spec`，再登记 |
 | 评审门上必需评审者打回且只有一条回退边 | `request-review` → `await-review` → `transition` |
@@ -117,10 +144,13 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | 执行者已 prompt 未 record | `run-agent` 带 `status: running` 与 `run_id`，不跳去 `load-skill` |
 | 必需评审者打回 | 不发结果字段；回退边（评审门上走 request → await → transition）或 `fix` |
 | ship 有未勾任务 | 先 `fix`（`source: tasks`，`items` 为截至本步仍未勾的任务原文），再 `apply-spec` / applied-spec 登记 / `set-field pr_url` |
-| build 缺 build_mode / isolation | 读完输入文档后第一批就是 `set-field`，先于执行者与 `load-skill` |
-| 已完结 | `finished_changes` 而非 `active_changes`；`check` 说无需检查；`step` 只在 `finish-change` 待做时出现，`archived=true` |
+| build 缺 build_mode / isolation | 读完输入文档后第一批就是 `set-field`，先于 test-unconfigured 的 `fix`、执行者与 `load-skill` |
+| 交付步，交付物有未提交改动 | `commit`（`paths: WORKSPACE_COMMIT_PATHS`），先于 `set-field pr_url` / `prd_path` |
+| 交付步，只有 change 目录或门禁标记有改动 | 不发 `commit` |
+| 已完结 | `finished_changes` 而非 `active_changes`；`check` 说无需检查；`step` 恒在、`archived=true`，`next` 是 `finish-change` 或 `stop finished` |
 | 原目录从未被 git 跟踪 | `finish-change.commit.paths` 只有 `openspec/changes/archive` |
-| simple 以 verify-pass 完结、工作区有改动 | `finish-change`，`command: null`，`commit.paths: ['.']` |
+| simple 以 verify-pass 完结、工作区有改动 | `finish-change`，`command: null`，`commit.paths: WORKSPACE_COMMIT_PATHS` |
+| 已完结、只剩仓库根门禁标记未跟踪 | `stop finished`（不发必定失败的提交） |
 
 ## 5. Tests
 
@@ -129,4 +159,6 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 - `packages/cli/src/spec-apply.integration.test.ts`：`spec apply` 的真实彩排与退出码。
 - `packages/cli/src/next-action-runner.integration.test.ts`：验收锚——只照 `next` 做事的运行器把一个
   `default` 任务从 `open` 做到 `list --finished`，中途改掉一份已登记的文档、并被评审者打回一次。
-  `next` 发出去却执行不了的动作会让它当场红。
+  `next` 发出去却执行不了的动作会让它当场红；收尾之后 `git status --porcelain` 必须为空（交付提交不带
+  门禁标记），完结后的 `step` 键序与活跃时相同、`next` 为 `stop finished`；缺 `test:integration` 时 fix
+  出现在 spec 且全程没有 `requirements-changed`。

@@ -1908,6 +1908,31 @@ assert_contains "confirm-clear-prompt: 解封后告知 agent 重试被拦截的�
 grep -Fq '"raw":"InteractionConfirmed: tenon:brainstorming"' "$ONCE_HIST" \
   && ok "confirm-clear-prompt: 确认留下 InteractionConfirmed 历史行" \
   || bad "confirm-clear-prompt: 确认留下 InteractionConfirmed 历史行" "history 缺少确认行"
+# 真机（第三轮）：同一轮 prompt 里 <tenon-interaction-confirmed> 出现两次——宿主把同一条
+# UserPromptSubmit hook 跑了不止一份（并发）。解封以原子 rename 认领：只有认领成功的那一份记录
+# InteractionConfirmed、宣告解封；其余几份什么也不说。
+DUP_OK=1
+for _round in 1 2 3 4 5 6; do
+  printf 'tenon:dup-skill\n' > "$proj/.pipeline-pending-interaction"
+  DUP_BEFORE="$(grep -c 'InteractionConfirmed: tenon:dup-skill' "$ONCE_HIST" 2>/dev/null || true)"
+  DUP_OUT="$TMP/dup-confirm-out"; rm -f "$DUP_OUT".*
+  for _copy in 1 2 3 4; do
+    printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"确认继续\"}" \
+      | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" > "$DUP_OUT.$_copy" 2>/dev/null &
+  done
+  wait
+  DUP_TAGS="$(cat "$DUP_OUT".* | grep -c '^<tenon-interaction-confirmed>$' || true)"
+  DUP_AFTER="$(grep -c 'InteractionConfirmed: tenon:dup-skill' "$ONCE_HIST" 2>/dev/null || true)"
+  if [ "$DUP_TAGS" != 1 ] || [ $((DUP_AFTER - DUP_BEFORE)) -ne 1 ] || [ -f "$proj/.pipeline-pending-interaction" ] \
+    || ls "$proj"/.pipeline-pending-*.claim.* >/dev/null 2>&1; then
+    DUP_OK=0
+    DUP_DETAIL="round $_round: tags=$DUP_TAGS rows=$((DUP_AFTER - DUP_BEFORE))"
+    break
+  fi
+done
+[ "$DUP_OK" -eq 1 ] \
+  && ok "confirm-clear-prompt: 并发重复运行时解封只宣告一次、只记一行确认、不留认领文件" \
+  || bad "confirm-clear-prompt: 并发重复运行时解封只宣告一次、只记一行确认、不留认领文件" "$DUP_DETAIL"
 printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"brainstorming\"}}" | bash "$IG" >/dev/null 2>&1
 [ ! -f "$proj/.pipeline-pending-interaction" ] \
   && ok "interactive-skill-gate: 同一 step visit 已确认的技能再读不重落门" \

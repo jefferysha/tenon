@@ -299,7 +299,7 @@ describe('完结（已移入 openspec/changes/archive/）的 change 仍可查', 
     ])
   })
 
-  test('status <name> --json：给出状态但不给 step——完结的任务没有下一步', async () => {
+  test('status <name> --json：给出状态，step 的 next 是 stop finished——完结的任务没有下一步', async () => {
     const cwd = await repoWithFinished('2026-09-22-fin-demo')
     const deps = makeDeps({ states: { '2026-09-22-fin-demo': finishedState }, changes: [], cwd })
     expect(await cmdStatus(deps, 'fin-demo', { json: true })).toBe(0)
@@ -314,7 +314,14 @@ describe('完结（已移入 openspec/changes/archive/）的 change 仍可查', 
       updated_at: '2026-09-22T03:00:00Z',
       archived_at: expect.any(String),
     }])
-    expect(parsed.step).toBeUndefined()
+    // 真机（第三轮）：从前省略 step，照 `.step.next` 读的循环当场 KeyError；现在 step 结构照旧。
+    expect(parsed.step).toMatchObject({
+      schema: 'tenon-step-v1',
+      change: 'fin-demo',
+      archived: true,
+      exits: [],
+      next: [{ action: 'stop', code: 'finished' }],
+    })
   })
 
   test('list --finished 列出它；活跃表仍然不列', async () => {
