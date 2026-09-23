@@ -34,7 +34,10 @@
  * 作为兼容投影，本用例只消费该抽象，不自行读任一格式。
  */
 import type { FieldName, Phase, PipelineState } from '../types.js'
-import { applyBreadcrumbTail, clearReviewGatePatch, readCurrentRunRevision, reviewGateApprovedFor, transitionRecordToHistoryEntry } from '../state/index.js'
+import {
+  applyBreadcrumbTail, clearReviewGatePatch, readCurrentRunRevision, reviewGateApprovedFor, reviewGateEvent,
+  reviewGatePendingFor, transitionRecordToHistoryEntry,
+} from '../state/index.js'
 import { evaluateDocumentEvidence } from '../state/document-evidence.js'
 import { rejectOnTestEvidence } from '../test-evidence/transition-gate.js'
 import { ownerDecision } from '../users/owner.js'
@@ -294,7 +297,13 @@ export function createTransitionApplication(deps: TransitionApplicationDeps): Tr
           })
         }
         if (prepared.requiresReviewApproval && !bindingApproved) {
-          return { kind: 'review-approval-required', phase: prepared.from, event: command.event }
+          // A request that is already waiting for the user changes the next step (acknowledge, not
+          // another request), so the refusal names the event that request is bound to.
+          const pendingEvent = reviewGatePendingFor(tx.state, prepared.from) ? reviewGateEvent(tx.state) : ''
+          return {
+            kind: 'review-approval-required', phase: prepared.from, event: command.event,
+            ...(pendingEvent === '' ? {} : { pendingEvent }),
+          }
         }
         // Receipt 在任一成功 transition 后立即消费，避免一次旧批准在回退/重入同一 phase 后被复用。
         const { record, projection } = await tx.commit({ ...prepared.nextFields, ...clearReviewGatePatch() }, {

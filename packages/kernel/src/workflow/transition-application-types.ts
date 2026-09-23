@@ -163,7 +163,13 @@ export type TransitionApplicationResult =
       readonly stepId: string
       readonly blockers: readonly string[]
     }
-  | { readonly kind: 'review-approval-required'; readonly phase: string; readonly event: string }
+  | {
+      readonly kind: 'review-approval-required'
+      readonly phase: string
+      readonly event: string
+      /** Event of a review request for this phase that is still waiting for acknowledgement. */
+      readonly pendingEvent?: string
+    }
   | { readonly kind: 'constraint-denied'; readonly reason: Exclude<ConstraintDecision, { allowed: true }>['reason'] }
 
 export interface TransitionApplication {
