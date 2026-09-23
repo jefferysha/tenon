@@ -8,6 +8,9 @@
 
 - 只有 `tenon status <name> --json`（带 change 名）才带 `step`。列表形态（`status --json` 无名、
   `list --json`）逐字不变，那两份输出是锚定的 schema。
+- 已完结（`archived=true`，无论目录是否已被 `openspec archive` 搬走）的 change 不在
+  `active_changes`，而在 `finished_changes`（多一个 `archived_at`）；与列表形态、`list --finished`
+  同一口径。`tenon check` 对它只打一行「已完结（已归档），无需检查」、exit 0。
 - `step` 投影不可用时（工作流读不到、指纹不匹配等）写一行 `WARN: step 投影不可用: …` 到 stderr，
   `active_changes` 照常输出、exit 0 —— 读状态不该因为投影失败而失败。
 
@@ -39,8 +42,20 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   `apply-spec`、`run-test`、`fix`、`request-review`、`await-review`、`choose-exit`、`transition`、
   `complete`。第一条命中的规则返回，同一条规则内同波的项一起返回。
 - 顺序：停（归档 / 引用已删除技能 / 步骤不在计划里）→ 重新加载 tenon → 状态机已归档（治理归档
-  或停）→ 读输入文档 → 执行者 → 本步技能 → 应用规格 → 产出与登记文档 → 产出字段与门禁字段 →
-  彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
+  或停）→ 读输入文档 → 执行者 → 本步技能 → 应用规格 → 产出与登记文档 → 决定类字段（带枚举）与
+  artifact 登记 → 未勾任务（`fix`，blocker `source: tasks`）→ 自由文本交付值（`pr_url` / `prd_path`）
+  → 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
+- 进行中（`running`）的 agent 先于同一档的一切新动作：`run-agent` 带 `status: running`、`run_id`、
+  `report_path`，宿主写报告后 `agent record` 那次运行，不重开。
+- agent 的 `wave` 是依赖分层（kernel `agentWaves`，无 `depends_on` 的同为 0），与 `tenon agent next`
+  同源。
+- 必需测试或必需评审者已经不通过时不发结果字段，直接去出口（回退边或 `fix`）。
+- 结论字段（`pre_verify_review_result` / `verify_result`）与风险确认（`direct_override`）没有
+  `recommended`；`set-field` 带 guard 的 `required`，`tenon set` 写 `pass` 前核对本步证据
+  （commands/verdictFieldGate.ts）。`build_mode` 推荐无需豁免的值（full：`subagent-driven-development`，
+  pm `prototype`；hotfix / tweak：`direct`）。
+- `pr_url` 只接受 http(s) URL，或仓库没有 git 远端时的 `no-remote`（此时它就是 `recommended`）。
+- `finish-change` 带 `commit: { paths, message }`：搬移之后要提交的两处路径。
 - 终态自边由 kernel 推导（`implicitCompletionTransition`），`default` 的 `archive` 也在内：它
   投影成 `direction: completion` 的出口，`next` 给 `complete`。走完之后 `archived=true`，
   `next` 只剩 `finish-change`（治理归档命令）；两条命令的先后因此写在数据里，而不是靠人记。
@@ -83,7 +98,11 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | `applied-spec` 归本步且回执不新鲜 | 先 `apply-spec`，再登记 |
 | 评审门上必需评审者打回且只有一条回退边 | `request-review` → `await-review` → `transition` |
 | 多条前进边就绪 | `choose-exit` |
-| 字段由转换副作用落值（`archived` / `build_sha` / review 回执…） | 不发写入动作，走到那条转换 |
+| 字段由转换副作用落值（`archived` / `build_sha` / `phase_status` / review 回执…） | 不发写入动作，走到那条转换；`tenon set` 拒写 |
+| 执行者已 prompt 未 record | `run-agent` 带 `status: running` 与 `run_id`，不跳去 `load-skill` |
+| 必需评审者打回 | 不发结果字段；回退边（评审门上走 request → await → transition）或 `fix` |
+| ship 有未勾任务 | 先 `fix`（`source: tasks`），再 `set-field pr_url` |
+| 已完结 | `finished_changes` 而非 `active_changes`；`check` 说无需检查 |
 
 ## 5. Tests
 

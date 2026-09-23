@@ -104,13 +104,16 @@ describe('status --json —— schema 稳定（CONTRACT §3）', () => {
     )
   })
 
-  test('指定 name：同 envelope、单元素（含 archived 也返回）', async () => {
+  test('指定 name：已完结的不算活跃，落在 finished_changes（与列表形态同一口径）', async () => {
     const deps = makeDeps({ states: { 'old-x': stateArchived } })
     const code = await cmdStatus(deps, 'old-x', { json: true })
     expect(code).toBe(0)
-    const parsed = JSON.parse(deps.outLines[0]!) as { active_changes: Array<{ name: string }> }
-    expect(parsed.active_changes).toHaveLength(1)
-    expect(parsed.active_changes[0]?.name).toBe('old-x')
+    const parsed = JSON.parse(deps.outLines[0]!) as {
+      active_changes: Array<{ name: string }>
+      finished_changes: Array<{ name: string }>
+    }
+    expect(parsed.active_changes).toEqual([])
+    expect(parsed.finished_changes.map((row) => row.name)).toEqual(['old-x'])
   })
 
   test('空项目：active_changes 为空数组，exit 0', async () => {
@@ -301,13 +304,15 @@ describe('完结（已移入 openspec/changes/archive/）的 change 仍可查', 
     const deps = makeDeps({ states: { '2026-09-22-fin-demo': finishedState }, changes: [], cwd })
     expect(await cmdStatus(deps, 'fin-demo', { json: true })).toBe(0)
     const parsed = JSON.parse(deps.outLines[0]!) as Record<string, unknown>
-    expect(parsed.active_changes).toEqual([{
+    expect(parsed.active_changes).toEqual([])
+    expect(parsed.finished_changes).toEqual([{
       name: 'fin-demo',
       track: 'backend',
       phase: 'archive',
       phase_status: 'done',
       verify_result: '',
       updated_at: '2026-09-22T03:00:00Z',
+      archived_at: expect.any(String),
     }])
     expect(parsed.step).toBeUndefined()
   })

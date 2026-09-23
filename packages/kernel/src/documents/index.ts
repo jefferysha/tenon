@@ -1,4 +1,6 @@
 export * from './document-presentation-registry.js'
 export * from './document-template-renderer.js'
+export { findDocumentPlaceholders } from './document-placeholders.js'
+export type { DocumentPlaceholder } from './document-placeholders.js'
 export { recordDocument } from './document-recording.js'
 export type { RecordDocumentInput } from './document-recording.js'

@@ -55,7 +55,7 @@ const skill = (id: string, status: 'done' | 'ready' | 'waiting', wave: number) =
 
 const agent = (name: string, role: 'executor' | 'reviewer', status: string, ready: boolean) => ({
   agent: name, role, required: true, block_at: 'high', reads_tests: [], wave: 0,
-  wave_ready: ready, status: status as 'pending', run_id: null, blocking_findings: 0,
+  wave_ready: ready, status: status as 'pending', run_id: null, report_path: null, blocking_findings: 0,
 })
 
 const test_ = (id: string, status: string, required = true) =>
@@ -84,6 +84,53 @@ describe('step.next 顺序', () => {
       executors: [agent('researcher', 'executor', 'pending', true)],
       skills: [skill('brainstorming', 'ready', 0)],
     })).toEqual(['run-agent'])
+  })
+
+  test('进行中的执行者先于本步技能：指回那次运行，而不是跳去加载技能', () => {
+    const running = { ...agent('researcher', 'executor', 'running', false), run_id: 'r-1', report_path: 'x/r-1.md' }
+    expect(stepNextActions(input({
+      executors: [running, agent('builder', 'executor', 'pass', false)],
+      skills: [skill('brainstorming', 'ready', 0)],
+    }))).toEqual([{
+      action: 'run-agent', agent: 'researcher', role: 'executor', wave: 0,
+      status: 'running', run_id: 'r-1', report_path: 'x/r-1.md',
+    }])
+  })
+
+  test('必需评审者不通过：不再要结果字段，直接指向回退边（D2）', () => {
+    const base = {
+      gate: 'review',
+      reviewers: [agent('security', 'reviewer', 'fail', false)],
+      fields: [field('branch_status', { kind: 'outcome', allowed: ['pending', 'handled'], recommended: 'handled' })],
+    } as const
+    expect(stepNextActions(input({
+      ...base,
+      exits: [exit('verify-pass', 'forward', false), exit('verify-fail', 'back', true)],
+    }))).toEqual([{ action: 'request-review', event: 'verify-fail' }])
+    // 没有回退边：fix，而不是替失败的评审写一条通过的结论。
+    expect(actions({ ...base, exits: [exit('verify-pass', 'forward', false)] })).toEqual(['fix'])
+    // 评审者都过了，结果字段才出现。
+    expect(actions({
+      ...base,
+      reviewers: [agent('security', 'reviewer', 'pass', false)],
+      exits: [exit('verify-pass', 'forward', false), exit('verify-fail', 'back', true)],
+    })).toEqual(['set-field'])
+  })
+
+  test('未勾的任务先于自由文本交付值：ship 不再只给一条 set-field pr_url', () => {
+    const tasksBlocker = { source: 'tasks' as const, code: 'tasks-incomplete', message: 'ship 出口：要求截至当前阶段的 tasks.md 全部勾选（仍有 2 项未勾）' }
+    const shipExit = { event: 'ship-complete', to: 'archive', direction: 'forward' as const, ready: false,
+      blockers: [{ source: 'guard' as const, code: 'phase-exit', message: 'ship 出口：要求 pr_url 非空' }, tasksBlocker] }
+    const prUrl = field('pr_url', { recommended: 'no-remote' })
+    expect(stepNextActions(input({ fields: [prUrl], exits: [shipExit] })))
+      .toEqual([{ action: 'fix', blockers: [tasksBlocker] }])
+    // 任务勾完之后才是交付值；决定类字段（带枚举）仍排在任务之前。
+    expect(actions({ fields: [prUrl], exits: [{ ...shipExit, blockers: shipExit.blockers.slice(0, 1) }] }))
+      .toEqual(['set-field'])
+    expect(stepNextActions(input({
+      fields: [field('build_mode', { allowed: ['direct'], recommended: 'direct' })],
+      exits: [shipExit],
+    }))[0]).toMatchObject({ action: 'set-field', field: 'build_mode' })
   })
 
   test('技能按波次下发，waiting 的不进本波', () => {
@@ -276,7 +323,7 @@ describe('step.next 顺序', () => {
     })
     expect(actions({ fields: [outcome], tests: [test_('unit', 'not-run')] })).toEqual(['run-test'])
     expect(stepNextActions(input({ fields: [outcome] }))).toEqual([
-      { action: 'set-field', field: 'branch_status', allowed: ['handled'], recommended: 'handled' },
+      { action: 'set-field', field: 'branch_status', allowed: ['handled'], required: null, recommended: 'handled' },
     ])
   })
 
@@ -303,7 +350,7 @@ describe('step.next 顺序', () => {
       artifactProducers: ['hue'],
     }))).toEqual([
       { action: 'register-field', field: 'design_doc', producers: ['hue'] },
-      { action: 'set-field', field: 'build_mode', allowed: ['direct'], recommended: 'direct' },
+      { action: 'set-field', field: 'build_mode', allowed: ['direct'], required: null, recommended: 'direct' },
     ])
   })
 
@@ -414,6 +461,11 @@ describe('step.next 顺序', () => {
       action: 'finish-change',
       change: 'demo',
       command: 'openspec archive demo --skip-specs --yes --json',
+      // 搬移留下的删除与新目录要跟一次提交，否则 ship 之后工作区是脏的。
+      commit: {
+        paths: ['openspec/changes/demo', 'openspec/changes/archive'],
+        message: 'chore(openspec): archive demo',
+      },
     }])
   })
 

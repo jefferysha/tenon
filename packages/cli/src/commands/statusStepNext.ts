@@ -78,6 +78,8 @@ function writeFieldActions(
           action: 'set-field',
           field: field.field,
           allowed: field.allowed,
+          // 出口只接受的值（guard 点名）；结论字段没有推荐值，只有这一项——写入时 CLI 核对证据。
+          required: field.required,
           recommended: field.recommended,
         })
   }
@@ -167,7 +169,14 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   if (input.runArchived) {
     if (!input.governedOpenspec) return stop('run-archived', `任务 '${input.change}' 已完结`)
     const command = `openspec archive ${input.change} --skip-specs --yes --json`
-    return [{ action: 'finish-change', change: input.change, command }]
+    // 搬移本身是一次工作区改动：ship 的提交早于它，不跟一次提交就留下「删除 + 未跟踪」的脏工作区
+    // （真机验收：5 个删除 + 未跟踪的 archive/ 目录）。动作自带要提交的路径与提交说明——提交是本地
+    // 动作；宿主不让写 .git（Codex 受限沙箱）时如实把这一步留给用户，不伪装成已提交。
+    const commit = {
+      paths: [`openspec/changes/${input.change}`, 'openspec/changes/archive'],
+      message: `chore(openspec): archive ${input.change}`,
+    }
+    return [{ action: 'finish-change', change: input.change, command, commit }]
   }
   if (!input.loaded) return [{ action: 'load-tenon' }]
 
@@ -196,11 +205,24 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]
   const writes = documentWriteActions(input.documents)
   if (writes.length > 0) return writes
-  const missingFields = writeFieldActions(
-    input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing'),
+  const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
+  // 决定（带枚举）与 artifact 登记先做；然后是本步未勾的任务；最后才是自由文本的交付值
+  // （pr_url / prd_path）——交付值记录的是做完之后的事实，排在任务前面只会让它挡住真正的出口阻塞。
+  const decisions = writeFieldActions(
+    missing.filter((field) => field.allowed !== null || field.writer !== 'set'),
     input.artifactProducers,
   )
-  if (missingFields.length > 0) return missingFields
+  if (decisions.length > 0) return decisions
+  const tasks = input.exits.filter((exit) => exit.direction !== 'back')
+    .flatMap((exit) => exit.blockers)
+    .filter((item, index, all) => item.source === 'tasks'
+      && all.findIndex((other) => other.message === item.message) === index)
+  if (tasks.length > 0) return [{ action: 'fix', blockers: tasks }]
+  const freeform = writeFieldActions(
+    missing.filter((field) => field.allowed === null && field.writer === 'set'),
+    input.artifactProducers,
+  )
+  if (freeform.length > 0) return freeform
   if (input.ownsDeltaSpec && input.specRehearsalPending) return [{ action: 'validate-spec' }]
 
   const tests = input.tests.filter((test) => test.required && test.status !== 'passed')
@@ -209,20 +231,50 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   const reviewers = pendingAgents(input.reviewers, false)
   if (reviewers.length > 0) return reviewers
 
-  const outcomes = writeFieldActions(
-    input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing'),
-    input.artifactProducers,
-  )
-  if (outcomes.length > 0) return outcomes
+  // 结果字段是「本步通过」的结论；必需测试或必需评审者已经不通过时，填它只会让运行器去写一条
+  // 与证据相反的结论（真机：verify 里评审者打回后 next 仍给 set-field branch_status）。直接去出口：
+  // 有回退边走回退边，没有就 fix。
+  if (!requiredEvidenceFailed(input)) {
+    const outcomes = writeFieldActions(
+      input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing'),
+      input.artifactProducers,
+    )
+    if (outcomes.length > 0) return outcomes
+  }
 
   return exitActions(input)
+}
+
+function requiredEvidenceFailed(input: {
+  readonly tests: readonly StepTestView[]
+  readonly reviewers: readonly StepAgentView[]
+}): boolean {
+  return input.tests.some((test) => test.required && test.status === 'failed')
+    || input.reviewers.some((view) => view.required && view.status === 'fail')
 }
 
 /**
  * 执行者失败可以直接重跑；评审者不行——评审结论是证据，代码没改就重跑只会得到同一份结论，
  * 该走的是回退边。
+ *
+ * 已经在跑（`running`）的 agent 先于一切新动作：`agent prompt` 之后还没 `record` 时，从前
+ * 波次判定把它排除在外（进行中的不算可运行），`next` 于是越过它去发 `load-skill`，那次运行就此
+ * 悬空。现在它原样回到 `run-agent`，带上 `run_id` 与 `report_path`：宿主等它跑完，把报告写到
+ * 该路径，再 `tenon agent record <c> <run_id>`——不重开一次新的运行。
  */
 function pendingAgents(views: readonly StepAgentView[], rerunFailed: boolean): readonly StepAction[] {
+  const running = views.filter((view) => view.status === 'running')
+  if (running.length > 0) {
+    return running.map((view) => ({
+      action: 'run-agent',
+      agent: view.agent,
+      role: view.role,
+      wave: view.wave,
+      status: 'running',
+      run_id: view.run_id,
+      report_path: view.report_path,
+    }))
+  }
   const pending = views.filter((view) =>
     view.wave_ready && view.status !== 'pass' && (rerunFailed || view.status !== 'fail'))
   return pending.map((view) => ({
@@ -265,9 +317,7 @@ function exitActions(input: {
 }): readonly StepAction[] {
   const forward = input.exits.filter((exit) => exit.direction !== 'back')
   const back = input.exits.filter((exit) => exit.direction === 'back')
-  const failed = input.tests.some((test) => test.required && test.status === 'failed')
-    || input.reviewers.some((view) => view.required && view.status === 'fail')
-  if (failed && back.length > 0) return gatedBackActions(input, back)
+  if (requiredEvidenceFailed(input) && back.length > 0) return gatedBackActions(input, back)
   const readyForward = forward.filter((exit) => exit.ready)
   if (input.gate === 'review') {
     if (input.review.status === 'pending') return [{ action: 'await-review', event: input.review.event }]

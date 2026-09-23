@@ -38,6 +38,7 @@ import { errMsg, type CliDeps } from '../deps.js'
 import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
 import { refuseArchived } from '../archivedGuard.js'
+import { refuseUnfilledDocument } from './documentPlaceholderGate.js'
 import { reconcileCodexSkillEvidence } from '../codexSkillReceipt.js'
 import { resolveChangeDocumentLocale } from '../documentLocale.js'
 import {
@@ -220,6 +221,7 @@ export async function cmdDocumentRecord(
   if (path === '') return reject(deps, 'document path 不得为空')
   if (producer === '') return reject(deps, '--producer 不得为空')
   if (producer.includes('|')) return reject(deps, `--producer '${producer}' 必须是单个具体 skill id`)
+  if (await refuseUnfilledDocument(deps, kind, path)) return 1
   try {
     const recordedAt = deps.clock()
     await withSkillInvocationChangeLock(dir, async (lock) => {

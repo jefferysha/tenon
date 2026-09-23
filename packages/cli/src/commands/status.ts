@@ -2,6 +2,7 @@
  * status [name] [--json] / list [--json] —— 展示层（CONTRACT §3）。
  * 人读：对齐宽度的紧凑表 / key-value 块；--json：schema 稳定（键序固定，见测试锚）。
  *   status --json        {"active_changes":[{name,track,phase,phase_status,verify_result,updated_at}]}
+ *   status <c> --json    同上 + step；已完结的 change 不在 active_changes，而在 finished_changes（多 archived_at）
  *   list   --json        {"changes":[{name,track,phase,phase_status,owner:{id,name}|null}]}
  * 活跃 = openspec/changes/ 下有 .pipeline.yaml 且 archived != true；坏 change 跳过 + WARN。
  */
@@ -98,8 +99,13 @@ export async function cmdStatus(
       } catch (e) {
         deps.io.err(`WARN: step 投影不可用: ${errMsg(e)}`)
       }
+      // 已完结（archived=true，无论目录是否已被 `openspec archive` 搬走）不是活跃任务：与列表形态
+      // （collectActive 按 archived=true 滤掉）和 `list --finished` 同一口径。它落在 finished_changes，
+      // step 仍给出（完结后、治理归档前那一段，next 是 finish-change）。
+      const done = finished || str(state.fields.archived) === 'true'
       deps.io.out(JSON.stringify({
-        active_changes: [statusJson(row)],
+        active_changes: done ? [] : [statusJson(row)],
+        ...(done ? { finished_changes: [{ ...statusJson(row), archived_at: field(row, 'archived_at') }] } : {}),
         ...(step === undefined ? {} : { step }),
       }))
       return 0

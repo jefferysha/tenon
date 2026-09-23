@@ -356,6 +356,8 @@ export interface CliDeps {
    * 失败也取 stdout——unborn 仓会捕获到字面 "HEAD"（T6 实测怪癖，oracle parity 需要）。
    */
   gitHeadSha?: () => Promise<string>
+  /** 仓库的 git 远端名（`git remote`）；非 git 仓 → []，git 跑不起来 → null。pr_url 的取值闸用它。 */
+  gitRemotes?: () => Promise<readonly string[] | null>
   /**
    * in-place build 的内容寻址工作区基线。按 change 名保留调用上下文，防未来基线策略需要排除
    * 当前 change 的控制面；production 由 kernel fingerprintWorkspace 落地。

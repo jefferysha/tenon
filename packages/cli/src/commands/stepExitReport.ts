@@ -18,7 +18,7 @@ import { judgeStepSkills, missingStepSkillMessages, type StepSkillSlotProgress }
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 
-export type BlockerSource = 'guard' | 'document' | 'skill' | 'test' | 'reviewer' | 'revision' | 'spec'
+export type BlockerSource = 'guard' | 'document' | 'skill' | 'test' | 'reviewer' | 'revision' | 'spec' | 'tasks'
 
 export interface StepBlocker {
   readonly source: BlockerSource
@@ -165,7 +165,12 @@ export async function evaluateStepExitReport(
     })
     : { pass: true, failures: [] as readonly string[] }
   const shared: readonly StepBlocker[] = [
-    ...phaseExit.failures.map((item) => blocker('guard', 'phase-exit', item)),
+    // tasks.md 的勾选是本步的工作项，不是一个可填的字段：单列成 `tasks` 来源，`next` 才能把它排在
+    // 自由文本字段（pr_url 等）之前——真机 ship 步只给了一条做不完的 set-field pr_url，真正卡住
+    // 出口的未勾任务藏在 check 的 FAIL 里。
+    ...phaseExit.failures.map((item) => item.includes('tasks.md')
+      ? blocker('tasks', 'tasks-incomplete', item)
+      : blocker('guard', 'phase-exit', item)),
     ...(documents?.blockers ?? []).map((item) => blocker('document', 'document-evidence', item)),
     ...testReport.blockers.map((item) => blocker('test', 'test-evidence', item)),
     ...reviewers,

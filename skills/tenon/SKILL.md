@@ -70,9 +70,9 @@ repeat:
 | `stop` | 报告 `message` 后结束。 |
 | `load-tenon` | 重新加载本技能（Claude 用 Skill 工具；Codex 按上面的读取规则整读一次）。 |
 | `read-documents` | 逐个读完 `documents` 列出的文件，再 `tenon document read <c> all`。 |
-| `run-agent` | 逐项：`tenon agent prompt <c> <agent> --json` → 在宿主里跑回来的提示词（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。同一波并行。 |
+| `run-agent` | 逐项：`tenon agent prompt <c> <agent> --json` → 在宿主里跑回来的提示词（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。同一波并行。带 `status: running` 与 `run_id` 的项是已经开始的那次运行：不要重新 prompt，等它跑完把报告写到给出的 `report_path`，再 `tenon agent record <c> <run_id>`。 |
 | `load-skill` | 加载本波每个技能，按下面的「上游技能怎么用」执行。 |
-| `scaffold-document` | 文件不存在时先 `tenon document scaffold <c> <kind> [--capability <cap>]`，再动笔写内容。 |
+| `scaffold-document` | 文件不存在时先 `tenon document scaffold <c> <kind> [--capability <cap>]`，再动笔写内容：骨架里的 `[待填写…]` / `[pending…]` 占位要全部替换成真内容，留着占位符登记会被拒。 |
 | `record-document` | `tenon document record <c> <kind> <path> --producer <producer>`。 |
 | `register-field` | `tenon artifact register <c> <field> <path> --producer <producer>`。 |
 | `set-field` | 先按下面的「决定」定值，再 `tenon set <c> <field> <value>`。 |
@@ -85,14 +85,15 @@ repeat:
 | `choose-exit` | 按下面的「出口」挑一条边。 |
 | `transition` | `tenon transition <c> <event>`。 |
 | `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `openspec archive`。 |
-| `finish-change` | 照 `command` 原样跑（`openspec archive <c> --skip-specs --yes --json`），把 change 目录搬进 `openspec/changes/archive/`。跑完这条 `tenon list --finished` 才看得见它。 |
+| `finish-change` | 照 `command` 原样跑（`openspec archive <c> --skip-specs --yes --json`），把 change 目录搬进 `openspec/changes/archive/`；再把这次搬移提交：`git add -A -- <commit.paths…>` 后 `git commit -m "<commit.message>"`（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）。跑完这条 `tenon list --finished` 才看得见它。 |
 
 ## 决定、字段、出口
 
 - 带 `allowed` 的字段是一次决定：interactive 把 `recommended` 排在第一位问；continuous / afk
   直接用 `recommended`。
-- `kind: outcome` 的字段只在本步必需测试与评审者都过了之后才出现在 `next` 里；照 CLI 给的值填。
-- `pr_url`、`prd_path` 和各类文件路径只填真值；拿不到（例如没有远端）就停下说明，绝不编造。
+- `kind: outcome` 的字段只在本步必需测试与评审者都过了之后才出现在 `next` 里；它们没有 `recommended`，填 `required` 给的值。`pre_verify_review_result` / `verify_result` 是通过结论：CLI 写入前核对本步证据，被拒就按错误里点名的测试或 agent 去补，不要换个写法绕过。
+- `direct_override` 是 full 预设下 `build_mode=direct` 的风险确认，没有推荐值：interactive 问人，continuous / afk 不选 `direct`（取 `build_mode` 的推荐值即可免去这一项）。
+- `pr_url`、`prd_path` 和各类文件路径只填真值，绝不编造。`pr_url` 是真实的 http(s) PR 地址；仓库没有 远端时 `next` 会推荐 `no-remote`（本地交付、没有 PR，CLI 会复核确实没有远端）。有远端却开不了 PR 就停下说明。
 - 不要为了「隔离」自己建分支、worktree 或提交；宿主没给就用 `isolation=in-place`。
 - 出口：`ready` 的前进边直接走；回退边只在它的含义成立时走（必需测试或评审者不通过 → 回到实现
   的那条边；已确认的需求变了 → 回到规格的那条边）；interactive 先问。走到终态的

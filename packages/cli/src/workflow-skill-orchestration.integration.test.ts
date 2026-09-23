@@ -313,10 +313,11 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
     expect(await h.run([
       'set-many', CHANGE,
       'build_mode=direct', 'isolation=worktree', 'direct_override=true',
-      'pre_verify_review_result=pass',
     ])).toBe(0)
     // default 的 backend 轨在 build/verify 声明了必需测试：真跑、真落记录，不旁路门禁。
     await h.satisfyStepTests(CHANGE, 'build')
+    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    expect(await h.run(['set', CHANGE, 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
 
     // ── build-complete → verify（review 相位）──
     expect(await h.run(['transition', CHANGE, 'build-complete'])).toBe(0)

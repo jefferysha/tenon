@@ -43,9 +43,8 @@ interface StepBlock {
   readonly next: readonly StepAction[]
 }
 
-/** 自由文本交付槽（pr_url / prd_path）本来就没有枚举；其余值一律只能来自投影自己。 */
+/** 自由文本交付槽本来就没有枚举；pr_url 的真值由投影给出（无远端 → no-remote），这里只剩 prd_path。 */
 const FREEFORM: Readonly<Record<string, string>> = {
-  pr_url: 'https://example.invalid/pr/1',
   prd_path: `docs/${CHANGE}-prd.md`,
 }
 
@@ -55,6 +54,22 @@ const DESIGN_DOC = [
     .map((layer) => `${layer}: filled -> §1`),
   '```', '',
 ].join('\n')
+
+/** 骨架占位符的记号（与 kernel 模板渲染器同一份：`[待填写…]`、`: 待填写` 等）。 */
+const PLACEHOLDER = /\[待填写|: 待填写$|\*\* 待填写$|- \[ \] 待填写$/mu
+
+/** 作者写成的文档内容。delta spec 要过 OpenSpec strict 校验，所以写成一条真需求。 */
+function authored(kind: string): string {
+  if (kind === 'tasks') return '- [x] scope\n- [x] implementation\n- [x] verification\n'
+  if (kind === 'delta-spec') {
+    return [
+      '# capability', '', '## ADDED Requirements', '',
+      '### Requirement: Runner capability', 'The system SHALL complete the runner flow.', '',
+      '#### Scenario: runner completes', '- **WHEN** the runner follows next', '- **THEN** the change finishes', '',
+    ].join('\n')
+  }
+  return `# ${kind}\n\nwritten by the runner\n`
+}
 
 let h: Harness
 /** 让这一个评审者在第一次给结论时打回一次（D6 的回退边验收）。 */
@@ -132,11 +147,11 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       const producer = (action.producers as readonly string[])[0]
       expect(producer, `record-document 必须带当前步认的 producer：${JSON.stringify(action)}`).toBeDefined()
       const path = (action.path as string | null) ?? `openspec/changes/${CHANGE}/specs/capability/spec.md`
-      // 运行器替作者把活干完：骨架的 tasks.md 全是未勾选的框，而 open/spec 出口要求全勾。
-      if (action.kind === 'tasks' || !existsSync(join(h.cwd, path))) {
-        await put(path, action.kind === 'tasks'
-          ? '- [x] scope\n- [x] implementation\n- [x] verification\n'
-          : `# ${String(action.kind)}\n\nwritten by the runner\n`)
+      // 运行器替作者把活干完：骨架里满是占位符（登记闸拒收，D7），tasks.md 全是未勾选的框（而 open/spec
+      // 出口要求全勾）。作者要做的就是把骨架写成真内容。
+      const abs = join(h.cwd, path)
+      if (action.kind === 'tasks' || !existsSync(abs) || PLACEHOLDER.test(await readFile(abs, 'utf8'))) {
+        await put(path, authored(String(action.kind)))
       }
       await loadSkill(producer!)
       await run(['document', 'record', CHANGE, String(action.kind), path, '--producer', producer!])
@@ -144,6 +159,7 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
     }
     case 'set-field': {
       const value = (action.recommended as string | null)
+        ?? (action.required as readonly string[] | null)?.[0]
         ?? (action.allowed as readonly string[] | null)?.[0]
         ?? FREEFORM[String(action.field)]
       expect(value, `set-field 必须给出可填的值：${JSON.stringify(action)}`).toBeDefined()
@@ -164,8 +180,14 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       await run(['test', 'run', CHANGE, String(action.test)])
       return false
     case 'run-agent': {
-      await run(['agent', 'prompt', CHANGE, String(action.agent), '--json'])
-      const row = JSON.parse(h.out.join('')) as { run_id: string; report_path: string; role: string }
+      // 带 run_id 的是已经在跑的那次：不重开，写报告后登记它。
+      let row: { run_id: string; report_path: string; role: string }
+      if (typeof action.run_id === 'string') {
+        row = { run_id: action.run_id, report_path: String(action.report_path), role: String(action.role) }
+      } else {
+        await run(['agent', 'prompt', CHANGE, String(action.agent), '--json'])
+        row = JSON.parse(h.out.join('')) as { run_id: string; report_path: string; role: string }
+      }
       const blocking = failOnce === action.agent
       if (blocking) failOnce = undefined
       const findings = blocking
@@ -198,7 +220,12 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       await run(['transition', CHANGE, String((action.exits as readonly string[])[0])])
       return false
     // 治理归档是 OpenSpec 自己的命令（动作自带整条命令），到这里状态机已经完结。
+    // 搬移之后要提交的路径也由动作给出：旧目录与 archive/ 两处。
     case 'finish-change':
+      expect(action.commit).toEqual({
+        paths: [`openspec/changes/${CHANGE}`, 'openspec/changes/archive'],
+        message: `chore(openspec): archive ${CHANGE}`,
+      })
       return true
     default:
       throw new Error(`runner: next 给了执行不了的动作 ${JSON.stringify(action)}`)
@@ -270,6 +297,17 @@ describe('照着 next 做事的运行器：open → 完结', () => {
       && action.action === 'load-skill' && action.skill === 'brainstorming')).toHaveLength(1)
     // D4：build 从头到尾没被要求手填 build_sha——它由 build 出口的转换冻结。
     expect(actions.filter(({ action }) => action.action === 'set-field' && action.field === 'build_sha')).toEqual([])
+    // D8：夹具项目没有远端——pr_url 的真值是 no-remote，由 next 直接给出，不靠编造 URL。
+    expect(actions.filter(({ action }) => action.action === 'set-field' && action.field === 'pr_url')
+      .map(({ action }) => action.recommended)).toEqual(['no-remote'])
+    // D16：采纳推荐的 build_mode 之后不再要求风险豁免 direct_override。
+    expect(actions.filter(({ action }) => action.action === 'set-field' && action.field === 'direct_override')).toEqual([])
+    // 结论字段没有推荐值，只给出口要的值；它排在本步必需测试之后（写入时 CLI 核对这份证据）。
+    const verdict = actions.findIndex(({ action }) =>
+      action.action === 'set-field' && action.field === 'pre_verify_review_result')
+    expect(actions[verdict]?.action).toMatchObject({ recommended: null, required: ['pass'] })
+    expect(actions.findIndex(({ step, action }) => step === 'build' && action.action === 'run-test'))
+      .toBeLessThan(verdict)
   })
 
   /**
@@ -283,8 +321,13 @@ describe('照着 next 做事的运行器：open → 完结', () => {
     expect(failOnce, '用例必须真的让一个评审者打回过').toBeUndefined()
     // verify → build → verify：build 出现过两次。
     expect(seen.filter((id, index) => id === 'build' && seen[index - 1] === 'verify')).toHaveLength(1)
-    expect(actions.some(({ step, action }) => step === 'verify'
-      && action.action === 'request-review' && action.event === 'verify-fail')).toBe(true)
+    const failRequest = actions.findIndex(({ step, action }) => step === 'verify'
+      && action.action === 'request-review' && action.event === 'verify-fail')
+    expect(failRequest).toBeGreaterThan(-1)
+    // D2：评审者打回的那次访问里，next 不要结果字段——回退边之前一条 set-field 都没有。
+    const firstVerify = actions.findIndex(({ step }) => step === 'verify')
+    expect(actions.slice(firstVerify, failRequest)
+      .filter(({ action }) => action.action === 'set-field')).toEqual([])
     expect(actions.some(({ step, action }) => step === 'verify'
       && action.action === 'await-review' && action.event === 'verify-fail')).toBe(true)
     // 第二次进入 verify：上一次访问登记的 verification-report 不算，next 让它的 producer 在本次访问

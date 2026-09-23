@@ -537,6 +537,7 @@ export interface MakeDepsOpts {
   testEvidence?: CliDeps['testEvidence']
   /** Git HEAD / in-place 工作区基线能力覆写；供 transition/check 的真实 barrier 单测使用。 */
   gitHeadSha?: CliDeps['gitHeadSha']
+  gitRemotes?: CliDeps['gitRemotes']
   workspaceFingerprint?: CliDeps['workspaceFingerprint']
   /** Declared identity; defaults to Tester <tester@tenon.test>. */
   user?: CliDeps['user']
@@ -632,6 +633,7 @@ export function makeDeps(o: MakeDepsOpts = {}): TestDeps {
     },
     clock: () => FIXED_CLOCK,
     gitHeadSha: o.gitHeadSha,
+    gitRemotes: o.gitRemotes,
     workspaceFingerprint: o.workspaceFingerprint,
     listChanges: spy(async (_root: string): Promise<string[]> => changes),
     // 严格候选枚举（Track CRUD 引用扫描专用）。mock 世界里所有 change 都有 state（无「目录在但不可读」态），

@@ -58,6 +58,21 @@ describe('stepFields —— 本步要填的槽', () => {
   })
 
   /**
+   * D16：推荐 direct 之后又要求 direct_override=true 是自相矛盾——那是 full + direct 的风险确认。
+   * build_mode 的推荐值取无需确认的那个；direct_override 与结论字段都没有推荐值。
+   */
+  test('推荐值不自相矛盾：full 下不推荐 direct，豁免与结论字段不推荐', () => {
+    const recommended = (fields: Parameters<typeof mockState>[0], name: string, required?: readonly string[]) =>
+      stepFields(mockState(fields), step(), new Set(), [{ field: name, ...(required ? { required } : {}) }])[0]
+    expect(recommended({ preset: 'full', track: 'backend' }, 'build_mode')?.recommended).toBe('subagent-driven-development')
+    expect(recommended({ preset: 'full', track: 'pm' }, 'build_mode')?.recommended).toBe('prototype')
+    expect(recommended({ preset: 'hotfix', track: 'backend' }, 'build_mode')?.recommended).toBe('direct')
+    expect(recommended({ preset: 'full', build_mode: 'direct' }, 'direct_override', ['true'])?.recommended).toBeNull()
+    expect(recommended({ pre_verify_review_result: 'pending' }, 'pre_verify_review_result', ['pass']))
+      .toMatchObject({ kind: 'outcome', recommended: null, required: ['pass'] })
+  })
+
+  /**
    * D12：`branch_status` 初值就是 `pending`，「有值」而非「缺值」。只按有没有值判定时它永远算
    * 已填，运行器收不到任何动作，只剩 `ERROR: verify-pass 要求 branch_status=handled` 那行散文。
    */

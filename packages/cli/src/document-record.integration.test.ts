@@ -100,6 +100,32 @@ describe('document record canonical invocation binding', () => {
     expect(await gateBlockers()).toEqual([])
   })
 
+  /** D7：骨架还没写完的文档不是证据——占位符在，登记就拒，并指出位置。 */
+  test('scaffold 之后原样登记被拒并指出占位行；写成真内容后才登记得上', async () => {
+    h = await freshHarness()
+    const name = 'unfilled'
+    expect(await h.run(['init', name, '--track', 'backend', '--preset', 'full'])).toBe(0)
+    const changeDir = join(h.cwd, 'openspec', 'changes', name)
+    const path = `openspec/changes/${name}/proposal.md`
+    expect(await h.run(['document', 'scaffold', name, 'proposal'])).toBe(0)
+    await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({
+      ts: FIXED_CLOCK, kind: 'tool', raw: 'Skill: openspec-propose',
+    })}\n`, 'utf8')
+    expect(await h.run([
+      'internal-native-skill-receipt', name, 'openspec-propose', 'unfilled-session', 'tool-u', FIXED_CLOCK,
+    ]), h.err.join('\n')).toBe(0)
+    const record = () => h.run(['document', 'record', name, 'proposal', path, '--producer', 'openspec-propose'])
+    expect(await record()).toBe(1)
+    const err = h.err.join('\n')
+    expect(err).toContain("document 'proposal' 仍含 5 处未替换的骨架占位符")
+    expect(err).toMatch(new RegExp(`${path}:\\d+: > \\[待填写:open\\]`))
+    const ledger = JSON.parse(await h.readIn(name, '.pipeline-documents.json')) as { records: unknown[] }
+    expect(ledger.records).toEqual([])
+
+    await writeFile(join(h.cwd, path), '# 提案\n\n## Why\n\n登录要支持邮箱。\n', 'utf8')
+    expect(await record(), h.err.join('\n')).toBe(0)
+  })
+
   test('Claude Code 报告的带命名空间技能 tenon:openspec-propose 能封存回执并登记文档', async () => {
     h = await freshHarness()
     const name = 'namespaced-skill'

@@ -2,10 +2,10 @@
  * 真实 e2e —— 步骤 agent：真 harness + 真临时项目 + 真落盘的冻结、台账与报告。
  * 模型一律不跑：报告由用例直接写进 `report_path`，`record` 只读它。
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { freshHarness, rm, TEST_GIT_BUILD_TOKEN, type Harness } from './integration-harness.js'
+import { FIXED_CLOCK, freshHarness, rm, TEST_GIT_BUILD_TOKEN, type Harness } from './integration-harness.js'
 
 const USER_A = { TENON_USER: 'a@x.io', TENON_USER_NAME: 'A' }
 const USER_B = { TENON_USER: 'b@x.io', TENON_USER_NAME: 'B' }
@@ -71,6 +71,7 @@ interface NextJson {
   readonly candidate: string
   readonly wave: readonly string[]
   readonly pass: boolean
+  readonly complete?: boolean
   readonly blockers: readonly { readonly kind: string; readonly agent?: string }[]
   readonly agents: readonly {
     readonly agent: string
@@ -380,5 +381,95 @@ tracks:
     )
     expect(await h.run(['internal-skill-gate', 'demo', 'test-driven-development'], { env: USER_A })).toBe(2)
     expect(h.err.join('\n')).toContain('agent 记录不可读')
+  })
+
+  interface StepAgentJson {
+    readonly agent: string
+    readonly wave: number
+    readonly status: string
+  }
+  interface StatusStepJson {
+    readonly step: {
+      readonly executors: readonly StepAgentJson[]
+      readonly reviewers: readonly StepAgentJson[]
+      readonly next: readonly { readonly action: string; readonly [key: string]: unknown }[]
+    }
+  }
+
+  /** 宿主加载 `tenon`：history 行 + PostToolUse 最终调用的生产命令（同 next-action-runner）。 */
+  async function loadTenon(): Promise<void> {
+    expect(await h.run(['session', 'activate', 'demo'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    await appendFile(
+      join(h.cwd, 'openspec/changes/demo/.pipeline-history.jsonl'),
+      `${JSON.stringify({ ts: FIXED_CLOCK, kind: 'tool', raw: 'Skill: tenon' })}\n`,
+      'utf8',
+    )
+    expect(await h.run(
+      ['internal-native-skill-receipt', 'demo', 'tenon', 'agent-session', `tool-${Math.random()}`, FIXED_CLOCK],
+      { env: USER_A },
+    ), h.err.join('\n')).toBe(0)
+  }
+
+  async function status(): Promise<StatusStepJson['step']> {
+    expect(await h.run(['status', 'demo', '--json'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    return (JSON.parse(h.out.join('\n')) as StatusStepJson).step
+  }
+
+  /** D3：波次是依赖分层，不是声明序号——互不依赖的评审者同在第 0 波，与 agent next 一致。 */
+  test('status 投影的波次与 agent next 同源：无依赖者同为 wave 0', async () => {
+    await seed()
+    let step = await status()
+    expect(step.executors.map((item) => `${item.agent}:${item.wave}`)).toEqual(['builder:0', 'researcher:0'])
+    expect(await runAgent('builder', [], { result: 'done' })).toBe(0)
+    expect(await runAgent('researcher', [], { result: 'done' })).toBe(0)
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    await loadTenon()
+    step = await status()
+    expect(step.reviewers.map((item) => `${item.agent}:${item.wave}`))
+      .toEqual(['security:0', 'spec-consistency:0', 'architecture:1'])
+    expect(step.next).toEqual([
+      { action: 'run-agent', agent: 'security', role: 'reviewer', wave: 0 },
+      { action: 'run-agent', agent: 'spec-consistency', role: 'reviewer', wave: 0 },
+    ])
+    expect((await next()).wave).toEqual(['security', 'spec-consistency'])
+  })
+
+  /** D4 / D5：prompt 之后还没 record，next 指回那次运行；agent next 不说「全部完成」。 */
+  test('执行者仍在运行：next 要求登记它，agent next 不报全部完成', async () => {
+    await seed()
+    await loadTenon()
+    expect(await h.run(['agent', 'prompt', 'demo', 'builder', '--json'], { env: USER_A })).toBe(0)
+    const started = JSON.parse(h.out.join('')) as { run_id: string; report_path: string }
+    expect(await runAgent('researcher', [], { result: 'done' })).toBe(0)
+    const step = await status()
+    expect(step.next).toEqual([{
+      action: 'run-agent', agent: 'builder', role: 'executor', wave: 0,
+      status: 'running', run_id: started.run_id, report_path: started.report_path,
+    }])
+    expect(await h.run(['agent', 'next', 'demo'], { env: USER_A })).toBe(0)
+    expect(h.out.join('\n')).not.toContain('全部完成')
+    expect(h.out.join('\n')).toContain(`进行中：builder；完成后 tenon agent record demo ${started.run_id}`)
+    expect((await next()).complete).toBe(false)
+  })
+
+  test('评审者在等必需测试：agent next 说在等什么，不说全部完成', async () => {
+    await seed(AGENT_WF.replace(
+      `        agents:
+          reviewers:`,
+      `        tests:
+          - id: unit
+            direction: unit
+            command: "exit 0"
+            required: true
+        agents:
+          reviewers:`,
+    ))
+    expect(await runAgent('builder', [], { result: 'done' })).toBe(0)
+    expect(await runAgent('researcher', [], { result: 'done' })).toBe(0)
+    expect(await h.run(['transition', 'demo', 'build-done'], { env: USER_A }), h.err.join('\n')).toBe(0)
+    expect(await h.run(['agent', 'next', 'demo'], { env: USER_A })).toBe(0)
+    const text = h.out.join('\n')
+    expect(text).not.toContain('全部完成')
+    expect(text).toContain('等待：security ← test:unit')
   })
 })

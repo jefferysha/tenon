@@ -76,6 +76,13 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
     return 1
   }
 
+  // 完结（archived=true）之后没有出口可查：`openspec archive` 会把目录搬进 archive/，此后按归档前
+  // 路径逐条检查只会得到一串 FAIL（真机：11 个 FAIL、exit 2）。与 status / list 同一口径，直接说明。
+  if (str(state.fields.archived) === 'true') {
+    deps.io.out(`change '${name}' 已完结（已归档），无需检查`)
+    return 0
+  }
+
   let plan: EffectiveWorkflowPlan | null
   try {
     plan = effectiveWorkflowForState(deps, state)

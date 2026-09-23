@@ -152,7 +152,19 @@ export function evaluateStepAgents(
   return { pass: blockers.length === 0, blockers }
 }
 
-/** wave(x) = 0 无依赖，否则 1 + 依赖的最大 wave（同 skillDag / SkillFlow 的列模型）。 */
+/**
+ * wave(x) = 0 无依赖，否则 1 + 依赖的最大 wave（同 skillDag / SkillFlow 的列模型）。
+ *
+ * 这是 agent 波次编号的唯一真相源：`tenon agent next` 的排波与 `status --json` 投影的
+ * `reviewers[].wave` / `next[].wave` 都读它。投影曾按声明序号编号，三个互不依赖的评审者于是
+ * 显示成 0/1/2，而 `agent next` 把它们排成同一波——同一件事两个数字。
+ */
+export function agentWaves(
+  refs: readonly { readonly agent: string; readonly dependsOn: readonly string[] }[],
+): ReadonlyMap<string, number> {
+  return waveOf(refs)
+}
+
 function waveOf(refs: readonly { agent: string; dependsOn: readonly string[] }[]): Map<string, number> {
   const byName = new Map(refs.map((ref) => [ref.agent, ref]))
   const waves = new Map<string, number>()

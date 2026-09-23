@@ -26,6 +26,8 @@ import {
   scalarValue,
   TRANSITION_MANAGED_FIELDS,
 } from './field-values.js'
+import { refuseUnprovenVerdict } from './verdictFieldGate.js'
+import { refuseInvalidPrUrl } from './prUrlField.js'
 
 /** history 记账 best-effort（CONTRACT §1：失败仅 WARN，绝不影响主写已成功的 exit） */
 export async function recordHistory(deps: CliDeps, dir: string, entry: HistoryEntry): Promise<void> {
@@ -71,7 +73,10 @@ function rejectProtectedField(deps: CliDeps, field: FieldName): boolean {
     deps.io.err('ERROR: 字段 \'build_sha\' 由 build 出口的 transition 冻结（freeze-build-sha 副作用），禁止通过 set/set-many/cas 写入；先把实现与测试做完，再执行该 transition 捕获当前修订')
     return true
   }
-  deps.io.err(`ERROR: 字段 '${field}' 由 ${field === 'phase' ? 'tenon transition' : 'tenon owner'} 管理，禁止通过 set/set-many/cas 写入`)
+  // phase_status / verified_at / updated_at 由转换本身落值（flow engine 与 verify-pass 副作用）；
+  // 手写 phase_status=done 会让 `list` 显示一个没走过任何出口的「已完成」相位。
+  const owner = field === 'created_by' || field === 'assignee' ? 'tenon owner' : 'tenon transition'
+  deps.io.err(`ERROR: 字段 '${field}' 由 ${owner} 管理，禁止通过 set/set-many/cas 写入`)
   return true
 }
 
@@ -117,6 +122,8 @@ export async function cmdSet(deps: CliDeps, name: string, field: string, value: 
   if (rejectProtectedField(deps, f)) return 1
   const v = coerceValue(f, value)
   if (!enumValueAllowed(deps, f, v)) return 1
+  if (await refuseUnprovenVerdict(deps, name, f, v)) return 1
+  if (await refuseInvalidPrUrl(deps, f, v)) return 1
   const dir = resolveChangeDir(deps.cwd, name)
   // track/workflow：锁内按「更新后的最终 {track,workflow} 组合」校验 + 落盘（R2 · 关 TOCTOU、堵旁路）。
   //  - set track    → finalTrack=新值、finalWorkflow=旧 workflow（读 state 补齐）；
@@ -167,6 +174,8 @@ export async function cmdSetMany(deps: CliDeps, name: string, pairs: string[]): 
     }
     const v = coerceValue(f, pair.slice(i + 1))
     if (!enumValueAllowed(deps, f, v)) return 1
+    if (await refuseUnprovenVerdict(deps, name, f, v)) return 1
+    if (await refuseInvalidPrUrl(deps, f, v)) return 1
     kv[f] = v
   }
   if (Object.keys(kv).length === 0) {
@@ -217,6 +226,8 @@ export async function cmdCas(
   if (rejectProtectedField(deps, f)) return 1
   // 老内核 cmd_cas 仅对 automation 复用枚举校验（state-fields.sh）
   if (f === 'automation' && !enumValueAllowed(deps, f, next)) return 1
+  if (await refuseUnprovenVerdict(deps, name, f, next)) return 1
+  if (await refuseInvalidPrUrl(deps, f, next)) return 1
   const dir = resolveChangeDir(deps.cwd, name)
   // track/workflow：锁内 read + 比对 expect + 最终组合校验 + 条件写（R2 · 关 TOCTOU、堵 cas 旁路）。
   //  - cas track    → finalTrack=next、finalWorkflow=旧 workflow；
