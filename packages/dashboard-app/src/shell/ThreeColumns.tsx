@@ -27,13 +27,13 @@ export function ThreeColumns({
   return (
     <div
       className={cn(
-        'grid h-[calc(100vh-var(--topbar-h))] min-h-0 bg-bg',
+        'grid h-[calc(100vh-var(--topbar-h)-var(--banner-h))] min-h-0 bg-bg',
         railCollapsed
           ? (narrow ? 'grid-cols-[64px_380px_minmax(0,1fr)]' : 'grid-cols-[64px_492px_minmax(0,1fr)]')
           : (narrow
             ? 'grid-cols-[296px_380px_minmax(0,1fr)] max-[1279px]:grid-cols-[64px_344px_minmax(0,1fr)]'
             : 'grid-cols-[296px_492px_minmax(0,1fr)] max-[1279px]:grid-cols-[64px_440px_minmax(0,1fr)]'),
-        'max-[900px]:h-auto max-[900px]:min-h-[calc(100vh-var(--topbar-h))] max-[900px]:grid-cols-1',
+        'max-[900px]:h-auto max-[900px]:min-h-[calc(100vh-var(--topbar-h)-var(--banner-h))] max-[900px]:grid-cols-1',
       )}
       data-testid={testId}
       data-rail-collapsed={railCollapsed}
@@ -50,7 +50,7 @@ export function ThreeColumns({
 export function TwoColumns({ nav, detail, testId }: { nav: ReactNode; detail: ReactNode; testId: string }): JSX.Element {
   return (
     <div
-      className="grid h-[calc(100vh-var(--topbar-h))] min-h-0 grid-cols-[300px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-bg max-[900px]:h-auto max-[900px]:grid-rows-none max-[900px]:min-h-[calc(100vh-var(--topbar-h))] max-[900px]:grid-cols-1"
+      className="grid h-[calc(100vh-var(--topbar-h)-var(--banner-h))] min-h-0 grid-cols-[300px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-bg max-[900px]:h-auto max-[900px]:grid-rows-none max-[900px]:min-h-[calc(100vh-var(--topbar-h)-var(--banner-h))] max-[900px]:grid-cols-1"
       data-testid={testId}
     >
       {nav}

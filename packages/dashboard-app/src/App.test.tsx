@@ -1943,6 +1943,24 @@ describe('App 断线横幅 + 重连（评审 P2-13，Task 5）', () => {
     expect(banner.textContent).toContain('连接断开')
   })
 
+  // 回归：横幅挤在页头与三列之间却不被三列高度扣除，页面多出一截可滚动高度，横幅被卷到 sticky 页头下只剩一条粉边。
+  it('断线时外壳标记 data-offline，横幅占固定一行并贴在页头下，三列页高度扣掉这一行', async () => {
+    render(<App />)
+    await screen.findByTestId('workspace-view')
+    expect(screen.getByTestId('app-shell')).toHaveAttribute('data-offline', 'false')
+    act(() => {
+      lastEventSource()!.emit('error', '')
+    })
+    const banner = await screen.findByTestId('offline-banner')
+    expect(screen.getByTestId('app-shell')).toHaveAttribute('data-offline', 'true')
+    const classes = banner.className.split(/\s+/u)
+    expect(classes).toEqual(expect.arrayContaining(['sticky', 'top-(--topbar-h)', 'h-(--offline-banner-h)']))
+    // 横幅在页头之后、主内容之前。
+    expect(banner.previousElementSibling?.tagName).toBe('HEADER')
+    expect(screen.getByTestId('workspace-view').className).toContain('var(--banner-h)')
+    expect(screen.getByTestId('offline-reconnect')).toBeVisible()
+  })
+
   it('点「重连」：新发起一次 GET /api/snapshot + 重建一条新 SSE 订阅（不复用失效的旧连接）', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
