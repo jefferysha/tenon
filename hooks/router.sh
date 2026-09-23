@@ -622,7 +622,12 @@ done
 # 用户点名轨道（「走 free 轨道」「用 backend 轨道」「track=pm」「use the frontend track」）比内容评分更强。
 # 只认 effective registry 里的 id（含 chat/free 这类不参与评分的内建轨道与项目自定义轨道）；点名多个或
 # 点名不存在的 id 时回退评分并在输出里说明。纯 bash =~，每条正则最多取 8 个匹配，不 spawn 任何进程。
+# 只扫 prompt 首尾各 4 KiB：点名写在开头或结尾，粘贴的长日志不应让扫描随 prompt 长度变慢。
 NAMED_TRACK="" NAMED_TRACK_CONFLICT="" NAMED_TRACK_UNKNOWN=""
+NAMED_SCAN_TEXT="$PROMPT"
+if [ "${#PROMPT}" -gt 8192 ]; then
+  NAMED_SCAN_TEXT="${PROMPT:0:4096}"$'\n'"${PROMPT:$(( ${#PROMPT} - 4096 ))}"
+fi
 _router_track_index() { # $1=token → NAMED_INDEX = index in ROUTER_IDS（ASCII 大小写不敏感），无则 return 1
   local token="$1" idx=0 found=1
   NAMED_INDEX=""
@@ -645,7 +650,7 @@ _router_named_negated() { # $1=text before the match → 0 when the naming is ne
   return 1
 }
 _router_scan_named() { # $1=ERE $2=capture index
-  local re="$1" group="$2" rest="$PROMPT" match token before rounds=0
+  local re="$1" group="$2" rest="$NAMED_SCAN_TEXT" match token before rounds=0
   while [ "$rounds" -lt 8 ] && [[ $rest =~ $re ]]; do
     rounds=$((rounds + 1))
     match="${BASH_REMATCH[0]}"

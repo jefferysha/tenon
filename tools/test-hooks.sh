@@ -1398,6 +1398,9 @@ EOF
   run_router "{\"prompt\":\"修复 API bug，走 pm 轨道还是走 frontend 轨道\",\"cwd\":\"$rproj\"}"
   assert_contains "router: 点名多个轨道 → 回退评分" "$ROUT" "track_basis: score"
   assert_contains "router: 点名多个轨道 → 提示先确认" "$ROUT" "同时点名了多个轨道（pm、frontend）"
+  long_filler="$(printf '%*s' 12000 '' | tr ' ' 'x')"
+  run_router "{\"prompt\":\"修复 API 的 bug，日志如下：${long_filler}。走 free 轨道即可\",\"cwd\":\"$rproj\"}"
+  assert_contains "router: 长 prompt 结尾的点名仍生效（只扫首尾窗口）" "$ROUT" "track: free"
 
   # 项目自定义 Track/workflow 是正常对话的真实选择，不得被 hook 偷换成 workflow: default。
   # 这里用真实 kernel cold-path 载入一份有效的 custom workflow，再验证 V5 cache → bash hot-path

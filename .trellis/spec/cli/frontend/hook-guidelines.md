@@ -443,7 +443,8 @@ router header    track=<id>（用户点名） | 疑似 track=<id>（评分 N）
 
 ### 3. Contracts
 
-- Named forms (pure bash `=~`, at most 8 matches per pattern, no process spawn): Chinese verb + id + 轨道/赛道/track
+- Named forms (pure bash `=~`, at most 8 matches per pattern, only the first and last 4 KiB of a longer prompt, no
+  process spawn): Chinese verb + id + 轨道/赛道/track
   (「走 free 轨道」「用 backend 轨道」); `track=<id>` / `track: <id>` / `轨道：<id>` / `--track <id>`;
   English `use|using|choose|pick|select|go with|switch to [the] <id> track`. Id comparison is ASCII
   case-insensitive against the effective registry ids (builtins including non-routable chat/free, and project Tracks).
