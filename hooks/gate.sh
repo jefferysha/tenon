@@ -383,7 +383,7 @@ for kind in confirm review interaction; do
     # 读取不会扩大权限，也不清 marker。允许它能让 Agent 在等待决定时继续核对事实，
     # 同时 state transition、外部副作用和任何未知动作仍 fail closed。
     pipeline_tool_is_read_only "$TOOL" && continue
-    printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认：调用 AskUserQuestion 提问（Claude Code 中它若尚未加载，先用 ToolSearch 查询 \"select:AskUserQuestion\" 载入；Codex 用 request_user_input），该交互完成后解封；等待期间 Read/Grep/Glob 等只读工具不受拦截。没有提问工具时，用户回复「确认继续」（或「继续执行」「同意继续」）即解封，带条件或不含这些词的回复不会解封，再重发本次操作。\n' "$base" "$TOOL" >&2
+    printf '【Tenon 门】检测到待处理交互标记 %s（%s 已被拦截）：请先把当前决策/产出交用户确认：调用 AskUserQuestion 提问（Claude Code 中它若尚未加载，先用 ToolSearch 查询 \"select:AskUserQuestion\" 载入；Codex 用 request_user_input），该交互完成后解封；等待期间 Read/Grep/Glob 等只读工具不受拦截。没有提问工具时，用户回复「确认继续」「继续执行」「同意继续」，或简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」即解封（后者表示采纳推荐项）；拒绝（「不可以」「不同意」）、带条件（「继续，但……」）或其他回复不会解封。解封后再重发本次操作。\n' "$base" "$TOOL" >&2
     exit 2
   fi
 done

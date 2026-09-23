@@ -160,11 +160,14 @@ pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | c
 
 ### 3. Contracts
 
-- Approval phrases are the classifier's confirm set (「确认继续」「继续执行」「同意继续」…). A bare 「继续」 is
-  `contextual-confirm` and counts only while a pending marker exists in this project.
+- Approval phrases are the classifier's confirm set (「确认继续」「继续执行」「同意继续」…). Short agreement —
+  「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」 — is `contextual-confirm` and counts only while a pending marker
+  exists in this project. Accepting 「按推荐」 is deliberate: `openspec/specs/interaction-and-skill-provenance` —
+  "Natural reply approves the unique pending recommendation" — says the user is not required to repeat a magic
+  phrase.
 - **Unrecognised reply** (empty intent, `reject`, `modify`) while an interaction, confirm or review marker is
   pending: no mutation, no `tenon review acknowledge`; stdout
-  `<tenon-pending-confirmation>…用户回复「确认继续」即解封；带条件的回复请先说明条件并重新提问。</tenon-pending-confirmation>`.
+  `<tenon-pending-confirmation>…用户回复「确认继续」…或简短同意「继续」…「按你的推荐」（采纳推荐项），即确认当前待决事项…</tenon-pending-confirmation>`.
   Nothing pending → no output.
 - **Approval** with `.pipeline-pending-interaction` present: append one `InteractionConfirmed: <skill>` row per
   marker entry (split on `、`; entries outside `[A-Za-z0-9_:-]` skipped) to the active Change history, then remove the
@@ -179,14 +182,15 @@ pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | c
 - While any marker is pending, `gate.sh` passes `AskUserQuestion`, `request_user_input` and `ToolSearch` (Claude Code
   defers AskUserQuestion behind ToolSearch; blocking the loader deadlocks the question) plus read-only tools; the block
   message tells the model to load the question tool with `ToolSearch` `select:AskUserQuestion`.
-- `gate.sh` block message names the unlock reply: `没有提问工具时，用户回复「确认继续」（或「继续执行」「同意继续」）即解封，
-  带条件或不含这些词的回复不会解封`.
+- `gate.sh` block message lists every unlock reply and the replies that do not unlock (「不可以」「不同意」「继续，但……」).
+  Both hints must describe the classifier exactly: `tools/test-hooks.sh` classifies every 「…」 phrase in each list.
 
 ### 4. Validation & Error Matrix
 
 | Condition | Result |
 | --- | --- |
-| Pending interaction, reply 「好的」 | Marker kept, `<tenon-pending-confirmation>` hint |
+| Pending interaction, reply 「好的」 / 「按推荐」 | `contextual-confirm` → markers removed |
+| Pending interaction, reply 「确认以上决策并写入产物」 (unrecognised) | Marker kept, `<tenon-pending-confirmation>` hint |
 | Pending interaction, reply 「确认继续，但先改标题」 (`modify`) | Marker kept, hint |
 | Pending interaction, reply 「确认继续」 | History rows written, markers removed, `<tenon-interaction-confirmed>` |
 | No pending marker, reply 「继续」 | No output, no mutation |

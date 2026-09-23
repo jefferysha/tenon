@@ -1796,6 +1796,41 @@ for prompt in 可以 同意 按推荐 '继续，按照你的推荐'; do
     && ok "confirm-clear-prompt: 自然确认「${prompt}」清 exact pending interaction" \
     || bad "confirm-clear-prompt: 自然确认「${prompt}」清 exact pending interaction" "marker 仍在"
 done
+# v0.1.2 真实会话：门的提示只列了「确认继续」等三句，「按推荐」却解封了。按 interaction-and-skill-provenance
+# 规格，简短同意在有 exact pending 时本就算确认；这里把两条提示里列出的每个解封语、每个不解封示例
+# 都交给真分类器核对，提示与匹配规则从此不能再漂移。
+unlock_phrases_ok() { # $1=label $2=text containing the unlock list, ending at $3
+  local label="$1" text="$2" stop="$3" unlock deny phrase intent
+  unlock="${text%%"${stop}"*}"
+  [ "$unlock" != "$text" ] || { bad "${label}: 提示含「${stop}」" "未找到"; return; }
+  deny="${text#*"${stop}"}"
+  for phrase in $(printf '%s' "$unlock" | awk -F'「' '{ for (i = 2; i <= NF; i++) { sub(/」.*/, "", $i); print $i } }'); do
+    intent="$(bash -c '. "$1"; pipeline_prompt_approval_intent "$2"' _ "$ROOT/hooks/prompt-intent.sh" "${phrase}" 2>/dev/null || true)"
+    case "${intent}" in
+      confirm|contextual-confirm) ok "${label}: 提示列出的「${phrase}」确实解封（${intent}）" ;;
+      *) bad "${label}: 提示列出的「${phrase}」确实解封" "实际 intent=${intent:-<empty>}" ;;
+    esac
+  done
+  for phrase in $(printf '%s' "$deny" | awk -F'「' '{ for (i = 2; i <= NF; i++) { sub(/」.*/, "", $i); sub(/……/, "先别改代码", $i); print $i } }'); do
+    intent="$(bash -c '. "$1"; pipeline_prompt_approval_intent "$2"' _ "$ROOT/hooks/prompt-intent.sh" "${phrase}" 2>/dev/null || true)"
+    case "${intent}" in
+      confirm|contextual-confirm|authorize) bad "${label}: 提示说不解封的「${phrase}」确实不解封" "实际 intent=${intent}" ;;
+      *) ok "${label}: 提示说不解封的「${phrase}」确实不解封" ;;
+    esac
+  done
+}
+GATE_UNLOCK_TEXT="$(grep -o '没有提问工具时.*解封后再重发' "$ROOT/hooks/gate.sh")"
+unlock_phrases_ok "gate 解封提示" "$GATE_UNLOCK_TEXT" "即解封"
+HINT_UNLOCK_TEXT="$(grep -o '用户回复「确认继续」.*带条件的请先说明' "$ROOT/hooks/confirm-clear-prompt.sh")"
+unlock_phrases_ok "confirm-clear-prompt 解封提示" "$HINT_UNLOCK_TEXT" "即确认当前待决事项"
+for prompt in 好的 按你的推荐; do
+  touch "$proj/.pipeline-pending-interaction"
+  printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"$prompt\"}" \
+    | PATH="$FAKE_TENON_BIN:$PATH" TENON_HOOK_LOG="$FAKE_TENON_LOG" bash "$CP" >/dev/null 2>&1
+  [ ! -f "$proj/.pipeline-pending-interaction" ] \
+    && ok "confirm-clear-prompt: 提示列出的「${prompt}」端到端清 pending interaction" \
+    || bad "confirm-clear-prompt: 提示列出的「${prompt}」端到端清 pending interaction" "marker 仍在"
+done
 for prompt in 不可以 不同意 '继续，但先别改代码'; do
   touch "$proj/.pipeline-pending-interaction"
   printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"$prompt\"}" \

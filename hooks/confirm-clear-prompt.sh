@@ -48,7 +48,7 @@ pending_unlock_hint_and_exit() {
   [ -n "$hint_root" ] || exit 0
   [ -f "$hint_root/.pipeline-pending-interaction" ] || [ -f "$hint_root/.pipeline-pending-confirm" ] \
     || [ -f "$hint_root/.pipeline-pending-review" ] || exit 0
-  printf '<tenon-pending-confirmation>\n本条回复未被识别为确认，待确认的交互或评审保持锁定。用户回复「确认继续」即确认当前待决事项（评审按已请求的事件推进）；带条件的回复请先说明条件并重新提问。\n</tenon-pending-confirmation>\n'
+  printf '<tenon-pending-confirmation>\n本条回复未被识别为确认，待确认的交互或评审保持锁定。用户回复「确认继续」「继续执行」「同意继续」，或简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」（采纳推荐项），即确认当前待决事项（评审按已请求的事件推进）；拒绝或带条件的回复不会解封，带条件的请先说明条件并重新提问。\n</tenon-pending-confirmation>\n'
   exit 0
 }
 [ -n "$INTENT" ] || pending_unlock_hint_and_exit
