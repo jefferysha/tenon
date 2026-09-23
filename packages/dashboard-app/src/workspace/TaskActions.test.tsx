@@ -3,12 +3,13 @@
  * only the reasons the server reported, and confirming echoes back exactly those codes. A blocker disables
  * the confirm button, and a 409 re-renders the fresh list the server re-checked.
  */
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
 import { makeChange, makeProject, makeSnapshot } from '../testkit'
 import type { ArchivedChangeSnapshot } from '../types'
+import { localTime } from '../model/time'
 import { WorkspaceView } from './WorkspaceView'
 
 vi.mock('@xyflow/react', () => import('../workflow/reactFlowTestDouble'))
@@ -158,8 +159,12 @@ describe('已归档 view', () => {
     expect(screen.getByTestId('task-card-hidden')).toBeTruthy()
     expect(screen.queryByTestId('task-card-demo')).toBeNull()
     const meta = screen.getByTestId('task-archived-meta-hidden')
-    expect(meta.textContent).toContain('build')
-    expect(meta.textContent).toContain('2026-09-15T12:00:00.000Z')
+    // 阶段显示工作流里的名称，不是原始 id。
+    expect(meta.textContent).toContain('实现')
+    expect(meta.textContent).not.toContain('build')
+    // 时间按界面语言与本机时区显示，原始 ISO 只留在 title 里。
+    expect(meta.textContent).toContain(localTime('2026-09-15T12:00:00.000Z', 'zh'))
+    expect(meta.textContent).not.toContain('2026-09-15T12:00:00.000Z')
     expect(meta.textContent).toContain('A')
     expect(meta.className).toContain('whitespace-nowrap')
     // The archived list carries no 归档 / 删除 menu and no facets.
@@ -170,6 +175,70 @@ describe('已归档 view', () => {
     await userEvent.click(screen.getByTestId('task-archived-unarchive-hidden'))
     await waitFor(() => expect(onToast).toHaveBeenCalledWith('已取消归档 hidden'))
     expect(fetchMock.mock.calls.some(([url]) => String(url) === '/api/change/hidden/unarchive')).toBe(true)
+  })
+
+  it('shows the archived row with its stage label and the same status it had before archiving', () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
+    const labelled = { ...archivedRow('hidden', 'open', '2026-09-23T14:06:48Z', 'A') }
+    labelled.workflowRules = { ...labelled.workflowRules, labelByStep: { open: '立项' } }
+    renderWorkspace({ archived: [labelled] })
+    fireEvent.click(screen.getByTestId('task-view-archived'))
+    expect(screen.getByTestId('task-archived-meta-hidden').textContent).toContain('立项')
+    expect(screen.getByTestId('task-archived-meta-hidden').textContent).not.toMatch(/^open/u)
+    expect(screen.getByTestId('task-summary-hidden').textContent).not.toContain('进行中')
+  })
+
+  it('says 没有已归档任务 once the last archived task is unarchived', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
+    const { view } = renderWorkspace({ archived: [archivedRow('hidden', 'build', '2026-09-15T12:00:00.000Z', 'A')] })
+    fireEvent.click(screen.getByTestId('task-view-archived'))
+    // 取消归档后刷新的快照不再带 archived：视图仍停在已归档列表。
+    view.rerender(
+      <I18nProvider>
+        <WorkspaceView
+          snapshot={makeSnapshot([makeProject(ROOT, [makeChange('demo', 'build'), makeChange('other', 'spec'), makeChange('hidden', 'build')])])}
+          currentRoot={ROOT}
+          rulesByKey={new Map()}
+          projects={PROJECTS}
+          onSelectProject={() => undefined}
+          selectedChange={null}
+          onSelectedChange={() => undefined}
+        />
+      </I18nProvider>,
+    )
+    const empty = screen.getByTestId('task-list-empty-no-archived')
+    expect(empty).toHaveTextContent('没有已归档任务')
+    expect(empty.textContent).not.toContain('tenon init')
+  })
+
+  it('points at the completed tasks when they are all the list has', () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
+    render(
+      <I18nProvider>
+        <WorkspaceView
+          snapshot={makeSnapshot([makeProject(ROOT, [makeChange('done-a', 'archive', { archived: 'true' }), makeChange('done-b', 'archive', { archived: 'true' })])])}
+          currentRoot={ROOT}
+          rulesByKey={new Map()}
+          projects={PROJECTS}
+          onSelectProject={() => undefined}
+          selectedChange={null}
+          onSelectedChange={() => undefined}
+        />
+      </I18nProvider>,
+    )
+    const empty = screen.getByTestId('task-list-empty-completed')
+    expect(empty).toHaveTextContent('没有进行中的任务 · 2 个已完结')
+    expect(empty.textContent).not.toContain('tenon init')
+    fireEvent.click(screen.getByTestId('task-list-empty-include-completed'))
+    expect(screen.getByTestId('task-card-done-a')).toBeTruthy()
+    expect(screen.getByTestId('task-filter-completed')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('names the empty filtered list instead of printing a dictionary key', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
+    renderWorkspace()
+    await userEvent.type(screen.getByTestId('task-list-search'), 'zzz-nothing')
+    expect(screen.getByTestId('task-list-empty-filtered')).toHaveTextContent('没有匹配的任务')
   })
 
   it('shows the 未提交删除 chip only when the server reports one', async () => {

@@ -167,7 +167,7 @@ describe('archivedRowsOf / uncommittedDeletionsOf', () => {
   } as unknown as Snapshot
 
   it('lists archived rows newest first with the phase, time and actor of the archive', () => {
-    const rows = archivedRowsOf({ snapshot: archivedSnapshot, currentRoot: '/repo', rulesByKey: new Map(), t })
+    const rows = archivedRowsOf({ snapshot: archivedSnapshot, currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => undefined, t })
     expect(rows.map((row) => row.change.name)).toEqual(['newer', 'older'])
     expect(rows[0]?.archive).toEqual({ archivedAt: '2026-09-15T00:00:00Z', phase: 'build', actor: { id: 'b@x.io', name: 'B', trust: 'declared' } })
     expect(rows[0]?.stages.map((stage) => stage.status))
@@ -175,10 +175,18 @@ describe('archivedRowsOf / uncommittedDeletionsOf', () => {
     expect(rows.every((row) => row.key.endsWith('@/repo'))).toBe(true)
   })
 
+  // 归档只是对我隐藏：归档前显示「缺 <slot>」的任务，归档后仍是同一句，而不是编造的「进行中」。
+  it('derives the same readiness as the live row instead of claiming 进行中', () => {
+    const rows = archivedRowsOf({ snapshot: archivedSnapshot, currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => ({ build: BUILD_IO }), t })
+    const newer = rows.find((row) => row.change.name === 'newer') as TaskRow
+    expect(newer.summary.kind).toBe('missing')
+    expect(summaryText(newer, t)).toBe('build · 缺 build_sha')
+  })
+
   it('reports no archived rows when the server sends none', () => {
     const plain = { projects: [{ root: '/repo', ok: true, changes: [change()] }] } as unknown as Snapshot
-    expect(archivedRowsOf({ snapshot: plain, currentRoot: '/repo', rulesByKey: new Map(), t })).toEqual([])
-    expect(archivedRowsOf({ snapshot: null, currentRoot: '', rulesByKey: new Map(), t })).toEqual([])
+    expect(archivedRowsOf({ snapshot: plain, currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => undefined, t })).toEqual([])
+    expect(archivedRowsOf({ snapshot: null, currentRoot: '', rulesByKey: new Map(), ioOf: () => undefined, t })).toEqual([])
   })
 
   it('sums 未提交删除 within the selected project only', () => {
