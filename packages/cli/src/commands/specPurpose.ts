@@ -71,6 +71,9 @@ export function hasPlaceholderPurpose(spec: string): boolean {
   return UPSTREAM_TBD.test(spec)
 }
 
+/** 占位行、它的行尾，以及紧随其后的空行（没有空行时不参与匹配）。 */
+const PLACEHOLDER_PURPOSE_BLOCK = /^TBD - created by archiving change .*?(\r?\n|$)(\r?\n)?/mu
+
 /**
  * 把上游占位 Purpose 换成 proposal 给出的真实 Purpose；没有占位时原样返回。
  * 返回 undefined = 有占位但 proposal 给不出 Purpose（调用方拒绝应用）。
@@ -78,5 +81,8 @@ export function hasPlaceholderPurpose(spec: string): boolean {
 export function fillPurpose(spec: string, purpose: string | undefined): string | undefined {
   if (!hasPlaceholderPurpose(spec)) return spec
   if (purpose === undefined) return undefined
-  return spec.replace(UPSTREAM_TBD, () => purpose)
+  // 上游归档重排主规格时吃掉了段间空行（`TBD…` 下一行紧跟 `## Requirements`）：Purpose 段落与下一个
+  // 标题之间补回一个空行；已经有空行或占位行就在文件末尾时不动。
+  return spec.replace(PLACEHOLDER_PURPOSE_BLOCK, (_match: string, eol: string, blank: string | undefined) =>
+    `${purpose}${eol}${blank ?? (eol === '' ? '' : eol)}`)
 }
