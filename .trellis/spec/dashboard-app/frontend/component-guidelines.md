@@ -288,8 +288,10 @@ row names the skills that should produce it, and a stale row carries its one-wor
   managed blocks itself — it sends the body and the server re-appends Tenon's blocks.
 - Every write carries the digest the UI last read. `应用` always goes through `POST /api/instructions/preview` and the
   `DiffDrawer` (`lineDiff` rows carry `data-op`), so nothing is written before the reader confirms.
-- Polling: every 5 s while the document is visible plus on window focus. A changed digest with a clean editor reloads
-  silently; with a draft it only raises the 外部修改 banner. 409 from apply raises the same banner.
+- No interval polling. The files are read when the root changes and after 应用 / 删除, and re-checked (digests only)
+  on window focus and when the snapshot changes (`snapshotRevision` = `generated_at`, which the server only re-emits
+  on a fingerprint change). Sitting on the page with nothing changing issues no request. A changed digest with a clean
+  editor reloads silently; with a draft it only raises the 外部修改 banner. 409 from apply raises the same banner.
 - `新建项目` selects the three project instruction files directly (CLAUDE.md + AGENTS.md preselected): an unregistered
   directory has no host table yet, and the create API takes file names.
 - Server prose is never rendered: `instructionErrorKey` maps the error `code` to `projects.errors.<key>` / `library.errors.<key>`.

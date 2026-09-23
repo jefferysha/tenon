@@ -15,10 +15,12 @@ const DEFAULT_HOSTS = ['claude', 'codex']
 
 /** 项目：左列用户级 + 各项目 + 新建项目 / 中列宿主与文件 / 右列指令文件编辑器。 */
 export function ProjectsView({
-  projects, currentRoot, onSelectProject, onToast, newProjectOpen = false, onNewProjectOpenChange,
+  projects, currentRoot, onSelectProject, onToast, newProjectOpen = false, onNewProjectOpenChange, snapshotRevision = '',
 }: {
   projects: readonly TopBarProject[]
   currentRoot: string
+  /** 快照的版本标记（generated_at）：变化时复查一次指令文件，不变就不请求。 */
+  snapshotRevision?: string
   onSelectProject: (root: string) => void
   onToast?: (message: string) => void
   /** 由零项目教学态的「新建项目」触发时为 true。 */
@@ -44,7 +46,7 @@ export function ProjectsView({
   const loadedRef = useRef('')
   const dirtyRef = useRef(false)
   dirtyRef.current = text !== loadedRef.current
-  const files = useInstructionFiles(currentRoot, () => dirtyRef.current)
+  const files = useInstructionFiles(currentRoot, () => dirtyRef.current, snapshotRevision)
   const [selectedHosts, setSelectedHosts] = useState<ReadonlySet<string>>(() => new Set(DEFAULT_HOSTS))
 
   const hosts = files.state?.hosts ?? []

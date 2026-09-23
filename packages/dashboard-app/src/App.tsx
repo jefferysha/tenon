@@ -386,6 +386,7 @@ function AppShell(): JSX.Element {
             onToast={(m) => showFlash('toast', m)}
             newProjectOpen={newProjectOpen}
             onNewProjectOpenChange={setNewProjectOpen}
+            snapshotRevision={snapshot?.generated_at ?? ''}
           />
         )}
         {view === 'library' && <LibraryView onToast={(m) => showFlash('toast', m)} />}

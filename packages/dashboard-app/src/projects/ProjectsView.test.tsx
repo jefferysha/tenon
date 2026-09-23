@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
@@ -161,8 +161,7 @@ describe('项目页 · 指令文件', () => {
     })
   })
 
-  // 复查走 window focus：与 5 秒轮询同一条 check() 路径，但不必假装时钟（假时钟会与
-  // Testing Library 的 findBy* 轮询互锁）。
+  // 复查走 window focus：与快照变化同一条 check() 路径。
   it('聚焦复查：编辑器干净时静默换成盘上内容；有草稿时只亮外部修改', async () => {
     const user = userEvent.setup()
     let text = '# 旧\n'
@@ -181,6 +180,31 @@ describe('项目页 · 指令文件', () => {
     window.dispatchEvent(new Event('focus'))
     expect(await screen.findByTestId('proj-external')).toBeInTheDocument()
     expect(screen.getByTestId('proj-editor')).toHaveValue('# 别人改了\n我的草稿')
+  })
+
+  // 回归：停在项目页、快照没变时每 ~4 秒请求一次 /api/instructions（60 秒 14 次）。
+  it('停留时不重复请求；只在快照变化时复查一次', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const calls = stubFetch()
+    const reads = (): number => calls.filter((call) => call.url.startsWith('/api/instructions?') && (call.init?.method ?? 'GET') === 'GET').length
+    const view = (revision: string) => (
+      <I18nProvider>
+        <ProjectsView projects={PROJECTS} currentRoot="/repo" onSelectProject={() => undefined} snapshotRevision={revision} />
+      </I18nProvider>
+    )
+    const { rerender } = render(view('r1'))
+    await screen.findByTestId('proj-editor')
+    expect(reads()).toBe(1)
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    rerender(view('r1'))
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+    expect(reads()).toBe(1)
+
+    rerender(view('r2'))
+    await waitFor(() => expect(reads()).toBe(2))
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(reads()).toBe(2)
   })
 
   it('无 token 时应用与删除都禁用', async () => {
