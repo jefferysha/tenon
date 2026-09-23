@@ -192,6 +192,17 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     return [{ action: 'read-documents', documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))] }]
   }
 
+  const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
+  // 决定类字段（带枚举、走 `tenon set`：build_mode / isolation / direct_override…）是「怎么做」的
+  // 选择，必须在动手之前拍板：排在执行者与本步技能之前。真机 build 步里它排在技能之后，代码写完
+  // 才被要求登记 build_mode，模型只能事后补填一个与事实不符的值（直接实现却登记成
+  // subagent-driven-development）。artifact 登记不在这一档——它登记的是技能的产出，要等技能跑完。
+  const decisions = writeFieldActions(
+    missing.filter((field) => field.allowed !== null && field.writer === 'set'),
+    input.artifactProducers,
+  )
+  if (decisions.length > 0) return decisions
+
   const executors = pendingAgents(input.executors, true)
   if (executors.length > 0) return executors
 
@@ -202,22 +213,24 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   const producing = skillDocumentActions(input.skills, input.documents)
   if (producing.length > 0) return producing
 
-  if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]
   const writes = documentWriteActions(input.documents)
+  // 未勾的任务是本步还没做完的工作：排在应用规格、登记文档与一切字段之前——它们记录的都是「做完
+  // 之后」的事实。真机 ship 步 exits 里明明有 tasks-incomplete，next 却只给 apply-spec 与
+  // applied-spec 的骨架/登记，任务一直排在它们后面，模型只能自己去 exits 里发现并勾选。
+  // 唯一的例外是 tasks.md 本身还等着产出或重新登记（open 步）：先写出来，才谈得上勾选。
+  const tasksPending = [...producing, ...writes].some((action) => action.kind === 'tasks')
+  const tasks = tasksPending ? [] : taskBlockers(input.exits)
+  if (tasks.length > 0) return [{ action: 'fix', blockers: tasks }]
+
+  if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]
   if (writes.length > 0) return writes
-  const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
-  // 决定（带枚举）与 artifact 登记先做；然后是本步未勾的任务；最后才是自由文本的交付值
-  // （pr_url / prd_path）——交付值记录的是做完之后的事实，排在任务前面只会让它挡住真正的出口阻塞。
-  const decisions = writeFieldActions(
-    missing.filter((field) => field.allowed !== null || field.writer !== 'set'),
+  // artifact 登记（技能产出的字段）；最后才是自由文本的交付值（pr_url / prd_path）——交付值记录
+  // 的是做完之后的事实。
+  const registers = writeFieldActions(
+    missing.filter((field) => field.writer !== 'set'),
     input.artifactProducers,
   )
-  if (decisions.length > 0) return decisions
-  const tasks = input.exits.filter((exit) => exit.direction !== 'back')
-    .flatMap((exit) => exit.blockers)
-    .filter((item, index, all) => item.source === 'tasks'
-      && all.findIndex((other) => other.message === item.message) === index)
-  if (tasks.length > 0) return [{ action: 'fix', blockers: tasks }]
+  if (registers.length > 0) return registers
   const freeform = writeFieldActions(
     missing.filter((field) => field.allowed === null && field.writer === 'set'),
     input.artifactProducers,
@@ -243,6 +256,14 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   }
 
   return exitActions(input)
+}
+
+/** 前进边上的未勾任务（`source: tasks`），按文案去重；每条带未勾项原文（`items`）。 */
+function taskBlockers(exits: readonly StepExit[]): readonly StepBlocker[] {
+  return exits.filter((exit) => exit.direction !== 'back')
+    .flatMap((exit) => exit.blockers)
+    .filter((item, index, all) => item.source === 'tasks'
+      && all.findIndex((other) => other.message === item.message) === index)
 }
 
 function requiredEvidenceFailed(input: {

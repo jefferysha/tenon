@@ -6,6 +6,8 @@
  * 零 mock：真临时项目（本身不是 git 仓 = 没有远端），需要远端的用例在里面真 `git init` + `git remote add`。
  */
 import { execFileSync } from 'node:child_process'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { freshHarness, rm, type Harness } from './integration-harness.js'
 
@@ -21,7 +23,12 @@ afterEach(async () => {
   await rm(h.cwd, { recursive: true, force: true })
 })
 
-interface Blocker { readonly source: string; readonly code: string; readonly message: string }
+interface Blocker {
+  readonly source: string
+  readonly code: string
+  readonly message: string
+  readonly items?: readonly string[]
+}
 interface StatusJson {
   readonly step: {
     readonly exits: readonly { readonly event: string; readonly blockers: readonly Blocker[] }[]
@@ -41,6 +48,21 @@ describe('ship 步的出口投影', () => {
     const blockers = projected.exits.find((exit) => exit.event === 'ship-complete')?.blockers ?? []
     expect(blockers.filter((item) => item.source === 'tasks').map((item) => item.code)).toEqual(['tasks-incomplete'])
     expect(projected.fields.find((item) => item.field === 'pr_url')?.recommended).toBe('no-remote')
+  })
+
+  test('tasks 来源的 blocker 自带截至本步仍未勾的任务原文（fix 据此点名要做的事）', async () => {
+    await h.seedPhase(CHANGE, 'ship')
+    await writeFile(join(h.cwd, 'openspec', 'changes', CHANGE, 'tasks.md'), [
+      '## Open', '- [x] scope', '## Build', '- [x] implement', '- [ ] wire the CLI flag',
+      '## Ship', '- [ ] Update README usage', '## Archive', '- [ ] later work', '',
+    ].join('\n'), 'utf8')
+    const blockers = (await step()).exits.find((exit) => exit.event === 'ship-complete')?.blockers ?? []
+    expect(blockers.filter((item) => item.source === 'tasks')).toEqual([expect.objectContaining({
+      code: 'tasks-incomplete',
+      message: expect.stringContaining('仍有 2 项未勾'),
+      // 未来步骤（archive）的任务不算。
+      items: ['wire the CLI flag', 'Update README usage'],
+    })])
   })
 })
 

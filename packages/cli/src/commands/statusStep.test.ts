@@ -133,6 +133,69 @@ describe('step.next 顺序', () => {
     }))[0]).toMatchObject({ action: 'set-field', field: 'build_mode' })
   })
 
+  /**
+   * 真机（第二轮）：build 步 next 在代码写完之后才出现 `set-field build_mode`，模型事后补填，
+   * 记录与事实不符。决定类字段（带枚举的 set 字段）是「怎么做」，排在执行者与本步技能之前。
+   */
+  test('决定类字段（build_mode / isolation）先于执行者与本步技能，一波下发', () => {
+    const buildMode = field('build_mode', { kind: 'guard', allowed: ['direct', 'subagent-driven-development'], recommended: 'subagent-driven-development' })
+    const isolation = field('isolation', { kind: 'guard', allowed: ['branch', 'worktree', 'in-place'], recommended: 'in-place' })
+    const next = stepNextActions(input({
+      fields: [buildMode, isolation],
+      executors: [agent('builder', 'executor', 'pending', true)],
+      skills: [skill('test-driven-development', 'ready', 0)],
+    }))
+    expect(next.map((action) => [action.action, action.field])).toEqual([
+      ['set-field', 'build_mode'], ['set-field', 'isolation'],
+    ])
+    // 输入文档仍先读——决定要基于读过的计划。
+    expect(actions({
+      fields: [buildMode],
+      documents: { reads: [doc('plan', 'unread')], records: [], updates: [] },
+    })).toEqual(['read-documents'])
+  })
+
+  /**
+   * 真机（第二轮，backend 与 free 各一次）：ship 的 exits 里有 tasks-incomplete，next 却只给
+   * apply-spec 与 applied-spec 的骨架 / 登记——任务排在它们后面，模型只能自己去 exits 里发现。
+   */
+  test('ship 有未勾任务：fix（带未勾项原文）先于 apply-spec 与 applied-spec 的骨架/登记', () => {
+    const tasksBlocker = {
+      source: 'tasks' as const, code: 'tasks-incomplete',
+      message: 'ship 出口：要求截至当前阶段的 tasks.md 全部勾选（仍有 1 项未勾）',
+      items: ['更新 README 的用法段'],
+    }
+    const shipExit = { event: 'ship-complete', to: 'archive', direction: 'forward' as const, ready: false, blockers: [tasksBlocker] }
+    const shipInput = {
+      ownsAppliedSpec: true,
+      specApplicationPending: true,
+      documents: { reads: [], records: [doc('applied-spec', 'missing')], updates: [] },
+      fields: [field('pr_url', { recommended: 'no-remote' })],
+      exits: [shipExit],
+    }
+    expect(stepNextActions(input(shipInput))).toEqual([{ action: 'fix', blockers: [tasksBlocker] }])
+    // 规格已应用、只差 applied-spec 登记时也一样。
+    expect(actions({ ...shipInput, specApplicationPending: false })).toEqual(['fix'])
+    // 勾完之后才是 apply-spec。
+    expect(actions({ ...shipInput, exits: [{ ...shipExit, blockers: [], ready: true }] })).toEqual(['apply-spec'])
+  })
+
+  test('tasks.md 自己还没产出（open）：先铺骨架并登记，不先发勾选任务的 fix', () => {
+    const tasksBlocker = { source: 'tasks' as const, code: 'tasks-incomplete', message: 'open 出口：要求 tasks.md 存在', items: [] }
+    expect(actions({
+      documents: { reads: [], records: [doc('tasks', 'missing', ['openspec-propose'])], updates: [] },
+      exits: [{ event: 'open-complete', to: 'explore', direction: 'forward', ready: false, blockers: [tasksBlocker] }],
+    })).toEqual(['scaffold-document', 'record-document'])
+  })
+
+  test('本步技能先于未勾任务的 fix：build 先加载实现技能，再列出要做的任务', () => {
+    const tasksBlocker = { source: 'tasks' as const, code: 'tasks-incomplete', message: 'build 出口：要求截至当前阶段的 tasks.md 全部勾选（仍有 2 项未勾）', items: ['a', 'b'] }
+    const exits = [{ event: 'build-complete', to: 'verify', direction: 'forward' as const, ready: false, blockers: [tasksBlocker] }]
+    expect(actions({ skills: [skill('test-driven-development', 'ready', 0)], exits })).toEqual(['load-skill'])
+    expect(actions({ skills: [skill('test-driven-development', 'done', 0)], exits, tests: [test_('unit', 'not-run')] }))
+      .toEqual(['fix'])
+  })
+
   test('技能按波次下发，waiting 的不进本波', () => {
     expect(stepNextActions(input({
       skills: [skill('a', 'done', 0), skill('b', 'ready', 1), skill('c', 'waiting', 2)],
@@ -341,17 +404,21 @@ describe('step.next 顺序', () => {
     ])
   })
 
-  test('同一波里 artifact 与普通字段各发各的动作', () => {
+  test('决定类字段先于 artifact 登记：build_mode 先拍板，artifact 等本步技能产出后再登记', () => {
+    const designDoc = field('design_doc', { writer: 'artifact-register' })
     expect(stepNextActions(input({
-      fields: [
-        field('design_doc', { writer: 'artifact-register' }),
-        field('build_mode', { allowed: ['direct'], recommended: 'direct' }),
-      ],
+      fields: [designDoc, field('build_mode', { allowed: ['direct'], recommended: 'direct' })],
       artifactProducers: ['hue'],
     }))).toEqual([
-      { action: 'register-field', field: 'design_doc', producers: ['hue'] },
       { action: 'set-field', field: 'build_mode', allowed: ['direct'], required: null, recommended: 'direct' },
     ])
+    expect(stepNextActions(input({
+      fields: [designDoc, field('build_mode', { allowed: ['direct'], status: 'set', value: 'direct' })],
+      artifactProducers: ['hue'],
+    }))).toEqual([{ action: 'register-field', field: 'design_doc', producers: ['hue'] }])
+    // artifact 登记的是技能的产出：技能还没加载时先加载技能。
+    expect(actions({ fields: [designDoc], artifactProducers: ['hue'], skills: [skill('hue', 'ready', 0)] }))
+      .toEqual(['load-skill'])
   })
 
   /**

@@ -80,7 +80,7 @@ describe('projectPipelineTodo', () => {
         phase: 'build',
         tasksMarkdown: canonicalProjection(groupTitle),
         trustedCanonicalProjection: true,
-      })).toEqual({ structured: false, incomplete: 1 })
+      })).toEqual({ structured: false, incomplete: 1, items: ['Implement API'] })
     },
   )
 
@@ -152,11 +152,15 @@ describe('projectPipelineTodo', () => {
     expect(incompletePipelineTasksForExit({ phase: 'build', tasksMarkdown })).toEqual({
       structured: true,
       incomplete: 1,
+      items: ['Implement runtime'],
     })
     expect(incompletePipelineTasksForExit({
       phase: 'build',
       tasksMarkdown: tasksMarkdown.replace('- [ ] Implement runtime', '- [x] Implement runtime'),
-    })).toEqual({ structured: true, incomplete: 0 })
+    })).toEqual({ structured: true, incomplete: 0, items: [] })
+    // 未勾项原文按文件顺序给出，未来阶段的不算（ship 出口看得到 build 与 verify 的遗留）。
+    expect(incompletePipelineTasksForExit({ phase: 'ship', tasksMarkdown }).items)
+      .toEqual(['Implement runtime', 'Run acceptance', 'Publish bundle'])
   })
 
   it('无阶段标题的旧 tasks.md 保持兼容：只有 build 沿用全清单完成语义', () => {
@@ -164,10 +168,12 @@ describe('projectPipelineTodo', () => {
     expect(incompletePipelineTasksForExit({ phase: 'spec', tasksMarkdown })).toEqual({
       structured: false,
       incomplete: 0,
+      items: [],
     })
     expect(incompletePipelineTasksForExit({ phase: 'build', tasksMarkdown })).toEqual({
       structured: false,
       incomplete: 1,
+      items: ['Pending task'],
     })
   })
 })

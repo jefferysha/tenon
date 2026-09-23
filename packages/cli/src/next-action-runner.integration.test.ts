@@ -48,6 +48,8 @@ const FREEFORM: Readonly<Record<string, string>> = {
   prd_path: `docs/${CHANGE}-prd.md`,
 }
 
+const SHIP_TASK = 'update the usage docs'
+
 const DESIGN_DOC = [
   '# design', '', '```coverage', 'touches:',
   ...['L1_api', 'L2_data', 'L3_rules', 'L4_state', 'L5_errors', 'L6_security', 'L7_perf', 'L8_deps', 'L10_terms']
@@ -60,7 +62,12 @@ const PLACEHOLDER = /\[待填写|: 待填写$|\*\* 待填写$|- \[ \] 待填写$
 
 /** 作者写成的文档内容。delta spec 要过 OpenSpec strict 校验，所以写成一条真需求。 */
 function authored(kind: string): string {
-  if (kind === 'tasks') return '- [x] scope\n- [x] implementation\n- [x] verification\n'
+  // ship 段留一项未勾：ship 的 next 必须先发带这条原文的 fix（运行器照做去勾它），而不是
+  // 越过它去 apply-spec。
+  if (kind === 'tasks') {
+    return '## Open\n- [x] scope\n## Build\n- [x] implementation\n## Verify\n- [x] verification\n'
+      + `## Ship\n- [ ] ${SHIP_TASK}\n`
+  }
   // 新 capability 主规格的 Purpose 取自 proposal（spec apply 不再留上游 TBD 占位）。
   if (kind === 'proposal') return '# proposal\n\n## Why\n\nThe runner flow needs a durable capability.\n'
   if (kind === 'delta-spec') {
@@ -152,7 +159,10 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       // 运行器替作者把活干完：骨架里满是占位符（登记闸拒收，D7），tasks.md 全是未勾选的框（而 open/spec
       // 出口要求全勾）。作者要做的就是把骨架写成真内容。
       const abs = join(h.cwd, path)
-      if (action.kind === 'tasks' || !existsSync(abs) || PLACEHOLDER.test(await readFile(abs, 'utf8'))) {
+      // tasks 的骨架行（「将本阶段目标拆成可验证任务」）不带占位记号，按「还没写成作者的清单」判；
+      // 写成之后（含运行器勾过的项）不再覆盖。
+      const current = existsSync(abs) ? await readFile(abs, 'utf8') : null
+      if (current === null || PLACEHOLDER.test(current) || (action.kind === 'tasks' && !current.includes(SHIP_TASK))) {
         await put(path, authored(String(action.kind)))
       }
       await loadSkill(producer!)
@@ -200,6 +210,17 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
         : `{"findings":${findings}}`
       await put(row.report_path, `# ${String(action.agent)}\n\n\`\`\`tenon-result\n${body}\n\`\`\`\n`)
       await run(['agent', 'record', CHANGE, row.run_id])
+      return false
+    }
+    // 未勾任务：动作自带未勾项原文，运行器就是做完它们的作者——逐条勾上。
+    case 'fix': {
+      const blockers = action.blockers as readonly { source: string; items?: readonly string[] }[]
+      const items = blockers.filter((item) => item.source === 'tasks').flatMap((item) => item.items ?? [])
+      expect(items.length, `fix 必须是能照做的未勾任务（带原文）：${JSON.stringify(action)}`).toBeGreaterThan(0)
+      const tasksPath = join(changeDir(), 'tasks.md')
+      let text = await readFile(tasksPath, 'utf8')
+      for (const item of items) text = text.replace(`- [ ] ${item}`, `- [x] ${item}`)
+      await writeFile(tasksPath, text, 'utf8')
       return false
     }
     case 'apply-spec':
@@ -310,6 +331,22 @@ describe('照着 next 做事的运行器：open → 完结', () => {
     expect(actions[verdict]?.action).toMatchObject({ recommended: null, required: ['pass'] })
     expect(actions.findIndex(({ step, action }) => step === 'build' && action.action === 'run-test'))
       .toBeLessThan(verdict)
+    // 决定类字段在动手之前：build 的 build_mode / isolation 先于本步第一次加载技能。
+    const buildStart = actions.findIndex(({ step }) => step === 'build')
+    const firstBuildSkill = actions.findIndex(({ step, action }, index) =>
+      index > buildStart && step === 'build' && action.action === 'load-skill')
+    for (const decision of ['build_mode', 'isolation']) {
+      const at = actions.findIndex(({ step, action }) =>
+        step === 'build' && action.action === 'set-field' && action.field === decision)
+      expect(at, `${decision} 必须在 build 下发`).toBeGreaterThan(-1)
+      expect(at, `${decision} 必须先于 build 的第一次 load-skill`).toBeLessThan(firstBuildSkill)
+    }
+    // ship 的未勾任务：带原文的 fix 先于 apply-spec。
+    const shipFix = actions.findIndex(({ step, action }) => step === 'ship' && action.action === 'fix')
+    expect(actions[shipFix]?.action).toMatchObject({
+      blockers: [expect.objectContaining({ source: 'tasks', items: [SHIP_TASK] })],
+    })
+    expect(shipFix).toBeLessThan(actions.findIndex(({ action }) => action.action === 'apply-spec'))
     // 新 capability 的主规格带真实 Purpose（出自 proposal 的 ## Why），不是上游 archive 的 TBD 占位。
     const mainSpec = await readFile(join(h.cwd, 'openspec', 'specs', 'capability', 'spec.md'), 'utf8')
     expect(mainSpec).not.toContain('TBD')

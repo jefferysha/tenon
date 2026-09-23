@@ -41,10 +41,11 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   `scaffold-document`、`record-document`、`register-field`、`set-field`、`validate-spec`、
   `apply-spec`、`run-test`、`fix`、`request-review`、`await-review`、`choose-exit`、`transition`、
   `complete`。第一条命中的规则返回，同一条规则内同波的项一起返回。
-- 顺序：停（归档 / 引用已删除技能 / 步骤不在计划里）→ 重新加载 tenon → 状态机已归档（治理归档
-  或停）→ 读输入文档 → 执行者 → 本步技能 → 应用规格 → 产出与登记文档 → 决定类字段（带枚举）与
-  artifact 登记 → 未勾任务（`fix`，blocker `source: tasks`）→ 自由文本交付值（`pr_url` / `prd_path`）
-  → 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
+- 顺序：停（归档 / 引用已删除技能 / 步骤不在计划里）→ 状态机已归档（治理归档或停）→ 重新加载
+  tenon → 读输入文档 → 决定类字段（带枚举、走 `tenon set`：build_mode / isolation …，动手之前拍板）
+  → 执行者 → 本步技能 → 技能欠的文档 → 未勾任务（`fix`，blocker `source: tasks`，带 `items` 未勾项
+  原文；tasks.md 自己还待产出 / 重新登记时让位给文档写入）→ 应用规格 → 产出与登记文档 → artifact
+  登记 → 自由文本交付值（`pr_url` / `prd_path`）→ 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
 - 进行中（`running`）的 agent 先于同一档的一切新动作：`run-agent` 带 `status: running`、`run_id`、
   `report_path`，宿主写报告后 `agent record` 那次运行，不重开。
 - agent 的 `wave` 是依赖分层（kernel `agentWaves`，无 `depends_on` 的同为 0），与 `tenon agent next`
@@ -101,7 +102,8 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | 字段由转换副作用落值（`archived` / `build_sha` / `phase_status` / review 回执…） | 不发写入动作，走到那条转换；`tenon set` 拒写 |
 | 执行者已 prompt 未 record | `run-agent` 带 `status: running` 与 `run_id`，不跳去 `load-skill` |
 | 必需评审者打回 | 不发结果字段；回退边（评审门上走 request → await → transition）或 `fix` |
-| ship 有未勾任务 | 先 `fix`（`source: tasks`），再 `set-field pr_url` |
+| ship 有未勾任务 | 先 `fix`（`source: tasks`，`items` 为截至本步仍未勾的任务原文），再 `apply-spec` / applied-spec 登记 / `set-field pr_url` |
+| build 缺 build_mode / isolation | 读完输入文档后第一批就是 `set-field`，先于执行者与 `load-skill` |
 | 已完结 | `finished_changes` 而非 `active_changes`；`check` 说无需检查 |
 
 ## 5. Tests
