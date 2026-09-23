@@ -62,7 +62,7 @@ const forbidden = [
   { label: 'retired CLI bundle', pattern: /(?:dist\/pipeline\.mjs|runtime\/pipeline-bootstrap\.mjs)/ },
   {
     label: 'retired CLI command',
-    pattern: /\bpipeline (?=(?:init|list|status|state|upgrade|get|set|set-many|cas|check|transition|review|document|workflow|session|handoff|internal-skill-gate|inbox|import|setup|update|doctor|runtime|dashboard|uninstall|sync|task|spec|afk|loop|loops|mem|channel|artifact|advance|cancel|pass|reject|retry)\b)/,
+    pattern: /\bpipeline (?=(?:init|list|status|state|upgrade|get|set|set-many|cas|check|transition|review|document|workflow|session|handoff|internal-skill-gate|inbox|import|setup|update|doctor|runtime|dashboard|uninstall|sync|task|spec|afk|loop|loops|mem|channel|artifact|advance|cancel|pass|reject|retry)\b|--help\b|<command>|<cmd>)/,
   },
   {
     label: 'retired public environment prefix',

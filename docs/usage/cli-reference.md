@@ -2,12 +2,12 @@
 
 ## Goal
 
-Provide a navigable command-family map while keeping `pipeline <command>
+Provide a navigable command-family map while keeping `tenon <command>
 --help` as the exact flag authority.
 
 ## Prerequisites
 
-- installed `pipeline` launcher
+- installed `tenon` launcher
 - current project directory for project/change commands
 
 ## Installation and runtime
@@ -290,7 +290,7 @@ opt-in sensitive local diagnostics.
 Use the installed command as exact authority:
 
 ```bash
-pipeline --help
+tenon --help
 tenon setup --help
 tenon tracks --help
 tenon afk --help
