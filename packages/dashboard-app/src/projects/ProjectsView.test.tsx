@@ -53,11 +53,11 @@ function stubFetch(over: { targets?: () => unknown[]; onWrite?: (call: Call) => 
   return calls
 }
 
-function renderView(currentRoot = '/repo') {
+function renderView(currentRoot = '/repo', onToast?: (message: string) => void) {
   const onSelectProject = vi.fn()
   render(
     <I18nProvider>
-      <ProjectsView projects={PROJECTS} currentRoot={currentRoot} onSelectProject={onSelectProject} />
+      <ProjectsView projects={PROJECTS} currentRoot={currentRoot} onSelectProject={onSelectProject} onToast={onToast} />
     </I18nProvider>,
   )
   return onSelectProject
@@ -100,7 +100,8 @@ describe('项目页 · 指令文件', () => {
   it('应用：预览打开差异抽屉，确认后按 base_digest 写入两个文件', async () => {
     const user = userEvent.setup()
     const calls = stubFetch()
-    renderView()
+    const onToast = vi.fn()
+    renderView('/repo', onToast)
     const editor = await screen.findByTestId('proj-editor')
     await user.clear(editor)
     await user.type(editor, '# 新规则')
@@ -121,6 +122,7 @@ describe('项目页 · 指令文件', () => {
         targets: [{ id: 'CLAUDE.md', base_digest: 'absent' }, { id: 'AGENTS.md', base_digest: 'sha256:AGENTS.md' }],
       })
     })
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已应用'))
   })
 
   it('应用返回 409 → 显示外部修改，并能重新载入', async () => {

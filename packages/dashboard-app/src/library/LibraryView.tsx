@@ -59,7 +59,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
       const ok = await library.create(nextCategory, id, skeleton(nextCategory, id, t(`library.categories.${nextCategory}`)))
       if (ok) {
         setDialogOpen(false)
-        onToast?.(t('library.new'))
+        onToast?.(t('library.done_template_created', { name: id }))
       }
     })()
   }
@@ -68,7 +68,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
     const current = library.selected
     if (current === null) return
     void (async () => {
-      if (await library.copy(`${current.id}-copy`)) onToast?.(t('library.copy'))
+      if (await library.copy(`${current.id}-copy`)) onToast?.(t('common.done_copied'))
     })()
   }
 
@@ -110,7 +110,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
               onSelect={agents.select}
               onCreate={(name) => {
                 void (async () => {
-                  if (await agents.create(name, agentSkeleton(name))) onToast?.(t('library.agent_new'))
+                  if (await agents.create(name, agentSkeleton(name))) onToast?.(t('library.done_agent_created', { name }))
                 })()
               }}
             />
@@ -218,13 +218,16 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
               error={agents.error}
               blockedBy={agents.blockedBy}
               onDraft={agents.setDraft}
-              onSave={() => { void (async () => { if (await agents.save()) onToast?.(t('library.save')) })() }}
+              onSave={() => { void (async () => { if (await agents.save()) onToast?.(t('common.done_saved')) })() }}
               onCopy={() => {
                 const current = agents.selected
                 if (current === null) return
-                void (async () => { if (await agents.copy(`${current.name}-copy`)) onToast?.(t('library.copy')) })()
+                void (async () => { if (await agents.copy(`${current.name}-copy`)) onToast?.(t('common.done_copied')) })()
               }}
-              onDelete={() => { void (async () => { if (await agents.remove()) onToast?.(t('library.delete')) })() }}
+              onDelete={() => {
+                const name = agents.selected?.name ?? ''
+                void (async () => { if (await agents.remove()) onToast?.(t('common.done_deleted', { name })) })()
+              }}
             />
           )
         ) : section === 'directions' ? (
@@ -239,9 +242,12 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
             document={library.document}
             busy={library.busy}
             errorKey={library.errorKey}
-            onSave={(text) => { void (async () => { if (await library.save(text)) onToast?.(t('library.save')) })() }}
+            onSave={(text) => { void (async () => { if (await library.save(text)) onToast?.(t('common.done_saved')) })() }}
             onCopy={onCopy}
-            onDelete={() => { void (async () => { if (await library.remove()) onToast?.(t('library.delete')) })() }}
+            onDelete={() => {
+              const name = library.selected?.id ?? ''
+              void (async () => { if (await library.remove()) onToast?.(t('common.done_deleted', { name })) })()
+            }}
             onReload={() => { void library.reload() }}
           />
         )}

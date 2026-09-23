@@ -89,7 +89,7 @@ export function TestDirectionsPane({
           className={`${BUTTON_GHOST} min-h-9 px-3`}
           data-testid={`lib-dir-copy-${selected.id}`}
           disabled={!canWrite || library.busy}
-          onClick={() => { void library.copy().then((ok) => { if (ok) onToast?.(t('library.copy')) }) }}
+          onClick={() => { void library.copy().then((ok) => { if (ok) onToast?.(t('common.done_copied')) }) }}
         >
           {t('library.direction_copy')}
         </button>
@@ -100,7 +100,7 @@ export function TestDirectionsPane({
               className={`${BUTTON_GHOST} min-h-9 px-3`}
               data-testid="lib-dir-save"
               disabled={!canWrite || library.busy}
-              onClick={() => { void library.save().then((ok) => { if (ok) onToast?.(t('library.direction_save')) }) }}
+              onClick={() => { void library.save().then((ok) => { if (ok) onToast?.(t('common.done_saved')) }) }}
             >
               {t('library.direction_save')}
             </button>
@@ -124,7 +124,7 @@ export function TestDirectionsPane({
           onCancel={() => setConfirmDelete(false)}
           onConfirm={() => {
             setConfirmDelete(false)
-            void library.remove().then((ok) => { if (ok) onToast?.(t('library.direction_delete')) })
+            void library.remove().then((ok) => { if (ok) onToast?.(t('common.done_deleted', { name: selected.id })) })
           }}
         />
       )}

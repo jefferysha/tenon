@@ -68,17 +68,18 @@ export function ProjectsView({
     const applied = await files.apply(text, previewFiles.map((file) => ({ id: file.id, base_digest: file.base_digest })))
     if (applied === null) return false
     loadedRef.current = text
-    onToast?.(t('projects.apply'))
+    onToast?.(t('common.done_applied'))
     return true
   }
 
   const onDelete = async (): Promise<void> => {
+    const removed: string[] = []
     for (const id of targetIds) {
       const target = targets.find((candidate) => candidate.id === id)
       if (target === undefined || !target.exists) continue
-      await files.remove(id, target.digest)
+      if (await files.remove(id, target.digest) !== null) removed.push(id)
     }
-    onToast?.(t('projects.delete'))
+    if (removed.length > 0) onToast?.(t('common.done_deleted', { name: removed.join(', ') }))
   }
 
   return (
@@ -187,7 +188,7 @@ export function ProjectsView({
           onCreated={(root) => {
             closeDialog()
             onSelectProject(root)
-            onToast?.(t('projects.new_project'))
+            onToast?.(t('projects.done_project_created', { name: root.split('/').filter(Boolean).pop() ?? root }))
           }}
         />
       )}

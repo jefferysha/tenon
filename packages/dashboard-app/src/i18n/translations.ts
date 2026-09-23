@@ -55,6 +55,7 @@ export const zh: Dict = {
   projects: {
     // 项目页（指令文件）与新建项目对话框；clear_filters 由工作台任务列表使用。
     clear_filters: '清除条件',
+    done_project_created: '已新建项目 {name}',
     rail: '项目',
     user_level: '用户级',
     project_level: '项目级',
@@ -155,6 +156,8 @@ export const zh: Dict = {
     save: '保存',
     delete: '删除',
     new: '新建模板',
+    done_template_created: '已新建模板 {name}',
+    done_agent_created: '已新建智能体 {name}',
     delete_title: '删除「{name}」',
     cancel: '取消',
     confirm: '确认',
@@ -276,6 +279,11 @@ export const zh: Dict = {
     unsaved_navigation_stay: '继续编辑',
     unsaved_navigation_leave: '丢弃并离开',
     user_missing: '未设置用户身份',
+    // 操作完成的提示气泡说结果，不重复按钮上的动作名。
+    done_saved: '已保存',
+    done_applied: '已应用',
+    done_copied: '已复制',
+    done_deleted: '已删除 {name}',
   },
   shell: {
     crumb_workspace: '工作空间',
@@ -2276,6 +2284,7 @@ export const en: Dict = {
   projects: {
     // Instruction files page and the new-project dialog; clear_filters is used by the workbench task list.
     clear_filters: 'Clear filters',
+    done_project_created: 'Created project {name}',
     rail: 'Projects',
     user_level: 'User level',
     project_level: 'Project level',
@@ -2376,6 +2385,8 @@ export const en: Dict = {
     save: 'Save',
     delete: 'Delete',
     new: 'New template',
+    done_template_created: 'Created template {name}',
+    done_agent_created: 'Created agent {name}',
     delete_title: 'Delete "{name}"',
     cancel: 'Cancel',
     confirm: 'Confirm',
@@ -2494,6 +2505,10 @@ export const en: Dict = {
     unsaved_navigation_stay: 'Keep editing',
     unsaved_navigation_leave: 'Discard and leave',
     user_missing: 'User identity not set',
+    done_saved: 'Saved',
+    done_applied: 'Applied',
+    done_copied: 'Copied',
+    done_deleted: 'Deleted {name}',
   },
   shell: {
     crumb_workspace: 'Workspace',
