@@ -6,7 +6,8 @@
  * 命令拒绝的写法，投影一条都不许发。
  */
 import { aliasesForSkill } from '@tenon/kernel'
-import type { GitFinishProbe } from '../gitWorkspace.js'
+import type { StepAction } from './statusStepAction.js'
+import { finishActions, type StepFinishFacts } from './statusStepFinish.js'
 import type { StepAgentView } from './statusStepAgents.js'
 import type { StepBlocker, StepExit } from './stepExitReport.js'
 import type {
@@ -27,22 +28,9 @@ export interface StepTestView {
 /** 交互模式：AFK 环境变量 → afk；本任务有交互授权 → continuous；否则 interactive。 */
 export type StepMode = 'interactive' | 'continuous' | 'afk'
 
-export interface StepAction {
-  readonly action: string
-  readonly [key: string]: unknown
-}
+export type { StepFinishFacts } from './statusStepFinish.js'
 
-export function stop(code: string, message: string): readonly StepAction[] {
-  return [{ action: 'stop', code, message }]
-}
-
-/** 完结时要问 git 的事实（只在 `runArchived` 时由投影层取）。 */
-export interface StepFinishFacts {
-  /** gitWorkspace.ts probeGitFinish；null = 不是 git 仓或 git 跑不起来。 */
-  readonly git: GitFinishProbe | null
-  /** 这次运行以验证通过收尾（verify_result=pass）；scope-expanded 之类的放弃出口不提交。 */
-  readonly verified: boolean
-}
+export { stop, type StepAction } from './statusStepAction.js'
 
 /** 一条未配置的必需测试（本步或下一步声明的）。 */
 export interface StepTestConfigGap {
@@ -183,57 +171,11 @@ function skillDocumentActions(
   return actions
 }
 
-/**
- * 完结之后的收尾：治理归档（OpenSpec 工作流）与一次提交。
- *
- * 提交是 `git add -A -- <paths…>`，`untrack` 非空时再 `git rm --cached -q --ignore-unmatch --
- * <untrack…>`，最后 `git commit -m <message>`；三条都必须一次成功（真机：原目录从未被 git 跟踪，
- * 搬走之后 `fatal: pathspec 'openspec/changes/<c>' did not match any files`，exit 128）。所以：
- *   · archive/ 目录在搬移后一定存在，恒列出；
- *   · 原目录只有被跟踪过才列出——`-A` 据索引项暂存删除；没被跟踪过就没有什么删除可提交；
- *   · 状态目录自己的 `.gitignore` 存在且没被忽略时一起列出，收尾后 `git status` 才干净；
- *   · 已被旧版本提交、如今按忽略规则应被忽略的终端心跳列进 `untrack`（`--ignore-unmatch` 让它在
- *     搬移之后不再存在时也不报错）。
- * 不是 git 仓（或 git 跑不起来）时不发提交（`commit: null`）：没有可以一次成功的写法。
- *
- * 非 OpenSpec 治理的工作流（内置 simple）没有归档命令，但以验证通过收尾时同样留下一整个工作区的
- * 改动（功能代码与任务状态文件）：`command: null`，只带提交 `paths: ['.']`；工作区已干净（已提交）、
- * 不是 git 仓或以放弃出口（scope-expanded）收尾时就停。
- */
-function finishActions(input: StepNextInput): readonly StepAction[] {
-  const change = input.change
-  const git = input.finish.git
-  if (!input.governedOpenspec) {
-    if (!input.finish.verified || git === null || (!git.workspaceDirty && git.untrack.length === 0)) {
-      return stop('run-archived', `任务 '${change}' 已完结`)
-    }
-    return [{
-      action: 'finish-change',
-      change,
-      command: null,
-      commit: { paths: ['.'], untrack: git.untrack, message: `chore(tenon): finish ${change}` },
-    }]
-  }
-  const command = `openspec archive ${change} --skip-specs --yes --json`
-  const commit = git === null
-    ? null
-    : {
-        paths: [
-          ...(git.changeDirTracked ? [`openspec/changes/${change}`] : []),
-          'openspec/changes/archive',
-          ...git.housekeeping,
-        ],
-        untrack: git.untrack,
-        message: `chore(openspec): archive ${change}`,
-      }
-  return [{ action: 'finish-change', change, command, commit }]
-}
-
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
 export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩收尾这一步，排在 load-tenon
   // 之前——终态自边的步骤访问不会再前进，补技能证据只会原地打转，而动作自带整条命令。
-  if (input.runArchived) return finishActions(input)
+  if (input.runArchived) return finishActions(input.change, input.governedOpenspec, input.finish)
   if (!input.loaded) return [{ action: 'load-tenon' }]
 
   // 只有 `unread` 是 `tenon document read` 能推进的状态。`stale` 的文档读不动——命令当场拒
