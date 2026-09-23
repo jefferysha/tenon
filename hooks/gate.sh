@@ -69,6 +69,10 @@ JSON_INPUT_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/json-input.sh"
 . "$JSON_INPUT_HELPER"
 json_get() { pipeline_json_get_string "$INPUT" "$1"; }
 json_command() { pipeline_json_get_command "$INPUT"; }
+# Allowlist checks (read-only commands, review control) only ever accept short commands.  Bounding
+# the decode keeps a huge heredoc from overrunning the host hook timeout, which a host treats as a
+# non-blocking error, i.e. an allow; an over-long command is simply not allowlisted (fail closed).
+json_command_short() { pipeline_json_get_command_bounded "$INPUT" 65536; }
 
 # Every host spells the working directory differently (flat `cwd`, Cursor `workspace_roots`,
 # Cline `workspaceRoots`, Amp `workspaceRoot`); normalise them all before falling back to $PWD.
@@ -340,7 +344,7 @@ pipeline_tool_is_read_only() { # $1=tool name
       return 0 ;;
   esac
   pipeline_json_is_command_tool "$tool" || return 1
-  command="$(json_command || true)"
+  command="$(json_command_short || true)"
   pipeline_command_is_strict_read_only "$command"
 }
 
@@ -363,7 +367,7 @@ for kind in confirm review interaction; do
       # Acknowledgement is the only state-writing action that may pass a pending v2 gate.  The
       # command itself validates exact Change/phase/pending state under the canonical lock, so
       # allowing this narrow control surface cannot open unrelated writes.
-      if is_review_control_command "$(json_command || true)"; then
+      if is_review_control_command "$(json_command_short || true)"; then
         continue
       fi
     fi
@@ -498,7 +502,8 @@ case "$TOOL" in
     [ "$sg_rc" -eq 2 ] && exit 2
     ;;
   *)
-    if pipeline_json_is_command_tool "$TOOL"; then
+    # Only a command naming a SKILL.md can be a skill read; skip decoding every other (possibly huge) one.
+    if pipeline_json_is_command_tool "$TOOL" && case "$INPUT" in *SKILL.md*) true ;; *) false ;; esac; then
       EVIDENCE_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/skill-evidence.sh"
       if [ -r "$EVIDENCE_HELPER" ]; then
         # shellcheck source=skill-evidence.sh

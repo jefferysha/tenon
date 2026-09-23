@@ -126,9 +126,18 @@ pipeline_codex_read_segment_path() {
 # Return all absolute final arguments of structurally supported Codex read commands.  This helper
 # intentionally knows nothing about plugin roots; callers below bind paths to trusted cache roots
 # before recording evidence, while gate.sh can also use it to detect a shadowed same-named skill.
+#
+# Every consumer keeps only `…/SKILL.md` paths, so a command without that literal cannot yield one;
+# returning early keeps a long heredoc (one segment and one subshell per line) off the hot path.  A
+# genuine skill read is a one-liner or a short `&&` batch, so a command above
+# PIPELINE_SKILL_READ_MAX_BYTES is not treated as a read either: scanning it line by line would
+# overrun the 5 s host hook timeout, and a cancelled hook records nothing anyway.
+PIPELINE_SKILL_READ_MAX_BYTES=16384
 pipeline_codex_read_paths() {
   local command="${1:-}" segment path found=1
   [ -n "$command" ] || return 1
+  case "$command" in *SKILL.md*) ;; *) return 1 ;; esac
+  [ "${#command}" -le "$PIPELINE_SKILL_READ_MAX_BYTES" ] || return 1
   while IFS= read -r segment; do
     path="$(pipeline_codex_read_segment_path "$segment" || true)"
     [ -n "$path" ] || continue

@@ -2103,7 +2103,7 @@ proj="$TMP/ptu-test-nudge"
 mkdir -p "$proj/.git" "$proj/openspec/changes/demo"
 printf 'track: backend\nphase: build\nworkflow: tested\n' > "$proj/openspec/changes/demo/.pipeline.yaml"
 set_active "$proj" demo
-printf '%s' '{"name":"tested","steps":[{"id":"build","tests":[{"id":"unit","direction":"unit","command":"npm test","cwd":".","timeout_s":900}]}]}' \
+printf '%s' '{"name":"tested","steps":[{"id":"build","label":"构建","gate":null,"tests":[{"id":"unit","direction":"unit","command":"npm test","cwd":".","timeout_s":900}],"transitions":[]}]}' \
   > "$proj/openspec/changes/demo/.pipeline-workflow-plan.json"
 
 OUT="$(printf '{"tool_name":"Bash","cwd":"%s","command":"npm test"}' "$proj" | bash "$TN" 2>/dev/null)"
@@ -2135,6 +2135,67 @@ clear_active "$proj"
 OUT="$(printf '{"tool_name":"Bash","cwd":"%s","command":"npm test"}' "$proj" | bash "$TN" 2>/dev/null)"
 assert_empty "test-nudge: 无活跃 change → 零输出" "$OUT"
 set_active "$proj" demo
+
+# 只认当前步骤 + 当前轨道声明的测试：冻结计划存整份工作流（全部轨道、全部步骤），
+# v0.1.1 真实会话里 free 轨道没声明测试，却被 frontend 轨道的 `npm test` 提醒去跑不存在的 unit。
+TN_TRACKS_PLAN='{"version":1,"run_id":"r","plan":{"version":4,"workflowId":"default","executionModel":"phase-manifest","workflow":{"name":"default","steps":[],"tracks":{"frontend":{"label":"前端","steps":[{"id":"build","label":"构建","gate":null,"prompt":"{\"id\":\"verify\",\"label\":\"x\"}","skills":[],"tests":[{"id":"unit","direction":"unit","command":"npm test","cwd":".","label":"Unit","timeout_s":900}],"transitions":[]},{"id":"verify","label":"验证","gate":"review","skills":[],"tests":[{"id":"e2e","direction":"e2e","command":"npx playwright test","cwd":".","timeout_s":900}],"transitions":[]}]},"free":{"label":"自由","steps":[{"id":"build","label":"构建","gate":null,"skills":[],"transitions":[]},{"id":"verify","label":"验证","gate":"review","skills":[],"transitions":[]}]}}}}}'
+printf '%s' "$TN_TRACKS_PLAN" > "$proj/openspec/changes/demo/.pipeline-workflow-plan.json"
+tn_state() { printf 'track: %s\nphase: %s\nworkflow: default\n' "$1" "$2" > "$proj/openspec/changes/demo/.pipeline.yaml"; }
+tn_run() { printf '{"tool_name":"Bash","cwd":"%s","command":"%s"}' "$proj" "$1" | bash "$TN" 2>/dev/null; }
+tn_state free build
+assert_empty "test-nudge: free 轨道未声明测试 → 别的轨道的 npm test 不提醒" "$(tn_run 'npm test')"
+tn_state frontend build
+assert_contains "test-nudge: frontend/build 声明的 npm test → 提醒 unit" "$(tn_run 'npm test')" 'tenon test run demo unit'
+assert_empty "test-nudge: frontend/build 不提醒 verify 步骤的 playwright" "$(tn_run 'npx playwright test')"
+tn_state frontend verify
+assert_contains "test-nudge: frontend/verify → 提醒 e2e" "$(tn_run 'npx playwright test')" 'tenon test run demo e2e'
+assert_empty "test-nudge: frontend/verify 不提醒 build 步骤的 npm test" "$(tn_run 'npm test')"
+tn_state '' build
+assert_contains "test-nudge: 未给 track → 取第一条分支（同 selectTrackBranchIr）" "$(tn_run 'npm test')" 'tenon test run demo unit'
+tn_state missing build
+assert_empty "test-nudge: 计划里没有当前轨道 → 零输出" "$(tn_run 'npm test')"
+tn_state frontend build
+assert_contains "test-nudge: 多空白/换行折叠后仍匹配" "$(tn_run 'npm   test\n')" 'tenon test run demo unit'
+
+# 超长 heredoc 命令：v0.1.1 真实会话里 4 个 PostToolUse:Bash hook 全部超时被取消。逐字符 JSON 解码与
+# 「循环替换双空格」都是平方级（40 KB 输入约 35 s）；hooks.json 限时 5 s，这里要求每个 hook 3 s 内完成。
+BIG_LINE='  echo \"写入 第 N 行    带   空格\" > /dev/null   # 注释 \\ 反斜杠\n'
+BIG_BODY="$BIG_LINE"
+for _ in 1 2 3 4 5 6 7 8 9 10 11; do BIG_BODY="$BIG_BODY$BIG_BODY"; done
+BIG_INPUT="{\"session_id\":\"s\",\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cat <<'EOF' > out.txt\\n${BIG_BODY}EOF\\nnpm   test\",\"description\":\"big\"},\"tool_response\":{\"stdout\":\"ok\",\"stderr\":\"\"}}"
+printf '%s' "$BIG_INPUT" > "$TMP/big-heredoc.json"
+ok "超长命令: 构造 $(wc -c < "$TMP/big-heredoc.json" | tr -d ' ') 字节的 PostToolUse 载荷"
+for hook in "$TN" "$ST" "$IG" "$TA" "$GATE"; do
+  big_start=$SECONDS
+  big_out="$(bash "$hook" < "$TMP/big-heredoc.json" 2>/dev/null)"
+  big_elapsed=$((SECONDS - big_start))
+  if [ "$big_elapsed" -le 3 ]; then ok "超长命令: $(basename "$hook") ${big_elapsed}s 内完成"; else bad "超长命令: $(basename "$hook") 3s 内完成" "耗时 ${big_elapsed}s"; fi
+  [ "$hook" = "$TN" ] && assert_empty "超长命令: 超过 64 KiB 的命令不做提醒（有界扫描）" "$big_out"
+done
+# 中等长度的 heredoc（几 KB、含转义）仍完整解码并识别末尾的声明命令。
+MID_BODY="$BIG_LINE"
+for _ in 1 2 3 4 5 6; do MID_BODY="$MID_BODY$MID_BODY"; done
+MID_OUT="$(printf '%s' "{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cat <<'EOF' > out.txt\\n${MID_BODY}EOF\\nnpm test\"}}" | bash "$TN" 2>/dev/null)"
+assert_contains "中等 heredoc: test-nudge 识别末尾的 npm test" "$MID_OUT" 'tenon test run demo unit'
+# 小命令 + 超大工具输出（PostToolUse 带完整 stdout）：旧解析器同样超时（1.3 MB 约 15 s）。
+BIG_OUTPUT_INPUT="{\"cwd\":\"$proj\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm test\"},\"tool_response\":{\"stdout\":\"${BIG_BODY}\",\"stderr\":\"\"}}"
+printf '%s' "$BIG_OUTPUT_INPUT" > "$TMP/big-output.json"
+for hook in "$TN" "$ST" "$TA" "$GATE"; do
+  big_start=$SECONDS
+  big_out="$(bash "$hook" < "$TMP/big-output.json" 2>/dev/null)"
+  big_elapsed=$((SECONDS - big_start))
+  if [ "$big_elapsed" -le 3 ]; then ok "超大输出: $(basename "$hook") ${big_elapsed}s 内完成"; else bad "超大输出: $(basename "$hook") 3s 内完成" "耗时 ${big_elapsed}s"; fi
+  [ "$hook" = "$TN" ] && assert_contains "超大输出: test-nudge 仍提醒 npm test" "$big_out" 'tenon test run demo unit'
+done
+# 交互门待处理时，超长命令既不能靠超时溜过（宿主把 hook 超时当非阻断错误），也不会被当成只读命令。
+touch "$proj/.pipeline-pending-interaction"
+big_start=$SECONDS
+bash "$GATE" < "$TMP/big-heredoc.json" >/dev/null 2>&1
+RC=$?
+big_elapsed=$((SECONDS - big_start))
+assert_exit "超长命令: pending interaction 下仍拦截（exit 2）" 2 "$RC"
+if [ "$big_elapsed" -le 3 ]; then ok "超长命令: pending 下 gate ${big_elapsed}s 内给出拦截"; else bad "超长命令: pending 下 gate 3s 内给出拦截" "耗时 ${big_elapsed}s"; fi
+rm -f "$proj/.pipeline-pending-interaction"
 
 # ── 10d3. gate.sh：测试记录与基线只能由 runner 写 ──
 ( printf '{"tool_name":"Write","cwd":"%s","file_path":"%s/.tenon/users/%s/tests/demo/20260915T101530Z-ab12cd.json"}' \
