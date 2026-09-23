@@ -363,3 +363,93 @@ if (compareStableVersions(version, target.version) > 0) throw new Error(`拒绝�
 if (compareReleaseOrder(version, target.version) > 0) throw new Error(`拒绝从${label} ${version} 降级到 ${target.version}`)
 if (isRetiredReleaseVersion(version) && !isRetiredReleaseVersion(target.version)) deps.io.out(`[update] ${label} ${version} 属于已退役的 1.x 版本线；迁移到 ${target.version}`)
 ```
+
+## Scenario: N-1 gate runs the previous release against current writes
+
+### 1. Scope / Trigger
+
+- An upgrade or rollback puts two release ages on one machine: the current process writes Change state and
+  `skills/skills.lock.json`, and the other release (the candidate's verifier, an older active runtime after rollback)
+  reads them. Two breaks went this way: a newer lock fetcher against an older verifier (`version '2' 不受支持（需要 1）`),
+  and the v0.1.0 lock parser rejecting any added entry key because it checks exact keys.
+- Trigger: any change to canonical Change state, the skill-lock codec, the fetcher or the verifier; any release.
+
+### 2. Signatures
+
+```jsonc
+// tools/fixtures/n-minus-one-release.json — pinned to the published v0.1.0
+{ "schemaVersion": 3, "status": "pinned", "tag": "v0.1.0", "pluginVersion": "0.1.0",
+  "gitCommit": "7561efe06021c7c3d5216caa4ec7cb21ff1b50b3", "cliEntry": "packages/cli/dist/tenon.mjs",
+  "cliSha256": "c40308e5096f38170151f17f4914beadd2cdc598fab0de5348a8f51e4a3e933f",
+  "payloadEntries": [ /* v0.1.0 PAYLOAD_ENTRIES, 13 entries */ ] }
+```
+
+```bash
+bash tools/prepare-n-minus-one-release.sh <out>     # git archive <gitCommit> -- payloadEntries; checks tag, digest, manifests
+TENON_N_MINUS_ONE_PAYLOAD=<out>/payload bash tools/test-bundle.sh   # CI; without it test-bundle prepares into $TMP
+tenon internal-skill-upstream fetch --root <root>    # the lock writer (both releases)
+tenon internal-skill-provenance verify --root <root> # the lock verifier (both releases)
+```
+
+### 3. Contracts
+
+- Section 5 of `test-bundle.sh` runs the CLI bytes pinned by `cliSha256`, never a machine cache. It checks:
+  1. N-1 `init` + `status`; N-1 `set`; current `get` of it; current `set` after it (current reads N-1).
+  2. N-1 `get phase` / `status --json` on `t8-smoke`, which the current CLI created and moved to `explore`; N-1
+     `set` on it; current `get` of that value (N-1 reads current).
+  3. Lock, current → N-1: current `fetch` into a copy of the N-1 payload's `templates` + `skills`; N-1 `verify` exits 0.
+  4. Lock, N-1 → current: N-1 `fetch` into the current `templates` + tracked `skills/*`; current `verify` exits 0.
+- Lock checks replace `skills/sources.yaml` with one fixture row (`n1-probe`, MIT). Upstream is a local git repo
+  reached through `GIT_CONFIG_COUNT` `url.file://<hub>/.insteadOf=https://github.com/` with an isolated `HOME`,
+  `GIT_CONFIG_NOSYSTEM=1`: no network, no real git config.
+- Section 4 exports `TENON_RUNTIME_HOME=$TMP/.tenon-runtime-home` for every current and N-1 call.
+- One identity (`TENON_USER`) for both CLIs; 0.x `init` has no `--user`. With two identities the owner guard refuses,
+  which is ownership, not compatibility.
+- The skill lock writer emits exactly the v1 eight entry keys; see `LOCK_ENTRY_KEYS_V1` in
+  `packages/kernel/src/skills/upstream-sources.ts`. A new field needs a reader that has shipped as N-1 first.
+- CI and the release candidate treat only prepare exit 78 as a skip, and 78 exists only for `status: none` naming
+  the current version. After each stable release, re-pin the fixture to it before the next candidate; the prepare
+  script fails when the pin is older than the latest non-retired tag below `package.json`'s version.
+- Pinned equal to the current version (main before the version bump) is accepted: `latest` starts from the pin.
+
+### 4. Validation & Error Matrix
+
+| Condition | Result |
+| --- | --- |
+| Current lock writer adds an entry key | `FAIL - bundle: 当前 writer 的 skills.lock.json 被 N-1 verifier（v0.1.0）接受`, detail `[invalid-skill-lock] … skills[0] 字段须为 id / repo / path / commit / tree_sha256 / license / fetched_at / previous_commit` |
+| Current lock writer writes `version: 2` | same row, `version '2' 不受支持（需要 1）` |
+| Current verifier stops accepting a v1 lock | `FAIL - bundle: N-1 writer（…）的 skills.lock.json 被当前 verifier 接受` |
+| Current canonical state gains a key the N-1 reader rejects | `FAIL - bundle: N-1 CLI（…）读取当前 runtime 写入的 Change` |
+| Fixture pinned but tag missing or moved | `FAIL - bundle: 固定公开 N-1 payload 可准备` / `N-1 tag 未绑定固定 commit` |
+| Only `TENON_N_MINUS_ONE_CLI` set, not at `<payload>/<cliEntry>` | `FAIL - bundle: N-1 payload 可做 skill lock 验证根` |
+
+### 5. Good / Base / Bad Cases
+
+- Good: main at 0.1.0 or 0.1.1 with the v0.1.0 pin: 38 passed, including all eight N-1 rows.
+- Base: v0.1.1 ships; the v0.1.2 candidate fails until the fixture is pinned to v0.1.1 with its commit and digest.
+- Bad: switching back to `status: none` to get a release out; prepare exits 1 because `release` ≠ current.
+
+### 6. Tests Required
+
+- `bash tools/test-bundle.sh` (local, prepares the payload itself) and the CI form with `TENON_N_MINUS_ONE_PAYLOAD`.
+- `tools/check-release-workflows.node-test.mjs`: the exit-78 acceptance in both workflows, the prepare-script
+  fixtures, and a static check that `test-bundle.sh` keeps both lock orders, the N-1-reads-current rows and no
+  `init --user`.
+- Teeth, when changing this gate: make `serializeUpstreamSkillLock` emit one extra key, rebuild
+  (`npx tsc -b packages/kernel && npm run bundle`), confirm row 3 goes red, then restore and rebuild.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```bash
+# Current reads N-1 only; a lock the old verifier rejects ships unnoticed.
+node "$N_MINUS_CLI" init n1-created … && node "$BUNDLE" get n1-created scope
+```
+
+#### Correct
+
+```bash
+lock_write="$(lock_cli "$writer" internal-skill-upstream fetch --root "$lock_root")"
+lock_read="$(lock_cli "$reader" internal-skill-provenance verify --root "$lock_root")"   # both orders
+```

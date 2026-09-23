@@ -156,12 +156,16 @@ npm run check:default-workflow-freshness
 canonical Change。CI 另外读取 `tools/fixtures/n-minus-one-release.json`（`schemaVersion: 3`）：
 `status: "pinned"` 时按固定 tag、commit 和 payload 闭集，通过 `tools/prepare-n-minus-one-release.sh`
 重建完整上一发行版（CLI、templates、skills、hooks、adapters、server/SPA 与 bootstrap），校验 CLI
-digest 后从该真实 payload 路径运行读取。当前版本不属于已退役的 1.0.0–1.1.5 版本线时，固定基线不得是
+digest 后从该真实 payload 路径双向运行：N-1 CLI 创建并写入的 Change 由当前 CLI 读取和继续写入；
+当前 CLI 创建并推进的 Change 由 N-1 CLI 读取和继续写入；`skills/skills.lock.json` 按两个顺序验证——
+当前 `internal-skill-upstream fetch` 写的锁必须被 N-1 `internal-skill-provenance verify` 接受，
+N-1 写的锁必须被当前 verifier 接受（上游仓库是本地 git fixture，不联网）。当前版本不属于已退役的 1.0.0–1.1.5 版本线时，固定基线不得是
 退役版本，并且必须是 checkout 中低于当前版本的最近非退役正式 tag，否则脚本失败。
 `status: "none"` 只用于版本号重置后的首个发行版 v0.1.0：fixture 的 `release` 必须等于
 `v<package.json version>`，脚本以退出码 78 输出 `N-1 skipped: <release> <reason>`；CI 与 release
 candidate 只把 78 当作已声明的跳过，`test-bundle.sh` 打印 `[HONEST SKIP] bundle: 真实 N-1 兼容：<reason>`
-（不计通过也不计失败）。`release` 与当前版本不同时脚本失败；从 v0.1.1 起 fixture 固定 v0.1.0。
+（不计通过也不计失败）。`release` 与当前版本不同时脚本失败。v0.1.0 已发布，fixture 现固定
+`v0.1.0`（commit `7561efe0`）；每发布一个新正式版本，下一版的候选发布前必须把 fixture 改固定到它。
 开发机存在 managed `previousRelease` 时可再交叉验证，但不能代替 CI 的完整固定 payload。
 
 `release.yml` 以 `gh release create --latest` 创建 Release：`tenon update` 与公开安装验收都解析
