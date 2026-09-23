@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { GripVertical, Plus, Search } from 'lucide-react'
 import type { AgentSummary } from '../api/agentClient'
 import type { WbAgentSeverity, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepTest } from '../api/governanceTypes'
@@ -37,13 +37,18 @@ export function AgentComposer({
   const [selected, setSelected] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [dragging, setDragging] = useState<string | null>(null)
+  // 草稿只在打开（或切换角色）的那一刻取自 props。父组件每次重渲染都会传来新的数组引用，
+  // 若把 executors / reviewers 放进依赖，编辑中的草稿会被反复清空：加上的评审者存不下来，「+」也像点不动。
+  const initial = useRef({ executors, reviewers })
+  initial.current = { executors, reviewers }
   useEffect(() => {
     if (!open) return
-    const refs = reviewing ? reviewers : executors
+    const current = initial.current
+    const refs = reviewing ? current.reviewers : current.executors
     setDraft(refsToSkills(refs))
-    setSettings([...reviewers])
+    setSettings([...current.reviewers])
     setSelected(refs[0]?.agent ?? null)
-  }, [open, reviewing, executors, reviewers])
+  }, [open, reviewing])
   const registry = useMemo(() => agentEntries(agents), [agents])
   const placed = useMemo(() => new Set(draft.map((ref) => ref.id)), [draft])
   const listed = useMemo(() => (agents ?? [])

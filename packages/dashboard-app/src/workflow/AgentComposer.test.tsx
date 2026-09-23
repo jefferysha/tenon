@@ -38,6 +38,48 @@ function renderComposer(
 }
 
 describe('AgentComposer', () => {
+  // 回归：StageEditorPane 每次重渲染都传 `?? []` 的新数组，草稿随之被清空，加上的评审者存不进 YAML。
+  it('打开后父组件重渲染（传入新的空数组）不清空草稿，保存收到新增的评审者', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    const element = (): JSX.Element => (
+      <I18nProvider>
+        <AgentComposer
+          open
+          role="reviewers"
+          stageLabel="实现"
+          executors={[]}
+          reviewers={[]}
+          tests={TESTS}
+          agents={AGENTS}
+          onClose={() => undefined}
+          onSave={onSave}
+        />
+      </I18nProvider>
+    )
+    const view = render(element())
+    await user.click(screen.getByTestId('palette-agent-add-security'))
+    expect(screen.getByTestId('flow-node-security')).toBeInTheDocument()
+    view.rerender(element())
+    expect(screen.getByTestId('flow-node-security')).toBeInTheDocument()
+    await user.click(screen.getByTestId('palette-agent-add-builder'))
+    view.rerender(element())
+    await user.click(screen.getByTestId('agent-composer-save'))
+    expect(onSave).toHaveBeenCalledWith({
+      reviewers: [
+        { agent: 'security', required: true, block_at: 'high' },
+        { agent: 'builder', required: true, block_at: 'high', depends_on: ['security'] },
+      ],
+    })
+  })
+
+  it('重新打开时按当时的 props 初始化草稿', () => {
+    const props = { role: 'reviewers' as const, stageLabel: '实现', executors: [], tests: TESTS, agents: AGENTS, onClose: () => undefined, onSave: vi.fn() }
+    const view = render(<I18nProvider><AgentComposer {...props} open={false} reviewers={[]} /></I18nProvider>)
+    view.rerender(<I18nProvider><AgentComposer {...props} open reviewers={[{ agent: 'security', required: true, block_at: 'high' }]} /></I18nProvider>)
+    expect(screen.getByTestId('flow-node-security')).toBeInTheDocument()
+  })
+
   it('「+」把 agent 加进画布；执行者保存只写 agent 与 depends_on', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
