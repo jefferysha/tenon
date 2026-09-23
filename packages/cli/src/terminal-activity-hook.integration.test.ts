@@ -95,4 +95,48 @@ describe('真实 e2e —— terminal-activity host hook', () => {
     expect(breadcrumb.stdout).toContain('FRONTEND_BREADCRUMB')
     expect(breadcrumb.stdout).not.toContain('RESEARCH_BREADCRUMB')
   })
+
+  test('router 的激活指引带上本会话 host session id', async () => {
+    const routed = runHook('router.sh', {
+      prompt: '帮我实现一个响应式 React 页面', cwd: h.cwd, session_id: SESSION_ID,
+    }, { TENON_ROUTER_CACHE: join(h.cwd, '.router-cache') })
+    expect(routed.code, routed.stderr).toBe(0)
+    expect(routed.stdout).toContain(`tenon session activate <change> --host-session ${SESSION_ID}`)
+  })
+
+  test('「确认继续」回应本用户已请求的评审时是续轮，即使会话从未绑定', async () => {
+    // v0.1.1 acceptance: the entry skill activated without --host-session, so the second turn's
+    // 「确认继续」 was routed as an independent new task.
+    expect(await h.run(['init', 'demo', '--track', 'backend', '--preset', 'full'])).toBe(0)
+    expect(await h.run(['session', 'activate', 'demo'])).toBe(0)
+    await h.seedGovernedDocumentEvidence('demo')
+    expect(await h.run(['transition', 'demo', 'open-complete'])).toBe(0)
+    await h.seedArtifact('demo', 'design_doc', 'openspec/changes/demo/design.md')
+    expect(await h.run(['check', 'demo'])).toBe(0)
+    const env = { TENON_ROUTER_CACHE: join(h.cwd, '.router-cache') }
+    const confirm = { prompt: '确认继续，按你的推荐实现响应式 React 页面', cwd: h.cwd, session_id: SESSION_ID }
+
+    // No review requested: an unbound conversation is not resumed through the repo pointer.
+    const before = runHook('router.sh', confirm, env)
+    expect(before.code, before.stderr).toBe(0)
+    expect(before.stdout).toContain('intent: new')
+
+    expect(await h.run(['review', 'request', 'demo', '--event', 'explore-complete'])).toBe(0)
+    const pending = runHook('router.sh', confirm, env)
+    expect(pending.code, pending.stderr).toBe(0)
+    expect(pending.stdout).toContain('intent: resume')
+    expect(pending.stdout).toContain('change: demo')
+    expect(pending.stdout).not.toContain('独立新任务')
+
+    // confirm-clear-prompt may acknowledge (and drop the marker) before the router reads it; the
+    // acknowledged receipt still marks the same continuation.
+    expect(await h.run(['review', 'acknowledge', 'demo'])).toBe(0)
+    const acknowledged = runHook('router.sh', confirm, env)
+    expect(acknowledged.stdout).toContain('intent: resume')
+    expect(acknowledged.stdout).toContain('change: demo')
+
+    // A request for new work is never folded into the pending review.
+    const fresh = runHook('router.sh', { ...confirm, prompt: '确认继续，新建一个任务实现响应式 React 页面' }, env)
+    expect(fresh.stdout).toContain('intent: new')
+  })
 })

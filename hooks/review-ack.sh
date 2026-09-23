@@ -36,6 +36,37 @@ pipeline_review_marker_is_v2() { # $1=marker path
   [ "$first" = "$TENON_REVIEW_MARKER_PROTOCOL" ]
 }
 
+# Is a review receipt open (requested, or acknowledged but not yet consumed by a transition) on
+# this Change's current phase?  Either signal is enough: the v2 root marker naming the Change, or
+# the review fields of its `.pipeline.yaml` projection bound to the canonical phase given in $2.
+# The marker alone is not enough because confirm-clear-prompt may acknowledge the review (and
+# remove the marker) concurrently with the router on the very prompt that says 「确认继续」.
+# Read-only routing hint; never a gate decision.
+pipeline_review_receipt_open() { # $1=project root $2=change name $3=canonical phase of that change
+  local root="${1:-}" change="${2:-}" phase="${3:-}" yaml line key value gate_phase='' gate_status=''
+  case "$change" in ''|*[!A-Za-z0-9_-]*) return 1 ;; esac
+  [ "$(pipeline_review_marker_change "$root/.pipeline-pending-review" 2>/dev/null || true)" = "$change" ] && return 0
+  [ -n "$phase" ] || return 1
+  yaml="$root/openspec/changes/$change/.pipeline.yaml"
+  [ -f "$yaml" ] && [ ! -L "$yaml" ] && [ -r "$yaml" ] || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      'review_gate_phase: '*|'review_gate_status: '*) ;;
+      *) continue ;;
+    esac
+    key="${line%%: *}"
+    value="${line#*: }"
+    case "$value" in '"'*'"') value="${value#\"}"; value="${value%\"}" ;; "'"*"'") value="${value#\'}"; value="${value%\'}" ;; esac
+    case "$key" in
+      review_gate_phase) gate_phase="$value" ;;
+      review_gate_status) gate_status="$value" ;;
+    esac
+  done < "$yaml"
+  [ "$gate_phase" = "$phase" ] || return 1
+  case "$gate_status" in pending|approved) return 0 ;; esac
+  return 1
+}
+
 # The active pointer is an explicit per-session selection, never an mtime heuristic.  Resolve it
 # before treating a root-level marker as relevant; an old Change must not lock an unrelated chat.
 pipeline_review_active_change_name() { # $1=verified project root $2=hook directory

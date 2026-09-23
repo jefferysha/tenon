@@ -179,6 +179,17 @@ DISPATCH_INTENT="new"
 if [ -r "$INTENT_HELPER" ]; then
   # shellcheck source=prompt-intent.sh
   . "$INTENT_HELPER"
+  REVIEW_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/review-ack.sh"
+  # shellcheck source=review-ack.sh
+  [ -r "$REVIEW_HELPER" ] && . "$REVIEW_HELPER"
+  router_confirms_open_review() { # $1=change $2=canonical phase → 0=prompt approves its open review
+    local intent
+    declare -F pipeline_review_receipt_open >/dev/null 2>&1 || return 1
+    pipeline_prompt_rejects_resume "$PROMPT" && return 1
+    intent="$(pipeline_prompt_approval_intent "$PROMPT" 2>/dev/null || true)"
+    case "$intent" in confirm|contextual-confirm) ;; *) return 1 ;; esac
+    pipeline_review_receipt_open "$PROOT" "$1" "$2"
+  }
   SESSION_BINDING_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/host-session-binding.sh"
   if [ -n "$HOST_SESSION_ID" ] && [ -r "$SESSION_BINDING_HELPER" ]; then
     # shellcheck source=host-session-binding.sh
@@ -235,6 +246,12 @@ if [ -r "$INTENT_HELPER" ]; then
     CHANGE_PHASE="$SESSION_CHANGE_PHASE"
     CHANGE_TRACK="$SESSION_CHANGE_TRACK"
     CHANGE_WORKFLOW="$SESSION_CHANGE_WORKFLOW"
+    DISPATCH_INTENT="resume"
+  elif [ -n "$CHANGE_NAME" ] && router_confirms_open_review "$CHANGE_NAME" "$CHANGE_PHASE"; then
+    # 「确认继续」 answering this user's own review request is a continuation, not a new objective,
+    # even when the host session was never bound (an entry skill that activated without
+    # --host-session).  confirm-clear-prompt acknowledges the same receipt through the same
+    # per-user pointer, so both hooks agree on which Change the confirmation belongs to.
     DISPATCH_INTENT="resume"
   elif [ -z "$HOST_SESSION_ID" ] && [ -n "$CHANGE_NAME" ] \
     && pipeline_prompt_requests_resume "$PROMPT" "$CHANGE_NAME"; then
@@ -752,6 +769,10 @@ elif [ "$NON_DEFAULT_WORKFLOW_DISPATCH" = "1" ]; then
   else
     TAIL="$TAIL 当前 Change 绑定自定义 workflow '${CHANGE_WORKFLOW}'：此路由器不会用 default 的 breadcrumb 或 skill 矩阵伪造该阶段要求；必须先调用 tenon，由它以 canonical state 与项目 workflow 图解析本阶段的真实 DAG、OpenSpec 约束和依赖顺序后再分派。"
   fi
+fi
+if [ -n "$HOST_SESSION_ID" ] && [ "$CONTINUOUS_EXECUTION" != 'true' ]; then
+  # Only a host-session binding lets the next turn's 「继续」 find this conversation's Change.
+  TAIL="$TAIL 激活 Change 时必须带本会话 id：tenon session activate <change> --host-session ${HOST_SESSION_ID}；不带它，下一轮的「继续/确认继续」认不出本会话的任务。"
 fi
 if [ "$CONTINUOUS_EXECUTION" = 'true' ]; then
   if [ -n "$HOST_SESSION_ID" ]; then

@@ -47,7 +47,9 @@ text(result);
    → 要用户给出**一对**确切的候选（名字 + 工作流），然后结束回合；`intent: resume` → 只接手
    点名的那个任务。没有 dispatch 的手动 `/tenon`：`tenon list --json`，多于一个就问。
 3. 新建：`tenon init <c> --workflow <w> --track <t> --preset full`（用户可以点别的 preset）；
-   随后 `tenon session activate <c> [--host-session <id>] [--continuous]`。恢复只跑 activate。
+   随后 `tenon session activate <c> --host-session <host_session_id> [--continuous]`。恢复只跑同一条
+   activate。`<host_session_id>` 取 dispatch 里的 `host_session_id`；dispatch 带了它就必须传，
+   否则下一轮的「确认继续」认不出本会话的任务，会被当成新任务。dispatch 没有它时才省略该参数。
 4. 用 `tenon workflow plan <c> --json` 的步骤标签建 Todo，当前项取 `current_step`。
 5. 进入循环。
 

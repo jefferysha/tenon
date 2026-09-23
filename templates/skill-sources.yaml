@@ -4,4 +4,4 @@ version: 3
 hash_algorithm: tree-sha256-v1
 
 skills:
-  tenon: { tool: bundled, source: tenon, content_skill: tenon, tier: mandatory, official: true, source_kind: bundled, source_ref: skills/tenon, content_hash: sha256:3931a549e77c4f27305064a26a067843141807516ab30a8cf75516995eac4cd3, coordinate: tenon:skills/tenon@sha256:3931a549e77c4f27305064a26a067843141807516ab30a8cf75516995eac4cd3 }
+  tenon: { tool: bundled, source: tenon, content_skill: tenon, tier: mandatory, official: true, source_kind: bundled, source_ref: skills/tenon, content_hash: sha256:2acab9fbdb708cf717cfdb82214d7f7633777a8f0602e6b69fa7560201d0a0e8, coordinate: tenon:skills/tenon@sha256:2acab9fbdb708cf717cfdb82214d7f7633777a8f0602e6b69fa7560201d0a0e8 }
