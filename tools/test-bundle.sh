@@ -7,9 +7,8 @@
 #   4. 端到端上手路径：临时目录 init → .pipeline.yaml 落盘 → get phase = open
 #      → 登记随 init 生成的 OpenSpec proposal/design/tasks 的真实 skill 证据
 #      → transition open-complete → get phase = explore → history JSONL 有 init+transition
-#   5. 冻结 N-1 reader 保持旧写入协议；fixture 固定的真实上一正式版本创建 V1/V2 state，再由当前 CLI
-#      读取和继续 mutation（fixture status=none 时只报告 [HONEST SKIP]）。兼容方向是 current reads N-1，
-#      不要求 immutable N-1 理解未来 V3。
+#   5. 冻结 N-1 reader 保持旧写入协议；fixture 固定的真实上一正式版本创建 state，再由当前 CLI
+#      读取和继续 mutation（fixture status=none 时只报告 [HONEST SKIP]）。
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUNDLE="$ROOT/packages/cli/dist/tenon.mjs"
@@ -104,6 +103,8 @@ if [ -f "$BUNDLE" ]; then
   # 声明身份对每一次 bundle 调用都必需（写操作要求身份）；CI runner 没有 git 身份，逐条注入会漏。
   export TENON_USER=smoke@tenon.test
   export TENON_USER_NAME=smoke
+  # 每一次 bundle 调用（当前与 N-1）都落在临时 runtime home，绝不读写本机真实 Tenon state。
+  export TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home"
   ( cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" node "$BUNDLE" init t8-smoke --track backend --preset full ) 2>/dev/null
   [ -f "$TMP/openspec/changes/t8-smoke/.pipeline.yaml" ] \
     && ok "bundle: init 落盘 .pipeline.yaml" || bad "bundle: init 落盘 .pipeline.yaml" "文件缺失"
@@ -257,8 +258,9 @@ if [ -f "$BUNDLE" ]; then
     elif [ -n "$N_MINUS_CLI" ] && [ -f "$N_MINUS_CLI" ]; then
       n_minus_release="${TENON_N_MINUS_ONE_RELEASE:-$n_minus_tag}"
       n_minus_change="n1-created"
-      n_minus_init="$(cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" \
-        node "$N_MINUS_CLI" init "$n_minus_change" --track backend --preset full --user n1-smoke 2>&1)"
+      # 0.x 的 init 没有 --user；身份走上面导出的 TENON_USER。同一身份让当前 runtime 能接续写，
+      # 否则 owner guard 会先拒（那是所有权语义，不是跨版本兼容）。
+      n_minus_init="$(cd "$TMP" && node "$N_MINUS_CLI" init "$n_minus_change" --track backend --preset full 2>&1)"
       n_minus_init_code="$?"
       n_minus_real="$(cd "$TMP" && node "$N_MINUS_CLI" status "$n_minus_change" --json 2>&1)"
       n_minus_status_code="$?"
