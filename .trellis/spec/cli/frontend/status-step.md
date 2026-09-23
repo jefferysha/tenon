@@ -62,10 +62,13 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   pm `prototype`；hotfix / tweak：`direct`）。
 - `pr_url` 只接受 http(s) URL，或仓库没有 git 远端时的 `no-remote`（此时它就是 `recommended`）。
 - `finish-change` 带 `command`（OpenSpec 治理的工作流是 `openspec archive <c> --skip-specs --yes --json`；
-  非治理工作流为 `null`）与 `commit: { paths, message } | null`。paths 必须让
-  `git add -A -- <paths…>` 一次成功：OpenSpec 工作流恒列 `openspec/changes/archive`，原目录
+  非治理工作流为 `null`）与 `commit: { paths, untrack, message } | null`。执行顺序
+  `git add -A -- <paths…>` → `untrack` 非空时 `git rm --cached -q --ignore-unmatch -- <untrack…>` →
+  `git commit -m <message>`，每条都必须一次成功：OpenSpec 工作流恒列 `openspec/changes/archive`，原目录
   `openspec/changes/<c>` 只在 git 跟踪过它时列出（未跟踪的原目录搬走后 pathspec 匹配不到，exit 128）；
-  非治理工作流以验证通过（`verify_result=pass`）完结且工作区有未提交改动时是 `paths: ['.']`、
+  `.pipeline/.gitignore`、`.tenon/.gitignore`、`openspec/.gitignore` 存在且未被上层规则忽略时一并列出；
+  `untrack` = `openspec/changes/**` 下已跟踪、但按当前忽略规则应被忽略的 `.pipeline-terminal-activity.*`；
+  非治理工作流以验证通过（`verify_result=pass`）完结且工作区有未提交改动（或有待 untrack 的心跳）时是 `paths: ['.']`、
   `message: chore(tenon): finish <c>`，否则 `stop run-archived`。不是 git 仓时 `commit: null`。
 - 终态自边由 kernel 推导（`implicitCompletionTransition`），`default` 的 `archive` 也在内：它
   投影成 `direction: completion` 的出口，`next` 给 `complete`。走完之后 `archived=true`，

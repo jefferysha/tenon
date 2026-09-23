@@ -42,7 +42,7 @@ import { createManifestSkillActionAuthorityResolver } from './skill-action-autho
 import { makeDoctorProbes } from './commands/doctor-probes.js'
 import { exitQuietlyOnEpipe } from './stdio-epipe.js'
 import { gitRemoteNames } from './gitRemotes.js'
-import { gitTracksPath, gitWorkspaceDirty } from './gitWorkspace.js'
+import { probeGitFinish } from './gitWorkspace.js'
 
 /** ISO8601 UTC 秒级（对齐老内核 date -u +%Y-%m-%dT%H:%M:%SZ 口径） */
 function isoNow(): string {
@@ -283,8 +283,7 @@ async function main(): Promise<void> {
     },
     gitHeadSha: () => gitHeadSha(process.cwd()),
     gitRemotes: () => gitRemoteNames(process.cwd()),
-    gitTracksPath: (rel) => gitTracksPath(process.cwd(), rel),
-    gitWorkspaceDirty: () => gitWorkspaceDirty(process.cwd()),
+    gitFinishProbe: (change) => probeGitFinish(process.cwd(), change),
     workspaceFingerprint: () => fingerprintWorkspace(process.cwd()),
     captureBuildRevision: async (isolation) => {
       const identity = await probeBuildRevisionIdentity(process.cwd())

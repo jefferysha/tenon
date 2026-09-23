@@ -90,10 +90,20 @@ function git(args: readonly string[]): { readonly status: number | null; readonl
   return { status: result.status, output: `${result.stdout}${result.stderr}` }
 }
 
-/** 完结动作的提交：照动作给的 paths 与 message 原样执行，两条命令都必须一次成功。 */
-function commitAsInstructed(commit: { readonly paths: readonly string[]; readonly message: string }): void {
+interface FinishCommit {
+  readonly paths: readonly string[]
+  readonly untrack: readonly string[]
+  readonly message: string
+}
+
+/** 完结动作的提交：照动作给的 paths / untrack / message 原样执行，每条命令都必须一次成功。 */
+function commitAsInstructed(commit: FinishCommit): void {
   const add = git(['add', '-A', '--', ...commit.paths])
   expect(add.status, `git add -A -- ${commit.paths.join(' ')}\n${add.output}`).toBe(0)
+  if (commit.untrack.length > 0) {
+    const untrack = git(['rm', '--cached', '-q', '--ignore-unmatch', '--', ...commit.untrack])
+    expect(untrack.status, untrack.output).toBe(0)
+  }
   const done = git(['commit', '-q', '-m', commit.message])
   expect(done.status, `git commit\n${done.output}`).toBe(0)
 }
@@ -274,9 +284,12 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
     // 再照动作给的 paths 提交这次搬移——change 目录从未被 git 跟踪，paths 不能点名它（搬走之后
     // `git add` 会以 pathspec did not match 整条失败）。
     case 'finish-change': {
-      const commit = action.commit as { paths: readonly string[]; message: string }
+      const commit = action.commit as FinishCommit
+      // archive/ 恒在最前；原目录没被跟踪过，不列；其后是存在且未被忽略的状态目录 .gitignore。
       expect(commit).toEqual({
-        paths: ['openspec/changes/archive'],
+        paths: ['openspec/changes/archive', ...['.pipeline/.gitignore', '.tenon/.gitignore', 'openspec/.gitignore']
+          .filter((path) => existsSync(join(h.cwd, path)))],
+        untrack: [],
         message: `chore(openspec): archive ${CHANGE}`,
       })
       const [bin, ...args] = String(action.command).split(' ')
@@ -287,7 +300,8 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       })
       expect(existsSync(changeDir()), 'openspec archive 必须真的把 change 目录搬走').toBe(false)
       commitAsInstructed(commit)
-      expect(git(['status', '--porcelain', '--', 'openspec/changes']).output).toBe('')
+      // 收尾负责的面：搬移与状态目录的 .gitignore（主规格、测试记录等由 ship 的提交负责，运行器不替它做）。
+      expect(git(['status', '--porcelain', '--', 'openspec/changes', ...commit.paths.slice(1)]).output).toBe('')
       return true
     }
     default:
@@ -565,9 +579,9 @@ describe('照着 next 做事的运行器：simple 工作流', () => {
               action: 'finish-change',
               change: SIMPLE,
               command: null,
-              commit: { paths: ['.'], message: `chore(tenon): finish ${SIMPLE}` },
+              commit: { paths: ['.'], untrack: [], message: `chore(tenon): finish ${SIMPLE}` },
             })
-            commitAsInstructed(action.commit as { paths: readonly string[]; message: string })
+            commitAsInstructed(action.commit as FinishCommit)
             break
           default:
             throw new Error(`runner(simple): next 给了执行不了的动作 ${JSON.stringify(action)}`)

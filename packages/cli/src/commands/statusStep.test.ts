@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { stepNextActions, type StepNextInput } from './statusStep.js'
 import type { StepFieldView } from './statusStepParts.js'
+import type { GitFinishProbe } from '../gitWorkspace.js'
+
+/** 一个 git 仓里完结时的事实：原目录未跟踪、工作区有改动、没有状态目录 .gitignore 与心跳要处理。 */
+function probe(over: Partial<GitFinishProbe> = {}): GitFinishProbe {
+  return { changeDirTracked: false, workspaceDirty: true, housekeeping: [], untrack: [], ...over }
+}
 
 function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
   return {
@@ -23,7 +29,7 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     ownsDeltaSpec: false,
     ownsAppliedSpec: false,
     artifactProducers: [],
-    finish: { changeDirTracked: false, workspaceDirty: true, verified: true },
+    finish: { git: probe(), verified: true },
     testConfigGaps: [],
     ...overrides,
   }
@@ -556,6 +562,7 @@ describe('step.next 顺序', () => {
       // 搬移留下的新目录要跟一次提交，否则 ship 之后工作区是脏的。
       commit: {
         paths: ['openspec/changes/archive'],
+        untrack: [],
         message: 'chore(openspec): archive demo',
       },
     }])
@@ -564,47 +571,51 @@ describe('step.next 顺序', () => {
   /**
    * 真机（第二轮）：原目录从未被 git 跟踪，搬走之后 `git add -A -- openspec/changes/<c> …` 报
    * `fatal: pathspec … did not match any files`（exit 128）。原目录只有被跟踪过才列出（-A 据索引项
-   * 暂存删除）；archive/ 搬移后一定存在，恒列出。
+   * 暂存删除）；archive/ 搬移后一定存在，恒列出；状态目录的 .gitignore 存在且没被忽略时一起提交；
+   * 已跟踪、如今被忽略的终端心跳进 untrack。
    */
   test('finish-change 的提交路径：原目录只在被 git 跟踪过时列出；不是 git 仓就不发提交', () => {
-    const commitOf = (changeDirTracked: boolean | null) => stepNextActions(input({
+    const commitOf = (git: GitFinishProbe | null) => stepNextActions(input({
       runArchived: true,
-      finish: { changeDirTracked, workspaceDirty: true, verified: true },
+      finish: { git, verified: true },
     }))[0]?.commit
-    expect(commitOf(true)).toEqual({
+    expect(commitOf(probe({ changeDirTracked: true }))).toEqual({
       paths: ['openspec/changes/demo', 'openspec/changes/archive'],
+      untrack: [],
       message: 'chore(openspec): archive demo',
     })
-    expect(commitOf(false)).toEqual({ paths: ['openspec/changes/archive'], message: 'chore(openspec): archive demo' })
+    expect(commitOf(probe())).toEqual({ paths: ['openspec/changes/archive'], untrack: [], message: 'chore(openspec): archive demo' })
+    expect(commitOf(probe({
+      housekeeping: ['.pipeline/.gitignore', 'openspec/.gitignore'],
+      untrack: ['openspec/changes/old/.pipeline-terminal-activity.json'],
+    }))).toEqual({
+      paths: ['openspec/changes/archive', '.pipeline/.gitignore', 'openspec/.gitignore'],
+      untrack: ['openspec/changes/old/.pipeline-terminal-activity.json'],
+      message: 'chore(openspec): archive demo',
+    })
     expect(commitOf(null)).toBeNull()
   })
 
   /**
    * 真机（第二轮）：simple 工作流 verify-pass 后直接完结，功能代码与任务状态文件全留在工作区。
-   * 它没有归档命令，只剩一次提交；提交过（工作区干净）或以 scope-expanded 放弃时就停。
+   * 它没有归档命令，只剩一次提交；提交过（工作区干净）、不是 git 仓或以 scope-expanded 放弃时就停。
    */
   test('非 OpenSpec 治理的工作流以验证通过完结：只带提交的 finish-change；提交过或放弃时停', () => {
-    expect(stepNextActions(input({ runArchived: true, governedOpenspec: false }))).toEqual([{
+    const simple = (git: GitFinishProbe | null, verified = true) => stepNextActions(input({
+      runArchived: true, governedOpenspec: false, finish: { git, verified },
+    }))
+    expect(simple(probe())).toEqual([{
       action: 'finish-change',
       change: 'demo',
       command: null,
-      commit: { paths: ['.'], message: 'chore(tenon): finish demo' },
+      commit: { paths: ['.'], untrack: [], message: 'chore(tenon): finish demo' },
     }])
-    const clean = stepNextActions(input({
-      runArchived: true, governedOpenspec: false,
-      finish: { changeDirTracked: true, workspaceDirty: false, verified: true },
-    }))
-    expect(clean[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
-    const escalated = stepNextActions(input({
-      runArchived: true, governedOpenspec: false,
-      finish: { changeDirTracked: false, workspaceDirty: true, verified: false },
-    }))
-    expect(escalated[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
-    const noGit = stepNextActions(input({
-      runArchived: true, governedOpenspec: false,
-      finish: { changeDirTracked: null, workspaceDirty: null, verified: true },
-    }))
-    expect(noGit[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+    // 工作区干净，但还有已跟踪、如今被忽略的心跳：仍要一次提交把它移出索引。
+    expect(simple(probe({ workspaceDirty: false, untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] }))[0])
+      .toMatchObject({ action: 'finish-change', commit: { untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] } })
+    expect(simple(probe({ workspaceDirty: false }))[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+    expect(simple(probe(), false)[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+    expect(simple(null)[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
   })
 
   /**

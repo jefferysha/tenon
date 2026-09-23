@@ -140,14 +140,8 @@ async function withPrUrlRecommendation(
 /** 完结收尾要的 git 事实；只在状态机已归档时才去问 git（活跃步骤的每次 status 不付这份开销）。 */
 async function finishFacts(deps: CliDeps, name: string, state: PipelineState): Promise<StepFinishFacts> {
   const verified = str(state.fields.verify_result) === 'pass'
-  if (str(state.fields.archived) !== 'true') {
-    return { changeDirTracked: null, workspaceDirty: null, verified }
-  }
-  const [changeDirTracked, workspaceDirty] = await Promise.all([
-    deps.gitTracksPath?.(`openspec/changes/${name}`) ?? Promise.resolve(null),
-    deps.gitWorkspaceDirty?.() ?? Promise.resolve(null),
-  ])
-  return { changeDirTracked, workspaceDirty, verified }
+  if (str(state.fields.archived) !== 'true') return { git: null, verified }
+  return { git: await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null)), verified }
 }
 
 /**
