@@ -526,6 +526,12 @@ _router_regen() { # manifest root output
   cache_dir="${output%/*}"
   [ "$cache_dir" != "$output" ] || cache_dir="."
   mkdir -p -- "$cache_dir" 2>/dev/null || return 1
+  # The default cache is local runtime state: create the nested `.pipeline/.gitignore` once (noclobber,
+  # never overwritten).  Content is byte-identical to kernel PIPELINE_PROJECT_GITIGNORE.
+  if [ "$cache_dir" = "$root/.pipeline/cache" ] && [ ! -L "$root/.pipeline" ] && [ ! -e "$root/.pipeline/.gitignore" ]; then
+    ( set -C; printf '%s\n' '# Tenon local runtime state; shared configuration in this directory stays tracked.' \
+      'cache/' 'terminal-sessions/' 'codex-skill-receipts.jsonl' > "$root/.pipeline/.gitignore" ) 2>/dev/null || true
+  fi
   tmp="$(mktemp "$cache_dir/.router.v5.tmp.XXXXXX" 2>/dev/null)" || return 1
 
   if [ -f "$_CLI_BUNDLE" ] \
