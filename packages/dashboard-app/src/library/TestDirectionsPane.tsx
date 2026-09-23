@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Lock } from 'lucide-react'
 import { useT } from '../i18n'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import type { TestDirectionLibrary } from './useTestDirections'
 
 const ROW = 'grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t'
@@ -18,6 +20,7 @@ export function TestDirectionsPane({
   onToast?: (message: string) => void
 }): JSX.Element {
   const { t } = useT()
+  const [confirmDelete, setConfirmDelete] = useState(false)
   if (slot === 'list') {
     return (
       <ul className="grid gap-1" data-testid="lib-directions">
@@ -106,13 +109,25 @@ export function TestDirectionsPane({
               className={`${BUTTON_GHOST} ml-auto min-h-9 px-3 text-red-d`}
               data-testid={`lib-dir-delete-${selected.id}`}
               disabled={!canWrite || library.busy}
-              onClick={() => { void library.remove().then((ok) => { if (ok) onToast?.(t('library.direction_delete')) }) }}
+              onClick={() => setConfirmDelete(true)}
             >
               {t('library.direction_delete')}
             </button>
           </>
         )}
       </div>
+      {confirmDelete && (
+        <ConfirmDeleteDialog
+          name={selected.label}
+          detail={selected.id}
+          busy={library.busy}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => {
+            setConfirmDelete(false)
+            void library.remove().then((ok) => { if (ok) onToast?.(t('library.direction_delete')) })
+          }}
+        />
+      )}
     </div>
   )
 }

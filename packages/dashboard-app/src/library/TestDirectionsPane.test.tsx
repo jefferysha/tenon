@@ -68,6 +68,9 @@ describe('TestDirectionsPane', () => {
     await userEvent.click(screen.getByTestId('lib-dir-save'))
     await waitFor(() => expect(calls.some(([method, url]) => method === 'PUT' && url.endsWith('/mine'))).toBe(true))
     await userEvent.click(screen.getByTestId('lib-dir-delete-mine'))
+    expect(await screen.findByTestId('lib-delete-dialog')).toBeInTheDocument()
+    expect(calls.some(([method]) => method === 'DELETE')).toBe(false)
+    await userEvent.click(screen.getByTestId('lib-delete-confirm'))
     await waitFor(() => expect(calls.some(([method, url]) => method === 'DELETE' && url.endsWith('/mine'))).toBe(true))
   })
 

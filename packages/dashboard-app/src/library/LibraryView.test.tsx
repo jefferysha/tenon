@@ -147,6 +147,14 @@ describe('库页 · 模板', () => {
     renderLibrary()
     await user.click(await screen.findByTestId('lib-tpl-custom-backend-mine'))
     await user.click(await screen.findByTestId('lib-tpl-delete'))
+    // 删除先确认：取消不发请求，确认后才 DELETE。
+    const dialog = await screen.findByTestId('lib-delete-dialog')
+    expect(within(dialog).getByText('删除「我的后端」')).toBeInTheDocument()
+    await user.click(screen.getByTestId('lib-delete-cancel'))
+    expect(screen.queryByTestId('lib-delete-dialog')).toBeNull()
+    expect(calls.some((call) => call.init?.method === 'DELETE')).toBe(false)
+    await user.click(screen.getByTestId('lib-tpl-delete'))
+    await user.click(await screen.findByTestId('lib-delete-confirm'))
     await waitFor(() => {
       const del = calls.find((call) => call.init?.method === 'DELETE')
       expect(del?.url).toBe('/api/instruction-templates/custom/backend/mine?digest=sha256%3Amine')

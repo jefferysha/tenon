@@ -6,6 +6,7 @@ import { DetailColumn, StatusPill } from '../shell/ThreeColumns'
 import { SheetTabs, type SheetDef } from '../shared/DetailSheets'
 import { Markdown } from '../shared/Markdown'
 import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_SOLID, TEXTAREA } from '../shared/uiRecipes'
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 
 type Sheet = 'preview' | 'edit'
 
@@ -33,7 +34,8 @@ export function AgentDetail({
     ? [{ id: 'preview', label: t('library.preview') }, { id: 'edit', label: t('library.edit') }]
     : [{ id: 'preview', label: t('library.preview') }]
   const [sheet, setSheet] = useState<Sheet>('preview')
-  useEffect(() => { setSheet('preview') }, [document.name])
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  useEffect(() => { setSheet('preview'); setConfirmDelete(false) }, [document.name])
   const canWrite = getToken() !== ''
   const dirty = draft !== document.content
   // 引用来自两处：打开时扫到的，和删除被拒时 409 带回的（后者更新，优先）。
@@ -80,7 +82,7 @@ export function AgentDetail({
               >
                 {t('library.save')}
               </button>
-              <button type="button" className={BUTTON_DANGER} data-testid="lib-agent-delete" disabled={!canWrite || busy} onClick={onDelete}>
+              <button type="button" className={BUTTON_DANGER} data-testid="lib-agent-delete" disabled={!canWrite || busy} onClick={() => setConfirmDelete(true)}>
                 {t('library.delete')}
               </button>
             </>
@@ -133,6 +135,15 @@ export function AgentDetail({
             ))}
           </ul>
         </div>
+      )}
+      {confirmDelete && (
+        <ConfirmDeleteDialog
+          name={document.name}
+          detail={document.name}
+          busy={busy}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => { setConfirmDelete(false); onDelete() }}
+        />
       )}
     </DetailColumn>
   )

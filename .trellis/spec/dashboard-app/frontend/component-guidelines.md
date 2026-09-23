@@ -321,7 +321,8 @@ row names the skills that should produce it, and a stale row carries its one-wor
 - Three columns: rail = one card per library kind (模板 / 资源目录 / 测试方向 / 智能体), list = category and 内建 / 自定义 chips + search + rows,
   detail = `TemplateDetail` (预览 / 编辑 sheets, 变量 table, footer 复制 / 保存 / 删除).
 - Builtin templates are read-only: the detail footer offers 复制 only. Custom templates save with `If-Match` and delete
-  with the digest; a 409 shows the local message plus 重新载入.
+  with the digest; a 409 shows the local message plus 重新载入. Every library delete (template / 智能体 / 测试方向) goes
+  through `library/ConfirmDeleteDialog` first — nothing is deleted on the first click.
 - The builtin library is synced by the server on every read; a failed sync shows one 内建同步失败 line and the list still
   renders whatever is on disk.
 - The agent section (`AgentList` / `AgentDetail`) is the same shape: middle column lists the global library

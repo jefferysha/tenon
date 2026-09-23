@@ -6,6 +6,7 @@ import { DetailColumn, StatusPill } from '../shell/ThreeColumns'
 import { SheetTabs, type SheetDef } from '../shared/DetailSheets'
 import { Markdown } from '../shared/Markdown'
 import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_SOLID, TEXTAREA } from '../shared/uiRecipes'
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 
 type Sheet = 'preview' | 'edit'
 
@@ -29,6 +30,7 @@ export function TemplateDetail({
     : [{ id: 'preview', label: t('library.preview') }]
   const [sheet, setSheet] = useState<Sheet>('preview')
   const [draft, setDraft] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   useEffect(() => {
     setDraft(document?.text ?? '')
     setSheet('preview')
@@ -74,7 +76,7 @@ export function TemplateDetail({
               >
                 {t('library.save')}
               </button>
-              <button type="button" className={BUTTON_DANGER} data-testid="lib-tpl-delete" disabled={!canWrite || busy} onClick={onDelete}>
+              <button type="button" className={BUTTON_DANGER} data-testid="lib-tpl-delete" disabled={!canWrite || busy} onClick={() => setConfirmDelete(true)}>
                 {t('library.delete')}
               </button>
             </>
@@ -130,6 +132,15 @@ export function TemplateDetail({
             ))}
           </tbody>
         </table>
+      )}
+      {confirmDelete && (
+        <ConfirmDeleteDialog
+          name={document?.block?.title ?? ref_.id}
+          detail={`${ref_.category}/${ref_.id}.md`}
+          busy={busy}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => { setConfirmDelete(false); onDelete() }}
+        />
       )}
     </DetailColumn>
   )
