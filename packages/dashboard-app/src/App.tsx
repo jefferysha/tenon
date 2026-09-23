@@ -337,6 +337,11 @@ function AppShell(): JSX.Element {
               {t('common.snapshot_retry')}
             </button>
           </section>
+        ) : snapshot === null && loading && (view === 'progress' || view === 'projects') ? (
+          // 首个快照未到：工作台与项目页只能说「加载中」，不能先渲染成「没有项目 / 没有任务」的空态。
+          <p className="p-5 text-body text-text-3" role="status" aria-live="polite" data-testid="snapshot-loading">
+            {t('common.loading')}
+          </p>
         ) : snapshot && snapshot.project_count === 0 && view === 'progress' ? (
           // 零项目教学态只替换工作台；工作流、库与技能不依赖项目，项目页本身就是新建项目的入口。
           <div className="px-6">
