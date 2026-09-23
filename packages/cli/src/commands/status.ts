@@ -17,7 +17,7 @@ import {
 } from '../paths.js'
 import { display, renderKV, renderTable, str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
-import { buildStatusStep, type StepBlock } from './statusStep.js'
+import { buildStatusStep, finishedStatusStep, type StepBlock } from './statusStep.js'
 
 interface Row {
   name: string
@@ -94,17 +94,27 @@ export async function cmdStatus(
       // 列表形态（status --json 无名 / list --json）逐字不变。
       let step: StepBlock | undefined
       try {
-        const plan = finished ? null : effectiveWorkflowForState(deps, state)
-        if (plan !== null) step = await buildStatusStep(deps, name, state, plan)
+        if (finished) {
+          // 目录已搬进 archive/：没有工作区可投影，给结构一致、next 为 `stop finished` 的 step。
+          let plan: ReturnType<typeof effectiveWorkflowForState>
+          try {
+            plan = effectiveWorkflowForState(deps, state)
+          } catch {
+            plan = null
+          }
+          step = await finishedStatusStep(deps, name, state, plan)
+        } else {
+          const plan = effectiveWorkflowForState(deps, state)
+          if (plan !== null) step = await buildStatusStep(deps, name, state, plan)
+        }
       } catch (e) {
         deps.io.err(`WARN: step 投影不可用: ${errMsg(e)}`)
       }
       // 已完结（archived=true，无论目录是否已被 `openspec archive` 搬走）不是活跃任务：与列表形态
       // （collectActive 按 archived=true 滤掉）和 `list --finished` 同一口径。它落在 finished_changes。
-      // step 只在还有收尾动作时给出（治理归档 / 提交，next 是 finish-change，step.archived=true）；
-      // 没有可做的事了就省略——default 搬进 archive/ 之后与 simple 收尾之后是同一形态。
+      // step 恒在（step.archived=true）：还有收尾动作时 next 是 finish-change，没有可做的事了是
+      // `stop finished`——default 搬进 archive/ 之后与 simple 收尾之后是同一形态。
       const done = finished || str(state.fields.archived) === 'true'
-      if (done && step?.next[0]?.action === 'stop') step = undefined
       deps.io.out(JSON.stringify({
         active_changes: done ? [] : [statusJson(row)],
         ...(done ? { finished_changes: [{ ...statusJson(row), archived_at: field(row, 'archived_at') }] } : {}),

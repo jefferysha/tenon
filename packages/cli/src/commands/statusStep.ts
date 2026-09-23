@@ -6,7 +6,7 @@
  */
 import { readFile } from 'node:fs/promises'
 import {
-  defaultEventGuardFields, isTenonUser, phaseExitGuardFields, readSpecApplyReceiptStatus, reviewGateEvent,
+  defaultEventGuardFields, isForwardExit, isTenonUser, phaseExitGuardFields, readSpecApplyReceiptStatus, reviewGateEvent,
   reviewGateMatches, reviewGateStatus, userProjectPaths, userSlug,
   type EffectiveWorkflowPlan, type EventName, type PipelineState,
 } from '@tenon/kernel'
@@ -31,9 +31,10 @@ import { SPEC_APPLY_RECEIPT } from './specApply.js'
 import { PR_URL_NO_REMOTE, repositoryHasNoRemote } from './prUrlField.js'
 import {
   stepNextActions, stop,
-  type StepAction, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestConfigGap,
+  type StepAction, type StepCommit, type StepFinishFacts, type StepMode, type StepNextInput, type StepTestConfigGap,
   type StepTestView,
 } from './statusStepNext.js'
+import { deliveryCommit, finishedStop } from './statusStepFinish.js'
 
 export interface StepBlock {
   readonly schema: 'tenon-step-v1'
@@ -144,9 +145,48 @@ async function finishFacts(deps: CliDeps, name: string, state: PipelineState): P
   return { git: await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null)), verified }
 }
 
+/** 交付值：记录「这次交付」的自由文本字段。声明了它的步骤就是交付步。 */
+const DELIVERY_FIELDS: ReadonlySet<string> = new Set(['pr_url', 'prd_path'])
+
 /**
- * 本步与下一步（前进边指向的步骤）声明的必需测试里未配置的那些。本步已通过的不算；下一步的测试
- * 还没有自己的证据，只看命令配没配。
+ * 交付步还没提交的交付物；只在交付步、状态机未归档时才去问 git。交付物提交之后的动作（交付值、
+ * 出口）不再需要它，所以交付值已经填好也照样判——交付步自己的测试记录也得在出口前入库。
+ */
+async function deliveryFacts(
+  deps: CliDeps,
+  name: string,
+  state: PipelineState,
+  fields: readonly StepFieldView[],
+): Promise<StepCommit | null> {
+  if (str(state.fields.archived) === 'true') return null
+  if (!fields.some((field) => DELIVERY_FIELDS.has(field.field) && field.writer === 'set')) return null
+  return deliveryCommit(name, await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null)))
+}
+
+/** 计划步：本步产出计划文档（plan / superpower-plan）。它之后所有步骤的测试配置都在这里提出。 */
+const PLAN_DOCUMENT_KINDS: ReadonlySet<string> = new Set(['plan', 'superpower-plan'])
+
+/** 从 stepId 沿前进边能走到的所有步骤（不含它自己）。 */
+function downstreamSteps(plan: EffectiveWorkflowPlan, stepId: string): ReadonlySet<string> {
+  const reached = new Set<string>()
+  const queue = [stepId]
+  while (queue.length > 0) {
+    const from = queue.shift() ?? ''
+    const step = plan.workflow.steps.find((candidate) => candidate.id === from)
+    for (const transition of step?.transitions ?? []) {
+      const to = transition.to
+      if (to === stepId || reached.has(to) || !isForwardExit(plan, from, to, transition.event)) continue
+      reached.add(to)
+      queue.push(to)
+    }
+  }
+  return reached
+}
+
+/**
+ * 本步与下一步（前进边指向的步骤）声明的必需测试里未配置的那些；计划步看之后所有步骤——测试配置
+ * 要进计划，而不是到实现步才发现、再改写已登记的计划。本步已通过的不算；后续步骤的测试还没有自己
+ * 的证据，只看命令配没配。
  */
 async function testConfigGaps(
   deps: CliDeps,
@@ -154,11 +194,18 @@ async function testConfigGaps(
   stepId: string,
   tests: readonly StepTestView[],
   exits: readonly StepExit[],
+  planning: boolean,
 ): Promise<readonly StepTestConfigGap[]> {
+  const scope = planning
+    ? '只需在 package.json 补上脚本；这类测试若还没有，把「写这类测试」列进本步的计划与 tasks，在实现步完成。'
+    : '只需补 package.json 的 scripts（以及这条脚本要跑的测试代码），不需要修改已登记的规格文档'
+      + '（proposal / design / plan 等）——改了它们就只能回到规格步重新评审。'
   const gaps: StepTestConfigGap[] = tests
     .filter((test) => test.required && test.status === 'unconfigured' && test.hint !== undefined)
-    .map((test) => ({ id: test.id, step: stepId, hint: test.hint ?? '' }))
-  const ahead = new Set(exits.filter((exit) => exit.direction === 'forward' && exit.to !== stepId).map((exit) => exit.to))
+    .map((test) => ({ id: test.id, step: stepId, hint: `${test.hint ?? ''}${scope}` }))
+  const ahead = planning
+    ? downstreamSteps(plan, stepId)
+    : new Set(exits.filter((exit) => exit.direction === 'forward' && exit.to !== stepId).map((exit) => exit.to))
   for (const step of plan.workflow.steps) {
     if (!ahead.has(step.id)) continue
     for (const test of step.tests ?? []) {
@@ -166,7 +213,7 @@ async function testConfigGaps(
       const gap = await unconfiguredNpmScript(deps.cwd, test)
       if (gap !== undefined) {
         const hint = `${unconfiguredMessage(test.id, test.command, gap)}`
-          + `（下一步 '${step.id}' 的必需测试，先在本步配置好）`
+          + `（后续步骤 '${step.id}' 的必需测试，先在本步配置好）${scope}`
         gaps.push({ id: test.id, step: step.id, hint })
       }
     }
@@ -276,8 +323,49 @@ export async function buildStatusStep(
       ownsAppliedSpec: documents.records.some((doc) => doc.kind === 'applied-spec'),
       artifactProducers: artifacts.size === 0 ? [] : effectiveArtifactProducers(deps, state),
       finish: await finishFacts(deps, name, state),
-      testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits),
+      testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits,
+        documents.records.some((doc) => PLAN_DOCUMENT_KINDS.has(doc.kind))),
+      delivery: await deliveryFacts(deps, name, state, fields),
     }),
+  }
+}
+
+/**
+ * 已完结、change 目录已被 `openspec archive` 搬进 archive/ 的任务：没有工作区可以投影，但 `step` 照样
+ * 给出，结构与活跃任务一致（证据类分块为空），`next` 是 `stop finished`。真机（第三轮）：从前这里
+ * 省略 `step`，照 `.step.next[0]` 读的循环当场 KeyError。
+ */
+export async function finishedStatusStep(
+  deps: CliDeps,
+  name: string,
+  state: PipelineState,
+  plan: EffectiveWorkflowPlan | null,
+): Promise<StepBlock> {
+  const stepId = str(state.fields.phase)
+  const step = plan?.workflow.steps.find((candidate) => candidate.id === stepId)
+  return {
+    schema: 'tenon-step-v1',
+    change: name,
+    workflow: plan?.id ?? (str(state.fields.workflow) || 'default'),
+    track: str(state.fields.track),
+    source: state.runMetadata?.workflowPlanSnapshot === undefined ? 'current-definition' : 'frozen-snapshot',
+    id: stepId,
+    label: step?.label ?? stepId,
+    prompt: null,
+    gate: step?.gate ?? null,
+    mode: await modeOf(deps, name),
+    archived: true,
+    governed_openspec: plan?.capabilities.documents.governed ?? false,
+    candidate: str(state.fields.build_sha),
+    skills: [],
+    executors: [],
+    reviewers: [],
+    tests: [],
+    documents: { reads: [], records: [], updates: [] },
+    fields: [],
+    review: { status: 'none', event: null },
+    exits: [],
+    next: finishedStop(name),
   }
 }
 

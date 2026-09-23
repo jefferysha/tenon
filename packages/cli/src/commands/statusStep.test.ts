@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { stepNextActions, type StepNextInput } from './statusStep.js'
 import type { StepFieldView } from './statusStepParts.js'
-import type { GitFinishProbe } from '../gitWorkspace.js'
+import { WORKSPACE_COMMIT_PATHS, type GitFinishProbe } from '../gitWorkspace.js'
+import { deliveryCommit } from './statusStepFinish.js'
 
 /** 一个 git 仓里完结时的事实：原目录未跟踪、工作区有改动、没有状态目录 .gitignore 与心跳要处理。 */
 function probe(over: Partial<GitFinishProbe> = {}): GitFinishProbe {
-  return { changeDirTracked: false, workspaceDirty: true, housekeeping: [], untrack: [], ...over }
+  return { changeDirTracked: false, workspaceDirty: true, deliverablesDirty: true, housekeeping: [], untrack: [], ...over }
 }
 
 function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
@@ -31,6 +32,7 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     artifactProducers: [],
     finish: { git: probe(), verified: true },
     testConfigGaps: [],
+    delivery: null,
     ...overrides,
   }
 }
@@ -211,16 +213,24 @@ describe('step.next 顺序', () => {
 
   /**
    * 真机（第二轮）：backend verify 固定跑 `npm run test:integration`，项目没有这个脚本，模型只能加一条
-   * 与 npm test 相同的脚本凑数。未配置的必需测试在步骤入口（读完输入之后、决定与技能之前）作为
-   * 待配置项提出，文案就是投影给的 hint；可选测试未配置不拦。
+   * 与 npm test 相同的脚本凑数。未配置的必需测试在步骤入口（读完输入、拍板决定之后，执行者与技能
+   * 之前）作为待配置项提出，文案就是投影给的 hint；可选测试未配置不拦。
+   * 真机（第三轮）：fix 排在 build_mode / isolation 之前，还没定实现方式就先改工作区。
    */
-  test('必需测试未配置：步骤入口先 fix（test-unconfigured），先于决定、执行者与技能', () => {
+  test('必需测试未配置：决定之后先 fix（test-unconfigured），先于执行者与技能', () => {
     const gap = { id: 'integration', step: 'verify', hint: "测试 'integration' 未配置（test-unconfigured，不是失败）" }
-    expect(stepNextActions(input({
+    const pending = {
       testConfigGaps: [gap],
-      fields: [field('build_mode', { allowed: ['direct'], recommended: 'direct' })],
       skills: [skill('test-driven-development', 'ready', 0)],
       executors: [agent('builder', 'executor', 'pending', true)],
+    }
+    expect(stepNextActions(input({
+      ...pending,
+      fields: [field('build_mode', { allowed: ['direct'], recommended: 'direct' })],
+    }))[0]).toMatchObject({ action: 'set-field', field: 'build_mode' })
+    expect(stepNextActions(input({
+      ...pending,
+      fields: [field('build_mode', { allowed: ['direct'], status: 'set', value: 'direct' })],
     }))).toEqual([{
       action: 'fix',
       blockers: [{ source: 'test', code: 'test-unconfigured', message: gap.hint }],
@@ -613,14 +623,19 @@ describe('step.next 顺序', () => {
       action: 'finish-change',
       change: 'demo',
       command: null,
-      commit: { paths: ['.'], untrack: [], message: 'chore(tenon): finish demo' },
+      // 整个工作区，去掉仓库根的本机门禁标记（真机第三轮：`.pipeline-pending-*` 以 ?? 出现在根上）。
+      commit: { paths: WORKSPACE_COMMIT_PATHS, untrack: [], message: 'chore(tenon): finish demo' },
     }])
+    expect(WORKSPACE_COMMIT_PATHS).toEqual(expect.arrayContaining([
+      '.', ':(exclude).pipeline-pending-review', ':(exclude).pipeline-pending-interaction',
+      ':(exclude).pipeline-pending-confirm',
+    ]))
     // 工作区干净，但还有已跟踪、如今被忽略的心跳：仍要一次提交把它移出索引。
     expect(simple(probe({ workspaceDirty: false, untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] }))[0])
       .toMatchObject({ action: 'finish-change', commit: { untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] } })
-    expect(simple(probe({ workspaceDirty: false }))[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
-    expect(simple(probe(), false)[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
-    expect(simple(null)[0]).toMatchObject({ action: 'stop', code: 'run-archived' })
+    expect(simple(probe({ workspaceDirty: false }))[0]).toMatchObject({ action: 'stop', code: 'finished' })
+    expect(simple(probe(), false)[0]).toMatchObject({ action: 'stop', code: 'finished' })
+    expect(simple(null)[0]).toMatchObject({ action: 'stop', code: 'finished' })
   })
 
   /**
@@ -635,5 +650,38 @@ describe('step.next 顺序', () => {
       documents: { reads: [doc('plan', 'missing')], records: [doc('adr', 'missing')], updates: [] },
       exits: [exit('a', 'forward', true)],
     })).toEqual(['finish-change'])
+  })
+})
+
+/**
+ * 真机（第三轮）：交付步 in-place、不建分支，技能又要求不自行提交，finish-change 只提交归档目录——
+ * 走完之后代码、文档、主规格、测试记录全留在工作区。交付物由 next 在交付值之前点名提交。
+ */
+describe('交付步的提交', () => {
+  const pr = field('pr_url')
+
+  test('交付物未提交：commit 先于交付值 pr_url，排在应用规格、文档与 artifact 登记之后', () => {
+    const delivery = deliveryCommit('demo', probe())
+    expect(delivery).toEqual({ paths: WORKSPACE_COMMIT_PATHS, untrack: [], message: 'feat(demo): deliver' })
+    expect(stepNextActions(input({ fields: [pr], delivery }))).toEqual([
+      { action: 'commit', change: 'demo', commit: delivery },
+    ])
+    expect(actions({ fields: [pr], delivery, ownsAppliedSpec: true, specApplicationPending: true })).toEqual(['apply-spec'])
+    expect(actions({
+      fields: [pr], delivery, documents: { reads: [], records: [doc('applied-spec', 'missing', ['tenon'])], updates: [] },
+    })).toEqual(['scaffold-document', 'record-document'])
+    expect(actions({ fields: [pr, field('verification_report', { writer: 'artifact-register' })], delivery }))
+      .toEqual(['register-field'])
+  })
+
+  test('已提交、不是 git 仓或只剩 change 目录的改动：不发 commit，直接交付值', () => {
+    expect(deliveryCommit('demo', probe({ deliverablesDirty: false }))).toBeNull()
+    expect(deliveryCommit('demo', null)).toBeNull()
+    expect(actions({ fields: [pr], delivery: null })).toEqual(['set-field'])
+  })
+
+  test('心跳已被旧版本跟踪：一起 untrack', () => {
+    expect(deliveryCommit('demo', probe({ untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] })))
+      .toMatchObject({ untrack: ['openspec/changes/demo/.pipeline-terminal-activity.json'] })
   })
 })

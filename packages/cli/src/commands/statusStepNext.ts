@@ -7,7 +7,7 @@
  */
 import { aliasesForSkill } from '@tenon/kernel'
 import type { StepAction } from './statusStepAction.js'
-import { finishActions, type StepFinishFacts } from './statusStepFinish.js'
+import { finishActions, type StepCommit, type StepFinishFacts } from './statusStepFinish.js'
 import type { StepAgentView } from './statusStepAgents.js'
 import type { StepBlocker, StepExit } from './stepExitReport.js'
 import type {
@@ -28,7 +28,7 @@ export interface StepTestView {
 /** 交互模式：AFK 环境变量 → afk；本任务有交互授权 → continuous；否则 interactive。 */
 export type StepMode = 'interactive' | 'continuous' | 'afk'
 
-export type { StepFinishFacts } from './statusStepFinish.js'
+export type { StepCommit, StepFinishFacts } from './statusStepFinish.js'
 
 export { stop, type StepAction } from './statusStepAction.js'
 
@@ -63,8 +63,10 @@ export interface StepNextInput {
   /** artifact 字段的合法 `--producer` 集（与 register 命令同源；空 = 无合法 producer）。 */
   readonly artifactProducers: readonly string[]
   readonly finish: StepFinishFacts
-  /** 本步与下一步声明的必需测试里，命令要的 npm 脚本在项目里不存在的那些。 */
+  /** 本步与下一步（计划步：之后所有步）声明的必需测试里，命令要的 npm 脚本在项目里不存在的那些。 */
   readonly testConfigGaps: readonly StepTestConfigGap[]
+  /** 交付步还没提交的交付物（statusStepFinish.deliveryCommit）；不是交付步或已提交 = null。 */
+  readonly delivery: StepCommit | null
 }
 
 /**
@@ -190,10 +192,24 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     return [{ action: 'read-documents', documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))] }]
   }
 
-  // 必需测试未配置（命令要的 npm 脚本在项目里不存在）：在步骤入口就作为待配置项提出，本步的与
-  // 下一步（前进边指向的步骤）的都算——配置是一次工作区改动，等到 verify 才发现，改完 package.json
-  // 就让 build 冻结的候选版本失效；等到出口前才发 run-test 只会被拒（真机：模型临时加一条与
-  // npm test 相同的脚本凑数）。
+  const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
+  // 决定类字段（带枚举、走 `tenon set`：build_mode / isolation / direct_override…）是「怎么做」的
+  // 选择，必须在动手之前拍板：排在执行者与本步技能之前，也排在测试配置之前——先定实现方式，再动手
+  // 改工作区（真机第三轮：build 先发 test-unconfigured 的 fix，还没定 build_mode 就先改 package.json）。
+  // 真机 build 步里它曾排在技能之后，代码写完才被要求登记 build_mode，模型只能事后补填一个与事实
+  // 不符的值（直接实现却登记成 subagent-driven-development）。artifact 登记不在这一档——它登记的是
+  // 技能的产出，要等技能跑完。
+  const decisions = writeFieldActions(
+    missing.filter((field) => field.allowed !== null && field.writer === 'set'),
+    input.artifactProducers,
+  )
+  if (decisions.length > 0) return decisions
+
+  // 必需测试未配置（命令要的 npm 脚本在项目里不存在）：在步骤入口就作为待配置项提出——本步的、
+  // 下一步（前进边指向的步骤）的，计划步上则是之后所有步骤的。配置是一次工作区改动：等到 verify
+  // 才发现，改完 package.json 就让 build 冻结的候选版本失效；等到 build 才发现，模型会把「补测试」
+  // 写回 spec 步已登记的计划与设计，只能 requirements-changed 回到 spec（真机第三轮 backend 两次）。
+  // 在计划步提出，它就进了计划。
   if (input.testConfigGaps.length > 0) {
     return [{
       action: 'fix',
@@ -202,17 +218,6 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
       })),
     }]
   }
-
-  const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
-  // 决定类字段（带枚举、走 `tenon set`：build_mode / isolation / direct_override…）是「怎么做」的
-  // 选择，必须在动手之前拍板：排在执行者与本步技能之前。真机 build 步里它排在技能之后，代码写完
-  // 才被要求登记 build_mode，模型只能事后补填一个与事实不符的值（直接实现却登记成
-  // subagent-driven-development）。artifact 登记不在这一档——它登记的是技能的产出，要等技能跑完。
-  const decisions = writeFieldActions(
-    missing.filter((field) => field.allowed !== null && field.writer === 'set'),
-    input.artifactProducers,
-  )
-  if (decisions.length > 0) return decisions
 
   const executors = pendingAgents(input.executors, true)
   if (executors.length > 0) return executors
@@ -243,6 +248,10 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     input.artifactProducers,
   )
   if (registers.length > 0) return registers
+  // 交付步：交付物（代码、文档、已应用的主规格、测试记录…）在交付值之前提交——开 PR 要先有提交，
+  // `pr_url` 记录的就是那次交付。之后本步再有改动（例如交付步自己的测试记录）会再发一次，出口前
+  // 工作区总是干净的。
+  if (input.delivery !== null) return [{ action: 'commit', change: input.change, commit: input.delivery }]
   const freeform = writeFieldActions(
     missing.filter((field) => field.allowed === null && field.writer === 'set'),
     input.artifactProducers,
