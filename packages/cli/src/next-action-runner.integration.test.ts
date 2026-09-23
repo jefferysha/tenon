@@ -61,6 +61,8 @@ const PLACEHOLDER = /\[待填写|: 待填写$|\*\* 待填写$|- \[ \] 待填写$
 /** 作者写成的文档内容。delta spec 要过 OpenSpec strict 校验，所以写成一条真需求。 */
 function authored(kind: string): string {
   if (kind === 'tasks') return '- [x] scope\n- [x] implementation\n- [x] verification\n'
+  // 新 capability 主规格的 Purpose 取自 proposal（spec apply 不再留上游 TBD 占位）。
+  if (kind === 'proposal') return '# proposal\n\n## Why\n\nThe runner flow needs a durable capability.\n'
   if (kind === 'delta-spec') {
     return [
       '# capability', '', '## ADDED Requirements', '',
@@ -308,6 +310,10 @@ describe('照着 next 做事的运行器：open → 完结', () => {
     expect(actions[verdict]?.action).toMatchObject({ recommended: null, required: ['pass'] })
     expect(actions.findIndex(({ step, action }) => step === 'build' && action.action === 'run-test'))
       .toBeLessThan(verdict)
+    // 新 capability 的主规格带真实 Purpose（出自 proposal 的 ## Why），不是上游 archive 的 TBD 占位。
+    const mainSpec = await readFile(join(h.cwd, 'openspec', 'specs', 'capability', 'spec.md'), 'utf8')
+    expect(mainSpec).not.toContain('TBD')
+    expect(mainSpec).toContain('The runner flow needs a durable capability.')
   })
 
   /**

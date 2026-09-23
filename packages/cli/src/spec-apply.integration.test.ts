@@ -1,6 +1,7 @@
 /**
  * `tenon spec apply` 的真实彩排：跑仓库 devDependency 里的 OpenSpec CLI，不做任何 mock。
  */
+import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeAll, afterAll, describe, expect, test } from 'vitest'
@@ -35,6 +36,23 @@ The system ${strict ? 'SHALL keep' : 'keeps'} the new rule.
 - **THEN** the system keeps it
 `
 }
+
+const PROPOSAL_WITH_CAPABILITY = `# Proposal
+
+## Why
+
+The runner needs a new rule.
+
+## Capabilities
+
+### New Capabilities
+
+- \`capability\`: Keeps the new rule observable for every caller.
+
+### Modified Capabilities
+
+None.
+`
 
 let originalPath: string | undefined
 
@@ -113,6 +131,7 @@ describe('tenon spec apply', () => {
     harness = h
     // 每一条 `## ADDED Requirements` delta 都在引入一个新 capability：它的主规格目录此刻不存在。
     await rm(join(h.cwd, 'openspec', 'specs'), { recursive: true, force: true })
+    await write(h.cwd, `openspec/changes/${name}/proposal.md`, PROPOSAL_WITH_CAPABILITY)
 
     expect(await apply(h, name, { dryRun: true, json: true }), h.err.join('\n')).toBe(0)
     const rehearsal = JSON.parse(h.out.join('')) as { targets: { path: string; change: string }[] }
@@ -120,6 +139,51 @@ describe('tenon spec apply', () => {
 
     expect(await apply(h, name, { json: true }), h.err.join('\n')).toBe(0)
     expect(await readFile(join(h.cwd, MAIN_SPEC), 'utf8')).toContain('### Requirement: New rule')
+  })
+
+  /**
+   * 真机：新 capability 的主规格 Purpose 是上游 `openspec archive` 写的
+   * `TBD - created by archiving change …`，ship 门禁没拦。Purpose 取自 proposal：
+   * New Capabilities 点名的那一条优先，否则 ## Why 第一段；都没有就拒绝应用。
+   */
+  test('新 capability 的 Purpose 取自 proposal，不留上游 TBD 占位', async () => {
+    const { h, name } = await seed()
+    harness = h
+    await rm(join(h.cwd, 'openspec', 'specs'), { recursive: true, force: true })
+    await write(h.cwd, `openspec/changes/${name}/proposal.md`, PROPOSAL_WITH_CAPABILITY)
+    expect(await apply(h, name, { json: true }), h.err.join('\n')).toBe(0)
+    const created = await readFile(join(h.cwd, MAIN_SPEC), 'utf8')
+    expect(created).not.toContain('TBD')
+    expect(created).toMatch(/## Purpose\n+Keeps the new rule observable for every caller\./u)
+    // 再跑一次仍是 no-op：回执里的 after 摘要就是盘上这份填好 Purpose 的字节。
+    expect(await apply(h, name, { json: true })).toBe(0)
+    expect((JSON.parse(h.out.join('')) as { targets: { change: string }[] }).targets.map((t) => t.change))
+      .toEqual(['no-op'])
+  })
+
+  test('proposal 没有 capability 条目时退回 ## Why 第一段', async () => {
+    const { h, name } = await seed()
+    harness = h
+    await rm(join(h.cwd, 'openspec', 'specs'), { recursive: true, force: true })
+    await write(h.cwd, `openspec/changes/${name}/proposal.md`,
+      '# Proposal\n\n## Why\n\nCallers need the new rule\nto hold everywhere.\n\nSecond paragraph.\n')
+    expect(await apply(h, name, { json: true }), h.err.join('\n')).toBe(0)
+    expect(await readFile(join(h.cwd, MAIN_SPEC), 'utf8'))
+      .toMatch(/## Purpose\n+Callers need the new rule to hold everywhere\.\n/u)
+  })
+
+  test('proposal 只有骨架占位：拒绝应用（exit 2），主规格不落盘，错误点名要填哪里', async () => {
+    const { h, name } = await seed()
+    harness = h
+    await rm(join(h.cwd, 'openspec', 'specs'), { recursive: true, force: true })
+    await write(h.cwd, `openspec/changes/${name}/proposal.md`,
+      '# 提案\n\n## Why\n\n> [待填写:open] 用中文说明问题。\n')
+    expect(await apply(h, name, { dryRun: true, json: true })).toBe(2)
+    expect(await apply(h, name, { json: true })).toBe(2)
+    const out = JSON.parse(h.out.join('')) as { result: string; errors: string[] }
+    expect(out.result).toBe('fail')
+    expect(out.errors.join('\n')).toContain("purpose-missing：新 capability 'capability'")
+    expect(existsSync(join(h.cwd, MAIN_SPEC))).toBe(false)
   })
 
   test('缺 SHALL/MUST 的需求：exit 2，主规格不动，错误里带 OpenSpec 原话', async () => {
