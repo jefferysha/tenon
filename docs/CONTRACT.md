@@ -498,6 +498,9 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    候选校验对未知沉默（干净检出本就没有这些字节，否则没人能发版），doctor 对未知报 yellow。
    「强制技能压根没装」由 `skills:mandatory` / `skills:workflow` 报红，不会因这条沉默而漏掉。
    仅人工调用的 Skill 仍随包分发作人工指引，只是不得出现在强制表。
+   Dashboard 的 `POST /api/config/mandatory-skills` 在落盘前做同一判定（automation
+   `nonInvocableSkillTokens`，读产品 `skills/<id>/SKILL.md`），证明不可调用即 400
+   `code: mandatory-skill-not-invocable`、manifest 零改动；未知同样不拦。
 
 11. **跨年龄线格式不许做版本握手（2026-09-22）**：一份文件如果由一个组件写、由另一个**可能是
    别的年龄**的组件读，它的 schema 就是对外契约，不能靠「双方同时升级」成立。本仓已知的这类面：
@@ -507,3 +510,15 @@ most 64 characters, and a manifest contains at most 256 fixtures.
    `tools/test-bundle.sh` 备有冻结 N-1 读取器）。纪律：这些文件**只增不改、且只能以旧读取器
    已经容忍的方式增**；旧读取器若是 exact-keys，就一个字段都不能加，新事实应当放到旧读取器
    根本不看的地方（如内容字节本身）。改 version 等于断代，必须当作破坏性变更单独设计升级路径。
+
+12. **必需技能 = 调用 + 本步绑定的产物（2026-09-23）**：step 的 document 契约（`document_contract`
+   的 role produce 槽）点名为 producer 的必需技能，要在**本次步骤访问**里由它（按别名等价）登记了
+   该槽的文档才算完成；只有调用回执不算（第三轮真机验收里五条空 PostToolUse 就把五个技能刷成了
+   done）。本步没有产出槽点名它的技能仍以调用为准——没有可以绑定的产物。「本次访问」按文档记录的
+   producer invocation 锚点（runId + transitionSequence）与当前 WorkflowRun 逐字比对，上一次访问、
+   backfill 与无锚点的旧记录都不算。绑定只从契约推出（kernel `documentKindsProducedBySkillAtPolicyStep`），
+   不另立名单，所以自定义 workflow 适用同一条规则。判定单源于 kernel `judgeStepSkillSlots`：
+   `tenon check`、CLI 与 Dashboard 的 transition、`tenon status --json` 的 `skills[].status`
+   （新增 `invoked` = 已调用、欠 `pending_documents`）、`exits[].blockers` 与 `next` 都读它；
+   `next` 对 `invoked` 的技能下发它欠的 `scaffold-document` / `record-document`（带 `skill`），
+   不再发 `load-skill`。不加交互门：headless `claude -p` 没有 AskUserQuestion。

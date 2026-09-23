@@ -7305,6 +7305,16 @@ function isDocumentPolicyStep(policy2, value) {
 function outputsRequiredForPolicyStep(policy2, step) {
   return policy2.outputsByStep[step] ?? [];
 }
+function documentKindsProducedBySkillAtPolicyStep(policy2, step, skill) {
+  const supplied = new Set(aliasesForSkill(skill));
+  const kinds = [];
+  for (const requirement of outputsRequiredForPolicyStep(policy2, step)) {
+    const named = requirement.producerCandidates.some((candidate2) => aliasesForSkill(candidate2).some((alias) => supplied.has(alias)));
+    if (named && !kinds.includes(requirement.kind))
+      kinds.push(requirement.kind);
+  }
+  return kinds;
+}
 function readsRequiredForPolicyStep(policy2, step) {
   return policy2.readsByStep[step] ?? [];
 }
@@ -18348,6 +18358,52 @@ function defaultOpenSpecScaffoldFiles(change, locale = "zh-CN", workflowSteps, w
       })
     }
   ];
+}
+
+// packages/kernel/dist/state/skill-document-binding.js
+async function documentRecordsInCurrentStepVisit(changeDir7) {
+  let ledger;
+  let metadata;
+  try {
+    ledger = await readDocumentLedger(changeDir7);
+    metadata = (await readCurrentRunRevision(changeDir7))?.state.runMetadata;
+  } catch {
+    return [];
+  }
+  if (ledger === void 0 || metadata === void 0)
+    return [];
+  return ledger.records.filter((record9) => {
+    const visit2 = record9.producerInvocation?.stepVisit;
+    return visit2 !== void 0 && visit2.runId === metadata.runId && visit2.transitionSequence === metadata.transitionSequence;
+  });
+}
+function pendingSkillDocumentKinds(policy2, stepId, skill, visitRecords) {
+  if (policy2 === void 0)
+    return [];
+  return documentKindsProducedBySkillAtPolicyStep(policy2, stepId, skill).filter((kind) => !visitRecords.some((record9) => record9.kind === kind && skillsEquivalent(record9.producer, skill)));
+}
+function canonicalSkillId(skillId) {
+  return skillId.startsWith("tenon:") ? skillId.slice("tenon:".length) : skillId;
+}
+function judgeStepSkillSlots(input2) {
+  const { policy: policy2, stepId, visitRecords } = input2;
+  const completed = new Set([...input2.completed].map(canonicalSkillId));
+  return input2.slots.map((slot) => {
+    const invoked = slot.alternatives.map(canonicalSkillId).filter((id2) => completed.has(id2)).map((id2) => pendingSkillDocumentKinds(policy2, stepId, id2, visitRecords));
+    const done = invoked.some((pending) => pending.length === 0);
+    const closest = [...invoked].sort((left, right) => left.length - right.length)[0];
+    const first = slot.alternatives[0];
+    const pendingDocuments = done ? [] : closest ?? (first === void 0 || policy2 === void 0 ? [] : documentKindsProducedBySkillAtPolicyStep(policy2, stepId, canonicalSkillId(first)));
+    return { token: slot.token, invoked: invoked.length > 0, pendingDocuments, done };
+  });
+}
+function missingStepSkillMessages(slots) {
+  return slots.filter((slot) => !slot.done).map((slot) => {
+    const kinds = slot.pendingDocuments.join(", ");
+    if (kinds === "")
+      return slot.token;
+    return slot.invoked ? `${slot.token}\uFF08\u5DF2\u8C03\u7528\uFF0C\u672C\u6B21\u6B65\u9AA4\u8BBF\u95EE\u5C1A\u672A\u767B\u8BB0\u5B83\u4EA7\u51FA\u7684 document\uFF1A${kinds}\uFF09` : `${slot.token}\uFF08\u8C03\u7528\u540E\u8FD8\u987B\u5728\u672C\u6B65\u767B\u8BB0\u5B83\u4EA7\u51FA\u7684 document\uFF1A${kinds}\uFF09`;
+  });
 }
 
 // packages/kernel/dist/state/document-evidence.js
@@ -37288,7 +37344,8 @@ async function rejectOnStepGates(input2) {
     const missing3 = await deps.missingStepSkills({
       changeDir: input2.changeDir,
       stepId: from,
-      capability: plan.capabilities.skills
+      capability: plan.capabilities.skills,
+      plan
     });
     if (missing3.length > 0)
       return { kind: "step-skills-incomplete", workflowName, stepId: from, missing: missing3 };
@@ -46728,6 +46785,11 @@ async function verdictFor(skillsRoot, skillId) {
   }
   return isSkillModelInvocable(parseSkillFrontmatter(text8)) ? "invocable" : "not-invocable";
 }
+async function provenNotInvocable(skillsRoot, token) {
+  const alternatives = skillTokenAlternatives(token);
+  const verdicts = await Promise.all(alternatives.map((id2) => verdictFor(skillsRoot, id2)));
+  return verdicts.length > 0 && verdicts.every((verdict) => verdict === "not-invocable") ? alternatives : void 0;
+}
 function tokenCells(table) {
   const cells = /* @__PURE__ */ new Map();
   for (const [phase, row2] of Object.entries(table)) {
@@ -46758,16 +46820,14 @@ async function scanMandatorySkillInvocability(root, options = {}) {
   }
   const offenders = [];
   for (const [token, cells] of tokenCells(table)) {
-    let alternatives;
+    let skillIds;
     try {
-      alternatives = skillTokenAlternatives(token);
+      skillIds = await provenNotInvocable(skillsRoot, token);
     } catch (error2) {
       return { kind: "unreadable-manifest", detail: error2 instanceof Error ? error2.message : String(error2) };
     }
-    const verdicts = await Promise.all(alternatives.map((id2) => verdictFor(skillsRoot, id2)));
-    if (verdicts.length > 0 && verdicts.every((verdict) => verdict === "not-invocable")) {
-      offenders.push({ token, skillIds: alternatives, cells: [...cells].sort() });
-    }
+    if (skillIds !== void 0)
+      offenders.push({ token, skillIds, cells: [...cells].sort() });
   }
   return { kind: "scanned", offenders: offenders.sort((left, right) => left.token.localeCompare(right.token)) };
 }
@@ -51058,26 +51118,33 @@ async function completedStepSkillIds(input2) {
   for (const skillId of hostConfirmed) completed.add(canonicalPipelineSkillId(skillId));
   return completed;
 }
-function missingStepSkillTokensFrom(deps, capability, stepId, completed) {
-  return resolveRequiredSkillSlots(deps.resolver, capability, stepId).filter((slot) => !slot.alternatives.some((candidate2) => completed.has(canonicalPipelineSkillId(candidate2)))).map((slot) => slot.token);
+async function judgeStepSkills(input2) {
+  const completedSkillIds = await completedStepSkillIds(input2);
+  const visitRecords = input2.documentPolicy === void 0 ? [] : await documentRecordsInCurrentStepVisit(input2.changeDir);
+  return {
+    completedSkillIds,
+    slots: judgeStepSkillSlots({
+      slots: resolveRequiredSkillSlots(input2.deps.resolver, input2.capability, input2.stepId),
+      completed: completedSkillIds,
+      policy: input2.documentPolicy,
+      stepId: input2.stepId,
+      visitRecords
+    })
+  };
 }
-async function missingStepSkillTokens(input2) {
-  return missingStepSkillTokensFrom(
-    input2.deps,
-    input2.capability,
-    input2.stepId,
-    await completedStepSkillIds(input2)
-  );
+async function missingStepSkills(input2) {
+  return missingStepSkillMessages((await judgeStepSkills(input2)).slots);
 }
 
 // packages/cli/src/commands/check-skills.ts
 async function stepSkillLines(deps, dir, state, plan) {
   const stepId = str(state.fields.phase);
-  const missing3 = await missingStepSkillTokens({
+  const missing3 = await missingStepSkills({
     deps,
     changeDir: dir,
     stepId,
     capability: plan.capabilities.skills,
+    documentPolicy: plan.capabilities.documents.policy,
     recordEvidence: false
   });
   return missing3.map((token) => `step '${stepId}' \u5C1A\u672A\u5B8C\u6210\u58F0\u660E\u7684 skill\uFF1A${token}`);
@@ -57272,12 +57339,13 @@ async function cmdTransition(deps, name2, event) {
     resolveTrack: (trackId) => requireTrackForRoot(deps.loadRegistry(), trackId, deps.cwd),
     stepAgentBlockers: async ({ changeDir: targetDir, stepId, plan, state }) => stepAgentBlockersFor({ deps, name: name2, dir: targetDir, stepId, plan, state }),
     // 与 check / status 的出边投影同一个判定；这里持锁，所以顺带把宿主回执落成 history 证据。
-    missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => missingStepSkillTokens({
+    missingStepSkills: async ({ changeDir: targetDir, stepId, capability, plan }) => missingStepSkills({
       deps,
       changeDir: targetDir,
       stepId,
       capability,
-      recordEvidence: true
+      recordEvidence: true,
+      documentPolicy: plan.capabilities.documents.policy
     }),
     resolveConstraintContext: async ({ policy: policy2 }) => {
       const registry = loadRegistry(deps.cwd, nodeLoopIoStrict);
@@ -69124,14 +69192,15 @@ async function evaluateStepExitReport(deps, name2, dir, state, plan) {
     stepId,
     context: testEvidenceContextFor(deps, name2)
   });
-  const completedSkillIds = await completedStepSkillIds({
+  const judgement = await judgeStepSkills({
     deps,
     changeDir: dir,
     stepId,
     capability: plan.capabilities.skills,
-    recordEvidence: false
+    recordEvidence: false,
+    documentPolicy: plan.capabilities.documents.policy
   });
-  const skills = missingStepSkillTokensFrom(deps, plan.capabilities.skills, stepId, completedSkillIds).map((token) => blocker("skill", "skill-incomplete", `\u5C1A\u672A\u5B8C\u6210\u58F0\u660E\u7684 skill\uFF1A${token}`));
+  const skills = missingStepSkillMessages(judgement.slots).map((message2) => blocker("skill", "skill-incomplete", `\u5C1A\u672A\u5B8C\u6210\u58F0\u660E\u7684 skill\uFF1A${message2}`));
   const agentBlockers = await stepAgentBlockersFor({ deps, name: name2, dir, stepId, plan, state });
   const reviewers = agentBlockers.map((item2) => blocker("reviewer", item2.kind, renderAgentBlocker(item2, name2)));
   const migration = stepId === "ship" && plan.capabilities.documents.governed ? await evaluateSpecMigrationEvidence(deps.cwd, dir, name2) : void 0;
@@ -69169,7 +69238,15 @@ async function evaluateStepExitReport(deps, name2, dir, state, plan) {
       blockers
     });
   }
-  return { exits, documents, tests: testReport.blockers, reviewers, skills, completedSkillIds };
+  return {
+    exits,
+    documents,
+    tests: testReport.blockers,
+    reviewers,
+    skills,
+    completedSkillIds: judgement.completedSkillIds,
+    skillSlots: judgement.slots
+  };
 }
 
 // packages/cli/src/commands/stepSkillEvidence.ts
@@ -69227,21 +69304,20 @@ function scalar19(state, field3) {
   const value = state.fields[field3];
   return Array.isArray(value) ? value.join(",") : value ?? "";
 }
-function stepSkills(deps, plan, stepId, completed) {
+function stepSkills(plan, stepId, slots) {
   const declared = plan.capabilities.skills.steps.find((step) => step.stepId === stepId)?.declared ?? [];
-  const slots = resolveRequiredSkillSlots(deps.resolver, plan.capabilities.skills, stepId);
   const views = [];
   let unlocked = true;
   for (const [index, slot] of slots.entries()) {
     const id2 = canonicalTenonSkillId(slot.token);
-    const done = slot.alternatives.some((candidate2) => completed.has(canonicalTenonSkillId(candidate2)));
     views.push({
       id: id2,
       depends_on: declared.find((ref) => canonicalTenonSkillId(ref.id) === id2)?.dependsOn.map(canonicalTenonSkillId) ?? views.slice(0, index).map((view2) => view2.id),
       wave: index,
-      status: done ? "done" : unlocked ? "ready" : "waiting"
+      status: slot.done ? "done" : !unlocked ? "waiting" : slot.invoked ? "invoked" : "ready",
+      pending_documents: slot.pendingDocuments
     });
-    if (!done) unlocked = false;
+    if (!slot.done) unlocked = false;
   }
   return views;
 }
@@ -69360,6 +69436,30 @@ function documentWriteActions(documents) {
   }
   return actions;
 }
+function skillDocumentActions(skills, documents) {
+  const actions = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const skill of skills) {
+    if (skill.status !== "invoked") continue;
+    const aliases = new Set(aliasesForSkill(skill.id));
+    for (const kind of skill.pending_documents) {
+      const doc = documents.records.find((candidate2) => candidate2.kind === kind);
+      if (doc === void 0 || seen.has(kind)) continue;
+      seen.add(kind);
+      const own3 = doc.producers.filter((producer) => aliasesForSkill(producer).some((alias) => aliases.has(alias)));
+      const shape = {
+        kind: doc.kind,
+        path: doc.path,
+        path_template: doc.path_template,
+        producers: own3.length > 0 ? own3 : doc.producers,
+        skill: skill.id
+      };
+      if (doc.status === "missing") actions.push({ action: "scaffold-document", ...shape });
+      actions.push({ action: "record-document", ...shape });
+    }
+  }
+  return actions;
+}
 function stepNextActions(input2) {
   if (input2.runArchived) {
     if (!input2.governedOpenspec) return stop("run-archived", `\u4EFB\u52A1 '${input2.change}' \u5DF2\u5B8C\u7ED3`);
@@ -69377,6 +69477,8 @@ function stepNextActions(input2) {
   if (ready.length > 0) {
     return ready.map((skill) => ({ action: "load-skill", skill: skill.id, wave: skill.wave }));
   }
+  const producing = skillDocumentActions(input2.skills, input2.documents);
+  if (producing.length > 0) return producing;
   if (input2.ownsAppliedSpec && input2.specApplicationPending) return [{ action: "apply-spec" }];
   const writes = documentWriteActions(input2.documents);
   if (writes.length > 0) return writes;
@@ -69488,7 +69590,7 @@ async function buildStatusStep(deps, name2, state, plan) {
   const archived = (await archivedChangesForUser(deps)).has(name2);
   const report = await evaluateStepExitReport(deps, name2, dir, state, plan);
   const completed = report.completedSkillIds;
-  const skills = stepSkills(deps, plan, stepId, completed);
+  const skills = stepSkills(plan, stepId, report.skillSlots);
   const agents = await agentStepViews(deps, name2, dir, state, plan, stepId);
   const testReport = await testEvidenceReaderFor(deps)({
     repoRoot: deps.cwd,
@@ -69845,7 +69947,7 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
       return 0;
     }
     if (isTenonOrchestratorSkill(skillId)) return 0;
-    const canonicalSkillId = canonicalTenonSkillId(skillId);
+    const canonicalSkillId2 = canonicalTenonSkillId(skillId);
     const dir = changeDir(deps.cwd, name2);
     return await deps.store.withLock(dir, async () => {
       const state = await deps.store.read(dir);
@@ -69862,7 +69964,7 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
         stepId: currentStepId,
         plan,
         state,
-        skillId: canonicalSkillId
+        skillId: canonicalSkillId2
       });
       if (agentDecision.kind === "allow") return 0;
       if (agentDecision.kind === "block") {
@@ -69886,7 +69988,7 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
           token: slot.token,
           alternatives: slot.alternatives.map(canonicalTenonSkillId)
         }));
-        const slotIndex = canonicalSlots.findIndex((slot) => slot.alternatives.includes(canonicalSkillId));
+        const slotIndex = canonicalSlots.findIndex((slot) => slot.alternatives.includes(canonicalSkillId2));
         await reconcileCodexSkillEvidence({
           repoRoot: deps.cwd,
           changeDir: dir,
@@ -69939,8 +70041,8 @@ async function cmdInternalSkillGate(deps, name2, skillId) {
         id: canonicalTenonSkillId(ref2.id),
         depends_on: ref2.dependsOn.map(canonicalTenonSkillId)
       }));
-      if (isSkillUnlocked(canonicalSkillId, canonicalStepSkills, completedSinceEntry)) return 0;
-      const ref = canonicalStepSkills.find((s) => s.id === canonicalSkillId);
+      if (isSkillUnlocked(canonicalSkillId2, canonicalStepSkills, completedSinceEntry)) return 0;
+      const ref = canonicalStepSkills.find((s) => s.id === canonicalSkillId2);
       if (!ref) {
         deps.io.err(
           `\u3010Tenon \u95E8\u3011skill '${skillId}' \u4E0D\u5728 step '${currentStepId}'\uFF08workflow '${plan.id}'\uFF09\u58F0\u660E\u7684 skills \u5217\u8868\u91CC\uFF0C\u6682\u4E0D\u53EF\u7528`

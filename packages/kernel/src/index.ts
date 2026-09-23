@@ -209,7 +209,7 @@ export type {
 } from './workflow/policy.js'
 export {
   DOCUMENT_CHAIN_PAIRS, DOCUMENT_CONTRACT_PHASES, DOCUMENT_KIND_CATALOG, DOCUMENT_KINDS,
-  documentGovernancePolicy, documentKindScope, documentOwnerPolicyStep,
+  documentGovernancePolicy, documentKindScope, documentKindsProducedBySkillAtPolicyStep, documentOwnerPolicyStep,
   isDocumentContractPhase, isDocumentKind, isDocumentPolicyStep, isDocumentProducerAllowedInPolicyStep,
   isDocumentRecordAllowedInPolicyStep, outputsRequiredForPolicyStep, readsRequiredForPolicyStep,
   recordProducerCandidatesForPolicyStep, recordsRequiredForPolicyStep, requiresForPolicyStep,

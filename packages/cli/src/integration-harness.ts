@@ -54,9 +54,10 @@ import {
 } from '@tenon/kernel'
 import type { CliDeps, GuardFileContext } from './deps.js'
 import {
-  FIXED_CLOCK, readGovernedDocumentsForCurrentVisit, seedAppliedSpec, seedGovernedDocumentEvidence,
+  FIXED_CLOCK, readGovernedDocumentsForCurrentVisit, recordBoundDocumentsForCurrentVisit, seedAppliedSpec,
+  seedGovernedDocumentEvidence,
 } from './integration-harness-documents.js'
-export { FIXED_CLOCK, seedGovernedDocumentEvidence } from './integration-harness-documents.js'
+export { FIXED_CLOCK, FIXTURE_HISTORY_TAG, seedGovernedDocumentEvidence } from './integration-harness-documents.js'
 import { harnessArtifactSubmission } from './integration-submission-test-support.js'
 import { buildProgram, CliExit } from './program.js'
 import { readBoundedRegularFileSync } from './guardContext.js'
@@ -395,6 +396,11 @@ export function makeHarness(cwd: string): Harness {
           .join('')
         if (lines !== '') await appendFile(historyPath, lines, 'utf8')
         try {
+          // 契约点名为 producer 的必需技能，产物要在本次访问登记才算完成：替它们在本次访问重登。
+          await recordBoundDocumentsForCurrentVisit(
+            cwd, changeDir, name,
+            deps.resolver.resolveDefaultMandatory(phase, track).flatMap((slot) => slot.alternatives.slice(0, 1)),
+          )
           await readGovernedDocumentsForCurrentVisit(cwd, changeDir)
         } catch (error) {
           // A test may intentionally remove or stale a document. Let the command under test expose

@@ -305,6 +305,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       operationsAvailable, isRegisteredRoot, store, recordStore, clock, history, workflowRootAnchors,
       trackSkillProfiles, loadedManifest, runRepo, flow, fileExists, gitHeadSha,
       workspaceFingerprint, breadcrumb, manifestPath, paths, validateLoopActivation,
+      skillsRoot: options.skillsRoot ?? join(repoRootForSkills(), 'skills'),
       mutateTrackForApi: mutateTrackForRoutes, trackRegistryBody, sendTrackError, errMsg,
       realGraduationFs: REAL_GRADUATION_FS,
       relatedSessionSearch,

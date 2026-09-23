@@ -25,10 +25,13 @@ import {
   compileWorkflow,
   completedWorkflowSkillsSinceStepEntry,
   createTransitionApplication,
+  documentRecordsInCurrentStepVisit,
   evaluateSpecMigrationEvidence,
   HISTORY_FILE,
   loadRegistry,
+  judgeStepSkillSlots,
   loadWorkflow,
+  missingStepSkillMessages,
   nodeLoopIoStrict,
   resolveRequiredSkillSlots,
   stateStorageExistsSync,
@@ -209,18 +212,23 @@ export async function performTransition(
         return false
       }
     },
-    missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => {
-      const slots = resolveRequiredSkillSlots(deps.skillResolver, capability, stepId)
+    // 与 CLI 的 check / transition / status 同一份判定（kernel judgeStepSkillSlots）：契约点名为
+    // producer 的必需技能，要在本次步骤访问里登记了它的文档才算完成。
+    missingStepSkills: async ({ changeDir: targetDir, stepId, capability, plan }) => {
       let historyRaw = ''
       try {
         historyRaw = await readFile(join(targetDir, HISTORY_FILE), 'utf8')
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       }
-      const completed = completedWorkflowSkillsSinceStepEntry(historyRaw, stepId)
-      return slots
-        .filter((slot) => !slot.alternatives.some((candidate) => completed.has(candidate)))
-        .map((slot) => slot.token)
+      const policy = plan.capabilities.documents.policy
+      return missingStepSkillMessages(judgeStepSkillSlots({
+        slots: resolveRequiredSkillSlots(deps.skillResolver, capability, stepId),
+        completed: completedWorkflowSkillsSinceStepEntry(historyRaw, stepId),
+        policy,
+        stepId,
+        visitRecords: policy === undefined ? [] : await documentRecordsInCurrentStepVisit(targetDir),
+      }))
     },
     resolveConstraintContext: async ({ policy }) => {
       const registry = loadRegistry(root, nodeLoopIoStrict)

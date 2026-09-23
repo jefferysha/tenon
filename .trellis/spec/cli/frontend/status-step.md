@@ -57,6 +57,12 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 - 文档动作的 `producers` 恒取该文档在**当前步**合法的那组（`recordProducerCandidatesForPolicyStep`），
   读清单也不例外：登记命令认的就是这一组。当前步没有合法 producer 时不发登记动作，让出口 blocker
   如实说明。
+- 技能状态与技能门同源（kernel `judgeStepSkillSlots`，经 `stepSkillGate.judgeStepSkills`）：
+  `done` = 已调用，且契约 role produce 槽点名它的文档都已在本次步骤访问由它登记；`invoked` =
+  已调用但还欠 `pending_documents`；`ready` / `waiting` 同前。只有 `done` 解锁后续技能。
+  `invoked` 的技能在「本步技能」这一档之后立即下发它欠的 `scaffold-document`（缺文件时）+
+  `record-document`，带 `skill` 字段、producers 收窄到与它等价的那几个——即使台账上那份文档是上一次
+  访问登记的 `recorded`（verify-fail 回来的第二次 verify）。
 - `mode`：`TENON_AFK=1` → `afk`；本任务有交互授权 → `continuous`；否则 `interactive`。
 
 ## 4. Validation & Error Matrix
@@ -70,6 +76,7 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | 声明的输入文档未读（`unread`） | `read-documents` 带全部待读路径 |
 | 已登记的文档被改（`stale`） | `record-document`，producer 取当前步接受的那组；不再发 `read-documents` |
 | 本步产出还没有（`missing`） | `scaffold-document` + `record-document` 一对 |
+| 技能已调用、欠本步产物（`invoked`） | 它欠的每份文档 `record-document`（缺文件先 `scaffold-document`），不再 `load-skill` |
 | `role: update` 的槽还没登记过 | 不发动作（可以改 ≠ 必须产出） |
 | 必需测试未通过 | `run-test`；失败的测试要先改代码再重跑 |
 | `delta-spec` 归本步且回执不新鲜 | 文档登记完之后 `validate-spec` |

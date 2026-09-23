@@ -44,7 +44,7 @@ import { mkdir, readFile, stat, utimes, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { loadManifest, parseUpstreamSkillSources, skillsFor, type Phase } from '@tenon/kernel'
-import { freshHarness, MANIFEST, REPO_ROOT, rm, type Harness } from './integration-harness.js'
+import { FIXTURE_HISTORY_TAG, freshHarness, MANIFEST, REPO_ROOT, rm, type Harness } from './integration-harness.js'
 
 const TRACK = 'backend' as const
 const CHANGE = 'wfskill'
@@ -135,7 +135,9 @@ describe('真实 e2e —— 完整多相位 workflow × skill 编排一体化闭
 
   async function historyLines(): Promise<HistLine[]> {
     const raw = await readFile(historyPath, 'utf8').catch(() => '')
-    return raw.split('\n').filter(Boolean).map((l) => JSON.parse(l) as HistLine)
+    // 夹具替 producer 在每次步骤访问补登产物时写的 Skill 行不是 hook 写的，不进 hook 行数核验。
+    return raw.split('\n').filter(Boolean).map((l) => JSON.parse(l) as HistLine & { fixture?: string })
+      .filter((line) => line.fixture !== FIXTURE_HISTORY_TAG)
   }
 
   function runRouter(prompt: string): HookResult {

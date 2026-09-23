@@ -6,10 +6,15 @@
  * 「[PASS] 所有检查通过」、下一条命令 transition 说「step 'explore' 尚未完成声明的 skill」。
  * 两个命令对同一事实给出相反答案，用户无从判断谁对。判定只此一处，差别只有一个：transition
  * 持锁、可以把宿主回执落成 history 证据；check/status 是预览，只读同样的回执得出同样的结论。
+ *
+ * 「完成」有两种，由本步的 document 契约决定，不另立名单：契约的 role produce 槽点名它为
+ * producer 的技能，要在本次步骤访问里登记过它产出的文档才算完成；本步不产出文档的技能，调用即完成。
+ * 第三轮真机验收里五条空 PostToolUse 就把五个技能刷成 done，正是因为从前只有后一种。
  */
 import {
-  completedWorkflowSkillsSinceStepEntry, resolveRequiredSkillSlots,
-  type EffectiveWorkflowPlan,
+  completedWorkflowSkillsSinceStepEntry, documentRecordsInCurrentStepVisit, judgeStepSkillSlots,
+  missingStepSkillMessages, resolveRequiredSkillSlots,
+  type DocumentGovernancePolicy, type EffectiveWorkflowPlan, type StepSkillSlotProgress,
 } from '@tenon/kernel'
 import type { CliDeps } from './deps.js'
 import { discoverConfirmedCodexSkillIds, reconcileCodexSkillEvidence } from './codexSkillReceipt.js'
@@ -69,23 +74,37 @@ export async function completedStepSkillIds(input: StepSkillGateInput): Promise<
   return completed
 }
 
-/** 未满足的必需技能槽，返回 manifest/step 里逐字的 token（`a|b` 保持原样）。 */
-export function missingStepSkillTokensFrom(
-  deps: CliDeps,
-  capability: SkillCapability,
-  stepId: string,
-  completed: ReadonlySet<string>,
-): readonly string[] {
-  return resolveRequiredSkillSlots(deps.resolver, capability, stepId)
-    .filter((slot) => !slot.alternatives.some((candidate) => completed.has(canonicalPipelineSkillId(candidate))))
-    .map((slot) => slot.token)
+export interface StepSkillJudgement {
+  /** 本次进入该步骤之后已调用的技能 id（`tenon` 是否已加载也从这里读）。 */
+  readonly completedSkillIds: ReadonlySet<string>
+  readonly slots: readonly StepSkillSlotProgress[]
 }
 
-export async function missingStepSkillTokens(input: StepSkillGateInput): Promise<readonly string[]> {
-  return missingStepSkillTokensFrom(
-    input.deps,
-    input.capability,
-    input.stepId,
-    await completedStepSkillIds(input),
-  )
+export interface StepSkillJudgementInput extends StepSkillGateInput {
+  /** 本步的 document 契约；undefined = 不受文档治理，所有必需技能都以调用为准。 */
+  readonly documentPolicy: DocumentGovernancePolicy | undefined
+}
+
+/** 一次读齐调用回执与本次访问的文档记录，给出每个必需技能槽的完成度。 */
+export async function judgeStepSkills(input: StepSkillJudgementInput): Promise<StepSkillJudgement> {
+  const completedSkillIds = await completedStepSkillIds(input)
+  const visitRecords = input.documentPolicy === undefined
+    ? []
+    : await documentRecordsInCurrentStepVisit(input.changeDir)
+  return {
+    completedSkillIds,
+    slots: judgeStepSkillSlots({
+      slots: resolveRequiredSkillSlots(input.deps.resolver, input.capability, input.stepId),
+      completed: completedSkillIds,
+      policy: input.documentPolicy,
+      stepId: input.stepId,
+      visitRecords,
+    }),
+  }
+}
+
+export { missingStepSkillMessages, type StepSkillSlotProgress }
+
+export async function missingStepSkills(input: StepSkillJudgementInput): Promise<readonly string[]> {
+  return missingStepSkillMessages((await judgeStepSkills(input)).slots)
 }

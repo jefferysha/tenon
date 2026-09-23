@@ -6,11 +6,10 @@
 import {
   DOCUMENT_KIND_CATALOG, documentPathTemplateForKind, isDocumentKind, renderDocumentPathForKind,
   readsRequiredForPolicyStep, recordProducerCandidatesForPolicyStep, requiresForPolicyStep,
-  resolveRequiredSkillSlots,
   type DocumentEvidenceItem, type DocumentGovernancePolicy, type DocumentKind,
   type EffectiveWorkflowPlan, type PipelineState, type StepIR,
 } from '@tenon/kernel'
-import type { CliDeps } from '../deps.js'
+import type { StepSkillSlotProgress } from '../stepSkillGate.js'
 import { RECOMMENDED, STEP_FIELD_ENUMS, TRANSITION_MANAGED_FIELDS } from './field-values.js'
 import { canonicalTenonSkillId } from './stepSkillEvidence.js'
 
@@ -18,7 +17,13 @@ export interface StepSkillView {
   readonly id: string
   readonly depends_on: readonly string[]
   readonly wave: number
-  readonly status: 'done' | 'ready' | 'waiting'
+  /**
+   * `invoked` = 已调用，但本步契约绑定给它的文档还没在本次步骤访问里登记；剩下的动作是登记
+   * `pending_documents`，不是再调用一次。
+   */
+  readonly status: 'done' | 'invoked' | 'ready' | 'waiting'
+  /** 这个技能在本步还欠的文档 kind（契约 role produce 槽点名它为 producer）；空 = 调用即完成。 */
+  readonly pending_documents: readonly string[]
 }
 
 export interface StepDocumentView {
@@ -73,29 +78,28 @@ function scalar(state: PipelineState, field: string): string {
 
 /**
  * 技能顺序的唯一真相源仍是解析出来的必需槽位：default 走 manifest 叠加，自定义走 step 声明。
- * 槽位是有序的，所以第 n 个槽位的前置就是它前面所有槽位。
+ * 槽位是有序的，所以第 n 个槽位的前置就是它前面所有槽位。完成度直接取技能门的判定
+ * （stepSkillGate.judgeStepSkills），投影与 transition 不各算一遍。
  */
 export function stepSkills(
-  deps: CliDeps,
   plan: EffectiveWorkflowPlan,
   stepId: string,
-  completed: ReadonlySet<string>,
+  slots: readonly StepSkillSlotProgress[],
 ): readonly StepSkillView[] {
   const declared = plan.capabilities.skills.steps.find((step) => step.stepId === stepId)?.declared ?? []
-  const slots = resolveRequiredSkillSlots(deps.resolver, plan.capabilities.skills, stepId)
   const views: StepSkillView[] = []
   let unlocked = true
   for (const [index, slot] of slots.entries()) {
     const id = canonicalTenonSkillId(slot.token)
-    const done = slot.alternatives.some((candidate) => completed.has(canonicalTenonSkillId(candidate)))
     views.push({
       id,
       depends_on: declared.find((ref) => canonicalTenonSkillId(ref.id) === id)?.dependsOn.map(canonicalTenonSkillId)
         ?? views.slice(0, index).map((view) => view.id),
       wave: index,
-      status: done ? 'done' : unlocked ? 'ready' : 'waiting',
+      status: slot.done ? 'done' : !unlocked ? 'waiting' : slot.invoked ? 'invoked' : 'ready',
+      pending_documents: slot.pendingDocuments,
     })
-    if (!done) unlocked = false
+    if (!slot.done) unlocked = false
   }
   return views
 }

@@ -262,6 +262,12 @@ describe('照着 next 做事的运行器：open → 完结', () => {
       && action.action === 'record-document'
       && action.kind === 'proposal'
       && (action.producers as readonly string[]).includes('tenon'))).toBe(true)
+    // 技能与产物绑定：brainstorming 调用之后，next 给的是它本步的文档，而不是再调用一次。
+    expect(actions.some(({ step, action }) => step === 'explore'
+      && action.action === 'record-document' && action.skill === 'brainstorming'
+      && action.kind === 'superpower-design')).toBe(true)
+    expect(actions.filter(({ step, action }) => step === 'explore'
+      && action.action === 'load-skill' && action.skill === 'brainstorming')).toHaveLength(1)
     // D4：build 从头到尾没被要求手填 build_sha——它由 build 出口的转换冻结。
     expect(actions.filter(({ action }) => action.action === 'set-field' && action.field === 'build_sha')).toEqual([])
   })
@@ -281,6 +287,11 @@ describe('照着 next 做事的运行器：open → 完结', () => {
       && action.action === 'request-review' && action.event === 'verify-fail')).toBe(true)
     expect(actions.some(({ step, action }) => step === 'verify'
       && action.action === 'await-review' && action.event === 'verify-fail')).toBe(true)
+    // 第二次进入 verify：上一次访问登记的 verification-report 不算，next 让它的 producer 在本次访问
+    // 重新登记——台账上那份仍是 recorded，按台账状态派的写入分支一条都不会发。
+    expect(actions.filter(({ step, action }) => step === 'verify'
+      && action.action === 'record-document' && action.kind === 'verification-report'
+      && action.skill === 'verification-before-completion')).toHaveLength(2)
   })
 
   /** D7：不存在的任务是产品层的一句话，不是一行 ENOENT。 */

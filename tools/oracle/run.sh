@@ -499,6 +499,12 @@ oracle_document_recorded() {
   [ -f "$receipts" ] && grep -Fxq "$3" "$receipts"
 }
 
+oracle_document_recorded_any_visit() {
+  local receipts
+  receipts="$(oracle_document_receipts "$1" "$2")"
+  [ -f "$receipts" ] && grep -Eq "^$3(@[0-9]*)?\$" "$receipts"
+}
+
 record_oracle_document() {
   local dir="$1" change="$2" current="$3" owner="$4" kind="$5" rel="$6" producer="$7"
   local current_rank owner_rank
@@ -506,7 +512,20 @@ record_oracle_document() {
   owner_rank="$(phase_rank "$owner")"
   [ "$current_rank" -ge 0 ] && [ "$owner_rank" -ge 0 ] || return 0
   [ "$owner_rank" -le "$current_rank" ] || return 0
-  oracle_document_recorded "$dir" "$change" "$kind" && return 0
+  # A kind owned by the current phase is its mandatory producer's output, and that Skill counts as
+  # done only when the document is recorded in *this* step visit (skill↔artifact binding). Key the
+  # idempotency receipt on the visit (transition rows so far) so a re-entered phase — verify after
+  # verify-fail — records again; historical backfills stay once-only as the ledger demands.
+  local receipt="$kind"
+  if [ "$owner_rank" -eq "$current_rank" ]; then
+    receipt="$kind@$(grep -c '"kind":"transition"' "$dir/openspec/changes/$change/.pipeline-history.jsonl" 2>/dev/null || true)"
+  fi
+  if [ "$owner_rank" -lt "$current_rank" ]; then
+    # Any earlier record of the kind (in its owner visit or as a backfill) already establishes it.
+    oracle_document_recorded_any_visit "$dir" "$change" "$kind" && return 0
+  else
+    oracle_document_recorded "$dir" "$change" "$receipt" && return 0
+  fi
   ensure_oracle_document "$dir" "$rel" "$kind" || return 1
   track_oracle_skill "$dir" "$producer" || return 1
   if [ "$owner_rank" -lt "$current_rank" ]; then
@@ -515,7 +534,7 @@ record_oracle_document() {
     run_new_cli "$dir" document record "$change" "$kind" "$rel" --producer "$producer" || return 1
   fi
   mkdir -p "$dir/.oracle-document-records" || return 1
-  printf '%s\n' "$kind" >> "$(oracle_document_receipts "$dir" "$change")"
+  printf '%s\n' "$receipt" >> "$(oracle_document_receipts "$dir" "$change")"
 }
 
 bootstrap_new_document_contract() {

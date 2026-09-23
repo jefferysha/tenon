@@ -306,6 +306,11 @@ export interface DashboardServerOptions {
   flow?: FlowEngine
   /** flow 未注入时从此 manifest 构造（bin 用；测试通常直接注入 flow）。 */
   manifestPath?: string
+  /**
+   * 产品 skills/ 根（缺省：插件仓根下的 skills/，与 doctor 读的是同一处）。POST
+   * /api/config/mandatory-skills 在落盘前据此拒绝宿主不许模型调用的技能。
+   */
+  skillsRoot?: string
   /** `git rev-parse HEAD` 注入（build-complete 冻结 SHA 用；缺省跳过 SHA 面）。 */
   gitHeadSha?: (cwd: string) => Promise<string>
   /** in-place build 的内容寻址工作区基线；生产装配为 kernel fingerprintWorkspace。 */

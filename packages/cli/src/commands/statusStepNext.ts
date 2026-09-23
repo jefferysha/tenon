@@ -5,6 +5,7 @@
  * 「下一步照做什么」。每条动作名就是一条真能跑通的命令：投影说得出口的事，命令必须接受；
  * 命令拒绝的写法，投影一条都不许发。
  */
+import { aliasesForSkill } from '@tenon/kernel'
 import type { StepAgentView } from './statusStepAgents.js'
 import type { StepBlocker, StepExit } from './stepExitReport.js'
 import type {
@@ -122,6 +123,42 @@ function documentWriteActions(documents: StepDocumentsView): readonly StepAction
   return actions
 }
 
+/**
+ * 已调用、但契约绑定给它的文档还没在本次步骤访问里登记的技能：剩下的就是登记那些文档。
+ *
+ * 文档在台账上可能已是 `recorded`（上一次访问登记过，verify-fail 回来后的第二次 verify 就是这样），
+ * 按台账状态派的写入分支因此一条都不会发；这里按技能欠的 kind 发，缺文件时连骨架一起。
+ * producers 收窄到与该技能等价的那几个——登记者必须是它，别的合法 producer 不能替它交作业。
+ */
+function skillDocumentActions(
+  skills: readonly StepSkillView[],
+  documents: StepDocumentsView,
+): readonly StepAction[] {
+  const actions: StepAction[] = []
+  const seen = new Set<string>()
+  for (const skill of skills) {
+    if (skill.status !== 'invoked') continue
+    const aliases = new Set(aliasesForSkill(skill.id))
+    for (const kind of skill.pending_documents) {
+      const doc = documents.records.find((candidate) => candidate.kind === kind)
+      if (doc === undefined || seen.has(kind)) continue
+      seen.add(kind)
+      const own = doc.producers.filter((producer) =>
+        aliasesForSkill(producer).some((alias) => aliases.has(alias)))
+      const shape = {
+        kind: doc.kind,
+        path: doc.path,
+        path_template: doc.path_template,
+        producers: own.length > 0 ? own : doc.producers,
+        skill: skill.id,
+      }
+      if (doc.status === 'missing') actions.push({ action: 'scaffold-document', ...shape })
+      actions.push({ action: 'record-document', ...shape })
+    }
+  }
+  return actions
+}
+
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
 export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩治理归档这一步，排在
@@ -151,6 +188,8 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   if (ready.length > 0) {
     return ready.map((skill) => ({ action: 'load-skill', skill: skill.id, wave: skill.wave }))
   }
+  const producing = skillDocumentActions(input.skills, input.documents)
+  if (producing.length > 0) return producing
 
   if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]
   const writes = documentWriteActions(input.documents)

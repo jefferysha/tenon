@@ -117,6 +117,8 @@ export interface PostRouteDeps {
   workspaceFingerprint?: (cwd: string, changeName: string) => Promise<string>
   breadcrumb: Parameters<typeof performTransition>[0]['breadcrumb']
   manifestPath?: string
+  /** 产品的 skills/ 根；mandatory-skills 写端点据此在落盘前判技能能否被模型调用。 */
+  skillsRoot: string
   paths: ServerPaths
   validateLoopActivation?: LoopActivationValidator
   mutateTrackForApi: (

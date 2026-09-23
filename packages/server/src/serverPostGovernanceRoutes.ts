@@ -45,6 +45,7 @@ import {
   parseChangeTaskPrompt,
   writeChangeTaskPrompt,
 } from './changeLaunch.js'
+import { nonInvocableSkillTokens } from '@tenon/automation'
 import { validateMandatorySkillsBody, writeMandatorySkills } from './config.js'
 import {
   validateHookToggleBody,
@@ -103,6 +104,22 @@ export async function handlePostGovernanceRoutes(
       const validated = validateMandatorySkillsBody(body)
       if (!validated.ok) return sendJson(res, 400, { ok: false, error: validated.error })
       const { phase, track, skills } = validated.value
+      // 与 doctor / 发布候选校验同一判定，但在落盘前：宿主不许模型调用的技能写成强制技能，
+      // 声明它的步骤会永远卡在 step-skills-incomplete。未知（读不到 SKILL.md）不冤枉。
+      let offenders: Awaited<ReturnType<typeof nonInvocableSkillTokens>>
+      try {
+        offenders = await nonInvocableSkillTokens(deps.skillsRoot, skills)
+      } catch (e) {
+        return sendJson(res, 400, { ok: false, error: errMsg(e) })
+      }
+      if (offenders.length > 0) {
+        return sendJson(res, 400, {
+          ok: false,
+          code: 'mandatory-skill-not-invocable',
+          error: `强制技能必须允许模型调用；以下技能带 disable-model-invocation: true，宿主不会代模型调用：${offenders.map((item) => item.token).join('、')}`,
+          detail: offenders.map((item) => ({ token: item.token, skill_ids: item.skillIds })),
+        })
+      }
       try {
         await writeMandatorySkills(manifestPath, phase, track, skills)
       } catch (e) {

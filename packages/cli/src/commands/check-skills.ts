@@ -7,7 +7,7 @@
 import type { EffectiveWorkflowPlan, PipelineState } from '@tenon/kernel'
 import type { CliDeps } from '../deps.js'
 import { str } from '../render.js'
-import { missingStepSkillTokens } from '../stepSkillGate.js'
+import { missingStepSkills } from '../stepSkillGate.js'
 
 export async function stepSkillLines(
   deps: CliDeps,
@@ -16,11 +16,12 @@ export async function stepSkillLines(
   plan: EffectiveWorkflowPlan,
 ): Promise<readonly string[]> {
   const stepId = str(state.fields.phase)
-  const missing = await missingStepSkillTokens({
+  const missing = await missingStepSkills({
     deps,
     changeDir: dir,
     stepId,
     capability: plan.capabilities.skills,
+    documentPolicy: plan.capabilities.documents.policy,
     recordEvidence: false,
   })
   return missing.map((token) => `step '${stepId}' 尚未完成声明的 skill：${token}`)

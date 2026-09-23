@@ -49,6 +49,30 @@ async function verdictFor(skillsRoot: string, skillId: string): Promise<Verdict>
   return isSkillModelInvocable(parseSkillFrontmatter(text)) ? 'invocable' : 'not-invocable'
 }
 
+/** token 的全部备选都被 SKILL.md 证明不可调用时返回备选列表；否则（有一个可调用或未知）undefined。 */
+async function provenNotInvocable(skillsRoot: string, token: string): Promise<readonly string[] | undefined> {
+  const alternatives = skillTokenAlternatives(token)
+  const verdicts = await Promise.all(alternatives.map((id) => verdictFor(skillsRoot, id)))
+  return verdicts.length > 0 && verdicts.every((verdict) => verdict === 'not-invocable') ? alternatives : undefined
+}
+
+/**
+ * 写入前的同一判定：一组将要成为强制技能的 token 里，哪些被证明宿主不许模型调用。
+ * Dashboard 的 mandatory-skills 写端点用它在落盘前拒绝，而不是等 doctor / 发布校验事后才发现。
+ * 语法非法的 token 由调用方的字符集校验先拦；这里遇到会抛出 skillTokenAlternatives 的错误。
+ */
+export async function nonInvocableSkillTokens(
+  skillsRoot: string,
+  tokens: readonly string[],
+): Promise<readonly { readonly token: string; readonly skillIds: readonly string[] }[]> {
+  const offenders: { token: string; skillIds: readonly string[] }[] = []
+  for (const token of tokens) {
+    const skillIds = await provenNotInvocable(skillsRoot, token)
+    if (skillIds !== undefined) offenders.push({ token, skillIds })
+  }
+  return offenders
+}
+
 function tokenCells(table: SkillTable): Map<string, string[]> {
   const cells = new Map<string, string[]>()
   for (const [phase, row] of Object.entries(table)) {
@@ -86,16 +110,13 @@ export async function scanMandatorySkillInvocability(
   }
   const offenders: NonInvocableMandatorySkill[] = []
   for (const [token, cells] of tokenCells(table)) {
-    let alternatives: readonly string[]
+    let skillIds: readonly string[] | undefined
     try {
-      alternatives = skillTokenAlternatives(token)
+      skillIds = await provenNotInvocable(skillsRoot, token)
     } catch (error) {
       return { kind: 'unreadable-manifest', detail: error instanceof Error ? error.message : String(error) }
     }
-    const verdicts = await Promise.all(alternatives.map((id) => verdictFor(skillsRoot, id)))
-    if (verdicts.length > 0 && verdicts.every((verdict) => verdict === 'not-invocable')) {
-      offenders.push({ token, skillIds: alternatives, cells: [...cells].sort() })
-    }
+    if (skillIds !== undefined) offenders.push({ token, skillIds, cells: [...cells].sort() })
   }
   return { kind: 'scanned', offenders: offenders.sort((left, right) => left.token.localeCompare(right.token)) }
 }

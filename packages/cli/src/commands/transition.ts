@@ -65,7 +65,7 @@ import { refuseArchived } from '../archivedGuard.js'
 import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { requireActor } from '../userIdentity.js'
 import { stepAgentBlockersFor } from '../agentGate.js'
-import { missingStepSkillTokens } from '../stepSkillGate.js'
+import { missingStepSkills } from '../stepSkillGate.js'
 import { testEvidenceContextFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 import { phaseExitGuardContext } from './phaseExitGuard.js'
@@ -153,8 +153,9 @@ export async function cmdTransition(deps: CliDeps, name: string, event: string):
     stepAgentBlockers: async ({ changeDir: targetDir, stepId, plan, state }) =>
       stepAgentBlockersFor({ deps, name, dir: targetDir, stepId, plan, state }),
     // 与 check / status 的出边投影同一个判定；这里持锁，所以顺带把宿主回执落成 history 证据。
-    missingStepSkills: async ({ changeDir: targetDir, stepId, capability }) => missingStepSkillTokens({
+    missingStepSkills: async ({ changeDir: targetDir, stepId, capability, plan }) => missingStepSkills({
       deps, changeDir: targetDir, stepId, capability, recordEvidence: true,
+      documentPolicy: plan.capabilities.documents.policy,
     }),
     resolveConstraintContext: async ({ policy }) => {
       const registry = loadRegistry(deps.cwd, nodeLoopIoStrict)
