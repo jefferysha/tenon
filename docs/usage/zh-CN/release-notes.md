@@ -12,6 +12,68 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.1.3 · 2026-09-24
+
+第二轮真实会话验收修复版。在 v0.1.2 上用真实 Claude Code 会话完整走完 backend 与 free 轨道，并按 1440 宽度复查
+Dashboard，本版修复其中发现的问题。
+
+### 数据驱动流程（`step.next`）
+
+- `ship`：`tasks.md` 未完成项排在 `apply-spec` 与文档写入之前，以 `fix` 动作出现并列出每一项；勾选一项后剩余项
+  不再被隐藏。
+- `finish-change` 的提交命令一次成功：只列 git 接受的路径（未被跟踪的原 change 目录不再列入），存在且未跟踪的
+  `.pipeline/.gitignore`、`.tenon/.gitignore`、`openspec/.gitignore` 一并提交，旧版本已提交的心跳文件在提交中
+  取消跟踪。非 git 仓库时 `commit` 为 `null`。
+- `simple` 等不使用 OpenSpec 的工作流在 `verify-pass` 后如有未提交改动，同样给出 `finish-change` 提交动作。
+- `build_mode`、`isolation` 等选择字段在读完输入文档后、动手实现前就出现在 `next` 中。
+- `chat`、`pm`、`free` 轨道的 `build` 步声明必需评审者 `spec-consistency`：`pre_verify_review_result` 必须在
+  评审有真实结论后才能写成 `pass`。进行中的任务保留原冻结计划。
+- 必需测试的 npm 脚本在项目中不存在时，`tenon test run` 报「未配置」而不是失败，不写记录；`step.tests[].status`
+  为 `unconfigured`，并在 `build` 步就提示配置。
+- 已完结任务的 `status --json` 形态一致；`tenon test status` 对已完结任务列出各步最后一次记录。
+- `tenon spec apply` 新建能力主规格时从提案写入 Purpose，不再留下 `TBD`；提案仍是骨架时报 `purpose-missing`。
+
+### 宿主与 hook
+
+- 用户在消息中点名已知轨道（「走 free 轨道」「track=free」「use the backend track」等）时，路由以点名为准，
+  dispatch 标注 `track_basis: user-named`；否定、未知或多个点名时回退评分并提示。
+- 解封提示列出实际能解封的回复（含「按推荐」「好的」）与不能解封的回复，并由测试逐句核对与分类器一致。
+- 新增 `openspec/.gitignore` 忽略 `.pipeline-terminal-activity.*` 心跳，工作区不再因心跳变脏。
+- 粘贴超长内容时 UserPromptSubmit hook 不再超时：v0.1.2 在 64 KB 日志上即超过 30 秒，现在 1 MB 也在 0.5 秒内；
+  超过 64 KiB 的 prompt 只保留首尾各 8 KiB 用于路由判定。
+
+### Dashboard
+
+- 工作台的「含已完结 / 已归档 / 未提交删除」单独一行，工作流筛选不再被挤成竖排。
+- 资源目录每组筛选行首显示组名（类别 / 框架 / 样式 / 许可）。
+
+### 升级动作
+
+从 v0.1.2 升级：运行 `tenon update --codex`（或 `--claude`），然后新开宿主会话。N-1 兼容门禁在两个方向上用已发布的
+v0.1.2 读写本版本的数据。
+
+从 1.x 迁移：为使用的每个宿主各运行一次版本化安装命令：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.3/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.3/install.sh | /bin/bash -s -- --codex
+```
+
+### 兼容性
+
+- `next` 动作顺序变化：选择字段与测试配置提前。`finish-change.commit` 新增 `untrack`，`command` 与 `commit`
+  可能为 `null`。
+- 已经写成 `TBD` 的主规格不会被改写。
+
+### 验证
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+两个宿主的 inventory、active managed runtime 与 Dashboard 都报告 0.1.3。
+
 ## v0.1.2 · 2026-09-24
 
 验收修复版。对 v0.1.1 做了系统性真实场景自测（真实 Claude Code 会话完整走完 7 个阶段、逐项命令行能力覆盖、

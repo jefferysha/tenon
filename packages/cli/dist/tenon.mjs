@@ -3030,11 +3030,11 @@ var require_commander = __commonJS({
 });
 
 // packages/cli/src/main.ts
-import { execFile as execFile11, spawn as spawn9 } from "node:child_process";
-import { existsSync as existsSync13, readFileSync as readFileSync40 } from "node:fs";
-import { readFile as readFile79, stat as stat16, writeFile as writeFile32 } from "node:fs/promises";
+import { execFile as execFile12, spawn as spawn9 } from "node:child_process";
+import { existsSync as existsSync14, readFileSync as readFileSync40 } from "node:fs";
+import { readFile as readFile80, stat as stat16, writeFile as writeFile32 } from "node:fs/promises";
 import { homedir as homedir22 } from "node:os";
-import { dirname as dirname38, join as join149 } from "node:path";
+import { dirname as dirname38, join as join151 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -8063,7 +8063,7 @@ import { lstat as lstat8, mkdir as mkdir6, opendir, realpath as realpath2 } from
 import { isAbsolute as isAbsolute2, join as join11, relative as relative2, sep as sep2 } from "node:path";
 
 // packages/kernel/dist/workflow/default-workflow.generated.js
-var DEFAULT_WORKFLOW_SOURCE = 'name: default\nopenspec: true\ntracks:\n  chat:\n    label: \u5BF9\u8BDD\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills: []\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills: []\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills: []\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  pm:\n    label: \u4EA7\u54C1\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: brainstorming\n          - id: writing-plans\n          - id: grilling\n          - id: domain-modeling\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts: []\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u539F\u578B\u4E3A\u4EA4\u4ED8\u7EA7\u9AD8\u4FDD\u771F\uFF0C\u8986\u76D6\u5173\u952E\u5C4F\u4E0E\u7A7A\u3001\u52A0\u8F7D\u3001\u9519\u8BEF\u3001\u6210\u529F\u6001\uFF1B\u7528\u6237\u9009\u5B9A\u4E00\u4E2A\u65B9\u6848\u540E\u53EA\u7CBE\u4FEE\u8BE5\u65B9\u6848\u3002\n        skills:\n          - id: prototype\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: prd_path\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: prd_path\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  frontend:\n    label: \u524D\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n        - { kind: design-md, owner_step: open, role: require }\n        - { kind: design-md, owner_step: build, role: require }\n        - { kind: design-md, owner_step: verify, role: require }\n        - { kind: design-md, owner_step: ship, role: update, producers: [hue] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        prompt: |-\n          \u9700\u8981\u65B0\u589E\u6216\u8C03\u6574\u8BBE\u8BA1\u65F6\u8FD0\u884C tenon design propose "$TENON_CHANGE_NAME"\uFF0C\u5728 openspec/changes/<change>/design-system.md \u5199\u6E05\u4FEE\u6539\u3001\u7406\u7531\u3001\u5F71\u54CD\uFF0C\u968F\u89C4\u683C\u8BC4\u5BA1\u3002\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        tests:\n          - id: typecheck\n            direction: typecheck\n            command: npm run typecheck\n            label: \u7C7B\u578B\u68C0\u67E5\n            timeout_s: 600\n            required: true\n          - id: unit\n            direction: unit\n            command: npm test\n            label: \u5355\u6D4B\n            timeout_s: 900\n            required: true\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: e2e-testing\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: playwright\n            direction: playwright\n            command: npx playwright test\n            label: Playwright\n            timeout_s: 1800\n            required: true\n            outputs:\n              - path: playwright-report\n                kind: report\n                required: false\n              - path: test-results\n                kind: trace\n                required: false\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: frontend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: e2e\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, frontend-quality, security, e2e]\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        prompt: |-\n          \u5B58\u5728 openspec/changes/<change>/design-system.md \u65F6\uFF1A\u52A0\u8F7D hue\uFF0C\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210 DESIGN.md \u53D7\u5F71\u54CD\u7AE0\u8282\u4E0E\u9884\u89C8\uFF0C\u8DD1 tenon design validate \u5230\u901A\u8FC7\uFF0C\u767B\u8BB0 tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\u3002\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        tests:\n          - id: design-system\n            direction: design-system\n            command: tenon design validate\n            label: \u8BBE\u8BA1\u4F53\u7CFB\n            timeout_s: 300\n            required: true\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  backend:\n    label: \u540E\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n          - id: codebase-design\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        tests:\n          - id: unit\n            direction: unit\n            command: npm test\n            label: \u5355\u6D4B\n            timeout_s: 900\n            required: true\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: integration\n            direction: integration\n            command: npm run test:integration\n            label: \u96C6\u6210\n            timeout_s: 1800\n            required: true\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: backend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, backend-quality, security]\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  free:\n    label: \u81EA\u7531\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n';
+var DEFAULT_WORKFLOW_SOURCE = 'name: default\nopenspec: true\ntracks:\n  chat:\n    label: \u5BF9\u8BDD\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills: []\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills: []\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills: []\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills: []\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  pm:\n    label: \u4EA7\u54C1\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: brainstorming\n          - id: writing-plans\n          - id: grilling\n          - id: domain-modeling\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts: []\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        prompt: |-\n          \u539F\u578B\u4E3A\u4EA4\u4ED8\u7EA7\u9AD8\u4FDD\u771F\uFF0C\u8986\u76D6\u5173\u952E\u5C4F\u4E0E\u7A7A\u3001\u52A0\u8F7D\u3001\u9519\u8BEF\u3001\u6210\u529F\u6001\uFF1B\u7528\u6237\u9009\u5B9A\u4E00\u4E2A\u65B9\u6848\u540E\u53EA\u7CBE\u4FEE\u8BE5\u65B9\u6848\u3002\n        skills:\n          - id: prototype\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills: []\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: prd_path\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: prd_path\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  frontend:\n    label: \u524D\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n        - { kind: design-md, owner_step: open, role: require }\n        - { kind: design-md, owner_step: build, role: require }\n        - { kind: design-md, owner_step: verify, role: require }\n        - { kind: design-md, owner_step: ship, role: update, producers: [hue] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        prompt: |-\n          \u9700\u8981\u65B0\u589E\u6216\u8C03\u6574\u8BBE\u8BA1\u65F6\u8FD0\u884C tenon design propose "$TENON_CHANGE_NAME"\uFF0C\u5728 openspec/changes/<change>/design-system.md \u5199\u6E05\u4FEE\u6539\u3001\u7406\u7531\u3001\u5F71\u54CD\uFF0C\u968F\u89C4\u683C\u8BC4\u5BA1\u3002\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n          - id: frontend-design\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        tests:\n          - id: typecheck\n            direction: typecheck\n            command: npm run typecheck\n            label: \u7C7B\u578B\u68C0\u67E5\n            timeout_s: 600\n            required: true\n          - id: unit\n            direction: unit\n            command: npm test\n            label: \u5355\u6D4B\n            timeout_s: 900\n            required: true\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: browser-qa\n          - id: web-design-guidelines\n          - id: design-taste-frontend\n          - id: verification-before-completion\n          - id: e2e-testing\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: playwright\n            direction: playwright\n            command: npx playwright test\n            label: Playwright\n            timeout_s: 1800\n            required: true\n            outputs:\n              - path: playwright-report\n                kind: report\n                required: false\n              - path: test-results\n                kind: trace\n                required: false\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: frontend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: e2e\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, frontend-quality, security, e2e]\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        prompt: |-\n          \u5B58\u5728 openspec/changes/<change>/design-system.md \u65F6\uFF1A\u52A0\u8F7D hue\uFF0C\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210 DESIGN.md \u53D7\u5F71\u54CD\u7AE0\u8282\u4E0E\u9884\u89C8\uFF0C\u8DD1 tenon design validate \u5230\u901A\u8FC7\uFF0C\u767B\u8BB0 tenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\u3002\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        tests:\n          - id: design-system\n            direction: design-system\n            command: tenon design validate\n            label: \u8BBE\u8BA1\u4F53\u7CFB\n            timeout_s: 300\n            required: true\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  backend:\n    label: \u540E\u7AEF\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: openspec-explore\n          - id: brainstorming\n          - id: grilling\n          - id: domain-modeling\n          - id: codebase-design\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        tests:\n          - id: unit\n            direction: unit\n            command: npm test\n            label: \u5355\u6D4B\n            timeout_s: 900\n            required: true\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        tests:\n          - id: integration\n            direction: integration\n            command: npm run test:integration\n            label: \u96C6\u6210\n            timeout_s: 1800\n            required: true\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n            - agent: backend-quality\n              required: true\n              block_at: medium\n            - agent: security\n              required: true\n              block_at: medium\n            - agent: architecture\n              required: false\n              block_at: high\n              depends_on: [spec-consistency, backend-quality, security]\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n  free:\n    label: \u81EA\u7531\n    document_contract:\n      version: v1\n      slots:\n        - { kind: proposal, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: openspec-design, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: tasks, owner_step: open, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-design, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: adr, owner_step: explore, producers: [brainstorming, superpowers:brainstorming] }\n        - { kind: proposal, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: explore, role: update, producers: [tenon] }\n        - { kind: delta-spec, owner_step: spec, producers: [openspec-propose, opsx:propose] }\n        - { kind: superpower-plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: plan, owner_step: spec, producers: [writing-plans, superpowers:writing-plans] }\n        - { kind: proposal, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: openspec-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: superpower-design, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: adr, owner_step: spec, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: build, role: update, producers: [tenon] }\n        - { kind: verification-report, owner_step: verify, producers: [verification-before-completion, superpowers:verification-before-completion] }\n        - { kind: tasks, owner_step: verify, role: update, producers: [tenon] }\n        - { kind: applied-spec, owner_step: ship, producers: [tenon] }\n        - { kind: tasks, owner_step: ship, role: update, producers: [tenon] }\n        - { kind: tasks, owner_step: archive, role: update, producers: [tenon] }\n      reads:\n        - { step: explore, kinds: [proposal, openspec-design, tasks] }\n        - { step: spec, kinds: [proposal, openspec-design, tasks, superpower-design, adr] }\n        - { step: build, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: verify, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan] }\n        - { step: ship, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report] }\n        - { step: archive, kinds: [proposal, openspec-design, tasks, superpower-design, adr, delta-spec, superpower-plan, plan, verification-report, applied-spec] }\n    steps:\n      - id: open\n        label: \u7ACB\u9879\n        gate: null\n        skills:\n          - id: openspec-propose\n        inputs: []\n        outputs: []\n        guards: []\n        transitions:\n          - event: open-complete\n            to: explore\n      - id: explore\n        label: \u8C03\u7814\n        gate: review\n        skills:\n          - id: brainstorming\n        inputs: []\n        outputs:\n          - field: design_doc\n            type: file_path\n        artifacts:\n          - field: design_doc\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: explore-complete\n            to: spec\n      - id: spec\n        label: \u89C4\u683C\n        gate: review\n        skills:\n          - id: openspec-propose\n          - id: writing-plans\n        inputs:\n          - field: design_doc\n            type: file_path\n        outputs:\n          - field: plan\n            type: file_path\n        artifacts:\n          - field: plan\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards:\n          - type: tasks-at-least\n            n: 3\n        transitions:\n          - event: spec-complete\n            to: build\n            actions:\n              - type: reset-pre-verify-review\n      - id: build\n        label: \u5B9E\u73B0\n        gate: null\n        skills:\n          - id: test-driven-development\n        inputs:\n          - field: design_doc\n            type: file_path\n          - field: plan\n            type: file_path\n        outputs:\n          - field: build_sha\n            type: string\n        agents:\n          reviewers:\n            - agent: spec-consistency\n              required: true\n              block_at: medium\n        guards:\n          - type: field-equals\n            field: pre_verify_review_result\n            value: pass\n        transitions:\n          - event: build-complete\n            to: verify\n          - event: requirements-changed\n            to: spec\n            actions:\n              - type: reset-pre-verify-review\n      - id: verify\n        label: \u9A8C\u8BC1\n        gate: review\n        skills:\n          - id: verification-before-completion\n        inputs:\n          - field: build_sha\n            type: string\n        outputs:\n          - field: verification_report\n            type: file_path\n        artifacts:\n          - field: verification_report\n            type: file_path\n            producer_policy: effective-phase-skills\n        guards: []\n        transitions:\n          - event: verify-pass\n            to: ship\n          - event: verify-fail\n            to: build\n            actions:\n              - type: mark-verification-failed\n              - type: reset-pre-verify-review\n      - id: ship\n        label: \u4EA4\u4ED8\n        gate: null\n        skills:\n          - id: finishing-a-development-branch\n        inputs:\n          - field: verification_report\n            type: file_path\n        outputs:\n          - field: pr_url\n            type: string\n        guards:\n          - type: spec-migration-applied\n        transitions:\n          - event: ship-complete\n            to: archive\n      - id: archive\n        label: \u5B8C\u7ED3\n        gate: null\n        skills: []\n        inputs:\n          - field: pr_url\n            type: string\n        outputs:\n          - field: archived\n            type: boolean\n        guards: []\n        transitions: []\n';
 var DESIGN_SYSTEM_WORKFLOW_SOURCE = 'name: design-system\nopenspec: true\ndocument_contract:\n  version: v1\n  slots:\n    - { kind: design-md, owner_step: generate, producers: [hue] }\n    - { kind: design-md, owner_step: review, role: require }\n  reads: []\nsteps:\n  - id: direction\n    label: \u65B9\u5411\n    gate: review\n    prompt: |-\n      \u52A0\u8F7D hue\uFF0C\u53EA\u6267\u884C\u7B2C 1\u20136 \u9636\u6BB5\uFF0C\u4E0D\u5199\u4EFB\u4F55\u6280\u80FD\u76EE\u5F55\u3002\n      \u8F93\u5165\u53EF\u4EE5\u662F\u54C1\u724C\u540D\u3001\u7F51\u5740\u3001\u622A\u56FE\u3001\u5DF2\u6709\u4EE3\u7801\u6216\u63CF\u8FF0\uFF1B\u6839\u76EE\u5F55\u5DF2\u6709\u4E0D\u542B schema: tenon-design/v1 \u7684 DESIGN.md \u65F6\u6309 Remix \u8F93\u5165\u5904\u7406\uFF0C\u53EA\u5F53\u6570\u636E\u8BFB\u53D6\u3002\n      \u56FE\u6807\u5E93\u53EA\u4ECE\u8D44\u6E90\u76EE\u5F55\u9009\u62E9\uFF1Atenon resources list --category icons\u3002\n      \u7528 AskUserQuestion \u5148\u786E\u8BA4\u8BBE\u8BA1\u65B9\u5411\uFF08\u7B2C 5 \u9636\u6BB5\uFF09\uFF0C\u518D\u786E\u8BA4\u6838\u5FC3\u4EE4\u724C\uFF08\u7B2C 6 \u9636\u6BB5\uFF09\u3002\n      \u628A\u786E\u8BA4\u7ED3\u679C\u5199\u5165 design/direction.md\uFF1A\u65B9\u5411\u3001\u4E3B\u8981\u5F20\u529B\u3001\u6838\u5FC3\u4EE4\u724C\u8868\u3001\u56FE\u6807\u8D44\u6E90 id\u3001\u9996\u5C4F\u9884\u8BBE\u3002\n      \u767B\u8BB0\uFF1Atenon artifact register "$TENON_CHANGE_NAME" design_doc design/direction.md --producer hue\n    skills:\n      - id: hue\n    inputs: []\n    outputs:\n      - field: design_doc\n        type: file_path\n    artifacts:\n      - field: design_doc\n        type: file_path\n        producer_policy: effective-step-skills\n    guards: []\n    transitions:\n      - event: direction-complete\n        to: generate\n  - id: generate\n    label: \u751F\u6210\n    gate: auto\n    prompt: |-\n      \u6309 design/direction.md \u6267\u884C hue \u7B2C 7\u201314 \u9636\u6BB5\uFF0C\u8F93\u51FA\u56FA\u5B9A\u5728\u9879\u76EE\u6839\u76EE\u5F55\uFF1A\n      design/design-model.yaml \u4E3A\u8BBE\u8BA1\u6A21\u578B\uFF1Bdesign/preview.html\u3001design/component-library.html\u3001design/landing-page.html\u3001design/app-screen.html \u4E3A\u9884\u89C8\u3002\n      DESIGN.md \u7531 hue \u7684 SKILL.md\u3001tokens.md\u3001components.md\u3001platform-mapping.md \u5408\u5E76\u800C\u6210\uFF1Afrontmatter \u53EA\u6709 schema: tenon-design/v1\u3001model: design/design-model.yaml\u3001icons: <\u56FE\u6807\u8D44\u6E90 id>\uFF1B\u7AE0\u8282\u4F9D\u6B21\u4E3A ## 1. Philosophy\u3001## 2. Craft Rules\u3001## 3. Anti-Patterns\u3001## 4. Tokens\u3001## 5. Iconography\u3001## 6. Hero Stage\u3001## 7. Components\u3001## 8. Voice\u3001## 9. Platform Mapping\u3001## 10. Previews\u3002\n      \u4E0D\u5199 SKILL.md\uFF0C\u4E0D\u5199 ~/.claude/skills \u6216 ~/.agents/skills\uFF0C\u8DF3\u8FC7\u7B2C 16 \u9636\u6BB5\u3002\n      \u8FD0\u884C tenon design validate \u76F4\u5230\u901A\u8FC7\uFF0C\u7136\u540E\u767B\u8BB0\uFF1Atenon document record "$TENON_CHANGE_NAME" design-md DESIGN.md --producer hue\n    skills:\n      - id: hue\n    inputs:\n      - field: design_doc\n        type: file_path\n    outputs: []\n    guards: []\n    transitions:\n      - event: generate-complete\n        to: review\n  - id: review\n    label: \u9884\u89C8\n    gate: review\n    prompt: |-\n      \u6253\u5F00 design/ \u4E0B\u56DB\u4E2A\u9884\u89C8\u9875\uFF0C\u6D45\u8272\u4E0E\u6DF1\u8272\u90FD\u68C0\u67E5\uFF1BCodex \u6CA1\u6709\u6D4F\u89C8\u5668\u65F6\u628A\u56DB\u4E2A\u7EDD\u5BF9\u8DEF\u5F84\u4EA4\u7ED9\u7528\u6237\u3002\n      \u9700\u8981\u8C03\u6574\u65F6\u53D1\u9001 review-changes \u56DE\u5230\u751F\u6210\uFF1A\u5148\u6539 design/design-model.yaml\uFF0C\u518D\u53EA\u91CD\u65B0\u751F\u6210\u53D7\u5F71\u54CD\u7684\u6587\u4EF6\u3002\n    skills: []\n    inputs: []\n    outputs: []\n    guards: []\n    transitions:\n      - event: review-changes\n        to: generate\n';
 var DEFAULT_WORKFLOW_STEPS = [
   { id: "open", label: "\u7ACB\u9879" },
@@ -8130,14 +8130,14 @@ function incompletePipelineTasksForExit(input2) {
   const stages = declared.filter((stage, index) => stage.id !== "" && stage.label !== "" && declared.findIndex((other) => other.id === stage.id) === index);
   const parsed = parseTasks(input2.tasksMarkdown, input2.phase, stages, input2.trustedCanonicalProjection);
   if (!parsed.structured) {
-    const incomplete2 = input2.phase === "build" ? [...parsed.byStage.values()].flat().filter((task) => !task.completed).length : 0;
-    return { structured: false, incomplete: incomplete2 };
+    const items2 = input2.phase === "build" ? [...parsed.byStage.values()].flat().filter((task) => !task.completed).map((task) => task.text) : [];
+    return { structured: false, incomplete: items2.length, items: items2 };
   }
   const phaseIndex = stages.findIndex((stage) => stage.id === input2.phase);
   if (phaseIndex < 0)
-    return { structured: true, incomplete: 0 };
-  const incomplete = stages.slice(0, phaseIndex + 1).flatMap((stage) => parsed.byStage.get(stage.id) ?? []).filter((task) => !task.completed).length;
-  return { structured: true, incomplete };
+    return { structured: true, incomplete: 0, items: [] };
+  const items = stages.slice(0, phaseIndex + 1).flatMap((stage) => parsed.byStage.get(stage.id) ?? []).filter((task) => !task.completed).map((task) => task.text);
+  return { structured: true, incomplete: items.length, items };
 }
 
 // packages/kernel/dist/state/task-plan-publication-test-harness.js
@@ -25630,10 +25630,10 @@ async function probeBuildRevisionIdentity(root) {
       return void 0;
     const common2 = await physicalDirectory(commonRaw);
     const top = await physicalDirectory(topRaw);
-    const git2 = await physicalDirectory(gitRaw);
-    if (!common2 || !top || !git2)
+    const git3 = await physicalDirectory(gitRaw);
+    if (!common2 || !top || !git3)
       return void 0;
-    return { repository: common2, worktree: `${top}\0${git2}` };
+    return { repository: common2, worktree: `${top}\0${git3}` };
   } catch {
     return void 0;
   }
@@ -25723,6 +25723,29 @@ async function ensurePipelineGitignore(repoRoot) {
     throw new Error(`\u76EE\u5F55\u4E0D\u662F\u666E\u901A\u76EE\u5F55: ${dir}`);
   try {
     await writeFile14(join38(dir, ".gitignore"), WORKFLOW_STATE_GITIGNORE, { flag: "wx" });
+  } catch (error2) {
+    if (errnoCode5(error2) !== "EEXIST")
+      throw error2;
+  }
+}
+var OPENSPEC_DIR = "openspec";
+var OPENSPEC_LOCAL_GITIGNORE = [
+  "# Tenon local runtime state; Change documents in this directory stay tracked.",
+  ".pipeline-terminal-activity.*",
+  ""
+].join("\n");
+async function ensureOpenspecGitignore(repoRoot) {
+  const dir = join38(repoRoot, OPENSPEC_DIR);
+  try {
+    if (!(await lstat24(dir)).isDirectory())
+      return;
+  } catch (error2) {
+    if (errnoCode5(error2) === "ENOENT")
+      return;
+    throw error2;
+  }
+  try {
+    await writeFile14(join38(dir, ".gitignore"), OPENSPEC_LOCAL_GITIGNORE, { flag: "wx" });
   } catch (error2) {
     if (errnoCode5(error2) !== "EEXIST")
       throw error2;
@@ -25906,14 +25929,14 @@ async function hasRepository(repoRoot) {
     return false;
   }
 }
-async function probeUncommittedTaskDeletions(repoRoot, git2 = gitStatusRunner) {
+async function probeUncommittedTaskDeletions(repoRoot, git3 = gitStatusRunner) {
   if (isProcessLocalFdPath(repoRoot)) {
     return { kind: "unavailable", reason: `\u8FDB\u7A0B\u79C1\u6709 fd \u8DEF\u5F84\u65E0\u6CD5\u4EA4\u7ED9\u5B50\u8FDB\u7A0B\u89E3\u6790\uFF1A${repoRoot}` };
   }
   if (!await hasRepository(repoRoot)) {
     return { kind: "absent", reason: `\u4E0D\u662F git \u4ED3\u5E93\u6839\uFF1A${repoRoot}` };
   }
-  const result2 = await git2(repoRoot, [
+  const result2 = await git3(repoRoot, [
     "status",
     "--porcelain=v1",
     "-z",
@@ -25947,8 +25970,8 @@ async function probeUncommittedTaskDeletions(repoRoot, git2 = gitStatusRunner) {
   }
   return { kind: "ok", count: count2 };
 }
-async function countUncommittedTaskDeletions(repoRoot, git2 = gitStatusRunner) {
-  const probe = await probeUncommittedTaskDeletions(repoRoot, git2);
+async function countUncommittedTaskDeletions(repoRoot, git3 = gitStatusRunner) {
+  const probe = await probeUncommittedTaskDeletions(repoRoot, git3);
   return probe.kind === "ok" ? probe.count : null;
 }
 
@@ -44115,7 +44138,7 @@ var BarrierDriftError = class extends Error {
   }
 };
 var deriveBarrierSha = async (input2) => {
-  const { git: git2, branch, commits, sandboxReportedSha } = input2;
+  const { git: git3, branch, commits, sandboxReportedSha } = input2;
   if (commits.length === 0)
     return { buildSha: void 0 };
   const landed = commits[commits.length - 1]?.sha;
@@ -44123,7 +44146,7 @@ var deriveBarrierSha = async (input2) => {
     return { buildSha: void 0 };
   let branchHead;
   try {
-    branchHead = await git2.revParse(`refs/heads/${branch}`);
+    branchHead = await git3.revParse(`refs/heads/${branch}`);
   } catch (err) {
     throw new BarrierDriftError(`barrier: cannot resolve host branch ${branch} for build_sha: ${String(err)}`);
   }
@@ -44597,17 +44620,17 @@ var mergeTreeSupported = async (exec, hostRepoDir) => {
 
 // packages/automation/dist/lifecycle/mergeback.js
 var GIT_ENV3 = { LC_ALL: "C" };
-var transactionCommitIsVisible = async (git2, baseRef, mergedCommit, markerRef) => {
-  const marker = await git2(["rev-parse", markerRef]);
+var transactionCommitIsVisible = async (git3, baseRef, mergedCommit, markerRef) => {
+  const marker = await git3(["rev-parse", markerRef]);
   if (marker.exitCode !== 0 || marker.stdout.trim() !== mergedCommit)
     return false;
-  const base = await git2(["rev-parse", baseRef]);
+  const base = await git3(["rev-parse", baseRef]);
   return base.exitCode === 0 && base.stdout.trim() === mergedCommit;
 };
 var TRANSACTION_MARKER_NAMESPACE = "refs/pipeline/mergeback-transactions/";
 var transactionMarkerRef = () => `${TRANSACTION_MARKER_NAMESPACE}${randomUUID12().replaceAll("-", "")}`;
-var cleanupStaleTransactionMarkers = async (git2, preserve) => {
-  const listed = await git2([
+var cleanupStaleTransactionMarkers = async (git3, preserve) => {
+  const listed = await git3([
     "for-each-ref",
     "--format=%(refname) %(objectname)",
     TRANSACTION_MARKER_NAMESPACE
@@ -44642,19 +44665,19 @@ var cleanupStaleTransactionMarkers = async (git2, preserve) => {
     "commit",
     ""
   ].join("\n");
-  const removed = await git2(["update-ref", "--stdin"], transaction);
+  const removed = await git3(["update-ref", "--stdin"], transaction);
   if (removed.exitCode !== 0) {
     throw preserve(`atomic cleanup of ${stale.length} stale merge transaction marker(s) failed (exit ${removed.exitCode}): ${(removed.stderr || removed.stdout).slice(0, 160)} \u2014 refusing to create another marker.`);
   }
 };
-var cleanupTransactionMarker = async (git2, markerRef, mergedCommit) => {
-  await git2(["update-ref", "-d", markerRef, mergedCommit]);
+var cleanupTransactionMarker = async (git3, markerRef, mergedCommit) => {
+  await git3(["update-ref", "-d", markerRef, mergedCommit]);
 };
 var mergeBackToBase = async (exec, input2) => {
   const { hostRepoDir, worktreePath, branch, base, expectedBaseSha, expectedBranchSha, onIntent, onLanded } = input2;
   const baseShort = base.replace(/^refs\/heads\//, "");
-  const git2 = (args, input3) => exec("git", args, { cwd: hostRepoDir, env: GIT_ENV3, input: input3 });
-  const headRef = await git2(["symbolic-ref", "HEAD"]);
+  const git3 = (args, input3) => exec("git", args, { cwd: hostRepoDir, env: GIT_ENV3, input: input3 });
+  const headRef = await git3(["symbolic-ref", "HEAD"]);
   const head = headRef.exitCode === 0 ? headRef.stdout.trim() : "";
   const headShort = head.replace(/^refs\/heads\//, "");
   if (headShort === "" || headShort !== baseShort) {
@@ -44663,14 +44686,14 @@ var mergeBackToBase = async (exec, input2) => {
   const lock = await acquireMergeLock(exec, hostRepoDir, worktreePath);
   const preserve = (message2, opts) => new SyncError(`${message2} The named branch '${branch}' and worktree are PRESERVED at ${worktreePath}.`, worktreePath, opts);
   try {
-    await cleanupStaleTransactionMarkers(git2, preserve);
-    const headRp = await git2(["rev-parse", "HEAD"]);
+    await cleanupStaleTransactionMarkers(git3, preserve);
+    const headRp = await git3(["rev-parse", "HEAD"]);
     if (headRp.exitCode !== 0) {
       throw preserve(`git rev-parse HEAD failed while merging '${branch}' into '${base}' (exit ${headRp.exitCode}): ${headRp.stderr.slice(0, 160)}.`);
     }
     const headSha = headRp.stdout.trim();
     const baseTip = expectedBaseSha !== void 0 && expectedBaseSha !== "" ? expectedBaseSha : headSha;
-    const branchRp = await git2(["rev-parse", `refs/heads/${branch}`]);
+    const branchRp = await git3(["rev-parse", `refs/heads/${branch}`]);
     if (branchRp.exitCode !== 0) {
       throw preserve(`git rev-parse refs/heads/${branch} failed while merging into '${base}' (exit ${branchRp.exitCode}): ${branchRp.stderr.slice(0, 160)}.`);
     }
@@ -44684,7 +44707,7 @@ var mergeBackToBase = async (exec, input2) => {
     const support = await mergeTreeSupported(exec, hostRepoDir);
     const mergeMsg = `Merge branch '${branch}' into '${baseShort}'`;
     if (support.ok) {
-      const mt = await git2(["merge-tree", "--write-tree", baseTip, branchTip]);
+      const mt = await git3(["merge-tree", "--write-tree", baseTip, branchTip]);
       if (mt.exitCode === 1) {
         throw preserve(`Merge of '${branch}' into base '${base}' failed (content conflict). To retry: cd ${worktreePath} && git merge ${base} (resolve conflicts manually, then commit).`);
       }
@@ -44695,7 +44718,7 @@ var mergeBackToBase = async (exec, input2) => {
       if (mergeTree === "") {
         throw preserve(`git merge-tree returned an empty tree merging '${branch}' into '${base}'.`);
       }
-      const commit = await git2(["commit-tree", mergeTree, "-p", baseTip, "-p", branchTip, "-m", mergeMsg]);
+      const commit = await git3(["commit-tree", mergeTree, "-p", baseTip, "-p", branchTip, "-m", mergeMsg]);
       const mergedCommit = commit.stdout.trim();
       if (commit.exitCode !== 0 || mergedCommit === "") {
         throw preserve(`git commit-tree failed merging '${branch}' into '${base}': ${commit.stderr.slice(0, 160)}.`);
@@ -44722,12 +44745,12 @@ var mergeBackToBase = async (exec, input2) => {
         "commit",
         ""
       ].join("\n");
-      const upd = await git2(["update-ref", "--stdin"], refTxn);
-      const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git2, `refs/heads/${baseShort}`, mergedCommit, markerRef);
+      const upd = await git3(["update-ref", "--stdin"], refTxn);
+      const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git3, `refs/heads/${baseShort}`, mergedCommit, markerRef);
       if (upd.exitCode !== 0 && !committedDespiteError) {
         throw preserve(`base '${base}' or verified branch '${branch}' changed since this run was frozen (atomic ref transaction failed: ${upd.stderr.slice(0, 160)}) \u2014 refusing to auto-merge onto un-verified refs. To recover: re-run against the current '${base}' in the host repo (${hostRepoDir}).`, { baseAdvanced: true });
       }
-      await cleanupTransactionMarker(git2, markerRef, mergedCommit);
+      await cleanupTransactionMarker(git3, markerRef, mergedCommit);
       let landedJournalError;
       const landedReceipt = {
         landed: true,
@@ -44741,7 +44764,7 @@ var mergeBackToBase = async (exec, input2) => {
       } catch (error2) {
         landedJournalError = safeMergeJournalMessage(error2);
       }
-      const sync = await git2(["read-tree", "-m", "-u", baseTip, mergedCommit]);
+      const sync = await git3(["read-tree", "-m", "-u", baseTip, mergedCommit]);
       if (sync.exitCode !== 0) {
         const hostSyncError = `git read-tree: ${(sync.stderr || sync.stdout).slice(0, 160)}`;
         try {
@@ -44775,36 +44798,36 @@ var mergeBackToBase = async (exec, input2) => {
       }
       return { landed: true, hostSynced: true, mergedCommit, baseBefore: baseTip, branchTip, landedJournalError };
     }
-    return await mergeBackFallback(git2, { branch, base, baseShort, headSha, branchTip, casExpectedOld: baseTip, mergeMsg, preserve, onIntent, onLanded });
+    return await mergeBackFallback(git3, { branch, base, baseShort, headSha, branchTip, casExpectedOld: baseTip, mergeMsg, preserve, onIntent, onLanded });
   } finally {
     await rmdir6(lock).catch(() => {
     });
   }
 };
-var mergeBackFallback = async (git2, ctx) => {
+var mergeBackFallback = async (git3, ctx) => {
   const { branch, base, baseShort, headSha, branchTip, casExpectedOld, mergeMsg, preserve, onIntent, onLanded } = ctx;
   const cleanup2 = async () => {
-    const cur = await git2(["rev-parse", `refs/heads/${baseShort}`]);
+    const cur = await git3(["rev-parse", `refs/heads/${baseShort}`]);
     const target = cur.exitCode === 0 ? cur.stdout.trim() : "";
     if (target === "")
       return " [cleanup: cannot read current base ref \u2014 host may be left mid-merge]";
-    const reset2 = await git2(["reset", "--hard", target]);
+    const reset2 = await git3(["reset", "--hard", target]);
     return reset2.exitCode === 0 ? "" : ` [cleanup: git reset --hard ${target.slice(0, 12)} failed (exit ${reset2.exitCode})]`;
   };
   const failCleanup = async (message2, opts) => {
     const note = await cleanup2();
     throw preserve(`${message2}${note}`, opts);
   };
-  const merge = await git2([...NO_CONFIG_LOCK_FLAGS, "merge", "--no-ff", "--no-commit", `refs/heads/${branch}`]);
+  const merge = await git3([...NO_CONFIG_LOCK_FLAGS, "merge", "--no-ff", "--no-commit", `refs/heads/${branch}`]);
   if (parseMergeResult(merge).conflict) {
     await failCleanup(`Merge of '${branch}' into base '${base}' failed (conflict). To retry in the worktree: git merge ${base} (resolve conflicts manually, then commit).`);
   }
-  const treeRes = await git2(["write-tree"]);
+  const treeRes = await git3(["write-tree"]);
   const tree = treeRes.stdout.trim();
   if (treeRes.exitCode !== 0 || tree === "") {
     await failCleanup(`git write-tree failed merging '${branch}' into '${base}' (exit ${treeRes.exitCode}): ${treeRes.stderr.slice(0, 160)}.`);
   }
-  const commit = await git2(["commit-tree", tree, "-p", headSha, "-p", branchTip, "-m", mergeMsg]);
+  const commit = await git3(["commit-tree", tree, "-p", headSha, "-p", branchTip, "-m", mergeMsg]);
   const mergedCommit = commit.stdout.trim();
   if (commit.exitCode !== 0 || mergedCommit === "") {
     await failCleanup(`git commit-tree failed merging '${branch}' into '${base}': ${commit.stderr.slice(0, 160)}.`);
@@ -44830,19 +44853,19 @@ var mergeBackFallback = async (git2, ctx) => {
     "commit",
     ""
   ].join("\n");
-  const upd = await git2(["update-ref", "--stdin"], refTxn);
-  const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git2, `refs/heads/${baseShort}`, mergedCommit, markerRef);
+  const upd = await git3(["update-ref", "--stdin"], refTxn);
+  const committedDespiteError = upd.exitCode !== 0 && await transactionCommitIsVisible(git3, `refs/heads/${baseShort}`, mergedCommit, markerRef);
   if (upd.exitCode !== 0 && !committedDespiteError) {
     await failCleanup(`base '${base}' or verified branch '${branch}' changed since this run was frozen, or this Git cannot provide the required atomic ref transaction (exit ${upd.exitCode}: ${upd.stderr.slice(0, 160)}) \u2014 refusing to auto-merge onto un-verified refs; single-ref fallback is forbidden.`, { baseAdvanced: true });
   }
-  await cleanupTransactionMarker(git2, markerRef, mergedCommit);
+  await cleanupTransactionMarker(git3, markerRef, mergedCommit);
   let landedJournalError;
   try {
     await onLanded?.({ landed: true, hostSynced: false, mergedCommit, baseBefore: casExpectedOld, branchTip });
   } catch (error2) {
     landedJournalError = safeMergeJournalMessage(error2);
   }
-  const reset = await git2(["reset", "--mixed", "HEAD"]);
+  const reset = await git3(["reset", "--mixed", "HEAD"]);
   if (reset.exitCode !== 0) {
     const hostSyncError = `git reset --mixed HEAD failed (exit ${reset.exitCode}): ${(reset.stderr || reset.stdout).slice(0, 160)}`;
     try {
@@ -45982,12 +46005,12 @@ import { readFile as fsReadFile, stat as fsStat } from "node:fs/promises";
 import { resolve as resolve24 } from "node:path";
 var resolveGitMounts = async (gitPath, deps) => {
   const stat17 = deps?.stat ?? ((p) => fsStat(p));
-  const readFile80 = deps?.readFile ?? ((p) => fsReadFile(p, "utf-8"));
+  const readFile81 = deps?.readFile ?? ((p) => fsReadFile(p, "utf-8"));
   const s = await stat17(gitPath);
   if (s.isDirectory()) {
     return [{ hostPath: gitPath, sandboxPath: gitPath }];
   }
-  const content = (await readFile80(gitPath)).trim();
+  const content = (await readFile81(gitPath)).trim();
   const match = content.match(/^gitdir:\s*(.+)$/);
   if (!match) {
     return [{ hostPath: gitPath, sandboxPath: gitPath }];
@@ -53092,7 +53115,7 @@ var TENON_HOSTS = [
 var TENON_MARKETPLACE_SOURCE = "jefferysha/tenon";
 var TENON_MARKETPLACE_NAME = "tenon";
 var TENON_PLUGIN_NAME = "tenon";
-var TENON_RELEASE_VERSION = "0.1.2";
+var TENON_RELEASE_VERSION = "0.1.3";
 function parseHostPluginInventory(host, stdout) {
   let parsed;
   try {
@@ -55661,19 +55684,19 @@ function freezeTrustedLifecycleCommands(env) {
   const gitBinding = env.resolveTrustedCommandBinding?.("git");
   const nodeBinding = env.resolveTrustedCommandBinding?.("node");
   const bash = bashBinding?.executable;
-  const git2 = gitBinding?.executable;
+  const git3 = gitBinding?.executable;
   const node = nodeBinding?.executable;
   return {
     enforced: true,
     ...bash === void 0 ? {} : { bash },
-    ...git2 === void 0 ? {} : { git: git2 },
+    ...git3 === void 0 ? {} : { git: git3 },
     ...node === void 0 ? {} : { node },
     ...bashBinding === void 0 ? {} : { bashBinding },
     ...gitBinding === void 0 ? {} : { gitBinding },
     ...nodeBinding === void 0 ? {} : { nodeBinding },
     missing: [
       ...bash === void 0 ? ["bash"] : [],
-      ...git2 === void 0 ? ["git"] : [],
+      ...git3 === void 0 ? ["git"] : [],
       ...node === void 0 ? ["node"] : []
     ]
   };
@@ -65317,6 +65340,7 @@ async function writeTerminalSessionBinding(cwd, name2, sessionId) {
   const pipelineDir = join110(cwd, ".pipeline");
   const sessionsDir = join110(cwd, TERMINAL_SESSION_BINDINGS_DIR);
   await ensurePipelineGitignore(cwd);
+  await ensureOpenspecGitignore(cwd);
   await ensurePlainDirectory2(pipelineDir);
   await ensurePlainDirectory2(sessionsDir);
   const target = join110(sessionsDir, `${sessionId}.json`);
@@ -65693,6 +65717,60 @@ async function rehearseSpecApply(repoRoot, change, hooks) {
   return { targets: targets2, errors };
 }
 
+// packages/cli/src/commands/specPurpose.ts
+var UPSTREAM_TBD = /^TBD - created by archiving change .*$/mu;
+var PLACEHOLDER2 = /^>\s*\[(?:待填写|pending)[:\]]/u;
+function sectionBody(markdown, heading) {
+  const lines2 = markdown.split(/\r?\n/u);
+  const start = lines2.findIndex((line) => heading.test(line));
+  if (start < 0) return [];
+  const level = /^(#+)/u.exec(lines2[start] ?? "")?.[1]?.length ?? 2;
+  const body = [];
+  for (const line of lines2.slice(start + 1)) {
+    const next = /^(#+)\s/u.exec(line);
+    if (next !== null && (next[1]?.length ?? 0) <= level) break;
+    body.push(line);
+  }
+  return body;
+}
+function meaningful(line) {
+  const text8 = line.trim();
+  return text8 !== "" && !PLACEHOLDER2.test(text8) && !/^#+\s/u.test(text8);
+}
+function capabilityLine(proposal, capability) {
+  const escaped3 = capability.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const item2 = new RegExp(`^\\s*[-*+]\\s+\`?${escaped3}\`?\\s*[:\uFF1A-]\\s*(.+)$`, "u");
+  for (const line of sectionBody(proposal, /^#{2,4}\s+New Capabilities\s*$/iu)) {
+    const text8 = item2.exec(line)?.[1]?.trim();
+    if (text8 !== void 0 && text8 !== "" && !PLACEHOLDER2.test(text8)) return text8;
+  }
+  return void 0;
+}
+function whyParagraph(proposal) {
+  const paragraph = [];
+  for (const line of sectionBody(proposal, /^##\s+Why\s*$/iu)) {
+    if (meaningful(line)) {
+      paragraph.push(line.trim().replace(/^>\s*/u, ""));
+    } else if (paragraph.length > 0) {
+      break;
+    }
+  }
+  const text8 = paragraph.join(" ").trim();
+  return text8 === "" ? void 0 : text8;
+}
+function proposalPurpose(proposal, capability) {
+  if (proposal === null) return void 0;
+  return capabilityLine(proposal, capability) ?? whyParagraph(proposal);
+}
+function hasPlaceholderPurpose(spec) {
+  return UPSTREAM_TBD.test(spec);
+}
+function fillPurpose(spec, purpose) {
+  if (!hasPlaceholderPurpose(spec)) return spec;
+  if (purpose === void 0) return void 0;
+  return spec.replace(UPSTREAM_TBD, () => purpose);
+}
+
 // packages/cli/src/commands/specApply.ts
 var SPEC_APPLY_RECEIPT = SPEC_APPLY_RECEIPT_FILE;
 var APPLIED_SPEC_FILE = "applied-spec.md";
@@ -65725,6 +65803,21 @@ async function writeAppliedSpec(dir, change, targets2) {
   let filled = 0;
   const lines2 = skeleton.split("\n").map((line) => line.startsWith("> [") ? bodies[filled++] ?? line : line);
   await writeFile27(join112(dir, APPLIED_SPEC_FILE), lines2.join("\n"), "utf8");
+}
+async function withRealPurpose(dir, change, targets2) {
+  const proposal = await readMaybe(dir, "proposal.md");
+  const errors = [];
+  const filled = targets2.map((target) => {
+    if (target.change !== "created") return target;
+    const capability = /^openspec\/specs\/([^/]+)\/spec\.md$/u.exec(target.path)?.[1] ?? target.path;
+    const after = fillPurpose(target.after, proposalPurpose(proposal, capability));
+    if (after === void 0) {
+      errors.push(`purpose-missing\uFF1A\u65B0 capability '${capability}' \u7684\u4E3B\u89C4\u683C Purpose \u53EA\u6709 OpenSpec \u5360\u4F4D TBD\uFF1B\u5728 openspec/changes/${change}/proposal.md \u7684 ### New Capabilities \u5199\u4E00\u6761\u300C- \`${capability}\`: \u8BF4\u660E\u300D\uFF08\u6216\u5728 ## Why \u5199\u660E\u539F\u56E0\uFF09\uFF0C\u518D\u91CD\u8DD1 tenon spec apply ${change}`);
+      return target;
+    }
+    return { ...target, after };
+  });
+  return errors.length > 0 ? { targets: [], errors } : { targets: filled, errors };
 }
 function targetView(target) {
   return {
@@ -65775,8 +65868,9 @@ async function cmdSpecApply(deps, change, opts, hooks) {
   })));
   const settled = await alreadyApplied(deps.cwd, dir, deltaRefs);
   const rehearsed = settled === null ? await rehearseSpecApply(deps.cwd, change, hooks) : { targets: settled, errors: [] };
-  const targets2 = rehearsed.targets;
-  const errors = [...rehearsed.errors];
+  const purposed = rehearsed.errors.length === 0 && settled === null ? await withRealPurpose(dir, change, rehearsed.targets) : rehearsed;
+  const targets2 = purposed.targets;
+  const errors = [...purposed.errors];
   let conflict = false;
   if (errors.length === 0 && mode === "apply") {
     for (const target of targets2) {
@@ -69385,10 +69479,10 @@ async function cmdUninstall(deps, opts, fs = createOwnedFs()) {
 
 // packages/cli/src/commands/status.ts
 import { readdirSync as readdirSync9 } from "node:fs";
-import { join as join118 } from "node:path";
+import { join as join119 } from "node:path";
 
 // packages/cli/src/commands/statusStep.ts
-import { readFile as readFile68 } from "node:fs/promises";
+import { readFile as readFile69 } from "node:fs/promises";
 
 // packages/cli/src/commands/stepExitReport.ts
 var IMPLICIT_COMPLETION_EVENT2 = "archived";
@@ -69442,6 +69536,19 @@ async function guardBlockers(deps, name2, dir, state, plan, stepId, event, to) {
   });
   return result2.failures.map((failure3) => blocker("guard", "guard-failed", failure3));
 }
+function unfinishedTaskItems(context, changeDirRel, stepId) {
+  if (context === void 0 || changeDirRel === void 0) return [];
+  const tasksPath = `${changeDirRel}/tasks.md`;
+  const markdown = context.readFile?.(tasksPath);
+  if (markdown === void 0 || markdown === "") return [];
+  const projection = context.canonicalTasksProjectionStatus?.({ changeDirRel, tasksMarkdown: markdown }) ?? "legacy";
+  if (projection === "invalid") return [];
+  return incompletePipelineTasksForExit({
+    phase: stepId,
+    tasksMarkdown: markdown,
+    trustedCanonicalProjection: projection === "current"
+  }).items;
+}
 async function evaluateStepExitReport(deps, name2, dir, state, plan) {
   const stepId = str(state.fields.phase);
   const documents = await documentEvidence(deps, dir, stepId, plan);
@@ -69465,15 +69572,18 @@ async function evaluateStepExitReport(deps, name2, dir, state, plan) {
   const agentBlockers = await stepAgentBlockersFor({ deps, name: name2, dir, stepId, plan, state });
   const reviewers = agentBlockers.map((item2) => blocker("reviewer", item2.kind, renderAgentBlocker(item2, name2)));
   const migration = stepId === "ship" && plan.capabilities.documents.governed ? await evaluateSpecMigrationEvidence(deps.cwd, dir, name2) : void 0;
+  const fileContext = deps.guardCtx?.(name2);
+  const exitContext = plan.capabilities.execution.model === "phase-manifest" ? await phaseExitGuardContext(fileContext, dir) : void 0;
   const phaseExit = plan.capabilities.execution.model === "phase-manifest" ? deps.flow.guardCheck(state, {
-    ...await phaseExitGuardContext(deps.guardCtx?.(name2), dir),
+    ...exitContext,
     coverageProfile: plan.capabilities.track.coverageProfile
   }) : { pass: true, failures: [] };
+  const openTasks = unfinishedTaskItems(exitContext, fileContext?.changeDirRel, stepId);
   const shared = [
     // tasks.md 的勾选是本步的工作项，不是一个可填的字段：单列成 `tasks` 来源，`next` 才能把它排在
     // 自由文本字段（pr_url 等）之前——真机 ship 步只给了一条做不完的 set-field pr_url，真正卡住
     // 出口的未勾任务藏在 check 的 FAIL 里。
-    ...phaseExit.failures.map((item2) => item2.includes("tasks.md") ? blocker("tasks", "tasks-incomplete", item2) : blocker("guard", "phase-exit", item2)),
+    ...phaseExit.failures.map((item2) => item2.includes("tasks.md") ? { ...blocker("tasks", "tasks-incomplete", item2), items: openTasks } : blocker("guard", "phase-exit", item2)),
     ...(documents?.blockers ?? []).map((item2) => blocker("document", "document-evidence", item2)),
     ...testReport.blockers.map((item2) => blocker("test", "test-evidence", item2)),
     ...reviewers,
@@ -69660,10 +69770,85 @@ function stepFields(state, step, artifacts = /* @__PURE__ */ new Set(), nativeGu
   return fields;
 }
 
-// packages/cli/src/commands/statusStepNext.ts
+// packages/cli/src/test-runner/npmScript.ts
+import { readFile as readFile68 } from "node:fs/promises";
+import { join as join118, normalize as normalize5 } from "node:path";
+function npmScriptOf(command2) {
+  const text8 = command2.trim();
+  if (/[;&|<>`$()]/u.test(text8)) return void 0;
+  const tokens = text8.split(/\s+/u);
+  if (tokens[0] !== "npm") return void 0;
+  const verb = tokens[1];
+  if (verb === "test" || verb === "t" || verb === "tst") return "test";
+  if (verb === "run" || verb === "run-script") {
+    const script = tokens[2];
+    return script === void 0 || script.startsWith("-") ? void 0 : script;
+  }
+  return void 0;
+}
+function isRecord24(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+async function unconfiguredNpmScript(repoRoot, test) {
+  const script = npmScriptOf(test.command);
+  if (script === void 0) return void 0;
+  const packageJson = normalize5(join118(test.cwd, "package.json"));
+  let raw;
+  try {
+    raw = await readFile68(join118(repoRoot, packageJson), "utf8");
+  } catch (error2) {
+    const code = isRecord24(error2) ? error2.code : void 0;
+    return code === "ENOENT" ? { script, packageJson, missingPackageJson: true } : void 0;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return void 0;
+  }
+  if (!isRecord24(parsed)) return void 0;
+  const scripts = parsed.scripts;
+  if (isRecord24(scripts) && typeof scripts[script] === "string") return void 0;
+  return { script, packageJson, missingPackageJson: false };
+}
+function unconfiguredMessage(testId, command2, gap) {
+  const reason2 = gap.missingPackageJson ? `${gap.packageJson} \u4E0D\u5B58\u5728` : `${gap.packageJson} \u7684 scripts \u91CC\u6CA1\u6709 '${gap.script}'`;
+  return `\u6D4B\u8BD5 '${testId}' \u672A\u914D\u7F6E\uFF08test-unconfigured\uFF0C\u4E0D\u662F\u5931\u8D25\uFF09\uFF1A\u547D\u4EE4 \`${command2}\` \u8981\u7684 npm \u811A\u672C '${gap.script}'\uFF0C\u4F46 ${reason2}\u3002\u914D\u7F6E\u65B9\u5F0F\uFF1A\u2460 \u5728 ${gap.packageJson} \u7684 scripts \u91CC\u52A0 '${gap.script}'\uFF0C\u8BA9\u5B83\u8FD0\u884C\u672C\u9879\u76EE\u771F\u6B63\u7684\u8FD9\u7C7B\u6D4B\u8BD5\uFF08\u8FD8\u6CA1\u6709\u5C31\u5148\u5199\u6D4B\u8BD5\uFF1B\u4E0D\u8981\u590D\u5236\u5176\u5B83\u6D4B\u8BD5\u7684\u547D\u4EE4\u51D1\u6570\uFF09\uFF1B\u2461 \u672C\u9879\u76EE\u4E0D\u7528 npm \u6216\u6D4B\u8BD5\u53E6\u6709\u5165\u53E3\uFF1A\u5728 Dashboard \u5DE5\u4F5C\u6D41\u9875\uFF08\u5B58\u4E3A\u5168\u5C40\u914D\u7F6E\u76EE\u5F55\u4E0B\u7684 workflows/default.yaml \u8986\u76D6\uFF09\u6539\u8FD9\u6761\u6D4B\u8BD5\u7684 command\u2014\u2014\u53EA\u5BF9\u4E4B\u540E\u65B0\u5EFA\u7684\u4EFB\u52A1\u751F\u6548\uFF0C\u5DF2\u5F00\u59CB\u7684\u4EFB\u52A1\u6309\u51BB\u7ED3\u8BA1\u5212\u6267\u884C\u3002`;
+}
+
+// packages/cli/src/commands/statusStepAction.ts
 function stop(code, message2) {
   return [{ action: "stop", code, message: message2 }];
 }
+
+// packages/cli/src/commands/statusStepFinish.ts
+function finishActions(change, governedOpenspec, finish) {
+  const git3 = finish.git;
+  if (!governedOpenspec) {
+    if (!finish.verified || git3 === null || !git3.workspaceDirty && git3.untrack.length === 0) {
+      return stop("run-archived", `\u4EFB\u52A1 '${change}' \u5DF2\u5B8C\u7ED3`);
+    }
+    return [{
+      action: "finish-change",
+      change,
+      command: null,
+      commit: { paths: ["."], untrack: git3.untrack, message: `chore(tenon): finish ${change}` }
+    }];
+  }
+  const command2 = `openspec archive ${change} --skip-specs --yes --json`;
+  const commit = git3 === null ? null : {
+    paths: [
+      ...git3.changeDirTracked ? [`openspec/changes/${change}`] : [],
+      "openspec/changes/archive",
+      ...git3.housekeeping
+    ],
+    untrack: git3.untrack,
+    message: `chore(openspec): archive ${change}`
+  };
+  return [{ action: "finish-change", change, command: command2, commit }];
+}
+
+// packages/cli/src/commands/statusStepNext.ts
 function writeFieldActions(fields, producers) {
   const actions = [];
   for (const field3 of fields) {
@@ -69727,20 +69912,28 @@ function skillDocumentActions(skills, documents) {
   return actions;
 }
 function stepNextActions(input2) {
-  if (input2.runArchived) {
-    if (!input2.governedOpenspec) return stop("run-archived", `\u4EFB\u52A1 '${input2.change}' \u5DF2\u5B8C\u7ED3`);
-    const command2 = `openspec archive ${input2.change} --skip-specs --yes --json`;
-    const commit = {
-      paths: [`openspec/changes/${input2.change}`, "openspec/changes/archive"],
-      message: `chore(openspec): archive ${input2.change}`
-    };
-    return [{ action: "finish-change", change: input2.change, command: command2, commit }];
-  }
+  if (input2.runArchived) return finishActions(input2.change, input2.governedOpenspec, input2.finish);
   if (!input2.loaded) return [{ action: "load-tenon" }];
   const unread = input2.documents.reads.filter((doc) => doc.status === "unread");
   if (unread.length > 0) {
     return [{ action: "read-documents", documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))] }];
   }
+  if (input2.testConfigGaps.length > 0) {
+    return [{
+      action: "fix",
+      blockers: input2.testConfigGaps.map((gap) => ({
+        source: "test",
+        code: "test-unconfigured",
+        message: gap.hint
+      }))
+    }];
+  }
+  const missing3 = input2.fields.filter((field3) => field3.kind !== "outcome" && field3.status === "missing");
+  const decisions = writeFieldActions(
+    missing3.filter((field3) => field3.allowed !== null && field3.writer === "set"),
+    input2.artifactProducers
+  );
+  if (decisions.length > 0) return decisions;
   const executors = pendingAgents(input2.executors, true);
   if (executors.length > 0) return executors;
   const ready = input2.skills.filter((skill) => skill.status === "ready");
@@ -69749,17 +69942,17 @@ function stepNextActions(input2) {
   }
   const producing = skillDocumentActions(input2.skills, input2.documents);
   if (producing.length > 0) return producing;
-  if (input2.ownsAppliedSpec && input2.specApplicationPending) return [{ action: "apply-spec" }];
   const writes = documentWriteActions(input2.documents);
+  const tasksMissing = input2.documents.records.some((doc) => doc.kind === "tasks" && doc.status === "missing");
+  const tasks = tasksMissing ? [] : taskBlockers(input2.exits);
+  if (tasks.length > 0) return [{ action: "fix", blockers: tasks }];
+  if (input2.ownsAppliedSpec && input2.specApplicationPending) return [{ action: "apply-spec" }];
   if (writes.length > 0) return writes;
-  const missing3 = input2.fields.filter((field3) => field3.kind !== "outcome" && field3.status === "missing");
-  const decisions = writeFieldActions(
-    missing3.filter((field3) => field3.allowed !== null || field3.writer !== "set"),
+  const registers = writeFieldActions(
+    missing3.filter((field3) => field3.writer !== "set"),
     input2.artifactProducers
   );
-  if (decisions.length > 0) return decisions;
-  const tasks = input2.exits.filter((exit) => exit.direction !== "back").flatMap((exit) => exit.blockers).filter((item2, index, all) => item2.source === "tasks" && all.findIndex((other) => other.message === item2.message) === index);
-  if (tasks.length > 0) return [{ action: "fix", blockers: tasks }];
+  if (registers.length > 0) return registers;
   const freeform = writeFieldActions(
     missing3.filter((field3) => field3.allowed === null && field3.writer === "set"),
     input2.artifactProducers
@@ -69778,6 +69971,9 @@ function stepNextActions(input2) {
     if (outcomes.length > 0) return outcomes;
   }
   return exitActions(input2);
+}
+function taskBlockers(exits) {
+  return exits.filter((exit) => exit.direction !== "back").flatMap((exit) => exit.blockers).filter((item2, index, all) => item2.source === "tasks" && all.findIndex((other) => other.message === item2.message) === index);
 }
 function requiredEvidenceFailed(input2) {
   return input2.tests.some((test) => test.required && test.status === "failed") || input2.reviewers.some((view2) => view2.required && view2.status === "fail");
@@ -69850,7 +70046,7 @@ async function modeOf3(deps, name2) {
   const user = deps.user();
   if (!isTenonUser(user)) return "interactive";
   try {
-    const raw = await readFile68(userProjectPaths(deps.cwd, userSlug(user.id)).authority, "utf8");
+    const raw = await readFile69(userProjectPaths(deps.cwd, userSlug(user.id)).authority, "utf8");
     return parseContinuousAuthority(raw)?.changeName === name2 ? "continuous" : "interactive";
   } catch {
     return "interactive";
@@ -69882,6 +70078,27 @@ async function withPrUrlRecommendation(deps, fields) {
   if (index < 0 || !await repositoryHasNoRemote(deps)) return fields;
   return fields.map((field3, at) => at === index ? { ...field3, recommended: PR_URL_NO_REMOTE } : field3);
 }
+async function finishFacts(deps, name2, state) {
+  const verified = str(state.fields.verify_result) === "pass";
+  if (str(state.fields.archived) !== "true") return { git: null, verified };
+  return { git: await (deps.gitFinishProbe?.(name2) ?? Promise.resolve(null)), verified };
+}
+async function testConfigGaps(deps, plan, stepId, tests, exits) {
+  const gaps = tests.filter((test) => test.required && test.status === "unconfigured" && test.hint !== void 0).map((test) => ({ id: test.id, step: stepId, hint: test.hint ?? "" }));
+  const ahead = new Set(exits.filter((exit) => exit.direction === "forward" && exit.to !== stepId).map((exit) => exit.to));
+  for (const step of plan.workflow.steps) {
+    if (!ahead.has(step.id)) continue;
+    for (const test of step.tests ?? []) {
+      if (!test.required || gaps.some((gap2) => gap2.id === test.id)) continue;
+      const gap = await unconfiguredNpmScript(deps.cwd, test);
+      if (gap !== void 0) {
+        const hint = `${unconfiguredMessage(test.id, test.command, gap)}\uFF08\u4E0B\u4E00\u6B65 '${step.id}' \u7684\u5FC5\u9700\u6D4B\u8BD5\uFF0C\u5148\u5728\u672C\u6B65\u914D\u7F6E\u597D\uFF09`;
+        gaps.push({ id: test.id, step: step.id, hint });
+      }
+    }
+  }
+  return gaps;
+}
 async function buildStatusStep(deps, name2, state, plan) {
   const dir = changeDir(deps.cwd, name2);
   const stepId = str(state.fields.phase);
@@ -69899,12 +70116,16 @@ async function buildStatusStep(deps, name2, state, plan) {
     stepId,
     context: testEvidenceContextFor(deps, name2)
   });
-  const tests = testReport.items.map((item2) => ({
-    id: item2.test.id,
-    direction: item2.test.direction,
-    required: item2.test.required,
-    status: item2.status,
-    run_id: item2.run?.run_id ?? null
+  const tests = await Promise.all(testReport.items.map(async (item2) => {
+    const gap = item2.status === "passed" ? void 0 : await unconfiguredNpmScript(deps.cwd, item2.test);
+    return {
+      id: item2.test.id,
+      direction: item2.test.direction,
+      required: item2.test.required,
+      status: gap === void 0 ? item2.status : "unconfigured",
+      run_id: item2.run?.run_id ?? null,
+      ...gap === void 0 ? {} : { hint: unconfiguredMessage(item2.test.id, item2.test.command, gap) }
+    };
   }));
   const policy2 = plan.capabilities.documents.policy;
   const documents = stepDocuments(name2, policy2, stepId, report.documents?.items ?? []);
@@ -69931,7 +70152,7 @@ async function buildStatusStep(deps, name2, state, plan) {
     prompt: step?.prompt ?? null,
     gate: step?.gate ?? null,
     mode: await modeOf3(deps, name2),
-    archived,
+    archived: archived || str(state.fields.archived) === "true",
     governed_openspec: plan.capabilities.documents.governed,
     candidate: await currentCandidate(deps, name2, state, plan, stepId),
     skills,
@@ -69976,7 +70197,9 @@ async function buildStatusStep(deps, name2, state, plan) {
       specApplicationPending: !specApply.applied,
       ownsDeltaSpec: documents.records.some((doc) => doc.kind === "delta-spec"),
       ownsAppliedSpec: documents.records.some((doc) => doc.kind === "applied-spec"),
-      artifactProducers: artifacts.size === 0 ? [] : effectiveArtifactProducers(deps, state)
+      artifactProducers: artifacts.size === 0 ? [] : effectiveArtifactProducers(deps, state),
+      finish: await finishFacts(deps, name2, state),
+      testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits)
     })
   };
 }
@@ -70042,6 +70265,7 @@ async function cmdStatus2(deps, name2, opts) {
         deps.io.err(`WARN: step \u6295\u5F71\u4E0D\u53EF\u7528: ${errMsg(e)}`);
       }
       const done = finished2 || str(state.fields.archived) === "true";
+      if (done && step?.next[0]?.action === "stop") step = void 0;
       deps.io.out(JSON.stringify({
         active_changes: done ? [] : [statusJson(row2)],
         ...done ? { finished_changes: [{ ...statusJson(row2), archived_at: field2(row2, "archived_at") }] } : {},
@@ -70106,7 +70330,7 @@ async function collectFinished(deps) {
   }
   for (const entry of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
     if (!entry.isDirectory()) continue;
-    const dir = join118(archivedChangesRoot(deps.cwd), entry.name);
+    const dir = join119(archivedChangesRoot(deps.cwd), entry.name);
     if (!stateStorageExistsSync(dir)) continue;
     const name2 = changeNameOfArchivedDir(entry.name);
     try {
@@ -70415,7 +70639,7 @@ var visitStrings = (value, emit4) => {
     for (const item2 of Object.values(value)) visitStrings(item2, emit4);
   }
 };
-var isRecord24 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+var isRecord25 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 var diagnosticMessage = (value) => value.replace(/\s+/g, " ").trim().slice(0, 400);
 async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
   if (mode !== "usage" && mode !== "transitions" && mode !== "last-message") {
@@ -70445,7 +70669,7 @@ async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
             if (embeddedLine.startsWith("[TRANSITION] ")) deps.io.out(embeddedLine);
           }
         });
-      } else if (isRecord24(event) && event.type === "item.completed" && isRecord24(event.item) && event.item.type === "agent_message" && typeof event.item.text === "string") {
+      } else if (isRecord25(event) && event.type === "item.completed" && isRecord25(event.item) && event.item.type === "agent_message" && typeof event.item.text === "string") {
         const message2 = diagnosticMessage(event.item.text);
         if (message2.length > 0) lastAgentMessage = message2;
       }
@@ -70460,8 +70684,8 @@ async function cmdInternalCodexJsonl(deps, mode, jsonlPath) {
 
 // packages/cli/src/commands/internal-skill-provenance.ts
 import { randomUUID as randomUUID20 } from "node:crypto";
-import { chmod as chmod5, lstat as lstat53, mkdir as mkdir47, open as open11, readFile as readFile69, readdir as readdir25, realpath as realpath16, rename as rename19, rm as rm24 } from "node:fs/promises";
-import { dirname as dirname27, join as join119, relative as relative29, resolve as resolve48 } from "node:path";
+import { chmod as chmod5, lstat as lstat53, mkdir as mkdir47, open as open11, readFile as readFile70, readdir as readdir25, realpath as realpath16, rename as rename19, rm as rm24 } from "node:fs/promises";
+import { dirname as dirname27, join as join120, relative as relative29, resolve as resolve48 } from "node:path";
 function rootPath(value) {
   if (value === void 0 || value.trim() === "") throw new Error("--root <path> \u662F\u5FC5\u9700\u53C2\u6570");
   return resolve48(value);
@@ -70663,7 +70887,7 @@ async function assertRegistrySnapshot(snapshot2, registryPath) {
 }
 async function readOptionalText2(path15) {
   try {
-    return await readFile69(path15, "utf8");
+    return await readFile70(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
@@ -70671,19 +70895,19 @@ async function readOptionalText2(path15) {
 }
 async function upstreamSkillIds(skillsRoot) {
   const ids2 = /* @__PURE__ */ new Set();
-  const sources = await readOptionalText2(join119(skillsRoot, "sources.yaml"));
+  const sources = await readOptionalText2(join120(skillsRoot, "sources.yaml"));
   if (sources !== null) for (const source of parseUpstreamSkillSources(sources).skills) ids2.add(source.id);
-  const lock = await readOptionalText2(join119(skillsRoot, "skills.lock.json"));
+  const lock = await readOptionalText2(join120(skillsRoot, "skills.lock.json"));
   if (lock !== null) for (const entry of parseUpstreamSkillLock(lock).skills) ids2.add(entry.id);
   return ids2;
 }
 async function syncRegistry(root, hooks = {}) {
-  const registryPath = join119(root, "templates", "skill-sources.yaml");
+  const registryPath = join120(root, "templates", "skill-sources.yaml");
   if (!within(root, registryPath)) throw new Error("registry path \u8D8A\u51FA --root");
   const snapshot2 = await captureRegistryPathSnapshot(root, registryPath);
-  const sourceText = await readFile69(registryPath, "utf8");
+  const sourceText = await readFile70(registryPath, "utf8");
   const entries = parseSyncSources(sourceText);
-  const skillsRoot = join119(root, "skills");
+  const skillsRoot = join120(root, "skills");
   const physicalEntries = await readdir25(skillsRoot, { withFileTypes: true });
   const upstreamIds = await upstreamSkillIds(skillsRoot);
   const physicalIds = /* @__PURE__ */ new Set();
@@ -70709,7 +70933,7 @@ async function syncRegistry(root, hooks = {}) {
     if (declaredIds.has(physical)) throw new Error(`physical bundled Skill '${physical}' \u91CD\u590D\u58F0\u660E`);
     declaredIds.add(physical);
     if (!physicalIds.has(physical)) throw new Error(`registry \u58F0\u660E\u7684 bundled Skill '${physical}' \u4E0D\u5B58\u5728`);
-    const manifest = await buildCanonicalManifest(physical, join119(skillsRoot, physical));
+    const manifest = await buildCanonicalManifest(physical, join120(skillsRoot, physical));
     computed.push({ entry, digest: manifest.treeSha256 });
   }
   for (const physical of physicalIds) {
@@ -70796,7 +71020,7 @@ async function cmdInternalSkillProvenance(deps, mode, options) {
 
 // packages/cli/src/commands/triage.ts
 import { homedir as homedir16 } from "node:os";
-import { join as join120 } from "node:path";
+import { join as join121 } from "node:path";
 var TRIAGE_SOURCE_KINDS = ["git-commits", "loop-run-terminals"];
 var isTriageSourceKind = (value) => TRIAGE_SOURCE_KINDS.includes(value);
 var TriageCommandInterruptedError = class extends Error {
@@ -70847,7 +71071,7 @@ function createCodexFirstTriageProvider(options) {
   const execute2 = options.exec ?? nodeCodexTriageExec;
   const hostEnv = options.env ?? process.env;
   const configuredHome = hostEnv.CODEX_HOME?.trim();
-  const codexHome = configuredHome === void 0 || configuredHome === "" ? join120((options.homeDir ?? homedir16)(), ".codex") : configuredHome;
+  const codexHome = configuredHome === void 0 || configuredHome === "" ? join121((options.homeDir ?? homedir16)(), ".codex") : configuredHome;
   return createCodexTriageProvider({
     model: options.model,
     exec: (file, args, execOptions) => execute2(file, args, {
@@ -70881,7 +71105,8 @@ function createProductionTriageRuntime(options) {
       preset: "full",
       creator: options.creator(),
       clock: options.clock
-    })
+    }),
+    ...options.loadAgentLibrary === void 0 ? {} : { loadAgentLibrary: options.loadAgentLibrary }
   });
   const materializer = createWorkflowRunMaterializer({ repository: createRepository });
   const gitConnector = createGitCommitsConnector({
@@ -71122,11 +71347,11 @@ import { resolve as resolve50 } from "node:path";
 // packages/cli/src/upstream-skills/install.ts
 import { randomUUID as randomUUID21 } from "node:crypto";
 import { copyFileSync as copyFileSync2, existsSync as existsSync12, lstatSync as lstatSync8, mkdirSync as mkdirSync7, readFileSync as readFileSync33, readdirSync as readdirSync12, renameSync as renameSync5, rmSync as rmSync5, writeFileSync as writeFileSync5 } from "node:fs";
-import { basename as basename12, join as join123 } from "node:path";
+import { basename as basename12, join as join124 } from "node:path";
 
 // packages/cli/src/upstream-skills/content.ts
 import { chmodSync as chmodSync2, copyFileSync, lstatSync as lstatSync7, mkdirSync as mkdirSync6, readFileSync as readFileSync31, readdirSync as readdirSync10 } from "node:fs";
-import { join as join121 } from "node:path";
+import { join as join122 } from "node:path";
 var NO_EXCLUDES = /* @__PURE__ */ new Set();
 function readSkillFrontmatter(path15) {
   try {
@@ -71140,7 +71365,7 @@ function measureTree(dir, excludeTopLevel) {
   const visit2 = (current, rel, excludes) => {
     for (const name2 of readdirSync10(current).sort()) {
       if (excludes.has(name2)) continue;
-      const path15 = join121(current, name2);
+      const path15 = join122(current, name2);
       const relPath = rel === "" ? name2 : `${rel}/${name2}`;
       const item2 = lstatSync7(path15);
       if (item2.isDirectory()) {
@@ -71162,8 +71387,8 @@ function copyTree(source, target, excludeTopLevel = NO_EXCLUDES) {
   chmodSync2(target, 493);
   for (const name2 of readdirSync10(source)) {
     if (excludeTopLevel.has(name2)) continue;
-    const from = join121(source, name2);
-    const to = join121(target, name2);
+    const from = join122(source, name2);
+    const to = join122(target, name2);
     const item2 = lstatSync7(from);
     if (item2.isDirectory()) {
       copyTree(from, to);
@@ -71247,7 +71472,7 @@ function treeEntryModes(env, checkoutDir, path15) {
 
 // packages/cli/src/upstream-skills/license.ts
 import { readFileSync as readFileSync32, readdirSync as readdirSync11, statSync as statSync9 } from "node:fs";
-import { join as join122 } from "node:path";
+import { join as join123 } from "node:path";
 var LICENSE_FILE_NAMES = ["LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING"];
 var README = /^README(?:\.[A-Za-z0-9]+)?$/u;
 var LICENSE_HEADING = /^#{1,3}\s*Licen[cs]e\s*$/u;
@@ -71259,7 +71484,7 @@ function isFile(path15) {
   }
 }
 function hasSkillLicenseFile(dir) {
-  return LICENSE_FILE_NAMES.some((name2) => isFile(join122(dir, name2)));
+  return LICENSE_FILE_NAMES.some((name2) => isFile(join123(dir, name2)));
 }
 function classify(text8) {
   if (text8.includes("Permission is hereby granted, free of charge")) return "MIT";
@@ -71271,7 +71496,7 @@ function exactLicense(value) {
 }
 function licenseFile(dir, source) {
   for (const name2 of LICENSE_FILE_NAMES) {
-    const file = join122(dir, name2);
+    const file = join123(dir, name2);
     if (!isFile(file)) continue;
     const license = classify(readFileSync32(file, "utf8"));
     return license === "unrecognized" ? { license, file } : { license, source, file };
@@ -71286,7 +71511,7 @@ function readmeLicense(checkoutDir) {
     return void 0;
   }
   for (const name2 of names) {
-    const file = join122(checkoutDir, name2);
+    const file = join123(checkoutDir, name2);
     if (!isFile(file)) continue;
     const lines2 = readFileSync32(file, "utf8").split(/\r?\n/u);
     const heading = lines2.findIndex((line) => LICENSE_HEADING.test(line.trim()));
@@ -71298,10 +71523,10 @@ function readmeLicense(checkoutDir) {
   return void 0;
 }
 function detectUpstreamLicense(checkoutDir, skillPath) {
-  const skillDir = skillPath === "." ? checkoutDir : join122(checkoutDir, skillPath);
+  const skillDir = skillPath === "." ? checkoutDir : join123(checkoutDir, skillPath);
   const skillFile = licenseFile(skillDir, "skill-file");
   if (skillFile !== void 0) return skillFile;
-  const frontmatter = readSkillFrontmatter(join122(skillDir, "SKILL.md"));
+  const frontmatter = readSkillFrontmatter(join123(skillDir, "SKILL.md"));
   const declared = exactLicense(frontmatter?.get("license"));
   if (declared !== void 0) return { license: declared, source: "frontmatter" };
   if (skillPath !== ".") {
@@ -71325,12 +71550,12 @@ function readOptional2(path15) {
   }
 }
 function bundledSkillIds(pluginRoot2) {
-  const registry = parseSkillProvenanceRegistry(readFileSync33(join123(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"));
+  const registry = parseSkillProvenanceRegistry(readFileSync33(join124(pluginRoot2, "templates", "skill-sources.yaml"), "utf8"));
   return new Set(registry.skills.flatMap((entry) => [entry.token, entry.contentSkill ?? entry.token]));
 }
 function readPreviousLock(input2) {
   if (input2.previousRoot === null) return null;
-  const text8 = readOptional2(join123(input2.previousRoot, "skills", "skills.lock.json"));
+  const text8 = readOptional2(join124(input2.previousRoot, "skills", "skills.lock.json"));
   if (text8 === null) return null;
   try {
     return parseUpstreamSkillLock(text8);
@@ -71344,12 +71569,12 @@ function previousFor(run2, source) {
   return entry?.repo === source.repo && entry.path === source.path ? entry : void 0;
 }
 async function keepVerified(run2, entry) {
-  if (await treeHash(entry.id, join123(run2.skillsRoot, entry.id)) === entry.treeSha256) return true;
+  if (await treeHash(entry.id, join124(run2.skillsRoot, entry.id)) === entry.treeSha256) return true;
   const previousRoot = run2.input.previousRoot;
   if (previousRoot === null || previousRoot === run2.input.pluginRoot) return false;
-  const previousDir = join123(previousRoot, "skills", entry.id);
+  const previousDir = join124(previousRoot, "skills", entry.id);
   if (await treeHash(entry.id, previousDir) !== entry.treeSha256) return false;
-  copyTree(previousDir, join123(run2.staging, entry.id));
+  copyTree(previousDir, join124(run2.staging, entry.id));
   run2.staged.add(entry.id);
   return true;
 }
@@ -71364,8 +71589,8 @@ function validate(run2, source, checkout) {
   if (tree.length === 0) return { reason: "removed", detail: `${source.path} missing at ${checkout.commit.slice(0, 7)}` };
   const link6 = tree.find((entry) => entry.mode === "120000" || entry.mode === "160000");
   if (link6 !== void 0) return { reason: "invalid-content", detail: `${link6.mode === "120000" ? "symlink" : "submodule"} ${link6.path}` };
-  const skillDir = source.path === "." ? checkout.dir : join123(checkout.dir, source.path);
-  const name2 = readSkillFrontmatter(join123(skillDir, "SKILL.md"))?.get("name");
+  const skillDir = source.path === "." ? checkout.dir : join124(checkout.dir, source.path);
+  const name2 = readSkillFrontmatter(join124(skillDir, "SKILL.md"))?.get("name");
   if (name2 === void 0 || name2 === "") return { reason: "invalid-content", detail: "SKILL.md or its name is missing" };
   if (name2 !== source.id) return { reason: "renamed", detail: `upstream name ${name2}` };
   const measured = measureTree(skillDir, source.path === "." ? ROOT_EXCLUDES : NESTED_EXCLUDES);
@@ -71387,11 +71612,11 @@ async function installFromCheckout(run2, source, checkout) {
     run2.failures.set(source.id, verdict);
     return;
   }
-  const skillDir = source.path === "." ? checkout.dir : join123(checkout.dir, source.path);
-  const staged = join123(run2.staging, source.id);
+  const skillDir = source.path === "." ? checkout.dir : join124(checkout.dir, source.path);
+  const staged = join124(run2.staging, source.id);
   copyTree(skillDir, staged, source.path === "." ? ROOT_EXCLUDES : NESTED_EXCLUDES);
   if (verdict.source === "repo-file" && verdict.file !== void 0 && !hasSkillLicenseFile(staged)) {
-    copyFileSync2(verdict.file, join123(staged, basename12(verdict.file)));
+    copyFileSync2(verdict.file, join124(staged, basename12(verdict.file)));
   }
   const hash = await treeHash(source.id, staged);
   if (hash === null) {
@@ -71400,7 +71625,7 @@ async function installFromCheckout(run2, source, checkout) {
   }
   const previous = previousFor(run2, source);
   if (previous?.treeSha256 === hash) {
-    if (await treeHash(source.id, join123(run2.skillsRoot, source.id)) === hash) rmSync5(staged, { recursive: true, force: true });
+    if (await treeHash(source.id, join124(run2.skillsRoot, source.id)) === hash) rmSync5(staged, { recursive: true, force: true });
     else run2.staged.add(source.id);
     unchanged(run2, previous);
     return;
@@ -71453,15 +71678,15 @@ async function settleFailures(run2, sources) {
 function applyStaged(run2, bundled, managed) {
   mkdirSync7(run2.skillsRoot, { recursive: true });
   for (const id2 of run2.staged) {
-    const target = join123(run2.skillsRoot, id2);
-    if (existsSync12(target) || isLink(target)) renameSync5(target, join123(run2.staging, `.old-${id2}`));
-    renameSync5(join123(run2.staging, id2), target);
+    const target = join124(run2.skillsRoot, id2);
+    if (existsSync12(target) || isLink(target)) renameSync5(target, join124(run2.staging, `.old-${id2}`));
+    renameSync5(join124(run2.staging, id2), target);
   }
   for (const item2 of readdirSync12(run2.skillsRoot, { withFileTypes: true })) {
     if (!item2.isDirectory() && !item2.isSymbolicLink()) continue;
     if (bundled.has(item2.name) || run2.entries.has(item2.name)) continue;
     if (run2.input.host === "dev" && !managed.has(item2.name)) continue;
-    rmSync5(join123(run2.skillsRoot, item2.name), { recursive: true, force: true });
+    rmSync5(join124(run2.skillsRoot, item2.name), { recursive: true, force: true });
   }
 }
 function isLink(path15) {
@@ -71473,7 +71698,7 @@ function isLink(path15) {
 }
 function writeLock(run2, previousLock, runId) {
   const skills = [...run2.entries.values()];
-  const lockPath3 = join123(run2.skillsRoot, "skills.lock.json");
+  const lockPath3 = join124(run2.skillsRoot, "skills.lock.json");
   const existing = readOptional2(lockPath3);
   if (skills.length === 0 && previousLock === null && existing === null) return false;
   const sameAsPrevious = previousLock !== null && serializeUpstreamSkillLock({ ...previousLock, skills }) === serializeUpstreamSkillLock(previousLock);
@@ -71486,7 +71711,7 @@ function writeLock(run2, previousLock, runId) {
 }
 async function installUpstreamSkills(input2) {
   const at = input2.now();
-  const sourcesText = readOptional2(join123(input2.pluginRoot, "skills", "sources.yaml"));
+  const sourcesText = readOptional2(join124(input2.pluginRoot, "skills", "sources.yaml"));
   if (sourcesText === null) return { report: { version: 1, at, host: input2.host, results: [] }, lockWritten: false };
   const sources = parseUpstreamSkillSources(sourcesText);
   const bundled = bundledSkillIds(input2.pluginRoot);
@@ -71496,17 +71721,17 @@ async function installUpstreamSkills(input2) {
   }
   const previousLock = readPreviousLock(input2);
   for (const name2 of readdirSync12(input2.pluginRoot)) {
-    if (name2.startsWith(STAGING_PREFIX)) rmSync5(join123(input2.pluginRoot, name2), { recursive: true, force: true });
+    if (name2.startsWith(STAGING_PREFIX)) rmSync5(join124(input2.pluginRoot, name2), { recursive: true, force: true });
   }
   const runId = randomUUID21();
-  const staging = join123(input2.pluginRoot, `${STAGING_PREFIX}${runId}`);
-  const clones = join123(input2.workRoot, `upstream-${runId}`);
+  const staging = join124(input2.pluginRoot, `${STAGING_PREFIX}${runId}`);
+  const clones = join124(input2.workRoot, `upstream-${runId}`);
   mkdirSync7(staging, { recursive: true });
   const run2 = {
     input: input2,
     at,
     limits: { ...DEFAULT_LIMITS, ...input2.limits },
-    skillsRoot: join123(input2.pluginRoot, "skills"),
+    skillsRoot: join124(input2.pluginRoot, "skills"),
     staging,
     previous: new Map((previousLock?.skills ?? []).map((entry) => [entry.id, entry])),
     entries: /* @__PURE__ */ new Map(),
@@ -71521,7 +71746,7 @@ async function installUpstreamSkills(input2) {
     mkdirSync7(clones, { recursive: true });
     const started = Date.now();
     let index = 0;
-    for (const [repo, items] of byRepo) await installRepository(run2, repo, items, join123(clones, String(index++)), started);
+    for (const [repo, items] of byRepo) await installRepository(run2, repo, items, join124(clones, String(index++)), started);
     await settleFailures(run2, sources.skills);
     const managed = /* @__PURE__ */ new Set([...sources.skills.map((source) => source.id), ...run2.previous.keys()]);
     applyStaged(run2, bundled, managed);
@@ -71554,7 +71779,7 @@ async function writeUpstreamSkillRunReport(stateRoot, report) {
 }
 
 // packages/cli/src/commands/setupEnvironment.ts
-import { dirname as dirname29, join as join124, resolve as resolve49, win32 as win326 } from "node:path";
+import { dirname as dirname29, join as join125, resolve as resolve49, win32 as win326 } from "node:path";
 import { randomUUID as randomUUID23 } from "node:crypto";
 import { execFileSync as execFileSync3 } from "node:child_process";
 import {
@@ -71699,7 +71924,7 @@ var REAL_SETUP_ENV = {
   withHostMutationLock: (host, operation) => {
     const homeDir = homedir17();
     const paths = resolveRuntimePaths({ homeDir, env: { ...process.env } });
-    return withLock(join124(paths.stateRoot, "host-mutation", host), operation);
+    return withLock(join125(paths.stateRoot, "host-mutation", host), operation);
   },
   confirm: (question) => {
     process.stdout.write(question);
@@ -71732,7 +71957,7 @@ function printPlanSkeleton(deps, opts, host) {
   if (opts.dryRun) deps.io.out("  \uFF08--dry-run:\u4EC5\u6253\u5370\u8BA1\u5212,\u4E0D\u53D1\u5E03 runtime\u3001\u4E0D\u5199\u4EFB\u4F55\u6587\u4EF6\uFF09");
 }
 function autoUpdateConfigPath(env) {
-  return join124(resolveRuntimePaths({
+  return join125(resolveRuntimePaths({
     homeDir: env.homeDir(),
     env: env.runtimeEnv()
   }).configRoot, "auto-update.conf");
@@ -71808,7 +72033,7 @@ function scrubLegacyCodexAdapterHooks(content) {
 `, removed };
 }
 function migrateLegacyCodexHooks(deps, env) {
-  const configPath = join124(env.homeDir(), ".codex", "hooks.json");
+  const configPath = join125(env.homeDir(), ".codex", "hooks.json");
   if (!env.pathExists(configPath)) return 0;
   const current = env.readText(configPath);
   if (current === void 0) {
@@ -72264,10 +72489,10 @@ function createReleasedDashboardStarter(runtime) {
 var REAL_RELEASED_DASHBOARD_STARTER = createReleasedDashboardStarter(REAL_DASHBOARD_RUNTIME);
 
 // packages/cli/src/commands/setupHost.ts
-import { join as join132 } from "node:path";
+import { join as join133 } from "node:path";
 
 // packages/cli/src/commands/release-dashboard-coordinator.ts
-import { join as join125 } from "node:path";
+import { join as join126 } from "node:path";
 async function coordinateReleaseDashboard(deps, transaction, initialJournal, activation, openBrowser2, dashboardPort, starter, trustedNodePath, verifyTrustedNode) {
   let journal = initialJournal;
   if (journal.dashboardPort !== void 0 && journal.dashboardPort !== dashboardPort) {
@@ -72502,7 +72727,7 @@ async function coordinateReleaseDashboard(deps, transaction, initialJournal, act
       startedNewDashboard = true;
       dashboardOutcome = await starter.start(
         deps,
-        join125(activation.releaseRoot, "payload"),
+        join126(activation.releaseRoot, "payload"),
         {
           openBrowser: openBrowser2,
           port: dashboardPort,
@@ -72560,11 +72785,11 @@ async function coordinateReleaseDashboard(deps, transaction, initialJournal, act
 }
 
 // packages/cli/src/commands/dashboard-restore.ts
-import { dirname as dirname30, join as join126 } from "node:path";
+import { dirname as dirname30, join as join127 } from "node:path";
 async function restorePreviousReleasedDashboard(deps, activation, starter, dashboardPort, restoreTransactionId, trustedNodePath, verifyTrustedNode) {
   const previousRelease = activation.selection.previousRelease;
   if (previousRelease === null) return { state: "not-required" };
-  const payloadRoot = join126(dirname30(activation.releaseRoot), previousRelease, "payload");
+  const payloadRoot = join127(dirname30(activation.releaseRoot), previousRelease, "payload");
   const outcome = await starter.start(deps, payloadRoot, {
     openBrowser: false,
     port: dashboardPort,
@@ -73619,8 +73844,8 @@ async function publishSetupManagedRuntime(deps, env, installer, prepareCandidate
 
 // packages/cli/src/migration/legacy-project-registry.ts
 import { statSync as statSync10 } from "node:fs";
-import { mkdir as mkdir49, readFile as readFile70 } from "node:fs/promises";
-import { isAbsolute as isAbsolute36, join as join127, posix as posix7, resolve as resolve51, win32 as win327 } from "node:path";
+import { mkdir as mkdir49, readFile as readFile71 } from "node:fs/promises";
+import { isAbsolute as isAbsolute36, join as join128, posix as posix7, resolve as resolve51, win32 as win327 } from "node:path";
 var MAX_LEGACY_REGISTRY_BYTES = 1048576;
 var MIGRATION_ID = "host-project-registry-v1";
 function resolveHostProjectRegistryCandidates(input2) {
@@ -73637,7 +73862,7 @@ function nonNegativeInteger(value) {
 async function readMigrationReceipt(path15) {
   let text8;
   try {
-    text8 = await readFile70(path15, "utf8");
+    text8 = await readFile71(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
@@ -73669,7 +73894,7 @@ async function readMigrationReceipt(path15) {
 async function readPendingMigration(path15) {
   let text8;
   try {
-    text8 = await readFile70(path15, "utf8");
+    text8 = await readFile71(path15, "utf8");
   } catch (error2) {
     if (error2.code === "ENOENT") return null;
     throw error2;
@@ -73700,9 +73925,9 @@ async function migrateLegacyProjectRegistry(input2) {
     ...input2.platform === void 0 ? {} : { platform: input2.platform },
     env: input2.env
   });
-  const migrationRoot = join127(productPaths.migrationsRoot, MIGRATION_ID);
-  const receiptPath = join127(migrationRoot, "receipt.json");
-  const pendingPath = join127(migrationRoot, "pending.json");
+  const migrationRoot = join128(productPaths.migrationsRoot, MIGRATION_ID);
+  const receiptPath = join128(migrationRoot, "receipt.json");
+  const pendingPath = join128(migrationRoot, "pending.json");
   await mkdir49(migrationRoot, { recursive: true });
   return withLock(migrationRoot, async () => {
     if (await readMigrationReceipt(receiptPath) !== null) {
@@ -73794,7 +74019,7 @@ async function migrateLegacyProjectRegistry(input2) {
 }
 
 // packages/cli/src/commands/host-plugin-convergence.ts
-import { join as join129 } from "node:path";
+import { join as join130 } from "node:path";
 
 // packages/cli/src/commands/native-runtime-installer-scope.ts
 function nativeRuntimeInstallerScope(env) {
@@ -73831,12 +74056,12 @@ function nativeCandidateValidationOptions(env) {
 }
 
 // packages/cli/src/commands/host-plugin-convergence-receipt.ts
-import { dirname as dirname31, isAbsolute as isAbsolute37, join as join128, normalize as normalize5 } from "node:path";
+import { dirname as dirname31, isAbsolute as isAbsolute37, join as join129, normalize as normalize6 } from "node:path";
 function hostPluginConvergencePaths(env, host) {
   const paths = resolveRuntimePaths({ homeDir: env.homeDir(), env: env.runtimeEnv() });
   return {
-    receiptPath: join128(paths.migrationsRoot, "host-plugin-convergence", `${host}.json`),
-    sessionProofPath: join128(paths.stateRoot, "migration", "tenon-session-loaded")
+    receiptPath: join129(paths.migrationsRoot, "host-plugin-convergence", `${host}.json`),
+    sessionProofPath: join129(paths.stateRoot, "migration", "tenon-session-loaded")
   };
 }
 function isReleaseId(value) {
@@ -73861,7 +74086,7 @@ function parseReceipt4(raw, host) {
   if (typeof receiptVersion === "number" && Number.isSafeInteger(receiptVersion) && receiptVersion > MAX_SUPPORTED_CONVERGENCE_RECEIPT_VERSION) return { kind: "unsupported-version", version: receiptVersion };
   if (receiptVersion !== 2 && receiptVersion !== 3 && receiptVersion !== 4 || receipt.state !== "cleanup-pending" && receipt.state !== "completed" || receipt.host !== host || receipt.conflictPluginId !== LEGACY_PLUGIN_IDENTITY || !Array.isArray(receipt.conflictScopes) || receipt.state === "cleanup-pending" && receipt.conflictScopes.length === 0 || receipt.conflictScopes.some(
     (scope) => scope !== "user" && scope !== "project" && scope !== "local" && scope !== "managed"
-  ) || new Set(receipt.conflictScopes).size !== receipt.conflictScopes.length || !isReleaseId(receipt.releaseId) || typeof receipt.releaseRoot !== "string" || !isAbsolute37(receipt.releaseRoot) || normalize5(receipt.releaseRoot) !== receipt.releaseRoot || typeof receipt.candidateRoot !== "string" || !isAbsolute37(receipt.candidateRoot) || normalize5(receipt.candidateRoot) !== receipt.candidateRoot || typeof receipt.createdAtEpoch !== "number" || !Number.isSafeInteger(receipt.createdAtEpoch) || receipt.createdAtEpoch < 0 || typeof receipt.updatedAt !== "string" || receipt.updatedAt === "") return { kind: "malformed" };
+  ) || new Set(receipt.conflictScopes).size !== receipt.conflictScopes.length || !isReleaseId(receipt.releaseId) || typeof receipt.releaseRoot !== "string" || !isAbsolute37(receipt.releaseRoot) || normalize6(receipt.releaseRoot) !== receipt.releaseRoot || typeof receipt.candidateRoot !== "string" || !isAbsolute37(receipt.candidateRoot) || normalize6(receipt.candidateRoot) !== receipt.candidateRoot || typeof receipt.createdAtEpoch !== "number" || !Number.isSafeInteger(receipt.createdAtEpoch) || receipt.createdAtEpoch < 0 || typeof receipt.updatedAt !== "string" || receipt.updatedAt === "") return { kind: "malformed" };
   const transactionId = Reflect.get(value, "transactionId");
   const stableTarget = parseStableTarget(Reflect.get(value, "stableTarget"));
   if ((receiptVersion === 3 || receiptVersion === 4) && (typeof transactionId !== "string" || !/^[a-zA-Z0-9_-]+$/.test(transactionId))) {
@@ -73943,7 +74168,7 @@ function recordPendingHostPluginConflict(deps, env, host, inventory, activation,
   if (!inventory.enabledIds.has(LEGACY_PLUGIN_IDENTITY)) {
     if (existing.state === "none") return true;
     const previous = existing.receipt;
-    const sameRelease = previous.releaseId === activation.release.releaseId && previous.releaseRoot === join129(activation.releaseRoot, "payload") && previous.candidateRoot === candidateRoot;
+    const sameRelease = previous.releaseId === activation.release.releaseId && previous.releaseRoot === join130(activation.releaseRoot, "payload") && previous.candidateRoot === candidateRoot;
     const newerRelease = previous.stableTarget === void 0 || compareReleaseOrder(stableTarget.version, previous.stableTarget.version) > 0;
     if (!sameRelease && !newerRelease) {
       deps.io.err("ERROR: \u5DF2\u7F3A\u5E2D\u7684 legacy plugin \u5BF9\u5E94\u53E6\u4E00\u4E2A\u672A\u88AB\u5F53\u524D\u7A33\u5B9A\u7248\u672C\u8D85\u8D8A\u7684 receipt\uFF1B\u62D2\u7EDD\u8986\u76D6\u3002");
@@ -73963,7 +74188,7 @@ function recordPendingHostPluginConflict(deps, env, host, inventory, activation,
       conflictPluginId: LEGACY_PLUGIN_IDENTITY,
       conflictScopes: [],
       releaseId: activation.release.releaseId,
-      releaseRoot: join129(activation.releaseRoot, "payload"),
+      releaseRoot: join130(activation.releaseRoot, "payload"),
       candidateRoot,
       stableTarget,
       createdAtEpoch: createdAtEpoch2,
@@ -73975,7 +74200,7 @@ function recordPendingHostPluginConflict(deps, env, host, inventory, activation,
   }
   if (existing.state === "receipt") {
     const receipt2 = existing.receipt;
-    const sameRelease = receipt2.releaseId === activation.release.releaseId && receipt2.releaseRoot === join129(activation.releaseRoot, "payload") && receipt2.candidateRoot === candidateRoot && (receipt2.stableTarget === void 0 || receipt2.stableTarget.version === stableTarget.version && receipt2.stableTarget.tag === stableTarget.tag && receipt2.stableTarget.commit === stableTarget.commit);
+    const sameRelease = receipt2.releaseId === activation.release.releaseId && receipt2.releaseRoot === join130(activation.releaseRoot, "payload") && receipt2.candidateRoot === candidateRoot && (receipt2.stableTarget === void 0 || receipt2.stableTarget.version === stableTarget.version && receipt2.stableTarget.tag === stableTarget.tag && receipt2.stableTarget.commit === stableTarget.commit);
     if (receipt2.transactionId === transactionId && !sameRelease) {
       deps.io.err("ERROR: \u540C\u4E00 transaction id \u7684\u6536\u655B receipt \u4E0E\u5F53\u524D activation \u4E0D\u4E00\u81F4\u3002");
       return false;
@@ -74015,7 +74240,7 @@ function recordPendingHostPluginConflict(deps, env, host, inventory, activation,
     conflictPluginId: LEGACY_PLUGIN_IDENTITY,
     conflictScopes,
     releaseId: activation.release.releaseId,
-    releaseRoot: join129(activation.releaseRoot, "payload"),
+    releaseRoot: join130(activation.releaseRoot, "payload"),
     candidateRoot,
     stableTarget,
     createdAtEpoch,
@@ -74119,14 +74344,14 @@ async function finalizePendingHostPluginConflictWithinTransaction(deps, env, ins
 }
 
 // packages/cli/src/commands/packaged-assets.ts
-import { join as join130 } from "node:path";
+import { join as join131 } from "node:path";
 function verifyPackagedAssets(deps, env, root, dryRun, silent = false) {
   const provenance = provenanceVerifierBinding(env);
   const nodePath = provenance.nodePath || "<unavailable>";
-  const command2 = [join130(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", nodePath];
+  const command2 = [join131(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", nodePath];
   if (!silent) deps.io.out(`[setup] \u63D2\u4EF6\u8D44\u4EA7\u6821\u9A8C: bash ${command2.join(" ")}`);
   if (dryRun) return 0;
-  if (!env.pathExists(join130(root, "runtime", "tenon-bootstrap.mjs"))) {
+  if (!env.pathExists(join131(root, "runtime", "tenon-bootstrap.mjs"))) {
     if (!silent) deps.io.err("ERROR: \u63D2\u4EF6\u8D44\u4EA7\u6821\u9A8C\u5931\u8D25\uFF1A\u7F3A\u5C11 runtime/tenon-bootstrap.mjs\uFF08\u8BE5 marketplace release \u4E0D\u662F\u5B8C\u6574\u53EF\u5B89\u88C5\u5305\uFF09");
     return 1;
   }
@@ -74441,11 +74666,11 @@ async function installNativePluginCandidate(deps, env, host, transaction) {
 }
 
 // packages/cli/src/commands/upstream-skill-step.ts
-import { join as join131 } from "node:path";
+import { join as join132 } from "node:path";
 async function runUpstreamSkillInstall(deps, env, installer, scope, host, pluginRoot2) {
   const paths = resolveRuntimePaths({ homeDir: scope.homeDir, env: scope.env });
   const inspection = await installer.inspect(scope);
-  const previousRoot = inspection.activeValid && inspection.active !== null ? join131(paths.releasesRoot, inspection.active.releaseId, "payload") : null;
+  const previousRoot = inspection.activeValid && inspection.active !== null ? join132(paths.releasesRoot, inspection.active.releaseId, "payload") : null;
   const install = env.installUpstreamSkills ?? installUpstreamSkills;
   const result2 = await install({
     env,
@@ -74797,7 +75022,7 @@ function cmdSetupHost(deps, host, opts, env = REAL_SETUP_ENV, installer = REAL_R
       openDashboard
     ).then((runtimeCode) => {
       if (runtimeCode !== 0) return runtimeCode;
-      const adapter2 = join132(root, "adapters", "install.sh");
+      const adapter2 = join133(root, "adapters", "install.sh");
       const args = [adapter2, hostFlag(host), "--target", opts.target ?? deps.cwd, "--yes"];
       deps.io.out(`[setup] $ bash ${args.join(" ")}`);
       const result2 = env.runCommand("bash", args);
@@ -74812,12 +75037,12 @@ function cmdSetupHost(deps, host, opts, env = REAL_SETUP_ENV, installer = REAL_R
 }
 
 // packages/cli/src/commands/setupRuntime.ts
-import { join as join134 } from "node:path";
+import { join as join135 } from "node:path";
 
 // packages/cli/src/afkReadiness.ts
 import { execFile as execFile7 } from "node:child_process";
 import { accessSync as accessSync5, constants as fsConstants5, statSync as statSync11 } from "node:fs";
-import { join as join133 } from "node:path";
+import { join as join134 } from "node:path";
 var nodeExecDocker = (args) => new Promise((resolve59) => {
   execFile7("docker", [...args], (err, stdout, stderr) => {
     const code = err?.code;
@@ -74875,7 +75100,7 @@ async function probeAfkReadiness(opts) {
         CODEX_HOME: codexHomeCredentialLight(
           hostEnv.CODEX_HOME,
           opts.defaultCodexHome,
-          (home) => (opts.canReadFile ?? canReadFile)(join133(home, "auth.json"))
+          (home) => (opts.canReadFile ?? canReadFile)(join134(home, "auth.json"))
         )
       }
     }
@@ -74887,7 +75112,7 @@ import { homedir as homedir20 } from "node:os";
 var REAL_RUNTIME_ENV = {
   exec: nodeExecDocker,
   hostEnv: process.env,
-  defaultCodexHome: join134(homedir20(), ".codex"),
+  defaultCodexHome: join135(homedir20(), ".codex"),
   resolveImage: (cwd) => readAutomationJson(cwd).image ?? "sandcastle:local"
 };
 var READY_TAG = "[\u5C31\u7EEA]";
@@ -75034,7 +75259,7 @@ function cmdSetup(deps, sub, opts, env = REAL_SETUP_ENV, rt = REAL_RUNTIME_ENV, 
 }
 
 // packages/cli/src/commands/update-native.ts
-import { join as join137 } from "node:path";
+import { join as join138 } from "node:path";
 
 // packages/cli/src/commands/update-boundary-report.ts
 function boundaryDetail(hostState, managedState, detail) {
@@ -75053,12 +75278,12 @@ function reportHostBoundary(deps, host, state) {
 }
 
 // packages/cli/src/commands/update-candidate-verification.ts
-import { join as join135 } from "node:path";
+import { join as join136 } from "node:path";
 function verifyUpdatedRoot(deps, env, root, targetVersion) {
   const provenance = provenanceVerifierBinding(env);
   const nodePath = provenance.nodePath || "<unavailable>";
   const result2 = provenance.run([
-    join135(root, "tools", "verify-skills.sh"),
+    join136(root, "tools", "verify-skills.sh"),
     "--quiet",
     "--root",
     root,
@@ -75067,8 +75292,8 @@ function verifyUpdatedRoot(deps, env, root, targetVersion) {
   ]);
   if (result2.code === 0) {
     const decoded = decodePluginManifestVersion({
-      codex: env.readText(join135(root, ".codex-plugin", "plugin.json")),
-      claude: env.readText(join135(root, ".claude-plugin", "plugin.json"))
+      codex: env.readText(join136(root, ".codex-plugin", "plugin.json")),
+      claude: env.readText(join136(root, ".claude-plugin", "plugin.json"))
     });
     if (decoded.ok && (targetVersion === void 0 || decoded.version === targetVersion)) return true;
     const actual = decoded.ok ? decoded.version : decoded.detail;
@@ -75088,7 +75313,7 @@ async function rejectUpdate(deps, installer, env, detail) {
 }
 
 // packages/cli/src/commands/update-project-report.ts
-import { isAbsolute as isAbsolute38, join as join136 } from "node:path";
+import { isAbsolute as isAbsolute38, join as join137 } from "node:path";
 function shellQuote3(value) {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
@@ -75117,7 +75342,7 @@ function reportRegisteredProjects(deps, env, pluginVersion) {
   )];
   const outdated = registeredRoots.filter((root) => {
     try {
-      return env.readText(join136(root, ".pipeline-version"))?.trim() !== pluginVersion;
+      return env.readText(join137(root, ".pipeline-version"))?.trim() !== pluginVersion;
     } catch {
       return true;
     }
@@ -75336,7 +75561,7 @@ async function runNativeUpdate(input2) {
               const currentActivation = {
                 selection: runtime.selection,
                 release: active,
-                releaseRoot: join137(runtimePaths.releasesRoot, active.releaseId),
+                releaseRoot: join138(runtimePaths.releasesRoot, active.releaseId),
                 launcherCommitted: expectedStableLaunchers(
                   runtimePaths,
                   env.homeDir(),
@@ -75624,8 +75849,8 @@ async function cmdInternalMotionGate(deps, name2, stdin) {
 }
 
 // packages/cli/src/commands/design.ts
-import { mkdir as mkdir50, readFile as readFile71, writeFile as writeFile29 } from "node:fs/promises";
-import { dirname as dirname34, join as join138 } from "node:path";
+import { mkdir as mkdir50, readFile as readFile72, writeFile as writeFile29 } from "node:fs/promises";
+import { dirname as dirname34, join as join139 } from "node:path";
 var DESIGN_MD = "DESIGN.md";
 var MODEL = "design/design-model.yaml";
 async function iconIds(deps) {
@@ -75653,13 +75878,13 @@ async function cmdDesignCheck(deps, opts) {
   for (const problem of check.problems) deps.io.out(`- ${problem}`);
   return check.status === "ready" ? 0 : 1;
 }
-var read2 = async (path15) => readFile71(path15, "utf8").catch(() => null);
+var read2 = async (path15) => readFile72(path15, "utf8").catch(() => null);
 async function unmergedProposal(deps, change) {
-  const proposal = await read2(join138(deps.cwd, designProposalPath(change)));
+  const proposal = await read2(join139(deps.cwd, designProposalPath(change)));
   if (proposal === null) return false;
   const base = designProposalBase(proposal);
   if (base === null) return false;
-  const current = designBaseDigest(await read2(join138(deps.cwd, DESIGN_MD)), await read2(join138(deps.cwd, MODEL)));
+  const current = designBaseDigest(await read2(join139(deps.cwd, DESIGN_MD)), await read2(join139(deps.cwd, MODEL)));
   return current === base;
 }
 async function cmdDesignValidate(deps, opts) {
@@ -75679,7 +75904,7 @@ async function cmdDesignValidate(deps, opts) {
       deps.io.err("ERROR: hue \u6280\u80FD\u672A\u5B89\u88C5\uFF1B\u8FD0\u884C tenon update \u540C\u6B65\u4E0A\u6E38\u6280\u80FD");
       return 1;
     }
-    const code = await deps.designValidator.run(script, join138(deps.cwd, "design"), deps.cwd);
+    const code = await deps.designValidator.run(script, join139(deps.cwd, "design"), deps.cwd);
     if (code !== 0) {
       deps.io.err(`ERROR: hue \u6821\u9A8C\u672A\u901A\u8FC7\uFF08${code}\uFF09`);
       return 1;
@@ -75699,7 +75924,7 @@ async function cmdDesignValidate(deps, opts) {
 async function cmdDesignPropose(deps, change) {
   try {
     const relative34 = designProposalPath(change);
-    const path15 = join138(deps.cwd, relative34);
+    const path15 = join139(deps.cwd, relative34);
     if (await read2(path15) !== null) {
       deps.io.err(`ERROR: \u63D0\u6848\u5DF2\u5B58\u5728\uFF1A${relative34}`);
       return 1;
@@ -75709,7 +75934,7 @@ async function cmdDesignPropose(deps, change) {
       deps.io.err("ERROR: \u9879\u76EE\u8FD8\u6CA1\u6709 DESIGN.md\uFF1B\u5148\u5B8C\u6210\u8BBE\u8BA1\u4F53\u7CFB\u4EFB\u52A1");
       return 1;
     }
-    const base = designBaseDigest(await read2(join138(deps.cwd, DESIGN_MD)), await read2(join138(deps.cwd, MODEL)));
+    const base = designBaseDigest(await read2(join139(deps.cwd, DESIGN_MD)), await read2(join139(deps.cwd, MODEL)));
     await mkdir50(dirname34(path15), { recursive: true });
     await writeFile29(path15, renderDesignProposal(change, base), { encoding: "utf8", flag: "wx" });
     deps.io.out(relative34);
@@ -75886,13 +76111,13 @@ async function cmdMigrateWorkflow(deps, name2) {
 }
 
 // packages/cli/src/commands/state-projection.ts
-import { lstat as lstat54, readFile as readFile72 } from "node:fs/promises";
-import { isAbsolute as isAbsolute39, join as join139, resolve as resolve54 } from "node:path";
+import { lstat as lstat54, readFile as readFile73 } from "node:fs/promises";
+import { isAbsolute as isAbsolute39, join as join140, resolve as resolve54 } from "node:path";
 function message(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
 }
 async function cmdStateProjection(deps, sub, name2, opts = {}) {
-  const changeDir7 = join139(deps.cwd, "openspec", "changes", name2);
+  const changeDir7 = join140(deps.cwd, "openspec", "changes", name2);
   try {
     switch (sub) {
       case "status": {
@@ -75942,7 +76167,7 @@ async function cmdStateProjection(deps, sub, name2, opts = {}) {
         const workflowId = resolveWorkflowName(state);
         const plan = compileEffectiveWorkflowPlan(
           workflowId,
-          parseWorkflow(await readFile72(sourcePath, "utf8"))
+          parseWorkflow(await readFile73(sourcePath, "utf8"))
         );
         if (plan.workflowFingerprint !== metadata.workflowPlanFingerprint) {
           throw new Error(
@@ -76299,7 +76524,7 @@ import { createHash as createHash54, createHmac } from "node:crypto";
 import { closeSync as closeSync7, constants as constants11, fstatSync as fstatSync2, openSync as openSync7, readFileSync as readFileSync36 } from "node:fs";
 var MAX_PAYLOAD_BYTES = 128 * 1024;
 var MAX_TEXT_BYTES = 8 * 1024;
-var isRecord25 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+var isRecord26 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 function text7(value, field3) {
   if (typeof value !== "string" || value.trim() === "" || Buffer.byteLength(value) > MAX_TEXT_BYTES) {
     throw new Error(`${field3} must be a bounded non-empty string`);
@@ -76318,7 +76543,7 @@ function questionKey(candidate2, header, prompt) {
   return normalized2 !== "" && normalized2.length <= 160 ? `host.${normalized2}` : `host.${digest16(`${header}\0${prompt}`).slice(0, 32)}`;
 }
 function answers(value) {
-  if (!isRecord25(value)) throw new Error("tool_response.answers must be an object");
+  if (!isRecord26(value)) throw new Error("tool_response.answers must be an object");
   const result2 = {};
   for (const [key, answer] of Object.entries(value)) {
     if (typeof answer !== "string" || answer.trim() === "") throw new Error(`question '${key}' requires a non-empty answer`);
@@ -76334,7 +76559,7 @@ function decodeHostInteractionPostToolUse(raw, recordedAt) {
   } catch (error2) {
     throw new Error(`host interaction payload is invalid JSON: ${String(error2)}`);
   }
-  if (!isRecord25(decoded) || decoded.tool_name !== "AskUserQuestion" && decoded.tool_name !== "request_user_input" || !isRecord25(decoded.tool_input) || !Array.isArray(decoded.tool_input.questions) || decoded.tool_input.questions.length === 0 || decoded.tool_input.questions.length > 3 || !isRecord25(decoded.tool_response)) {
+  if (!isRecord26(decoded) || decoded.tool_name !== "AskUserQuestion" && decoded.tool_name !== "request_user_input" || !isRecord26(decoded.tool_input) || !Array.isArray(decoded.tool_input.questions) || decoded.tool_input.questions.length === 0 || decoded.tool_input.questions.length > 3 || !isRecord26(decoded.tool_response)) {
     throw new Error("host interaction payload does not contain a supported structured response");
   }
   const answerByHeader = answers(decoded.tool_response.answers);
@@ -76343,13 +76568,13 @@ function decodeHostInteractionPostToolUse(raw, recordedAt) {
   const sessionId = decoded.session_id;
   const hostIdentity = createHash54("sha256").update(`${sessionId}\0${String(decoded.turn_id)}\0${String(decoded.tool_use_id)}`).digest();
   const questions = decoded.tool_input.questions.map((candidate2, index) => {
-    if (!isRecord25(candidate2)) throw new Error(`question ${index + 1} must be an object`);
+    if (!isRecord26(candidate2)) throw new Error(`question ${index + 1} must be an object`);
     const header = text7(candidate2.header, `question ${index + 1}.header`);
     const prompt = text7(candidate2.question, `question ${index + 1}.question`);
     const rawOptions = candidate2.options === void 0 ? [] : candidate2.options;
     if (!Array.isArray(rawOptions) || rawOptions.length > 64) throw new Error(`question ${index + 1}.options is invalid`);
     const optionLabels = rawOptions.map((option, optionIndex) => {
-      if (!isRecord25(option)) throw new Error(`question ${index + 1}.option ${optionIndex + 1} must be an object`);
+      if (!isRecord26(option)) throw new Error(`question ${index + 1}.option ${optionIndex + 1} must be an object`);
       return text7(option.label, `question ${index + 1}.option ${optionIndex + 1}.label`);
     });
     const optionIds = optionLabels.map((label2) => stableId("option", label2));
@@ -76448,7 +76673,7 @@ async function cmdInternalNativeSkillReceipt(deps, changeName, skillId, sessionI
 // packages/cli/src/commands/internalSelfApproval.ts
 import { createHash as createHash55 } from "node:crypto";
 import { constants as constants14 } from "node:fs";
-import { open as open14, readFile as readFile73 } from "node:fs/promises";
+import { open as open14, readFile as readFile74 } from "node:fs/promises";
 import { basename as basename13 } from "node:path";
 
 // packages/cli/src/commands/selfApprovalIdentity.ts
@@ -76526,7 +76751,7 @@ function observationIdentityDigest(key, identity2) {
 // packages/cli/src/commands/selfApprovalObservationLog.ts
 import { constants as constants13 } from "node:fs";
 import { open as open13 } from "node:fs/promises";
-import { join as join140 } from "node:path";
+import { join as join141 } from "node:path";
 var OVERFLOW_TAIL_BYTES = 4096;
 function lineRecords(text8) {
   const records = [];
@@ -76543,7 +76768,7 @@ function lineRecords(text8) {
   return records;
 }
 async function appendObservationUnderLock(changeDirPath, signal, observedAt, maxBytes = SELF_APPROVAL_SIGNAL_MAX_BYTES) {
-  const target = join140(changeDirPath, SELF_APPROVAL_SIGNAL_FILE);
+  const target = join141(changeDirPath, SELF_APPROVAL_SIGNAL_FILE);
   const handle = await open13(
     target,
     constants13.O_RDWR | constants13.O_APPEND | constants13.O_CREAT | constants13.O_NOFOLLOW,
@@ -76584,7 +76809,7 @@ async function readPayloadObject(payloadPath) {
   try {
     const before = await handle.stat();
     if (!before.isFile() || before.size > MAX_PAYLOAD_BYTES2) throw new Error("payload must be a bounded regular file");
-    const raw = await readFile73(handle, "utf8");
+    const raw = await readFile74(handle, "utf8");
     const after = await handle.stat();
     if (after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size) {
       throw new Error("payload changed during verified read");
@@ -76727,8 +76952,8 @@ function registerSkillInvocationInternalCommands(program2, deps) {
 
 // packages/cli/src/commands/agent.ts
 import { randomUUID as randomUUID25 } from "node:crypto";
-import { mkdir as mkdir52, readFile as readFile74, stat as stat15 } from "node:fs/promises";
-import { join as join141 } from "node:path";
+import { mkdir as mkdir52, readFile as readFile75, stat as stat15 } from "node:fs/promises";
+import { join as join142 } from "node:path";
 
 // packages/cli/src/commands/agent-prompt.ts
 var RESULT_HINT = {
@@ -76963,7 +77188,7 @@ async function cmdAgentPrompt(deps, name2, agent, options) {
   }
   const existing = context.runs.find((row2) => row2.agent === agent && row2.step_visit === context.stepVisit && row2.status === "running" && row2.candidate === context.candidate);
   const runId = existing?.run_id ?? randomUUID25();
-  const reportPath = join141("openspec", "changes", name2, AGENT_REPORTS_DIR, `${runId}.md`);
+  const reportPath = join142("openspec", "changes", name2, AGENT_REPORTS_DIR, `${runId}.md`);
   if (existing === void 0) {
     const row2 = {
       schema: "agent-run/v1",
@@ -76984,7 +77209,7 @@ async function cmdAgentPrompt(deps, name2, agent, options) {
       finished_at: null
     };
     try {
-      await mkdir52(join141(context.dir, AGENT_REPORTS_DIR), { recursive: true });
+      await mkdir52(join142(context.dir, AGENT_REPORTS_DIR), { recursive: true });
       await deps.store.withLock(context.dir, () => appendAgentRunRow(context.dir, row2));
     } catch (e) {
       deps.io.err(`ERROR: ${errMsg(e)}`);
@@ -77026,7 +77251,7 @@ async function cmdAgentRecord(deps, name2, runId, json2) {
     deps.io.err(`ERROR: run '${runId}' \u4E0D\u662F\u672C\u6B21\u6B65\u9AA4\u8BBF\u95EE\u4E2D\u8FDB\u884C\u4E2D\u7684\u8FD0\u884C`);
     return 1;
   }
-  const reportPath = join141(deps.cwd, row2.report_path);
+  const reportPath = join142(deps.cwd, row2.report_path);
   let text8;
   try {
     const info = await stat15(reportPath);
@@ -77034,7 +77259,7 @@ async function cmdAgentRecord(deps, name2, runId, json2) {
       deps.io.err(`ERROR: \u62A5\u544A\u65E0\u6548\uFF1A\u8D85\u8FC7 ${REPORT_MAX_BYTES} \u5B57\u8282`);
       return 1;
     }
-    text8 = await readFile74(reportPath, "utf8");
+    text8 = await readFile75(reportPath, "utf8");
   } catch {
     deps.io.err(`ERROR: \u62A5\u544A\u65E0\u6548\uFF1A${row2.report_path} \u8BFB\u4E0D\u5230`);
     return 1;
@@ -77086,7 +77311,7 @@ function registerAgentCommands(program2, deps) {
 
 // packages/cli/src/commands/interaction.ts
 import { lstat as lstat56 } from "node:fs/promises";
-import { isAbsolute as isAbsolute40, join as join142, relative as relative30, resolve as resolve55 } from "node:path";
+import { isAbsolute as isAbsolute40, join as join143, relative as relative30, resolve as resolve55 } from "node:path";
 var MAX_FIXTURE_BYTES = 1024 * 1024;
 var MAX_EVENT_FILE_BYTES = 1024 * 1024;
 var MAX_FIXTURES = 256;
@@ -77231,7 +77456,7 @@ async function cmdInteraction(deps, sub, args, opts = {}) {
       throw new Error("fixture directory unavailable");
     }
     if (directory.isSymbolicLink() || !directory.isDirectory()) throw new Error("fixture directory unavailable");
-    const manifest = parseManifest2(await readRegularJson(join142(fixtureDir, "manifest.json"), MAX_FIXTURE_BYTES, "manifest"));
+    const manifest = parseManifest2(await readRegularJson(join143(fixtureDir, "manifest.json"), MAX_FIXTURE_BYTES, "manifest"));
     const orderedEntries = [...manifest.fixtures].sort((left, right) => left.id.localeCompare(right.id));
     const physicalFiles = /* @__PURE__ */ new Set();
     for (const entry of orderedEntries) {
@@ -77585,7 +77810,7 @@ function registerReviewCommands(program2, deps) {
 }
 
 // packages/cli/src/commands/test-baseline.ts
-import { join as join143 } from "node:path";
+import { join as join144 } from "node:path";
 async function cmdTestBaseline(deps, change, testId, opts) {
   const context = await resolveTestCommand(deps, change, { requireOwner: true });
   if (typeof context === "number") return context;
@@ -77598,7 +77823,7 @@ async function cmdTestBaseline(deps, change, testId, opts) {
     return 1;
   }
   const paths = testEvidencePaths(deps.cwd, context.slug, change);
-  const record9 = await readTestRunRecord(join143(paths.runsDir, `${opts.run}.json`));
+  const record9 = await readTestRunRecord(join144(paths.runsDir, `${opts.run}.json`));
   if (record9 === void 0 || record9.test_id !== testId) {
     deps.io.err(`ERROR: \u627E\u4E0D\u5230\u5F53\u524D\u7528\u6237\u7684\u8FD0\u884C\u8BB0\u5F55 '${opts.run}'`);
     return 1;
@@ -77637,8 +77862,8 @@ async function cmdTestBaseline(deps, change, testId, opts) {
 
 // packages/cli/src/commands/test-code-size.ts
 import { execFile as execFile8 } from "node:child_process";
-import { lstat as lstat57, readFile as readFile75 } from "node:fs/promises";
-import { join as join144 } from "node:path";
+import { lstat as lstat57, readFile as readFile76 } from "node:fs/promises";
+import { join as join145 } from "node:path";
 import { promisify as promisify3 } from "node:util";
 var run = promisify3(execFile8);
 var MAX_UNTRACKED_FILES = 5e3;
@@ -77658,7 +77883,7 @@ async function countLines(path15) {
   try {
     const entry = await lstat57(path15);
     if (!entry.isFile() || entry.size > MAX_UNTRACKED_BYTES) return 0;
-    const text8 = await readFile75(path15, "utf8");
+    const text8 = await readFile76(path15, "utf8");
     if (text8 === "") return 0;
     return text8.endsWith("\n") ? text8.split("\n").length - 1 : text8.split("\n").length;
   } catch {
@@ -77689,7 +77914,7 @@ async function collectCodeSize(cwd, base) {
   }
   const untracked = (await git(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]) ?? "").split("\0").filter((path15) => path15 !== "" && isCodePath(path15)).slice(0, MAX_UNTRACKED_FILES);
   for (const path15 of untracked) {
-    const lines2 = await countLines(join144(cwd, path15));
+    const lines2 = await countLines(join145(cwd, path15));
     filesChanged += 1;
     linesAdded += lines2;
     largest = Math.max(largest, lines2);
@@ -77713,7 +77938,7 @@ async function cmdTestCodeSize(deps, opts = {}) {
 }
 
 // packages/cli/src/commands/test-report.ts
-import { lstat as lstat58, readFile as readFile76, writeFile as writeFile30 } from "node:fs/promises";
+import { lstat as lstat58, readFile as readFile77, writeFile as writeFile30 } from "node:fs/promises";
 import { isAbsolute as isAbsolute41, resolve as resolve56 } from "node:path";
 var MAX_REPORT_BYTES = 1024 * 1024;
 async function writableReport(repoRoot, path15) {
@@ -77762,7 +77987,7 @@ async function cmdTestReport(deps, change, opts = {}) {
     return 1;
   }
   try {
-    const markdown = await readFile76(target, "utf8");
+    const markdown = await readFile77(target, "utf8");
     await writeFile30(target, replaceTestsRegion(markdown, region, locale), "utf8");
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`);
@@ -77775,7 +78000,7 @@ async function cmdTestReport(deps, change, opts = {}) {
 // packages/cli/src/commands/test-run.ts
 import { randomBytes as randomBytes8 } from "node:crypto";
 import { lstat as lstat60, mkdir as mkdir54, realpath as realpath18 } from "node:fs/promises";
-import { join as join146, relative as relative32, resolve as resolve58, sep as sep25 } from "node:path";
+import { join as join147, relative as relative32, resolve as resolve58, sep as sep25 } from "node:path";
 
 // packages/cli/src/hostKind.ts
 function detectHostEnvironment(env) {
@@ -77787,8 +78012,8 @@ function detectHostEnvironment(env) {
 
 // packages/cli/src/test-runner/collect.ts
 import { createHash as createHash56, randomBytes as randomBytes7 } from "node:crypto";
-import { copyFile as copyFile3, lstat as lstat59, mkdir as mkdir53, readFile as readFile77, readdir as readdir26, realpath as realpath17, writeFile as writeFile31 } from "node:fs/promises";
-import { dirname as dirname36, join as join145, relative as relative31, resolve as resolve57, sep as sep24 } from "node:path";
+import { copyFile as copyFile3, lstat as lstat59, mkdir as mkdir53, readFile as readFile78, readdir as readdir26, realpath as realpath17, writeFile as writeFile31 } from "node:fs/promises";
+import { dirname as dirname36, join as join146, relative as relative31, resolve as resolve57, sep as sep24 } from "node:path";
 var MAX_DIRECTORY_FILES = 5e3;
 var MAX_DOCUMENT_BYTES = 4 * 1024 * 1024;
 var MAX_ARTIFACT_FILE_BYTES = 64 * 1024 * 1024;
@@ -77814,7 +78039,7 @@ async function summarizeTree(absolute) {
   let capped = false;
   const walk = async (dir) => {
     for (const name2 of (await readdir26(dir)).sort()) {
-      const path15 = join145(dir, name2);
+      const path15 = join146(dir, name2);
       const entry = await lstat59(path15);
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
@@ -77830,7 +78055,7 @@ async function summarizeTree(absolute) {
       bytes += entry.size;
       const rel = relative31(absolute, path15).split(sep24).join("/");
       entries.push({ path: rel, bytes: entry.size });
-      lines2.push(`${rel}\0${entry.size}\0${digestOf(await readFile77(path15))}`);
+      lines2.push(`${rel}\0${entry.size}\0${digestOf(await readFile78(path15))}`);
     }
   };
   await walk(absolute);
@@ -77838,7 +78063,7 @@ async function summarizeTree(absolute) {
 }
 async function envKey(path15) {
   try {
-    return await readFile77(path15);
+    return await readFile78(path15);
   } catch {
   }
   try {
@@ -77848,7 +78073,7 @@ async function envKey(path15) {
     return key;
   } catch {
     try {
-      return await readFile77(path15);
+      return await readFile78(path15);
     } catch {
       return void 0;
     }
@@ -77863,11 +78088,11 @@ async function documentInput(repoRoot, changeDir7, ref) {
   }
   const entries = [];
   for (const record9 of records.filter((candidate2) => candidate2.kind === ref)) {
-    const absolute = join145(repoRoot, record9.path);
+    const absolute = join146(repoRoot, record9.path);
     try {
       const entry = await lstat59(absolute);
       if (!entry.isFile() || entry.size > MAX_DOCUMENT_BYTES) continue;
-      entries.push({ path: record9.path, digest: digestOf(await readFile77(absolute)) });
+      entries.push({ path: record9.path, digest: digestOf(await readFile78(absolute)) });
     } catch {
       continue;
     }
@@ -77881,7 +78106,7 @@ async function fileInput(repoRoot, path15) {
     const entry = await lstat59(absolute);
     if (entry.isSymbolicLink() || !await insideRepo(repoRoot, absolute)) return missing3;
     if (entry.isFile()) {
-      return { kind: "file", path: path15, present: true, digest: digestOf(await readFile77(absolute)), files: 1 };
+      return { kind: "file", path: path15, present: true, digest: digestOf(await readFile78(absolute)), files: 1 };
     }
     if (entry.isDirectory()) {
       const tree = await summarizeTree(absolute);
@@ -77921,9 +78146,9 @@ async function collectTestInputs(repoRoot, changeDir7, test, envKeyPath) {
 async function copyTree2(source, target, entries, budget) {
   for (const entry of entries) {
     if (entry.bytes > MAX_ARTIFACT_FILE_BYTES || budget.used + entry.bytes > MAX_ARTIFACT_RUN_BYTES) return false;
-    const destination = join145(target, ...entry.path.split("/"));
+    const destination = join146(target, ...entry.path.split("/"));
     await mkdir53(dirname36(destination), { recursive: true });
-    await copyFile3(join145(source, ...entry.path.split("/")), destination);
+    await copyFile3(join146(source, ...entry.path.split("/")), destination);
     budget.used += entry.bytes;
   }
   return true;
@@ -77947,9 +78172,9 @@ async function collectTestOutputs(repoRoot, test, runDir) {
       continue;
     }
     const artifactRelative = `outputs/${output2.path.split(sep24).join("/")}`;
-    const destination = join145(runDir, ...artifactRelative.split("/"));
+    const destination = join146(runDir, ...artifactRelative.split("/"));
     if (entry.isFile()) {
-      const bytes = await readFile77(absolute);
+      const bytes = await readFile78(absolute);
       let artifact = null;
       if (entry.size <= MAX_ARTIFACT_FILE_BYTES && budget.used + entry.size <= MAX_ARTIFACT_RUN_BYTES) {
         await mkdir53(dirname36(destination), { recursive: true });
@@ -78204,6 +78429,11 @@ async function cmdTestRun(deps, change, testId, opts = {}) {
     return 1;
   }
   const { step, test } = located;
+  const gap = await unconfiguredNpmScript(deps.cwd, test);
+  if (gap !== void 0) {
+    deps.io.err(`ERROR: ${unconfiguredMessage(test.id, test.command, gap)}`);
+    return 1;
+  }
   const runId = newRunId(deps.clock());
   const paths = await ensureTestEvidenceDirs(deps.cwd, context.slug, change, runId);
   const markerPath = testRunningMarkerPath(deps.cwd, context.slug, change, test.id);
@@ -78231,7 +78461,7 @@ async function execute(deps, context, input2) {
   const { test, step, runId } = input2;
   const change = context.name;
   const runDir = testRunArtifactsDir(deps.cwd, context.slug, change, runId);
-  const logPath = join146(runDir, TEST_LOG_ARTIFACT);
+  const logPath = join147(runDir, TEST_LOG_ARTIFACT);
   await mkdir54(runDir, { recursive: true });
   const candidateBefore = await candidateOf(deps, change);
   const gitHead = deps.gitHeadSha === void 0 ? null : await deps.gitHeadSha().catch(() => null);
@@ -78363,9 +78593,76 @@ async function execute(deps, context, input2) {
 }
 
 // packages/cli/src/commands/test-status.ts
+function itemJson(entry, withStep) {
+  const { item: item2 } = entry;
+  return {
+    ...withStep ? { step: entry.stepId } : {},
+    id: item2.test.id,
+    ...item2.test.label === void 0 ? {} : { label: item2.test.label },
+    direction: item2.test.direction,
+    required: item2.test.required,
+    status: item2.status,
+    ...item2.run === void 0 ? {} : {
+      run: {
+        run_id: item2.run.run_id,
+        result: item2.run.result,
+        finished_at: item2.run.finished_at,
+        duration_ms: item2.run.duration_ms,
+        reasons: item2.run.reasons.map((reason2) => reason2.code)
+      }
+    }
+  };
+}
+function itemLine(entry, withStep) {
+  const { item: item2 } = entry;
+  const duration2 = item2.run === void 0 ? "\u2014" : `${(item2.run.duration_ms / 1e3).toFixed(1)}s`;
+  const actor3 = item2.run?.actor.name ?? "\u2014";
+  return `  ${withStep ? `${entry.stepId} ` : ""}${statusWord(item2.status)} ${item2.test.id} ${item2.test.label ?? item2.test.id} ${duration2} ${item2.run?.finished_at ?? "\u2014"} ${actor3}`;
+}
+async function reportFor(deps, context, stepId) {
+  return testEvidenceReaderFor(deps)({
+    repoRoot: deps.cwd,
+    changeDir: context.dir,
+    changeName: context.name,
+    plan: context.plan,
+    stepId,
+    context: testEvidenceContextFor(deps, context.name)
+  });
+}
+async function finishedStatus(deps, context, json2) {
+  const entries = [];
+  for (const step of context.plan.workflow.steps) {
+    if ((step.tests ?? []).length === 0) continue;
+    const report = await reportFor(deps, context, step.id);
+    entries.push(...report.items.map((item2) => ({ stepId: step.id, item: item2 })));
+  }
+  const hint = `tenon test report ${context.name}`;
+  if (json2) {
+    deps.io.out(JSON.stringify({
+      change: context.name,
+      step: null,
+      finished: true,
+      items: entries.map((entry) => itemJson(entry, true)),
+      report: hint
+    }, null, 2));
+    return 0;
+  }
+  deps.io.out(`[TEST] ${context.name} \u5DF2\u5B8C\u7ED3\uFF1A\u5404\u6B65\u9AA4\u6D4B\u8BD5\u7684\u6700\u540E\u8BB0\u5F55\uFF08\u5B8C\u6574\u62A5\u544A\uFF1A${hint}\uFF09`);
+  if (entries.length === 0) deps.io.out("  \uFF08\u5DE5\u4F5C\u6D41\u6CA1\u6709\u58F0\u660E\u6D4B\u8BD5\uFF09");
+  for (const entry of entries) deps.io.out(itemLine(entry, true));
+  return 0;
+}
 async function cmdTestStatus(deps, change, opts = {}) {
   const context = await resolveTestCommand(deps, change, { requireOwner: false });
   if (typeof context === "number") return context;
+  try {
+    if (opts.step === void 0 && str(context.state.fields.archived) === "true") {
+      return await finishedStatus(deps, context, opts.json === true);
+    }
+  } catch (e) {
+    deps.io.err(`ERROR: ${errMsg(e)}`);
+    return 1;
+  }
   const stepId = opts.step ?? str(context.state.fields.phase);
   if (context.plan.workflow.steps.every((step) => step.id !== stepId)) {
     deps.io.err(`ERROR: step '${stepId}' \u4E0D\u5728 workflow '${context.plan.id}' \u91CC`);
@@ -78373,49 +78670,24 @@ async function cmdTestStatus(deps, change, opts = {}) {
   }
   let report;
   try {
-    report = await testEvidenceReaderFor(deps)({
-      repoRoot: deps.cwd,
-      changeDir: context.dir,
-      changeName: change,
-      plan: context.plan,
-      stepId,
-      context: testEvidenceContextFor(deps, change)
-    });
+    report = await reportFor(deps, context, stepId);
   } catch (e) {
     deps.io.err(`ERROR: ${errMsg(e)}`);
     return 1;
   }
+  const entries = report.items.map((item2) => ({ stepId, item: item2 }));
   if (opts.json === true) {
     deps.io.out(JSON.stringify({
       change,
       step: stepId,
       pass: report.pass,
-      items: report.items.map((item2) => ({
-        id: item2.test.id,
-        ...item2.test.label === void 0 ? {} : { label: item2.test.label },
-        direction: item2.test.direction,
-        required: item2.test.required,
-        status: item2.status,
-        ...item2.run === void 0 ? {} : {
-          run: {
-            run_id: item2.run.run_id,
-            result: item2.run.result,
-            finished_at: item2.run.finished_at,
-            duration_ms: item2.run.duration_ms,
-            reasons: item2.run.reasons.map((reason2) => reason2.code)
-          }
-        }
-      })),
+      items: entries.map((entry) => itemJson(entry, false)),
       blockers: report.blockers
     }, null, 2));
     return report.pass ? 0 : 2;
   }
   deps.io.out(`[TEST] ${change} step=${stepId}`);
-  for (const item2 of report.items) {
-    const duration2 = item2.run === void 0 ? "\u2014" : `${(item2.run.duration_ms / 1e3).toFixed(1)}s`;
-    const actor3 = item2.run?.actor.name ?? "\u2014";
-    deps.io.out(`  ${statusWord(item2.status)} ${item2.test.id} ${item2.test.label ?? item2.test.id} ${duration2} ${item2.run?.finished_at ?? "\u2014"} ${actor3}`);
-  }
+  for (const entry of entries) deps.io.out(itemLine(entry, false));
   for (const blocker2 of report.blockers) deps.io.out(`  [FAIL] test: ${blocker2}`);
   return report.pass ? 0 : 2;
 }
@@ -78475,7 +78747,7 @@ starter:
 // packages/cli/src/commands/orchestration.ts
 import { randomUUID as randomUUID26 } from "node:crypto";
 import { readFileSync as readFileSync37 } from "node:fs";
-import { readFile as readFile78 } from "node:fs/promises";
+import { readFile as readFile79 } from "node:fs/promises";
 function ledgerDir(deps, change) {
   if (!isValidChangeName(change)) {
     deps.io.err(`ERROR: change-name \u975E\u6CD5: '${change}'`);
@@ -78535,7 +78807,7 @@ async function cmdOrchestrationFreezePipeline(deps, change, pipelineJson, pipeli
   }
   let pipeline;
   try {
-    const source = pipelineFile === void 0 ? pipelineJson : pipelineFile === "-" ? readFileSync37(0, "utf8") : await readFile78(pipelineFile, "utf8");
+    const source = pipelineFile === void 0 ? pipelineJson : pipelineFile === "-" ? readFileSync37(0, "utf8") : await readFile79(pipelineFile, "utf8");
     const parsed = JSON.parse(source);
     const decoded = decodeWorkflowPipelineV2(parsed);
     if (!decoded.ok) throw new Error(decoded.errors.map((entry) => `${entry.path}:${entry.code}`).join(", "));
@@ -78912,7 +79184,7 @@ import {
   statSync as statSync12
 } from "node:fs";
 import { readdir as readdir27 } from "node:fs/promises";
-import { dirname as dirname37, isAbsolute as isAbsolute42, join as join147, relative as relative33, sep as sep26 } from "node:path";
+import { dirname as dirname37, isAbsolute as isAbsolute42, join as join148, relative as relative33, sep as sep26 } from "node:path";
 function sameBoundedFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
 }
@@ -78927,7 +79199,7 @@ function boundedAncestors(root, path15) {
   const ancestors = [{ path: root, info: rootInfo, real: rootReal }];
   let candidate2 = root;
   for (const segment of segments) {
-    candidate2 = join147(candidate2, segment);
+    candidate2 = join148(candidate2, segment);
     const info = lstatSync10(candidate2, { bigint: true });
     if (!info.isDirectory() || info.isSymbolicLink()) return void 0;
     ancestors.push({ path: candidate2, info, real: realpathSync8(candidate2) });
@@ -78992,7 +79264,7 @@ async function listChanges(changesRoot2) {
   } catch {
     return [];
   }
-  return entries.filter((entry) => entry.isDirectory() && entry.name !== "archive").filter((entry) => stateStorageExistsSync(join147(changesRoot2, entry.name))).map((entry) => entry.name).sort();
+  return entries.filter((entry) => entry.isDirectory() && entry.name !== "archive").filter((entry) => stateStorageExistsSync(join148(changesRoot2, entry.name))).map((entry) => entry.name).sort();
 }
 async function listChangeDirs(changesRoot2) {
   let entries;
@@ -79005,7 +79277,7 @@ async function listChangeDirs(changesRoot2) {
 }
 function activeCanonicalArchived(cwd, dep) {
   try {
-    const current = readCurrentRunRevisionSync(join147(cwd, "openspec", "changes", dep));
+    const current = readCurrentRunRevisionSync(join148(cwd, "openspec", "changes", dep));
     return current?.state.fields.archived === "true";
   } catch {
     return false;
@@ -79013,13 +79285,13 @@ function activeCanonicalArchived(cwd, dep) {
 }
 function physicallyArchived(cwd, dep) {
   try {
-    return readdirSync14(join147(cwd, "openspec", "changes", "archive"), { withFileTypes: true }).some((entry) => entry.isDirectory() && entry.name.endsWith(`-${dep}`));
+    return readdirSync14(join148(cwd, "openspec", "changes", "archive"), { withFileTypes: true }).some((entry) => entry.isDirectory() && entry.name.endsWith(`-${dep}`));
   } catch {
     return false;
   }
 }
 function makeGuardCtx(cwd) {
-  const abs = (relativePath) => join147(cwd, relativePath);
+  const abs = (relativePath) => join148(cwd, relativePath);
   return (name2) => ({
     changeDirRel: `openspec/changes/${name2}`,
     stateExists: (changeDirRel) => stateStorageExistsSync(abs(changeDirRel)),
@@ -79092,7 +79364,7 @@ import { execFile as execFile9, execFileSync as execFileSync4 } from "node:child
 import { createHash as createHash58 } from "node:crypto";
 import { accessSync as accessSync6, constants as fsConstants6, readdirSync as readdirSync15, readFileSync as readFileSync39, statSync as statSync13 } from "node:fs";
 import { homedir as homedir21 } from "node:os";
-import { join as join148 } from "node:path";
+import { join as join149 } from "node:path";
 function safeReaddirDirs(dir) {
   try {
     return readdirSync15(dir, { withFileTypes: true }).filter((e) => e.isDirectory() || e.isSymbolicLink()).map((e) => e.name);
@@ -79103,7 +79375,7 @@ function safeReaddirDirs(dir) {
 function readDisabledPluginKeys() {
   const disabled = /* @__PURE__ */ new Set();
   try {
-    const raw = readFileSync39(join148(homedir21(), ".claude", "settings.json"), "utf8");
+    const raw = readFileSync39(join149(homedir21(), ".claude", "settings.json"), "utf8");
     const parsed = JSON.parse(raw);
     const ep = typeof parsed === "object" && parsed !== null && "enabledPlugins" in parsed ? parsed.enabledPlugins : void 0;
     if (ep !== null && typeof ep === "object") {
@@ -79116,26 +79388,26 @@ function readDisabledPluginKeys() {
 function scanInstalledSkillNames() {
   const home = homedir21();
   const names = /* @__PURE__ */ new Set();
-  for (const n of safeReaddirDirs(join148(home, ".claude", "skills"))) names.add(n);
-  for (const n of safeReaddirDirs(join148(home, ".agents", "skills"))) names.add(n);
-  const cache2 = join148(home, ".claude", "plugins", "cache");
+  for (const n of safeReaddirDirs(join149(home, ".claude", "skills"))) names.add(n);
+  for (const n of safeReaddirDirs(join149(home, ".agents", "skills"))) names.add(n);
+  const cache2 = join149(home, ".claude", "plugins", "cache");
   const disabledPlugins = readDisabledPluginKeys();
   for (const marketplace of safeReaddirDirs(cache2)) {
-    const mktDir = join148(cache2, marketplace);
+    const mktDir = join149(cache2, marketplace);
     for (const plugin of safeReaddirDirs(mktDir)) {
       if (disabledPlugins.has(`${plugin}@${marketplace}`)) continue;
       names.add(plugin);
-      for (const skill of safeReaddirDirs(join148(mktDir, plugin, "skills"))) names.add(skill);
+      for (const skill of safeReaddirDirs(join149(mktDir, plugin, "skills"))) names.add(skill);
     }
   }
   return names;
 }
 function scanCodexProjectSkillNames(cwd, root) {
   const names = /* @__PURE__ */ new Set();
-  for (const skillsRoot of [join148(root, "skills"), join148(cwd, ".agents", "skills")]) {
+  for (const skillsRoot of [join149(root, "skills"), join149(cwd, ".agents", "skills")]) {
     for (const name2 of safeReaddirDirs(skillsRoot)) {
       try {
-        if (statSync13(join148(skillsRoot, name2, "SKILL.md")).isFile()) names.add(name2);
+        if (statSync13(join149(skillsRoot, name2, "SKILL.md")).isFile()) names.add(name2);
       } catch {
       }
     }
@@ -79146,7 +79418,7 @@ function scanSkillDigests(skillsRoot) {
   const digests = /* @__PURE__ */ new Map();
   for (const name2 of safeReaddirDirs(skillsRoot)) {
     try {
-      const skillPath = join148(skillsRoot, name2, "SKILL.md");
+      const skillPath = join149(skillsRoot, name2, "SKILL.md");
       if (!statSync13(skillPath).isFile()) continue;
       digests.set(name2, createHash58("sha256").update(readFileSync39(skillPath)).digest("hex"));
     } catch {
@@ -79179,7 +79451,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     if (bash === void 0 || node === void 0) {
       return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u4E0D\u53EF\u6267\u884C" });
     }
-    const args = [join148(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", node.executable];
+    const args = [join149(root, "tools", "verify-skills.sh"), "--quiet", "--root", root, "--node", node.executable];
     try {
       if (!bash.verify() || !node.verify()) {
         return Promise.resolve({ code: 1, output: "\u53EF\u4FE1 Bash/Node \u8EAB\u4EFD\u5DF2\u6F02\u79FB" });
@@ -79204,16 +79476,16 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
   return {
     nodeVersion: () => process.version,
     gitAvailable: () => {
-      const git2 = trustedCommand("git");
-      if (git2 === void 0) return Promise.resolve(false);
+      const git3 = trustedCommand("git");
+      if (git3 === void 0) return Promise.resolve(false);
       return new Promise((resolve59) => {
-        execFile9(git2.executable, ["--version"], (err) => resolve59(!err));
+        execFile9(git3.executable, ["--version"], (err) => resolve59(!err));
       });
     },
     pluginRoot: root,
     manifestError: () => {
       try {
-        loadManifest(join148(root, "templates", "manifest.yaml"));
+        loadManifest(join149(root, "templates", "manifest.yaml"));
         return null;
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
@@ -79244,7 +79516,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
     env: (name2) => process.env[name2],
     statuslineConfigured: () => {
       try {
-        return readFileSync39(join148(homedir21(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
+        return readFileSync39(join149(homedir21(), ".claude", "settings.json"), "utf8").includes("statusline.sh");
       } catch {
         return false;
       }
@@ -79288,14 +79560,14 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
       const native = active === "codex" || active === "claude";
       return {
         ...native ? { selectedRoot: root } : {},
-        projectRoot: join148(process.cwd(), ".agents", "skills"),
-        selected: native ? scanSkillDigests(join148(root, "skills")) : /* @__PURE__ */ new Map(),
-        project: scanSkillDigests(join148(process.cwd(), ".agents", "skills"))
+        projectRoot: join149(process.cwd(), ".agents", "skills"),
+        selected: native ? scanSkillDigests(join149(root, "skills")) : /* @__PURE__ */ new Map(),
+        project: scanSkillDigests(join149(process.cwd(), ".agents", "skills"))
       };
     },
     manifestSkills: () => {
       try {
-        const m = loadManifest(join148(root, "templates", "manifest.yaml"));
+        const m = loadManifest(join149(root, "templates", "manifest.yaml"));
         return { mandatory: m.mandatorySkills, recommended: m.recommendedSkills };
       } catch {
         return null;
@@ -79307,7 +79579,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         image: readAutomationJson(process.cwd()).image ?? "sandcastle:local",
         secretsEnv: readSecrets(scope.paths.secretsPath).keys,
         hostEnv: scope.env,
-        defaultCodexHome: join148(scope.homeDir, ".codex")
+        defaultCodexHome: join149(scope.homeDir, ".codex")
       });
     },
     /**
@@ -79320,7 +79592,7 @@ function makeDoctorProbes(runtimeScope2, root, runtime = {}) {
         return null;
       }
       try {
-        return skillTextModelInvocable(readFileSync39(join148(root, "skills", skillId, "SKILL.md"), "utf8"));
+        return skillTextModelInvocable(readFileSync39(join149(root, "skills", skillId, "SKILL.md"), "utf8"));
       } catch {
         return null;
       }
@@ -79366,13 +79638,61 @@ function gitRemoteNames(cwd) {
   });
 }
 
+// packages/cli/src/gitWorkspace.ts
+import { execFile as execFile11 } from "node:child_process";
+import { existsSync as existsSync13 } from "node:fs";
+import { basename as basename14, join as join150 } from "node:path";
+var FINISH_HOUSEKEEPING_PATHS = [
+  ".pipeline/.gitignore",
+  ".tenon/.gitignore",
+  "openspec/.gitignore"
+];
+var TERMINAL_ACTIVITY_PREFIX = ".pipeline-terminal-activity.";
+function git2(cwd, args) {
+  return new Promise((resolve59) => {
+    execFile11("git", [...args], { cwd, timeout: 5e3, maxBuffer: 4 * 1024 * 1024 }, (error2, stdout) => {
+      if (error2 === null) {
+        resolve59({ code: 0, stdout: String(stdout) });
+        return;
+      }
+      const code = error2.code;
+      resolve59({ code: typeof code === "number" ? code : null, stdout: String(stdout) });
+    });
+  });
+}
+function nulList(stdout) {
+  return stdout.split("\0").filter((entry) => entry !== "");
+}
+async function probeGitFinish(cwd, change) {
+  const inside3 = await git2(cwd, ["rev-parse", "--is-inside-work-tree"]);
+  if (inside3.code !== 0 || inside3.stdout.trim() !== "true") return null;
+  const [tracked, status, ignoredTracked] = await Promise.all([
+    git2(cwd, ["ls-files", "-z", "--", `openspec/changes/${change}`]),
+    git2(cwd, ["status", "--porcelain", "-z", "--untracked-files=normal"]),
+    git2(cwd, ["ls-files", "-z", "-c", "-i", "--exclude-standard", "--", "openspec/changes"])
+  ]);
+  if (tracked.code !== 0 || status.code !== 0) return null;
+  const housekeeping = [];
+  for (const path15 of FINISH_HOUSEKEEPING_PATHS) {
+    if (!existsSync13(join150(cwd, path15))) continue;
+    if ((await git2(cwd, ["check-ignore", "-q", "--", path15])).code === 1) housekeeping.push(path15);
+  }
+  const untrack = ignoredTracked.code === 0 ? nulList(ignoredTracked.stdout).filter((path15) => basename14(path15).startsWith(TERMINAL_ACTIVITY_PREFIX)) : [];
+  return {
+    changeDirTracked: tracked.stdout !== "",
+    workspaceDirty: status.stdout !== "",
+    housekeeping,
+    untrack
+  };
+}
+
 // packages/cli/src/main.ts
 function isoNow() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 function gitHeadSha(cwd) {
   return new Promise((resolve59) => {
-    execFile11("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => {
+    execFile12("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => {
       resolve59((stdout ?? "").trim());
     });
   });
@@ -79381,19 +79701,19 @@ async function readGateMarkers(cwd) {
   const out = [];
   for (const kind of ["confirm", "review", "interaction"]) {
     try {
-      const p = join149(cwd, `.pipeline-pending-${kind}`);
+      const p = join151(cwd, `.pipeline-pending-${kind}`);
       const st = await stat16(p);
-      out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile79(p, "utf8") });
+      out.push({ kind, ageMs: Date.now() - st.mtimeMs, raw: await readFile80(p, "utf8") });
     } catch {
     }
   }
   return out;
 }
 function pluginRoot() {
-  return join149(dirname38(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join151(dirname38(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function manifestPath() {
-  return join149(pluginRoot(), "templates", "manifest.yaml");
+  return join151(pluginRoot(), "templates", "manifest.yaml");
 }
 function trackValidationContext(repoRoot, manifest) {
   const skillProfiles = /* @__PURE__ */ new Set();
@@ -79423,7 +79743,7 @@ function readPluginVersion() {
     [".claude-plugin", "plugin.json"]
   ]) {
     try {
-      const raw = readFileSync40(join149(pluginRoot(), ...rel), "utf8");
+      const raw = readFileSync40(join151(pluginRoot(), ...rel), "utf8");
       const parsed = JSON.parse(raw);
       const version = typeof parsed === "object" && parsed !== null && "version" in parsed ? parsed.version : void 0;
       if (typeof version === "string" && version.trim() !== "") return version;
@@ -79538,8 +79858,8 @@ async function main() {
     designValidator: {
       // 上游 hue 随插件安装；技能没装时返回空串，命令据此给出安装提示而不是去 spawn 不存在的脚本。
       path: () => {
-        const script = join149(pluginRoot(), "skills", "hue", "scripts", "validate.mjs");
-        return existsSync13(script) ? script : "";
+        const script = join151(pluginRoot(), "skills", "hue", "scripts", "validate.mjs");
+        return existsSync14(script) ? script : "";
       },
       run: (script, folder, cwd) => new Promise((resolve59) => {
         const child = spawn9(process.execPath, [script, folder], { cwd, stdio: "inherit" });
@@ -79559,7 +79879,7 @@ async function main() {
     guardCtx: makeGuardCtx(process.cwd()),
     doctor: makeDoctorProbes(runtimeScope2, pluginRoot()),
     readGateMarkers: () => readGateMarkers(process.cwd()),
-    writeBreadcrumb: (dir, content) => writeFile32(join149(dir, ".breadcrumb"), content, "utf8"),
+    writeBreadcrumb: (dir, content) => writeFile32(join151(dir, ".breadcrumb"), content, "utf8"),
     history: createHistoryWriter({ actor: currentActor }),
     // init 成功后 best-effort 登记项目根到 Tenon config root 的 projects.json
     registerProject: async (repoRoot) => {
@@ -79570,13 +79890,14 @@ async function main() {
     readSecretsEnv: async () => readSecrets(runtimePaths().secretsPath).keys,
     readHistoryRaw: async (dir) => {
       try {
-        return await readFile79(join149(dir, ".pipeline-history.jsonl"), "utf8");
+        return await readFile80(join151(dir, ".pipeline-history.jsonl"), "utf8");
       } catch {
         return "";
       }
     },
     gitHeadSha: () => gitHeadSha(process.cwd()),
     gitRemotes: () => gitRemoteNames(process.cwd()),
+    gitFinishProbe: (change) => probeGitFinish(process.cwd(), change),
     workspaceFingerprint: () => fingerprintWorkspace(process.cwd()),
     captureBuildRevision: async (isolation) => {
       const identity2 = await probeBuildRevisionIdentity(process.cwd());
@@ -79585,13 +79906,13 @@ async function main() {
       const revision = kind === "workspace" ? await fingerprintWorkspace(process.cwd()) : await gitHeadSha(process.cwd());
       return createBuildRevisionToken(kind, revision, identity2).value;
     },
-    writeReviewMarker: (content) => writeFile32(join149(process.cwd(), ".pipeline-pending-review"), content, "utf8"),
+    writeReviewMarker: (content) => writeFile32(join151(process.cwd(), ".pipeline-pending-review"), content, "utf8"),
     clearReviewMarker: (change, event) => clearReviewMarkerFor(process.cwd(), change, event),
     pluginVersion: readPluginVersion(),
     readInstalledPlugins: async () => {
-      for (const p of [join149(pluginRoot(), "..", "installed_plugins.json"), join149(process.env.HOME ?? "", ".claude", "installed_plugins.json")]) {
+      for (const p of [join151(pluginRoot(), "..", "installed_plugins.json"), join151(process.env.HOME ?? "", ".claude", "installed_plugins.json")]) {
         try {
-          return await readFile79(p, "utf8");
+          return await readFile80(p, "utf8");
         } catch {
         }
       }
@@ -79606,6 +79927,7 @@ async function main() {
         store: store2,
         runRepository: runRepo,
         clock: isoNow,
+        loadAgentLibrary: () => loadAgentLibrary({ payloadRoot: pluginRoot(), configRoot: runtimePaths().configRoot }),
         creator: () => {
           const actor3 = currentActor();
           if (actor3 === void 0) throw new Error(USER_MISSING_HINT);

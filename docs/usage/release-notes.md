@@ -4,6 +4,73 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.3 · 2026-09-24
+
+A second real-session acceptance release. v0.1.2 was driven through the backend and free tracks in real Claude Code
+sessions and the Dashboard was re-checked at 1440 px; this release fixes what that found.
+
+### Data-driven flow (`step.next`)
+
+- `ship`: unchecked `tasks.md` items come before `apply-spec` and document writes as a `fix` action listing every
+  item, and ticking one no longer hides the rest.
+- The `finish-change` commit succeeds first time: it lists only paths git accepts (an untracked original change
+  directory is left out), adds `.pipeline/.gitignore`, `.tenon/.gitignore` and `openspec/.gitignore` when they
+  exist untracked, and untracks heartbeat files committed by older releases. Outside a git repo `commit` is `null`.
+- Workflows without OpenSpec, such as `simple`, also get a `finish-change` commit after `verify-pass` when changes
+  are uncommitted.
+- Choice fields such as `build_mode` and `isolation` appear in `next` after the input documents are read and
+  before implementation starts.
+- The `build` step of the `chat`, `pm` and `free` tracks declares the required `spec-consistency` reviewer, so
+  `pre_verify_review_result` can be `pass` only once that review has a real verdict. Changes in progress keep
+  their frozen plans.
+- When a required test's npm script is missing, `tenon test run` reports it as not configured rather than failed
+  and writes no record; `step.tests[].status` is `unconfigured`, flagged already in `build`.
+- Finished changes have one `status --json` shape, and `tenon test status` lists each step's last record for them.
+- `tenon spec apply` fills a new capability's main-spec Purpose from the proposal instead of leaving `TBD`, and
+  fails with `purpose-missing` while the proposal is still a scaffold.
+
+### Host and hooks
+
+- When the user names a known track ("走 free 轨道", "track=free", "use the backend track", ...), routing uses it and
+  the dispatch says `track_basis: user-named`; negated, unknown or multiple names fall back to scoring with a note.
+- The unlock hints list the replies that actually unlock (including "按推荐" and "好的") and those that do not, and a
+  test checks every phrase against the classifier.
+- A new `openspec/.gitignore` ignores `.pipeline-terminal-activity.*` heartbeats, so they no longer dirty the tree.
+- UserPromptSubmit hooks no longer time out on pasted text: v0.1.2 exceeded 30 s on a 64 KB log, and 1 MB now takes
+  under 0.5 s. Prompts over 64 KiB are routed on their first and last 8 KiB.
+
+### Dashboard
+
+- The 含已完结 / 已归档 / 未提交删除 toggles sit on their own row, so workflow chips no longer collapse into a column.
+- Each resource-catalog facet row starts with its group name (category, framework, styling, license).
+
+### Upgrade
+
+From v0.1.2: run `tenon update --codex` (or `--claude`) and open a new host session. The N-1 gate reads and writes
+this release's data with the published v0.1.2 in both directions.
+
+From 1.x: run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.3/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.3/install.sh | /bin/bash -s -- --codex
+```
+
+### Compatibility
+
+- `next` order changed: choice fields and test configuration come first. `finish-change.commit` adds `untrack`, and
+  `command` and `commit` may be `null`.
+- Main specs already written with `TBD` are not rewritten.
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+Both hosts' inventory, the active managed runtime and the Dashboard report 0.1.3.
+
 ## v0.1.2 · 2026-09-24
 
 An acceptance-fix release. v0.1.1 was self-tested end to end in real use: a real Claude Code session through all

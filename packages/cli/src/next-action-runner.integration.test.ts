@@ -383,7 +383,8 @@ async function walk(options: WalkOptions = {}): Promise<{
   throw new Error(`runner: 160 轮还没走到完结，最后停在 ${seen[seen.length - 1]}`)
 }
 
-describe('照着 next 做事的运行器：open → 完结', () => {
+// 整条流程真起 CLI 子进程：单跑约 16 s，全量并发时会越过默认 30 s。
+describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 }, () => {
   test('中途改掉一份已登记的文档，仍然能一路做到 list --finished', async () => {
     const { seen, actions } = await walk({ editAt: 'explore' })
     expect(new Set(seen)).toEqual(new Set(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive']))
@@ -535,7 +536,7 @@ describe('照着 next 做事的运行器：open → 完结', () => {
  * 已完结的 simple 任务 status 还带着 `step.archived: false`。收尾的 next 是只带提交的
  * finish-change（没有归档命令），照做一次成功；提交之后 step 省略，与 default 搬进 archive/ 后同一形态。
  */
-describe('照着 next 做事的运行器：simple 工作流', () => {
+describe('照着 next 做事的运行器：simple 工作流', { timeout: 120_000 }, () => {
   const SIMPLE = 'tiny'
 
   test('verify-pass 完结后 next 给出一次成功的提交；提交之后 step 省略', async () => {
