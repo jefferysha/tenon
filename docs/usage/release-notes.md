@@ -4,6 +4,101 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.1 · 2026-09-23
+
+A correctness release. Accepting v0.1.0 on real hosts found the default workflow unusable on three of its five
+tracks, and several places where Tenon reported a step as done without checking it.
+
+### Blocker fixed: mandatory skills the host refused to run
+
+- In v0.1.0 the `pm`, `frontend` and `backend` tracks could not leave `explore`, and `pm` was also stuck at `spec`,
+  `verify` and `ship`. Their mandatory skills included upstream skills whose `SKILL.md` carries
+  `disable-model-invocation: true`. The host refused to invoke them, no receipt was written, and every transition
+  failed with `step-skills-incomplete`.
+- Replacements: `grill-with-docs` becomes `grilling` + `domain-modeling`, the two skills it delegates to, and
+  `improve-codebase-architecture` becomes `codebase-design`, also in the builtin `architecture` agent. `pm` no longer
+  requires `handoff` (use `tenon handoff <change> [--bundle]`), `to-spec` or `to-tickets`: the applied-spec document
+  and the spec step's task guard already cover what they did. The removed skills still ship as manual guides.
+- This cannot ship again. The release candidate's skill verification fails with `mandatory-skill-not-invocable`;
+  `tenon doctor` reports `skills:invocable`, red when every alternative of a mandatory skill is proven
+  non-invocable and yellow when its `SKILL.md` cannot be read; and the Dashboard refuses to save a workflow that
+  makes such a skill mandatory.
+
+### No more false greens
+
+- `tenon check`, `tenon transition` and `tenon status` share one judgement of a step's skills and of its exit rules.
+  In v0.1.0 they could disagree on the same state: at pm `ship`, `check` failed while `status` showed the exit ready
+  and `transition` let it through. A task can no longer ship without its deliverable, such as a pm task with an
+  empty `prd_path`.
+- A spec rehearsal no longer satisfies the applied-spec obligation, on any track.
+- A mandatory skill that the step's document contract names as a producer is done only when a document it produced
+  is recorded in the current step visit. An invocation receipt alone no longer counts for it.
+
+### A task finishes by following `next` alone
+
+`tenon status <change> --json` now emits in `next` only actions the commands accept, so a runner that follows it
+takes a default task from `open` to `tenon list --finished`:
+
+- an input document edited after it was recorded is recorded again, instead of being re-read forever;
+- a scaffolded document is recorded in the same wave, so the scaffold step settles;
+- an unrecorded `role: update` slot is a permission, not an obligation, and asks for nothing;
+- a single rollback edge behind a review gate goes through a review request, like a forward edge;
+- the archive step offers `complete` (the `archived` transition), then `finish-change` with the exact
+  `openspec archive` command;
+- `build_sha` is written by the Build exit transition instead of being asked of the runner;
+- the coverage guard's remediation names what its parser actually reads.
+
+### Ownership and finished tasks
+
+- `tenon set`, `set-many` and `cas` require an identity and refuse a non-owner, like every other mutation, and
+  refuse a finished task.
+- 完结 is the transition `tenon transition <change> archived`, which stamps `archived_at`; writing `archived` or
+  `archived_at` by hand is refused.
+- A finished task stays readable with `tenon status`, and appears in `tenon list --finished` as soon as it is
+  marked archived, before its directory moves.
+- A task hidden with 归档 and a finished task give different messages: the first points at
+  `tenon task unarchive`, the second says the task is finished and a new task is needed.
+
+### Install and upgrade
+
+- `tenon spec apply` creates the main-spec directory of a capability that does not exist yet.
+- `tenon doctor` attributes its findings to the host in use, and contacts the remote only with `--verify-release`.
+- The upstream skill lock keeps exactly the v0.1.0 format, so a v0.1.0 verifier reads a lock written by v0.1.1 and
+  the reverse. Whether a skill can be invoked is read from its `SKILL.md` bytes, not from the lock.
+- The installation guide explains raising `CLAUDE_CODE_PLUGIN_GIT_TIMEOUT_MS`: Claude Code clones the marketplace
+  with a 120 s default, and a timed-out clone leaves that host without the plugin.
+
+### Upgrade
+
+From v0.1.0, run `tenon update --codex` (or `--claude`), then open a new host session. The N-1 compatibility gate
+runs the published v0.1.0 against this release's writes in both directions.
+
+From 1.x, run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.1/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.1/install.sh | /bin/bash -s -- --codex
+```
+
+### Compatibility
+
+- In a task already in progress, a document that a producing mandatory skill recorded in an earlier step visit no
+  longer counts for the current visit. `next` asks for it again as `record-document`, naming the skill.
+- These mandatory skills are still satisfied by invocation alone, because no document slot names them as its
+  producer at that step: `openspec-explore`, `grilling`, `domain-modeling` and `codebase-design` (explore);
+  `brainstorming` (pm spec); `test-driven-development`, `frontend-design` and `prototype` (build); `browser-qa`,
+  `web-design-guidelines`, `design-taste-frontend` and `e2e-testing` (verify); `finishing-a-development-branch`
+  (ship). Binding them to an output needs a document-contract decision in a later release.
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+`skills:invocable` is green, and both hosts' inventories, the active managed runtime and the Dashboard report 0.1.1.
+
 ## v0.1.0 · 2026-09-22
 
 Version numbering restarts at 0.1.0. Tenon is young, and a 1.x number claimed a maturity it did not have.
