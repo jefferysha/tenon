@@ -2,6 +2,7 @@ import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
 import { BTN_GHOST, BTN_SOLID, FIELD_INPUT } from '../workbench/workbenchStyles'
 import type { CreateMode, CreateState } from '../workbench/useWorkflowEditor'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 
 const MODES: readonly CreateMode[] = ['copy', 'blank', 'import']
@@ -29,19 +30,10 @@ export function NewWorkflowDialog({ create, currentName }: { create: CreateState
           ))}
         </div>
         {create.mode !== 'import' && (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={create.openspec}
-            className="mt-4 flex items-center gap-2 text-body text-text-2 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-            data-testid="wb-new-openspec"
-            onClick={() => create.setOpenspec(!create.openspec)}
-          >
-            <span className={cn('relative h-5 w-9 flex-none rounded-full border transition-colors', create.openspec ? 'border-accent-b bg-(--accent)' : 'border-border bg-fill')}>
-              <span className={cn('absolute top-0.5 size-3.5 rounded-full bg-card transition-transform', create.openspec ? 'translate-x-4' : 'translate-x-0.5')} />
-            </span>
-            {t('workflow.openspec')}
-          </button>
+          <div className="mt-4 flex items-center gap-2 text-body text-text-2">
+            <Switch id="wb-new-openspec" checked={create.openspec} onCheckedChange={create.setOpenspec} data-testid="wb-new-openspec" />
+            <label htmlFor="wb-new-openspec">{t('workflow.openspec')}</label>
+          </div>
         )}
         {create.mode === 'import' && (
           <div className="mt-4 grid gap-2">
