@@ -7,9 +7,10 @@
 #   4. 端到端上手路径：临时目录 init → .pipeline.yaml 落盘 → get phase = open
 #      → 登记随 init 生成的 OpenSpec proposal/design/tasks 的真实 skill 证据
 #      → transition open-complete → get phase = explore → history JSONL 有 init+transition
-#   5. 冻结 N-1 reader 保持旧写入协议；fixture 固定的真实上一正式版本创建 V1/V2 state，再由当前 CLI
-#      读取和继续 mutation（fixture status=none 时只报告 [HONEST SKIP]）。兼容方向是 current reads N-1，
-#      不要求 immutable N-1 理解未来 V3。
+#   5. 冻结 N-1 reader 保持旧写入协议；fixture 固定的真实上一正式版本（CLI 字节按 digest 钉死）双向验证：
+#      N-1 创建/写入的 Change 由当前 CLI 读取并继续 mutation；当前 CLI 写入的 Change 由 N-1 CLI 读取并继续
+#      mutation；skills/skills.lock.json 当前 writer → N-1 verifier、N-1 writer → 当前 verifier 都必须通过
+#      （fixture status=none 时只报告 [HONEST SKIP]）。
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUNDLE="$ROOT/packages/cli/dist/tenon.mjs"
@@ -104,6 +105,8 @@ if [ -f "$BUNDLE" ]; then
   # 声明身份对每一次 bundle 调用都必需（写操作要求身份）；CI runner 没有 git 身份，逐条注入会漏。
   export TENON_USER=smoke@tenon.test
   export TENON_USER_NAME=smoke
+  # 每一次 bundle 调用（当前与 N-1）都落在临时 runtime home，绝不读写本机真实 Tenon state。
+  export TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home"
   ( cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" node "$BUNDLE" init t8-smoke --track backend --preset full ) 2>/dev/null
   [ -f "$TMP/openspec/changes/t8-smoke/.pipeline.yaml" ] \
     && ok "bundle: init 落盘 .pipeline.yaml" || bad "bundle: init 落盘 .pipeline.yaml" "文件缺失"
@@ -196,6 +199,7 @@ if [ -f "$BUNDLE" ]; then
   n_minus_status="$(node -p "require('$n_minus_meta').status" 2>/dev/null || true)"
   explicit_n_minus_cli="${TENON_N_MINUS_ONE_CLI:-}"
   explicit_n_minus_payload="${TENON_N_MINUS_ONE_PAYLOAD:-}"
+  N_MINUS_PAYLOAD=""
   if [ "$n_minus_status" = none ]; then
     # 只有 fixture 声明的一次性跳过（prepare 退出 78）不计通过也不计失败；显式 N-1 入口与之矛盾。
     if [ -n "$explicit_n_minus_cli" ] || [ -n "$explicit_n_minus_payload" ]; then
@@ -228,7 +232,11 @@ if [ -f "$BUNDLE" ]; then
         bad "bundle: N-1 fixture CLI 入口合法" "$n_minus_meta"
       else
         explicit_n_minus_cli="$explicit_n_minus_payload/$n_minus_cli_entry"
+        N_MINUS_PAYLOAD="$explicit_n_minus_payload"
       fi
+    elif [ -n "$explicit_n_minus_cli" ]; then
+      # 只给了 CLI：它必须位于完整 payload 的 cliEntry 处，skill lock 门要用同一 payload 里的 verifier 根。
+      N_MINUS_PAYLOAD="${explicit_n_minus_cli%/"$(node -p "require('$n_minus_meta').cliEntry")"}"
     fi
     n_minus_tag="$(node -p "require('$n_minus_meta').tag" 2>/dev/null || true)"
     if [ -z "$explicit_n_minus_cli" ]; then
@@ -236,6 +244,7 @@ if [ -f "$BUNDLE" ]; then
       if bash "$ROOT/tools/prepare-n-minus-one-release.sh" "$prepared_n_minus" >/dev/null; then
         n_minus_cli_entry="$(node -p "require('$n_minus_meta').cliEntry")"
         explicit_n_minus_cli="$prepared_n_minus/payload/$n_minus_cli_entry"
+        N_MINUS_PAYLOAD="$prepared_n_minus/payload"
       else
         bad "bundle: 固定公开 N-1 payload 可准备" "${n_minus_tag:-N-1} tag/commit/完整 payload 缺失"
       fi
@@ -257,8 +266,9 @@ if [ -f "$BUNDLE" ]; then
     elif [ -n "$N_MINUS_CLI" ] && [ -f "$N_MINUS_CLI" ]; then
       n_minus_release="${TENON_N_MINUS_ONE_RELEASE:-$n_minus_tag}"
       n_minus_change="n1-created"
-      n_minus_init="$(cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" \
-        node "$N_MINUS_CLI" init "$n_minus_change" --track backend --preset full --user n1-smoke 2>&1)"
+      # 0.x 的 init 没有 --user；身份走上面导出的 TENON_USER。同一身份让当前 runtime 能接续写，
+      # 否则 owner guard 会先拒（那是所有权语义，不是跨版本兼容）。
+      n_minus_init="$(cd "$TMP" && node "$N_MINUS_CLI" init "$n_minus_change" --track backend --preset full 2>&1)"
       n_minus_init_code="$?"
       n_minus_real="$(cd "$TMP" && node "$N_MINUS_CLI" status "$n_minus_change" --json 2>&1)"
       n_minus_status_code="$?"
@@ -280,6 +290,92 @@ if [ -f "$BUNDLE" ]; then
         && ok "bundle: 当前 runtime 可接续 N-1 V1/V2 snapshot 后 mutation" \
         || bad "bundle: 当前 runtime 可接续 N-1 stale anchor 后 mutation" \
           "得到 '$after_n_minus_current'"
+
+      # 5b. 反方向：冻结的 N-1 CLI 读当前 runtime 创建并推进（open → explore）的 Change，
+      # 并在其上继续写；当前 runtime 再读回。回滚到 N-1 的机器会遇到的正是这份 state。
+      n_minus_reads_current="$(cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" \
+        node "$N_MINUS_CLI" get t8-smoke phase 2>&1)"
+      n_minus_reads_current_code="$?"
+      n_minus_status_current="$(cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" \
+        node "$N_MINUS_CLI" status t8-smoke --json 2>&1)"
+      n_minus_status_current_code="$?"
+      [ "$n_minus_reads_current_code" -eq 0 ] && [ "$n_minus_reads_current" = "explore" ] \
+        && [ "$n_minus_status_current_code" -eq 0 ] \
+        && printf '%s' "$n_minus_status_current" | grep -q '"phase":"explore"' \
+        && ok "bundle: N-1 CLI（${n_minus_release}）读取当前 runtime 写入的 Change" \
+        || bad "bundle: N-1 CLI（${n_minus_release}）读取当前 runtime 写入的 Change" \
+          "get=$n_minus_reads_current_code '$n_minus_reads_current' status=$n_minus_status_current_code $n_minus_status_current"
+      n_minus_over_current="$(cd "$TMP" && TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" \
+        node "$N_MINUS_CLI" set t8-smoke scope n1-after-current 2>&1)"
+      n_minus_over_current_code="$?"
+      current_after_n_minus="$(cd "$TMP" && node "$BUNDLE" get t8-smoke scope 2>/dev/null)"
+      [ "$n_minus_over_current_code" -eq 0 ] && [ "$current_after_n_minus" = "n1-after-current" ] \
+        && ok "bundle: N-1 CLI 可在当前 runtime 写入的 Change 上继续 mutation" \
+        || bad "bundle: N-1 CLI 可在当前 runtime 写入的 Change 上继续 mutation" \
+          "exit=$n_minus_over_current_code scope='$current_after_n_minus' $n_minus_over_current"
+
+      # 5c. skills/skills.lock.json 是跨年龄线格式：升级时当前 fetcher 写、候选根里的 verifier 读，
+      # 回滚时反过来。两个方向都用真实 CLI（internal-skill-upstream fetch → internal-skill-provenance
+      # verify），上游仓库是本地 git fixture，经隔离 HOME 下的 insteadOf 改写 github.com，不联网。
+      if [ -z "$N_MINUS_PAYLOAD" ] || [ ! -f "$N_MINUS_PAYLOAD/templates/skill-sources.yaml" ]; then
+        bad "bundle: N-1 payload 可做 skill lock 验证根" "${N_MINUS_PAYLOAD:-未知}"
+      else
+        lock_hub="$TMP/n1-lock-hub"
+        lock_repo="$lock_hub/n1-fixture/skills.git"
+        mkdir -p "$lock_repo/skills/n1-probe" "$TMP/n1-lock-home"
+        printf -- '---\nname: n1-probe\ndescription: N-1 skill lock fixture\n---\n# n1-probe\n' \
+          > "$lock_repo/skills/n1-probe/SKILL.md"
+        printf 'MIT License\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\n' \
+          > "$lock_repo/LICENSE"
+        lock_git() {
+          HOME="$TMP/n1-lock-home" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$TMP/n1-lock-home/.gitconfig" \
+            git -C "$lock_repo" -c user.email=n1@tenon.test -c user.name=n1 -c commit.gpgsign=false "$@"
+        }
+        lock_git init -q -b main && lock_git add -A && lock_git commit -q -m fixture \
+          && lock_git config uploadpack.allowFilter true \
+          && lock_git config uploadpack.allowAnySHA1InWant true
+        lock_fixture_code="$?"
+        lock_sources='version: 1
+skills:
+  n1-probe: { repo: n1-fixture/skills, path: skills/n1-probe, ref: default-branch, license_expected: MIT }'
+        # 验证根只需要 verifier 读的两棵树：registry 所在的 templates 与 skills（仅受 git 跟踪的子项）。
+        n1_lock_root="$TMP/n1-lock-root-n-minus"
+        current_lock_root="$TMP/n1-lock-root-current"
+        mkdir -p "$n1_lock_root" "$current_lock_root/skills"
+        cp -R "$N_MINUS_PAYLOAD/templates" "$N_MINUS_PAYLOAD/skills" "$n1_lock_root/"
+        cp -R "$ROOT/templates" "$current_lock_root/"
+        while IFS= read -r tracked; do
+          [ -n "$tracked" ] && cp -R "$ROOT/$tracked" "$current_lock_root/skills/"
+        done < <(git -C "$ROOT" ls-tree --name-only HEAD skills/)
+        for lock_root in "$n1_lock_root" "$current_lock_root"; do
+          rm -rf "$lock_root/skills/skills.lock.json"
+          printf '%s\n' "$lock_sources" > "$lock_root/skills/sources.yaml"
+        done
+        lock_cli() {
+          HOME="$TMP/n1-lock-home" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$TMP/n1-lock-home/.gitconfig" \
+            GIT_TERMINAL_PROMPT=0 GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0="url.file://$lock_hub/.insteadOf" GIT_CONFIG_VALUE_0=https://github.com/ \
+            TENON_RUNTIME_HOME="$TMP/.tenon-runtime-home" node "$@" 2>&1
+        }
+        for direction in current-to-n-minus n-minus-to-current; do
+          if [ "$direction" = current-to-n-minus ]; then
+            writer="$BUNDLE"; reader="$N_MINUS_CLI"; lock_root="$n1_lock_root"
+            label="bundle: 当前 writer 的 skills.lock.json 被 N-1 verifier（${n_minus_release}）接受"
+          else
+            writer="$N_MINUS_CLI"; reader="$BUNDLE"; lock_root="$current_lock_root"
+            label="bundle: N-1 writer（${n_minus_release}）的 skills.lock.json 被当前 verifier 接受"
+          fi
+          lock_write="$(lock_cli "$writer" internal-skill-upstream fetch --root "$lock_root")"
+          lock_write_code="$?"
+          lock_read="$(lock_cli "$reader" internal-skill-provenance verify --root "$lock_root")"
+          lock_read_code="$?"
+          [ "$lock_fixture_code" -eq 0 ] && [ "$lock_write_code" -eq 0 ] && [ "$lock_read_code" -eq 0 ] \
+            && grep -q '"id": "n1-probe"' "$lock_root/skills/skills.lock.json" 2>/dev/null \
+            && [ -f "$lock_root/skills/n1-probe/SKILL.md" ] \
+            && ok "$label" \
+            || bad "$label" "fixture=$lock_fixture_code fetch=$lock_write_code $lock_write verify=$lock_read_code $lock_read"
+        done
+      fi
     else
       bad "bundle: 固定公开 N-1 CLI 存在" "$N_MINUS_CLI"
     fi

@@ -21,7 +21,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Type Safety](./type-safety.md) | Type patterns, validation | To fill |
 | [Status Step Block](./status-step.md) | `tenon status <change> --json` 的 `step` 块：闭集 `next` 动作表与其顺序 | Current |
-| [Host Install and Inventory](./host-install-and-inventory.md) | Stable release proof retry, Claude manifest hooks rule, doctor host load errors, retired 1.x release order and N-1 skip, upstream skills in the host plugin root | Current |
+| [Host Install and Inventory](./host-install-and-inventory.md) | Stable release proof retry, Claude manifest hooks rule, doctor host load errors, retired 1.x release order and N-1 skip, N-1 gate against current writes (state + skill lock), upstream skills in the host plugin root | Current |
 
 ---
 
