@@ -83,7 +83,7 @@ repeat:
 | `choose-exit` | 按下面的「出口」挑一条边。 |
 | `transition` | `tenon transition <c> <event>`。 |
 | `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `openspec archive`。 |
-| `finish-change` | 照 `command` 原样跑（`openspec archive <c> --skip-specs --yes --json`），把 change 目录搬进 `openspec/changes/archive/`。跑完这条 `tenon list --finished` 才看得见它。 |
+| `finish-change` | 照 `command` 原样跑（`openspec archive <c> --skip-specs --yes --json`），把 change 目录搬进 `openspec/changes/archive/`；再把这次搬移提交：`git add -A -- <commit.paths…>` 后 `git commit -m "<commit.message>"`（宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交）。跑完这条 `tenon list --finished` 才看得见它。 |
 
 ## 决定、字段、出口
 

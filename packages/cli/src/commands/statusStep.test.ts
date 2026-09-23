@@ -451,6 +451,11 @@ describe('step.next 顺序', () => {
       action: 'finish-change',
       change: 'demo',
       command: 'openspec archive demo --skip-specs --yes --json',
+      // 搬移留下的删除与新目录要跟一次提交，否则 ship 之后工作区是脏的。
+      commit: {
+        paths: ['openspec/changes/demo', 'openspec/changes/archive'],
+        message: 'chore(openspec): archive demo',
+      },
     }])
   })
 

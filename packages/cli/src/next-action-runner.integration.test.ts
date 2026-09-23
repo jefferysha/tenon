@@ -220,7 +220,12 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       await run(['transition', CHANGE, String((action.exits as readonly string[])[0])])
       return false
     // 治理归档是 OpenSpec 自己的命令（动作自带整条命令），到这里状态机已经完结。
+    // 搬移之后要提交的路径也由动作给出：旧目录与 archive/ 两处。
     case 'finish-change':
+      expect(action.commit).toEqual({
+        paths: [`openspec/changes/${CHANGE}`, 'openspec/changes/archive'],
+        message: `chore(openspec): archive ${CHANGE}`,
+      })
       return true
     default:
       throw new Error(`runner: next 给了执行不了的动作 ${JSON.stringify(action)}`)

@@ -169,7 +169,14 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   if (input.runArchived) {
     if (!input.governedOpenspec) return stop('run-archived', `任务 '${input.change}' 已完结`)
     const command = `openspec archive ${input.change} --skip-specs --yes --json`
-    return [{ action: 'finish-change', change: input.change, command }]
+    // 搬移本身是一次工作区改动：ship 的提交早于它，不跟一次提交就留下「删除 + 未跟踪」的脏工作区
+    // （真机验收：5 个删除 + 未跟踪的 archive/ 目录）。动作自带要提交的路径与提交说明——提交是本地
+    // 动作；宿主不让写 .git（Codex 受限沙箱）时如实把这一步留给用户，不伪装成已提交。
+    const commit = {
+      paths: [`openspec/changes/${input.change}`, 'openspec/changes/archive'],
+      message: `chore(openspec): archive ${input.change}`,
+    }
+    return [{ action: 'finish-change', change: input.change, command, commit }]
   }
   if (!input.loaded) return [{ action: 'load-tenon' }]
 
