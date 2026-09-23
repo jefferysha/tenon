@@ -4,6 +4,59 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.4 · 2026-09-24
+
+A third real-session acceptance release. v0.1.3 was driven through the backend, free and simple tracks in real
+Claude Code sessions; this release fixes what that found.
+
+### Committing deliverables
+
+- On the delivery step (a step whose fields include `pr_url` or `prd_path`), `next` adds a `commit` action before
+  `pr_url` that commits every deliverable: code, docs, the applied main specs, test records under
+  `.tenon/users/<user>/tests` and the state-directory `.gitignore` files. In v0.1.3 a default-workflow change
+  finished with all of these left in the working tree.
+- The commit covers the whole working tree but excludes the local gate markers at the repository root
+  (`.pipeline-pending-*`) and local files left by older releases, and no commit is issued when only those remain.
+  After the backend and free tracks finish, `git status` is empty apart from ignored files.
+- The entry skill commits only when `next` names `commit` or `finish-change`.
+
+### Flow
+
+- When a later step's required test lacks its npm script, the planning step (spec) already raises it so it goes
+  into the plan; if it is only found in build, the message says to add the `package.json` script without editing
+  the recorded spec documents, so it no longer forces a return to spec.
+- build asks for `build_mode` / `isolation` before the test-configuration fix.
+- `status --json` always includes `step` for a finished change, with the same shape as an active one and `next` set
+  to `stop` (`code: finished`).
+- Main specs keep a blank line between Purpose and Requirements, and the unlock notice is printed once per prompt.
+
+### Upgrade
+
+From v0.1.3: run `tenon update --codex` (or `--claude`) and open a new host session. The N-1 gate reads and writes
+this release's data with the published v0.1.3 in both directions.
+
+From 1.x: run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.4/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.4/install.sh | /bin/bash -s -- --codex
+```
+
+### Compatibility
+
+- The delivery commit includes every uncommitted change in the working tree; deal with unrelated uncommitted files
+  in the same repository first.
+- The finished-change stop code changes from `run-archived` to `finished`.
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+Both hosts' inventory, the active managed runtime and the Dashboard report 0.1.4.
+
 ## v0.1.3 · 2026-09-24
 
 A second real-session acceptance release. v0.1.2 was driven through the backend and free tracks in real Claude Code

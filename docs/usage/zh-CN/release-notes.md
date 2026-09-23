@@ -12,6 +12,53 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.1.4 · 2026-09-24
+
+第三轮真实会话验收修复版。在 v0.1.3 上用真实 Claude Code 会话走完 backend、free 与 simple 轨道，本版修复其中发现的问题。
+
+### 交付物提交
+
+- 交付步（字段含 `pr_url` 或 `prd_path` 的步骤）的 `next` 新增 `commit` 动作，在 `pr_url` 之前提交全部交付物：代码、
+  文档、已应用的主规格、`.tenon/users/<用户>/tests` 下的测试记录与状态目录 `.gitignore`。v0.1.3 中默认工作流走完后
+  这些改动都留在工作区。
+- 提交范围是整个工作区，但排除仓库根的本机门禁标记（`.pipeline-pending-*`）与旧版本遗留的本机文件；
+  只剩这些文件时不再发出提交。走完 backend 与 free 后 `git status` 为空（被忽略文件除外）。
+- 入口技能只在 `next` 给出 `commit` 或 `finish-change` 时提交。
+
+### 流程
+
+- 后续步骤的必需测试缺少 npm 脚本时，在规划步（spec）就提示，写进计划；build 中才发现时，提示只需补
+  `package.json` 脚本、不要改已登记的规格文档，不再引发回退 spec。
+- build 步先要求 `build_mode` / `isolation`，再提示测试配置。
+- 已完结任务的 `status --json` 总是带 `step`，结构与活跃任务一致，`next` 为 `stop`（`code: finished`）。
+- 主规格的 Purpose 与 Requirements 之间保留空行；解封提示同一轮只输出一次。
+
+### 升级动作
+
+从 v0.1.3 升级：运行 `tenon update --codex`（或 `--claude`），然后新开宿主会话。N-1 兼容门禁在两个方向上用已发布的
+v0.1.3 读写本版本的数据。
+
+从 1.x 迁移：为使用的每个宿主各运行一次版本化安装命令：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.4/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.4/install.sh | /bin/bash -s -- --codex
+```
+
+### 兼容性
+
+- 交付提交包含工作区中的全部未提交改动；在同一仓库里有无关的未提交文件时，请先自行处理。
+- 已完结任务的 stop 代码由 `run-archived` 改为 `finished`。
+
+### 验证
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+两个宿主的 inventory、active managed runtime 与 Dashboard 都报告 0.1.4。
+
 ## v0.1.3 · 2026-09-24
 
 第二轮真实会话验收修复版。在 v0.1.2 上用真实 Claude Code 会话完整走完 backend 与 free 轨道，并按 1440 宽度复查
