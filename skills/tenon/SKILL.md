@@ -52,6 +52,8 @@ text(result);
    随后 `tenon session activate <c> --host-session <host_session_id> [--continuous]`。恢复只跑同一条
    activate。`<host_session_id>` 取 dispatch 里的 `host_session_id`；dispatch 带了它就必须传，
    否则下一轮的「确认继续」认不出本会话的任务，会被当成新任务。dispatch 没有它时才省略该参数。
+   activate 会生成 `.pipeline/.gitignore`、`.tenon/.gitignore`（带 `--host-session` 时还有
+   `openspec/.gitignore`）：它们只把本机状态挡在 git 外，本身是项目文件，随本任务的第一次提交一起入库。
 4. 用 `tenon workflow plan <c> --json` 的步骤标签建 Todo，当前项取 `current_step`。
 5. 进入循环。
 
