@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { appendFile, mkdir, readFile, readdir, rename, stat, symlink, unlink, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, readFile, readdir, rename, stat, symlink, unlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createDashboardServer } from './server.js'
 import { resolveServerPaths } from './paths.js'
@@ -94,6 +95,7 @@ async function start(opts?: {
   seedGovernedEvidence?: boolean
   seedPhaseSkill?: boolean
   resolveUser?: DashboardServerOptions['resolveUser']
+  skillsRoot?: string
 }): Promise<Harness> {
   const store = opts?.store ?? newStore()
   const root = await makeProject()
@@ -122,6 +124,7 @@ async function start(opts?: {
     clock: opts?.clock ?? (() => '2026-07-07T00:00:00Z'),
     pollIntervalMs: opts?.pollIntervalMs ?? 20,
     manifestPath: opts?.manifestPath,
+    ...(opts?.skillsRoot === undefined ? {} : { skillsRoot: opts.skillsRoot }),
     execDocker: opts?.execDocker,
     validateLoopActivation: opts?.validateLoopActivation,
     runPipelineCli: opts?.runPipelineCli,
@@ -2349,6 +2352,39 @@ describe('POST /api/config/mandatory-skills —— M3 config 写端点（同 B5 
       headers: { 'Content-Type': 'text/plain', Authorization: `Bearer ${h.token}` },
     })
     expect(r.status).toBe(400)
+  })
+
+  it('宿主不许模型调用的技能（disable-model-invocation: true）→ 400 拒写，manifest 零改动', async () => {
+    const skillsRoot = await mkdtemp(join(tmpdir(), 'pl-dash-skills-'))
+    const writeSkill = async (id: string, frontmatter: string): Promise<void> => {
+      await mkdir(join(skillsRoot, id), { recursive: true })
+      await writeFile(join(skillsRoot, id, 'SKILL.md'), `---\nname: ${id}\n${frontmatter}---\n\nbody\n`, 'utf8')
+    }
+    await writeSkill('manual-only', 'disable-model-invocation: true\n')
+    await writeSkill('model-ok', '')
+    const manifestPath = await makeTempManifest()
+    const h = await start({ manifestPath, skillsRoot })
+    const before = await readFile(manifestPath, 'utf8')
+    const auth = { headers: { Authorization: `Bearer ${h.token}` } }
+
+    const refused = await reqPost(h.port, '/api/config/mandatory-skills', {
+      phase: 'build', track: 'backend', skills: ['model-ok', 'manual-only'],
+    }, auth)
+    expect(refused.status).toBe(400)
+    expect(refused.json<{ ok: boolean; code?: string; error: string; detail?: unknown }>()).toMatchObject({
+      ok: false,
+      code: 'mandatory-skill-not-invocable',
+      error: expect.stringContaining('manual-only'),
+      detail: [{ token: 'manual-only', skill_ids: ['manual-only'] }],
+    })
+    expect(await readFile(manifestPath, 'utf8')).toBe(before)
+
+    // `a|b` 满足其一即可：只要有一个备选可调用就放行；读不到 SKILL.md 的未知技能不冤枉。
+    const alternative = await reqPost(h.port, '/api/config/mandatory-skills', {
+      phase: 'build', track: 'backend', skills: ['manual-only|model-ok', 'not-installed'],
+    }, auth)
+    expect(alternative.status).toBe(200)
+    expect(loadManifest(manifestPath).mandatorySkills.build.backend).toEqual(['manual-only|model-ok', 'not-installed'])
   })
 
   it('capabilities.config=false（未注入 manifestPath）→ 404，即便带对 token', async () => {
