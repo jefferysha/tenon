@@ -23,11 +23,12 @@ function FacetRow({
   const { t } = useT()
   return (
     <div
-      className="flex w-full flex-wrap gap-1"
+      className="flex w-full flex-wrap items-center gap-1"
       role="tablist"
       aria-label={t(`resources.facet.${facet}`)}
       data-testid={`res-facet-${facet}`}
     >
+      <span className="mr-1 min-w-12 flex-none whitespace-nowrap text-caption text-text-3">{t(`resources.facet.${facet}`)}</span>
       <FilterChip label={t('resources.all')} selected={selected === undefined} testId={`res-${facet}-all`} onClick={() => onPick(undefined)} />
       {values.map((value) => (
         <FilterChip

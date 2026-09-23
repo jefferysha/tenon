@@ -120,6 +120,8 @@ describe('资源目录', () => {
       expect(row.className.split(' '), facet).toContain('flex-wrap')
       expect(row.className.split(' '), facet).not.toContain('overflow-x-auto')
       expect(row).toHaveAttribute('role', 'tablist')
+      // 四组都以「全部」开头，行首组名让人分得清是类别、框架、样式还是许可。
+      expect(row.firstElementChild, facet).toHaveTextContent({ category: '类别', framework: '框架', styling: '样式', license: '许可' }[facet] ?? '')
     }
   })
 

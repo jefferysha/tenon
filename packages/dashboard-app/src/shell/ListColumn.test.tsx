@@ -63,5 +63,10 @@ describe('工作台筛选行', () => {
       expect(classesOf(row), id).not.toContain('overflow-x-auto')
     }
     expect(screen.getByTestId('task-uncommitted-deletions')).toHaveTextContent('未提交删除')
+    // 状态开关与工作流芯片不在同一行：同行时芯片会被挤成竖排（1440 宽真机复查发现）。
+    const toggles = screen.getByTestId('task-facet-workflow-row')
+    expect(toggles).toContainElement(screen.getByTestId('task-filter-completed'))
+    expect(toggles).not.toContainElement(screen.getByTestId('task-facet-workflow'))
   })
+
 })

@@ -113,10 +113,15 @@ export function TaskListPane({
               onPick={(id) => onFilter({ ...filter, owner: id })}
             />
           )}
-          <div className="flex w-full flex-wrap items-start gap-2" data-testid="task-facet-workflow-row">
-            <div className="min-w-0 flex-1">
-              <FacetRow label={t('workspace.facet_workflow')} facet="workflow" chips={facets.workflows} current={filter.workflow} total={facetTotal(rows, filter, 'workflow')} mono onPick={(id) => onFilter({ ...filter, workflow: id, stage: 'all' })} />
-            </div>
+          <FacetRow label={t('workspace.facet_workflow')} facet="workflow" chips={facets.workflows} current={filter.workflow} total={facetTotal(rows, filter, 'workflow')} mono onPick={(id) => onFilter({ ...filter, workflow: id, stage: 'all' })} />
+          {facets.tracks.length > 0 && (
+            <FacetRow label={t('workspace.facet_track')} facet="track" chips={facets.tracks} current={filter.track} total={facetTotal(rows, filter, 'track')} mono onPick={(id) => onFilter({ ...filter, track: id })} />
+          )}
+          {facets.stages !== null && (
+            <FacetRow label={t('workspace.facet_stage')} facet="stage" chips={facets.stages} current={filter.stage} total={facetTotal(rows, filter, 'stage')} onPick={(id) => onFilter({ ...filter, stage: id })} />
+          )}
+          {/* 状态开关单独一行：与筛选芯片同行会把芯片挤成竖排。 */}
+          <div className="flex w-full flex-wrap items-center gap-2" data-testid="task-facet-workflow-row">
             <button
               type="button"
               className={cn(
@@ -152,12 +157,6 @@ export function TaskListPane({
               </span>
             )}
           </div>
-          {facets.tracks.length > 0 && (
-            <FacetRow label={t('workspace.facet_track')} facet="track" chips={facets.tracks} current={filter.track} total={facetTotal(rows, filter, 'track')} mono onPick={(id) => onFilter({ ...filter, track: id })} />
-          )}
-          {facets.stages !== null && (
-            <FacetRow label={t('workspace.facet_stage')} facet="stage" chips={facets.stages} current={filter.stage} total={facetTotal(rows, filter, 'stage')} onPick={(id) => onFilter({ ...filter, stage: id })} />
-          )}
         </div>
       )}
       testId="task-list"
