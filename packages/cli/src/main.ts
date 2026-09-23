@@ -40,6 +40,7 @@ import { listChangeDirs, listChanges, makeGuardCtx } from './guardContext.js'
 import { createRuntimeScopeResolver } from './runtime/scope.js'
 import { createManifestSkillActionAuthorityResolver } from './skill-action-authority-provider.js'
 import { makeDoctorProbes } from './commands/doctor-probes.js'
+import { gitRemoteNames } from './gitRemotes.js'
 
 /** ISO8601 UTC 秒级（对齐老内核 date -u +%Y-%m-%dT%H:%M:%SZ 口径） */
 function isoNow(): string {
@@ -278,6 +279,7 @@ async function main(): Promise<void> {
       }
     },
     gitHeadSha: () => gitHeadSha(process.cwd()),
+    gitRemotes: () => gitRemoteNames(process.cwd()),
     workspaceFingerprint: () => fingerprintWorkspace(process.cwd()),
     captureBuildRevision: async (isolation) => {
       const identity = await probeBuildRevisionIdentity(process.cwd())

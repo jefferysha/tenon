@@ -27,6 +27,7 @@ import { retiredSkillReferences, retiredSkillsChangeMessage } from '@tenon/kerne
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { currentCandidate } from './candidate.js'
 import { SPEC_APPLY_RECEIPT } from './specApply.js'
+import { PR_URL_NO_REMOTE, repositoryHasNoRemote } from './prUrlField.js'
 import {
   stepNextActions, stop,
   type StepAction, type StepMode, type StepNextInput, type StepTestView,
@@ -117,6 +118,19 @@ function nativeGuardFieldsOf(
   return out
 }
 
+/**
+ * `pr_url` 在没有 git 远端的仓库里只有一个真值：`no-remote`（本地交付、没有 PR；`tenon set` 会
+ * 复核仓库确实没有远端）。有远端时不推荐任何值——那得是真实的 PR URL。
+ */
+async function withPrUrlRecommendation(
+  deps: CliDeps,
+  fields: readonly StepFieldView[],
+): Promise<readonly StepFieldView[]> {
+  const index = fields.findIndex((field) => field.field === 'pr_url' && field.status === 'missing')
+  if (index < 0 || !await repositoryHasNoRemote(deps)) return fields
+  return fields.map((field, at) => at === index ? { ...field, recommended: PR_URL_NO_REMOTE } : field)
+}
+
 export async function buildStatusStep(
   deps: CliDeps,
   name: string,
@@ -146,7 +160,8 @@ export async function buildStatusStep(
   const policy = plan.capabilities.documents.policy
   const documents = stepDocuments(name, policy, stepId, report.documents?.items ?? [])
   const artifacts = artifactFieldsOf(deps, state, step)
-  const fields = stepFields(state, step, artifacts, nativeGuardFieldsOf(plan, state, report.exits))
+  const fields = await withPrUrlRecommendation(
+    deps, stepFields(state, step, artifacts, nativeGuardFieldsOf(plan, state, report.exits)))
   const gateStatus = reviewGateStatus(state)
   const review = {
     status: gateStatus !== null && reviewGateMatches(state, stepId) ? gateStatus : 'none',

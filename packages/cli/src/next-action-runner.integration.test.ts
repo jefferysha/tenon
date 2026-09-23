@@ -43,9 +43,8 @@ interface StepBlock {
   readonly next: readonly StepAction[]
 }
 
-/** 自由文本交付槽（pr_url / prd_path）本来就没有枚举；其余值一律只能来自投影自己。 */
+/** 自由文本交付槽本来就没有枚举；pr_url 的真值由投影给出（无远端 → no-remote），这里只剩 prd_path。 */
 const FREEFORM: Readonly<Record<string, string>> = {
-  pr_url: 'https://example.invalid/pr/1',
   prd_path: `docs/${CHANGE}-prd.md`,
 }
 
@@ -277,6 +276,9 @@ describe('照着 next 做事的运行器：open → 完结', () => {
       && action.action === 'load-skill' && action.skill === 'brainstorming')).toHaveLength(1)
     // D4：build 从头到尾没被要求手填 build_sha——它由 build 出口的转换冻结。
     expect(actions.filter(({ action }) => action.action === 'set-field' && action.field === 'build_sha')).toEqual([])
+    // D8：夹具项目没有远端——pr_url 的真值是 no-remote，由 next 直接给出，不靠编造 URL。
+    expect(actions.filter(({ action }) => action.action === 'set-field' && action.field === 'pr_url')
+      .map(({ action }) => action.recommended)).toEqual(['no-remote'])
     // D16：采纳推荐的 build_mode 之后不再要求风险豁免 direct_override。
     expect(actions.filter(({ action }) => action.action === 'set-field' && action.field === 'direct_override')).toEqual([])
     // 结论字段没有推荐值，只给出口要的值；它排在本步必需测试之后（写入时 CLI 核对这份证据）。

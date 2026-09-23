@@ -196,11 +196,24 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]
   const writes = documentWriteActions(input.documents)
   if (writes.length > 0) return writes
-  const missingFields = writeFieldActions(
-    input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing'),
+  const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
+  // 决定（带枚举）与 artifact 登记先做；然后是本步未勾的任务；最后才是自由文本的交付值
+  // （pr_url / prd_path）——交付值记录的是做完之后的事实，排在任务前面只会让它挡住真正的出口阻塞。
+  const decisions = writeFieldActions(
+    missing.filter((field) => field.allowed !== null || field.writer !== 'set'),
     input.artifactProducers,
   )
-  if (missingFields.length > 0) return missingFields
+  if (decisions.length > 0) return decisions
+  const tasks = input.exits.filter((exit) => exit.direction !== 'back')
+    .flatMap((exit) => exit.blockers)
+    .filter((item, index, all) => item.source === 'tasks'
+      && all.findIndex((other) => other.message === item.message) === index)
+  if (tasks.length > 0) return [{ action: 'fix', blockers: tasks }]
+  const freeform = writeFieldActions(
+    missing.filter((field) => field.allowed === null && field.writer === 'set'),
+    input.artifactProducers,
+  )
+  if (freeform.length > 0) return freeform
   if (input.ownsDeltaSpec && input.specRehearsalPending) return [{ action: 'validate-spec' }]
 
   const tests = input.tests.filter((test) => test.required && test.status !== 'passed')

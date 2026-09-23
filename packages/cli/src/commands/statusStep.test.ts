@@ -117,6 +117,22 @@ describe('step.next 顺序', () => {
     })).toEqual(['set-field'])
   })
 
+  test('未勾的任务先于自由文本交付值：ship 不再只给一条 set-field pr_url', () => {
+    const tasksBlocker = { source: 'tasks' as const, code: 'tasks-incomplete', message: 'ship 出口：要求截至当前阶段的 tasks.md 全部勾选（仍有 2 项未勾）' }
+    const shipExit = { event: 'ship-complete', to: 'archive', direction: 'forward' as const, ready: false,
+      blockers: [{ source: 'guard' as const, code: 'phase-exit', message: 'ship 出口：要求 pr_url 非空' }, tasksBlocker] }
+    const prUrl = field('pr_url', { recommended: 'no-remote' })
+    expect(stepNextActions(input({ fields: [prUrl], exits: [shipExit] })))
+      .toEqual([{ action: 'fix', blockers: [tasksBlocker] }])
+    // 任务勾完之后才是交付值；决定类字段（带枚举）仍排在任务之前。
+    expect(actions({ fields: [prUrl], exits: [{ ...shipExit, blockers: shipExit.blockers.slice(0, 1) }] }))
+      .toEqual(['set-field'])
+    expect(stepNextActions(input({
+      fields: [field('build_mode', { allowed: ['direct'], recommended: 'direct' })],
+      exits: [shipExit],
+    }))[0]).toMatchObject({ action: 'set-field', field: 'build_mode' })
+  })
+
   test('技能按波次下发，waiting 的不进本波', () => {
     expect(stepNextActions(input({
       skills: [skill('a', 'done', 0), skill('b', 'ready', 1), skill('c', 'waiting', 2)],
