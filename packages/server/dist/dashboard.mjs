@@ -10893,14 +10893,22 @@ function parseWorkflow(content) {
   const nameMatch = /^name:\s*(\S+)\s*$/.exec(lines2[0] ?? "");
   if (!nameMatch)
     throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1A\u7B2C\u4E00\u884C\u5FC5\u987B\u662F 'name: <name>'");
-  let stepLine = 1;
   let openspec;
   let documentContract;
   let decomposition;
   let interaction;
-  const isPipelineStart = (line) => line.trim() === "steps:" || line.trim() === "tracks:";
-  while (!isPipelineStart(lines2[stepLine] ?? "") && stepLine < lines2.length) {
-    const line = lines2[stepLine] ?? "";
+  let steps;
+  let tracks;
+  const cur = { lines: lines2, i: 1 };
+  while (cur.i < lines2.length) {
+    const line = lines2[cur.i] ?? "";
+    if (line.trim() === "") {
+      cur.i++;
+      continue;
+    }
+    if (indentOf(line) !== 0) {
+      throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1A\u9876\u5C42\u51FA\u73B0\u65E0\u6CD5\u8BC6\u522B\u7684\u5185\u5BB9 '${line.trim()}'`);
+    }
     if (/^openspec_contract:/.test(line))
       throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1Aopenspec_contract \u5DF2\u79FB\u9664\u2014\u2014\u6539\u4E3A openspec: true \u5E76\u58F0\u660E document_contract");
     const openspecLine = /^openspec:\s*(.*?)\s*$/.exec(line);
@@ -10911,56 +10919,54 @@ function parseWorkflow(content) {
         throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1Aopenspec \u53EA\u652F\u6301 true \u6216 false");
       }
       openspec = openspecLine[1] === "true";
-      stepLine++;
+      cur.i++;
       continue;
     }
-    if (line.trim() === "document_contract:") {
+    const key = line.trim();
+    if (key === "document_contract:") {
       if (documentContract !== void 0)
         throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1Adocument_contract \u91CD\u590D\u58F0\u660E");
-      const cur2 = { lines: lines2, i: stepLine + 1 };
-      documentContract = parseDocumentContract(cur2, indentOf(line));
-      stepLine = cur2.i;
+      cur.i++;
+      documentContract = parseDocumentContract(cur, 0);
       continue;
     }
-    if (line.trim() === "decomposition:") {
+    if (key === "decomposition:") {
       if (decomposition !== void 0)
         throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1Adecomposition \u91CD\u590D\u58F0\u660E");
-      const cur2 = { lines: lines2, i: stepLine + 1 };
-      decomposition = parseDecompositionPolicy(cur2);
-      stepLine = cur2.i;
+      cur.i++;
+      decomposition = parseDecompositionPolicy(cur);
       continue;
     }
-    if (line.trim() === "interaction:") {
+    if (key === "interaction:") {
       if (interaction !== void 0)
         throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1Ainteraction \u91CD\u590D\u58F0\u660E");
-      const cur2 = { lines: lines2, i: stepLine + 1 };
-      interaction = parseInteractionPolicy(cur2);
-      stepLine = cur2.i;
+      cur.i++;
+      interaction = parseInteractionPolicy(cur);
       continue;
     }
-    if (line.trim() === "review_budget:")
-      throw new Error(REMOVED_KEY_ERROR("review_budget"));
-    throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1Aname \u540E\u5FC5\u987B\u662F 'steps:' / 'tracks:'\u3001policies\u3001'openspec: true' \u6216 document_contract");
-  }
-  if (!isPipelineStart(lines2[stepLine] ?? "")) {
-    throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1Aname \u540E\u5FC5\u987B\u662F 'steps:' / 'tracks:'\u3001policies\u3001'openspec: true' \u6216 document_contract");
-  }
-  const cur = { lines: lines2, i: stepLine + 1 };
-  const steps = (lines2[stepLine] ?? "").trim() === "steps:" ? parseStepList(cur, "steps", 0) : [];
-  if ((lines2[stepLine] ?? "").trim() === "tracks:")
-    cur.i = stepLine;
-  let tracks;
-  if ((lines2[cur.i] ?? "").trim() === "tracks:" && indentOf(lines2[cur.i] ?? "") === 0) {
-    cur.i++;
-    tracks = parseTracksBlock(cur);
-    if (documentContract !== void 0)
-      throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1A\u6709 tracks \u65F6 document_contract \u5199\u5728 tracks.<id> \u4E0B");
-  }
-  while (cur.i < lines2.length) {
-    if ((lines2[cur.i] ?? "").trim() !== "") {
-      throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1Asteps / tracks \u4E4B\u540E\u51FA\u73B0\u65E0\u6CD5\u8BC6\u522B\u7684\u5185\u5BB9 '${(lines2[cur.i] ?? "").trim()}'`);
+    if (key === "steps:") {
+      if (steps !== void 0)
+        throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1Asteps \u91CD\u590D\u58F0\u660E");
+      cur.i++;
+      steps = parseStepList(cur, "steps", 0);
+      continue;
     }
-    cur.i++;
+    if (key === "tracks:") {
+      if (tracks !== void 0)
+        throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1Atracks \u91CD\u590D\u58F0\u660E");
+      cur.i++;
+      tracks = parseTracksBlock(cur);
+      continue;
+    }
+    if (key === "review_budget:")
+      throw new Error(REMOVED_KEY_ERROR("review_budget"));
+    throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1A\u65E0\u6CD5\u8BC6\u522B\u7684\u9876\u5C42\u952E '${key}'\uFF08\u652F\u6301 steps / tracks\u3001openspec\u3001document_contract\u3001decomposition\u3001interaction\uFF09`);
+  }
+  if (steps === void 0 && tracks === void 0) {
+    throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1A\u7F3A\u5C11 'steps:' \u6216 'tracks:'");
+  }
+  if (tracks !== void 0 && documentContract !== void 0) {
+    throw new Error("workflow \u89E3\u6790\u9519\u8BEF\uFF1A\u6709 tracks \u65F6 document_contract \u5199\u5728 tracks.<id> \u4E0B");
   }
   return {
     name: nameMatch[1] ?? "",
@@ -10968,7 +10974,7 @@ function parseWorkflow(content) {
     ...interaction ? { interaction } : {},
     ...openspec === true ? { openspec: true } : {},
     ...documentContract ? { documentContract } : {},
-    steps,
+    steps: steps ?? [],
     ...tracks === void 0 ? {} : { tracks }
   };
 }
@@ -11028,8 +11034,8 @@ function parseTracksBlock(cur) {
         continue;
       }
       if (/^\s*document_contract:\s*$/.test(inner)) {
-        if (documentContract !== void 0 || steps !== void 0)
-          throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1A\u5206\u652F '${id2}' \u7684 document_contract \u53EA\u80FD\u5728 steps \u4E4B\u524D\u58F0\u660E\u4E00\u6B21`);
+        if (documentContract !== void 0)
+          throw new Error(`workflow \u89E3\u6790\u9519\u8BEF\uFF1A\u5206\u652F '${id2}' \u91CD\u590D\u58F0\u660E document_contract`);
         cur.i++;
         documentContract = parseDocumentContract(cur, indentOf(inner));
         continue;
@@ -14525,6 +14531,14 @@ var DOCUMENT_WORKFLOW_STEP_LABELS = {
 };
 
 // packages/kernel/dist/documents/document-template-renderer.js
+var DOCUMENT_PENDING_WORD = {
+  "zh-CN": "\u5F85\u586B\u5199",
+  en: "Pending"
+};
+var DOCUMENT_PROMPT_TAG = {
+  "zh-CN": "[\u5F85\u586B\u5199]",
+  en: "[pending]"
+};
 function isLocale(value) {
   return DOCUMENT_LOCALES.includes(value);
 }
@@ -14543,7 +14557,7 @@ function workflowStepLabel(step, locale, stepLabelSource) {
   return labels[step.id] ?? explicit ?? step.id;
 }
 function renderLayoutInstruction(instruction, catalog2, locale, variables) {
-  const pending = locale === "zh-CN" ? "\u5F85\u586B\u5199" : "Pending";
+  const pending = DOCUMENT_PENDING_WORD[locale];
   if (instruction === "frontmatter") {
     return [
       "---",
@@ -14584,7 +14598,7 @@ function renderLayoutInstruction(instruction, catalog2, locale, variables) {
   if (operation === "text")
     return [value];
   if (operation === "prompt-placeholder") {
-    return [`> ${locale === "zh-CN" ? "[\u5F85\u586B\u5199]" : "[pending]"} ${value}`];
+    return [`> ${DOCUMENT_PROMPT_TAG[locale]} ${value}`];
   }
   throw new Error(`Document Presentation Registry layout operation \u672A\u77E5: '${operation}'`);
 }
@@ -14603,6 +14617,25 @@ function renderDocumentTemplate(templateId, locale, variables) {
   return output2.endsWith("\n") ? output2 : `${output2}
 `;
 }
+
+// packages/kernel/dist/documents/document-placeholders.js
+function escape(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function localePatterns(locale) {
+  const pending = escape(DOCUMENT_PENDING_WORD[locale]);
+  const tag = DOCUMENT_PROMPT_TAG[locale];
+  const tagWord = escape(tag.slice(1, -1));
+  const taskPrompt = escape(DOCUMENT_LOCALE_CATALOGS[locale]["workflow-tasks"].taskPrompt);
+  return [
+    new RegExp(`\\[${tagWord}(?::[A-Za-z0-9_-]+)?\\]`, "u"),
+    new RegExp(`^\\s*- \\[ \\] ${pending}\\s*$`, "u"),
+    new RegExp(`^\\s*- \\*\\*(?:WHEN|THEN)\\*\\* ${pending}\\s*$`, "u"),
+    new RegExp(`^#{1,6} .*: ${pending}\\s*$`, "u"),
+    new RegExp(`^\\s*- \\[[ xX]\\] ${taskPrompt}(?: \\([A-Za-z0-9_-]+\\))?\\s*$`, "u")
+  ];
+}
+var PATTERNS = DOCUMENT_LOCALES.flatMap((locale) => localePatterns(locale));
 
 // packages/kernel/dist/state/default-openspec-scaffold.js
 function defaultOpenSpecScaffoldFiles(change, locale = "zh-CN", workflowSteps, workflowStepLabelSource = "localized-builtin") {
@@ -17312,10 +17345,10 @@ function decodeDoubleQuotedYamlKey(token) {
       decoded += char;
       continue;
     }
-    const escape = body2[++i];
-    if (escape === void 0)
+    const escape2 = body2[++i];
+    if (escape2 === void 0)
       return void 0;
-    const width = escape === "x" ? 2 : escape === "u" ? 4 : escape === "U" ? 8 : 0;
+    const width = escape2 === "x" ? 2 : escape2 === "u" ? 4 : escape2 === "U" ? 8 : 0;
     if (width > 0) {
       const hex = body2.slice(i + 1, i + 1 + width);
       if (hex.length !== width || !/^[0-9A-Fa-f]+$/.test(hex))
@@ -17346,7 +17379,7 @@ function decodeDoubleQuotedYamlKey(token) {
       L: "\u2028",
       P: "\u2029"
     };
-    const value = simple[escape];
+    const value = simple[escape2];
     if (value === void 0)
       return void 0;
     decoded += value;
@@ -20256,6 +20289,15 @@ function liveTerminalActivity(record11, nowMs) {
     ...record11.turnId === void 0 ? {} : { turnId: record11.turnId }
   };
 }
+
+// packages/kernel/dist/workspace/pipeline-gitignore.js
+var PIPELINE_PROJECT_GITIGNORE = [
+  "# Tenon local runtime state; shared configuration in this directory stays tracked.",
+  "cache/",
+  "terminal-sessions/",
+  "codex-skill-receipts.jsonl",
+  ""
+].join("\n");
 
 // packages/kernel/dist/workspace/task-archive.js
 import { lstat as lstat24, readFile as readFile26 } from "node:fs/promises";
@@ -29500,6 +29542,7 @@ function buildUpstreamSkillView(input2) {
   const locked = new Map((lock?.skills ?? []).map((entry) => [entry.id, entry]));
   const failures = new Map((lastRun?.results ?? []).filter((result2) => result2.outcome === "kept" || result2.outcome === "missing").map((result2) => [result2.id, result2]));
   const lastRunCurrent = lastRun !== null && (lock === null || Date.parse(lastRun.at) >= Date.parse(lock.updatedAt));
+  const lastOutcome = new Map(lastRunCurrent ? lastRun.results.map((result2) => [result2.id, result2.outcome]) : []);
   const rows = input2.bundledIds.map((id2) => ({ id: id2, origin: "tenon", status: "bundled" }));
   for (const source2 of input2.sources?.skills ?? []) {
     const entry = locked.get(source2.id);
@@ -29512,7 +29555,8 @@ function buildUpstreamSkillView(input2) {
       rows.push({ id: source2.id, origin: "upstream", status: "failed", repo: source2.repo, path: source2.path, ...failureFields });
       continue;
     }
-    const status2 = failure11 !== void 0 ? "failed" : entry.fetchedAt === lock?.updatedAt ? "changed" : "unchanged";
+    const outcome = lastOutcome.get(source2.id);
+    const status2 = failure11 !== void 0 ? "failed" : outcome === "updated" ? "changed" : outcome === "unchanged" ? "unchanged" : entry.fetchedAt === lock?.updatedAt ? "changed" : "unchanged";
     rows.push({
       id: source2.id,
       origin: "upstream",
@@ -30736,7 +30780,13 @@ function createTransitionApplication(deps) {
           });
         }
         if (prepared.requiresReviewApproval && !bindingApproved) {
-          return { kind: "review-approval-required", phase: prepared.from, event: command.event };
+          const pendingEvent = reviewGatePendingFor(tx.state, prepared.from) ? reviewGateEvent(tx.state) : "";
+          return {
+            kind: "review-approval-required",
+            phase: prepared.from,
+            event: command.event,
+            ...pendingEvent === "" ? {} : { pendingEvent }
+          };
         }
         const { record: record11, projection } = await tx.commit({ ...prepared.nextFields, ...clearReviewGatePatch() }, {
           event: command.event,
