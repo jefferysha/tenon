@@ -95,6 +95,8 @@ describe('真实 e2e —— 每步测试登记', () => {
       step: 'build', track: 'backend', required: true, result: 'pass', exit_code: 0, reasons: [],
       actor: { id: 'a@x.io', name: 'A', trust: 'declared' },
     })
+    // 尚未冻结构建版本时是 JSON null，不是 state 里的字面 'null' 字符串。
+    expect(stored.build_sha).toBeNull()
     expect(String(stored.candidate)).toMatch(/^workspace:sha256:[a-f0-9]{64}$/u)
     expect(String(stored.test_digest)).toMatch(/^sha256:[a-f0-9]{64}$/u)
     const runId = String(stored.run_id)

@@ -1,0 +1,20 @@
+schema: tenon-resource/v1
+id: skiper-ui
+name: Skiper UI
+category: motion-components
+frameworks: [react, next]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: LicenseRef-Skiper-UI
+  url: https://skiper-ui.com/docs/terms-of-service
+  redistributable: false
+  attribution: false
+  commercial: freemium
+  notice: 无开源许可，服务条款禁止再发布与再分发站点内容；仅浏览与链接，不得复制组件源码
+install: []
+skills: []
+links:
+  home: https://skiper-ui.com
+  docs: https://skiper-ui.com/docs/quick-start
+verified_at: 2026-09-23

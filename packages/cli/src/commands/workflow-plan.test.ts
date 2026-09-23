@@ -155,4 +155,46 @@ describe('workflow plan —— Agent 使用冻结的运行计划而非可变项�
     expect(await cmdWorkflowPlan(archived, 'demo', { json: true })).toBe(0)
     expect(JSON.stringify(JSON.parse(archived.outLines[0]!))).not.toContain('completion_event')
   })
+
+  test('人读输出每步列出输入、输出、测试与 agents（空的不写），与 --json 同一份计划', async () => {
+    const plan = compileEffectiveWorkflowPlan('io-flow', {
+      name: 'io-flow',
+      steps: [
+        {
+          id: 'build', label: '实现', gate: 'auto', skills: [{ id: 'writing-plans' }],
+          inputs: [], outputs: [{ field: 'plan', type: 'file_path' }], guards: [],
+          tests: [
+            { id: 'unit', direction: 'unit', command: 'npm test', required: true },
+            { id: 'bench', direction: 'benchmark', command: 'npm run bench', required: false },
+          ],
+          agents: { executors: [{ agent: 'builder' }], reviewers: [] },
+          transitions: [{ event: 'build-complete', to: 'verify' }],
+        },
+        {
+          id: 'verify', label: '验证', gate: 'review', skills: [],
+          inputs: [{ field: 'plan', type: 'file_path' }], outputs: [], guards: [],
+          agents: {
+            executors: [],
+            reviewers: [
+              { agent: 'security', required: true, block_at: 'high' },
+              { agent: 'architecture', required: false, block_at: 'medium' },
+            ],
+          },
+          transitions: [],
+        },
+      ],
+    })
+    const deps = makeDeps({ state: stateWithSnapshot('io-flow', 'build', workflowPlanSnapshot(plan)) })
+    expect(await cmdWorkflowPlan(deps, 'demo', {})).toBe(0)
+    const body = deps.outLines.slice(deps.outLines.findIndex((line) => line.startsWith('01 ')))
+    expect(body).toEqual([
+      '01 build | 实现 | skills: writing-plans',
+      '     outputs: plan(file_path)',
+      '     tests: unit, bench(可选)',
+      '     executors: builder',
+      '02 verify | 验证 | skills: - | completion: archived',
+      '     inputs: plan(file_path)',
+      '     reviewers: security(block_at=high), architecture(参考, block_at=medium)',
+    ])
+  })
 })

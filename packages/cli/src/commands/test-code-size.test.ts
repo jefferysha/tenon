@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { collectCodeSize } from './test-code-size.js'
+import { collectCodeSize, isCodePath } from './test-code-size.js'
 
 const roots: string[] = []
 
@@ -57,6 +57,35 @@ describe('collectCodeSize', () => {
     await writeFile(join(root, 'base.txt'), 'one\n')
     const metrics = await collectCodeSize(root, 'HEAD')
     expect(metrics?.lines_deleted).toBe(1)
+  })
+
+  test('只统计源代码：openspec/、.tenon/、.pipeline/、docs/ 与 *.md 不计入（已提交与未跟踪都一样）', async () => {
+    const root = await freshRepo()
+    git(root, ['checkout', '-q', '-b', 'feature'])
+    for (const dir of ['openspec/changes/demo', '.tenon/users/a', '.pipeline/workflows', 'docs', 'src']) {
+      await mkdir(join(root, ...dir.split('/')), { recursive: true })
+    }
+    await writeFile(join(root, 'openspec', 'changes', 'demo', 'tasks.md'), 'a\nb\nc\n')
+    await writeFile(join(root, '.pipeline', 'workflows', 'w.yaml'), 'name: w\n')
+    await writeFile(join(root, 'docs', 'guide.txt'), 'x\n')
+    await writeFile(join(root, 'README.md'), 'r\nr\n')
+    await writeFile(join(root, 'src', 'a.ts'), 'export const a = 1\n')
+    git(root, ['add', '-A'])
+    git(root, ['commit', '-q', '-m', 'mixed'])
+    await writeFile(join(root, '.tenon', 'users', 'a', 'run.json'), '{}\n')
+    await writeFile(join(root, 'openspec', 'changes', 'demo', '.pipeline.yaml'), 'phase: build\n')
+    await writeFile(join(root, 'src', 'b ü.ts'), 'export const b = 2\nexport const c = 3\n')
+
+    expect(await collectCodeSize(root, 'main')).toEqual({
+      files_changed: 2, lines_added: 3, lines_deleted: 0, largest_added_lines: 2,
+    })
+  })
+
+  test('isCodePath 与工作区候选同口径，并排除 Markdown', () => {
+    expect(['src/a.ts', 'packages/x/index.js', 'Makefile'].map(isCodePath)).toEqual([true, true, true])
+    expect(['openspec/changes/x/proposal.md', '.tenon/users/a/x.json', '.pipeline/workflows/w.yaml',
+      'docs/a.txt', 'README.md', 'pkg/node_modules/x.js', 'notes/CHANGELOG.MD'].map(isCodePath))
+      .toEqual([false, false, false, false, false, false, false])
   })
 
   test('非 git 目录返回 undefined', async () => {

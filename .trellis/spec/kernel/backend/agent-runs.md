@@ -76,8 +76,12 @@ renderAgentBlocker(blocker, change): string
   every **required** reviewer must be `done` and pass on the **current candidate**. Advisory reviewers never
   block. A reviewer's result is computed, never self-reported: findings at or above `block_at`
   (`severityRank(finding) >= severityRank(block_at)`) make it `fail`.
-- **Candidate**: the reviewer staleness key is the build token (`sha256:<revisionHash>`), else the
-  workspace fingerprint. Executors are never judged stale — they are the ones changing the code.
+- **Candidate**: the reviewer staleness key is the workspace fingerprint — the same key test records bind
+  to and the one the Dashboard projection already used. A frozen build token (`sha256:<revisionHash>`) is
+  only the fallback when no fingerprint capability exists: it does not move while code changes during
+  verify, so keying reviewers on it kept an old verdict passing after an edit while the tests went stale
+  (acceptance D20; PRD R: 代码或产出变化后旧评审记录显示为过期). Executors are never judged stale — they
+  are the ones changing the code.
 - **Waves** (`nextAgentWave`): `wave(x) = 0` with no dependency, else `1 + max(wave(deps))`. Within a step
   the order is always executor waves → required tests → reviewer waves. A reviewer waits for every
   executor, for required tests, and for the reviewers it depends on to have a verdict on the current

@@ -2,12 +2,12 @@
 
 ## Goal
 
-Provide a navigable command-family map while keeping `pipeline <command>
+Provide a navigable command-family map while keeping `tenon <command>
 --help` as the exact flag authority.
 
 ## Prerequisites
 
-- installed `pipeline` launcher
+- installed `tenon` launcher
 - current project directory for project/change commands
 
 ## Installation and runtime
@@ -135,7 +135,9 @@ because benchmark numbers depend on the machine. `test report` generates the
 tests section of the verification report from the records and, with `--write`,
 replaces the marked region in an existing repository file. `test code-size` is
 the deterministic probe behind the builtin `code-size` direction and prints one
-JSON line of metrics.
+JSON line of metrics. It counts source files only: the same path scope as the
+workspace candidate (no `openspec/`, `.tenon/`, `.pipeline/`, `docs/`,
+dependencies or test caches) and no Markdown files.
 
 `tenon status <name> --json` also carries a `step` block: the whole input the
 single `tenon` skill needs for the current step — its skills, executors,
@@ -288,7 +290,7 @@ opt-in sensitive local diagnostics.
 Use the installed command as exact authority:
 
 ```bash
-pipeline --help
+tenon --help
 tenon setup --help
 tenon tracks --help
 tenon afk --help

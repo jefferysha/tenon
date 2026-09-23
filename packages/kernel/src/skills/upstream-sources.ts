@@ -364,7 +364,9 @@ function treeUrl(repo: string, commit: string, path: string): string {
 
 /**
  * bundled 行在前，来源行按 sources.yaml 顺序。锁里没有的来源，或最近一次运行不早于锁更新
- * 且该来源 kept/missing 的，记为 failed；其余按 `fetchedAt === updatedAt` 区分 changed / unchanged。
+ * 且该来源 kept/missing 的，记为 failed。changed / unchanged 以最近一次更新的实际结果为准：
+ * 最近一次运行不早于锁更新时，它对该来源报 updated 即 changed、unchanged 即 unchanged——与
+ * `last-update.json` 同一口径；没有这样的运行结果时才回落到 `fetchedAt === updatedAt`（锁生成那次抓取）。
  */
 export function buildUpstreamSkillView(input: {
   readonly bundledIds: readonly string[]
@@ -378,6 +380,7 @@ export function buildUpstreamSkillView(input: {
     .filter((result) => result.outcome === 'kept' || result.outcome === 'missing')
     .map((result) => [result.id, result]))
   const lastRunCurrent = lastRun !== null && (lock === null || Date.parse(lastRun.at) >= Date.parse(lock.updatedAt))
+  const lastOutcome = new Map(lastRunCurrent ? lastRun.results.map((result) => [result.id, result.outcome]) : [])
   const rows: UpstreamSkillViewRow[] = input.bundledIds.map((id) => ({ id, origin: 'tenon', status: 'bundled' }))
   for (const source of input.sources?.skills ?? []) {
     const entry = locked.get(source.id)
@@ -390,9 +393,12 @@ export function buildUpstreamSkillView(input: {
       rows.push({ id: source.id, origin: 'upstream', status: 'failed', repo: source.repo, path: source.path, ...failureFields })
       continue
     }
+    const outcome = lastOutcome.get(source.id)
     const status: UpstreamSkillRowStatus = failure !== undefined
       ? 'failed'
-      : entry.fetchedAt === lock?.updatedAt ? 'changed' : 'unchanged'
+      : outcome === 'updated' ? 'changed'
+        : outcome === 'unchanged' ? 'unchanged'
+          : entry.fetchedAt === lock?.updatedAt ? 'changed' : 'unchanged'
     rows.push({
       id: source.id,
       origin: 'upstream',

@@ -24,6 +24,7 @@ import {
   assertWorkflowAllowed,
   effectiveWorkflowPlanBinding,
   ensureAgentFreeze,
+  isDefaultWorkflowName,
   loadEffectiveWorkflowPlan,
   prepareAgentFreeze,
   requireTrackForRoot,
@@ -70,9 +71,13 @@ export const REAL_INIT_WIZARD_ENV: InitWizardEnv = {
   },
 }
 
-/** 向导收的标准 preset 枚举（kernel 无 PRESETS 常量——preset 在 flag 路径是开放集，guard 仅对
- *  full/hotfix/tweak 有特殊语义；向导是小白路径故收紧到标准值，专家自定义走 --preset flag）。 */
-const WIZARD_PRESETS: readonly string[] = ['full', 'hotfix', 'tweak']
+/** preset 闭集：guard 只认 full（direct_override 锁）与 hotfix/tweak（覆盖豁免）。flag 与向导同一份校验，
+ *  未知值 exit 1——此前 flag 路径是开放集，`--preset nope` 会被原样存下。 */
+const PRESETS: readonly string[] = ['full', 'hotfix', 'tweak']
+
+/** preset 只被 default 工作流的 guard 读取；显式指定自定义工作流时不强制要求（缺省存 'null'）。 */
+const isCustomWorkflowFlag = (workflow: string | undefined): boolean =>
+  workflow !== undefined && workflow !== '' && !isDefaultWorkflowName(workflow)
 
 /** 问一个带校验的必填项：空输入收默认（若有）；仍为空或校验不过 → 就地重问（交互态语义）。 */
 async function askValidated(
@@ -112,13 +117,8 @@ async function runInitWizard(deps: CliDeps, registry: TrackRegistry, flags: Init
     )
     const preset = await askValidated(
       p, deps, 'preset（full|hotfix|tweak）', flags.preset,
-      // 向导仅收标准枚举（BT6 小白防错——提示列了枚举就必须校验，否则 'ful' 静默建出无效 change）；
-      // 例外（codex review P2）：--preset flag 已给的值是专家预授权——只缺 --track 进向导时，
-      // 回车收下该自定义 preset 必须放行，否则 flag 开放集能力在向导路径被倒灌拒绝。
-      // 手敲的新值仍收紧标准枚举（小白保护不变）；纯自定义走全 flag 路径亦零回归。
-      (s) => (s !== '' && s === flags.preset ? null
-        : WIZARD_PRESETS.includes(s) ? null
-        : `ERROR: 非法 preset '${s}'，允许: ${WIZARD_PRESETS.join(' | ')}（自定义 preset 请走 --preset flag）`),
+      // 与 flag 同一闭集：提示列了枚举就必须校验，否则 'ful' 静默建出无效 change。
+      (s) => (PRESETS.includes(s) ? null : `ERROR: 非法 preset '${s}'，允许: ${PRESETS.join(' | ')}`),
     )
     const workflowRaw = await askPlain(p, 'workflow（自定义 workflow 名，缺省 default）', flags.workflow ?? '')
     return {
@@ -145,9 +145,14 @@ export async function cmdInit(
   // 缺 track/preset：TTY 下走向导补齐（BT6 小白友好），非交互（agent/CI）fail-loud exit 1。
   // 向导用一份 registry 生成选项/校验（仅影响交互提示；权威校验在下方 registry 锁内 fresh-load）。
   // track 且 preset 都已给 → 本块整体不进；golden-oracle 双跑守的非交互主线（内建轨）观测行为不变。
-  if (!opts.track || !opts.preset) {
+  if (opts.preset !== undefined && opts.preset !== '' && !PRESETS.includes(opts.preset)) {
+    deps.io.err(`ERROR: 非法 preset '${opts.preset}'，允许: ${PRESETS.join(' | ')}`)
+    return 1
+  }
+  const presetRequired = !isCustomWorkflowFlag(opts.workflow)
+  if (!opts.track || (!opts.preset && presetRequired)) {
     if (!env.isInteractive()) {
-      const missing = [!opts.track ? '--track' : null, !opts.preset ? '--preset' : null].filter(Boolean).join(' ')
+      const missing = [!opts.track ? '--track' : null, !opts.preset && presetRequired ? '--preset' : null].filter(Boolean).join(' ')
       deps.io.err(`ERROR: 非交互模式缺少必填项 ${missing}（agent/CI 需显式提供；TTY 下省略会走交互向导）`)
       return 1
     }
@@ -175,10 +180,6 @@ export async function cmdInit(
         deps.io.err(`ERROR: ${errMsg(e)}`)
         return 1
       }
-      if (!opts.preset) {
-        deps.io.err('ERROR: preset 不能为空')
-        return 1
-      }
       if (opts.documentLocale !== undefined
         && opts.documentLocale !== 'zh-CN'
         && opts.documentLocale !== 'en') {
@@ -190,6 +191,10 @@ export async function cmdInit(
       // 校验它在该 track 的 allowed 白名单内、且真实存在可加载。default 走 store.init 老首态（open），
       // 非 default 则种到该 workflow 首个 step。只接 init 构造点、不改 resolveWorkflowName 读取语义。
       const workflowId = opts.workflow && opts.workflow !== '' ? opts.workflow : track.workflow.default
+      if (!opts.preset && isDefaultWorkflowName(workflowId)) {
+        deps.io.err(`ERROR: preset 不能为空（default 工作流需要 --preset ${PRESETS.join('|')}）`)
+        return 1
+      }
       try {
         assertWorkflowAllowed(track, workflowId)
       } catch (e) {
@@ -264,7 +269,7 @@ export async function cmdInit(
           name,
           track: track.id,
           reviewSeed: track.policyProfile.reviewSeed,
-          preset: opts.preset,
+          preset: opts.preset || 'null',
           creator,
           clock: deps.clock,
           documentLocale: (opts.documentLocale ?? 'zh-CN') as DocumentLocale,

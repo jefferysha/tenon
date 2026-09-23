@@ -32,6 +32,11 @@ function newRunId(iso: string): string {
   return `${stamp}-${randomBytes(3).toString('hex')}`
 }
 
+/** state 用字面 'null' 表示「尚未冻结构建版本」；记录里它是 JSON null，不是字符串 "null"。 */
+function frozenBuildSha(raw: string): string | null {
+  return raw === '' || raw === 'null' ? null : raw
+}
+
 /** 宿主判定的单一真相源在 ../hostKind.ts；doctor 的宿主相关检查读同一份口径。 */
 function hostOf(env: NodeJS.ProcessEnv): { readonly kind: TestHostKind; readonly sandbox: string | null } {
   return detectHostEnvironment(env)
@@ -192,7 +197,7 @@ async function execute(deps: CliDeps, context: TestCommandContext, input: RunInp
     candidate_before: candidateBefore,
     candidate,
     git_head: gitHead === null || gitHead === '' ? null : gitHead,
-    build_sha: str(context.state.fields.build_sha) === '' ? null : str(context.state.fields.build_sha),
+    build_sha: frozenBuildSha(str(context.state.fields.build_sha)),
     started_at: outcome.startedAt,
     finished_at: outcome.finishedAt,
     duration_ms: outcome.durationMs,

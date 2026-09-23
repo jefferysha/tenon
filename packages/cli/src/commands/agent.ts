@@ -175,7 +175,7 @@ export async function cmdAgentPrompt(
   const role = roleOf(context.step, agent)
   if (role === undefined) {
     deps.io.err(`ERROR: agent '${agent}' 未在步骤 '${context.step.stepId}' 声明`)
-    return 2
+    return 1
   }
   const frozen = context.frozen.get(agent)
   if (frozen === undefined) {

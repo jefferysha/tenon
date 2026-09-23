@@ -5,7 +5,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { freshHarness, rm, type Harness } from './integration-harness.js'
+import { freshHarness, rm, TEST_GIT_BUILD_TOKEN, type Harness } from './integration-harness.js'
 
 const USER_A = { TENON_USER: 'a@x.io', TENON_USER_NAME: 'A' }
 const USER_B = { TENON_USER: 'b@x.io', TENON_USER_NAME: 'B' }
@@ -154,11 +154,11 @@ describe('真实 e2e —— 步骤 agent', () => {
 
   test('prompt 拒绝：未声明的 agent、未轮到的评审者、不支持的宿主', async () => {
     await seed()
-    expect(await h.run(['agent', 'prompt', 'demo', 'e2e'], { env: USER_A })).toBe(2)
+    expect(await h.run(['agent', 'prompt', 'demo', 'e2e'], { env: USER_A })).toBe(1)
     expect(h.err.join('\n')).toContain("agent 'e2e' 未在步骤 'build' 声明")
     // builder 没声明 hosts（缺省适用每个宿主），所以 --host 任意值都放行。
     expect(await h.run(['agent', 'prompt', 'demo', 'builder', '--host', 'nope'], { env: USER_A })).toBe(0)
-    expect(await h.run(['agent', 'prompt', 'demo', 'security'], { env: USER_A })).toBe(2)
+    expect(await h.run(['agent', 'prompt', 'demo', 'security'], { env: USER_A })).toBe(1)
     expect(h.err.join('\n')).toContain("agent 'security' 未在步骤 'build' 声明")
   })
 
@@ -208,6 +208,29 @@ describe('真实 e2e —— 步骤 agent', () => {
     const view = await next()
     expect(view.agents.find((item) => item.agent === 'security')?.state).toBe('stale')
     expect(view.blockers.find((item) => item.kind === 'reviewer-stale')?.agent).toBe('security')
+  })
+
+  test('verify 冻结了 build token 时改代码，评审结论同样过期（与测试记录同一候选）', async () => {
+    await seed(AGENT_WF
+      .replace(
+        '        label: 实现\n        gate: null\n        skills: []\n        inputs: []\n        outputs: []',
+        '        label: 实现\n        gate: null\n        skills: []\n        inputs: []\n        outputs:\n          - field: build_sha\n            type: string',
+      )
+      .replace(
+        '        label: 验证\n        gate: null\n        skills: []\n        inputs: []',
+        '        label: 验证\n        gate: null\n        skills: []\n        inputs:\n          - field: build_sha\n            type: string',
+      ))
+    // 白盒预置「已进入 verify 且 build token 已冻结」（生产里由 build 出口 transition 的 freeze-build-sha 写入）。
+    await h.seedArtifact('demo', 'build_sha', TEST_GIT_BUILD_TOKEN)
+    await h.seedPhase('demo', 'verify')
+    expect(await runAgent('security'), h.err.join('\n')).toBe(0)
+    const before = await next()
+    expect(before.candidate).toMatch(/^workspace:sha256:/u)
+    expect(before.agents.find((item) => item.agent === 'security')?.state).toBe('done')
+    await writeFile(join(h.cwd, 'drift.ts'), 'export const drift = 1\n', 'utf8')
+    const after = await next()
+    expect(after.agents.find((item) => item.agent === 'security')?.state).toBe('stale')
+    expect(after.blockers.find((item) => item.kind === 'reviewer-stale')?.agent).toBe('security')
   })
 
   test('登记期间候选变化：exit 2，运行仍是进行中', async () => {

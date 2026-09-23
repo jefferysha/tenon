@@ -178,7 +178,9 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   const unread = input.documents.reads.filter((doc) => doc.status === 'unread')
   if (unread.length > 0) {
     // 路径还定不下来的文档不进读清单：没有路径就没有可读的文件，列出 null 只会让执行者读空气。
-    return [{ action: 'read-documents', documents: unread.flatMap((doc) => doc.path ?? []) }]
+    // 多个 kind 可以共用一份文件（plan / superpower-plan）：路径只列一次；各 kind 仍各自在
+    // step.documents.reads 里，`tenon document read <c> all` 一次把它们都标为已读。
+    return [{ action: 'read-documents', documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))] }]
   }
 
   const executors = pendingAgents(input.executors, true)

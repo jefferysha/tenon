@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { parseWorkflow } from './parse.js'
+import { validateWorkflow } from './validate.js'
 
 const SAMPLE = `name: default
 steps:
@@ -472,5 +474,57 @@ describe('parseWorkflow —— 显式 artifacts 块（G2 P4）', () => {
     const bad =
       'name: x\nsteps:\n  - id: s\n    artifacts:\n      - field: plan\n        type: file_path\n        producer_policy: effective-phase-skills\n        bogus: 1\n    transitions: []\n'
     expect(() => parseWorkflow(bad)).toThrow(/未知字段行/)
+  })
+})
+
+describe('parseWorkflow —— 顶层键顺序无关', () => {
+  const STEPS = [
+    'steps:',
+    '  - id: shape',
+    '    label: Shape',
+    '    gate: review',
+    '    skills: []',
+    '    inputs: []',
+    '    outputs: []',
+    '    guards: []',
+    '    transitions: []',
+  ].join('\n')
+  const CONTRACT = [
+    'document_contract:',
+    '  version: v1',
+    '  slots:',
+    '    - kind: proposal',
+    '      owner_step: shape',
+    '      producers: [writer]',
+    '  reads: []',
+  ].join('\n')
+  const indent = (text: string): string => text.split('\n').map((line) => `    ${line}`).join('\n')
+
+  it('document_contract / openspec 放在 steps 之后与之前解析结果一致', () => {
+    const before = parseWorkflow(`name: order\nopenspec: true\n${CONTRACT}\n${STEPS}\n`)
+    const after = parseWorkflow(`name: order\n${STEPS}\n${CONTRACT}\nopenspec: true\n`)
+    expect(after).toEqual(before)
+    expect(after.documentContract?.slots.map((slot) => slot.kind)).toEqual(['proposal'])
+  })
+
+  it('tracks.<id> 下 document_contract 写在 steps 之后也可解析', () => {
+    const wf = parseWorkflow(`name: branched\nopenspec: true\ntracks:\n  backend:\n${indent(STEPS)}\n${indent(CONTRACT)}\n`)
+    expect(wf.tracks?.backend?.documentContract?.version).toBe('v1')
+  })
+
+  it('重复顶层键、未知顶层键、缺 steps/tracks 仍 fail-loud', () => {
+    expect(() => parseWorkflow(`name: dup\n${STEPS}\n${STEPS}\n`)).toThrow('steps 重复声明')
+    expect(() => parseWorkflow(`name: dup\n${CONTRACT}\n${STEPS}\n${CONTRACT}\n`)).toThrow('document_contract 重复声明')
+    expect(() => parseWorkflow(`name: odd\n${STEPS}\nextra: 1\n`)).toThrow("无法识别的顶层键 'extra: 1'")
+    expect(() => parseWorkflow('name: empty\nopenspec: true\n')).toThrow("缺少 'steps:' 或 'tracks:'")
+  })
+
+  it('docs/usage/custom-workflows-and-tracks.md 的示例可解析并通过校验', () => {
+    const doc = readFileSync(new URL('../../../../docs/usage/custom-workflows-and-tracks.md', import.meta.url), 'utf8')
+    const example = /```yaml\n(name: release-note\n[\s\S]*?)```/u.exec(doc)?.[1]
+    expect(example).toBeDefined()
+    const wf = parseWorkflow(example ?? '')
+    expect(wf.documentContract?.reads.map((read) => read.step)).toEqual(['implement', 'prove'])
+    expect(validateWorkflow(wf)).toEqual([])
   })
 })

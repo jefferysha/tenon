@@ -263,14 +263,20 @@ export function parseWorkflow(content: string): WorkflowDef {
   const lines = content.split('\n')
   const nameMatch = /^name:\s*(\S+)\s*$/.exec(lines[0] ?? '')
   if (!nameMatch) throw new Error("workflow 解析错误：第一行必须是 'name: <name>'")
-  let stepLine = 1
   let openspec: boolean | undefined
   let documentContract: WorkflowDocumentContractV1 | undefined
   let decomposition: WorkflowDef['decomposition']
   let interaction: WorkflowDef['interaction']
-  const isPipelineStart = (line: string): boolean => line.trim() === 'steps:' || line.trim() === 'tracks:'
-  while (!isPipelineStart(lines[stepLine] ?? '') && stepLine < lines.length) {
-    const line = lines[stepLine] ?? ''
+  let steps: StepDef[] | undefined
+  let tracks: Record<string, TrackBranchDef> | undefined
+  // name 之后的顶层键顺序无关：每个键各自解析到下一个顶层（缩进 0）行为止。
+  const cur: Cursor = { lines, i: 1 }
+  while (cur.i < lines.length) {
+    const line = lines[cur.i] ?? ''
+    if (line.trim() === '') { cur.i++; continue }
+    if (indentOf(line) !== 0) {
+      throw new Error(`workflow 解析错误：顶层出现无法识别的内容 '${line.trim()}'`)
+    }
     if (/^openspec_contract:/.test(line)) throw new Error('workflow 解析错误：openspec_contract 已移除——改为 openspec: true 并声明 document_contract')
     const openspecLine = /^openspec:\s*(.*?)\s*$/.exec(line)
     if (openspecLine) {
@@ -279,52 +285,49 @@ export function parseWorkflow(content: string): WorkflowDef {
         throw new Error('workflow 解析错误：openspec 只支持 true 或 false')
       }
       openspec = openspecLine[1] === 'true'
-      stepLine++
+      cur.i++
       continue
     }
-    if (line.trim() === 'document_contract:') {
+    const key = line.trim()
+    if (key === 'document_contract:') {
       if (documentContract !== undefined) throw new Error('workflow 解析错误：document_contract 重复声明')
-      const cur: Cursor = { lines, i: stepLine + 1 }
-      documentContract = parseDocumentContract(cur, indentOf(line))
-      stepLine = cur.i
+      cur.i++
+      documentContract = parseDocumentContract(cur, 0)
       continue
     }
-    if (line.trim() === 'decomposition:') {
+    if (key === 'decomposition:') {
       if (decomposition !== undefined) throw new Error('workflow 解析错误：decomposition 重复声明')
-      const cur: Cursor = { lines, i: stepLine + 1 }
+      cur.i++
       decomposition = parseDecompositionPolicy(cur)
-      stepLine = cur.i
       continue
     }
-    if (line.trim() === 'interaction:') {
+    if (key === 'interaction:') {
       if (interaction !== undefined) throw new Error('workflow 解析错误：interaction 重复声明')
-      const cur: Cursor = { lines, i: stepLine + 1 }
+      cur.i++
       interaction = parseInteractionPolicy(cur)
-      stepLine = cur.i
       continue
     }
-    if (line.trim() === 'review_budget:') throw new Error(REMOVED_KEY_ERROR('review_budget'))
-    throw new Error("workflow 解析错误：name 后必须是 'steps:' / 'tracks:'、policies、'openspec: true' 或 document_contract")
-  }
-  if (!isPipelineStart(lines[stepLine] ?? '')) {
-    throw new Error("workflow 解析错误：name 后必须是 'steps:' / 'tracks:'、policies、'openspec: true' 或 document_contract")
-  }
-
-  // steps ⊕ tracks：有 tracks 的工作流每条轨道各写自己的阶段，顶层 steps 缺省为空（validate 拒绝两者并存）。
-  const cur: Cursor = { lines, i: stepLine + 1 }
-  const steps = (lines[stepLine] ?? '').trim() === 'steps:' ? parseStepList(cur, 'steps', 0) : []
-  if ((lines[stepLine] ?? '').trim() === 'tracks:') cur.i = stepLine
-  let tracks: Record<string, TrackBranchDef> | undefined
-  if ((lines[cur.i] ?? '').trim() === 'tracks:' && indentOf(lines[cur.i] ?? '') === 0) {
-    cur.i++
-    tracks = parseTracksBlock(cur)
-    if (documentContract !== undefined) throw new Error('workflow 解析错误：有 tracks 时 document_contract 写在 tracks.<id> 下')
-  }
-  while (cur.i < lines.length) {
-    if ((lines[cur.i] ?? '').trim() !== '') {
-      throw new Error(`workflow 解析错误：steps / tracks 之后出现无法识别的内容 '${(lines[cur.i] ?? '').trim()}'`)
+    if (key === 'steps:') {
+      if (steps !== undefined) throw new Error('workflow 解析错误：steps 重复声明')
+      cur.i++
+      steps = parseStepList(cur, 'steps', 0)
+      continue
     }
-    cur.i++
+    if (key === 'tracks:') {
+      if (tracks !== undefined) throw new Error('workflow 解析错误：tracks 重复声明')
+      cur.i++
+      tracks = parseTracksBlock(cur)
+      continue
+    }
+    if (key === 'review_budget:') throw new Error(REMOVED_KEY_ERROR('review_budget'))
+    throw new Error(`workflow 解析错误：无法识别的顶层键 '${key}'（支持 steps / tracks、openspec、document_contract、decomposition、interaction）`)
+  }
+  if (steps === undefined && tracks === undefined) {
+    throw new Error("workflow 解析错误：缺少 'steps:' 或 'tracks:'")
+  }
+  // steps ⊕ tracks：有 tracks 的工作流每条轨道各写自己的阶段，顶层 steps 缺省为空（validate 拒绝两者并存）。
+  if (tracks !== undefined && documentContract !== undefined) {
+    throw new Error('workflow 解析错误：有 tracks 时 document_contract 写在 tracks.<id> 下')
   }
   return {
     name: nameMatch[1] ?? '',
@@ -332,7 +335,7 @@ export function parseWorkflow(content: string): WorkflowDef {
     ...(interaction ? { interaction } : {}),
     ...(openspec === true ? { openspec: true } : {}),
     ...(documentContract ? { documentContract } : {}),
-    steps,
+    steps: steps ?? [],
     ...(tracks === undefined ? {} : { tracks }),
   }
 }
@@ -388,7 +391,7 @@ function parseTracksBlock(cur: Cursor): Record<string, TrackBranchDef> {
         continue
       }
       if (/^\s*document_contract:\s*$/.test(inner)) {
-        if (documentContract !== undefined || steps !== undefined) throw new Error(`workflow 解析错误：分支 '${id}' 的 document_contract 只能在 steps 之前声明一次`)
+        if (documentContract !== undefined) throw new Error(`workflow 解析错误：分支 '${id}' 重复声明 document_contract`)
         cur.i++
         documentContract = parseDocumentContract(cur, indentOf(inner))
         continue

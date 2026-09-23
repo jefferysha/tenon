@@ -48,7 +48,9 @@ class ResourceStoreError { code: 'invalid'|'builtin-readonly'|'conflict'|'not-fo
   `design-md` entries need `links.design_md`; `verified_at` is a real `YYYY-MM-DD` date.
 - **License gate**: `attribution: true` or `redistributable: false` requires `license.notice`. Every builtin
   entry's license was read from its `license.url` before the entry was written; an entry whose license cannot be
-  read is not added. Non-redistributable entries appear as 仅链接 in the Dashboard and add a 仅链接 line to the
+  read is not added — except an entry the PRD names explicitly (`v0-templates`, `skiper-ui`): it is added as
+  `redistributable: false` with a notice that states the license is unknown / terms-only, points `license.url`
+  at the official terms page, and carries no `install`. Non-redistributable entries appear as 仅链接 in the Dashboard and add a 仅链接 line to the
   composed instruction file; nothing in Tenon copies their source.
 - Store layout `<configRoot>/resources/{builtin,custom}`. `builtin/` is one of `BUILTIN_LIBRARIES`
   (`infrastructure/builtin-library-sync.ts`): the whole directory is replaced from `templates/resources/builtin`

@@ -1,6 +1,6 @@
 # CLI 参考
 
-本页列出常用 pipeline 命令族。精确参数以 `pipeline <command> --help` 为准。
+本页列出常用 tenon 命令族。精确参数以 `tenon <command> --help` 为准。
 
 ## Setup 与运行时
 

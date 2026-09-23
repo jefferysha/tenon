@@ -1,0 +1,21 @@
+schema: tenon-resource/v1
+id: coss-ui
+name: coss ui
+category: motion-components
+frameworks: [react]
+styling: [tailwind]
+baseline: false
+license:
+  spdx: MIT
+  url: https://raw.githubusercontent.com/cosscom/coss/HEAD/LICENSING.md
+  redistributable: true
+  attribution: false
+  commercial: free
+  notice: 仅 apps/ui 与 apps/origin 为 MIT，仓库其余部分为 AGPL-3.0
+install: []
+skills: []
+links:
+  home: https://coss.com/ui
+  docs: https://coss.com/ui/docs
+  source: https://github.com/cosscom/coss
+verified_at: 2026-09-23

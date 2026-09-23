@@ -100,6 +100,15 @@ function isExcluded(relativePath: string): boolean {
     || (!relativePath.includes('/') && EXCLUDED_ROOT_ARTIFACTS.some((pattern) => pattern.test(relativePath)))
 }
 
+/**
+ * Whether a repository-relative path (forward slashes) belongs to the implementation candidate.
+ * `tenon test code-size` counts only these paths, so workflow control state (openspec/, .tenon/,
+ * .pipeline/), documentation and caches never inflate the code metrics.
+ */
+export function isWorkspaceCandidatePath(relativePath: string): boolean {
+  return !isExcluded(relativePath)
+}
+
 function writeRecord(hash: ReturnType<typeof createHash>, kind: 'D' | 'F' | 'L', relativePath: string, details = ''): void {
   hash.update(kind)
   hash.update('\0')

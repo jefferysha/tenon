@@ -78,6 +78,19 @@ describe('builtin resource catalog', () => {
     }
   })
 
+  test('the R2 entries v0 templates, coss ui and Skiper UI are present; v0 and Skiper are link-only', () => {
+    expect([byId('v0-templates').category, byId('coss-ui').category, byId('skiper-ui').category])
+      .toEqual(['template', 'motion-components', 'motion-components'])
+    for (const id of ['v0-templates', 'skiper-ui']) {
+      const entry = byId(id)
+      expect([id, entry.license.redistributable, entry.install]).toEqual([id, false, []])
+      expect(entry.license.notice).toMatch(/仅浏览与链接/u)
+    }
+    expect(byId('v0-templates').links.home).toBe('https://v0.app/templates')
+    expect(byId('coss-ui').links.home).toBe('https://coss.com/ui')
+    expect(byId('skiper-ui').links.home).toBe('https://skiper-ui.com')
+  })
+
   test('link-only entries carry a notice and never an install of their source', () => {
     for (const entry of entries.values()) {
       if (entry.license.redistributable && !entry.license.attribution) continue
