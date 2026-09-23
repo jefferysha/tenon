@@ -171,6 +171,8 @@ describe('库页 · 模板', () => {
     const onToast = vi.fn()
     renderLibrary(onToast)
     await user.click(await screen.findByTestId('lib-tpl-new'))
+    // 分类是下拉框：去掉原生外观后要有自己的箭头，不能看起来像文本框。
+    expect(screen.getByTestId('lib-tpl-new-category-arrow')).toBeInTheDocument()
     await user.selectOptions(screen.getByTestId('lib-tpl-new-category'), 'backend')
     await user.type(screen.getByTestId('lib-tpl-new-id'), 'team-go')
     await user.click(screen.getByTestId('lib-tpl-new-confirm'))

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Lock } from 'lucide-react'
 import { useT } from '../i18n'
+import { StatusPill } from '../shell/ThreeColumns'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import type { TestDirectionLibrary } from './useTestDirections'
@@ -55,6 +56,15 @@ export function TestDirectionsPane({
   const builtin = selected.source === 'builtin'
   return (
     <div className="grid gap-4" data-testid="lib-dir-detail">
+      {/* 与模板 / 智能体 / 资源详情同一种头部：眉题 / 名称 / 标识 / 来源。 */}
+      <div className="grid gap-2" data-testid="lib-dir-header">
+        <p className="text-caption font-semibold uppercase tracking-[.08em] text-(--accent)">{t('library.test_directions')}</p>
+        <h1 className="text-page font-bold tracking-[-.01em] text-text" data-testid="lib-dir-title">{selected.label}</h1>
+        <p className="font-mono text-caption whitespace-nowrap overflow-x-auto text-text-3" data-testid="lib-dir-id">{selected.id}</p>
+        <StatusPill tone={builtin ? 'neutral' : 'running'} testId="lib-dir-source">
+          {t(builtin ? 'library.builtin' : 'library.custom')}
+        </StatusPill>
+      </div>
       <table className="w-full border-collapse text-left text-caption">
         <tbody>
           {[

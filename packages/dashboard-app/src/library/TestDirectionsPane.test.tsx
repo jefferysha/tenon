@@ -54,6 +54,10 @@ describe('TestDirectionsPane', () => {
     expect(screen.queryByTestId('lib-dir-save')).toBeNull()
     expect(screen.queryByTestId('lib-dir-delete-unit')).toBeNull()
     expect(screen.getByTestId('lib-dir-detail').textContent).toContain('npm test')
+    // 详情头部与其它详情面板一致：名称、标识、来源。
+    expect(screen.getByTestId('lib-dir-title')).toHaveTextContent('单测')
+    expect(screen.getByTestId('lib-dir-id')).toHaveTextContent('unit')
+    expect(screen.getByTestId('lib-dir-source')).toHaveTextContent('内建')
   })
 
   it('复制内建写成 <id>-copy；自定义可保存与删除', async () => {
