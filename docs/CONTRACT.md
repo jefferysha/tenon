@@ -246,7 +246,7 @@
 
 | cmd | 参数 | stdout 契约 | exit |
 |---|---|---|---|
-| init | `<name> --track --preset [--user]` | 无（`[INIT] 路径` 走 stderr） | 0/1 |
+| init | `<name> --track --preset [--workflow]`；preset ∈ full\|hotfix\|tweak，显式自定义 `--workflow` 时可省略（存 `null`） | 无（`[INIT] 路径` 走 stderr） | 0；未知 preset / 缺必填=1 |
 | get | `<name> <field>` | 裸值一行；字段缺失/未知 → 空行 | 0；change 缺失/名非法=1 |
 | set | `<name> <field> <value>` | 无输出 | 0；四闸/枚举/未知字段拒写=1 |
 | set-many | `<name> k=v...` | 无输出 | 同上 |

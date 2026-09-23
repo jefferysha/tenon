@@ -300,18 +300,39 @@ describe('init —— 交互向导（fake InitWizardEnv 注入）', () => {
     expect(deps.errLines.join('\n')).toContain("非法 preset 'ful'")
   })
 
-  test('⑥ flag 已给自定义 preset + 只缺 track：向导回车收下预授权值，不被枚举倒灌拒绝（codex P2）', async () => {
+  test('⑥ 未知 preset（flag 或向导默认）一律 exit 1，store.init 不被调用', async () => {
     const deps = makeDeps()
-    // --preset my-custom 已给（专家开放集）,缺 --track 进向导:track 答 pm,preset 回车收 flag 默认,
-    // workflow 回车空——自定义 preset 必须原样透传,绝不反复重问。
-    const env: InitWizardEnv = {
-      isInteractive: () => true,
-      makePrompter: () => scriptedPrompter(['pm', '', '']),
-    }
+    const env: InitWizardEnv = { isInteractive: () => true, makePrompter: () => scriptedPrompter(['pm', '', '']) }
     const code = await cmdInit(deps, 'demo', { preset: 'my-custom' }, env)
-    expect(code).toBe(0)
-    expect(deps.store.init.calls[0]?.[0]?.track).toBe('pm')
-    expect(deps.store.init.calls[0]?.[0]?.preset).toBe('my-custom')
-    expect(deps.errLines.join('\n')).not.toContain('非法 preset')
+    expect(code).toBe(1)
+    expect(deps.store.init.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain("非法 preset 'my-custom'")
+  })
+
+  test('⑦ 非交互 --preset nope：exit 1，不落盘', async () => {
+    const deps = makeDeps()
+    const env: InitWizardEnv = { isInteractive: () => false, makePrompter: () => scriptedPrompter([]) }
+    const code = await cmdInit(deps, 'x2', { track: 'backend', preset: 'nope' }, env)
+    expect(code).toBe(1)
+    expect(deps.store.init.calls).toHaveLength(0)
+    expect(deps.errLines.join('\n')).toContain("非法 preset 'nope'，允许: full | hotfix | tweak")
+  })
+
+  test('⑧ 非交互 default 工作流缺 --preset 仍 exit 1；显式自定义 workflow 可省略 preset（存 null）', async () => {
+    const env: InitWizardEnv = { isInteractive: () => false, makePrompter: () => scriptedPrompter([]) }
+    const noPreset = makeDeps()
+    expect(await cmdInit(noPreset, 'demo', { track: 'backend' }, env)).toBe(1)
+    expect(noPreset.errLines.join('\n')).toContain('--preset')
+    const cwd = await mkdtemp(join(tmpdir(), 'init-custom-nopreset-'))
+    try {
+      await mkdir(join(cwd, '.pipeline', 'workflows'), { recursive: true })
+      await writeFile(join(cwd, '.pipeline', 'workflows', 'onboarding.yaml'), TWO_STEP_WF, 'utf8')
+      const deps = makeDeps({ cwd })
+      const code = await cmdInit(deps, 'demo', { track: 'backend', workflow: 'onboarding' }, env)
+      expect([code, deps.errLines.join('\n')]).toEqual([0, expect.stringContaining('[INIT]')])
+      expect(deps.store.init.calls[0]?.[0]?.preset).toBe('null')
+    } finally {
+      await rm(cwd, { recursive: true, force: true })
+    }
   })
 })

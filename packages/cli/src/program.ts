@@ -80,7 +80,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     // track/preset 非 requiredOption：缺省时 TTY 下走交互向导补齐、非交互 fail-loud（见 cmdInit）；
     // 若用 requiredOption，commander 会抢在 action 前就报错，向导没机会跑。
     .option('--track <track>', 'chat | simple | pm | frontend | backend | free | custom')
-    .option('--preset <preset>', 'full | hotfix | tweak')
+    .option('--preset <preset>', 'full | hotfix | tweak（default 工作流必填；显式 --workflow 自定义工作流时可省略）')
     .option('--workflow <workflow>', '自定义 workflow 名（.pipeline/workflows/<name>.yaml），缺省 default')
     .option('--document-locale <locale>', '治理文档语言：zh-CN（默认）| en')
     .action(async (name: string, opts: InitCmdOpts) => bail(await cmdInit(deps, name, opts)))
