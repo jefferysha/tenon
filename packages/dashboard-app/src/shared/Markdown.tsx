@@ -32,11 +32,22 @@ const COMPACT_CLS = [
   '[&_hr]:my-4 [&_hr]:border-border [&_input[type=checkbox]]:mr-2 [&_input[type=checkbox]]:accent-(--accent)',
 ].join(' ')
 
-/** 标准 GFM 渲染；不输出原始 HTML（react-markdown 缺省即如此），故无需额外净化。 */
+const FRONTMATTER = /^\uFEFF?---[ \t]*\r?\n(?:[\s\S]*?\r?\n)?(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/u
+
+/**
+ * 去掉开头的 YAML frontmatter（`---` … `---`）。它是元数据不是正文：交给 Markdown 渲染会变成一段文字，
+ * 或被 setext 规则读成一大段粗体标题。没有闭合行的 `---` 不是 frontmatter，原样保留。
+ */
+export function stripFrontmatter(text: string): string {
+  const match = FRONTMATTER.exec(text)
+  return match === null ? text : text.slice(match[0].length).replace(/^(?:[ \t]*\r?\n)+/u, '')
+}
+
+/** 标准 GFM 渲染；不输出原始 HTML（react-markdown 缺省即如此），故无需额外净化。开头的 frontmatter 不渲染。 */
 export function Markdown({ text, testId, density = 'default' }: { text: string; testId?: string; density?: 'default' | 'compact' }): JSX.Element {
   return (
     <div className={density === 'compact' ? COMPACT_CLS : MD_CLS} data-testid={testId} data-density={density}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(text)}</ReactMarkdown>
     </div>
   )
 }

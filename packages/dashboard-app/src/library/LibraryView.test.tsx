@@ -193,6 +193,8 @@ describe('库页 · 模板', () => {
     expect(await screen.findByTestId('lib-tpl-errors-mine')).toHaveTextContent('1')
     await user.click(screen.getByTestId('lib-tpl-custom-backend-mine'))
     await waitFor(() => expect(screen.getByTestId('lib-tpl-preview')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('lib-tpl-preview')).toHaveTextContent('后端（我的后端）'))
+    expect(screen.getByTestId('lib-tpl-preview')).not.toHaveTextContent('category: backend')
   })
 
   it('无 token 时写操作全部禁用', async () => {
