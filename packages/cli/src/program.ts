@@ -43,6 +43,7 @@ import { cmdInternalCodexJsonl } from './commands/internalCodexJsonl.js'
 import { cmdInternalSkillProvenance } from './commands/internal-skill-provenance.js'
 import { cmdTriage, type TriageCommandRuntime } from './commands/triage.js'
 import { bail, stripNl } from './program-exit.js'
+import { registerChangeExistenceGuard } from './program-change-guard.js'
 import { registerFieldCommands } from './program-fields.js'
 import { registerInstallCommands } from './program-install.js'
 import { registerDesignCommands, registerMotionGateCommand, registerResourceCommands } from './program-resources.js'
@@ -85,6 +86,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .option('--document-locale <locale>', '治理文档语言：zh-CN（默认）| en')
     .action(async (name: string, opts: InitCmdOpts) => bail(await cmdInit(deps, name, opts)))
 
+  registerChangeExistenceGuard(program, deps)
   registerInstallCommands(program, deps, runtimes.dashboard)
   registerOrchestrationCommands(program, deps)
 
