@@ -40,6 +40,7 @@ import { listChangeDirs, listChanges, makeGuardCtx } from './guardContext.js'
 import { createRuntimeScopeResolver } from './runtime/scope.js'
 import { createManifestSkillActionAuthorityResolver } from './skill-action-authority-provider.js'
 import { makeDoctorProbes } from './commands/doctor-probes.js'
+import { exitQuietlyOnEpipe } from './stdio-epipe.js'
 
 /** ISO8601 UTC 秒级（对齐老内核 date -u +%Y-%m-%dT%H:%M:%SZ 口径） */
 function isoNow(): string {
@@ -140,6 +141,7 @@ function readPluginVersion(): string {
 }
 
 async function main(): Promise<void> {
+  exitQuietlyOnEpipe([process.stdout, process.stderr], () => process.exit())
   const runtimeScope = createRuntimeScopeResolver({
     env: () => process.env,
     homeDir: homedir,
