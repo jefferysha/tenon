@@ -96,6 +96,11 @@ tracks:
         outputs:
           - field: build_sha
             type: string
+        agents:
+          reviewers:
+            - agent: spec-consistency
+              required: true
+              block_at: medium
         guards:
           - type: field-equals
             field: pre_verify_review_result
@@ -262,6 +267,11 @@ tracks:
         outputs:
           - field: build_sha
             type: string
+        agents:
+          reviewers:
+            - agent: spec-consistency
+              required: true
+              block_at: medium
         guards:
           - type: field-equals
             field: pre_verify_review_result
@@ -854,6 +864,11 @@ tracks:
         outputs:
           - field: build_sha
             type: string
+        agents:
+          reviewers:
+            - agent: spec-consistency
+              required: true
+              block_at: medium
         guards:
           - type: field-equals
             field: pre_verify_review_result

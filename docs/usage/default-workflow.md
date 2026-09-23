@@ -52,6 +52,14 @@ Skills declared per step (default, by track):
 | `ship` | — | finishing-a-development-branch | finishing-a-development-branch | finishing-a-development-branch |
 | `archive` | — | — | — | — |
 
+`pre_verify_review_result=pass` is Build's verdict; `tenon set` checks the step's
+declared readiness evidence before writing it. Every track's Build declares
+evidence that can be checked: frontend requires the `typecheck` and `unit`
+tests, backend requires `unit`, and pm / free / chat require the
+`spec-consistency` reviewer (`block_at: medium`, a language-agnostic comparison
+of the implementation against the proposal, design, delta spec and tasks).
+Writing `pass` without that evidence is refused and names what is missing.
+
 The `chat` track — the default when the Dashboard picks no track — declares no skills. Its document
 contract still governs the outputs, but a default resolution without a track needs no upstream skill
 bytes, so it also holds on a clean checkout.

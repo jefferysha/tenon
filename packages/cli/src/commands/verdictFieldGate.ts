@@ -13,8 +13,10 @@
  *   · `verify_result` 由 verify-pass / verify-fail 转换落值；只有当前步的出口 guard 点名它为手填
  *     结论（default 的 pm verify）时才接受写入，且只接受 guard 要的值、同样要证据。
  *
- * 本步没有声明任何就绪证据时（default 的 pm / free / chat build），闸无从核对，照旧放行——
- * 让它可核对的办法是在工作流里给这一步声明测试或评审者。
+ * default 的每条轨道 build 都声明了就绪证据：frontend / backend 是必需测试，pm / free / chat 是
+ * 必需评审者 `spec-consistency`（真机：这三条轨道从前什么都不声明，模型直接 set pass 自批）。
+ * 自定义工作流的某一步没有声明任何就绪证据时，闸无从核对，照旧放行——让它可核对的办法是在
+ * 工作流里给这一步声明测试或评审者。
  */
 import {
   defaultEventGuardFields, isForwardExit, phaseExitGuardFields,

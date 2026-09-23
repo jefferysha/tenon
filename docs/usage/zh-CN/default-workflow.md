@@ -42,6 +42,11 @@ Tenon 自有的 skill 只有一个 `tenon`：它读任务冻结的工作流计�
 缺失、非法、陈旧或无法证明来源时，Verify、readiness、HTTP/SSE 与 AFK 统一返回
 `verify-build-revision-untrusted`，修复标识为 `return-to-build-and-capture-current-revision`。不要手动 `set build_sha`。
 
+`pre_verify_review_result=pass` 是 Build 的通过结论，`tenon set` 写入前核对本步声明的就绪证据。
+每条轨道的 Build 都声明了可核对的证据：frontend 是必需测试 `typecheck` + `unit`，backend 是 `unit`，
+pm / free / chat 是必需评审者 `spec-consistency`（`block_at: medium`，逐条比对实现与 proposal /
+design / delta spec / tasks，语言无关）。证据不齐时写 `pass` 被拒，并点名缺的测试或评审者。
+
 ## Verify
 
 独立检查测试、类型、构建、浏览器、安装和安全边界。Verify 不修改实现；失败走 `verify-fail` 返回 Build，返工后重新冻结基线。

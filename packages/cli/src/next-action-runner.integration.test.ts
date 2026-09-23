@@ -290,20 +290,28 @@ beforeEach(async () => {
   expect(git(['init', '-q']).status).toBe(0)
   expect(git(['add', 'package.json']).status).toBe(0)
   expect(git(['commit', '-q', '-m', 'fixture']).status).toBe(0)
-  expect(await h.run(['init', CHANGE, '--track', 'backend', '--preset', 'full'])).toBe(0)
-  // Skill 回执绑定当前用户的活跃任务，真实宿主会话就是这样起头的。
-  expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
 })
 
 afterEach(async () => {
   await rm(h.cwd, { recursive: true, force: true })
 })
 
+interface WalkOptions {
+  readonly track?: string
+  readonly editAt?: string
+  /** 每条动作照做之前的观察点（用例在这里探测 CLI 对「越过 next 的写法」的拒绝）。 */
+  readonly before?: (step: StepBlock, action: StepAction) => Promise<void>
+}
+
 /** 跑完整条链；返回每一轮所在的 step 与所有下发过的动作名。 */
-async function walk(options: { readonly editAt?: string } = {}): Promise<{
+async function walk(options: WalkOptions = {}): Promise<{
   readonly seen: readonly string[]
   readonly actions: readonly { readonly step: string; readonly action: StepAction }[]
 }> {
+  const track = options.track ?? 'backend'
+  expect(await h.run(['init', CHANGE, '--track', track, '--preset', 'full'])).toBe(0)
+  // Skill 回执绑定当前用户的活跃任务，真实宿主会话就是这样起头的。
+  expect(await h.run(['session', 'activate', CHANGE])).toBe(0)
   const proposal = join(changeDir(), 'proposal.md')
   const seen: string[] = []
   const actions: { step: string; action: StepAction }[] = []
@@ -321,6 +329,7 @@ async function walk(options: { readonly editAt?: string } = {}): Promise<{
     let done = false
     for (const action of step.next) {
       actions.push({ step: step.id, action })
+      await options.before?.(step, action)
       done = (await perform(step, action)) || done
     }
     if (done) {
@@ -338,7 +347,7 @@ async function walk(options: { readonly editAt?: string } = {}): Promise<{
       expect(tests.finished).toBe(true)
       expect(tests.report).toBe(`tenon test report ${CHANGE}`)
       expect(tests.items.map((item) => [item.step, item.id, item.run?.result]))
-        .toEqual([['build', 'unit', 'pass'], ['verify', 'integration', 'pass']])
+        .toEqual(track === 'backend' ? [['build', 'unit', 'pass'], ['verify', 'integration', 'pass']] : [])
       await run(['list', '--finished', '--json'])
       const finished = JSON.parse(h.out.join('\n')) as { finished: readonly { name: string; archived: string }[] }
       expect(finished.finished).toEqual([expect.objectContaining({ name: CHANGE, archived: 'true' })])
@@ -423,6 +432,32 @@ describe('照着 next 做事的运行器：open → 完结', () => {
     expect(actions.filter(({ step, action }) => step === 'verify'
       && action.action === 'record-document' && action.kind === 'verification-report'
       && action.skill === 'verification-before-completion')).toHaveLength(2)
+  })
+
+  /**
+   * 真机（第二轮）：free / pm / chat 的 build 不声明测试或评审者，`pre_verify_review_result pass`
+   * 没有可核对的证据，模型直接 set 通过。现在这些轨道的 build 声明必需评审者 spec-consistency：
+   * next 先让它跑，评审通过之前 `tenon set … pass` 被拒。
+   */
+  test('free 轨：build 的通过结论要等必需评审者 spec-consistency 通过', async () => {
+    let refusedBeforeReview = false
+    const { seen, actions } = await walk({
+      track: 'free',
+      before: async (step, action) => {
+        if (step.id !== 'build' || action.action !== 'run-agent' || refusedBeforeReview) return
+        expect(await h.run(['set', CHANGE, 'pre_verify_review_result', 'pass'])).toBe(1)
+        expect(h.err.join('\n')).toContain('必需评审者 spec-consistency 未通过')
+        refusedBeforeReview = true
+      },
+    })
+    expect(new Set(seen)).toEqual(new Set(['open', 'explore', 'spec', 'build', 'verify', 'ship', 'archive']))
+    expect(refusedBeforeReview, 'build 里必须先出现评审者，且越过它的自批被拒').toBe(true)
+    const review = actions.findIndex(({ step, action }) => step === 'build'
+      && action.action === 'run-agent' && action.agent === 'spec-consistency' && action.role === 'reviewer')
+    const verdict = actions.findIndex(({ step, action }) => step === 'build'
+      && action.action === 'set-field' && action.field === 'pre_verify_review_result')
+    expect(review).toBeGreaterThan(-1)
+    expect(review).toBeLessThan(verdict)
   })
 
   /** D7：不存在的任务是产品层的一句话，不是一行 ENOENT。 */
