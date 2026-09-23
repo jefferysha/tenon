@@ -184,6 +184,11 @@ describe('step.next 顺序', () => {
     expect(stepNextActions(input(shipInput))).toEqual([{ action: 'fix', blockers: [tasksBlocker] }])
     // 规格已应用、只差 applied-spec 登记时也一样。
     expect(actions({ ...shipInput, specApplicationPending: false })).toEqual(['fix'])
+    // 勾过一项后 tasks.md 变 stale（要重新登记）：剩下没勾的仍排在 apply-spec 与重新登记之前。
+    expect(actions({
+      ...shipInput,
+      documents: { reads: [], records: [doc('applied-spec', 'missing')], updates: [doc('tasks', 'stale', ['tenon'])] },
+    })).toEqual(['fix'])
     // 勾完之后才是 apply-spec。
     expect(actions({ ...shipInput, exits: [{ ...shipExit, blockers: [], ready: true }] })).toEqual(['apply-spec'])
   })

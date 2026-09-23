@@ -228,9 +228,10 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   // 未勾的任务是本步还没做完的工作：排在应用规格、登记文档与一切字段之前——它们记录的都是「做完
   // 之后」的事实。真机 ship 步 exits 里明明有 tasks-incomplete，next 却只给 apply-spec 与
   // applied-spec 的骨架/登记，任务一直排在它们后面，模型只能自己去 exits 里发现并勾选。
-  // 唯一的例外是 tasks.md 本身还等着产出或重新登记（open 步）：先写出来，才谈得上勾选。
-  const tasksPending = [...producing, ...writes].some((action) => action.kind === 'tasks')
-  const tasks = tasksPending ? [] : taskBlockers(input.exits)
+  // 唯一的例外是 tasks.md 本身还没产出（open 步，`missing`）：先写出来，才谈得上勾选。勾过一项之后
+  // 它是 `stale`（要重新登记）——那不是例外：剩下没勾的仍排在前面，全勾完再一起重新登记。
+  const tasksMissing = input.documents.records.some((doc) => doc.kind === 'tasks' && doc.status === 'missing')
+  const tasks = tasksMissing ? [] : taskBlockers(input.exits)
   if (tasks.length > 0) return [{ action: 'fix', blockers: tasks }]
 
   if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]

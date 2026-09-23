@@ -49,7 +49,7 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 - 顺序：停（归档 / 引用已删除技能 / 步骤不在计划里）→ 状态机已归档（治理归档或停）→ 重新加载
   tenon → 读输入文档 → 未配置的必需测试（本步与下一步的，`fix` `code: test-unconfigured`）→ 决定类字段（带枚举、走 `tenon set`：build_mode / isolation …，动手之前拍板）
   → 执行者 → 本步技能 → 技能欠的文档 → 未勾任务（`fix`，blocker `source: tasks`，带 `items` 未勾项
-  原文；tasks.md 自己还待产出 / 重新登记时让位给文档写入）→ 应用规格 → 产出与登记文档 → artifact
+  原文；tasks.md 自己还没产出（`missing`）时让位给文档写入，勾过一项后的 `stale` 不让位）→ 应用规格 → 产出与登记文档 → artifact
   登记 → 自由文本交付值（`pr_url` / `prd_path`）→ 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
 - 进行中（`running`）的 agent 先于同一档的一切新动作：`run-agent` 带 `status: running`、`run_id`、
   `report_path`，宿主写报告后 `agent record` 那次运行，不重开。
