@@ -38,6 +38,21 @@ function renderComposer(
 }
 
 describe('AgentComposer', () => {
+  it('文案按角色：空画布「拖入评审者 / 拖入执行者」，搜索与提示都用「智能体」，控件标签是中文', () => {
+    renderComposer('reviewers', vi.fn())
+    expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('拖入评审者')
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('aria-label', '评审者')
+    expect(screen.getByTestId('agent-palette-search')).toHaveAttribute('placeholder', '搜索智能体')
+    expect(screen.getByTestId('agent-composer-detail')).toHaveTextContent('选一个智能体')
+    const labels = JSON.parse(screen.getByTestId('react-flow').getAttribute('data-aria-labels') ?? '{}') as Record<string, string>
+    expect(labels['controls.zoomIn.ariaLabel']).toBe('放大')
+  })
+
+  it('执行者画布为空时写「拖入执行者」', () => {
+    renderComposer('executors', vi.fn())
+    expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('拖入执行者')
+  })
+
   // 回归：StageEditorPane 每次重渲染都传 `?? []` 的新数组，草稿随之被清空，加上的评审者存不进 YAML。
   it('打开后父组件重渲染（传入新的空数组）不清空草稿，保存收到新增的评审者', async () => {
     const user = userEvent.setup()

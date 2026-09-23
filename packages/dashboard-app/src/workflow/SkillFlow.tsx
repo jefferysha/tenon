@@ -41,11 +41,22 @@ export interface SkillFlowProps {
   statusOf?: (id: string) => { state: SkillRunState; label: string } | null
   /** 节点名下的一行小字（agent 段落用）；不给则不渲染。 */
   captionOf?: (id: string) => string | null
+  /** 画布的可访问名称；缺省 = 技能。agent 画布传 执行者 / 评审者。 */
+  label?: string
+  /** 可编辑画布为空时的提示；缺省 = 拖入技能。 */
+  emptyText?: string
   className?: string
 }
 
-function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabel = null, statusOf, captionOf, className }: SkillFlowProps): JSX.Element {
+function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabel = null, statusOf, captionOf, label, emptyText, className }: SkillFlowProps): JSX.Element {
   const { t } = useT()
+  // React Flow 控件自带英文 aria-label（Zoom In …），跟随界面语言改写。
+  const ariaLabelConfig = useMemo(() => ({
+    'controls.ariaLabel': t('workflow.flow_controls'),
+    'controls.zoomIn.ariaLabel': t('workflow.zoom_in'),
+    'controls.zoomOut.ariaLabel': t('workflow.zoom_out'),
+    'controls.fitView.ariaLabel': t('workflow.fit_view'),
+  }), [t])
   const flow = useReactFlow()
   const flowRef = useRef(flow)
   flowRef.current = flow
@@ -259,7 +270,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
   return (
     <div
       className={cn('relative overflow-hidden rounded-md border border-border bg-card', className)}
-      aria-label={t('workflow.skills_title')}
+      aria-label={label ?? t('workflow.skills_title')}
       data-testid="skill-flow"
       data-editable={editable}
       data-nodes={nodes.length}
@@ -268,7 +279,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       onDragLeave={editable ? (event) => { if (!event.currentTarget.contains(event.relatedTarget as globalThis.Node | null)) setGhost(null) } : undefined}
       onDrop={editable ? onDrop : undefined}
     >
-      {nodes.length === 0 && <p className="pointer-events-none absolute inset-0 z-10 grid place-items-center text-body text-text-3" role="status" data-testid="skill-flow-empty">{t(editable ? 'workflow.drop_skill' : 'workflow.no_skills')}</p>}
+      {nodes.length === 0 && <p className="pointer-events-none absolute inset-0 z-10 grid place-items-center text-body text-text-3" role="status" data-testid="skill-flow-empty">{editable ? (emptyText ?? t('workflow.drop_skill')) : t('workflow.no_skills')}</p>}
       <ReactFlow<FlowNode>
         nodes={decorated.nodes}
         edges={decorated.edges}
@@ -290,6 +301,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ type: 'pulse', style: EDGE_STYLE, markerEnd: MARKER }}
         deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
+        ariaLabelConfig={ariaLabelConfig}
       >
         <Background variant={BackgroundVariant.Dots} gap={14} size={1} color="var(--border-2)" />
         <Controls showInteractive={false} position="bottom-right" />

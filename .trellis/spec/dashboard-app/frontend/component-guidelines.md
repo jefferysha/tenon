@@ -308,13 +308,16 @@ row names the skills that should produce it, and a stale row carries its one-wor
   and test chips from the step's own `tests[].id` (`wb-agent-tests-<name>`). A newly dropped reviewer takes
   the kernel's parse defaults (必需, 高). Settings are keyed by agent name, so re-laying out the canvas never
   loses them. 保存 writes through `editor.setAgents`; both lists empty removes the `agents` key.
+- Wording: the concept is 智能体 everywhere in zh (rail, list title, 新建智能体, palette search 搜索智能体, 选一个智能体);
+  the composer canvas says 拖入执行者 / 拖入评审者 by role. `SkillFlow` takes `label` / `emptyText` for that, and passes
+  `ariaLabelConfig` so React Flow's zoom / fit controls are labelled in the UI language on every canvas.
 - Lint `agent-missing` is an **error** (blocks 保存) when a step names an agent the library does not have.
   While the library is still loading (`editor.agents === null`) the rule does not run: unknowable is not
   reported as missing.
 
 ## 库 rules (`library/`)
 
-- Three columns: rail = one card per library kind (模板 / 资源目录 / 测试方向 / agent), list = category and 内建 / 自定义 chips + search + rows,
+- Three columns: rail = one card per library kind (模板 / 资源目录 / 测试方向 / 智能体), list = category and 内建 / 自定义 chips + search + rows,
   detail = `TemplateDetail` (预览 / 编辑 sheets, 变量 table, footer 复制 / 保存 / 删除).
 - Builtin templates are read-only: the detail footer offers 复制 only. Custom templates save with `If-Match` and delete
   with the digest; a 409 shows the local message plus 重新载入.
@@ -344,7 +347,7 @@ row names the skills that should produce it, and a stale row carries its one-wor
 
 ## Library page sections
 
-- The Library page's rail (`LibraryRail`) lists 模板 / 资源目录 / 测试方向 / agent; a section owns the middle and right
+- The Library page's rail (`LibraryRail`) lists 模板 / 资源目录 / 测试方向 / 智能体; a section owns the middle and right
   columns and nothing else. 资源目录 renders its own `ThreeColumns` with the shared rail passed in, so the rail's
   collapsed state and selection stay with `LibraryView`.
 - 资源目录 filtering is client-side through `filterResources` from `@tenon/kernel/resources/query` — the same

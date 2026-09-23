@@ -28,9 +28,9 @@ export function applyEdgeChanges<E extends AnyEdge>(changes: Change[], edges: E[
   const removed = new Set(changes.filter((change) => change.type === 'remove').map((change) => change.id))
   return edges.filter((edge) => !removed.has(edge.id))
 }
-export function ReactFlow({ nodes, edges, nodeTypes, children }: { nodes: AnyNode[]; edges: AnyEdge[]; nodeTypes: Record<string, ComponentType<{ id: string; data: Record<string, unknown>; selected: boolean }>>; children?: ReactNode }): JSX.Element {
+export function ReactFlow({ nodes, edges, nodeTypes, ariaLabelConfig, children }: { nodes: AnyNode[]; edges: AnyEdge[]; nodeTypes: Record<string, ComponentType<{ id: string; data: Record<string, unknown>; selected: boolean }>>; ariaLabelConfig?: Record<string, string>; children?: ReactNode }): JSX.Element {
   return (
-    <div data-testid="react-flow" data-edges={edges.map((edge) => edge.id).join(',')}>
+    <div data-testid="react-flow" data-edges={edges.map((edge) => edge.id).join(',')} data-aria-labels={JSON.stringify(ariaLabelConfig ?? {})}>
       {nodes.map((node) => {
         const Type = nodeTypes[node.type ?? 'default']
         return Type === undefined ? null : <Type key={node.id} id={node.id} data={node.data} selected={node.selected ?? false} />

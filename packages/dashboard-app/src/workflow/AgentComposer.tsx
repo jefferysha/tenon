@@ -91,11 +91,11 @@ export function AgentComposer({
         <section className="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-bg p-2" data-testid="agent-palette" aria-label={t('library.agents')}>
           <label className="flex h-9 flex-none items-center gap-2 rounded-md border border-border bg-card px-2 text-text-3 focus-within:border-accent-b">
             <Search className="size-3.5 flex-none" aria-hidden="true" />
-            <span className="sr-only">{t('library.agents')}</span>
+            <span className="sr-only">{t('workflow.search_agents')}</span>
             <input
               type="search"
               value={search}
-              placeholder={t('library.agents')}
+              placeholder={t('workflow.search_agents')}
               className="min-w-0 flex-1 bg-transparent text-body text-text outline-none placeholder:text-text-3"
               data-testid="agent-palette-search"
               onChange={(event) => setSearch(event.target.value)}
@@ -121,7 +121,17 @@ export function AgentComposer({
             </ul>
           )}
         </section>
-        <SkillFlow skills={draft} registry={registry} editable onChange={setDraft} onOpen={setSelected} dragLabel={dragging} className="min-h-0" />
+        <SkillFlow
+          skills={draft}
+          registry={registry}
+          editable
+          onChange={setDraft}
+          onOpen={setSelected}
+          dragLabel={dragging}
+          label={t(reviewing ? 'workflow.reviewers_title' : 'workflow.executors_title')}
+          emptyText={t(reviewing ? 'workflow.drop_reviewer' : 'workflow.drop_executor')}
+          className="min-h-0"
+        />
         <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-card p-4 max-[1100px]:hidden" data-testid="agent-composer-detail">
           {selected === null ? (
             <p className="text-body text-text-3" role="status">{t('workflow.pick_agent')}</p>
