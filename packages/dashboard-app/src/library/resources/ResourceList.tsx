@@ -23,7 +23,7 @@ function FacetRow({
   const { t } = useT()
   return (
     <div
-      className="flex w-full gap-1 overflow-x-auto whitespace-nowrap"
+      className="flex w-full flex-wrap gap-1"
       role="tablist"
       aria-label={t(`resources.facet.${facet}`)}
       data-testid={`res-facet-${facet}`}

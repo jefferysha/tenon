@@ -230,13 +230,14 @@ export function ListColumn({
       className="flex min-h-0 flex-col overflow-y-auto border-r border-border bg-card px-7 pt-7 pb-10 max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:px-4 max-[900px]:pt-5"
       data-testid={testId}
     >
-      <p className="mb-2.5 text-caption font-semibold uppercase tracking-[.08em] text-(--accent)">{eyebrow}</p>
-      <h1 className="mb-5 text-page font-bold tracking-[-.01em] text-text">{title}</h1>
+      {/* 头部各块 shrink-0：列表很长时由本列滚动，而不是把搜索框等头部元素压扁。 */}
+      <p className="mb-2.5 shrink-0 text-caption font-semibold uppercase tracking-[.08em] text-(--accent)">{eyebrow}</p>
+      <h1 className="mb-5 shrink-0 text-page font-bold tracking-[-.01em] text-text">{title}</h1>
       {note !== undefined && (
-        <div className="mb-3 rounded-md border border-border px-4 py-3 text-base text-text-2">{note}</div>
+        <div className="mb-3 shrink-0 rounded-md border border-border px-4 py-3 text-base text-text-2">{note}</div>
       )}
       {search !== undefined && (
-        <label className="mb-4 flex h-11 items-center gap-2 rounded-md border border-border bg-card px-3 text-text-3 focus-within:border-accent-b">
+        <label className="mb-4 flex h-11 shrink-0 items-center gap-2 rounded-md border border-border bg-card px-3 text-text-3 focus-within:border-accent-b" data-testid={`${testId}-search-box`}>
           <Search className="size-4 flex-none" aria-hidden="true" />
           <span className="sr-only">{search.label}</span>
           <input
@@ -251,7 +252,7 @@ export function ListColumn({
           />
         </label>
       )}
-      {chips !== undefined && <div className="mb-4 flex flex-wrap gap-1">{chips}</div>}
+      {chips !== undefined && <div className="mb-4 flex shrink-0 flex-wrap gap-1" data-testid={`${testId}-chips`}>{chips}</div>}
       {children}
     </section>
   )

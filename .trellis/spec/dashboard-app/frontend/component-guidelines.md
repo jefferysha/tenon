@@ -88,7 +88,10 @@ last one. Anything that needs its own surface opens the shared right-side `share
   only; a file row still opens `DocumentDrawer`. The 测试 tab appears only when the selected step declares
   tests, its count is `通过/总数`, and a row opens `TestRunDrawer` (inputs, outputs, log tail, screenshots,
   history). Status words are one word each — 通过 / 失败 / 过期 / 未运行 / 运行中 — and never a sentence. The project rail card shows the project path only — task counts live in the facet chips, never
-  twice. Facet rows, chips and card pills never wrap (`whitespace-nowrap`, horizontal scroll, truncated titles).
+  twice. Chips and card pills never wrap internally (`whitespace-nowrap`, truncated titles), but facet rows **do**
+  wrap (`flex-wrap`): a horizontally scrolling row clipped chips mid-word at 1440px (「验…」「未提交删除」).
+  `ListColumn` header blocks (eyebrow, title, search, chips) are `shrink-0`, so a long list scrolls the column instead
+  of squashing the search box.
 
 ## 工作流 rules (`workflow/`)
 
@@ -346,8 +349,8 @@ row names the skills that should produce it, and a stale row carries its one-wor
   collapsed state and selection stay with `LibraryView`.
 - 资源目录 filtering is client-side through `filterResources` from `@tenon/kernel/resources/query` — the same
   predicate `tenon resources list` uses. Switching a facet chip must not issue a request; the list is fetched once.
-- The four facet rows are single-select `role=tablist` rows with a leading 全部 chip, `whitespace-nowrap` and
-  `overflow-x-auto`: enum values are nouns and must never wrap.
+- The four facet rows are single-select `role=tablist` rows with a leading 全部 chip. Rows wrap (`flex-wrap`); each
+  chip stays on one line (`whitespace-nowrap`), so enum values are never split or clipped.
 - Builtin entries are read-only: only 复制 is offered. Custom entries add 编辑 (a YAML drawer validated by the
   server, errors listed verbatim) and 删除 (a `Dialog`). A 409 offers 重新载入 rather than silently overwriting.
 

@@ -46,7 +46,7 @@ function FacetRow({ label, facet, chips, current, total, mono, lead, onPick }: {
 }): JSX.Element {
   const { t } = useT()
   return (
-    <div className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none]" role="tablist" aria-label={label} data-testid={`task-facet-${facet}`}>
+    <div className="flex w-full flex-wrap items-center gap-1" role="tablist" aria-label={label} data-testid={`task-facet-${facet}`}>
       <span className="mr-1 min-w-12 flex-none whitespace-nowrap text-caption text-text-3">{label}</span>
       <FilterChip label={t('workspace.filter_all')} count={total} selected={current === 'all'} testId={`task-facet-${facet}-all`} onClick={() => onPick('all')} />
       {lead}
@@ -110,7 +110,7 @@ export function TaskListPane({
               onPick={(id) => onFilter({ ...filter, owner: id })}
             />
           )}
-          <div className="flex w-full items-start gap-2">
+          <div className="flex w-full flex-wrap items-start gap-2" data-testid="task-facet-workflow-row">
             <div className="min-w-0 flex-1">
               <FacetRow label={t('workspace.facet_workflow')} facet="workflow" chips={facets.workflows} current={filter.workflow} total={facetTotal(rows, filter, 'workflow')} mono onPick={(id) => onFilter({ ...filter, workflow: id, stage: 'all' })} />
             </div>
