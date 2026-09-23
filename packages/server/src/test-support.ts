@@ -15,9 +15,12 @@ import {
   createStateStore,
   createTransitionRecordStore,
   createWorkflowRunRepository,
+  documentRecordsInCurrentStepVisit,
   ensureDocumentLedger,
   loadManifest,
+  readDocumentLedger,
   recordDocument,
+  sha256Hex,
   recordDocumentReads,
   BUILTIN_TRACK_DEFINITIONS, compileEffectiveWorkflowPlan,
   ensureUserLocalDir, isTenonUser, resolveTenonUser,
@@ -284,12 +287,60 @@ export async function seedGovernedDocumentEvidence(root: string, changeDir: stri
   }
 }
 
-/** Test-only current-visit read; callers invoke it after a real transition before the next exit. */
+/**
+ * 必需技能的产物要在本次步骤访问里由它登记才算完成（技能与产物绑定）。种好的台账锚在种它的
+ * 那次访问上，跨过转换就不算数了；这里替本步契约点名的 producer 把内容没变过的文档在本次访问
+ * 重新登记——真 confirmation + 真 recordDocument。被故意改坏的文档保持 stale。
+ */
+async function recordBoundDocumentsForCurrentVisit(root: string, changeDir: string, at: string): Promise<void> {
+  const phase = String((await createStateStore().read(changeDir)).fields.phase)
+  const ledger = await readDocumentLedger(changeDir)
+  if (ledger === undefined) return
+  const visit = await documentRecordsInCurrentStepVisit(changeDir)
+  const historyPath = join(changeDir, '.pipeline-history.jsonl')
+  let sequence = 0
+  for (const requirement of DEFAULT_DOCUMENT_POLICY.outputsByStep[phase] ?? []) {
+    const producer = requirement.producerCandidates.find((candidate) => candidate !== 'tenon')
+    if (producer === undefined || visit.some((record) => record.kind === requirement.kind)) continue
+    for (const existing of ledger.records.filter((record) => record.kind === requirement.kind)) {
+      let body: string
+      try {
+        body = await readFile(join(root, existing.path), 'utf8')
+      } catch {
+        continue
+      }
+      if (sha256Hex(body) !== existing.sha256) continue
+      sequence += 1
+      await appendFile(historyPath, `${JSON.stringify({ ts: at, kind: 'tool', raw: `Skill: ${producer}` })}\n`, 'utf8')
+      const confirmed = await recordNativeDocumentSkillConfirmation(changeDir, producer, phase, {
+        sessionId: `server-test-support-${basename(changeDir)}`,
+        toolUseId: `visit-${phase}-${requirement.kind}-${sequence}-${Date.now()}`,
+        observedAt: at,
+      })
+      if (!confirmed) return
+      const next = await recordDocument({
+        repoRoot: root, changeDir, phase, policy: DEFAULT_DOCUMENT_POLICY,
+        kind: requirement.kind, path: existing.path, producer, recordedAt: at,
+      })
+      const canonicalRecord = [...next.records].reverse().find((candidate) =>
+        candidate.kind === requirement.kind && candidate.path === existing.path)
+      if (canonicalRecord !== undefined) {
+        await recordCanonicalDocumentSkillInvocation(changeDir, requirement.kind, at, { record: canonicalRecord })
+      }
+    }
+  }
+}
+
+/**
+ * Test-only current-visit preparation; callers invoke it after a real transition before the next
+ * exit. It re-records the step's producer documents in this visit, then reads the inputs.
+ */
 export async function readGovernedDocumentsForCurrentVisit(
   root: string,
   changeDir: string,
   readAt = '2026-07-07T00:00:00Z',
 ): Promise<void> {
+  await recordBoundDocumentsForCurrentVisit(root, changeDir, readAt)
   const state = await createStateStore().read(changeDir)
   await recordDocumentReads({
     repoRoot: root,

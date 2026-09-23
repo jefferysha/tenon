@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { documentGovernancePolicy } from './document-contract.js'
+import { documentGovernancePolicy, documentKindsProducedBySkillAtPolicyStep } from './document-contract.js'
 import type { StepDef, WorkflowDocumentContractV1 } from './types.js'
 
 const step = (id: string): StepDef => ({ id, label: id, gate: null, skills: [], inputs: [], outputs: [], guards: [], transitions: [] })
@@ -53,5 +53,38 @@ describe('documentGovernancePolicy', () => {
     expect(documentGovernancePolicy('custom', workflow)?.requiresByStep?.build).toEqual(['design-md'])
     expect(documentGovernancePolicy('custom', workflow, 'api')?.outputsByStep).toEqual({ shape: [], build: [] })
     expect(() => documentGovernancePolicy('custom', workflow, 'mobile')).toThrow(/没有轨道 'mobile' 的分支/u)
+  })
+})
+
+describe('documentKindsProducedBySkillAtPolicyStep', () => {
+  const BINDING: WorkflowDocumentContractV1 = {
+    version: 'v1',
+    slots: [
+      { kind: 'superpower-design', ownerStep: 'shape', producers: ['brainstorming', 'superpowers:brainstorming'] },
+      { kind: 'adr', ownerStep: 'shape', producers: ['brainstorming'] },
+      { kind: 'proposal', ownerStep: 'shape', role: 'update', producers: ['brainstorming'] },
+      { kind: 'tasks', ownerStep: 'build', role: 'update', producers: ['tenon'] },
+      { kind: 'plan', ownerStep: 'build', producers: ['opsx:propose'] },
+    ],
+    reads: [],
+  }
+  const policy = documentGovernancePolicy('custom', {
+    openspec: true, documentContract: BINDING, steps: [step('shape'), step('build')],
+  })!
+
+  it('只取本步 role produce 槽里点名该技能的 kind；update 槽是「可以改」，不绑定', () => {
+    expect(documentKindsProducedBySkillAtPolicyStep(policy, 'shape', 'brainstorming')).toEqual(['superpower-design', 'adr'])
+    expect(documentKindsProducedBySkillAtPolicyStep(policy, 'build', 'brainstorming')).toEqual([])
+  })
+
+  it('技能 id 按别名等价：命名空间前缀与 opsx 别名都认', () => {
+    expect(documentKindsProducedBySkillAtPolicyStep(policy, 'shape', 'superpowers:brainstorming')).toEqual(['superpower-design', 'adr'])
+    expect(documentKindsProducedBySkillAtPolicyStep(policy, 'shape', 'tenon:brainstorming')).toEqual(['superpower-design', 'adr'])
+    expect(documentKindsProducedBySkillAtPolicyStep(policy, 'build', 'openspec-propose')).toEqual(['plan'])
+  })
+
+  it('本步没有它的产出槽、或步骤不在契约里 = 空表（仅凭调用即完成）', () => {
+    expect(documentKindsProducedBySkillAtPolicyStep(policy, 'shape', 'grilling')).toEqual([])
+    expect(documentKindsProducedBySkillAtPolicyStep(policy, 'nowhere', 'brainstorming')).toEqual([])
   })
 })

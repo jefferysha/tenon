@@ -7,7 +7,10 @@ import { dirname, join } from 'node:path'
 import {
   compileEffectiveWorkflowPlan,
   createStateStore,
+  documentKindsProducedBySkillAtPolicyStep,
+  documentRecordsInCurrentStepVisit,
   ensureDocumentLedger,
+  readDocumentLedger,
   recordDocument,
   recordDocumentReads,
   recordedDeltaSpecPaths,
@@ -20,6 +23,8 @@ import {
 } from './test-support.js'
 
 export const FIXED_CLOCK = '2026-07-07T00:00:00Z'
+/** 夹具替 producer 补登产物时写的 Skill 历史行标记（不是 hook 写的）。 */
+export const FIXTURE_HISTORY_TAG = 'integration-harness-bound-document'
 
 const GOVERNED_DESIGN = `# governed design
 
@@ -149,6 +154,61 @@ export async function seedGovernedDocumentEvidence(
       await rm(historyPath, { force: true })
     } else {
       await writeFile(historyPath, originalHistory, 'utf8')
+    }
+  }
+}
+
+/**
+ * 必需技能的产物要在本次步骤访问里登记（技能与产物绑定）。种好的台账锚在种它的那一次访问上，
+ * 跨过转换之后就不算数了；这里替当前步骤里契约点名的 producer 把它的文档在本次访问重新登记——
+ * 走的是真 confirmation + 真 recordDocument，与真实 `tenon document record` 同一条路。
+ *
+ * 只重登内容没变过的记录：用例故意改坏的文档保持 stale，被测命令照样看得见那个失败。
+ */
+export async function recordBoundDocumentsForCurrentVisit(
+  root: string,
+  changeDir: string,
+  name: string,
+  skills: readonly string[],
+): Promise<void> {
+  const policy = defaultDocumentPolicy()
+  const phase = String((await createStateStore().read(changeDir)).fields.phase)
+  const ledger = await readDocumentLedger(changeDir)
+  if (ledger === undefined) return
+  const visit = await documentRecordsInCurrentStepVisit(changeDir)
+  let sequence = 0
+  for (const skill of skills) {
+    for (const kind of documentKindsProducedBySkillAtPolicyStep(policy, phase, skill)) {
+      if (visit.some((record) => record.kind === kind)) continue
+      for (const existing of ledger.records.filter((record) => record.kind === kind)) {
+        let body: string
+        try {
+          body = await readFile(join(root, existing.path), 'utf8')
+        } catch {
+          continue
+        }
+        if (sha256Hex(body) !== existing.sha256) continue
+        sequence += 1
+        // 宿主 Skill 调用落的那一行（PostToolUse 的时间戳与 confirmation 逐字对齐）。带
+        // `fixture` 标记：数 hook 真实写入行数的用例据此把夹具行排除在外。
+        await appendFile(join(changeDir, '.pipeline-history.jsonl'), `${JSON.stringify({
+          ts: FIXED_CLOCK, kind: 'tool', raw: `Skill: ${skill}`, fixture: FIXTURE_HISTORY_TAG,
+        })}\n`, 'utf8')
+        const confirmed = await recordNativeDocumentSkillConfirmation(changeDir, skill, phase, {
+          sessionId: `integration-harness-${name}`,
+          toolUseId: `visit-${phase}-${kind}-${sequence}-${Date.now()}`,
+          observedAt: FIXED_CLOCK,
+        })
+        // 没有 canonical visit（旧格式 / 故意破坏的用例）就不替它登记：技能门照实拦下。
+        if (!confirmed) return
+        const next = await recordDocument({
+          repoRoot: root, changeDir, phase, policy, kind, path: existing.path, producer: skill, recordedAt: FIXED_CLOCK,
+        })
+        const canonicalRecord = [...next.records].reverse().find((candidate) =>
+          candidate.kind === kind && candidate.path === existing.path)
+        if (canonicalRecord === undefined) throw new Error(`fixture canonical record missing for ${existing.path}`)
+        await recordCanonicalDocumentSkillInvocation(changeDir, kind, FIXED_CLOCK, { record: canonicalRecord })
+      }
     }
   }
 }

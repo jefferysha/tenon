@@ -130,7 +130,7 @@ export async function buildStatusStep(
   // 出边报告与技能分块共用同一份完成证据；两处各算一遍就是 check/transition 分歧的来源。
   const report = await evaluateStepExitReport(deps, name, dir, state, plan)
   const completed = report.completedSkillIds
-  const skills = stepSkills(deps, plan, stepId, completed)
+  const skills = stepSkills(plan, stepId, report.skillSlots)
   const agents = await agentStepViews(deps, name, dir, state, plan, stepId)
   const testReport = await testEvidenceReaderFor(deps)({
     repoRoot: deps.cwd, changeDir: dir, changeName: name, plan, stepId,

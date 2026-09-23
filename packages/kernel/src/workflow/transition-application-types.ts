@@ -30,10 +30,15 @@ export interface TransitionApplicationDeps {
   clock: () => string
   history?: HistoryWriter
   breadcrumb?: BreadcrumbWriter
+  /**
+   * 本步未完成的必需技能（逐条可读文案）。`plan` 带着 document 契约：契约点名为 producer 的技能，
+   * 须在本次步骤访问里登记了它的文档才算完成，只调用不算。
+   */
   missingStepSkills?: (input: {
     readonly changeDir: string
     readonly stepId: string
     readonly capability: EffectiveWorkflowPlan['capabilities']['skills']
+    readonly plan: EffectiveWorkflowPlan
   }) => Promise<readonly string[]>
   /**
    * 离开步骤前的 agent 判定；只在前进出边上调用（退回边永不检查 agent）。

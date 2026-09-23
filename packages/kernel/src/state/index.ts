@@ -56,6 +56,10 @@ export type {
   DocumentLedger, DocumentReadReceipt, DocumentRecord, MigrateLegacyDeltaDocumentInput, ReadDocumentsInput,
 } from './document-ledger.js'
 export { currentDocumentStepVisitId } from './document-step-visit.js'
+export {
+  documentRecordsInCurrentStepVisit, judgeStepSkillSlots, missingStepSkillMessages, pendingSkillDocumentKinds,
+} from './skill-document-binding.js'
+export type { StepSkillSlotProgress } from './skill-document-binding.js'
 export { evaluateDocumentEvidence } from './document-evidence.js'
 export { decodeUtf8Text, readBoundedRegularFile, readBoundedFileHandle } from './document-path.js'
 export type {

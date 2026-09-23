@@ -14,7 +14,7 @@ import type { CliDeps } from '../deps.js'
 import { str } from '../render.js'
 import { phaseExitGuardContext } from './phaseExitGuard.js'
 import { stepAgentBlockersFor } from '../agentGate.js'
-import { completedStepSkillIds, missingStepSkillTokensFrom } from '../stepSkillGate.js'
+import { judgeStepSkills, missingStepSkillMessages, type StepSkillSlotProgress } from '../stepSkillGate.js'
 import { testEvidenceContextFor, testEvidenceReaderFor } from '../testEvidenceContext.js'
 import { resolveBuildRevisionAssessor } from './buildRevisionAssessor.js'
 
@@ -41,8 +41,10 @@ export interface StepExitReport {
   readonly reviewers: readonly StepBlocker[]
   /** 本步未满足的必需技能槽；transition 用同一份判定拒绝离开本步。 */
   readonly skills: readonly StepBlocker[]
-  /** 本次进入该步骤之后已完成的技能 id；status 的技能分块据此排 done/ready/waiting。 */
+  /** 本次进入该步骤之后已调用的技能 id（`tenon` 是否已加载从这里读）。 */
   readonly completedSkillIds: ReadonlySet<string>
+  /** 每个必需技能槽的完成度（调用 + 本步绑定的文档）；status 的技能分块据此排状态。 */
+  readonly skillSlots: readonly StepSkillSlotProgress[]
 }
 
 const IMPLICIT_COMPLETION_EVENT = 'archived'
@@ -141,11 +143,12 @@ export async function evaluateStepExitReport(
     context: testEvidenceContextFor(deps, name),
   })
   // 技能门对退回边同样生效（rejectOnStepGates 不分方向），所以它进 perExit 而非 shared。
-  const completedSkillIds = await completedStepSkillIds({
+  const judgement = await judgeStepSkills({
     deps, changeDir: dir, stepId, capability: plan.capabilities.skills, recordEvidence: false,
+    documentPolicy: plan.capabilities.documents.policy,
   })
-  const skills = missingStepSkillTokensFrom(deps, plan.capabilities.skills, stepId, completedSkillIds)
-    .map((token) => blocker('skill', 'skill-incomplete', `尚未完成声明的 skill：${token}`))
+  const skills = missingStepSkillMessages(judgement.slots)
+    .map((message) => blocker('skill', 'skill-incomplete', `尚未完成声明的 skill：${message}`))
   const agentBlockers = await stepAgentBlockersFor({ deps, name, dir, stepId, plan, state })
   const reviewers = agentBlockers.map((item) =>
     blocker('reviewer', item.kind, renderAgentBlocker(item, name)))
@@ -186,5 +189,8 @@ export async function evaluateStepExitReport(
       blockers,
     })
   }
-  return { exits, documents, tests: testReport.blockers, reviewers, skills, completedSkillIds }
+  return {
+    exits, documents, tests: testReport.blockers, reviewers, skills,
+    completedSkillIds: judgement.completedSkillIds, skillSlots: judgement.slots,
+  }
 }

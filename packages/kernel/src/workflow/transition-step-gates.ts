@@ -25,6 +25,7 @@ export async function rejectOnStepGates(input: {
       changeDir: input.changeDir,
       stepId: from,
       capability: plan.capabilities.skills,
+      plan,
     })
     if (missing.length > 0) return { kind: 'step-skills-incomplete', workflowName, stepId: from, missing }
   }

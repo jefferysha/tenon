@@ -12,7 +12,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import {
-  createBreadcrumbWriter, createTransitionRecordStore, createWorkflowRunRepository,
+  createBreadcrumbWriter, createHistoryWriter, createTransitionRecordStore, createWorkflowRunRepository,
   reviewGateBindingForState, writeReviewGateBindingUnderLock,
 } from '@tenon/kernel'
 import type { BreadcrumbWriter } from '@tenon/kernel'
@@ -139,12 +139,15 @@ steps:
       store,
       runRepo: createWorkflowRunRepository({ store, recordStore: createTransitionRecordStore(), clock: () => '2026-07-16T00:00:00Z' }),
       flow: testFlow(), clock: () => '2026-07-16T00:00:00Z',
+      // 生产 server 总会写 transition 历史；它是本次步骤访问的锚点，producer 的调用确认要挂在上面。
+      history: createHistoryWriter(),
     }
     await recordWorkflowPhaseSkill(root, changeDir)
     const entered = await performTransition({ ...depsBase }, root, name, 'open-complete')
     expect(entered.code).toBe(200)
     await store.set(changeDir, 'design_doc', `openspec/changes/${name}/design.md`)
-    await readGovernedDocumentsForCurrentVisit(root, changeDir)
+    // 本次访问的产物重登与读取回执要跟本用例的时钟对齐（visit 锚点就是这个时刻）。
+    await readGovernedDocumentsForCurrentVisit(root, changeDir, '2026-07-16T00:00:00Z')
     await recordWorkflowPhaseSkill(root, changeDir)
     await store.setMany(changeDir, {
       review_gate_phase: 'explore', review_gate_status: 'approved', review_gate_event: 'explore-complete',

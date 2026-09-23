@@ -111,6 +111,29 @@ export function outputsRequiredForPolicyStep(
   return policy.outputsByStep[step] ?? []
 }
 
+/**
+ * 技能 → 本步它要产出的文档：本步 role produce 槽里 producers 点名了它（按别名等价）的那些 kind。
+ *
+ * 这是必需技能「做完」的第二半：契约说它在这一步产出文档，那么只调用、不登记不算完成。绑定从
+ * workflow 自己的 document_contract 推出，不另立名单，所以自定义 workflow 适用同一条规则。
+ * `role: update` 是「本步可以改」、`role: require` 没有 producer，都不构成绑定；空表 = 本步没有
+ * 可绑定的产物，仍以调用为准。
+ */
+export function documentKindsProducedBySkillAtPolicyStep(
+  policy: DocumentGovernancePolicy,
+  step: string,
+  skill: string,
+): readonly DocumentKind[] {
+  const supplied = new Set(aliasesForSkill(skill))
+  const kinds: DocumentKind[] = []
+  for (const requirement of outputsRequiredForPolicyStep(policy, step)) {
+    const named = requirement.producerCandidates.some((candidate) =>
+      aliasesForSkill(candidate).some((alias) => supplied.has(alias)))
+    if (named && !kinds.includes(requirement.kind)) kinds.push(requirement.kind)
+  }
+  return kinds
+}
+
 export function readsRequiredForPolicyStep(
   policy: DocumentGovernancePolicy,
   step: string,
