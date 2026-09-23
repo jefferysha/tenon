@@ -81,6 +81,8 @@ describe('库页 · 模板', () => {
     await user.click(await screen.findByTestId('lib-tpl-builtin-backend-go'))
     expect(await screen.findByTestId('lib-tpl-copy')).toBeEnabled()
     expect(screen.getByTestId('lib-tpl-source')).toHaveTextContent('内建')
+    // 头部是 grid：徽标必须是内容宽度，不能被拉满整行。
+    expect(screen.getByTestId('lib-tpl-source').className.split(' ')).toContain('justify-self-start')
     expect(screen.queryByTestId('lib-tpl-save')).toBeNull()
     expect(screen.queryByTestId('lib-tpl-delete')).toBeNull()
     expect(within(screen.getByTestId('lib-tpl-var-app')).getAllByText('app').length).toBeGreaterThan(0)

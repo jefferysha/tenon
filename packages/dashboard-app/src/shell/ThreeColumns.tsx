@@ -339,7 +339,7 @@ export function DetailEmpty({ title, desc, testId }: { title: string; desc: stri
   )
 }
 
-/** 模板的状态 pill：圆点 + 文字 + 浅底。 */
+/** 模板的状态 pill：圆点 + 文字 + 浅底。justify-self-start：放进 grid 头部时是内容宽度，不被拉满整行。 */
 export type PillTone = 'pending' | 'running' | 'done' | 'blocked' | 'neutral'
 const PILL_TONE: Record<PillTone, string> = {
   pending: 'bg-amber-t text-amber-d [&>i]:bg-(--amber-d)',
@@ -351,7 +351,7 @@ const PILL_TONE: Record<PillTone, string> = {
 export function StatusPill({ tone, children, testId, title, className }: { tone: PillTone; children: ReactNode; testId?: string; title?: string; className?: string }): JSX.Element {
   return (
     <span
-      className={cn('inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-caption font-semibold', PILL_TONE[tone], className)}
+      className={cn('inline-flex max-w-full items-center gap-1.5 justify-self-start whitespace-nowrap rounded-full px-2.5 py-1 text-caption font-semibold', PILL_TONE[tone], className)}
       data-tone={tone}
       data-testid={testId}
       title={title}

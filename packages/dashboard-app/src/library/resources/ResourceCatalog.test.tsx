@@ -127,6 +127,9 @@ describe('资源目录', () => {
     const user = userEvent.setup()
     stubFetch()
     renderCatalog()
+    // 资源目录与模板 / 智能体同一个词：内建。
+    expect(await screen.findByTestId('res-row-react-bits')).toHaveTextContent('内建')
+    expect(screen.getByTestId('res-row-react-bits')).not.toHaveTextContent('内置')
     await user.click(await screen.findByTestId('res-row-react-bits'))
     expect(await screen.findByTestId('res-license-pill')).toHaveTextContent('仅链接')
     expect(within(screen.getByTestId('res-notice')).getByText('不得出售或再分发组件本身')).toBeInTheDocument()

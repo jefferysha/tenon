@@ -216,7 +216,7 @@ export const zh: Dict = {
     },
     license_mode: { redistributable: '可再分发', link_only: '仅链接', attribution: '需署名' },
     commercial: { free: '免费', freemium: '部分收费', paid: '收费' },
-    source: { builtin: '内置', custom: '自定义' },
+    source: { builtin: '内建', custom: '自定义' },
     section: {
       license: '许可', install: '安装', links: '链接', skills: '技能', frameworks: '框架',
       styling: '样式', use: '场景', verified: '核验',
@@ -228,7 +228,7 @@ export const zh: Dict = {
     },
     errors: {
       invalid: '资源内容不合法',
-      builtin_readonly: '内置资源只读',
+      builtin_readonly: '内建资源只读',
       conflict: '资源已在磁盘上被修改',
       not_found: '资源不存在',
       duplicate: '同名资源已存在',
