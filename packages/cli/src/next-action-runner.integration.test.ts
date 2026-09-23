@@ -144,6 +144,7 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
     }
     case 'set-field': {
       const value = (action.recommended as string | null)
+        ?? (action.required as readonly string[] | null)?.[0]
         ?? (action.allowed as readonly string[] | null)?.[0]
         ?? FREEFORM[String(action.field)]
       expect(value, `set-field 必须给出可填的值：${JSON.stringify(action)}`).toBeDefined()

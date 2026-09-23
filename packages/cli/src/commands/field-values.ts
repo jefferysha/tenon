@@ -21,7 +21,8 @@ export const REVIEW_GATE_FIELDS = new Set<FieldName>([
  * 当成「完结要填的值」写成了 archived=true / archived_at=null 的半盖章终态）。
  */
 export const TRANSITION_MANAGED_FIELDS: ReadonlySet<string> = new Set<string>([
-  'phase', 'created_by', 'assignee', 'archived', 'archived_at', 'build_sha', ...REVIEW_GATE_FIELDS,
+  'phase', 'phase_status', 'updated_at', 'verified_at',
+  'created_by', 'assignee', 'archived', 'archived_at', 'build_sha', ...REVIEW_GATE_FIELDS,
 ])
 
 const STATIC_ENUMS: Partial<Record<FieldName, readonly string[]>> = {
@@ -46,22 +47,31 @@ export const STEP_FIELD_ENUMS: Readonly<Record<string, readonly string[] | undef
 /**
  * 推荐值：原先写在阶段 skill 的散文里（「默认 direct」「默认 in-place」），现在与枚举同处一地。
  * 持续 / AFK 模式直接取推荐值，人工模式把它排在第一位。
+ *
+ * 两类字段没有推荐值：
+ *   · 结论字段（pre_verify_review_result / verify_result）——推荐一个 pass 等于让模型自批；
+ *     它们的写入由 verdictFieldGate 按本步证据核对，投影只说出口要哪个值（`required`）。
+ *   · 风险确认（direct_override）——它是 full + direct 这一组合的显式豁免；推荐 direct 再推荐
+ *     豁免 true 是自相矛盾，也等于替人签了风险确认。所以 build_mode 的推荐值取「无需豁免」的那个。
  */
 const STATIC_RECOMMENDED: Readonly<Record<string, string>> = {
   preset: 'full',
-  build_mode: 'direct',
   isolation: 'in-place',
-  pre_verify_review_result: 'pass',
   branch_status: 'handled',
 }
 
+/**
+ * build_mode：full 预设下 `direct` 需要 `direct_override=true` 的风险确认，推荐值因此取不需要
+ * 确认的那个——pm 轨是原型（`prototype`），其余轨是 `subagent-driven-development`（原
+ * tenon-build 的默认推荐）；hotfix / tweak 预设下 `direct` 本来就不需要确认。
+ */
+function recommendedBuildMode(state: PipelineState): string {
+  if (scalarField(state, 'preset') !== 'full') return 'direct'
+  return scalarField(state, 'track') === 'pm' ? 'prototype' : 'subagent-driven-development'
+}
+
 export function RECOMMENDED(field: string, state: PipelineState): string | undefined {
-  // direct_override 只在 full + direct 这一种组合下才该是 true，别的组合没有推荐值。
-  if (field === 'direct_override') {
-    return scalarField(state, 'preset') === 'full' && scalarField(state, 'build_mode') === 'direct'
-      ? 'true'
-      : undefined
-  }
+  if (field === 'build_mode') return recommendedBuildMode(state)
   return STATIC_RECOMMENDED[field]
 }
 

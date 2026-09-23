@@ -85,9 +85,10 @@ describe('真实 e2e —— advance auto-transition 中间档（HITL 红线：�
     await h.run([
       'set-many', name,
       'build_mode=direct', 'isolation=worktree', 'direct_override=true',
-      'pre_verify_review_result=pass',
     ])
     await armStepTests(name, 'build')
+    // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+    expect(await h.run(['set', name, 'pre_verify_review_result', 'pass']), h.err.join('\n')).toBe(0)
   }
 
   /** 让 verify 出口 guard + verify-pass 事件前置真通过（backend：双 review pass + 报告 + branch_status） */

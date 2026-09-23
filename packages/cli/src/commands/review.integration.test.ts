@@ -91,8 +91,10 @@ describe('真实 e2e —— review exit receipt（default workflow）', () => {
         await h2.run(['review', 'acknowledge', 'reviewed'])
         expect(await h2.run(['transition', 'reviewed', event]), h2.err.join('\n')).toBe(0)
       }
-      await h2.run(['set-many', 'reviewed', 'build_mode=direct', 'isolation=worktree', 'direct_override=true', 'pre_verify_review_result=pass'])
+      await h2.run(['set-many', 'reviewed', 'build_mode=direct', 'isolation=worktree', 'direct_override=true'])
       await h2.satisfyStepTests('reviewed', 'build')
+      // pre-Verify 结论只能在本步就绪证据（必需测试）齐全之后写入。
+      expect(await h2.run(['set', 'reviewed', 'pre_verify_review_result', 'pass']), h2.err.join('\n')).toBe(0)
       expect(await h2.run(['transition', 'reviewed', 'build-complete']), h2.err.join('\n')).toBe(0)
       await h2.seedArtifact('reviewed', 'verification_report', 'docs/superpowers/reports/reviewed.md')
       await h2.run(['set-many', 'reviewed', 'branch_status=handled'])

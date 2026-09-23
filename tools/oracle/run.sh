@@ -610,6 +610,11 @@ bootstrap_new_pre_verify_review() {
       --producer tenon || return 1
     run_new_cli "$dir" document read "$change" all || return 1
   fi
+  # The pass verdict is evidence-bound: `set pre_verify_review_result pass` is refused until the
+  # step's required tests and agents hold on the current candidate. Produce that evidence first,
+  # exactly as the later bootstraps do (both are idempotent for an already-satisfied step).
+  bootstrap_new_test_evidence "$dir" "$change" || return 1
+  bootstrap_new_step_agents "$dir" "$change" || return 1
   run_new_cli "$dir" set "$change" pre_verify_review_result pass
 }
 

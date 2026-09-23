@@ -297,7 +297,7 @@ describe('step.next 顺序', () => {
     })
     expect(actions({ fields: [outcome], tests: [test_('unit', 'not-run')] })).toEqual(['run-test'])
     expect(stepNextActions(input({ fields: [outcome] }))).toEqual([
-      { action: 'set-field', field: 'branch_status', allowed: ['handled'], recommended: 'handled' },
+      { action: 'set-field', field: 'branch_status', allowed: ['handled'], required: null, recommended: 'handled' },
     ])
   })
 
@@ -324,7 +324,7 @@ describe('step.next 顺序', () => {
       artifactProducers: ['hue'],
     }))).toEqual([
       { action: 'register-field', field: 'design_doc', producers: ['hue'] },
-      { action: 'set-field', field: 'build_mode', allowed: ['direct'], recommended: 'direct' },
+      { action: 'set-field', field: 'build_mode', allowed: ['direct'], required: null, recommended: 'direct' },
     ])
   })
 

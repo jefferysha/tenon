@@ -78,6 +78,8 @@ function writeFieldActions(
           action: 'set-field',
           field: field.field,
           allowed: field.allowed,
+          // 出口只接受的值（guard 点名）；结论字段没有推荐值，只有这一项——写入时 CLI 核对证据。
+          required: field.required,
           recommended: field.recommended,
         })
   }
