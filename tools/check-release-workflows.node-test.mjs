@@ -803,6 +803,23 @@ test('CI and release candidate accept only the documented N-1 skip exit and neve
   }
 })
 
+test('the pinned N-1 gate exercises both state directions and both skill-lock orders with the real CLIs', async () => {
+  const [bundle, fixture] = await Promise.all([text('tools/test-bundle.sh'), text('tools/fixtures/n-minus-one-release.json')])
+  const meta = JSON.parse(fixture)
+  if (meta.status === 'pinned') {
+    assert.ok(Array.isArray(meta.payloadEntries) && meta.payloadEntries.includes('skills') && meta.payloadEntries.includes('templates'))
+  }
+  // Each order pairs one CLI's writer with the other CLI's verifier over the same root.
+  assert.match(bundle, /writer="\$BUNDLE"; reader="\$N_MINUS_CLI"/)
+  assert.match(bundle, /writer="\$N_MINUS_CLI"; reader="\$BUNDLE"/)
+  assert.match(bundle, /lock_cli "\$writer" internal-skill-upstream fetch --root "\$lock_root"/)
+  assert.match(bundle, /lock_cli "\$reader" internal-skill-provenance verify --root "\$lock_root"/)
+  assert.match(bundle, /node "\$N_MINUS_CLI" get t8-smoke phase/)
+  assert.match(bundle, /node "\$N_MINUS_CLI" set t8-smoke scope n1-after-current/)
+  // The retired 1.x CLI had `init --user`; 0.x does not, and the gate must never pass it again.
+  assert.doesNotMatch(bundle, /N_MINUS_CLI" init [^\n]*--user/)
+})
+
 const N_MINUS_ONE_ENTRIES = ['.claude-plugin/plugin.json', '.codex-plugin/plugin.json', 'packages/cli/dist/tenon.mjs']
 
 function fixtureGit(cwd, ...args) {
