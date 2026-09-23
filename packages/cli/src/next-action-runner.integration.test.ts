@@ -277,6 +277,14 @@ describe('照着 next 做事的运行器：open → 完结', () => {
       && action.action === 'load-skill' && action.skill === 'brainstorming')).toHaveLength(1)
     // D4：build 从头到尾没被要求手填 build_sha——它由 build 出口的转换冻结。
     expect(actions.filter(({ action }) => action.action === 'set-field' && action.field === 'build_sha')).toEqual([])
+    // D16：采纳推荐的 build_mode 之后不再要求风险豁免 direct_override。
+    expect(actions.filter(({ action }) => action.action === 'set-field' && action.field === 'direct_override')).toEqual([])
+    // 结论字段没有推荐值，只给出口要的值；它排在本步必需测试之后（写入时 CLI 核对这份证据）。
+    const verdict = actions.findIndex(({ action }) =>
+      action.action === 'set-field' && action.field === 'pre_verify_review_result')
+    expect(actions[verdict]?.action).toMatchObject({ recommended: null, required: ['pass'] })
+    expect(actions.findIndex(({ step, action }) => step === 'build' && action.action === 'run-test'))
+      .toBeLessThan(verdict)
   })
 
   /**
