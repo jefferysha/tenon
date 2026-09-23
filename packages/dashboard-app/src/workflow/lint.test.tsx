@@ -99,10 +99,17 @@ describe('lint · 严重度与文档契约', () => {
   })
   const lint = (def: WbWorkflowDef): LintIssue[] => lintWorkflow(def, draftEffectiveIo(def))
 
-  it('缺输出是警告（不挡保存）；转移问题是错误', () => {
-    const issues = lint({ name: 'mine', steps: [stage('a', [{ event: '', to: 'b' }]), stage('b')] })
+  it('开启 OpenSpec 时缺输出是警告（不挡保存）；转移问题是错误', () => {
+    const issues = lint({ name: 'mine', openspec: true, steps: [stage('a', [{ event: '', to: 'b' }]), stage('b')] })
     expect(issues.filter((issue) => issue.kind === 'step-no-output').map((issue) => issue.severity)).toEqual(['warning', 'warning'])
     expect(issues.find((issue) => issue.kind === 'transition-empty-event')?.severity).toBe('error')
+  })
+
+  // 关闭 OpenSpec 的工作流在页面上加不了输出，这条警告无从消除，不该出现。
+  it('未开启 OpenSpec 时不报缺输出', () => {
+    const issues = lint({ name: 'mine', steps: [stage('a', [{ event: 'a-complete', to: 'b' }]), stage('b')] })
+    expect(issues.some((issue) => issue.kind === 'step-no-output')).toBe(false)
+    expect(lint({ name: 'mine', openspec: false, steps: [stage('a')] }).some((issue) => issue.kind === 'step-no-output')).toBe(false)
   })
 
   it('producer 不在阶段技能里：自定义是错误、default 是警告；read 在产出之前是错误；成对文档缺一是警告', () => {

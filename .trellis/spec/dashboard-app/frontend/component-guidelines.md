@@ -114,8 +114,9 @@ last one. Anything that needs its own surface opens the shared right-side `share
   underline `tablist` (`wb-track-<id>`, `label ?? id`) with a trailing `+` (`wb-track-new`); a workflow without
   tracks shows a single `+ 新建轨道` link instead. Below: the stage flow — numbered circle (drag handle,
   `@dnd-kit/sortable`, `useFlipLayout`) + a 40px block (`wb-step-<id>`) that contains **only the stage name and the
-  gate icon** (`wb-gate-<id>`: review = shield, auto = bolt; no text). A stage without outputs shows an amber dot
-  (`wb-lint-<id>`). Rows are on a fixed pitch (`STEP_PITCH` 54 / `STEP_HEIGHT` 40) so back edges are drawn from
+  gate icon** (`wb-gate-<id>`: review = shield, auto = bolt; no text). In an OpenSpec workflow a stage without outputs
+  shows an amber dot (`wb-lint-<id>`); without OpenSpec no output can be added from the page, so `step-no-output` is
+  not reported there. Rows are on a fixed pitch (`STEP_PITCH` 54 / `STEP_HEIGHT` 40) so back edges are drawn from
   indices, not measured DOM: `backEdgePath(fromIndex, toIndex)` → dashed arc in a 22px SVG gutter right of the blocks
   (`wb-back-edge-<from>-<to>`). Last row: `wb-add-stage`. No skill chips, no cards, no canvas here.
 - **Stage pane (`StageEditorPane`).** Breadcrumb `wb-crumbs` (workflow › track), then the stage name as an editable

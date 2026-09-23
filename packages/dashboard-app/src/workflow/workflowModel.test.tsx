@@ -47,9 +47,12 @@ describe('lint / draftEffectiveIo / slotCatalog', () => {
     expect(io.a?.outputs).toEqual([{ kind: 'field', id: 'design_doc', type: 'file_path', producer: null, consumers: ['b'] }])
     expect(io.b?.inputs).toEqual([{ kind: 'field', id: 'design_doc', type: 'file_path', producer: 'a', consumers: [] }])
   })
-  it('lint：无输出阶段是警告，无上游的输入是错误', () => {
-    expect(lintWorkflow(DEF, io)).toEqual([
+  it('lint：开启 OpenSpec 时无输出阶段是警告，无上游的输入是错误', () => {
+    expect(lintWorkflow({ ...DEF, openspec: true }, io)).toEqual([
       { kind: 'step-no-output', stepId: 'c', severity: 'warning' },
+      { kind: 'input-not-upstream', stepId: 'c', field: 'plan', severity: 'error' },
+    ])
+    expect(lintWorkflow(DEF, io)).toEqual([
       { kind: 'input-not-upstream', stepId: 'c', field: 'plan', severity: 'error' },
     ])
   })
