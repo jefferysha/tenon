@@ -66,6 +66,23 @@ install_text="$(awk '/^run_release_verification\(\) \{/{inside=1} inside{print} 
 **Prevention**: every structural assertion anchors on a function name, marker comment or unique literal, never on a line
 number; when the anchor itself must exist, assert that first so a rename fails with the reason instead of an empty slice.
 
+### Common Mistake: quadratic string handling on hook input
+
+**Symptom**: every PostToolUse hook is reported as `hook_cancelled` after a long heredoc command or a command with a
+large output. Measured on macOS `/bin/bash` 3.2 (the shell the stable bootstrap spawns): a 21 KB heredoc took 67 s in
+test-nudge, 18 s in skill-tracker; a 1.3 MB tool output took ~15 s in gate/test-nudge. The host limit is 5 s.
+
+**Cause**: per-character loops that copy the rest of the buffer (`rest="${rest:1}"`), `while … "${s//  / }"` collapse
+loops, repeated `value+=` on a growing string, and — on bash 3.2 — any `${var//pattern/repl}` with many matches.
+
+**Fix**: split with `read -r -d '' -a` (one linear pass per delimiter) and join arrays once; take a no-escape fast path
+(`${rest%%\"*}`) before any split; never append empty strings to an array you later join with `${arr[*]}` (bash 3.2
+leaks its `\177` null marker). Prefilter the raw payload before decoding (skill evidence needs `SKILL.md`), and let
+consumers that only act on short commands use `pipeline_json_get_command_bounded` (over-long = not allowlisted).
+
+**Prevention**: `tools/test-hooks.sh` feeds a 166 KB heredoc and a 1.3 MB output to every PostToolUse hook and gate and
+requires each to finish within 3 s.
+
 ## Review and automation decisions
 
 The terminal is the only model-interaction surface. CLI review acknowledgement
@@ -159,6 +176,9 @@ pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | c
   (namespace after the last `:` stripped). Matched skills already confirmed are dropped; if none remain the hook
   exits 0 without writing the marker. A new visit to the step (another transition into it) asks again.
 - Pure bash on this hot path: no node, no jq. Missing state/phase keeps the gate (fail closed).
+- While any marker is pending, `gate.sh` passes `AskUserQuestion`, `request_user_input` and `ToolSearch` (Claude Code
+  defers AskUserQuestion behind ToolSearch; blocking the loader deadlocks the question) plus read-only tools; the block
+  message tells the model to load the question tool with `ToolSearch` `select:AskUserQuestion`.
 - `gate.sh` block message names the unlock reply: `没有提问工具时，用户回复「确认继续」（或「继续执行」「同意继续」）即解封，
   带条件或不含这些词的回复不会解封`.
 
