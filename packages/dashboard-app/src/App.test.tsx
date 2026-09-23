@@ -1129,6 +1129,39 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
 })
 
 
+describe('App 首个快照未到', () => {
+  it.each(['progress', 'projects'])('?view=%s：先显示加载中，不显示空态；快照到达后渲染视图', async (view) => {
+    window.history.replaceState({}, '', `/?view=${view}&root=%2Frepo`)
+    let resolveSnapshot: (value: unknown) => void = () => undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') {
+        return new Promise((resolve) => { resolveSnapshot = resolve })
+      }
+      if (url.startsWith('/api/instructions?')) {
+        return { ok: true, json: async () => ({ ok: true, level: 'project', root: '/repo', hosts: [], targets: [] }) }
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+
+    render(<App />)
+
+    const loading = await screen.findByTestId('snapshot-loading')
+    expect(loading).toHaveAttribute('role', 'status')
+    expect(loading).toHaveTextContent('加载中')
+    expect(screen.queryByText('还没有已登记的项目。')).toBeNull()
+    expect(screen.queryByTestId('task-list-empty-no-project')).toBeNull()
+    expect(screen.queryByTestId('task-list-empty-no-task')).toBeNull()
+    expect(screen.queryByTestId(view === 'progress' ? 'workspace-view' : 'projects-view')).toBeNull()
+
+    await act(async () => {
+      resolveSnapshot({ ok: true, json: async () => makeSnapshot([makeProject('/repo', [makeChange('seed-c', 'build')])]) })
+    })
+
+    expect(await screen.findByTestId(view === 'progress' ? 'workspace-view' : 'projects-view', {}, { timeout: 5_000 })).toBeInTheDocument()
+    expect(screen.queryByTestId('snapshot-loading')).toBeNull()
+  })
+})
+
 describe('App 初始 snapshot 错误恢复', () => {
   it('English 500 error never exposes the Chinese snapshot transport fallback', async () => {
     localStorage.setItem('tenon-dashboard-lang', 'en')
@@ -1908,6 +1941,24 @@ describe('App 断线横幅 + 重连（评审 P2-13，Task 5）', () => {
     const banner = await screen.findByTestId('offline-banner')
     expect(banner).toHaveAttribute('role', 'status')
     expect(banner.textContent).toContain('连接断开')
+  })
+
+  // 回归：横幅挤在页头与三列之间却不被三列高度扣除，页面多出一截可滚动高度，横幅被卷到 sticky 页头下只剩一条粉边。
+  it('断线时外壳标记 data-offline，横幅占固定一行并贴在页头下，三列页高度扣掉这一行', async () => {
+    render(<App />)
+    await screen.findByTestId('workspace-view')
+    expect(screen.getByTestId('app-shell')).toHaveAttribute('data-offline', 'false')
+    act(() => {
+      lastEventSource()!.emit('error', '')
+    })
+    const banner = await screen.findByTestId('offline-banner')
+    expect(screen.getByTestId('app-shell')).toHaveAttribute('data-offline', 'true')
+    const classes = banner.className.split(/\s+/u)
+    expect(classes).toEqual(expect.arrayContaining(['sticky', 'top-(--topbar-h)', 'h-(--offline-banner-h)']))
+    // 横幅在页头之后、主内容之前。
+    expect(banner.previousElementSibling?.tagName).toBe('HEADER')
+    expect(screen.getByTestId('workspace-view').className).toContain('var(--banner-h)')
+    expect(screen.getByTestId('offline-reconnect')).toBeVisible()
   })
 
   it('点「重连」：新发起一次 GET /api/snapshot + 重建一条新 SSE 订阅（不复用失效的旧连接）', async () => {

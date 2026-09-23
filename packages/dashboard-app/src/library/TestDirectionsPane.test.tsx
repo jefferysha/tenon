@@ -54,6 +54,10 @@ describe('TestDirectionsPane', () => {
     expect(screen.queryByTestId('lib-dir-save')).toBeNull()
     expect(screen.queryByTestId('lib-dir-delete-unit')).toBeNull()
     expect(screen.getByTestId('lib-dir-detail').textContent).toContain('npm test')
+    // 详情头部与其它详情面板一致：名称、标识、来源。
+    expect(screen.getByTestId('lib-dir-title')).toHaveTextContent('单测')
+    expect(screen.getByTestId('lib-dir-id')).toHaveTextContent('unit')
+    expect(screen.getByTestId('lib-dir-source')).toHaveTextContent('内建')
   })
 
   it('复制内建写成 <id>-copy；自定义可保存与删除', async () => {
@@ -68,6 +72,9 @@ describe('TestDirectionsPane', () => {
     await userEvent.click(screen.getByTestId('lib-dir-save'))
     await waitFor(() => expect(calls.some(([method, url]) => method === 'PUT' && url.endsWith('/mine'))).toBe(true))
     await userEvent.click(screen.getByTestId('lib-dir-delete-mine'))
+    expect(await screen.findByTestId('lib-delete-dialog')).toBeInTheDocument()
+    expect(calls.some(([method]) => method === 'DELETE')).toBe(false)
+    await userEvent.click(screen.getByTestId('lib-delete-confirm'))
     await waitFor(() => expect(calls.some(([method, url]) => method === 'DELETE' && url.endsWith('/mine'))).toBe(true))
   })
 

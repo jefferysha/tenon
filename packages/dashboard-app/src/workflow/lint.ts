@@ -101,7 +101,7 @@ function testIssues(def: WbWorkflowDef): LintIssue[] {
 
 /**
  * 编辑器保存前校验（kernel 校验之外的产品规则）：
- *   · 阶段没有输出是警告（运行时可以发现输出，不挡保存）；
+ *   · 开启 OpenSpec 时阶段没有输出是警告（不挡保存）；未开启时页面上根本加不了输出，不报这条无法消除的警告；
  *   · 字段输入必须由更早阶段声明为输出；
  *   · 转移的事件名非空且在本阶段内唯一——引擎按事件名分派，重名无法判定走哪条；
  *   · 每条转移要么是去下一阶段的唯一一条，要么退回更早的阶段；
@@ -121,7 +121,7 @@ export function lintWorkflow(
     const next = def.steps[index + 1]
     const earlier = new Set(def.steps.slice(0, index).map((candidate) => candidate.id))
     const outputs = io?.[step.id]?.outputs.length ?? step.outputs.length
-    if (outputs === 0) issues.push({ kind: 'step-no-output', stepId: step.id, severity: 'warning' })
+    if (outputs === 0 && def.openspec === true) issues.push({ kind: 'step-no-output', stepId: step.id, severity: 'warning' })
     for (const input of step.inputs) {
       const upstream = def.steps.slice(0, index)
       if (!upstream.some((candidate) => candidate.outputs.some((output) => output.field === input.field))) {

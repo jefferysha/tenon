@@ -109,6 +109,9 @@ export function TaskActionDialog({ root, change, action, onClose, onDone }: Task
         </>
       )}
     >
+      <p className="mb-3 text-body text-text-2" data-testid="task-action-effect">
+        {t(action === 'delete' ? 'workspace.dialog_delete_effect' : 'workspace.dialog_archive_effect')}
+      </p>
       {load.kind === 'error' && (
         <p className="text-body text-red-d" role="alert" data-testid="task-action-error">{load.text}</p>
       )}

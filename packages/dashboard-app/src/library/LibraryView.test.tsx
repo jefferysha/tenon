@@ -43,8 +43,8 @@ function stubFetch(over: { templates?: unknown[]; onWrite?: (call: Calls) => unk
   return calls
 }
 
-function renderLibrary() {
-  render(<I18nProvider><LibraryView /></I18nProvider>)
+function renderLibrary(onToast?: (message: string) => void) {
+  render(<I18nProvider><LibraryView onToast={onToast} /></I18nProvider>)
 }
 
 beforeEach(() => {
@@ -81,6 +81,8 @@ describe('库页 · 模板', () => {
     await user.click(await screen.findByTestId('lib-tpl-builtin-backend-go'))
     expect(await screen.findByTestId('lib-tpl-copy')).toBeEnabled()
     expect(screen.getByTestId('lib-tpl-source')).toHaveTextContent('内建')
+    // 头部是 grid：徽标必须是内容宽度，不能被拉满整行。
+    expect(screen.getByTestId('lib-tpl-source').className.split(' ')).toContain('justify-self-start')
     expect(screen.queryByTestId('lib-tpl-save')).toBeNull()
     expect(screen.queryByTestId('lib-tpl-delete')).toBeNull()
     expect(within(screen.getByTestId('lib-tpl-var-app')).getAllByText('app').length).toBeGreaterThan(0)
@@ -90,7 +92,8 @@ describe('库页 · 模板', () => {
   it('自定义模板可编辑：保存带 If-Match 摘要', async () => {
     const user = userEvent.setup()
     const calls = stubFetch()
-    renderLibrary()
+    const onToast = vi.fn()
+    renderLibrary(onToast)
     await user.click(await screen.findByTestId('lib-tpl-custom-backend-mine'))
     await user.click(await screen.findByTestId('lib-tpl-tab-edit'))
     const editor = await screen.findByTestId('lib-tpl-editor')
@@ -102,6 +105,8 @@ describe('库页 · 模板', () => {
       expect((put?.init?.headers as Record<string, string>)['If-Match']).toBe('sha256:mine')
       expect((put?.init?.headers as Record<string, string>)['Content-Type']).toContain('text/markdown')
     })
+    // 提示气泡说结果（已保存），不是按钮上的动作名（保存）。
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已保存'))
   })
 
   it('复制内建模板 → POST copy，列表刷新后含新行', async () => {
@@ -145,6 +150,14 @@ describe('库页 · 模板', () => {
     renderLibrary()
     await user.click(await screen.findByTestId('lib-tpl-custom-backend-mine'))
     await user.click(await screen.findByTestId('lib-tpl-delete'))
+    // 删除先确认：取消不发请求，确认后才 DELETE。
+    const dialog = await screen.findByTestId('lib-delete-dialog')
+    expect(within(dialog).getByText('删除「我的后端」')).toBeInTheDocument()
+    await user.click(screen.getByTestId('lib-delete-cancel'))
+    expect(screen.queryByTestId('lib-delete-dialog')).toBeNull()
+    expect(calls.some((call) => call.init?.method === 'DELETE')).toBe(false)
+    await user.click(screen.getByTestId('lib-tpl-delete'))
+    await user.click(await screen.findByTestId('lib-delete-confirm'))
     await waitFor(() => {
       const del = calls.find((call) => call.init?.method === 'DELETE')
       expect(del?.url).toBe('/api/instruction-templates/custom/backend/mine?digest=sha256%3Amine')
@@ -155,8 +168,11 @@ describe('库页 · 模板', () => {
   it('新建模板：分类 + 标识，保存为 custom', async () => {
     const user = userEvent.setup()
     const calls = stubFetch()
-    renderLibrary()
+    const onToast = vi.fn()
+    renderLibrary(onToast)
     await user.click(await screen.findByTestId('lib-tpl-new'))
+    // 分类是下拉框：去掉原生外观后要有自己的箭头，不能看起来像文本框。
+    expect(screen.getByTestId('lib-tpl-new-category-arrow')).toBeInTheDocument()
     await user.selectOptions(screen.getByTestId('lib-tpl-new-category'), 'backend')
     await user.type(screen.getByTestId('lib-tpl-new-id'), 'team-go')
     await user.click(screen.getByTestId('lib-tpl-new-confirm'))
@@ -166,6 +182,7 @@ describe('库页 · 模板', () => {
       expect((put?.init?.headers as Record<string, string>)['If-Match']).toBe('absent')
       expect(String(put?.init?.body)).toContain('id: team-go')
     })
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已新建模板 team-go'))
   })
 
   it('server 返回错误码时按码显示本地文案，并给出重新载入', async () => {
@@ -193,6 +210,8 @@ describe('库页 · 模板', () => {
     expect(await screen.findByTestId('lib-tpl-errors-mine')).toHaveTextContent('1')
     await user.click(screen.getByTestId('lib-tpl-custom-backend-mine'))
     await waitFor(() => expect(screen.getByTestId('lib-tpl-preview')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('lib-tpl-preview')).toHaveTextContent('后端（我的后端）'))
+    expect(screen.getByTestId('lib-tpl-preview')).not.toHaveTextContent('category: backend')
   })
 
   it('无 token 时写操作全部禁用', async () => {

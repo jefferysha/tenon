@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { GripVertical, Plus, Search } from 'lucide-react'
 import type { AgentSummary } from '../api/agentClient'
 import type { WbAgentSeverity, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepTest } from '../api/governanceTypes'
@@ -37,13 +37,18 @@ export function AgentComposer({
   const [selected, setSelected] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [dragging, setDragging] = useState<string | null>(null)
+  // 草稿只在打开（或切换角色）的那一刻取自 props。父组件每次重渲染都会传来新的数组引用，
+  // 若把 executors / reviewers 放进依赖，编辑中的草稿会被反复清空：加上的评审者存不下来，「+」也像点不动。
+  const initial = useRef({ executors, reviewers })
+  initial.current = { executors, reviewers }
   useEffect(() => {
     if (!open) return
-    const refs = reviewing ? reviewers : executors
+    const current = initial.current
+    const refs = reviewing ? current.reviewers : current.executors
     setDraft(refsToSkills(refs))
-    setSettings([...reviewers])
+    setSettings([...current.reviewers])
     setSelected(refs[0]?.agent ?? null)
-  }, [open, reviewing, executors, reviewers])
+  }, [open, reviewing])
   const registry = useMemo(() => agentEntries(agents), [agents])
   const placed = useMemo(() => new Set(draft.map((ref) => ref.id)), [draft])
   const listed = useMemo(() => (agents ?? [])
@@ -86,11 +91,11 @@ export function AgentComposer({
         <section className="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-bg p-2" data-testid="agent-palette" aria-label={t('library.agents')}>
           <label className="flex h-9 flex-none items-center gap-2 rounded-md border border-border bg-card px-2 text-text-3 focus-within:border-accent-b">
             <Search className="size-3.5 flex-none" aria-hidden="true" />
-            <span className="sr-only">{t('library.agents')}</span>
+            <span className="sr-only">{t('workflow.search_agents')}</span>
             <input
               type="search"
               value={search}
-              placeholder={t('library.agents')}
+              placeholder={t('workflow.search_agents')}
               className="min-w-0 flex-1 bg-transparent text-body text-text outline-none placeholder:text-text-3"
               data-testid="agent-palette-search"
               onChange={(event) => setSearch(event.target.value)}
@@ -116,7 +121,17 @@ export function AgentComposer({
             </ul>
           )}
         </section>
-        <SkillFlow skills={draft} registry={registry} editable onChange={setDraft} onOpen={setSelected} dragLabel={dragging} className="min-h-0" />
+        <SkillFlow
+          skills={draft}
+          registry={registry}
+          editable
+          onChange={setDraft}
+          onOpen={setSelected}
+          dragLabel={dragging}
+          label={t(reviewing ? 'workflow.reviewers_title' : 'workflow.executors_title')}
+          emptyText={t(reviewing ? 'workflow.drop_reviewer' : 'workflow.drop_executor')}
+          className="min-h-0"
+        />
         <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-card p-4 max-[1100px]:hidden" data-testid="agent-composer-detail">
           {selected === null ? (
             <p className="text-body text-text-3" role="status">{t('workflow.pick_agent')}</p>

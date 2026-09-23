@@ -88,7 +88,10 @@ last one. Anything that needs its own surface opens the shared right-side `share
   only; a file row still opens `DocumentDrawer`. The 测试 tab appears only when the selected step declares
   tests, its count is `通过/总数`, and a row opens `TestRunDrawer` (inputs, outputs, log tail, screenshots,
   history). Status words are one word each — 通过 / 失败 / 过期 / 未运行 / 运行中 — and never a sentence. The project rail card shows the project path only — task counts live in the facet chips, never
-  twice. Facet rows, chips and card pills never wrap (`whitespace-nowrap`, horizontal scroll, truncated titles).
+  twice. Chips and card pills never wrap internally (`whitespace-nowrap`, truncated titles), but facet rows **do**
+  wrap (`flex-wrap`): a horizontally scrolling row clipped chips mid-word at 1440px (「验…」「未提交删除」).
+  `ListColumn` header blocks (eyebrow, title, search, chips) are `shrink-0`, so a long list scrolls the column instead
+  of squashing the search box.
 
 ## 工作流 rules (`workflow/`)
 
@@ -111,8 +114,9 @@ last one. Anything that needs its own surface opens the shared right-side `share
   underline `tablist` (`wb-track-<id>`, `label ?? id`) with a trailing `+` (`wb-track-new`); a workflow without
   tracks shows a single `+ 新建轨道` link instead. Below: the stage flow — numbered circle (drag handle,
   `@dnd-kit/sortable`, `useFlipLayout`) + a 40px block (`wb-step-<id>`) that contains **only the stage name and the
-  gate icon** (`wb-gate-<id>`: review = shield, auto = bolt; no text). A stage without outputs shows an amber dot
-  (`wb-lint-<id>`). Rows are on a fixed pitch (`STEP_PITCH` 54 / `STEP_HEIGHT` 40) so back edges are drawn from
+  gate icon** (`wb-gate-<id>`: review = shield, auto = bolt; no text). In an OpenSpec workflow a stage without outputs
+  shows an amber dot (`wb-lint-<id>`); without OpenSpec no output can be added from the page, so `step-no-output` is
+  not reported there. Rows are on a fixed pitch (`STEP_PITCH` 54 / `STEP_HEIGHT` 40) so back edges are drawn from
   indices, not measured DOM: `backEdgePath(fromIndex, toIndex)` → dashed arc in a 22px SVG gutter right of the blocks
   (`wb-back-edge-<from>-<to>`). Last row: `wb-add-stage`. No skill chips, no cards, no canvas here.
 - **Stage pane (`StageEditorPane`).** Breadcrumb `wb-crumbs` (workflow › track), then the stage name as an editable
@@ -284,8 +288,10 @@ row names the skills that should produce it, and a stale row carries its one-wor
   managed blocks itself — it sends the body and the server re-appends Tenon's blocks.
 - Every write carries the digest the UI last read. `应用` always goes through `POST /api/instructions/preview` and the
   `DiffDrawer` (`lineDiff` rows carry `data-op`), so nothing is written before the reader confirms.
-- Polling: every 5 s while the document is visible plus on window focus. A changed digest with a clean editor reloads
-  silently; with a draft it only raises the 外部修改 banner. 409 from apply raises the same banner.
+- No interval polling. The files are read when the root changes and after 应用 / 删除, and re-checked (digests only)
+  on window focus and when the snapshot changes (`snapshotRevision` = `generated_at`, which the server only re-emits
+  on a fingerprint change). Sitting on the page with nothing changing issues no request. A changed digest with a clean
+  editor reloads silently; with a draft it only raises the 外部修改 banner. 409 from apply raises the same banner.
 - `新建项目` selects the three project instruction files directly (CLAUDE.md + AGENTS.md preselected): an unregistered
   directory has no host table yet, and the create API takes file names.
 - Server prose is never rendered: `instructionErrorKey` maps the error `code` to `projects.errors.<key>` / `library.errors.<key>`.
@@ -305,16 +311,20 @@ row names the skills that should produce it, and a stale row carries its one-wor
   and test chips from the step's own `tests[].id` (`wb-agent-tests-<name>`). A newly dropped reviewer takes
   the kernel's parse defaults (必需, 高). Settings are keyed by agent name, so re-laying out the canvas never
   loses them. 保存 writes through `editor.setAgents`; both lists empty removes the `agents` key.
+- Wording: the concept is 智能体 everywhere in zh (rail, list title, 新建智能体, palette search 搜索智能体, 选一个智能体);
+  the composer canvas says 拖入执行者 / 拖入评审者 by role. `SkillFlow` takes `label` / `emptyText` for that, and passes
+  `ariaLabelConfig` so React Flow's zoom / fit controls are labelled in the UI language on every canvas.
 - Lint `agent-missing` is an **error** (blocks 保存) when a step names an agent the library does not have.
   While the library is still loading (`editor.agents === null`) the rule does not run: unknowable is not
   reported as missing.
 
 ## 库 rules (`library/`)
 
-- Three columns: rail = one card per library kind (模板 / 资源目录 / 测试方向 / agent), list = category and 内建 / 自定义 chips + search + rows,
+- Three columns: rail = one card per library kind (模板 / 资源目录 / 测试方向 / 智能体), list = category and 内建 / 自定义 chips + search + rows,
   detail = `TemplateDetail` (预览 / 编辑 sheets, 变量 table, footer 复制 / 保存 / 删除).
 - Builtin templates are read-only: the detail footer offers 复制 only. Custom templates save with `If-Match` and delete
-  with the digest; a 409 shows the local message plus 重新载入.
+  with the digest; a 409 shows the local message plus 重新载入. Every library delete (template / 智能体 / 测试方向) goes
+  through `library/ConfirmDeleteDialog` first — nothing is deleted on the first click.
 - The builtin library is synced by the server on every read; a failed sync shows one 内建同步失败 line and the list still
   renders whatever is on disk.
 - The agent section (`AgentList` / `AgentDetail`) is the same shape: middle column lists the global library
@@ -341,13 +351,13 @@ row names the skills that should produce it, and a stale row carries its one-wor
 
 ## Library page sections
 
-- The Library page's rail (`LibraryRail`) lists 模板 / 资源目录 / 测试方向 / agent; a section owns the middle and right
+- The Library page's rail (`LibraryRail`) lists 模板 / 资源目录 / 测试方向 / 智能体; a section owns the middle and right
   columns and nothing else. 资源目录 renders its own `ThreeColumns` with the shared rail passed in, so the rail's
   collapsed state and selection stay with `LibraryView`.
 - 资源目录 filtering is client-side through `filterResources` from `@tenon/kernel/resources/query` — the same
   predicate `tenon resources list` uses. Switching a facet chip must not issue a request; the list is fetched once.
-- The four facet rows are single-select `role=tablist` rows with a leading 全部 chip, `whitespace-nowrap` and
-  `overflow-x-auto`: enum values are nouns and must never wrap.
+- The four facet rows are single-select `role=tablist` rows with a leading 全部 chip. Rows wrap (`flex-wrap`); each
+  chip stays on one line (`whitespace-nowrap`), so enum values are never split or clipped.
 - Builtin entries are read-only: only 复制 is offered. Custom entries add 编辑 (a YAML drawer validated by the
   server, errors listed verbatim) and 删除 (a `Dialog`). A 409 offers 重新载入 rather than silently overwriting.
 

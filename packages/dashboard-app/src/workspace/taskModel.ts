@@ -161,25 +161,26 @@ export function rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }: RowsInput
   return rows
 }
 
-/** 已归档视图的行：与活跃行同构，另带归档时的阶段 / 时间 / 归档人。 */
-export function archivedRowsOf({ snapshot, currentRoot, rulesByKey, t }: Omit<RowsInput, 'ioOf'>): TaskRow[] {
+/** 已归档视图的行：与活跃行同构（状态同样由数据推出），另带归档时的阶段 / 时间 / 归档人。 */
+export function archivedRowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }: RowsInput): TaskRow[] {
   const rows: TaskRow[] = []
   for (const project of snapshot?.projects ?? []) {
     if (!isProjectNavigable(project)) continue
     if (currentRoot !== '' && project.root !== currentRoot) continue
     for (const change of project.archived ?? []) {
       const rules = rulesByKey.get(snapshotRulesKey(project.root, change.workflowPlanFingerprint)) ?? change.workflowRules
+      const workflow = changeWorkflowName(change)
       rows.push({
         key: rowKey(project.root, change.name),
         root: project.root,
         change,
         rules,
-        workflow: changeWorkflowName(change),
+        workflow,
         archived: change.archived === 'true',
         owner: change.owner,
         stages: stagesOf(change, rules, t),
-        // The archived view never judges readiness: an outputs check would need IO that is not loaded here.
-        summary: change.archived === 'true' ? { kind: 'completed' } : { kind: 'running' },
+        // 归档只是对我隐藏：状态与归档前的活跃行同一推导，不另编一个「进行中」。
+        summary: summaryOf(change, rules, ioOf(project.root, workflow)?.[change.phase]),
         archive: change.archive,
       })
     }

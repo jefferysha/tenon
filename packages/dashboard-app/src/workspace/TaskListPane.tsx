@@ -3,7 +3,8 @@ import { Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import { useT } from '../i18n'
 import { FilterChip, ListColumn } from '../shell/ThreeColumns'
 import { TaskCard } from './TaskCard'
-import { facetTotal, taskFacets, type FacetChip, type TaskFilterState, type TaskRow } from './taskModel'
+import { localTime } from '../model/time'
+import { facetTotal, stageLabel, taskFacets, type FacetChip, type TaskFilterState, type TaskRow } from './taskModel'
 import type { UserRefView } from '../types'
 import { cn } from '@/lib/utils'
 
@@ -18,7 +19,9 @@ export interface TaskListPaneProps {
   selectedKey: string | null
   onSelect: (row: TaskRow) => void
   showProject: boolean
-  emptyKind: 'no-project' | 'no-task' | 'filtered' | 'compat'
+  emptyKind: 'no-project' | 'no-task' | 'no-archived' | 'completed' | 'filtered' | 'compat'
+  /** 被「含已完结」关掉的已完结任务数；emptyKind 为 completed 时显示。 */
+  hiddenCompleted: number
   onClearFilters: () => void
   notice?: ReactNode
   /** Current declared user; enables the 我的 chip. */
@@ -46,7 +49,7 @@ function FacetRow({ label, facet, chips, current, total, mono, lead, onPick }: {
 }): JSX.Element {
   const { t } = useT()
   return (
-    <div className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none]" role="tablist" aria-label={label} data-testid={`task-facet-${facet}`}>
+    <div className="flex w-full flex-wrap items-center gap-1" role="tablist" aria-label={label} data-testid={`task-facet-${facet}`}>
       <span className="mr-1 min-w-12 flex-none whitespace-nowrap text-caption text-text-3">{label}</span>
       <FilterChip label={t('workspace.filter_all')} count={total} selected={current === 'all'} testId={`task-facet-${facet}-all`} onClick={() => onPick('all')} />
       {lead}
@@ -61,10 +64,10 @@ function FacetRow({ label, facet, chips, current, total, mono, lead, onPick }: {
 
 /** 中列：工作流 → 轨道 → 阶段三层芯片（阶段只在选定单一工作流时出现）+ 含已归档开关 + 任务卡。 */
 export function TaskListPane({
-  eyebrow, rows, visibleRows, filter, onFilter, search, onSearch, selectedKey, onSelect, showProject, emptyKind, onClearFilters, notice, me,
+  eyebrow, rows, visibleRows, filter, onFilter, search, onSearch, selectedKey, onSelect, showProject, emptyKind, hiddenCompleted, onClearFilters, notice, me,
   listMode, onListMode, archivedCount, uncommittedDeletions, onAction, onUnarchive,
 }: TaskListPaneProps): JSX.Element {
-  const { t } = useT()
+  const { t, lang } = useT()
   const archivedView = listMode === 'archived'
   const facets = taskFacets(rows, filter)
   const mine = me === null ? undefined : (
@@ -110,7 +113,7 @@ export function TaskListPane({
               onPick={(id) => onFilter({ ...filter, owner: id })}
             />
           )}
-          <div className="flex w-full items-start gap-2">
+          <div className="flex w-full flex-wrap items-start gap-2" data-testid="task-facet-workflow-row">
             <div className="min-w-0 flex-1">
               <FacetRow label={t('workspace.facet_workflow')} facet="workflow" chips={facets.workflows} current={filter.workflow} total={facetTotal(rows, filter, 'workflow')} mono onPick={(id) => onFilter({ ...filter, workflow: id, stage: 'all' })} />
             </div>
@@ -162,9 +165,14 @@ export function TaskListPane({
       {notice}
       {visibleRows.length === 0 && emptyKind === 'compat' ? null : visibleRows.length === 0 ? (
         <div className="rounded-md border border-dashed border-border px-5 py-10 text-center" role="status" aria-live="polite" data-testid={`task-list-empty-${emptyKind}`}>
-          <p className="text-base font-semibold text-text">{t(`workspace.empty_${emptyKind}`)}</p>
+          <p className="text-base font-semibold text-text">{t(`workspace.empty_${emptyKind}`, { n: hiddenCompleted })}</p>
           {emptyKind === 'no-task' && (
             <code className="mt-3 inline-block rounded-xs bg-accent-t px-2 py-1 font-mono text-body text-(--accent)">tenon init my-change --track chat</code>
+          )}
+          {emptyKind === 'completed' && (
+            <button type="button" className="mt-3 min-h-9 rounded-sm border border-border bg-card px-3 text-caption font-semibold text-text-2 hover:bg-fill" data-testid="task-list-empty-include-completed" onClick={() => onFilter({ ...filter, includeCompleted: true })}>
+              {t('workspace.include_completed')}
+            </button>
           )}
           {emptyKind === 'filtered' && (
             <button type="button" className="mt-3 min-h-9 rounded-sm border border-border bg-card px-3 text-caption font-semibold text-text-2 hover:bg-fill" onClick={onClearFilters}>
@@ -188,7 +196,9 @@ export function TaskListPane({
                 />
                 {archivedView && row.archive !== undefined && (
                   <p className="truncate whitespace-nowrap px-3.5 pb-3 font-mono text-caption text-text-3" data-testid={`task-archived-meta-${row.change.name}`}>
-                    {t('workspace.archived_meta', { stage: row.archive.phase, time: row.archive.archivedAt, actor: row.archive.actor.name })}
+                    <span title={row.archive.archivedAt}>
+                      {t('workspace.archived_meta', { stage: stageLabel(row.archive.phase, row.rules), time: localTime(row.archive.archivedAt, lang), actor: row.archive.actor.name })}
+                    </span>
                     {onUnarchive !== undefined && (
                       <button type="button" className="ml-2 rounded-sm text-(--accent) underline outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" data-testid={`task-archived-unarchive-${row.change.name}`} onClick={() => onUnarchive(row)}>
                         {t('workspace.unarchive')}

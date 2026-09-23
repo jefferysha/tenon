@@ -36,7 +36,7 @@ export function ResourceCatalog({
       const revision = editing === 'new' ? undefined : document?.revision
       if (await catalog.save(id, text, revision)) {
         setEditing('none')
-        onToast?.(t('resources.save'))
+        onToast?.(t('common.done_saved'))
       }
     })()
   }
@@ -68,7 +68,7 @@ export function ResourceCatalog({
             document={document}
             busy={catalog.busy}
             errorKey={catalog.errorKey}
-            onCopy={() => { void (async () => { if (await catalog.copy()) onToast?.(t('resources.copy')) })() }}
+            onCopy={() => { void (async () => { if (await catalog.copy()) onToast?.(t('common.done_copied')) })() }}
             onEdit={() => setEditing('existing')}
             onDelete={() => setConfirmDelete(true)}
             onReload={() => { void catalog.reload() }}
@@ -105,7 +105,8 @@ export function ResourceCatalog({
                 disabled={catalog.busy}
                 onClick={() => {
                   setConfirmDelete(false)
-                  void (async () => { if (await catalog.remove()) onToast?.(t('resources.delete')) })()
+                  const name = document.entry.id
+                  void (async () => { if (await catalog.remove()) onToast?.(t('common.done_deleted', { name })) })()
                 }}
               >
                 {t('resources.delete')}

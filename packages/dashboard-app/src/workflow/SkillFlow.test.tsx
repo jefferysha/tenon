@@ -109,4 +109,17 @@ describe('SkillFlow · 组件', () => {
     render(<I18nProvider><SkillFlow skills={[]} registry={[]} editable onOpen={() => undefined} /></I18nProvider>)
     expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('拖入技能')
   })
+  it('画布控件的 aria-label 跟随界面语言，而不是 React Flow 自带的英文', () => {
+    const { unmount } = render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    const zh = JSON.parse(screen.getByTestId('react-flow').getAttribute('data-aria-labels') ?? '{}') as Record<string, string>
+    expect(zh['controls.zoomIn.ariaLabel']).toBe('放大')
+    expect(zh['controls.zoomOut.ariaLabel']).toBe('缩小')
+    expect(zh['controls.fitView.ariaLabel']).toBe('适应画布')
+    unmount()
+    localStorage.setItem('tenon-dashboard-lang', 'en')
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    const en = JSON.parse(screen.getByTestId('react-flow').getAttribute('data-aria-labels') ?? '{}') as Record<string, string>
+    expect(en['controls.zoomIn.ariaLabel']).toBe('Zoom in')
+    localStorage.removeItem('tenon-dashboard-lang')
+  })
 })

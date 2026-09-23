@@ -9,3 +9,12 @@ export function shortTime(iso: string, lang: 'zh' | 'en' = 'zh'): string {
   if (lang === 'en') return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6] ?? '00'}`
   return `${m[1]}年${m[2]}月${m[3]}日 ${m[4]}:${m[5]}:${m[6] ?? '00'}`
 }
+
+/** ISO8601 → 按界面语言、本机时区显示到分钟；解析不了就原样返回，不编造时间。 */
+export function localTime(iso: string, lang: 'zh' | 'en' = 'zh'): string {
+  const ms = Date.parse(iso)
+  if (Number.isNaN(ms)) return iso
+  return new Intl.DateTimeFormat(lang === 'en' ? 'en-US' : 'zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(ms)
+}

@@ -1,7 +1,8 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
+import { diffFileLabel } from './DiffDrawer'
 import { ProjectsView } from './ProjectsView'
 
 const PROJECTS = [{ root: '/repo', name: 'repo', count: 1, ok: true }]
@@ -52,11 +53,11 @@ function stubFetch(over: { targets?: () => unknown[]; onWrite?: (call: Call) => 
   return calls
 }
 
-function renderView(currentRoot = '/repo') {
+function renderView(currentRoot = '/repo', onToast?: (message: string) => void) {
   const onSelectProject = vi.fn()
   render(
     <I18nProvider>
-      <ProjectsView projects={PROJECTS} currentRoot={currentRoot} onSelectProject={onSelectProject} />
+      <ProjectsView projects={PROJECTS} currentRoot={currentRoot} onSelectProject={onSelectProject} onToast={onToast} />
     </I18nProvider>,
   )
   return onSelectProject
@@ -99,7 +100,8 @@ describe('项目页 · 指令文件', () => {
   it('应用：预览打开差异抽屉，确认后按 base_digest 写入两个文件', async () => {
     const user = userEvent.setup()
     const calls = stubFetch()
-    renderView()
+    const onToast = vi.fn()
+    renderView('/repo', onToast)
     const editor = await screen.findByTestId('proj-editor')
     await user.clear(editor)
     await user.type(editor, '# 新规则')
@@ -108,6 +110,9 @@ describe('项目页 · 指令文件', () => {
     expect(within(drawer).getByTestId('proj-diff-AGENTS.md')).toBeInTheDocument()
     expect(within(drawer).getByTestId('proj-diff-CLAUDE.md')).toBeInTheDocument()
     expect(drawer.querySelectorAll('[data-op="add"]').length).toBeGreaterThan(0)
+    // 标题是相对项目根的文件名，完整绝对路径只在 title 与副行里。
+    expect(within(drawer).getByTestId('proj-diff-name-AGENTS.md')).toHaveTextContent(/^AGENTS\.md$/u)
+    expect(within(drawer).getByTestId('proj-diff-name-AGENTS.md')).toHaveAttribute('title', '/repo/AGENTS.md')
     await user.click(screen.getByTestId('proj-diff-confirm'))
     await waitFor(() => {
       const apply = calls.find((call) => call.url === '/api/instructions/apply')
@@ -117,6 +122,7 @@ describe('项目页 · 指令文件', () => {
         targets: [{ id: 'CLAUDE.md', base_digest: 'absent' }, { id: 'AGENTS.md', base_digest: 'sha256:AGENTS.md' }],
       })
     })
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已应用'))
   })
 
   it('应用返回 409 → 显示外部修改，并能重新载入', async () => {
@@ -155,8 +161,7 @@ describe('项目页 · 指令文件', () => {
     })
   })
 
-  // 复查走 window focus：与 5 秒轮询同一条 check() 路径，但不必假装时钟（假时钟会与
-  // Testing Library 的 findBy* 轮询互锁）。
+  // 复查走 window focus：与快照变化同一条 check() 路径。
   it('聚焦复查：编辑器干净时静默换成盘上内容；有草稿时只亮外部修改', async () => {
     const user = userEvent.setup()
     let text = '# 旧\n'
@@ -177,6 +182,31 @@ describe('项目页 · 指令文件', () => {
     expect(screen.getByTestId('proj-editor')).toHaveValue('# 别人改了\n我的草稿')
   })
 
+  // 回归：停在项目页、快照没变时每 ~4 秒请求一次 /api/instructions（60 秒 14 次）。
+  it('停留时不重复请求；只在快照变化时复查一次', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const calls = stubFetch()
+    const reads = (): number => calls.filter((call) => call.url.startsWith('/api/instructions?') && (call.init?.method ?? 'GET') === 'GET').length
+    const view = (revision: string) => (
+      <I18nProvider>
+        <ProjectsView projects={PROJECTS} currentRoot="/repo" onSelectProject={() => undefined} snapshotRevision={revision} />
+      </I18nProvider>
+    )
+    const { rerender } = render(view('r1'))
+    await screen.findByTestId('proj-editor')
+    expect(reads()).toBe(1)
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    rerender(view('r1'))
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+    expect(reads()).toBe(1)
+
+    rerender(view('r2'))
+    await waitFor(() => expect(reads()).toBe(2))
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(reads()).toBe(2)
+  })
+
   it('无 token 时应用与删除都禁用', async () => {
     ;(window as unknown as { __TENON_DASHBOARD_TOKEN__?: string }).__TENON_DASHBOARD_TOKEN__ = ''
     stubFetch()
@@ -184,5 +214,14 @@ describe('项目页 · 指令文件', () => {
     expect(await screen.findByTestId('proj-apply')).toBeDisabled()
     expect(screen.getByTestId('proj-delete')).toBeDisabled()
     expect(screen.getByTestId('proj-no-token')).toBeInTheDocument()
+  })
+})
+
+describe('diffFileLabel', () => {
+  it('项目内文件取相对项目根的路径，用户级文件取文件名', () => {
+    expect(diffFileLabel('/Users/me/very/long/workspace/repo/AGENTS.md', '/Users/me/very/long/workspace/repo')).toBe('AGENTS.md')
+    expect(diffFileLabel('/repo/docs/CLAUDE.md', '/repo/')).toBe('docs/CLAUDE.md')
+    expect(diffFileLabel('/Users/me/.claude/CLAUDE.md', '')).toBe('CLAUDE.md')
+    expect(diffFileLabel('/elsewhere/GEMINI.md', '/repo')).toBe('GEMINI.md')
   })
 })

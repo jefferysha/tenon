@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Check, ChevronRight, Circle, Info, Pencil, Plus, ShieldCheck, Trash2, Zap, type LucideIcon } from 'lucide-react'
 import { DOCUMENT_KIND_CATALOG } from '@tenon/kernel/workflow/document-contract-model'
-import type { WbIoSlot, WbStepDef } from '../api/governanceTypes'
+import type { WbExecutorRef, WbIoSlot, WbReviewerRef, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { documentInputCandidates, documentKindsForOutput } from '../workbench/documentContractEdits'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
@@ -29,6 +29,10 @@ const GATES: Array<{ gate: WbStepDef['gate']; key: 'none' | 'review' | 'auto'; i
   { gate: 'review', key: 'review', icon: ShieldCheck },
   { gate: 'auto', key: 'auto', icon: Zap },
 ]
+
+// 模块级空列表：每次渲染都给 AgentComposer / AgentSection 同一个引用，而不是新的 `[]`。
+const NO_EXECUTORS: readonly WbExecutorRef[] = []
+const NO_REVIEWERS: readonly WbReviewerRef[] = []
 
 const HEAD_ACTION = 'inline-flex items-center gap-1.5 whitespace-nowrap text-body text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)'
 const POPOVER = 'absolute right-0 top-[calc(100%+6px)] z-40 min-w-[260px] rounded-md border border-border bg-card p-1 shadow-lg'
@@ -234,7 +238,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
           <AgentSection
             stepId={step.id}
             role="executors"
-            refs={step.agents?.executors ?? []}
+            refs={step.agents?.executors ?? NO_EXECUTORS}
             agents={editor.agents}
             editable={editable}
             onEdit={() => setAgentRole('executors')}
@@ -263,7 +267,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
           <AgentSection
             stepId={step.id}
             role="reviewers"
-            refs={step.agents?.reviewers ?? []}
+            refs={step.agents?.reviewers ?? NO_REVIEWERS}
             agents={editor.agents}
             editable={editable}
             onEdit={() => setAgentRole('reviewers')}
@@ -358,8 +362,8 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
         open={agentRole !== null}
         role={agentRole ?? 'executors'}
         stageLabel={stageLabel}
-        executors={step.agents?.executors ?? []}
-        reviewers={step.agents?.reviewers ?? []}
+        executors={step.agents?.executors ?? NO_EXECUTORS}
+        reviewers={step.agents?.reviewers ?? NO_REVIEWERS}
         tests={step.tests ?? []}
         agents={editor.agents}
         onClose={() => setAgentRole(null)}

@@ -118,6 +118,7 @@ export function InstructionEditor({
       {diff !== null && (
         <DiffDrawer
           files={diff}
+          root={root}
           busy={busy}
           onClose={() => setDiff(null)}
           onConfirm={() => { void (async () => { if (await onApply(diff)) setDiff(null) })() }}

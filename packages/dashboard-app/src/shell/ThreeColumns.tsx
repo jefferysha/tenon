@@ -27,13 +27,13 @@ export function ThreeColumns({
   return (
     <div
       className={cn(
-        'grid h-[calc(100vh-var(--topbar-h))] min-h-0 bg-bg',
+        'grid h-[calc(100vh-var(--topbar-h)-var(--banner-h))] min-h-0 bg-bg',
         railCollapsed
           ? (narrow ? 'grid-cols-[64px_380px_minmax(0,1fr)]' : 'grid-cols-[64px_492px_minmax(0,1fr)]')
           : (narrow
             ? 'grid-cols-[296px_380px_minmax(0,1fr)] max-[1279px]:grid-cols-[64px_344px_minmax(0,1fr)]'
             : 'grid-cols-[296px_492px_minmax(0,1fr)] max-[1279px]:grid-cols-[64px_440px_minmax(0,1fr)]'),
-        'max-[900px]:h-auto max-[900px]:min-h-[calc(100vh-var(--topbar-h))] max-[900px]:grid-cols-1',
+        'max-[900px]:h-auto max-[900px]:min-h-[calc(100vh-var(--topbar-h)-var(--banner-h))] max-[900px]:grid-cols-1',
       )}
       data-testid={testId}
       data-rail-collapsed={railCollapsed}
@@ -50,7 +50,7 @@ export function ThreeColumns({
 export function TwoColumns({ nav, detail, testId }: { nav: ReactNode; detail: ReactNode; testId: string }): JSX.Element {
   return (
     <div
-      className="grid h-[calc(100vh-var(--topbar-h))] min-h-0 grid-cols-[300px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-bg max-[900px]:h-auto max-[900px]:grid-rows-none max-[900px]:min-h-[calc(100vh-var(--topbar-h))] max-[900px]:grid-cols-1"
+      className="grid h-[calc(100vh-var(--topbar-h)-var(--banner-h))] min-h-0 grid-cols-[300px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] bg-bg max-[900px]:h-auto max-[900px]:grid-rows-none max-[900px]:min-h-[calc(100vh-var(--topbar-h)-var(--banner-h))] max-[900px]:grid-cols-1"
       data-testid={testId}
     >
       {nav}
@@ -230,13 +230,14 @@ export function ListColumn({
       className="flex min-h-0 flex-col overflow-y-auto border-r border-border bg-card px-7 pt-7 pb-10 max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:px-4 max-[900px]:pt-5"
       data-testid={testId}
     >
-      <p className="mb-2.5 text-caption font-semibold uppercase tracking-[.08em] text-(--accent)">{eyebrow}</p>
-      <h1 className="mb-5 text-page font-bold tracking-[-.01em] text-text">{title}</h1>
+      {/* 头部各块 shrink-0：列表很长时由本列滚动，而不是把搜索框等头部元素压扁。 */}
+      <p className="mb-2.5 shrink-0 text-caption font-semibold uppercase tracking-[.08em] text-(--accent)">{eyebrow}</p>
+      <h1 className="mb-5 shrink-0 text-page font-bold tracking-[-.01em] text-text">{title}</h1>
       {note !== undefined && (
-        <div className="mb-3 rounded-md border border-border px-4 py-3 text-base text-text-2">{note}</div>
+        <div className="mb-3 shrink-0 rounded-md border border-border px-4 py-3 text-base text-text-2">{note}</div>
       )}
       {search !== undefined && (
-        <label className="mb-4 flex h-11 items-center gap-2 rounded-md border border-border bg-card px-3 text-text-3 focus-within:border-accent-b">
+        <label className="mb-4 flex h-11 shrink-0 items-center gap-2 rounded-md border border-border bg-card px-3 text-text-3 focus-within:border-accent-b" data-testid={`${testId}-search-box`}>
           <Search className="size-4 flex-none" aria-hidden="true" />
           <span className="sr-only">{search.label}</span>
           <input
@@ -251,7 +252,7 @@ export function ListColumn({
           />
         </label>
       )}
-      {chips !== undefined && <div className="mb-4 flex flex-wrap gap-1">{chips}</div>}
+      {chips !== undefined && <div className="mb-4 flex shrink-0 flex-wrap gap-1" data-testid={`${testId}-chips`}>{chips}</div>}
       {children}
     </section>
   )
@@ -338,7 +339,7 @@ export function DetailEmpty({ title, desc, testId }: { title: string; desc: stri
   )
 }
 
-/** 模板的状态 pill：圆点 + 文字 + 浅底。 */
+/** 模板的状态 pill：圆点 + 文字 + 浅底。justify-self-start：放进 grid 头部时是内容宽度，不被拉满整行。 */
 export type PillTone = 'pending' | 'running' | 'done' | 'blocked' | 'neutral'
 const PILL_TONE: Record<PillTone, string> = {
   pending: 'bg-amber-t text-amber-d [&>i]:bg-(--amber-d)',
@@ -350,7 +351,7 @@ const PILL_TONE: Record<PillTone, string> = {
 export function StatusPill({ tone, children, testId, title, className }: { tone: PillTone; children: ReactNode; testId?: string; title?: string; className?: string }): JSX.Element {
   return (
     <span
-      className={cn('inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-caption font-semibold', PILL_TONE[tone], className)}
+      className={cn('inline-flex max-w-full items-center gap-1.5 justify-self-start whitespace-nowrap rounded-full px-2.5 py-1 text-caption font-semibold', PILL_TONE[tone], className)}
       data-tone={tone}
       data-testid={testId}
       title={title}

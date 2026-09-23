@@ -91,6 +91,9 @@ describe('agent 库', () => {
     await userEvent.click(screen.getByTestId('lib-agent-save'))
     await waitFor(() => expect(calls.some(([method, url]) => method === 'PUT' && url === '/api/agents/mine')).toBe(true))
     await userEvent.click(screen.getByTestId('lib-agent-delete'))
+    expect(await screen.findByTestId('lib-delete-dialog')).toBeInTheDocument()
+    expect(calls.some(([method]) => method === 'DELETE')).toBe(false)
+    await userEvent.click(screen.getByTestId('lib-delete-confirm'))
     await waitFor(() => expect(calls.some(([method, url]) => method === 'DELETE' && url.startsWith('/api/agents/mine?digest='))).toBe(true))
   })
 
@@ -104,6 +107,7 @@ describe('agent 库', () => {
     await userEvent.click(screen.getByTestId('lib-agent-mine'))
     await waitFor(() => expect(screen.getByTestId('lib-agent-delete')).toBeTruthy())
     await userEvent.click(screen.getByTestId('lib-agent-delete'))
+    await userEvent.click(await screen.findByTestId('lib-delete-confirm'))
     await waitFor(() => expect(screen.getByTestId('lib-agent-error').textContent).toContain('被工作流引用'))
     expect(screen.getByTestId('lib-agent-references').textContent).toContain('验证')
   })

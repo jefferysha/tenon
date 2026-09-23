@@ -37,6 +37,10 @@ export interface WorkspaceViewProps {
 
 const RAIL_KEY = 'tenon-dashboard-rail:workspace'
 
+function matchesSearch(search: string, row: TaskRow): boolean {
+  return matchesQuery(search, row.change.name, row.workflow, row.change.track, row.change.phase)
+}
+
 /** 工作台：左列项目 / 中列任务（按阶段筛选）/ 右列所选任务逐阶段的输出与输入。只读。 */
 export function WorkspaceView({
   snapshot, currentRoot, rulesByKey, projects, onSelectProject, selectedChange, onSelectedChange, onToast,
@@ -61,7 +65,7 @@ export function WorkspaceView({
     if (currentRoot === '') return out
     for (const project of snapshot?.projects ?? []) {
       if (!isProjectNavigable(project) || project.root !== currentRoot) continue
-      for (const change of project.changes) {
+      for (const change of [...project.changes, ...(project.archived ?? [])]) {
         const workflow = typeof change.fields.workflow === 'string' && change.fields.workflow !== '' ? change.fields.workflow : 'default'
         out.push({ root: project.root, workflow })
       }
@@ -70,7 +74,7 @@ export function WorkspaceView({
   }, [snapshot, currentRoot])
   const ioOf = useWorkflowIoLookup(pairs)
   const activeRows = useMemo(() => rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }), [snapshot, currentRoot, rulesByKey, ioOf, t])
-  const archivedRows = useMemo(() => archivedRowsOf({ snapshot, currentRoot, rulesByKey, t }), [snapshot, currentRoot, rulesByKey, t])
+  const archivedRows = useMemo(() => archivedRowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }), [snapshot, currentRoot, rulesByKey, ioOf, t])
   const archivedView = listMode === 'archived'
   const rows = archivedView ? archivedRows : activeRows
   const deletions = uncommittedDeletionsOf(snapshot, currentRoot)
@@ -103,10 +107,13 @@ export function WorkspaceView({
   ) : undefined
 
   const visibleRows = useMemo(
-    () => (archivedView ? rows : filterRows(rows, filter)).filter((row) =>
-      matchesQuery(search, row.change.name, row.workflow, row.change.track, row.change.phase)),
+    () => (archivedView ? rows : filterRows(rows, filter)).filter((row) => matchesSearch(search, row)),
     [archivedView, rows, filter, search],
   )
+  // 只剩已完结任务被「含已完结」关掉时，空态要说出它们在哪，而不是「还没有任务」。
+  const hiddenCompleted = archivedView || filter.includeCompleted
+    ? 0
+    : filterRows(rows, { ...filter, includeCompleted: true }).filter((row) => row.archived && matchesSearch(search, row)).length
   const selectedRow: TaskRow | null = useMemo(() => {
     const explicit = selectedChange === null
       ? undefined
@@ -118,9 +125,11 @@ export function WorkspaceView({
   const eyebrow = currentRoot === ''
     ? t('workspace.eyebrow_all')
     : t('workspace.eyebrow_project', { project: (currentProject?.name ?? rootBasename(currentRoot)).toUpperCase() })
-  const emptyKind = rows.length === 0
-    ? (currentRoot === '' && projects.length === 0 ? 'no-project' : compat.issues.length > 0 ? 'compat' : 'no-task')
-    : 'filtered'
+  const emptyKind = archivedView
+    ? (rows.length === 0 ? 'no-archived' : 'filtered')
+    : rows.length === 0
+      ? (currentRoot === '' && projects.length === 0 ? 'no-project' : compat.issues.length > 0 ? 'compat' : 'no-task')
+      : hiddenCompleted > 0 ? 'completed' : 'filtered'
 
   return (
     <>
@@ -149,6 +158,7 @@ export function WorkspaceView({
           onSelect={(row) => onSelectedChange(row.change.name)}
           showProject={currentRoot === ''}
           emptyKind={emptyKind}
+          hiddenCompleted={hiddenCompleted}
           onClearFilters={() => { setFilter(DEFAULT_TASK_FILTER); setSearch('') }}
           notice={notice}
           me={me}

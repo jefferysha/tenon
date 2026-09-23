@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { useT } from '../i18n'
 import { TEMPLATE_CATEGORIES, type TemplateCategory } from '../api/instructionsDecoders'
 import { Dialog } from '../shared/Dialog'
@@ -44,16 +45,20 @@ export function NewTemplateDialog({
       <div className="grid gap-4">
         <label className={FIELD_LABEL}>
           {t('library.category')}
-          <select
-            className={SELECT}
-            value={category}
-            data-testid="lib-tpl-new-category"
-            onChange={(event) => setCategory(event.target.value as TemplateCategory)}
-          >
-            {TEMPLATE_CATEGORIES.map((value) => (
-              <option key={value} value={value}>{t(`library.categories.${value}`)}</option>
-            ))}
-          </select>
+          {/* SELECT 是 appearance-none：原生箭头被去掉了，这里补一个，否则看起来像文本框。 */}
+          <span className="relative block">
+            <select
+              className={SELECT}
+              value={category}
+              data-testid="lib-tpl-new-category"
+              onChange={(event) => setCategory(TEMPLATE_CATEGORIES.find((value) => value === event.target.value) ?? 'common')}
+            >
+              {TEMPLATE_CATEGORIES.map((value) => (
+                <option key={value} value={value}>{t(`library.categories.${value}`)}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-text-3" aria-hidden="true" data-testid="lib-tpl-new-category-arrow" />
+          </span>
         </label>
         <label className={FIELD_LABEL}>
           {t('library.id')}

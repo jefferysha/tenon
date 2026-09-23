@@ -238,7 +238,7 @@ function AppShell(): JSX.Element {
   const me = currentUser.state?.kind === 'set' ? currentUser.state.user : null
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg font-sans text-base leading-[1.45] text-text-2">
+    <div className="flex min-h-screen flex-col bg-bg font-sans text-base leading-[1.45] text-text-2" data-offline={!connected} data-testid="app-shell">
       <a
         href="#main-content"
         onClick={() => document.getElementById('main-content')?.focus()}
@@ -270,8 +270,9 @@ function AppShell(): JSX.Element {
       )}
 
       {!connected && (
+        // 固定高度 = --banner-h，且贴在页头下方：三列页已扣掉这一行，文字与「重连」始终完整可见。
         <div
-          className="flex items-center gap-2.5 border-b border-red-b bg-red-t px-5 py-2 text-caption font-semibold text-red-d"
+          className="sticky top-(--topbar-h) z-30 flex h-(--offline-banner-h) flex-none items-center gap-2.5 border-b border-red-b bg-red-t px-5 text-caption font-semibold text-red-d max-[900px]:static"
           role="status"
           aria-live="polite"
           data-testid="offline-banner"
@@ -337,6 +338,11 @@ function AppShell(): JSX.Element {
               {t('common.snapshot_retry')}
             </button>
           </section>
+        ) : snapshot === null && loading && (view === 'progress' || view === 'projects') ? (
+          // 首个快照未到：工作台与项目页只能说「加载中」，不能先渲染成「没有项目 / 没有任务」的空态。
+          <p className="p-5 text-body text-text-3" role="status" aria-live="polite" data-testid="snapshot-loading">
+            {t('common.loading')}
+          </p>
         ) : snapshot && snapshot.project_count === 0 && view === 'progress' ? (
           // 零项目教学态只替换工作台；工作流、库与技能不依赖项目，项目页本身就是新建项目的入口。
           <div className="px-6">
@@ -380,6 +386,7 @@ function AppShell(): JSX.Element {
             onToast={(m) => showFlash('toast', m)}
             newProjectOpen={newProjectOpen}
             onNewProjectOpenChange={setNewProjectOpen}
+            snapshotRevision={snapshot?.generated_at ?? ''}
           />
         )}
         {view === 'library' && <LibraryView onToast={(m) => showFlash('toast', m)} />}

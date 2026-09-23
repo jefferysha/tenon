@@ -10,11 +10,20 @@ const OP_CLASS = {
   eq: 'text-text-2',
 } as const
 
+/** 段标题：项目内的文件显示相对项目根的路径，其余（用户级）显示文件名；完整路径放在 title 与副行。 */
+export function diffFileLabel(path: string, root: string): string {
+  const base = root.replace(/\/+$/u, '')
+  if (base !== '' && path.startsWith(`${base}/`)) return path.slice(base.length + 1)
+  return path.split('/').filter(Boolean).pop() ?? path
+}
+
 /** 应用前的差异抽屉：每个目标文件一段，逐行标出新增与删除，确认后才写盘。 */
 export function DiffDrawer({
-  files, busy, onClose, onConfirm,
+  files, root, busy, onClose, onConfirm,
 }: {
   files: readonly InstructionPreviewFile[]
+  /** 项目根；'' = 用户级。 */
+  root: string
   busy: boolean
   onClose: () => void
   onConfirm: () => void
@@ -39,10 +48,13 @@ export function DiffDrawer({
         </>
       )}
     >
-      <div className="grid gap-5">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
         {files.map((file) => (
-          <section key={file.id} data-testid={`proj-diff-${file.id}`}>
-            <h3 className="pb-2 font-mono text-caption whitespace-nowrap overflow-x-auto text-text">{file.path}</h3>
+          <section key={file.id} className="min-w-0" data-testid={`proj-diff-${file.id}`}>
+            <h3 className="truncate font-mono text-body font-semibold text-text" title={file.path} data-testid={`proj-diff-name-${file.id}`}>
+              {diffFileLabel(file.path, root)}
+            </h3>
+            <p className="truncate pb-2 font-mono text-caption text-text-3" title={file.path}>{file.path}</p>
             <ol className="grid overflow-x-auto rounded-md border border-border">
               {lineDiff(file.current ?? '', file.next).map((row, index) => (
                 <li

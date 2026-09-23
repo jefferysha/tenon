@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import { Lock } from 'lucide-react'
 import { useT } from '../i18n'
+import { StatusPill } from '../shell/ThreeColumns'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import type { TestDirectionLibrary } from './useTestDirections'
 
 const ROW = 'grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t'
@@ -18,6 +21,7 @@ export function TestDirectionsPane({
   onToast?: (message: string) => void
 }): JSX.Element {
   const { t } = useT()
+  const [confirmDelete, setConfirmDelete] = useState(false)
   if (slot === 'list') {
     return (
       <ul className="grid gap-1" data-testid="lib-directions">
@@ -52,6 +56,15 @@ export function TestDirectionsPane({
   const builtin = selected.source === 'builtin'
   return (
     <div className="grid gap-4" data-testid="lib-dir-detail">
+      {/* 与模板 / 智能体 / 资源详情同一种头部：眉题 / 名称 / 标识 / 来源。 */}
+      <div className="grid gap-2" data-testid="lib-dir-header">
+        <p className="text-caption font-semibold uppercase tracking-[.08em] text-(--accent)">{t('library.test_directions')}</p>
+        <h1 className="text-page font-bold tracking-[-.01em] text-text" data-testid="lib-dir-title">{selected.label}</h1>
+        <p className="font-mono text-caption whitespace-nowrap overflow-x-auto text-text-3" data-testid="lib-dir-id">{selected.id}</p>
+        <StatusPill tone={builtin ? 'neutral' : 'running'} testId="lib-dir-source">
+          {t(builtin ? 'library.builtin' : 'library.custom')}
+        </StatusPill>
+      </div>
       <table className="w-full border-collapse text-left text-caption">
         <tbody>
           {[
@@ -86,7 +99,7 @@ export function TestDirectionsPane({
           className={`${BUTTON_GHOST} min-h-9 px-3`}
           data-testid={`lib-dir-copy-${selected.id}`}
           disabled={!canWrite || library.busy}
-          onClick={() => { void library.copy().then((ok) => { if (ok) onToast?.(t('library.copy')) }) }}
+          onClick={() => { void library.copy().then((ok) => { if (ok) onToast?.(t('common.done_copied')) }) }}
         >
           {t('library.direction_copy')}
         </button>
@@ -97,7 +110,7 @@ export function TestDirectionsPane({
               className={`${BUTTON_GHOST} min-h-9 px-3`}
               data-testid="lib-dir-save"
               disabled={!canWrite || library.busy}
-              onClick={() => { void library.save().then((ok) => { if (ok) onToast?.(t('library.direction_save')) }) }}
+              onClick={() => { void library.save().then((ok) => { if (ok) onToast?.(t('common.done_saved')) }) }}
             >
               {t('library.direction_save')}
             </button>
@@ -106,13 +119,25 @@ export function TestDirectionsPane({
               className={`${BUTTON_GHOST} ml-auto min-h-9 px-3 text-red-d`}
               data-testid={`lib-dir-delete-${selected.id}`}
               disabled={!canWrite || library.busy}
-              onClick={() => { void library.remove().then((ok) => { if (ok) onToast?.(t('library.direction_delete')) }) }}
+              onClick={() => setConfirmDelete(true)}
             >
               {t('library.direction_delete')}
             </button>
           </>
         )}
       </div>
+      {confirmDelete && (
+        <ConfirmDeleteDialog
+          name={selected.label}
+          detail={selected.id}
+          busy={library.busy}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => {
+            setConfirmDelete(false)
+            void library.remove().then((ok) => { if (ok) onToast?.(t('common.done_deleted', { name: selected.id })) })
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -111,19 +111,25 @@ describe('资源目录', () => {
     expect(calls.length).toBe(before)
   })
 
-  it('芯片行不换行、可横向滚动', async () => {
+  // 1440px 下单行放不下「angular」「less」等芯片，横向滚动会把它们截成半个词：改为整行换行。
+  it('芯片行换行显示完整，不横向溢出裁切', async () => {
     stubFetch()
     renderCatalog()
-    const row = await screen.findByTestId('res-facet-category')
-    expect(row.className).toContain('whitespace-nowrap')
-    expect(row.className).toContain('overflow-x-auto')
-    expect(row).toHaveAttribute('role', 'tablist')
+    for (const facet of ['category', 'framework', 'styling', 'license']) {
+      const row = await screen.findByTestId(`res-facet-${facet}`)
+      expect(row.className.split(' '), facet).toContain('flex-wrap')
+      expect(row.className.split(' '), facet).not.toContain('overflow-x-auto')
+      expect(row).toHaveAttribute('role', 'tablist')
+    }
   })
 
   it('仅链接条目的详情显示许可 pill 与声明；内建条目只有复制', async () => {
     const user = userEvent.setup()
     stubFetch()
     renderCatalog()
+    // 资源目录与模板 / 智能体同一个词：内建。
+    expect(await screen.findByTestId('res-row-react-bits')).toHaveTextContent('内建')
+    expect(screen.getByTestId('res-row-react-bits')).not.toHaveTextContent('内置')
     await user.click(await screen.findByTestId('res-row-react-bits'))
     expect(await screen.findByTestId('res-license-pill')).toHaveTextContent('仅链接')
     expect(within(screen.getByTestId('res-notice')).getByText('不得出售或再分发组件本身')).toBeInTheDocument()
