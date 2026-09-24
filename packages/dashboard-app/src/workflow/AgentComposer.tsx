@@ -5,7 +5,7 @@ import type { WbAgentSeverity, WbExecutorRef, WbReviewerRef, WbSkillRef, WbStepT
 import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
 import { agentEntries, refsToSkills, skillsToExecutors, skillsToReviewers } from './agentFlow'
-import { appendSerial, SkillFlow } from './SkillFlow'
+import { appendSerial, SkillFlow, skillsSignature } from './SkillFlow'
 import { SkillSourceIcon } from './SkillSourceIcon'
 import { cn } from '@/lib/utils'
 
@@ -37,6 +37,7 @@ export function AgentComposer({
   const [selected, setSelected] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [dragging, setDragging] = useState<string | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   // 草稿只在打开（或切换角色）的那一刻取自 props。父组件每次重渲染都会传来新的数组引用，
   // 若把 executors / reviewers 放进依赖，编辑中的草稿会被反复清空：加上的评审者存不下来，「+」也像点不动。
   const initial = useRef({ executors, reviewers })
@@ -62,6 +63,10 @@ export function AgentComposer({
   const patch = (name: string, change: Partial<WbReviewerRef>): void => {
     setSettings(effective.map((ref) => ref.agent === name ? { ...ref, ...change } : ref))
   }
+  // 两级保存：「完成」只把草稿交回阶段，写盘在页面保存条；没改动时不可点。
+  const initialRefs = reviewing ? initial.current.reviewers : initial.current.executors
+  const changed = skillsSignature(draft) !== skillsSignature(refsToSkills(initialRefs))
+    || (reviewing && JSON.stringify(effective) !== JSON.stringify(skillsToReviewers(refsToSkills(initialRefs), [...initial.current.reviewers])))
   const save = (): void => {
     onSave(reviewing ? { reviewers: effective } : { executors: skillsToExecutors(draft) })
     onClose()
@@ -73,29 +78,31 @@ export function AgentComposer({
       onClose={onClose}
       variant="workspace"
       testid="agent-composer"
-      closeLabel={t('workflow.cancel')}
+      closeLabel={t('workflow.close')}
       closeTestid="agent-composer-close"
+      initialFocusRef={searchRef}
       panelClassName="h-[min(90vh,60rem)] w-[min(97vw,96rem)]"
       actions={(
         <>
           <button type="button" className="min-h-10 rounded-md px-3 text-base text-text-2 hover:bg-fill" data-testid="agent-composer-cancel" onClick={onClose}>
             {t('workflow.cancel')}
           </button>
-          <button type="button" className="min-h-10 rounded-md bg-(--accent) px-4 text-base font-semibold text-btn-fg hover:bg-accent-d" data-testid="agent-composer-save" onClick={save}>
-            {t('workflow.composer_save')}
+          <button type="button" className="min-h-10 rounded-md bg-(--accent) px-4 text-base font-semibold text-btn-fg hover:bg-accent-d disabled:cursor-not-allowed disabled:bg-fill-2 disabled:text-text-3" data-testid="agent-composer-save" disabled={!changed} onClick={save}>
+            {t('workflow.composer_done')}
           </button>
         </>
       )}
     >
-      <div className="grid h-full min-h-0 grid-cols-[17rem_minmax(0,1fr)_minmax(18rem,22rem)] gap-4 max-[1100px]:grid-cols-[16rem_minmax(0,1fr)] max-[900px]:grid-cols-1">
+      <div className="grid h-full min-h-0 grid-cols-[20rem_minmax(0,1fr)_minmax(18rem,22rem)] gap-4 max-[1100px]:grid-cols-[18rem_minmax(0,1fr)] max-[900px]:grid-cols-1">
         <section className="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-bg p-2" data-testid="agent-palette" aria-label={t('library.agents')}>
           <label className="flex h-9 flex-none items-center gap-2 rounded-md border border-border bg-card px-2 text-text-3 focus-within:border-accent-b">
             <Search className="size-3.5 flex-none" aria-hidden="true" />
-            <span className="sr-only">{t('workflow.search_agents')}</span>
+            <span className="sr-only">{t(reviewing ? 'workflow.search_reviewers' : 'workflow.search_executors')}</span>
             <input
+              ref={searchRef}
               type="search"
               value={search}
-              placeholder={t('workflow.search_agents')}
+              placeholder={t(reviewing ? 'workflow.search_reviewers' : 'workflow.search_executors')}
               className="min-w-0 flex-1 bg-transparent text-body text-text outline-none placeholder:text-text-3"
               data-testid="agent-palette-search"
               onChange={(event) => setSearch(event.target.value)}
@@ -141,8 +148,8 @@ export function AgentComposer({
               <p className="text-body text-text-2">{(agents ?? []).find((agent) => agent.name === selected)?.description ?? ''}</p>
               {reviewing && current !== null && (
                 <>
-                  <div className="grid gap-1.5" role="radiogroup" aria-label={t('workflow.agent_required')} data-testid={`wb-agent-required-${selected}`}>
-                    <span className="text-caption font-semibold text-text-2">{t('workflow.agent_required')}</span>
+                  <div className="grid gap-1.5" role="radiogroup" aria-label={t('workflow.agent_level')} data-testid={`wb-agent-required-${selected}`}>
+                    <span className="text-caption font-semibold text-text-2">{t('workflow.agent_level')}</span>
                     <div className="flex gap-2">
                       {[true, false].map((value) => (
                         <button
@@ -222,35 +229,28 @@ function PaletteItem({ agent, placed, active, onOpen, onAdd, onDragging }: {
     event.dataTransfer.effectAllowed = 'move'
     onDragging(agent.name)
   }
+  // 整行是一个按钮：没排进画布就加入并选中（右栏出设置），已排进的只选中。
   return (
     <li
-      className={cn('flex min-w-0 items-center gap-1 rounded-md border px-1 py-1', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
+      className={cn('min-w-0 rounded-md border', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
       draggable={!placed}
       onDragStart={placed ? undefined : onDragStart}
       onDragEnd={() => onDragging(null)}
       data-testid={`palette-agent-${agent.name}`}
       data-placed={placed}
     >
-      <span className="grid size-6 flex-none place-items-center text-text-3" aria-hidden="true"><GripVertical className="size-3.5" /></span>
       <button
         type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+        className="flex min-h-10 w-full min-w-0 items-center gap-2 px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+        aria-label={placed ? agent.name : t('workflow.add_skill', { id: agent.name })}
         aria-pressed={active}
         data-testid={`palette-agent-open-${agent.name}`}
-        onClick={() => onOpen(agent.name)}
+        onClick={() => { if (!placed) onAdd(agent.name); onOpen(agent.name) }}
       >
-        <span className={cn('truncate font-mono text-body', active ? 'font-semibold text-(--accent)' : 'text-text')}>{agent.name}</span>
-        <span className="ml-auto flex flex-none items-center"><SkillSourceIcon source={agent.source === 'builtin' ? 'builtin' : 'user'} /></span>
-      </button>
-      <button
-        type="button"
-        className="grid size-6 flex-none place-items-center rounded-xs text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:invisible"
-        aria-label={t('workflow.add_skill', { id: agent.name })}
-        disabled={placed}
-        data-testid={`palette-agent-add-${agent.name}`}
-        onClick={() => onAdd(agent.name)}
-      >
-        <Plus className="size-3.5" aria-hidden="true" />
+        <GripVertical className="size-3.5 flex-none text-text-3" aria-hidden="true" />
+        <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap font-mono text-body', active ? 'font-semibold text-(--accent)' : 'text-text')}>{agent.name}</span>
+        <span className="flex flex-none items-center"><SkillSourceIcon source={agent.source === 'builtin' ? 'builtin' : 'user'} /></span>
+        <span className={cn('grid size-6 flex-none place-items-center text-text-3', placed && 'invisible')} aria-hidden="true" data-testid={`palette-agent-add-${agent.name}`}><Plus className="size-3.5" /></span>
       </button>
     </li>
   )

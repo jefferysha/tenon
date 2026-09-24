@@ -104,7 +104,34 @@ describe('SkillComposer', () => {
     expect(screen.getByTestId('skill-detail-markdown')).not.toHaveTextContent('name: brainstorming')
     expect(screen.getByTestId('skill-detail-origin')).toHaveTextContent('superpowers@official')
     expect(screen.getByTestId('skill-detail-files')).toHaveTextContent('references/notes.md')
+    // 文件树不再有大写字距 eyebrow，列表名由 aria-label 承担。
+    expect(screen.getByRole('list', { name: '文件' })).toBe(screen.getByTestId('skill-detail-files'))
+    expect(screen.getByTestId('skill-detail').querySelector('.uppercase')).toBeNull()
     await user.click(screen.getByTestId('skill-file-references/notes.md'))
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Notes' })).toBeInTheDocument())
+  })
+
+  it('× 叫「关闭」；打开即聚焦搜索；「完成」只在草稿与阶段不同时可点；整行点一下就加入', async () => {
+    mockSkillApi()
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    render(
+      <I18nProvider>
+        <SkillComposer open stageLabel="调研" skills={[{ id: 'tenon-open' }]} registry={REGISTRY} onClose={() => undefined} onSave={onSave} />
+      </I18nProvider>,
+    )
+    expect(screen.getByTestId('skill-composer-close')).toHaveAccessibleName('关闭')
+    await waitFor(() => expect(screen.getByTestId('skill-palette-search')).toHaveFocus())
+    const done = screen.getByTestId('skill-composer-save')
+    expect(done).toHaveTextContent('完成')
+    expect(done).toBeDisabled()
+    const row = screen.getByTestId('palette-open-brainstorming')
+    expect(row).toHaveAccessibleName('加入 brainstorming')
+    expect(row.className).toContain('min-h-10')
+    await user.click(row)
+    expect(screen.getByTestId('flow-node-brainstorming')).toBeInTheDocument()
+    expect(done).toBeEnabled()
+    await user.click(screen.getByTestId('flow-remove-brainstorming'))
+    expect(done).toBeDisabled()
   })
 })

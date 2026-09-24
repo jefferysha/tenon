@@ -1,10 +1,10 @@
-import { memo, useEffect, useMemo, useState, type DragEvent } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { GripVertical, Plus, Search } from 'lucide-react'
 import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
 import { SkillDetail } from './SkillDetail'
-import { appendSerial, SkillFlow } from './SkillFlow'
+import { appendSerial, SkillFlow, skillsSignature } from './SkillFlow'
 import { SkillSourceIcon } from './SkillSourceIcon'
 import { cn } from '@/lib/utils'
 
@@ -31,22 +31,28 @@ const PaletteItem = memo(function PaletteItem({ entry, placed, active, onOpen, o
     event.dataTransfer.effectAllowed = 'move'
     onDragging(entry.name)
   }
+  // 整行是一个按钮：没排进画布就加入（串行追加）并显示详情，已排进的只显示详情。
   return (
     <li
-      className={cn('flex min-w-0 items-center gap-1 rounded-md border px-1 py-1 transition-[opacity,border-color,background-color] duration-150', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
+      className={cn('min-w-0 rounded-md border transition-[opacity,border-color,background-color] duration-150', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
       draggable={!placed}
       onDragStart={placed ? undefined : onDragStart}
       onDragEnd={() => onDragging(null)}
       data-testid={`palette-${entry.name}`}
       data-placed={placed}
     >
-      <span className="grid size-6 flex-none place-items-center text-text-3" aria-hidden="true"><GripVertical className="size-3.5" /></span>
-      <button type="button" className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" aria-pressed={active} data-testid={`palette-open-${entry.name}`} onClick={() => onOpen(entry.name)}>
-        <span className={cn('truncate font-mono text-body', active ? 'font-semibold text-(--accent)' : 'text-text')}>{entry.name}</span>
-        <span className="ml-auto flex flex-none items-center" data-testid={`palette-source-${entry.name}`}><SkillSourceIcon source={entry.source} /></span>
-      </button>
-      <button type="button" className="grid size-6 flex-none place-items-center rounded-xs text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:invisible" aria-label={t('workflow.add_skill', { id: entry.name })} disabled={placed} data-testid={`palette-add-${entry.name}`} onClick={() => onAdd(entry.name)}>
-        <Plus className="size-3.5" aria-hidden="true" />
+      <button
+        type="button"
+        className="flex min-h-10 w-full min-w-0 items-center gap-2 px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+        aria-label={placed ? entry.name : t('workflow.add_skill', { id: entry.name })}
+        aria-pressed={active}
+        data-testid={`palette-open-${entry.name}`}
+        onClick={() => { if (!placed) onAdd(entry.name); onOpen(entry.name) }}
+      >
+        <GripVertical className="size-3.5 flex-none text-text-3" aria-hidden="true" />
+        <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap font-mono text-body', active ? 'font-semibold text-(--accent)' : 'text-text')}>{entry.name}</span>
+        <span className="flex flex-none items-center" data-testid={`palette-source-${entry.name}`}><SkillSourceIcon source={entry.source} /></span>
+        <span className={cn('grid size-6 flex-none place-items-center text-text-3', placed && 'invisible')} aria-hidden="true" data-testid={`palette-add-${entry.name}`}><Plus className="size-3.5" /></span>
       </button>
     </li>
   )
@@ -62,7 +68,10 @@ export function SkillComposer({ open, stageLabel, skills, registry, onClose, onS
   const [search, setSearch] = useState('')
   const [detail, setDetail] = useState<string | null>(null)
   const [dragging, setDragging] = useState<string | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   useEffect(() => { if (open) { setDraft([...skills]); setDetail(skills[0]?.id ?? null) } }, [open, skills])
+  // 两级保存：这里只把草稿交回阶段（「完成」），真正写盘在页面保存条。没改动时「完成」不可点。
+  const changed = skillsSignature(draft) !== skillsSignature(skills)
   const placed = useMemo(() => new Set(draft.map((skill) => skill.id)), [draft])
   const entries = useMemo(() => (registry ?? [])
     .filter((entry) => entry.installed && entry.available !== false && entry.name.toLowerCase().includes(search.trim().toLowerCase()))
@@ -80,22 +89,23 @@ export function SkillComposer({ open, stageLabel, skills, registry, onClose, onS
       onClose={onClose}
       variant="workspace"
       testid="skill-composer"
-      closeLabel={t('workflow.cancel')}
+      closeLabel={t('workflow.close')}
       closeTestid="skill-composer-close"
+      initialFocusRef={searchRef}
       panelClassName="h-[min(90vh,60rem)] w-[min(97vw,96rem)]"
       actions={(
         <>
           <button type="button" className="min-h-10 rounded-md px-3 text-base text-text-2 hover:bg-fill" data-testid="skill-composer-cancel" onClick={onClose}>{t('workflow.cancel')}</button>
-          <button type="button" className="min-h-10 rounded-md bg-(--accent) px-4 text-base font-semibold text-btn-fg hover:bg-accent-d" data-testid="skill-composer-save" onClick={() => { onSave(draft); onClose() }}>{t('workflow.composer_save')}</button>
+          <button type="button" className="min-h-10 rounded-md bg-(--accent) px-4 text-base font-semibold text-btn-fg hover:bg-accent-d disabled:cursor-not-allowed disabled:bg-fill-2 disabled:text-text-3" data-testid="skill-composer-save" disabled={!changed} onClick={() => { onSave(draft); onClose() }}>{t('workflow.composer_done')}</button>
         </>
       )}
     >
-      <div className="grid h-full min-h-0 grid-cols-[17rem_minmax(0,1fr)_minmax(20rem,26rem)] gap-4 max-[1100px]:grid-cols-[16rem_minmax(0,1fr)] max-[900px]:grid-cols-1">
+      <div className="grid h-full min-h-0 grid-cols-[20rem_minmax(0,1fr)_minmax(20rem,26rem)] gap-4 max-[1100px]:grid-cols-[18rem_minmax(0,1fr)] max-[900px]:grid-cols-1">
         <section className="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-bg p-2" data-testid="skill-palette" aria-label={t('workflow.local_skills')}>
           <label className="flex h-9 flex-none items-center gap-2 rounded-md border border-border bg-card px-2 text-text-3 focus-within:border-accent-b">
             <Search className="size-3.5 flex-none" aria-hidden="true" />
             <span className="sr-only">{t('workflow.search_skills')}</span>
-            <input type="search" value={search} placeholder={t('workflow.search_skills')} className="min-w-0 flex-1 bg-transparent text-body text-text outline-none placeholder:text-text-3" data-testid="skill-palette-search" onChange={(event) => setSearch(event.target.value)} />
+            <input ref={searchRef} type="search" value={search} placeholder={t('workflow.search_skills')} className="min-w-0 flex-1 bg-transparent text-body text-text outline-none placeholder:text-text-3" data-testid="skill-palette-search" onChange={(event) => setSearch(event.target.value)} />
           </label>
           {registry === null ? (
             <p className="px-1 text-caption text-text-3" role="status">{t('common.loading')}</p>
