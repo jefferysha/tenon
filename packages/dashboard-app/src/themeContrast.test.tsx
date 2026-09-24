@@ -54,6 +54,33 @@ describe('theme semantic foreground contrast', () => {
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5)
   })
 
+  const themes = [
+    ['default light', light],
+    ['system dark', systemDark],
+    ['explicit light', explicitLight],
+    ['explicit dark', dark],
+  ] as const
+
+  // text-2 / text-3 carry readable copy on every neutral ground; text-4 is decoration only.
+  it.each(themes.flatMap(([label, source]) =>
+    (['text-2', 'text-3'] as const).flatMap((fg) =>
+      (['card', 'bg', 'fill', 'surface-detail'] as const).map((bg) => [`${label} ${fg} on ${bg}`, source, fg, bg] as const))))(
+    '%s stays at WCAG AA for normal text',
+    (_label, source, fg, bg) => {
+      expect(contrast(hexToken(source, fg), hexToken(source, bg))).toBeGreaterThanOrEqual(4.5)
+    },
+  )
+
+  it.each(themes)('%s keeps text-4 as a quieter decorative step below text-3', (_label, source) => {
+    const card = hexToken(source, 'card')
+    expect(contrast(hexToken(source, 'text-4'), card)).toBeLessThan(contrast(hexToken(source, 'text-3'), card))
+  })
+
+  // Disabled buttons swap to fill-2 ground + text-3 (uiRecipes) instead of fading the whole control.
+  it.each(themes)('%s disabled button label stays legible (≥ 3:1)', (_label, source) => {
+    expect(contrast(hexToken(source, 'text-3'), hexToken(source, 'fill-2'))).toBeGreaterThanOrEqual(3)
+  })
+
   it('uses the shared ease-out token for Tailwind transitions', () => {
     expect(css).toContain('--default-transition-timing-function: var(--ease-out);')
   })
