@@ -286,7 +286,25 @@ describe('项目页 · 布局与读取', () => {
         />
       </I18nProvider>,
     )
-    expect(await screen.findByTestId('proj-root-tenon')).toHaveTextContent('…/code/tenon')
+    expect(await screen.findByTestId('proj-root-tenon')).toHaveTextContent('~/…/code/tenon')
+    // 完整路径挂在副行的 title 上；图标是语义图标，不是首字母。
+    expect(screen.getByTestId('proj-root-tenon-meta')).toHaveAttribute('title', '/Users/me/Documents/code/tenon')
+    expect(screen.getByTestId('proj-root-tenon-mark').querySelector('svg')).not.toBeNull()
+    expect(screen.getByTestId('proj-root-tenon-mark')).not.toHaveTextContent('T')
+  })
+
+  it('「新建项目」是左列标题行的「+」，不在底部动作条', async () => {
+    stubFetch()
+    render(
+      <I18nProvider>
+        <ProjectsView projects={[]} currentRoot="" onSelectProject={() => undefined} />
+      </I18nProvider>,
+    )
+    const button = await screen.findByTestId('proj-new')
+    expect(button).toHaveAccessibleName('新建项目')
+    expect(button.className.split(/\s+/u)).toContain('size-10')
+    const rail = screen.getByTestId('projects-rail')
+    expect(rail.querySelector('ul')?.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
   })
 
   // 回归：进入项目页 /api/instructions 发两次——首读未回时快照变化或聚焦又触发一次复查。
