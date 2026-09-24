@@ -15,6 +15,7 @@ import { useMandatorySkills, type MandatoryState } from './mandatoryState'
 import { readSaveErrors, readWorkflowDeleteResponse } from './workbenchApiDecoders'
 import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
 import { useStageDraftEditor } from './useStageDraftEditor'
+import { countDraftChanges } from './draftChanges'
 import { useWorkbenchDirtyState, type WorkbenchDirtySource } from './useWorkbenchDirtyState'
 import {
   BASE_BRANCH,
@@ -77,6 +78,8 @@ export interface CreateState {
 export interface WorkflowEditorInput {
   root: string
   onDirtyChange?: (dirty: boolean) => void
+  /** 深链带来的初始选择（?wf=&track=&step=）；只在第一次拉到列表时用一次，不存在的名字按缺省落。 */
+  initial?: { wf?: string; track?: string; step?: string }
 }
 
 export interface WorkflowEditor {
@@ -108,6 +111,8 @@ export interface WorkflowEditor {
   /** 页面是否持有写凭证；无则所有写入口置灰。 */
   canWrite: boolean
   dirty: boolean
+  /** 保存条「未保存 N 处」：按阶段 / 轨道 / 工作流级字段计数；干净时为 0。 */
+  changeCount: number
   saving: boolean
   saveStatus: SaveStatus
   menuNames: string[]
@@ -154,7 +159,7 @@ const NAME_RE = /^[\p{L}\p{N}\p{M}_-]+$/u
  * 工作流定义编辑的状态机：列表 / 定义加载（default 亦从服务端读，项目覆盖优先）、草稿与保存、
  * 新建（复制 / 空白 / 导入 YAML）、删除（default = 恢复内建）、切换守卫、阶段草稿、轨道技能矩阵。
  */
-export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput): WorkflowEditor {
+export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEditorInput): WorkflowEditor {
   const { t, lang } = useT()
   const [names, setNames] = useState<string[] | null>(null)
   const [defaultSource, setDefaultSource] = useState<WbWorkflowSource>('builtin')
@@ -179,6 +184,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   const [workflowDeleteBusy, setWorkflowDeleteBusy] = useState(false)
   const [workflowDeleteError, setWorkflowDeleteError] = useState<WorkflowDeleteError | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
+  const initialRef = useRef(initial)
   const rootIdentity = useRef(root)
   const workflowIdentity = useRef<string | null>(null)
   const generation = useRef({ save: 0, create: 0, delete: 0, names: 0 })
@@ -242,7 +248,15 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
         setNames(index.names)
         setDefaultSource(index.defaultSource)
         setNamesError(null)
-        // 有自定义工作流时先落到第一个（多半是正在编辑的那份），否则 default。
+        // 深链点名的工作流存在就用它（连同轨道与阶段）；否则有自定义工作流时先落到第一个，再否则 default。
+        const linked = initialRef.current
+        initialRef.current = undefined
+        if (linked?.wf !== undefined && (isDefaultWorkflowName(linked.wf) || index.names.includes(linked.wf))) {
+          setWfName(linked.wf)
+          if (linked.track !== undefined) setBranchState(linked.track)
+          if (linked.step !== undefined) setStageId(linked.step)
+          return
+        }
         setWfName(index.names[0] ?? 'default')
       })
       .catch((error: unknown) => {
@@ -290,6 +304,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
   const namesErrorText = namesError === null ? null : t('workbench.names_error', { msg: formatApiError(namesError, t) })
   const defErrorText = defError === null ? null : t('workbench.def_error', { msg: formatApiError(defError, t) })
   const dirty = fullDef !== null && baselineJson.current !== null && JSON.stringify(definitionForWrite(fullDef)) !== baselineJson.current
+  const changeCount = dirty ? Math.max(1, countDraftChanges(baselineRef.current, fullDef)) : 0
   const createDirty = createOpen && (createName !== '' || createYaml !== '')
   const { setSourceDirty } = useWorkbenchDirtyState({ localDirty: dirty || createDirty || stageDraft.draftDirty, onDirtyChange })
   const reportTrackDirty = useCallback((value: boolean) => { setSourceDirty('track', value) }, [setSourceDirty])
@@ -620,6 +635,7 @@ export function useWorkflowEditor({ root, onDirtyChange }: WorkflowEditorInput):
     setDocumentInputs,
     canWrite,
     dirty,
+    changeCount,
     saving,
     saveStatus,
     menuNames,

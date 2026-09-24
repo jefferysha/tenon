@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { WbEffectiveIo, WbSkillEntry, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
@@ -49,7 +49,7 @@ const REGISTRY: WbSkillEntry[] = [
 function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): WorkflowEditor {
   const labels = new Map(DEF.steps.map((candidate) => [candidate.id, candidate.label]))
   return {
-    def: DEF, effectiveIo: IO, canWrite: true, lint: [], lintBlocked: false, dirty: false, saving: false, saveStatus: { kind: 'idle' },
+    def: DEF, effectiveIo: IO, canWrite: true, lint: [], lintBlocked: false, dirty: false, changeCount: 0, saving: false, saveStatus: { kind: 'idle' },
     wfName: 'default', branch: 'pm', branches: [{ id: 'pm', label: '产品' }],
     labelOf: (id: string) => labels.get(id) ?? id,
     mandatory: { registry: REGISTRY },
@@ -69,11 +69,13 @@ function renderPane(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
 }
 
 describe('StageEditorPane · 两栏定稿', () => {
-  it('面包屑 = 工作流 › 轨道；标题输入直接改名；段落顺序 输入 → 技能 → 输出 → 门禁', async () => {
+  it('没有面包屑与「n / N」：工作流名与轨道只在左栏；标题输入直接改名；段落顺序 输入 → 技能 → 输出 → 门禁', async () => {
     const user = userEvent.setup()
     const editor = renderPane(EXPLORE)
-    expect(screen.getByTestId('wb-crumbs')).toHaveTextContent('default')
-    expect(screen.getByTestId('wb-crumbs')).toHaveTextContent('产品')
+    expect(screen.queryByTestId('wb-crumbs')).toBeNull()
+    expect(screen.getByTestId('stage-editor-pane')).not.toHaveTextContent('default')
+    expect(screen.getByTestId('stage-editor-pane')).not.toHaveTextContent('1 / 2')
+    expect(screen.queryByTestId('wb-lane-remove-explore')).toBeNull()
     expect(screen.getByTestId('wb-lane-name-explore')).toHaveTextContent('调研')
     expect(screen.getByTestId('wb-lane-name-input-explore')).toHaveValue('调研')
     await user.type(screen.getByTestId('wb-lane-name-input-explore'), '!')
@@ -83,13 +85,13 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.queryByTestId('workflow-runtime-artifacts')).toBeNull()
   })
 
-  it('输出表三列与输入对齐：文件 · 来源阶段（= 本阶段）· 来源技能；文档来源 = 契约候选 ∩ 阶段技能，字段 = 阶段全部技能', () => {
+  it('输出表三列与输入对齐：文件 · 消费阶段 · 来源技能；文档来源 = 契约候选 ∩ 阶段技能，字段 = 阶段全部技能', () => {
     renderPane(EXPLORE)
     const table = screen.getByTestId('io-outputs')
-    expect(table).toHaveTextContent('文件')
-    expect(table).toHaveTextContent('来源阶段')
-    expect(table).toHaveTextContent('来源技能')
-    expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('调研')
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['文件', '消费阶段', '来源技能'])
+    expect(within(screen.getByTestId('io-inputs')).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['文件', '来源阶段', '来源技能'])
+    expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('规格')
+    expect(within(table).getByTestId('slot-stage-design_doc')).toHaveTextContent('规格')
     expect(within(table).getByTestId('slot-skills-superpower-design')).toHaveTextContent('brainstorming')
     expect(within(table).getByTestId('slot-skills-superpower-design')).not.toHaveTextContent('superpowers:')
     expect(within(table).getByTestId('slot-skills-design_doc')).toHaveTextContent('tenon-explore, brainstorming, grill-with-docs')
@@ -107,7 +109,22 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.queryByTestId('input-check-field-design_doc')).toBeNull()
     unmount()
     renderPane(EXPLORE)
-    expect(within(screen.getByTestId('io-inputs')).getByRole('status')).toHaveTextContent('没有输入')
+    expect(within(screen.getByTestId('io-inputs')).getByRole('status')).toHaveTextContent('无')
+  })
+
+  it('没有技能：段内只写「无」，不渲染空画布', () => {
+    renderPane({ ...EXPLORE, skills: [] })
+    expect(screen.getByTestId('stage-skills-empty')).toHaveTextContent('无')
+    expect(within(screen.getByTestId('stage-skills')).queryByTestId('skill-flow')).toBeNull()
+  })
+
+  it('保存条：有改动写「未保存 N 处」，没改动不重复工作流名', () => {
+    renderPane(EXPLORE, { dirty: true, changeCount: 3 })
+    expect(screen.getByTestId('wb-dirty')).toHaveTextContent('未保存 3 处')
+    cleanup()
+    renderPane(EXPLORE)
+    expect(screen.queryByTestId('wb-dirty')).toBeNull()
+    expect(screen.getByTestId('stage-editor-pane').querySelector('footer')).not.toHaveTextContent('default')
   })
 
   it('技能画布只读：节点数 = 技能数；点节点打开详情抽屉；编辑按钮打开编辑器', async () => {
@@ -141,14 +158,24 @@ describe('StageEditorPane · 两栏定稿', () => {
     renderPane(step)
     expect(within(screen.getByTestId('stage-executors')).getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1')
     expect(screen.getByTestId('flow-caption-security')).toHaveTextContent('必需 · 中 · 测试 1')
+    // 画布的可访问名称跟段落走，不是笼统的「技能」（H6）。
+    expect(within(screen.getByTestId('stage-executors')).getByRole('group', { name: '执行者' })).toBeInTheDocument()
+    expect(within(screen.getByTestId('stage-reviewers')).getByRole('group', { name: '评审者' })).toBeInTheDocument()
     await user.click(screen.getByTestId('wb-reviewers-edit'))
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
   })
 
-  it('门禁三选：aria-checked 跟随 step.gate，点选写回', async () => {
+  it('门禁三选：aria-checked 跟随 step.gate，点选写回；说明用 Tooltip（聚焦可达），不用原生 title', async () => {
+    vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
     const user = userEvent.setup()
     const editor = renderPane(EXPLORE)
-    expect(screen.getByTestId('wb-lane-gate-explore-review')).toHaveAttribute('aria-checked', 'true')
+    const review = screen.getByTestId('wb-lane-gate-explore-review')
+    expect(review).toHaveAttribute('aria-checked', 'true')
+    expect(review).not.toHaveAttribute('title')
+    expect(review).toHaveAccessibleDescription('产物齐全后需人工确认')
+    act(() => { screen.getByTestId('wb-lane-gate-explore-none').focus() })
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('不拦')
+    vi.unstubAllGlobals()
     await user.click(screen.getByTestId('wb-lane-gate-explore-auto'))
     expect(editor.setGate).toHaveBeenCalledWith('explore', 'auto')
   })

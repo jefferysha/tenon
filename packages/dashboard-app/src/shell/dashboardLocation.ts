@@ -25,9 +25,44 @@ export function parseDashboardLocation(search: string): DashboardLocation {
   return result
 }
 
-/** 只接管 dashboard 自有的三个键；debug 等外部 query 原样保留。 */
+/** 工作流页（view=workbench）的可分享选择：工作流名 · 轨道 · 阶段。 */
+export interface WorkflowLocation {
+  wf?: string
+  track?: string
+  step?: string
+}
+
+const WORKFLOW_KEYS = ['wf', 'track', 'step'] as const
+
+/** 只在带 wf 时才认 track / step：step 这个键没有 wf 就不属于工作流页。 */
+export function parseWorkflowLocation(search: string): WorkflowLocation {
+  const params = new URLSearchParams(search)
+  const wf = params.get('wf')
+  if (wf === null || wf === '') return {}
+  const result: WorkflowLocation = { wf }
+  const track = params.get('track')
+  const step = params.get('step')
+  if (track !== null && track !== '') result.track = track
+  if (step !== null && step !== '') result.step = step
+  return result
+}
+
+/** 写工作流页的三个键（null / 空 = 删除）；其余 query 原样保留。 */
+export function workflowSearch(search: string, state: { wf: string | null; track: string | null; step: string | null }): string {
+  const params = new URLSearchParams(search)
+  for (const key of WORKFLOW_KEYS) {
+    const value = state[key]
+    if (value === null || value === '') params.delete(key)
+    else params.set(key, value)
+  }
+  const value = params.toString()
+  return value === '' ? '' : `?${value}`
+}
+
+/** 只接管 dashboard 自有的键；debug 等外部 query 原样保留。离开工作流页时带走它的 wf / track / step。 */
 export function dashboardSearch(search: string, state: DashboardLocationState): string {
   const params = new URLSearchParams(search)
+  if (state.view !== 'workbench' && params.has('wf')) for (const key of WORKFLOW_KEYS) params.delete(key)
   params.set('view', state.view)
   if (state.root === '') params.delete('root')
   else params.set('root', state.root)

@@ -66,4 +66,12 @@ describe('TestsSection', () => {
     render(<I18nProvider><TestsSection tests={tests} editable={false} onAdd={() => undefined} onOpen={onOpen} /></I18nProvider>)
     expect(screen.queryByTestId('wb-tests-add')).toBeNull()
   })
+
+  it('测试方向菜单只显示名称，不再并排显示 id', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify(DIRECTIONS), { status: 200 }))
+    render(<I18nProvider><TestsSection tests={[]} editable onAdd={vi.fn()} onOpen={vi.fn()} /></I18nProvider>)
+    await userEvent.click(screen.getByTestId('wb-tests-add'))
+    const option = await screen.findByTestId('wb-tests-direction-unit')
+    expect(option.textContent).toBe('单测')
+  })
 })

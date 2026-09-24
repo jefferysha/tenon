@@ -1,9 +1,13 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import gsap from 'gsap'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Edge, EdgeProps } from '@xyflow/react'
 import type { WbSkillRef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
-import { addSkillAt, appendSerial, dropTargetFor, edgesOf, graphToSkills, isColumnLink, layoutSkills, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
+import { useReactFlow } from './reactFlowTestDouble'
+import { addSkillAt, appendSerial, canvasHeight, CONTROLS_CLASS, dropTargetFor, edgesOf, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, RESIZE_THROTTLE_MS, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
+import { PulseEdge, pulseModeOf, type PulseData } from './skillFlowNodes'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -88,7 +92,12 @@ describe('SkillFlow · 组件', () => {
     expect(rendered).toContain('j0->brainstorming')
     expect(rendered).not.toContain('tenon-explore->brainstorming,')
     expect(screen.getByTestId('flow-junction')).toBeInTheDocument()
-    expect(screen.getByTestId('flow-node-brainstorming')).toHaveTextContent('把想法聊成设计')
+    // 节点只显示名称；描述不占节点，只作为可访问描述（H7）。
+    const open = screen.getByTestId('flow-open-brainstorming')
+    expect(open).toHaveAccessibleName('brainstorming')
+    expect(open).toHaveAccessibleDescription('把想法聊成设计')
+    expect(open).not.toHaveTextContent('把想法聊成设计')
+    expect(screen.getByTestId('flow-desc-brainstorming')).toHaveClass('sr-only')
     expect(screen.queryByTestId('flow-remove-brainstorming')).toBeNull()
     await user.click(screen.getByTestId('flow-open-brainstorming'))
     expect(onOpen).toHaveBeenCalledWith('brainstorming')
@@ -102,9 +111,9 @@ describe('SkillFlow · 组件', () => {
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-edges', '0')
     expect(onChange).toHaveBeenLastCalledWith([{ id: 'brainstorming' }, { id: 'grill-with-docs' }])
   })
-  it('空态文案：只读「没有技能」，可编辑「拖入技能」', () => {
+  it('空态文案：只读「无」，可编辑「拖入技能」', () => {
     const { unmount } = render(<I18nProvider><SkillFlow skills={[]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
-    expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('没有技能')
+    expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('无')
     unmount()
     render(<I18nProvider><SkillFlow skills={[]} registry={[]} editable onOpen={() => undefined} /></I18nProvider>)
     expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('拖入技能')
@@ -121,5 +130,146 @@ describe('SkillFlow · 组件', () => {
     const en = JSON.parse(screen.getByTestId('react-flow').getAttribute('data-aria-labels') ?? '{}') as Record<string, string>
     expect(en['controls.zoomIn.ariaLabel']).toBe('Zoom in')
     localStorage.removeItem('tenon-dashboard-lang')
+  })
+})
+
+function stubMatchMedia(reduce: boolean): void {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('reduce') ? reduce : !reduce,
+    media: query,
+    onchange: null,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    dispatchEvent: () => false,
+  }))
+}
+
+describe('SkillFlow · 画布尺寸与取景', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks() })
+
+  it('canvasHeight：至少 224；按最高一波的行数与每个节点的行数增高', () => {
+    expect(canvasHeight(0)).toBe(224)
+    expect(canvasHeight(1)).toBe(224)
+    expect(canvasHeight(3)).toBe(22 + 2 * 64 + 40 + 96)
+    expect(canvasHeight(3, 3)).toBeGreaterThan(canvasHeight(3))
+    expect(canvasHeight(4)).toBeGreaterThan(canvasHeight(3))
+    expect(lanesOf(SKILLS)).toBe(2)
+    expect(lanesOf([])).toBe(0)
+  })
+
+  it('layoutSkills：行距跟随节点行数，节点不重叠', () => {
+    const one = layoutSkills(SKILLS)
+    const three = layoutSkills(SKILLS, 3)
+    expect(one[2]!.y - one[1]!.y).toBe(64)
+    expect(three[2]!.y - three[1]!.y).toBe(104)
+  })
+
+  it('readOnlyViewport：缩放恒为 1；内容窄则居中，宽则从起点对齐（留 24）', () => {
+    expect(readOnlyViewport({ x: 10, y: 20, width: 400, height: 100 }, { width: 800, height: 300 })).toEqual({ x: 190, y: 80, zoom: 1 })
+    expect(readOnlyViewport({ x: 10, y: 20, width: 1200, height: 100 }, { width: 800, height: 300 })).toEqual({ x: 14, y: 80, zoom: 1 })
+  })
+
+  it('只读画布：缩放上下限都是 1，高度由内容定，控件只留适应画布且走 token 外观', () => {
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    const flow = screen.getByTestId('react-flow')
+    expect(flow).toHaveAttribute('data-min-zoom', '1')
+    expect(flow).toHaveAttribute('data-max-zoom', '1')
+    expect(screen.getByTestId('skill-flow').style.height).toBe(`${canvasHeight(2)}px`)
+    const controls = screen.getByTestId('flow-controls')
+    expect(controls).toHaveAttribute('data-show-zoom', 'false')
+    for (const token of ['!bg-card', '!border-border', '[&>button]:!size-10']) expect(controls.className).toContain(token)
+    expect(CONTROLS_CLASS).not.toMatch(/#[0-9a-f]{3,6}/iu)
+  })
+
+  it('可编辑画布：允许 0.75–1.5 缩放，高度交给容器，控件带缩放按钮', () => {
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable onChange={() => undefined} onOpen={() => undefined} /></I18nProvider>)
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-min-zoom', '0.75')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-max-zoom', '1.5')
+    expect(screen.getByTestId('skill-flow').style.height).toBe('')
+    expect(screen.getByTestId('flow-controls')).toHaveAttribute('data-show-zoom', 'true')
+  })
+
+  it('尺寸变化：ResizeObserver 节流后按 1:1 重新取景；减少动态效果时 duration 为 0', () => {
+    vi.useFakeTimers()
+    stubMatchMedia(true)
+    const callbacks: Array<() => void> = []
+    vi.stubGlobal('ResizeObserver', class { constructor(callback: () => void) { callbacks.push(callback) } observe(): void {} disconnect(): void {} })
+    const setViewport = vi.spyOn(useReactFlow(), 'setViewport')
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    act(() => { vi.advanceTimersByTime(100) })
+    setViewport.mockClear()
+    const resize = callbacks[callbacks.length - 1]!
+    act(() => { resize() })
+    act(() => { vi.advanceTimersByTime(RESIZE_THROTTLE_MS) })
+    expect(setViewport).not.toHaveBeenCalled()
+    act(() => { resize(); resize(); resize() })
+    act(() => { vi.advanceTimersByTime(RESIZE_THROTTLE_MS) })
+    expect(setViewport).toHaveBeenCalledTimes(1)
+    expect(setViewport.mock.calls[0]![0]).toMatchObject({ zoom: 1 })
+    expect(setViewport.mock.calls[0]![1]).toEqual({ duration: 0 })
+  })
+
+  it('可编辑画布的重新取景走 fitView，不缩到 0.75 以下', () => {
+    vi.useFakeTimers()
+    stubMatchMedia(false)
+    const fitView = vi.spyOn(useReactFlow(), 'fitView')
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable onChange={() => undefined} onOpen={() => undefined} /></I18nProvider>)
+    act(() => { vi.advanceTimersByTime(100) })
+    expect(fitView).toHaveBeenCalledWith({ padding: 0.2, minZoom: 0.75, maxZoom: 1, duration: 200 })
+  })
+})
+
+describe('SkillFlow · 脉冲只在该动时动', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+
+  it('pulseModeOf：不可见 → off；运行中 → loop；编辑过 → once；否则 off', () => {
+    expect(pulseModeOf({ visible: true, running: false, edits: 0 })).toBe('off')
+    expect(pulseModeOf({ visible: true, running: true, edits: 0 })).toBe('loop')
+    expect(pulseModeOf({ visible: true, running: false, edits: 2 })).toBe('once')
+    expect(pulseModeOf({ visible: false, running: true, edits: 2 })).toBe('off')
+  })
+
+  it('只读未运行的画布不播；有技能运行中就循环；技能被改过就走一遍', () => {
+    const { rerender } = render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'off')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-edge-pulse', 'off')
+    rerender(<I18nProvider><SkillFlow skills={[...SKILLS, { id: 'handoff', depends_on: ['brainstorming'] }]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'once')
+    rerender(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} statusOf={(id) => id === 'brainstorming' ? { state: 'running', label: '进行中' } : null} /></I18nProvider>)
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'loop')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-edge-pulse', 'loop')
+  })
+
+  it('画布离开视口时停', () => {
+    const observers: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = []
+    vi.stubGlobal('IntersectionObserver', class { constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) { observers.push(callback) } observe(): void {} disconnect(): void {} })
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} statusOf={() => ({ state: 'running', label: '进行中' })} /></I18nProvider>)
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'loop')
+    act(() => { observers[observers.length - 1]!([{ isIntersecting: false }]) })
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'off')
+  })
+
+  function renderEdge(data: PulseData): void {
+    const props = { id: 'a->b', source: 'a', target: 'b', sourceX: 0, sourceY: 0, targetX: 100, targetY: 0, sourcePosition: 'right', targetPosition: 'left', data } as unknown as EdgeProps<Edge<PulseData>>
+    render(<svg><PulseEdge {...props} /></svg>)
+  }
+
+  it('PulseEdge：off 不起 tween；loop 无限重复、once 走一遍，都按 order 依次延迟；减少动态效果时不起', () => {
+    Object.defineProperty(SVGElement.prototype, 'getTotalLength', { value: () => 100, configurable: true })
+    const fromTo = vi.spyOn(gsap, 'fromTo')
+    stubMatchMedia(false)
+    renderEdge({ order: 2, total: 4, mode: 'off', run: 0 })
+    expect(fromTo).not.toHaveBeenCalled()
+    renderEdge({ order: 2, total: 4, mode: 'loop', run: 0 })
+    expect(fromTo).toHaveBeenCalledTimes(1)
+    expect(fromTo.mock.calls[0]![2]).toMatchObject({ repeat: -1, delay: 2 * 0.55 })
+    renderEdge({ order: 0, total: 4, mode: 'once', run: 1 })
+    expect(fromTo.mock.calls[1]![2]).toMatchObject({ repeat: 0, delay: 0 })
+    fromTo.mockClear()
+    stubMatchMedia(true)
+    renderEdge({ order: 0, total: 4, mode: 'loop', run: 0 })
+    expect(fromTo).not.toHaveBeenCalled()
   })
 })

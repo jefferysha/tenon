@@ -82,8 +82,7 @@ export function SkillDetail({ name, layout = 'split' }: SkillDetailProps): JSX.E
           <SkillSourceIcon source={files.files.source} />
           <span className="truncate font-mono">{files.files.origin}</span>
         </p>
-        <p className="mb-2 text-caption font-semibold uppercase tracking-[.08em] text-text-3">{t('workflow.skill_files')}</p>
-        <ul className={cn(stacked ? 'flex flex-wrap gap-1' : 'grid gap-0.5')} data-testid="skill-detail-files">
+        <ul className={cn(stacked ? 'flex flex-wrap gap-1' : 'grid gap-0.5')} aria-label={t('workflow.skill_files')} data-testid="skill-detail-files">
           {files.files.files.map((entry) => {
             const active = entry.path === selected
             return (

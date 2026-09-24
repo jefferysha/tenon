@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dashboardSearch, parseDashboardLocation, resolveDashboardRoot } from './dashboardLocation'
+import { dashboardSearch, parseDashboardLocation, parseWorkflowLocation, resolveDashboardRoot, workflowSearch } from './dashboardLocation'
 
 describe('dashboard URL 深链路', () => {
   it('退役的 overview / hostPlan 深链不再是视图，只保留 root/change 与外部 query', () => {
@@ -42,5 +42,24 @@ describe('dashboard URL 深链路', () => {
 
   it('显式 macOS 逻辑路径仍可解析到已登记的规范路径', () => {
     expect(resolveDashboardRoot(['/old', '/private/tmp/repo-a'], '/tmp/repo-a')).toBe('/private/tmp/repo-a')
+  })
+
+  it('工作流页：wf / track / step 可深链；没有 wf 时 track / step 不算工作流页的', () => {
+    expect(parseWorkflowLocation('?view=workbench&wf=%E5%8F%91%E5%B8%83&track=pm&step=spec')).toEqual({ wf: '发布', track: 'pm', step: 'spec' })
+    expect(parseWorkflowLocation('?view=workbench&wf=default')).toEqual({ wf: 'default' })
+    expect(parseWorkflowLocation('?view=progress&step=spec')).toEqual({})
+    expect(parseWorkflowLocation('?wf=&track=pm')).toEqual({})
+  })
+
+  it('workflowSearch 只写这三个键，null 删除；其它 query 保留', () => {
+    expect(workflowSearch('?debug=1&view=workbench', { wf: 'flow', track: 'pm', step: 'spec' })).toBe('?debug=1&view=workbench&wf=flow&track=pm&step=spec')
+    expect(workflowSearch('?view=workbench&wf=flow&track=pm&step=spec', { wf: 'flow', track: null, step: null })).toBe('?view=workbench&wf=flow')
+  })
+
+  it('离开工作流页时带走 wf / track / step；留在工作流页时原样保留', () => {
+    expect(dashboardSearch('?view=workbench&wf=flow&track=pm&step=spec', { view: 'progress', root: '', change: null })).toBe('?view=progress')
+    expect(dashboardSearch('?view=workbench&wf=flow&step=spec', { view: 'workbench', root: '/repo', change: null })).toBe('?view=workbench&wf=flow&step=spec&root=%2Frepo')
+    // 不带 wf 的 step 不是工作流页的，别的页自己管。
+    expect(dashboardSearch('?view=progress&step=spec', { view: 'progress', root: '', change: null })).toBe('?view=progress&step=spec')
   })
 })

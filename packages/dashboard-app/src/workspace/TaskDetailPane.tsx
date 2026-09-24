@@ -120,7 +120,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
         {skills.length > 0 && (
           <section className="mb-8" data-testid="stage-skills">
             <h2 className="mb-3 text-title font-semibold text-text">{t('workspace.skills')}<span className="ml-2 font-mono text-caption font-normal text-text-3">{skills.length}</span></h2>
-            <SkillFlow key={`${identity} ${selectedStep}`} skills={skills} registry={null} editable={false} onOpen={() => undefined} statusOf={statusOf} className="h-56" />
+            <SkillFlow key={`${identity} ${selectedStep}`} skills={skills} registry={null} editable={false} onOpen={() => undefined} statusOf={statusOf} />
           </section>
         )}
         <StageAgentsPanel identity={identity} stepId={selectedStep} agents={stepAgents} onOpen={setOpenAgent} />

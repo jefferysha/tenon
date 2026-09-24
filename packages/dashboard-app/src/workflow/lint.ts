@@ -1,6 +1,7 @@
 import type { WbEffectiveIo, WbIoSlot, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import { DOCUMENT_CHAIN_PAIRS, DOCUMENT_KIND_CATALOG, isDocumentKind } from '@tenon/kernel/workflow/document-contract-model'
+import { TENON_PRODUCER, aliasesForSkill } from '@tenon/kernel/workflow/document-contract-validation'
 import { skillsEquivalent } from './producers'
 
 type LintKind =
@@ -40,13 +41,17 @@ function documentScope(kind: string): 'change' | 'project' {
   return isDocumentKind(kind) ? DOCUMENT_KIND_CATALOG[kind].scope : 'change'
 }
 
-/** 文档契约的编辑期检查，与 kernel validateDocumentContract 对齐：技能缺失与顺序是错误，成对文档缺一是警告。 */
+/**
+ * 文档契约的编辑期检查，与 kernel validateDocumentContract 对齐：技能缺失与顺序是错误，成对文档缺一是警告。
+ * 技能归属与 kernel 同样豁免两类：`tenon` 是编排器本身，不写在任何阶段的技能里；default 的阶段技能由
+ * phase manifest 在运行时叠加（对话轨只有驱动技能），kernel 对 default 整条跳过这项检查。
+ */
 function documentIssues(def: WbWorkflowDef): LintIssue[] {
   const contract = def.documentContract
   if (def.openspec !== true || contract === undefined) return []
   const issues: LintIssue[] = []
   const index = (stepId: string): number => def.steps.findIndex((step) => step.id === stepId)
-  const producerSeverity = isDefaultWorkflowName(def.name) ? 'warning' : 'error'
+  const checkProducers = !isDefaultWorkflowName(def.name)
   const earlierProduce = (kind: string, stepId: string): boolean =>
     contract.slots.some((slot) => slot.kind === kind && slot.role === undefined && index(slot.ownerStep) < index(stepId))
   for (const slot of contract.slots) {
@@ -54,10 +59,12 @@ function documentIssues(def: WbWorkflowDef): LintIssue[] {
       issues.push({ kind: 'document-order', stepId: slot.ownerStep, document: slot.kind, severity: 'error' })
     }
     if (slot.role === 'require') continue
+    if (!checkProducers) continue
     const skills = def.steps.find((step) => step.id === slot.ownerStep)?.skills.map((skill) => skill.id) ?? []
     for (const producer of slot.producers) {
+      if (aliasesForSkill(producer).includes(TENON_PRODUCER)) continue
       if (!skills.some((skill) => skillsEquivalent(skill, producer))) {
-        issues.push({ kind: 'document-producer-missing', stepId: slot.ownerStep, document: slot.kind, skill: producer, severity: producerSeverity })
+        issues.push({ kind: 'document-producer-missing', stepId: slot.ownerStep, document: slot.kind, skill: producer, severity: 'error' })
       }
     }
   }

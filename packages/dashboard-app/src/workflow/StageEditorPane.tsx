@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Check, ChevronRight, Circle, Info, Pencil, Plus, ShieldCheck, Trash2, Zap, type LucideIcon } from 'lucide-react'
+import { Check, Circle, Info, Pencil, Plus, ShieldCheck, Zap, type LucideIcon } from 'lucide-react'
 import { DOCUMENT_KIND_CATALOG } from '@tenon/kernel/workflow/document-contract-model'
 import type { WbExecutorRef, WbIoSlot, WbReviewerRef, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { documentInputCandidates, documentKindsForOutput } from '../workbench/documentContractEdits'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
 import { backTargetOf, BASE_BRANCH } from '../workbench/workbenchDefinition'
+import { Hint } from './Hint'
 import { AgentComposer } from './AgentComposer'
 import { AgentSection } from './AgentSection'
 import { issuesFor } from './lint'
@@ -51,7 +52,7 @@ function SectionHead({ title, count, action }: { title: string; count?: number; 
 }
 
 /**
- * 工作流页右栏：面包屑 + 可编辑标题；段落顺序 输入 → 技能 → 执行者 → 输出 → 评审者 → 门禁 → 退回。
+ * 工作流页右栏：可编辑标题（工作流名与轨道只在左栏出现一次）；段落顺序 输入 → 技能 → 执行者 → 输出 → 评审者 → 门禁 → 退回。
  * 段头一行（标题 · 计数 · 动作），内容满宽。字段输入输出由定义推导；开启 OpenSpec 时文档输出用「+ 输出」声明，文档输入用「+ 输入」勾选。
  */
 export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Element {
@@ -60,7 +61,6 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const steps = def?.steps ?? []
   const index = steps.findIndex((candidate) => candidate.id === step.id)
   const editable = editor.canWrite
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
   const [agentRole, setAgentRole] = useState<'executors' | 'reviewers' | null>(null)
   const [skillDetail, setSkillDetail] = useState<string | null>(null)
@@ -70,7 +70,6 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const stepIo = editor.effectiveIo?.[step.id]
   const registry = editor.mandatory.registry
   const blocked = editor.lintBlocked
-  const branchLabel = editor.branch === BASE_BRANCH ? null : (editor.branches.find((candidate) => candidate.id === editor.branch)?.label ?? editor.branch)
   const yamlBase = editor.branch === BASE_BRANCH ? `steps[${step.id}]` : `tracks.${editor.branch}.steps[${step.id}]`
   const contractBase = editor.branch === BASE_BRANCH ? 'document_contract' : `tracks.${editor.branch}.document_contract`
   const stageSkills = step.skills.map((skill) => skill.id)
@@ -91,9 +90,10 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
     .filter((issue) => issue.kind.startsWith('transition-'))
     .map((issue) => lintMessage(t, issue, editor.labelOf))
 
+  // 输出行的阶段列是去向（读它的下游阶段）；来源阶段恒为本阶段，写出来是废话。
   const outputRows: IoRow[] = (stepIo?.outputs ?? []).map((slot) => ({
     slot,
-    stage: stageLabel,
+    stage: slot.consumers.length === 0 ? undefined : slot.consumers.map((id) => editor.labelOf(id)).join(', '),
     skills: slot.kind === 'document' ? producerSkills(slot.producers, stageSkills) : stageSkills,
     path: slot.kind === 'document' ? `${contractBase}.slots[${slot.id}]` : `${yamlBase}.outputs[${slot.id}]`,
   }))
@@ -117,8 +117,6 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
       path: slot.kind === 'document' ? `${contractBase}.reads[${step.id}]` : `${yamlBase}.inputs[${slot.id}]`,
     }
   })
-
-  const smallBtn = 'inline-flex min-h-8 items-center gap-1.5 rounded-sm border border-border bg-card px-2.5 text-body text-text-2 hover:border-text-3 hover:text-text disabled:opacity-50'
 
   const inputAction = documentsEditable ? (
     <span className="relative">
@@ -182,11 +180,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
     <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-surface-detail" data-testid="stage-editor-pane">
       {/* relative：sr-only 等绝对定位后代要以本滚动容器为包含块，否则它们会越过裁切把整页撑出滚动条。 */}
       <div className="relative min-h-0 flex-1 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4 max-[900px]:pt-5">
-        <nav className="flex min-w-0 items-center gap-1.5 text-body text-text-2" aria-label={t('workflow.crumbs')} data-testid="wb-crumbs">
-          <span className="truncate">{editor.wfName ?? ''}</span>
-          {branchLabel !== null && <><ChevronRight className="size-3.5 flex-none text-text-3" aria-hidden="true" /><span className="truncate">{branchLabel}</span></>}
-        </nav>
-        <div className="mt-1 flex items-start gap-3" data-testid="stage-actions">
+        <div className="flex items-start gap-3" data-testid="stage-actions">
           <span className="sr-only" data-testid={`wb-lane-name-${step.id}`}>{stageLabel}</span>
           <input
             className="min-w-0 flex-1 rounded-xs border-b border-transparent bg-transparent pb-0.5 text-page font-bold tracking-[-.01em] text-text outline-none transition-colors hover:border-border focus:border-accent-b disabled:cursor-default disabled:hover:border-transparent"
@@ -196,18 +190,6 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
             data-testid={`wb-lane-name-input-${step.id}`}
             onChange={(event) => editor.renameStep(step.id, event.target.value)}
           />
-          <span className="mt-2.5 flex flex-none items-center gap-2">
-            <span className="font-mono text-body text-text-3">{index + 1} / {steps.length}</span>
-            {confirmDelete ? (
-              <>
-                <span className="text-body text-red-d">{t('workflow.settings_delete_confirm', { name: stageLabel })}</span>
-                <button type="button" className={smallBtn} onClick={() => setConfirmDelete(false)}>{t('workflow.cancel')}</button>
-                <button type="button" className={`${smallBtn} border-red-b text-red-d hover:bg-red-t`} data-testid={`wb-lane-remove-confirm-${step.id}`} onClick={() => { setConfirmDelete(false); editor.removeStage(step.id) }}>{t('workflow.settings_delete')}</button>
-              </>
-            ) : (
-              <button type="button" className="grid size-8 place-items-center rounded-sm text-text-3 outline-none hover:bg-red-t hover:text-red-d focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-40" disabled={!editable || steps.length <= 1} data-testid={`wb-lane-remove-${step.id}`} aria-label={t('workflow.delete_stage')} title={t('workflow.delete_stage')} onClick={() => setConfirmDelete(true)}><Trash2 className="size-4" aria-hidden="true" /></button>
-            )}
-          </span>
         </div>
 
         <div className="mt-4 grid divide-y divide-border">
@@ -232,7 +214,9 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
                 </button>
               ) : undefined}
             />
-            <SkillFlow key={step.id} skills={step.skills} registry={registry} editable={false} onOpen={setSkillDetail} className="h-56" />
+            {step.skills.length === 0
+              ? <p className="text-body text-text-3" data-testid="stage-skills-empty">{t('workflow.no_skills')}</p>
+              : <SkillFlow key={step.id} skills={step.skills} registry={registry} editable={false} onOpen={setSkillDetail} />}
           </section>
 
           <AgentSection
@@ -278,24 +262,25 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
             <div className="grid max-w-[24rem] grid-cols-3 gap-2" role="radiogroup" aria-label={t('workflow.gate_title')} data-testid={`wb-lane-gate-${step.id}`}>
               {GATES.map(({ gate, key, icon: Icon }) => {
                 const checked = step.gate === gate
+                // 说明挂在 Radix Tooltip 上：悬停与键盘聚焦都能看到；读屏经 aria-describedby 读 sr-only 文案。
                 return (
-                  <button
-                    key={key}
-                    type="button"
-                    role="radio"
-                    aria-checked={checked}
-                    aria-describedby={`gate-help-${step.id}-${key}`}
-                    disabled={!editable}
-                    title={t(`workflow.gate_help_${key}`)}
-                    className={cn('flex min-h-10 items-center justify-center gap-2 rounded-sm border px-3 text-body outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed', checked ? 'border-accent-b bg-accent-t font-semibold text-(--accent)' : 'border-border bg-card text-text hover:border-border-2')}
-                    data-testid={`wb-lane-gate-${step.id}-${key}`}
-                    onClick={() => editor.setGate(step.id, gate)}
-                  >
-                    <Icon className={cn('size-3.5', checked ? 'text-(--accent)' : 'text-text-3')} aria-hidden="true" />
-                    {t(`workflow.gate_${key}`)}
-                    <Info className="size-3 text-text-3" aria-hidden="true" />
-                    <span id={`gate-help-${step.id}-${key}`} className="sr-only">{t(`workflow.gate_help_${key}`)}</span>
-                  </button>
+                  <Hint key={key} label={t(`workflow.gate_help_${key}`)}>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={checked}
+                      aria-describedby={`gate-help-${step.id}-${key}`}
+                      disabled={!editable}
+                      className={cn('flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-sm border px-3 text-body outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed', checked ? 'border-accent-b bg-accent-t font-semibold text-(--accent)' : 'border-border bg-card text-text hover:border-border-2')}
+                      data-testid={`wb-lane-gate-${step.id}-${key}`}
+                      onClick={() => editor.setGate(step.id, gate)}
+                    >
+                      <Icon className={cn('size-3.5', checked ? 'text-(--accent)' : 'text-text-3')} aria-hidden="true" />
+                      {t(`workflow.gate_${key}`)}
+                      <Info className="size-4 text-text-3" aria-hidden="true" />
+                      <span id={`gate-help-${step.id}-${key}`} className="sr-only">{t(`workflow.gate_help_${key}`)}</span>
+                    </button>
+                  </Hint>
                 )
               })}
             </div>
@@ -331,12 +316,10 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
           {!editable ? (
             <span data-testid="wb-no-token">{t('workflow.no_token')}</span>
           ) : editor.dirty ? (
-            <><span className="size-1.5 rounded-full bg-(--amber-d)" aria-hidden="true" /><span data-testid="wb-dirty" role="status" aria-live="polite">{blocked ? t('workflow.lint_blocked') : t('workflow.dirty')}</span></>
+            <><span className="size-1.5 rounded-full bg-(--amber-d)" aria-hidden="true" /><span className="whitespace-nowrap" data-testid="wb-dirty" data-count={editor.changeCount} role="status" aria-live="polite">{blocked ? t('workflow.lint_blocked') : t('workflow.dirty_n', { n: editor.changeCount })}</span></>
           ) : editor.saveStatus.kind === 'ok' ? (
             <span data-testid="wb-save-ok" role="status" aria-live="polite" className="text-green-d">{t('workflow.saved')}</span>
-          ) : (
-            <span className="font-mono">{editor.wfName}</span>
-          )}
+          ) : null}
         </p>
         <span className="flex items-center gap-2">
           {editor.saveStatus.kind === 'error' && (
