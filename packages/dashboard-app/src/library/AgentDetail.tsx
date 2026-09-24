@@ -2,18 +2,22 @@ import { useEffect, useState } from 'react'
 import { useT } from '../i18n'
 import { getToken } from '../api/transport'
 import type { AgentDocument, AgentReference, AgentSummary } from '../api/agentClient'
-import { DetailColumn, StatusPill } from '../shell/ThreeColumns'
+import { DetailColumn } from '../shell/ThreeColumns'
 import { SheetTabs, type SheetDef } from '../shared/DetailSheets'
 import { Markdown } from '../shared/Markdown'
-import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_SOLID, TEXTAREA } from '../shared/uiRecipes'
+import { BUTTON_SOLID, TEXTAREA } from '../shared/uiRecipes'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
+import { CopyAsCustomButton, DeleteMenu, DetailTitle, ReadOnlyNote } from './libraryChrome'
 
 type Sheet = 'preview' | 'edit'
 
 const where = (item: AgentReference): string =>
   [item.workflow, item.track, item.label].filter((part) => part !== null && part !== '').join(' / ')
 
-/** 右列：agent 正文（预览 / 编辑）、frontmatter 表、被哪些步骤引用，底部动作条。内建只有「复制」。 */
+/**
+ * 右列：agent 正文、frontmatter 表、被哪些步骤引用。动作在标题右侧：内建只有「复制为自定义」；
+ * 自定义多出预览 / 编辑页签、「保存」与 ⋯ 里的删除。只有一个视图时不渲染页签。
+ */
 export function AgentDetail({
   document, summary, draft, busy, error, blockedBy, onDraft, onSave, onCopy, onDelete,
 }: {
@@ -30,9 +34,7 @@ export function AgentDetail({
 }): JSX.Element {
   const { t } = useT()
   const custom = document.source === 'custom'
-  const sheets: SheetDef<Sheet>[] = custom
-    ? [{ id: 'preview', label: t('library.preview') }, { id: 'edit', label: t('library.edit') }]
-    : [{ id: 'preview', label: t('library.preview') }]
+  const sheets: SheetDef<Sheet>[] = [{ id: 'preview', label: t('library.preview') }, { id: 'edit', label: t('library.edit') }]
   const [sheet, setSheet] = useState<Sheet>('preview')
   const [confirmDelete, setConfirmDelete] = useState(false)
   useEffect(() => { setSheet('preview'); setConfirmDelete(false) }, [document.name])
@@ -53,43 +55,35 @@ export function AgentDetail({
     <DetailColumn
       testId="lib-agent-detail"
       panelId="lib-agent-panel"
-      labelledBy={`lib-agent-tab-${sheet}`}
+      labelledBy={custom ? `lib-agent-tab-${sheet}` : undefined}
       header={(
-        <div className="grid gap-2">
-          <p className="text-caption font-semibold uppercase tracking-[.08em] text-(--accent)" data-testid="lib-agent-eyebrow">
-            {t('library.agents')}
-          </p>
-          <h1 className="text-page font-bold tracking-[-.01em] text-text" data-testid="lib-agent-title">{document.name}</h1>
-          <StatusPill tone={custom ? 'running' : 'neutral'} testId="lib-agent-source">
-            {t(custom ? 'library.custom' : 'library.builtin')}
-          </StatusPill>
-        </div>
-      )}
-      sheets={<SheetTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('library.agents')} idPrefix="lib-agent" />}
-      footer={(
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={BUTTON_GHOST} data-testid="lib-agent-copy" disabled={!canWrite || busy} onClick={onCopy}>
-            {t('library.copy')}
-          </button>
-          {custom && (
+        <DetailTitle
+          testId="lib-agent"
+          title={document.name}
+          builtin={!custom}
+          actions={(
             <>
-              <button
-                type="button"
-                className={BUTTON_SOLID}
-                data-testid="lib-agent-save"
-                disabled={!canWrite || busy || !dirty}
-                onClick={onSave}
-              >
-                {t('library.save')}
-              </button>
-              <button type="button" className={BUTTON_DANGER} data-testid="lib-agent-delete" disabled={!canWrite || busy} onClick={() => setConfirmDelete(true)}>
-                {t('library.delete')}
-              </button>
+              {!canWrite && <ReadOnlyNote testId="lib-agent-no-token" />}
+              <CopyAsCustomButton testId="lib-agent-copy" disabled={!canWrite || busy} onClick={onCopy} />
+              {custom && (
+                <>
+                  <button
+                    type="button"
+                    className={BUTTON_SOLID}
+                    data-testid="lib-agent-save"
+                    disabled={!canWrite || busy || !dirty}
+                    onClick={onSave}
+                  >
+                    {t('library.save')}
+                  </button>
+                  <DeleteMenu testId="lib-agent-more" disabled={!canWrite || busy} onDelete={() => setConfirmDelete(true)} />
+                </>
+              )}
             </>
           )}
-          {!canWrite && <span className="text-caption text-text-3" data-testid="lib-agent-no-token">{t('library.no_token')}</span>}
-        </div>
+        />
       )}
+      sheets={custom ? <SheetTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('library.agents')} idPrefix="lib-agent" /> : undefined}
     >
       {error !== null && (
         <p className="mb-4 whitespace-pre-wrap rounded-md border border-red-b bg-red-t px-4 py-3 text-body font-semibold text-red-d" role="alert" data-testid="lib-agent-error">

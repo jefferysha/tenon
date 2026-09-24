@@ -1,15 +1,17 @@
+import { useEffect, useState } from 'react'
+import { Check, Copy } from 'lucide-react'
 import { useT } from '../../i18n'
 import { getToken } from '../../api/transport'
 import type { ResourceDocument } from '../../api/resourceTypes'
 import { RESOURCE_LINK_KEYS } from '../../api/resourceTypes'
-import { DetailColumn, StatusPill } from '../../shell/ThreeColumns'
-import { BUTTON_DANGER, BUTTON_GHOST } from '../../shared/uiRecipes'
-import { licenseModeKeys, licenseTone } from './resourceLabels'
+import { DetailColumn } from '../../shell/ThreeColumns'
+import { BUTTON_GHOST, BUTTON_ICON } from '../../shared/uiRecipes'
+import { CopyAsCustomButton, DeleteMenu, DetailTitle, ReadOnlyNote } from '../libraryChrome'
 
 function Section({ title, children, testId }: { title: string; children: React.ReactNode; testId: string }): JSX.Element {
   return (
     <section className="mb-5 grid gap-2" data-testid={testId}>
-      <h2 className="text-caption font-semibold uppercase tracking-[.08em] text-text-3">{title}</h2>
+      <h2 className="text-caption font-semibold text-text-3">{title}</h2>
       {children}
     </section>
   )
@@ -24,7 +26,39 @@ function Row({ label, value, testId }: { label: string; value: string; testId?: 
   )
 }
 
-/** 右列：许可、安装、链接、技能、框架、样式、场景、核验；自定义条目才有编辑与删除。 */
+/** 安装命令一行 + 行尾的剪贴板按钮（真正的「复制到剪贴板」；与「复制为自定义」不是一回事）。 */
+function InstallLine({ line, index }: { line: string; index: number }): JSX.Element {
+  const { t } = useT()
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => setCopied(false), 1500)
+    return () => window.clearTimeout(timer)
+  }, [copied])
+  const label = copied ? t('resources.copied') : t('resources.copy_command')
+  return (
+    <div className="flex min-w-0 items-center gap-1 rounded-sm bg-fill pl-3" data-testid={`res-install-${index}`}>
+      <code className="min-w-0 flex-1 overflow-x-auto py-2 font-mono text-caption whitespace-nowrap text-text">{line}</code>
+      <button
+        type="button"
+        className={`${BUTTON_ICON} flex-none rounded-sm`}
+        aria-label={label}
+        title={label}
+        data-testid={`res-install-copy-${index}`}
+        onClick={() => {
+          void navigator.clipboard?.writeText(line).then(() => setCopied(true), () => undefined)
+        }}
+      >
+        {copied ? <Check className="size-4 text-(--accent)" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * 右列：许可、安装、链接、技能、框架、样式、场景、核验。名称只显示 name（标识在悬停提示里），
+ * 动作在标题右侧：「复制为自定义」；自定义条目多出「编辑」与 ⋯ 里的删除。
+ */
 export function ResourceDetail({
   document, busy, errorKey, onCopy, onEdit, onDelete, onReload,
 }: {
@@ -40,41 +74,32 @@ export function ResourceDetail({
   const entry = document.entry
   const custom = document.source === 'custom'
   const canWrite = getToken() !== ''
-  const modes = licenseModeKeys(entry)
 
   return (
     <DetailColumn
       testId="res-detail"
       panelId="res-panel"
       header={(
-        <div className="grid gap-2">
-          <p className="text-caption font-semibold uppercase tracking-[.08em] text-(--accent)" data-testid="res-eyebrow">
-            {t(`resources.category.${entry.category}`)}
-          </p>
-          <h1 className="text-page font-bold tracking-[-.01em] text-text" data-testid="res-title">{entry.name}</h1>
-          <p className="font-mono text-caption whitespace-nowrap overflow-x-auto text-text-3" data-testid="res-slug">{entry.id}</p>
-          <StatusPill tone={licenseTone(entry)} testId="res-license-pill">
-            {t(`resources.license_mode.${modes[0] ?? 'redistributable'}`)}
-          </StatusPill>
-        </div>
-      )}
-      footer={(
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={BUTTON_GHOST} data-testid="res-copy" disabled={!canWrite || busy} onClick={onCopy}>
-            {t('resources.copy')}
-          </button>
-          {custom && (
+        <DetailTitle
+          testId="res"
+          title={entry.name}
+          hint={entry.id}
+          builtin={!custom}
+          actions={(
             <>
-              <button type="button" className={BUTTON_GHOST} data-testid="res-edit" disabled={!canWrite || busy} onClick={onEdit}>
-                {t('resources.edit')}
-              </button>
-              <button type="button" className={BUTTON_DANGER} data-testid="res-delete" disabled={!canWrite || busy} onClick={onDelete}>
-                {t('resources.delete')}
-              </button>
+              {!canWrite && <ReadOnlyNote testId="res-no-token" />}
+              <CopyAsCustomButton testId="res-copy" disabled={!canWrite || busy} onClick={onCopy} />
+              {custom && (
+                <>
+                  <button type="button" className={BUTTON_GHOST} data-testid="res-edit" disabled={!canWrite || busy} onClick={onEdit}>
+                    {t('resources.edit')}
+                  </button>
+                  <DeleteMenu testId="res-more" disabled={!canWrite || busy} onDelete={onDelete} />
+                </>
+              )}
             </>
           )}
-          {!canWrite && <span className="text-caption text-text-3" data-testid="res-no-token">{t('resources.no_token')}</span>}
-        </div>
+        />
       )}
     >
       {errorKey !== null && (
@@ -112,11 +137,7 @@ export function ResourceDetail({
       </Section>
       {entry.install.length > 0 && (
         <Section title={t('resources.section.install')} testId="res-section-install">
-          {entry.install.map((line) => (
-            <code key={line} className="block overflow-x-auto rounded-sm bg-fill px-3 py-2 font-mono text-caption whitespace-nowrap text-text">
-              {line}
-            </code>
-          ))}
+          {entry.install.map((line, index) => <InstallLine key={line} line={line} index={index} />)}
         </Section>
       )}
       <Section title={t('resources.section.links')} testId="res-section-links">

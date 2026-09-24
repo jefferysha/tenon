@@ -144,19 +144,62 @@ describe('资源目录', () => {
     expect(screen.getByTestId('res-facet-category')).toHaveAttribute('data-active', 'false')
   })
 
-  it('仅链接条目的详情显示许可 pill 与声明；内建条目只有复制', async () => {
+  it('仅链接条目的详情：许可属性表与声明，没有眉题与药丸；内建条目只有复制为自定义', async () => {
     const user = userEvent.setup()
     stubFetch()
     renderCatalog()
-    // 资源目录与模板 / 智能体同一个词：内建。
-    expect(await screen.findByTestId('res-row-react-bits')).toHaveTextContent('内建')
+    // 资源目录与模板 / 智能体同一个词：内建，且只用锁图标表示。
+    expect(await screen.findByTestId('res-builtin-react-bits')).toHaveAttribute('aria-label', '内建')
     expect(screen.getByTestId('res-row-react-bits')).not.toHaveTextContent('内置')
+    expect(screen.queryByTestId('res-builtin-mine')).toBeNull()
     await user.click(await screen.findByTestId('res-row-react-bits'))
-    expect(await screen.findByTestId('res-license-pill')).toHaveTextContent('仅链接')
+    expect(await screen.findByTestId('res-redistributable')).toHaveTextContent('否')
     expect(within(screen.getByTestId('res-notice')).getByText('不得出售或再分发组件本身')).toBeInTheDocument()
+    expect(screen.queryByTestId('res-license-pill')).toBeNull()
+    expect(screen.queryByTestId('res-eyebrow')).toBeNull()
     expect(screen.getByTestId('res-copy')).toBeEnabled()
+    expect(screen.getByTestId('res-copy')).toHaveTextContent('复制为自定义')
     expect(screen.queryByTestId('res-edit')).toBeNull()
-    expect(screen.queryByTestId('res-delete')).toBeNull()
+    expect(screen.queryByTestId('res-more')).toBeNull()
+  })
+
+  it('列表行与详情标题只显示名称，标识在悬停提示里', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderCatalog()
+    const row = await screen.findByTestId('res-row-shadcn-ui')
+    expect(row).not.toHaveTextContent('shadcn-ui')
+    expect(row).toHaveAttribute('title', 'shadcn-ui')
+    await user.click(row)
+    expect(await screen.findByTestId('res-title')).toHaveTextContent(/^shadcn\/ui$/u)
+    expect(screen.getByTestId('res-title')).toHaveAttribute('title', 'shadcn-ui')
+    expect(screen.queryByTestId('res-slug')).toBeNull()
+  })
+
+  it('安装命令旁的按钮把命令复制到剪贴板', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    renderCatalog()
+    await user.click(await screen.findByTestId('res-row-lucide'))
+    await user.click(await screen.findByTestId('res-install-copy-0'))
+    expect(writeText).toHaveBeenCalledWith('pnpm add x')
+    await waitFor(() => expect(screen.getByTestId('res-install-copy-0')).toHaveAttribute('aria-label', '已复制'))
+  })
+
+  it('读取中显示骨架，不显示「没有资源」', async () => {
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      await gate
+      return { ok: true, json: async () => ({ schema_version: 'resource-catalog/v1', entries: [], errors: [] }) }
+    }))
+    renderCatalog()
+    expect(screen.getByTestId('res-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('res-empty')).toBeNull()
+    release()
+    expect(await screen.findByTestId('res-empty')).toBeInTheDocument()
   })
 
   it('自定义条目可编辑：保存带 revision，成功后关抽屉', async () => {
@@ -192,7 +235,8 @@ describe('资源目录', () => {
     })
     renderCatalog()
     await user.click(await screen.findByTestId('res-row-mine'))
-    await user.click(await screen.findByTestId('res-delete'))
+    await user.click(await screen.findByTestId('res-more'))
+    await user.click(screen.getByTestId('res-more-delete'))
     await user.click(await screen.findByTestId('res-delete-confirm'))
     await waitFor(() => expect(screen.queryByTestId('res-row-mine')).toBeNull())
   })

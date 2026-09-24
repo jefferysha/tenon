@@ -43,7 +43,7 @@ export function DiffDrawer({
             {t('projects.cancel')}
           </button>
           <button type="button" className={BUTTON_SOLID} data-testid="proj-diff-confirm" disabled={busy} onClick={onConfirm}>
-            {t('projects.confirm')}
+            {t('projects.apply')}
           </button>
         </>
       )}

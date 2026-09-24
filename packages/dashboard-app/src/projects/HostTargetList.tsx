@@ -18,8 +18,8 @@ const STATUS_KEY = {
 } as const
 
 /**
- * 宿主行（勾选要写入的宿主）+ 目标文件表（状态与受管块数）。项目页与新建项目对话框共用；
- * 对话框里不传 targets，只挑宿主。
+ * 宿主表（勾选要写入的宿主；宿主 · 文件 · 加载方式）+ 目标文件表（状态与受管块数）。
+ * 不传 targets 时只渲染宿主表。
  */
 export function HostTargetList({
   hosts, targets, selected, onToggle, onLoad, editorText,
@@ -34,41 +34,58 @@ export function HostTargetList({
   const { t } = useT()
   return (
     <div className="grid gap-4">
-      <ul className="grid gap-1" data-testid="proj-hosts">
-        {hosts.map((host) => {
-          const editable = host.target !== null
-          const file = host.effective_file ?? host.target
-          return (
-            <li key={host.id}>
-              <label
-                className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-md px-3 py-2 whitespace-nowrap hover:bg-fill"
-                data-testid={`proj-host-${host.id}`}
-              >
-                <input
-                  type="checkbox"
-                  className="size-4 accent-(--accent)"
-                  checked={selected.has(host.id)}
-                  disabled={!editable}
-                  aria-checked={selected.has(host.id)}
-                  data-testid={`proj-host-check-${host.id}`}
-                  onChange={() => onToggle(host.id)}
-                  hidden={!editable}
-                />
-                <span className="min-w-0 truncate font-mono text-caption text-text">{host.id}</span>
-                <span
-                  className={`font-mono text-caption ${host.effective_file !== undefined && host.effective_file !== 'AGENTS.md' ? 'text-red-d' : 'text-text-2'}`}
+      {/* 等分表：宿主 · 文件 · 加载方式；勾选列固定宽度，不可勾选的宿主放禁用的复选框占位，列不跳。 */}
+      <table className="w-full table-fixed border-collapse text-caption" data-testid="proj-hosts">
+        <colgroup>
+          <col className="w-10" />
+          <col />
+          <col />
+          <col />
+        </colgroup>
+        <thead>
+          <tr className="border-b border-border text-text-3">
+            <th scope="col" className="py-2"><span className="sr-only">{t('projects.select')}</span></th>
+            <th scope="col" className="py-2 text-left font-semibold whitespace-nowrap">{t('projects.hosts')}</th>
+            <th scope="col" className="py-2 text-left font-semibold whitespace-nowrap">{t('projects.file')}</th>
+            <th scope="col" className="py-2 text-left font-semibold whitespace-nowrap">{t('projects.load_mode')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {hosts.map((host) => {
+            const editable = host.target !== null
+            const file = host.effective_file ?? host.target
+            const checkId = `proj-host-check-input-${host.id}`
+            return (
+              <tr key={host.id} className="border-b border-border hover:bg-fill" data-testid={`proj-host-${host.id}`}>
+                <td className="py-2 text-center">
+                  <input
+                    id={checkId}
+                    type="checkbox"
+                    className="size-4 align-middle accent-(--accent) disabled:cursor-not-allowed disabled:opacity-40"
+                    checked={editable && selected.has(host.id)}
+                    disabled={!editable}
+                    data-testid={`proj-host-check-${host.id}`}
+                    onChange={() => onToggle(host.id)}
+                  />
+                </td>
+                <td className="truncate py-2 whitespace-nowrap">
+                  <label htmlFor={checkId} className={`font-mono text-text ${editable ? 'cursor-pointer' : 'text-text-3'}`}>{host.id}</label>
+                </td>
+                <td
+                  className={`truncate py-2 font-mono whitespace-nowrap ${host.effective_file !== undefined && host.effective_file !== 'AGENTS.md' ? 'text-red-d' : 'text-text-2'}`}
+                  title={file ?? undefined}
                   data-testid={`proj-file-${host.id}`}
                 >
                   {file ?? '—'}
-                </span>
-                <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2" data-testid={`proj-levels-${host.id}`}>
+                </td>
+                <td className="truncate py-2 whitespace-nowrap text-text-2" data-testid={`proj-levels-${host.id}`}>
                   {t(LEVELS_KEY[host.levels])}
-                </span>
-              </label>
-            </li>
-          )
-        })}
-      </ul>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
       {targets !== undefined && (
         <table className="w-full table-fixed border-collapse text-base" data-testid="proj-files">
           <thead>

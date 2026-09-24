@@ -9,6 +9,8 @@ import {
 } from '../api/testDirectionsClient'
 
 export interface TestDirectionLibrary {
+  /** 首次读取尚未返回：列表为空不代表「没有」。 */
+  readonly loading: boolean
   readonly directions: readonly TestDirection[]
   readonly selected: TestDirection | null
   readonly draft: string
@@ -34,12 +36,15 @@ export function useTestDirections(): TestDirectionLibrary {
   const [error, setError] = useState<string | null>(null)
   const selected = directions.find((direction) => direction.id === selectedId) ?? null
 
+  const [loading, setLoading] = useState(true)
   const reload = useCallback(async (): Promise<void> => {
     try {
       setDirections(await fetchTestDirections())
       setError(null)
     } catch (caught) {
       setError(messageOf(caught))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -97,5 +102,5 @@ export function useTestDirections(): TestDirectionLibrary {
     }
   }, [selected, reload])
 
-  return { directions, selected, draft, busy, error, select, setDraft, reload, save, copy, remove }
+  return { loading, directions, selected, draft, busy, error, select, setDraft, reload, save, copy, remove }
 }
