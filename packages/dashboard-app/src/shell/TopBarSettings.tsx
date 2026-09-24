@@ -3,9 +3,8 @@ import { Monitor, Moon, Settings, Sun, X } from 'lucide-react'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n/translations'
 import { handleRadioKey } from '../shared/radioKeyboard'
-import { SLIDING_INDICATOR_CLS, useSlidingIndicator } from '../shared/useSlidingIndicator'
+import { SEGMENT_SLIDE_S, SEGMENT_THUMB_CLS, useSlidingIndicator } from '../shared/useSlidingIndicator'
 import type { ThemePreference } from './views'
-import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 /** 分段项：选中只换字色与字重，白色滑块由组内共享指示块提供。 */
@@ -128,13 +127,13 @@ export function TopBarSettings({ lang, onLang, theme, onTheme, barRef }: {
 
 /** 设置面板的一行：左侧名词标签 + 右侧分段控件（radiogroup，fill 轨道 + 白色滑块，滑块切换时滑动 180ms）。 */
 function SegmentRow({ label, testId, children }: { label: string; testId: string; children: ReactNode }): JSX.Element {
-  const { containerRef, indicatorRef } = useSlidingIndicator<HTMLDivElement>({ duration: 0.18 })
+  const { containerRef, indicatorRef } = useSlidingIndicator<HTMLDivElement>({ duration: SEGMENT_SLIDE_S })
   return (
     <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
       <span className="whitespace-nowrap text-caption font-semibold text-text-2" aria-hidden="true">{label}</span>
       <div ref={containerRef} className="relative isolate flex gap-0.5 rounded-md bg-fill p-0.5" role="radiogroup" aria-label={label} data-testid={testId}>
         {children}
-        <span ref={indicatorRef} className={cn(SLIDING_INDICATOR_CLS, 'rounded-sm bg-card shadow-sm')} aria-hidden="true" data-testid={`${testId}-indicator`} />
+        <span ref={indicatorRef} className={SEGMENT_THUMB_CLS} aria-hidden="true" data-testid={`${testId}-indicator`} />
       </div>
     </div>
   )

@@ -1,7 +1,9 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Flip } from 'gsap/Flip'
 import { I18nProvider } from '../i18n'
+import { SLIDING_INDICATOR_CLS } from '../shared/useSlidingIndicator'
 import { diffFileLabel } from './DiffDrawer'
 import { ProjectsView } from './ProjectsView'
 
@@ -395,14 +397,18 @@ describe('项目页 · 表格与编辑区外观', () => {
     expect(list.className).toContain('bg-fill')
     expect(list.className).not.toContain('border-b')
     const thumb = screen.getByTestId('proj-thumb')
-    expect(thumb.className).toContain('bg-card')
-    expect(thumb.className).toContain('motion-reduce:transition-none')
-    expect(thumb.style.transform).toBe('translateX(0%)')
+    expect(thumb.className.split(' ')).toEqual(expect.arrayContaining([...SLIDING_INDICATOR_CLS.split(' '), 'bg-card', 'shadow-sm']))
+    expect(thumb).toHaveAttribute('data-placed', 'true')
+    expect(thumb.style.transform).toBe('')
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }))
+    const from = vi.spyOn(Flip, 'from')
     screen.getByTestId('proj-tab-edit').focus()
     await user.keyboard('{ArrowRight}')
     expect(screen.getByTestId('proj-tab-render')).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('proj-tab-render')).toHaveFocus()
-    expect(thumb.style.transform).toBe('translateX(100%)')
+    await act(async () => { await Promise.resolve() })
+    expect(from).toHaveBeenCalledTimes(1)
+    expect(from.mock.calls[0]?.[1]).toMatchObject({ duration: 0.18, ease: 'power3.out' })
     expect(screen.getByTestId('proj-render')).toBeInTheDocument()
   })
 

@@ -1,11 +1,12 @@
 import type { KeyboardEvent } from 'react'
 import type { SheetDef } from '../shared/DetailSheets'
+import { SEGMENT_SLIDE_S, SEGMENT_THUMB_CLS, useSlidingIndicator } from '../shared/useSlidingIndicator'
 import { cn } from '@/lib/utils'
 
 /**
  * 分段控件形态的页签（fill 轨道 + 白色滑块，与设置弹层的分段控件同一语汇）。语义仍是 tablist：
- * 左右 / Home / End 移动并即时切换（roving tabindex）。各段等宽，滑块按选中序号 translateX，
- * 用 CSS 过渡（reduced-motion 下不位移动画）。
+ * 左右 / Home / End 移动并即时切换（roving tabindex）。各段等宽，白色滑块用共享的
+ * useSlidingIndicator（GSAP Flip 0.18s；reduced-motion 下直接到位）。
  */
 export function SegmentTabs<Id extends string>({
   sheets, active, onChange, ariaLabel, idPrefix,
@@ -16,7 +17,7 @@ export function SegmentTabs<Id extends string>({
   ariaLabel: string
   idPrefix: string
 }): JSX.Element {
-  const index = Math.max(0, sheets.findIndex((sheet) => sheet.id === active))
+  const { containerRef, indicatorRef } = useSlidingIndicator<HTMLDivElement>({ duration: SEGMENT_SLIDE_S })
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, at: number): void {
     const last = sheets.length - 1
     let next: number | null = null
@@ -33,17 +34,12 @@ export function SegmentTabs<Id extends string>({
   }
   return (
     <div
-      className="relative inline-grid auto-cols-fr grid-flow-col rounded-sm bg-fill p-0.5"
+      ref={containerRef}
+      className="relative isolate inline-grid auto-cols-fr grid-flow-col rounded-sm bg-fill p-0.5"
       role="tablist"
       aria-label={ariaLabel}
       data-testid={`${idPrefix}-sheets`}
     >
-      <span
-        className="pointer-events-none absolute inset-y-0.5 left-0.5 rounded-sm bg-card shadow-sm transition-transform duration-(--dur-base) ease-(--ease-out) motion-reduce:transition-none"
-        style={{ width: `calc((100% - 4px) / ${sheets.length})`, transform: `translateX(${index * 100}%)` }}
-        aria-hidden="true"
-        data-testid={`${idPrefix}-thumb`}
-      />
       {sheets.map((sheet, at) => {
         const selected = sheet.id === active
         return (
@@ -67,6 +63,7 @@ export function SegmentTabs<Id extends string>({
           </button>
         )
       })}
+      <span ref={indicatorRef} className={SEGMENT_THUMB_CLS} aria-hidden="true" data-testid={`${idPrefix}-thumb`} />
     </div>
   )
 }
