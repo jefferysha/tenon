@@ -6,6 +6,7 @@ import { useT } from '../i18n'
 import { Dialog } from '../shared/Dialog'
 import { agentEntries, refsToSkills, skillsToExecutors, skillsToReviewers } from './agentFlow'
 import { appendSerial, SkillFlow, skillsSignature } from './SkillFlow'
+import { COMPOSER_CANVAS, COMPOSER_DETAIL, COMPOSER_PALETTE, COMPOSER_SEARCH, COMPOSER_SURFACE, paletteNameClass, paletteRowClass, ROW_ADD, ROW_REVEAL } from './composerChrome'
 import { SkillSourceIcon } from './SkillSourceIcon'
 import { cn } from '@/lib/utils'
 
@@ -93,9 +94,9 @@ export function AgentComposer({
         </>
       )}
     >
-      <div className="grid h-full min-h-0 grid-cols-[20rem_minmax(0,1fr)_minmax(18rem,22rem)] gap-4 max-[1100px]:grid-cols-[18rem_minmax(0,1fr)] max-[900px]:grid-cols-1">
-        <section className="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-bg p-2" data-testid="agent-palette" aria-label={t('library.agents')}>
-          <label className="flex h-9 flex-none items-center gap-2 rounded-md border border-border bg-card px-2 text-text-3 focus-within:border-accent-b">
+      <div className={cn(COMPOSER_SURFACE, 'grid-cols-[20rem_minmax(0,1fr)_minmax(18rem,22rem)] max-[1100px]:grid-cols-[18rem_minmax(0,1fr)] max-[900px]:grid-cols-1')} data-testid="agent-composer-surface">
+        <section className={COMPOSER_PALETTE} data-testid="agent-palette" aria-label={t('library.agents')}>
+          <label className={COMPOSER_SEARCH}>
             <Search className="size-3.5 flex-none" aria-hidden="true" />
             <span className="sr-only">{t(reviewing ? 'workflow.search_reviewers' : 'workflow.search_executors')}</span>
             <input
@@ -137,9 +138,9 @@ export function AgentComposer({
           dragLabel={dragging}
           ariaLabel={t(reviewing ? 'workflow.reviewers_title' : 'workflow.executors_title')}
           emptyText={t(reviewing ? 'workflow.drop_reviewer' : 'workflow.drop_executor')}
-          className="min-h-0"
+          className={COMPOSER_CANVAS}
         />
-        <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-card p-4 max-[1100px]:hidden" data-testid="agent-composer-detail">
+        <aside className={cn(COMPOSER_DETAIL, 'gap-4 overflow-y-auto')} data-testid="agent-composer-detail">
           {selected === null ? (
             <p className="text-body text-text-3" role="status">{t('workflow.pick_agent')}</p>
           ) : (
@@ -232,7 +233,7 @@ function PaletteItem({ agent, placed, active, onOpen, onAdd, onDragging }: {
   // 点行 = 在右栏看说明与设置（不加入）；行尾「+」= 串行追加；拖拽 = 按落点加入。
   return (
     <li
-      className={cn('flex min-w-0 items-center gap-1 rounded-md border', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
+      className={paletteRowClass(active, placed)}
       draggable={!placed}
       onDragStart={placed ? undefined : onDragStart}
       onDragEnd={() => onDragging(null)}
@@ -246,13 +247,13 @@ function PaletteItem({ agent, placed, active, onOpen, onAdd, onDragging }: {
         data-testid={`palette-agent-open-${agent.name}`}
         onClick={() => onOpen(agent.name)}
       >
-        <GripVertical className="size-3.5 flex-none text-text-3" aria-hidden="true" />
-        <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap font-mono text-body', active ? 'font-semibold text-(--accent)' : 'text-text')} title={agent.name}>{agent.name}</span>
+        <GripVertical className={cn('size-3.5 flex-none text-text-3', ROW_REVEAL)} aria-hidden="true" />
+        <span className={paletteNameClass(active)} title={agent.name}>{agent.name}</span>
         <span className="flex flex-none items-center"><SkillSourceIcon source={agent.source === 'builtin' ? 'builtin' : 'user'} /></span>
       </button>
       <button
         type="button"
-        className="grid size-10 flex-none place-items-center rounded-sm text-text-3 outline-none enabled:hover:bg-fill enabled:hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:invisible"
+        className={ROW_ADD}
         aria-label={t('workflow.add_skill', { id: agent.name })}
         title={t('workflow.add_skill', { id: agent.name })}
         disabled={placed}

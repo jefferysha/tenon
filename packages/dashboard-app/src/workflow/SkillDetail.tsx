@@ -36,7 +36,7 @@ type FileState = { kind: 'loading' } | { kind: 'ready'; path: string; text: stri
 
 export interface SkillDetailProps {
   name: string
-  /** split = 左树右文（宽抽屉）；stacked = 文件横排芯片在上、正文在下（浮层右栏这类窄容器）。 */
+  /** split = 左树右文（宽抽屉）；stacked = 单行文件列表在上（多了就滚动）、正文在下（浮层右栏这类窄容器）。 */
   layout?: 'split' | 'stacked'
 }
 
@@ -82,20 +82,20 @@ export function SkillDetail({ name, layout = 'split' }: SkillDetailProps): JSX.E
           <SkillSourceIcon source={files.files.source} />
           <span className="truncate font-mono">{files.files.origin}</span>
         </p>
-        <ul className={cn(stacked ? 'flex flex-wrap gap-1' : 'grid gap-0.5')} aria-label={t('workflow.skill_files')} data-testid="skill-detail-files">
+        <ul className={cn('grid gap-0.5', stacked && 'max-h-40 overflow-y-auto')} aria-label={t('workflow.skill_files')} data-testid="skill-detail-files">
           {files.files.files.map((entry) => {
             const active = entry.path === selected
             return (
               <li key={entry.path}>
                 <button
                   type="button"
-                  className={cn('grid items-center gap-2 rounded-sm px-2 py-1.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)', stacked ? 'grid-cols-[auto_minmax(0,1fr)] border border-border bg-card' : 'w-full grid-cols-[auto_minmax(0,1fr)_auto]', active && 'border-accent-b bg-accent-t text-(--accent)')}
+                  className={cn('grid w-full items-center gap-2 whitespace-nowrap rounded-sm px-2 py-1.5 text-left text-text-2 outline-none transition-colors duration-(--dur-fast) hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)', stacked ? 'grid-cols-[auto_minmax(0,1fr)]' : 'grid-cols-[auto_minmax(0,1fr)_auto]', active && 'bg-fill font-medium text-text')}
                   aria-current={active ? 'true' : undefined}
                   data-testid={`skill-file-${entry.path}`}
                   onClick={() => setSelected(entry.path)}
                 >
                   <FileText className="size-3.5 flex-none text-text-3" aria-hidden="true" />
-                  <span className="truncate font-mono text-caption">{entry.path}</span>
+                  <span className="truncate font-mono text-caption" title={entry.path}>{entry.path}</span>
                   {!stacked && <span className="font-mono text-micro text-text-3">{formatBytes(entry.bytes)}</span>}
                 </button>
               </li>

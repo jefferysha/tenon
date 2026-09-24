@@ -11,7 +11,7 @@ type Change = { type: string; id?: string }
 export const Position = { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' } as const
 export const BackgroundVariant = { Dots: 'dots', Lines: 'lines', Cross: 'cross' } as const
 export const MarkerType = { Arrow: 'arrow', ArrowClosed: 'arrowclosed' } as const
-export function Background(): null { return null }
+export function Background({ gap, color }: { gap?: number; color?: string }): JSX.Element { return <div data-testid="flow-background" data-gap={gap} data-color={color} /> }
 export function BaseEdge(): null { return null }
 export function getBezierPath(): [string, number, number] { return ['M0 0 L1 1', 0, 0] }
 export function Controls({ className, showZoom = true }: { className?: string; showZoom?: boolean }): JSX.Element {
@@ -39,7 +39,7 @@ export function applyEdgeChanges<E extends AnyEdge>(changes: Change[], edges: E[
 type AnyEdgeWithData = AnyEdge & { data?: Record<string, unknown> }
 export function ReactFlow({ nodes, edges, nodeTypes, ariaLabelConfig, minZoom, maxZoom, children }: { nodes: AnyNode[]; edges: AnyEdgeWithData[]; nodeTypes: Record<string, ComponentType<{ id: string; data: Record<string, unknown>; selected: boolean }>>; ariaLabelConfig?: Record<string, string>; minZoom?: number; maxZoom?: number; children?: ReactNode }): JSX.Element {
   return (
-    <div data-testid="react-flow" data-edges={edges.map((edge) => edge.id).join(',')} data-edge-pulse={[...new Set(edges.map((edge) => String(edge.data?.mode ?? '')))].join(',')} data-aria-labels={JSON.stringify(ariaLabelConfig ?? {})} data-min-zoom={minZoom} data-max-zoom={maxZoom}>
+    <div data-testid="react-flow" data-edges={edges.map((edge) => edge.id).join(',')} data-edge-orders={edges.map((edge) => String(edge.data?.order ?? '')).join(',')} data-aria-labels={JSON.stringify(ariaLabelConfig ?? {})} data-min-zoom={minZoom} data-max-zoom={maxZoom}>
       {nodes.map((node) => {
         const Type = nodeTypes[node.type ?? 'default']
         return Type === undefined ? null : <Type key={node.id} id={node.id} data={node.data} selected={node.selected ?? false} />
