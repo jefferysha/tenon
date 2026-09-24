@@ -3,6 +3,7 @@ import { ArchiveRestore, Trash2 } from 'lucide-react'
 import { useT } from '../i18n'
 import { ListColumn } from '../shell/ThreeColumns'
 import { FacetBar, type FacetGroup, type FacetOption } from '../shared/FacetBar'
+import { CommandLine } from './CommandLine'
 import { TaskCard } from './TaskCard'
 import type { TaskMenuEntry } from './TaskMenu'
 import { localTime } from '../model/time'
@@ -37,6 +38,7 @@ export interface TaskListPaneProps {
   measureWidth?: (element: HTMLElement) => number
 }
 
+const INIT_COMMAND = 'tenon init my-change --track chat'
 const TOGGLE_CLS = 'inline-flex min-h-10 flex-none items-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent)'
 
 function menuOptions(chips: readonly FacetChip[], allCount: number, allLabel: string, testPrefix: string, lead: readonly FacetOption[] = []): FacetOption[] {
@@ -124,7 +126,7 @@ export function TaskListPane({
         onClick={() => onListMode('archived')}
       >
         <ArchiveRestore className="size-4" aria-hidden="true" />
-        <span className="font-mono text-caption">{archivedCount}</span>
+        <span className="text-caption tabular-nums text-text-3">{archivedCount}</span>
       </button>
       {uncommittedDeletions > 0 && (
         // 只有计数、没有目录清单：做成纯文本，不假装可点。
@@ -136,7 +138,7 @@ export function TaskListPane({
           data-testid="task-uncommitted-deletions"
         >
           <Trash2 className="size-4" aria-hidden="true" />
-          <span className="font-mono text-caption">{uncommittedDeletions}</span>
+          <span className="text-caption tabular-nums text-text-3">{uncommittedDeletions}</span>
         </span>
       )}
     </>
@@ -156,7 +158,7 @@ export function TaskListPane({
           >
             <ArchiveRestore className="size-4" aria-hidden="true" />
             {t('workspace.archived_view')}
-            <span className="font-mono">{archivedCount}</span>
+            <span className="tabular-nums">{archivedCount}</span>
           </button>
         </div>
       ) : (
@@ -172,13 +174,11 @@ export function TaskListPane({
     >
       {notice}
       {visibleRows.length === 0 && emptyKind === 'compat' ? null : visibleRows.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border px-5 py-10 text-center" role="status" aria-live="polite" data-testid={`task-list-empty-${emptyKind}`}>
+        <div className="grid justify-items-start gap-3 px-1 py-10" role="status" aria-live="polite" data-testid={`task-list-empty-${emptyKind}`}>
           <p className="text-base font-semibold text-text">{t(`workspace.empty_${emptyKind}`)}</p>
-          {emptyKind === 'no-task' && (
-            <code className="mt-3 inline-block rounded-xs bg-accent-t px-2 py-1 font-mono text-body text-(--accent)">tenon init my-change --track chat</code>
-          )}
+          {emptyKind === 'no-task' && <div className="grid w-full min-w-0"><CommandLine command={INIT_COMMAND} testId="task-list-empty-command" /></div>}
           {emptyKind === 'filtered' && (
-            <button type="button" className="mt-3 min-h-10 rounded-sm border border-border bg-card px-3 text-caption font-semibold text-text-2 hover:bg-fill" onClick={onClearFilters}>
+            <button type="button" className="min-h-10 rounded-sm border border-border bg-card px-3 text-caption font-semibold text-text-2 hover:bg-fill" onClick={onClearFilters}>
               {t('projects.clear_filters')}
             </button>
           )}

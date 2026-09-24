@@ -3,12 +3,10 @@ import { useT } from '../i18n'
 import type { AgentSummary } from '../api/agentClient'
 import { Dialog } from '../shared/Dialog'
 import { BUTTON_GHOST, BUTTON_SOLID, FIELD_LABEL, INPUT } from '../shared/uiRecipes'
-import { BuiltinLock, ListSkeleton } from './libraryChrome'
+import { BuiltinLock, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
 
 /** 与 kernel 的 AGENT_NAME_RE 同形：名字即文件名，写之前就挡掉不合法的。 */
 const NAME = /^[a-z0-9][a-z0-9-]{0,62}$/
-
-const ROW = 'grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t'
 
 /** 新建自定义 agent 的起始骨架：合法 frontmatter + 空正文，保存后即可编辑。 */
 export const agentSkeleton = (name: string): string =>
@@ -48,20 +46,20 @@ export function AgentList({
               <section key={role} className="grid gap-1" data-testid={`lib-agents-${role}`}>
                 <h2 className="flex items-baseline gap-2 px-3 pb-1 text-caption font-semibold whitespace-nowrap text-text-2">
                   {t(`library.agent_${role}`)}
-                  <span className="font-mono text-text-3">{rows.length}</span>
+                  <span className="tabular-nums text-text-3">{rows.length}</span>
                 </h2>
                 <ul className="grid gap-1">
                   {rows.map((agent) => (
                     <li key={`${agent.source}/${agent.name}`}>
                       <button
                         type="button"
-                        className={ROW}
+                        className={LIST_ROW}
                         aria-current={selected === agent.name ? 'true' : undefined}
                         data-testid={`lib-agent-${agent.name}`}
                         onClick={() => onSelect(agent.name)}
                       >
                         <span className="min-w-0">
-                          <span className="block truncate text-base font-semibold text-text">{agent.name}</span>
+                          <span className={`block ${LIST_ROW_NAME}`}>{agent.name}</span>
                           <span className="block truncate text-caption text-text-3">{agent.description}</span>
                         </span>
                         <span className="flex items-center gap-2 whitespace-nowrap">
@@ -70,7 +68,7 @@ export function AgentList({
                               {t('library.agent_invalid')}
                             </span>
                           )}
-                          {agent.source === 'builtin' && <BuiltinLock testId={`lib-agent-builtin-${agent.name}`} />}
+                          {agent.source === 'builtin' && <BuiltinLock quiet testId={`lib-agent-builtin-${agent.name}`} />}
                         </span>
                       </button>
                     </li>

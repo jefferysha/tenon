@@ -4,14 +4,36 @@ import { useT } from '../i18n'
 import { MenuButton } from '../shared/MenuButton'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
 
-/** 内建条目的唯一标记：锁图标，悬停说明「内建」。自定义条目不带标记。 */
-export function BuiltinLock({ testId }: { testId?: string }): JSX.Element {
+/**
+ * 库的列表行（模板 / 资源 / 测试方向 / agent 共用）：选中 = 中性选中底 + 左侧 2px 内嵌边，不加描边；
+ * 与工作台任务卡是同一套选中语汇。`group` 让行内的名称与锁跟随悬停 / 选中。
+ */
+export const LIST_ROW = 'group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-3 py-2.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:bg-sel-bg aria-[current=true]:shadow-[inset_2px_0_0_var(--sel-edge)] aria-[current=true]:hover:bg-sel-bg'
+/** 列表行名称：常态 500，选中 600。 */
+export const LIST_ROW_NAME = 'min-w-0 truncate text-body font-medium text-text group-aria-[current=true]:font-semibold'
+
+/**
+ * 内建条目的唯一标记：锁图标，悬停说明「内建」。自定义条目不带标记。
+ * `quiet`（列表行里）：平时 text-4，行悬停 / 选中时 text-3，几十行的锁不抢名称。
+ */
+export function BuiltinLock({ testId, quiet = false }: { testId?: string; quiet?: boolean }): JSX.Element {
   const { t } = useT()
   return (
-    <span className="inline-flex flex-none text-text-3" role="img" aria-label={t('library.builtin')} title={t('library.builtin')} data-testid={testId}>
+    <span
+      className={quiet ? 'inline-flex flex-none text-text-4 group-hover:text-text-3 group-aria-[current=true]:text-text-3' : 'inline-flex flex-none text-text-3'}
+      role="img"
+      aria-label={t('library.builtin')}
+      title={t('library.builtin')}
+      data-testid={testId}
+    >
       <Lock className="size-3.5" aria-hidden="true" />
     </span>
   )
+}
+
+/** 详情空态：不写字，只留空白；可访问名称仍说明「选择一项」。 */
+export function BlankDetail({ label, testId }: { label: string; testId: string }): JSX.Element {
+  return <section className="min-h-0 bg-surface-detail" aria-label={label} data-testid={testId} />
 }
 
 /**
