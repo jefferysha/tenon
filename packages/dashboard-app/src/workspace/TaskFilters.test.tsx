@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { makeChange, makeProject, makeSnapshot } from '../testkit'
 import type { ChangeSnapshot } from '../types'
 import { WorkspaceView, type WorkspaceViewProps } from './WorkspaceView'
@@ -31,7 +32,7 @@ const CHANGES = [
 function renderView(props: Partial<WorkspaceViewProps> = {}, changes: ChangeSnapshot[] = CHANGES) {
   vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ ok: false, error: 'not found' }), { status: 404 }))
   return render(
-    <I18nProvider>
+    <I18nProvider><TooltipProvider>
       <WorkspaceView
         snapshot={makeSnapshot([makeProject(ROOT, changes, { uncommittedDeletions: 2 })])}
         currentRoot=""
@@ -43,7 +44,7 @@ function renderView(props: Partial<WorkspaceViewProps> = {}, changes: ChangeSnap
         me={me}
         {...props}
       />
-    </I18nProvider>,
+    </TooltipProvider></I18nProvider>,
   )
 }
 
@@ -107,7 +108,19 @@ describe('工作台筛选栏', () => {
     expect(within(menu).queryByTestId('task-facet-workflow-all')).toBeNull()
     await user.click(screen.getByTestId('task-facet-owner-ann'))
     expect(screen.getByTestId('task-filter-active')).toHaveTextContent('1')
+    expect(screen.getByTestId('task-filter-menu')).toHaveAccessibleName('筛选 1')
     expect(screen.queryByTestId('task-card-b')).toBeNull()
+  })
+
+  it('「筛选」是图标按钮：不写文字（放 Tooltip），无条件时名称就是「筛选」', async () => {
+    const user = userEvent.setup()
+    renderView()
+    const trigger = screen.getByTestId('task-filter-menu')
+    expect(trigger.textContent).toBe('')
+    expect(trigger).toHaveAccessibleName('筛选')
+    expect(trigger.className).toContain('size-10')
+    await user.hover(trigger)
+    expect((await screen.findAllByText('筛选', { selector: '[role="tooltip"], [data-slot="tooltip-content"], [data-slot="tooltip-content"] *' })).length).toBeGreaterThan(0)
   })
 
   it('「筛选」按钮键盘可达：Enter 打开菜单', async () => {
@@ -174,7 +187,7 @@ describe('左列与右列', () => {
   it('空态两步引导：智能体对话的提示词 + 不截断的完整命令（含 --preset）', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 404 }))
     render(
-      <I18nProvider>
+      <I18nProvider><TooltipProvider>
         <WorkspaceView
           snapshot={makeSnapshot([makeProject(ROOT, [])])}
           currentRoot={ROOT}
@@ -184,7 +197,7 @@ describe('左列与右列', () => {
           selectedChange={null}
           onSelectedChange={() => undefined}
         />
-      </I18nProvider>,
+      </TooltipProvider></I18nProvider>,
     )
     expect(screen.getByTestId('task-list-empty-prompt-text').textContent).toMatch(/^\/tenon /u)
     const command = screen.getByTestId('task-list-empty-command-text')

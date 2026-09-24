@@ -7,6 +7,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { makeChange, makeProject, makeSnapshot } from '../testkit'
 import { matchesTaskRef, rootTag, taskRef } from './taskRef'
 import { WorkspaceView } from './WorkspaceView'
@@ -47,7 +48,7 @@ function Harness({ initial }: { initial: string | null }): JSX.Element {
     makeProject(SECOND, [makeChange('fix-login', 'verify')]),
   ])
   return (
-    <I18nProvider>
+    <I18nProvider><TooltipProvider>
       <WorkspaceView
         snapshot={snapshot}
         currentRoot=""
@@ -61,7 +62,7 @@ function Harness({ initial }: { initial: string | null }): JSX.Element {
         onSelectedChange={setSelected}
       />
       <output data-testid="selected">{selected ?? ''}</output>
-    </I18nProvider>
+    </TooltipProvider></I18nProvider>
   )
 }
 

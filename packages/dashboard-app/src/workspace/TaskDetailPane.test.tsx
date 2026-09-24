@@ -7,7 +7,7 @@ import type { ChangeSnapshot, UserRefView } from '../types'
 import { StageIoPanel } from './StageIoPanel'
 import type { IoRow } from './stageIo'
 import { TaskDetailPane, type TaskDetailPaneProps } from './TaskDetailPane'
-import { stagesOf, type TaskRow } from './taskModel'
+import { stagesOf, summaryOf, type TaskRow } from './taskModel'
 import { invalidateWorkflowDefinition } from './useWorkflowDefinition'
 
 vi.mock('@xyflow/react', () => import('../workflow/reactFlowTestDouble'))
@@ -271,6 +271,32 @@ describe('StageIoPanel · 过期原因与缺失技能', () => {
     expect(screen.getByTestId('stage-output-document-tasks')).toHaveTextContent('openspec-propose')
     cleanup()
   })
+
+  it('输入 / 输出是带表头的表（文件 · 来源技能 · 状态），不是卡片堆叠；点整行照旧开抽屉', async () => {
+    const onOpen = vi.fn()
+    render(<I18nProvider>
+      <StageIoPanel
+        direction="outputs"
+        items={[documentRow({ status: 'recorded', reason: null }), documentRow({ slot: { kind: 'document', id: 'tasks', role: 'produce', scope: 'change', producers: ['openspec-propose'], consumers: [] }, status: 'missing', path: null, value: '', producer: null, reason: null })]}
+        activePath={null}
+        definitionState="ready"
+        onOpen={onOpen}
+      />
+    </I18nProvider>)
+    const table = within(screen.getByTestId('stage-outputs')).getByRole('table')
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['文件', '来源技能', '状态'])
+    const row = screen.getByTestId('stage-output-document-proposal')
+    expect(row).toHaveAttribute('role', 'row')
+    expect(row.className).toContain('border-b')
+    expect(row.className).not.toMatch(/(^|\s)rounded-md(\s|$)/u)
+    expect(within(row).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['proposal', 'openspec-propose', '已登记'])
+    await userEvent.click(within(row).getAllByRole('cell')[1] as HTMLElement)
+    expect(onOpen).toHaveBeenCalledWith('openspec/changes/demo/proposal.md')
+    // 未产出的行没有路径：不可点。
+    await userEvent.click(screen.getByTestId('stage-output-document-tasks'))
+    expect(onOpen).toHaveBeenCalledTimes(1)
+    cleanup()
+  })
 })
 
 describe('TaskDetailPane · agent 段', () => {
@@ -339,27 +365,42 @@ describe('TaskDetailPane · 下一步', () => {
     },
   })
 
-  it('状态行下列出前进出口的阻断（每条一行、截断带 title）+ 可复制的 tenon status 命令', () => {
+  it('状态行下列出前进出口的阻断：每条一行短标签（截断），完整 CLI 文案进 title；命令截断、复制钮常显', () => {
     renderSnapshotPane(blocked())
     const next = screen.getByTestId('task-next')
     const lines = within(next).getAllByTestId('task-next-blocker')
-    expect(lines.map((line) => line.textContent)).toEqual(['尚未完成声明的 skill：tdd', 'tasks.md 仍有 2 项未勾'])
+    expect(lines.map((line) => line.textContent)).toEqual(['技能 tdd 未运行', 'tasks.md 未勾 2 项'])
+    expect(lines.map((line) => line.getAttribute('title'))).toEqual(['尚未完成声明的 skill：tdd', 'tasks.md 仍有 2 项未勾'])
     for (const line of lines) {
       expect(line.className).toContain('truncate')
       expect(line.className).toContain('whitespace-nowrap')
-      expect(line).toHaveAttribute('title', line.textContent ?? '')
     }
-    expect(screen.getByTestId('task-next-command-text')).toHaveTextContent('cd /repo && tenon status demo')
+    expect(next.className).toContain('grid-cols-[minmax(0,1fr)]')
+    const command = screen.getByTestId('task-next-command-text')
+    expect(command).toHaveTextContent('cd /repo && tenon status demo')
+    expect(command.className).toContain('truncate')
+    expect(command).toHaveAttribute('title', 'cd /repo && tenon status demo')
+    expect(screen.getByTestId('task-next-command-copy').className).toContain('flex-none')
+    expect(screen.getByTestId('task-next-takeover').className).toContain('flex-none')
   })
 
-  it('「复制接管命令」复制 tenon session activate 并提示', async () => {
+  it('阻断状态用警示琥珀，不用错误红', () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
+    const snapshot = blocked()
+    const row = { ...snapshotRow(snapshot), summary: summaryOf(snapshot, snapshot.workflowRules) }
+    expect(row.summary.kind).toBe('blocked')
+    render(<I18nProvider><TaskDetailPane row={row} fetchDefinition={false} /></I18nProvider>)
+    expect(screen.getByTestId('task-detail-badge')).toHaveAttribute('data-tone', 'pending')
+  })
+
+  it('「复制接管命令」复制发给 agent 的恢复提示词（不是 tenon session activate）并提示', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
     const onToast = vi.fn()
     render(<I18nProvider><TaskDetailPane row={snapshotRow(blocked())} fetchDefinition={false} onToast={onToast} /></I18nProvider>)
     await userEvent.click(screen.getByTestId('task-next-takeover'))
-    expect(writeText).toHaveBeenCalledWith('cd /repo && tenon session activate demo')
+    expect(writeText).toHaveBeenCalledWith('/tenon 继续 demo')
     await waitFor(() => expect(onToast).toHaveBeenCalledWith('接管命令已复制'))
   })
 

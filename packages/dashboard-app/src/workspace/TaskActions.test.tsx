@@ -7,6 +7,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { makeChange, makeProject, makeSnapshot } from '../testkit'
 import type { ArchivedChangeSnapshot } from '../types'
 import { localTime } from '../model/time'
@@ -30,7 +31,7 @@ function renderWorkspace(over: Parameters<typeof makeProject>[2] = {}, extra: Pa
   const onRefresh = vi.fn()
   const onToast = vi.fn()
   const view = render(
-    <I18nProvider>
+    <I18nProvider><TooltipProvider>
       <WorkspaceView
         snapshot={snapshot}
         currentRoot={ROOT}
@@ -43,7 +44,7 @@ function renderWorkspace(over: Parameters<typeof makeProject>[2] = {}, extra: Pa
         onRefresh={onRefresh}
         {...extra}
       />
-    </I18nProvider>,
+    </TooltipProvider></I18nProvider>,
   )
   return { view, onRefresh, onToast }
 }
@@ -295,7 +296,7 @@ describe('已归档 view', () => {
     fireEvent.click(screen.getByTestId('task-view-archived'))
     // 取消归档后刷新的快照不再带 archived：视图仍停在已归档列表。
     view.rerender(
-      <I18nProvider>
+      <I18nProvider><TooltipProvider>
         <WorkspaceView
           snapshot={makeSnapshot([makeProject(ROOT, [makeChange('demo', 'build'), makeChange('other', 'spec'), makeChange('hidden', 'build')])])}
           currentRoot={ROOT}
@@ -305,7 +306,7 @@ describe('已归档 view', () => {
           selectedChange={null}
           onSelectedChange={() => undefined}
         />
-      </I18nProvider>,
+      </TooltipProvider></I18nProvider>,
     )
     const empty = screen.getByTestId('task-list-empty-no-archived')
     expect(empty).toHaveTextContent('没有已归档任务')
@@ -315,7 +316,7 @@ describe('已归档 view', () => {
   it('已完结 tasks live under 全部 and 已完成; there is no separate 含已完结 toggle', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
     render(
-      <I18nProvider>
+      <I18nProvider><TooltipProvider>
         <WorkspaceView
           snapshot={makeSnapshot([makeProject(ROOT, [makeChange('done-a', 'archive', { archived: 'true' }), makeChange('done-b', 'archive', { archived: 'true' })])])}
           currentRoot={ROOT}
@@ -325,7 +326,7 @@ describe('已归档 view', () => {
           selectedChange={null}
           onSelectedChange={() => undefined}
         />
-      </I18nProvider>,
+      </TooltipProvider></I18nProvider>,
     )
     expect(screen.queryByTestId('task-filter-completed')).toBeNull()
     expect(screen.getByTestId('task-card-done-a')).toBeTruthy()
@@ -361,7 +362,7 @@ describe('已归档 view', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
     const snapshot = makeSnapshot([makeProject(ROOT, [makeChange('done', 'archive', { archived: 'true' })])])
     render(
-      <I18nProvider>
+      <I18nProvider><TooltipProvider>
         <WorkspaceView
           snapshot={snapshot}
           currentRoot={ROOT}
@@ -371,7 +372,7 @@ describe('已归档 view', () => {
           selectedChange={null}
           onSelectedChange={() => undefined}
         />
-      </I18nProvider>,
+      </TooltipProvider></I18nProvider>,
     )
     await userEvent.click(screen.getByTestId('task-status-done'))
     expect(screen.getByTestId('task-summary-done').textContent).toBe('已完结')
@@ -382,7 +383,7 @@ describe('已归档 view', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
     const snapshot = makeSnapshot([makeProject(ROOT, [makeChange('demo', 'build')])])
     render(
-      <I18nProvider>
+      <I18nProvider><TooltipProvider>
         <WorkspaceView
           snapshot={snapshot}
           currentRoot=""
@@ -392,7 +393,7 @@ describe('已归档 view', () => {
           selectedChange={null}
           onSelectedChange={() => undefined}
         />
-      </I18nProvider>,
+      </TooltipProvider></I18nProvider>,
     )
     await userEvent.click(screen.getByTestId('task-card-menu-demo'))
     await userEvent.click(await screen.findByTestId('task-card-menu-demo-archive'))

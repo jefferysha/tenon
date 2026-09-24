@@ -7,7 +7,10 @@ import { cn } from '@/lib/utils'
 import { LIST_SELECTED } from '../shared/uiRecipes'
 
 
-/** 语义色跟随状态筛选的分组：需要你 = 琥珀，进行中 = 信息蓝（有阻断 = 红），已完成 = 中性。 */
+/**
+ * 语义色跟随状态筛选的分组：需要你 = 琥珀，进行中 = 信息蓝，已完成 = 中性。出口阻断属于 agent 侧
+ * 的工作量而非故障，用警示琥珀；红色只留给真正的错误 / 失败。
+ */
 const STATUS_TONE: Record<Exclude<TaskStatus, 'all'>, PillTone> = {
   'needs-you': 'pending',
   running: 'running',
@@ -15,7 +18,7 @@ const STATUS_TONE: Record<Exclude<TaskStatus, 'all'>, PillTone> = {
 }
 
 export function summaryTone(row: TaskRow): PillTone {
-  if (row.summary.kind === 'blocked') return 'blocked'
+  if (row.summary.kind === 'blocked') return 'pending'
   return STATUS_TONE[statusOf(row.summary)]
 }
 
