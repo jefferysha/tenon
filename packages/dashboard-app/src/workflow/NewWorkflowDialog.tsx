@@ -21,11 +21,13 @@ export function NewWorkflowDialog({ create, currentName }: { create: CreateState
               type="button"
               role="radio"
               aria-checked={create.mode === mode}
-              className={cn('min-h-10 rounded-sm border px-3 text-body text-text-2 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)', create.mode === mode ? 'border-accent-b bg-accent-t font-semibold text-(--accent)' : 'border-border bg-card hover:bg-fill')}
+              className={cn('min-h-10 min-w-0 whitespace-nowrap rounded-sm border px-3 text-body text-text-2 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)', create.mode === mode ? 'border-accent-b bg-accent-t font-semibold text-(--accent)' : 'border-border bg-card hover:bg-fill')}
               data-testid={`wb-new-template-${mode}`}
               onClick={() => create.setMode(mode)}
             >
-              {mode === 'copy' ? t('workflow.create_mode_copy', { name: currentName ?? '' }) : t(`workflow.create_mode_${mode}`)}
+              <span className="block truncate" title={mode === 'copy' ? t('workflow.create_mode_copy', { name: currentName ?? '' }) : undefined}>
+                {mode === 'copy' ? t('workflow.create_mode_copy', { name: currentName ?? '' }) : t(`workflow.create_mode_${mode}`)}
+              </span>
             </button>
           ))}
         </div>

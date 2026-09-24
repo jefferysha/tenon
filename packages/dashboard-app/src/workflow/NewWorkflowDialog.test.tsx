@@ -35,6 +35,16 @@ describe('NewWorkflowDialog OpenSpec 开关', () => {
     expect(create.setOpenspec).toHaveBeenCalledTimes(2)
   })
 
+  // 真机：「复制 design-system」折成两行，违背不换行；改为单行截断，全名放 title。
+  it('模式按钮单行不换行，长名称截断并带全名', () => {
+    render(<I18nProvider><NewWorkflowDialog create={createState()} currentName="design-system" /></I18nProvider>)
+    const copy = screen.getByTestId('wb-new-template-copy')
+    expect(copy.className).toContain('whitespace-nowrap')
+    const label = copy.querySelector('span')
+    expect(label?.className).toContain('truncate')
+    expect(label?.getAttribute('title')).toContain('design-system')
+  })
+
   it('导入模式不显示开关', () => {
     render(<I18nProvider><NewWorkflowDialog create={createState({ mode: 'import' })} currentName="default" /></I18nProvider>)
     expect(screen.queryByRole('switch')).toBeNull()

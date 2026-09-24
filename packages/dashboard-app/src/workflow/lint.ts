@@ -128,7 +128,8 @@ export function lintWorkflow(
     const next = def.steps[index + 1]
     const earlier = new Set(def.steps.slice(0, index).map((candidate) => candidate.id))
     const outputs = io?.[step.id]?.outputs.length ?? step.outputs.length
-    if (outputs === 0 && def.openspec === true) issues.push({ kind: 'step-no-output', stepId: step.id, severity: 'warning' })
+    // 内建工作流只读、用户改不了：「缺输出」对它只是噪音（如 design-system 的预览阶段本就不产出文档）。
+    if (outputs === 0 && def.openspec === true && def.source !== 'builtin') issues.push({ kind: 'step-no-output', stepId: step.id, severity: 'warning' })
     for (const input of step.inputs) {
       const upstream = def.steps.slice(0, index)
       if (!upstream.some((candidate) => candidate.outputs.some((output) => output.field === input.field))) {

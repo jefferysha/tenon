@@ -105,6 +105,12 @@ describe('lint · 严重度与文档契约', () => {
     expect(issues.find((issue) => issue.kind === 'transition-empty-event')?.severity).toBe('error')
   })
 
+  // 真机：内建 design-system 的预览阶段挂着「缺输出」——内建只读、本就不产出文档，不报。
+  it('内建工作流不报缺输出', () => {
+    const issues = lint({ name: 'design-system', openspec: true, source: 'builtin', steps: [stage('a')] })
+    expect(issues.some((issue) => issue.kind === 'step-no-output')).toBe(false)
+  })
+
   // 关闭 OpenSpec 的工作流在页面上加不了输出，这条警告无从消除，不该出现。
   it('未开启 OpenSpec 时不报缺输出', () => {
     const issues = lint({ name: 'mine', steps: [stage('a', [{ event: 'a-complete', to: 'b' }]), stage('b')] })
