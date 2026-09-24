@@ -17,8 +17,9 @@ import '@xyflow/react/dist/style.css'
 import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { wavesOf } from '../workbench/skillWaves'
-import { EDGE_STYLE, EDGE_TYPES, MARKER, NODE_HEIGHT, NODE_TYPES, NODE_WIDTH, PORT_SIZE, isVirtualId, pulseModeOf, type FlowNode, type GhostNode, type JunctionNode, type LabelNode, type PortNode, type PulseData, type PulseMode, type SkillNode, type SkillRunState } from './skillFlowNodes'
+import { EDGE_STYLE, EDGE_TYPES, MARKER, NODE_HEIGHT, NODE_TYPES, NODE_WIDTH, PORT_SIZE, isVirtualId, pulseModeOf, type FlowNode, type GhostNode, type JunctionNode, type LabelNode, type PortNode, type PulseData, type SkillNode, type SkillRunState } from './skillFlowNodes'
 import { addSkillAt, appendSerial, canvasHeight, dropTargetFor, edgesOf, graphToSkills, isColumnLink, editViewport, lanesOf, layoutSkills, nodeHeightFor, readOnlyViewport, rowGapFor, skillsSignature, wouldCycle, type DropTarget } from './skillFlowGraph'
+import { prefersReducedMotion, usePulseTimeline, type PulseMode } from './flowPulse'
 import { cn } from '@/lib/utils'
 
 export { addSkillAt, appendSerial, canvasHeight, dropTargetFor, edgesOf, editViewport, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, skillsSignature, wouldCycle }
@@ -28,15 +29,13 @@ const COLUMN_GAP = 300
 const PORT_GAP = 72
 /** 容器尺寸变化后重新取景的节流窗口。 */
 export const RESIZE_THROTTLE_MS = 120
+/** 尺寸变化与编辑后重新取景的补间时长（ms）；挂载后的第一次取景为 0。 */
+export const REFIT_MS = 200
 /** 只读画布恒为 1:1；可编辑画布（编辑器里）允许缩放，但取景不缩到字看不清。 */
 export const READ_ONLY_ZOOM = { min: 1, max: 1 } as const
 export const EDIT_ZOOM = { min: 0.75, max: 1.5 } as const
 /** Controls 的暗色 / 点击区外观：底色与描边走 token，按钮 40px。 */
 export const CONTROLS_CLASS = '!overflow-hidden !rounded-sm !border !border-border !bg-card !shadow-none [&>button]:!size-10 [&>button]:!border-border [&>button]:!bg-card [&>button]:!text-text-2 [&>button:hover]:!bg-fill [&>button:hover]:!text-text [&>button>svg]:!fill-current'
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
 
 export interface SkillFlowProps {
   skills: readonly WbSkillRef[]
@@ -96,9 +95,14 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
   const linesRef = useRef(lines)
   linesRef.current = lines
 
-  /** 取景：只读 = 1:1 + 按内容定位；可编辑 = 缩放到 [0.75, 1]，仍放不下时靠左可平移。减少动态效果时瞬时完成。 */
+  /**
+   * 取景：只读 = 1:1 + 按内容定位；可编辑 = 缩放到 [0.75, 1]，仍放不下时靠左可平移。挂载后的第一次取景（切换阶段、
+   * 打开编辑器）瞬时完成，不从默认视口「扫」过来；之后的尺寸变化与编辑才用 200ms。减少动态效果时一律瞬时。
+   */
+  const framedRef = useRef(false)
   const refit = useCallback(() => {
-    const duration = prefersReducedMotion() ? 0 : 200
+    const duration = prefersReducedMotion() || !framedRef.current ? 0 : REFIT_MS
+    framedRef.current = true
     const instance = flowRef.current
     const element = containerRef.current
     if (element === null) return
@@ -206,8 +210,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     /** 段序：起点→首波 0，第 k 波→汇合 2k+1，汇合→第 k+1 波 2k+2，末波→终点 2N-1（N = 波数）。 */
     const depth = new Map<string, number>()
     waves.forEach((wave, index) => wave.forEach((id) => depth.set(id, index)))
-    const total = 2 * waves.length
-    const pulse = (order: number): { data: PulseData } => ({ data: { order, total, mode: pulseMode, run: edits } })
+    const pulse = (order: number): { data: PulseData } => ({ data: { order } })
     const sized = (id: string, width: number, height: number) => ({ width, height, measured: virtualMeasured[id] ?? { width, height } })
     const ports: PortNode[] = [
       { id: 'start', type: 'port', position: { x: minX - PORT_GAP, y: centerY(first) - PORT_SIZE / 2 }, data: { label: t('workflow.flow_start') }, draggable: false, selectable: false, deletable: false, connectable: false, ...sized('start', PORT_SIZE, PORT_SIZE) },
@@ -252,7 +255,8 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       nodes: [...labels, ...ports, ...junctions, ...nodes, ...ghostNodes],
       edges: [...typed(direct), ...typed(junctionEdges), ...typed(virtual), ...typed(ghostEdges)],
     }
-  }, [nodes, edges, graph, ghost, virtualMeasured, t, pulseMode, edits])
+  }, [nodes, edges, graph, ghost, virtualMeasured, t])
+  usePulseTimeline(containerRef, pulseMode, edits, `${signature}#${decorated.edges.length}`)
 
   const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
     const own: NodeChange<SkillNode>[] = []
@@ -377,7 +381,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
         deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
         ariaLabelConfig={ariaLabelConfig}
       >
-        <Background variant={BackgroundVariant.Dots} gap={14} size={1} color="var(--border-2)" />
+        <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="var(--border)" />
         <Controls showInteractive={false} showZoom={editable} position="bottom-right" className={CONTROLS_CLASS} />
       </ReactFlow>
     </div>
@@ -386,7 +390,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
 
 /**
  * 技能流程画布（React Flow）：起点 → 第一波技能 → … → 终点。节点 = 技能（来源图标 + 名称 + description），
- * 边 = depends_on（带箭头、脉冲虚线），列 = 波次并带「第 n 步 · 并行 k」标签，各列围绕中线居中；相邻两波构成
+ * 边 = depends_on（带箭头；运行中 / 刚编辑后由一条 GSAP timeline 把高亮段从起点依次传到终点），列 = 波次并带「第 n 步 · 并行 k」标签，各列围绕中线居中；相邻两波构成
  * 完整列依赖时先汇合到中线一点再连下一步，一波多技能就是起点扇出。只读时不可拖不可连；可编辑时接受技能库拖放（dataTransfer `text/skill`）、拉线建依赖
  * （拒绝成环）、Backspace 删边、× 删点，并在图与传入技能签名不同时回写技能数组。
  */

@@ -6,11 +6,9 @@ import { NODE_WIDTH } from './skillFlowNodes'
 const COLUMN_GAP = 300
 const PADDING = 24
 const PORT_GAP = 72
-/** 波次标签在节点上方占的高度（标签 y = 节点 y − 22）。 */
-const WAVE_LABEL = 22
-/** 只读画布内容上下各留的空白（容纳起点 / 终点的说明字与取景余量）。 */
-const CANVAS_MARGIN = 48
-export const CANVAS_MIN_HEIGHT = 224
+/** 只读画布除各行之外再留的高度（波次标签、起点 / 终点的说明字与上下余量）。 */
+const CANVAS_EXTRA = 64
+export const CANVAS_MIN_HEIGHT = 160
 
 /** 节点高度：名称一行 40，每多一行（评审者设置 / 运行状态）+20。节点不再放描述。 */
 export function nodeHeightFor(lines: number): number {
@@ -28,12 +26,11 @@ export function lanesOf(skills: readonly WbSkillRef[]): number {
 }
 
 /**
- * 只读画布按 1:1 显示，所以高度由内容决定：波次标签 + (行数 − 1) × 行距 + 节点高 + 上下留白，至少 224。
+ * 只读画布按 1:1 显示，所以高度由内容决定：行数 × 行距 + 64，至少 160。
  * 画布不缩放，字永远是设计刻度上的字号；宽度不够时横向拖动。
  */
 export function canvasHeight(lanes: number, lines = 1): number {
-  const content = WAVE_LABEL + Math.max(0, lanes - 1) * rowGapFor(lines) + nodeHeightFor(lines)
-  return Math.max(CANVAS_MIN_HEIGHT, content + 2 * CANVAS_MARGIN)
+  return Math.max(CANVAS_MIN_HEIGHT, lanes * rowGapFor(lines) + CANVAS_EXTRA)
 }
 
 /**
