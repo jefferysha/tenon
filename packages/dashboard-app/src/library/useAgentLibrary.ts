@@ -10,6 +10,8 @@ import {
 } from '../api/agentClient'
 
 export interface AgentLibraryState {
+  /** 首次读取尚未返回：列表为空不代表「没有」。 */
+  readonly loading: boolean
   readonly agents: readonly AgentSummary[]
   readonly selected: AgentDocument | null
   readonly draft: string
@@ -37,12 +39,15 @@ export function useAgentLibrary(): AgentLibraryState {
   const [error, setError] = useState<string | null>(null)
   const [blockedBy, setBlockedBy] = useState<readonly AgentReference[]>([])
 
+  const [loading, setLoading] = useState(true)
   const reload = useCallback(async (): Promise<void> => {
     try {
       setAgents(await fetchAgents())
       setError(null)
     } catch (caught) {
       setError(messageOf(caught))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -118,5 +123,5 @@ export function useAgentLibrary(): AgentLibraryState {
     })
   }, [selected, guarded, reload])
 
-  return { agents, selected, draft, busy, error, blockedBy, select, setDraft, reload, create, save, copy, remove }
+  return { loading, agents, selected, draft, busy, error, blockedBy, select, setDraft, reload, create, save, copy, remove }
 }

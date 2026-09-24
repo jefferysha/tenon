@@ -80,13 +80,20 @@ describe('库页 · 模板', () => {
     renderLibrary()
     await user.click(await screen.findByTestId('lib-tpl-builtin-backend-go'))
     expect(await screen.findByTestId('lib-tpl-copy')).toBeEnabled()
-    expect(screen.getByTestId('lib-tpl-source')).toHaveTextContent('内建')
-    // 头部是 grid：徽标必须是内容宽度，不能被拉满整行。
-    expect(screen.getByTestId('lib-tpl-source').className.split(' ')).toContain('justify-self-start')
+    // 「内建」只用标题旁的锁图标表示；没有眉题、路径行与药丸，标识在名称的悬停提示里。
+    expect(screen.getByTestId('lib-tpl-builtin')).toHaveAttribute('aria-label', '内建')
+    expect(screen.getByTestId('lib-tpl-title')).toHaveTextContent('Go')
+    expect(screen.getByTestId('lib-tpl-title')).toHaveAttribute('title', 'backend/go')
+    expect(screen.queryByTestId('lib-tpl-eyebrow')).toBeNull()
+    expect(screen.queryByTestId('lib-tpl-path')).toBeNull()
+    expect(screen.queryByTestId('lib-tpl-source')).toBeNull()
+    expect(screen.getByTestId('lib-tpl-copy')).toHaveTextContent('复制为自定义')
     expect(screen.queryByTestId('lib-tpl-save')).toBeNull()
-    expect(screen.queryByTestId('lib-tpl-delete')).toBeNull()
+    expect(screen.queryByTestId('lib-tpl-more')).toBeNull()
     expect(within(screen.getByTestId('lib-tpl-var-app')).getAllByText('app').length).toBeGreaterThan(0)
-    expect(screen.queryByTestId('lib-tpl-tab-edit')).toBeNull()
+    // 只有一个视图：不渲染页签；也没有底部动作条。
+    expect(screen.queryByTestId('lib-tpl-sheets')).toBeNull()
+    expect(screen.getByTestId('lib-tpl-detail').querySelector('footer')).toBeNull()
   })
 
   it('自定义模板可编辑：保存带 If-Match 摘要', async () => {
@@ -149,14 +156,16 @@ describe('库页 · 模板', () => {
     })
     renderLibrary()
     await user.click(await screen.findByTestId('lib-tpl-custom-backend-mine'))
-    await user.click(await screen.findByTestId('lib-tpl-delete'))
+    await user.click(await screen.findByTestId('lib-tpl-more'))
+    await user.click(screen.getByTestId('lib-tpl-more-delete'))
     // 删除先确认：取消不发请求，确认后才 DELETE。
     const dialog = await screen.findByTestId('lib-delete-dialog')
     expect(within(dialog).getByText('删除「我的后端」')).toBeInTheDocument()
     await user.click(screen.getByTestId('lib-delete-cancel'))
     expect(screen.queryByTestId('lib-delete-dialog')).toBeNull()
     expect(calls.some((call) => call.init?.method === 'DELETE')).toBe(false)
-    await user.click(screen.getByTestId('lib-tpl-delete'))
+    await user.click(screen.getByTestId('lib-tpl-more'))
+    await user.click(screen.getByTestId('lib-tpl-more-delete'))
     await user.click(await screen.findByTestId('lib-delete-confirm'))
     await waitFor(() => {
       const del = calls.find((call) => call.init?.method === 'DELETE')
@@ -222,7 +231,49 @@ describe('库页 · 模板', () => {
     expect(await screen.findByTestId('lib-tpl-new')).toBeDisabled()
     await user.click(screen.getByTestId('lib-tpl-custom-backend-mine'))
     expect(await screen.findByTestId('lib-tpl-copy')).toBeDisabled()
-    expect(screen.getByTestId('lib-tpl-delete')).toBeDisabled()
+    expect(screen.getByTestId('lib-tpl-more')).toBeDisabled()
     expect(screen.getByTestId('lib-tpl-no-token')).toBeInTheDocument()
+  })
+
+  it('列表行只显示名称（标识在悬停提示里），内建行只带锁图标', async () => {
+    stubFetch()
+    renderLibrary()
+    const row = await screen.findByTestId('lib-tpl-builtin-backend-go')
+    expect(row.textContent).toBe('Go')
+    expect(row).toHaveAttribute('title', 'backend/go')
+    expect(screen.getByTestId('lib-tpl-builtin-go')).toHaveAttribute('aria-label', '内建')
+    expect(screen.queryByTestId('lib-tpl-builtin-mine')).toBeNull()
+  })
+
+  it('「新建模板」在标题行，不夹在筛选芯片里', async () => {
+    stubFetch()
+    renderLibrary()
+    const button = await screen.findByTestId('lib-tpl-new')
+    expect(button.closest('[data-slot="list-title-action"]')).not.toBeNull()
+    expect(screen.getByTestId('library-list-chips').contains(button)).toBe(false)
+  })
+
+  it('读取中显示骨架与「–」计数，不显示假空态、筛选芯片与新建按钮', async () => {
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      await gate
+      if (url === '/api/instruction-templates') {
+        return { ok: true, json: async () => ({ ok: true, sync: { id: 'instruction-templates', state: 'unchanged' }, templates: [] }) }
+      }
+      return { ok: true, json: async () => ({ ok: true, templates: [], directions: [], agents: [] }) }
+    }))
+    renderLibrary()
+    expect(screen.getByTestId('lib-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('lib-empty')).toBeNull()
+    expect(screen.queryByTestId('lib-tpl-new')).toBeNull()
+    expect(screen.queryByTestId('library-list-chips')).toBeNull()
+    expect(screen.getByTestId('lib-section-templates')).toHaveTextContent('–')
+    release()
+    // 确认为空：显示空态与新建；没有可筛的数据就不铺分类芯片。
+    expect(await screen.findByTestId('lib-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('lib-tpl-new')).toBeInTheDocument()
+    expect(screen.queryByTestId('library-list-chips')).toBeNull()
+    expect(screen.getByTestId('lib-section-templates')).toHaveTextContent('0')
   })
 })

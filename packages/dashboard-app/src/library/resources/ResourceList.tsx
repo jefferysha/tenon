@@ -7,6 +7,7 @@ import {
 import type { ResourceQuery } from '@tenon/kernel/resources/query'
 import { FilterChip, ListColumn } from '../../shell/ThreeColumns'
 import { BUTTON_GHOST } from '../../shared/uiRecipes'
+import { BuiltinLock, ListSkeleton } from '../libraryChrome'
 
 const LICENSE_MODES = ['redistributable', 'link-only', 'attribution'] as const
 type Facet = 'category' | 'framework' | 'styling' | 'license'
@@ -43,11 +44,13 @@ function FacetRow({
   )
 }
 
-/** 中列：搜索 + 四行单选芯片 + 条目行；解析失败的文件也列出来，标「无效」。 */
+/** 中列：搜索 + 四行单选芯片 + 条目行（只显示名称，标识在悬停提示里）；解析失败的文件也列出来，标「无效」。 */
 export function ResourceList({
-  rows, errors, search, query, selected, busy, onSearch, onQuery, onSelect, onNew,
+  rows, errors, loading, search, query, selected, busy, onSearch, onQuery, onSelect, onNew,
 }: {
   rows: readonly ResourceDto[]
+  /** 首次读取尚未返回：显示骨架，不显示「没有资源」。 */
+  loading: boolean
   errors: readonly ResourceFileError[]
   search: string
   query: ResourceQuery
@@ -104,7 +107,9 @@ export function ResourceList({
         </>
       )}
     >
-      {rows.length === 0 && errors.length === 0 ? (
+      {loading ? (
+        <ListSkeleton testId="res-loading" />
+      ) : rows.length === 0 && errors.length === 0 ? (
         <p className="text-base text-text-2" data-testid="res-empty">{t('resources.empty')}</p>
       ) : (
         <ul className="grid gap-1">
@@ -114,13 +119,11 @@ export function ResourceList({
                 type="button"
                 className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t"
                 aria-current={selected === row.entry.id ? 'true' : undefined}
+                title={row.entry.id}
                 data-testid={`res-row-${row.entry.id}`}
                 onClick={() => onSelect(row.entry.id)}
               >
-                <span className="min-w-0">
-                  <span className="block truncate text-base font-semibold text-text" title={row.entry.name}>{row.entry.name}</span>
-                  <span className="block truncate font-mono text-caption text-text-3">{row.entry.id}</span>
-                </span>
+                <span className="min-w-0 truncate text-base font-semibold text-text">{row.entry.name}</span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
                   <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2">
                     {t(`resources.category.${row.entry.category}`)}
@@ -128,9 +131,7 @@ export function ResourceList({
                   <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2">
                     {t(row.entry.license.redistributable ? 'resources.license_mode.redistributable' : 'resources.license_mode.link_only')}
                   </span>
-                  <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2">
-                    {t(`resources.source.${row.source}`)}
-                  </span>
+                  {row.source === 'builtin' && <BuiltinLock testId={`res-builtin-${row.entry.id}`} />}
                 </span>
               </button>
             </li>

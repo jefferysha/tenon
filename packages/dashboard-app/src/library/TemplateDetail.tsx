@@ -2,15 +2,19 @@ import { useEffect, useState } from 'react'
 import { useT } from '../i18n'
 import { getToken } from '../api/transport'
 import type { TemplateDocument, TemplateRef } from '../api/instructionsDecoders'
-import { DetailColumn, StatusPill } from '../shell/ThreeColumns'
+import { DetailColumn } from '../shell/ThreeColumns'
 import { SheetTabs, type SheetDef } from '../shared/DetailSheets'
 import { Markdown } from '../shared/Markdown'
-import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_SOLID, TEXTAREA } from '../shared/uiRecipes'
+import { BUTTON_GHOST, BUTTON_SOLID, TEXTAREA } from '../shared/uiRecipes'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
+import { CopyAsCustomButton, DeleteMenu, DetailTitle, ReadOnlyNote } from './libraryChrome'
 
 type Sheet = 'preview' | 'edit'
 
-/** 右列：模板正文（预览 / 编辑）、变量表、解析错误，底部动作条。内建模板只有「复制」。 */
+/**
+ * 右列：模板正文、变量表、解析错误。动作在标题右侧：内建模板只有「复制为自定义」；自定义模板多出
+ * 预览 / 编辑页签、「保存」（未修改时禁用）与 ⋯ 里的删除。只有一个视图时不渲染页签。
+ */
 export function TemplateDetail({
   ref_, document, busy, errorKey, onSave, onCopy, onDelete, onReload,
 }: {
@@ -25,9 +29,7 @@ export function TemplateDetail({
 }): JSX.Element {
   const { t } = useT()
   const custom = ref_.source === 'custom'
-  const sheets: SheetDef<Sheet>[] = custom
-    ? [{ id: 'preview', label: t('library.preview') }, { id: 'edit', label: t('library.edit') }]
-    : [{ id: 'preview', label: t('library.preview') }]
+  const sheets: SheetDef<Sheet>[] = [{ id: 'preview', label: t('library.preview') }, { id: 'edit', label: t('library.edit') }]
   const [sheet, setSheet] = useState<Sheet>('preview')
   const [draft, setDraft] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -42,48 +44,36 @@ export function TemplateDetail({
     <DetailColumn
       testId="lib-tpl-detail"
       panelId="lib-tpl-panel"
-      labelledBy={`lib-tpl-tab-${sheet}`}
+      labelledBy={custom ? `lib-tpl-tab-${sheet}` : undefined}
       header={(
-        <div className="grid gap-2">
-          <p className="text-caption font-semibold uppercase tracking-[.08em] text-(--accent)" data-testid="lib-tpl-eyebrow">
-            {t(`library.categories.${ref_.category}`)}
-          </p>
-          <h1 className="text-page font-bold tracking-[-.01em] text-text" data-testid="lib-tpl-title">
-            {document?.block?.title ?? ref_.id}
-          </h1>
-          <p className="font-mono text-caption whitespace-nowrap overflow-x-auto text-text-3" data-testid="lib-tpl-path">
-            {`${ref_.source}/${ref_.category}/${ref_.id}.md`}
-          </p>
-          <StatusPill tone={custom ? 'running' : 'neutral'} testId="lib-tpl-source">
-            {t(custom ? 'library.custom' : 'library.builtin')}
-          </StatusPill>
-        </div>
-      )}
-      sheets={<SheetTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('library.templates')} idPrefix="lib-tpl" />}
-      footer={(
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={BUTTON_GHOST} data-testid="lib-tpl-copy" disabled={!canWrite || busy} onClick={onCopy}>
-            {t('library.copy')}
-          </button>
-          {custom && (
+        <DetailTitle
+          testId="lib-tpl"
+          title={document?.block?.title ?? ref_.id}
+          hint={`${ref_.category}/${ref_.id}`}
+          builtin={!custom}
+          actions={(
             <>
-              <button
-                type="button"
-                className={BUTTON_SOLID}
-                data-testid="lib-tpl-save"
-                disabled={!canWrite || busy || !dirty}
-                onClick={() => onSave(draft)}
-              >
-                {t('library.save')}
-              </button>
-              <button type="button" className={BUTTON_DANGER} data-testid="lib-tpl-delete" disabled={!canWrite || busy} onClick={() => setConfirmDelete(true)}>
-                {t('library.delete')}
-              </button>
+              {!canWrite && <ReadOnlyNote testId="lib-tpl-no-token" />}
+              <CopyAsCustomButton testId="lib-tpl-copy" disabled={!canWrite || busy} onClick={onCopy} />
+              {custom && (
+                <>
+                  <button
+                    type="button"
+                    className={BUTTON_SOLID}
+                    data-testid="lib-tpl-save"
+                    disabled={!canWrite || busy || !dirty}
+                    onClick={() => onSave(draft)}
+                  >
+                    {t('library.save')}
+                  </button>
+                  <DeleteMenu testId="lib-tpl-more" disabled={!canWrite || busy} onDelete={() => setConfirmDelete(true)} />
+                </>
+              )}
             </>
           )}
-          {!canWrite && <span className="text-caption text-text-3" data-testid="lib-tpl-no-token">{t('library.no_token')}</span>}
-        </div>
+        />
       )}
+      sheets={custom ? <SheetTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('library.templates')} idPrefix="lib-tpl" /> : undefined}
     >
       {errorKey !== null && (
         <div className="mb-4 grid gap-2 rounded-md border border-red-b bg-red-t px-4 py-3" role="alert" data-testid="lib-tpl-error">
