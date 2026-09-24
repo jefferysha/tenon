@@ -185,6 +185,8 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
     <section ref={paneRef} className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-surface-detail" data-testid="stage-editor-pane">
       {/* relative：sr-only 等绝对定位后代要以本滚动容器为包含块，否则它们会越过裁切把整页撑出滚动条。 */}
       <div className="relative min-h-0 flex-1 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4 max-[900px]:pt-5">
+        {/* 无凭证是错误，直接放右栏顶部（保存条不会出现）；保存失败的原因由保存条自己给。 */}
+        {!editable && <p className="mb-3 truncate whitespace-nowrap text-caption text-red-d" role="alert" data-testid="wb-no-token">{t('workflow.no_token')}</p>}
         <div className="flex items-start gap-3" data-testid="stage-actions">
           <span className="sr-only" data-testid={`wb-lane-name-${step.id}`}>{stageLabel}</span>
           <input

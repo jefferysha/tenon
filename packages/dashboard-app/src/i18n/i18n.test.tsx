@@ -91,6 +91,13 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
  *
  * 只扫**字面量**调用 t('a.b')；模板/变量键（t(`workbench.hk_name_${id}`)）是有意的动态兜底，跳过。
  */
+describe('workflow 不再有「已保存」提示', () => {
+  it('非错误的保存提示已删：workflow.saved 不在两侧字典里', () => {
+    expect((zh.workflow as Dict).saved).toBeUndefined()
+    expect((en.workflow as Dict).saved).toBeUndefined()
+  })
+})
+
 describe('i18n 无缺键（源码 t() 字面量键 ⊆ 字典键）', () => {
   it('src 下所有 t(\'…\') 字面量键都能在 zh 字典里解析到', async () => {
     const { readdirSync, readFileSync, statSync } = await import('node:fs')

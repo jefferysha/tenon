@@ -146,6 +146,19 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.queryByTestId('wb-save-bar')).toBeNull()
   })
 
+  it('无写入凭证：右栏顶部直接给错误（role=alert），排在阶段名之前；「已保存」这类非错误不显示', () => {
+    renderPane(EXPLORE, { canWrite: false, saveStatus: { kind: 'ok' } })
+    const alert = screen.getByTestId('wb-no-token')
+    expect(alert).toHaveAttribute('role', 'alert')
+    expect(alert).toHaveTextContent('当前地址没有编辑凭证')
+    expect(alert.className).toContain('whitespace-nowrap')
+    expect(alert.compareDocumentPosition(screen.getByTestId('stage-actions')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText('已保存')).toBeNull()
+    cleanup()
+    renderPane(EXPLORE)
+    expect(screen.queryByTestId('wb-no-token')).toBeNull()
+  })
+
   it('保存条：改动清空（保存成功 / 放弃）后卸载；保存失败时仍在并显示原因；点保存 / 放弃各自回调', async () => {
     const user = userEvent.setup()
     const editor = fakeEditor(EXPLORE, { dirty: true, changeCount: 1, saveStatus: { kind: 'error', errors: ['冲突'], conflict: true } })
