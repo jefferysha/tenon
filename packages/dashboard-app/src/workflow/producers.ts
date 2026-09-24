@@ -17,6 +17,13 @@ export function skillsEquivalent(left: string, right: string): boolean {
   return aliasesForSkill(right).some((alias) => aliases.has(alias))
 }
 
+/** 展示：互为别名的技能只留第一个（一词一概念），顺序保持。 */
+export function distinctSkills(skills: readonly string[]): string[] {
+  const kept: string[] = []
+  for (const skill of skills) if (!kept.some((known) => skillsEquivalent(known, skill))) kept.push(skill)
+  return kept
+}
+
 /**
  * OpenSpec 注入的技能：本阶段文档契约里 role produce 槽位点名的产出技能——运行时按同一份契约要求它登记产物
  * （kernel materializeWorkflowIo 的 producers，documentKindsProducedBySkillAtPolicyStep 据此绑定）。每个槽位的

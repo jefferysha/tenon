@@ -26,6 +26,7 @@ export {
 export type {
   UpstreamSkillErrorCategory,
   UpstreamSkillFailureReason,
+  UpstreamSkillViewReason,
   UpstreamSkillLicense,
   UpstreamSkillLock,
   UpstreamSkillLockEntry,

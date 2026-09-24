@@ -272,6 +272,22 @@ describe('StageIoPanel · 过期原因与缺失技能', () => {
     cleanup()
   })
 
+  it('来源技能一词一概念：互为别名的候选只显示一个名字，别名放 title', () => {
+    render(<I18nProvider>
+      <StageIoPanel
+        direction="outputs"
+        items={[documentRow({ slot: { kind: 'document', id: 'tasks', role: 'produce', scope: 'change', producers: ['openspec-propose', 'opsx:propose', 'tenon:writing-plans', 'superpowers:writing-plans'], consumers: [] }, status: 'missing', path: null, value: '', producer: null, reason: null, producers: ['openspec-propose', 'opsx:propose', 'tenon:writing-plans', 'superpowers:writing-plans'] })]}
+        activePath={null}
+        definitionState="ready"
+        onOpen={() => undefined}
+      />
+    </I18nProvider>)
+    const cell = within(screen.getByTestId('stage-output-document-tasks')).getAllByRole('cell')[1] as HTMLElement
+    expect(cell.textContent).toBe('openspec-propose, tenon:writing-plans')
+    expect(cell).toHaveAttribute('title', 'openspec-propose, opsx:propose, tenon:writing-plans, superpowers:writing-plans')
+    cleanup()
+  })
+
   it('输入 / 输出是带表头的表（文件 · 来源技能 · 状态），不是卡片堆叠；点整行照旧开抽屉', async () => {
     const onOpen = vi.fn()
     render(<I18nProvider>

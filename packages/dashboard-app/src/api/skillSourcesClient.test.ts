@@ -45,6 +45,15 @@ describe('decodeSkillSources', () => {
   })
 })
 
+describe('decodeSkillSources · 视图自知的失败原因', () => {
+  it('keeps lock-missing / not-locked and still rejects an unknown reason', () => {
+    const row = (reason: string) => ({ id: 'hue', origin: 'upstream', status: 'failed', repo: 'dominikmartn/hue', path: '.', reason })
+    expect(decodeSkillSources({ ...SERVER_FIXTURE, rows: [row('lock-missing')] })?.rows[0]?.reason).toBe('lock-missing')
+    expect(decodeSkillSources({ ...SERVER_FIXTURE, rows: [row('not-locked')] })?.rows[0]?.reason).toBe('not-locked')
+    expect(decodeSkillSources({ ...SERVER_FIXTURE, rows: [row('mystery')] })).toBeNull()
+  })
+})
+
 describe('decodeSkillSources · modelInvocable', () => {
   // 服务端从 SKILL.md 字节读出可调用性后会带上 modelInvocable；白名单漏了它，整页报「响应格式无效」。
   it('keeps a boolean modelInvocable and rejects any other type', () => {

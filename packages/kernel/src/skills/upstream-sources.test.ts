@@ -247,9 +247,22 @@ describe('buildUpstreamSkillView', () => {
     expect(status(stale)).toEqual([['hue', 'changed'], ['brainstorming', 'unchanged']])
   })
 
-  it('marks every source failed without reasons when there is no lock and no run', () => {
+  it('marks every source failed with reason lock-missing when there is no lock and no run', () => {
     const view = buildUpstreamSkillView({ bundledIds: [], sources: miniSources, lock: null, lastRun: null })
-    expect(view.rows.every((row) => row.status === 'failed' && row.reason === undefined)).toBe(true)
+    expect(view.rows.length).toBeGreaterThan(0)
+    expect(view.rows.every((row) => row.status === 'failed' && row.reason === 'lock-missing' && row.detail === undefined)).toBe(true)
     expect(view.updatedAt).toBeNull()
+  })
+
+  it('says not-locked for a source the lock lacks, unless the last run gave its own reason', () => {
+    const partial = parseUpstreamSkillLock(lockText([entry('hue', 'dominikmartn/hue', '.')]), miniSources)
+    const bare = buildUpstreamSkillView({ bundledIds: [], sources: miniSources, lock: partial, lastRun: null })
+    expect(bare.rows.find((row) => row.id === 'brainstorming')).toMatchObject({ status: 'failed', reason: 'not-locked' })
+    expect(bare.rows.find((row) => row.id === 'hue')?.reason).toBeUndefined()
+    const reported = buildUpstreamSkillView({
+      bundledIds: [], sources: miniSources, lock: partial,
+      lastRun: { version: 1, at: '2026-09-16T00:00:00.000Z', host: 'codex', results: [{ id: 'brainstorming', outcome: 'missing', reason: 'unreachable', detail: 'ETIMEDOUT' }] },
+    })
+    expect(reported.rows.find((row) => row.id === 'brainstorming')).toMatchObject({ status: 'failed', reason: 'unreachable', detail: 'ETIMEDOUT' })
   })
 })

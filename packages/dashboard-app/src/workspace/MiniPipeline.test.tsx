@@ -13,15 +13,6 @@ function stages(current: number): StageState[] {
   }))
 }
 
-function mockReducedMotion(reduce: boolean): void {
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: reduce && query.includes('reduce'),
-    media: query,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-  }))
-}
-
 function renderPipeline(current: number) {
   return render(<I18nProvider><MiniPipeline stages={stages(current)} testId="pipe" /></I18nProvider>)
 }
@@ -29,42 +20,36 @@ function renderPipeline(current: number) {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
-  vi.unstubAllGlobals()
 })
 
-describe('MiniPipeline（B9）', () => {
-  it('首次挂载直接是终态，不播放', () => {
-    mockReducedMotion(false)
-    const fromTo = vi.spyOn(gsap, 'fromTo')
+describe('MiniPipeline', () => {
+  it('与阶段轨同款：4px 段、2px 段距；完成 = 成功绿，当前 = 强调色，未到 = 边框灰；无内填', () => {
     renderPipeline(1)
-    expect(fromTo).not.toHaveBeenCalled()
-  })
-
-  it('当前阶段推进时，新当前段的内填从左端 scaleX 长出（400ms power2.out）', () => {
-    mockReducedMotion(false)
-    const fromTo = vi.spyOn(gsap, 'fromTo')
-    const view = renderPipeline(0)
-    view.rerender(<I18nProvider><MiniPipeline stages={stages(1)} testId="pipe" /></I18nProvider>)
-    expect(fromTo).toHaveBeenCalledTimes(1)
-    const [target, from, to] = fromTo.mock.calls[0] ?? []
-    expect(target).toBe(screen.getByTestId('pipe-now'))
-    expect(from).toEqual({ scaleX: 0 })
-    expect(to).toMatchObject({ scaleX: 1, duration: 0.4, ease: 'power2.out', transformOrigin: 'left center' })
-  })
-
-  it('reduced-motion 下推进不播放', () => {
-    mockReducedMotion(true)
-    const fromTo = vi.spyOn(gsap, 'fromTo')
-    const view = renderPipeline(0)
-    view.rerender(<I18nProvider><MiniPipeline stages={stages(1)} testId="pipe" /></I18nProvider>)
-    expect(fromTo).not.toHaveBeenCalled()
-  })
-
-  it('段底色变化有 240ms 过渡', () => {
-    renderPipeline(1)
-    for (const segment of screen.getByTestId('pipe').querySelectorAll('[data-status]')) {
-      expect(segment.className).toContain('transition-colors')
-      expect(segment.className).toContain('duration-(--dur-panel)')
+    const pipeline = screen.getByTestId('pipe')
+    expect(pipeline.className).toContain('gap-x-0.5')
+    const segments = [...pipeline.querySelectorAll('[data-status]')]
+    expect(segments.map((segment) => segment.getAttribute('data-status'))).toEqual(['done', 'current', 'todo'])
+    for (const segment of segments) {
+      expect(segment.className).toContain('h-1')
+      expect(segment.childElementCount).toBe(0)
     }
+    expect(segments[0]?.className).toContain('bg-green')
+    expect(segments[1]?.className).toContain('bg-(--accent)')
+    expect(segments[2]?.className).toContain('bg-border')
+    expect(pipeline.innerHTML).not.toMatch(/seg-now|amber|w-2\/5/)
+  })
+
+  it('列表卡静态：挂载与推进都不调用 GSAP', () => {
+    const to = vi.spyOn(gsap, 'to')
+    const fromTo = vi.spyOn(gsap, 'fromTo')
+    const view = renderPipeline(0)
+    view.rerender(<I18nProvider><MiniPipeline stages={stages(1)} testId="pipe" /></I18nProvider>)
+    expect(to).not.toHaveBeenCalled()
+    expect(fromTo).not.toHaveBeenCalled()
+  })
+
+  it('单阶段工作流不画分段条', () => {
+    render(<I18nProvider><MiniPipeline stages={[{ id: 'only', label: 'only', status: 'current' }]} testId="pipe" /></I18nProvider>)
+    expect(screen.queryByTestId('pipe')).toBeNull()
   })
 })
