@@ -73,7 +73,7 @@ describe('CommandLine（A10）', () => {
     )
     const empty = screen.getByTestId('task-list-empty-no-task')
     expect(empty.className).not.toContain('border-dashed')
-    expect(screen.getByTestId('task-list-empty-command-text')).toHaveTextContent('tenon init my-change --track chat')
+    expect(screen.getByTestId('task-list-empty-command-text')).toHaveTextContent('tenon init my-change --workflow default --track chat --preset full')
     expect(screen.getByTestId('task-list-empty-command-text').className).toContain('whitespace-nowrap')
     expect(screen.getByTestId('task-list-empty-command-copy')).toBeInTheDocument()
   })

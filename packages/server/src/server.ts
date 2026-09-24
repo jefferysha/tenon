@@ -137,14 +137,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       : async ({ root, loopId, candidate }) => {
           const loop = candidate.loops.find((entry) => entry.id === loopId)
           if (loop === undefined) return { ok: false, error: `候选 registry 中找不到 loop "${loopId}"` }
-          const resolver = createEffectiveSkillResolver({
-            registry: () => {
-              const rootCheck = workflowRootForRequest(root)
-              if (!rootCheck.ok) throw new Error(rootCheck.error)
-              return loadTrackRegistry(root, trackValidationContextFor(rootCheck.anchor))
-            },
-            manifest: loadedManifest,
-          })
+          const resolver = rootSkillResolver(root, loadedManifest)
           const wiringForRunner = (runner: string) => ({
             resolver,
             locator: createRunnerSkillContentLocator({
@@ -217,7 +210,12 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     // 归档只对查看者生效，未提交删除是仓库事实；两者都按项目读一次。
     viewer: resolveUser,
     countDeletions: (repoRoot) => countProjectDeletions(repoRoot),
-    ...(loadedManifest === undefined ? {} : { mandatorySkills: loadedManifest.mandatorySkills }),
+    // readiness 与 `tenon status` exits 同一份判定：相位出口规则表 + 与 transition 技能门同源的解析器。
+    flow,
+    ...(loadedManifest === undefined ? {} : {
+      mandatorySkills: loadedManifest.mandatorySkills,
+      skillResolverFor: (root: string) => rootSkillResolver(root, loadedManifest),
+    }),
   })
 
   const {
@@ -248,6 +246,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     workflowRootForRequest,
     workflowStoreForRequest,
     trackValidationContextFor,
+    rootSkillResolver,
   } = createServerGovernance({
     registry,
     globalWorkflowRoot: joinPath(paths.configRoot, 'workflows'),

@@ -14,10 +14,11 @@ import { TestRunDrawer } from './TestRunDrawer'
 import { stageTestCount, stageTestRows } from './stageTests'
 import { StageRail } from './StageRail'
 import { fallbackStepIo, gateProgress, isReadyRow, readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
-import { labelWithDefinition, stageLabel, summaryShort, type TaskRow } from './taskModel'
+import { stageLabel, summaryShort, type TaskRow } from './taskModel'
 import { useWorkflowDefinition } from './useWorkflowDefinition'
 import { ReviewDecisionPanel } from './ReviewDecisionPanel'
-import { summaryTone } from './TaskCard'
+import { OwnerAvatar, summaryTone } from './TaskCard'
+import { NextStepPanel } from './NextStepPanel'
 import { TaskMenu, type TaskMenuEntry } from './TaskMenu'
 import { readWorkspaceParam, writeWorkspaceParam } from './workspaceLocation'
 import { matchesTaskRef } from './taskRef'
@@ -26,8 +27,9 @@ export interface TaskDetailPaneProps {
   row: TaskRow
   onToast?: (message: string) => void
   onRefresh?: () => void | Promise<void>
+  /** 评审待确认时显示评审台（已归档视图不显示）。 */
   showReviewConsole?: boolean
-  /** 聚合语境为 false：不发 per-root 请求，IO 退化为快照里的输出字段名。 */
+  /** false = 只读快照：不取工作流定义与记录，IO 退化为快照里的输出字段名。工作台恒为 true（选中时才取）。 */
   fetchDefinition?: boolean
   /** 标题右侧 ⋯ 菜单（与卡片 ⋯ 同一份 taskMenuItems）；缺省 = 无菜单。 */
   menu?: readonly TaskMenuEntry[]
@@ -44,7 +46,7 @@ function initialStep(row: TaskRow, current: string): string {
 }
 
 /** 工作台右列：任务名 / 一行状态 / 阶段轨 → 所选阶段的输出与输入 → 点文件开抽屉。 */
-export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = false, fetchDefinition = true, menu = [], archived = false }: TaskDetailPaneProps): JSX.Element {
+export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = true, fetchDefinition = true, menu = [], archived = false }: TaskDetailPaneProps): JSX.Element {
   const { t } = useT()
   const { change, root } = row
   const current = row.stages.find((stage) => stage.status === 'current')?.id ?? change.phase
@@ -61,10 +63,9 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
     setSelectedStep(current)
   }, [identity, current])
   useEffect(() => { writeWorkspaceParam('step', selectedStep === current ? null : selectedStep) }, [selectedStep, current])
+  // 定义只在选中任务时取（输入 / 输出槽位）；状态、阶段名与计数都只读快照，定义加载前后不变。
   const definition = useWorkflowDefinition(root, row.workflow, fetchDefinition)
-  // 阶段名只显示一个：label 优先，没有才是 id（旧冻结计划没带 label 时从定义补）。
-  const shown = useMemo(() => (definition.status === 'ready' ? labelWithDefinition(row, definition.def) : row), [definition, row])
-  const labelOf = (id: string): string => stageLabel(id, shown.rules)
+  const labelOf = (id: string): string => stageLabel(id, row.rules)
   // change 走自己 track 的分支 IO；没有对应分支 → 通用分支。
   const stepIo = definition.status === 'ready'
     ? (definition.def.branches?.[change.track]?.effectiveIo ?? definition.def.branches?._base?.effectiveIo ?? definition.def.effectiveIo)?.[selectedStep]
@@ -89,8 +90,8 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
   const reviewSatisfied = row.stages.find((stage) => stage.id === selectedStep)?.status === 'done'
     || (change.phase === selectedStep && change.reviewHandshake?.status === 'approved')
   const progress = gateProgress((row.rules ?? change.workflowRules).gateByStep[selectedStep] ?? null, outputs, reviewSatisfied)
-  // 没有运行记录的技能不写「未开始」：只有当前阶段仍在进行时它才是真话，否则与阶段状态矛盾。
-  const stageRunning = selectedStep === change.phase && (row.summary.kind === 'running' || row.summary.kind === 'missing')
+  // 没有运行记录的技能不写「未运行」：只有当前阶段仍在进行时它才是真话，否则与阶段状态矛盾。
+  const stageRunning = selectedStep === change.phase && row.summary.kind !== 'completed'
   const statusOf = (id: string): { state: 'idle' | 'running' | 'done'; label: string } | null => {
     const hit = runs?.skills.find((skill) => skill.id === id)
     if (hit === undefined || (hit.status === 'idle' && !stageRunning)) return null
@@ -108,14 +109,20 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
               <h1 className="min-w-0 flex-1 truncate text-page font-bold tracking-[-.01em] text-text" title={change.name} data-testid="task-detail-title">{change.name}</h1>
               <TaskMenu items={menu} testId="task-detail-menu" />
             </div>
-            <p className="mb-4 truncate whitespace-nowrap font-mono text-base text-text-2" data-testid="task-detail-meta">{[change.track === '' ? row.workflow : `${row.workflow}/${change.track}`, row.owner?.name].filter(Boolean).join(' · ')}</p>
-            <p className="mb-6" data-testid="task-detail-status">
-              <StatusPill tone={summaryTone(row)} testId="task-detail-badge">{summaryShort(shown, t)}</StatusPill>
+            <div className="mb-4 flex min-w-0 items-center gap-2">
+              <p className="min-w-0 flex-1 truncate whitespace-nowrap font-mono text-base text-text-2" data-testid="task-detail-meta">{change.track === '' ? row.workflow : `${row.workflow}/${change.track}`}</p>
+              {row.owner !== null && <OwnerAvatar name={row.owner.name} testId="task-detail-owner" />}
+            </div>
+            <p className="mb-4" data-testid="task-detail-status">
+              <StatusPill tone={summaryTone(row)} testId="task-detail-badge">{summaryShort(row, t)}</StatusPill>
             </p>
-            {showReviewConsole && !archived && <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} stageLabelOf={labelOf} onRefresh={onRefresh} onToast={onToast} />}
+            {!archived && <NextStepPanel row={row} onToast={onToast} />}
+            {showReviewConsole && !archived && change.reviewHandshake?.status === 'pending' && (
+              <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} rules={row.rules ?? change.workflowRules} phase={change.phase} onRefresh={onRefresh} onToast={onToast} />
+            )}
             {row.stages.length > 0 && (
               <div className="mb-6 border-b border-border pb-6">
-                <StageRail stages={shown.stages} selected={selectedStep} onSelect={setSelectedStep} />
+                <StageRail stages={row.stages} selected={selectedStep} onSelect={setSelectedStep} />
               </div>
             )}
           </>

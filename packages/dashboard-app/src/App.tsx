@@ -2,7 +2,6 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { I18nProvider, useT } from './i18n'
 import type { Lang } from './i18n/translations'
 import { needsYouCount } from './workspace/taskModel'
-import { useWorkflowDefCache } from './workspace/useWorkflowDefinition'
 import { workflowRulesFromSnapshot } from './model/workflowModel'
 import { Onboarding } from './shell/Onboarding'
 import { useSnapshot } from './state/useSnapshot'
@@ -251,11 +250,10 @@ function AppShell(): JSX.Element {
   // 跨项目 snapshot 已携带每个 change 冻结绑定的 workflow 摘要；所有视图消费同一聚合事实。
   const rulesByKey = useMemo(() => workflowRulesFromSnapshot(snapshot), [snapshot])
 
-  // 顶部条「工作台」标签的待决策计数 = 工作台「需要你」芯片的计数：同一个 needsYouCount、同一份定义缓存。
-  const defOf = useWorkflowDefCache()
+  // 顶部条「工作台」标签的待决策计数 = 工作台「需要你」的计数：同一个 needsYouCount，只读快照。
   const decisionCount = useMemo(
-    () => needsYouCount({ snapshot, currentRoot, rulesByKey, ioOf: (root, workflow) => defOf(root, workflow)?.effectiveIo, t }),
-    [snapshot, currentRoot, rulesByKey, defOf, t],
+    () => needsYouCount({ snapshot, currentRoot, rulesByKey, t }),
+    [snapshot, currentRoot, rulesByKey, t],
   )
 
   // 顶部条 / 左列共用的项目投影：名称取仓库标签，否则 root 尾段；计数 = 未归档 change 数。
@@ -349,6 +347,16 @@ function AppShell(): JSX.Element {
           data-testid={`flash-${flash.kind}`}
         >
           {flash.msg}
+          {flash.action !== undefined && (
+            <button
+              type="button"
+              className="pointer-events-auto -my-1 min-h-8 rounded-sm px-2 font-semibold underline underline-offset-2 outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-(--accent)"
+              data-testid="flash-action"
+              onClick={() => { flash.action?.run() }}
+            >
+              {flash.action.label}
+            </button>
+          )}
         </div>
       )}
 
@@ -410,7 +418,7 @@ function AppShell(): JSX.Element {
             onSelectProject={selectRoot}
             selectedChange={selectedChange}
             onSelectedChange={setSelectedChange}
-            onToast={(m) => showFlash('toast', m)}
+            onToast={(m, action) => showFlash('toast', m, action)}
             onRefresh={refresh}
             staleError={snapshot !== null ? staleSnapshotError : null}
             loading={loading}

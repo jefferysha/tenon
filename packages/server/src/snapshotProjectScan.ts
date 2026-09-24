@@ -15,6 +15,7 @@ import { readTasksProjection } from './snapshotTasks.js'
 import { createCandidateCache } from './testCandidateCache.js'
 import { projectTestEvidence } from './testEvidenceSnapshot.js'
 import { defaultResolveUser } from './serverUserRoutes.js'
+import { projectStepExitDeps } from './stepExitReadiness.js'
 const MAX_CANONICAL_STATE_COMPATIBILITY_ISSUES = 100
 function str(v: string | string[] | undefined): string { return Array.isArray(v) ? v.join(',') : v ?? '' }
 
@@ -116,6 +117,13 @@ export async function scanAnchoredProject(
   const candidate = workspaceFingerprint === undefined
     ? undefined
     : createCandidateCache((target) => workspaceFingerprint(target, ''))
+  const stepExitsFor = projectStepExitDeps({
+    flow: deps.flow,
+    skillResolver: deps.skillResolverFor?.(root),
+    fileRoot: childProcessRoot,
+    user: actingUser,
+    candidate: candidate === undefined ? undefined : () => candidate(readRoot),
+  })
   let compatibilityIssueOverflow = 0
   for (const e of [...entries].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
     if (!e.isDirectory() || e.name === 'archive') continue
@@ -208,7 +216,11 @@ export async function scanAnchoredProject(
           changeDir,
           e.name,
           // readiness 的 agent 面与工作台读同一份投影：这里只把已算好的阻断交出去。
-          { ...capabilityDeps, stepAgents: async () => agentBlockersOf(agentRuns, plan, phase) },
+          {
+            ...capabilityDeps,
+            stepAgents: async () => agentBlockersOf(agentRuns, plan, phase),
+            ...(stepExitsFor === undefined ? {} : { stepExits: stepExitsFor(e.name) }),
+          },
         ),
         reviewHandshake: projectReviewHandshake(state, plan, phase),
         todo,

@@ -19,6 +19,8 @@ export interface TaskLifecycleView {
   readonly phase: string
   readonly blockers: readonly TaskReason[]
   readonly confirmations: readonly TaskReason[]
+  /** 仅删除：git 能否找回该目录；null = 探测失败，按不可恢复对待。 */
+  readonly recoverable?: boolean | null
 }
 
 export interface TaskArchiveResult {
@@ -81,7 +83,11 @@ function decodeView(value: unknown): TaskLifecycleView | null {
   const blockers = decodeReasons(value.blockers)
   const confirmations = decodeReasons(value.confirmations)
   if (blockers === null || confirmations === null) return null
-  return { action: value.action, phase: value.phase, blockers, confirmations }
+  if (value.recoverable !== undefined && value.recoverable !== null && typeof value.recoverable !== 'boolean') return null
+  return {
+    action: value.action, phase: value.phase, blockers, confirmations,
+    ...(value.recoverable === undefined ? {} : { recoverable: value.recoverable }),
+  }
 }
 
 function authHeaders(): Record<string, string> {

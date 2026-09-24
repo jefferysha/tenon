@@ -4,6 +4,7 @@ import type { PipelineState } from '../types.js'
 import { isForwardExit } from './agent-verdict.js'
 import type { AgentBlocker } from './agent-verdict.js'
 import type { BuildRevisionBlocker } from './build-revision.js'
+import type { StepBlockerSource } from './step-exit-report.js'
 import type { EffectiveWorkflowPlan } from './effective-plan.js'
 import { evaluateGuards } from './guard-handlers.js'
 import {
@@ -39,6 +40,17 @@ export type TransitionReadinessBlocker =
   | {
       readonly kind: 'agents-incomplete'
       readonly agents: readonly { readonly agent: string; readonly reason: AgentBlocker['kind'] }[]
+    }
+  | {
+      /**
+       * `tenon status` exits 里出边 guard 之外的阻断（相位出口规则含 tasks.md、技能、文档、测试、规格迁移），
+       * 由 evaluateStepExitReport 给出；`message` 与 CLI 同一份文案。
+       */
+      readonly kind: 'step-exit'
+      readonly source: StepBlockerSource
+      readonly code: string
+      readonly message: string
+      readonly items?: readonly string[]
     }
 
 export interface TransitionReadiness {

@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { WbStepIo } from '../api/governanceTypes'
 import type { ChangeSnapshot, Snapshot } from '../types'
 import { zh } from '../i18n/translations'
-import { archivedRowsOf, DEFAULT_TASK_FILTER, facetTotal, filterRows, rowsOf, stagesOf, statusCounts, statusOf, summaryOf, summaryShort, summaryText, taskFacets, uncommittedDeletionsOf, type TaskRow } from './taskModel'
+import { archivedRowsOf, DEFAULT_TASK_FILTER, facetTotal, filterRows, forwardExitOf, linearSteps, needsYouCount, rowsOf, stagesOf, statusCounts, statusOf, summaryOf, summaryShort, summaryText, taskFacets, uncommittedDeletionsOf, type TaskRow } from './taskModel'
 
 function t(key: string, vars: Record<string, string | number> = {}): string {
   let node: unknown = zh
@@ -40,13 +39,15 @@ function change(over: Partial<ChangeSnapshot> & { fields?: Record<string, string
   }
 }
 
-const BUILD_IO: WbStepIo = {
-  inputs: [],
-  outputs: [{ kind: 'field', id: 'build_sha', type: 'string', producer: null, consumers: ['verify'] }],
-}
-const OPEN_IO: WbStepIo = {
-  inputs: [],
-  outputs: [{ kind: 'document', id: 'proposal', producers: ['openspec-propose'], consumers: [], role: 'produce', scope: 'change' }],
+const SKILL_BLOCKER = { kind: 'step-exit' as const, source: 'skill' as const, code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd' }
+const TASKS_BLOCKER = { kind: 'step-exit' as const, source: 'tasks' as const, code: 'tasks-incomplete', message: 'tasks.md 仍有 2 项未勾', items: ['a', 'b'] }
+const BLOCKED = {
+  readinessByTransition: {
+    build: {
+      'build-complete': { ready: false, blockers: [SKILL_BLOCKER, TASKS_BLOCKER] },
+      'requirements-changed': { ready: false, blockers: [SKILL_BLOCKER] },
+    },
+  },
 }
 
 describe('stagesOf', () => {
@@ -64,40 +65,69 @@ describe('stagesOf', () => {
   })
 })
 
-describe('summaryOf · 四级优先级', () => {
-  it('当前阶段值输出未设 → 缺该槽位', () => {
-    expect(summaryOf(change(), undefined, BUILD_IO)).toEqual({ kind: 'missing', slot: BUILD_IO.outputs[0] })
+describe('linearSteps', () => {
+  it('第一个终点之后的旁路终点（simple 的 escalated）不作为线性阶段格', () => {
+    const rules = {
+      executionModel: 'step-graph' as const,
+      steps: ['change', 'verify', 'done', 'escalated'],
+      transitions: {
+        change: [{ event: 'change-complete', to: 'verify' }, { event: 'scope-expanded', to: 'escalated' }],
+        verify: [{ event: 'verify-pass', to: 'done' }, { event: 'scope-expanded', to: 'escalated' }],
+        done: [{ event: 'archived', to: 'done' }],
+        escalated: [{ event: 'archived', to: 'escalated' }],
+      },
+      gateByStep: {}, labelByStep: {}, outputsByStep: {},
+    }
+    expect(linearSteps(rules)).toEqual(['change', 'verify', 'done'])
+    expect(stagesOf(change({ phase: 'verify', workflowRules: rules }), undefined, t).map((stage) => stage.id)).toEqual(['change', 'verify', 'done'])
   })
-  it('文档输出缺失 / 过期 → 缺文档；已登记则不算', () => {
-    const c = change({ phase: 'open', documents: { governed: true, blockers: [], items: [{ kind: 'proposal', status: 'stale', requiredRead: false, paths: ['p.md'], producers: [] }] } })
-    expect(summaryOf(c, undefined, OPEN_IO)).toMatchObject({ kind: 'missing', slot: { id: 'proposal' } })
-    const ok = change({ phase: 'open', documents: { governed: true, blockers: [], items: [{ kind: 'proposal', status: 'recorded', requiredRead: false, paths: ['p.md'], producers: [] }] } })
-    expect(summaryOf(ok, undefined, OPEN_IO)).toEqual({ kind: 'running' })
+})
+
+describe('summaryOf · 只读快照', () => {
+  it('前进出口有阻断 → blocked，列出阻断最少的前进出口（退回边不参与）', () => {
+    expect(summaryOf(change({ workflowExecution: BLOCKED }), undefined)).toEqual({
+      kind: 'blocked',
+      blockers: ['尚未完成声明的 skill：tdd', 'tasks.md 仍有 2 项未勾'],
+    })
+    expect(forwardExitOf(change({ workflowExecution: BLOCKED }), undefined)).toEqual({
+      to: 'verify', ready: false, blockers: ['尚未完成声明的 skill：tdd', 'tasks.md 仍有 2 项未勾'],
+    })
   })
-  it('输出齐全 + 评审待确认 → review；转换就绪 → ready 指向前向边；否则 running', () => {
-    const withSha = { fields: { build_sha: 'abc' } }
-    expect(summaryOf(change({ ...withSha, reviewHandshake: { status: 'pending', event: 'build-complete', requestedAt: 'now' } }), undefined, BUILD_IO)).toEqual({ kind: 'review' })
-    const ready = change({ ...withSha, workflowExecution: { readinessByTransition: { build: { 'build-complete': { ready: true, blockers: [] }, 'requirements-changed': { ready: true, blockers: [] } } } } })
-    expect(summaryOf(ready, undefined, BUILD_IO)).toEqual({ kind: 'ready', to: 'verify' })
-    expect(summaryOf(change(withSha), undefined, BUILD_IO)).toEqual({ kind: 'running' })
+  it('评审待确认 → review；前进出口就绪 → ready 指向前向边；没有 readiness → running', () => {
+    expect(summaryOf(change({ reviewHandshake: { status: 'pending', event: 'build-complete', requestedAt: 'now' } }), undefined)).toEqual({ kind: 'review' })
+    const ready = change({ workflowExecution: { readinessByTransition: { build: { 'build-complete': { ready: true, blockers: [] }, 'requirements-changed': { ready: true, blockers: [] } } } } })
+    expect(summaryOf(ready, undefined)).toEqual({ kind: 'ready', to: 'verify' })
+    expect(summaryOf(change(), undefined)).toEqual({ kind: 'running' })
   })
-  it('已归档恒为 archived；无物化 IO 时不判缺产出', () => {
-    expect(summaryOf(change({ archived: 'true' }), undefined, BUILD_IO)).toEqual({ kind: 'completed' })
-    expect(summaryOf(change(), undefined, undefined)).toEqual({ kind: 'running' })
+  it('已归档恒为 completed', () => {
+    expect(summaryOf(change({ archived: 'true', workflowExecution: BLOCKED }), undefined)).toEqual({ kind: 'completed' })
   })
-  it('summaryText 用阶段中文名与槽位中文名，不出现字段元数据', () => {
-    const row: TaskRow = { key: 'k', root: '/repo', change: change(), rules: undefined, workflow: 'default', archived: false, owner: null, stages: [], summary: { kind: 'missing', slot: BUILD_IO.outputs[0] as never } }
-    expect(summaryText(row, t)).toBe('build · 缺 build_sha')
+  it('summaryText 用阶段名，阻断写数量', () => {
+    const row: TaskRow = { key: 'k', root: '/repo', change: change(), rules: undefined, workflow: 'default', archived: false, owner: null, stages: [], summary: { kind: 'blocked', blockers: ['x', 'y'] } }
+    expect(summaryText(row, t)).toBe('build · 阻塞 2')
     expect(summaryText({ ...row, summary: { kind: 'ready', to: 'verify' } }, t)).toBe('build · 可进入verify')
     // 详情页的状态行不重复阶段名（阶段轨已写明）。
     expect(summaryShort({ ...row, summary: { kind: 'ready', to: 'verify' } }, t)).toBe('可进入verify')
   })
-  it('状态筛选由 summary.kind 映射：可进入下一阶段 = 需要你，评审待确认 = 待复核，缺输出 = 进行中', () => {
-    expect(statusOf({ kind: 'ready', to: 'verify' })).toBe('needs-you')
-    expect(statusOf({ kind: 'review' })).toBe('review')
-    expect(statusOf({ kind: 'missing', slot: BUILD_IO.outputs[0] as never })).toBe('running')
+  it('需要你只算评审待确认；阻断与可前进都由智能体继续，算进行中', () => {
+    expect(statusOf({ kind: 'review' })).toBe('needs-you')
+    expect(statusOf({ kind: 'ready', to: 'verify' })).toBe('running')
+    expect(statusOf({ kind: 'blocked', blockers: ['x'] })).toBe('running')
     expect(statusOf({ kind: 'running' })).toBe('running')
     expect(statusOf({ kind: 'completed' })).toBe('done')
+  })
+  it('所有项目与单项目视图对同一任务给出同一状态与同一「需要你」计数', () => {
+    const snap = {
+      projects: [
+        { root: '/a', ok: true, changes: [change({ name: 'x', workflowExecution: BLOCKED }), change({ name: 'y', reviewHandshake: { status: 'pending', event: 'build-complete', requestedAt: 'now' } })] },
+        { root: '/b', ok: true, changes: [change({ name: 'z', reviewHandshake: { status: 'pending', event: 'build-complete', requestedAt: 'now' } })] },
+      ],
+    } as unknown as Snapshot
+    const all = rowsOf({ snapshot: snap, currentRoot: '', rulesByKey: new Map(), t })
+    const one = rowsOf({ snapshot: snap, currentRoot: '/a', rulesByKey: new Map(), t })
+    for (const row of one) expect(all.find((candidate) => candidate.key === row.key)?.summary).toEqual(row.summary)
+    expect(needsYouCount({ snapshot: snap, currentRoot: '/a', rulesByKey: new Map(), t })).toBe(1)
+    expect(needsYouCount({ snapshot: snap, currentRoot: '', rulesByKey: new Map(), t })).toBe(2)
   })
 })
 
@@ -127,7 +157,7 @@ describe('rowsOf / filterRows / taskFacets', () => {
       ],
     }],
   } as unknown as Snapshot
-  const rows = rowsOf({ snapshot, currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => ({ build: BUILD_IO }), t })
+  const rows = rowsOf({ snapshot, currentRoot: '/repo', rulesByKey: new Map(), t })
 
   it('活跃任务按更新时间倒序，已归档排最后', () => {
     expect(rows.map((row) => row.change.name)).toEqual(['d', 'b', 'a', 'c'])
@@ -140,9 +170,9 @@ describe('rowsOf / filterRows / taskFacets', () => {
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', track: 'frontend' }).map((row) => row.change.name)).toEqual(['b'])
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', stage: 'build' }).map((row) => row.change.name)).toEqual(['a'])
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, stage: 'build' }).map((row) => row.change.name)).toEqual(['a'])
-    expect(statusCounts(rows, DEFAULT_TASK_FILTER)).toEqual({ all: 4, 'needs-you': 0, running: 3, review: 0, done: 1 })
+    expect(statusCounts(rows, DEFAULT_TASK_FILTER)).toEqual({ all: 4, 'needs-you': 0, running: 3, done: 1 })
     // 状态计数受其它维度约束，忽略状态本身。
-    expect(statusCounts(rows, { ...DEFAULT_TASK_FILTER, status: 'done', workflow: 'compact' })).toEqual({ all: 1, 'needs-you': 0, running: 1, review: 0, done: 0 })
+    expect(statusCounts(rows, { ...DEFAULT_TASK_FILTER, status: 'done', workflow: 'compact' })).toEqual({ all: 1, 'needs-you': 0, running: 1, done: 0 })
   })
   it('facet：未选工作流时无阶段行；选定后阶段序取该工作流，计数受其它层约束', () => {
     const running = { ...DEFAULT_TASK_FILTER, status: 'running' as const }
@@ -181,7 +211,7 @@ describe('archivedRowsOf / uncommittedDeletionsOf', () => {
   } as unknown as Snapshot
 
   it('lists archived rows newest first with the phase, time and actor of the archive', () => {
-    const rows = archivedRowsOf({ snapshot: archivedSnapshot, currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => undefined, t })
+    const rows = archivedRowsOf({ snapshot: archivedSnapshot, currentRoot: '/repo', rulesByKey: new Map(), t })
     expect(rows.map((row) => row.change.name)).toEqual(['newer', 'older'])
     expect(rows[0]?.archive).toEqual({ archivedAt: '2026-09-15T00:00:00Z', phase: 'build', actor: { id: 'b@x.io', name: 'B', trust: 'declared' } })
     expect(rows[0]?.stages.map((stage) => stage.status))
@@ -189,18 +219,24 @@ describe('archivedRowsOf / uncommittedDeletionsOf', () => {
     expect(rows.every((row) => row.key.endsWith('@/repo'))).toBe(true)
   })
 
-  // 归档只是对我隐藏：归档前显示「缺 <slot>」的任务，归档后仍是同一句，而不是编造的「进行中」。
+  // 归档只是对我隐藏：归档前有阻断的任务，归档后仍是同一句，而不是编造的「进行中」。
   it('derives the same readiness as the live row instead of claiming 进行中', () => {
-    const rows = archivedRowsOf({ snapshot: archivedSnapshot, currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => ({ build: BUILD_IO }), t })
+    const blocked = {
+      projects: [{
+        root: '/repo', ok: true, changes: [],
+        archived: [{ ...change({ name: 'newer', workflowExecution: BLOCKED }), archive: { archivedAt: '2026-09-15T00:00:00Z', phase: 'build', actor: { id: 'b@x.io', name: 'B', trust: 'declared' } } }],
+      }],
+    } as unknown as Snapshot
+    const rows = archivedRowsOf({ snapshot: blocked, currentRoot: '/repo', rulesByKey: new Map(), t })
     const newer = rows.find((row) => row.change.name === 'newer') as TaskRow
-    expect(newer.summary.kind).toBe('missing')
-    expect(summaryText(newer, t)).toBe('build · 缺 build_sha')
+    expect(newer.summary.kind).toBe('blocked')
+    expect(summaryText(newer, t)).toBe('build · 阻塞 2')
   })
 
   it('reports no archived rows when the server sends none', () => {
     const plain = { projects: [{ root: '/repo', ok: true, changes: [change()] }] } as unknown as Snapshot
-    expect(archivedRowsOf({ snapshot: plain, currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => undefined, t })).toEqual([])
-    expect(archivedRowsOf({ snapshot: null, currentRoot: '', rulesByKey: new Map(), ioOf: () => undefined, t })).toEqual([])
+    expect(archivedRowsOf({ snapshot: plain, currentRoot: '/repo', rulesByKey: new Map(), t })).toEqual([])
+    expect(archivedRowsOf({ snapshot: null, currentRoot: '', rulesByKey: new Map(), t })).toEqual([])
   })
 
   it('sums 未提交删除 within the selected project only', () => {
@@ -215,7 +251,7 @@ describe('已完结 wording', () => {
   it('summaryText reads 已完结 for a closed run', () => {
     const rows = rowsOf({
       snapshot: { projects: [{ root: '/repo', ok: true, changes: [change({ name: 'c', phase: 'archive', archived: 'true' })] }] } as unknown as Snapshot,
-      currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => ({ build: BUILD_IO }), t,
+      currentRoot: '/repo', rulesByKey: new Map(), t,
     })
     expect(rows[0]?.summary).toEqual({ kind: 'completed' })
     expect(summaryText(rows[0] as TaskRow, t)).toBe('已完结')

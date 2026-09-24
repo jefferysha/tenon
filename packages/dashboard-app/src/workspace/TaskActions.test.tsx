@@ -67,6 +67,7 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
         return lifecycleResponse({
           ok: true, action: 'delete', phase: 'build', blockers: [],
           confirmations: [{ code: 'review-pending' }, { code: 'has-dependents', detail: 'other' }],
+          recoverable: true,
         })
       }
       if (url.startsWith('/api/change/demo?') && init?.method === 'DELETE') {
@@ -82,17 +83,69 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
     expect(within(dialog).getByText('删除 demo')).toBeTruthy()
     expect(within(dialog).getByRole('alertdialog', { name: '删除 demo' })).toHaveAttribute('aria-modal', 'true')
     expect(screen.getByTestId('task-action-cancel')).toHaveFocus()
-    expect(within(dialog).getByTestId('task-action-effect')).toHaveTextContent('从工作区删除该任务目录，不自动提交，可用 git 恢复')
     await waitFor(() => expect(screen.getByTestId('task-action-reason-review-pending')).toBeTruthy())
+    expect(within(dialog).getByTestId('task-action-effect')).toHaveTextContent('从工作区删除该任务目录，不自动提交，可用 git 恢复')
+    expect(screen.queryByTestId('task-action-type-name')).toBeNull()
     expect(screen.getByTestId('task-action-reason-has-dependents').textContent).toContain('other')
     const confirm = screen.getByTestId('task-action-confirm')
     expect(confirm.hasAttribute('disabled')).toBe(false)
 
     await userEvent.click(confirm)
-    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已删除 demo'))
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已删除 demo', undefined))
     const deleteCall = fetchMock.mock.calls.find(([url, init]) => String(url).startsWith('/api/change/demo?') && (init as RequestInit | undefined)?.method === 'DELETE')
     expect(String(deleteCall?.[0])).toBe('/api/change/demo?root=%2Frepo&acknowledged=review-pending,has-dependents')
     expect(onRefresh).toHaveBeenCalled()
+  })
+
+  it('git 找不回的目录：危险色写明不可恢复，输入任务名后才能删除', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.startsWith('/api/change/demo/lifecycle')) {
+        return lifecycleResponse({ ok: true, action: 'delete', phase: 'build', blockers: [], confirmations: [], recoverable: false })
+      }
+      if (url.startsWith('/api/change/demo?') && init?.method === 'DELETE') {
+        return lifecycleResponse({ ok: true, removed: ['openspec/changes/demo'], uncommittedDeletions: null })
+      }
+      return lifecycleResponse({ ok: false, error: 'not found' }, 404)
+    })
+    const { onToast } = renderWorkspace()
+    await userEvent.click(screen.getByTestId('task-card-menu-demo'))
+    await userEvent.click(screen.getByTestId('task-card-menu-demo-delete'))
+    const warning = await screen.findByTestId('task-action-unrecoverable')
+    expect(warning).toHaveTextContent('不可恢复')
+    expect(warning.className).toContain('text-red-d')
+    expect(screen.queryByTestId('task-action-effect')).toBeNull()
+    const confirm = screen.getByTestId('task-action-confirm')
+    expect(confirm).toBeDisabled()
+    await userEvent.type(screen.getByTestId('task-action-type-name'), 'dem')
+    expect(confirm).toBeDisabled()
+    await userEvent.type(screen.getByTestId('task-action-type-name'), 'o')
+    expect(confirm).toBeEnabled()
+    await userEvent.click(confirm)
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已删除 demo', undefined))
+  })
+
+  it('归档成功的提示带「撤销」，撤销走取消归档接口', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.startsWith('/api/change/demo/lifecycle')) {
+        return lifecycleResponse({ ok: true, action: 'archive', phase: 'build', blockers: [], confirmations: [] })
+      }
+      if (url === '/api/change/demo/archive' && init?.method === 'POST') {
+        return lifecycleResponse({ ok: true, changed: true, archived_at: '2026-09-25T00:00:00Z', phase: 'build' })
+      }
+      if (url === '/api/change/demo/unarchive' && init?.method === 'POST') return lifecycleResponse({ ok: true, changed: true })
+      return lifecycleResponse({ ok: false, error: 'not found' }, 404)
+    })
+    const { onToast } = renderWorkspace()
+    await userEvent.click(screen.getByTestId('task-card-menu-demo'))
+    await userEvent.click(screen.getByTestId('task-card-menu-demo-archive'))
+    await waitFor(() => expect(screen.getByTestId('task-action-confirm')).toBeEnabled())
+    await userEvent.click(screen.getByTestId('task-action-confirm'))
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已归档 demo', expect.objectContaining({ label: '撤销' })))
+    const action = onToast.mock.calls.find((call) => call[0] === '已归档 demo')?.[1] as { run: () => void }
+    action.run()
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url) === '/api/change/demo/unarchive' && init?.method === 'POST')).toBe(true))
   })
 
   it('disables confirm for a blocker and shows its unlock reason', async () => {
@@ -165,10 +218,15 @@ describe('card ⋯ and detail ⋯ open the dialog', () => {
       const { onRefresh, onToast } = renderWorkspace({}, { me: { id: 'bob@x.io', slug: 'bob', name: 'Bob' } })
       await userEvent.click(screen.getByTestId('task-card-menu-demo'))
       await userEvent.click(await screen.findByTestId('task-card-menu-demo-take'))
+      // 接手先确认，确认前不改负责人。
+      const dialog = await screen.findByTestId('task-action-dialog')
+      expect(within(dialog).getByText('接手 demo')).toBeTruthy()
+      expect(fetchMock.mock.calls.some(([url]) => String(url) === '/api/change/demo/owner')).toBe(false)
+      await userEvent.click(screen.getByTestId('task-action-confirm'))
       await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1))
       const post = fetchMock.mock.calls.find(([url, init]) => String(url) === '/api/change/demo/owner' && init?.method === 'POST')
       expect(JSON.parse(String(post?.[1]?.body))).toEqual({ root: ROOT })
-      expect(onToast).toHaveBeenCalledWith('已接手')
+      expect(onToast).toHaveBeenCalledWith('已接手', undefined)
     } finally {
       delete window.__TENON_DASHBOARD_TOKEN__
     }
@@ -194,8 +252,9 @@ describe('已归档 view', () => {
     const { onToast } = renderWorkspace({ archived: [archivedRow('hidden', 'build', '2026-09-15T12:00:00.000Z', 'A')] })
 
     const toggle = screen.getByTestId('task-view-archived')
-    expect(toggle).toHaveAttribute('aria-label', '已归档 1')
-    expect(toggle.textContent).toContain('1')
+    // 归档是带文字的开关，不是只有图标。
+    expect(toggle).toHaveTextContent('已归档1')
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
     await userEvent.click(toggle)
 
     expect(screen.getByTestId('task-card-hidden')).toBeTruthy()

@@ -8,7 +8,7 @@ const bob: UserRefView = { id: 'bob@x.io', name: 'Bob', slug: 'bob-at-x.io' }
 
 function rows(owners: ReadonlyArray<UserRefView | null>) {
   const changes = owners.map((owner, index) => makeChange(`c${index}`, 'build', { owner }))
-  return rowsOf({ snapshot: makeSnapshot([makeProject('/repo', changes)]), currentRoot: '/repo', rulesByKey: new Map(), ioOf: () => undefined, t: (key) => key })
+  return rowsOf({ snapshot: makeSnapshot([makeProject('/repo', changes)]), currentRoot: '/repo', rulesByKey: new Map(), t: (key) => key })
 }
 
 describe('owner facet', () => {

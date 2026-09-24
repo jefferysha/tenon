@@ -1,18 +1,27 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { toastIn, toastOut, type MotionHandle } from './motion'
 
+/** 提示气泡里的一个动作（如归档后的「撤销」）。 */
+export interface FlashAction {
+  readonly label: string
+  readonly run: () => void
+}
+
 export interface Flash {
   readonly kind: 'toast' | 'error'
   readonly msg: string
+  readonly action?: FlashAction
 }
 
 const FLASH_MS = 4000
+/** 带动作的提示多留一会儿，够用户去点。 */
+const FLASH_ACTION_MS = 8000
 
 /** 自研 toast：GSAP 滑入；4s 后先播退场，播完才卸载。新消息或切换语言会中止退场。 */
 export function useFlash(language: string): {
   readonly flash: Flash | null
   readonly flashRef: RefObject<HTMLDivElement>
-  readonly showFlash: (kind: Flash['kind'], message: string) => void
+  readonly showFlash: (kind: Flash['kind'], message: string, action?: FlashAction) => void
 } {
   const [flash, setFlash] = useState<Flash | null>(null)
   const flashRef = useRef<HTMLDivElement>(null)
@@ -39,9 +48,9 @@ export function useFlash(language: string): {
 
   useEffect(() => stopPending, [stopPending])
 
-  const showFlash = useCallback((kind: Flash['kind'], message: string): void => {
+  const showFlash = useCallback((kind: Flash['kind'], message: string, action?: FlashAction): void => {
     stopPending()
-    setFlash({ kind, msg: message })
+    setFlash(action === undefined ? { kind, msg: message } : { kind, msg: message, action })
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null
       const el = flashRef.current
@@ -53,7 +62,7 @@ export function useFlash(language: string): {
         exitRef.current = null
         setFlash(null)
       })
-    }, FLASH_MS)
+    }, action === undefined ? FLASH_MS : FLASH_ACTION_MS)
   }, [stopPending])
 
   return { flash, flashRef, showFlash }

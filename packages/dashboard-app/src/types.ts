@@ -265,6 +265,16 @@ export type TransitionReadinessBlockerSnapshot =
       kind: 'agents-incomplete'
       agents: { agent: string; reason: string }[]
     }
+  | {
+      /** `tenon status` exits 里出边 guard 之外的阻断；message 与 CLI 同一份文案。 */
+      kind: 'step-exit'
+      source: StepExitBlockerSource
+      code: string
+      message: string
+      items?: string[]
+    }
+
+export type StepExitBlockerSource = 'guard' | 'document' | 'skill' | 'test' | 'reviewer' | 'revision' | 'spec' | 'tasks'
 
 /** 单个已注册 Project 的聚合。 */
 export interface CanonicalStateCompatibilityIssue {

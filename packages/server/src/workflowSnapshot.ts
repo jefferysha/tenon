@@ -32,6 +32,7 @@ import type {
   WorkflowRulesSnapshot,
 } from './types.js'
 import { projectFileExists } from './projectCapabilities.js'
+import { withStepExitReadiness, type StepExitSnapshotDeps } from './stepExitReadiness.js'
 
 export interface WorkflowSnapshotCapabilityDeps {
   readonly fileExists?: (root: string, repoRelativePath: string) => boolean
@@ -46,6 +47,11 @@ export interface WorkflowSnapshotCapabilityDeps {
   readonly assessBuildRevision?: import('@tenon/kernel').TransitionContext['assessBuildRevision']
   /** 本步 agent 的阻断；缺省 = 未接线，readiness 不含 agent 项。 */
   readonly stepAgents?: () => Promise<readonly import('@tenon/kernel').AgentBlocker[]>
+  /**
+   * `tenon status` exits 的其余判定面（相位出口规则、技能、文档、测试）；缺省 = 只判出边 guard 与 agent。
+   * 生产装配恒有：readiness 与 CLI 同一份 evaluateStepExitReport。
+   */
+  readonly stepExits?: StepExitSnapshotDeps
 }
 
 export interface WorkflowSnapshotAuthorityInput {
@@ -290,17 +296,27 @@ export async function snapshotWorkflowExecution(
     }
     return assessBuildRevisionTrust({ ...request, observe, provenance })
   })
+  const guardContext = {
+    fileExists: (path: string) => fileExists(root, path),
+    gitHeadSha: gitHeadSha === undefined ? undefined : () => gitHeadSha(root),
+    workspaceFingerprint: workspaceFingerprint === undefined
+      ? undefined
+      : () => workspaceFingerprint(root, changeName),
+    assessBuildRevision,
+  }
+  const readiness = await readinessByTransition(plan, state, {
+    changeDirAbs: changeDir,
+    ...guardContext,
+    specMigrationStatus: () => evaluateSpecMigrationEvidence(root, changeDir, changeName),
+    ...(deps.stepAgents === undefined ? {} : { stepAgents: deps.stepAgents }),
+  })
+  const stepExits = deps.stepExits
+  if (stepExits === undefined) return { readinessByTransition: readiness }
   return {
-    readinessByTransition: await readinessByTransition(plan, state, {
-      changeDirAbs: changeDir,
-      fileExists: (path) => fileExists(root, path),
-      gitHeadSha: gitHeadSha === undefined ? undefined : () => gitHeadSha(root),
-      workspaceFingerprint: workspaceFingerprint === undefined
-        ? undefined
-        : () => workspaceFingerprint(root, changeName),
-      assessBuildRevision,
-      specMigrationStatus: () => evaluateSpecMigrationEvidence(root, changeDir, changeName),
-      ...(deps.stepAgents === undefined ? {} : { stepAgents: deps.stepAgents }),
+    readinessByTransition: await withStepExitReadiness(readiness, {
+      plan, state, root, changeDir, changeName, guardContext,
+      agentBlockers: deps.stepAgents ?? (async () => []),
+      deps: stepExits,
     }),
   }
 }

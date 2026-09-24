@@ -6,6 +6,8 @@ import {
   BuiltinTrackDeleteError,
   BuiltinTrackPolicyError,
   ChangeScanFailedError,
+  createEffectiveSkillResolver,
+  loadTrackRegistry,
   mutateTrackRegistry,
   RegistryRevisionConflictError,
   TrackAlreadyExistsError,
@@ -13,6 +15,8 @@ import {
   TrackReferencedError,
   TrackReferencesInvalidatedError,
   type ChangeRefScan,
+  type EffectiveSkillResolver,
+  type ExtendedManifestData,
   type StateStore,
   type TrackRegistry,
   type TrackValidationContext,
@@ -254,6 +258,16 @@ const trackValidationContextFor = (anchor: WorkflowRootAnchor): TrackValidationC
 let boundPort = 0
 
 
+  /** 某项目的技能解析器（轨道注册表 + manifest 矩阵）：loop 装配校验与快照 readiness 共用。 */
+  const rootSkillResolver = (root: string, manifest: ExtendedManifestData): EffectiveSkillResolver =>
+    createEffectiveSkillResolver({
+      registry: () => {
+        const rootCheck = workflowRootForRequest(root)
+        if (!rootCheck.ok) throw new Error(rootCheck.error)
+        return loadTrackRegistry(root, trackValidationContextFor(rootCheck.anchor))
+      },
+      manifest,
+    })
   return {
     trackRegistryBody,
     scanActiveTrackChanges,
@@ -266,5 +280,6 @@ let boundPort = 0
     workflowRootForRequest,
     workflowStoreForRequest,
     trackValidationContextFor,
+    rootSkillResolver,
   }
 }

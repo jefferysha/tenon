@@ -3,21 +3,15 @@
  * store/flow 按 types.ts 契约注入；测试全 mock，绝不 import kernel 实现。
  */
 import type { GitFinishProbe } from './gitWorkspace.js'
-import type { BoardSnapshotV2, DocumentContractPhase, DocumentEvidenceReport, EffectiveSkillResolver, FlowEngine, GuardContext, HistoryWriter, InteractionEventRecorder, MutationOutcome, PipelineState, ProjectTrackConfig, RegistrySnapshot, SkillTable, StateStore, TrackRegistry, WorkflowRunRepository, WorkflowPipelinePlanV2 } from '@tenon/kernel'
+import type { BoardSnapshotV2, DocumentContractPhase, DocumentEvidenceReport, EffectiveSkillResolver, FlowEngine, HistoryWriter, InteractionEventRecorder, MutationOutcome, PhaseExitFileContext, PipelineState, ProjectTrackConfig, RegistrySnapshot, SkillTable, StateStore, TrackRegistry, WorkflowRunRepository, WorkflowPipelinePlanV2 } from '@tenon/kernel'
 import type { ArtifactSubmissionService, ExecutionRuntimeV2, SkillActionAuthorityResolver } from '@tenon/automation'
 import type { AfkReadiness } from './afkReadiness.js'
 import type { CodexAuthStatus } from './codexAuth.js'
 
-export type BoundedFileRead =
-  | { readonly kind: 'ok'; readonly text: string }
-  | { readonly kind: 'missing' }
-  | { readonly kind: 'invalid' }
+export type { BoundedFileRead } from '@tenon/kernel'
 
 /** fs/env 探针半成品；cmdCheck 必须再注入 effective policy 才能组成 kernel GuardContext。 */
-export type GuardFileContext = Omit<GuardContext, 'coverageProfile'> & {
-  /** 先认证普通文件身份和 byte cap，再物化文本；TaskPlan hostile-input 边界不得用 readFile 代替。 */
-  readonly readFileBounded?: (path: string, maxBytes: number) => BoundedFileRead
-}
+export type GuardFileContext = PhaseExitFileContext
 
 export interface GateMarkerInfo {
   kind: 'confirm' | 'review' | 'interaction'

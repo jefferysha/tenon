@@ -89,6 +89,13 @@ export interface SnapshotDeps extends WorkflowSnapshotCapabilityDeps {
   /** 未提交删除 count per project; absent or `null` keeps the field out of the response. */
   /** Takes a path a spawned git can resolve (never the anchor's process-local fd handle). */
   countDeletions?: (repoRoot: string) => Promise<number | null>
+  /**
+   * 相位出口规则表（与 CLI 同一个 FlowEngine）。注入后 readiness 走 `tenon status` exits 的完整判定；
+   * 缺省（只读单测）只判出边 guard 与 agent。
+   */
+  flow?: Pick<import('@tenon/kernel').FlowEngine, 'guardCheck'>
+  /** 某项目的技能解析器（轨道注册表 + manifest 矩阵），与 transition 的技能门同源。 */
+  skillResolverFor?: (root: string) => import('@tenon/kernel').EffectiveSkillResolver | undefined
 }
 
 export function snapshotDepsFactory(

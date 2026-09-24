@@ -28,11 +28,15 @@ export function ThreeColumns({
   testId: string
 }): JSX.Element {
   const narrow = listWidth === 'narrow'
+  // detail 为 null = 右列收起，中列占满剩余宽度。
+  const collapsed = detail === null
   return (
     <div
       className={cn(
         'grid h-[calc(100vh-var(--topbar-h)-var(--banner-h))] min-h-0 bg-bg',
-        railCollapsed
+        collapsed
+          ? (railCollapsed ? 'grid-cols-[72px_minmax(0,1fr)]' : 'grid-cols-[280px_minmax(0,1fr)] max-[1360px]:grid-cols-[72px_minmax(0,1fr)]')
+          : railCollapsed
           ? (narrow ? 'grid-cols-[72px_380px_minmax(0,1fr)]' : 'grid-cols-[72px_minmax(360px,420px)_minmax(0,1fr)]')
           : (narrow
             ? 'grid-cols-[280px_380px_minmax(0,1fr)] max-[1360px]:grid-cols-[72px_344px_minmax(0,1fr)]'
@@ -42,6 +46,7 @@ export function ThreeColumns({
       data-testid={testId}
       data-rail-collapsed={railCollapsed}
       data-list-width={listWidth}
+      data-detail-collapsed={collapsed}
     >
       {rail}
       {list}

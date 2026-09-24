@@ -1,8 +1,8 @@
-import type { WbIoSlot, WbStepIo, WbWorkflowDef } from '../api/governanceTypes'
-import { changeWorkflowName } from '../model/progressModel'
+import type { WbIoSlot } from '../api/governanceTypes'
+import { changeWorkflowName, formatReadinessBlocker } from '../model/progressModel'
 import { snapshotRulesKey, type WorkflowRules } from '../model/workflowModel'
 import { isProjectNavigable } from '../state/projectSelectionModel'
-import type { ArchivedChangeSnapshot, ChangeSnapshot, Snapshot, UserRefView } from '../types'
+import type { ArchivedChangeSnapshot, ChangeSnapshot, Snapshot, TransitionReadinessBlockerSnapshot, UserRefView } from '../types'
 
 export type Tr = (key: string, vars?: Record<string, string | number>) => string
 
@@ -14,10 +14,13 @@ export interface StageState {
   status: StageStatus
 }
 
-/** 一行由数据推出的状态：缺产出 / 评审待确认 / 可进入下一阶段 / 进行中 / 已完结。 */
+/**
+ * 一行的状态，只由快照推出（不读工作流定义，所以定义加载前后、所有项目与单项目视图里都一样）：
+ * 评审待确认 / 前进出口有阻断 / 可进入下一阶段 / 进行中 / 已完结。
+ */
 export type TaskSummary =
-  | { kind: 'missing'; slot: WbIoSlot }
   | { kind: 'review' }
+  | { kind: 'blocked'; blockers: readonly string[] }
   | { kind: 'ready'; to: string }
   | { kind: 'running' }
   | { kind: 'completed' }
@@ -52,28 +55,9 @@ export function isUnset(value: string): boolean {
   return value === '' || value === 'null'
 }
 
-/** 阶段名只显示一个：定义里的 label（服务端已投影进 labelByStep），没有就是 id；不做前端翻译。 */
+/** 阶段名只显示一个：冻结计划里的 label（服务端已投影进 labelByStep），没有就是 id；不做前端翻译。 */
 export function stageLabel(step: string, rules: WorkflowRules | undefined, _t?: Tr): string {
   return rules?.labelByStep?.[step] || step
-}
-
-/**
- * 用工作流定义补阶段名：快照里的 labelByStep 来自该任务冻结的计划，旧计划没有 label 时服务端只能给 id
- * （界面上就成了「可进入verify」）。定义里（按任务的 track 分支）有 label 的阶段用定义的名字；
- * 冻结计划本身声明了 label 的仍以它为准。
- */
-export function labelWithDefinition<R extends TaskRow>(row: R, def: WbWorkflowDef): R {
-  const steps = def.tracks?.[row.change.track]?.steps ?? def.steps
-  const fromDef = new Map(steps.filter((step) => step.label !== '' && step.label !== step.id).map((step) => [step.id, step.label]))
-  if (fromDef.size === 0) return row
-  const ids = row.rules?.steps ?? row.change.workflowRules.steps
-  const labelByStep: Record<string, string> = {}
-  for (const id of ids) {
-    const own = row.rules?.labelByStep?.[id]
-    labelByStep[id] = own !== undefined && own !== '' && own !== id ? own : fromDef.get(id) ?? id
-  }
-  const rules: WorkflowRules = { ...(row.rules ?? row.change.workflowRules), labelByStep }
-  return { ...row, rules, stages: row.stages.map((stage) => ({ ...stage, label: labelByStep[stage.id] ?? stage.label })) }
 }
 
 /** 槽位展示名 = 定义里的 id 本身（文档 kind / 字段名），不做前端翻译。 */
@@ -81,9 +65,28 @@ export function slotLabel(slot: Pick<WbIoSlot, 'kind' | 'id'>, _t?: Tr): string 
   return slot.id
 }
 
+function rulesOf(change: ChangeSnapshot, rules: WorkflowRules | undefined): WorkflowRules {
+  return rules ?? change.workflowRules
+}
+
+/** 声明了出边、且只通向自己（或出边为空）的步骤是终点；规则里没有这一步的出边表时不下结论。 */
+function isTerminal(rules: WorkflowRules, step: string): boolean {
+  const edges = rules.transitions[step]
+  return edges !== undefined && edges.every((edge) => edge.to === step)
+}
+
+/**
+ * 阶段轨上的步骤：声明顺序里的第一个终点是主线结尾；其余终点（如 simple 的 Escalated）是旁路出口，
+ * 不作为线性阶段格。
+ */
+export function linearSteps(rules: WorkflowRules): readonly string[] {
+  const firstTerminal = rules.steps.find((step) => isTerminal(rules, step))
+  return rules.steps.filter((step) => !isTerminal(rules, step) || step === firstTerminal)
+}
 
 export function stagesOf(change: ChangeSnapshot, rules: WorkflowRules | undefined, t: Tr): StageState[] {
-  const steps = rules?.steps ?? change.workflowRules.steps
+  const all = rulesOf(change, rules)
+  const steps = linearSteps(all)
   const projected = new Map((change.todo?.stages ?? []).map((stage) => [stage.id, stage.status]))
   const current = steps.indexOf(change.phase)
   // A closed run keeps its last phase, but nothing is in progress: the stage it completed from is done.
@@ -99,44 +102,48 @@ export function stagesOf(change: ChangeSnapshot, rules: WorkflowRules | undefine
   })
 }
 
-/** 当前阶段的第一个未就绪输出：文档看台账状态，值看字段是否已设。 */
-export function firstMissingOutput(change: ChangeSnapshot, stepIo: WbStepIo | undefined): WbIoSlot | null {
-  if (!stepIo) return null
-  for (const slot of stepIo.outputs) {
-    if (slot.kind === 'document') {
-      const item = change.documents?.items.find((candidate) => candidate.kind === slot.id)
-      if (!change.documents?.governed) continue
-      if (item === undefined || item.status === 'missing' || item.status === 'stale') return slot
-    } else if (isUnset(fieldStr(change, slot.id))) {
-      return slot
-    }
-  }
-  return null
+/** 一条阻断的展示行：step-exit 用服务端文案；agent 阻断每个 agent 一行。 */
+export function blockerLines(blocker: TransitionReadinessBlockerSnapshot): string[] {
+  if (blocker.kind === 'agents-incomplete') return blocker.agents.map((item) => `${item.agent} · ${item.reason}`)
+  return [formatReadinessBlocker(blocker)]
 }
 
-export function summaryOf(change: ChangeSnapshot, rules: WorkflowRules | undefined, stepIo: WbStepIo | undefined): TaskSummary {
-  if (change.archived === 'true') return { kind: 'completed' }
-  const missing = firstMissingOutput(change, stepIo)
-  if (missing !== null) return { kind: 'missing', slot: missing }
-  if (change.reviewHandshake?.status === 'pending') return { kind: 'review' }
+/**
+ * 当前阶段的前进出口：任一出口 ready 即可前进；都不 ready 时取阻断最少的那个出口（并列按声明顺序），
+ * 绝不把互斥出口的阻断合并成并集。没有前进出口时返回 null。
+ */
+export function forwardExitOf(change: ChangeSnapshot, rules: WorkflowRules | undefined): { to: string; ready: boolean; blockers: string[] } | null {
+  const all = rulesOf(change, rules)
   const readiness = change.workflowExecution.readinessByTransition[change.phase] ?? {}
-  const edges = rules?.transitions[change.phase] ?? change.workflowRules.transitions[change.phase] ?? []
-  const steps = rules?.steps ?? change.workflowRules.steps
+  const steps = all.steps
   const currentIndex = steps.indexOf(change.phase)
-  for (const edge of edges) {
-    const toIndex = steps.indexOf(edge.to)
-    if (toIndex <= currentIndex) continue
-    if (readiness[edge.event]?.ready === true) return { kind: 'ready', to: edge.to }
+  const forward = (all.transitions[change.phase] ?? []).filter((edge) => steps.indexOf(edge.to) > currentIndex)
+  if (forward.length === 0) return null
+  const ready = forward.find((edge) => readiness[edge.event]?.ready === true)
+  if (ready !== undefined) return { to: ready.to, ready: true, blockers: [] }
+  let best: { to: string; ready: boolean; blockers: string[] } | null = null
+  for (const edge of forward) {
+    const blockers = (readiness[edge.event]?.blockers ?? []).flatMap(blockerLines)
+    if (best === null || blockers.length < best.blockers.length) best = { to: edge.to, ready: false, blockers }
   }
-  return { kind: 'running' }
+  return best
+}
+
+export function summaryOf(change: ChangeSnapshot, rules: WorkflowRules | undefined): TaskSummary {
+  if (change.archived === 'true') return { kind: 'completed' }
+  if (change.reviewHandshake?.status === 'pending') return { kind: 'review' }
+  const exit = forwardExitOf(change, rules)
+  if (exit === null) return { kind: 'running' }
+  if (exit.ready) return { kind: 'ready', to: exit.to }
+  return exit.blockers.length === 0 ? { kind: 'running' } : { kind: 'blocked', blockers: exit.blockers }
 }
 
 /** 状态一词：不带阶段名（详情页阶段轨已写明阶段）。 */
 export function summaryShort(row: TaskRow, t: Tr): string {
   switch (row.summary.kind) {
     case 'completed': return t('workspace.summary_completed')
-    case 'missing': return t('workspace.summary_missing', { slot: slotLabel(row.summary.slot, t) })
     case 'review': return t('workspace.summary_review')
+    case 'blocked': return t('workspace.summary_blocked', { n: row.summary.blockers.length })
     case 'ready': return t('workspace.summary_ready', { to: stageLabel(row.summary.to, row.rules, t) })
     case 'running': return t('workspace.summary_running')
   }
@@ -153,8 +160,6 @@ export interface RowsInput {
   snapshot: Snapshot | null
   currentRoot: string
   rulesByKey: ReadonlyMap<string, WorkflowRules>
-  /** (root, workflow) → 物化 IO；缺失时 summary 不判缺产出。 */
-  ioOf: (root: string, workflow: string) => Record<string, WbStepIo> | undefined
   t: Tr
 }
 
@@ -162,53 +167,41 @@ export function rowKey(root: string, name: string): string {
   return `${name}@${root}`
 }
 
-export function rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }: RowsInput): TaskRow[] {
+function rowOf(root: string, change: ChangeSnapshot, rulesByKey: ReadonlyMap<string, WorkflowRules>, t: Tr): TaskRow {
+  const rules = rulesByKey.get(snapshotRulesKey(root, change.workflowPlanFingerprint)) ?? change.workflowRules
+  return {
+    key: rowKey(root, change.name),
+    root,
+    change,
+    rules,
+    workflow: changeWorkflowName(change),
+    archived: change.archived === 'true',
+    owner: change.owner,
+    stages: stagesOf(change, rules, t),
+    summary: summaryOf(change, rules),
+  }
+}
+
+export function rowsOf({ snapshot, currentRoot, rulesByKey, t }: RowsInput): TaskRow[] {
   const rows: TaskRow[] = []
   for (const project of snapshot?.projects ?? []) {
     if (!isProjectNavigable(project)) continue
     if (currentRoot !== '' && project.root !== currentRoot) continue
-    for (const change of project.changes) {
-      const rules = rulesByKey.get(snapshotRulesKey(project.root, change.workflowPlanFingerprint)) ?? change.workflowRules
-      const workflow = changeWorkflowName(change)
-      rows.push({
-        key: rowKey(project.root, change.name),
-        root: project.root,
-        change,
-        rules,
-        workflow,
-        archived: change.archived === 'true',
-        owner: change.owner,
-        stages: stagesOf(change, rules, t),
-        summary: summaryOf(change, rules, ioOf(project.root, workflow)?.[change.phase]),
-      })
-    }
+    for (const change of project.changes) rows.push(rowOf(project.root, change, rulesByKey, t))
   }
   rows.sort((left, right) => Number(left.archived) - Number(right.archived) || right.change.updated_at.localeCompare(left.change.updated_at))
   return rows
 }
 
 /** 已归档视图的行：与活跃行同构（状态同样由数据推出），另带归档时的阶段 / 时间 / 归档人。 */
-export function archivedRowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }: RowsInput): TaskRow[] {
+export function archivedRowsOf({ snapshot, currentRoot, rulesByKey, t }: RowsInput): TaskRow[] {
   const rows: TaskRow[] = []
   for (const project of snapshot?.projects ?? []) {
     if (!isProjectNavigable(project)) continue
     if (currentRoot !== '' && project.root !== currentRoot) continue
     for (const change of project.archived ?? []) {
-      const rules = rulesByKey.get(snapshotRulesKey(project.root, change.workflowPlanFingerprint)) ?? change.workflowRules
-      const workflow = changeWorkflowName(change)
-      rows.push({
-        key: rowKey(project.root, change.name),
-        root: project.root,
-        change,
-        rules,
-        workflow,
-        archived: change.archived === 'true',
-        owner: change.owner,
-        stages: stagesOf(change, rules, t),
-        // 归档只是对我隐藏：状态与归档前的活跃行同一推导，不另编一个「进行中」。
-        summary: summaryOf(change, rules, ioOf(project.root, workflow)?.[change.phase]),
-        archive: change.archive,
-      })
+      // 归档只是对我隐藏：状态与归档前的活跃行同一推导，不另编一个「进行中」。
+      rows.push({ ...rowOf(project.root, change, rulesByKey, t), archive: change.archive })
     }
   }
   rows.sort((left, right) => (right.archive?.archivedAt ?? '').localeCompare(left.archive?.archivedAt ?? ''))
@@ -225,29 +218,32 @@ export function uncommittedDeletionsOf(snapshot: Snapshot | null, currentRoot: s
   return total
 }
 
-/** 状态筛选（与原型一致）：由 summary.kind 映射，不另起判定。 */
-export type TaskStatus = 'all' | 'needs-you' | 'running' | 'review' | 'done'
+/** 状态筛选：由 summary.kind 映射，不另起判定。 */
+export type TaskStatus = 'all' | 'needs-you' | 'running' | 'done'
 // 'needs-you' 与 shell/views.NEEDS_YOU_STATUS（顶部徽标跳转）是同一个值。
-export const TASK_STATUSES: readonly TaskStatus[] = ['all', 'needs-you', 'running', 'review', 'done']
+export const TASK_STATUSES: readonly TaskStatus[] = ['all', 'needs-you', 'running', 'done']
 
 export function isTaskStatus(value: unknown): value is TaskStatus {
   return typeof value === 'string' && (TASK_STATUSES as readonly string[]).includes(value)
 }
 
-/** 可进入下一阶段 = 等人拍板（需要你）；评审待确认 = 待复核；缺输出 / 进行中 = 进行中；已完结 = 已完成。 */
+/**
+ * 需要你 = 等人确认的评审。阻断（缺技能 / 文档 / 测试 / 未勾任务 …）都由执行中的智能体照
+ * `tenon status` 的下一步去补，不算「需要你」；可前进的任务同样由智能体推进。
+ */
 export function statusOf(summary: TaskSummary): Exclude<TaskStatus, 'all'> {
   switch (summary.kind) {
-    case 'ready': return 'needs-you'
-    case 'review': return 'review'
+    case 'review': return 'needs-you'
     case 'completed': return 'done'
-    case 'missing':
+    case 'blocked':
+    case 'ready':
     case 'running': return 'running'
   }
 }
 
 /**
- * 「需要你」的唯一计数：工作台的「需要你」芯片与顶部条待决策徽标都用它（同一份行、同一个 statusOf），
- * 数字不会各算各的。
+ * 「需要你」的唯一计数：工作台的「需要你」与顶部条待决策徽标都用它（同一份行、同一个 statusOf），
+ * 数字不会各算各的，也不随定义加载而变。
  */
 export function needsYouCount(input: RowsInput): number {
   return rowsOf(input).filter((row) => statusOf(row.summary) === 'needs-you').length
@@ -279,7 +275,7 @@ function matches(row: TaskRow, filter: TaskFilterState, ignore?: keyof TaskFilte
 
 /** 各状态芯片的计数：受其它维度约束，忽略状态本身。 */
 export function statusCounts(rows: readonly TaskRow[], filter: TaskFilterState): Record<TaskStatus, number> {
-  const counts: Record<TaskStatus, number> = { all: 0, 'needs-you': 0, running: 0, review: 0, done: 0 }
+  const counts: Record<TaskStatus, number> = { all: 0, 'needs-you': 0, running: 0, done: 0 }
   for (const row of rows) {
     if (!matches(row, filter, 'status')) continue
     counts.all += 1
