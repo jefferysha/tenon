@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { Search } from 'lucide-react'
 import { fetchSkillSources, type SkillSourceRow, type SkillSourcesDto } from '../api/skillSourcesClient'
 import { formatApiError } from '../api/transport'
 import { useT } from '../i18n'
 import { SheetTabs } from '../shared/DetailSheets'
+import { matchesQuery } from '../shell/GlobalSearch'
+import { SkillDetailDrawer } from '../workflow/SkillDetail'
 
 type Filter = 'all' | 'changed' | 'failed'
 type LoadState = { readonly kind: 'loading' } | { readonly kind: 'ok'; readonly view: SkillSourcesDto } | { readonly kind: 'error'; readonly detail: string }
@@ -14,6 +17,8 @@ const COLUMN_WIDTHS = ['w-[22%]', 'w-[26%]', 'w-[14%]', 'w-[10%]', 'w-[16%]', 'w
 const STATUS_TONE: Record<SkillSourceRow['status'], string> = {
   changed: 'text-amber-d', unchanged: 'text-text-2', failed: 'text-red-d', bundled: 'text-text-3',
 }
+/** 状态列只在「有事」时出字：变化 / 失败。无变化与随包技能留空，不在每一行重复同一个词。 */
+const SHOWN_STATUS: ReadonlySet<SkillSourceRow['status']> = new Set(['changed', 'failed'])
 
 function stamp(value: string | null | undefined): string {
   return value === null || value === undefined ? '—' : value.slice(0, 16).replace('T', ' ')
@@ -41,11 +46,16 @@ function CommitCell({ row }: { readonly row: SkillSourceRow }): JSX.Element {
   )
 }
 
-/** 技能: every Tenon and upstream skill with source, commit, license, update time and status. Read-only. */
+/**
+ * 技能: every Tenon and upstream skill with source, commit, license, update time and status. Read-only.
+ * Search filters by skill / repo; clicking a row opens the skill in the shared SkillDetail drawer.
+ */
 export function SkillsView(): JSX.Element {
   const { t } = useT()
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
   const [filter, setFilter] = useState<Filter>('all')
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -61,7 +71,12 @@ export function SkillsView(): JSX.Element {
     changed: rows.filter((row) => row.status === 'changed').length,
     failed: rows.filter((row) => row.status === 'failed').length,
   }), [rows])
-  const visible = filter === 'all' ? rows : rows.filter((row) => row.status === filter)
+  const visible = rows.filter((row) => (filter === 'all' || row.status === filter) && matchesQuery(query, row.id, row.repo ?? ''))
+  // 行内的链接（仓库 / 提交）照常跳转，不同时打开抽屉。
+  const onRowClick = (event: MouseEvent<HTMLTableRowElement>, id: string): void => {
+    if (event.target instanceof Element && event.target.closest('a, button') !== null) return
+    setOpen(id)
+  }
 
   const statusTitle = (row: SkillSourceRow): string => {
     if (row.status === 'bundled') return '—'
@@ -87,7 +102,22 @@ export function SkillsView(): JSX.Element {
               ariaLabel={t('nav.skills')}
               idPrefix="skills-filter"
             />
-            <span className="pb-3 text-caption text-text-3" data-testid="skills-updated">{t('skills.updated')} {stamp(state.view.updatedAt)}</span>
+            <div className="flex items-center gap-4 pb-2">
+              <label className="flex h-9 w-64 items-center gap-2 rounded-md border border-border bg-card px-3 text-text-3 focus-within:border-accent-b" data-testid="skills-search-box">
+                <Search className="size-4 flex-none" aria-hidden="true" />
+                <span className="sr-only">{t('skills.search')}</span>
+                <input
+                  type="search"
+                  autoComplete="off"
+                  value={query}
+                  placeholder={t('skills.search')}
+                  className="min-w-0 flex-1 bg-transparent text-body text-text outline-none placeholder:text-text-3"
+                  data-testid="skills-search"
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+              <span className="text-caption text-text-3" data-testid="skills-updated">{t('skills.updated')} {stamp(state.view.updatedAt)}</span>
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-border bg-card" id="skills-filter-panel" role="tabpanel">
             <table className="w-full table-fixed border-collapse text-caption">
@@ -101,8 +131,22 @@ export function SkillsView(): JSX.Element {
               </thead>
               <tbody>
                 {visible.map((row) => (
-                  <tr key={row.id} className="border-b border-border last:border-b-0" data-testid={`skills-row-${row.id}`}>
-                    <td className={`${CELL} font-mono text-text`} title={row.id}>{row.id}</td>
+                  <tr
+                    key={row.id}
+                    className="cursor-pointer even:bg-fill/45 hover:bg-fill"
+                    data-testid={`skills-row-${row.id}`}
+                    onClick={(event) => onRowClick(event, row.id)}
+                  >
+                    <td className={CELL} title={row.id}>
+                      <button
+                        type="button"
+                        className="max-w-full truncate rounded-xs font-mono text-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-(--accent)"
+                        data-testid={`skills-open-${row.id}`}
+                        onClick={() => setOpen(row.id)}
+                      >
+                        {row.id}
+                      </button>
+                    </td>
                     {row.origin === 'tenon' ? (
                       <td className={`${CELL} text-text-2`} title="tenon">tenon</td>
                     ) : (
@@ -116,7 +160,7 @@ export function SkillsView(): JSX.Element {
                     <td className={`${CELL} text-text-2`} title={row.license ?? '—'}>{row.license ?? '—'}</td>
                     <td className={`${CELL} text-text-2`} title={row.fetchedAt ?? '—'}>{stamp(row.fetchedAt)}</td>
                     <td className={`${CELL} ${STATUS_TONE[row.status]}`} title={statusTitle(row)} data-testid={`skills-status-${row.id}`}>
-                      {row.status === 'bundled' ? '—' : t(`skills.status_${row.status}`)}
+                      {SHOWN_STATUS.has(row.status) ? t(`skills.status_${row.status}`) : ''}
                     </td>
                   </tr>
                 ))}
@@ -125,6 +169,7 @@ export function SkillsView(): JSX.Element {
           </div>
         </>
       ) : null}
+      <SkillDetailDrawer name={open} onClose={() => setOpen(null)} />
     </section>
   )
 }

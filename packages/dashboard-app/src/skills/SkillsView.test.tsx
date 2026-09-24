@@ -49,15 +49,17 @@ describe('SkillsView', () => {
     expect(screen.getByTestId('skills-updated')).toHaveTextContent('更新 2026-09-15 08:00')
   })
 
-  it('filters to failed rows and keeps every status cell to one word', async () => {
+  it('shows a status word only for changed / failed rows and filters to failed rows', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
     renderView()
     await screen.findByTestId('skills-row-hue')
     for (const row of FIXTURE.rows) {
       const status = screen.getByTestId(`skills-status-${row.id}`)
-      expect(status.textContent).toMatch(/^\S+$/u)
+      if (row.status === 'changed' || row.status === 'failed') expect(status.textContent).toMatch(/^\S+$/u)
+      else expect(status.textContent).toBe('')
       expect(status.getAttribute('title')).not.toMatch(/^skills\./u)
     }
+    expect(screen.getByTestId('skills-status-hue')).toHaveTextContent('变化')
     expect(screen.getByTestId('skills-filter-tab-failed')).toHaveTextContent('失败')
     await userEvent.click(screen.getByTestId('skills-filter-tab-failed'))
     expect(screen.getAllByTestId(/^skills-row-/u).map((row) => row.dataset.testid)).toEqual(['skills-row-web-design-guidelines'])
@@ -89,5 +91,44 @@ describe('SkillsView', () => {
     const error = await screen.findByTestId('skills-load-error')
     expect(error).toHaveTextContent('技能来源读取失败')
     await waitFor(() => expect(screen.queryByRole('table')).toBeNull())
+  })
+
+  it('searches by skill or repo', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    await userEvent.type(screen.getByTestId('skills-search'), 'superpowers')
+    expect(screen.getAllByTestId(/^skills-row-/u).map((row) => row.dataset.testid)).toEqual(['skills-row-brainstorming'])
+    await userEvent.clear(screen.getByTestId('skills-search'))
+    await userEvent.type(screen.getByTestId('skills-search'), 'HUE')
+    expect(screen.getAllByTestId(/^skills-row-/u).map((row) => row.dataset.testid)).toEqual(['skills-row-hue'])
+  })
+
+  it('opens the skill detail drawer from a row, but not from a link inside it', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    const compare = await screen.findByTestId('skills-compare-hue')
+    compare.addEventListener('click', (event) => event.preventDefault())
+    await userEvent.click(compare)
+    expect(screen.queryByTestId('skill-preview')).toBeNull()
+    await userEvent.click(within(screen.getByTestId('skills-row-hue')).getAllByRole('cell')[3] as HTMLElement)
+    expect(await screen.findByTestId('skill-preview')).toBeInTheDocument()
+  })
+
+  it('opens the drawer from the keyboard through the skill name button', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    const button = await screen.findByTestId('skills-open-brainstorming')
+    button.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByTestId('skill-preview')).toBeInTheDocument()
+  })
+
+  it('separates rows by zebra striping instead of a border per row', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    const row = await screen.findByTestId('skills-row-hue')
+    expect(row.className).toContain('even:bg-fill/45')
+    expect(row.className).not.toContain('border-b')
   })
 })
