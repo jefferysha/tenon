@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { WorkflowView } from './WorkflowView'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
@@ -46,7 +47,7 @@ function params(): URLSearchParams {
 describe('WorkflowView · URL 记住工作流 / 轨道 / 阶段', () => {
   it('深链 ?wf=&track=&step= 直接落到那个阶段', async () => {
     window.history.replaceState(null, '', '/?view=workbench&wf=flow&track=beta&step=b2')
-    render(<I18nProvider><WorkflowView root="" /></I18nProvider>)
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
     expect(await screen.findByTestId('wb-step-b2')).toHaveAttribute('aria-current', 'true')
     expect(screen.getByTestId('wb-track-beta')).toHaveAttribute('aria-selected', 'true')
     expect(params().get('view')).toBe('workbench')
@@ -54,7 +55,7 @@ describe('WorkflowView · URL 记住工作流 / 轨道 / 阶段', () => {
 
   it('深链点名的工作流不存在：按缺省落，并把 URL 改成实际选择', async () => {
     window.history.replaceState(null, '', '/?view=workbench&wf=ghost&step=zz')
-    render(<I18nProvider><WorkflowView root="" /></I18nProvider>)
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
     expect(await screen.findByTestId('wb-step-a1')).toHaveAttribute('aria-current', 'true')
     await waitFor(() => expect(params().get('wf')).toBe('flow'))
     expect(params().get('step')).toBe('a1')
@@ -64,7 +65,7 @@ describe('WorkflowView · URL 记住工作流 / 轨道 / 阶段', () => {
     const user = userEvent.setup()
     window.history.replaceState(null, '', '/?view=workbench&debug=1')
     const length = window.history.length
-    render(<I18nProvider><WorkflowView root="" /></I18nProvider>)
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
     await screen.findByTestId('wb-step-a1')
     await waitFor(() => expect(params().get('wf')).toBe('flow'))
     expect(params().get('track')).toBe('alpha')
@@ -81,7 +82,7 @@ describe('WorkflowView · 删除阶段', () => {
   it('左栏阶段 ⋯ → 删除阶段 → 确认框（标题点名）→ 阶段消失，保存条写出改动数', async () => {
     const user = userEvent.setup()
     window.history.replaceState(null, '', '/?view=workbench&wf=flow&track=beta&step=b2')
-    render(<I18nProvider><WorkflowView root="" /></I18nProvider>)
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
     await user.click(await screen.findByTestId('wb-stage-menu-b2'))
     await user.click(screen.getByTestId('wb-stage-delete-b2'))
     expect(screen.getByTestId('stage-delete-dialog')).toHaveTextContent('删除「承」？')
@@ -93,7 +94,7 @@ describe('WorkflowView · 删除阶段', () => {
   it('取消确认框不删', async () => {
     const user = userEvent.setup()
     window.history.replaceState(null, '', '/?view=workbench&wf=flow&track=beta&step=b2')
-    render(<I18nProvider><WorkflowView root="" /></I18nProvider>)
+    render(<I18nProvider><TooltipProvider><WorkflowView root="" /></TooltipProvider></I18nProvider>)
     await user.click(await screen.findByTestId('wb-stage-menu-b2'))
     await user.click(screen.getByTestId('wb-stage-delete-b2'))
     await user.click(screen.getByTestId('stage-delete-cancel'))

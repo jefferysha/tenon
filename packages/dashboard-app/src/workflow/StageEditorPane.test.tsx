@@ -4,6 +4,7 @@ import gsap from 'gsap'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { WbEffectiveIo, WbSkillEntry, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
 import { producerSkills } from './producers'
 import { SECTION_STAGGER, StageEditorPane } from './StageEditorPane'
@@ -65,7 +66,7 @@ function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
 
 function renderPane(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): WorkflowEditor {
   const editor = fakeEditor(step, overrides)
-  render(<I18nProvider><StageEditorPane editor={editor} step={step} /></I18nProvider>)
+  render(<I18nProvider><TooltipProvider><StageEditorPane editor={editor} step={step} /></TooltipProvider></I18nProvider>)
   return editor
 }
 
@@ -110,7 +111,7 @@ describe('StageEditorPane · 两栏定稿', () => {
   })
 
   it('输入表三列：来源阶段 + 该阶段里产出它的技能；无输入显示空态', () => {
-    const { unmount } = render(<I18nProvider><StageEditorPane editor={fakeEditor(SPEC)} step={SPEC} /></I18nProvider>)
+    const { unmount } = render(<I18nProvider><TooltipProvider><StageEditorPane editor={fakeEditor(SPEC)} step={SPEC} /></TooltipProvider></I18nProvider>)
     const table = screen.getByTestId('io-inputs')
     expect(table).toHaveTextContent('来源阶段')
     expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('调研')
@@ -162,14 +163,14 @@ describe('StageEditorPane · 两栏定稿', () => {
   it('保存条：改动清空（保存成功 / 放弃）后卸载；保存失败时仍在并显示原因；点保存 / 放弃各自回调', async () => {
     const user = userEvent.setup()
     const editor = fakeEditor(EXPLORE, { dirty: true, changeCount: 1, saveStatus: { kind: 'error', errors: ['冲突'], conflict: true } })
-    const { rerender } = render(<I18nProvider><StageEditorPane editor={editor} step={EXPLORE} /></I18nProvider>)
+    const { rerender } = render(<I18nProvider><TooltipProvider><StageEditorPane editor={editor} step={EXPLORE} /></TooltipProvider></I18nProvider>)
     expect(screen.getByTestId('wb-save-error')).toHaveTextContent('冲突')
     expect(screen.getByTestId('wb-save-conflict-reload')).toBeInTheDocument()
     await user.click(screen.getByTestId('wb-save'))
     expect(editor.save).toHaveBeenCalled()
     await user.click(screen.getByTestId('wb-discard'))
     expect(editor.discardDraft).toHaveBeenCalled()
-    rerender(<I18nProvider><StageEditorPane editor={{ ...editor, dirty: false, changeCount: 0, saveStatus: { kind: 'ok' } } as WorkflowEditor} step={EXPLORE} /></I18nProvider>)
+    rerender(<I18nProvider><TooltipProvider><StageEditorPane editor={{ ...editor, dirty: false, changeCount: 0, saveStatus: { kind: 'ok' } } as WorkflowEditor} step={EXPLORE} /></TooltipProvider></I18nProvider>)
     expect(screen.queryByTestId('wb-save-bar')).toBeNull()
   })
 
@@ -300,7 +301,7 @@ describe('StageEditorPane · OpenSpec 文档 IO', () => {
       setDocumentInputs: vi.fn(),
       ...overrides,
     })
-    render(<I18nProvider><StageEditorPane editor={editor} step={step} /></I18nProvider>)
+    render(<I18nProvider><TooltipProvider><StageEditorPane editor={editor} step={step} /></TooltipProvider></I18nProvider>)
     return editor
   }
 

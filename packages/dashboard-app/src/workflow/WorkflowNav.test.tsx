@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { backArrowPath, backEdgePath, STEP_PITCH, WorkflowNav } from './WorkflowNav'
 
 function step(id: string, label: string, gate: WbStepDef['gate'], to: string[]): WbStepDef {
@@ -13,7 +14,7 @@ const DEF: WbWorkflowDef = { name: 'default', steps: [step('open', '立项', nul
 function renderNav(overrides: Partial<Parameters<typeof WorkflowNav>[0]> = {}) {
   const fns = { onSwitch: vi.fn(), onSwitchBranch: vi.fn(), onCreate: vi.fn(), onExport: vi.fn(), onDelete: vi.fn(), onNewTrack: vi.fn(), onDeleteTrack: vi.fn(), onSelect: vi.fn(), onAddStage: vi.fn(), onReorder: vi.fn(), onToggleOpenspec: vi.fn(), onDeleteStage: vi.fn() }
   render(
-    <I18nProvider>
+    <I18nProvider><TooltipProvider>
       <WorkflowNav
         names={['default', 'release']}
         current="default"
@@ -32,7 +33,7 @@ function renderNav(overrides: Partial<Parameters<typeof WorkflowNav>[0]> = {}) {
         {...fns}
         {...overrides}
       />
-    </I18nProvider>,
+    </TooltipProvider></I18nProvider>,
   )
   return fns
 }

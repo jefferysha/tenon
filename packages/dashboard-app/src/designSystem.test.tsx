@@ -202,6 +202,10 @@ describe('Dashboard 电脑端设计系统契约', () => {
     expect(readSource('App.tsx')).toMatch(/<TooltipProvider delayDuration=\{400\} skipDelayDuration=\{300\}>/)
   })
 
+  it('全站只有 App 这一个 TooltipProvider：TopBar、Hint 不再自带（不各自改延迟）', () => {
+    for (const file of ['shell/TopBar.tsx', 'workflow/Hint.tsx']) expect(readSource(file), file).not.toContain('<TooltipProvider')
+  })
+
   it('App 清理 toast tween，并让 error/status 使用不同 live-region 语义', () => {
     expect(readSource('shared/useFlash.ts')).toMatch(/return \(\) => tween\.kill\(\)/)
     expect(readSource('App.tsx')).toMatch(/role=\{flash\.kind === 'error' \? 'alert' : 'status'\}/)

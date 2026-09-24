@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Flip } from 'gsap/Flip'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import type { Lang } from '../i18n/translations'
 import { TopBar, type TopBarProject } from './TopBar'
 import type { ThemePreference, View } from './views'
@@ -46,9 +47,9 @@ function renderBar(over: Over = {}) {
     user: null,
     onUser: () => undefined,
   }
-  const view = render(<I18nProvider><TopBar {...props} /></I18nProvider>)
+  const view = render(<I18nProvider><TooltipProvider><TopBar {...props} /></TooltipProvider></I18nProvider>)
   return {
-    rerender: (next: Partial<typeof props>) => view.rerender(<I18nProvider><TopBar {...props} {...next} /></I18nProvider>),
+    rerender: (next: Partial<typeof props>) => view.rerender(<I18nProvider><TooltipProvider><TopBar {...props} {...next} /></TooltipProvider></I18nProvider>),
   }
 }
 

@@ -9,7 +9,7 @@ import { TopBarSettings } from './TopBarSettings'
 import { VIEWS, type ThemePreference, type View } from './views'
 import { cn } from '@/lib/utils'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export interface TopBarProject {
   root: string
@@ -86,146 +86,144 @@ export function TopBar({
   const connLabel = t(connected ? 'common.connected' : 'common.offline')
 
   return (
-    <TooltipProvider delayDuration={400} skipDelayDuration={300}>
-      <header
-        ref={barRef}
-        className="sticky top-0 z-40 flex h-[var(--topbar-h)] items-center gap-3.5 border-b border-border bg-card px-5 max-[900px]:h-auto max-[900px]:flex-wrap max-[900px]:gap-3 max-[900px]:py-3"
-        role="banner"
-        data-testid="top-bar"
-      >
-        <span className="grid size-9 flex-none place-items-center rounded-sm bg-ink text-title font-semibold text-ink-fg" aria-hidden="true">t</span>
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className={MENU_BTN_CLS}
-              aria-label={t('shell.project_switch_label')}
-              data-testid="project-switcher"
-            >
-              <span className={cn('size-1.5 rounded-full', current === undefined ? 'bg-text-3' : current.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
-              <span className="max-w-[24ch] truncate" data-testid="project-label">{currentName}</span>
-              <ChevronDown className="size-3.5 text-text-3" aria-hidden="true" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            sideOffset={8}
-            aria-label={t('shell.project_menu_label')}
-            aria-labelledby={undefined}
-            className="min-w-[260px] rounded-md border-0 bg-surface-raised p-1 shadow-(--shadow-2)"
-            data-testid="project-menu"
+    <header
+      ref={barRef}
+      className="sticky top-0 z-40 flex h-[var(--topbar-h)] items-center gap-3.5 border-b border-border bg-card px-5 max-[900px]:h-auto max-[900px]:flex-wrap max-[900px]:gap-3 max-[900px]:py-3"
+      role="banner"
+      data-testid="top-bar"
+    >
+      <span className="grid size-9 flex-none place-items-center rounded-sm bg-ink text-title font-semibold text-ink-fg" aria-hidden="true">t</span>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={MENU_BTN_CLS}
+            aria-label={t('shell.project_switch_label')}
+            data-testid="project-switcher"
           >
-            <DropdownMenuPrimitive.RadioGroup value={currentRoot} onValueChange={onRoot}>
-              <DropdownMenuPrimitive.RadioItem value="" className={MENU_ITEM_CLS} data-testid="project-item-all">
-                <span className="min-w-0 flex-1 truncate">{t('shell.all_projects')}</span>
+            <span className={cn('size-1.5 rounded-full', current === undefined ? 'bg-text-3' : current.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
+            <span className="max-w-[24ch] truncate" data-testid="project-label">{currentName}</span>
+            <ChevronDown className="size-3.5 text-text-3" aria-hidden="true" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          sideOffset={8}
+          aria-label={t('shell.project_menu_label')}
+          aria-labelledby={undefined}
+          className="min-w-[260px] rounded-md border-0 bg-surface-raised p-1 shadow-(--shadow-2)"
+          data-testid="project-menu"
+        >
+          <DropdownMenuPrimitive.RadioGroup value={currentRoot} onValueChange={onRoot}>
+            <DropdownMenuPrimitive.RadioItem value="" className={MENU_ITEM_CLS} data-testid="project-item-all">
+              <span className="min-w-0 flex-1 truncate">{t('shell.all_projects')}</span>
+              <MenuCheck />
+            </DropdownMenuPrimitive.RadioItem>
+            {projects.map((project) => (
+              <DropdownMenuPrimitive.RadioItem
+                key={project.root}
+                value={project.root}
+                className={MENU_ITEM_CLS}
+                title={project.root}
+                data-testid={`project-item-${project.name}`}
+              >
+                <span className={cn('size-1.5 flex-none rounded-full', project.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                <span className="text-caption tabular-nums text-text-3">{project.count}</span>
                 <MenuCheck />
               </DropdownMenuPrimitive.RadioItem>
-              {projects.map((project) => (
-                <DropdownMenuPrimitive.RadioItem
-                  key={project.root}
-                  value={project.root}
-                  className={MENU_ITEM_CLS}
-                  title={project.root}
-                  data-testid={`project-item-${project.name}`}
-                >
-                  <span className={cn('size-1.5 flex-none rounded-full', project.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                  <span className="text-caption tabular-nums text-text-3">{project.count}</span>
-                  <MenuCheck />
-                </DropdownMenuPrimitive.RadioItem>
-              ))}
-            </DropdownMenuPrimitive.RadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            ))}
+          </DropdownMenuPrimitive.RadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-        <nav
-          ref={nav.containerRef}
-          className="relative isolate ml-4 flex gap-0.5 max-[900px]:order-3 max-[900px]:ml-0 max-[900px]:w-full max-[900px]:overflow-x-auto max-[900px]:pt-1"
-          aria-label={t('nav.primary_label')}
-          data-testid="primary-nav"
-        >
-          {VIEWS.map((candidate) => (
-            <span key={candidate} className="relative flex items-center">
-              <button
-                type="button"
-                className={TAB_CLS}
-                aria-current={view === candidate ? 'page' : undefined}
-                data-testid={`nav-${candidate}`}
-                onClick={() => onView(candidate)}
-              >
-                {t(`nav.${candidate}`)}
-              </button>
-              {candidate === 'progress' && decisionCount > 0 && (
-                // 徽标绝对定位在标签右上角：出现 / 消失都不改导航宽度。与标签是兄弟按钮，不嵌套交互元素；
-                // after 伪元素把点击区撑到 40px。
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="absolute -top-1 -right-1 z-10 grid h-5 min-w-5 place-items-center rounded-full bg-amber-t px-1 text-micro font-semibold tabular-nums text-amber-d outline-none after:absolute after:-inset-2.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-(--accent)"
-                      aria-label={decisionLabel}
-                      data-count={decisionCount}
-                      data-testid="progress-badge"
-                      onClick={onDecisions}
-                    >
-                      <span aria-hidden="true">{decisionCount}</span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent sideOffset={4}>{decisionLabel}</TooltipContent>
-                </Tooltip>
-              )}
+      <nav
+        ref={nav.containerRef}
+        className="relative isolate ml-4 flex gap-0.5 max-[900px]:order-3 max-[900px]:ml-0 max-[900px]:w-full max-[900px]:overflow-x-auto max-[900px]:pt-1"
+        aria-label={t('nav.primary_label')}
+        data-testid="primary-nav"
+      >
+        {VIEWS.map((candidate) => (
+          <span key={candidate} className="relative flex items-center">
+            <button
+              type="button"
+              className={TAB_CLS}
+              aria-current={view === candidate ? 'page' : undefined}
+              data-testid={`nav-${candidate}`}
+              onClick={() => onView(candidate)}
+            >
+              {t(`nav.${candidate}`)}
+            </button>
+            {candidate === 'progress' && decisionCount > 0 && (
+              // 徽标绝对定位在标签右上角：出现 / 消失都不改导航宽度。与标签是兄弟按钮，不嵌套交互元素；
+              // after 伪元素把点击区撑到 40px。
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="absolute -top-1 -right-1 z-10 grid h-5 min-w-5 place-items-center rounded-full bg-amber-t px-1 text-micro font-semibold tabular-nums text-amber-d outline-none after:absolute after:-inset-2.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-(--accent)"
+                    aria-label={decisionLabel}
+                    data-count={decisionCount}
+                    data-testid="progress-badge"
+                    onClick={onDecisions}
+                  >
+                    <span aria-hidden="true">{decisionCount}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={4}>{decisionLabel}</TooltipContent>
+              </Tooltip>
+            )}
+          </span>
+        ))}
+        <span ref={nav.indicatorRef} className={cn(SLIDING_INDICATOR_CLS, 'rounded-sm bg-accent-t')} aria-hidden="true" data-testid="nav-indicator" />
+      </nav>
+
+      <div className="ml-auto flex items-center gap-3.5">
+        {user?.kind === 'set' && (
+          <button
+            type="button"
+            className={cn(MENU_BTN_CLS, 'max-w-[20ch]')}
+            title={user.user.id}
+            aria-label={t('shell.user')}
+            data-source={user.user.source}
+            data-testid="top-bar-user"
+            onClick={onUser}
+          >
+            <UserIcon className="size-4 flex-none text-text-3" aria-hidden="true" />
+            <span className="truncate whitespace-nowrap">{user.user.name}</span>
+          </button>
+        )}
+        {user?.kind === 'missing' && (
+          <button
+            type="button"
+            className={cn(MENU_BTN_CLS, 'text-amber-d')}
+            aria-label={t('shell.user')}
+            data-testid="top-bar-user-missing"
+            onClick={onUser}
+          >
+            <UserIcon className="size-4 flex-none" aria-hidden="true" />
+            <span className="whitespace-nowrap">{t('shell.user_unset')}</span>
+          </button>
+        )}
+        {/* 连接状态只留一个点；文字进 Tooltip。可聚焦，键盘也能读到。 */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              className="grid size-10 place-items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+              role="img"
+              tabIndex={0}
+              aria-label={connLabel}
+              data-on={connected ? 'true' : 'false'}
+              data-testid="conn-indicator"
+            >
+              <span className={cn('size-2 rounded-full', connected ? 'bg-green' : 'bg-red')} aria-hidden="true" />
             </span>
-          ))}
-          <span ref={nav.indicatorRef} className={cn(SLIDING_INDICATOR_CLS, 'rounded-sm bg-accent-t')} aria-hidden="true" data-testid="nav-indicator" />
-        </nav>
-
-        <div className="ml-auto flex items-center gap-3.5">
-          {user?.kind === 'set' && (
-            <button
-              type="button"
-              className={cn(MENU_BTN_CLS, 'max-w-[20ch]')}
-              title={user.user.id}
-              aria-label={t('shell.user')}
-              data-source={user.user.source}
-              data-testid="top-bar-user"
-              onClick={onUser}
-            >
-              <UserIcon className="size-4 flex-none text-text-3" aria-hidden="true" />
-              <span className="truncate whitespace-nowrap">{user.user.name}</span>
-            </button>
-          )}
-          {user?.kind === 'missing' && (
-            <button
-              type="button"
-              className={cn(MENU_BTN_CLS, 'text-amber-d')}
-              aria-label={t('shell.user')}
-              data-testid="top-bar-user-missing"
-              onClick={onUser}
-            >
-              <UserIcon className="size-4 flex-none" aria-hidden="true" />
-              <span className="whitespace-nowrap">{t('shell.user_unset')}</span>
-            </button>
-          )}
-          {/* 连接状态只留一个点；文字进 Tooltip。可聚焦，键盘也能读到。 */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                className="grid size-10 place-items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-                role="img"
-                tabIndex={0}
-                aria-label={connLabel}
-                data-on={connected ? 'true' : 'false'}
-                data-testid="conn-indicator"
-              >
-                <span className={cn('size-2 rounded-full', connected ? 'bg-green' : 'bg-red')} aria-hidden="true" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent sideOffset={4}>{connLabel}</TooltipContent>
-          </Tooltip>
-          <TopBarSettings lang={lang} onLang={onLang} theme={theme} onTheme={onTheme} barRef={barRef} />
-        </div>
-      </header>
-    </TooltipProvider>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={4}>{connLabel}</TooltipContent>
+        </Tooltip>
+        <TopBarSettings lang={lang} onLang={onLang} theme={theme} onTheme={onTheme} barRef={barRef} />
+      </div>
+    </header>
   )
 }
 
