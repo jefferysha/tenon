@@ -222,8 +222,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   })
 
   const {
-    snapshotCache,
-    clients,
+    snapshotCache, clients,
     stopPoll,
     sendJson,
     sendHtml,

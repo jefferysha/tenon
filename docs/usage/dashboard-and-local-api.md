@@ -147,6 +147,15 @@ The production server negotiates gzip for compressible generated assets and
 returns `Vary: Accept-Encoding`. Clients that decline gzip receive the original
 bytes; API JSON remains `no-store`.
 
+`/api/snapshot`, the first `/api/stream` frame, SSE broadcasts, and the AFK
+snapshot/log views share one server-side snapshot. Concurrent readers share a
+single build; a built snapshot is reused, with its original `generated_at`,
+while the input fingerprint (state, tasks, documents, tests, archive, git HEAD,
+terminal activity, and the viewer identity) is unchanged, for at most 30
+seconds. Every non-GET request drops it before it runs and again after it
+settles. `/api/snapshot` sends an `ETag` and answers a matching
+`If-None-Match` with `304`.
+
 Mutation requests require:
 
 - loopback/local Host validation;
