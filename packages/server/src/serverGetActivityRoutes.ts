@@ -4,7 +4,7 @@ import { listAutomationPolicyTemplates, stateStorageExistsSync } from '@tenon/ke
 import { buildAfkLog, buildAfkSnapshot, readAfkRunLog } from './afk.js'
 import { handleContextBundlePreview } from './contextBundlePreview.js'
 import { buildRunDetail } from './runDetail.js'
-import { buildSnapshot } from './snapshot.js'
+import { sendSharedSnapshot } from './snapshotCache.js'
 import { readChangeHistory } from './transition.js'
 import { handleGetUserRoute } from './serverUserRoutes.js'
 import type { GetRouteDeps } from './serverGetRoutes.js'
@@ -17,7 +17,7 @@ export async function handleGetActivityRoutes(
 ): Promise<void> {
   const {
     cadenceScheduler, sendJson, sendHtml, serveIndexWithToken, serveAsset, indexHtml, token,
-    version, releaseId, transactionId, stateScopeId, isLocalHost, snapshotDeps, handleStream, isRegisteredRoot,
+    version, releaseId, transactionId, stateScopeId, isLocalHost, snapshotCache, handleStream, isRegisteredRoot,
     clock, store, recordStore, loopLedger, errMsg,
   } = deps
   const boundPort = deps.boundPort()
@@ -64,7 +64,7 @@ export async function handleGetActivityRoutes(
     }
     if (path === '/api/snapshot') {
       try {
-        return sendJson(res, 200, await buildSnapshot(snapshotDeps()))
+        return sendSharedSnapshot(req, res, await snapshotCache.current())
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
@@ -85,14 +85,14 @@ export async function handleGetActivityRoutes(
     // ── #29d AFK 指挥面数据端：聚合 automation_* → 泳道 + 调度器 doctor 灯 + 流水 ──
     if (path === '/api/afk/snapshot') {
       try {
-        return sendJson(res, 200, buildAfkSnapshot(await buildSnapshot(snapshotDeps()), clock))
+        return sendJson(res, 200, buildAfkSnapshot((await snapshotCache.current()).snapshot, clock))
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
     }
     if (path === '/api/afk/log') {
       try {
-        return sendJson(res, 200, buildAfkLog(await buildSnapshot(snapshotDeps()), clock))
+        return sendJson(res, 200, buildAfkLog((await snapshotCache.current()).snapshot, clock))
       } catch (e) {
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }

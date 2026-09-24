@@ -222,6 +222,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   })
 
   const {
+    snapshotCache,
     clients,
     stopPoll,
     sendJson,
@@ -231,7 +232,6 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
     serveIndexWithToken,
     serveAsset,
   } = createServerTransport({
-    registry,
     snapshotDeps,
     heartbeatMs,
     pollIntervalMs,
@@ -279,7 +279,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const handleGet = (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> =>
     handleGetRoute(req, res, path, {
       cadenceScheduler, sendJson, sendHtml, serveIndexWithToken, serveAsset, indexHtml, token,
-      version, releaseId, transactionId, stateScopeId, isLocalHost, boundPort: () => boundPort, snapshotDeps,
+      version, releaseId, transactionId, stateScopeId, isLocalHost, boundPort: () => boundPort, snapshotDeps, snapshotCache,
       handleStream, isRegisteredRoot, clock, store, recordStore, loopLedger, registry, traceStore,
       workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, trackRegistryBody, manifestPath, paths,
       hostHome, operationsAvailable, hostTargetPlanRuntime, options, operationRunner,
@@ -342,6 +342,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const httpServer: Server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?', 1)[0] ?? '/'
     const method = req.method ?? 'GET'
+    if (method !== 'GET') snapshotCache.invalidate()
     const handler = method === 'GET'
       ? handleGet(req, res, path)
       : method === 'POST'
@@ -353,6 +354,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
             : method === 'PUT'
               ? handlePut(req, res, path)
               : Promise.resolve(sendJson(res, 405, { ok: false, error: 'method not allowed' }))
+    if (method !== 'GET') void handler.finally(snapshotCache.invalidate).catch(() => undefined)
     handler.catch((e) => {
       try { sendJson(res, 500, { ok: false, error: errMsg(e) }) } catch { /* 已写头 */ }
     })
