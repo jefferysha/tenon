@@ -78,6 +78,8 @@ describe('card menu and detail footer open the dialog', () => {
 
     const dialog = await screen.findByTestId('task-action-dialog')
     expect(within(dialog).getByText('删除 demo')).toBeTruthy()
+    expect(within(dialog).getByRole('alertdialog', { name: '删除 demo' })).toHaveAttribute('aria-modal', 'true')
+    expect(screen.getByTestId('task-action-cancel')).toHaveFocus()
     expect(within(dialog).getByTestId('task-action-effect')).toHaveTextContent('从工作区删除该任务目录，不自动提交，可用 git 恢复')
     await waitFor(() => expect(screen.getByTestId('task-action-reason-review-pending')).toBeTruthy())
     expect(screen.getByTestId('task-action-reason-has-dependents').textContent).toContain('other')

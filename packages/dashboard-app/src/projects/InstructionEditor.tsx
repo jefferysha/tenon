@@ -129,6 +129,7 @@ export function InstructionEditor({
           title={t('projects.delete')}
           onClose={() => setConfirmDelete(false)}
           testid="proj-delete-dialog"
+          role="alertdialog"
           actions={(
             <>
               <button type="button" className={BUTTON_GHOST} data-testid="proj-delete-cancel" onClick={() => setConfirmDelete(false)}>

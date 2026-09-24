@@ -68,6 +68,25 @@ describe('user dialog', () => {
     expect(JSON.parse(String(init?.body))).toEqual({ id: 'jeff@x.io', name: 'Jeff Sha' })
   })
 
+  it('names its global scope and keeps 保存 disabled until a field actually changes', async () => {
+    window.__TENON_DASHBOARD_TOKEN__ = 'tok'
+    render(<I18nProvider><UserDialog initial={{ id: 'jeff@x.io', name: 'Jeff', source: 'config' }} onClose={() => undefined} onSaved={() => undefined} /></I18nProvider>)
+    expect(screen.getByTestId('user-dialog-scope')).toHaveTextContent('适用于本机所有项目')
+    const save = screen.getByTestId('user-dialog-save')
+    expect(save).toBeDisabled()
+    await userEvent.type(screen.getByTestId('user-dialog-name'), ' Sha')
+    expect(save).toBeEnabled()
+    await userEvent.clear(screen.getByTestId('user-dialog-name'))
+    await userEvent.type(screen.getByTestId('user-dialog-name'), 'Jeff')
+    expect(save).toBeDisabled()
+  })
+
+  it('allows saving an unedited git identity so it becomes the declared user.json', () => {
+    window.__TENON_DASHBOARD_TOKEN__ = 'tok'
+    render(<I18nProvider><UserDialog initial={{ id: 'jeff@x.io', name: 'Jeff', source: 'git' }} onClose={() => undefined} onSaved={() => undefined} /></I18nProvider>)
+    expect(screen.getByTestId('user-dialog-save')).toBeEnabled()
+  })
+
   it('stays disabled without a token and shows an error when the server rejects the id', async () => {
     render(<I18nProvider><UserDialog onClose={() => undefined} onSaved={() => undefined} /></I18nProvider>)
     await userEvent.type(screen.getByTestId('user-dialog-id'), 'bad')

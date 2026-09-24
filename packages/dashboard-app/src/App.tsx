@@ -292,7 +292,7 @@ function AppShell(): JSX.Element {
       {flash && (
         <div
           ref={flashRef}
-          className={`pointer-events-none fixed bottom-6 left-1/2 z-60 flex max-w-[70vw] -translate-x-1/2 items-center gap-2 rounded-full px-3.5 py-2 text-caption font-semibold shadow-md ${
+          className={`pointer-events-none fixed bottom-6 left-1/2 z-60 flex max-w-[70vw] -translate-x-1/2 items-center gap-2 rounded-md px-3.5 py-2 text-caption font-semibold shadow-md ${
             flash.kind === 'error' ? 'bg-red text-solid-fg' : 'bg-ink text-ink-fg'
           }`}
           role={flash.kind === 'error' ? 'alert' : 'status'}
@@ -332,7 +332,7 @@ function AppShell(): JSX.Element {
             <p className="mt-1 text-body leading-6 text-text-2">{t('common.snapshot_error_hint')}</p>
             <button
               type="button"
-              className={`${BUTTON_GHOST} mt-4 border-red-b bg-card text-red-d hover:border-red-b hover:bg-red-t hover:text-red-d`}
+              className={`${BUTTON_GHOST} mt-4 border-red-b bg-card text-red-d enabled:hover:border-red-b enabled:hover:bg-red-t enabled:hover:text-red-d`}
               onClick={refresh}
             >
               {t('common.snapshot_retry')}

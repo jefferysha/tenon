@@ -1,4 +1,3 @@
-import './progress.css'
 import { useT } from '../i18n'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
 
@@ -24,7 +23,7 @@ export function SnapshotInlineError({
       {onRefresh && (
         <button
           type="button"
-          className={`${BUTTON_GHOST} border-red-b bg-card text-red-d hover:border-red-b hover:bg-red-t hover:text-red-d`}
+          className={`${BUTTON_GHOST} border-red-b bg-card text-red-d enabled:hover:border-red-b enabled:hover:bg-red-t enabled:hover:text-red-d`}
           disabled={loading}
           onClick={() => { void onRefresh() }}
         >

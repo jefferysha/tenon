@@ -6,6 +6,7 @@ import {
   type TaskLifecycleAction, type TaskReason,
 } from '../api/taskLifecycleClient'
 import { Dialog } from '../shared/Dialog'
+import { BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
 import { cn } from '@/lib/utils'
 
 export interface TaskActionDialogProps {
@@ -81,13 +82,12 @@ export function TaskActionDialog({ root, change, action, onClose, onDone }: Task
       title={t(action === 'delete' ? 'workspace.dialog_delete_title' : 'workspace.dialog_archive_title', { name: change })}
       onClose={onClose}
       testid="task-action-dialog"
-      closeLabel={t('workspace.cancel')}
-      closeDisabled={busy}
+      role="alertdialog"
       actions={(
         <>
           <button
             type="button"
-            className="min-h-10 rounded-md border border-border bg-card px-4 text-base font-semibold text-text hover:border-text-3 disabled:opacity-60"
+            className={BUTTON_GHOST}
             data-testid="task-action-cancel"
             disabled={busy}
             onClick={onClose}
@@ -96,10 +96,7 @@ export function TaskActionDialog({ root, change, action, onClose, onDone }: Task
           </button>
           <button
             type="button"
-            className={cn(
-              'min-h-10 rounded-md px-4 text-base font-semibold text-white disabled:opacity-60',
-              action === 'delete' ? 'bg-red-d hover:opacity-90' : 'bg-(--accent) hover:opacity-90',
-            )}
+            className={action === 'delete' ? cn(BUTTON_SOLID, 'bg-red-d text-solid-fg enabled:hover:bg-red') : BUTTON_SOLID}
             data-testid="task-action-confirm"
             disabled={blocked || busy}
             onClick={() => { void apply() }}

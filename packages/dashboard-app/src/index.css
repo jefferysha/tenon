@@ -4,6 +4,8 @@
  *   accent（深绿）＝可交互/主动作与当前导航，用量克制；
  *   green（低彩度鼠尾草绿）＝健康/已完成，刻意安静，不与主动作抢注意力；
  *   amber ＝要你动手；red ＝受阻。颜色只花在例外上，常态保持安静。
+ * 文字四档：text / text-2 / text-3 都是可读文字，在 card、bg、fill 上 ≥ 4.5:1（themeContrast.test 守）；
+ *   text-4 只给装饰（分隔点、禁用图标、占位纹理），不承载要读的信息。
  * 配色 token 三段式（src/styles.ts GLOBAL_CSS 已退役，本文件是唯一真源）：
  *   · 默认浅色（:root）；
  *   · @media (prefers-color-scheme: dark) 跟随系统（:root:not([data-theme="light"]) 令显式亮色仍胜系统暗色）；
@@ -25,7 +27,7 @@
   color-scheme: light;
   --bg: #f5f5f1; --card: #ffffff; --fill: #f0f0eb; --fill-2: #e8e8e2;
   --border: #e6e6e1; --border-2: #d4d4cd;
-  --text: #1a1a17; --text-2: #6b6b63; --text-3: #9a9a91;
+  --text: #1a1a17; --text-2: #57574f; --text-3: #6c6c64; --text-4: #9a9a91;
   --accent: #205238; --accent-d: #1a4530; --accent-t: #ebf2ec; --accent-b: #c9decf;
   --green: #3e8c5c; --green-d: #2a6b45; --green-t: #e4f0e7; --green-b: #c5dccc;
   --red: #c9503f; --red-d: #a33a32; --red-t: #fae5e2; --red-b: #efc9c3;
@@ -43,7 +45,7 @@
   --surface-border: var(--border); --surface-border-strong: var(--border-2);
   --control-bg: var(--card); --control-bg-soft: var(--fill); --control-bg-muted: var(--fill-2);
   --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
-  --control-sm: 32px; --control-md: 36px; --control-lg: 40px;
+  --control-sm: 32px; --control-md: 40px; --control-lg: 40px; /* 默认控件点击区 ≥ 40px */
   --ease-out: cubic-bezier(.2,.8,.2,1);
   /* v8 无 ink token——取 --text 同族近黑蓝对位；hover 提亮一档（旧 v4 #0d0d0d→#2e2e2c 同款步进） */
   --ink: #18251f; --ink-fg: #ffffff; --ink-hover: #2a3a32;
@@ -70,7 +72,7 @@
     color-scheme: dark;
     --bg: #121714; --card: #1a211d; --fill: #212a25; --fill-2: #29332d;
     --border: #2c3630; --border-2: #3c483f;
-    --text: #e8ede9; --text-2: #b8c4bc; --text-3: #93a099;
+    --text: #e8ede9; --text-2: #b8c4bc; --text-3: #93a099; --text-4: #66736c;
     --accent: #6cbf99; --accent-d: #97d6ba; --accent-t: rgba(108,191,153,.15); --accent-b: rgba(108,191,153,.42);
     --green: #7fa38c; --green-d: #a8c4b4; --green-t: rgba(127,163,140,.13); --green-b: rgba(127,163,140,.38);
     --red: #e6796b; --red-d: #f2a89c; --red-t: rgba(230,121,107,.14); --red-b: rgba(230,121,107,.42);
@@ -100,7 +102,7 @@
   color-scheme: light;
   --bg: #f5f5f1; --card: #ffffff; --fill: #f0f0eb; --fill-2: #e8e8e2;
   --border: #e6e6e1; --border-2: #d4d4cd;
-  --text: #1a1a17; --text-2: #6b6b63; --text-3: #9a9a91;
+  --text: #1a1a17; --text-2: #57574f; --text-3: #6c6c64; --text-4: #9a9a91;
   --accent: #205238; --accent-d: #1a4530; --accent-t: #ebf2ec; --accent-b: #c9decf;
   --green: #3e8c5c; --green-d: #2a6b45; --green-t: #e4f0e7; --green-b: #c5dccc;
   --red: #c9503f; --red-d: #a33a32; --red-t: #fae5e2; --red-b: #efc9c3;
@@ -130,7 +132,7 @@
   color-scheme: dark;
   --bg: #121714; --card: #1a211d; --fill: #212a25; --fill-2: #29332d;
   --border: #2c3630; --border-2: #3c483f;
-  --text: #e8ede9; --text-2: #b8c4bc; --text-3: #93a099;
+  --text: #e8ede9; --text-2: #b8c4bc; --text-3: #93a099; --text-4: #66736c;
   --accent: #6cbf99; --accent-d: #97d6ba; --accent-t: rgba(108,191,153,.15); --accent-b: rgba(108,191,153,.42);
   --green: #7fa38c; --green-d: #a8c4b4; --green-t: rgba(127,163,140,.13); --green-b: rgba(127,163,140,.38);
   --red: #e6796b; --red-d: #f2a89c; --red-t: rgba(230,121,107,.14); --red-b: rgba(230,121,107,.42);
@@ -155,7 +157,7 @@
 /*
  * @theme static：排版与圆角刻度。
  * 与上方配色不同，这里刻意不用 inline——static 让 --text-* / --radius-* 始终落进 :root，
- * 于是 progress.css、workbench.css 这类裸 CSS 能 var() 引用同一份刻度，不必二次硬编码。
+ * 于是页面级裸 CSS 也能 var() 引用同一份刻度，不必二次硬编码。
  * `--text-*: initial` / `--radius-*: initial` 先清空 Tailwind 默认 xs…9xl / xs…4xl：
  * 刻度外的字号与圆角在构建期直接不存在，避免 text-xs(12px) 与 text-caption(12px) 这类同义双写。
  */
@@ -209,6 +211,7 @@
   --color-text: var(--text);
   --color-text-2: var(--text-2);
   --color-text-3: var(--text-3);
+  --color-text-4: var(--text-4);
   /* 注：--color-accent 让位给 shadcn 语义（hover 填充=var(--fill)，见下方 shadcn 段）——
    * 项目蓝 DEFAULT var(--accent) 无同名工具类，需要时用任意值语法 text-(--accent)/bg-(--accent)，
    * 或蓝 family 的 -d/-t/-b 变体；焦点环蓝走 --color-ring=var(--accent)。 */
@@ -378,18 +381,6 @@
     background: var(--surface);
     box-shadow: var(--shadow);
   }
-
-  [data-slot='dialog-overlay'] {
-    background: var(--scrim);
-    backdrop-filter: blur(2px);
-  }
-
-  [data-slot='dialog-content'] {
-    border-color: var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-3);
-  }
 }
 
 @media (max-width: 720px) {
@@ -398,15 +389,40 @@
   [data-slot='select-trigger'] {
     min-height: var(--control-lg);
   }
-
-  [data-slot='dialog-content'] {
-    max-height: calc(100dvh - 1rem);
-    overflow-y: auto;
-  }
 }
 
 /* 技能画布新节点入场：缩放 + 淡入；reduced-motion 由调用方 motion-reduce:animate-none 关掉。 */
 @keyframes flow-in {
   from { opacity: 0; transform: scale(.9); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/*
+ * React Flow 控件跟随主题：xyflow 默认只在 .react-flow.dark 下换色，本应用用 data-theme，
+ * 不覆盖的话暗色里缩放按钮是白块。这里把它的变量接到项目 token；按钮点击区 40px。
+ * 选择器带 .react-flow 前缀：xyflow 的样式表随画布懒加载、排在本文件之后，同权重会被它盖掉。
+ */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-controls-button-background-color: var(--card);
+  --xy-controls-button-background-color-hover: var(--fill);
+  --xy-controls-button-color: var(--text-2);
+  --xy-controls-button-color-hover: var(--text);
+  --xy-controls-button-border-color: var(--border);
+  --xy-controls-box-shadow: var(--shadow-2);
+}
+
+.react-flow .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.react-flow .react-flow__controls-button {
+  width: 40px;
+  height: 40px;
+}
+
+.react-flow .react-flow__controls-button:disabled svg {
+  fill: var(--text-4);
 }

@@ -18,6 +18,7 @@ export function ConfirmDeleteDialog({
     <Dialog
       title={t('library.delete_title', { name })}
       testid="lib-delete-dialog"
+      role="alertdialog"
       onClose={onCancel}
       actions={(
         <>

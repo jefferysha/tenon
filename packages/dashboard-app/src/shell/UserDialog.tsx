@@ -1,25 +1,27 @@
 import { useState } from 'react'
 import { useT } from '../i18n'
 import { formatApiError, getToken } from '../api/transport'
-import { saveUser, type CurrentUserState } from '../api/userClient'
+import { saveUser, type CurrentUserState, type UserSource } from '../api/userClient'
 import { Dialog } from '../shared/Dialog'
-import { BUTTON_GHOST, BUTTON_SOLID, FIELD_LABEL, INPUT } from '../shared/uiRecipes'
+import { BUTTON_GHOST, BUTTON_SOLID, FIELD_HELP, FIELD_LABEL, INPUT } from '../shared/uiRecipes'
 
 export interface UserDialogProps {
-  /** Prefill from the current user, when one is set. */
-  initial?: { id: string; name: string } | null
+  /** Prefill from the current user, when one is set; `source: 'config'` means it already is `user.json`. */
+  initial?: { id: string; name: string; source?: UserSource } | null
   onClose: () => void
   onSaved: (state: CurrentUserState) => void
 }
 
-/** Machine-local declared identity (`user.json`); saving needs the page token and a non-empty email. */
+/** Machine-local declared identity (`user.json`, shared by every project); saving needs the page token, a non-empty email and a change. */
 export function UserDialog({ initial = null, onClose, onSaved }: UserDialogProps): JSX.Element {
   const { t } = useT()
   const [id, setId] = useState(initial?.id ?? '')
   const [name, setName] = useState(initial?.name ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const canSave = getToken() !== '' && id.trim() !== '' && !saving
+  // An env / git identity is worth writing down as-is; an existing user.json is only rewritten when edited.
+  const unchanged = initial?.source === 'config' && id.trim() === initial.id && name.trim() === initial.name
+  const canSave = getToken() !== '' && id.trim() !== '' && !unchanged && !saving
 
   async function save(): Promise<void> {
     setSaving(true)
@@ -48,6 +50,7 @@ export function UserDialog({ initial = null, onClose, onSaved }: UserDialogProps
       )}
     >
       <div className="grid gap-3">
+        <p className={FIELD_HELP} data-testid="user-dialog-scope">{t('shell.user_scope')}</p>
         <label className={FIELD_LABEL}>
           {t('shell.user_id')}
           <input className={INPUT} type="email" value={id} autoComplete="email" data-testid="user-dialog-id" onChange={(event) => setId(event.target.value)} />

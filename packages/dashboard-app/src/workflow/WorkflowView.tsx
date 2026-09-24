@@ -92,6 +92,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
           title={t('workflow.delete_track')}
           onClose={() => setTrackDeleteTarget(null)}
           testid="track-delete-dialog"
+          role="alertdialog"
           actions={(
             <>
               <button type="button" className="min-h-10 rounded-md px-3 text-base text-text-2 hover:bg-fill" onClick={() => setTrackDeleteTarget(null)}>{t('workflow.cancel')}</button>

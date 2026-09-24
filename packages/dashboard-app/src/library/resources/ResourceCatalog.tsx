@@ -92,6 +92,7 @@ export function ResourceCatalog({
         <Dialog
           title={t('resources.delete_title', { name: document.entry.name })}
           testid="res-delete-dialog"
+          role="alertdialog"
           onClose={() => setConfirmDelete(false)}
           actions={(
             <>
