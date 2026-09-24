@@ -128,7 +128,9 @@ describe('资源目录', () => {
       expect(trigger, facet).toHaveAttribute('aria-haspopup', 'menu')
       expect(trigger, facet).toHaveTextContent({ category: '类别', framework: '框架', styling: '样式', license: '许可' }[facet] ?? '')
     }
-    expect(bar).toContainElement(screen.getByTestId('res-new'))
+    // 「新建」是对象级动作，放在 H1 行，不夹在筛选里。
+    expect(bar).not.toContainElement(screen.getByTestId('res-new'))
+    expect(screen.getByTestId('res-list-action')).toContainElement(screen.getByTestId('res-new'))
   })
 
   it('再选「全部」清掉该维度', async () => {
