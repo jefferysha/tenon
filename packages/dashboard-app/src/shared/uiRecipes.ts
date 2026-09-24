@@ -5,10 +5,7 @@
  * 控件圆角一律 rounded-sm（8px）；字重 600 给按钮，700 只留给 34px 页标题。
  */
 export const PAGE_FRAME = 'mx-auto w-full max-w-[1088px]'
-export const PANEL = 'rounded-lg border border-border bg-card shadow-sm'
-export const PANEL_SOFT = 'rounded-lg border border-border bg-fill/45 shadow-sm'
 export const CARD = 'rounded-md border border-border bg-card shadow-sm'
-export const CARD_SOFT = 'rounded-md border border-border bg-fill/45 shadow-sm'
 export const EMPTY_STATE = 'rounded-lg border border-dashed border-border bg-fill/45 px-6 py-10 text-center'
 export const PILL = 'inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-micro font-semibold'
 export const FIELD_LABEL = 'flex flex-col gap-1.5 text-caption font-semibold text-text-2'
