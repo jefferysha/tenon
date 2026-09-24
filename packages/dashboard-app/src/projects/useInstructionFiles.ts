@@ -31,12 +31,12 @@ const digestsOf = (state: InstructionState | null): Record<string, string> =>
   Object.fromEntries((state?.targets ?? []).map((target) => [target.id, target.digest]))
 
 /**
- * 指令文件数据面：root 变化时读当前级别的全部目标文件；之后只在快照变化（`revision`）或窗口重新聚焦时复查，
+ * 指令文件数据面：root 变化时读当前级别的全部目标文件（active=false 时不读、state 为 null）；之后只在快照变化（`revision`）或窗口重新聚焦时复查，
  * 应用 / 删除后自己重读。没有定时轮询：停在页面上什么都没变时不发任何请求。
  * 磁盘变了而编辑器干净 → 静默刷新；编辑器有草稿 → 只亮「外部修改」，不覆盖用户正在写的内容。
  */
-export function useInstructionFiles(root: string, isDirty: () => boolean, revision = ''): InstructionFiles {
-  const [loading, setLoading] = useState(true)
+export function useInstructionFiles(root: string, isDirty: () => boolean, revision = '', active = true): InstructionFiles {
+  const [loading, setLoading] = useState(active)
   const [state, setState] = useState<InstructionState | null>(null)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [external, setExternal] = useState(false)
@@ -78,16 +78,23 @@ export function useInstructionFiles(root: string, isDirty: () => boolean, revisi
   }, [load])
 
   useEffect(() => {
+    if (!active) {
+      setState(null)
+      setLoading(false)
+      return undefined
+    }
     const controller = new AbortController()
+    // 换 root 先清掉上一个 root 的内容：已启用客户端的推导与草稿都不能用别的项目的文件。
+    setState(null)
     setLoading(true)
     setExternal(false)
     void load(controller.signal).finally(() => setLoading(false))
     return () => controller.abort()
-  }, [load])
+  }, [active, load])
 
   // 复查只比对摘要：干净就静默换成盘上的内容，有草稿就亮提示交给用户决定。
   const check = useCallback(async (): Promise<void> => {
-    if (document.visibilityState !== 'visible' || inFlightRef.current > 0) return
+    if (!active || document.visibilityState !== 'visible' || inFlightRef.current > 0) return
     try {
       const next = await read()
       const changed = next.targets.some((target) => digestsRef.current[target.id] !== target.digest)
@@ -101,7 +108,7 @@ export function useInstructionFiles(root: string, isDirty: () => boolean, revisi
     } catch {
       // 复查失败不打扰用户：下一次快照变化、聚焦或手动重新载入会重试。
     }
-  }, [read])
+  }, [active, read])
 
   useEffect(() => {
     const onFocus = (): void => { void check() }
