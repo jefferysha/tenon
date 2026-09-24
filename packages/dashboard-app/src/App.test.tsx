@@ -999,7 +999,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     fireEvent.click(overview)
 
     const dialog = await screen.findByTestId('app-unsaved-navigation')
-    expect(within(dialog).getByRole('dialog')).toHaveAccessibleName('未保存的修改')
+    expect(within(dialog).getByRole('alertdialog')).toHaveAccessibleName('未保存的修改')
     expect(screen.getByTestId('workbench-view')).toBeInTheDocument()
     expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('未保存草稿')
     expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench')
