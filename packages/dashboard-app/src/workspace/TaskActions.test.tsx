@@ -1,5 +1,5 @@
 /**
- * 归档 / 删除 / 取消归档 in the workspace: the card menu and detail footer open the dialog, the dialog shows
+ * 归档 / 删除 / 取消归档 in the workspace: the card ⋯ and the detail ⋯ open the dialog, the dialog shows
  * only the reasons the server reported, and confirming echoes back exactly those codes. A blocker disables
  * the confirm button, and a 409 re-renders the fresh list the server re-checked.
  */
@@ -55,9 +55,11 @@ function lifecycleResponse(body: unknown, status = 200): Response {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  // 状态筛选写进 URL（status=…），用例之间要清掉。
+  window.history.replaceState(null, '', '/')
 })
 
-describe('card menu and detail footer open the dialog', () => {
+describe('card ⋯ and detail ⋯ open the dialog', () => {
   it('confirms 删除 with exactly the codes it displayed and reports the outcome', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
@@ -132,12 +134,50 @@ describe('card menu and detail footer open the dialog', () => {
     expect(posts).toBe(1)
   })
 
-  it('offers 归档 and 删除 in the detail footer of a live task', async () => {
+  it('detail ⋯ = card ⋯: 复制链接 · 接手 · 归档 · 分隔 · 删除; no footer', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
-    renderWorkspace()
-    expect(screen.getByTestId('task-detail-archive')).toBeTruthy()
-    expect(screen.getByTestId('task-detail-delete')).toBeTruthy()
-    expect(screen.queryByTestId('task-detail-unarchive')).toBeNull()
+    window.__TENON_DASHBOARD_TOKEN__ = 'tok'
+    try {
+      renderWorkspace({}, { me: { id: 'bob@x.io', slug: 'bob', name: 'Bob' } })
+      expect(screen.getByTestId('task-detail-pane').querySelector('footer')).toBeNull()
+      await userEvent.click(screen.getByTestId('task-detail-menu'))
+      const menu = await screen.findByTestId('task-detail-menu-menu')
+      const ids = [...menu.querySelectorAll('[role="menuitem"]')].map((item) => item.getAttribute('data-testid'))
+      expect(ids).toEqual(['task-detail-menu-copy-link', 'task-detail-menu-take', 'task-detail-menu-archive', 'task-detail-menu-delete'])
+      expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(1)
+      expect(screen.queryByTestId('task-detail-menu-unarchive')).toBeNull()
+    } finally {
+      delete window.__TENON_DASHBOARD_TOKEN__
+    }
+  })
+
+  it('接手 from the ⋯ posts the owner route with the row root and refreshes', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      if (String(input) === '/api/change/demo/owner' && init?.method === 'POST') {
+        return lifecycleResponse({ ok: true, owner: { id: 'bob@x.io', slug: 'bob', name: 'Bob' }, changed: true })
+      }
+      return lifecycleResponse({ ok: false, error: 'not found' }, 404)
+    })
+    window.__TENON_DASHBOARD_TOKEN__ = 'tok'
+    try {
+      const { onRefresh, onToast } = renderWorkspace({}, { me: { id: 'bob@x.io', slug: 'bob', name: 'Bob' } })
+      await userEvent.click(screen.getByTestId('task-card-menu-demo'))
+      await userEvent.click(await screen.findByTestId('task-card-menu-demo-take'))
+      await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1))
+      const post = fetchMock.mock.calls.find(([url, init]) => String(url) === '/api/change/demo/owner' && init?.method === 'POST')
+      expect(JSON.parse(String(post?.[1]?.body))).toEqual({ root: ROOT })
+      expect(onToast).toHaveBeenCalledWith('已接手')
+    } finally {
+      delete window.__TENON_DASHBOARD_TOKEN__
+    }
+  })
+
+  it('hides 接手 for the owner and without a token', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
+    renderWorkspace({}, { me: { id: 'bob@x.io', slug: 'bob', name: 'Bob' } })
+    await userEvent.click(screen.getByTestId('task-card-menu-demo'))
+    await screen.findByTestId('task-card-menu-demo-menu')
+    expect(screen.queryByTestId('task-card-menu-demo-take')).toBeNull()
   })
 })
 
@@ -152,7 +192,7 @@ describe('已归档 view', () => {
     const { onToast } = renderWorkspace({ archived: [archivedRow('hidden', 'build', '2026-09-15T12:00:00.000Z', 'A')] })
 
     const toggle = screen.getByTestId('task-view-archived')
-    expect(toggle.textContent).toContain('已归档')
+    expect(toggle).toHaveAttribute('aria-label', '已归档 1')
     expect(toggle.textContent).toContain('1')
     await userEvent.click(toggle)
 
@@ -170,7 +210,7 @@ describe('已归档 view', () => {
     // The archived list carries no 归档 / 删除 menu and no facets.
     expect(screen.queryByTestId('task-card-menu-hidden')).toBeNull()
     expect(screen.queryByTestId('task-facet-workflow')).toBeNull()
-    expect(screen.queryByTestId('task-filter-completed')).toBeNull()
+    expect(screen.queryByTestId('task-filters')).toBeNull()
 
     await userEvent.click(screen.getByTestId('task-archived-unarchive-hidden'))
     await waitFor(() => expect(onToast).toHaveBeenCalledWith('已取消归档 hidden'))
@@ -211,7 +251,7 @@ describe('已归档 view', () => {
     expect(empty.textContent).not.toContain('tenon init')
   })
 
-  it('points at the completed tasks when they are all the list has', () => {
+  it('已完结 tasks live under 全部 and 已完成; there is no separate 含已完结 toggle', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
     render(
       <I18nProvider>
@@ -226,12 +266,13 @@ describe('已归档 view', () => {
         />
       </I18nProvider>,
     )
-    const empty = screen.getByTestId('task-list-empty-completed')
-    expect(empty).toHaveTextContent('没有进行中的任务 · 2 个已完结')
-    expect(empty.textContent).not.toContain('tenon init')
-    fireEvent.click(screen.getByTestId('task-list-empty-include-completed'))
+    expect(screen.queryByTestId('task-filter-completed')).toBeNull()
     expect(screen.getByTestId('task-card-done-a')).toBeTruthy()
-    expect(screen.getByTestId('task-filter-completed')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('task-status-done')).toHaveTextContent('2')
+    fireEvent.click(screen.getByTestId('task-status-running'))
+    expect(screen.getByTestId('task-list-empty-filtered')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('task-status-done'))
+    expect(screen.getByTestId('task-card-done-b')).toBeTruthy()
   })
 
   it('names the empty filtered list instead of printing a dictionary key', async () => {
@@ -241,12 +282,13 @@ describe('已归档 view', () => {
     expect(screen.getByTestId('task-list-empty-filtered')).toHaveTextContent('没有匹配的任务')
   })
 
-  it('shows the 未提交删除 chip only when the server reports one', async () => {
+  it('shows 未提交删除 as plain text (not a button) only when the server reports one', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
     const withCount = renderWorkspace({ uncommittedDeletions: 2 })
     const chip = screen.getByTestId('task-uncommitted-deletions')
-    expect(chip.textContent).toContain('未提交删除')
+    expect(chip).toHaveAttribute('aria-label', '未提交删除 2')
     expect(chip.textContent).toContain('2')
+    expect(chip.tagName).toBe('SPAN')
     expect(chip.className).toContain('whitespace-nowrap')
     withCount.view.unmount()
 
@@ -270,12 +312,12 @@ describe('已归档 view', () => {
         />
       </I18nProvider>,
     )
-    await userEvent.click(screen.getByTestId('task-filter-completed'))
+    await userEvent.click(screen.getByTestId('task-status-done'))
     expect(screen.getByTestId('task-summary-done').textContent).toBe('已完结')
     expect(screen.getByTestId('task-summary-done').textContent).not.toContain('已归档')
   })
 
-  it('offers no action in the aggregate view, which issues only /api/snapshot', async () => {
+  it('offers the same actions in the aggregate view, acting on the row root', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(lifecycleResponse({ ok: false, error: 'not found' }, 404))
     const snapshot = makeSnapshot([makeProject(ROOT, [makeChange('demo', 'build')])])
     render(
@@ -291,8 +333,11 @@ describe('已归档 view', () => {
         />
       </I18nProvider>,
     )
-    expect(screen.queryByTestId('task-card-menu-demo')).toBeNull()
-    expect(screen.queryByTestId('task-detail-archive')).toBeNull()
-    expect(screen.queryByTestId('task-detail-delete')).toBeNull()
+    await userEvent.click(screen.getByTestId('task-card-menu-demo'))
+    await userEvent.click(await screen.findByTestId('task-card-menu-demo-archive'))
+    await screen.findByTestId('task-action-dialog')
+    const lifecycle = vi.mocked(globalThis.fetch).mock.calls.find(([url]) => String(url).startsWith('/api/change/demo/lifecycle'))
+    expect(String(lifecycle?.[0])).toContain('root=%2Frepo')
+    expect(screen.getByTestId('task-detail-menu')).toBeTruthy()
   })
 })

@@ -112,15 +112,22 @@ export function summaryOf(change: ChangeSnapshot, rules: WorkflowRules | undefin
   return { kind: 'running' }
 }
 
-export function summaryText(row: TaskRow, t: Tr): string {
-  const stage = stageLabel(row.change.phase, row.rules, t)
+/** 状态一词：不带阶段名（详情页阶段轨已写明阶段）。 */
+export function summaryShort(row: TaskRow, t: Tr): string {
   switch (row.summary.kind) {
     case 'completed': return t('workspace.summary_completed')
-    case 'missing': return t('workspace.summary_missing', { stage, slot: slotLabel(row.summary.slot, t) })
-    case 'review': return t('workspace.summary_review', { stage })
-    case 'ready': return t('workspace.summary_ready', { stage, to: stageLabel(row.summary.to, row.rules, t) })
-    case 'running': return t('workspace.summary_running', { stage })
+    case 'missing': return t('workspace.summary_missing', { slot: slotLabel(row.summary.slot, t) })
+    case 'review': return t('workspace.summary_review')
+    case 'ready': return t('workspace.summary_ready', { to: stageLabel(row.summary.to, row.rules, t) })
+    case 'running': return t('workspace.summary_running')
   }
+}
+
+/** 任务卡上的状态：阶段 · 状态（已完结不带阶段）。 */
+export function summaryText(row: TaskRow, t: Tr): string {
+  const short = summaryShort(row, t)
+  if (row.summary.kind === 'completed') return short
+  return t('workspace.summary_with_stage', { stage: stageLabel(row.change.phase, row.rules, t), status: short })
 }
 
 export interface RowsInput {
@@ -199,7 +206,29 @@ export function uncommittedDeletionsOf(snapshot: Snapshot | null, currentRoot: s
   return total
 }
 
+/** 状态筛选（与原型一致）：由 summary.kind 映射，不另起判定。 */
+export type TaskStatus = 'all' | 'needs-you' | 'running' | 'review' | 'done'
+// 'needs-you' 与 workspaceLocation.NEEDS_YOU_STATUS（顶部徽标跳转）是同一个值。
+export const TASK_STATUSES: readonly TaskStatus[] = ['all', 'needs-you', 'running', 'review', 'done']
+
+export function isTaskStatus(value: unknown): value is TaskStatus {
+  return typeof value === 'string' && (TASK_STATUSES as readonly string[]).includes(value)
+}
+
+/** 可进入下一阶段 = 等人拍板（需要你）；评审待确认 = 待复核；缺输出 / 进行中 = 进行中；已完结 = 已完成。 */
+export function statusOf(summary: TaskSummary): Exclude<TaskStatus, 'all'> {
+  switch (summary.kind) {
+    case 'ready': return 'needs-you'
+    case 'review': return 'review'
+    case 'completed': return 'done'
+    case 'missing':
+    case 'running': return 'running'
+  }
+}
+
 export interface TaskFilterState {
+  /** 状态芯片；已完结只在「已完成」与「全部」里出现。 */
+  status: TaskStatus
   /** 'all' 或负责人 slug。 */
   owner: string
   /** 'all' 或工作流名。 */
@@ -208,19 +237,28 @@ export interface TaskFilterState {
   track: string
   /** 'all' 或阶段 id；只有选定单一工作流时才有意义。 */
   stage: string
-  /** 含已完结（工作流最后一步）；与归档（对我隐藏）是两回事。 */
-  includeCompleted: boolean
 }
 
-export const DEFAULT_TASK_FILTER: TaskFilterState = { owner: 'all', workflow: 'all', track: 'all', stage: 'all', includeCompleted: false }
+export const DEFAULT_TASK_FILTER: TaskFilterState = { status: 'all', owner: 'all', workflow: 'all', track: 'all', stage: 'all' }
 
 function matches(row: TaskRow, filter: TaskFilterState, ignore?: keyof TaskFilterState): boolean {
-  if (!filter.includeCompleted && row.archived) return false
+  if (ignore !== 'status' && filter.status !== 'all' && statusOf(row.summary) !== filter.status) return false
   if (ignore !== 'owner' && filter.owner !== 'all' && row.owner?.slug !== filter.owner) return false
   if (ignore !== 'workflow' && filter.workflow !== 'all' && row.workflow !== filter.workflow) return false
   if (ignore !== 'track' && filter.track !== 'all' && row.change.track !== filter.track) return false
   if (ignore !== 'stage' && filter.stage !== 'all' && row.change.phase !== filter.stage) return false
   return true
+}
+
+/** 各状态芯片的计数：受其它维度约束，忽略状态本身。 */
+export function statusCounts(rows: readonly TaskRow[], filter: TaskFilterState): Record<TaskStatus, number> {
+  const counts: Record<TaskStatus, number> = { all: 0, 'needs-you': 0, running: 0, review: 0, done: 0 }
+  for (const row of rows) {
+    if (!matches(row, filter, 'status')) continue
+    counts.all += 1
+    counts[statusOf(row.summary)] += 1
+  }
+  return counts
 }
 
 export function filterRows(rows: readonly TaskRow[], filter: TaskFilterState): TaskRow[] {
@@ -242,7 +280,7 @@ export interface TaskFacets {
   stages: FacetChip[] | null
 }
 
-/** 三层 facet 的候选与计数：每层计数受其它两层与归档开关约束。 */
+/** 各维度的候选与计数：每个维度的计数受其它维度约束。 */
 export function taskFacets(rows: readonly TaskRow[], filter: TaskFilterState): TaskFacets {
   const workflowNames: string[] = []
   const trackIds: string[] = []
@@ -283,6 +321,6 @@ export function taskFacets(rows: readonly TaskRow[], filter: TaskFilterState): T
 }
 
 /** 某层「全部」芯片的计数 = 忽略该层后命中的任务数。 */
-export function facetTotal(rows: readonly TaskRow[], filter: TaskFilterState, facet: 'owner' | 'workflow' | 'track' | 'stage'): number {
+export function facetTotal(rows: readonly TaskRow[], filter: TaskFilterState, facet: keyof TaskFilterState): number {
   return rows.filter((row) => matches(row, filter, facet)).length
 }

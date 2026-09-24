@@ -97,43 +97,81 @@ afterEach(() => {
   delete window.__TENON_DASHBOARD_TOKEN__
 })
 
-describe('TaskDetailPane owner and records', () => {
-  it('another owner + token + selected project shows 接手; clicking posts the owner route and refreshes', async () => {
-    const fetchMock = stubFetch()
-    window.__TENON_DASHBOARD_TOKEN__ = 'tok'
-    const onRefresh = vi.fn()
-    const onToast = vi.fn()
-    renderPane({ row: ownerRow(ann), me: bob, onRefresh, onToast })
+describe('TaskDetailPane header and records', () => {
+  it('标题右侧 ⋯ 菜单承载动作；没有底部动作条，也没有重复阶段名的 eyebrow', async () => {
+    stubFetch()
+    const archive = vi.fn()
+    renderPane({ row: ownerRow(ann), menu: [{ id: 'archive', label: '归档', icon: null, danger: false, onSelect: archive }] })
     expect(screen.getByTestId('task-detail-meta')).toHaveTextContent('Ann')
-    await userEvent.click(screen.getByTestId('task-detail-take'))
-    await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1))
-    const post = fetchMock.mock.calls.find(([url, init]) => String(url) === '/api/change/x/owner' && init?.method === 'POST')
-    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ root: '/repo' })
-    expect(onToast).toHaveBeenCalledWith('已接手')
+    expect(screen.getByTestId('task-detail-pane').querySelector('footer')).toBeNull()
+    await userEvent.click(screen.getByTestId('task-detail-menu'))
+    await userEvent.click(await screen.findByTestId('task-detail-menu-archive'))
+    expect(archive).toHaveBeenCalledTimes(1)
   })
 
-  it('hides 接手 for the owner, in the aggregate view, and without a token', () => {
+  it('状态行只写状态一词，不再带阶段名', () => {
     stubFetch()
-    window.__TENON_DASHBOARD_TOKEN__ = 'tok'
-    const own = renderPane({ row: ownerRow(bob), me: bob })
-    expect(screen.queryByTestId('task-detail-take')).toBeNull()
-    own.unmount()
-    const aggregate = renderPane({ row: ownerRow(ann), me: bob, fetchDefinition: false })
-    expect(screen.queryByTestId('task-detail-take')).toBeNull()
+    const row = { ...ownerRow(null), summary: { kind: 'ready' as const, to: 'verify' } }
+    renderPane({ row })
+    expect(screen.getByTestId('task-detail-badge')).toHaveTextContent(/^可进入verify$/u)
+    expect(screen.getByTestId('task-detail-badge')).toHaveAttribute('data-tone', 'pending')
+  })
+
+  it('没有菜单项时不渲染 ⋯', () => {
+    stubFetch()
+    renderPane({ row: ownerRow(ann) })
+    expect(screen.queryByTestId('task-detail-menu')).toBeNull()
+  })
+
+  it('聚合语境不请求记录', () => {
+    stubFetch()
+    renderPane({ row: ownerRow(ann), fetchDefinition: false })
     expect(screen.queryByTestId('task-records')).toBeNull()
-    aggregate.unmount()
-    delete window.__TENON_DASHBOARD_TOKEN__
-    renderPane({ row: ownerRow(ann), me: bob })
-    expect(screen.queryByTestId('task-detail-take')).toBeNull()
   })
 
   it('记录 lists operator records with their actor names and skips host evidence rows', async () => {
     stubFetch()
-    renderPane({ row: ownerRow(bob), me: bob })
+    renderPane({ row: ownerRow(bob) })
     const records = await screen.findByTestId('task-records')
     expect([...records.querySelectorAll('li')].map((item) => item.getAttribute('data-kind'))).toEqual(['init', 'set'])
     expect([...records.querySelectorAll('[data-testid="task-record-actor"]')].map((item) => item.textContent)).toEqual(['Ann', 'Bob'])
     expect(records).toHaveTextContent('负责人 Bob')
+  })
+})
+
+describe('TaskDetailPane · URL step', () => {
+  afterEach(() => { window.history.replaceState(null, '', '/') })
+
+  it('从 URL 的 step 打开所选阶段；切回当前阶段时从 URL 去掉', async () => {
+    window.history.replaceState(null, '', '/?view=progress&change=demo&step=spec')
+    renderSnapshotPane(change())
+    expect(screen.getByTestId('stage-rail-spec')).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(screen.getByTestId('stage-rail-build'))
+    expect(new URLSearchParams(window.location.search).get('step')).toBeNull()
+    await userEvent.click(screen.getByTestId('stage-rail-verify'))
+    expect(new URLSearchParams(window.location.search).get('step')).toBe('verify')
+  })
+
+  it('URL 的 step 属于别的任务时忽略', () => {
+    window.history.replaceState(null, '', '/?view=progress&change=other&step=spec')
+    renderSnapshotPane(change())
+    expect(screen.getByTestId('stage-rail-build')).toHaveAttribute('aria-pressed', 'true')
+  })
+})
+
+describe('TaskDetailPane · 技能状态', () => {
+  const RUNS = [{ stepId: 'build', skills: [{ id: 'tenon-build', status: 'idle' as const, wave: 0 }] }]
+
+  it('阶段已可进入下一阶段时，没有运行记录的技能不写「未开始」', () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
+    const row = { ...snapshotRow(change({ skillRuns: RUNS })), summary: { kind: 'ready' as const, to: 'verify' } }
+    render(<I18nProvider><TaskDetailPane row={row} fetchDefinition={false} /></I18nProvider>)
+    expect(screen.getByTestId('flow-node-tenon-build')).not.toHaveTextContent('未开始')
+  })
+
+  it('阶段仍在进行时照常写「未开始」', () => {
+    renderSnapshotPane(change({ skillRuns: RUNS }))
+    expect(screen.getByTestId('flow-node-tenon-build')).toHaveTextContent('未开始')
   })
 })
 

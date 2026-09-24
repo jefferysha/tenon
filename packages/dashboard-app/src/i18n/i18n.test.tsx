@@ -51,6 +51,8 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
       'workflow.openspec',
       // 纯占位符行（阶段 · 时间 · 归档人），两种语言逐字相同。
       'workspace.archived_meta',
+      // 纯占位符行（阶段 · 状态），任务卡上的状态文字。
+      'workspace.summary_with_stage',
       // 协议 / 文件名 token：DESIGN.md、SPDX、MCP、llms.txt 两种语言逐字相同。
       'resources.category.design-md',
       'resources.field.spdx',
