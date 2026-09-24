@@ -53,7 +53,7 @@ export function AgentSection(props: AgentSectionProps): JSX.Element {
           editable={false}
           onOpen={() => undefined}
           captionOf={reviewers === null ? undefined : caption}
-          className="h-56"
+          ariaLabel={t(reviewers === null ? 'workflow.executors_title' : 'workflow.reviewers_title')}
         />
       )}
     </section>

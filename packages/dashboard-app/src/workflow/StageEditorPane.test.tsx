@@ -141,6 +141,9 @@ describe('StageEditorPane · 两栏定稿', () => {
     renderPane(step)
     expect(within(screen.getByTestId('stage-executors')).getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1')
     expect(screen.getByTestId('flow-caption-security')).toHaveTextContent('必需 · 中 · 测试 1')
+    // 画布的可访问名称跟段落走，不是笼统的「技能」（H6）。
+    expect(within(screen.getByTestId('stage-executors')).getByRole('group', { name: '执行者' })).toBeInTheDocument()
+    expect(within(screen.getByTestId('stage-reviewers')).getByRole('group', { name: '评审者' })).toBeInTheDocument()
     await user.click(screen.getByTestId('wb-reviewers-edit'))
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
   })

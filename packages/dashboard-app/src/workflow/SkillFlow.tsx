@@ -17,16 +17,26 @@ import '@xyflow/react/dist/style.css'
 import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { wavesOf } from '../workbench/skillWaves'
-import { EDGE_STYLE, EDGE_TYPES, MARKER, NODE_HEIGHT, NODE_TYPES, NODE_WIDTH, PORT_SIZE, isVirtualId, type FlowNode, type GhostNode, type JunctionNode, type LabelNode, type PortNode, type PulseData, type SkillNode, type SkillRunState } from './skillFlowNodes'
-import { addSkillAt, appendSerial, dropTargetFor, edgesOf, graphToSkills, isColumnLink, layoutSkills, skillsSignature, wouldCycle, type DropTarget } from './skillFlowGraph'
+import { EDGE_STYLE, EDGE_TYPES, MARKER, NODE_HEIGHT, NODE_TYPES, NODE_WIDTH, PORT_SIZE, isVirtualId, pulseModeOf, type FlowNode, type GhostNode, type JunctionNode, type LabelNode, type PortNode, type PulseData, type PulseMode, type SkillNode, type SkillRunState } from './skillFlowNodes'
+import { addSkillAt, appendSerial, canvasHeight, dropTargetFor, edgesOf, graphToSkills, isColumnLink, lanesOf, layoutSkills, nodeHeightFor, readOnlyViewport, rowGapFor, skillsSignature, wouldCycle, type DropTarget } from './skillFlowGraph'
 import { cn } from '@/lib/utils'
 
-export { addSkillAt, appendSerial, dropTargetFor, edgesOf, graphToSkills, isColumnLink, layoutSkills, skillsSignature, wouldCycle }
+export { addSkillAt, appendSerial, canvasHeight, dropTargetFor, edgesOf, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, skillsSignature, wouldCycle }
 export { NODE_WIDTH, SkillRunState }
 
 const COLUMN_GAP = 300
-const ROW_GAP = 92
 const PORT_GAP = 72
+/** 容器尺寸变化后重新取景的节流窗口。 */
+export const RESIZE_THROTTLE_MS = 120
+/** 只读画布恒为 1:1；可编辑画布（编辑器里）允许缩放，但取景不缩到字看不清。 */
+export const READ_ONLY_ZOOM = { min: 1, max: 1 } as const
+export const EDIT_ZOOM = { min: 0.75, max: 1.5 } as const
+/** Controls 的暗色 / 点击区外观：底色与描边走 token，按钮 40px。 */
+export const CONTROLS_CLASS = '!overflow-hidden !rounded-sm !border !border-border !bg-card !shadow-none [&>button]:!size-10 [&>button]:!border-border [&>button]:!bg-card [&>button]:!text-text-2 [&>button:hover]:!bg-fill [&>button:hover]:!text-text [&>button>svg]:!fill-current'
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
 
 export interface SkillFlowProps {
   skills: readonly WbSkillRef[]
@@ -42,13 +52,13 @@ export interface SkillFlowProps {
   /** 节点名下的一行小字（agent 段落用）；不给则不渲染。 */
   captionOf?: (id: string) => string | null
   /** 画布的可访问名称；缺省 = 技能。agent 画布传 执行者 / 评审者。 */
-  label?: string
+  ariaLabel?: string
   /** 可编辑画布为空时的提示；缺省 = 拖入技能。 */
   emptyText?: string
   className?: string
 }
 
-function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabel = null, statusOf, captionOf, label, emptyText, className }: SkillFlowProps): JSX.Element {
+function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabel = null, statusOf, captionOf, ariaLabel, emptyText, className }: SkillFlowProps): JSX.Element {
   const { t } = useT()
   // React Flow 控件自带英文 aria-label（Zoom In …），跟随界面语言改写。
   const ariaLabelConfig = useMemo(() => ({
@@ -79,7 +89,28 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
   // 未测量：连到它们的边不渲染，且每帧重复上报尺寸。
   const [virtualMeasured, setVirtualMeasured] = useState<Record<string, { width: number; height: number }>>({})
   const enteringRef = useRef<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const signature = skillsSignature(skills)
+  // 节点只放名称 + 可选的设置行 / 状态行：行数定节点高，节点高定行距与只读画布的高度。
+  const lines = 1 + (captionOf === undefined ? 0 : 1) + (statusOf === undefined ? 0 : 1)
+  const linesRef = useRef(lines)
+  linesRef.current = lines
+
+  /** 取景：只读 = 1:1 + 按内容定位；可编辑 = fitView（不缩到 0.75 以下）。减少动态效果时瞬时完成。 */
+  const refit = useCallback(() => {
+    const duration = prefersReducedMotion() ? 0 : 200
+    const instance = flowRef.current
+    if (editable) {
+      void instance.fitView({ padding: 0.2, minZoom: EDIT_ZOOM.min, maxZoom: 1, duration })
+      return
+    }
+    const element = containerRef.current
+    if (element === null) return
+    const bounds = instance.getNodesBounds(instance.getNodes())
+    void instance.setViewport(readOnlyViewport(bounds, { width: element.clientWidth, height: element.clientHeight }), { duration })
+  }, [editable])
+  const refitRef = useRef(refit)
+  refitRef.current = refit
 
   const removeNode = useCallback((id: string) => {
     setNodes((current) => current.filter((node) => node.id !== id))
@@ -92,7 +123,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       id,
       type: 'skill',
       position: { x, y },
-      data: { label: id, description: entry?.description ?? null, caption: captionRef.current?.(id) ?? null, source: entry?.source ?? null, editable, entering: enteringRef.current === id, status: statusRef.current?.(id)?.state ?? null, statusLabel: statusRef.current?.(id)?.label ?? null, onOpen: (target) => onOpenRef.current(target), onRemove: removeNode },
+      data: { label: id, description: entry?.description ?? null, height: nodeHeightFor(linesRef.current), caption: captionRef.current?.(id) ?? null, source: entry?.source ?? null, editable, entering: enteringRef.current === id, status: statusRef.current?.(id)?.state ?? null, statusLabel: statusRef.current?.(id)?.label ?? null, onOpen: (target) => onOpenRef.current(target), onRemove: removeNode },
       draggable: editable,
       selectable: editable,
     }
@@ -100,12 +131,47 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
 
   // 技能内容变了（切换阶段 / 打开编辑器 / 外部改写）→ 按波次重新布局；引用变化不触发。
   useEffect(() => {
-    setNodes(layoutSkills(skillsRef.current).map(({ id, x, y }) => makeNode(id, x, y)))
+    setNodes(layoutSkills(skillsRef.current, linesRef.current).map(({ id, x, y }) => makeNode(id, x, y)))
     setEdges(edgesOf(skillsRef.current))
-    // 等 React Flow 量完节点尺寸再 fitView，否则按未测量的位置取景会把末列切掉。
-    const timer = setTimeout(() => { void flowRef.current.fitView({ padding: 0.2, maxZoom: 1, duration: 200 }) }, 60)
+    // 等 React Flow 量完节点尺寸再取景，否则按未测量的位置取景会把末列切掉。
+    const timer = setTimeout(() => refitRef.current(), 60)
     return () => clearTimeout(timer)
   }, [signature, makeNode])
+
+  // 容器尺寸变了（窗口缩放、侧栏开合）→ 节流后重新取景。首次回调是 observe 本身触发的，交给上面的布局取景。
+  useEffect(() => {
+    const element = containerRef.current
+    if (element === null || typeof ResizeObserver === 'undefined') return
+    let initial = true
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const observer = new ResizeObserver(() => {
+      if (initial) { initial = false; return }
+      if (timer !== null) return
+      timer = setTimeout(() => { timer = null; refitRef.current() }, RESIZE_THROTTLE_MS)
+    })
+    observer.observe(element)
+    return () => { observer.disconnect(); if (timer !== null) clearTimeout(timer) }
+  }, [])
+
+  // 脉冲只在该动的时候动：有技能在运行就循环；技能被编辑过（签名变了）就走一遍；画布不在视口里就停。
+  const [visible, setVisible] = useState(true)
+  useEffect(() => {
+    const element = containerRef.current
+    if (element === null || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[entries.length - 1]
+      if (entry !== undefined) setVisible(entry.isIntersecting)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  const [edits, setEdits] = useState(0)
+  const mountedSignature = useRef(signature)
+  useEffect(() => {
+    if (signature !== mountedSignature.current) setEdits((count) => count + 1)
+  }, [signature])
+  const running = statusOf !== undefined && skills.some((skill) => statusOf(skill.id)?.state === 'running')
+  const pulseMode: PulseMode = pulseModeOf({ visible, running, edits })
 
   // 可编辑：图的签名与传入技能不同才回写，回写一次后等父级把新技能传回来。
   const graph = useMemo(() => graphToSkills(nodes.map((node) => node.id), edges, skillsRef.current), [nodes, edges])
@@ -139,7 +205,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     const depth = new Map<string, number>()
     waves.forEach((wave, index) => wave.forEach((id) => depth.set(id, index)))
     const total = 2 * waves.length
-    const pulse = (order: number): { data: PulseData } => ({ data: { order, total } })
+    const pulse = (order: number): { data: PulseData } => ({ data: { order, total, mode: pulseMode, run: edits } })
     const sized = (id: string, width: number, height: number) => ({ width, height, measured: virtualMeasured[id] ?? { width, height } })
     const ports: PortNode[] = [
       { id: 'start', type: 'port', position: { x: minX - PORT_GAP, y: centerY(first) - PORT_SIZE / 2 }, data: { label: t('workflow.flow_start') }, draggable: false, selectable: false, deletable: false, connectable: false, ...sized('start', PORT_SIZE, PORT_SIZE) },
@@ -184,7 +250,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       nodes: [...labels, ...ports, ...junctions, ...nodes, ...ghostNodes],
       edges: [...typed(direct), ...typed(junctionEdges), ...typed(virtual), ...typed(ghostEdges)],
     }
-  }, [nodes, edges, graph, ghost, virtualMeasured, t])
+  }, [nodes, edges, graph, ghost, virtualMeasured, t, pulseMode, edits])
 
   const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
     const own: NodeChange<SkillNode>[] = []
@@ -219,9 +285,9 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
   /** 结构性变更（加节点）后整体重排，并给新节点入场动画。 */
   const relayout = useCallback((next: WbSkillRef[], entering: string | null) => {
     enteringRef.current = entering
-    setNodes(layoutSkills(next).map(({ id, x, y }) => makeNode(id, x, y)))
+    setNodes(layoutSkills(next, linesRef.current).map(({ id, x, y }) => makeNode(id, x, y)))
     setEdges(edgesOf(next))
-    setTimeout(() => { void flowRef.current.fitView({ padding: 0.2, maxZoom: 1, duration: 200 }) }, 60)
+    setTimeout(() => refitRef.current(), 60)
   }, [makeNode])
 
   const ghostFor = useCallback((label: string, point: { x: number; y: number }) => {
@@ -229,6 +295,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     const waves = wavesOf(graph)
     const position = new Map(nodes.map((node) => [node.id, node.position]))
     const centerY = (ids: readonly string[]): number => ids.length === 0 ? point.y - NODE_HEIGHT / 2 : ids.reduce((sum, id) => sum + (position.get(id)?.y ?? 0), 0) / ids.length
+    const rowGap = rowGapFor(linesRef.current)
     if (target.kind === 'after') {
       const lastX = columnXs[columnXs.length - 1]
       return { x: lastX === undefined ? point.x - NODE_WIDTH / 2 : lastX + COLUMN_GAP, y: centerY(waves[waves.length - 1] ?? []), label, target }
@@ -236,7 +303,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     if (target.kind === 'before') return { x: (columnXs[0] ?? point.x) - COLUMN_GAP, y: centerY(waves[0] ?? []), label, target }
     const wave = waves[target.wave] ?? []
     const bottom = Math.max(...wave.map((id) => position.get(id)?.y ?? 0))
-    return { x: columnXs[target.wave] ?? point.x, y: bottom + ROW_GAP, label, target }
+    return { x: columnXs[target.wave] ?? point.x, y: bottom + rowGap, label, target }
   }, [columnXs, graph, nodes])
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
@@ -269,12 +336,16 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
 
   return (
     <div
+      ref={containerRef}
+      role="group"
       className={cn('relative overflow-hidden rounded-md border border-border bg-card', className)}
-      aria-label={label ?? t('workflow.skills_title')}
+      style={editable ? undefined : { height: canvasHeight(lanesOf(skills), lines) }}
+      aria-label={ariaLabel ?? t('workflow.skills_title')}
       data-testid="skill-flow"
       data-editable={editable}
       data-nodes={nodes.length}
       data-edges={edges.length}
+      data-pulse={pulseMode}
       onDragOver={editable ? onDragOver : undefined}
       onDragLeave={editable ? (event) => { if (!event.currentTarget.contains(event.relatedTarget as globalThis.Node | null)) setGhost(null) } : undefined}
       onDrop={editable ? onDrop : undefined}
@@ -291,20 +362,21 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
         nodesDraggable={editable}
         nodesConnectable={editable}
         elementsSelectable={editable}
-        panOnDrag={editable}
+        panOnDrag
         zoomOnScroll={editable}
+        zoomOnPinch={editable}
         zoomOnDoubleClick={false}
         preventScrolling={editable}
-        fitView
-        minZoom={0.5}
-        maxZoom={1.5}
+        fitView={editable}
+        minZoom={editable ? EDIT_ZOOM.min : READ_ONLY_ZOOM.min}
+        maxZoom={editable ? EDIT_ZOOM.max : READ_ONLY_ZOOM.max}
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ type: 'pulse', style: EDGE_STYLE, markerEnd: MARKER }}
         deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
         ariaLabelConfig={ariaLabelConfig}
       >
         <Background variant={BackgroundVariant.Dots} gap={14} size={1} color="var(--border-2)" />
-        <Controls showInteractive={false} position="bottom-right" />
+        <Controls showInteractive={false} showZoom={editable} position="bottom-right" className={CONTROLS_CLASS} />
       </ReactFlow>
     </div>
   )

@@ -128,7 +128,7 @@ export function AgentComposer({
           onChange={setDraft}
           onOpen={setSelected}
           dragLabel={dragging}
-          label={t(reviewing ? 'workflow.reviewers_title' : 'workflow.executors_title')}
+          ariaLabel={t(reviewing ? 'workflow.reviewers_title' : 'workflow.executors_title')}
           emptyText={t(reviewing ? 'workflow.drop_reviewer' : 'workflow.drop_executor')}
           className="min-h-0"
         />
