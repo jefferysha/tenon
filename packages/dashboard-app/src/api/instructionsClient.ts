@@ -1,11 +1,12 @@
 /**
- * 指令模板库（/api/instruction-templates）、指令文件（/api/instructions）与新建项目（/api/projects/create）客户端。
+ * 指令模板库（/api/instruction-templates）、指令文件（/api/instructions）、项目客户端（/api/projects/clients）
+ * 与新建项目（/api/projects/create）客户端。
  * 写请求带 Bearer token；失败统一抛 InstructionApiError（保留 server 的 code、错误列表与冲突摘要，供页面按码展示）。
  */
 import {
   decodeComposeResult, decodeDigest, decodeInstructionApply, decodeInstructionDelete, decodeInstructionPreview,
-  decodeInstructionState, decodeProjectCreatePlan, decodeProjectCreated, decodeTemplateDocument, decodeTemplateList,
-  type AppliedFile, type ComposeResult, type InstructionPreviewFile, type InstructionState, type ProjectCreatePlan,
+  decodeInstructionState, decodeProjectClients, decodeProjectCreatePlan, decodeProjectCreated, decodeTemplateDocument, decodeTemplateList,
+  type AppliedFile, type ComposeResult, type InstructionPreviewFile, type InstructionState, type ProjectClients, type ProjectCreatePlan,
   type ProjectCreated, type TemplateCategory, type TemplateDocument, type TemplateList, type TemplateRef,
 } from './instructionsDecoders'
 import { ApiError, getToken, isRecord, readJson, stringArray, wrapNetwork } from './transport'
@@ -109,6 +110,15 @@ export function composeInstructions(projectName: string, selections: readonly Co
 /** root 为空 = 用户级。 */
 export function fetchInstructions(root: string, signal?: AbortSignal): Promise<InstructionState> {
   return send(`/api/instructions?root=${encodeURIComponent(root)}`, { headers: { Accept: 'application/json' }, signal }, decodeInstructionState, '指令文件获取失败')
+}
+
+export function fetchProjectClients(root: string, signal?: AbortSignal): Promise<ProjectClients> {
+  return send(`/api/projects/clients?root=${encodeURIComponent(root)}`, { headers: { Accept: 'application/json' }, signal }, decodeProjectClients, '客户端获取失败')
+}
+
+/** 整份写入项目启用的客户端（`.tenon/clients.json`）；返回 server 规范化（去重排序）后的集合。 */
+export function saveProjectClients(root: string, enabled: readonly string[]): Promise<ProjectClients> {
+  return send('/api/projects/clients', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ root, enabled }) }, decodeProjectClients, '客户端保存失败')
 }
 
 export function previewInstructions(root: string, text: string, targets: readonly string[]): Promise<InstructionPreviewFile[]> {

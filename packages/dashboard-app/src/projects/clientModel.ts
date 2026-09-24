@@ -57,23 +57,6 @@ export function groupByProjectFile(
   return groups
 }
 
-/**
- * 没有记录时推导已启用的客户端：每个已存在的项目级文件，取宿主表里第一个声明读它的客户端
- * （CLAUDE.md → claude、AGENTS.md → codex、GEMINI.md → gemini）。
- */
-export function derivedEnabled(hosts: readonly InstructionHostRow[], targets: readonly InstructionTarget[]): string[] {
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const host of hosts) {
-    if (host.target === null || seen.has(host.target)) continue
-    const target = targets.find((candidate) => candidate.id === host.target)
-    if (target === undefined || !target.exists) continue
-    seen.add(host.target)
-    out.push(host.id)
-  }
-  return out
-}
-
 /** 可以直接启用：有项目级文件可写（需配置的客户端没有）。 */
 export function canEnable(host: InstructionHostRow): boolean {
   return host.target !== null

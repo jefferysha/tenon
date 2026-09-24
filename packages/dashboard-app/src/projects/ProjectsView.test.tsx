@@ -10,7 +10,6 @@ import { diffFileLabel } from './DiffDrawer'
 import { ProjectsView } from './ProjectsView'
 
 const PROJECTS = [{ root: '/repo', name: 'repo', count: 1, ok: true }]
-const CLIENTS_KEY = 'tenon-dashboard-clients:/repo'
 
 const PROJECT_HOSTS = [
   { id: 'claude', levels: 'joined', target: 'CLAUDE.md' },
@@ -41,13 +40,29 @@ const userTarget = (id: string, over: Record<string, unknown> = {}) =>
 
 interface Call { url: string; init?: RequestInit }
 
-function stubFetch(over: { targets?: () => unknown[]; userTargets?: () => unknown[]; onWrite?: (call: Call) => unknown } = {}) {
+interface StubOptions {
+  targets?: () => unknown[]
+  userTargets?: () => unknown[]
+  /** 项目启用的客户端（GET /api/projects/clients）；缺省 = server 按现有文件推断出的 codex。 */
+  clients?: string[]
+  clientsSource?: 'file' | 'inferred'
+  onWrite?: (call: Call) => unknown
+}
+
+function stubFetch(over: StubOptions = {}) {
   const calls: Call[] = []
+  let clients = over.clients ?? ['codex']
   const targets = over.targets ?? (() => [target('AGENTS.md'), missing('CLAUDE.md'), missing('GEMINI.md')])
   const userTargets = over.userTargets ?? (() => Object.keys(USER_PATHS).map((id) => userTarget(id)))
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, init })
     const method = init?.method ?? 'GET'
+    const written = over.onWrite?.({ url, init })
+    if (written !== undefined) return written
+    if (url.startsWith('/api/projects/clients')) {
+      if (method === 'POST') clients = [...(JSON.parse(String(init?.body)) as { enabled: string[] }).enabled].sort()
+      return { ok: true, json: async () => ({ enabled: clients, source: method === 'POST' ? 'file' : over.clientsSource ?? 'inferred' }) }
+    }
     if (url.startsWith('/api/instructions?') && method === 'GET') {
       const user = new URL(url, 'http://x').searchParams.get('root') === ''
       return {
@@ -69,8 +84,6 @@ function stubFetch(over: { targets?: () => unknown[]; userTargets?: () => unknow
         }),
       }
     }
-    const written = over.onWrite?.({ url, init })
-    if (written !== undefined) return written
     if (url === '/api/instructions/apply') {
       const body = JSON.parse(String(init?.body)) as { targets: { id: string }[] }
       return { ok: true, json: async () => ({ ok: true, files: body.targets.map((item) => ({ id: item.id, digest: 'sha256:new' })) }) }
@@ -87,6 +100,9 @@ function renderView(currentRoot = '/repo', onToast?: (message: string) => void) 
   render(wrap(<ProjectsView projects={PROJECTS} currentRoot={currentRoot} onSelectProject={onSelectProject} onToast={onToast} />))
   return onSelectProject
 }
+
+const post = (calls: Call[]): Call | undefined =>
+  calls.filter((call) => call.url === '/api/projects/clients' && call.init?.method === 'POST').at(-1)
 
 const reads = (calls: Call[], root: string): number =>
   calls.filter((call) => call.url === `/api/instructions?root=${encodeURIComponent(root)}` && (call.init?.method ?? 'GET') === 'GET').length
@@ -113,8 +129,8 @@ describe('项目页 · 左列与客户端', () => {
     expect(onSelectProject).toHaveBeenCalledWith('/repo')
   })
 
-  it('只显示已启用的客户端：没有记录时按已存在的文件推导', async () => {
-    stubFetch({ targets: () => [target('AGENTS.md'), target('CLAUDE.md'), missing('GEMINI.md')] })
+  it('只显示项目已启用的客户端（来自 /api/projects/clients）', async () => {
+    const calls = stubFetch({ clients: ['claude', 'codex'], targets: () => [target('AGENTS.md'), target('CLAUDE.md'), missing('GEMINI.md')] })
     renderView()
     expect(await screen.findByTestId('proj-client-claude')).toBeInTheDocument()
     expect(screen.getByTestId('proj-client-codex')).toBeInTheDocument()
@@ -124,11 +140,13 @@ describe('项目页 · 左列与客户端', () => {
     // 不再有平铺全部客户端的表。
     expect(screen.queryByTestId('proj-hosts')).toBeNull()
     expect(screen.queryByTestId('proj-files')).toBeNull()
+    expect(calls.filter((call) => call.url === '/api/projects/clients?root=%2Frepo')).toHaveLength(1)
+    // 进页面不写任何文件。
+    expect(calls.some((call) => (call.init?.method ?? 'GET') !== 'GET')).toBe(false)
   })
 
   it('名称只显示一个：显示名 + 真实文件名，不出现宿主 id', async () => {
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(['claude']))
-    stubFetch()
+    stubFetch({ clients: ['claude'] })
     renderView()
     const row = await screen.findByTestId('proj-client-claude')
     expect(row).toHaveTextContent('Claude Code')
@@ -137,9 +155,9 @@ describe('项目页 · 左列与客户端', () => {
     expect(row.textContent?.match(/Claude Code/gu)).toHaveLength(1)
   })
 
-  it('添加客户端：菜单只列未启用的；需配置的置灰；选中后启用并选中，记在本机', async () => {
+  it('添加客户端：菜单只列未启用的；需配置的置灰；选中后启用并选中，随项目写入', async () => {
     const user = userEvent.setup()
-    stubFetch()
+    const calls = stubFetch()
     renderView()
     await screen.findByTestId('proj-client-codex')
     await user.click(screen.getByTestId('proj-add-client'))
@@ -152,12 +170,13 @@ describe('项目页 · 左列与客户端', () => {
     const row = await screen.findByTestId('proj-client-claude')
     expect(row).toHaveAttribute('data-selected', 'true')
     expect(screen.getByTestId('proj-title')).toHaveTextContent('Claude Code')
-    expect(JSON.parse(localStorage.getItem(CLIENTS_KEY) ?? '[]')).toEqual(['codex', 'claude'])
+    await waitFor(() => expect(JSON.parse(String(post(calls)?.init?.body))).toEqual({ root: '/repo', enabled: ['codex', 'claude'] }))
+    expect(new Headers(post(calls)?.init?.headers).get('Authorization')).toBe('Bearer tok-abc')
   })
 
   it('需配置的客户端：菜单里置灰、不能启用，原因在 Tooltip', async () => {
     const user = userEvent.setup()
-    stubFetch()
+    const calls = stubFetch()
     renderView()
     await screen.findByTestId('proj-client-codex')
     await user.click(screen.getByTestId('proj-add-client'))
@@ -166,26 +185,24 @@ describe('项目页 · 左列与客户端', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('需在其配置里用 read: 指定文件')
     await user.click(aider)
     expect(screen.queryByTestId('proj-client-aider')).toBeNull()
-    expect(localStorage.getItem(CLIENTS_KEY)).toBeNull()
+    expect(calls.some((call) => call.init?.method === 'POST')).toBe(false)
   })
 
   it('停用客户端：⋯ → 停用，行消失，文件不动', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(['claude', 'codex']))
-    const calls = stubFetch()
+    const calls = stubFetch({ clients: ['claude', 'codex'] })
     renderView()
     await user.click(await screen.findByTestId('proj-client-codex-more'))
     await user.click(await screen.findByTestId('proj-disable-codex'))
     await waitFor(() => expect(screen.queryByTestId('proj-client-codex')).toBeNull())
     expect(screen.getByTestId('proj-client-claude')).toBeInTheDocument()
-    expect(JSON.parse(localStorage.getItem(CLIENTS_KEY) ?? '[]')).toEqual(['claude'])
-    expect(calls.some((call) => call.init?.method === 'DELETE' || call.url === '/api/instructions/apply')).toBe(false)
+    await waitFor(() => expect(JSON.parse(String(post(calls)?.init?.body))).toEqual({ root: '/repo', enabled: ['claude'] }))
+    expect(calls.some((call) => call.init?.method === 'DELETE' || call.url.startsWith('/api/instructions/'))).toBe(false)
   })
 
   it('共享同一文件的客户端合并成一行，「+n」标出其余读者', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(['codex', 'zed', 'cline']))
-    stubFetch()
+    stubFetch({ clients: ['codex', 'zed', 'cline'] })
     renderView()
     const row = await screen.findByTestId('proj-client-codex')
     expect(screen.queryByTestId('proj-client-zed')).toBeNull()
@@ -200,8 +217,7 @@ describe('项目页 · 左列与客户端', () => {
 
   it('状态点 + 一个词：一致 / 缺失；改动后行与标题都变成不同', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(['codex', 'claude']))
-    stubFetch()
+    stubFetch({ clients: ['codex', 'claude'] })
     renderView()
     const codex = await screen.findByTestId('proj-client-codex-status')
     expect(screen.getByTestId('proj-client-claude-status')).toHaveTextContent('缺失')
@@ -238,10 +254,10 @@ describe('项目页 · 作用域', () => {
     expect(screen.getByTestId('proj-scope-tab-user')).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('proj-path')).toHaveTextContent('/home/me/.codex/AGENTS.md')
     expect(screen.getByTestId('proj-title')).toHaveTextContent('Codex')
-    // 删除确认里是文件名 AGENTS.md，不是宿主 id codex。
+    // 删除确认写完整路径（用户级文件在 home 下），不是客户端 id codex。
     await user.click(screen.getByTestId('proj-more'))
     await user.click(screen.getByTestId('proj-more-delete'))
-    expect(await screen.findByTestId('proj-delete-file')).toHaveTextContent(/^AGENTS\.md$/u)
+    expect(await screen.findByTestId('proj-delete-file')).toHaveTextContent(/^\/home\/me\/\.codex\/AGENTS\.md$/u)
     await user.click(screen.getByTestId('proj-delete-cancel'))
     await user.click(screen.getByTestId('proj-scope-tab-project'))
     await waitFor(() => expect(screen.getByTestId('proj-editor')).toHaveValue('# 旧\n'))
@@ -268,8 +284,7 @@ describe('项目页 · 作用域', () => {
 
   it('合并的一组在用户级下按读者分段切换各自的文件', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(['codex', 'cline', 'copilot']))
-    stubFetch()
+    stubFetch({ clients: ['codex', 'cline', 'copilot'] })
     renderView()
     await screen.findByTestId('proj-editor')
     expect(screen.queryByTestId('proj-reader-sheets')).toBeNull()
@@ -285,8 +300,7 @@ describe('项目页 · 作用域', () => {
 
   it('没有用户级文件的客户端：「用户级」置灰，点了不切换', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(['copilot']))
-    stubFetch()
+    stubFetch({ clients: ['copilot'] })
     renderView()
     const userTab = await screen.findByTestId('proj-scope-tab-user')
     await waitFor(() => expect(userTab).toHaveAttribute('aria-disabled', 'true'))
@@ -347,7 +361,7 @@ describe('项目页 · 编辑与写入', () => {
     expect(await screen.findByTestId('proj-external')).toBeInTheDocument()
     expect(screen.getByTestId('proj-error')).toHaveTextContent('文件已被外部修改')
     expect(screen.getByTestId('proj-error')).not.toHaveTextContent('server prose')
-    await user.click(screen.getByTestId('proj-diff-cancel'))
+    await user.click(screen.getByTestId('proj-diff-close'))
     await user.click(screen.getByTestId('proj-external-reload'))
     await waitFor(() => expect(screen.getByTestId('proj-editor')).toHaveValue('# 旧\n'))
     expect(screen.queryByTestId('proj-external')).toBeNull()
@@ -362,7 +376,7 @@ describe('项目页 · 编辑与写入', () => {
     await user.click(screen.getByTestId('proj-more'))
     await user.click(screen.getByTestId('proj-more-delete'))
     const dialog = await screen.findByTestId('proj-delete-dialog')
-    expect(within(dialog).getByTestId('proj-delete-file')).toHaveTextContent('AGENTS.md')
+    expect(within(dialog).getByTestId('proj-delete-file')).toHaveTextContent(/^\/repo\/AGENTS\.md$/u)
     expect(within(dialog).getByTestId('proj-delete-managed')).toHaveTextContent('1')
     await user.click(screen.getByTestId('proj-delete-confirm'))
     await waitFor(() => {
@@ -526,6 +540,156 @@ describe('项目页 · 布局与读取', () => {
   })
 })
 
+describe('项目页 · 随项目持久化的客户端', () => {
+  it('启用写入失败：回滚到上次确认的集合并显示错误', async () => {
+    const user = userEvent.setup()
+    stubFetch({
+      clients: ['codex'],
+      onWrite: ({ url, init }) => (url === '/api/projects/clients' && init?.method === 'POST'
+        ? { ok: false, status: 409, json: async () => ({ ok: false, code: 'clients-file-changed', error: 'server prose' }) }
+        : undefined),
+    })
+    renderView()
+    await screen.findByTestId('proj-client-codex')
+    await user.click(screen.getByTestId('proj-add-client'))
+    await user.click(await screen.findByTestId('proj-add-claude'))
+    expect(await screen.findByTestId('proj-clients-error')).toHaveTextContent('clients.json 已被外部修改')
+    await waitFor(() => expect(screen.queryByTestId('proj-client-claude')).toBeNull())
+    expect(screen.getByTestId('proj-client-codex')).toBeInTheDocument()
+  })
+
+  it('无 token：添加与停用都不可用', async () => {
+    ;(window as unknown as { __TENON_DASHBOARD_TOKEN__?: string }).__TENON_DASHBOARD_TOKEN__ = ''
+    stubFetch()
+    renderView()
+    expect(await screen.findByTestId('proj-add-client')).toBeDisabled()
+    expect(screen.getByTestId('proj-client-codex-more')).toBeDisabled()
+  })
+})
+
+describe('项目页 · 走查修复', () => {
+  it('不默认新建文件：缺失且正文为空时「预览变更」禁用', async () => {
+    const calls = stubFetch({ clients: ['claude'], targets: () => [missing('AGENTS.md'), missing('CLAUDE.md'), missing('GEMINI.md')] })
+    renderView()
+    await screen.findByTestId('proj-editor')
+    expect(screen.getByTestId('proj-status')).toHaveTextContent('缺失')
+    expect(screen.getByTestId('proj-apply')).toBeDisabled()
+    expect(screen.queryByTestId('proj-link-agents')).toBeNull()
+    expect(calls.some((call) => (call.init?.method ?? 'GET') !== 'GET')).toBe(false)
+  })
+
+  it('CLAUDE.md 缺失而 AGENTS.md 存在：「用 @AGENTS.md 引用创建」写一行 @AGENTS.md', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({ clients: ['claude', 'codex'] })
+    const onToast = vi.fn()
+    renderView('/repo', onToast)
+    await user.click(await screen.findByTestId('proj-client-claude-select'))
+    const link = await screen.findByTestId('proj-link-agents')
+    expect(link).toHaveTextContent('用 @AGENTS.md 引用创建')
+    await user.click(link)
+    await waitFor(() => {
+      const apply = calls.find((call) => call.url === '/api/instructions/apply')
+      expect(JSON.parse(String(apply?.init?.body))).toEqual({ root: '/repo', text: '@AGENTS.md\n', targets: [{ id: 'CLAUDE.md', base_digest: 'absent' }] })
+    })
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已应用'))
+    // 用户级下不给这个动作。
+    await user.click(screen.getByTestId('proj-scope-tab-user'))
+    await waitFor(() => expect(screen.getByTestId('proj-path')).toHaveTextContent('/home/me/.claude/CLAUDE.md'))
+    expect(screen.queryByTestId('proj-link-agents')).toBeNull()
+  })
+
+  it('编辑区顶部一行完整路径：单行截断 + title，编辑与渲染都在', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderView()
+    await screen.findByTestId('proj-editor')
+    const panel = screen.getByTestId('proj-panel')
+    const path = within(panel).getByTestId('proj-path')
+    expect(path).toHaveTextContent('/repo/AGENTS.md')
+    expect(path).toHaveAttribute('title', '/repo/AGENTS.md')
+    for (const cls of ['truncate', 'whitespace-nowrap']) expect(path.className).toContain(cls)
+    expect(path.compareDocumentPosition(screen.getByTestId('proj-editor')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await user.click(screen.getByTestId('proj-tab-render'))
+    expect(within(panel).getByTestId('proj-path')).toBeInTheDocument()
+  })
+
+  it('差异抽屉：只有标题栏的关闭；每个文件标新建 / 修改；长行横向滚动', async () => {
+    const user = userEvent.setup()
+    stubFetch({
+      onWrite: ({ url }) => (url === '/api/instructions/preview'
+        ? {
+            ok: true,
+            json: async () => ({ ok: true, files: [{ id: 'AGENTS.md', path: '/repo/AGENTS.md', base_digest: 'sha256:AGENTS.md', current: null, next: 'x'.repeat(400) }] }),
+          }
+        : undefined),
+    })
+    renderView()
+    await user.type(await screen.findByTestId('proj-editor'), 'x')
+    await user.click(screen.getByTestId('proj-apply'))
+    const drawer = await screen.findByTestId('proj-diff')
+    expect(within(drawer).getAllByRole('button').map((button) => button.getAttribute('data-testid'))).toEqual(['proj-diff-confirm', 'proj-diff-close'])
+    expect(within(drawer).getByTestId('proj-diff-kind-AGENTS.md')).toHaveTextContent('新建')
+    const lines = within(drawer).getByTestId('proj-diff-lines-AGENTS.md')
+    expect(lines.className).toContain('overflow-x-auto')
+    for (const row of lines.querySelectorAll('li')) expect(row.className).toContain('whitespace-pre')
+  })
+
+  it('读取失败：内联错误 + 重试；快照恢复后自动重试', async () => {
+    const user = userEvent.setup()
+    let fail = true
+    stubFetch({
+      onWrite: ({ url }) => (fail && url.startsWith('/api/instructions?root=%2Frepo')
+        ? { ok: false, status: 500, json: async () => ({ ok: false, code: 'path-unsafe', error: 'x' }) }
+        : undefined),
+    })
+    const view = (revision: string) => wrap(
+      <ProjectsView projects={PROJECTS} currentRoot="/repo" onSelectProject={() => undefined} snapshotRevision={revision} />,
+    )
+    const { rerender } = render(view('r1'))
+    const error = await screen.findByTestId('proj-load-error')
+    expect(error).toHaveTextContent('路径不安全')
+    await user.click(within(error).getByTestId('proj-load-error-retry'))
+    expect(await screen.findByTestId('proj-load-error')).toBeInTheDocument()
+    fail = false
+    rerender(view('r2'))
+    expect(await screen.findByTestId('proj-client-codex')).toBeInTheDocument()
+    expect(screen.queryByTestId('proj-load-error')).toBeNull()
+  })
+
+  it('注销项目：左列 ⋯ → 注销…，对话框写明只移出列表与路径，确认后 DELETE', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({
+      onWrite: ({ url, init }) => (url.startsWith('/api/projects?') && init?.method === 'DELETE' ? { ok: true, json: async () => ({ ok: true }) } : undefined),
+    })
+    const onToast = vi.fn()
+    const onSelectProject = renderView('/repo', onToast)
+    await user.click(await screen.findByTestId('proj-root-repo-more'))
+    await user.click(await screen.findByTestId('proj-root-repo-unregister'))
+    const dialog = await screen.findByTestId('proj-unregister-dialog')
+    expect(dialog).toHaveTextContent('不会删除任何文件')
+    expect(dialog).toHaveTextContent('/repo')
+    await user.click(screen.getByTestId('proj-unregister-confirm'))
+    await waitFor(() => expect(calls.some((call) => call.url === '/api/projects?root=%2Frepo' && call.init?.method === 'DELETE')).toBe(true))
+    expect(onSelectProject).toHaveBeenCalledWith('')
+    expect(onToast).toHaveBeenCalledWith('已注销该项目')
+  })
+
+  it('术语：页面不出现「宿主」；加载方式是图标 + Tooltip；受管块为 0 不显示', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderView()
+    await screen.findByTestId('proj-editor')
+    expect(screen.getByTestId('projects-view')).not.toHaveTextContent('宿主')
+    expect(screen.getByTestId('projects-list')).toHaveTextContent('客户端')
+    expect(screen.queryByTestId('proj-managed')).toBeNull()
+    const levels = screen.getByTestId('proj-levels')
+    expect(levels.querySelector('svg')).not.toBeNull()
+    expect(levels.textContent).toBe('')
+    await user.hover(levels)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('加载方式 · 叠加')
+  })
+})
+
 describe('diffFileLabel', () => {
   it('项目内文件取相对项目根的路径，用户级文件取文件名', () => {
     expect(diffFileLabel('/Users/me/very/long/workspace/repo/AGENTS.md', '/Users/me/very/long/workspace/repo')).toBe('AGENTS.md')
@@ -571,8 +735,7 @@ describe('项目页 · 控件外观', () => {
 
   it('作用域分段：方向键跳过置灰的段', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(CLIENTS_KEY, JSON.stringify(['copilot']))
-    stubFetch()
+    stubFetch({ clients: ['copilot'] })
     renderView()
     const project = await screen.findByTestId('proj-scope-tab-project')
     await waitFor(() => expect(screen.getByTestId('proj-scope-tab-user')).toHaveAttribute('aria-disabled', 'true'))

@@ -1,8 +1,7 @@
-import type { ReactNode } from 'react'
 import { MoreHorizontal, Plus } from 'lucide-react'
 import { useT } from '../i18n'
 import type { InstructionHostRow } from '../api/instructionsDecoders'
-import { StatusPill, type PillTone } from '../shell/ThreeColumns'
+import { StatusPill } from '../shell/ThreeColumns'
 import { BUTTON_ICON, LIST_SELECTED } from '../shared/uiRecipes'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -10,49 +9,16 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { canEnable, clientName, type ClientGroup, type FileStatus } from './clientModel'
-
-export const STATUS_KEY: Record<FileStatus, string> = {
-  missing: 'projects.status_missing',
-  same: 'projects.status_same',
-  different: 'projects.status_different',
-  error: 'projects.status_error',
-}
-
-export const STATUS_TONE: Record<FileStatus, PillTone> = {
-  missing: 'neutral',
-  same: 'done',
-  different: 'pending',
-  error: 'blocked',
-}
+import { COUNT_BADGE, Hinted, STATUS_KEY, STATUS_TONE } from './projectBits'
 
 const MENU_ITEM = 'min-h-10 gap-3 text-body text-text'
 
-/** 只带说明的小元素（计数徽标等）：Tooltip 要可聚焦的触发器，所以给 tabIndex。 */
-export function Hinted({ hint, children, testId, label }: { hint: string; children: ReactNode; testId?: string; label?: string }): JSX.Element {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          tabIndex={0}
-          aria-label={label ?? hint}
-          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-          data-testid={testId}
-        >
-          {children}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="whitespace-nowrap">{hint}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-/** 计数徽标（「+2」「3」）：fill 底、等宽数字，唯一允许的药丸形。 */
-export const COUNT_BADGE = 'inline-grid h-5 min-w-5 place-items-center rounded-sm bg-fill px-1.5 text-micro font-semibold tabular-nums text-text-2'
-
 /** 「+ 添加客户端」：只列尚未启用的客户端；需配置的置灰，原因在 Tooltip。 */
-export function AddClientMenu({ hosts, enabled, onEnable }: {
+export function AddClientMenu({ hosts, enabled, disabled = false, onEnable }: {
   hosts: readonly InstructionHostRow[]
   enabled: readonly string[]
+  /** 没有写权限（无 token）。 */
+  disabled?: boolean
   onEnable: (clientId: string) => void
 }): JSX.Element {
   const { t } = useT()
@@ -63,7 +29,7 @@ export function AddClientMenu({ hosts, enabled, onEnable }: {
         className={BUTTON_ICON}
         aria-label={t('projects.add_client')}
         title={t('projects.add_client')}
-        disabled={candidates.length === 0}
+        disabled={disabled || candidates.length === 0}
         data-testid="proj-add-client"
       >
         <Plus className="size-4" aria-hidden="true" />
@@ -96,8 +62,9 @@ export function AddClientMenu({ hosts, enabled, onEnable }: {
 }
 
 /** 一行 = 一个项目级文件：显示第一个读它的客户端 + 文件名；其余读者收进「+n」徽标的 Tooltip。 */
-function ClientRow({ group, selected, status, onSelect, onDisable }: {
+function ClientRow({ group, selected, status, canWrite, onSelect, onDisable }: {
   group: ClientGroup
+  canWrite: boolean
   selected: boolean
   status: FileStatus | null
   onSelect: () => void
@@ -142,6 +109,7 @@ function ClientRow({ group, selected, status, onSelect, onDisable }: {
           className="grid size-8 flex-none place-items-center rounded-sm text-text-3 outline-none hover:bg-fill-2 hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) aria-expanded:bg-fill-2 aria-expanded:text-text"
           aria-label={t('projects.more')}
           title={t('projects.more')}
+          disabled={!canWrite}
           data-testid={`${testId}-more`}
         >
           <MoreHorizontal className="size-4" aria-hidden="true" />
@@ -159,8 +127,9 @@ function ClientRow({ group, selected, status, onSelect, onDisable }: {
 }
 
 /** 中列：已启用的客户端（按项目级文件合并），每行带状态点与 ⋯（停用）。 */
-export function ClientList({ groups, selectedFile, statusOf, onSelect, onDisable }: {
+export function ClientList({ groups, selectedFile, statusOf, canWrite, onSelect, onDisable }: {
   groups: readonly ClientGroup[]
+  canWrite: boolean
   selectedFile: string | null
   statusOf: (file: string) => FileStatus | null
   onSelect: (clientId: string) => void
@@ -174,6 +143,7 @@ export function ClientList({ groups, selectedFile, statusOf, onSelect, onDisable
           group={group}
           selected={group.file === selectedFile}
           status={statusOf(group.file)}
+          canWrite={canWrite}
           onSelect={() => onSelect(group.clients[0] ?? '')}
           onDisable={onDisable}
         />

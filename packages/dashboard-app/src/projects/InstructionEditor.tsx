@@ -10,8 +10,8 @@ import { DetailColumn, StatusPill } from '../shell/ThreeColumns'
 import { MenuButton } from '../shared/MenuButton'
 import { DiffDrawer } from './DiffDrawer'
 import { SegmentTabs } from './SegmentTabs'
-import { COUNT_BADGE, Hinted, STATUS_KEY, STATUS_TONE } from './ClientList'
-import { fileNameOf, type FileStatus } from './clientModel'
+import { COUNT_BADGE, Hinted, STATUS_KEY, STATUS_TONE } from './projectBits'
+import type { FileStatus } from './clientModel'
 
 type Sheet = 'edit' | 'render'
 
@@ -35,7 +35,7 @@ function useAutoHeight(value: string | null): RefObject<HTMLTextAreaElement> {
  * 在抽屉里确认「应用」；删除收在 ⋯ 菜单里，先确认受管块处理。正文与盘上一致时「预览变更」禁用。
  */
 export function InstructionEditor({
-  title, target, root, controls, status, tooLarge, text, onText, external, busy, errorKey, onPreview, onApply, onDelete, onReload,
+  title, target, root, controls, status, tooLarge, text, onText, external, busy, errorKey, onPreview, onApply, onDelete, onReload, extraAction,
 }: {
   title: string
   target: InstructionTarget
@@ -55,6 +55,8 @@ export function InstructionEditor({
   onApply: (files: readonly InstructionPreviewFile[]) => Promise<boolean>
   onDelete: () => Promise<void>
   onReload: () => void
+  /** 标题行里「预览变更」之前的额外动作（如「用 @AGENTS.md 引用创建」）。 */
+  extraAction?: ReactNode
 }): JSX.Element {
   const { t } = useT()
   const sheets: SheetDef<Sheet>[] = [
@@ -67,7 +69,8 @@ export function InstructionEditor({
   const editorRef = useAutoHeight(sheet === 'edit' ? text : null)
   const canWrite = getToken() !== ''
   const kept = target.managed.length
-  const name = fileNameOf(target)
+  // 缺失的文件且正文为空：没有要写的内容，不预览（进页面、切换都不会新建文件）。
+  const nothingToWrite = status === 'same' || status === 'error' || (status === 'missing' && text === '')
 
   return (
     <>
@@ -92,11 +95,12 @@ export function InstructionEditor({
               )}
               <div className="ml-auto flex flex-none items-center gap-2 whitespace-nowrap">
                 {!canWrite && <span className="text-caption text-text-3" data-testid="proj-no-token">{t('projects.no_token')}</span>}
+                {extraAction}
                 <button
                   type="button"
                   className={BUTTON_SOLID}
                   data-testid="proj-apply"
-                  disabled={!canWrite || busy || status === 'same' || status === 'error'}
+                  disabled={!canWrite || busy || nothingToWrite}
                   onClick={() => { void (async () => { const files = await onPreview(); if (files !== null) setDiff(files) })() }}
                 >
                   {t('projects.preview_changes')}
@@ -109,14 +113,13 @@ export function InstructionEditor({
                 />
               </div>
             </div>
-            <div className="flex min-w-0 items-center gap-3">
-              {controls}
-              <p className="min-w-0 flex-1 truncate whitespace-nowrap font-mono text-caption text-text-3" title={target.path} data-testid="proj-path">{target.path}</p>
-            </div>
+            <div className="flex min-w-0 items-center gap-3">{controls}</div>
           </div>
         )}
         sheets={<div className="mt-5"><SegmentTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('projects.file')} idPrefix="proj" /></div>}
       >
+        {/* 正在编辑的文件：编辑区顶部固定一行完整路径（截断 + title），编辑 / 渲染都在。 */}
+        <p className="mb-3 truncate whitespace-nowrap font-mono text-caption text-text-3" title={target.path} data-testid="proj-path">{target.path}</p>
         {external && (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-b bg-amber-t px-4 py-3" role="status" data-testid="proj-external">
             <span className="text-body font-semibold text-amber-d">{t('projects.external')}</span>
@@ -181,7 +184,7 @@ export function InstructionEditor({
           )}
         >
           <div className="grid gap-2">
-            <p className="truncate whitespace-nowrap font-mono text-caption text-text" title={target.path} data-testid="proj-delete-file">{name}</p>
+            <p className="truncate whitespace-nowrap font-mono text-caption text-text" title={target.path} data-testid="proj-delete-file">{target.path}</p>
             {kept > 0 && (
               <p className="text-body text-text-2" data-testid="proj-delete-managed">{t('projects.managed_kept', { n: kept })}</p>
             )}

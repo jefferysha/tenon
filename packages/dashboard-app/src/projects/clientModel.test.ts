@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InstructionHostRow, InstructionTarget } from '../api/instructionsDecoders'
-import { canEnable, clientName, derivedEnabled, fileNameOf, fileStatus, groupByProjectFile } from './clientModel'
+import { canEnable, clientName, fileNameOf, fileStatus, groupByProjectFile } from './clientModel'
 
 const HOSTS: InstructionHostRow[] = [
   { id: 'claude', levels: 'joined', target: 'CLAUDE.md' },
@@ -51,11 +51,6 @@ describe('clientModel', () => {
     expect(groupByProjectFile(HOSTS, TARGETS, ['aider'])).toEqual([])
     expect(canEnable(HOSTS[5] as InstructionHostRow)).toBe(false)
     expect(canEnable(HOSTS[0] as InstructionHostRow)).toBe(true)
-  })
-
-  it('没有记录时按已存在的项目级文件推导：每个文件取第一个读它的客户端', () => {
-    expect(derivedEnabled(HOSTS, TARGETS)).toEqual(['claude', 'codex'])
-    expect(derivedEnabled(HOSTS, [target('AGENTS.md', { exists: false })])).toEqual([])
   })
 
   it('文件状态：错误 / 缺失 / 一致 / 不同', () => {

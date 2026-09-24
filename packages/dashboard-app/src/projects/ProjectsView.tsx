@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Folder, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useT } from '../i18n'
 import type { TopBarProject } from '../shell/TopBar'
-import { DetailEmpty, ListColumn, RailCard, RailColumn, ThreeColumns } from '../shell/ThreeColumns'
-import { BUTTON_ICON } from '../shared/uiRecipes'
+import { DetailEmpty, ListColumn, RailColumn, ThreeColumns } from '../shell/ThreeColumns'
+import { getToken } from '../api/transport'
+import { BUTTON_GHOST, BUTTON_ICON } from '../shared/uiRecipes'
 import { AddClientMenu, ClientList } from './ClientList'
+import { Hinted, InlineError } from './projectBits'
 import { ClientScopeControls } from './ClientScopeControls'
 import { InstructionEditor } from './InstructionEditor'
 import { NewProjectDialog } from './NewProjectDialog'
+import { ProjectRailList } from './ProjectRailList'
 import { CODEX_MAX_BYTES, clientName, fileNameOf } from './clientModel'
-import { shortPath } from '@/lib/utils'
 import { useClientEditor } from './useClientEditor'
 
 const RAIL_KEY = 'tenon-dashboard-rail:projects'
@@ -57,6 +59,11 @@ export function ProjectsView({
     if (await editor.remove()) onToast?.(t('common.done_deleted', { name }))
   }
 
+  const onLinkAgents = async (): Promise<void> => {
+    if (await editor.linkAgents?.()) onToast?.(t('common.done_applied'))
+  }
+
+  const canWrite = getToken() !== ''
   const readers = editor.scope === 'user' ? [client ?? ''] : group?.clients ?? []
 
   return (
@@ -83,50 +90,48 @@ export function ProjectsView({
               </button>
             )}
           >
-            <ul className="grid gap-1">
-              {projects.map((candidate) => (
-                <li key={candidate.root}>
-                  <RailCard
-                    mark={<Folder />}
-                    name={candidate.name}
-                    meta={shortPath(candidate.root)}
-                    metaTitle={candidate.root}
-                    metaMono
-                    selected={candidate.root === currentRoot}
-                    collapsed={railCollapsed}
-                    onClick={() => onSelectProject(candidate.root)}
-                    testId={`proj-root-${candidate.name}`}
-                  />
-                </li>
-              ))}
-            </ul>
+            <ProjectRailList
+              projects={projects}
+              currentRoot={currentRoot}
+              collapsed={railCollapsed}
+              canWrite={canWrite}
+              onSelect={onSelectProject}
+              onUnregistered={(root) => { if (root === currentRoot) onSelectProject('') }}
+              onToast={onToast}
+            />
           </RailColumn>
         )}
         list={(
           <ListColumn
             testId="projects-list"
             title={t('projects.clients')}
-            action={currentRoot !== '' && editor.ready ? (
-              <AddClientMenu hosts={editor.hosts} enabled={editor.enabled} onEnable={editor.enable} />
+            action={currentRoot !== '' && editor.ready && editor.loadErrorKey === null ? (
+              <AddClientMenu hosts={editor.hosts} enabled={editor.enabled} disabled={!canWrite} onEnable={editor.enable} />
             ) : undefined}
           >
-            {editor.loading ? (
+            {editor.loadErrorKey !== null ? (
+              <InlineError errorKey={editor.loadErrorKey} onRetry={editor.retry} testId="proj-load-error" />
+            ) : editor.loading ? (
               <ul className="grid gap-2" role="status" aria-label={t('common.loading')} data-testid="proj-loading">
                 {[0, 1, 2].map((index) => (
                   <li key={index} className="h-11 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />
                 ))}
               </ul>
             ) : (
-              <ClientList
-                groups={editor.groups}
-                selectedFile={group?.file ?? null}
-                statusOf={(file) => {
-                  const projectTarget = editor.projectTarget(file)
-                  return projectTarget === null ? null : editor.statusOf('project', projectTarget)
-                }}
-                onSelect={editor.select}
-                onDisable={editor.disable}
-              />
+              <>
+                {editor.clientsErrorKey !== null && <InlineError errorKey={editor.clientsErrorKey} testId="proj-clients-error" />}
+                <ClientList
+                  groups={editor.groups}
+                  selectedFile={group?.file ?? null}
+                  statusOf={(file) => {
+                    const projectTarget = editor.projectTarget(file)
+                    return projectTarget === null ? null : editor.statusOf('project', projectTarget)
+                  }}
+                  canWrite={canWrite}
+                  onSelect={editor.select}
+                  onDisable={editor.disable}
+                />
+              </>
             )}
           </ListColumn>
         )}
@@ -160,6 +165,19 @@ export function ProjectsView({
             onApply={onApply}
             onDelete={onDelete}
             onReload={editor.reload}
+            extraAction={editor.linkAgents === null ? undefined : (
+              <Hinted hint={t('projects.link_agents_hint')} asChild>
+                <button
+                  type="button"
+                  className={BUTTON_GHOST}
+                  disabled={!canWrite || editor.files.busy}
+                  data-testid="proj-link-agents"
+                  onClick={() => { void onLinkAgents() }}
+                >
+                  {t('projects.link_agents')}
+                </button>
+              </Hinted>
+            )}
           />
         )}
       />

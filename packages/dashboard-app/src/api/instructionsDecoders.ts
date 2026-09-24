@@ -181,6 +181,14 @@ function decodeTarget(value: unknown): InstructionTarget | null {
   }
 }
 
+/** 项目启用的客户端（`/api/projects/clients`）：source=file 读自 `.tenon/clients.json`，inferred 按现有指令文件推断。 */
+export interface ProjectClients { enabled: string[]; source: 'file' | 'inferred' }
+
+export function decodeProjectClients(value: unknown): ProjectClients | null {
+  if (!exactKeys(value, ['enabled', 'source']) || !stringArray(value.enabled) || !oneOf(value.source, ['file', 'inferred'] as const)) return null
+  return { enabled: value.enabled, source: value.source }
+}
+
 export function decodeInstructionState(value: unknown): InstructionState | null {
   if (!exactKeys(value, ['ok', 'level', 'root', 'hosts', 'targets']) || value.ok !== true) return null
   const hosts = decodeList(value.hosts, decodeHost)

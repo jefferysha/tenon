@@ -110,20 +110,32 @@ export function useInstructionFiles(root: string, isDirty: () => boolean, revisi
     }
   }, [active, read])
 
+  // 首读失败（state 仍为空）时，聚焦与快照恢复改为完整重读：成功后清掉错误。
+  const failedRef = useRef(false)
+  failedRef.current = state === null && errorKey !== null
+  const recover = useCallback(async (): Promise<void> => {
+    if (!active || inFlightRef.current > 0) return
+    await load()
+  }, [active, load])
+
   useEffect(() => {
-    const onFocus = (): void => { void check() }
+    const onFocus = (): void => { void (failedRef.current ? recover() : check()) }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [check])
+  }, [check, recover])
 
   // 只在 revision 真的变了才复查；root 变化由上面的首读负责，这里不重复发请求。
   const seenRevision = useRef(revision)
   useEffect(() => {
     if (seenRevision.current === revision) return
     seenRevision.current = revision
+    if (failedRef.current) {
+      void recover()
+      return
+    }
     if (!changedSinceLastRead(revision, readStartedRef.current)) return
     void check()
-  }, [revision, check])
+  }, [revision, check, recover])
 
   const run = useCallback(async <T>(action: () => Promise<T>): Promise<T | null> => {
     setBusy(true)

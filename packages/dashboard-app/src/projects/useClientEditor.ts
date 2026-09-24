@@ -8,6 +8,9 @@ export type Scope = 'project' | 'user'
 
 type Drafts = Readonly<Record<string, string>>
 
+/** Claude Code 的 CLAUDE.md 用 `@path` 引用其他文件：一行就让它读 AGENTS.md。 */
+const AGENTS_REFERENCE = '@AGENTS.md\n'
+
 const draftKey = (scope: Scope, id: string): string => `${scope}:${id}`
 
 function hasDraft(drafts: Drafts, scope: Scope, state: InstructionState | null): boolean {
@@ -19,6 +22,10 @@ function hasDraft(drafts: Drafts, scope: Scope, state: InstructionState | null):
 
 export interface ClientEditor {
   readonly loading: boolean
+  /** 读取失败（项目级指令文件或启用的客户端）：词典键后缀；有它时列表显示错误与重试。 */
+  readonly loadErrorKey: string | null
+  /** 启用 / 停用客户端写入失败：词典键后缀。 */
+  readonly clientsErrorKey: string | null
   /** 项目级数据面已就绪（state 非空）。 */
   readonly ready: boolean
   readonly hosts: readonly InstructionHostRow[]
@@ -45,6 +52,10 @@ export interface ClientEditor {
   apply: (files: readonly InstructionPreviewFile[]) => Promise<boolean>
   remove: () => Promise<boolean>
   reload: () => void
+  /** 缺 CLAUDE.md 而 AGENTS.md 存在时：写一行 `@AGENTS.md` 创建它；其余情况为 null。 */
+  readonly linkAgents: (() => Promise<boolean>) | null
+  /** 读取失败后的重试：项目级、用户级与启用的客户端一起重读。 */
+  retry: () => void
 }
 
 /**
@@ -72,7 +83,7 @@ export function useClientEditor(root: string, revision: string): ClientEditor {
 
   const hosts = project.state?.hosts ?? []
   const projectTargets = project.state?.targets ?? []
-  const clients = useEnabledClients(root, hosts, projectTargets)
+  const clients = useEnabledClients(root, revision)
   const groups = groupByProjectFile(hosts, projectTargets, clients.enabled)
 
   const [selected, setSelected] = useState<string | null>(null)
@@ -89,13 +100,19 @@ export function useClientEditor(root: string, revision: string): ClientEditor {
   const key = target === null ? null : draftKey(scope, target.id)
   const text = key === null ? '' : drafts[key] ?? target?.text ?? ''
 
+  const agents = projectTargets.find((candidate) => candidate.id === 'AGENTS.md')
+  const canLink = scope === 'project' && target !== null && target.id === 'CLAUDE.md' && !target.exists && target.error === null
+    && agents !== undefined && agents.exists
+
   const dropDraft = (): void => {
     if (key === null) return
     setDrafts((current) => Object.fromEntries(Object.entries(current).filter(([candidate]) => candidate !== key)))
   }
 
   return {
-    loading: project.loading,
+    loading: project.loading || clients.loading,
+    loadErrorKey: project.state === null ? project.errorKey : clients.loading ? null : clients.loadErrorKey,
+    clientsErrorKey: clients.errorKey,
     ready: project.state !== null,
     hosts,
     enabled: clients.enabled,
@@ -130,6 +147,17 @@ export function useClientEditor(root: string, revision: string): ClientEditor {
       if (removed === null) return false
       dropDraft()
       return true
+    },
+    linkAgents: !canLink || target === null ? null : async () => {
+      const applied = await project.apply(AGENTS_REFERENCE, [{ id: target.id, base_digest: target.digest }])
+      if (applied === null) return false
+      dropDraft()
+      return true
+    },
+    retry: () => {
+      void project.reload()
+      void user.reload()
+      clients.reload()
     },
     reload: () => {
       dropDraft()
