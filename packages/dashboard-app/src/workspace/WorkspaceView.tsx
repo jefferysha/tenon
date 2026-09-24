@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useT } from '../i18n'
 import { CanonicalStateVersionNotice } from '../progress/CanonicalStateVersionNotice'
 import { SnapshotInlineError } from '../progress/SnapshotInlineError'
@@ -6,16 +6,16 @@ import { isProjectNavigable } from '../state/projectSelectionModel'
 import type { WorkflowRules } from '../model/workflowModel'
 import type { Snapshot, UserRefView } from '../types'
 import { matchesQuery } from '../shell/GlobalSearch'
-import { DetailEmpty, ThreeColumns } from '../shell/ThreeColumns'
+import { ThreeColumns } from '../shell/ThreeColumns'
 import type { TopBarProject } from '../shell/TopBar'
 import { ProjectRail } from './ProjectRail'
 import { TaskActionDialog } from './TaskActionDialog'
 import { TaskDetailPane } from './TaskDetailPane'
 import { TaskListPane } from './TaskListPane'
-import { archivedRowsOf, DEFAULT_TASK_FILTER, filterRows, rootBasename, rowsOf, uncommittedDeletionsOf, type TaskFilterState, type TaskRow } from './taskModel'
-import { unarchiveTask } from '../api/taskLifecycleClient'
-import { formatApiError } from '../api/transport'
+import { archivedRowsOf, DEFAULT_TASK_FILTER, filterRows, isTaskStatus, rowsOf, uncommittedDeletionsOf, type TaskFilterState, type TaskRow, type TaskStatus } from './taskModel'
+import { useTaskActions } from './useTaskActions'
 import { useWorkflowIoLookup } from './useWorkflowDefinition'
+import { readWorkspaceParam, TASK_STATUS_PARAM, writeWorkspaceParam } from './workspaceLocation'
 
 export interface WorkspaceViewProps {
   snapshot: Snapshot | null
@@ -33,6 +33,8 @@ export interface WorkspaceViewProps {
   /** Current declared user for 我的 and 接手. */
   me?: UserRefView | null
   onUserMissing?: () => void
+  /** 测试注入筛选栏宽度测量。 */
+  measureWidth?: (element: HTMLElement) => number
 }
 
 const RAIL_KEY = 'tenon-dashboard-rail:workspace'
@@ -41,23 +43,42 @@ function matchesSearch(search: string, row: TaskRow): boolean {
   return matchesQuery(search, row.change.name, row.workflow, row.change.track, row.change.phase)
 }
 
-/** 工作台：左列项目 / 中列任务（按阶段筛选）/ 右列所选任务逐阶段的输出与输入。只读。 */
+/** URL `status`（顶部徽标跳转带 `status=needs-you`）；非法值回到「全部」。 */
+function statusFromUrl(): TaskStatus {
+  const value = readWorkspaceParam(TASK_STATUS_PARAM)
+  return isTaskStatus(value) ? value : 'all'
+}
+
+/** 工作台：左列项目 / 中列任务（单行筛选栏）/ 右列所选任务逐阶段的输出与输入。 */
 export function WorkspaceView({
   snapshot, currentRoot, rulesByKey, projects, onSelectProject, selectedChange, onSelectedChange, onToast,
-  staleError = null, loading = false, onRefresh, me = null, onUserMissing,
+  staleError = null, loading = false, onRefresh, me = null, onUserMissing, measureWidth,
 }: WorkspaceViewProps): JSX.Element {
   const { t } = useT()
-  const [filter, setFilter] = useState<TaskFilterState>(DEFAULT_TASK_FILTER)
+  const [filter, setFilter] = useState<TaskFilterState>(() => ({ ...DEFAULT_TASK_FILTER, status: statusFromUrl() }))
   const [search, setSearch] = useState('')
   const [listMode, setListMode] = useState<'active' | 'archived'>('active')
-  const [pending, setPending] = useState<{ change: string; action: 'archive' | 'delete' } | null>(null)
+  const [pending, setPending] = useState<{ root: string; change: string; action: 'archive' | 'delete' } | null>(null)
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(RAIL_KEY) === '1' } catch { return false }
   })
   useEffect(() => {
     try { localStorage.setItem(RAIL_KEY, railCollapsed ? '1' : '0') } catch { /* ignore */ }
   }, [railCollapsed])
-  useEffect(() => { setFilter(DEFAULT_TASK_FILTER); setSearch(''); setListMode('active'); setPending(null) }, [currentRoot])
+  // 换项目只清维度筛选与搜索；状态筛选跨项目保留（徽标跳转可能同时带 root 与 status）。
+  useEffect(() => {
+    setFilter((current) => ({ ...DEFAULT_TASK_FILTER, status: current.status }))
+    setSearch('')
+    setListMode('active')
+    setPending(null)
+  }, [currentRoot])
+  useEffect(() => { writeWorkspaceParam(TASK_STATUS_PARAM, filter.status === 'all' ? null : filter.status) }, [filter.status])
+  // 前进 / 后退到带 status 的地址时跟随 URL。
+  useEffect(() => {
+    const onPop = (): void => setFilter((current) => ({ ...current, status: statusFromUrl() }))
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   // 聚合语境（未选项目）不发 per-root 请求：卡片状态退回「进行中」，不判缺产出。
   const pairs = useMemo(() => {
@@ -78,19 +99,8 @@ export function WorkspaceView({
   const archivedView = listMode === 'archived'
   const rows = archivedView ? archivedRows : activeRows
   const deletions = uncommittedDeletionsOf(snapshot, currentRoot)
-  // 归档 / 删除 need a selected project: the aggregate view issues only /api/snapshot.
-  const canAct = currentRoot !== ''
-
-  async function unarchive(row: TaskRow): Promise<void> {
-    try {
-      await unarchiveTask({ root: row.root, change: row.change.name })
-      onToast?.(t('workspace.done_unarchived', { name: row.change.name }))
-      onSelectedChange(null)
-      await onRefresh?.()
-    } catch (error) {
-      onToast?.(formatApiError(error, t, { exposeServerDetail: true }))
-    }
-  }
+  const request = useCallback((row: TaskRow, action: 'archive' | 'delete') => setPending({ root: row.root, change: row.change.name, action }), [])
+  const { menuOf, unarchive } = useTaskActions({ me, listMode, onToast, onRefresh, onUserMissing, onSelectedChange, onRequest: request })
 
   const compat = useMemo(() => {
     const scoped = (snapshot?.projects ?? []).filter((project) => isProjectNavigable(project) && (currentRoot === '' || project.root === currentRoot))
@@ -110,10 +120,6 @@ export function WorkspaceView({
     () => (archivedView ? rows : filterRows(rows, filter)).filter((row) => matchesSearch(search, row)),
     [archivedView, rows, filter, search],
   )
-  // 只剩已完结任务被「含已完结」关掉时，空态要说出它们在哪，而不是「还没有任务」。
-  const hiddenCompleted = archivedView || filter.includeCompleted
-    ? 0
-    : filterRows(rows, { ...filter, includeCompleted: true }).filter((row) => row.archived && matchesSearch(search, row)).length
   const selectedRow: TaskRow | null = useMemo(() => {
     const explicit = selectedChange === null
       ? undefined
@@ -121,15 +127,11 @@ export function WorkspaceView({
     return explicit ?? visibleRows[0] ?? null
   }, [rows, visibleRows, selectedChange, currentRoot])
 
-  const currentProject = projects.find((project) => project.root === currentRoot)
-  const eyebrow = currentRoot === ''
-    ? t('workspace.eyebrow_all')
-    : t('workspace.eyebrow_project', { project: (currentProject?.name ?? rootBasename(currentRoot)).toUpperCase() })
   const emptyKind = archivedView
     ? (rows.length === 0 ? 'no-archived' : 'filtered')
     : rows.length === 0
       ? (currentRoot === '' && projects.length === 0 ? 'no-project' : compat.issues.length > 0 ? 'compat' : 'no-task')
-      : hiddenCompleted > 0 ? 'completed' : 'filtered'
+      : 'filtered'
 
   return (
     <>
@@ -147,7 +149,6 @@ export function WorkspaceView({
       )}
       list={(
         <TaskListPane
-          eyebrow={eyebrow}
           rows={rows}
           visibleRows={visibleRows}
           filter={filter}
@@ -158,7 +159,6 @@ export function WorkspaceView({
           onSelect={(row) => onSelectedChange(row.change.name)}
           showProject={currentRoot === ''}
           emptyKind={emptyKind}
-          hiddenCompleted={hiddenCompleted}
           onClearFilters={() => { setFilter(DEFAULT_TASK_FILTER); setSearch('') }}
           notice={notice}
           me={me}
@@ -166,10 +166,12 @@ export function WorkspaceView({
           onListMode={(next) => { setListMode(next); setSearch(''); onSelectedChange(null) }}
           archivedCount={archivedRows.length}
           uncommittedDeletions={deletions}
-          {...(canAct ? { onAction: (row: TaskRow, action: 'archive' | 'delete') => setPending({ change: row.change.name, action }) } : {})}
-          {...(canAct && archivedView ? { onUnarchive: (row: TaskRow) => { void unarchive(row) } } : {})}
+          menuOf={(row) => menuOf(row, 'card')}
+          {...(archivedView ? { onUnarchive: (row: TaskRow) => { void unarchive(row) } } : {})}
+          {...(measureWidth === undefined ? {} : { measureWidth })}
         />
       )}
+      // 没有可选任务时不渲染右列内容：空态已在中列说明，右列再写「选一个任务」是重复。
       detail={selectedRow
         ? (
           <TaskDetailPane
@@ -179,17 +181,15 @@ export function WorkspaceView({
             onRefresh={onRefresh}
             showReviewConsole={selectedChange !== null && currentRoot !== ''}
             fetchDefinition={currentRoot !== ''}
-            me={me}
-            onUserMissing={onUserMissing}
-            {...(canAct && !archivedView ? { onAction: (action: 'archive' | 'delete') => setPending({ change: selectedRow.change.name, action }) } : {})}
-            {...(canAct && archivedView ? { onUnarchive: () => { void unarchive(selectedRow) } } : {})}
+            menu={menuOf(selectedRow, 'detail')}
+            archived={archivedView}
           />
         )
-        : <DetailEmpty title={t('workspace.no_selection')} desc="" testId="task-detail-empty" />}
+        : <section className="min-h-0 bg-surface-detail max-[900px]:hidden" aria-hidden="true" data-testid="task-detail-none" />}
     />
     {pending !== null && (
       <TaskActionDialog
-        root={currentRoot}
+        root={pending.root}
         change={pending.change}
         action={pending.action}
         onClose={() => setPending(null)}

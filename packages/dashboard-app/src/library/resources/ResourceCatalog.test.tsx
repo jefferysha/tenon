@@ -94,15 +94,19 @@ afterEach(() => {
 })
 
 describe('资源目录', () => {
-  it('React + Tailwind + 图标三个芯片只留命中的条目，且不再发请求', async () => {
+  it('图标 + React + Tailwind 三个下拉只留命中的条目，且不再发请求', async () => {
     const user = userEvent.setup()
     const calls = stubFetch()
     renderCatalog()
     expect(await screen.findByTestId('res-row-lucide')).toBeInTheDocument()
     const before = calls.length
-    await user.click(screen.getByTestId('res-category-icons'))
-    await user.click(screen.getByTestId('res-framework-react'))
-    await user.click(screen.getByTestId('res-styling-tailwind'))
+    for (const [facet, value] of [['category', 'icons'], ['framework', 'react'], ['styling', 'tailwind']] as const) {
+      await user.click(screen.getByTestId(`res-facet-${facet}`))
+      await user.click(await screen.findByTestId(`res-${facet}-${value}`))
+    }
+    // 触发器显示当前值，一眼看出哪个维度在生效。
+    expect(screen.getByTestId('res-facet-category')).toHaveTextContent('类别图标')
+    expect(screen.getByTestId('res-facet-category')).toHaveAttribute('data-active', 'true')
     expect(screen.getByTestId('res-row-lucide')).toBeInTheDocument()
     expect(screen.getByTestId('res-row-iconify')).toBeInTheDocument()
     expect(screen.getByTestId('res-row-mine')).toBeInTheDocument()
@@ -111,18 +115,33 @@ describe('资源目录', () => {
     expect(calls.length).toBe(before)
   })
 
-  // 1440px 下单行放不下「angular」「less」等芯片，横向滚动会把它们截成半个词：改为整行换行。
-  it('芯片行换行显示完整，不横向溢出裁切', async () => {
+  // 四组芯片曾经各占一行（换行后首条资源被推到 y≈690）：改为单行下拉，任何地方不换行。
+  it('筛选栏单行：四个维度各一个下拉触发器，不换行、不横向滚动', async () => {
     stubFetch()
     renderCatalog()
+    const bar = await screen.findByTestId('res-facets')
+    expect(bar.className.split(' ')).toContain('flex-nowrap')
+    expect(bar.className.split(' ')).not.toContain('flex-wrap')
+    expect(bar.className.split(' ')).not.toContain('overflow-x-auto')
     for (const facet of ['category', 'framework', 'styling', 'license']) {
-      const row = await screen.findByTestId(`res-facet-${facet}`)
-      expect(row.className.split(' '), facet).toContain('flex-wrap')
-      expect(row.className.split(' '), facet).not.toContain('overflow-x-auto')
-      expect(row).toHaveAttribute('role', 'tablist')
-      // 四组都以「全部」开头，行首组名让人分得清是类别、框架、样式还是许可。
-      expect(row.firstElementChild, facet).toHaveTextContent({ category: '类别', framework: '框架', styling: '样式', license: '许可' }[facet] ?? '')
+      const trigger = screen.getByTestId(`res-facet-${facet}`)
+      expect(trigger, facet).toHaveAttribute('aria-haspopup', 'menu')
+      expect(trigger, facet).toHaveTextContent({ category: '类别', framework: '框架', styling: '样式', license: '许可' }[facet] ?? '')
     }
+    expect(bar).toContainElement(screen.getByTestId('res-new'))
+  })
+
+  it('再选「全部」清掉该维度', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderCatalog()
+    await user.click(await screen.findByTestId('res-facet-category'))
+    await user.click(await screen.findByTestId('res-category-component-lib'))
+    expect(screen.queryByTestId('res-row-lucide')).toBeNull()
+    await user.click(screen.getByTestId('res-facet-category'))
+    await user.click(await screen.findByTestId('res-category-all'))
+    expect(screen.getByTestId('res-row-lucide')).toBeInTheDocument()
+    expect(screen.getByTestId('res-facet-category')).toHaveAttribute('data-active', 'false')
   })
 
   it('仅链接条目的详情显示许可 pill 与声明；内建条目只有复制', async () => {

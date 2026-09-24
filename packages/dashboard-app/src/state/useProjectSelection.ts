@@ -23,6 +23,8 @@ export interface DashboardNavigationTarget {
 }
 
 const HISTORY_POSITION_KEY = '__tenonDashboardPosition'
+/** 工作台自有的 URL 键（workspace/workspaceLocation.ts 读写）。 */
+const WORKSPACE_ONLY_PARAMS = ['status', 'step'] as const
 
 interface HistorySnapshot {
   readonly url: string
@@ -235,10 +237,14 @@ export function useProjectSelection(input: {
       const root = input.snapshot
         ? (currentRoot || (input.preserveUnavailableRoot ? (preferredRoot ?? '') : ''))
         : (preferredRoot ?? '')
-      const search = dashboardSearch(window.location.search, {
+      // 聚合工作台（root 为空）也写 change：刷新或分享后仍停在同一任务。
+      const base = new URLSearchParams(window.location.search)
+      // status / step 只属于工作台；离开工作台时一并去掉，免得回来时带着过期的筛选。
+      if (input.view !== 'progress') for (const key of WORKSPACE_ONLY_PARAMS) base.delete(key)
+      const search = dashboardSearch(base.toString(), {
         view: input.view,
         root,
-        change: input.view === 'progress' && root !== '' ? input.selectedChange : null,
+        change: input.view === 'progress' ? input.selectedChange : null,
       })
       const next = `${window.location.pathname}${search}${window.location.hash}`
       const now = `${window.location.pathname}${window.location.search}${window.location.hash}`

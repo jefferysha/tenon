@@ -1358,13 +1358,15 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
 
     render(<App />)
 
-    // 聚合工作台：自定义 workflow 的卡按跨项目快照自带的 rules 判定——阶段芯片「复核」计 1，
+    // 聚合工作台：自定义 workflow 的卡按跨项目快照自带的 rules 判定——阶段「复核」计 1，
     // 一行状态由 readiness 推出「可进入完成」；聚合语境不发任何 per-root 请求。
     expect(await screen.findByTestId('task-card-review-me')).toBeInTheDocument()
-    // 只有一条工作流时阶段行直接可用，阶段序取该工作流自己的（复核 / 完成）。
-    expect(screen.getByTestId('task-facet-workflow-compact')).toBeInTheDocument()
-    expect(screen.getByTestId('task-filter-review')).toHaveTextContent('1')
-    expect(screen.getByTestId('task-filter-done')).toHaveTextContent('0')
+    // 只有一条工作流：工作流维度隐藏，阶段下拉直接可用，阶段序取该工作流自己的（复核 / 完成）。
+    expect(screen.queryByTestId('task-facet-workflow')).toBeNull()
+    await userEvent.click(screen.getByTestId('task-facet-stage'))
+    expect(await screen.findByTestId('task-facet-stage-review')).toHaveTextContent('1')
+    expect(screen.getByTestId('task-facet-stage-done')).toHaveTextContent('0')
+    await userEvent.keyboard('{Escape}')
     expect(screen.getByTestId('task-summary-review-me')).toHaveTextContent('复核 · 可进入完成')
     expect(new Set(fetchMock.mock.calls.map(([url]) => String(url)))).toEqual(new Set(['/api/snapshot', '/api/user']))
   })
@@ -1655,7 +1657,8 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     render(<App />)
     const empty = await screen.findByTestId('task-list-empty-no-task')
     expect(empty.textContent).toContain('tenon init')
-    expect(screen.getByTestId('task-detail-empty')).toBeInTheDocument()
+    // 列表为空：右列不再写「选一个任务」。
+    expect(screen.getByTestId('task-detail-none')).toBeEmptyDOMElement()
   })
 
   it('未来 canonical 版本优先于 no-change 教学态，进入只读升级恢复路径', async () => {
@@ -1938,6 +1941,29 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
     expect(new URLSearchParams(window.location.search).get('root')).toBeNull()
+  })
+
+  it('聚合工作台选中任务也写 change；离开工作台时去掉 status / step', async () => {
+    window.history.replaceState({}, '', '/?view=progress&status=running')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') {
+        return { ok: true, json: async () => makeSnapshot([
+          makeProject('/repo-a', [makeChange('a1', 'build')]),
+          makeProject('/repo-b', [makeChange('b1', 'build')]),
+        ]) }
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+    render(<App />)
+    fireEvent.click(await screen.findByTestId('task-card-b1'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('change')).toBe('b1'))
+    const params = new URLSearchParams(window.location.search)
+    expect(params.get('root')).toBeNull()
+    expect(params.get('status')).toBe('running')
+    fireEvent.click(screen.getByTestId('nav-workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    expect(new URLSearchParams(window.location.search).get('status')).toBeNull()
+    expect(new URLSearchParams(window.location.search).get('step')).toBeNull()
   })
 })
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { WbStepIo } from '../api/governanceTypes'
 import type { ChangeSnapshot, Snapshot } from '../types'
 import { zh } from '../i18n/translations'
-import { archivedRowsOf, DEFAULT_TASK_FILTER, facetTotal, filterRows, rowsOf, stagesOf, summaryOf, summaryText, taskFacets, uncommittedDeletionsOf, type TaskRow } from './taskModel'
+import { archivedRowsOf, DEFAULT_TASK_FILTER, facetTotal, filterRows, rowsOf, stagesOf, statusCounts, statusOf, summaryOf, summaryShort, summaryText, taskFacets, uncommittedDeletionsOf, type TaskRow } from './taskModel'
 
 function t(key: string, vars: Record<string, string | number> = {}): string {
   let node: unknown = zh
@@ -89,6 +89,15 @@ describe('summaryOf · 四级优先级', () => {
     const row: TaskRow = { key: 'k', root: '/repo', change: change(), rules: undefined, workflow: 'default', archived: false, owner: null, stages: [], summary: { kind: 'missing', slot: BUILD_IO.outputs[0] as never } }
     expect(summaryText(row, t)).toBe('build · 缺 build_sha')
     expect(summaryText({ ...row, summary: { kind: 'ready', to: 'verify' } }, t)).toBe('build · 可进入verify')
+    // 详情页的状态行不重复阶段名（阶段轨已写明）。
+    expect(summaryShort({ ...row, summary: { kind: 'ready', to: 'verify' } }, t)).toBe('可进入verify')
+  })
+  it('状态筛选由 summary.kind 映射：可进入下一阶段 = 需要你，评审待确认 = 待复核，缺输出 = 进行中', () => {
+    expect(statusOf({ kind: 'ready', to: 'verify' })).toBe('needs-you')
+    expect(statusOf({ kind: 'review' })).toBe('review')
+    expect(statusOf({ kind: 'missing', slot: BUILD_IO.outputs[0] as never })).toBe('running')
+    expect(statusOf({ kind: 'running' })).toBe('running')
+    expect(statusOf({ kind: 'completed' })).toBe('done')
   })
 })
 
@@ -123,32 +132,37 @@ describe('rowsOf / filterRows / taskFacets', () => {
   it('活跃任务按更新时间倒序，已归档排最后', () => {
     expect(rows.map((row) => row.change.name)).toEqual(['d', 'b', 'a', 'c'])
   })
-  it('工作流 / 轨道 / 阶段三层过滑与含已归档开关', () => {
-    expect(filterRows(rows, DEFAULT_TASK_FILTER).map((row) => row.change.name)).toEqual(['d', 'b', 'a'])
-    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default' }).map((row) => row.change.name)).toEqual(['b', 'a'])
+  it('状态 / 工作流 / 轨道 / 阶段逐层过滤；「全部」含已完结，已完结只在「已完成」里单独出现', () => {
+    expect(filterRows(rows, DEFAULT_TASK_FILTER).map((row) => row.change.name)).toEqual(['d', 'b', 'a', 'c'])
+    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, status: 'done' }).map((row) => row.change.name)).toEqual(['c'])
+    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, status: 'running' }).map((row) => row.change.name)).toEqual(['d', 'b', 'a'])
+    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default' }).map((row) => row.change.name)).toEqual(['b', 'a', 'c'])
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', track: 'frontend' }).map((row) => row.change.name)).toEqual(['b'])
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', stage: 'build' }).map((row) => row.change.name)).toEqual(['a'])
     expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, stage: 'build' }).map((row) => row.change.name)).toEqual(['a'])
-    expect(filterRows(rows, { ...DEFAULT_TASK_FILTER, includeCompleted: true })).toHaveLength(4)
+    expect(statusCounts(rows, DEFAULT_TASK_FILTER)).toEqual({ all: 4, 'needs-you': 0, running: 3, review: 0, done: 1 })
+    // 状态计数受其它维度约束，忽略状态本身。
+    expect(statusCounts(rows, { ...DEFAULT_TASK_FILTER, status: 'done', workflow: 'compact' })).toEqual({ all: 1, 'needs-you': 0, running: 1, review: 0, done: 0 })
   })
   it('facet：未选工作流时无阶段行；选定后阶段序取该工作流，计数受其它层约束', () => {
-    const open = taskFacets(rows, DEFAULT_TASK_FILTER)
+    const running = { ...DEFAULT_TASK_FILTER, status: 'running' as const }
+    const open = taskFacets(rows, running)
     expect(open.workflows.map((chip) => [chip.id, chip.count])).toEqual([['compact', 1], ['default', 2]])
     expect(open.tracks.map((chip) => [chip.id, chip.count])).toEqual([['backend', 2], ['frontend', 1]])
     expect(open.stages).toBeNull()
     // 只有一条工作流但多条轨道 → 阶段仍不可比；再选定一条轨道（或只剩一条）阶段行才出现
     const single = rows.filter((row) => row.workflow === 'default')
-    expect(taskFacets(single, DEFAULT_TASK_FILTER).stages).toBeNull()
-    expect(taskFacets(single, { ...DEFAULT_TASK_FILTER, track: 'backend' }).stages?.map((chip) => chip.id)).toEqual(STEPS)
-    const compact = taskFacets(rows, { ...DEFAULT_TASK_FILTER, workflow: 'compact' })
+    expect(taskFacets(single, running).stages).toBeNull()
+    expect(taskFacets(single, { ...running, track: 'backend' }).stages?.map((chip) => chip.id)).toEqual(STEPS)
+    const compact = taskFacets(rows, { ...running, workflow: 'compact' })
     expect(compact.stages?.map((chip) => [chip.id, chip.label, chip.count])).toEqual([['draft', '起草', 1], ['done', '完成', 0]])
-    const fe = taskFacets(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default', track: 'frontend' })
+    const fe = taskFacets(rows, { ...running, workflow: 'default', track: 'frontend' })
     expect(fe.stages?.map((chip) => chip.id)).toEqual(STEPS)
     expect(fe.stages?.find((chip) => chip.id === 'spec')?.count).toBe(1)
     expect(fe.stages?.find((chip) => chip.id === 'build')?.count).toBe(0)
     // 轨道计数忽略自身层：frontend 在 default 下仍计 1、backend 计 1
     expect(fe.tracks.map((chip) => [chip.id, chip.count])).toEqual([['backend', 1], ['frontend', 1]])
-    expect(facetTotal(rows, { ...DEFAULT_TASK_FILTER, workflow: 'default' }, 'workflow')).toBe(3)
+    expect(facetTotal(rows, { ...running, workflow: 'default' }, 'workflow')).toBe(3)
   })
 })
 

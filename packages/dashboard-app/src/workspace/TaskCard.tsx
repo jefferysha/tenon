@@ -1,17 +1,35 @@
-import { Archive, Trash2 } from 'lucide-react'
 import { useT } from '../i18n'
-import { MenuButton } from '../shared/MenuButton'
 import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { MiniPipeline } from './MiniPipeline'
-import { rootBasename, summaryText, type TaskRow } from './taskModel'
+import { TaskMenu, type TaskMenuEntry } from './TaskMenu'
+import { rootBasename, statusOf, summaryText, type TaskRow, type TaskStatus } from './taskModel'
 import { cn } from '@/lib/utils'
 
-const TONE: Record<TaskRow['summary']['kind'], PillTone> = {
-  missing: 'pending',
-  review: 'blocked',
-  ready: 'done',
+/** 语义色跟随状态筛选的分组：需要你 = 琥珀，进行中 = 信息蓝，待复核 = 红，已完成 = 中性。 */
+const STATUS_TONE: Record<Exclude<TaskStatus, 'all'>, PillTone> = {
+  'needs-you': 'pending',
   running: 'running',
-  completed: 'neutral',
+  review: 'blocked',
+  done: 'neutral',
+}
+
+export function summaryTone(row: TaskRow): PillTone {
+  return STATUS_TONE[statusOf(row.summary)]
+}
+
+/** 负责人头像：首字母圆标，名字放 title。 */
+export function OwnerAvatar({ name, testId }: { name: string; testId?: string }): JSX.Element {
+  return (
+    <span
+      className="grid size-6 flex-none place-items-center rounded-full bg-fill text-micro font-semibold text-text-2"
+      title={name}
+      role="img"
+      aria-label={name}
+      data-testid={testId}
+    >
+      {name.slice(0, 1).toUpperCase()}
+    </span>
+  )
 }
 
 export interface TaskCardProps {
@@ -20,17 +38,17 @@ export interface TaskCardProps {
   /** 聚合语境（未选项目）时副行带项目名。 */
   showProject: boolean
   onSelect: () => void
-  /** 缺省 = 只读卡（聚合语境）：不渲染 归档 / 删除 菜单。 */
-  onAction?: (action: 'archive' | 'delete') => void
+  /** ⋯ 菜单项；空 = 不渲染菜单。 */
+  menu: readonly TaskMenuEntry[]
 }
 
-/** 中列任务卡：名称 / 工作流 · 轨道 / 迷你流水线 / 一行数据状态 + 归档 / 删除 菜单。 */
-export function TaskCard({ row, selected, showProject, onSelect, onAction }: TaskCardProps): JSX.Element {
+/** 中列任务卡：名称 + 状态 / 项目 · 工作流/轨道 + 负责人头像 / 迷你流水线 + ⋯。 */
+export function TaskCard({ row, selected, showProject, onSelect, menu }: TaskCardProps): JSX.Element {
   const { t } = useT()
   const change = row.change
-  const slug = [showProject ? rootBasename(row.root) : null, row.workflow, change.track, row.owner?.name ?? null]
-    .filter((part): part is string => typeof part === 'string' && part !== '')
-    .join(' · ')
+  const flow = change.track === '' ? row.workflow : `${row.workflow}/${change.track}`
+  const meta = [showProject ? rootBasename(row.root) : null, flow].filter((part): part is string => part !== null && part !== '').join(' · ')
+  const summary = summaryText(row, t)
   return (
     <div className="relative">
     <button
@@ -41,31 +59,25 @@ export function TaskCard({ row, selected, showProject, onSelect, onAction }: Tas
       )}
       aria-current={selected ? 'true' : undefined}
       data-summary={row.summary.kind}
+      data-status={statusOf(row.summary)}
       data-owner={row.owner?.slug ?? ''}
       data-testid={`task-card-${change.name}`}
       onClick={onSelect}
     >
       <span className="flex min-w-0 items-center justify-between gap-3">
         <span className="min-w-0 flex-1 truncate text-title font-semibold text-text" title={change.name}>{change.name}</span>
-        <StatusPill tone={TONE[row.summary.kind]} testId={`task-summary-${change.name}`} className="flex-none max-w-[60%]" title={summaryText(row, t)}>{summaryText(row, t)}</StatusPill>
+        <StatusPill tone={summaryTone(row)} testId={`task-summary-${change.name}`} className="flex-none max-w-[60%]" title={summary}>{summary}</StatusPill>
       </span>
-      <span className="truncate font-mono text-body text-text-2">{slug}</span>
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="min-w-0 flex-1 truncate font-mono text-body text-text-2" data-testid={`task-meta-${change.name}`}>{meta}</span>
+        {row.owner !== null && <OwnerAvatar name={row.owner.name} testId={`task-owner-${change.name}`} />}
+      </span>
       <span className="flex min-w-0 items-center gap-3">
         <span className="min-w-0 flex-1"><MiniPipeline stages={row.stages} testId={`task-pipeline-${change.name}`} /></span>
         <span className="size-7 flex-none" aria-hidden="true" />
       </span>
     </button>
-    {onAction !== undefined && (
-      <MenuButton
-        className="absolute bottom-3.5 right-2.5"
-        label={t('workspace.task_actions')}
-        testId={`task-card-menu-${change.name}`}
-        items={[
-          { id: 'archive', label: t('workspace.archive'), icon: <Archive />, onSelect: () => onAction('archive') },
-          { id: 'delete', label: t('workspace.delete'), icon: <Trash2 />, danger: true, onSelect: () => onAction('delete') },
-        ]}
-      />
-    )}
+    <TaskMenu items={menu} testId={`task-card-menu-${change.name}`} className="absolute right-1.5 bottom-2" />
     </div>
   )
 }

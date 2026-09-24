@@ -66,23 +66,33 @@ last one. Anything that needs its own surface opens the shared right-side `share
 ## 工作台 rules (`workspace/`)
 
 - Writes are limited to the three task-lifecycle actions: 归档 / 取消归档 / 删除 (plus the existing 接手 and
-  review acknowledgement). Everything else is read-only, and all three need a selected project: the
-  aggregate view issues only `/api/snapshot` and therefore renders no action menu at all.
+  review acknowledgement). Everything else is read-only. Every action carries the row's own `root`, so the
+  aggregate view offers the same menu; it still issues only `/api/snapshot` until the user acts.
+- Actions sit next to the object, never in a bottom action bar: the card ⋯ and the detail ⋯ (right of the H1)
+  render the same `taskMenuItems()` list — 复制链接 · 接手 · 归档 (取消归档 in 已归档) · separator · 删除
+  (`workspace/TaskMenu.tsx`, handlers from `useTaskActions`). The detail pane has no footer.
 - Network: snapshot, `GET /api/workflows/:name` (only when a project is selected — the aggregate view must
   not issue per-root requests; it falls back to `fallbackStepIo` from `change.workflowRules.outputsByStep`),
   `GET /api/documents/read`, `GET /api/change/:name/lifecycle`, `POST …/archive`, `POST …/unarchive`,
   `DELETE /api/change/:name`.
 - 归档 hides a task for the acting user only; 完结 / 已完结 is the workflow's last step. Never mix the words:
-  the toggle reads 含已完结 (`includeCompleted`, summary kind `completed`), the view reads 已归档.
+  已完结 tasks sit under the 已完成 status chip (summary kind `completed`), the view reads 已归档. There is no
+  separate 含已完结 toggle.
 - `TaskActionDialog` shows only reasons the server returned, disables 确认 while a blocker is present, and
   echoes back exactly the codes it displayed. A 409 replaces the list with the reasons the server re-checked
   under the lock; the dialog never computes a reason itself.
-- The card's 归档 / 删除 menu is a **sibling** of the card button, never nested inside it (no interactive
-  element inside another). The 已归档 view drops every facet and the action menu: search plus 取消归档 only.
+- The card's ⋯ menu is a **sibling** of the card button, never nested inside it (no interactive
+  element inside another). The 已归档 view drops every facet and the card menu: search plus the row's 取消归档.
 - Task status is derived, never named abstractly (`taskModel.summaryOf`): completed → first unready
   output of the current stage (`缺 <slot>`) → review handshake pending (`评审待确认`) → any forward
   transition ready (`可进入<stage>`) → `进行中`. Facets: workflow → track → stage; the stage row appears only
   when one workflow **and** one track are effective, because each track branch has its own stages.
+- Status chips (same as the prototype): 全部 / 需要你 / 进行中 / 待复核 / 已完成, mapped from `summary.kind`
+  by `taskModel.statusOf` (ready → 需要你, review → 待复核, missing / running → 进行中, completed → 已完成).
+  The pill tone follows the same grouping (需要你 = amber, never success green). URL `status` holds the chip
+  (`status=needs-you` is the top-bar badge's jump target); URL `step` holds the detail's selected stage and is
+  honoured only for the task named by `change` (or when `change` is absent). Both are dropped when the view
+  leaves 工作台. The aggregate view writes `change` too.
 - Stage IO comes from `def.branches[change.track]?.effectiveIo ?? def.branches._base?.effectiveIo`.
 - `MiniPipeline` / `StageRail` colour segments with `bg-seg-done` / `bg-seg-now` / `bg-seg-next` only.
 - `taskModel.stagesOf` maps a snapshot `current` segment to `done` when `change.archived === 'true'`: archiving
@@ -106,10 +116,17 @@ last one. Anything that needs its own surface opens the shared right-side `share
   `task-io-tab-outputs` / `task-io-tab-tests`, counts in the tab) above one panel that shows the active sheet
   only; a file row still opens `DocumentDrawer`. The 测试 tab appears only when the selected step declares
   tests, its count is `通过/总数`, and a row opens `TestRunDrawer` (inputs, outputs, log tail, screenshots,
-  history). Status words are one word each — 通过 / 失败 / 过期 / 未运行 / 运行中 — and never a sentence. The project rail card shows the project path only — task counts live in the facet chips, never
-  twice. Chips and card pills never wrap internally (`whitespace-nowrap`, truncated titles), but facet rows **do**
-  wrap (`flex-wrap`): a horizontally scrolling row clipped chips mid-word at 1440px (「验…」「未提交删除」).
-  `ListColumn` header blocks (title row, search, chips) are `shrink-0`, so a long list scrolls the column instead
+  history). Status words are one word each — 通过 / 失败 / 过期 / 未运行 / 运行中 — and never a sentence. The project rail item shows a
+  semantic icon + `shortPath(root)` (full path in `title`); task counts live in the filter bar, never twice. The rail is
+  hidden ≤900px (the top-bar switcher selects the project there).
+- **Filters are one line. Nothing wraps, anywhere.** `shared/FacetBar.tsx` renders the status chips (radiogroup) and one
+  dropdown trigger per other dimension (负责人 / 工作流 / 轨道 / 阶段; Radix DropdownMenu with radio items, the trigger
+  shows the current value and count). When the column is too narrow, trailing items move whole into 「更多 N ▾」
+  (measured with ResizeObserver; the selected chip is kept visible). A dimension with a single value is hidden.
+  Never add `flex-wrap` or `overflow-x-auto` to a filter row: wrapping pushed the first card to y≈585 at 1440px and
+  horizontal scrolling clipped chips mid-word (「验…」). Tests assert `flex-nowrap` and the 更多 behaviour with an
+  injected `measureWidth`.
+  `ListColumn` header blocks (eyebrow, title, search, chips) are `shrink-0`, so a long list scrolls the column instead
   of squashing the search box.
 
 ## 工作流 rules (`workflow/`)
@@ -379,7 +396,8 @@ row names the skills that should produce it, and a stale row carries its one-wor
 - Filter chips are single-select `role=radio` (`aria-checked`, roving tabindex: only the checked chip is in the
   Tab order) inside a `role=radiogroup` (`FilterChipGroup`, or `ListColumn chipsLabel`); arrow keys / Home / End
   move and select. Every group must keep one chip checked (a leading 全部), or it becomes unreachable by Tab.
-  The gate switch and the settings panel's 主题 / 语言 segments are `role=radiogroup` too.
+  Filter dropdowns are Radix menus with `menuitemradio` items. The gate switch and the settings panel's 主题 / 语言
+  segments are `role=radiogroup` too.
 - Hit areas are at least 40px (`min-h-10` / `size-10`): chips, rail toggle and links, top-bar tabs, badge, settings.
 - The search box shows focus with `focus-within:border-(--accent) ring-2 ring-(--accent)/25`.
 - Status is text + tone, never colour alone; `/` focuses global search.
@@ -391,8 +409,8 @@ row names the skills that should produce it, and a stale row carries its one-wor
   collapsed state and selection stay with `LibraryView`.
 - 资源目录 filtering is client-side through `filterResources` from `@tenon/kernel/resources/query` — the same
   predicate `tenon resources list` uses. Switching a facet chip must not issue a request; the list is fetched once.
-- The four facet rows are single-select `role=radiogroup` rows with a leading 全部 chip. Rows wrap (`flex-wrap`); each
-  chip stays on one line (`whitespace-nowrap`), so enum values are never split or clipped.
+- The four facets (类别 / 框架 / 样式 / 许可) are one `FacetBar` line: one dropdown trigger each, with 全部 as the
+  first radio item; overflow goes to 「更多 N」. No facet row wraps — same rule as the 工作台 filters.
 - Builtin entries are read-only: only 复制 is offered. Custom entries add 编辑 (a YAML drawer validated by the
   server, errors listed verbatim) and 删除 (a `Dialog`). A 409 offers 重新载入 rather than silently overwriting.
 
