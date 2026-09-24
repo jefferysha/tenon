@@ -3,6 +3,7 @@ import { useT } from '../i18n'
 import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import type { IoRow, IoRowStatus } from './stageIo'
 import { slotLabel } from './taskModel'
+import { distinctSkills } from '../workflow/producers'
 import { cn } from '@/lib/utils'
 import { LIST_SELECTED } from '../shared/uiRecipes'
 
@@ -32,11 +33,14 @@ function formatTime(iso: string): string {
   return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-/** 来源技能：已登记取最近一次的登记者，缺失取应产出它的技能，值槽位取声明的 producer。 */
-function sourceSkills(item: IoRow): string {
-  if (item.slot.kind === 'field') return item.slot.producer ?? ''
-  if (item.producer !== null && item.status !== 'missing') return item.producer
-  return item.producers.join(', ')
+/**
+ * 来源技能：已登记取最近一次的登记者，缺失取应产出它的技能，值槽位取声明的 producer。
+ * 互为别名的候选（openspec-propose ≡ opsx:propose）只显示一个名字，全部别名放 title。
+ */
+function sourceSkills(item: IoRow): { text: string; title: string } {
+  if (item.slot.kind === 'field') return { text: item.slot.producer ?? '', title: item.slot.producer ?? '' }
+  if (item.producer !== null && item.status !== 'missing') return { text: item.producer, title: item.producer }
+  return { text: distinctSkills(item.producers).join(', '), title: item.producers.join(', ') }
 }
 
 /** 行 title：路径或值，加最近一次登记的人与时间。 */
@@ -85,8 +89,8 @@ export function StageIoPanel({ direction, items, activePath, onOpen, definitionS
             </button>
           )}
         </span>
-        <span className={cn('truncate font-mono text-caption', skills === '' ? 'text-text-3' : 'text-text-2')} role="cell" title={skills === '' ? undefined : skills}>
-          {skills === '' ? '—' : skills}
+        <span className={cn('truncate font-mono text-caption', skills.text === '' ? 'text-text-3' : 'text-text-2')} role="cell" title={skills.title === '' ? undefined : skills.title}>
+          {skills.text === '' ? '—' : skills.text}
         </span>
         <span
           className="min-w-0"
