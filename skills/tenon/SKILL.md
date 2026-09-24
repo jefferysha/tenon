@@ -12,6 +12,8 @@ description: "按任务冻结的工作流逐步执行：路由、恢复、每步
 
 - `<tenon-dispatch> action: invoke-skill skill: tenon` 或用户输入 `/tenon` 时进入。
 - 纯聊天不创建任务，直接回答。
+- 面向用户的回复（进度、暂停说明、最终总结）使用用户所用的语言：用户用中文下指令就用中文回复；
+  命令、字段名、动作名与路径保持原样。
 
 ## Codex 的技能读取（硬规则）
 
@@ -83,7 +85,7 @@ repeat:
 | `load-tenon` | 重新加载本技能（Claude 用 Skill 工具；Codex 按上面的读取规则整读一次）。 |
 | `read-documents` | 逐个读完 `documents` 列出的文件，把内容读进上下文（不得丢弃输出：`cat … >/dev/null` 这类读取不算读过），再 `tenon document read <c> all`。这些是已登记的输入：只有 `editable` 里的 kind 本步可以改（改完照 `next` 重新登记），其余只读——需求语义变了走 `requirements-changed` 回到规格步，不要直接改已登记的规格文档；tasks.md 只勾当前步骤标题下的复选框。 |
 | `run-agent` | 逐项：`tenon agent prompt <c> <agent> --json` → 在宿主里跑回来的提示词（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。同一波并行。带 `status: running` 与 `run_id` 的项是已经开始的那次运行：不要重新 prompt，等它跑完把报告写到给出的 `report_path`，再 `tenon agent record <c> <run_id>`。 |
-| `load-skill` | 加载本波每个技能，按下面的「上游技能怎么用」执行。 |
+| `load-skill` | 加载本波每个技能，按下面的「上游技能怎么用」执行。带 `review_bar` 时按下面的「下一步评审口径」审查。 |
 | `scaffold-document` | 文件不存在时先 `tenon document scaffold <c> <kind> [--capability <cap>]`，再动笔写内容：骨架里的 `[待填写…]` / `[pending…]` 占位要全部替换成真内容，留着占位符登记会被拒。 |
 | `record-document` | `tenon document record <c> <kind> <path> --producer <producer>`。 |
 | `register-field` | `tenon artifact register <c> <field> <path> --producer <producer>`。 |
@@ -106,11 +108,18 @@ repeat:
   直接用 `recommended`。决定在动手之前下发（build 的 `build_mode` / `isolation` 先于测试配置与实现技能），
   按你接下来真的要用的方式填，之后照它执行。
 - `kind: outcome` 的字段只在本步必需测试与评审者都过了之后才出现在 `next` 里；它们没有 `recommended`，填 `required` 给的值。`pre_verify_review_result` / `verify_result` 是通过结论：CLI 写入前核对本步证据，被拒就按错误里点名的测试或 agent 去补，不要换个写法绕过。
+- 下一步评审口径：动作带 `review_bar`（下一步声明的评审者，每项 `step` / `agent` / `required` /
+  `block_at` / `focus`）时，本步的实现与自审——技能自带的代码评审、子代理审查、写
+  `pre_verify_review_result` 之前的就绪审查——按同一口径判级：落在这些评审者关注点上、级别达到其
+  `block_at`（`medium` 即 medium 及以上）的问题就是阻断，在本步修完，不要判成「建议」留给下一步；
+  下一步的评审者会以同一级别打回，多走一轮回退。派发审查子代理时把 `review_bar` 原样写进提示。
 - `direct_override` 是 full 预设下 `build_mode=direct` 的风险确认，没有推荐值：interactive 问人，continuous / afk 不选 `direct`（取 `build_mode` 的推荐值即可免去这一项）。
 - `pr_url`、`prd_path` 和各类文件路径只填真值，绝不编造。`pr_url` 是真实的 http(s) PR 地址；仓库没有 远端时 `next` 会推荐 `no-remote`（本地交付、没有 PR，CLI 会复核确实没有远端）。有远端却开不了 PR 就停下说明。
 - 暂停等用户（评审门、interactive 的「继续」）之前如实报告工作区：以 `git status --short` 为准。
-  交付提交之后，`set pr_url`、`transition` 仍会改 change 目录里的状态文件（`.pipeline.yaml`、
-  `.pipeline-history.jsonl` 等），它们由完结后的 `finish-change` 提交——不要说工作区是干净的。
+  交付步照 `next` 做完、走出口之前，工作区应当是干净的（`set pr_url` 写下的状态文件已由 `next` 点名的
+  提交入库）；不干净就照实列出。`transition` 自己还会改 change 目录里的状态文件（`.pipeline.yaml`、
+  `.pipeline-history.jsonl` 等），之后暂停时说「只剩流转写下的状态文件未提交，完结时由 `finish-change`
+  提交」——不要说工作区是干净的。
 - 不要为了「隔离」自己建分支或 worktree；宿主没给就用 `isolation=in-place`。提交只照 `next` 的
   `commit` / `finish-change` 做（交付步在交付值之前点名提交交付物，完结后点名提交归档），`next` 没点名
   就不提交；技能自带的提交步骤同样不做。

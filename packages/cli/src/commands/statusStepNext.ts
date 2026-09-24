@@ -8,7 +8,7 @@
 import type { StepAction } from './statusStepAction.js'
 import { documentWriteActions, inputDocumentPolicy, skillDocumentActions } from './statusStepDocumentActions.js'
 import { finishActions, type StepCommit, type StepFinishFacts } from './statusStepFinish.js'
-import type { StepAgentView } from './statusStepAgents.js'
+import type { StepAgentView, StepReviewBar } from './statusStepAgents.js'
 import type { StepBlocker, StepExit } from './stepExitReport.js'
 import type { StepDocumentsView, StepFieldView, StepSkillView } from './statusStepParts.js'
 
@@ -63,8 +63,20 @@ export interface StepNextInput {
   readonly finish: StepFinishFacts
   /** 本步与下一步（计划步：之后所有步）声明的必需测试里，命令要的 npm 脚本在项目里不存在的那些。 */
   readonly testConfigGaps: readonly StepTestConfigGap[]
-  /** 交付步还没提交的交付物（statusStepFinish.deliveryCommit）；不是交付步或已提交 = null。 */
+  /** 交付步 change 目录之外还没提交的交付物（statusStepFinish.deliveryCommit）；不是交付步或已提交 = null。 */
   readonly delivery: StepCommit | null
+  /** 交付步整个工作区（除 hook 追加的历史）还没提交的改动，含状态文件；收尾提交用它。 */
+  readonly settle: StepCommit | null
+  /** 下一步声明的评审者（statusStepAgents.downstreamReviewBar）；随实现、自审与结论动作下发。 */
+  readonly reviewBar: readonly StepReviewBar[]
+}
+
+/**
+ * 本步的实现技能、agent 与通过结论带上下一步评审者的口径（`review_bar`）：本步的审查按同一份
+ * block_at 与关注点判级，达到阻断级别的问题在本步修完，不判成「建议」留给下一步去打回。
+ */
+function withReviewBar(actions: readonly StepAction[], bar: readonly StepReviewBar[]): readonly StepAction[] {
+  return bar.length === 0 ? actions : actions.map((action) => ({ ...action, review_bar: bar }))
 }
 
 /**
@@ -147,11 +159,12 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   }
 
   const executors = pendingAgents(input.executors, true)
-  if (executors.length > 0) return executors
+  if (executors.length > 0) return withReviewBar(executors, input.reviewBar)
 
   const ready = input.skills.filter((skill) => skill.status === 'ready')
   if (ready.length > 0) {
-    return ready.map((skill) => ({ action: 'load-skill', skill: skill.id, wave: skill.wave }))
+    return withReviewBar(
+      ready.map((skill) => ({ action: 'load-skill', skill: skill.id, wave: skill.wave })), input.reviewBar)
   }
   const producing = skillDocumentActions(input.skills, input.documents)
   if (producing.length > 0) return producing
@@ -182,22 +195,25 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     input.artifactProducers,
   )
   if (registers.length > 0) return registers
-  // 交付步：交付物（代码、文档、已应用的主规格、测试记录…）在交付值之前提交——开 PR 要先有提交，
-  // `pr_url` 记录的就是那次交付。之后本步再有改动（例如交付步自己的测试记录）会再发一次，出口前
-  // 工作区总是干净的。
-  if (input.delivery !== null) return [{ action: 'commit', change: input.change, commit: input.delivery }]
-  const freeform = writeFieldActions(
-    missing.filter((field) => field.allowed === null && field.writer === 'set'),
-    input.artifactProducers,
-  )
-  if (freeform.length > 0) return freeform
+  // 交付值里不需要先有提交就知道真值的（有 `recommended`：没有远端时 pr_url = no-remote）排在提交
+  // 之前：`tenon set` 写下的状态文件随这次提交入库，ship 暂停时工作区是干净的（真机第五轮：pr_url
+  // 在提交之后写，状态文件一直留到 archive 的提交）。
+  const freeform = missing.filter((field) => field.allowed === null && field.writer === 'set')
+  const known = writeFieldActions(freeform.filter((field) => field.recommended !== null), input.artifactProducers)
+  if (input.settle !== null && known.length > 0) return known
+  // 交付步：交付物（代码、文档、已应用的主规格、测试记录…）在其余交付值之前提交——开 PR 要先有提交，
+  // `pr_url` 记录的就是那次交付。之后本步再有改动（交付值写下的状态文件、交付步自己的测试记录）会再
+  // 发一次（`settle` 看整个工作区，只去掉 hook 追加的历史），出口前工作区总是干净的。
+  if (input.settle !== null) return [{ action: 'commit', change: input.change, commit: input.settle }]
+  const rest = writeFieldActions(freeform, input.artifactProducers)
+  if (rest.length > 0) return rest
   if (input.ownsDeltaSpec && input.specRehearsalPending) return [{ action: 'validate-spec' }]
 
   const tests = input.tests.filter((test) => test.required && test.status !== 'passed')
   if (tests.length > 0) return tests.map((test) => ({ action: 'run-test', test: test.id }))
 
   const reviewers = pendingAgents(input.reviewers, false)
-  if (reviewers.length > 0) return reviewers
+  if (reviewers.length > 0) return withReviewBar(reviewers, input.reviewBar)
 
   // 结果字段是「本步通过」的结论；必需测试或必需评审者已经不通过时，填它只会让运行器去写一条
   // 与证据相反的结论（真机：verify 里评审者打回后 next 仍给 set-field branch_status）。直接去出口：
@@ -207,7 +223,7 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
       input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing'),
       input.artifactProducers,
     )
-    if (outcomes.length > 0) return outcomes
+    if (outcomes.length > 0) return withReviewBar(outcomes, input.reviewBar)
   }
 
   return exitActions(input)

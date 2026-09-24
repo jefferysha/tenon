@@ -1907,6 +1907,14 @@ assert_contains "SKILL.md: read-documents 只有 editable 可改" "$SKILL_TEXT" 
 assert_contains "SKILL.md: read-documents 不得丢弃输出" "$SKILL_TEXT" "不得丢弃输出"
 assert_contains "SKILL.md: 计划步把测试脚本同步进 proposal 与 design" "$SKILL_TEXT" "同步写进 proposal（What Changes / Impact）与 design"
 assert_contains "SKILL.md: 暂停前以 git status 如实报告工作区" "$SKILL_TEXT" "以 \`git status --short\` 为准"
+# 真机（第五轮）：ship 暂停时 pr_url 的状态文件没入库。交付步出口前应当干净；transition 之后如实描述。
+assert_contains "SKILL.md: 交付步出口前工作区应当干净" "$SKILL_TEXT" "交付步照 \`next\` 做完、走出口之前，工作区应当是干净的"
+assert_contains "SKILL.md: transition 写下的状态文件如实描述" "$SKILL_TEXT" "只剩流转写下的状态文件未提交"
+# 真机（第五轮）：build 的实现评审与 verify 评审者口径不一。
+assert_contains "SKILL.md: review_bar 是下一步声明的评审者" "$SKILL_TEXT" "动作带 \`review_bar\`（下一步声明的评审者"
+assert_contains "SKILL.md: 达到 block_at 的问题在本步修完" "$SKILL_TEXT" "的问题就是阻断，在本步修完，不要判成「建议」留给下一步"
+# 真机（第五轮）：simple 项目用户用中文下指令，模型三轮最终回复都是英文。
+assert_contains "SKILL.md: 回复使用用户所用的语言" "$SKILL_TEXT" "面向用户的回复（进度、暂停说明、最终总结）使用用户所用的语言"
 for prompt in 好的 按你的推荐; do
   touch "$proj/.pipeline-pending-interaction"
   printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"$prompt\"}" \

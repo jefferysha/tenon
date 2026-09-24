@@ -15,7 +15,7 @@ import { str } from '../render.js'
 import { archivedChangesForUser } from '../archivedGuard.js'
 import { parseContinuousAuthority } from '../continuousAuthority.js'
 import { changeDir } from '../paths.js'
-import { agentStepViews, type StepAgentView } from './statusStepAgents.js'
+import { agentStepViews, downstreamReviewBar, type StepAgentView } from './statusStepAgents.js'
 import { evaluateStepExitReport, type StepExit } from './stepExitReport.js'
 import {
   stepDocuments, stepFields, stepSkills,
@@ -157,10 +157,12 @@ async function deliveryFacts(
   name: string,
   state: PipelineState,
   fields: readonly StepFieldView[],
-): Promise<StepCommit | null> {
-  if (str(state.fields.archived) === 'true') return null
-  if (!fields.some((field) => DELIVERY_FIELDS.has(field.field) && field.writer === 'set')) return null
-  return deliveryCommit(name, await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null)))
+): Promise<{ readonly delivery: StepCommit | null; readonly settle: StepCommit | null }> {
+  const none = { delivery: null, settle: null }
+  if (str(state.fields.archived) === 'true') return none
+  if (!fields.some((field) => DELIVERY_FIELDS.has(field.field) && field.writer === 'set')) return none
+  const git = await (deps.gitFinishProbe?.(name) ?? Promise.resolve(null))
+  return { delivery: deliveryCommit(name, git), settle: deliveryCommit(name, git, 'step') }
 }
 
 /** 计划步：本步产出计划文档（plan / superpower-plan）。它之后所有步骤的测试配置都在这里提出。 */
@@ -330,7 +332,9 @@ export async function buildStatusStep(
       finish: await finishFacts(deps, name, state),
       testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits,
         documents.records.some((doc) => PLAN_DOCUMENT_KINDS.has(doc.kind))),
-      delivery: await deliveryFacts(deps, name, state, fields),
+      ...await deliveryFacts(deps, name, state, fields),
+      reviewBar: await downstreamReviewBar(dir, state, plan, stepId,
+        report.exits.filter((exit) => exit.direction === 'forward').map((exit) => exit.to)),
     }),
   }
 }

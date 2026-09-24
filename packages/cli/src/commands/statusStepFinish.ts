@@ -3,7 +3,7 @@
  * （`fields.archived=true`）之后收尾（`finish-change`）。与顺序表分开放，是因为顺序表的其余规则只读
  * 步骤证据。两条提交的形状相同：`{ paths, untrack, message }`，照原样执行、每条命令一次成功。
  */
-import { WORKSPACE_COMMIT_PATHS, type GitFinishProbe } from '../gitWorkspace.js'
+import { firstDeliveryMessage, WORKSPACE_COMMIT_PATHS, type GitFinishProbe } from '../gitWorkspace.js'
 import { stop, type StepAction } from './statusStepAction.js'
 
 /** 提交动作的载荷：`git add -A -- <paths…>` → 可选 `git rm --cached …` → `git commit -m <message>`。 */
@@ -24,10 +24,22 @@ export interface StepCommit {
  *   · 是否还要提交只看 change 目录之外（`deliverablesDirty`）：change 目录每次 hook 都在追加历史，
  *     拿它判定会让这条动作永远发不完；它之后的改动由完结的 finish-change 提交；
  *   · 不是 git 仓（或 git 跑不起来）时不发：没有一次成功的写法。
+ *
+ * `scope`：`deliverables` 只看 change 目录之外（勾任务之前那次提交用它——勾选只改 tasks.md，不该再
+ * 触发一次提交）；`step` 看整个工作区、只去掉 hook 追加的历史（交付步收尾用它——`set pr_url` 写下的
+ * 状态文件也要入库，ship 暂停时工作区才是干净的；真机第五轮）。
+ *
+ * 标题：首次是 `feat(<c>): deliver`；之后的补交（应用进主规格、交付值、交付步的测试记录）是
+ * `chore(<c>): update deliverables`——真机第五轮两次提交同名，看不出第二次补了什么。
  */
-export function deliveryCommit(change: string, git: GitFinishProbe | null): StepCommit | null {
-  if (git === null || !git.deliverablesDirty) return null
-  return { paths: WORKSPACE_COMMIT_PATHS, untrack: git.untrack, message: `feat(${change}): deliver` }
+export function deliveryCommit(
+  change: string,
+  git: GitFinishProbe | null,
+  scope: 'deliverables' | 'step' = 'deliverables',
+): StepCommit | null {
+  if (git === null || !(scope === 'step' ? git.stepDirty : git.deliverablesDirty)) return null
+  const message = git.delivered ? `chore(${change}): update deliverables` : firstDeliveryMessage(change)
+  return { paths: WORKSPACE_COMMIT_PATHS, untrack: git.untrack, message }
 }
 
 /** 完结时要问 git 的事实（只在 `runArchived` 时由投影层取）。 */

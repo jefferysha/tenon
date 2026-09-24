@@ -6,7 +6,10 @@ import { deliveryCommit } from './statusStepFinish.js'
 
 /** 一个 git 仓里完结时的事实：原目录未跟踪、工作区有改动、没有状态目录 .gitignore 与心跳要处理。 */
 function probe(over: Partial<GitFinishProbe> = {}): GitFinishProbe {
-  return { changeDirTracked: false, workspaceDirty: true, deliverablesDirty: true, housekeeping: [], untrack: [], ...over }
+  return {
+    changeDirTracked: false, workspaceDirty: true, deliverablesDirty: true, stepDirty: true, delivered: false,
+    housekeeping: [], untrack: [], ...over,
+  }
 }
 
 function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
@@ -33,6 +36,8 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     finish: { git: probe(), verified: true },
     testConfigGaps: [],
     delivery: null,
+    settle: null,
+    reviewBar: [],
     ...overrides,
   }
 }
@@ -679,21 +684,82 @@ describe('step.next 顺序', () => {
  * 真机（第三轮）：交付步 in-place、不建分支，技能又要求不自行提交，finish-change 只提交归档目录——
  * 走完之后代码、文档、主规格、测试记录全留在工作区。交付物由 next 在交付值之前点名提交。
  */
+/**
+ * 真机（第五轮）：build 的实现评审把两个问题判为建议，verify 的 backend-quality（block_at: medium）判
+ * 中级阻断，verify-fail 来回约两轮。build 的实现技能、agent 与通过结论带上下一步评审者的口径。
+ */
+describe('下一步评审者的口径（review_bar）', () => {
+  const bar = [
+    { step: 'verify', agent: 'backend-quality', required: true, block_at: 'medium', focus: '后端质量评审者' },
+  ]
+
+  test('实现技能、执行者、本步评审者与通过结论带 review_bar', () => {
+    expect(stepNextActions(input({ skills: [skill('test-driven-development', 'ready', 0)], reviewBar: bar })))
+      .toEqual([{ action: 'load-skill', skill: 'test-driven-development', wave: 0, review_bar: bar }])
+    expect(stepNextActions(input({ executors: [agent('builder', 'executor', 'pending', true)], reviewBar: bar }))[0])
+      .toMatchObject({ action: 'run-agent', review_bar: bar })
+    expect(stepNextActions(input({ reviewers: [agent('spec-consistency', 'reviewer', 'pending', true)], reviewBar: bar }))[0])
+      .toMatchObject({ action: 'run-agent', review_bar: bar })
+    const verdict = field('pre_verify_review_result', { kind: 'outcome', required: ['pass'] })
+    expect(stepNextActions(input({ fields: [verdict], reviewBar: bar }))[0])
+      .toMatchObject({ action: 'set-field', field: 'pre_verify_review_result', review_bar: bar })
+  })
+
+  test('下一步没有评审者时不带 review_bar', () => {
+    expect(stepNextActions(input({ skills: [skill('test-driven-development', 'ready', 0)] })))
+      .toEqual([{ action: 'load-skill', skill: 'test-driven-development', wave: 0 }])
+  })
+})
+
 describe('交付步的提交', () => {
   const pr = field('pr_url')
 
   test('交付物未提交：commit 先于交付值 pr_url，排在应用规格、文档与 artifact 登记之后', () => {
     const delivery = deliveryCommit('demo', probe())
     expect(delivery).toEqual({ paths: WORKSPACE_COMMIT_PATHS, untrack: [], message: 'feat(demo): deliver' })
-    expect(stepNextActions(input({ fields: [pr], delivery }))).toEqual([
+    const settle = delivery
+    expect(stepNextActions(input({ fields: [pr], delivery, settle }))).toEqual([
       { action: 'commit', change: 'demo', commit: delivery },
     ])
-    expect(actions({ fields: [pr], delivery, ownsAppliedSpec: true, specApplicationPending: true })).toEqual(['apply-spec'])
+    expect(actions({ fields: [pr], delivery, settle, ownsAppliedSpec: true, specApplicationPending: true }))
+      .toEqual(['apply-spec'])
     expect(actions({
-      fields: [pr], delivery, documents: { reads: [], records: [doc('applied-spec', 'missing', ['tenon'])], updates: [] },
+      fields: [pr], delivery, settle,
+      documents: { reads: [], records: [doc('applied-spec', 'missing', ['tenon'])], updates: [] },
     })).toEqual(['scaffold-document', 'record-document'])
-    expect(actions({ fields: [pr, field('verification_report', { writer: 'artifact-register' })], delivery }))
+    expect(actions({ fields: [pr, field('verification_report', { writer: 'artifact-register' })], delivery, settle }))
       .toEqual(['register-field'])
+  })
+
+  /**
+   * 真机（第五轮）：两次交付提交都叫 `feat(<c>): deliver`，第二次其实是应用规格后的补交。首次交付之后
+   * 的提交换一个标题。
+   */
+  test('首次交付之后的补交换标题', () => {
+    expect(deliveryCommit('demo', probe({ delivered: true }))?.message).toBe('chore(demo): update deliverables')
+    expect(deliveryCommit('demo', probe({ delivered: false }))?.message).toBe('feat(demo): deliver')
+  })
+
+  /**
+   * 真机（第五轮）：ship 提交之后才 `tenon set pr_url`，状态文件一直留到 archive 的提交，暂停时工作区
+   * 不干净。已知真值的交付值（no-remote）先写再提交；要先有提交才有真值的（真实 PR URL）写完之后，
+   * 状态文件的改动再触发一次提交。hook 追加的历史不算。
+   */
+  test('交付值与状态文件：已知真值先写再提交，写完之后状态文件的改动也要提交', () => {
+    const known = field('pr_url', { recommended: 'no-remote' })
+    const settle = deliveryCommit('demo', probe({ delivered: true }), 'step')
+    expect(actions({ fields: [known], delivery: settle, settle })).toEqual(['set-field'])
+    expect(actions({ fields: [pr], delivery: settle, settle })).toEqual(['commit'])
+    // pr_url 已写，只剩 change 目录里的状态文件（deliverables 干净）：仍要提交。
+    const stateOnly = probe({ deliverablesDirty: false, stepDirty: true, delivered: true })
+    expect(deliveryCommit('demo', stateOnly)).toBeNull()
+    const settleState = deliveryCommit('demo', stateOnly, 'step')
+    expect(settleState).toEqual({ paths: WORKSPACE_COMMIT_PATHS, untrack: [], message: 'chore(demo): update deliverables' })
+    expect(stepNextActions(input({ fields: [], delivery: null, settle: settleState }))).toEqual([
+      { action: 'commit', change: 'demo', commit: settleState },
+    ])
+    // 只剩 hook 追加的历史：不再提交。
+    expect(deliveryCommit('demo', probe({ deliverablesDirty: false, stepDirty: false }), 'step')).toBeNull()
   })
 
   /**
@@ -718,6 +784,7 @@ describe('交付步的提交', () => {
   test('已提交、不是 git 仓或只剩 change 目录的改动：不发 commit，直接交付值', () => {
     expect(deliveryCommit('demo', probe({ deliverablesDirty: false }))).toBeNull()
     expect(deliveryCommit('demo', null)).toBeNull()
+    expect(deliveryCommit('demo', null, 'step')).toBeNull()
     expect(actions({ fields: [pr], delivery: null })).toEqual(['set-field'])
   })
 
