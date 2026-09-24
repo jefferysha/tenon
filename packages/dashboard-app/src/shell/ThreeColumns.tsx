@@ -308,16 +308,9 @@ export function DetailColumn({
   )
 }
 
-/** 右列空态（未选中对象）：只有一个名词短语，不配副标题。 */
-export function DetailEmpty({ title, testId }: {
-  title: string
-  testId: string
-}): JSX.Element {
-  return (
-    <section className="flex min-h-0 flex-col items-center justify-center bg-surface-detail px-8 text-center" data-testid={testId}>
-      <p className="whitespace-nowrap text-title font-semibold text-text">{title}</p>
-    </section>
-  )
+/** 右列空态（未选中对象）：不写字，只留空白；可访问名称（label）仍说明要选什么。全站详情空态只用这一个。 */
+export function DetailEmpty({ label, testId }: { label: string; testId: string }): JSX.Element {
+  return <section className="min-h-0 bg-surface-detail" aria-label={label} data-testid={testId} />
 }
 
 /**

@@ -96,12 +96,15 @@ describe('StatusPill（B4：语义点 + 文字）', () => {
   })
 })
 
-describe('DetailEmpty（E7）', () => {
-  it('只渲染标题，没有副标题', () => {
-    render(<DetailEmpty title="选一个模板" testId="empty" />)
+describe('DetailEmpty（B19）', () => {
+  it('不写字，只留空白；可访问名称仍说明要选什么', async () => {
+    render(<DetailEmpty label="选一个模板" testId="empty" />)
     const empty = screen.getByTestId('empty')
-    expect(empty).toHaveTextContent('选一个模板')
-    expect(empty.textContent).toBe('选一个模板')
+    expect(empty.textContent).toBe('')
+    expect(empty.childElementCount).toBe(0)
+    expect(empty).toHaveAttribute('aria-label', '选一个模板')
+    expect(empty.className).toContain('bg-surface-detail')
+    expect('BlankDetail' in await import('../library/libraryChrome')).toBe(false)
   })
 })
 

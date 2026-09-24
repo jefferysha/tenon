@@ -31,11 +31,6 @@ export function BuiltinLock({ testId, quiet = false }: { testId?: string; quiet?
   )
 }
 
-/** 详情空态：不写字，只留空白；可访问名称仍说明「选择一项」。 */
-export function BlankDetail({ label, testId }: { label: string; testId: string }): JSX.Element {
-  return <section className="min-h-0 bg-surface-detail" aria-label={label} data-testid={testId} />
-}
-
 /**
  * 详情头部：名称（只显示 label，标识放在 title 里）+ 内建锁 + 右侧动作。动作放在对象旁，没有底部动作条。
  */

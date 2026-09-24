@@ -1,10 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { useT } from '../../i18n'
-import { ThreeColumns } from '../../shell/ThreeColumns'
+import { DetailEmpty, ThreeColumns } from '../../shell/ThreeColumns'
 import { matchesQuery } from '../../shell/GlobalSearch'
 import { Dialog } from '../../shared/Dialog'
 import { BUTTON_DANGER, BUTTON_GHOST } from '../../shared/uiRecipes'
-import { BlankDetail } from '../libraryChrome'
 import { ResourceDetail } from './ResourceDetail'
 import { ResourceEditorDrawer } from './ResourceEditorDrawer'
 import { ResourceList } from './ResourceList'
@@ -64,7 +63,7 @@ export function ResourceCatalog({
           />
         )}
         detail={document === null ? (
-          <BlankDetail label={t('resources.empty_detail')} testId="res-detail-empty" />
+          <DetailEmpty label={t('resources.empty_detail')} testId="res-detail-empty" />
         ) : (
           <ResourceDetail
             document={document}

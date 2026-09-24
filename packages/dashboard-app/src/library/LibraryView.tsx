@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useT } from '../i18n'
 import { getToken } from '../api/transport'
 import { TEMPLATE_CATEGORIES, type TemplateCategory, type TemplateRef, type TemplateSource } from '../api/instructionsDecoders'
-import { ListColumn, ThreeColumns } from '../shell/ThreeColumns'
+import { DetailEmpty, ListColumn, ThreeColumns } from '../shell/ThreeColumns'
 import { FacetBar } from '../shared/FacetBar'
 import { matchesQuery } from '../shell/GlobalSearch'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
-import { BlankDetail, BuiltinLock, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
+import { BuiltinLock, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
 import { AgentDetail } from './AgentDetail'
 import { AgentList, NewAgentDialog, agentSkeleton } from './AgentList'
 import { useAgentLibrary } from './useAgentLibrary'
@@ -247,7 +247,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
         )}
         detail={section === 'agents' ? (
           agents.selected === null ? (
-            <BlankDetail label={t('library.agent_empty_detail')} testId="lib-agent-detail-empty" />
+            <DetailEmpty label={t('library.agent_empty_detail')} testId="lib-agent-detail-empty" />
           ) : (
             <AgentDetail
               document={agents.selected}
@@ -271,14 +271,14 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
           )
         ) : section === 'directions' ? (
           directions.selected === null ? (
-            <BlankDetail label={t('library.direction_empty_detail')} testId="lib-dir-empty" />
+            <DetailEmpty label={t('library.direction_empty_detail')} testId="lib-dir-empty" />
           ) : (
             <div className="min-h-0 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4" data-testid="library-direction-detail">
               <TestDirectionsPane slot="detail" library={directions} canWrite={canWrite} onToast={onToast} />
             </div>
           )
         ) : library.selected === null || library.document === null ? (
-          <BlankDetail label={t('library.empty_detail')} testId="lib-detail-empty" />
+          <DetailEmpty label={t('library.empty_detail')} testId="lib-detail-empty" />
         ) : (
           <TemplateDetail
             ref_={library.selected}

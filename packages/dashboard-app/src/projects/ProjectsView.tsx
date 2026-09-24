@@ -3,7 +3,7 @@ import { Folder, Plus, User } from 'lucide-react'
 import { useT } from '../i18n'
 import type { InstructionPreviewFile } from '../api/instructionsDecoders'
 import type { TopBarProject } from '../shell/TopBar'
-import { ListColumn, RailCard, RailColumn, ThreeColumns } from '../shell/ThreeColumns'
+import { DetailEmpty, ListColumn, RailCard, RailColumn, ThreeColumns } from '../shell/ThreeColumns'
 import { BUTTON_ICON } from '../shared/uiRecipes'
 import { HostTargetList } from './HostTargetList'
 import { InstructionEditor } from './InstructionEditor'
@@ -173,7 +173,7 @@ export function ProjectsView({
         )}
         detail={files.state === null ? (
           // 详情空态不写字，只留空白；可访问名称仍说明「选择项目」。
-          <section className="min-h-0 bg-surface-detail" aria-label={t('projects.empty_detail')} data-testid="proj-detail-empty" />
+          <DetailEmpty label={t('projects.empty_detail')} testId="proj-detail-empty" />
         ) : (
           <InstructionEditor
             title={title}
