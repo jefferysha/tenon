@@ -134,13 +134,61 @@ describe('Dashboard 电脑端设计系统契约', () => {
     'components/ui/button.tsx',
     'components/ui/input.tsx',
     'components/ui/select.tsx',
-    'components/ui/dropdown-menu.tsx',
     'components/ui/tabs.tsx',
     'components/ui/table.tsx',
     'components/ui/badge.tsx',
-    'components/ui/tooltip.tsx',
   ])('%s 明确声明 reduced-motion 终态', (relativePath) => {
     expect(readSource(relativePath)).toMatch(/motion-reduce:/)
+  })
+
+  // 浮层在 reduced-motion 下仍保留 ≤100ms 淡入淡出（全局媒体段钉住位移与缩放），不能整段 animate-none。
+  it.each([
+    'components/ui/dropdown-menu.tsx',
+    'components/ui/popover.tsx',
+    'components/ui/select.tsx',
+    'components/ui/tooltip.tsx',
+  ])('%s 浮层不在 reduced-motion 下关掉淡入淡出', (relativePath) => {
+    expect(readSource(relativePath)).not.toContain('motion-reduce:animate-none')
+  })
+
+  const slotClasses = (relativePath: string, slot: string): string[] => {
+    const source = readSource(relativePath)
+    const at = source.indexOf(`data-slot="${slot}"`)
+    expect(at, slot).toBeGreaterThan(-1)
+    return (/className=\{cn\(\s*"([^"]*)"/.exec(source.slice(at))?.[1] ?? '').split(/\s+/)
+  }
+
+  it.each([
+    ['components/ui/dropdown-menu.tsx', 'dropdown-menu-content'],
+    ['components/ui/dropdown-menu.tsx', 'dropdown-menu-sub-content'],
+    ['components/ui/popover.tsx', 'popover-content'],
+    ['components/ui/select.tsx', 'select-content'],
+  ])('%s %s：无 currentColor 边框，raised 底 + 二级阴影 + 10px 圆角，进 160ms 出 100ms', (relativePath, slot) => {
+    const names = slotClasses(relativePath, slot)
+    expect(names).not.toContain('border')
+    expect(names.some((name) => name.startsWith('border-'))).toBe(false)
+    const expected = ['rounded-md', 'bg-surface-raised', 'shadow-(--shadow-2)', 'data-[state=open]:fade-in-0', 'data-[state=open]:zoom-in-[.98]', 'data-[state=open]:duration-[160ms]', 'data-[state=closed]:animate-out', 'data-[state=closed]:duration-[100ms]']
+    // Select 的 p-1 挂在 Viewport 上，其余浮层外框自带 p-1。
+    if (slot !== 'select-content') expected.push('p-1')
+    for (const name of expected) expect(names, name).toContain(name)
+  })
+
+  it('Tooltip 用 tooltip token、1px 边，120ms 淡入 + 2px 位移，不缩放；Provider 默认 400/300', () => {
+    const names = slotClasses('components/ui/tooltip.tsx', 'tooltip-content')
+    for (const name of ['bg-tooltip-bg', 'text-tooltip-fg', 'border', 'border-tooltip-border', 'fade-in-0', 'duration-[120ms]', 'data-[side=bottom]:slide-in-from-top-[2px]', 'data-[state=closed]:duration-[80ms]']) {
+      expect(names, name).toContain(name)
+    }
+    expect(names.some((name) => name.includes('zoom'))).toBe(false)
+    expect(names).not.toContain('bg-foreground')
+    const source = readSource('components/ui/tooltip.tsx')
+    expect(source).toMatch(/delayDuration = 400/)
+    expect(source).toMatch(/skipDelayDuration = 300/)
+  })
+
+  it('Select 触发器与输入框同底同边，聚焦只有一层 3px 淡环', () => {
+    const names = slotClasses('components/ui/select.tsx', 'select-trigger')
+    for (const name of ['rounded-sm', 'bg-card', 'border-border-2', 'focus-visible:ring-[3px]', 'focus-visible:ring-(--accent)/20']) expect(names, name).toContain(name)
+    expect(names.some((name) => name.includes('ring-offset'))).toBe(false)
   })
 
   it('toast 是 rounded-md 面板，不是药丸', () => {
