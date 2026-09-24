@@ -105,7 +105,8 @@ describe('资源目录', () => {
     const calls = stubFetch()
     renderCatalog()
     expect(await screen.findByTestId('res-row-lucide')).toBeInTheDocument()
-    const before = calls.length
+    const listCalls = (): number => calls.filter((call) => call.url === '/api/resources').length
+    const before = listCalls()
     for (const [facet, value] of [['category', 'icons'], ['framework', 'react'], ['styling', 'tailwind']] as const) {
       await user.click(screen.getByTestId(`res-facet-${facet}`))
       await user.click(await screen.findByTestId(`res-${facet}-${value}`))
@@ -118,10 +119,46 @@ describe('资源目录', () => {
     expect(screen.getByTestId('res-row-mine')).toBeInTheDocument()
     expect(screen.queryByTestId('res-row-sf-symbols')).toBeNull()
     expect(screen.queryByTestId('res-row-shadcn-ui')).toBeNull()
-    expect(calls.length).toBe(before)
+    // 筛选在本地跑，不重新拉列表（右列换成命中的第一行时只读那一条）。
+    expect(listCalls()).toBe(before)
   })
 
   // 四组芯片曾经各占一行（换行后首条资源被推到 y≈690）：改为单行下拉，任何地方不换行。
+  it('右列不留空：没选中时打开第一行；选中项被筛掉时换成当前列表第一行', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderCatalog()
+    await waitFor(() => expect(screen.getByTestId('res-title')).toHaveTextContent('shadcn/ui'))
+    expect(screen.getByTestId('res-row-shadcn-ui')).toHaveAttribute('aria-current', 'true')
+    expect(screen.queryByTestId('res-detail-empty')).toBeNull()
+    await user.click(screen.getByTestId('res-facet-category'))
+    await user.click(await screen.findByTestId('res-category-icons'))
+    await waitFor(() => expect(screen.getByTestId('res-title')).toHaveTextContent('Iconify'))
+    expect(screen.getByTestId('res-row-iconify')).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('显式选中的条目保持选中，不被第一行覆盖', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderCatalog()
+    await waitFor(() => expect(screen.getByTestId('res-title')).toHaveTextContent('shadcn/ui'))
+    await user.click(screen.getByTestId('res-row-lucide'))
+    await waitFor(() => expect(screen.getByTestId('res-title')).toHaveTextContent('Lucide'))
+    await user.click(screen.getByTestId('res-facet-category'))
+    await user.click(await screen.findByTestId('res-category-icons'))
+    expect(screen.getByTestId('res-row-iconify')).toBeInTheDocument()
+    expect(screen.getByTestId('res-row-lucide')).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByTestId('res-title')).toHaveTextContent('Lucide')
+    expect(screen.getByTestId('res-row-iconify')).not.toHaveAttribute('aria-current')
+  })
+
+  it('列表为空时保留详情空态', async () => {
+    stubFetch({ entries: [] })
+    renderCatalog()
+    expect(await screen.findByTestId('res-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('res-detail-empty')).toBeInTheDocument()
+  })
+
   it('筛选栏单行：四个维度各一个下拉触发器，不换行、不横向滚动', async () => {
     stubFetch()
     renderCatalog()

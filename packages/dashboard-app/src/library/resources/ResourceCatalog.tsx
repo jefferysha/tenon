@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useT } from '../../i18n'
 import { DetailEmpty, ThreeColumns } from '../../shell/ThreeColumns'
 import { matchesQuery } from '../../shell/GlobalSearch'
@@ -30,6 +30,13 @@ export function ResourceCatalog({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const rows = catalog.rows.filter((row) => matchesQuery(search, row.entry.id, row.entry.name, row.entry.use ?? ''))
   const document = catalog.document
+  // 右列不留空：没选中、或选中项被删掉 / 被筛掉时，打开当前列表第一行。
+  const firstRow = rows[0]
+  const shown = catalog.selected !== null && rows.some((row) => row.entry.id === catalog.selected)
+  const idle = !catalog.loading && !catalog.busy
+  useEffect(() => {
+    if (idle && !shown && firstRow !== undefined) catalog.select(firstRow.entry.id)
+  }, [idle, shown, firstRow, catalog.select])
 
   const onSave = (text: string): void => {
     void (async () => {

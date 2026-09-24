@@ -174,6 +174,37 @@ describe('agent 库', () => {
     expect(screen.getByTestId('lib-agent-content')).toBeInTheDocument()
   })
 
+  it('右列不留空：没选中时打开列表第一行（先执行者）；显式选中的保持选中', async () => {
+    stubFetch([], (method, url) => {
+      if (method !== 'GET') return null
+      if (url === '/api/agents') {
+        return new Response(JSON.stringify({ ok: true, agents: [BUILTIN, CUSTOM, { ...CUSTOM, name: 'maker', tools: ['Read', 'Write'] }] }), { status: 200 })
+      }
+      if (url === '/api/agents/maker') {
+        return new Response(JSON.stringify({ ok: true, name: 'maker', source: 'custom', content: body('maker'), digest: digest('4'), references: [] }), { status: 200 })
+      }
+      return null
+    })
+    await openAgents()
+    await waitFor(() => expect(screen.getByTestId('lib-agent-title').textContent).toBe('maker'))
+    expect(screen.getByTestId('lib-agent-maker')).toHaveAttribute('aria-current', 'true')
+    expect(screen.queryByTestId('lib-agent-detail-empty')).toBeNull()
+    await userEvent.click(screen.getByTestId('lib-agent-security'))
+    await waitFor(() => expect(screen.getByTestId('lib-agent-title').textContent).toBe('security'))
+    await userEvent.type(screen.getByTestId('library-list-search'), '安全')
+    expect(screen.getByTestId('lib-agent-title').textContent).toBe('security')
+    expect(screen.getByTestId('lib-agent-security')).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('选中项被搜索筛掉时换成当前列表第一行', async () => {
+    stubFetch([])
+    await openAgents()
+    await waitFor(() => expect(screen.getByTestId('lib-agent-title').textContent).toBe('security'))
+    await userEvent.type(screen.getByTestId('library-list-search'), '我的')
+    await waitFor(() => expect(screen.getByTestId('lib-agent-title').textContent).toBe('mine'))
+    expect(screen.getByTestId('lib-agent-mine')).toHaveAttribute('aria-current', 'true')
+  })
+
   it('有搜索框：按名字或说明过滤', async () => {
     stubFetch([])
     await openAgents()
@@ -203,6 +234,7 @@ describe('agent 库', () => {
     expect(screen.getByTestId('lib-section-agents')).toHaveTextContent('–')
     release()
     expect(await screen.findByTestId('lib-agent-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('lib-agent-detail-empty')).toBeInTheDocument()
     expect(screen.getByTestId('lib-agent-new')).toBeInTheDocument()
     expect(screen.getByTestId('lib-section-agents')).toHaveTextContent('0')
   })

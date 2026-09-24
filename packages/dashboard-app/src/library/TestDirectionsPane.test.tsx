@@ -13,13 +13,13 @@ const CUSTOM = {
   definition: { id: 'mine', label: '我的', command: 'npm run mine', timeout_s: 600 },
 }
 
-function stubFetch(calls: Array<[string, string]>) {
+function stubFetch(calls: Array<[string, string]>, list: readonly unknown[] = [BUILTIN, CUSTOM]) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = String(input)
     const method = init?.method ?? 'GET'
     calls.push([method, url])
     if (url === '/api/test-directions') {
-      return new Response(JSON.stringify({ ok: true, directions: [BUILTIN, CUSTOM] }), { status: 200 })
+      return new Response(JSON.stringify({ ok: true, directions: list }), { status: 200 })
     }
     if (url.startsWith('/api/test-directions/')) {
       return new Response(JSON.stringify({ ok: true, direction: CUSTOM }), { status: 200 })
@@ -48,9 +48,6 @@ describe('TestDirectionsPane', () => {
     stubFetch([])
     await openDirections()
     expect(screen.getByTestId('lib-dir-mine')).toBeTruthy()
-    // 未选中时的空态不写字，只留空白；可访问名称说的是测试方向，不是模板。
-    expect(screen.getByTestId('lib-dir-empty')).toHaveTextContent(/^$/u)
-    expect(screen.getByTestId('lib-dir-empty')).toHaveAttribute('aria-label', '选择测试方向')
     await userEvent.click(screen.getByTestId('lib-dir-unit'))
     const yaml = screen.getByTestId('lib-dir-yaml')
     expect(yaml.tagName).toBe('PRE')
@@ -64,6 +61,38 @@ describe('TestDirectionsPane', () => {
     expect(screen.getByTestId('lib-dir-field-id')).toHaveTextContent('unit')
     expect(screen.queryByTestId('lib-dir-custom')).toBeNull()
     expect(screen.getByTestId(`lib-dir-copy-unit`)).toHaveTextContent('复制为自定义')
+  })
+
+  it('右列不留空：没选中时打开第一行；显式选中的保持选中', async () => {
+    stubFetch([])
+    await openDirections()
+    await waitFor(() => expect(screen.getByTestId('lib-dir-title')).toHaveTextContent(/^单测$/u))
+    expect(screen.getByTestId('lib-dir-unit')).toHaveAttribute('aria-current', 'true')
+    expect(screen.queryByTestId('lib-dir-empty')).toBeNull()
+    await userEvent.click(screen.getByTestId('lib-dir-mine'))
+    await userEvent.type(screen.getByTestId('library-list-search'), '我')
+    expect(screen.getByTestId('lib-dir-title')).toHaveTextContent(/^我的$/u)
+    expect(screen.getByTestId('lib-dir-mine')).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('选中项被搜索筛掉时换成当前列表第一行', async () => {
+    stubFetch([])
+    await openDirections()
+    await waitFor(() => expect(screen.getByTestId('lib-dir-title')).toHaveTextContent(/^单测$/u))
+    await userEvent.type(screen.getByTestId('library-list-search'), 'mine')
+    await waitFor(() => expect(screen.getByTestId('lib-dir-title')).toHaveTextContent(/^我的$/u))
+    expect(screen.getByTestId('lib-dir-mine')).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('列表为空时详情保留空态：不写字，可访问名称说的是测试方向', async () => {
+    stubFetch([], [])
+    window.__TENON_DASHBOARD_TOKEN__ = 'tok'
+    render(<I18nProvider><LibraryView /></I18nProvider>)
+    await userEvent.click(screen.getByTestId('lib-section-directions'))
+    const empty = await screen.findByTestId('lib-dir-empty')
+    await waitFor(() => expect(screen.queryByTestId('lib-dir-loading')).toBeNull())
+    expect(empty).toHaveTextContent(/^$/u)
+    expect(empty).toHaveAttribute('aria-label', '选择测试方向')
   })
 
   it('列表行只显示名称，标识在悬停提示里；只有自定义行带标记', async () => {

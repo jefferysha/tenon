@@ -8,7 +8,7 @@ import { matchesQuery } from '../shell/GlobalSearch'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
 import { CustomMark, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
 import { AgentDetail } from './AgentDetail'
-import { AgentList, NewAgentDialog, agentSkeleton } from './AgentList'
+import { AgentList, NewAgentDialog, agentRole, agentSkeleton } from './AgentList'
 import { useAgentLibrary } from './useAgentLibrary'
 import { LibraryRail, type LibrarySection } from './LibraryRail'
 import { NewTemplateDialog } from './NewTemplateDialog'
@@ -112,6 +112,19 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
   const agentRows = agents.agents.filter((agent) => matchesQuery(agentSearch, agent.name, agent.description))
   const directionRows = directions.directions.filter((direction) => matchesQuery(directionSearch, direction.id, direction.label))
   const directionLibrary = { ...directions, directions: directionRows }
+  // agent / 测试方向同样右列不留空：没选中、或选中项被删掉 / 被搜索筛掉时，打开当前列表第一行（列表先列执行者）。
+  const firstAgent = agentRows.find((agent) => agentRole(agent) === 'executor') ?? agentRows[0]
+  const agentShown = agents.selected !== null && agentRows.some((agent) => agent.name === agents.selected?.name)
+  const agentIdle = section === 'agents' && !agents.loading && !agents.busy
+  useEffect(() => {
+    if (agentIdle && !agentShown && firstAgent !== undefined) agents.select(firstAgent.name)
+  }, [agentIdle, agentShown, firstAgent, agents.select])
+  const firstDirection = directionRows[0]
+  const directionShown = directions.selected !== null && directionRows.some((direction) => direction.id === directions.selected?.id)
+  const directionIdle = section === 'directions' && !directions.loading && !directions.busy
+  useEffect(() => {
+    if (directionIdle && !directionShown && firstDirection !== undefined) directions.select(firstDirection.id)
+  }, [directionIdle, directionShown, firstDirection, directions.select])
 
   const rail = (
     <LibraryRail
