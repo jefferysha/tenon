@@ -6,20 +6,19 @@
  * - 已有目录：从不 `git init`、从不建骨架目录；指令文件按 dry run 拿到的摘要写入；已登记的项目不报错。
  */
 import { execFile } from 'node:child_process'
-import { lstatSync, mkdirSync, rmSync } from 'node:fs'
 import { isAbsolute, join, resolve as resolvePath } from 'node:path'
 import {
-  PROJECT_INSTRUCTION_FILES, containsManagedMarker, mergeManagedBlocks, readProjectRegistry,
+  PROJECT_INSTRUCTION_FILES, containsManagedMarker, mergeManagedBlocks, normalizeProjectClients, readProjectRegistry,
   type ProjectInstructionFile, type RecordActor,
 } from '@tenon/kernel'
 import { IDENTITY_REQUIRED, recordInstructionAudit } from './instructionAudit.js'
-import { INSTRUCTION_TEXT_MAX_BYTES, applyInstructions, previewInstructionApply, type InstructionResult } from './instructionFiles.js'
-import { trustedFsFailure, writeTrustedFile } from './instructionTrustedFs.js'
-import { registerProjectAnchored } from './projects.js'
+import { INSTRUCTION_TEXT_MAX_BYTES, type InstructionResult } from './instructionFiles.js'
+import { trustedFsFailure } from './instructionTrustedFs.js'
+import { executeEmpty, executeExisting, type CreateStepReporter } from './projectCreateRun.js'
+import { REFERENCE_FILES, effectiveText, previewProjectFiles, type InstructionsRequest } from './projectInstructionText.js'
 import type { ServerPaths } from './types.js'
-import { withTrustedDirectoryChain } from './workflowTrustedFs.js'
 import {
-  captureWorkflowRootAnchor, closeWorkflowRootAnchor, lstatIfExists, sameIdentity, type WorkflowRootAnchor,
+  captureWorkflowRootAnchor, closeWorkflowRootAnchor, lstatIfExists, type WorkflowRootAnchor,
 } from './workflowRootAnchor.js'
 
 export type GitRunner = (args: readonly string[], cwd: string) => Promise<{ code: number; stderr: string }>
@@ -32,11 +31,20 @@ export interface ProjectCreateDeps {
   readonly actor: RecordActor | null
 }
 
-interface InstructionsRequest { readonly text: string; readonly targets: readonly ProjectInstructionFile[]; readonly baseDigests: Readonly<Record<string, string>> }
 
+/**
+ * clients：要记入 `.tenon/clients.json` 的客户端（已去重排序）；null = 请求没带，不写。
+ * gitInit：已有目录还不是 git 仓库时是否 `git init`（缺省不做）。
+ */
 export type ProjectCreatePlan =
-  | { readonly mode: 'empty'; readonly root: string; readonly parent: string; readonly directories: readonly string[]; readonly instructions: InstructionsRequest | null; readonly dryRun: boolean }
-  | { readonly mode: 'existing'; readonly root: string; readonly instructions: InstructionsRequest | null; readonly dryRun: boolean }
+  | {
+    readonly mode: 'empty'; readonly root: string; readonly parent: string; readonly directories: readonly string[]
+    readonly instructions: InstructionsRequest | null; readonly clients?: readonly string[] | null; readonly dryRun: boolean
+  }
+  | {
+    readonly mode: 'existing'; readonly root: string; readonly instructions: InstructionsRequest | null
+    readonly clients?: readonly string[] | null; readonly gitInit?: boolean; readonly dryRun: boolean
+  }
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const DIRECTORY = /^[a-z0-9._-]+\/$/
@@ -66,13 +74,26 @@ function decodeInstructions(value: unknown): InstructionsRequest | null | 'inval
   if (targets.length === 0 || targets.length !== body.targets.length || new Set(targets).size !== targets.length) return 'invalid'
   const digests = record(body.base_digests ?? {})
   if (!digests || !Object.values(digests).every((item) => typeof item === 'string')) return 'invalid'
-  return { text: body.text, targets, baseDigests: Object.fromEntries(Object.entries(digests).map(([key, item]) => [key, String(item)])) }
+  const references = subset(body.references, targets, REFERENCE_FILES)
+  const append = subset(body.append, targets, targets)
+  if (references === null || append === null) return 'invalid'
+  return {
+    text: body.text, targets, references, append,
+    baseDigests: Object.fromEntries(Object.entries(digests).map(([key, item]) => [key, String(item)])),
+  }
+}
+
+/** 可选的文件子集：缺省为空；必须是 targets 与 allowed 的交集里不重复的项。 */
+function subset(value: unknown, targets: readonly string[], allowed: readonly string[]): string[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || new Set(value).size !== value.length) return null
+  return value.every((item) => typeof item === 'string' && targets.includes(item) && allowed.includes(item)) ? value.map(String) : null
 }
 
 /** 解码与静态校验；不访问文件系统。 */
 export function decodeProjectCreate(body: unknown): ProjectCreatePlan | InstructionResult {
   const request = record(body)
-  const allowed = ['mode', 'parent', 'name', 'path', 'directories', 'instructions', 'dry_run']
+  const allowed = ['mode', 'parent', 'name', 'path', 'directories', 'instructions', 'clients', 'git_init', 'dry_run']
   if (!request || Object.keys(request).some((key) => !allowed.includes(key))) return fail(400, 'invalid', '请求体不合法')
   const directories = request.directories ?? []
   if (!Array.isArray(directories) || directories.length > 8 || !directories.every((item) => typeof item === 'string' && DIRECTORY.test(item) && item !== './' && item !== '../')
@@ -83,16 +104,24 @@ export function decodeProjectCreate(body: unknown): ProjectCreatePlan | Instruct
   if (instructions === 'invalid') return fail(400, 'invalid', 'instructions 不合法')
   if (instructions && containsManagedMarker(instructions.text)) return fail(400, 'managed-marker-in-text', '正文不能包含 Tenon 受管块标记行')
   if (instructions && Buffer.byteLength(instructions.text, 'utf8') > INSTRUCTION_TEXT_MAX_BYTES) return fail(413, 'too-large', '指令文件过大')
+  let clients: string[] | null = null
+  if (request.clients !== undefined && request.clients !== null) {
+    const normalized = normalizeProjectClients(request.clients)
+    if (normalized === null) return fail(400, 'invalid', 'clients 必须是客户端 id 列表')
+    if (!normalized.ok) return fail(400, 'unknown-client', '未知客户端', { unknown: normalized.unknown })
+    clients = normalized.enabled
+  }
   const dryRun = request.dry_run === true
   if (request.mode === 'empty') {
     if (!absolutePath(request.parent) || typeof request.name !== 'string' || !NAME.test(request.name)) return fail(400, 'invalid-path', '父目录必须是绝对路径，名称只能含字母、数字、. _ -')
     const parent = resolvePath(request.parent)
-    return { mode: 'empty', parent, root: join(parent, request.name), directories: directories.map(String), instructions, dryRun }
+    return { mode: 'empty', parent, root: join(parent, request.name), directories: directories.map(String), instructions, clients, dryRun }
   }
   if (request.mode === 'existing') {
     if (!absolutePath(request.path)) return fail(400, 'invalid-path', '路径必须是绝对路径')
     if (directories.length > 0) return fail(400, 'invalid', '已有目录不创建骨架目录')
-    return { mode: 'existing', root: resolvePath(request.path), instructions, dryRun }
+    if (request.git_init !== undefined && typeof request.git_init !== 'boolean') return fail(400, 'invalid', 'git_init 必须是布尔值')
+    return { mode: 'existing', root: resolvePath(request.path), instructions, clients, gitInit: request.git_init === true, dryRun }
   }
   return fail(400, 'invalid', 'mode 必须是 empty 或 existing')
 }
@@ -121,18 +150,21 @@ export async function planProjectCreate(plan: ProjectCreatePlan, deps: ProjectCr
         ok: true, root: plan.root, git: 'init', registration: registered(deps, plan.root) ? 'already' : 'add',
         directories: plan.directories.map((path) => ({ path, exists: false })),
         files: (plan.instructions?.targets ?? []).map((id) => ({
-          id, path: join(plan.root, id), base_digest: 'absent', current: null, next: mergeManagedBlocks(plan.instructions?.text ?? '', []),
+          id, path: join(plan.root, id), base_digest: 'absent', current: null,
+          next: plan.instructions ? mergeManagedBlocks(effectiveText(plan.instructions, id, null), []) : '',
         })),
       },
     }
   }
   const problem = directoryProblem(plan.root, fail(404, 'path-missing', '路径不存在'))
   if (problem) return problem
+  const hasGit = lstatIfExists(join(plan.root, '.git')) !== undefined
+  if (!hasGit && plan.gitInit === true && (await deps.runGit(['--version'], plan.root)).code !== 0) return fail(422, 'git-unavailable', '无法运行 git')
   let files: unknown[] = []
   if (plan.instructions) {
     const anchor = captureWorkflowRootAnchor(plan.root)
     try {
-      const preview = previewInstructionApply({ level: 'project', anchor }, plan.instructions.text, plan.instructions.targets)
+      const preview = previewProjectFiles(anchor, plan.instructions)
       if (preview.status !== 200) return preview
       files = (preview.body as { files: unknown[] }).files
     } finally {
@@ -142,99 +174,46 @@ export async function planProjectCreate(plan: ProjectCreatePlan, deps: ProjectCr
   return {
     status: 200,
     body: {
-      ok: true, root: plan.root, git: lstatIfExists(join(plan.root, '.git')) ? 'existing' : 'none',
+      ok: true, root: plan.root, git: hasGit ? 'existing' : plan.gitInit === true ? 'init' : 'none',
       registration: registered(deps, plan.root) ? 'already' : 'add', directories: [], files,
     },
   }
 }
 
-function removeCreated(root: string, anchor: WorkflowRootAnchor): void {
-  try {
-    const current = lstatSync(root)
-    if (current.isDirectory() && !current.isSymbolicLink() && sameIdentity(current, anchor)) rmSync(root, { recursive: true, force: true })
-  } catch {
-    // 目录已被换位或删除时不动它，宁可遗留也不删错。
-  }
-}
-
-async function executeEmpty(plan: Extract<ProjectCreatePlan, { mode: 'empty' }>, deps: ProjectCreateDeps): Promise<InstructionResult> {
-  try {
-    mkdirSync(plan.root)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return fail(409, 'project-path-exists', '目录已存在')
-    return trustedFsFailure(error)
-  }
-  const anchor = captureWorkflowRootAnchor(plan.root)
-  let step = 'git-init'
-  try {
-    if ((await deps.runGit(['init'], plan.root)).code !== 0) throw new Error('git init 失败')
-    step = 'directories'
-    for (const directory of plan.directories) {
-      const name = directory.slice(0, -1)
-      withTrustedDirectoryChain(anchor, [name], true, () => { throw new Error('目录创建失败') }, () => undefined)
-      const keep = writeTrustedFile(anchor, [name], '.gitkeep', '', 'absent', 1)
-      if (!keep.ok) throw new Error('.gitkeep 写入失败')
-    }
-    let files: unknown[] = []
-    if (plan.instructions) {
-      step = 'instructions'
-      const applied = applyInstructions({ level: 'project', anchor }, plan.instructions.text, plan.instructions.targets.map((id) => ({ id, base_digest: 'absent' })))
-      if (applied.status !== 200) throw new Error('指令文件写入失败')
-      files = (applied.body as { files: unknown[] }).files
-    }
-    step = 'register'
-    const registration = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root)
-    if (!registration.ok) throw new Error(registration.error)
-    return { status: 200, body: { ok: true, root: plan.root, git: 'init', registration: 'add', directories: plan.directories, files } }
-  } catch {
-    removeCreated(plan.root, anchor)
-    return fail(500, 'project-create-failed', '新建项目失败', { step })
-  } finally {
-    closeWorkflowRootAnchor(anchor)
-  }
-}
-
-async function executeExisting(plan: Extract<ProjectCreatePlan, { mode: 'existing' }>, deps: ProjectCreateDeps): Promise<InstructionResult> {
-  let files: unknown[] = []
-  if (plan.instructions) {
-    const instructions = plan.instructions
-    const anchor = captureWorkflowRootAnchor(plan.root)
-    try {
-      const applied = applyInstructions({ level: 'project', anchor }, instructions.text,
-        instructions.targets.map((id) => ({ id, base_digest: instructions.baseDigests[id] ?? 'absent' })))
-      if (applied.status !== 200) return applied
-      files = (applied.body as { files: unknown[] }).files
-    } finally {
-      closeWorkflowRootAnchor(anchor)
-    }
-  }
-  const git = lstatIfExists(join(plan.root, '.git')) ? 'existing' : 'none'
-  if (registered(deps, plan.root)) {
-    return { status: 200, body: { ok: true, root: plan.root, git, registration: 'already', directories: [], files } }
-  }
-  const registration = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root)
-  if (!registration.ok) return fail(registration.code, 'registration-failed', registration.error)
-  return { status: 200, body: { ok: true, root: plan.root, git, registration: 'add', directories: [], files } }
-}
-
-/** POST /api/projects/create：解码 → 校验 / dry run → 执行。执行记作者，dry run 不需要身份也不记。 */
-export async function handleProjectCreate(body: unknown, deps: ProjectCreateDeps): Promise<InstructionResult> {
+/** 解码 + 校验；执行（非 dry run）还要求本机有声明身份。返回计划 = 可以执行；返回结果 = 直接响应。 */
+export async function prepareProjectCreate(body: unknown, deps: ProjectCreateDeps): Promise<{ plan: ProjectCreatePlan } | InstructionResult> {
   const plan = decodeProjectCreate(body)
   if ('status' in plan) return plan
   try {
     const checked = await planProjectCreate(plan, deps)
     if (checked.status !== 200 || plan.dryRun) return checked
-    const actor = deps.actor
-    if (actor === null) return IDENTITY_REQUIRED
-    const created = plan.mode === 'empty' ? await executeEmpty(plan, deps) : await executeExisting(plan, deps)
+    if (deps.actor === null) return IDENTITY_REQUIRED
+    return { plan }
+  } catch (error) {
+    return trustedFsFailure(error)
+  }
+}
+
+/** 按步骤执行已校验的计划；成功后记一行审计。 */
+export async function runProjectCreate(
+  plan: ProjectCreatePlan, deps: ProjectCreateDeps, report: CreateStepReporter = () => undefined,
+): Promise<InstructionResult> {
+  try {
+    const created = plan.mode === 'empty' ? await executeEmpty(plan, deps, report) : await executeExisting(plan, deps, report)
     // 项目根是目录，没有文件摘要可比，前后都记 absent。
-    if (created.status === 200) {
+    if (created.status === 200 && deps.actor !== null) {
       recordInstructionAudit(deps.paths.configRoot, {
-        actor, action: 'project-create', target: plan.root, digest_before: 'absent', digest_after: 'absent',
+        actor: deps.actor, action: 'project-create', target: plan.root, digest_before: 'absent', digest_after: 'absent',
       })
     }
     return created
   } catch (error) {
     return trustedFsFailure(error)
   }
+}
+
+/** POST /api/projects/create：解码 → 校验 / dry run → 执行。执行记作者，dry run 不需要身份也不记。 */
+export async function handleProjectCreate(body: unknown, deps: ProjectCreateDeps): Promise<InstructionResult> {
+  const prepared = await prepareProjectCreate(body, deps)
+  return 'plan' in prepared ? runProjectCreate(prepared.plan, deps) : prepared
 }

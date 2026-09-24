@@ -292,6 +292,10 @@ export interface DashboardServerOptions {
   paths: ServerPaths
   /** 仅用于宿主资产发现；省略时复用 paths.homeDir，绝不进入 ServerPaths 或产品状态解析。 */
   hostHome?: string
+  /** 原生「选择文件夹」对话框；测试注入假实现，缺省按本机平台调系统对话框。 */
+  folderChooser?: import('./folderChooser.js').FolderChooser
+  /** 新建项目用的 git 执行器；测试注入以制造 git init 失败，缺省调本机 git。 */
+  projectCreateGit?: import('./projectCreate.js').GitRunner
   /** 覆盖注册表读取（默认读 registryPath 的 JSON 字符串数组）。 */
   registry?: () => string[]
   /** 覆盖 token（默认启动生成一次性随机 token）。 */
