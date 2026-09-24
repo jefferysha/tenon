@@ -50,6 +50,24 @@ export function readOnlyViewport(
   return { x, y, zoom: 1 }
 }
 
+/**
+ * 可编辑画布取景：按容器缩放到 [minZoom, maxZoom]；缩到下限仍放不下时靠左对齐、可横向平移，
+ * 不再居中把首尾两列都裁掉（真机：三个串行评审者在 640px 画布里两头都看不见）。
+ */
+export function editViewport(
+  bounds: { x: number; y: number; width: number; height: number },
+  size: { width: number; height: number },
+  zoomRange: { min: number; max: number },
+  pad = PADDING,
+): { x: number; y: number; zoom: number } {
+  const fit = Math.min((size.width - 2 * pad) / Math.max(bounds.width, 1), (size.height - 2 * pad) / Math.max(bounds.height, 1))
+  const zoom = Math.min(zoomRange.max, Math.max(zoomRange.min, fit))
+  const width = bounds.width * zoom
+  const x = width + 2 * pad <= size.width ? (size.width - width) / 2 - bounds.x * zoom : pad - bounds.x * zoom
+  const y = (size.height - bounds.height * zoom) / 2 - bounds.y * zoom
+  return { x, y, zoom }
+}
+
 export function layoutSkills(skills: readonly WbSkillRef[], lines = 1): Array<{ id: string; x: number; y: number }> {
   const out: Array<{ id: string; x: number; y: number }> = []
   const waves = wavesOf(skills)

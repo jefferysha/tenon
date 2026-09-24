@@ -7,7 +7,7 @@ import type { Edge, EdgeProps } from '@xyflow/react'
 import type { WbSkillRef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
 import { useReactFlow } from './reactFlowTestDouble'
-import { addSkillAt, appendSerial, canvasHeight, CONTROLS_CLASS, dropTargetFor, edgesOf, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, RESIZE_THROTTLE_MS, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
+import { addSkillAt, appendSerial, canvasHeight, CONTROLS_CLASS, dropTargetFor, edgesOf, editViewport, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, RESIZE_THROTTLE_MS, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
 import { PulseEdge, pulseModeOf, type PulseData } from './skillFlowNodes'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
@@ -185,6 +185,16 @@ describe('SkillFlow · 画布尺寸与取景', () => {
     expect(three[2]!.y - three[1]!.y).toBe(104)
   })
 
+  it('editViewport：放得下就缩放居中；缩到下限仍放不下就靠左对齐，不两头裁', () => {
+    const range = { min: 0.75, max: 1 }
+    // 窄内容：缩放 1，居中。
+    expect(editViewport({ x: 0, y: 0, width: 200, height: 100 }, { width: 640, height: 400 }, range, 24)).toEqual({ x: 220, y: 150, zoom: 1 })
+    // 三列串行（宽 1000）：640 宽画布里 fit 需 0.59 < 0.75 → 取 0.75、靠左留 24，首列可见。
+    const wide = editViewport({ x: 40, y: 0, width: 1000, height: 100 }, { width: 640, height: 400 }, range, 24)
+    expect(wide.zoom).toBe(0.75)
+    expect(wide.x + 40 * 0.75).toBe(24)
+  })
+
   it('readOnlyViewport：缩放恒为 1；内容窄则居中，宽则从起点对齐（留 24）', () => {
     expect(readOnlyViewport({ x: 10, y: 20, width: 400, height: 100 }, { width: 800, height: 300 })).toEqual({ x: 190, y: 80, zoom: 1 })
     expect(readOnlyViewport({ x: 10, y: 20, width: 1200, height: 100 }, { width: 800, height: 300 })).toEqual({ x: 14, y: 80, zoom: 1 })
@@ -230,13 +240,19 @@ describe('SkillFlow · 画布尺寸与取景', () => {
     expect(setViewport.mock.calls[0]![1]).toEqual({ duration: 0 })
   })
 
-  it('可编辑画布的重新取景走 fitView，不缩到 0.75 以下', () => {
+  it('可编辑画布的重新取景走 editViewport：缩放在 [0.75, 1]，不调用会居中裁切的 fitView', () => {
     vi.useFakeTimers()
     stubMatchMedia(false)
-    const fitView = vi.spyOn(useReactFlow(), 'fitView')
+    const flow = useReactFlow()
+    const fitView = vi.spyOn(flow, 'fitView')
+    const setViewport = vi.spyOn(flow, 'setViewport')
     render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable onChange={() => undefined} onOpen={() => undefined} /></I18nProvider>)
     act(() => { vi.advanceTimersByTime(100) })
-    expect(fitView).toHaveBeenCalledWith({ padding: 0.2, minZoom: 0.75, maxZoom: 1, duration: 200 })
+    expect(fitView).not.toHaveBeenCalled()
+    const [viewport, options] = setViewport.mock.calls.at(-1) ?? []
+    expect(viewport?.zoom).toBeGreaterThanOrEqual(0.75)
+    expect(viewport?.zoom).toBeLessThanOrEqual(1)
+    expect(options).toEqual({ duration: 200 })
   })
 })
 
