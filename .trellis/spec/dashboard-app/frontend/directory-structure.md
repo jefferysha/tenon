@@ -33,9 +33,12 @@ src/
 ├── shared/
 │   ├── Drawer.tsx          # right-side drawer (portal, 560px, Esc, focus trap) — the only overlay besides Dialog
 │   ├── Markdown.tsx        # react-markdown + remark-gfm with token styling; isMarkdownPath
+│   ├── FacetBar.tsx        # one-line filter bar: radio chips + dropdown facets, overflow into 「更多 N」 (never wraps)
 │   └── Dialog.tsx, UnsavedDraftDialog.tsx, uiRecipes.ts, motion.ts …
 ├── workspace/              # view 'progress' — 工作台 (read-only)
 │   ├── WorkspaceView.tsx, ProjectRail.tsx, TaskListPane.tsx, TaskCard.tsx, MiniPipeline.tsx
+│   ├── TaskMenu.tsx, useTaskActions.ts # the one ⋯ action list shared by card and detail
+│   ├── workspaceLocation.ts # URL status / step
 │   ├── TaskDetailPane.tsx  # header + StageRail + StageIoPanel + DocumentDrawer
 │   ├── StageRail.tsx, StageIoPanel.tsx, DocumentDrawer.tsx
 │   ├── taskModel.ts        # rowsOf / stagesOf / summaryOf / filterRows / stageChips / slotLabel (status semantics live here only)
