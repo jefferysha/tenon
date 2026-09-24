@@ -50,7 +50,7 @@ The three operational destinations in the primary shell are:
 
 - Progress — Workflow graph, phase, Todo, history, and evidence
 - Workbench — Workflows, Tracks, hooks, automation, loops, and configuration
-- Projects — project-level and user-level instruction files (`AGENTS.md`, `CLAUDE.md`,
+- Projects — per project, the enabled agent clients and, for each, its project-level and user-level instruction file (`AGENTS.md`, `CLAUDE.md`,
   `GEMINI.md`), plus creating a project from an existing or new directory
 - Library — the instruction template library: built-in blocks synced from the
   release payload, and your own copies

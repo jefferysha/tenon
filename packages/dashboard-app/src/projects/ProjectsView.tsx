@@ -1,21 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Folder, Plus, User } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Folder, Plus } from 'lucide-react'
 import { useT } from '../i18n'
-import type { InstructionPreviewFile } from '../api/instructionsDecoders'
 import type { TopBarProject } from '../shell/TopBar'
 import { DetailEmpty, ListColumn, RailCard, RailColumn, ThreeColumns } from '../shell/ThreeColumns'
 import { BUTTON_ICON } from '../shared/uiRecipes'
-import { HostTargetList } from './HostTargetList'
+import { AddClientMenu, ClientList } from './ClientList'
+import { ClientScopeControls } from './ClientScopeControls'
 import { InstructionEditor } from './InstructionEditor'
 import { NewProjectDialog } from './NewProjectDialog'
-import { firstLoadable, targetsForHosts } from './instructionModel'
+import { CODEX_MAX_BYTES, clientName, fileNameOf } from './clientModel'
 import { shortPath } from '@/lib/utils'
-import { useInstructionFiles } from './useInstructionFiles'
+import { useClientEditor } from './useClientEditor'
 
 const RAIL_KEY = 'tenon-dashboard-rail:projects'
-const DEFAULT_HOSTS = ['claude', 'codex']
 
-/** 项目：左列用户级 + 各项目 + 新建项目 / 中列宿主与文件 / 右列指令文件编辑器。 */
+/** 项目：左列项目 + 新建项目 / 中列该项目已启用的客户端 / 右列所选客户端的 项目级 · 用户级 指令文件。 */
 export function ProjectsView({
   projects, currentRoot, onSelectProject, onToast, newProjectOpen = false, onNewProjectOpenChange, snapshotRevision = '',
 }: {
@@ -44,46 +43,21 @@ export function ProjectsView({
     onNewProjectOpenChange?.(false)
   }
 
-  const [text, setText] = useState('')
-  const loadedRef = useRef('')
-  const dirtyRef = useRef(false)
-  dirtyRef.current = text !== loadedRef.current
-  const files = useInstructionFiles(currentRoot, () => dirtyRef.current, snapshotRevision)
-  const [selectedHosts, setSelectedHosts] = useState<ReadonlySet<string>>(() => new Set(DEFAULT_HOSTS))
+  const editor = useClientEditor(currentRoot, snapshotRevision)
+  const { target, group, client } = editor
 
-  const hosts = files.state?.hosts ?? []
-  const targets = files.state?.targets ?? []
-  const targetIds = useMemo(() => targetsForHosts(hosts, selectedHosts), [hosts, selectedHosts])
-
-  // 载入盘上的正文：只在没有草稿时跟随刷新，避免覆盖用户正在写的内容。
-  useEffect(() => {
-    if (files.state === null || dirtyRef.current) return
-    const source = firstLoadable(files.state.targets, targetsForHosts(files.state.hosts, selectedHosts))
-    const next = source?.text ?? ''
-    loadedRef.current = next
-    setText(next)
-  }, [files.state, selectedHosts])
-
-  const project = projects.find((candidate) => candidate.root === currentRoot)
-  const title = currentRoot === '' ? t('projects.user_level') : project?.name ?? currentRoot
-
-  const onApply = async (previewFiles: readonly InstructionPreviewFile[]): Promise<boolean> => {
-    const applied = await files.apply(text, previewFiles.map((file) => ({ id: file.id, base_digest: file.base_digest })))
-    if (applied === null) return false
-    loadedRef.current = text
-    onToast?.(t('common.done_applied'))
-    return true
+  const onApply = async (...args: Parameters<typeof editor.apply>): Promise<boolean> => {
+    const applied = await editor.apply(...args)
+    if (applied) onToast?.(t('common.done_applied'))
+    return applied
   }
 
   const onDelete = async (): Promise<void> => {
-    const removed: string[] = []
-    for (const id of targetIds) {
-      const target = targets.find((candidate) => candidate.id === id)
-      if (target === undefined || !target.exists) continue
-      if (await files.remove(id, target.digest) !== null) removed.push(id)
-    }
-    if (removed.length > 0) onToast?.(t('common.done_deleted', { name: removed.join(', ') }))
+    const name = target === null ? '' : fileNameOf(target)
+    if (await editor.remove()) onToast?.(t('common.done_deleted', { name }))
   }
+
+  const readers = editor.scope === 'user' ? [client ?? ''] : group?.clients ?? []
 
   return (
     <>
@@ -110,16 +84,6 @@ export function ProjectsView({
             )}
           >
             <ul className="grid gap-1">
-              <li>
-                <RailCard
-                  mark={<User />}
-                  name={t('projects.user_level')}
-                  selected={currentRoot === ''}
-                  collapsed={railCollapsed}
-                  onClick={() => onSelectProject('')}
-                  testId="proj-user"
-                />
-              </li>
               {projects.map((candidate) => (
                 <li key={candidate.root}>
                   <RailCard
@@ -141,55 +105,61 @@ export function ProjectsView({
         list={(
           <ListColumn
             testId="projects-list"
-            title={t('projects.hosts')}
+            title={t('projects.clients')}
+            action={currentRoot !== '' && editor.ready ? (
+              <AddClientMenu hosts={editor.hosts} enabled={editor.enabled} onEnable={editor.enable} />
+            ) : undefined}
           >
-            {files.loading ? (
+            {editor.loading ? (
               <ul className="grid gap-2" role="status" aria-label={t('common.loading')} data-testid="proj-loading">
-                {[0, 1, 2, 3, 4].map((index) => (
-                  <li key={index} className="h-9 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />
+                {[0, 1, 2].map((index) => (
+                  <li key={index} className="h-11 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />
                 ))}
               </ul>
             ) : (
-              <HostTargetList
-                hosts={hosts}
-                targets={targets}
-                selected={selectedHosts}
-                editorText={text}
-                onToggle={(hostId) => setSelectedHosts((current) => {
-                  const next = new Set(current)
-                  if (next.has(hostId)) next.delete(hostId)
-                  else next.add(hostId)
-                  return next
-                })}
-                onLoad={(id) => {
-                  const target = targets.find((candidate) => candidate.id === id)
-                  if (target === undefined) return
-                  loadedRef.current = target.text
-                  setText(target.text)
+              <ClientList
+                groups={editor.groups}
+                selectedFile={group?.file ?? null}
+                statusOf={(file) => {
+                  const projectTarget = editor.projectTarget(file)
+                  return projectTarget === null ? null : editor.statusOf('project', projectTarget)
                 }}
+                onSelect={editor.select}
+                onDisable={editor.disable}
               />
             )}
           </ListColumn>
         )}
-        detail={files.state === null ? (
-          // 详情空态不写字，只留空白；可访问名称仍说明「选择项目」。
-          <DetailEmpty label={t('projects.empty_detail')} testId="proj-detail-empty" />
+        detail={target === null || client === null ? (
+          // 详情空态不写字，只留空白；可访问名称仍说明要选什么。
+          <DetailEmpty label={t(currentRoot === '' ? 'projects.empty_detail' : 'projects.add_client')} testId="proj-detail-empty" />
         ) : (
           <InstructionEditor
-            title={title}
-            root={currentRoot}
-            targets={targets}
-            targetIds={targetIds}
-            text={text}
-            onText={setText}
-            external={files.external}
-            busy={files.busy}
-            errorKey={files.errorKey}
-            onPreview={() => files.preview(text, targetIds)}
+            key={`${editor.scope}:${target.id}`}
+            title={clientName(client)}
+            target={target}
+            root={editor.scope === 'project' ? currentRoot : ''}
+            controls={(
+              <ClientScopeControls
+                scope={editor.scope}
+                onScope={editor.setScope}
+                userReaders={editor.userReaders}
+                reader={editor.scope === 'user' ? client : null}
+                onReader={editor.select}
+                levels={editor.hosts.find((host) => host.id === client)?.levels ?? null}
+              />
+            )}
+            status={editor.statusOf(editor.scope, target)}
+            tooLarge={readers.includes('codex') && target.bytes > CODEX_MAX_BYTES}
+            text={editor.text}
+            onText={editor.setText}
+            external={editor.files.external}
+            busy={editor.files.busy}
+            errorKey={editor.files.errorKey}
+            onPreview={editor.preview}
             onApply={onApply}
             onDelete={onDelete}
-            onReload={() => { void files.reload() }}
-            onDismissExternal={files.dismissExternal}
+            onReload={editor.reload}
           />
         )}
       />

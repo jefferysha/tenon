@@ -82,7 +82,7 @@ progress → workbench → projects → library → skills
 
 - `progress`：按状态查看任务，打开详情执行下一动作；
 - `workbench`：编辑 Workflow 与阶段结构；
-- `projects`：编辑项目级与用户级指令文件（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`），并从已有目录或新目录新建项目；
+- `projects`：按项目管理已启用的 agent 客户端，逐个编辑其项目级与用户级指令文件（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`），并从已有目录或新目录新建项目；
 - `library`：指令模板库，内建块随发行包同步，自定义块可复制与修改；
 - `skills`：只读查看每个技能的来源、提交、许可证、更新时间与状态。
 
