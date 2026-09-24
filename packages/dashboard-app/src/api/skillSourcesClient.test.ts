@@ -16,6 +16,7 @@ export const SERVER_FIXTURE = {
       sourceUrl: `https://github.com/dominikmartn/hue/tree/${C2}`,
       commitUrl: `https://github.com/dominikmartn/hue/commit/${C2}`,
       compareUrl: `https://github.com/dominikmartn/hue/compare/${C1}...${C2}`,
+      modelInvocable: true,
     },
     {
       id: 'web-design-guidelines', origin: 'upstream', status: 'failed', repo: 'vercel-labs/agent-skills',
@@ -41,6 +42,15 @@ describe('decodeSkillSources', () => {
     ['a non-GitHub link', { ...SERVER_FIXTURE, rows: [{ id: 'hue', origin: 'upstream', status: 'unchanged', commitUrl: 'javascript:alert(1)' }] }],
   ])('rejects %s', (_label, body) => {
     expect(decodeSkillSources(body)).toBeNull()
+  })
+})
+
+describe('decodeSkillSources · modelInvocable', () => {
+  // 服务端从 SKILL.md 字节读出可调用性后会带上 modelInvocable；白名单漏了它，整页报「响应格式无效」。
+  it('keeps a boolean modelInvocable and rejects any other type', () => {
+    expect(decodeSkillSources(SERVER_FIXTURE)?.rows[1]?.modelInvocable).toBe(true)
+    const wrong = { ...SERVER_FIXTURE, rows: [{ id: 'x', origin: 'upstream', status: 'unchanged', modelInvocable: 'yes' }] }
+    expect(decodeSkillSources(wrong)).toBeNull()
   })
 })
 

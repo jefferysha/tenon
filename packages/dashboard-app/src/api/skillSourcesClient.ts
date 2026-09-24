@@ -20,6 +20,8 @@ export interface SkillSourceRow {
   readonly sourceUrl?: string
   readonly commitUrl?: string
   readonly compareUrl?: string
+  /** 从 SKILL.md 字节读出的「模型能否调用」；读不到时缺省（未知，不等于不可调用）。 */
+  readonly modelInvocable?: boolean
 }
 
 export interface SkillSourcesDto {
@@ -34,7 +36,7 @@ const REASONS: ReadonlySet<unknown> = new Set([
 ])
 const ROW_KEYS: ReadonlySet<string> = new Set([
   'id', 'origin', 'status', 'repo', 'path', 'commit', 'previousCommit', 'license', 'fetchedAt',
-  'reason', 'detail', 'sourceUrl', 'commitUrl', 'compareUrl',
+  'reason', 'detail', 'sourceUrl', 'commitUrl', 'compareUrl', 'modelInvocable',
 ])
 const OPTIONAL_STRINGS = ['repo', 'path', 'commit', 'fetchedAt', 'detail'] as const
 const URL_KEYS = ['sourceUrl', 'commitUrl', 'compareUrl'] as const
@@ -58,6 +60,7 @@ function decodeRow(value: unknown): SkillSourceRow | null {
   if (item.previousCommit !== undefined && item.previousCommit !== null && typeof item.previousCommit !== 'string') return null
   if (item.license !== undefined && item.license !== 'MIT' && item.license !== 'Apache-2.0') return null
   if (item.reason !== undefined && !REASONS.has(item.reason)) return null
+  if (item.modelInvocable !== undefined && typeof item.modelInvocable !== 'boolean') return null
   const text = (key: (typeof OPTIONAL_STRINGS)[number] | (typeof URL_KEYS)[number]): string | undefined =>
     typeof item[key] === 'string' ? String(item[key]) : undefined
   return {
@@ -75,6 +78,7 @@ function decodeRow(value: unknown): SkillSourceRow | null {
     ...(text('sourceUrl') === undefined ? {} : { sourceUrl: text('sourceUrl') }),
     ...(text('commitUrl') === undefined ? {} : { commitUrl: text('commitUrl') }),
     ...(text('compareUrl') === undefined ? {} : { compareUrl: text('compareUrl') }),
+    ...(typeof item.modelInvocable === 'boolean' ? { modelInvocable: item.modelInvocable } : {}),
   }
 }
 
