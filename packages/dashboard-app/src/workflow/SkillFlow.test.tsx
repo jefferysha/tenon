@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WbSkillRef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
 import { useReactFlow } from './reactFlowTestDouble'
-import { addSkillAt, appendSerial, canvasHeight, CONTROLS_CLASS, dropTargetFor, edgesOf, editViewport, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, REFIT_MS, RESIZE_THROTTLE_MS, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
+import { addSkillAt, appendSerial, canvasHeight, CONTROLS_BAND, CONTROLS_CLASS, dropTargetFor, edgesOf, editViewport, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, REFIT_MS, RESIZE_THROTTLE_MS, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
 import { pulseModeOf } from './skillFlowNodes'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
@@ -249,7 +249,8 @@ describe('SkillFlow · 画布尺寸与取景', () => {
     const flow = screen.getByTestId('react-flow')
     expect(flow).toHaveAttribute('data-min-zoom', '1')
     expect(flow).toHaveAttribute('data-max-zoom', '1')
-    expect(screen.getByTestId('skill-flow').style.height).toBe(`${canvasHeight(2)}px`)
+    // 底部留出「适应」按钮的带高：按钮不压节点。
+    expect(screen.getByTestId('skill-flow').style.height).toBe(`${canvasHeight(2) + CONTROLS_BAND}px`)
     const controls = screen.getByTestId('flow-controls')
     expect(controls).toHaveAttribute('data-show-zoom', 'false')
     for (const token of ['!bg-card', '!border-border', '[&>button]:!size-10']) expect(controls.className).toContain(token)

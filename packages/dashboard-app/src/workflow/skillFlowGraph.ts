@@ -9,6 +9,8 @@ const PORT_GAP = 72
 /** 只读画布除各行之外再留的高度（波次标签、起点 / 终点的说明字与上下余量）。 */
 const CANVAS_EXTRA = 64
 export const CANVAS_MIN_HEIGHT = 160
+/** 只读画布底部给「适应」按钮留的带高（按钮 40 + 边距 15）：节点只在带上方取景，按钮不压节点。 */
+export const CONTROLS_BAND = 56
 
 /** 节点高度：名称一行 40，每多一行（评审者设置 / 运行状态）+20。节点不再放描述。 */
 export function nodeHeightFor(lines: number): number {

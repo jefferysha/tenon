@@ -552,6 +552,32 @@ describe('API bounded-context response decoders', () => {
     expect(decodeSnapshot(snapshot)).toBeNull()
   })
 
+  it('accepts step-exit blockers (tenon status exits) and rejects unknown sources, empty messages or extra keys', () => {
+    const valid = validSnapshot()
+    const readiness = valid.projects[0].changes[0].workflowExecution.readinessByTransition.open as
+      unknown as Record<string, { ready: boolean; blockers: unknown[] }>
+    readiness.finish = {
+      ready: false,
+      blockers: [
+        { kind: 'step-exit', source: 'skill', code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd' },
+        { kind: 'step-exit', source: 'tasks', code: 'tasks-incomplete', message: 'tasks.md 仍有 1 项未勾', items: ['a'] },
+      ],
+    }
+    const decoded = decodeSnapshot(valid)
+    expect(decoded?.projects[0]?.changes[0]?.workflowExecution.readinessByTransition.open?.finish?.blockers).toEqual(readiness.finish.blockers)
+    for (const bad of [
+      { kind: 'step-exit', source: 'ghost', code: 'x', message: 'm' },
+      { kind: 'step-exit', source: 'skill', code: 'x', message: '' },
+      { kind: 'step-exit', source: 'skill', code: 'x', message: 'm', leak: '/abs/path' },
+      { kind: 'step-exit', source: 'tasks', code: 'x', message: 'm', items: [1] },
+    ]) {
+      const broken = structuredClone(valid)
+      ;(broken.projects[0].changes[0].workflowExecution.readinessByTransition.open as unknown as Record<string, { ready: boolean; blockers: unknown[] }>)
+        .finish = { ready: false, blockers: [bad] }
+      expect(decodeSnapshot(broken)).toBeNull()
+    }
+  })
+
   it('accepts strict revision-untrusted readiness and rejects extra keys, invalid hashes, or reasons', () => {
     const valid = validSnapshot()
     const readiness = valid.projects[0].changes[0].workflowExecution.readinessByTransition.open as

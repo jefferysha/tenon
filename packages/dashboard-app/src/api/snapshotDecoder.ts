@@ -9,6 +9,7 @@ import type {
   ReviewHandshakeSnapshot,
   Snapshot,
   TerminalActivitySnapshot,
+  StepExitBlockerSource,
   TransitionReadinessBlockerSnapshot,
   SkillRunsSnapshot,
   AgentRunsSnapshot,
@@ -480,6 +481,7 @@ const GUARD_TYPES = new Set([
 const GUARD_CAPABILITIES = new Set([
   'readText', 'fileExists', 'gitHeadSha', 'workspaceFingerprint', 'specMigrationStatus',
 ])
+const STEP_EXIT_SOURCES = new Set(['guard', 'document', 'skill', 'test', 'reviewer', 'revision', 'spec', 'tasks'])
 const AGENT_BLOCKER_REASONS = new Set([
   'executor-missing', 'executor-running', 'executor-failed',
   'reviewer-missing', 'reviewer-running', 'reviewer-stale', 'reviewer-failed',
@@ -527,6 +529,21 @@ function decodeTransitionReadinessBlocker(value: unknown): TransitionReadinessBl
       agents.push({ agent: item.agent, reason: item.reason })
     }
     return { kind: 'agents-incomplete', agents }
+  }
+  if (value.kind === 'step-exit') {
+    if (typeof value.source !== 'string' || !STEP_EXIT_SOURCES.has(value.source)
+      || typeof value.code !== 'string' || value.code === ''
+      || typeof value.message !== 'string' || value.message === ''
+      || (value.items !== undefined && !(Array.isArray(value.items) && value.items.every((item) => typeof item === 'string')))
+      || !Object.keys(value).every((key) =>
+        key === 'kind' || key === 'source' || key === 'code' || key === 'message' || key === 'items')) return null
+    return {
+      kind: 'step-exit',
+      source: value.source as StepExitBlockerSource,
+      code: value.code,
+      message: value.message,
+      ...(value.items === undefined ? {} : { items: [...(value.items as string[])] }),
+    }
   }
   if (typeof value.guardType !== 'string' || !GUARD_TYPES.has(value.guardType)) return null
   if (value.kind === 'evaluation-error') {

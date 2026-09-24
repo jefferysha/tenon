@@ -6,7 +6,6 @@ import { I18nProvider } from './i18n'
 import { lastEventSource, resetEventSources } from './test-setup'
 import { makeChange, makeProject, makeSnapshot } from './testkit'
 import { invalidateMandatoryConfig } from './workbench/mandatoryConfig'
-import { rootTag } from './workspace/taskRef'
 
 const originalNavigationDescriptor = Object.getOwnPropertyDescriptor(window, 'navigation')
 
@@ -22,6 +21,11 @@ const TRUSTED_VERIFY_EXECUTION = {
 
 function trustedVerifyChange(name: string, over: Parameters<typeof makeChange>[2] = {}) {
   return makeChange(name, 'verify', { ...over, workflowExecution: TRUSTED_VERIFY_EXECUTION })
+}
+
+/** 「需要你」只算评审待确认：证据齐且已请求评审、等人确认的 verify 卡。 */
+function reviewPendingChange(name: string, over: Parameters<typeof makeChange>[2] = {}) {
+  return { ...trustedVerifyChange(name, over), reviewHandshake: { status: 'pending' as const, event: 'verify-pass', requestedAt: '2026-09-25T00:00:00Z' } }
 }
 
 // T17（计划 2026-07-11-v5-interaction-rebuild）：IA 收敛三视图。旧断言意图迁移表：
@@ -1256,30 +1260,9 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
       if (url === '/api/snapshot') {
         return { ok: true, json: async () => makeSnapshot([makeProject('/repo-a', [makeChange('a1', 'build')])]) }
       }
-      throw new Error(`unexpected per-root fetch ${url}`)
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<App />)
-
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
-    expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(screen.getByTestId('project-rail-all')).toHaveAttribute('aria-current', 'true')
-    await waitFor(() => {
-      const params = new URLSearchParams(window.location.search)
-      expect(params.get('root')).toBeNull()
-      expect(params.get('change')).toBeNull()
-      expect(params.get('debug')).toBe('1')
-    })
-    // Only the aggregate snapshot and the machine-level identity (top bar user); no per-root request.
-    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user'])))
-  })
-
-  it('失效 root 深链：清除 root/change 并保持无选择，聚合展示而不重定向首个项目', async () => {
-    window.history.replaceState({}, '', '/?debug=1&view=progress&root=%2Fmissing&change=ghost')
-    const fetchMock = vi.fn(async (url: string) => {
-      if (url === '/api/snapshot') {
-        return { ok: true, json: async () => makeSnapshot([makeProject('/repo-a', [makeChange('a1', 'build')])]) }
+      // 所有项目视图默认选中第一项：只为这一项按需取定义与记录，列表本身不发 per-root 请求。
+      if (url.startsWith('/api/workflows/default?root=%2Frepo-a') || url.startsWith('/api/change/a1/history?root=%2Frepo-a')) {
+        return { ok: false, status: 404, json: async () => ({ ok: false, error: 'not found' }) }
       }
       throw new Error(`unexpected per-root fetch ${url}`)
     })
@@ -1296,8 +1279,35 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
       expect(params.get('change')).toBeNull()
       expect(params.get('debug')).toBe('1')
     })
-    // Only the aggregate snapshot and the machine-level identity (top bar user); no per-root request.
-    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user'])))
+    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url.split('?')[0]))).toEqual(new Set(['/api/snapshot', '/api/user', '/api/workflows/default', '/api/change/a1/history'])))
+  })
+
+  it('失效 root 深链：清除 root/change 并保持无选择，聚合展示而不重定向首个项目', async () => {
+    window.history.replaceState({}, '', '/?debug=1&view=progress&root=%2Fmissing&change=ghost')
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') {
+        return { ok: true, json: async () => makeSnapshot([makeProject('/repo-a', [makeChange('a1', 'build')])]) }
+      }
+      // 所有项目视图默认选中第一项：只为这一项按需取定义与记录，列表本身不发 per-root 请求。
+      if (url.startsWith('/api/workflows/default?root=%2Frepo-a') || url.startsWith('/api/change/a1/history?root=%2Frepo-a')) {
+        return { ok: false, status: 404, json: async () => ({ ok: false, error: 'not found' }) }
+      }
+      throw new Error(`unexpected per-root fetch ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<App />)
+
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
+    expect(screen.getByTestId('project-rail-all')).toHaveAttribute('aria-current', 'true')
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('root')).toBeNull()
+      expect(params.get('change')).toBeNull()
+      expect(params.get('debug')).toBe('1')
+    })
+    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url.split('?')[0]))).toEqual(new Set(['/api/snapshot', '/api/user', '/api/workflows/default', '/api/change/a1/history'])))
   })
 
   it('已登记但不可达的 root 深链也必须清除，不能挂载 per-root 视图', async () => {
@@ -1361,6 +1371,10 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
           ]),
         }
       }
+      // 默认选中的这一项按需取定义与记录；列表本身不发 per-root 请求。
+      if (url.startsWith('/api/workflows/compact?') || url.startsWith('/api/change/review-me/history?')) {
+        return { ok: false, status: 404, json: async () => ({ ok: false, error: 'not found' }) }
+      }
       throw new Error(`unexpected per-root fetch ${url}`)
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -1368,16 +1382,17 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     render(<App />)
 
     // 聚合工作台：自定义 workflow 的卡按跨项目快照自带的 rules 判定——阶段「复核」计 1，
-    // 一行状态由 readiness 推出「可进入完成」；聚合语境不发任何 per-root 请求。
+    // 一行状态由 readiness 推出「可进入完成」。
     expect(await screen.findByTestId('task-card-review-me')).toBeInTheDocument()
-    // 只有一条工作流：工作流维度隐藏，阶段下拉直接可用，阶段序取该工作流自己的（复核 / 完成）。
-    expect(screen.queryByTestId('task-facet-workflow')).toBeNull()
-    await userEvent.click(screen.getByTestId('task-facet-stage'))
+    // 只有一条工作流：「筛选」里没有工作流维度，阶段维度直接可用，阶段序取该工作流自己的（复核 / 完成）。
+    await userEvent.click(screen.getByTestId('task-filter-menu'))
+    expect(screen.queryByTestId('task-facet-workflow-all')).toBeNull()
     expect(await screen.findByTestId('task-facet-stage-review')).toHaveTextContent('1')
     expect(screen.getByTestId('task-facet-stage-done')).toHaveTextContent('0')
     await userEvent.keyboard('{Escape}')
     expect(screen.getByTestId('task-summary-review-me')).toHaveTextContent('复核 · 可进入完成')
-    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => String(url)))).toEqual(new Set(['/api/snapshot', '/api/user'])))
+    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => String(url).split('?')[0])))
+      .toEqual(new Set(['/api/snapshot', '/api/user', '/api/workflows/compact', '/api/change/review-me/history'])))
   })
 
   it('浏览器返回到无 root URL：经同一选择模型回到聚合工作台', async () => {
@@ -1527,7 +1542,7 @@ describe('App SSE 实时更新（真 EventSource stub → 组件真更新，非 
     // T7 准入修订：verify 卡计入待拍板必须三轨证据齐（缺产出判「等产出」不计）。
     const next = makeSnapshot([
       makeProject('/repo', [
-        trustedVerifyChange('needs-review', {
+        reviewPendingChange('needs-review', {
           fields: { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' },
         }),
       ]),
@@ -1663,8 +1678,9 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     render(<App />)
     const empty = await screen.findByTestId('task-list-empty-no-task')
     expect(empty.textContent).toContain('tenon init')
-    // 列表为空：右列不再写「选一个任务」。
-    expect(screen.getByTestId('task-detail-none')).toBeEmptyDOMElement()
+    // 列表为空：右列收起。
+    expect(screen.queryByTestId('task-detail-pane')).toBeNull()
+    expect(screen.getByTestId('workspace-view')).toHaveAttribute('data-detail-collapsed', 'true')
   })
 
   it('未来 canonical 版本优先于 no-change 教学态，进入只读升级恢复路径', async () => {
@@ -1852,9 +1868,9 @@ describe('App currentRoot 语义（只消费显式选择）', () => {
     // T7 准入修订：证据齐的 gate 卡才计入徽标（判据在 inbox.test.tsx 钉，这里只验 currentRoot 过滤）。
     const evidenceOk = { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' }
     const next = makeSnapshot([
-      makeProject('/repo-a', [trustedVerifyChange('a-verify', { fields: { ...evidenceOk } })]),
+      makeProject('/repo-a', [reviewPendingChange('a-verify', { fields: { ...evidenceOk } })]),
       makeProject('/repo-b', [
-        trustedVerifyChange('b-verify', { fields: { ...evidenceOk } }),
+        reviewPendingChange('b-verify', { fields: { ...evidenceOk } }),
         makeChange('b-spec', 'spec', { fields: { design_doc: 'docs/d.md', plan: 'docs/p.md' } }),
       ]),
     ])
@@ -1963,7 +1979,8 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
     render(<App />)
     fireEvent.click(await screen.findByTestId('task-card-b1'))
     // 聚合视图的 change 带项目短标识：两个项目有同名 change 时也唯一。
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('change')).toBe(`${rootTag('/repo-b')}:b1`))
+    // 深链 change 可读：项目名:任务名。
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('change')).toBe('repo-b:b1'))
     const params = new URLSearchParams(window.location.search)
     expect(params.get('root')).toBeNull()
     expect(params.get('status')).toBe('running')
@@ -1971,6 +1988,31 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
     expect(new URLSearchParams(window.location.search).get('status')).toBeNull()
     expect(new URLSearchParams(window.location.search).get('step')).toBeNull()
+  })
+
+  it('换视图压一条历史：浏览器返回回到工作台，仍选中原来的任务', async () => {
+    window.history.replaceState({}, '', '/?view=progress')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') {
+        return { ok: true, json: async () => makeSnapshot([
+          makeProject('/repo-a', [makeChange('a1', 'build')]),
+          makeProject('/repo-b', [makeChange('b1', 'build')]),
+        ]) }
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+    render(<App />)
+    fireEvent.click(await screen.findByTestId('task-card-b1'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('change')).toBe('repo-b:b1'))
+    const before = window.history.length
+    fireEvent.click(screen.getByTestId('nav-workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    expect(window.history.length).toBe(before + 1)
+    act(() => { window.history.back() })
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('progress'))
+    expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId('task-card-b1')).toHaveAttribute('aria-current', 'true'))
+    expect(new URLSearchParams(window.location.search).get('change')).toBe('repo-b:b1')
   })
 })
 
@@ -1982,7 +2024,7 @@ describe('待决策徽标与「需要你」芯片同一口径', () => {
       if (url === '/api/snapshot') {
         return { ok: true, json: async () => makeSnapshot([
           makeProject('/repo', [
-            trustedVerifyChange('ready-1', { fields: { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' } }),
+            reviewPendingChange('ready-1', { fields: { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' } }),
             makeChange('paused-1', 'build', { fields: { automation: 'paused' } }),
             makeChange('paused-2', 'build', { fields: { automation: 'paused' } }),
             makeChange('plain', 'spec'),
@@ -2218,7 +2260,7 @@ describe('App 待决策徽标（A6）', () => {
     act(() => {
       lastEventSource()!.emit('snapshot', JSON.stringify(makeSnapshot([
         makeProject('/repo', [
-          trustedVerifyChange('needs-review', {
+          reviewPendingChange('needs-review', {
             fields: { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' },
           }),
         ]),

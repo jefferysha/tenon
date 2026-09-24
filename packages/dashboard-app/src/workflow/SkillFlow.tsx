@@ -18,11 +18,11 @@ import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { wavesOf } from '../workbench/skillWaves'
 import { EDGE_STYLE, EDGE_TYPES, MARKER, NODE_HEIGHT, NODE_TYPES, NODE_WIDTH, PORT_SIZE, isVirtualId, pulseModeOf, type FlowNode, type GhostNode, type JunctionNode, type LabelNode, type PortNode, type PulseData, type SkillNode, type SkillRunState } from './skillFlowNodes'
-import { addSkillAt, appendSerial, canvasHeight, dropTargetFor, edgesOf, graphToSkills, isColumnLink, editViewport, lanesOf, layoutSkills, nodeHeightFor, readOnlyViewport, rowGapFor, skillsSignature, wouldCycle, type DropTarget } from './skillFlowGraph'
+import { addSkillAt, appendSerial, canvasHeight, CONTROLS_BAND, dropTargetFor, edgesOf, graphToSkills, isColumnLink, editViewport, lanesOf, layoutSkills, nodeHeightFor, readOnlyViewport, rowGapFor, skillsSignature, wouldCycle, type DropTarget } from './skillFlowGraph'
 import { prefersReducedMotion, usePulseTimeline, type PulseMode } from './flowPulse'
 import { cn } from '@/lib/utils'
 
-export { addSkillAt, appendSerial, canvasHeight, dropTargetFor, edgesOf, editViewport, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, skillsSignature, wouldCycle }
+export { addSkillAt, appendSerial, canvasHeight, CONTROLS_BAND, dropTargetFor, edgesOf, editViewport, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, skillsSignature, wouldCycle }
 export { NODE_WIDTH, SkillRunState }
 
 const COLUMN_GAP = 300
@@ -107,7 +107,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     const element = containerRef.current
     if (element === null) return
     const bounds = instance.getNodesBounds(instance.getNodes())
-    const size = { width: element.clientWidth, height: element.clientHeight }
+    const size = { width: element.clientWidth, height: editable ? element.clientHeight : Math.max(0, element.clientHeight - CONTROLS_BAND) }
     void instance.setViewport(editable ? editViewport(bounds, size, { min: EDIT_ZOOM.min, max: 1 }) : readOnlyViewport(bounds, size), { duration })
   }, [editable])
   const refitRef = useRef(refit)
@@ -345,7 +345,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       ref={containerRef}
       role="group"
       className={cn('relative overflow-hidden rounded-md border border-border bg-card', className)}
-      style={editable ? undefined : { height: canvasHeight(lanesOf(skills), lines) }}
+      style={editable ? undefined : { height: canvasHeight(lanesOf(skills), lines) + CONTROLS_BAND }}
       aria-label={ariaLabel ?? t('workflow.skills_title')}
       data-testid="skill-flow"
       data-editable={editable}

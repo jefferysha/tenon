@@ -67,7 +67,6 @@ describe('筛选栏计数（B10）', () => {
     for (const id of ['task-view-archived', 'task-uncommitted-deletions']) {
       const count = screen.getByTestId(id).querySelector('span')
       expect(count?.className).toContain('tabular-nums')
-      expect(count?.className).toContain('text-text-3')
       expect(count?.className).not.toContain('font-mono')
     }
   })

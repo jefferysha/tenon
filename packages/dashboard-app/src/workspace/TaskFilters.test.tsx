@@ -1,5 +1,5 @@
 /**
- * 工作台中列：单行筛选栏（状态芯片 + 负责人 / 工作流 / 轨道 / 阶段下拉，放不下进「更多」）、
+ * 工作台中列：单行筛选栏（状态分段 + 「筛选」菜单收负责人 / 工作流 / 轨道 / 阶段；已归档是标题旁的文字开关）、
  * URL status、任务卡元信息、迷你流水线，以及左列与空列表时的右列。
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
@@ -17,19 +17,14 @@ const ROOT = '/Users/me/code/repo'
 const ann = { id: 'ann@x.io', slug: 'ann', name: 'Ann' }
 const me = { id: 'me@x.io', slug: 'me', name: 'me' }
 
-function ready(name: string, over: Partial<ChangeSnapshot> = {}): ChangeSnapshot {
-  const change = makeChange(name, 'build', over)
-  const edge = change.workflowRules.transitions.build?.find((candidate) => change.workflowRules.steps.indexOf(candidate.to) > change.workflowRules.steps.indexOf('build'))
-  return edge === undefined ? change : {
-    ...change,
-    workflowExecution: { ...change.workflowExecution, readinessByTransition: { build: { [edge.event]: { ready: true, blockers: [] } } } },
-  }
+function review(name: string, over: Partial<ChangeSnapshot> = {}): ChangeSnapshot {
+  return { ...makeChange(name, 'build', over), reviewHandshake: { status: 'pending', event: 'build-complete', requestedAt: 'now' } }
 }
 
 const CHANGES = [
   makeChange('a', 'build', { track: 'chat', owner: ann }),
   makeChange('b', 'verify', { track: 'chat' }),
-  ready('c', { track: 'web' }),
+  review('c', { track: 'web' }),
   makeChange('d', 'archive', { archived: 'true', track: 'chat' }),
 ]
 
@@ -59,25 +54,27 @@ afterEach(() => {
 })
 
 describe('工作台筛选栏', () => {
-  it('单行：状态芯片 + 维度下拉在同一行，不换行、不横向滚动', () => {
+  it('单行：状态分段 + 「筛选」按钮在同一行，不换行、不横向滚动；已归档是标题旁的文字开关', () => {
     renderView()
     const bar = screen.getByTestId('task-filters')
     expect(bar.className.split(/\s+/u)).toContain('flex-nowrap')
     expect(bar.className.split(/\s+/u)).not.toContain('flex-wrap')
     expect(bar.className.split(/\s+/u)).not.toContain('overflow-x-auto')
-    for (const id of ['task-status', 'task-facet-owner', 'task-facet-track', 'task-view-archived', 'task-uncommitted-deletions']) {
-      expect(bar, id).toContainElement(screen.getByTestId(id))
-    }
-    // 只有一个工作流：该维度隐藏。
-    expect(screen.queryByTestId('task-facet-workflow')).toBeNull()
-    expect(screen.queryByTestId('task-filter-completed')).toBeNull()
+    expect(bar).toContainElement(screen.getByTestId('task-status'))
+    expect(bar).toContainElement(screen.getByTestId('task-filter-menu'))
+    const head = screen.getByTestId('task-list-action')
+    expect(head).toContainElement(screen.getByTestId('task-view-archived'))
+    expect(head).toContainElement(screen.getByTestId('task-uncommitted-deletions'))
+    expect(screen.getByTestId('task-view-archived')).toHaveTextContent('已归档0')
     expect(screen.getByTestId('task-status')).toHaveAttribute('role', 'radiogroup')
+    // 不再有「更多」把状态拆成两处。
+    expect(screen.queryByTestId('task-filters-more')).toBeNull()
   })
 
-  it('状态芯片与原型一致：全部 / 需要你 / 进行中 / 待复核 / 已完成，计数由 summary 映射', () => {
+  it('状态分段：全部 / 需要你 / 进行中 / 已完成；需要你只算评审待确认', () => {
     renderView()
     const chips = within(screen.getByTestId('task-status')).getAllByRole('radio')
-    expect(chips.map((chip) => chip.textContent)).toEqual(['全部4', '需要你1', '进行中2', '待复核0', '已完成1'])
+    expect(chips.map((chip) => chip.textContent)).toEqual(['全部4', '需要你1', '进行中2', '已完成1'])
     fireEvent.click(screen.getByTestId('task-status-needs-you'))
     expect(screen.getByTestId('task-card-c')).toBeInTheDocument()
     expect(screen.queryByTestId('task-card-a')).toBeNull()
@@ -97,37 +94,28 @@ describe('工作台筛选栏', () => {
     expect(screen.getByTestId('task-status-all')).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('负责人下拉：「我的」紧跟「全部」，选中后触发器显示当前值', async () => {
+  it('「筛选」菜单：负责人「我的」紧跟「全部」；选中后按钮显示生效条件数；只有一个取值的维度不列', async () => {
     const user = userEvent.setup()
     renderView()
-    await user.click(screen.getByTestId('task-facet-owner'))
-    const items = await screen.findAllByRole('menuitemradio')
-    expect(items.map((item) => item.getAttribute('data-testid'))).toEqual(['task-facet-owner-all', 'task-facet-owner-me', 'task-facet-owner-ann'])
+    expect(screen.queryByTestId('task-filter-active')).toBeNull()
+    await user.click(screen.getByTestId('task-filter-menu'))
+    const menu = await screen.findByTestId('task-filter-menu-content')
+    expect(within(menu).getByTestId('task-facet-owner-all')).toBeInTheDocument()
+    const owners = within(menu).getAllByRole('menuitemradio').map((item) => item.getAttribute('data-testid')).filter((id) => id?.startsWith('task-facet-owner-'))
+    expect(owners).toEqual(['task-facet-owner-all', 'task-facet-owner-me', 'task-facet-owner-ann'])
+    // 只有一个工作流：该维度不列。
+    expect(within(menu).queryByTestId('task-facet-workflow-all')).toBeNull()
     await user.click(screen.getByTestId('task-facet-owner-ann'))
-    expect(screen.getByTestId('task-facet-owner')).toHaveTextContent('负责人Ann1')
+    expect(screen.getByTestId('task-filter-active')).toHaveTextContent('1')
     expect(screen.queryByTestId('task-card-b')).toBeNull()
   })
 
-  it('下拉触发器键盘可达：Enter 打开菜单', async () => {
+  it('「筛选」按钮键盘可达：Enter 打开菜单', async () => {
     const user = userEvent.setup()
     renderView()
-    screen.getByTestId('task-facet-track').focus()
+    screen.getByTestId('task-filter-menu').focus()
     await user.keyboard('{Enter}')
     expect(await screen.findByTestId('task-facet-track-web')).toBeInTheDocument()
-  })
-
-  it('中列放不下时维度收进「更多 N」，芯片整颗保留或整颗收起', () => {
-    const widths: Record<string, number> = { container: 304, trailing: 80, more: 64 }
-    renderView({
-      measureWidth: (element) => {
-        const key = element.dataset.measure ?? ''
-        return widths[key] ?? (key.startsWith('item:status:') ? 44 : key.startsWith('item:') ? 90 : 0)
-      },
-    })
-    // 304 - 80 - 4 = 220：5 颗芯片 = 5×44 + 4×4 = 236 放不下；留「更多」64 后能放 3 颗。
-    expect(within(screen.getByTestId('task-status')).getAllByRole('radio')).toHaveLength(3)
-    expect(screen.queryByTestId('task-facet-owner')).toBeNull()
-    expect(screen.getByTestId('task-filters-more')).toHaveTextContent('更多4')
   })
 })
 
@@ -141,7 +129,7 @@ describe('任务卡', () => {
     expect(screen.queryByTestId('task-owner-b')).toBeNull()
   })
 
-  it('可进入下一阶段 = 需要你，用琥珀色而不是成功绿', () => {
+  it('评审待确认 = 需要你，用琥珀色；可前进由智能体推进，算进行中', () => {
     renderView()
     expect(screen.getByTestId('task-card-c')).toHaveAttribute('data-status', 'needs-you')
     expect(screen.getByTestId('task-summary-c')).toHaveAttribute('data-tone', 'pending')
@@ -173,9 +161,35 @@ describe('左列与右列', () => {
     expect(screen.getByTestId('project-rail-wrap').className.split(/\s+/u)).toContain('max-[900px]:hidden')
   })
 
-  it('列表为空时右列不写「选一个任务」', () => {
+  it('默认选中第一项；列表为空时右列收起', () => {
+    const first = renderView()
+    expect(screen.getByTestId('task-detail-pane')).toBeInTheDocument()
+    expect(screen.getByTestId('workspace-view')).toHaveAttribute('data-detail-collapsed', 'false')
+    first.unmount()
     renderView({}, [])
     expect(screen.queryByTestId('task-detail-pane')).toBeNull()
-    expect(screen.getByTestId('task-detail-none')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('workspace-view')).toHaveAttribute('data-detail-collapsed', 'true')
+  })
+
+  it('空态两步引导：智能体对话的提示词 + 不截断的完整命令（含 --preset）', () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 404 }))
+    render(
+      <I18nProvider>
+        <WorkspaceView
+          snapshot={makeSnapshot([makeProject(ROOT, [])])}
+          currentRoot={ROOT}
+          rulesByKey={new Map()}
+          projects={[{ root: ROOT, name: 'repo', count: 0, ok: true }]}
+          onSelectProject={() => undefined}
+          selectedChange={null}
+          onSelectedChange={() => undefined}
+        />
+      </I18nProvider>,
+    )
+    expect(screen.getByTestId('task-list-empty-prompt-text').textContent).toMatch(/^\/tenon /u)
+    const command = screen.getByTestId('task-list-empty-command-text')
+    expect(command).toHaveTextContent('tenon init my-change --workflow default --track chat --preset full')
+    expect(command.className).toContain('whitespace-nowrap')
+    expect(command.className).not.toContain('truncate')
   })
 })

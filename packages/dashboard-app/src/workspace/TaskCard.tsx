@@ -7,15 +7,15 @@ import { cn } from '@/lib/utils'
 import { LIST_SELECTED } from '../shared/uiRecipes'
 
 
-/** 语义色跟随状态筛选的分组：需要你 = 琥珀，进行中 = 信息蓝，待复核 = 红，已完成 = 中性。 */
+/** 语义色跟随状态筛选的分组：需要你 = 琥珀，进行中 = 信息蓝（有阻断 = 红），已完成 = 中性。 */
 const STATUS_TONE: Record<Exclude<TaskStatus, 'all'>, PillTone> = {
   'needs-you': 'pending',
   running: 'running',
-  review: 'blocked',
   done: 'neutral',
 }
 
 export function summaryTone(row: TaskRow): PillTone {
+  if (row.summary.kind === 'blocked') return 'blocked'
   return STATUS_TONE[statusOf(row.summary)]
 }
 

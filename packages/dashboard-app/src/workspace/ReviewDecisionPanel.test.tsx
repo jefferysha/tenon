@@ -11,8 +11,17 @@ const pendingItem = (revision: number) => ({ ref: { id: 'decision:1', kind: 'rev
 const view = (revision: number, items: unknown[]) => new Response(JSON.stringify({ schemaVersion: 'pending-decision-view/v1', revision, items }), { status: 200 })
 const failure = (status: number, code?: string) => new Response(JSON.stringify(code === undefined ? { ok: false, error: 'internal' } : { ok: false, error: 'rejected', code }), { status })
 
-function renderPanel(props: { snapshotSignature?: string; onRefresh?: () => void } = {}) {
-  const element = (signature?: string) => <I18nProvider><ReviewDecisionPanel root="/repo" change="demo" snapshotSignature={signature} onRefresh={props.onRefresh} /></I18nProvider>
+const RULES = {
+  executionModel: 'phase-manifest' as const,
+  steps: ['build', 'verify', 'ship'],
+  transitions: { verify: [{ event: 'verify-pass', to: 'ship' }, { event: 'verify-fail', to: 'build' }] },
+  gateByStep: { verify: 'review' as const },
+  labelByStep: { build: '实现', verify: '验证', ship: '交付' },
+  outputsByStep: {},
+}
+
+function renderPanel(props: { snapshotSignature?: string; onRefresh?: () => void; onToast?: (message: string) => void } = {}) {
+  const element = (signature?: string) => <I18nProvider><ReviewDecisionPanel root="/repo" change="demo" snapshotSignature={signature} rules={RULES} phase="verify" onRefresh={props.onRefresh} onToast={props.onToast} /></I18nProvider>
   const utils = render(element(props.snapshotSignature))
   return { ...utils, rerenderWith: (signature: string) => utils.rerender(element(signature)) }
 }
@@ -37,7 +46,21 @@ describe('ReviewDecisionPanel', () => {
     await userEvent.click(screen.getByTestId('review-console-approve'))
     await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1))
     expect(fetchMock.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ method: 'POST' }))
-    expect(screen.queryByRole('button', { name: /驳回|reject|decline/i })).toBeNull()
+  })
+
+  it('事件显示它通向的阶段名；「退回到…」列出退回边的阶段名，选中后复制退回命令而不直接改状态', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(view(3, [pendingItem(3)]))
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const onToast = vi.fn()
+    renderPanel({ onToast })
+    expect(await screen.findByTestId('review-console-event')).toHaveTextContent('交付')
+    expect(screen.getByTestId('review-console-approve')).toHaveTextContent('通过')
+    await userEvent.click(screen.getByTestId('review-console-reject'))
+    await userEvent.click(await screen.findByTestId('review-console-reject-verify-fail'))
+    expect(writeText).toHaveBeenCalledWith('cd /repo && tenon review request demo --event verify-fail')
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('已复制退回到 实现 的命令'))
+    expect(fetchMock.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(0)
   })
 
   it.each([
@@ -96,7 +119,11 @@ describe('ReviewDecisionPanel', () => {
   it('does not import model, Skill or AFK producers', () => {
     const dir = join(process.cwd(), 'packages/dashboard-app/src')
     const allowed: Record<string, readonly string[]> = {
-      'workspace/ReviewDecisionPanel.tsx': ['react', 'lucide-react', '../api/decisionClient', '../api/transport', '../i18n'],
+      // 退回只复制终端命令（taskCommands），阶段名来自冻结规则（workflowModel 类型 + taskModel.stageLabel）。
+      'workspace/ReviewDecisionPanel.tsx': [
+        'react', 'lucide-react', '../api/decisionClient', '../api/transport', '../i18n', '../model/workflowModel',
+        '@/components/ui/dropdown-menu', '../shared/uiRecipes', './taskCommands', './taskModel',
+      ],
       'api/decisionClient.ts': ['./transport'],
     }
     for (const [file, specifiers] of Object.entries(allowed)) {

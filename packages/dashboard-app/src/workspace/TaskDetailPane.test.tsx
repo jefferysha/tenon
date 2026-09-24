@@ -103,7 +103,9 @@ describe('TaskDetailPane header and records', () => {
     stubFetch()
     const archive = vi.fn()
     renderPane({ row: ownerRow(ann), menu: [{ id: 'archive', label: '归档', icon: null, danger: false, onSelect: archive }] })
-    expect(screen.getByTestId('task-detail-meta')).toHaveTextContent('Ann')
+    // 负责人只用头像 + 悬浮名字，副行不再写名字。
+    expect(screen.getByTestId('task-detail-owner')).toHaveAttribute('title', 'Ann')
+    expect(screen.getByTestId('task-detail-meta')).not.toHaveTextContent('Ann')
     expect(screen.getByTestId('task-detail-pane').querySelector('footer')).toBeNull()
     await userEvent.click(screen.getByTestId('task-detail-menu'))
     await userEvent.click(await screen.findByTestId('task-detail-menu-archive'))
@@ -115,11 +117,12 @@ describe('TaskDetailPane header and records', () => {
     const row = { ...ownerRow(null), summary: { kind: 'ready' as const, to: 'verify' } }
     renderPane({ row })
     expect(screen.getByTestId('task-detail-badge')).toHaveTextContent(/^可进入verify$/u)
-    expect(screen.getByTestId('task-detail-badge')).toHaveAttribute('data-tone', 'pending')
+    // 可前进由智能体推进，不是「需要你」。
+    expect(screen.getByTestId('task-detail-badge')).toHaveAttribute('data-tone', 'running')
   })
 
-  // 名称只显示一个：冻结计划没带 label 时（labelByStep 只有 id），状态行、阶段轨与记录都用定义里的 label。
-  it('冻结计划缺 label 时状态行写「可进入验证」而不是「可进入verify」', async () => {
+  // 状态只读快照：工作流定义加载前后，状态行、阶段轨与记录的名字都一样（名称只显示一个：冻结计划的 label，没有就是 id）。
+  it('定义加载前后状态行不变', async () => {
     const def = {
       name: 'default',
       steps: ['build', 'verify'].map((id, index) => ({
@@ -128,7 +131,7 @@ describe('TaskDetailPane header and records', () => {
       })),
     }
     const history = { entries: [{ ts: '2026-09-16T01:00:00Z', kind: 'transition', from: 'build', to: 'verify', actor: { id: 'ann@x.io', name: 'Ann', trust: 'declared' } }] }
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url === '/api/workflows/default?root=%2Frepo') return new Response(JSON.stringify(def), { status: 200 })
       if (url.startsWith('/api/change/x/history')) return new Response(JSON.stringify(history), { status: 200 })
@@ -145,9 +148,11 @@ describe('TaskDetailPane header and records', () => {
     }
     try {
       renderPane({ row })
-      await waitFor(() => expect(screen.getByTestId('task-detail-badge')).toHaveTextContent(/^可进入验证$/u))
-      expect(await screen.findByText('实现 → 验证')).toBeInTheDocument()
-      expect(screen.queryByText(/verify/u)).toBeNull()
+      const before = screen.getByTestId('task-detail-badge').textContent
+      expect(before).toBe('可进入verify')
+      await waitFor(() => expect(fetchSpy.mock.calls.some((call) => String(call[0]).startsWith('/api/workflows/'))).toBe(true))
+      expect(await screen.findByText('build → verify')).toBeInTheDocument()
+      expect(screen.getByTestId('task-detail-badge').textContent).toBe(before)
     } finally {
       invalidateWorkflowDefinition()
     }
@@ -198,16 +203,16 @@ describe('TaskDetailPane · URL step', () => {
 describe('TaskDetailPane · 技能状态', () => {
   const RUNS = [{ stepId: 'build', skills: [{ id: 'tenon-build', status: 'idle' as const, wave: 0 }] }]
 
-  it('阶段已可进入下一阶段时，没有运行记录的技能不写「未开始」', () => {
+  it('已完结的任务，没有运行记录的技能不写「未运行」', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
-    const row = { ...snapshotRow(change({ skillRuns: RUNS })), summary: { kind: 'ready' as const, to: 'verify' } }
+    const row = { ...snapshotRow(change({ skillRuns: RUNS })), summary: { kind: 'completed' as const } }
     render(<I18nProvider><TaskDetailPane row={row} fetchDefinition={false} /></I18nProvider>)
-    expect(screen.getByTestId('flow-node-tenon-build')).not.toHaveTextContent('未开始')
+    expect(screen.getByTestId('flow-node-tenon-build')).not.toHaveTextContent('未运行')
   })
 
-  it('阶段仍在进行时照常写「未开始」', () => {
+  it('阶段仍在进行时照常写「未运行」（与智能体、测试同一用词）', () => {
     renderSnapshotPane(change({ skillRuns: RUNS }))
-    expect(screen.getByTestId('flow-node-tenon-build')).toHaveTextContent('未开始')
+    expect(screen.getByTestId('flow-node-tenon-build')).toHaveTextContent('未运行')
   })
 })
 
@@ -314,5 +319,54 @@ describe('TaskDetailPane · agent 段', () => {
     await userEvent.click(screen.getByTestId('flow-open-security'))
     expect(screen.getByTestId('agent-run-facts')).toHaveTextContent('评审者 · 不通过 · 问题 2 · Ann')
     await waitFor(() => expect(screen.getByTestId('agent-run-report')).toHaveTextContent('不通过'))
+  })
+})
+
+describe('TaskDetailPane · 下一步', () => {
+  const blocked = (): ChangeSnapshot => change({
+    workflowExecution: {
+      readinessByTransition: {
+        build: {
+          'build-complete': {
+            ready: false,
+            blockers: [
+              { kind: 'step-exit', source: 'skill', code: 'skill-incomplete', message: '尚未完成声明的 skill：tdd' },
+              { kind: 'step-exit', source: 'tasks', code: 'tasks-incomplete', message: 'tasks.md 仍有 2 项未勾', items: ['a', 'b'] },
+            ],
+          },
+        },
+      },
+    },
+  })
+
+  it('状态行下列出前进出口的阻断（每条一行、截断带 title）+ 可复制的 tenon status 命令', () => {
+    renderSnapshotPane(blocked())
+    const next = screen.getByTestId('task-next')
+    const lines = within(next).getAllByTestId('task-next-blocker')
+    expect(lines.map((line) => line.textContent)).toEqual(['尚未完成声明的 skill：tdd', 'tasks.md 仍有 2 项未勾'])
+    for (const line of lines) {
+      expect(line.className).toContain('truncate')
+      expect(line.className).toContain('whitespace-nowrap')
+      expect(line).toHaveAttribute('title', line.textContent ?? '')
+    }
+    expect(screen.getByTestId('task-next-command-text')).toHaveTextContent('cd /repo && tenon status demo')
+  })
+
+  it('「复制接管命令」复制 tenon session activate 并提示', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
+    const onToast = vi.fn()
+    render(<I18nProvider><TaskDetailPane row={snapshotRow(blocked())} fetchDefinition={false} onToast={onToast} /></I18nProvider>)
+    await userEvent.click(screen.getByTestId('task-next-takeover'))
+    expect(writeText).toHaveBeenCalledWith('cd /repo && tenon session activate demo')
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('接管命令已复制'))
+  })
+
+  it('已完结不显示下一步', () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('no request expected'))))
+    const row = { ...snapshotRow(change()), summary: { kind: 'completed' as const } }
+    render(<I18nProvider><TaskDetailPane row={row} fetchDefinition={false} /></I18nProvider>)
+    expect(screen.queryByTestId('task-next')).toBeNull()
   })
 })

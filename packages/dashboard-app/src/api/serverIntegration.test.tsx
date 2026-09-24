@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createDashboardServer, resolveServerPaths } from '@tenon/server'
-import { recordWorkflowPhaseSkill } from '../../../server/src/test-support.js'
+import { readGovernedDocumentsForCurrentVisit, recordWorkflowPhaseSkill } from '../../../server/src/test-support.js'
 import {
   compileEffectiveWorkflowPlan,
   createFlowEngine,
@@ -222,6 +222,9 @@ describe('真 server /api/snapshot → 前端 selectInbox', () => {
       writeFile(join(started.root, 'docs', 'plan.md'), '# plan\n', 'utf8'),
     ])
     await started.store.setMany(demo!.path, { design_doc: 'docs/design.md', plan: 'docs/plan.md' })
+    // readiness 与 `tenon status` exits 同一份判定：本步技能与文档证据也要齐，才轮到人拍板。
+    await recordWorkflowPhaseSkill(started.root, demo!.path)
+    await readGovernedDocumentsForCurrentVisit(started.root, demo!.path)
     const snap2 = (await (await fetch(url('/api/snapshot'))).json()) as Snapshot
     const inbox = selectInbox(snap2, started.root, RULES)
     expect(inbox.map((i) => i.change.name)).toContain('demo')

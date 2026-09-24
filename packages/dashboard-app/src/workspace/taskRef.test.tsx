@@ -23,16 +23,18 @@ afterEach(() => {
 })
 
 describe('taskRef', () => {
-  it('聚合视图带项目短标识，单项目视图只写名字；匹配时同名不同项目不算', () => {
+  it('聚合视图写可读的「项目名:任务名」，单项目视图只写名字；匹配时同名不同项目不算；旧的短标识链接仍认', () => {
     const first = { root: FIRST, change: { name: 'fix-login' } }
     const second = { root: SECOND, change: { name: 'fix-login' } }
     expect(rootTag(FIRST)).toMatch(/^[0-9a-f]{8}$/u)
     expect(rootTag(FIRST)).not.toBe(rootTag(SECOND))
     expect(taskRef(first, false)).toBe('fix-login')
     const ref = taskRef(second, true)
-    expect(ref).toBe(`${rootTag(SECOND)}:fix-login`)
+    expect(ref).toBe('beta:fix-login')
     expect(matchesTaskRef(ref, second)).toBe(true)
     expect(matchesTaskRef(ref, first)).toBe(false)
+    expect(matchesTaskRef(`${rootTag(SECOND)}:fix-login`, second)).toBe(true)
+    expect(matchesTaskRef(`${rootTag(SECOND)}:fix-login`, first)).toBe(false)
     // 不带标识的旧链接按名字匹配。
     expect(matchesTaskRef('fix-login', first)).toBe(true)
   })
@@ -80,7 +82,7 @@ describe('聚合视图的同名 change', () => {
     if (beta === undefined) throw new Error('beta card missing')
     await user.click(beta)
     const ref = screen.getByTestId('selected').textContent ?? ''
-    expect(ref).toBe(`${rootTag(SECOND)}:fix-login`)
+    expect(ref).toBe('beta:fix-login')
     expect(selectedCardMeta()).toContain('beta')
 
     unmount()

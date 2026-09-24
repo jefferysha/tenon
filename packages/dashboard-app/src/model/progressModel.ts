@@ -81,6 +81,7 @@ export function formatReadinessBlocker(blocker: ReadinessBlocker): string {
   if (blocker.kind === 'agents-incomplete') {
     return blocker.agents.map((item) => `agent:${item.agent}:${item.reason}`).join(' ')
   }
+  if (blocker.kind === 'step-exit') return blocker.message
   return blocker.field ?? `guard:${blocker.guardType}`
 }
 

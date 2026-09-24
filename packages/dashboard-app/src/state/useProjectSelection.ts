@@ -244,7 +244,20 @@ export function useProjectSelection(input: {
       })
       const next = `${window.location.pathname}${search}${window.location.hash}`
       const now = `${window.location.pathname}${window.location.search}${window.location.hash}`
-      if (next !== now) window.history.replaceState(window.history.state, '', next)
+      // 应用内换视图产生一条历史：浏览器返回回到上一个视图，连同当时选中的任务（旧条目保留 change）。
+      // 后退 / 前进本身已把 URL 的 view 与状态对齐，走 replace，不会再压一条。
+      const linkedView = parseDashboardLocation(window.location.search).view
+      if (next !== now && linkedView !== undefined && linkedView !== input.view) {
+        const nextPosition = historyPositionRef.current + 1
+        const previousNavigationIndex = navigationIndexRef.current
+        window.history.pushState(historyStateAt(nextPosition), '', next)
+        historyPositionRef.current = nextPosition
+        historyPositionKnownRef.current = true
+        navigationIndexRef.current = navigationEntryIndex()
+          ?? (previousNavigationIndex === null ? null : previousNavigationIndex + 1)
+      } else if (next !== now) {
+        window.history.replaceState(window.history.state, '', next)
+      }
       rememberCommittedHistory()
     } catch {
       // 禁用 history 的宿主只失去可复制 URL，不影响内存中的显式选择。
