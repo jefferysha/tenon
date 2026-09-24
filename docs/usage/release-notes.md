@@ -4,6 +4,74 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.9 · 2026-09-24
+
+A Dashboard design release. After an in-depth aesthetic review (visual language, colour, typography, component
+finish, interaction, motion) and research into top-tier developer products, the foundations, overlays, motion and
+pages were brought up together.
+
+### Foundations
+
+- The accent is the prototype's pine `#236a50`; dark mode has four surface steps and a mid-green primary button
+  with white text; selection is one neutral-green fill with a 2px inset edge, with no blue selection or second
+  accent.
+- Four radii: controls 8, lists and menus 10, dialogs and drawers 14, inline code 4; fully rounded shapes are kept
+  for count badges, avatars and status dots only.
+- Three shadow levels: a hairline for cards, a two-layer shadow for menus and popovers, a deep shadow for dialogs
+  and drawers; overlays no longer draw a currentColor border.
+- Latin text uses Inter (latin subset only, about 48 KB) while Chinese keeps the system fonts; numbers are tabular;
+  weights are limited to 400 / 500 / 600.
+
+### Motion
+
+- One set of durations and curves: press 80ms, hover 140ms, selection and menus 160–180ms, dialogs and drawers
+  240ms, exits 120ms.
+- Menus, popovers and selects fade in from 0.98; dialogs scale from 0.97 and rise; drawers slide in from the right;
+  toasts fade out before unmounting; the selected background of the nav, filter chips and segmented controls slides
+  to its new place.
+- The canvas pulse is one timeline: every edge at the same speed (420 px/s), passed on in order, fading at both
+  ends, flashing each node on arrival and ringing the solid end dot; switching stages no longer sweeps the canvas.
+- With reduced motion only 100ms fades and colour changes remain.
+
+### Pages
+
+- The top-bar nav follows the project switcher; the pending count sits on the workbench tab's corner; connection
+  status is a dot.
+- The rail drops nested frames and collapses to icons below 1360px.
+- Workflow page: the gate is a segmented control with help in a tooltip; "back to" uses the shared select; the save
+  bar slides in only with unsaved changes; composers are one surface with "+" and the drag handle shown on hover and
+  a one-line file list; back arcs carry an arrow.
+- The workbench empty state shows a one-line command with copy; stage progress fills from the left.
+- The projects page aligns the host and file tables; the instruction editor grows with its content and switches
+  edit/render with a segmented control.
+- Library and skills use lighter weights and fewer decorations; skill links colour on hover only; empty details
+  show no text.
+
+### Upgrade
+
+From v0.1.8: run `tenon update --codex` (or `--claude`), open a new host session and reload the Dashboard. The N-1
+gate reads and writes this release's data with the published v0.1.8 in both directions.
+
+From 1.x: run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.9/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.9/install.sh | /bin/bash -s -- --codex
+```
+
+### Compatibility
+
+- Dashboard visuals and interaction only; the CLI, state and data formats are unchanged.
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+Both hosts' inventory, the active managed runtime and the Dashboard report 0.1.9.
+
 ## v0.1.8 · 2026-09-24
 
 A Dashboard experience release: a full overhaul after a professional UI/UX evaluation (visuals, components, graphics,

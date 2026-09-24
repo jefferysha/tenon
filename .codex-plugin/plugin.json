@@ -1,6 +1,6 @@
 {
   "name": "tenon",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "A data-driven OpenSpec development pipeline: the workflow declares each step's skills, agents, tests and documents, and one packaged skill executes them, with hooks, CLI, dashboard automation, and multi-host adapters.",
   "author": {
     "name": "bigdata_storage_compute_engine"
