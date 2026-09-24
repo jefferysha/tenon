@@ -26,7 +26,7 @@ export class InstructionApiError extends ApiError {
   }
 }
 
-async function throwInstructionError(response: Response, fallback: string): Promise<never> {
+export async function throwInstructionError(response: Response, fallback: string): Promise<never> {
   let body: unknown = null
   try {
     body = await readJson(response)

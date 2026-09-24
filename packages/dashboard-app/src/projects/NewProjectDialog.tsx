@@ -1,106 +1,131 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useT } from '../i18n'
+import { fetchHostTargetDetection } from '../api/hostTargetPlanClient'
 import { instructionErrorKey } from '../api/instructionErrorKey'
 import {
-  composeInstructions, createProject, fetchTemplate, fetchTemplates, planProjectCreate,
-  type ProjectCreateInput,
+  InstructionApiError, composeInstructions, fetchTemplate, fetchTemplates, planProjectCreate,
+  type ProjectCreateInput, type ProjectInstructionsInput,
 } from '../api/instructionsClient'
-import { InstructionApiError } from '../api/instructionsClient'
-import {
-  PROJECT_INSTRUCTION_FILES, type ComposedDirectory, type ProjectCreatePlan, type TemplateSummary, type TemplateVariable,
-} from '../api/instructionsDecoders'
+import type { ComposedDirectory, ProjectCreatePlan, TemplateSummary, TemplateVariable } from '../api/instructionsDecoders'
 import { Dialog } from '../shared/Dialog'
-import { SheetTabs, type SheetDef } from '../shared/DetailSheets'
-import { Markdown } from '../shared/Markdown'
-import { BUTTON_GHOST, BUTTON_SOLID, FIELD_LABEL, INPUT } from '../shared/uiRecipes'
+import { BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
+import { ClientStep } from './ClientStep'
+import { ConfirmStep } from './ConfirmStep'
+import { CreateProgress } from './CreateProgress'
+import { LocationStep } from './LocationStep'
 import { TemplatePicker, selectionKey, type TemplateSelection } from './TemplatePicker'
+import { WizardSteps } from './WizardSteps'
+import {
+  FALLBACK_CLIENTS, FOLDER_NAME, WIZARD_STEPS, basename, filesForClients, joinPath, splitClients,
+  type LocationMode, type WizardStep,
+} from './newProjectModel'
+import { useProjectCreateRun } from './useProjectCreateRun'
 
-type Tab = 'directory' | 'templates' | 'files' | 'preview'
-type Mode = 'existing' | 'empty'
+/* 步骤切换：180ms 淡入 + 4px 上移；reduced-motion 只留淡入。 */
+const STEP_MOTION = 'animate-in fade-in-0 slide-in-from-bottom-1 duration-(--dur-base) ease-(--ease-out) motion-reduce:slide-in-from-bottom-0'
 
-const basename = (value: string): string => value.split('/').filter(Boolean).pop() ?? ''
+export interface NewProjectDialogProps {
+  onClose: () => void
+  /** 「打开项目」：切到新项目。 */
+  onCreated: (root: string) => void
+}
 
-/** 新建项目：选目录 → 选模板 → 选文件 → 预览差异 → 创建（dry run 先算计划，确认后才落盘）。 */
-export function NewProjectDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (root: string) => void }): JSX.Element {
+/** 新建项目向导：位置 → 模板 → 客户端 → 确认；「创建」后同一对话框切到逐步进度。 */
+export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps): JSX.Element {
   const { t } = useT()
-  const [tab, setTab] = useState<Tab>('directory')
-  const [mode, setMode] = useState<Mode>('existing')
+  const [view, setView] = useState<'wizard' | 'progress'>('wizard')
+  const [step, setStep] = useState<WizardStep>('location')
+  const [mode, setMode] = useState<LocationMode>('existing')
   const [path, setPath] = useState('')
   const [parent, setParent] = useState('')
   const [name, setName] = useState('')
+  const [registered, setRegistered] = useState(false)
   const [templates, setTemplates] = useState<readonly TemplateSummary[]>([])
   const [selected, setSelected] = useState<readonly TemplateSelection[]>([])
   const [variablesByKey, setVariablesByKey] = useState<Record<string, readonly TemplateVariable[]>>({})
   const [values, setValues] = useState<Record<string, string>>({})
-  const [files, setFiles] = useState<readonly string[]>(['CLAUDE.md', 'AGENTS.md'])
+  const [clientGroups, setClientGroups] = useState(() => splitClients([]))
+  const [clients, setClients] = useState<ReadonlySet<string>>(() => new Set(FALLBACK_CLIENTS))
+  const clientsTouched = useRef(false)
   const [markdown, setMarkdown] = useState('')
   const [directories, setDirectories] = useState<readonly ComposedDirectory[]>([])
   const [plan, setPlan] = useState<ProjectCreatePlan | null>(null)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [errors, setErrors] = useState<readonly string[]>([])
   const [busy, setBusy] = useState(false)
+  const run = useProjectCreateRun()
 
   useEffect(() => {
-    void (async () => {
-      try {
-        setTemplates((await fetchTemplates()).templates)
-      } catch (error) {
-        setErrorKey(instructionErrorKey(error))
-      }
-    })()
+    const controller = new AbortController()
+    fetchTemplates(controller.signal).then((list) => setTemplates(list.templates)).catch((error: unknown) => {
+      if (!controller.signal.aborted) setErrorKey(instructionErrorKey(error))
+    })
+    // 检测失败就保留默认的两个客户端，不打断向导。
+    fetchHostTargetDetection(controller.signal).then((detection) => {
+      const groups = splitClients(detection.detected_hosts)
+      setClientGroups(groups)
+      if (!clientsTouched.current) setClients(new Set(groups.primary.map((client) => client.id)))
+    }).catch(() => undefined)
+    return () => controller.abort()
   }, [])
 
-  const projectName = mode === 'empty' ? name : basename(path)
-  const ready = mode === 'empty' ? parent !== '' && name !== '' : path !== ''
-  const tabs: SheetDef<Tab>[] = [
-    { id: 'directory', label: t('projects.directories') },
-    { id: 'templates', label: t('projects.templates'), count: selected.length },
-    { id: 'files', label: t('projects.file'), count: files.length },
-    { id: 'preview', label: t('projects.preview') },
-  ]
+  const root = mode === 'empty' ? joinPath(parent, name) : path
+  const files = filesForClients(clients)
+  const locationReady = mode === 'empty' ? parent !== '' && FOLDER_NAME.test(name) : path !== ''
 
-  const input = useMemo((): ProjectCreateInput => {
-    const instructions = files.length === 0 || markdown === ''
-      ? null
-      : {
-          text: markdown,
-          targets: [...files],
-          base_digests: Object.fromEntries((plan?.files ?? []).map((file) => [file.id, file.base_digest])),
-        }
-    return mode === 'empty'
-      ? { mode: 'empty', parent, name, directories: directories.map((entry) => entry.path), instructions }
-      : { mode: 'existing', path, instructions }
-  }, [directories, files, markdown, mode, name, parent, path, plan])
+  const inputFor = (instructions: ProjectInstructionsInput | null, override: { path?: string } = {}): ProjectCreateInput => (mode === 'empty'
+    ? { mode: 'empty', parent, name, directories: directories.map((entry) => entry.path), instructions }
+    : { mode: 'existing', path: override.path ?? path, instructions })
 
   const capture = (error: unknown): void => {
     setErrorKey(instructionErrorKey(error))
     setErrors(error instanceof InstructionApiError ? error.errors : [])
   }
+  const clearError = (): void => {
+    setErrorKey(null)
+    setErrors([])
+  }
 
-  const toggle = (selection: TemplateSelection): void => {
+  /** 位置校验：只 dry run 目录本身（不带指令文件与骨架目录）。 */
+  const checkLocation = async (input: ProjectCreateInput): Promise<boolean> => {
+    setBusy(true)
+    clearError()
+    try {
+      const checked = await planProjectCreate(input.mode === 'empty' ? { ...input, directories: [] } : input)
+      setRegistered(input.mode === 'existing' && checked.registration === 'already')
+      return true
+    } catch (error) {
+      capture(error)
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const resetLocation = (): void => {
+    setPlan(null)
+    setRegistered(false)
+    clearError()
+  }
+
+  const toggleTemplate = (selection: TemplateSelection): void => {
     const key = selectionKey(selection)
     if (selected.some((item) => selectionKey(item) === key)) {
       setSelected((current) => current.filter((item) => selectionKey(item) !== key))
       return
     }
     setSelected((current) => [...current, selection])
-    void (async () => {
-      try {
-        const document = await fetchTemplate(selection)
-        setVariablesByKey((current) => ({ ...current, [key]: document.block?.variables ?? [] }))
-      } catch (error) {
-        capture(error)
-      }
-    })()
+    fetchTemplate(selection)
+      .then((document) => setVariablesByKey((current) => ({ ...current, [key]: document.block?.variables ?? [] })))
+      .catch(capture)
   }
 
-  /** 进入预览：先按所选块拼出正文，再要一次 dry run 计划。 */
-  const refreshPreview = async (): Promise<void> => {
+  /** 进入确认：按所选模板拼出正文，再带上指令文件与骨架目录要一次完整 dry run。 */
+  const enterConfirm = async (): Promise<void> => {
     setBusy(true)
-    setErrorKey(null)
-    setErrors([])
+    clearError()
     try {
-      const composed = await composeInstructions(projectName, selected.map((item) => ({
+      const composed = await composeInstructions(mode === 'empty' ? name : basename(path), selected.map((item) => ({
         ...item,
         values: Object.fromEntries(Object.entries(values)
           .filter(([key]) => key.startsWith(`${selectionKey(item)}::`))
@@ -108,170 +133,122 @@ export function NewProjectDialog({ onClose, onCreated }: { onClose: () => void; 
       })))
       setMarkdown(composed.markdown)
       setDirectories(composed.directories)
-      const instructions = files.length === 0
-        ? null
-        : { text: composed.markdown, targets: [...files], base_digests: {} }
-      const planned = await planProjectCreate(mode === 'empty'
+      const instructions = files.length === 0 ? null : { text: composed.markdown, targets: [...files], base_digests: {} }
+      setPlan(await planProjectCreate(mode === 'empty'
         ? { mode: 'empty', parent, name, directories: composed.directories.map((entry) => entry.path), instructions }
-        : { mode: 'existing', path, instructions })
-      setPlan(planned)
+        : { mode: 'existing', path, instructions }))
+      setStep('confirm')
     } catch (error) {
       capture(error)
-      setPlan(null)
     } finally {
       setBusy(false)
     }
   }
 
-  const create = async (): Promise<void> => {
-    setBusy(true)
-    setErrorKey(null)
-    try {
-      const created = await createProject(input)
-      onCreated(created.root)
-    } catch (error) {
-      capture(error)
-    } finally {
-      setBusy(false)
+  /** 执行前重新 dry run，拿到最新的文件摘要（重试时已写入的文件变成「不变」）。 */
+  const create = (): void => {
+    setView('progress')
+    void run.start(async () => {
+      const draft = inputFor(files.length === 0 || markdown === '' ? null : { text: markdown, targets: [...files], base_digests: {} })
+      const fresh = await planProjectCreate(draft)
+      if (draft.instructions === null) return draft
+      return { ...draft, instructions: { ...draft.instructions, base_digests: Object.fromEntries(fresh.files.map((file) => [file.id, file.base_digest])) } }
+    })
+  }
+
+  const next = async (): Promise<void> => {
+    if (step === 'location') {
+      if (await checkLocation(inputFor(null))) setStep('templates')
+    } else if (step === 'templates') {
+      setStep('clients')
+    } else if (step === 'clients') {
+      await enterConfirm()
+    } else {
+      create()
     }
   }
+
+  const at = WIZARD_STEPS.indexOf(step)
+  const nextDisabled = busy || (step === 'location' && !locationReady) || (step === 'confirm' && plan === null)
+  const running = view === 'progress' && run.status === 'running'
+
+  const actions = view === 'progress' ? (
+    run.status === 'done' && run.created !== null ? (
+      <>
+        <button type="button" className={BUTTON_GHOST} data-testid="np-finish" onClick={onClose}>{t('projects.finish')}</button>
+        <button type="button" className={BUTTON_SOLID} data-testid="np-open" onClick={() => { if (run.created) onCreated(run.created.root) }}>{t('projects.open_project')}</button>
+      </>
+    ) : (
+      <button type="button" className={BUTTON_GHOST} disabled={running} data-testid="np-back" onClick={() => setView('wizard')}>{t('projects.back')}</button>
+    )
+  ) : (
+    <>
+      {at === 0
+        ? <button type="button" className={BUTTON_GHOST} data-testid="np-cancel" onClick={onClose}>{t('projects.cancel')}</button>
+        : <button type="button" className={BUTTON_GHOST} disabled={busy} data-testid="np-back" onClick={() => { clearError(); setStep(WIZARD_STEPS[at - 1] ?? 'location') }}>{t('projects.back')}</button>}
+      <button type="button" className={BUTTON_SOLID} disabled={nextDisabled} aria-busy={busy || undefined} data-testid="np-next" onClick={() => { void next() }}>
+        {t(step === 'confirm' ? 'projects.create' : 'projects.next')}
+      </button>
+    </>
+  )
 
   return (
     <Dialog
       title={t('projects.new_project')}
-      onClose={onClose}
+      onClose={() => { if (!running) onClose() }}
       testid="np-dialog"
-      variant="workspace"
-      actions={(
-        <>
-          <button type="button" className={BUTTON_GHOST} data-testid="np-cancel" onClick={onClose}>
-            {t('projects.cancel')}
-          </button>
-          <button
-            type="button"
-            className={BUTTON_SOLID}
-            data-testid="np-create"
-            disabled={!ready || busy || plan === null}
-            onClick={() => { void create() }}
-          >
-            {t('projects.create')}
-          </button>
-        </>
-      )}
+      panelClassName="w-[min(640px,92vw)]"
+      actions={actions}
     >
-      <div className="grid gap-4">
-        <SheetTabs
-          sheets={tabs}
-          active={tab}
-          ariaLabel={t('projects.new_project')}
-          idPrefix="np"
-          onChange={(next) => {
-            setTab(next)
-            if (next === 'preview' && ready) void refreshPreview()
-          }}
-        />
-        {errorKey !== null && (
+      <div className="grid gap-5">
+        {view === 'wizard' && <WizardSteps current={step} onBack={(target) => { clearError(); setStep(target) }} />}
+        <div key={view === 'wizard' ? step : 'progress'} className={`min-h-64 ${STEP_MOTION}`}>
+          {view === 'progress' && <CreateProgress run={run} root={root} onRetry={create} />}
+          {view === 'wizard' && step === 'location' && (
+            <LocationStep
+              mode={mode}
+              onMode={(value) => { setMode(value); resetLocation() }}
+              path={path}
+              onPath={(value) => { setPath(value); resetLocation(); void checkLocation(inputFor(null, { path: value })) }}
+              parent={parent}
+              onParent={(value) => { setParent(value); resetLocation() }}
+              name={name}
+              onName={(value) => { setName(value); resetLocation() }}
+              registered={registered}
+            />
+          )}
+          {view === 'wizard' && step === 'templates' && (
+            <TemplatePicker
+              templates={templates}
+              selected={selected}
+              variablesByKey={variablesByKey}
+              values={values}
+              onToggle={toggleTemplate}
+              onValue={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
+            />
+          )}
+          {view === 'wizard' && step === 'clients' && (
+            <ClientStep
+              primary={clientGroups.primary}
+              more={clientGroups.more}
+              selected={clients}
+              onToggle={(id) => {
+                clientsTouched.current = true
+                setClients((current) => {
+                  const nextSet = new Set(current)
+                  if (nextSet.has(id)) nextSet.delete(id)
+                  else nextSet.add(id)
+                  return nextSet
+                })
+              }}
+            />
+          )}
+          {view === 'wizard' && step === 'confirm' && plan !== null && <ConfirmStep plan={plan} mode={mode} />}
+        </div>
+        {view === 'wizard' && errorKey !== null && (
           <div className="grid gap-1 rounded-md border border-red-b bg-red-t px-4 py-3" role="alert" data-testid="np-error">
             <span className="text-body font-semibold text-red-d">{t(`projects.errors.${errorKey}`)}</span>
-            {errors.map((message) => (
-              <span key={message} className="font-mono text-caption text-red-d">{message}</span>
-            ))}
-          </div>
-        )}
-        {tab === 'directory' && (
-          <div className="grid gap-3" data-testid="np-directory">
-            <div role="radiogroup" aria-label={t('projects.directories')} className="flex gap-2">
-              {(['existing', 'empty'] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={mode === value}
-                  className="rounded-md border border-border px-3 py-2 text-caption whitespace-nowrap text-text-2 aria-checked:border-accent-b aria-checked:bg-accent-t aria-checked:text-(--accent)"
-                  data-testid={`np-mode-${value}`}
-                  onClick={() => setMode(value)}
-                >
-                  {t(value === 'existing' ? 'projects.mode_existing' : 'projects.mode_empty')}
-                </button>
-              ))}
-            </div>
-            {mode === 'existing' ? (
-              <label className={FIELD_LABEL}>
-                {t('projects.path')}
-                <input className={INPUT} value={path} autoComplete="off" spellCheck={false} data-testid="np-path" onChange={(event) => setPath(event.target.value)} />
-              </label>
-            ) : (
-              <>
-                <label className={FIELD_LABEL}>
-                  {t('projects.parent')}
-                  <input className={INPUT} value={parent} autoComplete="off" spellCheck={false} data-testid="np-parent" onChange={(event) => setParent(event.target.value)} />
-                </label>
-                <label className={FIELD_LABEL}>
-                  {t('projects.name')}
-                  <input className={INPUT} value={name} autoComplete="off" spellCheck={false} data-testid="np-name" onChange={(event) => setName(event.target.value)} />
-                </label>
-              </>
-            )}
-          </div>
-        )}
-        {tab === 'templates' && (
-          <TemplatePicker
-            templates={templates}
-            selected={selected}
-            variablesByKey={variablesByKey}
-            values={values}
-            onToggle={toggle}
-            onValue={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
-          />
-        )}
-        {tab === 'files' && (
-          <ul className="grid gap-1" data-testid="np-files">
-            {PROJECT_INSTRUCTION_FILES.map((file) => (
-              <li key={file}>
-                <label className="flex items-center gap-3 rounded-md px-3 py-2 whitespace-nowrap hover:bg-fill">
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-(--accent)"
-                    checked={files.includes(file)}
-                    data-testid={`np-file-${file}`}
-                    onChange={() => setFiles((current) => (current.includes(file) ? current.filter((item) => item !== file) : [...current, file]))}
-                  />
-                  <span className="font-mono text-caption text-text">{file}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        )}
-        {tab === 'preview' && (
-          <div className="grid gap-3" data-testid="np-preview">
-            {directories.length > 0 && (
-              <div className="flex gap-3 overflow-x-auto" data-testid="np-preview-directories">
-                {directories.map((entry) => (
-                  <span key={entry.path} className="font-mono text-caption whitespace-nowrap text-text-2">{entry.path}</span>
-                ))}
-              </div>
-            )}
-            {plan !== null && (
-              <table className="w-full table-fixed border-collapse text-base" data-testid="np-preview-files">
-                <thead>
-                  <tr className="border-b border-border text-caption text-text-3">
-                    <th scope="col" className="py-2 text-left font-semibold">{t('projects.file')}</th>
-                    <th scope="col" className="py-2 text-left font-semibold">{t('projects.status')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {plan.files.map((file) => (
-                    <tr key={file.id} className="border-b border-border" data-testid={`np-plan-${file.id}`}>
-                      <td className="py-2 font-mono text-caption whitespace-nowrap text-text">{file.id}</td>
-                      <td className="py-2 text-caption whitespace-nowrap text-text-2">
-                        {t(file.current === null ? 'projects.change_new' : file.current === file.next ? 'projects.change_same' : 'projects.change_modify')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            <Markdown text={markdown} testId="np-preview-markdown" density="compact" />
+            {errors.map((message) => <span key={message} className="font-mono text-caption text-red-d">{message}</span>)}
           </div>
         )}
       </div>
