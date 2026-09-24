@@ -5,7 +5,9 @@ import { useT } from '../i18n'
 /** 复制成功后勾号停留的时长。 */
 export const COPIED_MS = 1200
 
-/** 单行命令块：中性等宽底、永不折行（过长横向滚动）+ 行尾复制按钮，复制成功后短暂变勾。 */
+/**
+ * 单行命令块：中性等宽底、永不折行（过长横向滚动）+ 行尾复制按钮，复制成功后短暂变勾。
+ * 复制按钮视觉 32px，伪元素向外扩 4px，点击区 40px。 */
 export function CommandLine({ command, testId }: { command: string; testId: string }): JSX.Element {
   const { t } = useT()
   const [copied, setCopied] = useState(false)
@@ -20,7 +22,7 @@ export function CommandLine({ command, testId }: { command: string; testId: stri
       <code className="min-w-0 flex-1 overflow-x-auto py-2 font-mono text-body whitespace-nowrap text-text" data-testid={`${testId}-text`}>{command}</code>
       <button
         type="button"
-        className="grid size-8 flex-none place-items-center rounded-sm text-text-3 outline-none hover:bg-fill-2 hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"
+        className="relative grid size-8 flex-none place-items-center rounded-sm text-text-3 outline-none after:absolute after:-inset-1 after:content-[''] hover:bg-fill-2 hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"
         aria-label={label}
         title={label}
         data-copied={copied}

@@ -31,6 +31,12 @@ describe('CommandLine（A10）', () => {
     expect(text.className).not.toContain('accent')
   })
 
+  it('复制按钮视觉 32px，点击区经伪元素外扩 4px 到 40px', () => {
+    render(<I18nProvider><CommandLine command="tenon init x" testId="cmd" /></I18nProvider>)
+    const classes = screen.getByTestId('cmd-copy').className.split(/\s+/u)
+    expect(classes).toEqual(expect.arrayContaining(['size-8', 'relative', 'after:absolute', 'after:-inset-1', "after:content-['']"]))
+  })
+
   it('复制按钮写入剪贴板，变勾 1.2s 后复原', async () => {
     vi.useFakeTimers()
     const writeText = vi.fn(async () => undefined)
