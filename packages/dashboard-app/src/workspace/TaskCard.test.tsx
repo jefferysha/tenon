@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { makeChange, makeProject, makeSnapshot } from '../testkit'
 import { LIST_ROW } from '../library/libraryChrome'
 import { LIST_SELECTED, LIST_SELECTED_ARIA } from '../shared/uiRecipes'
@@ -19,7 +20,7 @@ afterEach(() => {
 function renderList(): void {
   vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ ok: false, error: 'not found' }), { status: 404 }))
   render(
-    <I18nProvider>
+    <I18nProvider><TooltipProvider>
       <WorkspaceView
         snapshot={makeSnapshot([makeProject(ROOT, [makeChange('a', 'build'), makeChange('b', 'spec')], { uncommittedDeletions: 2 })])}
         currentRoot={ROOT}
@@ -29,7 +30,7 @@ function renderList(): void {
         selectedChange={null}
         onSelectedChange={() => undefined}
       />
-    </I18nProvider>,
+    </TooltipProvider></I18nProvider>,
   )
 }
 

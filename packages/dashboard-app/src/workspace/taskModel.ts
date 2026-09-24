@@ -1,8 +1,9 @@
 import type { WbIoSlot } from '../api/governanceTypes'
-import { changeWorkflowName, formatReadinessBlocker } from '../model/progressModel'
+import { changeWorkflowName } from '../model/progressModel'
 import { snapshotRulesKey, type WorkflowRules } from '../model/workflowModel'
 import { isProjectNavigable } from '../state/projectSelectionModel'
-import type { ArchivedChangeSnapshot, ChangeSnapshot, Snapshot, TransitionReadinessBlockerSnapshot, UserRefView } from '../types'
+import type { ArchivedChangeSnapshot, ChangeSnapshot, Snapshot, UserRefView } from '../types'
+import { blockerLines, type BlockerLine } from './blockerLabel'
 
 export type Tr = (key: string, vars?: Record<string, string | number>) => string
 
@@ -102,17 +103,20 @@ export function stagesOf(change: ChangeSnapshot, rules: WorkflowRules | undefine
   })
 }
 
-/** 一条阻断的展示行：step-exit 用服务端文案；agent 阻断每个 agent 一行。 */
-export function blockerLines(blocker: TransitionReadinessBlockerSnapshot): string[] {
-  if (blocker.kind === 'agents-incomplete') return blocker.agents.map((item) => `${item.agent} · ${item.reason}`)
-  return [formatReadinessBlocker(blocker)]
-}
-
 /**
  * 当前阶段的前进出口：任一出口 ready 即可前进；都不 ready 时取阻断最少的那个出口（并列按声明顺序），
  * 绝不把互斥出口的阻断合并成并集。没有前进出口时返回 null。
  */
-export function forwardExitOf(change: ChangeSnapshot, rules: WorkflowRules | undefined): { to: string; ready: boolean; blockers: string[] } | null {
+export interface ForwardExit {
+  to: string
+  ready: boolean
+  /** 完整文案（与 CLI 同一份），用于计数与 title。 */
+  blockers: string[]
+  /** 同序的展示行：按 code 的短标签 + 完整文案。 */
+  lines: BlockerLine[]
+}
+
+export function forwardExitOf(change: ChangeSnapshot, rules: WorkflowRules | undefined): ForwardExit | null {
   const all = rulesOf(change, rules)
   const readiness = change.workflowExecution.readinessByTransition[change.phase] ?? {}
   const steps = all.steps
@@ -120,11 +124,11 @@ export function forwardExitOf(change: ChangeSnapshot, rules: WorkflowRules | und
   const forward = (all.transitions[change.phase] ?? []).filter((edge) => steps.indexOf(edge.to) > currentIndex)
   if (forward.length === 0) return null
   const ready = forward.find((edge) => readiness[edge.event]?.ready === true)
-  if (ready !== undefined) return { to: ready.to, ready: true, blockers: [] }
-  let best: { to: string; ready: boolean; blockers: string[] } | null = null
+  if (ready !== undefined) return { to: ready.to, ready: true, blockers: [], lines: [] }
+  let best: ForwardExit | null = null
   for (const edge of forward) {
-    const blockers = (readiness[edge.event]?.blockers ?? []).flatMap(blockerLines)
-    if (best === null || blockers.length < best.blockers.length) best = { to: edge.to, ready: false, blockers }
+    const lines = (readiness[edge.event]?.blockers ?? []).flatMap(blockerLines)
+    if (best === null || lines.length < best.lines.length) best = { to: edge.to, ready: false, blockers: lines.map((line) => line.text), lines }
   }
   return best
 }

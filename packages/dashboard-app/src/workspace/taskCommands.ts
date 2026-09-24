@@ -19,9 +19,13 @@ export function statusCommand(root: string, change: string): string {
   return inProject(root, `tenon status ${shellQuote(change)}`)
 }
 
-/** 在自己的会话里接手：恢复任务只跑同一条 `tenon session activate`（见 tenon 技能「进入」）。 */
-export function takeoverCommand(root: string, change: string): string {
-  return inProject(root, `tenon session activate ${shellQuote(change)}`)
+/**
+ * 在自己的 agent 对话里接手：发给 agent 的提示词，不是终端命令（不 cd、不转义）。router hook 把
+ * 「继续」+ 完整点名的 change 名识别为 resume（hooks/prompt-intent.sh `pipeline_prompt_requests_resume`），
+ * tenon 技能随后只接手这个任务。不用 `tenon session activate`：那是授予连续执行权。
+ */
+export function takeoverPrompt(change: string): string {
+  return `/tenon 继续 ${change}`
 }
 
 /** 评审门退回：为退回边请求评审，之后在工作台确认（通过）。 */

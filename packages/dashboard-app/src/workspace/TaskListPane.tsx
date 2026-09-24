@@ -7,6 +7,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Hint } from '../workflow/Hint'
 import { CommandLine } from './CommandLine'
 import { TaskCard } from './TaskCard'
 import type { TaskMenuEntry } from './TaskMenu'
@@ -42,7 +43,8 @@ export interface TaskListPaneProps {
 }
 
 const TOGGLE_CLS = 'inline-flex min-h-10 flex-none items-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-pressed:bg-accent-t aria-pressed:font-semibold aria-pressed:text-(--accent)'
-const MENU_TRIGGER_CLS = 'inline-flex min-h-10 flex-none items-center gap-1 whitespace-nowrap rounded-sm px-2 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) data-[active=true]:font-semibold data-[active=true]:text-(--accent) aria-expanded:bg-fill'
+const MENU_TRIGGER_CLS = 'relative grid size-10 flex-none place-items-center rounded-sm text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) data-[active=true]:text-(--accent) aria-expanded:bg-fill'
+const MENU_BADGE_CLS = 'absolute -top-0.5 -right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-(--accent) px-1 text-micro font-semibold tabular-nums text-(--btn-fg)'
 
 interface FilterMenuGroup {
   id: keyof Omit<TaskFilterState, 'status'>
@@ -55,7 +57,10 @@ function menuOptions(chips: readonly FacetChip[], allCount: number, allLabel: st
   return [{ id: 'all', label: allLabel, count: allCount }, ...lead, ...chips.map((chip) => ({ id: chip.id, label: chip.label, count: chip.count }))]
 }
 
-/** 「筛选」：负责人 / 工作流 / 轨道 / 阶段收进一个菜单，按钮上显示生效条件数；只有一个取值的维度不列。 */
+/**
+ * 「筛选」：负责人 / 工作流 / 轨道 / 阶段收进一个菜单。图标按钮（文字进 Tooltip），有生效条件时
+ * 右上角显示计数徽标；只有一个取值的维度不列。
+ */
 function FilterMenu({ groups, filter, onFilter }: { groups: readonly FilterMenuGroup[]; filter: TaskFilterState; onFilter: (next: TaskFilterState) => void }): JSX.Element | null {
   const { t } = useT()
   const shown = groups.filter((group) => group.options.length > 2 || filter[group.id] !== 'all')
@@ -63,11 +68,12 @@ function FilterMenu({ groups, filter, onFilter }: { groups: readonly FilterMenuG
   if (shown.length === 0) return null
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={MENU_TRIGGER_CLS} data-active={active > 0} aria-label={`${t('workspace.filters')} ${active}`} data-testid="task-filter-menu">
-        <SlidersHorizontal className="size-4 flex-none" aria-hidden="true" />
-        {t('workspace.filters')}
-        {active > 0 && <span className="text-caption tabular-nums" data-testid="task-filter-active">{active}</span>}
-      </DropdownMenuTrigger>
+      <Hint label={t('workspace.filters')}>
+        <DropdownMenuTrigger className={MENU_TRIGGER_CLS} data-active={active > 0} aria-label={active > 0 ? `${t('workspace.filters')} ${active}` : t('workspace.filters')} data-testid="task-filter-menu">
+          <SlidersHorizontal className="size-4 flex-none" aria-hidden="true" />
+          {active > 0 && <span className={MENU_BADGE_CLS} aria-hidden="true" data-testid="task-filter-active">{active}</span>}
+        </DropdownMenuTrigger>
+      </Hint>
       <DropdownMenuContent align="start" className="min-w-52" data-testid="task-filter-menu-content">
         {shown.map((group, index) => (
           <Fragment key={group.id}>

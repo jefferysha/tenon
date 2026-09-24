@@ -1,7 +1,7 @@
 import { FileText, Hash } from 'lucide-react'
 import { useT } from '../i18n'
 import { StatusPill, type PillTone } from '../shell/ThreeColumns'
-import { fileName, type IoRow, type IoRowStatus } from './stageIo'
+import type { IoRow, IoRowStatus } from './stageIo'
 import { slotLabel } from './taskModel'
 import { cn } from '@/lib/utils'
 import { LIST_SELECTED } from '../shared/uiRecipes'
@@ -14,6 +14,8 @@ const STATUS_TONE: Record<IoRowStatus, PillTone> = {
   missing: 'blocked',
   unset: 'neutral',
 }
+
+const COLS = 'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_6.5rem] items-center gap-4 whitespace-nowrap'
 
 export interface StageIoPanelProps {
   /** 当前 sheet 显示哪一侧。 */
@@ -30,57 +32,70 @@ function formatTime(iso: string): string {
   return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-/** 所选阶段的一张 IO sheet（输入或输出）：每行一个槽位，文件行可点开抽屉。标题由 sheet 页签承担。 */
+/** 来源技能：已登记取最近一次的登记者，缺失取应产出它的技能，值槽位取声明的 producer。 */
+function sourceSkills(item: IoRow): string {
+  if (item.slot.kind === 'field') return item.slot.producer ?? ''
+  if (item.producer !== null && item.status !== 'missing') return item.producer
+  return item.producers.join(', ')
+}
+
+/** 行 title：路径或值，加最近一次登记的人与时间。 */
+function rowTitle(item: IoRow): string {
+  return [item.path ?? (item.value === '' ? null : item.value), item.actor ?? null, item.at === null ? null : formatTime(item.at)]
+    .filter((part): part is string => part !== null && part !== '').join(' · ')
+}
+
+/**
+ * 所选阶段的一张 IO sheet（输入或输出）：带表头的表 文件 · 来源技能 · 状态，行间一条细分隔线。
+ * 可阅读的行整行可点开抽屉（文件格里的按钮承担键盘路径）。标题由 sheet 页签承担。
+ */
 export function StageIoPanel({ direction, items, activePath, onOpen, definitionState }: StageIoPanelProps): JSX.Element {
   const { t } = useT()
   const single = direction === 'outputs' ? 'output' : 'input'
 
-  function row(item: IoRow, direction: 'output' | 'input'): JSX.Element {
+  function row(item: IoRow): JSX.Element {
     const label = slotLabel(item.slot, t)
-    // 缺失的文档行说清楚该由哪个技能产出；已登记的行说清楚文件、产出者与时间。
-    const meta = item.slot.kind === 'document'
-      ? item.status === 'missing'
-        ? item.producers.join(', ')
-        : [item.path === null ? null : fileName(item.path), item.producer, item.actor ?? null, item.at === null ? null : formatTime(item.at)].filter((part): part is string => part !== null && part !== '').join(' · ')
-      : item.value === '' ? '' : item.slot.type === 'file_path' ? fileName(item.value) : item.value
+    const skills = sourceSkills(item)
     const Icon = item.slot.kind === 'field' && item.slot.type !== 'file_path' ? Hash : FileText
-    const clickable = item.path !== null
-    const testId = `stage-${direction}-${item.slot.kind}-${item.slot.id}`
-    const body = (
-      <>
-        <Icon className="size-4 flex-none text-text-3" aria-hidden="true" />
-        <span className="min-w-0">
-          <span className="block truncate text-base font-semibold text-text">{label}</span>
-          {meta !== '' && <span className="block truncate font-mono text-caption text-text-2">{meta}</span>}
+    const path = item.path
+    const title = rowTitle(item)
+    return (
+      <div
+        key={`${item.slot.kind}:${item.slot.id}`}
+        className={cn(COLS, 'min-h-11 border-b border-border px-1 py-1.5 text-body', path !== null && 'cursor-pointer hover:bg-fill', path !== null && activePath === path && LIST_SELECTED)}
+        role="row"
+        title={title === '' ? undefined : title}
+        data-testid={`stage-${single}-${item.slot.kind}-${item.slot.id}`}
+        data-status={item.status}
+        onClick={path === null ? undefined : () => onOpen(path)}
+      >
+        <span className="flex min-w-0 items-center gap-2" role="cell">
+          <Icon className="size-4 flex-none text-text-3" aria-hidden="true" />
+          {path === null ? (
+            <span className="truncate font-semibold text-text">{label}</span>
+          ) : (
+            <button
+              type="button"
+              className="min-w-0 truncate rounded-xs text-left font-semibold text-text outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+              aria-pressed={activePath === path}
+              data-testid={`stage-${single}-open-${item.slot.id}`}
+              onClick={(event) => { event.stopPropagation(); onOpen(path) }}
+            >
+              {label}
+            </button>
+          )}
+        </span>
+        <span className={cn('truncate font-mono text-caption', skills === '' ? 'text-text-3' : 'text-text-2')} role="cell" title={skills === '' ? undefined : skills}>
+          {skills === '' ? '—' : skills}
         </span>
         <span
-          className="flex-none"
+          className="min-w-0"
+          role="cell"
           {...(item.reason === null ? {} : { title: t(`workspace.stale_${item.reason.replace('-', '_')}`), 'data-reason': item.reason })}
         >
           <StatusPill tone={STATUS_TONE[item.status]}>{t(`workspace.status_${item.status}`)}</StatusPill>
         </span>
-      </>
-    )
-    const cls = 'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md border px-4 py-3 text-left'
-    return (
-      <li key={`${item.slot.kind}:${item.slot.id}`}>
-        {clickable ? (
-          <button
-            type="button"
-            className={cn(cls, 'bg-card outline-none hover:border-accent-b focus-visible:ring-2 focus-visible:ring-(--accent)', 'border-border', activePath === item.path && LIST_SELECTED)}
-            aria-pressed={activePath === item.path}
-            data-testid={testId}
-            data-status={item.status}
-            onClick={() => onOpen(item.path as string)}
-          >
-            {body}
-          </button>
-        ) : (
-          <div className={cn(cls, item.status === 'missing' || item.status === 'unset' ? 'border-dashed border-border' : 'border-border bg-card')} data-testid={testId} data-status={item.status}>
-            {body}
-          </div>
-        )}
-      </li>
+      </div>
     )
   }
 
@@ -90,10 +105,17 @@ export function StageIoPanel({ direction, items, activePath, onOpen, definitionS
         <p className="text-body text-text-3" role="status">{t('common.loading')}</p>
       ) : definitionState === 'error' ? (
         <p className="text-body text-red-d" role="alert">{t('workspace.definition_error')}</p>
-      ) : items.length === 0 ? (
-        <p className="rounded-md border border-dashed border-border px-4 py-5 text-center text-body text-text-3" role="status">{t('workspace.none')}</p>
       ) : (
-        <ul className="grid gap-2">{items.map((item) => row(item, single))}</ul>
+        <div className="grid min-w-0" role="table" aria-label={t(`workspace.${direction}`)}>
+          <div className={cn(COLS, 'border-b border-border px-1 pb-2 text-caption text-text-3')} role="row" data-testid={`stage-${direction}-head`}>
+            <span role="columnheader">{t('workspace.io_col_file')}</span>
+            <span role="columnheader">{t('workspace.io_col_skill')}</span>
+            <span role="columnheader">{t('workspace.io_col_status')}</span>
+          </div>
+          {items.length === 0
+            ? <p className="py-3 text-body text-text-3" role="status">{t('workspace.none')}</p>
+            : items.map(row)}
+        </div>
       )}
     </section>
   )

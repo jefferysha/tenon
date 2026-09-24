@@ -89,7 +89,7 @@ describe('summaryOf · 只读快照', () => {
       kind: 'blocked',
       blockers: ['尚未完成声明的 skill：tdd', 'tasks.md 仍有 2 项未勾'],
     })
-    expect(forwardExitOf(change({ workflowExecution: BLOCKED }), undefined)).toEqual({
+    expect(forwardExitOf(change({ workflowExecution: BLOCKED }), undefined)).toMatchObject({
       to: 'verify', ready: false, blockers: ['尚未完成声明的 skill：tdd', 'tasks.md 仍有 2 项未勾'],
     })
   })
