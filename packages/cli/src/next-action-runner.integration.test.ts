@@ -478,6 +478,11 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     const deliver = actions.findIndex(({ step, action }) => step === 'ship' && action.action === 'commit')
     expect(deliver).toBeGreaterThan(-1)
     expect(deliver).toBeLessThan(actions.findIndex(({ action }) => action.action === 'set-field' && action.field === 'pr_url'))
+    // 真机（第四轮）：勾选先于提交。交付物未提交时先 commit，再勾剩下的任务；之后应用进主规格的改动
+    // 在交付值之前再提交一次。
+    expect(deliver).toBeLessThan(shipFix)
+    const lastDeliver = actions.map(({ action }) => action.action).lastIndexOf('commit')
+    expect(lastDeliver).toBeGreaterThan(actions.findIndex(({ action }) => action.action === 'apply-spec'))
     // 交付提交带上了代码之外的交付物：已应用的主规格、测试记录与状态目录的 .gitignore。
     const delivered = git(['log', '--name-only', '--format=', `--grep=^feat(${CHANGE}): deliver$`]).output
     expect(delivered).toContain('openspec/specs/capability/spec.md')

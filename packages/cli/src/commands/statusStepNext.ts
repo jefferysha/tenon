@@ -237,6 +237,13 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   // 它是 `stale`（要重新登记）——那不是例外：剩下没勾的仍排在前面，全勾完再一起重新登记。
   const tasksMissing = input.documents.records.some((doc) => doc.kind === 'tasks' && doc.status === 'missing')
   const tasks = tasksMissing ? [] : taskBlockers(input.exits)
+  // 交付步：未提交的交付物先提交，再去勾剩下的任务。真机第四轮：ship 的 fix 让模型先勾上「提交代码」
+  // 那一项、之后才执行 commit——勾选先于事实。先提交，勾选记录的就是已发生的提交；勾完之后本步再有
+  // 的改动（剩余任务的工作、应用进主规格）会在交付值之前再发一次 commit。tasks.md 在 change 目录里，
+  // 勾选本身不让交付物变「脏」，不会因此多一次提交。
+  if (tasks.length > 0 && input.delivery !== null) {
+    return [{ action: 'commit', change: input.change, commit: input.delivery }]
+  }
   if (tasks.length > 0) return [{ action: 'fix', blockers: tasks }]
 
   if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]

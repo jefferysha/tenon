@@ -674,6 +674,25 @@ describe('交付步的提交', () => {
       .toEqual(['register-field'])
   })
 
+  /**
+   * 真机（第四轮）：ship 的 fix 让模型先勾「提交代码」再执行 commit，勾选先于事实。交付物未提交时
+   * commit 先于勾选任务的 fix；提交之后才去勾。
+   */
+  test('交付步有未勾任务且交付物未提交：先 commit，再 fix 勾选', () => {
+    const delivery = deliveryCommit('demo', probe())
+    const tasksBlocker = {
+      source: 'tasks' as const, code: 'tasks-incomplete',
+      message: 'ship 出口：要求截至当前阶段的 tasks.md 全部勾选（仍有 1 项未勾）', items: ['提交代码并开 PR'],
+    }
+    const exits = [{ event: 'ship-complete', to: 'archive', direction: 'forward' as const, ready: false, blockers: [tasksBlocker] }]
+    expect(stepNextActions(input({ fields: [pr], delivery, exits }))).toEqual([
+      { action: 'commit', change: 'demo', commit: delivery },
+    ])
+    expect(stepNextActions(input({ fields: [pr], delivery: null, exits }))).toEqual([
+      { action: 'fix', blockers: [tasksBlocker] },
+    ])
+  })
+
   test('已提交、不是 git 仓或只剩 change 目录的改动：不发 commit，直接交付值', () => {
     expect(deliveryCommit('demo', probe({ deliverablesDirty: false }))).toBeNull()
     expect(deliveryCommit('demo', null)).toBeNull()

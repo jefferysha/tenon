@@ -58,7 +58,8 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   也先于测试配置）→ 未配置的必需测试（本步与下一步的；计划步——本步产出 `plan` / `superpower-plan`——
   是之后所有前进可达步骤的；`fix` `code: test-unconfigured`）
   → 执行者 → 本步技能 → 技能欠的文档 → 未勾任务（`fix`，blocker `source: tasks`，带 `items` 未勾项
-  原文；tasks.md 自己还没产出（`missing`）时让位给文档写入，勾过一项后的 `stale` 不让位）→ 应用规格 → 产出与登记文档 → artifact
+  原文；tasks.md 自己还没产出（`missing`）时让位给文档写入，勾过一项后的 `stale` 不让位；交付步交付物未提交时
+  这一档先发 `commit`，提交之后才勾——勾选不先于事实）→ 应用规格 → 产出与登记文档 → artifact
   登记 → 交付物提交（交付步，`commit`）→ 自由文本交付值（`pr_url` / `prd_path`）→ 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
 - `test-unconfigured` 的 message = `unconfiguredMessage` + 范围说明：计划步说「只需在 package.json 补上
   脚本；这类测试若还没有，把写这类测试列进本步的计划与 tasks」，并要求把新增的测试脚本 / 测试同步写进本步可改的
@@ -149,6 +150,7 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | ship 有未勾任务 | 先 `fix`（`source: tasks`，`items` 为截至本步仍未勾的任务原文），再 `apply-spec` / applied-spec 登记 / `set-field pr_url` |
 | build 缺 build_mode / isolation | 读完输入文档后第一批就是 `set-field`，先于 test-unconfigured 的 `fix`、执行者与 `load-skill` |
 | 交付步，交付物有未提交改动 | `commit`（`paths: WORKSPACE_COMMIT_PATHS`），先于 `set-field pr_url` / `prd_path` |
+| 交付步，有未勾任务且交付物有未提交改动 | 先 `commit`，再勾选任务的 `fix`（真机第四轮：先勾「提交代码」后提交） |
 | 交付步，只有 change 目录或门禁标记有改动 | 不发 `commit` |
 | 已完结 | `finished_changes` 而非 `active_changes`；`check` 说无需检查；`step` 恒在、`archived=true`，`next` 是 `finish-change` 或 `stop finished` |
 | 原目录从未被 git 跟踪 | `finish-change.commit.paths` 只有 `openspec/changes/archive` |
