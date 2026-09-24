@@ -8,7 +8,7 @@ import type { ResourceQuery } from '@tenon/kernel/resources/query'
 import { ListColumn, StatusPill } from '../../shell/ThreeColumns'
 import { FacetBar, type FacetGroup } from '../../shared/FacetBar'
 import { BUTTON_GHOST } from '../../shared/uiRecipes'
-import { BuiltinLock, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from '../libraryChrome'
+import { CustomMark, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from '../libraryChrome'
 
 const LICENSE_MODES = ['redistributable', 'link-only', 'attribution'] as const
 type Facet = 'category' | 'framework' | 'styling' | 'license'
@@ -36,7 +36,7 @@ function facetGroup(facet: Facet, label: string, allLabel: string, values: reado
   }
 }
 
-/** 中列：搜索 + 单行筛选栏（类别 / 框架 / 样式 / 许可下拉）+ 条目行（只显示名称，标识在悬停提示里）；解析失败的文件也列出来，标「无效」。 */
+/** 中列：搜索 + 单行筛选栏（类别 / 框架 / 样式 / 许可下拉）+ 条目行（只显示名称，标识在悬停提示里，自定义条目带标记）；解析失败的文件也列出来，标「无效」。 */
 export function ResourceList({
   rows, errors, loading, search, query, selected, busy, onSearch, onQuery, onSelect, onNew, measureWidth,
 }: {
@@ -64,7 +64,7 @@ export function ResourceList({
     <ListColumn
       title={t('resources.title')}
       action={(
-        <button type="button" className={`${BUTTON_GHOST} min-h-10 px-3`} data-testid="res-new" disabled={!canWrite || busy} onClick={onNew}>
+        <button type="button" className={BUTTON_GHOST} data-testid="res-new" disabled={!canWrite || busy} onClick={onNew}>
           {t('resources.new')}
         </button>
       )}
@@ -101,11 +101,7 @@ export function ResourceList({
                 onClick={() => onSelect(row.entry.id)}
               >
                 <span className={LIST_ROW_NAME}>{row.entry.name}</span>
-                <span className="flex items-center gap-2 whitespace-nowrap">
-                  <span className="text-caption text-text-3">{t(`resources.category.${row.entry.category}`)}</span>
-                  <span className="text-caption text-text-3">{t(row.entry.license.redistributable ? 'resources.license_mode.redistributable' : 'resources.license_mode.link_only')}</span>
-                  {row.source === 'builtin' && <BuiltinLock quiet testId={`res-builtin-${row.entry.id}`} />}
-                </span>
+                {row.source === 'custom' ? <CustomMark quiet testId={`res-mark-${row.entry.id}`} /> : <span />}
               </button>
             </li>
           ))}

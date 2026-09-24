@@ -68,9 +68,9 @@ describe('agent 库', () => {
     await waitFor(() => expect(screen.getByTestId('lib-agent-title').textContent).toBe('security'))
     expect(screen.queryByTestId('lib-agent-save')).toBeNull()
     expect(screen.queryByTestId('lib-agent-more')).toBeNull()
-    // 内建只有一个视图：不渲染页签；「内建」只用锁图标表示，没有药丸。
+    // 内建只有一个视图：不渲染页签；内建不带标记，没有药丸。
     expect(screen.queryByTestId('lib-agent-sheets')).toBeNull()
-    expect(screen.getByTestId('lib-agent-builtin')).toHaveAttribute('aria-label', '内建')
+    expect(screen.queryByTestId('lib-agent-custom')).toBeNull()
     expect(screen.getByTestId('lib-agent-copy')).toHaveTextContent('复制为自定义')
     expect(screen.queryByTestId('lib-agent-eyebrow')).toBeNull()
     expect(screen.getByTestId('lib-agent-field-skills').textContent).toContain('tenon-verify')
@@ -143,10 +143,43 @@ describe('agent 库', () => {
     expect(reviewers).toHaveTextContent('评审者')
     expect(reviewers.querySelector('[data-testid="lib-agent-security"]')).not.toBeNull()
     expect(reviewers.querySelector('[data-testid="lib-agent-mine"]')).not.toBeNull()
-    // 内建行只有锁图标，不再另写「内建」药丸；自定义行不带标记。
-    expect(screen.getByTestId('lib-agent-builtin-security')).toBeInTheDocument()
-    expect(screen.queryByTestId('lib-agent-builtin-mine')).toBeNull()
-    expect(screen.getByTestId('lib-agent-security').textContent).not.toContain('内建')
+    // 内建行不带任何标记；自定义行带「自定义」。一行只有名称，说明在悬停提示里。
+    expect(screen.queryByTestId('lib-agent-mark-security')).toBeNull()
+    expect(screen.getByTestId('lib-agent-mark-mine')).toHaveTextContent('自定义')
+    expect(screen.getByTestId('lib-agent-security').textContent).toBe('security')
+  })
+
+  it('复制为自定义：名字不重名（mine-copy），选中后直接进入编辑页签', async () => {
+    const posts: string[] = []
+    let copied = false
+    stubFetch([], (method, url) => {
+      if (method === 'POST' && url === '/api/agents/security/copy') {
+        copied = true
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      }
+      if (method === 'POST') posts.push(url)
+      if (url === '/api/agents' && method === 'GET' && copied) {
+        return new Response(JSON.stringify({ ok: true, agents: [BUILTIN, CUSTOM, { ...CUSTOM, name: 'security-copy' }] }), { status: 200 })
+      }
+      if (url === '/api/agents/security-copy' && method === 'GET') {
+        return new Response(JSON.stringify({ ok: true, name: 'security-copy', source: 'custom', content: body('security-copy'), digest: digest('3'), references: [] }), { status: 200 })
+      }
+      return null
+    })
+    await openAgents()
+    await userEvent.click(screen.getByTestId('lib-agent-security'))
+    await userEvent.click(await screen.findByTestId('lib-agent-copy'))
+    await waitFor(() => expect(screen.getByTestId('lib-agent-security-copy')).toHaveAttribute('aria-current', 'true'))
+    await waitFor(() => expect(screen.getByTestId('lib-agent-tab-edit')).toHaveAttribute('aria-selected', 'true'))
+    expect(screen.getByTestId('lib-agent-content')).toBeInTheDocument()
+  })
+
+  it('有搜索框：按名字或说明过滤', async () => {
+    stubFetch([])
+    await openAgents()
+    await userEvent.type(screen.getByTestId('library-list-search'), '安全')
+    expect(screen.getByTestId('lib-agent-security')).toBeInTheDocument()
+    expect(screen.queryByTestId('lib-agent-mine')).toBeNull()
   })
 
   it('读取中显示骨架与「–」计数，不显示「没有智能体」和新建按钮', async () => {

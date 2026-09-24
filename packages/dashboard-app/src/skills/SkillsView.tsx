@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react'
-import { Search } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { ChevronDown, ChevronRight, Search } from 'lucide-react'
 import { fetchSkillSources, type SkillSourceRow, type SkillSourcesDto } from '../api/skillSourcesClient'
 import { formatApiError } from '../api/transport'
 import { useT } from '../i18n'
 import { FilterChip, FilterChipGroup } from '../shared/FilterChip'
 import { matchesQuery } from '../shell/GlobalSearch'
 import { SkillDetailDrawer } from '../workflow/SkillDetail'
+import { SkillFailureRow } from './SkillFailureRow'
+import { referenceText, useSkillReferences, type SkillReference } from './useSkillReferences'
 
 type Filter = 'all' | 'changed' | 'failed'
 type LoadState = { readonly kind: 'loading' } | { readonly kind: 'ok'; readonly view: SkillSourcesDto } | { readonly kind: 'error'; readonly detail: string }
@@ -15,9 +17,9 @@ const HEAD = `${CELL} sticky top-0 z-10 border-b border-border bg-bg text-left f
 /** 链接平时是正文色，强调色只在悬停时出现。 */
 const LINK = 'rounded-xs outline-none underline-offset-4 hover:text-(--accent) hover:underline focus-visible:ring-2 focus-visible:ring-(--accent)'
 const FILTERS = ['all', 'changed', 'failed'] as const
-const COLUMNS = ['skill', 'source', 'commit', 'license', 'updated'] as const
+const COLUMNS = ['skill', 'source', 'used', 'commit', 'license', 'updated'] as const
 const COLUMN_WIDTHS: Record<(typeof COLUMNS)[number] | 'status', string> = {
-  skill: 'w-[22%]', source: 'w-[26%]', commit: 'w-[14%]', license: 'w-[10%]', updated: 'w-[16%]', status: 'w-24',
+  skill: 'w-[20%]', source: 'w-[20%]', used: 'w-[20%]', commit: 'w-[12%]', license: 'w-[9%]', updated: 'w-[13%]', status: 'w-24',
 }
 const STATUS_TONE: Record<SkillSourceRow['status'], string> = {
   changed: 'text-amber-d', unchanged: 'text-text-2', failed: 'text-red-d', bundled: 'text-text-3',
@@ -52,9 +54,22 @@ function CommitCell({ row }: { readonly row: SkillSourceRow }): JSX.Element {
   )
 }
 
+/** 引用列：第一处引用 + 「+N」，全部引用在悬停提示里（一行一处）。 */
+function UsedCell({ id, references }: { readonly id: string; readonly references: readonly SkillReference[] }): JSX.Element {
+  const first = references[0]
+  if (first === undefined) return <td className={`${CELL} text-text-3`} data-testid={`skills-used-${id}`}>—</td>
+  return (
+    <td className={`${CELL} text-text-2`} title={references.map(referenceText).join('\n')} data-testid={`skills-used-${id}`}>
+      {referenceText(first)}
+      {references.length > 1 && <span className="ml-1.5 tabular-nums text-text-3">+{references.length - 1}</span>}
+    </td>
+  )
+}
+
 /**
  * 技能: every Tenon and upstream skill with source, commit, license, update time and status. Read-only.
  * Search filters by skill / repo; clicking a row opens the skill in the shared SkillDetail drawer.
+ * 「引用」列列出把它放进阶段技能的工作流 · 轨道 · 阶段；失败行的状态可展开，给出原因与可复制的修复命令。
  */
 export function SkillsView(): JSX.Element {
   const { t } = useT()
@@ -62,6 +77,14 @@ export function SkillsView(): JSX.Element {
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const references = useSkillReferences(state.kind === 'ok')
+  const toggle = (id: string): void => setExpanded((current) => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
 
   useEffect(() => {
     let active = true
@@ -145,8 +168,8 @@ export function SkillsView(): JSX.Element {
               </thead>
               <tbody>
                 {visible.map((row) => (
+                  <Fragment key={row.id}>
                   <tr
-                    key={row.id}
                     className="cursor-pointer transition-colors hover:bg-fill motion-reduce:transition-none"
                     data-testid={`skills-row-${row.id}`}
                     onClick={(event) => onRowClick(event, row.id)}
@@ -162,7 +185,7 @@ export function SkillsView(): JSX.Element {
                       </button>
                     </td>
                     {row.origin === 'tenon' ? (
-                      <td className={`${CELL} text-text-2`} title="tenon">tenon</td>
+                      <td className={`${CELL} text-text-2`} title={t('skills.source_tenon')}>{t('skills.source_tenon')}</td>
                     ) : (
                       <td className={CELL} title={`${row.repo ?? ''}:${row.path ?? ''}`}>
                         {row.sourceUrl === undefined
@@ -170,15 +193,31 @@ export function SkillsView(): JSX.Element {
                           : <a className={`text-text-2 ${LINK}`} href={row.sourceUrl} target="_blank" rel="noreferrer">{row.repo}</a>}
                       </td>
                     )}
+                    <UsedCell id={row.id} references={references.get(row.id) ?? []} />
                     <CommitCell row={row} />
                     <td className={`${CELL} text-text-2`} title={row.license ?? '—'}>{row.license ?? '—'}</td>
                     <td className={`${CELL} tabular-nums text-text-2`} title={row.fetchedAt ?? '—'}>{stamp(row.fetchedAt)}</td>
                     {showStatus && (
                       <td className={`${CELL} ${STATUS_TONE[row.status]}`} title={statusTitle(row)} data-testid={`skills-status-${row.id}`}>
-                        {SHOWN_STATUS.has(row.status) ? t(`skills.status_${row.status}`) : ''}
+                        {row.status === 'failed' ? (
+                          <button
+                            type="button"
+                            className={`inline-flex max-w-full items-center gap-1 ${LINK}`}
+                            aria-expanded={expanded.has(row.id)}
+                            data-testid={`skills-expand-${row.id}`}
+                            onClick={() => toggle(row.id)}
+                          >
+                            {expanded.has(row.id) ? <ChevronDown className="size-3.5 flex-none" aria-hidden="true" /> : <ChevronRight className="size-3.5 flex-none" aria-hidden="true" />}
+                            <span className="truncate">{t('skills.status_failed')}</span>
+                          </button>
+                        ) : SHOWN_STATUS.has(row.status) ? t(`skills.status_${row.status}`) : ''}
                       </td>
                     )}
                   </tr>
+                  {row.status === 'failed' && expanded.has(row.id) && (
+                    <SkillFailureRow id={row.id} reason={statusTitle(row)} columns={columns.length} />
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

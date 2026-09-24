@@ -240,7 +240,7 @@ export function useProjectSelection(input: {
       const search = dashboardSearch(window.location.search, {
         view: input.view,
         root,
-        change: input.view === 'progress' ? input.selectedChange : null,
+        change: input.view === 'workspace' ? input.selectedChange : null,
       })
       const next = `${window.location.pathname}${search}${window.location.hash}`
       const now = `${window.location.pathname}${window.location.search}${window.location.hash}`

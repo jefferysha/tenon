@@ -8,14 +8,16 @@ import { ResourceDetail } from './ResourceDetail'
 import { ResourceEditorDrawer } from './ResourceEditorDrawer'
 import { ResourceList } from './ResourceList'
 import { resourceSkeleton } from './resourceLabels'
-import { useResourceCatalog } from './useResourceCatalog'
+import type { ResourceCatalogState } from './useResourceCatalog'
 
 const NEW_ID = 'new-resource'
 
 /** 资源目录：左列种类（库的导轨由调用方给）/ 中列条目列表 / 右列条目详情。 */
 export function ResourceCatalog({
-  rail, railCollapsed, today, onToast,
+  catalog, rail, railCollapsed, today, onToast,
 }: {
+  /** 数据面由库页持有：左列的资源计数与这里用同一份。 */
+  catalog: ResourceCatalogState
   rail: ReactNode
   railCollapsed: boolean
   /** 新条目骨架里的核验日期；调用方注入，渲染保持确定。 */
@@ -23,7 +25,6 @@ export function ResourceCatalog({
   onToast?: (message: string) => void
 }): JSX.Element {
   const { t } = useT()
-  const catalog = useResourceCatalog()
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<'none' | 'existing' | 'new'>('none')
   const [confirmDelete, setConfirmDelete] = useState(false)

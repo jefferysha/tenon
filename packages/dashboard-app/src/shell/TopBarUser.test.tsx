@@ -11,7 +11,7 @@ function renderBar(user: CurrentUserState | null, onUser = vi.fn()) {
   render(
     <I18nProvider><TooltipProvider>
       <TopBar
-        view="progress" onView={() => undefined} projects={[]} currentRoot="" onRoot={() => undefined} connected
+        view="workspace" onView={() => undefined} projects={[]} currentRoot="" onRoot={() => undefined} connected
         lang="zh" onLang={() => undefined} theme="system" onTheme={() => undefined} decisionCount={0}
         user={user} onUser={onUser}
       />
@@ -69,10 +69,11 @@ describe('user dialog', () => {
     expect(JSON.parse(String(init?.body))).toEqual({ id: 'jeff@x.io', name: 'Jeff Sha' })
   })
 
-  it('names its global scope and keeps 保存 disabled until a field actually changes', async () => {
+  it('shows the identity source and keeps 保存 disabled until a field actually changes', async () => {
     window.__TENON_DASHBOARD_TOKEN__ = 'tok'
     render(<I18nProvider><TooltipProvider><UserDialog initial={{ id: 'jeff@x.io', name: 'Jeff', source: 'config' }} onClose={() => undefined} onSaved={() => undefined} /></TooltipProvider></I18nProvider>)
-    expect(screen.getByTestId('user-dialog-scope')).toHaveTextContent('适用于本机所有项目')
+    expect(screen.getByTestId('user-dialog-source')).toHaveTextContent('来源user.json')
+    expect(screen.queryByTestId('user-dialog-env-override')).toBeNull()
     const save = screen.getByTestId('user-dialog-save')
     expect(save).toBeDisabled()
     await userEvent.type(screen.getByTestId('user-dialog-name'), ' Sha')
@@ -80,6 +81,19 @@ describe('user dialog', () => {
     await userEvent.clear(screen.getByTestId('user-dialog-name'))
     await userEvent.type(screen.getByTestId('user-dialog-name'), 'Jeff')
     expect(save).toBeDisabled()
+  })
+
+  it('TENON_USER identity: names the variable and says edits here have no effect', () => {
+    window.__TENON_DASHBOARD_TOKEN__ = 'tok'
+    render(<I18nProvider><TooltipProvider><UserDialog initial={{ id: 'jeff@x.io', name: 'Jeff', source: 'env' }} onClose={() => undefined} onSaved={() => undefined} /></TooltipProvider></I18nProvider>)
+    expect(screen.getByTestId('user-dialog-source')).toHaveTextContent('TENON_USER')
+    expect(screen.getByTestId('user-dialog-env-override')).toHaveTextContent('TENON_USER 已设置，这里的修改不生效')
+  })
+
+  it('an invalid TENON_USER still names the source and the override', () => {
+    render(<I18nProvider><TooltipProvider><UserDialog invalidSource="env" onClose={() => undefined} onSaved={() => undefined} /></TooltipProvider></I18nProvider>)
+    expect(screen.getByTestId('user-dialog-source')).toHaveTextContent('TENON_USER')
+    expect(screen.getByTestId('user-dialog-env-override')).toBeInTheDocument()
   })
 
   it('allows saving an unedited git identity so it becomes the declared user.json', () => {

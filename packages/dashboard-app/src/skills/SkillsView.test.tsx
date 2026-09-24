@@ -40,11 +40,11 @@ afterEach(() => {
 })
 
 describe('SkillsView', () => {
-  it('renders six column headers and one row per skill', async () => {
+  it('renders seven column headers and one row per skill', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
     renderView()
     await screen.findByTestId('skills-row-hue')
-    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['技能', '来源', '提交', '许可证', '更新', '状态'])
+    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['技能', '来源', '引用', '提交', '许可证', '更新', '状态'])
     expect(screen.getAllByTestId(/^skills-row-/u)).toHaveLength(4)
     expect(screen.getByTestId('skills-updated')).toHaveTextContent('更新 2026-09-15 08:00')
   })
@@ -162,7 +162,7 @@ describe('SkillsView', () => {
     expect(commit?.className).toContain('font-mono')
     expect(commit?.className).toContain('text-text-3')
     const cells = within(screen.getByTestId('skills-row-hue')).getAllByRole('cell')
-    expect(cells[4]?.className).toContain('tabular-nums')
+    expect(cells[5]?.className).toContain('tabular-nums')
     expect(screen.getByTestId('skills-updated').className).toContain('tabular-nums')
   })
 
@@ -171,7 +171,7 @@ describe('SkillsView', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(quiet), { status: 200 }))
     renderView()
     await screen.findByTestId('skills-row-brainstorming')
-    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['技能', '来源', '提交', '许可证', '更新'])
+    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['技能', '来源', '引用', '提交', '许可证', '更新'])
     expect(screen.queryByTestId('skills-status-brainstorming')).toBeNull()
   })
 
@@ -180,7 +180,52 @@ describe('SkillsView', () => {
     renderView()
     await screen.findByTestId('skills-row-hue')
     const cols = screen.getByRole('table').querySelectorAll('col')
-    expect(cols).toHaveLength(6)
-    expect(cols[5]?.className).toBe('w-24')
+    expect(cols).toHaveLength(7)
+    expect(cols[6]?.className).toBe('w-24')
+  })
+
+  it('names bundled skills with the same source word as the rest of the dashboard (内建)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    const row = await screen.findByTestId('skills-row-tenon')
+    expect(within(row).getAllByRole('cell')[1]).toHaveTextContent('内建')
+  })
+
+  it('expands a failed row into its reason and copyable fix commands', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    const toggle = await screen.findByTestId('skills-expand-web-design-guidelines')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('skills-failure-web-design-guidelines')).toBeNull()
+    await userEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('skills-failure-reason-web-design-guidelines')).toHaveTextContent('缺少许可证 no license evidence')
+    expect(screen.getByTestId('skills-fix-web-design-guidelines-0-text')).toHaveTextContent('tenon update --codex')
+    expect(screen.getByTestId('skills-fix-web-design-guidelines-1-text')).toHaveTextContent('tenon update --claude')
+    expect(screen.queryByTestId('skill-preview')).toBeNull()
+    await userEvent.click(toggle)
+    expect(screen.queryByTestId('skills-failure-web-design-guidelines')).toBeNull()
+  })
+
+  it('lists which workflows / tracks / stages use a skill', async () => {
+    const step = (id: string, label: string, skills: string[]) => ({ id, label, gate: null, skills: skills.map((skill) => ({ id: skill })), inputs: [], outputs: [], guards: [], transitions: [] })
+    const workflow = {
+      name: 'default',
+      steps: [step('explore', '调研', ['brainstorming']), step('build', '实现', ['hue', 'brainstorming'])],
+      tracks: { ui: { label: '界面', steps: [step('design', '设计', ['hue'])] } },
+    }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.startsWith('/api/skills/sources')) return new Response(JSON.stringify(FIXTURE), { status: 200 })
+      if (url.startsWith('/api/workflows?')) return new Response(JSON.stringify({ names: ['default'] }), { status: 200 })
+      if (url.startsWith('/api/workflows/default')) return new Response(JSON.stringify(workflow), { status: 200 })
+      return new Response('{}', { status: 404 })
+    })
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    await waitFor(() => expect(screen.getByTestId('skills-used-brainstorming')).toHaveTextContent('default · 调研+1'))
+    expect(screen.getByTestId('skills-used-brainstorming')).toHaveAttribute('title', 'default · 调研\ndefault · 实现')
+    expect(screen.getByTestId('skills-used-hue')).toHaveAttribute('title', 'default · 实现\ndefault · 界面 · 设计')
+    expect(screen.getByTestId('skills-used-tenon')).toHaveTextContent('—')
   })
 })

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useT } from '../i18n'
 import { BUTTON_SOLID } from '../shared/uiRecipes'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
-import { BuiltinLock, CopyAsCustomButton, LIST_ROW, LIST_ROW_NAME, DeleteMenu, DetailTitle, ListSkeleton, ReadOnlyNote } from './libraryChrome'
+import { CustomMark, CopyAsCustomButton, LIST_ROW, LIST_ROW_NAME, DeleteMenu, DetailTitle, ListSkeleton, ReadOnlyNote } from './libraryChrome'
 import type { TestDirectionLibrary } from './useTestDirections'
 
 /**
@@ -37,7 +37,7 @@ export function TestDirectionsPane({
               onClick={() => library.select(direction.id)}
             >
               <span className={LIST_ROW_NAME}>{direction.label}</span>
-              {direction.source === 'builtin' ? <BuiltinLock quiet testId={`lib-dir-builtin-${direction.id}`} /> : <span />}
+              {direction.source === 'custom' ? <CustomMark quiet testId={`lib-dir-mark-${direction.id}`} /> : <span />}
             </button>
           </li>
         ))}
@@ -55,14 +55,14 @@ export function TestDirectionsPane({
         testId="lib-dir"
         title={selected.label}
         hint={selected.id}
-        builtin={builtin}
+        custom={!builtin}
         actions={(
           <>
             {!canWrite && <ReadOnlyNote testId="lib-dir-no-token" />}
             <CopyAsCustomButton
               testId={`lib-dir-copy-${selected.id}`}
               disabled={!canWrite || library.busy}
-              onClick={() => { void library.copy().then((ok) => { if (ok) onToast?.(t('common.done_copied')) }) }}
+              onClick={() => { void library.copy(t('library.copy_suffix')).then((ok) => { if (ok) onToast?.(t('common.done_copied')) }) }}
             />
             {!builtin && (
               <>

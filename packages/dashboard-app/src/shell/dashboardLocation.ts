@@ -1,4 +1,4 @@
-import { isView, TASK_STATUS_PARAM, type View } from './views'
+import { normalizeView, TASK_STATUS_PARAM, type View } from './views'
 
 export interface DashboardLocation {
   view?: View
@@ -12,20 +12,20 @@ export interface DashboardLocationState {
   change: string | null
 }
 
-/** URL 是可分享入口，非法/退役 view 不得压过 localStorage 的安全回退。 */
+/** URL 是可分享入口：旧 view 值映射到新 id；非法值不得压过 localStorage 的安全回退。 */
 export function parseDashboardLocation(search: string): DashboardLocation {
   const params = new URLSearchParams(search)
   const result: DashboardLocation = {}
-  const view = params.get('view')
+  const view = normalizeView(params.get('view'))
   const root = params.get('root')
   const change = params.get('change')
-  if (isView(view)) result.view = view
+  if (view !== null) result.view = view
   if (root !== null && root !== '') result.root = root
   if (change !== null && change !== '') result.change = change
   return result
 }
 
-/** 工作流页（view=workbench）的可分享选择：工作流名 · 轨道 · 阶段。 */
+/** 工作流页（view=workflow）的可分享选择：工作流名 · 轨道 · 阶段。 */
 export interface WorkflowLocation {
   wf?: string
   track?: string
@@ -64,13 +64,13 @@ export function workflowSearch(search: string, state: { wf: string | null; track
  * 不带 `wf` 时属于工作台（详情所选阶段）；`status` 只属于工作台。
  */
 function dropForeignKeys(params: URLSearchParams, view: View): void {
-  const stepOwner: View = params.has('wf') ? 'workbench' : 'progress'
+  const stepOwner: View = params.has('wf') ? 'workflow' : 'workspace'
   if (view !== stepOwner) params.delete('step')
-  if (view !== 'workbench') {
+  if (view !== 'workflow') {
     params.delete('wf')
     params.delete('track')
   }
-  if (view !== 'progress') params.delete(TASK_STATUS_PARAM)
+  if (view !== 'workspace') params.delete(TASK_STATUS_PARAM)
 }
 
 /** 只接管 dashboard 自有的键；debug 等外部 query 原样保留。离开一个视图时带走它自己的键。 */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ApiError, fetchSnapshot, subscribeSnapshot } from '../api/client'
+import { ApiError, fetchSnapshot, NETWORK_ERROR_CODE, subscribeSnapshot } from '../api/client'
 import type { Snapshot } from '../types'
 
 export interface SnapshotState {
@@ -52,7 +52,10 @@ export function useSnapshot(): SnapshotState {
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        setError(err instanceof ApiError ? err : new ApiError('snapshot request failed'))
+        const failure = err instanceof ApiError ? err : new ApiError('snapshot request failed')
+        setError(failure)
+        // 请求根本没到服务端（进程已退出 / 网络断开）：连接点与断线横幅立即反映。
+        if (failure.code === NETWORK_ERROR_CODE) setConnected(false)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)

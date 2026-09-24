@@ -53,9 +53,9 @@ const MENU_ITEM_CLS =
   'flex min-h-10 w-full cursor-default items-center gap-2 rounded-sm px-2.5 text-left text-base text-text-2 outline-none select-none data-[highlighted]:bg-fill data-[highlighted]:text-text data-[state=checked]:font-semibold data-[state=checked]:text-text'
 
 /**
- * 顶部横条：logo → 项目切换器 → 标签（紧跟切换器、左对齐；工作台右上角挂待决策徽标）→ 用户 → 连接状态点 →
- * 设置（主题 / 语言两行分段控件）。页面名只在导航高亮里出现，不再有面包屑。项目菜单与设置弹层都是 Radix
- * （键盘、焦点回收、Esc 与点外关闭由它负责）。
+ * 顶部横条：logo → 标签（左对齐；工作台右上角挂待决策徽标）→ 用户 → 断线点 → 设置（主题 / 语言两行分段控件）。
+ * 项目选择只在左栏；窄屏左栏隐藏时，工作台在这里补一个项目菜单。连接正常时不显示状态点，断线才出现红点。
+ * 页面名只在导航高亮里出现，不再有面包屑。项目菜单与设置弹层都是 Radix（键盘、焦点回收、Esc 与点外关闭由它负责）。
  * 状态一律走 aria-* / data-*；testid：top-bar / primary-nav / nav-<view> / nav-indicator / project-switcher /
  * project-menu / project-item-all / project-item-<name> / conn-indicator / progress-badge / top-bar-user /
  * top-bar-user-missing（设置弹层的 testid 见 TopBarSettings）。
@@ -83,7 +83,6 @@ export function TopBar({
   const current = projects.find((project) => project.root === currentRoot)
   const currentName = current?.name ?? (currentRoot !== '' ? rootBasename(currentRoot) : t('shell.all_projects'))
   const decisionLabel = t('nav.progress_badge', { count: decisionCount })
-  const connLabel = t(connected ? 'common.connected' : 'common.offline')
 
   return (
     <header
@@ -93,49 +92,54 @@ export function TopBar({
       data-testid="top-bar"
     >
       <span className="grid size-9 flex-none place-items-center rounded-sm bg-ink text-title font-semibold text-ink-fg" aria-hidden="true">t</span>
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className={MENU_BTN_CLS}
-            aria-label={t('shell.project_switch_label')}
-            data-testid="project-switcher"
-          >
-            <span className={cn('size-1.5 rounded-full', current === undefined ? 'bg-text-3' : current.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
-            <span className="max-w-[24ch] truncate" data-testid="project-label">{currentName}</span>
-            <ChevronDown className="size-3.5 text-text-3" aria-hidden="true" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          sideOffset={8}
-          aria-label={t('shell.project_menu_label')}
-          aria-labelledby={undefined}
-          className="min-w-[260px] rounded-md border-0 bg-surface-raised p-1 shadow-(--shadow-2)"
-          data-testid="project-menu"
-        >
-          <DropdownMenuPrimitive.RadioGroup value={currentRoot} onValueChange={onRoot}>
-            <DropdownMenuPrimitive.RadioItem value="" className={MENU_ITEM_CLS} data-testid="project-item-all">
-              <span className="min-w-0 flex-1 truncate">{t('shell.all_projects')}</span>
-              <MenuCheck />
-            </DropdownMenuPrimitive.RadioItem>
-            {projects.map((project) => (
-              <DropdownMenuPrimitive.RadioItem
-                key={project.root}
-                value={project.root}
-                className={MENU_ITEM_CLS}
-                title={project.root}
-                data-testid={`project-item-${project.name}`}
+      {/* 项目只在左栏选；左栏在窄屏（≤900px）整列隐藏，只有工作台窄屏时由这里代替。 */}
+      {view === 'workspace' && (
+        <div className="hidden max-[900px]:contents" data-testid="project-switcher-wrap">
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={MENU_BTN_CLS}
+                aria-label={t('shell.project_switch_label')}
+                data-testid="project-switcher"
               >
-                <span className={cn('size-1.5 flex-none rounded-full', project.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                <span className="text-caption tabular-nums text-text-3">{project.count}</span>
-                <MenuCheck />
-              </DropdownMenuPrimitive.RadioItem>
-            ))}
-          </DropdownMenuPrimitive.RadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+                <span className={cn('size-1.5 rounded-full', current === undefined ? 'bg-text-3' : current.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
+                <span className="max-w-[24ch] truncate" data-testid="project-label">{currentName}</span>
+                <ChevronDown className="size-3.5 text-text-3" aria-hidden="true" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              sideOffset={8}
+              aria-label={t('shell.project_menu_label')}
+              aria-labelledby={undefined}
+              className="min-w-[260px] rounded-md border-0 bg-surface-raised p-1 shadow-(--shadow-2)"
+              data-testid="project-menu"
+            >
+              <DropdownMenuPrimitive.RadioGroup value={currentRoot} onValueChange={onRoot}>
+                <DropdownMenuPrimitive.RadioItem value="" className={MENU_ITEM_CLS} data-testid="project-item-all">
+                  <span className="min-w-0 flex-1 truncate">{t('shell.all_projects')}</span>
+                  <MenuCheck />
+                </DropdownMenuPrimitive.RadioItem>
+                {projects.map((project) => (
+                  <DropdownMenuPrimitive.RadioItem
+                    key={project.root}
+                    value={project.root}
+                    className={MENU_ITEM_CLS}
+                    title={project.root}
+                    data-testid={`project-item-${project.name}`}
+                  >
+                    <span className={cn('size-1.5 flex-none rounded-full', project.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                    <span className="text-caption tabular-nums text-text-3">{project.count}</span>
+                    <MenuCheck />
+                  </DropdownMenuPrimitive.RadioItem>
+                ))}
+              </DropdownMenuPrimitive.RadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
 
       <nav
         ref={nav.containerRef}
@@ -154,7 +158,7 @@ export function TopBar({
             >
               {t(`nav.${candidate}`)}
             </button>
-            {candidate === 'progress' && decisionCount > 0 && (
+            {candidate === 'workspace' && decisionCount > 0 && (
               // 徽标绝对定位在标签右上角：出现 / 消失都不改导航宽度。与标签是兄弟按钮，不嵌套交互元素；
               // after 伪元素把点击区撑到 40px。
               <Tooltip>
@@ -205,22 +209,24 @@ export function TopBar({
             <span className="whitespace-nowrap">{t('shell.user_unset')}</span>
           </button>
         )}
-        {/* 连接状态只留一个点；文字进 Tooltip。可聚焦，键盘也能读到。 */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span
-              className="grid size-10 place-items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-              role="img"
-              tabIndex={0}
-              aria-label={connLabel}
-              data-on={connected ? 'true' : 'false'}
-              data-testid="conn-indicator"
-            >
-              <span className={cn('size-2 rounded-full', connected ? 'bg-green' : 'bg-red')} aria-hidden="true" />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent sideOffset={4}>{connLabel}</TooltipContent>
-        </Tooltip>
+        {/* 连接正常不占位；断线只留一个红点，文字进 Tooltip。可聚焦，键盘也能读到。 */}
+        {!connected && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className="grid size-10 place-items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+                role="img"
+                tabIndex={0}
+                aria-label={t('common.offline')}
+                data-on="false"
+                data-testid="conn-indicator"
+              >
+                <span className="size-2 rounded-full bg-red" aria-hidden="true" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent sideOffset={4}>{t('common.offline')}</TooltipContent>
+          </Tooltip>
+        )}
         <TopBarSettings lang={lang} onLang={onLang} theme={theme} onTheme={onTheme} barRef={barRef} />
       </div>
     </header>

@@ -82,10 +82,6 @@ export function saveTemplate(category: TemplateCategory, id: string, text: strin
   }, decodeDigest, '模板保存失败')
 }
 
-export function copyTemplate(from: TemplateRef, id: string): Promise<string> {
-  return send('/api/instruction-templates/copy', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ from, id }) }, decodeDigest, '模板复制失败')
-}
-
 export async function deleteTemplate(category: TemplateCategory, id: string, digest: string): Promise<void> {
   await send(`${templatePath({ source: 'custom', category, id })}?digest=${encodeURIComponent(digest)}`, {
     method: 'DELETE',
