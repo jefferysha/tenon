@@ -1891,6 +1891,22 @@ GATE_UNLOCK_TEXT="$(grep -o '没有提问工具时.*解封后再重发' "$ROOT/h
 unlock_phrases_ok "gate 解封提示" "$GATE_UNLOCK_TEXT" "即解封"
 HINT_UNLOCK_TEXT="$(grep -o '用户回复「确认继续」.*带条件的请先说明' "$ROOT/hooks/confirm-clear-prompt.sh")"
 unlock_phrases_ok "confirm-clear-prompt 解封提示" "$HINT_UNLOCK_TEXT" "即确认当前待决事项"
+# 真机（第四轮）：SKILL.md 的模式表把评审门的放行语写成只有「确认继续」，模型据此对说了「按推荐」的
+# 用户说「这道门只认『确认继续』」。技能列出的确认回复与 hook 提示同一份：每个都真能解封，提示里的
+# 每个解封语技能也都列出。
+SKILL_REVIEW_TEXT="$(grep -o '能确认这道门的回复是.*（拒绝或带条件的回复不算）' "$ROOT/skills/tenon/SKILL.md")"
+unlock_phrases_ok "SKILL.md 评审门确认回复" "$SKILL_REVIEW_TEXT" "（拒绝或带条件的回复不算）"
+for phrase in $(printf '%s' "${HINT_UNLOCK_TEXT%%即确认当前待决事项*}" | awk -F'「' '{ for (i = 2; i <= NF; i++) { sub(/」.*/, "", $i); print $i } }'); do
+  assert_contains "SKILL.md 评审门列出 hook 认的确认回复「${phrase}」" "$SKILL_REVIEW_TEXT" "「${phrase}」"
+done
+SKILL_TEXT="$(cat "$ROOT/skills/tenon/SKILL.md")"
+assert_contains "SKILL.md: 回执已写入（<tenon-review-confirmed>）时直接推进" "$SKILL_TEXT" "本轮上下文出现 \`<tenon-review-confirmed>\`"
+assert_contains "SKILL.md: 「按推荐」在评审门只确认这道门" "$SKILL_TEXT" "「按推荐」在评审门上只表示确认这道门"
+assert_contains "SKILL.md: 偏好不同于 CLI 推荐时先问" "$SKILL_TEXT" "你自己的偏好与 CLI 的推荐不同"
+assert_contains "SKILL.md: read-documents 只有 editable 可改" "$SKILL_TEXT" "只有 \`editable\` 里的 kind 本步可以改"
+assert_contains "SKILL.md: read-documents 不得丢弃输出" "$SKILL_TEXT" "不得丢弃输出"
+assert_contains "SKILL.md: 计划步把测试脚本同步进 proposal 与 design" "$SKILL_TEXT" "同步写进 proposal（What Changes / Impact）与 design"
+assert_contains "SKILL.md: 暂停前以 git status 如实报告工作区" "$SKILL_TEXT" "以 \`git status --short\` 为准"
 for prompt in 好的 按你的推荐; do
   touch "$proj/.pipeline-pending-interaction"
   printf '%s' "{\"cwd\":\"$proj\",\"prompt\":\"$prompt\"}" \

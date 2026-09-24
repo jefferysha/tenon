@@ -33,12 +33,20 @@ text(result);
 
 | 模式 | 来源 | 规则 |
 | --- | --- | --- |
-| `interactive` | 缺省 | 有 `allowed` 的字段用 AskUserQuestion 问（Codex：一个纯文本问题后结束回合）。每次 `transition` / `complete` 前展示产出、测试结果与评审发现，等用户说「继续」。评审门：`request-review` 后展示并结束回合，放行语是「确认继续」。 |
+| `interactive` | 缺省 | 有 `allowed` 的字段用 AskUserQuestion 问（Codex：一个纯文本问题后结束回合）。每次 `transition` / `complete` 前展示产出、测试结果与评审发现，等用户说「继续」。评审门：`request-review` 后展示并结束回合；能确认这道门的回复是「确认继续」「继续执行」「同意继续」，以及简短同意「继续」「可以」「同意」「好的」「按推荐」「按你的推荐」（拒绝或带条件的回复不算）。 |
 | `continuous` | 本任务已有交互授权（`tenon session activate --continuous`） | 有 `recommended` 的选择不停；评审门在 `request-review` 后用 `tenon review acknowledge <c> --delegated`。必需测试或评审者不通过时走回退边修问题，绝不「接受偏差」。 |
 | `afk` | `TENON_AFK=1` | 同 continuous；`await-review` 直接以当前步骤状态结束本轮。 |
 
 三种模式都一样：技能、文档、测试、评审者、门禁、读取回执，一项都不跳过；推送、PR、部署等
 外部动作需要本次任务里已有明确授权；交互式技能自己跑它的对话。
+
+评审确认由 hook 在用户回复时写入回执：本轮上下文出现 `<tenon-review-confirmed>`，或
+`step.review.status` 已是 `approved`，就是用户已经确认了这道门——直接照 `next` 做（`transition`），
+不要再让用户说「确认继续」，也不要说「这道门只认某句话」。
+
+「按推荐」在评审门上只表示确认这道门，不是采纳你自己的建议。之后要设置字段时仍以 `next` 给的
+`recommended` 为准；你自己的偏好与 CLI 的推荐不同（例如想用 `build_mode=direct` 而推荐是
+`subagent-driven-development`）时，先明确问用户，得到回答再设，不要把一句「按推荐」当成授权。
 
 ## 进入
 
@@ -73,7 +81,7 @@ repeat:
 | --- | --- |
 | `stop` | 报告 `message` 后结束。 |
 | `load-tenon` | 重新加载本技能（Claude 用 Skill 工具；Codex 按上面的读取规则整读一次）。 |
-| `read-documents` | 逐个读完 `documents` 列出的文件，再 `tenon document read <c> all`。 |
+| `read-documents` | 逐个读完 `documents` 列出的文件，把内容读进上下文（不得丢弃输出：`cat … >/dev/null` 这类读取不算读过），再 `tenon document read <c> all`。这些是已登记的输入：只有 `editable` 里的 kind 本步可以改（改完照 `next` 重新登记），其余只读——需求语义变了走 `requirements-changed` 回到规格步，不要直接改已登记的规格文档；tasks.md 只勾当前步骤标题下的复选框。 |
 | `run-agent` | 逐项：`tenon agent prompt <c> <agent> --json` → 在宿主里跑回来的提示词（Claude 用 Agent 工具；Codex 用子任务或 `codex exec`；没有子代理的宿主就在主线顺序跑）→ 把报告写到返回的 `report_path`（正文末尾一个 `tenon-result` 代码块）→ `tenon agent record <c> <run_id>`。同一波并行。带 `status: running` 与 `run_id` 的项是已经开始的那次运行：不要重新 prompt，等它跑完把报告写到给出的 `report_path`，再 `tenon agent record <c> <run_id>`。 |
 | `load-skill` | 加载本波每个技能，按下面的「上游技能怎么用」执行。 |
 | `scaffold-document` | 文件不存在时先 `tenon document scaffold <c> <kind> [--capability <cap>]`，再动笔写内容：骨架里的 `[待填写…]` / `[pending…]` 占位要全部替换成真内容，留着占位符登记会被拒。 |
@@ -83,10 +91,10 @@ repeat:
 | `validate-spec` | `tenon spec apply <c> --dry-run`；退出码 2 就按报错改 delta spec 再跑。 |
 | `apply-spec` | `tenon spec apply <c>`。 |
 | `run-test` | `tenon test run <c> <test>`；`fail` 先改代码再重跑，不改就重跑没有意义。报「未配置（test-unconfigured）」不是失败：按提示配置（见 `fix`）。 |
-| `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。`code: test-unconfigured`：项目没有这条必需测试要的 npm 脚本——在 package.json 加上运行本项目真正这类测试的脚本，不要复制别的测试命令凑数；在计划步提出时，把「写这类测试」列进本步的计划与 tasks；在之后的步骤提出时只补 package.json 的脚本（及它要跑的测试代码），不要改已登记的规格文档（proposal / design / plan）。项目不用 npm 时停下告诉用户去改工作流的测试命令。 |
+| `fix` | 逐条解决 `blockers[]`（改代码或文档），然后回到循环。`source: tasks` 的 blocker 带 `items`（截至本步仍未勾的任务原文）：把这些任务真的做完，再在 tasks.md 里勾上。`code: test-unconfigured`：项目没有这条必需测试要的 npm 脚本——在 package.json 加上运行本项目真正这类测试的脚本，不要复制别的测试命令凑数；在计划步提出时，把「写这类测试」列进本步的计划与 tasks，并把新增的测试脚本与测试同步写进 proposal（What Changes / Impact）与 design，删掉与之矛盾的表述（如「不改 package.json」）；在之后的步骤提出时只补 package.json 的脚本（及它要跑的测试代码），不要改已登记的规格文档（proposal / design / plan）。项目不用 npm 时停下告诉用户去改工作流的测试命令。 |
 | `request-review` | `tenon check <c>` → `tenon review request <c> --event <event>` → 把产出与结论摆给用户。 |
 | `await-review` | interactive：结束回合等人。continuous：`tenon review acknowledge <c> --delegated`。afk：结束本轮。 |
-| `commit` | 交付物提交：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（`:(exclude)…` 是挡住仓库根门禁标记的 pathspec，照抄）。宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交。 |
+| `commit` | 交付物提交（交付步有未勾任务时它排在勾选之前：先提交，再勾「提交代码」这类任务）：`git add -A -- <commit.paths…>`；`commit.untrack` 非空时接着 `git rm --cached -q --ignore-unmatch -- <commit.untrack…>`；最后 `git commit -m "<commit.message>"`。paths / untrack 原样用、不增不减（`:(exclude)…` 是挡住仓库根门禁标记的 pathspec，照抄）。宿主不让写 `.git` 时如实告诉用户这一步留给他，不要说已提交。 |
 | `choose-exit` | 按下面的「出口」挑一条边。 |
 | `transition` | `tenon transition <c> <event>`。 |
 | `complete` | `tenon transition <c> <event>`——走完终态自边，状态机到此结束。归档由下一条 `finish-change` 单独下发，不要在这里抢跑 `openspec archive`。 |
@@ -100,6 +108,9 @@ repeat:
 - `kind: outcome` 的字段只在本步必需测试与评审者都过了之后才出现在 `next` 里；它们没有 `recommended`，填 `required` 给的值。`pre_verify_review_result` / `verify_result` 是通过结论：CLI 写入前核对本步证据，被拒就按错误里点名的测试或 agent 去补，不要换个写法绕过。
 - `direct_override` 是 full 预设下 `build_mode=direct` 的风险确认，没有推荐值：interactive 问人，continuous / afk 不选 `direct`（取 `build_mode` 的推荐值即可免去这一项）。
 - `pr_url`、`prd_path` 和各类文件路径只填真值，绝不编造。`pr_url` 是真实的 http(s) PR 地址；仓库没有 远端时 `next` 会推荐 `no-remote`（本地交付、没有 PR，CLI 会复核确实没有远端）。有远端却开不了 PR 就停下说明。
+- 暂停等用户（评审门、interactive 的「继续」）之前如实报告工作区：以 `git status --short` 为准。
+  交付提交之后，`set pr_url`、`transition` 仍会改 change 目录里的状态文件（`.pipeline.yaml`、
+  `.pipeline-history.jsonl` 等），它们由完结后的 `finish-change` 提交——不要说工作区是干净的。
 - 不要为了「隔离」自己建分支或 worktree；宿主没给就用 `isolation=in-place`。提交只照 `next` 的
   `commit` / `finish-change` 做（交付步在交付值之前点名提交交付物，完结后点名提交归档），`next` 没点名
   就不提交；技能自带的提交步骤同样不做。
