@@ -252,7 +252,7 @@ describe('StageEditorPane · 切换阶段的进场', () => {
     renderPane(EXPLORE)
     const call = fromTo.mock.calls.find((args) => (args[2] as gsap.TweenVars).stagger === SECTION_STAGGER)
     expect(call).toBeDefined()
-    expect(call![1]).toMatchObject({ opacity: 0 })
+    expect(call![1]).toMatchObject({ autoAlpha: 0, y: 4 })
     const sections = document.querySelectorAll('[data-stage-sections] > *')
     expect(sections.length).toBeGreaterThanOrEqual(6)
     vi.unstubAllGlobals()
