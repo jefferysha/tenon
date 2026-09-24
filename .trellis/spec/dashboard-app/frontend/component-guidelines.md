@@ -337,6 +337,13 @@ row names the skills that should produce it, and a stale row carries its one-wor
 ## Styling patterns
 
 - Tokens only (`text-text-2`, `bg-accent-t`, `border-border`, `bg-seg-now` …); no hex in components.
+- Text steps: `text` / `text-2` / `text-3` are readable copy and stay ≥ 4.5:1 on card, bg, fill and surface-detail in
+  every theme (`themeContrast.test.tsx`); `text-4` is decoration only (separators, disabled icons), never information.
+- Buttons come from `shared/uiRecipes` (`BUTTON_SOLID` / `GHOST` / `DANGER` / `ICON`): hit area ≥ 40px (`min-h-10` /
+  `size-10`); disabled swaps to a fill ground + `text-3` instead of fading with opacity; hover styles are `enabled:`
+  only. Appending overrides to a recipe uses the same `enabled:hover:` prefix, or the recipe's hover wins.
+- React Flow controls take their colours from `.react-flow` variable overrides in `index.css` (xyflow only themes
+  `.dark`, the app uses `data-theme`); their buttons are 40px.
 - Type scale 7 steps (micro 13 / caption 14 / body 16 / base 17 / title 19 / section 24 / page 34 — scaled ×1.2
   on 2026-09-11 at the user's request), radius 4 steps, 4px spacing grid; `tools/check-design-scale.mjs` blocks
   arbitrary values. Narrow columns must keep labels on one line (`whitespace-nowrap` + `overflow-x-auto`) at this size.
@@ -346,6 +353,10 @@ row names the skills that should produce it, and a stale row carries its one-wor
 ## Accessibility
 
 - Dialogs and the drawer keep accessible title, `aria-modal`, Escape, focus capture / restore.
+- `shared/Dialog` is the only modal dialog, built on Radix (`radix-ui` Dialog / AlertDialog); do not vendor another.
+  The title is linked by `aria-labelledby`. Destructive confirmations (delete, discard, archive) pass
+  `role="alertdialog"`: the backdrop does not close them, Escape does, and initial focus lands on the first action
+  (取消). Focus returns to the element that opened the dialog.
 - Chips are `role=tab` inside a `role=tablist`; the gate switch is `role=radiogroup`.
 - Status is text + tone, never colour alone; `/` focuses global search.
 

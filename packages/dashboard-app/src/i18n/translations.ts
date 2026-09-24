@@ -301,6 +301,7 @@ export const zh: Dict = {
     user_unset: '未设置',
     user_id: '邮箱',
     user_name: '名字',
+    user_scope: '适用于本机所有项目',
   },
   workspace: {
     title: '任务',
@@ -2526,6 +2527,7 @@ export const en: Dict = {
     user_unset: 'Not set',
     user_id: 'Email',
     user_name: 'Name',
+    user_scope: 'Applies to all projects on this machine',
   },
   workspace: {
     title: 'Tasks',
