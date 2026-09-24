@@ -185,6 +185,8 @@ fi
 # ambiguous and is surfaced to the root skill as `select`, never resolved by mtime.
 INTENT_HELPER="$(dirname "${BASH_SOURCE[0]:-$0}")/prompt-intent.sh"
 DISPATCH_INTENT="new"
+# 1 = this prompt approves the selected Change's open review receipt (confirm-clear-prompt writes it).
+ROUTER_REVIEW_REPLY=0
 if [ -r "$INTENT_HELPER" ]; then
   # shellcheck source=prompt-intent.sh
   . "$INTENT_HELPER"
@@ -262,6 +264,7 @@ if [ -r "$INTENT_HELPER" ]; then
     # --host-session).  confirm-clear-prompt acknowledges the same receipt through the same
     # per-user pointer, so both hooks agree on which Change the confirmation belongs to.
     DISPATCH_INTENT="resume"
+    ROUTER_REVIEW_REPLY=1
   elif [ -z "$HOST_SESSION_ID" ] && [ -n "$CHANGE_NAME" ] \
     && pipeline_prompt_requests_resume "$PROMPT" "$CHANGE_NAME"; then
     DISPATCH_INTENT="resume"
@@ -856,6 +859,12 @@ elif [ "$NON_DEFAULT_WORKFLOW_DISPATCH" = "1" ]; then
   else
     TAIL="$TAIL 当前 Change 绑定自定义 workflow '${CHANGE_WORKFLOW}'：此路由器不会用 default 的 breadcrumb 或 skill 矩阵伪造该阶段要求；必须先调用 tenon，由它以 canonical state 与项目 workflow 图解析本阶段的真实 DAG、OpenSpec 约束和依赖顺序后再分派。"
   fi
+fi
+# Real session, round 4: after 「按推荐」 the receipt was written, yet the resume text above ("产出交用户
+# 确认后再推进") led the agent to say the gate still waited for 「确认继续」.  The two hooks run
+# concurrently, so this names the reply and points at the canonical status instead of asserting success.
+if [ "$ROUTER_REVIEW_REPLY" = "1" ] && [ -n "$CHANGE_NAME" ]; then
+  TAIL="$TAIL 本条回复就是对 ${CHANGE_NAME} 待决评审的确认（「确认继续」「继续执行」「继续」「可以」「同意」「好的」「按推荐」都算）：评审回执由 confirm-clear-prompt 在本轮写入（见 <tenon-review-confirmed>），不要再让用户说「确认继续」。以 tenon status ${CHANGE_NAME} --json 的 step.review 与 next 为准：review.status=approved 时直接照 next transition。"
 fi
 if [ "$TRACK_BASIS" = "user-named" ]; then
   TAIL="$TAIL 轨道 ${TRACK} 由用户在消息里点名，以点名为准：创建 Change 时用 --track ${TRACK}，不得按内容评分改成其他轨道。"

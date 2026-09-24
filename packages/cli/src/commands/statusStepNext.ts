@@ -5,14 +5,12 @@
  * 「下一步照做什么」。每条动作名就是一条真能跑通的命令：投影说得出口的事，命令必须接受；
  * 命令拒绝的写法，投影一条都不许发。
  */
-import { aliasesForSkill } from '@tenon/kernel'
 import type { StepAction } from './statusStepAction.js'
+import { documentWriteActions, inputDocumentPolicy, skillDocumentActions } from './statusStepDocumentActions.js'
 import { finishActions, type StepCommit, type StepFinishFacts } from './statusStepFinish.js'
 import type { StepAgentView } from './statusStepAgents.js'
 import type { StepBlocker, StepExit } from './stepExitReport.js'
-import type {
-  StepDocumentsView, StepDocumentView, StepFieldView, StepSkillView,
-} from './statusStepParts.js'
+import type { StepDocumentsView, StepFieldView, StepSkillView } from './statusStepParts.js'
 
 export interface StepTestView {
   readonly id: string
@@ -98,81 +96,6 @@ function writeFieldActions(
   return actions
 }
 
-/**
- * 文档写入动作：本步产出铺骨架并登记；本步可改的、以及只读输入里已登记又变了的，重新登记。
- *
- * 三条从前都不成立的规则各自对应一条真机死路：
- *   · `scaffold-document` 写完文件，台账仍是 `missing`（只有 record 才会登记），`next` 于是原样
- *     再发一遍同一条 scaffold——文件写对了，状态一步不动。骨架与登记是一对动作，一起下发。
- *   · `role: update` 的槽是「本步可以改它」，不是「本步必须产出它」——文档取证层早就是这个口径
- *     （update 槽从不进 blockers）。当成必须产出时，前端 `ship` 会被要求 scaffold 一份 contract
- *     里根本没声明为产出的 `design-md`，命令当场拒：未登记的 update 槽不发任何动作。
- *   · 只读输入被改动后状态是 `stale`，`document read` 当场拒（「已变更；先重新 record 后再 read」），
- *     它要的是一次重新登记。
- * producers 一律取该文档在**当前步**合法的那组——登记命令认的就是这一组。
- */
-function documentWriteActions(documents: StepDocumentsView): readonly StepAction[] {
-  const actions: StepAction[] = []
-  const seen = new Set<string>()
-  const push = (doc: StepDocumentView, scaffold: boolean): void => {
-    if (seen.has(doc.kind)) return
-    seen.add(doc.kind)
-    // path=null 时 path_template 说明还缺哪个变量（delta-spec 缺 {capability}，由作者拍板后
-    // 经 `tenon document scaffold <change> delta-spec --capability <x>` 定下来）。
-    const shape = {
-      kind: doc.kind,
-      path: doc.path,
-      path_template: doc.path_template,
-      producers: doc.producers,
-    }
-    if (scaffold) actions.push({ action: 'scaffold-document', ...shape })
-    actions.push({ action: 'record-document', ...shape })
-  }
-  for (const doc of documents.records) {
-    if (doc.status === 'missing' || doc.status === 'stale') push(doc, doc.status === 'missing')
-  }
-  for (const doc of [...documents.updates, ...documents.reads]) {
-    if (doc.status === 'stale' && doc.producers.length > 0) push(doc, false)
-  }
-  return actions
-}
-
-/**
- * 已调用、但契约绑定给它的文档还没在本次步骤访问里登记的技能：剩下的就是登记那些文档。
- *
- * 文档在台账上可能已是 `recorded`（上一次访问登记过，verify-fail 回来后的第二次 verify 就是这样），
- * 按台账状态派的写入分支因此一条都不会发；这里按技能欠的 kind 发，缺文件时连骨架一起。
- * producers 收窄到与该技能等价的那几个——登记者必须是它，别的合法 producer 不能替它交作业。
- */
-function skillDocumentActions(
-  skills: readonly StepSkillView[],
-  documents: StepDocumentsView,
-): readonly StepAction[] {
-  const actions: StepAction[] = []
-  const seen = new Set<string>()
-  for (const skill of skills) {
-    if (skill.status !== 'invoked') continue
-    const aliases = new Set(aliasesForSkill(skill.id))
-    for (const kind of skill.pending_documents) {
-      const doc = documents.records.find((candidate) => candidate.kind === kind)
-      if (doc === undefined || seen.has(kind)) continue
-      seen.add(kind)
-      const own = doc.producers.filter((producer) =>
-        aliasesForSkill(producer).some((alias) => aliases.has(alias)))
-      const shape = {
-        kind: doc.kind,
-        path: doc.path,
-        path_template: doc.path_template,
-        producers: own.length > 0 ? own : doc.producers,
-        skill: skill.id,
-      }
-      if (doc.status === 'missing') actions.push({ action: 'scaffold-document', ...shape })
-      actions.push({ action: 'record-document', ...shape })
-    }
-  }
-  return actions
-}
-
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
 export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩收尾这一步，排在 load-tenon
@@ -189,7 +112,11 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     // 路径还定不下来的文档不进读清单：没有路径就没有可读的文件，列出 null 只会让执行者读空气。
     // 多个 kind 可以共用一份文件（plan / superpower-plan）：路径只列一次；各 kind 仍各自在
     // step.documents.reads 里，`tenon document read <c> all` 一次把它们都标为已读。
-    return [{ action: 'read-documents', documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))] }]
+    return [{
+      action: 'read-documents',
+      documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))],
+      ...inputDocumentPolicy(input.documents),
+    }]
   }
 
   const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
@@ -237,6 +164,13 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   // 它是 `stale`（要重新登记）——那不是例外：剩下没勾的仍排在前面，全勾完再一起重新登记。
   const tasksMissing = input.documents.records.some((doc) => doc.kind === 'tasks' && doc.status === 'missing')
   const tasks = tasksMissing ? [] : taskBlockers(input.exits)
+  // 交付步：未提交的交付物先提交，再去勾剩下的任务。真机第四轮：ship 的 fix 让模型先勾上「提交代码」
+  // 那一项、之后才执行 commit——勾选先于事实。先提交，勾选记录的就是已发生的提交；勾完之后本步再有
+  // 的改动（剩余任务的工作、应用进主规格）会在交付值之前再发一次 commit。tasks.md 在 change 目录里，
+  // 勾选本身不让交付物变「脏」，不会因此多一次提交。
+  if (tasks.length > 0 && input.delivery !== null) {
+    return [{ action: 'commit', change: input.change, commit: input.delivery }]
+  }
   if (tasks.length > 0) return [{ action: 'fix', blockers: tasks }]
 
   if (input.ownsAppliedSpec && input.specApplicationPending) return [{ action: 'apply-spec' }]

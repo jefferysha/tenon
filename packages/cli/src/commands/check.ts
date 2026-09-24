@@ -37,9 +37,10 @@ import type {
 } from '@tenon/kernel'
 import type { StepIR } from '@tenon/kernel'
 import { errMsg, type CliDeps } from '../deps.js'
-import { isValidChangeName, resolveChangeDir } from '../paths.js'
+import { changeDir, isValidChangeName, resolveChangeDir } from '../paths.js'
 import { display, str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
+import { finishedLabel } from './finishedLabel.js'
 import { stepAgentLines } from './check-agents.js'
 import { renderCheckReport } from './check-report.js'
 import { phaseExitGuardContext } from './phaseExitGuard.js'
@@ -78,8 +79,9 @@ export async function cmdCheck(deps: CliDeps, name: string, opts: CheckOpts = {}
 
   // 完结（archived=true）之后没有出口可查：`openspec archive` 会把目录搬进 archive/，此后按归档前
   // 路径逐条检查只会得到一串 FAIL（真机：11 个 FAIL、exit 2）。与 status / list 同一口径，直接说明。
+  // 「已归档」只对 OpenSpec 治理的工作流成立（finishedLabel）；simple 完结后目录原地不动。
   if (str(state.fields.archived) === 'true') {
-    deps.io.out(`change '${name}' 已完结（已归档），无需检查`)
+    deps.io.out(`change '${name}' ${finishedLabel(deps, state, dir !== changeDir(deps.cwd, name))}，无需检查`)
     return 0
   }
 

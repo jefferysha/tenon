@@ -227,7 +227,15 @@ if [ -n "$OS_ROOT" ] && [ -d "$OS_ROOT/openspec/changes" ]; then
     pipeline_change_archived_for_user "${SS_ARCHIVE_STORE:-}" "$name" && continue
     phase="$(yget "$f" phase)"
     track="$(yget "$f" track)"
-    CTX="${CTX}  - ${name}（track=${track:-?}, phase=${phase:-?}）
+    # 已确认、还没转换的评审回执：说清它已确认，别让模型再去索要「确认继续」（真机第四轮）。
+    # 回执字段只在 .pipeline.yaml 投影里（canonical hookState 不带它们，同 review-ack.sh）。
+    review_note=""
+    if [ -f "$change_dir/.pipeline.yaml" ] \
+      && [ "$(yget "$change_dir/.pipeline.yaml" review_gate_status)" = "approved" ] \
+      && [ "$(yget "$change_dir/.pipeline.yaml" review_gate_phase)" = "$phase" ]; then
+      review_note="；评审已确认（$(yget "$change_dir/.pipeline.yaml" review_gate_event)），照 tenon status ${name} --json 的 next transition"
+    fi
+    CTX="${CTX}  - ${name}（track=${track:-?}, phase=${phase:-?}${review_note}）
 "
   done
   # 新鲜门 marker → 等:<kind>。TTL 分级同 gate.sh / types.ts GATE_TTL_MS（BACKLOG #13，
@@ -239,6 +247,9 @@ if [ -n "$OS_ROOT" ] && [ -d "$OS_ROOT/openspec/changes" ]; then
     [ -f "$m" ] || continue
     if [ "$kind" = review ]; then
       review_marker_for_active_change "$m" || continue
+      # 回执已确认（approved）时 marker 只是残留投影，不是待处理的门。
+      review_yaml="$OS_ROOT/openspec/changes/$(pipeline_review_marker_change "$m" || true)/.pipeline.yaml"
+      [ -f "$review_yaml" ] && [ "$(yget "$review_yaml" review_gate_status)" = "approved" ] && continue
     fi
     case "$kind" in confirm) ttl=300 ;; *) ttl=1800 ;; esac
     # GNU `stat -f` 是文件系统状态模式（非 mtime），在 Linux 上会"成功"吐非数字，兜底永不触发
@@ -256,7 +267,7 @@ if [ -n "$OS_ROOT" ] && [ -d "$OS_ROOT/openspec/changes" ]; then
     if [ -n "$GATES" ]; then
       append_context '  待处理交互门：'
       append_context "${GATES# }"
-      append_context $'（新鲜 marker，写类工具会被 gate.sh 拦，先 AskUserQuestion 解封）\n'
+      append_context $'（会话开始时仍存在的 marker；写类工具会被 gate.sh 拦。等:review 由用户回复确认〔「确认继续」「继续执行」「继续」「可以」「按推荐」等〕解封，其余先 AskUserQuestion。之后以 tenon status <change> --json 的 step.review 为准）\n'
     fi
     append_context $'  上述均为恢复候选，未与本会话自动绑定；只有用户明确说“继续 <change>”或点名 change 才恢复。新目标会独立从 open 创建。\n'
   fi

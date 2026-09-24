@@ -29,6 +29,18 @@ pipeline_review_marker_change() { # $1=marker path
   printf '%s' "$change"
 }
 
+# Echo the exact outgoing event a v2 marker was requested for.  A pre-event v2 marker yields ''
+# (success); a malformed event value returns non-zero so callers never echo it into agent context.
+pipeline_review_marker_event() { # $1=marker path
+  local line='' event=''
+  pipeline_review_marker_is_v2 "$1" || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in event=*) event="${line#event=}" ;; esac
+  done < "$1"
+  case "$event" in *[!A-Za-z0-9_-]*) return 1 ;; esac
+  printf '%s' "$event"
+}
+
 pipeline_review_marker_is_v2() { # $1=marker path
   local first=''
   [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ] || return 1

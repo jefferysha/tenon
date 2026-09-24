@@ -360,7 +360,27 @@ describe('step.next 顺序', () => {
     }))).toEqual([{
       action: 'read-documents',
       documents: ['openspec/changes/demo/tasks.md'],
+      editable: [],
+      note: expect.stringContaining('本步全部只读'),
     }])
+  })
+
+  /**
+   * 真机（第四轮）：explore 里模型改了 open 登记的 design / tasks，动作里没说哪些输入能改。
+   * read-documents 带上本步可改的 kind（契约 role update）与只读说明，并要求把内容读进上下文。
+   */
+  test('read-documents 说明哪些输入本步可改、其余只读，读取不得丢弃输出', () => {
+    const [action] = stepNextActions(input({
+      documents: {
+        reads: [doc('proposal', 'unread', ['tenon']), doc('plan', 'unread')],
+        records: [],
+        updates: [doc('proposal', 'recorded', ['tenon']), doc('tasks', 'recorded', ['tenon'])],
+      },
+    }))
+    expect(action).toMatchObject({ action: 'read-documents', editable: ['proposal'] })
+    expect(String(action?.note)).toContain('本步可以改的只有 proposal')
+    expect(String(action?.note)).toContain('requirements-changed')
+    expect(String(action?.note)).toContain('不要丢弃输出')
   })
 
   test('两个 kind 指向同一路径（plan / superpower-plan）时读清单只列一次该路径', () => {
@@ -370,6 +390,8 @@ describe('step.next 顺序', () => {
     }))).toEqual([{
       action: 'read-documents',
       documents: ['openspec/changes/demo/plan.md', 'openspec/changes/demo/tasks.md'],
+      editable: [],
+      note: expect.any(String),
     }])
   })
 
@@ -672,6 +694,25 @@ describe('交付步的提交', () => {
     })).toEqual(['scaffold-document', 'record-document'])
     expect(actions({ fields: [pr, field('verification_report', { writer: 'artifact-register' })], delivery }))
       .toEqual(['register-field'])
+  })
+
+  /**
+   * 真机（第四轮）：ship 的 fix 让模型先勾「提交代码」再执行 commit，勾选先于事实。交付物未提交时
+   * commit 先于勾选任务的 fix；提交之后才去勾。
+   */
+  test('交付步有未勾任务且交付物未提交：先 commit，再 fix 勾选', () => {
+    const delivery = deliveryCommit('demo', probe())
+    const tasksBlocker = {
+      source: 'tasks' as const, code: 'tasks-incomplete',
+      message: 'ship 出口：要求截至当前阶段的 tasks.md 全部勾选（仍有 1 项未勾）', items: ['提交代码并开 PR'],
+    }
+    const exits = [{ event: 'ship-complete', to: 'archive', direction: 'forward' as const, ready: false, blockers: [tasksBlocker] }]
+    expect(stepNextActions(input({ fields: [pr], delivery, exits }))).toEqual([
+      { action: 'commit', change: 'demo', commit: delivery },
+    ])
+    expect(stepNextActions(input({ fields: [pr], delivery: null, exits }))).toEqual([
+      { action: 'fix', blockers: [tasksBlocker] },
+    ])
   })
 
   test('已提交、不是 git 仓或只剩 change 目录的改动：不发 commit，直接交付值', () => {

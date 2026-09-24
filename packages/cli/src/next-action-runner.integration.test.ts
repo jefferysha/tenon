@@ -126,6 +126,8 @@ function commitAsInstructed(commit: FinishCommit): void {
 }
 /** 让这一个评审者在第一次给结论时打回一次（D6 的回退边验收）。 */
 let failOnce: string | undefined
+/** 每个 agent 最近一次 `agent prompt` 给出的提示词（宿主交给子 agent 的全文）。 */
+const agentPrompts = new Map<string, string>()
 
 function changeDir(name = CHANGE): string {
   return join(h.cwd, 'openspec', 'changes', name)
@@ -241,7 +243,9 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
         row = { run_id: action.run_id, report_path: String(action.report_path), role: String(action.role) }
       } else {
         await run(['agent', 'prompt', CHANGE, String(action.agent), '--json'])
-        row = JSON.parse(h.out.join('')) as { run_id: string; report_path: string; role: string }
+        const prompted = JSON.parse(h.out.join('')) as { run_id: string; report_path: string; role: string; prompt: string }
+        agentPrompts.set(String(action.agent), prompted.prompt)
+        row = prompted
       }
       const blocking = failOnce === action.agent
       if (blocking) failOnce = undefined
@@ -344,6 +348,7 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
 
 beforeEach(async () => {
   failOnce = undefined
+  agentPrompts.clear()
   h = await freshHarness()
   await writeFile(join(h.cwd, 'package.json'), FIXTURE_PACKAGE_JSON, 'utf8')
   expect(git(['init', '-q']).status).toBe(0)
@@ -429,6 +434,17 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
       && action.action === 'record-document'
       && action.kind === 'proposal'
       && (action.producers as readonly string[]).includes('tenon'))).toBe(true)
+    // 真机（第四轮）：读输入时说清哪些本步能改。explore 的契约让 proposal 可改（role update），
+    // build 的输入里只有 tasks 可动（勾选），计划与设计只读。
+    const readsAt = (id: string) => actions.filter(({ step, action }) => step === id && action.action === 'read-documents')
+      .map(({ action }) => action)
+    expect(readsAt('explore').some((action) => (action.editable as readonly string[]).includes('proposal'))).toBe(true)
+    expect(readsAt('build').length).toBeGreaterThan(0)
+    for (const action of readsAt('build')) {
+      // build 只能勾 tasks；计划、设计、proposal 都只读。
+      expect(action.editable).toEqual(['tasks'])
+      expect(String(action.note)).toContain('requirements-changed')
+    }
     // 技能与产物绑定：brainstorming 调用之后，next 给的是它本步的文档，而不是再调用一次。
     expect(actions.some(({ step, action }) => step === 'explore'
       && action.action === 'record-document' && action.skill === 'brainstorming'
@@ -473,6 +489,11 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     const deliver = actions.findIndex(({ step, action }) => step === 'ship' && action.action === 'commit')
     expect(deliver).toBeGreaterThan(-1)
     expect(deliver).toBeLessThan(actions.findIndex(({ action }) => action.action === 'set-field' && action.field === 'pr_url'))
+    // 真机（第四轮）：勾选先于提交。交付物未提交时先 commit，再勾剩下的任务；之后应用进主规格的改动
+    // 在交付值之前再提交一次。
+    expect(deliver).toBeLessThan(shipFix)
+    const lastDeliver = actions.map(({ action }) => action.action).lastIndexOf('commit')
+    expect(lastDeliver).toBeGreaterThan(actions.findIndex(({ action }) => action.action === 'apply-spec'))
     // 交付提交带上了代码之外的交付物：已应用的主规格、测试记录与状态目录的 .gitignore。
     const delivered = git(['log', '--name-only', '--format=', `--grep=^feat(${CHANGE}): deliver$`]).output
     expect(delivered).toContain('openspec/specs/capability/spec.md')
@@ -531,6 +552,9 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
       && action.action === 'set-field' && action.field === 'pre_verify_review_result')
     expect(review).toBeGreaterThan(-1)
     expect(review).toBeLessThan(verdict)
+    // 真机（第四轮）：为满足必需测试补的脚本被规格一致性评审判成「多做」medium 阻断。评审者说明里
+    // 写明它不算规格偏差。
+    expect(agentPrompts.get('spec-consistency')).toContain('工作流必需测试的配置不算多做')
   })
 
   /**
@@ -563,8 +587,12 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     expect(actions[fix]?.action).toMatchObject({
       blockers: [expect.objectContaining({ source: 'test', code: 'test-unconfigured' })],
     })
-    expect(String((actions[fix]?.action.blockers as readonly { message: string }[])[0]?.message))
-      .toContain("后续步骤 'verify' 的必需测试")
+    const planningMessage = String((actions[fix]?.action.blockers as readonly { message: string }[])[0]?.message)
+    expect(planningMessage).toContain("后续步骤 'verify' 的必需测试")
+    // 真机（第四轮）：只进计划不够——proposal 没列、design 还写着「不改 package.json」，verify 的规格
+    // 一致性评审据此阻断。计划步的提示点名同步 proposal 与 design，并去掉相矛盾的表述。
+    expect(planningMessage).toContain('proposal 的 What Changes / Impact 与 design')
+    expect(planningMessage).toContain('删掉与之相矛盾的表述')
     // 先于 spec 的任何技能与文档写入（tasks / plan 登记之前）。
     const firstWrite = actions.findIndex(({ step, action }, index) => index > specStart && step === 'spec'
       && ['load-skill', 'scaffold-document', 'record-document'].includes(action.action))
@@ -644,6 +672,16 @@ describe('照着 next 做事的运行器：simple 工作流', { timeout: 120_000
         expect(seen).toContain('finish-change')
         // 只剩本机门禁标记：它没被提交，也不会再让 next 发一次必定 nothing to commit 的提交。
         expect(git(['status', '--porcelain']).output).toBe('?? .pipeline-pending-review\n')
+        // 真机（第四轮）：simple 不走 OpenSpec，目录原地不动——check / status / list 只说「已完结」，
+        // 不声称已归档。
+        expect(existsSync(changeDir(SIMPLE)), 'simple 完结后目录不搬').toBe(true)
+        await run(['check', SIMPLE])
+        expect(h.out.join('\n')).toBe(`change '${SIMPLE}' 已完结，无需检查`)
+        await run(['status', SIMPLE])
+        expect(h.out).toContain('finished     已完结')
+        await run(['list', '--finished'])
+        expect(h.out.join('\n')).toContain('FINISHED_AT')
+        expect(h.out.join('\n')).not.toContain('ARCHIVED_AT')
         return
       }
       if (payload.step === undefined) return

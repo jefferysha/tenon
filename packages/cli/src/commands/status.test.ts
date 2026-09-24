@@ -294,8 +294,8 @@ describe('完结（已移入 openspec/changes/archive/）的 change 仍可查', 
       'phase        archive (done)',
       'verify       -',
       'updated      2026-09-22T03:00:00Z',
-      'archived     true',
-      'archived_at  2026-09-22T03:00:00Z',
+      'finished     已完结（已归档）',
+      'finished_at  2026-09-22T03:00:00Z',
     ])
   })
 
@@ -393,12 +393,12 @@ describe('完结（已移入 openspec/changes/archive/）的 change 仍可查', 
     expect(deps.outLines[0]).toBe('{"finished":[]}')
   })
 
-  test('status <name>：目录还没搬走也照样报 archived / archived_at', async () => {
+  test('status <name>：目录还没搬走也照样报完结与完结时间', async () => {
     const deps = makeDeps({ states: { 'fin-demo': finishedState }, changes: ['fin-demo'] })
     expect(await cmdStatus(deps, 'fin-demo', {})).toBe(0)
     expect(deps.outLines.slice(-2)).toEqual([
-      'archived     true',
-      'archived_at  2026-09-22T03:00:00Z',
+      expect.stringMatching(/^finished {5}已完结/u),
+      'finished_at  2026-09-22T03:00:00Z',
     ])
   })
 

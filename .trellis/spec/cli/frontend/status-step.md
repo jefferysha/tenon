@@ -10,7 +10,9 @@
   `list --json`）逐字不变，那两份输出是锚定的 schema。
 - 已完结（`archived=true`，无论目录是否已被 `openspec archive` 搬走）的 change 不在
   `active_changes`，而在 `finished_changes`（多一个 `archived_at`）；与列表形态、`list --finished`
-  同一口径。`tenon check` 对它只打一行「已完结（已归档），无需检查」、exit 0。
+  同一口径。`tenon check` 对它只打一行「已完结，无需检查」、exit 0；只有 OpenSpec 治理的工作流（或目录已搬进
+  archive/）才说「已完结（已归档）」，`status` 文本的 `finished` 行与之同一句（`commands/finishedLabel.ts`），
+  `list --finished` 的列名是 `FINISHED_AT`（JSON 键 `archived_at` 不变）。
 - 已完结的 change 恒带 `step`（键序与活跃 change 相同），`step.archived=true`：还有收尾动作时 `next`
   是 `finish-change`；没有可做的事（default 已搬进 archive/、simple 已提交或以 scope-expanded 放弃）时
   `next: [{action: stop, code: finished}]`——所有工作流同一形态。目录已被搬进 archive/ 时证据类分块
@@ -32,6 +34,8 @@ deliveryCommit(change, git): StepCommit | null · finishActions(change, governed
 // packages/cli/src/gitWorkspace.ts
 probeGitFinish(cwd, change) · WORKSPACE_COMMIT_PATHS · LOCAL_ROOT_FILES
 stepNextActions(input: StepNextInput): readonly StepAction[]   // 纯函数，顺序的唯一真相源
+// packages/cli/src/commands/statusStepDocumentActions.ts（文档类动作的构造，顺序仍归 stepNextActions）
+documentWriteActions(documents) · skillDocumentActions(skills, documents) · inputDocumentPolicy(documents)
 // packages/cli/src/commands/stepExitReport.ts
 evaluateStepExitReport(deps, name, dir, state, plan): Promise<StepExitReport>
 // packages/cli/src/commands/statusStepParts.ts
@@ -58,10 +62,14 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   也先于测试配置）→ 未配置的必需测试（本步与下一步的；计划步——本步产出 `plan` / `superpower-plan`——
   是之后所有前进可达步骤的；`fix` `code: test-unconfigured`）
   → 执行者 → 本步技能 → 技能欠的文档 → 未勾任务（`fix`，blocker `source: tasks`，带 `items` 未勾项
-  原文；tasks.md 自己还没产出（`missing`）时让位给文档写入，勾过一项后的 `stale` 不让位）→ 应用规格 → 产出与登记文档 → artifact
+  原文；tasks.md 自己还没产出（`missing`）时让位给文档写入，勾过一项后的 `stale` 不让位；交付步交付物未提交时
+  这一档先发 `commit`，提交之后才勾——勾选不先于事实）→ 应用规格 → 产出与登记文档 → artifact
   登记 → 交付物提交（交付步，`commit`）→ 自由文本交付值（`pr_url` / `prd_path`）→ 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
 - `test-unconfigured` 的 message = `unconfiguredMessage` + 范围说明：计划步说「只需在 package.json 补上
-  脚本；这类测试若还没有，把写这类测试列进本步的计划与 tasks」；之后的步骤说「只需补 package.json 的
+  脚本；这类测试若还没有，把写这类测试列进本步的计划与 tasks」，并要求把新增的测试脚本 / 测试同步写进本步可改的
+  proposal（What Changes / Impact）与 design、删掉相矛盾的表述（真机第四轮：design 仍写「不改 package.json」，
+  verify 的 spec-consistency 判「多做」阻断 → verify-fail → build 改不了 proposal → 回 spec；
+  `templates/agents/spec-consistency.md` 同时写明为满足必需测试补的脚本不算多做，最多报 `low`）；之后的步骤说「只需补 package.json 的
   scripts（以及这条脚本要跑的测试代码），不需要修改已登记的规格文档」。只改 package.json 不会让已登记
   的文档失效：文档台账按各自文件的 sha256 判定，与 package.json 无关；build 冻结的候选版本（build_sha）
   在 build-complete 才取，build 内改 package.json 不触发 `revision-stale`。真机第三轮的 build→spec
@@ -108,7 +116,9 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   顺便授权 verify-pass），多条回退边仍然交给人 `choose-exit`。
 - 文档动作按台账状态派：`missing` 的产出发 `scaffold-document` + `record-document` 一对（骨架
   只写文件，登记才推进台账）；`stale` 的（产出 / 可改 / 只读输入都算）发 `record-document`；
-  `unread` 的才发 `read-documents`。`role: update` 的槽从没登记过时不发动作——它是「本步可以改
+  `unread` 的才发 `read-documents`，它带 `editable`（读清单里同时是本步 role update 的 kind，本步可改、改完重新
+  登记）与 `note`（其余只读；需求语义变了走 `requirements-changed`；tasks 只勾当前步骤标题下的复选框；内容要读进
+  上下文，不得丢弃输出）。`role: update` 的槽从没登记过时不发动作——它是「本步可以改
   它」，不是「本步必须产出它」，与文档取证层（update 槽不进 blockers）同一口径。
 - 文档动作的 `producers` 恒取该文档在**当前步**合法的那组（`recordProducerCandidatesForPolicyStep`），
   读清单也不例外：登记命令认的就是这一组。当前步没有合法 producer 时不发登记动作，让出口 blocker
@@ -146,6 +156,7 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | ship 有未勾任务 | 先 `fix`（`source: tasks`，`items` 为截至本步仍未勾的任务原文），再 `apply-spec` / applied-spec 登记 / `set-field pr_url` |
 | build 缺 build_mode / isolation | 读完输入文档后第一批就是 `set-field`，先于 test-unconfigured 的 `fix`、执行者与 `load-skill` |
 | 交付步，交付物有未提交改动 | `commit`（`paths: WORKSPACE_COMMIT_PATHS`），先于 `set-field pr_url` / `prd_path` |
+| 交付步，有未勾任务且交付物有未提交改动 | 先 `commit`，再勾选任务的 `fix`（真机第四轮：先勾「提交代码」后提交） |
 | 交付步，只有 change 目录或门禁标记有改动 | 不发 `commit` |
 | 已完结 | `finished_changes` 而非 `active_changes`；`check` 说无需检查；`step` 恒在、`archived=true`，`next` 是 `finish-change` 或 `stop finished` |
 | 原目录从未被 git 跟踪 | `finish-change.commit.paths` 只有 `openspec/changes/archive` |

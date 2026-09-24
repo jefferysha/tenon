@@ -176,10 +176,22 @@ REVIEW_HELPER="$HOOK_DIR/review-ack.sh"
 if [ -r "$REVIEW_HELPER" ]; then
   # shellcheck source=review-ack.sh
   . "$REVIEW_HELPER"
+  # Read the exact target before acknowledging: `tenon review acknowledge` removes the marker.
+  REVIEW_CHANGE="$(pipeline_review_marker_change "$ROOT/.pipeline-pending-review" 2>/dev/null || true)"
+  REVIEW_EVENT="$(pipeline_review_marker_event "$ROOT/.pipeline-pending-review" 2>/dev/null || true)"
+  REVIEW_ACKED=0
   if [ "$INTENT" = 'authorize' ]; then
-    pipeline_acknowledge_active_review "$ROOT" "$HOOK_DIR" delegated "$HOST_SESSION_ID" || true
+    pipeline_acknowledge_active_review "$ROOT" "$HOOK_DIR" delegated "$HOST_SESSION_ID" && REVIEW_ACKED=1
   else
-    pipeline_acknowledge_active_review "$ROOT" "$HOOK_DIR" manual || true
+    pipeline_acknowledge_active_review "$ROOT" "$HOOK_DIR" manual && REVIEW_ACKED=1
+  fi
+  # Real session, round 4: the receipt was written and the marker removed, yet the agent — told
+  # nothing — answered that the gate "only accepts 确认继续" and did not move.  Say it was recorded.
+  if [ "$REVIEW_ACKED" -eq 1 ] && [ -n "$REVIEW_CHANGE" ]; then
+    REVIEW_EVENT_NOTE=''
+    [ -n "$REVIEW_EVENT" ] && REVIEW_EVENT_NOTE="（事件 ${REVIEW_EVENT}）"
+    printf '<tenon-review-confirmed>\n用户本条回复已记录为对任务 %s 的评审确认%s：评审回执已写入（review.status=approved），不要再让用户说「确认继续」。现在执行 tenon status %s --json，照 next 推进（transition %s %s）。\n</tenon-review-confirmed>\n' \
+      "$REVIEW_CHANGE" "$REVIEW_EVENT_NOTE" "$REVIEW_CHANGE" "$REVIEW_CHANGE" "${REVIEW_EVENT:-<event>}"
   fi
 fi
 

@@ -201,6 +201,18 @@ pipeline_prompt_approval_intent "$PROMPT"     # prompt-intent.sh → confirm | c
   claim files and prints `<tenon-interaction-confirmed>…请重试刚才被拦截的操作。</tenon-interaction-confirmed>` —
   exactly once per prompt even when the host runs the hook more than once concurrently (real session, round 3: the
   announcement appeared twice). The review marker is never removed here (the CLI owns it).
+- **Review receipt written this turn**: before calling `tenon review acknowledge`, read `change=` / `event=` from the
+  v2 marker (`pipeline_review_marker_event`; the CLI removes the marker). Only when the acknowledge call succeeds,
+  print `<tenon-review-confirmed>…已记录为对任务 <c> 的评审确认（事件 <e>）…不要再让用户说「确认继续」…照 next 推进
+  （transition <c> <e>）</tenon-review-confirmed>`. A failed acknowledge prints nothing. `router.sh` runs
+  concurrently and cannot know the outcome: on a reply that approves the selected Change's open review it appends to
+  the dispatch tail that this reply is the confirmation and points at `tenon status <c> --json` `step.review` / `next`
+  (real session, round 4: after 「按推荐」 the receipt existed, yet the agent told the user the gate "only accepts
+  确认继续").
+- **SessionStart** lists `等:review` only for a marker that still exists, belongs to the selected Change and whose
+  `.pipeline.yaml` projection is not already `review_gate_status: approved`; an approved, not yet consumed receipt is
+  shown on the Change line as 「评审已确认（<event>）」. The context names itself a session-start snapshot and says the
+  review gate is released by the user's confirming reply, not by AskUserQuestion.
 - **Once per step visit** (`interactive-skill-gate.sh`, non-autonomous only): scan history in order; a `transition`
   row whose `"to"` equals the current phase resets the confirmed set; `InteractionConfirmed` rows add the base name
   (namespace after the last `:` stripped). Matched skills already confirmed are dropped; if none remain the hook
