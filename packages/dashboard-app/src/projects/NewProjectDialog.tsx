@@ -1,37 +1,41 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { LoaderCircle } from 'lucide-react'
 import { useT } from '../i18n'
 import { fetchHostTargetDetection } from '../api/hostTargetPlanClient'
 import { instructionErrorKey } from '../api/instructionErrorKey'
-import {
-  InstructionApiError, composeInstructions, fetchTemplate, fetchTemplates, planProjectCreate,
-  type ProjectCreateInput, type ProjectInstructionsInput,
-} from '../api/instructionsClient'
-import type { ComposedDirectory, ProjectCreatePlan, TemplateSummary, TemplateVariable } from '../api/instructionsDecoders'
+import { InstructionApiError, fetchTemplate, fetchTemplates, planProjectCreate } from '../api/instructionsClient'
+import type { ProjectCreatePlan, TemplateDocument, TemplateSummary } from '../api/instructionsDecoders'
 import { Dialog } from '../shared/Dialog'
-import { BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
+import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
 import { ClientStep } from './ClientStep'
 import { ConfirmStep } from './ConfirmStep'
 import { CreateProgress } from './CreateProgress'
 import { LocationStep } from './LocationStep'
-import { TemplatePicker, selectionKey, type TemplateSelection } from './TemplatePicker'
+import { TemplateStep, selectionKey, type TemplateSelection } from './TemplateStep'
 import { WizardSteps } from './WizardSteps'
 import {
-  FALLBACK_CLIENTS, FOLDER_NAME, WIZARD_STEPS, basename, filesForClients, joinPath, splitClients,
-  type LocationMode, type WizardStep,
+  FALLBACK_CLIENTS, FOLDER_NAME, WIZARD_STEPS, basename, filesForClients, instructionsInput, joinPath, projectInput, splitClients,
+  type FileMode, type LocationMode, type WizardStep,
 } from './newProjectModel'
+import { composeFor } from './composeFor'
+import { useLocationCheck } from './useLocationCheck'
 import { useProjectCreateRun } from './useProjectCreateRun'
 
 /* 步骤切换：180ms 淡入 + 4px 上移；reduced-motion 只留淡入。 */
 const STEP_MOTION = 'animate-in fade-in-0 slide-in-from-bottom-1 duration-(--dur-base) ease-(--ease-out) motion-reduce:slide-in-from-bottom-0'
+/** 执行前失败时应回到「位置」修改的错误码。 */
+const LOCATION_ERRORS = new Set(['project_path_exists', 'parent_missing', 'parent_not_directory', 'path_missing', 'not_directory', 'invalid_path', 'path_unsafe', 'git_unavailable'])
 
 export interface NewProjectDialogProps {
   onClose: () => void
-  /** 「打开项目」：切到新项目。 */
+  /** 创建成功：切到新项目。 */
   onCreated: (root: string) => void
+  /** 已登记的目录点「打开」：切到该项目；缺省同 onCreated。 */
+  onOpen?: (root: string) => void
 }
 
-/** 新建项目向导：位置 → 模板 → 客户端 → 确认；「创建」后同一对话框切到逐步进度。 */
-export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps): JSX.Element {
+/** 新建项目向导：位置 → 模板 → 客户端 → 确认；「创建」后同一对话框切到逐步进度，成功即切到该项目。 */
+export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: NewProjectDialogProps): JSX.Element {
   const { t } = useT()
   const [view, setView] = useState<'wizard' | 'progress'>('wizard')
   const [step, setStep] = useState<WizardStep>('location')
@@ -39,21 +43,32 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const [path, setPath] = useState('')
   const [parent, setParent] = useState('')
   const [name, setName] = useState('')
-  const [registered, setRegistered] = useState(false)
+  const [gitInit, setGitInit] = useState(true)
+  const [recheck, setRecheck] = useState(0)
+  const [focus, setFocus] = useState<'name' | null>(null)
   const [templates, setTemplates] = useState<readonly TemplateSummary[]>([])
   const [selected, setSelected] = useState<readonly TemplateSelection[]>([])
-  const [variablesByKey, setVariablesByKey] = useState<Record<string, readonly TemplateVariable[]>>({})
+  const [focused, setFocused] = useState<TemplateSelection | null>(null)
+  const [documents, setDocuments] = useState<Record<string, TemplateDocument>>({})
   const [values, setValues] = useState<Record<string, string>>({})
   const [clientGroups, setClientGroups] = useState(() => splitClients([]))
   const [clients, setClients] = useState<ReadonlySet<string>>(() => new Set(FALLBACK_CLIENTS))
   const clientsTouched = useRef(false)
-  const [markdown, setMarkdown] = useState('')
-  const [directories, setDirectories] = useState<readonly ComposedDirectory[]>([])
+  const [fileModes, setFileModes] = useState<Record<string, FileMode>>({})
   const [plan, setPlan] = useState<ProjectCreatePlan | null>(null)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [errors, setErrors] = useState<readonly string[]>([])
   const [busy, setBusy] = useState(false)
+  const [discarding, setDiscarding] = useState(false)
   const run = useProjectCreateRun()
+
+  const location = { mode, path, parent, name, gitInit }
+  const locationReady = mode === 'empty' ? parent !== '' && FOLDER_NAME.test(name) : path !== ''
+  const check = useLocationCheck(location, locationReady, recheck)
+  const root = mode === 'empty' ? joinPath(parent, name) : path
+  const files = filesForClients(clients, selected.length > 0)
+  const enabledClients = [...clients].sort()
+  const dirty = path !== '' || parent !== '' || name !== '' || selected.length > 0
 
   useEffect(() => {
     const controller = new AbortController()
@@ -69,14 +84,16 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     return () => controller.abort()
   }, [])
 
-  const root = mode === 'empty' ? joinPath(parent, name) : path
-  const files = filesForClients(clients)
-  const locationReady = mode === 'empty' ? parent !== '' && FOLDER_NAME.test(name) : path !== ''
-
-  const inputFor = (instructions: ProjectInstructionsInput | null, override: { path?: string } = {}): ProjectCreateInput => (mode === 'empty'
-    ? { mode: 'empty', parent, name, directories: directories.map((entry) => entry.path), instructions }
-    : { mode: 'existing', path: override.path ?? path, instructions })
-  const enabledClients = [...clients].sort()
+  // 成功即切到该项目。
+  useEffect(() => { if (run.status === 'done' && run.created !== null) onCreated(run.created.root) }, [run.status, run.created, onCreated])
+  // 执行前的位置类失败：回到「位置」，重查并定位字段。
+  useEffect(() => {
+    if (run.status !== 'failed' || run.errorKey === null || !LOCATION_ERRORS.has(run.errorKey)) return
+    setView('wizard')
+    setStep('location')
+    setRecheck((value) => value + 1)
+    setFocus(run.errorKey === 'project_path_exists' || run.errorKey === 'invalid_path' ? 'name' : null)
+  }, [run.status, run.errorKey])
 
   const capture = (error: unknown): void => {
     setErrorKey(instructionErrorKey(error))
@@ -86,173 +103,185 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     setErrorKey(null)
     setErrors([])
   }
-
-  /** 位置校验：只 dry run 目录本身（不带指令文件与骨架目录）。 */
-  const checkLocation = async (input: ProjectCreateInput): Promise<boolean> => {
-    setBusy(true)
-    clearError()
-    try {
-      const checked = await planProjectCreate(input.mode === 'empty' ? { ...input, directories: [] } : input)
-      setRegistered(input.mode === 'existing' && checked.registration === 'already')
-      return true
-    } catch (error) {
-      capture(error)
-      return false
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const resetLocation = (): void => {
+  /** 任何前面步骤的输入变化都作废预检。 */
+  const invalidate = (): void => {
     setPlan(null)
-    setRegistered(false)
     clearError()
   }
 
-  const toggleTemplate = (selection: TemplateSelection): void => {
+  const loadDocument = (selection: TemplateSelection): void => {
     const key = selectionKey(selection)
-    if (selected.some((item) => selectionKey(item) === key)) {
-      setSelected((current) => current.filter((item) => selectionKey(item) !== key))
-      return
-    }
-    setSelected((current) => [...current, selection])
-    fetchTemplate(selection)
-      .then((document) => setVariablesByKey((current) => ({ ...current, [key]: document.block?.variables ?? [] })))
-      .catch(capture)
+    if (documents[key] !== undefined) return
+    fetchTemplate(selection).then((document) => setDocuments((current) => ({ ...current, [key]: document }))).catch(capture)
   }
 
-  /** 进入确认：按所选模板拼出正文，再带上指令文件与骨架目录要一次完整 dry run。 */
-  const enterConfirm = async (): Promise<void> => {
+  /** 按当前输入拼正文并组装请求；预检（forCreate=false）保留跳过的文件用于显示。 */
+  const buildInput = async (forCreate: boolean): Promise<ReturnType<typeof projectInput>> => {
+    const composed = await composeFor(mode === 'empty' ? name : basename(path), selected, values)
+    const instructions = files.targets.length === 0 ? null : instructionsInput(files, composed.markdown, fileModes, forCreate)
+    return projectInput(location, mode === 'empty' ? composed.directories : [], instructions, enabledClients)
+  }
+
+  /** 确认步的预检：进入确认、以及改动文件处理方式时自动执行。 */
+  const precheck = async (): Promise<void> => {
     setBusy(true)
     clearError()
     try {
-      const composed = await composeInstructions(mode === 'empty' ? name : basename(path), selected.map((item) => ({
-        ...item,
-        values: Object.fromEntries(Object.entries(values)
-          .filter(([key]) => key.startsWith(`${selectionKey(item)}::`))
-          .map(([key, value]) => [key.slice(`${selectionKey(item)}::`.length), value])),
-      })))
-      setMarkdown(composed.markdown)
-      setDirectories(composed.directories)
-      const instructions = files.length === 0 ? null : { text: composed.markdown, targets: [...files], base_digests: {} }
-      setPlan(await planProjectCreate(mode === 'empty'
-        ? { mode: 'empty', parent, name, directories: composed.directories.map((entry) => entry.path), instructions }
-        : { mode: 'existing', path, instructions }))
-      setStep('confirm')
+      setPlan(await planProjectCreate(await buildInput(false)))
     } catch (error) {
       capture(error)
+      setPlan(null)
     } finally {
       setBusy(false)
     }
   }
+  useEffect(() => {
+    if (view === 'wizard' && step === 'confirm') void precheck()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在进入确认与处理方式变化时预检
+  }, [view, step, fileModes])
 
-  /** 执行前重新 dry run，拿到最新的文件摘要（重试时已写入的文件变成「不变」）。 */
+  /** 执行：重新拼正文并 dry run 拿最新摘要（重试时已写入的文件变成「不变」）。 */
   const create = (): void => {
     setView('progress')
     void run.start(async () => {
-      const draft = { ...inputFor(files.length === 0 || markdown === '' ? null : { text: markdown, targets: [...files], base_digests: {} }), clients: enabledClients }
-      const fresh = await planProjectCreate(draft)
+      const draft = await buildInput(true)
       if (draft.instructions === null) return draft
+      const fresh = await planProjectCreate(draft)
       return { ...draft, instructions: { ...draft.instructions, base_digests: Object.fromEntries(fresh.files.map((file) => [file.id, file.base_digest])) } }
     })
   }
 
-  const next = async (): Promise<void> => {
-    if (step === 'location') {
-      if (await checkLocation(inputFor(null))) setStep('templates')
-    } else if (step === 'templates') {
-      setStep('clients')
-    } else if (step === 'clients') {
-      await enterConfirm()
-    } else {
-      create()
-    }
-  }
-
+  const blocked = check.status !== 'ok' || check.plan?.registration === 'already'
+  const nextDisabled = busy || (step === 'location' && (!locationReady || blocked)) || (step === 'confirm' && plan === null)
   const at = WIZARD_STEPS.indexOf(step)
-  const nextDisabled = busy || (step === 'location' && !locationReady) || (step === 'confirm' && plan === null)
+  const next = (): void => {
+    if (nextDisabled) return
+    clearError()
+    if (step === 'confirm') create()
+    else setStep(WIZARD_STEPS[at + 1] ?? 'confirm')
+  }
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing || view !== 'wizard') return
+    if (event.target instanceof HTMLButtonElement || event.target instanceof HTMLTextAreaElement) return
+    event.preventDefault()
+    next()
+  }
   const running = view === 'progress' && run.status === 'running'
+  const requestClose = (): void => {
+    if (running) return
+    if (dirty && run.status !== 'done') setDiscarding(true)
+    else onClose()
+  }
+  const failedRow = run.rows.find((row) => row.state === 'failed')
+  const editStep: WizardStep = failedRow?.id === 'directory' || failedRow?.id === 'git' ? 'location' : 'confirm'
 
   const actions = view === 'progress' ? (
-    run.status === 'done' && run.created !== null ? (
-      <>
-        <button type="button" className={BUTTON_GHOST} data-testid="np-finish" onClick={onClose}>{t('projects.finish')}</button>
-        <button type="button" className={BUTTON_SOLID} data-testid="np-open" onClick={() => { if (run.created) onCreated(run.created.root) }}>{t('projects.open_project')}</button>
-      </>
-    ) : (
-      <button type="button" className={BUTTON_GHOST} disabled={running} data-testid="np-back" onClick={() => setView('wizard')}>{t('projects.back')}</button>
-    )
+    <button type="button" className={BUTTON_GHOST} disabled={running || run.status === 'done'} data-testid="np-back" onClick={() => { setView('wizard'); setStep(editStep) }}>
+      {t('projects.edit_step')}
+    </button>
   ) : (
     <>
       {at === 0
-        ? <button type="button" className={BUTTON_GHOST} data-testid="np-cancel" onClick={onClose}>{t('projects.cancel')}</button>
+        ? <button type="button" className={BUTTON_GHOST} data-testid="np-cancel" onClick={requestClose}>{t('projects.cancel')}</button>
         : <button type="button" className={BUTTON_GHOST} disabled={busy} data-testid="np-back" onClick={() => { clearError(); setStep(WIZARD_STEPS[at - 1] ?? 'location') }}>{t('projects.back')}</button>}
-      <button type="button" className={BUTTON_SOLID} disabled={nextDisabled} aria-busy={busy || undefined} data-testid="np-next" onClick={() => { void next() }}>
+      <button type="button" className={BUTTON_SOLID} disabled={nextDisabled} aria-busy={busy || undefined} data-testid="np-next" onClick={next}>
         {t(step === 'confirm' ? 'projects.create' : 'projects.next')}
       </button>
     </>
   )
 
   return (
-    <Dialog
-      title={t('projects.new_project')}
-      onClose={() => { if (!running) onClose() }}
-      testid="np-dialog"
-      panelClassName="w-[min(640px,92vw)]"
-      actions={actions}
-    >
-      <div className="grid gap-5">
-        {view === 'wizard' && <WizardSteps current={step} onBack={(target) => { clearError(); setStep(target) }} />}
-        <div key={view === 'wizard' ? step : 'progress'} className={`min-h-64 ${STEP_MOTION}`}>
-          {view === 'progress' && <CreateProgress run={run} root={root} onRetry={create} />}
-          {view === 'wizard' && step === 'location' && (
-            <LocationStep
-              mode={mode}
-              onMode={(value) => { setMode(value); resetLocation() }}
-              path={path}
-              onPath={(value) => { setPath(value); resetLocation(); void checkLocation(inputFor(null, { path: value })) }}
-              parent={parent}
-              onParent={(value) => { setParent(value); resetLocation() }}
-              name={name}
-              onName={(value) => { setName(value); resetLocation() }}
-              registered={registered}
-            />
-          )}
-          {view === 'wizard' && step === 'templates' && (
-            <TemplatePicker
-              templates={templates}
-              selected={selected}
-              variablesByKey={variablesByKey}
-              values={values}
-              onToggle={toggleTemplate}
-              onValue={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
-            />
-          )}
-          {view === 'wizard' && step === 'clients' && (
-            <ClientStep
-              primary={clientGroups.primary}
-              more={clientGroups.more}
-              selected={clients}
-              onToggle={(id) => {
-                clientsTouched.current = true
-                setClients((current) => {
-                  const nextSet = new Set(current)
-                  if (nextSet.has(id)) nextSet.delete(id)
-                  else nextSet.add(id)
-                  return nextSet
-                })
-              }}
-            />
-          )}
-          {view === 'wizard' && step === 'confirm' && plan !== null && <ConfirmStep plan={plan} mode={mode} clients={enabledClients} />}
-        </div>
-        {view === 'wizard' && errorKey !== null && (
-          <div className="grid gap-1 rounded-md border border-red-b bg-red-t px-4 py-3" role="alert" data-testid="np-error">
-            <span className="text-body font-semibold text-red-d">{t(`projects.errors.${errorKey}`)}</span>
-            {errors.map((message) => <span key={message} className="font-mono text-caption text-red-d">{message}</span>)}
+    <>
+      <Dialog title={t('projects.new_project')} onClose={requestClose} testid="np-dialog" panelClassName="w-[min(640px,92vw)]" actions={actions}>
+        <div className="grid gap-4" onKeyDown={onKeyDown}>
+          {view === 'wizard' && <WizardSteps current={step} onBack={(target) => { clearError(); setStep(target) }} />}
+          <div key={view === 'wizard' ? step : 'progress'} className={`h-96 overflow-y-auto ${STEP_MOTION}`} data-testid="np-body">
+            {view === 'progress' && (
+              <CreateProgress run={run} root={root} rolledBack={mode === 'empty' && failedRow !== undefined && failedRow.id !== 'directory'} onRetry={create} />
+            )}
+            {view === 'wizard' && step === 'location' && (
+              <LocationStep
+                mode={mode}
+                onMode={(value) => { setMode(value); invalidate() }}
+                path={path}
+                onPath={(value) => { setPath(value); setFileModes({}); invalidate() }}
+                parent={parent}
+                onParent={(value) => { setParent(value); invalidate() }}
+                name={name}
+                onName={(value) => { setName(value); setFocus(null); invalidate() }}
+                gitInit={gitInit}
+                onGitInit={(value) => { setGitInit(value); invalidate() }}
+                check={check}
+                onOpen={onOpen}
+                focus={focus}
+              />
+            )}
+            {view === 'wizard' && step === 'templates' && (
+              <TemplateStep
+                templates={templates}
+                selected={selected}
+                focused={focused}
+                documents={documents}
+                values={values}
+                onFocus={(selection) => { setFocused(selection); loadDocument(selection) }}
+                onToggle={(selection) => {
+                  const key = selectionKey(selection)
+                  invalidate()
+                  setSelected((current) => (current.some((item) => selectionKey(item) === key)
+                    ? current.filter((item) => selectionKey(item) !== key)
+                    : [...current, selection]))
+                }}
+                onValue={(key, value) => { invalidate(); setValues((current) => ({ ...current, [key]: value })) }}
+              />
+            )}
+            {view === 'wizard' && step === 'clients' && (
+              <ClientStep
+                primary={clientGroups.primary}
+                more={clientGroups.more}
+                selected={clients}
+                onToggle={(id) => {
+                  clientsTouched.current = true
+                  invalidate()
+                  setClients((current) => {
+                    const nextSet = new Set(current)
+                    if (nextSet.has(id)) nextSet.delete(id)
+                    else nextSet.add(id)
+                    return nextSet
+                  })
+                }}
+              />
+            )}
+            {view === 'wizard' && step === 'confirm' && plan === null && busy && (
+              <LoaderCircle className="mx-auto mt-10 size-5 animate-spin text-text-3 motion-reduce:animate-none" aria-label={t('common.loading')} />
+            )}
+            {view === 'wizard' && step === 'confirm' && plan !== null && (
+              <ConfirmStep plan={plan} mode={mode} clients={enabledClients} fileModes={fileModes} onFileMode={(file, value) => setFileModes((current) => ({ ...current, [file]: value }))} />
+            )}
           </div>
-        )}
-      </div>
-    </Dialog>
+          {view === 'wizard' && errorKey !== null && (
+            <div className="grid gap-1 rounded-md border border-red-b bg-red-t px-4 py-3" role="alert" data-testid="np-error">
+              <span className="text-body font-semibold text-red-d">{t(`projects.errors.${errorKey}`)}</span>
+              {errors.map((message) => <span key={message} className="font-mono text-caption text-red-d">{message}</span>)}
+            </div>
+          )}
+        </div>
+      </Dialog>
+      {discarding && (
+        <Dialog
+          title={t('projects.discard_title')}
+          role="alertdialog"
+          onClose={() => setDiscarding(false)}
+          testid="np-discard"
+          actions={(
+            <>
+              <button type="button" className={BUTTON_GHOST} data-testid="np-discard-keep" onClick={() => setDiscarding(false)}>{t('projects.keep_editing')}</button>
+              <button type="button" className={BUTTON_DANGER} data-testid="np-discard-confirm" onClick={onClose}>{t('projects.discard')}</button>
+            </>
+          )}
+        >
+          {null}
+        </Dialog>
+      )}
+    </>
   )
 }

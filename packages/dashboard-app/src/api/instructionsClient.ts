@@ -124,12 +124,19 @@ export function deleteInstruction(root: string, target: string, digest: string):
   return send(`/api/instructions?${query}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } }, decodeInstructionDelete, '删除失败')
 }
 
-export interface ProjectInstructionsInput { text: string; targets: string[]; base_digests: Record<string, string> }
+/** references：只写一行 `@AGENTS.md` 的文件；append：保留原文、把正文接在后面的文件。 */
+export interface ProjectInstructionsInput {
+  text: string
+  targets: string[]
+  base_digests: Record<string, string>
+  references?: string[]
+  append?: string[]
+}
 
 /** clients：记入项目 `.tenon/clients.json` 的客户端 id；省略 = 不写。 */
 export type ProjectCreateInput =
   | { mode: 'empty'; parent: string; name: string; directories: string[]; instructions: ProjectInstructionsInput | null; clients?: string[] }
-  | { mode: 'existing'; path: string; instructions: ProjectInstructionsInput | null; clients?: string[] }
+  | { mode: 'existing'; path: string; instructions: ProjectInstructionsInput | null; clients?: string[]; git_init?: boolean }
 
 export function planProjectCreate(input: ProjectCreateInput): Promise<ProjectCreatePlan> {
   return send('/api/projects/create', { method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ ...input, dry_run: true }) }, decodeProjectCreatePlan, '新建项目预览失败')

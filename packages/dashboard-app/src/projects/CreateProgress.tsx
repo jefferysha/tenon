@@ -8,6 +8,8 @@ import type { ProjectCreateRun, RowState } from './useProjectCreateRun'
 export interface CreateProgressProps {
   run: ProjectCreateRun
   root: string
+  /** 新建目录失败时 server 已删掉本次创建的目录。 */
+  rolledBack: boolean
   onRetry: () => void
 }
 
@@ -18,8 +20,8 @@ const ICON: Record<RowState, JSX.Element> = {
   failed: <X className="size-4 text-red-d" strokeWidth={2.5} aria-hidden="true" />,
 }
 
-/** 创建进度：逐项显示 等待 / 进行中 / 完成 / 失败；失败行显示错误原文，「重试」在该行旁。 */
-export function CreateProgress({ run, root, onRetry }: CreateProgressProps): JSX.Element {
+/** 创建进度：逐项显示 等待 / 进行中 / 完成 / 失败；失败行显示错误原文与是否已回滚，「重试」在该行旁。 */
+export function CreateProgress({ run, root, rolledBack, onRetry }: CreateProgressProps): JSX.Element {
   const { t } = useT()
   const failedRow = run.rows.some((row) => row.state === 'failed')
   const retry = (
@@ -45,6 +47,7 @@ export function CreateProgress({ run, root, onRetry }: CreateProgressProps): JSX
                 <div className="flex min-h-9 items-center gap-3 whitespace-nowrap">
                   <span className="grid size-5 flex-none place-items-center" role="img" aria-label={t(`projects.state_${row.state}`)}>{ICON[row.state]}</span>
                   <span className={cn('min-w-0 flex-1 truncate text-body', row.state === 'pending' ? 'text-text-3' : 'text-text')}>{t(label.key, label.vars)}</span>
+                  {row.state === 'failed' && rolledBack && <span className="flex-none text-caption text-text-3" data-testid="np-rolled-back">{t('projects.rolled_back')}</span>}
                   {row.state === 'failed' && retry}
                 </div>
                 {row.state === 'failed' && row.error !== undefined && (
