@@ -90,9 +90,23 @@ describe('GET /api/change/:name/lifecycle', () => {
     await h.store.setMany(join(h.root, 'openspec', 'changes', 'feat'), { review_gate_status: 'pending' } as never)
     const r = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=delete`)
     expect(r.status).toBe(200)
+    // 不在 git 仓库里：删除后找不回。
     expect(r.json()).toEqual({
-      ok: true, action: 'delete', phase: 'open', blockers: [], confirmations: [{ code: 'review-pending' }],
+      ok: true, action: 'delete', phase: 'open', blockers: [], confirmations: [{ code: 'review-pending' }], recoverable: false,
     })
+  })
+
+  it('reports a Change with git-tracked files as recoverable; archive carries no recoverable field', async () => {
+    const h = await start(['feat'])
+    const run = (args: readonly string[]) => execFileAsync('git', ['-C', h.root, ...args])
+    await run(['init', '-q'])
+    const before = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=delete`)
+    expect(before.json()).toMatchObject({ recoverable: false })
+    await run(['add', '--', 'openspec/changes/feat'])
+    const after = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=delete`)
+    expect(after.json()).toMatchObject({ recoverable: true })
+    const archive = await reqGet(h.port, `/api/change/feat/lifecycle?root=${encodeURIComponent(h.root)}&action=archive`)
+    expect(archive.json()).not.toHaveProperty('recoverable')
   })
 
   it('confirms another owner for a viewer who does not own the Change', async () => {

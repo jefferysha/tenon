@@ -6,7 +6,7 @@
  */
 import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { createTaskLifecycleApplication, probeUncommittedTaskDeletions, USER_MISSING_HINT } from '@tenon/kernel'
+import { createTaskLifecycleApplication, probeChangeTracked, probeUncommittedTaskDeletions, USER_MISSING_HINT } from '@tenon/kernel'
 import type {
   StateStore, TaskLifecycleApplication, TaskLifecycleAssessOutcome, TaskLifecycleOutcome,
   TaskLifecycleReasonCode, TenonUserResolution,
@@ -145,12 +145,17 @@ export async function handleTaskLifecycleGet(
     sendJson(res, refusal?.status ?? 500, refusal?.body ?? { ok: false, error: DELETE_FAILED })
     return true
   }
+  // 删除前告诉用户能不能从 git 找回：目录里没有任何被跟踪的文件 = 不可恢复；探测失败不猜（null）。
+  const tracking = action === 'delete'
+    ? await probeChangeTracked(repoRoot, decodeURIComponent(match[1] ?? ''))
+    : undefined
   sendJson(res, 200, {
     ok: true,
     action: assessed.action,
     phase: assessed.phase,
     blockers: assessed.blockers,
     confirmations: assessed.confirmations,
+    ...(tracking === undefined ? {} : { recoverable: tracking === 'unknown' ? null : tracking === 'tracked' }),
   })
   return true
 }

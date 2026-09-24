@@ -1289,34 +1289,41 @@ describe('POST /api/change/<name>/transition —— Verify revision rejection co
 
     const snapshot = (await reqGet(h.port, '/api/snapshot')).json<any>()
     const projectedReadiness = snapshot.projects[0].changes[0].workflowExecution
-    expect(projectedReadiness).toEqual({
-      readinessByTransition: {
-        verify: {
-          'verify-pass': {
-            ready: false,
-            blockers: [
-              {
-                kind: 'verify-build-revision-untrusted',
-                code: 'verify-build-revision-untrusted',
-                reason: 'malformed',
-                remediation: 'return-to-build-and-capture-current-revision',
-                stateHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
-              },
-              // 前进出边还带 agent 面：backend verify 声明的必需评审者一个都没跑。
-              {
-                kind: 'agents-incomplete',
-                agents: [
-                  { agent: 'spec-consistency', reason: 'reviewer-missing' },
-                  { agent: 'backend-quality', reason: 'reviewer-missing' },
-                  { agent: 'security', reason: 'reviewer-missing' },
-                ],
-              },
-            ],
-          },
-          // verify-fail 是退回边：agent 面不参与。
-          'verify-fail': { ready: true, blockers: [] },
-        },
+    const verifyReadiness = projectedReadiness.readinessByTransition.verify
+    expect(Object.keys(projectedReadiness.readinessByTransition)).toEqual(['verify'])
+    expect(verifyReadiness['verify-pass'].ready).toBe(false)
+    expect(verifyReadiness['verify-pass'].blockers.slice(0, 2)).toEqual([
+      {
+        kind: 'verify-build-revision-untrusted',
+        code: 'verify-build-revision-untrusted',
+        reason: 'malformed',
+        remediation: 'return-to-build-and-capture-current-revision',
+        stateHash: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
       },
+      // 前进出边还带 agent 面：backend verify 声明的必需评审者一个都没跑。
+      {
+        kind: 'agents-incomplete',
+        agents: [
+          { agent: 'spec-consistency', reason: 'reviewer-missing' },
+          { agent: 'backend-quality', reason: 'reviewer-missing' },
+          { agent: 'security', reason: 'reviewer-missing' },
+        ],
+      },
+    ])
+    // 其余是 `tenon status` exits 的同一份判定（技能、文档、测试 …），以 step-exit 追加。
+    const rest = verifyReadiness['verify-pass'].blockers.slice(2) as Array<{ kind: string; source: string }>
+    expect(rest.length).toBeGreaterThan(0)
+    expect(rest.every((blocker) => blocker.kind === 'step-exit')).toBe(true)
+    expect(rest.some((blocker) => blocker.source === 'skill')).toBe(true)
+    // verify-fail 是退回边：agent 面与出口规则不参与，技能门仍在（同 `tenon status` 与 transition）。
+    expect(verifyReadiness['verify-fail']).toEqual({
+      ready: false,
+      blockers: [{
+        kind: 'step-exit',
+        source: 'skill',
+        code: 'skill-incomplete',
+        message: expect.stringContaining('verification-before-completion'),
+      }],
     })
     expect(JSON.stringify(projectedReadiness)).not.toContain(malformed)
     expect(JSON.stringify(projectedReadiness)).not.toContain(h.root)

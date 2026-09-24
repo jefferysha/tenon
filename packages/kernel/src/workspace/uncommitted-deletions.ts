@@ -118,6 +118,25 @@ export async function probeUncommittedTaskDeletions(
   return { kind: 'ok', count }
 }
 
+/**
+ * Whether git can bring a deleted Change back: `tracked` when the index holds at least one file under the
+ * Change directory (删除 never touches the index, so `git checkout -- <dir>` restores it), `untracked` when
+ * there is no repository or nothing under the directory is tracked, `unknown` when the probe itself fails.
+ */
+export type ChangeTrackingProbe = 'tracked' | 'untracked' | 'unknown'
+
+export async function probeChangeTracked(
+  repoRoot: string,
+  name: string,
+  git: GitStatusRunner = gitStatusRunner,
+): Promise<ChangeTrackingProbe> {
+  if (!isTaskLifecycleName(name) || isProcessLocalFdPath(repoRoot)) return 'unknown'
+  if (!(await hasRepository(repoRoot))) return 'untracked'
+  const result = await git(repoRoot, ['ls-files', '-z', '--', `${CHANGES_PREFIX}${name}`])
+  if (result.code !== 0) return 'unknown'
+  return result.stdout.split('\0').some((path) => path !== '') ? 'tracked' : 'untracked'
+}
+
 /** `null` when the count is unknown; callers that need the reason use `probeUncommittedTaskDeletions`. */
 export async function countUncommittedTaskDeletions(
   repoRoot: string,
