@@ -8,6 +8,7 @@ import { HostTargetList } from './HostTargetList'
 import { InstructionEditor } from './InstructionEditor'
 import { NewProjectDialog } from './NewProjectDialog'
 import { firstLoadable, targetsForHosts } from './instructionModel'
+import { shortPath } from './shortPath'
 import { useInstructionFiles } from './useInstructionFiles'
 
 const RAIL_KEY = 'tenon-dashboard-rail:projects'
@@ -62,7 +63,6 @@ export function ProjectsView({
     setText(next)
   }, [files.state, selectedHosts])
 
-  const level = files.state?.level ?? (currentRoot === '' ? 'user' : 'project')
   const project = projects.find((candidate) => candidate.root === currentRoot)
   const title = currentRoot === '' ? t('projects.user_level') : project?.name ?? currentRoot
 
@@ -121,7 +121,7 @@ export function ProjectsView({
                   <RailCard
                     mark={(candidate.name[0] ?? '?').toUpperCase()}
                     name={candidate.name}
-                    meta={candidate.root}
+                    meta={shortPath(candidate.root)}
                     selected={candidate.root === currentRoot}
                     collapsed={railCollapsed}
                     onClick={() => onSelectProject(candidate.root)}
@@ -139,7 +139,11 @@ export function ProjectsView({
             title={t('projects.hosts')}
           >
             {files.loading ? (
-              <p className="text-base text-text-2" data-testid="proj-loading">{t('projects.rail')}</p>
+              <ul className="grid gap-2" role="status" aria-label={t('common.loading')} data-testid="proj-loading">
+                {[0, 1, 2, 3, 4].map((index) => (
+                  <li key={index} className="h-9 animate-pulse rounded-md bg-fill motion-reduce:animate-none" />
+                ))}
+              </ul>
             ) : (
               <HostTargetList
                 hosts={hosts}
@@ -163,10 +167,9 @@ export function ProjectsView({
           </ListColumn>
         )}
         detail={files.state === null ? (
-          <DetailEmpty title={t('projects.empty_detail')} desc={t('projects.rail')} testId="proj-detail-empty" />
+          <DetailEmpty title={t('projects.empty_detail')} desc="" testId="proj-detail-empty" />
         ) : (
           <InstructionEditor
-            level={level}
             title={title}
             root={currentRoot}
             targets={targets}

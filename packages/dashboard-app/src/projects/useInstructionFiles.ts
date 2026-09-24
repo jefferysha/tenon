@@ -21,6 +21,12 @@ export interface InstructionFiles {
   remove: (target: string, digest: string) => Promise<'removed' | 'managed-kept' | null>
 }
 
+/** 快照版本（ISO 时间）晚于上次读请求发出的时刻才需要复查；无法解析的版本一律复查。 */
+export function changedSinceLastRead(revision: string, readStartedAt: number): boolean {
+  const at = Date.parse(revision)
+  return Number.isNaN(at) || readStartedAt === 0 || at > readStartedAt
+}
+
 const digestsOf = (state: InstructionState | null): Record<string, string> =>
   Object.fromEntries((state?.targets ?? []).map((target) => [target.id, target.digest]))
 
@@ -38,10 +44,24 @@ export function useInstructionFiles(root: string, isDirty: () => boolean, revisi
   const dirtyRef = useRef(isDirty)
   dirtyRef.current = isDirty
   const digestsRef = useRef<Record<string, string>>({})
+  // 同一时刻最多一个读请求：首读还没回来时，快照变化或聚焦触发的复查直接并入首读，不再多发一次。
+  const inFlightRef = useRef(0)
+  // 最近一次读请求发出的时刻（ms）；快照的 generated_at 早于它时，这次读已经包含了那次变化。
+  const readStartedRef = useRef(0)
+
+  const read = useCallback(async (signal?: AbortSignal): Promise<InstructionState> => {
+    inFlightRef.current += 1
+    readStartedRef.current = Date.now()
+    try {
+      return await fetchInstructions(root, signal)
+    } finally {
+      inFlightRef.current -= 1
+    }
+  }, [root])
 
   const load = useCallback(async (signal?: AbortSignal): Promise<void> => {
     try {
-      const next = await fetchInstructions(root, signal)
+      const next = await read(signal)
       setState(next)
       digestsRef.current = digestsOf(next)
       setExternal(false)
@@ -49,7 +69,7 @@ export function useInstructionFiles(root: string, isDirty: () => boolean, revisi
     } catch (error) {
       if (!isAbortError(error)) setErrorKey(instructionErrorKey(error))
     }
-  }, [root])
+  }, [read])
 
   const reload = useCallback(async (): Promise<void> => {
     setLoading(true)
@@ -67,9 +87,9 @@ export function useInstructionFiles(root: string, isDirty: () => boolean, revisi
 
   // 复查只比对摘要：干净就静默换成盘上的内容，有草稿就亮提示交给用户决定。
   const check = useCallback(async (): Promise<void> => {
-    if (document.visibilityState !== 'visible') return
+    if (document.visibilityState !== 'visible' || inFlightRef.current > 0) return
     try {
-      const next = await fetchInstructions(root)
+      const next = await read()
       const changed = next.targets.some((target) => digestsRef.current[target.id] !== target.digest)
       if (!changed) return
       if (dirtyRef.current()) {
@@ -81,7 +101,7 @@ export function useInstructionFiles(root: string, isDirty: () => boolean, revisi
     } catch {
       // 复查失败不打扰用户：下一次快照变化、聚焦或手动重新载入会重试。
     }
-  }, [root])
+  }, [read])
 
   useEffect(() => {
     const onFocus = (): void => { void check() }
@@ -94,6 +114,7 @@ export function useInstructionFiles(root: string, isDirty: () => boolean, revisi
   useEffect(() => {
     if (seenRevision.current === revision) return
     seenRevision.current = revision
+    if (!changedSinceLastRead(revision, readStartedRef.current)) return
     void check()
   }, [revision, check])
 

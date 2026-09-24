@@ -92,7 +92,9 @@ describe('项目页 · 指令文件', () => {
     expect(screen.getByTestId('proj-levels-copilot')).toHaveTextContent('个人优先')
     expect(screen.getByTestId('proj-levels-cursor')).toHaveTextContent('仅项目')
     expect(screen.getByTestId('proj-levels-aider')).toHaveTextContent('需配置')
-    expect(screen.getByTestId('proj-host-check-aider')).toHaveAttribute('hidden')
+    // 不可勾选的宿主放禁用复选框占位，勾选列不跳。
+    expect(screen.getByTestId('proj-host-check-aider')).toBeDisabled()
+    expect(screen.getByTestId('proj-host-check-aider')).not.toBeChecked()
     expect(screen.getByTestId('proj-host-check-claude')).toBeChecked()
     expect(screen.getByTestId('proj-host-check-codex')).toBeChecked()
   })
@@ -148,7 +150,8 @@ describe('项目页 · 指令文件', () => {
       targets: () => [target('AGENTS.md', { managed: [{ tag: 'CODEX' }] }), target('CLAUDE.md')],
     })
     renderView()
-    await user.click(await screen.findByTestId('proj-delete'))
+    await user.click(await screen.findByTestId('proj-more'))
+    await user.click(screen.getByTestId('proj-more-delete'))
     const dialog = await screen.findByTestId('proj-delete-dialog')
     expect(within(dialog).getByTestId('proj-delete-managed')).toHaveTextContent('1')
     await user.click(screen.getByTestId('proj-delete-confirm'))
@@ -212,8 +215,104 @@ describe('项目页 · 指令文件', () => {
     stubFetch()
     renderView()
     expect(await screen.findByTestId('proj-apply')).toBeDisabled()
-    expect(screen.getByTestId('proj-delete')).toBeDisabled()
+    expect(screen.getByTestId('proj-more')).toBeDisabled()
     expect(screen.getByTestId('proj-no-token')).toBeInTheDocument()
+  })
+})
+
+describe('项目页 · 布局与读取', () => {
+  it('右列没有眉题；标题右侧是「预览变更」与 ⋯；页签是 编辑 / 渲染；抽屉里确认「应用」', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderView()
+    await screen.findByTestId('proj-editor')
+    expect(screen.queryByTestId('proj-eyebrow')).toBeNull()
+    expect(screen.getByTestId('proj-title')).toHaveTextContent('repo')
+    expect(screen.getByTestId('proj-apply')).toHaveTextContent('预览变更')
+    expect(screen.getByTestId('proj-tab-edit')).toHaveTextContent('编辑')
+    expect(screen.getByTestId('proj-tab-render')).toHaveTextContent('渲染')
+    // 没有底部动作条：动作只在标题行。
+    expect(screen.getByTestId('proj-detail').querySelector('footer')).toBeNull()
+    await user.click(screen.getByTestId('proj-apply'))
+    expect(await screen.findByTestId('proj-diff-confirm')).toHaveTextContent('应用')
+  })
+
+  it('所选文件都与正文一致时「预览变更」禁用，改动后才可用', async () => {
+    const user = userEvent.setup()
+    stubFetch({ targets: () => [target('AGENTS.md'), target('CLAUDE.md')] })
+    renderView()
+    const editor = await screen.findByTestId('proj-editor')
+    await waitFor(() => expect(editor).toHaveValue('# 旧\n'))
+    expect(screen.getByTestId('proj-apply')).toBeDisabled()
+    await user.type(editor, 'x')
+    expect(screen.getByTestId('proj-apply')).toBeEnabled()
+    await user.type(editor, '{Backspace}')
+    expect(screen.getByTestId('proj-apply')).toBeDisabled()
+  })
+
+  it('宿主表是 宿主 · 文件 · 加载方式 三列，宿主名只出现一次，加载方式不是药丸', async () => {
+    stubFetch()
+    renderView()
+    const table = await screen.findByTestId('proj-hosts')
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['选择', '宿主', '文件', '加载方式'])
+    const row = screen.getByTestId('proj-host-claude')
+    expect(row.textContent?.match(/claude/gu)).toHaveLength(1)
+    expect(screen.getByTestId('proj-levels-claude').className).not.toContain('rounded-full')
+  })
+
+  it('读取中显示骨架而不是文字', async () => {
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      await gate
+      return { ok: true, json: async () => ({ ok: true, level: 'project', root: '/repo', hosts: HOSTS, targets: [target('AGENTS.md')] }) }
+    }))
+    renderView()
+    const loading = screen.getByTestId('proj-loading')
+    expect(loading.textContent).toBe('')
+    expect(loading.querySelectorAll('li').length).toBeGreaterThan(0)
+    await act(async () => { release() })
+    expect(await screen.findByTestId('proj-hosts')).toBeInTheDocument()
+  })
+
+  it('左列副行是缩短的路径', async () => {
+    stubFetch()
+    render(
+      <I18nProvider>
+        <ProjectsView
+          projects={[{ root: '/Users/me/Documents/code/tenon', name: 'tenon', count: 0, ok: true }]}
+          currentRoot="/Users/me/Documents/code/tenon"
+          onSelectProject={() => undefined}
+        />
+      </I18nProvider>,
+    )
+    expect(await screen.findByTestId('proj-root-tenon')).toHaveTextContent('…/code/tenon')
+  })
+
+  // 回归：进入项目页 /api/instructions 发两次——首读未回时快照变化或聚焦又触发一次复查。
+  it('进入项目页只读一次：首读期间的聚焦、以及早于首读的快照版本都不再请求', async () => {
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const fetchMock = vi.fn(async () => {
+      await gate
+      return { ok: true, json: async () => ({ ok: true, level: 'project', root: '/repo', hosts: HOSTS, targets: [target('AGENTS.md')] }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const old = new Date(Date.now() - 60_000).toISOString()
+    const view = (revision: string) => (
+      <I18nProvider>
+        <ProjectsView projects={PROJECTS} currentRoot="/repo" onSelectProject={() => undefined} snapshotRevision={revision} />
+      </I18nProvider>
+    )
+    const { rerender } = render(view('r0'))
+    window.dispatchEvent(new Event('focus'))
+    rerender(view('r1'))
+    await act(async () => { release() })
+    await screen.findByTestId('proj-editor')
+    // 快照版本早于这次读：读到的已经包含那次变化。
+    rerender(view(old))
+    await act(async () => { await Promise.resolve() })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
 

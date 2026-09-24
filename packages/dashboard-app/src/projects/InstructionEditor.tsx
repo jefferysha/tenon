@@ -7,16 +7,19 @@ import { SheetTabs, type SheetDef } from '../shared/DetailSheets'
 import { Markdown } from '../shared/Markdown'
 import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_SOLID, TEXTAREA } from '../shared/uiRecipes'
 import { DetailColumn } from '../shell/ThreeColumns'
+import { MenuButton } from '../shared/MenuButton'
 import { DiffDrawer } from './DiffDrawer'
-import { managedCount } from './instructionModel'
+import { fileStatus, managedCount } from './instructionModel'
 
-type Sheet = 'edit' | 'preview'
+type Sheet = 'edit' | 'render'
 
-/** 右列：一份正文写进所选的全部目标文件；应用前先看差异，删除前先确认受管块处理。 */
+/**
+ * 右列：一份正文写进所选的全部目标文件。动作在标题右侧：「预览变更」打开差异抽屉、在抽屉里确认「应用」；
+ * 删除收在 ⋯ 菜单里，先确认受管块处理。所选文件都与正文一致时没有可写的变更，「预览变更」禁用。
+ */
 export function InstructionEditor({
-  level, title, root, targets, targetIds, text, onText, external, busy, errorKey, onPreview, onApply, onDelete, onReload, onDismissExternal,
+  title, root, targets, targetIds, text, onText, external, busy, errorKey, onPreview, onApply, onDelete, onReload, onDismissExternal,
 }: {
-  level: 'project' | 'user'
   title: string
   root: string
   targets: readonly InstructionTarget[]
@@ -35,13 +38,17 @@ export function InstructionEditor({
   const { t } = useT()
   const sheets: SheetDef<Sheet>[] = [
     { id: 'edit', label: t('projects.edit') },
-    { id: 'preview', label: t('projects.preview') },
+    { id: 'render', label: t('projects.render') },
   ]
   const [sheet, setSheet] = useState<Sheet>('edit')
   const [diff, setDiff] = useState<readonly InstructionPreviewFile[] | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const canWrite = getToken() !== ''
   const kept = managedCount(targets, targetIds)
+  const changed = targetIds.some((id) => {
+    const target = targets.find((candidate) => candidate.id === id)
+    return target === undefined || fileStatus(target, text) !== 'same'
+  })
 
   return (
     <>
@@ -51,39 +58,33 @@ export function InstructionEditor({
         labelledBy={`proj-tab-${sheet}`}
         header={(
           <div className="grid gap-2">
-            <p className="text-caption font-semibold uppercase tracking-[.08em] text-(--accent)" data-testid="proj-eyebrow">
-              {t(level === 'project' ? 'projects.project_level' : 'projects.user_level')}
-            </p>
-            <h1 className="text-page font-bold tracking-[-.01em] text-text" data-testid="proj-title">{title}</h1>
+            <div className="flex min-w-0 items-center gap-3">
+              <h1 className="min-w-0 truncate text-page font-bold tracking-[-.01em] text-text" title={title} data-testid="proj-title">{title}</h1>
+              <div className="ml-auto flex flex-none items-center gap-2 whitespace-nowrap">
+                {!canWrite && <span className="text-caption text-text-3" data-testid="proj-no-token">{t('projects.no_token')}</span>}
+                <button
+                  type="button"
+                  className={BUTTON_SOLID}
+                  data-testid="proj-apply"
+                  disabled={!canWrite || busy || targetIds.length === 0 || !changed}
+                  onClick={() => { void (async () => { const files = await onPreview(); if (files !== null) setDiff(files) })() }}
+                >
+                  {t('projects.preview_changes')}
+                </button>
+                <MenuButton
+                  label={t('projects.more')}
+                  testId="proj-more"
+                  disabled={!canWrite || busy || targetIds.length === 0}
+                  items={[{ id: 'delete', label: t('projects.delete'), danger: true, onSelect: () => setConfirmDelete(true) }]}
+                />
+              </div>
+            </div>
             {root !== '' && (
               <p className="font-mono text-caption whitespace-nowrap overflow-x-auto text-text-3" data-testid="proj-root">{root}</p>
             )}
           </div>
         )}
         sheets={<SheetTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('projects.file')} idPrefix="proj" />}
-        footer={(
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className={BUTTON_SOLID}
-              data-testid="proj-apply"
-              disabled={!canWrite || busy || targetIds.length === 0}
-              onClick={() => { void (async () => { const files = await onPreview(); if (files !== null) setDiff(files) })() }}
-            >
-              {t('projects.apply')}
-            </button>
-            <button
-              type="button"
-              className={BUTTON_DANGER}
-              data-testid="proj-delete"
-              disabled={!canWrite || busy || targetIds.length === 0}
-              onClick={() => setConfirmDelete(true)}
-            >
-              {t('projects.delete')}
-            </button>
-            {!canWrite && <span className="text-caption text-text-3" data-testid="proj-no-token">{t('projects.no_token')}</span>}
-          </div>
-        )}
       >
         {external && (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-b bg-amber-t px-4 py-3" role="status" data-testid="proj-external">
@@ -112,7 +113,7 @@ export function InstructionEditor({
             onChange={(event) => onText(event.target.value)}
           />
         ) : (
-          <Markdown text={text} testId="proj-preview" density="compact" />
+          <Markdown text={text} testId="proj-render" density="compact" />
         )}
       </DetailColumn>
       {diff !== null && (
