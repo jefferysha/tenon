@@ -115,7 +115,8 @@ those, never class names.
   (per track branch) for the status line (「可进入验证」, never 「可进入verify」), the stage rail, cards, the review
   stage chip and record transitions (`TaskRecords` `stageLabelOf`).
 - Stage IO comes from `def.branches[change.track]?.effectiveIo ?? def.branches._base?.effectiveIo`.
-- `MiniPipeline` / `StageRail` colour segments with `bg-seg-done` / `bg-seg-now` / `bg-seg-next` only.
+- `MiniPipeline` / `StageRail` segments: 4px tall, 2px gap; done = `bg-green`, current = `bg-(--accent)`, future = `bg-border`.
+  Only `StageRail` pulses the current segment (GSAP); list-card `MiniPipeline` stays static.
 - `taskModel.stagesOf` maps a snapshot `current` segment to `done` when `change.archived === 'true'`: archiving
   leaves the phase on the last visited step, and the rail must not show a finished task as still running there.
   Stages the run never entered stay `todo` (test: `taskModel.test.tsx`
@@ -420,7 +421,7 @@ row names the skills that should produce it, and a stale row carries its one-wor
 
 ## Styling patterns
 
-- Tokens only (`text-text-2`, `bg-accent-t`, `border-border`, `bg-seg-now` …); no hex in components.
+- Tokens only (`text-text-2`, `bg-accent-t`, `border-border`, `bg-green` …); no hex in components.
 - Text steps: `text` / `text-2` / `text-3` are readable copy and stay ≥ 4.5:1 on card, bg, fill and surface-detail in
   every theme (`themeContrast.test.tsx`); `text-4` is decoration only (separators, disabled icons), never information.
 - Buttons come from `shared/uiRecipes` (`BUTTON_SOLID` / `GHOST` / `DANGER` / `ICON`): hit area ≥ 40px (`min-h-10` /

@@ -148,12 +148,12 @@ describe('任务卡', () => {
     expect(screen.getByTestId('task-summary-c')).toHaveAttribute('data-tone', 'pending')
   })
 
-  it('迷你流水线：当前段是浅底 + 40% 内填；单阶段工作流不画分段条', () => {
+  it('迷你流水线：当前段是强调色实段（与阶段轨同款）；单阶段工作流不画分段条', () => {
     renderView()
     const pipeline = screen.getByTestId('task-pipeline-a')
     const current = pipeline.querySelector('[data-status="current"]')
-    expect(current?.className).toContain('bg-seg-now-t')
-    expect(screen.getByTestId('task-pipeline-a-now').className).toContain('w-2/5')
+    expect(current?.className).toContain('bg-(--accent)')
+    expect(current?.childElementCount).toBe(0)
     cleanup()
     const single = makeChange('solo', 'only')
     renderView({}, [{ ...single, workflowRules: { ...single.workflowRules, steps: ['only'], transitions: {} } }])

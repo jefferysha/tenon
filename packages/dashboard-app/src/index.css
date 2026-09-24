@@ -43,9 +43,8 @@
   --red: #c9503f; --red-d: #a33a32; --red-t: #fae5e2; --red-b: #efc9c3;
   --purple: #6b5f9e; --purple-d: #544a80; --purple-t: #f0eef8; --purple-b: #d7d0ec;
   --amber-d: #9a6212; --amber-t: #fbf0dc; --amber-b: #e9d5ae;
-  /* 模板专用语义（工作空间原型 styles.css :root 同源）：进行中蓝、阶段轨三段、选中行、右列底。 */
+  /* 模板专用语义（工作空间原型 styles.css :root 同源）：进行中蓝、选中行、右列底。 */
   --info: #4a7194; --info-d: #2b5b93; --info-t: #e4edf7; --info-b: #c3d6ee;
-  --seg-done: #2a6b45; --seg-now: #b26a18; --seg-now-t: #f7ecdc; --seg-next: #e2e6e1;
   /* 选中是中性偏绿：浅底 + 左侧深绿灰边，不再用蓝。 */
   --sel-bg: #eef1f0; --sel-border: #d9dfdc; --sel-edge: #3d5a4c;
   --surface-detail: #fafaf8;
@@ -93,7 +92,6 @@
     --purple: #a294dc; --purple-d: #c4baec; --purple-t: rgba(162,148,220,.15); --purple-b: rgba(162,148,220,.42);
     --amber-d: #e0ad6a; --amber-t: rgba(224,173,106,.13); --amber-b: rgba(224,173,106,.40);
     --info: #6ea5e6; --info-d: #9cc3f0; --info-t: rgba(110,165,230,.14); --info-b: rgba(110,165,230,.42);
-    --seg-done: #74c29e; --seg-now: #e0ad6a; --seg-now-t: rgba(224,173,106,.16); --seg-next: #2c2f2c;
     --sel-bg: #1f2521; --sel-border: #313a34; --sel-edge: #8fb5a2;
     --surface-detail: #161816;
     --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
@@ -125,9 +123,8 @@
   --red: #c9503f; --red-d: #a33a32; --red-t: #fae5e2; --red-b: #efc9c3;
   --purple: #6b5f9e; --purple-d: #544a80; --purple-t: #f0eef8; --purple-b: #d7d0ec;
   --amber-d: #9a6212; --amber-t: #fbf0dc; --amber-b: #e9d5ae;
-  /* 模板专用语义（工作空间原型 styles.css :root 同源）：进行中蓝、阶段轨三段、选中行、右列底。 */
+  /* 模板专用语义（工作空间原型 styles.css :root 同源）：进行中蓝、选中行、右列底。 */
   --info: #4a7194; --info-d: #2b5b93; --info-t: #e4edf7; --info-b: #c3d6ee;
-  --seg-done: #2a6b45; --seg-now: #b26a18; --seg-now-t: #f7ecdc; --seg-next: #e2e6e1;
   /* 选中是中性偏绿：浅底 + 左侧深绿灰边，不再用蓝。 */
   --sel-bg: #eef1f0; --sel-border: #d9dfdc; --sel-edge: #3d5a4c;
   --surface-detail: #fafaf8;
@@ -163,7 +160,6 @@
   --purple: #a294dc; --purple-d: #c4baec; --purple-t: rgba(162,148,220,.15); --purple-b: rgba(162,148,220,.42);
   --amber-d: #e0ad6a; --amber-t: rgba(224,173,106,.13); --amber-b: rgba(224,173,106,.40);
   --info: #6ea5e6; --info-d: #9cc3f0; --info-t: rgba(110,165,230,.14); --info-b: rgba(110,165,230,.42);
-  --seg-done: #74c29e; --seg-now: #e0ad6a; --seg-now-t: rgba(224,173,106,.16); --seg-next: #2c2f2c;
   --sel-bg: #1f2521; --sel-border: #313a34; --sel-edge: #8fb5a2;
   --surface-detail: #161816;
   --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
@@ -289,10 +285,6 @@
   --color-info-d: var(--info-d);
   --color-info-t: var(--info-t);
   --color-info-b: var(--info-b);
-  --color-seg-done: var(--seg-done);
-  --color-seg-now: var(--seg-now);
-  --color-seg-now-t: var(--seg-now-t);
-  --color-seg-next: var(--seg-next);
   --color-sel-bg: var(--sel-bg);
   --color-sel-border: var(--sel-border);
   --color-sel-edge: var(--sel-edge);
