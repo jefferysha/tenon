@@ -1,20 +1,42 @@
-/** 顶部条：无面包屑（A3）、待决策徽标常驻 + Tooltip + 点击回调（A6）、设置面板分段控件（G1）。 */
-import { fireEvent, render, screen, within } from '@testing-library/react'
+/**
+ * 顶部条：无面包屑、导航紧跟项目切换器且带共享指示块、待决策徽标（0 不渲染、绝对定位不挤导航）、
+ * 项目菜单与设置弹层是 Radix（键盘可操作）、设置弹层顶边对齐顶栏下沿、连接状态只留点（文字进 Tooltip）。
+ */
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Flip } from 'gsap/Flip'
 import { I18nProvider } from '../i18n'
 import type { Lang } from '../i18n/translations'
-import { TopBar } from './TopBar'
-import type { ThemePreference } from './views'
+import { TopBar, type TopBarProject } from './TopBar'
+import type { ThemePreference, View } from './views'
 
-function renderBar(over: { decisionCount?: number; onDecisions?: () => void; theme?: ThemePreference; lang?: Lang; onTheme?: (t: ThemePreference) => void; onLang?: (l: Lang) => void } = {}) {
+const PROJECTS: TopBarProject[] = [
+  { root: '/w/alpha', name: 'alpha', count: 3, ok: true },
+  { root: '/w/beta', name: 'beta', count: 1, ok: false },
+]
+
+interface Over {
+  decisionCount?: number
+  onDecisions?: () => void
+  theme?: ThemePreference
+  lang?: Lang
+  onTheme?: (t: ThemePreference) => void
+  onLang?: (l: Lang) => void
+  onRoot?: (root: string) => void
+  currentRoot?: string
+  connected?: boolean
+  view?: View
+}
+
+function renderBar(over: Over = {}) {
   const props = {
-    view: 'progress' as const,
+    view: over.view ?? ('progress' as View),
     onView: () => undefined,
-    projects: [],
-    currentRoot: '',
-    onRoot: () => undefined,
-    connected: true,
+    projects: PROJECTS,
+    currentRoot: over.currentRoot ?? '',
+    onRoot: over.onRoot ?? (() => undefined),
+    connected: over.connected ?? true,
     lang: over.lang ?? ('zh' as Lang),
     onLang: over.onLang ?? (() => undefined),
     theme: over.theme ?? ('system' as ThemePreference),
@@ -26,11 +48,19 @@ function renderBar(over: { decisionCount?: number; onDecisions?: () => void; the
   }
   const view = render(<I18nProvider><TopBar {...props} /></I18nProvider>)
   return {
-    rerender: (count: number) => view.rerender(<I18nProvider><TopBar {...props} decisionCount={count} /></I18nProvider>),
+    rerender: (next: Partial<typeof props>) => view.rerender(<I18nProvider><TopBar {...props} {...next} /></I18nProvider>),
   }
 }
 
+const classesOf = (element: Element): string[] => element.className.split(/\s+/u)
+
+beforeEach(() => {
+  // Radix Tooltip / Popper 用 ResizeObserver 量尺寸；jsdom 没有它。
+  vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
+})
+
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -41,21 +71,33 @@ describe('TopBar', () => {
     expect(screen.getAllByText('工作台')).toHaveLength(1)
   })
 
-  it('徽标常驻：0 时占位不可见、不可聚焦；变 1 时同一节点显形，不插入新节点', () => {
+  it('导航左对齐、紧跟项目切换器（不居中）；连接状态之后的一组靠右', () => {
+    renderBar()
+    const nav = screen.getByTestId('primary-nav')
+    expect(classesOf(nav)).toContain('ml-4')
+    expect(classesOf(nav)).not.toContain('mx-auto')
+    expect(screen.getByTestId('project-switcher').compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(classesOf(screen.getByTestId('conn-indicator').parentElement!)).toContain('ml-auto')
+  })
+
+  it('徽标：0 时不渲染；>0 时绝对定位在工作台标签右上角，不占导航宽度', () => {
     const { rerender } = renderBar({ decisionCount: 0 })
+    expect(screen.queryByTestId('progress-badge')).toBeNull()
+    rerender({ decisionCount: 3 })
     const badge = screen.getByTestId('progress-badge')
-    expect(badge.className.split(/\s+/u)).toContain('invisible')
-    expect(badge).toHaveAttribute('tabindex', '-1')
-    rerender(3)
-    expect(screen.getByTestId('progress-badge')).toBe(badge)
-    expect(badge.className.split(/\s+/u)).not.toContain('invisible')
     expect(badge).toHaveTextContent('3')
     expect(badge).toHaveAccessibleName('待决策 3')
+    expect(classesOf(badge)).toEqual(expect.arrayContaining(['absolute', '-top-1', '-right-1', 'rounded-full', 'bg-amber-t', 'text-amber-d', 'tabular-nums', 'min-w-5', 'h-5']))
+    // 与工作台标签是兄弟按钮，不嵌套交互元素；共用一个相对定位的包裹。
+    const tab = screen.getByTestId('nav-progress')
+    expect(tab).not.toContainElement(badge)
+    expect(badge.parentElement).toBe(tab.parentElement)
+    expect(classesOf(tab.parentElement!)).toContain('relative')
+    rerender({ decisionCount: 0 })
+    expect(screen.queryByTestId('progress-badge')).toBeNull()
   })
 
   it('聚焦徽标出现 Tooltip「待决策 N」；点击调用 onDecisions', async () => {
-    // Radix Tooltip 用 ResizeObserver 量箭头；jsdom 没有它。
-    vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
     const onDecisions = vi.fn()
     renderBar({ decisionCount: 2, onDecisions })
     const badge = screen.getByTestId('progress-badge')
@@ -69,20 +111,121 @@ describe('TopBar', () => {
     expect(onDecisions).toHaveBeenCalledTimes(1)
   })
 
-  it('设置面板：主题与语言两行分段控件显示当前值，点选即回调目标值', () => {
+  it('当前页：字色 + 字重，选中底色来自导航内的共享指示块；切页时指示块用 Flip 滑动', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }))
+    const from = vi.spyOn(Flip, 'from')
+    const { rerender } = renderBar({ view: 'progress' })
+    const tab = screen.getByTestId('nav-progress')
+    expect(tab).toHaveAttribute('aria-current', 'page')
+    expect(classesOf(tab).some((name) => name.startsWith('aria-[current=page]:bg-'))).toBe(false)
+    const indicator = screen.getByTestId('nav-indicator')
+    expect(indicator).toHaveAttribute('aria-hidden', 'true')
+    expect(indicator).toHaveAttribute('data-placed', 'true')
+    expect(classesOf(indicator)).toEqual(expect.arrayContaining(['bg-accent-t', 'rounded-sm']))
+    rerender({ view: 'skills' })
+    await act(async () => { await Promise.resolve() })
+    expect(from).toHaveBeenCalledTimes(1)
+    expect(from.mock.calls[0]?.[1]).toMatchObject({ duration: 0.22, ease: 'power3.out' })
+  })
+
+  it('当前页切换在 reduced-motion 下指示块直接到位，不动画', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), media: query, addEventListener: () => undefined, removeEventListener: () => undefined }))
+    const from = vi.spyOn(Flip, 'from')
+    const { rerender } = renderBar({ view: 'progress' })
+    rerender({ view: 'library' })
+    await act(async () => { await Promise.resolve() })
+    expect(from).not.toHaveBeenCalled()
+    expect(screen.getByTestId('nav-indicator')).toHaveAttribute('data-placed', 'true')
+  })
+
+  it('项目菜单（Radix）：Enter 打开、方向键移动、Enter 选中；当前项为 menuitemradio checked', async () => {
+    const user = userEvent.setup()
+    const onRoot = vi.fn()
+    renderBar({ onRoot, currentRoot: '/w/alpha' })
+    const trigger = screen.getByTestId('project-switcher')
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    const menu = await screen.findByTestId('project-menu')
+    expect(menu).toHaveAttribute('role', 'menu')
+    expect(menu).toHaveAccessibleName('项目列表')
+    expect(within(menu).getByTestId('project-item-alpha')).toHaveAttribute('role', 'menuitemradio')
+    expect(within(menu).getByTestId('project-item-alpha')).toHaveAttribute('aria-checked', 'true')
+    expect(within(menu).getByTestId('project-item-all')).toHaveAttribute('aria-checked', 'false')
+    expect(within(menu).getByTestId('project-item-beta')).toHaveAttribute('title', '/w/beta')
+    await user.keyboard('{ArrowDown}')
+    await user.keyboard('{ArrowDown}')
+    await user.keyboard('{Enter}')
+    expect(onRoot).toHaveBeenCalledTimes(1)
+    expect(onRoot).toHaveBeenCalledWith('/w/beta')
+    expect(screen.queryByTestId('project-menu')).toBeNull()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('项目菜单：点选项目回调 root；Esc 关闭并把焦点还给切换器', async () => {
+    const user = userEvent.setup()
+    const onRoot = vi.fn()
+    renderBar({ onRoot })
+    await user.click(screen.getByTestId('project-switcher'))
+    await user.click(await screen.findByTestId('project-item-beta'))
+    expect(onRoot).toHaveBeenCalledWith('/w/beta')
+    await user.click(screen.getByTestId('project-switcher'))
+    await screen.findByTestId('project-menu')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByTestId('project-menu')).toBeNull()
+    expect(screen.getByTestId('project-switcher')).toHaveFocus()
+  })
+
+  it('设置面板：主题与语言两行分段控件显示当前值，点选即回调目标值；滑块是共享指示块', async () => {
     const onTheme = vi.fn()
     const onLang = vi.fn()
     renderBar({ theme: 'dark', lang: 'zh', onTheme, onLang })
     fireEvent.click(screen.getByTestId('nav-settings'))
+    const panel = await screen.findByTestId('nav-settings-panel')
+    expect(panel).toHaveAttribute('role', 'dialog')
+    expect(screen.getByTestId('nav-settings')).toHaveAttribute('aria-expanded', 'true')
     const theme = screen.getByRole('radiogroup', { name: '主题' })
     expect(within(theme).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['系统', '浅色', '深色'])
     expect(within(theme).getByRole('radio', { name: '深色' })).toHaveAttribute('aria-checked', 'true')
+    expect(classesOf(screen.getByTestId('theme-toggle-indicator'))).toEqual(expect.arrayContaining(['bg-card', 'shadow-sm']))
     fireEvent.click(within(theme).getByRole('radio', { name: '系统' }))
     expect(onTheme).toHaveBeenCalledWith('system')
     const lang = screen.getByRole('radiogroup', { name: '语言' })
     expect(within(lang).getByRole('radio', { name: '中文' })).toHaveAttribute('aria-checked', 'true')
     fireEvent.keyDown(within(lang).getByRole('radio', { name: '中文' }), { key: 'ArrowRight' })
     expect(onLang).toHaveBeenCalledWith('en')
-    expect(screen.getByRole('button', { name: '关闭对话框' }).className.split(/\s+/u)).toContain('size-10')
+    const close = screen.getByRole('button', { name: '关闭对话框' })
+    expect(classesOf(close)).toContain('size-10')
+    fireEvent.click(close)
+    expect(screen.queryByTestId('nav-settings-panel')).toBeNull()
+  })
+
+  it('设置弹层顶边对齐顶栏下沿：sideOffset = 顶栏底边 - 齿轮底边', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const bottom = this.dataset.testid === 'top-bar' ? 68 : this.dataset.testid === 'nav-settings' ? 54 : 0
+      return { left: 0, top: 0, right: 0, bottom, width: 0, height: bottom, x: 0, y: 0, toJSON: () => ({}) }
+    })
+    renderBar()
+    fireEvent.click(screen.getByTestId('nav-settings'))
+    expect(await screen.findByTestId('nav-settings-panel')).toHaveAttribute('data-side-offset', '14')
+  })
+
+  it('设置弹层：Esc 关闭', async () => {
+    const user = userEvent.setup()
+    renderBar()
+    await user.click(screen.getByTestId('nav-settings'))
+    await screen.findByTestId('nav-settings-panel')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByTestId('nav-settings-panel')).toBeNull()
+  })
+
+  it('连接状态只留状态点，文字进 Tooltip；可聚焦', async () => {
+    renderBar({ connected: false })
+    const conn = screen.getByTestId('conn-indicator')
+    expect(conn).toHaveAttribute('data-on', 'false')
+    expect(conn.textContent).toBe('')
+    expect(conn).toHaveAccessibleName('连接断开——数据可能过期')
+    conn.focus()
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('连接断开——数据可能过期')
   })
 })
