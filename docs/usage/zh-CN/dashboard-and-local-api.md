@@ -100,6 +100,19 @@ AFK、Machine、Host Plan 等低频能力从设置面板进入，仍保留原有
 
 工作台把 Track、七阶段 DAG、每步声明的技能、Hook 与运行前事实放在同一页面。Default 只读基线、自定义 Workflow 和每个 Workflow 的 Free Track 都从同一份有效计划投影。
 
+### 项目
+
+项目页左列只列已注册项目。选中项目后，中列是该项目启用的 agent 客户端；读同一个项目级文件的客户端（例如多个客户端都读 `AGENTS.md`）合并为一行。每个客户端可切换编辑项目级或用户级指令文件。启用的客户端随项目保存在 `<项目>/.tenon/clients.json`：
+
+```json
+{ "schema": "tenon-clients/v1", "enabled": ["claude", "codex"] }
+```
+
+该文件应随项目提交（`.tenon/.gitignore` 只忽略每个用户的 `local/` 目录）。文件不存在时按已有指令文件推断（`CLAUDE.md` → `claude`、`AGENTS.md` → `codex`、`GEMINI.md` → `gemini`）。打开页面与预览都不会新建文件。
+
+- `GET /api/projects/clients?root=<已注册根>` → `{ "enabled": [...], "source": "file" | "inferred" }`；文件格式不合法返回 `409 clients-file-invalid`。
+- `POST /api/projects/clients`，请求体 `{ "root", "enabled" }`，整份替换并返回 `{ "enabled": [...], "source": "file" }`。只接受已知客户端 id（其余在 `400 unknown-client` 中列出），去重排序后原子写入；需要声明身份（`412 user-missing`），每次写入追加一行审计；外部并发修改返回 `409 clients-file-changed`。
+
 ### 技能
 
 技能页（`?view=skills`）只读列出 Tenon 自有技能与 `skills/sources.yaml` 声明的上游技能：来源仓库与目录、已安装提交（变化时给出上一提交的对比链接）、许可证、更新时间与状态。数据来自 `GET /api/skills/sources`，即 setup/update 写入的 `skills/skills.lock.json` 与最近一次获取结果，页面本身不联网、不触发安装。

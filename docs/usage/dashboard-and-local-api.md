@@ -88,6 +88,34 @@ The workbench places Tracks, the seven-phase DAG, the skills each step declares,
 pre-run facts on one page. The read-only default baseline, custom Workflows,
 and each Workflow's free Track come from the same effective plan.
 
+### Projects
+
+The Projects page lists registered projects only. For the selected project it
+shows the agent clients the project has enabled. Clients that read the same
+project file (for example several clients reading `AGENTS.md`) share one row.
+For each client you edit either its project-level or its user-level
+instruction file. The enabled set belongs to the project and lives in
+`<project>/.tenon/clients.json`:
+
+```json
+{ "schema": "tenon-clients/v1", "enabled": ["claude", "codex"] }
+```
+
+The file is meant to be committed; `.tenon/.gitignore` only ignores each user's
+`local/` directory. When the file is absent, the set is inferred from existing
+instruction files (`CLAUDE.md` → `claude`, `AGENTS.md` → `codex`, `GEMINI.md` →
+`gemini`). Opening the page or previewing never creates files.
+
+- `GET /api/projects/clients?root=<registered root>` →
+  `{ "enabled": [...], "source": "file" | "inferred" }`; a malformed file
+  answers `409 clients-file-invalid`.
+- `POST /api/projects/clients` with `{ "root", "enabled" }` replaces the whole
+  set and answers `{ "enabled": [...], "source": "file" }`. Only known client
+  ids are accepted (`400 unknown-client` lists the rest), ids are deduplicated
+  and sorted, and the file is written atomically. The request needs a declared
+  identity (`412 user-missing`) and appends one audit row. A concurrent
+  external edit answers `409 clients-file-changed`.
+
 ### Skills
 
 `/?view=skills` lists the Tenon-owned Skills and every upstream Skill declared in
