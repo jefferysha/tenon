@@ -1,4 +1,5 @@
-import { aliasesForSkill } from '@tenon/kernel/workflow/document-contract-validation'
+import { TENON_PRODUCER, aliasesForSkill } from '@tenon/kernel/workflow/document-contract-validation'
+import type { WbIoSlot } from '../api/governanceTypes'
 
 function bareName(skill: string): string {
   const colon = skill.indexOf(':')
@@ -14,4 +15,24 @@ export function producerSkills(candidates: readonly string[], stageSkills: reado
 export function skillsEquivalent(left: string, right: string): boolean {
   const aliases = new Set(aliasesForSkill(left))
   return aliasesForSkill(right).some((alias) => aliases.has(alias))
+}
+
+/**
+ * OpenSpec 注入的技能：本阶段文档契约里 role produce 槽位点名的产出技能——运行时按同一份契约要求它登记产物
+ * （kernel materializeWorkflowIo 的 producers，documentKindsProducedBySkillAtPolicyStep 据此绑定）。每个槽位的
+ * 候选互为别名（openspec-propose ≡ opsx:propose），取第一个；阶段已声明其中任一个、或候选只有编排器 `tenon`
+ * 时不算注入。
+ */
+export function openspecSkills(outputs: readonly WbIoSlot[], stageSkills: readonly string[]): string[] {
+  const injected: string[] = []
+  for (const slot of outputs) {
+    if (slot.kind !== 'document' || slot.role !== 'produce') continue
+    const candidates = slot.producers.filter((candidate) => !aliasesForSkill(candidate).includes(TENON_PRODUCER))
+    const first = candidates[0]
+    if (first === undefined) continue
+    const known = [...stageSkills, ...injected]
+    if (candidates.some((candidate) => known.some((skill) => skillsEquivalent(skill, candidate)))) continue
+    injected.push(first)
+  }
+  return injected
 }

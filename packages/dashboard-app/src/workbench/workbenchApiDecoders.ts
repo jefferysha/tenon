@@ -1,4 +1,3 @@
-export const STAGE_ID_RE = /^[a-zA-Z0-9_-]+$/
 
 export function slugifyStageName(name: string): string {
   return name.trim().toLowerCase()
@@ -161,4 +160,27 @@ export async function readWorkflowDeleteResponse(response: Response): Promise<Wo
   } catch {
     return { kind: 'invalid' }
   }
+}
+
+export interface WorkflowReferenceEntry {
+  kind: 'track' | 'loop' | 'template'
+  name: string
+}
+
+/** 服务端引用清单（`change:x` / `track:x` / `loop:x` / `template:x`）→ 引用它的任务名与其它引用，各自去重。 */
+export function splitWorkflowReferences(
+  references: ReadonlyArray<{ kind: string; source: string }>,
+): { tasks: string[]; references: WorkflowReferenceEntry[] } {
+  const tasks: string[] = []
+  const others: WorkflowReferenceEntry[] = []
+  for (const { kind, source } of references) {
+    const name = source.slice(source.indexOf(':') + 1)
+    if (kind === 'active-change') {
+      if (!tasks.includes(name)) tasks.push(name)
+      continue
+    }
+    const category = kind === 'loop-binding' ? 'loop' : kind === 'policy-template-recommended' ? 'template' : 'track'
+    if (!others.some((entry) => entry.kind === category && entry.name === name)) others.push({ kind: category, name })
+  }
+  return { tasks, references: others }
 }

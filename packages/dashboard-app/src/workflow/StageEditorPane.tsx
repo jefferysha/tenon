@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useGSAP } from '@gsap/react'
-import { Check, Pencil, Plus } from 'lucide-react'
+import { AlertTriangle, Check, Pencil, Plus } from 'lucide-react'
 import { DOCUMENT_KIND_CATALOG } from '@tenon/kernel/workflow/document-contract-model'
 import type { WbExecutorRef, WbIoSlot, WbReviewerRef, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
@@ -14,7 +14,8 @@ import { AgentSection } from './AgentSection'
 import { issuesFor } from './lint'
 import { lintMessage } from './lintMessages'
 import { IoTable, type IoRow } from './IoTable'
-import { producerSkills } from './producers'
+import { Hint } from './Hint'
+import { openspecSkills, producerSkills } from './producers'
 import { SkillComposer } from './SkillComposer'
 import { SkillDetailDrawer } from './SkillDetail'
 import { TestEditorDrawer } from './TestEditorDrawer'
@@ -78,6 +79,10 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const yamlBase = editor.branch === BASE_BRANCH ? `steps[${step.id}]` : `tracks.${editor.branch}.steps[${step.id}]`
   const contractBase = editor.branch === BASE_BRANCH ? 'document_contract' : `tracks.${editor.branch}.document_contract`
   const stageSkills = step.skills.map((skill) => skill.id)
+  // OpenSpec 注入：文档契约要求本阶段产出者登记，但阶段没声明的技能（如立项的 openspec-propose）。
+  const injectedOf = (candidate: WbStepDef): string[] => openspecSkills(editor.effectiveIo?.[candidate.id]?.outputs ?? [], candidate.skills.map((skill) => skill.id))
+  const injected = injectedOf(step)
+  const flowSkills = [...step.skills, ...injected.map((id) => ({ id }))]
   const stageLabel = editor.labelOf(step.id)
   const documentsEditable = editable && def?.openspec === true
   const outputChoices = documentsEditable && def !== null ? documentKindsForOutput(def, step.id) : []
@@ -99,7 +104,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const outputRows: IoRow[] = (stepIo?.outputs ?? []).map((slot) => ({
     slot,
     stage: stageLabel,
-    skills: slot.kind === 'document' ? producerSkills(slot.producers, stageSkills) : stageSkills,
+    skills: slot.kind === 'document' ? producerSkills(slot.producers, [...stageSkills, ...injected]) : stageSkills,
     path: slot.kind === 'document' ? `${contractBase}.slots[${slot.id}]` : `${yamlBase}.outputs[${slot.id}]`,
   }))
   function producerStepOf(slot: WbIoSlot): WbStepDef | undefined {
@@ -111,7 +116,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   // 输入侧文档槽位的 producers 是产出阶段 id；技能候选回到那个阶段的输出槽位上取。
   const inputRows: IoRow[] = (stepIo?.inputs ?? []).map((slot) => {
     const producer = producerStepOf(slot)
-    const producerSkillIds = (producer?.skills ?? []).map((skill) => skill.id)
+    const producerSkillIds = producer === undefined ? [] : [...producer.skills.map((skill) => skill.id), ...injectedOf(producer)]
     const candidates = producer === undefined || slot.kind !== 'document'
       ? []
       : (editor.effectiveIo?.[producer.id]?.outputs ?? []).flatMap((output) => output.kind === 'document' && output.id === slot.id ? output.producers : [])
@@ -186,7 +191,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
       {/* relative：sr-only 等绝对定位后代要以本滚动容器为包含块，否则它们会越过裁切把整页撑出滚动条。 */}
       <div className="relative min-h-0 flex-1 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4 max-[900px]:pt-5">
         {/* 无凭证是错误，直接放右栏顶部（保存条不会出现）；保存失败的原因由保存条自己给。 */}
-        {!editable && <p className="mb-3 truncate whitespace-nowrap text-caption text-red-d" role="alert" data-testid="wb-no-token">{t('workflow.no_token')}</p>}
+        {!editable && editor.readOnly !== true && <p className="mb-3 truncate whitespace-nowrap text-caption text-red-d" role="alert" data-testid="wb-no-token">{t('workflow.no_token')}</p>}
         <div className="flex items-start gap-3" data-testid="stage-actions">
           <span className="sr-only" data-testid={`wb-lane-name-${step.id}`}>{stageLabel}</span>
           <input
@@ -213,7 +218,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
           <section className="grid gap-3.5 py-6" data-testid="stage-skills">
             <SectionHead
               title={t('workflow.skills_title')}
-              count={step.skills.length}
+              count={flowSkills.length}
               action={editable ? (
                 <button type="button" className={HEAD_ACTION} data-testid="wb-skills-edit" onClick={() => setComposerOpen(true)}>
                   <Pencil className="size-3.5" aria-hidden="true" />
@@ -221,9 +226,9 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
                 </button>
               ) : undefined}
             />
-            {step.skills.length === 0
+            {flowSkills.length === 0
               ? <p className="text-body text-text-3" data-testid="stage-skills-empty">{t('workflow.no_skills')}</p>
-              : <SkillFlow key={step.id} skills={step.skills} registry={registry} editable={false} onOpen={setSkillDetail} />}
+              : <SkillFlow key={step.id} skills={flowSkills} injected={injected} registry={registry} editable={false} onOpen={setSkillDetail} />}
           </section>
 
           <AgentSection
@@ -266,7 +271,17 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
 
           <section className="grid gap-3.5 py-6" data-testid="stage-gate">
             <SectionHead title={t('workflow.gate_title')} />
-            <GateSegment stepId={step.id} value={step.gate} disabled={!editable} onChange={(gate) => editor.setGate(step.id, gate)} />
+            <div className="flex items-center gap-2">
+              <GateSegment stepId={step.id} value={step.gate} disabled={!editable} onChange={(gate) => editor.setGate(step.id, gate)} />
+              {/* 自动门禁看的是产物齐全；阶段没有输出时它无从判断，标警示图标，原因放 Tooltip。 */}
+              {step.gate === 'auto' && outputRows.length === 0 && (
+                <Hint label={t('workflow.gate_auto_no_output')}>
+                  <button type="button" className="grid size-8 flex-none place-items-center rounded-sm text-amber-d outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" aria-label={t('workflow.gate_auto_no_output')} data-testid="stage-gate-auto-warning">
+                    <AlertTriangle className="size-4" aria-hidden="true" />
+                  </button>
+                </Hint>
+              )}
+            </div>
           </section>
 
           {/* 第一个阶段没有退回目标、不出下拉；但导入的 YAML 可能让它带着往后跳的边，问题仍要在这里说出来。 */}
@@ -292,8 +307,9 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
             </section>
           )}
         </div>
-        <SaveBar editor={editor} className="-mx-10 -mb-8 mt-2 px-10 py-3 max-[900px]:-mx-4 max-[900px]:px-4" />
       </div>
+      {/* 保存条在滚动区之外：出现时挤小滚动区，不盖住最后一段（门禁 / 退回）。 */}
+      <SaveBar editor={editor} className="px-10 py-3 max-[900px]:px-4" />
 
       <SkillComposer
         open={composerOpen}

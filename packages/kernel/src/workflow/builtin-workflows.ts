@@ -1,4 +1,5 @@
 import type { WorkflowDef } from './types.js'
+import { BUILTIN_WORKFLOW_IDS, type BuiltinWorkflowId } from './identifier.js'
 
 /**
  * Versioned, plugin-owned workflows. Project files cannot shadow these identities.
@@ -66,8 +67,7 @@ const SIMPLE_WORKFLOW: WorkflowDef = {
   ],
 }
 
-export const BUILTIN_WORKFLOW_IDS = ['simple'] as const
-export type BuiltinWorkflowId = (typeof BUILTIN_WORKFLOW_IDS)[number]
+export { BUILTIN_WORKFLOW_IDS, type BuiltinWorkflowId }
 
 export function builtinWorkflow(name: string): WorkflowDef | null {
   if (name !== 'simple') return null

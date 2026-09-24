@@ -23,7 +23,12 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
   const [initial] = useState(() => {
     try { return parseWorkflowLocation(window.location.search) } catch { return {} }
   })
-  const editor = useWorkflowEditor({ root, onDirtyChange, initial })
+  const editor = useWorkflowEditor({
+    root,
+    onDirtyChange,
+    initial,
+    onDeleted: (name, restored) => onToast?.(t(restored ? 'workflow.restored_toast' : 'workflow.deleted_toast', { name })),
+  })
   const stageId = editor.selectedStep?.id ?? null
   // 当前选择写进 URL（replace，不产生历史项）：刷新、复制链接都回到同一个工作流 / 轨道 / 阶段。
   useEffect(() => {
@@ -79,6 +84,8 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
             loading={editor.def === null && editor.defErrorText === null}
             error={editor.namesErrorText ?? editor.defErrorText}
             canWrite={editor.canWrite}
+            readOnly={editor.readOnly}
+            canCreate={editor.hasToken}
             busy={editor.saving || editor.create.busy}
             openspec={editor.def?.openspec === true}
             onToggleOpenspec={() => editor.setOpenspec(editor.def?.openspec !== true)}
@@ -151,13 +158,8 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
         addStageOpen={editor.stageDraft.addStageOpen}
         addStageNameRef={editor.stageDraft.addStageNameRef}
         stageDraftName={editor.stageDraft.stageDraftName}
-        stageDraftId={editor.stageDraft.stageDraftId}
-        stageIdTouched={editor.stageDraft.stageIdTouched}
-        stageIdError={editor.stageDraft.stageIdError}
         canSubmitStage={editor.stageDraft.canSubmitStage}
         onStageDraftName={editor.stageDraft.setStageDraftName}
-        onStageDraftId={editor.stageDraft.setStageDraftId}
-        onStageIdTouched={() => editor.stageDraft.setStageIdTouched(true)}
         onCloseAddStage={editor.stageDraft.closeAddStage}
         onConfirmAddStage={editor.stageDraft.confirmAddStage}
       />

@@ -1,6 +1,5 @@
 import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
-import { useT } from '../i18n'
-import { STAGE_ID_RE } from './workbenchApiDecoders'
+import { slugifyStageName } from './workbenchApiDecoders'
 import type { WbStepDef, WbWorkflowDef } from './workbenchDefinition'
 
 interface StageDraftInput {
@@ -15,46 +14,44 @@ interface StageDraftController {
   setAddStageOpen: Dispatch<SetStateAction<boolean>>
   stageDraftName: string
   setStageDraftName: Dispatch<SetStateAction<string>>
-  stageDraftId: string
-  setStageDraftId: Dispatch<SetStateAction<string>>
-  stageIdTouched: boolean
-  setStageIdTouched: Dispatch<SetStateAction<boolean>>
   addStageNameRef: RefObject<HTMLInputElement>
-  stageIdError: string | null
   canSubmitStage: boolean
   closeAddStage: () => void
   confirmAddStage: () => void
   draftDirty: boolean
 }
 
+/**
+ * 阶段 id 由名称自动生成：ASCII slug（小写、非 [a-z0-9_-] 折成 -），slug 为空（纯中文等）时用 `stage`；
+ * 与已有 id 重名就依次加 -2、-3……直到唯一。
+ */
+export function autoStageId(name: string, existing: readonly string[]): string {
+  const base = slugifyStageName(name) || 'stage'
+  const taken = new Set(existing)
+  if (!taken.has(base)) return base
+  let n = 2
+  while (taken.has(`${base}-${n}`)) n += 1
+  return `${base}-${n}`
+}
+
+/** 添加阶段只填名称；id 在确认时由 autoStageId 生成，新阶段插在所选阶段之后并接上流程。 */
 export function useStageDraftEditor(input: StageDraftInput): StageDraftController {
-  const { t } = useT()
   const [addStageOpen, setAddStageOpen] = useState(false)
   const [stageDraftName, setStageDraftName] = useState('')
-  const [stageDraftId, setStageDraftId] = useState('')
-  const [stageIdTouched, setStageIdTouched] = useState(false)
   const addStageNameRef = useRef<HTMLInputElement>(null)
-  const trimmedId = stageDraftId.trim()
-  const invalid = trimmedId.length > 0 && !STAGE_ID_RE.test(trimmedId)
-  const duplicate = trimmedId.length > 0 && !invalid && (input.def?.steps.some((step) => step.id === trimmedId) ?? false)
-  const stageIdError = invalid
-    ? t('workbench.add_stage_id_invalid')
-    : duplicate ? t('workbench.add_stage_id_dup') : null
-  const canSubmitStage = trimmedId.length > 0 && !invalid && !duplicate
+  const canSubmitStage = stageDraftName.trim().length > 0
 
   function closeAddStage(): void {
     setAddStageOpen(false)
     setStageDraftName('')
-    setStageDraftId('')
-    setStageIdTouched(false)
   }
 
   function confirmAddStage(): void {
     if (!canSubmitStage || !input.def) return
-    const id = trimmedId
     const label = stageDraftName.trim()
+    const id = autoStageId(label, input.def.steps.map((step) => step.id))
     input.setDef((current) => {
-      if (!current) return current
+      if (!current || current.steps.some((step) => step.id === id)) return current
       const selectedIndex = input.stageId ? current.steps.findIndex((step) => step.id === input.stageId) : -1
       const insertIndex = selectedIndex >= 0 ? selectedIndex + 1 : current.steps.length
       const previous = insertIndex > 0 ? current.steps[insertIndex - 1] : undefined
@@ -85,9 +82,8 @@ export function useStageDraftEditor(input: StageDraftInput): StageDraftControlle
   }
 
   return {
-    addStageOpen, setAddStageOpen, stageDraftName, setStageDraftName, stageDraftId, setStageDraftId,
-    stageIdTouched, setStageIdTouched, addStageNameRef, stageIdError, canSubmitStage,
+    addStageOpen, setAddStageOpen, stageDraftName, setStageDraftName, addStageNameRef, canSubmitStage,
     closeAddStage, confirmAddStage,
-    draftDirty: addStageOpen && (stageDraftName !== '' || stageDraftId !== ''),
+    draftDirty: addStageOpen && stageDraftName !== '',
   }
 }

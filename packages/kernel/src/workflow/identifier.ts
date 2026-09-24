@@ -19,3 +19,14 @@ export type TemplateWorkflowName = (typeof TEMPLATE_WORKFLOW_NAMES)[number]
 export function isTemplateWorkflowName(value: string): value is TemplateWorkflowName {
   return (TEMPLATE_WORKFLOW_NAMES as readonly string[]).includes(value)
 }
+
+/**
+ * 插件自有、版本化的只读工作流名（项目文件不能覆盖）。定义正文在 builtin-workflows.ts；名字放在这里，
+ * Dashboard 列出与判定只读时不必拉进定义本身。
+ */
+export const BUILTIN_WORKFLOW_IDS = ['simple'] as const
+export type BuiltinWorkflowId = (typeof BUILTIN_WORKFLOW_IDS)[number]
+
+export function isBuiltinWorkflowName(value: string): value is BuiltinWorkflowId {
+  return (BUILTIN_WORKFLOW_IDS as readonly string[]).includes(value)
+}

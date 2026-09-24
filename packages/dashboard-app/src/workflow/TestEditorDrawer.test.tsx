@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { TestEditorDrawer } from './TestEditorDrawer'
 import type { WbStepTest } from '../api/governanceTypes'
 
@@ -18,38 +19,49 @@ function open(test: WbStepTest | null, handlers: {
 } = {}) {
   return render(
     <I18nProvider>
-      <TestEditorDrawer
-        test={test}
-        editable={handlers.editable ?? true}
-        onApply={handlers.onApply ?? (() => undefined)}
-        onDelete={handlers.onDelete ?? (() => undefined)}
-        onClose={handlers.onClose ?? (() => undefined)}
-      />
+      <TooltipProvider>
+        <TestEditorDrawer
+          test={test}
+          editable={handlers.editable ?? true}
+          onApply={handlers.onApply ?? (() => undefined)}
+          onDelete={handlers.onDelete ?? (() => undefined)}
+          onClose={handlers.onClose ?? (() => undefined)}
+        />
+      </TooltipProvider>
     </I18nProvider>,
   )
 }
 
 describe('TestEditorDrawer', () => {
-  it('改命令后「应用」把整份改动交回；方向只读', async () => {
+  it('改动即时交回整份测试项（没有「应用」）；类型只读', () => {
     const onApply = vi.fn()
-    const onClose = vi.fn()
-    open(TEST, { onApply, onClose })
+    open(TEST, { onApply })
+    expect(screen.queryByTestId('wb-test-apply')).toBeNull()
     expect(screen.getByTestId('wb-test-direction').textContent).toBe('unit')
-    await userEvent.clear(screen.getByTestId('wb-test-command'))
-    await userEvent.type(screen.getByTestId('wb-test-command'), 'npm run unit')
-    await userEvent.click(screen.getByTestId('wb-test-apply'))
-    expect(onApply).toHaveBeenCalledWith({ ...TEST, command: 'npm run unit' })
-    expect(onClose).toHaveBeenCalled()
+    fireEvent.change(screen.getByTestId('wb-test-command'), { target: { value: 'npm run unit' } })
+    expect(onApply).toHaveBeenLastCalledWith({ ...TEST, command: 'npm run unit' })
   })
 
-  it('不点应用直接关闭不写回；删除要二次确认', async () => {
-    const onApply = vi.fn()
-    const onDelete = vi.fn()
-    open(TEST, { onApply, onDelete })
-    await userEvent.clear(screen.getByTestId('wb-test-command'))
-    await userEvent.type(screen.getByTestId('wb-test-command'), 'rm -rf /')
-    expect(onApply).not.toHaveBeenCalled()
+  it('「方向」改叫「类型」；每个字段的说明在问号 Tooltip 里，页面上不写句子', () => {
+    open(TEST)
+    const drawer = screen.getByTestId('test-editor-drawer')
+    expect(drawer).toHaveTextContent('类型')
+    expect(drawer).not.toHaveTextContent('方向')
+    expect(within(drawer).getByRole('button', { name: '在目录下执行的命令' })).toBeInTheDocument()
+    expect(within(drawer).getByRole('button', { name: '失败时挡住阶段出口' })).toBeInTheDocument()
+    expect(drawer).not.toHaveTextContent('在目录下执行的命令')
+  })
 
+  it('「必需」只出现一次：产物行只有勾选框，名称在 aria-label / Tooltip', () => {
+    open(TEST)
+    const drawer = screen.getByTestId('test-editor-drawer')
+    expect(drawer.textContent?.match(/必需/g)).toHaveLength(1)
+    expect(screen.getByTestId('wb-test-output-required-0')).toHaveAttribute('aria-label', '必须生成')
+  })
+
+  it('删除要二次确认', async () => {
+    const onDelete = vi.fn()
+    open(TEST, { onDelete })
     await userEvent.click(screen.getByTestId('wb-test-delete'))
     expect(onDelete).not.toHaveBeenCalled()
     await userEvent.click(screen.getByTestId('wb-test-delete-confirm'))
@@ -60,11 +72,9 @@ describe('TestEditorDrawer', () => {
     const onApply = vi.fn()
     const view = open(TEST, { onApply })
     await userEvent.click(screen.getByTestId('wb-test-output-add'))
+    expect((onApply.mock.lastCall?.[0] as WbStepTest).outputs).toHaveLength(2)
     await userEvent.click(screen.getByTestId('wb-test-input-add'))
-    await userEvent.click(screen.getByTestId('wb-test-apply'))
-    const applied = onApply.mock.calls[0]?.[0] as WbStepTest
-    expect(applied.outputs).toHaveLength(2)
-    expect(applied.inputs).toEqual([{ kind: 'file', path: '' }])
+    expect((onApply.mock.lastCall?.[0] as WbStepTest).inputs).toEqual([{ kind: 'file', path: '' }])
     view.unmount()
 
     const empty = open(null)
@@ -72,7 +82,7 @@ describe('TestEditorDrawer', () => {
     empty.unmount()
 
     open(TEST, { editable: false })
-    expect(screen.queryByTestId('wb-test-apply')).toBeNull()
+    expect(screen.queryByTestId('wb-test-delete')).toBeNull()
     expect(screen.getByTestId('wb-test-command')).toBeDisabled()
   })
 })

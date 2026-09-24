@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
+import { isBuiltinWorkflowName, isDefaultWorkflowName } from '@tenon/kernel/workflow/identifier'
 import {
   DndContext,
   DragOverlay,
@@ -46,6 +46,10 @@ export interface WorkflowNavProps {
   loading: boolean
   error: string | null
   canWrite: boolean
+  /** 当前工作流是插件内建（只读）：名旁显示锁，悬停说明。 */
+  readOnly?: boolean
+  /** 能否新建工作流（有写凭证即可，只读的内建也能复制）；缺省同 canWrite。 */
+  canCreate?: boolean
   busy: boolean
   /** 工作流是否接入 OpenSpec（default 恒开、不可关）。 */
   openspec: boolean
@@ -167,7 +171,7 @@ function StepRow({ step, order, selected, issue, editable, deletable, labelOf, o
   )
 }
 
-type MenuEntry = { id: string; label: string; icon: ReactNode; onSelect: () => void; disabled: boolean; danger?: boolean; checked?: boolean }
+type MenuEntry = { id: string; label: string; icon: ReactNode; onSelect: () => void; disabled: boolean; danger?: boolean; checked?: boolean; hint?: string }
 
 /**
  * 工作流页左栏：工作流名（点开切换）+ ⋯ 菜单 → 轨道下划线页签 +「+」→ 编号纵向流程
@@ -175,6 +179,8 @@ type MenuEntry = { id: string; label: string; icon: ReactNode; onSelect: () => v
  */
 export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
   const { names, current, defaultSource, branches, branch, def, labelOf, selectedId, lint, loading, error, canWrite, busy, openspec } = props
+  const readOnly = props.readOnly === true
+  const canCreate = props.canCreate ?? canWrite
   const { t } = useT()
   const isDefault = current !== null && isDefaultWorkflowName(current)
   const tracks = branches.filter((candidate) => candidate.id !== BASE_BRANCH)
@@ -206,12 +212,13 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
 
   // 工作流级动作：常规项在上，破坏性的（删除 / 恢复内建 / 删除轨道）在分隔线下。
   const menu: MenuEntry[] = [
-    { id: 'new', label: t('workflow.new_workflow'), icon: <Plus />, onSelect: props.onCreate, disabled: !canWrite || busy },
+    { id: 'new', label: t('workflow.new_workflow'), icon: <Plus />, onSelect: props.onCreate, disabled: !canCreate || busy },
     { id: 'export', label: t('workflow.export_yaml'), icon: <Download />, onSelect: props.onExport, disabled: current === null },
     // default 恒受 OpenSpec 治理，开关只对自定义工作流开放。
-    { id: 'openspec', label: t('workflow.openspec_menu'), icon: <FileCheck />, onSelect: props.onToggleOpenspec, checked: openspec, disabled: !canWrite || busy || isDefault || current === null },
+    // 开关决定阶段能否「+ 输入 / + 输出」文档：关闭时输入输出只来自字段，说明放在 Tooltip。
+    { id: 'openspec', label: t('workflow.openspec_menu'), icon: <FileCheck />, onSelect: props.onToggleOpenspec, checked: openspec, disabled: !canWrite || busy || isDefault || current === null, hint: t('workflow.openspec_hint') },
   ]
-  const destructive: MenuEntry[] = [
+  const destructive: MenuEntry[] = readOnly ? [] : [
     isDefault
       ? { id: 'restore', label: t('workflow.restore_default'), icon: <RotateCcw />, onSelect: props.onDelete, disabled: !deleteEnabled }
       : { id: 'delete', label: t('workflow.delete_workflow'), icon: <Trash2 />, onSelect: props.onDelete, disabled: !deleteEnabled, danger: true },
@@ -223,11 +230,13 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
       {item.label}
     </DropdownMenuItem>
   ) : (
-    <DropdownMenuCheckboxItem key={item.id} className={cn(MENU_ITEM, 'pl-8')} checked={item.checked} disabled={item.disabled} data-testid={`wb-wf-menu-${item.id}`} onSelect={item.onSelect}>
-      {item.label}
-    </DropdownMenuCheckboxItem>
+    <Hint key={item.id} label={item.hint ?? item.label} side="left">
+      <DropdownMenuCheckboxItem className={cn(MENU_ITEM, 'pl-8')} checked={item.checked} disabled={item.disabled} data-testid={`wb-wf-menu-${item.id}`} onSelect={item.onSelect}>
+        {item.label}
+      </DropdownMenuCheckboxItem>
+    </Hint>
   )
-  const lockHint = t(`workflow.source_${defaultSource}`)
+  const lockHint = t('workflow.builtin_read_only')
 
   return (
     <aside className="flex min-h-0 flex-col gap-5 overflow-y-auto border-r border-border bg-card px-5 py-5 max-[900px]:border-r-0 max-[900px]:border-b" aria-label={t('workflow.rail_title')} data-testid="workflow-nav">
@@ -241,8 +250,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
               data-testid="wb-wf-switch"
               disabled={busy}
             >
-              <span className="truncate whitespace-nowrap">{current ?? ''}</span>
-              {isDefault && <Lock className="size-3.5 flex-none text-text-3" aria-label={lockHint} data-testid="wb-wf-lock" data-source={defaultSource} />}
+              <span className="truncate whitespace-nowrap" title={current ?? undefined}>{current ?? ''}</span>
               <ChevronDown className="size-3.5 flex-none text-text-3" aria-hidden="true" />
             </button>
           </DropdownMenuTrigger>
@@ -250,22 +258,29 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
             <DropdownMenuRadioGroup value={current ?? ''} onValueChange={(name) => { if (name !== current) props.onSwitch(name) }}>
               {names.map((name) => (
                 <DropdownMenuRadioItem key={name} value={name} className={cn(MENU_ITEM, 'pl-8')} data-testid={`wb-wf-item-${name}`}>
-                  <span className="min-w-0 flex-1 truncate whitespace-nowrap">{name}</span>
-                  {isDefaultWorkflowName(name) && <Lock className="size-3.5 flex-none" aria-label={lockHint} />}
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap" title={name}>{name}</span>
+                  {isBuiltinWorkflowName(name) && <Lock className="size-3.5 flex-none" aria-label={lockHint} data-testid={`wb-wf-item-lock-${name}`} />}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+        {readOnly && (
+          <Hint label={lockHint}>
+            <button type="button" className="grid size-6 flex-none place-items-center rounded-xs text-text-3 outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" aria-label={lockHint} data-testid="wb-wf-lock">
+              <Lock className="size-3.5" aria-hidden="true" />
+            </button>
+          </Hint>
+        )}
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
-            <button type="button" className={MENU_ICON_BUTTON} aria-label={t('workflow.workflow_menu')} data-testid="wb-wf-menu" disabled={busy}>
+            <button type="button" className={cn(MENU_ICON_BUTTON, 'ml-auto')} aria-label={t('workflow.workflow_menu')} data-testid="wb-wf-menu" disabled={busy}>
               <MoreHorizontal className="size-4" aria-hidden="true" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[220px]" data-testid="wb-wf-menu-menu">
             {menu.map(menuItem)}
-            <DropdownMenuSeparator />
+            {destructive.length > 0 && <DropdownMenuSeparator />}
             {destructive.map(menuItem)}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -289,7 +304,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
               </button>
             )
           })}
-          <button type="button" className="ml-auto mb-1.5 grid size-6 place-items-center rounded-xs text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50" aria-label={t('workflow.new_track')} title={canWrite ? t('workflow.new_track') : t('workflow.no_token')} disabled={!canWrite || busy} data-testid="wb-track-new" onClick={props.onNewTrack}>
+          <button type="button" className="ml-auto mb-1.5 grid size-6 place-items-center rounded-xs text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50" aria-label={t('workflow.new_track')} title={t('workflow.new_track')} disabled={!canWrite || busy} data-testid="wb-track-new" onClick={props.onNewTrack}>
             <Plus className="size-3.5" aria-hidden="true" />
           </button>
         </div>
@@ -312,9 +327,14 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
             {backEdges.length > 0 && (
               <svg className="pointer-events-none absolute -right-5 top-0 overflow-visible" width="22" height={listHeight} aria-hidden="true">
                 {backEdges.map((edge) => {
-                  const active = hovered === edge.from || hovered === edge.to
+                  const active = hovered === edge.from || hovered === edge.to || hovered === `${edge.from}->${edge.to}`
+                  const label = t('workflow.back_arc', { from: labelOf(edge.from), to: labelOf(edge.to) })
                   return (
                     <g key={`${edge.from}-${edge.to}`} className={cn('fill-none transition-[stroke] duration-(--dur-fast) ease-(--ease-out) motion-reduce:transition-none', active ? 'stroke-accent-b' : 'stroke-border-2')} data-testid={`wb-back-arc-${edge.from}-${edge.to}`} data-active={active || undefined}>
+                      {/* 悬停标签：透明宽描边接住指针，原生 title 说明从哪退回到哪。 */}
+                      <path d={backEdgePath(edge.fromIndex, edge.toIndex)} className="cursor-default" style={{ pointerEvents: 'stroke' }} stroke="transparent" strokeWidth="10" data-testid={`wb-back-hit-${edge.from}-${edge.to}`} onMouseEnter={() => setHovered(`${edge.from}->${edge.to}`)} onMouseLeave={() => setHovered(null)}>
+                        <title>{label}</title>
+                      </path>
                       <path d={backEdgePath(edge.fromIndex, edge.toIndex)} strokeWidth="1.2" strokeDasharray="3 3" data-testid={`wb-back-edge-${edge.from}-${edge.to}`} />
                       <path d={backArrowPath(edge.toIndex)} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" data-testid={`wb-back-arrow-${edge.from}-${edge.to}`} />
                     </g>

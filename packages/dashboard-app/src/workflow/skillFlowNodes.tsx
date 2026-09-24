@@ -1,6 +1,6 @@
-import { memo, useId } from 'react'
+import { memo, useId, useMemo } from 'react'
 import { BaseEdge, Handle, MarkerType, Position, getBezierPath, type Edge, type EdgeProps, type Node, type NodeProps } from '@xyflow/react'
-import { Box, X } from 'lucide-react'
+import { Box, FileCheck, X } from 'lucide-react'
 import type { WbSkillEntry } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import type { PulseMode } from './flowPulse'
@@ -23,6 +23,8 @@ export type SkillNodeData = {
   /** 名称下的一行小字（评审者的 必需 · 中 · 测试 n）；null 不渲染。 */
   caption: string | null
   source: WbSkillEntry['source'] | null
+  /** OpenSpec 文档契约注入（未在阶段里声明）：换成契约图标，悬停说明。 */
+  injected: boolean
   editable: boolean
   entering: boolean
   status: SkillRunState | null
@@ -77,7 +79,7 @@ function SkillNodeView({ id, data, selected }: NodeProps<SkillNode>): JSX.Elemen
   return <div className={cn('group relative rounded-sm border bg-card px-3 py-2 shadow-(--shadow) transition-[border-color,box-shadow] duration-(--dur-fast) ease-(--ease-out)', selected ? 'border-(--accent) ring-2 ring-(--accent)/30' : data.status === 'done' ? 'border-green-b' : data.status === 'running' ? 'border-info-b shadow-[0_0_0_3px_var(--info-t)]' : 'border-border', data.entering && 'animate-[flow-in_.3s_var(--ease-out)_both] motion-reduce:animate-none')} style={{ width: NODE_WIDTH, minHeight: data.height }} data-testid={`flow-node-${id}`} data-flow-node={id} data-entering={data.entering || undefined} data-status={data.status ?? undefined}>
     <span className="pointer-events-none absolute -inset-px rounded-sm border border-(--accent) opacity-0" aria-hidden="true" data-pulse-flash="" />
     <Handle type="target" position={Position.Left} className={HANDLE_CLASS} isConnectable={data.editable} />
-    <button type="button" className="grid w-full min-w-0 gap-0.5 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" title={data.description ?? data.label} aria-label={data.label} aria-describedby={data.description === null ? undefined : descriptionId} data-testid={`flow-open-${id}`} onClick={() => data.onOpen(id)}><span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap font-mono text-caption font-medium text-text" data-testid={`flow-name-${id}`}>{data.source === null ? <Box className="size-3 flex-none text-text-3" aria-hidden="true" /> : <SkillSourceIcon source={data.source} className="size-3" />}<span className="min-w-0 flex-1 truncate">{data.label}</span></span>{data.caption !== null && <span className="block truncate whitespace-nowrap text-micro text-text-3" data-testid={`flow-caption-${id}`}>{data.caption}</span>}{data.status !== null && <span className={cn('mt-0.5 inline-flex items-center gap-1.5 whitespace-nowrap text-micro', data.status === 'done' ? 'text-green-d' : data.status === 'running' ? 'text-info-d' : 'text-text-3')}><i className={cn('size-1.5 rounded-full', data.status === 'done' ? 'bg-green' : data.status === 'running' ? 'bg-info' : 'bg-text-3')} aria-hidden="true" />{data.statusLabel}</span>}</button>
+    <button type="button" className="grid w-full min-w-0 gap-0.5 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)" title={data.description ?? data.label} aria-label={data.label} aria-describedby={data.description === null ? undefined : descriptionId} data-testid={`flow-open-${id}`} onClick={() => data.onOpen(id)}><span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap font-mono text-caption font-medium text-text" data-testid={`flow-name-${id}`}>{data.injected ? <span className="inline-flex flex-none text-(--accent)" role="img" aria-label={t('workflow.skill_injected')} title={t('workflow.skill_injected')} data-testid={`flow-injected-${id}`}><FileCheck className="size-3" aria-hidden="true" /></span> : data.source === null ? <Box className="size-3 flex-none text-text-3" aria-hidden="true" /> : <SkillSourceIcon source={data.source} className="size-3" />}<span className="min-w-0 flex-1 truncate" title={data.label}>{data.label}</span></span>{data.caption !== null && <span className="block truncate whitespace-nowrap text-micro text-text-3" data-testid={`flow-caption-${id}`}>{data.caption}</span>}{data.status !== null && <span className={cn('mt-0.5 inline-flex items-center gap-1.5 whitespace-nowrap text-micro', data.status === 'done' ? 'text-green-d' : data.status === 'running' ? 'text-info-d' : 'text-text-3')}><i className={cn('size-1.5 rounded-full', data.status === 'done' ? 'bg-green' : data.status === 'running' ? 'bg-info' : 'bg-text-3')} aria-hidden="true" />{data.statusLabel}</span>}</button>
     {data.description !== null && <span id={descriptionId} className="sr-only" data-testid={`flow-desc-${id}`}>{data.description}</span>}
     {data.editable && <button type="button" className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border border-border bg-card text-text-3 hover:text-red-d" aria-label={t('workflow.remove_skill', { id })} data-testid={`flow-remove-${id}`} onClick={() => data.onRemove(id)}><X className="size-3" aria-hidden="true" /></button>}
     <Handle type="source" position={Position.Right} className={HANDLE_CLASS} isConnectable={data.editable} />
@@ -102,5 +104,16 @@ const JunctionNodeView = memo(function JunctionNodeView(): JSX.Element { return 
 
 export const NODE_TYPES = { skill: MemoSkillNodeView, port: PortNodeView, label: LabelNodeView, ghost: GhostNodeView, junction: JunctionNodeView }
 export const EDGE_TYPES = { pulse: PulseEdge }
+
+/** React Flow 控件自带英文 aria-label（Zoom In …），跟随界面语言改写。 */
+export function useFlowAriaLabels(): Record<string, string> {
+  const { t } = useT()
+  return useMemo(() => ({
+    'controls.ariaLabel': t('workflow.flow_controls'),
+    'controls.zoomIn.ariaLabel': t('workflow.zoom_in'),
+    'controls.zoomOut.ariaLabel': t('workflow.zoom_out'),
+    'controls.fitView.ariaLabel': t('workflow.fit_view'),
+  }), [t])
+}
 
 export function isVirtualId(id: string): boolean { return id === 'start' || id === 'end' || id === 'ghost' || id.startsWith('label-') || /^j\d+$/.test(id) }

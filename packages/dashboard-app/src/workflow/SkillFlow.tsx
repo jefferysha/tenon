@@ -17,7 +17,7 @@ import '@xyflow/react/dist/style.css'
 import type { WbSkillEntry, WbSkillRef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { wavesOf } from '../workbench/skillWaves'
-import { EDGE_STYLE, EDGE_TYPES, MARKER, NODE_HEIGHT, NODE_TYPES, NODE_WIDTH, PORT_SIZE, isVirtualId, pulseModeOf, type FlowNode, type GhostNode, type JunctionNode, type LabelNode, type PortNode, type PulseData, type SkillNode, type SkillRunState } from './skillFlowNodes'
+import { EDGE_STYLE, EDGE_TYPES, MARKER, NODE_HEIGHT, NODE_TYPES, NODE_WIDTH, PORT_SIZE, isVirtualId, pulseModeOf, useFlowAriaLabels, type FlowNode, type GhostNode, type JunctionNode, type LabelNode, type PortNode, type PulseData, type SkillNode, type SkillRunState } from './skillFlowNodes'
 import { addSkillAt, appendSerial, canvasHeight, dropTargetFor, edgesOf, graphToSkills, isColumnLink, editViewport, lanesOf, layoutSkills, nodeHeightFor, readOnlyViewport, rowGapFor, skillsSignature, wouldCycle, type DropTarget } from './skillFlowGraph'
 import { prefersReducedMotion, usePulseTimeline, type PulseMode } from './flowPulse'
 import { cn } from '@/lib/utils'
@@ -54,18 +54,14 @@ export interface SkillFlowProps {
   ariaLabel?: string
   /** 可编辑画布为空时的提示；缺省 = 拖入技能。 */
   emptyText?: string
+  /** 由 OpenSpec 文档契约注入、未在阶段声明的技能 id（节点换契约图标）。 */
+  injected?: readonly string[]
   className?: string
 }
 
-function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabel = null, statusOf, captionOf, ariaLabel, emptyText, className }: SkillFlowProps): JSX.Element {
+function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabel = null, statusOf, captionOf, ariaLabel, emptyText, injected, className }: SkillFlowProps): JSX.Element {
   const { t } = useT()
-  // React Flow 控件自带英文 aria-label（Zoom In …），跟随界面语言改写。
-  const ariaLabelConfig = useMemo(() => ({
-    'controls.ariaLabel': t('workflow.flow_controls'),
-    'controls.zoomIn.ariaLabel': t('workflow.zoom_in'),
-    'controls.zoomOut.ariaLabel': t('workflow.zoom_out'),
-    'controls.fitView.ariaLabel': t('workflow.fit_view'),
-  }), [t])
+  const ariaLabelConfig = useFlowAriaLabels()
   const flow = useReactFlow()
   const flowRef = useRef(flow)
   flowRef.current = flow
@@ -81,6 +77,8 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
   statusRef.current = statusOf
   const captionRef = useRef(captionOf)
   captionRef.current = captionOf
+  const injectedRef = useRef(injected)
+  injectedRef.current = injected
   const [nodes, setNodes] = useState<SkillNode[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [ghost, setGhost] = useState<{ x: number; y: number; label: string; target: DropTarget } | null>(null)
@@ -124,7 +122,7 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
       id,
       type: 'skill',
       position: { x, y },
-      data: { label: id, description: entry?.description ?? null, height: nodeHeightFor(linesRef.current), caption: captionRef.current?.(id) ?? null, source: entry?.source ?? null, editable, entering: enteringRef.current === id, status: statusRef.current?.(id)?.state ?? null, statusLabel: statusRef.current?.(id)?.label ?? null, onOpen: (target) => onOpenRef.current(target), onRemove: removeNode },
+      data: { label: id, description: entry?.description ?? null, height: nodeHeightFor(linesRef.current), caption: captionRef.current?.(id) ?? null, source: entry?.source ?? null, injected: injectedRef.current?.includes(id) === true, editable, entering: enteringRef.current === id, status: statusRef.current?.(id)?.state ?? null, statusLabel: statusRef.current?.(id)?.label ?? null, onOpen: (target) => onOpenRef.current(target), onRemove: removeNode },
       draggable: editable,
       selectable: editable,
     }

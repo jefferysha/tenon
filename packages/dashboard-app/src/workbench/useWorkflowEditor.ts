@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type SetStateAction } from 'react'
-import { isDefaultWorkflowName, isTemplateWorkflowName } from '@tenon/kernel/workflow/identifier'
+import { BUILTIN_WORKFLOW_IDS, isBuiltinWorkflowName, isDefaultWorkflowName, isTemplateWorkflowName } from '@tenon/kernel/workflow/identifier'
 import type { DocumentKind } from '@tenon/kernel/workflow/document-contract-model'
 import { addDocumentOutputInDef, removeDocumentSlotInDef, setDocumentInputsInDef, setOpenspecInDef } from './documentContractEdits'
 import { deleteWorkflowDef, fetchWorkflow, fetchWorkflowIndex, postWorkflowDef, type WorkflowIndex } from '../api/client'
@@ -12,10 +12,10 @@ import { invalidateWorkflowDefinition } from '../workspace/useWorkflowDefinition
 import { draftEffectiveIo, lintWorkflow, type LintIssue } from '../workflow/lint'
 import { fetchAgents, type AgentSummary } from '../api/agentClient'
 import { useMandatorySkills, type MandatoryState } from './mandatoryState'
-import { readSaveErrors, readWorkflowDeleteResponse } from './workbenchApiDecoders'
+import { readSaveErrors, readWorkflowDeleteResponse, splitWorkflowReferences, type WorkflowReferenceEntry } from './workbenchApiDecoders'
 import { readWorkflowWriteSuccess } from './workbenchWriteResponse'
 import { useStageDraftEditor } from './useStageDraftEditor'
-import { countDraftChanges } from './draftChanges'
+import { countDraftChanges, stableJson } from './draftChanges'
 import { useWorkbenchDirtyState, type WorkbenchDirtySource } from './useWorkbenchDirtyState'
 import {
   BASE_BRANCH,
@@ -47,7 +47,10 @@ export type SaveStatus = { kind: 'idle' | 'ok' } | { kind: 'error'; errors: stri
 
 export interface WorkflowDeleteError {
   summary: string
-  references: Array<{ kind?: string; source?: string }>
+  /** 引用它的任务（change 名）：有就拒绝删除，并逐个列出。 */
+  tasks: string[]
+  /** 其它引用（轨道 / 循环 / 模板），按「类别 名称」列出。 */
+  references: WorkflowReferenceEntry[]
   blockers: Array<{ source?: string; detail?: string }>
 }
 
@@ -80,6 +83,8 @@ export interface WorkflowEditorInput {
   onDirtyChange?: (dirty: boolean) => void
   /** 深链带来的初始选择（?wf=&track=&step=）；只在第一次拉到列表时用一次，不存在的名字按缺省落。 */
   initial?: { wf?: string; track?: string; step?: string }
+  /** 删除成功（restored = 模板工作流恢复内建）。 */
+  onDeleted?: (name: string, restored: boolean) => void
 }
 
 export interface WorkflowEditor {
@@ -108,8 +113,12 @@ export interface WorkflowEditor {
   addDocumentOutput: (stepId: string, kind: DocumentKind) => void
   removeDocumentSlot: (stepId: string, kind: string, direction: 'inputs' | 'outputs') => void
   setDocumentInputs: (stepId: string, kinds: readonly string[]) => void
-  /** 页面是否持有写凭证；无则所有写入口置灰。 */
+  /** 能否编辑当前工作流：有写凭证且不是插件内建（simple 等只读）；否则所有写入口置灰。 */
   canWrite: boolean
+  /** 当前工作流是插件内建、只读（与缺凭证区分：不报凭证错误）。 */
+  readOnly: boolean
+  /** 页面持有写凭证（新建工作流只看这个：只读的内建也能复制）。 */
+  hasToken: boolean
   dirty: boolean
   /** 保存条「未保存 N 处」：按阶段 / 轨道 / 工作流级字段计数；干净时为 0。 */
   changeCount: number
@@ -159,7 +168,7 @@ const NAME_RE = /^[\p{L}\p{N}\p{M}_-]+$/u
  * 工作流定义编辑的状态机：列表 / 定义加载（default 亦从服务端读，项目覆盖优先）、草稿与保存、
  * 新建（复制 / 空白 / 导入 YAML）、删除（default = 恢复内建）、切换守卫、阶段草稿、轨道技能矩阵。
  */
-export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEditorInput): WorkflowEditor {
+export function useWorkflowEditor({ root, onDirtyChange, initial, onDeleted }: WorkflowEditorInput): WorkflowEditor {
   const { t, lang } = useT()
   const [names, setNames] = useState<string[] | null>(null)
   const [defaultSource, setDefaultSource] = useState<WbWorkflowSource>('builtin')
@@ -208,7 +217,11 @@ export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEdit
   const stageDraft = useStageDraftEditor({ def, stageId, setDef: setBranchDef, setStageId })
   const { setAddStageOpen } = stageDraft
   const mandatory = useMandatorySkills(root)
-  const canWrite = getToken() !== ''
+  const hasToken = getToken() !== ''
+  const readOnly = wfName !== null && isBuiltinWorkflowName(wfName)
+  const canWrite = hasToken && !readOnly
+  const onDeletedRef = useRef(onDeleted)
+  onDeletedRef.current = onDeleted
 
   useEffect(() => {
     setSaveStatus((current) => current.kind === 'error' ? { kind: 'idle' } : current)
@@ -248,16 +261,16 @@ export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEdit
         setNames(index.names)
         setDefaultSource(index.defaultSource)
         setNamesError(null)
-        // 深链点名的工作流存在就用它（连同轨道与阶段）；否则有自定义工作流时先落到第一个，再否则 default。
+        // 深链点名的工作流存在就用它（连同轨道与阶段）；否则打开 default。
         const linked = initialRef.current
         initialRef.current = undefined
-        if (linked?.wf !== undefined && (isDefaultWorkflowName(linked.wf) || index.names.includes(linked.wf))) {
+        if (linked?.wf !== undefined && (isDefaultWorkflowName(linked.wf) || isBuiltinWorkflowName(linked.wf) || index.names.includes(linked.wf))) {
           setWfName(linked.wf)
           if (linked.track !== undefined) setBranchState(linked.track)
           if (linked.step !== undefined) setStageId(linked.step)
           return
         }
-        setWfName(index.names[0] ?? 'default')
+        setWfName('default')
       })
       .catch((error: unknown) => {
         if (cancelled || current !== generation.current.names || rootIdentity.current !== targetRoot) return
@@ -289,7 +302,7 @@ export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEdit
         setDefState(body)
         setDefError(null)
         baselineRef.current = body
-        baselineJson.current = JSON.stringify(definitionForWrite(body))
+        baselineJson.current = stableJson(definitionForWrite(body))
         if (isDefaultWorkflowName(wfName) && body.source !== undefined) setDefaultSource(body.source)
       })
       .catch((error: unknown) => { if (!cancelled) setDefError(error) })
@@ -303,7 +316,7 @@ export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEdit
 
   const namesErrorText = namesError === null ? null : t('workbench.names_error', { msg: formatApiError(namesError, t) })
   const defErrorText = defError === null ? null : t('workbench.def_error', { msg: formatApiError(defError, t) })
-  const dirty = fullDef !== null && baselineJson.current !== null && JSON.stringify(definitionForWrite(fullDef)) !== baselineJson.current
+  const dirty = fullDef !== null && baselineJson.current !== null && stableJson(definitionForWrite(fullDef)) !== baselineJson.current
   const changeCount = dirty ? Math.max(1, countDraftChanges(baselineRef.current, fullDef)) : 0
   const createDirty = createOpen && (createName !== '' || createYaml !== '')
   const { setSourceDirty } = useWorkbenchDirtyState({ localDirty: dirty || createDirty || stageDraft.draftDirty, onDirtyChange })
@@ -435,7 +448,7 @@ export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEdit
       if (!valid) { setSaveStatus({ kind: 'error', errors: [localeRef.current.t('common.invalid_response')] }); return }
       afterWrite(targetRoot, targetWorkflow)
       baselineRef.current = { ...fullDef, source: 'project' }
-      baselineJson.current = JSON.stringify(definitionForWrite(fullDef))
+      baselineJson.current = stableJson(definitionForWrite(fullDef))
       if (isDefaultWorkflowName(targetWorkflow)) setDefaultSource('project')
       setSaveStatus({ kind: 'ok' })
       // 重新拉一次拿服务端物化后的 IO（文档槽位 / 消费者）。
@@ -478,11 +491,11 @@ export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEdit
   // ── 新建：复制当前 / 空白 / 导入 YAML ──
   const trimmedName = createName.trim()
   const nameInvalid = trimmedName.length > 0 && !NAME_RE.test(trimmedName)
-  const nameDuplicate = trimmedName.length > 0 && (isTemplateWorkflowName(trimmedName) || trimmedName === 'simple' || (names ?? []).includes(trimmedName))
-  const canSubmitCreate = canWrite && trimmedName.length > 0 && !nameInvalid && !nameDuplicate && !createBusy
+  const nameDuplicate = trimmedName.length > 0 && (isTemplateWorkflowName(trimmedName) || isBuiltinWorkflowName(trimmedName) || (names ?? []).includes(trimmedName))
+  const canSubmitCreate = hasToken && trimmedName.length > 0 && !nameInvalid && !nameDuplicate && !createBusy
     && (createMode !== 'import' || createYaml.trim() !== '') && (createMode !== 'copy' || fullDef !== null)
   function openCreate(mode: CreateMode = 'copy'): void {
-    if (saving || !canWrite) return
+    if (saving || !hasToken) return
     setCreateMode(mode)
     setCreateName(mode === 'copy' ? `${wfName ?? 'workflow'}-copy` : '')
     setCreateOpenspec(mode === 'copy' && fullDef?.openspec === true)
@@ -582,17 +595,18 @@ export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEdit
         setWorkflowDeleteError({
           summary: outcome.kind === 'invalid'
             ? locale.t('common.invalid_response')
-            : (locale.lang === 'zh' ? body?.error : undefined) ?? (body?.code === 'WORKFLOW_REFERENCED'
+            : body?.code === 'WORKFLOW_REFERENCED'
               ? locale.t('workbench.workflow_delete_referenced')
-              : locale.t('workbench.workflow_delete_failed', { status: response.status })),
-          references: locale.lang === 'zh' ? body?.references ?? [] : [],
-          blockers: locale.lang === 'zh' ? body?.blockers ?? [] : [],
+              : (locale.lang === 'zh' ? body?.error : undefined) ?? locale.t('workbench.workflow_delete_failed', { status: response.status }),
+          ...splitWorkflowReferences(body?.references ?? []),
+          blockers: body?.blockers ?? [],
         })
         return
       }
       afterWrite(targetRoot, deleting)
       setWorkflowDeleteTarget(null)
       setWorkflowDeleteError(null)
+      onDeletedRef.current?.(deleting, isTemplateWorkflowName(deleting))
       if (isTemplateWorkflowName(deleting)) {
         if (isDefaultWorkflowName(deleting)) setDefaultSource('builtin')
         switchTo(deleting)
@@ -604,14 +618,15 @@ export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEdit
       switchTo('default')
       setReloadNonce((value) => value + 1)
     } catch (error) {
-      if (stillCurrent()) setWorkflowDeleteError({ summary: formatApiError(error, localeRef.current.t), references: [], blockers: [] })
+      if (stillCurrent()) setWorkflowDeleteError({ summary: formatApiError(error, localeRef.current.t), tasks: [], references: [], blockers: [] })
     } finally {
       if (stillCurrent()) setWorkflowDeleteBusy(false)
     }
   }
 
   const selectedStep = def?.steps.find((step) => step.id === stageId) ?? null
-  const menuNames = useMemo(() => ['default', ...(names ?? [])], [names])
+  // 切换器列出全部：default、自定义与模板、插件内建（simple 等，只读）。
+  const menuNames = useMemo(() => [...new Set(['default', ...(names ?? []), ...BUILTIN_WORKFLOW_IDS])], [names])
 
   return {
     names,
@@ -634,6 +649,8 @@ export function useWorkflowEditor({ root, onDirtyChange, initial }: WorkflowEdit
     removeDocumentSlot,
     setDocumentInputs,
     canWrite,
+    readOnly,
+    hasToken,
     dirty,
     changeCount,
     saving,

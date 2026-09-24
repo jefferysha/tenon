@@ -144,6 +144,10 @@ function stubEditableWorkbench(options: {
     if (url === '/api/workflows/release-train?root=' || roots.some((root) => url === `/api/workflows/release-train?root=${encodeURIComponent(root)}`)) {
       return new Response(JSON.stringify(EDITABLE_WORKFLOW), { status: 200 })
     }
+    // 工作流页默认打开 default（这里给一份同样可编辑的定义）。
+    if (url === '/api/workflows/default?root=') {
+      return new Response(JSON.stringify({ ...EDITABLE_WORKFLOW, name: 'default' }), { status: 200 })
+    }
     if (url.startsWith('/api/hooks?root=')) {
       return new Response(JSON.stringify({
         ok: true,
