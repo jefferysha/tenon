@@ -196,8 +196,13 @@ async function testConfigGaps(
   exits: readonly StepExit[],
   planning: boolean,
 ): Promise<readonly StepTestConfigGap[]> {
+  // 计划步：测试脚本与测试是这次改动的一部分，要写进本步能改的规格文档（proposal 的变更与影响、
+  // design），不能只进计划——真机第四轮：proposal 没列、design 还写着「不改 package.json」，verify 的
+  // 规格一致性评审据此判「多做」阻断，verify-fail 之后 build 改不了 proposal，只能回到 spec。
   const scope = planning
     ? '只需在 package.json 补上脚本；这类测试若还没有，把「写这类测试」列进本步的计划与 tasks，在实现步完成。'
+      + '新增的测试脚本（以及要写的测试）同步写进本步可改的规格文档：proposal 的 What Changes / Impact 与 design，'
+      + '并删掉与之相矛盾的表述（例如「不改 package.json」）——否则之后的规格一致性评审会把它当成规格之外的改动。'
     : '只需补 package.json 的 scripts（以及这条脚本要跑的测试代码），不需要修改已登记的规格文档'
       + '（proposal / design / plan 等）——改了它们就只能回到规格步重新评审。'
   const gaps: StepTestConfigGap[] = tests

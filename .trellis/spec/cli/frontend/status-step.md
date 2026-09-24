@@ -61,7 +61,10 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   原文；tasks.md 自己还没产出（`missing`）时让位给文档写入，勾过一项后的 `stale` 不让位）→ 应用规格 → 产出与登记文档 → artifact
   登记 → 交付物提交（交付步，`commit`）→ 自由文本交付值（`pr_url` / `prd_path`）→ 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
 - `test-unconfigured` 的 message = `unconfiguredMessage` + 范围说明：计划步说「只需在 package.json 补上
-  脚本；这类测试若还没有，把写这类测试列进本步的计划与 tasks」；之后的步骤说「只需补 package.json 的
+  脚本；这类测试若还没有，把写这类测试列进本步的计划与 tasks」，并要求把新增的测试脚本 / 测试同步写进本步可改的
+  proposal（What Changes / Impact）与 design、删掉相矛盾的表述（真机第四轮：design 仍写「不改 package.json」，
+  verify 的 spec-consistency 判「多做」阻断 → verify-fail → build 改不了 proposal → 回 spec；
+  `templates/agents/spec-consistency.md` 同时写明为满足必需测试补的脚本不算多做，最多报 `low`）；之后的步骤说「只需补 package.json 的
   scripts（以及这条脚本要跑的测试代码），不需要修改已登记的规格文档」。只改 package.json 不会让已登记
   的文档失效：文档台账按各自文件的 sha256 判定，与 package.json 无关；build 冻结的候选版本（build_sha）
   在 build-complete 才取，build 内改 package.json 不触发 `revision-stale`。真机第三轮的 build→spec

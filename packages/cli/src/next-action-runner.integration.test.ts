@@ -126,6 +126,8 @@ function commitAsInstructed(commit: FinishCommit): void {
 }
 /** 让这一个评审者在第一次给结论时打回一次（D6 的回退边验收）。 */
 let failOnce: string | undefined
+/** 每个 agent 最近一次 `agent prompt` 给出的提示词（宿主交给子 agent 的全文）。 */
+const agentPrompts = new Map<string, string>()
 
 function changeDir(name = CHANGE): string {
   return join(h.cwd, 'openspec', 'changes', name)
@@ -241,7 +243,9 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
         row = { run_id: action.run_id, report_path: String(action.report_path), role: String(action.role) }
       } else {
         await run(['agent', 'prompt', CHANGE, String(action.agent), '--json'])
-        row = JSON.parse(h.out.join('')) as { run_id: string; report_path: string; role: string }
+        const prompted = JSON.parse(h.out.join('')) as { run_id: string; report_path: string; role: string; prompt: string }
+        agentPrompts.set(String(action.agent), prompted.prompt)
+        row = prompted
       }
       const blocking = failOnce === action.agent
       if (blocking) failOnce = undefined
@@ -344,6 +348,7 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
 
 beforeEach(async () => {
   failOnce = undefined
+  agentPrompts.clear()
   h = await freshHarness()
   await writeFile(join(h.cwd, 'package.json'), FIXTURE_PACKAGE_JSON, 'utf8')
   expect(git(['init', '-q']).status).toBe(0)
@@ -531,6 +536,9 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
       && action.action === 'set-field' && action.field === 'pre_verify_review_result')
     expect(review).toBeGreaterThan(-1)
     expect(review).toBeLessThan(verdict)
+    // 真机（第四轮）：为满足必需测试补的脚本被规格一致性评审判成「多做」medium 阻断。评审者说明里
+    // 写明它不算规格偏差。
+    expect(agentPrompts.get('spec-consistency')).toContain('工作流必需测试的配置不算多做')
   })
 
   /**
@@ -563,8 +571,12 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     expect(actions[fix]?.action).toMatchObject({
       blockers: [expect.objectContaining({ source: 'test', code: 'test-unconfigured' })],
     })
-    expect(String((actions[fix]?.action.blockers as readonly { message: string }[])[0]?.message))
-      .toContain("后续步骤 'verify' 的必需测试")
+    const planningMessage = String((actions[fix]?.action.blockers as readonly { message: string }[])[0]?.message)
+    expect(planningMessage).toContain("后续步骤 'verify' 的必需测试")
+    // 真机（第四轮）：只进计划不够——proposal 没列、design 还写着「不改 package.json」，verify 的规格
+    // 一致性评审据此阻断。计划步的提示点名同步 proposal 与 design，并去掉相矛盾的表述。
+    expect(planningMessage).toContain('proposal 的 What Changes / Impact 与 design')
+    expect(planningMessage).toContain('删掉与之相矛盾的表述')
     // 先于 spec 的任何技能与文档写入（tasks / plan 登记之前）。
     const firstWrite = actions.findIndex(({ step, action }, index) => index > specStart && step === 'spec'
       && ['load-skill', 'scaffold-document', 'record-document'].includes(action.action))
