@@ -320,19 +320,15 @@ describe('SkillFlow · 画布尺寸与取景', () => {
 describe('SkillFlow · 脉冲只在该动时动', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
-  it('pulseModeOf：不可见 → off；运行中 → loop；编辑过 → once；否则 off', () => {
-    expect(pulseModeOf({ visible: true, running: false, edits: 0 })).toBe('off')
-    expect(pulseModeOf({ visible: true, running: true, edits: 0 })).toBe('loop')
-    expect(pulseModeOf({ visible: true, running: false, edits: 2 })).toBe('once')
+  // 用户规则：脉冲持续从起点依次传到终点；v0.1.9 改成「只在运行 / 编辑后播」，画布平时是静的，被用户指出「脉冲没了」。
+  it('pulseModeOf：可见就循环，不可见就停', () => {
+    expect(pulseModeOf({ visible: true, running: false, edits: 0 })).toBe('loop')
+    expect(pulseModeOf({ visible: true, running: true, edits: 3 })).toBe('loop')
     expect(pulseModeOf({ visible: false, running: true, edits: 2 })).toBe('off')
   })
 
-  it('只读未运行的画布不播；有技能运行中就循环；技能被改过就走一遍', () => {
-    const { rerender } = render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
-    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'off')
-    rerender(<I18nProvider><SkillFlow skills={[...SKILLS, { id: 'handoff', depends_on: ['brainstorming'] }]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
-    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'once')
-    rerender(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} statusOf={(id) => id === 'brainstorming' ? { state: 'running', label: '进行中' } : null} /></I18nProvider>)
+  it('只读、未运行的画布也在循环播放脉冲', () => {
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'loop')
   })
 

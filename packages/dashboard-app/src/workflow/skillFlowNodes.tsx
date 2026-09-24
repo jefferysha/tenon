@@ -42,10 +42,13 @@ export type { PulseMode }
 export type PulseData = { order: number }
 
 /** 画布级脉冲模式：看不见时不播；有技能在跑就循环；否则只在编辑过后走一遍。 */
-export function pulseModeOf({ visible, running, edits }: { visible: boolean; running: boolean; edits: number }): PulseMode {
-  if (!visible) return 'off'
-  if (running) return 'loop'
-  return edits > 0 ? 'once' : 'off'
+/**
+ * 用户定的规则：技能画布上的脉冲从起点到终点依次传递、持续可见（表达「流」），不只在运行或编辑后才播。
+ * 画布离开视口就停；减少动态效果时 timeline 自己不建。running / edits 不再决定播不播——编辑后
+ * 由 timeline 的 key 变化从起点重新开始。
+ */
+export function pulseModeOf({ visible }: { visible: boolean; running: boolean; edits: number }): PulseMode {
+  return visible ? 'loop' : 'off'
 }
 
 /**
