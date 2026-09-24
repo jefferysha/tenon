@@ -18,6 +18,7 @@ import {
 import { display, renderKV, renderTable, str } from '../render.js'
 import { effectiveWorkflowForState } from './effective-workflow.js'
 import { buildStatusStep, finishedStatusStep, type StepBlock } from './statusStep.js'
+import { finishedLabel } from './finishedLabel.js'
 
 interface Row {
   name: string
@@ -128,11 +129,12 @@ export async function cmdStatus(
       ['phase', `${display(state.fields.phase)} (${display(state.fields.phase_status)})`],
       ['verify', display(state.fields.verify_result)],
       ['updated', display(state.fields.updated_at)],
-      // 完结的判定是 `archived=true`；目录被 OpenSpec 搬走与否只决定它还能不能继续改。
+      // 完结的判定是 `archived=true`；目录被 OpenSpec 搬走与否只决定它还能不能继续改。说法与
+      // check 同一句（finishedLabel）：不走 OpenSpec 的工作流只说「已完结」，不说已归档。
       ...(finished || str(state.fields.archived) === 'true'
         ? [
-            ['archived', display(state.fields.archived)] as [string, string],
-            ['archived_at', display(state.fields.archived_at)] as [string, string],
+            ['finished', finishedLabel(deps, state, finished)] as [string, string],
+            ['finished_at', display(state.fields.archived_at)] as [string, string],
           ]
         : []),
     ])) {
@@ -227,7 +229,8 @@ export async function cmdListFinished(deps: CliDeps, opts: { json?: boolean }): 
     return 0
   }
   const table = renderTable(
-    ['NAME', 'TRACK', 'PHASE', 'STATUS', 'ARCHIVED_AT', 'OWNER'],
+    // 列名说「完结时间」：simple 这类工作流完结后并没有归档（JSON 键 archived_at 是 schema，不动）。
+    ['NAME', 'TRACK', 'PHASE', 'STATUS', 'FINISHED_AT', 'OWNER'],
     rows.map((r) => [
       r.name,
       display(r.state.fields.track),

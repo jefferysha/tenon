@@ -10,7 +10,9 @@
   `list --json`）逐字不变，那两份输出是锚定的 schema。
 - 已完结（`archived=true`，无论目录是否已被 `openspec archive` 搬走）的 change 不在
   `active_changes`，而在 `finished_changes`（多一个 `archived_at`）；与列表形态、`list --finished`
-  同一口径。`tenon check` 对它只打一行「已完结（已归档），无需检查」、exit 0。
+  同一口径。`tenon check` 对它只打一行「已完结，无需检查」、exit 0；只有 OpenSpec 治理的工作流（或目录已搬进
+  archive/）才说「已完结（已归档）」，`status` 文本的 `finished` 行与之同一句（`commands/finishedLabel.ts`），
+  `list --finished` 的列名是 `FINISHED_AT`（JSON 键 `archived_at` 不变）。
 - 已完结的 change 恒带 `step`（键序与活跃 change 相同），`step.archived=true`：还有收尾动作时 `next`
   是 `finish-change`；没有可做的事（default 已搬进 archive/、simple 已提交或以 scope-expanded 放弃）时
   `next: [{action: stop, code: finished}]`——所有工作流同一形态。目录已被搬进 archive/ 时证据类分块

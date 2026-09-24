@@ -250,7 +250,7 @@ export function buildProgram(deps: CliDeps, runtimes: ProgramRuntimes = {}): Com
     .description('活跃 change 表')
     .option('--json', 'JSON 输出（schema 稳定）')
     .option('--archived', '当前用户已归档表（per-user 隐藏，可 unarchive）：NAME PHASE ARCHIVED_AT BY')
-    .option('--finished', '已完结表（openspec/changes/archive/ 下做完的任务）：NAME TRACK PHASE STATUS ARCHIVED_AT OWNER')
+    .option('--finished', '已完结表（archived=true 的任务，含已搬进 openspec/changes/archive/ 的）：NAME TRACK PHASE STATUS FINISHED_AT OWNER')
     .action(async (opts: { json?: boolean; archived?: boolean; finished?: boolean }) => {
       if (opts.archived && opts.finished) {
         deps.io.err('ERROR: --archived（当前用户隐藏表）与 --finished（已完结表）是两张表，一次只能选一张')

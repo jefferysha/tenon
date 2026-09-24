@@ -672,6 +672,16 @@ describe('照着 next 做事的运行器：simple 工作流', { timeout: 120_000
         expect(seen).toContain('finish-change')
         // 只剩本机门禁标记：它没被提交，也不会再让 next 发一次必定 nothing to commit 的提交。
         expect(git(['status', '--porcelain']).output).toBe('?? .pipeline-pending-review\n')
+        // 真机（第四轮）：simple 不走 OpenSpec，目录原地不动——check / status / list 只说「已完结」，
+        // 不声称已归档。
+        expect(existsSync(changeDir(SIMPLE)), 'simple 完结后目录不搬').toBe(true)
+        await run(['check', SIMPLE])
+        expect(h.out.join('\n')).toBe(`change '${SIMPLE}' 已完结，无需检查`)
+        await run(['status', SIMPLE])
+        expect(h.out).toContain('finished     已完结')
+        await run(['list', '--finished'])
+        expect(h.out.join('\n')).toContain('FINISHED_AT')
+        expect(h.out.join('\n')).not.toContain('ARCHIVED_AT')
         return
       }
       if (payload.step === undefined) return
