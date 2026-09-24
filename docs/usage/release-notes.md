@@ -4,6 +4,40 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.7 · 2026-09-24
+
+A sixth real-session acceptance release. On v0.1.6 all three tracks finished with no verify-fail and every review
+gate opened on a single confirmation; this release fixes the last flow issue that run found.
+
+### Flow
+
+- When the user replied "继续" after the delivery step's turn, the resume itself appended to the interaction,
+  skill-invocation and skill-confirmation ledgers in the change directory, and v0.1.6 asked for another delivery
+  commit with the same title; the model skipped it and transitioned on an uncommitted tree. The "anything left to
+  deliver" check now excludes all four hook-appended ledgers (history, interactions, skill invocations, skill
+  confirmations); they go in with the next commit.
+
+### Upgrade
+
+From v0.1.6: run `tenon update --codex` (or `--claude`) and open a new host session. The N-1 gate reads and writes
+this release's data with the published v0.1.6 in both directions.
+
+From 1.x: run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.7/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.7/install.sh | /bin/bash -s -- --codex
+```
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+Both hosts' inventory, the active managed runtime and the Dashboard report 0.1.7.
+
 ## v0.1.6 · 2026-09-24
 
 A fifth real-session acceptance release. On v0.1.5 all three tracks finished and every review gate opened on a

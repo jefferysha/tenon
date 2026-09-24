@@ -53129,7 +53129,7 @@ var TENON_HOSTS = [
 var TENON_MARKETPLACE_SOURCE = "jefferysha/tenon";
 var TENON_MARKETPLACE_NAME = "tenon";
 var TENON_PLUGIN_NAME = "tenon";
-var TENON_RELEASE_VERSION = "0.1.6";
+var TENON_RELEASE_VERSION = "0.1.7";
 function parseHostPluginInventory(host, stdout) {
   let parsed;
   try {
@@ -69927,7 +69927,12 @@ var WORKSPACE_COMMIT_PATHS = [
   ...LOCAL_ROOT_FILES.map((name2) => `:(exclude)${name2}`)
 ];
 var TERMINAL_ACTIVITY_PREFIX = ".pipeline-terminal-activity.";
-var CHANGE_HISTORY_FILE = ".pipeline-history.jsonl";
+var HOOK_APPENDED_LEDGERS = [
+  ".pipeline-history.jsonl",
+  ".pipeline-interactions.jsonl",
+  ".pipeline-skill-confirmations.jsonl",
+  ".pipeline-skill-invocations.jsonl"
+];
 function firstDeliveryMessage(change) {
   return `feat(${change}): deliver`;
 }
@@ -69954,7 +69959,7 @@ async function probeGitFinish(cwd, change) {
     git(cwd, ["ls-files", "-z", "--", `openspec/changes/${change}`]),
     statusOf2(WORKSPACE_COMMIT_PATHS),
     statusOf2([...WORKSPACE_COMMIT_PATHS, `:(exclude)openspec/changes/${change}`]),
-    statusOf2([...WORKSPACE_COMMIT_PATHS, `:(exclude)openspec/changes/${change}/${CHANGE_HISTORY_FILE}`]),
+    statusOf2([...WORKSPACE_COMMIT_PATHS, ...HOOK_APPENDED_LEDGERS.map((file) => `:(exclude)openspec/changes/${change}/${file}`)]),
     git(cwd, ["ls-files", "-z", "-c", "-i", "--exclude-standard", "--", "openspec/changes"]),
     // 还没有任何提交时 git log 以 128 退出：按「还没交付过」处理。
     git(cwd, ["log", "--format=%s", "--fixed-strings", `--grep=${firstDeliveryMessage(change)}`])

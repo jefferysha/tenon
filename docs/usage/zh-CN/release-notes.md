@@ -12,6 +12,38 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.1.7 · 2026-09-24
+
+第六轮真实会话验收修复版。v0.1.6 上三条轨道全部走完、没有 verify-fail、每个评审门一次确认即放行；本版修复其中
+发现的最后一处流程问题。
+
+### 流程
+
+- 交付步收尾后用户回复「继续」时，续轮本身会在 change 目录追加交互、技能调用与技能确认台账；v0.1.6 据此再次要求
+  一次同名的交付提交，模型跳过后在未提交的工作区上流转。判定「还有没有待提交的交付物」现在排除 hook 追加的全部
+  四本台账（历史、交互、技能调用、技能确认），它们随下一次提交入库。
+
+### 升级动作
+
+从 v0.1.6 升级：运行 `tenon update --codex`（或 `--claude`），然后新开宿主会话。N-1 兼容门禁在两个方向上用已发布的
+v0.1.6 读写本版本的数据。
+
+从 1.x 迁移：为使用的每个宿主各运行一次版本化安装命令：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.7/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.7/install.sh | /bin/bash -s -- --codex
+```
+
+### 验证
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+两个宿主的 inventory、active managed runtime 与 Dashboard 都报告 0.1.7。
+
 ## v0.1.6 · 2026-09-24
 
 第五轮真实会话验收修复版。v0.1.5 上三条轨道全部走完、每个评审门一次确认即放行；本版收尾剩余的小问题。
