@@ -93,3 +93,47 @@ export async function agentStepViews(
     }))
   return { executors: project('executor'), reviewers: project('reviewer') }
 }
+
+/** 下一步（前进边指向的步骤）声明的评审者：本步的实现与自审按它们的阻断级别与关注点来做。 */
+export interface StepReviewBar {
+  readonly step: string
+  readonly agent: string
+  readonly required: boolean
+  readonly block_at: string
+  /** 评审者定义的一句话说明（冻结的 agent 定义）；读不到时为 null。 */
+  readonly focus: string | null
+}
+
+/**
+ * 真机（第五轮）：build 的实现评审（subagent-driven-development 等由模型或子代理做的审查）把两个
+ * 测试健壮性问题判为不阻塞的建议，verify 的 backend-quality（block_at: medium）判成中级阻断——
+ * verify-fail → build → verify 多走约两轮。两边口径对齐的办法是让 build 看得见 verify 的那份声明：
+ * 前进边指向的步骤上的评审者、各自的 block_at 与关注点。回退边与自环不算。
+ */
+export async function downstreamReviewBar(
+  dir: string,
+  state: PipelineState,
+  plan: EffectiveWorkflowPlan,
+  stepId: string,
+  targets: readonly string[],
+): Promise<readonly StepReviewBar[]> {
+  const steps = plan.capabilities.agents.steps
+    .filter((item) => item.stepId !== stepId && targets.includes(item.stepId) && item.reviewers.length > 0)
+  if (steps.length === 0) return []
+  const runId = state.runMetadata?.runId
+  let frozen: ReadonlyMap<string, FrozenAgent> = new Map<string, FrozenAgent>()
+  try {
+    if (runId !== undefined && runId !== '') {
+      frozen = await readFrozenAgents({ changeDir: dir, runId, workflowFingerprint: plan.workflowFingerprint })
+    }
+  } catch {
+    // 冻结表读不到只少一句关注点说明；阻断级别出自工作流声明，照样给出。
+  }
+  return steps.flatMap((item) => item.reviewers.map((reviewer) => ({
+    step: item.stepId,
+    agent: reviewer.agent,
+    required: reviewer.required,
+    block_at: reviewer.blockAt,
+    focus: frozen.get(reviewer.agent)?.definition.description ?? null,
+  })))
+}

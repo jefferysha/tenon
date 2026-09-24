@@ -42,6 +42,7 @@ evaluateStepExitReport(deps, name, dir, state, plan): Promise<StepExitReport>
 stepSkills(deps, plan, stepId, completed) / stepDocuments(change, policy, stepId, items) / stepFields(state, step)
 // packages/cli/src/commands/statusStepAgents.ts
 agentStepViews(deps, name, dir, state, plan, stepId)
+downstreamReviewBar(dir, state, plan, stepId, targets): Promise<readonly StepReviewBar[]>
 // packages/cli/src/commands/statusStepSpec.ts
 specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: string | null }>
 ```
@@ -89,6 +90,11 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   交付值（无远端时 `pr_url=no-remote`）排在收尾提交之前，写下的状态文件随它入库；没有推荐值的（真实 PR
   URL 要先有提交）排在提交之后，写完之后状态文件的改动再触发一次提交。交付步出口（`transition` 之前）
   `git status --porcelain` 为空；`transition` 自己写的状态文件由完结的 finish-change 提交。不是 git 仓时不发。
+- `review_bar`：前进边（`direction: forward`，不含自环）指向的步骤上声明的评审者，每项
+  `{step, agent, required, block_at, focus}`（`focus` = 冻结 agent 定义的 description，读不到为 null）。
+  非空时附在本步的 `load-skill`、`run-agent`（执行者与本步评审者）与结论字段 `set-field` 上；为空时这些动作
+  不带该键。用途：build 的实现评审按 verify 评审者同一 block_at 与关注点判级，达到阻断级别的在 build 内修完
+  （真机第五轮：build 判建议、verify 的 backend-quality 判 medium 阻断，verify-fail 来回约两轮）。
 - 进行中（`running`）的 agent 先于同一档的一切新动作：`run-agent` 带 `status: running`、`run_id`、
   `report_path`，宿主写报告后 `agent record` 那次运行，不重开。
 - agent 的 `wave` 是依赖分层（kernel `agentWaves`，无 `depends_on` 的同为 0），与 `tenon agent next`
@@ -179,4 +185,5 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   `default` 任务从 `open` 做到 `list --finished`，中途改掉一份已登记的文档、并被评审者打回一次。
   `next` 发出去却执行不了的动作会让它当场红；ship 走出口之前与收尾之后 `git status --porcelain` 都必须为空
   （交付提交不带门禁标记，两次交付提交标题不同），完结后的 `step` 键序与活跃时相同、`next` 为 `stop finished`；缺 `test:integration` 时 fix
-  出现在 spec 且全程没有 `requirements-changed`。
+  出现在 spec 且全程没有 `requirements-changed`；backend build 的实现技能与通过结论带 verify 的 `review_bar`，
+  verify 的动作不带。

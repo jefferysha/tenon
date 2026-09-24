@@ -8,7 +8,7 @@
 import type { StepAction } from './statusStepAction.js'
 import { documentWriteActions, inputDocumentPolicy, skillDocumentActions } from './statusStepDocumentActions.js'
 import { finishActions, type StepCommit, type StepFinishFacts } from './statusStepFinish.js'
-import type { StepAgentView } from './statusStepAgents.js'
+import type { StepAgentView, StepReviewBar } from './statusStepAgents.js'
 import type { StepBlocker, StepExit } from './stepExitReport.js'
 import type { StepDocumentsView, StepFieldView, StepSkillView } from './statusStepParts.js'
 
@@ -67,6 +67,16 @@ export interface StepNextInput {
   readonly delivery: StepCommit | null
   /** 交付步整个工作区（除 hook 追加的历史）还没提交的改动，含状态文件；收尾提交用它。 */
   readonly settle: StepCommit | null
+  /** 下一步声明的评审者（statusStepAgents.downstreamReviewBar）；随实现、自审与结论动作下发。 */
+  readonly reviewBar: readonly StepReviewBar[]
+}
+
+/**
+ * 本步的实现技能、agent 与通过结论带上下一步评审者的口径（`review_bar`）：本步的审查按同一份
+ * block_at 与关注点判级，达到阻断级别的问题在本步修完，不判成「建议」留给下一步去打回。
+ */
+function withReviewBar(actions: readonly StepAction[], bar: readonly StepReviewBar[]): readonly StepAction[] {
+  return bar.length === 0 ? actions : actions.map((action) => ({ ...action, review_bar: bar }))
 }
 
 /**
@@ -149,11 +159,12 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   }
 
   const executors = pendingAgents(input.executors, true)
-  if (executors.length > 0) return executors
+  if (executors.length > 0) return withReviewBar(executors, input.reviewBar)
 
   const ready = input.skills.filter((skill) => skill.status === 'ready')
   if (ready.length > 0) {
-    return ready.map((skill) => ({ action: 'load-skill', skill: skill.id, wave: skill.wave }))
+    return withReviewBar(
+      ready.map((skill) => ({ action: 'load-skill', skill: skill.id, wave: skill.wave })), input.reviewBar)
   }
   const producing = skillDocumentActions(input.skills, input.documents)
   if (producing.length > 0) return producing
@@ -202,7 +213,7 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   if (tests.length > 0) return tests.map((test) => ({ action: 'run-test', test: test.id }))
 
   const reviewers = pendingAgents(input.reviewers, false)
-  if (reviewers.length > 0) return reviewers
+  if (reviewers.length > 0) return withReviewBar(reviewers, input.reviewBar)
 
   // 结果字段是「本步通过」的结论；必需测试或必需评审者已经不通过时，填它只会让运行器去写一条
   // 与证据相反的结论（真机：verify 里评审者打回后 next 仍给 set-field branch_status）。直接去出口：
@@ -212,7 +223,7 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
       input.fields.filter((field) => field.kind === 'outcome' && field.status === 'missing'),
       input.artifactProducers,
     )
-    if (outcomes.length > 0) return outcomes
+    if (outcomes.length > 0) return withReviewBar(outcomes, input.reviewBar)
   }
 
   return exitActions(input)

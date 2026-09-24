@@ -471,6 +471,23 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     const verdict = actions.findIndex(({ action }) =>
       action.action === 'set-field' && action.field === 'pre_verify_review_result')
     expect(actions[verdict]?.action).toMatchObject({ recommended: null, required: ['pass'] })
+    // 真机（第五轮）：build 的实现评审与 verify 的评审者口径不一。build 的实现技能与通过结论带上 verify
+    // 声明的评审者、block_at 与关注点。
+    const verifyBar = [
+      { step: 'verify', agent: 'spec-consistency', required: true, block_at: 'medium' },
+      { step: 'verify', agent: 'backend-quality', required: true, block_at: 'medium' },
+      { step: 'verify', agent: 'security', required: true, block_at: 'medium' },
+      { step: 'verify', agent: 'architecture', required: false, block_at: 'high' },
+    ]
+    const barOf = (action: StepAction | undefined) =>
+      (action?.review_bar as readonly Record<string, unknown>[] | undefined)?.map(({ focus: _focus, ...rest }) => rest)
+    expect(barOf(actions[verdict]?.action)).toEqual(verifyBar)
+    expect(String((actions[verdict]?.action.review_bar as readonly { focus: string }[])[1]?.focus)).toContain('后端质量')
+    const buildSkills = actions.filter(({ step, action }) => step === 'build' && action.action === 'load-skill')
+    expect(buildSkills.length).toBeGreaterThan(0)
+    for (const { action } of buildSkills) expect(barOf(action)).toEqual(verifyBar)
+    // verify 之后的 ship 没有评审者：verify 的动作不带。
+    expect(actions.some(({ step, action }) => step === 'verify' && action.review_bar !== undefined)).toBe(false)
     expect(actions.findIndex(({ step, action }) => step === 'build' && action.action === 'run-test'))
       .toBeLessThan(verdict)
     // 决定类字段在动手之前：build 的 build_mode / isolation 先于本步第一次加载技能。

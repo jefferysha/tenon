@@ -15,7 +15,7 @@ import { str } from '../render.js'
 import { archivedChangesForUser } from '../archivedGuard.js'
 import { parseContinuousAuthority } from '../continuousAuthority.js'
 import { changeDir } from '../paths.js'
-import { agentStepViews, type StepAgentView } from './statusStepAgents.js'
+import { agentStepViews, downstreamReviewBar, type StepAgentView } from './statusStepAgents.js'
 import { evaluateStepExitReport, type StepExit } from './stepExitReport.js'
 import {
   stepDocuments, stepFields, stepSkills,
@@ -333,6 +333,8 @@ export async function buildStatusStep(
       testConfigGaps: await testConfigGaps(deps, plan, stepId, tests, report.exits,
         documents.records.some((doc) => PLAN_DOCUMENT_KINDS.has(doc.kind))),
       ...await deliveryFacts(deps, name, state, fields),
+      reviewBar: await downstreamReviewBar(dir, state, plan, stepId,
+        report.exits.filter((exit) => exit.direction === 'forward').map((exit) => exit.to)),
     }),
   }
 }

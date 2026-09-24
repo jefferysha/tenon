@@ -37,6 +37,7 @@ function input(overrides: Partial<StepNextInput> = {}): StepNextInput {
     testConfigGaps: [],
     delivery: null,
     settle: null,
+    reviewBar: [],
     ...overrides,
   }
 }
@@ -683,6 +684,33 @@ describe('step.next 顺序', () => {
  * 真机（第三轮）：交付步 in-place、不建分支，技能又要求不自行提交，finish-change 只提交归档目录——
  * 走完之后代码、文档、主规格、测试记录全留在工作区。交付物由 next 在交付值之前点名提交。
  */
+/**
+ * 真机（第五轮）：build 的实现评审把两个问题判为建议，verify 的 backend-quality（block_at: medium）判
+ * 中级阻断，verify-fail 来回约两轮。build 的实现技能、agent 与通过结论带上下一步评审者的口径。
+ */
+describe('下一步评审者的口径（review_bar）', () => {
+  const bar = [
+    { step: 'verify', agent: 'backend-quality', required: true, block_at: 'medium', focus: '后端质量评审者' },
+  ]
+
+  test('实现技能、执行者、本步评审者与通过结论带 review_bar', () => {
+    expect(stepNextActions(input({ skills: [skill('test-driven-development', 'ready', 0)], reviewBar: bar })))
+      .toEqual([{ action: 'load-skill', skill: 'test-driven-development', wave: 0, review_bar: bar }])
+    expect(stepNextActions(input({ executors: [agent('builder', 'executor', 'pending', true)], reviewBar: bar }))[0])
+      .toMatchObject({ action: 'run-agent', review_bar: bar })
+    expect(stepNextActions(input({ reviewers: [agent('spec-consistency', 'reviewer', 'pending', true)], reviewBar: bar }))[0])
+      .toMatchObject({ action: 'run-agent', review_bar: bar })
+    const verdict = field('pre_verify_review_result', { kind: 'outcome', required: ['pass'] })
+    expect(stepNextActions(input({ fields: [verdict], reviewBar: bar }))[0])
+      .toMatchObject({ action: 'set-field', field: 'pre_verify_review_result', review_bar: bar })
+  })
+
+  test('下一步没有评审者时不带 review_bar', () => {
+    expect(stepNextActions(input({ skills: [skill('test-driven-development', 'ready', 0)] })))
+      .toEqual([{ action: 'load-skill', skill: 'test-driven-development', wave: 0 }])
+  })
+})
+
 describe('交付步的提交', () => {
   const pr = field('pr_url')
 
