@@ -4,7 +4,7 @@ import type { WbIoSlot } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { cn } from '@/lib/utils'
 
-/** 一行槽位：阶段列（输入 = 产出它的上游阶段，输出 = 读它的下游阶段）与来源技能（可能为空）。 */
+/** 一行槽位：来源阶段（输入 = 产出它的上游阶段，输出 = 本阶段）与来源技能（可能为空）。 */
 export interface IoRow {
   slot: WbIoSlot
   stage: string | undefined
@@ -14,8 +14,8 @@ export interface IoRow {
 }
 
 /**
- * 等分三列表（输入 / 输出同构，纵向对齐）：文件 · 阶段 · 来源技能。阶段列在输入里是来源阶段，在输出里是
- * 消费阶段（来源恒为本阶段，不再重复）。表头常显，空格子显示「—」；等宽字只用于文件名。
+ * 等分三列表（输入 / 输出同构，纵向对齐）：文件 · 来源阶段 · 来源技能。不列读取阶段。表头常显，
+ * 空格子显示「—」；等宽字只用于文件名。
  * 给了 onRemove 时每行末尾多一条 40px 的列放「×」，悬停或聚焦该行时才显出（字段槽位由 YAML 决定，不给 ×）。
  */
 export function IoTable({ direction, rows, empty, onRemove }: {
@@ -30,7 +30,7 @@ export function IoTable({ direction, rows, empty, onRemove }: {
     <div className="grid" role="table" aria-label={t(direction === 'inputs' ? 'workflow.inputs_title' : 'workflow.outputs_title')} data-testid={`io-${direction}`}>
       <div className={cn('grid gap-4 whitespace-nowrap border-b border-border pb-2 text-caption text-text-3', cols)} role="row">
         <span role="columnheader">{t('workflow.col_file')}</span>
-        <span role="columnheader">{t(direction === 'inputs' ? 'workflow.col_stage' : 'workflow.col_consumers')}</span>
+        <span role="columnheader">{t('workflow.col_stage')}</span>
         <span role="columnheader">{t('workflow.col_skill')}</span>
         {onRemove !== undefined && <span aria-hidden="true" />}
       </div>

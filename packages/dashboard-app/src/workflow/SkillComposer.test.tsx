@@ -111,7 +111,8 @@ describe('SkillComposer', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Notes' })).toBeInTheDocument())
   })
 
-  it('× 叫「关闭」；打开即聚焦搜索；「完成」只在草稿与阶段不同时可点；整行点一下就加入', async () => {
+  // 用户要求：左侧技能库可先预览 SKILL.md 再决定。点行 = 右栏预览（不加入），行尾「+」= 加入。
+  it('× 叫「关闭」；打开即聚焦搜索；点行只预览不加入，「+」才加入；「完成」只在草稿与阶段不同时可点', async () => {
     mockSkillApi()
     const user = userEvent.setup()
     const onSave = vi.fn()
@@ -126,9 +127,16 @@ describe('SkillComposer', () => {
     expect(done).toHaveTextContent('完成')
     expect(done).toBeDisabled()
     const row = screen.getByTestId('palette-open-brainstorming')
-    expect(row).toHaveAccessibleName('加入 brainstorming')
     expect(row.className).toContain('min-h-10')
     await user.click(row)
+    expect(screen.queryByTestId('flow-node-brainstorming')).toBeNull()
+    expect(row).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByTestId('skill-detail')).toBeInTheDocument()
+    expect(done).toBeDisabled()
+    const add = screen.getByTestId('palette-add-brainstorming')
+    expect(add).toHaveAccessibleName('加入 brainstorming')
+    expect(add.className).toContain('size-10')
+    await user.click(add)
     expect(screen.getByTestId('flow-node-brainstorming')).toBeInTheDocument()
     expect(done).toBeEnabled()
     await user.click(screen.getByTestId('flow-remove-brainstorming'))

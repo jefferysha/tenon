@@ -85,13 +85,15 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.queryByTestId('workflow-runtime-artifacts')).toBeNull()
   })
 
-  it('输出表三列与输入对齐：文件 · 消费阶段 · 来源技能；文档来源 = 契约候选 ∩ 阶段技能，字段 = 阶段全部技能', () => {
+  // 用户定稿：输入 / 输出是同一张等分表（文件 · 来源阶段 · 来源技能），不显示读取阶段。
+  it('输出表与输入表同列同表头：文件 · 来源阶段 · 来源技能，不列读取阶段；输出的来源阶段 = 本阶段', () => {
     renderPane(EXPLORE)
     const table = screen.getByTestId('io-outputs')
-    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['文件', '消费阶段', '来源技能'])
+    expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['文件', '来源阶段', '来源技能'])
     expect(within(screen.getByTestId('io-inputs')).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['文件', '来源阶段', '来源技能'])
-    expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('规格')
-    expect(within(table).getByTestId('slot-stage-design_doc')).toHaveTextContent('规格')
+    expect(table).not.toHaveTextContent('规格')
+    expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('调研')
+    expect(within(table).getByTestId('slot-stage-design_doc')).toHaveTextContent('调研')
     expect(within(table).getByTestId('slot-skills-superpower-design')).toHaveTextContent('brainstorming')
     expect(within(table).getByTestId('slot-skills-superpower-design')).not.toHaveTextContent('superpowers:')
     expect(within(table).getByTestId('slot-skills-design_doc')).toHaveTextContent('tenon-explore, brainstorming, grill-with-docs')

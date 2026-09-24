@@ -31,10 +31,10 @@ const PaletteItem = memo(function PaletteItem({ entry, placed, active, onOpen, o
     event.dataTransfer.effectAllowed = 'move'
     onDragging(entry.name)
   }
-  // 整行是一个按钮：没排进画布就加入（串行追加）并显示详情，已排进的只显示详情。
+  // 点行 = 在右栏预览 SKILL.md（不加入）；行尾「+」= 串行追加；拖拽 = 按落点加入。先看再决定。
   return (
     <li
-      className={cn('min-w-0 rounded-md border transition-[opacity,border-color,background-color] duration-150', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
+      className={cn('flex min-w-0 items-center gap-1 rounded-md border transition-[opacity,border-color,background-color] duration-150', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
       draggable={!placed}
       onDragStart={placed ? undefined : onDragStart}
       onDragEnd={() => onDragging(null)}
@@ -43,16 +43,25 @@ const PaletteItem = memo(function PaletteItem({ entry, placed, active, onOpen, o
     >
       <button
         type="button"
-        className="flex min-h-10 w-full min-w-0 items-center gap-2 px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-        aria-label={placed ? entry.name : t('workflow.add_skill', { id: entry.name })}
+        className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
         aria-pressed={active}
         data-testid={`palette-open-${entry.name}`}
-        onClick={() => { if (!placed) onAdd(entry.name); onOpen(entry.name) }}
+        onClick={() => onOpen(entry.name)}
       >
         <GripVertical className="size-3.5 flex-none text-text-3" aria-hidden="true" />
-        <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap font-mono text-body', active ? 'font-semibold text-(--accent)' : 'text-text')}>{entry.name}</span>
+        <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap font-mono text-body', active ? 'font-semibold text-(--accent)' : 'text-text')} title={entry.name}>{entry.name}</span>
         <span className="flex flex-none items-center" data-testid={`palette-source-${entry.name}`}><SkillSourceIcon source={entry.source} /></span>
-        <span className={cn('grid size-6 flex-none place-items-center text-text-3', placed && 'invisible')} aria-hidden="true" data-testid={`palette-add-${entry.name}`}><Plus className="size-3.5" /></span>
+      </button>
+      <button
+        type="button"
+        className="grid size-10 flex-none place-items-center rounded-sm text-text-3 outline-none enabled:hover:bg-fill enabled:hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:invisible"
+        aria-label={t('workflow.add_skill', { id: entry.name })}
+        title={t('workflow.add_skill', { id: entry.name })}
+        disabled={placed}
+        data-testid={`palette-add-${entry.name}`}
+        onClick={() => onAdd(entry.name)}
+      >
+        <Plus className="size-4" aria-hidden="true" />
       </button>
     </li>
   )

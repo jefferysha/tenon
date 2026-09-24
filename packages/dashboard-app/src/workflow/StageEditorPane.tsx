@@ -90,10 +90,10 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
     .filter((issue) => issue.kind.startsWith('transition-'))
     .map((issue) => lintMessage(t, issue, editor.labelOf))
 
-  // 输出行的阶段列是去向（读它的下游阶段）；来源阶段恒为本阶段，写出来是废话。
+  // 输入 / 输出同一张表（文件 · 来源阶段 · 来源技能）；输出的来源阶段就是本阶段。不列读取阶段。
   const outputRows: IoRow[] = (stepIo?.outputs ?? []).map((slot) => ({
     slot,
-    stage: slot.consumers.length === 0 ? undefined : slot.consumers.map((id) => editor.labelOf(id)).join(', '),
+    stage: stageLabel,
     skills: slot.kind === 'document' ? producerSkills(slot.producers, stageSkills) : stageSkills,
     path: slot.kind === 'document' ? `${contractBase}.slots[${slot.id}]` : `${yamlBase}.outputs[${slot.id}]`,
   }))

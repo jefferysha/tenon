@@ -146,22 +146,27 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(screen.getByTestId('agent-palette-search')).toHaveFocus())
     expect(screen.getByTestId('agent-composer-save')).toHaveTextContent('完成')
     expect(screen.getByTestId('agent-composer-save')).toBeDisabled()
-    await user.click(screen.getByTestId('palette-agent-open-builder'))
+    await user.click(screen.getByTestId('palette-agent-add-builder'))
     expect(screen.getByTestId('agent-composer-save')).toBeEnabled()
   })
 
-  it('整行可点：没排进的点一下就加入并选中；已排进的点一下只选中；行高 40', async () => {
+  // 用户要求：先看再决定。点行只在右栏显示（不加入），行尾「+」才加入。
+  it('点行只选中查看、不加入；行尾「+」（40px）才加入画布', async () => {
     const user = userEvent.setup()
     renderComposer('reviewers', vi.fn(), [{ agent: 'security', required: true, block_at: 'high' }])
     const row = screen.getByTestId('palette-agent-open-builder')
-    expect(row).toHaveAccessibleName('加入 builder')
     expect(row.className).toContain('min-h-10')
     await user.click(row)
-    expect(screen.getByTestId('flow-node-builder')).toBeInTheDocument()
+    expect(screen.queryByTestId('flow-node-builder')).toBeNull()
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1')
     expect(screen.getByTestId('palette-agent-open-builder')).toHaveAttribute('aria-pressed', 'true')
-    await user.click(screen.getByTestId('palette-agent-open-security'))
-    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-nodes', '2')
-    expect(screen.getByTestId('palette-agent-open-security')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('agent-composer-save')).toBeDisabled()
+    const add = screen.getByTestId('palette-agent-add-builder')
+    expect(add).toHaveAccessibleName('加入 builder')
+    expect(add.className).toContain('size-10')
+    await user.click(add)
+    expect(screen.getByTestId('flow-node-builder')).toBeInTheDocument()
+    expect(screen.getByTestId('palette-agent-add-builder')).toBeDisabled()
   })
 
   it('评审者设置：字段名是「级别」与「阻断阈值」', () => {

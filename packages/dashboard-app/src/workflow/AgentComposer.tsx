@@ -229,10 +229,10 @@ function PaletteItem({ agent, placed, active, onOpen, onAdd, onDragging }: {
     event.dataTransfer.effectAllowed = 'move'
     onDragging(agent.name)
   }
-  // 整行是一个按钮：没排进画布就加入并选中（右栏出设置），已排进的只选中。
+  // 点行 = 在右栏看说明与设置（不加入）；行尾「+」= 串行追加；拖拽 = 按落点加入。
   return (
     <li
-      className={cn('min-w-0 rounded-md border', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
+      className={cn('flex min-w-0 items-center gap-1 rounded-md border', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
       draggable={!placed}
       onDragStart={placed ? undefined : onDragStart}
       onDragEnd={() => onDragging(null)}
@@ -241,16 +241,25 @@ function PaletteItem({ agent, placed, active, onOpen, onAdd, onDragging }: {
     >
       <button
         type="button"
-        className="flex min-h-10 w-full min-w-0 items-center gap-2 px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-        aria-label={placed ? agent.name : t('workflow.add_skill', { id: agent.name })}
+        className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
         aria-pressed={active}
         data-testid={`palette-agent-open-${agent.name}`}
-        onClick={() => { if (!placed) onAdd(agent.name); onOpen(agent.name) }}
+        onClick={() => onOpen(agent.name)}
       >
         <GripVertical className="size-3.5 flex-none text-text-3" aria-hidden="true" />
-        <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap font-mono text-body', active ? 'font-semibold text-(--accent)' : 'text-text')}>{agent.name}</span>
+        <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap font-mono text-body', active ? 'font-semibold text-(--accent)' : 'text-text')} title={agent.name}>{agent.name}</span>
         <span className="flex flex-none items-center"><SkillSourceIcon source={agent.source === 'builtin' ? 'builtin' : 'user'} /></span>
-        <span className={cn('grid size-6 flex-none place-items-center text-text-3', placed && 'invisible')} aria-hidden="true" data-testid={`palette-agent-add-${agent.name}`}><Plus className="size-3.5" /></span>
+      </button>
+      <button
+        type="button"
+        className="grid size-10 flex-none place-items-center rounded-sm text-text-3 outline-none enabled:hover:bg-fill enabled:hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:invisible"
+        aria-label={t('workflow.add_skill', { id: agent.name })}
+        title={t('workflow.add_skill', { id: agent.name })}
+        disabled={placed}
+        data-testid={`palette-agent-add-${agent.name}`}
+        onClick={() => onAdd(agent.name)}
+      >
+        <Plus className="size-4" aria-hidden="true" />
       </button>
     </li>
   )
