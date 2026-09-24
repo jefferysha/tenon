@@ -129,13 +129,14 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
     }
   }, [editable, removeNode])
 
-  // 首次布局写进 nodes 之前，nodes 是空的：那时的「图」不是用户编辑的结果，不能回写（见下方写回 effect）。
-  const [laidOut, setLaidOut] = useState(false)
+  // nodes 是按哪一版技能（签名）布局出来的。布局写进 nodes 之前（首次挂载、父级刚换了技能），
+  // 那时的「图」不是用户编辑的结果，不能回写（见下方写回 effect）。
+  const [layoutFor, setLayoutFor] = useState<string | null>(null)
   // 技能内容变了（切换阶段 / 打开编辑器 / 外部改写）→ 按波次重新布局；引用变化不触发。
   useEffect(() => {
     setNodes(layoutSkills(skillsRef.current, linesRef.current).map(({ id, x, y }) => makeNode(id, x, y)))
     setEdges(edgesOf(skillsRef.current))
-    setLaidOut(true)
+    setLayoutFor(signature)
     // 等 React Flow 量完节点尺寸再取景，否则按未测量的位置取景会把末列切掉。
     const timer = setTimeout(() => refitRef.current(), 60)
     return () => clearTimeout(timer)
@@ -177,16 +178,16 @@ function SkillFlowInner({ skills, registry, editable, onChange, onOpen, dragLabe
   const pulseMode: PulseMode = pulseModeOf({ visible, running, edits })
 
   // 可编辑：图的签名与传入技能不同才回写，回写一次后等父级把新技能传回来。
-  // 首次布局完成前不回写：挂载那一拍 nodes 为空，空图与传入技能必然不同，回写 [] 会让持有状态的父组件
-  // 清空技能、再布局、再回写，无限循环。
+  // nodes 还不是当前技能的布局时不回写：挂载那一拍 nodes 为空，空图与传入技能必然不同，回写 [] 会让持有状态的
+  // 父组件清空技能、再布局、再回写，无限循环；父级换了技能、新布局还没落进 nodes 时同理。
   const graph = useMemo(() => graphToSkills(nodes.map((node) => node.id), edges, skillsRef.current), [nodes, edges])
   const graphSignature = skillsSignature(graph)
   useEffect(() => {
-    if (!editable || !laidOut) return
+    if (!editable || layoutFor !== signature) return
     if (nodes.length === 0 && skillsRef.current.length === 0) return
     if (graphSignature !== signature) onChangeRef.current?.(graph)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graphSignature, laidOut])
+  }, [graphSignature, layoutFor])
 
   // 起点 / 终点 / 波次标签只是画法，从当前技能节点推出来，不进 state。
   const decorated = useMemo((): { nodes: FlowNode[]; edges: Edge[] } => {

@@ -234,7 +234,7 @@ those, never class names.
   `×` on a node (`flow-remove-<id>`) removes it and its edges; Backspace deletes a selected edge. The graph is written
   back as `graphToSkills(nodeIds, edges, existing)` → `depends_on` = incoming edge sources, other fields preserved,
   order = waves flattened with the definition's original order inside a wave. Write-back waits for the first layout
-  (`laidOut`): on mount `nodes` is empty and an empty graph would call `onChange([])`, which a stateful parent turns
+  (`layoutFor === signature`): on mount `nodes` is empty and an empty graph would call `onChange([])`, which a stateful parent turns
   into an endless clear / relayout loop. 完成 (enabled only when the draft differs) calls `editor.setSkills(stepId,
   skills)`; writing to disk is the page save bar. × on the composer is 关闭. Node positions are not persisted (YAML
   has none); they are re-laid out from waves on open.
