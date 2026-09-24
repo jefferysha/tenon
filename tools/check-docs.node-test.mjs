@@ -65,7 +65,7 @@ async function fixture() {
     root,
     'packages/dashboard-app/src/shell/views.ts',
     [
-      "export const VIEWS = ['progress', 'workbench', 'projects', 'library', 'skills'] as const",
+      "export const VIEWS = ['workspace', 'workflow', 'projects', 'library', 'skills'] as const",
       "export type View = (typeof VIEWS)[number]",
     ].join('\n'),
   )
@@ -346,7 +346,7 @@ test('keeps operational views declared in VIEWS', async (t) => {
     root,
     'packages/dashboard-app/src/shell/views.ts',
     [
-      "export const VIEWS = ['progress', 'workbench', 'missing'] as const",
+      "export const VIEWS = ['workspace', 'workflow', 'missing'] as const",
       "export type View = (typeof VIEWS)[number]",
     ].join('\n'),
   )

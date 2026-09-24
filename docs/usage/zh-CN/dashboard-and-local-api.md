@@ -77,11 +77,11 @@ Dashboard `zh/en` 存在浏览器 `localStorage`，只控制 UI。治理文档 l
 日常主导航保留五项高频入口：
 
 ```text
-progress → workbench → projects → library → skills
+workspace → workflow → projects → library → skills
 ```
 
-- `progress`：按状态查看任务，打开详情执行下一动作；
-- `workbench`：编辑 Workflow 与阶段结构；
+- `workspace`：按状态查看任务，打开详情执行下一动作；
+- `workflow`：编辑 Workflow 与阶段结构；
 - `projects`：按项目管理已启用的 agent 客户端，逐个编辑其项目级与用户级指令文件（`AGENTS.md`、`CLAUDE.md`、`GEMINI.md`），并从已有目录或新目录新建项目；新建项目是分步向导（位置 → 模板 → 客户端 → 确认），目录只能选择：`POST /api/fs/choose-folder` 在运行 server 的本机弹出系统文件夹对话框，不可用时改用页面内浏览器（`GET /api/fs/list`，同样要 token）；`POST /api/projects/create/stream` 以 `text/event-stream` 逐步回报创建进度；
 - `library`：指令模板库，内建块随发行包同步，自定义块可复制与修改；
 - `skills`：只读查看每个技能的来源、提交、许可证、更新时间与状态。
