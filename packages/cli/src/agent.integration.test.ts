@@ -445,6 +445,12 @@ tracks:
     expect(step.next).toEqual([{
       action: 'run-agent', agent: 'builder', role: 'executor', wave: 0,
       status: 'running', run_id: started.run_id, report_path: started.report_path,
+      // 下一步（verify）声明的评审者口径随本步 agent 下发（真机第五轮）。
+      review_bar: [
+        expect.objectContaining({ step: 'verify', agent: 'security', required: true, block_at: 'medium' }),
+        expect.objectContaining({ step: 'verify', agent: 'spec-consistency', required: true, block_at: 'medium' }),
+        expect.objectContaining({ step: 'verify', agent: 'architecture', required: false, block_at: 'high' }),
+      ],
     }])
     expect(await h.run(['agent', 'next', 'demo'], { env: USER_A })).toBe(0)
     expect(h.out.join('\n')).not.toContain('全部完成')
