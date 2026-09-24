@@ -5,7 +5,7 @@ import {
   type ResourceCategory, type ResourceDto, type ResourceFileError, type ResourceFramework, type ResourceStyling,
 } from '../../api/resourceTypes'
 import type { ResourceQuery } from '@tenon/kernel/resources/query'
-import { ListColumn } from '../../shell/ThreeColumns'
+import { ListColumn, StatusPill } from '../../shell/ThreeColumns'
 import { FacetBar, type FacetGroup } from '../../shared/FacetBar'
 import { BUTTON_GHOST } from '../../shared/uiRecipes'
 import { BuiltinLock, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from '../libraryChrome'
@@ -102,12 +102,8 @@ export function ResourceList({
               >
                 <span className={LIST_ROW_NAME}>{row.entry.name}</span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
-                  <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2">
-                    {t(`resources.category.${row.entry.category}`)}
-                  </span>
-                  <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2">
-                    {t(row.entry.license.redistributable ? 'resources.license_mode.redistributable' : 'resources.license_mode.link_only')}
-                  </span>
+                  <span className="text-caption text-text-3">{t(`resources.category.${row.entry.category}`)}</span>
+                  <span className="text-caption text-text-3">{t(row.entry.license.redistributable ? 'resources.license_mode.redistributable' : 'resources.license_mode.link_only')}</span>
                   {row.source === 'builtin' && <BuiltinLock quiet testId={`res-builtin-${row.entry.id}`} />}
                 </span>
               </button>
@@ -123,9 +119,7 @@ export function ResourceList({
                   <span className="block truncate font-mono text-caption text-text">{error.file}</span>
                   <span className="block truncate text-caption text-red-d" title={error.errors.join('；')}>{error.errors[0]}</span>
                 </span>
-                <span className="rounded-full bg-red-t px-2 py-0.5 text-micro font-bold whitespace-nowrap text-red-d">
-                  {t('resources.invalid')}
-                </span>
+                <StatusPill tone="blocked">{t('resources.invalid')}</StatusPill>
               </div>
             </li>
           ))}

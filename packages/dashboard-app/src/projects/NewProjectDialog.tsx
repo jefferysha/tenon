@@ -245,9 +245,9 @@ export function NewProjectDialog({ onClose, onCreated }: { onClose: () => void; 
         {tab === 'preview' && (
           <div className="grid gap-3" data-testid="np-preview">
             {directories.length > 0 && (
-              <div className="flex flex-wrap gap-2" data-testid="np-preview-directories">
+              <div className="flex gap-3 overflow-x-auto" data-testid="np-preview-directories">
                 {directories.map((entry) => (
-                  <span key={entry.path} className="rounded-full bg-fill px-2.5 py-1 font-mono text-micro whitespace-nowrap text-text-2">{entry.path}</span>
+                  <span key={entry.path} className="font-mono text-caption whitespace-nowrap text-text-2">{entry.path}</span>
                 ))}
               </div>
             )}

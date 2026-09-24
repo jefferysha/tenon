@@ -191,7 +191,7 @@ export function AgentComposer({
                               key={test.id}
                               type="button"
                               aria-pressed={on}
-                              className={cn('min-h-8 rounded-full border px-2.5 font-mono text-caption outline-none focus-visible:ring-2 focus-visible:ring-(--accent)', on ? 'border-accent-b bg-accent-t text-(--accent)' : 'border-border bg-card text-text-2')}
+                              className={cn('min-h-8 rounded-sm border px-2.5 font-mono text-caption outline-none focus-visible:ring-2 focus-visible:ring-(--accent)', on ? 'border-accent-b bg-accent-t text-(--accent)' : 'border-border bg-card text-text-2')}
                               data-testid={`wb-agent-test-${selected}-${test.id}`}
                               onClick={() => patch(selected, {
                                 reads_tests: on

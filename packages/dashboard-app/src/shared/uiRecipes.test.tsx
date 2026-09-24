@@ -106,6 +106,23 @@ function sources(dir: string): string[] {
   })
 }
 
+describe('药丸只留计数徽标、头像、状态点', () => {
+  // rounded-full 只允许出现在定尺寸的圆（状态点 / 头像 / 阶段号：size-*）、计数徽标（min-w-5）与细进度条（h-1 / h-1.5）上；
+  // 类别、许可、大小这类信息是纯文字，「无效」这类状态是 StatusPill 的点 + 词。
+  it('生产 TSX（除 vendored components/ui）里的 rounded-full 都在允许形态上', () => {
+    const offenders: string[] = []
+    for (const file of sources(join(process.cwd(), 'packages/dashboard-app/src'))) {
+      if (file.includes('/components/ui/')) continue
+      readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
+        if (!line.includes('rounded-full')) return
+        if (/(^|[\s'"`])(size-\d|min-w-5|h-full|h-1(\.5)?[\s'"`])/u.test(line)) return
+        offenders.push(`${file.split('/src/')[1]}:${index + 1}`)
+      })
+    }
+    expect(offenders).toEqual([])
+  })
+})
+
 const RECIPE_CLASS = /className=\{([^}]*\$\{BUTTON_[A-Z]+\}[^}]*|cn\(BUTTON_[A-Z]+[^)]*\))\}/gu
 const BARE_HOVER = /(^|[\s'"`])hover:/u
 

@@ -231,7 +231,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
                         <span className={LIST_ROW_NAME}>{row.title}</span>
                         <span className="flex items-center gap-2 whitespace-nowrap">
                           {row.errors.length > 0 && (
-                            <span className="rounded-full bg-red-t px-2 py-0.5 text-micro font-bold text-red-d" data-testid={`lib-tpl-errors-${row.id}`}>
+                            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-red-t px-1 text-micro font-semibold tabular-nums text-red-d" data-testid={`lib-tpl-errors-${row.id}`}>
                               {row.errors.length}
                             </span>
                           )}

@@ -3,6 +3,7 @@ import { useT } from '../i18n'
 import type { AgentSummary } from '../api/agentClient'
 import { Dialog } from '../shared/Dialog'
 import { BUTTON_GHOST, BUTTON_SOLID, FIELD_LABEL, INPUT } from '../shared/uiRecipes'
+import { StatusPill } from '../shell/ThreeColumns'
 import { BuiltinLock, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
 
 /** 与 kernel 的 AGENT_NAME_RE 同形：名字即文件名，写之前就挡掉不合法的。 */
@@ -64,9 +65,7 @@ export function AgentList({
                         </span>
                         <span className="flex items-center gap-2 whitespace-nowrap">
                           {agent.error !== undefined && (
-                            <span className="rounded-full bg-red-t px-2 py-0.5 text-micro font-bold text-red-d" data-testid={`lib-agent-invalid-${agent.name}`}>
-                              {t('library.agent_invalid')}
-                            </span>
+                            <StatusPill tone="blocked" testId={`lib-agent-invalid-${agent.name}`}>{t('library.agent_invalid')}</StatusPill>
                           )}
                           {agent.source === 'builtin' && <BuiltinLock quiet testId={`lib-agent-builtin-${agent.name}`} />}
                         </span>

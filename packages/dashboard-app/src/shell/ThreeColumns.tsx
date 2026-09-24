@@ -340,7 +340,7 @@ export function StatusPill({ tone, children, testId, title, className }: { tone:
       data-testid={testId}
       title={title}
     >
-      <i className="size-2 flex-none rounded-full" aria-hidden="true" />
+      <i className="size-1.5 flex-none rounded-full" aria-hidden="true" />
       <span className="truncate">{children}</span>
     </span>
   )

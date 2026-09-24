@@ -92,6 +92,7 @@ describe('StatusPill（B4：语义点 + 文字）', () => {
     expect(pill).toHaveAttribute('data-tone', 'pending')
     expect(pill).toHaveTextContent('待复核')
     expect(pill.querySelector('i[aria-hidden="true"]')).not.toBeNull()
+    expect(classesOf(pill.querySelector('i')!)).toEqual(expect.arrayContaining(['size-1.5', 'rounded-full']))
   })
 })
 

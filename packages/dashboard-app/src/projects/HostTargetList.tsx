@@ -133,7 +133,7 @@ export function HostTargetList({
                   <td className={`${CELL} font-mono text-text`} title={target.id}>
                     {target.id}
                     {target.bytes > CODEX_MAX_BYTES && (
-                      <span className="ml-2 rounded-full bg-red-t px-2 py-0.5 font-sans text-micro font-bold text-red-d" data-testid={`proj-size-${target.id}`}>32KiB</span>
+                      <span className="ml-2 font-sans text-caption text-text-3" title={t('projects.errors.too_large')} data-testid={`proj-size-${target.id}`}>32KiB</span>
                     )}
                   </td>
                   <td className={`${CELL} text-text-2`} data-testid={`proj-status-${target.id}`}>
