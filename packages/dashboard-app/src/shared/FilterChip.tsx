@@ -67,7 +67,7 @@ export function FilterChip({
       onKeyDown={onChipKey}
     >
       {label}
-      {count !== undefined && <span className={cn('font-mono text-caption', selected ? 'text-(--accent)' : 'text-text-3')}>{count}</span>}
+      {count !== undefined && <span className={cn('text-caption tabular-nums', selected ? 'text-(--accent)' : 'text-text-3')}>{count}</span>}
     </button>
   )
 }

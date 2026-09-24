@@ -56,3 +56,16 @@ describe('Markdown · 注释、表格代码与任务列表', () => {
     expect(root.className).toContain('[&_input[type=checkbox]]:accent-(--accent)')
   })
 })
+
+describe('Markdown · 行长与行内代码', () => {
+  it.each(['default', 'compact'] as const)('%s：正文限 72ch；行内代码 0.9em（不低于 13px）左右 5px，代码块沿用 pre 字号', (density) => {
+    render(<Markdown testId="md" density={density} text={'Run `tenon init` now.\n\n```sh\ntenon init\n```'} />)
+    const root = screen.getByTestId('md')
+    const names = root.className.split(/\s+/u)
+    expect(names).toContain('max-w-[72ch]')
+    for (const name of ['[&_code]:bg-code-bg', '[&_code]:px-[5px]', '[&_code]:text-[length:max(.9em,13px)]', '[&_pre_code]:[font-size:inherit]']) {
+      expect(names).toContain(name)
+    }
+    expect(root.querySelector('p code')?.textContent).toBe('tenon init')
+  })
+})

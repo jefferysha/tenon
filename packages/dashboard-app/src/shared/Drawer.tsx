@@ -1,8 +1,9 @@
-import { useEffect, useRef, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import { Dialog as DialogPrimitive } from 'radix-ui'
 import { X } from 'lucide-react'
 import { useT } from '../i18n'
 import { cn } from '@/lib/utils'
+import { BUTTON_ICON } from './uiRecipes'
 
 export interface DrawerProps {
   open: boolean
@@ -18,61 +19,64 @@ export interface DrawerProps {
   width?: 'md' | 'lg'
 }
 
-const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+/* 遮罩 180ms 淡入 / 160ms 淡出；面板从右侧 24px 滑入 + 淡入 240ms，退场 160ms。reduced-motion 由 index.css 只留淡入淡出。 */
+const SCRIM_MOTION =
+  'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:duration-(--dur-base) data-[state=open]:ease-(--ease-out) data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-[160ms] data-[state=closed]:ease-(--ease-exit)'
+const PANEL_MOTION =
+  'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-right-6 data-[state=open]:duration-(--dur-panel) data-[state=open]:ease-(--ease-out) data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-right-6 data-[state=closed]:duration-[160ms] data-[state=closed]:ease-(--ease-exit)'
 
 /**
- * 右侧抽屉：覆盖在右列上，任务上下文仍可见。Esc / 遮罩关闭；焦点进入面板，关闭后还原。
+ * 右侧抽屉（Radix Dialog）：覆盖在右列上，任务上下文仍可见。Radix 负责焦点困笼、分层 Esc 与退场动画；
+ * 本组件只补两件事：遮罩点击才关闭（面板外的其他浮层不算），关闭后把焦点还给打开前的元素
+ * （调用方没有 Radix Trigger，Radix 自己不会归还）。
  */
-export function Drawer({ open, onClose, title, actions, children, testId = 'drawer', ariaLabel, width = 'md' }: DrawerProps): JSX.Element | null {
+export function Drawer({ open, onClose, title, actions, children, testId = 'drawer', ariaLabel, width = 'md' }: DrawerProps): JSX.Element {
   const { t } = useT()
-  const panelRef = useRef<HTMLElement>(null)
   const previousFocus = useRef<HTMLElement | null>(null)
 
-  useEffect(() => {
-    if (!open) return
-    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const panel = panelRef.current
-    const first = panel?.querySelector<HTMLElement>(FOCUSABLE)
-    ;(first ?? panel)?.focus()
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') { event.stopPropagation(); onClose(); return }
-      if (event.key !== 'Tab' || !panel) return
-      const focusable = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)]
-      if (focusable.length === 0) { event.preventDefault(); panel.focus(); return }
-      const head = focusable[0]
-      const tail = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === head) { event.preventDefault(); tail?.focus() } else if (!event.shiftKey && document.activeElement === tail) { event.preventDefault(); head?.focus() }
-    }
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => {
-      document.removeEventListener('keydown', onKeyDown, true)
-      previousFocus.current?.focus()
-    }
-  }, [open, onClose])
+  // 布局阶段记录：Radix 在子树 effect 里才把焦点移进面板。
+  useLayoutEffect(() => {
+    if (open) previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  }, [open])
 
-  if (!open) return null
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex justify-end" data-testid={`${testId}-root`}>
-      <button type="button" className="flex-1 cursor-default bg-scrim/40" aria-label={t('common.dialog_close')} tabIndex={-1} onClick={onClose} />
-      <section
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={ariaLabel}
-        tabIndex={-1}
-        className={cn('flex h-full max-w-full flex-col border-l border-border bg-card shadow-lg outline-none', width === 'lg' ? 'w-[min(960px,92vw)]' : 'w-[560px]', 'max-[900px]:w-full')}
-        data-testid={testId}
-      >
-        <header className="flex flex-none items-center gap-3 border-b border-border px-5 py-3">
-          <div className="min-w-0 flex-1">{title}</div>
-          {actions}
-          <button type="button" className="grid size-8 flex-none place-items-center rounded-sm text-text-3 hover:bg-fill hover:text-text" aria-label={t('common.dialog_close')} data-testid={`${testId}-close`} onClick={onClose}>
-            <X className="size-4" aria-hidden="true" />
-          </button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
-      </section>
-    </div>,
-    document.body,
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      {/* 显式 container：内容与调用方同一次提交挂载。 */}
+      <DialogPrimitive.Portal container={document.body}>
+        <DialogPrimitive.Overlay
+          className={cn('fixed inset-0 z-50 bg-scrim/40', SCRIM_MOTION)}
+          data-testid={`${testId}-scrim`}
+          onClick={onClose}
+        />
+        <DialogPrimitive.Content
+          aria-modal="true"
+          aria-describedby={undefined}
+          className={cn(
+            'fixed inset-y-0 right-0 z-50 flex h-full max-w-full flex-col rounded-l-lg bg-surface-raised shadow-(--shadow-3) outline-none',
+            PANEL_MOTION,
+            width === 'lg' ? 'w-[min(960px,92vw)]' : 'w-[560px]',
+            'max-[900px]:w-full',
+          )}
+          data-testid={testId}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onEscapeKeyDown={(event) => event.stopPropagation()}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            const previous = previousFocus.current
+            if (previous?.isConnected) previous.focus()
+          }}
+        >
+          <DialogPrimitive.Title className="sr-only">{ariaLabel}</DialogPrimitive.Title>
+          <header className="flex flex-none items-center gap-3 border-b border-border px-5 py-2">
+            <div className="min-w-0 flex-1">{title}</div>
+            {actions}
+            <button type="button" className={cn(BUTTON_ICON, 'flex-none')} aria-label={t('common.dialog_close')} data-testid={`${testId}-close`} onClick={onClose}>
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }

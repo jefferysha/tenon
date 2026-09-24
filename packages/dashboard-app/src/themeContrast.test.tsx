@@ -81,6 +81,25 @@ describe('theme semantic foreground contrast', () => {
     expect(contrast(hexToken(source, 'text-3'), hexToken(source, 'fill-2'))).toBeGreaterThanOrEqual(3)
   })
 
+  // Tooltips carry the explanations that pages no longer spell out, so they must read as body text.
+  it.each(themes)('%s tooltip text stays at WCAG AA on its ground', (_label, source) => {
+    expect(contrast(hexToken(source, 'tooltip-fg'), hexToken(source, 'tooltip-bg'))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  // In dark themes accent is for text, icons and focus rings; the primary button gets a deeper green ground.
+  it.each([
+    ['system dark', systemDark],
+    ['explicit dark', dark],
+  ] as const)('%s primary button uses a deep green ground, not the bright accent', (_label, source) => {
+    expect(hexToken(source, 'btn-bg')).not.toBe(hexToken(source, 'accent'))
+    expect(contrast(hexToken(source, 'btn-fg'), hexToken(source, 'btn-bg'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(hexToken(source, 'accent'), hexToken(source, 'card'))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it.each(themes)('%s light and dark blocks declare the tooltip and surface-raised tokens', (_label, source) => {
+    for (const name of ['tooltip-bg', 'tooltip-fg', 'tooltip-border', 'surface-raised']) expect(hexToken(source, name)).toMatch(/^#/)
+  })
+
   it('uses the shared ease-out token for Tailwind transitions', () => {
     expect(css).toContain('--default-transition-timing-function: var(--ease-out);')
   })

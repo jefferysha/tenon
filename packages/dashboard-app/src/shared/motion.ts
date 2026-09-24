@@ -1,26 +1,32 @@
 import gsap from 'gsap'
 
 /**
- * 跨视图共享的 GSAP 入场/切换动效（T18 自 workflow/ 迁入 shared/——workflow 编辑器退役，
- * 现消费方：App toast / shared/TaskDetail / WorkbenchView。Phase 3 收尾：stampConfirm/
- * slideInPanel/crossfadeStage/foldOpen 四个导出随旧视图退役后全包零消费，已删）：同一套
- * reduced-motion 判断 + 时长/缓动惯例，抽成一份而非各自重复 gsap.matchMedia 判断逻辑。
- * revealList/revealDialog/revealStages 必须在各组件的 `useGSAP(() => { ... }, { scope })`
- * 回调内同步调用——GSAP 的 context 追踪按调用栈生效。toastIn 也支持普通 React effect，
- * 调用方必须在 effect cleanup 中调用它返回 handle 的 kill()。
+ * 跨视图共享的 GSAP 入场 / 退场动效：同一套 reduced-motion 判断与时长缓动惯例（index.css 的 --dur-* /
+ * --ease-* 对位：power3.out ≈ --ease-out，power2.in ≈ --ease-exit）。
+ * reduced-motion 分支只做 0.1s 的 autoAlpha 淡入淡出，不位移。
+ * revealList 必须在组件的 `useGSAP(() => { ... }, { scope })` 回调内同步调用——GSAP 的 context 追踪按调用栈生效。
+ * toastIn 也支持普通 React effect，调用方必须在 effect cleanup 中调用它返回 handle 的 kill()。
  */
+const REDUCE = '(prefers-reduced-motion: reduce)'
+const REDUCE_FADE = 0.1
+
+function hasMatchMedia(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+}
+
 function withMotionPreference(
   reduce: () => gsap.core.Tween[],
   motion: () => gsap.core.Tween[],
+  fallback: () => gsap.core.Tween[],
 ): void {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    reduce()
+  if (!hasMatchMedia()) {
+    fallback()
     return
   }
 
   let handled = false
   gsap.matchMedia().add(
-    { reduce: '(prefers-reduced-motion: reduce)', motion: '(prefers-reduced-motion: no-preference)' },
+    { reduce: REDUCE, motion: '(prefers-reduced-motion: no-preference)' },
     (ctx) => {
       handled = true
       const shouldReduce = Boolean((ctx.conditions as { reduce?: boolean } | undefined)?.reduce)
@@ -30,28 +36,16 @@ function withMotionPreference(
       }
     },
   )
-  if (!handled) reduce()
+  // matchMedia 存在但两个条件都不匹配（非常规 UA 桩）：直达终态，保证可见。
+  if (!handled) fallback()
 }
 
-/** 列表/网格项入场：轻微上浮 + 淡入，按顺序错开。reduced-motion 时瞬时可见。 */
-export function revealList(targets: gsap.TweenTarget, stagger = 0.035): void {
+/** 列表 / 右栏内容入场：上浮 4px + 淡入 180ms，按顺序错开 30ms。 */
+export function revealList(targets: gsap.TweenTarget, stagger = 0.03): void {
   withMotionPreference(
-    () => [gsap.set(targets, { opacity: 1, y: 0 })],
-    () => [gsap.fromTo(targets, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.22, ease: 'power2.out', stagger })],
-  )
-}
-
-/** 弹窗：backdrop 淡入 + 内容轻微放大淡入。 */
-export function revealDialog(backdrop: gsap.TweenTarget, content: gsap.TweenTarget): void {
-  withMotionPreference(
-    () => [
-      gsap.set(backdrop, { opacity: 1 }),
-      gsap.set(content, { opacity: 1, scale: 1, y: 0 }),
-    ],
-    () => [
-      gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: 0.15, ease: 'power1.out' }),
-      gsap.fromTo(content, { opacity: 0, scale: 0.96, y: 4 }, { opacity: 1, scale: 1, y: 0, duration: 0.2, ease: 'power2.out', delay: 0.02 }),
-    ],
+    () => [gsap.fromTo(targets, { autoAlpha: 0 }, { autoAlpha: 1, duration: REDUCE_FADE, ease: 'none' })],
+    () => [gsap.fromTo(targets, { autoAlpha: 0, y: 4 }, { autoAlpha: 1, y: 0, duration: 0.18, ease: 'power3.out', stagger })],
+    () => [gsap.set(targets, { autoAlpha: 1, y: 0 })],
   )
 }
 
@@ -59,10 +53,10 @@ export interface MotionHandle {
   kill: () => void
 }
 
-/** toast 底部滑入：y 14→0 + fade，200ms power2.out；偏好变化时立即切换到对应终态。 */
+/** toast 底部滑入：y 12→0 + 淡入 200ms；偏好变化时立即切换到对应终态。 */
 export function toastIn(el: gsap.TweenTarget): MotionHandle {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    const fallbackTween = gsap.set(el, { opacity: 1, y: 0 })
+  if (!hasMatchMedia()) {
+    const fallbackTween = gsap.set(el, { autoAlpha: 1, y: 0 })
     return { kill: () => fallbackTween.kill() }
   }
 
@@ -70,18 +64,18 @@ export function toastIn(el: gsap.TweenTarget): MotionHandle {
   let handled = false
   let fallbackTween: gsap.core.Tween | undefined
   mediaContext.add(
-    { reduce: '(prefers-reduced-motion: reduce)', motion: '(prefers-reduced-motion: no-preference)' },
+    { reduce: REDUCE, motion: '(prefers-reduced-motion: no-preference)' },
     (ctx) => {
       handled = true
       const reduce = Boolean((ctx.conditions as { reduce?: boolean } | undefined)?.reduce)
       const tween = reduce
-        ? gsap.set(el, { opacity: 1, y: 0 })
-        : gsap.fromTo(el, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.2, ease: 'power2.out' })
+        ? gsap.fromTo(el, { autoAlpha: 0, y: 0 }, { autoAlpha: 1, duration: REDUCE_FADE, ease: 'none' })
+        : gsap.fromTo(el, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.2, ease: 'power3.out' })
       return () => tween.kill()
     },
   )
 
-  if (!handled) fallbackTween = gsap.set(el, { opacity: 1, y: 0 })
+  if (!handled) fallbackTween = gsap.set(el, { autoAlpha: 1, y: 0 })
   return {
     kill: () => {
       fallbackTween?.kill()
@@ -90,38 +84,18 @@ export function toastIn(el: gsap.TweenTarget): MotionHandle {
   }
 }
 
-/* ==== T8 ==== */
-
 /**
- * 任务详情垂直时间线入场：逐阶段行上浮淡入 stagger（demo v5 playStages 对位，.25s/power2.out/.04）。
- * 与文件上方 revealList 的差别：本函数按 T8 验收走 gsap.matchMedia 双分支（测试要能断言
- * 「reduce 分支被真消费」而不是 window.matchMedia 布尔短路），reduce → gsap.set 直达终态。
- * 必须在 useGSAP({ scope }) 回调内同步调用（选择器文本按 scope 寻址 + 自动清理，同文件头告诫）；
- * matchMedia context 建在 useGSAP 的 gsap.context 内，卸载/依赖重跑时随之 revert。
- * 环境无 matchMedia（极老内核）→ 直达终态兜底，不留半透明残留（WorkbenchView 预演的同款兜底）。
+ * toast 退场：下沉 8px + 淡出 120ms（power2.in），播完才调用 onDone 让调用方卸载。
+ * 没有 matchMedia 时直接 onDone；reduced-motion 只淡出 0.1s。kill() 中止退场且不再调用 onDone。
  */
-export function revealStages(targets: gsap.TweenTarget): void {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    gsap.set(targets, { autoAlpha: 1, y: 0 })
-    return
+export function toastOut(el: gsap.TweenTarget, onDone: () => void): MotionHandle {
+  if (!hasMatchMedia()) {
+    onDone()
+    return { kill: () => undefined }
   }
-  let handled = false
-  gsap.matchMedia().add(
-    { reduce: '(prefers-reduced-motion: reduce)', motion: '(prefers-reduced-motion: no-preference)' },
-    (ctx) => {
-      handled = true
-      const reduce = Boolean((ctx.conditions as { reduce?: boolean } | undefined)?.reduce)
-      if (reduce) {
-        gsap.set(targets, { autoAlpha: 1, y: 0 })
-        return
-      }
-      gsap.fromTo(
-        targets,
-        { autoAlpha: 0, y: 6 },
-        { autoAlpha: 1, y: 0, duration: 0.25, ease: 'power2.out', stagger: 0.04, clearProps: 'all' },
-      )
-    },
-  )
-  // matchMedia 存在但两个条件都不匹配（非常规 UA 桩）：同无 matchMedia 兜底，保证可见。
-  if (!handled) gsap.set(targets, { autoAlpha: 1, y: 0 })
+  const reduce = window.matchMedia(REDUCE).matches
+  const tween = gsap.to(el, reduce
+    ? { autoAlpha: 0, duration: REDUCE_FADE, ease: 'none', onComplete: onDone }
+    : { autoAlpha: 0, y: 8, duration: 0.12, ease: 'power2.in', onComplete: onDone })
+  return { kill: () => tween.kill() }
 }
