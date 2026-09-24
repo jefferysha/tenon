@@ -304,7 +304,9 @@ describe('项目页 · 布局与读取', () => {
     expect(button).toHaveAccessibleName('新建项目')
     expect(button.className.split(/\s+/u)).toContain('size-10')
     const rail = screen.getByTestId('projects-rail')
-    expect(rail.querySelector('ul')?.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    const list = rail.querySelector('ul')
+    if (list === null) throw new Error('rail list missing')
+    expect(list.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
   })
 
   // 回归：进入项目页 /api/instructions 发两次——首读未回时快照变化或聚焦又触发一次复查。
