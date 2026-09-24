@@ -6,6 +6,7 @@ import { I18nProvider } from './i18n'
 import { lastEventSource, resetEventSources } from './test-setup'
 import { makeChange, makeProject, makeSnapshot } from './testkit'
 import { invalidateMandatoryConfig } from './workbench/mandatoryConfig'
+import { rootTag } from './workspace/taskRef'
 
 const originalNavigationDescriptor = Object.getOwnPropertyDescriptor(window, 'navigation')
 
@@ -1956,7 +1957,8 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
     }))
     render(<App />)
     fireEvent.click(await screen.findByTestId('task-card-b1'))
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('change')).toBe('b1'))
+    // 聚合视图的 change 带项目短标识：两个项目有同名 change 时也唯一。
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('change')).toBe(`${rootTag('/repo-b')}:b1`))
     const params = new URLSearchParams(window.location.search)
     expect(params.get('root')).toBeNull()
     expect(params.get('status')).toBe('running')

@@ -168,7 +168,7 @@ describe('左列与右列', () => {
     expect(screen.queryByTestId('project-rail-settings')).toBeNull()
     const repo = screen.getByTestId('project-rail-item-repo')
     expect(repo).toHaveTextContent('~/code/repo')
-    expect(repo).toHaveAttribute('title', ROOT)
+    expect(screen.getByTestId('project-rail-item-repo-meta')).toHaveAttribute('title', ROOT)
     expect(screen.getByTestId('project-rail-item-gone').textContent?.match(/不可读/gu)).toHaveLength(1)
     expect(screen.getByTestId('project-rail-wrap').className.split(/\s+/u)).toContain('max-[900px]:hidden')
   })

@@ -29,5 +29,12 @@ describe('shortPath', () => {
   it('超过两段时只留末两段，中间写 …', () => {
     expect(shortPath('/Users/me/Documents/code-manager/projects/tenon-local')).toBe('~/…/projects/tenon-local')
     expect(shortPath('/opt/a/b/c')).toBe('/…/b/c')
+    expect(shortPath('/private/tmp/claude-501/-Users-a1234-x/stepdemo')).toBe('/…/-Users-a1234-x/stepdemo')
+  })
+
+  it('末尾斜杠不算一段；空串原样', () => {
+    expect(shortPath('/Users/me/work/repo/')).toBe('~/work/repo')
+    expect(shortPath('/repo')).toBe('/repo')
+    expect(shortPath('')).toBe('')
   })
 })

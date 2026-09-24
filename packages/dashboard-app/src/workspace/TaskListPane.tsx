@@ -143,8 +143,6 @@ export function TaskListPane({
   )
   return (
     <ListColumn
-      // 壳层组的 ListColumn 已不渲染 eyebrow（项目名只在顶部切换器出现）；合并后删掉这一行。
-      eyebrow=""
       title={t('workspace.title')}
       search={{ value: search, onChange: onSearch, placeholder: t('workspace.search_tasks'), label: t('workspace.search_tasks') }}
       chips={archivedView ? (

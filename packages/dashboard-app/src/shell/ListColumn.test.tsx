@@ -18,7 +18,6 @@ describe('ListColumn 头部', () => {
       <I18nProvider>
         <ListColumn
           testId="col"
-          eyebrow="E"
           title="T"
           search={{ value: '', onChange: () => undefined, placeholder: 'p', label: 'l' }}
           chips={<FilterChip label="全部" selected testId="chip" onClick={() => undefined} />}
@@ -33,13 +32,13 @@ describe('ListColumn 头部', () => {
     expect(classesOf(screen.getByTestId('col'))).toContain('overflow-y-auto')
   })
 
-  it('页面名只在 H1 出现一次：eyebrow 不再渲染，H1 不换行', () => {
+  it('页面名只在 H1 出现一次：标题行只有 H1（无 eyebrow），H1 不换行', () => {
     render(
       <I18nProvider>
-        <ListColumn testId="col" eyebrow="库" title="模板"><p>x</p></ListColumn>
+        <ListColumn testId="col" title="模板"><p>x</p></ListColumn>
       </I18nProvider>,
     )
-    expect(screen.queryByText('库')).toBeNull()
+    expect(screen.getByTestId('col-head').children).toHaveLength(1)
     const heading = screen.getByRole('heading', { level: 1, name: '模板' })
     expect(classesOf(heading)).toEqual(expect.arrayContaining(['whitespace-nowrap', 'truncate']))
     expect(screen.queryByTestId('col-action')).toBeNull()

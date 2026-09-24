@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Folder, Plus, User } from 'lucide-react'
 import { useT } from '../i18n'
 import type { InstructionPreviewFile } from '../api/instructionsDecoders'
-import { Icon } from '../shell/Icon'
 import type { TopBarProject } from '../shell/TopBar'
-import { DetailEmpty, ListColumn, RailCard, RailColumn, RailFootLink, ThreeColumns } from '../shell/ThreeColumns'
+import { DetailEmpty, ListColumn, RailCard, RailColumn, ThreeColumns } from '../shell/ThreeColumns'
+import { BUTTON_ICON } from '../shared/uiRecipes'
 import { HostTargetList } from './HostTargetList'
 import { InstructionEditor } from './InstructionEditor'
 import { NewProjectDialog } from './NewProjectDialog'
 import { firstLoadable, targetsForHosts } from './instructionModel'
-import { shortPath } from './shortPath'
+import { shortPath } from '@/lib/utils'
 import { useInstructionFiles } from './useInstructionFiles'
 
 const RAIL_KEY = 'tenon-dashboard-rail:projects'
@@ -95,20 +96,23 @@ export function ProjectsView({
             collapsed={railCollapsed}
             onToggle={() => setRailCollapsed((value) => !value)}
             testId="projects-rail"
-            footer={(
-              <RailFootLink
-                icon={<Icon name="folder" size={14} />}
-                label={t('projects.new_project')}
-                collapsed={railCollapsed}
+            headerAction={(
+              <button
+                type="button"
+                className={BUTTON_ICON}
+                aria-label={t('projects.new_project')}
+                title={t('projects.new_project')}
+                data-testid="proj-new"
                 onClick={() => setLocalDialog(true)}
-                testId="proj-new"
-              />
+              >
+                <Plus className="size-4" aria-hidden="true" />
+              </button>
             )}
           >
             <ul className="grid gap-1">
               <li>
                 <RailCard
-                  mark="U"
+                  mark={<User />}
                   name={t('projects.user_level')}
                   selected={currentRoot === ''}
                   collapsed={railCollapsed}
@@ -119,9 +123,11 @@ export function ProjectsView({
               {projects.map((candidate) => (
                 <li key={candidate.root}>
                   <RailCard
-                    mark={(candidate.name[0] ?? '?').toUpperCase()}
+                    mark={<Folder />}
                     name={candidate.name}
                     meta={shortPath(candidate.root)}
+                    metaTitle={candidate.root}
+                    metaMono
                     selected={candidate.root === currentRoot}
                     collapsed={railCollapsed}
                     onClick={() => onSelectProject(candidate.root)}
@@ -135,7 +141,6 @@ export function ProjectsView({
         list={(
           <ListColumn
             testId="projects-list"
-            eyebrow={t('projects.rail')}
             title={t('projects.hosts')}
           >
             {files.loading ? (
@@ -167,7 +172,7 @@ export function ProjectsView({
           </ListColumn>
         )}
         detail={files.state === null ? (
-          <DetailEmpty title={t('projects.empty_detail')} desc="" testId="proj-detail-empty" />
+          <DetailEmpty title={t('projects.empty_detail')} testId="proj-detail-empty" />
         ) : (
           <InstructionEditor
             title={title}

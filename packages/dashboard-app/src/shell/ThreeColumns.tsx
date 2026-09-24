@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { useT } from '../i18n'
 import { cn } from '@/lib/utils'
 
-export { FilterChip, FilterChipGroup } from './FilterChip'
+export { FilterChip, FilterChipGroup } from '../shared/FilterChip'
 
 /**
  * 模板的三列骨架：左列（选择对象，280px，可折叠到 64px）/ 中列（列表，360–420px）/ 右列（详情，弹性）。
@@ -67,7 +67,6 @@ export function RailColumn({
   onToggle,
   children,
   lead,
-  footer,
   headerAction,
   testId,
 }: {
@@ -77,8 +76,6 @@ export function RailColumn({
   children: ReactNode
   /** 列表之前的首项（如工作台的「所有项目」）；与列表同一滚动区。 */
   lead?: ReactNode
-  /** @deprecated 底部动作条与顶部条重复；改用 `lead` 或 `headerAction`。 */
-  footer?: ReactNode
   /** 标题行里、折叠按钮左侧的动作（如「+」）；折叠态也显示。 */
   headerAction?: ReactNode
   testId: string
@@ -114,18 +111,18 @@ export function RailColumn({
         {lead !== undefined && <div className="mb-1 grid gap-1" data-testid={`${testId}-lead`}>{lead}</div>}
         {children}
       </div>
-      {footer !== undefined && (
-        <div className="mt-3 grid gap-0.5 border-t border-border pt-3 max-[900px]:flex max-[900px]:flex-wrap">{footer}</div>
-      )}
     </aside>
   )
 }
 
-/** 左列卡片（项目 / 工作流 / 范围 / 机器共用）：首字母方块 + 标题 + 副行 + 右侧计数；选中=浅绿底绿边。 */
+/** 左列卡片（项目 / 库分区共用）：语义图标方块 + 标题 + 副行 + 右侧计数；选中=浅绿底绿边。 */
 export function RailCard({
   mark,
   name,
   meta,
+  metaTitle,
+  metaMono,
+  danger,
   count,
   selected,
   collapsed,
@@ -133,9 +130,16 @@ export function RailCard({
   onClick,
   testId,
 }: {
-  mark: string
+  /** 语义图标（lucide 元素）；字母也行，但图标优先。 */
+  mark: ReactNode
   name: string
   meta?: string
+  /** 副行被截断时的完整文字（如项目完整路径），挂在副行的 title 上。 */
+  metaTitle?: string
+  /** 副行是标识（路径）时用等宽字。 */
+  metaMono?: boolean
+  /** 不可用（如不可读的项目）：图标与副行用红色。 */
+  danger?: boolean
   count?: string | number
   selected: boolean
   collapsed: boolean
@@ -147,7 +151,7 @@ export function RailCard({
     <button
       type="button"
       className={cn(
-        'grid w-full items-center gap-3 rounded-md border border-transparent text-left outline-none transition-colors hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t motion-reduce:transition-none',
+        'grid min-h-10 w-full items-center gap-3 rounded-md border border-transparent text-left outline-none transition-colors hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t motion-reduce:transition-none',
         collapsed ? 'grid-cols-1 justify-items-center p-2 max-[1280px]:grid-cols-1' : 'grid-cols-[auto_minmax(0,1fr)_auto] px-3 py-3 max-[1280px]:grid-cols-1 max-[1280px]:justify-items-center max-[1280px]:p-2',
         'max-[900px]:w-auto max-[900px]:grid-cols-[auto_minmax(0,1fr)] max-[900px]:justify-items-start max-[900px]:gap-2 max-[900px]:px-3 max-[900px]:py-2',
       )}
@@ -156,7 +160,14 @@ export function RailCard({
       data-testid={testId}
       onClick={onClick}
     >
-      <span className="grid size-8 place-items-center rounded-sm border border-border bg-card text-body font-semibold text-text-2 aria-[current=true]:border-accent-b aria-[current=true]:text-(--accent)" aria-hidden="true" aria-current={selected ? 'true' : undefined}>
+      <span
+        className={cn(
+          'grid size-8 place-items-center rounded-sm border border-border bg-card text-body font-semibold [&_svg]:size-4',
+          selected ? 'border-accent-b text-(--accent)' : danger ? 'text-red-d' : 'text-text-2',
+        )}
+        aria-hidden="true"
+        data-testid={`${testId}-mark`}
+      >
         {mark}
       </span>
       {!collapsed && (
@@ -166,53 +177,21 @@ export function RailCard({
               <span className="truncate">{name}</span>
               {tag}
             </span>
-            {meta !== undefined && <span className="block truncate text-caption text-text-2 max-[900px]:hidden">{meta}</span>}
+            {meta !== undefined && (
+              <span
+                className={cn('block truncate text-caption max-[900px]:hidden', metaMono && 'font-mono', danger ? 'text-red-d' : 'text-text-2')}
+                title={metaTitle}
+                data-testid={`${testId}-meta`}
+              >
+                {meta}
+              </span>
+            )}
           </span>
           {count !== undefined && (
             <span className={cn('font-mono text-body max-[1280px]:hidden', selected ? 'text-(--accent)' : 'text-text-3')}>{count}</span>
           )}
         </>
       )}
-    </button>
-  )
-}
-
-export function RailFootLink({
-  icon,
-  label,
-  collapsed,
-  onClick,
-  testId,
-  current,
-  disabled,
-  title,
-}: {
-  icon: ReactNode
-  label: string
-  collapsed: boolean
-  onClick: () => void
-  testId: string
-  current?: boolean
-  disabled?: boolean
-  /** 缺省用 label；禁用时调用方传原因。 */
-  title?: string
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      className={cn(
-        'flex min-h-10 items-center gap-2.5 rounded-sm px-3 py-2 text-base text-text-2 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:text-(--accent) disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent',
-        collapsed && 'justify-center px-0',
-        'max-[1280px]:justify-center max-[1280px]:px-0 max-[900px]:px-3',
-      )}
-      aria-current={current ? 'true' : undefined}
-      title={title ?? label}
-      disabled={disabled}
-      data-testid={testId}
-      onClick={onClick}
-    >
-      <span className="text-text-3 [&_svg]:size-4" aria-hidden="true">{icon}</span>
-      {!collapsed && <span className="max-[1280px]:hidden max-[900px]:inline">{label}</span>}
     </button>
   )
 }
@@ -228,8 +207,6 @@ export function ListColumn({
   children,
   testId,
 }: {
-  /** @deprecated 不再渲染：页面名只在 H1 出现一次。 */
-  eyebrow?: string
   title: string
   /** H1 同行右侧的对象级动作（如「新建」）；不换行。 */
   action?: ReactNode
@@ -275,7 +252,7 @@ export function ListColumn({
       )}
       {chips !== undefined && (
         <div
-          className="mb-4 flex shrink-0 flex-wrap gap-1"
+          className="mb-4 flex min-w-0 shrink-0 flex-nowrap items-center gap-1"
           role={chipsLabel !== undefined ? 'radiogroup' : undefined}
           aria-label={chipsLabel}
           data-chip-group=""
@@ -334,8 +311,6 @@ export function DetailColumn({
 /** 右列空态（未选中对象）：只有一个名词短语，不配副标题。 */
 export function DetailEmpty({ title, testId }: {
   title: string
-  /** @deprecated 不再渲染：空态只写标题。 */
-  desc?: string
   testId: string
 }): JSX.Element {
   return (

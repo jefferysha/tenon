@@ -97,7 +97,7 @@ export function WorkflowView({ root, onDirtyChange, onToast }: WorkflowViewProps
         )}
         detail={editor.selectedStep
           ? <StageEditorPane key={`${editor.wfName} ${editor.selectedStep.id}`} editor={editor} step={editor.selectedStep} />
-          : <DetailEmpty title={t('workflow.no_stage')} desc="" testId="stage-editor-empty" />}
+          : <DetailEmpty title={t('workflow.no_stage')} testId="stage-editor-empty" />}
       />
       <NewWorkflowDialog create={editor.create} currentName={editor.wfName} />
       <TrackDialog

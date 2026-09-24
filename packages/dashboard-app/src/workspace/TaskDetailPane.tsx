@@ -20,6 +20,7 @@ import { ReviewDecisionPanel } from './ReviewDecisionPanel'
 import { summaryTone } from './TaskCard'
 import { TaskMenu, type TaskMenuEntry } from './TaskMenu'
 import { readWorkspaceParam, writeWorkspaceParam } from './workspaceLocation'
+import { matchesTaskRef } from './taskRef'
 
 export interface TaskDetailPaneProps {
   row: TaskRow
@@ -38,7 +39,7 @@ export interface TaskDetailPaneProps {
 function initialStep(row: TaskRow, current: string): string {
   const step = readWorkspaceParam('step')
   const change = new URLSearchParams(window.location.search).get('change')
-  if (step === null || (change !== null && change !== row.change.name)) return current
+  if (step === null || (change !== null && !matchesTaskRef(change, row))) return current
   return row.stages.some((stage) => stage.id === step) ? step : current
 }
 

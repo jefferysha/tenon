@@ -1,4 +1,4 @@
-import { isView, type View } from './views'
+import { isView, TASK_STATUS_PARAM, type View } from './views'
 
 export interface DashboardLocation {
   view?: View
@@ -59,10 +59,24 @@ export function workflowSearch(search: string, state: { wf: string | null; track
   return value === '' ? '' : `?${value}`
 }
 
-/** 只接管 dashboard 自有的键；debug 等外部 query 原样保留。离开工作流页时带走它的 wf / track / step。 */
+/**
+ * 各视图自有的 URL 键，离开该视图时删掉。`step` 两个视图都用：带 `wf` 时属于工作流页（阶段），
+ * 不带 `wf` 时属于工作台（详情所选阶段）；`status` 只属于工作台。
+ */
+function dropForeignKeys(params: URLSearchParams, view: View): void {
+  const stepOwner: View = params.has('wf') ? 'workbench' : 'progress'
+  if (view !== stepOwner) params.delete('step')
+  if (view !== 'workbench') {
+    params.delete('wf')
+    params.delete('track')
+  }
+  if (view !== 'progress') params.delete(TASK_STATUS_PARAM)
+}
+
+/** 只接管 dashboard 自有的键；debug 等外部 query 原样保留。离开一个视图时带走它自己的键。 */
 export function dashboardSearch(search: string, state: DashboardLocationState): string {
   const params = new URLSearchParams(search)
-  if (state.view !== 'workbench' && params.has('wf')) for (const key of WORKFLOW_KEYS) params.delete(key)
+  dropForeignKeys(params, state.view)
   params.set('view', state.view)
   if (state.root === '') params.delete('root')
   else params.set('root', state.root)

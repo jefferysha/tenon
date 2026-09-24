@@ -3,7 +3,7 @@ import { useT } from '../i18n'
 import type { AgentSummary } from '../api/agentClient'
 import { Dialog } from '../shared/Dialog'
 import { BUTTON_GHOST, BUTTON_SOLID, FIELD_LABEL, INPUT } from '../shared/uiRecipes'
-import { BuiltinLock, ListSkeleton, ListTitleAction } from './libraryChrome'
+import { BuiltinLock, ListSkeleton } from './libraryChrome'
 
 /** 与 kernel 的 AGENT_NAME_RE 同形：名字即文件名，写之前就挡掉不合法的。 */
 const NAME = /^[a-z0-9][a-z0-9-]{0,62}$/
@@ -22,39 +22,19 @@ export function agentRole(agent: AgentSummary): 'executor' | 'reviewer' {
   return agent.tools.some((tool) => tool === 'Write' || tool === 'Edit') ? 'executor' : 'reviewer'
 }
 
-/** 中列：按执行者 / 评审者分两段的 agent 列表；「新建」在标题右侧。内建条目带锁。 */
+/** 中列：按执行者 / 评审者分两段的 agent 列表（「新建」由 ListColumn 的 action 放在标题右侧）。内建条目带锁。 */
 export function AgentList({
-  agents, loading, selected, busy, canWrite, onSelect, onCreate,
+  agents, loading, selected, onSelect,
 }: {
   agents: readonly AgentSummary[]
   loading: boolean
   selected: string | null
-  busy: boolean
-  canWrite: boolean
   onSelect: (name: string) => void
-  onCreate: (name: string) => void
 }): JSX.Element {
   const { t } = useT()
-  const [dialog, setDialog] = useState(false)
-  const [name, setName] = useState('')
-  const taken = agents.some((agent) => agent.name === name)
-  const valid = NAME.test(name) && !taken
 
   return (
     <>
-      {!loading && (
-        <ListTitleAction>
-          <button
-            type="button"
-            className={BUTTON_GHOST}
-            data-testid="lib-agent-new"
-            disabled={!canWrite || busy}
-            onClick={() => { setName(''); setDialog(true) }}
-          >
-            {t('library.agent_new')}
-          </button>
-        </ListTitleAction>
-      )}
       {loading ? (
         <ListSkeleton testId="lib-agent-loading" />
       ) : agents.length === 0 ? (
@@ -101,42 +81,55 @@ export function AgentList({
           })}
         </div>
       )}
-      {dialog && (
-        <Dialog
-          title={t('library.agent_new')}
-          onClose={() => setDialog(false)}
-          testid="lib-agent-new-dialog"
-          actions={(
-            <>
-              <button type="button" className={BUTTON_GHOST} data-testid="lib-agent-new-cancel" onClick={() => setDialog(false)}>
-                {t('library.cancel')}
-              </button>
-              <button
-                type="button"
-                className={BUTTON_SOLID}
-                data-testid="lib-agent-new-confirm"
-                disabled={!valid || busy}
-                onClick={() => { setDialog(false); onCreate(name) }}
-              >
-                {t('library.confirm')}
-              </button>
-            </>
-          )}
-        >
-          <label className={FIELD_LABEL}>
-            {t('library.name')}
-            <input
-              className={INPUT}
-              value={name}
-              autoComplete="off"
-              spellCheck={false}
-              aria-invalid={name !== '' && !valid}
-              data-testid="lib-agent-new-name"
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-        </Dialog>
-      )}
     </>
+  )
+}
+
+/** 新建 agent：只问名字（即文件名），写之前按 kernel 规则挡掉非法与重名。 */
+export function NewAgentDialog({ agents, busy, onClose, onCreate }: {
+  agents: readonly AgentSummary[]
+  busy: boolean
+  onClose: () => void
+  onCreate: (name: string) => void
+}): JSX.Element {
+  const { t } = useT()
+  const [name, setName] = useState('')
+  const taken = agents.some((agent) => agent.name === name)
+  const valid = NAME.test(name) && !taken
+  return (
+    <Dialog
+      title={t('library.agent_new')}
+      onClose={onClose}
+      testid="lib-agent-new-dialog"
+      actions={(
+        <>
+          <button type="button" className={BUTTON_GHOST} data-testid="lib-agent-new-cancel" onClick={onClose}>
+            {t('library.cancel')}
+          </button>
+          <button
+            type="button"
+            className={BUTTON_SOLID}
+            data-testid="lib-agent-new-confirm"
+            disabled={!valid || busy}
+            onClick={() => { onClose(); onCreate(name) }}
+          >
+            {t('library.confirm')}
+          </button>
+        </>
+      )}
+    >
+      <label className={FIELD_LABEL}>
+        {t('library.name')}
+        <input
+          className={INPUT}
+          value={name}
+          autoComplete="off"
+          spellCheck={false}
+          aria-invalid={name !== '' && !valid}
+          data-testid="lib-agent-new-name"
+          onChange={(event) => setName(event.target.value)}
+        />
+      </label>
+    </Dialog>
   )
 }

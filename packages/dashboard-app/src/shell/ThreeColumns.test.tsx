@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { I18nProvider } from '../i18n'
-import { DetailEmpty, FilterChip, FilterChipGroup, RailColumn, RailFootLink, StatusPill, ThreeColumns } from './ThreeColumns'
+import { DetailEmpty, FilterChip, FilterChipGroup, RailCard, RailColumn, StatusPill, ThreeColumns } from './ThreeColumns'
 import { ThreeColumnsSkeleton } from './Skeleton'
 
 const classesOf = (element: Element): string[] => element.className.split(/\s+/u)
@@ -50,21 +50,15 @@ describe('FilterChip / FilterChipGroup（H3）', () => {
     expect(screen.getByTestId('chip-all')).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('其他键不处理；尚未迁移的 tablist 容器里方向键同样可用', () => {
-    function Legacy(): JSX.Element {
-      const [value, setValue] = useState('a')
-      return (
-        <div role="tablist" aria-label="旧">
-          {['a', 'b'].map((id) => <FilterChip key={id} label={id} selected={value === id} testId={`legacy-${id}`} onClick={() => setValue(id)} />)}
-        </div>
-      )
-    }
-    render(<Legacy />)
-    fireEvent.keyDown(screen.getByTestId('legacy-a'), { key: 'Enter' })
-    expect(screen.getByTestId('legacy-a')).toHaveAttribute('aria-checked', 'true')
-    fireEvent.keyDown(screen.getByTestId('legacy-a'), { key: 'ArrowDown' })
-    expect(screen.getByTestId('legacy-b')).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByTestId('legacy-b')).toHaveFocus()
+  it('其他键不处理；Home / End 跳到两端并选中', () => {
+    render(<Chips />)
+    fireEvent.keyDown(screen.getByTestId('chip-all'), { key: 'Enter' })
+    expect(screen.getByTestId('chip-all')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.keyDown(screen.getByTestId('chip-all'), { key: 'End' })
+    expect(screen.getByTestId('chip-done')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByTestId('chip-done')).toHaveFocus()
+    fireEvent.keyDown(screen.getByTestId('chip-done'), { key: 'Home' })
+    expect(screen.getByTestId('chip-all')).toHaveAttribute('aria-checked', 'true')
   })
 
   it('点击区至少 40px（min-h-10），芯片不换行', () => {
@@ -88,8 +82,8 @@ describe('StatusPill（B4：语义点 + 文字）', () => {
 })
 
 describe('DetailEmpty（E7）', () => {
-  it('只渲染标题，desc 即便传入也不再出现', () => {
-    render(<DetailEmpty title="选一个模板" desc="模板" testId="empty" />)
+  it('只渲染标题，没有副标题', () => {
+    render(<DetailEmpty title="选一个模板" testId="empty" />)
     const empty = screen.getByTestId('empty')
     expect(empty).toHaveTextContent('选一个模板')
     expect(empty.textContent).toBe('选一个模板')
@@ -105,7 +99,7 @@ describe('RailColumn（A5 / H4 / J1）', () => {
           collapsed={false}
           onToggle={() => undefined}
           testId="rail"
-          lead={<RailFootLink icon={<span />} label="所有项目" collapsed={false} onClick={() => undefined} testId="rail-all" />}
+          lead={<RailCard mark={<span />} name="所有项目" selected={false} collapsed={false} onClick={() => undefined} testId="rail-all" />}
         >
           <ul><li data-testid="rail-first">a</li></ul>
         </RailColumn>
@@ -116,6 +110,30 @@ describe('RailColumn（A5 / H4 / J1）', () => {
     expect(lead.compareDocumentPosition(screen.getByTestId('rail-first')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(classesOf(screen.getByTestId('rail-all'))).toContain('min-h-10')
     expect(classesOf(screen.getByTestId('rail-toggle'))).toEqual(expect.arrayContaining(['size-10', 'max-[1280px]:hidden', 'max-[900px]:grid']))
+  })
+})
+
+describe('RailCard（E11 / D6）', () => {
+  it('mark 接受语义图标；展开时副行带完整路径 title；不可用时图标与副行变红', () => {
+    render(
+      <RailCard
+        mark={<svg data-testid="icon" />}
+        name="tenon"
+        meta="~/…/code/tenon"
+        metaTitle="/Users/me/work/code/tenon"
+        metaMono
+        danger
+        selected={false}
+        collapsed={false}
+        onClick={() => undefined}
+        testId="card"
+      />,
+    )
+    expect(screen.getByTestId('card-mark')).toContainElement(screen.getByTestId('icon'))
+    const meta = screen.getByTestId('card-meta')
+    expect(meta).toHaveAttribute('title', '/Users/me/work/code/tenon')
+    expect(classesOf(meta)).toEqual(expect.arrayContaining(['font-mono', 'truncate', 'text-red-d']))
+    expect(classesOf(screen.getByTestId('card-mark'))).toContain('text-red-d')
   })
 })
 

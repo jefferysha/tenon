@@ -1,3 +1,4 @@
+import { Bot, FileText, FlaskConical, Package } from 'lucide-react'
 import { useT } from '../i18n'
 import { RailCard, RailColumn } from '../shell/ThreeColumns'
 
@@ -22,7 +23,7 @@ export function LibraryRail({
       <ul className="grid gap-1">
         <li>
           <RailCard
-            mark="T"
+            mark={<FileText />}
             name={t('library.templates')}
             count={templates ?? '–'}
             selected={section === 'templates'}
@@ -33,7 +34,7 @@ export function LibraryRail({
         </li>
         <li>
           <RailCard
-            mark="R"
+            mark={<Package />}
             name={t('resources.title')}
             selected={section === 'resources'}
             collapsed={collapsed}
@@ -43,7 +44,7 @@ export function LibraryRail({
         </li>
         <li>
           <RailCard
-            mark="D"
+            mark={<FlaskConical />}
             name={t('library.test_directions')}
             count={directions ?? '–'}
             selected={section === 'directions'}
@@ -54,7 +55,7 @@ export function LibraryRail({
         </li>
         <li>
           <RailCard
-            mark="A"
+            mark={<Bot />}
             name={t('library.agents')}
             count={agents ?? '–'}
             selected={section === 'agents'}

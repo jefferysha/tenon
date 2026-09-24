@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { Fragment, useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { useT } from '../i18n'
 import {
@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { GAP, fitCount, priorityOf } from './facetLayout'
-import { handleRadioKey } from './radioKeyboard'
+import { FILTER_CHIP_CLS, FilterChip, FilterChipGroup } from './FilterChip'
 
 export { fitCount } from './facetLayout'
 
@@ -74,7 +74,6 @@ function itemsOf(groups: readonly FacetGroup[]): Item[] {
   return items
 }
 
-const CHIP_CLS = 'inline-flex min-h-10 flex-none items-center gap-1 whitespace-nowrap rounded-sm px-2 text-body font-medium text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-checked:bg-accent-t aria-checked:font-semibold aria-checked:text-(--accent)'
 const TRIGGER_CLS = 'inline-flex min-h-10 flex-none items-center gap-1 whitespace-nowrap rounded-sm border border-border px-2.5 text-body text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) data-[active=true]:border-accent-b data-[active=true]:bg-accent-t data-[active=true]:text-(--accent) aria-expanded:bg-fill'
 const COUNT_CLS = 'font-mono text-caption text-text-3'
 
@@ -142,29 +141,21 @@ function MenuFacet({ group }: { group: FacetGroup }): JSX.Element {
 }
 
 function ChipGroup({ group, options }: { group: FacetGroup; options: readonly FacetOption[] }): JSX.Element {
-  const focusable = options.some((option) => option.id === group.value) ? group.value : options[0]?.id
+  const checkedShown = options.some((option) => option.id === group.value)
   return (
-    <div className="flex flex-none items-center gap-1" role="radiogroup" aria-label={group.label} data-testid={group.testId}>
+    <FilterChipGroup label={group.label} testId={group.testId}>
       {options.map((option, index) => (
-        <button
+        <FilterChip
           key={option.id}
-          type="button"
-          role="radio"
-          aria-checked={group.value === option.id}
-          tabIndex={option.id === focusable ? 0 : -1}
-          className={CHIP_CLS}
-          data-testid={option.testId ?? `${group.testId}-${option.id}`}
+          label={option.label}
+          {...(option.count === undefined ? {} : { count: option.count })}
+          selected={group.value === option.id}
+          focusable={checkedShown ? group.value === option.id : index === 0}
+          testId={option.testId ?? `${group.testId}-${option.id}`}
           onClick={() => group.onChange(option.id)}
-          onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => handleRadioKey(event, index, options.length, (next) => {
-            const target = options[next]
-            if (target !== undefined) group.onChange(target.id)
-          })}
-        >
-          {option.label}
-          <Count value={option.count} selected={group.value === option.id} />
-        </button>
+        />
       ))}
-    </div>
+    </FilterChipGroup>
   )
 }
 
@@ -255,7 +246,7 @@ export function FacetBar({ groups, label, testId, trailing, measureWidth }: Face
         {priority.map((item) => (
           item.option === null
             ? <span key={item.key} className={TRIGGER_CLS} data-measure={`item:${item.key}`} data-active={item.group.value !== allIdOf(item.group)}><TriggerContent group={item.group} /></span>
-            : <span key={item.key} className={cn(CHIP_CLS, item.group.value === item.option.id && 'font-semibold')} data-measure={`item:${item.key}`}>{item.option.label}<Count value={item.option.count} /></span>
+            : <span key={item.key} className={cn(FILTER_CHIP_CLS, item.group.value === item.option.id && 'font-semibold')} data-measure={`item:${item.key}`}>{item.option.label}<Count value={item.option.count} /></span>
         ))}
         <span className={TRIGGER_CLS} data-measure="more">{t('common.more')}<span className="font-mono text-caption">{items.length}</span><ChevronDown className="size-4" aria-hidden="true" /></span>
       </div>

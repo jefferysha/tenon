@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useT } from '../i18n'
 import { getToken } from '../api/transport'
 import { TEMPLATE_CATEGORIES, type TemplateCategory, type TemplateRef, type TemplateSource } from '../api/instructionsDecoders'
-import { DetailEmpty, FilterChip, ListColumn, ThreeColumns } from '../shell/ThreeColumns'
+import { DetailEmpty, ListColumn, ThreeColumns } from '../shell/ThreeColumns'
+import { FacetBar } from '../shared/FacetBar'
 import { matchesQuery } from '../shell/GlobalSearch'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
-import { BuiltinLock, ListSkeleton, ListTitleAction } from './libraryChrome'
+import { BuiltinLock, ListSkeleton } from './libraryChrome'
 import { AgentDetail } from './AgentDetail'
-import { AgentList, agentSkeleton } from './AgentList'
+import { AgentList, NewAgentDialog, agentSkeleton } from './AgentList'
 import { useAgentLibrary } from './useAgentLibrary'
 import { LibraryRail, type LibrarySection } from './LibraryRail'
 import { NewTemplateDialog } from './NewTemplateDialog'
@@ -20,6 +21,14 @@ import { useTemplateLibrary } from './useTemplateLibrary'
 const RAIL_KEY = 'tenon-dashboard-rail:library'
 type SourceFilter = TemplateSource | 'all'
 type CategoryFilter = TemplateCategory | 'all'
+
+function pickSource(id: string): SourceFilter {
+  return id === 'builtin' || id === 'custom' ? id : 'all'
+}
+
+function pickCategory(id: string): CategoryFilter {
+  return TEMPLATE_CATEGORIES.find((value) => value === id) ?? 'all'
+}
 
 /** 新建自定义模板的起始骨架：合法 frontmatter + 分类级别标题，保存后即可编辑。 */
 function skeleton(category: TemplateCategory, id: string, title: string): string {
@@ -42,6 +51,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
   const [source, setSource] = useState<SourceFilter>('all')
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [agentDialog, setAgentDialog] = useState(false)
   const [section, setSection] = useState<LibrarySection>('templates')
   const directions = useTestDirections()
   const agents = useAgentLibrary()
@@ -102,25 +112,43 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
         railCollapsed={railCollapsed}
         rail={rail}
         list={section === 'agents' ? (
-          <ListColumn testId="library-list" eyebrow={t('library.title')} title={t('library.agents')}>
+          <ListColumn
+            testId="library-list"
+            title={t('library.agents')}
+            action={agents.loading ? undefined : (
+              <button
+                type="button"
+                className={BUTTON_GHOST}
+                data-testid="lib-agent-new"
+                disabled={!canWrite || agents.busy}
+                onClick={() => setAgentDialog(true)}
+              >
+                {t('library.agent_new')}
+              </button>
+            )}
+          >
             <AgentList
               agents={agents.agents}
               loading={agents.loading}
               selected={agents.selected?.name ?? null}
-              busy={agents.busy}
-              canWrite={canWrite}
               onSelect={agents.select}
-              onCreate={(name) => {
-                void (async () => {
-                  if (await agents.create(name, agentSkeleton(name))) onToast?.(t('library.done_agent_created', { name }))
-                })()
-              }}
             />
+            {agentDialog && (
+              <NewAgentDialog
+                agents={agents.agents}
+                busy={agents.busy}
+                onClose={() => setAgentDialog(false)}
+                onCreate={(name) => {
+                  void (async () => {
+                    if (await agents.create(name, agentSkeleton(name))) onToast?.(t('library.done_agent_created', { name }))
+                  })()
+                }}
+              />
+            )}
           </ListColumn>
         ) : section === 'directions' ? (
           <ListColumn
             testId="library-list"
-            eyebrow={t('library.title')}
             title={t('library.test_directions')}
           >
             <TestDirectionsPane slot="list" library={directions} canWrite={canWrite} onToast={onToast} />
@@ -128,46 +156,53 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
         ) : (
           <ListColumn
             testId="library-list"
-            eyebrow={t('library.title')}
             title={t('library.templates')}
             search={{ value: search, onChange: setSearch, placeholder: t('library.search'), label: t('library.search'), name: 'library-search' }}
+            action={library.loading ? undefined : (
+              <button
+                type="button"
+                className={BUTTON_GHOST}
+                data-testid="lib-tpl-new"
+                disabled={!canWrite || library.busy}
+                onClick={() => setDialogOpen(true)}
+              >
+                {t('library.new')}
+              </button>
+            )}
             chips={library.templates.length === 0 ? undefined : (
-              <>
-                <FilterChip label={t('library.all')} selected={category === 'all' && source === 'all'} testId="lib-filter-all" onClick={() => { setCategory('all'); setSource('all') }} />
-                {TEMPLATE_CATEGORIES.map((value) => (
-                  <FilterChip
-                    key={value}
-                    label={t(`library.categories.${value}`)}
-                    selected={category === value}
-                    testId={`lib-filter-${value}`}
-                    onClick={() => setCategory((current) => (current === value ? 'all' : value))}
-                  />
-                ))}
-                {(['builtin', 'custom'] as const).map((value) => (
-                  <FilterChip
-                    key={value}
-                    label={t(`library.${value}`)}
-                    selected={source === value}
-                    testId={`lib-source-${value}`}
-                    onClick={() => setSource((current) => (current === value ? 'all' : value))}
-                  />
-                ))}
-              </>
+              <FacetBar
+                label={t('library.templates')}
+                testId="lib-facets"
+                groups={[
+                  {
+                    id: 'source',
+                    kind: 'chips',
+                    label: t('library.source'),
+                    testId: 'lib-source',
+                    value: source,
+                    onChange: (id) => setSource(pickSource(id)),
+                    options: [
+                      { id: 'all', label: t('library.all'), testId: 'lib-source-all' },
+                      { id: 'builtin', label: t('library.builtin'), testId: 'lib-source-builtin' },
+                      { id: 'custom', label: t('library.custom'), testId: 'lib-source-custom' },
+                    ],
+                  },
+                  {
+                    id: 'category',
+                    kind: 'menu',
+                    label: t('library.category'),
+                    testId: 'lib-facet-category',
+                    value: category,
+                    onChange: (id) => setCategory(pickCategory(id)),
+                    options: [
+                      { id: 'all', label: t('library.all'), testId: 'lib-filter-all' },
+                      ...TEMPLATE_CATEGORIES.map((value) => ({ id: value, label: t(`library.categories.${value}`), testId: `lib-filter-${value}` })),
+                    ],
+                  },
+                ]}
+              />
             )}
           >
-            {!library.loading && (
-              <ListTitleAction>
-                <button
-                  type="button"
-                  className={BUTTON_GHOST}
-                  data-testid="lib-tpl-new"
-                  disabled={!canWrite || library.busy}
-                  onClick={() => setDialogOpen(true)}
-                >
-                  {t('library.new')}
-                </button>
-              </ListTitleAction>
-            )}
             {library.sync?.state === 'failed' && (
               <p className="mb-3 rounded-md border border-red-b bg-red-t px-4 py-2 text-caption font-semibold text-red-d" role="status" data-testid="lib-sync-failed">
                 {t('library.sync_failed')}
@@ -212,7 +247,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
         )}
         detail={section === 'agents' ? (
           agents.selected === null ? (
-            <DetailEmpty title={t('library.agent_empty_detail')} desc="" testId="lib-agent-detail-empty" />
+            <DetailEmpty title={t('library.agent_empty_detail')} testId="lib-agent-detail-empty" />
           ) : (
             <AgentDetail
               document={agents.selected}
@@ -236,14 +271,14 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
           )
         ) : section === 'directions' ? (
           directions.selected === null ? (
-            <DetailEmpty title={t('library.direction_empty_detail')} desc="" testId="lib-dir-empty" />
+            <DetailEmpty title={t('library.direction_empty_detail')} testId="lib-dir-empty" />
           ) : (
             <div className="min-h-0 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4" data-testid="library-direction-detail">
               <TestDirectionsPane slot="detail" library={directions} canWrite={canWrite} onToast={onToast} />
             </div>
           )
         ) : library.selected === null || library.document === null ? (
-          <DetailEmpty title={t('library.empty_detail')} desc="" testId="lib-detail-empty" />
+          <DetailEmpty title={t('library.empty_detail')} testId="lib-detail-empty" />
         ) : (
           <TemplateDetail
             ref_={library.selected}

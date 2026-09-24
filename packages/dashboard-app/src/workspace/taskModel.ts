@@ -208,7 +208,7 @@ export function uncommittedDeletionsOf(snapshot: Snapshot | null, currentRoot: s
 
 /** 状态筛选（与原型一致）：由 summary.kind 映射，不另起判定。 */
 export type TaskStatus = 'all' | 'needs-you' | 'running' | 'review' | 'done'
-// 'needs-you' 与 workspaceLocation.NEEDS_YOU_STATUS（顶部徽标跳转）是同一个值。
+// 'needs-you' 与 shell/views.NEEDS_YOU_STATUS（顶部徽标跳转）是同一个值。
 export const TASK_STATUSES: readonly TaskStatus[] = ['all', 'needs-you', 'running', 'review', 'done']
 
 export function isTaskStatus(value: unknown): value is TaskStatus {

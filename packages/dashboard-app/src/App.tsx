@@ -310,7 +310,7 @@ function AppShell(): JSX.Element {
           <span className="min-w-0 flex-1 truncate whitespace-nowrap max-[900px]:sr-only">{t('common.offline')}</span>
           <button
             type="button"
-            className={`${BUTTON_GHOST} ml-auto border-red-b bg-transparent py-1 text-red-d hover:border-red-b hover:bg-red-t hover:text-red-d`}
+            className={`${BUTTON_GHOST} ml-auto border-red-b bg-transparent py-1 text-red-d enabled:hover:border-red-b enabled:hover:bg-red-t enabled:hover:text-red-d`}
             aria-label={`${t('common.reconnect')} · ${t('common.offline')}`}
             data-testid="offline-reconnect"
             onClick={reconnect}

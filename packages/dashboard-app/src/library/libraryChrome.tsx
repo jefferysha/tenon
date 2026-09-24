@@ -79,15 +79,3 @@ export function ListSkeleton({ testId, rows = 5 }: { testId: string; rows?: numb
     </ul>
   )
 }
-
-/**
- * 标题行右侧的列表动作（「新建」）。ListColumn 还没有 action 插槽时的兼容放法：作为第一个子元素、
- * 零高度、`-order-1` 排到列首，再下移到标题那一行；ListColumn 有了 action 插槽后把 `children` 直接传给它。
- */
-export function ListTitleAction({ children }: { children: ReactNode }): JSX.Element {
-  return (
-    <div className="-order-1 flex h-0 justify-end" data-slot="list-title-action">
-      <div className="relative top-8">{children}</div>
-    </div>
-  )
-}

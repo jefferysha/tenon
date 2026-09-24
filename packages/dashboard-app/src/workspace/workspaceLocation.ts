@@ -2,9 +2,7 @@
  * 工作台自有的 URL 参数：`status`（状态筛选，顶部徽标跳转用 `status=needs-you`）与 `step`（详情所选阶段）。
  * view / root / change 由 useProjectSelection 维护；这里只读写这两个键，用 replaceState，不产生历史条目。
  */
-// 与壳层组 shell/views.ts 的 TASK_STATUS_PARAM / NEEDS_YOU_STATUS 同名同值；合并后改为从那里导入。
-export const TASK_STATUS_PARAM = 'status'
-export const NEEDS_YOU_STATUS = 'needs-you'
+import { TASK_STATUS_PARAM } from '../shell/views'
 
 export type WorkspaceParam = typeof TASK_STATUS_PARAM | 'step'
 

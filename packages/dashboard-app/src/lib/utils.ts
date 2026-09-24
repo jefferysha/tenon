@@ -26,9 +26,11 @@ export function cn(...inputs: ClassValue[]) {
  * 中间用 `…`。完整路径由调用方放进 title。
  */
 export function shortPath(path: string): string {
-  const home = /^\/(?:Users|home)\/[^/]+(?=\/|$)/u.exec(path)
+  const trimmed = path.replace(/\/+$/u, '')
+  if (trimmed === '') return path
+  const home = /^\/(?:Users|home)\/[^/]+(?=\/|$)/u.exec(trimmed)
   const head = home === null ? '' : '~'
-  const rest = (home === null ? path : path.slice(home[0].length)).split('/').filter(Boolean)
+  const rest = (home === null ? trimmed : trimmed.slice(home[0].length)).split('/').filter(Boolean)
   if (rest.length <= 2) return head === '' ? `/${rest.join('/')}` : [head, ...rest].join('/')
   return `${head}/…/${rest.slice(-2).join('/')}`
 }

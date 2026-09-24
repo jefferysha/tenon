@@ -13,9 +13,11 @@ import { TaskActionDialog } from './TaskActionDialog'
 import { TaskDetailPane } from './TaskDetailPane'
 import { TaskListPane } from './TaskListPane'
 import { archivedRowsOf, DEFAULT_TASK_FILTER, filterRows, isTaskStatus, rowsOf, uncommittedDeletionsOf, type TaskFilterState, type TaskRow, type TaskStatus } from './taskModel'
+import { matchesTaskRef, taskRef } from './taskRef'
 import { useTaskActions } from './useTaskActions'
 import { useWorkflowIoLookup } from './useWorkflowDefinition'
-import { readWorkspaceParam, TASK_STATUS_PARAM, writeWorkspaceParam } from './workspaceLocation'
+import { readWorkspaceParam, writeWorkspaceParam } from './workspaceLocation'
+import { TASK_STATUS_PARAM } from '../shell/views'
 
 export interface WorkspaceViewProps {
   snapshot: Snapshot | null
@@ -123,7 +125,7 @@ export function WorkspaceView({
   const selectedRow: TaskRow | null = useMemo(() => {
     const explicit = selectedChange === null
       ? undefined
-      : rows.find((row) => row.change.name === selectedChange && (currentRoot === '' || row.root === currentRoot))
+      : rows.find((row) => matchesTaskRef(selectedChange, row) && (currentRoot === '' || row.root === currentRoot))
     return explicit ?? visibleRows[0] ?? null
   }, [rows, visibleRows, selectedChange, currentRoot])
 
@@ -156,7 +158,7 @@ export function WorkspaceView({
           search={search}
           onSearch={setSearch}
           selectedKey={selectedRow?.key ?? null}
-          onSelect={(row) => onSelectedChange(row.change.name)}
+          onSelect={(row) => onSelectedChange(taskRef(row, currentRoot === ''))}
           showProject={currentRoot === ''}
           emptyKind={emptyKind}
           onClearFilters={() => { setFilter(DEFAULT_TASK_FILTER); setSearch('') }}

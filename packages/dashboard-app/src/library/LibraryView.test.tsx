@@ -70,8 +70,11 @@ describe('库页 · 模板', () => {
     expect(screen.queryByTestId('lib-tpl-builtin-backend-go')).toBeNull()
     expect(screen.getByTestId('lib-tpl-custom-backend-mine')).toBeInTheDocument()
 
-    await user.click(screen.getByTestId('lib-filter-frontend'))
+    // 分类是单行筛选栏里的一个下拉触发器（13 个分类不再铺成一排芯片）。
+    await user.click(screen.getByTestId('lib-facet-category'))
+    await user.click(await screen.findByTestId('lib-filter-frontend'))
     expect(screen.getByTestId('lib-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('lib-facets').className.split(' ')).toContain('flex-nowrap')
   })
 
   it('内建模板详情只有复制；变量表列出键与默认值', async () => {
@@ -249,7 +252,7 @@ describe('库页 · 模板', () => {
     stubFetch()
     renderLibrary()
     const button = await screen.findByTestId('lib-tpl-new')
-    expect(button.closest('[data-slot="list-title-action"]')).not.toBeNull()
+    expect(screen.getByTestId('library-list-action')).toContainElement(button)
     expect(screen.getByTestId('library-list-chips').contains(button)).toBe(false)
   })
 
