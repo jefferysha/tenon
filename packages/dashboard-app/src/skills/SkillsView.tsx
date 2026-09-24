@@ -3,7 +3,7 @@ import { Search } from 'lucide-react'
 import { fetchSkillSources, type SkillSourceRow, type SkillSourcesDto } from '../api/skillSourcesClient'
 import { formatApiError } from '../api/transport'
 import { useT } from '../i18n'
-import { SheetTabs } from '../shared/DetailSheets'
+import { FilterChip, FilterChipGroup } from '../shared/FilterChip'
 import { matchesQuery } from '../shell/GlobalSearch'
 import { SkillDetailDrawer } from '../workflow/SkillDetail'
 
@@ -11,9 +11,14 @@ type Filter = 'all' | 'changed' | 'failed'
 type LoadState = { readonly kind: 'loading' } | { readonly kind: 'ok'; readonly view: SkillSourcesDto } | { readonly kind: 'error'; readonly detail: string }
 
 const CELL = 'truncate whitespace-nowrap px-3 py-2'
-const HEAD = `${CELL} sticky top-0 z-10 border-b border-border bg-card text-left font-semibold text-text-2`
-const LINK = 'text-accent-d hover:underline'
-const COLUMN_WIDTHS = ['w-[22%]', 'w-[26%]', 'w-[14%]', 'w-[10%]', 'w-[16%]', 'w-[12%]'] as const
+const HEAD = `${CELL} sticky top-0 z-10 border-b border-border bg-bg text-left font-semibold text-text-2`
+/** 链接平时是正文色，强调色只在悬停时出现。 */
+const LINK = 'rounded-xs outline-none underline-offset-4 hover:text-(--accent) hover:underline focus-visible:ring-2 focus-visible:ring-(--accent)'
+const FILTERS = ['all', 'changed', 'failed'] as const
+const COLUMNS = ['skill', 'source', 'commit', 'license', 'updated'] as const
+const COLUMN_WIDTHS: Record<(typeof COLUMNS)[number] | 'status', string> = {
+  skill: 'w-[22%]', source: 'w-[26%]', commit: 'w-[14%]', license: 'w-[10%]', updated: 'w-[16%]', status: 'w-24',
+}
 const STATUS_TONE: Record<SkillSourceRow['status'], string> = {
   changed: 'text-amber-d', unchanged: 'text-text-2', failed: 'text-red-d', bundled: 'text-text-3',
 }
@@ -30,17 +35,18 @@ function short(commit: string): string {
 
 function CommitCell({ row }: { readonly row: SkillSourceRow }): JSX.Element {
   if (row.commit === undefined) return <td className={`${CELL} text-text-3`}>—</td>
+  const cell = `${CELL} font-mono text-text-3`
   const previous = row.status === 'changed' && typeof row.previousCommit === 'string' ? row.previousCommit : null
   if (previous !== null && row.compareUrl !== undefined) {
     const label = `${short(previous)}→${short(row.commit)}`
     return (
-      <td className={`${CELL} font-mono`} title={`${previous}→${row.commit}`}>
+      <td className={cell} title={`${previous}→${row.commit}`}>
         <a className={LINK} href={row.compareUrl} target="_blank" rel="noreferrer" data-testid={`skills-compare-${row.id}`}>{label}</a>
       </td>
     )
   }
   return (
-    <td className={`${CELL} font-mono`} title={row.commit}>
+    <td className={cell} title={row.commit}>
       {row.commitUrl === undefined ? short(row.commit) : <a className={LINK} href={row.commitUrl} target="_blank" rel="noreferrer">{short(row.commit)}</a>}
     </td>
   )
@@ -72,6 +78,9 @@ export function SkillsView(): JSX.Element {
     failed: rows.filter((row) => row.status === 'failed').length,
   }), [rows])
   const visible = rows.filter((row) => (filter === 'all' || row.status === filter) && matchesQuery(query, row.id, row.repo ?? ''))
+  // 状态列只在可见行里有「变化 / 失败」时出现；全都无事就整列不渲染。
+  const showStatus = visible.some((row) => SHOWN_STATUS.has(row.status))
+  const columns: readonly (keyof typeof COLUMN_WIDTHS)[] = showStatus ? [...COLUMNS, 'status'] : COLUMNS
   // 行内的链接（仓库 / 提交）照常跳转，不同时打开抽屉。
   const onRowClick = (event: MouseEvent<HTMLTableRowElement>, id: string): void => {
     if (event.target instanceof Element && event.target.closest('a, button') !== null) return
@@ -94,15 +103,20 @@ export function SkillsView(): JSX.Element {
       ) : null}
       {state.kind === 'ok' ? (
         <>
-          <div className="flex items-end justify-between gap-6 whitespace-nowrap">
-            <SheetTabs
-              sheets={(['all', 'changed', 'failed'] as const).map((id) => ({ id, label: `${t(`skills.filter_${id}`)} ${counts[id]}` }))}
-              active={filter}
-              onChange={setFilter}
-              ariaLabel={t('nav.skills')}
-              idPrefix="skills-filter"
-            />
-            <div className="flex items-center gap-4 pb-2">
+          <div className="flex items-center justify-between gap-6 whitespace-nowrap">
+            <FilterChipGroup label={t('nav.skills')} testId="skills-filter">
+              {FILTERS.map((id) => (
+                <FilterChip
+                  key={id}
+                  label={t(`skills.filter_${id}`)}
+                  count={counts[id]}
+                  selected={filter === id}
+                  testId={`skills-filter-${id}`}
+                  onClick={() => setFilter(id)}
+                />
+              ))}
+            </FilterChipGroup>
+            <div className="flex items-center gap-4">
               <label className="flex h-9 w-64 items-center gap-2 rounded-md border border-border bg-card px-3 text-text-3 focus-within:border-accent-b" data-testid="skills-search-box">
                 <Search className="size-4 flex-none" aria-hidden="true" />
                 <span className="sr-only">{t('skills.search')}</span>
@@ -116,15 +130,15 @@ export function SkillsView(): JSX.Element {
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </label>
-              <span className="text-caption text-text-3" data-testid="skills-updated">{t('skills.updated')} {stamp(state.view.updatedAt)}</span>
+              <span className="text-caption tabular-nums text-text-3" data-testid="skills-updated">{t('skills.updated')} {stamp(state.view.updatedAt)}</span>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-border bg-card" id="skills-filter-panel" role="tabpanel">
+          <div className="min-h-0 flex-1 overflow-auto" data-testid="skills-table">
             <table className="w-full table-fixed border-collapse text-caption">
-              <colgroup>{COLUMN_WIDTHS.map((width) => <col key={width} className={width} />)}</colgroup>
+              <colgroup>{columns.map((column) => <col key={column} className={COLUMN_WIDTHS[column]} />)}</colgroup>
               <thead>
                 <tr>
-                  {(['skill', 'source', 'commit', 'license', 'updated', 'status'] as const).map((column) => (
+                  {columns.map((column) => (
                     <th key={column} className={HEAD} scope="col">{t(`skills.col_${column}`)}</th>
                   ))}
                 </tr>
@@ -133,14 +147,14 @@ export function SkillsView(): JSX.Element {
                 {visible.map((row) => (
                   <tr
                     key={row.id}
-                    className="cursor-pointer even:bg-fill/45 hover:bg-fill"
+                    className="cursor-pointer transition-colors hover:bg-fill motion-reduce:transition-none"
                     data-testid={`skills-row-${row.id}`}
                     onClick={(event) => onRowClick(event, row.id)}
                   >
                     <td className={CELL} title={row.id}>
                       <button
                         type="button"
-                        className="max-w-full truncate rounded-xs font-mono text-text outline-none hover:underline focus-visible:ring-2 focus-visible:ring-(--accent)"
+                        className={`max-w-full truncate font-mono text-text ${LINK}`}
                         data-testid={`skills-open-${row.id}`}
                         onClick={() => setOpen(row.id)}
                       >
@@ -153,15 +167,17 @@ export function SkillsView(): JSX.Element {
                       <td className={CELL} title={`${row.repo ?? ''}:${row.path ?? ''}`}>
                         {row.sourceUrl === undefined
                           ? <span className="text-text-2">{row.repo}</span>
-                          : <a className={LINK} href={row.sourceUrl} target="_blank" rel="noreferrer">{row.repo}</a>}
+                          : <a className={`text-text-2 ${LINK}`} href={row.sourceUrl} target="_blank" rel="noreferrer">{row.repo}</a>}
                       </td>
                     )}
                     <CommitCell row={row} />
                     <td className={`${CELL} text-text-2`} title={row.license ?? '—'}>{row.license ?? '—'}</td>
-                    <td className={`${CELL} text-text-2`} title={row.fetchedAt ?? '—'}>{stamp(row.fetchedAt)}</td>
-                    <td className={`${CELL} ${STATUS_TONE[row.status]}`} title={statusTitle(row)} data-testid={`skills-status-${row.id}`}>
-                      {SHOWN_STATUS.has(row.status) ? t(`skills.status_${row.status}`) : ''}
-                    </td>
+                    <td className={`${CELL} tabular-nums text-text-2`} title={row.fetchedAt ?? '—'}>{stamp(row.fetchedAt)}</td>
+                    {showStatus && (
+                      <td className={`${CELL} ${STATUS_TONE[row.status]}`} title={statusTitle(row)} data-testid={`skills-status-${row.id}`}>
+                        {SHOWN_STATUS.has(row.status) ? t(`skills.status_${row.status}`) : ''}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
