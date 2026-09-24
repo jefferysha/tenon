@@ -1,4 +1,4 @@
-import type { WbIoSlot, WbStepIo } from '../api/governanceTypes'
+import type { WbIoSlot, WbStepIo, WbWorkflowDef } from '../api/governanceTypes'
 import { changeWorkflowName } from '../model/progressModel'
 import { snapshotRulesKey, type WorkflowRules } from '../model/workflowModel'
 import { isProjectNavigable } from '../state/projectSelectionModel'
@@ -55,6 +55,25 @@ export function isUnset(value: string): boolean {
 /** 阶段名只显示一个：定义里的 label（服务端已投影进 labelByStep），没有就是 id；不做前端翻译。 */
 export function stageLabel(step: string, rules: WorkflowRules | undefined, _t?: Tr): string {
   return rules?.labelByStep?.[step] || step
+}
+
+/**
+ * 用工作流定义补阶段名：快照里的 labelByStep 来自该任务冻结的计划，旧计划没有 label 时服务端只能给 id
+ * （界面上就成了「可进入verify」）。定义里（按任务的 track 分支）有 label 的阶段用定义的名字；
+ * 冻结计划本身声明了 label 的仍以它为准。
+ */
+export function labelWithDefinition<R extends TaskRow>(row: R, def: WbWorkflowDef): R {
+  const steps = def.tracks?.[row.change.track]?.steps ?? def.steps
+  const fromDef = new Map(steps.filter((step) => step.label !== '' && step.label !== step.id).map((step) => [step.id, step.label]))
+  if (fromDef.size === 0) return row
+  const ids = row.rules?.steps ?? row.change.workflowRules.steps
+  const labelByStep: Record<string, string> = {}
+  for (const id of ids) {
+    const own = row.rules?.labelByStep?.[id]
+    labelByStep[id] = own !== undefined && own !== '' && own !== id ? own : fromDef.get(id) ?? id
+  }
+  const rules: WorkflowRules = { ...(row.rules ?? row.change.workflowRules), labelByStep }
+  return { ...row, rules, stages: row.stages.map((stage) => ({ ...stage, label: labelByStep[stage.id] ?? stage.label })) }
 }
 
 /** 槽位展示名 = 定义里的 id 本身（文档 kind / 字段名），不做前端翻译。 */
@@ -224,6 +243,14 @@ export function statusOf(summary: TaskSummary): Exclude<TaskStatus, 'all'> {
     case 'missing':
     case 'running': return 'running'
   }
+}
+
+/**
+ * 「需要你」的唯一计数：工作台的「需要你」芯片与顶部条待决策徽标都用它（同一份行、同一个 statusOf），
+ * 数字不会各算各的。
+ */
+export function needsYouCount(input: RowsInput): number {
+  return rowsOf(input).filter((row) => statusOf(row.summary) === 'needs-you').length
 }
 
 export interface TaskFilterState {

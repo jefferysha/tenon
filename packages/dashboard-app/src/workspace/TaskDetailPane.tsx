@@ -14,7 +14,7 @@ import { TestRunDrawer } from './TestRunDrawer'
 import { stageTestCount, stageTestRows } from './stageTests'
 import { StageRail } from './StageRail'
 import { fallbackStepIo, gateProgress, isReadyRow, readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
-import { summaryShort, type TaskRow } from './taskModel'
+import { labelWithDefinition, stageLabel, summaryShort, type TaskRow } from './taskModel'
 import { useWorkflowDefinition } from './useWorkflowDefinition'
 import { ReviewDecisionPanel } from './ReviewDecisionPanel'
 import { summaryTone } from './TaskCard'
@@ -62,6 +62,9 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
   }, [identity, current])
   useEffect(() => { writeWorkspaceParam('step', selectedStep === current ? null : selectedStep) }, [selectedStep, current])
   const definition = useWorkflowDefinition(root, row.workflow, fetchDefinition)
+  // 阶段名只显示一个：label 优先，没有才是 id（旧冻结计划没带 label 时从定义补）。
+  const shown = useMemo(() => (definition.status === 'ready' ? labelWithDefinition(row, definition.def) : row), [definition, row])
+  const labelOf = (id: string): string => stageLabel(id, shown.rules)
   // change 走自己 track 的分支 IO；没有对应分支 → 通用分支。
   const stepIo = definition.status === 'ready'
     ? (definition.def.branches?.[change.track]?.effectiveIo ?? definition.def.branches?._base?.effectiveIo ?? definition.def.effectiveIo)?.[selectedStep]
@@ -107,12 +110,12 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
             </div>
             <p className="mb-4 truncate whitespace-nowrap font-mono text-base text-text-2" data-testid="task-detail-meta">{[change.track === '' ? row.workflow : `${row.workflow}/${change.track}`, row.owner?.name].filter(Boolean).join(' · ')}</p>
             <p className="mb-6" data-testid="task-detail-status">
-              <StatusPill tone={summaryTone(row)} testId="task-detail-badge">{summaryShort(row, t)}</StatusPill>
+              <StatusPill tone={summaryTone(row)} testId="task-detail-badge">{summaryShort(shown, t)}</StatusPill>
             </p>
-            {showReviewConsole && !archived && <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} onRefresh={onRefresh} onToast={onToast} />}
+            {showReviewConsole && !archived && <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} stageLabelOf={labelOf} onRefresh={onRefresh} onToast={onToast} />}
             {row.stages.length > 0 && (
               <div className="mb-6 border-b border-border pb-6">
-                <StageRail stages={row.stages} selected={selectedStep} onSelect={setSelectedStep} />
+                <StageRail stages={shown.stages} selected={selectedStep} onSelect={setSelectedStep} />
               </div>
             )}
           </>
@@ -162,7 +165,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
             )}
           </div>
         )}
-        {fetchDefinition && <TaskRecords root={root} change={change.name} signature={decisionSignature} />}
+        {fetchDefinition && <TaskRecords root={root} change={change.name} signature={decisionSignature} stageLabelOf={labelOf} />}
       </DetailColumn>
       <DocumentDrawer root={root} files={files} index={openIndex} onIndex={setOpenIndex} onClose={() => setOpenIndex(null)} />
       <AgentRunDrawer

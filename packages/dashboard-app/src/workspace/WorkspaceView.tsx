@@ -12,10 +12,10 @@ import { ProjectRail } from './ProjectRail'
 import { TaskActionDialog } from './TaskActionDialog'
 import { TaskDetailPane } from './TaskDetailPane'
 import { TaskListPane } from './TaskListPane'
-import { archivedRowsOf, DEFAULT_TASK_FILTER, filterRows, isTaskStatus, rowsOf, uncommittedDeletionsOf, type TaskFilterState, type TaskRow, type TaskStatus } from './taskModel'
+import { archivedRowsOf, DEFAULT_TASK_FILTER, filterRows, isTaskStatus, labelWithDefinition, rowsOf, uncommittedDeletionsOf, type TaskFilterState, type TaskRow, type TaskStatus } from './taskModel'
 import { matchesTaskRef, taskRef } from './taskRef'
 import { useTaskActions } from './useTaskActions'
-import { useWorkflowIoLookup } from './useWorkflowDefinition'
+import { useWorkflowDefLookup } from './useWorkflowDefinition'
 import { readWorkspaceParam, writeWorkspaceParam } from './workspaceLocation'
 import { TASK_STATUS_PARAM } from '../shell/views'
 
@@ -95,9 +95,15 @@ export function WorkspaceView({
     }
     return out
   }, [snapshot, currentRoot])
-  const ioOf = useWorkflowIoLookup(pairs)
-  const activeRows = useMemo(() => rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }), [snapshot, currentRoot, rulesByKey, ioOf, t])
-  const archivedRows = useMemo(() => archivedRowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }), [snapshot, currentRoot, rulesByKey, ioOf, t])
+  const defOf = useWorkflowDefLookup(pairs)
+  const ioOf = useCallback((root: string, workflow: string) => defOf(root, workflow)?.effectiveIo, [defOf])
+  // 阶段名 label 优先：冻结计划缺 label 时用已取到的定义补（聚合视图不取定义，保持快照里的名字）。
+  const labeled = useCallback(<R extends TaskRow>(row: R): R => {
+    const def = defOf(row.root, row.workflow)
+    return def === undefined ? row : labelWithDefinition(row, def)
+  }, [defOf])
+  const activeRows = useMemo(() => rowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }).map(labeled), [snapshot, currentRoot, rulesByKey, ioOf, t, labeled])
+  const archivedRows = useMemo(() => archivedRowsOf({ snapshot, currentRoot, rulesByKey, ioOf, t }).map(labeled), [snapshot, currentRoot, rulesByKey, ioOf, t, labeled])
   const archivedView = listMode === 'archived'
   const rows = archivedView ? archivedRows : activeRows
   const deletions = uncommittedDeletionsOf(snapshot, currentRoot)

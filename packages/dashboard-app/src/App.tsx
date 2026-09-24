@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { I18nProvider, useT } from './i18n'
 import type { Lang } from './i18n/translations'
-import { selectInbox } from './inbox/inbox'
+import { needsYouCount } from './workspace/taskModel'
+import { useWorkflowDefCache } from './workspace/useWorkflowDefinition'
 import { workflowRulesFromSnapshot } from './model/workflowModel'
 import { Onboarding } from './shell/Onboarding'
 import { useSnapshot } from './state/useSnapshot'
@@ -240,10 +241,11 @@ function AppShell(): JSX.Element {
   // 跨项目 snapshot 已携带每个 change 冻结绑定的 workflow 摘要；所有视图消费同一聚合事实。
   const rulesByKey = useMemo(() => workflowRulesFromSnapshot(snapshot), [snapshot])
 
-  // 顶部条「工作台」标签的待决定计数：口径沿 selectInbox（「现在就能拍板」的唯一判定源）。
+  // 顶部条「工作台」标签的待决策计数 = 工作台「需要你」芯片的计数：同一个 needsYouCount、同一份定义缓存。
+  const defOf = useWorkflowDefCache()
   const decisionCount = useMemo(
-    () => selectInbox(snapshot, currentRoot, rulesByKey).length,
-    [snapshot, currentRoot, rulesByKey],
+    () => needsYouCount({ snapshot, currentRoot, rulesByKey, ioOf: (root, workflow) => defOf(root, workflow)?.effectiveIo, t }),
+    [snapshot, currentRoot, rulesByKey, defOf, t],
   )
 
   // 顶部条 / 左列共用的项目投影：名称取仓库标签，否则 root 尾段；计数 = 未归档 change 数。

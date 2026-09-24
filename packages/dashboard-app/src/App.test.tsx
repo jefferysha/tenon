@@ -1531,7 +1531,7 @@ describe('App SSE 实时更新（真 EventSource stub → 组件真更新，非 
       es!.emit('snapshot', JSON.stringify(next))
     })
 
-    // 组件真更新：进度徽标计数 1（selectInbox 口径），新 change 名出现在进度列表
+    // 组件真更新：进度徽标计数 1（needsYouCount 口径，与「需要你」芯片同一），新 change 名出现在进度列表
     //（可能同时出现在行与详情等多处，getAllByText 断言"至少一处"）。
     await waitFor(() => expect(screen.getByTestId('progress-badge').textContent).toBe('1'))
     expect(screen.getByTestId('progress-badge')).toHaveAccessibleName('待决策 1')
@@ -1966,6 +1966,30 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
     expect(new URLSearchParams(window.location.search).get('status')).toBeNull()
     expect(new URLSearchParams(window.location.search).get('step')).toBeNull()
+  })
+})
+
+describe('待决策徽标与「需要你」芯片同一口径', () => {
+  // 徽标曾按 selectInbox（门阶段 / automation 暂停）计数，芯片按 summary（可进入下一阶段）计数：同一屏上两个数不一样。
+  it('徽标数字 = 「需要你」芯片数字', async () => {
+    window.history.replaceState({}, '', '/?view=progress')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') {
+        return { ok: true, json: async () => makeSnapshot([
+          makeProject('/repo', [
+            trustedVerifyChange('ready-1', { fields: { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' } }),
+            makeChange('paused-1', 'build', { fields: { automation: 'paused' } }),
+            makeChange('paused-2', 'build', { fields: { automation: 'paused' } }),
+            makeChange('plain', 'spec'),
+          ]),
+        ]) }
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+    render(<App />)
+    const chip = await screen.findByTestId('task-status-needs-you', {}, { timeout: 5_000 })
+    await waitFor(() => expect(screen.getByTestId('progress-badge').textContent).toBe('1'))
+    expect(chip.textContent).toBe('需要你1')
   })
 })
 

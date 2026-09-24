@@ -8,6 +8,7 @@ import { StageIoPanel } from './StageIoPanel'
 import type { IoRow } from './stageIo'
 import { TaskDetailPane, type TaskDetailPaneProps } from './TaskDetailPane'
 import { stagesOf, type TaskRow } from './taskModel'
+import { invalidateWorkflowDefinition } from './useWorkflowDefinition'
 
 vi.mock('@xyflow/react', () => import('../workflow/reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -109,12 +110,47 @@ describe('TaskDetailPane header and records', () => {
     expect(archive).toHaveBeenCalledTimes(1)
   })
 
-  it('状态行只写状态一词，不再带阶段名', () => {
+  it('状态行只写状态一词，不再带阶段名；定义里没有 label 时回退 id', () => {
     stubFetch()
     const row = { ...ownerRow(null), summary: { kind: 'ready' as const, to: 'verify' } }
     renderPane({ row })
     expect(screen.getByTestId('task-detail-badge')).toHaveTextContent(/^可进入verify$/u)
     expect(screen.getByTestId('task-detail-badge')).toHaveAttribute('data-tone', 'pending')
+  })
+
+  // 名称只显示一个：冻结计划没带 label 时（labelByStep 只有 id），状态行、阶段轨与记录都用定义里的 label。
+  it('冻结计划缺 label 时状态行写「可进入验证」而不是「可进入verify」', async () => {
+    const def = {
+      name: 'default',
+      steps: ['build', 'verify'].map((id, index) => ({
+        id, label: id === 'verify' ? '验证' : '实现', gate: null, skills: [], inputs: [], outputs: [], guards: [],
+        transitions: index === 0 ? [{ event: 'build-complete', to: 'verify' }] : [],
+      })),
+    }
+    const history = { entries: [{ ts: '2026-09-16T01:00:00Z', kind: 'transition', from: 'build', to: 'verify', actor: { id: 'ann@x.io', name: 'Ann', trust: 'declared' } }] }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url === '/api/workflows/default?root=%2Frepo') return new Response(JSON.stringify(def), { status: 200 })
+      if (url.startsWith('/api/change/x/history')) return new Response(JSON.stringify(history), { status: 200 })
+      return new Response(JSON.stringify({ ok: false, error: 'not found' }), { status: 404 })
+    })
+    const base = ownerRow(null)
+    const ids = { build: 'build', verify: 'verify' }
+    const rules = { ...base.change.workflowRules, steps: ['build', 'verify'], labelByStep: ids }
+    const row: TaskRow = {
+      ...base,
+      rules,
+      stages: [{ id: 'build', label: 'build', status: 'current' }, { id: 'verify', label: 'verify', status: 'todo' }],
+      summary: { kind: 'ready', to: 'verify' },
+    }
+    try {
+      renderPane({ row })
+      await waitFor(() => expect(screen.getByTestId('task-detail-badge')).toHaveTextContent(/^可进入验证$/u))
+      expect(await screen.findByText('实现 → 验证')).toBeInTheDocument()
+      expect(screen.queryByText(/verify/u)).toBeNull()
+    } finally {
+      invalidateWorkflowDefinition()
+    }
   })
 
   it('没有菜单项时不渲染 ⋯', () => {

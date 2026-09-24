@@ -23,12 +23,12 @@ function formatTime(iso: string): string {
 }
 
 /** Operator-facing rows only: creation, transitions, owner changes and review request / confirmation. */
-export function recordItems(entries: readonly ChangeHistoryEntry[], t: (key: string) => string): RecordItem[] {
+export function recordItems(entries: readonly ChangeHistoryEntry[], t: (key: string) => string, stageLabelOf: (id: string) => string = (id) => id): RecordItem[] {
   const items: RecordItem[] = []
   entries.forEach((entry, index) => {
     let label: string | null = null
     if (entry.kind === 'init') label = t('workspace.record_init')
-    else if (entry.kind === 'transition' && entry.from !== undefined && entry.to !== undefined) label = `${entry.from} → ${entry.to}`
+    else if (entry.kind === 'transition' && entry.from !== undefined && entry.to !== undefined) label = `${stageLabelOf(entry.from)} → ${stageLabelOf(entry.to)}`
     else if (entry.kind === 'set' && entry.field === 'assignee') label = `${t('workspace.facet_owner')} ${refName(entry.to) ?? ''}`.trim()
     else if (entry.kind === 'tool' && entry.raw?.startsWith('review:request') === true) label = t('workspace.record_review_request')
     else if (entry.kind === 'tool' && entry.raw?.startsWith('review:acknowledge') === true) label = t('workspace.record_review_ack')
@@ -38,7 +38,13 @@ export function recordItems(entries: readonly ChangeHistoryEntry[], t: (key: str
 }
 
 /** 记录 section: one row per operator record, `time · label · actor`. Refetches when `signature` changes. */
-export function TaskRecords({ root, change, signature }: { root: string; change: string; signature: string }): JSX.Element | null {
+export function TaskRecords({ root, change, signature, stageLabelOf }: {
+  root: string
+  change: string
+  signature: string
+  /** 阶段 id → 展示名（label 优先）；缺省原样。 */
+  stageLabelOf?: (id: string) => string
+}): JSX.Element | null {
   const { t } = useT()
   const [entries, setEntries] = useState<readonly ChangeHistoryEntry[]>([])
   useEffect(() => {
@@ -48,7 +54,7 @@ export function TaskRecords({ root, change, signature }: { root: string; change:
       .catch(() => { if (active) setEntries([]) })
     return () => { active = false }
   }, [root, change, signature])
-  const items = recordItems(entries, t)
+  const items = recordItems(entries, t, stageLabelOf)
   if (items.length === 0) return null
   return (
     <section className="mt-8" data-testid="task-records">
