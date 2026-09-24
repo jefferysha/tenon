@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../i18n'
 import { LibraryView } from './LibraryView'
+import { LIST_ROW } from './libraryChrome'
+import { LIST_SELECTED } from '../workspace/TaskCard'
 
 const GO_TEXT = '---\nid: go\ncategory: backend\ntitle: Go\n---\n## 后端（Go）\n'
 const MINE_TEXT = '---\nid: mine\ncategory: backend\ntitle: 我的后端\n---\n## 后端（我的后端）\n'
@@ -278,5 +280,41 @@ describe('库页 · 模板', () => {
     expect(screen.getByTestId('lib-tpl-new')).toBeInTheDocument()
     expect(screen.queryByTestId('library-list-chips')).toBeNull()
     expect(screen.getByTestId('lib-section-templates')).toHaveTextContent('0')
+  })
+})
+
+describe('库页 · 列表与空态外观', () => {
+  it('选中行 = 中性选中底 + 左侧内嵌边，不加描边；与任务卡同一串选中类', async () => {
+    stubFetch()
+    renderLibrary()
+    const row = await screen.findByTestId('lib-tpl-builtin-backend-go')
+    await userEvent.click(row)
+    await waitFor(() => expect(row).toHaveAttribute('aria-current', 'true'))
+    for (const cls of LIST_SELECTED.split(' ')) expect(LIST_ROW).toContain(`aria-[current=true]:${cls}`)
+    expect(row.className).toBe(LIST_ROW)
+    expect(row.className).not.toMatch(/(?:^|\s)(?:aria-\[current=true\]:)?border(?:-|\s|$)/u)
+    expect(row.className).not.toContain('accent-t')
+  })
+
+  it('行名 500、选中 600；列表里的锁平时 text-4，悬停 / 选中才 text-3', async () => {
+    stubFetch()
+    renderLibrary()
+    const row = await screen.findByTestId('lib-tpl-builtin-backend-go')
+    const name = row.querySelector('span')
+    expect(name?.className).toContain('text-body')
+    expect(name?.className).toContain('font-medium')
+    expect(name?.className).toContain('group-aria-[current=true]:font-semibold')
+    const lock = screen.getByTestId('lib-tpl-builtin-go')
+    expect(lock.className).toContain('text-text-4')
+    expect(lock.className).toContain('group-hover:text-text-3')
+    expect(lock.className).toContain('group-aria-[current=true]:text-text-3')
+  })
+
+  it('详情空态不写字，只留空白（可访问名称仍在）', async () => {
+    stubFetch()
+    renderLibrary()
+    const empty = await screen.findByTestId('lib-detail-empty')
+    expect(empty.textContent).toBe('')
+    expect(empty).toHaveAttribute('aria-label', '选择模板')
   })
 })

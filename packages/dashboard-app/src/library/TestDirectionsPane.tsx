@@ -2,10 +2,8 @@ import { useState } from 'react'
 import { useT } from '../i18n'
 import { BUTTON_SOLID } from '../shared/uiRecipes'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
-import { BuiltinLock, CopyAsCustomButton, DeleteMenu, DetailTitle, ListSkeleton, ReadOnlyNote } from './libraryChrome'
+import { BuiltinLock, CopyAsCustomButton, LIST_ROW, LIST_ROW_NAME, DeleteMenu, DetailTitle, ListSkeleton, ReadOnlyNote } from './libraryChrome'
 import type { TestDirectionLibrary } from './useTestDirections'
-
-const ROW = 'grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t'
 
 /**
  * 库页的测试方向：中列列表（只显示名称，标识在悬停提示里）/ 右列属性表。
@@ -32,14 +30,14 @@ export function TestDirectionsPane({
           <li key={`${direction.source}/${direction.id}`}>
             <button
               type="button"
-              className={ROW}
+              className={LIST_ROW}
               aria-current={library.selected?.id === direction.id ? 'true' : undefined}
               title={direction.id}
               data-testid={`lib-dir-${direction.id}`}
               onClick={() => library.select(direction.id)}
             >
-              <span className="min-w-0 truncate text-base font-semibold text-text">{direction.label}</span>
-              {direction.source === 'builtin' ? <BuiltinLock testId={`lib-dir-builtin-${direction.id}`} /> : <span />}
+              <span className={LIST_ROW_NAME}>{direction.label}</span>
+              {direction.source === 'builtin' ? <BuiltinLock quiet testId={`lib-dir-builtin-${direction.id}`} /> : <span />}
             </button>
           </li>
         ))}
