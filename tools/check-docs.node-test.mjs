@@ -191,7 +191,7 @@ async function fixture() {
   await write(
     root,
     'docs/usage/dashboard-and-local-api.md',
-    '# Dashboard\n\nProgress → Workbench → Projects → Library → Skills are the operational views; AFK, Machine and hostPlan are not. Overview is separate. Use 127.0.0.1:18765 and `tenon dashboard --open`.\n',
+    '# Dashboard\n\nWorkspace → Workflow → Projects → Library → Skills are the operational views; AFK, Machine and hostPlan are not. Overview is separate. Use 127.0.0.1:18765 and `tenon dashboard --open`.\n',
   )
   await write(
     root,
@@ -237,7 +237,7 @@ async function fixture() {
   await write(
     root,
     'docs/usage/zh-CN/dashboard-and-local-api.md',
-    '# Dashboard\n\nProgress → Workbench → Projects → Library → Skills 是操作视图，AFK、Machine 与 hostPlan 不是，Overview 独立。使用 127.0.0.1:18765 和 `tenon dashboard --open`。\n',
+    '# Dashboard\n\nWorkspace → Workflow → Projects → Library → Skills 是操作视图，AFK、Machine 与 hostPlan 不是，Overview 独立。使用 127.0.0.1:18765 和 `tenon dashboard --open`。\n',
   )
   await write(
     root,
