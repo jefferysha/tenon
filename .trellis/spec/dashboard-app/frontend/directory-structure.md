@@ -6,11 +6,11 @@
 
 ## Overview
 
-The dashboard is one SPA with four top-level views selected by the top bar: 工作台 (read the
+The dashboard is one SPA with five top-level views selected by the top bar: 工作台 (read the
 inputs / outputs of each stage of a task), 工作流 (edit workflow definitions, default included),
-项目 (edit project-level and user-level instruction files, and create projects) and 库 (the
-instruction template library). All except 工作流 are three-column pages (rail / list / detail) built
-from `shell/ThreeColumns.tsx`; 工作流 renders `TwoColumns`. The workflow definition served by the
+项目 (edit project-level and user-level instruction files, and create projects), 库 (templates, resource
+catalog, test directions, agents) and 技能 (local skills). 工作台 / 项目 / 库 are three-column pages
+(rail / list / detail) built from `shell/ThreeColumns.tsx`; 工作流 renders `TwoColumns`. The workflow definition served by the
 server (with materialized `effectiveIo`) is the single source of truth for the first two pages; the
 server's instruction routes are the single source of truth for 项目 and 库.
 
@@ -23,44 +23,55 @@ src/
 ├── App.tsx                 # routing (view / root / change), dirty-guard for the workflow editor, lazy views
 ├── index.css               # token truth source: runtime colour tokens + @theme static scales
 ├── shell/
-│   ├── views.ts            # View union: 'progress' | 'workbench' | 'projects' | 'library' (stable URL/localStorage keys)
+│   ├── views.ts            # View union 'progress' | 'workbench' | 'projects' | 'library' | 'skills' (stable URL/localStorage keys),
+│   │                       # viewNeedsSnapshot, TASK_STATUS_PARAM / NEEDS_YOU_STATUS (the only definition)
 │   ├── TopBar.tsx          # project switcher, tabs + 待决策 badge, user, connection, settings (theme / language segments)
-│   ├── ThreeColumns.tsx    # ThreeColumns / RailColumn / RailCard / RailFootLink / ListColumn / FilterChipGroup / FilterChip / DetailColumn / DetailEmpty / StatusPill
+│   ├── ThreeColumns.tsx    # ThreeColumns / TwoColumns / RailColumn (lead, headerAction) / RailCard (icon mark) / ListColumn (action) /
+│   │                       # DetailColumn / DetailEmpty / StatusPill; re-exports FilterChip / FilterChipGroup
 │   ├── Skeleton.tsx        # ThreeColumnsSkeleton (loading placeholder for three-column pages)
-│   ├── GlobalSearch.tsx    # GlobalSearchProvider + useGlobalSearch
-│   ├── ProjectGate.tsx     # "choose a project" gate for the workflow page
-│   ├── dashboardLocation.ts# URL <-> {view, root, change}
+│   ├── GlobalSearch.tsx    # matchesQuery only (no global search box)
+│   ├── dashboardLocation.ts# URL <-> {view, root, change}; per-view keys (工作台 status/step, 工作流 wf/track/step) dropped on leave
 │   └── Onboarding.tsx      # zero-project teaching state (tenon init)
 ├── shared/
+│   ├── Dialog.tsx          # the only modal (Radix Dialog / AlertDialog; destructive confirms are role=alertdialog)
 │   ├── Drawer.tsx          # right-side drawer (portal, 560px, Esc, focus trap) — the only overlay besides Dialog
 │   ├── Markdown.tsx        # react-markdown + remark-gfm with token styling; isMarkdownPath
-│   ├── FacetBar.tsx        # one-line filter bar: radio chips + dropdown facets, overflow into 「更多 N」 (never wraps)
-│   └── Dialog.tsx, UnsavedDraftDialog.tsx, uiRecipes.ts, motion.ts …
+│   ├── FacetBar.tsx        # one-line filter bar: FilterChip groups + dropdown facets, overflow into 「更多 N」 (never wraps)
+│   ├── FilterChip.tsx      # FilterChip (role=radio) / FilterChipGroup (role=radiogroup), arrow / Home / End keys
+│   └── UnsavedDraftDialog.tsx, uiRecipes.ts (BUTTON_* recipes; overrides use enabled:hover:), motion.ts …
 ├── workspace/              # view 'progress' — 工作台 (read-only)
-│   ├── WorkspaceView.tsx, ProjectRail.tsx, TaskListPane.tsx, TaskCard.tsx, MiniPipeline.tsx
+│   ├── WorkspaceView.tsx, ProjectRail.tsx (RailCard + lead), TaskListPane.tsx, TaskCard.tsx, MiniPipeline.tsx
 │   ├── TaskMenu.tsx, useTaskActions.ts # the one ⋯ action list shared by card and detail
-│   ├── workspaceLocation.ts # URL status / step
-│   ├── TaskDetailPane.tsx  # header + StageRail + StageIoPanel + DocumentDrawer
-│   ├── StageRail.tsx, StageIoPanel.tsx, DocumentDrawer.tsx
-│   ├── taskModel.ts        # rowsOf / stagesOf / summaryOf / filterRows / stageChips / slotLabel (status semantics live here only)
+│   ├── workspaceLocation.ts # URL status / step (keys from shell/views)
+│   ├── taskRef.ts          # URL change: bare name, or <rootTag>:<name> in the aggregate view
+│   ├── TaskDetailPane.tsx  # header (H1 + ⋯) + StageRail + skills / agents canvases + IO sheets + DocumentDrawer
+│   ├── StageRail.tsx, StageIoPanel.tsx, StageAgentsPanel.tsx, TaskRecords.tsx, DocumentDrawer.tsx
+│   ├── taskModel.ts        # rowsOf / stagesOf / summaryOf / statusOf / needsYouCount / labelWithDefinition / filterRows
+│   │                       # (status semantics and the 需要你 count live here only)
 │   ├── stageIo.ts          # stageOutputs / stageInputs (slot × change → row), fallbackStepIo, readableFiles
-│   └── useWorkflowDefinition.ts # cached GET /api/workflows/:name (+ useWorkflowIoLookup for the list)
+│   └── useWorkflowDefinition.ts # cached GET /api/workflows/:name; useWorkflowDefLookup (list) / useWorkflowDefCache (read-only)
 ├── workflow/               # view 'workbench' — 工作流 (definition CRUD)
-│   ├── WorkflowView.tsx, WorkflowRail.tsx, PipelineList.tsx
-│   ├── StageEditorPane.tsx # SkillDag · OutputsSection · InputsSection · gate radio; footer save/discard
-│   ├── SkillDag.tsx        # column-model DAG canvas + track badges/filter + local skill palette (dnd-kit); applyDrop / skillAppliesTo / whenFromSelection
-│   ├── IoSections.tsx, NewWorkflowDialog.tsx
+│   ├── WorkflowView.tsx    # TwoColumns: WorkflowNav + StageEditorPane; URL wf / track / step
+│   ├── WorkflowNav.tsx     # switcher (Radix DropdownMenu) + ⋯ menu, track tabs, numbered stage flow with per-stage ⋯
+│   ├── StageEditorPane.tsx # 输入 → 技能 → 执行者 → 输出 → 测试 → 评审者 → 门禁 → 退回; page save bar (未保存 N 处 · 保存 / 放弃)
+│   ├── IoTable.tsx         # equal-width 文件 · 来源阶段 · 来源技能 table (inputs and outputs), trailing × column
+│   ├── SkillFlow.tsx, skillFlowGraph.ts, skillFlowNodes.tsx # React Flow canvas, layout, GSAP pulse
+│   ├── SkillComposer.tsx, AgentComposer.tsx # palette (row = preview, + = add, drag = add at drop) · canvas · detail
+│   ├── Hint.tsx            # Radix Tooltip for gate help
+│   ├── NewWorkflowDialog.tsx, TrackDialog.tsx, TestsSection.tsx, TestEditorDrawer.tsx, AgentSection.tsx
 │   ├── pipelineModel.ts    # forward / back edges
-│   ├── lint.ts             # lintWorkflow (step-no-output, input-not-upstream), draftEffectiveIo
-│   └── slotCatalog.ts      # FIELD_CATALOG, DOCUMENT_KINDS, availableOutputSlots, upstreamOutputs
+│   └── lint.ts             # lintWorkflow, draftEffectiveIo
 ├── projects/               # view 'projects' — 项目 (instruction files + 新建项目)
-│   ├── ProjectsView.tsx    # rail 用户级 + 各项目 + 新建项目; list HostTargetList; detail InstructionEditor
+│   ├── ProjectsView.tsx    # rail 用户级 + 各项目 (+ 新建项目 in the rail header); list HostTargetList; detail InstructionEditor
 │   ├── InstructionEditor.tsx, HostTargetList.tsx, DiffDrawer.tsx, NewProjectDialog.tsx, TemplatePicker.tsx
-│   ├── useInstructionFiles.ts # GET + 5s polling / focus recheck; preview / apply / delete
+│   ├── useInstructionFiles.ts # GET once per root + focus / snapshot digest recheck; preview / apply / delete
 │   └── instructionModel.ts # targetsForHosts / fileStatus / firstLoadable / managedCount (pure)
-├── library/                # view 'library' — 库 (instruction template library)
-│   ├── LibraryView.tsx, TemplateDetail.tsx, NewTemplateDialog.tsx
-│   └── useTemplateLibrary.ts # list + selected document; save / create / copy / delete
+├── library/                # view 'library' — 库 (templates, resource catalog, test directions, agents)
+│   ├── LibraryView.tsx, LibraryRail.tsx, TemplateDetail.tsx, NewTemplateDialog.tsx
+│   ├── AgentList.tsx (+ NewAgentDialog), AgentDetail.tsx, TestDirectionsPane.tsx, resources/
+│   ├── libraryChrome.tsx   # BuiltinLock, DetailTitle (H1 + actions beside it), CopyAsCustomButton, DeleteMenu, ListSkeleton
+│   └── useTemplateLibrary.ts, useAgentLibrary.ts, useTestDirections.ts
+├── skills/                 # view 'skills' — 技能 (local skills, global)
 ├── workbench/              # workflow domain logic
 │   ├── useWorkflowEditor.ts# load / draft / save / create(copy|blank|import) / delete|restore / lint / canWrite
 │   ├── workbenchDefinition.ts # pure definition transforms (skills waves, outputs, inputs, document contract, stages, clone, blank)

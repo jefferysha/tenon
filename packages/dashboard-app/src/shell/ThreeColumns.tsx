@@ -266,12 +266,11 @@ export function ListColumn({
   )
 }
 
-/** 右列：固定头部 + sheet 页签 + 滚动正文 + 底部动作条。 */
+/** 右列：头部（H1 + 旁边的 ⋯）+ sheet 页签 + 滚动正文。没有底部动作条：动作放在对象旁。 */
 export function DetailColumn({
   header,
   sheets,
   children,
-  footer,
   testId,
   panelId,
   labelledBy,
@@ -279,7 +278,6 @@ export function DetailColumn({
   header: ReactNode
   sheets?: ReactNode
   children: ReactNode
-  footer?: ReactNode
   testId: string
   panelId: string
   labelledBy?: string
@@ -299,11 +297,6 @@ export function DetailColumn({
           {children}
         </div>
       </div>
-      {footer !== undefined && (
-        <footer className="flex flex-none flex-wrap items-center justify-between gap-4 border-t border-border bg-surface-detail px-8 py-4 max-[900px]:px-4">
-          {footer}
-        </footer>
-      )}
     </section>
   )
 }
