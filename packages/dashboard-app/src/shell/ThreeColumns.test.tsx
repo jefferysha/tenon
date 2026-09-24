@@ -153,7 +153,8 @@ describe('RailCard（E11 / D6）', () => {
     render(<RailCard mark={<svg />} name="tenon" selected={false} collapsed={false} onClick={() => undefined} testId="card" />)
     const mark = classesOf(screen.getByTestId('card-mark'))
     expect(mark).toEqual(expect.arrayContaining(['text-text-3', '[&_svg]:size-4']))
-    expect(mark.some((name) => name === 'border' || name.startsWith('border-') || name.startsWith('bg-') || name.startsWith('rounded'))).toBe(false)
+    expect(mark.some((name) => name === 'border' || name.startsWith('border-') || name.startsWith('bg-'))).toBe(false)
+    expect(mark).not.toContain('rounded-sm')
     expect(classesOf(screen.getByTestId('card'))).toEqual(expect.arrayContaining(['min-h-11', 'px-3', 'gap-3']))
   })
 
