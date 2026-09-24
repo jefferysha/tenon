@@ -125,7 +125,7 @@ describe('POST /api/projects/create/stream', () => {
     const parent = await tempDir('parent')
     const { port } = await start()
     const bad = await reqPost(port, PATH, { mode: 'empty', parent, name: 'shop', instructions: null, clients: ['claude', 'evil'] }, { headers: AUTH })
-    expect([bad.status, bad.json<{ code: string }>().code]).toEqual([400, 'invalid'])
+    expect([bad.status, bad.json<{ code: string }>().code]).toEqual([400, 'unknown-client'])
     const events = parse((await reqPost(port, PATH, {
       mode: 'empty', parent, name: 'shop', instructions: instructions(['AGENTS.md']), clients: ['codex', 'claude', 'codex'],
     }, { headers: AUTH })).body)

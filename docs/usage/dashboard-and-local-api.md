@@ -155,7 +155,10 @@ only and, unlike other reads, also requires the token. `POST
 /api/projects/create/stream` takes the same body as `POST /api/projects/create`
 and reports each step (`plan`, `step`, `done`, `failed`) as `text/event-stream`;
 an optional `clients` list is recorded in the project's `.tenon/clients.json`
-(`tenon-clients/v1`).
+(`tenon-clients/v1`). In the create body, `instructions.references` writes
+`CLAUDE.md` / `GEMINI.md` as a single `@AGENTS.md` import, `instructions.append`
+keeps an existing file's text and appends the new content, and `git_init`
+initializes an existing folder that is not a repository yet.
 
 The production server negotiates gzip for compressible generated assets and
 returns `Vary: Accept-Encoding`. Clients that decline gzip receive the original

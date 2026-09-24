@@ -84,7 +84,8 @@ export function instructionsInput(
   return {
     text, targets: [...targets], base_digests: {},
     references: files.references.filter((file) => targets.includes(file)),
-    append: targets.filter((file) => modes[file] === 'append'),
+    // 缺省追加：文件不存在时追加与覆盖结果相同，已存在时不丢原文。
+    append: targets.filter((file) => (modes[file] ?? 'append') === 'append'),
   }
 }
 

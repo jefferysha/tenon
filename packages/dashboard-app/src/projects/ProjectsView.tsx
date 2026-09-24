@@ -17,7 +17,7 @@ const DEFAULT_HOSTS = ['claude', 'codex']
 
 /** 项目：左列用户级 + 各项目 + 新建项目 / 中列宿主与文件 / 右列指令文件编辑器。 */
 export function ProjectsView({
-  projects, currentRoot, onSelectProject, onToast, newProjectOpen = false, onNewProjectOpenChange, snapshotRevision = '',
+  projects, currentRoot, onSelectProject, onToast, newProjectOpen = false, onNewProjectOpenChange, snapshotRevision = '', onOpenProject,
 }: {
   projects: readonly TopBarProject[]
   currentRoot: string
@@ -28,6 +28,8 @@ export function ProjectsView({
   /** 由零项目教学态的「新建项目」触发时为 true。 */
   newProjectOpen?: boolean
   onNewProjectOpenChange?: (open: boolean) => void
+  /** 新建向导完成或打开已登记目录后切到该项目的工作台；缺省只选中项目。 */
+  onOpenProject?: (root: string) => void
 }): JSX.Element {
   const { t } = useT()
   const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
@@ -198,8 +200,12 @@ export function ProjectsView({
           onClose={closeDialog}
           onCreated={(root) => {
             closeDialog()
-            onSelectProject(root)
+            ;(onOpenProject ?? onSelectProject)(root)
             onToast?.(t('projects.done_project_created', { name: root.split('/').filter(Boolean).pop() ?? root }))
+          }}
+          onOpen={(root) => {
+            closeDialog()
+            ;(onOpenProject ?? onSelectProject)(root)
           }}
         />
       )}

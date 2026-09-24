@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyEvent } from './useProjectCreateRun'
-import { FOLDER_NAME, filesForClients, joinPath, splitClients, stepLabelKey } from './newProjectModel'
+import { FOLDER_NAME, filesForClients, instructionsInput, joinPath, projectInput, splitClients, stepLabelKey } from './newProjectModel'
 
 describe('newProjectModel', () => {
   it('splitClients：检测到的在主列表；检测为空或未知时回落 Claude Code + Codex', () => {
@@ -9,9 +9,25 @@ describe('newProjectModel', () => {
     expect(splitClients(['nope']).more.some((client) => client.id === 'claude')).toBe(false)
   })
 
-  it('filesForClients：按协议文件顺序去重', () => {
-    expect(filesForClients(new Set(['cursor', 'codex', 'claude']))).toEqual(['CLAUDE.md', 'AGENTS.md'])
-    expect(filesForClients(new Set())).toEqual([])
+  it('filesForClients：正文只进 AGENTS.md，CLAUDE.md / GEMINI.md 是引用；什么都没选 = 只登记', () => {
+    expect(filesForClients(new Set(['cursor', 'codex', 'claude']))).toEqual({ targets: ['AGENTS.md', 'CLAUDE.md'], references: ['CLAUDE.md'] })
+    expect(filesForClients(new Set(['gemini']), false)).toEqual({ targets: ['AGENTS.md', 'GEMINI.md'], references: ['GEMINI.md'] })
+    expect(filesForClients(new Set(), true)).toEqual({ targets: ['AGENTS.md'], references: [] })
+    expect(filesForClients(new Set(), false)).toEqual({ targets: [], references: [] })
+  })
+
+  it('instructionsInput：预检保留跳过的文件，执行去掉；缺省追加', () => {
+    const files = { targets: ['AGENTS.md', 'CLAUDE.md'], references: ['CLAUDE.md'] }
+    expect(instructionsInput(files, '# x\n', { 'AGENTS.md': 'skip' }, false)).toMatchObject({ targets: ['AGENTS.md', 'CLAUDE.md'], append: ['CLAUDE.md'] })
+    expect(instructionsInput(files, '# x\n', { 'AGENTS.md': 'skip' }, true)).toMatchObject({ targets: ['CLAUDE.md'], references: ['CLAUDE.md'] })
+    expect(instructionsInput(files, '# x\n', { 'AGENTS.md': 'skip', 'CLAUDE.md': 'skip' }, true)).toBeNull()
+    expect(instructionsInput(files, '# x\n', { 'AGENTS.md': 'replace' }, true)).toMatchObject({ append: ['CLAUDE.md'] })
+  })
+
+  it('projectInput：已有目录只在开启时带 git_init', () => {
+    const location = { mode: 'existing' as const, path: '/a', parent: '', name: '', gitInit: false }
+    expect(projectInput(location, [], null)).toEqual({ mode: 'existing', path: '/a', instructions: null })
+    expect(projectInput({ ...location, gitInit: true }, [], null, ['codex'])).toEqual({ mode: 'existing', path: '/a', instructions: null, git_init: true, clients: ['codex'] })
   })
 
   it('joinPath / FOLDER_NAME / stepLabelKey', () => {

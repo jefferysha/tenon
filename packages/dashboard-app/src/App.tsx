@@ -420,6 +420,7 @@ function AppShell(): JSX.Element {
             onToast={(m) => showFlash('toast', m)}
             newProjectOpen={newProjectOpen}
             onNewProjectOpenChange={setNewProjectOpen}
+            onOpenProject={(root) => { selectProject(root, 'progress'); setView('progress') }}
             snapshotRevision={snapshot?.generated_at ?? ''}
           />
         )}

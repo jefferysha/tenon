@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { readProjectRegistry } from '@tenon/kernel'
 import { applyInstructions, type InstructionResult } from './instructionFiles.js'
 import { trustedFsFailure, writeTrustedFile } from './instructionTrustedFs.js'
-import { writeProjectClientsAnchored } from './projectClients.js'
+import { writeProjectClients } from './projectClients.js'
 import { effectiveText, previewProjectFile, type InstructionsRequest } from './projectInstructionText.js'
 import type { ProjectCreateDeps, ProjectCreatePlan } from './projectCreate.js'
 import { registerProjectAnchored } from './projects.js'
@@ -56,7 +56,10 @@ const hasClients = (plan: ProjectCreatePlan): boolean => plan.clients !== undefi
 async function recordClients(plan: ProjectCreatePlan, anchor: WorkflowRootAnchor, report: CreateStepReporter): Promise<void> {
   const clients = plan.clients
   if (clients === undefined || clients === null) return
-  await runStep('clients', report, () => writeProjectClientsAnchored(anchor, clients))
+  await runStep('clients', report, () => {
+    const written = writeProjectClients(anchor, clients)
+    if (!written.ok) throw new StepFailure('clients', written.error, written.code)
+  })
 }
 
 /** 本次计划会执行的步骤 id（进度视图的行）。 */

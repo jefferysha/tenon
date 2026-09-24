@@ -8,13 +8,12 @@
 import { execFile } from 'node:child_process'
 import { isAbsolute, join, resolve as resolvePath } from 'node:path'
 import {
-  PROJECT_INSTRUCTION_FILES, containsManagedMarker, mergeManagedBlocks, readProjectRegistry,
+  PROJECT_INSTRUCTION_FILES, containsManagedMarker, mergeManagedBlocks, normalizeProjectClients, readProjectRegistry,
   type ProjectInstructionFile, type RecordActor,
 } from '@tenon/kernel'
 import { IDENTITY_REQUIRED, recordInstructionAudit } from './instructionAudit.js'
 import { INSTRUCTION_TEXT_MAX_BYTES, type InstructionResult } from './instructionFiles.js'
 import { trustedFsFailure } from './instructionTrustedFs.js'
-import { normalizeProjectClients } from './projectClients.js'
 import { executeEmpty, executeExisting, type CreateStepReporter } from './projectCreateRun.js'
 import { REFERENCE_FILES, effectiveText, previewProjectFiles, type InstructionsRequest } from './projectInstructionText.js'
 import type { ServerPaths } from './types.js'
@@ -105,8 +104,13 @@ export function decodeProjectCreate(body: unknown): ProjectCreatePlan | Instruct
   if (instructions === 'invalid') return fail(400, 'invalid', 'instructions 不合法')
   if (instructions && containsManagedMarker(instructions.text)) return fail(400, 'managed-marker-in-text', '正文不能包含 Tenon 受管块标记行')
   if (instructions && Buffer.byteLength(instructions.text, 'utf8') > INSTRUCTION_TEXT_MAX_BYTES) return fail(413, 'too-large', '指令文件过大')
-  const clients = request.clients === undefined || request.clients === null ? null : normalizeProjectClients(request.clients)
-  if (clients === null && request.clients !== undefined && request.clients !== null) return fail(400, 'invalid', 'clients 只能是已知客户端 id')
+  let clients: string[] | null = null
+  if (request.clients !== undefined && request.clients !== null) {
+    const normalized = normalizeProjectClients(request.clients)
+    if (normalized === null) return fail(400, 'invalid', 'clients 必须是客户端 id 列表')
+    if (!normalized.ok) return fail(400, 'unknown-client', '未知客户端', { unknown: normalized.unknown })
+    clients = normalized.enabled
+  }
   const dryRun = request.dry_run === true
   if (request.mode === 'empty') {
     if (!absolutePath(request.parent) || typeof request.name !== 'string' || !NAME.test(request.name)) return fail(400, 'invalid-path', '父目录必须是绝对路径，名称只能含字母、数字、. _ -')

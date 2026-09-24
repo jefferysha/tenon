@@ -84,8 +84,13 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
     return () => controller.abort()
   }, [])
 
-  // 成功即切到该项目。
-  useEffect(() => { if (run.status === 'done' && run.created !== null) onCreated(run.created.root) }, [run.status, run.created, onCreated])
+  // 成功即切到该项目（只切一次）。
+  const opened = useRef(false)
+  useEffect(() => {
+    if (run.status !== 'done' || run.created === null || opened.current) return
+    opened.current = true
+    onCreated(run.created.root)
+  }, [run.status, run.created, onCreated])
   // 执行前的位置类失败：回到「位置」，重查并定位字段。
   useEffect(() => {
     if (run.status !== 'failed' || run.errorKey === null || !LOCATION_ERRORS.has(run.errorKey)) return
@@ -119,7 +124,8 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
   const buildInput = async (forCreate: boolean): Promise<ReturnType<typeof projectInput>> => {
     const composed = await composeFor(mode === 'empty' ? name : basename(path), selected, values)
     const instructions = files.targets.length === 0 ? null : instructionsInput(files, composed.markdown, fileModes, forCreate)
-    return projectInput(location, mode === 'empty' ? composed.directories : [], instructions, enabledClients)
+    // 一个客户端都没选时不写 clients.json（「只登记」不产生任何文件）。
+    return projectInput(location, mode === 'empty' ? composed.directories : [], instructions, enabledClients.length > 0 ? enabledClients : undefined)
   }
 
   /** 确认步的预检：进入确认、以及改动文件处理方式时自动执行。 */
