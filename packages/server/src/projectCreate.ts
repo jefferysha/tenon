@@ -12,10 +12,11 @@ import {
   type ProjectInstructionFile, type RecordActor,
 } from '@tenon/kernel'
 import { IDENTITY_REQUIRED, recordInstructionAudit } from './instructionAudit.js'
-import { INSTRUCTION_TEXT_MAX_BYTES, previewInstructionApply, type InstructionResult } from './instructionFiles.js'
+import { INSTRUCTION_TEXT_MAX_BYTES, type InstructionResult } from './instructionFiles.js'
 import { trustedFsFailure } from './instructionTrustedFs.js'
 import { normalizeProjectClients } from './projectClients.js'
 import { executeEmpty, executeExisting, type CreateStepReporter } from './projectCreateRun.js'
+import { REFERENCE_FILES, effectiveText, previewProjectFiles, type InstructionsRequest } from './projectInstructionText.js'
 import type { ServerPaths } from './types.js'
 import {
   captureWorkflowRootAnchor, closeWorkflowRootAnchor, lstatIfExists, type WorkflowRootAnchor,
@@ -31,9 +32,11 @@ export interface ProjectCreateDeps {
   readonly actor: RecordActor | null
 }
 
-interface InstructionsRequest { readonly text: string; readonly targets: readonly ProjectInstructionFile[]; readonly baseDigests: Readonly<Record<string, string>> }
 
-/** clients：要记入 `.tenon/clients.json` 的客户端（已去重排序）；null = 请求没带，不写。 */
+/**
+ * clients：要记入 `.tenon/clients.json` 的客户端（已去重排序）；null = 请求没带，不写。
+ * gitInit：已有目录还不是 git 仓库时是否 `git init`（缺省不做）。
+ */
 export type ProjectCreatePlan =
   | {
     readonly mode: 'empty'; readonly root: string; readonly parent: string; readonly directories: readonly string[]
@@ -41,7 +44,7 @@ export type ProjectCreatePlan =
   }
   | {
     readonly mode: 'existing'; readonly root: string; readonly instructions: InstructionsRequest | null
-    readonly clients?: readonly string[] | null; readonly dryRun: boolean
+    readonly clients?: readonly string[] | null; readonly gitInit?: boolean; readonly dryRun: boolean
   }
 
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
@@ -72,13 +75,26 @@ function decodeInstructions(value: unknown): InstructionsRequest | null | 'inval
   if (targets.length === 0 || targets.length !== body.targets.length || new Set(targets).size !== targets.length) return 'invalid'
   const digests = record(body.base_digests ?? {})
   if (!digests || !Object.values(digests).every((item) => typeof item === 'string')) return 'invalid'
-  return { text: body.text, targets, baseDigests: Object.fromEntries(Object.entries(digests).map(([key, item]) => [key, String(item)])) }
+  const references = subset(body.references, targets, REFERENCE_FILES)
+  const append = subset(body.append, targets, targets)
+  if (references === null || append === null) return 'invalid'
+  return {
+    text: body.text, targets, references, append,
+    baseDigests: Object.fromEntries(Object.entries(digests).map(([key, item]) => [key, String(item)])),
+  }
+}
+
+/** 可选的文件子集：缺省为空；必须是 targets 与 allowed 的交集里不重复的项。 */
+function subset(value: unknown, targets: readonly string[], allowed: readonly string[]): string[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || new Set(value).size !== value.length) return null
+  return value.every((item) => typeof item === 'string' && targets.includes(item) && allowed.includes(item)) ? value.map(String) : null
 }
 
 /** 解码与静态校验；不访问文件系统。 */
 export function decodeProjectCreate(body: unknown): ProjectCreatePlan | InstructionResult {
   const request = record(body)
-  const allowed = ['mode', 'parent', 'name', 'path', 'directories', 'instructions', 'clients', 'dry_run']
+  const allowed = ['mode', 'parent', 'name', 'path', 'directories', 'instructions', 'clients', 'git_init', 'dry_run']
   if (!request || Object.keys(request).some((key) => !allowed.includes(key))) return fail(400, 'invalid', '请求体不合法')
   const directories = request.directories ?? []
   if (!Array.isArray(directories) || directories.length > 8 || !directories.every((item) => typeof item === 'string' && DIRECTORY.test(item) && item !== './' && item !== '../')
@@ -100,7 +116,8 @@ export function decodeProjectCreate(body: unknown): ProjectCreatePlan | Instruct
   if (request.mode === 'existing') {
     if (!absolutePath(request.path)) return fail(400, 'invalid-path', '路径必须是绝对路径')
     if (directories.length > 0) return fail(400, 'invalid', '已有目录不创建骨架目录')
-    return { mode: 'existing', root: resolvePath(request.path), instructions, clients, dryRun }
+    if (request.git_init !== undefined && typeof request.git_init !== 'boolean') return fail(400, 'invalid', 'git_init 必须是布尔值')
+    return { mode: 'existing', root: resolvePath(request.path), instructions, clients, gitInit: request.git_init === true, dryRun }
   }
   return fail(400, 'invalid', 'mode 必须是 empty 或 existing')
 }
@@ -129,18 +146,21 @@ export async function planProjectCreate(plan: ProjectCreatePlan, deps: ProjectCr
         ok: true, root: plan.root, git: 'init', registration: registered(deps, plan.root) ? 'already' : 'add',
         directories: plan.directories.map((path) => ({ path, exists: false })),
         files: (plan.instructions?.targets ?? []).map((id) => ({
-          id, path: join(plan.root, id), base_digest: 'absent', current: null, next: mergeManagedBlocks(plan.instructions?.text ?? '', []),
+          id, path: join(plan.root, id), base_digest: 'absent', current: null,
+          next: plan.instructions ? mergeManagedBlocks(effectiveText(plan.instructions, id, null), []) : '',
         })),
       },
     }
   }
   const problem = directoryProblem(plan.root, fail(404, 'path-missing', '路径不存在'))
   if (problem) return problem
+  const hasGit = lstatIfExists(join(plan.root, '.git')) !== undefined
+  if (!hasGit && plan.gitInit === true && (await deps.runGit(['--version'], plan.root)).code !== 0) return fail(422, 'git-unavailable', '无法运行 git')
   let files: unknown[] = []
   if (plan.instructions) {
     const anchor = captureWorkflowRootAnchor(plan.root)
     try {
-      const preview = previewInstructionApply({ level: 'project', anchor }, plan.instructions.text, plan.instructions.targets)
+      const preview = previewProjectFiles(anchor, plan.instructions)
       if (preview.status !== 200) return preview
       files = (preview.body as { files: unknown[] }).files
     } finally {
@@ -150,7 +170,7 @@ export async function planProjectCreate(plan: ProjectCreatePlan, deps: ProjectCr
   return {
     status: 200,
     body: {
-      ok: true, root: plan.root, git: lstatIfExists(join(plan.root, '.git')) ? 'existing' : 'none',
+      ok: true, root: plan.root, git: hasGit ? 'existing' : plan.gitInit === true ? 'init' : 'none',
       registration: registered(deps, plan.root) ? 'already' : 'add', directories: [], files,
     },
   }

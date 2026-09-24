@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -138,6 +138,44 @@ describe('POST /api/projects/create/stream', () => {
     expect(again[0]).toEqual({ event: 'plan', data: { steps: ['clients', 'register'] } })
     expect(again.at(-1)).toMatchObject({ event: 'done', data: { registration: 'already' } })
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ schema: 'tenon-clients/v1', enabled: ['gemini'] })
+  })
+
+  it('引用与追加：CLAUDE.md 只写 @AGENTS.md；追加保留原文且重试不重复；非法子集 400', async () => {
+    const root = await tempDir('refs')
+    await writeFile(join(root, 'AGENTS.md'), '# 我的规则\n')
+    const { port } = await start()
+    const request = {
+      mode: 'existing', path: root,
+      instructions: { text: '# shop\n', targets: ['AGENTS.md', 'CLAUDE.md'], references: ['CLAUDE.md'], append: ['AGENTS.md'], base_digests: {} },
+    }
+    const plan = await reqPost(port, '/api/projects/create', { ...request, dry_run: true }, { headers: AUTH })
+    const planned = plan.json<{ files: { id: string; base_digest: string; next: string }[] }>().files
+    expect(planned.map((file) => [file.id, file.next])).toEqual([['AGENTS.md', '# 我的规则\n\n# shop\n'], ['CLAUDE.md', '@AGENTS.md\n']])
+    const digests = Object.fromEntries(planned.map((file) => [file.id, file.base_digest]))
+    const body = { ...request, instructions: { ...request.instructions, base_digests: digests } }
+    expect(parse((await reqPost(port, PATH, body, { headers: AUTH })).body).at(-1)).toMatchObject({ event: 'done' })
+    expect(await readFile(join(root, 'AGENTS.md'), 'utf8')).toBe('# 我的规则\n\n# shop\n')
+    expect(await readFile(join(root, 'CLAUDE.md'), 'utf8')).toBe('@AGENTS.md\n')
+
+    const replan = await reqPost(port, '/api/projects/create', { ...request, dry_run: true }, { headers: AUTH })
+    const again = replan.json<{ files: { id: string; current: string; next: string }[] }>().files
+    expect(again.every((file) => file.current === file.next)).toBe(true)
+
+    const bad = { ...request, instructions: { ...request.instructions, references: ['AGENTS.md'] } }
+    expect((await reqPost(port, PATH, bad, { headers: AUTH })).status).toBe(400)
+  })
+
+  it('已有目录不是 git 仓库：git_init=true 先 git init；缺省不动', async () => {
+    const root = await tempDir('nogit')
+    const { port } = await start()
+    const plain = await reqPost(port, '/api/projects/create', { mode: 'existing', path: root, instructions: null, dry_run: true }, { headers: AUTH })
+    expect(plain.json()).toMatchObject({ git: 'none' })
+    const planned = await reqPost(port, '/api/projects/create', { mode: 'existing', path: root, instructions: null, git_init: true, dry_run: true }, { headers: AUTH })
+    expect(planned.json()).toMatchObject({ git: 'init' })
+    const events = parse((await reqPost(port, PATH, { mode: 'existing', path: root, instructions: null, git_init: true }, { headers: AUTH })).body)
+    expect(events[0]).toEqual({ event: 'plan', data: { steps: ['git', 'register'] } })
+    expect(events.at(-1)).toMatchObject({ event: 'done', data: { git: 'init' } })
+    expect(existsSync(join(root, '.git', 'HEAD'))).toBe(true)
   })
 
   it('createStepIds：已有目录没有 directory / git / skeleton', () => {

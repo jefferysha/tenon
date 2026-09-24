@@ -11,6 +11,7 @@ import { readProjectRegistry } from '@tenon/kernel'
 import { applyInstructions, type InstructionResult } from './instructionFiles.js'
 import { trustedFsFailure, writeTrustedFile } from './instructionTrustedFs.js'
 import { writeProjectClientsAnchored } from './projectClients.js'
+import { effectiveText, previewProjectFile, type InstructionsRequest } from './projectInstructionText.js'
 import type { ProjectCreateDeps, ProjectCreatePlan } from './projectCreate.js'
 import { registerProjectAnchored } from './projects.js'
 import { withTrustedDirectoryChain } from './workflowTrustedFs.js'
@@ -61,7 +62,7 @@ async function recordClients(plan: ProjectCreatePlan, anchor: WorkflowRootAnchor
 /** 本次计划会执行的步骤 id（进度视图的行）。 */
 export function createStepIds(plan: ProjectCreatePlan): string[] {
   const files = [...(plan.instructions?.targets ?? []).map((id) => `file:${id}`), ...(hasClients(plan) ? ['clients'] : [])]
-  if (plan.mode === 'existing') return [...files, 'register']
+  if (plan.mode === 'existing') return [...(needsGitInit(plan) ? ['git'] : []), ...files, 'register']
   return ['directory', 'git', ...(plan.directories.length > 0 ? ['skeleton'] : []), ...files, 'register']
 }
 
@@ -89,7 +90,12 @@ function removeCreated(root: string, anchor: WorkflowRootAnchor): void {
   }
 }
 
-function writeFile(anchor: WorkflowRootAnchor, text: string, id: string, baseDigest: string): unknown {
+/** 按实际正文（引用 / 追加 / 替换）写一个文件；baseDigest 不符时由 applyInstructions 以 409 拒绝。 */
+function writeFile(anchor: WorkflowRootAnchor, request: InstructionsRequest, id: string, baseDigest: string): unknown {
+  const preview = previewProjectFile(anchor, request, id)
+  const planned = Reflect.get(Object(preview.body), 'files')
+  const current = Array.isArray(planned) ? Reflect.get(Object(planned[0]), 'current') : null
+  const text = preview.status === 200 ? effectiveText(request, id, typeof current === 'string' ? current : null) : request.text
   const applied = applyInstructions({ level: 'project', anchor }, text, [{ id, base_digest: baseDigest }])
   if (applied.status !== 200) {
     const { error, code } = bodyText(applied)
@@ -97,6 +103,19 @@ function writeFile(anchor: WorkflowRootAnchor, text: string, id: string, baseDig
   }
   const files = Reflect.get(Object(applied.body), 'files')
   return Array.isArray(files) ? files[0] : undefined
+}
+
+const needsGitInit = (plan: ProjectCreatePlan): boolean =>
+  plan.mode === 'existing' && plan.gitInit === true && lstatIfExists(join(plan.root, '.git')) === undefined
+
+async function gitInit(plan: ProjectCreatePlan, deps: ProjectCreateDeps, report: CreateStepReporter): Promise<void> {
+  await runStep('git', report, async () => {
+    const git = await deps.runGit(['init'], plan.root)
+    if (git.code !== 0) {
+      throw new StepFailure('git', `git init: ${git.stderr.trim() || `exit ${git.code}`}`, undefined,
+        fail(500, 'project-create-failed', '新建项目失败', { step: 'git-init' }))
+    }
+  })
 }
 
 export async function executeEmpty(plan: EmptyPlan, deps: ProjectCreateDeps, report: CreateStepReporter): Promise<InstructionResult> {
@@ -112,10 +131,7 @@ export async function executeEmpty(plan: EmptyPlan, deps: ProjectCreateDeps, rep
   report({ id: 'directory', state: 'done' })
   const anchor = captureWorkflowRootAnchor(plan.root)
   try {
-    await runStep('git', report, async () => {
-      const git = await deps.runGit(['init'], plan.root)
-      if (git.code !== 0) throw new Error(`git init: ${git.stderr.trim() || `exit ${git.code}`}`)
-    })
+    await gitInit(plan, deps, report)
     if (plan.directories.length > 0) {
       await runStep('skeleton', report, () => {
         for (const directory of plan.directories) {
@@ -129,7 +145,7 @@ export async function executeEmpty(plan: EmptyPlan, deps: ProjectCreateDeps, rep
     const files: unknown[] = []
     const instructions = plan.instructions
     for (const id of instructions?.targets ?? []) {
-      files.push(await runStep(`file:${id}`, report, () => writeFile(anchor, instructions?.text ?? '', id, 'absent')))
+      if (instructions) files.push(await runStep(`file:${id}`, report, () => writeFile(anchor, instructions, id, 'absent')))
     }
     await recordClients(plan, anchor, report)
     await runStep('register', report, async () => {
@@ -149,19 +165,21 @@ export async function executeEmpty(plan: EmptyPlan, deps: ProjectCreateDeps, rep
 export async function executeExisting(plan: ExistingPlan, deps: ProjectCreateDeps, report: CreateStepReporter): Promise<InstructionResult> {
   const files: unknown[] = []
   try {
+    const initialized = needsGitInit(plan)
+    if (initialized) await gitInit(plan, deps, report)
     const instructions = plan.instructions
     if (instructions || hasClients(plan)) {
       const anchor = captureWorkflowRootAnchor(plan.root)
       try {
         for (const id of instructions?.targets ?? []) {
-          files.push(await runStep(`file:${id}`, report, () => writeFile(anchor, instructions?.text ?? '', id, instructions?.baseDigests[id] ?? 'absent')))
+          if (instructions) files.push(await runStep(`file:${id}`, report, () => writeFile(anchor, instructions, id, instructions.baseDigests[id] ?? 'absent')))
         }
         await recordClients(plan, anchor, report)
       } finally {
         closeWorkflowRootAnchor(anchor)
       }
     }
-    const git = lstatIfExists(join(plan.root, '.git')) ? 'existing' : 'none'
+    const git = initialized ? 'init' : lstatIfExists(join(plan.root, '.git')) ? 'existing' : 'none'
     const registration = await runStep('register', report, async () => {
       if (readProjectRegistry(deps.paths.registryPath).includes(plan.root)) return 'already' as const
       const added = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root)
