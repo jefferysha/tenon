@@ -1,11 +1,11 @@
 {
   "schemaVersion": 3,
   "status": "pinned",
-  "tag": "v0.1.4",
-  "pluginVersion": "0.1.4",
-  "gitCommit": "23e4c9de959e5ac243a9fe778cc9d3c92e21f450",
+  "tag": "v0.1.5",
+  "pluginVersion": "0.1.5",
+  "gitCommit": "24732676c02c15d3900edbd44949f565fc189c36",
   "cliEntry": "packages/cli/dist/tenon.mjs",
-  "cliSha256": "644252838e2bd00f08d1d4249240d08b09f179312eb30b1f5464eb4240e9ecd3",
+  "cliSha256": "db50aeb32b9cc6b23d25b90a69556655c609d853742f4bf5baf87a12ddd77ada",
   "payloadEntries": [
     ".agents/plugins/marketplace.json",
     ".claude-plugin/marketplace.json",

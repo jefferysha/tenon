@@ -12,6 +12,45 @@ Tenon 的发布说明用于回答三个问题：这一版改变了什么、用�
 
 面向用户的解释、影响与操作步骤默认使用中文。
 
+## v0.1.6 · 2026-09-24
+
+第五轮真实会话验收修复版。v0.1.5 上三条轨道全部走完、每个评审门一次确认即放行；本版收尾剩余的小问题。
+
+### 流程
+
+- build 步的技能加载、执行者与评审者动作以及 `pre_verify_review_result` 字段带上 `review_bar`：下一步（verify）
+  声明的评审者及其 `block_at` 与关注点。build 内的自审与子代理评审按同一口径修完阻断项，避免到 verify 才被拦下
+  而回退。
+- 交付步第二次提交使用 `chore(<change>): update deliverables`，与首次 `feat(<change>): deliver` 区分。
+- 交付值已知时（如 `pr_url=no-remote`）先写入再做最后一次交付提交；需要先提交才能得到 PR 地址时，写入后补一次
+  提交。交付步流转前工作区干净。
+- 入口技能以用户使用的语言回复（命令、字段名与路径保持原样）。
+
+### 升级动作
+
+从 v0.1.5 升级：运行 `tenon update --codex`（或 `--claude`），然后新开宿主会话。N-1 兼容门禁在两个方向上用已发布的
+v0.1.5 读写本版本的数据。
+
+从 1.x 迁移：为使用的每个宿主各运行一次版本化安装命令：
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.6/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.6/install.sh | /bin/bash -s -- --codex
+```
+
+### 兼容性
+
+- `next` 的 build 动作新增可选字段 `review_bar`。
+
+### 验证
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+两个宿主的 inventory、active managed runtime 与 Dashboard 都报告 0.1.6。
+
 ## v0.1.5 · 2026-09-24
 
 第四轮真实会话验收修复版。在 v0.1.4 上三条轨道都已走完并保持工作区干净，本版修复其中发现的引导与确认问题。

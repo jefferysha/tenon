@@ -14,7 +14,7 @@ Tenon-owned project files.
 ## Update
 
 If the installed launcher is a retired 1.x release, first run the immutable
-`v0.1.5/install.sh` one-liner once for that host. This is the explicit migration:
+`v0.1.6/install.sh` one-liner once for that host. This is the explicit migration:
 1.x ranks below every 0.x release, so `tenon update` on 1.x reports a downgrade
 and changes nothing. The command below is the single routine update path
 from v0.1.0 onward.

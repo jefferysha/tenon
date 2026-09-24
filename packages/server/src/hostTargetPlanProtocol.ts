@@ -35,7 +35,7 @@ const STEP_IDS = [
 const CONDITIONAL_STEP_IDS = ['plugin-remove', 'marketplace-remove'] as const
 
 /** Release projection validated against package/plugin manifests by the product identity gate. */
-export const HOST_PLAN_RELEASE_TAG = 'v0.1.5'
+export const HOST_PLAN_RELEASE_TAG = 'v0.1.6'
 const LATEST_STABLE_TAG = '<latest-stable>'
 
 const NOTICE_IDS = [

@@ -53129,7 +53129,7 @@ var TENON_HOSTS = [
 var TENON_MARKETPLACE_SOURCE = "jefferysha/tenon";
 var TENON_MARKETPLACE_NAME = "tenon";
 var TENON_PLUGIN_NAME = "tenon";
-var TENON_RELEASE_VERSION = "0.1.5";
+var TENON_RELEASE_VERSION = "0.1.6";
 function parseHostPluginInventory(host, stdout) {
   let parsed;
   try {
@@ -56616,6 +56616,25 @@ async function agentStepViews(deps, name2, dir, state, plan, stepId) {
     blocking_findings: view2.blocking
   }));
   return { executors: project("executor"), reviewers: project("reviewer") };
+}
+async function downstreamReviewBar(dir, state, plan, stepId, targets2) {
+  const steps = plan.capabilities.agents.steps.filter((item2) => item2.stepId !== stepId && targets2.includes(item2.stepId) && item2.reviewers.length > 0);
+  if (steps.length === 0) return [];
+  const runId = state.runMetadata?.runId;
+  let frozen = /* @__PURE__ */ new Map();
+  try {
+    if (runId !== void 0 && runId !== "") {
+      frozen = await readFrozenAgents({ changeDir: dir, runId, workflowFingerprint: plan.workflowFingerprint });
+    }
+  } catch {
+  }
+  return steps.flatMap((item2) => item2.reviewers.map((reviewer) => ({
+    step: item2.stepId,
+    agent: reviewer.agent,
+    required: reviewer.required,
+    block_at: reviewer.blockAt,
+    focus: frozen.get(reviewer.agent)?.definition.description ?? null
+  })));
 }
 
 // packages/cli/src/commands/verdictFieldGate.ts
@@ -69908,6 +69927,10 @@ var WORKSPACE_COMMIT_PATHS = [
   ...LOCAL_ROOT_FILES.map((name2) => `:(exclude)${name2}`)
 ];
 var TERMINAL_ACTIVITY_PREFIX = ".pipeline-terminal-activity.";
+var CHANGE_HISTORY_FILE = ".pipeline-history.jsonl";
+function firstDeliveryMessage(change) {
+  return `feat(${change}): deliver`;
+}
 function git(cwd, args) {
   return new Promise((resolve59) => {
     execFile7("git", [...args], { cwd, timeout: 5e3, maxBuffer: 4 * 1024 * 1024 }, (error2, stdout) => {
@@ -69927,13 +69950,16 @@ async function probeGitFinish(cwd, change) {
   const inside3 = await git(cwd, ["rev-parse", "--is-inside-work-tree"]);
   if (inside3.code !== 0 || inside3.stdout.trim() !== "true") return null;
   const statusOf2 = (paths) => git(cwd, ["status", "--porcelain", "-z", "--untracked-files=normal", "--", ...paths]);
-  const [tracked, status, deliverables, ignoredTracked] = await Promise.all([
+  const [tracked, status, deliverables, step, ignoredTracked, subjects] = await Promise.all([
     git(cwd, ["ls-files", "-z", "--", `openspec/changes/${change}`]),
     statusOf2(WORKSPACE_COMMIT_PATHS),
     statusOf2([...WORKSPACE_COMMIT_PATHS, `:(exclude)openspec/changes/${change}`]),
-    git(cwd, ["ls-files", "-z", "-c", "-i", "--exclude-standard", "--", "openspec/changes"])
+    statusOf2([...WORKSPACE_COMMIT_PATHS, `:(exclude)openspec/changes/${change}/${CHANGE_HISTORY_FILE}`]),
+    git(cwd, ["ls-files", "-z", "-c", "-i", "--exclude-standard", "--", "openspec/changes"]),
+    // 还没有任何提交时 git log 以 128 退出：按「还没交付过」处理。
+    git(cwd, ["log", "--format=%s", "--fixed-strings", `--grep=${firstDeliveryMessage(change)}`])
   ]);
-  if (tracked.code !== 0 || status.code !== 0 || deliverables.code !== 0) return null;
+  if (tracked.code !== 0 || status.code !== 0 || deliverables.code !== 0 || step.code !== 0) return null;
   const housekeeping = [];
   for (const path15 of FINISH_HOUSEKEEPING_PATHS) {
     if (!existsSync12(join119(cwd, path15))) continue;
@@ -69944,6 +69970,8 @@ async function probeGitFinish(cwd, change) {
     changeDirTracked: tracked.stdout !== "",
     workspaceDirty: status.stdout !== "",
     deliverablesDirty: deliverables.stdout !== "",
+    stepDirty: step.stdout !== "",
+    delivered: subjects.code === 0 && subjects.stdout.split("\n").includes(firstDeliveryMessage(change)),
     housekeeping,
     untrack
   };
@@ -69955,9 +69983,10 @@ function stop(code, message2) {
 }
 
 // packages/cli/src/commands/statusStepFinish.ts
-function deliveryCommit(change, git3) {
-  if (git3 === null || !git3.deliverablesDirty) return null;
-  return { paths: WORKSPACE_COMMIT_PATHS, untrack: git3.untrack, message: `feat(${change}): deliver` };
+function deliveryCommit(change, git3, scope = "deliverables") {
+  if (git3 === null || !(scope === "step" ? git3.stepDirty : git3.deliverablesDirty)) return null;
+  const message2 = git3.delivered ? `chore(${change}): update deliverables` : firstDeliveryMessage(change);
+  return { paths: WORKSPACE_COMMIT_PATHS, untrack: git3.untrack, message: message2 };
 }
 function finishedStop(change) {
   return stop("finished", `\u4EFB\u52A1 '${change}' \u5DF2\u5B8C\u7ED3\uFF0C\u6CA1\u6709\u8981\u505A\u7684\u4E8B\u4E86`);
@@ -69989,6 +70018,9 @@ function finishActions(change, governedOpenspec, finish) {
 }
 
 // packages/cli/src/commands/statusStepNext.ts
+function withReviewBar(actions, bar) {
+  return bar.length === 0 ? actions : actions.map((action) => ({ ...action, review_bar: bar }));
+}
 function writeFieldActions(fields, producers) {
   const actions = [];
   for (const field3 of fields) {
@@ -70032,10 +70064,13 @@ function stepNextActions(input2) {
     }];
   }
   const executors = pendingAgents(input2.executors, true);
-  if (executors.length > 0) return executors;
+  if (executors.length > 0) return withReviewBar(executors, input2.reviewBar);
   const ready = input2.skills.filter((skill) => skill.status === "ready");
   if (ready.length > 0) {
-    return ready.map((skill) => ({ action: "load-skill", skill: skill.id, wave: skill.wave }));
+    return withReviewBar(
+      ready.map((skill) => ({ action: "load-skill", skill: skill.id, wave: skill.wave })),
+      input2.reviewBar
+    );
   }
   const producing = skillDocumentActions(input2.skills, input2.documents);
   if (producing.length > 0) return producing;
@@ -70053,23 +70088,23 @@ function stepNextActions(input2) {
     input2.artifactProducers
   );
   if (registers.length > 0) return registers;
-  if (input2.delivery !== null) return [{ action: "commit", change: input2.change, commit: input2.delivery }];
-  const freeform = writeFieldActions(
-    missing3.filter((field3) => field3.allowed === null && field3.writer === "set"),
-    input2.artifactProducers
-  );
-  if (freeform.length > 0) return freeform;
+  const freeform = missing3.filter((field3) => field3.allowed === null && field3.writer === "set");
+  const known = writeFieldActions(freeform.filter((field3) => field3.recommended !== null), input2.artifactProducers);
+  if (input2.settle !== null && known.length > 0) return known;
+  if (input2.settle !== null) return [{ action: "commit", change: input2.change, commit: input2.settle }];
+  const rest = writeFieldActions(freeform, input2.artifactProducers);
+  if (rest.length > 0) return rest;
   if (input2.ownsDeltaSpec && input2.specRehearsalPending) return [{ action: "validate-spec" }];
   const tests = input2.tests.filter((test) => test.required && test.status !== "passed");
   if (tests.length > 0) return tests.map((test) => ({ action: "run-test", test: test.id }));
   const reviewers = pendingAgents(input2.reviewers, false);
-  if (reviewers.length > 0) return reviewers;
+  if (reviewers.length > 0) return withReviewBar(reviewers, input2.reviewBar);
   if (!requiredEvidenceFailed(input2)) {
     const outcomes = writeFieldActions(
       input2.fields.filter((field3) => field3.kind === "outcome" && field3.status === "missing"),
       input2.artifactProducers
     );
-    if (outcomes.length > 0) return outcomes;
+    if (outcomes.length > 0) return withReviewBar(outcomes, input2.reviewBar);
   }
   return exitActions(input2);
 }
@@ -70186,9 +70221,11 @@ async function finishFacts(deps, name2, state) {
 }
 var DELIVERY_FIELDS = /* @__PURE__ */ new Set(["pr_url", "prd_path"]);
 async function deliveryFacts(deps, name2, state, fields) {
-  if (str(state.fields.archived) === "true") return null;
-  if (!fields.some((field3) => DELIVERY_FIELDS.has(field3.field) && field3.writer === "set")) return null;
-  return deliveryCommit(name2, await (deps.gitFinishProbe?.(name2) ?? Promise.resolve(null)));
+  const none = { delivery: null, settle: null };
+  if (str(state.fields.archived) === "true") return none;
+  if (!fields.some((field3) => DELIVERY_FIELDS.has(field3.field) && field3.writer === "set")) return none;
+  const git3 = await (deps.gitFinishProbe?.(name2) ?? Promise.resolve(null));
+  return { delivery: deliveryCommit(name2, git3), settle: deliveryCommit(name2, git3, "step") };
 }
 var PLAN_DOCUMENT_KINDS = /* @__PURE__ */ new Set(["plan", "superpower-plan"]);
 function downstreamSteps(plan, stepId) {
@@ -70331,7 +70368,14 @@ async function buildStatusStep(deps, name2, state, plan) {
         report.exits,
         documents.records.some((doc) => PLAN_DOCUMENT_KINDS.has(doc.kind))
       ),
-      delivery: await deliveryFacts(deps, name2, state, fields)
+      ...await deliveryFacts(deps, name2, state, fields),
+      reviewBar: await downstreamReviewBar(
+        dir,
+        state,
+        plan,
+        stepId,
+        report.exits.filter((exit) => exit.direction === "forward").map((exit) => exit.to)
+      )
     })
   };
 }

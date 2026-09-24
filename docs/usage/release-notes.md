@@ -4,6 +4,48 @@ Tenon release notes explain what changed, what users need to do, and how to veri
 
 Only capabilities included in a public distribution belong here. Plans, internal ADRs, and unmerged experiments are not presented as shipped work.
 
+## v0.1.6 · 2026-09-24
+
+A fifth real-session acceptance release. On v0.1.5 all three tracks finished and every review gate opened on a
+single confirmation; this release closes the remaining small issues.
+
+### Flow
+
+- build's skill, executor and reviewer actions and the `pre_verify_review_result` field carry `review_bar`: the
+  reviewers the next step (verify) declares, with their `block_at` and focus. Self-review and sub-agent reviews in
+  build use the same bar and fix blockers there, instead of being stopped at verify and sent back.
+- The second delivery commit is titled `chore(<change>): update deliverables`, distinct from the first
+  `feat(<change>): deliver`.
+- A delivery value already known (such as `pr_url=no-remote`) is written before the last delivery commit; when a
+  commit is needed first to get a PR URL, one more commit follows the write. The workspace is clean before the
+  delivery step's transition.
+- The entry skill replies in the user's language, keeping commands, field names and paths unchanged.
+
+### Upgrade
+
+From v0.1.5: run `tenon update --codex` (or `--claude`) and open a new host session. The N-1 gate reads and writes
+this release's data with the published v0.1.5 in both directions.
+
+From 1.x: run the versioned installer once for each host you use:
+
+```bash
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.6/install.sh | /bin/bash -s -- --claude
+/usr/bin/curl -fsSL https://raw.githubusercontent.com/jefferysha/tenon/v0.1.6/install.sh | /bin/bash -s -- --codex
+```
+
+### Compatibility
+
+- build actions in `next` gain an optional `review_bar` field.
+
+### Verify
+
+```bash
+tenon doctor
+tenon runtime status
+```
+
+Both hosts' inventory, the active managed runtime and the Dashboard report 0.1.6.
+
 ## v0.1.5 · 2026-09-24
 
 A fourth real-session acceptance release. On v0.1.4 all three tracks finished with a clean working tree; this
