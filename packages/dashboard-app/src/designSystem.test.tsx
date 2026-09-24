@@ -194,7 +194,12 @@ describe('Dashboard 电脑端设计系统契约', () => {
   it('toast 是 rounded-md 面板，不是药丸', () => {
     const toast = /ref=\{flashRef\}\s*className=\{`([^`]*)/.exec(readSource('App.tsx'))?.[1] ?? ''
     expect(toast).toContain('rounded-md')
+    expect(toast).toContain('shadow-(--shadow-2)')
     expect(toast).not.toContain('rounded-full')
+  })
+
+  it('App 在最外层装一个 TooltipProvider：400ms 出现，相邻 300ms 内免等待', () => {
+    expect(readSource('App.tsx')).toMatch(/<TooltipProvider delayDuration=\{400\} skipDelayDuration=\{300\}>/)
   })
 
   it('App 清理 toast tween，并让 error/status 使用不同 live-region 语义', () => {

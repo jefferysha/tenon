@@ -14,6 +14,7 @@ import { formatApiError } from './api/transport'
 import { UnsavedDraftDialog } from './shared/UnsavedDraftDialog'
 import type { DashboardNavigationTarget } from './state/useProjectSelection'
 import { useFlash } from './shared/useFlash'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { useDashboardTheme } from './shell/useDashboardTheme'
 import { SnapshotInlineError } from './progress/SnapshotInlineError'
 import { BUTTON_GHOST } from './shared/uiRecipes'
@@ -325,7 +326,7 @@ function AppShell(): JSX.Element {
       {flash && (
         <div
           ref={flashRef}
-          className={`pointer-events-none fixed bottom-6 left-1/2 z-60 flex max-w-[70vw] -translate-x-1/2 items-center gap-2 rounded-md px-3.5 py-2 text-caption font-semibold shadow-md ${
+          className={`pointer-events-none fixed bottom-6 left-1/2 z-60 flex max-w-[70vw] -translate-x-1/2 items-center gap-2 rounded-md px-3.5 py-2 text-caption font-semibold shadow-(--shadow-2) ${
             flash.kind === 'error' ? 'bg-red text-solid-fg' : 'bg-ink text-ink-fg'
           }`}
           role={flash.kind === 'error' ? 'alert' : 'status'}
@@ -441,9 +442,11 @@ function AppShell(): JSX.Element {
 export function App(): JSX.Element {
   return (
     <I18nProvider>
-      <ErrorBoundary>
-        <AppShell />
-      </ErrorBoundary>
+      <TooltipProvider delayDuration={400} skipDelayDuration={300}>
+        <ErrorBoundary>
+          <AppShell />
+        </ErrorBoundary>
+      </TooltipProvider>
     </I18nProvider>
   )
 }
