@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { AlertDialog as AlertDialogPrimitive, Dialog as DialogPrimitive } from 'radix-ui'
 import { X } from 'lucide-react'
 import { useT } from '../i18n'
-import { BUTTON_ICON, PANEL } from './uiRecipes'
+import { BUTTON_ICON } from './uiRecipes'
 
 /**
  * 唯一的模态对话框：Radix Dialog（`role="dialog"`）或 Radix AlertDialog（`role="alertdialog"`，
@@ -37,7 +37,18 @@ export interface DialogProps {
   variant?: 'default' | 'workspace'
   /** 首个聚焦目标：缺省聚焦对话框容器内第一个可聚焦元素 */
   initialFocusRef?: React.RefObject<HTMLElement>
+  /**
+   * 缺省 true：调用方条件渲染时只有进场动画。保持挂载并传 false 时，Radix Presence 等退场动画
+   * （120ms）播完再卸载。
+   */
+  open?: boolean
 }
+
+/* 遮罩 180ms 淡入；内容淡入 + 0.97 缩放 + 8px 上移 240ms，退场 120ms。reduced-motion 由 index.css 只留淡入淡出。 */
+const OVERLAY_MOTION =
+  'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:duration-(--dur-base) data-[state=open]:ease-(--ease-out) data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-(--dur-exit) data-[state=closed]:ease-(--ease-exit)'
+const CONTENT_MOTION =
+  'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[.97] data-[state=open]:slide-in-from-bottom-2 data-[state=open]:duration-(--dur-panel) data-[state=open]:ease-(--ease-out) data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-[.97] data-[state=closed]:duration-(--dur-exit) data-[state=closed]:ease-(--ease-exit)'
 
 const DialogInteractionDisabledContext = createContext(false)
 
@@ -103,7 +114,7 @@ function FocusReturn({ focusInside }: { focusInside: React.MutableRefObject<() =
   return null
 }
 
-export function Dialog({ title, onClose, children, actions, testid, role = 'dialog', closeLabel, closeTestid, closeDisabled = false, panelClassName, variant = 'default', initialFocusRef }: DialogProps): JSX.Element {
+export function Dialog({ title, onClose, children, actions, testid, role = 'dialog', closeLabel, closeTestid, closeDisabled = false, panelClassName, variant = 'default', initialFocusRef, open = true }: DialogProps): JSX.Element {
   const { t } = useT()
   const Primitive = role === 'alertdialog' ? AlertDialogPrimitive : DialogPrimitive
   const interactionDisabled = useContext(DialogInteractionDisabledContext)
@@ -143,8 +154,8 @@ export function Dialog({ title, onClose, children, actions, testid, role = 'dial
 
 
   const heading = variant === 'workspace'
-    ? <Primitive.Title className="break-words whitespace-normal text-title font-bold leading-tight tracking-[-0.015em] text-text">{title}</Primitive.Title>
-    : <Primitive.Title className="mb-2 text-title font-bold text-text">{title}</Primitive.Title>
+    ? <Primitive.Title className="break-words whitespace-normal text-title font-semibold leading-tight text-text">{title}</Primitive.Title>
+    : <Primitive.Title className="mb-2 text-title font-semibold text-text">{title}</Primitive.Title>
 
   const body = variant === 'workspace' ? (
     <>
@@ -166,8 +177,8 @@ export function Dialog({ title, onClose, children, actions, testid, role = 'dial
   )
   const contentProps = {
     className: variant === 'workspace'
-      ? `${panelClassName ?? 'w-[min(1480px,96vw)]'} flex max-h-[calc(100vh-24px)] flex-col overflow-hidden rounded-lg border border-border bg-bg shadow-xl outline-none`
-      : `${panelClassName ?? 'w-[min(480px,92vw)]'} max-h-[90vh] overflow-y-auto ${PANEL} px-6 py-5 outline-none`,
+      ? `${panelClassName ?? 'w-[min(1480px,96vw)]'} flex max-h-[calc(100vh-24px)] flex-col overflow-hidden rounded-lg bg-bg shadow-(--shadow-3) outline-none ${CONTENT_MOTION}`
+      : `${panelClassName ?? 'w-[min(480px,92vw)]'} max-h-[90vh] overflow-y-auto rounded-lg bg-surface-raised px-6 py-5 text-text shadow-(--shadow-3) outline-none ${CONTENT_MOTION}`,
     'aria-modal': true,
     'aria-describedby': undefined,
     ref: containerRef,
@@ -186,11 +197,11 @@ export function Dialog({ title, onClose, children, actions, testid, role = 'dial
   }
 
   return (
-    <Primitive.Root open onOpenChange={(open) => { if (!open && !interactionDisabledRef.current) onClose() }}>
+    <Primitive.Root open={open} onOpenChange={(open) => { if (!open && !interactionDisabledRef.current) onClose() }}>
       {/* 显式 container：内容与调用方同一次提交挂载；缺省时 Radix 晚一拍挂出，子树 effect 会排到调用方 effect 之后。 */}
       <Primitive.Portal container={document.body}>
         <Primitive.Overlay
-          className={`fixed inset-0 z-50 flex items-center justify-center bg-scrim ${variant === 'workspace' ? 'p-4 backdrop-blur-[3px] mobile:p-3' : ''}`}
+          className={`fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-[2px] ${OVERLAY_MOTION} ${variant === 'workspace' ? 'p-4 mobile:p-3' : ''}`}
           data-testid={testid}
           ref={setOverlay}
           aria-hidden={interactionDisabled || undefined}

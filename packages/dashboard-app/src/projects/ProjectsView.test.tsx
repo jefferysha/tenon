@@ -1,7 +1,9 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Flip } from 'gsap/Flip'
 import { I18nProvider } from '../i18n'
+import { SLIDING_INDICATOR_CLS } from '../shared/useSlidingIndicator'
 import { diffFileLabel } from './DiffDrawer'
 import { ProjectsView } from './ProjectsView'
 
@@ -342,5 +344,88 @@ describe('diffFileLabel', () => {
     expect(diffFileLabel('/repo/docs/CLAUDE.md', '/repo/')).toBe('docs/CLAUDE.md')
     expect(diffFileLabel('/Users/me/.claude/CLAUDE.md', '')).toBe('CLAUDE.md')
     expect(diffFileLabel('/elsewhere/GEMINI.md', '/repo')).toBe('GEMINI.md')
+  })
+})
+
+describe('项目页 · 表格与编辑区外观', () => {
+  it('宿主表与文件表共用 40px + 三等分列、行高 40；只有宿主 id 与文件名等宽', async () => {
+    stubFetch()
+    renderView()
+    const hosts = await screen.findByTestId('proj-hosts')
+    const files = screen.getByTestId('proj-files')
+    const widths = (table: HTMLElement) => [...table.querySelectorAll('col')].map((col) => col.className)
+    expect(widths(hosts)).toEqual(['w-10', '', '', ''])
+    expect(widths(files)).toEqual(widths(hosts))
+    for (const row of [screen.getByTestId('proj-host-claude'), screen.getByTestId('proj-file-row-AGENTS.md')]) expect(row.className).toContain('h-10')
+    expect(within(screen.getByTestId('proj-host-claude')).getByText('claude').className).toContain('font-mono')
+    expect(screen.getByTestId('proj-file-claude').className).toContain('font-mono')
+    expect(screen.getByTestId('proj-levels-claude').className).not.toContain('font-mono')
+    expect(screen.getByTestId('proj-status-AGENTS.md').className).not.toContain('font-mono')
+    expect(screen.getByTestId('proj-managed-AGENTS.md').className).toContain('tabular-nums')
+    expect(screen.getByTestId('proj-managed-AGENTS.md').className).not.toContain('font-mono')
+  })
+
+  it('不可勾选的宿主：复选框是虚线框占位，不靠透明度隐去；可勾选的用强调色', async () => {
+    stubFetch()
+    renderView()
+    const disabled = await screen.findByTestId('proj-host-check-aider')
+    expect(disabled).toBeDisabled()
+    expect(disabled.className).toContain('disabled:border-dashed')
+    expect(disabled.className).toContain('disabled:appearance-none')
+    expect(disabled.className).not.toContain('opacity')
+    expect(screen.getByTestId('proj-host-check-claude').className).toContain('accent-(--accent)')
+  })
+
+  it('「载入」是文件前的图标按钮，点它把文件读进编辑区', async () => {
+    const user = userEvent.setup()
+    stubFetch({ targets: () => [target('AGENTS.md', { text: '# 来自 AGENTS\n' }), target('CLAUDE.md', { exists: false, digest: 'absent', text: '', bytes: 0 })] })
+    renderView()
+    const load = await screen.findByTestId('proj-load-AGENTS.md')
+    expect(load).toHaveAccessibleName('载入 AGENTS.md')
+    expect(screen.queryByTestId('proj-load-CLAUDE.md')).toBeNull()
+    await user.clear(screen.getByTestId('proj-editor'))
+    await user.click(load)
+    expect(screen.getByTestId('proj-editor')).toHaveValue('# 来自 AGENTS\n')
+  })
+
+  it('编辑 / 渲染 是分段控件：滑块随选中移动，方向键切换', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderView()
+    await screen.findByTestId('proj-editor')
+    const list = screen.getByRole('tablist')
+    expect(list.className).toContain('bg-fill')
+    expect(list.className).not.toContain('border-b')
+    const thumb = screen.getByTestId('proj-thumb')
+    expect(thumb.className.split(' ')).toEqual(expect.arrayContaining([...SLIDING_INDICATOR_CLS.split(' '), 'bg-card', 'shadow-sm']))
+    expect(thumb).toHaveAttribute('data-placed', 'true')
+    expect(thumb.style.transform).toBe('')
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }))
+    const from = vi.spyOn(Flip, 'from')
+    screen.getByTestId('proj-tab-edit').focus()
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByTestId('proj-tab-render')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('proj-tab-render')).toHaveFocus()
+    await act(async () => { await Promise.resolve() })
+    expect(from).toHaveBeenCalledTimes(1)
+    expect(from.mock.calls[0]?.[1]).toMatchObject({ duration: 0.18, ease: 'power3.out' })
+    expect(screen.getByTestId('proj-render')).toBeInTheDocument()
+  })
+
+  it('编辑区无拖拽角、卡片底、等宽 16px，高度随内容', async () => {
+    stubFetch()
+    renderView()
+    const editor = await screen.findByTestId('proj-editor')
+    for (const cls of ['resize-none', 'bg-card', 'border-border', 'rounded-md', 'font-mono', 'text-body', 'p-4']) expect(editor.className).toContain(cls)
+    expect(editor.className).not.toContain('resize-y')
+    await waitFor(() => expect(editor.style.height).toMatch(/px$/u))
+  })
+
+  it('详情空态不写字（可访问名称仍在）', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => undefined)))
+    renderView()
+    const empty = screen.getByTestId('proj-detail-empty')
+    expect(empty.textContent).toBe('')
+    expect(empty).toHaveAttribute('aria-label', '选择项目')
   })
 })

@@ -1,7 +1,8 @@
 # Component Guidelines
 
 > How components are built in this project. Baseline: the workspace template (2026-09) — warm paper
-> ground, deep-green accent, hairline borders instead of shadows, mono identifiers, three columns.
+> ground, one deep-green accent, hairline borders on surfaces (layered shadows only on floating layers), mono
+> identifiers, three columns. Visual reference: `packages/dashboard-app/prototype/`.
 > Scope rule: the dashboard does two things — read a task's per-stage inputs / outputs, and edit
 > workflow definitions. Do not add features because "the old version had them".
 
@@ -44,8 +45,11 @@ those, never class names.
   User, project = Folder; 库: 模板 FileText · 资源目录 Package · 测试方向 FlaskConical · 智能体 Bot), never a letter.
   A path meta line is `shortPath(root)` (`lib/utils`, the only implementation) in mono with the full path on its
   `title` (`metaTitle`); `danger` turns the mark and meta red (unreadable project, said once).
-- `DetailEmpty` renders its title only. `DetailColumn` has no footer: actions sit next to the object.
-- `StatusPill` is a semantic dot + same-tone text with no fill and no pill radius (name kept for callers).
+- `DetailEmpty({ label, testId })` is the only detail empty state, on every page (工作流 / 库 / 资源 / 项目): a blank
+  `bg-surface-detail` section with no text or icon; `label` is its `aria-label` only. Do not add local blank
+  sections. `DetailColumn` has no footer: actions sit next to the object.
+- `StatusPill` is a 6px semantic dot (`size-1.5`) + one same-tone word, no fill and no pill radius (name kept for
+  callers). Every status label (无效, 待复核 …) uses it; non-status facts (类别, 许可, 32KiB) are plain `text-text-3` text.
 - Loading: views declare whether they read `/api/snapshot` (`shell/views.ts viewNeedsSnapshot`: 工作台 and 项目
   only). Only those wait for / fail with the first snapshot; 工作流 / 库 / 技能 render at once. Three-column pages
   show `ThreeColumnsSkeleton` (`shell/Skeleton.tsx`: rail 8 bars, list 3 cards, detail title + stage bar,
@@ -198,7 +202,7 @@ those, never class names.
   (`layoutSkills`: x by depth, y by index in wave). Serial / parallel must be visible even when no `depends_on`
   exists: the canvas adds virtual 起点 / 终点 port nodes (`flow-start` / `flow-end`) with edges start → first wave and
   last-in-chain → end, a wave label above each column (`flow-wave-label`: 第 n 步 · 并行 k when k > 1), arrowheads
-  (`MarkerType.ArrowClosed`) and animated dashes on every edge. Virtual nodes / edges are derived in render, never
+  (`MarkerType.ArrowClosed`) and the pulse (below) on every edge. Virtual nodes / edges are derived in render, never
   stored; `data-nodes` / `data-edges` count skills and `depends_on` edges only. Effects key on
   `skillsSignature(skills)` (ids + sorted depends_on), not on array identity, and `onChange` fires only when the
   graph's signature differs from the prop — this is what stops the reopen-after-delete render loop.
@@ -212,10 +216,13 @@ those, never class names.
   终点 grey); port edges are static, only `depends_on` edges animate.
   **Pulse.** Every edge is the custom `pulse` type (set explicitly on each decorated edge — `defaultEdgeOptions`
   only applies to edges created by `onConnect`): `BaseEdge` plus an accent overlay path whose dash pattern shows one segment
-  (`stroke-dasharray = segment + length`); GSAP tweens `stroke-dashoffset` from `length + segment` to `-segment`, so a
-  highlighted stretch of the line itself flows from source to target — no travelling dot (rejected as choppy), no
-  CSS `offset-path` (inert on SVG). Edges carry `data.order / total` (起点→首波 0, 波 k→汇合 2k+1, 汇合→波 k+1 2k+2, 末波→终点
-  2N-1) so one shared timeline sends the pulse from 起点 to 终点 and repeats; reduced motion disables it. React
+  (`stroke-dasharray = segment + gap`). `workflow/flowPulse.ts` builds **one** GSAP timeline for the whole canvas
+  (`usePulseTimeline`): legs are ordered by `data.order / total` (起点→首波 0, 波 k→汇合 2k+1, 汇合→波 k+1 2k+2,
+  末波→终点 2N-1), each leg lasts `length / PULSE_SPEED` (420px/s, ease none), the highlight is
+  `clamp(36, length × .35, 64)` px and fades in / out over the first / last 5%; on arrival the target node's border
+  flashes (160ms) and the solid 终点 dot scales 1→1.35 with a fading ring (320ms). Loop mode repeats with 0.8s
+  between runs; reduced motion builds no timeline. No travelling dot (rejected as choppy), no CSS `offset-path`, no
+  CSS dash scrolling. React
   Flow's CSS `animated` dashes are not used. Virtual nodes (ports, labels, junctions, ghost) are not in the nodes
   state, so their `dimensions` changes are captured into `virtualMeasured` and written back as `measured` — otherwise
   React Flow treats them as unmeasured, hides the edges attached to them and re-reports sizes every frame.
@@ -246,12 +253,17 @@ those, never class names.
   `workflow/reactFlowTestDouble.tsx`, which renders each node through `nodeTypes` (so node buttons and testids are
   real) and exposes edge ids on `data-edges`. Connection / drag behaviour is React Flow's and is not tested here;
   the pure functions are.
-- **Gates.** Three radio cards `wb-lane-gate-<id>-none|review|auto` with icons; each is wrapped in a Radix Tooltip
-  (`workflow/Hint.tsx`, hover and keyboard focus) whose text is `workflow.gate_help_*`: 无「不拦」, 评审「产物齐全后需人工确认」,
-  自动「产物齐全即放行」.
+- **Gates.** `GateSegment`: a segmented control (`role=radiogroup`, fill track + the shared white thumb, see Styling)
+  with items `wb-lane-gate-<id>-none|review|auto` and thumb `wb-lane-gate-<id>-indicator`; each item is wrapped in a
+  Radix Tooltip (`workflow/Hint.tsx`, hover and keyboard focus) whose text is `workflow.gate_help_*`: 无「不拦」,
+  评审「产物齐全后需人工确认」, 自动「产物齐全即放行」. 退回 is a `components/ui/select`, not a native select.
 - **Names.** Stages, tracks, skills, workflows render `label ?? id`; no id translation anywhere.
-- Save is blocked while `editor.lint` is non-empty or the page has no write credential (`getToken() === ''` → every
-  write control disabled, the save bar shows `wb-no-token`).
+- Save is blocked while `editor.lint` is non-empty or the page has no write credential. `SaveBar` is rendered only
+  while the draft is dirty (sticky at the bottom of the right column, enters y 12px + fade 200ms, leaves 120ms); it
+  carries 未保存 N 处, the save error (`wb-save-error`, `role=alert`) and 放弃 / 保存. No write credential
+  (`getToken() === ''`) disables every write control and shows the error `wb-no-token` (`role=alert`, one line) at
+  the top of the stage pane. Errors are the only sentences allowed on the page; non-error confirmations such as
+  「已保存」 are not shown (`workflow.saved` is gone).
 - default is editable: saving writes the override into the **global** store (the nav shows only the lock icon);
   the menu action becomes `恢复内建` and is enabled whenever the source is not `builtin` (global **or** legacy project
   override) — gating it on `project` alone left a globally overridden default unrestorable. The server rejects
@@ -420,8 +432,37 @@ row names the skills that should produce it, and a stale row carries its one-wor
   on 2026-09-11 at the user's request), radius 4 steps, 4px spacing grid; `tools/check-design-scale.mjs` blocks
   arbitrary values. Nothing wraps, anywhere: labels, chips and pills stay on one line (`whitespace-nowrap`), long text
   truncates with the full text on `title`, and filters overflow into 「更多」 instead of wrapping or scrolling.
-- Cards separate by border and ground colour; shadows only on floating layers (drawer, dialogs, drag
-  overlay).
+- Cards separate by border and ground colour. Shadows are three tokens: `--shadow` (rows, cards, segment thumb),
+  `--shadow-2` (menus, popovers, Select, Toast) and `--shadow-3` (dialogs, drawer). The `-2` / `-3` shadows include
+  a 1px outer ring, so a floating layer with them has no `border`; floating layers sit on `bg-surface-raised`.
+- Colour tokens keep their names; only values are tuned per theme (light, explicit dark and system dark blocks in
+  `index.css` must change together). Light accent `#236a50`; dark accent `#74c29e` is for text, icons and focus
+  rings, while the dark primary button is `--btn-bg #2f7a56` / `--btn-fg #f3f8f5` / `--btn-hover #276b4b` (hover
+  goes deeper, ≥ 4.5:1, `themeContrast.test.tsx`). `--sel-bg` / `--sel-edge` are neutral green; purple is not used.
+  Tooltips use `--tooltip-bg` / `--tooltip-fg` (dark adds `--tooltip-border`).
+- Radius: `rounded-xs` 4px (inline code, kbd, checkbox) · `rounded-sm` 8px (every control: buttons, inputs,
+  Select, menu items, chips, segment thumbs) · `rounded-md` 10px (`--radius`: list rows, rail items, menus and
+  popovers, canvases, Toast) · `rounded-lg` 14px (dialogs, drawer). `rounded-full` is only for count badges
+  (`h-5 min-w-5`), avatars and status dots (and thin progress bars); `uiRecipes.test.tsx` fails on any other use
+  outside `components/ui`.
+- List selection has one recipe: `LIST_SELECTED` / `LIST_SELECTED_ARIA` in `shared/uiRecipes.ts`
+  (`bg-sel-bg` + inset 2px `--sel-edge`, no outline). 工作台 task cards, rail items, 库 / 资源 / 测试方向 rows and
+  composer palette rows all use it; never re-spell the class string (`uiRecipes.test.tsx` checks it exists in one
+  file only). Deep green is reserved for the current nav tab, the current workflow stage and the primary button.
+- Mutually exclusive options slide one shared indicator (`shared/useSlidingIndicator.ts`, GSAP Flip, power3.out):
+  nav tabs and filter chips use `bg-accent-t` at 0.22s; segmented controls (settings 主题 / 语言, 门禁, 项目 编辑 /
+  渲染) use `SEGMENT_THUMB_CLS` (white thumb on a `bg-fill` track) at `SEGMENT_SLIDE_S` = 0.18s. Items never paint
+  their own selected ground; the current item is found by `aria-checked`, `aria-current=page` or `role=tab
+  aria-selected`. Reduced motion places it without animating.
+- Motion: GSAP (with Flip) for anything that moves; CSS / tw-animate only for hover, press, Radix `data-state`
+  enter / exit and skeletons; one DOM node is never animated by both. Tokens in `@theme`: `--dur-press` 80 ·
+  `--dur-fast` 140 (hover) · `--dur-base` 180 · `--dur-panel` 240 · `--dur-exit` 120 · `--dur-layout` 300,
+  `--ease-out` (power3.out) · `--ease-in-out` (power2.inOut) · `--ease-exit` (power2.in). Menus 160 in / 100 out,
+  tooltips 120 in (400ms delay, 300ms skip — one `TooltipProvider` in `App.tsx`, no local providers), dialogs 240 in
+  / 120 out, drawer 240 in / 160 out, right-pane sections reveal with 180ms + 30ms stagger, stage advance 400ms
+  scaleX, canvas pulse 420px/s. Reduced motion keeps only ≤ 100ms fades and colour changes. No infinite decorative
+  loops, skeleton shimmer, hover-scaled cards or spring overshoot (except the drop settle).
+- Small icon buttons may look 32px (`size-8`) but must still hit 40px through an `after:-inset-1` pseudo-element.
 
 ## Accessibility
 

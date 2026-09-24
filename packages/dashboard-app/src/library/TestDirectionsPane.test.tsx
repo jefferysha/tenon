@@ -48,8 +48,9 @@ describe('TestDirectionsPane', () => {
     stubFetch([])
     await openDirections()
     expect(screen.getByTestId('lib-dir-mine')).toBeTruthy()
-    // 未选中时的空态说的是测试方向，不是模板；只有标题一行。
-    expect(screen.getByTestId('lib-dir-empty')).toHaveTextContent(/^选择测试方向$/u)
+    // 未选中时的空态不写字，只留空白；可访问名称说的是测试方向，不是模板。
+    expect(screen.getByTestId('lib-dir-empty')).toHaveTextContent(/^$/u)
+    expect(screen.getByTestId('lib-dir-empty')).toHaveAttribute('aria-label', '选择测试方向')
     await userEvent.click(screen.getByTestId('lib-dir-unit'))
     const yaml = screen.getByTestId('lib-dir-yaml')
     expect(yaml.tagName).toBe('PRE')

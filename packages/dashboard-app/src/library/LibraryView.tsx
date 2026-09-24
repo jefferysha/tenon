@@ -6,7 +6,7 @@ import { DetailEmpty, ListColumn, ThreeColumns } from '../shell/ThreeColumns'
 import { FacetBar } from '../shared/FacetBar'
 import { matchesQuery } from '../shell/GlobalSearch'
 import { BUTTON_GHOST } from '../shared/uiRecipes'
-import { BuiltinLock, ListSkeleton } from './libraryChrome'
+import { BuiltinLock, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
 import { AgentDetail } from './AgentDetail'
 import { AgentList, NewAgentDialog, agentSkeleton } from './AgentList'
 import { useAgentLibrary } from './useAgentLibrary'
@@ -222,20 +222,20 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
                     <li key={`${row.source}/${row.category}/${row.id}`}>
                       <button
                         type="button"
-                        className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t"
+                        className={LIST_ROW}
                         aria-current={selected ? 'true' : undefined}
                         title={`${row.category}/${row.id}`}
                         data-testid={`lib-tpl-${row.source}-${row.category}-${row.id}`}
                         onClick={() => library.select(ref_)}
                       >
-                        <span className="min-w-0 truncate text-base font-semibold text-text">{row.title}</span>
+                        <span className={LIST_ROW_NAME}>{row.title}</span>
                         <span className="flex items-center gap-2 whitespace-nowrap">
                           {row.errors.length > 0 && (
-                            <span className="rounded-full bg-red-t px-2 py-0.5 text-micro font-bold text-red-d" data-testid={`lib-tpl-errors-${row.id}`}>
+                            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-red-t px-1 text-micro font-semibold tabular-nums text-red-d" data-testid={`lib-tpl-errors-${row.id}`}>
                               {row.errors.length}
                             </span>
                           )}
-                          {row.source === 'builtin' && <BuiltinLock testId={`lib-tpl-builtin-${row.id}`} />}
+                          {row.source === 'builtin' && <BuiltinLock quiet testId={`lib-tpl-builtin-${row.id}`} />}
                         </span>
                       </button>
                     </li>
@@ -247,7 +247,7 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
         )}
         detail={section === 'agents' ? (
           agents.selected === null ? (
-            <DetailEmpty title={t('library.agent_empty_detail')} testId="lib-agent-detail-empty" />
+            <DetailEmpty label={t('library.agent_empty_detail')} testId="lib-agent-detail-empty" />
           ) : (
             <AgentDetail
               document={agents.selected}
@@ -271,14 +271,14 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
           )
         ) : section === 'directions' ? (
           directions.selected === null ? (
-            <DetailEmpty title={t('library.direction_empty_detail')} testId="lib-dir-empty" />
+            <DetailEmpty label={t('library.direction_empty_detail')} testId="lib-dir-empty" />
           ) : (
             <div className="min-h-0 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4" data-testid="library-direction-detail">
               <TestDirectionsPane slot="detail" library={directions} canWrite={canWrite} onToast={onToast} />
             </div>
           )
         ) : library.selected === null || library.document === null ? (
-          <DetailEmpty title={t('library.empty_detail')} testId="lib-detail-empty" />
+          <DetailEmpty label={t('library.empty_detail')} testId="lib-detail-empty" />
         ) : (
           <TemplateDetail
             ref_={library.selected}

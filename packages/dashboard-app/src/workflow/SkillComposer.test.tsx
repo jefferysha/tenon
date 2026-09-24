@@ -142,4 +142,48 @@ describe('SkillComposer', () => {
     await user.click(screen.getByTestId('flow-remove-brainstorming'))
     expect(done).toBeDisabled()
   })
+
+  it('三栏是同一个表面（栏间发丝线，栏内不再各自带框）；候选行常驻名称 + 来源，拖拽柄与「+」悬停 / 聚焦才显出，「+」仍可 Tab 到、40px', async () => {
+    mockSkillApi()
+    const user = userEvent.setup()
+    render(
+      <I18nProvider>
+        <SkillComposer open stageLabel="调研" skills={[]} registry={REGISTRY} onClose={() => undefined} onSave={() => undefined} />
+      </I18nProvider>,
+    )
+    const surface = screen.getByTestId('skill-composer-surface')
+    expect(surface.className).toContain('divide-x')
+    expect(surface.className).toContain('rounded-lg')
+    expect(surface.className).not.toContain('gap-4')
+    for (const id of ['skill-palette', 'skill-composer-detail']) expect(screen.getByTestId(id).className).not.toMatch(/(^|\s)border(\s|$)|rounded-lg/u)
+    expect(within(surface).getByTestId('skill-flow').className).toContain('border-0')
+    const add = screen.getByTestId('palette-add-brainstorming')
+    for (const token of ['opacity-0', 'group-hover:opacity-100', 'group-focus-within:opacity-100', 'focus-visible:opacity-100', 'size-10']) expect(add.className).toContain(token)
+    expect(screen.getByTestId('palette-grip-brainstorming').getAttribute('class')).toContain('group-hover:opacity-100')
+    expect(screen.getByTestId('palette-source-brainstorming').className).not.toContain('opacity-0')
+    expect(screen.getByTestId('palette-brainstorming').className).toContain('group')
+    screen.getByTestId('palette-open-brainstorming').focus()
+    await user.tab()
+    expect(add).toHaveFocus()
+  })
+
+  it('右栏文件是单行列表：图标 + 文件名、不换行，选中用 fill 底，多了滚动；不是芯片', async () => {
+    mockSkillApi()
+    const user = userEvent.setup()
+    render(
+      <I18nProvider>
+        <SkillComposer open stageLabel="调研" skills={[]} registry={REGISTRY} onClose={() => undefined} onSave={() => undefined} />
+      </I18nProvider>,
+    )
+    await user.click(screen.getByTestId('palette-open-brainstorming'))
+    const list = await screen.findByTestId('skill-detail-files')
+    expect(list.className).not.toContain('flex-wrap')
+    expect(list.className).toContain('overflow-y-auto')
+    const active = screen.getByTestId('skill-file-SKILL.md')
+    expect(active.className).toContain('whitespace-nowrap')
+    expect(active.className).toContain('bg-fill')
+    expect(active.className).not.toMatch(/(^|\s)border(\s|$)/u)
+    expect(active).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByTestId('skill-file-references/notes.md').className).not.toContain(' bg-fill ')
+  })
 })

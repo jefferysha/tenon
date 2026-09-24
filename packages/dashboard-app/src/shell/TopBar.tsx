@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, Monitor, Moon, Settings, Sun, User as UserIcon, X } from 'lucide-react'
+import { useRef } from 'react'
+import { Check, ChevronDown, User as UserIcon } from 'lucide-react'
+import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
 import type { CurrentUserState } from '../api/userClient'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n/translations'
-import { handleRadioKey } from '../shared/radioKeyboard'
+import { SLIDING_INDICATOR_CLS, useSlidingIndicator } from '../shared/useSlidingIndicator'
+import { TopBarSettings } from './TopBarSettings'
 import { VIEWS, type ThemePreference, type View } from './views'
 import { cn } from '@/lib/utils'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export interface TopBarProject {
   root: string
@@ -26,7 +29,7 @@ interface TopBarProps {
   onLang: (lang: Lang) => void
   theme: ThemePreference
   onTheme: (theme: ThemePreference) => void
-  /** 挂在「工作台」标签旁的待决策计数；徽标常驻，0 时占位不可见。 */
+  /** 挂在「工作台」标签右上角的待决策计数；0 时不渲染。 */
   decisionCount: number
   /** 点徽标：打开工作台并筛到「需要你」。缺省时徽标只展示。 */
   onDecisions?: () => void
@@ -40,30 +43,22 @@ function rootBasename(root: string): string {
   return parts[parts.length - 1] ?? root
 }
 
+/** 导航标签：当前页只换字色与字重，浅绿底由导航内的共享指示块滑过去；悬停底只给非当前页。 */
 const TAB_CLS =
-  'relative inline-flex min-h-10 items-center rounded-sm px-4 py-1.5 text-base font-medium whitespace-nowrap text-text-2 outline-none transition-colors hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=page]:bg-accent-t aria-[current=page]:font-semibold aria-[current=page]:text-(--accent) motion-reduce:transition-none'
+  'relative inline-flex min-h-10 items-center rounded-sm px-4 py-1.5 text-base font-medium whitespace-nowrap text-text-2 outline-none transition-colors duration-(--dur-fast) ease-(--ease-out) not-aria-[current=page]:hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=page]:font-semibold aria-[current=page]:text-(--accent) motion-reduce:transition-none'
 const MENU_BTN_CLS =
-  'flex min-h-10 items-center gap-2 rounded-sm px-2.5 text-base font-medium text-text outline-none transition-colors hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) motion-reduce:transition-none'
-const SEGMENT_CLS =
-  'inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm px-2 text-caption font-semibold text-text-2 outline-none transition-colors hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) aria-checked:bg-card aria-checked:text-text aria-checked:shadow-sm motion-reduce:transition-none'
-const THEMES: readonly { value: ThemePreference; icon: typeof Monitor; key: string }[] = [
-  { value: 'system', icon: Monitor, key: 'common.theme_system' },
-  { value: 'light', icon: Sun, key: 'common.theme_light' },
-  { value: 'dark', icon: Moon, key: 'common.theme_dark' },
-]
-const LANGS: readonly { value: Lang; key: string }[] = [
-  { value: 'zh', key: 'common.switch_to_chinese' },
-  { value: 'en', key: 'common.switch_to_english' },
-]
-const POPOVER_CLS = 'absolute top-[calc(100%+8px)] z-50 rounded-md border border-border bg-card p-1.5 shadow-lg'
+  'flex min-h-10 items-center gap-2 rounded-sm px-2.5 text-base font-medium text-text outline-none transition-colors duration-(--dur-fast) ease-(--ease-out) hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) data-[state=open]:bg-fill motion-reduce:transition-none'
+/** 项目菜单项（menuitemradio）：当前项 600 字重 + 行尾对勾，不用强调色。 */
+const MENU_ITEM_CLS =
+  'flex min-h-10 w-full cursor-default items-center gap-2 rounded-sm px-2.5 text-left text-base text-text-2 outline-none select-none data-[highlighted]:bg-fill data-[highlighted]:text-text data-[state=checked]:font-semibold data-[state=checked]:text-text'
 
 /**
- * 顶部横条：logo → 项目切换器 → 标签（工作台旁常驻待决策徽标）→ 用户 → 连接状态 → 设置（主题 / 语言
- * 两行分段控件）。页面名只在导航高亮里出现，不再有面包屑。
- * 状态一律走 aria-* / data-*；testid：top-bar / nav-<view> / project-switcher / project-menu /
- * project-item-<name> / conn-indicator / nav-settings / nav-settings-panel /
- * theme-toggle（radiogroup）/ theme-option-<pref> / lang-toggle（radiogroup）/ lang-option-<lang> /
- * progress-badge / top-bar-user / top-bar-user-missing。
+ * 顶部横条：logo → 项目切换器 → 标签（紧跟切换器、左对齐；工作台右上角挂待决策徽标）→ 用户 → 连接状态点 →
+ * 设置（主题 / 语言两行分段控件）。页面名只在导航高亮里出现，不再有面包屑。项目菜单与设置弹层都是 Radix
+ * （键盘、焦点回收、Esc 与点外关闭由它负责）。
+ * 状态一律走 aria-* / data-*；testid：top-bar / primary-nav / nav-<view> / nav-indicator / project-switcher /
+ * project-menu / project-item-all / project-item-<name> / conn-indicator / progress-badge / top-bar-user /
+ * top-bar-user-missing（设置弹层的 testid 见 TopBarSettings）。
  */
 export function TopBar({
   view,
@@ -82,96 +77,74 @@ export function TopBar({
   onUser,
 }: TopBarProps): JSX.Element {
   const { t } = useT()
-  const [projectOpen, setProjectOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const projectRef = useRef<HTMLDivElement>(null)
-  const settingsRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!projectOpen && !settingsOpen) return
-    const onPointerDown = (event: PointerEvent): void => {
-      const target = event.target
-      if (!(target instanceof Node)) return
-      if (projectOpen && !projectRef.current?.contains(target)) setProjectOpen(false)
-      if (settingsOpen && !settingsRef.current?.contains(target)) setSettingsOpen(false)
-    }
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return
-      setProjectOpen(false)
-      setSettingsOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [projectOpen, settingsOpen])
+  const barRef = useRef<HTMLElement>(null)
+  const nav = useSlidingIndicator<HTMLElement>()
 
   const current = projects.find((project) => project.root === currentRoot)
   const currentName = current?.name ?? (currentRoot !== '' ? rootBasename(currentRoot) : t('shell.all_projects'))
   const decisionLabel = t('nav.progress_badge', { count: decisionCount })
-  const hasDecisions = decisionCount > 0
+  const connLabel = t(connected ? 'common.connected' : 'common.offline')
 
   return (
     <header
-      className="sticky top-0 z-40 flex h-[var(--topbar-h)] items-center gap-6 border-b border-border bg-card px-5 max-[900px]:h-auto max-[900px]:flex-wrap max-[900px]:gap-3 max-[900px]:py-3"
+      ref={barRef}
+      className="sticky top-0 z-40 flex h-[var(--topbar-h)] items-center gap-3.5 border-b border-border bg-card px-5 max-[900px]:h-auto max-[900px]:flex-wrap max-[900px]:gap-3 max-[900px]:py-3"
       role="banner"
       data-testid="top-bar"
     >
-      <div className="flex min-w-0 items-center gap-3.5">
-        <span className="grid size-9 flex-none place-items-center rounded-sm bg-ink text-title font-semibold text-ink-fg" aria-hidden="true">t</span>
-        <div className="relative" ref={projectRef}>
+      <span className="grid size-9 flex-none place-items-center rounded-sm bg-ink text-title font-semibold text-ink-fg" aria-hidden="true">t</span>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
           <button
             type="button"
             className={MENU_BTN_CLS}
-            aria-haspopup="menu"
-            aria-expanded={projectOpen}
             aria-label={t('shell.project_switch_label')}
             data-testid="project-switcher"
-            onClick={() => { setSettingsOpen(false); setProjectOpen((open) => !open) }}
           >
             <span className={cn('size-1.5 rounded-full', current === undefined ? 'bg-text-3' : current.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
             <span className="max-w-[24ch] truncate" data-testid="project-label">{currentName}</span>
             <ChevronDown className="size-3.5 text-text-3" aria-hidden="true" />
           </button>
-          {projectOpen && (
-            <div className={cn(POPOVER_CLS, 'left-0 min-w-[260px]')} role="menu" aria-label={t('shell.project_menu_label')} data-testid="project-menu">
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-sm px-2.5 py-2 text-left text-base text-text-2 hover:bg-fill data-[on=true]:font-semibold data-[on=true]:text-(--accent)"
-                data-on={currentRoot === ''}
-                data-testid="project-item-all"
-                onClick={() => { onRoot(''); setProjectOpen(false) }}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          sideOffset={8}
+          aria-label={t('shell.project_menu_label')}
+          aria-labelledby={undefined}
+          className="min-w-[260px] rounded-md border-0 bg-surface-raised p-1 shadow-(--shadow-2)"
+          data-testid="project-menu"
+        >
+          <DropdownMenuPrimitive.RadioGroup value={currentRoot} onValueChange={onRoot}>
+            <DropdownMenuPrimitive.RadioItem value="" className={MENU_ITEM_CLS} data-testid="project-item-all">
+              <span className="min-w-0 flex-1 truncate">{t('shell.all_projects')}</span>
+              <MenuCheck />
+            </DropdownMenuPrimitive.RadioItem>
+            {projects.map((project) => (
+              <DropdownMenuPrimitive.RadioItem
+                key={project.root}
+                value={project.root}
+                className={MENU_ITEM_CLS}
+                title={project.root}
+                data-testid={`project-item-${project.name}`}
               >
-                {t('shell.all_projects')}
-              </button>
-              {projects.map((project) => (
-                <button
-                  key={project.root}
-                  type="button"
-                  role="menuitem"
-                  className="flex w-full items-center gap-2 rounded-sm px-2.5 py-2 text-left text-base text-text-2 hover:bg-fill data-[on=true]:font-semibold data-[on=true]:text-(--accent)"
-                  data-on={project.root === currentRoot}
-                  title={project.root}
-                  data-testid={`project-item-${project.name}`}
-                  onClick={() => { onRoot(project.root); setProjectOpen(false) }}
-                >
-                  <span className={cn('size-1.5 flex-none rounded-full', project.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                  <span className="font-mono text-caption text-text-3">{project.count}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+                <span className={cn('size-1.5 flex-none rounded-full', project.ok ? 'bg-green' : 'bg-red')} aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate">{project.name}</span>
+                <span className="text-caption tabular-nums text-text-3">{project.count}</span>
+                <MenuCheck />
+              </DropdownMenuPrimitive.RadioItem>
+            ))}
+          </DropdownMenuPrimitive.RadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-      <nav className="mx-auto flex gap-0.5 max-[900px]:order-3 max-[900px]:w-full max-[900px]:overflow-x-auto" aria-label={t('nav.primary_label')} data-testid="primary-nav">
+      <nav
+        ref={nav.containerRef}
+        className="relative isolate ml-4 flex gap-0.5 max-[900px]:order-3 max-[900px]:ml-0 max-[900px]:w-full max-[900px]:overflow-x-auto max-[900px]:pt-1"
+        aria-label={t('nav.primary_label')}
+        data-testid="primary-nav"
+      >
         {VIEWS.map((candidate) => (
-          <span key={candidate} className="flex items-center">
+          <span key={candidate} className="relative flex items-center">
             <button
               type="button"
               className={TAB_CLS}
@@ -181,37 +154,31 @@ export function TopBar({
             >
               {t(`nav.${candidate}`)}
             </button>
-            {candidate === 'progress' && (
-              // 徽标常驻占位：计数从 0 变 1 时不挤动其余标签；0 时不可见、不可聚焦。
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className={cn(
-                        'grid min-h-10 min-w-10 place-items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-(--accent)',
-                        !hasDecisions && 'invisible',
-                      )}
-                      aria-label={decisionLabel}
-                      aria-hidden={hasDecisions ? undefined : true}
-                      tabIndex={hasDecisions ? undefined : -1}
-                      disabled={!hasDecisions}
-                      data-count={decisionCount}
-                      data-testid="progress-badge"
-                      onClick={onDecisions}
-                    >
-                      <span className="min-w-6 rounded-full bg-amber-t px-1.5 text-center font-mono text-micro font-semibold text-amber-d" aria-hidden="true">{decisionCount}</span>
-                    </button>
-                  </TooltipTrigger>
-                  {hasDecisions && <TooltipContent sideOffset={4}>{decisionLabel}</TooltipContent>}
-                </Tooltip>
-              </TooltipProvider>
+            {candidate === 'progress' && decisionCount > 0 && (
+              // 徽标绝对定位在标签右上角：出现 / 消失都不改导航宽度。与标签是兄弟按钮，不嵌套交互元素；
+              // after 伪元素把点击区撑到 40px。
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="absolute -top-1 -right-1 z-10 grid h-5 min-w-5 place-items-center rounded-full bg-amber-t px-1 text-micro font-semibold tabular-nums text-amber-d outline-none after:absolute after:-inset-2.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-(--accent)"
+                    aria-label={decisionLabel}
+                    data-count={decisionCount}
+                    data-testid="progress-badge"
+                    onClick={onDecisions}
+                  >
+                    <span aria-hidden="true">{decisionCount}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={4}>{decisionLabel}</TooltipContent>
+              </Tooltip>
             )}
           </span>
         ))}
+        <span ref={nav.indicatorRef} className={cn(SLIDING_INDICATOR_CLS, 'rounded-sm bg-accent-t')} aria-hidden="true" data-testid="nav-indicator" />
       </nav>
 
-      <div className="flex items-center gap-3.5 max-[900px]:ml-auto">
+      <div className="ml-auto flex items-center gap-3.5">
         {user?.kind === 'set' && (
           <button
             type="button"
@@ -238,105 +205,33 @@ export function TopBar({
             <span className="whitespace-nowrap">{t('shell.user_unset')}</span>
           </button>
         )}
-        <span
-          className="flex items-center gap-1.5 whitespace-nowrap text-base text-text-2 max-[1279px]:hidden"
-          data-on={connected ? 'true' : 'false'}
-          title={connected ? t('common.connected') : t('common.offline')}
-          data-testid="conn-indicator"
-        >
-          <span className={cn('size-1.5 rounded-full', connected ? 'bg-green' : 'bg-red')} aria-hidden="true" />
-          {t(connected ? 'common.connection_live' : 'common.connection_offline')}
-        </span>
-        <div className="relative" ref={settingsRef}>
-          <button
-            type="button"
-            className="grid size-10 place-items-center rounded-sm border border-border bg-card text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"
-            aria-label={t('common.settings')}
-            aria-expanded={settingsOpen}
-            aria-haspopup="dialog"
-            aria-controls="nav-settings-panel"
-            data-testid="nav-settings"
-            onClick={() => { setProjectOpen(false); setSettingsOpen((open) => !open) }}
-          >
-            <Settings className="size-4" aria-hidden="true" />
-          </button>
-          {settingsOpen && (
-            <section
-              id="nav-settings-panel"
-              role="dialog"
-              aria-modal="false"
-              aria-label={t('common.settings')}
-              className={cn(POPOVER_CLS, 'right-0 w-[320px] p-3.5')}
-              data-testid="nav-settings-panel"
+        {/* 连接状态只留一个点；文字进 Tooltip。可聚焦，键盘也能读到。 */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              className="grid size-10 place-items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+              role="img"
+              tabIndex={0}
+              aria-label={connLabel}
+              data-on={connected ? 'true' : 'false'}
+              data-testid="conn-indicator"
             >
-              <div className="mb-3 flex items-center justify-between gap-3 border-b border-border pb-3">
-                <h2 className="text-base font-bold text-text">{t('common.settings')}</h2>
-                <button
-                  type="button"
-                  className="grid size-10 place-items-center rounded-sm text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent)"
-                  aria-label={t('common.dialog_close')}
-                  onClick={() => setSettingsOpen(false)}
-                >
-                  <X className="size-3.5" aria-hidden="true" />
-                </button>
-              </div>
-              <div className="grid gap-3">
-                <SegmentRow label={t('common.theme_toggle')} testId="theme-toggle">
-                  {THEMES.map((option, index) => {
-                    const Icon = option.icon
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        role="radio"
-                        aria-checked={theme === option.value}
-                        tabIndex={theme === option.value ? 0 : -1}
-                        className={SEGMENT_CLS}
-                        data-testid={`theme-option-${option.value}`}
-                        onClick={() => onTheme(option.value)}
-                        onKeyDown={(event) => handleRadioKey(event, index, THEMES.length, (next) => onTheme(THEMES[next]?.value ?? option.value))}
-                      >
-                        <Icon className="size-4" aria-hidden="true" />
-                        {t(option.key)}
-                      </button>
-                    )
-                  })}
-                </SegmentRow>
-                <SegmentRow label={t('common.language')} testId="lang-toggle">
-                  {LANGS.map((option, index) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={lang === option.value}
-                      tabIndex={lang === option.value ? 0 : -1}
-                      lang={option.value === 'zh' ? 'zh-CN' : 'en'}
-                      className={SEGMENT_CLS}
-                      data-testid={`lang-option-${option.value}`}
-                      onClick={() => onLang(option.value)}
-                      onKeyDown={(event) => handleRadioKey(event, index, LANGS.length, (next) => onLang(LANGS[next]?.value ?? option.value))}
-                    >
-                      {t(option.key)}
-                    </button>
-                  ))}
-                </SegmentRow>
-              </div>
-            </section>
-          )}
-        </div>
+              <span className={cn('size-2 rounded-full', connected ? 'bg-green' : 'bg-red')} aria-hidden="true" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={4}>{connLabel}</TooltipContent>
+        </Tooltip>
+        <TopBarSettings lang={lang} onLang={onLang} theme={theme} onTheme={onTheme} barRef={barRef} />
       </div>
     </header>
   )
 }
 
-/** 设置面板的一行：左侧名词标签 + 右侧分段控件（radiogroup，显示当前值，点选即生效）。 */
-function SegmentRow({ label, testId, children }: { label: string; testId: string; children: ReactNode }): JSX.Element {
+/** 项目菜单当前项的行尾对勾；非当前项不占位。 */
+function MenuCheck(): JSX.Element {
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
-      <span className="whitespace-nowrap text-caption font-semibold text-text-2" aria-hidden="true">{label}</span>
-      <div className="flex gap-0.5 rounded-md bg-fill p-0.5" role="radiogroup" aria-label={label} data-testid={testId}>
-        {children}
-      </div>
-    </div>
+    <DropdownMenuPrimitive.ItemIndicator className="flex-none text-text-2">
+      <Check className="size-4" aria-hidden="true" />
+    </DropdownMenuPrimitive.ItemIndicator>
   )
 }

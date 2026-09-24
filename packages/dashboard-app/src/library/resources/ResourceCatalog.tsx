@@ -63,7 +63,7 @@ export function ResourceCatalog({
           />
         )}
         detail={document === null ? (
-          <DetailEmpty title={t('resources.empty_detail')} testId="res-detail-empty" />
+          <DetailEmpty label={t('resources.empty_detail')} testId="res-detail-empty" />
         ) : (
           <ResourceDetail
             document={document}

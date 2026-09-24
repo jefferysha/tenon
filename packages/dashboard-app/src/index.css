@@ -23,20 +23,31 @@
 @custom-variant mobile (@media (max-width: 720px));
 @custom-variant desktop (@media (min-width: 720.02px));
 
+/* Inter 只打包 latin 子集（OFL-1.1，@fontsource-variable/inter）：中文字符不在 unicode-range 内，直接落到系统黑体。 */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
 :root {
   color-scheme: light;
-  --bg: #f5f5f1; --card: #ffffff; --fill: #f0f0eb; --fill-2: #e8e8e2;
-  --border: #e6e6e1; --border-2: #d4d4cd;
-  --text: #1a1a17; --text-2: #57574f; --text-3: #6c6c64; --text-4: #9a9a91;
-  --accent: #205238; --accent-d: #1a4530; --accent-t: #ebf2ec; --accent-b: #c9decf;
+  --bg: #f6f6f3; --card: #ffffff; --fill: #f0efea; --fill-2: #e7e6e0;
+  --border: #e6e5df; --border-2: #d5d4cc;
+  --text: #1a1a17; --text-2: #57574f; --text-3: #6c6c64; --text-4: #a09f96;
+  --accent: #236a50; --accent-d: #17543e; --accent-t: #e9f2ed; --accent-b: #c3dccf;
   --green: #3e8c5c; --green-d: #2a6b45; --green-t: #e4f0e7; --green-b: #c5dccc;
   --red: #c9503f; --red-d: #a33a32; --red-t: #fae5e2; --red-b: #efc9c3;
   --purple: #6b5f9e; --purple-d: #544a80; --purple-t: #f0eef8; --purple-b: #d7d0ec;
   --amber-d: #9a6212; --amber-t: #fbf0dc; --amber-b: #e9d5ae;
-  /* 模板专用语义（工作空间原型 styles.css :root 同源）：进行中蓝、阶段轨三段、选中任务卡、右列底。 */
-  --info: #3c7cc4; --info-d: #2b5b93; --info-t: #e4edf7; --info-b: #c3d6ee;
+  /* 模板专用语义（工作空间原型 styles.css :root 同源）：进行中蓝、阶段轨三段、选中行、右列底。 */
+  --info: #4a7194; --info-d: #2b5b93; --info-t: #e4edf7; --info-b: #c3d6ee;
   --seg-done: #2a6b45; --seg-now: #b26a18; --seg-now-t: #f7ecdc; --seg-next: #e2e6e1;
-  --sel-bg: #eef3f5; --sel-border: #d3dee3; --sel-edge: #5b7c8d;
+  /* 选中是中性偏绿：浅底 + 左侧深绿灰边，不再用蓝。 */
+  --sel-bg: #eef1f0; --sel-border: #d9dfdc; --sel-edge: #3d5a4c;
   --surface-detail: #fafaf8;
   /* Legacy aliases remain available while callers migrate to amber-*. */
   --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
@@ -45,24 +56,27 @@
   --surface-border: var(--border); --surface-border-strong: var(--border-2);
   --control-bg: var(--card); --control-bg-soft: var(--fill); --control-bg-muted: var(--fill-2);
   --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
-  --control-sm: 32px; --control-md: 40px; --control-lg: 40px; /* 默认控件点击区 ≥ 40px */
-  --ease-out: cubic-bezier(.2,.8,.2,1);
-  /* v8 无 ink token——取 --text 同族近黑蓝对位；hover 提亮一档（旧 v4 #0d0d0d→#2e2e2c 同款步进） */
   --ink: #18251f; --ink-fg: #ffffff; --ink-hover: #2a3a32;
   /* 主动作使用 accent；green 只保留给 success/健康状态，避免动作与结果语义混用。 */
   --btn-bg: var(--accent); --btn-fg: #ffffff; --btn-hover: var(--accent-d);
   --solid-fg: var(--btn-fg); /* 同义引用：--btn-fg 既有=「彩色实底上的前景」，即 demo --solid-fg */
-  --code-bg: #f4f7f4; --code-border: #dfe6e0;
-  --scrim: rgba(18,23,20,.34);
-  --shadow: 0 1px 2px rgba(18,23,20,.04); --shadow-2: 0 1px 3px rgba(18,23,20,.07),0 1px 2px rgba(18,23,20,.04);
-  --shadow-3: 0 12px 32px -8px rgba(18,23,20,.16),0 2px 8px rgba(18,23,20,.06);
-  --ring: rgba(31,107,79,.12); --ring-blue: rgba(31,107,79,.12);
-  --radius: 12px; /* 圆角刻度 md；其余档位见下方 @theme static */
+  --tooltip-bg: #1f2320; --tooltip-fg: #f2f2ee; --tooltip-border: #1f2320;
+  --code-bg: #f1f0eb; --code-border: #e6e5df;
+  --scrim: rgb(24 28 25 / .28);
+  /* 三级阴影：--shadow 行与卡片；--shadow-2 菜单 / 弹层 / Toast；--shadow-3 对话框与抽屉。
+   * 带外圈（0 0 0 1px）的浮层不再另写 border。 */
+  --shadow: 0 1px 2px rgb(24 32 27 / .05);
+  --shadow-2: 0 0 0 1px rgb(24 32 27 / .06), 0 2px 4px -1px rgb(24 32 27 / .06), 0 12px 28px -6px rgb(24 32 27 / .14);
+  --shadow-3: 0 0 0 1px rgb(24 32 27 / .06), 0 8px 16px -4px rgb(24 32 27 / .08), 0 28px 64px -12px rgb(24 32 27 / .26);
+  --ring: rgb(35 106 80 / .2); --ring-blue: rgb(35 106 80 / .2);
+  --control-sm: 32px; --control-md: 40px; --control-lg: 40px; /* 默认控件点击区 ≥ 40px */
+  --radius: 10px; /* 圆角刻度 md；其余档位见下方 @theme static */
   --topbar-h: 68px; /* 顶部横条高度；三列页高度 = 100vh - 此值 */
   --nav-offset: calc(var(--topbar-h) + 20px); /* sticky 元素避开顶部条的偏移 */
   --offline-banner-h: 44px; /* 断线横幅高度 */
   --banner-h: 0px; /* 当前占用的横幅高度：断线时由 [data-offline=true] 设为 --offline-banner-h */
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* 拉丁走 Inter（本地打包、仅 latin 子集），中文落到系统黑体；等宽保持系统栈。 */
+  --font: "Inter Variable", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 }
 /* 断线横幅在页头下方占一行：三列页高度同时扣掉它，页面不再多出一截可滚动的高度把横幅卷到页头下面。 */
@@ -70,49 +84,54 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #121714; --card: #1a211d; --fill: #212a25; --fill-2: #29332d;
-    --border: #2c3630; --border-2: #3c483f;
-    --text: #e8ede9; --text-2: #b8c4bc; --text-3: #93a099; --text-4: #66736c;
-    --accent: #6cbf99; --accent-d: #97d6ba; --accent-t: rgba(108,191,153,.15); --accent-b: rgba(108,191,153,.42);
+    --bg: #131513; --card: #1a1c1a; --fill: #232623; --fill-2: #2b2e2b;
+    --border: #2c2f2c; --border-2: #3b3f3b;
+    --text: #ebebe6; --text-2: #b8b8b0; --text-3: #909088; --text-4: #62625c;
+    --accent: #74c29e; --accent-d: #9dd5bb; --accent-t: rgb(116 194 158 / .12); --accent-b: rgb(116 194 158 / .32);
     --green: #7fa38c; --green-d: #a8c4b4; --green-t: rgba(127,163,140,.13); --green-b: rgba(127,163,140,.38);
     --red: #e6796b; --red-d: #f2a89c; --red-t: rgba(230,121,107,.14); --red-b: rgba(230,121,107,.42);
     --purple: #a294dc; --purple-d: #c4baec; --purple-t: rgba(162,148,220,.15); --purple-b: rgba(162,148,220,.42);
     --amber-d: #e0ad6a; --amber-t: rgba(224,173,106,.13); --amber-b: rgba(224,173,106,.40);
     --info: #6ea5e6; --info-d: #9cc3f0; --info-t: rgba(110,165,230,.14); --info-b: rgba(110,165,230,.42);
-    --seg-done: #6cbf99; --seg-now: #e0ad6a; --seg-now-t: rgba(224,173,106,.16); --seg-next: #2c3630;
-    --sel-bg: #1f2a2e; --sel-border: #34474f; --sel-edge: #7fa3b4;
-    --surface-detail: #161c19;
+    --seg-done: #74c29e; --seg-now: #e0ad6a; --seg-now-t: rgba(224,173,106,.16); --seg-next: #2c2f2c;
+    --sel-bg: #1f2521; --sel-border: #313a34; --sel-edge: #8fb5a2;
+    --surface-detail: #161816;
     --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
-    --surface: var(--card); --surface-raised: #202823; --surface-muted: var(--fill);
+    --surface: var(--card); --surface-raised: #232623; --surface-muted: var(--fill);
     --surface-page: var(--bg); --surface-panel: var(--card); --surface-panel-soft: var(--fill); --surface-panel-muted: var(--fill-2);
     --surface-border: var(--border); --surface-border-strong: var(--border-2);
     --control-bg: var(--card); --control-bg-soft: var(--fill); --control-bg-muted: var(--fill-2);
     --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
-    --ink: #e8ede9; --ink-fg: #0e1512; --ink-hover: #c9d5ce;
-    --btn-bg: var(--accent); --btn-fg: #0e1512; --btn-hover: var(--accent-d);
+    --ink: #ebebe6; --ink-fg: #131513; --ink-hover: #d0d0c9;
+    /* 暗色主按钮不用发光的 accent 底：深绿底 + 近白字。accent 只管文字、图标与焦点环。 */
+    --btn-bg: #2f7a56; --btn-fg: #f3f8f5; --btn-hover: #276b4b;
     --solid-fg: var(--btn-fg);
-    --code-bg: #101613; --code-border: #29332d;
-    --scrim: rgba(0,0,0,.55);
-    --shadow: 0 1px 2px rgba(0,0,0,.35); --shadow-2: 0 2px 6px rgba(0,0,0,.35);
-    --shadow-3: 0 16px 40px -8px rgba(0,0,0,.55);
-    --ring: rgba(108,191,153,.16); --ring-blue: rgba(108,191,153,.16);
+    --tooltip-bg: #2b2e2b; --tooltip-fg: #ebebe6; --tooltip-border: #3b3f3b;
+    --code-bg: #202320; --code-border: #2c2f2c;
+    --scrim: rgb(0 0 0 / .5);
+    --shadow: 0 1px 2px rgb(0 0 0 / .35);
+    --shadow-2: inset 0 1px 0 rgb(255 255 255 / .04), 0 0 0 1px rgb(0 0 0 / .5), 0 12px 32px -6px rgb(0 0 0 / .55);
+    --shadow-3: inset 0 1px 0 rgb(255 255 255 / .05), 0 0 0 1px rgb(0 0 0 / .55), 0 32px 72px -12px rgb(0 0 0 / .7);
+    --ring: rgb(116 194 158 / .2); --ring-blue: rgb(116 194 158 / .2);
   }
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f5f5f1; --card: #ffffff; --fill: #f0f0eb; --fill-2: #e8e8e2;
-  --border: #e6e6e1; --border-2: #d4d4cd;
-  --text: #1a1a17; --text-2: #57574f; --text-3: #6c6c64; --text-4: #9a9a91;
-  --accent: #205238; --accent-d: #1a4530; --accent-t: #ebf2ec; --accent-b: #c9decf;
+  --bg: #f6f6f3; --card: #ffffff; --fill: #f0efea; --fill-2: #e7e6e0;
+  --border: #e6e5df; --border-2: #d5d4cc;
+  --text: #1a1a17; --text-2: #57574f; --text-3: #6c6c64; --text-4: #a09f96;
+  --accent: #236a50; --accent-d: #17543e; --accent-t: #e9f2ed; --accent-b: #c3dccf;
   --green: #3e8c5c; --green-d: #2a6b45; --green-t: #e4f0e7; --green-b: #c5dccc;
   --red: #c9503f; --red-d: #a33a32; --red-t: #fae5e2; --red-b: #efc9c3;
   --purple: #6b5f9e; --purple-d: #544a80; --purple-t: #f0eef8; --purple-b: #d7d0ec;
   --amber-d: #9a6212; --amber-t: #fbf0dc; --amber-b: #e9d5ae;
-  /* 模板专用语义（工作空间原型 styles.css :root 同源）：进行中蓝、阶段轨三段、选中任务卡、右列底。 */
-  --info: #3c7cc4; --info-d: #2b5b93; --info-t: #e4edf7; --info-b: #c3d6ee;
+  /* 模板专用语义（工作空间原型 styles.css :root 同源）：进行中蓝、阶段轨三段、选中行、右列底。 */
+  --info: #4a7194; --info-d: #2b5b93; --info-t: #e4edf7; --info-b: #c3d6ee;
   --seg-done: #2a6b45; --seg-now: #b26a18; --seg-now-t: #f7ecdc; --seg-next: #e2e6e1;
-  --sel-bg: #eef3f5; --sel-border: #d3dee3; --sel-edge: #5b7c8d;
+  /* 选中是中性偏绿：浅底 + 左侧深绿灰边，不再用蓝。 */
+  --sel-bg: #eef1f0; --sel-border: #d9dfdc; --sel-edge: #3d5a4c;
   --surface-detail: #fafaf8;
+  /* Legacy aliases remain available while callers migrate to amber-*. */
   --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
   --surface: var(--card); --surface-raised: #ffffff; --surface-muted: var(--fill);
   --surface-page: var(--bg); --surface-panel: var(--card); --surface-panel-soft: var(--fill); --surface-panel-muted: var(--fill-2);
@@ -120,38 +139,50 @@
   --control-bg: var(--card); --control-bg-soft: var(--fill); --control-bg-muted: var(--fill-2);
   --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
   --ink: #18251f; --ink-fg: #ffffff; --ink-hover: #2a3a32;
+  /* 主动作使用 accent；green 只保留给 success/健康状态，避免动作与结果语义混用。 */
   --btn-bg: var(--accent); --btn-fg: #ffffff; --btn-hover: var(--accent-d);
-  --solid-fg: var(--btn-fg);
-  --code-bg: #f4f7f4; --code-border: #dfe6e0;
-  --scrim: rgba(18,23,20,.34);
-  --shadow: 0 1px 2px rgba(18,23,20,.04); --shadow-2: 0 1px 3px rgba(18,23,20,.07),0 1px 2px rgba(18,23,20,.04);
-  --shadow-3: 0 12px 32px -8px rgba(18,23,20,.16),0 2px 8px rgba(18,23,20,.06);
-  --ring: rgba(31,107,79,.12); --ring-blue: rgba(31,107,79,.12);
+  --solid-fg: var(--btn-fg); /* 同义引用：--btn-fg 既有=「彩色实底上的前景」，即 demo --solid-fg */
+  --tooltip-bg: #1f2320; --tooltip-fg: #f2f2ee; --tooltip-border: #1f2320;
+  --code-bg: #f1f0eb; --code-border: #e6e5df;
+  --scrim: rgb(24 28 25 / .28);
+  /* 三级阴影：--shadow 行与卡片；--shadow-2 菜单 / 弹层 / Toast；--shadow-3 对话框与抽屉。
+   * 带外圈（0 0 0 1px）的浮层不再另写 border。 */
+  --shadow: 0 1px 2px rgb(24 32 27 / .05);
+  --shadow-2: 0 0 0 1px rgb(24 32 27 / .06), 0 2px 4px -1px rgb(24 32 27 / .06), 0 12px 28px -6px rgb(24 32 27 / .14);
+  --shadow-3: 0 0 0 1px rgb(24 32 27 / .06), 0 8px 16px -4px rgb(24 32 27 / .08), 0 28px 64px -12px rgb(24 32 27 / .26);
+  --ring: rgb(35 106 80 / .2); --ring-blue: rgb(35 106 80 / .2);
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #121714; --card: #1a211d; --fill: #212a25; --fill-2: #29332d;
-  --border: #2c3630; --border-2: #3c483f;
-  --text: #e8ede9; --text-2: #b8c4bc; --text-3: #93a099; --text-4: #66736c;
-  --accent: #6cbf99; --accent-d: #97d6ba; --accent-t: rgba(108,191,153,.15); --accent-b: rgba(108,191,153,.42);
+  --bg: #131513; --card: #1a1c1a; --fill: #232623; --fill-2: #2b2e2b;
+  --border: #2c2f2c; --border-2: #3b3f3b;
+  --text: #ebebe6; --text-2: #b8b8b0; --text-3: #909088; --text-4: #62625c;
+  --accent: #74c29e; --accent-d: #9dd5bb; --accent-t: rgb(116 194 158 / .12); --accent-b: rgb(116 194 158 / .32);
   --green: #7fa38c; --green-d: #a8c4b4; --green-t: rgba(127,163,140,.13); --green-b: rgba(127,163,140,.38);
   --red: #e6796b; --red-d: #f2a89c; --red-t: rgba(230,121,107,.14); --red-b: rgba(230,121,107,.42);
   --purple: #a294dc; --purple-d: #c4baec; --purple-t: rgba(162,148,220,.15); --purple-b: rgba(162,148,220,.42);
   --amber-d: #e0ad6a; --amber-t: rgba(224,173,106,.13); --amber-b: rgba(224,173,106,.40);
   --info: #6ea5e6; --info-d: #9cc3f0; --info-t: rgba(110,165,230,.14); --info-b: rgba(110,165,230,.42);
-  --seg-done: #6cbf99; --seg-now: #e0ad6a; --seg-now-t: rgba(224,173,106,.16); --seg-next: #2c3630;
-  --sel-bg: #1f2a2e; --sel-border: #34474f; --sel-edge: #7fa3b4;
-  --surface-detail: #161c19;
+  --seg-done: #74c29e; --seg-now: #e0ad6a; --seg-now-t: rgba(224,173,106,.16); --seg-next: #2c2f2c;
+  --sel-bg: #1f2521; --sel-border: #313a34; --sel-edge: #8fb5a2;
+  --surface-detail: #161816;
   --amb-d: var(--amber-d); --amb-t: var(--amber-t); --amb-b: var(--amber-b);
-  --surface: var(--card); --surface-raised: #202823; --surface-muted: var(--fill);
-  --ink: #e8ede9; --ink-fg: #0e1512; --ink-hover: #c9d5ce;
-  --btn-bg: var(--accent); --btn-fg: #0e1512; --btn-hover: var(--accent-d);
+  --surface: var(--card); --surface-raised: #232623; --surface-muted: var(--fill);
+  --surface-page: var(--bg); --surface-panel: var(--card); --surface-panel-soft: var(--fill); --surface-panel-muted: var(--fill-2);
+  --surface-border: var(--border); --surface-border-strong: var(--border-2);
+  --control-bg: var(--card); --control-bg-soft: var(--fill); --control-bg-muted: var(--fill-2);
+  --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
+  --ink: #ebebe6; --ink-fg: #131513; --ink-hover: #d0d0c9;
+  /* 暗色主按钮不用发光的 accent 底：深绿底 + 近白字。accent 只管文字、图标与焦点环。 */
+  --btn-bg: #2f7a56; --btn-fg: #f3f8f5; --btn-hover: #276b4b;
   --solid-fg: var(--btn-fg);
-  --code-bg: #101613; --code-border: #29332d;
-  --scrim: rgba(0,0,0,.55);
-  --shadow: 0 1px 2px rgba(0,0,0,.35); --shadow-2: 0 2px 6px rgba(0,0,0,.35);
-  --shadow-3: 0 16px 40px -8px rgba(0,0,0,.55);
-  --ring: rgba(108,191,153,.16); --ring-blue: rgba(108,191,153,.16);
+  --tooltip-bg: #2b2e2b; --tooltip-fg: #ebebe6; --tooltip-border: #3b3f3b;
+  --code-bg: #202320; --code-border: #2c2f2c;
+  --scrim: rgb(0 0 0 / .5);
+  --shadow: 0 1px 2px rgb(0 0 0 / .35);
+  --shadow-2: inset 0 1px 0 rgb(255 255 255 / .04), 0 0 0 1px rgb(0 0 0 / .5), 0 12px 32px -6px rgb(0 0 0 / .55);
+  --shadow-3: inset 0 1px 0 rgb(255 255 255 / .05), 0 0 0 1px rgb(0 0 0 / .55), 0 32px 72px -12px rgb(0 0 0 / .7);
+  --ring: rgb(116 194 158 / .2); --ring-blue: rgb(116 194 158 / .2);
 }
 
 /*
@@ -178,18 +209,35 @@
   --text-base--line-height: 24px;
   --text-title: 19px;          /* 卡片 / 区块标题 */
   --text-title--line-height: 29px;
+  --text-title--letter-spacing: -0.01em;
   --text-section: 24px;        /* 区段标题 */
   --text-section--line-height: 34px;
-  --text-page: 34px;           /* 页面标题 */
+  --text-section--letter-spacing: -0.015em;
+  --text-page: 34px;           /* 页面标题；700 字重只留给这一档 */
   --text-page--line-height: 43px;
+  --text-page--letter-spacing: -0.02em;
 
-  /* 圆角刻度（4 级）。药丸继续用 rounded-full；rounded-none 是静态工具类，不属该 namespace。
-   * --radius-md 指向运行时 --radius，保持「12px 只写一次」。 */
+  /* 圆角刻度（4 级）：xs 行内代码 / kbd / 复选框；sm 控件（按钮、输入、Select、菜单项、芯片、分段滑块）；
+   * md 列表行、菜单与弹层外框、画布容器、Toast；lg 对话框与抽屉。
+   * rounded-full 只留给计数徽标、头像、状态点；rounded-none 是静态工具类，不属该 namespace。
+   * --radius-md 指向运行时 --radius，保持「10px 只写一次」。 */
   --radius-*: initial;
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: var(--radius);
-  --radius-lg: 16px;
+  --radius-lg: 14px;
+
+  /* 动效刻度：时长与缓动。ease-out / ease-in-out / ease-exit 同时生成同名工具类，
+   * 分别对位 GSAP power3.out / power2.inOut / power2.in；时长用 duration-(--dur-*) 引用。 */
+  --ease-out: cubic-bezier(.22,1,.36,1);
+  --ease-in-out: cubic-bezier(.65,0,.35,1);
+  --ease-exit: cubic-bezier(.4,0,1,1);
+  --dur-press: 80ms;   /* 按下 */
+  --dur-fast: 140ms;   /* 悬停：背景 / 文字 / 边框 */
+  --dur-base: 180ms;   /* 内容切换、遮罩 */
+  --dur-panel: 240ms;  /* 对话框、抽屉进场 */
+  --dur-exit: 120ms;   /* 退场 */
+  --dur-layout: 300ms; /* 列表重排 */
 }
 
 /*
@@ -200,6 +248,7 @@
 @theme inline {
   /* 所有 Tailwind transition utility 共用规范的短时 ease-out，不要求每个组件重复声明。 */
   --default-transition-timing-function: var(--ease-out);
+  --default-transition-duration: var(--dur-fast);
 
   /* ── 项目原生 token → tailwind 颜色 ── */
   --color-bg: var(--bg);
@@ -273,6 +322,9 @@
   --color-code-bg: var(--code-bg);
   --color-code-border: var(--code-border);
   --color-scrim: var(--scrim);
+  --color-tooltip-bg: var(--tooltip-bg);
+  --color-tooltip-fg: var(--tooltip-fg);
+  --color-tooltip-border: var(--tooltip-border);
 
   /* ── shadcn 语义名 → 项目 token（vendored ui 组件的类名词汇） ── */
   --color-background: var(--bg);
@@ -308,8 +360,9 @@
 }
 
 /*
- * CSS 级 reduced-motion 兜底覆盖 Tailwind/tw-animate 与历史自定义 transition。
- * GSAP 由 shared/motion 和具体组件负责切换终态及清理运行中 tween。
+ * CSS 级 reduced-motion：只保留 ≤100ms 的淡入淡出与颜色过渡，位移 / 缩放 / 旋转全部去掉。
+ * tw-animate 的进出场关键帧同时带 opacity 与 transform：把它的位移、缩放变量钉回中性值，
+ * 只剩透明度。其余 CSS 动画（加载转圈等）直接落终态。GSAP 由 shared/motion 与具体组件切换分支。
  */
 @media (prefers-reduced-motion: reduce) {
   :root {
@@ -319,16 +372,49 @@
   *,
   *::before,
   *::after {
+    --tw-enter-translate-x: 0 !important;
+    --tw-enter-translate-y: 0 !important;
+    --tw-enter-scale: 1 !important;
+    --tw-enter-rotate: 0 !important;
+    --tw-exit-translate-x: 0 !important;
+    --tw-exit-translate-y: 0 !important;
+    --tw-exit-scale: 1 !important;
+    --tw-exit-rotate: 0 !important;
     animation-delay: 0s !important;
     animation-duration: 0s !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-delay: 0s !important;
-    transition-duration: 0s !important;
+    transition-duration: 100ms !important;
+    transition-property: opacity, color, background-color, border-color, outline-color, fill, stroke !important;
+  }
+
+  [class*='animate-in'],
+  [class*='animate-out'] {
+    animation-duration: 100ms !important;
   }
 }
 
 @layer base {
+  ::selection {
+    background: var(--accent-t);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-2) transparent;
+  }
+
+  /* 行级按钮、链接、选项与菜单项的悬停不再瞬切；聚焦外轮廓不参与过渡（0ms）。 */
+  button,
+  a,
+  [role='option'],
+  [role='menuitem'] {
+    transition-property: background-color, color, border-color, box-shadow;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-out);
+  }
+
   svg.lucide {
     stroke-width: 1.75;
   }

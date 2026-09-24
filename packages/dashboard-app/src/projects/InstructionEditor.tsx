@@ -1,17 +1,33 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useT } from '../i18n'
 import { getToken } from '../api/transport'
 import type { InstructionPreviewFile, InstructionTarget } from '../api/instructionsDecoders'
 import { Dialog } from '../shared/Dialog'
-import { SheetTabs, type SheetDef } from '../shared/DetailSheets'
+import type { SheetDef } from '../shared/DetailSheets'
 import { Markdown } from '../shared/Markdown'
-import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_SOLID, TEXTAREA } from '../shared/uiRecipes'
+import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
 import { DetailColumn } from '../shell/ThreeColumns'
 import { MenuButton } from '../shared/MenuButton'
 import { DiffDrawer } from './DiffDrawer'
+import { SegmentTabs } from './SegmentTabs'
 import { fileStatus, managedCount } from './instructionModel'
 
 type Sheet = 'edit' | 'render'
+
+/** 正文编辑区：无拖拽角、随内容增高（最少 420px），卡片底 + 细边。 */
+const EDITOR = 'block min-h-[420px] w-full resize-none overflow-hidden rounded-md border border-border bg-card p-4 font-mono text-body leading-[22px] text-text outline-none transition-[border-color,box-shadow] hover:border-border-2 focus-visible:border-(--accent) focus-visible:ring-[3px] focus-visible:ring-(--accent)/20'
+
+/** 文本域高度跟随内容：每次内容变化先归零再取 scrollHeight（CSS 的 min-h 兜底下限）。 */
+function useAutoHeight(value: string | null): RefObject<HTMLTextAreaElement> {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (element === null || value === null) return
+    element.style.height = 'auto'
+    element.style.height = `${element.scrollHeight}px`
+  }, [value])
+  return ref
+}
 
 /**
  * 右列：一份正文写进所选的全部目标文件。动作在标题右侧：「预览变更」打开差异抽屉、在抽屉里确认「应用」；
@@ -43,6 +59,7 @@ export function InstructionEditor({
   const [sheet, setSheet] = useState<Sheet>('edit')
   const [diff, setDiff] = useState<readonly InstructionPreviewFile[] | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const editorRef = useAutoHeight(sheet === 'edit' ? text : null)
   const canWrite = getToken() !== ''
   const kept = managedCount(targets, targetIds)
   const changed = targetIds.some((id) => {
@@ -84,7 +101,7 @@ export function InstructionEditor({
             )}
           </div>
         )}
-        sheets={<SheetTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('projects.file')} idPrefix="proj" />}
+        sheets={<div className="mt-5"><SegmentTabs sheets={sheets} active={sheet} onChange={setSheet} ariaLabel={t('projects.file')} idPrefix="proj" /></div>}
       >
         {external && (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-b bg-amber-t px-4 py-3" role="status" data-testid="proj-external">
@@ -106,7 +123,8 @@ export function InstructionEditor({
         )}
         {sheet === 'edit' ? (
           <textarea
-            className={`${TEXTAREA} min-h-[420px] font-mono text-caption`}
+            ref={editorRef}
+            className={EDITOR}
             value={text}
             spellCheck={false}
             data-testid="proj-editor"

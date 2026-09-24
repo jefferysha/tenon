@@ -72,6 +72,11 @@ export function backEdgePath(fromIndex: number, toIndex: number): string {
   const y2 = toIndex * STEP_PITCH + STEP_HEIGHT / 2
   return `M0 ${y1} C 18 ${y1}, 18 ${y2}, 0 ${y2}`
 }
+/** 回流弧目标端的 4px 开口箭头（弧从右侧回到目标阶段，箭头朝左指向它）。 */
+export function backArrowPath(toIndex: number): string {
+  const y = toIndex * STEP_PITCH + STEP_HEIGHT / 2
+  return `M4 ${y - 4} L0 ${y} L4 ${y + 4}`
+}
 
 function GateIcon({ gate }: { gate: WbStepDef['gate'] }): JSX.Element | null {
   const { t } = useT()
@@ -88,7 +93,7 @@ function GateIcon({ gate }: { gate: WbStepDef['gate'] }): JSX.Element | null {
 const MENU_ICON_BUTTON = 'grid size-8 flex-none place-items-center rounded-sm text-text-3 outline-none hover:bg-fill hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:bg-fill data-[state=open]:text-text'
 const MENU_ITEM = 'min-h-10 gap-2.5 px-2.5 text-body [&_svg]:text-text-3'
 
-function StepRow({ step, order, selected, issue, editable, deletable, labelOf, onSelect, onDelete }: {
+function StepRow({ step, order, selected, issue, editable, deletable, labelOf, onSelect, onDelete, onHover }: {
   step: WbStepDef
   order: number
   selected: boolean
@@ -99,6 +104,8 @@ function StepRow({ step, order, selected, issue, editable, deletable, labelOf, o
   labelOf: (stepId: string) => string
   onSelect: (id: string) => void
   onDelete: (id: string) => void
+  /** 悬停 / 聚焦进出本阶段：null = 离开。与它相关的回流弧据此高亮。 */
+  onHover: (id: string | null) => void
 }): JSX.Element {
   const { t } = useT()
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: step.id, disabled: !editable })
@@ -122,7 +129,7 @@ function StepRow({ step, order, selected, issue, editable, deletable, labelOf, o
     </button>
   )
   return (
-    <li ref={setNodeRef} data-flip-id={`stage:${step.id}`} className={cn('grid grid-cols-[28px_minmax(0,1fr)] items-center gap-3 transition-opacity duration-150', isDragging && 'opacity-35')} style={{ height: STEP_HEIGHT }} data-testid={`wb-pipeline-node-${step.id}`}>
+    <li ref={setNodeRef} data-flip-id={`stage:${step.id}`} className={cn('grid grid-cols-[28px_minmax(0,1fr)] items-center gap-3 transition-opacity duration-150', isDragging && 'opacity-35')} style={{ height: STEP_HEIGHT }} data-testid={`wb-pipeline-node-${step.id}`} onMouseEnter={() => onHover(step.id)} onMouseLeave={() => onHover(null)} onFocus={() => onHover(step.id)} onBlur={() => onHover(null)}>
       <button
         type="button"
         className={cn(
@@ -179,6 +186,7 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
   const visible = steps
   const editable = canWrite
   const [dragging, setDragging] = useState<string | null>(null)
+  const [hovered, setHovered] = useState<string | null>(null)
   const listRef = useRef<HTMLOListElement>(null)
   const captureFlip = useFlipLayout(listRef, [steps.map((step) => step.id).join('|')])
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor))
@@ -303,14 +311,22 @@ export function WorkflowNav(props: WorkflowNavProps): JSX.Element {
             {visible.length > 1 && <span className="absolute left-3.5 w-px bg-border-2" style={{ top: STEP_HEIGHT / 2, height: listHeight - STEP_HEIGHT }} aria-hidden="true" />}
             {backEdges.length > 0 && (
               <svg className="pointer-events-none absolute -right-5 top-0 overflow-visible" width="22" height={listHeight} aria-hidden="true">
-                {backEdges.map((edge) => <path key={`${edge.from}-${edge.to}`} d={backEdgePath(edge.fromIndex, edge.toIndex)} fill="none" stroke="var(--border-2)" strokeWidth="1.2" strokeDasharray="3 3" data-testid={`wb-back-edge-${edge.from}-${edge.to}`} />)}
+                {backEdges.map((edge) => {
+                  const active = hovered === edge.from || hovered === edge.to
+                  return (
+                    <g key={`${edge.from}-${edge.to}`} className={cn('fill-none transition-[stroke] duration-(--dur-fast) ease-(--ease-out) motion-reduce:transition-none', active ? 'stroke-accent-b' : 'stroke-border-2')} data-testid={`wb-back-arc-${edge.from}-${edge.to}`} data-active={active || undefined}>
+                      <path d={backEdgePath(edge.fromIndex, edge.toIndex)} strokeWidth="1.2" strokeDasharray="3 3" data-testid={`wb-back-edge-${edge.from}-${edge.to}`} />
+                      <path d={backArrowPath(edge.toIndex)} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" data-testid={`wb-back-arrow-${edge.from}-${edge.to}`} />
+                    </g>
+                  )
+                })}
               </svg>
             )}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={(event: DragStartEvent) => setDragging(String(event.active.id))} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
               <SortableContext items={visible.map((step) => step.id)} strategy={verticalListSortingStrategy}>
                 <ol ref={listRef} className="grid" style={{ rowGap: STEP_PITCH - STEP_HEIGHT }} data-testid="stage-list-items">
                   {visible.map((step) => (
-                    <StepRow key={step.id} step={step} order={steps.indexOf(step) + 1} selected={step.id === selectedId} issue={lint.find((issue) => issue.stepId === step.id && issue.severity === 'error') ?? lint.find((issue) => issue.stepId === step.id)} editable={editable} deletable={editable && steps.length > 1} labelOf={labelOf} onSelect={props.onSelect} onDelete={props.onDeleteStage} />
+                    <StepRow key={step.id} step={step} order={steps.indexOf(step) + 1} selected={step.id === selectedId} issue={lint.find((issue) => issue.stepId === step.id && issue.severity === 'error') ?? lint.find((issue) => issue.stepId === step.id)} editable={editable} deletable={editable && steps.length > 1} labelOf={labelOf} onSelect={props.onSelect} onDelete={props.onDeleteStage} onHover={setHovered} />
                   ))}
                 </ol>
               </SortableContext>

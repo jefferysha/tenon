@@ -5,10 +5,10 @@ import {
   type ResourceCategory, type ResourceDto, type ResourceFileError, type ResourceFramework, type ResourceStyling,
 } from '../../api/resourceTypes'
 import type { ResourceQuery } from '@tenon/kernel/resources/query'
-import { ListColumn } from '../../shell/ThreeColumns'
+import { ListColumn, StatusPill } from '../../shell/ThreeColumns'
 import { FacetBar, type FacetGroup } from '../../shared/FacetBar'
 import { BUTTON_GHOST } from '../../shared/uiRecipes'
-import { BuiltinLock, ListSkeleton } from '../libraryChrome'
+import { BuiltinLock, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from '../libraryChrome'
 
 const LICENSE_MODES = ['redistributable', 'link-only', 'attribution'] as const
 type Facet = 'category' | 'framework' | 'styling' | 'license'
@@ -94,21 +94,17 @@ export function ResourceList({
             <li key={row.entry.id}>
               <button
                 type="button"
-                className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t"
+                className={LIST_ROW}
                 aria-current={selected === row.entry.id ? 'true' : undefined}
                 title={row.entry.id}
                 data-testid={`res-row-${row.entry.id}`}
                 onClick={() => onSelect(row.entry.id)}
               >
-                <span className="min-w-0 truncate text-base font-semibold text-text">{row.entry.name}</span>
+                <span className={LIST_ROW_NAME}>{row.entry.name}</span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
-                  <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2">
-                    {t(`resources.category.${row.entry.category}`)}
-                  </span>
-                  <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2">
-                    {t(row.entry.license.redistributable ? 'resources.license_mode.redistributable' : 'resources.license_mode.link_only')}
-                  </span>
-                  {row.source === 'builtin' && <BuiltinLock testId={`res-builtin-${row.entry.id}`} />}
+                  <span className="text-caption text-text-3">{t(`resources.category.${row.entry.category}`)}</span>
+                  <span className="text-caption text-text-3">{t(row.entry.license.redistributable ? 'resources.license_mode.redistributable' : 'resources.license_mode.link_only')}</span>
+                  {row.source === 'builtin' && <BuiltinLock quiet testId={`res-builtin-${row.entry.id}`} />}
                 </span>
               </button>
             </li>
@@ -123,9 +119,7 @@ export function ResourceList({
                   <span className="block truncate font-mono text-caption text-text">{error.file}</span>
                   <span className="block truncate text-caption text-red-d" title={error.errors.join('；')}>{error.errors[0]}</span>
                 </span>
-                <span className="rounded-full bg-red-t px-2 py-0.5 text-micro font-bold whitespace-nowrap text-red-d">
-                  {t('resources.invalid')}
-                </span>
+                <StatusPill tone="blocked">{t('resources.invalid')}</StatusPill>
               </div>
             </li>
           ))}

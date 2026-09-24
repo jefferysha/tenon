@@ -1,11 +1,13 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import gsap from 'gsap'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { WbEffectiveIo, WbSkillEntry, WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
 import { producerSkills } from './producers'
-import { StageEditorPane } from './StageEditorPane'
+import { SECTION_STAGGER, StageEditorPane } from './StageEditorPane'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -64,9 +66,16 @@ function fakeEditor(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): W
 
 function renderPane(step: WbStepDef, overrides: Partial<WorkflowEditor> = {}): WorkflowEditor {
   const editor = fakeEditor(step, overrides)
-  render(<I18nProvider><StageEditorPane editor={editor} step={step} /></I18nProvider>)
+  render(<I18nProvider><TooltipProvider><StageEditorPane editor={editor} step={step} /></TooltipProvider></I18nProvider>)
   return editor
 }
+
+// Radix Select 在 jsdom 里要用到指针捕获与 scrollIntoView。
+beforeAll(() => {
+  Element.prototype.hasPointerCapture ??= () => false
+  Element.prototype.releasePointerCapture ??= () => undefined
+  Element.prototype.scrollIntoView ??= () => undefined
+})
 
 describe('StageEditorPane · 两栏定稿', () => {
   it('没有面包屑与「n / N」：工作流名与轨道只在左栏；标题输入直接改名；段落顺序 输入 → 技能 → 输出 → 门禁', async () => {
@@ -102,7 +111,7 @@ describe('StageEditorPane · 两栏定稿', () => {
   })
 
   it('输入表三列：来源阶段 + 该阶段里产出它的技能；无输入显示空态', () => {
-    const { unmount } = render(<I18nProvider><StageEditorPane editor={fakeEditor(SPEC)} step={SPEC} /></I18nProvider>)
+    const { unmount } = render(<I18nProvider><TooltipProvider><StageEditorPane editor={fakeEditor(SPEC)} step={SPEC} /></TooltipProvider></I18nProvider>)
     const table = screen.getByTestId('io-inputs')
     expect(table).toHaveTextContent('来源阶段')
     expect(within(table).getByTestId('slot-stage-superpower-design')).toHaveTextContent('调研')
@@ -120,13 +129,55 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(within(screen.getByTestId('stage-skills')).queryByTestId('skill-flow')).toBeNull()
   })
 
-  it('保存条：有改动写「未保存 N 处」，没改动不重复工作流名', () => {
+  it('保存条只在有改动时渲染：写「未保存 N 处」，贴底半透明；没改动（含无写入凭证）整条不渲染', () => {
     renderPane(EXPLORE, { dirty: true, changeCount: 3 })
     expect(screen.getByTestId('wb-dirty')).toHaveTextContent('未保存 3 处')
+    const bar = screen.getByTestId('wb-save-bar')
+    for (const token of ['sticky', 'bottom-0', 'bg-card/85', 'backdrop-blur-md', 'border-t']) expect(bar.className).toContain(token)
+    expect(screen.getByTestId('wb-save')).toBeEnabled()
+    expect(bar).not.toHaveTextContent('default')
     cleanup()
     renderPane(EXPLORE)
+    expect(screen.queryByTestId('wb-save-bar')).toBeNull()
     expect(screen.queryByTestId('wb-dirty')).toBeNull()
-    expect(screen.getByTestId('stage-editor-pane').querySelector('footer')).not.toHaveTextContent('default')
+    expect(screen.queryByTestId('wb-save')).toBeNull()
+    expect(screen.getByTestId('stage-editor-pane').querySelector('footer')).toBeNull()
+    cleanup()
+    renderPane(EXPLORE, { canWrite: false })
+    expect(screen.queryByTestId('wb-save-bar')).toBeNull()
+  })
+
+  it('无写入凭证：右栏顶部直接给错误（role=alert），排在阶段名之前；「已保存」这类非错误不显示', () => {
+    renderPane(EXPLORE, { canWrite: false, saveStatus: { kind: 'ok' } })
+    const alert = screen.getByTestId('wb-no-token')
+    expect(alert).toHaveAttribute('role', 'alert')
+    expect(alert).toHaveTextContent('当前地址没有编辑凭证')
+    expect(alert.className).toContain('whitespace-nowrap')
+    expect(alert.compareDocumentPosition(screen.getByTestId('stage-actions')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText('已保存')).toBeNull()
+    cleanup()
+    renderPane(EXPLORE)
+    expect(screen.queryByTestId('wb-no-token')).toBeNull()
+  })
+
+  it('保存条：改动清空（保存成功 / 放弃）后卸载；保存失败时仍在并显示原因；点保存 / 放弃各自回调', async () => {
+    const user = userEvent.setup()
+    const editor = fakeEditor(EXPLORE, { dirty: true, changeCount: 1, saveStatus: { kind: 'error', errors: ['冲突'], conflict: true } })
+    const { rerender } = render(<I18nProvider><TooltipProvider><StageEditorPane editor={editor} step={EXPLORE} /></TooltipProvider></I18nProvider>)
+    expect(screen.getByTestId('wb-save-error')).toHaveTextContent('冲突')
+    expect(screen.getByTestId('wb-save-conflict-reload')).toBeInTheDocument()
+    await user.click(screen.getByTestId('wb-save'))
+    expect(editor.save).toHaveBeenCalled()
+    await user.click(screen.getByTestId('wb-discard'))
+    expect(editor.discardDraft).toHaveBeenCalled()
+    rerender(<I18nProvider><TooltipProvider><StageEditorPane editor={{ ...editor, dirty: false, changeCount: 0, saveStatus: { kind: 'ok' } } as WorkflowEditor} step={EXPLORE} /></TooltipProvider></I18nProvider>)
+    expect(screen.queryByTestId('wb-save-bar')).toBeNull()
+  })
+
+  it('lint 挡住保存时保存条说明原因、保存禁用', () => {
+    renderPane(EXPLORE, { dirty: true, changeCount: 2, lintBlocked: true })
+    expect(screen.getByTestId('wb-dirty')).not.toHaveTextContent('未保存 2 处')
+    expect(screen.getByTestId('wb-save')).toBeDisabled()
   })
 
   it('技能画布只读：节点数 = 技能数；点节点打开详情抽屉；编辑按钮打开编辑器', async () => {
@@ -167,6 +218,29 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
   })
 
+  it('门禁是分段控件：fill 轨道，选中项里有白色滑块，没有内联说明图标', () => {
+    renderPane(EXPLORE)
+    const group = screen.getByTestId('wb-lane-gate-explore')
+    expect(group).toHaveAttribute('role', 'radiogroup')
+    expect(group.className).toContain('bg-fill')
+    expect(screen.getByTestId('wb-lane-gate-explore-review')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByTestId('wb-lane-gate-explore-indicator')).toHaveClass('bg-card', 'shadow-sm')
+    expect(screen.getByTestId('wb-lane-gate-explore-review')).toHaveAttribute('tabindex', '0')
+    expect(screen.getByTestId('wb-lane-gate-explore-auto')).toHaveAttribute('tabindex', '-1')
+    expect(group.querySelector('.lucide-info')).toBeNull()
+  })
+
+  it('门禁键盘：方向键在三项间移动并选中', async () => {
+    vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
+    const user = userEvent.setup()
+    const editor = renderPane(EXPLORE)
+    act(() => { screen.getByTestId('wb-lane-gate-explore-review').focus() })
+    await user.keyboard('{ArrowRight}')
+    expect(editor.setGate).toHaveBeenCalledWith('explore', 'auto')
+    expect(screen.getByTestId('wb-lane-gate-explore-auto')).toHaveFocus()
+  vi.unstubAllGlobals()
+  })
+
   it('门禁三选：aria-checked 跟随 step.gate，点选写回；说明用 Tooltip（聚焦可达），不用原生 title', async () => {
     vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} })
     const user = userEvent.setup()
@@ -180,6 +254,21 @@ describe('StageEditorPane · 两栏定稿', () => {
     vi.unstubAllGlobals()
     await user.click(screen.getByTestId('wb-lane-gate-explore-auto'))
     expect(editor.setGate).toHaveBeenCalledWith('explore', 'auto')
+  })
+})
+
+describe('StageEditorPane · 切换阶段的进场', () => {
+  it('按阶段重挂载时各段依次上浮淡入（revealList，错开 0.03s）', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: !query.includes('prefers-reduced-motion: reduce'), media: query, onchange: null, addListener: () => undefined, removeListener: () => undefined, addEventListener: () => undefined, removeEventListener: () => undefined, dispatchEvent: () => false }))
+    const fromTo = vi.spyOn(gsap, 'fromTo')
+    renderPane(EXPLORE)
+    const call = fromTo.mock.calls.find((args) => (args[2] as gsap.TweenVars).stagger === SECTION_STAGGER)
+    expect(call).toBeDefined()
+    expect(call![1]).toMatchObject({ autoAlpha: 0, y: 4 })
+    const sections = document.querySelectorAll('[data-stage-sections] > *')
+    expect(sections.length).toBeGreaterThanOrEqual(6)
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 })
 
@@ -212,7 +301,7 @@ describe('StageEditorPane · OpenSpec 文档 IO', () => {
       setDocumentInputs: vi.fn(),
       ...overrides,
     })
-    render(<I18nProvider><StageEditorPane editor={editor} step={step} /></I18nProvider>)
+    render(<I18nProvider><TooltipProvider><StageEditorPane editor={editor} step={step} /></TooltipProvider></I18nProvider>)
     return editor
   }
 
@@ -258,11 +347,14 @@ describe('producerSkills', () => {
 })
 
 describe('StageEditorPane · 退回', () => {
-  it('退回下拉只列本阶段之前的阶段，加「不退回」；当前值取自指向靠前阶段的那条 transition', () => {
+  it('退回下拉只列本阶段之前的阶段，加「不退回」；当前值取自指向靠前阶段的那条 transition', async () => {
+    const user = userEvent.setup()
     renderPane(SPEC)
-    const select = screen.getByTestId('wb-lane-back-spec')
-    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['不退回', '退回到「调研」'])
-    expect(select).toHaveValue('explore')
+    const trigger = screen.getByTestId('wb-lane-back-spec')
+    expect(trigger).toHaveAttribute('role', 'combobox')
+    expect(trigger).toHaveTextContent('退回到「调研」')
+    await user.click(trigger)
+    expect(within(screen.getByRole('listbox')).getAllByRole('option').map((o) => o.textContent)).toEqual(['不退回', '退回到「调研」'])
   })
 
   it('界面上没有事件名和正向去向', () => {
@@ -281,10 +373,16 @@ describe('StageEditorPane · 退回', () => {
   it('选目标与选「不退回」各自回调', async () => {
     const user = userEvent.setup()
     const editor = renderPane(SPEC)
-    await user.selectOptions(screen.getByTestId('wb-lane-back-spec'), '')
+    await user.click(screen.getByTestId('wb-lane-back-spec'))
+    await user.click(screen.getByTestId('wb-lane-back-option-spec-none'))
     expect(editor.setStageBack).toHaveBeenCalledWith('spec', null)
-    await user.selectOptions(screen.getByTestId('wb-lane-back-spec'), 'explore')
-    expect(editor.setStageBack).toHaveBeenCalledWith('spec', 'explore')
+    cleanup()
+    const unlinked: WbStepDef = { ...SPEC, transitions: [] }
+    const second = renderPane(unlinked, { def: { ...DEF, steps: [EXPLORE, unlinked] } })
+    expect(screen.getByTestId('wb-lane-back-spec')).toHaveTextContent('不退回')
+    await user.click(screen.getByTestId('wb-lane-back-spec'))
+    await user.click(screen.getByTestId('wb-lane-back-option-spec-explore'))
+    expect(second.setStageBack).toHaveBeenCalledWith('spec', 'explore')
   })
 
   it('无写入凭证时下拉禁用', () => {

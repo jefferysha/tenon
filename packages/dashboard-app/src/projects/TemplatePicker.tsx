@@ -53,12 +53,12 @@ export function TemplatePicker({
                     type="button"
                     role="checkbox"
                     aria-checked={on}
-                    className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-caption whitespace-nowrap text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-checked:border-accent-b aria-checked:bg-accent-t aria-checked:text-(--accent)"
+                    className="flex items-center gap-2 rounded-sm border border-border bg-card px-3 py-1.5 text-caption whitespace-nowrap text-text-2 outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-checked:border-accent-b aria-checked:bg-accent-t aria-checked:text-(--accent)"
                     data-testid={`np-block-${row.source}-${row.category}-${row.id}`}
                     onClick={() => onToggle({ source: row.source, category: row.category, id: row.id })}
                   >
                     <span className="truncate">{row.title}</span>
-                    <span className="rounded-full bg-fill px-1.5 text-micro font-bold text-text-3">{t(`library.${row.source}`)}</span>
+                    <span className="text-micro text-text-3">{t(`library.${row.source}`)}</span>
                   </button>
                 )
               })}

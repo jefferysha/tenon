@@ -1519,11 +1519,8 @@ describe('App SSE 实时更新（真 EventSource stub → 组件真更新，非 
   it('emit 含复核阶段卡的快照 → 进度徽标由无到 1，新 change 行真渲染', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
-    // 初始快照只有一张非 gate 卡 → 徽标占位但不可见、不可聚焦
-    const idle = screen.getByTestId('progress-badge')
-    expect(idle).toHaveAttribute('data-count', '0')
-    expect(idle).toHaveAttribute('aria-hidden', 'true')
-    expect(idle).toBeDisabled()
+    // 初始快照只有一张非 gate 卡 → 待决策为 0，徽标不渲染（绝对定位，出现时不挤动导航）
+    expect(screen.queryByTestId('progress-badge')).toBeNull()
 
     const es = lastEventSource()
     expect(es).toBeDefined()
@@ -2118,8 +2115,9 @@ describe('App 项目切换（左列项目卡与顶部切换器同源）', () => 
     expect(screen.getByTestId('workspace-view')).toBeInTheDocument()
     expect(screen.getByTestId('project-label')).toHaveTextContent('repo-b')
     // 顶部条切换器与左列同源：切到 repo-a
-    fireEvent.click(screen.getByTestId('project-switcher'))
-    fireEvent.click(await screen.findByTestId('project-item-repo-a'))
+    // 切换器是 Radix 下拉：按指针按下打开（userEvent 派发完整指针序列）。
+    await userEvent.click(screen.getByTestId('project-switcher'))
+    await userEvent.click(await screen.findByTestId('project-item-repo-a'))
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('root')).toBe('/repo-a'))
   })
 })

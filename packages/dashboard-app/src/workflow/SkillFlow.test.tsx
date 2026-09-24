@@ -1,14 +1,12 @@
 import { useState } from 'react'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import gsap from 'gsap'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Edge, EdgeProps } from '@xyflow/react'
 import type { WbSkillRef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
 import { useReactFlow } from './reactFlowTestDouble'
-import { addSkillAt, appendSerial, canvasHeight, CONTROLS_CLASS, dropTargetFor, edgesOf, editViewport, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, RESIZE_THROTTLE_MS, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
-import { PulseEdge, pulseModeOf, type PulseData } from './skillFlowNodes'
+import { addSkillAt, appendSerial, canvasHeight, CONTROLS_CLASS, dropTargetFor, edgesOf, editViewport, graphToSkills, isColumnLink, lanesOf, layoutSkills, readOnlyViewport, REFIT_MS, RESIZE_THROTTLE_MS, SkillFlow, skillsSignature, wouldCycle } from './SkillFlow'
+import { pulseModeOf } from './skillFlowNodes'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
 vi.mock('@xyflow/react/dist/style.css', () => ({}))
@@ -165,13 +163,59 @@ function stubMatchMedia(reduce: boolean): void {
   }))
 }
 
+describe('SkillFlow · 节点与点阵外观', () => {
+  it('波次标签用无衬线 + 等宽数字；节点名 mono 中等字重；节点细描边 + 柔影；连接点平时隐藏、悬停节点才出现', () => {
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    const label = screen.getAllByTestId('flow-wave-label')[0]!
+    expect(label.className).toContain('font-sans')
+    expect(label.className).toContain('tabular-nums')
+    expect(label.className).not.toContain('font-mono')
+    const name = screen.getByTestId('flow-name-brainstorming')
+    expect(name.className).toContain('font-mono')
+    expect(name.className).toContain('font-medium')
+    expect(name.className).not.toContain('font-semibold')
+    const node = screen.getByTestId('flow-node-brainstorming')
+    expect(node.className).toContain('border-border')
+    expect(node.className).not.toContain('border-border-2')
+    expect(node.className).toContain('shadow-(--shadow)')
+    expect(node).toHaveAttribute('data-flow-node', 'brainstorming')
+    expect(node.querySelector('[data-pulse-flash]')).not.toBeNull()
+  })
+
+  it('点阵淡：颜色取 --border、间距 18', () => {
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    expect(screen.getByTestId('flow-background')).toHaveAttribute('data-gap', '18')
+    expect(screen.getByTestId('flow-background')).toHaveAttribute('data-color', 'var(--border)')
+  })
+
+  it('每条边带段序：起点→首波 0，首波→汇合 1，汇合→次波 2，末波→终点 3', () => {
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    const flow = screen.getByTestId('react-flow')
+    const ids = (flow.getAttribute('data-edges') ?? '').split(',')
+    const orders = (flow.getAttribute('data-edge-orders') ?? '').split(',')
+    const orderOf = (id: string): string | undefined => orders[ids.indexOf(id)]
+    expect(orderOf('start->tenon-explore')).toBe('0')
+    expect(orderOf('tenon-explore->j0')).toBe('1')
+    expect(orderOf('j0->brainstorming')).toBe('2')
+    expect(orderOf('grill-with-docs->end')).toBe('3')
+  })
+
+  it('起终点实心：终点带脉冲光环与圆点', () => {
+    render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    expect(screen.getByTestId('flow-end').querySelector('[data-pulse-dot]')).toHaveClass('rounded-full', 'bg-text-3')
+    expect(screen.getByTestId('flow-end').querySelector('[data-pulse-ring]')).not.toBeNull()
+    expect(screen.getByTestId('flow-start').querySelector('.bg-\\(--accent\\)')).not.toBeNull()
+  })
+})
+
 describe('SkillFlow · 画布尺寸与取景', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks() })
 
-  it('canvasHeight：至少 224；按最高一波的行数与每个节点的行数增高', () => {
-    expect(canvasHeight(0)).toBe(224)
-    expect(canvasHeight(1)).toBe(224)
-    expect(canvasHeight(3)).toBe(22 + 2 * 64 + 40 + 96)
+  it('canvasHeight：max(160, 行数 × 行距 + 64)；按最高一波的行数与每个节点的行数增高', () => {
+    expect(canvasHeight(0)).toBe(160)
+    expect(canvasHeight(1)).toBe(160)
+    expect(canvasHeight(2)).toBe(2 * 64 + 64)
+    expect(canvasHeight(3)).toBe(3 * 64 + 64)
     expect(canvasHeight(3, 3)).toBeGreaterThan(canvasHeight(3))
     expect(canvasHeight(4)).toBeGreaterThan(canvasHeight(3))
     expect(lanesOf(SKILLS)).toBe(2)
@@ -252,7 +296,24 @@ describe('SkillFlow · 画布尺寸与取景', () => {
     const [viewport, options] = setViewport.mock.calls.at(-1) ?? []
     expect(viewport?.zoom).toBeGreaterThanOrEqual(0.75)
     expect(viewport?.zoom).toBeLessThanOrEqual(1)
-    expect(options).toEqual({ duration: 200 })
+    expect(options).toEqual({ duration: 0 })
+  })
+
+  it('切换阶段（挂载后的第一次取景）瞬时；之后编辑技能再取景用 200ms', () => {
+    vi.useFakeTimers()
+    stubMatchMedia(false)
+    const setViewport = vi.spyOn(useReactFlow(), 'setViewport')
+    const { rerender } = render(<I18nProvider><SkillFlow key="explore" skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    act(() => { vi.advanceTimersByTime(100) })
+    expect(setViewport).toHaveBeenCalledTimes(1)
+    expect(setViewport.mock.calls[0]![1]).toEqual({ duration: 0 })
+    rerender(<I18nProvider><SkillFlow key="explore" skills={[...SKILLS, { id: 'handoff', depends_on: ['brainstorming'] }]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    act(() => { vi.advanceTimersByTime(100) })
+    expect(setViewport.mock.calls.at(-1)![1]).toEqual({ duration: REFIT_MS })
+    setViewport.mockClear()
+    rerender(<I18nProvider><SkillFlow key="spec" skills={[{ id: 'tenon-spec' }]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
+    act(() => { vi.advanceTimersByTime(100) })
+    expect(setViewport.mock.calls.map((call) => call[1])).toEqual([{ duration: 0 }])
   })
 })
 
@@ -269,12 +330,10 @@ describe('SkillFlow · 脉冲只在该动时动', () => {
   it('只读未运行的画布不播；有技能运行中就循环；技能被改过就走一遍', () => {
     const { rerender } = render(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'off')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-edge-pulse', 'off')
     rerender(<I18nProvider><SkillFlow skills={[...SKILLS, { id: 'handoff', depends_on: ['brainstorming'] }]} registry={[]} editable={false} onOpen={() => undefined} /></I18nProvider>)
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'once')
     rerender(<I18nProvider><SkillFlow skills={SKILLS} registry={[]} editable={false} onOpen={() => undefined} statusOf={(id) => id === 'brainstorming' ? { state: 'running', label: '进行中' } : null} /></I18nProvider>)
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'loop')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-edge-pulse', 'loop')
   })
 
   it('画布离开视口时停', () => {
@@ -284,27 +343,5 @@ describe('SkillFlow · 脉冲只在该动时动', () => {
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'loop')
     act(() => { observers[observers.length - 1]!([{ isIntersecting: false }]) })
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-pulse', 'off')
-  })
-
-  function renderEdge(data: PulseData): void {
-    const props = { id: 'a->b', source: 'a', target: 'b', sourceX: 0, sourceY: 0, targetX: 100, targetY: 0, sourcePosition: 'right', targetPosition: 'left', data } as unknown as EdgeProps<Edge<PulseData>>
-    render(<svg><PulseEdge {...props} /></svg>)
-  }
-
-  it('PulseEdge：off 不起 tween；loop 无限重复、once 走一遍，都按 order 依次延迟；减少动态效果时不起', () => {
-    Object.defineProperty(SVGElement.prototype, 'getTotalLength', { value: () => 100, configurable: true })
-    const fromTo = vi.spyOn(gsap, 'fromTo')
-    stubMatchMedia(false)
-    renderEdge({ order: 2, total: 4, mode: 'off', run: 0 })
-    expect(fromTo).not.toHaveBeenCalled()
-    renderEdge({ order: 2, total: 4, mode: 'loop', run: 0 })
-    expect(fromTo).toHaveBeenCalledTimes(1)
-    expect(fromTo.mock.calls[0]![2]).toMatchObject({ repeat: -1, delay: 2 * 0.55 })
-    renderEdge({ order: 0, total: 4, mode: 'once', run: 1 })
-    expect(fromTo.mock.calls[1]![2]).toMatchObject({ repeat: 0, delay: 0 })
-    fromTo.mockClear()
-    stubMatchMedia(true)
-    renderEdge({ order: 0, total: 4, mode: 'loop', run: 0 })
-    expect(fromTo).not.toHaveBeenCalled()
   })
 })

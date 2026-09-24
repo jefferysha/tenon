@@ -172,7 +172,8 @@ export function ProjectsView({
           </ListColumn>
         )}
         detail={files.state === null ? (
-          <DetailEmpty title={t('projects.empty_detail')} testId="proj-detail-empty" />
+          // 详情空态不写字，只留空白；可访问名称仍说明「选择项目」。
+          <DetailEmpty label={t('projects.empty_detail')} testId="proj-detail-empty" />
         ) : (
           <InstructionEditor
             title={title}

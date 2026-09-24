@@ -1,9 +1,25 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_ICON, BUTTON_SEGMENT, BUTTON_SOLID } from './uiRecipes'
+import { BUTTON_DANGER, BUTTON_GHOST, BUTTON_ICON, BUTTON_SEGMENT, BUTTON_SOLID, INPUT, PILL, SELECT, TEXTAREA } from './uiRecipes'
 
 const classes = (recipe: string): string[] => recipe.split(/\s+/u)
+
+describe('列表选中态', () => {
+  it('选中类串只在 uiRecipes 定义一次，其余文件只引用', () => {
+    const root = join(process.cwd(), 'packages/dashboard-app/src')
+    const hits: string[] = []
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name)
+        if (entry.isDirectory()) walk(path)
+        else if (/\.tsx?$/u.test(entry.name) && !/\.test\.tsx?$/u.test(entry.name) && readFileSync(path, 'utf8').includes('inset_2px_0_0_var(--sel-edge)')) hits.push(path.slice(root.length + 1))
+      }
+    }
+    walk(root)
+    expect(hits).toEqual(['shared/uiRecipes.ts'])
+  })
+})
 
 describe('button recipes', () => {
   it.each([
@@ -41,6 +57,46 @@ describe('button recipes', () => {
   })
 })
 
+describe('control shape and weight', () => {
+  it.each([
+    ['solid', BUTTON_SOLID],
+    ['ghost', BUTTON_GHOST],
+    ['danger', BUTTON_DANGER],
+    ['icon', BUTTON_ICON],
+    ['segment', BUTTON_SEGMENT],
+    ['input', INPUT],
+    ['select', SELECT],
+    ['textarea', TEXTAREA],
+    ['pill', PILL],
+  ])('%s uses the 8px control radius and never a pill', (_name, recipe) => {
+    expect(classes(recipe)).toContain('rounded-sm')
+    expect(recipe).not.toMatch(/rounded-(?:md|lg|full)/u)
+  })
+
+  it('buttons use 600, never 700', () => {
+    for (const recipe of [BUTTON_SOLID, BUTTON_GHOST, BUTTON_DANGER, BUTTON_SEGMENT, PILL]) {
+      expect(classes(recipe)).toContain('font-semibold')
+      expect(recipe).not.toContain('font-bold')
+    }
+  })
+
+  it('row-level buttons darken on press', () => {
+    expect(classes(BUTTON_GHOST)).toContain('enabled:active:bg-fill-2')
+    expect(classes(BUTTON_ICON)).toContain('enabled:active:bg-fill-2')
+  })
+
+  it.each([
+    ['input', INPUT],
+    ['select', SELECT],
+  ])('%s shares the card ground and a single accent focus ring without offset', (_name, recipe) => {
+    const names = classes(recipe)
+    for (const name of ['bg-card', 'border-border-2', 'focus-visible:border-(--accent)', 'focus-visible:ring-[3px]', 'focus-visible:ring-(--accent)/20']) {
+      expect(names).toContain(name)
+    }
+    expect(recipe).not.toMatch(/ring-offset|bg-bg\b/u)
+  })
+})
+
 /** 源码里所有生产 .tsx（测试除外）。 */
 function sources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -49,6 +105,23 @@ function sources(dir: string): string[] {
     return entry.name.endsWith('.tsx') && !entry.name.includes('.test.') ? [path] : []
   })
 }
+
+describe('药丸只留计数徽标、头像、状态点', () => {
+  // rounded-full 只允许出现在定尺寸的圆（状态点 / 头像 / 阶段号：size-*）、计数徽标（min-w-5）与细进度条（h-1 / h-1.5）上；
+  // 类别、许可、大小这类信息是纯文字，「无效」这类状态是 StatusPill 的点 + 词。
+  it('生产 TSX（除 vendored components/ui）里的 rounded-full 都在允许形态上', () => {
+    const offenders: string[] = []
+    for (const file of sources(join(process.cwd(), 'packages/dashboard-app/src'))) {
+      if (file.includes('/components/ui/')) continue
+      readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
+        if (!line.includes('rounded-full')) return
+        if (/(^|[\s'"`])(size-\d|min-w-5|h-full|h-1(\.5)?[\s'"`])/u.test(line)) return
+        offenders.push(`${file.split('/src/')[1]}:${index + 1}`)
+      })
+    }
+    expect(offenders).toEqual([])
+  })
+})
 
 const RECIPE_CLASS = /className=\{([^}]*\$\{BUTTON_[A-Z]+\}[^}]*|cn\(BUTTON_[A-Z]+[^)]*\))\}/gu
 const BARE_HOVER = /(^|[\s'"`])hover:/u

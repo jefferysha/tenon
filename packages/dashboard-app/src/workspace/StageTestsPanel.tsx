@@ -4,6 +4,7 @@ import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { testStatusWord, type TestRow } from './stageTests'
 import type { TestItemStatus } from '../types'
 import { cn } from '@/lib/utils'
+import { LIST_SELECTED } from '../shared/uiRecipes'
 
 const STATUS_TONE: Record<TestItemStatus, PillTone> = {
   passed: 'done',
@@ -42,7 +43,7 @@ export function StageTestsPanel({
                 type="button"
                 className={cn(
                   'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md border bg-card px-4 py-3 text-left outline-none hover:border-accent-b focus-visible:ring-2 focus-visible:ring-(--accent)',
-                  activeId === row.id ? 'border-accent-b bg-accent-t' : 'border-border',
+                  'border-border', activeId === row.id && LIST_SELECTED,
                 )}
                 aria-pressed={activeId === row.id}
                 data-testid={`stage-test-${row.id}`}

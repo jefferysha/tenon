@@ -4,6 +4,7 @@ import { StatusPill, type PillTone } from '../shell/ThreeColumns'
 import { fileName, type IoRow, type IoRowStatus } from './stageIo'
 import { slotLabel } from './taskModel'
 import { cn } from '@/lib/utils'
+import { LIST_SELECTED } from '../shared/uiRecipes'
 
 const STATUS_TONE: Record<IoRowStatus, PillTone> = {
   recorded: 'done',
@@ -66,7 +67,7 @@ export function StageIoPanel({ direction, items, activePath, onOpen, definitionS
         {clickable ? (
           <button
             type="button"
-            className={cn(cls, 'bg-card outline-none hover:border-accent-b focus-visible:ring-2 focus-visible:ring-(--accent)', activePath === item.path ? 'border-accent-b bg-accent-t' : 'border-border')}
+            className={cn(cls, 'bg-card outline-none hover:border-accent-b focus-visible:ring-2 focus-visible:ring-(--accent)', 'border-border', activePath === item.path && LIST_SELECTED)}
             aria-pressed={activePath === item.path}
             data-testid={testId}
             data-status={item.status}

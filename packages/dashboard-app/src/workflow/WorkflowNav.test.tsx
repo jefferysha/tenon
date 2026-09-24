@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { WbStepDef, WbWorkflowDef } from '../api/governanceTypes'
 import { I18nProvider } from '../i18n'
-import { backEdgePath, STEP_PITCH, WorkflowNav } from './WorkflowNav'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { backArrowPath, backEdgePath, STEP_PITCH, WorkflowNav } from './WorkflowNav'
 
 function step(id: string, label: string, gate: WbStepDef['gate'], to: string[]): WbStepDef {
   return { id, label, gate, skills: [{ id: `tenon-${id}` }], inputs: [], outputs: [{ field: 'x', type: 'string' }], guards: [], transitions: to.map((target) => ({ event: `${id}-${target}`, to: target })) }
@@ -13,7 +14,7 @@ const DEF: WbWorkflowDef = { name: 'default', steps: [step('open', '立项', nul
 function renderNav(overrides: Partial<Parameters<typeof WorkflowNav>[0]> = {}) {
   const fns = { onSwitch: vi.fn(), onSwitchBranch: vi.fn(), onCreate: vi.fn(), onExport: vi.fn(), onDelete: vi.fn(), onNewTrack: vi.fn(), onDeleteTrack: vi.fn(), onSelect: vi.fn(), onAddStage: vi.fn(), onReorder: vi.fn(), onToggleOpenspec: vi.fn(), onDeleteStage: vi.fn() }
   render(
-    <I18nProvider>
+    <I18nProvider><TooltipProvider>
       <WorkflowNav
         names={['default', 'release']}
         current="default"
@@ -32,7 +33,7 @@ function renderNav(overrides: Partial<Parameters<typeof WorkflowNav>[0]> = {}) {
         {...fns}
         {...overrides}
       />
-    </I18nProvider>,
+    </TooltipProvider></I18nProvider>,
   )
   return fns
 }
@@ -122,6 +123,26 @@ describe('WorkflowNav', () => {
     expect(onSwitchBranch).toHaveBeenCalledWith('mobile')
     await user.click(screen.getByTestId('wb-track-new'))
     expect(onNewTrack).toHaveBeenCalledTimes(1)
+  })
+
+  it('回流弧：目标端 4px 开口箭头；悬停相关阶段整条弧转 accent-b，离开复原', async () => {
+    const user = userEvent.setup()
+    renderNav()
+    const arrow = screen.getByTestId('wb-back-arrow-build-spec')
+    expect(arrow).toHaveAttribute('d', backArrowPath(2))
+    expect(backArrowPath(2)).toBe(`M4 ${2 * STEP_PITCH + 16} L0 ${2 * STEP_PITCH + 20} L4 ${2 * STEP_PITCH + 24}`)
+    expect(arrow).not.toHaveAttribute('stroke-dasharray')
+    const arc = screen.getByTestId('wb-back-arc-build-spec')
+    expect(arc).toHaveClass('stroke-border-2')
+    await user.hover(screen.getByTestId('wb-pipeline-node-spec'))
+    expect(arc).toHaveClass('stroke-accent-b')
+    expect(arc).toHaveAttribute('data-active', 'true')
+    await user.unhover(screen.getByTestId('wb-pipeline-node-spec'))
+    expect(arc).toHaveClass('stroke-border-2')
+    await user.hover(screen.getByTestId('wb-pipeline-node-build'))
+    expect(arc).toHaveClass('stroke-accent-b')
+    await user.hover(screen.getByTestId('wb-pipeline-node-explore'))
+    expect(arc).toHaveClass('stroke-border-2')
   })
 
   it('无 tracks：不渲染页签行，菜单没有删除轨道', async () => {

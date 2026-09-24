@@ -6,6 +6,7 @@ import { Dialog } from '../shared/Dialog'
 import { SkillDetail } from './SkillDetail'
 import { appendSerial, SkillFlow, skillsSignature } from './SkillFlow'
 import { SkillSourceIcon } from './SkillSourceIcon'
+import { COMPOSER_CANVAS, COMPOSER_DETAIL, COMPOSER_PALETTE, COMPOSER_SEARCH, COMPOSER_SURFACE, paletteNameClass, paletteRowClass, ROW_ADD, ROW_REVEAL } from './composerChrome'
 import { cn } from '@/lib/utils'
 
 export interface SkillComposerProps {
@@ -34,7 +35,7 @@ const PaletteItem = memo(function PaletteItem({ entry, placed, active, onOpen, o
   // 点行 = 在右栏预览 SKILL.md（不加入）；行尾「+」= 串行追加；拖拽 = 按落点加入。先看再决定。
   return (
     <li
-      className={cn('flex min-w-0 items-center gap-1 rounded-md border transition-[opacity,border-color,background-color] duration-150', active ? 'border-accent-b bg-accent-t' : 'border-transparent hover:border-border hover:bg-card', placed ? 'opacity-45' : 'cursor-grab active:cursor-grabbing')}
+      className={paletteRowClass(active, placed)}
       draggable={!placed}
       onDragStart={placed ? undefined : onDragStart}
       onDragEnd={() => onDragging(null)}
@@ -48,13 +49,13 @@ const PaletteItem = memo(function PaletteItem({ entry, placed, active, onOpen, o
         data-testid={`palette-open-${entry.name}`}
         onClick={() => onOpen(entry.name)}
       >
-        <GripVertical className="size-3.5 flex-none text-text-3" aria-hidden="true" />
-        <span className={cn('min-w-0 flex-1 truncate whitespace-nowrap font-mono text-body', active ? 'font-semibold text-(--accent)' : 'text-text')} title={entry.name}>{entry.name}</span>
+        <GripVertical className={cn('size-3.5 flex-none text-text-3', ROW_REVEAL)} aria-hidden="true" data-testid={`palette-grip-${entry.name}`} />
+        <span className={paletteNameClass(active)} title={entry.name}>{entry.name}</span>
         <span className="flex flex-none items-center" data-testid={`palette-source-${entry.name}`}><SkillSourceIcon source={entry.source} /></span>
       </button>
       <button
         type="button"
-        className="grid size-10 flex-none place-items-center rounded-sm text-text-3 outline-none enabled:hover:bg-fill enabled:hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) disabled:invisible"
+        className={ROW_ADD}
         aria-label={t('workflow.add_skill', { id: entry.name })}
         title={t('workflow.add_skill', { id: entry.name })}
         disabled={placed}
@@ -109,9 +110,9 @@ export function SkillComposer({ open, stageLabel, skills, registry, onClose, onS
         </>
       )}
     >
-      <div className="grid h-full min-h-0 grid-cols-[20rem_minmax(0,1fr)_minmax(20rem,26rem)] gap-4 max-[1100px]:grid-cols-[18rem_minmax(0,1fr)] max-[900px]:grid-cols-1">
-        <section className="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-bg p-2" data-testid="skill-palette" aria-label={t('workflow.local_skills')}>
-          <label className="flex h-9 flex-none items-center gap-2 rounded-md border border-border bg-card px-2 text-text-3 focus-within:border-accent-b">
+      <div className={cn(COMPOSER_SURFACE, 'grid-cols-[20rem_minmax(0,1fr)_minmax(20rem,26rem)] max-[1100px]:grid-cols-[18rem_minmax(0,1fr)] max-[900px]:grid-cols-1')} data-testid="skill-composer-surface">
+        <section className={COMPOSER_PALETTE} data-testid="skill-palette" aria-label={t('workflow.local_skills')}>
+          <label className={COMPOSER_SEARCH}>
             <Search className="size-3.5 flex-none" aria-hidden="true" />
             <span className="sr-only">{t('workflow.search_skills')}</span>
             <input ref={searchRef} type="search" value={search} placeholder={t('workflow.search_skills')} className="min-w-0 flex-1 bg-transparent text-body text-text outline-none placeholder:text-text-3" data-testid="skill-palette-search" onChange={(event) => setSearch(event.target.value)} />
@@ -126,8 +127,8 @@ export function SkillComposer({ open, stageLabel, skills, registry, onClose, onS
             </ul>
           )}
         </section>
-        <SkillFlow skills={draft} registry={registry} editable onChange={setDraft} onOpen={setDetail} dragLabel={dragging} className="min-h-0" />
-        <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card p-4 max-[1100px]:hidden" aria-label={t('workflow.preview_skill', { id: detail ?? '' })} data-testid="skill-composer-detail">
+        <SkillFlow skills={draft} registry={registry} editable onChange={setDraft} onOpen={setDetail} dragLabel={dragging} className={COMPOSER_CANVAS} />
+        <aside className={COMPOSER_DETAIL} aria-label={t('workflow.preview_skill', { id: detail ?? '' })} data-testid="skill-composer-detail">
           {detail === null ? (
             <p className="text-body text-text-3" role="status">{t('workflow.pick_skill')}</p>
           ) : (

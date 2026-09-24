@@ -52,11 +52,69 @@ describe('Dashboard 电脑端设计系统契约', () => {
     expect(readSource('shared/Dialog.tsx')).toMatch(/from 'radix-ui'/)
   })
 
-  it('reduced-motion 为 CSS transition、animation 和滚动提供全局终态兜底', () => {
-    expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/)
-    expect(css).toMatch(/transition-duration:\s*0s\s*!important/)
-    expect(css).toMatch(/animation-duration:\s*0s\s*!important/)
-    expect(css).toMatch(/scroll-behavior:\s*auto\s*!important/)
+  it('reduced-motion 只留 ≤100ms 的淡入淡出与颜色，位移 / 缩放 / 旋转全部去掉', () => {
+    const block = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(block).toMatch(/transition-duration:\s*100ms\s*!important/)
+    expect(block).toMatch(/transition-property:\s*opacity, color, background-color, border-color[^;]*!important/)
+    expect(block).not.toMatch(/transition-property:[^;]*transform/)
+    expect(block).toMatch(/animation-duration:\s*0s\s*!important/)
+    expect(block).toMatch(/\[class\*='animate-in'\],\s*\[class\*='animate-out'\]\s*\{\s*animation-duration:\s*100ms\s*!important/)
+    for (const name of ['enter-translate-x', 'enter-translate-y', 'exit-translate-x', 'exit-translate-y']) {
+      expect(block).toContain(`--tw-${name}: 0 !important`)
+    }
+    expect(block).toContain('--tw-enter-scale: 1 !important')
+    expect(block).toContain('--tw-exit-scale: 1 !important')
+    expect(block).toMatch(/scroll-behavior:\s*auto\s*!important/)
+  })
+
+  it('圆角刻度：控件 8 / 列表与弹层 10 / 对话框与抽屉 14 / 行内 4', () => {
+    const block = /@theme\s+static\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(css).toMatch(/--radius:\s*10px/)
+    expect(block).toMatch(/--radius-xs:\s*4px/)
+    expect(block).toMatch(/--radius-sm:\s*8px/)
+    expect(block).toMatch(/--radius-md:\s*var\(--radius\)/)
+    expect(block).toMatch(/--radius-lg:\s*14px/)
+  })
+
+  it('动效与字距刻度集中在 @theme static，生成 ease-out / ease-in-out / ease-exit 工具类', () => {
+    const block = /@theme\s+static\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(block).toMatch(/--ease-out:\s*cubic-bezier\(\.22,1,\.36,1\)/)
+    expect(block).toMatch(/--ease-in-out:\s*cubic-bezier\(\.65,0,\.35,1\)/)
+    expect(block).toMatch(/--ease-exit:\s*cubic-bezier\(\.4,0,1,1\)/)
+    for (const [name, value] of [['press', 80], ['fast', 140], ['base', 180], ['panel', 240], ['exit', 120], ['layout', 300]] as const) {
+      expect(block).toMatch(new RegExp(`--dur-${name}:\\s*${value}ms`))
+    }
+    expect(block).toMatch(/--text-page--letter-spacing:\s*-0\.02em/)
+    expect(block).toMatch(/--text-section--letter-spacing:\s*-0\.015em/)
+    expect(block).toMatch(/--text-title--letter-spacing:\s*-0\.01em/)
+    expect(css).toMatch(/--default-transition-duration:\s*var\(--dur-fast\)/)
+  })
+
+  it('三段主题都声明三级阴影与 tooltip token，并暴露为颜色工具类', () => {
+    for (const selector of [/^:root \{/m, /:root:not\(\[data-theme="light"\]\) \{/, /:root\[data-theme="light"\] \{/, /:root\[data-theme="dark"\] \{/]) {
+      const start = css.search(selector)
+      expect(start).toBeGreaterThan(-1)
+      const body = css.slice(start, css.indexOf('}', start))
+      for (const token of ['--shadow:', '--shadow-2:', '--shadow-3:', '--tooltip-bg:', '--tooltip-fg:', '--tooltip-border:', '--surface-raised:']) {
+        expect(body, `${selector} ${token}`).toContain(token)
+      }
+    }
+    expect(css).toMatch(/--color-tooltip-bg:\s*var\(--tooltip-bg\)/)
+    expect(css).toMatch(/--color-tooltip-fg:\s*var\(--tooltip-fg\)/)
+  })
+
+  it('Inter 只引入 latin 子集，中文走系统黑体', () => {
+    expect(css).toContain("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2")
+    expect(css).not.toMatch(/inter-(?:cyrillic|greek|vietnamese|latin-ext)/)
+    expect(css).toMatch(/--font:\s*"Inter Variable", "PingFang SC", "Microsoft YaHei UI"[^;]*"Noto Sans CJK SC"/)
+  })
+
+  it('基础层：选区用 accent-t，细滚动条，行级控件悬停有过渡', () => {
+    const base = /@layer base \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(base).toMatch(/::selection\s*\{\s*background:\s*var\(--accent-t\)/)
+    expect(base).toMatch(/scrollbar-width:\s*thin/)
+    expect(base).toMatch(/scrollbar-color:\s*var\(--border-2\) transparent/)
+    expect(base).toMatch(/button,\s*a,\s*\[role='option'\],\s*\[role='menuitem'\]\s*\{\s*transition-property:\s*background-color, color, border-color, box-shadow;\s*transition-duration:\s*var\(--dur-fast\);\s*transition-timing-function:\s*var\(--ease-out\)/)
   })
 
   it('交互动效只声明实际变化的属性，不使用会意外动画布局的 transition-all', () => {
@@ -76,19 +134,76 @@ describe('Dashboard 电脑端设计系统契约', () => {
     'components/ui/button.tsx',
     'components/ui/input.tsx',
     'components/ui/select.tsx',
-    'components/ui/dropdown-menu.tsx',
     'components/ui/tabs.tsx',
     'components/ui/table.tsx',
     'components/ui/badge.tsx',
-    'components/ui/tooltip.tsx',
   ])('%s 明确声明 reduced-motion 终态', (relativePath) => {
     expect(readSource(relativePath)).toMatch(/motion-reduce:/)
+  })
+
+  // 浮层在 reduced-motion 下仍保留 ≤100ms 淡入淡出（全局媒体段钉住位移与缩放），不能整段 animate-none。
+  it.each([
+    'components/ui/dropdown-menu.tsx',
+    'components/ui/popover.tsx',
+    'components/ui/select.tsx',
+    'components/ui/tooltip.tsx',
+  ])('%s 浮层不在 reduced-motion 下关掉淡入淡出', (relativePath) => {
+    expect(readSource(relativePath)).not.toContain('motion-reduce:animate-none')
+  })
+
+  const slotClasses = (relativePath: string, slot: string): string[] => {
+    const source = readSource(relativePath)
+    const at = source.indexOf(`data-slot="${slot}"`)
+    expect(at, slot).toBeGreaterThan(-1)
+    return (/className=\{cn\(\s*"([^"]*)"/.exec(source.slice(at))?.[1] ?? '').split(/\s+/)
+  }
+
+  it.each([
+    ['components/ui/dropdown-menu.tsx', 'dropdown-menu-content'],
+    ['components/ui/dropdown-menu.tsx', 'dropdown-menu-sub-content'],
+    ['components/ui/popover.tsx', 'popover-content'],
+    ['components/ui/select.tsx', 'select-content'],
+  ])('%s %s：无 currentColor 边框，raised 底 + 二级阴影 + 10px 圆角，进 160ms 出 100ms', (relativePath, slot) => {
+    const names = slotClasses(relativePath, slot)
+    expect(names).not.toContain('border')
+    expect(names.some((name) => name.startsWith('border-'))).toBe(false)
+    const expected = ['rounded-md', 'bg-surface-raised', 'shadow-(--shadow-2)', 'data-[state=open]:fade-in-0', 'data-[state=open]:zoom-in-[.98]', 'data-[state=open]:duration-[160ms]', 'data-[state=closed]:animate-out', 'data-[state=closed]:duration-[100ms]']
+    // Select 的 p-1 挂在 Viewport 上，其余浮层外框自带 p-1。
+    if (slot !== 'select-content') expected.push('p-1')
+    for (const name of expected) expect(names, name).toContain(name)
+  })
+
+  it('Tooltip 用 tooltip token、1px 边，120ms 淡入 + 2px 位移，不缩放；Provider 默认 400/300', () => {
+    const names = slotClasses('components/ui/tooltip.tsx', 'tooltip-content')
+    for (const name of ['bg-tooltip-bg', 'text-tooltip-fg', 'border', 'border-tooltip-border', 'fade-in-0', 'duration-[120ms]', 'data-[side=bottom]:slide-in-from-top-[2px]', 'data-[state=closed]:duration-[80ms]']) {
+      expect(names, name).toContain(name)
+    }
+    expect(names.some((name) => name.includes('zoom'))).toBe(false)
+    expect(names).not.toContain('bg-foreground')
+    const source = readSource('components/ui/tooltip.tsx')
+    expect(source).toMatch(/delayDuration = 400/)
+    expect(source).toMatch(/skipDelayDuration = 300/)
+  })
+
+  it('Select 触发器与输入框同底同边，聚焦只有一层 3px 淡环', () => {
+    const names = slotClasses('components/ui/select.tsx', 'select-trigger')
+    for (const name of ['rounded-sm', 'bg-card', 'border-border-2', 'focus-visible:ring-[3px]', 'focus-visible:ring-(--accent)/20']) expect(names, name).toContain(name)
+    expect(names.some((name) => name.includes('ring-offset'))).toBe(false)
   })
 
   it('toast 是 rounded-md 面板，不是药丸', () => {
     const toast = /ref=\{flashRef\}\s*className=\{`([^`]*)/.exec(readSource('App.tsx'))?.[1] ?? ''
     expect(toast).toContain('rounded-md')
+    expect(toast).toContain('shadow-(--shadow-2)')
     expect(toast).not.toContain('rounded-full')
+  })
+
+  it('App 在最外层装一个 TooltipProvider：400ms 出现，相邻 300ms 内免等待', () => {
+    expect(readSource('App.tsx')).toMatch(/<TooltipProvider delayDuration=\{400\} skipDelayDuration=\{300\}>/)
+  })
+
+  it('全站只有 App 这一个 TooltipProvider：TopBar、Hint 不再自带（不各自改延迟）', () => {
+    for (const file of ['shell/TopBar.tsx', 'workflow/Hint.tsx']) expect(readSource(file), file).not.toContain('<TooltipProvider')
   })
 
   it('App 清理 toast tween，并让 error/status 使用不同 live-region 语义', () => {

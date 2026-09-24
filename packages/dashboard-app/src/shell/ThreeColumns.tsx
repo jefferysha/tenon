@@ -2,12 +2,14 @@ import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { useT } from '../i18n'
 import { cn } from '@/lib/utils'
+import { LIST_SELECTED_ARIA } from '../shared/uiRecipes'
 
 export { FilterChip, FilterChipGroup } from '../shared/FilterChip'
 
+
 /**
- * 模板的三列骨架：左列（选择对象，280px，可折叠到 64px）/ 中列（列表，360–420px）/ 右列（详情，弹性）。
- * 高度 = 视口 - 顶部条，三列各自滚动。≤1280px 时左列折叠（折叠钮隐藏）；≤900px 时纵向堆叠、各列自然高度。
+ * 模板的三列骨架：左列（选择对象，280px，可折叠到 72px 图标栏）/ 中列（列表，360–420px）/ 右列（详情，弹性）。
+ * 高度 = 视口 - 顶部条，三列各自滚动。≤1360px 时左列默认折叠为图标栏（折叠钮隐藏）；≤900px 时纵向堆叠、各列自然高度。
  */
 export function ThreeColumns({
   rail,
@@ -31,10 +33,10 @@ export function ThreeColumns({
       className={cn(
         'grid h-[calc(100vh-var(--topbar-h)-var(--banner-h))] min-h-0 bg-bg',
         railCollapsed
-          ? (narrow ? 'grid-cols-[64px_380px_minmax(0,1fr)]' : 'grid-cols-[64px_minmax(360px,420px)_minmax(0,1fr)]')
+          ? (narrow ? 'grid-cols-[72px_380px_minmax(0,1fr)]' : 'grid-cols-[72px_minmax(360px,420px)_minmax(0,1fr)]')
           : (narrow
-            ? 'grid-cols-[280px_380px_minmax(0,1fr)] max-[1280px]:grid-cols-[64px_344px_minmax(0,1fr)]'
-            : 'grid-cols-[280px_minmax(360px,420px)_minmax(0,1fr)] max-[1280px]:grid-cols-[64px_minmax(360px,420px)_minmax(0,1fr)]'),
+            ? 'grid-cols-[280px_380px_minmax(0,1fr)] max-[1360px]:grid-cols-[72px_344px_minmax(0,1fr)]'
+            : 'grid-cols-[280px_minmax(360px,420px)_minmax(0,1fr)] max-[1360px]:grid-cols-[72px_minmax(360px,420px)_minmax(0,1fr)]'),
         'max-[900px]:h-auto max-[900px]:min-h-[calc(100vh-var(--topbar-h)-var(--banner-h))] max-[900px]:grid-cols-1',
       )}
       data-testid={testId}
@@ -85,19 +87,19 @@ export function RailColumn({
     <aside
       className={cn(
         'flex min-h-0 flex-col overflow-hidden border-r border-border bg-bg',
-        collapsed ? 'px-2 py-4' : 'px-4 pt-5 pb-4 max-[1280px]:px-2 max-[1280px]:py-4',
+        collapsed ? 'px-2 py-4' : 'px-4 pt-5 pb-4 max-[1360px]:px-2 max-[1360px]:py-4',
         'max-[900px]:border-r-0 max-[900px]:border-b',
       )}
       data-testid={testId}
       data-collapsed={collapsed}
     >
-      <div className={cn('flex items-center gap-1.5 pb-4', collapsed ? 'flex-col justify-center' : 'justify-between px-1.5 max-[1280px]:flex-col max-[1280px]:justify-center max-[900px]:flex-row max-[900px]:justify-between')}>
-        {!collapsed && <span className="mr-auto text-body text-text-2 max-[1280px]:hidden max-[900px]:inline">{title}</span>}
+      <div className={cn('flex items-center gap-1.5 pb-4', collapsed ? 'flex-col justify-center' : 'justify-between px-1.5 max-[1360px]:flex-col max-[1360px]:justify-center max-[900px]:flex-row max-[900px]:justify-between')}>
+        {!collapsed && <span className="mr-auto text-body text-text-2 max-[1360px]:hidden max-[900px]:inline">{title}</span>}
         {headerAction}
-        {/* ≤1280px 左列必然折叠，钮无作用即隐藏；≤900px 堆叠后恢复。 */}
+        {/* ≤1360px 左列必然折叠，钮无作用即隐藏；≤900px 堆叠后恢复。 */}
         <button
           type="button"
-          className="grid size-10 place-items-center rounded-sm border border-border bg-card text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) max-[1280px]:hidden max-[900px]:grid"
+          className="grid size-10 place-items-center rounded-sm border border-border bg-card text-text-2 outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-(--accent) max-[1360px]:hidden max-[900px]:grid"
           aria-label={collapsed ? t('shell.rail_expand') : t('shell.rail_collapse')}
           aria-expanded={!collapsed}
           data-testid={`${testId}-toggle`}
@@ -115,7 +117,10 @@ export function RailColumn({
   )
 }
 
-/** 左列卡片（项目 / 库分区共用）：语义图标方块 + 标题 + 副行 + 右侧计数；选中=浅绿底绿边。 */
+/**
+ * 左列项（项目 / 库分区共用）：语义图标（不套方块）+ 标题 + 副行 + 右侧计数；行高 44。
+ * 选中 = 列表选中态（uiRecipes 的 LIST_SELECTED_ARIA），图标转强调色，标题只加粗不染绿。
+ */
 export function RailCard({
   mark,
   name,
@@ -151,19 +156,21 @@ export function RailCard({
     <button
       type="button"
       className={cn(
-        'grid min-h-10 w-full items-center gap-3 rounded-md border border-transparent text-left outline-none transition-colors hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t motion-reduce:transition-none',
-        collapsed ? 'grid-cols-1 justify-items-center p-2 max-[1280px]:grid-cols-1' : 'grid-cols-[auto_minmax(0,1fr)_auto] px-3 py-3 max-[1280px]:grid-cols-1 max-[1280px]:justify-items-center max-[1280px]:p-2',
+        'grid min-h-11 w-full items-center gap-3 rounded-md text-left outline-none transition-colors duration-(--dur-fast) ease-(--ease-out) not-aria-[current=true]:hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) motion-reduce:transition-none',
+        LIST_SELECTED_ARIA,
+        collapsed ? 'grid-cols-1 justify-items-center px-2 max-[1360px]:grid-cols-1' : 'grid-cols-[auto_minmax(0,1fr)_auto] px-3 py-1.5 max-[1360px]:grid-cols-1 max-[1360px]:justify-items-center max-[1360px]:px-2 max-[1360px]:py-0',
         'max-[900px]:w-auto max-[900px]:grid-cols-[auto_minmax(0,1fr)] max-[900px]:justify-items-start max-[900px]:gap-2 max-[900px]:px-3 max-[900px]:py-2',
       )}
       aria-current={selected ? 'true' : undefined}
-      title={collapsed ? `${name}${meta ? ` · ${meta}` : ''}` : undefined}
+      // 折叠（含 ≤1360px 被迫折叠）时只剩图标：title 既是悬停提示，也是可访问名的兜底。
+      title={`${name}${meta ? ` · ${meta}` : ''}`}
       data-testid={testId}
       onClick={onClick}
     >
       <span
         className={cn(
-          'grid size-8 place-items-center rounded-sm border border-border bg-card text-body font-semibold [&_svg]:size-4',
-          selected ? 'border-accent-b text-(--accent)' : danger ? 'text-red-d' : 'text-text-2',
+          'grid size-5 place-items-center text-body font-semibold [&_svg]:size-4',
+          selected ? 'text-(--accent)' : danger ? 'text-red-d' : 'text-text-3',
         )}
         aria-hidden="true"
         data-testid={`${testId}-mark`}
@@ -172,8 +179,8 @@ export function RailCard({
       </span>
       {!collapsed && (
         <>
-          <span className="min-w-0 max-[1280px]:hidden max-[900px]:block">
-            <span className={cn('flex items-center gap-1.5 truncate text-base font-semibold', selected ? 'text-(--accent)' : 'text-text')}>
+          <span className="min-w-0 max-[1360px]:hidden max-[900px]:block">
+            <span className={cn('flex items-center gap-1.5 truncate text-base text-text', selected ? 'font-semibold' : 'font-medium')}>
               <span className="truncate">{name}</span>
               {tag}
             </span>
@@ -188,7 +195,7 @@ export function RailCard({
             )}
           </span>
           {count !== undefined && (
-            <span className={cn('font-mono text-body max-[1280px]:hidden', selected ? 'text-(--accent)' : 'text-text-3')}>{count}</span>
+            <span className="text-caption tabular-nums text-text-3 max-[1360px]:hidden">{count}</span>
           )}
         </>
       )}
@@ -301,16 +308,9 @@ export function DetailColumn({
   )
 }
 
-/** 右列空态（未选中对象）：只有一个名词短语，不配副标题。 */
-export function DetailEmpty({ title, testId }: {
-  title: string
-  testId: string
-}): JSX.Element {
-  return (
-    <section className="flex min-h-0 flex-col items-center justify-center bg-surface-detail px-8 text-center" data-testid={testId}>
-      <p className="whitespace-nowrap text-title font-semibold text-text">{title}</p>
-    </section>
-  )
+/** 右列空态（未选中对象）：不写字，只留空白；可访问名称（label）仍说明要选什么。全站详情空态只用这一个。 */
+export function DetailEmpty({ label, testId }: { label: string; testId: string }): JSX.Element {
+  return <section className="min-h-0 bg-surface-detail" aria-label={label} data-testid={testId} />
 }
 
 /**
@@ -333,7 +333,7 @@ export function StatusPill({ tone, children, testId, title, className }: { tone:
       data-testid={testId}
       title={title}
     >
-      <i className="size-2 flex-none rounded-full" aria-hidden="true" />
+      <i className="size-1.5 flex-none rounded-full" aria-hidden="true" />
       <span className="truncate">{children}</span>
     </span>
   )

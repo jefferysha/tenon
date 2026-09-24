@@ -60,8 +60,8 @@ describe('SkillsView', () => {
       expect(status.getAttribute('title')).not.toMatch(/^skills\./u)
     }
     expect(screen.getByTestId('skills-status-hue')).toHaveTextContent('变化')
-    expect(screen.getByTestId('skills-filter-tab-failed')).toHaveTextContent('失败')
-    await userEvent.click(screen.getByTestId('skills-filter-tab-failed'))
+    expect(screen.getByTestId('skills-filter-failed')).toHaveTextContent('失败')
+    await userEvent.click(screen.getByTestId('skills-filter-failed'))
     expect(screen.getAllByTestId(/^skills-row-/u).map((row) => row.dataset.testid)).toEqual(['skills-row-web-design-guidelines'])
   })
 
@@ -124,11 +124,63 @@ describe('SkillsView', () => {
     expect(await screen.findByTestId('skill-preview')).toBeInTheDocument()
   })
 
-  it('separates rows by zebra striping instead of a border per row', async () => {
+  it('has no outer frame or zebra: only the header hairline and a hover background', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
     renderView()
     const row = await screen.findByTestId('skills-row-hue')
-    expect(row.className).toContain('even:bg-fill/45')
+    expect(row.className).toContain('hover:bg-fill')
+    expect(row.className).not.toContain('even:')
     expect(row.className).not.toContain('border-b')
+    expect(screen.getByTestId('skills-table').className).not.toMatch(/(?:^|\s)border(?:\s|$)/u)
+    for (const head of screen.getAllByRole('columnheader')) expect(head.className).toContain('border-b')
+  })
+
+  it('filters with single-select chips, not tabs', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    expect(screen.queryByRole('tablist')).toBeNull()
+    const group = screen.getByRole('radiogroup')
+    expect(within(group).getAllByRole('radio').map((chip) => chip.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false'])
+    await userEvent.click(screen.getByTestId('skills-filter-changed'))
+    expect(screen.getByTestId('skills-filter-changed')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getAllByTestId(/^skills-row-/u).map((row) => row.dataset.testid)).toEqual(['skills-row-hue'])
+  })
+
+  it('shows the accent color on links only on hover; commit hashes are text-3 mono; dates use tabular numbers', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    const links = screen.getAllByRole('link')
+    expect(links.length).toBeGreaterThan(0)
+    for (const link of links) {
+      const accent = link.className.split(/\s+/u).filter((cls) => cls.includes('accent'))
+      expect(accent.every((cls) => cls.startsWith('hover:') || cls.startsWith('focus-visible:'))).toBe(true)
+      expect(link.className).toContain('underline-offset-4')
+    }
+    const commit = screen.getByTestId('skills-compare-hue').closest('td')
+    expect(commit?.className).toContain('font-mono')
+    expect(commit?.className).toContain('text-text-3')
+    const cells = within(screen.getByTestId('skills-row-hue')).getAllByRole('cell')
+    expect(cells[4]?.className).toContain('tabular-nums')
+    expect(screen.getByTestId('skills-updated').className).toContain('tabular-nums')
+  })
+
+  it('drops the status column when no visible row has anything to report', async () => {
+    const quiet = { ...FIXTURE, rows: FIXTURE.rows.filter((row) => row.status !== 'changed' && row.status !== 'failed') }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(quiet), { status: 200 }))
+    renderView()
+    await screen.findByTestId('skills-row-brainstorming')
+    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['技能', '来源', '提交', '许可证', '更新'])
+    expect(screen.queryByTestId('skills-status-brainstorming')).toBeNull()
+  })
+
+  it('gives the status column a fixed w-24 width when shown', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(FIXTURE), { status: 200 }))
+    renderView()
+    await screen.findByTestId('skills-row-hue')
+    const cols = screen.getByRole('table').querySelectorAll('col')
+    expect(cols).toHaveLength(6)
+    expect(cols[5]?.className).toBe('w-24')
   })
 })
