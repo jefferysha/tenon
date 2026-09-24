@@ -3,8 +3,10 @@ import gsap from 'gsap'
 
 /** 脉冲沿边前进的速度（px/s）：每条边的时长 = 边长 / 速度，长边走得久、短边走得快，整条传递匀速。 */
 export const PULSE_SPEED = 420
+/** 每条边最短走多久（s）：短边也要看得清高亮段在移动。 */
+export const PULSE_MIN_LEG = 0.48
 /** 循环播放时两轮之间的停顿（s）。 */
-export const PULSE_REPEAT_DELAY = 0.8
+export const PULSE_REPEAT_DELAY = 0.4
 /** 到达节点时节点边框闪一下的总时长（s）。 */
 export const PULSE_FLASH = 0.16
 /** 到达终点时圆点放大与光环淡出的总时长（s）。 */
@@ -24,18 +26,19 @@ export interface PulseLeg { order: number; length: number }
 export interface PulseStep { order: number; start: number; duration: number }
 
 /**
- * 按段序排出每条边的起止：同一段序的边同时出发（扇出 / 汇合），下一段序等本段最长的那条走完再出发。
+ * 按段序排出每条边的起止（每条边至少 PULSE_MIN_LEG）：同一段序的边同时出发（扇出 / 汇合），下一段序等本段最长的那条走完再出发。
  * 返回与输入同序的起点与时长（s）。
  */
 export function pulsePlan(legs: readonly PulseLeg[], speed = PULSE_SPEED): PulseStep[] {
+  const durationOf = (leg: PulseLeg): number => Math.max(PULSE_MIN_LEG, leg.length / speed)
   const orders = [...new Set(legs.map((leg) => leg.order))].sort((a, b) => a - b)
   const startOf = new Map<number, number>()
   let cursor = 0
   for (const order of orders) {
     startOf.set(order, cursor)
-    cursor += Math.max(...legs.filter((leg) => leg.order === order).map((leg) => leg.length / speed))
+    cursor += Math.max(...legs.filter((leg) => leg.order === order).map(durationOf))
   }
-  return legs.map((leg) => ({ order: leg.order, start: startOf.get(leg.order) ?? 0, duration: leg.length / speed }))
+  return legs.map((leg) => ({ order: leg.order, start: startOf.get(leg.order) ?? 0, duration: durationOf(leg) }))
 }
 
 /** 用户是否要求减少动态效果；没有 matchMedia（非浏览器环境）按「否」处理。 */
@@ -46,7 +49,7 @@ export function prefersReducedMotion(): boolean {
 /**
  * 在画布容器里找到各条边的高亮组（`[data-pulse-order]`，内含 `path[data-pulse-stroke]`），把整条传递编进一条 timeline：
  * 高亮段沿线匀速前进，两端 5% 淡入淡出；每条边走完时它指向的技能节点闪一下（`[data-pulse-flash]`），
- * 终点圆点放大并放出一圈淡出的光环。loop 无限重复、每轮间隔 0.8s。容器里没有可量的边时返回 null。
+ * 终点圆点放大并放出一圈淡出的光环。loop 无限重复、每轮间隔 PULSE_REPEAT_DELAY。容器里没有可量的边时返回 null。
  */
 export function buildPulseTimeline(root: Element, mode: Exclude<PulseMode, 'off'>): gsap.core.Timeline | null {
   const groups = [...root.querySelectorAll<SVGGElement>('[data-pulse-order]')]

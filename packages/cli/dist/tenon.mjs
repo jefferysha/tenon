@@ -23702,6 +23702,10 @@ function checkBody(lines2, start, category, known, errors) {
   return lines2.slice(first).join("\n").replace(/\s+$/u, "");
 }
 
+// packages/kernel/dist/instructions/clients.js
+var PROJECT_CLIENTS_MAX_BYTES = 16 * 1024;
+var KNOWN = new Set(INSTRUCTION_HOSTS.map((host) => host.id));
+
 // packages/kernel/dist/resources/parse.js
 var ResourceParseError = class extends Error {
   line;

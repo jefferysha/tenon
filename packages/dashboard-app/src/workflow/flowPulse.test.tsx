@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { act, render } from '@testing-library/react'
 import gsap from 'gsap'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildPulseTimeline, PULSE_REPEAT_DELAY, PULSE_SPEED, pulsePlan, pulseSegment, usePulseTimeline, type PulseMode } from './flowPulse'
+import { buildPulseTimeline, PULSE_MIN_LEG, PULSE_REPEAT_DELAY, PULSE_SPEED, pulsePlan, pulseSegment, usePulseTimeline, type PulseMode } from './flowPulse'
 
 function stubMatchMedia(reduce: boolean): void {
   vi.stubGlobal('matchMedia', (query: string) => ({
@@ -54,11 +54,11 @@ function targetsOf(tween: gsap.core.Tween): Element[] {
 describe('flowPulse', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks() })
 
-  it('pulsePlan：时长 = 边长 / 420；同段序同时出发，下一段序等本段最长那条走完', () => {
+  it('pulsePlan：时长 = 边长 / 420（至少 0.48s）；同段序同时出发，下一段序等本段最长那条走完', () => {
     const plan = pulsePlan(LEGS)
-    expect(plan.map((step) => step.duration)).toEqual([84 / PULSE_SPEED, 210 / PULSE_SPEED, 420 / PULSE_SPEED])
-    expect(plan[1]!.duration / plan[0]!.duration).toBeCloseTo(210 / 84)
-    expect(plan.map((step) => step.start)).toEqual([0, 0.2, 0.2])
+    expect(plan.map((step) => step.duration)).toEqual([PULSE_MIN_LEG, 210 / PULSE_SPEED, 420 / PULSE_SPEED])
+    expect(plan[2]!.duration / plan[1]!.duration).toBeCloseTo(2)
+    expect(plan.map((step) => step.start)).toEqual([0, PULSE_MIN_LEG, PULSE_MIN_LEG])
   })
 
   it('pulseSegment：边长的 35%，夹在 36–64', () => {
@@ -67,7 +67,7 @@ describe('flowPulse', () => {
     expect(pulseSegment(1000)).toBe(64)
   })
 
-  it('buildPulseTimeline：一条 timeline；描边时长与边长成正比；到达节点闪 160ms、终点光环 320ms；loop 间隔 0.8s', () => {
+  it('buildPulseTimeline：一条 timeline；描边时长与边长成正比；到达节点闪 160ms、终点光环 320ms；loop 间隔 PULSE_REPEAT_DELAY', () => {
     stubLengths()
     const timeline = vi.spyOn(gsap, 'timeline')
     const { container } = render(<Canvas mode="off" legs={LEGS} />)
@@ -77,13 +77,13 @@ describe('flowPulse', () => {
     expect(timeline.mock.calls[0]![0]).toMatchObject({ repeat: -1, repeatDelay: PULSE_REPEAT_DELAY })
     const tweens = built!.getChildren(false, true, false) as gsap.core.Tween[]
     const strokes = tweens.filter((tween) => targetsOf(tween).every((target) => target.hasAttribute('data-pulse-stroke')))
-    expect(strokes.map((tween) => tween.duration())).toEqual([84 / PULSE_SPEED, 210 / PULSE_SPEED, 420 / PULSE_SPEED])
+    expect(strokes.map((tween) => tween.duration())).toEqual([PULSE_MIN_LEG, 210 / PULSE_SPEED, 420 / PULSE_SPEED])
     const flash = tweens.find((tween) => targetsOf(tween)[0]?.hasAttribute('data-pulse-flash'))
     expect(flash!.totalDuration()).toBeCloseTo(0.16)
-    expect(flash!.startTime()).toBeCloseTo(0.2)
+    expect(flash!.startTime()).toBeCloseTo(PULSE_MIN_LEG)
     const ring = tweens.find((tween) => targetsOf(tween)[0]?.hasAttribute('data-pulse-ring'))
     expect(ring!.duration()).toBeCloseTo(0.32)
-    expect(ring!.startTime()).toBeCloseTo(1.2)
+    expect(ring!.startTime()).toBeCloseTo(PULSE_MIN_LEG + 1)
     expect(container.querySelector('path[data-pulse-stroke="core"]')).toHaveAttribute('stroke-dasharray', `36 ${84 + 36}`)
     built!.kill()
     expect(buildPulseTimeline(document.createElement('div'), 'once')).toBeNull()
