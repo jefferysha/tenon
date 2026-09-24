@@ -85,8 +85,10 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   `message`：首次 `feat(<c>): deliver`，当前分支历史里已有这条之后的补交是 `chore(<c>): update deliverables`
   （真机第五轮：两次同名）。执行与 finish-change 的提交三条命令相同。两档判「脏」：勾任务之前那次
   （`delivery`）不看 change 目录（勾选只改 tasks.md，不该再触发提交）；收尾那次（`settle`，
-  `stepDirty`）看整个工作区、只去掉 hook 追加的 `openspec/changes/<c>/.pipeline-history.jsonl`（hook 只在
-  技能调用与用户回复时追加，拿它判会让每次回复都多一次提交；它随下一次提交入库）。有 `recommended` 的
+  `stepDirty`）看整个工作区、只去掉 hook 在 `openspec/changes/<c>/` 里追加的四本台账
+  （`.pipeline-history.jsonl`、`.pipeline-interactions.jsonl`、`.pipeline-skill-confirmations.jsonl`、
+  `.pipeline-skill-invocations.jsonl`；它们在技能调用与用户回复时追加，拿它们判会让每次续轮都多一次提交，
+  真机第六轮即如此；它们随下一次提交入库）。有 `recommended` 的
   交付值（无远端时 `pr_url=no-remote`）排在收尾提交之前，写下的状态文件随它入库；没有推荐值的（真实 PR
   URL 要先有提交）排在提交之后，写完之后状态文件的改动再触发一次提交。交付步出口（`transition` 之前）
   `git status --porcelain` 为空；`transition` 自己写的状态文件由完结的 finish-change 提交。不是 git 仓时不发。

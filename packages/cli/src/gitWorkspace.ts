@@ -34,9 +34,9 @@ export interface GitFinishProbe {
    */
   readonly deliverablesDirty: boolean
   /**
-   * 同 workspaceDirty，只去掉 hook 追加的 change 历史（`.pipeline-history.jsonl`）：交付步收尾时还有
-   * 没入库的东西（包括 `set pr_url` 写下的状态文件）。hook 只在技能调用与用户回复时追加历史，拿它
-   * 判定会让每次回复都多一次提交；它随下一次提交入库。
+   * 同 workspaceDirty，只去掉 hook 在 change 目录里追加的台账（历史、交互、技能调用与确认）：交付步
+   * 收尾时还有没入库的东西（包括 `set pr_url` 写下的状态文件）。这些台账在每次技能调用与用户回复时
+   * 都会追加，拿它们判定会让每次续轮都多一次提交；它们随下一次提交入库。
    */
   readonly stepDirty: boolean
   /** 这个 change 的首次交付提交（`feat(<c>): deliver`）已在当前分支的历史里。 */
@@ -73,7 +73,16 @@ export const WORKSPACE_COMMIT_PATHS: readonly string[] = [
 const TERMINAL_ACTIVITY_PREFIX = '.pipeline-terminal-activity.'
 
 /** hook 往 change 目录追加的历史（技能调用、用户回复）。 */
-const CHANGE_HISTORY_FILE = '.pipeline-history.jsonl'
+/**
+ * hook 与会话在 change 目录里只追加的台账。真机第六轮：交付步收尾后用户回复「继续」，续轮本身就改了
+ * 后三个文件，next 又要求一次同名的「update deliverables」提交。
+ */
+const HOOK_APPENDED_LEDGERS: readonly string[] = [
+  '.pipeline-history.jsonl',
+  '.pipeline-interactions.jsonl',
+  '.pipeline-skill-confirmations.jsonl',
+  '.pipeline-skill-invocations.jsonl',
+]
 
 /** 交付步的首次提交标题；之后的补交另有标题（statusStepFinish.deliveryCommit）。 */
 export function firstDeliveryMessage(change: string): string {
@@ -113,7 +122,7 @@ export async function probeGitFinish(cwd: string, change: string): Promise<GitFi
     git(cwd, ['ls-files', '-z', '--', `openspec/changes/${change}`]),
     statusOf(WORKSPACE_COMMIT_PATHS),
     statusOf([...WORKSPACE_COMMIT_PATHS, `:(exclude)openspec/changes/${change}`]),
-    statusOf([...WORKSPACE_COMMIT_PATHS, `:(exclude)openspec/changes/${change}/${CHANGE_HISTORY_FILE}`]),
+    statusOf([...WORKSPACE_COMMIT_PATHS, ...HOOK_APPENDED_LEDGERS.map((file) => `:(exclude)openspec/changes/${change}/${file}`)]),
     git(cwd, ['ls-files', '-z', '-c', '-i', '--exclude-standard', '--', 'openspec/changes']),
     // 还没有任何提交时 git log 以 128 退出：按「还没交付过」处理。
     git(cwd, ['log', '--format=%s', '--fixed-strings', `--grep=${firstDeliveryMessage(change)}`]),
