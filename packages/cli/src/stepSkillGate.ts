@@ -12,9 +12,8 @@
  * 第三轮真机验收里五条空 PostToolUse 就把五个技能刷成 done，正是因为从前只有后一种。
  */
 import {
-  completedWorkflowSkillsSinceStepEntry, documentRecordsInCurrentStepVisit, judgeStepSkillSlots,
-  missingStepSkillMessages, resolveRequiredSkillSlots,
-  type DocumentGovernancePolicy, type EffectiveWorkflowPlan, type StepSkillSlotProgress,
+  completedWorkflowSkillsSinceStepEntry, judgeStepSkillsFromHistory, missingStepSkillMessages, resolveRequiredSkillSlots,
+  type DocumentGovernancePolicy, type EffectiveWorkflowPlan, type StepSkillJudgement, type StepSkillSlotProgress,
 } from '@tenon/kernel'
 import type { CliDeps } from './deps.js'
 import { discoverConfirmedCodexSkillIds, reconcileCodexSkillEvidence } from './codexSkillReceipt.js'
@@ -74,33 +73,23 @@ export async function completedStepSkillIds(input: StepSkillGateInput): Promise<
   return completed
 }
 
-export interface StepSkillJudgement {
-  /** 本次进入该步骤之后已调用的技能 id（`tenon` 是否已加载也从这里读）。 */
-  readonly completedSkillIds: ReadonlySet<string>
-  readonly slots: readonly StepSkillSlotProgress[]
-}
+export type { StepSkillJudgement } from '@tenon/kernel'
 
 export interface StepSkillJudgementInput extends StepSkillGateInput {
   /** 本步的 document 契约；undefined = 不受文档治理，所有必需技能都以调用为准。 */
   readonly documentPolicy: DocumentGovernancePolicy | undefined
 }
 
-/** 一次读齐调用回执与本次访问的文档记录，给出每个必需技能槽的完成度。 */
+/** 一次读齐调用回执与本次访问的文档记录，给出每个必需技能槽的完成度（判定归 kernel，Dashboard 同源）。 */
 export async function judgeStepSkills(input: StepSkillJudgementInput): Promise<StepSkillJudgement> {
-  const completedSkillIds = await completedStepSkillIds(input)
-  const visitRecords = input.documentPolicy === undefined
-    ? []
-    : await documentRecordsInCurrentStepVisit(input.changeDir)
-  return {
-    completedSkillIds,
-    slots: judgeStepSkillSlots({
-      slots: resolveRequiredSkillSlots(input.deps.resolver, input.capability, input.stepId),
-      completed: completedSkillIds,
-      policy: input.documentPolicy,
-      stepId: input.stepId,
-      visitRecords,
-    }),
-  }
+  return judgeStepSkillsFromHistory({
+    resolver: input.deps.resolver,
+    capability: input.capability,
+    stepId: input.stepId,
+    changeDir: input.changeDir,
+    completed: await completedStepSkillIds(input),
+    documentPolicy: input.documentPolicy,
+  })
 }
 
 export { missingStepSkillMessages, type StepSkillSlotProgress }

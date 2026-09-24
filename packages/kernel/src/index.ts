@@ -253,6 +253,12 @@ export { readinessByTransition } from './workflow/transition-readiness.js'
 export type {
   ReadinessByTransition, TransitionReadiness, TransitionReadinessBlocker,
 } from './workflow/transition-readiness.js'
+export { evaluateStepExitReport, judgeStepSkillsFromHistory } from './workflow/step-exit-report.js'
+export type {
+  StepBlocker, StepBlockerSource, StepExit, StepExitReport, StepExitReportInput, StepSkillJudgement,
+} from './workflow/step-exit-report.js'
+export { phaseExitGuardContext, unfinishedTaskItems } from './workflow/phase-exit-context.js'
+export type { BoundedFileRead, PhaseExitFileContext, PhaseExitGuardContext } from './workflow/phase-exit-context.js'
 export {
   assessBuildRevisionTrust, createBuildRevisionToken, hashBuildRevisionIdentity,
   isBuildRevisionBlocker, makeBuildRevisionBlocker, parseBuildRevisionToken, safeRevisionHash,
