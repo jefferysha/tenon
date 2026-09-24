@@ -94,15 +94,19 @@ afterEach(() => {
 })
 
 describe('资源目录', () => {
-  it('React + Tailwind + 图标三个芯片只留命中的条目，且不再发请求', async () => {
+  it('图标 + React + Tailwind 三个下拉只留命中的条目，且不再发请求', async () => {
     const user = userEvent.setup()
     const calls = stubFetch()
     renderCatalog()
     expect(await screen.findByTestId('res-row-lucide')).toBeInTheDocument()
     const before = calls.length
-    await user.click(screen.getByTestId('res-category-icons'))
-    await user.click(screen.getByTestId('res-framework-react'))
-    await user.click(screen.getByTestId('res-styling-tailwind'))
+    for (const [facet, value] of [['category', 'icons'], ['framework', 'react'], ['styling', 'tailwind']] as const) {
+      await user.click(screen.getByTestId(`res-facet-${facet}`))
+      await user.click(await screen.findByTestId(`res-${facet}-${value}`))
+    }
+    // 触发器显示当前值，一眼看出哪个维度在生效。
+    expect(screen.getByTestId('res-facet-category')).toHaveTextContent('类别图标')
+    expect(screen.getByTestId('res-facet-category')).toHaveAttribute('data-active', 'true')
     expect(screen.getByTestId('res-row-lucide')).toBeInTheDocument()
     expect(screen.getByTestId('res-row-iconify')).toBeInTheDocument()
     expect(screen.getByTestId('res-row-mine')).toBeInTheDocument()
@@ -111,33 +115,93 @@ describe('资源目录', () => {
     expect(calls.length).toBe(before)
   })
 
-  // 1440px 下单行放不下「angular」「less」等芯片，横向滚动会把它们截成半个词：改为整行换行。
-  it('芯片行换行显示完整，不横向溢出裁切', async () => {
+  // 四组芯片曾经各占一行（换行后首条资源被推到 y≈690）：改为单行下拉，任何地方不换行。
+  it('筛选栏单行：四个维度各一个下拉触发器，不换行、不横向滚动', async () => {
     stubFetch()
     renderCatalog()
+    const bar = await screen.findByTestId('res-facets')
+    expect(bar.className.split(' ')).toContain('flex-nowrap')
+    expect(bar.className.split(' ')).not.toContain('flex-wrap')
+    expect(bar.className.split(' ')).not.toContain('overflow-x-auto')
     for (const facet of ['category', 'framework', 'styling', 'license']) {
-      const row = await screen.findByTestId(`res-facet-${facet}`)
-      expect(row.className.split(' '), facet).toContain('flex-wrap')
-      expect(row.className.split(' '), facet).not.toContain('overflow-x-auto')
-      expect(row).toHaveAttribute('role', 'tablist')
-      // 四组都以「全部」开头，行首组名让人分得清是类别、框架、样式还是许可。
-      expect(row.firstElementChild, facet).toHaveTextContent({ category: '类别', framework: '框架', styling: '样式', license: '许可' }[facet] ?? '')
+      const trigger = screen.getByTestId(`res-facet-${facet}`)
+      expect(trigger, facet).toHaveAttribute('aria-haspopup', 'menu')
+      expect(trigger, facet).toHaveTextContent({ category: '类别', framework: '框架', styling: '样式', license: '许可' }[facet] ?? '')
     }
+    // 「新建」是对象级动作，放在 H1 行，不夹在筛选里。
+    expect(bar).not.toContainElement(screen.getByTestId('res-new'))
+    expect(screen.getByTestId('res-list-action')).toContainElement(screen.getByTestId('res-new'))
   })
 
-  it('仅链接条目的详情显示许可 pill 与声明；内建条目只有复制', async () => {
+  it('再选「全部」清掉该维度', async () => {
     const user = userEvent.setup()
     stubFetch()
     renderCatalog()
-    // 资源目录与模板 / 智能体同一个词：内建。
-    expect(await screen.findByTestId('res-row-react-bits')).toHaveTextContent('内建')
+    await user.click(await screen.findByTestId('res-facet-category'))
+    await user.click(await screen.findByTestId('res-category-component-lib'))
+    expect(screen.queryByTestId('res-row-lucide')).toBeNull()
+    await user.click(screen.getByTestId('res-facet-category'))
+    await user.click(await screen.findByTestId('res-category-all'))
+    expect(screen.getByTestId('res-row-lucide')).toBeInTheDocument()
+    expect(screen.getByTestId('res-facet-category')).toHaveAttribute('data-active', 'false')
+  })
+
+  it('仅链接条目的详情：许可属性表与声明，没有眉题与药丸；内建条目只有复制为自定义', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderCatalog()
+    // 资源目录与模板 / 智能体同一个词：内建，且只用锁图标表示。
+    expect(await screen.findByTestId('res-builtin-react-bits')).toHaveAttribute('aria-label', '内建')
     expect(screen.getByTestId('res-row-react-bits')).not.toHaveTextContent('内置')
+    expect(screen.queryByTestId('res-builtin-mine')).toBeNull()
     await user.click(await screen.findByTestId('res-row-react-bits'))
-    expect(await screen.findByTestId('res-license-pill')).toHaveTextContent('仅链接')
+    expect(await screen.findByTestId('res-redistributable')).toHaveTextContent('否')
     expect(within(screen.getByTestId('res-notice')).getByText('不得出售或再分发组件本身')).toBeInTheDocument()
+    expect(screen.queryByTestId('res-license-pill')).toBeNull()
+    expect(screen.queryByTestId('res-eyebrow')).toBeNull()
     expect(screen.getByTestId('res-copy')).toBeEnabled()
+    expect(screen.getByTestId('res-copy')).toHaveTextContent('复制为自定义')
     expect(screen.queryByTestId('res-edit')).toBeNull()
-    expect(screen.queryByTestId('res-delete')).toBeNull()
+    expect(screen.queryByTestId('res-more')).toBeNull()
+  })
+
+  it('列表行与详情标题只显示名称，标识在悬停提示里', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    renderCatalog()
+    const row = await screen.findByTestId('res-row-shadcn-ui')
+    expect(row).not.toHaveTextContent('shadcn-ui')
+    expect(row).toHaveAttribute('title', 'shadcn-ui')
+    await user.click(row)
+    expect(await screen.findByTestId('res-title')).toHaveTextContent(/^shadcn\/ui$/u)
+    expect(screen.getByTestId('res-title')).toHaveAttribute('title', 'shadcn-ui')
+    expect(screen.queryByTestId('res-slug')).toBeNull()
+  })
+
+  it('安装命令旁的按钮把命令复制到剪贴板', async () => {
+    const user = userEvent.setup()
+    stubFetch()
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    renderCatalog()
+    await user.click(await screen.findByTestId('res-row-lucide'))
+    await user.click(await screen.findByTestId('res-install-copy-0'))
+    expect(writeText).toHaveBeenCalledWith('pnpm add x')
+    await waitFor(() => expect(screen.getByTestId('res-install-copy-0')).toHaveAttribute('aria-label', '已复制'))
+  })
+
+  it('读取中显示骨架，不显示「没有资源」', async () => {
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      await gate
+      return { ok: true, json: async () => ({ schema_version: 'resource-catalog/v1', entries: [], errors: [] }) }
+    }))
+    renderCatalog()
+    expect(screen.getByTestId('res-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('res-empty')).toBeNull()
+    release()
+    expect(await screen.findByTestId('res-empty')).toBeInTheDocument()
   })
 
   it('自定义条目可编辑：保存带 revision，成功后关抽屉', async () => {
@@ -173,7 +237,8 @@ describe('资源目录', () => {
     })
     renderCatalog()
     await user.click(await screen.findByTestId('res-row-mine'))
-    await user.click(await screen.findByTestId('res-delete'))
+    await user.click(await screen.findByTestId('res-more'))
+    await user.click(screen.getByTestId('res-more-delete'))
     await user.click(await screen.findByTestId('res-delete-confirm'))
     await waitFor(() => expect(screen.queryByTestId('res-row-mine')).toBeNull())
   })

@@ -6,6 +6,7 @@ import { I18nProvider } from './i18n'
 import { lastEventSource, resetEventSources } from './test-setup'
 import { makeChange, makeProject, makeSnapshot } from './testkit'
 import { invalidateMandatoryConfig } from './workbench/mandatoryConfig'
+import { rootTag } from './workspace/taskRef'
 
 const originalNavigationDescriptor = Object.getOwnPropertyDescriptor(window, 'navigation')
 
@@ -999,7 +1000,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     fireEvent.click(overview)
 
     const dialog = await screen.findByTestId('app-unsaved-navigation')
-    expect(within(dialog).getByRole('dialog')).toHaveAccessibleName('未保存的修改')
+    expect(within(dialog).getByRole('alertdialog')).toHaveAccessibleName('未保存的修改')
     expect(screen.getByTestId('workbench-view')).toBeInTheDocument()
     expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('未保存草稿')
     expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench')
@@ -1103,16 +1104,26 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     expect(main).toHaveFocus()
   })
 
-  it('面包屑「工作空间 / 当前页」随标签切换', async () => {
+  it('页面名只由导航高亮表达：没有面包屑，当前标签 aria-current=page', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
-    const breadcrumbs = screen.getByTestId('breadcrumbs')
-    expect(breadcrumbs).toHaveTextContent('工作空间')
-    expect(within(breadcrumbs).getByTestId('breadcrumb-page')).toHaveAttribute('aria-current', 'page')
-    expect(within(breadcrumbs).getByTestId('breadcrumb-page')).toHaveTextContent('工作台')
+    expect(screen.queryByTestId('breadcrumbs')).toBeNull()
+    expect(screen.getByTestId('nav-progress')).toHaveAttribute('aria-current', 'page')
     fireEvent.click(screen.getByTestId('nav-workbench'))
     await screen.findByTestId('workbench-view')
-    expect(within(screen.getByTestId('breadcrumbs')).getByTestId('breadcrumb-page')).toHaveTextContent('工作流')
+    expect(screen.queryByTestId('breadcrumbs')).toBeNull()
+    expect(screen.getByTestId('nav-workbench')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('nav-progress')).not.toHaveAttribute('aria-current')
+  })
+
+  it('跳转链接平时 sr-only（无阴影灰条），只在聚焦时显示', async () => {
+    render(<App />)
+    await screen.findByTestId('workspace-view')
+    const classes = screen.getByTestId('skip-link').className.split(/\s+/u)
+    expect(classes).toContain('sr-only')
+    expect(classes).toContain('focus:not-sr-only')
+    expect(classes).not.toContain('shadow-lg')
+    expect(classes).toContain('focus:shadow-lg')
   })
 
   it('无项目上下文时工作台聚合全部项目，左列「所有项目」为当前项', async () => {
@@ -1148,6 +1159,10 @@ describe('App 首个快照未到', () => {
     const loading = await screen.findByTestId('snapshot-loading')
     expect(loading).toHaveAttribute('role', 'status')
     expect(loading).toHaveTextContent('加载中')
+    // 三栏骨架替代文字：左列 8 条占位，中列 3 张卡，reduced-motion 下不脉冲。
+    const railBones = within(screen.getByTestId('snapshot-loading-rail')).getAllByText('', { selector: 'span[aria-hidden="true"]' })
+    expect(railBones).toHaveLength(9)
+    for (const bone of railBones) expect(bone.className).toContain('motion-reduce:animate-none')
     expect(screen.queryByText('还没有已登记的项目。')).toBeNull()
     expect(screen.queryByTestId('task-list-empty-no-project')).toBeNull()
     expect(screen.queryByTestId('task-list-empty-no-task')).toBeNull()
@@ -1250,12 +1265,14 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
     expect(screen.getByTestId('project-rail-all')).toHaveAttribute('aria-current', 'true')
-    const params = new URLSearchParams(window.location.search)
-    expect(params.get('root')).toBeNull()
-    expect(params.get('change')).toBeNull()
-    expect(params.get('debug')).toBe('1')
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('root')).toBeNull()
+      expect(params.get('change')).toBeNull()
+      expect(params.get('debug')).toBe('1')
+    })
     // Only the aggregate snapshot and the machine-level identity (top bar user); no per-root request.
-    expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user']))
+    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user'])))
   })
 
   it('失效 root 深链：清除 root/change 并保持无选择，聚合展示而不重定向首个项目', async () => {
@@ -1273,12 +1290,14 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
     expect(screen.getByTestId('project-rail-all')).toHaveAttribute('aria-current', 'true')
-    const params = new URLSearchParams(window.location.search)
-    expect(params.get('root')).toBeNull()
-    expect(params.get('change')).toBeNull()
-    expect(params.get('debug')).toBe('1')
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('root')).toBeNull()
+      expect(params.get('change')).toBeNull()
+      expect(params.get('debug')).toBe('1')
+    })
     // Only the aggregate snapshot and the machine-level identity (top bar user); no per-root request.
-    expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user']))
+    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user'])))
   })
 
   it('已登记但不可达的 root 深链也必须清除，不能挂载 per-root 视图', async () => {
@@ -1302,11 +1321,15 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     render(<App />)
 
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    const params = new URLSearchParams(window.location.search)
-    expect(params.get('root')).toBeNull()
-    expect(params.get('change')).toBeNull()
+    // 清除 root / change 发生在首个快照之后的 effect 里，/api/user 也是挂载后异步发出：
+    // 挂载完成那一刻两件事都可能还没发生，所以等到它们成立，而不是在挂载的同一拍断言（曾偶发失败）。
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search)
+      expect(params.get('root')).toBeNull()
+      expect(params.get('change')).toBeNull()
+    })
     // Only the aggregate snapshot and the machine-level identity (top bar user); no per-root request.
-    expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user']))
+    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => url))).toEqual(new Set(['/api/snapshot', '/api/user'])))
   })
 
   it('无项目选择时从跨项目 snapshot 读取自定义 workflow gate，不发 per-root 请求也不误报', async () => {
@@ -1344,15 +1367,17 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
 
     render(<App />)
 
-    // 聚合工作台：自定义 workflow 的卡按跨项目快照自带的 rules 判定——阶段芯片「复核」计 1，
+    // 聚合工作台：自定义 workflow 的卡按跨项目快照自带的 rules 判定——阶段「复核」计 1，
     // 一行状态由 readiness 推出「可进入完成」；聚合语境不发任何 per-root 请求。
     expect(await screen.findByTestId('task-card-review-me')).toBeInTheDocument()
-    // 只有一条工作流时阶段行直接可用，阶段序取该工作流自己的（复核 / 完成）。
-    expect(screen.getByTestId('task-facet-workflow-compact')).toBeInTheDocument()
-    expect(screen.getByTestId('task-filter-review')).toHaveTextContent('1')
-    expect(screen.getByTestId('task-filter-done')).toHaveTextContent('0')
+    // 只有一条工作流：工作流维度隐藏，阶段下拉直接可用，阶段序取该工作流自己的（复核 / 完成）。
+    expect(screen.queryByTestId('task-facet-workflow')).toBeNull()
+    await userEvent.click(screen.getByTestId('task-facet-stage'))
+    expect(await screen.findByTestId('task-facet-stage-review')).toHaveTextContent('1')
+    expect(screen.getByTestId('task-facet-stage-done')).toHaveTextContent('0')
+    await userEvent.keyboard('{Escape}')
     expect(screen.getByTestId('task-summary-review-me')).toHaveTextContent('复核 · 可进入完成')
-    expect(new Set(fetchMock.mock.calls.map(([url]) => String(url)))).toEqual(new Set(['/api/snapshot', '/api/user']))
+    await waitFor(() => expect(new Set(fetchMock.mock.calls.map(([url]) => String(url)))).toEqual(new Set(['/api/snapshot', '/api/user'])))
   })
 
   it('浏览器返回到无 root URL：经同一选择模型回到聚合工作台', async () => {
@@ -1375,7 +1400,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
 
     expect(document.documentElement).toHaveAttribute('lang', 'zh')
     fireEvent.click(screen.getByTestId('nav-settings'))
-    fireEvent.click(screen.getByTestId('lang-toggle'))
+    fireEvent.click(screen.getByTestId('lang-option-en'))
     await waitFor(() => expect(document.documentElement).toHaveAttribute('lang', 'en'))
   })
 
@@ -1494,8 +1519,11 @@ describe('App SSE 实时更新（真 EventSource stub → 组件真更新，非 
   it('emit 含复核阶段卡的快照 → 进度徽标由无到 1，新 change 行真渲染', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
-    // 初始快照只有一张非 gate 卡 → 无待拍板徽标
-    expect(screen.queryByTestId('progress-badge')).toBeNull()
+    // 初始快照只有一张非 gate 卡 → 徽标占位但不可见、不可聚焦
+    const idle = screen.getByTestId('progress-badge')
+    expect(idle).toHaveAttribute('data-count', '0')
+    expect(idle).toHaveAttribute('aria-hidden', 'true')
+    expect(idle).toBeDisabled()
 
     const es = lastEventSource()
     expect(es).toBeDefined()
@@ -1511,9 +1539,11 @@ describe('App SSE 实时更新（真 EventSource stub → 组件真更新，非 
       es!.emit('snapshot', JSON.stringify(next))
     })
 
-    // 组件真更新：进度徽标计数 1（selectInbox 口径），新 change 名出现在进度列表
+    // 组件真更新：进度徽标计数 1（needsYouCount 口径，与「需要你」芯片同一），新 change 名出现在进度列表
     //（可能同时出现在行与详情等多处，getAllByText 断言"至少一处"）。
     await waitFor(() => expect(screen.getByTestId('progress-badge').textContent).toBe('1'))
+    expect(screen.getByTestId('progress-badge')).toHaveAccessibleName('待决策 1')
+    expect(screen.getByTestId('progress-badge')).not.toHaveAttribute('aria-hidden')
     expect(screen.getAllByText('needs-review').length).toBeGreaterThan(0)
   })
 
@@ -1540,10 +1570,18 @@ describe('App 深浅色自适应 + i18n', () => {
     // 初始偏好为 system；jsdom 无 matchMedia 时解析为 light。
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light'))
     fireEvent.click(screen.getByTestId('nav-settings'))
-    fireEvent.click(screen.getByTestId('theme-toggle'))
+    // 分段控件显示当前值：系统被选中。
+    expect(screen.getByTestId('theme-toggle')).toHaveAttribute('role', 'radiogroup')
+    expect(screen.getByTestId('theme-option-system')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByTestId('theme-option-light'))
     expect(document.documentElement.dataset.themePreference).toBe('light')
-    fireEvent.click(screen.getByTestId('theme-toggle'))
+    expect(screen.getByTestId('theme-option-light')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByTestId('theme-option-dark'))
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'))
+    // 方向键在分段间移动并选中。
+    fireEvent.keyDown(screen.getByTestId('theme-option-dark'), { key: 'ArrowLeft' })
+    expect(document.documentElement.dataset.themePreference).toBe('light')
+    expect(screen.getByTestId('theme-option-light')).toHaveFocus()
   })
 
   it('系统主题作为显式偏好跟随电脑端系统配色，并清理媒体监听', async () => {
@@ -1582,7 +1620,10 @@ describe('App 深浅色自适应 + i18n', () => {
     const nav = screen.getByTestId('primary-nav')
     expect(nav.textContent).toContain('工作台')
     fireEvent.click(screen.getByTestId('nav-settings'))
-    fireEvent.click(screen.getByTestId('lang-toggle'))
+    expect(screen.getByTestId('lang-toggle')).toHaveAttribute('role', 'radiogroup')
+    expect(screen.getByTestId('lang-option-zh')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByTestId('lang-option-en'))
+    expect(screen.getByTestId('lang-option-en')).toHaveAttribute('aria-checked', 'true')
     expect(nav.textContent).toContain('Workbench')
     expect(nav.textContent).not.toContain('变更')
   })
@@ -1625,7 +1666,8 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     render(<App />)
     const empty = await screen.findByTestId('task-list-empty-no-task')
     expect(empty.textContent).toContain('tenon init')
-    expect(screen.getByTestId('task-detail-empty')).toBeInTheDocument()
+    // 列表为空：右列不再写「选一个任务」。
+    expect(screen.getByTestId('task-detail-none')).toBeEmptyDOMElement()
   })
 
   it('未来 canonical 版本优先于 no-change 教学态，进入只读升级恢复路径', async () => {
@@ -1909,6 +1951,54 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
     expect(new URLSearchParams(window.location.search).get('root')).toBeNull()
   })
+
+  it('聚合工作台选中任务也写 change；离开工作台时去掉 status / step', async () => {
+    window.history.replaceState({}, '', '/?view=progress&status=running')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') {
+        return { ok: true, json: async () => makeSnapshot([
+          makeProject('/repo-a', [makeChange('a1', 'build')]),
+          makeProject('/repo-b', [makeChange('b1', 'build')]),
+        ]) }
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+    render(<App />)
+    fireEvent.click(await screen.findByTestId('task-card-b1'))
+    // 聚合视图的 change 带项目短标识：两个项目有同名 change 时也唯一。
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('change')).toBe(`${rootTag('/repo-b')}:b1`))
+    const params = new URLSearchParams(window.location.search)
+    expect(params.get('root')).toBeNull()
+    expect(params.get('status')).toBe('running')
+    fireEvent.click(screen.getByTestId('nav-workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    expect(new URLSearchParams(window.location.search).get('status')).toBeNull()
+    expect(new URLSearchParams(window.location.search).get('step')).toBeNull()
+  })
+})
+
+describe('待决策徽标与「需要你」芯片同一口径', () => {
+  // 徽标曾按 selectInbox（门阶段 / automation 暂停）计数，芯片按 summary（可进入下一阶段）计数：同一屏上两个数不一样。
+  it('徽标数字 = 「需要你」芯片数字', async () => {
+    window.history.replaceState({}, '', '/?view=progress')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') {
+        return { ok: true, json: async () => makeSnapshot([
+          makeProject('/repo', [
+            trustedVerifyChange('ready-1', { fields: { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' } }),
+            makeChange('paused-1', 'build', { fields: { automation: 'paused' } }),
+            makeChange('paused-2', 'build', { fields: { automation: 'paused' } }),
+            makeChange('plain', 'spec'),
+          ]),
+        ]) }
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+    render(<App />)
+    const chip = await screen.findByTestId('task-status-needs-you', {}, { timeout: 5_000 })
+    await waitFor(() => expect(screen.getByTestId('progress-badge').textContent).toBe('1'))
+    expect(chip.textContent).toBe('需要你1')
+  })
 })
 
 describe('App 调试外壳退役', () => {
@@ -2077,5 +2167,88 @@ describe('ErrorBoundary 顶层兜底（render 抛错不白屏）', () => {
     )
     expect(screen.getByTestId('ok-child')).toBeInTheDocument()
     expect(screen.queryByTestId('app-error-boundary')).toBeNull()
+  })
+})
+
+describe('App 视图声明是否需要快照（A1）', () => {
+  function pendingSnapshotFetch(): void {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') return new Promise(() => undefined)
+      if (url === '/api/skills/sources') {
+        return { ok: true, json: async () => ({ updatedAt: null, lastRunAt: null, rows: [{ id: 'tenon', origin: 'tenon', status: 'bundled' }] }) }
+      }
+      if (url.startsWith('/api/workflows?root=')) return { ok: true, json: async () => ({ names: [] }) }
+      return { ok: false, status: 404, json: async () => ({ ok: false, error: 'not_found' }) }
+    }))
+  }
+
+  it.each([
+    ['skills', 'skills-view'],
+    ['library', 'library-view'],
+    ['workbench', 'workbench-view'],
+  ])('?view=%s 不等首个快照，直接渲染', async (view, testId) => {
+    window.history.replaceState({}, '', `/?view=${view}`)
+    pendingSnapshotFetch()
+    render(<App />)
+    expect(await screen.findByTestId(testId, {}, { timeout: 5_000 })).toBeInTheDocument()
+    expect(screen.queryByTestId('snapshot-loading')).toBeNull()
+  })
+
+  it('快照失败只挡读快照的视图：技能页照常渲染，不出整页错误', async () => {
+    window.history.replaceState({}, '', '/?view=skills')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') return { ok: false, status: 500, json: async () => ({ ok: false, error: 'boom' }) }
+      if (url === '/api/skills/sources') {
+        return { ok: true, json: async () => ({ updatedAt: null, lastRunAt: null, rows: [{ id: 'tenon', origin: 'tenon', status: 'bundled' }] }) }
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+    render(<App />)
+    expect(await screen.findByTestId('skills-view')).toBeInTheDocument()
+    await waitFor(() => expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some((c: unknown[]) => c[0] === '/api/snapshot')).toBe(true))
+    expect(screen.queryByTestId('snapshot-error')).toBeNull()
+    fireEvent.click(screen.getByTestId('nav-progress'))
+    expect(await screen.findByTestId('snapshot-error')).toBeInTheDocument()
+  })
+})
+
+describe('App 待决策徽标（A6）', () => {
+  it('点徽标：进入工作台并写入 ?status=needs-you；离开工作台时删除该键', async () => {
+    window.history.replaceState({}, '', '/?view=skills&root=%2Frepo')
+    render(<App />)
+    await screen.findByTestId('skills-view')
+    act(() => {
+      lastEventSource()!.emit('snapshot', JSON.stringify(makeSnapshot([
+        makeProject('/repo', [
+          trustedVerifyChange('needs-review', {
+            fields: { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' },
+          }),
+        ]),
+      ])))
+    })
+    await waitFor(() => expect(screen.getByTestId('progress-badge')).toHaveAttribute('data-count', '1'))
+    // 徽标与工作台标签是两个兄弟按钮，不嵌套交互元素。
+    expect(screen.getByTestId('nav-progress')).not.toContainElement(screen.getByTestId('progress-badge'))
+    fireEvent.click(screen.getByTestId('progress-badge'))
+    expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
+    const params = new URLSearchParams(window.location.search)
+    expect(params.get('status')).toBe('needs-you')
+    expect(params.get('view')).toBe('progress')
+    fireEvent.click(screen.getByTestId('nav-skills'))
+    await screen.findByTestId('skills-view')
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('status')).toBeNull())
+  })
+})
+
+describe('App 断线横幅重连钮（A8）', () => {
+  it('重连用标准按钮高度（min-h-10），窄屏文字收起时仍有可访问名', async () => {
+    render(<App />)
+    await screen.findByTestId('workspace-view')
+    act(() => {
+      lastEventSource()!.emit('error', '')
+    })
+    const button = await screen.findByTestId('offline-reconnect')
+    expect(button.className.split(/\s+/u)).toContain('min-h-10')
+    expect(button).toHaveAccessibleName('重连 · 连接断开——数据可能过期')
   })
 })

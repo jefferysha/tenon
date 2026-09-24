@@ -14,10 +14,18 @@ export const MarkerType = { Arrow: 'arrow', ArrowClosed: 'arrowclosed' } as cons
 export function Background(): null { return null }
 export function BaseEdge(): null { return null }
 export function getBezierPath(): [string, number, number] { return ['M0 0 L1 1', 0, 0] }
-export function Controls(): null { return null }
+export function Controls({ className, showZoom = true }: { className?: string; showZoom?: boolean }): JSX.Element {
+  return <div data-testid="flow-controls" className={className} data-show-zoom={showZoom} />
+}
 export function Handle({ type }: { type: string }): JSX.Element { return <span data-handle={type} /> }
 export function ReactFlowProvider({ children }: { children: ReactNode }): JSX.Element { return <>{children}</> }
-const INSTANCE = { screenToFlowPosition: (p: { x: number; y: number }) => p, fitView: async () => true }
+const INSTANCE = {
+  screenToFlowPosition: (p: { x: number; y: number }) => p,
+  fitView: async (_options?: Record<string, unknown>) => true,
+  getNodes: (): AnyNode[] => [],
+  getNodesBounds: (_nodes: AnyNode[]) => ({ x: 0, y: 0, width: 600, height: 120 }),
+  setViewport: async (_viewport: { x: number; y: number; zoom: number }, _options?: { duration?: number }) => true,
+}
 /** 与真库一致：实例引用稳定，否则依赖它的 effect 会每次渲染重跑。 */
 export function useReactFlow(): typeof INSTANCE { return INSTANCE }
 export function applyNodeChanges<N extends AnyNode>(changes: Change[], nodes: N[]): N[] {
@@ -28,9 +36,10 @@ export function applyEdgeChanges<E extends AnyEdge>(changes: Change[], edges: E[
   const removed = new Set(changes.filter((change) => change.type === 'remove').map((change) => change.id))
   return edges.filter((edge) => !removed.has(edge.id))
 }
-export function ReactFlow({ nodes, edges, nodeTypes, ariaLabelConfig, children }: { nodes: AnyNode[]; edges: AnyEdge[]; nodeTypes: Record<string, ComponentType<{ id: string; data: Record<string, unknown>; selected: boolean }>>; ariaLabelConfig?: Record<string, string>; children?: ReactNode }): JSX.Element {
+type AnyEdgeWithData = AnyEdge & { data?: Record<string, unknown> }
+export function ReactFlow({ nodes, edges, nodeTypes, ariaLabelConfig, minZoom, maxZoom, children }: { nodes: AnyNode[]; edges: AnyEdgeWithData[]; nodeTypes: Record<string, ComponentType<{ id: string; data: Record<string, unknown>; selected: boolean }>>; ariaLabelConfig?: Record<string, string>; minZoom?: number; maxZoom?: number; children?: ReactNode }): JSX.Element {
   return (
-    <div data-testid="react-flow" data-edges={edges.map((edge) => edge.id).join(',')} data-aria-labels={JSON.stringify(ariaLabelConfig ?? {})}>
+    <div data-testid="react-flow" data-edges={edges.map((edge) => edge.id).join(',')} data-edge-pulse={[...new Set(edges.map((edge) => String(edge.data?.mode ?? '')))].join(',')} data-aria-labels={JSON.stringify(ariaLabelConfig ?? {})} data-min-zoom={minZoom} data-max-zoom={maxZoom}>
       {nodes.map((node) => {
         const Type = nodeTypes[node.type ?? 'default']
         return Type === undefined ? null : <Type key={node.id} id={node.id} data={node.data} selected={node.selected ?? false} />

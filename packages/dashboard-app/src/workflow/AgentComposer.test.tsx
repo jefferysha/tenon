@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentSummary } from '../api/agentClient'
@@ -38,19 +38,20 @@ function renderComposer(
 }
 
 describe('AgentComposer', () => {
-  it('文案按角色：空画布「拖入评审者 / 拖入执行者」，搜索与提示都用「智能体」，控件标签是中文', () => {
+  it('文案按角色：空画布与搜索都按角色（拖入评审者 / 搜索评审者），提示用「智能体」，控件标签是中文', () => {
     renderComposer('reviewers', vi.fn())
     expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('拖入评审者')
     expect(screen.getByTestId('skill-flow')).toHaveAttribute('aria-label', '评审者')
-    expect(screen.getByTestId('agent-palette-search')).toHaveAttribute('placeholder', '搜索智能体')
+    expect(screen.getByTestId('agent-palette-search')).toHaveAttribute('placeholder', '搜索评审者')
     expect(screen.getByTestId('agent-composer-detail')).toHaveTextContent('选一个智能体')
     const labels = JSON.parse(screen.getByTestId('react-flow').getAttribute('data-aria-labels') ?? '{}') as Record<string, string>
     expect(labels['controls.zoomIn.ariaLabel']).toBe('放大')
   })
 
-  it('执行者画布为空时写「拖入执行者」', () => {
+  it('执行者画布为空时写「拖入执行者」，搜索框写「搜索执行者」', () => {
     renderComposer('executors', vi.fn())
     expect(screen.getByTestId('skill-flow-empty')).toHaveTextContent('拖入执行者')
+    expect(screen.getByTestId('agent-palette-search')).toHaveAttribute('placeholder', '搜索执行者')
   })
 
   // 回归：StageEditorPane 每次重渲染都传 `?? []` 的新数组，草稿随之被清空，加上的评审者存不进 YAML。
@@ -136,5 +137,42 @@ describe('AgentComposer', () => {
         { agent: 'builder', required: true, block_at: 'high', depends_on: ['security'] },
       ],
     })
+  })
+
+  it('× 叫「关闭」；打开即聚焦搜索框；没改动时「完成」不可点，改了才可点', async () => {
+    const user = userEvent.setup()
+    renderComposer('executors', vi.fn())
+    expect(screen.getByTestId('agent-composer-close')).toHaveAccessibleName('关闭')
+    await waitFor(() => expect(screen.getByTestId('agent-palette-search')).toHaveFocus())
+    expect(screen.getByTestId('agent-composer-save')).toHaveTextContent('完成')
+    expect(screen.getByTestId('agent-composer-save')).toBeDisabled()
+    await user.click(screen.getByTestId('palette-agent-add-builder'))
+    expect(screen.getByTestId('agent-composer-save')).toBeEnabled()
+  })
+
+  // 用户要求：先看再决定。点行只在右栏显示（不加入），行尾「+」才加入。
+  it('点行只选中查看、不加入；行尾「+」（40px）才加入画布', async () => {
+    const user = userEvent.setup()
+    renderComposer('reviewers', vi.fn(), [{ agent: 'security', required: true, block_at: 'high' }])
+    const row = screen.getByTestId('palette-agent-open-builder')
+    expect(row.className).toContain('min-h-10')
+    await user.click(row)
+    expect(screen.queryByTestId('flow-node-builder')).toBeNull()
+    expect(screen.getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1')
+    expect(screen.getByTestId('palette-agent-open-builder')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('agent-composer-save')).toBeDisabled()
+    const add = screen.getByTestId('palette-agent-add-builder')
+    expect(add).toHaveAccessibleName('加入 builder')
+    expect(add.className).toContain('size-10')
+    await user.click(add)
+    expect(screen.getByTestId('flow-node-builder')).toBeInTheDocument()
+    expect(screen.getByTestId('palette-agent-add-builder')).toBeDisabled()
+  })
+
+  it('评审者设置：字段名是「级别」与「阻断阈值」', () => {
+    renderComposer('reviewers', vi.fn(), [{ agent: 'security', required: true, block_at: 'high' }])
+    expect(screen.getByRole('radiogroup', { name: '级别' })).toBeInTheDocument()
+    expect(screen.getByTestId('agent-composer-detail')).toHaveTextContent('阻断阈值')
+    expect(screen.getByTestId('agent-composer-detail')).not.toHaveTextContent('必需必需')
   })
 })

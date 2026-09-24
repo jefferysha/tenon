@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { I18nProvider, useT } from './i18n'
 import type { Lang } from './i18n/translations'
-import { selectInbox } from './inbox/inbox'
+import { needsYouCount } from './workspace/taskModel'
+import { useWorkflowDefCache } from './workspace/useWorkflowDefinition'
 import { workflowRulesFromSnapshot } from './model/workflowModel'
 import { Onboarding } from './shell/Onboarding'
 import { useSnapshot } from './state/useSnapshot'
@@ -19,7 +20,8 @@ import { BUTTON_GHOST } from './shared/uiRecipes'
 import { TopBar, type TopBarProject } from './shell/TopBar'
 import { UserDialog } from './shell/UserDialog'
 import { useCurrentUser } from './state/useCurrentUser'
-import { isView, type View } from './shell/views'
+import { isThreeColumnView, isView, NEEDS_YOU_STATUS, TASK_STATUS_PARAM, viewNeedsSnapshot, type View } from './shell/views'
+import { ThreeColumnsSkeleton } from './shell/Skeleton'
 
 export { ErrorBoundary } from './AppErrorBoundary'
 
@@ -59,6 +61,23 @@ function initialView(): View {
   return 'progress'
 }
 
+/** 改写当前 URL 的工作台状态筛选键（null = 删除）；宿主禁用 history 时静默跳过。 */
+function writeTaskStatusParam(status: string | null): void {
+  try {
+    const params = new URLSearchParams(window.location.search)
+    if (status === null) {
+      if (!params.has(TASK_STATUS_PARAM)) return
+      params.delete(TASK_STATUS_PARAM)
+    } else {
+      params.set(TASK_STATUS_PARAM, status)
+    }
+    const search = params.toString()
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${search === '' ? '' : `?${search}`}${window.location.hash}`)
+  } catch {
+    /* ignore */
+  }
+}
+
 interface PendingNavigation {
   readonly kind: 'view' | 'pop'
   readonly target: DashboardNavigationTarget
@@ -90,6 +109,7 @@ function AppShell(): JSX.Element {
   const commitView = useCallback((v: View) => {
     setViewState(v)
     if (v !== 'progress' && v !== 'workbench') setSelectedChange(null)
+    if (v !== 'progress') writeTaskStatusParam(null)
     try {
       localStorage.setItem(VIEW_KEY, v)
     } catch {
@@ -195,6 +215,14 @@ function AppShell(): JSX.Element {
   }, [cancelPopNavigation, clearPendingNavigation, commitView, confirmPopNavigation, pendingNavigation])
 
   /** 编辑器上报草稿状态：dirty 时记住所在视图；清空时只清自己那一份。 */
+  // 待决策徽标：写 ?status=needs-you 后进入工作台。已在工作台时换 key 重挂，让它重新读 URL。
+  const [workspaceMount, setWorkspaceMount] = useState(0)
+  const openNeedsYou = useCallback((): void => {
+    writeTaskStatusParam(NEEDS_YOU_STATUS)
+    setWorkspaceMount((n) => n + 1)
+    setView('progress')
+  }, [setView])
+
   const onDirtyChange = useCallback((source: View, dirty: boolean): void => {
     if (dirty) dirtyViewRef.current = source
     else if (dirtyViewRef.current === source) dirtyViewRef.current = null
@@ -213,10 +241,11 @@ function AppShell(): JSX.Element {
   // 跨项目 snapshot 已携带每个 change 冻结绑定的 workflow 摘要；所有视图消费同一聚合事实。
   const rulesByKey = useMemo(() => workflowRulesFromSnapshot(snapshot), [snapshot])
 
-  // 顶部条「工作台」标签的待决定计数：口径沿 selectInbox（「现在就能拍板」的唯一判定源）。
+  // 顶部条「工作台」标签的待决策计数 = 工作台「需要你」芯片的计数：同一个 needsYouCount、同一份定义缓存。
+  const defOf = useWorkflowDefCache()
   const decisionCount = useMemo(
-    () => selectInbox(snapshot, currentRoot, rulesByKey).length,
-    [snapshot, currentRoot, rulesByKey],
+    () => needsYouCount({ snapshot, currentRoot, rulesByKey, ioOf: (root, workflow) => defOf(root, workflow)?.effectiveIo, t }),
+    [snapshot, currentRoot, rulesByKey, defOf, t],
   )
 
   // 顶部条 / 左列共用的项目投影：名称取仓库标签，否则 root 尾段；计数 = 未归档 change 数。
@@ -242,7 +271,8 @@ function AppShell(): JSX.Element {
       <a
         href="#main-content"
         onClick={() => document.getElementById('main-content')?.focus()}
-        className="fixed top-3 left-3 z-[100] -translate-y-[200%] rounded-md bg-ink px-4 py-2 font-bold whitespace-nowrap text-ink-fg shadow-lg transition-transform motion-reduce:transition-none focus:translate-y-0 focus:outline-none focus:ring-3 focus:ring-(--ring-blue)"
+        className="sr-only rounded-md bg-ink px-4 py-2 font-bold whitespace-nowrap text-ink-fg focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:shadow-lg focus:outline-none focus:ring-3 focus:ring-(--ring-blue)"
+        data-testid="skip-link"
       >
         {t('common.skip_to_main')}
       </a>
@@ -258,6 +288,7 @@ function AppShell(): JSX.Element {
         theme={theme}
         onTheme={setTheme}
         decisionCount={decisionCount}
+        onDecisions={openNeedsYou}
         user={currentUser.state}
         onUser={() => setUserDialogOpen(true)}
       />
@@ -277,10 +308,12 @@ function AppShell(): JSX.Element {
           aria-live="polite"
           data-testid="offline-banner"
         >
-          <span className="flex-1">{t('common.offline')}</span>
+          <span className="size-2 flex-none rounded-full bg-red" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate whitespace-nowrap max-[900px]:sr-only">{t('common.offline')}</span>
           <button
             type="button"
-            className="cursor-pointer rounded-sm border border-red-b px-3 py-1 text-caption font-bold text-red-d transition-colors hover:bg-red-t"
+            className={`${BUTTON_GHOST} ml-auto border-red-b bg-transparent py-1 text-red-d enabled:hover:border-red-b enabled:hover:bg-red-t enabled:hover:text-red-d`}
+            aria-label={`${t('common.reconnect')} · ${t('common.offline')}`}
             data-testid="offline-reconnect"
             onClick={reconnect}
           >
@@ -292,7 +325,7 @@ function AppShell(): JSX.Element {
       {flash && (
         <div
           ref={flashRef}
-          className={`pointer-events-none fixed bottom-6 left-1/2 z-60 flex max-w-[70vw] -translate-x-1/2 items-center gap-2 rounded-full px-3.5 py-2 text-caption font-semibold shadow-md ${
+          className={`pointer-events-none fixed bottom-6 left-1/2 z-60 flex max-w-[70vw] -translate-x-1/2 items-center gap-2 rounded-md px-3.5 py-2 text-caption font-semibold shadow-md ${
             flash.kind === 'error' ? 'bg-red text-solid-fg' : 'bg-ink text-ink-fg'
           }`}
           role={flash.kind === 'error' ? 'alert' : 'status'}
@@ -311,16 +344,16 @@ function AppShell(): JSX.Element {
         data-testid="app-main"
       >
         <Suspense
-          fallback={(
+          fallback={isThreeColumnView(view) ? <ThreeColumnsSkeleton testId="route-loading" /> : (
             <p className="p-5 text-body text-text-3" role="status" aria-live="polite" data-testid="route-loading">
               {t('common.loading')}
             </p>
           )}
         >
-        {snapshot !== null && staleSnapshotError && view !== 'progress' && (
+        {snapshot !== null && staleSnapshotError && view === 'projects' && (
           <SnapshotInlineError error={staleSnapshotError} loading={loading} onRefresh={refresh} />
         )}
-        {snapshot === null && !loading && snapshotError ? (
+        {snapshot === null && !loading && snapshotError && viewNeedsSnapshot(view) ? (
           <section
             className="mx-auto mt-8 w-full max-w-[680px] rounded-lg border border-red-b bg-red-t p-6 text-red-d shadow-sm max-[900px]:mt-4 max-[900px]:p-5"
             role="alert"
@@ -332,17 +365,16 @@ function AppShell(): JSX.Element {
             <p className="mt-1 text-body leading-6 text-text-2">{t('common.snapshot_error_hint')}</p>
             <button
               type="button"
-              className={`${BUTTON_GHOST} mt-4 border-red-b bg-card text-red-d hover:border-red-b hover:bg-red-t hover:text-red-d`}
+              className={`${BUTTON_GHOST} mt-4 border-red-b bg-card text-red-d enabled:hover:border-red-b enabled:hover:bg-red-t enabled:hover:text-red-d`}
               onClick={refresh}
             >
               {t('common.snapshot_retry')}
             </button>
           </section>
-        ) : snapshot === null && loading && (view === 'progress' || view === 'projects') ? (
-          // 首个快照未到：工作台与项目页只能说「加载中」，不能先渲染成「没有项目 / 没有任务」的空态。
-          <p className="p-5 text-body text-text-3" role="status" aria-live="polite" data-testid="snapshot-loading">
-            {t('common.loading')}
-          </p>
+) : snapshot === null && loading && viewNeedsSnapshot(view) ? (
+          // 首个快照未到：读快照的三栏页先出骨架，不能先渲染成「没有项目 / 没有任务」的空态。
+          // 工作流、库、技能不读快照，直接渲染。
+          <ThreeColumnsSkeleton testId="snapshot-loading" />
         ) : snapshot && snapshot.project_count === 0 && view === 'progress' ? (
           // 零项目教学态只替换工作台；工作流、库与技能不依赖项目，项目页本身就是新建项目的入口。
           <div className="px-6">
@@ -355,6 +387,7 @@ function AppShell(): JSX.Element {
           <>
         {view === 'progress' && (
           <WorkspaceView
+            key={workspaceMount}
             snapshot={snapshot}
             currentRoot={currentRoot}
             rulesByKey={rulesByKey}

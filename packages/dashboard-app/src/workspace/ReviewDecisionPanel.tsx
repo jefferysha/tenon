@@ -11,6 +11,8 @@ export interface ReviewDecisionPanelProps {
   change: string
   /** Changes whenever the snapshot for this change changes; a new value reloads pending decisions. */
   snapshotSignature?: string
+  /** 阶段 id → 展示名（label 优先）；缺省原样。 */
+  stageLabelOf?: (id: string) => string
   onRefresh?: () => void | Promise<void>
   onToast?: (message: string) => void
 }
@@ -33,7 +35,7 @@ export function decisionErrorText(error: unknown, t: Translate): string {
  * The Dashboard review surface is deliberately narrow: it acknowledges an existing
  * terminal review request. It never starts a Skill, answers a Skill question, or calls a model.
  */
-export function ReviewDecisionPanel({ root, change, snapshotSignature, onRefresh, onToast }: ReviewDecisionPanelProps): JSX.Element {
+export function ReviewDecisionPanel({ root, change, snapshotSignature, stageLabelOf = (id) => id, onRefresh, onToast }: ReviewDecisionPanelProps): JSX.Element {
   const { t } = useT()
   const [view, setView] = useState<{ revision: number | null; items: readonly PendingDecision[] } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -107,7 +109,7 @@ export function ReviewDecisionPanel({ root, change, snapshotSignature, onRefresh
     <section className="mb-6 rounded-md border border-amber-b bg-amber-t p-4" data-testid="review-console" aria-labelledby="review-console-title">
       <div className="flex items-start justify-between gap-4">
         <h2 id="review-console-title" className="flex min-w-0 items-center gap-2 whitespace-nowrap text-title font-semibold text-text"><CheckCircle2 className="size-4 shrink-0 text-amber-d" aria-hidden="true" /><span className="truncate">{t('review_console.title')}</span></h2>
-        <span className="shrink-0 whitespace-nowrap rounded-full bg-card px-2 py-1 font-mono text-micro text-text-2">{review.anchor.phase ?? review.ref.anchor}</span>
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-card px-2 py-1 text-micro text-text-2" data-testid="review-console-stage">{review.anchor.phase === undefined || review.anchor.phase === null ? review.ref.anchor : stageLabelOf(review.anchor.phase)}</span>
       </div>
       <dl className="mt-3 grid gap-1 text-caption text-text-2">
         <div className="flex min-w-0 gap-2 whitespace-nowrap"><dt className="shrink-0 font-semibold">{t('review_console.event')}</dt><dd className="truncate font-mono" title={review.anchor.event}>{review.anchor.event ?? '—'}</dd></div>

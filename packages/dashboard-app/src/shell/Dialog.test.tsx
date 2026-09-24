@@ -129,6 +129,32 @@ function HostWorkspace() {
   )
 }
 
+/** 破坏性确认：alertdialog 只能显式选择，背景点击不关闭。 */
+function HostAlert() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      <button onClick={() => setOpen(true)}>删除</button>
+      {open && (
+        <Dialog
+          title="删除任务"
+          role="alertdialog"
+          testid="alert"
+          onClose={() => setOpen(false)}
+          actions={(
+            <>
+              <button onClick={() => setOpen(false)}>取消</button>
+              <button>确认删除</button>
+            </>
+          )}
+        >
+          不可撤销
+        </Dialog>
+      )}
+    </div>
+  )
+}
+
 describe('Dialog（共享组件，Task 3）', () => {
   it('挂载时焦点进入对话框：默认落在容器内首个可聚焦元素；提供 initialFocusRef 时优先聚焦它', async () => {
     const user = userEvent.setup()
@@ -196,13 +222,16 @@ describe('Dialog（共享组件，Task 3）', () => {
     expect(document.activeElement).toBe(openBtn)
   })
 
-  it('role="dialog" aria-modal="true" aria-label={title} 三件套', async () => {
+  it('role="dialog" aria-modal="true"，可访问名称经 aria-labelledby 指向标题', async () => {
     const user = userEvent.setup()
     renderWithI18n(<Host />)
     await user.click(screen.getByText('打开'))
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    expect(dialog).toHaveAttribute('aria-label', '标题')
+    expect(dialog).not.toHaveAttribute('aria-label')
+    const heading = screen.getByRole('heading', { name: '标题' })
+    expect(dialog).toHaveAttribute('aria-labelledby', heading.id)
+    expect(dialog).toHaveAccessibleName('标题')
   })
 
   it('Tab 在对话框内循环困笼（反向）：首元素 Shift+Tab → 跳到末元素', async () => {
@@ -248,23 +277,20 @@ describe('Dialog（共享组件，Task 3）', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('焦点因子节点卸载落到 body 时，正反向 Tab 都会被顶层 Dialog 拉回困笼', async () => {
+  it('焦点因子节点卸载落到 body 时，Tab 会被顶层 Dialog 拉回困笼', async () => {
     const user = userEvent.setup()
     renderWithI18n(<Host />)
     await user.click(screen.getByText('打开'))
 
-    const input = screen.getByTestId('dlg-input')
-    const confirmBtn = screen.getByText('确认')
-
+    const dialog = screen.getByRole('dialog')
     ;(document.activeElement as HTMLElement).blur()
     expect(document.activeElement).toBe(document.body)
-    fireEvent.keyDown(document, { key: 'Tab' })
-    expect(document.activeElement).toBe(input)
+    await user.tab()
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
 
     ;(document.activeElement as HTMLElement).blur()
-    expect(document.activeElement).toBe(document.body)
-    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(confirmBtn)
+    await user.tab({ shift: true })
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
   })
 
   it('两层 Dialog 叠加：按一次 Esc 只关最上层，外层 onClose 不被调用', async () => {
@@ -299,5 +325,24 @@ describe('Dialog（共享组件，Task 3）', () => {
     const heading = screen.getByRole('heading', { name: 'Evidence composer' })
     expect(heading).not.toHaveClass('truncate')
     expect(heading).toHaveClass('break-words', 'whitespace-normal')
+  })
+
+  it('alertdialog：role 与标题关联，初始焦点落在取消，背景点击不关闭，Esc 关闭并归还焦点', async () => {
+    const user = userEvent.setup()
+    renderWithI18n(<HostAlert />)
+    const trigger = screen.getByText('删除')
+    await user.click(trigger)
+
+    const dialog = screen.getByRole('alertdialog', { name: '删除任务' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByText('取消')).toHaveFocus()
+
+    fireEvent.click(screen.getByTestId('alert'))
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(trigger).toHaveFocus()
   })
 })

@@ -5,49 +5,44 @@ import {
   type ResourceCategory, type ResourceDto, type ResourceFileError, type ResourceFramework, type ResourceStyling,
 } from '../../api/resourceTypes'
 import type { ResourceQuery } from '@tenon/kernel/resources/query'
-import { FilterChip, ListColumn } from '../../shell/ThreeColumns'
+import { ListColumn } from '../../shell/ThreeColumns'
+import { FacetBar, type FacetGroup } from '../../shared/FacetBar'
 import { BUTTON_GHOST } from '../../shared/uiRecipes'
+import { BuiltinLock, ListSkeleton } from '../libraryChrome'
 
 const LICENSE_MODES = ['redistributable', 'link-only', 'attribution'] as const
 type Facet = 'category' | 'framework' | 'styling' | 'license'
 
-function FacetRow({
-  facet, values, selected, labelOf, onPick,
-}: {
-  facet: Facet
-  values: readonly string[]
-  selected: string | undefined
-  labelOf: (value: string) => string
-  onPick: (value: string | undefined) => void
-}): JSX.Element {
-  const { t } = useT()
-  return (
-    <div
-      className="flex w-full flex-wrap items-center gap-1"
-      role="tablist"
-      aria-label={t(`resources.facet.${facet}`)}
-      data-testid={`res-facet-${facet}`}
-    >
-      <span className="mr-1 min-w-12 flex-none whitespace-nowrap text-caption text-text-3">{t(`resources.facet.${facet}`)}</span>
-      <FilterChip label={t('resources.all')} selected={selected === undefined} testId={`res-${facet}-all`} onClick={() => onPick(undefined)} />
-      {values.map((value) => (
-        <FilterChip
-          key={value}
-          label={labelOf(value)}
-          selected={selected === value}
-          testId={`res-${facet}-${value}`}
-          onClick={() => onPick(selected === value ? undefined : value)}
-        />
-      ))}
-    </div>
-  )
+const ALL = 'all'
+
+/** 下拉给回的是字符串：只接受该维度自己的取值，其余（含「全部」）= 不限。 */
+function pick<T extends string>(values: readonly T[], value: string | undefined): T | undefined {
+  return values.find((candidate) => candidate === value)
 }
 
-/** 中列：搜索 + 四行单选芯片 + 条目行；解析失败的文件也列出来，标「无效」。 */
+/** 一个维度 = 一个单行下拉触发器；「全部」= 不限。 */
+function facetGroup(facet: Facet, label: string, allLabel: string, values: readonly string[], selected: string | undefined, labelOf: (value: string) => string, onPick: (value: string | undefined) => void): FacetGroup {
+  return {
+    id: facet,
+    kind: 'menu',
+    label,
+    testId: `res-facet-${facet}`,
+    value: selected ?? ALL,
+    onChange: (id) => onPick(id === ALL ? undefined : id),
+    options: [
+      { id: ALL, label: allLabel, testId: `res-${facet}-all` },
+      ...values.map((value) => ({ id: value, label: labelOf(value), testId: `res-${facet}-${value}` })),
+    ],
+  }
+}
+
+/** 中列：搜索 + 单行筛选栏（类别 / 框架 / 样式 / 许可下拉）+ 条目行（只显示名称，标识在悬停提示里）；解析失败的文件也列出来，标「无效」。 */
 export function ResourceList({
-  rows, errors, search, query, selected, busy, onSearch, onQuery, onSelect, onNew,
+  rows, errors, loading, search, query, selected, busy, onSearch, onQuery, onSelect, onNew, measureWidth,
 }: {
   rows: readonly ResourceDto[]
+  /** 首次读取尚未返回：显示骨架，不显示「没有资源」。 */
+  loading: boolean
   errors: readonly ResourceFileError[]
   search: string
   query: ResourceQuery
@@ -57,54 +52,41 @@ export function ResourceList({
   onQuery: (next: ResourceQuery) => void
   onSelect: (id: string) => void
   onNew: () => void
+  /** 测试注入筛选栏宽度测量。 */
+  measureWidth?: (element: HTMLElement) => number
 }): JSX.Element {
   const { t } = useT()
+  const all = t('resources.all')
   const canWrite = getToken() !== ''
   const patch = (next: Partial<ResourceQuery>): void => onQuery({ ...query, ...next })
 
   return (
     <ListColumn
-      testId="res-list"
-      eyebrow={t('library.title')}
       title={t('resources.title')}
+      action={(
+        <button type="button" className={`${BUTTON_GHOST} min-h-10 px-3`} data-testid="res-new" disabled={!canWrite || busy} onClick={onNew}>
+          {t('resources.new')}
+        </button>
+      )}
       search={{ value: search, onChange: onSearch, placeholder: t('resources.search'), label: t('resources.search'), name: 'res-search' }}
       chips={(
-        <>
-          <FacetRow
-            facet="category"
-            values={RESOURCE_CATEGORIES}
-            selected={query.category}
-            labelOf={(value) => t(`resources.category.${value}`)}
-            onPick={(value) => patch({ category: value as ResourceCategory | undefined })}
-          />
-          <FacetRow
-            facet="framework"
-            values={RESOURCE_FRAMEWORKS}
-            selected={query.framework}
-            labelOf={(value) => value}
-            onPick={(value) => patch({ framework: value as ResourceFramework | undefined })}
-          />
-          <FacetRow
-            facet="styling"
-            values={RESOURCE_STYLING}
-            selected={query.styling}
-            labelOf={(value) => value}
-            onPick={(value) => patch({ styling: value as ResourceStyling | undefined })}
-          />
-          <FacetRow
-            facet="license"
-            values={LICENSE_MODES}
-            selected={query.license}
-            labelOf={(value) => t(`resources.license_mode.${value.replace(/-/gu, '_')}`)}
-            onPick={(value) => patch({ license: value as ResourceQuery['license'] })}
-          />
-          <button type="button" className={`${BUTTON_GHOST} ml-auto min-h-9 px-3`} data-testid="res-new" disabled={!canWrite || busy} onClick={onNew}>
-            {t('resources.new')}
-          </button>
-        </>
+        <FacetBar
+          label={t('resources.title')}
+          testId="res-facets"
+          {...(measureWidth === undefined ? {} : { measureWidth })}
+          groups={[
+            facetGroup('category', t('resources.facet.category'), all, RESOURCE_CATEGORIES, query.category, (value) => t(`resources.category.${value}`), (value) => patch({ category: pick<ResourceCategory>(RESOURCE_CATEGORIES, value) })),
+            facetGroup('framework', t('resources.facet.framework'), all, RESOURCE_FRAMEWORKS, query.framework, (value) => value, (value) => patch({ framework: pick<ResourceFramework>(RESOURCE_FRAMEWORKS, value) })),
+            facetGroup('styling', t('resources.facet.styling'), all, RESOURCE_STYLING, query.styling, (value) => value, (value) => patch({ styling: pick<ResourceStyling>(RESOURCE_STYLING, value) })),
+            facetGroup('license', t('resources.facet.license'), all, LICENSE_MODES, query.license, (value) => t(`resources.license_mode.${value.replace(/-/gu, '_')}`), (value) => patch({ license: pick(LICENSE_MODES, value) })),
+          ]}
+        />
       )}
+      testId="res-list"
     >
-      {rows.length === 0 && errors.length === 0 ? (
+      {loading ? (
+        <ListSkeleton testId="res-loading" />
+      ) : rows.length === 0 && errors.length === 0 ? (
         <p className="text-base text-text-2" data-testid="res-empty">{t('resources.empty')}</p>
       ) : (
         <ul className="grid gap-1">
@@ -114,13 +96,11 @@ export function ResourceList({
                 type="button"
                 className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left outline-none hover:bg-fill focus-visible:ring-2 focus-visible:ring-(--accent) aria-[current=true]:border-accent-b aria-[current=true]:bg-accent-t"
                 aria-current={selected === row.entry.id ? 'true' : undefined}
+                title={row.entry.id}
                 data-testid={`res-row-${row.entry.id}`}
                 onClick={() => onSelect(row.entry.id)}
               >
-                <span className="min-w-0">
-                  <span className="block truncate text-base font-semibold text-text" title={row.entry.name}>{row.entry.name}</span>
-                  <span className="block truncate font-mono text-caption text-text-3">{row.entry.id}</span>
-                </span>
+                <span className="min-w-0 truncate text-base font-semibold text-text">{row.entry.name}</span>
                 <span className="flex items-center gap-2 whitespace-nowrap">
                   <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2">
                     {t(`resources.category.${row.entry.category}`)}
@@ -128,9 +108,7 @@ export function ResourceList({
                   <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2">
                     {t(row.entry.license.redistributable ? 'resources.license_mode.redistributable' : 'resources.license_mode.link_only')}
                   </span>
-                  <span className="rounded-full bg-fill px-2 py-0.5 text-micro font-bold text-text-2">
-                    {t(`resources.source.${row.source}`)}
-                  </span>
+                  {row.source === 'builtin' && <BuiltinLock testId={`res-builtin-${row.entry.id}`} />}
                 </span>
               </button>
             </li>

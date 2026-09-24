@@ -28,3 +28,31 @@ describe('Markdown', () => {
     expect(preview.querySelector('hr')).toBeNull()
   })
 })
+
+describe('Markdown · 注释、表格代码与任务列表', () => {
+  it('HTML 注释不渲染成文字；代码块里的注释原样保留', () => {
+    render(<Markdown text={'# 规则\n\n<!-- create-rule:start -->\n\n正文 <!-- 行内 --> 结束\n\n```html\n<!-- 保留 -->\n```\n'} testId="md" />)
+    const preview = screen.getByTestId('md')
+    expect(preview.textContent).not.toContain('create-rule:start')
+    expect(preview.textContent).not.toContain('行内')
+    expect(preview.textContent).toContain('正文')
+    expect(preview.querySelector('pre')).toHaveTextContent('<!-- 保留 -->')
+  })
+
+  it('表格里的行内代码不断行，表格可横向滚动', () => {
+    render(<Markdown text={'| 键 | 值 |\n| --- | --- |\n| `a-very-long-identifier` | x |\n'} testId="md" density="compact" />)
+    const root = screen.getByTestId('md')
+    expect(root.querySelector('td code')).toHaveTextContent('a-very-long-identifier')
+    expect(root.className).toContain('[&_td_code]:whitespace-nowrap')
+    expect(root.className).toContain('[&_table]:overflow-x-auto')
+  })
+
+  it('任务列表项只留复选框：列表去圆点，复选框用强调色', () => {
+    render(<Markdown text={'- [x] 完成\n- [ ] 未完成\n'} testId="md" />)
+    const root = screen.getByTestId('md')
+    expect(root.querySelector('ul.contains-task-list')).not.toBeNull()
+    expect(root.querySelectorAll('li.task-list-item')).toHaveLength(2)
+    expect(root.className).toContain('[&_li.task-list-item]:list-none')
+    expect(root.className).toContain('[&_input[type=checkbox]]:accent-(--accent)')
+  })
+})

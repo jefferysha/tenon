@@ -235,10 +235,12 @@ export function useProjectSelection(input: {
       const root = input.snapshot
         ? (currentRoot || (input.preserveUnavailableRoot ? (preferredRoot ?? '') : ''))
         : (preferredRoot ?? '')
+      // 聚合工作台（root 为空）也写 change：刷新或分享后仍停在同一任务。
+      // 各视图自有的键（工作台 status / step，工作流页 wf / track / step）由 dashboardSearch 在离开时带走。
       const search = dashboardSearch(window.location.search, {
         view: input.view,
         root,
-        change: input.view === 'progress' && root !== '' ? input.selectedChange : null,
+        change: input.view === 'progress' ? input.selectedChange : null,
       })
       const next = `${window.location.pathname}${search}${window.location.hash}`
       const now = `${window.location.pathname}${window.location.search}${window.location.hash}`

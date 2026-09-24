@@ -46,6 +46,7 @@ export function UnsavedDraftDialog({ open, testid, onStay, onDiscard }: {
       title={t('common.unsaved_navigation_title')}
       onClose={onStay}
       testid={testid}
+      role="alertdialog"
       actions={(
         <>
           <button

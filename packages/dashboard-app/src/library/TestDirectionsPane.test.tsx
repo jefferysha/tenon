@@ -44,20 +44,43 @@ async function openDirections(): Promise<void> {
 }
 
 describe('TestDirectionsPane', () => {
-  it('列出内建与自定义；内建 YAML 只读且没有保存与删除', async () => {
+  it('列出内建与自定义；内建只有属性表与折叠的只读 YAML，没有保存与删除', async () => {
     stubFetch([])
     await openDirections()
     expect(screen.getByTestId('lib-dir-mine')).toBeTruthy()
+    // 未选中时的空态说的是测试方向，不是模板；只有标题一行。
+    expect(screen.getByTestId('lib-dir-empty')).toHaveTextContent(/^选择测试方向$/u)
     await userEvent.click(screen.getByTestId('lib-dir-unit'))
-    const editor = screen.getByTestId('lib-dir-yaml')
-    expect(editor).toHaveAttribute('readonly')
+    const yaml = screen.getByTestId('lib-dir-yaml')
+    expect(yaml.tagName).toBe('PRE')
+    expect(screen.getByTestId('lib-dir-yaml-details')).not.toHaveAttribute('open')
     expect(screen.queryByTestId('lib-dir-save')).toBeNull()
-    expect(screen.queryByTestId('lib-dir-delete-unit')).toBeNull()
-    expect(screen.getByTestId('lib-dir-detail').textContent).toContain('npm test')
-    // 详情头部与其它详情面板一致：名称、标识、来源。
-    expect(screen.getByTestId('lib-dir-title')).toHaveTextContent('单测')
-    expect(screen.getByTestId('lib-dir-id')).toHaveTextContent('unit')
-    expect(screen.getByTestId('lib-dir-source')).toHaveTextContent('内建')
+    expect(screen.queryByTestId('lib-dir-more')).toBeNull()
+    expect(screen.getByTestId('lib-dir-field-command').textContent).toContain('npm test')
+    // 名称只显示 label；标识进属性表与悬停提示；「内建」只用锁图标。
+    expect(screen.getByTestId('lib-dir-title')).toHaveTextContent(/^单测$/u)
+    expect(screen.getByTestId('lib-dir-title')).toHaveAttribute('title', 'unit')
+    expect(screen.getByTestId('lib-dir-field-id')).toHaveTextContent('unit')
+    expect(screen.getByTestId('lib-dir-builtin')).toHaveAttribute('aria-label', '内建')
+    expect(screen.getByTestId(`lib-dir-copy-unit`)).toHaveTextContent('复制为自定义')
+  })
+
+  it('列表行只显示名称，标识在悬停提示里', async () => {
+    stubFetch([])
+    await openDirections()
+    expect(screen.getByTestId('lib-dir-unit').textContent).toBe('单测')
+    expect(screen.getByTestId('lib-dir-unit')).toHaveAttribute('title', 'unit')
+    expect(screen.getByTestId('lib-dir-builtin-unit')).toBeInTheDocument()
+    expect(screen.queryByTestId('lib-dir-builtin-mine')).toBeNull()
+  })
+
+  it('自定义方向未修改时保存禁用', async () => {
+    stubFetch([])
+    await openDirections()
+    await userEvent.click(screen.getByTestId('lib-dir-mine'))
+    expect(screen.getByTestId('lib-dir-save')).toBeDisabled()
+    await userEvent.type(screen.getByTestId('lib-dir-yaml'), '#')
+    expect(screen.getByTestId('lib-dir-save')).toBeEnabled()
   })
 
   it('复制内建写成 <id>-copy；自定义可保存与删除', async () => {
@@ -69,9 +92,11 @@ describe('TestDirectionsPane', () => {
     await waitFor(() => expect(calls.some(([method, url]) => method === 'PUT' && url.endsWith('/unit-copy'))).toBe(true))
 
     await userEvent.click(screen.getByTestId('lib-dir-mine'))
+    await userEvent.type(screen.getByTestId('lib-dir-yaml'), '#')
     await userEvent.click(screen.getByTestId('lib-dir-save'))
     await waitFor(() => expect(calls.some(([method, url]) => method === 'PUT' && url.endsWith('/mine'))).toBe(true))
-    await userEvent.click(screen.getByTestId('lib-dir-delete-mine'))
+    await userEvent.click(screen.getByTestId('lib-dir-more'))
+    await userEvent.click(screen.getByTestId('lib-dir-more-delete'))
     expect(await screen.findByTestId('lib-delete-dialog')).toBeInTheDocument()
     expect(calls.some(([method]) => method === 'DELETE')).toBe(false)
     await userEvent.click(screen.getByTestId('lib-delete-confirm'))
@@ -91,6 +116,7 @@ describe('TestDirectionsPane', () => {
     })
     await openDirections()
     await userEvent.click(screen.getByTestId('lib-dir-mine'))
+    await userEvent.type(screen.getByTestId('lib-dir-yaml'), '#')
     await userEvent.click(screen.getByTestId('lib-dir-save'))
     await waitFor(() => expect(screen.getByTestId('lib-dir-error').textContent).toContain("方向 'mine' 缺 label"))
   })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dashboardSearch, parseDashboardLocation, resolveDashboardRoot } from './dashboardLocation'
+import { dashboardSearch, parseDashboardLocation, parseWorkflowLocation, resolveDashboardRoot, workflowSearch } from './dashboardLocation'
 
 describe('dashboard URL 深链路', () => {
   it('退役的 overview / hostPlan 深链不再是视图，只保留 root/change 与外部 query', () => {
@@ -42,5 +42,38 @@ describe('dashboard URL 深链路', () => {
 
   it('显式 macOS 逻辑路径仍可解析到已登记的规范路径', () => {
     expect(resolveDashboardRoot(['/old', '/private/tmp/repo-a'], '/tmp/repo-a')).toBe('/private/tmp/repo-a')
+  })
+
+  it('工作流页：wf / track / step 可深链；没有 wf 时 track / step 不算工作流页的', () => {
+    expect(parseWorkflowLocation('?view=workbench&wf=%E5%8F%91%E5%B8%83&track=pm&step=spec')).toEqual({ wf: '发布', track: 'pm', step: 'spec' })
+    expect(parseWorkflowLocation('?view=workbench&wf=default')).toEqual({ wf: 'default' })
+    expect(parseWorkflowLocation('?view=progress&step=spec')).toEqual({})
+    expect(parseWorkflowLocation('?wf=&track=pm')).toEqual({})
+  })
+
+  it('workflowSearch 只写这三个键，null 删除；其它 query 保留', () => {
+    expect(workflowSearch('?debug=1&view=workbench', { wf: 'flow', track: 'pm', step: 'spec' })).toBe('?debug=1&view=workbench&wf=flow&track=pm&step=spec')
+    expect(workflowSearch('?view=workbench&wf=flow&track=pm&step=spec', { wf: 'flow', track: null, step: null })).toBe('?view=workbench&wf=flow')
+  })
+
+  it('离开工作流页时带走 wf / track / step；留在工作流页时原样保留', () => {
+    expect(dashboardSearch('?view=workbench&wf=flow&track=pm&step=spec', { view: 'progress', root: '', change: null })).toBe('?view=progress')
+    expect(dashboardSearch('?view=workbench&wf=flow&step=spec', { view: 'workbench', root: '/repo', change: null })).toBe('?view=workbench&wf=flow&step=spec&root=%2Frepo')
+    // 不带 wf 的 step 不是工作流页的，别的页自己管。
+    expect(dashboardSearch('?view=progress&step=spec', { view: 'progress', root: '', change: null })).toBe('?view=progress&step=spec')
+  })
+
+  it('工作流页的 wf / track / step 与工作台的 status / step 共存：step 带 wf 时归工作流页，否则归工作台', () => {
+    // 工作台 → 工作流页：工作台的 status / step 都走，工作流页随后自己写 wf / track / step。
+    expect(dashboardSearch('?view=progress&status=needs-you&step=verify&change=x', { view: 'workbench', root: '', change: null })).toBe('?view=workbench')
+    // 在工作流页（带 wf）刷新：step 属于工作流页，保留；没有 status 可删。
+    expect(dashboardSearch('?view=workbench&wf=flow&track=pm&step=spec', { view: 'workbench', root: '', change: null })).toBe('?view=workbench&wf=flow&track=pm&step=spec')
+    // 工作流页 → 工作台：wf / track / step 全走，工作台的 step 不会被误认成工作流页的阶段。
+    expect(dashboardSearch('?view=workbench&wf=flow&step=spec', { view: 'progress', root: '/repo', change: 'x' })).toBe('?view=progress&root=%2Frepo&change=x')
+    // 留在工作台：status / step 都保留。
+    expect(dashboardSearch('?view=progress&status=done&step=build', { view: 'progress', root: '', change: 'x' })).toBe('?view=progress&status=done&step=build&change=x')
+    // 去别的页：两边的键都不留。
+    expect(dashboardSearch('?view=progress&status=done&step=build', { view: 'library', root: '', change: null })).toBe('?view=library')
+    expect(dashboardSearch('?view=workbench&wf=flow&track=pm&step=spec', { view: 'skills', root: '', change: null })).toBe('?view=skills')
   })
 })

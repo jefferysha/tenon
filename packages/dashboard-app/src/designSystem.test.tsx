@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -27,8 +27,29 @@ describe('Dashboard 电脑端设计系统契约', () => {
       'micro', 'caption', 'body', 'base', 'title', 'section', 'page',
     ])
     expect([...block.matchAll(/^\s*--radius-([a-z]+):/gm)].map((match) => match[1])).toEqual(['xs', 'sm', 'md', 'lg'])
-    // static 而非 inline：progress.css / workbench.css 要能直接 var() 引同一份刻度。
+    // static 而非 inline：页面级裸 CSS 要能直接 var() 引同一份刻度。
     expect(css).not.toMatch(/@theme\s+inline\s+static/)
+  })
+
+  it('React Flow 控件接到项目 token，暗色不再是白块，按钮点击区 40px', () => {
+    const vars = /\.react-flow\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(vars).toMatch(/--xy-controls-button-background-color:\s*var\(--card\)/)
+    expect(vars).toMatch(/--xy-controls-button-background-color-hover:\s*var\(--fill\)/)
+    expect(vars).toMatch(/--xy-controls-button-color:\s*var\(--text-2\)/)
+    expect(vars).toMatch(/--xy-controls-button-border-color:\s*var\(--border\)/)
+    const button = /\.react-flow \.react-flow__controls-button\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(button).toMatch(/width:\s*40px/)
+    expect(button).toMatch(/height:\s*40px/)
+  })
+
+  it('text-4 暴露为工具类颜色；默认控件高度 40px', () => {
+    expect(css).toMatch(/--color-text-4:\s*var\(--text-4\)/)
+    expect(css).toMatch(/--control-md:\s*40px/)
+  })
+
+  it('只有一个对话框实现：shared/Dialog 基于 Radix，不再保留 vendored ui/dialog', () => {
+    expect(existsSync(join(process.cwd(), 'packages/dashboard-app/src/components/ui/dialog.tsx'))).toBe(false)
+    expect(readSource('shared/Dialog.tsx')).toMatch(/from 'radix-ui'/)
   })
 
   it('reduced-motion 为 CSS transition、animation 和滚动提供全局终态兜底', () => {
@@ -55,7 +76,6 @@ describe('Dashboard 电脑端设计系统契约', () => {
     'components/ui/button.tsx',
     'components/ui/input.tsx',
     'components/ui/select.tsx',
-    'components/ui/dialog.tsx',
     'components/ui/dropdown-menu.tsx',
     'components/ui/tabs.tsx',
     'components/ui/table.tsx',
@@ -63,6 +83,12 @@ describe('Dashboard 电脑端设计系统契约', () => {
     'components/ui/tooltip.tsx',
   ])('%s 明确声明 reduced-motion 终态', (relativePath) => {
     expect(readSource(relativePath)).toMatch(/motion-reduce:/)
+  })
+
+  it('toast 是 rounded-md 面板，不是药丸', () => {
+    const toast = /ref=\{flashRef\}\s*className=\{`([^`]*)/.exec(readSource('App.tsx'))?.[1] ?? ''
+    expect(toast).toContain('rounded-md')
+    expect(toast).not.toContain('rounded-full')
   })
 
   it('App 清理 toast tween，并让 error/status 使用不同 live-region 语义', () => {

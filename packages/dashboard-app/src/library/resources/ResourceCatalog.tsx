@@ -51,6 +51,7 @@ export function ResourceCatalog({
           <ResourceList
             rows={rows}
             errors={catalog.list.errors}
+            loading={catalog.loading}
             search={search}
             query={catalog.query}
             selected={catalog.selected}
@@ -62,7 +63,7 @@ export function ResourceCatalog({
           />
         )}
         detail={document === null ? (
-          <DetailEmpty title={t('resources.empty_detail')} desc={t('resources.title')} testId="res-detail-empty" />
+          <DetailEmpty title={t('resources.empty_detail')} testId="res-detail-empty" />
         ) : (
           <ResourceDetail
             document={document}
@@ -92,6 +93,7 @@ export function ResourceCatalog({
         <Dialog
           title={t('resources.delete_title', { name: document.entry.name })}
           testid="res-delete-dialog"
+          role="alertdialog"
           onClose={() => setConfirmDelete(false)}
           actions={(
             <>

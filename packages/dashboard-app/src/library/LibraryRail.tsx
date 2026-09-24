@@ -1,3 +1,4 @@
+import { Bot, FileText, FlaskConical, Package } from 'lucide-react'
 import { useT } from '../i18n'
 import { RailCard, RailColumn } from '../shell/ThreeColumns'
 
@@ -8,9 +9,10 @@ export function LibraryRail({
   section, templates, directions, agents, collapsed, onSection, onToggle,
 }: {
   section: LibrarySection
-  templates: number
-  directions: number
-  agents: number
+  /** null = 还在读取：计数显示「–」，不显示假的 0。 */
+  templates: number | null
+  directions: number | null
+  agents: number | null
   collapsed: boolean
   onSection: (next: LibrarySection) => void
   onToggle: () => void
@@ -21,9 +23,9 @@ export function LibraryRail({
       <ul className="grid gap-1">
         <li>
           <RailCard
-            mark="T"
+            mark={<FileText />}
             name={t('library.templates')}
-            count={templates}
+            count={templates ?? '–'}
             selected={section === 'templates'}
             collapsed={collapsed}
             onClick={() => onSection('templates')}
@@ -32,7 +34,7 @@ export function LibraryRail({
         </li>
         <li>
           <RailCard
-            mark="R"
+            mark={<Package />}
             name={t('resources.title')}
             selected={section === 'resources'}
             collapsed={collapsed}
@@ -42,9 +44,9 @@ export function LibraryRail({
         </li>
         <li>
           <RailCard
-            mark="D"
+            mark={<FlaskConical />}
             name={t('library.test_directions')}
-            count={directions}
+            count={directions ?? '–'}
             selected={section === 'directions'}
             collapsed={collapsed}
             onClick={() => onSection('directions')}
@@ -53,9 +55,9 @@ export function LibraryRail({
         </li>
         <li>
           <RailCard
-            mark="A"
+            mark={<Bot />}
             name={t('library.agents')}
-            count={agents}
+            count={agents ?? '–'}
             selected={section === 'agents'}
             collapsed={collapsed}
             onClick={() => onSection('agents')}

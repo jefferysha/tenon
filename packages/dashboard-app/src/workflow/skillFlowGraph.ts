@@ -4,17 +4,60 @@ import { wavesOf } from '../workbench/skillWaves'
 import { NODE_WIDTH } from './skillFlowNodes'
 
 const COLUMN_GAP = 300
-const ROW_GAP = 92
 const PADDING = 24
 const PORT_GAP = 72
+/** 波次标签在节点上方占的高度（标签 y = 节点 y − 22）。 */
+const WAVE_LABEL = 22
+/** 只读画布内容上下各留的空白（容纳起点 / 终点的说明字与取景余量）。 */
+const CANVAS_MARGIN = 48
+export const CANVAS_MIN_HEIGHT = 224
 
-export function layoutSkills(skills: readonly WbSkillRef[]): Array<{ id: string; x: number; y: number }> {
+/** 节点高度：名称一行 40，每多一行（评审者设置 / 运行状态）+20。节点不再放描述。 */
+export function nodeHeightFor(lines: number): number {
+  return 40 + 20 * Math.max(0, lines - 1)
+}
+
+/** 同一波内相邻节点的行距 = 节点高 + 24。 */
+export function rowGapFor(lines: number): number {
+  return nodeHeightFor(lines) + 24
+}
+
+/** 最高一波的节点数（= 画布要容纳的行数）。 */
+export function lanesOf(skills: readonly WbSkillRef[]): number {
+  return Math.max(0, ...wavesOf(skills).map((wave) => wave.length))
+}
+
+/**
+ * 只读画布按 1:1 显示，所以高度由内容决定：波次标签 + (行数 − 1) × 行距 + 节点高 + 上下留白，至少 224。
+ * 画布不缩放，字永远是设计刻度上的字号；宽度不够时横向拖动。
+ */
+export function canvasHeight(lanes: number, lines = 1): number {
+  const content = WAVE_LABEL + Math.max(0, lanes - 1) * rowGapFor(lines) + nodeHeightFor(lines)
+  return Math.max(CANVAS_MIN_HEIGHT, content + 2 * CANVAS_MARGIN)
+}
+
+/**
+ * 只读画布的视口：缩放恒为 1，纵向居中；内容比画布窄就横向居中，宽了就从起点对齐（留 pad），
+ * 其余靠横向拖动——居中会把起点切掉。
+ */
+export function readOnlyViewport(
+  bounds: { x: number; y: number; width: number; height: number },
+  size: { width: number; height: number },
+  pad = PADDING,
+): { x: number; y: number; zoom: 1 } {
+  const y = (size.height - bounds.height) / 2 - bounds.y
+  const x = bounds.width + 2 * pad <= size.width ? (size.width - bounds.width) / 2 - bounds.x : pad - bounds.x
+  return { x, y, zoom: 1 }
+}
+
+export function layoutSkills(skills: readonly WbSkillRef[], lines = 1): Array<{ id: string; x: number; y: number }> {
   const out: Array<{ id: string; x: number; y: number }> = []
   const waves = wavesOf(skills)
   const tallest = Math.max(0, ...waves.map((wave) => wave.length))
+  const rowGap = rowGapFor(lines)
   waves.forEach((wave, column) => {
-    const offset = ((tallest - wave.length) * ROW_GAP) / 2
-    wave.forEach((id, row) => out.push({ id, x: PADDING + PORT_GAP + column * COLUMN_GAP, y: PADDING + 28 + offset + row * ROW_GAP }))
+    const offset = ((tallest - wave.length) * rowGap) / 2
+    wave.forEach((id, row) => out.push({ id, x: PADDING + PORT_GAP + column * COLUMN_GAP, y: PADDING + 28 + offset + row * rowGap }))
   })
   return out
 }

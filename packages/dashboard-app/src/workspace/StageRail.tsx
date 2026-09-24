@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 
 const BAR_CLS: Record<StageState['status'], string> = {
   done: 'bg-seg-done',
-  current: 'bg-seg-now',
+  current: 'bg-seg-now-t',
   todo: 'bg-seg-next',
 }
 const LABEL_CLS: Record<StageState['status'], string> = {
@@ -36,7 +36,10 @@ export function StageRail({ stages, selected, onSelect }: { stages: readonly Sta
           data-testid={`stage-rail-${stage.id}`}
           onClick={() => onSelect(stage.id)}
         >
-          <span className={cn('block h-1 rounded-full transition-opacity group-hover:opacity-80', BAR_CLS[stage.status], selected === stage.id && 'ring-2 ring-(--accent) ring-offset-2 ring-offset-surface-detail')} aria-hidden="true" />
+          <span className={cn('block h-1 rounded-full transition-opacity group-hover:opacity-80', BAR_CLS[stage.status], selected === stage.id && 'ring-2 ring-(--accent) ring-offset-2 ring-offset-surface-detail')} aria-hidden="true">
+            {/* 当前段 = 浅底 + 40% 内填，与任务卡迷你流水线同一读法。 */}
+            {stage.status === 'current' && <span className="block h-full w-2/5 rounded-full bg-seg-now" />}
+          </span>
           <span className={cn('truncate text-body', LABEL_CLS[stage.status])}>{stage.label}</span>
         </button>
       ))}

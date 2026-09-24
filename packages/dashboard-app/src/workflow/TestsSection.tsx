@@ -69,8 +69,7 @@ export function TestsSection({
                         onAdd(testFromDirection(direction.definition, new Set(tests.map((test) => test.id))))
                       }}
                     >
-                      <span className="text-text">{direction.label}</span>
-                      <span className="truncate font-mono text-caption text-text-3">{direction.id}</span>
+                      <span className="truncate text-text">{direction.label}</span>
                     </button>
                   ))}
               </div>

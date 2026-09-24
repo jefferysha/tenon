@@ -14,8 +14,9 @@ export interface IoRow {
 }
 
 /**
- * 等分三列表（输入 / 输出同构，纵向对齐）：文件 · 来源阶段 · 来源技能。表头常显，行只放数据；
- * 来源技能为空显示「—」。给了 onRemove 时文档行末尾出「×」（字段槽位由 YAML 决定，不在这里删）。
+ * 等分三列表（输入 / 输出同构，纵向对齐）：文件 · 来源阶段 · 来源技能。不列读取阶段。表头常显，
+ * 空格子显示「—」；等宽字只用于文件名。
+ * 给了 onRemove 时每行末尾多一条 40px 的列放「×」，悬停或聚焦该行时才显出（字段槽位由 YAML 决定，不给 ×）。
  */
 export function IoTable({ direction, rows, empty, onRemove }: {
   direction: 'inputs' | 'outputs'
@@ -24,36 +25,40 @@ export function IoTable({ direction, rows, empty, onRemove }: {
   onRemove?: (slot: WbIoSlot) => void
 }): JSX.Element {
   const { t } = useT()
-  const cols = 'grid-cols-3'
+  const cols = onRemove === undefined ? 'grid-cols-3' : 'grid-cols-[repeat(3,minmax(0,1fr))_2.5rem]'
   return (
-    <div className="grid" data-testid={`io-${direction}`}>
-      <div className={cn('grid gap-4 border-b border-border pb-2 text-caption text-text-3', cols)} role="row">
-        <span>{t('workflow.col_file')}</span>
-        <span>{t('workflow.col_stage')}</span>
-        <span>{t('workflow.col_skill')}</span>
+    <div className="grid" role="table" aria-label={t(direction === 'inputs' ? 'workflow.inputs_title' : 'workflow.outputs_title')} data-testid={`io-${direction}`}>
+      <div className={cn('grid gap-4 whitespace-nowrap border-b border-border pb-2 text-caption text-text-3', cols)} role="row">
+        <span role="columnheader">{t('workflow.col_file')}</span>
+        <span role="columnheader">{t('workflow.col_stage')}</span>
+        <span role="columnheader">{t('workflow.col_skill')}</span>
+        {onRemove !== undefined && <span aria-hidden="true" />}
       </div>
       {rows.length === 0 ? (
         <div className="py-3 text-body text-text-3" role="status">{empty}</div>
       ) : rows.map(({ slot, stage, skills, path }) => (
-        <div key={`${slot.kind}:${slot.id}`} className={cn('grid items-center gap-4 border-b border-border py-2.5 text-body', cols)} title={path} data-testid={`slot-${slot.kind}-${slot.id}`}>
-          <span className="flex min-w-0 items-center gap-2 font-mono font-semibold text-text">
+        <div key={`${slot.kind}:${slot.id}`} className={cn('group grid min-h-10 items-center gap-4 whitespace-nowrap border-b border-border py-1 text-body', cols)} role="row" title={path} data-testid={`slot-${slot.kind}-${slot.id}`}>
+          <span className="flex min-w-0 items-center gap-2 font-mono font-semibold text-text" role="cell">
             <FileText className="size-4 flex-none text-text-3" aria-hidden="true" />
             <span className="truncate">{slot.id}</span>
-            {onRemove !== undefined && slot.kind === 'document' && (
-              <button
-                type="button"
-                className="ml-auto grid size-6 flex-none place-items-center rounded-sm text-text-3 outline-none hover:bg-red-t hover:text-red-d focus-visible:ring-2 focus-visible:ring-(--accent)"
-                aria-label={t('workflow.remove_slot', { id: slot.id })}
-                title={t('workflow.remove_slot', { id: slot.id })}
-                data-testid={`slot-remove-${slot.id}`}
-                onClick={() => onRemove(slot)}
-              >
-                <X className="size-3.5" aria-hidden="true" />
-              </button>
-            )}
           </span>
-          <span className="truncate text-text" data-testid={`slot-stage-${slot.id}`}>{stage ?? '—'}</span>
-          <span className={cn('truncate font-mono', skills.length === 0 ? 'text-text-3' : 'text-text-2')} data-testid={`slot-skills-${slot.id}`}>{skills.length === 0 ? '—' : skills.join(', ')}</span>
+          <span className={cn('truncate', stage === undefined ? 'text-text-3' : 'text-text')} role="cell" data-testid={`slot-stage-${slot.id}`}>{stage ?? '—'}</span>
+          <span className={cn('truncate', skills.length === 0 ? 'text-text-3' : 'text-text-2')} role="cell" data-testid={`slot-skills-${slot.id}`}>{skills.length === 0 ? '—' : skills.join(', ')}</span>
+          {onRemove !== undefined && (
+            <span className="grid justify-end" role="cell">
+              {slot.kind === 'document' && (
+                <button
+                  type="button"
+                  className="grid size-8 place-items-center rounded-sm text-text-3 opacity-0 outline-none transition-opacity hover:bg-red-t hover:text-red-d focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-(--accent) group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                  aria-label={t('workflow.remove_slot', { id: slot.id })}
+                  data-testid={`slot-remove-${slot.id}`}
+                  onClick={() => onRemove(slot)}
+                >
+                  <X className="size-3.5" aria-hidden="true" />
+                </button>
+              )}
+            </span>
+          )}
         </div>
       ))}
     </div>

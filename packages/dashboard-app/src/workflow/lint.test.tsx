@@ -112,7 +112,7 @@ describe('lint · 严重度与文档契约', () => {
     expect(lint({ name: 'mine', openspec: false, steps: [stage('a')] }).some((issue) => issue.kind === 'step-no-output')).toBe(false)
   })
 
-  it('producer 不在阶段技能里：自定义是错误、default 是警告；read 在产出之前是错误；成对文档缺一是警告', () => {
+  it('producer 不在阶段技能里：自定义是错误、default 不判（同 kernel）；read 在产出之前是错误；成对文档缺一是警告', () => {
     const contract = {
       version: 'v1' as const,
       slots: [{ kind: 'proposal', ownerStep: 'shape', producers: ['writer'] }],
@@ -122,9 +122,22 @@ describe('lint · 严重度与文档契约', () => {
     expect(custom).toContainEqual({ kind: 'document-producer-missing', stepId: 'shape', document: 'proposal', skill: 'writer', severity: 'error' })
     expect(custom).toContainEqual({ kind: 'document-order', stepId: 'shape', document: 'tasks', severity: 'error' })
     expect(custom).toContainEqual({ kind: 'document-chain-gap', stepId: 'shape', document: 'proposal', missing: 'tasks', severity: 'warning' })
-    expect(lint(governed(contract, 'default')).find((issue) => issue.kind === 'document-producer-missing')?.severity).toBe('warning')
+    expect(lint(governed(contract, 'default')).some((issue) => issue.kind === 'document-producer-missing')).toBe(false)
     expect(lint(governed({ version: 'v1', slots: [{ kind: 'tasks', ownerStep: 'shape', role: 'update', producers: ['openspec-propose'] }], reads: [] })))
       .toContainEqual({ kind: 'document-order', stepId: 'shape', document: 'tasks', severity: 'error' })
+  })
+
+  it('producer 是编排器 tenon：不在任何阶段的技能里，与 kernel 一样豁免', () => {
+    const contract = {
+      version: 'v1' as const,
+      slots: [
+        { kind: 'proposal', ownerStep: 'shape', producers: ['openspec-propose'] },
+        { kind: 'tasks', ownerStep: 'shape', producers: ['openspec-propose'] },
+        { kind: 'proposal', ownerStep: 'build', role: 'update' as const, producers: ['tenon'] },
+      ],
+      reads: [],
+    }
+    expect(lint(governed(contract)).filter((issue) => issue.kind === 'document-producer-missing')).toEqual([])
   })
 
   it('草稿 IO 从契约推出 role / scope：produce 与 update 是输出，read 与 require 是输入；关掉 OpenSpec 就没有文档槽位', () => {
@@ -179,6 +192,21 @@ describe('lint · 内建 default 不误报', () => {
       expect(transitionIssues(selectBranchDef(builtin, branch.id))).toEqual([])
       expect(transitionIssues(selectBranchDef(copied, branch.id))).toEqual([])
     }
+  })
+
+  // 快照：内建 default 的每条轨道在编辑器里都是零问题。曾经每个阶段都亮琥珀点——把编排器 `tenon` 与
+  // 运行时由 phase manifest 叠加的技能当成「缺技能」报了出来，kernel 对这两类都不判。
+  it('每条轨道 lint 零问题（agent 库未拉到与已拉到两种情况）', () => {
+    const full = JSON.parse(JSON.stringify(parsed)) as WbWorkflowDef
+    const agents = full.tracks === undefined ? [] : Object.values(full.tracks).flatMap((branch) => branch.steps.flatMap((step) => [
+      ...(step.agents?.executors ?? []).map((ref) => ref.agent),
+      ...(step.agents?.reviewers ?? []).map((ref) => ref.agent),
+    ]))
+    const byBranch = Object.fromEntries(branchesOf(full).map((branch) => {
+      const view = selectBranchDef(full, branch.id)
+      return [branch.id, [...lintWorkflow(view, draftEffectiveIo(view), null), ...lintWorkflow(view, draftEffectiveIo(view), agents)]]
+    }))
+    expect(byBranch).toEqual({ chat: [], pm: [], frontend: [], backend: [], free: [] })
   })
 
   it('复制 default：契约按阶段技能裁剪后每条分支都过 kernel 的自定义工作流校验', () => {

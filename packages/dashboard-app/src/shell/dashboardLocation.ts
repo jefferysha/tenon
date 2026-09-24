@@ -1,4 +1,4 @@
-import { isView, type View } from './views'
+import { isView, TASK_STATUS_PARAM, type View } from './views'
 
 export interface DashboardLocation {
   view?: View
@@ -25,9 +25,58 @@ export function parseDashboardLocation(search: string): DashboardLocation {
   return result
 }
 
-/** 只接管 dashboard 自有的三个键；debug 等外部 query 原样保留。 */
+/** 工作流页（view=workbench）的可分享选择：工作流名 · 轨道 · 阶段。 */
+export interface WorkflowLocation {
+  wf?: string
+  track?: string
+  step?: string
+}
+
+const WORKFLOW_KEYS = ['wf', 'track', 'step'] as const
+
+/** 只在带 wf 时才认 track / step：step 这个键没有 wf 就不属于工作流页。 */
+export function parseWorkflowLocation(search: string): WorkflowLocation {
+  const params = new URLSearchParams(search)
+  const wf = params.get('wf')
+  if (wf === null || wf === '') return {}
+  const result: WorkflowLocation = { wf }
+  const track = params.get('track')
+  const step = params.get('step')
+  if (track !== null && track !== '') result.track = track
+  if (step !== null && step !== '') result.step = step
+  return result
+}
+
+/** 写工作流页的三个键（null / 空 = 删除）；其余 query 原样保留。 */
+export function workflowSearch(search: string, state: { wf: string | null; track: string | null; step: string | null }): string {
+  const params = new URLSearchParams(search)
+  for (const key of WORKFLOW_KEYS) {
+    const value = state[key]
+    if (value === null || value === '') params.delete(key)
+    else params.set(key, value)
+  }
+  const value = params.toString()
+  return value === '' ? '' : `?${value}`
+}
+
+/**
+ * 各视图自有的 URL 键，离开该视图时删掉。`step` 两个视图都用：带 `wf` 时属于工作流页（阶段），
+ * 不带 `wf` 时属于工作台（详情所选阶段）；`status` 只属于工作台。
+ */
+function dropForeignKeys(params: URLSearchParams, view: View): void {
+  const stepOwner: View = params.has('wf') ? 'workbench' : 'progress'
+  if (view !== stepOwner) params.delete('step')
+  if (view !== 'workbench') {
+    params.delete('wf')
+    params.delete('track')
+  }
+  if (view !== 'progress') params.delete(TASK_STATUS_PARAM)
+}
+
+/** 只接管 dashboard 自有的键；debug 等外部 query 原样保留。离开一个视图时带走它自己的键。 */
 export function dashboardSearch(search: string, state: DashboardLocationState): string {
   const params = new URLSearchParams(search)
+  dropForeignKeys(params, state.view)
   params.set('view', state.view)
   if (state.root === '') params.delete('root')
   else params.set('root', state.root)

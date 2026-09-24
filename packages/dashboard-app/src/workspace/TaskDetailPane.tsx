@@ -1,12 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Archive, ArchiveRestore, Link2, ShieldCheck, Trash2, UserCheck, Zap } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ShieldCheck, Zap } from 'lucide-react'
 import { useT } from '../i18n'
-import { ApiError, formatApiError, getToken } from '../api/transport'
-import { takeOwner } from '../api/userClient'
-import type { UserRefView } from '../types'
 import { TaskRecords } from './TaskRecords'
-import { DetailColumn, StatusPill, type PillTone } from '../shell/ThreeColumns'
-import { dashboardSearch } from '../shell/dashboardLocation'
+import { DetailColumn, StatusPill } from '../shell/ThreeColumns'
 import { SheetTabs } from '../shared/DetailSheets'
 import { SkillFlow } from '../workflow/SkillFlow'
 import { AgentRunDrawer } from './AgentRunDrawer'
@@ -18,17 +14,13 @@ import { TestRunDrawer } from './TestRunDrawer'
 import { stageTestCount, stageTestRows } from './stageTests'
 import { StageRail } from './StageRail'
 import { fallbackStepIo, gateProgress, isReadyRow, readableFiles, skillsFromRuns, stageInputs, stageOutputs } from './stageIo'
-import { stageLabel, summaryText, type TaskRow } from './taskModel'
+import { labelWithDefinition, stageLabel, summaryShort, type TaskRow } from './taskModel'
 import { useWorkflowDefinition } from './useWorkflowDefinition'
 import { ReviewDecisionPanel } from './ReviewDecisionPanel'
-
-const TONE: Record<TaskRow['summary']['kind'], PillTone> = {
-  missing: 'pending',
-  review: 'blocked',
-  ready: 'done',
-  running: 'running',
-  completed: 'neutral',
-}
+import { summaryTone } from './TaskCard'
+import { TaskMenu, type TaskMenuEntry } from './TaskMenu'
+import { readWorkspaceParam, writeWorkspaceParam } from './workspaceLocation'
+import { matchesTaskRef } from './taskRef'
 
 export interface TaskDetailPaneProps {
   row: TaskRow
@@ -37,30 +29,42 @@ export interface TaskDetailPaneProps {
   showReviewConsole?: boolean
   /** 聚合语境为 false：不发 per-root 请求，IO 退化为快照里的输出字段名。 */
   fetchDefinition?: boolean
-  /** Current declared user; 接手 shows only for another user's task. */
-  me?: UserRefView | null
-  /** Opens the identity dialog when the server reports a missing identity. */
-  onUserMissing?: () => void
-  /** 缺省 = 只读详情（聚合语境）：不渲染 归档 / 删除。 */
-  onAction?: (action: 'archive' | 'delete') => void
-  /** 只在 已归档 视图给出：唯一动作是 取消归档。 */
-  onUnarchive?: () => void
+  /** 标题右侧 ⋯ 菜单（与卡片 ⋯ 同一份 taskMenuItems）；缺省 = 无菜单。 */
+  menu?: readonly TaskMenuEntry[]
+  /** 已归档视图：不显示评审台。 */
+  archived?: boolean
+}
+
+/** URL 里的 step 只对它所属的任务生效：change 缺省（隐式选中首条）或与本任务同名。 */
+function initialStep(row: TaskRow, current: string): string {
+  const step = readWorkspaceParam('step')
+  const change = new URLSearchParams(window.location.search).get('change')
+  if (step === null || (change !== null && !matchesTaskRef(change, row))) return current
+  return row.stages.some((stage) => stage.id === step) ? step : current
 }
 
 /** 工作台右列：任务名 / 一行状态 / 阶段轨 → 所选阶段的输出与输入 → 点文件开抽屉。 */
-export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = false, fetchDefinition = true, me = null, onUserMissing, onAction, onUnarchive }: TaskDetailPaneProps): JSX.Element {
+export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = false, fetchDefinition = true, menu = [], archived = false }: TaskDetailPaneProps): JSX.Element {
   const { t } = useT()
-  const [taking, setTaking] = useState(false)
-  // 接手 and 记录 need a selected project, like the definition fetch: the aggregate view issues only /api/snapshot.
-  const canTake = fetchDefinition && me !== null && row.owner?.slug !== me.slug && getToken() !== ''
   const { change, root } = row
   const current = row.stages.find((stage) => stage.status === 'current')?.id ?? change.phase
-  const [selectedStep, setSelectedStep] = useState<string>(current)
+  const [selectedStep, setSelectedStep] = useState<string>(() => initialStep(row, current))
   const identity = `${root} ${change.name}`
   // SSE replaces the whole snapshot object; only this change's own state should reload its decisions.
   const decisionSignature = [change.phase, change.phase_status, change.updated_at, JSON.stringify(change.reviewHandshake ?? null)].join('\n')
-  useEffect(() => { setSelectedStep(current) }, [identity, current])
+  // 任务推进到新阶段时跟过去；首次挂载保留 URL 里的 step。
+  const seen = useRef(`${identity}\n${current}`)
+  useEffect(() => {
+    const key = `${identity}\n${current}`
+    if (seen.current === key) return
+    seen.current = key
+    setSelectedStep(current)
+  }, [identity, current])
+  useEffect(() => { writeWorkspaceParam('step', selectedStep === current ? null : selectedStep) }, [selectedStep, current])
   const definition = useWorkflowDefinition(root, row.workflow, fetchDefinition)
+  // 阶段名只显示一个：label 优先，没有才是 id（旧冻结计划没带 label 时从定义补）。
+  const shown = useMemo(() => (definition.status === 'ready' ? labelWithDefinition(row, definition.def) : row), [definition, row])
+  const labelOf = (id: string): string => stageLabel(id, shown.rules)
   // change 走自己 track 的分支 IO；没有对应分支 → 通用分支。
   const stepIo = definition.status === 'ready'
     ? (definition.def.branches?.[change.track]?.effectiveIo ?? definition.def.branches?._base?.effectiveIo ?? definition.def.effectiveIo)?.[selectedStep]
@@ -85,35 +89,12 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
   const reviewSatisfied = row.stages.find((stage) => stage.id === selectedStep)?.status === 'done'
     || (change.phase === selectedStep && change.reviewHandshake?.status === 'approved')
   const progress = gateProgress((row.rules ?? change.workflowRules).gateByStep[selectedStep] ?? null, outputs, reviewSatisfied)
+  // 没有运行记录的技能不写「未开始」：只有当前阶段仍在进行时它才是真话，否则与阶段状态矛盾。
+  const stageRunning = selectedStep === change.phase && (row.summary.kind === 'running' || row.summary.kind === 'missing')
   const statusOf = (id: string): { state: 'idle' | 'running' | 'done'; label: string } | null => {
     const hit = runs?.skills.find((skill) => skill.id === id)
-    return hit === undefined ? null : { state: hit.status, label: t(`workspace.skill_${hit.status}`) }
-  }
-
-  async function take(): Promise<void> {
-    setTaking(true)
-    try {
-      await takeOwner(root, change.name)
-      onToast?.(t('workspace.take_done'))
-      await onRefresh?.()
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 412) {
-        if (onUserMissing) onUserMissing()
-        else onToast?.(t('common.user_missing'))
-      } else if (error instanceof ApiError && error.status === 403) {
-        onToast?.(t('workspace.owner_required', { name: row.owner?.name ?? '—' }))
-      } else {
-        onToast?.(formatApiError(error, t))
-      }
-    } finally {
-      setTaking(false)
-    }
-  }
-
-  function copyLink(): void {
-    const search = dashboardSearch(window.location.search, { view: 'progress', root, change: change.name })
-    const link = `${window.location.origin}${window.location.pathname}${search}`
-    void navigator.clipboard?.writeText(link).then(() => onToast?.(t('detail.copied', { value: link })))
+    if (hit === undefined || (hit.status === 'idle' && !stageRunning)) return null
+    return { state: hit.status, label: t(`workspace.skill_${hit.status}`) }
   }
 
   return (
@@ -123,83 +104,27 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
         panelId="task-detail-panel"
         header={(
           <>
-            <p className="mb-2.5 text-caption font-semibold text-(--accent)">{stageLabel(selectedStep, row.rules, t)}</p>
-            <h1 className="mb-1.5 truncate text-page font-bold tracking-[-.01em] text-text" title={change.name} data-testid="task-detail-title">{change.name}</h1>
-            <p className="mb-4 truncate whitespace-nowrap font-mono text-base text-text-2" data-testid="task-detail-meta">{[row.workflow, change.track, row.owner?.name].filter(Boolean).join(' · ')}</p>
+            <div className="mb-1.5 flex min-w-0 items-center gap-2">
+              <h1 className="min-w-0 flex-1 truncate text-page font-bold tracking-[-.01em] text-text" title={change.name} data-testid="task-detail-title">{change.name}</h1>
+              <TaskMenu items={menu} testId="task-detail-menu" />
+            </div>
+            <p className="mb-4 truncate whitespace-nowrap font-mono text-base text-text-2" data-testid="task-detail-meta">{[change.track === '' ? row.workflow : `${row.workflow}/${change.track}`, row.owner?.name].filter(Boolean).join(' · ')}</p>
             <p className="mb-6" data-testid="task-detail-status">
-              <StatusPill tone={TONE[row.summary.kind]} testId="task-detail-badge">{summaryText(row, t)}</StatusPill>
+              <StatusPill tone={summaryTone(row)} testId="task-detail-badge">{summaryShort(shown, t)}</StatusPill>
             </p>
-            {showReviewConsole && onUnarchive === undefined && <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} onRefresh={onRefresh} onToast={onToast} />}
+            {showReviewConsole && !archived && <ReviewDecisionPanel root={root} change={change.name} snapshotSignature={decisionSignature} stageLabelOf={labelOf} onRefresh={onRefresh} onToast={onToast} />}
             {row.stages.length > 0 && (
               <div className="mb-6 border-b border-border pb-6">
-                <StageRail stages={row.stages} selected={selectedStep} onSelect={setSelectedStep} />
+                <StageRail stages={shown.stages} selected={selectedStep} onSelect={setSelectedStep} />
               </div>
             )}
-          </>
-        )}
-        footer={(
-          <>
-            {onUnarchive !== undefined && (
-              <button
-                type="button"
-                className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-base font-semibold text-text hover:border-text-3"
-                data-testid="task-detail-unarchive"
-                onClick={onUnarchive}
-              >
-                <ArchiveRestore className="size-4" aria-hidden="true" />
-                {t('workspace.unarchive')}
-              </button>
-            )}
-            {onAction !== undefined && (
-              <>
-                <button
-                  type="button"
-                  className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-base font-semibold text-text hover:border-text-3"
-                  data-testid="task-detail-archive"
-                  onClick={() => onAction('archive')}
-                >
-                  <Archive className="size-4" aria-hidden="true" />
-                  {t('workspace.archive')}
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-base font-semibold text-red-d hover:border-red-b"
-                  data-testid="task-detail-delete"
-                  onClick={() => onAction('delete')}
-                >
-                  <Trash2 className="size-4" aria-hidden="true" />
-                  {t('workspace.delete')}
-                </button>
-              </>
-            )}
-            {canTake && onUnarchive === undefined && (
-              <button
-                type="button"
-                className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-4 text-base font-semibold text-text hover:border-text-3 disabled:opacity-60"
-                data-testid="task-detail-take"
-                disabled={taking}
-                onClick={() => { void take() }}
-              >
-                <UserCheck className="size-4" aria-hidden="true" />
-                {t('workspace.take_owner')}
-              </button>
-            )}
-            <button
-              type="button"
-              className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-base font-semibold text-text hover:border-text-3"
-              data-testid="task-detail-copy-link"
-              onClick={copyLink}
-            >
-              <Link2 className="size-4" aria-hidden="true" />
-              {t('workspace.copy_link')}
-            </button>
           </>
         )}
       >
         {skills.length > 0 && (
           <section className="mb-8" data-testid="stage-skills">
             <h2 className="mb-3 text-title font-semibold text-text">{t('workspace.skills')}<span className="ml-2 font-mono text-caption font-normal text-text-3">{skills.length}</span></h2>
-            <SkillFlow key={`${identity} ${selectedStep}`} skills={skills} registry={null} editable={false} onOpen={() => undefined} statusOf={statusOf} className="h-56" />
+            <SkillFlow key={`${identity} ${selectedStep}`} skills={skills} registry={null} editable={false} onOpen={() => undefined} statusOf={statusOf} />
           </section>
         )}
         <StageAgentsPanel identity={identity} stepId={selectedStep} agents={stepAgents} onOpen={setOpenAgent} />
@@ -240,7 +165,7 @@ export function TaskDetailPane({ row, onToast, onRefresh, showReviewConsole = fa
             )}
           </div>
         )}
-        {fetchDefinition && <TaskRecords root={root} change={change.name} signature={decisionSignature} />}
+        {fetchDefinition && <TaskRecords root={root} change={change.name} signature={decisionSignature} stageLabelOf={labelOf} />}
       </DetailColumn>
       <DocumentDrawer root={root} files={files} index={openIndex} onIndex={setOpenIndex} onClose={() => setOpenIndex(null)} />
       <AgentRunDrawer
