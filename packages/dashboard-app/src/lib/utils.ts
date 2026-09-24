@@ -20,3 +20,15 @@ const twMerge = extendTailwindMerge({
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+/**
+ * 路径的短显示（工作台左列与项目页共用）：家目录写成 `~`，超过两段时只留末两段，
+ * 中间用 `…`。完整路径由调用方放进 title。
+ */
+export function shortPath(path: string): string {
+  const home = /^\/(?:Users|home)\/[^/]+(?=\/|$)/u.exec(path)
+  const head = home === null ? '' : '~'
+  const rest = (home === null ? path : path.slice(home[0].length)).split('/').filter(Boolean)
+  if (rest.length <= 2) return head === '' ? `/${rest.join('/')}` : [head, ...rest].join('/')
+  return `${head}/…/${rest.slice(-2).join('/')}`
+}
