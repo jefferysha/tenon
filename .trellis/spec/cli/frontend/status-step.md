@@ -34,6 +34,8 @@ deliveryCommit(change, git): StepCommit | null · finishActions(change, governed
 // packages/cli/src/gitWorkspace.ts
 probeGitFinish(cwd, change) · WORKSPACE_COMMIT_PATHS · LOCAL_ROOT_FILES
 stepNextActions(input: StepNextInput): readonly StepAction[]   // 纯函数，顺序的唯一真相源
+// packages/cli/src/commands/statusStepDocumentActions.ts（文档类动作的构造，顺序仍归 stepNextActions）
+documentWriteActions(documents) · skillDocumentActions(skills, documents) · inputDocumentPolicy(documents)
 // packages/cli/src/commands/stepExitReport.ts
 evaluateStepExitReport(deps, name, dir, state, plan): Promise<StepExitReport>
 // packages/cli/src/commands/statusStepParts.ts
