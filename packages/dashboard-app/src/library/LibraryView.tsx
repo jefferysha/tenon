@@ -77,6 +77,11 @@ export function LibraryView({ onToast }: { onToast?: (message: string) => void }
     [library.templates, category, source, search],
   )
   const canWrite = getToken() !== ''
+  // 右列不留空：没选模板时打开当前列表第一个。
+  const firstRow = rows[0]
+  useEffect(() => {
+    if (library.selected === null && firstRow !== undefined) library.select({ source: firstRow.source, category: firstRow.category, id: firstRow.id })
+  }, [library.selected, firstRow, library.select])
 
   const onCreate = (nextCategory: TemplateCategory, id: string): void => {
     void (async () => {
