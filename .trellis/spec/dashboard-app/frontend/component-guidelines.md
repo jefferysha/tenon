@@ -26,8 +26,27 @@ the built-in default (`buildDefaultDef` was deleted) and never merges the docume
 
 Every top-level view except 工作流 renders exactly `ThreeColumns` with `rail` (RailColumn + RailCard[]), `list`
 (ListColumn) and `detail` (DetailColumn | DetailEmpty); 工作流 renders `TwoColumns` (nav + detail). Widths live in the primitive; views never pass
-widths. State is carried by `aria-current` / `aria-selected` / `aria-pressed` / `data-*`; tests assert
+widths. State is carried by `aria-current` / `aria-selected` / `aria-checked` / `aria-pressed` / `data-*`; tests assert
 those, never class names.
+
+- Grid: rail 280px (collapsed 64px) · list `minmax(360px,420px)` · detail `1fr`. At ≤1280px the rail is always
+  collapsed and its toggle is hidden (it would do nothing); ≤900px stacks the columns.
+- The page name appears once: in the `ListColumn` H1. No eyebrow above it (the `eyebrow` prop is deprecated and
+  ignored), no breadcrumb in the top bar; the top bar's active tab carries `aria-current=page`.
+- `ListColumn` `action` puts object-level actions (新建 …) on the H1 row, never in the chip row or a footer.
+  `chipsLabel` turns a single chip row into one `radiogroup`; several facet rows each use `FilterChipGroup`.
+- `RailColumn` `lead` renders before the list in the same scroll area (工作台's 所有项目 goes there). `footer` is
+  deprecated: it duplicated the top bar.
+- `DetailEmpty` renders its title only; `desc` is deprecated and ignored.
+- `StatusPill` is a semantic dot + same-tone text with no fill and no pill radius (name kept for callers).
+- Loading: views declare whether they read `/api/snapshot` (`shell/views.ts viewNeedsSnapshot`: 工作台 and 项目
+  only). Only those wait for / fail with the first snapshot; 工作流 / 库 / 技能 render at once. Three-column pages
+  show `ThreeColumnsSkeleton` (`shell/Skeleton.tsx`: rail 8 bars, list 3 cards, detail title + stage bar,
+  `animate-pulse motion-reduce:animate-none`) instead of a 加载中 line.
+- The 工作台 tab's 待决策 badge is always mounted (invisible and unfocusable at 0) so the tabs never shift; it is a
+  sibling button of the tab with a Tooltip 「待决策 N」. Clicking it writes `?status=needs-you`
+  (`TASK_STATUS_PARAM` / `NEEDS_YOU_STATUS` in `shell/views.ts`) and opens 工作台; the shell deletes the key when
+  leaving 工作台. 工作台 reads that key as its initial status filter.
 
 ### Right column
 
@@ -90,7 +109,7 @@ last one. Anything that needs its own surface opens the shared right-side `share
   history). Status words are one word each — 通过 / 失败 / 过期 / 未运行 / 运行中 — and never a sentence. The project rail card shows the project path only — task counts live in the facet chips, never
   twice. Chips and card pills never wrap internally (`whitespace-nowrap`, truncated titles), but facet rows **do**
   wrap (`flex-wrap`): a horizontally scrolling row clipped chips mid-word at 1440px (「验…」「未提交删除」).
-  `ListColumn` header blocks (eyebrow, title, search, chips) are `shrink-0`, so a long list scrolls the column instead
+  `ListColumn` header blocks (title row, search, chips) are `shrink-0`, so a long list scrolls the column instead
   of squashing the search box.
 
 ## 工作流 rules (`workflow/`)
@@ -346,7 +365,12 @@ row names the skills that should produce it, and a stale row carries its one-wor
 ## Accessibility
 
 - Dialogs and the drawer keep accessible title, `aria-modal`, Escape, focus capture / restore.
-- Chips are `role=tab` inside a `role=tablist`; the gate switch is `role=radiogroup`.
+- Filter chips are single-select `role=radio` (`aria-checked`, roving tabindex: only the checked chip is in the
+  Tab order) inside a `role=radiogroup` (`FilterChipGroup`, or `ListColumn chipsLabel`); arrow keys / Home / End
+  move and select. Every group must keep one chip checked (a leading 全部), or it becomes unreachable by Tab.
+  The gate switch and the settings panel's 主题 / 语言 segments are `role=radiogroup` too.
+- Hit areas are at least 40px (`min-h-10` / `size-10`): chips, rail toggle and links, top-bar tabs, badge, settings.
+- The search box shows focus with `focus-within:border-(--accent) ring-2 ring-(--accent)/25`.
 - Status is text + tone, never colour alone; `/` focuses global search.
 
 ## Library page sections
@@ -356,7 +380,7 @@ row names the skills that should produce it, and a stale row carries its one-wor
   collapsed state and selection stay with `LibraryView`.
 - 资源目录 filtering is client-side through `filterResources` from `@tenon/kernel/resources/query` — the same
   predicate `tenon resources list` uses. Switching a facet chip must not issue a request; the list is fetched once.
-- The four facet rows are single-select `role=tablist` rows with a leading 全部 chip. Rows wrap (`flex-wrap`); each
+- The four facet rows are single-select `role=radiogroup` rows with a leading 全部 chip. Rows wrap (`flex-wrap`); each
   chip stays on one line (`whitespace-nowrap`), so enum values are never split or clipped.
 - Builtin entries are read-only: only 复制 is offered. Custom entries add 编辑 (a YAML drawer validated by the
   server, errors listed verbatim) and 删除 (a `Dialog`). A 409 offers 重新载入 rather than silently overwriting.
