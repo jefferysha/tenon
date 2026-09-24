@@ -143,6 +143,18 @@ Tenon hosts and the `setup` or `update` operation, return
 plans are user-scoped; adapter-host plans use the current project directory
 (`--target .`) instead of a shell placeholder.
 
+New projects are created through a step-by-step dialog (location, templates,
+clients, confirm). Folders are chosen, never typed: `POST /api/fs/choose-folder`
+opens the operating system's folder dialog on the machine running the server
+(`osascript` on macOS, PowerShell on Windows, `zenity`/`kdialog` on Linux) and
+answers `{ok:true,path}`, `{ok:false,cancelled:true}`, or
+`{ok:false,unavailable:true}`; only one dialog is open at a time (`409
+picker-busy`). When no dialog is available the page switches to an in-page
+browser backed by `GET /api/fs/list?dir=&hidden=1`, which lists sub-directories
+only and, unlike other reads, also requires the token. `POST
+/api/projects/create/stream` takes the same body as `POST /api/projects/create`
+and reports each step (`plan`, `step`, `done`, `failed`) as `text/event-stream`.
+
 The production server negotiates gzip for compressible generated assets and
 returns `Vary: Accept-Encoding`. Clients that decline gzip receive the original
 bytes; API JSON remains `no-store`.
