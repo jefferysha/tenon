@@ -2,9 +2,9 @@
 import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);
 
 // packages/server/src/main.ts
-import { execFile as execFile10 } from "node:child_process";
+import { execFile as execFile11 } from "node:child_process";
 import { mkdirSync as mkdirSync10, unlinkSync as unlinkSync5, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname25, join as join108 } from "node:path";
+import { dirname as dirname26, join as join111 } from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // packages/tap/dist/paths.js
@@ -2754,14 +2754,14 @@ function validateAutomationPolicySnapshot(input2) {
   if (input2.constraints.schema_version !== 1)
     throw new Error("AutomationPolicy.constraints.schema_version: expected 1");
   const admission = input2.constraints.admission;
-  const write = input2.constraints.write;
+  const write2 = input2.constraints.write;
   const transition = input2.constraints.transition;
   const merge = input2.constraints.merge;
-  if (!isRecord2(admission) || !isRecord2(write) || !isRecord2(transition) || !isRecord2(merge)) {
+  if (!isRecord2(admission) || !isRecord2(write2) || !isRecord2(transition) || !isRecord2(merge)) {
     throw new Error("AutomationPolicy.constraints: invalid operation policy");
   }
   closed3(admission, ["require_active"], "AutomationPolicy.constraints.admission");
-  closed3(write, ["allowlist", "denylist"], "AutomationPolicy.constraints.write");
+  closed3(write2, ["allowlist", "denylist"], "AutomationPolicy.constraints.write");
   closed3(transition, ["require_active", "human_gates"], "AutomationPolicy.constraints.transition");
   closed3(merge, ["require_active", "allowlist", "denylist"], "AutomationPolicy.constraints.merge");
   if (admission.require_active !== true || transition.require_active !== true || merge.require_active !== true) {
@@ -2802,8 +2802,8 @@ function validateAutomationPolicySnapshot(input2) {
       schema_version: 1,
       admission: { require_active: true },
       write: {
-        allowlist: stringsAt(write.allowlist, "AutomationPolicy.constraints.write.allowlist"),
-        denylist: stringsAt(write.denylist, "AutomationPolicy.constraints.write.denylist")
+        allowlist: stringsAt(write2.allowlist, "AutomationPolicy.constraints.write.allowlist"),
+        denylist: stringsAt(write2.denylist, "AutomationPolicy.constraints.write.denylist")
       },
       transition: {
         require_active: true,
@@ -4852,6 +4852,7 @@ var TEMPLATE_WORKFLOW_NAMES = ["default", "design-system"];
 function isTemplateWorkflowName(value) {
   return TEMPLATE_WORKFLOW_NAMES.includes(value);
 }
+var BUILTIN_WORKFLOW_IDS = ["simple"];
 
 // packages/kernel/dist/workflow/document-contract-validation.js
 var CANONICAL_TRANSITIONS = {
@@ -8310,7 +8311,6 @@ var SIMPLE_WORKFLOW = {
     }
   ]
 };
-var BUILTIN_WORKFLOW_IDS = ["simple"];
 function builtinWorkflow(name) {
   if (name !== "simple")
     return null;
@@ -11715,8 +11715,8 @@ function removeLegacyReviewLaneProjection(workflowId, executionModel, workflow) 
       if (lanes === void 0 || JSON.stringify(step.reviewLanes) !== JSON.stringify(lanes)) {
         return step;
       }
-      const { reviewLanes: _reviewLanes, ...legacyStep } = step;
-      return legacyStep;
+      const { reviewLanes: _reviewLanes, ...legacyStep2 } = step;
+      return legacyStep2;
     })
   };
 }
@@ -11740,10 +11740,10 @@ function historicalWorkflowFingerprint(workflowId, executionModel, workflow, doc
     projectionSteps
   }));
 }
-function restoreLegacyWorkflowPlan(snapshot, track, documentFingerprint, build2, fail9) {
+function restoreLegacyWorkflowPlan(snapshot, track, documentFingerprint, build2, fail11) {
   const legacyWorkflow = structuredClone(snapshot.workflow);
   if (Object.hasOwn(legacyWorkflow, "decomposition") || Object.hasOwn(legacyWorkflow, "interaction")) {
-    return fail9("legacy workflow plan snapshot \u4E0D\u5F97\u643A\u5E26 V3 policy \u5B57\u6BB5");
+    return fail11("legacy workflow plan snapshot \u4E0D\u5F97\u643A\u5E26 V3 policy \u5B57\u6BB5");
   }
   const workflow = {
     ...legacyWorkflow,
@@ -11771,7 +11771,7 @@ function restoreLegacyWorkflowPlan(snapshot, track, documentFingerprint, build2,
     }
   }
   if (historical !== snapshot.workflowFingerprint) {
-    return fail9(`workflow plan snapshot \u5185\u5BB9\u4E0E fingerprint \u4E0D\u4E00\u81F4\uFF08expected=${snapshot.workflowFingerprint}, historical=${historical}\uFF09`);
+    return fail11(`workflow plan snapshot \u5185\u5BB9\u4E0E fingerprint \u4E0D\u4E00\u81F4\uFF08expected=${snapshot.workflowFingerprint}, historical=${historical}\uFF09`);
   }
   return build2(workflow, documentPolicy ?? null, snapshot.workflowFingerprint, track);
 }
@@ -11816,7 +11816,7 @@ function historicalV3PolicyWorkflowFingerprint(workflowId, executionModel, workf
     projectionSteps
   }));
 }
-function validateSnapshotPolicies(snapshot, fail9) {
+function validateSnapshotPolicies(snapshot, fail11) {
   let decomposition;
   let interaction;
   let workflowDecomposition;
@@ -11827,7 +11827,7 @@ function validateSnapshotPolicies(snapshot, fail9) {
     workflowDecomposition = compileWorkflowDecompositionPolicy(snapshot.workflow.decomposition);
     workflowInteraction = compileWorkflowInteractionPolicy(snapshot.workflow.interaction);
   } catch (error2) {
-    return fail9(`workflow plan snapshot frozen policy \u65E0\u6548\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`);
+    return fail11(`workflow plan snapshot frozen policy \u65E0\u6548\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`);
   }
   const decompositionKeys = [
     "version",
@@ -11840,7 +11840,7 @@ function validateSnapshotPolicies(snapshot, fail9) {
     "ask_when"
   ];
   if (!exactPolicyShape(snapshot.decomposition, decomposition, decompositionKeys) || !exactPolicyShape(snapshot.interaction, interaction, ["version", "mode"]) || !exactPolicyShape(snapshot.workflow.decomposition, workflowDecomposition, decompositionKeys) || !exactPolicyShape(snapshot.workflow.interaction, workflowInteraction, ["version", "mode"]) || JSON.stringify(decomposition) !== JSON.stringify(workflowDecomposition) || JSON.stringify(interaction) !== JSON.stringify(workflowInteraction)) {
-    fail9("workflow plan snapshot frozen policy \u5F62\u72B6\u6216\u7ED1\u5B9A\u975E\u6CD5");
+    fail11("workflow plan snapshot frozen policy \u5F62\u72B6\u6216\u7ED1\u5B9A\u975E\u6CD5");
   }
 }
 function retiredBudgetShape(value) {
@@ -11849,16 +11849,16 @@ function retiredBudgetShape(value) {
   const keys2 = Object.keys(value);
   return keys2.length === 2 && keys2.includes("version") && keys2.includes("max_attempts") && Reflect.get(value, "version") === "v1" && Number.isInteger(Reflect.get(value, "max_attempts"));
 }
-function validateV3WorkflowPolicies(snapshot, fail9) {
-  validateSnapshotPolicies(snapshot, fail9);
+function validateV3WorkflowPolicies(snapshot, fail11) {
+  validateSnapshotPolicies(snapshot, fail11);
   const legacyReviewBudget = snapshot.reviewBudget === void 0 && snapshot.workflow.reviewBudget === void 0;
   if (legacyReviewBudget)
     return true;
   if (snapshot.reviewBudget === void 0 || snapshot.workflow.reviewBudget === void 0) {
-    return fail9("workflow plan snapshot review budget \u9876\u5C42\u4E0E workflow \u7ED1\u5B9A\u4E0D\u5B8C\u6574");
+    return fail11("workflow plan snapshot review budget \u9876\u5C42\u4E0E workflow \u7ED1\u5B9A\u4E0D\u5B8C\u6574");
   }
   if (!retiredBudgetShape(snapshot.reviewBudget) || !retiredBudgetShape(snapshot.workflow.reviewBudget) || JSON.stringify(snapshot.reviewBudget) !== JSON.stringify(snapshot.workflow.reviewBudget)) {
-    fail9("workflow plan snapshot frozen policy \u5F62\u72B6\u6216\u7ED1\u5B9A\u975E\u6CD5");
+    fail11("workflow plan snapshot frozen policy \u5F62\u72B6\u6216\u7ED1\u5B9A\u975E\u6CD5");
   }
   return false;
 }
@@ -16177,8 +16177,8 @@ function normalizeDefaultGuardFields(fields) {
   }
   return out;
 }
-function renderPreconditionViolation(event, failure11, track) {
-  const { guard, decision } = failure11;
+function renderPreconditionViolation(event, failure12, track) {
+  const { guard, decision } = failure12;
   if (decision.kind === "failed" && decision.blocker !== void 0) {
     return [
       `ERROR: ${event} revision trust blocked (code=${decision.blocker.code} reason=${decision.blocker.reason})`,
@@ -16253,12 +16253,12 @@ async function evaluateDefaultEventPreconditions(event, state, ctx, options3) {
     currentStep: fieldStr(state, "phase")
   };
   const evaluations = await evaluateGuards(policy2.guards, input2, options3);
-  const failed = evaluations.find((e) => e.decision.kind === "failed");
-  if (!failed)
+  const failed2 = evaluations.find((e) => e.decision.kind === "failed");
+  if (!failed2)
     return null;
   const blockers = evaluations.flatMap((evaluation) => evaluation.decision.kind === "failed" && evaluation.decision.blocker !== void 0 ? [evaluation.decision.blocker] : []);
   return {
-    lines: renderPreconditionViolation(event, failed, track),
+    lines: renderPreconditionViolation(event, failed2, track),
     ...blockers.length === 0 ? {} : { blockers }
   };
 }
@@ -18476,6 +18476,48 @@ function composeInstructions(input2) {
 `, directories };
 }
 
+// packages/kernel/dist/instructions/clients.js
+var PROJECT_CLIENTS_SCHEMA = "tenon-clients/v1";
+var PROJECT_CLIENTS_DIRS = [".tenon"];
+var PROJECT_CLIENTS_FILE = "clients.json";
+var PROJECT_CLIENTS_MAX_BYTES = 16 * 1024;
+var KNOWN = new Set(INSTRUCTION_HOSTS.map((host) => host.id));
+var INFERRED_BY_FILE = [
+  ["CLAUDE.md", "claude"],
+  ["AGENTS.md", "codex"],
+  ["GEMINI.md", "gemini"]
+];
+function normalizeProjectClients(value) {
+  if (!Array.isArray(value) || !value.every((item2) => typeof item2 === "string"))
+    return null;
+  const unknown = value.filter((id2) => !KNOWN.has(id2));
+  if (unknown.length > 0)
+    return { ok: false, unknown: [...new Set(unknown)] };
+  return { ok: true, enabled: [...new Set(value)].sort() };
+}
+function serializeProjectClients(enabled) {
+  return `${JSON.stringify({ schema: PROJECT_CLIENTS_SCHEMA, enabled }, null, 2)}
+`;
+}
+function parseProjectClients(text7) {
+  let parsed2;
+  try {
+    parsed2 = JSON.parse(text7);
+  } catch {
+    return null;
+  }
+  if (typeof parsed2 !== "object" || parsed2 === null || Array.isArray(parsed2))
+    return null;
+  const record11 = Object.fromEntries(Object.entries(parsed2));
+  if (record11.schema !== PROJECT_CLIENTS_SCHEMA)
+    return null;
+  const normalized2 = normalizeProjectClients(record11.enabled);
+  return normalized2?.ok === true ? normalized2.enabled : null;
+}
+function inferProjectClients(exists2) {
+  return INFERRED_BY_FILE.filter(([file]) => exists2(file)).map(([, client]) => client).sort();
+}
+
 // packages/kernel/dist/instructions/digest.js
 var ABSENT_DIGEST = "absent";
 function instructionDigest(bytes) {
@@ -20479,9 +20521,9 @@ var gitStatusRunner = async (repoRoot, args) => {
     });
     return { code: 0, stdout: String(stdout) };
   } catch (error2) {
-    const failure11 = error2;
-    const code = typeof failure11.code === "number" && failure11.code !== 0 ? failure11.code : 1;
-    return { code, stdout: "", stderr: typeof failure11.stderr === "string" ? failure11.stderr : String(failure11.code ?? "") };
+    const failure12 = error2;
+    const code = typeof failure12.code === "number" && failure12.code !== 0 ? failure12.code : 1;
+    return { code, stdout: "", stderr: typeof failure12.stderr === "string" ? failure12.stderr : String(failure12.code ?? "") };
   }
 };
 function changeNameOf(path14) {
@@ -26828,7 +26870,7 @@ function decodeSkillRunV2(input2) {
     const prior_attempt_id = optionalText2(r.prior_attempt_id, "$.prior_attempt_id", e, ID2);
     const started_at = optionalText2(r.started_at, "$.started_at", e, UTC);
     const finished_at = optionalText2(r.finished_at, "$.finished_at", e, UTC);
-    let failure11;
+    let failure12;
     if (r.failure !== void 0) {
       const rawFailure = object3(r.failure, "$.failure", e);
       if (rawFailure) {
@@ -26837,12 +26879,12 @@ function decodeSkillRunV2(input2) {
         const retryable = bool(rawFailure.retryable, "$.failure.retryable", e);
         const detail_ref = optionalText2(rawFailure.detail_ref, "$.failure.detail_ref", e, ID2);
         if (code && retryable !== void 0)
-          failure11 = { code, retryable, ...detail_ref === void 0 ? {} : { detail_ref } };
+          failure12 = { code, retryable, ...detail_ref === void 0 ? {} : { detail_ref } };
       }
     }
     if (!run_id || !attempt_id || attempt2 === void 0 || !work_item_id || !skill_id || !skill_version || !status2)
       return void 0;
-    return { ...m, schema_version: V2_SCHEMAS.run, run_id, attempt_id, attempt: attempt2, work_item_id, skill_id, skill_version, mcp_ids: strings(r.mcp_ids, "$.mcp_ids", e), status: status2, ...lease === void 0 ? {} : { lease }, input_refs: strings(r.input_refs, "$.input_refs", e), ...input_manifest === void 0 ? {} : { input_manifest }, ...result_id === void 0 ? {} : { result_id }, ...prior_attempt_id === void 0 ? {} : { prior_attempt_id }, ...failure11 === void 0 ? {} : { failure: failure11 }, ...started_at === void 0 ? {} : { started_at }, ...finished_at === void 0 ? {} : { finished_at } };
+    return { ...m, schema_version: V2_SCHEMAS.run, run_id, attempt_id, attempt: attempt2, work_item_id, skill_id, skill_version, mcp_ids: strings(r.mcp_ids, "$.mcp_ids", e), status: status2, ...lease === void 0 ? {} : { lease }, input_refs: strings(r.input_refs, "$.input_refs", e), ...input_manifest === void 0 ? {} : { input_manifest }, ...result_id === void 0 ? {} : { result_id }, ...prior_attempt_id === void 0 ? {} : { prior_attempt_id }, ...failure12 === void 0 ? {} : { failure: failure12 }, ...started_at === void 0 ? {} : { started_at }, ...finished_at === void 0 ? {} : { finished_at } };
   });
 }
 function decodeSkillResultV2(input2) {
@@ -29378,11 +29420,11 @@ function hasExactKeys(value, keys2) {
   const actual = Object.keys(value);
   return actual.length === keys2.length && keys2.every((key) => Object.hasOwn(value, key));
 }
-function parseJson3(text7, fail9) {
+function parseJson3(text7, fail11) {
   try {
     return JSON.parse(text7);
   } catch (error2) {
-    throw fail9(`JSON \u65E0\u6548\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`);
+    throw fail11(`JSON \u65E0\u6548\uFF1A${error2 instanceof Error ? error2.message : String(error2)}`);
   }
 }
 function sourcesError(message) {
@@ -29542,10 +29584,10 @@ function parseRunResult(raw, index) {
     throw reportError(`${at}.id \u4E0D\u5408\u6CD5`);
   if (!isOutcome(outcome))
     throw reportError(`${id2} outcome \u4E0D\u5408\u6CD5`);
-  const failed = outcome === "kept" || outcome === "missing";
-  if (failed !== isFailureReason(reason2) || !failed && reason2 !== void 0)
+  const failed2 = outcome === "kept" || outcome === "missing";
+  if (failed2 !== isFailureReason(reason2) || !failed2 && reason2 !== void 0)
     throw reportError(`${id2} reason \u4E0E outcome \u4E0D\u7B26`);
-  if (detail !== void 0 && (typeof detail !== "string" || !failed))
+  if (detail !== void 0 && (typeof detail !== "string" || !failed2))
     throw reportError(`${id2} detail \u4E0D\u5408\u6CD5`);
   return {
     id: id2,
@@ -29588,17 +29630,17 @@ function buildUpstreamSkillView(input2) {
   const rows = input2.bundledIds.map((id2) => ({ id: id2, origin: "tenon", status: "bundled" }));
   for (const source2 of input2.sources?.skills ?? []) {
     const entry = locked.get(source2.id);
-    const failure11 = entry === void 0 || lastRunCurrent ? failures.get(source2.id) : void 0;
+    const failure12 = entry === void 0 || lastRunCurrent ? failures.get(source2.id) : void 0;
     const failureFields = {
-      ...failure11?.reason === void 0 ? {} : { reason: failure11.reason },
-      ...failure11?.detail === void 0 ? {} : { detail: failure11.detail }
+      ...failure12?.reason === void 0 ? {} : { reason: failure12.reason },
+      ...failure12?.detail === void 0 ? {} : { detail: failure12.detail }
     };
     if (entry === void 0) {
       rows.push({ id: source2.id, origin: "upstream", status: "failed", repo: source2.repo, path: source2.path, ...failureFields });
       continue;
     }
     const outcome = lastOutcome.get(source2.id);
-    const status2 = failure11 !== void 0 ? "failed" : outcome === "updated" ? "changed" : outcome === "unchanged" ? "unchanged" : entry.fetchedAt === lock?.updatedAt ? "changed" : "unchanged";
+    const status2 = failure12 !== void 0 ? "failed" : outcome === "updated" ? "changed" : outcome === "unchanged" ? "unchanged" : entry.fetchedAt === lock?.updatedAt ? "changed" : "unchanged";
     rows.push({
       id: source2.id,
       origin: "upstream",
@@ -30527,7 +30569,7 @@ async function guardBlockers(input2, stepId, event, to) {
     changeDirAbs: input2.changeDir,
     ...context
   });
-  return result2.failures.map((failure11) => blocker2("guard", "guard-failed", failure11));
+  return result2.failures.map((failure12) => blocker2("guard", "guard-failed", failure12));
 }
 async function evaluateStepExitReport(input2) {
   const { plan, state } = input2;
@@ -31179,9 +31221,8 @@ function createTransitionApplication(deps) {
 }
 
 // packages/server/src/server.ts
-import { join as joinPath3 } from "node:path";
 import { createServer } from "node:http";
-import { join as join107 } from "node:path";
+import { join as join110, join as joinPath3 } from "node:path";
 
 // packages/automation/dist/types.js
 var AUTOMATION_STATES = [
@@ -37673,8 +37714,8 @@ async function withStepExitReadiness(readiness, input2) {
     ]));
   } catch (error2) {
     const message = error2 instanceof Error ? error2.message : String(error2);
-    const failed = { kind: "step-exit", source: "guard", code: "evaluation-error", message };
-    extraByEvent = new Map(Object.keys(current).map((event) => [event, [failed]]));
+    const failed2 = { kind: "step-exit", source: "guard", code: "evaluation-error", message };
+    extraByEvent = new Map(Object.keys(current).map((event) => [event, [failed2]]));
   }
   const merged = {};
   for (const [event, value] of Object.entries(current)) {
@@ -39031,8 +39072,8 @@ function createCadenceScheduler(options3) {
 }
 
 // packages/server/src/serverGetRoutes.ts
-import { lstatSync as lstatSync16 } from "node:fs";
-import { dirname as dirname22, join as join97 } from "node:path";
+import { lstatSync as lstatSync18 } from "node:fs";
+import { dirname as dirname23, join as join100 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // packages/server/src/afkReadiness.ts
@@ -40303,16 +40344,16 @@ function buildAfkSnapshot(snapshot, clock) {
   const queued = lanes.queued.length;
   const running = lanes.running.length;
   const merged = lanes.merged.length;
-  const failed = lanes.failed.length;
+  const failed2 = lanes.failed.length;
   const conflict = lanes.conflict.length;
   const paused = lanes.paused.length;
   const total = cards.length;
-  const attention = failed + conflict > 0;
+  const attention = failed2 + conflict > 0;
   const status2 = attention ? "attention" : queued + running > 0 ? "busy" : "ok";
-  const message = attention ? `\u8C03\u5EA6\u5668\u9700\u4EBA\u5DE5\u4ECB\u5165\uFF1A${failed} failed / ${conflict} conflict\uFF08\u73B0\u573A\u5DF2\u4FDD\u7559\uFF09` : queued + running > 0 ? `\u8C03\u5EA6\u5668\u8FD0\u884C\u4E2D\uFF1A${running} \u5728\u8DD1 / ${queued} \u6392\u961F` : total > 0 ? `\u65E0\u6D3B\u8DC3\u4EFB\u52A1\uFF1A${merged} \u5DF2\u5408\u5E76 / ${paused} \u6682\u505C` : "AFK \u7A7A\u95F2\uFF08\u65E0\u81EA\u52A8\u5316\u4EFB\u52A1\uFF09";
+  const message = attention ? `\u8C03\u5EA6\u5668\u9700\u4EBA\u5DE5\u4ECB\u5165\uFF1A${failed2} failed / ${conflict} conflict\uFF08\u73B0\u573A\u5DF2\u4FDD\u7559\uFF09` : queued + running > 0 ? `\u8C03\u5EA6\u5668\u8FD0\u884C\u4E2D\uFF1A${running} \u5728\u8DD1 / ${queued} \u6392\u961F` : total > 0 ? `\u65E0\u6D3B\u8DC3\u4EFB\u52A1\uFF1A${merged} \u5DF2\u5408\u5E76 / ${paused} \u6682\u505C` : "AFK \u7A7A\u95F2\uFF08\u65E0\u81EA\u52A8\u5316\u4EFB\u52A1\uFF09";
   return {
     generated_at: clock(),
-    scheduler: { status: status2, queued, running, merged, failed, conflict, paused, total, message },
+    scheduler: { status: status2, queued, running, merged, failed: failed2, conflict, paused, total, message },
     lanes,
     cards
   };
@@ -42939,7 +42980,7 @@ function readDefaultOverride(anchor) {
 }
 
 // packages/server/src/instructionRoutes.ts
-import { join as join91 } from "node:path";
+import { join as join93 } from "node:path";
 
 // packages/server/src/instructionAudit.ts
 import { closeSync as closeSync8, constants as constants18, mkdirSync as mkdirSync5, openSync as openSync13, writeFileSync as writeFileSync6 } from "node:fs";
@@ -43453,10 +43494,87 @@ function deleteInstructionTarget(scope, targetId, digest14) {
   }
 }
 
+// packages/server/src/projectClients.ts
+import { join as join90 } from "node:path";
+var failed = (status2, code, error2) => ({ ok: false, status: status2, code, error: error2 });
+function readProjectClients(anchor) {
+  const read2 = readTrustedFile2(anchor, PROJECT_CLIENTS_DIRS, PROJECT_CLIENTS_FILE, PROJECT_CLIENTS_MAX_BYTES);
+  if (read2.error) return failed(409, read2.error, "clients.json \u4E0D\u53EF\u8BFB");
+  if (read2.bytes === null) {
+    const enabled2 = inferProjectClients((file) => {
+      const entry = lstatIfExists(join90(anchor.path, file));
+      return entry !== void 0 && entry.isFile();
+    });
+    return { ok: true, enabled: enabled2, source: "inferred", digest: read2.digest };
+  }
+  const enabled = parseProjectClients(read2.bytes.toString("utf8"));
+  if (enabled === null) return failed(409, "clients-file-invalid", "clients.json \u683C\u5F0F\u4E0D\u5408\u6CD5");
+  return { ok: true, enabled, source: "file", digest: read2.digest };
+}
+function writeProjectClients(anchor, enabled) {
+  const normalized2 = normalizeProjectClients(enabled);
+  if (normalized2 === null) return failed(400, "invalid", "enabled \u5FC5\u987B\u662F\u5BA2\u6237\u7AEF id \u5217\u8868");
+  if (!normalized2.ok) return { ...failed(400, "unknown-client", "\u672A\u77E5\u5BA2\u6237\u7AEF"), unknown: normalized2.unknown };
+  const current = readTrustedFile2(anchor, PROJECT_CLIENTS_DIRS, PROJECT_CLIENTS_FILE, PROJECT_CLIENTS_MAX_BYTES);
+  if (current.error) return failed(409, current.error, "clients.json \u4E0D\u53EF\u5199");
+  const written = writeTrustedFile(
+    anchor,
+    PROJECT_CLIENTS_DIRS,
+    PROJECT_CLIENTS_FILE,
+    serializeProjectClients(normalized2.enabled),
+    current.digest,
+    PROJECT_CLIENTS_MAX_BYTES
+  );
+  if (written.ok) return { ok: true, enabled: normalized2.enabled, digest_before: current.digest, digest: written.digest };
+  return written.code === "changed" ? failed(409, "clients-file-changed", "clients.json \u5DF2\u88AB\u5916\u90E8\u4FEE\u6539") : failed(409, written.code, "clients.json \u4E0D\u53EF\u5199");
+}
+
 // packages/server/src/projectCreate.ts
 import { execFile as execFile8 } from "node:child_process";
+import { isAbsolute as isAbsolute17, join as join92, resolve as resolvePath6 } from "node:path";
+
+// packages/server/src/projectCreateRun.ts
 import { lstatSync as lstatSync14, mkdirSync as mkdirSync8, rmSync } from "node:fs";
-import { isAbsolute as isAbsolute17, join as join90, resolve as resolvePath6 } from "node:path";
+import { join as join91 } from "node:path";
+
+// packages/server/src/projectInstructionText.ts
+var REFERENCE_FILES = ["CLAUDE.md", "GEMINI.md"];
+var REFERENCE_TEXT = "@AGENTS.md\n";
+function effectiveText(request, id2, current) {
+  const base = request.references.includes(id2) ? REFERENCE_TEXT : request.text;
+  if (!request.append.includes(id2) || current === null) return base;
+  const parsed2 = parseManagedBlocks(current);
+  if (!parsed2.ok) return base;
+  const user = parsed2.userText.replace(/\s+$/u, "");
+  if (user === "") return base;
+  const addition = base.replace(/\s+$/u, "");
+  if (addition === "" || user.includes(addition)) return parsed2.userText;
+  return `${user}
+
+${addition}
+`;
+}
+function previewFiles(result2) {
+  const files = Reflect.get(Object(result2.body), "files");
+  return Array.isArray(files) ? files : [];
+}
+function previewProjectFile(anchor, request, id2) {
+  const scope = { level: "project", anchor };
+  const first = previewInstructionApply(scope, request.text, [id2]);
+  if (first.status !== 200) return first;
+  const current = previewFiles(first)[0]?.current ?? null;
+  const text7 = effectiveText(request, id2, current);
+  return text7 === request.text ? first : previewInstructionApply(scope, text7, [id2]);
+}
+function previewProjectFiles(anchor, request) {
+  const files = [];
+  for (const id2 of request.targets) {
+    const preview = previewProjectFile(anchor, request, id2);
+    if (preview.status !== 200) return preview;
+    files.push(...previewFiles(preview));
+  }
+  return { status: 200, body: { ok: true, files } };
+}
 
 // packages/server/src/projects.ts
 import { lstatSync as lstatSync13, statSync as statSync8 } from "node:fs";
@@ -43527,10 +43645,170 @@ async function registerProjectAnchored(paths, anchors2, rawRoot) {
   return { ok: true, root: result2.root, added: true };
 }
 
+// packages/server/src/projectCreateRun.ts
+var LEGACY_STEP = { git: "git-init", skeleton: "directories", clients: "clients", register: "register" };
+var legacyStep = (id2) => LEGACY_STEP[id2] ?? (id2.startsWith("file:") ? "instructions" : id2);
+var ERROR_MAX = 600;
+var fail8 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
+var StepFailure = class extends Error {
+  constructor(step, message, code, result2 = null, original = null) {
+    super(message);
+    this.step = step;
+    this.code = code;
+    this.result = result2;
+    this.original = original;
+  }
+  step;
+  code;
+  result;
+  original;
+};
+function bodyText(result2) {
+  const body2 = typeof result2.body === "object" && result2.body !== null ? result2.body : {};
+  const error2 = Reflect.get(body2, "error");
+  const code = Reflect.get(body2, "code");
+  return { error: typeof error2 === "string" ? error2 : `HTTP ${result2.status}`, code: typeof code === "string" ? code : void 0 };
+}
+var hasClients = (plan) => plan.clients !== void 0 && plan.clients !== null;
+async function recordClients(plan, anchor, report) {
+  const clients = plan.clients;
+  if (clients === void 0 || clients === null) return;
+  await runStep("clients", report, () => {
+    const written = writeProjectClients(anchor, clients);
+    if (!written.ok) throw new StepFailure("clients", written.error, written.code);
+  });
+}
+function createStepIds(plan) {
+  const files = [...(plan.instructions?.targets ?? []).map((id2) => `file:${id2}`), ...hasClients(plan) ? ["clients"] : []];
+  if (plan.mode === "existing") return [...needsGitInit(plan) ? ["git"] : [], ...files, "register"];
+  return ["directory", "git", ...plan.directories.length > 0 ? ["skeleton"] : [], ...files, "register"];
+}
+async function runStep(id2, report, work) {
+  report({ id: id2, state: "running" });
+  try {
+    const value = await work();
+    report({ id: id2, state: "done" });
+    return value;
+  } catch (error2) {
+    const failure12 = error2 instanceof StepFailure ? error2 : new StepFailure(id2, error2 instanceof Error ? error2.message : String(error2), void 0, null, error2);
+    report({ id: id2, state: "failed", error: failure12.message.slice(0, ERROR_MAX), ...failure12.code === void 0 ? {} : { code: failure12.code } });
+    throw failure12;
+  }
+}
+function removeCreated(root, anchor) {
+  try {
+    const current = lstatSync14(root);
+    if (current.isDirectory() && !current.isSymbolicLink() && sameIdentity(current, anchor)) rmSync(root, { recursive: true, force: true });
+  } catch {
+  }
+}
+function writeFile22(anchor, request, id2, baseDigest) {
+  const preview = previewProjectFile(anchor, request, id2);
+  const planned = Reflect.get(Object(preview.body), "files");
+  const current = Array.isArray(planned) ? Reflect.get(Object(planned[0]), "current") : null;
+  const text7 = preview.status === 200 ? effectiveText(request, id2, typeof current === "string" ? current : null) : request.text;
+  const applied = applyInstructions({ level: "project", anchor }, text7, [{ id: id2, base_digest: baseDigest }]);
+  if (applied.status !== 200) {
+    const { error: error2, code } = bodyText(applied);
+    throw new StepFailure(`file:${id2}`, error2, code, applied);
+  }
+  const files = Reflect.get(Object(applied.body), "files");
+  return Array.isArray(files) ? files[0] : void 0;
+}
+var needsGitInit = (plan) => plan.mode === "existing" && plan.gitInit === true && lstatIfExists(join91(plan.root, ".git")) === void 0;
+async function gitInit(plan, deps, report) {
+  await runStep("git", report, async () => {
+    const git = await deps.runGit(["init"], plan.root);
+    if (git.code !== 0) {
+      throw new StepFailure(
+        "git",
+        `git init: ${git.stderr.trim() || `exit ${git.code}`}`,
+        void 0,
+        fail8(500, "project-create-failed", "\u65B0\u5EFA\u9879\u76EE\u5931\u8D25", { step: "git-init" })
+      );
+    }
+  });
+}
+async function executeEmpty(plan, deps, report) {
+  report({ id: "directory", state: "running" });
+  try {
+    mkdirSync8(plan.root);
+  } catch (error2) {
+    const exists2 = error2 instanceof Error && Reflect.get(error2, "code") === "EEXIST";
+    const result2 = exists2 ? fail8(409, "project-path-exists", "\u76EE\u5F55\u5DF2\u5B58\u5728") : trustedFsFailure(error2);
+    report({ id: "directory", state: "failed", ...bodyText(result2) });
+    return result2;
+  }
+  report({ id: "directory", state: "done" });
+  const anchor = captureWorkflowRootAnchor(plan.root);
+  try {
+    await gitInit(plan, deps, report);
+    if (plan.directories.length > 0) {
+      await runStep("skeleton", report, () => {
+        for (const directory of plan.directories) {
+          const name = directory.slice(0, -1);
+          withTrustedDirectoryChain(anchor, [name], true, () => {
+            throw new Error(`${directory}: mkdir`);
+          }, () => void 0);
+          const keep = writeTrustedFile(anchor, [name], ".gitkeep", "", "absent", 1);
+          if (!keep.ok) throw new Error(`${directory}.gitkeep: write`);
+        }
+      });
+    }
+    const files = [];
+    const instructions = plan.instructions;
+    for (const id2 of instructions?.targets ?? []) {
+      if (instructions) files.push(await runStep(`file:${id2}`, report, () => writeFile22(anchor, instructions, id2, "absent")));
+    }
+    await recordClients(plan, anchor, report);
+    await runStep("register", report, async () => {
+      const registration = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root);
+      if (!registration.ok) throw new Error(registration.error);
+    });
+    return { status: 200, body: { ok: true, root: plan.root, git: "init", registration: "add", directories: plan.directories, files } };
+  } catch (error2) {
+    removeCreated(plan.root, anchor);
+    const step = error2 instanceof StepFailure ? legacyStep(error2.step) : "unknown";
+    return fail8(500, "project-create-failed", "\u65B0\u5EFA\u9879\u76EE\u5931\u8D25", { step });
+  } finally {
+    closeWorkflowRootAnchor(anchor);
+  }
+}
+async function executeExisting(plan, deps, report) {
+  const files = [];
+  try {
+    const initialized = needsGitInit(plan);
+    if (initialized) await gitInit(plan, deps, report);
+    const instructions = plan.instructions;
+    if (instructions || hasClients(plan)) {
+      const anchor = captureWorkflowRootAnchor(plan.root);
+      try {
+        for (const id2 of instructions?.targets ?? []) {
+          if (instructions) files.push(await runStep(`file:${id2}`, report, () => writeFile22(anchor, instructions, id2, instructions.baseDigests[id2] ?? "absent")));
+        }
+        await recordClients(plan, anchor, report);
+      } finally {
+        closeWorkflowRootAnchor(anchor);
+      }
+    }
+    const git = initialized ? "init" : lstatIfExists(join91(plan.root, ".git")) ? "existing" : "none";
+    const registration = await runStep("register", report, async () => {
+      if (readProjectRegistry(deps.paths.registryPath).includes(plan.root)) return "already";
+      const added = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root);
+      if (!added.ok) throw new StepFailure("register", added.error, "registration-failed", fail8(added.code, "registration-failed", added.error));
+      return "add";
+    });
+    return { status: 200, body: { ok: true, root: plan.root, git, registration, directories: [], files } };
+  } catch (error2) {
+    if (error2 instanceof StepFailure && error2.result !== null) return error2.result;
+    throw error2 instanceof StepFailure && error2.original !== null ? error2.original : error2;
+  }
+}
+
 // packages/server/src/projectCreate.ts
 var NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 var DIRECTORY2 = /^[a-z0-9._-]+\/$/;
-var fail8 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
+var fail9 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
 var runGitCommand = (args, cwd) => new Promise((resolve20) => {
   execFile8("git", [...args], { cwd, timeout: 1e4 }, (error2, _stdout, stderr) => {
     const exit = error2 === null ? 0 : typeof error2.code === "number" ? error2.code : 1;
@@ -43549,47 +43827,69 @@ function decodeInstructions(value) {
   if (targets.length === 0 || targets.length !== body2.targets.length || new Set(targets).size !== targets.length) return "invalid";
   const digests = record9(body2.base_digests ?? {});
   if (!digests || !Object.values(digests).every((item2) => typeof item2 === "string")) return "invalid";
-  return { text: body2.text, targets, baseDigests: Object.fromEntries(Object.entries(digests).map(([key, item2]) => [key, String(item2)])) };
+  const references = subset(body2.references, targets, REFERENCE_FILES);
+  const append2 = subset(body2.append, targets, targets);
+  if (references === null || append2 === null) return "invalid";
+  return {
+    text: body2.text,
+    targets,
+    references,
+    append: append2,
+    baseDigests: Object.fromEntries(Object.entries(digests).map(([key, item2]) => [key, String(item2)]))
+  };
+}
+function subset(value, targets, allowed) {
+  if (value === void 0) return [];
+  if (!Array.isArray(value) || new Set(value).size !== value.length) return null;
+  return value.every((item2) => typeof item2 === "string" && targets.includes(item2) && allowed.includes(item2)) ? value.map(String) : null;
 }
 function decodeProjectCreate(body2) {
   const request = record9(body2);
-  const allowed = ["mode", "parent", "name", "path", "directories", "instructions", "dry_run"];
-  if (!request || Object.keys(request).some((key) => !allowed.includes(key))) return fail8(400, "invalid", "\u8BF7\u6C42\u4F53\u4E0D\u5408\u6CD5");
+  const allowed = ["mode", "parent", "name", "path", "directories", "instructions", "clients", "git_init", "dry_run"];
+  if (!request || Object.keys(request).some((key) => !allowed.includes(key))) return fail9(400, "invalid", "\u8BF7\u6C42\u4F53\u4E0D\u5408\u6CD5");
   const directories = request.directories ?? [];
   if (!Array.isArray(directories) || directories.length > 8 || !directories.every((item2) => typeof item2 === "string" && DIRECTORY2.test(item2) && item2 !== "./" && item2 !== "../") || new Set(directories).size !== directories.length) {
-    return fail8(400, "invalid", "directories \u5FC5\u987B\u662F\u4E0D\u8D85\u8FC7 8 \u4E2A\u5355\u5C42\u76EE\u5F55\u540D\uFF08\u4EE5 / \u7ED3\u5C3E\uFF09");
+    return fail9(400, "invalid", "directories \u5FC5\u987B\u662F\u4E0D\u8D85\u8FC7 8 \u4E2A\u5355\u5C42\u76EE\u5F55\u540D\uFF08\u4EE5 / \u7ED3\u5C3E\uFF09");
   }
   const instructions = decodeInstructions(request.instructions);
-  if (instructions === "invalid") return fail8(400, "invalid", "instructions \u4E0D\u5408\u6CD5");
-  if (instructions && containsManagedMarker(instructions.text)) return fail8(400, "managed-marker-in-text", "\u6B63\u6587\u4E0D\u80FD\u5305\u542B Tenon \u53D7\u7BA1\u5757\u6807\u8BB0\u884C");
-  if (instructions && Buffer.byteLength(instructions.text, "utf8") > INSTRUCTION_TEXT_MAX_BYTES) return fail8(413, "too-large", "\u6307\u4EE4\u6587\u4EF6\u8FC7\u5927");
+  if (instructions === "invalid") return fail9(400, "invalid", "instructions \u4E0D\u5408\u6CD5");
+  if (instructions && containsManagedMarker(instructions.text)) return fail9(400, "managed-marker-in-text", "\u6B63\u6587\u4E0D\u80FD\u5305\u542B Tenon \u53D7\u7BA1\u5757\u6807\u8BB0\u884C");
+  if (instructions && Buffer.byteLength(instructions.text, "utf8") > INSTRUCTION_TEXT_MAX_BYTES) return fail9(413, "too-large", "\u6307\u4EE4\u6587\u4EF6\u8FC7\u5927");
+  let clients = null;
+  if (request.clients !== void 0 && request.clients !== null) {
+    const normalized2 = normalizeProjectClients(request.clients);
+    if (normalized2 === null) return fail9(400, "invalid", "clients \u5FC5\u987B\u662F\u5BA2\u6237\u7AEF id \u5217\u8868");
+    if (!normalized2.ok) return fail9(400, "unknown-client", "\u672A\u77E5\u5BA2\u6237\u7AEF", { unknown: normalized2.unknown });
+    clients = normalized2.enabled;
+  }
   const dryRun = request.dry_run === true;
   if (request.mode === "empty") {
-    if (!absolutePath(request.parent) || typeof request.name !== "string" || !NAME.test(request.name)) return fail8(400, "invalid-path", "\u7236\u76EE\u5F55\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u540D\u79F0\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u3001. _ -");
+    if (!absolutePath(request.parent) || typeof request.name !== "string" || !NAME.test(request.name)) return fail9(400, "invalid-path", "\u7236\u76EE\u5F55\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84\uFF0C\u540D\u79F0\u53EA\u80FD\u542B\u5B57\u6BCD\u3001\u6570\u5B57\u3001. _ -");
     const parent = resolvePath6(request.parent);
-    return { mode: "empty", parent, root: join90(parent, request.name), directories: directories.map(String), instructions, dryRun };
+    return { mode: "empty", parent, root: join92(parent, request.name), directories: directories.map(String), instructions, clients, dryRun };
   }
   if (request.mode === "existing") {
-    if (!absolutePath(request.path)) return fail8(400, "invalid-path", "\u8DEF\u5F84\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84");
-    if (directories.length > 0) return fail8(400, "invalid", "\u5DF2\u6709\u76EE\u5F55\u4E0D\u521B\u5EFA\u9AA8\u67B6\u76EE\u5F55");
-    return { mode: "existing", root: resolvePath6(request.path), instructions, dryRun };
+    if (!absolutePath(request.path)) return fail9(400, "invalid-path", "\u8DEF\u5F84\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84");
+    if (directories.length > 0) return fail9(400, "invalid", "\u5DF2\u6709\u76EE\u5F55\u4E0D\u521B\u5EFA\u9AA8\u67B6\u76EE\u5F55");
+    if (request.git_init !== void 0 && typeof request.git_init !== "boolean") return fail9(400, "invalid", "git_init \u5FC5\u987B\u662F\u5E03\u5C14\u503C");
+    return { mode: "existing", root: resolvePath6(request.path), instructions, clients, gitInit: request.git_init === true, dryRun };
   }
-  return fail8(400, "invalid", "mode \u5FC5\u987B\u662F empty \u6216 existing");
+  return fail9(400, "invalid", "mode \u5FC5\u987B\u662F empty \u6216 existing");
 }
 function directoryProblem(path14, missing4) {
   const entry = lstatIfExists(path14);
   if (!entry) return missing4;
-  if (entry.isSymbolicLink()) return fail8(400, "path-unsafe", "\u8DEF\u5F84\u4E0D\u80FD\u662F\u7B26\u53F7\u94FE\u63A5");
-  if (!entry.isDirectory()) return fail8(400, "not-directory", "\u8DEF\u5F84\u4E0D\u662F\u76EE\u5F55");
+  if (entry.isSymbolicLink()) return fail9(400, "path-unsafe", "\u8DEF\u5F84\u4E0D\u80FD\u662F\u7B26\u53F7\u94FE\u63A5");
+  if (!entry.isDirectory()) return fail9(400, "not-directory", "\u8DEF\u5F84\u4E0D\u662F\u76EE\u5F55");
   return null;
 }
 var registered = (deps, root) => readProjectRegistry(deps.paths.registryPath).includes(root);
 async function planProjectCreate(plan, deps) {
   if (plan.mode === "empty") {
-    const parentProblem = directoryProblem(plan.parent, fail8(404, "parent-missing", "\u7236\u76EE\u5F55\u4E0D\u5B58\u5728"));
-    if (parentProblem) return parentProblem.body && parentProblem.body.code === "not-directory" ? fail8(400, "parent-not-directory", "\u7236\u76EE\u5F55\u4E0D\u662F\u76EE\u5F55") : parentProblem;
-    if (lstatIfExists(plan.root)) return fail8(409, "project-path-exists", "\u76EE\u5F55\u5DF2\u5B58\u5728");
-    if ((await deps.runGit(["--version"], plan.parent)).code !== 0) return fail8(422, "git-unavailable", "\u65E0\u6CD5\u8FD0\u884C git");
+    const parentProblem = directoryProblem(plan.parent, fail9(404, "parent-missing", "\u7236\u76EE\u5F55\u4E0D\u5B58\u5728"));
+    if (parentProblem) return parentProblem.body && parentProblem.body.code === "not-directory" ? fail9(400, "parent-not-directory", "\u7236\u76EE\u5F55\u4E0D\u662F\u76EE\u5F55") : parentProblem;
+    if (lstatIfExists(plan.root)) return fail9(409, "project-path-exists", "\u76EE\u5F55\u5DF2\u5B58\u5728");
+    if ((await deps.runGit(["--version"], plan.parent)).code !== 0) return fail9(422, "git-unavailable", "\u65E0\u6CD5\u8FD0\u884C git");
     return {
       status: 200,
       body: {
@@ -43600,21 +43900,23 @@ async function planProjectCreate(plan, deps) {
         directories: plan.directories.map((path14) => ({ path: path14, exists: false })),
         files: (plan.instructions?.targets ?? []).map((id2) => ({
           id: id2,
-          path: join90(plan.root, id2),
+          path: join92(plan.root, id2),
           base_digest: "absent",
           current: null,
-          next: mergeManagedBlocks(plan.instructions?.text ?? "", [])
+          next: plan.instructions ? mergeManagedBlocks(effectiveText(plan.instructions, id2, null), []) : ""
         }))
       }
     };
   }
-  const problem = directoryProblem(plan.root, fail8(404, "path-missing", "\u8DEF\u5F84\u4E0D\u5B58\u5728"));
+  const problem = directoryProblem(plan.root, fail9(404, "path-missing", "\u8DEF\u5F84\u4E0D\u5B58\u5728"));
   if (problem) return problem;
+  const hasGit = lstatIfExists(join92(plan.root, ".git")) !== void 0;
+  if (!hasGit && plan.gitInit === true && (await deps.runGit(["--version"], plan.root)).code !== 0) return fail9(422, "git-unavailable", "\u65E0\u6CD5\u8FD0\u884C git");
   let files = [];
   if (plan.instructions) {
     const anchor = captureWorkflowRootAnchor(plan.root);
     try {
-      const preview = previewInstructionApply({ level: "project", anchor }, plan.instructions.text, plan.instructions.targets);
+      const preview = previewProjectFiles(anchor, plan.instructions);
       if (preview.status !== 200) return preview;
       files = preview.body.files;
     } finally {
@@ -43626,95 +43928,31 @@ async function planProjectCreate(plan, deps) {
     body: {
       ok: true,
       root: plan.root,
-      git: lstatIfExists(join90(plan.root, ".git")) ? "existing" : "none",
+      git: hasGit ? "existing" : plan.gitInit === true ? "init" : "none",
       registration: registered(deps, plan.root) ? "already" : "add",
       directories: [],
       files
     }
   };
 }
-function removeCreated(root, anchor) {
-  try {
-    const current = lstatSync14(root);
-    if (current.isDirectory() && !current.isSymbolicLink() && sameIdentity(current, anchor)) rmSync(root, { recursive: true, force: true });
-  } catch {
-  }
-}
-async function executeEmpty(plan, deps) {
-  try {
-    mkdirSync8(plan.root);
-  } catch (error2) {
-    if (error2.code === "EEXIST") return fail8(409, "project-path-exists", "\u76EE\u5F55\u5DF2\u5B58\u5728");
-    return trustedFsFailure(error2);
-  }
-  const anchor = captureWorkflowRootAnchor(plan.root);
-  let step = "git-init";
-  try {
-    if ((await deps.runGit(["init"], plan.root)).code !== 0) throw new Error("git init \u5931\u8D25");
-    step = "directories";
-    for (const directory of plan.directories) {
-      const name = directory.slice(0, -1);
-      withTrustedDirectoryChain(anchor, [name], true, () => {
-        throw new Error("\u76EE\u5F55\u521B\u5EFA\u5931\u8D25");
-      }, () => void 0);
-      const keep = writeTrustedFile(anchor, [name], ".gitkeep", "", "absent", 1);
-      if (!keep.ok) throw new Error(".gitkeep \u5199\u5165\u5931\u8D25");
-    }
-    let files = [];
-    if (plan.instructions) {
-      step = "instructions";
-      const applied = applyInstructions({ level: "project", anchor }, plan.instructions.text, plan.instructions.targets.map((id2) => ({ id: id2, base_digest: "absent" })));
-      if (applied.status !== 200) throw new Error("\u6307\u4EE4\u6587\u4EF6\u5199\u5165\u5931\u8D25");
-      files = applied.body.files;
-    }
-    step = "register";
-    const registration = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root);
-    if (!registration.ok) throw new Error(registration.error);
-    return { status: 200, body: { ok: true, root: plan.root, git: "init", registration: "add", directories: plan.directories, files } };
-  } catch {
-    removeCreated(plan.root, anchor);
-    return fail8(500, "project-create-failed", "\u65B0\u5EFA\u9879\u76EE\u5931\u8D25", { step });
-  } finally {
-    closeWorkflowRootAnchor(anchor);
-  }
-}
-async function executeExisting(plan, deps) {
-  let files = [];
-  if (plan.instructions) {
-    const instructions = plan.instructions;
-    const anchor = captureWorkflowRootAnchor(plan.root);
-    try {
-      const applied = applyInstructions(
-        { level: "project", anchor },
-        instructions.text,
-        instructions.targets.map((id2) => ({ id: id2, base_digest: instructions.baseDigests[id2] ?? "absent" }))
-      );
-      if (applied.status !== 200) return applied;
-      files = applied.body.files;
-    } finally {
-      closeWorkflowRootAnchor(anchor);
-    }
-  }
-  const git = lstatIfExists(join90(plan.root, ".git")) ? "existing" : "none";
-  if (registered(deps, plan.root)) {
-    return { status: 200, body: { ok: true, root: plan.root, git, registration: "already", directories: [], files } };
-  }
-  const registration = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root);
-  if (!registration.ok) return fail8(registration.code, "registration-failed", registration.error);
-  return { status: 200, body: { ok: true, root: plan.root, git, registration: "add", directories: [], files } };
-}
-async function handleProjectCreate(body2, deps) {
+async function prepareProjectCreate(body2, deps) {
   const plan = decodeProjectCreate(body2);
   if ("status" in plan) return plan;
   try {
     const checked = await planProjectCreate(plan, deps);
     if (checked.status !== 200 || plan.dryRun) return checked;
-    const actor3 = deps.actor;
-    if (actor3 === null) return IDENTITY_REQUIRED;
-    const created = plan.mode === "empty" ? await executeEmpty(plan, deps) : await executeExisting(plan, deps);
-    if (created.status === 200) {
+    if (deps.actor === null) return IDENTITY_REQUIRED;
+    return { plan };
+  } catch (error2) {
+    return trustedFsFailure(error2);
+  }
+}
+async function runProjectCreate(plan, deps, report = () => void 0) {
+  try {
+    const created = plan.mode === "empty" ? await executeEmpty(plan, deps, report) : await executeExisting(plan, deps, report);
+    if (created.status === 200 && deps.actor !== null) {
       recordInstructionAudit(deps.paths.configRoot, {
-        actor: actor3,
+        actor: deps.actor,
         action: "project-create",
         target: plan.root,
         digest_before: "absent",
@@ -43726,10 +43964,15 @@ async function handleProjectCreate(body2, deps) {
     return trustedFsFailure(error2);
   }
 }
+async function handleProjectCreate(body2, deps) {
+  const prepared = await prepareProjectCreate(body2, deps);
+  return "plan" in prepared ? runProjectCreate(prepared.plan, deps) : prepared;
+}
 
 // packages/server/src/instructionRoutes.ts
 var TEMPLATES = "/api/instruction-templates";
 var INSTRUCTIONS = "/api/instructions";
+var PROJECT_CLIENTS = "/api/projects/clients";
 function scopeFor(root, deps) {
   if (root === "") return { level: "user", homeDir: deps.hostHome ?? deps.paths.homeDir, env: process.env, platform: process.platform };
   const checked = deps.workflowRootForRequest?.(root);
@@ -43746,7 +43989,7 @@ function digestOf(result2) {
   const body2 = result2.body;
   return typeof body2?.digest === "string" ? body2.digest : "absent";
 }
-var instructionTarget = (root, id2) => root === "" ? `user/${id2}` : join91(root, id2);
+var instructionTarget = (root, id2) => root === "" ? `user/${id2}` : join93(root, id2);
 function objectBody(value, keys2) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const record11 = Object.fromEntries(Object.entries(value));
@@ -43810,7 +44053,42 @@ function segments(path14) {
     return [];
   }
 }
+function projectAnchor(root, deps) {
+  if (root === "") return failure2(400, "invalid", "\u7F3A\u5C11 root");
+  const scope = scopeFor(root, deps);
+  if (!isScope(scope)) return scope;
+  return scope.level === "project" ? { anchor: scope.anchor } : failure2(400, "invalid", "\u7F3A\u5C11 root");
+}
+function getProjectClients(req, deps) {
+  const located = projectAnchor(new URL(req.url ?? "/", "http://localhost").searchParams.get("root") ?? "", deps);
+  if (!("anchor" in located)) return located;
+  return guarded(() => {
+    const read2 = readProjectClients(located.anchor);
+    return read2.ok ? { status: 200, body: { enabled: read2.enabled, source: read2.source } } : failure2(read2.status, read2.code, read2.error);
+  });
+}
+async function postProjectClients(req, deps) {
+  const body2 = objectBody(deps.readJsonBody ? await deps.readJsonBody(req) : void 0, ["root", "enabled"]);
+  if (!body2 || typeof body2.root !== "string") return failure2(400, "invalid", "\u8BF7\u6C42\u4F53\u987B\u542B root\u3001enabled");
+  const root = body2.root;
+  const located = projectAnchor(root, deps);
+  if (!("anchor" in located)) return located;
+  const actor3 = actorFor(deps, root);
+  if (!isActor(actor3)) return actor3;
+  return guarded(() => {
+    const written = writeProjectClients(located.anchor, body2.enabled);
+    if (!written.ok) {
+      return { status: written.status, body: { ok: false, code: written.code, error: written.error, ...written.unknown ? { unknown: written.unknown } : {} } };
+    }
+    audit(deps, actor3, "project-clients", join93(root, ".tenon", "clients.json"), written.digest_before, written.digest);
+    return { status: 200, body: { enabled: written.enabled, source: "file" } };
+  });
+}
 function resolveInstructionGet(req, path14, deps) {
+  if (path14 === PROJECT_CLIENTS) {
+    if (!deps.isLocalHost(req.headers.host, deps.boundPort())) return Promise.resolve(failure2(403, "host-denied", "Host header \u4E0D\u5408\u6CD5"));
+    return Promise.resolve(getProjectClients(req, deps));
+  }
   if (path14 === INSTRUCTIONS) {
     if (!deps.isLocalHost(req.headers.host, deps.boundPort())) return Promise.resolve(failure2(403, "host-denied", "Host header \u4E0D\u5408\u6CD5"));
     const scope = scopeFor(new URL(req.url ?? "/", "http://localhost").searchParams.get("root") ?? "", deps);
@@ -43907,6 +44185,7 @@ function resolveInstructionMutation(req, method, path14, deps) {
       });
     })();
   }
+  if (method === "POST" && path14 === PROJECT_CLIENTS) return postProjectClients(req, deps);
   if (method === "POST" && path14 === `${INSTRUCTIONS}/preview`) return postInstructions(req, "preview", deps);
   if (method === "POST" && path14 === `${INSTRUCTIONS}/apply`) return postInstructions(req, "apply", deps);
   if (method === "DELETE" && path14 === INSTRUCTIONS) return Promise.resolve(deleteInstructions(req, deps));
@@ -43918,9 +44197,94 @@ function resolveInstructionMutation(req, method, path14, deps) {
   return Promise.resolve(failure2(404, "not-found", "\u672A\u77E5\u7AEF\u70B9"));
 }
 
+// packages/server/src/fsRoutes.ts
+import { lstatSync as lstatSync16 } from "node:fs";
+import { isAbsolute as isAbsolute19 } from "node:path";
+
+// packages/server/src/folderList.ts
+import { lstatSync as lstatSync15, readdirSync as readdirSync13 } from "node:fs";
+import { dirname as dirname22, isAbsolute as isAbsolute18, join as join94, resolve as resolvePath7 } from "node:path";
+var FOLDER_LIST_MAX = 2e3;
+var fail10 = (status2, code, error2) => ({ status: status2, body: { ok: false, code, error: error2 } });
+function listFolders(rawDir, showHidden, home) {
+  const requested = rawDir === "" ? home : rawDir;
+  if (requested.includes("\0") || !isAbsolute18(requested)) return fail10(400, "invalid-path", "\u8DEF\u5F84\u5FC5\u987B\u662F\u7EDD\u5BF9\u8DEF\u5F84");
+  const dir = resolvePath7(requested);
+  let entry;
+  try {
+    entry = lstatSync15(dir);
+  } catch {
+    return fail10(404, "path-missing", "\u8DEF\u5F84\u4E0D\u5B58\u5728");
+  }
+  if (entry.isSymbolicLink()) return fail10(400, "path-unsafe", "\u8DEF\u5F84\u4E0D\u80FD\u662F\u7B26\u53F7\u94FE\u63A5");
+  if (!entry.isDirectory()) return fail10(400, "not-directory", "\u8DEF\u5F84\u4E0D\u662F\u76EE\u5F55");
+  let names;
+  try {
+    names = readdirSync13(dir, { withFileTypes: true });
+  } catch (error2) {
+    const code = error2 instanceof Error ? Reflect.get(error2, "code") : void 0;
+    return code === "EACCES" || code === "EPERM" ? fail10(403, "permission-denied", "\u6CA1\u6709\u8BFB\u53D6\u6743\u9650") : fail10(404, "path-missing", "\u8DEF\u5F84\u4E0D\u5B58\u5728");
+  }
+  const entries = names.filter((item2) => item2.isDirectory() && (showHidden || !item2.name.startsWith("."))).map((item2) => ({ name: item2.name, path: join94(dir, item2.name) })).sort((a, b) => a.name.localeCompare(b.name));
+  const parent = dirname22(dir);
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      dir,
+      parent: parent === dir ? null : parent,
+      home,
+      entries: entries.slice(0, FOLDER_LIST_MAX),
+      truncated: entries.length > FOLDER_LIST_MAX
+    }
+  };
+}
+
+// packages/server/src/fsRoutes.ts
+var failure3 = (status2, code, error2) => ({ status: status2, body: { ok: false, code, error: error2 } });
+var TITLE_MAX = 200;
+var DEFAULT_TITLE = "Tenon";
+function decodeChooseRequest(value) {
+  if (value === void 0 || value === null) return { title: DEFAULT_TITLE, startDir: null };
+  if (typeof value !== "object" || Array.isArray(value)) return null;
+  const body2 = Object.fromEntries(Object.entries(value));
+  if (Object.keys(body2).some((key) => key !== "title" && key !== "start_dir")) return null;
+  const title = body2.title ?? DEFAULT_TITLE;
+  const start = body2.start_dir ?? null;
+  if (typeof title !== "string" || title.length > TITLE_MAX || new RegExp("\\p{Cc}", "u").test(title)) return null;
+  if (start !== null && (typeof start !== "string" || start.includes("\0") || !isAbsolute19(start))) return null;
+  return { title: title === "" ? DEFAULT_TITLE : title, startDir: start !== null && isDirectory(start) ? start : null };
+}
+function isDirectory(path14) {
+  try {
+    const entry = lstatSync16(path14);
+    return entry.isDirectory() && !entry.isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+function resolveFsGet(req, path14, deps) {
+  if (path14 !== "/api/fs/list") return null;
+  if (!deps.isLocalHost(req.headers.host, deps.boundPort())) return failure3(403, "host-denied", "Host header \u4E0D\u5408\u6CD5");
+  const provided = tokenFromHeaders(req.headers);
+  if (!provided || !tokensMatch(provided, deps.token)) return failure3(401, "token-required", "\u7F3A\u5C11\u6216\u65E0\u6548 token");
+  const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+  return listFolders(query.get("dir") ?? "", query.get("hidden") === "1", deps.hostHome);
+}
+function resolveFsPost(req, path14, deps) {
+  if (path14 !== "/api/fs/choose-folder") return null;
+  return (async () => {
+    const request = decodeChooseRequest(deps.readJsonBody ? await deps.readJsonBody(req) : void 0);
+    if (request === null) return failure3(400, "invalid", "\u8BF7\u6C42\u4F53\u4E0D\u5408\u6CD5");
+    const picked = await deps.folderChooser.choose(request);
+    if (!picked.ok && "busy" in picked) return failure3(409, "picker-busy", "\u5DF2\u6709\u9009\u62E9\u6846\u6253\u5F00");
+    return { status: 200, body: picked };
+  })();
+}
+
 // packages/server/src/serverAgentRoutes.ts
 var ROOT = "/api/agents";
-var failure3 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
+var failure4 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
 var STATUS = {
   "agent-invalid": 400,
   "agent-missing": 404,
@@ -43930,8 +44294,8 @@ var STATUS = {
   "agent-stale": 409
 };
 function storeFailure(error2) {
-  if (error2 instanceof AgentStoreError) return failure3(STATUS[error2.code], error2.code, error2.message);
-  return failure3(500, "store-failed", error2 instanceof Error ? error2.message : String(error2));
+  if (error2 instanceof AgentStoreError) return failure4(STATUS[error2.code], error2.code, error2.message);
+  return failure4(500, "store-failed", error2 instanceof Error ? error2.message : String(error2));
 }
 function options(deps) {
   return { payloadRoot: deps.payloadRoot ?? repoRootForSkills(), configRoot: deps.paths.configRoot };
@@ -43964,16 +44328,16 @@ function nameFrom(path14) {
 function resolveAgentGet(req, path14, deps) {
   if (path14 !== ROOT && !path14.startsWith(`${ROOT}/`)) return null;
   return (async () => {
-    if (!deps.isLocalHost(req.headers.host, deps.boundPort())) return failure3(403, "host-denied", "Host header \u4E0D\u5408\u6CD5");
+    if (!deps.isLocalHost(req.headers.host, deps.boundPort())) return failure4(403, "host-denied", "Host header \u4E0D\u5408\u6CD5");
     try {
       const library = await loadAgentLibrary(options(deps));
       if (path14 === ROOT) {
         return { status: 200, body: { sync: library.sync, agents: library.entries.map(summary) } };
       }
       const name = nameFrom(path14);
-      if (name === null) return failure3(400, "agent-invalid", "agent \u540D\u79F0\u975E\u6CD5");
+      if (name === null) return failure4(400, "agent-invalid", "agent \u540D\u79F0\u975E\u6CD5");
       const entry = library.entries.find((candidate2) => candidate2.name === name);
-      if (entry === void 0) return failure3(404, "agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name}'`);
+      if (entry === void 0) return failure4(404, "agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name}'`);
       return {
         status: 200,
         body: {
@@ -43998,7 +44362,7 @@ function record10(value, allowed) {
 async function create(req, deps) {
   const parsed2 = record10(deps.readJsonBody ? await deps.readJsonBody(req) : void 0, ["name", "content"]);
   if (!parsed2 || typeof parsed2.name !== "string" || typeof parsed2.content !== "string") {
-    return failure3(400, "agent-invalid", "\u8BF7\u6C42\u4F53\u987B\u542B name\u3001content");
+    return failure4(400, "agent-invalid", "\u8BF7\u6C42\u4F53\u987B\u542B name\u3001content");
   }
   await loadAgentLibrary(options(deps));
   const entry = await writeCustomAgent(storeRoot(deps), parsed2.name, parsed2.content, { create: true });
@@ -44006,10 +44370,10 @@ async function create(req, deps) {
 }
 async function copy(req, from, deps) {
   const parsed2 = record10(deps.readJsonBody ? await deps.readJsonBody(req) : void 0, ["name"]);
-  if (!parsed2 || typeof parsed2.name !== "string") return failure3(400, "agent-invalid", "\u8BF7\u6C42\u4F53\u987B\u542B name");
+  if (!parsed2 || typeof parsed2.name !== "string") return failure4(400, "agent-invalid", "\u8BF7\u6C42\u4F53\u987B\u542B name");
   const library = await loadAgentLibrary(options(deps));
   const source2 = library.entries.find((candidate2) => candidate2.name === from);
-  if (source2 === void 0) return failure3(404, "agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${from}'`);
+  if (source2 === void 0) return failure4(404, "agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${from}'`);
   const content = source2.content.replace(/^name: .*$/mu, `name: ${parsed2.name}`);
   const entry = await writeCustomAgent(storeRoot(deps), parsed2.name, content, { create: true });
   return { status: 201, body: { ok: true, agent: summary(entry) } };
@@ -44017,12 +44381,12 @@ async function copy(req, from, deps) {
 async function update(req, name, deps) {
   const declared = Number.parseInt(String(req.headers["content-length"] ?? ""), 10);
   if (Number.isFinite(declared) && declared > AGENT_FILE_MAX_BYTES) {
-    return failure3(413, "too-large", `agent \u6587\u4EF6\u8D85\u8FC7 ${AGENT_FILE_MAX_BYTES} \u5B57\u8282`);
+    return failure4(413, "too-large", `agent \u6587\u4EF6\u8D85\u8FC7 ${AGENT_FILE_MAX_BYTES} \u5B57\u8282`);
   }
   const parsed2 = record10(deps.readJsonBody ? await deps.readJsonBody(req) : void 0, ["content", "digest"]);
-  if (!parsed2 || typeof parsed2.content !== "string") return failure3(400, "agent-invalid", "\u8BF7\u6C42\u4F53\u987B\u542B content");
+  if (!parsed2 || typeof parsed2.content !== "string") return failure4(400, "agent-invalid", "\u8BF7\u6C42\u4F53\u987B\u542B content");
   if (parsed2.digest !== void 0 && typeof parsed2.digest !== "string") {
-    return failure3(400, "agent-invalid", "digest \u5FC5\u987B\u662F\u5B57\u7B26\u4E32");
+    return failure4(400, "agent-invalid", "digest \u5FC5\u987B\u662F\u5B57\u7B26\u4E32");
   }
   await loadAgentLibrary(options(deps));
   const entry = await writeCustomAgent(storeRoot(deps), name, parsed2.content, {
@@ -44033,11 +44397,11 @@ async function update(req, name, deps) {
 async function remove(req, name, deps) {
   const library = await loadAgentLibrary(options(deps));
   const entry = library.entries.find((candidate2) => candidate2.name === name);
-  if (entry === void 0) return failure3(404, "agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name}'`);
-  if (entry.source === "builtin") return failure3(403, "agent-builtin-readonly", "\u5185\u7F6E agent \u53EA\u8BFB");
+  if (entry === void 0) return failure4(404, "agent-missing", `agent \u5E93\u4E2D\u4E0D\u5B58\u5728 '${name}'`);
+  if (entry.source === "builtin") return failure4(403, "agent-builtin-readonly", "\u5185\u7F6E agent \u53EA\u8BFB");
   const references = agentReferences(deps.paths, name);
   if (references.length > 0) {
-    return failure3(409, "agent-referenced", "agent \u88AB\u5DE5\u4F5C\u6D41\u5F15\u7528", { references });
+    return failure4(409, "agent-referenced", "agent \u88AB\u5DE5\u4F5C\u6D41\u5F15\u7528", { references });
   }
   const digest14 = new URL(req.url ?? "/", "http://localhost").searchParams.get("digest") ?? void 0;
   await deleteCustomAgent(storeRoot(deps), name, digest14);
@@ -44050,14 +44414,14 @@ function resolveAgentMutation(req, method, path14, deps) {
       if (method === "POST" && path14 === ROOT) return await create(req, deps);
       if (method === "POST" && path14.endsWith("/copy")) {
         const from = nameFrom(path14.slice(0, -"/copy".length));
-        if (from === null) return failure3(400, "agent-invalid", "agent \u540D\u79F0\u975E\u6CD5");
+        if (from === null) return failure4(400, "agent-invalid", "agent \u540D\u79F0\u975E\u6CD5");
         return await copy(req, from, deps);
       }
       const name = nameFrom(path14);
-      if (name === null) return failure3(400, "agent-invalid", "agent \u540D\u79F0\u975E\u6CD5");
+      if (name === null) return failure4(400, "agent-invalid", "agent \u540D\u79F0\u975E\u6CD5");
       if (method === "PUT") return await update(req, name, deps);
       if (method === "DELETE") return await remove(req, name, deps);
-      return failure3(404, "not-found", "\u672A\u77E5\u7AEF\u70B9");
+      return failure4(404, "not-found", "\u672A\u77E5\u7AEF\u70B9");
     } catch (error2) {
       return storeFailure(error2);
     }
@@ -44066,7 +44430,7 @@ function resolveAgentMutation(req, method, path14, deps) {
 
 // packages/server/src/designSeed.ts
 import { writeFileSync as writeFileSync8 } from "node:fs";
-import { join as join92 } from "node:path";
+import { join as join95 } from "node:path";
 var DESIGN_SEED_MAX_BYTES = 512 * 1024;
 var FETCH_TIMEOUT_MS = 1e4;
 var httpsDesignSeedFetch = async (url) => {
@@ -44103,7 +44467,7 @@ async function fetchDesignSeed(entry, get) {
 }
 function writeDesignSeed(root, text7) {
   try {
-    writeFileSync8(join92(root, "DESIGN.md"), text7, { encoding: "utf8", flag: "wx" });
+    writeFileSync8(join95(root, "DESIGN.md"), text7, { encoding: "utf8", flag: "wx" });
   } catch (error2) {
     const code = error2.code;
     if (code === "EEXIST") return { ok: false, code: "exists", error: "DESIGN.md \u5DF2\u5B58\u5728" };
@@ -44115,7 +44479,7 @@ function writeDesignSeed(root, text7) {
 // packages/server/src/serverResourceRoutes.ts
 var SEED = "/api/design/seed";
 var ROOT2 = "/api/resources";
-var failure4 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
+var failure5 = (status2, code, error2, extra = {}) => ({ status: status2, body: { ok: false, code, error: error2, ...extra } });
 var STATUS2 = {
   invalid: 400,
   "builtin-readonly": 409,
@@ -44125,9 +44489,9 @@ var STATUS2 = {
 };
 function storeFailure2(error2) {
   if (error2 instanceof ResourceStoreError) {
-    return failure4(STATUS2[error2.code], error2.code, error2.message, error2.errors.length > 0 ? { errors: error2.errors } : {});
+    return failure5(STATUS2[error2.code], error2.code, error2.message, error2.errors.length > 0 ? { errors: error2.errors } : {});
   }
-  return failure4(500, "store-failed", error2 instanceof Error ? error2.message : String(error2));
+  return failure5(500, "store-failed", error2 instanceof Error ? error2.message : String(error2));
 }
 var dto = (entry, source2, revision) => ({ ...entry, source: source2, revision });
 function options2(deps) {
@@ -44147,7 +44511,7 @@ function idFrom(path14) {
 function resolveResourceGet(req, path14, deps) {
   if (path14 !== ROOT2 && !path14.startsWith(`${ROOT2}/`)) return null;
   return (async () => {
-    if (!deps.isLocalHost(req.headers.host, deps.boundPort())) return failure4(403, "host-denied", "Host header \u4E0D\u5408\u6CD5");
+    if (!deps.isLocalHost(req.headers.host, deps.boundPort())) return failure5(403, "host-denied", "Host header \u4E0D\u5408\u6CD5");
     try {
       if (path14 === ROOT2) {
         const catalog2 = await loadResourceCatalog(options2(deps));
@@ -44162,10 +44526,10 @@ function resolveResourceGet(req, path14, deps) {
         };
       }
       const id2 = idFrom(path14);
-      if (id2 === null) return failure4(404, "not-found", "\u672A\u77E5\u8D44\u6E90");
+      if (id2 === null) return failure5(404, "not-found", "\u672A\u77E5\u8D44\u6E90");
       await loadResourceCatalog(options2(deps));
       const file = await readResourceFile(storeRoot2(deps), id2);
-      if (!file) return failure4(404, "not-found", `\u672A\u77E5\u8D44\u6E90\uFF1A${id2}`);
+      if (!file) return failure5(404, "not-found", `\u672A\u77E5\u8D44\u6E90\uFF1A${id2}`);
       return { status: 200, body: { ok: true, entry: dto(file.stored.entry, file.stored.source, file.stored.revision), yaml: file.yaml } };
     } catch (error2) {
       return storeFailure2(error2);
@@ -44180,11 +44544,11 @@ function body(value) {
 async function put(req, id2, deps) {
   const declared = Number.parseInt(String(req.headers["content-length"] ?? ""), 10);
   if (Number.isFinite(declared) && declared > RESOURCE_ENTRY_MAX_BYTES) {
-    return failure4(413, "too-large", `\u6761\u76EE\u8D85\u8FC7 ${RESOURCE_ENTRY_MAX_BYTES} \u5B57\u8282`);
+    return failure5(413, "too-large", `\u6761\u76EE\u8D85\u8FC7 ${RESOURCE_ENTRY_MAX_BYTES} \u5B57\u8282`);
   }
   const parsed2 = body(deps.readJsonBody ? await deps.readJsonBody(req) : void 0);
-  if (!parsed2 || typeof parsed2.yaml !== "string") return failure4(400, "invalid", "\u8BF7\u6C42\u4F53\u987B\u542B yaml");
-  if (parsed2.revision !== void 0 && typeof parsed2.revision !== "string") return failure4(400, "invalid", "revision \u5FC5\u987B\u662F\u5B57\u7B26\u4E32");
+  if (!parsed2 || typeof parsed2.yaml !== "string") return failure5(400, "invalid", "\u8BF7\u6C42\u4F53\u987B\u542B yaml");
+  if (parsed2.revision !== void 0 && typeof parsed2.revision !== "string") return failure5(400, "invalid", "revision \u5FC5\u987B\u662F\u5B57\u7B26\u4E32");
   await loadResourceCatalog(options2(deps));
   const stored = await writeCustomResource(storeRoot2(deps), id2, parsed2.yaml, parsed2.revision);
   return { status: 200, body: { ok: true, entry: dto(stored.entry, stored.source, stored.revision) } };
@@ -44194,19 +44558,19 @@ async function seed(req, deps) {
   const parsed2 = deps.readJsonBody ? await deps.readJsonBody(req) : void 0;
   const record11 = typeof parsed2 === "object" && parsed2 !== null && !Array.isArray(parsed2) ? Object.fromEntries(Object.entries(parsed2)) : null;
   if (!record11 || typeof record11.root !== "string" || typeof record11.resource !== "string" || Object.keys(record11).some((key) => key !== "root" && key !== "resource")) {
-    return failure4(400, "invalid", "\u8BF7\u6C42\u4F53\u987B\u542B root\u3001resource");
+    return failure5(400, "invalid", "\u8BF7\u6C42\u4F53\u987B\u542B root\u3001resource");
   }
   const checked = deps.workflowRootForRequest?.(record11.root);
-  if (!checked) return failure4(404, "root-not-registered", "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D");
+  if (!checked) return failure5(404, "root-not-registered", "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D");
   if (!checked.ok) return { status: checked.code, body: { ok: false, error: checked.error } };
-  if (!RESOURCE_ID.test(record11.resource)) return failure4(404, "not-found", `\u672A\u77E5\u8D44\u6E90\uFF1A${record11.resource}`);
+  if (!RESOURCE_ID.test(record11.resource)) return failure5(404, "not-found", `\u672A\u77E5\u8D44\u6E90\uFF1A${record11.resource}`);
   await loadResourceCatalog(options2(deps));
   const file = await readResourceFile(storeRoot2(deps), record11.resource);
-  if (!file) return failure4(404, "not-found", `\u672A\u77E5\u8D44\u6E90\uFF1A${record11.resource}`);
+  if (!file) return failure5(404, "not-found", `\u672A\u77E5\u8D44\u6E90\uFF1A${record11.resource}`);
   const fetched = await fetchDesignSeed(file.stored.entry, deps.designSeedFetch ?? httpsDesignSeedFetch);
-  if (!fetched.ok) return failure4(SEED_STATUS[fetched.code], fetched.code, fetched.error);
+  if (!fetched.ok) return failure5(SEED_STATUS[fetched.code], fetched.code, fetched.error);
   const written = writeDesignSeed(record11.root, fetched.text);
-  return written.ok ? { status: 200, body: { ok: true, path: written.path, bytes: written.bytes } } : failure4(SEED_STATUS[written.code], written.code, written.error);
+  return written.ok ? { status: 200, body: { ok: true, path: written.path, bytes: written.bytes } } : failure5(SEED_STATUS[written.code], written.code, written.error);
 }
 function resolveResourceMutation(req, method, path14, deps) {
   if (method === "POST" && path14 === SEED) {
@@ -44223,12 +44587,12 @@ function resolveResourceMutation(req, method, path14, deps) {
     try {
       if (method === "POST" && path14.endsWith("/copy")) {
         const id3 = idFrom(path14.slice(0, -"/copy".length));
-        if (id3 === null) return failure4(404, "not-found", "\u672A\u77E5\u8D44\u6E90");
+        if (id3 === null) return failure5(404, "not-found", "\u672A\u77E5\u8D44\u6E90");
         await loadResourceCatalog(options2(deps));
         return { status: 200, body: { ok: true, id: await copyResource(storeRoot2(deps), id3) } };
       }
       const id2 = idFrom(path14);
-      if (id2 === null) return failure4(404, "not-found", "\u672A\u77E5\u8D44\u6E90");
+      if (id2 === null) return failure5(404, "not-found", "\u672A\u77E5\u8D44\u6E90");
       if (method === "PUT") return await put(req, id2, deps);
       if (method === "DELETE") {
         const revision = new URL(req.url ?? "/", "http://localhost").searchParams.get("revision") ?? void 0;
@@ -44236,7 +44600,7 @@ function resolveResourceMutation(req, method, path14, deps) {
         await deleteCustomResource(storeRoot2(deps), id2, revision);
         return { status: 200, body: { ok: true } };
       }
-      return failure4(404, "not-found", "\u672A\u77E5\u7AEF\u70B9");
+      return failure5(404, "not-found", "\u672A\u77E5\u7AEF\u70B9");
     } catch (error2) {
       return storeFailure2(error2);
     }
@@ -44657,7 +45021,7 @@ async function resolveAdapterInstallGet(req, res, path14, deps) {
   writeSseHeaders(res);
   let closed5 = false;
   const terminal = /* @__PURE__ */ new Set(["planned", "installed", "failed"]);
-  const write = (state) => {
+  const write2 = (state) => {
     if (closed5 || res.writableEnded) return;
     try {
       res.write(`event: install-state
@@ -44685,7 +45049,7 @@ data: ${JSON.stringify({ schema_version: "adapter-install-event/v1", kind: "comp
     unsubscribe?.();
   };
   unsubscribe = deps.manager.subscribe(jobId, (state) => {
-    write(state);
+    write2(state);
     closeWhenComplete();
   });
   if (closed5) {
@@ -44710,11 +45074,11 @@ import {
   closeSync as closeSync9,
   constants as constants20,
   fstatSync as fstatSync13,
-  lstatSync as lstatSync15,
+  lstatSync as lstatSync17,
   openSync as openSync15,
   realpathSync as realpathSync9
 } from "node:fs";
-import { isAbsolute as isAbsolute18, join as join93, posix as posix4, relative as relative14, sep as sep17 } from "node:path";
+import { isAbsolute as isAbsolute20, join as join96, posix as posix4, relative as relative14, sep as sep17 } from "node:path";
 
 // packages/server/src/workflowDefinitionStatus.ts
 function projectWorkflowDefinitionStatus(workflow, frozenFingerprint, current) {
@@ -44751,7 +45115,7 @@ function missing3(error2) {
 }
 function isInside2(base, candidate2) {
   const fromBase = relative14(base, candidate2);
-  return fromBase === "" || fromBase !== ".." && !fromBase.startsWith(`..${sep17}`) && !isAbsolute18(fromBase);
+  return fromBase === "" || fromBase !== ".." && !fromBase.startsWith(`..${sep17}`) && !isAbsolute20(fromBase);
 }
 function readBoundedTasksSource2(fd, maxBytes) {
   const bytes = readBounded(fd, maxBytes);
@@ -44772,7 +45136,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
     }
   };
   assertTrustContext();
-  const lexicalTarget = join93(changeAnchor.changeDir, "tasks.md");
+  const lexicalTarget = join96(changeAnchor.changeDir, "tasks.md");
   const changeIdentity = changeAnchor.chain.at(-1);
   if (changeIdentity === void 0) {
     throw new ContextBundlePathError(403, "Change tasks directory identity is missing");
@@ -44794,7 +45158,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
     throw new ContextBundlePathError(403, "Change tasks directory identity changed while anchoring");
   }
   assertTrustContext();
-  const target = join93(anchoredChangeDir, "tasks.md");
+  const target = join96(anchoredChangeDir, "tasks.md");
   let fd;
   try {
     fd = openSync15(
@@ -44820,7 +45184,7 @@ async function readAnchoredTasksProjection(changeAnchor, readSource = readBounde
       let realPath;
       try {
         assertChangePathAnchor(changeAnchor);
-        current = lstatSync15(lexicalTarget, { bigint: true });
+        current = lstatSync17(lexicalTarget, { bigint: true });
         realPath = realpathSync9(lexicalTarget);
       } catch (error2) {
         if (error2 instanceof ContextBundlePathError) throw error2;
@@ -45282,7 +45646,7 @@ function buildOrchestrationGraph(input2) {
 }
 
 // packages/server/src/serverOrchestrationGraphRoutes.ts
-function failure5(status2, code, error2) {
+function failure6(status2, code, error2) {
   return { status: status2, body: { ok: false, code, error: error2 } };
 }
 function isChangeName3(name) {
@@ -45293,13 +45657,13 @@ async function resolveOrchestrationGraphRoute(rawUrl, path14, deps) {
   const params2 = new URL(rawUrl, "http://localhost").searchParams;
   const name = params2.get("change") ?? "";
   if (!isChangeName3(name)) {
-    return failure5(400, "ORCHESTRATION_CHANGE_INVALID", "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09");
+    return failure6(400, "ORCHESTRATION_CHANGE_INVALID", "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09");
   }
   const root = params2.get("root") ?? "";
-  if (root === "") return failure5(400, "ORCHESTRATION_ROOT_REQUIRED", "\u7F3A\u5C11 root \u53C2\u6570");
+  if (root === "") return failure6(400, "ORCHESTRATION_ROOT_REQUIRED", "\u7F3A\u5C11 root \u53C2\u6570");
   const rootCheck2 = deps.workflowRootForRequest(root);
   if (!rootCheck2.ok) {
-    return failure5(
+    return failure6(
       rootCheck2.code,
       rootCheck2.code === 404 ? "ORCHESTRATION_ROOT_NOT_REGISTERED" : "ORCHESTRATION_ROOT_FORBIDDEN",
       rootCheck2.code === 404 ? "root \u672A\u6CE8\u518C" : "root \u4E0D\u53EF\u4FE1"
@@ -45310,21 +45674,21 @@ async function resolveOrchestrationGraphRoute(rawUrl, path14, deps) {
     change = await deps.readChange(rootCheck2.anchor, name);
   } catch (error2) {
     if (error2 instanceof WorkflowPathError) {
-      return failure5(403, "ORCHESTRATION_DEFINITION_FORBIDDEN", "Workflow \u5B9A\u4E49\u8DEF\u5F84\u4E0D\u53EF\u4FE1");
+      return failure6(403, "ORCHESTRATION_DEFINITION_FORBIDDEN", "Workflow \u5B9A\u4E49\u8DEF\u5F84\u4E0D\u53EF\u4FE1");
     }
     if (error2 instanceof WorkflowReadError) {
-      return failure5(500, "ORCHESTRATION_DEFINITION_UNREADABLE", "\u7F16\u6392\u56FE\u8BFB\u53D6\u5931\u8D25");
+      return failure6(500, "ORCHESTRATION_DEFINITION_UNREADABLE", "\u7F16\u6392\u56FE\u8BFB\u53D6\u5931\u8D25");
     }
     if (error2 instanceof ContextBundlePathError && error2.status === 403) {
-      return failure5(403, "ORCHESTRATION_CHANGE_FORBIDDEN", "Change \u8DEF\u5F84\u4E0D\u53EF\u4FE1");
+      return failure6(403, "ORCHESTRATION_CHANGE_FORBIDDEN", "Change \u8DEF\u5F84\u4E0D\u53EF\u4FE1");
     }
-    return failure5(500, "ORCHESTRATION_CHANGE_UNREADABLE", "\u7F16\u6392\u56FE\u8BFB\u53D6\u5931\u8D25");
+    return failure6(500, "ORCHESTRATION_CHANGE_UNREADABLE", "\u7F16\u6392\u56FE\u8BFB\u53D6\u5931\u8D25");
   }
   if (change === null) {
-    return failure5(404, "ORCHESTRATION_CHANGE_NOT_FOUND", "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09");
+    return failure6(404, "ORCHESTRATION_CHANGE_NOT_FOUND", "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09");
   }
   if (change.workflowDefinition === void 0) {
-    return failure5(500, "ORCHESTRATION_DEFINITION_UNREADABLE", "\u7F16\u6392\u56FE\u8BFB\u53D6\u5931\u8D25");
+    return failure6(500, "ORCHESTRATION_DEFINITION_UNREADABLE", "\u7F16\u6392\u56FE\u8BFB\u53D6\u5931\u8D25");
   }
   try {
     return {
@@ -45337,7 +45701,7 @@ async function resolveOrchestrationGraphRoute(rawUrl, path14, deps) {
     };
   } catch (error2) {
     if (error2 instanceof OrchestrationGraphLimitError) {
-      return failure5(413, "ORCHESTRATION_GRAPH_LIMIT_EXCEEDED", "\u7F16\u6392\u56FE\u8D85\u8FC7\u5B89\u5168\u4E0A\u9650");
+      return failure6(413, "ORCHESTRATION_GRAPH_LIMIT_EXCEEDED", "\u7F16\u6392\u56FE\u8D85\u8FC7\u5B89\u5168\u4E0A\u9650");
     }
     throw error2;
   }
@@ -45358,32 +45722,32 @@ async function resolveOrchestrationRoutes(rawUrl, path14, deps) {
 }
 
 // packages/server/src/serverOrchestrationV2Routes.ts
-import { join as join94 } from "node:path";
+import { join as join97 } from "node:path";
 var CHANGE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 var PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u;
 var CURSOR = /^(?:0|[1-9][0-9]{0,9})$/u;
 var MAX_CURSOR = 2048;
 var MAX_LIMIT = 200;
 var UTC6 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u;
-function failure6(status2, code, error2, extra = {}) {
+function failure7(status2, code, error2, extra = {}) {
   return { status: status2, body: { ok: false, code, error: error2, ...extra } };
 }
 function validChangeId(value) {
   return value !== "." && value !== ".." && CHANGE_ID.test(value) && !value.includes("/") && !value.includes("\\");
 }
 function changeDir(anchor, changeId) {
-  return join94(anchor.path, "openspec", "changes", changeId);
+  return join97(anchor.path, "openspec", "changes", changeId);
 }
 function rootCheck(deps, root) {
-  if (root === "") return failure6(400, "ORCHESTRATION_V2_ROOT_REQUIRED", "\u7F3A\u5C11 root \u53C2\u6570");
+  if (root === "") return failure7(400, "ORCHESTRATION_V2_ROOT_REQUIRED", "\u7F3A\u5C11 root \u53C2\u6570");
   let checked;
   try {
     checked = deps.workflowRootForRequest(root);
   } catch {
-    return failure6(403, "ORCHESTRATION_V2_ROOT_FORBIDDEN", "root \u4E0D\u53EF\u4FE1");
+    return failure7(403, "ORCHESTRATION_V2_ROOT_FORBIDDEN", "root \u4E0D\u53EF\u4FE1");
   }
   if (!checked.ok) {
-    return failure6(checked.code, checked.code === 404 ? "ORCHESTRATION_V2_ROOT_NOT_REGISTERED" : "ORCHESTRATION_V2_ROOT_FORBIDDEN", checked.code === 404 ? "root \u672A\u6CE8\u518C" : "root \u4E0D\u53EF\u4FE1");
+    return failure7(checked.code, checked.code === 404 ? "ORCHESTRATION_V2_ROOT_NOT_REGISTERED" : "ORCHESTRATION_V2_ROOT_FORBIDDEN", checked.code === 404 ? "root \u672A\u6CE8\u518C" : "root \u4E0D\u53EF\u4FE1");
   }
   return checked;
 }
@@ -45391,55 +45755,55 @@ function parseChange(path14) {
   const match = /^\/api\/orchestration\/changes\/([^/]+)(?:\/(events|stream|commands|metrics|run|freeze-pipeline))?$/.exec(path14);
   if (!match) return null;
   const encoded = match[1];
-  if (encoded === void 0) return failure6(400, "ORCHESTRATION_V2_CHANGE_INVALID", "\u975E\u6CD5 change \u8DEF\u5F84");
+  if (encoded === void 0) return failure7(400, "ORCHESTRATION_V2_CHANGE_INVALID", "\u975E\u6CD5 change \u8DEF\u5F84");
   let changeId;
   try {
     changeId = decodeURIComponent(encoded);
   } catch {
-    return failure6(400, "ORCHESTRATION_V2_CHANGE_INVALID", "\u975E\u6CD5 change \u8DEF\u5F84");
+    return failure7(400, "ORCHESTRATION_V2_CHANGE_INVALID", "\u975E\u6CD5 change \u8DEF\u5F84");
   }
-  if (!validChangeId(changeId)) return failure6(400, "ORCHESTRATION_V2_CHANGE_INVALID", "\u975E\u6CD5 change \u540D");
+  if (!validChangeId(changeId)) return failure7(400, "ORCHESTRATION_V2_CHANGE_INVALID", "\u975E\u6CD5 change \u540D");
   const suffix = match[2];
   return { kind: suffix === "events" ? "events" : suffix === "stream" ? "stream" : suffix === "commands" ? "commands" : suffix === "metrics" ? "metrics" : suffix === "run" ? "run" : suffix === "freeze-pipeline" ? "freeze" : "change", changeId };
 }
 function parseCursor(value, label) {
   if (value === null || value === "") return 0;
-  if (!CURSOR.test(value)) return failure6(400, "ORCHESTRATION_V2_CURSOR_INVALID", `${label} \u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570`);
+  if (!CURSOR.test(value)) return failure7(400, "ORCHESTRATION_V2_CURSOR_INVALID", `${label} \u5FC5\u987B\u662F\u975E\u8D1F\u6574\u6570`);
   const number2 = Number(value);
-  if (!Number.isSafeInteger(number2) || number2 > MAX_CURSOR) return failure6(413, "ORCHESTRATION_V2_CURSOR_LIMIT_EXCEEDED", `${label} \u8D85\u51FA\u5B89\u5168\u4E0A\u9650`);
+  if (!Number.isSafeInteger(number2) || number2 > MAX_CURSOR) return failure7(413, "ORCHESTRATION_V2_CURSOR_LIMIT_EXCEEDED", `${label} \u8D85\u51FA\u5B89\u5168\u4E0A\u9650`);
   return number2;
 }
 function parseLimit(value) {
   if (value === null || value === "") return MAX_LIMIT;
   const parsed2 = parseCursor(value, "limit");
   if (typeof parsed2 !== "number") return parsed2;
-  if (parsed2 === 0) return failure6(400, "ORCHESTRATION_V2_LIMIT_INVALID", "limit \u5FC5\u987B\u5927\u4E8E 0");
+  if (parsed2 === 0) return failure7(400, "ORCHESTRATION_V2_LIMIT_INVALID", "limit \u5FC5\u987B\u5927\u4E8E 0");
   return Math.min(parsed2, MAX_LIMIT);
 }
 function isRecord11(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readRootFromBody(body2) {
-  if (!isRecord11(body2) || typeof body2.root !== "string") return failure6(400, "ORCHESTRATION_V2_BODY_INVALID", "\u8BF7\u6C42\u5FC5\u987B\u5305\u542B root");
-  if (body2.root.length > 4096) return failure6(413, "ORCHESTRATION_V2_BODY_LIMIT_EXCEEDED", "root \u8D85\u51FA\u5B89\u5168\u4E0A\u9650");
+  if (!isRecord11(body2) || typeof body2.root !== "string") return failure7(400, "ORCHESTRATION_V2_BODY_INVALID", "\u8BF7\u6C42\u5FC5\u987B\u5305\u542B root");
+  if (body2.root.length > 4096) return failure7(413, "ORCHESTRATION_V2_BODY_LIMIT_EXCEEDED", "root \u8D85\u51FA\u5B89\u5168\u4E0A\u9650");
   return body2.root;
 }
 function commandFromBody(body2, changeId) {
-  if (!isRecord11(body2)) return failure6(400, "ORCHESTRATION_V2_COMMAND_INVALID", "command body \u5FC5\u987B\u662F\u5BF9\u8C61");
+  if (!isRecord11(body2)) return failure7(400, "ORCHESTRATION_V2_COMMAND_INVALID", "command body \u5FC5\u987B\u662F\u5BF9\u8C61");
   const keys2 = Object.keys(body2).sort();
-  if (keys2.join(",") !== "command,root") return failure6(400, "ORCHESTRATION_V2_COMMAND_INVALID", "command body \u5B57\u6BB5\u4E0D\u7B26\u5408\u5951\u7EA6");
+  if (keys2.join(",") !== "command,root") return failure7(400, "ORCHESTRATION_V2_COMMAND_INVALID", "command body \u5B57\u6BB5\u4E0D\u7B26\u5408\u5951\u7EA6");
   const root = readRootFromBody(body2);
   if (typeof root !== "string") return root;
   const decoded = decodeBoardCommandV2(body2.command);
-  if (!decoded.ok) return failure6(400, "ORCHESTRATION_V2_COMMAND_INVALID", "command schema \u65E0\u6548", { errors: decoded.errors.map((error2) => ({ path: error2.path, code: error2.code })) });
-  if (decoded.value.change_id !== changeId) return failure6(422, "ORCHESTRATION_V2_CHANGE_MISMATCH", "command change \u4E0E\u8DEF\u5F84\u4E0D\u4E00\u81F4");
+  if (!decoded.ok) return failure7(400, "ORCHESTRATION_V2_COMMAND_INVALID", "command schema \u65E0\u6548", { errors: decoded.errors.map((error2) => ({ path: error2.path, code: error2.code })) });
+  if (decoded.value.change_id !== changeId) return failure7(422, "ORCHESTRATION_V2_CHANGE_MISMATCH", "command change \u4E0E\u8DEF\u5F84\u4E0D\u4E00\u81F4");
   return { root, command: decoded.value };
 }
 function mapAppendFailure(result2, snapshot) {
   const rejection = result2.rejection;
   const status2 = rejection.code === "revision-conflict" || rejection.code === "idempotency-conflict" || rejection.code === "terminal-state" || rejection.code === "lease-mismatch" ? 409 : rejection.code === "not-found" ? 404 : rejection.code === "missing-evidence" || rejection.code === "policy-blocked" ? 422 : 400;
   const code = rejection.code === "revision-conflict" ? "ORCHESTRATION_V2_REVISION_CONFLICT" : rejection.code === "idempotency-conflict" ? "ORCHESTRATION_V2_IDEMPOTENCY_CONFLICT" : `ORCHESTRATION_V2_${rejection.code.replaceAll("-", "_").toUpperCase()}`;
-  return failure6(status2, code, rejection.code === "revision-conflict" ? "revision conflict" : rejection.code === "idempotency-conflict" ? "idempotency conflict" : "orchestration command rejected", {
+  return failure7(status2, code, rejection.code === "revision-conflict" ? "revision conflict" : rejection.code === "idempotency-conflict" ? "idempotency conflict" : "orchestration command rejected", {
     reason_code: rejection.reason_code,
     next_actions: rejection.next_actions,
     ...snapshot ? { current_revision: snapshot.revision, snapshot } : {}
@@ -45456,7 +45820,7 @@ async function resolveOrchestrationV2GetRoute(rawUrl, path14, deps) {
   try {
     if (parsed2.kind === "change" || parsed2.kind === "stream") {
       const snapshot = await deps.ledger.readSnapshot(dir);
-      if (!snapshot) return failure6(404, "ORCHESTRATION_V2_CHANGE_NOT_FOUND", "\u627E\u4E0D\u5230\u8BE5 orchestration change");
+      if (!snapshot) return failure7(404, "ORCHESTRATION_V2_CHANGE_NOT_FOUND", "\u627E\u4E0D\u5230\u8BE5 orchestration change");
       return { status: 200, body: { ok: true, snapshot } };
     }
     if (parsed2.kind === "events") {
@@ -45465,7 +45829,7 @@ async function resolveOrchestrationV2GetRoute(rawUrl, path14, deps) {
       const limit = parseLimit(params2.get("limit"));
       if (typeof limit !== "number") return limit;
       const snapshot = await deps.ledger.readSnapshot(dir);
-      if (!snapshot) return failure6(404, "ORCHESTRATION_V2_CHANGE_NOT_FOUND", "\u627E\u4E0D\u5230\u8BE5 orchestration change");
+      if (!snapshot) return failure7(404, "ORCHESTRATION_V2_CHANGE_NOT_FOUND", "\u627E\u4E0D\u5230\u8BE5 orchestration change");
       const events2 = (await deps.ledger.readEvents(dir, { fromRevision: after + 1, toRevision: snapshot.revision })).slice(0, limit);
       return {
         status: 200,
@@ -45480,7 +45844,7 @@ async function resolveOrchestrationV2GetRoute(rawUrl, path14, deps) {
     }
     if (parsed2.kind === "metrics") {
       const snapshot = await deps.ledger.readSnapshot(dir);
-      if (!snapshot) return failure6(404, "ORCHESTRATION_V2_CHANGE_NOT_FOUND", "\u627E\u4E0D\u5230\u8BE5 orchestration change");
+      if (!snapshot) return failure7(404, "ORCHESTRATION_V2_CHANGE_NOT_FOUND", "\u627E\u4E0D\u5230\u8BE5 orchestration change");
       return { status: 200, body: {
         ok: true,
         schema_version: "orchestration-metrics/v1",
@@ -45497,21 +45861,21 @@ async function resolveOrchestrationV2GetRoute(rawUrl, path14, deps) {
         blockers: snapshot.blockers.length
       } };
     }
-    return failure6(405, "ORCHESTRATION_V2_METHOD_NOT_ALLOWED", "commands \u4EC5\u652F\u6301 POST");
+    return failure7(405, "ORCHESTRATION_V2_METHOD_NOT_ALLOWED", "commands \u4EC5\u652F\u6301 POST");
   } catch {
-    return failure6(500, "ORCHESTRATION_V2_READ_FAILED", "orchestration \u6570\u636E\u8BFB\u53D6\u5931\u8D25");
+    return failure7(500, "ORCHESTRATION_V2_READ_FAILED", "orchestration \u6570\u636E\u8BFB\u53D6\u5931\u8D25");
   }
 }
 async function resolveOrchestrationV2PostRoute(path14, body2, deps) {
   if (path14 === "/api/orchestration/changes") {
-    if (!isRecord11(body2)) return failure6(400, "ORCHESTRATION_V2_BODY_INVALID", "\u8BF7\u6C42 body \u5FC5\u987B\u662F\u5BF9\u8C61");
+    if (!isRecord11(body2)) return failure7(400, "ORCHESTRATION_V2_BODY_INVALID", "\u8BF7\u6C42 body \u5FC5\u987B\u662F\u5BF9\u8C61");
     const keys2 = Object.keys(body2).sort();
     if (!["change_id", "correlation_id", "project_id", "root"].every((key) => keys2.includes(key)) || keys2.some((key) => !["change_id", "correlation_id", "project_id", "root", "updated_at"].includes(key))) {
-      return failure6(400, "ORCHESTRATION_V2_BODY_INVALID", "\u521B\u5EFA\u8BF7\u6C42\u5B57\u6BB5\u4E0D\u7B26\u5408\u5951\u7EA6");
+      return failure7(400, "ORCHESTRATION_V2_BODY_INVALID", "\u521B\u5EFA\u8BF7\u6C42\u5B57\u6BB5\u4E0D\u7B26\u5408\u5951\u7EA6");
     }
-    if (typeof body2.root !== "string" || typeof body2.project_id !== "string" || typeof body2.change_id !== "string" || typeof body2.correlation_id !== "string") return failure6(400, "ORCHESTRATION_V2_BODY_INVALID", "\u521B\u5EFA\u8BF7\u6C42\u8EAB\u4EFD\u5B57\u6BB5\u65E0\u6548");
-    if (!validChangeId(body2.change_id) || !PROJECT_ID.test(body2.project_id) || !PROJECT_ID.test(body2.correlation_id)) return failure6(400, "ORCHESTRATION_V2_IDENTITY_INVALID", "\u521B\u5EFA\u8BF7\u6C42\u8EAB\u4EFD\u4E0D\u5B89\u5168");
-    if (body2.updated_at !== void 0 && (typeof body2.updated_at !== "string" || !UTC6.test(body2.updated_at))) return failure6(400, "ORCHESTRATION_V2_TIME_INVALID", "updated_at \u5FC5\u987B\u4E3A UTC");
+    if (typeof body2.root !== "string" || typeof body2.project_id !== "string" || typeof body2.change_id !== "string" || typeof body2.correlation_id !== "string") return failure7(400, "ORCHESTRATION_V2_BODY_INVALID", "\u521B\u5EFA\u8BF7\u6C42\u8EAB\u4EFD\u5B57\u6BB5\u65E0\u6548");
+    if (!validChangeId(body2.change_id) || !PROJECT_ID.test(body2.project_id) || !PROJECT_ID.test(body2.correlation_id)) return failure7(400, "ORCHESTRATION_V2_IDENTITY_INVALID", "\u521B\u5EFA\u8BF7\u6C42\u8EAB\u4EFD\u4E0D\u5B89\u5168");
+    if (body2.updated_at !== void 0 && (typeof body2.updated_at !== "string" || !UTC6.test(body2.updated_at))) return failure7(400, "ORCHESTRATION_V2_TIME_INVALID", "updated_at \u5FC5\u987B\u4E3A UTC");
     const root2 = rootCheck(deps, body2.root);
     if ("status" in root2) return root2;
     try {
@@ -45523,15 +45887,15 @@ async function resolveOrchestrationV2PostRoute(path14, body2, deps) {
       });
       return { status: 201, body: { ok: true, created: snapshot.revision === 0, snapshot } };
     } catch {
-      return failure6(500, "ORCHESTRATION_V2_INITIALIZE_FAILED", "orchestration change \u521D\u59CB\u5316\u5931\u8D25");
+      return failure7(500, "ORCHESTRATION_V2_INITIALIZE_FAILED", "orchestration change \u521D\u59CB\u5316\u5931\u8D25");
     }
   }
   const parsed2 = parseChange(path14);
   if (parsed2 === null) return null;
   if (typeof parsed2 !== "object" || "status" in parsed2) return parsed2;
   if (parsed2.kind === "run") {
-    if (deps.runChange === void 0) return failure6(503, "ORCHESTRATION_V2_RUNTIME_UNAVAILABLE", "production orchestration runtime unavailable");
-    if (!isRecord11(body2)) return failure6(400, "ORCHESTRATION_V2_BODY_INVALID", "run body \u5FC5\u987B\u662F\u5BF9\u8C61");
+    if (deps.runChange === void 0) return failure7(503, "ORCHESTRATION_V2_RUNTIME_UNAVAILABLE", "production orchestration runtime unavailable");
+    if (!isRecord11(body2)) return failure7(400, "ORCHESTRATION_V2_BODY_INVALID", "run body \u5FC5\u987B\u662F\u5BF9\u8C61");
     const root2 = readRootFromBody(body2);
     if (typeof root2 !== "string") return root2;
     const checked = rootCheck(deps, root2);
@@ -45540,12 +45904,12 @@ async function resolveOrchestrationV2PostRoute(path14, body2, deps) {
       const result2 = await deps.runChange(changeDir(checked.anchor, parsed2.changeId));
       return { status: result2.ok ? 200 : 422, body: { ok: result2.ok, snapshot: result2.snapshot, diagnostics: result2.diagnostics } };
     } catch {
-      return failure6(500, "ORCHESTRATION_V2_RUNTIME_FAILED", "production orchestration run failed");
+      return failure7(500, "ORCHESTRATION_V2_RUNTIME_FAILED", "production orchestration run failed");
     }
   }
   if (parsed2.kind === "freeze") {
-    if (deps.freezeWorkflow === void 0 && deps.freezePipeline === void 0) return failure6(503, "ORCHESTRATION_V2_FREEZE_UNAVAILABLE", "production pipeline freezer unavailable");
-    if (!isRecord11(body2) || body2.root === void 0) return failure6(400, "ORCHESTRATION_V2_FREEZE_BODY_INVALID", "freeze-pipeline body \u5FC5\u987B\u5305\u542B root");
+    if (deps.freezeWorkflow === void 0 && deps.freezePipeline === void 0) return failure7(503, "ORCHESTRATION_V2_FREEZE_UNAVAILABLE", "production pipeline freezer unavailable");
+    if (!isRecord11(body2) || body2.root === void 0) return failure7(400, "ORCHESTRATION_V2_FREEZE_BODY_INVALID", "freeze-pipeline body \u5FC5\u987B\u5305\u542B root");
     const root2 = readRootFromBody(body2);
     if (typeof root2 !== "string") return root2;
     const checked = rootCheck(deps, root2);
@@ -45554,9 +45918,9 @@ async function resolveOrchestrationV2PostRoute(path14, body2, deps) {
       let snapshot;
       if (deps.freezeWorkflow !== void 0 && body2.pipeline === void 0) {
         const required3 = ["request", "context", "catalog", "workflow_definition", "workflow_track", "workflow_blueprint_mapping"];
-        if (required3.some((key) => body2[key] === void 0)) return failure6(400, "ORCHESTRATION_V2_FREEZE_BODY_INVALID", "freeze-pipeline body \u5FC5\u987B\u5305\u542B request\u3001context\u3001catalog\u3001workflow_definition\u3001workflow_track\u3001workflow_blueprint_mapping");
+        if (required3.some((key) => body2[key] === void 0)) return failure7(400, "ORCHESTRATION_V2_FREEZE_BODY_INVALID", "freeze-pipeline body \u5FC5\u987B\u5305\u542B request\u3001context\u3001catalog\u3001workflow_definition\u3001workflow_track\u3001workflow_blueprint_mapping");
         const allowed = /* @__PURE__ */ new Set(["root", "request", "context", "catalog", "workflow_definition", "workflow_track", "workflow_blueprint_mapping", "assessment_id", "graph_id", "plan_revision_id"]);
-        if (Object.keys(body2).some((key) => !allowed.has(key))) return failure6(400, "ORCHESTRATION_V2_FREEZE_BODY_INVALID", "freeze-pipeline body \u542B\u672A\u77E5\u5B57\u6BB5");
+        if (Object.keys(body2).some((key) => !allowed.has(key))) return failure7(400, "ORCHESTRATION_V2_FREEZE_BODY_INVALID", "freeze-pipeline body \u542B\u672A\u77E5\u5B57\u6BB5");
         snapshot = await deps.freezeWorkflow(changeDir(checked.anchor, parsed2.changeId), {
           request: body2.request,
           context: body2.context,
@@ -45569,16 +45933,16 @@ async function resolveOrchestrationV2PostRoute(path14, body2, deps) {
           ...body2.plan_revision_id === void 0 ? {} : { plan_revision_id: body2.plan_revision_id }
         });
       } else {
-        if (deps.freezePipeline === void 0) return failure6(503, "ORCHESTRATION_V2_FREEZE_PIPELINE_UNAVAILABLE", "explicit pipeline freeze unavailable");
-        if (body2.pipeline === void 0) return failure6(400, "ORCHESTRATION_V2_FREEZE_BODY_INVALID", "freeze-pipeline body \u5FC5\u987B\u5305\u542B\u5B8C\u6574 pipeline");
+        if (deps.freezePipeline === void 0) return failure7(503, "ORCHESTRATION_V2_FREEZE_PIPELINE_UNAVAILABLE", "explicit pipeline freeze unavailable");
+        if (body2.pipeline === void 0) return failure7(400, "ORCHESTRATION_V2_FREEZE_BODY_INVALID", "freeze-pipeline body \u5FC5\u987B\u5305\u542B\u5B8C\u6574 pipeline");
         snapshot = await deps.freezePipeline(changeDir(checked.anchor, parsed2.changeId), body2.pipeline);
       }
       return { status: 200, body: { ok: true, snapshot } };
     } catch (error2) {
-      return failure6(422, "ORCHESTRATION_V2_FREEZE_REJECTED", error2 instanceof Error ? error2.message : "pipeline freeze rejected");
+      return failure7(422, "ORCHESTRATION_V2_FREEZE_REJECTED", error2 instanceof Error ? error2.message : "pipeline freeze rejected");
     }
   }
-  if (parsed2.kind !== "commands") return failure6(405, "ORCHESTRATION_V2_METHOD_NOT_ALLOWED", "\u8BE5 orchestration \u8DEF\u5F84\u4EC5\u652F\u6301 GET");
+  if (parsed2.kind !== "commands") return failure7(405, "ORCHESTRATION_V2_METHOD_NOT_ALLOWED", "\u8BE5 orchestration \u8DEF\u5F84\u4EC5\u652F\u6301 GET");
   const parsedBody = commandFromBody(body2, parsed2.changeId);
   if ("status" in parsedBody) return parsedBody;
   const root = rootCheck(deps, parsedBody.root);
@@ -45589,14 +45953,14 @@ async function resolveOrchestrationV2PostRoute(path14, body2, deps) {
     const current = await deps.ledger.readSnapshot(changeDir(root.anchor, parsed2.changeId));
     return mapAppendFailure(result2, current);
   } catch {
-    return failure6(500, "ORCHESTRATION_V2_WRITE_FAILED", "orchestration command \u5199\u5165\u5931\u8D25");
+    return failure7(500, "ORCHESTRATION_V2_WRITE_FAILED", "orchestration command \u5199\u5165\u5931\u8D25");
   }
 }
 function authorized(req, deps, requireToken = false) {
-  if (deps.isLocalHost && !deps.isLocalHost(req.headers.host, deps.boundPort?.() ?? 0)) return failure6(403, "ORCHESTRATION_V2_HOST_FORBIDDEN", "Host header \u4E0D\u5408\u6CD5");
+  if (deps.isLocalHost && !deps.isLocalHost(req.headers.host, deps.boundPort?.() ?? 0)) return failure7(403, "ORCHESTRATION_V2_HOST_FORBIDDEN", "Host header \u4E0D\u5408\u6CD5");
   if (requireToken && deps.token !== void 0) {
     const provided = tokenFromHeaders(req.headers) ?? new URL(req.url ?? "/", "http://localhost").searchParams.get("token") ?? void 0;
-    if (!provided || !tokensMatch(provided, deps.token)) return failure6(401, "ORCHESTRATION_V2_UNAUTHORIZED", "\u7F3A\u5C11\u6216\u65E0\u6548 token");
+    if (!provided || !tokensMatch(provided, deps.token)) return failure7(401, "ORCHESTRATION_V2_UNAUTHORIZED", "\u7F3A\u5C11\u6216\u65E0\u6548 token");
   }
   return null;
 }
@@ -45626,11 +45990,11 @@ async function handleStream(req, res, parsed2, rawUrl, deps) {
   try {
     snapshot = await deps.ledger.readSnapshot(dir);
   } catch {
-    deps.sendJson(res, 500, failure6(500, "ORCHESTRATION_V2_READ_FAILED", "orchestration \u6570\u636E\u8BFB\u53D6\u5931\u8D25").body);
+    deps.sendJson(res, 500, failure7(500, "ORCHESTRATION_V2_READ_FAILED", "orchestration \u6570\u636E\u8BFB\u53D6\u5931\u8D25").body);
     return;
   }
   if (!snapshot) {
-    deps.sendJson(res, 404, failure6(404, "ORCHESTRATION_V2_CHANGE_NOT_FOUND", "\u627E\u4E0D\u5230\u8BE5 orchestration change").body);
+    deps.sendJson(res, 404, failure7(404, "ORCHESTRATION_V2_CHANGE_NOT_FOUND", "\u627E\u4E0D\u5230\u8BE5 orchestration change").body);
     return;
   }
   res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-store", Connection: "keep-alive", "X-Accel-Buffering": "no" });
@@ -45696,7 +46060,7 @@ async function handleOrchestrationV2GetRoute(req, res, path14, deps) {
 async function handleOrchestrationV2PostRoute(req, res, path14, deps) {
   if (path14 !== "/api/orchestration/changes" && !/^\/api\/orchestration\/changes\/[^/]+\/(commands|run|freeze-pipeline)$/.test(path14)) return false;
   if (deps.readJsonBody === void 0) {
-    deps.sendJson(res, 500, failure6(500, "ORCHESTRATION_V2_BODY_READER_UNAVAILABLE", "orchestration body reader unavailable").body);
+    deps.sendJson(res, 500, failure7(500, "ORCHESTRATION_V2_BODY_READER_UNAVAILABLE", "orchestration body reader unavailable").body);
     return true;
   }
   const body2 = await deps.readJsonBody(req);
@@ -45816,7 +46180,7 @@ function errorStatus(error2) {
   const status2 = Reflect.get(error2, "status");
   return typeof status2 === "number" ? status2 : void 0;
 }
-function failure7(status2, code, error2) {
+function failure8(status2, code, error2) {
   return { status: status2, body: { ok: false, code, error: error2 } };
 }
 async function resolveTaskPlanRoute(rawUrl, path14, deps) {
@@ -45824,31 +46188,31 @@ async function resolveTaskPlanRoute(rawUrl, path14, deps) {
   if (match === null) return null;
   const segment = match[1];
   if (segment === void 0) {
-    return failure7(400, "TASK_PLAN_CHANGE_INVALID", "\u975E\u6CD5 TaskPlan \u8DEF\u5F84");
+    return failure8(400, "TASK_PLAN_CHANGE_INVALID", "\u975E\u6CD5 TaskPlan \u8DEF\u5F84");
   }
   let change;
   try {
     change = decodeURIComponent(segment);
   } catch {
-    return failure7(400, "TASK_PLAN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09");
+    return failure8(400, "TASK_PLAN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09");
   }
   if (!isChangeName4(change)) {
-    return failure7(400, "TASK_PLAN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09");
+    return failure8(400, "TASK_PLAN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09");
   }
   const root = new URL(rawUrl, "http://localhost").searchParams.get("root") ?? "";
-  if (root === "") return failure7(400, "TASK_PLAN_ROOT_REQUIRED", "\u7F3A\u5C11 root");
+  if (root === "") return failure8(400, "TASK_PLAN_ROOT_REQUIRED", "\u7F3A\u5C11 root");
   const rootCheck2 = deps.workflowRootForRequest(root);
   if (!rootCheck2.ok) {
-    return rootCheck2.code === 404 ? failure7(404, "TASK_PLAN_ROOT_NOT_REGISTERED", "root \u672A\u6CE8\u518C") : failure7(403, "TASK_PLAN_ROOT_FORBIDDEN", "root \u4E0D\u53EF\u4FE1");
+    return rootCheck2.code === 404 ? failure8(404, "TASK_PLAN_ROOT_NOT_REGISTERED", "root \u672A\u6CE8\u518C") : failure8(403, "TASK_PLAN_ROOT_FORBIDDEN", "root \u4E0D\u53EF\u4FE1");
   }
   try {
     const plan = await deps.readPlan(rootCheck2.anchor, change);
-    return plan === null ? failure7(404, "TASK_PLAN_NOT_FOUND", "TaskPlan \u4E0D\u5B58\u5728") : { status: 200, body: plan };
+    return plan === null ? failure8(404, "TASK_PLAN_NOT_FOUND", "TaskPlan \u4E0D\u5B58\u5728") : { status: 200, body: plan };
   } catch (error2) {
     if (errorStatus(error2) === 403) {
-      return failure7(403, "TASK_PLAN_PATH_FORBIDDEN", "canonical TaskPlan \u8DEF\u5F84\u4E0D\u53EF\u4FE1");
+      return failure8(403, "TASK_PLAN_PATH_FORBIDDEN", "canonical TaskPlan \u8DEF\u5F84\u4E0D\u53EF\u4FE1");
     }
-    return failure7(409, "TASK_PLAN_CORRUPT", "canonical TaskPlan \u635F\u574F");
+    return failure8(409, "TASK_PLAN_CORRUPT", "canonical TaskPlan \u635F\u574F");
   }
 }
 
@@ -45861,7 +46225,7 @@ function errorStatus2(error2) {
   const status2 = Reflect.get(error2, "status");
   return typeof status2 === "number" ? status2 : void 0;
 }
-function failure8(status2, code, error2) {
+function failure9(status2, code, error2) {
   return { status: status2, body: { ok: false, code, error: error2 } };
 }
 async function resolveTaskRunRoute(rawUrl, path14, deps) {
@@ -45869,31 +46233,31 @@ async function resolveTaskRunRoute(rawUrl, path14, deps) {
   if (match === null) return null;
   const segment = match[1];
   if (segment === void 0) {
-    return failure8(400, "TASK_RUN_CHANGE_INVALID", "\u975E\u6CD5 Task Run \u8DEF\u5F84");
+    return failure9(400, "TASK_RUN_CHANGE_INVALID", "\u975E\u6CD5 Task Run \u8DEF\u5F84");
   }
   let change;
   try {
     change = decodeURIComponent(segment);
   } catch {
-    return failure8(400, "TASK_RUN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09");
+    return failure9(400, "TASK_RUN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09");
   }
   if (!isChangeName5(change)) {
-    return failure8(400, "TASK_RUN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09");
+    return failure9(400, "TASK_RUN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D\uFF08\u4EC5\u5141\u8BB8 a-z A-Z 0-9 - _\uFF09");
   }
   const root = new URL(rawUrl, "http://localhost").searchParams.get("root") ?? "";
-  if (root === "") return failure8(400, "TASK_RUN_ROOT_REQUIRED", "\u7F3A\u5C11 root");
+  if (root === "") return failure9(400, "TASK_RUN_ROOT_REQUIRED", "\u7F3A\u5C11 root");
   const rootCheck2 = deps.workflowRootForRequest(root);
   if (!rootCheck2.ok) {
-    return rootCheck2.code === 404 ? failure8(404, "TASK_RUN_ROOT_NOT_REGISTERED", "root \u672A\u6CE8\u518C") : failure8(403, "TASK_RUN_ROOT_FORBIDDEN", "root \u4E0D\u53EF\u4FE1");
+    return rootCheck2.code === 404 ? failure9(404, "TASK_RUN_ROOT_NOT_REGISTERED", "root \u672A\u6CE8\u518C") : failure9(403, "TASK_RUN_ROOT_FORBIDDEN", "root \u4E0D\u53EF\u4FE1");
   }
   try {
     const run = await deps.readRun(rootCheck2.anchor, change);
-    return run === null ? failure8(404, "TASK_RUN_NOT_FOUND", "Task Run \u4E0D\u5B58\u5728") : { status: 200, body: run };
+    return run === null ? failure9(404, "TASK_RUN_NOT_FOUND", "Task Run \u4E0D\u5B58\u5728") : { status: 200, body: run };
   } catch (error2) {
     if (errorStatus2(error2) === 403) {
-      return failure8(403, "TASK_RUN_PATH_FORBIDDEN", "Task Run \u8DEF\u5F84\u4E0D\u53EF\u4FE1");
+      return failure9(403, "TASK_RUN_PATH_FORBIDDEN", "Task Run \u8DEF\u5F84\u4E0D\u53EF\u4FE1");
     }
-    return failure8(409, "TASK_RUN_CORRUPT", "Task Run \u635F\u574F");
+    return failure9(409, "TASK_RUN_CORRUPT", "Task Run \u635F\u574F");
   }
 }
 var missingAdmission = {
@@ -46016,7 +46380,7 @@ function status(error2) {
   const value = Reflect.get(error2, "status");
   return typeof value === "number" ? value : void 0;
 }
-function failure9(statusCode, code, error2) {
+function failure10(statusCode, code, error2) {
   return { status: statusCode, body: { ok: false, code, error: error2 } };
 }
 function filtered(evidence, runId, workItemId) {
@@ -46031,34 +46395,34 @@ async function resolveSkillInvocationRoute(rawUrl, path14, deps) {
   try {
     change = decodeURIComponent(match[1] ?? "");
   } catch {
-    return failure9(400, "SKILL_INVOCATION_CHANGE_INVALID", "Invalid Skill invocation Change");
+    return failure10(400, "SKILL_INVOCATION_CHANGE_INVALID", "Invalid Skill invocation Change");
   }
   if (!validName(change) || change.includes("/")) {
-    return failure9(400, "SKILL_INVOCATION_CHANGE_INVALID", "Invalid Skill invocation Change");
+    return failure10(400, "SKILL_INVOCATION_CHANGE_INVALID", "Invalid Skill invocation Change");
   }
   const url = new URL(rawUrl, "http://localhost");
   const runId = url.searchParams.get("run_id");
   const workItemId = url.searchParams.get("work_item_id");
   if (runId !== null && !validName(runId) || workItemId !== null && !validName(workItemId)) {
-    return failure9(400, "SKILL_INVOCATION_FILTER_INVALID", "Invalid Skill invocation filter");
+    return failure10(400, "SKILL_INVOCATION_FILTER_INVALID", "Invalid Skill invocation filter");
   }
   const root = url.searchParams.get("root") ?? "";
-  if (root === "") return failure9(400, "SKILL_INVOCATION_ROOT_REQUIRED", "Missing root");
+  if (root === "") return failure10(400, "SKILL_INVOCATION_ROOT_REQUIRED", "Missing root");
   const rootCheck2 = deps.workflowRootForRequest(root);
   if (!rootCheck2.ok) {
-    return rootCheck2.code === 404 ? failure9(404, "SKILL_INVOCATION_ROOT_NOT_REGISTERED", "Root is not registered") : failure9(403, "SKILL_INVOCATION_ROOT_FORBIDDEN", "Root is not trusted");
+    return rootCheck2.code === 404 ? failure10(404, "SKILL_INVOCATION_ROOT_NOT_REGISTERED", "Root is not registered") : failure10(403, "SKILL_INVOCATION_ROOT_FORBIDDEN", "Root is not trusted");
   }
   try {
     return { status: 200, body: filtered(await deps.readEvidence(rootCheck2.anchor, change), runId, workItemId) };
   } catch (cause) {
-    if (status(cause) === 404) return failure9(404, "SKILL_INVOCATION_NOT_FOUND", "Change does not exist");
-    if (status(cause) === 403) return failure9(403, "SKILL_INVOCATION_PATH_FORBIDDEN", "Skill invocation path is not trusted");
-    return failure9(409, "SKILL_INVOCATION_CORRUPT", "Skill invocation evidence is corrupt");
+    if (status(cause) === 404) return failure10(404, "SKILL_INVOCATION_NOT_FOUND", "Change does not exist");
+    if (status(cause) === 403) return failure10(403, "SKILL_INVOCATION_PATH_FORBIDDEN", "Skill invocation path is not trusted");
+    return failure10(409, "SKILL_INVOCATION_CORRUPT", "Skill invocation evidence is corrupt");
   }
 }
 
 // packages/server/src/serverGetDecisionRoutes.ts
-import { join as join95 } from "node:path";
+import { join as join98 } from "node:path";
 
 // packages/server/src/decisionProjection.ts
 async function readReviewBindingSafely(dir) {
@@ -46100,7 +46464,7 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
   const root = query.get("root") ?? "";
   const checked = deps.workflowRootForRequest(root);
   if (!checked.ok) return deps.sendJson(res, checked.code, { ok: false, error: checked.error }), true;
-  const dir = join95(checked.anchor.path, "openspec", "changes", name);
+  const dir = join98(checked.anchor.path, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) return deps.sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" }), true;
   try {
     const view = await readPendingDecisionProjection({
@@ -46116,7 +46480,7 @@ async function handleGetDecisionRoute(req, res, path14, deps) {
 }
 
 // packages/server/src/serverTaskLifecycleRoutes.ts
-import { join as join96 } from "node:path";
+import { join as join99 } from "node:path";
 var DELETE_FAILED = "\u5220\u9664\u5931\u8D25";
 var TASK_ARCHIVED_HTTP_ERROR = "\u4EFB\u52A1\u5DF2\u5F52\u6863\uFF0C\u5148\u53D6\u6D88\u5F52\u6863";
 var REASON_CODES = [
@@ -46293,7 +46657,7 @@ async function handleTaskLifecycleDelete(req, res, path14, deps) {
     sendJson(res, 500, { ok: false, code: "delete-failed", error: DELETE_FAILED });
     return true;
   }
-  taskLifecycle.evictChange(join96(repoRoot, "openspec", "changes", change));
+  taskLifecycle.evictChange(join99(repoRoot, "openspec", "changes", change));
   sendJson(res, 200, {
     ok: true,
     removed: outcome.removed,
@@ -46304,7 +46668,7 @@ async function handleTaskLifecycleDelete(req, res, path14, deps) {
 
 // packages/server/src/serverGetRoutes.ts
 function repoRootForSkills2() {
-  return join97(dirname22(fileURLToPath3(import.meta.url)), "..", "..", "..");
+  return join100(dirname23(fileURLToPath3(import.meta.url)), "..", "..", "..");
 }
 function isWorkflowName2(name) {
   return name !== "" && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name);
@@ -46419,7 +46783,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync16(join97(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync18(join100(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -46442,7 +46806,7 @@ async function handleGet(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync16(join97(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync18(join100(rootCheck2.anchor.path, ".pipeline"));
       } catch (e) {
         if (e.code === "ENOENT") pipelineExists = false;
         else throw e;
@@ -46483,6 +46847,8 @@ async function handleGet(req, res, path14, deps) {
       return sendJson(res, 500, { ok: false, error: errMsg2(e) });
     }
   }
+  const fsGet = resolveFsGet(req, path14, deps);
+  if (fsGet) return sendJson(res, fsGet.status, fsGet.body);
   const instructionGet = resolveInstructionGet(req, path14, deps);
   if (instructionGet) {
     const result2 = await instructionGet;
@@ -46606,7 +46972,7 @@ async function handleGet(req, res, path14, deps) {
       image,
       secretsPath: paths.secretsPath,
       exec: options3.execDocker,
-      defaultCodexHome: join97(hostHome, ".codex")
+      defaultCodexHome: join100(hostHome, ".codex")
     });
     return sendJson(res, 200, r);
   }
@@ -46619,7 +46985,7 @@ async function handleGet(req, res, path14, deps) {
 }
 
 // packages/server/src/serverMutationRoutes.ts
-import { resolve as resolvePath8 } from "node:path";
+import { resolve as resolvePath9 } from "node:path";
 function isWorkflowName3(name) {
   return name !== "" && /^[\p{L}\p{N}\p{M}_-]+$/u.test(name);
 }
@@ -46730,7 +47096,7 @@ async function handleDeleteRoute(req, res, path14, deps) {
     const result2 = await removeProjectFromRegistry(paths.registryPath, root);
     if (!result2.ok) return sendJson(res, result2.code, { ok: false, error: result2.error });
     if (root === null) return sendJson(res, 400, { ok: false, error: "\u7F3A\u5C11 root \u53C2\u6570" });
-    const normalized2 = resolvePath8(root);
+    const normalized2 = resolvePath9(root);
     const anchor = workflowRootAnchors.get(normalized2);
     if (anchor) {
       closeWorkflowRootAnchor(anchor);
@@ -46907,8 +47273,8 @@ async function handlePutRoute(req, res, path14, deps) {
 
 // packages/server/src/changeLaunch.ts
 import { randomUUID as randomUUID17 } from "node:crypto";
-import { lstat as lstat35, rename as rename15, unlink as unlink5, writeFile as writeFile22 } from "node:fs/promises";
-import { join as join98 } from "node:path";
+import { lstat as lstat35, rename as rename15, unlink as unlink5, writeFile as writeFile23 } from "node:fs/promises";
+import { join as join101 } from "node:path";
 var CHANGE_TASK_FILE = "REAL_AGENT_TASK.md";
 var MAX_TASK_PROMPT_CHARS = 24e3;
 function errorCode8(error2) {
@@ -46939,7 +47305,7 @@ async function writeChangeTaskPrompt(changeDir2, prompt) {
   if (!dirStat.isDirectory() || dirStat.isSymbolicLink()) {
     throw new Error("Change \u76EE\u5F55\u4E0D\u662F\u53EF\u4FE1\u666E\u901A\u76EE\u5F55\uFF0C\u62D2\u7EDD\u4FDD\u5B58\u4EFB\u52A1\u63D0\u793A\u8BCD");
   }
-  const target = join98(changeDir2, CHANGE_TASK_FILE);
+  const target = join101(changeDir2, CHANGE_TASK_FILE);
   let targetExists = false;
   try {
     await lstat35(target);
@@ -46948,9 +47314,9 @@ async function writeChangeTaskPrompt(changeDir2, prompt) {
     if (errorCode8(error2) !== "ENOENT") throw error2;
   }
   if (targetExists) throw new Error("\u4EFB\u52A1\u63D0\u793A\u8BCD\u5DF2\u5B58\u5728\uFF0C\u62D2\u7EDD\u8986\u76D6");
-  const temporary = join98(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
+  const temporary = join101(changeDir2, `.${CHANGE_TASK_FILE}.${randomUUID17()}.tmp`);
   try {
-    await writeFile22(temporary, `${prompt}
+    await writeFile23(temporary, `${prompt}
 `, { encoding: "utf8", flag: "wx", mode: 384 });
     await rename15(temporary, target);
   } catch (error2) {
@@ -47214,10 +47580,10 @@ async function handlePostChangesRoutes(req, res, path14, deps) {
 
 // packages/server/src/serverPostExecutionRoutes.ts
 import { randomUUID as randomUUID18 } from "node:crypto";
-import { join as join100 } from "node:path";
+import { join as join103 } from "node:path";
 
 // packages/server/src/serverPostDecisionRoutes.ts
-import { join as join99 } from "node:path";
+import { join as join102 } from "node:path";
 var DECISION_COMMAND_FAILED = "\u51B3\u7B56\u547D\u4EE4\u5904\u7406\u5931\u8D25";
 function scalar11(state, field3) {
   const value = state.fields[field3];
@@ -47263,7 +47629,7 @@ async function handlePostDecisionRoutes(req, res, path14, deps) {
     sendJson(res, 400, { ok: false, error: "\u975E\u6CD5 change \u540D" });
     return true;
   }
-  const dir = join99(root, "openspec", "changes", name);
+  const dir = join102(root, "openspec", "changes", name);
   if (!stateStorageExistsSync(dir)) {
     sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     return true;
@@ -47334,7 +47700,7 @@ var TaskRunOperationConflictError = class extends Error {
   name = "TaskRunOperationConflictError";
   code = "TASK_RUN_OPERATION_CONFLICT";
 };
-function failure10(status2, code, error2) {
+function failure11(status2, code, error2) {
   return { status: status2, body: { ok: false, code, error: error2 } };
 }
 function isRecord12(value) {
@@ -47388,14 +47754,14 @@ async function resolveTaskRunOperation(path14, body2, deps) {
   try {
     change = decodeURIComponent(segment ?? "");
   } catch {
-    return failure10(400, "TASK_RUN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D");
+    return failure11(400, "TASK_RUN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D");
   }
-  if (!safeChange(change)) return failure10(400, "TASK_RUN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D");
+  if (!safeChange(change)) return failure11(400, "TASK_RUN_CHANGE_INVALID", "\u975E\u6CD5 change \u540D");
   const parsed2 = parseBody(body2);
-  if (parsed2 === null) return failure10(400, "TASK_RUN_OPERATION_INVALID", "Task Run \u64CD\u4F5C\u8BF7\u6C42\u65E0\u6548");
+  if (parsed2 === null) return failure11(400, "TASK_RUN_OPERATION_INVALID", "Task Run \u64CD\u4F5C\u8BF7\u6C42\u65E0\u6548");
   const rootCheck2 = deps.workflowRootForRequest(parsed2.root);
   if (!rootCheck2.ok) {
-    return rootCheck2.code === 404 ? failure10(404, "TASK_RUN_ROOT_NOT_REGISTERED", "root \u672A\u6CE8\u518C") : failure10(403, "TASK_RUN_ROOT_FORBIDDEN", "root \u4E0D\u53EF\u4FE1");
+    return rootCheck2.code === 404 ? failure11(404, "TASK_RUN_ROOT_NOT_REGISTERED", "root \u672A\u6CE8\u518C") : failure11(403, "TASK_RUN_ROOT_FORBIDDEN", "root \u4E0D\u53EF\u4FE1");
   }
   try {
     const result2 = await deps.mutateRun(rootCheck2.anchor, change, {
@@ -47406,12 +47772,12 @@ async function resolveTaskRunOperation(path14, body2, deps) {
     return { status: 200, body: result2 };
   } catch (error2) {
     if (errorField(error2, "status") === 403) {
-      return failure10(403, "TASK_RUN_PATH_FORBIDDEN", "Task Run \u8DEF\u5F84\u4E0D\u53EF\u4FE1");
+      return failure11(403, "TASK_RUN_PATH_FORBIDDEN", "Task Run \u8DEF\u5F84\u4E0D\u53EF\u4FE1");
     }
     if (errorField(error2, "code") === "TASK_RUN_OPERATION_CONFLICT" || errorField(error2, "name") === "TaskRunRevisionConflictError") {
-      return failure10(409, "TASK_RUN_OPERATION_CONFLICT", "Task Run \u5DF2\u53D8\u5316\uFF0C\u8BF7\u5237\u65B0\u540E\u91CD\u8BD5");
+      return failure11(409, "TASK_RUN_OPERATION_CONFLICT", "Task Run \u5DF2\u53D8\u5316\uFF0C\u8BF7\u5237\u65B0\u540E\u91CD\u8BD5");
     }
-    return failure10(409, "TASK_RUN_CORRUPT", "Task Run \u635F\u574F");
+    return failure11(409, "TASK_RUN_CORRUPT", "Task Run \u635F\u574F");
   }
 }
 async function applyTaskRunOperationForChange(changeDir2, operation) {
@@ -47498,7 +47864,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join100(root2, "openspec", "changes", name2);
+    const dir = join103(root2, "openspec", "changes", name2);
     const result2 = await cancelAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -47518,7 +47884,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join100(root2, "openspec", "changes", name2);
+    const dir = join103(root2, "openspec", "changes", name2);
     const result2 = await retryAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -47538,7 +47904,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join100(root2, "openspec", "changes", name2);
+    const dir = join103(root2, "openspec", "changes", name2);
     const result2 = await dismissAfkRun(store, dir);
     return sendJson(res, result2.ok ? 200 : 400, result2);
   }
@@ -47558,7 +47924,7 @@ async function handlePostExecutionRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root2)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join100(root2, "openspec", "changes", name2);
+    const dir = join103(root2, "openspec", "changes", name2);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -47897,8 +48263,8 @@ async function handlePostGovernanceRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverPostOperationsRoutes.ts
-import { lstatSync as lstatSync17 } from "node:fs";
-import { join as join101 } from "node:path";
+import { lstatSync as lstatSync19 } from "node:fs";
+import { join as join104 } from "node:path";
 
 // packages/server/src/loopScopePreview.ts
 import {
@@ -48187,7 +48553,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
       assertWorkflowRootAnchor(rootCheck2.anchor);
       let pipelineExists = true;
       try {
-        lstatSync17(join101(rootCheck2.anchor.path, ".pipeline"));
+        lstatSync19(join104(rootCheck2.anchor.path, ".pipeline"));
       } catch (error2) {
         if (error2.code === "ENOENT") pipelineExists = false;
         else throw error2;
@@ -48374,7 +48740,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
     if (!isRegisteredRoot(root)) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
-    const dir = join101(root, "openspec", "changes", name);
+    const dir = join104(root, "openspec", "changes", name);
     if (!stateStorageExistsSync(dir)) {
       return sendJson(res, 400, { ok: false, error: "\u627E\u4E0D\u5230\u8BE5 change\uFF08\u65E0 canonical/legacy \u72B6\u6001\uFF09" });
     }
@@ -48403,7 +48769,7 @@ async function handlePostOperationsRoutes(req, res, path14, deps) {
 }
 
 // packages/server/src/serverPostMemoryRoutes.ts
-import { join as join102 } from "node:path";
+import { join as join105 } from "node:path";
 var RELATED_SEARCH_PATH = "/api/mem/related-sessions/search";
 var PLATFORM_VALUES = /* @__PURE__ */ new Set(["all", "claude", "codex", "opencode", "pi"]);
 var CHANGE_NAME_RE3 = /^[a-zA-Z0-9_-]+$/;
@@ -48442,7 +48808,7 @@ async function handlePostMemoryRoutes(req, res, path14, deps) {
   const anchoredRoot = rootCheck2.anchor.path;
   let changeExists = false;
   try {
-    changeExists = stateStorageExistsSync(join102(anchoredRoot, "openspec", "changes", name));
+    changeExists = stateStorageExistsSync(join105(anchoredRoot, "openspec", "changes", name));
   } catch {
     return missingTarget(deps, res);
   }
@@ -48469,6 +48835,40 @@ async function handlePostMemoryRoutes(req, res, path14, deps) {
     });
   }
   return deps.sendJson(res, 200, result2.response);
+}
+
+// packages/server/src/projectCreateStream.ts
+var PROJECT_CREATE_STREAM_PATH = "/api/projects/create/stream";
+function write(res, event, data) {
+  if (res.writableEnded || res.destroyed) return;
+  res.write(`event: ${event}
+data: ${JSON.stringify(data)}
+
+`);
+}
+async function handleProjectCreateStream(req, res, deps) {
+  if (!deps.workflowRootAnchors) return deps.sendJson(res, 404, { ok: false, error: "\u672A\u77E5\u7AEF\u70B9" });
+  const raw = deps.readJsonBody ? await deps.readJsonBody(req) : void 0;
+  const body2 = typeof raw === "object" && raw !== null && !Array.isArray(raw) ? { ...raw, dry_run: false } : raw;
+  const createDeps = {
+    paths: deps.paths,
+    workflowRootAnchors: deps.workflowRootAnchors,
+    runGit: deps.runGit ?? runGitCommand,
+    actor: auditActor(deps.resolveUser, "")
+  };
+  const prepared = await prepareProjectCreate(body2, createDeps);
+  if (!("plan" in prepared)) return deps.sendJson(res, prepared.status, prepared.body);
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-store",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no"
+  });
+  write(res, "plan", { steps: createStepIds(prepared.plan) });
+  const result2 = await runProjectCreate(prepared.plan, createDeps, (event) => write(res, "step", event));
+  if (result2.status === 200) write(res, "done", result2.body);
+  else write(res, "failed", { ...typeof result2.body === "object" && result2.body !== null ? result2.body : {}, ok: false, status: result2.status });
+  res.end();
 }
 
 // packages/server/src/serverPostRoutes.ts
@@ -48540,6 +48940,12 @@ async function handlePostRoute(req, res, path14, deps) {
       sendJson
     });
     if (handled) return;
+  }
+  if (path14 === PROJECT_CREATE_STREAM_PATH) return handleProjectCreateStream(req, res, deps);
+  const fsPost = resolveFsPost(req, path14, deps);
+  if (fsPost) {
+    const result2 = await fsPost;
+    return sendJson(res, result2.status, result2.body);
   }
   const instructionPost = resolveInstructionMutation(req, "POST", path14, deps);
   if (instructionPost) {
@@ -48678,7 +49084,7 @@ function createFreezeHandlers(deps) {
 
 // packages/server/src/serverTransport.ts
 import { readFileSync as readFileSync28 } from "node:fs";
-import { join as join103 } from "node:path";
+import { join as join106 } from "node:path";
 import { gzipSync } from "node:zlib";
 
 // packages/server/src/singleFlight.ts
@@ -48860,7 +49266,7 @@ data: ${shared.body}
   function serveIndexWithToken(res) {
     if (!webRoot) return false;
     try {
-      let html = readFileSync28(join103(webRoot, "index.html"), "utf8");
+      let html = readFileSync28(join106(webRoot, "index.html"), "utf8");
       const jsToken = JSON.stringify(token).replace(/</g, "\\u003c");
       const inject = `<script>window.__TENON_DASHBOARD_TOKEN__ = ${jsToken};</script>`;
       html = html.includes("</head>") ? html.replace("</head>", `${inject}</head>`) : `${inject}${html}`;
@@ -48874,8 +49280,8 @@ data: ${shared.body}
     if (!webRoot || !path14.startsWith("/assets/")) return false;
     const rel = path14.slice(1);
     if (rel.includes("..")) return false;
-    const abs = join103(webRoot, rel);
-    if (!abs.startsWith(join103(webRoot, "assets"))) return false;
+    const abs = join106(webRoot, rel);
+    if (!abs.startsWith(join106(webRoot, "assets"))) return false;
     try {
       const source2 = readFileSync28(abs);
       const ext = abs.slice(abs.lastIndexOf("."));
@@ -48916,7 +49322,7 @@ data: ${shared.body}
 // packages/server/src/serverGovernance.ts
 import { mkdirSync as mkdirSync9 } from "node:fs";
 import { readdir as readdir17 } from "node:fs/promises";
-import { join as join104, resolve as resolvePath11 } from "node:path";
+import { join as join107, resolve as resolvePath12 } from "node:path";
 function createServerGovernance(options3) {
   const { registry, globalWorkflowRoot: globalWorkflowRoot2, store, sendJson, trackSkillProfiles, operationsAvailable, operationRunner } = options3;
   function trackRegistryBody(trackRegistry) {
@@ -48928,7 +49334,7 @@ function createServerGovernance(options3) {
     };
   }
   async function scanActiveTrackChanges(root) {
-    const changesRoot = join104(root, "openspec", "changes");
+    const changesRoot = join107(root, "openspec", "changes");
     let entries;
     try {
       entries = await readdir17(changesRoot, { withFileTypes: true });
@@ -48941,7 +49347,7 @@ function createServerGovernance(options3) {
     const unreadable = [];
     for (const name of names) {
       try {
-        const state = await store.read(join104(changesRoot, name));
+        const state = await store.read(join107(changesRoot, name));
         const track = state.fields.track;
         const workflow = state.fields.workflow;
         refs.push({
@@ -49000,7 +49406,7 @@ function createServerGovernance(options3) {
     });
   }
   const fileExists = projectFileExists;
-  const isRegisteredRoot = (root) => dedupeRoots(registry()).includes(resolvePath11(root));
+  const isRegisteredRoot = (root) => dedupeRoots(registry()).includes(resolvePath12(root));
   async function executeOperation(res, root, args) {
     if (!operationsAvailable) {
       return sendJson(res, 503, { ok: false, error: "Operations \u672A\u63A5\u7EBF\uFF1ATenon CLI bundle \u4E0D\u5B58\u5728" });
@@ -49009,7 +49415,7 @@ function createServerGovernance(options3) {
       return sendJson(res, 404, { ok: false, error: "root \u672A\u5728\u673A\u5668\u7EA7\u9879\u76EE\u6CE8\u518C\u8868\u4E2D" });
     }
     try {
-      const result2 = await operationRunner(resolvePath11(root), args);
+      const result2 = await operationRunner(resolvePath12(root), args);
       return sendJson(res, cliExitHttpStatus(result2.exitCode), {
         ok: result2.exitCode === 0,
         exit_code: result2.exitCode,
@@ -49033,7 +49439,7 @@ function createServerGovernance(options3) {
   } catch {
   }
   const workflowRootForRequest = (root) => {
-    const normalized2 = resolvePath11(root);
+    const normalized2 = resolvePath12(root);
     if (!dedupeRoots(registry()).includes(normalized2)) {
       const stale = workflowRootAnchors.get(normalized2);
       if (stale) {
@@ -49063,7 +49469,7 @@ function createServerGovernance(options3) {
   const globalWorkflowStore = () => {
     try {
       if (globalAnchor === null) {
-        mkdirSync9(join104(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
+        mkdirSync9(join107(globalWorkflowRoot2, ".pipeline", "workflows"), { recursive: true });
         globalAnchor = captureWorkflowRootAnchor(globalWorkflowRoot2);
       } else {
         assertWorkflowRootAnchor(globalAnchor);
@@ -49112,6 +49518,115 @@ function createServerGovernance(options3) {
     workflowStoreForRequest,
     trackValidationContextFor,
     rootSkillResolver
+  };
+}
+
+// packages/server/src/folderChooser.ts
+import { execFile as execFile9 } from "node:child_process";
+import { lstatSync as lstatSync20 } from "node:fs";
+import { isAbsolute as isAbsolute21, resolve as resolvePath13 } from "node:path";
+var PICKER_TIMEOUT_MS = 5 * 60 * 1e3;
+var MAC_SCRIPT_WITH_START = [
+  "on run argv",
+  "return POSIX path of (choose folder with prompt (item 1 of argv) default location (POSIX file (item 2 of argv)))",
+  "end run"
+];
+var MAC_SCRIPT = ["on run argv", "return POSIX path of (choose folder with prompt (item 1 of argv))", "end run"];
+var WINDOWS_SCRIPT = [
+  "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+  "Add-Type -AssemblyName System.Windows.Forms",
+  "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
+  "$dialog.Description = $env:TENON_PICKER_TITLE",
+  "$dialog.ShowNewFolderButton = $true",
+  "if ($env:TENON_PICKER_START) { $dialog.SelectedPath = $env:TENON_PICKER_START }",
+  "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.SelectedPath); exit 0 }",
+  "exit 3"
+].join("; ");
+function pickerCommands(platform, env, request) {
+  const { title, startDir } = request;
+  if (platform === "darwin") {
+    const script = startDir === null ? MAC_SCRIPT : MAC_SCRIPT_WITH_START;
+    return [{
+      file: "osascript",
+      args: [...script.flatMap((line) => ["-e", line]), title, ...startDir === null ? [] : [startDir]],
+      cancelCode: 1,
+      cancelText: "-128"
+    }];
+  }
+  if (platform === "win32") {
+    return [{
+      file: "powershell.exe",
+      args: ["-NoProfile", "-NonInteractive", "-STA", "-Command", WINDOWS_SCRIPT],
+      env: { TENON_PICKER_TITLE: title, TENON_PICKER_START: startDir ?? "" },
+      cancelCode: 3
+    }];
+  }
+  if (!env.DISPLAY && !env.WAYLAND_DISPLAY) return [];
+  const start = startDir === null ? [] : [`${startDir.replace(/\/+$/u, "")}/`];
+  return [
+    { file: "zenity", args: ["--file-selection", "--directory", `--title=${title}`, ...start.map((dir) => `--filename=${dir}`)], cancelCode: 1 },
+    { file: "kdialog", args: ["--getexistingdirectory", ...startDir === null ? [] : [startDir], "--title", title], cancelCode: 1 }
+  ];
+}
+function normalizePickedPath(stdout) {
+  const raw = stdout.replace(/[\r\n]+$/u, "");
+  if (raw === "" || raw.includes("\0") || !isAbsolute21(raw)) return null;
+  const trimmed = raw.length > 1 ? raw.replace(/[\\/]+$/u, "") : raw;
+  const path14 = resolvePath13(trimmed === "" || /^[A-Za-z]:$/u.test(trimmed) ? raw : trimmed);
+  try {
+    const entry = lstatSync20(path14);
+    return entry.isDirectory() && !entry.isSymbolicLink() ? path14 : null;
+  } catch {
+    return null;
+  }
+}
+var runPickerProcess = (command, timeoutMs) => new Promise((resolve20) => {
+  execFile9(command.file, [...command.args], {
+    timeout: timeoutMs,
+    killSignal: "SIGTERM",
+    maxBuffer: 64 * 1024,
+    windowsHide: false,
+    env: command.env === void 0 ? process.env : { ...process.env, ...command.env }
+  }, (error2, stdout, stderr) => {
+    if (error2 === null) {
+      resolve20({ code: 0, stdout: String(stdout), stderr: String(stderr), notFound: false, timedOut: false });
+      return;
+    }
+    const errno = Reflect.get(error2, "code");
+    resolve20({
+      code: typeof errno === "number" ? errno : -1,
+      stdout: String(stdout ?? ""),
+      stderr: String(stderr ?? ""),
+      notFound: errno === "ENOENT",
+      timedOut: error2.killed === true || Reflect.get(error2, "signal") === "SIGTERM"
+    });
+  });
+});
+function createFolderChooser(deps) {
+  const run = deps.run ?? runPickerProcess;
+  const timeoutMs = deps.timeoutMs ?? PICKER_TIMEOUT_MS;
+  let open9 = false;
+  return {
+    async choose(request) {
+      if (open9) return { ok: false, busy: true };
+      open9 = true;
+      try {
+        for (const command of pickerCommands(deps.platform, deps.env, request)) {
+          const outcome = await run(command, timeoutMs);
+          if (outcome.notFound) continue;
+          if (outcome.timedOut) return { ok: false, cancelled: true };
+          if (outcome.code === 0) {
+            const path14 = normalizePickedPath(outcome.stdout);
+            return path14 === null ? { ok: false, unavailable: true } : { ok: true, path: path14 };
+          }
+          const cancelled = command.cancelText === void 0 ? outcome.code === command.cancelCode : outcome.code === command.cancelCode && outcome.stderr.includes(command.cancelText);
+          return cancelled ? { ok: false, cancelled: true } : { ok: false, unavailable: true };
+        }
+        return { ok: false, unavailable: true };
+      } finally {
+        open9 = false;
+      }
+    }
   };
 }
 
@@ -49164,9 +49679,9 @@ function createRelatedSessionSearchExecutor(runner) {
 }
 
 // packages/server/src/sessionLinkResolver.ts
-import { join as join105 } from "node:path";
+import { join as join108 } from "node:path";
 async function resolveSessionLink(root, name, deps) {
-  const changeDir2 = join105(root, "openspec", "changes", name);
+  const changeDir2 = join108(root, "openspec", "changes", name);
   try {
     const wtRaw = await deps.store.get(changeDir2, "automation_worktree");
     const wt = Array.isArray(wtRaw) ? wtRaw.join(",") : wtRaw ?? "";
@@ -49192,7 +49707,7 @@ async function resolveSessionLink(root, name, deps) {
 
 // packages/server/src/version.ts
 import { readFileSync as readFileSync29 } from "node:fs";
-import { basename as basename8, dirname as dirname23, join as join106 } from "node:path";
+import { basename as basename8, dirname as dirname24, join as join109 } from "node:path";
 var SERVER_VERSION = "0.1.0";
 var RELEASE_ID = /^sha256-[a-f0-9]{64}$/;
 function isPluginManifestVersion(value) {
@@ -49201,7 +49716,7 @@ function isPluginManifestVersion(value) {
 function resolveReleaseVersion(pluginRoot2) {
   for (const relative15 of [".codex-plugin/plugin.json", ".claude-plugin/plugin.json"]) {
     try {
-      const parsed2 = JSON.parse(readFileSync29(join106(pluginRoot2, relative15), "utf8"));
+      const parsed2 = JSON.parse(readFileSync29(join109(pluginRoot2, relative15), "utf8"));
       if (isPluginManifestVersion(parsed2) && typeof parsed2.version === "string" && /^\d+\.\d+\.\d+$/.test(parsed2.version)) {
         return parsed2.version;
       }
@@ -49212,7 +49727,7 @@ function resolveReleaseVersion(pluginRoot2) {
 }
 function resolvePayloadReleaseId(pluginRoot2) {
   if (basename8(pluginRoot2) !== "payload") return void 0;
-  const releaseId = basename8(dirname23(pluginRoot2));
+  const releaseId = basename8(dirname24(pluginRoot2));
   return RELEASE_ID.test(releaseId) ? releaseId : void 0;
 }
 
@@ -49227,6 +49742,7 @@ function createDashboardServer(options3) {
   const clock = options3.clock ?? isoNow;
   const paths = options3.paths;
   const hostHome = options3.hostHome ?? paths.homeDir;
+  const folderChooser = options3.folderChooser ?? createFolderChooser({ platform: process.platform, env: process.env });
   const stateScopeId = machineStateScopeId(paths.stateRoot);
   const registry = options3.registry ?? (() => readProjectRegistry(paths.registryPath));
   const store = options3.store ?? createStateStore();
@@ -49264,7 +49780,7 @@ function createDashboardServer(options3) {
       locator: createRunnerSkillContentLocator({
         runner,
         home: hostHome,
-        bundledRoot: join107(repoRootForSkills(), "skills")
+        bundledRoot: join110(repoRootForSkills(), "skills")
       }),
       isSkillProfileKnown: (profileId) => profileId === "_all" || trackSkillProfiles.has(profileId)
     });
@@ -49418,6 +49934,7 @@ function createDashboardServer(options3) {
     hostTargetPlanRuntime,
     options: options3,
     operationRunner,
+    folderChooser,
     resolveSessionLink: (root, name) => resolveSessionLink(root, name, { store, memFs }),
     errMsg,
     orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir2) => createProductionExecutionRuntimeV2({ change_dir: changeDir2, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then((runtime) => runtime.run()) },
@@ -49464,13 +49981,15 @@ function createDashboardServer(options3) {
     manifestPath: manifestPath2,
     paths,
     validateLoopActivation,
-    skillsRoot: options3.skillsRoot ?? join107(repoRootForSkills(), "skills"),
+    skillsRoot: options3.skillsRoot ?? join110(repoRootForSkills(), "skills"),
     mutateTrackForApi: mutateTrackForRoutes,
     trackRegistryBody,
     sendTrackError,
     errMsg,
     realGraduationFs: REAL_GRADUATION_FS,
     relatedSessionSearch,
+    folderChooser,
+    runGit: options3.projectCreateGit,
     resolveUser,
     taskLifecycle,
     orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir2) => createProductionExecutionRuntimeV2({ change_dir: changeDir2, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then((runtime) => runtime.run()) },
@@ -49568,7 +50087,7 @@ function resolveServerPaths(opts = {}) {
 }
 
 // packages/server/src/preempt.ts
-import { execFile as execFile9 } from "node:child_process";
+import { execFile as execFile10 } from "node:child_process";
 import { get as httpGet } from "node:http";
 import { readFileSync as readFileSync30 } from "node:fs";
 import { createConnection } from "node:net";
@@ -49691,7 +50210,7 @@ function parseListenerPids(stdout) {
 }
 function listenerPids(port) {
   return new Promise((resolve20) => {
-    execFile9("lsof", ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }, (error2, stdout) => {
+    execFile10("lsof", ["-nP", "-t", `-iTCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }, (error2, stdout) => {
       if (error2 === null) {
         resolve20(parseListenerPids(String(stdout ?? "")));
         return;
@@ -49787,14 +50306,14 @@ function managedTransactionId() {
   return value;
 }
 function pluginRoot() {
-  return join108(dirname25(fileURLToPath4(import.meta.url)), "..", "..", "..");
+  return join111(dirname26(fileURLToPath4(import.meta.url)), "..", "..", "..");
 }
 function manifestPath() {
-  return join108(pluginRoot(), "templates", "manifest.yaml");
+  return join111(pluginRoot(), "templates", "manifest.yaml");
 }
 function gitHeadSha(cwd) {
   return new Promise((resolve20) => {
-    execFile10("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => resolve20((stdout ?? "").trim()));
+    execFile11("git", ["rev-parse", "HEAD"], { cwd }, (_err, stdout) => resolve20((stdout ?? "").trim()));
   });
 }
 async function main() {
@@ -49857,7 +50376,7 @@ async function main() {
     gitHeadSha,
     workspaceFingerprint: (cwd) => fingerprintWorkspace(cwd),
     // dashboard-app 构建产物（BACKLOG #26c）：存在则服务真 SPA，否则回退最小落地页
-    webRoot: join108(dirname25(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
+    webRoot: join111(dirname26(fileURLToPath4(import.meta.url)), "..", "..", "dashboard-app", "dist"),
     // tap 流量查看器数据源：只读 sessions/records/timeline；完整 reader 才声明 traffic=true。
     // tap capture 默认 OFF，无捕获时返回空会话——数据端仍在线（#34e：只读本地、不外发）
     traceStore: createTraceStore(),
