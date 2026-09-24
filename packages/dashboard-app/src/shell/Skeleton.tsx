@@ -22,8 +22,8 @@ export function ThreeColumnsSkeleton({ testId }: { testId: string }): JSX.Elemen
         testId={`${testId}-columns`}
         railCollapsed={false}
         rail={(
-          <aside className="flex min-h-0 flex-col gap-1 overflow-hidden border-r border-border bg-bg px-4 pt-5 pb-4 max-[900px]:hidden" data-testid={`${testId}-rail`}>
-            <Bone className="mb-4 h-8 w-24" />
+          <aside className="flex min-h-0 flex-col gap-1 overflow-hidden border-r border-border bg-bg px-4 pt-5 pb-4 max-[1360px]:px-2 max-[900px]:hidden" data-testid={`${testId}-rail`}>
+            <Bone className="mb-4 h-8 w-24 max-[1360px]:w-full" />
             {Array.from({ length: 8 }, (_, index) => <Bone key={index} className="h-[52px] w-full" />)}
           </aside>
         )}

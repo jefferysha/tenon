@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { I18nProvider } from '../i18n'
-import { DetailEmpty, FilterChip, FilterChipGroup, RailCard, RailColumn, StatusPill, ThreeColumns } from './ThreeColumns'
+import { DetailEmpty, FilterChip, FilterChipGroup, LIST_SELECTED_ARIA_CLS, LIST_SELECTED_CLS, RailCard, RailColumn, StatusPill, ThreeColumns } from './ThreeColumns'
 import { ThreeColumnsSkeleton } from './Skeleton'
 
 const classesOf = (element: Element): string[] => element.className.split(/\s+/u)
@@ -65,6 +65,19 @@ describe('FilterChip / FilterChipGroup（H3）', () => {
     render(<Chips />)
     expect(classesOf(screen.getByTestId('chip-all'))).toEqual(expect.arrayContaining(['min-h-10', 'whitespace-nowrap']))
   })
+
+  it('选中底色是组内共享指示块（B7）：芯片自身不画底色；指示块在最后、不抢首项位置', () => {
+    render(<Chips />)
+    const group = screen.getByTestId('group')
+    expect(classesOf(group)).toEqual(expect.arrayContaining(['relative', 'isolate']))
+    expect(classesOf(screen.getByTestId('chip-all')).some((name) => name.startsWith('aria-checked:bg-'))).toBe(false)
+    const indicator = screen.getByTestId('group-indicator')
+    expect(group.lastElementChild).toBe(indicator)
+    expect(group.firstElementChild).toBe(screen.getByTestId('chip-all'))
+    expect(indicator).toHaveAttribute('aria-hidden', 'true')
+    expect(indicator).toHaveAttribute('data-placed', 'true')
+    expect(classesOf(indicator)).toEqual(expect.arrayContaining(['bg-accent-t', 'rounded-sm']))
+  })
 })
 
 describe('StatusPill（B4：语义点 + 文字）', () => {
@@ -91,7 +104,7 @@ describe('DetailEmpty（E7）', () => {
 })
 
 describe('RailColumn（A5 / H4 / J1）', () => {
-  it('lead 插槽渲染在列表之前、同一滚动区；折叠钮 40px 且 ≤1280px 隐藏', () => {
+  it('lead 插槽渲染在列表之前、同一滚动区；折叠钮 40px 且 ≤1360px 隐藏', () => {
     render(
       <I18nProvider>
         <RailColumn
@@ -108,8 +121,8 @@ describe('RailColumn（A5 / H4 / J1）', () => {
     const lead = screen.getByTestId('rail-lead')
     expect(lead).toContainElement(screen.getByTestId('rail-all'))
     expect(lead.compareDocumentPosition(screen.getByTestId('rail-first')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(classesOf(screen.getByTestId('rail-all'))).toContain('min-h-10')
-    expect(classesOf(screen.getByTestId('rail-toggle'))).toEqual(expect.arrayContaining(['size-10', 'max-[1280px]:hidden', 'max-[900px]:grid']))
+    expect(classesOf(screen.getByTestId('rail-all'))).toContain('min-h-11')
+    expect(classesOf(screen.getByTestId('rail-toggle'))).toEqual(expect.arrayContaining(['size-10', 'max-[1360px]:hidden', 'max-[900px]:grid']))
   })
 })
 
@@ -135,20 +148,59 @@ describe('RailCard（E11 / D6）', () => {
     expect(classesOf(meta)).toEqual(expect.arrayContaining(['font-mono', 'truncate', 'text-red-d']))
     expect(classesOf(screen.getByTestId('card-mark'))).toContain('text-red-d')
   })
+
+  it('图标不套方块（无边框、无底色）；未选中 text-3，行高 44、px-3 gap-3', () => {
+    render(<RailCard mark={<svg />} name="tenon" selected={false} collapsed={false} onClick={() => undefined} testId="card" />)
+    const mark = classesOf(screen.getByTestId('card-mark'))
+    expect(mark).toEqual(expect.arrayContaining(['text-text-3', '[&_svg]:size-4']))
+    expect(mark.some((name) => name === 'border' || name.startsWith('border-') || name.startsWith('bg-'))).toBe(false)
+    expect(mark).not.toContain('rounded-sm')
+    expect(classesOf(screen.getByTestId('card'))).toEqual(expect.arrayContaining(['min-h-11', 'px-3', 'gap-3']))
+  })
+
+  it('选中：列表选中态（中性底 + 左 2px 内描边、无外描边），图标强调色，标题只加粗不染绿', () => {
+    render(<RailCard mark={<svg />} name="tenon" count={3} selected collapsed={false} onClick={() => undefined} testId="card" />)
+    const card = screen.getByTestId('card')
+    expect(card).toHaveAttribute('aria-current', 'true')
+    const classes = classesOf(card)
+    expect(classes).toEqual(expect.arrayContaining(LIST_SELECTED_ARIA_CLS.split(' ')))
+    expect(classes.some((name) => name.includes('border-accent') || name.includes('bg-accent-t'))).toBe(false)
+    expect(classesOf(screen.getByTestId('card-mark'))).toContain('text-(--accent)')
+    const title = screen.getByText('tenon').parentElement!
+    expect(classesOf(title)).toEqual(expect.arrayContaining(['font-semibold', 'text-text']))
+    expect(classesOf(title)).not.toContain('text-(--accent)')
+    // 计数：无衬线等宽数字，不用 mono，不染绿。
+    expect(classesOf(screen.getByText('3'))).toEqual(expect.arrayContaining(['tabular-nums', 'text-text-3']))
+    expect(classesOf(screen.getByText('3'))).not.toContain('font-mono')
+  })
+
+  it('≤1360px 被迫折叠成图标栏时仍有名字：title = 名称 · 副行', () => {
+    render(<RailCard mark={<svg />} name="tenon" meta="~/code/tenon" selected={false} collapsed={false} onClick={() => undefined} testId="card" />)
+    const card = screen.getByTestId('card')
+    expect(card).toHaveAttribute('title', 'tenon · ~/code/tenon')
+    expect(classesOf(card)).toEqual(expect.arrayContaining(['max-[1360px]:grid-cols-1', 'max-[1360px]:justify-items-center']))
+  })
+})
+
+describe('列表选中态共享类（A6）', () => {
+  it('中性偏绿底 + 左 2px 内描边，不含描边与强调色', () => {
+    expect(LIST_SELECTED_CLS).toBe('bg-sel-bg shadow-[inset_2px_0_0_var(--sel-edge)]')
+    expect(LIST_SELECTED_ARIA_CLS.split(' ')).toEqual(['aria-[current=true]:bg-sel-bg', 'aria-[current=true]:shadow-[inset_2px_0_0_var(--sel-edge)]'])
+  })
 })
 
 describe('ThreeColumns 网格（J1）', () => {
-  it('展开：左列 280px、中列 360–420px；≤1280px 左列折叠到 64px', () => {
+  it('展开：左列 280px、中列 360–420px；≤1360px 左列折叠到 72px', () => {
     render(<ThreeColumns testId="grid" railCollapsed={false} rail={<aside />} list={<section />} detail={<section />} />)
     expect(classesOf(screen.getByTestId('grid'))).toEqual(expect.arrayContaining([
       'grid-cols-[280px_minmax(360px,420px)_minmax(0,1fr)]',
-      'max-[1280px]:grid-cols-[64px_minmax(360px,420px)_minmax(0,1fr)]',
+      'max-[1360px]:grid-cols-[72px_minmax(360px,420px)_minmax(0,1fr)]',
     ]))
   })
 
-  it('折叠：左列 64px、中列宽度不变', () => {
+  it('折叠：左列 72px、中列宽度不变', () => {
     render(<ThreeColumns testId="grid" railCollapsed rail={<aside />} list={<section />} detail={<section />} />)
-    expect(classesOf(screen.getByTestId('grid'))).toContain('grid-cols-[64px_minmax(360px,420px)_minmax(0,1fr)]')
+    expect(classesOf(screen.getByTestId('grid'))).toContain('grid-cols-[72px_minmax(360px,420px)_minmax(0,1fr)]')
   })
 })
 
