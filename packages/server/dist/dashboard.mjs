@@ -29636,7 +29636,8 @@ function buildUpstreamSkillView(input2) {
       ...failure12?.detail === void 0 ? {} : { detail: failure12.detail }
     };
     if (entry === void 0) {
-      rows.push({ id: source2.id, origin: "upstream", status: "failed", repo: source2.repo, path: source2.path, ...failureFields });
+      const known = failure12?.reason === void 0 ? { reason: lock === null ? "lock-missing" : "not-locked" } : {};
+      rows.push({ id: source2.id, origin: "upstream", status: "failed", repo: source2.repo, path: source2.path, ...failureFields, ...known });
       continue;
     }
     const outcome = lastOutcome.get(source2.id);
