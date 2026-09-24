@@ -4828,6 +4828,7 @@ var TEMPLATE_WORKFLOW_NAMES = ["default", "design-system"];
 function isTemplateWorkflowName(value) {
   return TEMPLATE_WORKFLOW_NAMES.includes(value);
 }
+var BUILTIN_WORKFLOW_IDS = ["simple"];
 
 // packages/kernel/dist/workflow/document-contract-validation.js
 var CANONICAL_TRANSITIONS = {
@@ -8286,7 +8287,6 @@ var SIMPLE_WORKFLOW = {
     }
   ]
 };
-var BUILTIN_WORKFLOW_IDS = ["simple"];
 function builtinWorkflow(name) {
   if (name !== "simple")
     return null;

@@ -39,12 +39,12 @@ function renderNav(overrides: Partial<Parameters<typeof WorkflowNav>[0]> = {}) {
 }
 
 describe('WorkflowNav', () => {
-  it('工作流名点开菜单切换；名称只出现一次，default 只带一把锁（没有来源 / 轨道数副行）', async () => {
+  it('工作流名点开菜单切换；名称只出现一次，可编辑的 default 不带锁（没有来源 / 轨道数副行）', async () => {
     const user = userEvent.setup()
     const { onSwitch } = renderNav()
     expect(screen.getByTestId('wb-wf-switch')).toHaveTextContent('default')
     expect(screen.queryByTestId('wb-wf-meta')).toBeNull()
-    expect(screen.getByTestId('wb-wf-lock')).toHaveAccessibleName('内建')
+    expect(screen.queryByTestId('wb-wf-lock')).toBeNull()
     expect(screen.getByTestId('workflow-nav')).not.toHaveTextContent('全局')
     await user.click(screen.getByTestId('wb-wf-switch'))
     expect(screen.getByTestId('wb-wf-item-default')).toHaveAttribute('role', 'menuitemradio')
@@ -198,5 +198,39 @@ describe('WorkflowNav', () => {
     renderNav({ def: { name: 'solo', steps: [DEF.steps[0]!] }, selectedId: 'open' })
     await user.click(screen.getByTestId('wb-stage-menu-open'))
     expect(screen.getByTestId('wb-stage-delete-open')).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('切换器列出插件内建（simple）并带锁；当前是内建时名旁一把锁（说明在 Tooltip），⋯ 里没有删除 / 恢复，新建仍可用', async () => {
+    const user = userEvent.setup()
+    const { onCreate } = renderNav({ names: ['default', 'release', 'simple'], current: 'simple', canWrite: false, readOnly: true, canCreate: true })
+    expect(screen.getByTestId('wb-wf-lock')).toHaveAccessibleName('插件内建，只读')
+    await user.click(screen.getByTestId('wb-wf-switch'))
+    expect(screen.getByTestId('wb-wf-item-simple')).toBeInTheDocument()
+    expect(screen.getByTestId('wb-wf-item-lock-simple')).toHaveAccessibleName('插件内建，只读')
+    expect(screen.queryByTestId('wb-wf-item-lock-default')).toBeNull()
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByTestId('wb-wf-menu'))
+    expect(screen.queryByTestId('wb-wf-menu-delete')).toBeNull()
+    expect(screen.queryByTestId('wb-wf-menu-restore')).toBeNull()
+    expect(screen.getByTestId('wb-wf-menu-openspec')).toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByTestId('wb-wf-menu-new'))
+    expect(onCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('OpenSpec 开关的说明在 Tooltip：聚焦菜单项时出现', async () => {
+    const user = userEvent.setup()
+    renderNav({ current: 'release' })
+    await user.click(screen.getByTestId('wb-wf-menu'))
+    act(() => { screen.getByTestId('wb-wf-menu-openspec').focus() })
+    expect((await screen.findAllByText('开启后阶段可加文档输入 / 输出；关闭时输入输出只来自字段')).length).toBeGreaterThan(0)
+  })
+
+  it('回流弧带悬停标签：从哪退回到哪；悬停时整条弧高亮', async () => {
+    const user = userEvent.setup()
+    renderNav()
+    const hit = screen.getByTestId('wb-back-hit-build-spec')
+    expect(hit.querySelector('title')?.textContent).toBe('「实现」退回到「规格」')
+    await user.hover(hit)
+    expect(screen.getByTestId('wb-back-arc-build-spec')).toHaveAttribute('data-active', 'true')
   })
 })

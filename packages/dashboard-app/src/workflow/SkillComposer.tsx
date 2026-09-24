@@ -133,7 +133,15 @@ export function SkillComposer({ open, stageLabel, skills, registry, onClose, onS
             <p className="text-body text-text-3" role="status">{t('workflow.pick_skill')}</p>
           ) : (
             <>
-              <p className="mb-3 font-mono text-title font-semibold text-text">{detail}</p>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="min-w-0 truncate whitespace-nowrap font-mono text-title font-semibold text-text" title={detail}>{detail}</p>
+                {!placed.has(detail) && (registry ?? []).some((entry) => entry.name === detail && entry.installed && entry.available !== false) && (
+                  <button type="button" className="inline-flex min-h-10 flex-none items-center gap-1.5 whitespace-nowrap rounded-md border border-accent-b bg-accent-t px-3 text-base font-semibold text-(--accent) outline-none hover:bg-accent-t/70 focus-visible:ring-2 focus-visible:ring-(--accent)" data-testid="skill-composer-detail-add" onClick={() => add(detail)}>
+                    <Plus className="size-4" aria-hidden="true" />
+                    {t('workflow.composer_add')}
+                  </button>
+                )}
+              </div>
               <SkillDetail key={detail} name={detail} layout="stacked" />
             </>
           )}

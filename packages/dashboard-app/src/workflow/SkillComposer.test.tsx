@@ -186,4 +186,25 @@ describe('SkillComposer', () => {
     expect(active).toHaveAttribute('aria-current', 'true')
     expect(screen.getByTestId('skill-file-references/notes.md').className).not.toContain(' bg-fill ')
   })
+
+  it('预览面板有「加入」：未排入的技能点一下加入画布，已排入后按钮消失；长名称带 title', async () => {
+    mockSkillApi()
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+    render(
+      <I18nProvider>
+        <SkillComposer open stageLabel="调研" skills={[{ id: 'tenon-open' }]} registry={REGISTRY} onClose={() => undefined} onSave={onSave} />
+      </I18nProvider>,
+    )
+    // 打开时预览第一个已排技能：已在画布上，不给「加入」。
+    expect(screen.queryByTestId('skill-composer-detail-add')).toBeNull()
+    expect(screen.getByTestId('flow-name-tenon-open').querySelector('[title="tenon-open"]')).not.toBeNull()
+    await user.click(screen.getByTestId('palette-open-brainstorming'))
+    expect(within(screen.getByTestId('skill-composer-detail')).getByTitle('brainstorming')).toBeInTheDocument()
+    await user.click(screen.getByTestId('skill-composer-detail-add'))
+    expect(screen.getByTestId('flow-node-brainstorming')).toBeInTheDocument()
+    expect(screen.queryByTestId('skill-composer-detail-add')).toBeNull()
+    await user.click(screen.getByTestId('skill-composer-save'))
+    expect(onSave).toHaveBeenCalledWith([{ id: 'tenon-open' }, { id: 'brainstorming', depends_on: ['tenon-open'] }])
+  })
 })

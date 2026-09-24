@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import gsap from 'gsap'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
@@ -6,7 +6,7 @@ import type { WbEffectiveIo, WbSkillEntry, WbStepDef, WbWorkflowDef } from '../a
 import { I18nProvider } from '../i18n'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
-import { producerSkills } from './producers'
+import { openspecSkills, producerSkills } from './producers'
 import { SECTION_STAGGER, StageEditorPane } from './StageEditorPane'
 
 vi.mock('@xyflow/react', () => import('./reactFlowTestDouble'))
@@ -123,17 +123,22 @@ describe('StageEditorPane · 两栏定稿', () => {
     expect(within(screen.getByTestId('io-inputs')).getByRole('status')).toHaveTextContent('无')
   })
 
-  it('没有技能：段内只写「无」，不渲染空画布', () => {
-    renderPane({ ...EXPLORE, skills: [] })
+  it('没有技能（也没有 OpenSpec 注入）：段内只写「无」，不渲染空画布', () => {
+    renderPane({ ...EXPLORE, skills: [] }, { effectiveIo: {} })
     expect(screen.getByTestId('stage-skills-empty')).toHaveTextContent('无')
     expect(within(screen.getByTestId('stage-skills')).queryByTestId('skill-flow')).toBeNull()
   })
 
-  it('保存条只在有改动时渲染：写「未保存 N 处」，贴底半透明；没改动（含无写入凭证）整条不渲染', () => {
+  it('保存条只在有改动时渲染：写「未保存 N 处」，在滚动区之外（不盖住门禁 / 退回）；没改动（含无写入凭证）整条不渲染', () => {
     renderPane(EXPLORE, { dirty: true, changeCount: 3 })
     expect(screen.getByTestId('wb-dirty')).toHaveTextContent('未保存 3 处')
     const bar = screen.getByTestId('wb-save-bar')
-    for (const token of ['sticky', 'bottom-0', 'bg-card/85', 'backdrop-blur-md', 'border-t']) expect(bar.className).toContain(token)
+    for (const token of ['flex-none', 'bg-card', 'border-t']) expect(bar.className).toContain(token)
+    expect(bar.className).not.toContain('sticky')
+    // 门禁段在滚动区里，保存条是滚动区的兄弟节点：两者不重叠。
+    expect(bar.parentElement).toBe(screen.getByTestId('stage-editor-pane'))
+    expect(bar.contains(screen.getByTestId('stage-gate'))).toBe(false)
+    expect(screen.getByTestId('stage-gate').closest('.overflow-y-auto')).not.toBeNull()
     expect(screen.getByTestId('wb-save')).toBeEnabled()
     expect(bar).not.toHaveTextContent('default')
     cleanup()
@@ -338,6 +343,86 @@ describe('StageEditorPane · OpenSpec 文档 IO', () => {
   })
 })
 
+describe('StageEditorPane · OpenSpec 注入的技能', () => {
+  // default 的立项：阶段自己没声明技能，文档契约要求 openspec-propose（≡ opsx:propose）产出 proposal / tasks。
+  const OPEN: WbStepDef = {
+    id: 'open', label: '立项', gate: null, skills: [],
+    inputs: [], outputs: [], guards: [], transitions: [{ event: 'open-complete', to: 'explore' }],
+  }
+  const NEXT: WbStepDef = { ...EXPLORE, skills: [{ id: 'tenon-explore' }] }
+  const OPEN_IO: WbEffectiveIo = {
+    open: {
+      inputs: [],
+      outputs: [
+        { kind: 'document', id: 'proposal', role: 'produce', scope: 'change', producers: ['openspec-propose', 'opsx:propose'], consumers: ['explore'] },
+        { kind: 'document', id: 'tasks', role: 'produce', scope: 'change', producers: ['openspec-propose', 'opsx:propose'], consumers: [] },
+      ],
+    },
+    explore: {
+      inputs: [{ kind: 'document', id: 'proposal', role: 'read', scope: 'change', producers: ['open'], consumers: [] }],
+      outputs: [{ kind: 'document', id: 'proposal', role: 'update', scope: 'change', producers: ['tenon'], consumers: [] }],
+    },
+  }
+  const OPEN_DEF: WbWorkflowDef = { name: 'default', openspec: true, steps: [OPEN, NEXT] }
+
+  it('阶段画布显示契约注入的技能（契约图标 + 计数），输出来源技能写出它', () => {
+    renderPane(OPEN, { def: OPEN_DEF, effectiveIo: OPEN_IO })
+    const skills = screen.getByTestId('stage-skills')
+    expect(within(skills).queryByTestId('stage-skills-empty')).toBeNull()
+    expect(within(skills).getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1')
+    expect(within(skills).getByTestId('flow-injected-openspec-propose')).toHaveAttribute('aria-label', expect.stringContaining('OpenSpec'))
+    expect(skills.querySelector('h2')).toHaveTextContent('1')
+    expect(screen.getByTestId('slot-skills-proposal')).toHaveTextContent('openspec-propose')
+    expect(screen.getByTestId('slot-skills-tasks')).toHaveTextContent('openspec-propose')
+  })
+
+  it('下游阶段的输入：来源技能同样算上上游注入的技能；update 槽位（tenon）不注入', () => {
+    renderPane(NEXT, { def: OPEN_DEF, effectiveIo: OPEN_IO })
+    const inputs = screen.getByTestId('io-inputs')
+    expect(within(inputs).getByTestId('slot-skills-proposal')).toHaveTextContent('openspec-propose')
+    expect(within(screen.getByTestId('stage-skills')).queryByTestId('flow-injected-tenon')).toBeNull()
+  })
+
+  it('阶段已声明别名（opsx:propose）时不重复注入', () => {
+    renderPane({ ...OPEN, skills: [{ id: 'opsx:propose' }] }, { def: OPEN_DEF, effectiveIo: OPEN_IO })
+    expect(within(screen.getByTestId('stage-skills')).getByTestId('skill-flow')).toHaveAttribute('data-nodes', '1')
+    expect(screen.queryByTestId('flow-injected-openspec-propose')).toBeNull()
+  })
+})
+
+describe('StageEditorPane · 自动门禁与只读', () => {
+  it('没有输出的阶段设为「自动」：门禁旁出警示图标（说明在 Tooltip）；有输出或非自动时不出', () => {
+    const bare: WbStepDef = { ...SPEC, gate: 'auto', outputs: [] }
+    renderPane(bare, { effectiveIo: { ...IO, spec: { inputs: [], outputs: [] } } })
+    const warning = screen.getByTestId('stage-gate-auto-warning')
+    expect(warning).toHaveAttribute('aria-label', '本阶段没有输出，自动门禁无从判断产物齐全')
+    expect(screen.getByTestId('stage-gate').contains(warning)).toBe(true)
+    cleanup()
+    renderPane({ ...SPEC, gate: 'auto' })
+    expect(screen.queryByTestId('stage-gate-auto-warning')).toBeNull()
+    cleanup()
+    renderPane({ ...bare, gate: 'review' }, { effectiveIo: { ...IO, spec: { inputs: [], outputs: [] } } })
+    expect(screen.queryByTestId('stage-gate-auto-warning')).toBeNull()
+  })
+
+  it('插件内建只读（readOnly）：不报缺凭证错误，写入口照样置灰', () => {
+    renderPane(EXPLORE, { canWrite: false, readOnly: true })
+    expect(screen.queryByTestId('wb-no-token')).toBeNull()
+    expect(screen.getByTestId('wb-lane-name-input-explore')).toBeDisabled()
+    expect(screen.queryByTestId('wb-skills-edit')).toBeNull()
+  })
+})
+
+describe('openspecSkills', () => {
+  it('取 produce 槽位第一个非 tenon 候选；已声明（按别名）或重复的不再注入', () => {
+    const slot = (id: string, role: 'produce' | 'update' | 'read', producers: string[]) => ({ kind: 'document' as const, id, role, scope: 'change' as const, producers, consumers: [] })
+    expect(openspecSkills([slot('proposal', 'produce', ['openspec-propose', 'opsx:propose']), slot('tasks', 'produce', ['openspec-propose'])], [])).toEqual(['openspec-propose'])
+    expect(openspecSkills([slot('proposal', 'produce', ['openspec-propose'])], ['opsx:propose'])).toEqual([])
+    expect(openspecSkills([slot('proposal', 'update', ['tenon']), slot('adr', 'produce', ['tenon'])], [])).toEqual([])
+    expect(openspecSkills([slot('superpower-design', 'produce', ['brainstorming', 'superpowers:brainstorming'])], ['superpowers:brainstorming'])).toEqual([])
+  })
+})
+
 describe('producerSkills', () => {
   it('候选与阶段技能按裸名匹配；无命中为空，不编造不在阶段里的技能', () => {
     expect(producerSkills(['brainstorming', 'superpowers:brainstorming'], ['tenon-explore', 'brainstorming'])).toEqual(['brainstorming'])
@@ -423,10 +508,10 @@ describe('StageEditorPane 测试段', () => {
     expect(order).toEqual(['stage-outputs', 'stage-tests', 'stage-gate'])
 
     await userEvent.click(screen.getByTestId('wb-test-unit'))
-    await userEvent.clear(screen.getByTestId('wb-test-command'))
-    await userEvent.type(screen.getByTestId('wb-test-command'), 'npm run unit')
-    await userEvent.click(screen.getByTestId('wb-test-apply'))
-    expect(setTests).toHaveBeenCalledWith('explore', [
+    // 抽屉里的改动即时进草稿，没有单独的「应用」。
+    expect(screen.queryByTestId('wb-test-apply')).toBeNull()
+    fireEvent.change(screen.getByTestId('wb-test-command'), { target: { value: 'npm run unit' } })
+    expect(setTests).toHaveBeenLastCalledWith('explore', [
       { id: 'unit', direction: 'unit', command: 'npm run unit', label: '单测', required: true },
     ])
   })

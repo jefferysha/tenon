@@ -15,7 +15,7 @@ function motionAllowed(): boolean {
 export type SaveBarEditor = Pick<WorkflowEditor, 'dirty' | 'changeCount' | 'saving' | 'saveStatus' | 'lintBlocked' | 'canWrite' | 'save' | 'discardDraft' | 'reloadDefinition'>
 
 /**
- * 编辑器自己的保存条：只在有未保存改动时出现（贴在滚动区底部），从底部 12px 滑入 + 淡入；改动清空（保存成功 /
+ * 编辑器自己的保存条：只在有未保存改动时出现（放在滚动区下方，不遮内容），从底部 12px 滑入 + 淡入；改动清空（保存成功 /
  * 放弃）后滑出再卸载。减少动态效果时直接出现、直接消失。
  */
 export function SaveBar({ editor, className }: { editor: SaveBarEditor; className?: string }): JSX.Element | null {
@@ -41,7 +41,7 @@ export function SaveBar({ editor, className }: { editor: SaveBarEditor; classNam
   if (!shown) return null
   const blocked = editor.lintBlocked
   return (
-    <div ref={ref} className={cn('sticky bottom-0 z-20 flex items-center justify-between gap-4 border-t border-border bg-card/85 backdrop-blur-md', className)} data-testid="wb-save-bar">
+    <div ref={ref} className={cn('flex flex-none items-center justify-between gap-4 border-t border-border bg-card', className)} data-testid="wb-save-bar">
       <p className="flex min-w-0 items-center gap-2 text-body text-text-2">
         <span className="size-1.5 flex-none rounded-full bg-(--amber-d)" aria-hidden="true" />
         <span className="truncate whitespace-nowrap" data-testid="wb-dirty" data-count={editor.changeCount} role="status" aria-live="polite">{blocked ? t('workflow.lint_blocked') : t('workflow.dirty_n', { n: editor.changeCount })}</span>

@@ -74,4 +74,13 @@ describe('TestsSection', () => {
     const option = await screen.findByTestId('wb-tests-direction-unit')
     expect(option.textContent).toBe('单测')
   })
+
+  it('新增测试菜单挂在 body 的 Portal 上，不在测试段里（不会被下方画布或段动画层叠盖住）', async () => {
+    stubFetch()
+    render(<I18nProvider><TestsSection tests={[]} editable onAdd={vi.fn()} onOpen={vi.fn()} /></I18nProvider>)
+    await userEvent.click(screen.getByTestId('wb-tests-add'))
+    const picker = await screen.findByTestId('wb-tests-picker')
+    expect(screen.getByTestId('stage-tests').contains(picker)).toBe(false)
+    expect(picker.className).toContain('z-50')
+  })
 })
