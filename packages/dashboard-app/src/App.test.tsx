@@ -1103,16 +1103,26 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     expect(main).toHaveFocus()
   })
 
-  it('面包屑「工作空间 / 当前页」随标签切换', async () => {
+  it('页面名只由导航高亮表达：没有面包屑，当前标签 aria-current=page', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
-    const breadcrumbs = screen.getByTestId('breadcrumbs')
-    expect(breadcrumbs).toHaveTextContent('工作空间')
-    expect(within(breadcrumbs).getByTestId('breadcrumb-page')).toHaveAttribute('aria-current', 'page')
-    expect(within(breadcrumbs).getByTestId('breadcrumb-page')).toHaveTextContent('工作台')
+    expect(screen.queryByTestId('breadcrumbs')).toBeNull()
+    expect(screen.getByTestId('nav-progress')).toHaveAttribute('aria-current', 'page')
     fireEvent.click(screen.getByTestId('nav-workbench'))
     await screen.findByTestId('workbench-view')
-    expect(within(screen.getByTestId('breadcrumbs')).getByTestId('breadcrumb-page')).toHaveTextContent('工作流')
+    expect(screen.queryByTestId('breadcrumbs')).toBeNull()
+    expect(screen.getByTestId('nav-workbench')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('nav-progress')).not.toHaveAttribute('aria-current')
+  })
+
+  it('跳转链接平时 sr-only（无阴影灰条），只在聚焦时显示', async () => {
+    render(<App />)
+    await screen.findByTestId('workspace-view')
+    const classes = screen.getByTestId('skip-link').className.split(/\s+/u)
+    expect(classes).toContain('sr-only')
+    expect(classes).toContain('focus:not-sr-only')
+    expect(classes).not.toContain('shadow-lg')
+    expect(classes).toContain('focus:shadow-lg')
   })
 
   it('无项目上下文时工作台聚合全部项目，左列「所有项目」为当前项', async () => {
@@ -1148,6 +1158,10 @@ describe('App 首个快照未到', () => {
     const loading = await screen.findByTestId('snapshot-loading')
     expect(loading).toHaveAttribute('role', 'status')
     expect(loading).toHaveTextContent('加载中')
+    // 三栏骨架替代文字：左列 8 条占位，中列 3 张卡，reduced-motion 下不脉冲。
+    const railBones = within(screen.getByTestId('snapshot-loading-rail')).getAllByText('', { selector: 'span[aria-hidden="true"]' })
+    expect(railBones).toHaveLength(9)
+    for (const bone of railBones) expect(bone.className).toContain('motion-reduce:animate-none')
     expect(screen.queryByText('还没有已登记的项目。')).toBeNull()
     expect(screen.queryByTestId('task-list-empty-no-project')).toBeNull()
     expect(screen.queryByTestId('task-list-empty-no-task')).toBeNull()
@@ -1375,7 +1389,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
 
     expect(document.documentElement).toHaveAttribute('lang', 'zh')
     fireEvent.click(screen.getByTestId('nav-settings'))
-    fireEvent.click(screen.getByTestId('lang-toggle'))
+    fireEvent.click(screen.getByTestId('lang-option-en'))
     await waitFor(() => expect(document.documentElement).toHaveAttribute('lang', 'en'))
   })
 
@@ -1494,8 +1508,11 @@ describe('App SSE 实时更新（真 EventSource stub → 组件真更新，非 
   it('emit 含复核阶段卡的快照 → 进度徽标由无到 1，新 change 行真渲染', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
-    // 初始快照只有一张非 gate 卡 → 无待拍板徽标
-    expect(screen.queryByTestId('progress-badge')).toBeNull()
+    // 初始快照只有一张非 gate 卡 → 徽标占位但不可见、不可聚焦
+    const idle = screen.getByTestId('progress-badge')
+    expect(idle).toHaveAttribute('data-count', '0')
+    expect(idle).toHaveAttribute('aria-hidden', 'true')
+    expect(idle).toBeDisabled()
 
     const es = lastEventSource()
     expect(es).toBeDefined()
@@ -1514,6 +1531,8 @@ describe('App SSE 实时更新（真 EventSource stub → 组件真更新，非 
     // 组件真更新：进度徽标计数 1（selectInbox 口径），新 change 名出现在进度列表
     //（可能同时出现在行与详情等多处，getAllByText 断言"至少一处"）。
     await waitFor(() => expect(screen.getByTestId('progress-badge').textContent).toBe('1'))
+    expect(screen.getByTestId('progress-badge')).toHaveAccessibleName('待决策 1')
+    expect(screen.getByTestId('progress-badge')).not.toHaveAttribute('aria-hidden')
     expect(screen.getAllByText('needs-review').length).toBeGreaterThan(0)
   })
 
@@ -1540,10 +1559,18 @@ describe('App 深浅色自适应 + i18n', () => {
     // 初始偏好为 system；jsdom 无 matchMedia 时解析为 light。
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light'))
     fireEvent.click(screen.getByTestId('nav-settings'))
-    fireEvent.click(screen.getByTestId('theme-toggle'))
+    // 分段控件显示当前值：系统被选中。
+    expect(screen.getByTestId('theme-toggle')).toHaveAttribute('role', 'radiogroup')
+    expect(screen.getByTestId('theme-option-system')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByTestId('theme-option-light'))
     expect(document.documentElement.dataset.themePreference).toBe('light')
-    fireEvent.click(screen.getByTestId('theme-toggle'))
+    expect(screen.getByTestId('theme-option-light')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByTestId('theme-option-dark'))
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'))
+    // 方向键在分段间移动并选中。
+    fireEvent.keyDown(screen.getByTestId('theme-option-dark'), { key: 'ArrowLeft' })
+    expect(document.documentElement.dataset.themePreference).toBe('light')
+    expect(screen.getByTestId('theme-option-light')).toHaveFocus()
   })
 
   it('系统主题作为显式偏好跟随电脑端系统配色，并清理媒体监听', async () => {
@@ -1582,7 +1609,10 @@ describe('App 深浅色自适应 + i18n', () => {
     const nav = screen.getByTestId('primary-nav')
     expect(nav.textContent).toContain('工作台')
     fireEvent.click(screen.getByTestId('nav-settings'))
-    fireEvent.click(screen.getByTestId('lang-toggle'))
+    expect(screen.getByTestId('lang-toggle')).toHaveAttribute('role', 'radiogroup')
+    expect(screen.getByTestId('lang-option-zh')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByTestId('lang-option-en'))
+    expect(screen.getByTestId('lang-option-en')).toHaveAttribute('aria-checked', 'true')
     expect(nav.textContent).toContain('Workbench')
     expect(nav.textContent).not.toContain('变更')
   })
@@ -2077,5 +2107,88 @@ describe('ErrorBoundary 顶层兜底（render 抛错不白屏）', () => {
     )
     expect(screen.getByTestId('ok-child')).toBeInTheDocument()
     expect(screen.queryByTestId('app-error-boundary')).toBeNull()
+  })
+})
+
+describe('App 视图声明是否需要快照（A1）', () => {
+  function pendingSnapshotFetch(): void {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') return new Promise(() => undefined)
+      if (url === '/api/skills/sources') {
+        return { ok: true, json: async () => ({ updatedAt: null, lastRunAt: null, rows: [{ id: 'tenon', origin: 'tenon', status: 'bundled' }] }) }
+      }
+      if (url.startsWith('/api/workflows?root=')) return { ok: true, json: async () => ({ names: [] }) }
+      return { ok: false, status: 404, json: async () => ({ ok: false, error: 'not_found' }) }
+    }))
+  }
+
+  it.each([
+    ['skills', 'skills-view'],
+    ['library', 'library-view'],
+    ['workbench', 'workbench-view'],
+  ])('?view=%s 不等首个快照，直接渲染', async (view, testId) => {
+    window.history.replaceState({}, '', `/?view=${view}`)
+    pendingSnapshotFetch()
+    render(<App />)
+    expect(await screen.findByTestId(testId, {}, { timeout: 5_000 })).toBeInTheDocument()
+    expect(screen.queryByTestId('snapshot-loading')).toBeNull()
+  })
+
+  it('快照失败只挡读快照的视图：技能页照常渲染，不出整页错误', async () => {
+    window.history.replaceState({}, '', '/?view=skills')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/snapshot') return { ok: false, status: 500, json: async () => ({ ok: false, error: 'boom' }) }
+      if (url === '/api/skills/sources') {
+        return { ok: true, json: async () => ({ updatedAt: null, lastRunAt: null, rows: [{ id: 'tenon', origin: 'tenon', status: 'bundled' }] }) }
+      }
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+    render(<App />)
+    expect(await screen.findByTestId('skills-view')).toBeInTheDocument()
+    await waitFor(() => expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some((c: unknown[]) => c[0] === '/api/snapshot')).toBe(true))
+    expect(screen.queryByTestId('snapshot-error')).toBeNull()
+    fireEvent.click(screen.getByTestId('nav-progress'))
+    expect(await screen.findByTestId('snapshot-error')).toBeInTheDocument()
+  })
+})
+
+describe('App 待决策徽标（A6）', () => {
+  it('点徽标：进入工作台并写入 ?status=needs-you；离开工作台时删除该键', async () => {
+    window.history.replaceState({}, '', '/?view=skills&root=%2Frepo')
+    render(<App />)
+    await screen.findByTestId('skills-view')
+    act(() => {
+      lastEventSource()!.emit('snapshot', JSON.stringify(makeSnapshot([
+        makeProject('/repo', [
+          trustedVerifyChange('needs-review', {
+            fields: { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' },
+          }),
+        ]),
+      ])))
+    })
+    await waitFor(() => expect(screen.getByTestId('progress-badge')).toHaveAttribute('data-count', '1'))
+    // 徽标与工作台标签是两个兄弟按钮，不嵌套交互元素。
+    expect(screen.getByTestId('nav-progress')).not.toContainElement(screen.getByTestId('progress-badge'))
+    fireEvent.click(screen.getByTestId('progress-badge'))
+    expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
+    const params = new URLSearchParams(window.location.search)
+    expect(params.get('status')).toBe('needs-you')
+    expect(params.get('view')).toBe('progress')
+    fireEvent.click(screen.getByTestId('nav-skills'))
+    await screen.findByTestId('skills-view')
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('status')).toBeNull())
+  })
+})
+
+describe('App 断线横幅重连钮（A8）', () => {
+  it('重连用标准按钮高度（min-h-10），窄屏文字收起时仍有可访问名', async () => {
+    render(<App />)
+    await screen.findByTestId('workspace-view')
+    act(() => {
+      lastEventSource()!.emit('error', '')
+    })
+    const button = await screen.findByTestId('offline-reconnect')
+    expect(button.className.split(/\s+/u)).toContain('min-h-10')
+    expect(button).toHaveAccessibleName('重连 · 连接断开——数据可能过期')
   })
 })

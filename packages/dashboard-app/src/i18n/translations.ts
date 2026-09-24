@@ -35,7 +35,7 @@ export const zh: Dict = {
     primary_label: '主导航',
     secondary_label: '更多工具',
     progress: '工作台', workbench: '工作流', projects: '项目', library: '库', skills: '技能', afk: '自动化', machine: '机器', hostPlan: '宿主计划',
-    progress_badge: '{count} 个待决策项',
+    progress_badge: '待决策 {count}',
     afk_badge: '{count} 个待处理自动运行',
     // v10c 孤儿键清理：nav.project_all（「全部项目」聚合项）随聚合语境退役删除——切换器不再有
     // project-item-all，进度页恒单项目（zh/en 对称删）。
@@ -251,6 +251,7 @@ export const zh: Dict = {
     switch_to_english: 'English',
     switch_to_chinese: '中文',
     theme_toggle: '主题',
+    language: '语言',
     theme_toggle_current: '主题：{theme}',
     loading: '加载中…',
     network_error: '网络错误',
@@ -2268,7 +2269,7 @@ export const en: Dict = {
     primary_label: 'Primary navigation',
     secondary_label: 'More tools',
     progress: 'Workbench', workbench: 'Workflow', projects: 'Projects', library: 'Library', skills: 'Skills', afk: 'Automation', machine: 'Machine', hostPlan: 'Host plans',
-    progress_badge: '{count} pending decisions',
+    progress_badge: 'Pending decisions {count}',
     afk_badge: '{count} automation items need attention',
     project_unregister: 'Unregister…',
     unregister_title: 'Unregister project "{name}"?',
@@ -2481,6 +2482,7 @@ export const en: Dict = {
     switch_to_english: 'English',
     switch_to_chinese: 'Chinese',
     theme_toggle: 'Theme',
+    language: 'Language',
     theme_toggle_current: 'Theme: {theme}',
     loading: 'Loading…',
     network_error: 'Network error',

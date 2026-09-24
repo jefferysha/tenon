@@ -24,8 +24,9 @@ src/
 ├── index.css               # token truth source: runtime colour tokens + @theme static scales
 ├── shell/
 │   ├── views.ts            # View union: 'progress' | 'workbench' | 'projects' | 'library' (stable URL/localStorage keys)
-│   ├── TopBar.tsx          # breadcrumb, project switcher, two tabs, global search, connection, settings (gear)
-│   ├── ThreeColumns.tsx    # ThreeColumns / RailColumn / RailCard / RailFootLink / ListColumn / FilterChip / DetailColumn / DetailEmpty / StatusPill
+│   ├── TopBar.tsx          # project switcher, tabs + 待决策 badge, user, connection, settings (theme / language segments)
+│   ├── ThreeColumns.tsx    # ThreeColumns / RailColumn / RailCard / RailFootLink / ListColumn / FilterChipGroup / FilterChip / DetailColumn / DetailEmpty / StatusPill
+│   ├── Skeleton.tsx        # ThreeColumnsSkeleton (loading placeholder for three-column pages)
 │   ├── GlobalSearch.tsx    # GlobalSearchProvider + useGlobalSearch
 │   ├── ProjectGate.tsx     # "choose a project" gate for the workflow page
 │   ├── dashboardLocation.ts# URL <-> {view, root, change}
