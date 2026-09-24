@@ -360,7 +360,27 @@ describe('step.next 顺序', () => {
     }))).toEqual([{
       action: 'read-documents',
       documents: ['openspec/changes/demo/tasks.md'],
+      editable: [],
+      note: expect.stringContaining('本步全部只读'),
     }])
+  })
+
+  /**
+   * 真机（第四轮）：explore 里模型改了 open 登记的 design / tasks，动作里没说哪些输入能改。
+   * read-documents 带上本步可改的 kind（契约 role update）与只读说明，并要求把内容读进上下文。
+   */
+  test('read-documents 说明哪些输入本步可改、其余只读，读取不得丢弃输出', () => {
+    const [action] = stepNextActions(input({
+      documents: {
+        reads: [doc('proposal', 'unread', ['tenon']), doc('plan', 'unread')],
+        records: [],
+        updates: [doc('proposal', 'recorded', ['tenon']), doc('tasks', 'recorded', ['tenon'])],
+      },
+    }))
+    expect(action).toMatchObject({ action: 'read-documents', editable: ['proposal'] })
+    expect(String(action?.note)).toContain('本步可以改的只有 proposal')
+    expect(String(action?.note)).toContain('requirements-changed')
+    expect(String(action?.note)).toContain('不要丢弃输出')
   })
 
   test('两个 kind 指向同一路径（plan / superpower-plan）时读清单只列一次该路径', () => {
@@ -370,6 +390,8 @@ describe('step.next 顺序', () => {
     }))).toEqual([{
       action: 'read-documents',
       documents: ['openspec/changes/demo/plan.md', 'openspec/changes/demo/tasks.md'],
+      editable: [],
+      note: expect.any(String),
     }])
   })
 

@@ -434,6 +434,17 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
       && action.action === 'record-document'
       && action.kind === 'proposal'
       && (action.producers as readonly string[]).includes('tenon'))).toBe(true)
+    // 真机（第四轮）：读输入时说清哪些本步能改。explore 的契约让 proposal 可改（role update），
+    // build 的输入里只有 tasks 可动（勾选），计划与设计只读。
+    const readsAt = (id: string) => actions.filter(({ step, action }) => step === id && action.action === 'read-documents')
+      .map(({ action }) => action)
+    expect(readsAt('explore').some((action) => (action.editable as readonly string[]).includes('proposal'))).toBe(true)
+    expect(readsAt('build').length).toBeGreaterThan(0)
+    for (const action of readsAt('build')) {
+      // build 只能勾 tasks；计划、设计、proposal 都只读。
+      expect(action.editable).toEqual(['tasks'])
+      expect(String(action.note)).toContain('requirements-changed')
+    }
     // 技能与产物绑定：brainstorming 调用之后，next 给的是它本步的文档，而不是再调用一次。
     expect(actions.some(({ step, action }) => step === 'explore'
       && action.action === 'record-document' && action.skill === 'brainstorming'

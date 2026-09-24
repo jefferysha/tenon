@@ -112,7 +112,9 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   顺便授权 verify-pass），多条回退边仍然交给人 `choose-exit`。
 - 文档动作按台账状态派：`missing` 的产出发 `scaffold-document` + `record-document` 一对（骨架
   只写文件，登记才推进台账）；`stale` 的（产出 / 可改 / 只读输入都算）发 `record-document`；
-  `unread` 的才发 `read-documents`。`role: update` 的槽从没登记过时不发动作——它是「本步可以改
+  `unread` 的才发 `read-documents`，它带 `editable`（读清单里同时是本步 role update 的 kind，本步可改、改完重新
+  登记）与 `note`（其余只读；需求语义变了走 `requirements-changed`；tasks 只勾当前步骤标题下的复选框；内容要读进
+  上下文，不得丢弃输出）。`role: update` 的槽从没登记过时不发动作——它是「本步可以改
   它」，不是「本步必须产出它」，与文档取证层（update 槽不进 blockers）同一口径。
 - 文档动作的 `producers` 恒取该文档在**当前步**合法的那组（`recordProducerCandidatesForPolicyStep`），
   读清单也不例外：登记命令认的就是这一组。当前步没有合法 producer 时不发登记动作，让出口 blocker

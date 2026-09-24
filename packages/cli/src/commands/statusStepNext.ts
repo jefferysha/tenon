@@ -173,6 +173,25 @@ function skillDocumentActions(
   return actions
 }
 
+/**
+ * 输入文档在本步能不能改：读清单里同时出现在 `updates`（契约 role update）的 kind 本步可以改，
+ * 改完照 `next` 重新登记；其余只读。真机第四轮：explore 里模型改了 open 登记的 design / tasks，
+ * 登记随之失效，而动作里一句都没说哪些能动。需求语义要变走 `requirements-changed`（回到规格步）；
+ * tasks 只勾当前步骤标题下的复选框。
+ */
+function inputDocumentPolicy(documents: StepDocumentsView): { readonly editable: readonly string[]; readonly note: string } {
+  const updatable = new Set(documents.updates.map((doc) => doc.kind))
+  const editable = [...new Set(documents.reads.map((doc) => doc.kind).filter((kind) => updatable.has(kind)))]
+  const scope = editable.length > 0
+    ? `本步可以改的只有 ${editable.join(' / ')}（改完照 next 重新登记）；其余只读`
+    : '本步全部只读'
+  return {
+    editable,
+    note: `读进上下文（不要丢弃输出）后再 tenon document read。这些是已登记的输入文档：${scope}。`
+      + '需求语义变了走 requirements-changed 回到规格步，不要直接改已登记的规格文档；tasks.md 只勾当前步骤标题下的复选框。',
+  }
+}
+
 /** 同一波的动作一起下发；`next` 的第一条规则命中即返回，顺序就是执行顺序。 */
 export function stepNextActions(input: StepNextInput): readonly StepAction[] {
   // 状态机已归档（fields.archived=true，不是 per-user 收起表）：只剩收尾这一步，排在 load-tenon
@@ -189,7 +208,11 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     // 路径还定不下来的文档不进读清单：没有路径就没有可读的文件，列出 null 只会让执行者读空气。
     // 多个 kind 可以共用一份文件（plan / superpower-plan）：路径只列一次；各 kind 仍各自在
     // step.documents.reads 里，`tenon document read <c> all` 一次把它们都标为已读。
-    return [{ action: 'read-documents', documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))] }]
+    return [{
+      action: 'read-documents',
+      documents: [...new Set(unread.flatMap((doc) => doc.path ?? []))],
+      ...inputDocumentPolicy(input.documents),
+    }]
   }
 
   const missing = input.fields.filter((field) => field.kind !== 'outcome' && field.status === 'missing')
