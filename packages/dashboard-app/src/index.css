@@ -104,7 +104,7 @@
     --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
     --ink: #ebebe6; --ink-fg: #131513; --ink-hover: #d0d0c9;
     /* 暗色主按钮不用发光的 accent 底：深绿底 + 近白字。accent 只管文字、图标与焦点环。 */
-    --btn-bg: #2f7a56; --btn-fg: #f3f8f5; --btn-hover: #368a62;
+    --btn-bg: #2f7a56; --btn-fg: #f3f8f5; --btn-hover: #276b4b;
     --solid-fg: var(--btn-fg);
     --tooltip-bg: #2b2e2b; --tooltip-fg: #ebebe6; --tooltip-border: #3b3f3b;
     --code-bg: #202320; --code-border: #2c2f2c;
@@ -174,7 +174,7 @@
   --control-fg: var(--text); --control-border: var(--border); --control-border-strong: var(--border-2);
   --ink: #ebebe6; --ink-fg: #131513; --ink-hover: #d0d0c9;
   /* 暗色主按钮不用发光的 accent 底：深绿底 + 近白字。accent 只管文字、图标与焦点环。 */
-  --btn-bg: #2f7a56; --btn-fg: #f3f8f5; --btn-hover: #368a62;
+  --btn-bg: #2f7a56; --btn-fg: #f3f8f5; --btn-hover: #276b4b;
   --solid-fg: var(--btn-fg);
   --tooltip-bg: #2b2e2b; --tooltip-fg: #ebebe6; --tooltip-border: #3b3f3b;
   --code-bg: #202320; --code-border: #2c2f2c;

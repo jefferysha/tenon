@@ -96,6 +96,12 @@ describe('theme semantic foreground contrast', () => {
     expect(contrast(hexToken(source, 'accent'), hexToken(source, 'card'))).toBeGreaterThanOrEqual(4.5)
   })
 
+  // Hover keeps the label readable and is still a visible step away from the resting ground.
+  it.each(themes)('%s primary button hover stays at WCAG AA and visibly differs from rest', (_label, source) => {
+    expect(contrast(hexToken(source, 'btn-fg'), hexToken(source, 'btn-hover'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(hexToken(source, 'btn-hover'), hexToken(source, 'btn-bg'))).toBeGreaterThanOrEqual(1.15)
+  })
+
   it.each(themes)('%s light and dark blocks declare the tooltip and surface-raised tokens', (_label, source) => {
     for (const name of ['tooltip-bg', 'tooltip-fg', 'tooltip-border', 'surface-raised']) expect(hexToken(source, name)).toMatch(/^#/)
   })
