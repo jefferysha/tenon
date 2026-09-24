@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Check, LoaderCircle } from 'lucide-react'
 import { useT } from '../i18n'
 import { TEMPLATE_CATEGORIES, type TemplateCategory, type TemplateDocument, type TemplateRef, type TemplateSummary } from '../api/instructionsDecoders'
@@ -40,6 +41,11 @@ export function TemplateStep({ templates, selected, focused, documents, values, 
   const document = focused === null ? undefined : documents[selectionKey(focused)]
   const added = row !== undefined && selectedKeys.has(selectionKey(row))
   const allowed = row !== undefined && (added || compatible(row, templates, selected))
+  // 进入时默认预览第一个模板，右侧不留空框。
+  const first = TEMPLATE_CATEGORIES.flatMap((category) => templates.filter((candidate) => candidate.category === category))[0]
+  useEffect(() => {
+    if (focused === null && first !== undefined) onFocus({ source: first.source, category: first.category, id: first.id })
+  }, [focused, first, onFocus])
   return (
     <div className="grid h-full min-h-0 grid-cols-[208px_minmax(0,1fr)] gap-3" data-testid="np-templates">
       <div className="min-h-0 overflow-y-auto pr-1" aria-label={t('projects.templates')} role="group">

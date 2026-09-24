@@ -47,6 +47,12 @@ export function ProjectsView({
     onNewProjectOpenChange?.(false)
   }
 
+  // 项目页总有一个项目：没选时打开列表第一个，不留空白页。
+  const firstRoot = projects[0]?.root
+  useEffect(() => {
+    if (currentRoot === '' && firstRoot !== undefined) onSelectProject(firstRoot)
+  }, [currentRoot, firstRoot, onSelectProject])
+
   const editor = useClientEditor(currentRoot, snapshotRevision)
   const { target, group, client } = editor
 

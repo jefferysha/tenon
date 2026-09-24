@@ -413,7 +413,7 @@ describe('确认与创建进度', () => {
     expect(bodies(calls, '/api/projects/create/stream')[0]?.instructions).toMatchObject({ targets: ['CLAUDE.md'], references: ['CLAUDE.md'] })
   })
 
-  it('创建：逐步显示进度，成功后直接切到该项目；回去改模板后按新内容创建', async () => {
+  it('创建：逐步显示进度，成功后停在进度页，点「打开项目」切过去；回去改模板后按新内容创建', async () => {
     const user = userEvent.setup()
     const steps = ['directory', 'git', 'skeleton', 'file:AGENTS.md', 'file:CLAUDE.md', 'clients', 'register']
     const calls = stubFetch({ picks: [{ ok: true, path: '/code' }], streams: [successFrames('/code/shop', steps)] })
@@ -429,8 +429,11 @@ describe('确认与创建进度', () => {
     await user.click(await waitNext())
     await screen.findByTestId('np-confirm')
     await user.click(await waitNext())
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('/code/shop'))
+    await waitFor(() => expect(screen.getByTestId('np-row-register')).toHaveAttribute('data-state', 'done'))
+    expect(onCreated).not.toHaveBeenCalled()
+    await user.click(screen.getByTestId('np-open'))
     expect(onCreated).toHaveBeenCalledTimes(1)
+    expect(onCreated).toHaveBeenCalledWith('/code/shop')
     expect(bodies(calls, '/api/instruction-templates/compose').at(-1)).toMatchObject({ selections: [{ id: 'base' }] })
     const stream = bodies(calls, '/api/projects/create/stream')[0]
     expect(stream).toMatchObject({ mode: 'empty', parent: '/code', name: 'shop', directories: ['frontend/'], clients: ['claude', 'codex'] })
@@ -459,7 +462,8 @@ describe('确认与创建进度', () => {
     expect(await screen.findByTestId('np-location')).toBeInTheDocument()
     await toConfirm(user)
     await user.click(await waitNext())
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('/code/shop'))
+    await user.click(await screen.findByTestId('np-open'))
+    expect(onCreated).toHaveBeenCalledWith('/code/shop')
   })
 
   it('执行前的位置类失败：回到「位置」并聚焦名称', async () => {

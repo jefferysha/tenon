@@ -84,13 +84,6 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
     return () => controller.abort()
   }, [])
 
-  // 成功即切到该项目（只切一次）。
-  const opened = useRef(false)
-  useEffect(() => {
-    if (run.status !== 'done' || run.created === null || opened.current) return
-    opened.current = true
-    onCreated(run.created.root)
-  }, [run.status, run.created, onCreated])
   // 执行前的位置类失败：回到「位置」，重查并定位字段。
   useEffect(() => {
     if (run.status !== 'failed' || run.errorKey === null || !LOCATION_ERRORS.has(run.errorKey)) return
@@ -181,8 +174,15 @@ export function NewProjectDialog({ onClose, onCreated, onOpen = onCreated }: New
   const failedRow = run.rows.find((row) => row.state === 'failed')
   const editStep: WizardStep = failedRow?.id === 'directory' || failedRow?.id === 'git' ? 'location' : 'confirm'
 
-  const actions = view === 'progress' ? (
-    <button type="button" className={BUTTON_GHOST} disabled={running || run.status === 'done'} data-testid="np-back" onClick={() => { setView('wizard'); setStep(editStep) }}>
+  // 成功后停在进度页，让每一步的结果可见；由用户点「打开项目」切过去。
+  const created = run.status === 'done' ? run.created : null
+  const actions = created !== null ? (
+    <>
+      <button type="button" className={BUTTON_GHOST} data-testid="np-finish" onClick={onClose}>{t('projects.finish')}</button>
+      <button type="button" className={BUTTON_SOLID} data-testid="np-open" onClick={() => onCreated(created.root)}>{t('projects.open_project')}</button>
+    </>
+  ) : view === 'progress' ? (
+    <button type="button" className={BUTTON_GHOST} disabled={running} data-testid="np-back" onClick={() => { setView('wizard'); setStep(editStep) }}>
       {t('projects.edit_step')}
     </button>
   ) : (
