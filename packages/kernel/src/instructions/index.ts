@@ -14,6 +14,11 @@ export {
   hasUserInstructionFile, instructionHost, projectTargetsFor, userInstructionPath, zedEffectiveFile,
 } from './hosts.js'
 export type { InstructionHost, InstructionLevels, ProjectInstructionFile } from './hosts.js'
+export {
+  PROJECT_CLIENTS_DIRS, PROJECT_CLIENTS_FILE, PROJECT_CLIENTS_MAX_BYTES, PROJECT_CLIENTS_SCHEMA,
+  inferProjectClients, normalizeProjectClients, parseProjectClients, serializeProjectClients,
+} from './clients.js'
+export type { ClientIdsResult } from './clients.js'
 export { ABSENT_DIGEST, instructionDigest } from './digest.js'
 export { instructionLibraryRoot } from './library-paths.js'
 export {
