@@ -4,7 +4,7 @@ import type { AgentSummary } from '../api/agentClient'
 import { Dialog } from '../shared/Dialog'
 import { BUTTON_GHOST, BUTTON_SOLID, FIELD_LABEL, INPUT } from '../shared/uiRecipes'
 import { StatusPill } from '../shell/ThreeColumns'
-import { BuiltinLock, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
+import { CustomMark, LIST_ROW, LIST_ROW_NAME, ListSkeleton } from './libraryChrome'
 
 /** 与 kernel 的 AGENT_NAME_RE 同形：名字即文件名，写之前就挡掉不合法的。 */
 const NAME = /^[a-z0-9][a-z0-9-]{0,62}$/
@@ -21,7 +21,7 @@ export function agentRole(agent: AgentSummary): 'executor' | 'reviewer' {
   return agent.tools.some((tool) => tool === 'Write' || tool === 'Edit') ? 'executor' : 'reviewer'
 }
 
-/** 中列：按执行者 / 评审者分两段的 agent 列表（「新建」由 ListColumn 的 action 放在标题右侧）。内建条目带锁。 */
+/** 中列：按执行者 / 评审者分两段的 agent 列表（「新建」由 ListColumn 的 action 放在标题右侧）。一行只有名称，说明在悬停提示里；自定义条目带标记。 */
 export function AgentList({
   agents, loading, selected, onSelect,
 }: {
@@ -56,18 +56,16 @@ export function AgentList({
                         type="button"
                         className={LIST_ROW}
                         aria-current={selected === agent.name ? 'true' : undefined}
+                        title={agent.description}
                         data-testid={`lib-agent-${agent.name}`}
                         onClick={() => onSelect(agent.name)}
                       >
-                        <span className="min-w-0">
-                          <span className={`block ${LIST_ROW_NAME}`}>{agent.name}</span>
-                          <span className="block truncate text-caption text-text-3">{agent.description}</span>
-                        </span>
+                        <span className={LIST_ROW_NAME}>{agent.name}</span>
                         <span className="flex items-center gap-2 whitespace-nowrap">
                           {agent.error !== undefined && (
                             <StatusPill tone="blocked" testId={`lib-agent-invalid-${agent.name}`}>{t('library.agent_invalid')}</StatusPill>
                           )}
-                          {agent.source === 'builtin' && <BuiltinLock quiet testId={`lib-agent-builtin-${agent.name}`} />}
+                          {agent.source === 'custom' && <CustomMark quiet testId={`lib-agent-mark-${agent.name}`} />}
                         </span>
                       </button>
                     </li>

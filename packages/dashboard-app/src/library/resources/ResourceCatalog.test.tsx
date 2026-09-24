@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../../i18n'
 import { ResourceCatalog } from './ResourceCatalog'
+import { useResourceCatalog } from './useResourceCatalog'
 
 interface Seed {
   id: string
@@ -76,10 +77,15 @@ function stubFetch(over: { entries?: unknown[]; errors?: unknown[]; onWrite?: (c
   return calls
 }
 
+function CatalogHarness(): JSX.Element {
+  const catalog = useResourceCatalog()
+  return <ResourceCatalog catalog={catalog} rail={<div data-testid="rail" />} railCollapsed={false} today="2026-09-16" />
+}
+
 const renderCatalog = (): void => {
   render(
     <I18nProvider>
-      <ResourceCatalog rail={<div data-testid="rail" />} railCollapsed={false} today="2026-09-16" />
+      <CatalogHarness />
     </I18nProvider>,
   )
 }
@@ -150,10 +156,9 @@ describe('资源目录', () => {
     const user = userEvent.setup()
     stubFetch()
     renderCatalog()
-    // 资源目录与模板 / 智能体同一个词：内建，且只用锁图标表示。
-    expect(await screen.findByTestId('res-builtin-react-bits')).toHaveAttribute('aria-label', '内建')
-    expect(screen.getByTestId('res-row-react-bits')).not.toHaveTextContent('内置')
-    expect(screen.queryByTestId('res-builtin-mine')).toBeNull()
+    // 资源目录与模板 / 智能体同一套标记：内建不标，只有自定义带「自定义」。
+    expect(await screen.findByTestId('res-row-react-bits')).not.toHaveTextContent('内置')
+    expect(screen.queryByTestId('res-mark-react-bits')).toBeNull()
     await user.click(await screen.findByTestId('res-row-react-bits'))
     expect(await screen.findByTestId('res-redistributable')).toHaveTextContent('否')
     expect(within(screen.getByTestId('res-notice')).getByText('不得出售或再分发组件本身')).toBeInTheDocument()

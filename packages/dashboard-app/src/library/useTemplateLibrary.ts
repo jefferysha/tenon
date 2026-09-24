@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { instructionErrorKey } from '../api/instructionErrorKey'
-import {
-  copyTemplate as copyTemplateRequest, deleteTemplate, fetchTemplate, fetchTemplates, saveTemplate,
-} from '../api/instructionsClient'
+import { deleteTemplate, fetchTemplate, fetchTemplates, saveTemplate } from '../api/instructionsClient'
 import type { BuiltinSync, TemplateCategory, TemplateDocument, TemplateRef, TemplateSummary } from '../api/instructionsDecoders'
 import { isAbortError } from '../api/transport'
 
@@ -17,16 +15,17 @@ export interface TemplateLibrary {
   readonly errorKey: string | null
   select: (ref: TemplateRef | null) => void
   reload: () => Promise<void>
-  save: (text: string) => Promise<boolean>
+  /** 保存当前自定义模板；`category` 与原分类不同时写到新分类下并删掉旧文件。 */
+  save: (text: string, category?: TemplateCategory) => Promise<boolean>
+  /** 新建自定义模板（「新建」与「复制为自定义」共用），成功后选中它。 */
   create: (category: TemplateCategory, id: string, text: string) => Promise<boolean>
-  copy: (id: string) => Promise<boolean>
   remove: () => Promise<boolean>
 }
 
 const sameRef = (a: TemplateRef | null, b: TemplateRef | null): boolean =>
   a !== null && b !== null && a.source === b.source && a.category === b.category && a.id === b.id
 
-/** 模板库数据面：列表 + 当前选中模板的正文，以及保存 / 复制 / 删除三个写操作。 */
+/** 模板库数据面：列表 + 当前选中模板的正文，以及新建 / 保存 / 删除三个写操作。 */
 export function useTemplateLibrary(): TemplateLibrary {
   const [loading, setLoading] = useState(true)
   const [sync, setSync] = useState<BuiltinSync | null>(null)
@@ -96,10 +95,17 @@ export function useTemplateLibrary(): TemplateLibrary {
     }
   }, [reload])
 
-  const save = useCallback(async (text: string): Promise<boolean> => {
+  const save = useCallback(async (text: string, category?: TemplateCategory): Promise<boolean> => {
     const ref = selected
     const current = document
     if (ref === null || ref.source !== 'custom' || current === null) return false
+    if (category !== undefined && category !== ref.category) {
+      return write(async () => {
+        await saveTemplate(category, ref.id, text, 'absent')
+        await deleteTemplate(ref.category, ref.id, current.digest)
+        return { source: 'custom', category, id: ref.id }
+      })
+    }
     return write(async () => {
       await saveTemplate(ref.category, ref.id, text, current.digest)
       const reloaded = await fetchTemplate(ref)
@@ -113,15 +119,6 @@ export function useTemplateLibrary(): TemplateLibrary {
     return { source: 'custom', category, id }
   }), [write])
 
-  const copy = useCallback((id: string): Promise<boolean> => {
-    const ref = selected
-    if (ref === null) return Promise.resolve(false)
-    return write(async () => {
-      await copyTemplateRequest(ref, id)
-      return { source: 'custom', category: ref.category, id }
-    })
-  }, [selected, write])
-
   const remove = useCallback((): Promise<boolean> => {
     const ref = selected
     const current = document
@@ -132,5 +129,5 @@ export function useTemplateLibrary(): TemplateLibrary {
     })
   }, [document, selected, write])
 
-  return { loading, sync, templates, selected, document, busy, errorKey, select, reload, save, create, copy, remove }
+  return { loading, sync, templates, selected, document, busy, errorKey, select, reload, save, create, remove }
 }

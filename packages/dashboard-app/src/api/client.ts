@@ -4,7 +4,7 @@
  * Endpoint behavior lives in bounded-context clients; protocol types and runtime decoders stay
  * beside their owning context. Existing consumers keep importing this stable module.
  */
-export { ApiError, getToken } from './transport'
+export { ApiError, getToken, NETWORK_ERROR_CODE } from './transport'
 export {
   decodeOrchestrationGraph,
   fetchOrchestrationGraph,

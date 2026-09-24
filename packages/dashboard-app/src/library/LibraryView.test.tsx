@@ -85,8 +85,8 @@ describe('库页 · 模板', () => {
     renderLibrary()
     await user.click(await screen.findByTestId('lib-tpl-builtin-backend-go'))
     expect(await screen.findByTestId('lib-tpl-copy')).toBeEnabled()
-    // 「内建」只用标题旁的锁图标表示；没有眉题、路径行与药丸，标识在名称的悬停提示里。
-    expect(screen.getByTestId('lib-tpl-builtin')).toHaveAttribute('aria-label', '内建')
+    // 内建不带任何标记（只标记自定义）；没有眉题、路径行与药丸，标识在名称的悬停提示里。
+    expect(screen.queryByTestId('lib-tpl-custom')).toBeNull()
     expect(screen.getByTestId('lib-tpl-title')).toHaveTextContent('Go')
     expect(screen.getByTestId('lib-tpl-title')).toHaveAttribute('title', 'backend/go')
     expect(screen.queryByTestId('lib-tpl-eyebrow')).toBeNull()
@@ -121,17 +121,17 @@ describe('库页 · 模板', () => {
     await waitFor(() => expect(onToast).toHaveBeenCalledWith('已保存'))
   })
 
-  it('复制内建模板 → POST copy，列表刷新后含新行', async () => {
+  it('复制内建模板 → 新建「Go 副本」（go-copy），选中它并直接进入编辑', async () => {
     const user = userEvent.setup()
     let copied = false
     const calls = stubFetch({
       get templates() {
         return copied
-          ? [summary('builtin', 'go', 'Go'), summary('custom', 'mine', '我的后端'), summary('custom', 'go-copy', 'Go')]
+          ? [summary('builtin', 'go', 'Go'), summary('custom', 'mine', '我的后端'), summary('custom', 'go-copy', 'Go 副本')]
           : [summary('builtin', 'go', 'Go'), summary('custom', 'mine', '我的后端')]
       },
-      onWrite: ({ url }) => {
-        if (!url.endsWith('/copy')) return undefined
+      onWrite: ({ init }) => {
+        if (init?.method !== 'PUT') return undefined
         copied = true
         return { ok: true, json: async () => ({ ok: true, digest: 'sha256:copy' }) }
       },
@@ -140,10 +140,82 @@ describe('库页 · 模板', () => {
     await user.click(await screen.findByTestId('lib-tpl-builtin-backend-go'))
     await user.click(await screen.findByTestId('lib-tpl-copy'))
     await waitFor(() => {
-      const post = calls.find((call) => call.url.endsWith('/copy'))
-      expect(JSON.parse(String(post?.init?.body))).toEqual({ from: { source: 'builtin', category: 'backend', id: 'go' }, id: 'go-copy' })
+      const put = calls.find((call) => call.init?.method === 'PUT')
+      expect(put?.url).toBe('/api/instruction-templates/custom/backend/go-copy')
+      expect((put?.init?.headers as Record<string, string>)['If-Match']).toBe('absent')
+      expect(String(put?.init?.body)).toBe('---\nid: go-copy\ncategory: backend\ntitle: Go 副本\n---\n## 后端（Go 副本）\n')
     })
-    expect(await screen.findByTestId('lib-tpl-custom-backend-go-copy')).toBeInTheDocument()
+    const row = await screen.findByTestId('lib-tpl-custom-backend-go-copy')
+    await waitFor(() => expect(row).toHaveAttribute('aria-current', 'true'))
+    expect(await screen.findByTestId('lib-tpl-form')).toBeInTheDocument()
+    expect(screen.getByTestId('lib-tpl-tab-edit')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('复制时副本名与标识都不重名：已有 go-copy / 「Go 副本」→ go-copy-2 / 「Go 副本 2」', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch({
+      templates: [summary('builtin', 'go', 'Go'), summary('custom', 'go-copy', 'Go 副本')],
+    })
+    renderLibrary()
+    await user.click(await screen.findByTestId('lib-tpl-builtin-backend-go'))
+    await user.click(await screen.findByTestId('lib-tpl-copy'))
+    await waitFor(() => {
+      const put = calls.find((call) => call.init?.method === 'PUT')
+      expect(put?.url).toBe('/api/instruction-templates/custom/backend/go-copy-2')
+      expect(String(put?.init?.body)).toContain('title: Go 副本 2\n')
+    })
+  })
+
+  it('自定义模板的名称与分类是表单字段：改分类 → 写到新分类并删掉旧文件，正文标题跟着改', async () => {
+    const user = userEvent.setup()
+    const calls = stubFetch()
+    renderLibrary()
+    await user.click(await screen.findByTestId('lib-tpl-custom-backend-mine'))
+    await user.click(await screen.findByTestId('lib-tpl-tab-edit'))
+    const name = await screen.findByTestId('lib-tpl-name')
+    expect(name).toHaveValue('我的后端')
+    expect(screen.getByTestId('lib-tpl-category')).toHaveValue('backend')
+    // 正文编辑区只有正文，没有 frontmatter。
+    expect(screen.getByTestId('lib-tpl-editor')).toHaveValue('## 后端（我的后端）\n')
+    await user.clear(name)
+    expect(screen.getByTestId('lib-tpl-save')).toBeDisabled()
+    await user.type(name, '团队状态')
+    await user.selectOptions(screen.getByTestId('lib-tpl-category'), 'state')
+    await user.click(screen.getByTestId('lib-tpl-save'))
+    await waitFor(() => {
+      const put = calls.find((call) => call.init?.method === 'PUT')
+      expect(put?.url).toBe('/api/instruction-templates/custom/state/mine')
+      expect((put?.init?.headers as Record<string, string>)['If-Match']).toBe('absent')
+      expect(String(put?.init?.body)).toBe('---\nid: mine\ncategory: state\ntitle: 团队状态\n---\n### 后端（团队状态）\n')
+      const del = calls.find((call) => call.init?.method === 'DELETE')
+      expect(del?.url).toBe('/api/instruction-templates/custom/backend/mine?digest=sha256%3Amine')
+    })
+  })
+
+  it('预览里的 {{catalog.*}} 不露花括号，渲染成淡色占位标记', async () => {
+    const user = userEvent.setup()
+    const text = '---\nid: go\ncategory: backend\ntitle: Go\n---\n## 后端（Go）\n\n{{catalog.icons}}\n\n名字 {{project.name}}，字面 \\{{x}}\n'
+    stubFetch({
+      onWrite: () => undefined,
+    })
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/instruction-templates') {
+        return { ok: true, json: async () => ({ ok: true, sync: null, templates: [summary('builtin', 'go', 'Go')] }) }
+      }
+      if (url.startsWith('/api/instruction-templates/builtin/backend/go')) {
+        return { ok: true, json: async () => ({ ok: true, source: 'builtin', category: 'backend', id: 'go', text, digest: 'sha256:go', block: { title: 'Go', frameworks: [], directory: null, directory_label: null, catalog: ['icons'], catalog_ref: null, variables: [] }, errors: [] }) }
+      }
+      return { ok: true, json: async () => ({ ok: true }) }
+    }))
+    renderLibrary()
+    await user.click(await screen.findByTestId('lib-tpl-builtin-backend-go'))
+    const preview = await screen.findByTestId('lib-tpl-preview')
+    await waitFor(() => expect(preview.querySelector('[data-placeholder="catalog.icons"]')).not.toBeNull())
+    expect(preview.textContent).not.toContain('{{catalog.icons}}')
+    expect(preview.querySelector('[data-placeholder="catalog.icons"]')).toHaveTextContent('图标')
+    expect(preview.querySelector('[data-placeholder="catalog.icons"]')).toHaveAttribute('title', '{{catalog.icons}}')
+    expect(preview.querySelector('[data-placeholder="project.name"]')).toHaveTextContent('project.name')
+    expect(preview.textContent).toContain('字面 {{x}}')
   })
 
   it('删除自定义模板 → DELETE 带摘要，行消失', async () => {
@@ -240,14 +312,15 @@ describe('库页 · 模板', () => {
     expect(screen.getByTestId('lib-tpl-no-token')).toBeInTheDocument()
   })
 
-  it('列表行只显示名称（标识在悬停提示里），内建行只带锁图标', async () => {
+  it('列表行只显示名称（标识在悬停提示里）；内建行没有任何标记，只有自定义行带「自定义」', async () => {
     stubFetch()
     renderLibrary()
     const row = await screen.findByTestId('lib-tpl-builtin-backend-go')
     expect(row.textContent).toBe('Go')
     expect(row).toHaveAttribute('title', 'backend/go')
-    expect(screen.getByTestId('lib-tpl-builtin-go')).toHaveAttribute('aria-label', '内建')
-    expect(screen.queryByTestId('lib-tpl-builtin-mine')).toBeNull()
+    expect(row.querySelector('svg')).toBeNull()
+    expect(screen.queryByTestId('lib-tpl-mark-go')).toBeNull()
+    expect(screen.getByTestId('lib-tpl-mark-mine')).toHaveTextContent('自定义')
   })
 
   it('「新建模板」在标题行，不夹在筛选芯片里', async () => {
@@ -296,7 +369,7 @@ describe('库页 · 列表与空态外观', () => {
     expect(row.className).not.toContain('accent-t')
   })
 
-  it('行名 500、选中 600；列表里的锁平时 text-4，悬停 / 选中才 text-3', async () => {
+  it('行名 500、选中 600；列表里的「自定义」平时 text-4，悬停 / 选中才 text-3', async () => {
     stubFetch()
     renderLibrary()
     const row = await screen.findByTestId('lib-tpl-builtin-backend-go')
@@ -304,10 +377,11 @@ describe('库页 · 列表与空态外观', () => {
     expect(name?.className).toContain('text-body')
     expect(name?.className).toContain('font-medium')
     expect(name?.className).toContain('group-aria-[current=true]:font-semibold')
-    const lock = screen.getByTestId('lib-tpl-builtin-go')
-    expect(lock.className).toContain('text-text-4')
-    expect(lock.className).toContain('group-hover:text-text-3')
-    expect(lock.className).toContain('group-aria-[current=true]:text-text-3')
+    const mark = screen.getByTestId('lib-tpl-mark-mine')
+    expect(mark.className).toContain('text-text-4')
+    expect(mark.className).toContain('group-hover:text-text-3')
+    expect(mark.className).toContain('group-aria-[current=true]:text-text-3')
+    expect(mark.className).toContain('whitespace-nowrap')
   })
 
   it('详情空态不写字，只留空白（可访问名称仍在）', async () => {

@@ -1,4 +1,4 @@
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Options } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 /**
@@ -78,10 +78,16 @@ export function remarkStripHtmlComments(): (tree: MdNode) => void {
 }
 
 /** 标准 GFM 渲染；不输出原始 HTML（react-markdown 缺省即如此），HTML 注释整段不渲染。开头的 frontmatter 不渲染。 */
-export function Markdown({ text, testId, density = 'default' }: { text: string; testId?: string; density?: 'default' | 'compact' }): JSX.Element {
+export function Markdown({ text, testId, density = 'default', plugins = [] }: {
+  text: string
+  testId?: string
+  density?: 'default' | 'compact'
+  /** 调用方追加的 remark 插件（例如模板占位符标记），排在 GFM 与注释剥离之后。 */
+  plugins?: NonNullable<Options['remarkPlugins']>
+}): JSX.Element {
   return (
     <div className={density === 'compact' ? COMPACT_CLS : MD_CLS} data-testid={testId} data-density={density}>
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkStripHtmlComments]}>{stripFrontmatter(text)}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkStripHtmlComments, ...plugins]}>{stripFrontmatter(text)}</ReactMarkdown>
     </div>
   )
 }

@@ -64,9 +64,12 @@ export function formatServerProse(
   return options.fallback ?? t('common.request_failed')
 }
 
+/** 请求没有到达服务端（进程已退出 / 网络断开）时 ApiError 的 code。 */
+export const NETWORK_ERROR_CODE = 'network'
+
 export function wrapNetwork(error: unknown): never {
   if (isAbortError(error)) throw error
-  throw new ApiError(`网络错误：${error instanceof Error ? error.message : String(error)}`)
+  throw new ApiError(`网络错误：${error instanceof Error ? error.message : String(error)}`, undefined, false, NETWORK_ERROR_CODE)
 }
 
 export async function readJson(response: Response): Promise<unknown> {

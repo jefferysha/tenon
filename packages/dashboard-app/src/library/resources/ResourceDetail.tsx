@@ -84,7 +84,7 @@ export function ResourceDetail({
           testId="res"
           title={entry.name}
           hint={entry.id}
-          builtin={!custom}
+          custom={custom}
           actions={(
             <>
               {!canWrite && <ReadOnlyNote testId="res-no-token" />}

@@ -1,28 +1,44 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useT } from '../i18n'
 import { getToken } from '../api/transport'
-import type { TemplateDocument, TemplateRef } from '../api/instructionsDecoders'
+import type { TemplateCategory, TemplateDocument, TemplateRef } from '../api/instructionsDecoders'
 import { DetailColumn } from '../shell/ThreeColumns'
 import { SheetTabs, type SheetDef } from '../shared/DetailSheets'
 import { Markdown } from '../shared/Markdown'
-import { BUTTON_GHOST, BUTTON_SOLID, TEXTAREA } from '../shared/uiRecipes'
+import { BUTTON_GHOST, BUTTON_SOLID } from '../shared/uiRecipes'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import { CopyAsCustomButton, DeleteMenu, DetailTitle, ReadOnlyNote } from './libraryChrome'
+import { protectEscapes, remarkTemplatePlaceholders } from './templatePlaceholders'
+import { TemplateForm, type TemplateDraft } from './TemplateForm'
+import { rewriteTemplate, splitTemplate } from './templateText'
 
 type Sheet = 'preview' | 'edit'
+
+function draftOf(ref: TemplateRef, document: TemplateDocument | null): TemplateDraft {
+  return {
+    title: document?.block?.title ?? ref.id,
+    category: ref.category,
+    body: splitTemplate(document?.text ?? '')?.body ?? document?.text ?? '',
+  }
+}
+
+const sameDraft = (a: TemplateDraft, b: TemplateDraft): boolean => a.title === b.title && a.category === b.category && a.body === b.body
 
 /**
  * 右列：模板正文、变量表、解析错误。动作在标题右侧：内建模板只有「复制为自定义」；自定义模板多出
  * 预览 / 编辑页签、「保存」（未修改时禁用）与 ⋯ 里的删除。只有一个视图时不渲染页签。
+ * 编辑页签是表单：名称、分类两个字段 + 正文 Markdown；预览里的 `{{…}}` 占位符渲染成淡色标记。
  */
 export function TemplateDetail({
-  ref_, document, busy, errorKey, onSave, onCopy, onDelete, onReload,
+  ref_, document, busy, errorKey, editOnOpen = false, onSave, onCopy, onDelete, onReload,
 }: {
   ref_: TemplateRef
   document: TemplateDocument | null
   busy: boolean
   errorKey: string | null
-  onSave: (text: string) => void
+  /** 刚「复制为自定义」/「新建」出来的模板：打开即进入编辑页签。 */
+  editOnOpen?: boolean
+  onSave: (text: string, category: TemplateCategory) => void
   onCopy: () => void
   onDelete: () => void
   onReload: () => void
@@ -31,14 +47,21 @@ export function TemplateDetail({
   const custom = ref_.source === 'custom'
   const sheets: SheetDef<Sheet>[] = [{ id: 'preview', label: t('library.preview') }, { id: 'edit', label: t('library.edit') }]
   const [sheet, setSheet] = useState<Sheet>('preview')
-  const [draft, setDraft] = useState('')
+  const original = useMemo(() => draftOf(ref_, document), [ref_, document])
+  const [draft, setDraft] = useState<TemplateDraft>(original)
   const [confirmDelete, setConfirmDelete] = useState(false)
   useEffect(() => {
-    setDraft(document?.text ?? '')
-    setSheet('preview')
-  }, [document])
+    setDraft(original)
+    setSheet(editOnOpen && custom ? 'edit' : 'preview')
+  }, [original, editOnOpen, custom])
   const canWrite = getToken() !== ''
-  const dirty = document !== null && draft !== document.text
+  const dirty = document !== null && !sameDraft(draft, original)
+  const valid = draft.title.trim() !== ''
+  const placeholders = useMemo(() => [remarkTemplatePlaceholders((name) => {
+    const key = name.startsWith('catalog.') ? `resources.category.${name.slice('catalog.'.length)}` : ''
+    const label = key === '' ? key : t(key)
+    return label === '' || label === key ? name : label
+  })], [t])
 
   return (
     <DetailColumn
@@ -50,7 +73,7 @@ export function TemplateDetail({
           testId="lib-tpl"
           title={document?.block?.title ?? ref_.id}
           hint={`${ref_.category}/${ref_.id}`}
-          builtin={!custom}
+          custom={custom}
           actions={(
             <>
               {!canWrite && <ReadOnlyNote testId="lib-tpl-no-token" />}
@@ -61,8 +84,8 @@ export function TemplateDetail({
                     type="button"
                     className={BUTTON_SOLID}
                     data-testid="lib-tpl-save"
-                    disabled={!canWrite || busy || !dirty}
-                    onClick={() => onSave(draft)}
+                    disabled={!canWrite || busy || !dirty || !valid}
+                    onClick={() => onSave(rewriteTemplate(document?.text ?? '', { title: draft.title.trim(), category: draft.category, body: draft.body }), draft.category)}
                   >
                     {t('library.save')}
                   </button>
@@ -94,15 +117,9 @@ export function TemplateDetail({
         </div>
       )}
       {sheet === 'edit' && custom ? (
-        <textarea
-          className={`${TEXTAREA} min-h-[420px] font-mono text-caption`}
-          value={draft}
-          spellCheck={false}
-          data-testid="lib-tpl-editor"
-          onChange={(event) => setDraft(event.target.value)}
-        />
+        <TemplateForm draft={draft} disabled={!canWrite || busy} onChange={setDraft} />
       ) : (
-        <Markdown text={document?.text ?? ''} testId="lib-tpl-preview" density="compact" />
+        <Markdown text={protectEscapes(document?.text ?? '')} testId="lib-tpl-preview" density="compact" plugins={placeholders} />
       )}
       {document?.block !== null && document?.block !== undefined && document.block.variables.length > 0 && (
         <table className="mt-5 w-full table-fixed border-collapse text-base" data-testid="lib-tpl-variables">

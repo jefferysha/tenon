@@ -19,7 +19,7 @@ const where = (item: AgentReference): string =>
  * 自定义多出预览 / 编辑页签、「保存」与 ⋯ 里的删除。只有一个视图时不渲染页签。
  */
 export function AgentDetail({
-  document, summary, draft, busy, error, blockedBy, onDraft, onSave, onCopy, onDelete,
+  document, summary, draft, busy, error, blockedBy, editOnOpen = false, onDraft, onSave, onCopy, onDelete,
 }: {
   document: AgentDocument
   summary: AgentSummary | null
@@ -27,6 +27,8 @@ export function AgentDetail({
   busy: boolean
   error: string | null
   blockedBy: readonly AgentReference[]
+  /** 刚「复制为自定义」出来的副本：打开即进入编辑页签。 */
+  editOnOpen?: boolean
   onDraft: (content: string) => void
   onSave: () => void
   onCopy: () => void
@@ -37,7 +39,7 @@ export function AgentDetail({
   const sheets: SheetDef<Sheet>[] = [{ id: 'preview', label: t('library.preview') }, { id: 'edit', label: t('library.edit') }]
   const [sheet, setSheet] = useState<Sheet>('preview')
   const [confirmDelete, setConfirmDelete] = useState(false)
-  useEffect(() => { setSheet('preview'); setConfirmDelete(false) }, [document.name])
+  useEffect(() => { setSheet(editOnOpen && custom ? 'edit' : 'preview'); setConfirmDelete(false) }, [document.name, editOnOpen, custom])
   const canWrite = getToken() !== ''
   const dirty = draft !== document.content
   // 引用来自两处：打开时扫到的，和删除被拒时 409 带回的（后者更新，优先）。
@@ -60,7 +62,7 @@ export function AgentDetail({
         <DetailTitle
           testId="lib-agent"
           title={document.name}
-          builtin={!custom}
+          custom={custom}
           actions={(
             <>
               {!canWrite && <ReadOnlyNote testId="lib-agent-no-token" />}

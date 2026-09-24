@@ -6,11 +6,12 @@ export type LibrarySection = 'templates' | 'resources' | 'directions' | 'agents'
 
 /** 库页左列：模板 / 资源目录 / 测试方向 / agent。各区共用同一条导轨，切换只换中列与右列。 */
 export function LibraryRail({
-  section, templates, directions, agents, collapsed, onSection, onToggle,
+  section, templates, resources, directions, agents, collapsed, onSection, onToggle,
 }: {
   section: LibrarySection
   /** null = 还在读取：计数显示「–」，不显示假的 0。 */
   templates: number | null
+  resources: number | null
   directions: number | null
   agents: number | null
   collapsed: boolean
@@ -36,6 +37,7 @@ export function LibraryRail({
           <RailCard
             mark={<Package />}
             name={t('resources.title')}
+            count={resources ?? '–'}
             selected={section === 'resources'}
             collapsed={collapsed}
             onClick={() => onSection('resources')}

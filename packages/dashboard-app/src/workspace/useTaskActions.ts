@@ -31,7 +31,7 @@ export function useTaskActions({ me, listMode, onToast, onRefresh, onUserMissing
   const taking = useRef(false)
 
   const copyLink = useCallback((row: TaskRow): void => {
-    const search = dashboardSearch(window.location.search, { view: 'progress', root: row.root, change: row.change.name })
+    const search = dashboardSearch(window.location.search, { view: 'workspace', root: row.root, change: row.change.name })
     const link = `${window.location.origin}${window.location.pathname}${search}`
     void navigator.clipboard?.writeText(link).then(() => onToast?.(t('detail.copied', { value: link })))
   }, [onToast, t])

@@ -7,6 +7,7 @@ import { ApiError } from '../api/transport'
 import {
   deleteTestDirection, fetchTestDirections, putTestDirection, type TestDirection,
 } from '../api/testDirectionsClient'
+import { uniqueCopyId, uniqueCopyTitle } from './templateText'
 
 export interface TestDirectionLibrary {
   /** 首次读取尚未返回：列表为空不代表「没有」。 */
@@ -20,8 +21,18 @@ export interface TestDirectionLibrary {
   setDraft: (yaml: string) => void
   reload: () => Promise<void>
   save: () => Promise<boolean>
-  copy: () => Promise<boolean>
+  /** 新建自定义方向（标识 new-direction，重名时加序号），成功后选中它。 */
+  create: () => Promise<boolean>
+  /** 复制为自定义：标识 `<id>-copy`、名称「<名称> <suffix>」，都不与现有条目重名；成功后选中副本。 */
+  copy: (suffix: string) => Promise<boolean>
   remove: () => Promise<boolean>
+}
+
+/** 改写 YAML 顶层的一行 `key: value`；没有就追加。 */
+function withLine(yaml: string, key: string, value: string): string {
+  const line = `${key}: ${JSON.stringify(value)}`
+  const pattern = new RegExp(`^${key}:.*$`, 'mu')
+  return pattern.test(yaml) ? yaml.replace(pattern, line) : `${yaml.replace(/\n?$/u, '\n')}${line}\n`
 }
 
 function messageOf(error: unknown): string {
@@ -80,11 +91,19 @@ export function useTestDirections(): TestDirectionLibrary {
     return write(selected.id, draft)
   }, [selected, draft, write])
 
-  const copy = useCallback(async (): Promise<boolean> => {
+  const create = useCallback(async (): Promise<boolean> => {
+    const ids = new Set(directions.map((direction) => direction.id))
+    let id = 'new-direction'
+    for (let n = 2; ids.has(id); n += 1) id = `new-direction-${n}`
+    return write(id, `id: ${id}\nlabel: ${id}\ncommand: npm test\n`)
+  }, [directions, write])
+
+  const copy = useCallback(async (suffix: string): Promise<boolean> => {
     if (selected === null) return false
-    const id = `${selected.id}-copy`
-    return write(id, selected.yaml.replace(`id: ${selected.id}`, `id: ${id}`))
-  }, [selected, write])
+    const id = uniqueCopyId(selected.id, new Set(directions.map((direction) => direction.id)))
+    const label = uniqueCopyTitle(selected.label, suffix, new Set(directions.map((direction) => direction.label)))
+    return write(id, withLine(withLine(selected.yaml, 'id', id), 'label', label))
+  }, [directions, selected, write])
 
   const remove = useCallback(async (): Promise<boolean> => {
     if (selected === null || selected.source === 'builtin') return false
@@ -102,5 +121,5 @@ export function useTestDirections(): TestDirectionLibrary {
     }
   }, [selected, reload])
 
-  return { loading, directions, selected, draft, busy, error, select, setDraft, reload, save, copy, remove }
+  return { loading, directions, selected, draft, busy, error, select, setDraft, reload, save, create, copy, remove }
 }

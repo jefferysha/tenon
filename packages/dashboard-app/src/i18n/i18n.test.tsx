@@ -36,6 +36,7 @@ describe('i18n completeness（zh / en 键结构逐一对齐）', () => {
   it('中英文相同值仅允许品牌、命令、协议 token 与纯占位符，不把英文产品文案漏进中文词典', () => {
     const allowed = new Set([
       'common.switch_to_english',
+      'common.switch_to_chinese',
       'inbox.act_forward',
       'inbox.act_backward',
       'detail.related_sessions.platform_claude',
@@ -224,8 +225,8 @@ function Probe(): JSX.Element {
   const { t, lang, setLang } = useT()
   return (
     <div>
-      {/* 收件箱退役：示例键改用存活键——纯文本用 nav.progress，变量插值用 inbox.badge_failed（{n}）。 */}
-      <span data-testid="txt">{t('nav.progress')}</span>
+      {/* 收件箱退役：示例键改用存活键——纯文本用 nav.workspace，变量插值用 inbox.badge_failed（{n}）。 */}
+      <span data-testid="txt">{t('nav.workspace')}</span>
       <span data-testid="var">{t('inbox.badge_failed', { n: 3 })}</span>
       <span data-testid="lang">{lang}</span>
       <button data-testid="to-en" onClick={() => setLang('en')}>en</button>
@@ -252,7 +253,7 @@ describe('useT 真 render（默认 zh、变量插值、切换 en）', () => {
       </I18nProvider>,
     )
     fireEvent.click(screen.getByTestId('to-en'))
-    expect(screen.getByTestId('txt').textContent).toBe('Workbench')
+    expect(screen.getByTestId('txt').textContent).toBe('Workspace')
     expect(screen.getByTestId('var').textContent).toBe('Failed ×3 · your call')
   })
 })

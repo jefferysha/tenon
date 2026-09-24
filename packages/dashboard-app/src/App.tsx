@@ -18,10 +18,11 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { useDashboardTheme } from './shell/useDashboardTheme'
 import { SnapshotInlineError } from './progress/SnapshotInlineError'
 import { BUTTON_GHOST } from './shared/uiRecipes'
+import { CommandLine } from './shared/CommandLine'
 import { TopBar, type TopBarProject } from './shell/TopBar'
 import { UserDialog } from './shell/UserDialog'
 import { useCurrentUser } from './state/useCurrentUser'
-import { isThreeColumnView, isView, NEEDS_YOU_STATUS, TASK_STATUS_PARAM, viewNeedsSnapshot, type View } from './shell/views'
+import { isThreeColumnView, NEEDS_YOU_STATUS, normalizeView, TASK_STATUS_PARAM, viewNeedsSnapshot, type View } from './shell/views'
 import { ThreeColumnsSkeleton } from './shell/Skeleton'
 
 export { ErrorBoundary } from './AppErrorBoundary'
@@ -42,8 +43,7 @@ const SkillsView = lazy(async () => ({
   default: (await import('./skills/SkillsView')).SkillsView,
 }))
 
-// 视图记忆。旧值（overview/hostPlan/inbox/board/…）随 IA 收敛退役——initialView 以 isView
-// 白名单校验，不认识的一律兜底回 progress（工作台，默认落地页）。
+// 视图记忆。旧 id（progress / workbench）映射到新 id；不认识的一律兜底回 workspace（工作台，默认落地页）。
 const VIEW_KEY = 'tenon-dashboard-view'
 
 function initialView(): View {
@@ -54,12 +54,12 @@ function initialView(): View {
     /* ignore */
   }
   try {
-    const stored = localStorage.getItem(VIEW_KEY)
-    if (isView(stored)) return stored
+    const stored = normalizeView(localStorage.getItem(VIEW_KEY))
+    if (stored !== null) return stored
   } catch {
     /* ignore */
   }
-  return 'progress'
+  return 'workspace'
 }
 
 /** 改写当前 URL 的工作台状态筛选键（null = 删除）；宿主禁用 history 时静默跳过。 */
@@ -109,8 +109,8 @@ function AppShell(): JSX.Element {
 
   const commitView = useCallback((v: View) => {
     setViewState(v)
-    if (v !== 'progress' && v !== 'workbench') setSelectedChange(null)
-    if (v !== 'progress') writeTaskStatusParam(null)
+    if (v !== 'workspace' && v !== 'workflow') setSelectedChange(null)
+    if (v !== 'workspace') writeTaskStatusParam(null)
     try {
       localStorage.setItem(VIEW_KEY, v)
     } catch {
@@ -187,7 +187,7 @@ function AppShell(): JSX.Element {
         target: {
           view: nextView,
           root: currentRootRef.current || null,
-          change: nextView === 'progress' ? selectedChange : null,
+          change: nextView === 'workspace' ? selectedChange : null,
         },
       })
       return
@@ -221,14 +221,14 @@ function AppShell(): JSX.Element {
   const openNeedsYou = useCallback((): void => {
     writeTaskStatusParam(NEEDS_YOU_STATUS)
     setWorkspaceMount((n) => n + 1)
-    setView('progress')
+    setView('workspace')
   }, [setView])
 
   const onDirtyChange = useCallback((source: View, dirty: boolean): void => {
     if (dirty) dirtyViewRef.current = source
     else if (dirtyViewRef.current === source) dirtyViewRef.current = null
   }, [])
-  const onWorkbenchDirtyChange = useCallback((dirty: boolean): void => onDirtyChange('workbench', dirty), [onDirtyChange])
+  const onWorkbenchDirtyChange = useCallback((dirty: boolean): void => onDirtyChange('workflow', dirty), [onDirtyChange])
 
   useEffect(() => {
     const protectDraft = (event: BeforeUnloadEvent): void => {
@@ -296,13 +296,15 @@ function AppShell(): JSX.Element {
       {userDialogOpen && (
         <UserDialog
           initial={me}
+          invalidSource={currentUser.state?.kind === 'missing' ? currentUser.state.invalid : undefined}
           onClose={() => setUserDialogOpen(false)}
           onSaved={() => { setUserDialogOpen(false); currentUser.refresh() }}
         />
       )}
 
       {!connected && (
-        // 固定高度 = --banner-h，且贴在页头下方：三列页已扣掉这一行，文字与「重连」始终完整可见。
+        // 固定高度 = --banner-h，且贴在页头下方：三列页已扣掉这一行。只有一个动作「重连」；
+        // 服务进程已退出时重连无效，旁边给出可复制的重启命令。
         <div
           className="sticky top-(--topbar-h) z-30 flex h-(--offline-banner-h) flex-none items-center gap-2.5 border-b border-red-b bg-red-t px-5 text-caption font-semibold text-red-d max-[900px]:static"
           role="status"
@@ -311,9 +313,12 @@ function AppShell(): JSX.Element {
         >
           <span className="size-2 flex-none rounded-full bg-red" aria-hidden="true" />
           <span className="min-w-0 flex-1 truncate whitespace-nowrap max-[900px]:sr-only">{t('common.offline')}</span>
+          <div className="w-[300px] min-w-0 flex-none font-normal max-[900px]:w-auto max-[900px]:flex-1">
+            <CommandLine command="tenon dashboard --background" testId="offline-restart" />
+          </div>
           <button
             type="button"
-            className={`${BUTTON_GHOST} ml-auto border-red-b bg-transparent py-1 text-red-d enabled:hover:border-red-b enabled:hover:bg-red-t enabled:hover:text-red-d`}
+            className={`${BUTTON_GHOST} flex-none border-red-b bg-transparent py-1 text-red-d enabled:hover:border-red-b enabled:hover:bg-red-t enabled:hover:text-red-d`}
             aria-label={`${t('common.reconnect')} · ${t('common.offline')}`}
             data-testid="offline-reconnect"
             onClick={reconnect}
@@ -376,7 +381,7 @@ function AppShell(): JSX.Element {
           // 首个快照未到：读快照的三栏页先出骨架，不能先渲染成「没有项目 / 没有任务」的空态。
           // 工作流、库、技能不读快照，直接渲染。
           <ThreeColumnsSkeleton testId="snapshot-loading" />
-        ) : snapshot && snapshot.project_count === 0 && view === 'progress' ? (
+        ) : snapshot && snapshot.project_count === 0 && view === 'workspace' ? (
           // 零项目教学态只替换工作台；工作流、库与技能不依赖项目，项目页本身就是新建项目的入口。
           <div className="px-6">
             <Onboarding
@@ -386,7 +391,7 @@ function AppShell(): JSX.Element {
           </div>
         ) : (
           <>
-        {view === 'progress' && (
+        {view === 'workspace' && (
           <WorkspaceView
             key={workspaceMount}
             snapshot={snapshot}
@@ -404,7 +409,7 @@ function AppShell(): JSX.Element {
             onUserMissing={() => setUserDialogOpen(true)}
           />
         )}
-        {view === 'workbench' && (
+        {view === 'workflow' && (
           // 工作流是全局的（用户级存储），不依赖所选项目；每个 change 自己选工作流与轨道。
           <WorkflowView
             root=""

@@ -129,7 +129,7 @@ function stubEditableWorkbench(options: {
   // 编辑器只在页面持有写凭证时开放输入；测试同生产一样由宿主注入 token。
   ;(window as unknown as { __TENON_DASHBOARD_TOKEN__?: string }).__TENON_DASHBOARD_TOKEN__ = 'test-token'
   if (!options.preserveLocation) {
-    window.history.replaceState({ page: 'workbench' }, '', '/?view=workbench&root=%2Frepo')
+    window.history.replaceState({ page: 'workbench' }, '', '/?view=workflow&root=%2Frepo')
   }
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url === '/api/snapshot') {
@@ -206,12 +206,12 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'workbench-b', __tenonDashboardPosition: 0 },
       '',
-      `/?view=workbench&root=${encodeURIComponent(rootB)}`,
+      `/?view=workflow&root=${encodeURIComponent(rootB)}`,
     )
     window.history.pushState(
       { page: 'workbench-a', __tenonDashboardPosition: 1 },
       '',
-      `/?view=workbench&root=${encodeURIComponent(rootA)}`,
+      `/?view=workflow&root=${encodeURIComponent(rootA)}`,
     )
     stubEditableWorkbench({ preserveLocation: true, roots: [rootA, rootB] })
     render(<App />)
@@ -231,12 +231,12 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'overview-target', __tenonDashboardPosition: 0 },
       '',
-      '/?view=progress&historyMarker=target',
+      '/?view=workspace&historyMarker=target',
     )
     window.history.pushState(
       { page: 'workbench-current', __tenonDashboardPosition: 1 },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
@@ -245,14 +245,14 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     act(() => window.history.back())
 
     const firstDialog = await screen.findByTestId('app-unsaved-navigation')
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     expect(forward).toHaveBeenCalledTimes(1)
     expect(replaceState).not.toHaveBeenCalled()
     fireEvent.click(within(firstDialog).getByRole('button', { name: '继续编辑' }))
 
     act(() => window.history.back())
     const secondDialog = await screen.findByTestId('app-unsaved-navigation')
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     fireEvent.click(within(secondDialog).getByRole('button', { name: '丢弃并离开' }))
 
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
@@ -263,15 +263,15 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'workbench-current', __tenonDashboardPosition: 0 },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     window.history.pushState(
       { page: 'overview-forward', __tenonDashboardPosition: 1 },
       '',
-      '/?view=progress&historyMarker=forward-target',
+      '/?view=workspace&historyMarker=forward-target',
     )
     window.history.back()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
     const back = vi.spyOn(window.history, 'back')
@@ -279,13 +279,13 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     act(() => window.history.forward())
 
     const firstDialog = await screen.findByTestId('app-unsaved-navigation')
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     expect(back).toHaveBeenCalledTimes(1)
     fireEvent.click(within(firstDialog).getByRole('button', { name: '继续编辑' }))
 
     act(() => window.history.forward())
     const secondDialog = await screen.findByTestId('app-unsaved-navigation')
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     fireEvent.click(within(secondDialog).getByRole('button', { name: '丢弃并离开' }))
 
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
@@ -309,15 +309,15 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'workbench-current' },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     window.history.pushState(
       { page: 'overview-forward' },
       '',
-      '/?view=progress&historyMarker=unmarked-forward-target',
+      '/?view=workspace&historyMarker=unmarked-forward-target',
     )
     window.history.back()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
     const back = vi.spyOn(window.history, 'back')
@@ -325,7 +325,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     act(() => window.history.forward())
 
     const firstDialog = await screen.findByTestId('app-unsaved-navigation')
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     expect(back).toHaveBeenCalledTimes(1)
     expect(forward).toHaveBeenCalledTimes(1)
     fireEvent.click(within(firstDialog).getByRole('button', { name: '继续编辑' }))
@@ -356,23 +356,23 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'unmarked-overview' },
       '',
-      '/?view=progress&historyMarker=unmarked-distant-target',
+      '/?view=workspace&historyMarker=unmarked-distant-target',
     )
     window.history.pushState(
       { page: 'dashboard-projects' },
       '',
-      '/?view=progress&historyMarker=dashboard-middle',
+      '/?view=workspace&historyMarker=dashboard-middle',
     )
     stubEditableWorkbench({ preserveLocation: true })
     render(<App />)
     fireEvent.click(await screen.findByTestId('project-rail-item-repo'))
     await waitFor(() => {
       const search = new URLSearchParams(window.location.search)
-      expect(search.get('view')).toBe('progress')
+      expect(search.get('view')).toBe('workspace')
       expect(search.get('root')).toBe('/repo')
     }, { timeout: 5_000 })
     expect(await screen.findByTestId('workspace-view', {}, { timeout: 5_000 })).toBeInTheDocument()
-    fireEvent.click(screen.getByTestId('nav-workbench'))
+    fireEvent.click(screen.getByTestId('nav-workflow'))
     await screen.findByTestId('wb-step-draft')
     const input = await screen.findByTestId('wb-lane-name-input-draft')
     fireEvent.change(input, { target: { value: '跨多项草稿' } })
@@ -380,7 +380,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
     act(() => window.history.go(-2))
     const dialog = await screen.findByTestId('app-unsaved-navigation')
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('跨多项草稿')
     fireEvent.click(within(dialog).getByRole('button', { name: '继续编辑' }))
   })
@@ -412,12 +412,12 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'overview', __tenonDashboardPosition: 0 },
       '',
-      '/?view=progress',
+      '/?view=workspace',
     )
     window.history.pushState(
       { page: 'workbench', __tenonDashboardPosition: 1 },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     await renderDirtyWorkbenchApp({ preserveLocation: true })
     const eventSource = lastEventSource()
@@ -425,7 +425,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
     act(() => window.history.back())
     const dialog = await screen.findByTestId('app-unsaved-navigation')
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
 
     act(() => {
       eventSource!.emit('snapshot', JSON.stringify(makeSnapshot([])))
@@ -436,7 +436,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
     // 项目注册表已空：落到零项目教学态，URL 仍指向工作台。
     expect(await screen.findByTestId('onboard-no-project')).toBeInTheDocument()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('progress'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace'))
   })
 
   it('已阻断的一级导航不会被随后发生的 root 失权覆盖，丢弃后仍到达原页面目标', async () => {
@@ -444,7 +444,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     const eventSource = lastEventSource()
     expect(eventSource).toBeDefined()
 
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     const dialog = await screen.findByTestId('app-unsaved-navigation')
 
     act(() => {
@@ -456,29 +456,29 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
     // 项目注册表已空：工作台落到零项目教学态（onboarding 覆盖所有视图）。
     expect(await screen.findByTestId('onboard-no-project')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
     expect(screen.queryByTestId('workbench-view')).toBeNull()
   })
 
   it('已阻断的一级导航不会被随后发生的 browser Back 覆盖，丢弃后仍到达最先请求的页面', async () => {
-    window.history.replaceState({ page: 'projects' }, '', '/?view=progress&root=%2Frepo')
-    window.history.pushState({ page: 'workbench' }, '', '/?view=workbench&root=%2Frepo')
+    window.history.replaceState({ page: 'projects' }, '', '/?view=workspace&root=%2Frepo')
+    window.history.pushState({ page: 'workbench' }, '', '/?view=workflow&root=%2Frepo')
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     const dialog = await screen.findByTestId('app-unsaved-navigation')
 
     act(() => window.history.back())
     fireEvent.click(within(dialog).getByRole('button', { name: '丢弃并离开' }))
 
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
     expect(screen.queryByTestId('workbench-view')).toBeNull()
   })
 
   it('Navigation API 在 traversal 发起点取消迟到 Back，不依赖动画帧推定结算', async () => {
-    window.history.replaceState({ page: 'projects' }, '', '/?view=progress&root=%2Frepo')
-    window.history.pushState({ page: 'workbench' }, '', '/?view=workbench&root=%2Frepo')
+    window.history.replaceState({ page: 'projects' }, '', '/?view=workspace&root=%2Frepo')
+    window.history.pushState({ page: 'workbench' }, '', '/?view=workflow&root=%2Frepo')
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
     const delayedBacks: Array<() => void> = []
@@ -495,20 +495,20 @@ describe('App Workbench 未保存草稿离开守卫', () => {
         window.history.replaceState(
           { page: 'projects', __tenonDashboardPosition: -1 },
           '',
-          '/?view=progress&root=%2Frepo',
+          '/?view=workspace&root=%2Frepo',
         )
         window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
       })
     })
 
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     const dialog = await screen.findByTestId('app-unsaved-navigation')
     act(() => window.history.back())
     expect(delayedBacks).toHaveLength(0)
     fireEvent.click(within(dialog).getByRole('button', { name: '丢弃并离开' }))
 
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
     expect(screen.queryByTestId('workbench-view')).toBeNull()
   })
 
@@ -516,12 +516,12 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'projects', __tenonDashboardPosition: -1 },
       '',
-      '/?view=progress&root=%2Frepo',
+      '/?view=workspace&root=%2Frepo',
     )
     window.history.pushState(
       { page: 'workbench', __tenonDashboardPosition: 0 },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
@@ -538,7 +538,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
         window.history.replaceState(
           { page: 'projects', __tenonDashboardPosition: -1 },
           '',
-          '/?view=progress&root=%2Frepo',
+          '/?view=workspace&root=%2Frepo',
         )
         window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
       })
@@ -547,12 +547,12 @@ describe('App Workbench 未保存草稿离开守卫', () => {
       window.history.replaceState(
         { page: 'workbench', __tenonDashboardPosition: 0 },
         '',
-        '/?view=workbench&root=%2Frepo',
+        '/?view=workflow&root=%2Frepo',
       )
       window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
     })
 
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     const dialog = await screen.findByTestId('app-unsaved-navigation')
     act(() => window.history.back())
     fireEvent.click(within(dialog).getByRole('button', { name: '丢弃并离开' }))
@@ -560,7 +560,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
     act(() => delayedBacks.shift()?.())
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
     expect(screen.queryByTestId('workbench-view')).toBeNull()
   })
 
@@ -569,7 +569,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     const navigation = Reflect.get(window, 'navigation') as EventTarget
     const controller = new AbortController()
 
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     const dialog = await screen.findByTestId('app-unsaved-navigation')
     const navigate = new Event('navigate', { cancelable: false })
     Object.defineProperties(navigate, {
@@ -582,7 +582,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: '丢弃并离开' }))
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
   })
 
   it('丢弃已等待不可取消 traversal 时，后续 abort 会执行且只执行 winner callback', async () => {
@@ -590,7 +590,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     const navigation = Reflect.get(window, 'navigation') as EventTarget
     const controller = new AbortController()
 
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     const dialog = await screen.findByTestId('app-unsaved-navigation')
     const navigate = new Event('navigate', { cancelable: false })
     Object.defineProperties(navigate, {
@@ -604,7 +604,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
     act(() => controller.abort())
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
     expect(screen.queryByTestId('app-unsaved-navigation')).toBeNull()
   })
 
@@ -613,7 +613,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     const navigation = Reflect.get(window, 'navigation') as EventTarget
     const firstController = new AbortController()
 
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     const dialog = await screen.findByTestId('app-unsaved-navigation')
     const firstNavigate = new Event('navigate', { cancelable: false })
     Object.defineProperties(firstNavigate, {
@@ -636,7 +636,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
     expect(supersedingNavigate.defaultPrevented).toBe(true)
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
   })
 
   it('旧 traversal abort 后若出现新的不可取消 barrier，首请求等待新 signal 再提交', async () => {
@@ -645,7 +645,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     const firstController = new AbortController()
     const secondController = new AbortController()
 
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     const dialog = await screen.findByTestId('app-unsaved-navigation')
     const firstNavigate = new Event('navigate', { cancelable: false })
     Object.defineProperties(firstNavigate, {
@@ -670,7 +670,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
     act(() => secondController.abort())
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
   })
 
   it('缺少 Navigation API 时普通离开降级为同步原生确认，不暴露异步 traversal 竞态', async () => {
@@ -680,15 +680,15 @@ describe('App Workbench 未保存草稿离开守卫', () => {
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(true)
 
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     expect(confirm).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('workbench-view')).toBeInTheDocument()
     expect(screen.queryByTestId('app-unsaved-navigation')).toBeNull()
 
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     expect(confirm).toHaveBeenCalledTimes(2)
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
   })
 
   it('缺少 Navigation API 时未标记 Forward 不猜方向、不补偿且不会卡住', async () => {
@@ -697,15 +697,15 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'workbench-current' },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     window.history.pushState(
       { page: 'overview-forward' },
       '',
-      '/?view=progress&historyMarker=unmarked-forward-no-navigation-api',
+      '/?view=workspace&historyMarker=unmarked-forward-no-navigation-api',
     )
     window.history.back()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
     const back = vi.spyOn(window.history, 'back')
@@ -727,12 +727,12 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'overview-back' },
       '',
-      '/?view=progress&historyMarker=unmarked-back-no-navigation-api',
+      '/?view=workspace&historyMarker=unmarked-back-no-navigation-api',
     )
     window.history.pushState(
       { page: 'workbench-current' },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
@@ -754,12 +754,12 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'overview-back', custom: 'target-state' },
       '',
-      '/?view=progress&debug=target#summary',
+      '/?view=workspace&debug=target#summary',
     )
     window.history.pushState(
       { page: 'workbench-current', custom: 'draft-state' },
       '',
-      '/?view=workbench&root=%2Frepo&debug=draft#editor',
+      '/?view=workflow&root=%2Frepo&debug=draft#editor',
     )
     await renderDirtyWorkbenchApp({ preserveLocation: true })
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
@@ -768,7 +768,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
     await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
     expect(screen.getByTestId('workbench-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow')
     expect(new URLSearchParams(window.location.search).get('root')).toBe('/repo')
     expect(new URLSearchParams(window.location.search).get('debug')).toBe('draft')
     expect(window.location.hash).toBe('#editor')
@@ -783,15 +783,15 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'workbench-current', custom: 'forward-draft-state' },
       '',
-      '/?view=workbench&root=%2Frepo&debug=forward-draft#editor-forward',
+      '/?view=workflow&root=%2Frepo&debug=forward-draft#editor-forward',
     )
     window.history.pushState(
       { page: 'overview-forward', custom: 'forward-target-state' },
       '',
-      '/?view=progress&debug=forward-target#summary-forward',
+      '/?view=workspace&debug=forward-target#summary-forward',
     )
     window.history.back()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     await renderDirtyWorkbenchApp({ preserveLocation: true })
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
 
@@ -814,30 +814,30 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'overview-first', __tenonDashboardPosition: -1 },
       '',
-      '/?view=progress&historyMarker=first-marked-target',
+      '/?view=workspace&historyMarker=first-marked-target',
     )
     window.history.pushState(
       { page: 'workbench-current', __tenonDashboardPosition: 0 },
       '',
-      '/?view=workbench&root=%2Frepo&historyMarker=committed-workbench',
+      '/?view=workflow&root=%2Frepo&historyMarker=committed-workbench',
     )
     window.history.pushState(
       { page: 'projects-later' },
       '',
-      '/?view=progress&historyMarker=later-unmarked-target',
+      '/?view=workspace&historyMarker=later-unmarked-target',
     )
     window.history.back()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     await renderDirtyWorkbenchApp({ preserveLocation: true })
     const confirm = vi.spyOn(window, 'confirm')
 
     act(() => window.history.back())
     const dialog = await screen.findByTestId('app-unsaved-navigation')
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
 
     act(() => window.history.forward())
     await waitFor(() => expect(window.history.state).not.toHaveProperty('__tenonDashboardPosition'))
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow')
     expect(confirm).not.toHaveBeenCalled()
     expect(screen.getByTestId('app-unsaved-navigation')).toBe(dialog)
 
@@ -851,20 +851,20 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'overview-back', __tenonDashboardPosition: -1 },
       '',
-      '/?view=progress&historyMarker=first-back',
+      '/?view=workspace&historyMarker=first-back',
     )
     window.history.pushState(
       { page: 'workbench', __tenonDashboardPosition: 0 },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     window.history.pushState(
       { page: 'projects-forward', __tenonDashboardPosition: 1 },
       '',
-      '/?view=progress&historyMarker=later-forward',
+      '/?view=workspace&historyMarker=later-forward',
     )
     window.history.back()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
     const back = vi.spyOn(window.history, 'back')
@@ -886,20 +886,20 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'overview-back', __tenonDashboardPosition: -1 },
       '',
-      '/?view=progress&historyMarker=later-back',
+      '/?view=workspace&historyMarker=later-back',
     )
     window.history.pushState(
       { page: 'workbench', __tenonDashboardPosition: 0 },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     window.history.pushState(
       { page: 'projects-forward', __tenonDashboardPosition: 1 },
       '',
-      '/?view=progress&historyMarker=first-forward',
+      '/?view=workspace&historyMarker=first-forward',
     )
     window.history.back()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
     const back = vi.spyOn(window.history, 'back')
@@ -921,20 +921,20 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'overview-back', __tenonDashboardPosition: -1 },
       '',
-      '/?view=progress&historyMarker=cancelled-back',
+      '/?view=workspace&historyMarker=cancelled-back',
     )
     window.history.pushState(
       { page: 'workbench', __tenonDashboardPosition: 0 },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     window.history.pushState(
       { page: 'projects-forward', __tenonDashboardPosition: 1 },
       '',
-      '/?view=progress&historyMarker=new-forward',
+      '/?view=workspace&historyMarker=new-forward',
     )
     window.history.back()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     await renderDirtyWorkbenchApp({ preserveLocation: true })
 
     const back = vi.spyOn(window.history, 'back')
@@ -970,22 +970,22 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'workbench' },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     window.history.pushState(
       { page: 'overview-forward' },
       '',
-      '/?view=progress&historyMarker=forward-target',
+      '/?view=workspace&historyMarker=forward-target',
     )
     window.history.back()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     await renderDirtyWorkbenchApp({ preserveLocation: true })
     const eventSource = lastEventSource()
     expect(eventSource).toBeDefined()
 
     act(() => window.history.forward())
     const dialog = await screen.findByTestId('app-unsaved-navigation')
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
 
     act(() => {
       eventSource!.emit('snapshot', JSON.stringify(makeSnapshot([])))
@@ -999,7 +999,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
 
   it('一级导航与 Overview 共用可访问 Dialog；取消保留页面、草稿、URL 与触发焦点，确认才离开', async () => {
     await renderDirtyWorkbenchApp()
-    const overview = screen.getByTestId('nav-progress')
+    const overview = screen.getByTestId('nav-workspace')
     overview.focus()
     fireEvent.click(overview)
 
@@ -1007,7 +1007,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     expect(within(dialog).getByRole('alertdialog')).toHaveAccessibleName('未保存的修改')
     expect(screen.getByTestId('workbench-view')).toBeInTheDocument()
     expect(screen.getByTestId('wb-lane-name-draft')).toHaveTextContent('未保存草稿')
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow')
 
     fireEvent.click(within(dialog).getByRole('button', { name: '继续编辑' }))
     expect(screen.queryByTestId('app-unsaved-navigation')).toBeNull()
@@ -1017,7 +1017,7 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     fireEvent.click(overview)
     fireEvent.click(within(await screen.findByTestId('app-unsaved-navigation')).getByRole('button', { name: '丢弃并离开' }))
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
   })
 
   it('dirty 时 beforeunload 触发原生浏览器保护；未 dirty 时不拦截', async () => {
@@ -1042,29 +1042,29 @@ describe('App Workbench 未保存草稿离开守卫', () => {
     window.history.replaceState(
       { page: 'overview', __tenonDashboardPosition: 0 },
       '',
-      '/?view=progress',
+      '/?view=workspace',
     )
     window.history.pushState(
       { page: 'workbench', __tenonDashboardPosition: 1 },
       '',
-      '/?view=workbench&root=%2Frepo',
+      '/?view=workflow&root=%2Frepo',
     )
     await renderDirtyWorkbenchApp({ preserveLocation: true })
     act(() => window.history.back())
 
     const dialog = await screen.findByTestId('app-unsaved-navigation')
     expect(screen.getByTestId('workbench-view')).toBeInTheDocument()
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
 
     fireEvent.click(within(dialog).getByRole('button', { name: '继续编辑' }))
     expect(screen.getByTestId('workbench-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow')
 
     act(() => window.history.back())
     fireEvent.click(within(await screen.findByTestId('app-unsaved-navigation')).getByRole('button', { name: '丢弃并离开' }))
 
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
   })
 })
 
@@ -1076,18 +1076,20 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     expect(screen.queryByTestId('workbench-view')).toBeNull()
   })
 
-  it('顶部条标签：工作台 / 工作流 / 项目 / 库 / 技能；项目切换器与设置都在顶部条', async () => {
+  it('顶部条标签：工作台 / 工作流 / 项目 / 库 / 技能；项目只在左栏选（顶栏菜单仅窄屏补位）；设置在顶部条', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
     const nav = screen.getByTestId('primary-nav')
     expect(within(nav).getAllByRole('button').map((button) => button.textContent)).toEqual(['工作台', '工作流', '项目', '库', '技能'])
-    expect(screen.getByTestId('project-switcher')).toBeInTheDocument()
+    expect(screen.getByTestId('project-switcher-wrap').className).toContain('hidden')
+    expect(screen.getByTestId('project-rail')).toBeInTheDocument()
     expect(screen.queryByTestId('app-navigation')).toBeNull()
     expect(screen.queryByTestId('secondary-nav')).toBeNull()
     expect(screen.queryByTestId('nav-inbox')).toBeNull()
     expect(screen.queryByTestId('nav-hostPlan')).toBeNull()
     expect(screen.queryByTestId('readonly-pill')).toBeNull()
-    expect(screen.getByTestId('conn-indicator')).toHaveAttribute('data-on', 'true')
+    // 连接正常：不显示状态点。
+    expect(screen.queryByTestId('conn-indicator')).toBeNull()
     fireEvent.click(screen.getByTestId('nav-settings'))
     expect(screen.getByTestId('nav-settings-panel')).toBeInTheDocument()
     expect(screen.getByTestId('theme-toggle')).toBeInTheDocument()
@@ -1112,12 +1114,12 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
     render(<App />)
     await screen.findByTestId('workspace-view')
     expect(screen.queryByTestId('breadcrumbs')).toBeNull()
-    expect(screen.getByTestId('nav-progress')).toHaveAttribute('aria-current', 'page')
-    fireEvent.click(screen.getByTestId('nav-workbench'))
+    expect(screen.getByTestId('nav-workspace')).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(screen.getByTestId('nav-workflow'))
     await screen.findByTestId('workbench-view')
     expect(screen.queryByTestId('breadcrumbs')).toBeNull()
-    expect(screen.getByTestId('nav-workbench')).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByTestId('nav-progress')).not.toHaveAttribute('aria-current')
+    expect(screen.getByTestId('nav-workflow')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('nav-workspace')).not.toHaveAttribute('aria-current')
   })
 
   it('跳转链接平时 sr-only（无阴影灰条），只在聚焦时显示', async () => {
@@ -1131,12 +1133,12 @@ describe('App 默认落地 = 进度（v9-flowdeck：收件箱退役，进度=唯
   })
 
   it('无项目上下文时工作台聚合全部项目，左列「所有项目」为当前项', async () => {
-    window.history.replaceState({}, '', '/?view=progress')
+    window.history.replaceState({}, '', '/?view=workspace')
     render(<App />)
     await screen.findByTestId('workspace-view')
     expect(screen.getByTestId('project-rail-all')).toHaveAttribute('aria-current', 'true')
     expect(await screen.findByTestId('task-card-seed-c')).toBeInTheDocument()
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
     fireEvent.click(screen.getByTestId('project-rail-item-repo'))
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('root')).toBe('/repo'))
     expect(screen.getByTestId('project-rail-item-repo')).toHaveAttribute('aria-current', 'true')
@@ -1184,7 +1186,7 @@ describe('App 首个快照未到', () => {
 describe('App 初始 snapshot 错误恢复', () => {
   it('English 500 error never exposes the Chinese snapshot transport fallback', async () => {
     localStorage.setItem('tenon-dashboard-lang', 'en')
-    window.history.replaceState({}, '', '/?view=progress')
+    window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url !== '/api/snapshot') throw new Error(`unexpected fetch ${url}`)
       return {
@@ -1203,7 +1205,7 @@ describe('App 初始 snapshot 错误恢复', () => {
 
   it('English malformed successful snapshot is classified as an invalid response, not a network outage', async () => {
     localStorage.setItem('tenon-dashboard-lang', 'en')
-    window.history.replaceState({}, '', '/?view=progress')
+    window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url !== '/api/snapshot') throw new Error(`unexpected fetch ${url}`)
       return {
@@ -1219,7 +1221,7 @@ describe('App 初始 snapshot 错误恢复', () => {
   })
 
   it('首次 500 显示明确错误与重试入口，重试成功后恢复项目总览', async () => {
-    window.history.replaceState({}, '', '/?view=progress')
+    window.history.replaceState({}, '', '/?view=workspace')
     let snapshotAttempts = 0
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url !== '/api/snapshot') throw new Error(`unexpected fetch ${url}`)
@@ -1255,7 +1257,7 @@ describe('App 初始 snapshot 错误恢复', () => {
 
 describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', () => {
   it('有已注册项目但 URL 无 root：保持未选择、停留在进度并显示项目引导，不调用 per-root API', async () => {
-    window.history.replaceState({}, '', '/?debug=1&view=progress')
+    window.history.replaceState({}, '', '/?debug=1&view=workspace')
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/snapshot') {
         return { ok: true, json: async () => makeSnapshot([makeProject('/repo-a', [makeChange('a1', 'build')])]) }
@@ -1280,7 +1282,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
   })
 
   it('失效 root 深链：清除 root/change 并保持无选择，聚合展示而不重定向首个项目', async () => {
-    window.history.replaceState({}, '', '/?debug=1&view=progress&root=%2Fmissing&change=ghost')
+    window.history.replaceState({}, '', '/?debug=1&view=workspace&root=%2Fmissing&change=ghost')
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/snapshot') {
         return { ok: true, json: async () => makeSnapshot([makeProject('/repo-a', [makeChange('a1', 'build')])]) }
@@ -1305,7 +1307,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
   })
 
   it('已登记但不可达的 root 深链也必须清除，不能挂载 per-root 视图', async () => {
-    window.history.replaceState({}, '', '/?view=progress&root=%2Foffline&change=stale')
+    window.history.replaceState({}, '', '/?view=workspace&root=%2Foffline&change=stale')
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/snapshot') {
         return {
@@ -1337,7 +1339,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
   })
 
   it('无项目选择时从跨项目 snapshot 读取自定义 workflow gate，不发 per-root 请求也不误报', async () => {
-    window.history.replaceState({}, '', '/?view=progress')
+    window.history.replaceState({}, '', '/?view=workspace')
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/snapshot') {
         return {
@@ -1388,7 +1390,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     render(<App />)
     await screen.findByTestId('workspace-view')
 
-    window.history.replaceState({}, '', '/?debug=1&view=progress')
+    window.history.replaceState({}, '', '/?debug=1&view=workspace')
     act(() => window.dispatchEvent(new PopStateEvent('popstate')))
 
     await waitFor(() => expect(screen.getByTestId('project-rail-all')).toHaveAttribute('aria-current', 'true'))
@@ -1398,7 +1400,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
   })
 
   it('语言切换同步更新文档 lang 元数据', async () => {
-    window.history.replaceState({}, '', '/?view=progress')
+    window.history.replaceState({}, '', '/?view=workspace')
     render(<App />)
     await screen.findByTestId('workspace-view')
 
@@ -1409,7 +1411,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
   })
 
   it('带 view/root/change 首次进入：直接打开对应项目的 Change 抽屉', async () => {
-    window.history.replaceState({}, '', '/?view=progress&root=%2Frepo&change=seed-c')
+    window.history.replaceState({}, '', '/?view=workspace&root=%2Frepo&change=seed-c')
     render(<App />)
     expect(await screen.findByTestId('task-detail-title')).toHaveTextContent('seed-c')
     expect(screen.getByTestId('task-card-seed-c')).toHaveAttribute('aria-current', 'true')
@@ -1417,7 +1419,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
   })
 
   it('macOS /tmp 深链能命中 snapshot 的 /private/tmp canonical root，不回落到首个旧项目', async () => {
-    window.history.replaceState({}, '', '/?view=progress&root=%2Ftmp%2Fpipeline-ui-project.V60AOf&change=ui-real-browser')
+    window.history.replaceState({}, '', '/?view=workspace&root=%2Ftmp%2Fpipeline-ui-project.V60AOf&change=ui-real-browser')
     ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
       if (url === '/api/snapshot') {
         return {
@@ -1440,7 +1442,7 @@ describe('App URL 深链路（可复制的视图 / 项目 / Change 现场）', (
     await screen.findByTestId('workspace-view')
     fireEvent.click(screen.getByTestId('project-rail-all'))
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('root')).toBeNull())
-    expect(new URLSearchParams(window.location.search).get('view')).toBe('progress')
+    expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace')
     expect(screen.getByTestId('project-rail-all')).toHaveAttribute('aria-current', 'true')
   })
 })
@@ -1449,10 +1451,10 @@ describe('App 视图切换（v9-flowdeck 两视图接线）', () => {
   it('点工作台 → 渲染 WorkbenchView（直达，无下拉）；点进度切回 ProgressView', async () => {
     render(<App />)
     await screen.findByTestId('workspace-view')
-    fireEvent.click(screen.getByTestId('nav-workbench'))
+    fireEvent.click(screen.getByTestId('nav-workflow'))
     expect(await screen.findByTestId('workbench-view')).toBeInTheDocument()
     expect(screen.queryByTestId('workbench-menu')).toBeNull()
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     expect(screen.getByTestId('workspace-view')).toBeInTheDocument()
   })
 
@@ -1472,7 +1474,7 @@ describe('App 视图切换（v9-flowdeck 两视图接线）', () => {
 
 })
 
-describe('App 视图记忆（localStorage 旧值兜底回 progress，收件箱退役）', () => {
+describe('App 视图记忆（localStorage 旧值兜底回 workspace，收件箱退役）', () => {
   it('记忆值是退役视图（board）→ 落地进度而非崩溃/空渲染', async () => {
     localStorage.setItem('tenon-dashboard-view', 'board')
     render(<App />)
@@ -1486,21 +1488,34 @@ describe('App 视图记忆（localStorage 旧值兜底回 progress，收件箱�
     expect(screen.queryByTestId('inbox-view')).toBeNull()
   })
 
-  it('记忆值是合法视图（workbench）→ 直接落地工作台', async () => {
+  it('记忆值是改名前的旧 id（workbench）→ 映射到 workflow，落地工作流页', async () => {
     localStorage.setItem('tenon-dashboard-view', 'workbench')
     render(<App />)
     expect(await screen.findByTestId('workbench-view')).toBeInTheDocument()
   })
 
-  it('切视图写回记忆：点工作台后 localStorage 存 workbench', async () => {
+  it('旧深链 ?view=workbench / ?view=progress 打开对应页面，并把地址栏改写成新值', async () => {
+    window.history.replaceState(null, '', '/?view=workbench&debug=1')
+    const { unmount } = render(<App />)
+    expect(await screen.findByTestId('workbench-view')).toBeInTheDocument()
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
+    expect(new URLSearchParams(window.location.search).get('debug')).toBe('1')
+    unmount()
+    window.history.replaceState(null, '', '/?view=progress')
+    render(<App />)
+    expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workspace'))
+  })
+
+  it('切视图写回记忆：点工作流后 localStorage 存 workflow', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     render(<App />)
     await screen.findByTestId('workspace-view')
     await act(async () => {
-      screen.getByTestId('nav-workbench').click()
+      screen.getByTestId('nav-workflow').click()
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
-    expect(localStorage.getItem('tenon-dashboard-view')).toBe('workbench')
+    expect(localStorage.getItem('tenon-dashboard-view')).toBe('workflow')
     expect(consoleError).not.toHaveBeenCalledWith(
       expect.stringContaining('was not wrapped in act'),
       expect.anything(),
@@ -1625,7 +1640,7 @@ describe('App 深浅色自适应 + i18n', () => {
     expect(screen.getByTestId('lang-option-zh')).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(screen.getByTestId('lang-option-en'))
     expect(screen.getByTestId('lang-option-en')).toHaveAttribute('aria-checked', 'true')
-    expect(nav.textContent).toContain('Workbench')
+    expect(nav.textContent).toContain('Workspace')
     expect(nav.textContent).not.toContain('变更')
   })
 })
@@ -1719,7 +1734,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
     expect(screen.queryByTestId('task-list-empty-no-task')).toBeNull()
 
     // 工作流是全局的：只读兼容期项目不影响工作流页，且工作流页不发任何带项目 root 的请求。
-    fireEvent.click(screen.getByTestId('nav-workbench'))
+    fireEvent.click(screen.getByTestId('nav-workflow'))
     expect(await screen.findByTestId('workbench-view')).toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/workflows?root=%2Frepo'))).toBe(false)
   })
@@ -1798,7 +1813,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
 
     render(<App />)
     await screen.findByTestId('workspace-view')
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
 
     const eventSource = lastEventSource()
@@ -1852,7 +1867,7 @@ describe('App G18 教学空状态（T17 起纯教学态）', () => {
 
 describe('App currentRoot 语义（只消费显式选择）', () => {
   it('双项目快照：进度徽标只计显式选择项目的 gate 卡', async () => {
-    window.history.replaceState({}, '', '/?view=progress&root=%2Frepo-a')
+    window.history.replaceState({}, '', '/?view=workspace&root=%2Frepo-a')
     // T7 准入修订：证据齐的 gate 卡才计入徽标（判据在 inbox.test.tsx 钉，这里只验 currentRoot 过滤）。
     const evidenceOk = { verify_result: 'pass', agent_review_result: 'pass', codex_review_result: 'pass' }
     const next = makeSnapshot([
@@ -1880,7 +1895,7 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
   it("旧聚合偏好（root='')停在 progress → 聚合展示两个项目的任务，左列两张项目卡", async () => {
     localStorage.setItem('tenon-dashboard-root', '') // 旧聚合偏好（本次重构退役）
     localStorage.setItem('tenon-dashboard-view', 'progress')
-    window.history.replaceState({}, '', '/?view=progress')
+    window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
@@ -1937,7 +1952,7 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
   })
 
   it('未选择项目时不把首个项目写进 URL，停留在聚合工作台', async () => {
-    window.history.replaceState({}, '', '/?view=progress')
+    window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/api/snapshot') {
         return { ok: true, json: async () => makeSnapshot([
@@ -1954,7 +1969,7 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
   })
 
   it('聚合工作台选中任务也写 change；离开工作台时去掉 status / step', async () => {
-    window.history.replaceState({}, '', '/?view=progress&status=running')
+    window.history.replaceState({}, '', '/?view=workspace&status=running')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/api/snapshot') {
         return { ok: true, json: async () => makeSnapshot([
@@ -1971,8 +1986,8 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
     const params = new URLSearchParams(window.location.search)
     expect(params.get('root')).toBeNull()
     expect(params.get('status')).toBe('running')
-    fireEvent.click(screen.getByTestId('nav-workbench'))
-    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workbench'))
+    fireEvent.click(screen.getByTestId('nav-workflow'))
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get('view')).toBe('workflow'))
     expect(new URLSearchParams(window.location.search).get('status')).toBeNull()
     expect(new URLSearchParams(window.location.search).get('step')).toBeNull()
   })
@@ -1981,7 +1996,7 @@ describe('App 聚合语境（root=\'\' + 工作台 → 聚合全部可读项目�
 describe('待决策徽标与「需要你」芯片同一口径', () => {
   // 徽标曾按 selectInbox（门阶段 / automation 暂停）计数，芯片按 summary（可进入下一阶段）计数：同一屏上两个数不一样。
   it('徽标数字 = 「需要你」芯片数字', async () => {
-    window.history.replaceState({}, '', '/?view=progress')
+    window.history.replaceState({}, '', '/?view=workspace')
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/api/snapshot') {
         return { ok: true, json: async () => makeSnapshot([
@@ -2032,6 +2047,17 @@ describe('App 断线横幅 + 重连（评审 P2-13，Task 5）', () => {
     const banner = await screen.findByTestId('offline-banner')
     expect(banner).toHaveAttribute('role', 'status')
     expect(banner.textContent).toContain('连接断开')
+    // 只有一个按钮「重连」+ 可复制的重启命令（命令行尾的复制图标）；顶栏出现红点。
+    expect(within(banner).getAllByRole('button').map((button) => button.dataset.testid)).toEqual(['offline-restart-copy', 'offline-reconnect'])
+    expect(screen.getByTestId('offline-restart-text')).toHaveTextContent('tenon dashboard --background')
+    expect(screen.getByTestId('conn-indicator')).toHaveAttribute('data-on', 'false')
+  })
+
+  it('快照请求连不上服务端（网络错误）时同样标记断线', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async () => { throw new TypeError('Failed to fetch') })
+    render(<App />)
+    expect(await screen.findByTestId('offline-banner')).toBeInTheDocument()
+    expect(screen.getByTestId('conn-indicator')).toHaveAttribute('data-on', 'false')
   })
 
   // 回归：横幅挤在页头与三列之间却不被三列高度扣除，页面多出一截可滚动高度，横幅被卷到 sticky 页头下只剩一条粉边。
@@ -2209,7 +2235,7 @@ describe('App 视图声明是否需要快照（A1）', () => {
     expect(await screen.findByTestId('skills-view')).toBeInTheDocument()
     await waitFor(() => expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some((c: unknown[]) => c[0] === '/api/snapshot')).toBe(true))
     expect(screen.queryByTestId('snapshot-error')).toBeNull()
-    fireEvent.click(screen.getByTestId('nav-progress'))
+    fireEvent.click(screen.getByTestId('nav-workspace'))
     expect(await screen.findByTestId('snapshot-error')).toBeInTheDocument()
   })
 })
@@ -2230,12 +2256,12 @@ describe('App 待决策徽标（A6）', () => {
     })
     await waitFor(() => expect(screen.getByTestId('progress-badge')).toHaveAttribute('data-count', '1'))
     // 徽标与工作台标签是两个兄弟按钮，不嵌套交互元素。
-    expect(screen.getByTestId('nav-progress')).not.toContainElement(screen.getByTestId('progress-badge'))
+    expect(screen.getByTestId('nav-workspace')).not.toContainElement(screen.getByTestId('progress-badge'))
     fireEvent.click(screen.getByTestId('progress-badge'))
     expect(await screen.findByTestId('workspace-view')).toBeInTheDocument()
     const params = new URLSearchParams(window.location.search)
     expect(params.get('status')).toBe('needs-you')
-    expect(params.get('view')).toBe('progress')
+    expect(params.get('view')).toBe('workspace')
     fireEvent.click(screen.getByTestId('nav-skills'))
     await screen.findByTestId('skills-view')
     await waitFor(() => expect(new URLSearchParams(window.location.search).get('status')).toBeNull())

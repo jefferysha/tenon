@@ -1,6 +1,6 @@
 /**
- * 顶部条：无面包屑、导航紧跟项目切换器且带共享指示块、待决策徽标（0 不渲染、绝对定位不挤导航）、
- * 项目菜单与设置弹层是 Radix（键盘可操作）、设置弹层顶边对齐顶栏下沿、连接状态只留点（文字进 Tooltip）。
+ * 顶部条：无面包屑、导航带共享指示块、待决策徽标（0 不渲染、绝对定位不挤导航）、项目菜单只在工作台窄屏出现、
+ * 项目菜单与设置弹层是 Radix（键盘可操作）、设置弹层顶边对齐顶栏下沿、连接正常不显示点、断线只留红点（文字进 Tooltip）。
  */
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -32,7 +32,7 @@ interface Over {
 
 function renderBar(over: Over = {}) {
   const props = {
-    view: over.view ?? ('progress' as View),
+    view: over.view ?? ('workspace' as View),
     onView: () => undefined,
     projects: PROJECTS,
     currentRoot: over.currentRoot ?? '',
@@ -72,13 +72,35 @@ describe('TopBar', () => {
     expect(screen.getAllByText('工作台')).toHaveLength(1)
   })
 
-  it('导航左对齐、紧跟项目切换器（不居中）；连接状态之后的一组靠右', () => {
-    renderBar()
+  it('导航左对齐（不居中）；项目只在左栏选：顶栏的项目菜单只在工作台窄屏出现', () => {
+    const { rerender } = renderBar()
     const nav = screen.getByTestId('primary-nav')
     expect(classesOf(nav)).toContain('ml-4')
     expect(classesOf(nav)).not.toContain('mx-auto')
-    expect(screen.getByTestId('project-switcher').compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(classesOf(screen.getByTestId('conn-indicator').parentElement!)).toContain('ml-auto')
+    // 宽屏隐藏（左栏在），≤900px 左栏整列隐藏时才显示。
+    expect(classesOf(screen.getByTestId('project-switcher-wrap'))).toEqual(expect.arrayContaining(['hidden', 'max-[900px]:contents']))
+    rerender({ view: 'library' })
+    expect(screen.queryByTestId('project-switcher')).toBeNull()
+    rerender({ view: 'workflow' })
+    expect(screen.queryByTestId('project-switcher')).toBeNull()
+  })
+
+  it('连接正常时不显示状态点；断线才出现红点', () => {
+    const { rerender } = renderBar({ connected: true })
+    expect(screen.queryByTestId('conn-indicator')).toBeNull()
+    rerender({ connected: false })
+    expect(screen.getByTestId('conn-indicator')).toHaveAttribute('data-on', 'false')
+  })
+
+  it('语言名永远用各自的语言：英文界面里也是「中文 / English」', async () => {
+    localStorage.setItem('tenon-dashboard-lang', 'en')
+    renderBar({ lang: 'en' })
+    fireEvent.click(screen.getByTestId('nav-settings'))
+    await screen.findByTestId('nav-settings-panel')
+    const lang = screen.getByRole('radiogroup', { name: 'Language' })
+    expect(within(lang).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['中文', 'English'])
+    expect(screen.getByTestId('nav-workspace')).toHaveTextContent('Workspace')
+    localStorage.removeItem('tenon-dashboard-lang')
   })
 
   it('徽标：0 时不渲染；>0 时绝对定位在工作台标签右上角，不占导航宽度', () => {
@@ -90,7 +112,7 @@ describe('TopBar', () => {
     expect(badge).toHaveAccessibleName('待决策 3')
     expect(classesOf(badge)).toEqual(expect.arrayContaining(['absolute', '-top-1', '-right-1', 'rounded-full', 'bg-amber-t', 'text-amber-d', 'tabular-nums', 'min-w-5', 'h-5']))
     // 与工作台标签是兄弟按钮，不嵌套交互元素；共用一个相对定位的包裹。
-    const tab = screen.getByTestId('nav-progress')
+    const tab = screen.getByTestId('nav-workspace')
     expect(tab).not.toContainElement(badge)
     expect(badge.parentElement).toBe(tab.parentElement)
     expect(classesOf(tab.parentElement!)).toContain('relative')
@@ -115,8 +137,8 @@ describe('TopBar', () => {
   it('当前页：字色 + 字重，选中底色来自导航内的共享指示块；切页时指示块用 Flip 滑动', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }))
     const from = vi.spyOn(Flip, 'from')
-    const { rerender } = renderBar({ view: 'progress' })
-    const tab = screen.getByTestId('nav-progress')
+    const { rerender } = renderBar({ view: 'workspace' })
+    const tab = screen.getByTestId('nav-workspace')
     expect(tab).toHaveAttribute('aria-current', 'page')
     expect(classesOf(tab).some((name) => name.startsWith('aria-[current=page]:bg-'))).toBe(false)
     const indicator = screen.getByTestId('nav-indicator')
@@ -132,7 +154,7 @@ describe('TopBar', () => {
   it('当前页切换在 reduced-motion 下指示块直接到位，不动画', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), media: query, addEventListener: () => undefined, removeEventListener: () => undefined }))
     const from = vi.spyOn(Flip, 'from')
-    const { rerender } = renderBar({ view: 'progress' })
+    const { rerender } = renderBar({ view: 'workspace' })
     rerender({ view: 'library' })
     await act(async () => { await Promise.resolve() })
     expect(from).not.toHaveBeenCalled()
@@ -192,6 +214,7 @@ describe('TopBar', () => {
     fireEvent.click(within(theme).getByRole('radio', { name: '系统' }))
     expect(onTheme).toHaveBeenCalledWith('system')
     const lang = screen.getByRole('radiogroup', { name: '语言' })
+    expect(within(lang).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['中文', 'English'])
     expect(within(lang).getByRole('radio', { name: '中文' })).toHaveAttribute('aria-checked', 'true')
     fireEvent.keyDown(within(lang).getByRole('radio', { name: '中文' }), { key: 'ArrowRight' })
     expect(onLang).toHaveBeenCalledWith('en')
