@@ -1,12 +1,14 @@
-import { useState } from 'react'
-import { Check, Circle, Info, Pencil, Plus, ShieldCheck, Zap, type LucideIcon } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { useGSAP } from '@gsap/react'
+import { Check, Pencil, Plus } from 'lucide-react'
 import { DOCUMENT_KIND_CATALOG } from '@tenon/kernel/workflow/document-contract-model'
 import type { WbExecutorRef, WbIoSlot, WbReviewerRef, WbStepDef } from '../api/governanceTypes'
 import { useT } from '../i18n'
 import { documentInputCandidates, documentKindsForOutput } from '../workbench/documentContractEdits'
 import type { WorkflowEditor } from '../workbench/useWorkflowEditor'
 import { backTargetOf, BASE_BRANCH } from '../workbench/workbenchDefinition'
-import { Hint } from './Hint'
+import { revealList } from '../shared/motion'
+import { GateSegment } from './GateSegment'
 import { AgentComposer } from './AgentComposer'
 import { AgentSection } from './AgentSection'
 import { issuesFor } from './lint'
@@ -17,7 +19,9 @@ import { SkillComposer } from './SkillComposer'
 import { SkillDetailDrawer } from './SkillDetail'
 import { TestEditorDrawer } from './TestEditorDrawer'
 import { TestsSection } from './TestsSection'
+import { SaveBar } from './SaveBar'
 import { SkillFlow } from './SkillFlow'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 export interface StageEditorPaneProps {
@@ -25,11 +29,10 @@ export interface StageEditorPaneProps {
   step: WbStepDef
 }
 
-const GATES: Array<{ gate: WbStepDef['gate']; key: 'none' | 'review' | 'auto'; icon: LucideIcon }> = [
-  { gate: null, key: 'none', icon: Circle },
-  { gate: 'review', key: 'review', icon: ShieldCheck },
-  { gate: 'auto', key: 'auto', icon: Zap },
-]
+/** Radix Select 不收空字符串值：「不退回」用这个占位值。 */
+const BACK_NONE = '__none__'
+/** 右栏各段进场的错开间隔（s）。 */
+export const SECTION_STAGGER = 0.03
 
 // 模块级空列表：每次渲染都给 AgentComposer / AgentSection 同一个引用，而不是新的 `[]`。
 const NO_EXECUTORS: readonly WbExecutorRef[] = []
@@ -67,9 +70,11 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   const [outputPicker, setOutputPicker] = useState(false)
   const [testDetail, setTestDetail] = useState<string | null>(null)
   const [inputPicker, setInputPicker] = useState(false)
+  // 本组件按阶段 id 重挂载（WorkflowView 的 key）：每次切换阶段，各段依次轻微上浮淡入。
+  const paneRef = useRef<HTMLElement>(null)
+  useGSAP(() => { revealList('[data-stage-sections] > *', SECTION_STAGGER) }, { scope: paneRef })
   const stepIo = editor.effectiveIo?.[step.id]
   const registry = editor.mandatory.registry
-  const blocked = editor.lintBlocked
   const yamlBase = editor.branch === BASE_BRANCH ? `steps[${step.id}]` : `tracks.${editor.branch}.steps[${step.id}]`
   const contractBase = editor.branch === BASE_BRANCH ? 'document_contract' : `tracks.${editor.branch}.document_contract`
   const stageSkills = step.skills.map((skill) => skill.id)
@@ -177,7 +182,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
   ) : undefined
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-surface-detail" data-testid="stage-editor-pane">
+    <section ref={paneRef} className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-surface-detail" data-testid="stage-editor-pane">
       {/* relative：sr-only 等绝对定位后代要以本滚动容器为包含块，否则它们会越过裁切把整页撑出滚动条。 */}
       <div className="relative min-h-0 flex-1 overflow-y-auto px-10 pt-7 pb-8 max-[900px]:px-4 max-[900px]:pt-5">
         <div className="flex items-start gap-3" data-testid="stage-actions">
@@ -192,7 +197,7 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
           />
         </div>
 
-        <div className="mt-4 grid divide-y divide-border">
+        <div className="mt-4 grid divide-y divide-border" data-stage-sections="">
           <section className="grid gap-3.5 py-6" data-testid="stage-inputs">
             <SectionHead title={t('workflow.inputs_title')} count={inputRows.length} action={inputAction} />
             <IoTable
@@ -259,79 +264,34 @@ export function StageEditorPane({ editor, step }: StageEditorPaneProps): JSX.Ele
 
           <section className="grid gap-3.5 py-6" data-testid="stage-gate">
             <SectionHead title={t('workflow.gate_title')} />
-            <div className="grid max-w-[24rem] grid-cols-3 gap-2" role="radiogroup" aria-label={t('workflow.gate_title')} data-testid={`wb-lane-gate-${step.id}`}>
-              {GATES.map(({ gate, key, icon: Icon }) => {
-                const checked = step.gate === gate
-                // 说明挂在 Radix Tooltip 上：悬停与键盘聚焦都能看到；读屏经 aria-describedby 读 sr-only 文案。
-                return (
-                  <Hint key={key} label={t(`workflow.gate_help_${key}`)}>
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={checked}
-                      aria-describedby={`gate-help-${step.id}-${key}`}
-                      disabled={!editable}
-                      className={cn('flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-sm border px-3 text-body outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed', checked ? 'border-accent-b bg-accent-t font-semibold text-(--accent)' : 'border-border bg-card text-text hover:border-border-2')}
-                      data-testid={`wb-lane-gate-${step.id}-${key}`}
-                      onClick={() => editor.setGate(step.id, gate)}
-                    >
-                      <Icon className={cn('size-3.5', checked ? 'text-(--accent)' : 'text-text-3')} aria-hidden="true" />
-                      {t(`workflow.gate_${key}`)}
-                      <Info className="size-4 text-text-3" aria-hidden="true" />
-                      <span id={`gate-help-${step.id}-${key}`} className="sr-only">{t(`workflow.gate_help_${key}`)}</span>
-                    </button>
-                  </Hint>
-                )
-              })}
-            </div>
+            <GateSegment stepId={step.id} value={step.gate} disabled={!editable} onChange={(gate) => editor.setGate(step.id, gate)} />
           </section>
 
           {/* 第一个阶段没有退回目标、不出下拉；但导入的 YAML 可能让它带着往后跳的边，问题仍要在这里说出来。 */}
           {(backTargets.length > 0 || backIssues.length > 0) && (
             <section className="grid gap-3.5 py-6" data-testid="stage-back">
               <SectionHead title={t('workflow.back_title')} />
-              {backTargets.length > 0 && <select
-                className="max-w-[24rem] min-h-10 rounded-sm border border-border bg-card px-3 text-body text-text outline-none transition-colors hover:border-border-2 focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-not-allowed disabled:opacity-50"
-                value={backTarget ?? ''}
-                disabled={!editable}
-                aria-label={t('workflow.back_title')}
-                data-testid={`wb-lane-back-${step.id}`}
-                onChange={(event) => editor.setStageBack(step.id, event.target.value === '' ? null : event.target.value)}
-              >
-                <option value="">{t('workflow.back_none')}</option>
-                {backTargets.map((target) => (
-                  <option key={target.id} value={target.id}>{t('workflow.back_to', { stage: target.label })}</option>
-                ))}
-              </select>}
+              {backTargets.length > 0 && (
+                <Select value={backTarget ?? BACK_NONE} disabled={!editable} onValueChange={(value) => editor.setStageBack(step.id, value === BACK_NONE ? null : value)}>
+                  <SelectTrigger className="max-w-[24rem]" aria-label={t('workflow.back_title')} data-testid={`wb-lane-back-${step.id}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper" data-testid={`wb-lane-back-menu-${step.id}`}>
+                    <SelectItem value={BACK_NONE} data-testid={`wb-lane-back-option-${step.id}-none`}>{t('workflow.back_none')}</SelectItem>
+                    {backTargets.map((target) => (
+                      <SelectItem key={target.id} value={target.id} data-testid={`wb-lane-back-option-${step.id}-${target.id}`}>{t('workflow.back_to', { stage: target.label })}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {backIssues.length > 0 && (
                 <p className="text-body text-amber-d" role="status" data-testid="stage-back-lint">{backIssues[0]}</p>
               )}
             </section>
           )}
         </div>
+        <SaveBar editor={editor} className="-mx-10 -mb-8 mt-2 px-10 py-3 max-[900px]:-mx-4 max-[900px]:px-4" />
       </div>
-
-      <footer className="flex flex-none flex-wrap items-center justify-between gap-4 border-t border-border bg-surface-detail px-10 py-4 max-[900px]:px-4">
-        <p className="flex min-w-0 items-center gap-2 text-body text-text-2">
-          {!editable ? (
-            <span data-testid="wb-no-token">{t('workflow.no_token')}</span>
-          ) : editor.dirty ? (
-            <><span className="size-1.5 rounded-full bg-(--amber-d)" aria-hidden="true" /><span className="whitespace-nowrap" data-testid="wb-dirty" data-count={editor.changeCount} role="status" aria-live="polite">{blocked ? t('workflow.lint_blocked') : t('workflow.dirty_n', { n: editor.changeCount })}</span></>
-          ) : editor.saveStatus.kind === 'ok' ? (
-            <span data-testid="wb-save-ok" role="status" aria-live="polite" className="text-green-d">{t('workflow.saved')}</span>
-          ) : null}
-        </p>
-        <span className="flex items-center gap-2">
-          {editor.saveStatus.kind === 'error' && (
-            <span className="max-w-[40ch] truncate text-caption text-red-d" role="alert" data-testid="wb-save-error" title={editor.saveStatus.errors.join('\n')}>{editor.saveStatus.errors[0]}</span>
-          )}
-          {editor.saveStatus.kind === 'error' && editor.saveStatus.conflict === true && (
-            <button type="button" className="min-h-10 rounded-md border border-border bg-card px-3 text-base text-text-2 hover:bg-fill" data-testid="wb-save-conflict-reload" onClick={editor.reloadDefinition}>{t('workbench.save_conflict_reload')}</button>
-          )}
-          <button type="button" className="min-h-10 rounded-md px-3 text-base text-text-2 hover:bg-fill disabled:opacity-50" data-testid="wb-discard" disabled={!editor.dirty || editor.saving} onClick={editor.discardDraft}>{t('workflow.discard')}</button>
-          <button type="button" className="min-h-10 rounded-md bg-(--accent) px-4 text-base font-semibold text-btn-fg hover:bg-accent-d disabled:opacity-50" data-testid="wb-save" disabled={!editable || !editor.dirty || editor.saving || blocked} onClick={() => void editor.save()}>{t('workflow.save')}</button>
-        </span>
-      </footer>
 
       <SkillComposer
         open={composerOpen}
