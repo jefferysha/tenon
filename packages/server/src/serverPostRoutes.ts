@@ -80,6 +80,8 @@ import { resolveAdapterInstallPost } from './adapterInstallRoutes.js'
 import { handlePostUserRoutes } from './serverUserRoutes.js'
 import { handleTaskLifecyclePost, type TaskLifecycleRouteDeps } from './serverTaskLifecycleRoutes.js'
 import { resolveInstructionMutation } from './instructionRoutes.js'
+import { resolveFsPost } from './fsRoutes.js'
+import { PROJECT_CREATE_STREAM_PATH, handleProjectCreateStream } from './projectCreateStream.js'
 import { resolveAgentMutation } from './serverAgentRoutes.js'
 import { resolveResourceMutation } from './serverResourceRoutes.js'
 import type { AdapterInstallManager } from './adapterInstall.js'
@@ -134,6 +136,8 @@ export interface PostRouteDeps {
   errMsg: (error: unknown) => string
   realGraduationFs: GraduationFs
   relatedSessionSearch: RelatedSessionSearchExecutor
+  folderChooser: import('./folderChooser.js').FolderChooser
+  runGit?: import('./projectCreate.js').GitRunner
   /** Canonical v2 orchestration ledger; omitted by legacy embedders. */
   orchestrationV2?: OrchestrationV2RouteDeps
   adapterInstall?: AdapterInstallManager
@@ -197,6 +201,9 @@ export async function handlePostRoute(
       })
       if (handled) return
     }
+    if (path === PROJECT_CREATE_STREAM_PATH) return handleProjectCreateStream(req, res, deps)
+    const fsPost = resolveFsPost(req, path, deps)
+    if (fsPost) { const result = await fsPost; return sendJson(res, result.status, result.body) }
     const instructionPost = resolveInstructionMutation(req, 'POST', path, deps)
     if (instructionPost) { const result = await instructionPost; return sendJson(res, result.status, result.body) }
     const resourcePost = resolveResourceMutation(req, 'POST', path, deps)

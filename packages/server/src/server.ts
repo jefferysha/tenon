@@ -1,10 +1,7 @@
 /** Global loopback dashboard server assembly; bounded route handlers live in sibling modules. */
-import { join as joinPath } from 'node:path'
 import { existsSync, lstatSync, readFileSync, statSync } from 'node:fs'
-import { readdir } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import type { AddressInfo } from 'node:net'
-import { dirname, join, resolve as resolvePath } from 'node:path'
+import { dirname, join, join as joinPath, resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   builtinWorkflow,
@@ -76,6 +73,7 @@ import { createFreezeHandlers } from './serverFreezeHandlers.js'
 import { createServerTransport } from './serverTransport.js'
 import { createServerGovernance } from './serverGovernance.js'
 import { AdapterInstallManager } from './adapterInstall.js'
+import { createFolderChooser } from './folderChooser.js'
 import type { DashboardServer, DashboardServerOptions } from './types.js'
 import { createRelatedSessionMemoryServices } from './relatedSessionMemory.js'
 import { resolveSessionLink as resolveSessionLinkForChange } from './sessionLinkResolver.js'
@@ -98,6 +96,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
   const clock = options.clock ?? isoNow
   const paths = options.paths
   const hostHome = options.hostHome ?? paths.homeDir
+  const folderChooser = options.folderChooser ?? createFolderChooser({ platform: process.platform, env: process.env })
   const stateScopeId = machineStateScopeId(paths.stateRoot)
   const registry: () => string[] = options.registry ?? (() => readRegistry(paths.registryPath))
   const store: StateStore = options.store ?? createStateStore()
@@ -281,7 +280,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       version, releaseId, transactionId, stateScopeId, isLocalHost, boundPort: () => boundPort, snapshotDeps, snapshotCache,
       handleStream, isRegisteredRoot, clock, store, recordStore, loopLedger, registry, traceStore,
       workflowRootForRequest, workflowStoreForRequest, trackValidationContextFor, trackRegistryBody, manifestPath, paths,
-      hostHome, operationsAvailable, hostTargetPlanRuntime, options, operationRunner,
+      hostHome, operationsAvailable, hostTargetPlanRuntime, options, operationRunner, folderChooser,
       resolveSessionLink: (root, name) => resolveSessionLinkForChange(root, name, { store, memFs }), errMsg,
       orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },
       definitionCatalog: {
@@ -307,7 +306,7 @@ export function createDashboardServer(options: DashboardServerOptions): Dashboar
       skillsRoot: options.skillsRoot ?? join(repoRootForSkills(), 'skills'),
       mutateTrackForApi: mutateTrackForRoutes, trackRegistryBody, sendTrackError, errMsg,
       realGraduationFs: REAL_GRADUATION_FS,
-      relatedSessionSearch,
+      relatedSessionSearch, folderChooser, runGit: options.projectCreateGit,
       resolveUser,
       taskLifecycle,
       orchestrationV2: { ledger: orchestrationLedger, workflowRootForRequest, freezePipeline, freezeWorkflow, runChange: (changeDir) => createProductionExecutionRuntimeV2({ change_dir: changeDir, ledger: orchestrationLedger, worker_id: `server:${process.pid}` }).then(runtime => runtime.run()) },

@@ -6,20 +6,18 @@
  * - 已有目录：从不 `git init`、从不建骨架目录；指令文件按 dry run 拿到的摘要写入；已登记的项目不报错。
  */
 import { execFile } from 'node:child_process'
-import { lstatSync, mkdirSync, rmSync } from 'node:fs'
 import { isAbsolute, join, resolve as resolvePath } from 'node:path'
 import {
   PROJECT_INSTRUCTION_FILES, containsManagedMarker, mergeManagedBlocks, readProjectRegistry,
   type ProjectInstructionFile, type RecordActor,
 } from '@tenon/kernel'
 import { IDENTITY_REQUIRED, recordInstructionAudit } from './instructionAudit.js'
-import { INSTRUCTION_TEXT_MAX_BYTES, applyInstructions, previewInstructionApply, type InstructionResult } from './instructionFiles.js'
-import { trustedFsFailure, writeTrustedFile } from './instructionTrustedFs.js'
-import { registerProjectAnchored } from './projects.js'
+import { INSTRUCTION_TEXT_MAX_BYTES, previewInstructionApply, type InstructionResult } from './instructionFiles.js'
+import { trustedFsFailure } from './instructionTrustedFs.js'
+import { executeEmpty, executeExisting, type CreateStepReporter } from './projectCreateRun.js'
 import type { ServerPaths } from './types.js'
-import { withTrustedDirectoryChain } from './workflowTrustedFs.js'
 import {
-  captureWorkflowRootAnchor, closeWorkflowRootAnchor, lstatIfExists, sameIdentity, type WorkflowRootAnchor,
+  captureWorkflowRootAnchor, closeWorkflowRootAnchor, lstatIfExists, type WorkflowRootAnchor,
 } from './workflowRootAnchor.js'
 
 export type GitRunner = (args: readonly string[], cwd: string) => Promise<{ code: number; stderr: string }>
@@ -148,93 +146,40 @@ export async function planProjectCreate(plan: ProjectCreatePlan, deps: ProjectCr
   }
 }
 
-function removeCreated(root: string, anchor: WorkflowRootAnchor): void {
-  try {
-    const current = lstatSync(root)
-    if (current.isDirectory() && !current.isSymbolicLink() && sameIdentity(current, anchor)) rmSync(root, { recursive: true, force: true })
-  } catch {
-    // 目录已被换位或删除时不动它，宁可遗留也不删错。
-  }
-}
-
-async function executeEmpty(plan: Extract<ProjectCreatePlan, { mode: 'empty' }>, deps: ProjectCreateDeps): Promise<InstructionResult> {
-  try {
-    mkdirSync(plan.root)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return fail(409, 'project-path-exists', '目录已存在')
-    return trustedFsFailure(error)
-  }
-  const anchor = captureWorkflowRootAnchor(plan.root)
-  let step = 'git-init'
-  try {
-    if ((await deps.runGit(['init'], plan.root)).code !== 0) throw new Error('git init 失败')
-    step = 'directories'
-    for (const directory of plan.directories) {
-      const name = directory.slice(0, -1)
-      withTrustedDirectoryChain(anchor, [name], true, () => { throw new Error('目录创建失败') }, () => undefined)
-      const keep = writeTrustedFile(anchor, [name], '.gitkeep', '', 'absent', 1)
-      if (!keep.ok) throw new Error('.gitkeep 写入失败')
-    }
-    let files: unknown[] = []
-    if (plan.instructions) {
-      step = 'instructions'
-      const applied = applyInstructions({ level: 'project', anchor }, plan.instructions.text, plan.instructions.targets.map((id) => ({ id, base_digest: 'absent' })))
-      if (applied.status !== 200) throw new Error('指令文件写入失败')
-      files = (applied.body as { files: unknown[] }).files
-    }
-    step = 'register'
-    const registration = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root)
-    if (!registration.ok) throw new Error(registration.error)
-    return { status: 200, body: { ok: true, root: plan.root, git: 'init', registration: 'add', directories: plan.directories, files } }
-  } catch {
-    removeCreated(plan.root, anchor)
-    return fail(500, 'project-create-failed', '新建项目失败', { step })
-  } finally {
-    closeWorkflowRootAnchor(anchor)
-  }
-}
-
-async function executeExisting(plan: Extract<ProjectCreatePlan, { mode: 'existing' }>, deps: ProjectCreateDeps): Promise<InstructionResult> {
-  let files: unknown[] = []
-  if (plan.instructions) {
-    const instructions = plan.instructions
-    const anchor = captureWorkflowRootAnchor(plan.root)
-    try {
-      const applied = applyInstructions({ level: 'project', anchor }, instructions.text,
-        instructions.targets.map((id) => ({ id, base_digest: instructions.baseDigests[id] ?? 'absent' })))
-      if (applied.status !== 200) return applied
-      files = (applied.body as { files: unknown[] }).files
-    } finally {
-      closeWorkflowRootAnchor(anchor)
-    }
-  }
-  const git = lstatIfExists(join(plan.root, '.git')) ? 'existing' : 'none'
-  if (registered(deps, plan.root)) {
-    return { status: 200, body: { ok: true, root: plan.root, git, registration: 'already', directories: [], files } }
-  }
-  const registration = await registerProjectAnchored(deps.paths, deps.workflowRootAnchors, plan.root)
-  if (!registration.ok) return fail(registration.code, 'registration-failed', registration.error)
-  return { status: 200, body: { ok: true, root: plan.root, git, registration: 'add', directories: [], files } }
-}
-
-/** POST /api/projects/create：解码 → 校验 / dry run → 执行。执行记作者，dry run 不需要身份也不记。 */
-export async function handleProjectCreate(body: unknown, deps: ProjectCreateDeps): Promise<InstructionResult> {
+/** 解码 + 校验；执行（非 dry run）还要求本机有声明身份。返回计划 = 可以执行；返回结果 = 直接响应。 */
+export async function prepareProjectCreate(body: unknown, deps: ProjectCreateDeps): Promise<{ plan: ProjectCreatePlan } | InstructionResult> {
   const plan = decodeProjectCreate(body)
   if ('status' in plan) return plan
   try {
     const checked = await planProjectCreate(plan, deps)
     if (checked.status !== 200 || plan.dryRun) return checked
-    const actor = deps.actor
-    if (actor === null) return IDENTITY_REQUIRED
-    const created = plan.mode === 'empty' ? await executeEmpty(plan, deps) : await executeExisting(plan, deps)
+    if (deps.actor === null) return IDENTITY_REQUIRED
+    return { plan }
+  } catch (error) {
+    return trustedFsFailure(error)
+  }
+}
+
+/** 按步骤执行已校验的计划；成功后记一行审计。 */
+export async function runProjectCreate(
+  plan: ProjectCreatePlan, deps: ProjectCreateDeps, report: CreateStepReporter = () => undefined,
+): Promise<InstructionResult> {
+  try {
+    const created = plan.mode === 'empty' ? await executeEmpty(plan, deps, report) : await executeExisting(plan, deps, report)
     // 项目根是目录，没有文件摘要可比，前后都记 absent。
-    if (created.status === 200) {
+    if (created.status === 200 && deps.actor !== null) {
       recordInstructionAudit(deps.paths.configRoot, {
-        actor, action: 'project-create', target: plan.root, digest_before: 'absent', digest_after: 'absent',
+        actor: deps.actor, action: 'project-create', target: plan.root, digest_before: 'absent', digest_after: 'absent',
       })
     }
     return created
   } catch (error) {
     return trustedFsFailure(error)
   }
+}
+
+/** POST /api/projects/create：解码 → 校验 / dry run → 执行。执行记作者，dry run 不需要身份也不记。 */
+export async function handleProjectCreate(body: unknown, deps: ProjectCreateDeps): Promise<InstructionResult> {
+  const prepared = await prepareProjectCreate(body, deps)
+  return 'plan' in prepared ? runProjectCreate(prepared.plan, deps) : prepared
 }

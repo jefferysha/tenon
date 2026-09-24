@@ -53,6 +53,7 @@ import { resolveDocumentReadRoute } from './serverGetDocumentRoutes.js'
 import { handleTestGetRoutes } from './serverGetTestRoutes.js'
 import { resolveWorkflowYamlGet } from './serverWorkflowYamlRoutes.js'
 import { resolveInstructionGet } from './instructionRoutes.js'
+import { resolveFsGet } from './fsRoutes.js'
 import { resolveAgentGet } from './serverAgentRoutes.js'
 import { resolveResourceGet } from './serverResourceRoutes.js'
 import { resolveDefinitionCatalogRoute, type DefinitionCatalogRouteDeps } from './definitionCatalogRoutes.js'
@@ -106,6 +107,7 @@ export interface GetRouteDeps {
   paths: ServerPaths
   hostHome: string; operationsAvailable: boolean; hostTargetPlanRuntime: import('./serverGetHostTargetPlanRoutes.js').HostTargetPlanRuntime
   options: DashboardServerOptions; operationRunner: import('./operations.js').PipelineCliRunner
+  folderChooser: import('./folderChooser.js').FolderChooser
   resolveSessionLink: (root: string, name: string) => Promise<Record<string, unknown>>
   errMsg: (error: unknown) => string
   orchestrationV2?: OrchestrationV2RouteDeps
@@ -262,6 +264,7 @@ export async function handleGet(
         return sendJson(res, 500, { ok: false, error: errMsg(e) })
       }
     }
+    const fsGet = resolveFsGet(req, path, deps); if (fsGet) return sendJson(res, fsGet.status, fsGet.body)
     const instructionGet = resolveInstructionGet(req, path, deps); if (instructionGet) { const result = await instructionGet; return sendJson(res, result.status, result.body) }
     const resourceGet = resolveResourceGet(req, path, deps); if (resourceGet) { const result = await resourceGet; return sendJson(res, result.status, result.body) }
     const agentGet = resolveAgentGet(req, path, deps); if (agentGet) { const result = await agentGet; return sendJson(res, result.status, result.body) }
