@@ -109,8 +109,10 @@ repeat:
 - `direct_override` 是 full 预设下 `build_mode=direct` 的风险确认，没有推荐值：interactive 问人，continuous / afk 不选 `direct`（取 `build_mode` 的推荐值即可免去这一项）。
 - `pr_url`、`prd_path` 和各类文件路径只填真值，绝不编造。`pr_url` 是真实的 http(s) PR 地址；仓库没有 远端时 `next` 会推荐 `no-remote`（本地交付、没有 PR，CLI 会复核确实没有远端）。有远端却开不了 PR 就停下说明。
 - 暂停等用户（评审门、interactive 的「继续」）之前如实报告工作区：以 `git status --short` 为准。
-  交付提交之后，`set pr_url`、`transition` 仍会改 change 目录里的状态文件（`.pipeline.yaml`、
-  `.pipeline-history.jsonl` 等），它们由完结后的 `finish-change` 提交——不要说工作区是干净的。
+  交付步照 `next` 做完、走出口之前，工作区应当是干净的（`set pr_url` 写下的状态文件已由 `next` 点名的
+  提交入库）；不干净就照实列出。`transition` 自己还会改 change 目录里的状态文件（`.pipeline.yaml`、
+  `.pipeline-history.jsonl` 等），之后暂停时说「只剩流转写下的状态文件未提交，完结时由 `finish-change`
+  提交」——不要说工作区是干净的。
 - 不要为了「隔离」自己建分支或 worktree；宿主没给就用 `isolation=in-place`。提交只照 `next` 的
   `commit` / `finish-change` 做（交付步在交付值之前点名提交交付物，完结后点名提交归档），`next` 没点名
   就不提交；技能自带的提交步骤同样不做。

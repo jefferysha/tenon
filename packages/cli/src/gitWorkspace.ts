@@ -33,6 +33,14 @@ export interface GitFinishProbe {
    * 提交一起入库，之后的改动由完结的 finish-change 负责。
    */
   readonly deliverablesDirty: boolean
+  /**
+   * 同 workspaceDirty，只去掉 hook 追加的 change 历史（`.pipeline-history.jsonl`）：交付步收尾时还有
+   * 没入库的东西（包括 `set pr_url` 写下的状态文件）。hook 只在技能调用与用户回复时追加历史，拿它
+   * 判定会让每次回复都多一次提交；它随下一次提交入库。
+   */
+  readonly stepDirty: boolean
+  /** 这个 change 的首次交付提交（`feat(<c>): deliver`）已在当前分支的历史里。 */
+  readonly delivered: boolean
   /** 存在且未被忽略、可以一起 `git add` 的状态目录 `.gitignore`。 */
   readonly housekeeping: readonly string[]
   /** 已跟踪、但按当前忽略规则应被忽略的终端心跳文件。 */
@@ -64,6 +72,14 @@ export const WORKSPACE_COMMIT_PATHS: readonly string[] = [
 
 const TERMINAL_ACTIVITY_PREFIX = '.pipeline-terminal-activity.'
 
+/** hook 往 change 目录追加的历史（技能调用、用户回复）。 */
+const CHANGE_HISTORY_FILE = '.pipeline-history.jsonl'
+
+/** 交付步的首次提交标题；之后的补交另有标题（statusStepFinish.deliveryCommit）。 */
+export function firstDeliveryMessage(change: string): string {
+  return `feat(${change}): deliver`
+}
+
 interface GitOutcome {
   readonly code: number | null
   readonly stdout: string
@@ -93,13 +109,16 @@ export async function probeGitFinish(cwd: string, change: string): Promise<GitFi
   // 「nothing to commit」失败。
   const statusOf = (paths: readonly string[]): Promise<GitOutcome> =>
     git(cwd, ['status', '--porcelain', '-z', '--untracked-files=normal', '--', ...paths])
-  const [tracked, status, deliverables, ignoredTracked] = await Promise.all([
+  const [tracked, status, deliverables, step, ignoredTracked, subjects] = await Promise.all([
     git(cwd, ['ls-files', '-z', '--', `openspec/changes/${change}`]),
     statusOf(WORKSPACE_COMMIT_PATHS),
     statusOf([...WORKSPACE_COMMIT_PATHS, `:(exclude)openspec/changes/${change}`]),
+    statusOf([...WORKSPACE_COMMIT_PATHS, `:(exclude)openspec/changes/${change}/${CHANGE_HISTORY_FILE}`]),
     git(cwd, ['ls-files', '-z', '-c', '-i', '--exclude-standard', '--', 'openspec/changes']),
+    // 还没有任何提交时 git log 以 128 退出：按「还没交付过」处理。
+    git(cwd, ['log', '--format=%s', '--fixed-strings', `--grep=${firstDeliveryMessage(change)}`]),
   ])
-  if (tracked.code !== 0 || status.code !== 0 || deliverables.code !== 0) return null
+  if (tracked.code !== 0 || status.code !== 0 || deliverables.code !== 0 || step.code !== 0) return null
   const housekeeping: string[] = []
   for (const path of FINISH_HOUSEKEEPING_PATHS) {
     if (!existsSync(join(cwd, path))) continue
@@ -113,6 +132,8 @@ export async function probeGitFinish(cwd: string, change: string): Promise<GitFi
     changeDirTracked: tracked.stdout !== '',
     workspaceDirty: status.stdout !== '',
     deliverablesDirty: deliverables.stdout !== '',
+    stepDirty: step.stdout !== '',
+    delivered: subjects.code === 0 && subjects.stdout.split('\n').includes(firstDeliveryMessage(change)),
     housekeeping,
     untrack,
   }

@@ -63,8 +63,10 @@ export interface StepNextInput {
   readonly finish: StepFinishFacts
   /** 本步与下一步（计划步：之后所有步）声明的必需测试里，命令要的 npm 脚本在项目里不存在的那些。 */
   readonly testConfigGaps: readonly StepTestConfigGap[]
-  /** 交付步还没提交的交付物（statusStepFinish.deliveryCommit）；不是交付步或已提交 = null。 */
+  /** 交付步 change 目录之外还没提交的交付物（statusStepFinish.deliveryCommit）；不是交付步或已提交 = null。 */
   readonly delivery: StepCommit | null
+  /** 交付步整个工作区（除 hook 追加的历史）还没提交的改动，含状态文件；收尾提交用它。 */
+  readonly settle: StepCommit | null
 }
 
 /**
@@ -182,15 +184,18 @@ export function stepNextActions(input: StepNextInput): readonly StepAction[] {
     input.artifactProducers,
   )
   if (registers.length > 0) return registers
-  // 交付步：交付物（代码、文档、已应用的主规格、测试记录…）在交付值之前提交——开 PR 要先有提交，
-  // `pr_url` 记录的就是那次交付。之后本步再有改动（例如交付步自己的测试记录）会再发一次，出口前
-  // 工作区总是干净的。
-  if (input.delivery !== null) return [{ action: 'commit', change: input.change, commit: input.delivery }]
-  const freeform = writeFieldActions(
-    missing.filter((field) => field.allowed === null && field.writer === 'set'),
-    input.artifactProducers,
-  )
-  if (freeform.length > 0) return freeform
+  // 交付值里不需要先有提交就知道真值的（有 `recommended`：没有远端时 pr_url = no-remote）排在提交
+  // 之前：`tenon set` 写下的状态文件随这次提交入库，ship 暂停时工作区是干净的（真机第五轮：pr_url
+  // 在提交之后写，状态文件一直留到 archive 的提交）。
+  const freeform = missing.filter((field) => field.allowed === null && field.writer === 'set')
+  const known = writeFieldActions(freeform.filter((field) => field.recommended !== null), input.artifactProducers)
+  if (input.settle !== null && known.length > 0) return known
+  // 交付步：交付物（代码、文档、已应用的主规格、测试记录…）在其余交付值之前提交——开 PR 要先有提交，
+  // `pr_url` 记录的就是那次交付。之后本步再有改动（交付值写下的状态文件、交付步自己的测试记录）会再
+  // 发一次（`settle` 看整个工作区，只去掉 hook 追加的历史），出口前工作区总是干净的。
+  if (input.settle !== null) return [{ action: 'commit', change: input.change, commit: input.settle }]
+  const rest = writeFieldActions(freeform, input.artifactProducers)
+  if (rest.length > 0) return rest
   if (input.ownsDeltaSpec && input.specRehearsalPending) return [{ action: 'validate-spec' }]
 
   const tests = input.tests.filter((test) => test.required && test.status !== 'passed')

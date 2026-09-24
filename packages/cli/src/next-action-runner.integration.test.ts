@@ -296,6 +296,9 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
       return false
     case 'transition':
     case 'complete':
+      // 真机（第五轮）：ship 暂停时 `set pr_url` 写下的状态文件还没入库。交付步最后一个动作之后、
+      // 走出口之前，工作区必须是干净的（被忽略的本机文件不算）。
+      if (step.id === 'ship') expect(git(['status', '--porcelain']).output, 'ship 出口前工作区必须干净').toBe('')
       await run(['transition', CHANGE, String(action.event)])
       return false
     case 'choose-exit':
@@ -304,14 +307,20 @@ async function perform(step: StepBlock, action: StepAction): Promise<boolean> {
     // 交付步点名的提交：照原样执行（运行器从不自己决定提交什么）。门禁标记不能被带进去。
     case 'commit': {
       const commit = action.commit as FinishCommit
-      expect(commit).toEqual({ paths: WORKSPACE_PATHS, untrack: [], message: `feat(${CHANGE}): deliver` })
+      // 真机（第五轮）：两次交付提交标题相同。首次是交付，之后的是补交（应用进主规格、交付值…）。
+      const deliveredBefore = git(['log', '--format=%s']).output.split('\n').includes(`feat(${CHANGE}): deliver`)
+      expect(commit).toEqual({
+        paths: WORKSPACE_PATHS,
+        untrack: [],
+        message: deliveredBefore ? `chore(${CHANGE}): update deliverables` : `feat(${CHANGE}): deliver`,
+      })
       // 宿主的门禁标记此刻就在仓库根上（hook 写的）：照做的提交不能把它带进去。
       await put('.pipeline-pending-interaction', 'brainstorming\n')
       commitAsInstructed(commit)
       expect(git(['ls-files', '--', '.pipeline-pending-interaction']).output).toBe('')
       await rm(join(h.cwd, '.pipeline-pending-interaction'), { force: true })
-      // 提交之后交付物干净（change 目录之后的改动由完结的 finish-change 负责）。
-      expect(git(['status', '--porcelain', '--', '.', `:(exclude)openspec/changes/${CHANGE}`]).output).toBe('')
+      // 提交之后整个工作区干净（change 目录随这次提交入库）。
+      expect(git(['status', '--porcelain']).output).toBe('')
       return false
     }
     // 治理归档是 OpenSpec 自己的命令（动作自带整条命令），到这里状态机已经完结。运行器照原样跑它，
@@ -494,8 +503,17 @@ describe('照着 next 做事的运行器：open → 完结', { timeout: 120_000 
     expect(deliver).toBeLessThan(shipFix)
     const lastDeliver = actions.map(({ action }) => action.action).lastIndexOf('commit')
     expect(lastDeliver).toBeGreaterThan(actions.findIndex(({ action }) => action.action === 'apply-spec'))
+    // 真机（第五轮）：pr_url 的真值不需要先有提交（no-remote）时，它排在最后一次交付提交之前——
+    // 写下的状态文件随这次提交入库，ship 暂停时工作区是干净的。
+    expect(actions.findIndex(({ action }) => action.action === 'set-field' && action.field === 'pr_url'))
+      .toBeLessThan(lastDeliver)
+    // 两次交付提交标题可以区分：首次交付，之后是补交。
+    expect(actions.filter(({ action }) => action.action === 'commit')
+      .map(({ action }) => (action.commit as FinishCommit).message))
+      .toEqual([`feat(${CHANGE}): deliver`, `chore(${CHANGE}): update deliverables`])
     // 交付提交带上了代码之外的交付物：已应用的主规格、测试记录与状态目录的 .gitignore。
-    const delivered = git(['log', '--name-only', '--format=', `--grep=^feat(${CHANGE}): deliver$`]).output
+    const delivered = git(['log', '--name-only', '--format=', `--grep=^feat(${CHANGE}): deliver$`,
+      `--grep=^chore(${CHANGE}): update deliverables$`]).output
     expect(delivered).toContain('openspec/specs/capability/spec.md')
     expect(delivered).toMatch(/^\.tenon\/users\/[^/]+\/tests\/.+\.json$/mu)
     expect(delivered).toContain('.tenon/.gitignore')

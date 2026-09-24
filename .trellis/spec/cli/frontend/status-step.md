@@ -30,7 +30,7 @@
 buildStatusStep(deps, name, state, plan): Promise<StepBlock>
 finishedStatusStep(deps, name, state, plan | null): Promise<StepBlock>        // 目录已搬进 archive/
 // packages/cli/src/commands/statusStepFinish.ts
-deliveryCommit(change, git): StepCommit | null · finishActions(change, governed, finish) · finishedStop(change)
+deliveryCommit(change, git, scope = 'deliverables' | 'step'): StepCommit | null · finishActions(change, governed, finish) · finishedStop(change)
 // packages/cli/src/gitWorkspace.ts
 probeGitFinish(cwd, change) · WORKSPACE_COMMIT_PATHS · LOCAL_ROOT_FILES
 stepNextActions(input: StepNextInput): readonly StepAction[]   // 纯函数，顺序的唯一真相源
@@ -64,7 +64,8 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   → 执行者 → 本步技能 → 技能欠的文档 → 未勾任务（`fix`，blocker `source: tasks`，带 `items` 未勾项
   原文；tasks.md 自己还没产出（`missing`）时让位给文档写入，勾过一项后的 `stale` 不让位；交付步交付物未提交时
   这一档先发 `commit`，提交之后才勾——勾选不先于事实）→ 应用规格 → 产出与登记文档 → artifact
-  登记 → 交付物提交（交付步，`commit`）→ 自由文本交付值（`pr_url` / `prd_path`）→ 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
+  登记 → 有推荐值的交付值（`pr_url=no-remote`）→ 交付物提交（交付步，`commit`）→ 其余自由文本交付值
+  （`pr_url` / `prd_path`）→ 彩排规格 → 必需测试 → 评审者 → 结果字段 → 出口。
 - `test-unconfigured` 的 message = `unconfiguredMessage` + 范围说明：计划步说「只需在 package.json 补上
   脚本；这类测试若还没有，把写这类测试列进本步的计划与 tasks」，并要求把新增的测试脚本 / 测试同步写进本步可改的
   proposal（What Changes / Impact）与 design、删掉相矛盾的表述（真机第四轮：design 仍写「不改 package.json」，
@@ -80,10 +81,14 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
   时非空）时发 `{action: commit, change, commit: {paths, untrack, message}}`：`paths` =
   `WORKSPACE_COMMIT_PATHS`（`.` 加每个仓库根本机文件的 `:(exclude)<name>`：三个 `.pipeline-pending-*`
   门禁标记、旧版 `.pipeline-active` / `.pipeline-interaction-authority`），`untrack` 同 finish-change，
-  `message: feat(<c>): deliver`。执行与 finish-change 的提交三条命令相同。判「脏」不看 change 目录（每次
-  hook 都在追加历史，看它会让这条动作永远发不完）；change 目录随这次提交入库，之后的改动由
-  finish-change（原目录已跟踪 → 列出）提交。不是 git 仓时不发。交付步提交后本步再产生的改动（例如本步
-  测试记录）会再发一次 `commit`，出口前交付物总是已提交。
+  `message`：首次 `feat(<c>): deliver`，当前分支历史里已有这条之后的补交是 `chore(<c>): update deliverables`
+  （真机第五轮：两次同名）。执行与 finish-change 的提交三条命令相同。两档判「脏」：勾任务之前那次
+  （`delivery`）不看 change 目录（勾选只改 tasks.md，不该再触发提交）；收尾那次（`settle`，
+  `stepDirty`）看整个工作区、只去掉 hook 追加的 `openspec/changes/<c>/.pipeline-history.jsonl`（hook 只在
+  技能调用与用户回复时追加，拿它判会让每次回复都多一次提交；它随下一次提交入库）。有 `recommended` 的
+  交付值（无远端时 `pr_url=no-remote`）排在收尾提交之前，写下的状态文件随它入库；没有推荐值的（真实 PR
+  URL 要先有提交）排在提交之后，写完之后状态文件的改动再触发一次提交。交付步出口（`transition` 之前）
+  `git status --porcelain` 为空；`transition` 自己写的状态文件由完结的 finish-change 提交。不是 git 仓时不发。
 - 进行中（`running`）的 agent 先于同一档的一切新动作：`run-agent` 带 `status: running`、`run_id`、
   `report_path`，宿主写报告后 `agent record` 那次运行，不重开。
 - agent 的 `wave` 是依赖分层（kernel `agentWaves`，无 `depends_on` 的同为 0），与 `tenon agent next`
@@ -155,9 +160,11 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 | 必需评审者打回 | 不发结果字段；回退边（评审门上走 request → await → transition）或 `fix` |
 | ship 有未勾任务 | 先 `fix`（`source: tasks`，`items` 为截至本步仍未勾的任务原文），再 `apply-spec` / applied-spec 登记 / `set-field pr_url` |
 | build 缺 build_mode / isolation | 读完输入文档后第一批就是 `set-field`，先于 test-unconfigured 的 `fix`、执行者与 `load-skill` |
-| 交付步，交付物有未提交改动 | `commit`（`paths: WORKSPACE_COMMIT_PATHS`），先于 `set-field pr_url` / `prd_path` |
+| 交付步，交付物有未提交改动 | `commit`（`paths: WORKSPACE_COMMIT_PATHS`），先于没有推荐值的 `set-field pr_url` / `prd_path` |
 | 交付步，有未勾任务且交付物有未提交改动 | 先 `commit`，再勾选任务的 `fix`（真机第四轮：先勾「提交代码」后提交） |
-| 交付步，只有 change 目录或门禁标记有改动 | 不发 `commit` |
+| 交付步，只有 hook 追加的历史或门禁标记有改动 | 不发 `commit` |
+| 交付步，交付值已写、只剩 change 目录里的状态文件 | `commit`（`settle`，标题 `chore(<c>): update deliverables`） |
+| 交付步，交付值有推荐值（`no-remote`） | 先 `set-field`，再收尾 `commit` |
 | 已完结 | `finished_changes` 而非 `active_changes`；`check` 说无需检查；`step` 恒在、`archived=true`，`next` 是 `finish-change` 或 `stop finished` |
 | 原目录从未被 git 跟踪 | `finish-change.commit.paths` 只有 `openspec/changes/archive` |
 | simple 以 verify-pass 完结、工作区有改动 | `finish-change`，`command: null`，`commit.paths: WORKSPACE_COMMIT_PATHS` |
@@ -170,6 +177,6 @@ specApplyReceiptFresh(repoRoot, changeDir): Promise<{ fresh: boolean; mode: stri
 - `packages/cli/src/spec-apply.integration.test.ts`：`spec apply` 的真实彩排与退出码。
 - `packages/cli/src/next-action-runner.integration.test.ts`：验收锚——只照 `next` 做事的运行器把一个
   `default` 任务从 `open` 做到 `list --finished`，中途改掉一份已登记的文档、并被评审者打回一次。
-  `next` 发出去却执行不了的动作会让它当场红；收尾之后 `git status --porcelain` 必须为空（交付提交不带
-  门禁标记），完结后的 `step` 键序与活跃时相同、`next` 为 `stop finished`；缺 `test:integration` 时 fix
+  `next` 发出去却执行不了的动作会让它当场红；ship 走出口之前与收尾之后 `git status --porcelain` 都必须为空
+  （交付提交不带门禁标记，两次交付提交标题不同），完结后的 `step` 键序与活跃时相同、`next` 为 `stop finished`；缺 `test:integration` 时 fix
   出现在 spec 且全程没有 `requirements-changed`。
